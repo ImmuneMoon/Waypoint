@@ -3315,6 +3315,14 @@
   .sys-list-names { margin-top: 4px; }
   /* Stage 6 F5b: a row's roll buttons; the Lists card's Rolls */
   .sheet-item-roll { padding: 0 8px; height: 24px; font-size: 11px; flex: 0 0 auto; }
+  /* 1.6.0 R6 and R7: the switch as a button with two words (filled while on, by .tool.on), the icons before a row's buttons, and a roll's figure in a box at its end */
+  .sheet-item-onb { padding: 0 8px; height: 24px; font-size: 11px; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; }
+  .sheet-item-onb.sheet-item-onno { opacity: .55; }
+  .sheet-item-onico, .sheet-item-rollico { width: 12px; height: 12px; flex: none; display: inline-block; vertical-align: -2px; margin-right: 4px; font-size: 12px; line-height: 12px; }
+  .sheet-item-onb .sheet-item-onico { margin-right: 0; }
+  .sheet-item-onw { display: inline-flex; align-items: center; gap: 4px; }
+  .sheet-item-onw:not(.is-on) { opacity: .6; }
+  .sheet-item-rollfig { margin-left: 6px; padding: 0 5px; border-radius: 4px; background: color-mix(in srgb, #000 35%, transparent); font-weight: 700; }
   /* Stage 6 HUD C8: a part whose show-if is false, as the Layout preview draws it; the placement's if button and box */
   .sheet-showif-off { opacity: 0.4; outline: 1px dashed var(--edge); outline-offset: 2px; }
   .sys-pl .sys-pl-if.on { color: var(--gold); } .sys-pl input.sys-pl-showif { flex: 1 1 140px; min-width: 100px; font-family: ui-monospace, Consolas, monospace; }

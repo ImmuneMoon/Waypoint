@@ -2658,6 +2658,7 @@ function lvlText(L, lv) { var i = lv - (L.min || 0); return Array.isArray(L.labe
 function onCtl(entry, c, f, spec, editable, labelled, okOn, show) {   // okOn (1.5.8): false where the switch's needs do not hold for this row (resolveAll's onOk); show (1.6.0): false where it is not shown (onShow)
     var S = spec.on; if (!S || typeof S !== 'object' || show === false) return null;
     var on = rowOn(spec, entry);
+    if (typeof swButton === 'function' && typeof S.offLabel === 'string' && S.offLabel) return swButton(entry, c, f, S, on, editable, okOn);   // 1.6.0 R6: a button with two words
     if (!editable) return on ? el('span', 'sheet-chip sheet-item-onc', labelled ? S.label : '\u2713') : null;
     var cb = el('input', 'sheet-item-on'); cb.type = 'checkbox'; cb.checked = on; cb.title = S.label; cb.dataset.fid = f.id; cb.dataset.part = 'on-' + rowIdOf(entry);
     if (!on && okOn === false) { var swW = typeof rollNeedsSays === 'function' ? rollNeedsSays(S) : 'Not now'; cb.classList.add('sheet-item-onno'); if (typeof isClient === 'function' && isClient()) { cb.disabled = true; cb.title = swW; } else cb.title = swW + ' You may still switch it on.'; }   // 1.5.8: a player's switch greyed out with the words; the GM's says them
@@ -2836,6 +2837,27 @@ function statShown(st, v) { var t = statText(st, v); if (!st || typeof st.unit !
 function colShown(cc, v, total) { if (!v) return ''; if (!cc || !cc.unit || v.error) return v.text; return typeof v.value === 'number' && v.text === statFmt(v.value) && typeof unitFig === 'function' ? unitFig(cc, v.value, v.text, total === true) : v.text + ' ' + cc.unit; }
 // The unit a rich table's head names for a stat or a column: its metric word where the figures under it read in metric
 function headUnit(x) { return typeof unitHeadNow === 'function' ? unitHeadNow(x.unit, x.unitShow) : x.unit; }
+// [systemcheck:rowswitch-start] 1.6.0 R6 and R7 (backlog 180; the owner, by prompt: "A. Button, filled while on", "B. An icon from the set", "B. In a small
+// box at the end", "A. Its target or its dice"; and, mid-build, "lets add icons before other buttons too"): a switch with two words is a button
+// that says what the row is now, filled while on, pressed to switch it, with its icon (the list's pick, else the check); a list roll's figure
+// (its own, or a column's as its chip says it) in a small box at the end of its button
+function swButton(entry, c, f, S, on, editable, okOn) {
+    var wd = on ? S.label : S.offLabel, ic = typeof S.icon === 'string' && S.icon ? S.icon : 'icon:check';
+    if (!editable) { var ch = el('span', 'sheet-chip sheet-item-onc sheet-item-onw' + (on ? ' is-on' : '')); ch.appendChild(iconNode(ic, 'sheet-item-onico')); ch.appendChild(document.createTextNode(wd)); return ch; }
+    var bt = el('button', 'tool sheet-item-onb' + (on ? ' on' : '')); bt.type = 'button'; bt.ariaPressed = on ? 'true' : 'false'; bt.dataset.fid = f.id; bt.dataset.part = 'on-' + rowIdOf(entry);
+    bt.appendChild(iconNode(ic, 'sheet-item-onico')); bt.appendChild(document.createTextNode(wd)); bt.title = wd + '. Press for ' + (on ? S.offLabel : S.label) + '.';
+    if (!on && okOn === false) { var swW = typeof rollNeedsSays === 'function' ? rollNeedsSays(S) : 'Not now'; bt.classList.add('sheet-item-onno'); if (typeof isClient === 'function' && isClient()) { bt.disabled = true; bt.title = swW; } else bt.title = swW + ' You may still switch it on.'; }
+    bt.addEventListener('click', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { on: !on } }); });
+    return bt;
+}
+function rollFigText(r, ri, spec, res, rid) {   // R7: '' where the roll shows nothing, or a figure that cannot be said here
+    if (!r || typeof r.show !== 'string' || !r.show || !res || !rid) return '';
+    if (r.show === '@fig') { var fs0 = res.rf && res.rf[rid]; return Array.isArray(fs0) && typeof fs0[ri] === 'string' ? fs0[ri] : ''; }
+    var cols = Array.isArray(spec && spec.cols) ? spec.cols : [], lk = r.show.toLowerCase(), ix = -1; for (var i = 0; i < cols.length; i++) if (cols[i] && typeof cols[i].key === 'string' && cols[i].key.toLowerCase() === lk) { ix = i; break; }
+    var cl = ix >= 0 && res.cells && Array.isArray(res.cells[rid]) ? res.cells[rid][ix] : null; if (!cl || cl.error) return '';
+    return typeof colShown === 'function' ? colShown(cols[ix], cl) : String(cl.text || '');
+}
+// [systemcheck:rowswitch-end]
 // [systemcheck:rowbadge-start] 1.6.0 R4 and R5 (backlog 180; the owner, by prompt: "A. After the name", "A. Tint and an edge", "A. The badge itself",
 // "A. Label, then badge"): a row's badges and a value name's tone. A badge is words in a tone (plain where none is set), after the name as a pill or
 // under the row as a line; the first that shows and tints gives its row its tone's tint and edge; one that pulses pulses itself (still where
@@ -2959,13 +2981,13 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         if (r && Array.isArray(r.apply)) {   // Stage 6 HUD H7b: an apply action on this row (Apply costs on a power), for a viewer who may change the character
             if (applyOk === null) applyOk = canApply(c);
             if (!applyOk || !r.apply.length) return;
-            var al = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Apply', ab = el('button', 'tool ghost sheet-item-roll sheet-item-apply', al); ab.type = 'button'; ab.title = nm + ' \u00b7 ' + al + ': ' + applyTitle(r, systemOf(getActiveCampaign()));
+            var al = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Apply', ab = el('button', 'tool ghost sheet-item-roll sheet-item-apply', al); ab.type = 'button'; ab.title = nm + ' \u00b7 ' + al + ': ' + applyTitle(r, systemOf(getActiveCampaign())); ab.insertBefore(iconNode(typeof r.icon === 'string' && r.icon ? r.icon : 'icon:bolt', 'sheet-item-rollico'), ab.firstChild);   // 1.6.0: its icon, as a roll wears its die
             var cbA = typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbA) { ab.disabled = true; ab.title = cbA + ' \u2014 ' + ab.title; }   // turn-based combat T4
             ab.addEventListener('click', function() { var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return; if (r.to === 'near' && typeof allyPick === 'function') { allyPick(ab, cN, function(on) { applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }, on || undefined); }); return; } applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }); });   // 1.5.9: whom it is for first, where it Applies to an adjacent character
             host.appendChild(ab); return;
         }
         if (!rollOk || !r || typeof r.formula !== 'string' || !r.formula) return;
-        var lb = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Roll', b = el('button', 'tool ghost sheet-item-roll', lb); b.type = 'button'; if (typeof dieFor === 'function') b.insertBefore(dieFor(r.die, r.formula), b.firstChild); b.title = nm + ' \u00b7 ' + lb + ': ' + r.formula + ' (shift-click adds a modifier)';   // 1.5.8: its die (1.5.9: its title back, which this comment had swallowed)
+        var lb = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Roll', b = el('button', 'tool ghost sheet-item-roll', lb); b.type = 'button'; if (typeof dieFor === 'function') b.insertBefore(dieFor(r.die, r.formula), b.firstChild); b.title = nm + ' \u00b7 ' + lb + ': ' + r.formula + ' (shift-click adds a modifier)'; if (typeof r.icon === 'string' && r.icon) b.insertBefore(iconNode(r.icon, 'sheet-item-rollico'), b.lastChild); var figR = typeof rollFigText === 'function' ? rollFigText(r, ri, spec, res, rid) : ''; if (figR) b.appendChild(el('span', 'sheet-item-rollfig', figR));   // 1.6.0: its own icon after its die, and R7 its figure in a box at its end   // 1.5.8: its die (1.5.9: its title back, which this comment had swallowed)
         var nOk = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false, withE = !!(Array.isArray(r.then) && r.then.length) || !!r.needs || !!r.malf || !!r.cost || !!r.dmg || !!r.showIf;   // Stage 6 HUD R2b: its needs for this row; a roll with consequences or needs names its index
         if (r.to === 'near') withE = true;   // 1.5.9 (book es/et plan, section 3): one that Applies to an adjacent character names its index too, so the host finds whom it may reach
         if (!nOk) { b.disabled = true; b.title = (r.needsText || 'Not now') + ' \u2014 it needs ' + r.needs; }
@@ -4062,7 +4084,7 @@ function rollPick(r) { return Array.isArray(r.apply) ? 'Apply: ' + (r.label || '
 // Layout preview and a pop-out, and for a viewer who may not change this character
 function applyNode(r, c, sys, vars) {
     var label = rollLabel(r, sys, c, vars), can = (_fxLive || window.wpPrintCopy === true) && canApply(c), b = el('button', 'tool sheet-roll sheet-apply' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label);
-    if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild);
+    b.insertBefore(iconNode(r.icon || 'icon:bolt', 'sheet-roll-icon'), b.firstChild);   // 1.6.0 (the owner: "lets add icons before other buttons too"): the bolt where it names none
     b.title = applyTitle(r, sys) + (r.each ? ' \u2014 also ' + (r.by ? 'due' : 'by itself') + (r.each === 'turn' ? ' at the start of its character\u2019s turn' : r.each === 'turnEnd' ? ' at the end of its character\u2019s turn' : ' on every new round of a combat') + (r.by ? ' (a reminder for ' + (r.by === 'gm' ? 'the GM' : 'its player') + ' to press)' : '') : '') + (can ? '' : ' (not here: this is a preview or a pop-out, or not your character)'); b.disabled = !can;
     if (can && r.needs && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, r.to === 'near' && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F()) && !(r.to === 'near' && typeof readsOn === 'function' && readsOn(r.needs, F()))) { b.disabled = true; b.title = (r.needsText || 'Not now') + ' \u2014 it needs ' + r.needs; }   // 1.5.4: what it needs (the host judges a player's press, applyAct the GM's); 1.5.9: read as on its user, OnSelf 1
     b.addEventListener('click', function() {
@@ -5593,6 +5615,31 @@ function altBox(obj, tip) {
     return box;
 }
 // [systemcheck:altbox-end]
+// [systemcheck:rowswitchbox-start] 1.6.0 R6 and R7: the Lists tab's Word while off and Icon beside the switch, and a list roll's Icon and Shows
+// figure, each edited in place on the draft object it is handed, with listeners of its own and class names no handler of the Lists tab reads
+function swWordsBox(row, sw) {
+    var ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var off = input('sys-swoff field', typeof sw.offLabel === 'string' ? sw.offLabel : '', 'Its word while off, such as Ready beside Readied. With one the switch is a button that says what the row is now, filled while on', 'Word while off (optional)'); off.maxLength = LIMITS.label;
+    off.addEventListener('input', function() { var v = off.value.slice(0, LIMITS.label); if (v.trim()) sw.offLabel = v; else delete sw.offLabel; ch(); });
+    var ic = input('sys-swicon field', typeof sw.icon === 'string' ? sw.icon : '', 'An icon on the switch\u2019s button, a bundled icon or an emoji. Empty: a check. Only with a word while off', 'Icon');
+    ic.addEventListener('input', function() { var v = ic.value.trim().slice(0, 32); if (v) sw.icon = v; else delete sw.icon; ch(); });
+    row.appendChild(off); row.appendChild(ic); if (typeof glyphButton === 'function') row.appendChild(glyphButton(ic));
+}
+function rollExtras(row, rr, sp, isApply) {
+    var ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var ic = input('sys-rlicon field', typeof rr.icon === 'string' ? rr.icon : '', isApply ? 'An icon on its button, a bundled icon or an emoji. Empty: a bolt' : 'An icon on its button after its die, a bundled icon or an emoji (optional)', 'Icon');
+    ic.addEventListener('input', function() { var v = ic.value.trim().slice(0, 32); if (v) rr.icon = v; else delete rr.icon; ch(); });
+    row.appendChild(ic); if (typeof glyphButton === 'function') row.appendChild(glyphButton(ic));
+    if (isApply) return;
+    var s = el('select', 'sys-rlfig'); s.title = 'A figure in a small box at the end of its button. Its figure: a check shows what it rolls against, any other roll its dice with the row\u2019s names worked out. A column shows that column on the row';
+    var cur = typeof rr.show === 'string' ? rr.show : '', opts = [['', 'Shows no figure'], ['@fig', 'Shows its figure']];
+    (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(cc) { if (cc && typeof cc.key === 'string' && cc.key) opts.push([cc.key, 'Shows ' + (cc.label || cc.key)]); });
+    var hit = false; opts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (!hit && o[0].toLowerCase() === cur.toLowerCase()) { op.selected = true; hit = true; } s.appendChild(op); });
+    if (cur && !hit) { var ox = el('option', null, 'Shows ' + cur + ' (not on this list)'); ox.value = cur; ox.selected = true; s.appendChild(ox); }
+    s.addEventListener('change', function(e) { e.stopPropagation(); if (s.value) rr.show = s.value; else delete rr.show; ch(); });
+    row.appendChild(s);
+}
+// [systemcheck:rowswitchbox-end]
 // [systemcheck:badgebox-start]
 // 1.6.0 R4 and R5 (backlog 180): the Lists tab's Badges box and a value name's tone, each edited in place on the draft object it is handed, with its
 // own listeners and class names no handler of the Lists tab reads (sys-badge-*, sys-ltone-*). A badge: its words, Shown where (a formula of the
@@ -6726,6 +6773,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     orow.appendChild(checkLabel('sys-list-hason', !!sw, 'Rows have a switch', 'Each row can be switched on and off: Readied, Equipped, Active, Stowed\u2026 In Layout a placement of the list can show only the rows switched on'));
     if (sw) {
         orow.appendChild(input('sys-list-onlabel field', sw.label || '', 'The switch\u2019s name on the sheet', 'On'));
+        if (typeof swWordsBox === 'function') swWordsBox(orow, sw);   // 1.6.0 R6: its word while off and its icon
         if (typeof placeSel === 'function') orow.appendChild(placeSel('on', sw.place));   // 1.6.0 R2
         orow.appendChild(checkLabel('sys-list-ondef', sw.def === true, 'Starts on', 'A new row starts switched on; a row from before the list had its switch reads it until it is switched'));
         var oneOn = sw.one === true || (typeof sw.per === 'string' && !!sw.per) || (typeof sw.over === 'string' && !!sw.over);   // 1.6.0 O1: or where places meet   // 1.5.4 One at a time: switching a row on switches the others off, for the whole list or for each value of a stat
@@ -6881,6 +6929,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         rw.appendChild(checkLabel('sys-list-gmonly', rr.gm === true, 'GM only', 'Only you press it. Players never see its button, and the table refuses theirs'));   // 1.6.0
         var rsI = input('sys-list-rollshow field', typeof rr.showIf === 'string' ? rr.showIf : '', 'Its button shows only on rows where this is true, such as Row.Kind = 2. Row names are read. No dice. Empty: on every row', 'Shown where (optional)'); rsI.maxLength = LIMITS.formula; rw.appendChild(rsI);   // 1.6.0
         if (typeof altBox === 'function') rw.appendChild(altBox(rr, 'Its button reads this name on rows where the formula holds, such as Fix malfunction where Row.Kind = 2. The first that holds wins.'));   // 1.6.0: its other names
+        if (typeof rollExtras === 'function') rollExtras(rw, rr, sp, rApply);   // 1.6.0: its icon, and R7 the figure it shows
         if (rApply) { cb2.appendChild(rw); var lxA = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxA) cb2.appendChild(lxA); listApplyEditor(cb2, rr, ri, 'apply', sp, targets); return; }   // 1.6.0: when a row's counter crosses a step
         var rf = input('sys-list-rollformula field', typeof rr.formula === 'string' ? rr.formula : '', 'Rolled for the row: dice allowed; Row.lvl, Row.<stat>, Row.<column> read the row, any other name the character (3d6 <= Row.Skill, d20 + Row.Hit)', 'Formula (d20 + Row.Hit)'); rf.maxLength = LIMITS.formula; rw.appendChild(rf);
         rw.appendChild(checkLabel('sys-list-dmg', rr.dmg === true, 'Damage', 'A damage roll: its card in Table Chat takes the damage colour, a larger total and a damage tag'));   // chat cards (owner 2026-09-27)

@@ -15869,6 +15869,77 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             + 'the HUD has the pills and no lines; the editor\'s Badges box and Colours row (badgeBox, toneRow, run for real) edit the draft in place; the readable page says the badges after the name',
             cleanOk && resOk && valOk && drawOk && hudOk && tableOk && pureOk && editOk && toneOk && mdOk && wiredOk, J([cleanOk, resOk, valOk, drawOk, hudOk, tableOk, pureOk, editOk, toneOk, mdOk, wiredOk, resG.bd, pillsOf(rf), rf.className, condOf(rf), afterE, t1, t2, t3, vB.errors.map(x => x.prop).slice(0, 4)]));
     }
+    {   // 1.6.0, backlog 180 R6 and R7 (the owner, by prompt: "A. Button, filled while on", "B. An icon from the set", "B. In a small box at the end", "A. Its target or its dice"; and "lets add icons before other buttons too")
+        const J = JSON.stringify;
+        const rawS = { v: 1, name: 'S', rolls: [], sheet: { sections: [] },
+            items: [{ id: 'i_rf', name: 'Ember Rifle', stats: { skill: 14, n: 2 } }],
+            fields: [{ id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', list: {
+                stats: [{ key: 'skill', label: 'Skill' }, { key: 'n', label: 'N' }],
+                cols: [{ key: 'Hit', label: 'Hit', formula: 'Row.skill + 1' }],
+                on: { label: 'Readied', offLabel: 'Ready', icon: 'icon:hand-fist' },
+                rolls: [{ label: 'Attack', formula: '3d6 <= Row.skill', show: '@fig', icon: 'icon:bullseye' }, { label: 'Damage', formula: '(Row.n)d6 + 1', show: '@FIG' }, { label: 'Hit', formula: '1d20', show: 'hit' }, { label: 'Odd', formula: '1d6', show: 'nope', icon: 'icon:nope-not-a-glyph' },
+                    { label: 'Use', apply: [], icon: 'icon:bolt' }] } },
+                { id: 'f_x', key: 'Other', label: 'Other', kind: 'item-list', list: { on: { label: 'On', icon: 'icon:hand-fist' } } }] };
+        const gS = S.cleanSystem(rawS, { F, gmView: true }), pS = S.cleanSystem(rawS, { F, gmView: false }), lS = sy => sy.fields.find(x => x.id === 'f_g').list;
+        const cleanOk = J(lS(gS).on) === J({ label: 'Readied', offLabel: 'Ready', icon: 'icon:hand-fist' }) && J(gS.fields.find(x => x.id === 'f_x').list.on) === J({ label: 'On' })
+            && J(lS(gS).rolls.map(r => [r.show, r.icon])) === J([['@fig', 'icon:bullseye'], [undefined, undefined], ['Hit', undefined], [undefined, undefined], [undefined, 'icon:bolt']])
+            && J(lS(pS).on) === J(lS(gS).on) && J(lS(pS).rolls.filter(r => !r.apply).map(r => r.show)) === J(lS(gS).rolls.filter(r => !r.apply).map(r => r.show))
+            && J(S.cleanSystem(gS, { F, gmView: true })) === J(gS) && J(S.cleanSystem(pS, { F, gmView: false })) === J(pS)
+            && S.rollShowOf('@fig', []) === '@fig' && S.rollShowOf('HIT', [{ key: 'Hit' }]) === 'Hit' && S.rollShowOf('x', [{ key: 'Hit' }]) === '' && S.rollShowOf(5, [{ key: 'Hit' }]) === '' && S.rollShowOf('Hit', null) === '';
+        // a roll's own figure: a check its target, a sum of plain dice and a number its dice, anything else nothing
+        const vF = { 'Row.skill': 14, 'Row.n': 2, 'Row.add': 1 }, fig = t => S.rollFigOf(t, vF, F);
+        const figOk = fig('3d6 <= Row.skill') === '14' && fig('3d6 >= 10') === '10' && fig('Row.skill >= 3d6') === '14' && fig('(Row.n)d6 + Row.add') === '2d6+1' && fig('2d6+1d4-2') === '2d6+1d4-2' && fig('1d20 + 5') === '1d20+5' && fig('3d6') === '3d6'
+            && fig('Row.skill') === '14' && fig('4d6kh3') === '' && fig('2d6*2') === '' && fig('10 - 1d6') === '' && fig('1d6!') === '' && fig('1d6 <= 2d6') === '' && fig('Nope + 1d6') === '' && fig('') === '' && S.rollFigOf('1d6', vF, null) === '' && fig(5) === '';
+        const chS = { id: 'c_s', name: 'Kael', ownerId: 'u_s', values: { f_g: [{ id: 'w_rf', defId: 'i_rf', qty: 1 }, { id: 'w_on', defId: 'i_rf', qty: 1, on: true }] } };
+        const resS = S.resolveAll(gS, chS, F, null).f_g;
+        const resOk = J(resS.rf) === J({ w_rf: ['14', '', '', '', ''], w_on: ['14', '', '', '', ''] }) && S.resolveAll(S.cleanSystem({ v: 1, name: 'N', fields: [{ id: 'f_n', key: 'N', label: 'N', kind: 'item-list', list: { rolls: [{ label: 'R', formula: '1d6' }] } }] }, { F, gmView: true }), { id: 'c', name: 'c', values: {} }, F, null).f_n.rf === undefined;
+        // the sheet: the real item widgets on a page of plain objects
+        const shS = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const cutS = (a, b) => { const i = shS.indexOf(a), k = shS.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('r67 slice: ' + a); return shS.slice(i, k); };
+        const itS = cutS('// ---- item-list widgets', '// 5h: an effect\'s changes as short text'), rbS = cutS('// [systemcheck:rowswitchbox-start]', '// [systemcheck:rowswitchbox-end]');
+        const mkS = (tag, cls, text) => { const e = { tag, className: cls || '', children: [], attrs: {}, title: '', type: '', value: '', checked: false, disabled: false, selected: false, dataset: {}, style: {}, on: {}, maxLength: 0, placeholder: '',
+            classList: { toggle(c, on) { const k = e.className.split(' ').filter(Boolean); const has = k.includes(c), want = on === undefined ? !has : !!on; if (want && !has) k.push(c); if (!want && has) k.splice(k.indexOf(c), 1); e.className = k.join(' '); return want; }, add(c) { this.toggle(c, true); }, remove(c) { this.toggle(c, false); }, contains(c) { return e.className.split(' ').includes(c); } },
+            get childNodes() { return e.children; }, get firstChild() { return e.children[0] || null; }, get lastChild() { return e.children[e.children.length - 1] || null; }, appendChild(x) { e.children.push(x); return x; }, insertBefore(x, r) { const i = r ? e.children.indexOf(r) : -1; if (i < 0) e.children.push(x); else e.children.splice(i, 0, x); return x; },
+            setAttribute(k, v) { e.attrs[k] = String(v); }, addEventListener(k, fn) { e.on[k] = fn; }, click() { if (e.on.click) e.on.click({ stopPropagation() {} }); }, focus() {} };
+            if (text !== undefined && text !== null) e.children.push({ tag: '#text', textContent: String(text), children: [] }); return e; };
+        const txS = n => !n ? '' : n.tag === '#text' ? n.textContent : (n.children || []).map(txS).join('');
+        const docS = { createTextNode: t => ({ tag: '#text', textContent: t, children: [] }), createElementNS: (ns, tag) => Object.assign(mkS(tag), { ns }) };
+        const optS = (v, t, sl) => { const o = mkS('option', null, t); o.value = v; if (sl) o.selected = true; return o; };
+        const sent = [];
+        const depsN = ['el', 'iconNode', 'rowDef', 'rowIdOf', 'rowLvl', 'rowOn', 'commitItem', 'opt', 'fmtNum', 'iconText', 'LIMITS', '_fxLive', 'document', 'renderViews', 'closeHud', 'closeSheet', 'window', 'systemOf', 'getActiveCampaign', 'facingTarget', 'uid', 'F', 'fxText', 'canRoll', 'sheetRoll', 'commit', 'valueTone', 'TONE_CLASS', 'rowStat', 'rowPaid', '_fxView', 'canApply', 'applyTitle'];
+        const depsV = view => [mkS, (v, cls) => mkS('span', cls + ' ico:' + v), S.rowDef, S.rowIdOf, S.rowLvl, S.rowOn, (c, f, op) => sent.push(op), optS, S.fmtNum, v => v || '', S.LIMITS, true, docS, () => {}, () => {}, () => {}, {}, () => gS, () => null, () => null, p => p + 'new', () => F, S.fxText, () => true, () => {}, () => {}, S.valueTone, {}, S.rowStat, S.rowPaid, view, () => true, () => 'it moves'];
+        const WS = new Function(...depsN, itS + '\nreturn { itemListInto, swButton, rollFigText };')(...depsV('sheet'));
+        const fG = gS.fields.find(x => x.id === 'f_g'), wS = mkS('div'); WS.itemListInto(wS, fG, chS, chS.values.f_g, gS, false, true, true, '', resS);
+        const byS = (n, c) => { const acc = []; const w = k => { if ((' ' + (k.className || '') + ' ').indexOf(' ' + c + ' ') >= 0) acc.push(k); (k.children || []).forEach(w); }; w(n); return acc; };
+        const rowsS = wS.children.filter(n => n.className.split(' ').includes('sheet-item')), off = byS(rowsS[0], 'sheet-item-onb')[0], onB = byS(rowsS[1], 'sheet-item-onb')[0];
+        const rbs = byS(rowsS[0], 'sheet-item-roll'), att = rbs.find(b => /Attack/.test(txS(b))), dmg = rbs.find(b => /Damage/.test(txS(b))), hitB = rbs.find(b => /^.*Hit/.test(txS(b)) && !/Attack/.test(txS(b))), use = rbs.find(b => /Use/.test(txS(b)));
+        const kidsS = b => b ? b.children.map(k => k.tag === '#text' ? '#' + k.textContent : k.className) : null;
+        const drawOk = off && off.tag === 'button' && off.className === 'tool sheet-item-onb' && off.ariaPressed === 'false' && J(kidsS(off)) === J(['sheet-item-onico ico:icon:hand-fist', '#Ready']) && off.title === 'Ready. Press for Readied.'
+            && onB && onB.className === 'tool sheet-item-onb on' && onB.ariaPressed === 'true' && txS(onB) === 'Readied'
+            && J(kidsS(att).slice(-3)) === J(['sheet-item-rollico ico:icon:bullseye', '#Attack', 'sheet-item-rollfig']) && txS(att).endsWith('14')
+            && dmg && byS(dmg, 'sheet-item-rollfig').length === 0 && hitB && txS(byS(hitB, 'sheet-item-rollfig')[0]) === '15';
+        off.click(); onB.click(); const pressOk = J(sent) === J([{ op: 'set', rowId: 'w_rf', facts: { on: true } }, { op: 'set', rowId: 'w_on', facts: { on: false } }]);
+        const chip = WS.swButton(chS.values.f_g[1], chS, fG, fG.list.on, true, false), chipOff = WS.swButton(chS.values.f_g[0], chS, fG, { label: 'Installed', offLabel: 'Fitted' }, false, false);
+        const chipOk = chip.className === 'sheet-chip sheet-item-onc sheet-item-onw is-on' && txS(chip) === 'Readied' && chipOff.className === 'sheet-chip sheet-item-onc sheet-item-onw' && txS(chipOff) === 'Fitted' && chipOff.children[0].className === 'sheet-item-onico ico:icon:check'
+            && WS.rollFigText({ show: '@fig' }, 0, fG.list, null, 'w_rf') === '' && WS.rollFigText({}, 0, fG.list, resS, 'w_rf') === '' && WS.rollFigText({ show: 'Hit' }, 0, fG.list, { cells: { w_rf: [{ error: 'x' }] } }, 'w_rf') === '';
+        // the editor: Word while off, an icon, and a roll's Shows list (sliced and run for real)
+        let dirtyS = 0; const inS = (cls, value, title, ph) => { const i = mkS('input', cls); i.value = value || ''; i.title = title || ''; i.placeholder = ph || ''; return i; };
+        const RB = new Function('el', 'input', 'markDirty', 'patchErrors', 'LIMITS', rbS + '\nreturn { swWordsBox, rollExtras };')(mkS, inS, () => { dirtyS++; }, () => {}, S.LIMITS);
+        const swD = { label: 'Readied' }, rowD = mkS('div'); RB.swWordsBox(rowD, swD); const offIn = byS(rowD, 'sys-swoff')[0], icIn = byS(rowD, 'sys-swicon')[0];
+        offIn.value = 'Ready'; offIn.on.input(); icIn.value = 'icon:check'; icIn.on.input(); const sw1 = J(swD); offIn.value = '  '; offIn.on.input(); icIn.value = ''; icIn.on.input(); const sw2 = J(swD);
+        const rrD = { label: 'Attack' }, rrRow = mkS('div'); RB.rollExtras(rrRow, rrD, { cols: [{ key: 'Hit', label: 'To hit' }] }, false); const figSel = byS(rrRow, 'sys-rlfig')[0];
+        const optsS = J(figSel.children.map(o => [o.value, txS(o)])); figSel.value = '@fig'; figSel.on.change({ stopPropagation() {} }); const rr1 = J(rrD); figSel.value = ''; figSel.on.change({ stopPropagation() {} });
+        const apD = { label: 'Use', apply: [] }, apRow = mkS('div'); RB.rollExtras(apRow, apD, {}, true);
+        const editOk = sw1 === J({ label: 'Readied', offLabel: 'Ready', icon: 'icon:check' }) && sw2 === J({ label: 'Readied' }) && optsS === J([['', 'Shows no figure'], ['@fig', 'Shows its figure'], ['Hit', 'Shows To hit']]) && rr1 === J({ label: 'Attack', show: '@fig' }) && !('show' in rrD)
+            && byS(apRow, 'sys-rlfig').length === 0 && byS(apRow, 'sys-rlicon').length === 1 && dirtyS >= 6;
+        const cssS = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
+        const wiredOk = shS.includes("if (typeof swButton === 'function' && typeof S.offLabel === 'string' && S.offLabel) return swButton(entry, c, f, S, on, editable, okOn);") && shS.includes("if (typeof swWordsBox === 'function') swWordsBox(orow, sw);") && shS.includes("if (typeof rollExtras === 'function') rollExtras(rw, rr, sp, rApply);")
+            && shS.includes("b.insertBefore(iconNode(r.icon || 'icon:bolt', 'sheet-roll-icon'), b.firstChild);") && shS.includes("ab.insertBefore(iconNode(typeof r.icon === 'string' && r.icon ? r.icon : 'icon:bolt', 'sheet-item-rollico'), ab.firstChild);") && /\.sheet-item-rollfig \{[^}]*border-radius: 4px;/.test(cssS) && /\.sheet-item-onb \{[^}]*height: 24px;/.test(cssS);
+        check('1.6.0, backlog 180 R6 and R7: a list\'s switch may have a word while off (offLabel, beside its label) and an icon (an icon the cleaner keeps, only beside it); a list roll may show a figure (show: its own, @fig, or a column of the list by its key) and wear an icon, an apply action too; the same in both views and a fixed point; '
+            + 'rollFigOf: a check whose one side is rolled its target, a sum of plain dice and a number its dice with the row\'s names worked out, anything else nothing; the resolver\'s rf per row; on the sheet (itemListInto, sliced and run for real) the switch is a button that says what the row is now, filled while on and pressed, '
+            + 'its icon the list\'s or a check, one press switching it; where it cannot be used a chip of its word; a roll\'s figure in a small box at the end of its button, its own icon after its die, an apply action\'s icon its own or a bolt (the System editor\'s apply action too); the editor\'s Word while off, Icon and Shows (swWordsBox, rollExtras, run for real)',
+            cleanOk && figOk && resOk && drawOk && pressOk && chipOk && editOk && wiredOk, J([cleanOk, figOk, resOk, drawOk, pressOk, chipOk, editOk, wiredOk, resS.rf, kidsS(off), kidsS(att), sent, sw1, optsS]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

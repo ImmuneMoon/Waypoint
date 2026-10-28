@@ -2163,6 +2163,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     if (out.price && (v.paidPlace === 'details' || v.paidPlace === 'hide')) out.paidPlace = v.paidPlace;   // 1.6.0 R2: where Paid stands
     var bdg = cleanBadges(v.badges, F); if (bdg) out.badges = bdg;   // 1.6.0 R4: its row badges
     if (v.boxes === true) out.boxes = true;   // 1.6.0 R3 (the owner, by prompt: "A. A list ticks it"): Figures as boxes in a row's details
+    if (v.edge === true) out.edge = true;   // 1.6.0 R16: Edge follows its state, a row's edge in the tone of its strongest badge, else the accent while it is switched on
     if (v.menus === true) out.menus = true;   // 1.6.0 R10: Choices as menus, a choice stat a menu on its row for whoever may set the copy's own stats
     if (v.open === true) out.open = true;   // 1.6.0 R1 (the owner, by prompt: "A tick the builder sets"): Rows open for their details
     if (v.trade === true) out.trade = true;   // 1.5.6 Tradable: rows of this list may be traded between characters (gear, money; never a skill)

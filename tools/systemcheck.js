@@ -16132,6 +16132,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             + 'the wire carries it as a whole number beside the roll\'s index only; askRollLvl (run for real) opens the level menu of the entry\'s own levels, else every whole level, up to the row\'s own with its own a choice too, and lets a row at the lowest level just roll; the sheet, the editor\'s tick, and the host and the GM refusing a level for a roll that does not ask it',
             cleanOk && rowOk && wireOk && askOk && wiredOk, J([cleanOk, rowOk, wireOk, askOk, wiredOk, menus12, picked, [num(own, 'Row.Cost'), num(at1, 'Row.Cost')]]));
     }
+    {   // 1.6.0, backlog 180 R16 (the owner's order of 2026-10-27, and of state colours "the card edge only beside a badge"): a row's edge follows its state
+        const J = JSON.stringify;
+        const raw16 = { v: 1, name: 'C', rolls: [], items: [], sheet: { sections: [] }, fields: [{ id: 'f_w', key: 'Weap', label: 'Weapons', kind: 'item-list', list: { edge: true, on: { label: 'Ready' }, badges: [{ words: 'Worn', if: '1', tone: 'warn' }, { words: 'Jammed', if: '1', tone: 'danger' }, { words: 'Odd', if: '1' }, { words: 'Blessed', if: '1', tone: 'good', tint: true }] } }, { id: 'f_x', key: 'X', label: 'X', kind: 'item-list', list: { edge: 1 } }] };
+        const g16 = S.cleanSystem(raw16, { F, gmView: true }), sp16 = g16.fields[0].list;
+        const cleanOk = sp16.edge === true && S.cleanSystem(raw16, { F, gmView: false }).fields[0].list.edge === true && !(g16.fields[1].list && 'edge' in g16.fields[1].list) && J(S.cleanSystem(g16, { F, gmView: true })) === J(g16);
+        const sh16 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const a16 = sh16.indexOf('// [systemcheck:rowedge-start]'), b16 = sh16.indexOf('// [systemcheck:rowedge-end]');
+        const RE = new Function('badgeTone', sh16.slice(a16, b16) + '\nreturn rowEdge;')(t => ['good', 'warn', 'danger', 'accent', 'primary'].includes(t) ? t : '');
+        const e = cls => ({ className: cls || 'sheet-item' });
+        const x1 = e(), x2 = e(), x3 = e(), x4 = e(), x5 = e(), x6 = e('sheet-item sheet-tint-good'), x7 = e(), x8 = e();
+        const r = [RE(x1, sp16, [0, 1], false, true), RE(x2, sp16, [0, 2], true, true), RE(x3, sp16, [2], true, true), RE(x4, sp16, [], true, false), RE(x5, sp16, [], false, true), RE(x6, sp16, [1], false, true), RE(x7, Object.assign({}, sp16, { edge: undefined }), [1], true, true), RE(x8, sp16, [9], false, true)];
+        const edgeOk = J(r) === J(['danger', 'warn', 'accent', '', '', '', '', '']) && x1.className === 'sheet-item sheet-edge-danger' && x3.className === 'sheet-item sheet-edge-accent' && x6.className === 'sheet-item sheet-tint-good' && x7.className === 'sheet-item';
+        const css16 = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
+        const wiredOk = sh16.includes("if (typeof rowEdge === 'function') rowEdge(line, spec,") && sh16.includes("if (typeof rowEdge === 'function') rowEdge(tr, spec,") && sh16.includes("checkLabel('sys-list-edge', sp.edge === true, 'Edge follows its state'")
+            && /\.sheet-item\.sheet-edge-danger, tr\.sheet-edge-danger > td:first-child \{ box-shadow: inset 3px 0 0 var\(--red\); \}/.test(css16) && !/sheet-edge-[a-z]+[^{]*\{[^}]*background/.test(css16);
+        check('1.6.0, backlog 180 R16: a list may tick Edge follows its state (edge, true only, the same in both views and a fixed point); rowEdge (run for real) gives a row the edge of the strongest toned badge it shows (danger before warn, a plain badge none), else the accent while it is switched on and its switch stands on the row, nothing for a row a badge already tints, '
+            + 'nothing without the tick; drawn on the list and the rich table, an edge with no tint in the style sheet, and the editor\'s tick',
+            cleanOk && edgeOk && wiredOk, J([cleanOk, edgeOk, wiredOk, r]));
+    }
     {   // 1.6.0, backlog 180 R11 (the owner's order of 2026-10-27; a removed row's Undo is 1.5.8's): split a stack into a row of its own
         const J = JSON.stringify;
         const sys11 = S.cleanSystem({ v: 1, name: 'C', rolls: [], items: [{ id: 'i_gr', name: 'Grenade', category: 'Explosive' }, { id: 'i_rp', name: 'Rope' }],

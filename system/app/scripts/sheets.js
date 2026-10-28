@@ -2974,6 +2974,18 @@ function badgeBits(host, spec, on, tintEl, noLines) {   // answers the lines' bo
         if (b.tint === true && t && !tinted && tintEl) { tintEl.className += TINT_CLASS[t]; tinted = true; } });
     return lines;
 }
+// [systemcheck:rowedge-start] 1.6.0, backlog 180 R16: where the list ticks Edge follows its state, a row's edge takes the tone of the strongest badge it shows
+// (danger, then warn, primary, accent, good; a plain badge none), else the accent while it is switched on and its switch's word stands on the row.
+// Never colour alone: the badge's or the switch's words are beside it. A badge that tints its row has already given it its edge
+var EDGE_RANK = Object.freeze({ danger: 5, warn: 4, primary: 3, accent: 2, good: 1 });
+function rowEdge(el0, spec, on, onNow, onShown) {
+    if (!el0 || !spec || spec.edge !== true || / sheet-tint-/.test(' ' + (el0.className || ''))) return '';
+    var best = '', br = 0; (Array.isArray(on) ? on : []).forEach(function(i) { var b = Array.isArray(spec.badges) ? spec.badges[i] : null, t = b && typeof b.words === 'string' && b.words ? badgeTone(b.tone) : ''; if (t && EDGE_RANK[t] > br) { best = t; br = EDGE_RANK[t]; } });
+    if (!best && onNow === true && onShown === true) best = 'accent';
+    if (best) el0.className += ' sheet-edge-' + best;
+    return best;
+}
+// [systemcheck:rowedge-end]
 function nameTone(c, v) { if (!c || !Array.isArray(c.tones) || !Array.isArray(c.labels) || typeof v !== 'number' || v !== Math.floor(v) || v < 0 || v >= c.tones.length || v >= c.labels.length) return ''; return badgeTone(c.tones[v]); }   // R5: a value name's tone, '' for none
 function tonedChip(cls, label, words, t) { var ch = el('span', cls + ' sheet-item-toned'); ch.appendChild(el('small', null, label)); ch.appendChild(document.createTextNode(' ')); ch.appendChild(el('span', 'sheet-badge sheet-tone-' + t, words)); return ch; }   // R5: its label small, then the word as a badge
 // [systemcheck:rowbadge-end]
@@ -3026,6 +3038,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft'))); if (def.notes) nm.title = def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
         var opnR = typeof entry.opn === 'string'; if (opnR && typeof openedWords === 'function') { line.className += ' sheet-item-opened'; nm.appendChild(el('span', 'sheet-item-opened-tag', ' (' + openedWords(entry, c, sysI, spec) + ')')); }   // 1.5.8: a row another row opens says so, and holds no control that changes it
         var bdLn = typeof badgeBits === 'function' ? badgeBits(line, spec, res && res.bd ? res.bd[rid] : null, line, hudRow) : null;   // 1.6.0 R4: its badges after the name (no lines on the HUD)
+        if (typeof rowEdge === 'function') rowEdge(line, spec, res && res.bd ? res.bd[rid] : null, !!(spec && spec.on) && rowOn(spec, entry), !!(spec && spec.on) && (typeof partHere !== 'function' || partHere(spec.on, 'row', hudRow)));   // 1.6.0 R16
         if (chips && def.category) line.appendChild(el('span', 'sheet-chip', def.category));
         lostBits(line, rd, entry, c, f, gm, chg); needBits(line, sysI, c, entry, rd, gm); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL); modsBits(line, def, entry, spec, sysI);
         if (typeof onceBits === 'function') onceBits(line, sysI, c, f, carried, entry);   // 1.5.8 Counted once
@@ -3290,6 +3303,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         lostBits(nameTd, rd, entry, c, f, gm, chg); needBits(nameTd, sysI, c, entry, rd, gm); gmItemBits(nameTd, def, entry, gm, hasO); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI);
         if (typeof onceBits === 'function') onceBits(nameTd, sysI, c, f, carried, entry);   // 1.5.8 Counted once
         if (typeof badgeBits === 'function') { var bdT = badgeBits(nameTd, spec, res && res.bd ? res.bd[rid] : null, tr, hudRow); if (bdT) nameTd.appendChild(bdT); }   // 1.6.0 R4: in a table the badges go in the name's cell
+        if (typeof rowEdge === 'function') rowEdge(tr, spec, res && res.bd ? res.bd[rid] : null, !!(spec && spec.on) && rowOn(spec, entry), !!(spec && spec.on));   // 1.6.0 R16
         tr.appendChild(nameTd);
         cols.forEach(function(col) { tr.appendChild(el('td', 'sheet-itcol-' + col, itemCellText(col, def, typeof blastTag === 'function' ? blastTag : null))); });
         shownSt.forEach(function(s) { var svT = rowStat(spec, def, s.key), sTn = typeof nameTone === 'function' ? nameTone(s, svT) : '', sTd = el('td', 'sheet-itcol-stat', sTn ? undefined : statShown(s, svT)); if (sTn) sTd.appendChild(el('span', 'sheet-badge sheet-tone-' + sTn, statShown(s, svT))); var sDt = statDot(s, spec, ovT); if (sDt) sTd.appendChild(sDt); tr.appendChild(sTd); });
@@ -6869,6 +6883,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     fl.appendChild(checkLabel('sys-list-custom', sp.custom === true, 'Custom rows', 'Players may add rows of their own with + Custom\u2026 on their sheet (a name, an icon, a category, notes, a key and stats) and change the ones they made; you can add them on any shaped list'));   // Stage 6 F4c3
     fl.appendChild(checkLabel('sys-list-open', sp.open === true, 'Rows open', 'Each row gets an arrow before its name that opens its details: what each part set to Shows In the details holds, its description and its note. Open all and Close all stand over the list.'));   // 1.6.0 R1
     fl.appendChild(checkLabel('sys-list-trade', sp.trade === true, 'Tradable', 'Rows of this list can be put on the table in a trade between two characters: gear and money, never skills'));   // 1.5.6 trading
+    fl.appendChild(checkLabel('sys-list-edge', sp.edge === true, 'Edge follows its state', 'A row\u2019s left edge takes the colour of its strongest badge, or the accent while it is switched on. Its words always stand beside it'));   // 1.6.0 R16
     fl.appendChild(checkLabel('sys-list-menus', sp.menus === true, 'Choices as menus', 'A choice stat on a row, or in its boxes, is a menu for whoever may set that copy\u2019s stats: you, or its owner where players set their copies\u2019 stats. Off: its value name'));   // 1.6.0 R10
     fl.appendChild(checkLabel('sys-list-boxes', sp.boxes === true, 'Figures as boxes', 'A row\u2019s details show its figures as small boxes, each its label above its figure: every stat, the columns placed in the details, and Paid. Off: one line, as Acc 2 \u00b7 Wt 1'));   // 1.6.0 R3
     card.appendChild(fl);
@@ -8843,6 +8858,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-custom') >= 0) { if (t.checked) lsc.custom = true; else delete lsc.custom; }   // Stage 6 F4c3
         else if (c.indexOf('sys-list-place') >= 0) { if (typeof placeSet === 'function') placeSet(lsc, t.dataset.part, t.value); }   // 1.6.0 R2: a part's Shows list
         else if (c.indexOf('sys-list-open') >= 0) { if (t.checked) lsc.open = true; else delete lsc.open; }
+        else if (c.indexOf('sys-list-edge') >= 0) { if (t.checked) lsc.edge = true; else delete lsc.edge; }   // 1.6.0 R16
         else if (c.indexOf('sys-list-menus') >= 0) { if (t.checked) lsc.menus = true; else delete lsc.menus; }   // 1.6.0 R10
         else if (c.indexOf('sys-list-boxes') >= 0) { if (t.checked) lsc.boxes = true; else delete lsc.boxes; }   // 1.6.0 R3   // 1.6.0 R1: Rows open
         else if (c.indexOf('sys-list-trade') >= 0) { if (t.checked) lsc.trade = true; else delete lsc.trade; }   // 1.5.6 Tradable

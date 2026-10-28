@@ -3059,6 +3059,11 @@
   .sheet-section { display: flex; flex-direction: column; gap: 4px; }
   .sheet-sec-title { display: flex; align-items: baseline; gap: 8px; color: var(--sheet-accent, var(--gold)); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--edge); padding-bottom: 2px; }
   .sheet-sec-name { flex: 1; min-width: 0; }
+  .sheet-item.sheet-edge-good, tr.sheet-edge-good > td:first-child { box-shadow: inset 3px 0 0 var(--green); }   /* 1.6.0, backlog 180 R16: the edge alone, never the tint */
+  .sheet-item.sheet-edge-warn, tr.sheet-edge-warn > td:first-child { box-shadow: inset 3px 0 0 var(--sheet-warn, var(--gold)); }
+  .sheet-item.sheet-edge-danger, tr.sheet-edge-danger > td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+  .sheet-item.sheet-edge-accent, tr.sheet-edge-accent > td:first-child { box-shadow: inset 3px 0 0 var(--sheet-accent, var(--gold)); }
+  .sheet-item.sheet-edge-primary, tr.sheet-edge-primary > td:first-child { box-shadow: inset 3px 0 0 var(--sheet-primary, var(--sheet-accent, var(--gold))); }
   .sheet-item-statsel { font-size: 11px; padding: 1px 4px; min-height: 0; height: auto; max-width: 160px; }   /* 1.6.0, backlog 180 R10: a choice stat as a menu on its row */
   .sheet-split { font-size: 11px; padding: 0 6px; }   /* 1.6.0, backlog 180 R11 */
   .sheet-sec-count { margin-left: 5px; color: var(--dim); font-weight: 400; font-variant-numeric: tabular-nums; }   /* 1.6.0, backlog 180 R9: Melee Technique (3) */

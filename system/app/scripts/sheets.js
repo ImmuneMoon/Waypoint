@@ -9,7 +9,7 @@ import { save, toast, toastAction } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
-import { roundSays } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
+import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
@@ -2836,8 +2836,28 @@ function statShown(st, v) { var t = statText(st, v); if (!st || typeof st.unit !
 function colShown(cc, v, total) { if (!v) return ''; if (!cc || !cc.unit || v.error) return v.text; return typeof v.value === 'number' && v.text === statFmt(v.value) && typeof unitFig === 'function' ? unitFig(cc, v.value, v.text, total === true) : v.text + ' ' + cc.unit; }
 // The unit a rich table's head names for a stat or a column: its metric word where the figures under it read in metric
 function headUnit(x) { return typeof unitHeadNow === 'function' ? unitHeadNow(x.unit, x.unitShow) : x.unit; }
+// [systemcheck:rowbadge-start] 1.6.0 R4 and R5 (backlog 180; the owner, by prompt: "A. After the name", "A. Tint and an edge", "A. The badge itself",
+// "A. Label, then badge"): a row's badges and a value name's tone. A badge is words in a tone (plain where none is set), after the name as a pill or
+// under the row as a line; the first that shows and tints gives its row its tone's tint and edge; one that pulses pulses itself (still where
+// motion is reduced, by the style sheet). Classes come from constant maps, words are text nodes, a tip a title
+var TINT_CLASS = Object.freeze({ good: ' sheet-tint-good', warn: ' sheet-tint-warn', danger: ' sheet-tint-danger', accent: ' sheet-tint-accent', primary: ' sheet-tint-primary' });
+function badgeTone(t) { return typeof t === 'string' && Object.prototype.hasOwnProperty.call(TINT_CLASS, t) ? t : ''; }
+function badgeBits(host, spec, on, tintEl, noLines) {   // answers the lines' box (or null) for the caller to put under the row
+    if (!spec || !Array.isArray(spec.badges) || !Array.isArray(on) || !on.length) return null;
+    var lines = null, pills = null, tinted = false;
+    on.forEach(function(i) { var b = spec.badges[i]; if (!b || typeof b.words !== 'string' || !b.words) return; var t = badgeTone(b.tone), tc = t ? ' sheet-tone-' + t : ' sheet-tone-plain', n;
+        if (b.line === true) { if (noLines) return; if (!lines) lines = el('div', 'sheet-item-badgelines'); n = el('div', 'sheet-item-badgeline' + tc, b.words); lines.appendChild(n); }
+        else { if (!pills) { pills = el('span', 'sheet-item-badges'); host.appendChild(pills); if (tintEl && tintEl.classList) tintEl.classList.add('sheet-item-badged'); } n = el('span', 'sheet-badge sheet-item-badge' + tc, b.words); pills.appendChild(n); }   // the pills in one box right after the name
+        if (b.pulse === true) n.className += ' sheet-badge-pulse';
+        if (typeof b.tip === 'string' && b.tip) n.title = b.tip;
+        if (b.tint === true && t && !tinted && tintEl) { tintEl.className += TINT_CLASS[t]; tinted = true; } });
+    return lines;
+}
+function nameTone(c, v) { if (!c || !Array.isArray(c.tones) || !Array.isArray(c.labels) || typeof v !== 'number' || v !== Math.floor(v) || v < 0 || v >= c.tones.length || v >= c.labels.length) return ''; return badgeTone(c.tones[v]); }   // R5: a value name's tone, '' for none
+function tonedChip(cls, label, words, t) { var ch = el('span', cls + ' sheet-item-toned'); ch.appendChild(el('small', null, label)); ch.appendChild(document.createTextNode(' ')); ch.appendChild(el('span', 'sheet-badge sheet-tone-' + t, words)); return ch; }   // R5: its label small, then the word as a badge
+// [systemcheck:rowbadge-end]
 function statChips(host, def, spec, ovc) {   // the stats shown On the row: a chip each beside the name, its label small ("Acc 2"); F4c2: a dot on a value of the copy's own
-    (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s.show !== true) return; var ch = el('span', 'sheet-chip sheet-item-stat'); ch.appendChild(el('small', null, s.label)); ch.appendChild(document.createTextNode(' ' + statShown(s, rowStat(spec, def, s.key)))); var dt = statDot(s, spec, ovc); if (dt) ch.appendChild(dt); host.appendChild(ch); });
+    (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s.show !== true) return; var sv = rowStat(spec, def, s.key), stT = typeof nameTone === 'function' ? nameTone(s, sv) : '', ch = stT ? tonedChip('sheet-chip sheet-item-stat', s.label, statShown(s, sv), stT) : el('span', 'sheet-chip sheet-item-stat'); if (!stT) { ch.appendChild(el('small', null, s.label)); ch.appendChild(document.createTextNode(' ' + statShown(s, sv))); } var dt = statDot(s, spec, ovc); if (dt) ch.appendChild(dt); host.appendChild(ch); });
 }
 function statLine(entry, def, spec) {   // every stat, then what one cost: "Acc 2 · Wt 0.0001 · Paid 500" (the 📝 line: a player reads every stat there)
     var parts = (Array.isArray(spec.stats) ? spec.stats : []).filter(function(s) { return s.hide !== true; }).map(function(s) { return s.label + ' ' + statShown(s, rowStat(spec, def, s.key)); });   // 1.5.4: a Hidden stat is worked with, never listed
@@ -2884,6 +2904,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         var ovc = ovCtx(entry, rd, gm);   // F4c2: what this copy holds of its own (a dot on each)
         var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft'))); if (def.notes) nm.title = def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
         var opnR = typeof entry.opn === 'string'; if (opnR && typeof openedWords === 'function') { line.className += ' sheet-item-opened'; nm.appendChild(el('span', 'sheet-item-opened-tag', ' (' + openedWords(entry, c, sysI, spec) + ')')); }   // 1.5.8: a row another row opens says so, and holds no control that changes it
+        var bdLn = typeof badgeBits === 'function' ? badgeBits(line, spec, res && res.bd ? res.bd[rid] : null, line, hudRow) : null;   // 1.6.0 R4: its badges after the name (no lines on the HUD)
         if (chips && def.category) line.appendChild(el('span', 'sheet-chip', def.category));
         lostBits(line, rd, entry, c, f, gm, chg); needBits(line, sysI, c, entry, rd, gm); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL); modsBits(line, def, entry, spec, sysI);
         if (typeof onceBits === 'function') onceBits(line, sysI, c, f, carried, entry);   // 1.5.8 Counted once
@@ -2909,6 +2930,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         if (editable && !opnR) { var ub = undoBtn(entry, c, f); if (ub) line.appendChild(ub); if (!(spec && spec.noQty)) line.appendChild(itemQtyCell(entry, c, f)); if (chg) line.appendChild(itemRmBtn(entry, def, c, f)); }
         else if (!(spec && spec.noQty)) line.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
         wrap.appendChild(line);
+        if (bdLn) wrap.appendChild(bdLn);   // 1.6.0 R4: a badge set as a line, under its row
         if (noteLn) wrap.appendChild(noteLn);
         if (rr && rfOpen(c, f, rid)) wrap.appendChild(rowForm(entry, rd, c, f, spec, sysI, rr));   // F4c2: its form, under the row (one at a time, in the view it was opened in)
     });
@@ -3096,7 +3118,7 @@ function openChamberMenu(anchor, c, f, entry, sf, spec, sys) {   // on the page,
 // Stage 6 F5a1: the columns shown on a row — a chip each, its label small ("Cost 11 pts"); an error reads "\u2014" with the message on hover
 function colChips(host, spec, cells) {
     if (!cells || !Array.isArray(spec.cols)) return;
-    spec.cols.forEach(function(cc, i) { var v = cells[i]; if ((typeof partHere === 'function' && !partHere(cc, _placeWant, _fxView === 'hud')) || (typeof partHere !== 'function' && cc.hide === true) || !v) return; var ch = el('span', 'sheet-chip sheet-item-col' + (v.error ? ' sheet-item-colerr' : '')); ch.appendChild(el('small', null, cc.label)); ch.appendChild(document.createTextNode(' ' + (typeof colShown === 'function' ? colShown(cc, v) : v.text + (cc.unit && !v.error ? ' ' + cc.unit : '')) + (typeof plusText === 'function' ? plusText(v) : ''))); if (v.error) ch.title = v.error; host.appendChild(ch); });
+    spec.cols.forEach(function(cc, i) { var v = cells[i]; if ((typeof partHere === 'function' && !partHere(cc, _placeWant, _fxView === 'hud')) || (typeof partHere !== 'function' && cc.hide === true) || !v) return; var cT = !v.error && typeof nameTone === 'function' ? nameTone(cc, v.value) : ''; if (cT) { host.appendChild(tonedChip('sheet-chip sheet-item-col', cc.label, v.text, cT)); return; } var ch = el('span', 'sheet-chip sheet-item-col' + (v.error ? ' sheet-item-colerr' : '')); ch.appendChild(el('small', null, cc.label)); ch.appendChild(document.createTextNode(' ' + (typeof colShown === 'function' ? colShown(cc, v) : v.text + (cc.unit && !v.error ? ' ' + cc.unit : '')) + (typeof plusText === 'function' ? plusText(v) : ''))); if (v.error) ch.title = v.error; host.appendChild(ch); });
 }
 // F5a1: the totals under a list — each stat shown on the row and each column marked Total, summed over the rows carried (a kept curse is not)
 function totalsLine(wrap, spec, foot, cap) {   // cap (1.5.5): its caption, Total where none is given
@@ -3142,10 +3164,11 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         if (tbl.chips && def.category) nameTd.appendChild(el('span', 'sheet-chip', def.category));
         lostBits(nameTd, rd, entry, c, f, gm, chg); needBits(nameTd, sysI, c, entry, rd, gm); gmItemBits(nameTd, def, entry, gm, hasO); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI);
         if (typeof onceBits === 'function') onceBits(nameTd, sysI, c, f, carried, entry);   // 1.5.8 Counted once
+        if (typeof badgeBits === 'function') { var bdT = badgeBits(nameTd, spec, res && res.bd ? res.bd[rid] : null, tr, hudRow); if (bdT) nameTd.appendChild(bdT); }   // 1.6.0 R4: in a table the badges go in the name's cell
         tr.appendChild(nameTd);
         cols.forEach(function(col) { tr.appendChild(el('td', 'sheet-itcol-' + col, itemCellText(col, def, typeof blastTag === 'function' ? blastTag : null))); });
-        shownSt.forEach(function(s) { var sTd = el('td', 'sheet-itcol-stat', statShown(s, rowStat(spec, def, s.key))), sDt = statDot(s, spec, ovT); if (sDt) sTd.appendChild(sDt); tr.appendChild(sTd); });
-        var cellsT = res && res.cells ? res.cells[rid] : null; shownCl.forEach(function(x) { var v = cellsT ? cellsT[x.i] : null, cTd = el('td', 'sheet-itcol-col' + (v && v.error ? ' sheet-item-colerr' : ''), v ? (typeof colShown === 'function' ? colShown(x.c, v) : v.text + (x.c.unit && !v.error ? ' ' + x.c.unit : '')) + (typeof plusText === 'function' ? plusText(v) : '') : ''); if (v && v.error) cTd.title = v.error; tr.appendChild(cTd); });   // F5a1: its columns (1.5.4: and what a column's With stats add, in brackets)
+        shownSt.forEach(function(s) { var svT = rowStat(spec, def, s.key), sTn = typeof nameTone === 'function' ? nameTone(s, svT) : '', sTd = el('td', 'sheet-itcol-stat', sTn ? undefined : statShown(s, svT)); if (sTn) sTd.appendChild(el('span', 'sheet-badge sheet-tone-' + sTn, statShown(s, svT))); var sDt = statDot(s, spec, ovT); if (sDt) sTd.appendChild(sDt); tr.appendChild(sTd); });
+        var cellsT = res && res.cells ? res.cells[rid] : null; shownCl.forEach(function(x) { var v = cellsT ? cellsT[x.i] : null, cTn = v && !v.error && typeof nameTone === 'function' ? nameTone(x.c, v.value) : ''; if (cTn) { var cTd2 = el('td', 'sheet-itcol-col'); cTd2.appendChild(el('span', 'sheet-badge sheet-tone-' + cTn, v.text)); tr.appendChild(cTd2); return; } var cTd = el('td', 'sheet-itcol-col' + (v && v.error ? ' sheet-item-colerr' : ''), v ? (typeof colShown === 'function' ? colShown(x.c, v) : v.text + (x.c.unit && !v.error ? ' ' + x.c.unit : '')) + (typeof plusText === 'function' ? plusText(v) : '') : ''); if (v && v.error) cTd.title = v.error; tr.appendChild(cTd); });   // F5a1: its columns (1.5.4: and what a column's With stats add, in brackets)
         if (hasL) { var lTd = el('td', 'sheet-itcol-lvl'), lcT = lvlCtl(entry, def, c, f, spec, chg); if (lcT) lTd.appendChild(lcT); tr.appendChild(lTd); }
         if (hasO) { var oTd = el('td', 'sheet-itcol-on'), ocT = onCtl(entry, c, f, spec, editable, false, res && res.onOk ? res.onOk[rid] : undefined, res && res.onShow ? res.onShow[rid] : undefined); if (ocT) oTd.appendChild(ocT); tr.appendChild(oTd); }
         if (hasQ) {
@@ -5570,6 +5593,50 @@ function altBox(obj, tip) {
     return box;
 }
 // [systemcheck:altbox-end]
+// [systemcheck:badgebox-start]
+// 1.6.0 R4 and R5 (backlog 180): the Lists tab's Badges box and a value name's tone, each edited in place on the draft object it is handed, with its
+// own listeners and class names no handler of the Lists tab reads (sys-badge-*, sys-ltone-*). A badge: its words, Shown where (a formula of the
+// row), a tone, Pill or Line, Tints its row, Pulses and a tip; BADGE_MAX at most
+var BADGE_TONES = [['', 'Plain'], ['good', 'Good (green)'], ['warn', 'Warning (amber)'], ['danger', 'Danger (red)'], ['accent', 'Accent'], ['primary', 'Primary']];
+function badgeSel(cls, opts, cur, tip) { var s = el('select', cls); s.title = tip; opts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0] === (cur || '')) op.selected = true; s.appendChild(op); }); return s; }
+function badgeTick(cls, on, words, tip) { var lb = el('label', 'sys-flag'), cb = el('input', cls); cb.type = 'checkbox'; cb.checked = on === true; lb.title = tip; lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + words)); return { lb: lb, cb: cb }; }
+function badgeBox(sp) {
+    var box = el('div', 'sys-badges'), max = typeof BADGE_MAX === 'number' ? BADGE_MAX : 8, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var draw = function() {
+        box.textContent = ''; box.appendChild(el('span', 'sys-num-cap', 'Badges'));
+        var list = Array.isArray(sp.badges) ? sp.badges : [];
+        list.forEach(function(b0, j) {
+            var b = b0 && typeof b0 === 'object' ? b0 : {}, rw = el('div', 'sys-flags sys-badge-row'), set = function(k, v) { if (!sp.badges || !sp.badges[j]) return; if (v === '' || v === false) delete sp.badges[j][k]; else sp.badges[j][k] = v; ch(); };
+            var wI = input('sys-badge-words field', typeof b.words === 'string' ? b.words : '', 'The words the badge says, such as Jammed. A state is always said in words', 'Words'); wI.maxLength = LIMITS.text;
+            wI.addEventListener('input', function() { set('words', wI.value.slice(0, LIMITS.text)); });
+            var iI = input('sys-badge-if field', typeof b.if === 'string' ? b.if : '', 'It shows on a row only while this holds, no dice: Row.jam > 0. Row.<name> reads the row, any other name the character', 'Shown where (Row.jam > 0)'); iI.maxLength = LIMITS.formula;
+            iI.addEventListener('input', function() { set('if', iI.value.slice(0, LIMITS.formula)); });
+            var tS = badgeSel('sys-badge-tone', BADGE_TONES, b.tone, 'Its colour. Plain is grey'); tS.addEventListener('change', function(e) { e.stopPropagation(); set('tone', tS.value); });
+            var kS = badgeSel('sys-badge-kind', [['', 'Pill'], ['line', 'Line']], b.line === true ? 'line' : '', 'Pill: after the name. Line: a sentence under the row, for a longer warning'); kS.addEventListener('change', function(e) { e.stopPropagation(); set('line', kS.value === 'line'); });
+            var tt = badgeTick('sys-badge-tint', b.tint, 'Tints its row', 'The row takes the badge\u2019s colour as a tint with an edge while it shows. The first badge that tints wins'); tt.cb.addEventListener('change', function(e) { e.stopPropagation(); set('tint', tt.cb.checked); });
+            var pt = badgeTick('sys-badge-pulse', b.pulse, 'Pulses', 'The badge pulses slowly, for a state that needs attention now. It stays still where the computer is set to reduce motion'); pt.cb.addEventListener('change', function(e) { e.stopPropagation(); set('pulse', pt.cb.checked); });
+            var pI = input('sys-badge-tip field', typeof b.tip === 'string' ? b.tip : '', 'Words shown when the pointer rests on the badge', 'Tip (optional)'); pI.maxLength = LIMITS.text;
+            pI.addEventListener('input', function() { set('tip', pI.value.slice(0, LIMITS.text)); });
+            var x = el('button', 'tool ghost sys-btn sys-badge-del', '\u00d7'); x.type = 'button'; x.title = 'Remove this badge';
+            x.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(sp.badges)) return; sp.badges.splice(j, 1); if (!sp.badges.length) delete sp.badges; ch(); draw(); });
+            [wI, iI, tS, kS, tt.lb, pt.lb, pI, x].forEach(function(n) { rw.appendChild(n); }); box.appendChild(rw);
+        });
+        var ad = el('button', 'tool ghost sys-btn sys-badge-add', '+ Badge'); ad.type = 'button'; ad.disabled = list.length >= max; ad.title = ad.disabled ? 'At most ' + max + ' badges a list' : 'Words a row shows while a formula of the row holds, such as Jammed while Row.jam > 0';
+        ad.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(sp.badges)) sp.badges = []; if (sp.badges.length >= max) return; sp.badges.push({ words: '', if: '' }); ch(); draw(); var ins = box.querySelectorAll('.sys-badge-words'); if (ins.length) ins[ins.length - 1].focus(); }); box.appendChild(ad);
+    };
+    draw();
+    return box;
+}
+function toneRow(obj) {   // R5: a tone beside each value name of a stat or a column, as a field's Colours row
+    if (!obj || !Array.isArray(obj.labels) || !obj.labels.some(Boolean)) return null;
+    var row = el('div', 'sys-flags sys-ltone-row'); row.appendChild(el('span', 'sys-num-cap', 'Colours'));
+    obj.labels.forEach(function(nm, ti) { if (!nm || ti >= LIMITS.labels) return; var lab = el('label', 'sys-ltone-lbl'); lab.appendChild(el('span', null, nm + ' '));
+        var s = badgeSel('sys-ltone-sel', BADGE_TONES, Array.isArray(obj.tones) ? obj.tones[ti] : '', 'Its colour on a row when the value is ' + nm + '. With a colour the row shows the label small, then the name as a badge');
+        s.addEventListener('change', function(e) { e.stopPropagation(); var a = Array.isArray(obj.tones) ? obj.tones.slice() : []; while (a.length <= ti) a.push(''); a[ti] = s.value; while (a.length && !a[a.length - 1]) a.pop(); if (a.length) obj.tones = a; else delete obj.tones; markDirty(); if (typeof patchErrors === 'function') patchErrors(); });
+        lab.appendChild(s); row.appendChild(lab); });
+    return row;
+}
+// [systemcheck:badgebox-end]
 function markDirty() { dirty = true; var s = ui('sysSaveBtn'); if (s) s.classList.add('on'); }
 // Stage 6: each stored value of a field the saved system still has, checked against it again (a value past new value names, a lowered max,
 // a removed library entry) — what a reload does, at once, so the GM's sheet, their formulas and every player agree. Other ids stay as they are.
@@ -6694,6 +6761,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         }
         if (s.kind !== 'pick') sr.appendChild(checkLabel('sys-list-statsplit', s.split === true, 'Split in trades', 'A trade may give part of this figure, as money from a chip. A row of quantity 1 only'));   // 1.5.6 trading
         sr.appendChild(checkLabel('sys-list-statshow', s.show === true && s.hide !== true, 'On the row', 'Shown beside the name on each row (a column in a rich table); every stat that is not Hidden reads in the row’s 📝 line'));
+        if (s.kind !== 'pick' && typeof toneRow === 'function') { var stR = toneRow(s); if (stR) sr.appendChild(stR); }   // 1.6.0 R5: a tone per value name
         sr.appendChild(checkLabel('sys-list-stathide', s.hide === true, 'Hidden', 'A figure the row only works with, such as a cost per level. It is never shown on a row or in its 📝 details. Formulas still read it, and ✎ still shows it. It is no secret: use a GM-only list for that'));
         [['statup', '▲', 'Move up'], ['statdown', '▼', 'Move down'], ['statdel', '×', 'Remove this stat (Save drops its values)']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; sr.appendChild(bb); });
         sb.appendChild(sr);
@@ -6702,6 +6770,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     if (sts.length) { var pr = el('label', 'sys-num sys-price-box'), ps = el('select', 'sys-list-price'); pr.appendChild(el('span', 'sys-num-cap', 'Price')); ps.title = 'A row records it as Paid when added: what one cost (yours to correct on the sheet)'; priceOptions(ps, sp); pr.appendChild(ps); sb.appendChild(pr); if (sp.price && typeof placeSel === 'function') sb.appendChild(placeSel('paid', sp.paidPlace)); }   // 1.6.0 R2: where Paid stands
     { var mb = el('label', 'sys-num sys-money-box'), msel = el('select', 'sys-list-money'); mb.appendChild(el('span', 'sys-num-cap', 'Holds money')); msel.title = 'Rows of this list are money: each row holds its level, as a chip holds its amount, or each piece is worth a stat, as a bar is worth its denomination. Buying and selling pay from and into these rows'; if (typeof moneyOptions === 'function') moneyOptions(msel, sp); mb.appendChild(msel); sb.appendChild(mb); }   // 1.5.6 the Money box
     card.appendChild(sb);
+    if (typeof badgeBox === 'function') card.appendChild(badgeBox(sp));   // 1.6.0 R4: its row badges
     // Stage 6 F5a1: the list's columns — a formula worked out for each row (Row.lvl, Row.<stat>, another column), LIMITS.listCols at most — and the names it offers
     var cls = Array.isArray(sp.cols) ? sp.cols : [], cb2 = el('div', 'sys-list-cols');
     cb2.appendChild(el('span', 'sys-num-cap', 'Columns'));
@@ -6716,6 +6785,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         var cpI = input('sys-list-colplus field', Array.isArray(cc.plus) ? cc.plus.join(', ') : '', 'Number stats of this list that add to this column in a case of their own, by their keys, separated by commas. Where such a stat is not 0 the row shows the two added, with the stat\u2019s label: DR 15 (35 vs. energy)', 'With stats (optional)'); cpI.maxLength = 240; cr.appendChild(cpI);   // 1.5.4 With
         if (typeof placeSel === 'function') cr.appendChild(placeSel('col:' + ci, cc.hide === true ? 'hide' : cc.place));   // 1.6.0 R2: on the row, in the details, or Hidden (worked out for totals and other columns, not shown)
         cr.appendChild(checkLabel('sys-list-colfoot', cc.foot === true, 'Total', 'Its total shows under the list'));
+        if (typeof toneRow === 'function') { var ctR = toneRow(cc); if (ctR) cr.appendChild(ctR); }   // 1.6.0 R5
         [['colup', '\u25b2', 'Move up'], ['coldown', '\u25bc', 'Move down'], ['coldel', '\u00d7', 'Remove this column']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; cr.appendChild(bb); });
         cb2.appendChild(cr);
     });

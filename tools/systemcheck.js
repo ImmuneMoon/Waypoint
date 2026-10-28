@@ -15769,6 +15769,106 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             + 'the sheet\'s bar (renderStaleBar, sliced and run for real): the GM\'s Review and Mark current, the player\'s Send a new sheet, nothing for a teammate or a current sheet; Mark current, Mark all current and Ask for new sheets, the wiring, the page and Help',
             revOk && staleOk && charOk && upOk && propOk && applyOk && barOk && wiredOk, J([revOk, staleOk, charOk, upOk, propOk, applyOk, barOk, wiredOk, pr && pr.changes.map(c => [c.f, c.from, c.to]), gList.map(r => [r.id, r.defId]), gmL, gmR, plL, mateL, curL, log]));
     }
+    {   // 1.6.0, backlog 180 R4 and R5 (the owner, by prompt: "A. After the name", "A. Tint and an edge", "A. The badge itself", "A. Label, then badge"): a row's badges and a value name's tone
+        const J = JSON.stringify;
+        const rawB = { v: 1, name: 'B', rolls: [], sheet: { sections: [] },
+            items: [{ id: 'i_rf', name: 'Ember Rifle', stats: { cond: 1 } }, { id: 'i_hb', name: 'Hookblade', stats: { cond: 0 } }, { id: 'i_br', name: 'Broken Pole', stats: { cond: 2 } }],
+            fields: [{ id: 'f_hid', key: 'Hid', label: 'Hid', kind: 'number', vis: 'gm' },
+                { id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', list: {
+                stats: [{ key: 'cond', label: 'Cond', labels: ['Fine', 'Worn', 'Broken'], tones: ['good', 'warn', 'danger', 'good'], show: true }, { key: 'plain', label: 'Plain', labels: ['A', 'B'], tones: ['', ''] }],
+                counters: [{ key: 'jam', label: 'Jammed', max: '1' }],
+                cols: [{ key: 'st', label: 'State', formula: 'Row.cond', labels: ['Fine', 'Worn', 'Broken'], tones: ['', 'bogus', 'danger'] }],
+                badges: [{ words: 'Jammed', if: 'Row.jam > 0', tone: 'danger', tint: true, pulse: true, tip: 'Clear it', extra: 1 }, { words: 'Secret', if: 'Hid > 0', tone: 'warn', tint: true },
+                    { words: 'Rolls', if: '1d6 > 2' }, { words: 'Needs a check at the next rest.', if: 'Row.cond >= 1', line: true, tone: 'nope', tint: 'yes', pulse: 1 }, { words: '', if: '1' }, { words: 'No formula' },
+                    { words: 'Worn out', if: 'Row.cond = 1', tone: 'warn', tint: true }] } }] };
+        const gB = S.cleanSystem(rawB, { F, gmView: true }), pB = S.cleanSystem(rawB, { F, gmView: false }), lB = sy => sy.fields.find(x => x.id === 'f_g').list;
+        const cleanOk = J(lB(gB).badges) === J([{ words: 'Jammed', if: 'Row.jam > 0', tone: 'danger', tint: true, pulse: true, tip: 'Clear it' }, { words: 'Secret', if: 'Hid > 0', tone: 'warn', tint: true },
+                { words: 'Needs a check at the next rest.', if: 'Row.cond >= 1', line: true }, { words: 'Worn out', if: 'Row.cond = 1', tone: 'warn', tint: true }])
+            && J(lB(pB).badges.map(b => b.words)) === J(['Jammed', 'Needs a check at the next rest.', 'Worn out'])
+            && J(lB(gB).stats[0].tones) === J(['good', 'warn', 'danger']) && !('tones' in lB(gB).stats[1]) && J(lB(gB).cols[0].tones) === J(['', '', 'danger']) && J(lB(pB).stats[0].tones) === J(lB(gB).stats[0].tones)
+            && J(S.cleanSystem(gB, { F, gmView: true })) === J(gB) && J(S.cleanSystem(pB, { F, gmView: false })) === J(pB)
+            && S.cleanBadges(Array.from({ length: 12 }, (x, i) => ({ words: 'b' + i, if: 'Row.cond = ' + i }))) === null
+            && S.cleanBadges(Array.from({ length: 12 }, (x, i) => ({ words: 'b' + i, if: 'Row.cond = ' + i })), F).length === S.BADGE_MAX && S.BADGE_MAX === 8 && S.cleanBadges('x', F) === null && S.cleanBadges([], F) === null
+            && !('badges' in (S.cleanSystem({ v: 1, name: 'N', fields: [{ id: 'f_n', key: 'N', label: 'N', kind: 'item-list', list: {} }] }, { F, gmView: true }).fields[0].list || {}));
+        // the resolver: which badges hold on each row; a row whose formula cannot be worked out shows none
+        const chB = { id: 'c_b', name: 'Kael', ownerId: 'u_b', values: { f_hid: 2, f_g: [{ id: 'w_rf', defId: 'i_rf', qty: 1, ct: { jam: 1 } }, { id: 'w_hb', defId: 'i_hb', qty: 1 }, { id: 'w_br', defId: 'i_br', qty: 1 }] } };
+        const resG = S.resolveAll(gB, chB, F, null).f_g, resP = S.resolveAll(pB, chB, F, null).f_g;
+        const resOk = J(resG.bd) === J({ w_rf: [0, 1, 2, 3], w_hb: [1], w_br: [1, 2] }) && J(resP.bd) === J({ w_rf: [0, 1, 2], w_hb: [], w_br: [1] })
+            && S.resolveAll(S.cleanSystem({ v: 1, name: 'N', fields: [{ id: 'f_n', key: 'N', label: 'N', kind: 'item-list', list: {} }] }, { F, gmView: true }), { id: 'c', name: 'c', values: {} }, F, null).f_n.bd === undefined;
+        const vB = S.validateSystem(Object.assign({}, gB, { fields: gB.fields.map(f => f.id !== 'f_g' ? f : Object.assign({}, f, { list: Object.assign({}, f.list, { badges: [{ words: 'Odd', if: 'Nope > 0' }] }) })) }), F);
+        const valOk = vB.errors.some(x => /^list\.badge\.0\.Odd/.test(x.prop || '')) && !S.validateSystem(gB, F).errors.some(x => /badge/.test(x.prop || ''));
+        // the sheet: the real item widgets (sliced from sheets.js) on a page of plain objects
+        const shB2 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const cutB = (a, b) => { const i = shB2.indexOf(a), k = shB2.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('badges slice: ' + a); return shB2.slice(i, k); };
+        const itB = cutB('// ---- item-list widgets', '// 5h: an effect\'s changes as short text'), bbB = cutB('// [systemcheck:badgebox-start]', '// [systemcheck:badgebox-end]');
+        const mkB = (tag, cls, text) => { const e = { tag, className: cls || '', textContent: text === undefined || text === null ? '' : String(text), children: [], attrs: {}, title: '', type: '', value: '', checked: false, disabled: false, selected: false, dataset: {}, style: {}, on: {}, maxLength: 0, placeholder: '',
+            classList: { toggle(c, on) { const k = e.className.split(' ').filter(Boolean); const has = k.includes(c), want = on === undefined ? !has : !!on; if (want && !has) k.push(c); if (!want && has) k.splice(k.indexOf(c), 1); e.className = k.join(' '); return want; }, add(c) { this.toggle(c, true); }, remove(c) { this.toggle(c, false); }, contains(c) { return e.className.split(' ').includes(c); } },
+            get childNodes() { return e.children; }, get firstChild() { return e.children[0] || null; }, appendChild(x) { e.children.push(x); return x; }, insertBefore(x, r) { const i = r ? e.children.indexOf(r) : -1; if (i < 0) e.children.push(x); else e.children.splice(i, 0, x); return x; },
+            querySelectorAll(sel) { const c = sel.replace(/^\./, ''), acc = []; const w = n => { (n.children || []).forEach(k => { if ((' ' + (k.className || '') + ' ').indexOf(' ' + c + ' ') >= 0) acc.push(k); w(k); }); }; w(e); return acc; }, focus() {},
+            setAttribute(k, v) { e.attrs[k] = String(v); }, addEventListener(k, fn) { e.on[k] = fn; }, click() { if (e.on.click) e.on.click({ stopPropagation() {} }); } };
+            Object.defineProperty(e, 'textContent', { get() { return e._t; }, set(v) { e._t = v === undefined || v === null ? '' : String(v); e.children = []; }, configurable: true }); e.textContent = text === undefined || text === null ? '' : String(text); return e; };
+        const docB = { createTextNode: t => ({ tag: '#text', textContent: t, children: [] }), createElementNS: (ns, tag) => Object.assign(mkB(tag), { ns }) };
+        const optB = (v, t, sl) => { const o = mkB('option', null, t); o.value = v; if (sl) o.selected = true; return o; };
+        const depsB = ['el', 'iconNode', 'rowDef', 'rowIdOf', 'rowLvl', 'rowOn', 'commitItem', 'opt', 'fmtNum', 'iconText', 'LIMITS', '_fxLive', 'document', 'renderViews', 'closeHud', 'closeSheet', 'window', 'systemOf', 'getActiveCampaign', 'facingTarget', 'uid', 'F', 'fxText', 'canRoll', 'sheetRoll', 'commit', 'valueTone', 'TONE_CLASS', 'rowStat', 'rowPaid', '_fxView'];
+        const depsBV = view => [mkB, (v, cls) => mkB('span', cls, v), S.rowDef, S.rowIdOf, S.rowLvl, S.rowOn, () => {}, optB, S.fmtNum, v => v || '', S.LIMITS, true, docB, () => {}, () => {}, () => {}, {}, () => gB, () => null, () => null, p => p + 'new', () => F, S.fxText, () => true, () => {}, () => {}, S.valueTone, {}, S.rowStat, S.rowPaid, view];
+        const backB = '\nreturn { itemListInto, itemTableInto, badgeBits, nameTone, tonedChip };';
+        const WB = new Function(...depsB, itB + backB)(...depsBV('sheet')), WBh = new Function(...depsB, itB + backB)(...depsBV('hud'));
+        const walkB = (n, p, acc) => { if (n && p(n)) acc.push(n); ((n && n.children) || []).forEach(k => walkB(k, p, acc)); return acc; }, byB = (n, c) => walkB(n, x => (' ' + x.className + ' ').indexOf(' ' + c + ' ') >= 0, []);
+        const fGB = gB.fields.find(x => x.id === 'f_g'), wB = mkB('div'); WB.itemListInto(wB, fGB, chB, chB.values.f_g, gB, false, true, true, '', resG);
+        const rowsB = wB.children.filter(n => n.className.split(' ').includes('sheet-item')), rf = rowsB[0], hb = rowsB[1], br = rowsB[2];
+        const pillsOf = r => byB(r, 'sheet-item-badge').map(b => [b.className, b.textContent, b.title]);
+        const nmIdx = r => r.children.findIndex(k => k.className === 'sheet-item-name'), bxIdx = r => r.children.findIndex(k => k.className === 'sheet-item-badges');
+        const condOf = r => byB(r, 'sheet-item-stat').map(c => [c.className, c.children.map(k => k.tag + ':' + (k.className || '') + ':' + k.textContent)]);
+        const drawOk = rf.className === 'sheet-item sheet-item-badged sheet-tint-danger' && bxIdx(rf) === nmIdx(rf) + 1
+            && J(pillsOf(rf)) === J([['sheet-badge sheet-item-badge sheet-tone-danger sheet-badge-pulse', 'Jammed', 'Clear it'], ['sheet-badge sheet-item-badge sheet-tone-warn', 'Secret', ''], ['sheet-badge sheet-item-badge sheet-tone-warn', 'Worn out', '']])
+            && wB.children[wB.children.indexOf(rf) + 1].className === 'sheet-item-badgelines' && J(byB(wB.children[wB.children.indexOf(rf) + 1], 'sheet-item-badgeline').map(l => [l.className, l.textContent])) === J([['sheet-item-badgeline sheet-tone-plain', 'Needs a check at the next rest.']])
+            && hb.className === 'sheet-item sheet-item-badged sheet-tint-warn' && br.className === 'sheet-item sheet-item-badged sheet-tint-warn' && J(pillsOf(hb).map(p => p[1])) === J(['Secret']) && wB.children[wB.children.indexOf(hb) + 1].className !== 'sheet-item-badgelines'
+            && J(condOf(rf)) === J([['sheet-chip sheet-item-stat sheet-item-toned', ['small::Cond', '#text:: ', 'span:sheet-badge sheet-tone-warn:Worn']]]) && J(condOf(hb)[0][1][2]) === J('span:sheet-badge sheet-tone-good:Fine')
+            && J(byB(br, 'sheet-item-col').map(c => [c.className, c.children.map(k => k.className + ':' + k.textContent)])) === J([['sheet-chip sheet-item-col sheet-item-toned', [':State', 'undefined: ', 'sheet-badge sheet-tone-danger:Broken']]])
+            && byB(br, 'sheet-item-toned').length === 2 && byB(rf, 'sheet-item-toned').length === 1;
+        // the HUD: pills on the row, no line under it
+        const wH = mkB('div'); WBh.itemListInto(wH, fGB, chB, chB.values.f_g, gB, false, true, true, '', resG);
+        const hudOk = byB(wH, 'sheet-item-badgelines').length === 0 && byB(wH, 'sheet-item-badge').length === 5;
+        // a rich table: the badges and a line in the name's cell, the tint on the row, a toned name as a badge in its cell
+        const fT = Object.assign({}, fGB, { table: { columns: [] } }), wT = mkB('div'); WB.itemTableInto(wT, fT, chB, chB.values.f_g, gB, false, true, true, '', resG);
+        const trs = byB(wT, 'sheet-tint-danger'), nameTd = trs[0] && trs[0].children.find(k => k.className === 'sheet-itcol-name');
+        const tableOk = trs.length === 1 && trs[0].tag === 'tr' && byB(nameTd, 'sheet-item-badge').length === 3 && byB(nameTd, 'sheet-item-badgeline').length === 1
+            && J(walkB(trs[0], x => x.tag === 'td' && x.className === 'sheet-itcol-stat', []).map(td => td.children.map(k => k.className + ':' + k.textContent))) === J([['sheet-badge sheet-tone-warn:Worn']]);
+        // the pure helpers
+        const pureOk = WB.nameTone({ labels: ['a', 'b'], tones: ['good', 'nope'] }, 0) === 'good' && WB.nameTone({ labels: ['a', 'b'], tones: ['good', 'nope'] }, 1) === '' && WB.nameTone({ labels: ['a'], tones: ['good', 'warn'] }, 1) === ''
+            && WB.nameTone({ labels: ['a'], tones: ['good'] }, 0.5) === '' && WB.nameTone({ labels: ['a'], tones: ['good'] }, -1) === '' && WB.nameTone(null, 0) === '' && WB.nameTone({ labels: ['a'], tones: ['__proto__'] }, 0) === ''
+            && WB.badgeBits(mkB('div'), { badges: [] }, [0], null) === null && WB.badgeBits(mkB('div'), null, [0], null) === null;
+        // the editor's Badges box and a value name's tones (sliced and run for real)
+        let dirtyB = 0;
+        const inputB = (cls, value, title, ph) => { const i = mkB('input', cls); i.value = value || ''; i.title = title || ''; i.placeholder = ph || ''; return i; };
+        const BB = new Function('el', 'input', 'markDirty', 'patchErrors', 'LIMITS', 'BADGE_MAX', 'document', bbB + '\nreturn { badgeBox, toneRow };')(mkB, inputB, () => { dirtyB++; }, () => {}, S.LIMITS, S.BADGE_MAX, docB);
+        const spE = { badges: [{ words: '<b>x</b>', if: 'Row.jam > 0', tone: 'danger', tint: true }] }, boxE = BB.badgeBox(spE);
+        const rowE = byB(boxE, 'sys-badge-row')[0], fire = (n, k, v) => { if (v !== undefined) { if (typeof v === 'boolean') n.checked = v; else n.value = v; } n.on[k]({ stopPropagation() {} }); };
+        const lbl = n => byB(rowE, n)[0];
+        const editOk0 = byB(boxE, 'sys-badge-row').length === 1 && lbl('sys-badge-words').value === '<b>x</b>' && lbl('sys-badge-tone').children.filter(o => o.selected).map(o => o.value).join() === 'danger' && lbl('sys-badge-tint').checked === true && lbl('sys-badge-pulse').checked === false
+            && J(lbl('sys-badge-kind').children.map(o => o.value)) === J(['', 'line']) && J(lbl('sys-badge-tone').children.map(o => o.value)) === J(['', 'good', 'warn', 'danger', 'accent', 'primary']);
+        fire(lbl('sys-badge-words'), 'input', 'Jammed'); fire(lbl('sys-badge-kind'), 'change', 'line'); fire(lbl('sys-badge-pulse'), 'change', true); fire(lbl('sys-badge-tint'), 'change', false); fire(lbl('sys-badge-tone'), 'change', ''); fire(lbl('sys-badge-tip'), 'input', 'Clear it');
+        const afterE = J(spE.badges);
+        byB(boxE, 'sys-badge-add')[0].click(); const twoE = spE.badges.length; byB(boxE, 'sys-badge-del')[0].click(); byB(boxE, 'sys-badge-del')[0].click();
+        const spF = { badges: Array.from({ length: 8 }, () => ({ words: 'w', if: '1' })) }, boxF = BB.badgeBox(spF);
+        const editOk = editOk0 && afterE === J([{ words: 'Jammed', if: 'Row.jam > 0', line: true, pulse: true, tip: 'Clear it' }]) && twoE === 2 && !('badges' in spE) && dirtyB > 6 && byB(boxF, 'sys-badge-add')[0].disabled === true;
+        const stE = { key: 'cond', labels: ['Fine', '', 'Broken'] }, trE = BB.toneRow(stE), selsE = byB(trE, 'sys-ltone-sel');
+        fire(selsE[1], 'change', 'danger'); const t1 = J(stE.tones); fire(selsE[0], 'change', 'good'); const t2 = J(stE.tones); fire(selsE[1], 'change', ''); const t3 = J(stE.tones); fire(selsE[0], 'change', ''); const t4 = 'tones' in stE;
+        const toneOk = selsE.length === 2 && t1 === J(['', '', 'danger']) && t2 === J(['good', '', 'danger']) && t3 === J(['good']) && t4 === false && BB.toneRow({ key: 'x' }) === null && BB.toneRow({ labels: ['', ''] }) === null;
+        // the readable page: the badges after the name as words; a list with none as before
+        const XB = await import(url('sheetexport.js')), mdB = XB.sheetToMarkdown(gB, chB, S.resolveAll(gB, chB, F, null), { F, gm: true });
+        const mdOk = mdB.includes('Ember Rifle (Jammed, Secret, Needs a check at the next rest., Worn out)') && mdB.includes('Hookblade (Secret)');
+        const cssB = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
+        const wiredOk = shB2.includes("var bdLn = typeof badgeBits === 'function' ? badgeBits(line, spec, res && res.bd ? res.bd[rid] : null, line, hudRow) : null;") && shB2.includes("if (bdLn) wrap.appendChild(bdLn);")
+            && shB2.includes("if (typeof badgeBox === 'function') card.appendChild(badgeBox(sp));") && shB2.includes("var stR = toneRow(s); if (stR) sr.appendChild(stR);") && shB2.includes("var ctR = toneRow(cc); if (ctR) cr.appendChild(ctR);")
+            && shB2.includes("import { roundSays, BADGE_MAX } from './systemcore.js';")
+            && /@media \(prefers-reduced-motion: reduce\) \{ \.sheet-badge-pulse \{ animation: none; \} \}/.test(cssB) && /\.sheet-item\.sheet-tint-danger, tr\.sheet-tint-danger > td:first-child \{ box-shadow: inset 3px 0 0 var\(--red\); \}/.test(cssB) && /\.sheet-badge\.sheet-tone-plain \{ color: var\(--dim\); \}/.test(cssB);
+        check('1.6.0, backlog 180 R4 and R5: a list\'s row badges (badges, 8 at most: words and a Shown where formula with no dice, a tone of the app\'s own or plain, a line, a tint, a pulse and a tip, each only as the cleaner keeps it) and a tone per value name of a stat or a column (tones, as a field\'s), '
+            + 'the same in both views and a fixed point, a badge that reads a GM-only name the GM\'s alone; the resolver says which hold on each row (bd), the validator reads each formula; on the sheet (itemListInto and itemTableInto, sliced and run for real) a badge stands right after the name as a pill, '
+            + 'a line under its row, the first that tints gives its row its tint and edge, one that pulses pulses itself and the style sheet stills it where motion is reduced; a toned value name is its label small, then the word as a badge, in a table the badge alone; '
+            + 'the HUD has the pills and no lines; the editor\'s Badges box and Colours row (badgeBox, toneRow, run for real) edit the draft in place; the readable page says the badges after the name',
+            cleanOk && resOk && valOk && drawOk && hudOk && tableOk && pureOk && editOk && toneOk && mdOk && wiredOk, J([cleanOk, resOk, valOk, drawOk, hudOk, tableOk, pureOk, editOk, toneOk, mdOk, wiredOk, resG.bd, pillsOf(rf), rf.className, condOf(rf), afterE, t1, t2, t3, vB.errors.map(x => x.prop).slice(0, 4)]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

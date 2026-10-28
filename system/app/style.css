@@ -3477,6 +3477,34 @@
   .sheet-badge.sheet-tone-danger { color: var(--red); }
   .sheet-badge.sheet-tone-accent { color: var(--sheet-accent, var(--gold)); }
   .sheet-badge.sheet-tone-primary { color: var(--sheet-primary, var(--sheet-accent, var(--gold))); }
+  /* 1.6.0 R4 and R5 (backlog 180): a row's badges, a line under the row, a row's tint and edge in a badge's tone, a pulse, and a toned value name (its label small, then the word as a badge) */
+  .sheet-badge.sheet-tone-plain { color: var(--dim); }
+  .sheet-item-badges { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; vertical-align: 1px; }
+  .sheet-item > .sheet-item-badges { flex: 1 1 auto; min-width: 0; }   /* the row's spare room goes after the badges, so they sit right after the name */
+  .sheet-item-badged > .sheet-item-name { flex: 0 1 auto; }
+  .sheet-itcol-name .sheet-item-badges { margin-left: 6px; }
+  .sheet-item-badgelines { margin: -2px 0 4px 26px; display: flex; flex-direction: column; gap: 2px; }
+  .sheet-itcol-name .sheet-item-badgelines { margin: 3px 0 0 0; }
+  .sheet-item-badgeline { font-size: 11.5px; font-weight: 600; color: var(--dim); }
+  .sheet-item-toned { background: none; border-color: transparent; padding-left: 0; padding-right: 0; }
+  @keyframes sheetBadgePulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+  .sheet-badge-pulse { animation: sheetBadgePulse 1.8s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .sheet-badge-pulse { animation: none; } }
+  .sheet-item-badgeline.sheet-tone-good { color: var(--green); }
+  .sheet-item.sheet-tint-good, tr.sheet-tint-good > td { background: color-mix(in srgb, var(--green) 10%, transparent); }
+  .sheet-item.sheet-tint-good, tr.sheet-tint-good > td:first-child { box-shadow: inset 3px 0 0 var(--green); }
+  .sheet-item-badgeline.sheet-tone-warn { color: var(--sheet-warn, var(--gold)); }
+  .sheet-item.sheet-tint-warn, tr.sheet-tint-warn > td { background: color-mix(in srgb, var(--sheet-warn, var(--gold)) 10%, transparent); }
+  .sheet-item.sheet-tint-warn, tr.sheet-tint-warn > td:first-child { box-shadow: inset 3px 0 0 var(--sheet-warn, var(--gold)); }
+  .sheet-item-badgeline.sheet-tone-danger { color: var(--red); }
+  .sheet-item.sheet-tint-danger, tr.sheet-tint-danger > td { background: color-mix(in srgb, var(--red) 10%, transparent); }
+  .sheet-item.sheet-tint-danger, tr.sheet-tint-danger > td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+  .sheet-item-badgeline.sheet-tone-accent { color: var(--sheet-accent, var(--gold)); }
+  .sheet-item.sheet-tint-accent, tr.sheet-tint-accent > td { background: color-mix(in srgb, var(--sheet-accent, var(--gold)) 10%, transparent); }
+  .sheet-item.sheet-tint-accent, tr.sheet-tint-accent > td:first-child { box-shadow: inset 3px 0 0 var(--sheet-accent, var(--gold)); }
+  .sheet-item-badgeline.sheet-tone-primary { color: var(--sheet-primary, var(--sheet-accent, var(--gold))); }
+  .sheet-item.sheet-tint-primary, tr.sheet-tint-primary > td { background: color-mix(in srgb, var(--sheet-primary, var(--sheet-accent, var(--gold))) 10%, transparent); }
+  .sheet-item.sheet-tint-primary, tr.sheet-tint-primary > td:first-child { box-shadow: inset 3px 0 0 var(--sheet-primary, var(--sheet-accent, var(--gold))); }
   .sheet-pool-colored .sheet-pool-icon { color: var(--sheet-pool); }
   .sheet-pool-colored .sheet-bar-fill { background: var(--sheet-pool); }
   .sheet-band .sheet-pool-colored .sheet-cur { color: var(--sheet-pool); font-weight: 700; }

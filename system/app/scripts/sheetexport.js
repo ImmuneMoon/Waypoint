@@ -270,7 +270,8 @@ function sheetToMarkdown(sys, view, all, opts) {
     var parentOf = function(s) { var p = typeof s.parent === 'string' ? idx[s.parent] : null; return p && p !== s && !p.parent ? p : null; };   // one level, by the sheet's own rule (sheets.js childParent: a parent that has a parent of its own, even a gone one, holds none)
     var tops = secs.filter(function(s) { return !parentOf(s); });
     function listBlock(f, pl) {
-        var spec = isObj(f.list) ? f.list : {}, e = all[f.id], cells = e && isObj(e.cells) ? e.cells : {}, cts = e && isObj(e.cts) ? e.cts : {}, tbl = isObj(f.table) ? f.table : null;
+        var spec = isObj(f.list) ? f.list : {}, e = all[f.id], cells = e && isObj(e.cells) ? e.cells : {}, cts = e && isObj(e.cts) ? e.cts : {}, tbl = isObj(f.table) ? f.table : null, bdE = e && isObj(e.bd) ? e.bd : null;
+        var bdW = function(r) { var on = bdE ? bdE[rowIdOf(r)] : null; if (!Array.isArray(on) || !Array.isArray(spec.badges)) return ''; var w = on.map(function(i) { var b = spec.badges[i]; return isObj(b) && typeof b.words === 'string' ? b.words : ''; }).filter(Boolean); return w.length ? ' (' + w.join(', ') + ')' : ''; };   // 1.6.0 R4: a row's badges after its name, as words
         var onOnly = !!(pl && pl.on === true && isObj(spec.on));   // as the sheet: 'only switched on' means nothing once the list has no switch
         var catT = catPlace(lay.sections, pl, spec);   // 1.5.5: a list placed once a category lists under each placement the rows the sheet shows there
         var rows = (Array.isArray(vals[f.id]) ? vals[f.id] : []).filter(function(r) { if (!isObj(r) || (onOnly && !rowOn(spec, r))) return false; if (!catT) return true; var dc = rowDef(sys, r); return catT(dc && dc.def ? dc.def.category : ''); });
@@ -278,7 +279,7 @@ function sheetToMarkdown(sys, view, all, opts) {
         if (!rows.length) { B.push(textBlock('<p><b>' + esc(label) + ':</b> none</p>')); return; }
         var defs = rows.map(function(r) { var d = rowDef(sys, r); return d ? d.def : null; }), cats = {};
         defs.forEach(function(d) { if (d && d.category) cats[d.category] = 1; });
-        var colsA = [{ t: 'Item', g: function(r, d) { return ((d && d.name) || '?') + (d && isObj(d.area) && d.area.ft ? ' ' + d.area.ft + ' ft' : '') + (r.hid === 1 ? ' (hidden from the player)' : ''); } }];
+        var colsA = [{ t: 'Item', g: function(r, d) { return ((d && d.name) || '?') + (d && isObj(d.area) && d.area.ft ? ' ' + d.area.ft + ' ft' : '') + (r.hid === 1 ? ' (hidden from the player)' : '') + bdW(r); } }];
         if (tbl) (Array.isArray(tbl.columns) ? tbl.columns : []).forEach(function(k) { if (typeof k !== 'string' || !ITEM_COL_LABEL[k] || (k === 'category' && tbl.chips)) return; colsA.push({ t: ITEM_COL_LABEL[k], g: function(r, d) { return itemCellText(k, d || {}); } }); });   // the table's own columns, as the sheet draws them
         else if (Object.keys(cats).length > 1) colsA.push({ t: 'Category', g: function(r, d) { return (d && d.category) || ''; } });
         (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (isObj(s) && s.show === true) colsA.push({ t: s.label || s.key, g: function(r, d) { return statShown(s, rowStat(spec, d, s.key), opts.metric); } }); });

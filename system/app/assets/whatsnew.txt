@@ -21,6 +21,8 @@ Scenes
   picture in a planner or a page you are reading to show it as a scene.
 
 Systems
+- Badges on a list's rows. Each is words a row shows only while a formula of the row holds, such as Jammed. It may be a pill after the name or a line under the row, tint its row and pulse.
+- A value name of a list's stat or column may have a colour. The row then shows its label small and the name as a badge.
 - A roll with an icon of its own now shows its die too, before the icon.
 - New sheets after a change. When you change the system so that your
   players' sheets no longer fit, press Ask for new sheets in the System

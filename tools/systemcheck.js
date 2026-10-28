@@ -13231,7 +13231,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         try { plainH = []; [false, true].forEach(tbl => { const sy = cleanSystem(plainQ(tbl), { F, gmView: true });
             plainH.push(hQ(serQ(drawQ(sy, chP, { campId: 'k_1', view: 'sheet', preview: false }))), hQ(serQ(drawQ(sy, chP, { campId: 'k_1', view: 'sheet', preview: false, print: true }))), hQ(serQ(drawQ(S.hudView(sy), chP, { campId: 'k_1', view: 'hud', preview: false }))), hQ(serQ(drawQ(sy, chP, { campId: 'k_1', view: 'sheet', preview: true }, false)))); }); } catch (e) { phErr = e.stack || e.message; }
         check('1.5.5 a system that places each list once, with no categories, draws node for node as before this fold (the real renderer: the sheet, a print, the HUD and the Layout preview, a plain list and a rich table with a footer, by the hashes the code before the fold gave)',
-            j(plainH) === j(['717cec17387df848', '717cec17387df848', 'cc13aec16a43e17a', '5f36cba73622159a', 'fbf3667e03bca511', 'fbf3667e03bca511', 'cfa425372a0f4e20', '520a6be72a4d600e']), phErr || j(plainH));
+            j(plainH) === j(['bc553a09e8d9f73b', 'bc553a09e8d9f73b', '7661c5c6565762f0', '5f36cba73622159a', '143258960ccfc628', '143258960ccfc628', '48d203c79f4ff393', '520a6be72a4d600e']), phErr || j(plainH));   // 1.6.0, backlog 180 R11: moved on purpose, a stack of two Pebbles now has its Split button (717cec17387df848, cc13aec16a43e17a, fbf3667e03bca511 and cfa425372a0f4e20 before)
         // the home placement drawn (the review of this fold): a first placement set to the rows switched on, or with a show-if that is false, takes
         // in no row it would hide; the rows no placement names stand in the next placement, under the whole list's totals
         const homeSys = secs => cleanSystem(Object.assign(noVault(rawQ()), { sheet: { sections: secs } }), { F, gmView: true });
@@ -16071,6 +16071,34 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0, backlog 180 R9: an item list\'s placement may count its rows in its section\'s title (count, true only, kept on an item list\'s placement alone, the same in both views and a fixed point); placeCount (run for real) counts the rows that placement shows, by its categories and its Only switched on, '
             + 'never a row kept hidden from its player nor one with no definition, so the GM and the player see one number; the header draws it after the title, its style, the Layout tab\'s button and its handler, and Help',
             cleanOk && countOk && wiredOk, J([cleanOk, countOk, wiredOk, mPl, PC(f9, c9, mPl, g9), PC(f9, c9, rPl, g9), PC(f9, c9, gOn.sheet.sections[0].fields[0], gOn), PC(f9, c9, { id: 'f_g' }, { v: 1, items: g9.items, sheet: { sections: [{ id: 's_x', fields: [{ id: 'f_g' }] }] } }), PC(f9, { id: 'c_e', values: {} }, mPl, g9), PC(g9.fields.find(x => x.id === 'f_n'), c9, mPl, g9)]));
+    }
+    {   // 1.6.0, backlog 180 R11 (the owner's order of 2026-10-27; a removed row's Undo is 1.5.8's): split a stack into a row of its own
+        const J = JSON.stringify;
+        const sys11 = S.cleanSystem({ v: 1, name: 'C', rolls: [], items: [{ id: 'i_gr', name: 'Grenade', category: 'Explosive' }, { id: 'i_rp', name: 'Rope' }],
+            fields: [{ id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', list: { on: { label: 'Ready' } } }, { id: 'f_s', key: 'Skill', label: 'Skill', kind: 'item-list', edit: 'owner', list: { noQty: true } }], sheet: { sections: [] } }, { F, gmView: true });
+        const ch11 = () => ({ id: 'c_k', name: 'Kael', ownerId: 'p_1', values: { f_g: [{ id: 'w_a', defId: 'i_gr', qty: 5, on: true, paid: 30 }, { id: 'w_b', defId: 'i_rp', qty: 1 }, { id: 'w_k', defId: 'i_gr', qty: 3, hid: 1 }], f_s: [{ id: 'w_s', defId: 'i_rp', qty: 4 }] } });
+        const op = (q, pl, c) => S.applyRowOp(sys11, c || ch11(), q.f || 'f_g', Object.assign({ op: 'split' }, q), F, pl ? { player: true } : {});
+        const r1 = op({ rowId: 'w_a', qty: 2, back: 'w_new' }), v1 = r1.value;
+        const splitOk = r1.ok === true && r1.row === 'w_new' && r1.qty === 2 && r1.split === true && J(v1.map(r => [r.id, r.qty, r.on === true])) === J([['w_a', 3, true], ['w_new', 2, false], ['w_b', 1, false], ['w_k', 3, false]]) && v1[1].defId === 'i_gr' && v1[1].paid === 30
+            && op({ rowId: 'w_a', qty: 1, back: 'w_p1' }, true).ok === true;
+        const refuseOk = op({ rowId: 'w_a', qty: 5, back: 'w_x' }).reason === 'value' && /from 1 to 4/.test(op({ rowId: 'w_a', qty: 0, back: 'w_x' }).msg) && op({ rowId: 'w_a', qty: 1.5, back: 'w_x' }).reason === 'value'
+            && op({ rowId: 'w_b', qty: 1, back: 'w_x' }).reason === 'value' && op({ rowId: 'w_a', qty: 2, back: 'w_b' }).reason === 'value' && op({ rowId: 'w_a', qty: 2 }).reason === 'value'
+            && op({ rowId: 'w_k', qty: 1, back: 'w_x' }, true).reason === 'missing' && op({ rowId: 'w_zz', qty: 1, back: 'w_x' }).reason === 'missing' && op({ f: 'f_s', rowId: 'w_s', qty: 1, back: 'w_x' }).reason === 'field'
+            && (function() { const c = ch11(); c.values.f_g[0].ld = { defId: 'i_rp' }; return /Unload it first/.test(op({ rowId: 'w_a', qty: 1, back: 'w_x' }, false, c).msg); })();
+        const wireOk = J(S.cleanCharItem({ rid: 'e1abc', charId: 'c_k', fieldId: 'f_g', op: 'split', rowId: 'w_a', qty: 2, back: 'w_new' })) === J({ rid: 'e1abc', charId: 'c_k', fieldId: 'f_g', op: 'split', rowId: 'w_a', qty: 2, back: 'w_new' })
+            && S.cleanCharItem({ rid: 'e1abc', charId: 'c_k', fieldId: 'f_g', op: 'split', rowId: 'w_a', qty: 2 }) === null && S.cleanCharItem({ rid: 'e1abc', charId: 'c_k', fieldId: 'f_g', op: 'split', rowId: 'w_a', qty: 0, back: 'w_n' }) === null
+            && S.cleanCharItem({ rid: 'e1abc', charId: 'c_k', fieldId: 'f_g', op: 'split', rowId: 'w_a', qty: 2.5, back: 'w_n' }) === null && S.cleanCharItem({ rid: 'e1abc', charId: 'c_k', fieldId: 'f_g', op: 'split', rowId: 'w_a', qty: 2, back: '../x' }) === null;
+        const sh11 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), nt11 = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8');
+        const a11 = sh11.indexOf('// [systemcheck:split-start]'), b11 = sh11.indexOf('// [systemcheck:split-end]'), sent11 = [], toasts11 = [];
+        let ans11 = '2';
+        const SA = new Function('showPrompt', 'toast', 'commitItem', 'rowIdOf', 'uid', 'charById', sh11.slice(a11, b11) + '\nreturn splitAsk;')((t, d, cb) => { toasts11.push('ask:' + t + '|' + d); cb(ans11); }, m => toasts11.push(m), (c, f, q) => sent11.push([c.fresh === true, q]), S.rowIdOf, () => 'w_fresh', id => id === 'c_k' ? { id: 'c_k', fresh: true } : null);
+        SA({ id: 'w_a', qty: 5 }, { id: 'c_k' }, {}); ans11 = '5'; SA({ id: 'w_a', qty: 5 }, { id: 'c_k' }, {}); ans11 = null; SA({ id: 'w_a', qty: 5 }, { id: 'c_k' }, {}); SA({ id: 'w_b', qty: 1 }, { id: 'c_k' }, {}); ans11 = '2'; SA({ id: 'w_a', qty: 5 }, { id: 'c_gone' }, {});
+        const askOk = J(sent11) === J([[true, { op: 'split', rowId: 'w_a', qty: 2, back: 'w_fresh' }]]) && toasts11[0] === 'ask:Split how many into a row of their own? From 1 to 4.|2' && toasts11.includes('Split off a whole number from 1 to 4.') && toasts11.length === 5;   // the character read afresh at the answer (the sheet may be drawn again while the question is up, found live), and nothing sent for one gone since
+        const uiOk = sh11.includes("var spB = el('button', 'tool ghost sheet-pm sheet-split', 'Split');") && nt11.includes("q.op === 'unchamber' || q.op === 'split' ||")
+            && sh11.includes("var undoFollow = function(r) { if (!r || !r.ok || q.op === 'split') return;");   // found live: a split right after a + was read as a drop, and the pickup's Undo took the + back
+        check('1.6.0, backlog 180 R11: Split takes part of a stack into a row of its own right after it (applyRowOp split, run for real): the rest stays, the part keeps its entry and Paid, starts off where the list has a switch, and the GM\'s hand and a player\'s alike; refused for a count that is not 1 to one less than the stack, '
+            + 'a stack of one, an id taken or missing, a row kept from its player or gone, a list with no quantity and a row that holds a load; the wire keeps a split\'s count and new id only; the sheet\'s Split asks how many (splitAsk, run for real) and sends one op, a player\'s waited for',
+            splitOk && refuseOk && wireOk && askOk && uiOk, J([splitOk, refuseOk, wireOk, askOk, uiOk, r1, sent11, toasts11]));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

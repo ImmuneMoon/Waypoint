@@ -2580,8 +2580,21 @@ function itemQtyCell(entry, c, f) {   // Stage 6 F4a: by row id. Every item has 
     var mn = el('button', 'tool ghost sheet-pm', '−'); mn.title = 'One less (removes at zero)'; mn.addEventListener('click', function() { commitItem(c, f, { op: 'setQty', rowId: rowIdOf(entry), qty: entry.qty - 1 }); });
     qc.appendChild(mn); qc.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
     var pl = el('button', 'tool ghost sheet-pm', '+'); pl.title = 'One more'; pl.addEventListener('click', function() { commitItem(c, f, { op: 'setQty', rowId: rowIdOf(entry), qty: entry.qty + 1 }); });
-    qc.appendChild(pl); return qc;
+    qc.appendChild(pl);
+    if ((entry.qty | 0) > 1 && !(entry.ld && typeof entry.ld === 'object') && typeof splitAsk === 'function') { var spB = el('button', 'tool ghost sheet-pm sheet-split', 'Split'); spB.title = 'Split some of these into a row of their own'; spB.ariaLabel = spB.title; spB.addEventListener('click', function() { splitAsk(entry, c, f); }); qc.appendChild(spB); }   // 1.6.0, backlog 180 R11
+    return qc;
 }
+// [systemcheck:split-start] 1.6.0, backlog 180 R11: how many to split off, asked, then one split op (the host judges it)
+function splitAsk(entry, c, f) {
+    var cur = entry.qty | 0; if (cur < 2) return;
+    showPrompt('Split how many into a row of their own? From 1 to ' + (cur - 1) + '.', String(Math.floor(cur / 2)), function(v) {
+        if (v === null || v === undefined) return; var n = Number(String(v).trim());
+        if (!(n >= 1) || n !== Math.floor(n) || n >= cur) { toast('Split off a whole number from 1 to ' + (cur - 1) + '.'); return; }
+        var cN = typeof charById === 'function' ? charById(c.id) : c; if (!cN) return;   // the character as it is now: the sheet may be drawn again while the question is up
+        commitItem(cN, f, { op: 'split', rowId: rowIdOf(entry), qty: n, back: uid('w_') });
+    });
+}
+// [systemcheck:split-end]
 function itemRmBtn(entry, def, c, f) {
     var rm = el('button', 'tool ghost sheet-item-rm', '×'); rm.title = entry.hid === 1 ? 'Dispel: remove ' + def.name + ' from the character' : 'Remove ' + def.name; rm.ariaLabel = rm.title;
     rm.addEventListener('click', function() { commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); }); return rm;
@@ -4756,7 +4769,7 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
     if (q.priced) { q = Object.assign({}, q); delete q.priced; }
     var goneB = typeof goneOf === 'function' ? goneOf(c, f, q) : null;   // 1.5.8: the row as it stood, for the Undo its removal offers
     var before = q.rowId ? rowQty(c, f, q.rowId) : 0;
-    var undoFollow = function(r) { if (!r || !r.ok) return; if (r.added > 0) noteUndo(c, f, r); else if (q.rowId && q.op !== 'undo' && before > (r.qty | 0)) takeBack(c, f, q.rowId, before - (r.qty | 0)); };   // Stage 6: a pickup opens the Undo; a drop takes it down
+    var undoFollow = function(r) { if (!r || !r.ok || q.op === 'split') return; if (r.added > 0) noteUndo(c, f, r); else if (q.rowId && q.op !== 'undo' && before > (r.qty | 0)) takeBack(c, f, q.rowId, before - (r.qty | 0)); };   // Stage 6: a pickup opens the Undo; a drop takes it down
     if (isClient()) {
         var n = net(); if (!n || !n.charItem) return;
         var r = n.charItem(c.id, f.id, q);

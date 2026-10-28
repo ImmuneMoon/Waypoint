@@ -21,6 +21,7 @@ Scenes
   picture in a planner or a page you are reading to show it as a scene.
 
 Systems
+- A stack on a sheet can be split: Split beside its quantity puts some of it in a row of its own.
 - A list's place in the layout can count its rows in its section's title, such as Melee Technique (3).
 - An item's and a library entry's name may be 240 characters long, as a row's own name already was. A list may show twelve badges.
 - The Library's Import can replace a pack. The pack becomes the file, the entries the file lacks are removed after a question that names them, and an entry characters use waits for your tick.

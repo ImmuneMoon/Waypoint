@@ -101,7 +101,7 @@ function validPageId(id) { return typeof id === 'string' && PAGE_ID.test(id) && 
 var FIELD_ID = /^f_[A-Za-z0-9_]{1,24}$/, ROLL_ID = /^r_[A-Za-z0-9_]{1,24}$/, SECTION_ID = /^s_[A-Za-z0-9_]{1,24}$/, TAB_ID = /^t_[A-Za-z0-9_]{1,24}$/, CHAR_ID = /^c_[A-Za-z0-9_]{1,24}$/, ITEM_ID = /^i_[A-Za-z0-9_]{1,24}$/, RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
 var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1, roll: 1, measure: 1 });
 // Stage 6 F4a: a carried row's id (w_…; a legacy {defId, qty} row's is derived from its item) and the row ops a change may carry
-var ROW_ID = /^w_[A-Za-z0-9_]{1,24}$/, ROW_OPS = Object.freeze({ add: 1, remove: 1, setQty: 1, keep: 1, undo: 1, set: 1, ov: 1, custom: 1, load: 1, restore: 1, chamber: 1, unchamber: 1 });   // 1.5.9 Chambers from: chamber, one unit of a round into a row's chamber; unchamber, the last one in back to its list   // restore (1.5.8): a removed row put back whole at its place (its Undo)   // undo (Stage 6): a pickup taken back; set (F4b): a row's facts; ov (F4c2): a copy's own values; custom (F4c3): a character's own row, made or changed
+var ROW_ID = /^w_[A-Za-z0-9_]{1,24}$/, ROW_OPS = Object.freeze({ add: 1, remove: 1, setQty: 1, keep: 1, undo: 1, set: 1, ov: 1, custom: 1, load: 1, restore: 1, chamber: 1, unchamber: 1, split: 1 });   // 1.5.9 Chambers from: chamber, one unit of a round into a row's chamber; unchamber, the last one in back to its list   // restore (1.5.8): a removed row put back whole at its place (its Undo)   // undo (Stage 6): a pickup taken back; set (F4b): a row's facts; ov (F4c2): a copy's own values; custom (F4c3): a character's own row, made or changed
 var CHAMBER_CAP = 8;   // 1.5.9 Chambers from: the most rounds a chamber holds
 // Stage 6 F4b: an item's key in formulas (F5a: Skills.<Key>.lvl) — never a row word, which a row's own names use
 var ITEM_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/, ROW_WORDS = Object.freeze({ count: 1, qty: 1, on: 1, has: 1, lvl: 1, paid: 1, row: 1, opened: 1, loaded: 1, loadmax: 1, once: 1, oncecost: 1, oncefree: 1, chambered: 1 });   // 1.5.9 Chambers from: chambered, how many rounds a row holds   // 1.5.8 Loads from: loaded, a row that holds a loaded copy; loadmax, that copy's full level   // 1.5.8: opened, a row another row opens (openSync)   // 1.5.8 Counted once: once, oncecost, oncefree
@@ -3412,6 +3412,7 @@ function cleanCharItem(msg) {
     if ((msg.op === 'remove' || msg.op === 'setQty') && msg.get !== undefined) { if (typeof msg.get !== 'number' || !fin(msg.get) || msg.get < 0 || msg.get > LIMITS.statAbs) return null; out.get = moneyR(msg.get); }   // ... and what a sale is paid
     if (msg.op === 'load') { if (msg.from === null || msg.from === undefined) out.from = null; else if (typeof msg.from === 'string' && ROW_ID.test(msg.from)) out.from = msg.from; else return null; if (msg.back !== undefined) { if (typeof msg.back !== 'string' || !ROW_ID.test(msg.back)) return null; out.back = msg.back; } }   // 1.5.8 Loads from: the source row (null: unload), and a fresh id for a copy coming out as a row of its own
     if (msg.op === 'chamber') { if (typeof msg.from !== 'string' || !ROW_ID.test(msg.from)) return null; out.from = msg.from; }   // 1.5.9 Chambers from: the source row a round comes off
+    if (msg.op === 'split') { var spn = cleanNum(msg.qty, NaN); if (!(spn >= 1) || spn !== Math.floor(spn) || spn > LIMITS.maxQty) return null; out.qty = spn; if (typeof msg.back !== 'string' || !ROW_ID.test(msg.back)) return null; out.back = msg.back; }   // 1.6.0, backlog 180 R11: how many come off the stack, and the new row's id
     if (msg.op === 'unchamber' && msg.back !== undefined) { if (typeof msg.back !== 'string' || !ROW_ID.test(msg.back)) return null; out.back = msg.back; }   // ... and a fresh id for a round coming back as a row of its own
     if (msg.op === 'custom') { var dfp = cleanDefPatch(msg.def); if (!dfp) return null; out.def = dfp; }   // F4c3: a patch (an object; {} is a new blank row), the GM's keys kept so that a player sending one hears "field"
     return out;
@@ -3923,6 +3924,17 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         var cx = at(q.rowId), g0C = cx >= 0 ? onGroup(sys, spec, list[cx], gsp) : null;   // 1.5.4 One at a time: a row that is there, and its group before the change
         var cu = applyCustom(sys, list, q, spec, F, opts, extra, actorSpec(sys, fieldId, spec, opts), fl); if (cu) return cu;
         if (cx >= 0) { var mvC = onMoved(sys, spec, list, cx, g0C, hnd, extra, { read: gsp, onGrace: opts.onGrace === true }); if (mvC) return mvC; }   // ... moved by its stats into a group that holds one on: it goes off
+    } else if (q.op === 'split') {   // 1.6.0, backlog 180 R11: n of a stack into a row of its own, right after it (the GM's hand and a player's alike: nothing leaves the character)
+        var ixS = typeof q.rowId === 'string' && ROW_ID.test(q.rowId) ? at(q.rowId) : -1; if (ixS < 0 || (opts.player && list[ixS].hid === 1)) return { ok: false, reason: 'missing' };
+        var rwS = list[ixS], curS = rwS.qty | 0, nS = cleanNum(q.qty, NaN);
+        if (spec && spec.noQty) return { ok: false, reason: 'field' };
+        if (!(nS >= 1) || nS !== Math.floor(nS) || nS >= curS) return { ok: false, reason: 'value', msg: 'Split off from 1 to ' + Math.max(1, curS - 1) + '.' };
+        if (typeof q.back !== 'string' || !ROW_ID.test(q.back) || at(q.back) >= 0) return { ok: false, reason: 'value' };
+        if (rwS.keptOn === 1 || typeof rwS.opn === 'string') return { ok: false, reason: 'field' };
+        if (isObj(rwS.ld)) return { ok: false, reason: 'value', msg: 'Unload it first: what it holds stays with one row.' };
+        if (list.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return { ok: false, reason: 'field' };
+        var cpS = JSON.parse(JSON.stringify(rwS)); cpS.id = q.back; cpS.qty = nS; delete cpS.tt; if (spec && isObj(spec.on) && cpS.on === true) cpS.on = false;   // the part split off starts off: a row on stays the one in use
+        rwS.qty = curS - nS; list.splice(ixS + 1, 0, cpS); extra.row = q.back; extra.qty = nS; extra.split = true;
     } else if (q.op === 'restore') {   // 1.5.8: a removed row put back whole at its place, the very row (q.row, q.at) the caller kept from before it went: the GM's sheet, or the host's own record for a player (never the player's word)
         if (typeof q.rowId !== 'string' || !ROW_ID.test(q.rowId) || !isObj(q.row) || rowIdOf(q.row) !== q.rowId || at(q.rowId) >= 0) return { ok: false, reason: 'missing' };
         if (list.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return { ok: false, reason: 'field' };

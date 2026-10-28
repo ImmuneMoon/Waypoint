@@ -13747,14 +13747,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             !!sA && sA.tag === 'select' && sA.children.length === 13 && sA.children[0].value === '' && sA.children[0].textContent === 'Die: from its formula' && j(sA.children.slice(1).map(o => o.value)) === j(S.DIE_NAMES)
             && sA.children.filter(o => o.selected).map(o => o.value).join() === 'd20' && sA.children[1].textContent === 'Die: Coin (d2)' && sA.title === 'tip'
             && sB.children.filter(o => o.selected).map(o => o.value).join() === '' && sC.children[0].selected === true && !j(sB).includes('<b>'), dsErr || j(sA));
-        check('1.5.8 the sheet draws each roll\'s die (sheets.js, pinned): a field\'s roll button, its inline row, a system roll\'s button (the GM\'s pick, else its formula\'s; an icon of its own in place of its formula\'s die) and a list roll\'s button on each row, each asking dieFor through typeof; the Rolls tab, the Lists tab and the Fields tab each have a Die list and its handler',
+        check('1.5.8 the sheet draws each roll\'s die (sheets.js, pinned): a field\'s roll button, its inline row, a system roll\'s button (the GM\'s pick, else its formula\'s; since 1.6.0 before an icon of its own too) and a list roll\'s button on each row, each asking dieFor through typeof; the Rolls tab, the Lists tab and the Fields tab each have a Die list and its handler',
             shD.includes("var rb = el('button', 'tool ghost sheet-field-roll', typeof dieFor === 'function' ? undefined : String.fromCharCode(55356, 57266)); if (typeof dieFor === 'function') rb.appendChild(dieFor(f.rollDie, f.roll));")
             && shD.includes("if (typeof dieFor === 'function' && f.roll) rb.insertBefore(dieFor(f.rollDie, f.roll), rb.firstChild);")
-            && shD.includes("if (typeof dieFor === 'function' && (r.die || !r.icon)) b.insertBefore(dieFor(r.die, r.formula, 'sheet-roll-die'), b.firstChild);")
+            && shD.includes("if (typeof dieFor === 'function') b.insertBefore(dieFor(r.die, r.formula, 'sheet-roll-die'), b.firstChild);   // 1.5.8") /* 1.6.0: a die before an icon of its own too (moved on purpose) */
             && shD.includes("b = el('button', 'tool ghost sheet-item-roll', lb); b.type = 'button'; if (typeof dieFor === 'function') b.insertBefore(dieFor(r.die, r.formula), b.firstChild);")
             && shD.includes("dieSel('sys-roll-die', r.die,") && shD.includes("dieSel('sys-list-rolldie', rr.die,") && shD.includes("dieSel('sys-fielddie', f.rollDie,")
             && shD.includes("else if (c.indexOf('sys-roll-die') >= 0) { if (t.value) r.die = t.value; else delete r.die; }") && shD.includes("else if (c.indexOf('sys-fielddie') >= 0) { if (t.value) f.rollDie = t.value; else delete f.rollDie; }")
             && shD.includes("if (t.value) riD.die = t.value; else delete riD.die; }") && shD.includes("import { dieNode, DIE_LABELS } from './dieicons.js';"));
+        const cssD = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
+        check('1.6.0 a system roll\'s button wraps its name in a narrow cell and never runs under the ± beside it (style.css: .sheet-roll white-space normal; the band\'s button of fixed height stays on one line)',
+            /\n\s*\.sheet-roll \{ width: 100%; white-space: normal; overflow-wrap: break-word; \}/.test(cssD) && /\.sheet-band \.sheet-roll \{[^}]*white-space: nowrap;/.test(cssD));
     }
     {   // 1.5.8 Loads from, Matched by: a stat of each list that must read the same figure (a blaster takes only its own kind of pack)
         const lw = { id: 'f_mw', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { cats: ['Gear'], multi: true, stats: [{ key: 'size', label: 'Size' }], counters: [{ key: 'ch', label: 'Charge', max: 'Row.loadmax' }], load: { from: 'f_mc', ct: 'ch', by: 'Size', to: 'fits' } } };

@@ -3108,7 +3108,7 @@
   .sheet-heading { grid-column: 1 / -1; color: var(--sheet-accent, var(--gold)); font-weight: 700; font-size: 12.5px; }
   .sheet-divider { grid-column: 1 / -1; border-top: 1px solid var(--edge); }
   .sheet-portrait-slot img { max-width: 100%; max-height: 160px; border-radius: 6px; border: 1px solid var(--edge); }
-  .sheet-roll { width: 100%; }
+  .sheet-roll { width: 100%; white-space: normal; overflow-wrap: break-word; }   /* 1.6.0 (the owner, 2026-10-27: "style issue here"): in a narrow cell the name goes on a second line, never under the ± beside it */
   .sheet-roll:not(:disabled) { border-color: var(--gold); }
   .sheet-field-roll { padding: 0 4px; font-size: 11px; line-height: 1.2; margin-left: 4px; vertical-align: middle; }
   /* 1.5.9: the small ± beside a roll: the modifier popover shift-click opens, in sight */
@@ -3163,7 +3163,7 @@
   .sheet-band .sheet-bar { width: 100%; }
   .sheet-band .sheet-kind-toggle { justify-content: center; }
   .sheet-band .sheet-kind-roll { padding: 0; border: none; background: none; min-width: 0; justify-content: center; }
-  .sheet-band .sheet-roll { width: auto; height: 28px; padding: 0 10px; }
+  .sheet-band .sheet-roll { width: auto; height: 28px; padding: 0 10px; white-space: nowrap; }
   /* Stage 5d: the header block — identity rows (a small uppercase label over a read-only value box, in columns) and ledger figures (a small
      label over a bold value), read-only, in .sheet-head at the top of the body */
   .sheet-identity, .sheet-ledger { padding: 8px 10px; }

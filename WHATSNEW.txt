@@ -21,6 +21,7 @@ Scenes
   picture in a planner or a page you are reading to show it as a scene.
 
 Systems
+- A roll with an icon of its own now shows its die too, before the icon.
 - New sheets after a change. When you change the system so that your
   players' sheets no longer fit, press Ask for new sheets in the System
   editor's Characters tab. Every player's character goes out of date.

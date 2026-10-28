@@ -20,6 +20,9 @@ Scenes
 - A scene shown to everyone shows in the stream window too. Right-click a
   picture in a planner or a page you are reading to show it as a scene.
 
+Hidden pieces
+- Settings has Hidden pieces on my map: Faded shows a piece you hid from players see-through, as before, and Invisible leaves it off your screen until you show it. No grey cloud stands in for a hidden piece any more.
+
 Systems
 - A list can keep its rows in sets, such as a suit of armour: each set shows how many are on, says Complete when all are, and switches on or off at once. A formula reads Row.setall for a set bonus.
 - The sheet reads larger: its labels, row words, chips and boxes, and a field’s roll and its ± beside its name. The HUD keeps its compact size.

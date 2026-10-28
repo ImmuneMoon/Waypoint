@@ -212,6 +212,7 @@
 
   /* GM's view of a player-hidden item */
   .wb-item.wb-hidden-gm { opacity: 0.55; outline: 2px dashed var(--steel); outline-offset: 2px; }
+  body.hid-none .wb-item.wb-hidden-gm { visibility: hidden; }   /* 1.6.0: Hidden pieces on my map, Invisible (settings.js hiddenLookApply): kept in its place, taking no press, drawn again when shown */
   .wb-item.wb-hidden-gm::before { content: '\1F441'; position: absolute; top: -12px; left: -12px; font-size: 15px; z-index: 101; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); transform: scale(var(--wbz, 1)); transform-origin: 100% 100%; }
   .wb-item.wb-trap::before { content: '\26A0'; color: #ff6b6b; }   /* GM-only: an armed hidden trap portal shows a red warning in place of the eye */
   .wb-item.wb-trap { outline: 2px dashed rgba(255,107,107,0.8); outline-offset: -2px; }
@@ -271,12 +272,8 @@
   .wb-item.path.wb-door.wb-secret svg path { filter: drop-shadow(0 0 3px #b98cff); }
   /* and in its body, since a hexagon or a diamond is cut to its outline and shows neither the edge nor the word: the shut door's hatching in the line's violet */
   .wb-item.wb-door.wb-secret:not(.path):not(.wb-door-open):not(.wb-hidden-gm):not(.wb-trap)::before { background: repeating-linear-gradient(45deg, rgba(185,140,255,0.9) 0 calc(3px * var(--wbz, 1)), transparent calc(3px * var(--wbz, 1)) calc(11px * var(--wbz, 1))); }
-  /* player's view: an opaque grey placeholder */
-  .wb-item.wb-hidden-ph {
-      background: #3a3a4a !important; border: 1px solid #4a4a5c !important; border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-  }
-  .wb-item.wb-hidden-ph .ph-cloud { font-size: 22px; opacity: 0.7; pointer-events: none; }
+  /* player's view: the stand-in an older host (before 1.5.0) sends for a hidden piece draws nothing (1.6.0, the owner: no cloud where something is hidden) */
+  .wb-item.wb-hidden-ph { visibility: hidden !important; pointer-events: none !important; }
   /* GM's view of a token whose owner is elsewhere in the world */
   .wb-item.wb-absent { opacity: 0.3 !important; filter: grayscale(0.8); }
   body.net-client .gm-only { display: none !important; }

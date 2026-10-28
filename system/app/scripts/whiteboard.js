@@ -924,7 +924,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           var picShape = item.type === 'image' && item.isChar && (item.shape === 'hexagon' || item.shape === 'rect' || item.shape === 'circle') ? item.shape : '';   // grid-shaped tokens: a picture token's outline (its art cut to the cell)
           el.classList.toggle('tok-pic-hexagon', picShape === 'hexagon'); el.classList.toggle('tok-pic-rect', picShape === 'rect'); el.classList.toggle('tok-pic-circle', picShape === 'circle');
 
-          if (hideFromMe && !el.dataset.ph) { el.innerHTML = '<span class="ph-cloud">&#9729;&#65039;</span>'; el.dataset.ph = '1'; }
+          if (hideFromMe && !el.dataset.ph) { el.innerHTML = ''; el.dataset.ph = '1'; }   // 1.6.0: an older host's stand-in holds nothing and draws nothing (style.css), no cloud
 
           if (!hideFromMe && el.dataset.ph) { el.innerHTML = ''; delete el.dataset.ph; }
 

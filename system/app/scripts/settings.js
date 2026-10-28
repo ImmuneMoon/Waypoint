@@ -206,6 +206,24 @@ if (_streamSnd) {
 // Visual effects (1.5.0): reduce motion on this machine (wp_fxReduced), and whether the stream window shows effects (wp_streamFx, on by default).
 var _fxRed = ui('setFxReduced');
 if (_fxRed) { try { _fxRed.checked = localStorage.getItem('wp_fxReduced') === '1'; } catch (e) {} _fxRed.addEventListener('change', function() { try { localStorage.setItem('wp_fxReduced', _fxRed.checked ? '1' : '0'); } catch (e) {} toast(_fxRed.checked ? 'Reduced motion: shake off, flashes shortened.' : 'Full motion restored.'); }); }
+// 1.6.0 (the owner, 2026-10-28, by prompt: "A choice in Settings (Recommended)"): how a piece hidden from players looks on this screen, faded
+// (as ever) or invisible, this machine's own (wp_hiddenLook); the body's one word hid-none, which the style sheet reads
+// [lookcheck:hiddenlook-start]
+function hiddenLookOf(v) { return v === 'none' ? 'none' : 'fade'; }
+function hiddenLookApply(v) { try { document.body.classList.toggle('hid-none', hiddenLookOf(v) === 'none'); } catch (e) {} }
+// [lookcheck:hiddenlook-end]
+var _hidSel = ui('setHiddenLook'), _hid0 = 'fade';
+try { _hid0 = hiddenLookOf(localStorage.getItem('wp_hiddenLook')); } catch (e) {}
+hiddenLookApply(_hid0);
+if (_hidSel) {
+    _hidSel.value = _hid0;
+    _hidSel.addEventListener('change', function() {
+        var hv = hiddenLookOf(_hidSel.value);
+        try { localStorage.setItem('wp_hiddenLook', hv); } catch (e) {}
+        hiddenLookApply(hv);
+        toast(hv === 'none' ? 'Hidden pieces: invisible on your screen until shown to players.' : 'Hidden pieces: faded on your screen.');
+    });
+}
 // The sense captions over tokens (the fog's "Blind · …" line): always, only on hover or for a selected token, or never, on this machine (wp_senseCaps)
 var _capSel = ui('setSenseCaps');
 if (_capSel) {

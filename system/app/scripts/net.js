@@ -4823,6 +4823,18 @@ function noteOwner(pid, text, cid) { net.conns.forEach(function(c) { if (c.open 
 // each character's counts refill when its turn begins. The campaign's mode: refuse (none left: refused, with why), warn (through, a note to
 // them and the GM), off. The GM's own presses are never limited. Their player hears what is left, and their sheet greys what is spent
 net.turnSpent = {};   // charId -> { actKey: spent since its last turn began }
+net.turnMax = {};   // 192: charId -> { actKey: how many its turn allows }, worked out at its turn's start (or at its first press before one)
+function actsMaxOf(camp, ch, map, w, c) {   // 192: an action's count for one character: its formula over the players' view and the owner's own copy, as a move is worked out; n where it gives no number
+    var out = {}; actsOf(camp).forEach(function(a) { if (a && typeof a.key === 'string') out[a.key] = a.n || 1; });
+    var S = SC(), F = window.wpFormula; if (!S || !F || !ch || ch.npc || !ch.ownerId || !camp.system || !window.wpSheets || !window.wpSheets.playerSystem) return out;
+    var view = window.wpSheets.playerSystem(camp), vt = view && view.combat && view.combat.turn, va = vt && Array.isArray(vt.acts) ? vt.acts : []; if (!va.some(function(a) { return a && a.nf; })) return out;
+    var chv = S.charFor(ch, view, ch.ownerId, { lib: fxLib(camp.system), items: itemLib(camp.system), full: camp.system }); if (!chv) return out;
+    var vtt = window.wpVtt, rl = function(k) { return !vtt || (vtt.rulesOn ? vtt.rulesOn(k) : vtt.on(k)); }, tc = map && w ? S.withRound(S.tokenCtx(map, w, { turning: rl('turning'), posture: rl('posture'), elevation: rl('elevation'), viewer: ch.ownerId }), c) : null;
+    var R = S.makeResolver(view, chv, F, tc), noD = function() { throw new Error('dice'); };
+    va.forEach(function(a) { if (!a || !a.nf || !Object.prototype.hasOwnProperty.call(out, a.key)) return; var r; try { r = F.evaluate(a.nf, { vars: R, random: noD }); } catch (e) { r = null; } if (r && r.ok && typeof r.value === 'number' && isFinite(r.value)) out[a.key] = Math.max(0, Math.min(99, Math.floor(r.value))); });
+    return out;
+}
+function actMax(charId, a) { var m = net.turnMax[charId]; return m && typeof m[a.key] === 'number' ? m[a.key] : (a.n || 1); }
 function actsOf(camp) { var t = camp && camp.system && camp.system.combat && camp.system.combat.turn; return t && Array.isArray(t.acts) ? t.acts : []; }
 function actsCombat(camp, charId, pr) {
     if (!window.wpVtt || !window.wpVtt.on('turns') || !pr || typeof pr.location !== 'string') return null;
@@ -4832,7 +4844,7 @@ function actsCombat(camp, charId, pr) {
 }
 function actsTell(camp, charId, cleared) {   // what is left, to each connection of the character's player
     var ch = camp && camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; if (!ch || !ch.ownerId || ch.npc) return;
-    var left = null; if (!cleared) { left = {}; var sp = net.turnSpent[charId] || {}; actsOf(camp).forEach(function(a) { if (a && typeof a.key === 'string') left[a.key] = Math.max(0, (a.n || 1) - (sp[a.key] || 0)); }); }
+    var left = null; if (!cleared) { left = {}; var sp = net.turnSpent[charId] || {}; actsOf(camp).forEach(function(a) { if (a && typeof a.key === 'string') left[a.key] = Math.max(0, actMax(charId, a) - (sp[a.key] || 0)); }); }
     var m = { type: 'acts-left', charId: charId, left: left, mode: moveMode(camp, 'acts') === 'warn' ? 'warn' : 'refuse' };
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(m); } catch (e) { sendFailed(e); } } });
 }
@@ -4840,7 +4852,9 @@ function actsTell(camp, charId, cleared) {   // what is left, to each connection
 function actSpend(camp, charId, pr, cost, conn, who) {
     if (!cost || moveMode(camp, 'acts') === 'off') return '';
     var a = null; actsOf(camp).forEach(function(x) { if (!a && x && x.key === cost) a = x; }); if (!a || !actsCombat(camp, charId, pr)) return '';
-    var sp = net.turnSpent[charId] || (net.turnSpent[charId] = {}), used = sp[a.key] || 0, lbl = a.label || a.key, n = a.n || 1;
+    var cbS = actsCombat(camp, charId, pr);
+    if (!net.turnMax[charId]) { var mpS = camp.items && own(camp.items, pr.location) ? camp.items[pr.location] : null, SS = SC(), twS = SS && mpS ? SS.charTokenOn(mpS, charId, pr.id, { strict: true }) : null, chS = camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; net.turnMax[charId] = actsMaxOf(camp, chS, mpS, twS, cbS); }   // 192: a press before its first turn: its counts worked out now
+    var sp = net.turnSpent[charId] || (net.turnSpent[charId] = {}), used = sp[a.key] || 0, lbl = a.label || a.key, n = actMax(charId, a);
     if (used >= n) {
         if (moveMode(camp, 'acts') === 'refuse') return 'No ' + lbl + ' left this turn.';
         turnNote(conn, lbl + ': used past what a turn allows.', charId); toast((who || 'A character') + ' used a ' + lbl + ' past what a turn allows.'); if (typeof bellOut === 'function') bellOut(charId, { title: 'Turn', text: 'Used a ' + lbl + ' past what a turn allows.' });
@@ -4852,12 +4866,12 @@ function turnActsStart(mapId, c) {   // the character whose turn begins has its 
     var row = c && Array.isArray(c.rows) ? c.rows[c.turn] : null, camp = getActiveCampaign(); if (!row || typeof row.tokId !== 'string' || !camp || !actsOf(camp).length) return;
     var map = camp.items && own(camp.items, mapId) ? camp.items[mapId] : null, w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === row.tokId; }) : null;
     if (!w || typeof w.charId !== 'string') return;
-    delete net.turnSpent[w.charId]; if (window.wpVtt && window.wpVtt.on('turns')) actsTell(camp, w.charId);
+    delete net.turnSpent[w.charId]; net.turnMax[w.charId] = actsMaxOf(camp, camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null, map, w, c); if (window.wpVtt && window.wpVtt.on('turns')) actsTell(camp, w.charId);   // 192: its counts for this turn
 }
 function turnActsEnd(mapId, had) {   // a combat ended: its characters' counts go (their sheets stop greying)
     var camp = getActiveCampaign(); if (!had || !camp || !actsOf(camp).length) return;
     var map = camp.items && own(camp.items, mapId) ? camp.items[mapId] : null; if (!map || !Array.isArray(had.rows) || !Array.isArray(map.whiteboard)) return;
-    had.rows.forEach(function(r) { var w = r && r.tokId ? map.whiteboard.find(function(x) { return x && x.id === r.tokId; }) : null; if (w && typeof w.charId === 'string') { delete net.turnSpent[w.charId]; actsTell(camp, w.charId, true); } });
+    had.rows.forEach(function(r) { var w = r && r.tokId ? map.whiteboard.find(function(x) { return x && x.id === r.tokId; }) : null; if (w && typeof w.charId === 'string') { delete net.turnSpent[w.charId]; delete net.turnMax[w.charId]; actsTell(camp, w.charId, true); } });
 }
 // [netcheck:turnacts-end]
 // [netcheck:fxtime-start]
@@ -8056,7 +8070,7 @@ function handleMessage(msg, conn) {
         net.actsLeft = net.actsLeft || Object.create(null);
         if (msg.left === null) delete net.actsLeft[msg.charId];
         else if (msg.left && typeof msg.left === 'object' && !Array.isArray(msg.left)) {
-            var alv = Object.create(null), aln = 0; Object.keys(msg.left).forEach(function(k) { var v = msg.left[k]; if (aln < 6 && /^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(k) && typeof v === 'number' && Math.floor(v) === v && v >= 0 && v <= 9) { alv[k] = v; aln++; } });
+            var alv = Object.create(null), aln = 0; Object.keys(msg.left).forEach(function(k) { var v = msg.left[k]; if (aln < 6 && /^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(k) && typeof v === 'number' && Math.floor(v) === v && v >= 0 && v <= 99) { alv[k] = v; aln++; } });
             net.actsLeft[msg.charId] = { left: alv, mode: msg.mode === 'warn' ? 'warn' : 'refuse' };
         } else return;
         if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(msg.charId);

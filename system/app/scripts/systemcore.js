@@ -1102,7 +1102,7 @@ function cleanTurn(t) {
     });
     (Array.isArray(t.acts) ? t.acts : []).forEach(function(a) {
         if (as.length >= LIMITS.turnActs || !isObj(a) || typeof a.key !== 'string' || !STAT_KEY.test(a.key) || seenA[lower(a.key)]) return;
-        seenA[lower(a.key)] = 1; var o = { key: a.key, n: typeof a.n === 'number' && Math.floor(a.n) === a.n && a.n >= 1 && a.n <= 9 ? a.n : 1 }, lb = cutText(a.label, LIMITS.label); if (lb) o.label = lb; as.push(o);
+        seenA[lower(a.key)] = 1; var o = { key: a.key, n: typeof a.n === 'number' && Math.floor(a.n) === a.n && a.n >= 1 && a.n <= 9 ? a.n : 1 }, lb = cutText(a.label, LIMITS.label); if (lb) o.label = lb; var nfA = cleanFormulaText(a.nf); if (nfA) o.nf = nfA; as.push(o);   // 192 (the owner, by prompt: "Count is a formula (Recommended)"): how many a turn allows may be a formula of the character's names, worked out for each character at their turn's start (n where it gives no number)
     });
     if (us.length) out.units = us;
     if (as.length) out.acts = as;
@@ -2756,6 +2756,7 @@ function cleanSystem(sys, opts) {
     }
     costTargets(out, gmView);   // turn-based combat T1: what each roll costs, against the actions just cleaned
     everyTargets(out, gmView);   // item 20 K5: what each clock rule counts in, against the time units just cleaned
+    if (!gmView && typeof showMention === 'function' && out.combat.turn && Array.isArray(out.combat.turn.acts)) out.combat.turn.acts.forEach(function(a) { if (a && a.nf && showMention(a.nf)) delete a.nf; });   // 192: a count naming a GM-only value goes, as a move's does
     if (!gmView && typeof showMention === 'function' && out.combat.turn && out.combat.turn.move && showMention(out.combat.turn.move)) { delete out.combat.turn.move; delete out.combat.turn.unit; if (!Object.keys(out.combat.turn).length) delete out.combat.turn; }   // T1: a move naming a GM-only value goes (their moves are then not limited by it)
     var lr = cleanListRules(sys.listRules); if (lr) out.listRules = lr;   // Stage 6 F4c2: Setting A, in both views (absent: GM only)
     var srS = cleanSheetRev(sys.sheetRev); if (srS) out.sheetRev = srS;   // 1.6.0 (backlog 190): the sheet revision, in both views (absent: none)
@@ -5979,6 +5980,7 @@ function validateSystem(sys, F) {
     nearV = false; crossV = false;
     var trn = isObj(sys.combat) && isObj(sys.combat.turn) ? sys.combat.turn : null, actK = map();   // turn-based combat T1: the move (no dice) and what each roll costs
     if (trn && trn.move) checkFormula({ id: 'combat', key: '#turn' }, 'turn.move', trn.move, false, 'all');
+    (trn && Array.isArray(trn.acts) ? trn.acts : []).forEach(function(a) { if (isObj(a) && typeof a.nf === 'string' && a.nf) checkFormula({ id: 'combat', key: '#turn' }, 'turn.act.' + a.key, a.nf, false, 'all'); });   // 192: an action's count
     (trn && Array.isArray(trn.acts) ? trn.acts : []).forEach(function(a) { if (isObj(a) && typeof a.key === 'string') actK[lower(a.key)] = 1; });
     var costErr = function(id, prop, k) { errors.push({ id: id, prop: prop, message: 'No action \u201c' + k + '\u201d on the Combat card (System \u25b8 Items): add it there, or pick another.' }); };
     sys.rolls.forEach(function(r) { if (r.cost && !actK[lower(r.cost)]) costErr(r.id, 'cost', r.cost); });

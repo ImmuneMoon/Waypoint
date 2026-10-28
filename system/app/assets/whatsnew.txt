@@ -26,6 +26,7 @@ Hidden pieces
 Systems
 - A row can hold parts, such as purchases on a power or upgrades in a limb. They show as pills under it, and its formulas can add up their costs. Undo after removing a row brings its parts back too. A list can name which rows may hold parts, and a character file can bring a row of its own as a part.
 - A list's place can say its own words when it holds no row. A place by category waits for your library on a player's sheet, where it once showed every row in its first place.
+- How many of an action a turn allows can be a formula of the character, so an entry can give one character an extra action each turn.
 - A badge can show whether a row's entry has what it needs, and any formula of a row can tell a copy held again under its own name.
 - A sheet or its HUD may hold up to 100 sections, where 60 was the most.
 - A system that holds more than Waypoint keeps is never cut down in silence. When it loads or is imported, a notice names what was left out, sections and placements included. The System editor says what stands at its limit.

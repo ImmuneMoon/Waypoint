@@ -8622,8 +8622,8 @@ function turnBox(box, cm) {
             var x = x0 && typeof x0 === 'object' ? x0 : {}, rw = el('div', 'sys-flags sys-turn-' + g[0]); rw.dataset.ti = String(i);
             var k = input('sys-turn-' + g[0] + 'key field', typeof x.key === 'string' ? x.key : '', g[0] === 'act' ? 'Its name, which a roll costs: Action, Bonus, Reaction, Maneuver' : 'Its name in an effect\u2019s length: segment, watch (not a word the list already has: second, minute, hour, day, turn, round)', 'Key'); k.maxLength = 24; rw.appendChild(k);
             var l = input('sys-turn-' + g[0] + 'label field', typeof x.label === 'string' ? x.label : '', 'What the sheet shows (blank: the key)', 'Label'); l.maxLength = LIMITS.label; rw.appendChild(l);
-            var n = el('input', 'field sys-turn-' + g[0] + 'n'); n.type = 'number';
-            if (g[0] === 'act') { n.min = '1'; n.max = '9'; n.step = '1'; n.value = String(typeof x.n === 'number' ? x.n : 1); n.title = 'How many a turn allows (1 to 9)'; }
+            var n = el('input', 'field sys-turn-' + g[0] + 'n'); n.type = g[0] === 'act' ? 'text' : 'number';
+            if (g[0] === 'act') { n.maxLength = LIMITS.formula; n.value = typeof x.nf === 'string' && x.nf ? x.nf : String(typeof x.n === 'number' ? x.n : 1); n.placeholder = '1'; n.title = 'How many a turn allows: a whole number from 1 to 9, or a formula of the character\u2019s names, worked out at their turn\u2019s start, such as 1 + ExtraReady'; }   // 192
             else { n.min = '0'; n.step = 'any'; n.value = typeof x.secs === 'number' ? String(x.secs) : ''; n.placeholder = 'Seconds'; n.title = 'How long one lasts, in seconds (a watch: 14400)'; }
             rw.appendChild(n);
             [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 't' + g[0] + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
@@ -8643,7 +8643,7 @@ function onTurnInput(t) {
         var g = rw.classList.contains('sys-turn-act') ? 'act' : 'tu', arr = tn[g === 'act' ? 'acts' : 'units'], x = Array.isArray(arr) && arr[i] && typeof arr[i] === 'object' ? arr[i] : null; if (!x) return true;
         if (c.indexOf('sys-turn-' + g + 'key') >= 0) x.key = t.value.slice(0, 24);
         else if (c.indexOf('sys-turn-' + g + 'label') >= 0) { if (t.value.trim()) x.label = t.value.slice(0, LIMITS.label); else delete x.label; }
-        else if (c.indexOf('sys-turn-' + g + 'n') >= 0) { var nv = Number(t.value); if (g === 'act') x.n = nv; else if (t.value.trim() && isFinite(nv)) x.secs = nv; else delete x.secs; }
+        else if (c.indexOf('sys-turn-' + g + 'n') >= 0) { var nv = Number(t.value); if (g === 'act') { var nt = String(t.value || '').trim(); if (/^[0-9]+$/.test(nt)) { x.n = nv; delete x.nf; } else if (nt) { x.nf = nt.slice(0, LIMITS.formula); if (typeof x.n !== 'number') x.n = 1; } else { x.n = 1; delete x.nf; } } else if (t.value.trim() && isFinite(nv)) x.secs = nv; else delete x.secs; }   // 192: a whole number, or a formula
         else return true;
     } else return false;
     markDirty(); patchErrors(); return true;

@@ -4797,10 +4797,33 @@ pendingChecks.push((async () => {
     const s2 = mkA(); s2.sp('Action'); s2.api.start('m1', Object.assign({}, s2.net.combats.m1, { turn: 0 }));
     check('T4 a turn\'s start gives the character whose turn it is its actions back (its player hears the full counts); another\'s stay spent; the combat\'s end clears its characters\' counts (null: their sheets stop greying)',
         sAfter === '{}' && j(sLeft) === j(['pA:{"Action":1,"Bonus":2}:refuse', 'pA2:{"Action":1,"Bonus":2}:refuse']) && j(eLeft) === j(['pA:null:refuse', 'pA2:null:refuse']) && j(s2.net.turnSpent) === j({ c_p: { Action: 1 } }), j([sAfter, sLeft, eLeft, s2.net.turnSpent]));
+    {   // 192 (the owner, by prompt: "Count is a formula (Recommended)"): an action's count a formula of the character's names, worked out at its turn's start over the players' view and the owner's own copy
+        const Fx2 = await import(url('formula.js'));
+        const lineOf = k => { const i = src.indexOf(k); return src.slice(i, src.indexOf('\n', i)); }, fxL = lineOf('function fxLib(sys)'), itL = lineOf('function itemLib(sys)');
+        const sysR = { v: 1, name: 'R', rolls: [], fields: [{ id: 'f_er', key: 'ExtraReady', label: 'Extra ready', kind: 'number', vis: 'all', def: 0 }, { id: 'f_gm', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm', def: 5 }],
+            combat: { turn: { acts: [{ key: 'Ready', n: 1, nf: '1 + ExtraReady' }, { key: 'Act', n: 1 }, { key: 'Hid', n: 2, nf: '1 + Secret' }, { key: 'Dice', n: 3, nf: '1d6' }] } }, sheet: { sections: [] } };
+        const mkR = (er) => {
+            const map = { type: 'map', whiteboard: [{ id: 't_p', isChar: true, charId: 'c_p', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }] };
+            const camp = { id: 'c1', items: { m1: map }, turnRules: {}, system: Sx.cleanSystem(sysR, { F: Fx2, gmView: true }), chars: { c_p: { id: 'c_p', name: 'Pat', ownerId: 'u_a', values: { f_er: er } } } };
+            const out = { sent: [] }, conns = [{ peer: 'pA', open: true, send: m => out.sent.push(m) }];
+            const net = { role: 'host', conns, roster: { pA: { id: 'u_a', location: 'm1' } }, combats: { m1: { mapId: 'm1', round: 1, turn: 0, rows: [{ id: 'r_p', tokId: 't_p' }] } } };
+            const win = { wpVtt: { on: () => true }, wpFormula: Fx2, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx2, gmView: false }) } };
+            const api = new Function('net', 'window', 'SC', 'getActiveCampaign', 'own', 'toast', 'sendFailed', 'applyPosToDom', 'broadcastPos', 'bellOut', pidA + fxL + '\n' + itL + '\n' + posA + '\n' + taA + '\n' + ordersSrc + '\nreturn { spend: actSpend, start: turnActsStart, end: turnActsEnd };')(
+                net, win, () => Sx, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), () => {}, e => { throw e; }, () => {}, () => {}, () => {});
+            return { out, net, camp, api, sp: cost => api.spend(camp, 'c_p', net.roster.pA, cost, conns[0], 'Pat'), left: () => out.sent.filter(m => m.type === 'acts-left').map(m => JSON.stringify(m.left)) };
+        };
+        const r2 = mkR(2); r2.api.start('m1', r2.net.combats.m1); const l2 = r2.left().pop(), m2 = JSON.stringify(r2.net.turnMax.c_p);
+        const sp2 = [r2.sp('Ready'), r2.sp('Ready'), r2.sp('Ready'), r2.sp('Ready')];
+        const r0 = mkR(0); const pre = r0.sp('Ready'), pre2 = r0.sp('Ready'), m0 = JSON.stringify(r0.net.turnMax.c_p);
+        const rE = mkR(2); rE.api.start('m1', rE.net.combats.m1); rE.api.end('m1', rE.net.combats.m1); const gone = !('c_p' in rE.net.turnMax);
+        check('192 an action\'s count by formula (host, run for real): worked out at the turn\'s start over the players\' view and the owner\'s own copy (1 + ExtraReady with 2 gives 3; a count naming a GM-only value and one that rolls dice stand at their number), told as what is left, spent to 0 and then refused; a press before any turn of theirs works it out then; the combat\'s end forgets it',
+            m2 === JSON.stringify({ Ready: 3, Act: 1, Hid: 2, Dice: 3 }) && l2 === JSON.stringify({ Ready: 3, Act: 1, Hid: 2, Dice: 3 }) && JSON.stringify(sp2) === JSON.stringify(['', '', '', 'No Ready left this turn.'])
+            && pre === '' && pre2 === 'No Ready left this turn.' && m0 === JSON.stringify({ Ready: 1, Act: 1, Hid: 2, Dice: 3 }) && gone, j([m2, l2, sp2, pre, pre2, m0, gone]));
+    }
     const runAI = (msg, o) => { o = o || {}; const net = { foreign: true, syncedPeer: 'h', stream: false, actsLeft: o.had || undefined }, seen = []; new Function('msg', 'conn', 'net', 'window', aiA)(Object.assign({ type: 'acts-left' }, msg), { peer: o.peer || 'h' }, net, { wpSheets: { charChanged: id => seen.push(id) } }); return { al: net.actsLeft, seen }; };
-    const ai1 = runAI({ charId: 'c_p', left: { Action: 0, Bonus: 2, 'bad key': 1, Big: 12, Frac: 0.5, constructor: 1 }, mode: 'warn' }), ai2 = runAI({ charId: 'c_p', left: null }, { had: { c_p: { left: {}, mode: 'refuse' } } });
-    check('T4 a client\'s counts (net.js, run for real): from the synced host only — action keys (in a map with no prototype: constructor is a key like any) and whole numbers 0 to 9 kept, anything else dropped, the mode refuse unless warn; null clears; its sheet and HUD redraw; nothing from another peer, a bad character id or a left that is neither',
-        j(ai1.al.c_p) === j({ left: { Action: 0, Bonus: 2, constructor: 1 }, mode: 'warn' }) && Object.getPrototypeOf(ai1.al.c_p.left) === null && j(ai1.seen) === j(['c_p']) && !('c_p' in ai2.al) && j(ai2.seen) === j(['c_p'])
+    const ai1 = runAI({ charId: 'c_p', left: { Action: 0, Bonus: 2, 'bad key': 1, Big: 120, Mid: 12, Frac: 0.5, constructor: 1 }, mode: 'warn' }), ai2 = runAI({ charId: 'c_p', left: null }, { had: { c_p: { left: {}, mode: 'refuse' } } });
+    check('T4 a client\'s counts (net.js, run for real): from the synced host only — action keys (in a map with no prototype: constructor is a key like any) and whole numbers 0 to 99 kept (192: a count may be a formula, moved on purpose from 0 to 9), anything else dropped, the mode refuse unless warn; null clears; its sheet and HUD redraw; nothing from another peer, a bad character id or a left that is neither',
+        j(ai1.al.c_p) === j({ left: { Action: 0, Bonus: 2, Mid: 12, constructor: 1 }, mode: 'warn' }) && Object.getPrototypeOf(ai1.al.c_p.left) === null && j(ai1.seen) === j(['c_p']) && !('c_p' in ai2.al) && j(ai2.seen) === j(['c_p'])
         && [runAI({ charId: 'c_p', left: {} }, { peer: 'o' }), runAI({ charId: 'x', left: {} }), runAI({ charId: 'c_p', left: [1] })].every(r => !r.seen.length), j([ai1, ai2]));
     const T = src.replace(/\r\n/g, '\n');
     check('T4 the presses on the host (source): a player\'s roll with a cost spends it once it is a valid roll, before it is recorded (refused: a roll-deny with why); a player\'s apply action once its change is worked out, before it lands; turnStarted refills, the combat\'s end clears',

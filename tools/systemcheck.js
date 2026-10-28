@@ -16405,6 +16405,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('191 a list\'s place keeps its own words for no row (When empty, trimmed, only on a list) and the wait mark; while the GM\'s library is not read (libWait), a list whose places name a category the view cannot judge waits whole, each place marked and with no category, where before the place lost its categories; once judged, as before; a player\'s re-clean keeps it; the sheet says Loading the library and a place\'s own words; the Layout tab\'s When empty',
             keepOk && waitOk && sheetOk, J([keepOk, waitOk, sheetOk, plA, plsOf(pWait), plsOf(pShut), plsOf(pKnown)]));
     }
+    {   // 192 (the owner, by prompt: "Count is a formula (Recommended)"): an action's count may be a formula of the character's names
+        const J = JSON.stringify;
+        const rawT = { v: 1, name: 'T', rolls: [], fields: [{ id: 'f_er', key: 'ExtraReady', label: 'Extra ready', kind: 'number', vis: 'all' }, { id: 'f_gm', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm' }],
+            combat: { turn: { acts: [{ key: 'Ready', n: 1, nf: '  1 + ExtraReady  ' }, { key: 'Act', n: 2 }, { key: 'Hid', n: 2, nf: '1 + Secret' }, { key: 'Bad', n: 1, nf: 7 }] } }, sheet: { sections: [] } };
+        const gT = cleanSystem(rawT, { F, gmView: true }), pT = cleanSystem(rawT, { F, gmView: false });
+        const cleanOk = J(gT.combat.turn.acts) === J([{ key: 'Ready', n: 1, nf: '1 + ExtraReady' }, { key: 'Act', n: 2 }, { key: 'Hid', n: 2, nf: '1 + Secret' }, { key: 'Bad', n: 1 }])
+            && J(pT.combat.turn.acts) === J([{ key: 'Ready', n: 1, nf: '1 + ExtraReady' }, { key: 'Act', n: 2 }, { key: 'Hid', n: 2 }, { key: 'Bad', n: 1 }]) && J(cleanSystem(gT, { F, gmView: true })) === J(gT);
+        const vOk = S.validateSystem(gT, F).errors.length === 0, dice = JSON.parse(J(gT)); dice.combat.turn.acts[0].nf = '1d6'; const vDice = S.validateSystem(dice, F).errors.some(e => e.prop === 'turn.act.Ready');
+        const shT = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const sheetOk = shT.includes("n.type = g[0] === 'act' ? 'text' : 'number';") && shT.includes("n.value = typeof x.nf === 'string' && x.nf ? x.nf : String(typeof x.n === 'number' ? x.n : 1);") && shT.includes("if (/^[0-9]+$/.test(nt)) { x.n = nv; delete x.nf; } else if (nt) { x.nf = nt.slice(0, LIMITS.formula); if (typeof x.n !== 'number') x.n = 1; } else { x.n = 1; delete x.nf; }");
+        check('192 an action\'s count may be a formula (nf: trimmed, kept as formula text beside n, its fallback; the same in both views but where it names a GM-only value, which the players\' view drops as a move\'s), the validator refusing dice in it, and the Combat card\'s one box taking a whole number or a formula',
+            cleanOk && vOk && vDice && sheetOk, J([cleanOk, vOk, vDice, sheetOk, gT.combat.turn.acts, pT.combat.turn.acts]));
+    }
     {   // 1.6.0, backlog 180 R11 (the owner's order of 2026-10-27; a removed row's Undo is 1.5.8's): split a stack into a row of its own
         const J = JSON.stringify;
         const sys11 = S.cleanSystem({ v: 1, name: 'C', rolls: [], items: [{ id: 'i_gr', name: 'Grenade', category: 'Explosive' }, { id: 'i_rp', name: 'Rope' }],

@@ -24,6 +24,7 @@ Hidden pieces
 - Settings has Hidden pieces on my map: Faded shows a piece you hid from players see-through, as before, and Invisible leaves it off your screen until you show it. No grey cloud stands in for a hidden piece any more.
 
 Systems
+- A row can hold parts, such as purchases on a power or upgrades in a limb. They show as pills under it, and its formulas can add up their costs.
 - A sheet or its HUD may hold up to 100 sections, where 60 was the most.
 - A system that holds more than Waypoint keeps is never cut down in silence. When it loads or is imported, a notice names what was left out, sections and placements included. The System editor says what stands at its limit.
 - A list can keep its rows in sets, such as a suit of armour: each set shows how many are on, says Complete when all are, and switches on or off at once. A formula reads Row.setall for a set bonus.

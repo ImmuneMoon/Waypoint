@@ -16247,6 +16247,59 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             + 'the strip (setStrip, run for real) draws a line a set above its rows, with Complete, n/m and All on and All off, each pressing the row\'s own switch one row at a time, passing over a row whose switch is not shown or whose needs a player\'s app says fail, no buttons where the switch may not be used, and nothing for a list without sets; the sheet, the Lists tab\'s Sets by and the readable page',
             cleanOk && setsOk && resOk && valOk && drawOk && pressOk && ruleOk && wiredOk, J([cleanOk, setsOk, resOk, valOk, drawOk, pressOk, ruleOk, wiredOk, shape, lines, onC, offC, heldC, hidC, readOnly]));
     }
+    {   // 1.6.0, backlog 180 R14 (the owner, 2026-10-28, by prompt on docs/sheets/row-parts-sheet.html: "A. A row of a list", "A. Pills under the row", "A. Count and totals"): rows in rows
+        const J = JSON.stringify;
+        const raw14 = { v: 1, name: 'P', rolls: [], items: [{ id: 'i_gust', name: 'Gust', category: 'Power' }, { id: 'i_wide', name: 'Wider', category: 'Option', stats: { XP: 4 } }, { id: 'i_long', name: 'Longer', category: 'Option', stats: { XP: 3 } }, { id: 'i_rock', name: 'Rock', category: 'Junk', stats: { XP: 9 } }],
+            fields: [{ id: 'f_p', key: 'Powers', label: 'Powers', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_o', cats: ['Option', 'option'], label: 'Option' }, cols: [{ key: 'Cost', label: 'Cost', formula: 'Row.parts.XP' }, { key: 'N', label: 'N', formula: 'Row.parts' }] } },
+                { id: 'f_o', key: 'Opts', label: 'Opts', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'XP', label: 'XP', show: true }] } },
+                { id: 'f_s', key: 'Self', label: 'Self', kind: 'item-list', list: { parts: { from: 'f_s' } } }, { id: 'f_x', key: 'X', label: 'X', kind: 'item-list', list: { parts: { from: 'f_nope' } } }], sheet: { sections: [] } };
+        const g14 = cleanSystem(raw14, { F, gmView: true }), p14 = cleanSystem(raw14, { F, gmView: false });
+        const cleanOk = J(g14.fields[0].list.parts) === J({ from: 'f_o', cats: ['Option'], label: 'Option' }) && J(p14.fields[0].list.parts) === J(g14.fields[0].list.parts) && g14.fields[2].list.parts.from === 'f_s' && !(g14.fields[3].list && g14.fields[3].list.parts)
+            && J(cleanSystem(g14, { F, gmView: true })) === J(g14) && S.ROW_WORDS.parts === 1 && S.partsSrc(g14, g14.fields[0].list).id === 'f_o' && S.partsSrc(g14, {}) === null;
+        let ch = { id: 'c1', values: { f_p: [{ id: 'w_g', defId: 'i_gust', qty: 1 }, { id: 'w_h', defId: 'i_gust', qty: 1, hid: 1 }], f_o: [] } };
+        const op = (fid, q, o) => { const r = S.applyRowOp(g14, ch, fid, q, F, o || {}); if (r.ok) { ch.values = Object.assign({}, ch.values); ch.values[fid] = r.value; if (r.also) Object.assign(ch.values, r.also); } return r; };
+        const adds = [op('f_o', { op: 'add', defId: 'i_wide', rowId: 'w_a1', in: 'w_g' }).ok, op('f_o', { op: 'add', defId: 'i_wide', rowId: 'w_a2', in: 'w_g' }).ok, op('f_o', { op: 'add', defId: 'i_long', rowId: 'w_a3', in: 'w_g' }).ok,
+            op('f_o', { op: 'add', defId: 'i_rock', rowId: 'w_a4', in: 'w_g' }).reason, op('f_o', { op: 'add', defId: 'i_wide', rowId: 'w_a5', in: 'w_zz' }).reason, op('f_o', { op: 'add', defId: 'i_wide', rowId: 'w_a6' }).ok,
+            op('f_o', { op: 'add', defId: 'i_wide', rowId: 'w_a7', in: 'w_h' }, { player: true, view: p14 }).reason, op('f_o', { op: 'add', defId: 'i_wide', rowId: 'w_a8', in: 'w_a1' }).reason, op('f_o', { op: 'add', defId: 'i_wide', rowId: 'w_a9', in: 7 }).reason];
+        const addOk = J(adds) === J([true, true, true, 'missing', 'missing', true, 'missing', 'missing', 'value']) && J(ch.values.f_o) === J([{ id: 'w_a1', defId: 'i_wide', qty: 2, in: 'w_g' }, { id: 'w_a3', defId: 'i_long', qty: 1, in: 'w_g' }, { id: 'w_a6', defId: 'i_wide', qty: 1 }])
+            && J(S.partsOf(g14, ch, g14.fields[0].list, 'w_g').map(r => r.id)) === J(['w_a1', 'w_a3']) && S.partHost(g14, ch, 'f_o', 'w_g', false).row.id === 'w_g' && S.partHost(g14, ch, 'f_o', 'w_h', true) === null;
+        const r14 = S.resolveAll(g14, ch, F, null), cells = r14.f_p.cells;
+        const resOk = J(cells.w_g.map(x => x.value)) === J([11, 3]) && J(cells.w_h.map(x => x.value)) === J([0, 0]);
+        const vB = S.validateSystem(g14, F), bad = Object.assign({}, g14, { fields: g14.fields.map(f => f.id !== 'f_o' ? f : Object.assign({}, f, { list: Object.assign({}, f.list, { cols: [{ key: 'C', label: 'C', formula: 'Row.parts.XP' }] }) })) });
+        const valOk = !vB.errors.length && S.validateSystem(JSON.parse(J(bad)), F).errors.some(e => /parts/i.test(J(e))) === true;
+        const wire = [S.cleanCharItem({ rid: 'e12345678', charId: 'c_1', fieldId: 'f_o', op: 'add', defId: 'i_wide', rowId: 'w_x', in: 'w_g' }), S.cleanCharItem({ rid: 'e12345678', charId: 'c_1', fieldId: 'f_o', op: 'add', defId: 'i_wide', rowId: 'w_x', in: 'nope' })];
+        const wireOk = wire[0] && wire[0].in === 'w_g' && wire[1] === null;
+        const chK = JSON.parse(J(ch)), rm = op('f_p', { op: 'remove', rowId: 'w_g' });
+        const rmOk = rm.ok && J(ch.values.f_p.map(r => r.id)) === J(['w_h']) && J(ch.values.f_o.map(r => r.id)) === J(['w_a6']);
+        ch = chK; const gC = JSON.parse(J(g14)); gC.items[0].rm = 'curse'; const rc = S.applyRowOp(gC, ch, 'f_p', { op: 'remove', rowId: 'w_g' }, F, { player: true, view: p14 });
+        const keptId = rc.ok ? rc.value.filter(r => r.hid === 1 && r.id !== 'w_h').map(r => r.id)[0] : '', keptParts = rc.ok && rc.also ? rc.also.f_o.filter(r => r.in === keptId) : [];
+        const curseOk = rc.ok && !!keptId && keptParts.length === 2 && keptParts.every(r => r.hid === 1) && rc.also.f_o.some(r => r.id === 'w_a6' && !r.in);
+        let chS = { id: 'c2', values: { f_s: [{ id: 'w_s1', defId: 'i_gust', qty: 1 }] } }; const r1 = S.applyRowOp(g14, chS, 'f_s', { op: 'add', defId: 'i_wide', rowId: 'w_s2', in: 'w_s1' }, F, {}); chS.values.f_s = r1.value; const r2 = S.applyRowOp(g14, chS, 'f_s', { op: 'remove', rowId: 'w_s1' }, F, {});
+        const selfOk = r1.ok && J(r1.value.map(r => [r.id, r.in || ''])) === J([['w_s1', ''], ['w_s2', 'w_s1']]) && r2.ok && r2.value.length === 0;
+        // the sheet's pills, run for real on a page of plain objects
+        const sh14 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), sx14 = fs.readFileSync(path.join(app, 'scripts', 'sheetexport.js'), 'utf8').replace(/\r\n/g, '\n'), nt14 = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+        const ppSrc = sh14.slice(sh14.indexOf('// [systemcheck:partpills-start]'), sh14.indexOf('// [systemcheck:partpills-end]'));
+        const mk = (tag, cls, tx) => ({ tag, className: cls || '', textContent: tx === undefined ? '' : String(tx), kids: [], childNodes: [], title: '', value: '', on: {}, appendChild(k) { this.kids.push(k); this.childNodes.push(k); return k; }, addEventListener(t, fn) { this.on[t] = fn; } });
+        const commits = [], PP = new Function('el', 'opt', 'partsSrc', 'partsOf', 'rowDef', 'rowLvl', 'rowIdOf', 'statChips', 'pickerInto', 'commitItem', 'isClient', 'uid', 'openLibPicker', 'window', ppSrc + '\nreturn { pills: partPills, hosts: partHostIds };')(
+            mk, (v, t) => Object.assign(mk('option', '', t), { value: v }), S.partsSrc, S.partsOf, S.rowDef, S.rowLvl, S.rowIdOf, (host, d) => host.appendChild(mk('span', 'sheet-chip', 'XP ' + d.stats.XP)), (sel, items, spec) => { let n = 0; items.forEach(it => { if (!spec.cats || spec.cats.map(x => x.toLowerCase()).includes(String(it.category).toLowerCase())) { sel.appendChild(Object.assign(mk('option', '', it.name), { value: it.id })); n++; } }); return n; },
+            (c, f, q) => commits.push([f.id, J(q)]), () => false, () => 'w_new', () => {}, {});
+        const ch2 = JSON.parse(J(chK)), host = ch2.values.f_p[0], wrapE = mk('div'), wrapR = mk('div');
+        PP.pills(wrapE, ch2, g14.fields[0], g14.fields[0].list, g14, host, true); PP.pills(wrapR, ch2, g14.fields[0], g14.fields[0].list, g14, host, false);
+        const box = wrapE.kids[0], pills = box.kids.filter(k => k.className === 'sheet-part').map(p => p.kids.map(k => k.className + ':' + k.textContent)), addSel = box.kids.find(k => k.className === 'field sheet-part-add');
+        const drawOk = J(pills) === J([['sheet-part-name:Wider', 'sheet-chip:XP 4', 'tool ghost sheet-part-pm:−', 'sheet-part-n:2', 'tool ghost sheet-part-pm:+', 'tool ghost sheet-part-rm:×'], ['sheet-part-name:Longer', 'sheet-chip:XP 3', 'tool ghost sheet-part-pm:−', 'sheet-part-n:1', 'tool ghost sheet-part-pm:+', 'tool ghost sheet-part-rm:×']])
+            && J(addSel.kids.map(o => o.value)) === J(['', 'i_wide', 'i_long']) && addSel.kids[0].textContent === '+ Option…'
+            && J(wrapR.kids[0].kids.map(p => p.kids.map(k => k.textContent))) === J([['Wider', 'XP 4', '×2'], ['Longer', 'XP 3']]);
+        box.kids[0].kids[4].on.click(); box.kids[1].kids[5].on.click(); addSel.value = 'i_long'; addSel.on.change();
+        const pressOk = J(commits) === J([['f_o', J({ op: 'setQty', rowId: 'w_a1', qty: 3 })], ['f_o', J({ op: 'remove', rowId: 'w_a3' })], ['f_o', J({ op: 'add', defId: 'i_long', rowId: 'w_new', in: 'w_g' })]]) && addSel.value === '';
+        const hostsOk = J(PP.hosts(g14, ch2, 'f_o')) === J({ w_g: 1, w_h: 1 }) && PP.hosts(g14, ch2, 'f_p') === null;
+        const wiredOk = sh14.includes("if (spec && spec.parts && typeof partPills === 'function') partPills(wrap, c, f, spec, sysI, entry, chg && !hudRow);") && sh14.includes("if (phI) rowsI = rowsI.filter(function(r) { return !(r && typeof r.in === 'string' && phI[r.in]); });")
+            && sh14.includes("Its ' + (nP === 1 ? 'part goes' : nP + ' parts go') + ' with it, and Undo brings back ' + def.name + ' alone.'") && sh14.includes("if (partIn) qL.in = partIn;") && sh14.includes("if (partIn) qP.in = partIn;")
+            && sh14.includes("else if (c.indexOf('sys-list-partsfrom') >= 0) {") && sh14.includes("el('select', 'sys-list-partsfrom')") && sx14.includes("+ bdW(r) + partW(r); } }];")
+            && nt14.includes("var ptW = (q.op === 'add' && q.in !== undefined)") && nt14.includes("['defId', 'rowId', 'qty', 'pay', 'get', 'from', 'back', 'in']");
+        check('1.6.0, backlog 180 R14: a list may take parts from an item list (parts { from, cats, label }, this list too, the same in both views and a fixed point, none from a list the view lacks); a part is a row of that list carrying in, its host\'s id, added to a host that is there and no part itself, of a category it takes, stacking only with its own kind in the same host; '
+            + 'removing a host removes its parts (a kept curse keeps them, kept too); Row.parts and Row.parts.<stat> read their count and totals, known only on a list that takes parts; the wire\'s add carries in; the sheet\'s pills (partPills, run for real) with - + and x where the character may be changed and the entries that fit, the add a row op of the parts\' list; a part drawn under its host alone; a removal of a host that holds parts asked first; the library pickers, the Lists tab, the readable page and a player\'s app waiting for the host',
+            cleanOk && addOk && resOk && valOk && wireOk && rmOk && curseOk && selfOk && drawOk && pressOk && hostsOk && wiredOk, J([cleanOk, addOk, resOk, valOk, wireOk, rmOk, curseOk, selfOk, drawOk, pressOk, hostsOk, wiredOk, adds, ch.values && ch.values.f_o, cells, pills, commits]));
+    }
     {   // 1.6.0, backlog 180 R11 (the owner's order of 2026-10-27; a removed row's Undo is 1.5.8's): split a stack into a row of its own
         const J = JSON.stringify;
         const sys11 = S.cleanSystem({ v: 1, name: 'C', rolls: [], items: [{ id: 'i_gr', name: 'Grenade', category: 'Explosive' }, { id: 'i_rp', name: 'Rope' }],

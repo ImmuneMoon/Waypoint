@@ -3063,6 +3063,12 @@
   .sheet-item.sheet-edge-primary, tr.sheet-edge-primary > td:first-child { box-shadow: inset 3px 0 0 var(--sheet-primary, var(--sheet-accent, var(--gold))); }
   .sheet-item-statsel { font-size: 11px; padding: 1px 4px; min-height: 0; height: auto; max-width: 160px; }   /* 1.6.0, backlog 180 R10: a choice stat as a menu on its row */
   .sheet-split { font-size: 11px; padding: 0 6px; }   /* 1.6.0, backlog 180 R11 */
+  .sheet-parts { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 2px 0 6px 18px; }   /* 1.6.0 R14: a row's parts, as pills under it */
+  .sheet-part { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--edge); background: var(--panel2); border-radius: 12px; padding: 1px 4px 1px 9px; }
+  .sheet-part .sheet-chip { margin-left: 0; }
+  .sheet-part-pm, .sheet-part-rm { min-width: 0; width: 20px; height: 20px; padding: 0; border-radius: 50%; line-height: 1; }
+  .sheet-part-n { min-width: 1ch; text-align: center; }
+  .sheet-part-add { width: auto; max-width: 14em; height: 24px; padding: 0 6px; border-style: dashed; color: var(--sheet-accent, var(--gold)); }
   .sheet-sets { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }   /* 1.6.0 R15: a list's sets, a line a set above its rows */
   .sheet-set { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--edge); border-radius: 7px; background: var(--panel2); }
   .sheet-set.sheet-set-all { border-color: color-mix(in srgb, var(--green) 60%, var(--edge)); }

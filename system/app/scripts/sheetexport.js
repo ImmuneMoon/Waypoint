@@ -6,7 +6,7 @@
      page), the sheet walked as it is laid out: the header, the dashboard, the band as one line, every tab, every section.
    fileBase(name): a character's name as a file name. isCharFile(j): a character file. The caller (sheets.js) picks the view, works out
    `all` (resolveAll) on that same view and saves the file. */
-import { STORED, fmtNum, headerEntry, autoLayout, catPlace, placeVal, setsOf, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, postureAt, ownPostures, lookOf, unitWords, textWords, listWords } from './systemcore.js';
+import { STORED, fmtNum, headerEntry, autoLayout, catPlace, placeVal, setsOf, partsOf, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, postureAt, ownPostures, lookOf, unitWords, textWords, listWords } from './systemcore.js';
 import { docToMarkdown, mdEscapeText, fmtFromInline } from './docmd.js';
 import { cleanFmt, runsOf, SIZE_EM } from './textfmt.js';
 import { LIMITS as DOC_LIMITS } from './docrender.js';
@@ -275,11 +275,14 @@ function sheetToMarkdown(sys, view, all, opts) {
         var onOnly = !!(pl && pl.on === true && isObj(spec.on));   // as the sheet: 'only switched on' means nothing once the list has no switch
         var catT = catPlace(lay.sections, pl, spec);   // 1.5.5: a list placed once a category lists under each placement the rows the sheet shows there
         var rows = (Array.isArray(vals[f.id]) ? vals[f.id] : []).filter(function(r) { if (!isObj(r) || (onOnly && !rowOn(spec, r))) return false; if (!catT) return true; return catT(placeVal(sys, spec, r)); });   // 1.6.0 R13: by a stat's value where the list splits its places so
+        var hostIds = {}; (Array.isArray(sys && sys.fields) ? sys.fields : []).forEach(function(hf) { if (isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === f.id) (Array.isArray(vals[hf.id]) ? vals[hf.id] : []).forEach(function(hr) { if (isObj(hr) && typeof hr.in !== 'string') hostIds[rowIdOf(hr)] = 1; }); });   // 1.6.0 R14: a part is said under its host
+        rows = rows.filter(function(r) { return !(typeof r.in === 'string' && hostIds[r.in] === 1); });
+        var partW = function(r) { if (!isObj(spec.parts)) return ''; var ps = partsOf(sys, { values: vals }, spec, rowIdOf(r)).map(function(p) { var pd = rowDef(sys, p); return pd && pd.def ? pd.def.name + ((p.qty | 0) > 1 ? ' \u00d7' + p.qty : '') : ''; }).filter(Boolean); return ps.length ? ' (' + ps.join(', ') + ')' : ''; };
         var label = plain(f.label || f.key || 'Items');
         if (!rows.length) { B.push(textBlock('<p><b>' + esc(label) + ':</b> none</p>')); return; }
         var defs = rows.map(function(r) { var d = rowDef(sys, r); return d ? d.def : null; }), cats = {};
         defs.forEach(function(d) { if (d && d.category) cats[d.category] = 1; });
-        var colsA = [{ t: 'Item', g: function(r, d) { return ((d && d.name) || '?') + (d && isObj(d.area) && d.area.ft ? ' ' + d.area.ft + ' ft' : '') + (r.hid === 1 ? ' (hidden from the player)' : '') + bdW(r); } }];
+        var colsA = [{ t: 'Item', g: function(r, d) { return ((d && d.name) || '?') + (d && isObj(d.area) && d.area.ft ? ' ' + d.area.ft + ' ft' : '') + (r.hid === 1 ? ' (hidden from the player)' : '') + bdW(r) + partW(r); } }];
         if (tbl) (Array.isArray(tbl.columns) ? tbl.columns : []).forEach(function(k) { if (typeof k !== 'string' || !ITEM_COL_LABEL[k] || (k === 'category' && tbl.chips)) return; colsA.push({ t: ITEM_COL_LABEL[k], g: function(r, d) { return itemCellText(k, d || {}); } }); });   // the table's own columns, as the sheet draws them
         else if (Object.keys(cats).length > 1) colsA.push({ t: 'Category', g: function(r, d) { return (d && d.category) || ''; } });
         (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (isObj(s) && s.show === true) colsA.push({ t: s.label || s.key, g: function(r, d) { return statShown(s, rowStat(spec, d, s.key), opts.metric); } }); });

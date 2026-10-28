@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
@@ -2598,7 +2598,11 @@ function splitAsk(entry, c, f) {
 // [systemcheck:split-end]
 function itemRmBtn(entry, def, c, f) {
     var rm = el('button', 'tool ghost sheet-item-rm', '×'); rm.title = entry.hid === 1 ? 'Dispel: remove ' + def.name + ' from the character' : 'Remove ' + def.name; rm.ariaLabel = rm.title;
-    rm.addEventListener('click', function() { commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); }); return rm;
+    rm.addEventListener('click', function() {
+        var sysR = systemOf(getActiveCampaign()), nP = f.list && f.list.parts && typeof partsOf === 'function' ? partsOf(sysR, c, f.list, rowIdOf(entry)).length : 0;   // 1.6.0 R14: a row that holds parts asks first, since they go with it
+        if (!nP) { commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); return; }
+        showConfirm('Remove ' + def.name + '? Its ' + (nP === 1 ? 'part goes' : nP + ' parts go') + ' with it, and Undo brings back ' + def.name + ' alone.', function(ok) { if (ok) commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); }, { noEnter: true });
+    }); return rm;
 }
 function itemCellText(col, def, len) {   // len: how the sheet on screen says a blast's radius (blastTag); with none the item's feet, as the readable page writes them
     if (col === 'category') return def.category || '';
@@ -3021,6 +3025,51 @@ function paidCtl(entry, def, c, f, spec, editable, gm, labelled) {
     var pc = el('span', 'sheet-chip sheet-item-paid', (labelled ? 'Paid ' : '') + statFmt(has ? entry.paid : lp)); pc.title = has ? 'Price paid for one (list price ' + statFmt(lp) + ')' : 'Not recorded: the list price';
     return pc;
 }
+// [systemcheck:partpills-start]
+// 1.6.0, backlog 180 R14 (the owner, by prompt on docs/sheets/row-parts-sheet.html: "A. A row of a list", "A. Pills under the row", "A. Count and
+// totals"): a row's parts, rows of the list its list takes parts from (systemcore partsSrc, partsOf), drawn as pills under it: the part's name
+// with its level, the stats shown On the row, its count with - and + and an x where the character may be changed here (chg), and an add list of
+// the entries that fit (the system's own, From the library...). partHostIds: the hosts of a list's parts on a character, so a part is drawn
+// under its host and not again among the list's own rows. Every change is a row op of the parts' list, judged as any is
+function partHostIds(sys, c, fieldId) {
+    var out = null; (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(hf) { if (!hf || hf.kind !== 'item-list' || !hf.list || !hf.list.parts || hf.list.parts.from !== fieldId) return; (c && c.values && Array.isArray(c.values[hf.id]) ? c.values[hf.id] : []).forEach(function(r) { if (r && typeof r.in !== 'string') { out = out || Object.create(null); out[rowIdOf(r)] = 1; } }); });
+    return out;
+}
+function partPills(wrap, c, f, spec, sysI, entry, chg) {
+    if (!spec || !spec.parts || typeof partsSrc !== 'function') return null;
+    var pf = partsSrc(sysI, spec); if (!pf) return null;
+    var pspec = pf.list || {}, hid = rowIdOf(entry), parts = partsOf(sysI, c, spec, hid); if (!parts.length && !chg) return null;
+    var box = el('div', 'sheet-parts');
+    parts.forEach(function(p) {
+        var prd = rowDef(sysI, p), pd = prd ? prd.def : null; if (!pd) return;
+        var pill = el('span', 'sheet-part'), lv = pspec.lvl ? rowLvl(pspec, p, pd) : undefined;
+        pill.appendChild(el('span', 'sheet-part-name', pd.name + (typeof lv === 'number' ? ', ' + String(pspec.lvl.label || 'level').toLowerCase() + ' ' + lv : '')));
+        if (typeof statChips === 'function') statChips(pill, pd, pspec, null);
+        var q = p.qty | 0 || 1, prid = rowIdOf(p);
+        if (chg && !pspec.noQty) {
+            var mn = el('button', 'tool ghost sheet-part-pm', '\u2212'), nn = el('span', 'sheet-part-n', String(q)), pl = el('button', 'tool ghost sheet-part-pm', '+');
+            mn.title = 'One fewer ' + pd.name; pl.title = 'One more ' + pd.name; mn.ariaLabel = mn.title; pl.ariaLabel = pl.title;
+            mn.addEventListener('click', function() { commitItem(c, pf, { op: 'setQty', rowId: prid, qty: q - 1 }); });
+            pl.addEventListener('click', function() { commitItem(c, pf, { op: 'setQty', rowId: prid, qty: q + 1 }); });
+            pill.appendChild(mn); pill.appendChild(nn); pill.appendChild(pl);
+        } else if (q > 1) pill.appendChild(el('span', 'sheet-part-n', '\u00d7' + q));
+        if (chg) { var rx = el('button', 'tool ghost sheet-part-rm', '\u00d7'); rx.title = 'Remove ' + pd.name; rx.ariaLabel = rx.title; rx.addEventListener('click', function() { commitItem(c, pf, { op: 'remove', rowId: prid }); }); pill.appendChild(rx); }
+        box.appendChild(pill);
+    });
+    if (chg) {
+        var fit = Object.assign({}, pspec, { cats: Array.isArray(spec.parts.cats) && spec.parts.cats.length ? spec.parts.cats : pspec.cats }), word = spec.parts.label || 'Part';
+        var add = el('select', 'field sheet-part-add'); add.appendChild(opt('', '+ ' + word + '\u2026', true)); add.title = 'Add a ' + word.toLowerCase() + ' to ' + ((rowDef(sysI, entry) || {}).def || {}).name;
+        var nP = typeof pickerInto === 'function' ? pickerInto(add, (sysI && sysI.items) || [], fit, parts, null) : 0;
+        var gmL = !isClient() && !!(window.wpLibPicker && window.wpLibrary && window.wpLibrary.size && window.wpLibrary.size() > 0), plL = false;
+        if (isClient() && window.wpLibPicker && window.wpNet && window.wpNet.libManifest) { var lmP = window.wpNet.libManifest(); plL = !!lmP && lmP.packs.some(function(pk) { return pk.count > 0; }); }
+        if (gmL || plL) add.appendChild(opt('__lib', '\ud83d\udcda From the library\u2026'));
+        add.addEventListener('change', function() { var v = add.value; add.value = ''; if (!v) return; if (v === '__lib') { openLibPicker(add, c, pf, fit, parts, hid); return; } commitItem(c, pf, { op: 'add', defId: v, rowId: uid('w_'), in: hid }); });
+        if (nP !== 0 || gmL || plL) box.appendChild(add);
+    }
+    if (!box.childNodes.length) return null;
+    wrap.appendChild(box); return box;
+}
+// [systemcheck:partpills-end]
 // [systemcheck:setstrip-start]
 // 1.6.0, backlog 180 R15 (the owner, 2026-10-28, by prompt on docs/sheets/row-sets-sheet.html: "A. A stat the list names", "A. A strip above the
 // list", "A. Badge and Row.setall"): a list's sets, a line a set above its rows, counted over the whole list (systemcore setsOf): its name,
@@ -3096,6 +3145,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         if (editable && !opnR) { var ub = undoBtn(entry, c, f); if (ub) line.appendChild(ub); if (!(spec && spec.noQty)) line.appendChild(itemQtyCell(entry, c, f)); if (chg) line.appendChild(itemRmBtn(entry, def, c, f)); }
         else if (!(spec && spec.noQty)) line.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
         wrap.appendChild(line);
+        if (spec && spec.parts && typeof partPills === 'function') partPills(wrap, c, f, spec, sysI, entry, chg && !hudRow);   // 1.6.0 R14: its parts, as pills under it
         if (bdLn) wrap.appendChild(bdLn);   // 1.6.0 R4: a badge set as a line, under its row
         if (noteLn) wrap.appendChild(noteLn);
         if (rr && rfOpen(c, f, rid)) wrap.appendChild(rowForm(entry, rd, c, f, spec, sysI, rr));   // F4c2: its form, under the row (one at a time, in the view it was opened in)
@@ -4068,6 +4118,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var gmThrows = sysI && sysI.combat && sysI.combat.blastRoller === 'gm';
         var canThrow = (gm || (own && !gmThrows && !!facingTarget(c))) && !c.partial;   // who-rolls='gm' means only the GM throws; a player throws from the character whose token they hold here (never a kept one)
         var wrap = el('div', 'sheet-items' + (f.table ? ' sheet-items-table' : ''));
+        var phI = typeof partHostIds === 'function' ? partHostIds(sysI, c, f.id) : null; if (phI) rowsI = rowsI.filter(function(r) { return !(r && typeof r.in === 'string' && phI[r.in]); });   // 1.6.0 R14: a part stands under its host
         if (typeof setStrip === 'function' && !onOnly && (!catT || catT.home)) setStrip(wrap, c, f, specI, sysI, carried, playOk, e);   // 1.6.0 R15: the list's sets, once, over its home placement
         if (f.table) itemTableInto(wrap, f, c, rowsI, sysI, canThrow, playOk, gm, emptyI, resI, editOk);   // Stage 4: rich table (F5a1: e, its columns' cells and totals)
         else itemListInto(wrap, f, c, rowsI, sysI, canThrow, playOk, gm, emptyI, resI, editOk);            // the plain carried list (as before)
@@ -4092,19 +4143,19 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
 }
 // Stage 6 library L2c: "From the library…" on the GM's machine — the picker over the campaign's packs (libpicker.js), filtered to the list's
 // categories; each pick is an ordinary add, the character and the field looked up again (the picker can stay open across renders)
-function openLibPicker(anchor, c, f, spec, carried) {
-    if (isClient()) { openLibPickerPlayer(anchor, c, f, spec); return; }
+function openLibPicker(anchor, c, f, spec, carried, partIn) {   // partIn (1.6.0 R14): a part's host, handed on to each add
+    if (isClient()) { openLibPickerPlayer(anchor, c, f, spec, partIn); return; }
     var LB = window.wpLibrary, LP = window.wpLibPicker, camp = getActiveCampaign(); if (!LB || !LP || !camp || !camp.library) return;
     var once = null; if (spec && spec.noQty && !spec.multi) { once = Object.create(null); carried.forEach(function(r) { if (r && typeof r.defId === 'string' && r.hid !== 1) { var oe = LB.entry ? LB.entry(r.defId) : null; if (!(oe && oe.again === 'name')) once[r.defId] = 1; } }); }   // 1.6.0: an entry held again stays offered
     var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string' && s.hide !== true) labels[s.key] = s.label || s.key; });
     LP.open({ anchor: anchor, cat: typeof catOf === 'function' ? catOf(anchor) : null, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) && spec.cats.length ? spec.cats : null, once: once, noQty: !!(spec && spec.noQty), labels: labels, gm: true, needs: function(e) { var cpN = getActiveCampaign(), chN = cpN && cpN.chars ? cpN.chars[c.id] : null, syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e, false, F()).missing : []; },   // 126b: the GM is told, never stopped
         source: { packs: function() { return (camp.library && camp.library.packs) || []; }, entries: function(pid) { return LB.entriesOf(pid); } },
-        onAdd: function(ids, qty) { var cp = getActiveCampaign(), ch = cp && cp.chars ? cp.chars[c.id] : null, sy = systemOf(cp), ff = sy ? fieldById(sy, f.id) : null; if (cp !== camp || !ch || !ff) return; ids.forEach(function(id) { againAsk(ff.list || null, ch.values ? ch.values[ff.id] : null, id, LB.entry ? LB.entry(id) : null, function(nm) { var qL = { op: 'add', defId: id, rowId: uid('w_'), qty: qty }; if (nm) qL.name = nm; commitItem(ch, ff, qL); }); }); } });   // 1.6.0: an entry held again asks for its copy's name
+        onAdd: function(ids, qty) { var cp = getActiveCampaign(), ch = cp && cp.chars ? cp.chars[c.id] : null, sy = systemOf(cp), ff = sy ? fieldById(sy, f.id) : null; if (cp !== camp || !ch || !ff) return; ids.forEach(function(id) { againAsk(ff.list || null, ch.values ? ch.values[ff.id] : null, id, LB.entry ? LB.entry(id) : null, function(nm) { var qL = { op: 'add', defId: id, rowId: uid('w_'), qty: qty }; if (nm) qL.name = nm; if (partIn) qL.in = partIn; commitItem(ch, ff, qL); }); }); } });   // 1.6.0: an entry held again asks for its copy's name
 }
 // Stage 6 library L3b: a player's "From the library…" — the same picker over the packs the host lets them see, loaded over the wire a page at
 // a time (wpNet.libLoad), an entry fetched in full for the preview and before it is added (the pick is judged by the host; what the player
 // predicts reads the entry fetched). The rows a player holds carry no library id, so a list that holds each once is left to the host
-function openLibPickerPlayer(anchor, c, f, spec) {
+function openLibPickerPlayer(anchor, c, f, spec, partIn) {
     var N = window.wpNet, LP = window.wpLibPicker, camp = getActiveCampaign(), man = N && N.libManifest ? N.libManifest() : null; if (!LP || !camp || !man) return;
     var packs = man.packs.filter(function(p) { return p.count > 0; }), total = packs.reduce(function(n, p) { return n + p.count; }, 0), done = false;
     var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string' && s.hide !== true) labels[s.key] = s.label || s.key; });
@@ -4121,7 +4172,7 @@ function openLibPickerPlayer(anchor, c, f, spec) {
             var byPack = {}; ids.forEach(function(id) { var pid = packOf && packOf[id]; if (pid) (byPack[pid] = byPack[pid] || []).push(id); });
             for (var pid in byPack) await N.libGet(pid, byPack[pid]);
             var cp = getActiveCampaign(), ch = cp && cp.chars ? cp.chars[c.id] : null, sy = systemOf(cp), ff = sy ? fieldById(sy, f.id) : null; if (cp !== camp || !ch || !ff) return;
-            var miss = 0; ids.forEach(function(id) { if (!N.libEntry(id)) { miss++; return; } againAsk(ff.list || null, ch.values ? ch.values[ff.id] : null, id, N.libEntry(id), function(nm) { var qP = { op: 'add', defId: id, rowId: uid('w_'), qty: qty }; if (nm) qP.name = nm; commitItem(ch, ff, qP); }); });   // 1.6.0: an entry held again asks for its copy's name
+            var miss = 0; ids.forEach(function(id) { if (!N.libEntry(id)) { miss++; return; } againAsk(ff.list || null, ch.values ? ch.values[ff.id] : null, id, N.libEntry(id), function(nm) { var qP = { op: 'add', defId: id, rowId: uid('w_'), qty: qty }; if (nm) qP.name = nm; if (partIn) qP.in = partIn; commitItem(ch, ff, qP); }); });   // 1.6.0: an entry held again asks for its copy's name
             if (miss) toast(miss === 1 ? 'That entry could not be fetched from the GM.' : miss + ' entries could not be fetched from the GM.');
         } });
 }
@@ -6915,6 +6966,18 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     fl.appendChild(checkLabel('sys-list-open', sp.open === true, 'Rows open', 'Each row gets an arrow before its name that opens its details: what each part set to Shows In the details holds, its description and its note. Open all and Close all stand over the list.'));   // 1.6.0 R1
     fl.appendChild(checkLabel('sys-list-trade', sp.trade === true, 'Tradable', 'Rows of this list can be put on the table in a trade between two characters: gear and money, never skills'));   // 1.5.6 trading
     var pbChoices = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s.key === 'string' && s.key && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length : Array.isArray(s.labels) && s.labels.length); });   // 1.6.0, backlog 180 R13
+    var ptLists = typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields.filter(function(x) { return x && x.kind === 'item-list'; }) : [];   // 1.6.0, backlog 180 R14: Parts from
+    if (ptLists.length) {
+        var ptW = el('label', 'sys-check'), ptS = el('select', 'sys-list-partsfrom'), ptO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; };
+        ptW.appendChild(document.createTextNode('Parts from ')); ptS.appendChild(ptO('', 'None', !sp.parts));
+        ptLists.forEach(function(x) { ptS.appendChild(ptO(x.id, (x.label || x.key || 'List') + (x.id === f.id ? ' (this list)' : ''), !!sp.parts && sp.parts.from === x.id)); });
+        ptW.title = 'Each row of this list can hold parts, rows of the list you pick: purchases on a power, upgrades in a limb. They show as pills under the row, and Row.parts and Row.parts.<stat> read them';
+        ptW.appendChild(ptS); fl.appendChild(ptW);
+        if (sp.parts) {
+            var pcW = el('label', 'sys-check'), pcI = el('input', 'field sys-list-partscats'); pcI.type = 'text'; pcI.value = Array.isArray(sp.parts.cats) ? sp.parts.cats.join(', ') : ''; pcI.placeholder = 'every category'; pcW.appendChild(document.createTextNode('Parts fit ')); pcW.appendChild(pcI); pcW.title = 'The categories a part may be, with commas between them. Empty: any entry of that list'; fl.appendChild(pcW);
+            var plW = el('label', 'sys-check'), plI = el('input', 'field sys-list-partslabel'); plI.type = 'text'; plI.value = sp.parts.label || ''; plI.placeholder = 'Part'; plW.appendChild(document.createTextNode('Add button says ')); plW.appendChild(plI); plW.title = 'The word on the button that adds a part, such as Option or Upgrade'; fl.appendChild(plW);
+        }
+    }
     if (sp.on && (pbChoices.length || sp.sets)) { var stW = el('label', 'sys-check'), stS = el('select', 'sys-list-sets'), stO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; stW.appendChild(document.createTextNode('Sets by ')); stS.appendChild(stO('', 'None', !sp.sets)); pbChoices.forEach(function(s) { stS.appendChild(stO(s.key, s.label || s.key, !!sp.sets && String(sp.sets).toLowerCase() === s.key.toLowerCase())); }); stW.title = 'Rows whose stat names the same set are switched on together: the sheet shows each set with All on and All off, and Row.setall reads 1 while the whole set is on'; stW.appendChild(stS); fl.appendChild(stW); }   // 1.6.0, backlog 180 R15
     if (pbChoices.length || sp.placeBy) { var pbW = el('label', 'sys-check'), pbS = el('select', 'sys-list-placeby'), pbO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; pbW.appendChild(document.createTextNode('Places split by ')); pbS.appendChild(pbO('', 'Category', !sp.placeBy)); pbChoices.forEach(function(s) { pbS.appendChild(pbO(s.key, s.label || s.key, !!sp.placeBy && String(sp.placeBy).toLowerCase() === s.key.toLowerCase())); }); pbW.title = 'A list placed in several places shows each place\u2019s rows by their category, or by a choice stat\u2019s value: a body slot, a container'; pbW.appendChild(pbS); fl.appendChild(pbW); }
     fl.appendChild(checkLabel('sys-list-edge', sp.edge === true, 'Edge follows its state', 'A row\u2019s left edge takes the colour of its strongest badge, or the accent while it is switched on. Its words always stand beside it'));   // 1.6.0 R16
@@ -8911,6 +8974,9 @@ function onChange(e) {
         else if (c.indexOf('sys-list-place') >= 0) { if (typeof placeSet === 'function') placeSet(lsc, t.dataset.part, t.value); }   // 1.6.0 R2: a part's Shows list
         else if (c.indexOf('sys-list-open') >= 0) { if (t.checked) lsc.open = true; else delete lsc.open; }
         else if (c.indexOf('sys-list-edge') >= 0) { if (t.checked) lsc.edge = true; else delete lsc.edge; }   // 1.6.0 R16
+        else if (c.indexOf('sys-list-partsfrom') >= 0) { if (t.value) lsc.parts = Object.assign({}, lsc.parts || {}, { from: t.value }); else delete lsc.parts; }   // 1.6.0 R14: Parts from
+        else if (c.indexOf('sys-list-partscats') >= 0) { if (lsc.parts) { var pcs = String(t.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (pcs.length) lsc.parts.cats = pcs; else delete lsc.parts.cats; } }
+        else if (c.indexOf('sys-list-partslabel') >= 0) { if (lsc.parts) { var plv = String(t.value || '').trim(); if (plv) lsc.parts.label = plv; else delete lsc.parts.label; } }
         else if (c.indexOf('sys-list-sets') >= 0) { if (t.value) lsc.sets = t.value; else delete lsc.sets; }   // 1.6.0 R15: Sets by
         else if (c.indexOf('sys-list-placeby') >= 0) { if (t.value) lsc.placeBy = t.value; else delete lsc.placeBy; }   // 1.6.0 R13: the places' ticks are then the stat's value names
         else if (c.indexOf('sys-list-menus') >= 0) { if (t.checked) lsc.menus = true; else delete lsc.menus; }   // 1.6.0 R10

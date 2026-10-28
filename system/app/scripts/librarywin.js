@@ -149,39 +149,57 @@ function importPick() {
     });
     fi.click();
 }
-function planFor(im) { return packImportPlan(packs().map(function(p) { return { id: p.id, name: p.name, entries: workOf(p.id) }; }), im.target, im.data, im.mode); }
+function planFor(im) { return packImportPlan(packs().map(function(p) { return { id: p.id, name: p.name, entries: workOf(p.id) }; }), im.target, im.data, im.mode, undefined, im.mode === 'replace' ? usedRows() : undefined); }
+// 1.6.0 (backlog 196): how many characters' rows use each entry, by its id (a row's defId), for Import, replacing a pack
+function usedRows() { var c = camp(), out = map(); Object.keys(c && c.chars ? c.chars : {}).forEach(function(cid) { var ch = c.chars[cid]; if (!ch || typeof ch !== 'object' || !ch.values || typeof ch.values !== 'object') return; Object.keys(ch.values).forEach(function(fid) { var v = ch.values[fid]; if (Array.isArray(v)) v.forEach(function(r) { if (r && typeof r.defId === 'string') out[r.defId] = (out[r.defId] || 0) + 1; }); }); }); return out; }
+function libStep(step, o) { try { if (typeof window !== 'undefined' && typeof window.wpStepLog === 'function') window.wpStepLog('libimport v1', step, o); } catch (e) {} }   // structure only: counts, never a name
 function renderImport(form) {
     var im = st.imp, d = im.data, targets = packs().filter(function(p) { return ready(p.id); });
     if (!targets.some(function(p) { return p.id === im.target; })) im.target = targets.length ? targets[0].id : null;
     form.appendChild(el('div', 'lib-fhead', 'Import “' + d.name + '”'));
     form.appendChild(el('div', 'lib-note', im.file + ' · ' + plural(d.entries.length) + (d.dropped ? ' (and ' + d.dropped + ' not valid)' : '') + '. Nothing changes until you press Import.'));
     if (d.lostStats && d.lostStats.length) form.appendChild(el('div', 'lib-warn', 'Left out: stats no list of this system has \u2014 ' + d.lostStats.map(function(x) { return x.key + ' (' + x.n + ')'; }).join(', ') + '. Set up the lists first (or import the system) to keep them.'));   // Stage 6 F3
-    var md = field(form, 'imMode', 'Import as', im.mode, { pairs: [['new', 'A new pack'], ['id', 'Merged into a pack, by id'], ['key', 'Merged into a pack, by key']], title: 'By id: an entry of the same id is replaced. By key: an entry of the same key is replaced and keeps its id. Either way the rest are added.' });
+    var md = field(form, 'imMode', 'Import as', im.mode, { pairs: [['new', 'A new pack'], ['id', 'Merged into a pack, by id'], ['key', 'Merged into a pack, by key'], ['replace', 'Replacing a pack, by id']], title: 'By id: an entry of the same id is replaced. By key: an entry of the same key is replaced and keeps its id. Either way the rest are added. Replacing: the pack becomes the file, and the entries the file lacks are removed' });
     md.addEventListener('change', function() { im.mode = md.value; renderForm(); });
     if (im.mode !== 'new') {
         if (targets.length) { var tg = field(form, 'imTarget', 'Into', im.target, { pairs: targets.map(function(p) { return [p.id, p.name]; }) }); tg.addEventListener('change', function() { im.target = tg.value; renderForm(); }); }
         else form.appendChild(el('div', 'lib-warn', 'There is no pack to merge into yet.'));
     }
-    var plan = planFor(im), sum = el('div', 'lib-imsum');
-    [['Added', plan.add], ['Updated', plan.update], ['Unchanged', plan.same], ['Skipped', plan.skip], ['Not valid', plan.invalid]].forEach(function(x) { var c = el('div', 'lib-imcell' + (x[1] ? '' : ' zero')); c.appendChild(el('b', null, String(x[1]))); c.appendChild(el('span', null, x[0])); sum.appendChild(c); });
+    var plan = planFor(im), sum = el('div', 'lib-imsum'), rmv = Array.isArray(plan.remove) ? plan.remove : [], used = Array.isArray(plan.inUse) ? plan.inUse : [];
+    [['Added', plan.add], ['Updated', plan.update], ['Unchanged', plan.same], ['Skipped', plan.skip], ['Not valid', plan.invalid]].concat(im.mode === 'replace' ? [['Removed', rmv.length]] : []).forEach(function(x) { var c = el('div', 'lib-imcell' + (x[1] ? '' : ' zero')); c.appendChild(el('b', null, String(x[1]))); c.appendChild(el('span', null, x[0])); sum.appendChild(c); });
     form.appendChild(sum);
     if (plan.clash) form.appendChild(el('div', 'lib-warn', plural(plan.clash) + ' would share a key with another entry (a system item wins in formulas).'));
     if (plan.reasons.length) { var ul = el('ul', 'lib-reasons'); plan.reasons.forEach(function(r) { ul.appendChild(el('li', null, r)); }); form.appendChild(ul); }
+    if (rmv.length) {   // 1.6.0 (backlog 196): what replacing takes away, by name, and the entries characters use, which it refuses unless ticked
+        form.appendChild(el('div', 'lib-warn', 'Removed, as the file does not hold them: ' + plural(rmv.length) + '.'));
+        var ulR = el('ul', 'lib-reasons'); rmv.slice(0, 200).forEach(function(r) { ulR.appendChild(el('li', null, r.name || r.id)); }); if (rmv.length > 200) ulR.appendChild(el('li', null, 'and ' + (rmv.length - 200) + ' more')); form.appendChild(ulR);
+        if (used.length) {
+            form.appendChild(el('div', 'lib-warn', 'Characters use ' + plural(used.length) + ' of them: ' + used.slice(0, 20).map(function(u) { return (u.name || u.id) + ' (' + u.n + (u.n === 1 ? ' row' : ' rows') + ')'; }).join(', ') + (used.length > 20 ? ', and more' : '') + '. Their rows keep the copies they carry, but the entries leave the pack.'));
+            var fl = el('label', 'lib-check'), fc = el('input'); fc.type = 'checkbox'; fc.id = 'libImForce'; fc.checked = im.force === true; fc.addEventListener('change', function() { im.force = fc.checked; renderForm(); }); fl.appendChild(fc); fl.appendChild(document.createTextNode(' Remove them anyway')); form.appendChild(fl);
+        }
+    }
     var btns = el('div', 'lib-fbtns');
-    var go = el('button', 'tool lib-save', 'Import'); go.type = 'button'; go.disabled = !(plan.add || plan.update); go.addEventListener('click', doImport);
+    var go = el('button', 'tool lib-save', 'Import'); go.type = 'button'; go.disabled = !(plan.add || plan.update || rmv.length) || (used.length > 0 && im.force !== true); go.addEventListener('click', doImport);
     var no = el('button', 'tool ghost', 'Cancel'); no.type = 'button'; no.addEventListener('click', function() { st.imp = null; renderForm(); });
     btns.appendChild(go); btns.appendChild(no); form.appendChild(btns);
 }
 async function doImport() {
     var im = st.imp; if (!im || !st.open) return;
-    var plan = planFor(im), pid = im.target; if (!plan.add && !plan.update) return;
+    var plan = planFor(im), pid = im.target, rmv = Array.isArray(plan.remove) ? plan.remove : [];
+    if (!plan.add && !plan.update && !rmv.length) return;
+    if (im.mode === 'replace') {   // 1.6.0 (backlog 196): asked first, naming what goes; refused while characters use some, unless ticked
+        if (Array.isArray(plan.inUse) && plan.inUse.length && im.force !== true) { libStep('refused', { inUse: plan.inUse.length }); toast('Characters use ' + plural(plan.inUse.length) + ' the file does not hold. Tick Remove them anyway to replace the pack.'); return; }
+        if (rmv.length && !im.asked) { var names = rmv.slice(0, 30).map(function(r) { return r.name || r.id; }).join(', ') + (rmv.length > 30 ? ', and ' + (rmv.length - 30) + ' more' : ''); showConfirm('Replace the pack with the file? ' + plural(rmv.length) + ' it does not hold will be removed: ' + names + '.', function(yes) { if (!yes || st.imp !== im) { libStep('cancelled', { remove: rmv.length }); return; } im.asked = true; doImport(); }, { noEnter: true }); return; }
+        im.asked = false; libStep('replace', { add: plan.add, update: plan.update, remove: rmv.length, inUse: Array.isArray(plan.inUse) ? plan.inUse.length : 0 });
+    }
     if (im.mode === 'new') {
         var r = await LB().createPack(im.data.name); if (!r || r.error) { toast((r && r.error) || 'The pack could not be made.'); return; }
         pid = r.id; LB().setMeta(pid, { icon: im.data.icon || '', vis: im.data.vis }); plan = planFor(im);
     } else if (!ready(pid)) return;
     st.work[pid] = plan.entries; st.imp = null; st.packId = pid; st.sel = map(); st.entryId = null; st.q = ''; var s = ui('libSearch'); if (s) s.value = '';
     schedule(pid); await flush();
-    toast('Imported into “' + ((packById(pid) || {}).name || '') + '”: ' + plan.add + ' added, ' + plan.update + ' updated' + (plan.skip ? ', ' + plan.skip + ' skipped' : '') + '.');
+    toast('Imported into “' + ((packById(pid) || {}).name || '') + '”: ' + plan.add + ' added, ' + plan.update + ' updated' + (rmv.length ? ', ' + rmv.length + ' removed' : '') + (plan.skip ? ', ' + plan.skip + ' skipped' : '') + '.');
+    if (im.mode === 'replace') libStep('done', { add: plan.add, update: plan.update, remove: rmv.length });
     renderAll();
 }
 

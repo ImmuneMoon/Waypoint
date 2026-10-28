@@ -263,9 +263,12 @@ function lostStats(raw, kept) {
 // holds is skipped), 'key' merges by key (case aside) into the target (the entry of that key replaced, keeping its own id), 'new' adds
 // every entry as a new pack. An added entry whose id the library already uses gets a fresh one; the target holds at most LIB.entries.
 // { entries (the target's after), add, update, same, skip, invalid, clash (imported entries whose key another entry also has), reasons }
-export function packImportPlan(library, targetId, incoming, mode, rnd) {
+// 1.6.0 (backlog 196): mode 'replace' makes the target the file's entries, in the file's order: an entry both hold keeps its id (so a
+// character's row still finds it), a new one is added under its own id, and the target's entries the file lacks are removed. It adds
+// remove ([{ id, name }]) and inUse (those of them that used, an id -> how many characters' rows use it, counts: [{ id, name, n }])
+export function packImportPlan(library, targetId, incoming, mode, rnd, used) {
     var packs = (Array.isArray(library) ? library : []).filter(function(p) { return isObj(p) && Array.isArray(p.entries); }), inc = isObj(incoming) && Array.isArray(incoming.entries) ? incoming : { entries: [] };
-    mode = mode === 'key' || mode === 'new' ? mode : 'id';
+    mode = mode === 'key' || mode === 'new' || mode === 'replace' ? mode : 'id';
     var where = map(), taken = map(), target = null;
     packs.forEach(function(p) { p.entries.forEach(function(e) { if (isObj(e) && typeof e.id === 'string') { where[e.id] = p; taken[e.id] = 1; } }); if (mode !== 'new' && p.id === targetId) target = p; });
     var res = { entries: target ? target.entries.slice() : [], add: 0, update: 0, same: 0, skip: 0, invalid: inc.dropped > 0 ? inc.dropped | 0 : 0, clash: 0, reasons: (Array.isArray(inc.reasons) ? inc.reasons : []).slice(0, LIB.reasons) };
@@ -273,7 +276,20 @@ export function packImportPlan(library, targetId, incoming, mode, rnd) {
     if (mode !== 'new' && !target) { inc.entries.forEach(function(e) { why((isObj(e) ? e.name : '') + ': no pack to merge into'); }); return res; }
     var at = map(), byKey = map(), mine = map(), lk = function(e) { return isObj(e) && typeof e.key === 'string' ? e.key.toLowerCase() : ''; };
     res.entries.forEach(function(e, i) { at[e.id] = i; var k = lk(e); if (k && byKey[k] === undefined) byKey[k] = i; });
-    inc.entries.forEach(function(e) {
+    if (mode === 'replace') {
+        var seenR = map(), outR = [];
+        inc.entries.forEach(function(e) {
+            if (!isObj(e) || typeof e.id !== 'string' || seenR[e.id]) return;
+            var i0 = at[e.id];
+            if (i0 !== undefined) { seenR[e.id] = 1; var old0 = res.entries[i0]; if (entryHash(e) === entryHash(old0)) { res.same++; outR.push(old0); } else { res.update++; outR.push(e); } mine[e.id] = 1; return; }
+            if (where[e.id]) { why(e.name + ': its id is already in the pack ' + where[e.id].name); return; }
+            if (outR.length >= LIB.entries) { why(e.name + ': past ' + LIB.entries + ' entries in one pack'); return; }
+            seenR[e.id] = 1; outR.push(e); mine[e.id] = 1; res.add++;
+        });
+        res.remove = res.entries.filter(function(e) { return isObj(e) && typeof e.id === 'string' && !seenR[e.id]; }).map(function(e) { return { id: e.id, name: typeof e.name === 'string' ? e.name : '' }; });
+        res.inUse = res.remove.filter(function(r) { return isObj(used) && typeof used[r.id] === 'number' && used[r.id] > 0; }).map(function(r) { return { id: r.id, name: r.name, n: used[r.id] }; });
+        res.entries = outR;
+    } else inc.entries.forEach(function(e) {
         if (!isObj(e) || typeof e.id !== 'string') return;
         var k = lk(e), i = mode === 'id' && at[e.id] !== undefined ? at[e.id] : mode === 'key' && k && byKey[k] !== undefined ? byKey[k] : -1;
         if (i >= 0) {

@@ -1861,13 +1861,15 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             if (typeof mvv === 'object') { if (!mvv.error) { if (mvv.text != null && mvv.text !== '') metaText = String(mvv.text); else if (typeof mvv.value === 'number') metaText = mvv.value + (typeof mvv.max === 'number' ? ' / ' + mvv.max : ''); } }
             else metaText = String(mvv);
         }
+        var cntN = typeof placeCount === 'function' ? (sec.fields || []).reduce(function(n, pl) { if (!pl || pl.count !== true || !pl.id || !byId[pl.id] || (pl.showIf && !showsIf(pl.showIf, all.vars, F()) && !previewV)) return n; var k = placeCount(byId[pl.id], c, pl, sys); return k === null ? n : (n === null ? 0 : n) + k; }, null) : null;   // 1.6.0, backlog 180 R9: the rows its counted placements show
         var chipNode = sec.chip ? pageChip(sec.chip, c) : null;   // Stage 5f: a handbook chip
         var pinCh = !printV && sec.pin && Object.prototype.hasOwnProperty.call(grpById, sec.pin) ? pinChip(grpById[sec.pin], pctx) : null;   // Stage 6: a band group's Pin in the header
         var rsCh = !printV && sec.resetAll === true ? resetChip(sec, pctx) : null;   // HUD frame (HF4b): its Reset all
-        if (sec.title || sec.icon || metaText || collap || chipNode || pinCh || rsCh) {   // a collapsible section always needs a summary to toggle from
+        if (sec.title || sec.icon || metaText || collap || chipNode || pinCh || rsCh || cntN !== null) {   // a collapsible section always needs a summary to toggle from
             var head = el(collap ? 'summary' : 'div', 'sheet-sec-title');
             if (sec.icon) head.appendChild(iconNode(sec.icon, 'sheet-sec-icon'));   // Stage 5g (Stage 6: or a bundled glyph)
             var nameSpan = el('span', 'sheet-sec-name', sec.title || ''); if (sec.style && sec.style.accent) nameSpan.style.color = sec.style.accent;
+            if (cntN !== null) nameSpan.appendChild(el('span', 'sheet-sec-count', '(' + cntN + ')'));   // R9: Melee Technique (3)
             head.appendChild(nameSpan);
             if (metaText) head.appendChild(el('span', 'sheet-sec-meta', metaText));
             if (chipNode) head.appendChild(chipNode);
@@ -2370,6 +2372,7 @@ function renderLayout() {
             var plf = pl.id ? (draft.fields || []).find(function(x) { return x.id === pl.id; }) : null, plOn = plf && plf.kind === 'item-list' && plf.list && plf.list.on && typeof plf.list.on === 'object' ? plf.list.on : null;
             if (plOn || (pl.on && plf && plf.kind === 'item-list')) { var ob = el('button', 'tool ghost sys-btn sys-pl-on', pl.on ? 'Only ' + (plOn ? String(plOn.label || 'on').toLowerCase() : 'switched on') : 'All rows'); ob.dataset.act = 'plon'; ob.title = plOn ? 'Every row of the list, or only the rows switched on (' + (plOn.label || 'On') + '), e.g. the HUD\u2019s readied weapons' : 'Its list has no switch now, so every row shows: click to clear it'; pr.appendChild(ob); }   // F4b (review: kept while set, so it can be cleared)
             if (plf && plf.kind === 'item-list' && typeof placeCatBtn === 'function') { var pcB = placeCatBtn(pl); if (pcB) pr.appendChild(pcB); }   // 1.5.5: By category
+            if (plf && plf.kind === 'item-list') { var cnB = el('button', 'tool ghost sys-btn sys-pl-count' + (pl.count === true ? ' on' : ''), pl.count === true ? 'Rows counted' : 'Count rows'); cnB.dataset.act = 'plcount'; cnB.title = pl.count === true ? 'Its section\u2019s title shows how many rows this place shows. Press to stop counting' : 'Show in its section\u2019s title how many rows this place shows, such as Melee Technique (3)'; pr.appendChild(cnB); }   // 1.6.0, backlog 180 R9
             pr.appendChild(btnRow([['plup', 'Move up', '&#9650;'], ['pldown', 'Move down', '&#9660;'], ['pldel', 'Take off the sheet (the field stays defined)', '&times;']]));
             list.appendChild(pr);
             if (plf && plf.kind === 'item-list' && typeof placeCatPart === 'function') placeCatPart(list, pl, sec, pi, plf, secs);   // 1.5.5: its categories, and what Save does with it
@@ -2518,6 +2521,7 @@ function onLayoutClick(b) {
         if (act === 'plw') pl.w = pl.w === 'row' ? 1 : 'row';
         else if (act === 'plif') { if (typeof pl.showIf === 'string') delete pl.showIf; else pl.showIf = ''; }   // Stage 6 HUD C8: a show-if box for this placement
         else if (act === 'plon') { if (pl.on) delete pl.on; else pl.on = true; }   // F4b: only the rows switched on
+        else if (act === 'plcount') { if (pl.count === true) delete pl.count; else pl.count = true; }   // 1.6.0, backlog 180 R9: its rows counted in its section's title
         else if (act === 'plup' && pi > 0) { list.splice(pi, 1); list.splice(pi - 1, 0, pl); }
         else if (act === 'pldown' && pi < list.length - 1) { list.splice(pi, 1); list.splice(pi + 1, 0, pl); }
         else if (act === 'pldel') list.splice(pi, 1);
@@ -3865,6 +3869,16 @@ function captionNode(text, sys, c, vars) {
     });
     return line;
 }
+// [systemcheck:placecount-start] 1.6.0, backlog 180 R9: how many rows a placement of an item list shows, read as fieldNodeBody reads them
+// (only the rows switched on where it says so, the rows of its categories), each with a definition and none kept hidden from its player,
+// so the GM's sheet and the player's give one count. null for what is no item list
+function placeCount(f, c, plc, sysI) {
+    if (!f || f.kind !== 'item-list' || !c) return null;
+    var rows = c.values && Array.isArray(c.values[f.id]) ? c.values[f.id] : [], spec = f.list || null, onOnly = !!(plc && plc.on === true && spec && spec.on);
+    var catT = typeof catPlace === 'function' ? catPlace(sysI && sysI.sheet ? sysI.sheet.sections : null, plc, spec) : null;
+    return rows.filter(function(r) { if (!r || typeof r !== 'object' || r.hid === 1) return false; if (onOnly && !rowOn(spec, r)) return false; var rd = rowDef(sysI, r); if (!rd || !rd.def) return false; return catT ? !!catT(rd.def.category || '') : true; }).length;
+}
+// [systemcheck:placecount-end]
 function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the section placement drawn (an item list may show only its rows switched on); sysArg: the system being drawn (the pop-out's cleaned copy, the Layout preview's draft); the item list resolves its defs from it
     var box = el('div', 'sheet-field sheet-kind-' + f.kind);
     if (f.tile) box.classList.add('sheet-tile');   // Stage 3: compact stat tile (value big, label small)

@@ -21,6 +21,7 @@ Scenes
   picture in a planner or a page you are reading to show it as a scene.
 
 Systems
+- A list's place in the layout can count its rows in its section's title, such as Melee Technique (3).
 - An item's and a library entry's name may be 240 characters long, as a row's own name already was. A list may show twelve badges.
 - The Library's Import can replace a pack. The pack becomes the file, the entries the file lacks are removed after a question that names them, and an entry characters use waits for your tick.
 - A list may make a row's level a menu of its entry's own levels, each with its words beside it in a box, as Level 2 and 10 pts.

@@ -2552,6 +2552,7 @@ function cleanSections(list, ctx) {
             if (typeof p.id === 'string' && fieldIds[p.id] && (!placed[p.id] || again)) {
                 placed[p.id] = 1; item = { id: p.id, w: w }; if (p.on === true && fieldIds[p.id] === 'item-list') item.on = true;   // on (F4b): only the rows switched on (the HUD's readied weapons)
                 if (pcs) { item.cats = pcs; var cnm = catNamed[p.id] || (catNamed[p.id] = map()); pcs.forEach(function(x) { cnm[lower(x)] = 1; }); }   // 1.5.5: the categories this placement shows
+                if (p.count === true && fieldIds[p.id] === 'item-list') item.count = true;   // 1.6.0, backlog 180 R9: its rows counted in its section's title
             }
             else if (typeof p.roll === 'string' && rollIds[p.roll]) item = { roll: p.roll, w: w };
             else if (typeof p.kind === 'string' && LAYOUT[p.kind]) {

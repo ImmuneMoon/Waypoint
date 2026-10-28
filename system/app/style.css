@@ -3059,6 +3059,7 @@
   .sheet-section { display: flex; flex-direction: column; gap: 4px; }
   .sheet-sec-title { display: flex; align-items: baseline; gap: 8px; color: var(--sheet-accent, var(--gold)); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--edge); padding-bottom: 2px; }
   .sheet-sec-name { flex: 1; min-width: 0; }
+  .sheet-sec-count { margin-left: 5px; color: var(--dim); font-weight: 400; font-variant-numeric: tabular-nums; }   /* 1.6.0, backlog 180 R9: Melee Technique (3) */
   /* Stage 5f: a handbook chip in a section header (the owner's reference chip: a small pill, icon + page title) and a handbook link button */
   .sheet-sec-chip { flex: 0 1 auto; min-width: 0; max-width: 55%; align-self: center; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; border-radius: 9999px; border: 1px solid var(--edge); background: rgba(0,0,0,0.12); color: var(--dim); font-size: 10px; font-weight: 700; line-height: 17px; letter-spacing: .02em; text-transform: none; cursor: pointer; white-space: nowrap; }
   .sheet-sec-chip .sheet-chip-txt { overflow: hidden; text-overflow: ellipsis; min-width: 0; }

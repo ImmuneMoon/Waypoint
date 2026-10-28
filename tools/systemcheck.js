@@ -3504,7 +3504,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('HUD frame HF4b: a player\'s batch (the real pending code) — a newer host copy gets every waiting value laid over it again; a refused batch takes ALL its values back to the host\'s last copy (never the one it was made on), the other changes still waiting kept; one answer for the batch',
             midB === j({ f_hp: { cur: 10 }, f_dsv: 0, f_sl1: { cur: 1 } }) && afterB === j({ f_hp: { cur: 5 }, f_dsv: 1, f_sl1: { cur: 1 } }) && !pendB.b1 && !!pendB.v2 && !pendB.b2 && j(seenB) === j([['b1', false, 'slow'], ['ok', 'c_d']]), j([midB, afterB, seenB]));
         check('HUD frame HF4b: the chip — drawn only behind sec.resetAll === true, in the header after the Pin; live decided when drawn (the real sheet or HUD, never the Layout preview or a pop-out), inert with nothing to reset; the client sends ONE char-edits message and keeps ONE pending entry for the batch',
-            /var rsCh = !printV && sec\.resetAll === true \? resetChip\(sec, pctx\) : null;/.test(sh7) && /if \(pinCh\) head\.appendChild\(pinCh\);\n            if \(rsCh\) head\.appendChild\(rsCh\);/.test(sh7) && /\|\| chipNode \|\| pinCh \|\| rsCh\) \{/.test(sh7)
+            /var rsCh = !printV && sec\.resetAll === true \? resetChip\(sec, pctx\) : null;/.test(sh7) && /if \(pinCh\) head\.appendChild\(pinCh\);\n            if \(rsCh\) head\.appendChild\(rsCh\);/.test(sh7) && /\|\| chipNode \|\| pinCh \|\| rsCh \|\| cntN !== null\) \{/.test(sh7)   /* 1.6.0, backlog 180 R9: a count alone also draws the header, moved on purpose */
             && /var live = _fxLive && !\(ctx\.vctx && ctx\.vctx\.preview\) && !window\.wpPopout, targets = rt\.targets, barred = typeof fillBarred === 'function' && fillBarred\(\), on = live && targets\.length > 0 && !barred;/.test(sh7)
             && /ch\.setAttribute\('aria-disabled', on \? 'false' : 'true'\);/.test(sh7)
             && /import \{[^}]*resetTargets[^}]*\} from '\.\/systemcore\.js';/.test(sh7) && (sh7.match(/resetChip\(/g) || []).length === 2
@@ -16046,6 +16046,31 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0, backlog 180 R8: a list\'s level may be ticked Levels from the entry (entry, true only, the same in both views and a fixed point); where the row\'s entry has By level rows the level is a button (lvlCtl, run for real) of the level\'s word and its tag in a darker box, opening the Load menu\'s own pop of every listed level, '
             + 'the row\'s own one marked and focused, a pick committing the level once and closing it, the button again or Escape closing it, the same level committing nothing; a stored level outside the list still on the button; read-only the words and the box; an entry with none, or a list not ticked, keeps the level box; a named level by its name; the editor\'s tick, its handler and the box\'s style',
             cleanOk && btnOk && popOk && pickOk && toggleOk && escOk && sameOk && outOk && readOk && noneOk && offOk && namedOk && wiredOk, J([cleanOk, btnOk, popOk, pickOk, toggleOk, escOk, sameOk, outOk, readOk, noneOk, offOk, namedOk, wiredOk, btn && kidsL(btn), pop && pop.style, sentL]));
+    }
+    {   // 1.6.0, backlog 180 R9 (the owner's order of 2026-10-27): a count in a placement's section title
+        const J = JSON.stringify;
+        const raw9 = { v: 1, name: 'C', rolls: [],
+            items: [{ id: 'i_sw', name: 'Sword', category: 'Melee' }, { id: 'i_ax', name: 'Axe', category: 'Melee' }, { id: 'i_bw', name: 'Bow', category: 'Ranged' }, { id: 'i_rp', name: 'Rope' }],
+            fields: [{ id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', list: { on: { label: 'Ready' } } }, { id: 'f_n', key: 'Note', label: 'Note', kind: 'text' }],
+            sheet: { sections: [{ id: 's_m', title: 'Melee', fields: [{ id: 'f_g', cats: ['Melee'], count: true }] }, { id: 's_r', title: 'Ranged', fields: [{ id: 'f_g', cats: ['Ranged'], count: 'yes' }] }, { id: 's_n', title: 'Notes', fields: [{ id: 'f_n', count: true }] }] } };
+        const g9 = S.cleanSystem(raw9, { F, gmView: true }), p9 = S.cleanSystem(raw9, { F, gmView: false }), pl9 = s => g9.sheet.sections.find(x => x.id === s).fields[0];
+        const cleanOk = pl9('s_m').count === true && !('count' in pl9('s_r')) && !('count' in pl9('s_n')) && J(p9.sheet.sections[0].fields[0]) === J(pl9('s_m')) && J(S.cleanSystem(g9, { F, gmView: true })) === J(g9)
+            && !('count' in S.cleanSystem({ v: 1, name: 'C', rolls: [], items: [], fields: raw9.fields, sheet: { sections: [{ id: 's_m', title: 'M', fields: [{ id: 'f_g' }] }] } }, { F, gmView: true }).sheet.sections[0].fields[0]);
+        const sh9 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const a9 = sh9.indexOf('// [systemcheck:placecount-start]'), b9 = sh9.indexOf('// [systemcheck:placecount-end]');
+        const PC = new Function('catPlace', 'rowOn', 'rowDef', sh9.slice(a9, b9) + '\nreturn placeCount;')(S.catPlace, S.rowOn, S.rowDef);
+        const f9 = g9.fields.find(x => x.id === 'f_g'), c9 = { id: 'c_k', name: 'Kael', values: { f_g: [{ id: 'w_1', defId: 'i_sw', qty: 1, on: true }, { id: 'w_2', defId: 'i_ax', qty: 2 }, { id: 'w_3', defId: 'i_bw', qty: 1, on: true }, { id: 'w_4', defId: 'i_rp', qty: 1 }, { id: 'w_5', defId: 'i_sw', qty: 1, hid: 1 }, { id: 'w_6', defId: 'i_gone', qty: 1 }] } };
+        const mPl = g9.sheet.sections[0].fields[0], rPl = g9.sheet.sections[1].fields[0];
+        const gOn = S.cleanSystem(Object.assign({}, raw9, { sheet: { sections: [{ id: 's_m', title: 'Melee', fields: [{ id: 'f_g', cats: ['Melee'], count: true, on: true }] }, { id: 's_r', title: 'Ranged', fields: [{ id: 'f_g', cats: ['Ranged'] }] }] } }), { F, gmView: true });   // its placement shows only the rows switched on, the rows no place names standing in the other
+        const countOk = PC(f9, c9, mPl, g9) === 3 && PC(f9, c9, rPl, g9) === 1 && PC(f9, c9, gOn.sheet.sections[0].fields[0], gOn) === 1 && PC(f9, c9, { id: 'f_g' }, { v: 1, items: g9.items, sheet: { sections: [{ id: 's_x', fields: [{ id: 'f_g' }] }] } }) === 4
+            && PC(f9, { id: 'c_e', values: {} }, mPl, g9) === 0 && PC(g9.fields.find(x => x.id === 'f_n'), c9, mPl, g9) === null && PC(f9, null, mPl, g9) === null;
+        const css9 = fs.readFileSync(path.join(app, 'style.css'), 'utf8'), ht9 = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        const wiredOk = sh9.includes("var k = placeCount(byId[pl.id], c, pl, sys); return k === null ? n : (n === null ? 0 : n) + k; }, null) : null;") && sh9.includes("if (cntN !== null) nameSpan.appendChild(el('span', 'sheet-sec-count', '(' + cntN + ')'));")
+            && sh9.includes("else if (act === 'plcount') { if (pl.count === true) delete pl.count; else pl.count = true; }") && sh9.includes("pl.count === true ? 'Rows counted' : 'Count rows'")
+            && /\.sheet-sec-count \{[^}]*color: var\(--dim\);/.test(css9) && ht9.includes('<li>Press <b>Count rows</b> on a list&rsquo;s place.');
+        check('1.6.0, backlog 180 R9: an item list\'s placement may count its rows in its section\'s title (count, true only, kept on an item list\'s placement alone, the same in both views and a fixed point); placeCount (run for real) counts the rows that placement shows, by its categories and its Only switched on, '
+            + 'never a row kept hidden from its player nor one with no definition, so the GM and the player see one number; the header draws it after the title, its style, the Layout tab\'s button and its handler, and Help',
+            cleanOk && countOk && wiredOk, J([cleanOk, countOk, wiredOk, mPl, PC(f9, c9, mPl, g9), PC(f9, c9, rPl, g9), PC(f9, c9, gOn.sheet.sections[0].fields[0], gOn), PC(f9, c9, { id: 'f_g' }, { v: 1, items: g9.items, sheet: { sections: [{ id: 's_x', fields: [{ id: 'f_g' }] }] } }), PC(f9, { id: 'c_e', values: {} }, mPl, g9), PC(g9.fields.find(x => x.id === 'f_n'), c9, mPl, g9)]));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

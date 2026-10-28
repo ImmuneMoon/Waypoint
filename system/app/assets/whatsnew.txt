@@ -21,6 +21,7 @@ Scenes
   picture in a planner or a page you are reading to show it as a scene.
 
 Systems
+- A list placed in several places can split them by a choice stat, such as a body slot or a container, in place of categories.
 - A list may give each row a coloured edge that follows its state: its strongest badge's colour, or the accent while switched on.
 - A list roll can ask which level to run at, up to the row's own, so a spell of level 3 can be cast at level 1.
 - A list may make its choice stats menus on each row, ticked Choices as menus, for whoever may set them.

@@ -13383,7 +13383,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && shQ.includes("            if (plf && plf.kind === 'item-list' && typeof placeCatPart === 'function') placeCatPart(list, pl, sec, pi, plf, secs);") && shQ.includes("    if (typeof placeCatErrs === 'function') placeCatErrs();   // 1.5.5: what Save does with a list's places, as the tab now stands")
             && shQ.includes("        draft.fields.forEach(function(f) { if (placed[f.id] && f.kind === 'item-list') opts.push(['f:' + f.id, (f.label || f.key || '(field)') + ' again, for other categories']); });")
             && shQ.includes("        if (pl && kind === 'f' && typeof placeCatAgain === 'function') placeCatAgain(layoutSections(), pl, draft.fields);")
-            && shQ.includes("        if (catT) { rowsI = rowsI.filter(function(r) { var dc = rowDef(sysI, r); return catT(dc && dc.def ? dc.def.category : ''); });") && shQ.includes("            if (specI) nPick = pickerInto(add, sysI.items || [], specI, carried, cantI);")
+            && shQ.includes("        if (catT) { rowsI = rowsI.filter(function(r) { if (typeof placeVal === 'function') return catT(placeVal(sysI, specI, r)); var dc = rowDef(sysI, r); return catT(dc && dc.def ? dc.def.category : ''); });") /* 1.6.0, backlog 180 R13: by placeVal, a row's category or the list's choice stat (moved on purpose) */ && shQ.includes("            if (specI) nPick = pickerInto(add, sysI.items || [], specI, carried, cantI);")
             && shQ.includes("if (add.value === '__lib') { add.value = ''; openLibPicker(add, c, f, specI, carried); return; }") && (shQ.match(/LP\.open\(\{ anchor: anchor, cat: typeof catOf === 'function' \? catOf\(anchor\) : null, title:/g) || []).length === 2,
             j([REQ['plc:sheet:s_a:0'], REQ['plc:sheet:s_b:0']]));
         // said: Help's Layout entry and both release notes
@@ -16150,6 +16150,27 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0, backlog 180 R16: a list may tick Edge follows its state (edge, true only, the same in both views and a fixed point); rowEdge (run for real) gives a row the edge of the strongest toned badge it shows (danger before warn, a plain badge none), else the accent while it is switched on and its switch stands on the row, nothing for a row a badge already tints, '
             + 'nothing without the tick; drawn on the list and the rich table, an edge with no tint in the style sheet, and the editor\'s tick',
             cleanOk && edgeOk && wiredOk, J([cleanOk, edgeOk, wiredOk, r]));
+    }
+    {   // 1.6.0, backlog 180 R13 (the owner's order of 2026-10-27): a list's places split by a choice stat's value (a body slot, a container) in place of categories
+        const J = JSON.stringify;
+        const raw13 = { v: 1, name: 'C', rolls: [], items: [{ id: 'i_helm', name: 'Helm', category: 'Armor', stats: { Slot: 'Head' } }, { id: 'i_mail', name: 'Mail', category: 'Armor', stats: { Slot: 'Torso' } }, { id: 'i_ring', name: 'Ring', category: 'Jewel', stats: { Slot: 'Hands' } }, { id: 'i_belt', name: 'Belt', category: 'Armor' }],
+            fields: [{ id: 'f_a', key: 'Worn', label: 'Worn', kind: 'item-list', list: { placeBy: 'slot', stats: [{ key: 'Slot', label: 'Slot', kind: 'pick', opts: [{ label: 'Head', name: 'H' }, { label: 'Torso', name: 'T' }, { label: 'Hands', name: 'N' }] }, { key: 'Cond', label: 'Condition', labels: ['Fine', 'Worn'] }, { key: 'Wt', label: 'Wt' }] } },
+                { id: 'f_b', key: 'B', label: 'B', kind: 'item-list', list: { placeBy: 'Wt', stats: [{ key: 'Wt', label: 'Wt' }] } }, { id: 'f_c', key: 'C', label: 'C', kind: 'item-list', list: { placeBy: 'Cond', stats: [{ key: 'Cond', label: 'Condition', labels: ['Fine', 'Worn'] }] } }],
+            sheet: { sections: [{ id: 's_h', title: 'Head', fields: [{ id: 'f_a', cats: ['Head'] }] }, { id: 's_t', title: 'Body', fields: [{ id: 'f_a', cats: ['Torso', 'Hands'] }] }] } };
+        const g13 = S.cleanSystem(raw13, { F, gmView: true }), p13 = S.cleanSystem(raw13, { F, gmView: false }), sp13 = g13.fields[0].list;
+        const cleanOk = sp13.placeBy === 'Slot' && !('placeBy' in g13.fields[1].list) && g13.fields[2].list.placeBy === 'Cond' && J(S.cleanSystem(g13, { F, gmView: true })) === J(g13)
+            && J(p13.sheet.sections.map(s => s.fields[0].cats)) === J([['Head'], ['Torso', 'Hands']]);
+        const rows13 = [{ id: 'w_1', defId: 'i_helm', qty: 1 }, { id: 'w_2', defId: 'i_mail', qty: 1 }, { id: 'w_3', defId: 'i_ring', qty: 1 }, { id: 'w_4', defId: 'i_belt', qty: 1 }, { id: 'w_5', defId: 'i_mail', qty: 1, ov: { stats: { Slot: 'Head' } } }];
+        const valOk = J(rows13.map(r => S.placeVal(g13, sp13, r))) === J(['Head', 'Torso', 'Hands', '', 'Head']) && S.placeVal(g13, { stats: [] }, rows13[0]) === 'Armor' && S.placeVal(g13, sp13, { id: 'w_x', defId: 'i_gone' }) === ''
+            && S.placeVal(g13, g13.fields[2].list, { id: 'w_c', defId: 'i_helm', qty: 1, ov: { stats: { Cond: 1 } } }) === 'Worn';
+        const secs13 = g13.sheet.sections, tH = S.catPlace(secs13, secs13[0].fields[0], sp13), tB = S.catPlace(secs13, secs13[1].fields[0], sp13);
+        const placeOk = J(rows13.map(r => tH(S.placeVal(g13, sp13, r)))) === J([true, false, false, true, true]) && J(rows13.map(r => tB(S.placeVal(g13, sp13, r)))) === J([false, true, true, false, false]);
+        const sh13 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), sx13 = fs.readFileSync(path.join(app, 'scripts', 'sheetexport.js'), 'utf8');
+        const wiredOk = sh13.includes("return catT ? !!catT(typeof placeVal === 'function' ? placeVal(sysI, spec, r) : (rd.def.category || '')) : true;") && sh13.includes("if (catT && specI && specI.placeBy) catAt = '';") && sx13.includes("return catT(placeVal(sys, spec, r)); });")
+            && sh13.includes("var pbS = el('select', 'sys-list-placeby')") === false && sh13.includes("pbS = el('select', 'sys-list-placeby')") && sh13.includes("else if (c.indexOf('sys-list-placeby') >= 0) { if (t.value) lsc.placeBy = t.value; else delete lsc.placeBy; }") && sh13.includes("byLabel ? 'By ' + byLabel : 'By category'");
+        check('1.6.0, backlog 180 R13: a list may split its places by a choice stat (placeBy, a pick or a number with value names, spelled as the list spells it, never a plain number, the same in both views and a fixed point); placeVal is a row\'s value name there (a copy\'s own value too), else its category, \'\' for none; each place shows the rows of the values it ticks and the home place the rest; '
+            + 'the players\' view keeps the places\' value names; the sheet, a count in a title and the readable page read it, a place by a value starts no row in a category, and the Lists tab\'s Places split by and the place\'s By <stat> button',
+            cleanOk && valOk && placeOk && wiredOk, J([cleanOk, valOk, placeOk, wiredOk, rows13.map(r => S.placeVal(g13, sp13, r)), p13.sheet.sections.map(s => s.fields[0].cats)]));
     }
     {   // 1.6.0, backlog 180 R11 (the owner's order of 2026-10-27; a removed row's Undo is 1.5.8's): split a stack into a row of its own
         const J = JSON.stringify;

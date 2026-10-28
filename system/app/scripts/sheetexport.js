@@ -6,7 +6,7 @@
      page), the sheet walked as it is laid out: the header, the dashboard, the band as one line, every tab, every section.
    fileBase(name): a character's name as a file name. isCharFile(j): a character file. The caller (sheets.js) picks the view, works out
    `all` (resolveAll) on that same view and saves the file. */
-import { STORED, fmtNum, headerEntry, autoLayout, catPlace, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, postureAt, ownPostures, lookOf, unitWords, textWords, listWords } from './systemcore.js';
+import { STORED, fmtNum, headerEntry, autoLayout, catPlace, placeVal, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, postureAt, ownPostures, lookOf, unitWords, textWords, listWords } from './systemcore.js';
 import { docToMarkdown, mdEscapeText, fmtFromInline } from './docmd.js';
 import { cleanFmt, runsOf, SIZE_EM } from './textfmt.js';
 import { LIMITS as DOC_LIMITS } from './docrender.js';
@@ -274,7 +274,7 @@ function sheetToMarkdown(sys, view, all, opts) {
         var bdW = function(r) { var on = bdE ? bdE[rowIdOf(r)] : null; if (!Array.isArray(on) || !Array.isArray(spec.badges)) return ''; var w = on.map(function(i) { var b = spec.badges[i]; return isObj(b) && typeof b.words === 'string' ? b.words : ''; }).filter(Boolean); return w.length ? ' (' + w.join(', ') + ')' : ''; };   // 1.6.0 R4: a row's badges after its name, as words
         var onOnly = !!(pl && pl.on === true && isObj(spec.on));   // as the sheet: 'only switched on' means nothing once the list has no switch
         var catT = catPlace(lay.sections, pl, spec);   // 1.5.5: a list placed once a category lists under each placement the rows the sheet shows there
-        var rows = (Array.isArray(vals[f.id]) ? vals[f.id] : []).filter(function(r) { if (!isObj(r) || (onOnly && !rowOn(spec, r))) return false; if (!catT) return true; var dc = rowDef(sys, r); return catT(dc && dc.def ? dc.def.category : ''); });
+        var rows = (Array.isArray(vals[f.id]) ? vals[f.id] : []).filter(function(r) { if (!isObj(r) || (onOnly && !rowOn(spec, r))) return false; if (!catT) return true; return catT(placeVal(sys, spec, r)); });   // 1.6.0 R13: by a stat's value where the list splits its places so
         var label = plain(f.label || f.key || 'Items');
         if (!rows.length) { B.push(textBlock('<p><b>' + esc(label) + ':</b> none</p>')); return; }
         var defs = rows.map(function(r) { var d = rowDef(sys, r); return d ? d.def : null; }), cats = {};

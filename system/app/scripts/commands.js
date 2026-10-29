@@ -15,22 +15,23 @@ import { state } from './state.js';
 import { getActiveMap, getActiveCampaign } from './models.js';
 import { toast } from './io.js';
 import { navigateToMap } from './sidebar.js';
-import { keyOf, keyName, keysNow, keyAt } from './keycore.js';
+import { keyOf, keyName, keysNow, keyAt, keysClean, keyRefusal } from './keycore.js';
 
 // [shelfcheck:cmds-start]
-// A tool of the play map's toolbar: its id, its name, the button that is its press, what it does, other words that find it, and how its
-// press reads ('' takes it and puts it away again, 'keep' only takes it, 'menu' opens its menu)
+// A tool of the play map's toolbar: its id, its name, the button that is its press, what it does, other words that find it, how its
+// press reads ('' takes it and puts it away again, 'keep' only takes it, 'menu' opens its menu) and its default key (the owner, 2026-10-29,
+// by prompt: "A few default keys": S Select, H Pan, P Pen, E Eraser, M Ruler, R Radius, and none for the four tools of the GM's own)
 var CMD_TOOLS = [
-    ['tool.select', 'Select', 'moveModeBtn', 'Pick and move pieces on the map.', ['move', 'arrow'], 'keep'],
-    ['tool.pan', 'Pan', 'panModeBtn', 'Drag to move the view. Pieces stay put.', ['hand'], ''],
-    ['tool.pen', 'Pen', 'drawModeBtn', 'Draw on the map.', ['draw'], ''],
-    ['tool.eraser', 'Eraser', 'eraserModeBtn', 'Rub out strokes.', ['erase'], ''],
-    ['tool.fill', 'Fill', 'fillModeBtn', 'Color grid cells.', ['paint', 'colour'], ''],
-    ['tool.build', 'Build', 'buildModeBtn', 'Lay floors, walls, doors and water.', ['wall', 'floor'], ''],
-    ['tool.ruler', 'Ruler', 'measureModeBtn', 'Measure a distance.', ['measure', 'distance'], ''],
-    ['tool.radius', 'Radius', 'blastModeBtn', 'Place a circle, a ring or a cone.', ['blast', 'circle', 'cone'], ''],
-    ['tool.fog', 'Fog of war', 'fogModeBtn', 'Open the fog menu.', ['fog'], 'menu'],
-    ['tool.env', 'Environment', 'envModeBtn', 'Paint temperature and the other readings.', ['temperature', 'weather'], '']
+    ['tool.select', 'Select', 'moveModeBtn', 'Pick and move pieces on the map.', ['move', 'arrow'], 'keep', 'KeyS'],
+    ['tool.pan', 'Pan', 'panModeBtn', 'Drag to move the view. Pieces stay put.', ['hand'], '', 'KeyH'],
+    ['tool.pen', 'Pen', 'drawModeBtn', 'Draw on the map.', ['draw'], '', 'KeyP'],
+    ['tool.eraser', 'Eraser', 'eraserModeBtn', 'Rub out strokes.', ['erase'], '', 'KeyE'],
+    ['tool.fill', 'Fill', 'fillModeBtn', 'Color grid cells.', ['paint', 'colour'], '', ''],
+    ['tool.build', 'Build', 'buildModeBtn', 'Lay floors, walls, doors and water.', ['wall', 'floor'], '', ''],
+    ['tool.ruler', 'Ruler', 'measureModeBtn', 'Measure a distance.', ['measure', 'distance'], '', 'KeyM'],
+    ['tool.radius', 'Radius', 'blastModeBtn', 'Place a circle, a ring or a cone.', ['blast', 'circle', 'cone'], '', 'KeyR'],
+    ['tool.fog', 'Fog of war', 'fogModeBtn', 'Open the fog menu.', ['fog'], 'menu', ''],
+    ['tool.env', 'Environment', 'envModeBtn', 'Paint temperature and the other readings.', ['temperature', 'weather'], '', '']
 ];
 // A window the top row opens: its id, its name, its button, what it is, other words that find it
 var CMD_WINDOWS = [
@@ -81,10 +82,10 @@ var CMD_LAST = { id: 'map.last', name: 'Last map', does: 'Go back to the map you
     can: lastCan, run: function() { var id = lastMapOf(getActiveCampaign(), lastStore()); if (!id || navigateToMap(id) === false) throw new Error('not gone'); }, act: lastAct };
 function winCan(w) { var b = document.getElementById(w[2]); return b && b.disabled !== true ? true : w[1] + ' is not in this window.'; }
 var COMMANDS = CMD_TOOLS.map(function(t) {
-    return { id: t[0], name: t[1], does: t[3], also: t[4], icon: '\u{1F6E0}️', can: function() { return toolCan(t); },
+    return { id: t[0], name: t[1], does: t[3], also: t[4], icon: '\u{1F6E0}️', key: t[6] || '', can: function() { return toolCan(t); },
         run: function() { document.getElementById(t[2]).click(); }, act: function() { return toolAct(t); } };   // the tool's own press, as the toolbar's
 }).concat([CMD_LAST], CMD_WINDOWS.map(function(w) {
-    return { id: w[0], name: w[1], does: w[3], also: w[4], icon: w[0] === 'open.settings' ? '⚙️' : '❔', can: function() { return winCan(w); },
+    return { id: w[0], name: w[1], does: w[3], also: w[4], icon: w[0] === 'open.settings' ? '⚙️' : '❔', key: '', can: function() { return winCan(w); },
         run: function() { document.getElementById(w[2]).click(); }, act: function() { return 'Enter opens ' + w[1] + '.'; } };
 }));
 function cmdById(id) { for (var i = 0; i < COMMANDS.length; i++) if (COMMANDS[i].id === id) return COMMANDS[i]; return null; }
@@ -104,7 +105,9 @@ function cmdRun(id, via) {
 // [shelfcheck:hotkey-start]
 // Each command's key now: its default from the list, unless this computer's choice says another or none (keycore keysNow)
 var _keys = {};
-function keysMine() { return {}; }
+// This computer's own choice (wp_keys): { command id: a key, or '' for none }, cleaned as it is read; a command it does not name keeps its default
+function keysMine() { try { var v = JSON.parse(localStorage.getItem('wp_keys') || '{}'); return keysClean(v, COMMANDS.map(function(c) { return c.id; })); } catch (e) { return {}; } }
+function keysSave(mine) { try { localStorage.setItem('wp_keys', JSON.stringify(mine)); return true; } catch (e) { return false; } }
 function keysTalk() { try { var v = typeof localStorage !== 'undefined' ? localStorage.getItem('wp_voice_bind') : null; return typeof v === 'string' && v ? v : 'KeyV'; } catch (e) { return 'KeyV'; } }   // voice.js: push to talk, V at first
 function keysLoad() { _keys = keysNow(COMMANDS, keysMine(), keysTalk()); return _keys; }
 // Why a key press runs no command now, as one short word, or '' where it may: a press held down, a key a listener took, a window of its
@@ -116,7 +119,8 @@ function hotkeyHeld(doc, win, e) {
     if (win.wpStream || win.wpPopout) return 'window';
     var t = e.target, tag = t && t.tagName ? String(t.tagName).toUpperCase() : '';
     if (t && (t.isContentEditable === true || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT')) return 'typing';
-    var b = doc.body; if (b && b.classList && b.classList.contains('tour-on')) return 'tour';   // a website's join page is the welcome screen, held below
+    var b = doc.body; if (b && b.classList && b.classList.contains('tour-on')) return 'tour';
+    if (doc.querySelector('.hk-picking')) return 'picking';   // a key being picked in Settings is that key's alone   // a website's join page is the welcome screen, held below
     var up = function(el) { return !!el && typeof el.getClientRects === 'function' && el.getClientRects().length > 0; };
     if (up(doc.getElementById('customConfirm')) || up(doc.getElementById('customPrompt'))) return 'asking';
     if (up(doc.getElementById('welcomeScreen'))) return 'welcome';
@@ -134,10 +138,79 @@ function hotkeyDown(e) {
     if (r !== true) toast(r);
 }
 // [shelfcheck:hotkey-end]
+
+// [shelfcheck:keyrows-start]
+// Settings, Keys (the owner, 2026-10-29, by prompt: "Hotkey settings"): a row a command, with its name, what it does, its key as a button
+// and a button that takes the key off. A press of the key button waits for a key. Esc lets the wait go (esckey.js leaves Esc to a key being
+// picked), and so do Tab, a press elsewhere and a second press of the button. A key the app or another command already uses is refused in
+// words and the wait goes on. Any other key is the command's from then on, kept on this computer (wp_keys). Built of elements and text alone
+var _pick = null;
+function keysNames() { var o = {}; COMMANDS.forEach(function(c) { o[c.id] = c.name; }); return o; }
+function keysSay(doc, words) { var s = doc.getElementById('setKeysSay'); if (s) s.textContent = words || ''; }
+function keysSet(doc, id, k) { var mine = keysMine(); mine[id] = k; var ok = keysSave(mine); keysLoad(); keysDraw(doc); return ok; }
+function keysButton(doc, id) { var bs = doc.querySelectorAll('#setKeysList .set-key'); for (var i = 0; i < bs.length; i++) if (bs[i].getAttribute('data-cmd') === id) return bs[i]; return null; }
+function keysDraw(doc) {
+    var list = doc.getElementById('setKeysList'); if (!list) return false;
+    _pick = null;
+    while (list.firstChild) list.removeChild(list.firstChild);
+    COMMANDS.forEach(function(c) {
+        var row = doc.createElement('div'), nm = doc.createElement('span'), t = doc.createElement('span'), sm = doc.createElement('small'), key = doc.createElement('button'), off = doc.createElement('button'), k = _keys[c.id] || '';
+        row.className = 'set-key-row'; nm.className = 'set-name'; t.textContent = c.name; sm.textContent = c.does; nm.appendChild(t); nm.appendChild(sm);
+        key.type = 'button'; key.className = 'tool ghost set-key'; key.setAttribute('data-cmd', c.id); key.textContent = k ? keyName(k) : 'None'; key.title = 'Press, then press the key you want for ' + c.name;
+        off.type = 'button'; off.className = 'tool ghost set-key-off'; off.textContent = '\u00D7'; off.title = 'Take the key off ' + c.name; off.disabled = !k;
+        key.addEventListener('click', function() { keysPick(doc, c.id, key); });
+        key.addEventListener('keydown', function(e) { keysPress(doc, c.id, key, e); });
+        key.addEventListener('blur', function() { if (_pick && _pick.btn === key) keysUnpick(doc, ''); });
+        off.addEventListener('click', function() { var ok = keysSet(doc, c.id, ''); keysSay(doc, ok ? c.name + ' has no key now.' : 'The change could not be kept on this computer.'); cmdLog(ok ? 'key-off' : 'key-save-failed', { id: c.id }); });
+        row.appendChild(nm); row.appendChild(key); row.appendChild(off); list.appendChild(row);
+    });
+    return true;
+}
+function keysPick(doc, id, btn) {
+    if (_pick && _pick.btn === btn) { keysUnpick(doc, 'No key was changed.'); return; }   // a second press lets the wait go
+    if (_pick) keysUnpick(doc, '');
+    var c = cmdById(id); if (!c) return;
+    _pick = { id: id, btn: btn, was: btn.textContent };
+    btn.classList.add('hk-picking'); btn.setAttribute('aria-pressed', 'true'); btn.textContent = 'Press a key\u2026';
+    keysSay(doc, 'Press the key you want for ' + c.name + '. Esc cancels.');
+}
+function keysUnpick(doc, words) {
+    if (!_pick) return;
+    var b = _pick.btn; b.classList.remove('hk-picking'); b.removeAttribute('aria-pressed'); b.textContent = _pick.was; _pick = null;
+    if (typeof words === 'string') keysSay(doc, words);
+}
+function keysPress(doc, id, btn, e) {
+    if (!_pick || _pick.btn !== btn) return;   // not waiting: Enter and Space press the button as ever
+    if (e.code === 'Tab' || e.key === 'Tab') { keysUnpick(doc, ''); return; }   // the focus moves on and lets the wait go
+    e.preventDefault(); e.stopPropagation();   // a key pressed while waiting goes no further: not to the map, the page or the window
+    if (e.code === 'Escape' || e.key === 'Escape') { keysUnpick(doc, 'No key was changed.'); return; }
+    if (e.repeat === true) return;
+    var k = keyOf(e); if (!k) return;   // a held key alone: the wait goes on
+    var why = keyRefusal(k, id, _keys, keysNames(), keysTalk());
+    if (why) { keysSay(doc, why); cmdLog('key-refused', { id: id, key: k.replace(/\+/g, '-') }); return; }
+    var c = cmdById(id), ok = keysSet(doc, id, k);
+    keysSay(doc, ok ? c.name + ' is ' + keyName(k) + ' now.' : 'The key could not be kept on this computer.');
+    cmdLog(ok ? 'key-set' : 'key-save-failed', { id: id, key: k.replace(/\+/g, '-') });
+    var nb = keysButton(doc, id); if (nb && typeof nb.focus === 'function') nb.focus();
+}
+function keysReset(doc) {
+    var ok = true; try { localStorage.removeItem('wp_keys'); } catch (e) { ok = false; }
+    keysLoad(); keysDraw(doc);
+    keysSay(doc, ok ? 'Every command has the key it came with again.' : 'The change could not be kept on this computer.');
+    cmdLog(ok ? 'keys-reset' : 'key-save-failed', { n: Object.keys(_keys).filter(function(id) { return !!_keys[id]; }).length });
+    return ok;
+}
+// [shelfcheck:keyrows-end]
+
 keysLoad();
 cmdLog('keys-load', { n: Object.keys(_keys).filter(function(id) { return !!_keys[id]; }).length });
 window.addEventListener('keydown', hotkeyDown);   // at the window, coming back up: after every listener of the page
 window.wpCommandKey = function(id) { return keyName(_keys[id] || ''); };
+keysDraw(document);
+(function wireKeys() {
+    var reset = document.getElementById('setKeysResetBtn'); if (reset) reset.addEventListener('click', function() { keysReset(document); });
+    var open = document.getElementById('settingsBtn'); if (open) open.addEventListener('click', function() { keysDraw(document); keysSay(document, ''); });   // each opening shows the keys as they are, with nothing waiting
+})();
 
 // [shelfcheck:setrows-start]
 // Settings' options, read from the page as it stands: a group by its heading, an option by its name (a .set-field-label, a label, or a

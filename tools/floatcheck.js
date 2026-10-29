@@ -768,6 +768,16 @@ const dice = read('scripts/dice.js');
             && J([s1, s1s, s2, s2s, cmdk]) === J([{ stopped: true, free: false, mapUse: false, prevented: true }, ['none', 0], { stopped: true, free: false, mapUse: false, prevented: true }, ['none', 1], 'none']),
             J([w1, w2, w3, h1, h1s, h2, h2s, h3, h3s, j1, j1s, j2, j2s, j3, j3s, s1, s1s, s2, s2s, cmdk]));
     }
+    // 1.6.0, backlog 33: a key being picked in Settings, Keys (commands.js) keeps its own Escape first: the wait is let go and Settings
+    // stays up; a key button that is not waiting lets Settings close as before
+    {
+        const P = page(); show(P, 'settingsModal');
+        const pick = P.mk('keyPick', { tag: 'button', cls: ['set-key', 'hk-picking'], in: P.ids.settingsModal }), idle = P.mk('keyIdle', { tag: 'button', cls: ['set-key'], in: P.ids.settingsModal });
+        const k1 = P.press(pick, { inner: e => { e.preventDefault(); e.stopPropagation(); pick.cls.delete('hk-picking'); } }), k1s = P.ids.settingsModal.style.display;
+        const k2 = P.press(idle), k2s = P.ids.settingsModal.style.display;
+        check('a key being picked in Settings, Keys keeps its own Escape first: the key goes down to it, it lets the wait go, and Settings stays up; Escape on a key button that is not waiting closes Settings as before',
+            J([k1, k1s]) === J([{ stopped: true, free: false, mapUse: false, prevented: true }, 'flex']) && k2.stopped === true && k2s === 'none' && ek.includes("    if (escAt(t, '.hk-picking')) return true;"), J([k1, k1s, k2, k2s]));
+    }
     // 4. the menus: a tool's options are a menu like any other (the owner, 2026-10-17, by prompt: "Close the options first (Recommended)"); the
     //    top row's and the Pages shelf's keys stay theirs while the focus is in them, and so do the fields of a tool's options
     {

@@ -1193,5 +1193,76 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && wn.every(t => count(t, "- Q takes you back to the map you were on last. Press it again to go\n  back the other way. Last map is in quick jump too.\n") === 1));
 }
 
+/* ---------- the keys in Settings (commands.js, 1.6.0, backlog 33): your own key for any command ---------- */
+{
+    // The owner, 2026-10-29, by prompt: "Hotkey settings", and of the tools "A few default keys". commands.js's hotkey and keyrows slices are
+    // run together for real on the test page, with keycore.js as it is
+    const kc = read('scripts/keycore.js'), cm = read('scripts/commands.js');
+    const K = new Function(kc.replace(/^export \{[^}]*\};?\s*$/m, '') + '\nreturn { keyOf, keyClean, keyName, APP_KEYS, keyRefusal, keysClean, keysNow, keyAt };')();
+    const C = new Function('window', 'document', 'state', 'getActiveMap', 'getActiveCampaign', 'navigateToMap', 'localStorage', sliceOf(cm, 'cmds') + '\nreturn COMMANDS;')({}, { getElementById: () => null }, {}, () => null, () => null, () => false, null);
+    const defs = {}; C.forEach(c => { defs[c.id] = c.key; });
+    check('the tools come with the owner\'s few default keys, S Select, H Pan, P Pen, E Eraser, M Ruler and R Radius, the last map Q, and the four tools of the GM\'s own, Settings and Help none; no default is a key the app uses, and no two are alike',
+        J(defs) === J({ 'tool.select': 'KeyS', 'tool.pan': 'KeyH', 'tool.pen': 'KeyP', 'tool.eraser': 'KeyE', 'tool.fill': '', 'tool.build': '', 'tool.ruler': 'KeyM', 'tool.radius': 'KeyR', 'tool.fog': '', 'tool.env': '', 'map.last': 'KeyQ', 'open.settings': '', 'open.help': '' })
+        && C.every(c => !c.key || K.keyRefusal(c.key, c.id, defs, {}, 'KeyV') === ''), J(defs));
+    const mk = o => {
+        o = o || {};
+        const { makeDom } = require('./boxdom.js'), dom = makeDom(), doc = dom.document, R = { log: [], ran: [] }, store = Object.assign({}, o.store || {});
+        const list = doc.createElement('div'); list.id = 'setKeysList'; const say = doc.createElement('div'); say.id = 'setKeysSay'; doc.body.appendChild(list); doc.body.appendChild(say);
+        const ls = { getItem: k => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null), setItem: (k, v) => { if (o.full) throw new Error('full'); store[k] = String(v); }, removeItem: k => { delete store[k]; } };
+        const api = new Function('document', 'window', 'COMMANDS', 'cmdById', 'keysNow', 'keyOf', 'keyAt', 'keyName', 'keyRefusal', 'keysClean', 'cmdRun', 'cmdLog', 'toast', 'localStorage', sliceOf(cm, 'hotkey') + sliceOf(cm, 'keyrows') + '\nkeysLoad();\nreturn { draw: keysDraw, reset: keysReset, keys: function() { return _keys; }, held: hotkeyHeld };')(
+            doc, {}, C, id => C.find(c => c.id === id) || null, K.keysNow, K.keyOf, K.keyAt, K.keyName, K.keyRefusal, K.keysClean, id => { R.ran.push(id); return true; }, (s, f) => { R.log.push(s + ' ' + J(f)); }, () => {}, ls);
+        api.draw(doc);
+        const btn = id => list.querySelectorAll('.set-key').find(b => b.getAttribute('data-cmd') === id), off = id => btn(id).parentNode.querySelector('.set-key-off');
+        const key = (id, code, x) => dom.fire(btn(id), 'keydown', Object.assign({ code, key: code }, x || {}));
+        return Object.assign(api, { dom, doc, list, say, store, R, btn, off, key });
+    };
+    const A = mk(), rows = A.list.querySelectorAll('.set-key-row');
+    check('Settings, Keys draws a row a command, in the list\'s order, as elements with text: its name, what it does, its key as a button (None where it has none) and a button that takes the key off, put out of use where there is no key',
+        rows.length === C.length && J(rows.map(r => r.querySelector('.set-name').childNodes[0].textContent)) === J(C.map(c => c.name)) && rows[0].querySelector('small').textContent === 'Pick and move pieces on the map.'
+        && A.btn('tool.pen').textContent === 'P' && A.btn('map.last').textContent === 'Q' && A.btn('tool.fill').textContent === 'None' && A.off('tool.fill').disabled === true && A.off('tool.pen').disabled === false
+        && A.btn('tool.pen').title === 'Press, then press the key you want for Pen' && A.off('tool.pen').title === 'Take the key off Pen' && A.btn('tool.pen').type === 'button');
+    A.dom.fire(A.btn('tool.fill'), 'click'); const w1 = [A.btn('tool.fill').textContent, A.btn('tool.fill').classList.contains('hk-picking'), A.btn('tool.fill').getAttribute('aria-pressed'), A.say.textContent, A.held(A.doc, {}, { target: { tagName: 'DIV' } })];
+    const k1 = A.key('tool.fill', 'KeyF');
+    const w2 = [A.btn('tool.fill').textContent, A.say.textContent, A.store.wp_keys, A.keys()['tool.fill'], k1.prevented, k1.stopped];
+    check('a press of a key button waits for a key, says so and holds every command key meanwhile; the key pressed is the command\'s from then on, kept on this computer, said, logged, and goes no further',
+        J(w1) === J(['Press a key\u2026', true, 'true', 'Press the key you want for Fill. Esc cancels.', 'picking']) && J(w2) === J(['F', 'Fill is F now.', '{"tool.fill":"KeyF"}', 'KeyF', true, true]) && A.R.log.indexOf('key-set {"id":"tool.fill","key":"KeyF"}') >= 0 && A.btn('tool.fill').classList.contains('hk-picking') === false, J([w1, w2]));
+    A.dom.fire(A.btn('tool.fill'), 'click'); const r1 = A.key('tool.fill', 'KeyP'); const w3 = [A.say.textContent, A.btn('tool.fill').textContent, A.keys()['tool.fill'], r1.prevented];
+    A.key('tool.fill', 'KeyZ', { ctrlKey: true }); const w4 = A.say.textContent; A.key('tool.fill', 'ShiftLeft', { shiftKey: true }); const w5 = [A.say.textContent, A.btn('tool.fill').classList.contains('hk-picking')];
+    A.key('tool.fill', 'Escape'); const w6 = [A.btn('tool.fill').textContent, A.say.textContent, A.btn('tool.fill').classList.contains('hk-picking'), A.keys()['tool.fill']];
+    check('a key another command or the app already uses is refused in words that name what has it, and the wait goes on; a held key alone waits on; Esc lets the wait go and changes nothing',
+        J(w3) === J(['P is already Pen. Pick another key.', 'Press a key\u2026', 'KeyF', true]) && w4 === 'Ctrl+Z is already Undo. Pick another key.' && J(w5) === J(['Ctrl+Z is already Undo. Pick another key.', true]) && J(w6) === J(['F', 'No key was changed.', false, 'KeyF'])
+        && A.R.log.indexOf('key-refused {"id":"tool.fill","key":"KeyP"}') >= 0, J([w3, w4, w5, w6]));
+    A.dom.fire(A.btn('tool.ruler'), 'click'); const t1 = A.key('tool.ruler', 'Tab'); const w7 = [A.btn('tool.ruler').classList.contains('hk-picking'), t1.prevented];
+    A.dom.fire(A.btn('tool.ruler'), 'click'); A.dom.fire(A.btn('tool.ruler'), 'click'); const w8 = [A.btn('tool.ruler').classList.contains('hk-picking'), A.say.textContent];
+    const n1 = A.key('tool.ruler', 'KeyX'); const w9 = [n1.prevented, A.keys()['tool.ruler']];
+    check('Tab lets the wait go and moves on; a second press of the button lets it go too; a key on a button that is not waiting is left to the button',
+        J(w7) === J([false, false]) && J(w8) === J([false, 'No key was changed.']) && J(w9) === J([false, 'KeyM']));
+    A.dom.fire(A.off('tool.pen'), 'click'); const w10 = [A.btn('tool.pen').textContent, A.say.textContent, JSON.parse(A.store.wp_keys)['tool.pen'], A.keys()['tool.pen']];
+    A.dom.fire(A.btn('tool.fill'), 'click'); A.key('tool.fill', 'KeyP'); const w11 = [A.btn('tool.fill').textContent, A.keys()['tool.fill']];
+    check('the button beside a key takes it off and says so, and a key taken off is free for another command',
+        J(w10) === J(['None', 'Pen has no key now.', '', '']) && J(w11) === J(['P', 'KeyP']) && A.R.log.indexOf('key-off {"id":"tool.pen"}') >= 0, J([w10, w11]));
+    const ok = A.reset(A.doc); const w12 = [ok, A.store.wp_keys, A.btn('tool.pen').textContent, A.btn('tool.fill').textContent, A.say.textContent];
+    check('Put Back the Default Keys forgets this computer\'s choice and gives every command the key it came with',
+        J(w12) === J([true, undefined, 'P', 'None', 'Every command has the key it came with again.']) && A.R.log.some(l => /^keys-reset \{"n":7\}$/.test(l)), J(w12));
+    const B = mk({ store: { wp_keys: J({ 'tool.pen': 'KeyQ', 'map.last': 'KeyW', 'tool.fill': 'Hyper+X', 'tool.gone': 'KeyZ' }) } });
+    check('this computer\'s choice is read back as it was kept: a key it gave a command wins over another\'s default, which is left with none, and a choice that does not read leaves the default',
+        B.btn('tool.pen').textContent === 'Q' && B.btn('map.last').textContent === 'W' && B.btn('tool.fill').textContent === 'None' && B.keys()['tool.select'] === 'KeyS', J(B.keys()));
+    const F = mk({ full: true }); F.dom.fire(F.btn('tool.fill'), 'click'); F.key('tool.fill', 'KeyF'); const w13 = F.say.textContent;
+    check('a key that cannot be kept on this computer is said, and logged', w13 === 'The key could not be kept on this computer.' && F.R.log.indexOf('key-save-failed {"id":"tool.fill","key":"KeyF"}') >= 0, w13);
+    const sA = ix.indexOf('<details class="set-group" data-group="keys">'), keysHtml = sA > 0 ? ix.slice(sA, ix.indexOf('</details>', sA)) : '';
+    check('Settings has a Keys group of its own after Table: the rows\' list, a grey line that says how, the line that says what was done, read aloud, and Put Back the Default Keys with its line; the module draws the rows and wires the button, and draws again as Settings opens',
+        keysHtml.includes('<summary>Keys</summary>') && keysHtml.includes('<div id="setKeysList" class="set-keys"') && keysHtml.includes('<div id="setKeysSay" class="set-keys-say" role="status" aria-live="polite"></div>') && keysHtml.includes('>Put Back the Default Keys</button>')
+        && ix.indexOf('data-group="table"') < sA && sA < ix.indexOf('data-group="vtt"') && cm.includes("var reset = document.getElementById('setKeysResetBtn'); if (reset) reset.addEventListener('click', function() { keysReset(document); });")
+        && cm.includes("var open = document.getElementById('settingsBtn'); if (open) open.addEventListener('click', function() { keysDraw(document); keysSay(document, ''); });") && /\n\s*\.set-key-row \{ display: flex;/.test(css) && /\n\s*\.set-key\.hk-picking \{/.test(css));
+    const wn = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, '\n'));
+    const start = ix.slice(ix.indexOf('<div class="help-pane" data-pane="start">'), ix.indexOf('<div class="help-pane" data-pane="tutorial"')), keysP = ix.slice(ix.indexOf('<div class="help-pane" data-pane="keys"'), ix.indexOf('<h4 id="helpDevMode">'));
+    check('Help says the keys in the Keyboard part: the tools\' keys, setting your own in Settings, Keys, a key refused in words, taking one off and putting the defaults back, never while typing; under Getting around fast the last map\'s key can be changed; both release notes carry it, alike',
+        keysP.includes('<li><b>Tool keys</b>: <kbd>S</kbd> Select, <kbd>H</kbd> Pan, <kbd>P</kbd> Pen, <kbd>E</kbd> Eraser, <kbd>M</kbd> Ruler and <kbd>R</kbd> Radius. A key takes the tool, and a second press puts it away.</li>')
+        && keysP.includes('<li><b>Your own keys</b> are set in Settings, under Keys. Press a key box, then the key you want. <kbd>Esc</kbd> cancels.\n') && keysP.includes('<li>A key the app or another command already uses is refused, and the line under the list says what has it.</li>')
+        && keysP.includes('<li>The &times; beside a key takes it off. <b>Put Back the Default Keys</b> gives every command the key it came with.</li>') && keysP.includes('<li>Your keys are kept on this computer. A key never works while you type in a box, or while a window or a question is up.</li>')
+        && start.includes('<li>You can give it another key in Settings, under Keys.</li>')
+        && wn.every(t => count(t, "- Keys of your own: Settings has a Keys group, with a row for each tool\n  and command. Press a key box, then the key you want. A key another\n  command or the app already uses is refused, and you are told what\n  has it.\n") === 1 && count(t, "- The tools come with keys: S Select, H Pan, P Pen, E Eraser, M Ruler\n  and R Radius. A key takes the tool, and a second press puts it away.\n  No key works while you type in a box.\n") === 1));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

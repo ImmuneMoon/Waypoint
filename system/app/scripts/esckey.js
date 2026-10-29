@@ -69,6 +69,7 @@ function escField(t) {
 function escKeep(doc, t) {
     if (!t) return false;
     if (escAt(t, '#tsBar')) return true;
+    if (escAt(t, '.hk-picking')) return true;   // 1.6.0: a key being picked in Settings, Keys (commands.js): its Escape lets the wait go
     var bar = doc.getElementById('tsBar');
     if (escAt(t, '.ts-box') && bar && bar.hidden !== true && escShown(bar)) return true;
     return (t.id === 'helpSearch' || t.id === 'journalSearch') && typeof t.value === 'string' && t.value !== '';

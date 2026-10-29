@@ -422,6 +422,7 @@
                               <ul>
                                   <li>It never works while you type in a box, or while a window or a question is up.</li>
                                   <li>The maps are the ones you opened on this computer. At someone else&rsquo;s table the GM picks the map.</li>
+                                  <li>You can give it another key in Settings, under Keys.</li>
                               </ul>
                           </li>
                           <li>The <b>minimap</b> in the top-left corner shows where your content is. Click anywhere on it to fly the camera there. It dims when idle, and the chevron collapses it.</li>
@@ -2576,6 +2577,14 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><kbd>Ctrl + K</kbd> &nbsp; Quick-jump to any map, planner, or room. It finds the map&rsquo;s tools and the options of Settings too.</li>
                           <li><kbd>Shift + 1</kbd> &nbsp; Fit to content: frame the selection if there is one, else the whole map.</li>
                           <li><kbd>Q</kbd> &nbsp; Back to the map you were on last. Press it again to go back the other way.</li>
+                          <li><b>Tool keys</b>: <kbd>S</kbd> Select, <kbd>H</kbd> Pan, <kbd>P</kbd> Pen, <kbd>E</kbd> Eraser, <kbd>M</kbd> Ruler and <kbd>R</kbd> Radius. A key takes the tool, and a second press puts it away.</li>
+                          <li><b>Your own keys</b> are set in Settings, under Keys. Press a key box, then the key you want. <kbd>Esc</kbd> cancels.
+                              <ul>
+                                  <li>A key the app or another command already uses is refused, and the line under the list says what has it.</li>
+                                  <li>The &times; beside a key takes it off. <b>Put Back the Default Keys</b> gives every command the key it came with.</li>
+                                  <li>Your keys are kept on this computer. A key never works while you type in a box, or while a window or a question is up.</li>
+                              </ul>
+                          </li>
                           <li><kbd>Arrow Keys</kbd> &nbsp; Nudge the selection 1px, or 10px with <kbd>Shift</kbd>.</li>
                           <li><kbd>Delete</kbd> or <kbd>Backspace</kbd> &nbsp; Delete the selected item.</li>
                           <li><kbd>Esc</kbd> &nbsp; Close the one thing on top: a right-click menu, then an open menu, then a window. With nothing open, it puts the tool in your hand away and clears your target.</li>
@@ -3743,6 +3752,17 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <input type="range" id="setGridOpacity" min="10" max="100" style="width:100%;" title="How strongly the square/hex grid lines draw over the map">
             <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Only on this computer &mdash; in multiplayer every player picks their own.</div>
         </div>
+            </div>
+        </details>
+        <!-- 1.6.0, backlog 33: your own key for any command (the commands module draws the rows, the keys' core judges a key) -->
+        <details class="set-group" data-group="keys">
+            <summary>Keys</summary>
+            <div class="set-group-body">
+            <div id="setKeysList" class="set-keys" title="Each tool and command, with the key that runs it on this computer"></div>
+            <div class="set-line">Press a key box, then the key you want. Esc cancels. A key never works while you type in a box.</div>
+            <div id="setKeysSay" class="set-keys-say" role="status" aria-live="polite"></div>
+            <button class="tool ghost" id="setKeysResetBtn" style="width:100%;" title="Gives every command the key it came with, here on this computer">Put Back the Default Keys</button>
+            <div class="set-line tight">Every command gets the key it came with again. Your keys are kept on this computer.</div>
             </div>
         </details>
         <!-- VTT features (scripts/vtt.js + settings.js): per campaign, the default for new campaigns, and a player's view at a table.

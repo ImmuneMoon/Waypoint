@@ -25,6 +25,13 @@ Quick jump
   the option lit. Settings and Help are in the list too.
 - Q takes you back to the map you were on last. Press it again to go
   back the other way. Last map is in quick jump too.
+- The tools come with keys: S Select, H Pan, P Pen, E Eraser, M Ruler
+  and R Radius. A key takes the tool, and a second press puts it away.
+  No key works while you type in a box.
+- Keys of your own: Settings has a Keys group, with a row for each tool
+  and command. Press a key box, then the key you want. A key another
+  command or the app already uses is refused, and you are told what
+  has it.
 
 Scenes
 - Show as a scene... puts a picture big on your players' screens, with no

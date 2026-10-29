@@ -6564,7 +6564,7 @@ function fieldRow(f) {
     top.appendChild(capBox(select('sys-kind', Object.keys(KIND_LABEL).map(function(k) { return [k, KIND_LABEL[k]]; }), f.kind, KIND_HELP[f.kind] || ''), 'Kind'));
     var def = el('div', 'sys-def'); top.appendChild(def); buildDefCell(def, f);
     var flags = el('div', 'sys-flags');
-    if (STORED[f.kind]) flags.appendChild(select('sys-edit', [['owner', 'Player may edit'], ['gm', 'GM edits']], f.edit || 'owner', 'Who may change the value at the table'));
+    if (STORED[f.kind]) flags.appendChild(select('sys-edit', [['owner', 'Player may edit'], ['gm', 'GM edits']], f.edit || 'owner', 'Who may change the value at the table. A player may still fill in a GM edits field while making their character.'));
     if (f.kind !== 'effects') flags.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], f.vis || 'all', 'GM only: the field and its value never leave your machine'));
     var hov = el('label', 'sys-hover'); var hc = el('input'); hc.type = 'checkbox'; hc.checked = !!f.hover; hc.className = 'sys-hover-chk'; hov.appendChild(hc); hov.appendChild(document.createTextNode(' Hover')); hov.title = 'Show on the token\'s hover card and the party strip'; flags.appendChild(hov);
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') { var tl = el('label', 'sys-hover'); var tc = el('input'); tc.type = 'checkbox'; tc.checked = !!f.tile; tc.className = 'sys-tile-chk'; tl.appendChild(tc); tl.appendChild(document.createTextNode(' Tile')); tl.title = 'Show this field as a stat tile (big value, small label)'; flags.appendChild(tl); }   // Stage 3

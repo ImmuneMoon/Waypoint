@@ -6190,6 +6190,37 @@ function rollExtras(row, rr, sp, isApply) {
     if (sp && sp.lvl && typeof sp.lvl === 'object') { var akL = checkLabel('sys-rlasklvl', rr.askLvl === true, 'Asks the level', 'Pressed, it asks which level to run at, from the list\u2019s lowest to the row\u2019s own, and Row.lvl reads that level. A spell of level 3 cast at level 1'), akC = akL.firstChild; akC.addEventListener('change', function(e) { e.stopPropagation(); if (akC.checked) rr.askLvl = true; else delete rr.askLvl; ch(); }); row.appendChild(akL); }   // 1.6.0, backlog 180 R12
 }
 // [systemcheck:rowswitchbox-end]
+// [systemcheck:partcaps-start]
+// 205 (5) (the core handbook session's parts brief, 2026-10-29): the Lists tab's Holds by kind box, edited in place on the list's draft parts, with
+// its own listeners and class names no handler of the Lists tab reads (sys-pcap-*). A line a cap: the categories it counts, with commas between
+// them, and the number stat of this list whose figure caps them; PART_CAPS lines at most. Save keeps a line only once both are set
+function partCapsBox(sp) {
+    var box = el('div', 'sys-badges sys-pcaps'), max = typeof PART_CAPS === 'number' ? PART_CAPS : 12, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var nums = function() { return (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.kind !== 'pick' && s.set !== true; }); };
+    var draw = function() {
+        box.textContent = ''; box.appendChild(el('span', 'sys-num-cap', 'Holds by kind'));
+        var list = sp.parts && Array.isArray(sp.parts.caps) ? sp.parts.caps : [];
+        list.forEach(function(k0, j) {
+            var k = k0 && typeof k0 === 'object' ? k0 : {}, rw = el('div', 'sys-flags sys-pcap-row'), set = function(key, v) { if (!sp.parts || !Array.isArray(sp.parts.caps) || !sp.parts.caps[j]) return; sp.parts.caps[j][key] = v; ch(); };
+            var cI = input('sys-pcap-cats field', Array.isArray(k.cats) ? k.cats.join(', ') : '', 'The categories of parts this line counts, with commas between them, such as Arm', 'Arm, Leg'); cI.maxLength = LIMITS.text;
+            cI.addEventListener('input', function(e) { e.stopPropagation(); set('cats', String(cI.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean)); });
+            cI.addEventListener('change', function(e) { e.stopPropagation(); });
+            var bS = el('select', 'sys-pcap-by'), cur = typeof k.by === 'string' ? k.by.toLowerCase() : '', hit = false; bS.title = 'A row holds as many parts of those categories as its figure in this stat reads';
+            var o0 = el('option', null, 'as many as the row\u2019s\u2026'); o0.value = ''; bS.appendChild(o0);
+            nums().forEach(function(s) { var o = el('option', null, 'as many as the row\u2019s ' + (s.label || s.key)); o.value = s.key; if (!hit && cur && s.key.toLowerCase() === cur) { o.selected = true; hit = true; } bS.appendChild(o); });
+            if (cur && !hit) { var ox = el('option', null, k.by + ' (not a number stat of this list)'); ox.value = k.by; ox.selected = true; bS.appendChild(ox); }
+            bS.addEventListener('change', function(e) { e.stopPropagation(); set('by', bS.value); });
+            var x = el('button', 'tool ghost sys-btn sys-pcap-del', '\u00d7'); x.type = 'button'; x.title = 'Remove this line';
+            x.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts || !Array.isArray(sp.parts.caps)) return; sp.parts.caps.splice(j, 1); if (!sp.parts.caps.length) delete sp.parts.caps; ch(); draw(); });
+            [cI, bS, x].forEach(function(n) { rw.appendChild(n); }); box.appendChild(rw);
+        });
+        var ad = el('button', 'tool ghost sys-btn sys-pcap-add', '+ Kind'); ad.type = 'button'; ad.disabled = list.length >= max; ad.title = ad.disabled ? 'At most ' + max + ' kinds a list' : 'Cap how many parts of some categories a row holds, such as 2 arms, by one of its own stats';
+        ad.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts) return; if (!Array.isArray(sp.parts.caps)) sp.parts.caps = []; if (sp.parts.caps.length >= max) return; sp.parts.caps.push({ cats: [], by: '' }); ch(); draw(); var ins = box.querySelectorAll('.sys-pcap-cats'); if (ins.length) ins[ins.length - 1].focus(); }); box.appendChild(ad);
+    };
+    draw();
+    return box;
+}
+// [systemcheck:partcaps-end]
 // [systemcheck:badgebox-start]
 // 1.6.0 R4 and R5 (backlog 180): the Lists tab's Badges box and a value name's tone, each edited in place on the draft object it is handed, with its
 // own listeners and class names no handler of the Lists tab reads (sys-badge-*, sys-ltone-*). A badge: its words, Shown where (a formula of the
@@ -7400,6 +7431,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             pkN.forEach(function(s) { var o = el('option', null, 'as many as the row\u2019s ' + (s.label || s.key)); o.value = s.key; if (!pkHit && pkC && s.key.toLowerCase() === pkC) { o.selected = true; pkHit = true; } pkS.appendChild(o); });
             if (pkC && !pkHit) { var pkx = el('option', null, sp.parts.capBy + ' (not a number stat of this list)'); pkx.value = sp.parts.capBy; pkx.selected = true; pkS.appendChild(pkx); }
             pkW.title = 'Where a row\u2019s figure in this stat is set, the row holds that many parts at most, their quantities added. Adding one more is refused with a word of why'; pkW.appendChild(pkS); fl.appendChild(pkW);
+            if (typeof partCapsBox === 'function') fl.appendChild(partCapsBox(sp));   // 205 (5): a cap per kind
             var plW = el('label', 'sys-check'), plI = el('input', 'field sys-list-partslabel'); plI.type = 'text'; plI.value = sp.parts.label || ''; plI.placeholder = 'Part'; plW.appendChild(document.createTextNode('Add button says ')); plW.appendChild(plI); plW.title = 'The word on the button that adds a part, such as Option or Upgrade'; fl.appendChild(plW);
         }
     }

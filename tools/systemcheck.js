@@ -17656,6 +17656,58 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('205 (3) Host.<w>: a column of a list another list takes parts from reads its host row, the row its in names, as that row\'s own Row.<w> (a number stat, a choice\'s value, a column), on whichever list the host is in; 0 for a loose row or a kept curse\'s part; the validator knows it only in such a column and never with a dot more, a field keyed Host keeps the name; a loop through it is caught by the resolver and the chain reader; a GM-derived column of a host makes its parts\' names GM-derived; the Lists card names it',
             resOk && valOk && keyedOk && loopOk && gmOk && namesOk, J([resOk, valOk, keyedOk, loopOk, gmOk, namesOk, pc, rH.f_a.cells, lpCell]));
     }
+    {   // 205 (5) (the core handbook session's parts brief, 2026-10-29: a bipedal chassis takes 1 head, 2 arms, 2 legs): parts.caps, a cap per kind
+        const J = JSON.stringify;
+        const capsRaw = [{ cats: ['Head', 'head'], by: 'heads' }, { cats: ['Arm', 'Hand'], by: 'Arms' }, { cats: ['Leg'], by: 'Kind' }, { cats: [], by: 'Arms' }, { cats: ['Eye'], by: 'Nope' }, 'junk', { cats: ['Eye'] }];
+        const rawC = { v: 1, name: 'C', rolls: [], items: [{ id: 'i_ch', name: 'Chassis', category: 'Body', stats: { Heads: 1, Arms: 2, Slots: 10 } }, { id: 'i_dr', name: 'Drone', category: 'Body', stats: { Heads: 0, Arms: 5, Slots: 10 } },
+                { id: 'i_hd', name: 'Head', category: 'Head' }, { id: 'i_ar', name: 'Arm', category: 'Arm' }, { id: 'i_hn', name: 'Hand', category: 'Hand' }, { id: 'i_lg', name: 'Leg', category: 'Leg' }],
+            fields: [{ id: 'f_b', key: 'Bodies', label: 'Bodies', kind: 'item-list', vis: 'all', edit: 'owner', list: { custom: true, stats: [{ key: 'Heads', label: 'Heads' }, { key: 'Arms', label: 'Arms' }, { key: 'Slots', label: 'Slots' }, { key: 'Kind', label: 'Kind', kind: 'pick', opts: [{ label: 'A', name: 'Heads' }] }], parts: { from: 'f_l', capBy: 'Slots', caps: capsRaw } } },
+                { id: 'f_l', key: 'Limbs', label: 'Limbs', kind: 'item-list', vis: 'all', edit: 'owner', list: { custom: true } }], sheet: { sections: [] } };
+        const gC = cleanSystem(rawC, { F, gmView: true }), pC = cleanSystem(rawC, { F, gmView: false }), spC = gC.fields[0].list;
+        const many = JSON.parse(J(rawC)); many.fields[0].list.parts.caps = Array.from({ length: 14 }, (x, i) => ({ cats: ['K' + i], by: 'Arms' }));
+        const cleanOk = J(spC.parts.caps) === J([{ cats: ['Head'], by: 'Heads' }, { cats: ['Arm', 'Hand'], by: 'Arms' }]) && J(pC.fields[0].list.parts) === J(spC.parts) && J(cleanSystem(gC, { F, gmView: true })) === J(gC)
+            && cleanSystem(many, { F, gmView: true }).fields[0].list.parts.caps.length === S.PART_CAPS && S.PART_CAPS === 12 && !('caps' in cleanSystem(Object.assign(JSON.parse(J(rawC)), { fields: [Object.assign(JSON.parse(J(rawC.fields[0])), { list: Object.assign({}, rawC.fields[0].list, { parts: { from: 'f_l', caps: [{ cats: ['X'] }] } }) }), rawC.fields[1]] }), { F, gmView: true }).fields[0].list.parts);
+        const base = () => ({ id: 'c1', values: { f_b: [{ id: 'w_c', defId: 'i_ch', qty: 1 }, { id: 'w_d', defId: 'i_dr', qty: 1 }], f_l: [] } });
+        let ch = base(); const op = (q, o) => { const r = S.applyRowOp(gC, ch, 'f_l', q, F, o || {}); if (r.ok) { ch.values = Object.assign({}, ch.values, { f_l: r.value }); } return r; };
+        const pl = { player: true, view: pC };
+        const said = r => r.ok ? 'ok' : r.reason + (r.msg ? ': ' + r.msg : '');
+        const steps = [op({ op: 'add', defId: 'i_hd', rowId: 'w_h1', in: 'w_c' }), op({ op: 'add', defId: 'i_hd', rowId: 'w_h2', in: 'w_c' }), op({ op: 'add', defId: 'i_hd', rowId: 'w_h3', in: 'w_c' }, pl),
+            op({ op: 'add', defId: 'i_ar', rowId: 'w_a1', in: 'w_c', qty: 2 }), op({ op: 'add', defId: 'i_hn', rowId: 'w_n1', in: 'w_c' }, pl), op({ op: 'add', defId: 'i_lg', rowId: 'w_l1', in: 'w_c', qty: 5 }),
+            op({ op: 'add', defId: 'i_hd', rowId: 'w_h4', in: 'w_d' }), op({ op: 'add', defId: 'i_ar', rowId: 'w_a2', in: 'w_d', qty: 4 }), op({ op: 'add', defId: 'i_hd', rowId: 'w_h5' }),
+            op({ op: 'setQty', rowId: 'w_a1', qty: 3 }, pl), op({ op: 'setQty', rowId: 'w_a1', qty: 1 }), op({ op: 'setQty', rowId: 'w_a1', qty: 2 }), op({ op: 'setQty', rowId: 'w_l1', qty: 20 }), op({ op: 'setQty', rowId: 'w_h5', qty: 9 }),
+            op({ op: 'custom', rowId: 'w_o1', in: 'w_c', def: { name: 'Own head', category: 'Head' } }, pl), op({ op: 'custom', rowId: 'w_o2', in: 'w_d', def: { name: 'Own arm', category: 'Arm' } })].map(said);
+        const want = ['ok', 'value: Chassis holds 1 Head part at most, and has 1 already.', 'value: Chassis holds 1 Head part at most, and has 1 already.',
+            'ok', 'value: Chassis holds 2 Arm or Hand parts at most, and has 2 already.', 'ok',
+            'value: Drone holds no Head parts.', 'ok', 'ok',
+            'value: Chassis holds 2 Arm or Hand parts at most, and has 2 already.', 'ok', 'ok', 'value: Chassis holds 10 parts at most, and has 8 already.', 'ok',
+            'value: Chassis holds 1 Head part at most, and has 1 already.', 'ok'];
+        const fresh = S.applyRowOp(gC, base(), 'f_l', { op: 'add', defId: 'i_ar', rowId: 'w_q', in: 'w_c', qty: 3 }, F, {});
+        const opsOk = J(steps) === J(want) && J(said(fresh)) === J('value: Chassis holds 2 Arm or Hand parts at most, and that would be more.')
+            && S.partsCapSays(gC, spC, { id: 'w_c', defId: 'i_ch' }, [], 'w_c', 'Leg', 50) === '' && S.partsCapSays(gC, { parts: { from: 'f_l' } }, { id: 'w_c', defId: 'i_ch' }, [], 'w_c', 'Head', 9) === '';
+        // the Lists tab's Holds by kind box, run for real on a page of plain objects
+        const shC = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const pcSrc = shC.slice(shC.indexOf('// [systemcheck:partcaps-start]'), shC.indexOf('// [systemcheck:partcaps-end]'));
+        const mkC = (tag, cls, tx) => { const e = { tag, className: cls || '', kids: [], title: '', value: '', type: '', selected: false, disabled: false, maxLength: 0, on: {}, appendChild(k) { e.kids.push(k); return k; }, addEventListener(t, fn) { e.on[t] = fn; }, focus() { e.focused = true; },
+            querySelectorAll(sel) { const c = sel.replace(/^\./, ''), acc = [], w = n => (n.kids || []).forEach(k => { if ((' ' + k.className + ' ').includes(' ' + c + ' ')) acc.push(k); w(k); }); w(e); return acc; } };
+            Object.defineProperty(e, 'textContent', { get() { return e._t; }, set(v) { e._t = String(v); e.kids = []; } }); e.textContent = tx === undefined ? '' : tx; return e; };
+        let dirty = 0; const ev = { stopPropagation() {} };
+        const PCB = new Function('el', 'input', 'markDirty', 'patchErrors', 'LIMITS', 'PART_CAPS', pcSrc + '\nreturn partCapsBox;')(mkC, (cls, v, t, ph) => Object.assign(mkC('input', cls), { value: v, title: t, placeholder: ph }), () => { dirty++; }, () => {}, S.LIMITS, S.PART_CAPS);
+        const spB = { stats: [{ key: 'Arms', label: 'Arms' }, { key: 'Kind', label: 'Kind', kind: 'pick' }, { key: 'Set', label: 'Set', set: true }], parts: { from: 'f_l' } }, bx = PCB(spB);
+        const byCls = (n, c) => bx.querySelectorAll('.' + c);
+        const b0 = J(bx.kids.map(k => k.className)), addB = byCls(bx, 'sys-pcap-add')[0]; addB.on.click(ev);
+        const cI = byCls(bx, 'sys-pcap-cats')[0], bS = byCls(bx, 'sys-pcap-by')[0];
+        cI.value = 'Arm, , Hand '; cI.on.input(ev); bS.value = 'Arms'; bS.on.change(ev);
+        const mid = J(spB.parts.caps), opts = J(bS.kids.map(o => o.value)), focused = cI.focused === true;
+        byCls(bx, 'sys-pcap-del')[0].on.click(ev); const gone = !('caps' in spB.parts);
+        for (let i = 0; i < 12; i++) byCls(bx, 'sys-pcap-add')[0].on.click(ev);
+        const full = byCls(bx, 'sys-pcap-add')[0].disabled === true && spB.parts.caps.length === 12;
+        const spK = { stats: [{ key: 'Arms', label: 'Arms' }], parts: { from: 'f_l', caps: [{ cats: ['Arm'], by: 'Legs' }] } }, bK = PCB(spK), kS = bK.querySelectorAll('.sys-pcap-by')[0];
+        const boxOk = b0 === J(['sys-num-cap', 'tool ghost sys-btn sys-pcap-add']) && mid === J([{ cats: ['Arm', 'Hand'], by: 'Arms' }]) && opts === J(['', 'Arms']) && focused && gone && full && dirty === 16
+            && J(kS.kids.map(o => [o.value, o.selected])) === J([['', false], ['Arms', false], ['Legs', true]]) && bK.querySelectorAll('.sys-pcap-cats')[0].value === 'Arm'
+            && shC.includes("if (typeof partCapsBox === 'function') fl.appendChild(partCapsBox(sp));   // 205 (5): a cap per kind");
+        check('205 (5) a cap per kind of part: a list\'s parts.caps, each { cats, by } (the categories once each, by a number stat of this list spelled as the list spells it, never a choice or a set stat; a line short of either dropped; PART_CAPS at most; the same in both views and a fixed point); a host holds as many parts of a line\'s categories, their quantities added, as its own figure there reads, a figure of 0 none; one more is refused by the GM\'s hand and a player\'s alike, an add of several at once, a part\'s count raised (Holds too) and a row of the character\'s own made as a part, in words that name the host and the kind; the Lists tab\'s Holds by kind box (partCapsBox, run for real)',
+            cleanOk && opsOk && boxOk, J([cleanOk, opsOk, boxOk, spC.parts, steps, mid, opts, dirty]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

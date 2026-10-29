@@ -2787,6 +2787,8 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
                 var ptk = []; v.parts.caps.forEach(function(c) {
                     if (!isObj(c) || ptk.length >= PART_CAPS) return;
                     var kb = typeof c.by === 'string' ? lower(statKey(c.by.trim(), F)) : '', kbS = ''; (out.stats || []).forEach(function(s) { if (!kbS && kb && s.kind !== 'pick' && s.set !== true && lower(s.key) === kb) kbS = s.key; });
+                    var ksl = typeof c.slot === 'string' ? statKey(c.slot.trim(), F) : '', kis = cutText(c.is, LIMITS.label);   // the core handbook session's ask 4 (2026-10-29): or { slot, is, by }, the parts whose own choice stat slot reads is (cleanSystem spells both as the parts' list does, and drops a line it cannot)
+                    if (ksl && kis) { if (kbS) ptk.push({ slot: ksl, is: kis, by: kbS }); return; }
                     var kc = [], seenK = map(); (Array.isArray(c.cats) ? c.cats : []).forEach(function(x) { var kt = cutText(x, LIMITS.category); if (!kt || seenK[lower(kt)] || kc.length >= LIMITS.listCats) return; seenK[lower(kt)] = 1; kc.push(kt); });
                     if (kbS && kc.length) ptk.push({ cats: kc, by: kbS });
                 });
@@ -3271,6 +3273,18 @@ function cleanSystem(sys, opts) {
     var chIl = map(); out.fields.forEach(function(f) { if (f.kind === 'item-list') chIl[f.id] = 1; });   // 1.5.9 Chambers from: an item list of this view, this very list too (the players' view: a GM-only list is not there, so its chamber goes)
     out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.chamber) && chIl[f.list.chamber.from] !== 1) delete f.list.chamber; });
     out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.parts) && chIl[f.list.parts.from] !== 1) delete f.list.parts; });
+    out.fields.forEach(function(f) {   // the core handbook session's ask 4 (2026-10-29): a cap line by a part's own choice stat names a choice stat of the parts' list (a pick, or a number with value names) and one of its values, each spelled as that list spells it; a line that names neither goes
+        if (f.kind !== 'item-list' || !isObj(f.list) || !isObj(f.list.parts) || !Array.isArray(f.list.parts.caps)) return;
+        var srcC = null; out.fields.forEach(function(x) { if (!srcC && x.id === f.list.parts.from && x.kind === 'item-list') srcC = x; }); var sstC = srcC && isObj(srcC.list) && Array.isArray(srcC.list.stats) ? srcC.list.stats : [];
+        var keptC = f.list.parts.caps.filter(function(k) {
+            if (typeof k.slot !== 'string') return true;
+            var st = null; sstC.forEach(function(s) { if (!st && isObj(s) && typeof s.key === 'string' && lower(s.key) === lower(k.slot) && s.set !== true) st = s; }); if (!st) return false;
+            var nms = st.kind === 'pick' ? (Array.isArray(st.opts) ? st.opts.map(function(o) { return isObj(o) ? o.label : ''; }) : []) : (Array.isArray(st.labels) ? st.labels : []), nm = null;
+            nms.forEach(function(n) { if (nm === null && typeof n === 'string' && n && lower(n) === lower(k.is)) nm = n; }); if (nm === null) return false;
+            k.slot = st.key; k.is = nm; return true;
+        });
+        if (keptC.length) f.list.parts.caps = keptC; else delete f.list.parts.caps;
+    });
     var upRs = map(); out.fields.forEach(function(f) { if (f.kind === 'resource') upRs[f.id] = 1; }); out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.upkeep) && upRs[f.list.upkeep.pool] !== 1) delete f.list.upkeep; });   // 1.6.0 (CORE gap 13): an upkeep comes off a pool of this view   // 1.6.0 R14: parts from an item list of this view, this very list too
     if (gmView) oneSpelling(out.fields);   // Stage 6 F4c1 (critic 2): one spelling per stat key, the first list's in field order
     var seenR = map();
@@ -4872,7 +4886,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         var agN = q.name !== undefined ? cutText(q.name, LIMITS.itemName) : '';   // 1.6.0: a copy held again under its own name: only for an entry ticked so, never a name another copy of it carries
         if (q.name !== undefined) { if (ent.again !== 'name' || !agN) return { ok: false, reason: 'value' }; var agL = againFold(agN); if (!agL) return { ok: false, reason: 'value', msg: 'A name needs a letter or a digit.' }; if (list.some(function(r) { if (!isObj(r) || r.hid === 1 || r.defId !== q.defId) return false; var rdA = rowDef(sys, r); return !!rdA && againFold(rdA.def.name) === agL; })) return { ok: false, reason: 'value', msg: 'Another ' + ent.name + ' already has that name.' }; }
         var n = spec && spec.noQty ? 1 : clampNum((q.qty | 0) || 1, 1, LIMITS.maxQty), have = -1;
-        if (partIn && phA) { var roomA = partsRoom(sys, phA.f.list, phA.row, list, partIn); if (roomA && roomA.used + n > roomA.cap) return { ok: false, reason: 'value', msg: partsFullSays(roomA) }; var kcA = partsCapSays(sys, phA.f.list, phA.row, list, partIn, ent.category, n); if (kcA) return { ok: false, reason: 'value', msg: kcA }; }   // 1.6.0 (v2, B6); 205 (5): a cap per kind
+        if (partIn && phA) { var roomA = partsRoom(sys, phA.f.list, phA.row, list, partIn); if (roomA && roomA.used + n > roomA.cap) return { ok: false, reason: 'value', msg: partsFullSays(roomA) }; var kcA = partsCapSays(sys, phA.f.list, phA.row, list, partIn, ent.category, n, 0, ent); if (kcA) return { ok: false, reason: 'value', msg: kcA }; }   // 1.6.0 (v2, B6); 205 (5): a cap per kind
         if (!agN && !(spec && spec.multi && q.rowId !== undefined) && !(fl && q.gr !== undefined)) for (var j = 0; j < list.length; j++) if (isObj(list[j]) && list[j].defId === q.defId && (fromLib || !list[j].snap) && list[j].hid !== 1 && typeof list[j].gr !== 'string' && (typeof list[j].in === 'string' ? list[j].in : '') === partIn && typeof list[j].opn !== 'string' && !isObj(list[j].ld) && !Array.isArray(list[j].rd) && !isObj(list[j].fd)) { have = j; break; }   // never into a kept curse; F4b: a list that takes the same item more than once makes a new row
         if (have < 0 && !agN && spec && spec.noQty && !spec.multi && list.some(function(r) { return isObj(r) && r.defId === q.defId && typeof r.gr === 'string' && r.hid !== 1 && (typeof r.in === 'string' ? r.in : '') === partIn; })) return { ok: false, reason: 'value' };   // 1.6.0 (v2, B4): held once, a granted row of it counts
         if (have >= 0 && spec && spec.noQty) return { ok: false, reason: 'value' };   // F4b: no quantity — once each
@@ -4910,7 +4924,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         var phC = null;   // 198: a row of the character's own made as a part of a host, judged as add judges one
         if (q.in !== undefined) { if (typeof q.in !== 'string' || !ROW_ID.test(q.in) || q.in === q.rowId) return { ok: false, reason: 'value' }; if (cx >= 0) { if (list[cx].in !== q.in) return { ok: false, reason: 'value' }; } else { phC = partHost(sys, char, f.id, q.in, !!opts.player); if (!phC) return { ok: false, reason: 'missing' }; } }
         var cu = applyCustom(sys, list, q, spec, F, opts, extra, actorSpec(sys, fieldId, spec, opts), fl); if (cu) return cu;
-        if (phC) { var cxN = at(q.rowId), ptcC = phC.f.list.parts.cats; if (cxN < 0) return { ok: false, reason: 'value' }; if (Array.isArray(ptcC) && ptcC.length && !catIn(ptcC, (list[cxN].def || {}).category)) return { ok: false, reason: 'missing' }; var roomC = partsRoom(sys, phC.f.list, phC.row, list, q.in); if (roomC && roomC.used + Math.max(1, list[cxN].qty | 0) > roomC.cap) return { ok: false, reason: 'value', msg: partsFullSays(roomC) }; var kcC = partsCapSays(sys, phC.f.list, phC.row, list, q.in, (list[cxN].def || {}).category, Math.max(1, list[cxN].qty | 0)); if (kcC) return { ok: false, reason: 'value', msg: kcC }; list[cxN].in = q.in; }   // 1.6.0 (v2, B6): the room it is made into
+        if (phC) { var cxN = at(q.rowId), ptcC = phC.f.list.parts.cats; if (cxN < 0) return { ok: false, reason: 'value' }; if (Array.isArray(ptcC) && ptcC.length && !catIn(ptcC, (list[cxN].def || {}).category)) return { ok: false, reason: 'missing' }; var roomC = partsRoom(sys, phC.f.list, phC.row, list, q.in); if (roomC && roomC.used + Math.max(1, list[cxN].qty | 0) > roomC.cap) return { ok: false, reason: 'value', msg: partsFullSays(roomC) }; var kcC = partsCapSays(sys, phC.f.list, phC.row, list, q.in, (list[cxN].def || {}).category, Math.max(1, list[cxN].qty | 0), 0, list[cxN].def); if (kcC) return { ok: false, reason: 'value', msg: kcC }; list[cxN].in = q.in; }   // 1.6.0 (v2, B6): the room it is made into
         if (cx < 0 && char && (char.making === 1 || char.making === true)) { var cxM = at(q.rowId); if (cxM >= 0) list[cxM].mk = 1; }   // 1.6.0 (v2, B5): a row of its own made while making
         if (cx < 0) { var cxK = at(q.rowId), capC = cxK >= 0 ? capJudge(cxK) : null; if (capC) return capC; if (cxK >= 0) startStamp(spec, list[cxK]); }   // 1.6.0 At most at a level, then Keeps the starting level: a row of its own made
         if (cx >= 0) { var mvC = onMoved(sys, spec, list, cx, g0C, hnd, extra, { read: gsp, onGrace: opts.onGrace === true }); if (mvC) return mvC; }   // ... moved by its stats into a group that holds one on: it goes off
@@ -5034,7 +5048,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             var msg = mode ? ((byEq ? rd.def.eqMsg : rd.def.rmMsg) || '') : '', nm = lmode ? (rd.def.name || 'Item') : '';
             if (nq > cur && typeof list[idx].in === 'string') {   // 205 (5): more of a part is judged as an add of as many is, by its host's room and its caps per kind
                 var phQ = partHost(sys, char, f.id, list[idx].in, false);
-                if (phQ) { var roomQ = partsRoom(sys, phQ.f.list, phQ.row, list, list[idx].in); if (roomQ && roomQ.used - Math.max(1, cur) + nq > roomQ.cap) return { ok: false, reason: 'value', msg: partsFullSays(roomQ) }; var kcQ = partsCapSays(sys, phQ.f.list, phQ.row, list, list[idx].in, rd && rd.def ? rd.def.category : '', nq, Math.max(1, cur)); if (kcQ) return { ok: false, reason: 'value', msg: kcQ }; }
+                if (phQ) { var roomQ = partsRoom(sys, phQ.f.list, phQ.row, list, list[idx].in); if (roomQ && roomQ.used - Math.max(1, cur) + nq > roomQ.cap) return { ok: false, reason: 'value', msg: partsFullSays(roomQ) }; var kcQ = partsCapSays(sys, phQ.f.list, phQ.row, list, list[idx].in, rd && rd.def ? rd.def.category : '', nq, Math.max(1, cur), rd ? rd.def : null); if (kcQ) return { ok: false, reason: 'value', msg: kcQ }; }
             }
             if (nq > cur) { extra.added = nq - cur; if (opts.player && rmode && !mkR) { extra.note = rmode; extra.name = rd.def.name || 'Item'; } }   // more of it: a pickup (the Undo, the GM's notice)
             var inGr = gr >= 0 && cur - nq <= gr;
@@ -5270,18 +5284,22 @@ function partsRoom(sys, hspec, hostRow, list, hostId) {
 // host holds as many parts of a cap's categories (their quantities added) as its own figure in the cap's stat reads, 0 or more; a cap whose figure
 // is no number holds no limit. What n of a part of category cat would pass, beside what it holds less less (a part's own count, where it is raised),
 // in words that name the host and the kind, or ''. The add, the custom op and a part's raised count ask it, the GM's hand and a player's alike,
-// beside partsRoom
+// beside partsRoom. The core handbook session's ask 4 (2026-10-29): a line may count the parts whose own choice stat (slot, a choice stat of the
+// parts' list) reads one value (is) in place of their categories; pd, the part's own definition as its row reads it (rowDef), which such a line
+// reads it by (none: a line by a choice stat counts nothing for it)
 var PART_CAPS = 12;
-function partsCapSays(sys, hspec, hostRow, list, hostId, cat, n, less) {
+function partsCapSays(sys, hspec, hostRow, list, hostId, cat, n, less, pd) {
     var p = isObj(hspec) && isObj(hspec.parts) ? hspec.parts : null; if (!p || !Array.isArray(p.caps) || !p.caps.length || !isObj(hostRow)) return '';
-    var d = rowDef(sys, hostRow), nm = d && d.def && d.def.name ? String(d.def.name) : 'That row', out = '';
+    var d = rowDef(sys, hostRow), nm = d && d.def && d.def.name ? String(d.def.name) : 'That row', out = '', psC = partsSrc(sys, hspec), pspC = psC && isObj(psC.list) ? psC.list : null;
+    var slotIs = function(k, def) { return isObj(def) && lower(statName(pspC, def, k.slot)) === lower(k.is); };
     p.caps.forEach(function(k) {
-        if (out || !isObj(k) || !Array.isArray(k.cats) || !catIn(k.cats, cat) || typeof k.by !== 'string') return;
+        if (out || !isObj(k) || typeof k.by !== 'string') return;
+        var bySlot = typeof k.slot === 'string' && typeof k.is === 'string'; if (bySlot ? !slotIs(k, pd) : !(Array.isArray(k.cats) && catIn(k.cats, cat))) return;
         var c = d ? rowStat(hspec, d.def, k.by) : null; if (typeof c !== 'number' || !fin(c)) return;
         var cap = Math.max(0, Math.floor(c)), used = 0;
-        (Array.isArray(list) ? list : []).forEach(function(r) { if (!isObj(r) || r.in !== hostId) return; var rd = rowDef(sys, r); if (rd && rd.def && catIn(k.cats, rd.def.category)) used += Math.max(1, r.qty | 0); });
+        (Array.isArray(list) ? list : []).forEach(function(r) { if (!isObj(r) || r.in !== hostId) return; var rd = rowDef(sys, r); if (rd && rd.def && (bySlot ? slotIs(k, rd.def) : catIn(k.cats, rd.def.category))) used += Math.max(1, r.qty | 0); });
         if (used - (less || 0) + n <= cap) return;
-        var kind = k.cats.join(' or ');
+        var kind = bySlot ? k.is : k.cats.join(' or ');
         out = cap ? nm + ' holds ' + cap + ' ' + kind + (cap === 1 ? ' part' : ' parts') + ' at most, and ' + (used ? 'has ' + used + ' already.' : 'that would be more.') : nm + ' holds no ' + kind + ' parts.';
     });
     return out;

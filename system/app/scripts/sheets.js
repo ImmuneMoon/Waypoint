@@ -6234,18 +6234,41 @@ function rollExtras(row, rr, sp, isApply) {
 // [systemcheck:partcaps-start]
 // 205 (5) (the core handbook session's parts brief, 2026-10-29): the Lists tab's Holds by kind box, edited in place on the list's draft parts, with
 // its own listeners and class names no handler of the Lists tab reads (sys-pcap-*). A line a cap: the categories it counts, with commas between
-// them, and the number stat of this list whose figure caps them; PART_CAPS lines at most. Save keeps a line only once both are set
+// them, and the number stat of this list whose figure caps them; PART_CAPS lines at most. Save keeps a line only once both are set. The core
+// handbook session's ask 4 (2026-10-29): where the parts' list has a choice stat (a pick, or a number with value names), a line may count by it
+// in place of categories (Counts: the parts whose slot reads one value), its value picked from the stat's own
 function partCapsBox(sp) {
     var box = el('div', 'sys-badges sys-pcaps'), max = typeof PART_CAPS === 'number' ? PART_CAPS : 12, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
     var nums = function() { return (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.kind !== 'pick' && s.set !== true; }); };
+    var vals = function(s) { return s.kind === 'pick' ? (Array.isArray(s.opts) ? s.opts.map(function(o) { return o && typeof o === 'object' ? o.label : ''; }) : []).filter(function(x) { return typeof x === 'string' && x; }) : (Array.isArray(s.labels) ? s.labels : []).filter(function(x) { return typeof x === 'string' && x; }); };
+    var slots = function() { var fs0 = typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : [], src = sp.parts && typeof sp.parts.from === 'string' ? fs0.filter(function(f) { return f && f.id === sp.parts.from && f.kind === 'item-list'; })[0] : null, st = src && src.list && Array.isArray(src.list.stats) ? src.list.stats : [];
+        return st.filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.set !== true && vals(s).length > 0; }); };
     var draw = function() {
         box.textContent = ''; box.appendChild(el('span', 'sys-num-cap', 'Holds by kind'));
         var list = sp.parts && Array.isArray(sp.parts.caps) ? sp.parts.caps : [];
         list.forEach(function(k0, j) {
             var k = k0 && typeof k0 === 'object' ? k0 : {}, rw = el('div', 'sys-flags sys-pcap-row'), set = function(key, v) { if (!sp.parts || !Array.isArray(sp.parts.caps) || !sp.parts.caps[j]) return; sp.parts.caps[j][key] = v; ch(); };
-            var cI = input('sys-pcap-cats field', Array.isArray(k.cats) ? k.cats.join(', ') : '', 'The categories of parts this line counts, with commas between them, such as Arm', 'Arm, Leg'); cI.maxLength = LIMITS.text;
+            var sls = slots(), slCur = typeof k.slot === 'string' ? k.slot.toLowerCase() : '', slSt = null, lead = [];
+            if (sls.length || slCur) {   // ask 4: Counts by category, or by a choice stat of the parts
+                var sS = el('select', 'sys-pcap-slot'); sS.title = 'Count the parts by their category, or by a choice stat of the parts, such as their Slot';
+                var oc = el('option', null, 'Counts parts by category'); oc.value = ''; sS.appendChild(oc);
+                sls.forEach(function(s) { var o = el('option', null, 'Counts parts by their ' + (s.label || s.key)); o.value = s.key; if (slCur && !slSt && s.key.toLowerCase() === slCur) { o.selected = true; slSt = s; } sS.appendChild(o); });
+                if (slCur && !slSt) { var oxs = el('option', null, k.slot + ' (not a choice stat of the parts)'); oxs.value = k.slot; oxs.selected = true; sS.appendChild(oxs); }
+                sS.addEventListener('change', function(e) { e.stopPropagation(); if (!sp.parts || !Array.isArray(sp.parts.caps) || !sp.parts.caps[j]) return; var cj = sp.parts.caps[j]; if (sS.value) { cj.slot = sS.value; cj.is = ''; delete cj.cats; } else { delete cj.slot; delete cj.is; cj.cats = []; } ch(); draw(); });
+                lead.push(sS);
+            }
+            var cI;
+            if (slCur) {
+                cI = el('select', 'sys-pcap-is'); cI.title = 'The value of that stat this line counts, such as Arm'; var isCur = typeof k.is === 'string' ? k.is.toLowerCase() : '', isHit = false;
+                var oi0 = el('option', null, 'that read…'); oi0.value = ''; cI.appendChild(oi0);
+                (slSt ? vals(slSt) : []).forEach(function(v) { var o = el('option', null, 'that read ' + v); o.value = v; if (!isHit && isCur && v.toLowerCase() === isCur) { o.selected = true; isHit = true; } cI.appendChild(o); });
+                if (isCur && !isHit) { var oxi = el('option', null, k.is + ' (not one of its values)'); oxi.value = k.is; oxi.selected = true; cI.appendChild(oxi); }
+                cI.addEventListener('change', function(e) { e.stopPropagation(); set('is', cI.value); });
+            } else {
+            cI = input('sys-pcap-cats field', Array.isArray(k.cats) ? k.cats.join(', ') : '', 'The categories of parts this line counts, with commas between them, such as Arm', 'Arm, Leg'); cI.maxLength = LIMITS.text;
             cI.addEventListener('input', function(e) { e.stopPropagation(); set('cats', String(cI.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean)); });
             cI.addEventListener('change', function(e) { e.stopPropagation(); });
+            }
             var bS = el('select', 'sys-pcap-by'), cur = typeof k.by === 'string' ? k.by.toLowerCase() : '', hit = false; bS.title = 'A row holds as many parts of those categories as its figure in this stat reads';
             var o0 = el('option', null, 'as many as the row\u2019s\u2026'); o0.value = ''; bS.appendChild(o0);
             nums().forEach(function(s) { var o = el('option', null, 'as many as the row\u2019s ' + (s.label || s.key)); o.value = s.key; if (!hit && cur && s.key.toLowerCase() === cur) { o.selected = true; hit = true; } bS.appendChild(o); });
@@ -6253,7 +6276,7 @@ function partCapsBox(sp) {
             bS.addEventListener('change', function(e) { e.stopPropagation(); set('by', bS.value); });
             var x = el('button', 'tool ghost sys-btn sys-pcap-del', '\u00d7'); x.type = 'button'; x.title = 'Remove this line';
             x.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts || !Array.isArray(sp.parts.caps)) return; sp.parts.caps.splice(j, 1); if (!sp.parts.caps.length) delete sp.parts.caps; ch(); draw(); });
-            [cI, bS, x].forEach(function(n) { rw.appendChild(n); }); box.appendChild(rw);
+            lead.concat([cI, bS, x]).forEach(function(n) { rw.appendChild(n); }); box.appendChild(rw);
         });
         var ad = el('button', 'tool ghost sys-btn sys-pcap-add', '+ Kind'); ad.type = 'button'; ad.disabled = list.length >= max; ad.title = ad.disabled ? 'At most ' + max + ' kinds a list' : 'Cap how many parts of some categories a row holds, such as 2 arms, by one of its own stats';
         ad.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts) return; if (!Array.isArray(sp.parts.caps)) sp.parts.caps = []; if (sp.parts.caps.length >= max) return; sp.parts.caps.push({ cats: [], by: '' }); ch(); draw(); var ins = box.querySelectorAll('.sys-pcap-cats'); if (ins.length) ins[ins.length - 1].focus(); }); box.appendChild(ad);

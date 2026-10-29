@@ -3632,12 +3632,12 @@ net.charItem = function(charId, fieldId, q) {
     if (q.op === 'chamber' && typeof S.chamberSays === 'function') { var chW = S.chamberSays(camp.system, c, fieldId, q.rowId, window.wpFormula); if (chW) return { error: chW }; }   // 1.5.9 Chambers only where: a row that takes no round now is answered at once in its words and nothing is sent (the host judges it as well)
     var ptW = (q.op === 'add' && q.in !== undefined) || ((q.op === 'remove' || q.op === 'setQty') && !!(S.fieldById && (function() { var fP = S.fieldById(camp.system, fieldId); return fP && fP.list && fP.list.parts; })()));   // 1.6.0 R14: a part added to its host, and a removal on a list that holds parts (its parts may go with it), are sent and waited for
     if (!ptW && typeof S.grantWaits === 'function' && S.grantWaits(camp.system, c, q, net.libEntry)) ptW = true;   // 1.6.0 (v2, B4): an add of an entry that grants rows, and a removal of a row that granted some, wait for the host, which grants
-    if (ptW || q.op === 'load' || q.op === 'chamber' || q.op === 'unchamber' || q.op === 'split' || (q.op === 'add' && typeof q.pay === 'number') || ((q.op === 'remove' || q.op === 'setQty') && typeof q.get === 'number') || q.op === 'restore') {   // 1.5.6 a purchase or a sale: the host moves the money with the row, and this copy follows its word; 1.5.8 a load (Loads from) moves two lists, and waits alike
+    if (ptW || q.op === 'load' || q.op === 'chamber' || q.op === 'unchamber' || q.op === 'split' || (q.op === 'add' && typeof q.pay === 'number') || ((q.op === 'remove' || q.op === 'setQty') && typeof q.get === 'number') || q.op === 'restore' || q.op === 'look' || q.op === 'work') {   // 1.6.0, backlog 206: a look and a work line (its fee moves money) wait for the host too   // 1.5.6 a purchase or a sale: the host moves the money with the row, and this copy follows its word; 1.5.8 a load (Loads from) moves two lists, and waits alike
         var ridM = 'e' + Math.random().toString(36).slice(2, 10);
         _charPending[ridM] = { charId: charId, fieldId: fieldId, batch: [], kind: 'item', timer: setTimeout(function() { charPendingDone(ridM, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
         if (q.op === 'restore') _charPending[ridM].q = { op: 'restore', rowId: q.rowId };   // 1.5.8: its words, if refused, are the Undo's
         var mM = { type: 'char-item', rid: ridM, charId: charId, fieldId: fieldId, op: q.op };
-        ['defId', 'rowId', 'qty', 'pay', 'get', 'from', 'back', 'in', 'name'].forEach(function(k) { if (q[k] !== undefined) mM[k] = q[k]; });   // 1.6.0 R14: in, a part's host   // 1.5.8: a load's from (null: unload) and back
+        ['defId', 'rowId', 'qty', 'pay', 'get', 'from', 'back', 'in', 'name', 'look', 'work', 'drop'].forEach(function(k) { if (q[k] !== undefined) mM[k] = q[k]; });   // 1.6.0, backlog 206: a look, a work line, a line's place   // 1.6.0 R14: in, a part's host   // 1.5.8: a load's from (null: unload) and back
         try { net.conns[0].send(mM); } catch (e) { charPendingDone(ridM, false, 'value'); return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
     }
@@ -7788,7 +7788,7 @@ function handleMessage(msg, conn) {
         if (!resI.ok) {
             if (resI.reason === 'stays') { itemNotice(chI, resI.name, resI.by ? 'eq-held-try' : resI.moved ? 'eq-move-try' : resI.eq && qi.op === 'set' ? 'eq-bound-try' : 'bound-try', resI.by); try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'stays', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // a bound item: it stays, with the GM's message
             if (resI.reason === 'needs') { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'needs', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // 126b: what the entry needs, in the GM's own words or by the names a player may know
-            if ((qi.op === 'chamber' || qi.op === 'unchamber' || qi.op === 'load' || qi.op === 'setQty' || resI.cap === true) && resI.msg) { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: Si.cleanDenyReason(resI.reason), msg: String(resI.msg).slice(0, 200) }); } catch (e) { sendFailed(e); } return; }   // 1.5.9: what does not fit, a chamber that is full, in words
+            if ((qi.op === 'chamber' || qi.op === 'unchamber' || qi.op === 'load' || qi.op === 'setQty' || qi.op === 'look' || qi.op === 'work' || resI.cap === true) && resI.msg) { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: Si.cleanDenyReason(resI.reason), msg: String(resI.msg).slice(0, 200) }); } catch (e) { sendFailed(e); } return; }   // 1.5.9: what does not fit, a chamber that is full, in words
             denyI(resI.reason); return;
         }
         var mvI = Si.rowOpMoney ? Si.rowOpMoney(campI.system, chI, qi.fieldId, qi, resI) : null;   // 1.5.6: what a purchase paid, or a sale was paid, moves the money with the row, all or nothing
@@ -7816,6 +7816,8 @@ function handleMessage(msg, conn) {
         try { conn.send(itMI ? { type: 'char-ack', rid: qi.rid, msg: itMI } : { type: 'char-ack', rid: qi.rid }); } catch (e) { sendFailed(e); }   // a cursed item's message rides the answer (none: the answer any removal gets); F4b: a curse kept on, too
         var dI = {}; Object.keys(bcI).forEach(function(k) { dI[k] = bcI[k]; }); net.syncCharDelta(qi.charId, dI);
         if (mvI && (typeof qi.pay === 'number' || typeof qi.get === 'number') && typeof logEvent === 'function') logEvent('char', (chI.name || 'A character') + (qi.op === 'add' ? ' bought ' : ' sold ') + (resI.name || 'an item') + ' for ' + Si.fmtNum(qi.op === 'add' ? qi.pay : qi.get));
+        if (qi.op === 'work' && qi.work && qi.work.fee > 0 && typeof logEvent === 'function') logEvent('char', (chI.name || 'A character') + ' paid ' + Si.fmtNum(qi.work.fee) + ' for work on ' + (resI.name || 'an item'));   // 1.6.0, backlog 206: a hired job's fee, as a purchase is told
+        if ((qi.op === 'look' || qi.op === 'work') && window.wpStepLog) window.wpStepLog('rowlook v1', 'host', { op: qi.op, fee: !!(qi.work && qi.work.fee > 0) });   // structure only
         if (bwI.warn.length && typeof budgetNotice === 'function') budgetNotice(chI, bwI.warn);   // 126: a budget that only warns: the GM is told
         if (resI.note && resI.added > 0) itemNotice(chI, resI.name, resI.note === 'bound' ? 'bound-pick' : 'curse-pick');
         else if (resI.hid) itemNotice(chI, resI.name, 'curse-drop');

@@ -17420,6 +17420,57 @@ pendingChecks.push((async () => {
         && v6 === 1 && lastA.list.length === 0 && lastB.list.length === 3 && !/u_a|u_b|trkHide/.test(JSON.stringify(v.sent)), j([v1, v2, v3, v4, v5, v6, v.sent]));
     check('backlog 29 the join snapshot never names who the trackers are kept from (sanitizeAppState deletes camp.trkHide)', /delete camp\.trackers;[^\n]*\n\s*delete camp\.trkHide;/.test(src));
 })());
+// 1.6.0, backlog 206: a row's look and a work line on the wire. A player's own app sends both and waits (the real net.charItem); the host's real
+// char-item branch cleans them through the one cleaner, stores them, pays a fee from the character's money and tells the owner alone
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), J = JSON.stringify;
+    const raw = { v: 1, name: 'L', rolls: [], fields: [
+        { id: 'f_chips', key: 'Chips', label: 'Chips', kind: 'item-list', edit: 'owner', vis: 'all', list: { multi: true, cats: ['Credit Chip'], lvl: { label: 'Stored', min: 0, max: 100000, step: 0.01, def: 0 }, money: '@lvl' } },
+        { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'gm', vis: 'all', list: { look: {}, workLog: true } },
+        { id: 'f_plain', key: 'Plain', label: 'Plain', kind: 'item-list', edit: 'owner', vis: 'all', list: {} }],
+        items: [{ id: 'i_chip', name: 'Chip' }, { id: 'i_gun', name: 'Blaster' }] };
+    const sys = Sx.cleanSystem(raw, { F: Fx, gmView: true }), view = Sx.cleanSystem(sys, { F: Fx, gmView: false });
+    const hostChar = () => ({ id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_chips: [{ id: 'w_c1', defId: 'i_chip', qty: 1, lvl: 100 }], f_gear: [{ id: 'w_g1', defId: 'i_gun', qty: 1 }, { id: 'w_k1', defId: 'i_gun', qty: 1, hid: 1 }], f_plain: [{ id: 'w_p1', defId: 'i_gun', qty: 1 }] } });
+    // a player's own app
+    const cA = src.indexOf('net.charItem = function('), cZ = src.indexOf('\n};\n', cA) + 3, sentC = [];
+    const campC = { id: 'k', system: view, chars: { c_1: JSON.parse(J(Sx.charFor(hostChar(), view, 'u_a', { full: sys }))) } }, before = J(campC.chars.c_1.values);
+    const netC = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', myId: 'u_a', libEntry: () => null, conns: [{ peer: 'h', open: true, send: m => { packCheck(m); sentC.push(JSON.parse(J(m))); } }] };
+    new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', src.slice(cA, cZ))(netC, () => Sx, () => campC, { wpFormula: Fx, wpVtt: { on: () => true } }, {}, () => {}, () => 0);
+    const look = { overall: { colors: ['#AA0000', 'url(x)'], finish: 'matte', markings: '<b>stripe</b>' }, parts: [{ part: 'Grip', finish: { colors: ['#000000'] } }] };
+    const r1 = netC.charItem('c_1', 'f_gear', { op: 'look', rowId: 'w_g1', look }), r2 = netC.charItem('c_1', 'f_gear', { op: 'work', rowId: 'w_g1', work: { kind: 'repair', by: 'hired', fee: 40, note: 'Kessa' } });
+    check('backlog 206 on the wire: a player\'s own app sends a look and a work line and waits for the host (the real net.charItem): nothing is laid over their copy first, and only the op\'s own keys travel',
+        r1.pending === true && r2.pending === true && J(campC.chars.c_1.values) === before && J(sentC.map(m => Object.keys(m).sort())) === J([['charId', 'fieldId', 'look', 'op', 'rid', 'rowId', 'type'], ['charId', 'fieldId', 'op', 'rid', 'rowId', 'type', 'work']]), J(sentC));
+    // the host
+    const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+    const campH = { id: 'k', system: sys, chars: { c_1: hostChar() } }, out = { answer: [], owner: [], mate: [], saves: 0, log: [] }, box = b => m => { packCheck(m); b.push(JSON.parse(J(m))); };
+    const netH = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }, { peer: 'pB', open: true, send: box(out.mate) }], roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } } };
+    const winH = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+    const H = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+        'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn function(msg, conn) {\n' + ciSrc + '\n};')(
+        netH, () => Sx, winH, () => false, () => campH, () => { out.saves++; }, e => { throw e; }, c => (netH.roster[c.peer] ? netH.roster[c.peer].id : null), { allow: () => true }, () => {}, (k, s) => out.log.push(k + ': ' + s));
+    const SEND = m => { out.answer.length = 0; out.owner.length = 0; out.mate.length = 0; out.log.length = 0; const s0 = out.saves, b0 = J(campH.chars.c_1.values); H(Object.assign({ type: 'char-item', charId: 'c_1' }, m), { peer: 'pA', send: box(out.answer) }); return { answer: out.answer.slice(), owner: out.owner.slice(), mate: out.mate.slice(), saves: out.saves - s0, same: J(campH.chars.c_1.values) === b0, log: out.log.slice() }; };
+    const gun = () => campH.chars.c_1.values.f_gear.find(r => r.id === 'w_g1'), chips = () => campH.chars.c_1.values.f_chips.map(r => r.lvl);
+    const h1 = SEND(sentC[0]), g1 = J(gun().look), d1 = h1.owner[0] && h1.owner[0].values ? h1.owner[0].values : {};
+    check('backlog 206 on the wire: the host takes a player\'s look on a list only the GM changes (the owner, 2026-10-29: "Owner and GM"), through the one cleaner (a colour that is none dropped, markup kept as plain characters), saves once, and sends it in its owner\'s delta alone; a teammate is sent nothing of the list',
+        J(h1.answer) === J([{ type: 'char-ack', rid: sentC[0].rid }]) && h1.saves === 1 && g1 === J({ overall: { colors: ['#aa0000'], finish: 'matte', markings: '<b>stripe</b>' }, parts: [{ part: 'Grip', finish: { colors: ['#000000'] } }] }) && J((d1.f_gear || [])[0].look) === g1 && !/f_gear|stripe/.test(J(h1.mate)), J([h1, gun()]));
+    const h2 = SEND(sentC[1]), d2 = h2.owner[0] && h2.owner[0].values ? h2.owner[0].values : {};
+    check('backlog 206 on the wire: a hired job\'s fee of 40 is paid on the host from the character\'s money (100 to 60), the line on the row with its note, both lists in the owner\'s delta, and the GM\'s log says who paid what for which item',
+        J(h2.answer) === J([{ type: 'char-ack', rid: sentC[1].rid }]) && J(chips()) === J([60]) && J(gun().workLog) === J([{ kind: 'repair', by: 'hired', fee: 40, note: 'Kessa' }]) && J(Object.keys(d2).sort()) === J(['f_chips', 'f_gear']) && J(h2.log) === J(['char: Ana paid 40 for work on Blaster']), J(h2));
+    const h3 = SEND({ rid: 'q3', fieldId: 'f_gear', op: 'work', rowId: 'w_g1', work: { kind: 'repair', by: 'hired', fee: 500 } });
+    const h4 = SEND({ rid: 'q4', fieldId: 'f_gear', op: 'work', rowId: 'w_g1', drop: 0 }), h5 = SEND({ rid: 'q5', fieldId: 'f_gear', op: 'look', rowId: 'w_k1', look });
+    const h6 = SEND({ rid: 'q6', fieldId: 'f_plain', op: 'look', rowId: 'w_p1', look }), h7 = SEND({ rid: 'q7', fieldId: 'f_gear', op: 'look', rowId: 'w_g1', look: 'x' }), h8 = SEND({ rid: 'q8', fieldId: 'f_gear', op: 'work', rowId: 'w_g1', log: [{ kind: 'build', by: 'self' }] });
+    const h9 = SEND({ rid: 'q9', fieldId: 'f_gear', op: 'work', rowId: 'w_g1', work: { kind: 'build', by: 'self' }, log: [{ kind: 'build', by: 'hired', fee: 9 }], pay: 3 });
+    check('backlog 206 on the wire: a fee past what is held is refused in the money\'s words with nothing stored; a player never takes a line off (field); a row the GM keeps from them reads as gone; a list with no look is not one to set; a look that is no object, and a whole log, are dropped unanswered; a line sent with a log and a pay beside it is stored alone and moves no money',
+        J(h3.answer) === J([{ type: 'char-deny', rid: 'q3', reason: 'money', msg: 'Not enough money: 60 held, 500 needed.' }]) && h3.same && h3.saves === 0
+        && J(h4.answer) === J([{ type: 'char-deny', rid: 'q4', reason: 'field' }]) && h4.same && J(h5.answer) === J([{ type: 'char-deny', rid: 'q5', reason: 'missing' }]) && h5.same && J(h6.answer) === J([{ type: 'char-deny', rid: 'q6', reason: 'field' }])
+        && h7.answer.length === 0 && h7.same && h8.answer.length === 0 && h8.same && J(h9.answer) === J([{ type: 'char-ack', rid: 'q9' }]) && J(chips()) === J([60]) && J(gun().workLog.slice(-1)) === J([{ kind: 'build', by: 'self', fee: 0 }]) && gun().workLog.length === 2,
+        J([h3.answer, h4.answer, h5.answer, h6.answer, h7.answer, h8.answer, h9.answer]));
+    const flat = src.replace(/\r\n/g, '\n');
+    check('backlog 206 on the wire (source): the host\'s char-item branch sends a look\'s and a work line\'s refusal with its words, logs each step by its structure alone, and never names a look in any other branch',
+        flat.includes("qi.op === 'look' || qi.op === 'work' || resI.cap === true) && resI.msg)") && flat.includes("window.wpStepLog('rowlook v1', 'host', { op: qi.op, fee: !!(qi.work && qi.work.fee > 0) });") && (flat.match(/rowlook v1/g) || []).length === 1);
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */
     {

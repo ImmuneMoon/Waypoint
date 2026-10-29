@@ -162,6 +162,7 @@ Systems, more
 - A Major Wound can do one thing or another by where it lands: give it a
   where formula, or press + Another Major Wound for up to four rows. The
   first whose where holds is what it does.
+- An apply action and a roll's Then can make up to 12 changes, up from 8.
 - A damage roll can be ticked Always a Major Wound, such as a strike that
   always wounds badly: Apply to target on its card then lands it as a Major
   Wound whatever its size.

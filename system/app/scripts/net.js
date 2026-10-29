@@ -7344,13 +7344,14 @@ function handleMessage(msg, conn) {
         if (!campD || !campD.system || !chD) { denyD('missing'); return; }
         var profD = net.roster[conn.peer]; if (chD.npc || !chD.ownerId || !profD || chD.ownerId !== profD.id) { denyD('owner'); return; }
         if (chD.making === 1) { denyD('making'); return; }
-        var rd = Sd.damageStep(campD.system, chD, qd.q, Fd);
+        var rd = Sd.damageStep(campD.system, chD, qd.q, Fd, undefined, { now: Date.now(), inCombat: !!(typeof net.charInCombat === 'function' && net.charInCombat(chD.id)) });   // 1.6.0 (B3): the clock a Major Wound's effect starts by
         if (!rd.ok) { denyD(rd.reason === 'error' ? 'error' : rd.reason === 'missing' ? 'missing' : rd.reason === 'field' ? 'field' : 'value', rd.message); return; }
         chD.values = chD.values || {}; Object.keys(rd.values).forEach(function(k) { chD.values[k] = rd.values[k]; }); chD.updated = Date.now();
         if (Object.keys(rd.values).length) saveRemoteSoon();
         try { conn.send({ type: 'char-ack', rid: qd.rid }); } catch (e) { sendFailed(e); }
         if (Object.keys(rd.values).length) { net.syncCharDelta(qd.charId, rd.values); if (window.wpSheets) window.wpSheets.charChanged(qd.charId); }
         net.damageCard(chD, rd.lines);
+        if (rd.info && rd.info.majorRoll && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(chD, rd.info);   // 1.6.0 (B3): a Major Wound's roll is posted
         // [netcheck:chardamage-end]
     } else if (msg.type === 'trade' && net.role === 'host') {
         // [netcheck:tradebranch-start]
@@ -9239,7 +9240,7 @@ function dueLine(rec) { var D = DC(); return D && D.dueText ? D.dueText(rec) : '
 // (each connection of theirs; the GM's copy then says whose it is to press), else the GM's alone. A whisper: never in the join's history
 net.postDue = function(ch, act, kind, round, toOwner) {
     if (!ch || typeof ch.id !== 'string' || !act || typeof act.id !== 'string') return;
-    var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : kind === 'turnEnd' ? 'turnEnd' : kind === 'cross' ? 'cross' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
+    var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : kind === 'turnEnd' ? 'turnEnd' : kind === 'cross' ? 'cross' : kind === 'major' ? 'major' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
     if (ch.name) rec.as = String(ch.name).slice(0, 60);
     if (!Array.isArray(act.apply)) { rec.roll = 1; if (rec.label === 'Apply') rec.label = String(act.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll'; }   // 1.5.9 (book es/et plan 4b): a roll that is due; its card's button rolls it
     postDue(rec, ch, !!toOwner);

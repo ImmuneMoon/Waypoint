@@ -253,7 +253,7 @@ function cleanDue(rec) {
     if (!rec || typeof rec !== 'object' || typeof rec.id !== 'string' || !ID_RE.test(rec.id)) return null;
     var from = cleanFrom(rec.from); if (!from) return null;
     if (typeof rec.charId !== 'string' || !/^c_[A-Za-z0-9_]{1,24}$/.test(rec.charId) || typeof rec.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(rec.act)) return null;
-    if (rec.why !== 'round' && rec.why !== 'turn' && rec.why !== 'turnEnd' && rec.why !== 'cross') return null;   // 1.6.0: or the end of its turn   // 1.5.9: or a value crossing a step
+    if (rec.why !== 'round' && rec.why !== 'turn' && rec.why !== 'turnEnd' && rec.why !== 'cross' && rec.why !== 'major') return null;   // 1.6.0 (B3): or a Major Wound   // 1.6.0: or the end of its turn   // 1.5.9: or a value crossing a step
     if (!isInt(rec.round) || rec.round < 1 || rec.round > 9999) return null;
     var out = { id: rec.id, from: from, charId: rec.charId, act: rec.act, why: rec.why, round: rec.round, ts: typeof rec.ts === 'number' && isFinite(rec.ts) ? rec.ts : 0 };
     var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
@@ -262,7 +262,7 @@ function cleanDue(rec) {
     if (rec.roll !== undefined) { if (rec.roll !== 1) return null; out.roll = 1; }   // 1.5.9 (book es/et plan 4b): a roll that is due, whose button rolls it
     return out;
 }
-function dueText(rec) { return !rec ? '' : (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + (rec.as ? ' for ' + rec.as : '') + ' is due (' + (rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : 'round ' + rec.round) + ')'; }
+function dueText(rec) { return !rec ? '' : (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + (rec.as ? ' for ' + rec.as : '') + ' is due (' + (rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'major' ? 'a Major Wound' : 'round ' + rec.round) + ')'; }
 // Stage 6 HUD H7: an apply card as one line (a toast, the session log): who, as whom, the action, each change as "FP \u22123 \u2192 0"
 function applyText(rec) {
     if (!rec || !rec.from || !Array.isArray(rec.lines)) return '';

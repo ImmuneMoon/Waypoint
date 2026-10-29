@@ -13528,6 +13528,41 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.5.6 the players\' view of the damage rules keeps the pool, the types by key, label and pool, the location list and the weapons\' lists, and no formula, multiplier, DR key or layer',
             plJ === j({ pool: 'f_hp', locs: { list: 'f_locs' }, types: [{ key: 'cut', label: 'Cutting' }, { key: 'heat', label: 'Heat' }, { key: 'stun', label: 'Stun', pool: 'f_ep' }, { key: 'ion', label: 'Ion', pool: 'f_ep' }, { key: 'pierce', label: 'Piercing' }], weapons: [{ list: 'f_arms' }] })
             && !/HP\.max|Row\.|Hit\.|mult|vital|plus|layers|"dr"/.test(plJ) && j(sysD.combat.damage.types[1]) === j({ key: 'heat', label: 'Heat', mult: 1, plus: ['vsHeat'] }), plJ);
+
+        /* 1.6.0 (the SotMW v2 sort, B3): a Major Wound's threshold reads the hit location as Hit.<name>, and what a Major Wound does (onMajor) */
+        const mkM = (om, major) => { const s = mkD(); s.fields.push({ id: 'f_fx', key: 'Fx', label: 'Effects', kind: 'effects', vis: 'all', edit: 'owner' });
+            s.effects = [{ id: 'e_shock', name: 'Shock', vis: 'all', mods: [] }]; s.rolls = [{ id: 'r_vit', label: 'Stay up', formula: '3d6', vis: 'all' }];
+            s.combat.damage.major = major === undefined ? 'if(Hit.loc = 1, HP.max / 3, HP.max / 2)' : major; if (om !== undefined) s.combat.damage.onMajor = om; return s; };
+        const sM = cleanSystem(mkM({ fx: 'e_shock', roll: 'r_vit' }), { F, gmView: true }), pM = cleanSystem(mkM({ fx: 'e_shock', roll: 'r_vit' }), { F, gmView: false });
+        const mH = DS(sM, chD(), { amt: 6, type: 'cut', loc: 'w_head' }, F, undefined, { now: 5000, inCombat: false }), mB = DS(sM, chD(), { amt: 9, type: 'cut', loc: 'w_body' }, F), mN = DS(sM, chD(), { amt: 6 }, F);
+        check('1.6.0 (B3) a Major Wound\'s threshold reads Hit.<name> of the location struck: a third of HP on the head (4 of 4 a Major Wound), a half on the body (4 of 6 none), and 0 for a Hit. name where no location was struck (6 of 6, by the half)',
+            mH.ok && mH.info.wound === 4 && mH.info.major === true && mB.ok && mB.info.wound === 4 && mB.info.major === false && mN.ok && mN.info.wound === 6 && mN.info.major === true, j([mH.info, mB.info, mN.info]));
+        check('1.6.0 (B3) a Major Wound switches its effect on in the step\'s own values (once per character, its row named from the effect) and names its roll for the caller, said in a line after the Major Wound\'s',
+            j(mH.values.f_fx) === j([{ id: 'x_shock', ref: 'e_shock', on: true }]) && mH.info.majorFx === 'e_shock' && mH.info.majorRoll === 'r_vit' && mH.lines.indexOf('Shock goes on.') === mH.lines.indexOf('A Major Wound.') + 1
+            && !('f_fx' in mB.values) && mB.info.majorRoll === undefined && mB.info.majorFx === undefined, j([mH.values, mH.lines]));
+        const cOn = chD(); cOn.values.f_fx = [{ id: 'x_mine', ref: 'e_shock', on: true }]; const cOff = chD(); cOff.values.f_fx = [{ id: 'x_mine', ref: 'e_shock', on: false }];
+        const mOn = DS(sM, cOn, { amt: 6, type: 'cut', loc: 'w_head' }, F), mOff = DS(sM, cOff, { amt: 6, type: 'cut', loc: 'w_head' }, F);
+        check('1.6.0 (B3) an effect already on is left as it is (nothing written, no line), one switched off is switched back on in its own row',
+            mOn.ok && mOn.info.major && !('f_fx' in mOn.values) && mOn.lines.indexOf('Shock goes on.') < 0 && mOn.info.majorRoll === 'r_vit'
+            && j(mOff.values.f_fx) === j([{ id: 'x_mine', ref: 'e_shock', on: true }]), j([mOn, mOff.values]));
+        const sNoFx = cleanSystem(mkM({ fx: 'e_gone', roll: 'r_gone' }), { F, gmView: true }), mGone = DS(sNoFx, chD(), { amt: 6, type: 'cut', loc: 'w_head' }, F);
+        check('1.6.0 (B3) onMajor is kept only beside a Major Wound formula and in the GM\'s view alone, each id by its pattern; an effect or a roll the system lacks does nothing',
+            j(sM.combat.damage.onMajor) === j({ fx: 'e_shock', roll: 'r_vit' }) && !('onMajor' in pM.combat.damage) && !('onMajor' in cleanSystem(mkM({ fx: 'e_shock' }, ''), { F, gmView: true }).combat.damage)
+            && j(cleanSystem(mkM({ fx: 'nope', roll: 'r_vit', x: 1 }), { F, gmView: true }).combat.damage.onMajor) === j({ roll: 'r_vit' }) && !('onMajor' in cleanSystem(mkM({ fx: 1 }), { F, gmView: true }).combat.damage)
+            && j(sNoFx.combat.damage.onMajor) === j({ fx: 'e_gone', roll: 'r_gone' }) && mGone.ok && mGone.info.major && !('f_fx' in mGone.values) && mGone.info.majorRoll === undefined && j(sysD.combat.damage).indexOf('onMajor') < 0, j([sM.combat.damage.onMajor, pM.combat.damage]));
+        {   /* sheets.js majorFollow, sliced and run for real: the reminder to the wounded character's player, the GM's alone for an NPC or a GM-only roll */
+            const shM = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+            const a0 = shM.indexOf('function majorFollow(c, info) {'), a1 = shM.indexOf('\n}\n', a0) + 3, posts = [];
+            const mf = a0 > 0 ? new Function('net', 'systemOf', 'dmgObj', "'use strict';\n" + shM.slice(a0, a1) + '\nreturn majorFollow;')(() => ({ postDue: (c, r, k, rd, own) => posts.push([c.id, r.id, k, rd, own]) }), () => sM, v => !!v && typeof v === 'object' && !Array.isArray(v)) : null;
+            const okM = mf && mf({ id: 'c_p', ownerId: 'p_a' }, { majorRoll: 'r_vit' }) === true && mf({ id: 'c_n', npc: true, ownerId: 'p_a' }, { majorRoll: 'r_vit' }) && mf({ id: 'c_q' }, { majorRoll: 'r_gone' }) === false && mf({ id: 'c_q' }, {}) === false;
+            check('1.6.0 (B3) sheets.js majorFollow posts the Major Wound\'s roll as a reminder, why major, to the wounded character\'s player where it has one, and to the GM alone for an NPC; nothing for a roll the system lacks or a blow with none',
+                okM && j(posts) === j([['c_p', 'r_vit', 'major', 1, true], ['c_n', 'r_vit', 'major', 1, false]]), j(posts));
+            const callers = ['\n    majorFollow(c, r.info);\n'].every(s => shM.includes(s)) && shM.includes('dmgFxo(cN)) : null;') && shM.includes('tokenCtxFor(charId, camp), dmgFxo(c));');
+            const wbM = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8'), ntM = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'latin1');
+            check('1.6.0 (B3) every place a blow goes through the damage step hands it the clock and posts the Major Wound\'s roll: the GM\'s press and its preview, the blast pass twice, the host\'s char-damage branch',
+                callers && (wbM.split('window.wpSheets.majorFollow(ch, st.info)').length - 1) === 2 && (wbM.split('S.damageStep(sys, ch, q, F, undefined, {').length - 1) === 2
+                && ntM.includes('window.wpSheets.majorFollow(chD, rd.info)') && ntM.includes("Sd.damageStep(campD.system, chD, qd.q, Fd, undefined, { now: Date.now()") && ntM.includes("kind === 'major' ? 'major'"), '');
+        }
         const CCD = S.cleanCharDamage, okM = { rid: 'r1', charId: 'c_1', amt: 5.7 };
         const refD = [Object.assign({}, okM, { rid: 'bad rid!' }), Object.assign({}, okM, { charId: 'x' }), Object.assign({}, okM, { amt: -1 }), Object.assign({}, okM, { amt: 1000001 }), Object.assign({}, okM, { amt: '5' }), Object.assign({}, okM, { amt: NaN }),
             Object.assign({}, okM, { dtype: '9x' }), Object.assign({}, okM, { dtype: 5 }), Object.assign({}, okM, { loc: 'bad id' }), Object.assign({}, okM, { ad: 0.05 }), Object.assign({}, okM, { ad: 101 }), Object.assign({}, okM, { ad: '2' }), Object.assign({}, okM, { weapon: 7 }), null, 'x', []].map(CCD);

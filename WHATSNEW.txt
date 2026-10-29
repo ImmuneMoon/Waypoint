@@ -39,6 +39,9 @@ Systems, more
   one of the row's own stats, such as Slots. One more is refused.
 - Row.made reads 1 for a row added while its character was being made, so a
   cost can count only what was bought at creation.
+- A Major Wound's threshold may read the location hit, as Hit.<name>. A
+  Major Wound can switch an effect on and ask the wounded character's player
+  for a roll, set in the Combat card's Taking damage box.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

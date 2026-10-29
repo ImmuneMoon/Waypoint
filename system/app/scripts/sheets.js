@@ -7796,8 +7796,16 @@ function damageBox(box, cm) {
     wrap.appendChild(el('div', 'sys-note', 'How a hit is taken in the Take damage window. It goes through DR at the hit location, comes off a pool, and wears armour and weapons.'));
     var r1 = el('div', 'sys-flags sys-dmgr-top');
     dbxCap(r1, 'Wounds come off'); r1.appendChild(select('sys-dmgr-pool', dbxOpts(['', 'The pool Full auto damage comes off'], pools, d.pool), dbxStr(d.pool), 'The pool a wound comes off. Unset, the one Full auto damage is taken from'));
-    dbxCap(r1, 'Major Wound at'); var mj = input('sys-dmgr-major field', dbxStr(d.major), 'A wound this large or larger in one blow is a Major Wound. No dice', 'e.g. HP.max / 2'); mj.maxLength = LIMITS.formula; r1.appendChild(mj);
+    dbxCap(r1, 'Major Wound at'); var mj = input('sys-dmgr-major field', dbxStr(d.major), 'A wound this large or larger in one blow is a Major Wound. No dice. It may read the hit location as Hit. and a name, 0 where no location was struck', 'e.g. HP.max / 2'); mj.maxLength = LIMITS.formula; r1.appendChild(mj);
     wrap.appendChild(r1);
+    {   // 1.6.0 (B3): what a Major Wound does (kept by Save only beside its formula)
+        var om = dbxObj(d.onMajor) ? d.onMajor : {}, rM = el('div', 'sys-flags sys-dmgr-onmajor');
+        var fxs = (draft.effects || []).filter(function(e) { return dbxObj(e) && typeof e.id === 'string'; }).map(function(e) { return [e.id, e.name || e.id]; });
+        var rls = (draft.rolls || []).filter(function(r) { return dbxObj(r) && typeof r.id === 'string'; }).map(function(r) { return [r.id, String(r.label || r.id).split('{')[0].trim() || r.id]; });
+        dbxCap(rM, 'A Major Wound switches on'); rM.appendChild(select('sys-dmgr-mjfx', dbxOpts(['', 'No effect'], fxs, om.fx), dbxStr(om.fx), 'An effect of the library a Major Wound switches on, as an apply action does'));
+        dbxCap(rM, 'and asks for'); rM.appendChild(select('sys-dmgr-mjroll', dbxOpts(['', 'No roll'], rls, om.roll), dbxStr(om.roll), 'A roll of the system posted as a reminder to the wounded character\'s player, such as a roll to stay up'));
+        wrap.appendChild(rM);
+    }
     var lc = dbxObj(d.locs) ? d.locs : {}, r2 = el('div', 'sys-flags sys-dmgr-locs'), lkeys = dbxKeys(lc.list, false);
     dbxCap(r2, 'Hit locations'); r2.appendChild(select('sys-dmgr-loclist', dbxOpts(['', 'None'], lists, lc.list), dbxStr(lc.list), 'The item list whose rows are the places a hit can land'));
     if (lc.list) {
@@ -7892,6 +7900,7 @@ function onDamageChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-dmgr-') < 0) return false;
     var v = typeof t.value === 'string' ? t.value : '', on = t.checked === true, redraw = false;
     if (dbxHas(c, 'sys-dmgr-pool')) { dbxSet(dbxDraft(), 'pool', v); dbxTidy(); }
+    else if (dbxHas(c, 'sys-dmgr-mjfx') || dbxHas(c, 'sys-dmgr-mjroll')) { var dJ = dbxDraft(), oJ = dbxObj(dJ.onMajor) ? dJ.onMajor : {}; dbxSet(oJ, dbxHas(c, 'sys-dmgr-mjfx') ? 'fx' : 'roll', v); if (Object.keys(oJ).length) dJ.onMajor = oJ; else delete dJ.onMajor; }   // 1.6.0 (B3)
     else if (dbxHas(c, 'sys-dmgr-loclist')) {   // another list: its DR, its cripple key and every type's typed DR belonged to the old one
         var d = dbxDraft(), was = dbxObj(d.locs) ? d.locs : {};
         if (!v) delete d.locs; else if (was.list !== v) { d.locs = { list: v }; if (was.vital) d.locs.vital = was.vital; (Array.isArray(d.types) ? d.types : []).forEach(function(y) { if (dbxObj(y)) delete y.plus; }); }
@@ -7947,6 +7956,11 @@ function damageSays(d, sys, Fx) {
     if (any && !cleanDamageRules(d, kinds, res, fl, false)) say('Taking damage: Save keeps these rules only with a pool, a damage type or hit locations, so it drops them.');
     if (typeof d.pool === 'string' && d.pool && !piece({ pool: d.pool }).pool) say('Wounds come off: that pool is gone, so Save drops it.');
     if (typeof d.major === 'string' && d.major.trim()) { if (!piece({ major: d.major }).major) say('Major Wound: the formula is too long or not on one line, so Save drops it.'); else reads(d.major, 'Major Wound'); }
+    if (dbxObj(d.onMajor)) {   // 1.6.0 (B3): kept only beside the formula; an effect or a roll that is gone does nothing
+        if ((d.onMajor.fx || d.onMajor.roll) && !(typeof d.major === 'string' && d.major.trim())) say('A Major Wound switches on and asks for: Save keeps them only with a Major Wound formula, so it drops them.');
+        if (typeof d.onMajor.fx === 'string' && d.onMajor.fx && !(Array.isArray(sys.effects) ? sys.effects : []).some(function(e) { return dbxObj(e) && e.id === d.onMajor.fx; })) warn('A Major Wound switches on: that effect is gone, so it switches nothing on.');
+        if (typeof d.onMajor.roll === 'string' && d.onMajor.roll && !(Array.isArray(sys.rolls) ? sys.rolls : []).some(function(r) { return dbxObj(r) && r.id === d.onMajor.roll; })) warn('A Major Wound asks for: that roll is gone, so it asks for nothing.');
+    }
     var lk = null;
     if (dbxObj(d.locs) && d.locs.list) {
         lk = piece({ locs: d.locs }).locs || null;
@@ -9480,7 +9494,7 @@ function takeDamage(charId, pre) {
         while (prev.firstChild) prev.removeChild(prev.firstChild);
         var q = inp(); if (amt.value === '' || !(q.amt >= 0)) { prev.appendChild(el('div', 'dmg-hint', 'Type the damage.')); return; }
         if (isClient()) { prev.appendChild(el('div', 'dmg-hint', 'The GM\u2019s app works it out when you press Apply.')); return; }
-        var cN = charById(charId, getActiveCampaign()), r = cN ? SCd.damageStep(sys, cN, q, F(), tokenCtxFor(charId)) : null;
+        var cN = charById(charId, getActiveCampaign()), r = cN ? SCd.damageStep(sys, cN, q, F(), tokenCtxFor(charId), dmgFxo(cN)) : null;
         if (!r || !r.ok) { prev.appendChild(el('div', 'dmg-hint', dmgWhy(r))); return; }
         r.lines.forEach(function(l) { prev.appendChild(el('div', 'dmg-pl', l)); });
     };
@@ -9503,7 +9517,7 @@ function dmgApply(charId, q) {
     var n = net(), camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp), SCd = window.wpSystemCore; if (!c || !sys || !SCd) return false;
     if (isClient()) { var a = n && typeof n.charDamage === 'function' ? n.charDamage(charId, q) : { error: 'Not at a table.' }; if (a && a.error) { toast(a.error); return false; } return true; }
     if (!canWrite()) return false;
-    var r = SCd.damageStep(sys, c, q, F(), tokenCtxFor(charId, camp)); if (!r.ok) { toast(dmgWhy(r)); return false; }
+    var r = SCd.damageStep(sys, c, q, F(), tokenCtxFor(charId, camp), dmgFxo(c)); if (!r.ok) { toast(dmgWhy(r)); return false; }
     var ids = Object.keys(r.values);
     if (ids.length) {
         var prevs = {}, extra = null;
@@ -9514,7 +9528,17 @@ function dmgApply(charId, q) {
         afterCharChange(c, false, r.values);
     }
     if (n && typeof n.damageCard === 'function') n.damageCard(c, r.lines);
+    majorFollow(c, r.info);
     return true;
+}
+// 1.6.0 (B3): the clock an effect a Major Wound switches on starts its timer by, as an apply action's (this machine's time, and whether the
+// character is in a fight); and a Major Wound's roll posted as a reminder (net.postDue, why 'major'): to the wounded character's player where it
+// has one and the roll is not the GM's, else to the GM alone. The host's char-damage branch and the blast pass ask it too, through wpSheets
+function dmgFxo(c) { var n = net(); return { now: Date.now(), inCombat: !!(c && n && typeof n.charInCombat === 'function' && n.charInCombat(c.id)) }; }
+function majorFollow(c, info) {
+    var n = net(), sys = systemOf(); if (!c || !dmgObj(info) || typeof info.majorRoll !== 'string' || !sys || !n || typeof n.postDue !== 'function') return false;
+    var r = (Array.isArray(sys.rolls) ? sys.rolls : []).find(function(x) { return dmgObj(x) && x.id === info.majorRoll; }); if (!r) return false;
+    n.postDue(c, r, 'major', 1, !c.npc && !!c.ownerId && r.vis !== 'gm'); return true;
 }
 // A damage roll's card: its total on the character its roller targets, else on the one character token selected here
 function damageFromRoll(fromId, total, done, type) {   // 1.5.7: done, called once the window applies it; type, the damage type the roll names
@@ -9527,7 +9551,7 @@ function damageFromRoll(fromId, total, done, type) {   // 1.5.7: done, called on
 }
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
 // [systemcheck:dmgwin-end]
-window.wpSheets = { bellNote: bellNote, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, majorFollow: majorFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

@@ -1276,7 +1276,11 @@ function rowTimers(sys, char, secs, perOf, F) {   // F (1.6.0): the formula engi
 // 1.5.6, the damage step (the owner, 2026-10-24: "taking damage and running down HP and running through anything that provides DR first, DR
 // degradation and DUR degradation. all of this generalized for waypoint"): camp.system.combat.damage, absent when a system takes no damage by it.
 //   pool    the resource a wound comes off (the Combat card's hpResource where none is named)
-//   major   a formula: a wound at or above it, in one blow, is a Major Wound ('' none)
+//   major   a formula: a wound at or above it, in one blow, is a Major Wound ('' none). 1.6.0 (the SotMW v2 sort, B3): it reads the hit location's
+//           own names as Hit.<name> beside the character's (0 where no location was struck), so a threshold may be a third on the head
+//   onMajor { fx, roll }, only beside major and in the GM's view alone: what a Major Wound does. fx, a library effect switched on (as an apply
+//           action switches one: once per character, its timer); roll, a system roll whose reminder is posted to the wounded character's
+//           player (a Vitality roll). An id that is no effect or roll of the system does nothing
 //   locs    { list, dr, crip, vital, mult }: the list of hit locations, the column or stat that is a location's DR, the column or stat at which a wound there
 //           may cripple it, a formula of the location's own names (Row.) that is true at a vital location, and a formula of the location's names and the
 //           character's that is the location's own multiplier for a wound to the main pool, whatever the type (0: none; the skull's x4, a droid's head x2)
@@ -1306,6 +1310,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
     var fx = function(s) { return pl ? '' : cleanFormulaText(s) || ''; };
     var out = {}; if (isPool(d.pool)) out.pool = d.pool;
     var mj = fx(d.major); if (mj) out.major = mj;
+    if (mj && !pl && isObj(d.onMajor)) { var om = {}; if (typeof d.onMajor.fx === 'string' && EFFECT_ID.test(d.onMajor.fx)) om.fx = d.onMajor.fx; if (typeof d.onMajor.roll === 'string' && ROLL_ID.test(d.onMajor.roll)) om.roll = d.onMajor.roll; if (om.fx || om.roll) out.onMajor = om; }
     if (isObj(d.locs) && isList(d.locs.list)) {
         var lc = { list: d.locs.list };
         if (!pl) { var dr = dmgNameOk(fl, lc.list, d.locs.dr); if (dr) lc.dr = dr; var cr = dmgNameOk(fl, lc.list, d.locs.crip); if (cr) lc.crip = cr; var vt = fx(d.locs.vital); if (vt) lc.vital = vt; var lm = fx(d.locs.mult); if (lm) lc.mult = lm; }
@@ -1359,7 +1364,26 @@ function dmgRowPut(row, key, v) {   // a row's own stat: a library or system row
     var held = Array.isArray(row.ov.held) ? row.ov.held : []; if (!held.some(function(h) { return lower(h) === lower(key); })) held.push(key); row.ov.held = held;
 }
 var DMG_CONDS = ['Fine', 'Damaged', 'Broken', 'Destroyed'];
-function damageStep(sys, char, inp, F, ropts) {
+// 1.6.0 (B3): what a Major Wound does, into the step's own values and lines: its effect switched on through applyEffectOp (with the values the
+// blow has written so far, so a pool the effect brings down is brought down from the wounded figure), and its roll named in info.majorRoll for
+// the caller to post (wpSheets.majorFollow). Nothing where the system has no such effect or roll, or the effect is already on
+function dmgOnMajor(sys, char, om, values, lines, info, F, fxo) {
+    if (!isObj(om)) return;
+    if (typeof om.roll === 'string' && (Array.isArray(sys.rolls) ? sys.rolls : []).some(function(r) { return isObj(r) && r.id === om.roll; })) info.majorRoll = om.roll;
+    if (typeof om.fx !== 'string') return;
+    var def = null; (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(e) { if (!def && isObj(e) && e.id === om.fx) def = e; }); if (!def) return;
+    var wk = Object.assign({}, char, { values: Object.assign({}, char.values || {}, values) }), fxF = null, fxRow = null;
+    var fxs = sys.fields.filter(function(x) { return isObj(x) && x.kind === 'effects' && typeof x.id === 'string'; });
+    fxs.forEach(function(x) { (Array.isArray(wk.values[x.id]) ? wk.values[x.id] : []).forEach(function(r0) { if (!fxRow && isObj(r0) && r0.ref === def.id) { fxRow = r0; fxF = x; } }); });
+    if (!fxF) fxF = fxs[0] || null; if (!fxF || (fxRow && fxRow.on !== false)) return;
+    var rows = Array.isArray(wk.values[fxF.id]) ? wk.values[fxF.id] : [], rid = fxRow && typeof fxRow.id === 'string' ? fxRow.id : '';
+    if (!rid) { var bse = ('x_' + def.id.slice(2)).slice(0, 20), n = 0; rid = bse; while (rows.some(function(r0) { return isObj(r0) && r0.id === rid; })) rid = bse + '_' + (++n); }
+    var eo = applyEffectOp(sys, wk, fxF.id, { op: 'add', rowId: rid, ref: def.id }, F, { now: isObj(fxo) && typeof fxo.now === 'number' ? fxo.now : 0, inCombat: !!(isObj(fxo) && fxo.inCombat) });
+    if (!eo.ok) return;
+    values[fxF.id] = eo.value; if (isObj(eo.clamp)) Object.keys(eo.clamp).forEach(function(k) { values[k] = eo.clamp[k]; });
+    info.majorFx = def.id; lines.push((def.name || 'An effect') + ' goes on.');
+}
+function damageStep(sys, char, inp, F, ropts, fxo) {   // 1.6.0 (B3): fxo, the clock an effect a Major Wound switches on starts its timer by ({ now, inCombat }, as applyAct's)
     var rules = sys && isObj(sys.combat) && isObj(sys.combat.damage) ? sys.combat.damage : null; if (!rules || !F || !isObj(char)) return { ok: false, reason: 'field' };
     if (!isObj(inp) || typeof inp.amt !== 'number' || !fin(inp.amt) || inp.amt < 0 || inp.amt > DMG_LIM.amt) return { ok: false, reason: 'value' };
     var amt = Math.floor(inp.amt), ad = typeof inp.ad === 'number' && fin(inp.ad) && inp.ad > 0 ? clampNum(inp.ad, 0.1, 100) : 1;
@@ -1374,6 +1398,7 @@ function damageStep(sys, char, inp, F, ropts) {
     var lf = rules.locs ? fieldById(sys, rules.locs.list) : null, lrows = lf && char.values && Array.isArray(char.values[lf.id]) ? char.values[lf.id] : [], lrow = null;
     if (typeof inp.loc === 'string' && inp.loc) { lrows.forEach(function(r) { if (!lrow && rowIdOf(r) === inp.loc) lrow = r; }); if (!lrow) return { ok: false, reason: 'missing' }; }
     var hitV = lrow ? R.row(lf.id, inp.loc) : null, lname = '';
+    var hitR = function(l, text) { if (/^hit\./.test(l)) return hitV ? hitV(l.replace(/^hit\./, 'row.'), text) : 0; return R(l, text); };   // 1.6.0 (B3): the Major Wound's threshold reads Hit.<name> of the location struck
     if (lrow) { var lrd = rowDef(sys, lrow); lname = lrd && lrd.def && typeof lrd.def.name === 'string' ? lrd.def.name : 'the location'; }
     var err = '', get = function(f, row, key) { var v = R.cell(f, row, key); if (v === undefined) v = R.stat(f, row, key); if (isObj(v) && v.error) { err = err || String(v.error.message || 'an error'); return 0; } return num(v); };
     if (!inp.only) {
@@ -1391,7 +1416,7 @@ function damageStep(sys, char, inp, F, ropts) {
             var cur = num(R(pf.key)), mn = typeof pf.min === 'number' ? pf.min : 0, nv = Math.max(mn, cur - wound);
             var ed = applyEdit(sys, char, pf.id, nv, F, { vars: R }); if (!ed.ok) return { ok: false, reason: ed.reason || 'value' };
             values[pf.id] = ed.value;
-            if (pool === (rules.pool || sys.combat.hpResource) && rules.major) { var th = num(ev(rules.major, R)); if (th > 0 && wound >= th) { info.major = true; lines.push('A Major Wound.'); } }
+            if (pool === (rules.pool || sys.combat.hpResource) && rules.major) { var th = num(ev(rules.major, hitR)); if (th > 0 && wound >= th) { info.major = true; lines.push('A Major Wound.'); dmgOnMajor(sys, char, rules.onMajor, values, lines, info, F, fxo); } }
             if (lrow && rules.locs.crip) { var cp = get(lf, lrow, rules.locs.crip); if (cp > 0 && wound > cp) { info.crip = true; lines.push('Enough to cripple ' + lname + '.'); } }
             if (lrow && !noWear) (rules.layers || []).forEach(function(ly) {
                 var f = fieldById(sys, ly.list), src = f && char.values && Array.isArray(char.values[f.id]) ? char.values[f.id] : null; if (!src || !f.list) return;

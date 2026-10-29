@@ -2435,7 +2435,7 @@ function lvlClamp(spec, n) {
 function decOf(v) { for (var d = 0; d < 12; d++) { var s = v * Math.pow(10, d); if (Math.abs(s - Math.round(s)) < 1e-9 * Math.max(1, Math.abs(s))) return d; } return 12; }   // the decimals a number needs (0.25: 2)
 function cleanItemKey(k, F) {   // F4b: '' when it is not a usable key (with the engine: also one a formula can address, L.<key>.lvl)
     if (typeof k !== 'string' || !ITEM_KEY.test(k)) return '';
-    var l = lower(k); if (ROW_WORDS[l] || LIST_WORDS[l] === 1 || RESERVED_SUFFIX[l] || FUNC_NAMES[l] || (k in Object.prototype) || (l in Object.prototype)) return '';   // 1.5.4: never on, max or min (List.max.<name> is the list's highest)
+    var l = lower(k); if ((ROW_WORDS[l] && !ROW_SOFT[l]) || LIST_WORDS[l] === 1 || RESERVED_SUFFIX[l] || FUNC_NAMES[l] || (k in Object.prototype) || (l in Object.prototype)) return '';   // 1.5.4: never on, max or min (List.max.<name> is the list's highest)
     return F && F.parse && !validKey('L.' + k + '.x', F) ? '' : k;
 }
 // Stage 6 look fold (L4): band groups — { id, label }, at most LIMITS.bandGroups, ids once. { list, ids } (ids a prototype-free set).

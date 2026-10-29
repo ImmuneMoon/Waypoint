@@ -16501,6 +16501,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const gO = cleanSystem(rawO, { F, gmView: true }), cO = S.cleanChar({ id: 'c_mo', name: 'Kael', values: { f_c: [{ id: 'w_a', defId: 'i_up', qty: 1, mk: 1 }] } }, gO, { state: 'host' }), rO = S.resolveAll(gO, cO, F, null).f_c;
         const ownOk = gO.fields[0].list.stats.some(s => s.key === 'Made') && rO.cells.w_a[0].value === 7 && S.validateSystem(gO, F).errors.length === 0 && gO.fields[0].list.stats.length === 2;
         check('1.6.0 (v2, B5) additive (the owner: "we arent removing usable features"): a list that keys a stat Made keeps it, and its formulas read that stat under the name, Row.made reading the mark only in a list with no such key', ownOk, J([gO.fields[0].list.stats, rO.cells]));
+        check('1.6.0 (v2, B5) additive: an item or library entry keyed Made keeps its key (cleanItemKey passes over a soft row word, as statKey does); a hard row word still refused',
+            S.cleanItemKey('Made', F) === 'Made' && S.cleanItemKey('made') === 'made' && S.cleanItemKey('Count', F) === '' && S.cleanItemKey('Qty') === '', j([S.cleanItemKey('Made', F), S.cleanItemKey('Count', F)]));
         check('1.6.0 (v2, B5) Row.made: a row added, or made the character\'s own, while its character is in the making is marked mk: 1 by applyRowOp from the character as the host holds it, never from a message (the wire keeps no mk); the cleaner keeps it, a column reads Row.made as 1 or 0, the validator knows the name',
             madeOk && resOk, J([madeOk, resOk, cR.values.f_c]));
     }

@@ -60,8 +60,8 @@ Hidden pieces
 Pages on the map
 - A map can have a scene page: the planner or handbook page you want at
   hand there. Select nothing, open Properties at the right edge of the
-  play map and pick it under Scene page. Press P on the play map and it
-  opens over the map. The map's right-click menu has it too, and so
+  play map and pick it under Scene page. Press Shift+P on the play map
+  and it opens over the map. The map's right-click menu has it too, and so
   does the Pages shelf. It is yours alone: players never get it.
 - A map pin can open its page at one part of it: a heading, a scene node
   or a titled table. Pick it under Opens at, beside Opens page.

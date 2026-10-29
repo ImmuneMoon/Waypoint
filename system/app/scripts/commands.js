@@ -80,11 +80,24 @@ function lastAct() {
 }
 var CMD_LAST = { id: 'map.last', name: 'Last map', does: 'Go back to the map you were on before.', also: ['previous', 'recent', 'back'], icon: '\u21A9\uFE0F', key: 'KeyQ',
     can: lastCan, run: function() { var id = lastMapOf(getActiveCampaign(), lastStore()); if (!id || navigateToMap(id) === false) throw new Error('not gone'); }, act: lastAct };
+// The map's scene page (1.6.0, backlog 26; the owner, 2026-10-29: "Map's Properties", and of its key "Pen keeps P", so it is Shift+P): the
+// page a map's Properties names, opened over the map by the one rule (pageshelf.js sceneOpen). The GM's alone: pageshelf.js answers only on
+// the GM's own screen, and a player's app is told so
+function sceneCan() {
+    var PS = window.wpPageShelf, n = window.wpNet;
+    if (n && (n.foreign || (n.active && n.role === 'client'))) return 'Scene pages are the GM’s.';
+    if (!PS || typeof PS.scenePage !== 'function' || typeof PS.sceneOpen !== 'function') return 'Scene pages are not in this window.';
+    if (!cmdPlayMap()) return 'The scene page opens on the play map.';
+    return PS.scenePage() ? true : 'This map has no scene page yet. With nothing selected, open Properties at the right edge and pick one under Scene page.';
+}
+function sceneAct() { var PS = window.wpPageShelf, s = PS && typeof PS.scenePage === 'function' ? PS.scenePage() : null, t = s && typeof s.title === 'string' ? s.title.slice(0, 60) : ''; return t ? 'Enter opens ' + t + ' over the map.' : 'Enter opens the scene page over the map.'; }
+var CMD_SCENE = { id: 'page.scene', name: 'Scene page', does: 'Open this map’s scene page over the map.', also: ['scene', 'map page', 'planner'], icon: '\u{1F3AD}', key: 'Shift+KeyP',
+    can: sceneCan, run: function() { var r = window.wpPageShelf.sceneOpen({}); if (r !== 'panel' && r !== 'window' && r !== 'go') throw new Error('not opened'); }, act: sceneAct };
 function winCan(w) { var b = document.getElementById(w[2]); return b && b.disabled !== true ? true : w[1] + ' is not in this window.'; }
 var COMMANDS = CMD_TOOLS.map(function(t) {
     return { id: t[0], name: t[1], does: t[3], also: t[4], icon: '\u{1F6E0}️', key: t[6] || '', can: function() { return toolCan(t); },
         run: function() { document.getElementById(t[2]).click(); }, act: function() { return toolAct(t); } };   // the tool's own press, as the toolbar's
-}).concat([CMD_LAST], CMD_WINDOWS.map(function(w) {
+}).concat([CMD_LAST, CMD_SCENE], CMD_WINDOWS.map(function(w) {
     return { id: w[0], name: w[1], does: w[3], also: w[4], icon: w[0] === 'open.settings' ? '⚙️' : '❔', key: '', can: function() { return winCan(w); },
         run: function() { document.getElementById(w[2]).click(); }, act: function() { return 'Enter opens ' + w[1] + '.'; } };
 }));

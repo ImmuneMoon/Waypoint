@@ -400,28 +400,15 @@ function scenePageSet(map, id) { return mapPinGm() ? scenePagePut(getActiveCampa
 // The scene page of the map on screen, for the map's right-click menu: its id and its name, or null
 function scenePageNow() { var camp = mapPinGm() ? getActiveCampaign() : null, map = camp ? getActiveMap() : null, it = camp && map ? scenePageOf(camp, map) : null; return it ? { id: map.meta.scenePage, title: pageTitle(it) } : null; }
 var SCENE_NONE = 'This map has no scene page yet. With nothing selected, open Properties at the right edge and pick one under Scene page.';
-// P on the play map opens the scene page of the map on screen by the one rule. Says how it opened (openPage's answer), 'none' where the
-// map names no page, or '' where it is not this screen's to open
+// The scene page of the map on screen opened by the one rule: commands.js's Scene page runs it (its key, Shift+P, the owner's ruling of
+// 2026-10-29: "Pen keeps P"; any key of your own in Settings, Keys; and the quick jump). Says how it opened (openPage's answer), 'none'
+// where the map names no page, or '' where it is not this screen's to open
 function sceneOpen(ev) {
     if (!mapPinGm() || viewNow() !== 'play') return '';
     var camp = getActiveCampaign(), map = getActiveMap(), it = camp && map ? scenePageOf(camp, map) : null;
     if (!it) { toast(SCENE_NONE); return 'none'; }
     return openPage(map.meta.scenePage, pageWay('play', ev));
 }
-// Whether a key press is P for the scene page: P alone or with Shift, never held, never typed into a field, never under a window of the
-// app's own (a dialog, a question or the tour) and never a shortcut of another key
-function sceneKeyIs(e, doc) {
-    if (!e || (e.key !== 'p' && e.key !== 'P') || e.ctrlKey || e.metaKey || e.altKey || e.repeat === true || e.defaultPrevented === true) return false;
-    var t = e.target; if (t && ((t.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) || t.isContentEditable === true)) return false;
-    var d = doc || null; if (!d) return true;
-    if (d.body && d.body.classList && d.body.classList.contains('tour-on')) return false;
-    var up = function(el) { return !!el && typeof el.getClientRects === 'function' && el.getClientRects().length > 0; };
-    if (up(d.getElementById('customConfirm')) || up(d.getElementById('customPrompt'))) return false;
-    var wins = typeof d.querySelectorAll === 'function' ? d.querySelectorAll('[id$="Modal"]') : [];
-    for (var i = 0; i < wins.length; i++) if (up(wins[i])) return false;
-    return true;
-}
-function sceneKey(e) { if (!sceneKeyIs(e, document) || !mapPinGm() || viewNow() !== 'play') return; e.preventDefault(); sceneOpen(e); }
 // [shelfcheck:scene-end]
 
 /* ---------- the shelf on the play map's toolbar ---------- */
@@ -480,10 +467,9 @@ function shelfWire() {
 window.wpPageShelf = { way: pageWay, wayNow: function(ev) { return pageWay(viewNow(), ev); }, open: openPage, isPinned: isPinned, pinLabel: pinLabel, pin: pinPage, opened: pageOpened, noteActive: noteActive, close: shelfClose, mapPin: mapPin, mapPinField: mapPinField, mapPinSet: mapPinSet,
     linkGo: linkGo, linkChoices: function() { return linkChoices(getActiveCampaign()); }, linkWords: function(id, at) { return linkWords(getActiveCampaign(), id, at); } };
 shelfWire();
-// 1.6.0, a map's scene page: what Properties and the map's right-click menu ask, and P on the play map
+// 1.6.0, a map's scene page: what Properties, the map's right-click menu and the Scene page command (commands.js) ask
 window.wpPageShelf.scenePageField = scenePageField; window.wpPageShelf.scenePageSet = scenePageSet; window.wpPageShelf.sceneOpen = sceneOpen; window.wpPageShelf.scenePage = scenePageNow;
 // 1.6.0, a pin to one part of its page
 window.wpPageShelf.mapPinAtSet = mapPinAtSet;
 // 1.6.0, the hover preview of a pin
 window.wpPageShelf.mapPinPeek = mapPinPeek;
-document.addEventListener('keydown', sceneKey);

@@ -2157,12 +2157,12 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       var PS = window.wpPageShelf, f = PS && typeof PS.scenePageField === 'function' ? PS.scenePageField(map) : null; if (!f) return '';
       var opt = function(c) { return '<option value="' + esc(c.id) + '"' + (c.id === f.cur ? ' selected' : '') + '>' + esc(c.title) + '</option>'; };
       var grp = function(label, kind) { var l = f.choices.filter(function(c) { return c.kind === kind; }); return l.length ? '<optgroup label="' + label + '">' + l.map(opt).join('') + '</optgroup>' : ''; };
-      return '<div class="divider"></div><div class="field"><label for="mapScenePage" title="The page for this map: press P on the play map and it opens over the map. Yours alone: players never get it.">&#127917; Scene page</label><select id="mapScenePage"><option value="">None</option>' + grp('Planners', 'planner') + grp('Handbook', 'doc') + '</select><div class="muted scene-page-hint">Press <kbd>P</kbd> on this map to open it over the map.</div></div>';
+      return '<div class="divider"></div><div class="field"><label for="mapScenePage" title="The page for this map: press Shift+P on the play map and it opens over the map. Yours alone: players never get it.">&#127917; Scene page</label><select id="mapScenePage"><option value="">None</option>' + grp('Planners', 'planner') + grp('Handbook', 'doc') + '</select><div class="muted scene-page-hint">Press <kbd>Shift</kbd>+<kbd>P</kbd> on this map to open it over the map.</div></div>';
   }
   function setMapScenePage(map, id) {
       var PS = window.wpPageShelf, did = PS && typeof PS.scenePageSet === 'function' ? PS.scenePageSet(map, id) : ''; if (!did) return;
       save(); render();
-      toast(did === 'set' ? 'P opens this page over the map now. It is yours alone.' : 'This map has no scene page now.');
+      toast(did === 'set' ? 'Shift+P opens this page over the map now. It is yours alone.' : 'This map has no scene page now.');
   }
   // [shelfcheck:scenebox-end]
   // [sinkcheck:portallockbox-start]

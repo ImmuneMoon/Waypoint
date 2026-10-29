@@ -1370,7 +1370,11 @@ function rowTimers(sys, char, secs, perOf, F) {   // F (1.6.0): the formula engi
 //           and locs, a number stat of the location list: where that roll fails, the location struck gets how far it failed, at least 1
 //           (the owner, by prompt: "How far it failed"), so a formula reads 1 or more as crippled and 5 or more as severed. cripBy, beside
 //           crip (the core's ruling: a natural 18 severs, whatever the margin): a formula of Margin (how far it failed), Natural (the roll's
-//           bare total) and Blow.<name>, no dice, whose whole number is written instead; 0 or below writes nothing. An onWound row's the same
+//           bare total) and Blow.<name>, no dice, whose whole number is written instead; 0 or below writes nothing. An onWound row's the same.
+//           1.6.0 (asked by a system build): onMajor may carry if, a formula read as an onWound row's is (the character's names, Hit.<name>
+//           and Blow.<name>): it does something only where that holds. Or onMajor may be a list of up to 4 such rows { if, fx, roll, crip,
+//           cripBy }, and the first whose if holds (absent: holds) is what a Major Wound does (majPick, the one judge). A single onMajor with no
+//           if reads exactly as before
 //   onWound 1.6.0 (the core's gap 6): [{ if, fx, roll, crip }], at most 4, in the GM's view alone: what any wound does, each where its formula
 //           holds (absent: every wound), as onMajor does for a Major Wound. if reads the character's names, Hit.<name> (the location struck,
 //           0 where none) and Blow.dmg, Blow.through, Blow.wound, Blow.type and Blow.cuts. Each entry needs an effect or a roll.
@@ -1421,7 +1425,7 @@ function layerStep(ly, major, listed, worn, ev, both, blow, cap) {
     if (typeof wf !== 'string' || !wf) return base;
     var v = ev(wf, layerVars(listed, worn, blow, both, cap)); return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.floor(v) : base;
 }
-var DMG_LIM = Object.freeze({ types: 24, layers: 8, weapons: 4, plus: 8, mult: 10, amt: 1000000, wears: 8, dice: 100, onWound: 4 });   // onWound (1.6.0, the core's gap 6)
+var DMG_LIM = Object.freeze({ types: 24, layers: 8, weapons: 4, plus: 8, mult: 10, amt: 1000000, wears: 8, dice: 100, onWound: 4, onMajor: 4 });   // onWound (1.6.0, the core's gap 6); onMajor's rows (1.6.0)
 function dmgStatOk(fl, listId, key) {   // a number stat of that list, value names or not (a stat its rows may hold as their own), never a pick
     var f = fl ? fl(listId) : null, sp = f && isObj(f.list) ? f.list : null; if (!sp || typeof key !== 'string' || !STAT_KEY.test(key)) return '';
     var hit = ''; (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(s) { if (!hit && isObj(s) && lower(s.key) === lower(key) && s.kind !== 'pick') hit = s.key; });
@@ -1445,13 +1449,22 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
     var fx = function(s) { return pl ? '' : cleanFormulaText(s) || ''; };
     var out = {}; if (isPool(d.pool)) out.pool = d.pool;
     var mj = fx(d.major); if (mj) out.major = mj;
-    if (mj && !pl && isObj(d.onMajor)) { var om = {}; if (typeof d.onMajor.fx === 'string' && EFFECT_ID.test(d.onMajor.fx)) om.fx = d.onMajor.fx; if (typeof d.onMajor.roll === 'string' && ROLL_ID.test(d.onMajor.roll)) om.roll = d.onMajor.roll; if (om.fx || om.roll) out.onMajor = om; }
+    if (mj && !pl && isObj(d.onMajor) && !Array.isArray(d.onMajor)) { var om = {}, omIf = cleanFormulaText(d.onMajor.if); if (omIf) om.if = omIf; if (typeof d.onMajor.fx === 'string' && EFFECT_ID.test(d.onMajor.fx)) om.fx = d.onMajor.fx; if (typeof d.onMajor.roll === 'string' && ROLL_ID.test(d.onMajor.roll)) om.roll = d.onMajor.roll; if (om.fx || om.roll) out.onMajor = om; }
     if (isObj(d.locs) && isList(d.locs.list)) {
         var lc = { list: d.locs.list };
         if (!pl) { var dr = dmgNameOk(fl, lc.list, d.locs.dr); if (dr) lc.dr = dr; var cr = dmgNameOk(fl, lc.list, d.locs.crip); if (cr) lc.crip = cr; var vt = fx(d.locs.vital); if (vt) lc.vital = vt; var lm = fx(d.locs.mult); if (lm) lc.mult = lm; var ldi = fx(d.locs.die); if (ldi) lc.die = ldi; }
         out.locs = lc;
     }
-    if (out.onMajor && out.onMajor.roll && out.locs) { var omc = dmgStatOk(fl, out.locs.list, d.onMajor.crip); if (omc) { out.onMajor.crip = omc; var omb = cleanFormulaText(d.onMajor.cripBy); if (omb) out.onMajor.cripBy = omb; } }   // 1.6.0 (the core's gap 7): the location its roll's failure cripples, and by how much
+    if (mj && !pl && Array.isArray(d.onMajor)) {   // 1.6.0: a list of rows, the first that holds is what a Major Wound does
+        var oms = []; d.onMajor.forEach(function(w) {
+            if (oms.length >= DMG_LIM.onMajor || !isObj(w)) return;
+            var mw = {}, mif = cleanFormulaText(w.if); if (mif) mw.if = mif;
+            if (typeof w.fx === 'string' && EFFECT_ID.test(w.fx)) mw.fx = w.fx;
+            if (typeof w.roll === 'string' && ROLL_ID.test(w.roll)) { mw.roll = w.roll; if (out.locs) { var mwc = dmgStatOk(fl, out.locs.list, w.crip); if (mwc) { mw.crip = mwc; var mwb = cleanFormulaText(w.cripBy); if (mwb) mw.cripBy = mwb; } } }
+            if (mw.fx || mw.roll) oms.push(mw);
+        }); if (oms.length) out.onMajor = oms;
+    }
+    if (out.onMajor && !Array.isArray(out.onMajor) && out.onMajor.roll && out.locs) { var omc = dmgStatOk(fl, out.locs.list, d.onMajor.crip); if (omc) { out.onMajor.crip = omc; var omb = cleanFormulaText(d.onMajor.cripBy); if (omb) out.onMajor.cripBy = omb; } }   // 1.6.0 (the core's gap 7): the location its roll's failure cripples, and by how much
     if (!pl && Array.isArray(d.onWound)) {   // 1.6.0 (the core's gap 6): what any wound does
         var ows = []; d.onWound.forEach(function(w) {
             if (ows.length >= DMG_LIM.onWound || !isObj(w)) return;
@@ -1516,6 +1529,13 @@ function dmgRowPut(row, key, v) {   // a row's own stat: a library or system row
     var held = Array.isArray(row.ov.held) ? row.ov.held : []; if (!held.some(function(h) { return lower(h) === lower(key); })) held.push(key); row.ov.held = held;
 }
 var DMG_CONDS = ['Fine', 'Damaged', 'Broken', 'Destroyed'];
+// 1.6.0: which of onMajor's rows a Major Wound does, the one judge: a single onMajor where its if holds (absent: holds), else the first row of a
+// list whose if holds; null for none. ev(text, vars) works a formula out, vars reads the blow and the location hit as an onWound row's does
+function majPick(om, ev, vars) {
+    var holds = function(w) { if (!isObj(w)) return false; if (typeof w.if !== 'string' || !w.if) return true; var v = ev(w.if, vars); return v === true || (typeof v === 'number' && fin(v) && v !== 0); };
+    if (Array.isArray(om)) { for (var i = 0; i < om.length && i < DMG_LIM.onMajor; i++) if (holds(om[i])) return om[i]; return null; }
+    return isObj(om) && holds(om) ? om : null;
+}
 // 1.6.0 (B3): what a Major Wound does, into the step's own values and lines: its effect switched on through applyEffectOp (with the values the
 // blow has written so far, so a pool the effect brings down is brought down from the wounded figure), and its roll named in info.majorRoll for
 // the caller to post (wpSheets.majorFollow). Nothing where the system has no such effect or roll, or the effect is already on
@@ -1640,12 +1660,13 @@ function damageStep(sys, char, inp, F, ropts, fxo) {   // 1.6.0 (B3): fxo, the c
                 var spHid = spD.steps.length ? gmPools(sys, F) : null;   // a GM-only pool is never named in the lines, which reach the wounded character's player
                 spD.steps.forEach(function(s) { values[s.f] = s.value; var sf = fieldById(sys, s.f); if (sf && sf.vis !== 'gm' && spHid[s.f] !== 1) lines.push(s.amt + ' spill' + (s.amt === 1 ? 's' : '') + ' into ' + s.label + '.'); (info.spill = info.spill || []).push({ f: s.f, amt: s.amt }); });
             }
-            if (pool === (rules.pool || sys.combat.hpResource) && rules.major) { var th = num(ev(rules.major, hitR)); if (th > 0 && wound >= th) { info.major = true; lines.push('A Major Wound.'); dmgOnMajor(sys, char, rules.onMajor, values, lines, info, F, fxo); } }
-            var blowF = { dmg: amt, through: through, wound: wound, type: ty ? (rules.types || []).indexOf(ty) + 1 : 0, cuts: !!(ty && ty.cuts === true) }, follows = [];   // 1.6.0 (the core's gaps 6 and 7): the blow, for onWound and the rolls posted
+            var blowF = { dmg: amt, through: through, wound: wound, type: ty ? (rules.types || []).indexOf(ty) + 1 : 0, cuts: !!(ty && ty.cuts === true) }, follows = [];   // 1.6.0 (the core's gaps 6 and 7): the blow, for onWound, onMajor's if and the rolls posted
+            var wR = function(l, text) { if (/^blow\./.test(l)) { var bk = l.slice(5); return BLOW_NAMES[bk] === 1 ? (bk === 'cuts' ? (blowF.cuts ? 1 : 0) : blowF[bk]) : R(l, text); } return hitR(l, text); };
+            var omP = null;
+            if (pool === (rules.pool || sys.combat.hpResource) && rules.major) { var th = num(ev(rules.major, hitR)); if (th > 0 && wound >= th) { info.major = true; lines.push('A Major Wound.'); omP = majPick(rules.onMajor, ev, wR); dmgOnMajor(sys, char, omP, values, lines, info, F, fxo); } }   // 1.6.0: the row of onMajor the blow picks
             var folOf = function(roll, why, o) { var fo = { roll: roll, why: why }; if (o.crip) { fo.crip = o.crip; if (o.cripBy) fo.cripBy = o.cripBy; } return fo; };
-            if (info.majorRoll) follows.push(folOf(info.majorRoll, 'major', rules.onMajor));
+            if (info.majorRoll) follows.push(folOf(info.majorRoll, 'major', omP || {}));
             if (Array.isArray(rules.onWound)) {
-                var wR = function(l, text) { if (/^blow\./.test(l)) { var bk = l.slice(5); return BLOW_NAMES[bk] === 1 ? (bk === 'cuts' ? (blowF.cuts ? 1 : 0) : blowF[bk]) : R(l, text); } return hitR(l, text); };
                 rules.onWound.forEach(function(ow) {
                     if (ow.if && !yes(ev(ow.if, wR))) return;
                     var nR = (info.woundRolls || []).length; dmgOnMajor(sys, char, ow, values, lines, info, F, fxo, true);
@@ -7146,7 +7167,8 @@ function validateSystem(sys, F) {
     function rolledWarn(id, prop, c) { if (!isObj(c) || c.roll !== true || typeof c.formula !== 'string' || !c.formula) return; var rp = F.parse(c.formula); if (rp.ok && !hasDice(rp.ast.body)) warnings.push({ id: id, prop: prop, message: 'Rolled, but this amount rolls no dice, so nothing is rolled.' }); }   // 1.5.9 (book es/et plan, section 0)
     var resistV = false;   // 1.6.0 (B2): the roll being read Resists an attempt, so AttemptMargin is known in it
     var blowV = false, blowRolls = map(), dmgV = isObj(sys.combat) && isObj(sys.combat.damage) ? sys.combat.damage : null, hitF = dmgV && isObj(dmgV.locs) ? fieldById(sys, dmgV.locs.list) : null;   // 1.6.0 (the core's gaps 6 and 7): the system rolls the damage step posts read Blow.<name> and Hit.<name>
-    if (dmgV) { if (isObj(dmgV.onMajor) && typeof dmgV.onMajor.roll === 'string') blowRolls[dmgV.onMajor.roll] = 1; (Array.isArray(dmgV.onWound) ? dmgV.onWound : []).forEach(function(w) { if (isObj(w) && typeof w.roll === 'string') blowRolls[w.roll] = 1; }); }
+    if (dmgV) { (Array.isArray(dmgV.onMajor) ? dmgV.onMajor : [dmgV.onMajor]).forEach(function(w) { if (isObj(w) && typeof w.roll === 'string') blowRolls[w.roll] = 1; });   // 1.6.0: each of onMajor's rows
+        (Array.isArray(dmgV.onWound) ? dmgV.onWound : []).forEach(function(w) { if (isObj(w) && typeof w.roll === 'string') blowRolls[w.roll] = 1; }); }
     var crossV = false;   // 1.6.0: the entry being read runs When a value crosses, so CrossStep and Crossed are known in it (never in its own steps)
     var nearV = false;   // 1.5.9 (book es/et plan, section 3): the entry being read Applies to an adjacent character, so OnSelf is known in it
     function isApplyProp(p) { return typeof p === 'string' && (p.indexOf('apply.') === 0 || p.indexOf('list.apply.') === 0 || p.indexOf('then.') === 0 || p.indexOf('list.then.') === 0); }   // R2b: a list roll's consequence too   // R1: a roll's consequence too   // Stage 6 HUD H7: an apply action's amount (no dice, no loop edge: nothing reads an action)
@@ -8194,4 +8216,4 @@ var API = { blowCripN: blowCripN, BLAST_EACH: BLAST_EACH, withBlow: withBlow, bl
 Object.assign(API, { stationsIn: stationsIn, setCrewSource: setCrewSource, crewFigs: crewFigs, cleanCk: cleanCk, cleanCharStn: cleanCharStn, groupByKey: groupByKey, stationOf: stationOf, crewParts: crewParts, LINK_STATIONS: LINK_STATIONS });   // 1.6.0 (CORE gap 16)
 if (typeof window !== 'undefined') window.wpSystemCore = API;
 export { blowCripN, BLAST_EACH, withBlow, blowCripOf, BLOW_NAMES, RESIST_OR, unheldJudge, GROUP_MAX, rollTargetOf, groupRolls, groupWeakest, dmgAdOf, dmgDiceRead, turnCounters, cleanCharLink, LINK_KINDS, LINK_NOT, cleanLinks, linkByKey, linkBare, setLinkSource, cleanCharLinks, linkNamesIn, linkFigs, cleanLk, linkSet, linkedFrom, linksDrop, withAttempt, bigOf, critRange, cleanTier, grantWaits, cleanGrants, hideGrants, grantWant, grantsKept, GRANT_MAX, rangeBandOf, partsRoom, partsCapSays, PART_CAPS, PART_DEPTH, partDepth, partsTree, partHostOk, partsKept, partsPut, partsSrc, partHost, partsOf, capsAt, droppedWords, setOf, setsOf, statName, placeVal, rollFigOf, rollShowOf, cleanBadges, BADGE_MAX, cleanSheetRev, sheetRevOf, charStale, staleOf, revProposal, cleanAlt, ALT_MAX, againFold, cleanEnv, ENV_BANDS, envBands, envWorst, cleanRollSw, rollSwitchesAll, rollSwitches, swJudge, DATE_NAMES, setDateSource, dateReads, VERSION, overSays, overNames, overSet, onClash, rowTimers, cleanRowTimer, readsOn, cleanRowGone, cleanCross, crossings, crossSteps, postureFx, withOnSelf, tokOnOk, mapYardPx, loadFits, DIE_NAMES, cleanDie, dieOf, rollDie, tradeOfferable, tradeInto, moneyBoxes, moneyHeld, moneyMove, rowOpMoney, ROW_LOOK, WORK_KINDS, WORK_BY, cleanRowLook, rowLookShown, rowLookShade, finishWords, workWords, cleanTradeOffer, tradeApply, TRADE_LINES, cleanDamageRules, damageStep, cleanCharDamage, DMG_CONDS, cleanPlaceCats, catSplits, catHome, catPlace, cleanFieldUnit, metricOf, unitTail, readMeasure, heightWords, MEASURES, measureWords, unitWords, unitHead, listFig, listWords, unitOf, figText, figFmt, weightWords, textWords, measureStore, rollNeedsOk, rollNeedsSays, onGroup, onlyOne, onHeld, cleanNeeds, hideNeeds, needsMet, needsSays, needRule, ruleTrue, setRuleJudge, cleanBudgets, budgetsOf, budgetWatch, budgetSays, cleanDesc, cleanLvls, EVERY_UNITS, cleanEvery, FIGHT_UNITS, cleanInFight, timeRuleRun, ruleRunCtx, needsHeld, chainsShallow, cleanFace, charForView, mapGridOf, tokenCell, shapeStandIn, cleanFrame, openChar, newCharRules, charClash, coreOf, setLibraryFind, statKeys, statPicks, cleanIcon, droppedCounts, parseLasts, lastsSecs, roundSecs, fxLeftNow, fxTick, mapCellScale, moveAllowCells, dueActs, gridCells, cleanTurn, TURN_UNITS, TIME_WORDS, roundActs, combatChars, applyRound, thenChanges, thenCrit, withRollCrit, THEN_WHEN, dmgTypeOf, rollMods, openSync, cleanOpens, showsIf, rowRollNames, applyAct, applyScope, cleanCharApply, APPLY_KINDS, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, cleanNewPlayers, newPlayerRules, waitingTokensOf, waitingNeed, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, plusText, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, libSnaps, carriedBy, cleanItemMods, fieldKinds, unseenMods, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, tokenEffects, autoEffectsOn, tokenOwnEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, postureRangedOf, cleanPostures, postureList, ownPostures, postureAt, postureSeven, stanceCtx, tokenCtx, setAimSource, bearingTo, aimsOf, facingNow, withRound, withCross, rangeCtx, withRange, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, ROUNDS, ROUND_TO, roundBy, roundSays, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, cleanLightRules, lightName, lightPresets, LIGHT_UNITS, cleanRangeRules, rangeModOf, rangeDist, rangeOf, RANGE_UNITS, cleanSenses, secretFieldIds, gmViewFields, coverTier, coverOutcome, coverDamage, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, orderByInit, cleanInitRules, cleanHeightRules, heightModOf, heightOf, HEIGHT_UNITS, initTie, sideFirst, orderBySide, validateSystem, charFor, applyEdit, autoLayout, cleanCharUpload, cleanUploads, fillMaking, applyProposal, statAsk, readerKit, registerReader, dropReader, readers, readerById, readerFor, fmtNum, suggest, lookRule, cleanLooks, applyStyle, cleanCharStyle, lookOf, lookFor, loadSame, loadMax, cleanLd, chamberTakes, chamberFits, chamberCap, chamberHolds, chamberSays, cleanRd, CHAMBER_CAP, thenMargin, onceOf, cleanBlastRules, BLAST_FALL, cleanReach, cleanAffs, affLastsSecs, AFF_UNITS, chosenPicks, chosenNext, BAR_COLORS, BAR_SHOW_WORDS, cleanBars, cleanTokBars, tokenBarSpec, tokenBarFigs, cleanBarFigs, barFill, barTip };
-export { stationsIn, setCrewSource, crewFigs, cleanCk, cleanCharStn, groupByKey, stationOf, crewParts, LINK_STATIONS, crewStation, groupLink, poolLeast };   // 1.6.0 (CORE gap 16)
+export { stationsIn, setCrewSource, crewFigs, cleanCk, cleanCharStn, groupByKey, stationOf, crewParts, LINK_STATIONS, crewStation, groupLink, poolLeast, majPick };   // 1.6.0 (CORE gap 16)

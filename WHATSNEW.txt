@@ -98,6 +98,10 @@ Systems, more
   the Lists tab, and pick the link from the menu under a sheet's head.
   Formulas read Mount.Move, and Mount.has is 1 while linked. A player gets
   only the figures their own sheet reads.
+- A pool can spill into another pool, such as Stamina into Hit Points. Pick
+  Spills into on the pool in the Fields tab, and where it starts: below its
+  least value, below minus its full value, or below a formula. Damage and an
+  action's Subtract spill. A value you type never does.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

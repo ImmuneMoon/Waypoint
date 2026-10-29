@@ -470,6 +470,10 @@ function cleanField(f, F, gmView) {
         var poolIcon = cleanIcon(f.icon); if (poolIcon) out.icon = poolIcon;
         if (f.reset === true) out.reset = true;
         if (f.bar === false) out.bar = false;
+        if (isObj(f.spill) && typeof f.spill.to === 'string' && FIELD_ID.test(f.spill.to) && f.spill.to !== f.id) {   // 1.6.0 Spills into: another pool (cleanSystem keeps it only where that pool is in the view), and from where (spillPast)
+            var spo = { to: f.spill.to }; if (f.spill.at === 'neg') spo.at = 'neg'; else if (f.spill.at === 'f') { var spb = cleanFormulaText(f.spill.below); if (spb) { spo.at = 'f'; spo.below = spb; } }
+            out.spill = spo;
+        }
     }
     if (f.roll !== undefined) { var r = cleanFormulaText(f.roll); if (r) { out.roll = r; var rDie = cleanDie(f.rollDie); if (rDie) out.rollDie = rDie; } }   // 1.5.8: and the die its button wears, where the GM picked one
     if (f.tile === true && (k === 'number' || k === 'formula' || k === 'skill' || k === 'resource')) out.tile = true;   // Stage 3: render this numeric field as a stat tile
@@ -1418,6 +1422,34 @@ function dmgOnMajor(sys, char, om, values, lines, info, F, fxo) {
     values[fxF.id] = eo.value; if (isObj(eo.clamp)) Object.keys(eo.clamp).forEach(function(k) { values[k] = eo.clamp[k]; });
     info.majorFx = def.id; lines.push((def.name || 'An effect') + ' goes on.');
 }
+// 1.6.0 Spills into (the owner, by prompt, 2026-10-29: "The pool's own option", "A pick, with a formula"): a pool's spill, { to, at, below }.
+// What a loss takes it past its spill point goes on into the pool to, and on from that one where it spills too, each pool once. at: absent, its
+// least value; 'neg', minus its full value; 'f', the formula below (the character's names, no dice). The pool's own value stays where its least
+// value holds it. Only a loss spills: the damage step's wound and an apply action's Subtract (its each-round, each-turn and time-rule runs too);
+// a value typed, a Set to, an Add and an effect's clamp never do, and what spills is no wound (no Major Wound, no wear). spillPast: how much of
+// loss goes on, from cur as R read it, or { error }. poolSpill: each pool it reaches, written onto w.values (a working copy, its values as the
+// loss left them): { steps: [{ f, label, amt, v, value }] } or { error }
+function spillPast(pf, cur, loss, R, F) {
+    var sp = isObj(pf) && isObj(pf.spill) ? pf.spill : null; if (!sp || !(loss > 0) || typeof cur !== 'number' || !fin(cur)) return 0;
+    var at = null;
+    if (sp.at === 'neg') { var mx = R(pf.key + '.max'); if (typeof mx === 'number' && fin(mx)) at = -mx; }
+    else if (sp.at === 'f') { var ev = F.evaluate(sp.below, { vars: R, random: noDice }); if (ev && ev.ok && typeof ev.value === 'number' && fin(ev.value)) at = ev.value; }
+    else at = typeof pf.min === 'number' && fin(pf.min) ? pf.min : 0;
+    if (at === null) return { error: 'Where ' + (pf.label || pf.key) + ' spills could not be worked out.' };
+    var left = cur - loss; return left >= at ? 0 : Math.max(0, Math.round(Math.min(loss, at - left)));
+}
+function poolSpill(sys, w, pf, cur, loss, F, tctx) {
+    var steps = [], seen = map(), f = pf, c = cur, l = loss; seen[pf.id] = 1;
+    for (var hop = 0; hop < LIMITS.fields && isObj(f) && isObj(f.spill); hop++) {
+        var n = spillPast(f, c, l, makeResolver(sys, w, F, tctx || null), F); if (isObj(n)) return n; if (!(n > 0)) break;
+        var tf = fieldById(sys, f.spill.to); if (!tf || tf.kind !== 'resource' || seen[tf.id] === 1) break; seen[tf.id] = 1;
+        var Rt = makeResolver(sys, w, F, tctx || null), ct = Rt(tf.key); ct = typeof ct === 'number' && fin(ct) ? ct : 0;
+        var ed = applyEdit(sys, w, tf.id, { cur: ct - n }, F, { vars: Rt }); if (!ed.ok) return { error: 'It could not spill into ' + (tf.label || tf.key) + '.' };
+        w.values[tf.id] = ed.value; steps.push({ f: tf.id, label: tf.label || tf.key, amt: n, v: ed.value.cur, value: ed.value });
+        f = tf; c = ct; l = n;
+    }
+    return { steps: steps };
+}
 function damageStep(sys, char, inp, F, ropts, fxo) {   // 1.6.0 (B3): fxo, the clock an effect a Major Wound switches on starts its timer by ({ now, inCombat }, as applyAct's)
     var rules = sys && isObj(sys.combat) && isObj(sys.combat.damage) ? sys.combat.damage : null; if (!rules || !F || !isObj(char)) return { ok: false, reason: 'field' };
     if (!isObj(inp) || typeof inp.amt !== 'number' || !fin(inp.amt) || inp.amt < 0 || inp.amt > DMG_LIM.amt) return { ok: false, reason: 'value' };
@@ -1461,6 +1493,11 @@ function damageStep(sys, char, inp, F, ropts, fxo) {   // 1.6.0 (B3): fxo, the c
             var cur = num(R(pf.key)), mn = typeof pf.min === 'number' ? pf.min : 0, nv = Math.max(mn, cur - wound);
             var ed = applyEdit(sys, char, pf.id, nv, F, { vars: R }); if (!ed.ok) return { ok: false, reason: ed.reason || 'value' };
             values[pf.id] = ed.value;
+            if (isObj(pf.spill)) {   // 1.6.0 Spills into: what the wound takes it past its spill point goes on into another pool (no wound of its own)
+                var spW = Object.assign({}, char, { values: Object.assign({}, char.values || {}, values) }), spD = poolSpill(sys, spW, pf, cur, wound, F, ropts); if (spD.error) return { ok: false, reason: 'error', message: spD.error };
+                var spHid = spD.steps.length ? gmPools(sys, F) : null;   // a GM-only pool is never named in the lines, which reach the wounded character's player
+                spD.steps.forEach(function(s) { values[s.f] = s.value; var sf = fieldById(sys, s.f); if (sf && sf.vis !== 'gm' && spHid[s.f] !== 1) lines.push(s.amt + ' spill' + (s.amt === 1 ? 's' : '') + ' into ' + s.label + '.'); (info.spill = info.spill || []).push({ f: s.f, amt: s.amt }); });
+            }
             if (pool === (rules.pool || sys.combat.hpResource) && rules.major) { var th = num(ev(rules.major, hitR)); if (th > 0 && wound >= th) { info.major = true; lines.push('A Major Wound.'); dmgOnMajor(sys, char, rules.onMajor, values, lines, info, F, fxo); } }
             if (lrow && rules.locs.crip) { var cp = get(lf, lrow, rules.locs.crip); if (cp > 0 && wound > cp) { info.crip = true; lines.push('Enough to cripple ' + lname + '.'); } }
         }
@@ -2882,7 +2919,9 @@ function cleanSystem(sys, opts) {
     }
     var fieldIds = map(), rollIds = map(), resIds = map();
     var fxSeenT = map(); (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (isObj(d) && typeof d.id === 'string' && EFFECT_ID.test(d.id) && (gmView || d.vis !== 'gm')) fxSeenT[d.id] = 1; });   // 1.6.0: the effects this view holds, for a change that switches one
-    out.fields.forEach(function(f) { fieldIds[f.id] = f.kind; if (f.kind === 'resource') resIds[f.id] = 1; }); applyTargets(out, fieldIds, gmView, fxSeenT); out.rolls.forEach(function(r) { rollIds[r.id] = 1; });   // H7: an apply action's targets first   // fieldIds: id -> kind (always truthy; the band gates on the kind)
+    out.fields.forEach(function(f) { fieldIds[f.id] = f.kind; if (f.kind === 'resource') resIds[f.id] = 1; });
+    out.fields.forEach(function(f) { if (f.kind === 'resource' && isObj(f.spill) && (resIds[f.spill.to] !== 1 || f.spill.to === f.id || (!gmView && typeof mentions === 'function' && f.spill.below && mentions(f.spill.below)))) delete f.spill; });   // 1.6.0 Spills into: a pool of this view; a spill point naming a GM-only value takes the spill from the players' view (the host still spills)
+    applyTargets(out, fieldIds, gmView, fxSeenT); out.rolls.forEach(function(r) { rollIds[r.id] = 1; });   // H7: an apply action's targets first   // fieldIds: id -> kind (always truthy; the band gates on the kind)
     var seenIt = map(), stKeys = statKeys(out.fields), stPicks = statPicks(out.fields);   // F4c1: the stats this view's item lists define (the players' view: visible lists only, so a GM-only list's stat never travels)
     (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) {
         if (out.items.length >= LIMITS.items) return;
@@ -3304,7 +3343,11 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
         if (!ed.ok) return { ok: false, reason: ed.reason };
         tw.values[a.f.id] = ed.value; if (onW) onOut[a.f.id] = ed.value; else { out[a.f.id] = ed.value; asIs = false; }
         var nv = a.f.kind === 'resource' ? ed.value.cur : a.f.kind === 'toggle' ? (ed.value ? 1 : 0) : ed.value;
-        var lnF = { f: a.f.id, n: a.f.label || a.f.key, d: a.set ? nv - cur : a.add ? a.amt : -a.amt, v: nv }; if (a.roll) lnF.roll = a.roll; if (onW && a.set) lnF.set = true; (onW ? onLines : lines).push(lnF);   // a Set's line says what it moved; 1.5.9: and what a Rolled amount drew; a Set on another says so, for the card its user's player gets with no figure
+        var lnF = { f: a.f.id, n: a.f.label || a.f.key, d: a.set ? nv - cur : a.add ? a.amt : -a.amt, v: nv }; if (a.roll) lnF.roll = a.roll; if (onW && a.set) lnF.set = true; (onW ? onLines : lines).push(lnF);
+        if (a.f.kind === 'resource' && !a.set && !a.add && isObj(a.f.spill)) {   // 1.6.0 Spills into: a Subtract past the pool's spill point goes on into another pool, in this one change
+            var spA = poolSpill(sys, tw, a.f, cur, a.amt, F, ttc); if (spA.error) return { ok: false, reason: 'error', message: spA.error };
+            spA.steps.forEach(function(s) { if (onW) onOut[s.f] = s.value; else out[s.f] = s.value; (onW ? onLines : lines).push({ f: s.f, n: s.label, d: -s.amt, v: s.v }); });
+        }   // a Set's line says what it moved; 1.5.9: and what a Rolled amount drew; a Set on another says so, for the card its user's player gets with no figure
     }
     if (!lines.length && !onLines.length) return { ok: false, reason: 'none' };   // 1.5.9: a Then that only fires, with nothing chambered
     var doneA = { ok: true, values: out, lines: lines, names: names }; if (fired) doneA.fired = fired; if (gone.length) doneA.gone = gone;   // 1.6.0: the rows used up, for their Undo   // 1.5.9: the round it fired, for the blast it places
@@ -3558,6 +3601,7 @@ function applyScope(sys, char, act, gm, F) {
     var rowOwn = function(c) { return isObj(c) && (typeof c.c === 'string' || c.q === true || typeof c.s === 'string' || typeof c.fx === 'string'); };   // 1.6.0: a row's quantity or stat is its owner's, as a counter is, and so is a switched effect
     if (act.apply.some(function(c) { if (!isObj(c) || typeof c.fx !== 'string') return false; var d = null; (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(x) { if (!d && isObj(x) && x.id === c.fx) d = x; }); return !d || d.vis === 'gm'; })) return 'gm';   // 1.6.0: a GM-only effect's card is the GM's
     var gmP = F ? gmPools(sys, F) : map(), ctrs = act.apply.some(rowOwn), fs = act.apply.filter(function(c) { return !rowOwn(c); }).map(function(c) { return isObj(c) && typeof c.f === 'string' ? fieldById(sys, c.f) : null; });
+    var spSeen = map(); fs.slice().forEach(function(f) { for (var g = f, n = 0; isObj(g) && isObj(g.spill) && spSeen[g.id] !== 1 && n < LIMITS.fields; n++) { spSeen[g.id] = 1; g = fieldById(sys, g.spill.to); fs.push(g); } });   // 1.6.0 Spills into: a pool a loss may spill into is moved too, so its card is judged with it
     if (fs.some(function(f) { return !f || f.vis === 'gm' || gmP[f.id] === 1; })) return 'gm';
     return !ctrs && fs.every(function(f) { return f.hover === true; }) ? 'table' : 'owner';   // R2b: a row's counter is its owner's (a list never reaches teammates)
 }
@@ -6407,10 +6451,10 @@ function validateSystem(sys, F) {
             if (target.list) {   // F5a1: what a list name reads
                 if (target.onTotal && !(isObj(target.list.list) && isObj(target.list.list.on))) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" counts rows switched on, but ' + (target.list.label || target.list.key) + ' has no switch, so it reads as none.' });
                 if (target.addr) { var tc = isObj(target.list.list) && Array.isArray(target.list.list.cats) && target.list.list.cats.length ? target.list.list.cats : null, has = (Array.isArray(sys.items) ? sys.items : []).concat(Array.isArray(sys.core) ? sys.core : []).some(function(it) { return isObj(it) && typeof it.key === 'string' && lower(it.key) === target.addr && (!tc || catIn(tc, it.category)); }); if (!has) warnings.push({ id: owner.id, prop: prop, message: 'No item in ' + (target.list.label || target.list.key) + ' has the key "' + n.split('.')[1] + '": it reads as not carried until a row its player can see has it.' }); }
-                if (vis === 'all' && target.gmKey && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" names a GM-only item: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop === 'needs' ? 'players are not held back by it.' : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : (prop === 'critAt' || prop === 'fumbleAt' || prop.indexOf('list.critAt.') === 0 || prop.indexOf('list.fumbleAt.') === 0) ? 'players\u2019 rolls read the usual critical range instead.' : (prop === 'bigAt' || prop.indexOf('list.bigAt.') === 0) ? 'players\u2019 rolls never land as a Big Hit by it.' : prop.indexOf('list.roll.') === 0 ? 'players will not get this roll.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
+                if (vis === 'all' && target.gmKey && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" names a GM-only item: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop === 'spill' ? 'their own apps do not show the spill, and the host still makes it.' : prop === 'needs' ? 'players are not held back by it.' : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : (prop === 'critAt' || prop === 'fumbleAt' || prop.indexOf('list.critAt.') === 0 || prop.indexOf('list.fumbleAt.') === 0) ? 'players\u2019 rolls read the usual critical range instead.' : (prop === 'bigAt' || prop.indexOf('list.bigAt.') === 0) ? 'players\u2019 rolls never land as a Big Hit by it.' : prop.indexOf('list.roll.') === 0 ? 'players will not get this roll.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
             }
-            if (vis === 'all' && (target.vis === 'gm' || gmP[target.id] === 1) && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" is GM only: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop === 'needs' ? 'players are not held back by it.' : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : (prop === 'critAt' || prop === 'fumbleAt' || prop.indexOf('list.critAt.') === 0 || prop.indexOf('list.fumbleAt.') === 0) ? 'players\u2019 rolls read the usual critical range instead.' : (prop === 'bigAt' || prop.indexOf('list.bigAt.') === 0) ? 'players\u2019 rolls never land as a Big Hit by it.' : prop.indexOf('list.roll.') === 0 ? 'players will not get this roll.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
-            if (!isRollProp(prop) && !isApplyProp(prop) && !target.noEdge) { var from = lower(owner.key); (edges[from] = edges[from] || []).push(lower(target.key)); }
+            if (vis === 'all' && (target.vis === 'gm' || gmP[target.id] === 1) && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" is GM only: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop === 'spill' ? 'their own apps do not show the spill, and the host still makes it.' : prop === 'needs' ? 'players are not held back by it.' : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : (prop === 'critAt' || prop === 'fumbleAt' || prop.indexOf('list.critAt.') === 0 || prop.indexOf('list.fumbleAt.') === 0) ? 'players\u2019 rolls read the usual critical range instead.' : (prop === 'bigAt' || prop.indexOf('list.bigAt.') === 0) ? 'players\u2019 rolls never land as a Big Hit by it.' : prop.indexOf('list.roll.') === 0 ? 'players will not get this roll.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
+            if (!isRollProp(prop) && !isApplyProp(prop) && prop !== 'spill' && !target.noEdge) { var from = lower(owner.key); (edges[from] = edges[from] || []).push(lower(target.key)); }
         });
     }
     sys.fields.forEach(function(f) {
@@ -6418,6 +6462,7 @@ function validateSystem(sys, F) {
         if (f.kind === 'item-list' && typeof f.key === 'string' && f.key.indexOf('.') >= 0) errors.push({ id: f.id, prop: 'key', message: 'An item list\u2019s key cannot contain a dot: formulas read it as ' + f.key.split('.')[0] + '.<name>, so its totals and rows have no names.' });   // owed review F5a1#6
         if (gmP[f.id] === 1) warnings.push({ id: f.id, prop: 'maxFormula', message: 'The max reads a GM-only value, so this pool is GM only: players will not see it.' });
         if (p && !(p === 'base' && f.base === '')) checkFormula(f, p, f[p], false, f.vis);   // a skill with no base is ranks alone
+        if (f.kind === 'resource' && isObj(f.spill) && f.spill.at === 'f' && typeof f.spill.below === 'string' && f.spill.below) checkFormula(f, 'spill', f.spill.below, false, f.vis);   // 1.6.0 Spills into: below a formula
         if (f.roll) checkFormula(f, 'roll', f.roll, true, f.vis);
         if (f.caption) {   // Fold B: each {formula} in the caption, as warnings
             var cre = /\{([^{}]{1,300})\}/g, cm, cn = 0;

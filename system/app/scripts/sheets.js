@@ -6160,6 +6160,15 @@ function refreshErrors() {
         if (f.group === true && !numK) said.push('Only a number, a formula or a skill groups its thousands, so Save drops 1,000s.');
         if (said.length) said.forEach(function(m) { (warningsById[f.id] = warningsById[f.id] || []).push({ prop: 'fmt', message: m }); });
     });
+    draft.fields.forEach(function(f) {   // 1.6.0 Spills into, as the cleaner reads it
+        var sp = f && f.kind === 'resource' && f.spill && typeof f.spill === 'object' ? f.spill : null; if (!sp) return;
+        var to = draft.fields.filter(function(x) { return x && x.id === sp.to; })[0];
+        if (!to || to.kind !== 'resource' || to.id === f.id) (errorsById[f.id] = errorsById[f.id] || []).push({ prop: 'spill', message: 'Spills into names no other pool of this system, so Save drops it.' });
+        else {
+            if (sp.at === 'f' && !(typeof sp.below === 'string' && sp.below.trim())) (warningsById[f.id] = warningsById[f.id] || []).push({ prop: 'spill', message: 'It spills below a formula, but none is written, so Save spills it below its least value.' });
+            if (to.vis === 'gm' && f.vis !== 'gm') (warningsById[f.id] = warningsById[f.id] || []).push({ prop: 'spill', message: (to.label || to.key || 'That pool') + ' is GM only, so players\u2019 own apps do not show the spill. The host still makes it.' });
+        }
+    });
     (draft.items || []).forEach(function(it) { if (it && it.key && !cleanItemKey(String(it.key), F())) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'key', message: 'Not a usable key: a letter, then letters, digits and _ (up to 40); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, min, cur, ranks, base; a function or reserved word such as floor, and, true; constructor). Save drops it.' }); });   // Stage 6 F4b
     if (typeof grantSays === 'function') (draft.items || []).forEach(function(it) { var gS = grantSays(it); gS.drop.forEach(function(m) { (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'grants', message: m }); }); gS.warn.forEach(function(m) { (warningsById[it.id] = warningsById[it.id] || []).push({ prop: 'grants', message: m }); }); });   // 1.6.0 (v2, B4): what Save does with an item's grants
     // Stage 6 F4c1: each list's stats as Save will read them (a key it drops, a repeat, past the cap, a price naming none, another list's spelling),
@@ -6641,6 +6650,18 @@ function placeSet(lsc, part, value) {
     return true;
 }
 // [systemcheck:placesel-end]
+// 1.6.0 Spills into (the owner, by prompt: "The pool's own option", "A pick, with a formula"): another pool of the draft, then from where, and the
+// formula where it spills below one. A pool the draft no longer has stays picked under words that say so, for Save's note
+function spillCtl(flags, f) {
+    var sp = f.spill && typeof f.spill === 'object' ? f.spill : null, to = sp && typeof sp.to === 'string' ? sp.to : '';
+    var pools = (draft.fields || []).filter(function(x) { return x && x.kind === 'resource' && x.id !== f.id; }).map(function(x) { return [x.id, 'Spills into ' + (x.label || x.key || 'a pool')]; });
+    if (to && !pools.some(function(p) { return p[0] === to; })) pools.push([to, 'Spills into a pool that is gone']);
+    flags.appendChild(select('sys-spill-to', [['', 'Spills into nothing']].concat(pools), to, 'What a loss takes this pool past where it spills goes on into another pool, as Stamina into Hit Points. Damage and an action\u2019s Subtract spill. A value typed never does'));
+    if (!to) return;
+    var at = sp.at === 'neg' || sp.at === 'f' ? sp.at : '';
+    flags.appendChild(select('sys-spill-at', [['', 'below its least value'], ['neg', 'below minus its full value'], ['f', 'below a formula']], at, 'Where it starts to spill. The pool itself still stops at its least value'));
+    if (at === 'f') { var bi = input('sys-spill-below field', typeof sp.below === 'string' ? sp.below : '', 'It spills below this figure, a formula of the character with no dice, such as -' + (f.key || 'Key') + '.max / 2', '-' + (f.key || 'Key') + '.max / 2'); bi.maxLength = LIMITS.formula; flags.appendChild(capInline(bi, 'Below: ')); }
+}
 function select(cls, options, value, title) { var s = el('select', cls); options.forEach(function(o) { s.appendChild(opt(o[0], o[1], o[0] === value)); }); if (title) s.title = title; return s; }
 function btnRow(list) { var btns = el('span', 'sys-btns'); list.forEach(function(b) { var x = el('button', 'tool ghost sys-btn'); x.dataset.act = b[0]; x.title = b[1]; x.innerHTML = b[2]; btns.appendChild(x); }); return btns; }
 function labeledSelect(cls, cap, options, value, title) { var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(select(cls, options, value, title)); return l; }
@@ -6683,6 +6704,7 @@ function fieldRow(f) {
         if (f.color) { var rcc = el('button', 'tool ghost sys-btn', 'No colour'); rcc.dataset.act = 'rescolorclr'; rcc.title = 'Back to the theme\u2019s colours'; flags.appendChild(rcc); }
         if (f.color) { var cbl = el('label', 'sys-hover'), cbc = el('input'); cbc.type = 'checkbox'; cbc.checked = f.colorBand === true; cbc.className = 'sys-colorband-chk'; cbl.appendChild(cbc); cbl.appendChild(document.createTextNode(' Band only')); cbl.title = 'The colour on the pinned band alone. In its own section the pool is drawn plain'; flags.appendChild(cbl); }   // 1.6.0
         var bcl = el('label', 'sys-hover'); var bcc = el('input'); bcc.type = 'checkbox'; bcc.checked = f.bar !== false; bcc.className = 'sys-bar-chk'; bcl.appendChild(bcc); bcl.appendChild(document.createTextNode(' Bar')); bcl.title = 'The bar under the value (untick for just the numbers)'; flags.appendChild(bcl);
+        spillCtl(flags, f);   // 1.6.0 Spills into
     }
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this field', '&times;']]));
     row.appendChild(top); row.appendChild(flags);
@@ -9301,6 +9323,7 @@ function onInput(e) {
         else if (c.indexOf('sys-caption') >= 0) { if (t.value.trim()) f.caption = t.value.slice(0, 400); else delete f.caption; }   // Fold B (Save cuts it to 200)
         else if (c.indexOf('sys-vnames') >= 0) { var vn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (vn.length && !vn[vn.length - 1]) vn.pop(); if (vn.some(Boolean)) f.labels = vn; else delete f.labels; }   // Stage 6: a blank between names keeps its place (every later name keeps its number)
         else if (c.indexOf('sys-res-icon') >= 0) { if (t.value.trim()) f.icon = t.value.slice(0, 32); else delete f.icon; }   // Fold B
+        else if (c.indexOf('sys-spill-below') >= 0) { if (f.spill && typeof f.spill === 'object') { if (t.value.trim()) f.spill.below = t.value.slice(0, LIMITS.formula); else delete f.spill.below; } }   // 1.6.0 Spills into: below a formula
         else if (c.indexOf('sys-res-color') >= 0) { if (/^#[0-9a-fA-F]{6}$/.test(t.value)) f.color = t.value.toLowerCase(); }   // Stage 6 look fold (L7)
         else if (c.indexOf('sys-slider-lowColor') >= 0) { f.slider = f.slider || {}; f.slider.lowColor = t.value; }   // Stage 5e (the colour classes before the label ones: 'sys-slider-low' is a prefix of both)
         else if (c.indexOf('sys-slider-highColor') >= 0) { f.slider = f.slider || {}; f.slider.highColor = t.value; }
@@ -9501,6 +9524,8 @@ function onChange(e) {
         else if (c.indexOf('sys-reset-chk') >= 0) { if (t.checked) f.reset = true; else delete f.reset; }   // Fold B: fill-to-max button
         else if (c.indexOf('sys-bar-chk') >= 0) { if (t.checked) delete f.bar; else f.bar = false; }   // Fold B: the bar (absent = shown)
         else if (c.indexOf('sys-colorband-chk') >= 0) { if (t.checked) f.colorBand = true; else delete f.colorBand; }   // 1.6.0: the pool's colour on the band alone
+        else if (c.indexOf('sys-spill-to') >= 0) { if (t.value) f.spill = Object.assign({}, f.spill && typeof f.spill === 'object' ? f.spill : {}, { to: t.value }); else delete f.spill; markDirty(); renderAll(); return; }   // 1.6.0 Spills into: from where follows
+        else if (c.indexOf('sys-spill-at') >= 0) { if (f.spill && typeof f.spill === 'object') { if (t.value === 'neg' || t.value === 'f') f.spill.at = t.value; else delete f.spill.at; if (t.value !== 'f') delete f.spill.below; } markDirty(); renderAll(); return; }   // ... and the formula's box
         else if (c.indexOf('sys-slider-chk') >= 0) { if (t.checked) { f.slider = f.slider || {}; delete f.counter; } else delete f.slider; markDirty(); renderAll(); return; }   // Stage 5e: slider on/off (its row of labels and colours appears)
         else if (c.indexOf('sys-counter-chk') >= 0) { if (t.checked) { f.counter = true; delete f.slider; } else delete f.counter; markDirty(); renderAll(); return; }   // HUD frame (HF4a): counter on/off — a number is a counter or a slider, never both (the other's box hides)
         else if (c.indexOf('sys-slider-lowColor') >= 0 || c.indexOf('sys-slider-midColor') >= 0 || c.indexOf('sys-slider-highColor') >= 0) { markDirty(); renderAll(); return; }   // a colour picked (the input handler stored it): redraw so "Theme colours" appears

@@ -47,13 +47,13 @@ Systems, more
   under Grants: the entry, the list, how many, and a level it starts from.
   The rows come free with the row that grants them and go when it goes or
   its level drops. Undo brings them back. Row.granted reads 1 on them.
-- Roll outcomes on the Combat card has Criticals at fixed rolls. The dice
-  alone at or under one number are a critical success, 3 unless you set
-  it. At or over another they are a critical failure, 18 unless you set
-  it. Nothing else is a critical.
-- A roll can widen its own range, so a technique can make a 4 a critical
-  success too. On a critical success and On a critical failure follow it,
-  and so does the card.
+- Roll outcomes on the Combat card has Criticals at fixed rolls. A natural
+  3 is a critical success and a natural 18 a critical failure. Nothing
+  else is a critical. A system may set other numbers, and a roll may
+  widen its own where a game allows it.
+- A roll can say what Lands as a Big Hit. A success whose natural roll is
+  at or under it is marked a Big Hit. It is not a critical. Its changes
+  read RollBig.
 - A success can wear a name on its card, such as Strong success when it
   beats its target by 5 or more.
 

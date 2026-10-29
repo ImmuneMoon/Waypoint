@@ -243,6 +243,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const rcK = rec({ expr: '3d6 <= 12', draws: [1, 1, 1], crit: [4, 17] }), cK = cleanRoll(rcK), cBad = [[3], [3, 18, 1], [3.5, 18], ['3', 18], [3, 2000000], null, 'x'].map(x => cleanRoll(Object.assign({}, rcK, { crit: x }))), qK = cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6 <= 12', crit: [18, 3] });
         check('1.6.0 the record carries the host\'s two numbers (cleanRoll keeps a pair of whole numbers, refuses the record for anything else); a player\'s request names none (cleanRollReq keeps no crit)',
             !!cK && j(cK.crit) === j([4, 17]) && cBad.every(x => x === null) && !('crit' in cleanRoll(rec({}))) && !!qK && !('crit' in qK), j([cK, cBad, qK]));
+        const bgK = cleanRoll(Object.assign({}, rcK, { big: true })), bgBad = [1, 'true', false, null, {}].map(x => cleanRoll(Object.assign({}, rcK, { big: x }))), qB = cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6 <= 12', big: true });
+        check('1.6.0 a Big Hit (the book\'s ruling of 2026-10-29): the record keeps the host\'s mark only as true, and anything else is left off with the roll kept; a player\'s request names none',
+            !!bgK && bgK.big === true && bgBad.every(x => !!x && !('big' in x)) && !('big' in cleanRoll(rcK)) && !!qB && !('big' in qB), j([bgK, bgBad, qB]));
         const ro = [D.ruleOf(rcK, ''), D.ruleOf(rcK, 'under3d6'), D.ruleOf(rec({}), 'under3d6'), D.ruleOf(rec({}), 'fixed'), D.ruleOf(rec({ crit: [3] }), ''), D.ruleOf(null, 'under3d6')];
         check('1.6.0 ruleOf: the record\'s own range first, else the system\'s 3d6 roll-under, else none (a record without its numbers reads no criticals)',
             j(ro) === j([{ at: 4, fumble: 17 }, { at: 4, fumble: 17 }, 'under3d6', '', '', 'under3d6']), j(ro));

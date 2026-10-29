@@ -3989,6 +3989,19 @@ pendingChecks.push((async () => {
         && j(fxgF.vals) === j({ f_x: 5 }) && j(fxgS.vals) === j({ f_x: 5 }) && j(fxgS.recs[0].crit) === j([3, 16]) && fxgS.pushed[0] === 'whisper' && fxgS.recs[0].priv === 'gm' && fxgS.toasts.some(t => /Secret/.test(t))
         && j(fxpS.vals) === j({}) && j(fxpS.table[0].crit) === j([3, 18]) && j(fxgN.vals) === j({ f_gd: 2 }) && !('crit' in fxgN.recs[0]) && fxgN.pushed[0] === 'global',
         j([fxgW.vals, fxgW.recs[0].crit, fxgW.pushed, fxgW.check, fxgF.vals, fxgS.vals, fxgS.recs[0], fxgS.toasts, fxpS.vals, fxpS.table[0].crit, fxgN.vals]));
+    // 1.6.0 (the book's ruling of 2026-10-29): a success at or under a roll's own bigAt lands as a Big Hit, marked on the record by the host, no critical
+    const thenG = [{ f: 'f_x', formula: '1', add: true, when: 'crit' }, { f: 'f_gd', formula: 'RollBig * 10 + RollCrit + 2', set: true, when: 'hit' }];
+    const sysBig = sysOfB({ bigAt: 'Edge', then: thenG }, { checks: 'fixed' }), sysBigG = sysOfB({ bigAt: 'Secret + 2', then: thenG }, { checks: 'fixed' }), sysBigN = sysOfB({ bigAt: 'Edge', then: thenG }, {});
+    const hB = runB(sysBig, [1, 1, 2]), hP = runB(sysBig, [1, 2, 2]), hC = runB(sysBig, [1, 1, 1]), hF = runB(sysBig, [6, 6, 5]), hX = runB(sysBig, [1, 2, 2], { big: true }), hN = runB(sysBigN, [1, 1, 2]), hPg = runB(sysBigG, [1, 1, 2]);
+    check('1.6.0 a Big Hit on a player\'s roll (the host\'s roll-req branch): a natural 4 under its own Lands as a Big Hit (Edge, 4) is marked big on the record and is no critical (RollBig 1, RollCrit 0, nothing On a critical success); 5 is plain; a natural 3 is a critical and a Big Hit; a failure never; a big in the player\'s message is never read; it holds under any rule; one read from a GM-only value is dropped from their view',
+        hB.table[0].big === true && Dx.cleanRoll(hB.table[0]).big === true && j(hB.vals) === j({ f_gd: 12 }) && j(hB.table[0].crit) === j([3, 18]) && !('big' in hP.table[0]) && j(hP.vals) === j({ f_gd: 2 })
+        && hC.table[0].big === true && j(hC.vals) === j({ f_x: 1, f_gd: 13 }) && !('big' in hF.table[0]) && j(hF.vals) === j({}) && !('big' in hX.table[0]) && j(hX.vals) === j({ f_gd: 2 })
+        && hN.table[0].big === true && !('crit' in hN.table[0]) && j(hN.vals) === j({ f_gd: 12 }) && !('big' in hPg.table[0]) && j(hPg.vals) === j({ f_gd: 2 }),
+        j([hB.table[0], hB.vals, hP.vals, hC.vals, hF.vals, hX.vals, hN.table[0], hN.vals, hPg.vals]));
+    const hG = runBG(sysBig, [1, 1, 2]), hGg = runBG(sysBigG, [1, 1, 2]), hGp = runBG(sysBig, [1, 2, 2]);
+    check('1.6.0 a Big Hit on the GM\'s own roll (net.diceRoll): marked on the record with RollBig 1 and no critical; one read from a GM-only value (Secret + 2) still marks it for the GM and keeps the roll private; a plain success carries no mark',
+        hG.ret.ok && hG.recs[0].big === true && j(hG.vals) === j({ f_gd: 12 }) && hG.pushed[0] === 'global' && hGg.recs[0].big === true && hGg.recs[0].priv === 'gm' && j(hGg.vals) === j({ f_gd: 12 }) && !('big' in hGp.recs[0]) && hGp.pushed[0] === 'global',
+        j([hG.recs[0], hG.vals, hGg.recs[0], hGg.toasts, hGp.recs[0]]));
 })());
 
 // Chat cards (owner 2026-09-27): a damage roll's mark — the host puts it on the record from the roll entry its formula matched (a system roll by

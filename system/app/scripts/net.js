@@ -105,6 +105,17 @@ function setProfile(patch) {
     return p;
 }
 function setProfileName(name) { return setProfile({ name: String(name == null ? '' : name) }); }
+// 1.6.0 (the owner, 2026-10-29: a player's profile that moves between machines, and the website's decision 4 of 2026-10-23, "Separate host ID"):
+// the id this install hosts under, kept apart from the id it joins tables with (wp_profile.id). It is made once from the profile's id, so
+// nothing changes for anyone, and then stands: a profile opened from a file or a code, or a website account, gives this install another
+// joining id while every player's app still knows its table by this one. Only Reset Multiplayer Identity makes a new one
+function hostId() {
+    var h = null; try { h = localStorage.getItem('wp_hostId'); } catch (e) {}
+    if (typeof h === 'string' && validProfileId(h)) return h;
+    var id = getProfile().id; try { localStorage.setItem('wp_hostId', id); } catch (e) {}
+    return id;
+}
+net.hostId = hostId;
 net.getProfile = getProfile; net.setProfile = setProfile; net.setProfileName = setProfileName;   // for the Settings + welcome profile editor
 net.safeAvatar = safeAvatar;   // the whole-data-URL check, for the other modules that draw a profile picture (the party strip, hover cards, Maps presence)
 // [netcheck:helpers-start]
@@ -459,7 +470,7 @@ function allow(name, cfg, peer) { var Lr = _lim[name]; if (!Lr) { var DCl = wind
 var _connMeta = Object.create(null);    // host: per-connection bookkeeping before admission — openedAt, hello count, the key challenge
 var _pwFails = Object.create(null), PW_LOCK_FAILS = 5, PW_LOCK_MS = 60000;   // host: profile id -> timestamps of wrong session passwords claimed under that name: PW_LOCK_FAILS of them within PW_LOCK_MS lock that name out for the minute — the name's own lockout, never the table's (security 2026-10-01: strangers' wrong words used to lock every join for a minute)
 var _shareBytes = Object.create(null), _shareCount = Object.create(null);   // host: the bytes and the shares each player (by profile id) has sent this session — a reconnect keeps its budget; a new table forgets them
-net.myId = getProfile().id;
+net.myId = hostId();   // 1.6.0: the GM's own screen speaks as its host id; a join takes the profile's (joinSession), and leaving gives it back
 
 /* ---------- ui helpers ---------- */
 function ui(id) { return document.getElementById(id); }
@@ -4287,7 +4298,7 @@ function padReset() { _pad.fmt = undefined; _pad.font = ''; _pad.gen++; }
 function padRec(text) { var L = padCore(); return L ? L.makeRec(_pad.fmt, _pad.font, text, L.RULES.PAD) : undefined; }
 function notepadMsg() {
     var camp = getActiveCampaign() || {};
-    var m = { type: 'notepad', on: !!net.notepad.on, text: String(net.notepad.text || '').slice(0, 20000), campId: camp.id || '', gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM' };
+    var m = { type: 'notepad', on: !!net.notepad.on, text: String(net.notepad.text || '').slice(0, 20000), campId: camp.id || '', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM' };
     var lk = m.on ? padRec(m.text) : undefined;   // the look for the very text sent: a message with no look has exactly the keys it always had
     if (lk) m.look = lk;
     return m;
@@ -5648,7 +5659,7 @@ function relayShare(msg, conn, sender) {
     if (!to) return;
     var camp = getActiveCampaign(); if (!camp) return;
     var out = {
-        type: 'handout', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM',
+        type: 'handout', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM',
         id: shareIdOf(sp.id, en.id),
         title: String(en.title || '').slice(0, 120), caption: String(en.caption || '').slice(0, 4000),
         sharedBy: String(sp.name || 'A player').slice(0, 60), sharedById: sp.id, sharedNotes: String(en.notes || '').slice(0, 20000),
@@ -5691,8 +5702,8 @@ net.revealHandout = function(hid, pids, o) {
         targets.forEach(function(c) {
             var p = net.roster[c.peer];
             try { c.send(pl.kind === 'text'
-                ? { type: 'handout', kind: 'text', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text, tags: (h.tags || []).slice(0, 8) }
-                : Object.assign({ type: 'handout', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, tags: (h.tags || []).slice(0, 8) }, sk || {})); } catch (e) { sendFailed(e, 'handout'); return; }   // refused: not recorded as shown
+                ? { type: 'handout', kind: 'text', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text, tags: (h.tags || []).slice(0, 8) }
+                : Object.assign({ type: 'handout', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, tags: (h.tags || []).slice(0, 8) }, sk || {})); } catch (e) { sendFailed(e, 'handout'); return; }   // refused: not recorded as shown
             if (sk && sk.nokeep) return;   // a scene kept out of the Journals is no reveal: nothing comes back to them on a reconnect
             camp.handoutReveals = camp.handoutReveals || {};
             camp.handoutReveals[p.id] = camp.handoutReveals[p.id] || {};
@@ -5714,7 +5725,7 @@ net.sceneClose = function(hid, pids) {
     var n = 0;
     net.conns.forEach(function(c) {
         var p = net.roster[c.peer]; if (!c.open || !p || (pids && pids.indexOf(p.id) < 0)) return;
-        try { c.send({ type: 'scene-close', campId: camp.id, gmId: getProfile().id, id: hid }); n++; } catch (e) { sendFailed(e, 'scene'); }
+        try { c.send({ type: 'scene-close', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), id: hid }); n++; } catch (e) { sendFailed(e, 'scene'); }
     });
     if (typeof window.wpStepLog === 'function') window.wpStepLog('scene v1', 'closed', { to: n });
     return n;
@@ -5743,8 +5754,8 @@ function sendMissedHandouts(conn, prof) {
             window.wpHandoutPayload(h).then(function(pl) {
                 if (!conn.open) return;
                 try { conn.send(pl.kind === 'text'
-                    ? { type: 'handout', kind: 'text', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text, replay: true, tags: (h.tags || []).slice(0, 8) }
-                    : { type: 'handout', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, replay: true, tags: (h.tags || []).slice(0, 8) }); } catch (e) { sendFailed(e, 'handout'); }
+                    ? { type: 'handout', kind: 'text', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text, replay: true, tags: (h.tags || []).slice(0, 8) }
+                    : { type: 'handout', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, replay: true, tags: (h.tags || []).slice(0, 8) }); } catch (e) { sendFailed(e, 'handout'); }
             }).catch(function() {});
         }, 1500 + i * 400);
     });
@@ -6109,7 +6120,7 @@ function gmSignArm() {
 }
 function gmPresign(cm, cn, heldKey, conn) {
     var kp = _gmSignP, bind = snapBind(conn, true); if (!kp || !cm || typeof bind !== 'string') return null;   // (a connection whose tie cannot be read is signed nothing)
-    var fresh = newKey(), sigs = Object.create(null), room = net.roomPeer, gm = getProfile().id, keys = ['', fresh].concat(heldKey ? [heldKey] : []);
+    var fresh = newKey(), sigs = Object.create(null), room = net.roomPeer, gm = (typeof hostId === 'function' ? hostId() : getProfile().id), keys = ['', fresh].concat(heldKey ? [heldKey] : []);
     cm.cn = cn; cm.fresh = fresh; cm.sigs = sigs;
     return kp.then(function(k) {
         if (!k) return null;
@@ -6130,7 +6141,7 @@ function gmSignSnap(snap, conn) {   // the snapshot gains the GM's public key (i
 // the word has gone (or could not): the proof path waits for it, so the early proof is on the wire before any snapshot.
 function gmHail(cm, cn, conn) {
     var kp = _gmSignP, bind = snapBind(conn, true); if (!kp || !cm || typeof bind !== 'string') return null;
-    var room = net.roomPeer, gm = getProfile().id;
+    var room = net.roomPeer, gm = (typeof hostId === 'function' ? hostId() : getProfile().id);
     return kp.then(function(k) {
         if (!k) return null;
         return gmSignHex(k.priv, hostData(cn, room, gm, bind)).then(function(s) {
@@ -6189,7 +6200,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
     var snapOk = false;
     try {
-        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: getProfile().id, key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
+        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
         if (typeof fogLanded === 'function') fogLanded(null, mkSnap); else mkSnap();   // fold M4: judged with every open drag at its start
         conn.send(snap); snapOk = true;
     } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + ' \u2014 something in it cannot be sent (the console has the details).'); if (typeof mapForgetConn === 'function') mapForgetConn(conn.peer); }
@@ -8851,6 +8862,7 @@ function leaveSession(silent) {
         if (wasHost) { logEvent('session', 'Session ended'); net.applyingRemote = true; save(true); net.applyingRemote = false; }
         if ((wasClient || net.foreign) && !window.wpStream) load();   // foreign without a live link (a failed re-join) still leaves this way
     }
+    if (!window.wpStream && !net.stream && typeof hostId === 'function') net.myId = hostId();   // 1.6.0: off someone else's table this screen is its GM's own again
     syncSessionButtons();
 }
 

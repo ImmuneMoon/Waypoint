@@ -226,7 +226,7 @@ function ledgerSize() { return Object.keys(readLedger()).length; }
 // What the classifier needs from this machine: the profile id, the pictures on disk, the Journal registry
 async function buildCtx() {
     var myId = null;
-    try { myId = (JSON.parse(localStorage.getItem('wp_profile') || 'null') || {}).id || null; } catch (e) {}
+    try { myId = localStorage.getItem('wp_hostId') || (JSON.parse(localStorage.getItem('wp_profile') || 'null') || {}).id || null; } catch (e) {}   // 1.6.0: the Journal keys this install's own campaigns by its host id
     var images = null;
     try { var r = await fetch('/api/list-images'); if (r.ok) { var l = await r.json(); images = (Array.isArray(l) ? l : []).map(function(i) { return String(i && i.path || ''); }); } } catch (e) {}
     var journalKeys = {};

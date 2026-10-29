@@ -12855,12 +12855,12 @@ pendingChecks.push((async () => {
         const A3 = await mkHost({ store: A.store }), pubA3 = A3.G.key() && A3.G.key().pub;
         const setJs = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'settings.js'), 'utf8').replace(/\r\n/g, '\n');
         const mId = setJs.match(/d\.showConfirm\('Reset your multiplayer identity\?[^\n']*', (function\(yes\) \{\n[\s\S]*?toast\('New identity generated\.'\);\n\s*\})\);/);   // the confirm's own callback, run for real
-        const runId = (yes, win) => { const calls = []; if (!mId) return null; new Function('getProfile', 'saveProfile', 'window', 'toast', 'localStorage', 'return ' + mId[1])(() => ({ id: 'u_old', name: 'N' }), p => calls.push('save:' + (p.id !== 'u_old' && p.name === 'N')), win || { wpNet: { gmSignReset: () => calls.push('reset') } }, () => calls.push('toast'), { removeItem: k => calls.push('rm:' + k) })(yes); return calls; };
+        const runId = (yes, win) => { const calls = []; if (!mId) return null; new Function('getProfile', 'saveProfile', 'window', 'toast', 'localStorage', 'return ' + mId[1])(() => ({ id: 'u_old', name: 'N' }), p => calls.push('save:' + (p.id !== 'u_old' && p.name === 'N')), win || { wpNet: { gmSignReset: () => calls.push('reset') } }, () => calls.push('toast'), { removeItem: k => calls.push('rm:' + k), setItem: (k, v) => calls.push('set:' + k + (v !== 'u_old' ? ':new' : ':old')) })(yes); return calls; };
         const idRuns = [runId(false), runId(undefined), runId(true), runId(true, {})];
         chk('g', J(pubA2) === J(s1.gmPub) && typeof kept1 === 'string' && gone && !!pubA3 && pubA3.x !== s1.gmPub.x && typeof A.store.m.wp_gmSign === 'string' && A.store.m.wp_gmSign !== kept1
-            && J(idRuns) === J([[], [], ['save:true', 'reset', 'toast'], ['save:true', 'rm:wp_gmSign', 'toast']])
-            && /saveProfile\(np\);\n\s*if \(window\.wpNet\) window\.wpNet\.myId = np\.id;\n\s*if \(window\.wpNet && window\.wpNet\.gmSignReset\) window\.wpNet\.gmSignReset\(\); else \{ try \{ localStorage\.removeItem\('wp_gmSign'\); \} catch \(e\) \{\} \}/.test(setJs)
-            && /var keep = \{ wp_profile: 1, wp_version: 1, wp_lastHost: 1, wp_prefsStamp: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 \};/.test(setJs) && /var KEEP = \{ wp_profile: 1, wp_tableKeys: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 \};/.test(bootS) && !/var KEEP = /.test(htmlS) && /<script src="\/api\/prefs\.js"><\/script>\n<script src="scripts\/bootprefs\.js"><\/script>/.test(htmlS),
+            && J(idRuns) === J([[], [], ['save:true', 'set:wp_hostId:new', 'reset', 'toast'], ['save:true', 'set:wp_hostId:new', 'rm:wp_gmSign', 'toast']])
+            && /saveProfile\(np\);\n\s*try \{ localStorage\.setItem\('wp_hostId', np\.id\); \} catch \(e\) \{\}[^\n]*\n\s*if \(window\.wpNet\) window\.wpNet\.myId = np\.id;\n\s*if \(window\.wpNet && window\.wpNet\.gmSignReset\) window\.wpNet\.gmSignReset\(\); else \{ try \{ localStorage\.removeItem\('wp_gmSign'\); \} catch \(e\) \{\} \}/.test(setJs)
+            && /var keep = \{ wp_profile: 1, wp_hostId: 1, wp_version: 1, wp_lastHost: 1, wp_prefsStamp: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 \};/.test(setJs) && /var KEEP = \{ wp_profile: 1, wp_hostId: 1, wp_tableKeys: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 \};/.test(bootS) && !/var KEEP = /.test(htmlS) && /<script src="\/api\/prefs\.js"><\/script>\n<script src="scripts\/bootprefs\.js"><\/script>/.test(htmlS),
             J([J(pubA2) === J(s1.gmPub), gone, pubA3 && pubA3.x !== s1.gmPub.x, idRuns]));
 
         /* ---- (h) ---- */
@@ -16794,6 +16794,19 @@ pendingChecks.push((async () => {
         && (src.match(/msg\.type === 'voice(-up)?'/g) || []).length === 2
         && src.includes("if (net.role === 'host' && window.wpVoice) { try { window.wpVoice.connGone(conn.peer); } catch (e) {} }") && (src.match(/window\.wpVoice\.tableLeft\(\)/g) || []).length === 2
         && (src.match(/window\.wpVoice\.tableReady\(\)/g) || []).length === 1 && src.includes('net.rtcConfig = function() { return peerOpts().config; };'), VJ([vS.length, vuS.length]));
+}
+{   // 1.6.0 the host id apart from the joining id (the owner, 2026-10-29, and the website session's decision 4 of 2026-10-23): net.js hostId, run for real
+    const nS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const i0 = nS.indexOf('function hostId() {'), i1 = nS.indexOf('\n}\n', i0);
+    const store = {}, ls = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
+    let prof = { id: 'u_first' };
+    const H = new Function('localStorage', 'getProfile', 'validProfileId', nS.slice(i0, i1 + 2) + '\nreturn hostId;')(ls, () => prof, id => typeof id === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(id));
+    const first = H(); prof = { id: 'u_second' }; const after = H(); store.wp_hostId = '<bad>'; const healed = H();
+    const sites = (nS.match(/gmId: \(typeof hostId === 'function' \? hostId\(\) : getProfile\(\)\.id\)/g) || []).length, gmSites = (nS.match(/gm = \(typeof hostId === 'function' \? hostId\(\) : getProfile\(\)\.id\)/g) || []).length;
+    check('1.6.0 the host id (net.js hostId, run for real): made once from the profile\'s id and kept as wp_hostId, so nothing changes for anyone; a profile that later takes another id leaves it standing; one that is no id is made again from the profile; every gmId the host sends (handouts, the notepad, a scene\'s close, the snapshot) and the key proof\'s gm read it; the GM\'s own screen speaks as it, a join as the profile\'s id, and leaving a table gives it back',
+        first === 'u_first' && store.wp_hostId === 'u_second' && after === 'u_first' && healed === 'u_second' && sites === 8 && gmSites === 2 && /getProfile\(\)\.id/.test(nS.slice(i0, i1)) && (nS.match(/getProfile\(\)\.id/g) || []).length === 11
+        && nS.includes('net.myId = hostId();') && nS.includes("    var profile = setProfileName(name || getProfile().name || 'Player');\n    net.myId = profile.id;") && nS.includes("if (!window.wpStream && !net.stream && typeof hostId === 'function') net.myId = hostId();"),
+        JSON.stringify([first, after, healed, store, sites, gmSites]));
 }
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */

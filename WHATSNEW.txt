@@ -25,6 +25,15 @@ Scenes
 Hidden pieces
 - Settings has Hidden pieces on my map: Faded shows a piece you hid from players see-through, as before, and Invisible leaves it off your screen until you show it. No grey cloud stands in for a hidden piece any more.
 
+Your profile
+- Take your profile to another computer: Settings, Profile has Save my
+  profile and Copy my profile code, and on the other computer Open a
+  profile and Paste a profile code. Every GM's table then knows you there
+  at once, with no question for the GM. Keep the file and the code
+  private.
+- Your own table keeps its own id, apart from the one you join tables
+  with, so your players still know it whatever profile you open.
+
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain
   now counts by its own outline, turned as it is drawn. Before, only a

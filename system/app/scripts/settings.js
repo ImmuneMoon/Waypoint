@@ -4,6 +4,7 @@
 
 import { state } from './state.js';
 import { toast } from './io.js';
+import './profilecore.js';   // 1.6.0: a profile carried to another computer (window.wpProfileCore)
 
 function ui(id) { return document.getElementById(id); }
 
@@ -710,7 +711,7 @@ if (_snapList) _snapList.addEventListener('click', async function(e) {
 var _prefs = ui('setResetPrefsBtn');
 if (_prefs) _prefs.addEventListener('click', function() {
     // Every wp_* preference goes — except identity/profile (a GM's signing key and the GMs this app knows with it), the version marker and the last host code
-    var keep = { wp_profile: 1, wp_version: 1, wp_lastHost: 1, wp_prefsStamp: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 };
+    var keep = { wp_profile: 1, wp_hostId: 1, wp_version: 1, wp_lastHost: 1, wp_prefsStamp: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 };
     var keys = [];
     try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('wp_') === 0 && !keep[k]) keys.push(k); } } catch (e) {}
     keys.forEach(function(k) { try { localStorage.removeItem(k); } catch (e) {} });
@@ -1136,6 +1137,82 @@ setTimeout(function() {
 var _verBtn = ui('setVersionBtn');
 if (_verBtn) _verBtn.addEventListener('click', function() { if (window.wpShowWhatsNew) window.wpShowWhatsNew(this.dataset.version || ''); });
 
+/* ---------- a profile carried to another computer (1.6.0; the owner, 2026-10-29, by prompt: "Both", a file and a code) ----------
+   profilecore.js shapes, cleans and merges; this wires Settings' four buttons. Opening a profile replaces who this install joins tables as
+   (wp_profile and wp_tableKeys) and joins what it knows of GMs; the id it hosts under stays (net.js hostId, seeded first so it is never made
+   from the new profile). Never during a table, and asked first with the buttons alone. Every step logs as "profile v1" (structure only). */
+// [settings:profcarry-start]
+var PROF_STORES = ['wp_profile', 'wp_tableKeys', 'wp_gmPins', 'wp_gmRooms'];
+function profStores() { var s = {}; PROF_STORES.forEach(function(k) { try { s[k] = localStorage.getItem(k); } catch (e) { s[k] = null; } }); return s; }
+function profRules() { var n = window.wpNet; return { avatarOk: n && n.safeAvatar, faceClean: n && n.cleanFace }; }
+function profStep(step, o) { if (typeof window.wpStepLog === 'function') window.wpStepLog('profile v1', step, o); }
+function profBusy() { var n = window.wpNet; if (n && (n.active || n.foreign)) { toast('Leave the table first: your profile changes only between tables.'); return true; } return false; }
+function profPack() { var PC = window.wpProfileCore; return PC ? PC.packOf(profStores(), profRules(), Date.now()) : null; }
+function profOpen(pack, how) {
+    var PC = window.wpProfileCore; if (!PC || !pack) { toast('That is not a Waypoint profile.'); profStep('refused', { how: how }); return; }
+    if (profBusy()) { profStep('busy', { how: how }); return; }
+    var mine = profPack(), same = !!mine && mine.profile.id === pack.profile.id;
+    var words = 'Open the profile of ' + PC.packWords(pack) + '? From now on you join tables as them. ' + (same ? 'It is the profile you have here: its tables are brought up to date.' : mine ? 'The profile here now, ' + PC.packWords(mine) + ', is replaced: save it first if you may want it back.' : '') + ' Your own table, if you host one, stays as it is.';
+    import('./dialogs.js').then(function(d) {
+        d.showConfirm(words, function(yes) {
+            if (yes !== true) { profStep('cancelled', { how: how }); return; }
+            if (profBusy()) return;
+            if (window.wpNet && typeof window.wpNet.hostId === 'function') window.wpNet.hostId();   // the host id is made from the profile here, never the new one
+            var w = PC.openWrites(profStores(), pack); if (!w) { toast('That profile could not be opened.'); profStep('failed', { how: how, at: 'writes' }); return; }
+            try { Object.keys(w).forEach(function(k) { localStorage.setItem(k, w[k]); }); }
+            catch (e) { toast('That profile could not be kept on this computer.'); profStep('failed', { how: how, at: 'store' }); return; }
+            if (window.wpPrefsPush) window.wpPrefsPush();   // the saves folder's preferences.json follows
+            if (typeof syncPanel === 'function') syncPanel();
+            if (window.wpFaces && window.wpFaces.paintRows) window.wpFaces.paintRows();
+            toast('You now join tables as ' + (pack.profile.name || 'that player') + '.');
+            profStep('opened', { how: how, same: same, tables: Object.keys(pack.tableKeys).length });
+        }, { noEnter: true, yes: 'Open it' });
+    });
+}
+function profWire() {
+    var save = ui('setProfSaveBtn'), open = ui('setProfOpenBtn'), file = ui('setProfFile'), copy = ui('setProfCopyBtn'), paste = ui('setProfPasteBtn');
+    if (save) save.addEventListener('click', function() {
+        var PC = window.wpProfileCore, pack = profPack(); if (!PC || !pack) { toast('There is no profile here to save yet.'); profStep('save-none', {}); return; }
+        var nm = String(pack.profile.name || 'player').replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 40) || 'player';
+        try {
+            var url = URL.createObjectURL(new Blob([PC.fileText(pack)], { type: 'application/json' })), a = document.createElement('a');
+            a.href = url; a.download = 'Waypoint profile - ' + nm + '.json'; document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+            toast('Profile saved. Keep the file private: it lets someone join as you.');
+            profStep('saved', { tables: Object.keys(pack.tableKeys).length });
+        } catch (e) { toast('The profile could not be saved.'); profStep('failed', { at: 'save' }); }
+    });
+    if (open && file) {
+        open.addEventListener('click', function() { if (profBusy()) return; file.value = ''; file.click(); });
+        file.addEventListener('change', function() {
+            var f = file.files && file.files[0]; if (!f) return;
+            if (f.size > 400000) { toast('That file is too large to be a Waypoint profile.'); profStep('refused', { how: 'file', at: 'size' }); return; }
+            f.text().then(function(t) { profOpen(window.wpProfileCore ? window.wpProfileCore.fromFile(t, profRules()) : null, 'file'); }, function() { toast('That file could not be read.'); profStep('failed', { how: 'file', at: 'read' }); });
+        });
+    }
+    if (copy) copy.addEventListener('click', function() {
+        var PC = window.wpProfileCore, pack = profPack(); if (!PC || !pack) { toast('There is no profile here to copy yet.'); return; }
+        var code = PC.codeOf(pack);
+        var byHand = function() {   // where this computer refuses the clipboard, the code is shown selected for Ctrl+C
+            profStep('shown', { len: code.length });
+            import('./dialogs.js').then(function(d) { d.showPrompt('Copy this profile code with Ctrl+C. Keep it private: it lets someone join as you.', code, function() {}); });
+        };
+        if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') { byHand(); return; }
+        navigator.clipboard.writeText(code).then(function() { toast('Profile code copied. Keep it private: it lets someone join as you.'); profStep('copied', { tables: Object.keys(pack.tableKeys).length, len: code.length }); }, byHand);
+    });
+    if (paste) paste.addEventListener('click', function() {
+        if (profBusy()) return;
+        import('./dialogs.js').then(function(d) {
+            d.showPrompt('Paste the profile code copied on your other computer', '', function(text) {
+                if (text === null || text === undefined || String(text).trim() === '') return;
+                profOpen(window.wpProfileCore ? window.wpProfileCore.fromCode(String(text), profRules()) : null, 'code');
+            });
+        });
+    });
+}
+profWire();
+// [settings:profcarry-end]
+
 var _ident = ui('setResetIdentityBtn');
 if (_ident) _ident.addEventListener('click', function() {
     if (window.wpNet && window.wpNet.active) { toast('Leave the multiplayer session first.'); return; }
@@ -1146,6 +1223,7 @@ if (_ident) _ident.addEventListener('click', function() {
             var np = { id: 'u_' + Math.random().toString(36).slice(2, 10), name: p.name || '' };
             if (p.avatar) np.avatar = p.avatar;
             saveProfile(np);
+            try { localStorage.setItem('wp_hostId', np.id); } catch (e) {}   // 1.6.0: a new identity is a new GM too: the host id follows
             if (window.wpNet) window.wpNet.myId = np.id;
             if (window.wpNet && window.wpNet.gmSignReset) window.wpNet.gmSignReset(); else { try { localStorage.removeItem('wp_gmSign'); } catch (e) {} }   // a new identity is a new GM: the next table hosted is signed with a new key
             toast('New identity generated.');

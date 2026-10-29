@@ -298,6 +298,12 @@
                           <li><b>Join a game</b> opens its own screen. There you set your <b>name</b>, <b>color</b>, <b>picture</b> and <b>token face</b>, and enter the GM&rsquo;s <b>room code</b>. The picture is framed first: drag and zoom to the part that shows. Together these are your profile, which follows you to every table. The screen stays up and shows the connection. It drops you in once the GM&rsquo;s table loads.</li>
                           <li>Click the <b>Waypoint</b> logo at the top left to bring the Welcome screen back at any time.</li>
                           <li>Set your profile at any time under <b>Settings &#9656; Profile</b>.</li>
+                          <li><b>Your profile on another computer</b>: in <b>Settings &#9656; Profile</b>, <b>Save my profile</b> makes a file, and <b>Copy my profile code</b> copies the same as one long code.
+                              <ul>
+                                  <li>On the other computer, <b>Open a profile</b> or <b>Paste a profile code</b>. You then join tables there as yourself, and every GM&rsquo;s table knows you at once.</li>
+                                  <li>Keep the file and the code private: they let someone join as you.</li>
+                                  <li>Your own table, if you host one, stays as it is. Your players still know it.</li>
+                              </ul></li>
                           <li><b>Settings &#9656; Profile &#9656; Welcome screen on launch</b> sets how often the screen appears: every time, on the first run only, or never. The Welcome screen itself asks only the first time.</li>
                           <li>The screen lists a campaign to continue only once that campaign holds something.</li>
                       </ul>
@@ -3567,6 +3573,19 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="set-field-label" style="margin:0;">Token face</div>
             <button class="tool ghost" id="setFaceBtn" type="button" style="padding:3px 8px;" title="Choose your token's face"><span class="face-prev"></span></button>
             <span style="font-size:10.5px; color:var(--dim); flex:1; line-height:1.35;">What your token shows while you wait for a character at a table: your picture, the plain default, a bundled token picture or an emoji.</span>
+        </div>
+        <div class="set-carry" style="margin:12px 0 6px;">
+            <div class="set-field-label">On another computer</div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="tool ghost" id="setProfSaveBtn" type="button" style="flex:1;" title="Saves who you are at every table as a file: your name, picture, colour, token face and the keys each GM's table knows you by">Save my profile&hellip;</button>
+                <button class="tool ghost" id="setProfOpenBtn" type="button" style="flex:1;" title="Opens a profile file saved on another computer: from then on you join tables as that player">Open a profile&hellip;</button>
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+                <button class="tool ghost" id="setProfCopyBtn" type="button" style="flex:1;" title="Copies the same profile as one long code, to paste on the other computer">Copy my profile code</button>
+                <button class="tool ghost" id="setProfPasteBtn" type="button" style="flex:1;" title="Pastes a profile code copied on another computer: from then on you join tables as that player">Paste a profile code&hellip;</button>
+            </div>
+            <input type="file" id="setProfFile" accept=".json,application/json" title="The profile file to open, saved on your other computer" hidden>
+            <div class="set-line">Take your profile to another computer and every table knows you there. Keep the file and the code private: they let someone join as you. Your own table, if you host one, stays as it is.</div>
         </div>
         <div class="set-welcome" style="margin-top:6px;">
             <div class="set-field-label">Welcome screen on launch</div>

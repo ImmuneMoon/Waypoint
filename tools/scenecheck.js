@@ -118,7 +118,7 @@ const SPOT = 'M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.
         br === j([['h1'], [], [], [], [], [], [], [], []]) && !/msg\.type === 'scene-close' && net\.role === 'host'/.test(netJs), br);
     check('Close for everyone (net.sceneClose) tells each connected player of the audience the scene\'s id with the campaign and the GM, on the host alone, and logs the step (pinned)',
         netJs.includes("net.sceneClose = function(hid, pids) {\n    if (!net.active || net.role !== 'host' || typeof hid !== 'string' || !hid) return 0;")
-        && netJs.includes("try { c.send({ type: 'scene-close', campId: camp.id, gmId: getProfile().id, id: hid }); n++; } catch (e) { sendFailed(e, 'scene'); }"));
+        && netJs.includes("try { c.send({ type: 'scene-close', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), id: hid }); n++; } catch (e) { sendFailed(e, 'scene'); }"));
 }
 
 /* ================= the pill ================= */

@@ -15,7 +15,7 @@
             // blanks a typed name, and table keys from both sides are merged rather than replaced. The same for a GM's signing
             // key (wp_gmSign: a file that lacks it never takes it away) and what a player's app knows of its GMs (wp_gmPins,
             // wp_gmRooms: merged, at most 50 of each).
-            var KEEP = { wp_profile: 1, wp_tableKeys: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 };
+            var KEEP = { wp_profile: 1, wp_hostId: 1, wp_tableKeys: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 };
             var local = []; for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('wp_') === 0 && k !== 'wp_prefsStamp') local.push(k); }
             local.forEach(function(k) { if (!(k in f.prefs) && !KEEP[k]) localStorage.removeItem(k); });
             Object.keys(f.prefs).forEach(function(k) {

@@ -15843,6 +15843,101 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && lbO.includes("var ol = el('label', 'lib-mod-lvl lib-grant-once'), oc = el('input'); oc.type = 'checkbox'; oc.checked = g.once === true;") && lbO.includes("ol.appendChild(el('span', null, ' Once a character'))") && lbO.indexOf("var ol = el('label', 'lib-mod-lvl lib-grant-once')") > lbO.indexOf("x.title = 'It no longer grants this'") && lbO.includes("oc.addEventListener('change', function() { if (oc.checked) g.once = true; else delete g.once; }); ln.appendChild(ol);")
             && ixO.includes('<li>Tick <b>Once a character</b> on a grant') && ntO.every(t => t.indexOf("- A grant can come once a character") > 0 && t.indexOf("- A grant can come once a character") < t.indexOf('WAYPOINT 1.5.')));
     }
+    {   // 1.6.0 (a grant's own terms, asked by the SotMW session: one drawback granted free by a package and paying back from an implant): a grant's
+        // Pays back (pay: true, the row marked gp, Row.paysback) and the level it grants at (lvl, held to the list's level rules), on invented data
+        const J = JSON.stringify;
+        const rawP = { v: 1, name: 'P', rolls: [], items: [
+            { id: 'i_pk', name: 'Ferry kit', category: 'Package', grants: [{ list: 'f_dr', entry: 'i_ache' }] },
+            { id: 'i_im', name: 'Brass lung', category: 'Implant', grants: [{ list: 'f_dr', entry: 'i_ache', pay: true, lvl: 9 }] },
+            { id: 'i_bad', name: 'Odd', category: 'Implant', grants: [{ list: 'f_dr', entry: 'i_ache', pay: 'yes', lvl: '2' }, { list: 'f_dr', entry: 'i_chip', pay: 1, lvl: 1e9 }] },
+            { id: 'i_hub', name: 'Hub', category: 'Implant', grants: [{ list: 'f_one', entry: 'i_hum', pay: true, lvl: 2 }] },
+            { id: 'i_eye', name: 'Eye', category: 'Implant', grants: [{ list: 'f_one', entry: 'i_hum' }] },
+            { id: 'i_ear', name: 'Ear', category: 'Implant', grants: [{ list: 'f_one', entry: 'i_hum', lvl: 1 }] },
+            { id: 'i_o1', name: 'Coil', category: 'Implant', grants: [{ list: 'f_one', entry: 'i_tic', once: true, pay: true }] },
+            { id: 'i_o2', name: 'Spur', category: 'Implant', grants: [{ list: 'f_one', entry: 'i_tic', once: true }] },
+            { id: 'i_tr', name: 'Tier', category: 'Package', grants: [{ list: 'f_one', entry: 'i_hum', lvl: 1 }, { list: 'f_one', entry: 'i_hum', lvl: 2, pay: true, from: 3 }] },
+            { id: 'i_ache', name: 'Ache', category: 'Flaw', lvl: 1, stats: { Pts: -5 } }, { id: 'i_hum', name: 'Hum', category: 'Flaw', stats: { Pts: -3 } },
+            { id: 'i_tic', name: 'Tic', category: 'Flaw', stats: { Pts: -2 } }, { id: 'i_chip', name: 'Chip', category: 'Flaw' }],
+            fields: [{ id: 'f_im', key: 'Kit', label: 'Kit', kind: 'item-list', vis: 'all', edit: 'owner', list: { lvl: { min: 1, max: 5, def: 1 } } },
+                { id: 'f_dr', key: 'Drawbacks', label: 'Drawbacks', kind: 'item-list', vis: 'all', edit: 'owner', list: { noQty: true, multi: true, lvl: { min: 1, max: 3, def: 1 }, stats: [{ key: 'Pts', label: 'Pts' }], cols: [{ key: 'Net', label: 'Net', formula: 'if(and(Row.granted > 0, Row.paysback = 0), 0, Row.Pts * Row.lvl)' }, { key: 'Pb', label: 'Pb', formula: 'Row.paysback' }] } },
+                { id: 'f_one', key: 'Flaws', label: 'Flaws', kind: 'item-list', vis: 'all', edit: 'owner', list: { noQty: true, lvl: { min: 1, max: 4, def: 1 } } }], sheet: { sections: [] } };
+        const gP = cleanSystem(rawP, { F, gmView: true }), pP = cleanSystem(rawP, { F, gmView: false }), itP = id => gP.items.find(i => i.id === id);
+        const cleanOk = J(itP('i_im').grants) === J([{ list: 'f_dr', entry: 'i_ache', qty: 1, pay: true, lvl: 9 }]) && J(itP('i_bad').grants) === J([{ list: 'f_dr', entry: 'i_ache', qty: 1 }, { list: 'f_dr', entry: 'i_chip', qty: 1 }])
+            && J(itP('i_pk').grants) === J([{ list: 'f_dr', entry: 'i_ache', qty: 1 }]) && J(pP.items.find(i => i.id === 'i_im').grants) === J(itP('i_im').grants)
+            && J(cleanSystem(gP, { F, gmView: true })) === J(gP) && J(cleanSystem(pP, { F, gmView: false })) === J(pP) && validateSystem(gP, F).errors.length === 0
+            && J(S.hideGrants({ grants: itP('i_im').grants.slice() }, id => id === 'i_ache').grants) === J(itP('i_im').grants)
+            && J(S.grantWant(itP('i_tr'), 1)) === J({ 'f_one|i_hum': { list: 'f_one', entry: 'i_hum', qty: 1, lvl: 1 } }) && J(S.grantWant(itP('i_tr'), 3)) === J({ 'f_one|i_hum': { list: 'f_one', entry: 'i_hum', qty: 2, pay: true, lvl: 2 } });
+        const put = (ch, f, r) => { if (r.ok) { ch.values[f] = r.value; if (r.also) Object.keys(r.also).forEach(k => { ch.values[k] = r.also[k]; }); } return r; };
+        const op = (ch, q) => put(ch, 'f_im', S.applyRowOp(gP, ch, 'f_im', q, F, {})), mk = () => ({ id: 'c_p', name: 'Tam', ownerId: 'u_t', values: { f_im: [], f_dr: [], f_one: [] } });
+        const of = (ch, f) => ch.values[f].map(r => r.defId + ':' + (r.lvl === undefined ? '-' : r.lvl) + ':' + (r.gp === 1 ? 'pay' : 'free') + ':' + (r.gr ? ch.values.f_im.find(x => x.id === r.gr).defId : 'own'));
+        // two grants of one entry: the package's free, the implant's paying back at its tier, clamped to the list's most
+        const c1 = mk(); op(c1, { op: 'add', defId: 'i_pk', rowId: 'w_p1' }); op(c1, { op: 'add', defId: 'i_im', rowId: 'w_i1' });
+        const cR = S.cleanChar(c1, gP, { state: 'host' }), rvH = S.resolveAll(gP, cR, F, null).f_dr, idOf = d => cR.values.f_dr.find(r => r.gr === d).id;
+        const twoOk = J(of(c1, 'f_dr')) === J(['i_ache:1:free:i_pk', 'i_ache:3:pay:i_im']) && rvH.cells[idOf('w_p1')][0].value === 0 && rvH.cells[idOf('w_p1')][1].value === 0
+            && rvH.cells[idOf('w_i1')][0].value === -15 && rvH.cells[idOf('w_i1')][1].value === 1 && J(cR.values) === J(c1.values);
+        // the owner's copy reads what the host reads (projFacts carries gp beside gr; their app keeps it only beside its mark); the wire never names it
+        const own = S.charFor(cR, pP, 'u_t'), rvO = S.resolveAll(pP, S.cleanChar(own, pP), F, null).f_dr, ownDr = own.values.f_dr;
+        const ownOk = ownDr.filter(r => r.gp === 1).length === 1 && ownDr.find(r => r.gp === 1).gr === 'w_i1' && J(rvO.cells) === J(rvH.cells)
+            && !('gp' in S.cleanChar({ id: 'c_x', name: 'X', values: { f_dr: [{ id: 'w_q', defId: 'i_ache', qty: 1, gp: 1 }] } }, gP, { state: 'host' }).values.f_dr[0])
+            && S.cleanCharItem({ rid: 'e12345678', charId: 'c_1', fieldId: 'f_im', op: 'add', defId: 'i_pk', rowId: 'w_x', gr: 'w_i1', gp: 1 }).gp === undefined;
+        // an heir takes the row on its own terms: Pays back as it says, its level where it names one, else the row keeps its own
+        const c2 = mk(); op(c2, { op: 'add', defId: 'i_hub', rowId: 'w_h1' }); const h0 = of(c2, 'f_one'); op(c2, { op: 'add', defId: 'i_eye', rowId: 'w_e1' }); const h1 = of(c2, 'f_one'); op(c2, { op: 'remove', rowId: 'w_h1' }); const h2 = of(c2, 'f_one');
+        const c3 = mk(); op(c3, { op: 'add', defId: 'i_eye', rowId: 'w_e1' }); op(c3, { op: 'add', defId: 'i_hub', rowId: 'w_h1' }); op(c3, { op: 'remove', rowId: 'w_e1' }); const h3 = of(c3, 'f_one');
+        const c4 = mk(); op(c4, { op: 'add', defId: 'i_hub', rowId: 'w_h1' }); op(c4, { op: 'add', defId: 'i_ear', rowId: 'w_r1' }); op(c4, { op: 'remove', rowId: 'w_h1' }); const h4 = of(c4, 'f_one');
+        const heirOk = J(h0) === J(['i_hum:2:pay:i_hub']) && J(h1) === J(h0) && J(h2) === J(['i_hum:2:free:i_eye']) && J(h3) === J(['i_hum:2:pay:i_hub']) && J(h4) === J(['i_hum:1:free:i_ear']);
+        // once: the first implant's paying row; the second grants none, and takes it free when the first goes
+        const c5 = mk(); op(c5, { op: 'add', defId: 'i_o1', rowId: 'w_c1' }); op(c5, { op: 'add', defId: 'i_o2', rowId: 'w_c2' }); const o1 = of(c5, 'f_one'); op(c5, { op: 'remove', rowId: 'w_c1' }); const o2 = of(c5, 'f_one');
+        const onceOk = J(o1) === J(['i_tic:1:pay:i_o1']) && J(o2) === J(['i_tic:1:free:i_o2']);
+        // the terms follow the granting row's level: past its From the later grant's level and Pays back; back below, the first grant's
+        const c6 = mk(); op(c6, { op: 'add', defId: 'i_tr', rowId: 'w_t1' }); const t1 = of(c6, 'f_one'); op(c6, { op: 'set', rowId: 'w_t1', facts: { lvl: 3 } }); const t3 = of(c6, 'f_one'); op(c6, { op: 'set', rowId: 'w_t1', facts: { lvl: 1 } }); const tb = of(c6, 'f_one');
+        const tierOk = J(t1) === J(['i_hum:1:free:i_tr']) && J(t3) === J(['i_hum:2:pay:i_tr']) && J(tb) === J(t1);
+        // a trade and a character file: alone it is no one's grant (gp goes with gr); a file keeps its mark and its Pays back
+        const XP = await import(url('sheetexport.js')), fileP = XP.charToJson(gP, c1, null, {}), flP = XP.charFromJson(pP, JSON.parse(J(fileP)), () => []);
+        const fP = S.fillMaking(gP, { id: 'c_m', name: 'Pax', ownerId: 'u_a', npc: false, making: 1, values: {} }, flP, F, { view: pP, lib: null });
+        const imF = fP.values.f_im.find(r => r.defId === 'i_im'), drF = fP.values.f_dr;
+        const fileOk = fP.ok && J(drF.map(r => [r.lvl, r.gp === 1 ? 'pay' : 'free', r.gr === imF.id ? 'im' : r.gr ? 'pk' : '-'])) === J([[1, 'free', 'pk'], [3, 'pay', 'im']]);
+        const lone = { id: 'c_l', name: 'L', values: { f_im: [], f_dr: [{ id: 'w_g', defId: 'i_ache', qty: 1, lvl: 3, gr: 'w_none', gp: 1 }], f_one: [] } };
+        const fl2 = S.fillMaking(gP, { id: 'c_n', name: 'N', ownerId: 'u_a', npc: false, making: 1, values: {} }, XP.charFromJson(pP, JSON.parse(J(XP.charToJson(gP, lone, null, {}))), () => []), F, { view: pP, lib: null });
+        const loneOk = fl2.ok && !('gr' in fl2.values.f_dr[0]) && !('gp' in fl2.values.f_dr[0]);
+        const rawT = JSON.parse(J(rawP)); rawT.fields.forEach(f => { if (f.list) f.list.trade = true; }); const gT = cleanSystem(rawT, { F, gmView: true });
+        const ta = mk(), tb2 = { id: 'c_q', name: 'Ula', ownerId: 'u_u', values: { f_im: [], f_dr: [], f_one: [] } }; ['w_p1', 'w_i1'].forEach(id => op(ta, { op: 'add', defId: id === 'w_p1' ? 'i_pk' : 'i_im', rowId: id }));
+        const trW = S.tradeApply(gT, ta, tb2, [{ fid: 'f_im', rowId: 'w_i1', qty: 1 }], [], 'gm', 'gm');
+        const ln = { id: 'c_l', name: 'L', values: { f_im: [], f_dr: [{ id: 'w_g', defId: 'i_ache', qty: 1, lvl: 3, gr: 'w_none', gp: 1 }], f_one: [] } }, trL = S.tradeApply(gT, ln, tb2, [{ fid: 'f_dr', rowId: 'w_g', qty: 1 }], [], 'gm', 'gm');
+        const wholeB = trW.ok ? trW.valuesB.f_dr : null, aloneB = trL.ok ? trL.valuesB.f_dr : null;
+        const tradeOk = !!wholeB && wholeB.length === 1 && wholeB[0].gp === 1 && wholeB[0].gr === trW.valuesB.f_im[0].id && wholeB[0].lvl === 3 && !!aloneB && aloneB.length === 1 && !('gr' in aloneB[0]) && !('gp' in aloneB[0]);
+        // a system without the keys is key for key what it was: rows and grants as before
+        const rawN = JSON.parse(J(rawP)); rawN.items.forEach(i => { (i.grants || []).forEach(g => { delete g.pay; delete g.lvl; }); }); const gN = cleanSystem(rawN, { F, gmView: true });
+        const cN = mk(); put(cN, 'f_im', S.applyRowOp(gN, cN, 'f_im', { op: 'add', defId: 'i_im', rowId: 'w_i1' }, F, {}));
+        const noneOk = J(gN.items.find(i => i.id === 'i_im').grants) === J([{ list: 'f_dr', entry: 'i_ache', qty: 1 }]) && J(Object.keys(cN.values.f_dr[0])) === J(['id', 'defId', 'qty', 'lvl', 'gr']) && cN.values.f_dr[0].lvl === 1;
+        check('1.6.0 a grant\'s own terms: Pays back (pay, kept by cleanGrants only as true) and Level (lvl, only as a number), the grant\'s last keys, the same in both views and fixed points; grantWant carries them from the holding grant with the highest From; two grants of one entry give a free row and one that pays back at its tier, held to its list\'s most (Row.paysback 1 on it alone, so a cost column charges it as bought); the owner\'s copy reads every figure the host reads; the wire and a row with no mark carry no gp',
+            cleanOk && twoOk && ownOk, J([cleanOk, twoOk, ownOk, of(c1, 'f_dr'), rvH.cells, rvO.cells]));
+        check('1.6.0 a grant\'s own terms pass with the row: an heir holds it on the heir\'s terms (Pays back as the heir says, its level where it names one, else the row keeps its own); once a character, the first grant\'s Pays back and then the second\'s free; a granter whose level passes a From takes the later grant\'s level and Pays back, and back below the first\'s; a character file keeps its mark and Pays back, a row whose granter never came keeps neither; a trade of the granter carries gp with gr, the row traded alone keeps neither; a system without the keys grants key for key as before',
+            heirOk && onceOk && tierOk && fileOk && loneOk && tradeOk && noneOk, J([heirOk, onceOk, tierOk, fileOk, loneOk, tradeOk, noneOk, h0, h1, h2, h3, h4, o1, o2, t1, t3, tb, drF, trW, trL, cN.values.f_dr]));
+        // the Items tab's grant line (grantBox, sliced and run for real with a tick of the suite's own), what Save says, the handlers, Help, the notes and the guide
+        const shQ = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), lbQ = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n');
+        const ixQ = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n'), igQ = fs.readFileSync(path.join(app, '..', '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').replace(/\r\n/g, '\n');
+        const ntQ = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n'));
+        const mkQ = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined ? '' : String(text), kids: [], dataset: {}, appendChild(c) { this.kids.push(c); return c; } });
+        const selQ = (cls, options, value, title) => Object.assign(mkQ('select', cls), { opts: options, value, title });
+        const nfQ = (cls, value, title, cap) => { const l = mkQ('label', 'sys-num'); l.kids.push(mkQ('span', 'sys-num-cap', cap)); l.kids.push(Object.assign(mkQ('input', cls), { value: value === '' ? '' : String(value), title })); return l; };
+        const ckQ = (cls, on, text, title) => { const l = mkQ('label', 'sys-check', ' ' + text); l.title = title; l.kids.push(Object.assign(mkQ('input', cls), { checked: !!on })); return l; };
+        const qA = shQ.indexOf('// [systemcheck:grantbox-start]'), qZ = shQ.indexOf('// [systemcheck:grantbox-end]');
+        const drQ = { fields: rawP.fields.concat([{ id: 'f_bag', key: 'Bag', label: 'Bag', kind: 'item-list', list: {} }]), items: [{ id: 'i_a', name: 'Kit', grants: [{ list: 'f_dr', entry: 'i_b', pay: true, lvl: 2 }, { list: 'f_bag', entry: 'i_b', lvl: 1, once: true }] }, { id: 'i_b', name: 'Ache' }] };
+        const GQ = new Function('el', 'select', 'numField', 'btnRow', 'checkLabel', 'draft', 'window', 'getActiveCampaign', 'GRANT_MAX', 'LIMITS', shQ.slice(qA, qZ) + '\nreturn { grantBox: grantBox, grantSays: grantSays };')(mkQ, selQ, nfQ, l => Object.assign(mkQ('span', 'sys-btns'), { acts: l.map(x => x[0]) }), ckQ, drQ, {}, () => null, S.GRANT_MAX, S.LIMITS);
+        const lnQ = GQ.grantBox(drQ.items[0]).kids.filter(k => /sys-grant( |$)/.test(k.className)), cls = l => l.kids.map(k => k.kids.length ? k.kids[k.kids.length - 1].className : k.className);
+        const boxQ = lnQ.length === 2 && J(cls(lnQ[0])) === J(['sys-grant-name', 'sys-grant-list', 'sys-grant-qty', 'sys-grant-from', 'sys-grant-lvl', 'sys-grant-once', 'sys-grant-pay', 'sys-btns'])
+            && lnQ[0].kids[4].kids[1].value === '2' && lnQ[0].kids[4].kids[0].textContent === 'level' && lnQ[0].kids[6].kids[0].checked === true && lnQ[0].kids[6].textContent === ' Pays back' && /Row\.paysback reads 1/.test(lnQ[0].kids[6].title)
+            && lnQ[1].kids[4].kids[1].value === '1' && lnQ[1].kids[6].kids[0].checked === false && lnQ[1].kids[5].kids[0].checked === true
+            && J(GQ.grantSays(drQ.items[0])) === J({ drop: [], warn: ['Grant 2: its list has no level, so its Level does nothing.'] });
+        const wireQ = shQ.includes("else if (/(^| )sys-grant-(qty|from|lvl)( |$)/.test(ic)) {") && shQ.includes("kG = /sys-grant-qty/.test(ic) ? 'qty' : /sys-grant-lvl/.test(ic) ? 'lvl' : 'from';")
+            && shQ.includes("if (gP) { if (t.checked) gP.pay = true; else delete gP.pay; markDirty(); } return; }   // 1.6.0: Pays back")
+            && lbQ.includes("var lv = el('input', 'field lib-mod-amt lib-grant-lvl');") && lbQ.includes("pc.addEventListener('change', function() { if (pc.checked) g.pay = true; else delete g.pay; }); ln.appendChild(pl);");
+        const saidQ = ixQ.includes('<li>Tick <b>Pays back</b> on a grant, and <code>Row.paysback</code> reads 1 on the row it grants.') && ixQ.includes('<li>A grant&rsquo;s <b>Level</b> is the level the row it grants starts at')
+            && ixQ.includes('<b>Pays back</b><small>A row a grant gives reads Row.paysback as 1, so a cost can count it as bought.</small></div>') && igQ.includes('**Grants (1.6.0):**') && igQ.includes('"pay": true (Pays back), "lvl": a number')
+            && ntQ.every(t => { const i = t.indexOf('- A grant can pay back: tick Pays back'), k = t.indexOf('- A grant can set the level its row starts at'); return i > 0 && k > i && k < t.indexOf('WAYPOINT 1.5.'); });
+        check('1.6.0 a grant\'s own terms in the editors and said: the Items tab\'s grant line has a Level box after From level and a Pays back tick after Once a character, before its remove button; Save says a Level on a list with no level does nothing; the handlers write lvl and pay or take them off, as the Library window\'s line does; Help, the Items key, the integration guide and both release notes say it',
+            boxQ && wireQ && saidQ, J([boxQ, wireQ, saidQ, lnQ.map(cls), GQ.grantSays(drQ.items[0])]));
+    }
     {   // 1.6.0 (CORE gap 16; the owner, by prompt: "they have to be assigned to piloting for their skill to be available", stations "On the link", "Players' view, as links"): a vehicle reads its crew as a group, on invented data
         const J = v => JSON.stringify(v);
         const rawC = { v: 1, name: 'C', rolls: [], fields: [{ id: 'f_pi', key: 'Piloting', kind: 'number', def: 0, vis: 'all' }, { id: 'f_gu', key: 'Gunnery', kind: 'number', def: 0, vis: 'all' }, { id: 'f_se', key: 'Secret', kind: 'number', def: 0, vis: 'gm' },
@@ -17523,12 +17618,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const libG = { whole: () => true, entry: id => (id === 'i_lib' ? { id: 'i_lib', name: 'Lantern' } : null), entriesOf: () => [{ id: 'i_lib', name: 'Lantern' }] };
         const GB = new Function('el', 'select', 'numField', 'btnRow', 'draft', 'window', 'getActiveCampaign', 'GRANT_MAX', 'LIMITS', shG.slice(gbA, gbZ) + '\nreturn { grantBox: grantBox, grantSays: grantSays, grantListFor: grantListFor };')(mkE, selG, nfG, brG, drG, { wpLibrary: libG }, () => ({ library: { packs: [{ id: 'p' }] } }), S.GRANT_MAX, S.LIMITS);
         const boxG = GB.grantBox(drG.items[0]), lnG = boxG.kids.filter(k => /sys-grant( |$)/.test(k.className)), addG = boxG.kids[boxG.kids.length - 1], saysG = GB.grantSays(drG.items[0]);
-        const boxOk = lnG.length === 7 && lnG[0].kids[0].textContent === 'Bell' && lnG[0].kids[1].value === 'f_ge' && J(lnG[0].kids[1].opts.map(o => o[0])) === J(['f_tr', 'f_ge']) && lnG[0].kids[2].kids[1].value === '2' && lnG[0].kids[3].kids[1].value === '3' && J(lnG[0].kids[4].acts) === J(['grantdel'])
+        const boxOk = lnG.length === 7 && lnG[0].kids[0].textContent === 'Bell' && lnG[0].kids[1].value === 'f_ge' && J(lnG[0].kids[1].opts.map(o => o[0])) === J(['f_tr', 'f_ge']) && lnG[0].kids[2].kids[1].value === '2' && lnG[0].kids[3].kids[1].value === '3' && lnG[0].kids[4].kids[1].value === '' /* 1.6.0: a grant's Level box after From level, so the remove button moved on purpose */ && J(lnG[0].kids[5].acts) === J(['grantdel'])
             && J(lnG[1].kids[1].opts[2]) === J(['f_gone', 'On a list that is gone']) && J(lnG[2].kids[1].opts[0]) === J(['', 'Pick a list']) && lnG[5].kids[0].textContent === 'Lantern' && lnG[6].kids[0].textContent === 'An entry that is not here'
             && addG.className === 'sys-grant-add' && J(addG.opts.map(o => o[0])) === J(['', 'i_b', 'i_lib']) && addG.opts[1][1] === 'Bell (GM only)' && GB.grantListFor('i_lib') === 'f_tr'
             && J(saysG) === J({ drop: ['Grant 2: its list is gone, so Save drops it.', 'Grant 3: it needs a list, so Save drops it.', 'Grant 4: an item cannot grant itself, so Save drops it.', 'Grant 5: it repeats grant 1, so Save drops it.'], warn: ['Grant 6: how many is a whole number from 1 to 99, so Save keeps 2.', 'Grant 7: that entry is gone, so it grants nothing until it is back.'] });
         const wireOk = shG.includes("if (typeof grantBox === 'function') row.appendChild(grantBox(it));") && shG.includes("if (typeof grantSays === 'function') (draft.items || []).forEach(function(it) { var gS = grantSays(it);")
-            && shG.includes("else if (/(^| )sys-grant-(qty|from)( |$)/.test(ic)) {") && shG.includes("if (/(^| )sys-grant-add( |$)/.test(c)) { var gv = t.value;") && shG.includes("if (/(^| )sys-grant-list( |$)/.test(c)) {") && shG.includes("else if (iact === 'grantdel') {")
+            && shG.includes("else if (/(^| )sys-grant-(qty|from|lvl)( |$)/.test(ic)) {") /* 1.6.0: and a grant's Level (moved on purpose) */ && shG.includes("if (/(^| )sys-grant-add( |$)/.test(c)) { var gv = t.value;") && shG.includes("if (/(^| )sys-grant-list( |$)/.test(c)) {") && shG.includes("else if (iact === 'grantdel') {")
             && shG.includes("if (gk0) g0.grants = gk0; return g0; }") && shG.includes("if (g.grants) qR.grants = g.grants; commitItem(cN, f, qR);")
             && ntG.includes("if (goI.grants) qi.grants = JSON.parse(JSON.stringify(goI.grants));") && ntG.includes("var gkG = Si.grantsKept ? Si.grantsKept(campI.system, befV, qi.rowId) : null; if (gkG) _rowGrace[gkI + '|gone'].grants = gkG; }")
             && ntG.includes("if (g.grants) _rowGrace[charId + '|' + g.f + '|' + g.r + '|gone'].grants = JSON.parse(JSON.stringify(g.grants));") && ntG.includes("if (!ptW && typeof S.grantWaits === 'function' && S.grantWaits(camp.system, c, q, net.libEntry)) ptW = true;");

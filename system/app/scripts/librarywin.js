@@ -479,7 +479,7 @@ function grantsBox(form, e) {
     if (st.fgFor !== e.id || !st.fg) { st.fg = clone(Array.isArray(e.grants) ? e.grants : []); st.fgFor = e.id; }
     var c = camp(), lists = ((c && c.system && c.system.fields) || []).filter(function(f) { return f && f.kind === 'item-list' && typeof f.id === 'string'; }); if (!lists.length && !st.fg.length) return;
     form.appendChild(el('div', 'lib-fsub', 'What it grants'));
-    form.appendChild(el('div', 'lib-note', 'When a row of this entry is added, each entry listed here is added too, to the list beside it, free. With a From level it comes when the row reaches that level. They go when this row goes or its level falls below. On them, Row.granted is 1, so a cost can read 0.'));
+    form.appendChild(el('div', 'lib-note', 'When a row of this entry is added, each entry listed here is added too, to the list beside it, free. With a From level it comes when the row reaches that level. They go when this row goes or its level falls below. On them, Row.granted is 1, so a cost can read 0. Tick Pays back, and Row.paysback is 1 on the row it grants. A Level sets the level it starts at.'));
     var box = el('div', 'lib-mods lib-grants'); form.appendChild(box);
     var all = allEntries().concat(sysItems()), entOf = function(id) { for (var i = 0; i < all.length; i++) if (all[i] && all[i].id === id) return all[i]; return null; };
     var listFor = function(ent) { var cg = ent && typeof ent.category === 'string' ? ent.category.toLowerCase() : ''; var hit = lists.filter(function(f) { return f.list && Array.isArray(f.list.cats) && f.list.cats.some(function(x) { return String(x).toLowerCase() === cg; }); })[0]; return (hit || lists[0] || {}).id || ''; };
@@ -497,6 +497,10 @@ function grantsBox(form, e) {
             var x = el('button', 'tool ghost', '\u00d7'); x.type = 'button'; x.title = 'It no longer grants this'; x.addEventListener('click', function() { st.fg.splice(gi, 1); draw(); }); ln.appendChild(x);
             var ol = el('label', 'lib-mod-lvl lib-grant-once'), oc = el('input'); oc.type = 'checkbox'; oc.checked = g.once === true; ol.appendChild(oc); ol.appendChild(el('span', null, ' Once a character')); ol.title = 'Granted only where the character holds no row of it on that list yet, as an implant\u2019s mandatory flaw comes with the first implant. While another row that grants it is left, it stays when this row goes';   // 1.6.0 (CORE gap 15)
             oc.addEventListener('change', function() { if (oc.checked) g.once = true; else delete g.once; }); ln.appendChild(ol);
+            var lv = el('input', 'field lib-mod-amt lib-grant-lvl'); lv.type = 'number'; lv.step = 'any'; lv.placeholder = 'Level'; lv.value = typeof g.lvl === 'number' ? String(g.lvl) : ''; lv.title = 'The level the row it grants starts at, held to that list\u2019s level rules. Leave it empty for the entry\u2019s own'; ln.appendChild(lv);   // 1.6.0: the level it grants at
+            lv.addEventListener('input', function() { var n = Number(lv.value); if (lv.value.trim() === '' || !isFinite(n)) delete g.lvl; else g.lvl = n; });
+            var pl = el('label', 'lib-mod-lvl lib-grant-pay'), pc = el('input'); pc.type = 'checkbox'; pc.checked = g.pay === true; pl.appendChild(pc); pl.appendChild(el('span', null, ' Pays back')); pl.title = 'On the row it grants, Row.paysback reads 1, so a cost can count it as bought though it came free. Another entry may grant the same one without it';   // 1.6.0: Pays back
+            pc.addEventListener('change', function() { if (pc.checked) g.pay = true; else delete g.pay; }); ln.appendChild(pl);
             box.appendChild(ln);
             var why = !ent ? 'Save keeps it, but that entry is gone, so nothing is granted.' : !lists.some(function(f) { return f.id === g.list; }) ? 'Save drops it: pick a list it is added to.' : '';
             if (why) box.appendChild(el('div', 'lib-warn', why));

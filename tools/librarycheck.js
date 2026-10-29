@@ -716,6 +716,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && JSON.stringify(gq.stored) === JSON.stringify([{ list: 'f_ge', entry: 'i_lamp', qty: 2 }, { list: 'f_gone', entry: 'i_nope' }]) && JSON.stringify(gq.form) === JSON.stringify(gq.fg) && gq.none === false
             && winS2.includes("    grantsBox(form, e);   // 1.6.0 (v2, B4)\n") && winS2.includes("grants: st.fgFor === e.id && st.fg ? st.fg : e.grants,") && !/innerHTML|outerHTML|insertAdjacentHTML/.test(winS2),
             gqErr || JSON.stringify(gq));
+        // 1.6.0 (a grant's own terms): a grant's Pays back and Level, kept by the library's cleaner in both views, and the Library window's grant
+        // line (grantsBox, sliced and run for real) with its Level box and Pays back tick after Once a character
+        let gt = null, gtErr = '';
+        try {
+            const sysT = S.cleanSystem({ v: 1, name: 'T', rolls: [], fields: [{ id: 'f_dr', key: 'Drawbacks', label: 'Drawbacks', kind: 'item-list', list: { lvl: { min: 1, max: 3, def: 1 } } }] }, { F, gmView: true });
+            const rawT = { id: 'i_lung', name: 'Brass lung', vis: 'all', grants: [{ list: 'f_dr', entry: 'i_ache', pay: true, lvl: 2 }, { list: 'f_dr', entry: 'i_tic', pay: 'yes', lvl: 'x' }] };
+            const tG = cleanLibEntry(rawT, libCtx(sysT, F, true)), tP = cleanLibEntry(rawT, libCtx(sysT, F, false, () => true)), tC = cleanLibEntry(tP, libCtx(sysT, F, false, true));
+            const gA = winS2.indexOf('var GRANT_LINES = 8;'), gZ = winS2.indexOf('\n// the form as an entry');
+            const mkE = tag => ({ tag, kids: [], on: {}, dataset: {}, value: '', appendChild(c) { this.kids.push(c); return c; }, addEventListener(t2, f) { this.on[t2] = f; }, set textContent(v) { this.kids = []; this._t = v; }, get textContent() { return this._t || ''; } });
+            const el = (tag, cls, text) => { const e = mkE(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e._t = String(text); return e; };
+            const select = (opts, val) => { const s = mkE('select'); s.opts = opts; s.value = val; return s; };
+            const stT = { fg: null, fgFor: null }, ents = [{ id: 'i_lung', name: 'Brass lung' }, { id: 'i_ache', name: 'Ache', category: 'Flaw' }];
+            const api = new Function('camp', 'allEntries', 'sysItems', 'map', 'el', 'select', 'st', 'clone', 'byName', 'NEED_PICK', '"use strict";\n' + winS2.slice(gA, gZ) + '\nreturn { grantsBox };')(
+                () => ({ system: sysT }), () => ents, () => [], () => Object.create(null), el, select, stT, v => JSON.parse(JSON.stringify(v)), (a, b) => String(a).localeCompare(String(b)), 2000);
+            const form = mkE('div'), entT = { id: 'i_lung', grants: [{ list: 'f_dr', entry: 'i_ache', qty: 1, pay: true, lvl: 2 }, { list: 'f_dr', entry: 'i_ache', qty: 1, from: 2 }] }; api.grantsBox(form, entT);
+            const box = form.kids[2], lines = () => box.kids.filter(k => /lib-grant( |$)/.test(k.className || '')), l0 = lines()[0], l1 = lines()[1];
+            const drawn = [l0.kids[6].className, l0.kids[6].value, l0.kids[7].className, l0.kids[7].kids[0].checked, l0.kids[7].kids[1].textContent, l1.kids[6].value, l1.kids[7].kids[0].checked];
+            l0.kids[6].value = ''; l0.kids[6].on.input(); l0.kids[7].kids[0].checked = false; l0.kids[7].kids[0].on.change(); l1.kids[6].value = '3'; l1.kids[6].on.input(); l1.kids[7].kids[0].checked = true; l1.kids[7].kids[0].on.change();
+            gt = { tG: tG.grants, tP: tP.grants, tC: tC.grants, drawn, fg: stT.fg, stored: entT.grants, form: L.entryFromForm({ id: 'i_z', name: 'n', grants: stT.fg }).grants };
+        } catch (e) { gtErr = String(e && e.stack || e).slice(0, 600); }
+        check('1.6.0 a grant\'s own terms in the library: an entry\'s grant keeps Pays back only as true and Level only as a number, the same in the GM\'s view, the players\' view and a player\'s own app; the Library window\'s grant line draws a Level box and a Pays back tick after Once a character, each writing the working copy and never the stored entry, and Save entry keeps them',
+            !!gt && JSON.stringify(gt.tG) === JSON.stringify([{ list: 'f_dr', entry: 'i_ache', qty: 1, pay: true, lvl: 2 }, { list: 'f_dr', entry: 'i_tic', qty: 1 }]) && JSON.stringify(gt.tP) === JSON.stringify(gt.tG) && JSON.stringify(gt.tC) === JSON.stringify(gt.tG)
+            && JSON.stringify(gt.drawn) === JSON.stringify(['field lib-mod-amt lib-grant-lvl', '2', 'lib-mod-lvl lib-grant-pay', true, ' Pays back', '', false])
+            && JSON.stringify(gt.fg) === JSON.stringify([{ list: 'f_dr', entry: 'i_ache', qty: 1 }, { list: 'f_dr', entry: 'i_ache', qty: 1, from: 2, lvl: 3, pay: true }])
+            && JSON.stringify(gt.stored) === JSON.stringify([{ list: 'f_dr', entry: 'i_ache', qty: 1, pay: true, lvl: 2 }, { list: 'f_dr', entry: 'i_ache', qty: 1, from: 2 }]) && JSON.stringify(gt.form) === JSON.stringify(gt.fg),
+            gtErr || JSON.stringify(gt));
         // 1.5.8: an entry's blast extras in the form (librarywin.js blastBox, dmgTypePairs, blastDrops and the real renderForm and readForm)
         let bx = null, bxErr = '';
         try {

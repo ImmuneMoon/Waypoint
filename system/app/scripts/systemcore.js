@@ -1854,7 +1854,7 @@ function tradeApply(sys, a, b, offA, offB, whoA, whoB, into) {   // into { a: { 
             var f = fieldById(sys, l.fid), spec = isObj(f && f.list) ? f.list : {}, list = listOf(s[0], s[1], l.fid), i = at(list, l.rowId); if (i < 0) { err = 'changed'; return; }
             var r = list[i], rd = rowDef(sys, r), nm = (rd && rd.def && rd.def.name) || 'Item';
             if (l.key === undefined) {
-                var mv = JSON.parse(JSON.stringify(r)), kids = []; mv.qty = l.qty; delete mv.keptOn; delete mv.hid; delete mv.gr; delete mv.in; if (isObj(spec.on)) mv.on = false;   // 1.6.0: alone, it is no one's grant or part there
+                var mv = JSON.parse(JSON.stringify(r)), kids = []; mv.qty = l.qty; delete mv.keptOn; delete mv.hid; delete mv.gr; delete mv.gp; delete mv.in; if (isObj(spec.on)) mv.on = false;   // 1.6.0: alone, it is no one's grant or part there
                 if (l.qty >= (r.qty | 0 || 1)) {
                     list.splice(i, 1);
                     tradeCarry(sys, seenOf(s[0], s[1]), l.rowId).forEach(function(k) { var kl = listOf(s[0], s[1], k.f), ki = at(kl, rowIdOf(k.row)); if (ki < 0) return; kids.push({ f: k.f, how: k.how, by: k.by, old: rowIdOf(k.row), row: JSON.parse(JSON.stringify(kl[ki])) }); kl.splice(ki, 1); gone[s[0]][rowIdOf(k.row)] = 1; });
@@ -1893,6 +1893,7 @@ function tradeApply(sys, a, b, offA, offB, whoA, whoB, into) {   // into { a: { 
                     if (k.how === 'gr' && !nids[k.by]) return;
                     delete kr.keptOn; delete kr.hid; if (isObj(ks.on)) kr.on = false;
                     ['gr', 'in'].forEach(function(w) { if (typeof kr[w] === 'string') { if (nids[kr[w]]) kr[w] = nids[kr[w]]; else delete kr[w]; } });
+                    if (typeof kr.gr !== 'string') delete kr.gp;   // 1.6.0: Pays back goes with its mark
                     if (ks.noQty && kl.some(function(r) { return live(r) && tradeEntry(r, kr); })) { if (k.how === 'gr' && !ks.multi) return; if (k.how !== 'gr') { err = 'one'; return; } }
                     if (kl.filter(live).length >= LIMITS.carried) { err = 'full'; return; }
                     if (!kr.id || at(kl, kr.id) >= 0) { kr.id = k.old && at(kl, k.old) < 0 ? k.old : tradeNewId(kl); if (!kr.id) { err = 'full'; return; } }
@@ -4390,6 +4391,7 @@ function rowFacts(o, e, spec) {
     if (isObj(spec) && isObj(spec.upkeep) && (spec.upkeep.each === 'clock' || typeof spec.upkeep.eachBy === 'string') && typeof e.ut === 'number' && fin(e.ut) && e.ut > 0) o.ut = Math.min(1e9, e.ut);   // 1.6.0 (CORE gap 13): ... and of a step its upkeep by the clock (the GM's alone)
     if (typeof e.in === 'string' && ROW_ID.test(e.in)) o.in = e.in;   // 1.6.0 R14: a part, by its host row's id
     if (typeof e.gr === 'string' && ROW_ID.test(e.gr)) o.gr = e.gr;   // 1.6.0 (v2, B4): a row another row granted, by that row's id (applyRowOp)
+    if (e.gp === 1 && typeof o.gr === 'string') o.gp = 1;   // 1.6.0: ... by a grant ticked Pays back (Row.paysback), only beside its mark
     var slF = lvlNum(e.sl); if (slF !== undefined && typeof e.sl === 'number') o.sl = isObj(spec) && isObj(spec.lvl) ? lvlClamp(spec.lvl, slF) : slF;   // 1.6.0: the level it started at (Row.startlvl; applyRowOp stamps it where its list keeps the starting level, as a level is kept)
     if (e.mk === 1) o.mk = 1;   // 1.6.0 (v2, B5): added while its character was in the making (applyRowOp stamps it; nothing on the wire names it)
     if (e.ag === 1 && e.lnk === 1) o.ag = 1;   // 193: an owner's inline copy held again under a name (only there: the host reads its own row)
@@ -4606,7 +4608,10 @@ function setLibraryFind(fn) { _libFind = typeof fn === 'function' ? fn : null; }
 // from: the level of THIS entry from which it grants (none: from the start) }, each list, entry and level once, never the entry itself. kinds:
 // the view's fields by id (fieldKinds), so a grant on a list the view lacks goes; none: the key rule alone. None: undefined. 1.6.0 (CORE gap 15,
 // an implant's mandatory flaws, once a character with the first implant): once: true, the entry is granted only where the character holds no
-// row of it on that list. Whatever the tick, a granted row passes to another row that grants it rather than going with its granter (grantHeirs)
+// row of it on that list. Whatever the tick, a granted row passes to another row that grants it rather than going with its granter (grantHeirs).
+// 1.6.0 (a grant's own terms, asked by the SotMW session: one drawback free from a package and paying back from an implant): pay: true, Pays
+// back, marks the row it makes gp (Row.paysback 1 on it); lvl: the level the row it makes starts at, in place of the entry's own, held to its
+// list's level rules (lvlClamp). Each is kept as the grant's last keys, only as written
 var GRANT_MAX = 8, GRANT_DEPTH = 3;
 function cleanGrants(v, kinds, self) {
     if (!Array.isArray(v)) return undefined;
@@ -4615,6 +4620,7 @@ function cleanGrants(v, kinds, self) {
         if (out.length >= GRANT_MAX || !isObj(g) || typeof g.list !== 'string' || !FIELD_ID.test(g.list) || typeof g.entry !== 'string' || !ITEM_ID.test(g.entry) || g.entry === self) return;
         if (isObj(kinds) && kinds[g.list] !== 'item-list') return;
         var o = { list: g.list, entry: g.entry, qty: clampNum(Math.round(cleanNum(g.qty, 1)) || 1, 1, LIMITS.maxQty) }, fr = typeof g.from === 'number' ? lvlNum(g.from) : undefined; if (fr !== undefined) o.from = fr; if (g.once === true) o.once = true;
+        if (g.pay === true) o.pay = true; var gl = typeof g.lvl === 'number' ? lvlNum(g.lvl) : undefined; if (gl !== undefined) o.lvl = gl;   // 1.6.0: Pays back, and the level it grants at
         var k = o.list + '|' + o.entry + '|' + (fr === undefined ? '' : fr); if (seen[k]) return; seen[k] = 1;
         out.push(o);
     });
@@ -4629,16 +4635,28 @@ function hideGrants(def, shown) {
     return def;
 }
 // What a definition's grants hold at a level: { 'list|entry': { list, entry, qty } }, the quantities of one entry on one list added. A grant
-// with a from holds only at that level or above (a list with no levels reads 0)
+// with a from holds only at that level or above (a list with no levels reads 0). 1.6.0: pay and lvl, where a grant says them, from the holding
+// grant with the highest From (a later one on a tie)
 function grantWant(def, lvl) {
-    var at = typeof lvl === 'number' && fin(lvl) ? lvl : 0, out = map();
+    var at = typeof lvl === 'number' && fin(lvl) ? lvl : 0, out = map(), by = map();
     (isObj(def) && Array.isArray(def.grants) ? def.grants : []).forEach(function(g) {
         if (!isObj(g) || typeof g.list !== 'string' || typeof g.entry !== 'string' || (typeof g.from === 'number' && at < g.from)) return;
         var k = g.list + '|' + g.entry, n = clampNum(cleanNum(g.qty, 1) | 0, 1, LIMITS.maxQty);
         if (out[k]) out[k].qty = clampNum(out[k].qty + n, 1, LIMITS.maxQty); else out[k] = { list: g.list, entry: g.entry, qty: n };
         if (g.once === true) out[k].once = true;   // 1.6.0 (CORE gap 15)
+        var fw = typeof g.from === 'number' ? g.from : -Infinity; if (by[k] === undefined || fw >= by[k]) { by[k] = fw; delete out[k].pay; delete out[k].lvl; if (g.pay === true) out[k].pay = true; if (typeof g.lvl === 'number' && fin(g.lvl)) out[k].lvl = g.lvl; }   // 1.6.0: a grant's own terms
     });
     return out;
+}
+// 1.6.0: whether a grant's own terms moved between two of grantWant's holdings (Pays back, or the level it grants at), and those terms laid on a
+// row it holds: gp set or taken off by Pays back; the level set where the holding names one that is new (was: the holding before, or none) and
+// the list has a level, held to its rules. A level the holding does not name is the row's own
+function grantTermsMoved(x, y) { return !!x && !!y && ((x.pay === true) !== (y.pay === true) || (typeof x.lvl === 'number' ? x.lvl : null) !== (typeof y.lvl === 'number' ? y.lvl : null)); }
+function grantTermsOn(sys, fid, r, w, was) {
+    if (!isObj(r) || !isObj(w)) return;
+    if (w.pay === true) r.gp = 1; else delete r.gp;
+    var f = fieldById(sys, fid), sp = f && isObj(f.list) ? f.list : null;
+    if (sp && isObj(sp.lvl) && typeof w.lvl === 'number' && fin(w.lvl) && !(isObj(was) && was.lvl === w.lvl)) r.lvl = lvlClamp(sp.lvl, w.lvl);
 }
 function itemListIds(sys) { return (isObj(sys) && Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return isObj(f) && f.kind === 'item-list' && typeof f.id === 'string'; }).map(function(f) { return f.id; }); }
 // The rows a row granted, and the rows those granted in turn, by their ids: a seed of ids, grown over every item list of values
@@ -4703,6 +4721,7 @@ function grantHeirs(sys, vals, ids, seed, withSeed, W) {
             fids.forEach(function(f2) { vals[f2].forEach(function(x) { var xid = rowIdOf(x); if (heir || !isObj(x) || x.hid === 1 || !xid || xid === rid || xid === r.gr || ids[xid] === 1 || seed[xid] === 1) return; var w = wantOf(x, f2, k); if (w && !filled(xid, fid, r.defId)) { heir = x; hw = w; } }); });
             if (!heir) return;
             r.gr = rowIdOf(heir); var tf = fieldById(sys, fid); if (!(tf && isObj(tf.list) && tf.list.noQty)) r.qty = clampNum(hw.qty, 1, LIMITS.maxQty);
+            grantTermsOn(sys, fid, r, hw, null);   // 1.6.0: held now by the heir's grant, on its terms: Pays back as it says, and its level where it names one (else the row keeps its own)
             if (withSeed && seed[rid] === 1) delete seed[rid]; W.touched[fid] = 1; moved = true;
         });
     });
@@ -4719,8 +4738,9 @@ function grantAdd(sys, W, g, qty, rid, ctx, depth) {
     if (L.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return { ok: false, reason: 'value', msg: 'No room on ' + (tf.label || 'that list') + ' for ' + (ent.name || 'what it grants') + '.' };
     var id = uid('w_'); while (L.some(function(r) { return rowIdOf(r) === id; })) id = uid('w_');
     var row = { id: id, defId: g.entry, qty: sp && sp.noQty ? 1 : clampNum(qty, 1, LIMITS.maxQty), gr: rid };
+    if (g.pay === true) row.gp = 1;   // 1.6.0: Pays back (Row.paysback)
     if (ctx.mk) row.mk = 1;
-    if (sp && isObj(sp.lvl)) row.lvl = lvlClamp(sp.lvl, typeof ent.lvl === 'number' ? ent.lvl : sp.lvl.def);
+    if (sp && isObj(sp.lvl)) row.lvl = lvlClamp(sp.lvl, typeof g.lvl === 'number' && fin(g.lvl) ? g.lvl : typeof ent.lvl === 'number' ? ent.lvl : sp.lvl.def);   // 1.6.0: at its grant's level where it names one
     startStamp(sp, row);   // 1.6.0: Keeps the starting level
     if (sp && isObj(sp.on)) row.on = sp.on.def === true;
     if (sp && sp.price) row.paid = 0;
@@ -4735,10 +4755,13 @@ function grantAdd(sys, W, g, qty, rid, ctx, depth) {
 function grantMove(sys, W, rid, w0, w1, ctx, depth) {
     var keys = Object.keys(w0).concat(Object.keys(w1).filter(function(k) { return !w0[k]; }));
     for (var i = 0; i < keys.length; i++) {
-        var k = keys[i], a = w0[k] ? w0[k].qty : 0, b = w1[k] ? w1[k].qty : 0, g = w1[k] || w0[k]; if (a === b) continue;
+        var k = keys[i], a = w0[k] ? w0[k].qty : 0, b = w1[k] ? w1[k].qty : 0, g = w1[k] || w0[k], tm = grantTermsMoved(w0[k], w1[k]); if (a === b && !tm) continue;
         var L = W.get(g.list); if (!L) continue;
         var mine = L.filter(function(r) { return isObj(r) && r.gr === rid && r.defId === g.entry && r.hid !== 1; });
-        if (b === 0 || (mine.length && (mine[0].qty | 0) + b - a <= 0)) { var sd = map(); mine.forEach(function(r) { sd[rowIdOf(r)] = 1; }); if (mine.length) grantCut(sys, W, sd, true, ''); continue; }
+        if (tm && mine.length) { mine.forEach(function(r) { grantTermsOn(sys, g.list, r, w1[k], w0[k]); }); W.touched[g.list] = 1; }   // 1.6.0: a grant's terms that moved with its granter's level
+        if (a === b) continue;
+        var nqM = (function() { var tq = fieldById(sys, g.list); return !!(tq && isObj(tq.list) && tq.list.noQty); })();   // 1.6.0: a list with no quantity holds the row at 1 whatever the grants add up to, so it goes only when none holds
+        if (b === 0 || (mine.length && !nqM && (mine[0].qty | 0) + b - a <= 0)) { var sd = map(); mine.forEach(function(r) { sd[rowIdOf(r)] = 1; }); if (mine.length) grantCut(sys, W, sd, true, ''); continue; }
         if (mine.length) { var tf = fieldById(sys, g.list); if (!(tf && isObj(tf.list) && tf.list.noQty)) { mine[0].qty = clampNum((mine[0].qty | 0) + b - a, 1, LIMITS.maxQty); W.touched[g.list] = 1; } continue; }
         if (b > a) { var r0 = grantAdd(sys, W, g, a ? b - a : b, rid, ctx, depth); if (r0) return r0; }
     }
@@ -4821,7 +4844,7 @@ function rowDef(sys, row) {
 // players' fields only (the 5h rule: the owner's sheet, their rolls and the host agree); a custom row without its GM texts; a kept curse
 // (hid) not at all. lib: the host's full items by id — without it a GM-only row is left out (fail closed). F4b: the facts go as stored, a
 // curse the GM keeps on (keptOn) as switched off.
-function projFacts(o, r) { if (isObj(r.ct)) o.ct = JSON.parse(JSON.stringify(r.ct)); if (typeof r.opn === 'string') o.opn = r.opn; if (typeof r.in === 'string') o.in = r.in; if (r.mk === 1) o.mk = 1; if (typeof r.sl === 'number') o.sl = r.sl; if (typeof r.gr === 'string') o.gr = r.gr;   // 1.6.0 R14: a part says its host on its owner's copy; 1.6.0 (v2, B5): a row made while making says so   // 1.5.8: an opened row says so on its owner's copy   // R2: its counters go as stored
+function projFacts(o, r) { if (isObj(r.ct)) o.ct = JSON.parse(JSON.stringify(r.ct)); if (typeof r.opn === 'string') o.opn = r.opn; if (typeof r.in === 'string') o.in = r.in; if (r.mk === 1) o.mk = 1; if (typeof r.sl === 'number') o.sl = r.sl; if (typeof r.gr === 'string') { o.gr = r.gr; if (r.gp === 1) o.gp = 1; }   // 1.6.0 R14: a part says its host on its owner's copy; 1.6.0 (v2, B5): a row made while making says so   // 1.5.8: an opened row says so on its owner's copy   // R2: its counters go as stored
  if (typeof r.lvl === 'number') o.lvl = r.lvl; if (typeof r.on === 'boolean') o.on = r.keptOn === 1 ? false : r.on; if (typeof r.note === 'string' && r.note) o.note = r.note; if (typeof r.paid === 'number') o.paid = r.paid; if (isObj(r.look)) o.look = JSON.parse(JSON.stringify(r.look)); if (Array.isArray(r.workLog)) o.workLog = JSON.parse(JSON.stringify(r.workLog)); }   // F4c1: paid   // 1.6.0, backlog 206: its look and its work log
 // F4c1: an inline or custom copy's stats as its owner holds them — its list's (spec: the view's list options; none: no stats); spec true is compare
 // only (sheets.js ownerSeesSame): every stat as the GM's machine holds it, so a change to one is never taken for "the same"
@@ -4915,7 +4938,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
                 row = { id: q.rowId, defId: q.defId, qty: n };
             }
             if (partIn) row.in = partIn;   // 1.6.0 R14
-            if (fl && q.gr !== undefined) { if (typeof q.gr !== 'string' || !ROW_ID.test(q.gr)) return { ok: false, reason: 'value' }; row.gr = q.gr; }   // 1.6.0 (v2, B4): a character file's granted row, still marked by the row that grants it
+            if (fl && q.gr !== undefined) { if (typeof q.gr !== 'string' || !ROW_ID.test(q.gr)) return { ok: false, reason: 'value' }; row.gr = q.gr; if (q.gp === 1) row.gp = 1; }   // 1.6.0 (v2, B4): a character file's granted row, still marked by the row that grants it (1.6.0: and by Pays back)
             if (char && (char.making === 1 || char.making === true)) row.mk = 1;   // 1.6.0 (v2, B5): Row.made; from the character as the host holds it, never from the message
             if (agN) row.ov = { name: agN };   // 1.6.0: the copy's own name, as the GM's own values name a row
             if (spec && isObj(spec.lvl)) row.lvl = lvlClamp(spec.lvl, typeof ent.lvl === 'number' ? ent.lvl : spec.lvl.def);   // F4b: the facts are written as it is added (a later default moves no row)
@@ -6683,6 +6706,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (L.cl[w]) return colVal(L, x, L.cl[w]);
         if (L.ct && L.ct[w]) return x.virt ? 0 : rowCt(x.r, L.ct[w]);   // Stage 6 HUD R2: a counter (a row not carried: 0)
         if (w === 'granted') return x.virt || !isObj(x.r) ? 0 : typeof x.r.gr === 'string' ? 1 : 0;   // 1.6.0 (v2, B4): 1 for a row another row granted. Never reserved: a list's own stat, column or counter of that name is read above
+        if (w === 'paysback') return x.virt || !isObj(x.r) ? 0 : typeof x.r.gr === 'string' && x.r.gp === 1 ? 1 : 0;   // 1.6.0: 1 for a row a grant ticked Pays back made (gp). Never reserved, as Row.granted
         return undefined;
     }
     function onceWord(L, x, w) {   // 1.5.8 Counted once: Row.once 1 where the row applies or is in no group, else 0; Row.oncecost the group's highest cost and Row.oncefree its largest free (a row in no group: its own; none named: 0). The build is priced as it is held: every row takes part
@@ -7270,7 +7294,7 @@ function validateSystem(sys, F) {
         if (w[word] === 'stat' || word === 'qty' || word === 'paid' || (total ? word === 'count' : word === 'lvl')) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };
         if (!total && (word === 'on' || word === 'has')) return { id: '', key: node, kind: 'toggle', vis: lf.vis, list: lf, noEdge: true };
         if (!total && (word === 'opened' || word === 'loaded' || word === 'loadmax')) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.5.8: Row.opened; Row.loaded and Row.loadmax (Loads from)
-        if (!total && word === 'granted') return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.6.0 (v2, B4): Row.granted
+        if (!total && (word === 'granted' || word === 'paysback')) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.6.0 (v2, B4): Row.granted
         if (!total && word === 'made' && !listKeyed(lf.list, 'made')) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.6.0 (v2, B5): Row.made
         if (!total && word === 'startlvl' && !listKeyed(lf.list, 'startlvl') && isObj(lf.list) && isObj(lf.list.lvl)) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.6.0: Row.startlvl, on a list with a level
         if (!total && word === 'again') return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 193: Row.again
@@ -8082,7 +8106,7 @@ function fillMaking(sys, char, fill, F, opts) {
     // cleaned against the value AS KEPT, by its field's own rule (cleanLooks): a fill that changes a text ends its old look.
     // `looks` is in the answer only when one is left; the counts say nothing of looks
     var grHave = map(); itemListIds(sys).forEach(function(fid) { (Array.isArray(work.values[fid]) ? work.values[fid] : []).forEach(function(r) { var id = rowIdOf(r); if (id) grHave[id] = 1; }); });   // 1.6.0 (v2, B4): a granted row whose granting row the file did not bring is an ordinary row
-    itemListIds(sys).forEach(function(fid) { (Array.isArray(work.values[fid]) ? work.values[fid] : []).forEach(function(r) { if (isObj(r) && typeof r.gr === 'string' && grHave[r.gr] !== 1) delete r.gr; }); });
+    itemListIds(sys).forEach(function(fid) { (Array.isArray(work.values[fid]) ? work.values[fid] : []).forEach(function(r) { if (isObj(r) && typeof r.gr === 'string' && grHave[r.gr] !== 1) { delete r.gr; delete r.gp; } }); });
     var lkAll = {}, lkOld = isObj(char.looks) ? char.looks : null;
     if (lkOld) Object.keys(lkOld).forEach(function(k) { lkAll[k] = lkOld[k]; });
     wrote.forEach(function(fid) { lkAll[fid] = lkIn[fid]; });   // (cleaned just below with the rest: one that does not clean leaves no look for its text, the old one neither)

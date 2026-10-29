@@ -9763,7 +9763,9 @@ function grantBox(it) {
         ln.appendChild(select('sys-grant-list', lo, g.list || '', 'The list it is added to'));
         ln.appendChild(numField('sys-grant-qty', typeof g.qty === 'number' ? g.qty : 1, 'How many it adds', 'how many', '1'));
         ln.appendChild(numField('sys-grant-from', typeof g.from === 'number' ? g.from : '', 'The level of this item from which it is granted. Blank: from the start', 'from level', 'any'));
+        ln.appendChild(numField('sys-grant-lvl', typeof g.lvl === 'number' ? g.lvl : '', 'The level the row it grants starts at, held to that list\u2019s level rules. Blank: the entry\u2019s own', 'level', 'any'));   // 1.6.0: the level it grants at
         if (typeof checkLabel === 'function') ln.appendChild(checkLabel('sys-grant-once', g.once === true, 'Once a character', 'Granted only where the character holds no row of it on that list yet, as an implant\u2019s mandatory flaw comes with the first implant. While another row that grants it is left, it stays when this row goes'));   // 1.6.0 (CORE gap 15)
+        if (typeof checkLabel === 'function') ln.appendChild(checkLabel('sys-grant-pay', g.pay === true, 'Pays back', 'On the row it grants, Row.paysback reads 1, so a cost can count it as bought though it came free. Another row may grant the same entry without it'));   // 1.6.0: Pays back
         ln.appendChild(btnRow([['grantdel', 'It no longer grants this', '&times;']]));
         box.appendChild(ln);
     });
@@ -9782,6 +9784,7 @@ function grantSays(it) {
         var fr = typeof g.from === 'number' && isFinite(g.from) ? g.from : '', k = g.list + '|' + g.entry + '|' + fr; if (seen[k]) { out.drop.push(w + 'it repeats grant ' + seen[k] + ', so Save drops it.'); return; } seen[k] = gi + 1;
         if (++n > GRANT_MAX) { out.drop.push(w + 'an item grants ' + GRANT_MAX + ' at most, so Save drops it.'); return; }
         var q = typeof g.qty === 'number' && isFinite(g.qty) ? Math.round(g.qty) : 1; if (g.qty !== undefined && (q < 1 || q > LIMITS.maxQty || q !== g.qty)) out.warn.push(w + 'how many is a whole number from 1 to ' + LIMITS.maxQty + ', so Save keeps ' + Math.max(1, Math.min(LIMITS.maxQty, q || 1)) + '.');
+        if (typeof g.lvl === 'number' && isFinite(g.lvl)) { var glF = (draft.fields || []).find(function(f) { return f && f.id === g.list; }); if (!(glF && glF.list && glF.list.lvl && typeof glF.list.lvl === 'object')) out.warn.push(w + 'its list has no level, so its Level does nothing.'); }   // 1.6.0
         if (!grantName(g.entry) && (whole || !(LBw && typeof LBw.entry === 'function'))) out.warn.push(w + 'that entry is gone, so it grants nothing until it is back.');
     });
     return out;
@@ -9844,7 +9847,7 @@ function onInput(e) {
         else if (ic.indexOf('sys-item-eqtext') >= 0) it.eqMsg = t.value.slice(0, LIMITS.rmMsg);   // F4b
         else if (ic.indexOf('sys-item-key') >= 0) { var ikv = t.value.trim().slice(0, 40); if (ikv) it.key = ikv; else delete it.key; }
         else if (ic.indexOf('sys-item-lvl') >= 0) { if (String(t.value).trim() === '') delete it.lvl; else it.lvl = Number(t.value); }
-        else if (/(^| )sys-grant-(qty|from)( |$)/.test(ic)) { var glI = t.closest('.sys-grant'), gI = glI && Array.isArray(it.grants) ? it.grants[+glI.dataset.gi] : null; if (!gI || (t.validity && t.validity.badInput)) return; var nG = Number(t.value), kG = /sys-grant-qty/.test(ic) ? 'qty' : 'from'; if (String(t.value).trim() === '' || !isFinite(nG)) delete gI[kG]; else gI[kG] = nG; }   // 1.6.0 (v2, B4)
+        else if (/(^| )sys-grant-(qty|from|lvl)( |$)/.test(ic)) { var glI = t.closest('.sys-grant'), gI = glI && Array.isArray(it.grants) ? it.grants[+glI.dataset.gi] : null; if (!gI || (t.validity && t.validity.badInput)) return; var nG = Number(t.value), kG = /sys-grant-qty/.test(ic) ? 'qty' : /sys-grant-lvl/.test(ic) ? 'lvl' : 'from'; if (String(t.value).trim() === '' || !isFinite(nG)) delete gI[kG]; else gI[kG] = nG; }   // 1.6.0 (v2, B4)
         else if (ic.indexOf('sys-item-mamt') >= 0) { var iml = t.closest('.sys-item-mod'), imm = iml ? (it.mods || [])[+iml.dataset.mi] : null; if (imm) imm.v = t.value === '' ? 0 : Number(t.value); }
         else if (ic.indexOf('sys-item-mkey') >= 0) { var ikl = t.closest('.sys-item-mod'), ikm = ikl ? (it.mods || [])[+ikl.dataset.mi] : null; if (ikm) ikm.key = t.value.trim().slice(0, 40); }   // 1.5.8   // F6
         else if (ic.indexOf('sys-item-stat') >= 0) { var sk = t.dataset.sk || ''; if (!STAT_KEY.test(sk) || (sk in Object.prototype) || (sk.toLowerCase() in Object.prototype)) return; if (t.validity && t.validity.badInput) return; var ist = it.stats && typeof it.stats === 'object' && !Array.isArray(it.stats) ? it.stats : {}, sv = String(t.value).trim(); Object.keys(ist).forEach(function(k2) { if (k2 !== sk && k2.toLowerCase() === sk.toLowerCase()) delete ist[k2]; }); if (sv === '') delete ist[sk]; else if (t.dataset.pick === '1') ist[sk] = sv; else { var sn = Number(sv); if (!isFinite(sn)) return; ist[sk] = sn; } if (Object.keys(ist).length) it.stats = ist; else delete it.stats; }   // Stage 6 F4c1: a stat box (its key checked first: never a prototype name)
@@ -10042,6 +10045,7 @@ function onChange(e) {
     if (iit) {
         if (c.indexOf('sys-item-vis') >= 0) { iit.vis = t.value; markDirty(); patchErrors(); return; }
         if (/(^| )sys-grant-list( |$)/.test(c)) { var glC = t.closest('.sys-grant'), gC = glC && Array.isArray(iit.grants) ? iit.grants[+glC.dataset.gi] : null; if (gC) { if (t.value) gC.list = t.value; else delete gC.list; markDirty(); renderAll(); } return; }   // 1.6.0 (v2, B4): a grant's list
+        if (/(^| )sys-grant-pay( |$)/.test(c)) { var glP = t.closest('.sys-grant'), gP = glP && Array.isArray(iit.grants) ? iit.grants[+glP.dataset.gi] : null; if (gP) { if (t.checked) gP.pay = true; else delete gP.pay; markDirty(); } return; }   // 1.6.0: Pays back
         if (/(^| )sys-grant-once( |$)/.test(c)) { var glO = t.closest('.sys-grant'), gO = glO && Array.isArray(iit.grants) ? iit.grants[+glO.dataset.gi] : null; if (gO) { if (t.checked) gO.once = true; else delete gO.once; markDirty(); } return; }   // 1.6.0 (CORE gap 15): once a character
         if (/(^| )sys-grant-add( |$)/.test(c)) { var gv = t.value; if (!gv) return; iit.grants = Array.isArray(iit.grants) ? iit.grants : []; if (iit.grants.length >= GRANT_MAX) { toast('At most ' + GRANT_MAX + ' grants an item.'); return; } iit.grants.push({ list: grantListFor(gv), entry: gv, qty: 1 }); markDirty(); renderAll(); return; }
         if (/(^| )sys-grant-(qty|from)( |$)/.test(c)) return;

@@ -348,6 +348,12 @@ Systems
 - A granted row stays while another row that grants it is left: remove
   the first of two implants and the flaw passes to the second. It goes
   with the last one.
+- A grant can pay back: tick Pays back, and Row.paysback reads 1 on the
+  row it grants, so a cost can count it as bought. One flaw can come
+  free from a package and pay back from an implant.
+- A grant can set the level its row starts at, held to that list's
+  levels. A granted row that passes to another row takes that row's
+  grant as it stands.
 - A vehicle can read its crew as a group, such as Crew.count and
   Crew.Pilot.max.Piloting. A Crew link lists its stations, and each crew
   sheet picks one beside its vehicle, so a pilot's skill counts only at

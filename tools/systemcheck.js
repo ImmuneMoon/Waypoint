@@ -15943,6 +15943,52 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && shF.includes("input('sys-link-fkey field'") && shF.includes("input('sys-link-fform field'") && fs.readFileSync(path.join(app, 'index.html'), 'utf8').includes('Then <code>Crew.Pilot.max.PilotRoll</code> reads the best of those figures.')
             && fs.readFileSync(path.join(app, '..', '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').includes('A link with a group may carry `"figs"`') && [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].every(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n').indexOf("- A Crew link can name a figure each crew sheet works out") > 0), J([saysF, twoF, capF]));
     }
+    {   // the core handbook session's ask (2026-10-29, after ask 6): inside a group figure's formula <LinkKey>.<name> reads the vehicle doing the reading, on invented data
+        const J = v => JSON.stringify(v);
+        const rawV = { v: 1, name: 'V', rolls: [], fields: [{ id: 'f_cl', key: 'Class', kind: 'number', def: 0, vis: 'all' }, { id: 'f_sk', key: 'Skiffs', kind: 'number', def: 0, vis: 'all' }, { id: 'f_hl', key: 'Haulers', kind: 'number', def: 0, vis: 'all' },
+            { id: 'f_hu', key: 'Hush', kind: 'number', def: 0, vis: 'gm' }, { id: 'f_he', key: 'Helm', kind: 'formula', formula: 'Crew.Pilot.max.Fly', vis: 'all' }, { id: 'f_th', key: 'TowHelm', kind: 'formula', formula: 'Tow.max.Fly', vis: 'all' },
+            { id: 'f_lp', key: 'Loopy', kind: 'formula', formula: 'Crew.max.Loop', vis: 'all' }, { id: 'f_qu', key: 'Quiet', kind: 'formula', formula: 'Crew.max.Hidden', vis: 'all' }, { id: 'f_fx', key: 'Fx', kind: 'effects', vis: 'all', edit: 'owner' },
+            { id: 'f_sz', key: 'Size', kind: 'number', def: 0, vis: 'all' }, { id: 'f_bh', key: 'Burden', kind: 'formula', formula: 'Riders.max.Load', vis: 'all' }],
+            effects: [{ id: 'e_hex', name: 'Hex', vis: 'gm', mods: [{ f: 'f_cl', op: 'add', v: 1 }] }, { id: 'e_tune', name: 'Tune', vis: 'all', mods: [{ f: 'f_cl', op: 'add', v: 1 }] }],
+            links: [{ id: 'lk_v', key: 'Vehicle', kind: 'crew', group: 'Crew', stations: ['Pilot', 'Gunner'], figs: [{ key: 'Fly', formula: 'if(Vehicle.Class = 1, Skiffs, Haulers) + Vehicle.has + Vehicle.stations' },
+                { key: 'Loop', formula: 'Vehicle.Loopy + Vehicle.Crew.count + 1' }, { key: 'Hidden', formula: 'Vehicle.Hush + 1' }] },
+                { id: 'lk_t', key: 'Towed', kind: 'crew', group: 'Tow', figs: [{ key: 'Fly', formula: 'if(Towed.Class = 1, Skiffs, Haulers)' }] },
+                { id: 'lk_m', key: 'Mount', kind: 'mount', group: 'Riders', figs: [{ key: 'Load', formula: 'Mount.Size * 2 + Skiffs' }] }], sheet: { sections: [] } };
+        const gV = cleanSystem(rawV, { F, gmView: true }), pV = cleanSystem(rawV, { F, gmView: false });
+        const chV = { c_sk: { id: 'c_sk', name: 'Gull', ownerId: 'u_a', values: { f_cl: 1, f_hu: 4 } }, c_hl: { id: 'c_hl', name: 'Ox', ownerId: 'u_a', values: { f_cl: 2 } }, c_ho: { id: 'c_ho', name: 'Pebbles', ownerId: 'u_a', values: { f_sz: 3 } },
+            c_ana: { id: 'c_ana', name: 'Ana', ownerId: 'u_a', values: { f_sk: 14, f_hl: 9 }, links: { lk_v: 'c_sk', lk_t: 'c_hl', lk_m: 'c_ho' }, stn: { lk_v: 'Pilot' } },
+            c_bo: { id: 'c_bo', name: 'Bo', ownerId: 'u_b', values: { f_sk: 11, f_hl: 13 }, links: { lk_v: 'c_hl' }, stn: { lk_v: 'Pilot' } } };
+        S.setCrewSource((id, lid, s) => Object.keys(chV).map(k => chV[k]).filter(x => x.links && x.links[lid] === id).map(x => s === gV ? x : S.charForView(x, s, { full: gV })));
+        const rS = makeResolver(gV, chV.c_sk, F), rH = makeResolver(gV, chV.c_hl, F), rM = makeResolver(gV, chV.c_ho, F);
+        const pickV = [rS('Helm'), rH('Helm'), rH('TowHelm'), rS('TowHelm'), rM('Burden')];   // Ana flies the skiff by Skiffs (14 + has 1 + stations 1), Bo the hauler by Haulers (13 + 2), Ana towed by the hauler by Haulers (9); the mount reads its own Size
+        const loopV = [rS('Loopy'), rS('Crew.max.Loop'), rS('Quiet')];   // Loopy reads the crew, whose figure reads Vehicle.Loopy: there the crew reads 0, so Loop is 1
+        const tuned = Object.assign({}, chV.c_sk, { values: Object.assign({}, chV.c_sk.values, { f_cl: 0, f_fx: [{ id: 'x_1', ref: 'e_tune', on: true }] }) }), hexed = Object.assign({}, tuned, { values: Object.assign({}, tuned.values, { f_fx: [{ id: 'x_1', ref: 'e_hex', on: true }] }) });
+        const rT = makeResolver(gV, tuned, F), rX = makeResolver(gV, hexed, F);
+        const fxV = [rT('Helm'), S.gmEffectNames(rT, [{ name: 'Crew.Pilot.max.Fly' }]), rX('Helm'), S.gmEffectNames(rX, [{ name: 'Crew.Pilot.max.Fly' }])];   // an effect on the vehicle's Class moves the figure; a GM-only one keeps the GM's public roll private
+        const privV = [J(gV.links[0].figs.map(x => x.key)), J(pV.links[0].figs.map(x => x.key)), S.gmOnlyNames(gV, [{ name: 'Crew.max.Hidden' }, { name: 'Crew.Pilot.max.Fly' }]), S.gmDerivedNames(gV, F, ['Crew.max.Hidden', 'Crew.max.Fly', 'Quiet']), S.gmEffectNames(rS, [{ name: 'Crew.max.Hidden' }])];
+        const ckV = S.crewFigs(pV, S.charForView(chV.c_sk, pV, { full: gV }), F), ckH = S.crewFigs(pV, S.charForView(chV.c_hl, pV, { full: gV }), F);
+        const rPS = makeResolver(pV, Object.assign(S.charForView(chV.c_sk, pV, { full: gV }), { ck: S.cleanCk(JSON.parse(J(ckV)), pV) }), F);
+        S.setCrewSource(null);
+        const vV = validateSystem(gV, F), wV = vV.warnings.filter(w => w.id === 'lk_v').map(w => w.message);
+        const vBad = validateSystem(Object.assign({}, gV, { links: [Object.assign({}, gV.links[0], { figs: [{ key: 'Bad', formula: 'Vehicle.Nope + 1' }] })] }), F);
+        check('the core handbook session\'s ask (after ask 6): inside a group figure\'s formula the link\'s own key reads the vehicle doing the reading with its own resolver (Vehicle.Class picks Skiffs on a skiff, Haulers on a hauler; the same pilot crews both and each reads its own; a mount\'s riders read Mount.Size); Vehicle.has reads 1 there, Vehicle.stations the crew sheet\'s own; an effect on the vehicle moves it and a GM-only one keeps a public roll private; a vehicle name that reads the group again reads 0 there, so it never loops',
+            J(pickV) === J([16, 15, 9, 0, 20]) && J(loopV) === J([1, 1, 5]) && J(fxV) === J([16, [], 16, ['Crew.Pilot.max.Fly']]), J([pickV, loopV, fxV]));
+        check('the core handbook session\'s ask (after ask 6): a figure reading a GM-only vehicle name (Vehicle.Hush) is GM-only to the judges and the players\' view drops it; the host\'s ck figures, worked out through the players\' view, give a player\'s vehicle the very figures the GM\'s read (16 on the skiff, 15 on the hauler), and the player\'s app reads them back; the validator knows Vehicle.<name> in a figure, refuses one the system lacks, and warns where a vehicle name reads the crew again',
+            privV[0] === J(['Fly', 'Loop', 'Hidden']) && privV[1] === J(['Fly', 'Loop']) && J(privV.slice(2)) === J([['Crew.max.Hidden'], ['Crew.max.Hidden', 'Quiet'], ['Crew.max.Hidden']])
+            && ckV.lk_v.v['pilot.max.fly'] === 16 && ckH.lk_v.v['pilot.max.fly'] === 15 && !('max.hidden' in ckV.lk_v.v) && rPS('Helm') === 16
+            && !vV.errors.length && J(wV) === J(['"Vehicle.Crew.count" reads the crew again, so inside a figure it reads 0.', '"Vehicle.Loopy" reads the crew\u2019s figures itself, so inside a figure it reads them as 0.', '"Vehicle.Hush" is GM only: the players\u2019 view drops this figure, so it reads 0 for them.'])
+            && vBad.errors.some(e => e.id === 'lk_v' && /Unknown name "Vehicle.Nope"/.test(e.message)), J([privV, ckV, ckH, wV, vBad.errors]));
+        const rawN = JSON.parse(J(rawV)); rawN.links.forEach(k => { k.figs = [{ key: 'Fly', formula: 'Skiffs + Vehicle.stations' }]; });
+        const gN = cleanSystem(rawN, { F, gmView: true }), chN = Object.assign({}, chV.c_ana, { links: { lk_v: 'c_sk' } });
+        S.setCrewSource((id, lid) => (lid === 'lk_v' && id === 'c_sk' ? [chN] : []));
+        const nN = [makeResolver(gN, chV.c_sk, F)('Helm'), S.figVeh(gN.links[0], S.keyIndex(gN), 'Vehicle.stations'), S.figVeh(gN.links[0], S.keyIndex(gN), 'Vehicle.station.Pilot'), S.figVeh(gN.links[0], S.keyIndex(gN), 'Skiffs'), S.figVeh(gN.links[0], S.keyIndex(gN), 'Vehicle.Class')];
+        S.setCrewSource(null);
+        const shV = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), ntV = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n'));
+        check('the core handbook session\'s ask (after ask 6): a figure that names no vehicle name is worked out on the crew sheet alone, as before (figVeh answers nothing for its own stations, a station and a name of the sheet); Help, the guide and both 1.6.0 notes say it',
+            J(nN) === J([15, '', '', '', 'class']) && shV.includes('In a figure&rsquo;s formula the link&rsquo;s own key reads the vehicle doing the reading, such as <code>Vehicle.Class</code>.')
+            && fs.readFileSync(path.join(app, '..', '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').includes('reads the sheet doing the reading with its own resolver, so each vehicle a pilot crews reads its own')
+            && ntV.every(t => t.indexOf("- In such a figure the link's own key reads the vehicle doing the reading,") > t.indexOf('- A Crew link can name a figure each crew sheet works out') && t.indexOf('- A Crew link can name a figure each crew sheet works out') > 0), J(nN));
+    }
     {   // 1.6.0: a crew sheet reads its own station on a Crew link, <Key>.station.<Station> (asked by a system build), on invented data
         const J = v => JSON.stringify(v);
         const rawS = { v: 1, name: 'S', rolls: [], fields: [{ id: 'f_pi', key: 'Piloting', kind: 'number', def: 10, vis: 'all' }, { id: 'f_sg', key: 'Secret', kind: 'number', def: 3, vis: 'gm' },

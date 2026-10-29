@@ -356,6 +356,9 @@ Systems
 - A Crew link can name a figure each crew sheet works out, such as each
   pilot's Piloting less 2 while holding two stations. The vehicle reads it
   as Crew.Pilot.max.PilotRoll. A mount's riders take figures too.
+- In such a figure the link's own key reads the vehicle doing the reading,
+  as Vehicle.Class, so a pilot's figure can pick the skill for that
+  vehicle's class. A vehicle's name that reads the crew again reads 0 there.
 - A crew sheet reads its own station, as Vehicle.station.Pilot: 1 while it
   holds the Pilot station, else 0. It reads so even where the system has a
   field keyed Station.

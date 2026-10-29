@@ -17616,6 +17616,32 @@ pendingChecks.push((async () => {
         (src.match(/if \(typeof linkTell === 'function'\) linkTell\(id\);/g) || []).length === 2 && (src.match(/\(typeof withLinkFigs === 'function' \? withLinkFigs : function\(v0\) \{ return v0; \}\)\(withHoverLines\(/g) || []).length === 2
         && (src.match(/linkSet\(/g) || []).length === 1 && lkS.indexOf("Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, qk.stn !== undefined ? { player: true, pid: profK.id, stn: qk.stn } : { player: true, pid: profK.id })") > lkS.indexOf("denyK('owner')"));   // CORE gap 16 (a deliberate change of this pin): and the station the player picked
 })());
+// The core handbook session's ask (2026-10-29, after ask 6): a crew figure that reads the vehicle doing the reading (Vehicle.Class). The host's
+// withLinkFigs (the linktell slice, run for real with the real systemcore and formula engine) gives a player's vehicle its crew figures, ck,
+// worked out through the players' view: each vehicle its own, and never a figure read from a GM-only name of the vehicle. Invented names only
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const ltS = between('// [netcheck:linktell-start]', '// [netcheck:linktell-end]', 'linktell');
+    const raw = { v: 1, name: 'V', rolls: [], fields: [{ id: 'f_cl', key: 'Class', kind: 'number', def: 0 }, { id: 'f_sk', key: 'Skiffs', kind: 'number', def: 0 }, { id: 'f_hl', key: 'Haulers', kind: 'number', def: 0 },
+        { id: 'f_hu', key: 'Hush', kind: 'number', def: 0, vis: 'gm' }, { id: 'f_he', key: 'Helm', kind: 'formula', formula: 'Crew.Pilot.max.Fly' }, { id: 'f_qu', key: 'Quiet', kind: 'formula', formula: 'Crew.max.Hidden' }],
+        links: [{ id: 'lk_v', key: 'Vehicle', label: 'Vehicle', kind: 'crew', group: 'Crew', stations: ['Pilot'], figs: [{ key: 'Fly', formula: 'if(Vehicle.Class = 1, Skiffs, Haulers)' }, { key: 'Hidden', formula: 'Vehicle.Hush + 1' }] }] };
+    const sys = Sx.cleanSystem(raw, { F: Fx, gmView: true }), view = Sx.cleanSystem(raw, { F: Fx, gmView: false });
+    const chars = { c_sk: { id: 'c_sk', name: 'Gull', ownerId: 'u_a', npc: false, values: { f_cl: 1, f_hu: 7 } }, c_hl: { id: 'c_hl', name: 'Ox', ownerId: 'u_a', npc: false, values: { f_cl: 2, f_hu: 7 } },
+        c_ana: { id: 'c_ana', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_sk: 14, f_hl: 9 }, links: { lk_v: 'c_sk' }, stn: { lk_v: 'Pilot' } },
+        c_bo: { id: 'c_bo', name: 'Bo', ownerId: 'u_b', npc: false, values: { f_sk: 11, f_hl: 13 }, links: { lk_v: 'c_hl' }, stn: { lk_v: 'Pilot' } } };
+    Sx.setCrewSource((id, lid, s) => Object.keys(chars).map(k => chars[k]).filter(x => x.links && x.links[lid] === id).map(x => s === sys ? x : Sx.charForView(x, s, { full: sys })));
+    const winL = { wpFormula: Fx, wpStepLog: () => {} };
+    const wlf = new Function('SC', 'window', ltS + '\nreturn withLinkFigs;')(() => Sx, winL);
+    const own = id => wlf(Sx.charFor(chars[id], view, 'u_a', {}), view);
+    const gmR = id => Sx.makeResolver(sys, chars[id], Fx);
+    const sk = own('c_sk'), hl = own('c_hl'), gm = [gmR('c_sk')('Helm'), gmR('c_hl')('Helm'), gmR('c_sk')('Quiet')];
+    Sx.setCrewSource(null);
+    const rP = id => Sx.makeResolver(view, Sx.cleanChar(JSON.parse(j(id === 'c_sk' ? sk : hl)), view, { state: 'owner' }), Fx);
+    check('the core handbook session\'s ask (after ask 6): the host gives a player\'s vehicle its crew figures (ck) through the players\' view, a figure that reads Vehicle.Class picking by that very vehicle\'s class (Ana flies the skiff by Skiffs, 14; Bo the hauler by Haulers, 13), the same figures the GM\'s sheet reads; a figure read from the GM-only Vehicle.Hush is never among them, though the GM reads it (8); the player\'s app reads them back; every copy packs',
+        j(sk.ck) === j({ lk_v: { v: { 'pilot.max.fly': 14 } } }) && j(hl.ck) === j({ lk_v: { v: { 'pilot.max.fly': 13 } } }) && j(gm) === j([14, 13, 8]) && !/hidden|"8"/i.test(j([sk.ck, hl.ck]))
+        && rP('c_sk')('Helm') === 14 && rP('c_hl')('Helm') === 13 && (() => { try { packCheck(sk); packCheck(hl); return true; } catch (e) { return false; } })(), j([sk.ck, hl.ck, gm]));
+})());
 // Backlog 29 (1.6.0): the table trackers on the wire — the host's sync (sliced by its trksync markers) and a player's branch (trkmsg), each run
 // for real over the real trackcore. A GM-only tracker is in no message, a player is sent their map's and every map's, a host has no branch
 pendingChecks.push((async () => {

@@ -162,6 +162,9 @@ Systems, more
 - A Major Wound can do one thing or another by where it lands: give it a
   where formula, or press + Another Major Wound for up to four rows. The
   first whose where holds is what it does.
+- A damage roll can be ticked Always a Major Wound, such as a strike that
+  always wounds badly: Apply to target on its card then lands it as a Major
+  Wound whatever its size.
 - A roll a wound asks for reads the blow and the location hit, as Blow. and
   Hit., so a Big Hit roll can be -2 on the face. Its failure can cripple
   the location hit, by how far it failed, or by a formula that reads the

@@ -2318,6 +2318,7 @@
   .wc-continue-item:hover { border-color: var(--gold); }
   .wc-continue-item.active { border-color: var(--gold); color: var(--gold); }
   .wc-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .wc-promise { margin: 14px 0 0; font-size: 12px; color: var(--muted); text-align: center; }   /* backlog 25: the plain-words promise, about the app alone */
   .wc-launch { font-size: 12px; color: var(--dim); display: flex; align-items: center; gap: 6px; }
   .wc-launch select { background: var(--panel2); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 6px; color-scheme: dark; }
   .wc-foot .tool { font-size: 14px; padding: 8px 18px; }
@@ -2349,7 +2350,7 @@
   body.web-join #netPaneHostBtn, body.web-join #netPaneHost, body.web-join #netPlayersBtn, body.web-join #netEndBtn,
   body.web-join #settingsModal .set-welcome, body.web-join #settingsModal .set-devmode,
   body.web-join #setSnapNowBtn, body.web-join #setSnapNowBtn + .set-line, body.web-join #settingsModal .set-snaps,
-  body.web-join #settingsModal .set-group[data-group="updates"], body.web-join #settingsModal .set-saves, body.web-join #settingsModal .set-acct { display: none !important; }
+  body.web-join #settingsModal .set-group[data-group="updates"], body.web-join #settingsModal .set-saves, body.web-join #settingsModal .set-acct, body.web-join #wcPromise { display: none !important; }
   .set-acct-line { margin-top: 3px; font-size: 10.5px; color: var(--dim); line-height: 1.4; }   /* the account's state, words a script sets: a set-line's look, not one of Settings' fixed lines */
   .set-acct-code { margin-top: 6px; font-size: 12px; color: var(--dim); }
   .set-acct-code b { font-size: 16px; letter-spacing: 2px; color: var(--text); font-family: ui-monospace, Consolas, monospace; }

@@ -3271,5 +3271,14 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && read('scripts/dialogs.js').includes("if (_el_noMapNewBtn) _el_noMapNewBtn.addEventListener('click', function() { if (_el_newMapSidebarBtn) _el_newMapSidebarBtn.click(); });"));
 }
 
+{
+    // 1.6.0, backlog 25 (the plain-words promise, about the app alone): one line under the welcome's choices, put away on a website whose plan joins tables, and the README's own words
+    let rd = ''; try { rd = fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8'); } catch (e) { rd = ''; }
+    const PROM = 'No account is needed and there are no ads. The app collects nothing about how you use it. Your campaigns are files on your own computer.';
+    check('the plain-words promise: one line under the welcome screen\'s choices in the app\'s own words, put away under web-join (a website keeps no campaign on this computer), and the README saying it with the account link as your choice',
+        count(ix, 'id="wcPromise"') === 1 && ix.includes('<p class="wc-promise" id="wcPromise">' + PROM + '</p>') && css.includes('body.web-join #wcPromise { display: none !important; }')
+        && rd.includes('**What the app does not do.** ' + PROM.replace('own computer.', 'own computer, in the saves folder.')));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

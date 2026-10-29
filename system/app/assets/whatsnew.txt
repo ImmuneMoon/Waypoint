@@ -26,6 +26,9 @@ Hidden pieces
 - Settings has Hidden pieces on my map: Faded shows a piece you hid from players see-through, as before, and Invisible leaves it off your screen until you show it. No grey cloud stands in for a hidden piece any more.
 
 Your profile
+- The welcome screen says it plainly: no account is needed, there are no
+  ads, the app collects nothing about how you use it, and your campaigns
+  are files on your own computer.
 - Take your profile to another computer: Settings, Profile has Save my
   profile and Copy my profile code, and on the other computer Open a
   profile and Paste a profile code. Every GM's table then knows you there

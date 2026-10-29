@@ -16781,6 +16781,26 @@ pendingChecks.push((async () => {
         const cg = PA.cleanTradeView({ tid: 't_abcdefgh', status: 'open', you: 'b', a: { charId: 'c_1', name: 'K', lines: [] }, b: { charId: 'c_3', name: 'G', lines: [], gets: [{ fid: 'f_chips', list: '<i>Chips</i>', label: 'Stored\u202e', pick: '<x>', opts: [{ rowId: 'w_g9', name: 'Chip', cur: 10 }, { rowId: '__x y', name: 'Bad' }, { rowId: 'w_g8', name: 9, cur: 'many' }, null] }, 'junk', { fid: 7 }] } });
         check('1.5.6 trading, a player\'s app cleans the rows it is offered to receive on: ids by their pattern, names and labels as text, a figure only as a number, a pick that is no id read as the first that fits, junk dropped',
             cg && cg.b.gets.length === 1 && cg.b.gets[0].pick === '' && cg.b.gets[0].label === 'Stored' && j(cg.b.gets[0].opts) === j([{ rowId: 'w_g9', name: 'Chip', cur: 10 }, { rowId: 'w_g8', name: 'Item', cur: null }]) && cg.a.gets === undefined, j(cg));
+        {   // 1.6.0 (v2): a row traded whole takes what it granted and the parts it holds, through the host's one judge
+            const C = mkW(), CA = C.api; C.camp.system = Sx.cleanSystem({ v: 1, name: 'C', rolls: [], fields: [
+                { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { trade: true, parts: { from: 'f_mods', cats: ['Mod'] } } },
+                { id: 'f_mods', key: 'Mods', label: 'Mods', kind: 'item-list', edit: 'owner', vis: 'all', list: { trade: true } },
+                { id: 'f_abil', key: 'Abil', label: 'Abilities', kind: 'item-list', edit: 'owner', vis: 'all', list: { trade: true, noQty: true } }],
+                items: [{ id: 'i_staff', name: 'Staff', category: 'Gear', grants: [{ list: 'f_abil', entry: 'i_glow' }] }, { id: 'i_glow', name: 'Glow' }, { id: 'i_gem', name: 'Gem', category: 'Mod' }] }, { F: Fx, gmView: true });
+            C.camp.chars.c_1.values = { f_gear: [{ id: 'w_st', defId: 'i_staff', qty: 1 }], f_mods: [{ id: 'w_gm', defId: 'i_gem', qty: 1, in: 'w_st' }], f_abil: [{ id: 'w_gl', defId: 'i_glow', qty: 1, gr: 'w_st' }] };
+            C.camp.chars.c_3.values = {};
+            CA.branch({ type: 'trade', op: 'ask', from: 'c_1', to: 'c_3' }, C.conns[0]); const tC = Object.keys(CA.trades())[0]; CA.tradeDo({}, { op: 'answer', tid: tC, yes: true });
+            CA.branch({ type: 'trade', op: 'put', tid: tC, offer: [{ fid: 'f_abil', rowId: 'w_gl', qty: 1 }] }, C.conns[0]);
+            const apart = C.out.a.filter(m => m.view).slice(-1)[0].view.a.lines.length;
+            CA.branch({ type: 'trade', op: 'put', tid: tC, offer: [{ fid: 'f_gear', rowId: 'w_st', qty: 1 }] }, C.conns[0]);
+            const lineC = C.out.a.filter(m => m.view).slice(-1)[0].view.a.lines;
+            CA.branch({ type: 'trade', op: 'confirm', tid: tC, on: true }, C.conns[0]); CA.tradeDo({}, { op: 'confirm', tid: tC, on: true });
+            const kv = C.camp.chars.c_1.values, gv = C.camp.chars.c_3.values, stG = (gv.f_gear || [])[0];
+            check('1.6.0 trading what a row holds (the host, run for real): a granted row put on the table alone is never offered; the staff\'s line says what goes with it; once both confirm the staff, its part and the row it granted leave the player together and land on the NPC linked to the staff there, with one delta for each list each side touched and the private line saying so',
+                apart === 0 && lineC.length === 1 && lineC[0].name === 'Staff, with 2 more' && j(kv.f_gear) === '[]' && j(kv.f_mods) === '[]' && j(kv.f_abil) === '[]' && stG && stG.defId === 'i_staff'
+                && gv.f_mods.length === 1 && gv.f_mods[0].in === stG.id && gv.f_abil.length === 1 && gv.f_abil[0].gr === stG.id
+                && j(C.out.deltas) === j([['c_1', ['f_abil', 'f_gear', 'f_mods']], ['c_3', ['f_abil', 'f_gear', 'f_mods']]]) && /Kael gave Staff, with 2 more\./.test((C.out.chat[0] || {}).text || ''), j([apart, lineC, kv, gv, C.out.deltas, C.out.chat]));
+        }
         // refusals
         const R = mkW(), RA = R.api;
         RA.branch({ type: 'trade', op: 'ask', from: 'c_2', to: 'c_3' }, R.conns[0]);   // not theirs

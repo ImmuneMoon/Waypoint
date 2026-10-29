@@ -1535,14 +1535,35 @@ function tradeOfferable(sys, char, who) {
             if (q === 1 && isObj(spec.lvl) && spec.lvl.split === true) e.split.push({ key: '@lvl', label: spec.lvl.label || 'Level', max: rowLvl(spec, r, rd.def), step: spec.lvl.step > 0 ? spec.lvl.step : 1 });
             if (q === 1) (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (isObj(s) && s.split === true && s.kind !== 'pick') e.split.push({ key: s.key, label: s.label || s.key, max: rowStat(spec, rd.def, s.key), step: 0.01 }); });
             if (spec.price) { var pr = rowStat(spec, rd.def, spec.price); if (fin(pr) && pr !== 0) e.price = pr; }
+            var kids = tradeCarry(sys, char.values, rid), gby = typeof r.gr === 'string' ? tradeRowAt(sys, char.values, r.gr) : null, kn = tradeKidsSeen(sys, kids);
+            if (kn) { e.with = kn; e.name += ', with ' + kn + ' more'; }
             if (r.keptOn === 1) e.no = 'It cannot be taken off.';
+            else if (gby) { var gd = rowDef(sys, gby); e.no = 'It came with ' + (gd && isObj(gd.def) && gd.def.vis !== 'gm' ? cutText(gd.def.name, LIMITS.itemName) || 'another row' : 'another row') + ', and goes with it.'; }
             else if (rowOn(spec, r) && RM_MODES[rd.def.eq] === 1 && who === 'player') e.no = 'It cannot be taken off while it is on.';
             else if (RM_MODES[rd.def.rm] === 1 && who === 'player') e.no = 'It cannot be given away.';
+            else kids.forEach(function(k) { if (e.no) return; var kd = rowDef(sys, k.row), ks = tradeSpec(sys, k.f); if (k.row.keptOn === 1 || k.row.hid === 1) e.no = 'Something with it cannot be taken off.'; else if (who === 'player' && k.how === 'in' && kd && isObj(kd.def) && (RM_MODES[kd.def.rm] === 1 || (rowOn(ks, k.row) && RM_MODES[kd.def.eq] === 1))) e.no = 'Something with it cannot be given away.'; });
             out.push(e);
         });
     });
     return out;
 }
+// 1.6.0 (v2): what goes with a row that changes hands whole: the rows it granted (gr, B4) and the parts it holds (in, R14), and theirs in turn,
+// as they stand, each found after the row it goes with; [{ f, row, by, how }], how 'gr' or 'in'. A granted row goes only with its granter
+function tradeCarry(sys, values, rid) {
+    var out = [], ids = map(), fids = itemListIds(sys), grew = true, n = 0; if (typeof rid !== 'string') return out; ids[rid] = 1;
+    while (grew && n++ < 8 && out.length < LIMITS.carried) {
+        grew = false; var add = [];
+        fids.forEach(function(fid) { (isObj(values) && Array.isArray(values[fid]) ? values[fid] : []).forEach(function(r) {
+            var id = rowIdOf(r); if (!isObj(r) || !id || ids[id] === 1) return;
+            var how = typeof r.gr === 'string' && ids[r.gr] === 1 ? 'gr' : typeof r.in === 'string' && ids[r.in] === 1 ? 'in' : ''; if (how) add.push({ f: fid, row: r, by: r[how], how: how });
+        }); });
+        add.forEach(function(a) { if (ids[rowIdOf(a.row)] === 1) return; ids[rowIdOf(a.row)] = 1; out.push(a); grew = true; });
+    }
+    return out;
+}
+function tradeRowAt(sys, values, rid) { var hit = null; itemListIds(sys).forEach(function(fid) { (isObj(values) && Array.isArray(values[fid]) ? values[fid] : []).forEach(function(r) { if (!hit && isObj(r) && rowIdOf(r) === rid) hit = r; }); }); return hit; }
+function tradeSpec(sys, fid) { var f = fieldById(sys, fid); return isObj(f && f.list) ? f.list : {}; }
+function tradeKidsSeen(sys, kids) { return kids.filter(function(k) { var d = rowDef(sys, k.row); return k.row.hid !== 1 && !!(d && isObj(d.def)) && d.def.vis !== 'gm'; }).length; }   // what is said goes with it: never a GM-only entry
 function tradeRound(n, step) { var s = step > 0 ? step : 0.01, x = Math.round(n / s) * s; return Math.round(x * 1e6) / 1e6; }
 // an offer as the side may make it NOW: each line names a row tradeOfferable lists without a reason; qty a whole number 1..its quantity; amt a
 // number above 0 and no more than the figure holds, on the figure's step; a row once by quantity, or once for each figure by amount, never both
@@ -1587,15 +1608,21 @@ function tradeApply(sys, a, b, offA, offB, whoA, whoB, into) {   // into { a: { 
     var listOf = function(side, ch, fid) { if (!Object.prototype.hasOwnProperty.call(vals[side], fid)) vals[side][fid] = JSON.parse(JSON.stringify(isObj(ch.values) && Array.isArray(ch.values[fid]) ? ch.values[fid] : [])); return vals[side][fid]; };
     var at = function(list, rid) { for (var i = 0; i < list.length; i++) if (rowIdOf(list[i]) === rid) return i; return -1; };
     // each side's lines are taken off the giver first, all of them, so that what one side receives never feeds what it gives
-    var moving = { a: [], b: [] };
+    var moving = { a: [], b: [] }, gone = { a: map(), b: map() };
+    var seenOf = function(side, ch) { var v = map(); itemListIds(sys).forEach(function(fid) { v[fid] = Object.prototype.hasOwnProperty.call(vals[side], fid) ? vals[side][fid] : isObj(ch.values) && Array.isArray(ch.values[fid]) ? ch.values[fid] : []; }); return v; };
     [['a', a, ca], ['b', b, cb]].forEach(function(s) {
         s[2].forEach(function(l) {
-            if (err) return; var f = fieldById(sys, l.fid), spec = isObj(f && f.list) ? f.list : {}, list = listOf(s[0], s[1], l.fid), i = at(list, l.rowId); if (i < 0) { err = 'changed'; return; }
+            if (err || gone[s[0]][l.rowId] === 1) return;   // 1.6.0: a part already gone with its host
+            var f = fieldById(sys, l.fid), spec = isObj(f && f.list) ? f.list : {}, list = listOf(s[0], s[1], l.fid), i = at(list, l.rowId); if (i < 0) { err = 'changed'; return; }
             var r = list[i], rd = rowDef(sys, r), nm = (rd && rd.def && rd.def.name) || 'Item';
             if (l.key === undefined) {
-                var mv = JSON.parse(JSON.stringify(r)); mv.qty = l.qty; delete mv.keptOn; delete mv.hid; if (isObj(spec.on)) mv.on = false;
-                if (l.qty >= (r.qty | 0 || 1)) list.splice(i, 1); else { r.qty = (r.qty | 0) - l.qty; delete mv.id; }
-                moving[s[0]].push({ fid: l.fid, row: mv }); s[0] === 'a' ? lines.a.push(nm + (l.qty > 1 ? ' x' + l.qty : '')) : lines.b.push(nm + (l.qty > 1 ? ' x' + l.qty : ''));
+                var mv = JSON.parse(JSON.stringify(r)), kids = []; mv.qty = l.qty; delete mv.keptOn; delete mv.hid; delete mv.gr; delete mv.in; if (isObj(spec.on)) mv.on = false;   // 1.6.0: alone, it is no one's grant or part there
+                if (l.qty >= (r.qty | 0 || 1)) {
+                    list.splice(i, 1);
+                    tradeCarry(sys, seenOf(s[0], s[1]), l.rowId).forEach(function(k) { var kl = listOf(s[0], s[1], k.f), ki = at(kl, rowIdOf(k.row)); if (ki < 0) return; kids.push({ f: k.f, how: k.how, by: k.by, old: rowIdOf(k.row), row: JSON.parse(JSON.stringify(kl[ki])) }); kl.splice(ki, 1); gone[s[0]][rowIdOf(k.row)] = 1; });
+                } else { r.qty = (r.qty | 0) - l.qty; delete mv.id; }
+                var kn = tradeKidsSeen(sys, kids), wn = kn ? ', with ' + kn + ' more' : '';
+                moving[s[0]].push({ fid: l.fid, row: mv, kids: kids, oid: l.rowId }); s[0] === 'a' ? lines.a.push(nm + (l.qty > 1 ? ' x' + l.qty : '') + wn) : lines.b.push(nm + (l.qty > 1 ? ' x' + l.qty : '') + wn);
             } else {
                 var isL = l.key === '@lvl', have = isL ? rowLvl(spec, r, rd && rd.def) : rowStat(spec, rd && rd.def, l.key), left = tradeRound(have - l.amt, isL ? spec.lvl.step : 0.01);
                 if (left < -1e-9 || (isL && spec.lvl.min !== undefined && left < spec.lvl.min - 1e-9)) { err = 'changed'; return; }
@@ -1612,13 +1639,27 @@ function tradeApply(sys, a, b, offA, offB, whoA, whoB, into) {   // into { a: { 
             if (err) return; var f = fieldById(sys, m.fid), spec = isObj(f && f.list) ? f.list : {}, list = listOf(s[1], s[2], m.fid), live = function(r) { return isObj(r) && r.hid !== 1 && r.keptOn !== 1; };
             if (m.row) {
                 var mv = m.row, j = -1;
-                if (typeof mv.defId === 'string' && !isObj(mv.ov)) for (var k = 0; k < list.length; k++) { var r = list[k]; if (live(r) && r.defId === mv.defId && !isObj(r.ov) && !(isObj(spec.on) && rowOn(spec, r)) && (r.lvl === mv.lvl) && !isObj(r.ct) && !isObj(r.ld) && !Array.isArray(r.rd) && !isObj(r.fd)) { j = k; break; } }   // 1.5.8: never onto a row that holds a loaded copy
+                if (typeof mv.defId === 'string' && !isObj(mv.ov) && !m.kids.length) for (var k = 0; k < list.length; k++) { var r = list[k]; if (live(r) && r.defId === mv.defId && !isObj(r.ov) && !(isObj(spec.on) && rowOn(spec, r)) && (r.lvl === mv.lvl) && !isObj(r.ct) && !isObj(r.ld) && !Array.isArray(r.rd) && !isObj(r.fd)) { j = k; break; } }   // 1.5.8: never onto a row that holds a loaded copy
                 if (j >= 0 && spec.noQty) { err = 'one'; return; }
                 if (j >= 0 && !isObj(mv.ct) && !isObj(mv.ld) && !Array.isArray(mv.rd) && !isObj(mv.fd)) { list[j].qty = clampNum((list[j].qty | 0) + mv.qty, 1, LIMITS.maxQty); return; }
                 if (spec.noQty && list.some(function(r) { return live(r) && tradeEntry(r, mv); })) { err = 'one'; return; }
                 if (list.filter(live).length >= LIMITS.carried) { err = 'full'; return; }
                 if (!mv.id || at(list, mv.id) >= 0) { var nid = tradeNewId(list); if (!nid) { err = 'full'; return; } mv.id = nid; }
                 list.push(mv);
+                // 1.6.0: what it granted and the parts it holds come in with it, each a row of its own linked to its new id. A grant the
+                // receiver's list holds once already is not granted again (as an add's), and what it granted with it; a part whose host
+                // did not come lands loose
+                var nids = map(); nids[m.oid] = mv.id;
+                m.kids.forEach(function(k) {
+                    if (err) return; var ks = tradeSpec(sys, k.f), kl = listOf(s[1], s[2], k.f), kr = JSON.parse(JSON.stringify(k.row));
+                    if (k.how === 'gr' && !nids[k.by]) return;
+                    delete kr.keptOn; delete kr.hid; if (isObj(ks.on)) kr.on = false;
+                    ['gr', 'in'].forEach(function(w) { if (typeof kr[w] === 'string') { if (nids[kr[w]]) kr[w] = nids[kr[w]]; else delete kr[w]; } });
+                    if (ks.noQty && kl.some(function(r) { return live(r) && tradeEntry(r, kr); })) { if (k.how === 'gr' && !ks.multi) return; if (k.how !== 'gr') { err = 'one'; return; } }
+                    if (kl.filter(live).length >= LIMITS.carried) { err = 'full'; return; }
+                    if (!kr.id || at(kl, kr.id) >= 0) { kr.id = k.old && at(kl, k.old) < 0 ? k.old : tradeNewId(kl); if (!kr.id) { err = 'full'; return; } }
+                    nids[k.old] = kr.id; kl.push(kr);
+                });
             } else {
                 var isL = m.key === '@lvl', tgt = -1, pick = function(test) { for (var k2 = 0; tgt < 0 && k2 < list.length; k2++) if (live(list[k2]) && (list[k2].qty | 0 || 1) === 1 && test(list[k2])) tgt = k2; };
                 var mineIn = isObj(into) && isObj(into[s[1]]) ? into[s[1]] : null, want = mineIn && Object.prototype.hasOwnProperty.call(mineIn, m.fid) && typeof mineIn[m.fid] === 'string' ? mineIn[m.fid] : '';

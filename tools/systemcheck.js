@@ -13770,6 +13770,41 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && rDef.ok && rDef.valuesB.f_chips.filter(x => x.id === 'w_g8')[0].lvl === 42 && rJunk.ok && rJunk.valuesB.f_chips.filter(x => x.id === 'w_g8')[0].lvl === 42 && k1 === j(W7.kael) && g1 === j(W7.grunt), j([opts, rPick, rNew, rGone]));
         }
     }
+    {   // 1.6.0 (v2): a row traded whole carries the rows it granted (B4, gr) and the parts it holds (R14, in); a granted row is never traded apart
+        const j = JSON.stringify, sC = S.cleanSystem({ v: 1, name: 'C', rolls: [], fields: [
+            { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { trade: true, on: { label: 'Worn' }, parts: { from: 'f_mods', cats: ['Mod'] } } },
+            { id: 'f_mods', key: 'Mods', label: 'Mods', kind: 'item-list', edit: 'owner', vis: 'all', list: { trade: true, noQty: true } },
+            { id: 'f_abil', key: 'Abil', label: 'Abilities', kind: 'item-list', edit: 'owner', vis: 'all', list: { trade: true, noQty: true } }],
+            items: [{ id: 'i_staff', name: 'Staff', category: 'Gear', grants: [{ list: 'f_abil', entry: 'i_glow' }, { list: 'f_abil', entry: 'i_rune' }] }, { id: 'i_glow', name: 'Glow', grants: [{ list: 'f_abil', entry: 'i_spark' }] }, { id: 'i_spark', name: 'Spark' },
+                { id: 'i_rune', name: 'Hidden rune', vis: 'gm' }, { id: 'i_gem', name: 'Gem', category: 'Mod' }, { id: 'i_band', name: 'Band', category: 'Mod', rm: 'bound' }, { id: 'i_rope', name: 'Rope', category: 'Gear' }] }, { F, gmView: true });
+        const mk = () => ({ kael: { id: 'c_k', values: {
+                f_gear: [{ id: 'w_st', defId: 'i_staff', qty: 1, on: true }, { id: 'w_rp', defId: 'i_rope', qty: 3 }, { id: 'w_bd', defId: 'i_rope', qty: 1 }],
+                f_mods: [{ id: 'w_gm', defId: 'i_gem', qty: 1, in: 'w_st' }, { id: 'w_gx', defId: 'i_gem', qty: 2, in: 'w_rp' }, { id: 'w_bn', defId: 'i_band', qty: 1, in: 'w_bd' }],
+                f_abil: [{ id: 'w_gl', defId: 'i_glow', qty: 1, gr: 'w_st' }, { id: 'w_sp', defId: 'i_spark', qty: 1, gr: 'w_gl' }, { id: 'w_ru', defId: 'i_rune', qty: 1, gr: 'w_st' }, { id: 'w_xx', defId: 'i_spark', qty: 1 }] } },
+            sela: { id: 'c_s', npc: true, values: { f_gear: [{ id: 'w_st', defId: 'i_rope', qty: 1 }], f_abil: [{ id: 'w_s1', defId: 'i_spark', qty: 1 }] } } });
+        const W = mk(), oK = S.tradeOfferable(sC, W.kael, 'player'), byId = id => oK.filter(e => e.rowId === id)[0];
+        check('1.6.0 trading what a row holds, tradeOfferable: a row that holds parts or granted rows says how many go with it, never counting a GM-only entry; a granted row is listed with its reason, never traded apart while its granter is there; a part may go alone; a host whose part a player may not give away is listed with its reason',
+            byId('w_st').with === 3 && byId('w_st').name === 'Staff, with 3 more' && byId('w_st').no === undefined && /came with Staff, and goes with it/.test(byId('w_gl').no || '') && typeof byId('w_sp').no === 'string'
+            && byId('w_gm').no === undefined && byId('w_xx').no === undefined && byId('w_ru') === undefined && /Something with it cannot be given away/.test(byId('w_bd').no || '') && S.tradeOfferable(sC, W.kael, 'gm').filter(e => e.rowId === 'w_bd')[0].no === undefined, j(oK));
+        const k0 = j(W.kael), s0 = j(W.sela), r = S.tradeApply(sC, W.kael, W.sela, [{ fid: 'f_gear', rowId: 'w_st', qty: 1 }], [], 'player', 'gm');
+        const stB = r.ok && r.valuesB.f_gear.filter(x => x.defId === 'i_staff')[0], gemB = r.ok && r.valuesB.f_mods.filter(x => x.defId === 'i_gem')[0], ab = r.ok ? r.valuesB.f_abil : [];
+        const glB = ab.filter(x => x.defId === 'i_glow')[0], spB = ab.filter(x => x.defId === 'i_spark' && x.gr), ruB = ab.filter(x => x.defId === 'i_rune')[0];
+        check('1.6.0 trading what a row holds, tradeApply: a staff traded whole takes its part and every row it granted, and theirs, off the giver and onto the receiver, each linked to the staff\'s new id there (its own id taken on that side), switched off as the staff is; a grant the receiver holds once already is not granted again; the giver keeps its other rows; the line says how many came with it; the characters handed in untouched',
+            r.ok && k0 === j(W.kael) && s0 === j(W.sela) && stB && stB.id !== 'w_st' && stB.on === false && stB.gr === undefined && gemB && gemB.in === stB.id && glB && glB.gr === stB.id && ruB && ruB.gr === stB.id && spB.length === 0
+            && ab.filter(x => x.defId === 'i_spark').length === 1 && r.valuesA.f_gear.every(x => x.id !== 'w_st') && j(r.valuesA.f_mods.map(x => x.id)) === j(['w_gx', 'w_bn']) && j(r.valuesA.f_abil.map(x => x.id)) === j(['w_xx'])
+            && j(r.linesA) === j(['Staff, with 3 more']), j(r));
+        const W2 = mk(); W2.sela.values.f_abil = [];
+        const r2 = S.tradeApply(sC, W2.kael, W2.sela, [{ fid: 'f_gear', rowId: 'w_st', qty: 1 }], [], 'gm', 'gm'), ab2 = r2.ok ? r2.valuesB.f_abil : [], gl2 = ab2.filter(x => x.defId === 'i_glow')[0], sp2 = ab2.filter(x => x.defId === 'i_spark')[0];
+        const W3 = mk(), r3 = S.tradeApply(sC, W3.kael, W3.sela, [{ fid: 'f_gear', rowId: 'w_rp', qty: 1 }], [], 'player', 'gm'), W4 = mk(), r4 = S.tradeApply(sC, W4.kael, W4.sela, [{ fid: 'f_mods', rowId: 'w_gm', qty: 1 }], [], 'player', 'gm');
+        const W5 = mk(), r5 = S.tradeApply(sC, W5.kael, W5.sela, [{ fid: 'f_mods', rowId: 'w_gm', qty: 1 }, { fid: 'f_gear', rowId: 'w_st', qty: 1 }], [], 'player', 'gm'), W6 = mk(), r6 = S.tradeApply(sC, W6.kael, W6.sela, [{ fid: 'f_gear', rowId: 'w_st', qty: 1 }, { fid: 'f_mods', rowId: 'w_gm', qty: 1 }], [], 'player', 'gm');
+        const W7 = mk(); W7.sela.values.f_mods = [{ id: 'w_sg', defId: 'i_gem', qty: 1 }]; const r7 = S.tradeApply(sC, W7.kael, W7.sela, [{ fid: 'f_gear', rowId: 'w_st', qty: 1 }], [], 'player', 'gm');
+        const W8 = mk(), r8 = S.tradeApply(sC, W8.kael, W8.sela, [{ fid: 'f_abil', rowId: 'w_gl', qty: 1 }], [], 'gm', 'gm');
+        check('1.6.0 trading what a row holds, tradeApply: a grant of a grant comes in linked to its own granter\'s new id; part of a stack that holds parts moves alone and the giver keeps its parts on the rest; a part traded alone leaves its host and lands loose; a part put on the table beside its host goes once, with it or alone first, either order; a part the receiver\'s one-of-each list holds already refuses whole; a granted row put on the table alone refuses whole',
+            r2.ok && gl2 && sp2 && sp2.gr === gl2.id && r3.ok && r3.valuesA.f_gear.filter(x => x.id === 'w_rp')[0].qty === 2 && r3.valuesA.f_mods === undefined && r3.valuesB.f_gear.filter(x => x.defId === 'i_rope' && x.in === undefined).length === 1
+            && r4.ok && r4.valuesB.f_mods.length === 1 && r4.valuesB.f_mods[0].in === undefined && r4.valuesA.f_mods.every(x => x.id !== 'w_gm')
+            && r5.ok && r5.valuesB.f_mods.length === 1 && r5.valuesB.f_mods[0].in === undefined && r6.ok && r6.valuesB.f_mods.length === 1 && typeof r6.valuesB.f_mods[0].in === 'string'
+            && r7.ok === false && r7.reason === 'one' && r8.ok === false && r8.reason === 'changed', j([r2, r3, r4, r5, r6, r7, r8]));
+    }
     {   // 1.5.6 buying and selling: the Money box, the site's rules for money in and out, and a row op's price (systemcore, run for real)
         const j = JSON.stringify, mkS = (gm) => S.cleanSystem({ v: 1, name: 'M', rolls: [], fields: [
             { id: 'f_chips', key: 'Chips', label: 'Chips', kind: 'item-list', edit: 'owner', vis: 'all', list: { multi: true, cats: ['Credit Chip'], on: { label: 'Stowed' }, lvl: { label: 'Stored', min: 0, max: 100000, step: 0.01, def: 0 }, money: '@lvl' } },

@@ -77,6 +77,9 @@ Systems, more
   the aim as ThrowDistance, so each item can have ranges of its own.
 - A list counter can start again at its character's turn start in a
   fight, to count the attacks made this turn.
+- A row traded whole takes its parts and the rows it granted with it, and
+  the trade says how many. A granted row is never traded alone. A part
+  traded alone lands loose.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

@@ -73,6 +73,7 @@
 <script type="module" src="scripts/trackcore.js"></script>
 <script type="module" src="scripts/trackers.js"></script>
 <script type="module" src="scripts/trade.js"></script>
+<script type="module" src="scripts/commands.js"></script>
 <script type="module" src="scripts/blastcore.js"></script>
 <script type="module" src="scripts/tutorial.js"></script>
 <script type="module" src="scripts/campsafecore.js"></script>
@@ -407,6 +408,13 @@
                                   <li>On the play map a planner or a handbook page opens <b>over the map</b>, so the map stays on screen. <kbd>Ctrl + Enter</kbd> opens it in a window of its own. <kbd>Alt + Enter</kbd> opens the page itself, to edit.</li>
                                   <li>On any other view Enter opens the page itself. <kbd>Shift + Enter</kbd> opens it in a panel where you are.</li>
                                   <li>A click works as Enter does, with the same keys held. The line under the list says what Enter will do.</li>
+                              </ul>
+                          </li>
+                          <li><b>Tools and settings</b> are in quick-jump too.
+                              <ul>
+                                  <li>Type a tool&rsquo;s name, such as Pen or Ruler, and Enter takes it as its icon does. A tool already in your hand is put away.</li>
+                                  <li>Type an option of Settings, such as Grid opacity. Enter opens Settings at that option and lights it for a moment.</li>
+                                  <li>Settings and Help are in the list too. With nothing typed the tools come after your maps and pages.</li>
                               </ul>
                           </li>
                           <li>The <b>minimap</b> in the top-left corner shows where your content is. Click anywhere on it to fly the camera there. It dims when idle, and the chevron collapses it.</li>
@@ -2558,7 +2566,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                               </ul>
                           </li>
                           <li><kbd>Ctrl + C</kbd> / <kbd>Ctrl + X</kbd> / <kbd>Ctrl + V</kbd> &nbsp; Copy / cut / paste play map items. Paste also takes an image from outside.</li>
-                          <li><kbd>Ctrl + K</kbd> &nbsp; Quick-jump to any map, planner, or room.</li>
+                          <li><kbd>Ctrl + K</kbd> &nbsp; Quick-jump to any map, planner, or room. It finds the map&rsquo;s tools and the options of Settings too.</li>
                           <li><kbd>Shift + 1</kbd> &nbsp; Fit to content: frame the selection if there is one, else the whole map.</li>
                           <li><kbd>Arrow Keys</kbd> &nbsp; Nudge the selection 1px, or 10px with <kbd>Shift</kbd>.</li>
                           <li><kbd>Delete</kbd> or <kbd>Backspace</kbd> &nbsp; Delete the selected item.</li>
@@ -4017,7 +4025,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 
 <div id="cmdkModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:100001; align-items:flex-start; justify-content:center; padding-top:12vh; box-sizing:border-box;">
     <div style="background:var(--bg2); border:1px solid var(--gold); border-radius:10px; width:560px; max-width:92vw; box-shadow:0 12px 40px rgba(0,0,0,0.6); overflow:hidden;">
-        <input type="text" id="cmdkInput" placeholder="Jump to a map, planner, or room&hellip;  (Esc to close)" autocomplete="off"
+        <input type="text" id="cmdkInput" placeholder="Jump to a map, a page, a tool or a setting&hellip;  (Esc to close)" autocomplete="off"
                style="width:100%; box-sizing:border-box; padding:14px 16px; background:var(--panel2); border:none; border-bottom:1px solid var(--edge); color:var(--ink); font-size:15px; outline:none;">
         <div id="cmdkList" style="max-height:46vh; overflow-y:auto;"></div>
         <div id="cmdkHint" class="cmdk-hint" role="status"></div>

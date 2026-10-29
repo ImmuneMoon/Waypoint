@@ -17,6 +17,13 @@ Table trackers
 - When a countdown runs out or a clock fills, its pill glows and Table
   Chat says so. The arrow at the start of the strip puts it away.
 
+Quick jump
+- Quick jump finds the map's tools and Settings too. Press Ctrl+K and
+  type a tool's name, such as Pen or Ruler: Enter takes it, as its icon
+  does, and puts away a tool already in your hand. Type an option of
+  Settings, such as Grid opacity, and Enter opens Settings there with
+  the option lit. Settings and Help are in the list too.
+
 Scenes
 - Show as a scene... puts a picture big on your players' screens, with no
   need to place it on the map or bring anyone to it. Find it on the

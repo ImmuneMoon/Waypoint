@@ -1391,6 +1391,8 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                 });
             });
         });
+        // 1.6.0, backlog 33: the commands that can run now and Settings' options, from the one list of commands (commands.js)
+        if (window.wpCommands && typeof window.wpCommands.rows === 'function') { try { _cmdkEntries = _cmdkEntries.concat(window.wpCommands.rows()); } catch (e) {} }
     }
 
     // [shelfcheck:cmdkrows-start]
@@ -1400,9 +1402,10 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         _cmdkEntries.forEach(function(en) {
             var l = en.label.toLowerCase();
             var s = -1;
-            if (!ql) s = en.kind === 'room' ? 2 : 1;
+            if (!ql) s = en.kind === 'set' ? -1 : en.kind === 'cmd' ? 3 : en.kind === 'room' ? 2 : 1;   // 1.6.0: with nothing typed the commands come last, and Settings' options wait for a word
             else if (l.indexOf(ql) === 0) s = 0;
             else if (l.indexOf(ql) !== -1) s = 1;
+            else if (Array.isArray(en.also) && en.also.some(function(w) { return String(w).indexOf(ql) === 0; })) s = 1;   // a command's other words (the Ruler is found by measure)
             else if (en.sub.toLowerCase().indexOf(ql) !== -1) s = 2;
             if (s >= 0) scored.push([s, en]);
         });
@@ -1421,13 +1424,13 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         }
         _cmdkShown = shown.slice(0, 50);
         _cmdkIdx = 0;
-        var icons = { map: '🗺️', planner: '📑', doc: '📖', room: '📍' };
+        var icons = { map: '🗺️', planner: '📑', doc: '📖', room: '📍', cmd: '🛠️', set: '⚙️' };
         var list = document.getElementById('cmdkList');
         list.innerHTML = _cmdkShown.length
             ? _cmdkShown.map(function(en, i) {
                 return '<div class="cmdk-row' + (i === 0 ? ' active' : '') + '" data-i="' + i + '">' +
-                    '<span>' + (icons[en.kind] || '•') + '</span><span>' + esc(en.label) + '</span>' +
-                    '<span class="cmdk-sub">' + (en.snippet ? en.snippet : esc(en.sub)) + '</span></div>';
+                    '<span>' + (en.icon ? esc(en.icon) : (icons[en.kind] || '•')) + '</span><span>' + esc(en.label) + '</span>' +
+                    '<span class="cmdk-sub">' + (en.snippet ? en.snippet : esc(en.sub)) + '</span>' + (en.key ? '<kbd class="cmdk-key">' + esc(en.key) + '</kbd>' : '') + '</div>';
               }).join('')
             : '<div class="cmdk-empty">No matches.</div>';
         cmdkHintSync();
@@ -1457,6 +1460,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
     // What Enter and its keys do for the row in front, in words under the list
     function cmdkHint(en) {
         if (!en) return '';
+        if (en.kind === 'cmd' || en.kind === 'set') return window.wpCommands && typeof window.wpCommands.act === 'function' ? window.wpCommands.act(en) : '';   // 1.6.0: a command says what it does
         if (cmdkWay(en, { shiftKey: true }) === 'go') return 'Enter goes there.';
         return cmdkWay(en, null) === 'panel' ? 'Enter opens it over the map. Ctrl+Enter opens a new window. Alt+Enter opens the page itself.' : 'Enter opens the page. Shift+Enter opens it in a panel here. Ctrl+Enter opens a new window.';
     }
@@ -1475,6 +1479,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
     function cmdkGo(en, ev) {
         if (!en) return;
         cmdkClose();
+        if (en.kind === 'cmd' || en.kind === 'set') { if (window.wpCommands && typeof window.wpCommands.go === 'function') window.wpCommands.go(en); return; }   // 1.6.0, backlog 33: a command runs, a Settings option opens Settings there
         var way = cmdkWay(en, ev);
         if (way !== 'go') { window.wpPageShelf.open(en.itemId, way, cmdkLand(en)); return; }   // 1.5.4: over the map or in a window of its own, and the map stays on screen; a row found by a page's words opens at them
         // A jump into another campaign while hosting is a campaign switch: the session ends first (asked)

@@ -438,7 +438,7 @@ const drawSrc = sliceOf(ps, 'draw');
             'Enter opens the page. Shift+Enter opens it in a panel here. Ctrl+Enter opens a new window.', 'Enter opens the page. Shift+Enter opens it in a panel here. Ctrl+Enter opens a new window.', 'Enter goes there.', 'Enter goes there.', 'Enter goes there.', '', 'Enter goes there.']), J(hints));
     const go = mainS.slice(mainS.indexOf('    function cmdkGo(en, ev) {'), mainS.indexOf('    function cmdkGoNow(en) {'));
     check('quick-jump asks the rule before it leaves the map: a page that opens over the map or in a window is handed to the one opener, with the row\'s landing (1.5.4), and nothing else runs, and only the page itself goes on to the old path, which still asks before another campaign replaces a hosted one',
-        /^    function cmdkGo\(en, ev\) \{\n        if \(!en\) return;\n        cmdkClose\(\);\n        var way = cmdkWay\(en, ev\);\n        if \(way !== 'go'\) \{ window\.wpPageShelf\.open\(en\.itemId, way, cmdkLand\(en\)\); return; \}[^\n]*\n/.test(go) && /wpConfirmCampaignSwitch\(function\(\) \{ cmdkGoNow\(en\); \}\); return; \}\n        cmdkGoNow\(en\);\n    \}\n/.test(go), go.slice(0, 300));
+        /^    function cmdkGo\(en, ev\) \{\n        if \(!en\) return;\n        cmdkClose\(\);\n        if \(en\.kind === 'cmd' \|\| en\.kind === 'set'\) \{ if \(window\.wpCommands && typeof window\.wpCommands\.go === 'function'\) window\.wpCommands\.go\(en\); return; \}[^\n]*\n        var way = cmdkWay\(en, ev\);\n        if \(way !== 'go'\) \{ window\.wpPageShelf\.open\(en\.itemId, way, cmdkLand\(en\)\); return; \}[^\n]*\n/.test(go) && /wpConfirmCampaignSwitch\(function\(\) \{ cmdkGoNow\(en\); \}\); return; \}\n        cmdkGoNow\(en\);\n    \}\n/.test(go), go.slice(0, 300));
     check('the keys and the pointer hand their event on, so the keys held count: Enter, a click on a row; the row under the pointer is the row in front, and the line follows the row as the list is drawn, as the arrows move and as the pointer moves',
         count(mainS, "if (e.key === 'Enter') { e.preventDefault(); cmdkGo(_cmdkShown[_cmdkIdx], e); return; }") === 1 && count(mainS, "if (row) cmdkGo(_cmdkShown[+row.dataset.i], e);") === 1
         && count(mainS, "list.addEventListener('mousemove', function(e) { var row = e.target.closest('.cmdk-row'); if (row) cmdkFront(+row.dataset.i); });") === 1
@@ -1016,6 +1016,92 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     check('1.5.6 page links: at someone else\'s table a planner the player does not hold is said as not shared with you', toasts[2] === 'That page has not been shared with you.', J(toasts));
     check('1.5.6 page links: the module publishes the press, the list and the words for the campaign on screen',
         ps.includes("    linkGo: linkGo, linkChoices: function() { return linkChoices(getActiveCampaign()); }, linkWords: function(id, at) { return linkWords(getActiveCampaign(), id, at); } };"));
+}
+
+/* ---------- the commands (commands.js, 1.6.0, backlog 33): tools and Settings in quick-jump ---------- */
+{
+    // The owner, 2026-10-29, by prompt: "Tools and settings in it". One list says what each command is; quick-jump lists the commands that
+    // can run now and finds Settings' options by name. The module's cmds and setrows slices are run for real on plain objects
+    const cm = read('scripts/commands.js'), cmdSrc = sliceOf(cm, 'cmds'), setSrc = sliceOf(cm, 'setrows');
+    const mkCmds = o => {
+        o = o || {};
+        const R = { clicks: [], log: [] }, btn = id => ({ id, disabled: !!(o.off || {})[id], cls: new Set((o.held || []).indexOf(id) >= 0 ? ['active'] : []), get classList() { const s = this.cls; return { contains: c => s.has(c) }; },
+            getClientRects: () => ((o.hid || []).indexOf(id) >= 0 ? [] : [{ width: 30, height: 30 }]), click() { if (o.boom === id) throw new Error('boom'); R.clicks.push(id); } });
+        const ids = ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'fillModeBtn', 'buildModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'envModeBtn', 'settingsBtn', 'helpBtn'].filter(id => (o.gone || []).indexOf(id) < 0), els = {};
+        ids.forEach(id => { els[id] = btn(id); });
+        const st = { viewMode: o.view || 'visual' }, map = o.map === undefined ? { type: 'map' } : o.map;
+        const api = new Function('window', 'document', 'state', 'getActiveMap', cmdSrc + '\nreturn { list: COMMANDS, byId: cmdById, run: cmdRun, TOOLS: CMD_TOOLS, WINDOWS: CMD_WINDOWS };')(
+            { wpStepLog: (area, step, f) => { R.log.push(area + ' ' + step + ' ' + Object.keys(f || {}).map(k => k + '=' + f[k]).join(' ')); } }, { getElementById: id => els[id] || null }, st, () => map);
+        return Object.assign(api, { R });
+    };
+    const C = mkCmds(), ids = C.list.map(c => c.id);
+    check('one list of commands: each has its own id, a name, what it does as a sentence that ends in a full stop, other words that find it, how it runs, whether it can and what Enter does; the ten tools of the play map in the toolbar\'s order, then Settings and Help',
+        J(ids) === J(['tool.select', 'tool.pan', 'tool.pen', 'tool.eraser', 'tool.fill', 'tool.build', 'tool.ruler', 'tool.radius', 'tool.fog', 'tool.env', 'open.settings', 'open.help']) && new Set(ids).size === ids.length
+        && C.list.every(c => typeof c.name === 'string' && c.name && /^[A-Z][^]*\.$/.test(c.does) && c.does.length <= 60 && Array.isArray(c.also) && typeof c.run === 'function' && typeof c.can === 'function' && typeof c.act === 'function' && typeof c.icon === 'string'),
+        J(C.list.map(c => [c.id, c.name, c.does])));
+    check('a tool command is its toolbar button\'s own press, and each button it names is in the page once, the tools of the play map\'s toolbar that updateWbToolbar knows; each window command names the top row\'s button',
+        C.TOOLS.every(t => count(ix, ' id="' + t[2] + '"') === 1) && C.TOOLS.every(t => t[2] === 'fogModeBtn' || wb.includes("'" + t[2] + "'")) && C.WINDOWS.every(w => count(ix, ' id="' + w[2] + '"') === 1)
+        && J(C.TOOLS.map(t => t[5])) === J(['keep', '', '', '', '', '', '', '', 'menu', '']));
+    const r1 = C.run('tool.pen', 'jump'), r2 = C.run('open.settings', 'key');
+    check('a command runs through its button\'s own press, once, and says true; each run is logged with its id and how it was asked for, and nothing else',
+        r1 === true && r2 === true && J(C.R.clicks) === J(['drawModeBtn', 'settingsBtn']) && J(C.R.log) === J(['commands v1 run id=tool.pen via=jump', 'commands v1 run id=open.settings via=key']), J([C.R]));
+    const D = mkCmds({ view: 'data' }), P = mkCmds({ map: { type: 'planner' } }), N = mkCmds({ map: null }), H = mkCmds({ hid: ['fillModeBtn'] }), O = mkCmds({ off: { drawModeBtn: 1 } }), G = mkCmds({ gone: ['drawModeBtn', 'helpBtn'] }), B = mkCmds({ boom: 'drawModeBtn' });
+    const held = [D.run('tool.pen', 'key'), P.run('tool.ruler', 'jump'), N.run('tool.pan', 'jump'), H.run('tool.fill', 'key'), O.run('tool.pen', 'key'), G.run('tool.pen', 'jump'), G.run('open.help', 'jump'), B.run('tool.pen', 'jump'), C.run('tool.nothing', 'key'), C.run('toString', 'key')];
+    check('a command that cannot run now presses nothing and says why in plain words: a tool off the play map (the data map, a page, no map), a tool the toolbar does not show here or has switched off, a button this window does not have, a press that fails, a command that is not in the list',
+        J(held) === J(['Pen works on the play map.', 'Ruler works on the play map.', 'Pan works on the play map.', 'Fill is not on your toolbar here.', 'Pen is not on your toolbar here.', 'Pen is not in this window.', 'Help is not in this window.', 'Pen did not run.', 'There is no such command.', 'There is no such command.'])
+        && [D, P, N, H, O, G].every(X => X.R.clicks.length === 0) && J(D.R.log) === J(['commands v1 run-held id=tool.pen via=key']) && J(B.R.log) === J(['commands v1 run-failed id=tool.pen via=jump']) && C.R.log.slice(-2).every(l => l === 'commands v1 run-unknown via=key'), J(held));
+    const A = mkCmds({ held: ['drawModeBtn', 'moveModeBtn'] }), act = id => A.byId(id).act(), can = X => X.list.filter(c => c.can() === true).map(c => c.id);
+    check('what Enter does is said for the row in front: a tool not in hand is taken, a tool in hand is put away as a second press of its icon puts it, Select stays in hand, the fog tool opens its menu, a window opens',
+        act('tool.pen') === 'Enter puts Pen away.' && act('tool.ruler') === 'Enter takes Ruler.' && act('tool.select') === 'Select is in your hand.' && mkCmds().byId('tool.select').act() === 'Enter takes Select.' && act('tool.fog') === 'Enter opens the fog menu.' && act('open.settings') === 'Enter opens Settings.' && act('open.help') === 'Enter opens Help.');
+    check('only what can run now is offered: on the play map every tool and both windows, on the data map or a page the two windows alone, a hidden tool left out',
+        can(C).length === 12 && J(can(D)) === J(['open.settings', 'open.help']) && J(can(P)) === J(['open.settings', 'open.help']) && can(H).indexOf('tool.fill') < 0 && can(H).length === 11, J([can(D), can(H)]));
+    // Settings' options, on the test page
+    const { makeDom } = require('./boxdom.js'), dom = makeDom(), doc = dom.document, el = (tag, o, kids) => { const e = doc.createElement(tag); o = o || {}; if (o.id) e.id = o.id; if (o.cls) e.className = o.cls; Object.keys(o.attrs || {}).forEach(k => e.setAttribute(k, o.attrs[k])); if (o.hidden) e.hidden = true; if (o.none) e.style.display = 'none'; (kids || []).forEach(k => e.appendChild(typeof k === 'string' ? doc.createTextNode(k) : k)); return e; };
+    const modal = el('div', { id: 'settingsModal' }, [
+        el('details', { cls: 'set-group', attrs: { 'data-group': 'table' } }, [el('summary', {}, ['Table']), el('div', { cls: 'set-group-body' }, [
+            el('div', { cls: 'set-field-label' }, ['Grid opacity ', el('span', { id: 'setGridOpacityVal' }, ['100%'])]), el('input', { id: 'setGridOpacity' }),
+            el('label', {}, [el('input', { id: 'setFxReduced' }), ' ', el('span', { cls: 'set-name' }, [el('span', {}, ['Reduce motion (this machine)']), el('small', {}, ['Skips screen shake.'])])]),
+            el('label', {}, [el('span', { cls: 'set-name' }, ['Effect timers', el('small', {}, ['Who may pause it.'])]), ' ', el('select', { id: 'setTimers' }, [el('option', {}, ['Its player and you'])])]),
+            el('label', {}, [el('input', { id: 'setStreamFx' }), ' Stream window plays the table\'s sound (the ambient loop, a voice and more)']),
+            el('div', { cls: 'set-field-label' }, ['Grid opacity']),
+            el('label', { cls: 'gm-only' }, [el('input', { id: 'gmTick' }), ' A GM tick']),
+            el('div', { none: true }, [el('div', { cls: 'set-field-label' }, ['Put away'])]),
+            el('button', { cls: 'tool ghost', id: 'setResetBtn' }, ['\u{1F504} Reset Panel Layout']), el('div', { cls: 'set-line tight' }, ['Puts both panels back.']),
+            el('button', { cls: 'tool ghost', id: 'setRulersBtn' }, ['Toggle Rulers'])
+        ])]),
+        el('details', { cls: 'set-group', attrs: { 'data-group': 'gone' }, hidden: true }, [el('summary', {}, ['Hidden group']), el('div', { cls: 'set-field-label' }, ['Inside'])])
+    ]);
+    doc.body.appendChild(modal);
+    const win = { getComputedStyle: e => ({ display: e.style.display === 'none' || (e.className.split(' ').indexOf('gm-only') >= 0) ? 'none' : 'block' }) };
+    const S = new Function(setSrc + '\nreturn { rows: setRows, control: setControl, words: setWords };')(), rows = S.rows(doc, win);
+    check('Settings\' options are read from the page as it stands: a group by its heading, an option by its own words alone (never the state beside it, its grey line, a list\'s choices, a control\'s words or a leading picture), a long name without what its bracket adds, a button only where its grey line stands under it; one put away (a GM\'s on a player\'s app, a hidden row, a hidden group) is not found, and the same words twice in one place are found once',
+        J(rows.map(r => [r.name, r.sub, r.group])) === J([['Table', 'Settings', 'table'], ['Grid opacity', 'Settings \u25b8 Table', 'table'], ['Reduce motion (this machine)', 'Settings \u25b8 Table', 'table'], ['Effect timers', 'Settings \u25b8 Table', 'table'],
+            ['Stream window plays the table\'s sound', 'Settings \u25b8 Table', 'table'], ['Reset Panel Layout', 'Settings \u25b8 Table', 'table']]) && S.rows({ getElementById: () => null }, win).length === 0, J(rows.map(r => [r.name, r.sub])));
+    check('an option opens at the control it is set with: a name\'s control under it, the box or the list in its label, a button itself, a group by its heading',
+        S.control(rows[1].el).id === 'setGridOpacity' && S.control(rows[2].el).id === 'setFxReduced' && S.control(rows[3].el).id === 'setTimers' && S.control(rows[5].el).id === 'setResetBtn' && S.control(rows[0].el).tagName === 'SUMMARY' && S.control(null) === null);
+    const rowsC = (q) => { const list = { innerHTML: '' }, st = { appState: { campaigns: {} } }, rSrc = sliceOf(mainS, 'cmdkrows');
+        const entries = [{ kind: 'map', label: 'Docks', sub: 'Camp', campId: 'c1', itemId: 'm1' }, { kind: 'cmd', label: 'Ruler', sub: 'Measure a distance.', cmdId: 'tool.ruler', also: ['measure', 'distance'], icon: 'T', key: '' }, { kind: 'cmd', label: 'Pen', sub: 'Draw on the map.', cmdId: 'tool.pen', also: ['draw'], icon: 'T', key: 'P' }, { kind: 'set', label: 'Measurement system', sub: 'Settings \u25b8 Table', setAt: 0, icon: 'S' }];
+        const shown = new Function('state', 'window', 'document', 'esc', 'cmdkHintSync', 'var _cmdkEntries = ' + J(entries) + ', _cmdkShown = [], _cmdkIdx = 0;\n' + rSrc + '\nreturn function(q) { cmdkRender(q); return _cmdkShown; };')(st, {}, { getElementById: () => list }, s => String(s).replace(/</g, '&lt;'), () => {})(q);
+        return { shown: shown.map(en => en.label), html: list.innerHTML }; };
+    const e0 = rowsC(''), e1 = rowsC('meas'), e2 = rowsC('pe');
+    check('quick-jump lists the commands after the maps and pages with nothing typed and Settings\' options only once a word is typed; a command is found by its name or its other words (the Ruler by measure); a row shows its own picture and its key where it has one',
+        J(e0.shown) === J(['Docks', 'Ruler', 'Pen']) && J(e1.shown) === J(['Measurement system', 'Ruler']) && J(e2.shown) === J(['Pen']) && e2.html.includes('<span>T</span><span>Pen</span>') && e2.html.includes('<kbd class="cmdk-key">P</kbd>') && !e1.html.includes('cmdk-key'), J([e0, e1, e2]));
+    const hS = sliceOf(mainS, 'cmdkway'), hint = (en, cmds) => new Function('window', 'state', hS + '\nreturn cmdkHint;')(cmds === false ? {} : { wpCommands: { act: e => 'act:' + e.label } }, { appState: { activeCampaignId: 'c1' } })(en);
+    const gS = sliceOf(mainS, 'cmdkgo'), went = [], goC = new Function('window', 'state', 'cmdkClose', hS + '\n' + gS + '\nreturn cmdkGo;')({ wpCommands: { go: en => { went.push(en.label); } }, wpConfirmCampaignSwitch: () => { went.push('asked'); } }, { appState: { activeCampaignId: 'c1', campaigns: {} } }, () => { went.push('close'); });
+    goC({ kind: 'cmd', label: 'Pen', cmdId: 'tool.pen' }, null); goC({ kind: 'set', label: 'Grid opacity', setAt: 1 }, { ctrlKey: true });
+    check('the line under the list says what Enter does for a command and an option, in the command\'s own words; Enter on a command closes quick-jump and runs it, on an option opens Settings there, and neither asks to switch campaigns',
+        hint({ kind: 'cmd', label: 'Pen' }) === 'act:Pen' && hint({ kind: 'set', label: 'Grid' }) === 'act:Grid' && hint({ kind: 'cmd', label: 'Pen' }, false) === '' && J(went) === J(['close', 'Pen', 'close', 'Grid opacity']), J(went));
+    check('the page loads the module once, after the modules whose buttons it presses; the module publishes the list, its run, the rows and what Enter does, and logs in the shared words; the style sheet draws a key and the option Settings opened at; quick-jump\'s box says what it finds',
+        count(ix, 'scripts/commands.js') === 1 && ix.includes('<script type="module" src="scripts/trade.js"></script>\n<script type="module" src="scripts/commands.js"></script>\n') && ix.indexOf('scripts/commands.js') > ix.indexOf('scripts/settings.js')
+        && cm.includes("window.wpCommands = { list: COMMANDS, byId: cmdById, run: cmdRun, rows: jumpRows, go: jumpGo, act: jumpAct,") && cm.includes("window.wpStepLog('commands v1', step, facts)")
+        && /\n\s*\.cmdk-row \.cmdk-key \{ flex: none;/.test(css) && /\n\s*#settingsModal \.set-found \{ outline: 2px solid var\(--gold\);/.test(css) && ix.includes('placeholder="Jump to a map, a page, a tool or a setting&hellip;  (Esc to close)"'));
+    const wn = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, '\n'));
+    const start = ix.slice(ix.indexOf('<div class="help-pane" data-pane="start">'), ix.indexOf('<div class="help-pane" data-pane="tutorial"')), keysP = ix.slice(ix.indexOf('<div class="help-pane" data-pane="keys"'), ix.indexOf('<h4 id="helpDevMode">'));
+    check('Help says it under Getting around fast, after quick-jump: a tool by its name taken as its icon takes it and put away in hand, an option of Settings opened and lit, Settings and Help, the tools after the maps; the Keyboard part says it too; both release notes carry it, alike, in 1.6.0',
+        start.includes('<li><b>Tools and settings</b> are in quick-jump too.\n') && start.includes('<li>Type a tool&rsquo;s name, such as Pen or Ruler, and Enter takes it as its icon does. A tool already in your hand is put away.</li>')
+        && start.includes('<li>Type an option of Settings, such as Grid opacity. Enter opens Settings at that option and lights it for a moment.</li>') && start.includes('<li>Settings and Help are in the list too. With nothing typed the tools come after your maps and pages.</li>')
+        && start.indexOf('<li><b>Tools and settings</b>') > start.indexOf('<li><kbd>Ctrl + K</kbd> opens quick-jump.') && keysP.includes('<li><kbd>Ctrl + K</kbd> &nbsp; Quick-jump to any map, planner, or room. It finds the map&rsquo;s tools and the options of Settings too.</li>')
+        && wn.every(t => count(t, "Quick jump\n- Quick jump finds the map's tools and Settings too. Press Ctrl+K and\n  type a tool's name, such as Pen or Ruler: Enter takes it, as its icon\n") === 1 && t.indexOf('\nQuick jump\n') < t.indexOf('WAYPOINT 1.5.') ));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

@@ -53,7 +53,7 @@ var LIMITS = Object.freeze({
     pickOpts: 48,                            // Stage 6 F5a2: a choice stat's options
     rowRolls: 10,                            // Stage 6 F5b: a list's rolls (a button on each row; 4 before 1.5.4, 8 before 1.6.0)
     applyChanges: 8,                         // Stage 6 HUD H7: an apply action's changes (a pool or a number each), and a roll's consequences (4 before 1.5.4)
-    rowCounters: 8,                          // Stage 6 HUD R2: a list's counters (a number each row keeps: Charges, Hits; 4 before 1.5.4)
+    rowCounters: 12,                         // Stage 6 HUD R2: a list's counters (a number each row keeps: Charges, Hits; 4 before 1.5.4, 8 before 1.6.0)
     turnActs: 6,                             // turn-based combat T1: what one turn allows (Action, Bonus action, Maneuver)
     turnUnits: 6,                            // turn-based combat T1: the system's own time units (a segment, a watch)
     lightPresets: 24,                        // lighting L4: the system's light presets (a torch, a lantern)

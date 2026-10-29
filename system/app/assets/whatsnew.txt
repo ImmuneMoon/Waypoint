@@ -207,6 +207,8 @@ Systems, more
 - A list's level can cap how many rows stand at a level, such as one row at
   the free first level, or two at level 5 or higher. Set At most under the
   level in the Lists tab. A player is refused one more, and you are told.
+- Row.parts.max.Damage reads the highest figure one part of a row gives,
+  and Row.parts.min.Damage the lowest. A part's count does not multiply it.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

@@ -3835,7 +3835,7 @@ function chainsWalk(sys, F) {
     };
     var nodeOf = function(name, L) {   // the resolver's own lookup (fn, and a column's rowVars): the node a name is worked out under, or ''
         var l = lower(name);
-        if (L && l.slice(0, 4) === 'row.') { var w = l.slice(4), cw = w.split('.'); return w.indexOf('.') < 0 ? rowNode(L, w) : cw.length === 2 && (cw[0] === 'round' || cw[0] === 'fired') && L.chs ? rowNode(listOf(L.chs), cw[1]) : cw.length === 2 && cw[0] === 'parts' && L.pts ? rowNode(listOf(L.pts), cw[1]) : ''; }   // 1.5.9: a round's stat or column, on its own list; 1.6.0 R14: a part's
+        if (L && l.slice(0, 4) === 'row.') { var w = l.slice(4), cw = w.split('.'); return w.indexOf('.') < 0 ? rowNode(L, w) : cw.length === 2 && (cw[0] === 'round' || cw[0] === 'fired') && L.chs ? rowNode(listOf(L.chs), cw[1]) : cw[0] === 'parts' && L.pts && (cw.length === 2 || (cw.length === 3 && (cw[1] === 'max' || cw[1] === 'min'))) ? rowNode(listOf(L.pts), cw[cw.length - 1]) : ''; }   // 1.5.9: a round's stat or column, on its own list; 1.6.0 R14: a part's (205 (1): its highest or lowest too)
         if (ix[l]) return defNode(ix[l], '');
         if (l.indexOf('.') > 0) { var ln = listNode(l); if (ln !== undefined) return ln; }
         var dot = l.lastIndexOf('.'); if (dot > 0 && NAME_SUFFIX[l.slice(dot + 1)] && ix[l.slice(0, dot)]) return defNode(ix[l.slice(0, dot)], l.slice(dot + 1));
@@ -6331,14 +6331,16 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (!isObj(cp)) return 0;
         var cd = rowDef(sys, cp); return rowVal(SL, { r: Object.assign({}, cp, { qty: 1 }), d: cd ? cd.def : null, id: (x.id || '') + '~' + sg[0] }, sg[1]);
     }
-    // 1.6.0 R14: Row.parts, how many parts a host holds (their quantities), and Row.parts.<w>, a stat or a column of the parts' list summed over them, each times its quantity
+    // 1.6.0 R14: Row.parts, how many parts a host holds (their quantities), and Row.parts.<w>, a stat or a column of the parts' list summed over them, each times its quantity.
+    // 205 (1): Row.parts.max.<w> and Row.parts.min.<w>, the highest or the lowest figure one part gives (never times its quantity, true reading 1), 0 with none
     function partsVal(L, x, w) {
         if (!L.spec || !isObj(L.spec.parts)) return undefined;
         var sf = partsSrc(sys, L.spec); if (!sf) return undefined;
+        var ws = w ? w.split('.') : [], ext = ws.length === 2 && (ws[0] === 'max' || ws[0] === 'min') ? ws[0] : ''; if (ws.length > (ext ? 2 : 1)) return undefined; if (ext) w = ws[1];
         var SL = listCtx(sf); if (w && !(SL.st[w] && SL.st[w].kind !== 'pick') && !SL.cl[w]) return undefined;
         if (x.virt) return 0;
-        var sum = 0; for (var pi = 0; pi < SL.rows.length; pi++) { var it = SL.rows[pi]; if (!isObj(it.r) || it.r.in !== x.id) continue; var q = SL.spec && SL.spec.noQty ? 1 : (it.r.qty | 0) || 1; if (!w) { sum += q; continue; } var pv = SL.cl[w] ? colVal(SL, it, SL.cl[w]) : rowVal(SL, it, w); if (isObj(pv) && pv.error) return pv; sum += (pv === true ? 1 : typeof pv === 'number' && isFinite(pv) ? pv : 0) * q; }
-        return sum;
+        var sum = 0, best = null; for (var pi = 0; pi < SL.rows.length; pi++) { var it = SL.rows[pi]; if (!isObj(it.r) || it.r.in !== x.id) continue; var q = SL.spec && SL.spec.noQty ? 1 : (it.r.qty | 0) || 1; if (!w) { sum += q; continue; } var pv = SL.cl[w] ? colVal(SL, it, SL.cl[w]) : rowVal(SL, it, w); if (isObj(pv) && pv.error) return pv; var pn = pv === true ? 1 : typeof pv === 'number' && isFinite(pv) ? pv : 0; if (ext) { if (best === null || (ext === 'max' ? pn > best : pn < best)) best = pn; continue; } sum += pn * q; }
+        return ext ? (best === null ? 0 : best) : sum;
     }
     function rowVars(L, x) {   // a column's names: Row.* reads this row, every other name the resolver (one cache)
         var v = function(name) { var l = lower(name); if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); return w.indexOf('.') < 0 ? rowVal(L, x, w) : roundVal(L, x, w); } return fn(name); };
@@ -6893,10 +6895,10 @@ function validateSystem(sys, F) {
     function listTarget(n, rowList) {
         var sg = lower(n).split('.');
         if (sg[0] === 'row' && sg.length === 2 && !ix.row) return rowList ? wordTarget(rowList, sg[1], false) : { rowOutside: true };
-        if (sg[0] === 'row' && sg.length === 3 && sg[1] === 'parts' && !ix.row) {   // 1.6.0 R14: Row.parts.<w>, a number stat or a column of the parts' list, on a list that takes parts
+        if (sg[0] === 'row' && sg[1] === 'parts' && !ix.row && (sg.length === 3 || (sg.length === 4 && (sg[2] === 'max' || sg[2] === 'min')))) {   // 1.6.0 R14: Row.parts.<w>, a number stat or a column of the parts' list, on a list that takes parts (205 (1): Row.parts.max.<w>, Row.parts.min.<w>)
             if (!rowList) return { rowOutside: true };
             var ptV = isObj(rowList.list) && isObj(rowList.list.parts) ? partsSrc(sys, rowList.list) : null; if (!ptV) return null;
-            var pwV = listWords(ptV)[sg[2]]; return pwV === 'stat' || pwV === 'col' ? { id: '', key: 'l#' + lower(ptV.key), kind: 'number', vis: ptV.vis, noEdge: true } : null;
+            var pwV = listWords(ptV)[sg[sg.length - 1]]; return pwV === 'stat' || pwV === 'col' ? { id: '', key: 'l#' + lower(ptV.key), kind: 'number', vis: ptV.vis, noEdge: true } : null;
         }
         if (sg[0] === 'row' && sg.length === 3 && (sg[1] === 'round' || sg[1] === 'fired') && !ix.row) {   // 1.5.9 Chambers from: Row.round.<w>, Row.fired.<w> — a stat or a column of the chamber's list, on a list with a chamber
             if (!rowList) return { rowOutside: true };
@@ -7791,7 +7793,8 @@ function gmDerivedNames(sys, F, names) {
         });
         sys.fields.forEach(function(f) {   // F5a1: a visible list's columns — reading a GM-only value makes the list's names derived from one; a choice's options too (owed review F5a2#1)
             if (f.kind !== 'item-list' || f.vis === 'gm' || !isObj(f.list)) return;
-            var node = 'l#' + lower(f.key), edge = function(nm) { var r = reads(nm); if (!r) return; if (r.f.vis === 'gm') { if (!hot[node]) { hot[node] = 1; queue.push(node); } } else if (r.def) (readBy[r.f.id] = readBy[r.f.id] || []).push(node); };
+            var ptG = isObj(f.list.parts) && !ix.row ? partsSrc(sys, f.list) : null;   // 205: Row.parts.<w> (its max and min too) is worked out from the parts' list's names
+            var node = 'l#' + lower(f.key), edge = function(nm) { var r = ptG && lower(nm).indexOf('row.parts.') === 0 ? { f: { id: 'l#' + lower(ptG.key), vis: ptG.vis === 'gm' ? 'gm' : 'all' }, def: true } : reads(nm); if (!r) return; if (r.f.vis === 'gm') { if (!hot[node]) { hot[node] = 1; queue.push(node); } } else if (r.def) (readBy[r.f.id] = readBy[r.f.id] || []).push(node); };
             (Array.isArray(f.list.stats) ? f.list.stats : []).forEach(function(st) { if (isObj(st) && st.kind === 'pick') (Array.isArray(st.opts) ? st.opts : []).forEach(function(o) { if (isObj(o) && typeof o.name === 'string' && o.name) edge(o.name); }); });
             (Array.isArray(f.list.cols) ? f.list.cols : []).forEach(function(c) { if (!isObj(c) || typeof c.formula !== 'string' || !c.formula) return; (F.names(c.formula) || []).forEach(function(n) { edge(nameOf(n)); }); });
         });

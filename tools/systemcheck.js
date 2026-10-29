@@ -17576,6 +17576,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && notesL.every(n => { const i = n.indexOf(NL + 'Looks and the work log' + NL + '- A list can let its rows carry a look'); return n.indexOf('WAYPOINT 1.6.0') === 0 && i > 0 && i < n.indexOf(NL + 'WAYPOINT 1.5.'); })
             && guideL.includes('look?: { overall?: Finish, parts?: [{ part, finish: Finish }] }') && guideL.includes('workLog?: [{ kind: repair | fit | restyle | build, by: self | hired, fee, note? }]'));
     }
+    {   // 205 (1) (the core handbook session's parts brief, 2026-10-29): Row.parts.max.<w> and Row.parts.min.<w>, the highest and the lowest one part gives
+        const J = JSON.stringify;
+        const rawX = { v: 1, name: 'X', rolls: [], items: [{ id: 'i_wp', name: 'Staff', category: 'Weapon' }, { id: 'i_hd', name: 'Head', category: 'Comp', stats: { Dmg: 5, Reach: 1 } }, { id: 'i_sh', name: 'Shaft', category: 'Comp', stats: { Dmg: 1, Reach: 2 } }, { id: 'i_wt', name: 'Weight', category: 'Comp', stats: { Dmg: 3, Reach: -1 } }],
+            fields: [{ id: 'f_n', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm' }, { id: 'f_pl', key: 'Plain', label: 'Plain', kind: 'number', vis: 'all' },
+                { id: 'f_w', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_c' }, cols: [{ key: 'Hi', label: 'Hi', formula: 'Row.parts.max.Dmg' }, { key: 'Lo', label: 'Lo', formula: 'Row.parts.min.Dmg' }, { key: 'Sum', label: 'Sum', formula: 'Row.parts.Dmg' }, { key: 'HiW', label: 'HiW', formula: 'Row.parts.max.Wt' }, { key: 'LoR', label: 'LoR', formula: 'Row.parts.min.Reach' }] } },
+                { id: 'f_c', key: 'Comps', label: 'Comps', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Dmg', label: 'Dmg' }, { key: 'Reach', label: 'Reach' }, { key: 'Kind', label: 'Kind', kind: 'pick', opts: [{ label: 'A', name: 'Plain' }, { label: 'B', name: 'Plain' }] }], cols: [{ key: 'Wt', label: 'Wt', formula: 'Row.Dmg * 2' }] } }], sheet: { sections: [] } };
+        const gX = cleanSystem(rawX, { F, gmView: true });
+        const ch = { id: 'c1', values: { f_w: [{ id: 'w_1', defId: 'i_wp', qty: 1 }, { id: 'w_2', defId: 'i_wp', qty: 1 }], f_c: [{ id: 'w_h', defId: 'i_hd', qty: 2, in: 'w_1' }, { id: 'w_s', defId: 'i_sh', qty: 1, in: 'w_1' }, { id: 'w_t', defId: 'i_wt', qty: 1, in: 'w_1' }, { id: 'w_k', defId: 'i_hd', qty: 1, in: 'w_1', hid: 1 }, { id: 'w_l', defId: 'i_wt', qty: 1 }] } };
+        const cells = S.resolveAll(gX, ch, F, null).f_w.cells;
+        const resOk = J(cells.w_1.map(x => x.value)) === J([5, 1, 14, 10, -1]) && J(cells.w_2.map(x => x.value)) === J([0, 0, 0, 0, 0]);
+        const withCol = (fid, formula) => { const s = JSON.parse(J(gX)); s.fields.find(f => f.id === fid).list.cols.push({ key: 'Q', label: 'Q', formula }); return s; };
+        const errsOf = s => S.validateSystem(s, F).errors.map(e => e.message);
+        const valOk = errsOf(gX).length === 0 && /Unknown name/.test(errsOf(withCol('f_w', 'Row.parts.max.Kind')).join()) && /Unknown name/.test(errsOf(withCol('f_w', 'Row.parts.max.Nope')).join())
+            && /Unknown name/.test(errsOf(withCol('f_w', 'Row.parts.mid.Dmg')).join()) && /Unknown name/.test(errsOf(withCol('f_c', 'Row.parts.max.Dmg')).join()) && /Unknown name/.test(errsOf(withCol('f_w', 'Row.parts.max.Dmg.Dmg')).join())
+            && /known only in a list/.test(errsOf(Object.assign(JSON.parse(J(gX)), { fields: gX.fields.concat([{ id: 'f_z', key: 'Z', label: 'Z', kind: 'formula', vis: 'all', formula: 'Row.parts.min.Dmg' }]) })).join());
+        const loopy = JSON.parse(J(gX)); loopy.fields.find(f => f.id === 'f_c').list.cols.push({ key: 'Lp', label: 'Lp', formula: 'Weapons.LpH' }); loopy.fields.find(f => f.id === 'f_w').list.cols.push({ key: 'LpH', label: 'LpH', formula: 'Row.parts.max.Lp' });
+        const lpCell = S.resolveAll(loopy, ch, F, null).f_w.cells.w_1[5];
+        const loopOk = S.chainsShallow(gX, F) === true && S.chainsShallow(loopy, F) === false && !!(lpCell && /loop/.test(lpCell.error));
+        const gmy = JSON.parse(J(gX)); gmy.fields.find(f => f.id === 'f_c').list.cols.push({ key: 'Gs', label: 'Gs', formula: 'Secret' }); gmy.fields.find(f => f.id === 'f_w').list.cols.push({ key: 'HiG', label: 'HiG', formula: 'Row.parts.min.Gs' });
+        const gmOk = J(S.gmDerivedNames(gmy, F, [{ name: 'Weapons.HiG' }, { name: 'Plain' }])) === J(['Weapons.HiG']) && S.gmDerivedNames(gX, F, [{ name: 'Weapons.Hi' }, { name: 'Weapons.Sum' }]).length === 0;
+        const shX = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const LNx = new Function(shX.slice(shX.indexOf('function listNamesText('), shX.indexOf('function checkLabel(')) + '\nreturn listNamesText;')();
+        const namesOk = LNx('Weapons', gX.fields[2].list).includes('Row.parts.max.\u2026 and Row.parts.min.\u2026 the highest and the lowest one part gives.') && !LNx('Comps', gX.fields[3].list).includes('Row.parts');
+        check('205 (1) Row.parts.max.<w> and Row.parts.min.<w>: the highest and the lowest figure one part of a host gives of a number stat or a column of the parts\' list (never times its quantity, mixed signs, a kept curse\'s part nowhere, 0 with no part); the validator knows them only in a column of a list that takes parts and never for a choice, an unknown word or a fifth segment; a loop through them is caught by the resolver and the chain reader; a GM-derived column of the parts read through them, or through Row.parts.<w>, makes the host\'s list names GM-derived (gmDerivedNames); the Lists card names them',
+            resOk && valOk && loopOk && gmOk && namesOk, J([resOk, valOk, loopOk, gmOk, namesOk, cells, lpCell]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

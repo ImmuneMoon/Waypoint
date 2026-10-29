@@ -767,6 +767,45 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && saved[0] === null && J(JSON.parse(saved[1])) === J({ x: 120, y: 80, w: 440, h: 500 }) && count(dpS, 'savePos();') === 2 && count(dpS, "localStorage.setItem('wp_docPanel'") === 1, J([placed, saved]));
 }
 
+/* ---------- the page panel's place, kept per map (1.6.0, backlog 32; the owner, 2026-10-29, by prompt) ---------- */
+{
+    const placeSrc = dpSlice('place'), spLine = (() => { const i = dpS.indexOf('    function savePos() {'); return i < 0 ? '' : dpS.slice(i, dpS.indexOf('\n', i)); })();
+    const X = new Function('localStorage', placeSrc + '\nreturn { ok: placeOk, of: placeMapsOf, wth: placeMapsWith, MAX: PLACE_MAX };')(null);
+    const R = (x, y, w, h) => ({ x, y, w, h });
+    check('a map\'s place is read as data: four whole numbers with a size; the places kept are an own key of the campaign and the map (each a plain id) and a sound place each, the last 40 at most, in the order kept',
+        X.ok(R(1, 2, 300, 400)) && X.ok(R(-5, 0, 1, 1)) && [R(1, 2, 0, 400), R(1, 2, 300, -1), R(1.5, 2, 300, 400), R('1', 2, 300, 400), R(1, 2, 300, NaN), R(1, 2, 300, 1e9), null, [1, 2, 3, 4], 'x'].every(v => !X.ok(v))
+        && J(X.of({ 'c1/m1': R(1, 2, 3, 4), 'c1/m2': R(0, 0, 0, 0), 'bad key': R(1, 2, 3, 4), 'c1/m 3': R(1, 2, 3, 4), 'c1/m4': Object.assign(R(5, 6, 7, 8), { extra: '<b>' }), __proto__: { 'c1/m9': R(1, 1, 1, 1) } })) === J({ 'c1/m1': R(1, 2, 3, 4), 'c1/m4': R(5, 6, 7, 8) })
+        && J(X.of(null)) === '{}' && J(X.of([R(1, 2, 3, 4)])) === '{}' && J(X.of('x')) === '{}' && X.MAX === 40);
+    const many = {}; for (let i = 0; i < 45; i++) many['c1/m' + i] = R(i, i, 100, 100);
+    const w1 = X.wth({ 'c1/a': R(1, 1, 10, 10), 'c1/b': R(2, 2, 20, 20) }, 'c1/a', R(9, 9, 90, 90)), w2 = X.wth(many, 'c1/new', R(1, 1, 50, 50)), w3 = X.wth({ 'c1/a': R(1, 1, 10, 10) }, 'no key', R(1, 1, 5, 5)), w4 = X.wth({ 'c1/a': R(1, 1, 10, 10) }, 'c1/b', R(1, 1, 0, 5));
+    check('a place kept for a map goes to the end, as the one moved last, and the oldest is let go past 40; a key or a place that is no sound one keeps nothing new',
+        J(Object.keys(w1)) === J(['c1/b', 'c1/a']) && J(w1['c1/a']) === J(R(9, 9, 90, 90)) && Object.keys(w2).length === 40 && Object.keys(w2)[39] === 'c1/new' && !('c1/m5' in w2) && 'c1/m6' in w2 && J(w3) === J({ 'c1/a': R(1, 1, 10, 10) }) && J(w4) === J({ 'c1/a': R(1, 1, 10, 10) }), J([Object.keys(w1), Object.keys(w2).slice(0, 2)]));
+    // place and savePos, run for real with the map on screen named
+    const store = kept => { const st = Object.assign({}, kept); return { st, getItem: k => (Object.prototype.hasOwnProperty.call(st, k) ? st[k] : null), setItem: (k, v) => { st[k] = String(v); } }; };
+    const put = (mapKey, kept) => { const p = { style: {} }, win = { innerWidth: 1366, innerHeight: 850 }, ls = store(kept); new Function('ui', 'localStorage', 'window', placeSrc + '\nplaceMapNow = function() { return ' + J(mapKey) + '; };\nplace();')(id => (id === 'docPanel' ? p : null), ls, win); return p.style; };
+    const one = J(R(300, 140, 500, 420)), maps = J({ 'c1/m1': R(40, 60, 380, 600), 'c1/m2': R(0, 0, 0, 0) });
+    const pl = [put('c1/m1', { wp_docPanel: one, wp_docPanelMaps: maps }), put('c1/m2', { wp_docPanel: one, wp_docPanelMaps: maps }), put('c1/m3', { wp_docPanel: one, wp_docPanelMaps: maps }), put('', { wp_docPanel: one, wp_docPanelMaps: maps }), put('c1/m1', { wp_docPanel: one, wp_docPanelMaps: '{bad' }), put('c1/m1', { wp_docPanelMaps: maps })];
+    const wantOne = { left: '300px', top: '140px', right: 'auto', width: '500px', height: '420px' }, wantM1 = { left: '40px', top: '60px', right: 'auto', width: '380px', height: '600px' };
+    check('the panel opens where it was last left on the map on screen; a map it was never left on, one whose place is no sound one, no map on screen and a store that does not read open it at the one place, as before; a map\'s own place stands with no one place kept at all',
+        J(pl) === J([wantM1, wantOne, wantOne, wantOne, wantOne, wantM1]), J(pl));
+    const save = (mapKey, rect, kept) => { const ls = store(kept); new Function('p', 'localStorage', placeSrc + '\nplaceMapNow = function() { return ' + J(mapKey) + '; };\n' + spLine + '\nsavePos();')({ getBoundingClientRect: () => rect }, ls); return ls.st; };
+    const s1 = save('c1/m1', { left: 120, top: 80, width: 440, height: 500 }, {}), s2 = save('', { left: 120, top: 80, width: 440, height: 500 }, {}), s3 = save('c1/m1', { left: 0, top: 0, width: 0, height: 0 }, {}), s4 = save('c1/m2', { left: 1, top: 2, width: 30, height: 40 }, { wp_docPanelMaps: maps });
+    check('the panel\'s place is kept for the map on screen beside the one place, each time it is moved or sized; with no map on screen only the one place is kept; a panel put away (a size of 0) keeps neither',
+        J(JSON.parse(s1.wp_docPanelMaps)) === J({ 'c1/m1': R(120, 80, 440, 500) }) && J(JSON.parse(s1.wp_docPanel)) === J(R(120, 80, 440, 500)) && !('wp_docPanelMaps' in s2) && 'wp_docPanel' in s2 && J(s3) === '{}'
+        && J(JSON.parse(s4.wp_docPanelMaps)) === J({ 'c1/m1': R(40, 60, 380, 600), 'c1/m2': R(1, 2, 30, 40) }), J([s1, s2, s4]));
+    // the map on screen, as the module reads it (run for real on the statement that sets it)
+    const nowSrc = (() => { const a = dpS.indexOf('\nplaceMapNow = function() {'), z = dpS.indexOf('\n};\n', a); return a < 0 ? '' : dpS.slice(a, z + 4); })();
+    const nowOf = (o) => { const camp = Object.assign({ id: 'c1', activeItemId: 'm1', items: { m1: { type: 'map' }, d1: { type: 'doc' } } }, o.camp || {}); return new Function('window', 'activeCamp', placeSrc + nowSrc + '\nreturn placeMapNow();')(Object.assign({ wpFloats: { view: () => (o.view || 'play') }, wpCanPersistLocal: () => o.local !== false }, o.win || {}), () => (o.noCamp ? null : camp)); };
+    check('the map on screen is the play map of this computer\'s own campaign alone: another view, a page on screen, someone else\'s table (nothing of a campaign is written to this computer there), no campaign and ids that are no plain ids name none',
+        nowOf({}) === 'c1/m1' && nowOf({ view: 'data' }) === '' && nowOf({ camp: { activeItemId: 'd1' } }) === '' && nowOf({ local: false }) === '' && nowOf({ noCamp: true }) === '' && nowOf({ camp: { id: 'c 1' } }) === '' && nowOf({ camp: { activeItemId: 'toString' } }) === '' && nowOf({ win: { wpFloats: null } }) === ''
+        && count(dpS, "placeKeep(rec); }   // 1.5.4: never a place measured while the panel is put away; 1.6.0: and kept for the map on screen") === 1 && !/[^\x00-\x7f]/.test(placeSrc + nowSrc) && count(dpS, '\0') === 3, nowSrc.slice(0, 120));
+    const wn = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, '\n'));
+    const plan = ix.slice(ix.indexOf('<div class="help-pane" data-pane="planners"'), ix.indexOf('<div class="help-pane" data-pane="handbook"'));
+    check('Help and both release notes of 1.6.0 say the panel opens where it was last left on that map',
+        plan.includes('<li>The panel opens where you last left it on the map you are on. Each map keeps its own place on this computer. On a map where you never had it open, it opens where you last left it anywhere.</li>')
+        && wn.every(t => count(t.slice(0, t.indexOf('WAYPOINT 1.5.9')), "- The page panel over the map opens where you last left it on that map.\n  Each map keeps its own place on this computer.") === 1));
+}
+
 /* ---------- the page-text search reads a planner's nodes ---------- */
 {
     const fold = dpS.slice(dpS.indexOf('// [textcheck:panelfold-start]'), dpS.indexOf('// [textcheck:panelfold-end]'));

@@ -593,7 +593,7 @@ const dice = read('scripts/dice.js');
         H({ key: o.key || 'Escape' }); return R.closed; };
     const escs = [esc({ focus: 'body', away: true }), esc({ focus: 'none', away: true }), esc({ focus: 'body' }), esc({ focus: 'none' }), esc({ focus: 'in' }), esc({ focus: 'other' }), esc({ focus: 'find' }), esc({ focus: 'body', openId: '' }), esc({ focus: 'body', key: 'Enter' }), esc({ focus: 'body', away: true, floats: false })];
     check('the Esc key never closes a page panel that is put away: on a planner with the focus nowhere it stays open and comes back as it was left; one that shows closes as before, and never from a field elsewhere or its own Find box',
-        J(escs) === J([0, 0, 1, 1, 1, 0, 0, 0, 0, 1]) && count(dp, "    p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p); place();") === 1 && count(dp, 'wpFloats') === 4 && !dp.includes('\r') && count(dp, '\0') === 3, J(escs));
+        J(escs) === J([0, 0, 1, 1, 1, 0, 0, 0, 0, 1]) && count(dp, "    p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p); place();") === 1 && count(dp, 'wpFloats') === 5 && !dp.includes('\r') && count(dp, '\0') === 3, J(escs));   /* 1.6.0: a fifth, the view the panel's place per map asks (placeMapNow), moved on purpose */
     const step = fnK(tu, "{ target: '#diceBtn', title: 'Dice',", '} },');
     check('the tour\'s Dice step opens Table Chat through the chat\'s own opener, so a chat that is put away with another view comes up for the step',
         /before: function\(\) \{ if \(window\.wpChat && window\.wpChat\.openPanel\) window\.wpChat\.openPanel\(\); \} \},$/.test(step) && !/chatBtn/.test(step), step.slice(-140));

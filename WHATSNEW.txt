@@ -67,6 +67,8 @@ Pages on the map
   or a titled table. Pick it under Opens at, beside Opens page.
 - Rest the pointer on a map pin's mark and its tooltip shows the first
   lines of its page.
+- The page panel over the map opens where you last left it on that map.
+  Each map keeps its own place on this computer.
 
 Your profile
 - The welcome screen says it plainly: no account is needed, there are no

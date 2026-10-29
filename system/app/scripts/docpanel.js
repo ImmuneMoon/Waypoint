@@ -299,10 +299,39 @@ function tabsDraw(strip, list, front, camp) {
 // the size of 0 measured then was saved, so after a restart the panel opened in the window's top left corner at its smallest (found live).
 // A place saved so is passed over, and the panel opens where it opens by default
 function placeRec(r) { return r && r.width > 0 && r.height > 0 ? { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) } : null; }
+/* 1.6.0 (backlog 32; the owner, 2026-10-29, by prompt): the panel opens where it was last left ON THAT MAP. Each map's place is kept on this
+   computer under wp_docPanelMaps, by the campaign and the map ("<campaign>/<map>"), the last 40 maps at most, the one moved last at the end.
+   The one place for every map (wp_docPanel) is still kept beside it and is where the panel opens on a map it was never left on. A place is
+   read back as data: four whole numbers, with a size. Which map is on screen is asked of placeMapNow, which the module sets below; read
+   alone, as a suite reads it, no map is on screen and every way is the one place as before */
+var PLACE_MAPS = 'wp_docPanelMaps', PLACE_MAX = 40, PLACE_KEY = /^[A-Za-z0-9_.:-]{1,80}\/[A-Za-z0-9_.:-]{1,80}$/;
+var placeMapNow = function() { return ''; };
+function placeOk(v) { return !!v && typeof v === 'object' && !Array.isArray(v) && [v.x, v.y, v.w, v.h].every(function(n) { return typeof n === 'number' && isFinite(n) && Math.round(n) === n && Math.abs(n) < 100000; }) && v.w > 0 && v.h > 0; }
+// The places kept, read as data: an own key of the right form and a sound place each, PLACE_MAX at most, in the order kept
+function placeMapsOf(raw) {
+    var out = {}, keys = raw && typeof raw === 'object' && !Array.isArray(raw) ? Object.keys(raw) : [];
+    keys = keys.filter(function(k) { return PLACE_KEY.test(k) && placeOk(raw[k]); }).slice(-PLACE_MAX);
+    keys.forEach(function(k) { out[k] = { x: raw[k].x, y: raw[k].y, w: raw[k].w, h: raw[k].h }; });
+    return out;
+}
+// The places with this map's place put at the end (the one moved last), the oldest let go past PLACE_MAX
+function placeMapsWith(raw, key, rec) {
+    var all = placeMapsOf(raw); if (!PLACE_KEY.test(key) || !placeOk(rec)) return all;
+    delete all[key]; all[key] = { x: rec.x, y: rec.y, w: rec.w, h: rec.h };
+    var keys = Object.keys(all), out = {}; keys.slice(-PLACE_MAX).forEach(function(k) { out[k] = all[k]; });
+    return out;
+}
+function placeMapsRead() { try { return placeMapsOf(JSON.parse(localStorage.getItem(PLACE_MAPS) || 'null')); } catch (e) { return {}; } }
+// Kept for the map on screen, beside the one place (savePos)
+function placeKeep(rec) {
+    var key = placeMapNow(); if (!key || !PLACE_KEY.test(key) || !placeOk(rec)) return false;
+    try { localStorage.setItem(PLACE_MAPS, JSON.stringify(placeMapsWith(placeMapsRead(), key, rec))); return true; } catch (e) { return false; }
+}
 function place() {
     var p = ui('docPanel'); if (!p) return;
     try {
-        var pos = JSON.parse(localStorage.getItem('wp_docPanel') || 'null'); if (!pos || typeof pos !== 'object') return;
+        var mk = placeMapNow(), mine = mk && PLACE_KEY.test(mk) ? placeMapsRead()[mk] : null;   // 1.6.0: this map's own place first
+        var pos = mine || JSON.parse(localStorage.getItem('wp_docPanel') || 'null'); if (!pos || typeof pos !== 'object') return;
         if ((pos.w !== undefined || pos.h !== undefined) && !(pos.w > 0 && pos.h > 0)) return;   // measured while the panel was put away
         if (isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; }
         if (isFinite(pos.w) && isFinite(pos.h)) { p.style.width = pos.w + 'px'; p.style.height = pos.h + 'px'; }
@@ -445,7 +474,7 @@ function dockTakes(search) { try { var q = new URLSearchParams(String(search == 
         strip.addEventListener('auxclick', function(e) { var tab = e.button === 1 && e.target.closest ? e.target.closest('.docpanel-tab') : null; if (tab) { e.preventDefault(); tabClose(tab.dataset.id); } });
     }
     var drag = null;
-    function savePos() { var rec = placeRec(p.getBoundingClientRect()); if (!rec) return; try { localStorage.setItem('wp_docPanel', JSON.stringify(rec)); } catch (e) {} }   // 1.5.4: never a place measured while the panel is put away
+    function savePos() { var rec = placeRec(p.getBoundingClientRect()); if (!rec) return; try { localStorage.setItem('wp_docPanel', JSON.stringify(rec)); } catch (e) {} placeKeep(rec); }   // 1.5.4: never a place measured while the panel is put away; 1.6.0: and kept for the map on screen
     head.addEventListener('pointerdown', function(e) { if (e.target.closest('button, select, input')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
     head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
     head.addEventListener('pointerup', function() { if (!drag) return; drag = null; savePos(); });
@@ -481,6 +510,15 @@ function dockTakes(search) { try { var q = new URLSearchParams(String(search == 
 })();
 
 window.wpDocPanel = { open: open, close: close, refresh: refresh, popOut: popOut, openId: function() { return openId; }, tabs: function() { return tabs.slice(); } };
+// 1.6.0: the map on screen, for the panel's place kept per map: the play map of this computer's own campaign alone (never at someone else's
+// table, where nothing of a campaign is written to this computer), as "<campaign>/<map>"
+placeMapNow = function() {
+    var fl = window.wpFloats, camp = activeCamp(); if (!fl || typeof fl.view !== 'function' || fl.view() !== 'play' || !camp || !camp.items) return '';
+    if (!(window.wpCanPersistLocal && window.wpCanPersistLocal())) return '';
+    var id = camp.activeItemId, map = typeof id === 'string' && Object.prototype.hasOwnProperty.call(camp.items, id) ? camp.items[id] : null;
+    var key = map && map.type === 'map' && typeof camp.id === 'string' ? camp.id + '/' + id : '';
+    return PLACE_KEY.test(key) ? key : '';
+};
 window.wpDocPanel.finder = hlFinder;   // 1.5.4: a Find of its own for a page in a window of its own (popout.js)
 window.wpDocPanel.hand = readerHand;   // 1.5.4: whether the reader has moved a page by their own hand since a landing (popout.js, planner.js, handbook.js, pagenav.js)
 // Shared content search for the app-wide page search + Ctrl+K: ranked page results with a highlighted snippet.

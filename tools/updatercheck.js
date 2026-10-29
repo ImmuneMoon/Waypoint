@@ -102,6 +102,9 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         if (f === undefined) { res.writeHead(404); return res.end(); }
         res.writeHead(200, { 'Content-Length': Buffer.byteLength(f) }); res.end(f);
     });
+    // the suite blocks its loop for seconds at a time on child processes (signkey.js, release.js); with the default 5 s keep-alive the server
+    // could close an idle socket in the very turn a request reused it, and that request failed with ECONNRESET on a loaded machine
+    server.keepAliveTimeout = 600000;
     server.on('clientError', (e, sock) => { try { sock.destroy(); } catch (_) {} });
     await new Promise(r => server.listen(0, '127.0.0.1', r));
     server.unref();   // a listening server alone never keeps Node alive: a stalled check lets the loop empty, so the exit guard reports it

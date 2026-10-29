@@ -131,6 +131,23 @@ function mapPinsOn(camp, mapId) {
     (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) { if (mapPinOf(camp, w) && !seen[w.page]) { seen[w.page] = 1; out.push(w.page); } });
     return out;
 }
+/* 1.6.0, a map's scene page (backlog 26; the owner, 2026-10-29, by prompt: "Map's Properties, key P (Recommended)"). A map's Properties
+   names one planner or handbook page of the same campaign, kept on the map as meta.scenePage, and P on the play map opens it by the one
+   rule. It is the GM's alone: net.js takes the key off every map it sends and a player's app keeps none a host names (its two lists of a
+   map's GM-only meta keys); an import keeps it only as a short plain id (cleanup.js). It is read only here: a page that is gone, or what is
+   no page, is no scene page. */
+function scenePageOf(camp, map) {
+    var meta = map && typeof map === 'object' && map.type === 'map' && map.meta && typeof map.meta === 'object' ? map.meta : null;
+    return meta && typeof meta.scenePage === 'string' && PIN_ID.test(meta.scenePage) ? pageOf(camp, meta.scenePage) : null;
+}
+// Set a map's scene page, or take it off (an id that names no page takes it off). Says what it did: 'set', 'cleared' or '' (nothing changed)
+function scenePagePut(camp, map, id) {
+    if (!map || typeof map !== 'object' || map.type !== 'map') return '';
+    var meta = map.meta && typeof map.meta === 'object' ? map.meta : null;
+    if (typeof id === 'string' && PIN_ID.test(id) && pageOf(camp, id)) { if (meta && meta.scenePage === id) return ''; if (!meta) meta = map.meta = {}; meta.scenePage = id; return 'set'; }
+    if (!meta || meta.scenePage === undefined) return '';
+    delete meta.scenePage; return 'cleared';
+}
 // What the shelf shows, in order: the planners of the map on screen (and the pages pinned to its pieces) and those of the maps it is nested
 // in, the planner marked Next, the pinned pages, the last ones opened. A page stands once, in the first place it belongs; its row says
 // whether it is pinned and whether it is Next
@@ -145,6 +162,8 @@ function shelfModel(camp, mapId, recentRaw) {
         if (room <= 0) return;
         var rows = pagesFor(camp, mid).filter(function(r) { return !seen[r.id]; }).map(function(r) { return row(r.id, r.node && r.node !== pageTitle(camp.items[r.id]) ? r.node + (r.n > 1 ? ' +' + (r.n - 1) : '') : '', r.at); });
         if (k === 0) mapPinsOn(camp, mid).forEach(function(id) { if (!seen[id] && !rows.some(function(r) { return r.id === id; })) rows.push(row(id, 'pinned on this map')); });   // a page a piece of this map opens belongs here too
+        var scene = k === 0 && scenePageOf(camp, mapOf(camp, mid)) ? camp.items[mid].meta.scenePage : '';
+        if (scene && !seen[scene] && !rows.some(function(r) { return r.id === scene; })) rows.push(row(scene, 'the scene page of this map'));   // 1.6.0: and the map's scene page, which P opens
         rows.sort(function(a, b) { return (a.next ? 0 : 1) - (b.next ? 0 : 1) || natCmp(a.title, b.title); });
         rows = rows.slice(0, room); rows.forEach(function(r) { seen[r.id] = 1; });   // the owed review, 2026-10-09: a row is seen once it is KEPT. Marked before the cut, a page past the limit stood nowhere on the shelf, pinned or not
         if (rows.length) { m.where.push({ map: mid, title: pageTitle(camp.items[mid]), here: k === 0, rows: rows }); room -= rows.length; }
@@ -301,6 +320,38 @@ function mapPinField(w) { var camp = mapPinGm() ? getActiveCampaign() : null; if
 function mapPinSet(w, id) { return mapPinGm() ? mapPinPut(getActiveCampaign(), w, id) : ''; }
 // [shelfcheck:mappin-end]
 
+/* ---------- a map's scene page: what Properties asks, and P on the play map ---------- */
+// [shelfcheck:scene-start]
+// What a map's Properties shows: its scene page now and the pages on offer, or null where there is nothing to show (not the GM's screen)
+function scenePageField(map) { var camp = mapPinGm() ? getActiveCampaign() : null; if (!camp || !map || typeof map !== 'object' || map.type !== 'map') return null; return { cur: scenePageOf(camp, map) ? map.meta.scenePage : '', choices: mapPinChoices(camp) }; }
+function scenePageSet(map, id) { return mapPinGm() ? scenePagePut(getActiveCampaign(), map, id) : ''; }
+// The scene page of the map on screen, for the map's right-click menu: its id and its name, or null
+function scenePageNow() { var camp = mapPinGm() ? getActiveCampaign() : null, map = camp ? getActiveMap() : null, it = camp && map ? scenePageOf(camp, map) : null; return it ? { id: map.meta.scenePage, title: pageTitle(it) } : null; }
+var SCENE_NONE = 'This map has no scene page yet. With nothing selected, open Properties at the right edge and pick one under Scene page.';
+// P on the play map opens the scene page of the map on screen by the one rule. Says how it opened (openPage's answer), 'none' where the
+// map names no page, or '' where it is not this screen's to open
+function sceneOpen(ev) {
+    if (!mapPinGm() || viewNow() !== 'play') return '';
+    var camp = getActiveCampaign(), map = getActiveMap(), it = camp && map ? scenePageOf(camp, map) : null;
+    if (!it) { toast(SCENE_NONE); return 'none'; }
+    return openPage(map.meta.scenePage, pageWay('play', ev));
+}
+// Whether a key press is P for the scene page: P alone or with Shift, never held, never typed into a field, never under a window of the
+// app's own (a dialog, a question or the tour) and never a shortcut of another key
+function sceneKeyIs(e, doc) {
+    if (!e || (e.key !== 'p' && e.key !== 'P') || e.ctrlKey || e.metaKey || e.altKey || e.repeat === true || e.defaultPrevented === true) return false;
+    var t = e.target; if (t && ((t.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) || t.isContentEditable === true)) return false;
+    var d = doc || null; if (!d) return true;
+    if (d.body && d.body.classList && d.body.classList.contains('tour-on')) return false;
+    var up = function(el) { return !!el && typeof el.getClientRects === 'function' && el.getClientRects().length > 0; };
+    if (up(d.getElementById('customConfirm')) || up(d.getElementById('customPrompt'))) return false;
+    var wins = typeof d.querySelectorAll === 'function' ? d.querySelectorAll('[id$="Modal"]') : [];
+    for (var i = 0; i < wins.length; i++) if (up(wins[i])) return false;
+    return true;
+}
+function sceneKey(e) { if (!sceneKeyIs(e, document) || !mapPinGm() || viewNow() !== 'play') return; e.preventDefault(); sceneOpen(e); }
+// [shelfcheck:scene-end]
+
 /* ---------- the shelf on the play map's toolbar ---------- */
 function shelfMenu() { return document.getElementById('pagesMenu'); }
 function shelfIsOpen() { var m = shelfMenu(); return !!(m && m.classList.contains('show')); }
@@ -357,3 +408,6 @@ function shelfWire() {
 window.wpPageShelf = { way: pageWay, wayNow: function(ev) { return pageWay(viewNow(), ev); }, open: openPage, isPinned: isPinned, pinLabel: pinLabel, pin: pinPage, opened: pageOpened, noteActive: noteActive, close: shelfClose, mapPin: mapPin, mapPinField: mapPinField, mapPinSet: mapPinSet,
     linkGo: linkGo, linkChoices: function() { return linkChoices(getActiveCampaign()); }, linkWords: function(id, at) { return linkWords(getActiveCampaign(), id, at); } };
 shelfWire();
+// 1.6.0, a map's scene page: what Properties and the map's right-click menu ask, and P on the play map
+window.wpPageShelf.scenePageField = scenePageField; window.wpPageShelf.scenePageSet = scenePageSet; window.wpPageShelf.sceneOpen = sceneOpen; window.wpPageShelf.scenePage = scenePageNow;
+document.addEventListener('keydown', sceneKey);

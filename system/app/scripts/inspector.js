@@ -1473,7 +1473,10 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
                 '<p><b>Double-click</b> text blocks to edit them directly on the canvas.</p>'+
 
-              '</div>';
+              '</div>'+
+              scenePageFieldHtml(activeMap);   // 1.6.0: the map's scene page, which P opens (the GM's alone)
+            var _el_mapScenePage = document.getElementById('mapScenePage');
+            if (_el_mapScenePage) _el_mapScenePage.addEventListener('change', function() { setMapScenePage(activeMap, this.value); });
 
         }
 
@@ -2132,6 +2135,21 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       toast(did === 'set' ? 'This piece opens that page now. The link is yours alone.' : 'This piece opens no page now.');
   }
   // [shelfcheck:pagepinbox-end]
+  // [shelfcheck:scenebox-start]
+  // 1.6.0, a map's scene page (backlog 26, pageshelf.js): the planner or handbook page P opens over the play map. The GM's alone, and never
+  // sent. Offered and judged by pageshelf.js as a pin's page is: names and ids escaped, the map keeping only the id of a page that is there
+  function scenePageFieldHtml(map) {
+      var PS = window.wpPageShelf, f = PS && typeof PS.scenePageField === 'function' ? PS.scenePageField(map) : null; if (!f) return '';
+      var opt = function(c) { return '<option value="' + esc(c.id) + '"' + (c.id === f.cur ? ' selected' : '') + '>' + esc(c.title) + '</option>'; };
+      var grp = function(label, kind) { var l = f.choices.filter(function(c) { return c.kind === kind; }); return l.length ? '<optgroup label="' + label + '">' + l.map(opt).join('') + '</optgroup>' : ''; };
+      return '<div class="divider"></div><div class="field"><label for="mapScenePage" title="The page for this map: press P on the play map and it opens over the map. Yours alone: players never get it.">&#127917; Scene page</label><select id="mapScenePage"><option value="">None</option>' + grp('Planners', 'planner') + grp('Handbook', 'doc') + '</select><div class="muted scene-page-hint">Press <kbd>P</kbd> on this map to open it over the map.</div></div>';
+  }
+  function setMapScenePage(map, id) {
+      var PS = window.wpPageShelf, did = PS && typeof PS.scenePageSet === 'function' ? PS.scenePageSet(map, id) : ''; if (!did) return;
+      save(); render();
+      toast(did === 'set' ? 'P opens this page over the map now. It is yours alone.' : 'This map has no scene page now.');
+  }
+  // [shelfcheck:scenebox-end]
   // [sinkcheck:portallockbox-start]
   // A portal's own lock (the owner, 2026-10-03: "maybe add the ability to lock a portal from the play map"): a portal piece's Locked for
   // players tick — no player travels through it until the GM unlocks it (item.portalLock, true or no key; the host is the judge: net.js

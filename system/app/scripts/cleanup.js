@@ -640,6 +640,7 @@ function cleanImportItems(ic, deps) {
         if (it.type === 'map' && isObj(it.meta) && it.meta.world !== undefined) { var wK = WORLDd && isObj(it.meta.world) && !Array.isArray(it.meta.world) ? WORLDd.cleanWorld(it.meta.world) : null; if (wK) it.meta.world = wK; else delete it.meta.world; }
         // 1.6.0: a map's environment, its own readings and its painted cells, as fogcore keeps them (deps.FC), none without the cleaner
         if (it.type === 'map' && isObj(it.meta)) ['env', 'envCells'].forEach(function(k) { if (it.meta[k] === undefined) return; var cE = FC && typeof FC.cleanEnvVals === 'function' ? (k === 'env' ? FC.cleanEnvVals(it.meta[k]) : FC.cleanEnvCells(it.meta[k])) : null; if (cE) it.meta[k] = cE; else delete it.meta[k]; });
+        if (it.type === 'map' && isObj(it.meta) && it.meta.scenePage !== undefined && !(typeof it.meta.scenePage === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(it.meta.scenePage) && !(it.meta.scenePage in Object.prototype))) delete it.meta.scenePage;   // 1.6.0: a map's scene page, as a pin's page is: a short plain id or nothing (pageshelf.js judges whether it names a page)
         if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard.forEach(function(w) {   // 1.5.4: a text box's font from a file: one of Waypoint's own by its name, or a plain family name (deps.TF = textfmt.js cleanFont); with no cleaner on hand it does not come in
             if (!isObj(w) || w.font === undefined) return;
             var FN = TFd ? TFd.cleanFont(w.font) : undefined;

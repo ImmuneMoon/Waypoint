@@ -65,7 +65,7 @@ const W = new Function(waySrc + '\nreturn { way: pageWay, pageOf: pageOf };')();
     check('at someone else\'s table a handbook page is read in the reader whatever way is asked, never opened to edit and never in a window, and a planner is not opened at all',
         fDoc.every(r => r.how === 'reader' && J(r.read) === J(['d1']) && kept(r) && r.opened.length === 0 && r.popped.length === 0) && fPlan.every(r => r.how === '' && kept(r) && r.read.length === 0 && r.opened.length === 0 && r.popped.length === 0), J([fDoc.map(r => r.how), fPlan.map(r => r.how)]));
     check('the module publishes the rule, the rule for the view on screen, the opener and the shelf\'s few calls, and wires the shelf once; the view is asked of the one place that knows it (floats.js), and nothing in the module draws markup or opens a window by itself',
-        /\nwindow\.wpPageShelf = \{ way: pageWay, wayNow: function\(ev\) \{ return pageWay\(viewNow\(\), ev\); \}, open: openPage, isPinned: isPinned, pinLabel: pinLabel, pin: pinPage, opened: pageOpened, noteActive: noteActive, close: shelfClose, mapPin: mapPin, mapPinField: mapPinField, mapPinSet: mapPinSet,\n    linkGo: linkGo, linkChoices: function\(\) \{ return linkChoices\(getActiveCampaign\(\)\); \}, linkWords: function\(id, at\) \{ return linkWords\(getActiveCampaign\(\), id, at\); \} \};\nshelfWire\(\);\n$/.test(ps)
+        /\nwindow\.wpPageShelf = \{ way: pageWay, wayNow: function\(ev\) \{ return pageWay\(viewNow\(\), ev\); \}, open: openPage, isPinned: isPinned, pinLabel: pinLabel, pin: pinPage, opened: pageOpened, noteActive: noteActive, close: shelfClose, mapPin: mapPin, mapPinField: mapPinField, mapPinSet: mapPinSet,\n    linkGo: linkGo, linkChoices: function\(\) \{ return linkChoices\(getActiveCampaign\(\)\); \}, linkWords: function\(id, at\) \{ return linkWords\(getActiveCampaign\(\), id, at\); \} \};\nshelfWire\(\);\n\/\/ 1\.6\.0, a map's scene page: what Properties and the map's right-click menu ask, and P on the play map\nwindow\.wpPageShelf\.scenePageField = [^\n]*\ndocument\.addEventListener\('keydown', sceneKey\);\n$/.test(ps)   /* 1.6.0: a map's scene page after the wiring (moved on purpose) */
         && /\nfunction viewNow\(\) \{ var fl = window\.wpFloats; return fl && fl\.view \? fl\.view\(\) : ''; \}\n/.test(ps)
         && /\nfunction pageOpened\(id\) \{ recentNote\(id\); panelSync\(\); \}\n/.test(ps) && /\n    var camp = getActiveCampaign\(\); if \(camp && pageOf\(camp, camp\.activeItemId\)\) recentNote\(camp\.activeItemId\);\n    if \(shelfIsOpen\(\) && viewNow\(\) !== 'play'\) shelfClose\(\);/.test(ps)
         && /\nfunction shelfClose\(\) \{ var m = shelfMenu\(\); if \(m && m\.classList\.contains\('show'\)\) \{ m\.classList\.remove\('show'\); m\.textContent = ''; \} \}/.test(ps)
@@ -886,6 +886,93 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     check('Properties draws the row and wires its list; an import keeps a piece\'s link only as a short plain id that no prototype holds (cleanupcheck runs it)',
         count(insS, "              pagePinFieldHtml(w)+   // 1.5.4: a pin, the page this piece opens (the GM's alone)\n") === 1 && count(insS, "            if (_el_wbPagePin) _el_wbPagePin.addEventListener('change', function() { setItemPagePin(w, this.value); });") === 1
         && count(cuS, "            if (w.page !== undefined && !(typeof w.page === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(w.page) && !(w.page in Object.prototype))) delete w.page;") === 1);
+}
+
+/* ---------- a map's scene page (1.6.0, backlog 26; the owner, 2026-10-29, by prompt: "Map's Properties, key P (Recommended)") ---------- */
+{
+    const M = new Function(waySrc + '\n' + shelfSrc + '\nreturn { of: scenePageOf, put: scenePagePut, model: shelfModel };')();
+    const camp = mkCamp(), map = o => Object.assign({ type: 'map', meta: { title: 'M' } }, o || {});
+    check('a map\'s scene page is the planner or handbook page its meta names, and nothing else is one: a page that is gone, a map, a name a prototype holds, an id with a space or markup in it or past 80 characters, a number, a list; a map with no meta, or what is no map, has none',
+        M.of(camp, map({ meta: { scenePage: 'p_bar' } })) === camp.items.p_bar && M.of(camp, map({ meta: { scenePage: 'd_rules' } })) === camp.items.d_rules && ['gone', 'm_city', 'constructor', '__proto__', 'p bar', '<b>', 'x'.repeat(81), 7, ['p_bar'], null].every(v => M.of(camp, map({ meta: { scenePage: v } })) === null)
+        && M.of(camp, map({ meta: undefined })) === null && M.of(camp, map({ meta: 'p_bar' })) === null && M.of(camp, { type: 'planner', meta: { scenePage: 'p_bar' } }) === null && M.of(camp, null) === null && M.of(null, map({ meta: { scenePage: 'p_bar' } })) === null);
+    const a = map(), r1 = M.put(camp, a, 'p_bar'), v1 = a.meta.scenePage, r2 = M.put(camp, a, 'p_bar'), r3 = M.put(camp, a, 'd_rules'), v3 = a.meta.scenePage, r4 = M.put(camp, a, ''), has4 = 'scenePage' in a.meta, r5 = M.put(camp, a, ''), title = a.meta.title;
+    const b = map({ meta: { scenePage: 'p_bar' } }), r6 = M.put(camp, b, 'gone'), has6 = 'scenePage' in b.meta, c = map({ meta: undefined }), r7 = M.put(camp, c, 'p_bar'), v7 = c.meta && c.meta.scenePage, d = map({ meta: undefined }), r8 = M.put(camp, d, '');
+    check('a scene page is set and taken off by one call that says what it did: set, cleared, or nothing when nothing changed; an id that names no page takes it off; a map with no meta gets one for it, and none where nothing is set; the map\'s other meta stays; what is no map is left alone',
+        r1 === 'set' && v1 === 'p_bar' && r2 === '' && r3 === 'set' && v3 === 'd_rules' && r4 === 'cleared' && has4 === false && r5 === '' && title === 'M' && r6 === 'cleared' && has6 === false && r7 === 'set' && v7 === 'p_bar' && r8 === '' && d.meta === undefined
+        && M.put(camp, null, 'p_bar') === '' && M.put(camp, { type: 'planner', meta: {} }, 'p_bar') === '' && M.put(camp, map(), 'm_bar') === '' && M.put(camp, map(), 'constructor') === '' && M.put(camp, map(), 5) === '', J([r1, r2, r3, r4, r5, r6, r7, r8]));
+    const sc = mkCamp(); sc.items.m_bar.meta.scenePage = 'd_rules'; sc.items.m_city.meta.scenePage = 'p_free';
+    const here = M.model(sc, 'm_bar', []).where[0], city = M.model(sc, 'm_city', []).where[0], twice = mkCamp(); twice.items.m_bar.meta.scenePage = 'p_bar';
+    const hereTwice = M.model(twice, 'm_bar', []).where[0], gone = mkCamp(); gone.items.m_bar.meta.scenePage = 'gone';
+    check('the shelf lists a map\'s scene page under Here, once, as the scene page of this map; a page that plays on the map already keeps its own row and its node; the scene page of a map this one is nested in is not listed for this one; a scene page that is gone is not listed',
+        J(here.rows.map(r => r.id)) === J(['p_fight', 'p_bar', 'd_rules']) && here.rows[2].sub === 'the scene page of this map' && J(city.rows.map(r => r.id + ':' + r.sub)) === J(['p_city:Market', 'p_free:the scene page of this map'])
+        && J(hereTwice.rows.map(r => r.id)) === J(['p_fight', 'p_bar']) && hereTwice.rows[1].sub === 'The back room +1'
+        && J(M.model(gone, 'm_bar', []).where[0].rows.map(r => r.id)) === J(['p_fight', 'p_bar']) && !J(M.model(sc, 'm_bar', [])).includes('p_free'), J([here.rows, city.rows, hereTwice.rows]));
+}
+{
+    // the GM's gate, what Properties and the map's menu ask, and P (pageshelf.js, its scene slice run for real)
+    const src = waySrc + '\n' + shelfSrc + '\n' + sliceOf(ps, 'mappin') + '\n' + sliceOf(ps, 'scene');
+    const mk = (win, o) => { o = o || {}; const camp = mkCamp(), R = { opened: [], toasts: [] }; camp.items.m_bar.meta.scenePage = 'p_city';
+        const api = new Function('window', 'getActiveCampaign', 'getActiveMap', 'viewNow', 'openPage', 'toast', 'document', src + '\nreturn { field: scenePageField, set: scenePageSet, now: scenePageNow, open: sceneOpen, is: sceneKeyIs, key: sceneKey };')(
+            win, () => camp, () => (o.map === undefined ? camp.items.m_bar : o.map === null ? null : camp.items[o.map]), () => (o.view === undefined ? 'play' : o.view), (id, way) => { R.opened.push(id + ':' + way); return way; }, t => { R.toasts.push(t); }, o.doc || null);
+        return { camp, R, api }; };
+    const gm = mk({}), host = mk({ wpNet: { active: true, role: 'host', foreign: false } }), others = [{ wpNet: { active: true, role: 'client' } }, { wpNet: { foreign: true, active: false } }, { wpStream: true }, { wpPopout: true }].map(w => mk(w));
+    const f1 = gm.api.field(gm.camp.items.m_bar), f2 = gm.api.field(gm.camp.items.m_city), o1 = gm.api.open({}), o2 = gm.api.open({ ctrlKey: true }), o3 = gm.api.open({ altKey: true }), o4 = host.api.open({ shiftKey: true });
+    check('the scene page is the GM\'s alone: on the GM\'s own screen, hosting or not, Properties is told the page now and the pages on offer, the map\'s menu its id and name, and P opens it by the one rule with the keys held; on a player\'s app, at someone else\'s table, in the stream window and in a window of its own there is nothing to show, nothing to set and nothing to open',
+        f1.cur === 'p_city' && f1.choices.length === 6 && f2.cur === '' && gm.api.field(gm.camp.items.p_bar) === null && gm.api.field(null) === null && J(gm.api.now()) === J({ id: 'p_city', title: 'City streets' })
+        && o1 === 'panel' && o2 === 'window' && o3 === 'go' && o4 === 'panel' && J(gm.R.opened) === J(['p_city:panel', 'p_city:window', 'p_city:go']) && gm.R.toasts.length === 0
+        && others.every(w => { const m = w.camp.items.m_bar; return w.api.field(m) === null && w.api.set(m, 'd_rules') === '' && m.meta.scenePage === 'p_city' && w.api.now() === null && w.api.open({}) === '' && w.R.opened.length === 0 && w.R.toasts.length === 0; }), J([f1.cur, f2.cur, gm.R.opened]));
+    const s = mk({}), sm = s.camp.items.m_city, sr = [s.api.set(sm, 'd_rules'), sm.meta.scenePage, s.api.set(sm, 'd_rules'), s.api.set(sm, ''), 'scenePage' in sm.meta];
+    const none = mk({}, { map: 'm_city' }), noneR = none.api.open({}), notPlay = mk({}, { view: 'data' }), npR = notPlay.api.open({}), noMap = mk({}, { map: null }), nmR = noMap.api.open({});
+    check('the setter says what it did; P on a map with no scene page opens nothing and says where to pick one; P off the play map does nothing at all',
+        J(sr) === J(['set', 'd_rules', '', 'cleared', false]) && noneR === 'none' && none.R.opened.length === 0 && J(none.R.toasts) === J(['This map has no scene page yet. With nothing selected, open Properties at the right edge and pick one under Scene page.'])
+        && npR === '' && notPlay.R.opened.length === 0 && notPlay.R.toasts.length === 0 && nmR === 'none' && noMap.R.opened.length === 0, J([sr, noneR, npR, nmR]));
+    // which presses are P: the key alone or with Shift, never held, never typed into a field, never under a window of the app's own
+    const el = (tag, o) => Object.assign({ tagName: tag }, o || {}), shown = el('DIV', { getClientRects: () => [1] }), away = el('DIV', { getClientRects: () => [] });
+    const doc = o => { o = o || {}; return { body: { classList: { contains: c => c === 'tour-on' && !!o.tour } }, getElementById: id => (o[id] ? shown : away), querySelectorAll: sel => (sel === '[id$="Modal"]' ? (o.modal ? [away, shown] : [away]) : []) }; };
+    const ev = o => Object.assign({ key: 'p', target: el('BODY') }, o || {}), is = gm.api.is;
+    check('P is the key alone or with Shift, on the map or a button: never with Ctrl, the command key or Alt, never a held key\'s repeat or a press something else took, never typed into a text box, a list, a text area or a box being edited, and never while a window, a question, a prompt or the tour is up',
+        is(ev(), doc()) && is(ev({ key: 'P', shiftKey: true }), doc()) && is(ev({ target: el('BUTTON') }), doc()) && is(ev(), null)
+        && [{ ctrlKey: true }, { metaKey: true }, { altKey: true }, { repeat: true }, { defaultPrevented: true }, { key: 'o' }, { key: 'Enter' }, { target: el('INPUT') }, { target: el('TEXTAREA') }, { target: el('SELECT') }, { target: el('DIV', { isContentEditable: true }) }].every(o => !is(ev(o), doc()))
+        && !is(ev(), doc({ modal: true })) && !is(ev(), doc({ customConfirm: true })) && !is(ev(), doc({ customPrompt: true })) && !is(ev(), doc({ tour: true })) && !is(null, doc()));
+    const kd = mk({}, { doc: doc() }), kp = { key: 'p', target: el('BODY'), preventDefault() { this.prevented = true; } }; kd.api.key(kp); const kn = { key: 'p', target: el('INPUT'), preventDefault() { this.prevented = true; } }; kd.api.key(kn);
+    const kc = mk({ wpNet: { active: true, role: 'client' } }, { doc: doc() }), kcp = { key: 'p', target: el('BODY'), preventDefault() { this.prevented = true; } }; kc.api.key(kcp);
+    check('the key itself: P on the GM\'s play map opens the scene page and the press goes no further as a key of the page; typed into a field it is the field\'s; on a player\'s app it is left alone',
+        J(kd.R.opened) === J(['p_city:panel']) && kp.prevented === true && kn.prevented === undefined && kc.R.opened.length === 0 && kcp.prevented === undefined, J([kd.R.opened, kc.R.opened]));
+    check('the module asks these from where they belong: P is heard once on the document; Properties, the map\'s menu and P are what the module publishes for them; the map\'s menu has a Scene page row that opens by the rule as Next scene does',
+        count(ps, "\ndocument.addEventListener('keydown', sceneKey);\n") === 1 && count(ps, "\nwindow.wpPageShelf.scenePageField = scenePageField; window.wpPageShelf.scenePageSet = scenePageSet; window.wpPageShelf.sceneOpen = sceneOpen; window.wpPageShelf.scenePage = scenePageNow;\n") === 1
+        && count(wb, "        var scnPg = window.wpPageShelf && typeof window.wpPageShelf.scenePage === 'function' ? window.wpPageShelf.scenePage() : null;") === 1
+        && count(wb, "        if (scnPg) html += '<div class=\"menu-item cm-session\" data-act=\"scene\" data-id=\"' + esc(scnPg.id) + '\" title=\"This map\\'s scene page. P opens it too. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.\">&#127917; Scene page: ' + esc(scnPg.title) + '</div>';") === 1
+        && count(wb, "                else if (act === 'scene') { if (window.wpPageShelf) window.wpPageShelf.open(it.dataset.id, window.wpPageShelf.wayNow(ce)); }") === 1);
+}
+{
+    // Properties (inspector.js): the map's Scene page row and its setter
+    const insS = read('scripts/inspector.js'), boxS = sliceOf(insS, 'scenebox'), esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const mk = o => { const R = { saved: 0, drawn: 0, toasts: [], set: [] };
+        const win = { wpPageShelf: o.none ? undefined : { scenePageField: m => o.field || null, scenePageSet: (m, id) => { R.set.push(id); return o.did === undefined ? 'set' : o.did; } } };
+        const api = new Function('window', 'esc', 'save', 'render', 'toast', boxS + '\nreturn { html: scenePageFieldHtml, set: setMapScenePage };')(win, esc, () => { R.saved++; }, () => { R.drawn++; }, t => { R.toasts.push(t); });
+        return { api, R }; };
+    const field = { cur: 'p"2', choices: [{ id: 'p1', title: '<script>alert(1)</script>', kind: 'planner' }, { id: 'p"2', title: 'Bar & "grill"', kind: 'planner' }, { id: 'd1', title: "Rules' page", kind: 'doc' }] };
+    const html = mk({ field }).api.html({ type: 'map' });
+    check('the Scene page row of a map\'s Properties lists None, then the planners and the handbook pages in two groups, the map\'s scene page picked, and says P opens it; a page\'s name and its id are escaped',
+        html === '<div class="divider"></div><div class="field"><label for="mapScenePage" title="The page for this map: press P on the play map and it opens over the map. Yours alone: players never get it.">&#127917; Scene page</label><select id="mapScenePage"><option value="">None</option>'
+            + '<optgroup label="Planners"><option value="p1">&lt;script&gt;alert(1)&lt;/script&gt;</option><option value="p&quot;2" selected>Bar &amp; &quot;grill&quot;</option></optgroup><optgroup label="Handbook"><option value="d1">Rules&#39; page</option></optgroup></select><div class="muted scene-page-hint">Press <kbd>P</kbd> on this map to open it over the map.</div></div>', html);
+    check('where the module says there is nothing to show, or is not there, the row is not drawn',
+        mk({ field: null }).api.html({}) === '' && mk({ none: true }).api.html({}) === '' && /<option value="">None<\/option><\/select>/.test(mk({ field: { cur: '', choices: [] } }).api.html({})));
+    const S1 = mk({ did: 'set' }); S1.api.set({}, 'p1'); const S2 = mk({ did: 'cleared' }); S2.api.set({}, ''); const S3 = mk({ did: '' }); S3.api.set({}, 'p1'); const S4 = mk({ none: true }); S4.api.set({}, 'p1');
+    check('picking a scene page saves the campaign, draws the map again and says what happened; a pick that changed nothing, or one made where it is not this screen\'s, does none of the three',
+        J(S1.R) === J({ saved: 1, drawn: 1, toasts: ['P opens this page over the map now. It is yours alone.'], set: ['p1'] }) && J(S2.R) === J({ saved: 1, drawn: 1, toasts: ['This map has no scene page now.'], set: [''] }) && J(S3.R) === J({ saved: 0, drawn: 0, toasts: [], set: ['p1'] }) && J(S4.R) === J({ saved: 0, drawn: 0, toasts: [], set: [] }));
+    const cuS = read('scripts/cleanup.js');
+    check('a map\'s Properties draws the row under its help and wires its list; an import keeps a map\'s scene page only as a short plain id that no prototype holds (cleanupcheck runs it); net.js holds the key in its two lists of a map\'s GM-only meta keys (netcheck runs them)',
+        count(insS, "              '</div>'+\n              scenePageFieldHtml(activeMap);   // 1.6.0: the map's scene page, which P opens (the GM's alone)\n            var _el_mapScenePage = document.getElementById('mapScenePage');\n            if (_el_mapScenePage) _el_mapScenePage.addEventListener('change', function() { setMapScenePage(activeMap, this.value); });\n") === 1
+        && count(cuS, "        if (it.type === 'map' && isObj(it.meta) && it.meta.scenePage !== undefined && !(typeof it.meta.scenePage === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(it.meta.scenePage) && !(it.meta.scenePage in Object.prototype))) delete it.meta.scenePage;") === 1
+        && count(fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'latin1'), "['gen', 'city', 'world', 'env', 'envCells', 'scenePage'].forEach(") === 2);
+    const wn = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, '\n'));
+    const plan = ix.slice(ix.indexOf('<div class="help-pane" data-pane="planners"'), ix.indexOf('<div class="help-pane" data-pane="handbook"')), keys = ix.slice(ix.indexOf('<div class="help-pane" data-pane="keys"'), ix.indexOf('<h4 id="helpDevMode">'));
+    check('Help says it, in the Planners part beside map pins (where to pick it, P, the map\'s menu, the shelf, yours alone) and among the keys; both release notes of 1.6.0 say it',
+        plan.includes('<li>A map can have a <b>scene page</b>: the planner or handbook page you want at hand on that map. Select nothing, open Properties at the right edge of the play map and pick the page under <b>&#127917; Scene page</b>.\n')
+        && plan.includes('<li>Press <kbd>P</kbd> on the play map and the map&rsquo;s scene page opens over the map.</li>') && plan.includes('<li>The map&rsquo;s right-click menu has <b>Scene page</b> too.') && plan.includes('<li>The scene page is yours alone. Players never get it.</li>')
+        && keys.includes('<li><kbd>P</kbd> &nbsp; On the play map, open the map&rsquo;s scene page over the map. You pick it in the map&rsquo;s Properties.</li>')
+        && wn.every(t => count(t.slice(0, t.indexOf('WAYPOINT 1.5.9')), "Pages on the map\n- A map can have a scene page: the planner or handbook page you want at\n  hand there. Select nothing, open Properties at the right edge of the\n  play map and pick it under Scene page. Press P on the play map and it\n  opens over the map.") === 1));
 }
 
 /* ---------- said ---------- */

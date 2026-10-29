@@ -3349,5 +3349,14 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         KEYS.every(id => count(ix, ' id="' + id + '"') === 1 && setHtml.indexOf(' id="' + id + '"') > g && setHtml.indexOf(' id="' + id + '"') < gz) && J(groups) === J(['profile', 'appearance', 'table', 'keys', 'vtt', 'journal', 'multiplayer', 'advanced', 'updates']), J(groups));
 }
 
+{
+    // 1.6.0, backlog 26 and 32 (pages on the map): the controls Properties draws for them, an inventory of their own. A new control is added
+    // here when it is built and none is taken off without the owner's word; each is a list of the app's own look (.field select)
+    const insL = read('scripts/inspector.js'), PAGE_PROPS = ['wbPagePin', 'mapScenePage'];
+    check('pages on the map: each control Properties draws for them is in inspector.js once, as a select inside a field, with a label that names it, and the style sheet styles a field\'s select and the hint under the Scene page list',
+        PAGE_PROPS.every(id => count(insL, '<select id="' + id + '">') === 1 && count(insL, '<label for="' + id + '"') === 1 && count(insL, "document.getElementById('" + id + "')") === 1)
+        && css.includes('  .field input, .field select, .field textarea,') && css.includes('  .field .scene-page-hint { margin-top:5px; font-size:11.5px; line-height:1.4; }'), J(PAGE_PROPS.map(id => [id, count(insL, '<select id="' + id + '">'), count(insL, "document.getElementById('" + id + "')")])));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

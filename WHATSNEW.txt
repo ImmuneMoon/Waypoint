@@ -57,6 +57,13 @@ Scenes
 Hidden pieces
 - Settings has Hidden pieces on my map: Faded shows a piece you hid from players see-through, as before, and Invisible leaves it off your screen until you show it. No grey cloud stands in for a hidden piece any more.
 
+Pages on the map
+- A map can have a scene page: the planner or handbook page you want at
+  hand there. Select nothing, open Properties at the right edge of the
+  play map and pick it under Scene page. Press P on the play map and it
+  opens over the map. The map's right-click menu has it too, and so
+  does the Pages shelf. It is yours alone: players never get it.
+
 Your profile
 - The welcome screen says it plainly: no account is needed, there are no
   ads, the app collects nothing about how you use it, and your campaigns

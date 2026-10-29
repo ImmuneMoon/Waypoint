@@ -293,7 +293,7 @@ function streamOn() { return pref('wp_streamFx', '1') !== '0'; }
 function streamPost(fx) { if (isClient()) return; if (!streamChan || window.wpStream) return; try { streamChan.postMessage({ type: 'fx', fx: fx }); } catch (e) {} }
 if (window.wpStream && streamChan) {
     streamChan.addEventListener('message', function(e) {
-        if (!e.data || e.data.type !== 'fx' || !streamOn()) return;
+        if (!e.data || e.data.type !== 'fx' || !streamOn() || (window.wpStreamHeld && window.wpStreamHeld())) return;   // backlog 34: a frozen stream shows no effect
         var C = core(); if (!C) return; var clean = C.cleanFx(e.data.fx); if (clean) apply(clean);
     });
     // ask the host for the running set once the stream window knows its map

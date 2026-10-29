@@ -1358,6 +1358,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                               <ul>
                                   <li>On a fogged map it draws the fog as what the players' own tokens see together. It shows every player's token and leaves out every creature none of them sees. It is never any one player's own view and never your whole map.</li>
                                   <li>GM notes and hidden pieces are left out everywhere.</li>
+                                  <li><b>Stream window shows</b> in Settings holds it while you set things up. Frozen picture keeps what it shows until you pick Live. Cover card shows the campaign&rsquo;s name and Back soon. It is Live again whenever Waypoint starts.</li>
                                   <li>Its corner menu follows your map, focuses one map, or focuses one of the players' characters. Focused on a character it switches maps with them and stays centred at 150%.</li>
                               </ul>
                           </li>
@@ -3476,6 +3477,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 </div>
 
 <div id="streamVideo" style="display:none;"><video id="streamVideoEl" playsinline muted></video><div id="streamVideoCap"></div></div>
+<div id="streamCover" style="display:none;"><div id="streamCoverName"></div><div id="streamCoverWords">Back soon</div></div>
 <div id="streamScene" style="display:none;"><div id="streamSceneTitle"></div><img id="streamSceneImg" alt=""><div id="streamSceneCap"></div></div>
 <div id="sceneMenu" class="shape-menu" role="menu" style="display:none; position:fixed; flex-direction:column; min-width:180px; z-index:100001;"><button type="button" class="wb-tool-btn party-menu-item" role="menuitem" title="Show this picture big to everyone or to some players at your table"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg> Show as a scene&hellip;</button></div>
 <div id="streamBar" style="display:none;">
@@ -3891,6 +3893,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="gm-only"><!-- GM tools: hidden while joined to someone else's session -->
             <div class="set-field-label" style="margin-top:14px;">Stream window</div>
             <button class="tool ghost" id="setStreamBtn" style="width:100%;" title="Opens a second window with only the play map, from the party's standpoint: on a fogged map it shows what the players' tokens see together &mdash; every player's token, a creature none of them sees left out, the unexplored map covered &mdash; never your whole map and never one player's own view; GM notes are left out and hidden pieces stay hidden. Share that window in Discord, OBS or any screen-share for someone watching without the app. It follows the map you are on unless you pick a map, or one of the players' characters, to focus in its corner menu.">&#128250; Open Stream Window</button>
+            <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim); margin-top:6px;" title="Holds the stream window while you set things up. Freeze keeps its picture as it stands. Cover shows a card with the campaign's name and Back soon. Live again whenever Waypoint starts.">Stream window shows <select id="setStreamHold"><option value="">Live</option><option value="freeze">Frozen picture</option><option value="cover">Cover card</option></select></label>
             <div style="font-size:11px; color:var(--dim); margin-top:4px; line-height:1.4;">For a spectator without Waypoint: screen-share the stream window. It shows the party view &mdash; what the players' tokens see together, never your whole map &mdash; and updates as you play.</div>
             <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim); margin-top:6px; cursor:pointer;" title="Off by default: the stream window usually shares your own speakers. On, it plays the ambient loop the table hears (cues stay with the main window) and the sound of a video you show to players."><input type="checkbox" id="setStreamSoundChk"> Stream window plays the table's sound (the ambient loop, a video shown to players)</label>
             <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim); margin-top:6px; cursor:pointer;" title="On by default: the stream window shows the visual effects for the map it is on."><input type="checkbox" id="setStreamFxChk"> Stream window shows visual effects</label>

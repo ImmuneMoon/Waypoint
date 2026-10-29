@@ -194,6 +194,25 @@ if (_streamBtn) _streamBtn.addEventListener('click', function() {
     if (!w) { toast('Could not open the window — allow pop-ups for Waypoint.'); return; }
     toast('Stream window opened. Share that window in Discord/OBS; use its map picker to focus a map.');
 });
+// [videocheck:streamholdset-start]
+// Backlog 34, the Hold switch (the owner, by prompt: "Both, picked each time"): Live, Freeze the picture or Cover with a card, told to the
+// stream window over BroadcastChannel and answered when it asks; this window's memory alone, Live again whenever the app starts. Only the
+// main window says it (never a stream window or a window of its own)
+var _holdMode = '', _holdChan = null;
+var _holdMain = (function() { try { var q = new URLSearchParams(location.search); return !q.get('stream') && !q.get('popout'); } catch (e) { return false; } })();
+function holdPost() { if (!_holdChan) return; try { _holdChan.postMessage({ type: 'stream-hold', mode: _holdMode }); } catch (e) {} }
+function holdSet(m) {
+    _holdMode = m === 'freeze' || m === 'cover' ? m : '';
+    holdPost();
+    return _holdMode;
+}
+if (_holdMain) { try { _holdChan = new BroadcastChannel('waypoint'); _holdChan.addEventListener('message', function(e) { if (e.data && e.data.type === 'stream-hold-query') holdPost(); }); } catch (e) { _holdChan = null; } }
+var _streamHold = ui('setStreamHold');
+if (_streamHold && _holdMain) _streamHold.addEventListener('change', function() {
+    var m = holdSet(_streamHold.value);
+    toast(m === 'freeze' ? 'The stream window holds its picture. Pick Live to let it go.' : m === 'cover' ? 'The stream window shows a cover card. Pick Live to take it off.' : 'The stream window is live again.');
+});
+// [videocheck:streamholdset-end]
 // Stream window plays the table's ambient (wp_streamSound, off by default: it usually shares the GM's speakers).
 // The stream window reads the key at load and on the storage event; the ambient itself travels over BroadcastChannel('waypoint').
 var _streamSnd = ui('setStreamSoundChk');

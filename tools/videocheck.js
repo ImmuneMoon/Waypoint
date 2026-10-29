@@ -256,7 +256,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         check('stream window (source): the GM\'s window posts at a showing\'s start and stop, on play, pause and seek while live, once a second while live and when a stream window asks; the stream window listens only in stream mode, asks on load, follows the stream sound setting, and the page holds the overlay; Help, the tour and the setting say so',
             /live = \{ id: v\.id, cap: cap \};\n\s*renderTable\(true\);\n\s*streamPost\(\); streamTicking\(true\);/.test(vjs) && /stopTracks\(l\.cap\);\n\s*renderTable\(true\);\n\s*streamTicking\(false\); streamPost\(\);/.test(vjs)
             && /\['play', 'pause', 'seeked'\]\.forEach\(function\(k\) \{ el\.addEventListener\(k, function\(\) \{ if \(live\) streamPost\(\); \}\); \}\);/.test(vjs) && /if \(e\.data && e\.data\.type === 'video-stage-query'\) streamPost\(\);/.test(vjs) && /_streamTick = setInterval\(streamPost, 1000\);/.test(vjs)
-            && /if \(d && d\.type === 'video-stage'\) streamVideoApply\(d, svEl, svBox, svCap, window\.wpVideoCore, svSoundOn\(\)\);/.test(sj) && /svChan\.postMessage\(\{ type: 'video-stage-query' \}\);/.test(sj) && /if \(e\.key === 'wp_streamSound'\) svEl\.muted = !svSoundOn\(\);/.test(sj)
+            && /if \(d && d\.type === 'video-stage' && !\(window\.wpStreamHeld && window\.wpStreamHeld\(\)\)\) streamVideoApply\(d, svEl, svBox, svCap, window\.wpVideoCore, svSoundOn\(\)\);/.test(sj) && /svChan\.postMessage\(\{ type: 'video-stage-query' \}\);/.test(sj) && /if \(e\.key === 'wp_streamSound'\) svEl\.muted = !svSoundOn\(\);/.test(sj)
             && /<div id="streamVideo" style="display:none;"><video id="streamVideoEl" playsinline muted><\/video><div id="streamVideoCap"><\/div><\/div>/.test(ix) && /The <b>stream window<\/b> shows a video you are showing to players too, over its map, keeping to your position/.test(ix)
             && /Stream window plays the table's sound \(the ambient loop, a video shown to players\)/.test(ix) && /#streamVideo \{ position: fixed; inset: 0; z-index: 99990;/.test(read('system/app/style.css'))
             && /\(function maybeShowWelcome\(\) \{\n\s*if \(\/\[\?&\]stream=1\/\.test\(location\.search\) && !wcJoinOnly\(\)\) return;/.test(read('system/app/scripts/main.js')) && /body\.stream-mode \[id\$="Modal"\], body\.stream-mode #welcomeScreen \{ display: none !important; \}/.test(read('system/app/style.css')));   // and the welcome screen never over the stream window's map
@@ -306,6 +306,33 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         && wn.indexOf('\nVideo\n- Video is a new VTT feature (Settings ▸ VTT features, on by default)') > 0 && wn.slice(wn.indexOf('\nVideo\n'), wn.indexOf('\nDice\n')) === wa.slice(wa.indexOf('\nVideo\n'), wa.indexOf('\nDice\n'))
         && /"videos": \[\{ "id": "v_ab12cd34", "name": "The docks at night", "path": "\/saves\/images\/video\/camp_x\/k3j9a0pq_docks\.mp4", "size": 48213401, "dur": 94\.5, "w": 1920, "h": 1080 \}\],   \/\/ OPTIONAL, app-managed \(1\.5\.0, the Video feature\): the GM's video library, never sent to players/.test(ci)
         && /A campaign export carries the files themselves under images\/video\/<campaign>\/ in its zip \(any size: an archive past 4 GB or 65,535 entries is ZIP64\), and an import copies each back only after its CRC-32 matches; on a merge the library joins the one already there by "id"\./.test(ci) && V.cleanVideos([{ id: 'v_ab12cd34', name: 'The docks at night', path: '/saves/images/video/camp_x/k3j9a0pq_docks.mp4', size: 48213401, dur: 94.5, w: 1920, h: 1080 }]).length === 1);
+
+    /* ---- backlog 34: the stream window's Hold switch (the owner, by prompt: "Both, picked each time") ---- */
+    {
+        const sj = read('system/app/scripts/stream.js'), st = read('system/app/scripts/settings.js'), ixh = read('system/app/index.html'), fxs = read('system/app/scripts/fx.js');
+        const els = {}; const el = id => els[id] || (els[id] = { id: id, style: { display: 'none' }, textContent: '' });
+        const doc = { getElementById: id => (id === 'streamCover' || id === 'streamCoverName') ? el(id) : null };
+        const W = {}; let agains = 0;
+        const run = new Function('window', sliceOf(sj, 'streamhold') + '\nreturn { holdApply: holdApply, setName: function(n) { campName = n; }, held: function() { return held; } };')(W);
+        const r1 = run.holdApply('cover', doc), cov1 = els.streamCover.style.display, nm0 = els.streamCoverName.textContent;
+        run.setName('<b>Duskhold</b>'); run.holdApply('cover', doc); const nm1 = els.streamCoverName.textContent;
+        const r2 = run.holdApply('freeze', doc, () => agains++), cov2 = els.streamCover.style.display, frozen = W.wpStreamHeld();
+        const r3 = run.holdApply('melt', doc, () => agains++), back = W.wpStreamHeld(), a1 = agains;
+        run.holdApply('cover', doc, () => agains++); const a2 = agains;
+        check('backlog 34: the stream window\'s Hold: Cover lays the card with the campaign\'s name as text (Waypoint before a name is known) and Back soon; Freeze holds the picture with the card off; a word that is neither is Live, and letting a freeze go asks for the table again once (a cover never does)',
+            r1 === 'cover' && cov1 === 'flex' && nm0 === 'Waypoint' && nm1 === '<b>Duskhold</b>' && r2 === 'freeze' && cov2 === 'none' && frozen === true && r3 === '' && back === false && a1 === 1 && a2 === 1,
+            j([r1, cov1, nm0, nm1, r2, cov2, frozen, r3, back, a1, a2]));
+        const ss = sliceOf(st, 'streamholdset');
+        check('backlog 34: the main window says it (Settings\' Stream window shows: Live, Frozen picture, Cover card), answers a stream window that asks, is Live again at every start, and no stream window or window of its own says it; a frozen stream reads nothing and takes no effect, video or scene',
+            /<select id="setStreamHold"><option value="">Live<\/option><option value="freeze">Frozen picture<\/option><option value="cover">Cover card<\/option><\/select>/.test(ixh)
+            && ss.includes("var _holdMode = '', _holdChan = null;") && ss.includes("return !q.get('stream') && !q.get('popout');") && ss.includes("if (e.data && e.data.type === 'stream-hold-query') holdPost();")
+            && ss.includes("if (_streamHold && _holdMain) _streamHold.addEventListener('change'")
+            && sj.includes("        if (held === 'freeze') return;   // backlog 34") && sj.includes("hChan.postMessage({ type: 'stream-hold-query' });")
+            && sj.includes("d.type === 'video-stage' && !(window.wpStreamHeld && window.wpStreamHeld())") && sj.includes("d.type === 'scene-stage' && !(window.wpStreamHeld && window.wpStreamHeld())")
+            && fxs.includes("|| (window.wpStreamHeld && window.wpStreamHeld())) return;   // backlog 34")
+            && ixh.includes('<div id="streamCover" style="display:none;"><div id="streamCoverName"></div><div id="streamCoverWords">Back soon</div></div>')
+            && ixh.includes('<li><b>Stream window shows</b> in Settings holds it while you set things up.'));
+    }
 
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

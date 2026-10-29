@@ -56,6 +56,23 @@ if (on) {
     var bar = document.getElementById('streamBar'), sel = document.getElementById('streamFocus'), hideBtn = document.getElementById('streamHideBtn');
     if (bar) bar.style.display = 'flex';
     var lastKey = '';
+    // [videocheck:streamhold-start]
+    // Backlog 34, the Hold switch (the owner, by prompt: "Both, picked each time"): the main window's Settings says Live, Freeze or Cover over
+    // BroadcastChannel ('stream-hold'). Freeze keeps the picture as it stands: no read of the table, no effect, scene or video comes through, and
+    // letting go asks for all of it again. Cover lays a card over the window, the campaign's name and Back soon, as text. Another window's
+    // word: only the two names count, anything else is Live
+    var held = '', campName = '';
+    function holdOf(m) { return m === 'freeze' || m === 'cover' ? m : ''; }
+    function holdApply(m, doc, again) {
+        var was = held; held = holdOf(m);
+        var cov = doc.getElementById('streamCover'), nm = doc.getElementById('streamCoverName');
+        if (nm) nm.textContent = campName || 'Waypoint';
+        if (cov) cov.style.display = held === 'cover' ? 'flex' : 'none';
+        if (was === 'freeze' && held !== 'freeze' && typeof again === 'function') again();
+        return held;
+    }
+    window.wpStreamHeld = function() { return held === 'freeze'; };
+    // [videocheck:streamhold-end]
 
     function refreshSelect(camp) {
         if (!sel) return;
@@ -74,6 +91,7 @@ if (on) {
 
     async function tick() {
         if (streamWebJoin()) return;   // 1.5.5: nothing is asked of a website that joins tables alone
+        if (held === 'freeze') return;   // backlog 34: a frozen picture reads nothing of the table
         var data;
         try { data = await (await fetch('/api/data', { cache: 'no-store' })).json(); } catch (e) { return; }
         if (!data || !data.campaigns || !Object.keys(data.campaigns).length) return;
@@ -81,6 +99,7 @@ if (on) {
         var clean = net.sanitizeAppState(data);
         var campId = clean.activeCampaignId && clean.campaigns[clean.activeCampaignId] ? clean.activeCampaignId : Object.keys(clean.campaigns)[0];
         var camp = clean.campaigns[campId];
+        campName = String(camp && camp.name || '').slice(0, 80);   // backlog 34: the name a cover card shows, as text
         var gmItem = camp.items[camp.activeItemId];
         net.streamWhere = seenBy[campId] || Object.create(null);
         var loc = charFocus && charFocus.charAt(0) === 'o' ? (window.wpCharNow ? window.wpCharNow(camp, charFocus).loc : locateCharacter(camp, charFocus)) : null;   // R2 #14: a player's character alone is followed, on the map that player is on
@@ -120,6 +139,11 @@ if (on) {
         refreshSelect(camp);
         refreshCharSelect(camp);
     }
+    try {
+        var hChan = new BroadcastChannel('waypoint');
+        hChan.addEventListener('message', function(e) { if (e.data && e.data.type === 'stream-hold') holdApply(e.data.mode, document, function() { tick(); try { hChan.postMessage({ type: 'video-stage-query' }); hChan.postMessage({ type: 'scene-stage-query' }); } catch (er) {} }); });
+        hChan.postMessage({ type: 'stream-hold-query' });
+    } catch (e) {}
     setTimeout(tick, 400);
     setInterval(tick, 1000);
     // The GM's video shown to players (item 21 V2): the main window says what is on its stage over BroadcastChannel (video.js streamPost);
@@ -131,10 +155,10 @@ if (on) {
     if (svEl && svBox && svCap) {
         try {
             var svChan = new BroadcastChannel('waypoint');
-            svChan.addEventListener('message', function(e) { var d = e.data; if (d && d.type === 'video-stage') streamVideoApply(d, svEl, svBox, svCap, window.wpVideoCore, svSoundOn()); });
+            svChan.addEventListener('message', function(e) { var d = e.data; if (d && d.type === 'video-stage' && !(window.wpStreamHeld && window.wpStreamHeld())) streamVideoApply(d, svEl, svBox, svCap, window.wpVideoCore, svSoundOn()); });
             svChan.postMessage({ type: 'video-stage-query' });
             var ssBox = document.getElementById('streamScene'), ssImg = document.getElementById('streamSceneImg'), ssT = document.getElementById('streamSceneTitle'), ssC = document.getElementById('streamSceneCap');
-            if (ssBox && ssImg && ssT && ssC) { svChan.addEventListener('message', function(e) { var d = e.data; if (d && d.type === 'scene-stage') streamSceneApply(d, ssBox, ssImg, ssT, ssC); }); svChan.postMessage({ type: 'scene-stage-query' }); }
+            if (ssBox && ssImg && ssT && ssC) { svChan.addEventListener('message', function(e) { var d = e.data; if (d && d.type === 'scene-stage' && !(window.wpStreamHeld && window.wpStreamHeld())) streamSceneApply(d, ssBox, ssImg, ssT, ssC); }); svChan.postMessage({ type: 'scene-stage-query' }); }
             window.addEventListener('storage', function(e) { if (e.key === 'wp_streamSound') svEl.muted = !svSoundOn(); });
         } catch (e) {}
     }

@@ -99,6 +99,7 @@ function charFromJson(view, j, find, findKey) {
     };
     var mods = function(ms) { return (Array.isArray(ms) ? ms.slice(0, 12) : []).map(function(m) { if (!isObj(m) || typeof m.f !== 'string') return null; var t = target(m.f); if (!t) return null; var o = { f: t.id, op: m.op }; if (m.v !== undefined) o.v = m.v; if (m.part) o.part = m.part; return o; }).filter(Boolean); };
     var n = 0, pfx = Math.random().toString(36).slice(2, 6), rid = function(p) { n++; return p + 'f' + pfx + n.toString(36); };
+    var idMap = Object.create(null), grQ = [];   // 1.6.0 (v2, B4): each file row's new id, and the adds of rows another row granted, which then name that row by its new id
     var label = function(fid) { var ff = own(fileF, fid) ? fileF[fid] : null; return isObj(ff) ? String(ff.label || ff.key || 'A field').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 60) : 'A field'; };
     var catOk = function(cats, c) { var l = String(c == null ? '' : c).slice(0, 40).toLowerCase(); return !!l && cats.some(function(x) { return String(x).toLowerCase() === l; }); };
     var rowsInto = function(f, rows) {
@@ -113,11 +114,12 @@ function charFromJson(view, j, find, findKey) {
         rows.slice(0, ROWS_MAX).forEach(function(r) {
             if (!isObj(r)) return;
             var id = rid('w_'), qty = typeof r.qty === 'number' && isFinite(r.qty) ? Math.max(1, Math.min(99, Math.round(r.qty))) : 1, def = isObj(r.def) ? r.def : null;
+            if (typeof r.id === 'string' && !own(idMap, r.id)) idMap[r.id] = id;
             var nm = def && typeof def.name === 'string' ? def.name : typeof r.name === 'string' ? r.name : '', key = def && typeof def.key === 'string' ? def.key : typeof r.key === 'string' ? r.key : '';
             var e = typeof r.defId === 'string' && own(items, r.defId) ? items[r.defId] : named(nm, key);
             if (!e && r.lnk === 1 && key && typeof findKey === 'function') (findKey(key) || []).forEach(function(x) { if (!e && isObj(x) && typeof x.id === 'string' && x.vis !== 'gm' && (!cats || catOk(cats, x.category))) e = x; });   // a library copy with its own name ("Guns (Pistol)" over Guns): by its key
             if (e) {
-                out.ops.push({ f: f.id, q: { op: 'add', defId: e.id, rowId: id, qty: qty } });
+                var qA = { op: 'add', defId: e.id, rowId: id, qty: qty }; out.ops.push({ f: f.id, q: qA }); if (typeof r.gr === 'string') grQ.push({ q: qA, gr: r.gr });
                 var ov = {}, src = isObj(r.ov) ? r.ov : def || {};
                 var nm2 = typeof src.name === 'string' ? src.name : ''; if (nm2 && nm2 !== e.name) ov.name = nm2;
                 if (isObj(src.stats) && Object.keys(src.stats).length) ov.stats = src.stats;
@@ -161,6 +163,7 @@ function charFromJson(view, j, find, findKey) {
         out.values[f.id] = k === 'resource' ? { cur: v.cur } : v;
         if (fileLooks && (k === 'text' || k === 'notes') && own(fileLooks, fid)) { if (!out.looks) out.looks = {}; out.looks[f.id] = recShapeOk(fileLooks[fid]) ? clone(fileLooks[fid]) : null; }   // item 35 (a look that is no record: null, which ends the text's old look where the fill is applied, as a look that does not clean does)
     });
+    grQ.forEach(function(x) { if (own(idMap, x.gr)) x.q.gr = idMap[x.gr]; });   // 1.6.0 (v2, B4): a granted row keeps its mark (systemcore fillMaking takes it as it comes)
     return out;
 }
 

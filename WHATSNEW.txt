@@ -42,6 +42,11 @@ Systems, more
 - A Major Wound's threshold may read the location hit, as Hit.<name>. A
   Major Wound can switch an effect on and ask the wounded character's player
   for a roll, set in the Combat card's Taking damage box.
+- An entry can grant rows of another list, such as a calling's starting kit or
+  a flaw that comes with an implant. Set it in the Items tab or the Library,
+  under Grants: the entry, the list, how many, and a level it starts from.
+  The rows come free with the row that grants them and go when it goes or
+  its level drops. Undo brings them back. Row.granted reads 1 on them.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

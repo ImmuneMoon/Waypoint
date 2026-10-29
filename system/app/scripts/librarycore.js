@@ -5,7 +5,7 @@
    (gmNotes: never in the players' view). Everything that enters goes through here — a pack file read from disk, an imported
    .wppack.json, a manifest in a loaded save, and later (L3) every message on the wire — and comes out as plain arrays and objects
    (prototype-free maps inside). Build plan: docs/STAGE_6_LIBRARY_BUILD.md. */
-import { cleanItemDef, statKeys, statPicks, cleanIcon, fieldKinds, cleanLvls, hideNeeds, cleanNeeds, needRule } from './systemcore.js';
+import { cleanItemDef, statKeys, statPicks, cleanIcon, fieldKinds, cleanLvls, hideNeeds, hideGrants, cleanNeeds, needRule } from './systemcore.js';
 
 export var VERSION = 1;
 export var LIB = Object.freeze({
@@ -34,6 +34,7 @@ export function libCtx(sys, F, gmView, shown, ruleShown) { var fields = isObj(sy
 export function cleanLibEntry(e, ctx) {
     ctx = ctx || {};
     var out = cleanItemDef(e, ctx.F, !!ctx.gmView, ctx.keys, ctx.picks, ctx.kinds); if (!out) return null;
+    if (!ctx.gmView && ctx.shown !== true) hideGrants(out, ctx.shown);   // 1.6.0 (v2, B4): nor a grant of one (the host still grants it)
     if (!ctx.gmView && ctx.shown !== true) hideNeeds(out, ctx.shown, ctx.ruleShown);   // 126b: a players' view never names an entry players cannot see. ctx.shown: the host's judge (library.js needShown); true on a player's own app, which keeps what its host sent; absent: every need is hidden. Here, before the library's own text, so that the keys keep the cleaner's order
     var d = prose(e.desc, LIB.desc); if (d.trim()) out.desc = d;
     var lv = cleanLvls(e.lvls); if (lv) out.lvls = lv;   // 1.5.4: what each of its levels gives (a row's details show it as a small table)
@@ -192,6 +193,7 @@ export function entryFromForm(f) {
     if (f.rm === 'bound' || f.rm === 'curse') { out.rm = f.rm; if (s(f.rmMsg).trim()) out.rmMsg = s(f.rmMsg); }   // L2b: a player's removal (bound / curse on contact) and its message, as the Items tab has them
     if (f.eq === 'bound' || f.eq === 'curse') { out.eq = f.eq; if (s(f.eqMsg).trim()) out.eqMsg = s(f.eqMsg); }   // and switching it off
     if (Array.isArray(f.mods) && f.mods.length) out.mods = JSON.parse(JSON.stringify(f.mods)); if (f.modsOn === true) out.modsOn = true;   // F6: its changes to the character (cleaned as an entry's are)
+    if (Array.isArray(f.grants) && f.grants.length) out.grants = JSON.parse(JSON.stringify(f.grants));   // 1.6.0 (v2, B4): the rows a row of it grants (cleaned as an entry's are)
     if (Array.isArray(f.opens) && f.opens.length) out.opens = JSON.parse(JSON.stringify(f.opens));   // 1.5.8: what it opens on another list while its row is on (cleaned as an entry's are)
     var hasN = Array.isArray(f.needs) && f.needs.length > 0, rlF = s(f.needsIf).trim();
     if (hasN) out.needs = JSON.parse(JSON.stringify(f.needs));

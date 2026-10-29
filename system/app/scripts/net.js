@@ -3475,12 +3475,13 @@ net.charItem = function(charId, fieldId, q) {
     if (!camp.system) return { error: 'No system at this table.' };
     if (q.op === 'chamber' && typeof S.chamberSays === 'function') { var chW = S.chamberSays(camp.system, c, fieldId, q.rowId, window.wpFormula); if (chW) return { error: chW }; }   // 1.5.9 Chambers only where: a row that takes no round now is answered at once in its words and nothing is sent (the host judges it as well)
     var ptW = (q.op === 'add' && q.in !== undefined) || ((q.op === 'remove' || q.op === 'setQty') && !!(S.fieldById && (function() { var fP = S.fieldById(camp.system, fieldId); return fP && fP.list && fP.list.parts; })()));   // 1.6.0 R14: a part added to its host, and a removal on a list that holds parts (its parts may go with it), are sent and waited for
+    if (!ptW && typeof S.grantWaits === 'function' && S.grantWaits(camp.system, c, q, net.libEntry)) ptW = true;   // 1.6.0 (v2, B4): an add of an entry that grants rows, and a removal of a row that granted some, wait for the host, which grants
     if (ptW || q.op === 'load' || q.op === 'chamber' || q.op === 'unchamber' || q.op === 'split' || (q.op === 'add' && typeof q.pay === 'number') || ((q.op === 'remove' || q.op === 'setQty') && typeof q.get === 'number') || q.op === 'restore') {   // 1.5.6 a purchase or a sale: the host moves the money with the row, and this copy follows its word; 1.5.8 a load (Loads from) moves two lists, and waits alike
         var ridM = 'e' + Math.random().toString(36).slice(2, 10);
         _charPending[ridM] = { charId: charId, fieldId: fieldId, batch: [], kind: 'item', timer: setTimeout(function() { charPendingDone(ridM, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
         if (q.op === 'restore') _charPending[ridM].q = { op: 'restore', rowId: q.rowId };   // 1.5.8: its words, if refused, are the Undo's
         var mM = { type: 'char-item', rid: ridM, charId: charId, fieldId: fieldId, op: q.op };
-        ['defId', 'rowId', 'qty', 'pay', 'get', 'from', 'back', 'in'].forEach(function(k) { if (q[k] !== undefined) mM[k] = q[k]; });   // 1.6.0 R14: in, a part's host   // 1.5.8: a load's from (null: unload) and back
+        ['defId', 'rowId', 'qty', 'pay', 'get', 'from', 'back', 'in', 'name'].forEach(function(k) { if (q[k] !== undefined) mM[k] = q[k]; });   // 1.6.0 R14: in, a part's host   // 1.5.8: a load's from (null: unload) and back
         try { net.conns[0].send(mM); } catch (e) { charPendingDone(ridM, false, 'value'); return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
     }
@@ -7540,7 +7541,7 @@ function handleMessage(msg, conn) {
         if (qi.op === 'restore') {   // 1.5.8: a removed row's Undo: only the row this host took out for them, while the list is as that removal left it
             var goI = Object.prototype.hasOwnProperty.call(_rowGrace, gkI + '|gone') ? _rowGrace[gkI + '|gone'] : null;
             if (!goI || goI.until <= nowI || JSON.stringify(befI) !== goI.after) { denyI('stale'); return; }
-            qi.row = JSON.parse(JSON.stringify(goI.row)); qi.at = goI.at; if (goI.parts) qi.parts = JSON.parse(JSON.stringify(goI.parts));   // 1.6.0 R14: its parts, from this host's own record
+            qi.row = JSON.parse(JSON.stringify(goI.row)); qi.at = goI.at; if (goI.parts) qi.parts = JSON.parse(JSON.stringify(goI.parts)); if (goI.grants) qi.grants = JSON.parse(JSON.stringify(goI.grants));   // 1.6.0 R14: its parts, from this host's own record
         }
         var resI = Si.applyRowOp(campI.system, chI, qi.fieldId, qi, Fi, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI, onGrace: !!ogI, graceOf: gofI, lib: libI, libPl: window.wpLibrary && window.wpLibrary.playerEntry ? function(id) { return window.wpLibrary.playerEntry(id); } : null });   // libPl (126b): a library entry as players read it, so a rule they may not read is never said
         if (!resI.ok) {
@@ -7558,7 +7559,7 @@ function handleMessage(msg, conn) {
         if (qi.op === 'restore') delete _rowGrace[gkI + '|gone'];   // 1.5.8: put back once
         else if ((qi.op === 'remove' || qi.op === 'setQty' || qi.op === 'undo') && typeof qi.get !== 'number' && !resI.hid && typeof Si.rowIdOf === 'function') {   // 1.5.8: a row their own change took out wholly (never a sale, never a curse kept out of their sight) may come back for a moment
             var ixG = -1; for (var gi = 0; gi < befI.length; gi++) if (Si.rowIdOf(befI[gi]) === qi.rowId) { ixG = gi; break; }
-            if (ixG >= 0 && !resI.value.some(function(r) { return Si.rowIdOf(r) === qi.rowId; })) { _rowGrace[gkI + '|gone'] = { until: nowI + Si.LIMITS.undoGraceMs, added: 0, row: JSON.parse(JSON.stringify(befI[ixG])), at: ixG, after: JSON.stringify(resI.value) }; var fdG = Si.fieldById ? Si.fieldById(campI.system, qi.fieldId) : null, pkG = fdG && fdG.list && fdG.list.parts && Si.partsKept ? Si.partsKept(campI.system, fdG.list, befV, qi.rowId) : null; if (pkG) _rowGrace[gkI + '|gone'].parts = pkG; }   // 1.6.0 R14: its parts as they stood
+            if (ixG >= 0 && !resI.value.some(function(r) { return Si.rowIdOf(r) === qi.rowId; })) { _rowGrace[gkI + '|gone'] = { until: nowI + Si.LIMITS.undoGraceMs, added: 0, row: JSON.parse(JSON.stringify(befI[ixG])), at: ixG, after: JSON.stringify(resI.value) }; var fdG = Si.fieldById ? Si.fieldById(campI.system, qi.fieldId) : null, pkG = fdG && fdG.list && fdG.list.parts && Si.partsKept ? Si.partsKept(campI.system, fdG.list, befV, qi.rowId) : null; if (pkG) _rowGrace[gkI + '|gone'].parts = pkG; var gkG = Si.grantsKept ? Si.grantsKept(campI.system, befV, qi.rowId) : null; if (gkG) _rowGrace[gkI + '|gone'].grants = gkG; }   // 1.6.0 R14: its parts as they stood
         }
         if (resI.added > 0 && typeof resI.row === 'string') {   // a pickup (a new row, a merge, a +) opens the row's Undo window, or folds into it and extends it
             var gkA = qi.charId + '|' + qi.fieldId + '|' + resI.row, gA = _rowGrace[gkA];
@@ -9221,7 +9222,7 @@ function rowGoneTell(charId, ch, gone, conn) {
         if (!g || typeof g.f !== 'string' || typeof g.r !== 'string' || !g.row) return;
         var after = ch.values && Array.isArray(ch.values[g.f]) ? ch.values[g.f] : [];
         _rowGrace[charId + '|' + g.f + '|' + g.r + '|gone'] = { until: now + ms, added: 0, row: JSON.parse(JSON.stringify(g.row)), at: g.at, after: JSON.stringify(after) };
-        if (g.parts) _rowGrace[charId + '|' + g.f + '|' + g.r + '|gone'].parts = JSON.parse(JSON.stringify(g.parts));   // 1.6.0 R14: an action that used up a host keeps its parts for the Undo
+        if (g.parts) _rowGrace[charId + '|' + g.f + '|' + g.r + '|gone'].parts = JSON.parse(JSON.stringify(g.parts)); if (g.grants) _rowGrace[charId + '|' + g.f + '|' + g.r + '|gone'].grants = JSON.parse(JSON.stringify(g.grants));   // 1.6.0 R14: an action that used up a host keeps its parts for the Undo
         items.push({ f: g.f, r: g.r });
     });
     if (!items.length) return 0;

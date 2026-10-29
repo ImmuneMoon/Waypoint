@@ -2067,6 +2067,18 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>An opened row cannot be changed or removed by its player. Formulas read <code>Row.opened</code> as 1 on it, so a cost column can read 0 for it.</li>
                               </ul>
                           </li>
+                          <li><b>Grants</b> gives rows of a list for free with an entry, such as a calling&rsquo;s starting kit, a people&rsquo;s own traits, or the flaws that come with an implant. Set it on an item in the Items tab, or in the Library, in the entry&rsquo;s <b>What it grants</b> box.
+                              <ul>
+                                  <li>Pick each entry it grants, the list it goes on, how many, and a <b>From level</b> of this entry where it should come later. An entry may grant up to eight.</li>
+                                  <li>When a row of the entry is added, its grants are added too, in the same change. They cost nothing: their Paid is 0.</li>
+                                  <li>When the row rises to a From level, that grant is added. When it drops below, that grant goes.</li>
+                                  <li>When the row is removed, everything it granted goes with it. The sheet asks first, and Undo brings it all back.</li>
+                                  <li>A granted row is an ordinary row in every other way. A player may remove or sell it unless its entry is <b>Bound</b>, so set Bound on what must stay.</li>
+                                  <li>On a list that holds each entry once, an entry already held is not granted again.</li>
+                                  <li>Formulas read <code>Row.granted</code> as 1 on a granted row, so a cost column can read 0 for it. A list with its own stat or column named Granted reads that instead.</li>
+                                  <li>Under the item, the Items tab says what Save will drop, such as a grant with no list.</li>
+                              </ul>
+                          </li>
                           <li><b>When a player removes it</b>, a setting on an item, decides what a player&rsquo;s removal does.
                               <ul>
                                   <li><b>Bound</b>: it stays on their sheet until you remove it, and they see your <b>message on removal</b>, such as &ldquo;The ring won&rsquo;t come off&rdquo;.</li>

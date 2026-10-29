@@ -11,7 +11,7 @@ import { showPrompt, showConfirm } from './dialogs.js';
 import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, libCtx, LIB, packFile, readPackImport, packImportPlan, bulkSet, bulkMove, lvlsToText } from './librarycore.js';
 import { itemReach, carriedBy } from './systemcore.js';
 
-var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg', 'again', 'rollSw', 'opens', 'mods', 'modsOn', 'needs', 'needsIf', 'needsFrom', 'needsMsg'];
+var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg', 'again', 'rollSw', 'opens', 'grants', 'mods', 'modsOn', 'needs', 'needsIf', 'needsFrom', 'needsMsg'];
 var NEED_MAX = 8, NEED_PICK = 2000;   // 126b: the entries one entry needs, and the longest list its chooser offers
 var VIS = [['all', 'Players can see it'], ['gm', 'GM only']];
 var st = { open: false, campId: null, packId: null, entryId: null, q: '', shown: [], work: map(), dirty: map(), timer: null, draftNew: null, sel: map(), anchor: null, imp: null, fm: null, fmFor: null, fn: null, fnFor: null };   // fm (F6): the open entry's changes being edited
@@ -264,7 +264,7 @@ function field(form, id, label, value, opts) {
 function renderForm() {
     var form = ui('libForm'); if (!form) return; form.textContent = '';
     st.fs = null; st.fsFor = null;   // 1.6.0: and of its roll bonuses
-    st.fm = null; st.fmFor = null; st.fn = null; st.fnFor = null; st.fo = null; st.foFor = null;   // 1.5.8: and of what it opens   // the owed review, 2026-10-09: the form is filled from the entry as it is stored, every box of it. The working copies of its changes and its needs outlived the form (a close, an import, another campaign), and Save entry wrote stale ones back
+    st.fm = null; st.fmFor = null; st.fn = null; st.fnFor = null; st.fo = null; st.foFor = null; st.fg = null; st.fgFor = null;   // 1.6.0 (v2, B4): and of what it grants   // 1.5.8: and of what it opens   // the owed review, 2026-10-09: the form is filled from the entry as it is stored, every box of it. The working copies of its changes and its needs outlived the form (a close, an import, another campaign), and Save entry wrote stale ones back
     if (st.imp) { renderImport(form); return; }
     var many = st.draftNew ? [] : chosen(); if (many.length > 1) { renderBulk(form, many); return; }
     var e = current(); if (!e) { form.appendChild(el('div', 'lib-empty', st.packId && ready(st.packId) ? 'Choose an entry, or + Entry to add one. Ctrl-click, Shift-click or Ctrl+A choose several.' : '')); return; }
@@ -295,6 +295,7 @@ function renderForm() {
     swLibBox(form, e);   // 1.6.0: its roll bonuses
     needsBox(form, e);   // 126b
     opensBox(form, e);   // 1.5.8
+    grantsBox(form, e);   // 1.6.0 (v2, B4)
     form.appendChild(el('div', 'lib-fsub', 'Locks (yours alone)'));
     field(form, 'again', 'Held again', e.again === 'name' ? 'name' : '', { pairs: [['', 'Held once'], ['name', 'Held again under another name']], title: 'On a list that holds each entry once, a character may hold this one again as another row. Each copy is asked for a name of its own' });   // 1.6.0
     field(form, 'rm', 'When removed', e.rm === 'bound' || e.rm === 'curse' ? e.rm : '', { pairs: [['', 'A player may remove it'], ['bound', 'Bound: only the GM removes it'], ['curse', 'Curse on contact: you keep it']], title: 'When a player removes it from their character. Bound: it stays, with your message. Curse on contact: it leaves their sheet but you keep it on the character, out of their sight' });
@@ -469,11 +470,47 @@ function modsBox(form, e) {
     };
     draw();
 }
+// 1.6.0 (v2, B4; the SotMW session's v2 sort, 2026-10-29: a trait tier's fixed kit, a species' free package rows, an implant's mandatory flaws):
+// what a row of this entry grants. When a row of it is added, or its level reaches a From level, each entry listed here is added to the list
+// beside it, as many as the number says, at Paid 0 and marked as granted. They go when the row goes or its level falls below. A working copy
+// while the form is open (Save entry keeps it). Names and lists land as text nodes and option values only
+var GRANT_LINES = 8;
+function grantsBox(form, e) {
+    if (st.fgFor !== e.id || !st.fg) { st.fg = clone(Array.isArray(e.grants) ? e.grants : []); st.fgFor = e.id; }
+    var c = camp(), lists = ((c && c.system && c.system.fields) || []).filter(function(f) { return f && f.kind === 'item-list' && typeof f.id === 'string'; }); if (!lists.length && !st.fg.length) return;
+    form.appendChild(el('div', 'lib-fsub', 'What it grants'));
+    form.appendChild(el('div', 'lib-note', 'When a row of this entry is added, each entry listed here is added too, to the list beside it, free. With a From level it comes when the row reaches that level. They go when this row goes or its level falls below. On them, Row.granted is 1, so a cost can read 0.'));
+    var box = el('div', 'lib-mods lib-grants'); form.appendChild(box);
+    var all = allEntries().concat(sysItems()), entOf = function(id) { for (var i = 0; i < all.length; i++) if (all[i] && all[i].id === id) return all[i]; return null; };
+    var listFor = function(ent) { var cg = ent && typeof ent.category === 'string' ? ent.category.toLowerCase() : ''; var hit = lists.filter(function(f) { return f.list && Array.isArray(f.list.cats) && f.list.cats.some(function(x) { return String(x).toLowerCase() === cg; }); })[0]; return (hit || lists[0] || {}).id || ''; };
+    var draw = function() {
+        box.textContent = '';
+        st.fg.forEach(function(g, gi) {
+            var ln = el('div', 'lib-ctl lib-grant'), ent = entOf(g.entry), lo = lists.map(function(f) { return [f.id, f.label || f.key || 'A list']; });
+            ln.appendChild(el('span', 'lib-need-name', ent ? ent.name : 'An entry that is gone'));
+            if (g.list && !lists.some(function(f) { return f.id === g.list; })) lo.push([g.list, 'A list that is gone']);
+            var ls = select(lo, g.list || ''); ls.title = 'The list it is added to'; ls.addEventListener('change', function() { g.list = ls.value; draw(); }); ln.appendChild(ls);
+            var qn = el('input', 'field lib-mod-amt lib-grant-qty'); qn.type = 'number'; qn.step = '1'; qn.min = '1'; qn.placeholder = 'How many'; qn.value = typeof g.qty === 'number' ? String(g.qty) : '1'; qn.title = 'How many it adds'; ln.appendChild(qn);
+            qn.addEventListener('input', function() { var n = Number(qn.value); if (qn.value.trim() === '' || !isFinite(n)) delete g.qty; else g.qty = Math.round(n); });
+            var fr = el('input', 'field lib-mod-amt lib-need-from'); fr.type = 'number'; fr.step = 'any'; fr.placeholder = 'From level'; fr.value = typeof g.from === 'number' ? String(g.from) : ''; fr.title = 'The level of THIS entry from which it is granted. Leave it empty to grant it from the start'; ln.appendChild(fr);
+            fr.addEventListener('input', function() { var n = Number(fr.value); if (fr.value.trim() === '' || !isFinite(n)) delete g.from; else g.from = n; });
+            var x = el('button', 'tool ghost', '\u00d7'); x.type = 'button'; x.title = 'It no longer grants this'; x.addEventListener('click', function() { st.fg.splice(gi, 1); draw(); }); ln.appendChild(x);
+            box.appendChild(ln);
+            var why = !ent ? 'Save keeps it, but that entry is gone, so nothing is granted.' : !lists.some(function(f) { return f.id === g.list; }) ? 'Save drops it: pick a list it is added to.' : '';
+            if (why) box.appendChild(el('div', 'lib-warn', why));
+        });
+        var opts = [['', '+ An entry it grants\u2026']].concat(all.filter(function(x) { return x && typeof x.id === 'string' && x.id !== e.id; }).sort(function(a, b) { return byName(a.name, b.name); }).slice(0, NEED_PICK).map(function(x) { return [x.id, x.name + (x.vis === 'gm' ? ' (GM only)' : '')]; }));
+        var sel = select(opts, ''); sel.title = 'Pick an entry a row of this one grants'; sel.disabled = st.fg.length >= GRANT_LINES || !lists.length;
+        sel.addEventListener('change', function() { if (!sel.value || st.fg.length >= GRANT_LINES) return; st.fg.push({ list: listFor(entOf(sel.value)), entry: sel.value, qty: 1 }); draw(); });
+        box.appendChild(sel);
+    };
+    draw();
+}
 // the form as an entry: what the form shows replaced, anything it does not show (a bound item's secrets) kept as it was
 function readForm() {
     var g = function(id) { var n = ui('libF_' + id); return n ? n.value : ''; }, e = current(), stats = {};
     Array.prototype.forEach.call(document.querySelectorAll('#libForm [data-stat]'), function(n) { stats[n.dataset.stat] = n.value; });
-    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), lvlsWas: e.lvls, tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, areaType: g('areaType'), areaUse: g('areaUse'), areaPlace: g('areaPlace'), areaTrig: g('areaTrig'), areaAd: g('areaAd'), areaFlight: g('areaFlight'), areaFrag: g('areaFrag'), areaFragType: g('areaFragType'), areaAffs: [0, 1].map(function(i) { return { vs: g('areaAff' + i + 'Vs'), fx: g('areaAff' + i + 'Fx'), who: g('areaAff' + i + 'Who'), needs: g('areaAff' + i + 'Needs'), n: g('areaAff' + i + 'Lasts'), u: g('areaAff' + i + 'Unit') }; }), gmNotes: g('gmNotes'), again: g('again'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), rollSw: st.fsFor === e.id && st.fs ? st.fs : e.rollSw, mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, opens: st.foFor === e.id && st.fo ? st.fo : e.opens, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsIf: g('needsIf'), needsFrom: g('needsFrom'), needsMsg: g('needsMsg') });
+    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), lvlsWas: e.lvls, tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, areaType: g('areaType'), areaUse: g('areaUse'), areaPlace: g('areaPlace'), areaTrig: g('areaTrig'), areaAd: g('areaAd'), areaFlight: g('areaFlight'), areaFrag: g('areaFrag'), areaFragType: g('areaFragType'), areaAffs: [0, 1].map(function(i) { return { vs: g('areaAff' + i + 'Vs'), fx: g('areaAff' + i + 'Fx'), who: g('areaAff' + i + 'Who'), needs: g('areaAff' + i + 'Needs'), n: g('areaAff' + i + 'Lasts'), u: g('areaAff' + i + 'Unit') }; }), gmNotes: g('gmNotes'), again: g('again'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), rollSw: st.fsFor === e.id && st.fs ? st.fs : e.rollSw, mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, opens: st.foFor === e.id && st.fo ? st.fo : e.opens, grants: st.fgFor === e.id && st.fg ? st.fg : e.grants, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsIf: g('needsIf'), needsFrom: g('needsFrom'), needsMsg: g('needsMsg') });
     var out = clone(e), eqShown = !!ui('libF_eq'); FORM_KEYS.forEach(function(k) { if (eqShown || (k !== 'eq' && k !== 'eqMsg')) delete out[k]; }); return Object.assign(out, typed);   // a switch lock the form does not show (no list has a switch) is kept
 }
 // 1.5.8: an entry's blast extras beside its radius: its damage type (a key of the Combat card's types, or none), whether going off uses one

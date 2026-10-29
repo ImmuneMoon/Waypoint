@@ -3708,6 +3708,26 @@ pendingChecks.push((async () => {
     const p1 = mkP(), p1a = p1.vals(), p1r = p1.send({ op: 'remove', rowId: 'w_g' }), p1b = J(p1.camp.chars.c_1.values.f_op.map(r => r.id)), p1u = p1.send({ op: 'restore', rowId: 'w_g', parts: { f: 'f_op', rows: [{ row: { id: 'w_x', defId: 'i_wi', qty: 9, in: 'w_g' }, at: 0 }] } }), p1c = p1.vals();
     check('1.6.0 R14 a player\'s Undo of a host they removed (char-item, run for real): its parts come back with it, from the host\'s own record and never the message\'s, the host and every part as they stood, stored and sent',
         p1r === J(['char-ack']) && p1b === J(['w_p']) && p1u === J(['char-ack']) && p1c === p1a && p1.out.saves === 2, J([p1r, p1b, p1u, p1c, p1a]));
+    // 1.6.0 (v2, B4; the SotMW session's v2 sort, 2026-10-29): an entry grants rows of another list. A player's add on the host grants them, the
+    // GM-only one too, and the owner's copy holds them; removing the granting row takes them, and its Undo brings them back from the host's record
+    const sysG = Sx.cleanSystem({ v: 1, name: 'G', rolls: [], fields: [{ id: 'f_tr', key: 'Traits', label: 'Traits', kind: 'item-list', edit: 'owner', vis: 'all' }, { id: 'f_ge', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all' }],
+        items: [{ id: 'i_wd', name: 'Warden', grants: [{ list: 'f_ge', entry: 'i_lm', qty: 2 }, { list: 'f_ge', entry: 'i_se' }] }, { id: 'i_lm', name: 'Lamp' }, { id: 'i_se', name: 'Sealed note', vis: 'gm' }] }, { F: Fx, gmView: true });
+    const mkG = () => { const camp = { id: 'k', system: sysG, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_tr: [], f_ge: [{ id: 'w_b', defId: 'i_lm', qty: 1 }] } } } }, out = { answer: [], owner: [], saves: 0 }, box = b => m => { packCheck(m); b.push(JSON.parse(J(m))); };
+        const net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a' } } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+        const Hh = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn { handle: function(msg, conn) {\n' + ciSrc + '\n} };')(
+            net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true }, () => {}, () => {});
+        let n = 0; const send = m => { out.answer.length = 0; Hh.handle(Object.assign({ type: 'char-item', rid: 'g' + (++n), charId: 'c_1', fieldId: 'f_tr' }, m), { peer: 'pA', send: box(out.answer) }); return J(out.answer.map(a => a.type + (a.reason ? ':' + a.reason : ''))); };
+        return { camp, out, send, win }; };
+    const g1 = mkG(), g1a = g1.send({ op: 'add', defId: 'i_wd', rowId: 'w_w' }), geA = g1.camp.chars.c_1.values.f_ge, keptA = J(g1.camp.chars.c_1.values);
+    const grOk = g1a === J(['char-ack']) && J(g1.camp.chars.c_1.values.f_tr.map(r => r.id)) === J(['w_w']) && geA.length === 3 && geA[0].id === 'w_b' && !('gr' in geA[0])
+        && J(geA.slice(1).map(r => [r.defId, r.qty, r.gr])) === J([['i_lm', 2, 'w_w'], ['i_se', 1, 'w_w']]) && geA.slice(1).every(r => /^w_[a-z0-9]{8}$/.test(r.id));
+    const ownTxt = J(g1.out.owner), plSys = g1.win.wpSheets.playerSystem(g1.camp), plW = plSys.items.find(i => i.id === 'i_wd');
+    const ownOk = (ownTxt.match(/"gr":"w_w"/g) || []).length >= 2 && ownTxt.indexOf('Sealed note') >= 0 && ownTxt.indexOf('i_se') < 0 && J(plW.grants) === J([{ list: 'f_ge', entry: 'i_lm', qty: 2 }]);
+    const g1r = g1.send({ op: 'remove', rowId: 'w_w' }), geR = J(g1.camp.chars.c_1.values.f_ge.map(r => r.id)), g1u = g1.send({ op: 'restore', rowId: 'w_w', grants: { rows: [{ f: 'f_ge', row: { id: 'w_zz', defId: 'i_lm', qty: 9, gr: 'w_w' }, at: 0 }] } }), g1c = J(g1.camp.chars.c_1.values);
+    check('1.6.0 (v2, B4) a player\'s add of an entry that grants rows (char-item, run for real): the host grants them in the same change, on another list, at their quantities and marked by the row that grants them, a GM-only entry too; the owner\'s copy holds them, the GM-only one by name and never its id, and the players\' view of the system names no grant of it; removing the granting row takes them, and its Undo brings each back as it stood, from the host\'s own record and never the message\'s',
+        grOk && ownOk && g1r === J(['char-ack']) && geR === J(['w_b']) && g1u === J(['char-ack']) && g1c === keptA, J([g1a, geA, ownOk, plW, g1r, geR, g1u, g1c === keptA]));
 })());
 
 // [m410] SITE_EQUIVALENT_PLAN fold 2 on the wire, each behaviour by a case of its own (the tests that go with the mutations of m410): (B) a player's own

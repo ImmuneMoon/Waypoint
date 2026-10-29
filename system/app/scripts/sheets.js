@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsKept, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsKept, grantsKept, GRANT_MAX, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
@@ -2614,8 +2614,10 @@ function itemRmBtn(entry, def, c, f) {
     var rm = el('button', 'tool ghost sheet-item-rm', '×'); rm.title = entry.hid === 1 ? 'Dispel: remove ' + def.name + ' from the character' : 'Remove ' + def.name; rm.ariaLabel = rm.title;
     rm.addEventListener('click', function() {
         var sysR = systemOf(getActiveCampaign()), nP = f.list && f.list.parts && typeof partsOf === 'function' ? partsOf(sysR, c, f.list, rowIdOf(entry)).length : 0;   // 1.6.0 R14: a row that holds parts asks first, since they go with it
-        if (!nP) { commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); return; }
-        showConfirm('Remove ' + def.name + '? Its ' + (nP === 1 ? 'part goes' : nP + ' parts go') + ' with it. Undo brings ' + (nP === 1 ? 'it' : 'them') + ' back too.', function(ok) { if (ok) commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); }, { noEnter: true });
+        var gkR = typeof grantsKept === 'function' ? grantsKept(sysR, c && c.values, rowIdOf(entry)) : null, nG = gkR ? gkR.rows.filter(function(p) { return p.row.hid !== 1; }).length : 0;   // 1.6.0 (v2, B4): and one that granted rows
+        if (!nP && !nG) { commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); return; }
+        var wR = [nP ? 'its ' + (nP === 1 ? 'part' : nP + ' parts') : '', nG ? 'the ' + (nG === 1 ? 'row' : nG + ' rows') + ' it granted' : ''].filter(Boolean).join(' and '), mR = nP + nG > 1;
+        showConfirm('Remove ' + def.name + '? ' + wR.charAt(0).toUpperCase() + wR.slice(1) + (mR ? ' go' : ' goes') + ' with it. Undo brings ' + (mR ? 'them' : 'it') + ' back too.', function(ok) { if (ok) commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); }, { noEnter: true });
     }); return rm;
 }
 function itemCellText(col, def, len) {   // len: how the sheet on screen says a blast's radius (blastTag); with none the item's feet, as the readable page writes them
@@ -4994,7 +4996,7 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
 function goneOf(c, f, q) {
     if (!q || (q.op !== 'remove' && q.op !== 'setQty' && q.op !== 'undo') || typeof q.get === 'number' || typeof q.rowId !== 'string') return null;
     var v = c && c.values && Array.isArray(c.values[f.id]) ? c.values[f.id] : [];
-    for (var i = 0; i < v.length; i++) if (rowIdOf(v[i]) === q.rowId) { if (v[i] && v[i].hid === 1) return null; var g0 = { row: clone(v[i]), at: i }, pk = f.list && f.list.parts && typeof partsKept === 'function' ? partsKept(systemOf(getActiveCampaign()), f.list, c.values, q.rowId) : null; if (pk) g0.parts = pk; return g0; }   // 1.6.0 R14: its parts too, for the Undo
+    for (var i = 0; i < v.length; i++) if (rowIdOf(v[i]) === q.rowId) { if (v[i] && v[i].hid === 1) return null; var g0 = { row: clone(v[i]), at: i }, pk = f.list && f.list.parts && typeof partsKept === 'function' ? partsKept(systemOf(getActiveCampaign()), f.list, c.values, q.rowId) : null; if (pk) g0.parts = pk; var gk0 = typeof grantsKept === 'function' ? grantsKept(systemOf(getActiveCampaign()), c.values, q.rowId) : null; if (gk0) g0.grants = gk0; return g0; }   // 1.6.0 R14: its parts too, for the Undo
     return null;
 }
 function goneNote(c, f, g) {
@@ -5006,7 +5008,7 @@ function goneNote(c, f, g) {
         var camp = getActiveCampaign(), cN = charById(cid, camp); if (!cN) return;
         var cur = cN.values && Array.isArray(cN.values[f.id]) ? cN.values[f.id] : [];
         if (!isClient() && JSON.stringify(cur) !== after) { toast(nm + ' cannot come back: the list changed since.'); return; }
-        var qR = { op: 'restore', rowId: rid, row: g.row, at: g.at }; if (g.parts) qR.parts = g.parts; commitItem(cN, f, qR);   // 1.6.0 R14: its parts come back with it
+        var qR = { op: 'restore', rowId: rid, row: g.row, at: g.at }; if (g.parts) qR.parts = g.parts; if (g.grants) qR.grants = g.grants; commitItem(cN, f, qR);   // 1.6.0 R14: its parts come back with it
     }, LIMITS.undoMs);
 }
 // [systemcheck:gonethen-start]
@@ -5014,7 +5016,7 @@ function goneNote(c, f, g) {
 // the GM's machine at once (goneLocal); on a player's app the host's row-gone word comes first, so the row is taken as this copy holds it
 // (goneWait) and its notice waits for the change that takes it off (goneFire, from charChanged), within a few seconds
 var _goneWait = [];
-function goneLocal(charId, gone) { var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp); if (!c || !sys || !Array.isArray(gone)) return 0; var n = 0; gone.forEach(function(g) { var f = g && typeof g.f === 'string' ? fieldById(sys, g.f) : null; if (f && g.row) { goneNote(c, f, g.parts ? { row: g.row, at: g.at, parts: g.parts } : { row: g.row, at: g.at }); n++; } }); return n; }
+function goneLocal(charId, gone) { var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp); if (!c || !sys || !Array.isArray(gone)) return 0; var n = 0; gone.forEach(function(g) { var f = g && typeof g.f === 'string' ? fieldById(sys, g.f) : null; if (f && g.row) { var gx = { row: g.row, at: g.at }; if (g.parts) gx.parts = g.parts; if (g.grants) gx.grants = g.grants; goneNote(c, f, gx); n++; } }); return n; }
 function goneWait(charId, fid, rid) {
     var c = charById(charId), rows = c && c.values && Array.isArray(c.values[fid]) ? c.values[fid] : [], at = -1;
     for (var i = 0; i < rows.length; i++) if (rowIdOf(rows[i]) === rid) { at = i; break; }
@@ -6051,6 +6053,7 @@ function refreshErrors() {
         if (said.length) said.forEach(function(m) { (warningsById[f.id] = warningsById[f.id] || []).push({ prop: 'fmt', message: m }); });
     });
     (draft.items || []).forEach(function(it) { if (it && it.key && !cleanItemKey(String(it.key), F())) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'key', message: 'Not a usable key: a letter, then letters, digits and _ (up to 40); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, min, cur, ranks, base; a function or reserved word such as floor, and, true; constructor). Save drops it.' }); });   // Stage 6 F4b
+    if (typeof grantSays === 'function') (draft.items || []).forEach(function(it) { var gS = grantSays(it); gS.drop.forEach(function(m) { (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'grants', message: m }); }); gS.warn.forEach(function(m) { (warningsById[it.id] = warningsById[it.id] || []).push({ prop: 'grants', message: m }); }); });   // 1.6.0 (v2, B4): what Save does with an item's grants
     // Stage 6 F4c1: each list's stats as Save will read them (a key it drops, a repeat, past the cap, a price naming none, another list's spelling),
     // under the list's card; and what Save drops when a saved stat is renamed or removed (a stat's key is its identity)
     var decSaid = function(errs, who, v, measure) {   // 1.5.4: what Save does with a list stat's or column's most decimals (who: its words; v: as typed; measure: its unit is a measure, as Save reads it)
@@ -6883,6 +6886,7 @@ function itemRow(it) {
     var stBox = itemStatsBox(it, sDefs); if (stBox) row.appendChild(stBox);   // F4c1
     var nrow = el('div', 'sys-item-notes-row'); nrow.appendChild(input('sys-item-notes field', it.notes, 'Notes shown on the sheet', 'Notes (optional)')); row.appendChild(nrow);
     row.appendChild(itemModsBox(it, anyL, anyO));   // Stage 6 F6
+    if (typeof grantBox === 'function') row.appendChild(grantBox(it));   // 1.6.0 (v2, B4): the rows it grants
     if (typeof swBox === 'function') row.appendChild(swBox(it));   // 1.6.0: its roll bonuses (asked through typeof: a suite slices this row alone)
     if (it.area) row.appendChild(affBox(it));   // 1.5.9 (es): its blast's afflictions
     var err = errorCell(it.id); err.dataset.errFor = it.id; row.appendChild(err);
@@ -8789,6 +8793,63 @@ function renderAll() {
     patchErrors();
 }
 function fieldOfRow(target) { var row = target.closest('.sys-row'); if (!row || row.dataset.cid || row.dataset.iid || row.dataset.eid) return null; return { row: row, f: draft.fields.find(function(x) { return x.id === row.dataset.id; }), r: draft.rolls.find(function(x) { return x.id === row.dataset.id; }) }; }
+// 1.6.0 (v2, B4; the SotMW session's v2 sort, 2026-10-29: a trait tier's fixed kit, a species' free package rows, an implant's mandatory flaws):
+// the rows a row of an item grants, each a line: the entry granted (an item of the system or a library entry), the list it is added to, how
+// many, and the level of this item from which it is granted. What Save does with each is said under the item (refreshErrors). Values and text
+// nodes only
+// [systemcheck:grantbox-start]
+function grantEntries() {
+    var out = [], seen = Object.create(null), LBg = window.wpLibrary, cp = getActiveCampaign(), packs = cp && cp.library && Array.isArray(cp.library.packs) ? cp.library.packs : [];
+    var put = function(x) { if (x && typeof x.id === 'string' && !seen[x.id] && out.length < 2000) { seen[x.id] = 1; out.push([x.id, (x.name || 'Item') + (x.vis === 'gm' ? ' (GM only)' : '')]); } };
+    (draft.items || []).forEach(put);
+    if (LBg && typeof LBg.entriesOf === 'function') packs.forEach(function(p) { if (p && typeof p.id === 'string') LBg.entriesOf(p.id).forEach(put); });
+    return out.sort(function(a, b) { return a[1].localeCompare(b[1]); });
+}
+function grantName(id) {
+    var it = (draft.items || []).find(function(x) { return x && x.id === id; }); if (it) return it.name || 'Item';
+    var LBn = window.wpLibrary, le = LBn && typeof LBn.entry === 'function' ? LBn.entry(id) : null; return le && typeof le.name === 'string' ? le.name : '';
+}
+function grantListFor(id) {   // the list a new grant starts on: the first whose categories take the entry, else the first item list
+    var lists = (draft.fields || []).filter(function(f) { return f && f.kind === 'item-list'; }), it = (draft.items || []).find(function(x) { return x && x.id === id; });
+    var LBf = window.wpLibrary, e = it || (LBf && typeof LBf.entry === 'function' ? LBf.entry(id) : null), cg = e && typeof e.category === 'string' ? e.category.toLowerCase() : '';
+    var hit = lists.filter(function(f) { return f.list && Array.isArray(f.list.cats) && f.list.cats.some(function(x) { return String(x).toLowerCase() === cg; }); })[0];
+    return (hit || lists[0] || {}).id || '';
+}
+function grantBox(it) {
+    var box = el('div', 'sys-fx-mods sys-grant-box'), gs = Array.isArray(it.grants) ? it.grants : [], lists = (draft.fields || []).filter(function(f) { return f && f.kind === 'item-list' && typeof f.id === 'string'; });
+    box.appendChild(el('span', 'sys-note', 'Rows it grants, free, when a row of it is added or reaches a level:'));
+    gs.forEach(function(g, gi) {
+        if (!g || typeof g !== 'object') return;
+        var ln = el('div', 'sys-fx-mod sys-grant'); ln.dataset.gi = String(gi);
+        ln.appendChild(el('span', 'sys-grant-name', grantName(g.entry) || 'An entry that is not here'));
+        var lo = lists.map(function(f) { return [f.id, 'On ' + (f.label || f.key || 'a list')]; });
+        if (!g.list) lo.unshift(['', 'Pick a list']); else if (!lists.some(function(f) { return f.id === g.list; })) lo.push([g.list, 'On a list that is gone']);
+        ln.appendChild(select('sys-grant-list', lo, g.list || '', 'The list it is added to'));
+        ln.appendChild(numField('sys-grant-qty', typeof g.qty === 'number' ? g.qty : 1, 'How many it adds', 'how many', '1'));
+        ln.appendChild(numField('sys-grant-from', typeof g.from === 'number' ? g.from : '', 'The level of this item from which it is granted. Blank: from the start', 'from level', 'any'));
+        ln.appendChild(btnRow([['grantdel', 'It no longer grants this', '&times;']]));
+        box.appendChild(ln);
+    });
+    if (gs.length < GRANT_MAX) { var ad = select('sys-grant-add', [['', '+ Grants\u2026']].concat(grantEntries().filter(function(o) { return o[0] !== it.id; })), '', lists.length ? 'Pick an entry a row of this item grants' : 'Add an item list first'); if (!lists.length) ad.disabled = true; box.appendChild(ad); }
+    return box;
+}
+// What Save does with an item's grants, as the cleaner reads them: { drop: [...], warn: [...] } in words
+function grantSays(it) {
+    var out = { drop: [], warn: [] }; if (!it || !Array.isArray(it.grants)) return out;
+    var lids = Object.create(null), seen = Object.create(null), n = 0, LBw = window.wpLibrary, whole = !!(LBw && typeof LBw.whole === 'function' && LBw.whole() === true);
+    (draft.fields || []).forEach(function(f) { if (f && f.kind === 'item-list') lids[f.id] = 1; });
+    it.grants.forEach(function(g, gi) {
+        if (!g || typeof g !== 'object') return; var w = 'Grant ' + (gi + 1) + ': ';
+        if (!g.list || lids[g.list] !== 1) { out.drop.push(w + (g.list ? 'its list is gone' : 'it needs a list') + ', so Save drops it.'); return; }
+        if (g.entry === it.id) { out.drop.push(w + 'an item cannot grant itself, so Save drops it.'); return; }
+        var fr = typeof g.from === 'number' && isFinite(g.from) ? g.from : '', k = g.list + '|' + g.entry + '|' + fr; if (seen[k]) { out.drop.push(w + 'it repeats grant ' + seen[k] + ', so Save drops it.'); return; } seen[k] = gi + 1;
+        if (++n > GRANT_MAX) { out.drop.push(w + 'an item grants ' + GRANT_MAX + ' at most, so Save drops it.'); return; }
+        var q = typeof g.qty === 'number' && isFinite(g.qty) ? Math.round(g.qty) : 1; if (g.qty !== undefined && (q < 1 || q > LIMITS.maxQty || q !== g.qty)) out.warn.push(w + 'how many is a whole number from 1 to ' + LIMITS.maxQty + ', so Save keeps ' + Math.max(1, Math.min(LIMITS.maxQty, q || 1)) + '.');
+        if (!grantName(g.entry) && (whole || !(LBw && typeof LBw.entry === 'function'))) out.warn.push(w + 'that entry is gone, so it grants nothing until it is back.');
+    });
+    return out;
+}
+// [systemcheck:grantbox-end]
 function itemOfRow(target) { var row = target.closest && target.closest('.sys-item-row'); if (!row) return null; return (draft.items || []).find(function(x) { return x.id === row.dataset.iid; }) || null; }
 function onInput(e) {
     if (!draft) return;
@@ -8843,6 +8904,7 @@ function onInput(e) {
         else if (ic.indexOf('sys-item-eqtext') >= 0) it.eqMsg = t.value.slice(0, LIMITS.rmMsg);   // F4b
         else if (ic.indexOf('sys-item-key') >= 0) { var ikv = t.value.trim().slice(0, 40); if (ikv) it.key = ikv; else delete it.key; }
         else if (ic.indexOf('sys-item-lvl') >= 0) { if (String(t.value).trim() === '') delete it.lvl; else it.lvl = Number(t.value); }
+        else if (/(^| )sys-grant-(qty|from)( |$)/.test(ic)) { var glI = t.closest('.sys-grant'), gI = glI && Array.isArray(it.grants) ? it.grants[+glI.dataset.gi] : null; if (!gI || (t.validity && t.validity.badInput)) return; var nG = Number(t.value), kG = /sys-grant-qty/.test(ic) ? 'qty' : 'from'; if (String(t.value).trim() === '' || !isFinite(nG)) delete gI[kG]; else gI[kG] = nG; }   // 1.6.0 (v2, B4)
         else if (ic.indexOf('sys-item-mamt') >= 0) { var iml = t.closest('.sys-item-mod'), imm = iml ? (it.mods || [])[+iml.dataset.mi] : null; if (imm) imm.v = t.value === '' ? 0 : Number(t.value); }
         else if (ic.indexOf('sys-item-mkey') >= 0) { var ikl = t.closest('.sys-item-mod'), ikm = ikl ? (it.mods || [])[+ikl.dataset.mi] : null; if (ikm) ikm.key = t.value.trim().slice(0, 40); }   // 1.5.8   // F6
         else if (ic.indexOf('sys-item-stat') >= 0) { var sk = t.dataset.sk || ''; if (!STAT_KEY.test(sk) || (sk in Object.prototype) || (sk.toLowerCase() in Object.prototype)) return; if (t.validity && t.validity.badInput) return; var ist = it.stats && typeof it.stats === 'object' && !Array.isArray(it.stats) ? it.stats : {}, sv = String(t.value).trim(); Object.keys(ist).forEach(function(k2) { if (k2 !== sk && k2.toLowerCase() === sk.toLowerCase()) delete ist[k2]; }); if (sv === '') delete ist[sk]; else if (t.dataset.pick === '1') ist[sk] = sv; else { var sn = Number(sv); if (!isFinite(sn)) return; ist[sk] = sn; } if (Object.keys(ist).length) it.stats = ist; else delete it.stats; }   // Stage 6 F4c1: a stat box (its key checked first: never a prototype name)
@@ -9023,6 +9085,9 @@ function onChange(e) {
     var iit = itemOfRow(t);
     if (iit) {
         if (c.indexOf('sys-item-vis') >= 0) { iit.vis = t.value; markDirty(); patchErrors(); return; }
+        if (/(^| )sys-grant-list( |$)/.test(c)) { var glC = t.closest('.sys-grant'), gC = glC && Array.isArray(iit.grants) ? iit.grants[+glC.dataset.gi] : null; if (gC) { if (t.value) gC.list = t.value; else delete gC.list; markDirty(); renderAll(); } return; }   // 1.6.0 (v2, B4): a grant's list
+        if (/(^| )sys-grant-add( |$)/.test(c)) { var gv = t.value; if (!gv) return; iit.grants = Array.isArray(iit.grants) ? iit.grants : []; if (iit.grants.length >= GRANT_MAX) { toast('At most ' + GRANT_MAX + ' grants an item.'); return; } iit.grants.push({ list: grantListFor(gv), entry: gv, qty: 1 }); markDirty(); renderAll(); return; }
+        if (/(^| )sys-grant-(qty|from)( |$)/.test(c)) return;
         if (c.indexOf('sys-item-mtarget') >= 0) { var itl = t.closest('.sys-item-mod'), itm = itl ? (iit.mods || [])[+itl.dataset.mi] : null; if (itm) { var itp = t.value.split('|'); itm.f = itp[0]; if (itp[1] === 'on') { itm.op = 'on'; delete itm.v; delete itm.part; delete itm.lvl; } else { itm.op = itm.op === 'max' || itm.op === 'min' ? itm.op : 'add'; if (typeof itm.v !== 'number') itm.v = 1; if (itp[1] === 'max') itm.part = 'max'; else delete itm.part; } rowAimSet(itm, draft, t.value); markDirty(); renderAll(); } return; }   // F6
         if (c.indexOf('sys-item-placebit') >= 0) { var pbk = t.dataset.sk || '', pbn = +t.dataset.bit; if (!STAT_KEY.test(pbk) || (pbk in Object.prototype) || !(pbn >= 0 && pbn < 16)) return; var pst = iit.stats && typeof iit.stats === 'object' && !Array.isArray(iit.stats) ? iit.stats : (iit.stats = {}), pcur = 0; Object.keys(pst).forEach(function(k2) { if (k2.toLowerCase() === pbk.toLowerCase()) { if (typeof pst[k2] === 'number') pcur = Math.floor(Math.abs(pst[k2])) & 0xFFFF; delete pst[k2]; } }); var pnx = t.checked ? (pcur | (1 << pbn)) : (pcur & ~(1 << pbn)); if (pnx) pst[pbk] = pnx; markDirty(); patchErrors(); return; }   // 1.6.0 O1: a place ticked or not
         if (c.indexOf('sys-item-mhow') >= 0) { var ihl = t.closest('.sys-item-mod'), ihm = ihl ? (iit.mods || [])[+ihl.dataset.mi] : null; if (ihm && ihm.op !== 'on') { ihm.op = t.value === 'max' || t.value === 'min' ? t.value : 'add'; if (ihm.op !== 'add') delete ihm.lvl; markDirty(); renderAll(); } return; }   // 1.6.0
@@ -9249,6 +9314,7 @@ function onClick(e) {
             var aA = Array.isArray(iitem.area.aff) ? iitem.area.aff : (iitem.area.aff = []); if (aA.length >= (LIMITS.areaAffs || 2)) { toast('At most ' + (LIMITS.areaAffs || 2) + ' afflictions an item.'); return; }
             aA.push({ vs: '', fx: fx0.id });
         }
+        else if (iact === 'grantdel') { var dlG = b.closest('.sys-grant'); if (dlG && Array.isArray(iitem.grants)) { iitem.grants.splice(+dlG.dataset.gi, 1); if (!iitem.grants.length) delete iitem.grants; } }   // 1.6.0 (v2, B4)
         else if (iact === 'affdel') { var dlA = b.closest('.sys-item-aff'), aD = iitem.area && Array.isArray(iitem.area.aff) ? iitem.area.aff : null; if (dlA && aD) { aD.splice(+dlA.dataset.ai, 1); if (!aD.length) delete iitem.area.aff; } }
         else return;
         markDirty(); renderAll(); return;

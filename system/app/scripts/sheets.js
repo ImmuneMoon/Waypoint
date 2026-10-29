@@ -4092,7 +4092,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     if (k === 'resource') {
         var cur = e && typeof e.value === 'number' ? e.value : 0, max = e && typeof e.max === 'number' ? e.max : null;
         var r = el('div', 'sheet-ctl');
-        if (typeof f.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(f.color)) { box.classList.add('sheet-pool-colored'); box.style.setProperty('--sheet-pool', f.color); }   // Stage 6 look fold (L7): the pool's own colour
+        if (typeof f.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(f.color)) { box.classList.add('sheet-pool-colored'); if (f.colorBand === true) box.classList.add('sheet-pool-bandonly'); box.style.setProperty('--sheet-pool', f.color); }   // Stage 6 look fold (L7): the pool's own colour
         if (f.icon) r.appendChild(iconNode(f.icon, 'sheet-pool-icon'));   // Fold B (Stage 6: or a bundled glyph)
         if (f.icon || f.reset) r.classList.add('sheet-ctl-wrap');   // the extra controls wrap to a second line in a narrow cell, never into the next column
         var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !use;
@@ -6556,6 +6556,7 @@ function fieldRow(f) {
         var rsl = el('label', 'sys-hover'); var rsc = el('input'); rsc.type = 'checkbox'; rsc.checked = !!f.reset; rsc.className = 'sys-reset-chk'; rsl.appendChild(rsc); rsl.appendChild(document.createTextNode(' \u21bb Reset')); rsl.title = 'A button that fills the pool back to its max'; flags.appendChild(rsl);
         var rcl = el('label', 'sys-sec-color'), rci = el('input'); rci.type = 'color'; rci.className = 'sys-res-color'; rci.value = f.color || '#4db3d3'; rci.title = 'The pool\u2019s own colour: its icon, its bar and its value on the band'; rcl.appendChild(el('span', 'sys-sec-style-lbl', 'Colour')); rcl.appendChild(rci); flags.appendChild(rcl);   // L7
         if (f.color) { var rcc = el('button', 'tool ghost sys-btn', 'No colour'); rcc.dataset.act = 'rescolorclr'; rcc.title = 'Back to the theme\u2019s colours'; flags.appendChild(rcc); }
+        if (f.color) { var cbl = el('label', 'sys-hover'), cbc = el('input'); cbc.type = 'checkbox'; cbc.checked = f.colorBand === true; cbc.className = 'sys-colorband-chk'; cbl.appendChild(cbc); cbl.appendChild(document.createTextNode(' Band only')); cbl.title = 'The colour on the pinned band alone. In its own section the pool is drawn plain'; flags.appendChild(cbl); }   // 1.6.0
         var bcl = el('label', 'sys-hover'); var bcc = el('input'); bcc.type = 'checkbox'; bcc.checked = f.bar !== false; bcc.className = 'sys-bar-chk'; bcl.appendChild(bcc); bcl.appendChild(document.createTextNode(' Bar')); bcl.title = 'The bar under the value (untick for just the numbers)'; flags.appendChild(bcl);
     }
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this field', '&times;']]));
@@ -9116,6 +9117,7 @@ function onChange(e) {
         else if (c.indexOf('sys-res-color') >= 0) { markDirty(); renderAll(); return; }   // L7: a colour picked — "No colour" appears
         else if (c.indexOf('sys-reset-chk') >= 0) { if (t.checked) f.reset = true; else delete f.reset; }   // Fold B: fill-to-max button
         else if (c.indexOf('sys-bar-chk') >= 0) { if (t.checked) delete f.bar; else f.bar = false; }   // Fold B: the bar (absent = shown)
+        else if (c.indexOf('sys-colorband-chk') >= 0) { if (t.checked) f.colorBand = true; else delete f.colorBand; }   // 1.6.0: the pool's colour on the band alone
         else if (c.indexOf('sys-slider-chk') >= 0) { if (t.checked) { f.slider = f.slider || {}; delete f.counter; } else delete f.slider; markDirty(); renderAll(); return; }   // Stage 5e: slider on/off (its row of labels and colours appears)
         else if (c.indexOf('sys-counter-chk') >= 0) { if (t.checked) { f.counter = true; delete f.slider; } else delete f.counter; markDirty(); renderAll(); return; }   // HUD frame (HF4a): counter on/off — a number is a counter or a slider, never both (the other's box hides)
         else if (c.indexOf('sys-slider-lowColor') >= 0 || c.indexOf('sys-slider-midColor') >= 0 || c.indexOf('sys-slider-highColor') >= 0) { markDirty(); renderAll(); return; }   // a colour picked (the input handler stored it): redraw so "Theme colours" appears
@@ -9301,7 +9303,7 @@ function onClick(e) {
     else if (act === 'dup') { var d = clone(item); d.id = uid(ctx.f ? 'f_' : 'r_'); if (d.key) d.key = d.key + '2'; list.splice(i + 1, 0, d); }
     else if (act === 'del') { list.splice(i, 1); }
     else if (act === 'slidercl' && item.slider) { delete item.slider.lowColor; delete item.slider.midColor; delete item.slider.highColor; }   // Stage 5e: the track back to the theme's colours
-    else if (act === 'rescolorclr') { delete item.color; }   // Stage 6 look fold (L7): the pool back to the theme's colours
+    else if (act === 'rescolorclr') { delete item.color; delete item.colorBand; }   // Stage 6 look fold (L7): the pool back to the theme's colours
     else return;
     markDirty(); renderAll();
 }

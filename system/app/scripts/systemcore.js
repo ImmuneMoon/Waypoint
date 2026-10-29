@@ -480,6 +480,7 @@ function cleanField(f, F, gmView) {
     if (k === 'formula' && f.badge === true) out.badge = true;   // Stage 6 look fold (L7): the value drawn as a pill
     if (k === 'formula' && out.labels) { var tones = cleanTones(f.tones, out.labels.length); if (tones) out.tones = tones; }   // L7: a colour per value name (parallel to labels)
     if (k === 'resource' && typeof f.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(f.color)) out.color = f.color.toLowerCase();   // L7: a pool's own colour (icon, bar, band value)
+    if (out.color && f.colorBand === true) out.colorBand = true;   // 1.6.0: that colour on the pinned band alone, the pool plain in its own section
     if (k === 'number' && (f.slider === true || isObj(f.slider))) out.slider = cleanSlider(f.slider);   // Stage 5e: a gradient slider (end labels, track colours) — drawn once the field has a min and a max (the sheet checks), kept either way so nothing the GM set is lost on Save; a plain number everywhere else
     if (k !== 'formula' && typeof f.live === 'boolean') out.live = f.live;   // the sheet's lock (1.5.4): this field's own word on it — true: its control works on a locked sheet and in the HUD; false: it needs Edit sheet; absent: by its kind (sheets.js liveField). The same in both views
     if ((k === 'number' || k === 'skill') && f.counter === true && !out.labels && !out.slider) out.counter = true;   // HUD frame (HF4a, H8): a counter — minus and plus either side of the box (a named number is a dropdown and a slider a range, never a counter)

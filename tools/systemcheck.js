@@ -4230,10 +4230,24 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('look L7: the badge wraps the value\'s text only with no error, its class from the constant TONE_CLASS map (never built from the stored tone); the pool colour is checked again as hex at the sink and set as a CSS variable',
             /if \(f\.badge && e && !e\.error\) \{ var tnB = valueTone\(f, e\), bd = el\('span', 'sheet-badge' \+ \(Object\.prototype\.hasOwnProperty\.call\(TONE_CLASS, tnB\) \? TONE_CLASS\[tnB\] : ''\), v\.textContent\); v\.textContent = ''; v\.appendChild\(bd\); \}/.test(sh7)
             && /var TONE_CLASS = Object\.freeze\(\{ good: ' sheet-tone-good', warn: ' sheet-tone-warn', danger: ' sheet-tone-danger', accent: ' sheet-tone-accent', primary: ' sheet-tone-primary' \}\);/.test(sh7)
-            && /if \(typeof f\.color === 'string' && \/\^#\[0-9a-fA-F\]\{6\}\$\/\.test\(f\.color\)\) \{ box\.classList\.add\('sheet-pool-colored'\); box\.style\.setProperty\('--sheet-pool', f\.color\); \}/.test(sh7));
+            && /if \(typeof f\.color === 'string' && \/\^#\[0-9a-fA-F\]\{6\}\$\/\.test\(f\.color\)\) \{ box\.classList\.add\('sheet-pool-colored'\); if \(f\.colorBand === true\) box\.classList\.add\('sheet-pool-bandonly'\); box\.style\.setProperty\('--sheet-pool', f\.color\); \}/.test(sh7));   // 1.6.0: Band only (moved on purpose)
+        {   // 1.6.0, the backlog's sheet look option (d): a pool's colour on the pinned band alone
+            const cb = raw => cleanSystem({ v: 1, name: 'CB', fields: [Object.assign({ id: 'f_p', key: 'Stamina', kind: 'resource', maxFormula: '10', def: 'max', vis: 'all', edit: 'owner' }, raw)], rolls: [] }, { F, gmView: true }).fields[0];
+            const on = cb({ color: '#AA3300', colorBand: true }), noCol = cb({ colorBand: true }), word = cb({ color: '#aa3300', colorBand: 'yes' }), num = cb({ key: 'N', kind: 'number', def: 0, color: '#aa3300', colorBand: true });
+            const cssCB = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
+            check('1.6.0 Band only: the cleaner keeps colorBand only as true and only beside a pool\'s own colour, right after it; the sheet marks the pool sheet-pool-bandonly; the style sheet colours its icon and bar on the band alone; the Fields tab\'s tick and its handler; No colour takes it off too; Help says so',
+                on.color === '#aa3300' && on.colorBand === true && Object.keys(on).indexOf('colorBand') === Object.keys(on).indexOf('color') + 1 && !('colorBand' in noCol) && !('colorBand' in word) && !('colorBand' in num)
+                && cssCB.indexOf('.sheet-pool-colored:not(.sheet-pool-bandonly) .sheet-pool-icon, .sheet-band .sheet-pool-colored .sheet-pool-icon { color: var(--sheet-pool); }') >= 0
+                && cssCB.indexOf('.sheet-pool-colored:not(.sheet-pool-bandonly) .sheet-bar-fill, .sheet-band .sheet-pool-colored .sheet-bar-fill { background: var(--sheet-pool); }') >= 0
+                && /cbc\.className = 'sys-colorband-chk'; cbl\.appendChild\(cbc\); cbl\.appendChild\(document\.createTextNode\(' Band only'\)\)/.test(sh7)
+                && /else if \(c\.indexOf\('sys-colorband-chk'\) >= 0\) \{ if \(t\.checked\) f\.colorBand = true; else delete f\.colorBand; \}/.test(sh7)
+                && /act === 'rescolorclr'\) \{ delete item\.color; delete item\.colorBand; \}/.test(sh7)
+                && /Tick <b>Band only<\/b> to keep that colour to the pinned band/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')),
+                j([on, noCol, word, num]));
+        }
         check('look L7: the Fields tab has Badge on a formula, a colour and "No colour" on a resource, and a colour per value name for a badge with names; each change goes through its own branch',
             /bgc\.className = 'sys-badge-chk'/.test(sh7) && /rci\.className = 'sys-res-color'/.test(sh7) && /rcc\.dataset\.act = 'rescolorclr'/.test(sh7) && /select\('sys-tone-sel', \[\['', 'Plain'\], \['good', 'Good \(green\)'\], \['warn', 'Warning \(amber\)'\], \['danger', 'Danger \(red\)'\], \['accent', 'Accent'\], \['primary', 'Primary'\]\]/.test(sh7)
-            && /else if \(c\.indexOf\('sys-badge-chk'\) >= 0\) \{ if \(t\.checked\) f\.badge = true; else delete f\.badge;/.test(sh7) && /else if \(act === 'rescolorclr'\) \{ delete item\.color; \}/.test(sh7));
+            && /else if \(c\.indexOf\('sys-badge-chk'\) >= 0\) \{ if \(t\.checked\) f\.badge = true; else delete f\.badge;/.test(sh7) && /else if \(act === 'rescolorclr'\) \{ delete item\.color; delete item\.colorBand; \}/.test(sh7));   // 1.6.0 (moved on purpose)
         const css7 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), l7css = css7.slice(css7.indexOf('/* Stage 6 look fold (L7)'), css7.indexOf('/* Stage 6 look fold (L6)'));
         check('look L7: the badge, its five tones and the pool colour rules are there (a pool rule only under .sheet-pool-colored); Help says so',
             /\.sheet-badge \{ display: inline-flex;/.test(l7css) && ['good', 'warn', 'danger', 'accent', 'primary'].every(t => l7css.indexOf('.sheet-badge.sheet-tone-' + t + ' {') >= 0)

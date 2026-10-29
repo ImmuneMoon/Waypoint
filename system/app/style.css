@@ -3551,8 +3551,8 @@
   .sheet-item-badgeline.sheet-tone-primary { color: var(--sheet-primary, var(--sheet-accent, var(--gold))); }
   .sheet-item.sheet-tint-primary, tr.sheet-tint-primary > td { background: color-mix(in srgb, var(--sheet-primary, var(--sheet-accent, var(--gold))) 10%, transparent); }
   .sheet-item.sheet-tint-primary, tr.sheet-tint-primary > td:first-child { box-shadow: inset 3px 0 0 var(--sheet-primary, var(--sheet-accent, var(--gold))); }
-  .sheet-pool-colored .sheet-pool-icon { color: var(--sheet-pool); }
-  .sheet-pool-colored .sheet-bar-fill { background: var(--sheet-pool); }
+  .sheet-pool-colored:not(.sheet-pool-bandonly) .sheet-pool-icon, .sheet-band .sheet-pool-colored .sheet-pool-icon { color: var(--sheet-pool); }
+  .sheet-pool-colored:not(.sheet-pool-bandonly) .sheet-bar-fill, .sheet-band .sheet-pool-colored .sheet-bar-fill { background: var(--sheet-pool); }   /* 1.6.0: Band only keeps the colour to the pinned band */
   .sheet-band .sheet-pool-colored .sheet-cur { color: var(--sheet-pool); font-weight: 700; }
   .sys-tones-row { flex-wrap: wrap; }
   .sys-tone-lbl { display: inline-flex; align-items: center; gap: 4px; }

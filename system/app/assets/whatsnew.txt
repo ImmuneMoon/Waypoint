@@ -34,6 +34,12 @@ Your profile
 - Your own table keeps its own id, apart from the one you join tables
   with, so your players still know it whatever profile you open.
 
+Systems, more
+- A row can hold a set number of parts: Holds, in the Lists tab, reads it from
+  one of the row's own stats, such as Slots. One more is refused.
+- Row.made reads 1 for a row added while its character was being made, so a
+  cost can count only what was bought at creation.
+
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain
   now counts by its own outline, turned as it is drawn. Before, only a

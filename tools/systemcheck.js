@@ -16418,6 +16418,38 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('198 which rows hold parts: a list\'s parts.hosts (the categories, each once, the same in both views) judged by partHostOk, a row of another category or a part itself holding none and the host refusing an add to it; a row of the character\'s own made as a part through the custom op\'s in, judged as add\'s (a host that may hold parts, the parts\' categories, never itself), its in kept through later changes and never moved; the wire keeps it; the sheet\'s add control only on a host and the Lists tab\'s Held by',
             cleanOk && okRows && addOk && custOk && wireOk && sheetOk, J([cleanOk, okRows, addOk, custOk, wireOk, sheetOk, spH.parts, a2, c2, c3, c4, c5, e2]));
     }
+    {   // 1.6.0 (v2, B5 and B6; the SotMW session's v2 sort, 2026-10-29): Row.made, and a host row's room for parts (parts.capBy)
+        const J = JSON.stringify;
+        const rawM = { v: 1, name: 'M', rolls: [], items: [{ id: 'i_arm', name: 'Arm', category: 'Limb', stats: { Slots: 2 } }, { id: 'i_hand', name: 'Hand', category: 'Limb', stats: { Slots: 1 } }, { id: 'i_eye', name: 'Eye', category: 'Limb' }, { id: 'i_up', name: 'Grip', category: 'Upgrade' }],
+            fields: [{ id: 'f_c', key: 'Cyber', label: 'Cyber', kind: 'item-list', vis: 'all', edit: 'owner', list: { custom: true, stats: [{ key: 'Slots', label: 'Slots' }], parts: { from: 'f_c', cats: ['Upgrade'], capBy: 'slots' }, cols: [{ key: 'Bought', label: 'Bought', formula: 'Row.made' }] } }], sheet: { sections: [] } };
+        const gM = cleanSystem(rawM, { F, gmView: true }), pM = cleanSystem(rawM, { F, gmView: false }), spM = gM.fields[0].list;
+        const pick = JSON.parse(J(rawM)); pick.fields[0].list.stats.push({ key: 'Kind', label: 'Kind', kind: 'pick', opts: ['A', 'B'] }); pick.fields[0].list.parts.capBy = 'Kind'; const none = JSON.parse(J(rawM)); none.fields[0].list.parts.capBy = 'Nope';
+        const cleanOk = spM.parts.capBy === 'Slots' && J(pM.fields[0].list.parts) === J(spM.parts) && J(cleanSystem(gM, { F, gmView: true })) === J(gM)
+            && !('capBy' in cleanSystem(pick, { F, gmView: true }).fields[0].list.parts) && !('capBy' in cleanSystem(none, { F, gmView: true }).fields[0].list.parts);
+        const base = (making) => ({ id: 'c1', making: making ? 1 : undefined, values: { f_c: [{ id: 'w_arm', defId: 'i_arm', qty: 1 }, { id: 'w_hand', defId: 'i_hand', qty: 1 }, { id: 'w_eye', defId: 'i_eye', qty: 1 }] } });
+        const op = (ch, q, o) => S.applyRowOp(gM, ch, 'f_c', q, F, o || {});
+        const ch1 = base(); const r1 = op(ch1, { op: 'add', defId: 'i_up', rowId: 'w_u1', in: 'w_arm' }); ch1.values.f_c = r1.value;
+        const r2 = op(ch1, { op: 'add', defId: 'i_up', rowId: 'w_u2', in: 'w_arm' }); ch1.values.f_c = r2.value;
+        const r3 = op(ch1, { op: 'add', defId: 'i_up', rowId: 'w_u3', in: 'w_arm' }), r3p = op(ch1, { op: 'add', defId: 'i_up', rowId: 'w_u3', in: 'w_arm' }, { player: true, view: pM });
+        const rQ = op(base(), { op: 'add', defId: 'i_up', rowId: 'w_q', in: 'w_arm', qty: 3 }), rH = op(base(), { op: 'add', defId: 'i_up', rowId: 'w_h', in: 'w_hand', qty: 1 }), rE = op(base(), { op: 'add', defId: 'i_up', rowId: 'w_e', in: 'w_eye' });
+        const rC = op(ch1, { op: 'custom', rowId: 'w_cu', in: 'w_arm', def: { name: 'Own grip', category: 'Upgrade' } }), rCh = op(base(), { op: 'custom', rowId: 'w_cu', in: 'w_hand', def: { name: 'Own grip', category: 'Upgrade' } });
+        const full = 'Arm holds 2 parts at most, and has 2 already.';
+        const roomOk = r1.ok && r2.ok && J(r3) === J({ ok: false, reason: 'value', msg: full }) && J(r3p) === J(r3) && J(rQ) === J({ ok: false, reason: 'value', msg: 'Arm holds 2 parts at most, and that would be more.' }) && rH.ok
+            && J(rE) === J({ ok: false, reason: 'value', msg: 'Eye holds no parts.' }) && J(rC) === J({ ok: false, reason: 'value', msg: full }) && rCh.ok
+            && S.partsRoom(gM, spM, { id: 'w_arm', defId: 'i_arm', qty: 1 }, ch1.values.f_c, 'w_arm').used === 2 && S.partsRoom(gM, { parts: { from: 'f_c' } }, { id: 'w_arm', defId: 'i_arm' }, [], 'w_arm') === null;
+        const mk1 = op(base(true), { op: 'add', defId: 'i_up', rowId: 'w_m', in: 'w_hand' }), mk0 = op(base(), { op: 'add', defId: 'i_up', rowId: 'w_m', in: 'w_hand' }), mkC = op(base(true), { op: 'custom', rowId: 'w_mc', def: { name: 'Own', category: 'Junk' } }), mkC0 = op(base(), { op: 'custom', rowId: 'w_mc', def: { name: 'Own', category: 'Junk' } });
+        const rowOf = (r, id) => r.value.find(x => x.id === id);
+        const madeOk = rowOf(mk1, 'w_m').mk === 1 && rowOf(mk0, 'w_m').mk === undefined && rowOf(mkC, 'w_mc').mk === 1 && rowOf(mkC0, 'w_mc').mk === undefined && S.ROW_WORDS.made === 1
+            && S.cleanCharItem({ rid: 'e12345678', charId: 'c_1', fieldId: 'f_c', op: 'add', defId: 'i_up', rowId: 'w_x', mk: 1 }).mk === undefined;
+        const chR = { id: 'c_mk', name: 'Kael', values: { f_c: [{ id: 'w_a', defId: 'i_up', qty: 1, mk: 1 }, { id: 'w_b', defId: 'i_up', qty: 1 }] } }, cR = S.cleanChar(chR, gM, { state: 'host' }), rv = S.resolveAll(gM, cR, F, null).f_c;
+        const resOk = cR.values.f_c[0].mk === 1 && cR.values.f_c[1].mk === undefined && rv.cells.w_a[0].value === 1 && rv.cells.w_b[0].value === 0 && S.validateSystem(gM, F).errors.length === 0;
+        const shM = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const edOk = shM.includes("pkS = el('select', 'sys-list-partscap')") && shM.includes("else if (c.indexOf('sys-list-partscap') >= 0) { if (lsc.parts) { if (t.value) lsc.parts.capBy = t.value; else delete lsc.parts.capBy; } }");
+        check('1.6.0 (v2, B6) a host row\'s room for parts: a list\'s parts.capBy names one of its number stats (spelled as the list spells it, never a pick, the same in both views); a host holds as many parts as its own figure reads, their quantities added; one more is refused by the GM\'s hand and a player\'s alike, a quantity that would pass it too, a row of the character\'s own made as a part too, each in words that name the host; a host whose figure is 0 holds none; no capBy no limit; the Lists tab\'s Holds list',
+            cleanOk && roomOk && edOk, J([cleanOk, roomOk, edOk, spM.parts, r3, rQ, rE, rC]));
+        check('1.6.0 (v2, B5) Row.made: a row added, or made the character\'s own, while its character is in the making is marked mk: 1 by applyRowOp from the character as the host holds it, never from a message (the wire keeps no mk); the cleaner keeps it, a column reads Row.made as 1 or 0, the validator knows the name',
+            madeOk && resOk, J([madeOk, resOk, cR.values.f_c]));
+    }
     {   // 193 (the SotMW session, 2026-10-28): row states as Row names: Row.again anywhere, Row.needsMet in a badge alone
         const J = JSON.stringify;
         const rawA = { v: 1, name: 'A', rolls: [], items: [{ id: 'i_a', name: 'Charm', again: 'name' }, { id: 'i_b', name: 'Ward', needs: [{ id: 'i_a' }] }],

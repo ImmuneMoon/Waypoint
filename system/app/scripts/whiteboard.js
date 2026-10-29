@@ -4249,6 +4249,26 @@ window.wpFitToGrid = fitToGrid;
       var S = window.wpSystemCore, camp = getActiveCampaign(), d = S && S.rangeDist ? S.rangeDist(camp && camp.system, map, a, b, 'yd') : null;
       return typeof d === 'number' && isFinite(d) ? d : Math.hypot(b.x - a.x, b.y - a.y) / 50;
   }
+  // 1.6.0 (the v2 combat module): the throw roll's own names worked into its text before it is rolled as the thrower: ThrowSkill, the item's throw
+  // skill; Row.<name>, the thrown row's own figure (its weight, its own ranges); ThrowDistance, the yards to the aim, unless the system has a field
+  // of its own by that name, which then keeps its own value. A Row. name that gives no number, or that safe refuses, is left as it was written, as before
+  function throwExpr(text, def, rowR, dYd, sys, safe) {
+      var t = text.replace(/\bThrowSkill\b/gi, '(' + def.throwSkill + ')');
+      if (typeof rowR === 'function') t = t.replace(/\bRow\.([A-Za-z_][A-Za-z0-9_]*)/g, function(m, k) { if (typeof safe === 'function' && !safe(k)) return m; var v = blastFig('Row.' + k, rowR, false); return typeof v === 'number' ? '(' + v + ')' : m; });
+      var own = sys && Array.isArray(sys.fields) && sys.fields.some(function(f) { return f && typeof f.key === 'string' && f.key.toLowerCase() === 'throwdistance'; });
+      if (!own && typeof dYd === 'number' && isFinite(dYd)) t = t.replace(/\bThrowDistance\b/gi, '(' + Math.round(Math.max(0, dYd) * 100) / 100 + ')');
+      return t;
+  }
+  // ... and which of the thrown row's names may stand as their figure: one that reads nothing GM-only, through the row (a column's formula too), and
+  // not on a GM-only row unless the throw is the GM's alone. A figure would hide from the roll's own privacy rule what it was read from
+  function rowSafe(sys, tr, rowId, gmOnly) {
+      var S = window.wpSystemCore, F = window.wpFormula;
+      return function(k) {
+          if (!S || !F || !tr || typeof S.rowRollNames !== 'function' || typeof S.gmOnlyNames !== 'function' || typeof S.gmDerivedNames !== 'function') return false;
+          var rp = S.rowRollNames(sys, tr.ch, tr.f.id, rowId, ['Row.' + k], F); if (!rp || (rp.gm && !gmOnly)) return false;
+          return !(S.gmOnlyNames(sys, rp.names).length || S.gmDerivedNames(sys, F, rp.names).length);
+      };
+  }
   function blastFig(text, vars, dice) {   // a formula of the card's, worked out with these names; null where it gives no number
       var F = window.wpFormula; if (!F || typeof text !== 'string' || !text) return null;
       var o = { vars: vars }; if (!dice) o.random = function() { return NaN; };
@@ -4281,7 +4301,7 @@ window.wpFitToGrid = fitToGrid;
       if (mx !== null && dYd > mx + 1e-9) return { stop: 'Too far to throw: the aim is ' + lenW(dYd) + ' away, and ' + (opts.name || 'it') + ' can be thrown ' + lenW(Math.max(0, mx)) + ' at most.' };
       if (mn !== null && dYd < mn - 1e-9) return { stop: 'Too near to throw: the aim is ' + lenW(dYd) + ' away, and ' + (opts.name || 'it') + ' must be thrown ' + lenW(Math.max(0, mn)) + ' at least.' };
       if (!rules.roll || typeof def.throwSkill !== 'string' || !def.throwSkill || !window.wpDice || !window.wpDice.rollFor || !BC) return out;
-      var expr = rules.roll.replace(/\bThrowSkill\b/gi, '(' + def.throwSkill + ')');
+      var expr = throwExpr(rules.roll, def, rowR, dYd, sys, rowSafe(sys, tr, opts.rowId, !!opts.gmOnly));   // 1.6.0: and the thrown row's own names, and the yards to the aim
       var rc = S.rangeCtx ? S.rangeCtx(sys, map, thrB, { x: aim.x - 30, y: aim.y - 26, w: 60, h: 52 }, { F: F }) : null;
       var tdr = window.wpDice.rollFor(opts.charId, expr, (opts.name || 'Blast') + ' throw', { gmOnly: !!opts.gmOnly, range: rc ? { mod: rc.mod, dist: rc.dist } : undefined });
       if (!tdr || !tdr.ok) return { stop: 'The throw could not be rolled' + (tdr && tdr.error ? ': ' + tdr.error : '.') };
@@ -4305,7 +4325,7 @@ window.wpFitToGrid = fitToGrid;
       return hit ? hit.id : '';
   }
   // 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 2): a blast's fragmentation, after its shares and in the same pass. It reaches
-  // the Combat card's frag.reach in yards (read with FragDice, the dice it rolls), else the blast's own radius, and never less; who rolls what is
+  // the Combat card's frag.reach in yards (read with FragDice, the dice it rolls, and 1.6.0 BlastDice, the dice the blast's own damage rolls), else the blast's own radius, and never less; who rolls what is
   // blastcore fragTargets: one roll every token shares, or one each under frag.each, and the token struck directly a roll of its own under
   // frag.direct. Only total cover stops it under frag.cover 'total', where a token partly behind cover takes it all; else the system's cover
   // outcomes, as the blast. Each hit is rolled with the thrower's character (a damage card already applied, kept as private as the item) and
@@ -4316,7 +4336,7 @@ window.wpFitToGrid = fitToGrid;
       var S = window.wpSystemCore, F = window.wpFormula, BC = window.wpBlastCore, fg = b && b.frag && typeof b.frag === 'object' ? b.frag : null;
       if (!fg || typeof fg.expr !== 'string' || !fg.expr || !S || !F || !BC || typeof BC.fragTargets !== 'function' || !window.wpDice || typeof window.wpDice.rollFor !== 'function') return null;
       var rules = blastRules(sys), fr = rules && rules.frag && typeof rules.frag === 'object' ? rules.frag : {}, dice = BC.diceCount(fg.expr), rad = blastRadiusYd(b);
-      var rch = fr.reach ? blastFig(fr.reach, function(n) { return String(n).toLowerCase() === 'fragdice' ? dice : undefined; }, false) : null;
+      var bDice = BC.diceCount(b.dmgExpr || ''), rch = fr.reach ? blastFig(fr.reach, function(n) { var l = String(n).toLowerCase(); return l === 'fragdice' ? dice : l === 'blastdice' ? bDice : undefined; }, false) : null;
       var reach = typeof rch === 'number' && isFinite(rch) ? Math.max(rad, Math.min(10000, rch)) : rad;
       var dr = blastDistances(b, map).filter(function(r) { return r && r.tok && typeof r.tok.charId === 'string' && !(typeof b.spare === 'string' && r.tok.id === b.spare); }), byId = Object.create(null);
       dr.forEach(function(r) { if (!byId[r.tok.id]) byId[r.tok.id] = r; });
@@ -4334,7 +4354,7 @@ window.wpFitToGrid = fitToGrid;
           amt = Math.floor(amt); if (!(amt > 0)) return;
           var vals = null, lines = null;
           if (dstep) {
-              var q = { amt: amt }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch) : ''; if (loc) q.loc = loc; if (tyOk) q.type = ty; if (fr.ad === true && typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad;
+              var q = { amt: amt }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch) : ''; if (loc) q.loc = loc; if (tyOk) q.type = ty; if (fr.ad === true && typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad; if (dice > 0) q.dice = Math.min(100, dice);   // 1.6.0: the dice it rolled, for a figure a die
               var st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return; vals = st.values; lines = st.lines; if (st.info && st.info.majorRoll && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info);   // 1.6.0 (B3): a Major Wound's roll is posted
           } else if (hpId) {
               var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return;
@@ -4501,7 +4521,8 @@ window.wpFitToGrid = fitToGrid;
       var camp = getActiveCampaign(), sys = camp && camp.system, S = window.wpSystemCore, F = window.wpFormula, BC = window.wpBlastCore, rules = blastRules(sys), def = tr && tr.def, area = def && def.area;
       if (!BC || !def || !area) return null;
       if (rules && rules.roll && typeof def.throwSkill === 'string' && def.throwSkill && window.wpDice && window.wpDice.rollFor) {
-          var pr = window.wpDice.rollFor(opts.charId, rules.roll.replace(/\bThrowSkill\b/gi, '(' + def.throwSkill + ')'), (opts.name || 'Mine') + ' placed', { gmOnly: !!opts.gmOnly });
+          var plR = S && F ? S.makeResolver(sys, tr.ch, F) : null, plRow = plR && typeof plR.row === 'function' ? plR.row(tr.f.id, S.rowIdOf(tr.row)) : null, plB = throwerOf(map, opts.charId), plD = plB ? yardsOn(map, tokenCentre(plB), { x: opts.x, y: opts.y }) : 0;   // 1.6.0: the row's own names and the yards to where it is placed
+          var pr = window.wpDice.rollFor(opts.charId, throwExpr(rules.roll, def, plRow, plD, sys, rowSafe(sys, tr, S.rowIdOf(tr.row), !!opts.gmOnly)), (opts.name || 'Mine') + ' placed', { gmOnly: !!opts.gmOnly });
           if (!pr || !pr.ok) { toast('Placing it could not be rolled' + (pr && pr.error ? ': ' + pr.error : '.')); return null; }
           var pck = window.wpNet ? window.wpNet.rollCheck : null;
           if (pck && !pck.pass && pck.crit === 'fumble') {   // the book: a critical failure sets it off in the planter's cell

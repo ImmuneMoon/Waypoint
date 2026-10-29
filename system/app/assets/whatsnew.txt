@@ -64,6 +64,19 @@ Systems, more
   to press, and it reads AttemptMargin, how far the attempt succeeded.
 - A success can wear a name on its card, such as Strong success when it
   beats its target by 5 or more.
+- A damage type can count the dice a blow rolled: DR, a wound, a vital
+  wound or wear for each die. A hit location can add a wound for each die
+  too. The Take damage window asks for the dice, and a card fills them in.
+- A list's damage roll can name its armour divisor, read from its row,
+  such as Row.ap. Apply to target fills it in.
+- What wears can hold eight layers, and a layer can wear another stat by
+  where the blow lands.
+- Fragmentation's reach can read BlastDice, the dice of the blast's own
+  damage, beside FragDice.
+- The throw roll can read the thrown item's row as Row. and the yards to
+  the aim as ThrowDistance, so each item can have ranges of its own.
+- A list counter can start again at its character's turn start in a
+  fight, to count the attacks made this turn.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

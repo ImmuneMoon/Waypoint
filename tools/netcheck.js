@@ -16664,7 +16664,7 @@ pendingChecks.push((async () => {
         const START = () => ({ f_locs: [{ defId: 'i_body', qty: 1 }], f_kit: [{ defId: 'i_plate', qty: 1, on: true }] });
         const runD = (msg, o) => {
             o = o || {};
-            const camp = { id: 'k', system: sysD, items: {}, chars: { c_1: { id: 'c_1', name: 'Kael', ownerId: 'u_a', npc: false, values: START() }, c_2: { id: 'c_2', name: 'Pebbles', ownerId: 'u_b', npc: false, values: START() }, c_3: { id: 'c_3', name: 'Grunt', npc: true, values: START() } } };
+            const camp = { id: 'k', system: o.sys || sysD, items: {}, chars: { c_1: { id: 'c_1', name: 'Kael', ownerId: 'u_a', npc: false, values: START() }, c_2: { id: 'c_2', name: 'Pebbles', ownerId: 'u_b', npc: false, values: START() }, c_3: { id: 'c_3', name: 'Grunt', npc: true, values: START() } } };
             const out = { owner: [], mate: [], chat: [], logs: [], saves: 0, changed: [] }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
             const conns = [{ peer: 'pA', open: true, send: box(out.owner) }, { peer: 'pB', open: true, send: box(out.mate) }];
             const net = { active: true, role: 'host', paused: !!o.paused, combats: {}, conns, myId: 'gm', roster: { pA: { id: 'u_a', name: 'Kael P' }, pB: { id: 'u_b', name: 'Bo P' } } };
@@ -16698,6 +16698,16 @@ pendingChecks.push((async () => {
         const s1 = send('c_1', { amt: 9, type: 'cut', loc: 'w_body', ad: 2 }), s2 = send('c_1', { amt: 3 }), s3 = send('c_2', { amt: 3 });
         check('1.5.6 the damage step (a player\'s app): a blow on their own character goes to the host as one char-damage with its damage, type, location and armour divisor, and waits; a second while the first waits, and one on a character not theirs, are refused here in words',
             s1.ok === true && sentP.length === 1 && sentP[0].type === 'char-damage' && sentP[0].amt === 9 && sentP[0].dtype === 'cut' && sentP[0].loc === 'w_body' && sentP[0].ad === 2 && typeof s2.error === 'string' && typeof s3.error === 'string', j([s1, s2, s3, sentP]));
+        {   /* 1.6.0 (the v2 combat module): the dice a blow rolled ride with a player's blow, and the host works out what they add */
+            const sysDd = JSON.parse(JSON.stringify(sysD)); sysDd.combat.damage.types.push({ key: 'bore', label: 'Bore', mult: 1, dieWound: 1 });
+            const dB = runD({ type: 'char-damage', rid: 'dc', charId: 'c_1', amt: 8, dtype: 'bore', loc: 'w_body', dice: 3 }, { sys: sysDd }), dB0 = runD({ type: 'char-damage', rid: 'dd', charId: 'c_1', amt: 8, dtype: 'bore', loc: 'w_body' }, { sys: sysDd });
+            const dJunk = [2.5, -1, 101, '3'].map((v, i) => runD({ type: 'char-damage', rid: 'de' + i, charId: 'c_1', amt: 8, dtype: 'bore', loc: 'w_body', dice: v }, { sys: sysDd }));
+            const sentQ = [], sendQ = new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', sendD + '\nreturn net.charDamage;')(Object.assign({}, netP, { conns: [{ peer: 'H', open: true, send: m => sentQ.push(JSON.parse(JSON.stringify(m))) }] }), () => Sx, () => campP, {}, {}, () => {}, () => 0);
+            const sQ = sendQ('c_1', { amt: 8, type: 'cut', loc: 'w_body', dice: 3 });
+            check('1.6.0 the damage step (the host, char-damage run for real): a player\'s blow carries the dice it rolled, and the host adds a type\'s wound a die (8 on DR 6: 2 through, 3 more for 3 dice, 5 off HP), said on the line; with no dice as before; dice that are no whole number from 0 to 100 are not answered; a player\'s app sends them',
+                hp(dB.camp.chars.c_1) === 7 && /2 through \+3 for 3 dice, 5 Hit Points/.test(dB.chat[0].text) && hp(dB0.camp.chars.c_1) === 10 && dJunk.every(r => r.owner.length === 0 && quiet(r))
+                && sQ.ok === true && sentQ.length === 1 && sentQ[0].dice === 3 && sentQ[0].dtype === 'cut', j([hp(dB.camp.chars.c_1), dB.chat, hp(dB0.camp.chars.c_1), sentQ]));
+        }
         check('1.5.6 the damage step (pinned): one host branch for char-damage, named in the host\'s count; the GM\'s token menu and a damage roll\'s card open the window through wpSheets alone',
             (nsD.match(/msg\.type === 'char-damage' && net\.role === 'host'/g) || []).length === 1);
     })());

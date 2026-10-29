@@ -6098,6 +6098,7 @@ function refreshErrors() {
         var onD = sp.on && typeof sp.on === 'object' && !Array.isArray(sp.on) ? sp.on : null, onPer = onD && typeof onD.per === 'string' ? onD.per.trim() : '';   // 1.5.4 One at a time: a Per stat as Save reads it
         if (onPer && !keptW[onPer.toLowerCase()]) errs.push({ message: 'One at a time goes by "' + onD.per + '", which is no stat of this list. ' + (onD.one === true ? 'Save keeps one row on for the whole list.' : 'Save drops it.') });
         if (onD && typeof onD.needsText === 'string' && onD.needsText.trim() && !(typeof onD.needs === 'string' && onD.needs.trim())) errs.push({ message: 'The switch has words but no Needs to switch on, so Save drops its words.' });   // 1.5.8: as the cleaner reads them (rollNeedsInto keeps the words only beside a formula)
+        (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(rr, ri) { if (rr && typeof rr === 'object' && !Array.isArray(rr.apply) && typeof rr.ad === 'string' && rr.ad.trim() && rr.dmg !== true) errs.push({ message: 'Roll ' + (ri + 1) + (typeof rr.label === 'string' && rr.label.trim() ? ', ' + rr.label.trim() : '') + ': an armour divisor needs Damage ticked, so Save drops it.' }); });   // 1.6.0: as the cleaner reads it
         if (sp.once && typeof sp.once === 'object' && typeof cleanListSpec === 'function') {   // 1.5.8 Counted once, as the cleaner reads it
             var onceK = (cleanListSpec(sp, true, F()) || {}).once;
             if (!onceK) errs.push({ message: 'Counted once needs a group stat and what makes a row the higher, each a number stat of this list or its level. Save drops it.' });
@@ -7176,6 +7177,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         var tdf = el('input', 'field sys-list-ctdef'); tdf.type = 'number'; tdf.min = '0'; tdf.step = '1'; tdf.value = typeof tt.def === 'number' ? String(tt.def) : ''; tdf.placeholder = 'Starts at 0'; tdf.title = 'Where a new row starts'; rw.appendChild(tdf);
         var tmx = input('sys-list-ctmax field', typeof tt.max === 'string' ? tt.max : '', 'Its most, worked out for each row (no dice): 20, Row.Shots; empty: no most', 'Most (e.g. Row.Shots)'); tmx.maxLength = LIMITS.formula; rw.appendChild(tmx); if (typeof placeSel === 'function') rw.appendChild(placeSel('ct:' + ti, tt.place));   // 1.6.0 R2
         rw.appendChild(checkLabel('sys-list-ctroll', tt.roll === true, 'Set by rolls only', 'Rolls, actions and you set it. A player cannot change it by hand: their sheet shows it with no \u2212 or +'));   // 1.5.7
+        rw.appendChild(checkLabel('sys-list-ctnewturn', tt.turn === true, 'Starts again each turn', 'At its character\u2019s turn start in a fight, it goes back to where a row starts, such as the attacks made this turn'));   // 1.6.0
         {   // 1.6.0 Counts by the game clock: down to 0 and its word, or up; Only while on and Starts again when off where the list has a switch
             var tmr = tt.timer && typeof tt.timer === 'object' && !Array.isArray(tt.timer) ? tt.timer : null;
             var tsel = function(cls, os, cur, title) { var sl = el('select', cls); os.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0] === cur) op.selected = true; sl.appendChild(op); }); sl.value = cur; sl.title = title; return sl; };   // values and text only, as Loads from's
@@ -7262,6 +7264,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         var rf = input('sys-list-rollformula field', typeof rr.formula === 'string' ? rr.formula : '', 'Rolled for the row: dice allowed; Row.lvl, Row.<stat>, Row.<column> read the row, any other name the character (3d6 <= Row.Skill, d20 + Row.Hit)', 'Formula (d20 + Row.Hit)'); rf.maxLength = LIMITS.formula; rw.appendChild(rf);
         rw.appendChild(checkLabel('sys-list-dmg', rr.dmg === true, 'Damage', 'A damage roll: its card in Table Chat takes the damage colour, a larger total and a damage tag'));   // chat cards (owner 2026-09-27)
         var rdt = input('sys-list-rolldtype field', typeof rr.dtype === 'string' ? rr.dtype : '', 'A damage roll\u2019s type, filled in when you press Apply to target on its card: a type\u2019s key from the Combat card (stun), or a formula giving its place in that list, 1 for the first (Row.dt). Kept only on a damage roll', 'Damage type'); rdt.maxLength = LIMITS.formula; rw.appendChild(rdt);   // 1.5.7
+        var rad = input('sys-list-rolldiv field', typeof rr.ad === 'string' ? rr.ad : '', 'A damage roll\u2019s armour divisor, filled in when you press Apply to target on its card: a number, or a formula of the row\u2019s names (Row.ap). 1 or empty for none. Kept only on a damage roll', 'Armour divisor'); rad.maxLength = LIMITS.formula; rw.appendChild(rad);   // 1.6.0
         if (typeof dieSel === 'function') rw.appendChild(dieSel('sys-list-rolldie', rr.die, 'The die its button wears on each row. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20'));   // 1.5.8, backlog 149
         [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this roll']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
         cb2.appendChild(rw);
@@ -7378,7 +7381,7 @@ function listApplyEditor(box, rr, ri, key, sp, targets) {   // key (R2b): 'apply
 // it, the cleaner's own reading. Values and text nodes only
 var BLAST_BOXES = [
     ['fall', 'Blast falloff', 'Each token\u2019s share of a blast. Names: BlastDamage, BlastDistance in yards, BlastDice, Direct and Centre, the blast\u2019s own cell. With none, every token takes the whole roll.', 'if(or(Direct, Centre), BlastDamage, if(BlastDistance > 2 * BlastDice, 0, floor(BlastDamage / (3 * BlastDistance))))'],
-    ['roll', 'Throw roll', 'The check a throw rolls first. ThrowSkill stands for the item\u2019s throw skill. RangeMod reads the distance to the aim. With none, a throw lands where it is aimed.', '3d6 <= ThrowSkill + RangeMod'],
+    ['roll', 'Throw roll', 'The check a throw rolls first. ThrowSkill stands for the item\u2019s throw skill. RangeMod reads the distance to the aim. Row. reads the thrown item\u2019s row, and ThrowDistance the yards to the aim. With none, a throw lands where it is aimed.', '3d6 <= ThrowSkill + RangeMod'],
     ['scatter', 'Scatter on a miss', 'How many yards a miss lands from its aim. Names: Margin and ThrowDistance. With none, a yard a point missed, never more than half the distance thrown.', 'min(Margin, ThrowDistance / 2)'],
     ['hand', 'In the hand', 'Whether a critical failure goes off in the thrower\u2019s hand. Name: Natural, its dice. With none, it drops at the thrower\u2019s feet.', 'Natural >= 18'],
     ['max', 'Longest throw', 'How far a thing may be thrown, in yards. It reads the thrower\u2019s sheet and the item\u2019s row as Row. With none, any distance.', ''],
@@ -7392,10 +7395,10 @@ var FRAG_LISTS = [
     ['direct', 'The character struck directly', [['', 'Takes the same roll'], ['own', 'Takes a hit of its own roll']], 'A hit of its own: the target struck directly rolls apart from the others.'],
     ['ad', 'An armour divisor', [['', 'Counts against the blast alone'], ['yes', 'Counts against its fragmentation too']], 'Whether an item\u2019s armour divisor counts against its fragmentation.']
 ];
-var FRAG_REACH_LINE = 'How far fragmentation reaches, in yards. Name: FragDice, the dice it rolls. With none, the blast\u2019s own radius. It never reaches less.';
+var FRAG_REACH_LINE = 'How far fragmentation reaches, in yards. Names: FragDice, the dice it rolls, and BlastDice, the dice the blast\u2019s own damage rolls. With none, the blast\u2019s own radius. It never reaches less.';
 function fragSays(v) {   // what Save does with Fragmentation reaches: '' where it keeps it
     var SCf = window.wpSystemCore; if (!v || !SCf || typeof SCf.cleanBlastRules !== 'function') return '';
-    var c = SCf.cleanBlastRules({ frag: { reach: v } }, F()); return c && c.frag && c.frag.reach ? '' : 'Save drops it: it may read only FragDice, with no dice.';
+    var c = SCf.cleanBlastRules({ frag: { reach: v } }, F()); return c && c.frag && c.frag.reach ? '' : 'Save drops it: it may read only FragDice and BlastDice, with no dice.';
 }
 function blastSays(k, v) {   // what Save does with one formula: '' where it keeps it
     var SCb = window.wpSystemCore; if (!v || !SCb || typeof SCb.cleanBlastRules !== 'function') return '';
@@ -7802,7 +7805,14 @@ function postureClick(b) {
 // the weapons a blow tests. Every name reaches the box as a value or a text node. Save cleans it (systemcore cleanDamageRules); damageSays says
 // under the box what Save drops, judged a part at a time by the cleaner itself
 // [sinkcheck:dmgbox-start]
-var DBX_LIM = { types: 24, layers: 6, weapons: 4 };   // systemcore's DMG_LIM: what the cleaner keeps
+var DBX_LIM = { types: 24, layers: 8, weapons: 4, wears: 8 };   // systemcore's DMG_LIM: what the cleaner keeps
+// 1.6.0: a damage type's figures a die: its control, its key, its caption, its line, its least and its words
+var DBX_DIE = [
+    ['sys-dmgr-ydiedr', 'dieDr', 'DR', 'Added to the DR at the location for each die the blow rolled, for this blow alone. A minus takes armour off. -10 to 10', -10, 'its DR a die'],
+    ['sys-dmgr-ydiew', 'dieWound', 'Wound', 'Added to a wound that gets through, for each die the blow rolled. -10 to 10', -10, 'its wound a die'],
+    ['sys-dmgr-ydiev', 'dieVital', 'Vital wound', 'Added to a wound that gets through at a vital location, for each die the blow rolled. -10 to 10', -10, 'its vital wound a die'],
+    ['sys-dmgr-ydiewear', 'dieWear', 'Wear', 'Worn off each layer at the location for good, for each die the blow rolled, whether or not it gets through. 0 to 10', 0, 'its wear a die']
+];
 function dbxObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 function dbxHas(c, k) { return typeof c === 'string' && (' ' + c + ' ').indexOf(' ' + k + ' ') >= 0; }
 function dbxCm() { return draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); }
@@ -7849,6 +7859,7 @@ function damageBox(box, cm) {
         dbxCap(r2, 'Cripple above'); r2.appendChild(select('sys-dmgr-loccrip', dbxOpts(['', 'Never'], lkeys, lc.crip), dbxStr(lc.crip), 'The stat or column whose figure a wound must pass to cripple the location. 0 or unset never cripples'));
         dbxCap(r2, 'Vital where'); var vt = input('sys-dmgr-locvital field', dbxStr(lc.vital), 'True at a vital location. It reads the location row as Row', 'e.g. Row.loc = 8'); vt.maxLength = LIMITS.formula; r2.appendChild(vt);
         dbxCap(r2, 'Times there'); var lmx = input('sys-dmgr-locmult field', dbxStr(lc.mult), 'The location\u2019s own multiplier for a wound to the main pool, whatever the type. 0 for none. It reads the location row as Row and the character\u2019s own names', 'e.g. if(Row.loc = 1, 4, 0)'); lmx.maxLength = LIMITS.formula; r2.appendChild(lmx);   // 1.5.6: the skull's x4
+        dbxCap(r2, 'A die there adds'); var ldi = input('sys-dmgr-locdie field', dbxStr(lc.die), 'Added to a wound that gets through here, for each die the blow rolled, whatever the type. It reads the location row as Row and the character\u2019s own names', 'e.g. if(Row.loc = 1, 1, 0)'); ldi.maxLength = LIMITS.formula; r2.appendChild(ldi);   // 1.6.0
     }
     wrap.appendChild(r2);
     var types = Array.isArray(d.types) ? d.types : [];
@@ -7879,6 +7890,10 @@ function damageBox(box, cm) {
         dbxCap(b, 'Times'); b.appendChild(dbxNum('sys-dmgr-amult', al.mult, 'Its multiplier then. Unset is the type’s own', ''));
         b.appendChild(dbxTick('sys-dmgr-anowear', al.noWear, 'Wears nothing', 'Ticked: then it wears no armour'));
         tw.appendChild(b);
+        var dr = el('div', 'sys-flags sys-dmgr-die');   // 1.6.0: its figures a die, read with the dice the blow rolled
+        dbxCap(dr, 'A die adds');
+        DBX_DIE.forEach(function(g) { dbxCap(dr, g[2]); var n = dbxNum(g[0], y[g[1]], g[3], '0'); n.min = String(g[4]); dr.appendChild(n); });
+        tw.appendChild(dr);
         wrap.appendChild(tw);
     });
     wrap.appendChild(dbxBtn('dmgryadd', '+ Type', types.length >= DBX_LIM.types ? 'At most ' + DBX_LIM.types : 'A kind of damage, such as cutting or heat', types.length >= DBX_LIM.types));
@@ -7891,6 +7906,14 @@ function damageBox(box, cm) {
         dbxCap(rw, 'Worn in'); rw.appendChild(select('sys-dmgr-lwear', dbxOpts(['', 'Pick a stat'], dbxKeys(l.list, true), l.wear), dbxStr(l.wear), 'The number stat of that list that holds how much has worn off'));
         rw.appendChild(dbxBtn('dmgrldel', '×', 'Remove this'));
         wrap.appendChild(rw);
+        var nkL = dbxKeys(l.list, true);
+        if (l.list && nkL.length) {   // 1.6.0: the stat it wears picked by where the blow lands
+            var wh = el('div', 'sys-flags sys-dmgr-layer sys-dmgr-lwhere'), wl = (Array.isArray(l.wears) ? l.wears : []).map(function(x) { return String(x).toLowerCase(); }); wh.dataset.li = String(i);
+            dbxCap(wh, 'Or by location');
+            var pk = input('sys-dmgr-lpick field', dbxStr(l.pick), 'Which ticked stat wears where the blow lands: 1 for the first ticked, in the list\u2019s order. It reads the row as Row and the location as Hit. Any other figure wears Worn in', 'e.g. Hit.loc'); pk.maxLength = LIMITS.formula; wh.appendChild(pk);
+            nkL.forEach(function(kv) { var tk = dbxTick('sys-dmgr-lwears', wl.indexOf(kv[0].toLowerCase()) >= 0, kv[1], 'Ticked: one of the stats this layer may wear, picked by the location'); tk.firstChild.dataset.k = kv[0]; wh.appendChild(tk); });
+            wrap.appendChild(wh);
+        }
     });
     wrap.appendChild(dbxBtn('dmgrladd', '+ Layer', lys.length >= DBX_LIM.layers ? 'At most ' + DBX_LIM.layers : 'Armour or clothing that wears where a hit gets through', lys.length >= DBX_LIM.layers));
     var wps = Array.isArray(d.weapons) ? d.weapons : [];
@@ -7920,6 +7943,9 @@ function onDamageInput(t) {
     if (dbxHas(c, 'sys-dmgr-major')) { dbxSet(dbxDraft(), 'major', txt.trim() ? txt : ''); dbxTidy(); }
     else if (dbxHas(c, 'sys-dmgr-locvital')) { var d = dbxDraft(); if (!dbxObj(d.locs)) return true; dbxSet(d.locs, 'vital', txt.trim() ? txt : ''); }
     else if (dbxHas(c, 'sys-dmgr-locmult')) { var dM = dbxDraft(); if (!dbxObj(dM.locs)) return true; dbxSet(dM.locs, 'mult', txt.trim() ? txt : ''); }
+    else if (dbxHas(c, 'sys-dmgr-locdie')) { var dD = dbxDraft(); if (!dbxObj(dD.locs)) return true; dbxSet(dD.locs, 'die', txt.trim() ? txt : ''); }   // 1.6.0
+    else if (DBX_DIE.some(function(g) { return dbxHas(c, g[0]); })) { var yD = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!yD) return true; DBX_DIE.forEach(function(g) { if (dbxHas(c, g[0])) dbxSet(yD, g[1], dbxNumOf(t)); }); }   // 1.6.0: a figure a die
+    else if (dbxHas(c, 'sys-dmgr-lpick')) { var lP = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lP) return true; dbxSet(lP, 'pick', txt.trim() ? txt : ''); }   // 1.6.0
     else if (dbxHas(c, 'sys-dmgr-ykey') || dbxHas(c, 'sys-dmgr-ylabel') || dbxHas(c, 'sys-dmgr-ymult') || dbxHas(c, 'sys-dmgr-yvital') || dbxHas(c, 'sys-dmgr-aif') || dbxHas(c, 'sys-dmgr-amult')) {
         var y = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!y) return true;
         if (dbxHas(c, 'sys-dmgr-ykey')) y.key = txt.slice(0, 24);
@@ -7955,7 +7981,12 @@ function onDamageChange(t) {
         } else { var al = dbxObj(y.alt) ? y.alt : (y.alt = {}); if (dbxHas(c, 'sys-dmgr-apool')) dbxSet(al, 'pool', v); else dbxSet(al, 'noWear', on); if (!Object.keys(al).length) delete y.alt; }
     } else if (dbxHas(c, 'sys-dmgr-llist') || dbxHas(c, 'sys-dmgr-lwear')) {
         var l = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!l) return true;
-        if (dbxHas(c, 'sys-dmgr-llist')) { if (l.list !== v) delete l.wear; dbxSet(l, 'list', v); redraw = true; } else dbxSet(l, 'wear', v);
+        if (dbxHas(c, 'sys-dmgr-llist')) { if (l.list !== v) { delete l.wear; delete l.wears; } dbxSet(l, 'list', v); redraw = true; } else dbxSet(l, 'wear', v);
+    } else if (dbxHas(c, 'sys-dmgr-lwears')) {   // 1.6.0: the stats it may wear, kept in the list's own order
+        var lW = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'), kW = t.dataset && typeof t.dataset.k === 'string' ? t.dataset.k.toLowerCase() : ''; if (!lW || !kW) return true;
+        var curW = (Array.isArray(lW.wears) ? lW.wears : []).map(function(x) { return String(x).toLowerCase(); });
+        var wantW = dbxKeys(lW.list, true).map(function(kv) { return kv[0]; }).filter(function(x) { return x.toLowerCase() === kW ? on : curW.indexOf(x.toLowerCase()) >= 0; });
+        if (wantW.length) lW.wears = wantW; else delete lW.wears;
     } else if (dbxHas(c, 'sys-dmgr-wlist') || dbxHas(c, 'sys-dmgr-wwear') || dbxHas(c, 'sys-dmgr-wcond')) {
         var w = dbxRow(t, 'sys-dmgr-weapon', 'wi', 'weapons'); if (!w) return true;
         if (dbxHas(c, 'sys-dmgr-wlist')) { if (w.list !== v) { delete w.wear; delete w.cond; } dbxSet(w, 'list', v); redraw = true; } else dbxSet(w, dbxHas(c, 'sys-dmgr-wwear') ? 'wear' : 'cond', v);
@@ -8006,6 +8037,7 @@ function damageSays(d, sys, Fx) {
             if (typeof d.locs.crip === 'string' && d.locs.crip && !lk.crip) say('Hit locations: Cripple above is no stat or column of the list, so Save drops it.');
             if (typeof d.locs.vital === 'string' && d.locs.vital.trim()) { if (!lk.vital) say('Hit locations: the vital formula is too long or not on one line, so Save drops it.'); else reads(d.locs.vital, 'Vital where'); }
             if (typeof d.locs.mult === 'string' && d.locs.mult.trim()) { if (!lk.mult) say('Hit locations: the Times there formula is too long or not on one line, so Save drops it.'); else reads(d.locs.mult, 'Times there'); }
+            if (typeof d.locs.die === 'string' && d.locs.die.trim()) { if (!lk.die) say('Hit locations: the A die there adds formula is too long or not on one line, so Save drops it.'); else reads(d.locs.die, 'A die there adds'); }   // 1.6.0
         }
     }
     var seen = {}, kept = 0;
@@ -8024,6 +8056,12 @@ function damageSays(d, sys, Fx) {
         (Array.isArray(y.plus) ? y.plus : []).forEach(function(p) { var s = String(p); if (cp.indexOf(s.toLowerCase()) < 0 && lost.indexOf(s) < 0) lost.push(s); });
         if (lost.length) say(nm + ': ' + (!lk ? 'adding to DR needs hit locations' : 'Adds to DR takes only stats or columns of the location list, 8 at most') + ', so Save drops ' + lost.join(', ') + '.');
         if (typeof y.pool === 'string' && y.pool && !cy.pool) say(nm + ': its pool is gone, so Save drops it.');
+        DBX_DIE.forEach(function(g) {   // 1.6.0: its figures a die, as the cleaner reads them
+            var v = y[g[1]]; if (v === undefined || v === 0) return;
+            if (typeof v !== 'number' || !isFinite(v)) say(nm + ': ' + g[5] + ' is no number, so Save drops it.');
+            else if (cy[g[1]] !== v) say(nm + ': ' + g[5] + ' is ' + g[4] + ' to 10 to the hundredth, so Save keeps ' + (cy[g[1]] || 0) + '.');
+        });
+        if (!lk && ((typeof y.dieDr === 'number' && y.dieDr) || (typeof y.dieVital === 'number' && y.dieVital) || (typeof y.dieWear === 'number' && y.dieWear))) warn(nm + ': its DR, vital wound and wear a die count only at a hit location, so they do nothing here.');
         if (dbxObj(y.alt) && Object.keys(y.alt).length) {
             if (!cy.alt) say(nm + ': Instead, if needs a formula Save can keep, so Save drops what it changes.');
             else { if (typeof y.alt.pool === 'string' && y.alt.pool && !cy.alt.pool) say(nm + ': the pool for Instead, if is gone, so Save drops it.'); if (y.alt.mult !== undefined && cy.alt.mult === undefined) say(nm + ': the multiplier for Instead, if is no number, so Save drops it.'); reads(y.alt.if, nm + ', Instead, if'); }
@@ -8041,6 +8079,13 @@ function damageSays(d, sys, Fx) {
             else if (g[4].some(function(k) { return !numStat(l.list, l[k]); })) say(nm + ': pick a number stat of that list for each stat, so Save drops it.');
             else say(nm + ': ' + g[3] + ' is too long or not on one line, so Save drops it.');
         });
+    });
+    (Array.isArray(d.layers) ? d.layers : []).forEach(function(l, i) {   // 1.6.0: a layer's stat worn by location, as the cleaner reads it
+        if (!dbxObj(l) || !((Array.isArray(l.wears) && l.wears.length) || (typeof l.pick === 'string' && l.pick.trim()))) return;
+        var cl = (piece({ layers: [l] }).layers || [])[0]; if (!cl) return;   // the layer itself is said above
+        var nm = 'Layer ' + (i + 1);
+        if (!cl.wears) say(nm + ': Or by location needs a formula and a ticked number stat of its list, so Save drops it.');
+        else { reads(l.pick, nm + ', Or by location'); if (cl.wears.length < l.wears.length) say(nm + ': Or by location takes number stats of its list, ' + DBX_LIM.wears + ' at most, so Save drops the others.'); }
     });
     return { errs: errs, warns: warns };
 }
@@ -9040,6 +9085,7 @@ function onInput(e) {
             else if (lcc.indexOf('sys-list-rolllabel') >= 0) rD.label = t.value.slice(0, LIMITS.label);
             else if (lcc.indexOf('sys-list-rollformula') >= 0) rD.formula = t.value.slice(0, LIMITS.formula);
             else if (lcc.indexOf('sys-list-rolldtype') >= 0) { var dtv = t.value.slice(0, LIMITS.formula).trim(); if (dtv) rD.dtype = dtv; else delete rD.dtype; }   // 1.5.7: a damage roll's type
+            else if (lcc.indexOf('sys-list-rolldiv') >= 0) { var adv = t.value.slice(0, LIMITS.formula).trim(); if (adv) rD.ad = adv; else delete rD.ad; }   // 1.6.0: a damage roll's armour divisor
             else return;
         }
         else if (lcc.indexOf('sys-list-col') >= 0) {   // Stage 6 F5a1: a column's boxes (Save cleans them)
@@ -9215,6 +9261,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-ondef') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.def = true; else delete lsc.on.def; } }
         else if (c.indexOf('sys-list-onone') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.one = true; else { delete lsc.on.one; delete lsc.on.per; delete lsc.on.over; } } }   // 1.5.4 One at a time
         else if (c.indexOf('sys-list-ctroll') >= 0) { var ctr2 = t.closest('.sys-list-ct'), ctD2 = ctr2 && Array.isArray(lsc.counters) ? lsc.counters[+ctr2.dataset.ti] : null; if (!ctD2 || typeof ctD2 !== 'object') return; if (t.checked) ctD2.roll = true; else delete ctD2.roll; }   // 1.5.7: Set by rolls only
+        else if (c.indexOf('sys-list-ctnewturn') >= 0) { var ctr5 = t.closest('.sys-list-ct'), ctD5 = ctr5 && Array.isArray(lsc.counters) ? lsc.counters[+ctr5.dataset.ti] : null; if (!ctD5 || typeof ctD5 !== 'object') return; if (t.checked) ctD5.turn = true; else delete ctD5.turn; }   // 1.6.0: Starts again each turn
         else if (c.indexOf('sys-list-cttimer') >= 0 || c.indexOf('sys-list-cttu') >= 0 || c.indexOf('sys-list-ctton') >= 0 || c.indexOf('sys-list-cttreset') >= 0) {   // 1.6.0 Counts by the game clock
             var ctr3 = t.closest('.sys-list-ct'), ctD3 = ctr3 && Array.isArray(lsc.counters) ? lsc.counters[+ctr3.dataset.ti] : null; if (!ctD3 || typeof ctD3 !== 'object') return;
             var tm3 = ctD3.timer && typeof ctD3.timer === 'object' && !Array.isArray(ctD3.timer) ? ctD3.timer : null;
@@ -9623,8 +9670,10 @@ function takeDamage(charId, pre) {
     lsel.appendChild(new Option('No location', '')); locs.forEach(function(l) { lsel.appendChild(new Option(l.name, l.id)); });
     var dl = locs.filter(function(l) { return /^torso$/i.test(l.name); })[0] || locs.filter(function(l) { return /torso/i.test(l.name); })[0] || locs[0]; if (dl) lsel.value = dl.id;
     if (locs.length) row('Location', lsel, 'Where the blow lands. Its DR is taken off first.');
-    var ad = el('input', 'dmg-ad'); ad.type = 'number'; ad.min = '0.1'; ad.step = '0.5'; ad.value = '1';
+    var ad = el('input', 'dmg-ad'); ad.type = 'number'; ad.min = '0.1'; ad.step = '0.5'; ad.value = typeof pre.ad === 'number' && isFinite(pre.ad) && pre.ad > 0 ? String(pre.ad) : '1';   // 1.6.0: a card's roll may fill it in
     row('Armour divisor', ad, '1 for none. DR is divided by it.');
+    var diceOn = rules.dice === true || (typeof SCd.dmgDiceRead === 'function' && SCd.dmgDiceRead(rules)), dce = el('input', 'dmg-dice'); dce.type = 'number'; dce.min = '0'; dce.max = '100'; dce.step = '1'; dce.value = typeof pre.dice === 'number' && isFinite(pre.dice) && pre.dice > 0 ? String(Math.min(100, Math.floor(pre.dice))) : '';   // 1.6.0: the dice the blow rolled, asked only where the rules read them
+    if (diceOn) row('Dice rolled', dce, 'How many dice the damage rolled. Some types and locations count a figure for each.');
     var wps = []; (Array.isArray(rules.weapons) ? rules.weapons : []).forEach(function(w) { wps = wps.concat(dmgRowsOf(sys, c, w.list)); });
     var wsel = el('select', 'dmg-weapon'), only = el('input', 'dmg-only'); only.type = 'checkbox';
     if (wps.length) {
@@ -9633,7 +9682,7 @@ function takeDamage(charId, pre) {
         var ol = el('label', 'dmg-tick'); ol.appendChild(only); ol.appendChild(document.createTextNode(' Only the weapon was hit')); card.appendChild(ol);
     }
     var prev = el('div', 'dmg-preview'); card.appendChild(prev);
-    var inp = function() { var o = { amt: Number(amt.value) }; if (tsel.value) o.type = tsel.value; if (lsel.value) o.loc = lsel.value; var a = Number(ad.value); if (isFinite(a) && a > 0) o.ad = a; if (wps.length && wsel.value) { o.weapon = wsel.value; if (only.checked) o.only = true; } return o; };
+    var inp = function() { var o = { amt: Number(amt.value) }; if (tsel.value) o.type = tsel.value; if (lsel.value) o.loc = lsel.value; var a = Number(ad.value); if (isFinite(a) && a > 0) o.ad = a; if (wps.length && wsel.value) { o.weapon = wsel.value; if (only.checked) o.only = true; } if (diceOn) { var dn = Number(dce.value); if (dce.value !== '' && isFinite(dn) && dn > 0) o.dice = Math.min(100, Math.floor(dn)); } return o; };
     var show = function() {
         while (prev.firstChild) prev.removeChild(prev.firstChild);
         var q = inp(); if (amt.value === '' || !(q.amt >= 0)) { prev.appendChild(el('div', 'dmg-hint', 'Type the damage.')); return; }
@@ -9642,7 +9691,7 @@ function takeDamage(charId, pre) {
         if (!r || !r.ok) { prev.appendChild(el('div', 'dmg-hint', dmgWhy(r))); return; }
         r.lines.forEach(function(l) { prev.appendChild(el('div', 'dmg-pl', l)); });
     };
-    [amt, tsel, lsel, ad, wsel, only].forEach(function(x) { x.addEventListener('input', show); x.addEventListener('change', show); });
+    [amt, tsel, lsel, ad, dce, wsel, only].forEach(function(x) { x.addEventListener('input', show); x.addEventListener('change', show); });
     var bar = el('div', 'dmg-btns'), cancel = el('button', 'tool ghost', 'Cancel'), go = el('button', 'tool', 'Apply'); cancel.type = 'button'; go.type = 'button';
     bar.appendChild(cancel); bar.appendChild(go); card.appendChild(bar);
     cancel.addEventListener('click', dmgClose);
@@ -9685,12 +9734,13 @@ function majorFollow(c, info) {
     n.postDue(c, r, 'major', 1, !c.npc && !!c.ownerId && r.vis !== 'gm'); return true;
 }
 // A damage roll's card: its total on the character its roller targets, else on the one character token selected here
-function damageFromRoll(fromId, total, done, type) {   // 1.5.7: done, called once the window applies it; type, the damage type the roll names
+function damageFromRoll(fromId, total, done, type, more) {   // 1.5.7: done, called once the window applies it; type, the damage type the roll names; more (1.6.0): { dice, ad }, the dice it rolled and the armour divisor its row names
     var n = net(), camp = getActiveCampaign(), t = n && dmgObj(n.targets) && typeof fromId === 'string' && Object.prototype.hasOwnProperty.call(n.targets, fromId) ? n.targets[fromId] : null;
     var mp = t && camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, t.mapId) ? camp.items[t.mapId] : null, tok = mp && Array.isArray(mp.whiteboard) ? mp.whiteboard.find(function(w) { return w && w.id === t.id; }) : null;
     if (!tok) { var am = camp && camp.items ? camp.items[camp.activeItemId] : null, sel = state.selWbIds && state.selWbIds.length === 1 ? state.selWbIds[0] : state.selWbId; if (am && Array.isArray(am.whiteboard) && sel) tok = am.whiteboard.find(function(w) { return w && w.id === sel; }); }
     if (!tok || typeof tok.charId !== 'string' || !tok.charId) { toast('Target a character first, or select its token, then press Apply to target again.'); return false; }
     var pre = { amt: total }; if (typeof done === 'function') pre.done = done; if (typeof type === 'string' && type) pre.type = type;
+    if (dmgObj(more)) { if (typeof more.dice === 'number' && isFinite(more.dice) && more.dice > 0) pre.dice = more.dice; if (typeof more.ad === 'number' && isFinite(more.ad) && more.ad > 0) pre.ad = more.ad; }
     return takeDamage(tok.charId, pre);
 }
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine

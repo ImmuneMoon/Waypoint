@@ -117,7 +117,8 @@ function renderCard(m) {
     }
     else if (rec.dmg === 1 && dv !== null && !mf && dS && typeof dS.damageOn === 'function' && typeof dS.damageFromRoll === 'function' && dS.damageOn()) {
         var ab = el('button', 'tool ghost chat-dmgapply', 'Apply to target\u2026'); ab.type = 'button'; ab.title = 'Take this damage off the character its roller targets, through its DR. Its window opens first. Once applied, the button goes.';
-        ab.addEventListener('click', function() { if (rec.dmgUsed === 1) return; dS.damageFromRoll(rec.from && rec.from.id, dv, function() { rec.dmgUsed = 1; if (ab.parentNode) ab.parentNode.replaceChild(el('div', 'chat-dmgdone', 'Applied'), ab); }, typeof rec.dtype === 'string' ? rec.dtype : undefined); });
+        var dN = 0; (res.breakdown && Array.isArray(res.breakdown.dice) ? res.breakdown.dice : []).forEach(function(g) { if (g && typeof g.count === 'number' && isFinite(g.count)) dN += g.count; });   // 1.6.0: the dice it rolled, and the armour divisor the host put on the record
+        ab.addEventListener('click', function() { if (rec.dmgUsed === 1) return; dS.damageFromRoll(rec.from && rec.from.id, dv, function() { rec.dmgUsed = 1; if (ab.parentNode) ab.parentNode.replaceChild(el('div', 'chat-dmgdone', 'Applied'), ab); }, typeof rec.dtype === 'string' ? rec.dtype : undefined, { dice: dN, ad: typeof rec.ad === 'number' ? rec.ad : 0 }); });
         wrap.appendChild(ab);
     }
     return wrap;

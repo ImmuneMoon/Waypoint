@@ -10,6 +10,7 @@ import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsKept, grantsKept, GRANT_MAX, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
+import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
@@ -6208,6 +6209,10 @@ function refreshErrors() {
         });
     }
     if (tErr.length) errorsById.combat = (errorsById.combat || []).concat(tErr);
+    var ckE = draft.combat && typeof draft.combat === 'object' ? draft.combat : null, kErr = [];   // 1.6.0 (the v2 sort's B1): what Save drops of the critical range and the named success, as the cleaner reads them
+    if (ckE && ckE.checks !== 'fixed' && ((typeof ckE.critAt === 'string' && ckE.critAt.trim()) || (typeof ckE.fumbleAt === 'string' && ckE.fumbleAt.trim()))) kErr.push({ message: 'Roll outcomes is not Criticals at fixed rolls, so Save drops the critical range.' });
+    if (ckE && ckE.tier && typeof ckE.tier === 'object' && !cleanTier(ckE.tier)) kErr.push({ message: 'A named success needs a name and a margin, a whole number from 1: Save drops it.' });
+    if (kErr.length) errorsById.checks = (errorsById.checks || []).concat(kErr);
     var ltE = draft.combat && draft.combat.light && typeof draft.combat.light === 'object' ? draft.combat.light : null, lErr = [], lKept = 0;   // lighting L4: what Save drops from the light rules, under the Combat card's Light box — read as the cleaner reads (systemcore cleanLightRules): a name is what is left of it without control characters, a number is finite and no larger than the wire takes, the cap counts the presets kept
     var lCtl = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g'), lNum = function(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e15 ? v : 0; };
     if (ltE) (Array.isArray(ltE.presets) ? ltE.presets : []).forEach(function(p, i) {
@@ -6474,9 +6479,10 @@ function errorCell(id) {
     if (!cell.childNodes.length) cell.style.display = 'none';
     return cell;
 }
-function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
+function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
 function formulaTextFor(id, prop) {
     if (id === 'combat' && prop === 'turn.move') return (draft.combat && draft.combat.turn && draft.combat.turn.move) || '';   // turn-based combat T1
+    if (id === 'checks') return draft.combat && (prop === 'critAt' || prop === 'fumbleAt') && typeof draft.combat[prop] === 'string' ? draft.combat[prop] : '';   // 1.6.0: the Combat card's critical range
     if (id === 'range') return prop === 'formula' && draft.combat && draft.combat.range && typeof draft.combat.range.formula === 'string' ? draft.combat.range.formula.trim() : '';   // range penalties R1: as refreshErrors read it
     if (/^b_/.test(id)) { var bdF = (draft.budgets || []).find(function(x) { return x && x.id === id; }); return bdF && (prop === 'has' || prop === 'spent') && typeof bdF[prop] === 'string' ? bdF[prop] : ''; }   // 126: a budget's formula, as the validator read it
     if (/^e_/.test(id)) { var dAu = (draft.effects || []).find(function(x) { return x && x.id === id; }); return prop === 'formula' && dAu && typeof dAu.auto === 'string' ? dAu.auto.trim() : ''; }   // conditions C4: an effect's automatic formula, as refreshErrors read it
@@ -6484,6 +6490,7 @@ function formulaTextFor(id, prop) {
     if (f) return prop === 'roll' ? f.roll || '' : f[DEF_PROP[f.kind]] || '';
     var r = draft.rolls.find(function(x) { return x.id === id; });
     if (r && prop === 'malf') return r.malf || '';   // R3
+    if (r && (prop === 'critAt' || prop === 'fumbleAt')) return r[prop] || '';   // 1.6.0
     if (r && prop === 'needs') return r.needs || '';   // 1.5.4
     if (r) { var amI = /^(apply|then)\.(\d+)$/.exec(prop || ''); return amI ? ((Array.isArray(r[amI[1]]) && r[amI[1]][+amI[2]] && r[amI[1]][+amI[2]].formula) || '') : (r.formula || ''); }   // H7: a change's amount
     var it = (draft.items || []).find(function(x) { return x.id === id; });
@@ -6683,6 +6690,7 @@ function rollRow(r) {
     top.appendChild(select('sys-roll-kind', [['roll', 'Roll'], ['apply', 'Apply']], isApply ? 'apply' : 'roll', 'Roll: dice at the table. Apply: a button that moves pools or numbers by an amount (Apply costs, Apply wounds)'));
     if (!isApply) top.appendChild(input('sys-formula field', r.formula, 'The roll: d20 + STRmod, 3d6 <= Skill.Stealth', 'Roll formula'));
     if (!isApply) { var mfIn = input('sys-roll-malf field', r.malf || '', 'Malf: a natural total (the dice alone) at or past this malfunctions \u2014 a failure, and its On malfunction changes (no dice; empty: never)', 'Malf'); mfIn.maxLength = LIMITS.formula; top.appendChild(mfIn); }   // Stage 6 HUD R3
+    if (!isApply && ((typeof draft !== 'undefined' && draft && draft.combat && draft.combat.checks === 'fixed') || r.critAt || r.fumbleAt)) [['sys-roll-critat', 'critAt', 'Critical at: this roll\u2019s own critical success range, the dice alone at or under it (no dice; empty: the Combat card\u2019s)', 'Critical at'], ['sys-roll-fumbleat', 'fumbleAt', 'Critical failure at: this roll\u2019s own, the dice alone at or over it (no dice; empty: the Combat card\u2019s)', 'Critical failure at']].forEach(function(g) { var ci = input(g[0] + ' field', typeof r[g[1]] === 'string' ? r[g[1]] : '', g[2], g[3]); ci.maxLength = LIMITS.formula; top.appendChild(ci); });   // 1.6.0 (the v2 sort's B1): a technique that widens the range
     top.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], r.vis || 'all', 'GM only: players never see this roll'));
     top.appendChild(select('sys-roll-tone', [['', 'Plain button'], ['primary', 'Filled'], ['danger', 'Red'], ['neutral', 'Grey'], ['outline', 'Outline']], r.tone || '', 'How the button looks on the sheet'));   // Stage 6 look fold
     if (!isApply && typeof dieSel === 'function') top.appendChild(dieSel('sys-roll-die', r.die, 'The die its button wears on the sheet and the HUD. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20'));   // 1.5.8, backlog 149
@@ -7240,6 +7248,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         var ndIn = input('sys-list-needs field', typeof rr.needs === 'string' ? rr.needs : '', 'Rolled only while this is true for the row (no dice): Row.Charges >= 1, Row.Hits > 0; empty: always', 'Needs (e.g. Row.Charges >= 1)'); ndIn.maxLength = LIMITS.formula; ndRow.appendChild(ndIn);
         var ndTx = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the greyed button says when it cannot roll', 'Out of charges'); ndTx.maxLength = LIMITS.label; ndRow.appendChild(ndTx);
         var mfL = input('sys-list-malf field', typeof rr.malf === 'string' ? rr.malf : '', 'Malf: a natural total (the dice alone) at or past this malfunctions \u2014 a failure, and its On malfunction changes (no dice; Row.Malf reads the row)', 'Malf (Row.Malf)'); mfL.maxLength = LIMITS.formula; ndRow.appendChild(mfL);   // Stage 6 HUD R3
+        if ((typeof draft !== 'undefined' && draft && draft.combat && draft.combat.checks === 'fixed') || rr.critAt || rr.fumbleAt) [['sys-list-critat', 'critAt', 'Critical at: this roll\u2019s own critical success range, the dice alone at or under it (no dice; Row.* reads the row; empty: the Combat card\u2019s)', 'Critical at'], ['sys-list-fumbleat', 'fumbleAt', 'Critical failure at: this roll\u2019s own, the dice alone at or over it (no dice; Row.* reads the row; empty: the Combat card\u2019s)', 'Critical failure at']].forEach(function(g) { var ci = input(g[0] + ' field', typeof rr[g[1]] === 'string' ? rr[g[1]] : '', g[2], g[3]); ci.maxLength = LIMITS.formula; ndRow.appendChild(ci); });   // 1.6.0 (the v2 sort's B1): a technique that widens the range
         cb2.appendChild(ndRow);
         var lxR = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxR) cb2.appendChild(lxR);   // 1.6.0
         listApplyEditor(cb2, rr, ri, 'then', sp, targets);
@@ -7476,8 +7485,9 @@ function renderCombat() {
         var cgs = cm.cover.style === 'binary' ? [['cover', 'Blast behind cover'], ['total', 'Blast behind total cover']] : [['half', 'Blast behind half cover'], ['threeq', 'Blast behind three-quarters cover'], ['total', 'Blast behind total cover']];
         cgs.forEach(function(g) { var cur = cm.cover.area && typeof cm.cover.area === 'object' && Object.prototype.hasOwnProperty.call(cm.cover.area, g[0]) ? cm.cover.area[g[0]] : 'full'; var ls = labeledSelect('sys-combat-cover-area', g[1], [['full', 'Full damage'], ['half', 'Half damage'], ['none', 'No damage']], cur === 'half' || cur === 'none' ? cur : 'full', 'With Full auto blasts, what the rolled damage does to a token behind this much cover (measured from the blast\u2019s centre).'); ls.lastChild.dataset.grade = g[0]; box.appendChild(ls); });
     }
-    box.appendChild(labeledSelect('sys-combat-checks', 'Roll outcomes', [['', 'Success or failure by the margin'], ['under3d6', '3d6 roll-under criticals']], cm.checks === 'under3d6' ? 'under3d6' : '', 'How a check reads. 3d6 roll-under (a roll of exactly 3d6 against a target): 3\u20134 are a critical success, 5 at a target of 15+, 6 at 16+; 17 fails (critically at 15 or less), 18 or failing by 10+ is a critical failure.'));   // Stage 6 F8
+    box.appendChild(labeledSelect('sys-combat-checks', 'Roll outcomes', [['', 'Success or failure by the margin'], ['under3d6', '3d6 roll-under criticals'], ['fixed', 'Criticals at fixed rolls']], cm.checks === 'under3d6' || cm.checks === 'fixed' ? cm.checks : '', 'How a check reads. 3d6 roll-under (a roll of exactly 3d6 against a target): 3\u20134 are a critical success, 5 at a target of 15+, 6 at 16+; 17 fails (critically at 15 or less), 18 or failing by 10+ is a critical failure. Criticals at fixed rolls: the dice alone at or under one number are a critical success, at or over another a critical failure, and nothing else is.'));   // Stage 6 F8
     lineUnder(box, 'How a check against a target reads its dice.');
+    if (typeof checksBox === 'function') checksBox(box, cm);   // 1.6.0 (the v2 sort's B1): the critical range, and a named success
     if (typeof blastBox === 'function') blastBox(box, cm);   // 1.5.8 explosives: the falloff, the throw's roll, the scatter, the hand, how far and how near, the ways and the fuse
     rangeBox(box, cm);   // range penalties R1: the system's range rule, under cover
     heightBox(box, cm);   // item 19 H2: the system's height modifier, under range
@@ -8118,6 +8128,36 @@ function rangeBox(box, cm) {
     }
     var err = errorCell('range'); err.dataset.errFor = 'range'; wrap.appendChild(err);
     box.appendChild(wrap);
+}
+// 1.6.0 (the v2 sort's B1): under Roll outcomes, the critical range of Criticals at fixed rolls (two formulas of the roller's names, no dice) and a
+// success named at a margin, for any rule. Save cleans them (systemcore cleanCombat); refreshErrors says what it drops, under errorCell('checks')
+function checksBox(box, cm) {
+    var item = function(cap, i, under) { var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(i); box.appendChild(l); lineUnder(box, under); };
+    if (cm.checks === 'fixed') {
+        var ca = input('sys-checks-crit field', typeof cm.critAt === 'string' ? cm.critAt : '', 'The dice alone at or under this are a critical success. A formula of the roller\u2019s names with no dice; empty: 3. A roll may widen it on its own row', '3'); ca.maxLength = LIMITS.formula;
+        item('Critical at', ca, 'The dice alone at or under this are a critical success. Empty: 3.');
+        var fa = input('sys-checks-fumble field', typeof cm.fumbleAt === 'string' ? cm.fumbleAt : '', 'The dice alone at or over this are a critical failure. A formula of the roller\u2019s names with no dice; empty: 18', '18'); fa.maxLength = LIMITS.formula;
+        item('Critical failure at', fa, 'The dice alone at or over this are a critical failure. Empty: 18.');
+    }
+    var tr = cm.tier && typeof cm.tier === 'object' ? cm.tier : {};
+    var tn = input('sys-checks-tiername field', typeof tr.name === 'string' ? tr.name : '', 'A name a success wears on its card when it beats its target by the margin beside it or more. Empty: none', 'e.g. Strong success'); tn.maxLength = 30;
+    item('Named success', tn, 'A success by the margin beside it or more wears this name on its card.');
+    var ta = el('input', 'field sys-checks-tierat'); ta.type = 'number'; ta.min = '1'; ta.max = '1000000'; ta.step = '1'; ta.value = typeof tr.at === 'number' ? String(tr.at) : ''; ta.placeholder = 'e.g. 5'; ta.title = 'How far a success must beat its target to wear the name: 5 means by 5 or more';
+    item('By at least', ta, 'How far it must beat its target.');
+    var err = errorCell('checks'); err.dataset.errFor = 'checks'; box.appendChild(err);
+}
+function onChecksInput(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-checks-') < 0) return false;
+    var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), v = t.value;
+    if (c.indexOf('sys-checks-crit') >= 0) { if (v.trim()) cm.critAt = v.slice(0, LIMITS.formula); else delete cm.critAt; }
+    else if (c.indexOf('sys-checks-fumble') >= 0) { if (v.trim()) cm.fumbleAt = v.slice(0, LIMITS.formula); else delete cm.fumbleAt; }
+    else if (c.indexOf('sys-checks-tiername') >= 0 || c.indexOf('sys-checks-tierat') >= 0) {
+        var tr = cm.tier && typeof cm.tier === 'object' ? cm.tier : (cm.tier = {});
+        if (c.indexOf('sys-checks-tiername') >= 0) { if (v.trim()) tr.name = v.slice(0, 30); else delete tr.name; }
+        else { var n = Number(v); if (v.trim() && isFinite(n)) tr.at = n; else delete tr.at; }
+        if (tr.name === undefined && tr.at === undefined) delete cm.tier;
+    } else return false;
+    markDirty(); patchErrors(); return true;
 }
 function onRangeInput(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-range-') < 0) return false;
@@ -8867,6 +8907,7 @@ function onInput(e) {
     if (onCalendarInput(t)) return;   // item 20 K1
     if (onDamageInput(t)) return;   // 1.5.6: the Taking damage box
     if (typeof onBlastInput === 'function' && onBlastInput(t)) return;   // 1.5.8 explosives
+    if (onChecksInput(t)) return;   // 1.6.0: the critical range and a named success
     var fxd = fxOfRow(t);   // 5h: a library effect's text boxes
     if (fxd) {
         var fc = t.className || '';
@@ -8927,6 +8968,10 @@ function onInput(e) {
         else if (lcc.indexOf('sys-list-malf') >= 0) {   // Stage 6 HUD R3: a list roll's Malf (Save cleans it)
             var mrw = t.closest('.sys-list-needsrow'), mL = Array.isArray(lsp.rolls) ? lsp.rolls : null, mR = mrw && mL ? mL[+mrw.dataset.ri] : null; if (!mR || typeof mR !== 'object') return;
             if (t.value.trim()) mR.malf = t.value.slice(0, LIMITS.formula); else delete mR.malf;
+        }
+        else if (lcc.indexOf('sys-list-critat') >= 0 || lcc.indexOf('sys-list-fumbleat') >= 0) {   // 1.6.0: a list roll's own critical range (Save cleans it)
+            var crw = t.closest('.sys-list-needsrow'), cL = Array.isArray(lsp.rolls) ? lsp.rolls : null, cR = crw && cL ? cL[+crw.dataset.ri] : null; if (!cR || typeof cR !== 'object') return;
+            var crL = lcc.indexOf('sys-list-critat') >= 0 ? 'critAt' : 'fumbleAt'; if (t.value.trim()) cR[crL] = t.value.slice(0, LIMITS.formula); else delete cR[crL];
         }
         else if (lcc.indexOf('sys-list-needs') >= 0) {   // Stage 6 HUD R2b: a list roll's needs (Save cleans them)
             var nrw = t.closest('.sys-list-needsrow'), nL = Array.isArray(lsp.rolls) ? lsp.rolls : null, nR = nrw && nL ? nL[+nrw.dataset.ri] : null; if (!nR || typeof nR !== 'object') return;
@@ -9032,6 +9077,7 @@ function onInput(e) {
         else if (c.indexOf('sys-formula') >= 0) r.formula = t.value;
         else if (c.indexOf('sys-roll-icon') >= 0) { if (t.value.trim()) r.icon = t.value.slice(0, 32); else delete r.icon; }   // Stage 6 look fold
         else if (c.indexOf('sys-roll-malf') >= 0) { if (t.value.trim()) r.malf = t.value.slice(0, LIMITS.formula); else delete r.malf; }   // Stage 6 HUD R3
+        else if (c.indexOf('sys-roll-critat') >= 0 || c.indexOf('sys-roll-fumbleat') >= 0) { var crK = c.indexOf('sys-roll-critat') >= 0 ? 'critAt' : 'fumbleAt'; if (t.value.trim()) r[crK] = t.value.slice(0, LIMITS.formula); else delete r[crK]; }   // 1.6.0: its own critical range (Save cleans it)
         else if (c.indexOf('sys-roll-needstext') >= 0) { if (t.value.trim()) r.needsText = t.value.slice(0, LIMITS.label); else delete r.needsText; }   // 1.5.4: what it needs (Save cleans it)
         else if (c.indexOf('sys-roll-needs') >= 0) { if (t.value.trim()) r.needs = t.value.slice(0, LIMITS.formula); else delete r.needs; }
         else if (c.indexOf('sys-roll-xs') >= 0) { if (crossEdit(r, c, t) === 'all') { markDirty(); renderAll(); return; } }   // 1.5.9 (book es/et plan 4a): When a value crosses
@@ -9059,7 +9105,7 @@ function onChange(e) {
     if (c.indexOf('sys-combat-auto') >= 0) { draft.combat.blastAuto = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-roller') >= 0) { draft.combat.blastRoller = t.value; markDirty(); patchErrors(); return; }
     if (typeof onBlastChange === 'function' && onBlastChange(t)) return;   // 1.5.8 explosives
-    if (c.indexOf('sys-combat-checks') >= 0) { if (t.value === 'under3d6') draft.combat.checks = 'under3d6'; else delete draft.combat.checks; markDirty(); patchErrors(); return; }   // Stage 6 F8
+    if (c.indexOf('sys-combat-checks') >= 0) { if (t.value === 'under3d6' || t.value === 'fixed') draft.combat.checks = t.value; else delete draft.combat.checks; markDirty(); patchErrors(); renderCombat(); return; }   // Stage 6 F8 (1.6.0: or criticals at fixed rolls, whose two boxes it shows)
     if (c.indexOf('sys-combat-hp') >= 0) { draft.combat.hpResource = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-cover-on') >= 0) { if (!draft.combat.cover) draft.combat.cover = { on: false, style: 'graded' }; draft.combat.cover.on = t.value === 'on'; markDirty(); patchErrors(); renderCombat(); return; }
     if (c.indexOf('sys-combat-height-rule') >= 0) { var hrD = draft.combat.height && typeof draft.combat.height === 'object' && !Array.isArray(draft.combat.height) ? draft.combat.height : null; if (t.value === 'clears') draft.combat.height = Object.assign({}, hrD || {}, { rule: 'clears' }); else if (hrD) { delete hrD.rule; if (!Object.keys(hrD).length) delete draft.combat.height; } markDirty(); patchErrors(); return; }   // item 19 H1

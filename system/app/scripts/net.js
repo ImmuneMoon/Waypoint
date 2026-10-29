@@ -8146,6 +8146,7 @@ function handleMessage(msg, conn) {
         var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid };
         var mfQ = null; if (actQ && actQ.malf && varsQ) { var mqQ = Fq.evaluate(actQ.malf, { vars: varsQ }); if (mqQ.ok && typeof mqQ.value === 'number' && isFinite(mqQ.value)) mfQ = Math.max(1, Math.min(1000000, Math.round(mqQ.value))); }   // Stage 6 HUD R3: its Malf, through their view
         if (mfQ !== null) recQ.malf = mfQ;
+        var crgQ = SQ && typeof SQ.critRange === 'function' ? SQ.critRange(viewQ ? viewQ : (getActiveCampaign() || {}).system, actQ, varsQ, Fq) : null; if (crgQ) recQ.crit = crgQ;   // 1.6.0 (the v2 sort's B1): criticals at fixed rolls, this roll's range through the roller's view (its own formula, else the Combat card's), on the record every card reads
         if (actQ && actQ.dmg === true) recQ.dmg = 1;   // chat cards: a damage roll, from the entry its formula matched (never the player's word)
         if (recQ.dmg === 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgTypeOf === 'function' && campQ && campQ.system) { var dtQ = SQ.dmgTypeOf(campQ.system, actQ, varsQ, Fq); if (dtQ) recQ.dtype = dtQ; }   // 1.5.7: the damage type the entry names, worked out on the host
         if (resQ.breakdown && resQ.breakdown.names && resQ.breakdown.names.length) { var nmQ = Dq.cleanNames(resQ.breakdown.names); if (!nmQ) { denyQ('error'); return; } if (nmQ.length) recQ.names = nmQ; }
@@ -8158,7 +8159,7 @@ function handleMessage(msg, conn) {
         }
         if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) { sendFailed(e); } pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }
         else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
-        var ruleQ = campQ && campQ.system && campQ.system.combat && campQ.system.combat.checks === 'under3d6' ? 'under3d6' : '';   // Stage 6 F8: the system's roll outcomes
+        var ruleQ = Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '');   // Stage 6 F8: the system's roll outcomes (1.6.0: or the record's own critical range)
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars, rule: ruleQ }));
         if (actQ && actQ.init === true && typeof initIntoFight === 'function') initIntoFight(campQ, locQ, q.charId, pidQ, resQ.value);   // initiative O1: their own initiative roll into the fight on their map, once
         if (actQ && actQ.then) {   // Stage 6 HUD R1: its consequences on the host's copy, through the roller's view, all or nothing (nothing to apply is quiet)
@@ -9366,6 +9367,7 @@ net.diceRoll = function(expr, o) {
     var rec = { type: 'roll', id: D.uid(), from: diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() };
     var mfR = null; if (entR && entR.malf && varsR) { var mqR = F.evaluate(entR.malf, { vars: varsR }); if (mqR.ok && typeof mqR.value === 'number' && isFinite(mqR.value)) mfR = Math.max(1, Math.min(1000000, Math.round(mqR.value))); }   // Stage 6 HUD R3: its Malf
     if (mfR !== null) rec.malf = mfR;
+    var crgR = SR && typeof SR.critRange === 'function' && campR && campR.system ? SR.critRange(campR.system, entR, varsR, F) : null; if (crgR) rec.crit = crgR;   // 1.6.0 (the v2 sort's B1): criticals at fixed rolls, this roll's range (its own formula, else the Combat card's)
     if ((entR && entR.dmg === true) || o.dmg === true) rec.dmg = 1;   // chat cards: a damage roll (its entry; or this machine's own word, a thrown item's damage — never over the wire)
     if (rec.dmg === 1 && entR && SR && typeof SR.dmgTypeOf === 'function' && campR && campR.system) { var dtR = SR.dmgTypeOf(campR.system, entR, varsR, F); if (dtR) rec.dtype = dtR; }   // 1.5.7: the damage type the roll names, for Apply to target
     if (rec.dmg === 1 && typeof o.blast === 'string' && /^b_[a-z0-9]{1,16}$/.test(o.blast)) rec.blast = o.blast;   // 1.5.8 explosives: the blast this damage is for (this machine's own word): the card's Apply to all in the blast
@@ -9379,6 +9381,7 @@ net.diceRoll = function(expr, o) {
     if (hosting && !o.priv && SR && campR && campR.system) SR.gmOnlyNames(campR.system, F.names(expr).map(function(n) { return { name: n }; })).concat(rec.names ? SR.gmDerivedNames(campR.system, F, rec.names) : []).forEach(function(n) { if (!gmR.some(function(m) { return m.toLowerCase() === n.toLowerCase(); })) gmR.push(n); });   // a GM-only name the formula writes (a branch not taken too: the card shows the text), and a value it read that is GM-only or worked out from one
     if (rowP && hosting && !o.priv) { var extraR = SR.gmOnlyNames(campR.system, rowP.names).concat(SR.gmDerivedNames(campR.system, F, rowP.names)); extraR.forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // F5b: through a column or a choice
     if (mfR !== null && hosting && !o.priv && SR && campR && campR.system) { var mfN = F.names(entR.malf); SR.gmOnlyNames(campR.system, mfN.map(function(n) { return { name: n }; })).concat(SR.gmDerivedNames(campR.system, F, mfN)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // R3: the card shows the Malf, so a GM-only one keeps it private
+    if (crgR && hosting && !o.priv) { var crN = [entR && entR.critAt, entR && entR.fumbleAt, campR.system.combat.critAt, campR.system.combat.fumbleAt].reduce(function(a, t) { return typeof t === 'string' && t ? a.concat(F.names(t)) : a; }, []); SR.gmOnlyNames(campR.system, crN.map(function(n) { return { name: n }; })).concat(SR.gmDerivedNames(campR.system, F, crN)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // 1.6.0: the record carries its critical range, so one read from a GM-only value keeps it private, as a Malf does
     if (o.priv) rec.priv = 'gm';
     else if (hosting && rowP && rowP.gm) { rec.priv = 'gm'; toast('Kept private: that roll is on a GM-only item or list' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // F5b: a GM-only row's roll stays the GM's
     else if (hosting && rowP && rowP.kept) { rec.priv = 'gm'; toast('Kept private: its owner sees that item switched off' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // owed review F5b#2: a curse the GM keeps on
@@ -9396,7 +9399,7 @@ net.diceRoll = function(expr, o) {
     var scope = rec.priv || rec.to ? 'whisper' : 'global';
     if (hosting && scope === 'global') sendTable(rec, null);
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
-    var ruleR = campR && campR.system && campR.system.combat && campR.system.combat.checks === 'under3d6' ? 'under3d6' : '';   // Stage 6 F8
+    var ruleR = D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '');   // Stage 6 F8 (1.6.0: or the record's own critical range)
     logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName, rule: ruleR }));
     if (entR && entR.then && chR && SR && campR && campR.system) {   // Stage 6 HUD R1/R2b: the GM's own roll's consequences, here (a player's are the host's); a list's roll may move its row's counters
         var mfHitR = mfR !== null && D.naturalOf(res) >= mfR, vdR = D.verdictOf(res, ruleR), crR = typeof SR.thenCrit === 'function' ? SR.thenCrit(vdR, mfHitR) : '', thR = SR.thenChanges(entR, mfHitR ? false : (vdR && vdR.kind === 'check' ? vdR.pass : null), mfHitR, crR);   // R3; 1.5.8: and its critical

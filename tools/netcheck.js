@@ -3958,6 +3958,37 @@ pendingChecks.push((async () => {
     const mA = runK(sysMg, [2, 3, 4]), mB = runK(sysMg, [5, 5, 5]), mC = runK(sysMp, [2, 3, 4]), mG = runKG(sysMg, [2, 3, 4]), mH = runKG(sysMg, [6, 5, 5]);
     check('1.5.8 RollMargin on the host: a player\'s roll of 9 against 12 sets Fine to 3, of 15 to -3, a system with no criticals reads the same arithmetic (3); the GM\'s own roll alike (3, and 16 -4)',
         j(mA.vals) === j({ f_fn: 3 }) && j(mB.vals) === j({ f_fn: -3 }) && j(mC.vals) === j({ f_fn: 3 }) && j(mG.vals) === j({ f_fn: 3 }) && j(mH.vals) === j({ f_fn: -4 }), j([mA.vals, mB.vals, mC.vals, mG.vals, mH.vals]));
+    // 1.6.0 (the v2 sort's B1): criticals at fixed rolls, decided by the host in its roll-req branch and the GM's own net.diceRoll (invented data: Edge, Secret, Spark)
+    const fldB = [{ id: 'f_e', key: 'Edge', kind: 'number', def: 4, vis: 'all' }, { id: 'f_s', key: 'Secret', kind: 'number', def: 2, vis: 'gm' }, { id: 'f_gd', key: 'Guard', kind: 'number', def: 0 }, { id: 'f_x', key: 'Spark', kind: 'number', def: 0 }];
+    const thenB = [{ f: 'f_x', formula: '1', add: true, when: 'crit' }, { f: 'f_x', formula: '5', set: true, when: 'fumble' }, { f: 'f_gd', formula: 'RollCrit + 2', set: true, when: 'hit' }];
+    const sysOfB = (roll, combat) => Sx.cleanSystem({ v: 1, name: 'B', fields: fldB, rolls: [Object.assign({ id: 'r_sg', label: 'Feint', formula: '3d6 <= 12', then: thenB }, roll)], combat: combat }, { F: Fx, gmView: true });
+    const sysB = sysOfB({ critAt: 'Edge' }, { checks: 'fixed', critAt: '3' }), sysB0 = sysOfB({}, { checks: 'fixed', critAt: '3' }), sysBg = sysOfB({ fumbleAt: 'Secret + 14' }, { checks: 'fixed' }), sysBn = sysOfB({ critAt: 'Edge' }, {});
+    const runB = (sys, dice, extra) => { const out = { table: [], sent: [] }; dq = dice.slice();
+        const camp = { id: 'k', activeItemId: 'm1', system: sys, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: {} } }, items: { m1: { type: 'map', whiteboard: [] } } };
+        const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta() {} };
+        const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
+            Object.assign({ type: 'roll-req', rid: 'q1', charId: 'c_a', act: 'r_sg', expr: '3d6 <= 12' }, extra || {}), conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, (k, t) => { out.log = t; }, () => {});
+        out.vals = camp.chars.c_a.values; out.left = dq.length; return out; };
+    const runBG = (sys, dice) => { const out = { pushed: [], recs: [], toasts: [] }; dq = dice.slice();
+        const camp = { id: 'k', system: sys, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: {} } } };
+        const net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta() {} };
+        const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
+            net, () => Dx, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null, charChanged() {} } }, () => camp, () => ({ id: 'u_gm', name: 'GM' }), t => out.toasts.push(t), () => null, e => { throw e; }, () => {}, (rec, res, scope) => { out.pushed.push(scope); out.recs.push(JSON.parse(JSON.stringify(rec))); }, (k, t) => { out.log = t; }, () => {});
+        out.ret = dr('3d6 <= 12', { charId: 'c_a', act: 'r_sg' }); out.vals = camp.chars.c_a.values; out.check = net.rollCheck; return out; };
+    const fxbW = runB(sysB, [1, 1, 2]), fxbP = runB(sysB, [1, 2, 2]), fxb0 = runB(sysB0, [1, 1, 2]), fxbF = runB(sysB, [6, 6, 6]), fxb17 = runB(sysB, [6, 6, 5]), fxbN = runB(sysBn, [1, 1, 1]), fxbX = runB(sysB, [1, 2, 2], { crit: [5, 5] });
+    check('1.6.0 a player\'s roll under criticals at fixed rolls (the host\'s roll-req branch, the suite\'s own dice): its own Critical at (Edge, 4) makes a 4 a critical success (On a critical success, and On success with RollCrit 1), a 5 a plain success; the same roll with none reads the Combat card\'s 3, so 4 is plain; 18 a critical failure, 17 a plain failure; the record carries the two numbers and the log says it; a system with no rule as before, its record with none; a crit in the player\'s message is never read',
+        fxbW.table.length === 1 && fxbW.left === 0 && j(fxbW.vals) === j({ f_x: 1, f_gd: 3 }) && j(fxbW.table[0].crit) === j([4, 18]) && j(Dx.cleanRoll(fxbW.table[0]).crit) === j([4, 18]) && /critical success by 8$/.test(fxbW.log)
+        && j(fxbP.vals) === j({ f_gd: 2 }) && j(fxb0.vals) === j({ f_gd: 2 }) && j(fxb0.table[0].crit) === j([3, 18]) && j(fxbF.vals) === j({ f_x: 5 }) && j(fxb17.vals) === j({}) && /: failure by 5$/.test(fxb17.log)
+        && j(fxbN.vals) === j({ f_gd: 2 }) && !('crit' in fxbN.table[0]) && j(fxbX.vals) === j({ f_gd: 2 }) && j(fxbX.table[0].crit) === j([4, 18]),
+        j([fxbW.vals, fxbW.table[0].crit, fxbW.log, fxbP.vals, fxb0.vals, fxb0.table[0].crit, fxbF.vals, fxb17.vals, fxb17.log, fxbN.vals, fxbN.table[0], fxbX.vals, fxbX.table[0].crit]));
+    const fxgW = runBG(sysB, [1, 1, 2]), fxgF = runBG(sysB, [6, 6, 6]), fxgS = runBG(sysBg, [6, 5, 5]), fxpS = runB(sysBg, [6, 5, 5]), fxgN = runBG(sysBn, [1, 1, 1]);
+    check('1.6.0 the GM\'s own roll (net.diceRoll) decides alike: a 4 a critical success by its own range, 18 a critical failure, the record carrying the numbers and net.rollCheck the reading; a range read from a GM-only value (Secret + 14, 16) makes 16 a critical failure for the GM and keeps the roll private, while a player\'s roll reads the Combat card\'s 18 instead (their view drops it); a system with no rule as before',
+        fxgW.ret.ok && j(fxgW.vals) === j({ f_x: 1, f_gd: 3 }) && j(fxgW.recs[0].crit) === j([4, 18]) && fxgW.pushed[0] === 'global' && j(fxgW.check) === j({ pass: true, crit: 'crit', total: 4, target: 12, margin: 8 })
+        && j(fxgF.vals) === j({ f_x: 5 }) && j(fxgS.vals) === j({ f_x: 5 }) && j(fxgS.recs[0].crit) === j([3, 16]) && fxgS.pushed[0] === 'whisper' && fxgS.recs[0].priv === 'gm' && fxgS.toasts.some(t => /Secret/.test(t))
+        && j(fxpS.vals) === j({}) && j(fxpS.table[0].crit) === j([3, 18]) && j(fxgN.vals) === j({ f_gd: 2 }) && !('crit' in fxgN.recs[0]) && fxgN.pushed[0] === 'global',
+        j([fxgW.vals, fxgW.recs[0].crit, fxgW.pushed, fxgW.check, fxgF.vals, fxgS.vals, fxgS.recs[0], fxgS.toasts, fxpS.vals, fxpS.table[0].crit, fxgN.vals]));
 })());
 
 // Chat cards (owner 2026-09-27): a damage roll's mark — the host puts it on the record from the roll entry its formula matched (a system roll by

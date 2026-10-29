@@ -219,6 +219,48 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('F8 the card, the log and a roll\'s consequences all read the campaign\'s roll outcomes (the card: critical success / critical failure)',
             /var v = verdictOf\(res, rule\), crit = critOf\(res, rule\)/.test(diceJs) && /parts\[parts\.length - 1\]\.replace\(/.test(diceJs) && /'critical success' : 'critical failure'/.test(diceJs) && /vdQ = Dq\.verdictOf\(resQ, ruleQ\)/.test(netJs) && /vdR = D\.verdictOf\(res, ruleR\)/.test(netJs) && /rule: ruleQ \}/.test(netJs) && /rule: ruleR \}/.test(netJs));
     }
+    /* ---- 1.6.0 (the v2 sort's B1): criticals at fixed rolls (a system's combat.checks 'fixed'; the record's crit, the host's two numbers) ---- */
+    {
+        const j = JSON.stringify, R = { at: 3, fumble: 18 }, vd = (e, d, r) => verdictOf(roll(e, d), r || R);
+        const v3 = vd('3d6 <= 12', [1, 1, 1]), v18 = vd('3d6 <= 12', [6, 6, 6]), v18at18 = vd('3d6 <= 18', [6, 6, 6]), v3at2 = vd('3d6 <= 2', [1, 1, 1]), v17 = vd('3d6 <= 12', [6, 6, 5]), v4 = vd('3d6 <= 12', [1, 1, 2]);
+        check('1.6.0 criticals at fixed rolls: a natural 3 is a critical success (by 9 against 12), 18 a critical failure; 18 against 18 fails critically though the arithmetic passed, 3 against 2 succeeds critically though it failed (by nothing, never a minus); nothing else is a critical (17 against 12 a plain failure by 5, 4 a plain success)',
+            v3.pass === true && v3.crit === 'crit' && v3.text === 'success by 9' && v3.margin === 9 && v18.pass === false && v18.crit === 'fumble' && v18.margin === -6
+            && v18at18.pass === false && v18at18.crit === 'fumble' && v18at18.text === 'failure' && v18at18.margin === 0 && v3at2.pass === true && v3at2.crit === 'crit' && v3at2.text === 'success' && v3at2.margin === 0
+            && v17.pass === false && v17.crit === '' && v17.text === 'failure by 5' && v4.pass === true && v4.crit === '', j([v3, v18, v18at18, v3at2, v17, v4]));
+        const w4 = vd('3d6 <= 12', [1, 1, 2], { at: 4, fumble: 18 }), w16 = vd('3d6 <= 12', [6, 5, 5], { at: 3, fumble: 16 }), bothP = vd('3d6 <= 12', [3, 3, 4], { at: 10, fumble: 10 }), bothF = vd('3d6 <= 8', [3, 3, 4], { at: 10, fumble: 10 });
+        check('1.6.0 a widened range: 4 a critical success at Critical at 4, 16 a critical failure at Critical failure at 16; where both could apply the roll\'s own outcome decides (10 against 12 a critical success, against 8 a critical failure)',
+            w4.crit === 'crit' && w16.crit === 'fumble' && w16.pass === false && bothP.crit === 'crit' && bothP.pass === true && bothF.crit === 'fumble' && bothF.pass === false, j([w4, w16, bothP, bothF]));
+        const add = vd('3d6 + 2 <= 12', [1, 1, 1]), over = vd('d20 + 5 >= 15', [2]), over20 = vd('d20 + 5 >= 15', [20], { at: 1, fumble: 21 }), noChk = verdictOf(roll('3d6', [1, 1, 1]), R), poolR = roll('4d6cs>=5 >= 1', [6, 6, 1, 1]), pool = D.fixedCrit(poolR, R);
+        check('1.6.0 the rule reads the dice alone of any check (3d6 + 2 on three 1s, d20 + 5 >= 15 on a 2), whatever the arithmetic; a d20\'s natural 20 is no critical under it; a roll with no check is a value, and a pool that counts successes reads as before',
+            add.crit === 'crit' && over.crit === 'crit' && over.pass === true && over20.crit === '' && critOf(roll('d20 + 5 >= 15', [20]), { at: 1, fumble: 21 }) === null && critOf(roll('d20', [20]), R) === null
+            && noChk.kind === 'value' && poolR.ok === true && pool === null && D.fixedCrit(roll('3d6 <= 12', [1, 1, 1]), 'under3d6') === null && D.fixedCrit(roll('3d6 <= 12', [1, 1, 1]), { at: 3 }) === null, j([add, over, over20, noChk, pool]));
+        const k3 = D.checkOf(roll('3d6 <= 12', [1, 1, 1]), R), k18 = D.checkOf(roll('3d6 <= 18', [6, 6, 6]), R);
+        check('1.6.0 checkOf (a throw\'s reading) under the rule: its pass, critical, total, target and margin',
+            j(k3) === j({ pass: true, crit: 'crit', total: 3, target: 12, margin: 9 }) && j(k18) === j({ pass: false, crit: 'fumble', total: 18, target: 18, margin: 0 }), j([k3, k18]));
+        const t3 = cardText(rec({ expr: '3d6 <= 12', draws: [1, 1, 1] }), roll('3d6 <= 12', [1, 1, 1]), F, { rule: R }), t18 = cardText(rec({ expr: '3d6 <= 18', draws: [6, 6, 6] }), roll('3d6 <= 18', [6, 6, 6]), F, { rule: R }), t9 = cardText(rec({ expr: '3d6 <= 12', draws: [3, 3, 3] }), roll('3d6 <= 12', [3, 3, 3]), F, { rule: R });
+        check('1.6.0 the log line states the rule\'s verdict (3: critical success by 9; 18 against 18: critical failure; 9: success by 3)',
+            /<= 12: critical success by 9$/.test(t3) && /<= 18: critical failure$/.test(t18) && /<= 12: success by 3$/.test(t9), j([t3, t18, t9]));
+        const rcK = rec({ expr: '3d6 <= 12', draws: [1, 1, 1], crit: [4, 17] }), cK = cleanRoll(rcK), cBad = [[3], [3, 18, 1], [3.5, 18], ['3', 18], [3, 2000000], null, 'x'].map(x => cleanRoll(Object.assign({}, rcK, { crit: x }))), qK = cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6 <= 12', crit: [18, 3] });
+        check('1.6.0 the record carries the host\'s two numbers (cleanRoll keeps a pair of whole numbers, refuses the record for anything else); a player\'s request names none (cleanRollReq keeps no crit)',
+            !!cK && j(cK.crit) === j([4, 17]) && cBad.every(x => x === null) && !('crit' in cleanRoll(rec({}))) && !!qK && !('crit' in qK), j([cK, cBad, qK]));
+        const ro = [D.ruleOf(rcK, ''), D.ruleOf(rcK, 'under3d6'), D.ruleOf(rec({}), 'under3d6'), D.ruleOf(rec({}), 'fixed'), D.ruleOf(rec({ crit: [3] }), ''), D.ruleOf(null, 'under3d6')];
+        check('1.6.0 ruleOf: the record\'s own range first, else the system\'s 3d6 roll-under, else none (a record without its numbers reads no criticals)',
+            j(ro) === j([{ at: 4, fumble: 17 }, { at: 4, fumble: 17 }, 'under3d6', '', '', 'under3d6']), j(ro));
+        const djK = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', 'dice.js'), 'utf8').replace(/\r\n/g, '\n');
+        const rcSrcK = djK.slice(djK.indexOf('function renderCard(m) {'), djK.indexOf('// Stage 6 HUD H7: an apply action'));
+        const feK = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined ? '' : String(text), children: [], style: {}, title: '', appendChild(c) { this.children.push(c); return c; } });
+        const cardK = (sys, o, draws) => { const r = rec(o); return new Function('el', 'playerHue', 'chatTime', 'net', 'F', 'verdictOf', 'critOf', 'malfOf', 'LIMITS', 'ruleOf', 'window', 'document', "'use strict';\n" + rcSrcK + '\nreturn renderCard;')(feK, () => 0, () => '12:00', () => ({ active: false }), () => F, verdictOf, critOf, D.malfOf, LIMITS, D.ruleOf, { wpSheets: { systemOf: () => sys } }, { createTextNode: t => ({ text: t }) })({ roll: r, res: roll(r.expr, draws) }); };
+        const walk = (n, out) => { out = out || []; if (n && typeof n === 'object') { out.push(n); (n.children || []).forEach(c => walk(c, out)); } return out; }, tagged = (w, cls) => walk(w).filter(x => x.className === cls).map(x => x.textContent);
+        const sysT = { combat: { checks: 'fixed', tier: { name: 'Strong success', at: 5 } } };
+        const kC = cardK(sysT, { expr: '3d6 <= 2', draws: [1, 1, 1], crit: [3, 18] }, [1, 1, 1]), kF = cardK(sysT, { expr: '3d6 <= 18', draws: [6, 6, 6], crit: [3, 18] }, [6, 6, 6]);
+        const kS = cardK(sysT, { expr: '3d6 <= 12', draws: [1, 2, 3], crit: [3, 18] }, [1, 2, 3]), kP = cardK(sysT, { expr: '3d6 <= 12', draws: [3, 3, 3], crit: [3, 18] }, [3, 3, 3]), kW = cardK(sysT, { expr: '3d6 <= 12', draws: [1, 1, 2], crit: [4, 18] }, [1, 1, 2]);
+        const kN = cardK(null, { expr: '3d6 <= 12', draws: [1, 1, 1] }, [1, 1, 1]), kD = cardK({ combat: { tier: { name: 'Clean hit', at: 3 } } }, { expr: 'd20 + 5 >= 10', draws: [12] }, [12]);
+        check('1.6.0 the card (dice.js renderCard, run for real) follows the record\'s range: 3 against 2 a success stripe and critical success, 18 against 18 a failure stripe and critical failure, 4 a critical success only where its roll widened the range; a success by 5 or more wears the named success, by 3 none; a system without the rule reads as before, and a named success shows under any rule',
+            /card-ok/.test(kC.className) && j(tagged(kC, 'roll-crit')) === j(['critical success']) && /card-fail/.test(kF.className) && j(tagged(kF, 'roll-fumble')) === j(['critical failure'])
+            && j(tagged(kW, 'roll-crit')) === j(['critical success']) && j(tagged(kS, 'roll-crit')) === j([]) && j(tagged(kS, 'roll-tier')) === j(['Strong success']) && j(tagged(kP, 'roll-tier')) === j([])
+            && j(tagged(kN, 'roll-crit')) === j([]) && /card-ok/.test(kN.className) && j(tagged(kD, 'roll-tier')) === j(['Clean hit']) && j(tagged(kF, 'roll-tier')) === j([]),
+            j([kC.className, kF.className, tagged(kS, 'roll-tier'), tagged(kW, 'roll-crit'), tagged(kD, 'roll-tier')]));
+    }
     /* ---- chat cards (owner 2026-09-27): a damage roll's mark on the record; the colours a card takes from a sheet look; the card itself ---- */
     {
         const j = JSON.stringify;

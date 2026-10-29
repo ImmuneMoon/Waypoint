@@ -209,6 +209,7 @@ function cleanRoll(rec) {
     if (rec.rid !== undefined) { if (typeof rec.rid !== 'string' || !RID_RE.test(rec.rid)) return null; out.rid = rec.rid; }
     if (rec.names !== undefined) { var nm = cleanNames(rec.names); if (!nm) return null; if (nm.length) out.names = nm; }
     if (rec.malf !== undefined) { if (!isInt(rec.malf) || rec.malf < 1 || rec.malf > 1000000) return null; out.malf = rec.malf; }
+    if (rec.crit !== undefined) { var crc = cleanCrit(rec.crit); if (!crc) return null; out.crit = [crc.at, crc.fumble]; }   // 1.6.0: criticals at fixed rolls, the two numbers the host judged this roll by
     if (rec.mods !== undefined) { var md = cleanMods(rec.mods); if (md) out.mods = md; }
     if (rec.sw !== undefined) { var swc = cleanSwNames(rec.sw); if (swc) out.sw = swc; }   // 1.6.0: the roll switches it was rolled with, by name (a list that does not clean is left off, the roll kept)   // 1.5.8: what changed the values it reads (a list that does not clean is left off, the roll kept)
     if (rec.dmg !== undefined) { if (rec.dmg !== 1) return null; out.dmg = 1; }   // chat cards: a damage roll, marked by the host from its roll (never the roller's word)   // Stage 6 HUD R3: the roll's malfunction threshold (every machine works the malfunction out from the draws)
@@ -331,11 +332,36 @@ function under3d6(res) {
     if (t === 18 || (t === 17 && T <= 15) || t - T >= 10) return { total: t, target: T, pass: false, crit: 'fumble' };
     return { total: t, target: T, pass: t !== 17 && t <= T, crit: '' };
 }
+// 1.6.0 (the v2 sort's B1): criticals at fixed rolls (a system's combat.checks 'fixed'). The rule is { at, fumble }, the host's two numbers for one
+// roll (a record's crit, cleanCrit; ruleOf). A check whose natural total (its dice alone, naturalOf) is at or under at is a critical success, at or
+// over fumble a critical failure, and nothing else is a critical; where both could apply the check's own outcome decides. A critical success
+// passes and a critical failure fails, whatever the arithmetic said. { total, target, pass, crit, margin, by } or null: no rule, no check, no
+// dice, or a pool that counts successes
+function cleanCrit(v) {
+    if (!Array.isArray(v) || v.length !== 2 || !isInt(v[0]) || !isInt(v[1]) || Math.abs(v[0]) > 1000000 || Math.abs(v[1]) > 1000000) return null;
+    return { at: v[0], fumble: v[1] };
+}
+function isFixedRule(rule) { return !!rule && typeof rule === 'object' && !Array.isArray(rule) && isInt(rule.at) && isInt(rule.fumble); }
+function fixedCrit(res, rule) {
+    if (!isFixedRule(rule) || !res || !res.ok || !res.breakdown || !Array.isArray(res.breakdown.dice) || !res.breakdown.dice.length) return null;
+    if (res.breakdown.dice.some(function(d) { return !d || d.cs; })) return null;
+    var top = null, checks = Array.isArray(res.breakdown.checks) ? res.breakdown.checks : []; for (var i = 0; i < checks.length; i++) if (checks[i] && checks[i].top) top = checks[i];
+    if (!top) return null;
+    var n = naturalOf(res), lo = n <= rule.at, hi = n >= rule.fumble, pass = !!top.pass;
+    var crit = lo && hi ? (pass ? 'crit' : 'fumble') : lo ? 'crit' : hi ? 'fumble' : '';
+    if (crit) pass = crit === 'crit';
+    var ord = top.op !== '=' && top.op !== '!=', m = ord && typeof top.margin === 'number' && isFinite(top.margin) ? top.margin : 0, mg = pass ? Math.max(0, m) : Math.min(0, m);
+    return { total: typeof top.left === 'number' ? top.left : null, target: typeof top.right === 'number' ? top.right : null, pass: pass, crit: crit, margin: mg, by: ord ? Math.abs(mg) : 0 };
+}
+// The rule a roll's card and its consequences go by: the record's own crit (criticals at fixed rolls, put there by the host), else the system's
+// checks ('under3d6'), else none
+function ruleOf(rec, checks) { var c = rec ? cleanCrit(rec.crit) : null; return c ? c : checks === 'under3d6' ? 'under3d6' : ''; }
 // The top-level check of a result, or its value; rule 'under3d6' (F8): a 3d6 roll-under check reads its criticals (crit: 'crit' | 'fumble')
 function verdictOf(res, rule) {
     if (!res || !res.ok) return null;
     var u = rule === 'under3d6' ? under3d6(res) : null;
     if (u) { var by = u.pass ? u.target - u.total : u.total - u.target; return { kind: 'check', pass: u.pass, text: (u.pass ? 'success' : 'failure') + (by > 0 ? ' by ' + fmtNum(by) : ''), crit: u.crit, margin: u.pass ? Math.max(0, u.target - u.total) : Math.min(0, u.target - u.total) }; }   // 1.5.8: margin, how far it beat its target (a miss below 0)
+    var fx = fixedCrit(res, rule); if (fx) return { kind: 'check', pass: fx.pass, text: (fx.pass ? 'success' : 'failure') + (fx.by > 0 ? ' by ' + fmtNum(fx.by) : ''), crit: fx.crit, margin: fx.margin };   // 1.6.0: criticals at fixed rolls
     var top = null, checks = res.breakdown && res.breakdown.checks ? res.breakdown.checks : [];
     for (var i = 0; i < checks.length; i++) if (checks[i].top) top = checks[i];
     if (top) {
@@ -351,6 +377,7 @@ function checkOf(res, rule) {
     if (!res || !res.ok) return null;
     var u = rule === 'under3d6' ? under3d6(res) : null;
     if (u) return { pass: u.pass, crit: u.crit || '', total: u.total, target: u.target, margin: Math.abs(u.total - u.target) };
+    var fx = fixedCrit(res, rule); if (fx) return { pass: fx.pass, crit: fx.crit, total: fx.total, target: fx.target, margin: Math.abs(fx.margin) };   // 1.6.0: criticals at fixed rolls
     var top = null, checks = res.breakdown && Array.isArray(res.breakdown.checks) ? res.breakdown.checks : [];
     for (var i = 0; i < checks.length; i++) if (checks[i] && checks[i].top) top = checks[i];
     if (!top) return null;
@@ -367,6 +394,7 @@ function fmtNum(v) {
 // check's own criticals first
 function critOf(res, rule) {
     var u3 = rule === 'under3d6' ? under3d6(res) : null; if (u3) return u3.crit || null;
+    if (isFixedRule(rule)) { var fx = fixedCrit(res, rule); return fx && fx.crit ? fx.crit : null; }   // 1.6.0: under criticals at fixed rolls nothing else is a critical
     if (!res || !res.ok || !res.breakdown || !Array.isArray(res.breakdown.dice) || res.breakdown.dice.length !== 1) return null;
     var rec = res.breakdown.dice[0];
     if (!rec || rec.count !== 1 || rec.faces !== 20 || !Array.isArray(rec.dice) || rec.dice.length !== 1 || rec.cs) return null;
@@ -390,6 +418,8 @@ function cardText(rec, res, F, opts) {
     var as = rec && rec.as && (!rec.from || rec.as !== rec.from.name) ? ' as ' + rec.as : '';
     var u = opts && opts.rule === 'under3d6' ? under3d6(res) : null;   // F8: the rule's verdict in place of the arithmetic's (17 against 18 fails)
     if (u) { var by = u.pass ? u.target - u.total : u.total - u.target; body = body.replace(/:\s*(success|failure)( by [^:]*)?$/, '') + ': ' + (u.crit ? 'critical ' : '') + (u.pass ? 'success' : 'failure') + (by > 0 ? ' by ' + fmtNum(by) : ''); }
+    var fxc = !u && opts ? fixedCrit(res, opts.rule) : null;   // 1.6.0: criticals at fixed rolls, alike
+    if (fxc) body = body.replace(/:\s*(success|failure)( by [^:]*)?$/, '') + ': ' + (fxc.crit ? 'critical ' : '') + (fxc.pass ? 'success' : 'failure') + (fxc.by > 0 ? ' by ' + fmtNum(fxc.by) : '');
     return who + tagOf(rec, opts) + as + ' rolled ' + (rec && rec.label ? rec.label + ': ' : '') + body + (malfOf(rec, res) ? ' \u2014 malfunction (Malf ' + rec.malf + ')' : '');   // R3
 }
 // Stage 6 HUD R3: a roll's natural total — the dice alone, every term's kept total (3d6 <= Skill: the three dice; d20 + Hit: the d20) — and
@@ -440,6 +470,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
+var API = { cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };
+export { cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };

@@ -3,7 +3,7 @@
    feature switch. The wire and the rolling itself live in net.js (net.diceRoll, the roll-req / roll / roll-deny
    handlers); the validators, replay and text in dicecore.js. Design of record: docs/DICE_PLAN.md. */
 import { toast } from './io.js';
-import { LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf } from './dicecore.js';
+import { LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf } from './dicecore.js';
 import { dieNode } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
 
 var ui = function(id) { return document.getElementById(id); };
@@ -92,7 +92,7 @@ function renderCard(m) {
     var named = false; try { named = typeof Fm.names === 'function' && Fm.names(rec.expr).length > 0; } catch (e) { named = false; }   // 1.5.7 (the owner: the formula "is showing as the roll information instead of being readable by everyone")
     var exprLine = el('div', 'roll-expr', rec.expr); exprLine.title = rec.expr; if (!named) wrap.appendChild(exprLine);
     var brk = el('div', 'roll-break');
-    var sy = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null, rule = sy && sy.combat && sy.combat.checks === 'under3d6' ? 'under3d6' : '';   // Stage 6 F8: the campaign's roll outcomes
+    var sy = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null, rule = typeof ruleOf === 'function' ? ruleOf(rec, sy && sy.combat ? sy.combat.checks : '') : sy && sy.combat && sy.combat.checks === 'under3d6' ? 'under3d6' : '';   // Stage 6 F8: the campaign's roll outcomes (1.6.0: or the critical range the host put on the record, asked through typeof for a suite that slices the card)
     var v = verdictOf(res, rule), crit = critOf(res, rule), mf = malfOf(rec, res);   // R3: a malfunction is a failure, whatever the test said
     var parts = typeof Fm.parts === 'function' ? Fm.parts(res, 40) : [Fm.describe(res, { maxChars: LIMITS.cardChars })];
     if (v && v.crit !== undefined && parts.length && typeof parts[parts.length - 1] === 'string') parts[parts.length - 1] = parts[parts.length - 1].replace(/:\s*(success|failure)( by [^:]*)?$/, '');   // F8: the rule's verdict is the line below (never the arithmetic's)
@@ -105,6 +105,8 @@ function renderCard(m) {
     wrap.className += mf ? ' card-malf' : v && v.kind === 'check' ? (v.pass ? ' card-ok' : ' card-fail') : rec.dmg === 1 ? ' card-dmg' : '';   // chat cards: the left stripe — a malfunction, the check's outcome, else a damage roll, else plain
     var total = el('div', 'roll-total' + (mf ? ' roll-fail roll-malf' : v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : rec.dmg === 1 ? ' roll-dmg' : ''), mf ? 'malfunction (Malf ' + rec.malf + ')' : v ? (v.kind === 'check' ? v.text : '= ' + v.text) : '');
     if (crit) total.appendChild(el('span', 'roll-' + crit, v && v.crit ? (crit === 'crit' ? 'critical success' : 'critical failure') : crit === 'crit' ? 'natural 20' : 'natural 1'));
+    var tierC = sy && sy.combat && sy.combat.tier && typeof sy.combat.tier === 'object' ? sy.combat.tier : null;   // 1.6.0: a success at or past the Combat card's margin wears its name
+    if (!mf && tierC && typeof tierC.name === 'string' && tierC.name && typeof tierC.at === 'number' && v && v.kind === 'check' && v.pass === true && typeof v.margin === 'number' && v.margin >= tierC.at) total.appendChild(el('span', 'roll-tier', tierC.name));
     wrap.appendChild(total);
     var dS = window.wpSheets, dv = res && typeof res.value === 'number' && isFinite(res.value) ? res.value : null;   // 1.5.6, the damage step: the GM takes a damage roll off its target in one press
     if (rec.dmg === 1 && dv !== null && !mf && rec.dmgUsed === 1) wrap.appendChild(el('div', 'chat-dmgdone', 'Applied'));   // 1.5.7: a hit is applied once

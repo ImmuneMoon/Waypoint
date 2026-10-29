@@ -9625,6 +9625,7 @@ function attRowAlts(camp, tch, ref, toO, out) {
 }
 function attemptMake(camp, entry, vd, malf, range, fromCh, priv) {
     var S = SC(); if (!S || !camp || !camp.system || !entry || typeof entry.resistBy !== 'string' || !vd || vd.kind !== 'check' || vd.pass !== true || malf === true) return null;
+    if (entry.noResistOnCrit === true && typeof S.thenCrit === 'function' && S.thenCrit(vd, malf) === 'crit') return null;   // 1.6.0: a critical success its system does not let be resisted makes no attempt
     var rr = null; (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === entry.resistBy && r.resist === true && typeof r.formula === 'string' && !r.apply) rr = r; });
     if (!rr || !range || typeof range.tid !== 'string' || typeof range.mapId !== 'string' || !camp.items || !Object.prototype.hasOwnProperty.call(camp.items, range.mapId)) return null;
     var map = camp.items[range.mapId], tok = null; (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) { if (w && w.id === range.tid) tok = w; });

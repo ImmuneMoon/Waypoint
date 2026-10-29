@@ -4464,6 +4464,13 @@ pendingChecks.push((async () => {
         && reqs[0] && reqs[0].att === 'a_abcd1234' && reqs[1] === null && reqs[2] === null
         && src4.includes("if (rec.why === 'resist' && Array.isArray(more.rows) && more.rows.length) rec.or = (rec.or || []).concat(more.rows.slice(0, 8).map(function(x) { return { row: { f: x.f, r: x.r, i: x.i }, label: String(x.label || 'Roll').slice(0, 60) }; }));"),
         j([cdR, reqs]));
+    // 1.6.0: Not resisted on a critical (noResistOnCrit): a critical success of the roll makes no attempt; without the tick it is resisted as any success
+    const n0 = out.dues.length; roll(cA, 'c_a', { act: 'r_tr' }, '3d6 <= 13', [1, 1, 1]); const critPlain = out.dues.length - n0;
+    const rawC = JSON.parse(JSON.stringify(sys)); rawC.rolls[0].noResistOnCrit = true; const sysC = Sx.cleanSystem(rawC, { F: Fx, gmView: true }), sysCP = Sx.cleanSystem(sysC, { F: Fx, gmView: false }); camp.system = sysC;
+    const n1 = out.dues.length; roll(cA, 'c_a', { act: 'r_tr' }, '3d6 <= 13', [1, 1, 1]); const critTicked = out.dues.length - n1; roll(cA, 'c_a', { act: 'r_tr' }, '3d6 <= 13', [2, 3, 4]); const plainTicked = out.dues.length - n1 - critTicked;
+    const n2 = out.dues.length; dq = [1, 1, 2]; const gC = W.dr('3d6 <= 13', { charId: 'c_a', act: 'r_tr' }); const gmCrit = out.dues.length - n2; camp.system = sys;
+    check('1.6.0 Not resisted on a critical: kept in the GM\'s view alone beside Resisted by; a critical success (a natural 3, and the GM\'s own natural 4) then makes no attempt while a plain success still does; without the tick a critical is resisted as any success',
+        sysC.rolls[0].noResistOnCrit === true && !('noResistOnCrit' in sysCP.rolls[0]) && !('noResistOnCrit' in sys.rolls[0]) && critPlain === 1 && critTicked === 0 && plainTicked === 1 && gC && gC.ok === true && gmCrit === 0, j([critPlain, critTicked, plainTicked, gC, gmCrit]));
 })());
 
 // Chat cards (owner 2026-09-27): a damage roll's mark — the host puts it on the record from the roll entry its formula matched (a system roll by

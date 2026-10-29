@@ -188,6 +188,9 @@ Systems, more
   can name it. The target's card then has a button for each row of that
   list they hold, such as Parry with each weapon. A row kept from them is
   never offered.
+- A roll Resisted by can be ticked Not resisted on a critical: a critical
+  success then sends its target nothing to resist. Left off, a critical is
+  resisted as any success is.
 - A success can wear a name on its card, such as Strong success when it
   beats its target by 5 or more.
 - A damage type can count the dice a blow rolled: DR, a wound, a vital

@@ -736,7 +736,7 @@ function resistOrOk(sys, id) {
 function rowKeptFrom(sys, row) { if (!isObj(row) || row.hid === 1 || row.keptOn === 1) return true; var rd = rowDef(sys, row); return !!(rd && isObj(rd.def) && rd.def.vis === 'gm'); }
 function resistByInto(out, r, gmView) {
     if (!isObj(r)) return;
-    if (gmView) { if (typeof r.resistBy === 'string' && ROLL_ID.test(r.resistBy)) { out.resistBy = r.resistBy; var ro = []; (Array.isArray(r.resistOr) ? r.resistOr : []).forEach(function(id) { if (ro.length < RESIST_OR && typeof id === 'string' && (ROLL_ID.test(id) || listRollRef(id)) && id !== r.resistBy && ro.indexOf(id) < 0) ro.push(id); }); if (ro.length) out.resistOr = ro; } }
+    if (gmView) { if (typeof r.resistBy === 'string' && ROLL_ID.test(r.resistBy)) { out.resistBy = r.resistBy; var ro = []; (Array.isArray(r.resistOr) ? r.resistOr : []).forEach(function(id) { if (ro.length < RESIST_OR && typeof id === 'string' && (ROLL_ID.test(id) || listRollRef(id)) && id !== r.resistBy && ro.indexOf(id) < 0) ro.push(id); }); if (ro.length) out.resistOr = ro; if (r.noResistOnCrit === true) out.noResistOnCrit = true; } }   // 1.6.0: Not resisted on a critical, the GM's view alone beside resistBy
     else if ((typeof r.resistBy === 'string' && ROLL_ID.test(r.resistBy)) || r.resisted === true) out.resisted = true;
 }
 // 1.6.0 (B2): the attempt's margin a resist roll reads as AttemptMargin, laid on its token context by the host (never a player's word)

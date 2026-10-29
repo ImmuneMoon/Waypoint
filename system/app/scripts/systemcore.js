@@ -1325,18 +1325,27 @@ function rowTimers(sys, char, secs, perOf, F) {   // F (1.6.0): the formula engi
 // Listed (its figure there) and Worn (what has worn off); one that gives no number, or less than 0, wears what the layer wore before.
 // The blow's own names too (book round hg, asked by the same session): Blow.dmg the damage rolled, before Protection; Blow.through what got
 // past it; Blow.wound the wound it dealt; Blow.type the damage type's place in the Combat card's list, 1 the first, 0 none; Blow.cuts 1 for a
-// type ticked as cutting; and ToDestroy, the wear that takes the piece to minus its listed figure, destroyed
-var LAYER_WEAR = ['majorWear', 'brokenWear', 'brokenMajorWear'];
-function layerStep(ly, major, listed, worn, ev, both, blow) {
-    var base = major ? Math.ceil(listed / 4) : 1, brk = listed - worn <= 0, wf = brk ? (major ? (ly.brokenMajorWear || ly.majorWear) : ly.brokenWear) : (major ? ly.majorWear : null);
-    if (typeof wf !== 'string' || !wf) return base;
+// type ticked as cutting; and ToDestroy, the wear that takes the piece to its wear cap, destroyed. The cap is twice its listed figure (it
+// wears to minus that figure), or a layer's own wearCap (1.6.0, asked by the same session for a piece whose Durability is one pool across
+// its locations), a formula read alike that gives the most wear the row may hold there; one that gives no number, or less than Worn, keeps
+// twice the listed figure. A piece is destroyed where its wear reaches the cap
+var LAYER_WEAR = ['majorWear', 'brokenWear', 'brokenMajorWear', 'wearCap'];
+function layerVars(listed, worn, blow, both, cap) {
     var bw = blow && typeof blow === 'object' ? blow : {}, bn = function(v) { return typeof v === 'number' && isFinite(v) ? v : 0; };
-    var lw = function(l, text) {
-        if (l === 'listed') return listed; if (l === 'worn') return worn; if (l === 'todestroy') return Math.max(0, listed * 2 - worn);
+    return function(l, text) {
+        if (l === 'listed') return listed; if (l === 'worn') return worn; if (l === 'todestroy') return Math.max(0, (typeof cap === 'number' ? cap : listed * 2) - worn);
         if (l === 'blow.dmg') return bn(bw.dmg); if (l === 'blow.through') return bn(bw.through); if (l === 'blow.wound') return bn(bw.wound); if (l === 'blow.type') return bn(bw.type); if (l === 'blow.cuts') return bw.cuts ? 1 : 0;
         return both(l, text);
     };
-    var v = ev(wf, lw); return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.floor(v) : base;
+}
+function layerCap(ly, listed, worn, ev, both, blow) {
+    var dflt = listed * 2; if (!ly || typeof ly.wearCap !== 'string' || !ly.wearCap) return dflt;
+    var v = ev(ly.wearCap, layerVars(listed, worn, blow, both, dflt)); return typeof v === 'number' && isFinite(v) && v >= worn ? Math.floor(v) : dflt;
+}
+function layerStep(ly, major, listed, worn, ev, both, blow, cap) {
+    var base = major ? Math.ceil(listed / 4) : 1, brk = listed - worn <= 0, wf = brk ? (major ? (ly.brokenMajorWear || ly.majorWear) : ly.brokenWear) : (major ? ly.majorWear : null);
+    if (typeof wf !== 'string' || !wf) return base;
+    var v = ev(wf, layerVars(listed, worn, blow, both, cap)); return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.floor(v) : base;
 }
 var DMG_LIM = Object.freeze({ types: 24, layers: 8, weapons: 4, plus: 8, mult: 10, amt: 1000000, wears: 8, dice: 100 });
 function dmgStatOk(fl, listId, key) {   // a number stat of that list, value names or not (a stat its rows may hold as their own), never a pick
@@ -1532,11 +1541,11 @@ function damageStep(sys, char, inp, F, ropts, fxo) {   // 1.6.0 (B3): fxo, the c
                 var listed = Math.floor(num(ev(ly.at, both))); if (listed <= 0) return;
                 var wk = ly.wear; if (Array.isArray(ly.wears) && ly.pick) { var pi = Math.round(num(ev(ly.pick, both))); if (pi >= 1 && pi <= ly.wears.length) wk = ly.wears[pi - 1]; }   // 1.6.0: the stat worn where it struck
                 var w = num(R.stat(f, row, wk)), beats = wound > 0 && amt > Math.max(0, listed - w); if (!beats && !dWear) return;   // the blow is more than it as it stands
-                var step = (beats ? layerStep(ly, info.major, listed, w, ev, both, blowW) : 0) + dWear, nw = Math.min(listed * 2, w + step); if (nw === w) return;   // 1.6.0: by the layer's own formulas where it has them
+                var capW = layerCap(ly, listed, w, ev, both, blowW), step = (beats ? layerStep(ly, info.major, listed, w, ev, both, blowW, capW) : 0) + dWear, nw = Math.min(capW, w + step); if (nw === w) return;   // 1.6.0: the layer's own wear cap where it has one   // 1.6.0: by the layer's own formulas where it has them
                 dmgRowPut(row, wk, nw); changed = true;
                 var rd = rowDef(sys, row), nm = rd && rd.def && rd.def.name ? rd.def.name : 'A piece';
                 var wi = { list: f.id, row: rid, from: listed - w, to: listed - nw }; if (wk !== ly.wear) wi.stat = wk; info.wear.push(wi);
-                lines.push(nm + ': ' + (listed - w) + ' \u2192 ' + (listed - nw) + (listed - nw <= -listed ? ', destroyed' : listed - nw <= 0 ? ', broken' : ', damaged') + '.');
+                lines.push(nm + ': ' + (listed - w) + ' \u2192 ' + (listed - nw) + (nw >= capW ? ', destroyed' : listed - nw <= 0 ? ', broken' : ', damaged') + '.');
             });
             if (changed) values[f.id] = list;
         });

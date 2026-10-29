@@ -225,7 +225,8 @@ Systems
   Wound, and once it is broken there, for a hit and a Major Wound. With
   none it wears 1, or a quarter on a Major Wound, as before. Those
   formulas read the blow too, its damage, type and wound, and wearing
-  ToDestroy destroys the piece.
+  ToDestroy destroys the piece. Wears at most sets, by formula, how much
+  wear destroys it, in place of minus its figure.
 - A system holds 160 rolls, up from 50, and 600 fields, up from 400. A
   sheet or its HUD holds 800 placements, up from 400. The System
   editor's + Roll now greys out at the limit and says why, where before

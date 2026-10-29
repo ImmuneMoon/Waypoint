@@ -15671,6 +15671,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             cleanOk && onceOk && lvlOk && heldOk, J([cleanOk, s, t, held, both]));
         const shO = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), lbO = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n'), ixO = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
         const ntO = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n'));
+        const rawH = { v: 1, name: 'H', rolls: [], items: [
+            { id: 'i_ka', name: 'Knee', category: 'Implant', grants: [{ list: 'f_one', entry: 'i_ache' }, { list: 'f_bag', entry: 'i_oil', qty: 2 }] },
+            { id: 'i_kb', name: 'Hip', category: 'Implant', grants: [{ list: 'f_one', entry: 'i_ache' }, { list: 'f_bag', entry: 'i_oil', qty: 1 }] },
+            { id: 'i_ache', name: 'Ache', category: 'Flaw' }, { id: 'i_oil', name: 'Oil', category: 'Gear' }],
+            fields: [{ id: 'f_im', key: 'Implants', kind: 'item-list', vis: 'all', edit: 'owner' }, { id: 'f_one', key: 'Flaws', kind: 'item-list', vis: 'all', edit: 'owner', list: { noQty: true } },
+                { id: 'f_bag', key: 'Bag', kind: 'item-list', vis: 'all', edit: 'owner' }], sheet: { sections: [] } };
+        const gH = cleanSystem(rawH, { F, gmView: true }), opH = (ch, q) => put(ch, 'f_im', S.applyRowOp(gH, ch, 'f_im', q, F, {}));
+        const sh = ch => [ch.values.f_one.map(r => r.defId + ':' + (r.gr || 'own')), ch.values.f_bag.map(r => r.defId + ':' + r.qty + ':' + (r.gr || 'own'))];
+        const cH = { id: 'c_h', name: 'Vo', values: { f_im: [], f_one: [], f_bag: [] } }, u = [];
+        opH(cH, { op: 'add', defId: 'i_ka', rowId: 'w_a' }); opH(cH, { op: 'add', defId: 'i_kb', rowId: 'w_b' }); u.push(sh(cH)); opH(cH, { op: 'remove', rowId: 'w_a' }); u.push(sh(cH)); opH(cH, { op: 'remove', rowId: 'w_b' }); u.push(sh(cH));
+        check('CORE gap 15, every grant (the core\'s ruling, implant flaws leave with the last implant): with no tick too, a row granted on a list that holds each entry once passes to another row that grants it and holds none of it, and goes with the last; a row whose grant is filled already is handed none (two Oil rows, each its own, never one doubled)',
+            J(u) === J([[['i_ache:w_a'], ['i_oil:2:w_a', 'i_oil:1:w_b']], [['i_ache:w_b'], ['i_oil:1:w_b']], [[], []]]), J(u));
         check('CORE gap 15 is in both editors and said (source): the System editor\'s and the Library\'s grant lines tick Once a character, each handler writing once true or taking it off; Help and both 1.6.0 notes say it',
             shO.includes("if (typeof checkLabel === 'function') ln.appendChild(checkLabel('sys-grant-once', g.once === true, 'Once a character'") && shO.includes("if (gO) { if (t.checked) gO.once = true; else delete gO.once; markDirty(); }")
             && lbO.includes("var ol = el('label', 'lib-mod-lvl lib-grant-once'), oc = el('input'); oc.type = 'checkbox'; oc.checked = g.once === true;") && lbO.includes("ol.appendChild(el('span', null, ' Once a character'))") && lbO.indexOf("var ol = el('label', 'lib-mod-lvl lib-grant-once')") > lbO.indexOf("x.title = 'It no longer grants this'") && lbO.includes("oc.addEventListener('change', function() { if (oc.checked) g.once = true; else delete g.once; }); ln.appendChild(ol);")

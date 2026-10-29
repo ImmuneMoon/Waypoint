@@ -9591,7 +9591,7 @@ function grantBox(it) {
         ln.appendChild(select('sys-grant-list', lo, g.list || '', 'The list it is added to'));
         ln.appendChild(numField('sys-grant-qty', typeof g.qty === 'number' ? g.qty : 1, 'How many it adds', 'how many', '1'));
         ln.appendChild(numField('sys-grant-from', typeof g.from === 'number' ? g.from : '', 'The level of this item from which it is granted. Blank: from the start', 'from level', 'any'));
-        if (typeof checkLabel === 'function') ln.appendChild(checkLabel('sys-grant-once', g.once === true, 'Once a character', 'Granted only where the character holds no row of it on that list yet, as an implant\u2019s mandatory flaw comes with the first implant. While another row that grants it once is left, it stays when this row goes'));   // 1.6.0 (CORE gap 15)
+        if (typeof checkLabel === 'function') ln.appendChild(checkLabel('sys-grant-once', g.once === true, 'Once a character', 'Granted only where the character holds no row of it on that list yet, as an implant\u2019s mandatory flaw comes with the first implant. While another row that grants it is left, it stays when this row goes'));   // 1.6.0 (CORE gap 15)
         ln.appendChild(btnRow([['grantdel', 'It no longer grants this', '&times;']]));
         box.appendChild(ln);
     });

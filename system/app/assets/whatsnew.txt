@@ -306,8 +306,10 @@ Systems
   is paid at its turn's start, each round or by the clock. Ticked, a row
   switches off when the pool cannot pay.
 - A grant can come once a character, such as an implant's mandatory
-  flaw: a second implant grants no second flaw, and the flaw stays while
-  any implant that grants it is left.
+  flaw: a second implant grants no second flaw.
+- A granted row stays while another row that grants it is left: remove
+  the first of two implants and the flaw passes to the second. It goes
+  with the last one.
 - A vehicle can read its crew as a group, such as Crew.count and
   Crew.Pilot.max.Piloting. A Crew link lists its stations, and each crew
   sheet picks one beside its vehicle, so a pilot's skill counts only at

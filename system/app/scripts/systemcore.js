@@ -4502,7 +4502,7 @@ function setLibraryFind(fn) { _libFind = typeof fn === 'function' ? fn : null; }
 // from: the level of THIS entry from which it grants (none: from the start) }, each list, entry and level once, never the entry itself. kinds:
 // the view's fields by id (fieldKinds), so a grant on a list the view lacks goes; none: the key rule alone. None: undefined. 1.6.0 (CORE gap 15,
 // an implant's mandatory flaws, once a character with the first implant): once: true, the entry is granted only where the character holds no
-// row of it on that list, and the row it granted passes to another row that grants it once rather than going with its granter (grantHeirs)
+// row of it on that list. Whatever the tick, a granted row passes to another row that grants it rather than going with its granter (grantHeirs)
 var GRANT_MAX = 8, GRANT_DEPTH = 3;
 function cleanGrants(v, kinds, self) {
     if (!Array.isArray(v)) return undefined;
@@ -4572,7 +4572,7 @@ function grantLists(sys, char, f, list, extra) {
 // it is, hidden from its player under ids they never held, each still marked by the row that grants it
 function grantCut(sys, W, seed, withSeed, keptTo) {
     var fids = itemListIds(sys), vals = map(); fids.forEach(function(fid) { var L = W.get(fid); if (L) vals[fid] = L; });
-    var ids = grantIds(sys, vals, seed); if (grantHeirs(sys, vals, ids, seed, withSeed, W)) ids = grantIds(sys, vals, seed);   // 1.6.0 (CORE gap 15): a row granted once a character passes to another row that grants it, and stays
+    var ids = grantIds(sys, vals, seed); if (grantHeirs(sys, vals, ids, seed, withSeed, W)) ids = grantIds(sys, vals, seed);   // 1.6.0 (CORE gap 15): a granted row passes to another row that grants it and holds none, and stays
     var hit = function(r) { return isObj(r) && ((typeof r.gr === 'string' && ids[r.gr] === 1) || (withSeed && seed[rowIdOf(r)] === 1)); }, nu = map();
     if (keptTo) { Object.keys(seed).forEach(function(k) { nu[k] = keptTo; }); fids.forEach(function(fid) { (vals[fid] || []).forEach(function(r) { if (hit(r)) nu[rowIdOf(r)] = uid('w_'); }); }); }
     fids.forEach(function(fid) {
@@ -4581,22 +4581,25 @@ function grantCut(sys, W, seed, withSeed, keptTo) {
         if (did) { L.length = 0; keep.forEach(function(r) { L.push(r); }); W.touched[fid] = 1; }
     });
 }
-// 1.6.0 (CORE gap 15): before the rows a cut takes go, each one granted once a character (its granter's entry grants it once on that list)
-// passes to the first row, in list order, that grants it once at its level now and is neither going nor kept hidden: its gr then names that
-// row, so it stays, with what it granted. A seed row that passes leaves the seed. Answers whether any passed
+// 1.6.0 (CORE gap 15; the core's ruling of 2026-10-29, implant flaws leave with the last implant, asked for generally by the SotMW session):
+// before the rows a cut takes go, each granted row passes to the first row, in list order, whose entry grants that entry on that list at its
+// level now, that is neither going nor kept hidden, and that holds no row of it granted by itself (its grant left unfilled, as a list that
+// holds each entry once or a grant ticked once leaves it). Its gr then names that row and its quantity is that row's grant, so it stays with
+// what it granted; a row whose grant is filled already is never handed a second. A seed row that passes leaves the seed. Answers whether any
+// passed
 function grantHeirs(sys, vals, ids, seed, withSeed, W) {
-    var fids = Object.keys(vals), byId = map(), moved = false;
-    fids.forEach(function(fid) { vals[fid].forEach(function(r) { var id = rowIdOf(r); if (isObj(r) && id) byId[id] = { r: r, f: fid }; }); });
-    var defOf = function(r) { var rd = rowDef(sys, r); return rd && isObj(rd.def) ? rd.def : null; };
-    var grantsOnce = function(r, fid, k, now) { var d = defOf(r); if (!isObj(d) || !Array.isArray(d.grants)) return false; if (!now) return d.grants.some(function(g) { return isObj(g) && g.once === true && g.list + '|' + g.entry === k; }); var f = fieldById(sys, fid), w = grantWant(d, rowLvl(f && isObj(f.list) ? f.list : null, r, d)); return !!(w[k] && w[k].once); };
+    var fids = Object.keys(vals), moved = false;
+    var wantOf = function(x, f2, k) { var rd = rowDef(sys, x), d = rd && isObj(rd.def) ? rd.def : null; if (!isObj(d) || !Array.isArray(d.grants)) return null; var f = fieldById(sys, f2), w = grantWant(d, rowLvl(f && isObj(f.list) ? f.list : null, x, d)); return w[k] || null; };
+    var filled = function(xid, fid, entry) { return (vals[fid] || []).some(function(y) { return isObj(y) && y.gr === xid && y.defId === entry && y.hid !== 1; }); };
     fids.forEach(function(fid) {
         vals[fid].forEach(function(r) {
             if (!isObj(r) || r.hid === 1 || typeof r.gr !== 'string' || typeof r.defId !== 'string') return;
             var rid = rowIdOf(r), going = ids[r.gr] === 1 || (withSeed && seed[rid] === 1); if (!going) return;
-            var k = fid + '|' + r.defId, from = byId[r.gr]; if (from && !grantsOnce(from.r, from.f, k, false)) return;   // a granter that is gone (cut already) is judged by no grant of its own: its row passes where an heir grants it once
-            var heir = null; fids.forEach(function(f2) { vals[f2].forEach(function(x) { var xid = rowIdOf(x); if (heir || !isObj(x) || x.hid === 1 || !xid || xid === rid || xid === r.gr || ids[xid] === 1 || seed[xid] === 1) return; if (grantsOnce(x, f2, k, true)) heir = x; }); });
+            var k = fid + '|' + r.defId, heir = null, hw = null;
+            fids.forEach(function(f2) { vals[f2].forEach(function(x) { var xid = rowIdOf(x); if (heir || !isObj(x) || x.hid === 1 || !xid || xid === rid || xid === r.gr || ids[xid] === 1 || seed[xid] === 1) return; var w = wantOf(x, f2, k); if (w && !filled(xid, fid, r.defId)) { heir = x; hw = w; } }); });
             if (!heir) return;
-            r.gr = rowIdOf(heir); if (withSeed && seed[rid] === 1) delete seed[rid]; W.touched[fid] = 1; moved = true;
+            r.gr = rowIdOf(heir); var tf = fieldById(sys, fid); if (!(tf && isObj(tf.list) && tf.list.noQty)) r.qty = clampNum(hw.qty, 1, LIMITS.maxQty);
+            if (withSeed && seed[rid] === 1) delete seed[rid]; W.touched[fid] = 1; moved = true;
         });
     });
     return moved;

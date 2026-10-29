@@ -485,6 +485,37 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 && S.contentsWords(card) === '2 maps \u00b7 2 pages \u00b7 2 characters \u00b7 2 pictures \u00b7 2 sounds \u00b7 1 video' && S.contentsWords({ contents: { music: { n: 1 } } }) === '1 song' && S.contentsWords(null) === ''
                 && S.leftWords(card) === 'Left out by its author: pictures, music, players.' && S.leftWords({ left: [] }) === '' && S.byWords(card) === 'by Alex \u00b7 version 1.0' && S.byWords({ version: '2' }) === 'Version 2' && S.byWords({ author: 'A' }) === 'by A' && S.byWords({}) === '', S.contentsWords(card));
         }
+        /* the import's card (share.js readCard and picType, sliced by their shareread markers and run for real on archives zip.js makes; the
+           owner: "A card at the top of Import (Recommended)") */
+        if (S) {
+            const shSrc2 = read('system/app/scripts/share.js'), a2 = shSrc2.indexOf('// [zipcheck:shareread-start]'), b2 = shSrc2.indexOf('// [zipcheck:shareread-end]');
+            const steps = [], made = [], freed = [];
+            const fakeURL = { createObjectURL: b => { made.push(b.type + ':' + b.size); return 'blob:http://localhost/' + made.length; }, revokeObjectURL: u => { freed.push(u); } };
+            const RC = new Function('SC', 'log', 'URL', 'Blob', 'TextDecoder', shSrc2.slice(a2, b2) + '\nreturn { readCard: readCard, picType: picType };')(S, (s, o) => steps.push(s + ' ' + j(o)), fakeURL, Blob, TextDecoder);
+            const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 1, 2]), JPG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70, 0, 1]), GIF = enc.encode('GIF89a......'), WEBP = enc.encode('RIFF....WEBPVP8 ');
+            const card = (o) => enc.encode(j(Object.assign({ v: 1, title: 'Vault', author: 'Alex', cover: 'images/m1/c.png' }, o || {})));
+            const open = async list => (await Z.zipOpen(Z.zipCreate([{ name: 'data.json', data: enc.encode('{}') }].concat(list)))).entries;
+            const r1 = await RC.readCard(await open([{ name: 'share.json', data: card() }, { name: 'images/m1/c.png', data: PNG }]));
+            const r2 = await RC.readCard(await open([{ name: 'share.json', data: card() }, { name: 'images/m1/c.png', data: enc.encode('<html><script>alert(1)</script></html>') }]));
+            const r3 = await RC.readCard(await open([{ name: 'images/m1/c.png', data: PNG }]));
+            const r4 = await RC.readCard(await open([{ name: 'share.json', data: enc.encode('{not json') }]));
+            const r5 = await RC.readCard(await open([{ name: 'share.json', data: card({ v: 2 }) }]));
+            const r6 = await RC.readCard(await open([{ name: 'share.json', data: enc.encode(' '.repeat(70000)) }]));
+            const r7 = await RC.readCard(await open([{ name: 'share.json', data: card({ cover: 'images/journal/c.png' }) }, { name: 'images/journal/c.png', data: PNG }]));
+            const r8 = await RC.readCard([{ name: 'share.json', size: 60, bytes: async () => card() }, { name: 'images/m1/c.png', size: 17 * 1024 * 1024, bytes: async () => PNG }]);
+            const r9 = await RC.readCard([{ name: 'share.json', size: 60, bytes: async () => card() }, { name: 'images/m1/c.png', size: 14, bytes: async () => { throw new Error('the checksum'); } }]);
+            check('the import reads a card (share.js readCard, run for real on archives zip.js makes): share.json, 64 KB at most, read by its checksum and cleaned by sharecore; its cover only from that very entry of the archive, 16 MB at most, and only when its first bytes say PNG, JPEG, GIF or WebP, then made a blob address on this machine; a page that only calls itself a picture, a cover in the Journal\'s folder, one too large or one whose bytes cannot be read gives the card with no picture; no share.json, or one that is no card, gives none; the last picture is let go when the next file is read',
+                !!r1 && r1.url === 'blob:http://localhost/1' && made[0] === 'image/png:14' && r1.card.title === 'Vault' && r1.card.cover === 'images/m1/c.png' && !!r2 && r2.url === '' && r2.card.title === 'Vault' && r3 === null && r4 === null && r5 === null && r6 === null
+                && !!r7 && r7.card.cover === '' && r7.url === '' && !!r8 && r8.url === '' && !!r9 && r9.url === '' && made.length === 1 && freed[0] === 'blob:http://localhost/1'
+                && steps.filter(s => /^card-refused/.test(s)).map(s => s.slice(13)).join() === j({ why: 'shape' }) + ',' + j({ why: 'shape' }) + ',' + j({ why: 'size' })
+                && steps[0] === 'card-read ' + j({ cover: true, picture: true, left: 0, kinds: 0 })
+                && [[PNG, 'image/png'], [JPG, 'image/jpeg'], [GIF, 'image/gif'], [WEBP, 'image/webp'], [enc.encode('<svg xmlns="x"></svg>'), ''], [new Uint8Array(4), ''], [null, '']].every(p => RC.picType(p[0]) === p[1]), j([steps, made, freed]));
+            const zipBranch2 = mainSrc.slice(mainSrc.indexOf("      if (/\\.zip$/i.test(file.name)) {"), mainSrc.indexOf('      var reader = new FileReader();'));
+            check('the import shows the card before anything comes in (main.js, source): the card is read from the archive and awaited before the file is judged; it is drawn at the top of the Import box as the box opens, a plain file has none, and it goes with the box on Merge, Replace, Cancel and a file with nothing to bring in',
+                /importCardDone\(\); pendingImportCard = window\.wpShare && typeof window\.wpShare\.readCard === 'function' \? await window\.wpShare\.readCard\(entries\) : null;[^\n]*\n\s*handleImportedJson\(djText\);/.test(zipBranch2)
+                && /window\.wpShare\.showCard\(pendingImportCard\);[^\n]*\n\n\s*document\.getElementById\('importChoiceModal'\)\.style\.display = 'flex';/.test(mainSrc) && /pendingImportImages = null; pendingImportLibrary = null;[^\n]*\n\s*importCardDone\(\);/.test(mainSrc)
+                && (mainSrc.match(/\n\s*importCardDone\(\);/g) || []).length === 5 && /function importCardDone\(\) \{ pendingImportCard = null; if \(window\.wpShare && typeof window\.wpShare\.showCard === 'function'\) window\.wpShare\.showCard\(null\); \}/.test(mainSrc), zipBranch2.length);
+        }
         const shSrc = read('system/app/scripts/share.js'), bxSrc = ioSrc.slice(ioSrc.indexOf('  async function buildExport(scope, handle, share) {'), ioSrc.indexOf('  window.wpBuildExport = buildExport;'));
         check('the export takes the sheet (io.js, source): what the sheet leaves out goes off the payload before data.json is written, the files of a kind left out by the lists as they were; the campaign\'s own pictures are listed by one function for the export and for the sheet\'s count (exportPlan, the payload as the export makes it); the card is share.json right after data.json, its cover one of the campaign\'s pictures by exportPathOk, and a file with a card is always a .zip; with no sheet, nothing of it runs',
             bxSrc.length > 2000 && /var shareSets = null;[^\n]*\n\s*if \(share && share\.leave\) \{ shareSets = Share\.fileSets\(payload\); Share\.leaveOut\(payload, share\.leave\); \}\n\n\s*var json = JSON\.stringify\(payload, null, 2\);/.test(bxSrc)
@@ -509,7 +540,8 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         const wn1 = read('WHATSNEW.txt'), wn2 = read('system/app/assets/whatsnew.txt'), part = s => s.slice(s.indexOf(NL + 'Sharing a campaign' + NL), s.indexOf(NL + 'Table trackers' + NL));
         check('said (backlog 34): Help\'s Export As entry tells of the sheet, its kinds, the card, Share\'s Players and that a sheet left as it is makes the file it always did; both release notes carry the same part, before the 1.5.9 notes',
             ixS.includes('<li><b>Export This Campaign</b>, <b>Share This Campaign</b> and <b>Export Everything</b> open a sheet first.') && ixS.includes('Left as it is, the sheet makes the same file as before. What you type is kept for that campaign on this computer.</li>')
-            && part(wn1).length > 200 && part(wn1) === part(wn2) && wn1.indexOf(NL + 'Sharing a campaign' + NL) < wn1.indexOf('WAYPOINT 1.5.9') && part(wn1).includes('- Left as it is, the sheet makes the same file as before.'), part(wn1).length);
+            && part(wn1).length > 200 && part(wn1) === part(wn2) && wn1.indexOf(NL + 'Sharing a campaign' + NL) < wn1.indexOf('WAYPOINT 1.5.9') && part(wn1).includes('- Left as it is, the sheet makes the same file as before.') && part(wn1).includes('- Import shows a file\'s card first: the cover, the title, who made it,')
+            && ixS.includes('<li>A file with a card shows it at the top of <b>Import</b> before anything comes in. You see the cover,') && ixS.indexOf('<div id="importCard" class="share-card" hidden>') > ixS.indexOf('<div id="importChoiceModal"') && ixS.indexOf('<div id="importCard" class="share-card" hidden>') < ixS.indexOf('id="importChoiceSummary"'), part(wn1).length);
     }
 
     /* ---- said ---- */

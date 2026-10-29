@@ -5687,6 +5687,34 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && !!none && none.childNodes.length === 1 && none.childNodes[0].textContent === 'The file carries no picture to use as a cover.',
             err || JSON.stringify([imgs.map(i => i && i.src), steps]));
     }
+    /* ---- 1.6.0 backlog 34, the card an import shows (share.js showCard, sliced by its sharecard markers and run for real with sharecore and
+       safecore on a page that refuses markup): every word of it comes from a file someone else made ---- */
+    {
+        let err = '', box = null; const steps = [], ids = {};
+        try {
+            const { makeDom } = require('./boxdom.js'), dom = makeDom(), doc = dom.document, SFc = await import(modUrl('safecore.js')), SHc = await import(modUrl('sharecore.js'));
+            box = doc.createElement('div'); box.id = 'importCard'; box.hidden = true; doc.body.appendChild(box);
+            ['importCardCover', 'importCardTitle', 'importCardBy', 'importCardDesc', 'importCardContents', 'importCardLeft'].forEach(id => { const e = doc.createElement(id === 'importCardCover' ? 'img' : 'div'); e.id = id; box.appendChild(e); ids[id] = e; });
+            let dropped = 0;
+            const show = new Function('el', 'SC', 'picRef', 'log', 'dropUrl', slice('share.js', 'sharecard') + '\nreturn showCard;')(id => ids[id] || (id === 'importCard' ? box : null), SHc, SFc.picRef, (s, o) => steps.push(s + ' ' + JSON.stringify(o)), () => { dropped++; });
+            const evil = '<img src=x onerror=alert(1)><script>x</script>';
+            const c1 = SHc.cleanCard({ v: 1, title: evil, author: '"><svg onload=1>', version: '<b>1</b>', desc: evil + '\n<a href="javascript:alert(1)">x</a>', contents: { maps: { n: 2 } }, left: ['players'] });
+            show({ card: c1, url: 'javascript:alert(1)' });
+            ids.texts1 = (function w(n, out) { if (n.nodeType === 3) out.push(n.nodeValue); (n.childNodes || []).forEach(c => w(c, out)); return out; })(box, []);
+            ids.shown1 = { hidden: box.hidden, img: ids.importCardCover.hidden, src: ids.importCardCover.src };
+            show({ card: SHc.cleanCard({ v: 1, title: '' }), url: 'blob:http://localhost:4111/abc' });
+            ids.shown2 = { title: ids.importCardTitle.textContent, by: ids.importCardBy.hidden, desc: ids.importCardDesc.hidden, src: ids.importCardCover.src, img: ids.importCardCover.hidden };
+            show(null); ids.gone = { hidden: box.hidden, img: ids.importCardCover.hidden, dropped: dropped };
+        } catch (e) { err = String(e && e.message || e); }
+        const all = []; if (box) (function walk(n) { all.push(n); (n.childNodes || []).forEach(walk); })(box);
+        const els = all.filter(n => n.nodeType === 1), texts = all.filter(n => n.nodeType === 3).map(n => n.nodeValue);
+        check('1.6.0 the card an import shows (share.js showCard, run for real on a page that refuses markup, with sharecore and safecore): the title, who made it, the version, the description, the contents and what was left out are each text, whatever they hold; the page holds the card\'s own div and img and nothing more; a picture only by picRef, so an address that is no picture of this machine draws none; a card with no title says so plainly and an empty line is put away; no card puts the box away and lets its picture go',
+            !err && els.every(n => /^(DIV|IMG)$/.test(n.tagName)) && els.length === 7 && ids.texts1.includes('<img src=x onerror=alert(1)><script>x</script>') && ids.texts1.includes('by "><svg onload=1> \u00b7 version <b>1</b>')
+            && ids.texts1.some(t => t.indexOf('<a href="javascript:alert(1)">x</a>') >= 0) && ids.texts1.includes('2 maps') && ids.texts1.includes('Left out by its author: players.') && ids.shown1.hidden === false && ids.shown1.img === true && !ids.shown1.src
+            && ids.shown2.title === 'A shared campaign' && ids.shown2.by === true && ids.shown2.desc === true && ids.shown2.src === 'blob:http://localhost:4111/abc' && ids.shown2.img === false
+            && ids.gone.hidden === true && ids.gone.img === true && ids.gone.dropped === 1 && steps.length === 2 && steps.every(s => /^card-shown \{"picture":(true|false),"desc":(true|false),"left":[01]\}$/.test(s)),
+            err || JSON.stringify([ids.texts1, texts.slice(0, 6), ids.shown1, ids.shown2, ids.gone, steps]));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

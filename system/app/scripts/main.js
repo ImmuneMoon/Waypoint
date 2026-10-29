@@ -521,6 +521,8 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
   var pendingImportImages = null; // zip bundles: the archive's entries under images/ ({ name, size, check() }: each read from the picked file only when it is copied)
   var pendingImportBytes = 0;     // the picked archive's own size: what an import may write is judged against it
   var pendingImportLibrary = null; // Stage 6 library L1c2: the zip's pack files by name (library/<dir>/<id>.<rev>.json); none: a file's manifest is not used
+  var pendingImportCard = null; // 1.6.0 backlog 34: the zip's share card as share.js readCard read it ({ card, url }), shown at the top of the Import box; none for a file without one
+  function importCardDone() { pendingImportCard = null; if (window.wpShare && typeof window.wpShare.showCard === 'function') window.wpShare.showCard(null); }   // the card is put away with the box, its picture let go
   var importLibJobs = [];
   // an imported campaign's library manifest, used only with its files: it lands in a fresh folder, or joins the one already here
   function takeImportedLibrary(target, ic, existingLib) {
@@ -538,6 +540,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
       var imgs = pendingImportImages || [];
 
       pendingImportImages = null;
+      importCardDone();
       var libJobs = importLibJobs, libFiles = pendingImportLibrary; importLibJobs = []; pendingImportLibrary = null;
       if (libJobs.length && window.wpLibrary && window.wpLibrary.importFiles) window.wpLibrary.importFiles(libJobs, libFiles || {});   // the pack files, while the library waits for them (L1c2)
 
@@ -599,6 +602,8 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
       pendingImport = null;
 
       pendingImportImages = null;
+
+      importCardDone();
 
       document.getElementById('importChoiceModal').style.display = 'none';
 
@@ -801,6 +806,8 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
       pendingImportImages = null;
 
+      importCardDone();
+
       document.getElementById('importChoiceModal').style.display = 'none';
 
   });
@@ -843,6 +850,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                   var libE = entries.filter(function(en) { return /^library\/l_[a-z0-9]{8}\/p_[A-Za-z0-9_]{1,24}\.[0-9]{1,10}\.json$/.test(en.name) && en.size <= 16 * 1024 * 1024; });
                   pendingImportLibrary = null;
                   if (libE.length) { pendingImportLibrary = Object.create(null); libE.forEach(function(en) { pendingImportLibrary[en.name] = en; }); }   // kept as entries: a pack file is read (its checksum checked) only when the import copies it, one at a time
+                  importCardDone(); pendingImportCard = window.wpShare && typeof window.wpShare.readCard === 'function' ? await window.wpShare.readCard(entries) : null;   // 1.6.0 backlog 34: share.json and its cover, read and cleaned before anything is shown
                   handleImportedJson(djText);
               } catch(err) {
                   console.error(err);
@@ -861,6 +869,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       reader.onload = function(ev) {
 
           pendingImportImages = null; pendingImportLibrary = null;   // a plain file carries no pack files: its library manifest is not used
+          importCardDone();   // nor a share card (1.6.0 backlog 34)
 
           var textIn = String(ev.target.result || '');
           if (/\.txt$/i.test(file.name) && !/^[\s\uFEFF]*[\[{]/.test(textIn) && window.wpDocImport) { window.wpDocImport.importFile(file); return; }   // plain text that is not JSON: read as Markdown
@@ -971,6 +980,8 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                       document.getElementById('importChoiceSummary').textContent =
 
                           'The file contains ' + nCamps + ' campaign(s) with ' + nItems + ' maps/planners. Merge adds and updates by id, keeping everything else you have. Replace discards ALL current data.';
+
+                      if (window.wpShare && typeof window.wpShare.showCard === 'function') window.wpShare.showCard(pendingImportCard);   // 1.6.0 backlog 34: the card at the top, or the box as it always was
 
                       document.getElementById('importChoiceModal').style.display = 'flex';
 

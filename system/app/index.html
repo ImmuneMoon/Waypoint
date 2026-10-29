@@ -483,6 +483,7 @@
                           <li><b>Export As</b> makes shareable files at any scope: the open map or planner, all the maps, play maps or planners of the campaign, or everything. <b>Save Map as Picture</b> draws the open map as one picture file. An export that uses images arrives as a <b>.zip</b> with the pictures bundled in. A campaign export, and Everything, also carry the campaign&rsquo;s sounds and its <b>videos</b>, whole. An export has no size limit: files are read from disk and written in parts. A zip past 4 GB is written as ZIP64, which any current unzip tool opens. When the videos and music together pass 1 GB, the export asks where to save it and writes straight to that file. It then reads the file back and checks every file in it before it calls the export done.</li>
                           <li><b>Export This Campaign</b>, <b>Share This Campaign</b> and <b>Export Everything</b> open a sheet first. It counts what the file will carry, kind by kind: maps, pages, characters, pictures, sounds, music, videos and players, with the size of the files. Untick a kind to leave it out. Pictures left out means the maps and sheets come without them.</li>
                           <li>On the sheet you can add a cover, picked from the pictures the file carries, a title, your name, a version and a few words. The file then carries them as a card. Share This Campaign starts with Players unticked, so a campaign you hand to someone else carries none of your players&rsquo; names, history or handouts. Left as it is, the sheet makes the same file as before. What you type is kept for that campaign on this computer.</li>
+                          <li>A file with a card shows it at the top of <b>Import</b> before anything comes in. You see the cover, the title, who made it and its version. Below them are the few words, what is in the file and what its author left out.</li>
                           <li><b>Import</b> accepts those zips and plain .json files. It merges by id or replaces. It reads the file in pieces and checks every bundled file against its checksum before copying it. A damaged file is counted as failed and never written.</li>
                       </ul>
                       <h4>Updates</h4>
@@ -4436,6 +4437,13 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <div id="importChoiceModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 380px;">
         <h3 style="margin-top:0; color:var(--gold);">Import Data</h3>
+        <div id="importCard" class="share-card" hidden>
+            <div class="share-card-top"><img id="importCardCover" alt="The cover" hidden><div class="share-card-head"><div id="importCardTitle" class="share-card-title"></div><div id="importCardBy" class="share-card-by"></div></div></div>
+            <div id="importCardDesc" class="share-card-desc"></div>
+            <div id="importCardContents" class="gen-line"></div>
+            <div id="importCardLeft" class="gen-line"></div>
+            <div class="gen-rule"></div>
+        </div>
         <p id="importChoiceSummary" style="color:var(--ink); font-size:13px; margin-bottom:16px;"></p>
         <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="tool" id="importMergeBtn">Merge into existing campaigns (recommended)</button>

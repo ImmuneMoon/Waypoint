@@ -6,8 +6,13 @@
    with Players unticked. Left as it came, the sheet hands the export nothing and the file is the one it always was. What was typed is
    remembered for the campaign on this computer (wp_shareCards), never sent.
 
+   The import: readCard reads share.json from the archive (64 KB at most) and cleans it (sharecore cleanCard), then reads the cover's own entry
+   (16 MB at most, its checksum checked), takes it only when its first bytes say it is a PNG, JPEG, GIF or WebP picture, and makes it a blob
+   address on this machine. showCard draws the card into #importCard: every word as text, the picture through picRef. Nothing of the file is
+   drawn as markup, and a file with no card shows the Import box as it always was.
+
    Every step logs to /api/log as "share v1 <step>" (steplog.js): counts and truth values, never a name or a word typed.
-   Published as window.wpShare: open(scope, share), hide(). */
+   Published as window.wpShare: open(scope, share), hide(), readCard(entries), showCard(read). */
 import * as SC from './sharecore.js';
 import { picRef } from './safecore.js';
 import { toast } from './io.js';
@@ -140,7 +145,55 @@ function wire() {
     SC.KINDS.forEach(function(k) { var b = kindBox(k); if (b) b.addEventListener('change', function() { drawKinds(); log('tick', { kind: k, keep: !!this.checked }); }); });
 }
 
+/* ---------- the import's card ---------- */
+// [zipcheck:shareread-start]
+var _cardUrl = '';
+function dropUrl() { if (_cardUrl) { try { URL.revokeObjectURL(_cardUrl); } catch (e) {} _cardUrl = ''; } }
+// What a picture's first bytes say it is, or '' for anything else
+function picType(b) {
+    if (!b || b.length < 12) return '';
+    if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
+    if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+    if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'image/gif';
+    if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp';
+    return '';
+}
+async function readCard(entries) {
+    dropUrl();
+    var list = Array.isArray(entries) ? entries : [], find = function(n) { for (var i = 0; i < list.length; i++) if (list[i] && list[i].name === n) return list[i]; return null; };
+    var e = find('share.json'); if (!e) return null;
+    if (!(typeof e.size === 'number' && e.size > 0 && e.size <= SC.LIMITS.card)) { log('card-refused', { why: 'size' }); return null; }
+    var card = null;
+    try { card = SC.cleanCard(JSON.parse(new TextDecoder().decode(await e.bytes()))); } catch (err) { card = null; }
+    if (!card) { log('card-refused', { why: 'shape' }); return null; }
+    var url = '', ce = card.cover ? find(card.cover) : null;
+    if (ce && typeof ce.size === 'number' && ce.size > 0 && ce.size <= SC.LIMITS.cover) {
+        try { var b = await ce.bytes(), type = picType(b); if (type) url = URL.createObjectURL(new Blob([b], { type: type })); } catch (err) { url = ''; }
+    }
+    _cardUrl = url;
+    log('card-read', { cover: !!card.cover, picture: !!url, left: card.left.length, kinds: Object.keys(card.contents).length });
+    return { card: card, url: url };
+}
+// [zipcheck:shareread-end]
+// [sinkcheck:sharecard-start]
+function showCard(read) {
+    var box = el('importCard'); if (!box) return;
+    var img = el('importCardCover'), card = read && read.card ? read.card : null;
+    if (!card) { box.hidden = true; if (img) { img.removeAttribute('src'); img.hidden = true; } dropUrl(); return; }
+    var put = function(id, text) { var t = el(id); if (t) { t.textContent = text; t.hidden = !text; } };
+    put('importCardTitle', card.title || 'A shared campaign');
+    put('importCardBy', SC.byWords(card));
+    put('importCardDesc', card.desc);
+    put('importCardContents', SC.contentsWords(card));
+    put('importCardLeft', SC.leftWords(card));
+    var src = read.url ? picRef(read.url) : '';
+    if (img) { if (src) { img.src = src; img.hidden = false; } else { img.removeAttribute('src'); img.hidden = true; } }
+    box.hidden = false;
+    log('card-shown', { picture: !!src, desc: !!card.desc, left: card.left.length });
+}
+// [sinkcheck:sharecard-end]
+
 wire();
-var API = { open: open, hide: hide };
+var API = { open: open, hide: hide, readCard: readCard, showCard: showCard, picType: picType };
 window.wpShare = API;
-export { open, hide };
+export { open, hide, readCard, showCard, picType };

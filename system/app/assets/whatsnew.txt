@@ -38,6 +38,8 @@ Sharing a campaign
 - Share This Campaign starts with your players left out. Their names,
   their history and what you handed them stay with you.
 - Left as it is, the sheet makes the same file as before.
+- Import shows a file's card first: the cover, the title, who made it,
+  its version, the few words and what is in it.
 
 Table trackers
 - Put counters, countdowns and clocks on the play map. + Tracker at the

@@ -157,6 +157,11 @@ Systems, more
 - A Major Wound's threshold may read the location hit, as Hit.<name>. A
   Major Wound can switch an effect on and ask the wounded character's player
   for a roll, set in the Combat card's Taking damage box.
+- Any wound can switch an effect on and ask for a roll too, each where a
+  formula of the blow and the location hit holds.
+- A roll a wound asks for reads the blow and the location hit, as Blow. and
+  Hit., so a Big Hit roll can be -2 on the face. Its failure can cripple
+  the location hit, by how far it failed.
 - An entry can grant rows of another list, such as a calling's starting kit or
   a flaw that comes with an implant. Set it in the Items tab or the Library,
   under Grants: the entry, the list, how many, and a level it starts from.

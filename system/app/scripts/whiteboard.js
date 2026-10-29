@@ -4435,7 +4435,7 @@ window.wpFitToGrid = fitToGrid;
           var vals = null, lines = null;
           if (dstep) {
               var q = { amt: amt }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch) : ''; if (loc) q.loc = loc; if (tyOk) q.type = ty; if (fr.ad === true && typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad; if (dice > 0) q.dice = Math.min(100, dice);   // 1.6.0: the dice it rolled, for a figure a die
-              var st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return; vals = st.values; lines = st.lines; if (st.info && st.info.majorRoll && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info);   // 1.6.0 (B3): a Major Wound's roll is posted
+              var st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return; vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info);   // 1.6.0 (B3): a Major Wound's roll is posted
           } else if (hpId) {
               var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return;
               var res = S.applyEdit(sys, ch, hpId, { cur: (typeof e.value === 'number' ? e.value : 0) - amt }, F, {}); if (!res.ok) return;
@@ -4551,7 +4551,7 @@ window.wpFitToGrid = fitToGrid;
           if (step) {   // through the damage step: DR at the default location, the blast's damage type, the pool
               var q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch) : ''; if (loc) q.loc = loc; if (typeOk) q.type = b.dtype; if (typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad;
               var st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return;
-              vals = st.values; lines = st.lines; if (st.info && st.info.majorRoll && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info);   // 1.6.0 (B3): a Major Wound's roll is posted
+              vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info);   // 1.6.0 (B3): a Major Wound's roll is posted
           } else {
               var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return;
               var cur = typeof e.value === 'number' ? e.value : 0;

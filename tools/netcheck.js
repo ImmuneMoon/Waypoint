@@ -4290,6 +4290,54 @@ pendingChecks.push((async () => {
         && Dx.cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6', charId: 'c_b', att: 'a_abcd1234' }) === null && Dx.cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6', charId: 'c_b', act: 'r_rs', att: 'a_ABCD1234' }) === null, j([cdR, Dx.dueText(cdR)]));
 })());
 
+// 1.6.0 (the core's gaps 6 and 7): a roll the damage step posts answers the blow that called it, by a record of the host's own (net.blowMake):
+// rolled with that record's id it reads Blow.<name> and Hit.<name>, once, and where it fails it cripples the location struck by how far it failed
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx0 = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const src4 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const line = k => { const i = src4.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src4.slice(i, src4.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll'), atSrc = between('// [netcheck:attempt-start]', '// [netcheck:attempt-end]', 'attempt');
+    let dq = []; const Fx = Object.assign({}, Fx0, { evaluate: (e, o) => Fx0.evaluate(e, Object.assign({ random: () => { if (!dq.length) throw new Error('netcheck: no die left'); return dq.shift(); } }, o)) });
+    const BIG = '3d6 <= 10 + Hit.nat - Blow.wound';
+    const sys = Sx.cleanSystem({ v: 1, name: 'W', combat: { checks: 'under3d6', hpResource: 'f_hp', damage: { pool: 'f_hp', major: '1', locs: { list: 'f_locs' }, onMajor: { roll: 'r_big', crip: 'crip' } } },
+        fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '12', vis: 'all', edit: 'owner' }, { id: 'f_locs', key: 'Locs', label: 'Locations', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'nat', label: 'Natural' }, { key: 'crip', label: 'Crippled' }] } }],
+        items: [{ id: 'i_head', name: 'Head', stats: { nat: 1 } }, { id: 'i_arm', name: 'Arm', stats: { nat: 0 } }],
+        rolls: [{ id: 'r_big', label: 'Big Hit', formula: BIG, vis: 'all' }, { id: 'r_pl', label: 'Plain', formula: '3d6', vis: 'all' }] }, { F: Fx, gmView: true });
+    const locs = () => [{ defId: 'i_head', qty: 1 }, { defId: 'i_arm', qty: 1 }];
+    const out = { table: [], sent: { pB: [] }, cards: [] };
+    const camp = { id: 'k', activeItemId: 'm1', system: sys, chars: { c_b: { id: 'c_b', name: 'Sela', ownerId: 'u_b', npc: false, values: { f_locs: locs() } }, c_n: { id: 'c_n', name: 'Pebbles', npc: true, values: { f_locs: locs() } } }, items: { m1: { type: 'map', whiteboard: [] } } };
+    const net = { role: 'host', active: true, stream: false, paused: false, conns: [], roster: { pB: { id: 'u_b', name: 'Bo', location: 'm1' } }, combats: {}, syncCharDelta() {}, postDue() {}, damageCard: (ch, lines) => out.cards.push([ch.id, lines]) };
+    const conn = p => ({ peer: p, send(m) { packCheck(m); out.sent[p].push(JSON.parse(JSON.stringify(m))); } }), cB = conn('pB');
+    const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {}, tokenCtxFor: () => null }, wpVtt: { on: () => true, rulesOn: () => true } };
+    const W = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'rangeTo', 'getProfile', 'toast', 'ui', 'save',
+        'var diceLimit = null, _diceSlowSaid = {}, _dicePending = null;\n' + helpers + atSrc + '\n' + drSrc + '\nreturn { rq: function(msg, conn) {\ndiceLimit = null; _diceSlowSaid = {};\n' + rqSrc + '\n}, dr: net.diceRoll };')(
+        net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {}, () => {},
+        () => null, () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, () => {});
+    const roll = (cn, charId, act, expr, dice, extra) => { dq = dice.slice(); W.rq(Object.assign({ type: 'roll-req', rid: 'q' + Math.random().toString(36).slice(2, 7), charId: charId, act: act, expr: expr }, extra || {}), cn); };
+    const blow = { dmg: 6, through: 3, wound: 4, type: 1, cuts: true, hit: { f: 'f_locs', r: 'w_head' } };
+    const a1 = net.blowMake(camp.chars.c_b, 'r_big', blow, 'crip'), k1 = net.attemptsKept();
+    roll(cB, 'c_b', 'r_pl', '3d6', [1, 1, 1], { att: a1 }); const wrong = out.sent.pB[out.sent.pB.length - 1];
+    roll(cB, 'c_b', 'r_big', BIG, [6, 6, 6], { att: a1 }); const rec1 = out.table[out.table.length - 1], head1 = JSON.parse(JSON.stringify(camp.chars.c_b.values.f_locs[0])), k2 = net.attemptsKept(), card1 = out.cards.slice();
+    roll(cB, 'c_b', 'r_big', BIG, [6, 6, 6], { att: a1 }); const again = out.sent.pB[out.sent.pB.length - 1];
+    const a2 = net.blowMake(camp.chars.c_b, 'r_big', Object.assign({}, blow, { hit: { f: 'f_locs', r: 'w_arm' } }), 'crip'); roll(cB, 'c_b', 'r_big', BIG, [1, 1, 1], { att: a2 }); const arm2 = camp.chars.c_b.values.f_locs[1], nCards2 = out.cards.length;
+    const a3 = net.blowMake(camp.chars.c_b, 'r_big', blow); roll(cB, 'c_b', 'r_big', BIG, [6, 6, 6], { att: a3 }); const nCards3 = out.cards.length;
+    check('1.6.0 (the core\'s gaps 6 and 7) a blow\'s record: Sela\'s Big Hit made with its id reads Hit.nat 1 and Blow.wound 4 (an 18 against 7), though it resists nothing; it fails by 11, so the head gets Crippled 11 and her card says so; the record is used once, the same id again refused; another roll named with it is refused; a success cripples nothing, nor a record with no crip',
+        /^a_[a-z0-9]{8}$/.test(a1) && k1 === 1 && wrong.type === 'roll-deny' && rec1 && rec1.expr === BIG && rec1.type === 'roll' && j(head1) === j({ defId: 'i_head', qty: 1, ov: { stats: { crip: 11 }, held: ['crip'] } }) && k2 === 0
+        && j(card1) === j([['c_b', ['Head is crippled: the roll failed by 11.']]]) && again.type === 'roll-deny' && j(arm2) === j({ defId: 'i_arm', qty: 1 }) && nCards2 === 1 && nCards3 === 1 && j(camp.chars.c_b.values.f_locs[0]) === j(head1), j([wrong, rec1, head1, card1, again, arm2]));
+    const a4 = net.blowMake(camp.chars.c_n, 'r_big', Object.assign({}, blow, { wound: 2, hit: { f: 'f_locs', r: 'w_arm' } }), 'crip');
+    net._attNext = { att: a4, charId: 'c_n', act: 'r_big' }; dq = [5, 5, 5]; const gR = W.dr(BIG, { charId: 'c_n', act: 'r_big' }); net._attNext = null;
+    check('1.6.0 (the core\'s gaps 6 and 7) the GM\'s own press of an NPC\'s blow card: the roll reads the arm\'s Hit.nat 0 and Blow.wound 2 (15 against 8), fails by 7, and the arm gets Crippled 7',
+        gR.ok && j(camp.chars.c_n.values.f_locs[1]) === j({ defId: 'i_arm', qty: 1, ov: { stats: { crip: 7 }, held: ['crip'] } }) && net.attemptsKept() === 0, j([gR, camp.chars.c_n.values.f_locs]));
+    const dueW = { type: 'due', id: 'r_abcdefgh', from: { id: 'u_gm', name: 'GM', gm: true }, charId: 'c_b', act: 'r_big', label: 'Big Hit', why: 'wound', round: 1, roll: 1, att: 'a_abcd1234', ts: 1 }, cdW = Dx.cleanDue(dueW), cdM = Dx.cleanDue(Object.assign({}, dueW, { why: 'major' }));
+    const dcW = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dice.js'), 'utf8');
+    check('1.6.0 (the core\'s gaps 6 and 7) the wire: a wound\'s card is a card, said as due for a wound; a wound\'s or a Major Wound\'s card keeps its record\'s id and nothing of an attempt\'s; one with a bad id, no roll mark, or by, m or or beside it is no card; its button names the record; the host posts it with its id',
+        cdW && cdW.why === 'wound' && cdW.att === 'a_abcd1234' && /is due \(a wound\)/.test(Dx.dueText(cdW)) && cdM && cdM.att === 'a_abcd1234' && Dx.cleanDue(Object.assign({}, dueW, { att: undefined })).why === 'wound'
+        && Dx.cleanDue(Object.assign({}, dueW, { att: 'x' })) === null && Dx.cleanDue(Object.assign({}, dueW, { roll: undefined })) === null && Dx.cleanDue(Object.assign({}, dueW, { by: 'Kael' })) === null && Dx.cleanDue(Object.assign({}, dueW, { m: 2 })) === null && Dx.cleanDue(Object.assign({}, dueW, { or: [{ act: 'r_pl' }] })) === null
+        && dcW.includes("window.wpSheets.runDue(rec.charId, rec.act, typeof rec.att === 'string' ? rec.att : undefined)") && src4.includes("if ((rec.why === 'major' || rec.why === 'wound') && more && typeof more.att === 'string') rec.att = more.att;") && src4.includes("kind === 'wound' ? 'wound'"), j([cdW, Dx.dueText(cdW)]));
+})());
+
 // 1.6.0 (the core's gap 5, the defender chooses the Defense; the owner: "A button each"): Or resisted by — the attempt's card offers each other
 // resist roll its entry names, none GM-only on a player's card, and the host takes the attempt from whichever of them is pressed, once
 pendingChecks.push((async () => {

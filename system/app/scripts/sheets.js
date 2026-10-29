@@ -8408,7 +8408,7 @@ function postureClick(b) {
 // the weapons a blow tests. Every name reaches the box as a value or a text node. Save cleans it (systemcore cleanDamageRules); damageSays says
 // under the box what Save drops, judged a part at a time by the cleaner itself
 // [sinkcheck:dmgbox-start]
-var DBX_LIM = { types: 24, layers: 8, weapons: 4, wears: 8 };   // systemcore's DMG_LIM: what the cleaner keeps
+var DBX_LIM = { types: 24, layers: 8, weapons: 4, wears: 8, onWound: 4 };   // systemcore's DMG_LIM: what the cleaner keeps
 // 1.6.0: a damage type's figures a die: its control, its key, its caption, its line, its least and its words
 var DBX_DIE = [
     ['sys-dmgr-ydiedr', 'dieDr', 'DR', 'Added to the DR at the location for each die the blow rolled, for this blow alone. A minus takes armour off. -10 to 10', -10, 'its DR a die'],
@@ -8452,8 +8452,22 @@ function damageBox(box, cm) {
         var fxs = (draft.effects || []).filter(function(e) { return dbxObj(e) && typeof e.id === 'string'; }).map(function(e) { return [e.id, e.name || e.id]; });
         var rls = (draft.rolls || []).filter(function(r) { return dbxObj(r) && typeof r.id === 'string'; }).map(function(r) { return [r.id, String(r.label || r.id).split('{')[0].trim() || r.id]; });
         dbxCap(rM, 'A Major Wound switches on'); rM.appendChild(select('sys-dmgr-mjfx', dbxOpts(['', 'No effect'], fxs, om.fx), dbxStr(om.fx), 'An effect of the library a Major Wound switches on, as an apply action does'));
-        dbxCap(rM, 'and asks for'); rM.appendChild(select('sys-dmgr-mjroll', dbxOpts(['', 'No roll'], rls, om.roll), dbxStr(om.roll), 'A roll of the system posted as a reminder to the wounded character\'s player, such as a roll to stay up'));
+        dbxCap(rM, 'and asks for'); rM.appendChild(select('sys-dmgr-mjroll', dbxOpts(['', 'No roll'], rls, om.roll), dbxStr(om.roll), 'A roll of the system posted as a reminder to the wounded character\'s player, such as a roll to stay up. Rolled from its card, it reads the blow as Blow. and the location hit as Hit. and a name'));
+        var mjL = dbxObj(d.locs) && d.locs.list ? d.locs.list : '';   // 1.6.0 (the core's gap 7): the location its failure cripples
+        if (om.roll && mjL) { dbxCap(rM, 'its failure cripples'); rM.appendChild(select('sys-dmgr-mjcrip', dbxOpts(['', 'Nothing'], dbxKeys(mjL, true), om.crip), dbxStr(om.crip), 'Where that roll fails, the location hit gets how far it failed in this number stat, at least 1. A formula can read 1 or more as crippled, and 5 or more as severed')); }
         wrap.appendChild(rM);
+        var ows = Array.isArray(d.onWound) ? d.onWound : [];   // 1.6.0 (the core's gap 6): what any wound does
+        wrap.appendChild(el('span', 'sys-num-cap', 'Any wound'));
+        ows.forEach(function(w0, i) {
+            var w = dbxObj(w0) ? w0 : {}, rw = el('div', 'sys-flags sys-dmgr-onwound'); rw.dataset.oi = String(i);
+            dbxCap(rw, 'Where'); var wif = input('sys-dmgr-oif field', dbxStr(w.if), 'True for the wounds this does something on. Blank: every wound. It reads the character, the blow as Blow.dmg, Blow.through, Blow.wound, Blow.type and Blow.cuts, and the location hit as Hit. and a name', 'e.g. Blow.wound >= HP.max / 3'); wif.maxLength = LIMITS.formula; rw.appendChild(wif);
+            dbxCap(rw, 'switches on'); rw.appendChild(select('sys-dmgr-ofx', dbxOpts(['', 'No effect'], fxs, w.fx), dbxStr(w.fx), 'An effect of the library the wound switches on, as an apply action does'));
+            dbxCap(rw, 'and asks for'); rw.appendChild(select('sys-dmgr-oroll', dbxOpts(['', 'No roll'], rls, w.roll), dbxStr(w.roll), 'A roll of the system posted as a reminder to the wounded character\'s player. Rolled from its card, it reads the blow as Blow. and the location hit as Hit. and a name, such as a Vitality roll at minus Blow.wound'));
+            if (w.roll && mjL) { dbxCap(rw, 'its failure cripples'); rw.appendChild(select('sys-dmgr-ocrip', dbxOpts(['', 'Nothing'], dbxKeys(mjL, true), w.crip), dbxStr(w.crip), 'Where that roll fails, the location hit gets how far it failed in this number stat, at least 1')); }
+            rw.appendChild(dbxBtn('dmgrodel', '\u00d7', 'Remove this'));
+            wrap.appendChild(rw);
+        });
+        wrap.appendChild(dbxBtn('dmgroadd', '+ On a wound', ows.length >= DBX_LIM.onWound ? 'At most ' + DBX_LIM.onWound : 'An effect switched on, or a roll asked for, on every wound or on those a formula picks: Rattled, a roll against shock, bleeding', ows.length >= DBX_LIM.onWound));
     }
     var lc = dbxObj(d.locs) ? d.locs : {}, r2 = el('div', 'sys-flags sys-dmgr-locs'), lkeys = dbxKeys(lc.list, false);
     dbxCap(r2, 'Hit locations'); r2.appendChild(select('sys-dmgr-loclist', dbxOpts(['', 'None'], lists, lc.list), dbxStr(lc.list), 'The item list whose rows are the places a hit can land'));
@@ -8555,6 +8569,7 @@ function onDamageInput(t) {
     else if (dbxHas(c, 'sys-dmgr-locvital')) { var d = dbxDraft(); if (!dbxObj(d.locs)) return true; dbxSet(d.locs, 'vital', txt.trim() ? txt : ''); }
     else if (dbxHas(c, 'sys-dmgr-locmult')) { var dM = dbxDraft(); if (!dbxObj(dM.locs)) return true; dbxSet(dM.locs, 'mult', txt.trim() ? txt : ''); }
     else if (dbxHas(c, 'sys-dmgr-locdie')) { var dD = dbxDraft(); if (!dbxObj(dD.locs)) return true; dbxSet(dD.locs, 'die', txt.trim() ? txt : ''); }   // 1.6.0
+    else if (dbxHas(c, 'sys-dmgr-oif')) { var oI = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oI) return true; dbxSet(oI, 'if', txt.trim() ? txt : ''); }   // 1.6.0 (the core's gap 6)
     else if (DBX_DIE.some(function(g) { return dbxHas(c, g[0]); })) { var yD = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!yD) return true; DBX_DIE.forEach(function(g) { if (dbxHas(c, g[0])) dbxSet(yD, g[1], dbxNumOf(t)); }); }   // 1.6.0: a figure a die
     else if (dbxHas(c, 'sys-dmgr-lpick')) { var lP = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lP) return true; dbxSet(lP, 'pick', txt.trim() ? txt : ''); }   // 1.6.0
     else if (dbxHas(c, 'sys-dmgr-lmajw') || dbxHas(c, 'sys-dmgr-lbrkw') || dbxHas(c, 'sys-dmgr-lbrkm') || dbxHas(c, 'sys-dmgr-lwcap')) { var lQ = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lQ) return true; dbxSet(lQ, dbxHas(c, 'sys-dmgr-lmajw') ? 'majorWear' : dbxHas(c, 'sys-dmgr-lbrkw') ? 'brokenWear' : dbxHas(c, 'sys-dmgr-lwcap') ? 'wearCap' : 'brokenMajorWear', txt.trim() ? txt : ''); }   // 1.6.0: what a hit wears
@@ -8574,7 +8589,8 @@ function onDamageChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-dmgr-') < 0) return false;
     var v = typeof t.value === 'string' ? t.value : '', on = t.checked === true, redraw = false;
     if (dbxHas(c, 'sys-dmgr-pool')) { dbxSet(dbxDraft(), 'pool', v); dbxTidy(); }
-    else if (dbxHas(c, 'sys-dmgr-mjfx') || dbxHas(c, 'sys-dmgr-mjroll')) { var dJ = dbxDraft(), oJ = dbxObj(dJ.onMajor) ? dJ.onMajor : {}; dbxSet(oJ, dbxHas(c, 'sys-dmgr-mjfx') ? 'fx' : 'roll', v); if (Object.keys(oJ).length) dJ.onMajor = oJ; else delete dJ.onMajor; }   // 1.6.0 (B3)
+    else if (dbxHas(c, 'sys-dmgr-mjfx') || dbxHas(c, 'sys-dmgr-mjroll') || dbxHas(c, 'sys-dmgr-mjcrip')) { var dJ = dbxDraft(), oJ = dbxObj(dJ.onMajor) ? dJ.onMajor : {}; dbxSet(oJ, dbxHas(c, 'sys-dmgr-mjfx') ? 'fx' : dbxHas(c, 'sys-dmgr-mjroll') ? 'roll' : 'crip', v); if (!oJ.roll) delete oJ.crip; if (Object.keys(oJ).length) dJ.onMajor = oJ; else delete dJ.onMajor; redraw = dbxHas(c, 'sys-dmgr-mjroll'); }   // 1.6.0 (B3)   // 1.6.0 (the core's gap 7): its failure cripples
+    else if (dbxHas(c, 'sys-dmgr-ofx') || dbxHas(c, 'sys-dmgr-oroll') || dbxHas(c, 'sys-dmgr-ocrip')) { var oC = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oC) return true; dbxSet(oC, dbxHas(c, 'sys-dmgr-ofx') ? 'fx' : dbxHas(c, 'sys-dmgr-oroll') ? 'roll' : 'crip', v); if (!oC.roll) delete oC.crip; redraw = dbxHas(c, 'sys-dmgr-oroll'); }   // 1.6.0 (the core's gap 6)
     else if (dbxHas(c, 'sys-dmgr-loclist')) {   // another list: its DR, its cripple key and every type's typed DR belonged to the old one
         var d = dbxDraft(), was = dbxObj(d.locs) ? d.locs : {};
         if (!v) delete d.locs; else if (was.list !== v) { d.locs = { list: v }; if (was.vital) d.locs.vital = was.vital; (Array.isArray(d.types) ? d.types : []).forEach(function(y) { if (dbxObj(y)) delete y.plus; }); }
@@ -8606,14 +8622,14 @@ function onDamageChange(t) {
     markDirty(); if (redraw) renderAll(); else patchErrors(); return true;
 }
 function damageClick(b) {
-    var m = /^dmgr(y|l|w)(add|del)$/.exec(b.dataset && b.dataset.act || ''); if (!m) return false;
-    var key = m[1] === 'y' ? 'types' : m[1] === 'l' ? 'layers' : 'weapons', cap = DBX_LIM[key], words = m[1] === 'y' ? 'damage types' : m[1] === 'l' ? 'layers' : 'weapon lists';
+    var m = /^dmgr(y|l|w|o)(add|del)$/.exec(b.dataset && b.dataset.act || ''); if (!m) return false;   // 1.6.0 (the core's gap 6): o, what any wound does
+    var key = m[1] === 'y' ? 'types' : m[1] === 'l' ? 'layers' : m[1] === 'o' ? 'onWound' : 'weapons', cap = DBX_LIM[key], words = m[1] === 'y' ? 'damage types' : m[1] === 'l' ? 'layers' : m[1] === 'o' ? 'rows of Any wound' : 'weapon lists';
     if (m[2] === 'add') {
         var d = dbxDraft(), arr = Array.isArray(d[key]) ? d[key] : (d[key] = []);
         if (arr.length >= cap) { toast('At most ' + cap + ' ' + words + '.'); return true; }
         arr.push(m[1] === 'y' ? { key: '', label: '' } : {});
     } else {   // a remove: only a row the draft holds
-        var dd = dbxCm().damage, ar = dbxObj(dd) && Array.isArray(dd[key]) ? dd[key] : [], cls = m[1] === 'y' ? 'sys-dmgr-type' : m[1] === 'l' ? 'sys-dmgr-layer' : 'sys-dmgr-weapon', ix = m[1] === 'y' ? 'yi' : m[1] === 'l' ? 'li' : 'wi';
+        var dd = dbxCm().damage, ar = dbxObj(dd) && Array.isArray(dd[key]) ? dd[key] : [], cls = m[1] === 'y' ? 'sys-dmgr-type' : m[1] === 'l' ? 'sys-dmgr-layer' : m[1] === 'o' ? 'sys-dmgr-onwound' : 'sys-dmgr-weapon', ix = m[1] === 'y' ? 'yi' : m[1] === 'l' ? 'li' : m[1] === 'o' ? 'oi' : 'wi';
         var rw = b.closest ? b.closest('.' + cls) : null, i = rw ? Number(rw.dataset[ix]) : -1; if (!(i >= 0 && i < ar.length && Math.floor(i) === i)) return true;
         ar.splice(i, 1); if (!ar.length) delete dd[key]; dbxTidy();
     }
@@ -8631,15 +8647,25 @@ function damageSays(d, sys, Fx) {
     var low = function(a) { return (Array.isArray(a) ? a : []).map(function(x) { return String(x).toLowerCase(); }); };
     var isList = function(id) { return typeof id === 'string' && kinds[id] === 'item-list'; };
     var numStat = function(listId, k) { var f = fl(listId), sp = f && dbxObj(f.list) ? f.list : null; return !!sp && typeof k === 'string' && (Array.isArray(sp.stats) ? sp.stats : []).some(function(s) { return dbxObj(s) && String(s.key).toLowerCase() === k.toLowerCase() && s.kind !== 'pick'; }); };
-    var any = (typeof d.pool === 'string' && d.pool) || (typeof d.major === 'string' && d.major.trim()) || (dbxObj(d.locs) && d.locs.list) || ['types', 'layers', 'weapons'].some(function(k) { return Array.isArray(d[k]) && d[k].length; });
-    if (any && !cleanDamageRules(d, kinds, res, fl, false)) say('Taking damage: Save keeps these rules only with a pool, a damage type or hit locations, so it drops them.');
+    var any = (typeof d.pool === 'string' && d.pool) || (typeof d.major === 'string' && d.major.trim()) || (dbxObj(d.locs) && d.locs.list) || ['types', 'layers', 'weapons', 'onWound'].some(function(k) { return Array.isArray(d[k]) && d[k].length; });
+    if (any && !cleanDamageRules(d, kinds, res, fl, false)) say('Taking damage: Save keeps these rules only with a pool, a damage type, hit locations or Any wound, so it drops them.');
     if (typeof d.pool === 'string' && d.pool && !piece({ pool: d.pool }).pool) say('Wounds come off: that pool is gone, so Save drops it.');
     if (typeof d.major === 'string' && d.major.trim()) { if (!piece({ major: d.major }).major) say('Major Wound: the formula is too long or not on one line, so Save drops it.'); else reads(d.major, 'Major Wound'); }
     if (dbxObj(d.onMajor)) {   // 1.6.0 (B3): kept only beside the formula; an effect or a roll that is gone does nothing
         if ((d.onMajor.fx || d.onMajor.roll) && !(typeof d.major === 'string' && d.major.trim())) say('A Major Wound switches on and asks for: Save keeps them only with a Major Wound formula, so it drops them.');
         if (typeof d.onMajor.fx === 'string' && d.onMajor.fx && !(Array.isArray(sys.effects) ? sys.effects : []).some(function(e) { return dbxObj(e) && e.id === d.onMajor.fx; })) warn('A Major Wound switches on: that effect is gone, so it switches nothing on.');
         if (typeof d.onMajor.roll === 'string' && d.onMajor.roll && !(Array.isArray(sys.rolls) ? sys.rolls : []).some(function(r) { return dbxObj(r) && r.id === d.onMajor.roll; })) warn('A Major Wound asks for: that roll is gone, so it asks for nothing.');
+        if (typeof d.onMajor.crip === 'string' && d.onMajor.crip && !(dbxObj(d.locs) && numStat(d.locs.list, d.onMajor.crip))) say('A Major Wound\u2019s roll: its failure cripples a number stat of the hit locations, and that is none, so Save drops it.');   // 1.6.0 (the core's gap 7)
     }
+    (Array.isArray(d.onWound) ? d.onWound : []).forEach(function(w, i) {   // 1.6.0 (the core's gap 6)
+        if (!dbxObj(w)) return; var nth = 'Any wound, row ' + (i + 1);
+        if (!(typeof w.fx === 'string' && w.fx) && !(typeof w.roll === 'string' && w.roll)) say(nth + ': it switches nothing on and asks for nothing, so Save drops it.');
+        if (typeof w.if === 'string' && w.if.trim()) reads(w.if, nth);
+        if (typeof w.fx === 'string' && w.fx && !(Array.isArray(sys.effects) ? sys.effects : []).some(function(e) { return dbxObj(e) && e.id === w.fx; })) warn(nth + ': that effect is gone, so it switches nothing on.');
+        if (typeof w.roll === 'string' && w.roll && !(Array.isArray(sys.rolls) ? sys.rolls : []).some(function(r) { return dbxObj(r) && r.id === w.roll; })) warn(nth + ': that roll is gone, so it asks for nothing.');
+        if (typeof w.crip === 'string' && w.crip && !(dbxObj(d.locs) && numStat(d.locs.list, w.crip))) say(nth + ': its failure cripples a number stat of the hit locations, and that is none, so Save drops it.');
+    });
+    if (Array.isArray(d.onWound) && d.onWound.length > DBX_LIM.onWound) say('Any wound: Save keeps the first ' + DBX_LIM.onWound + '.');
     var lk = null;
     if (dbxObj(d.locs) && d.locs.list) {
         lk = piece({ locs: d.locs }).locs || null;
@@ -10385,10 +10411,18 @@ function dmgApply(charId, q) {
 // character is in a fight); and a Major Wound's roll posted as a reminder (net.postDue, why 'major'): to the wounded character's player where it
 // has one and the roll is not the GM's, else to the GM alone. The host's char-damage branch and the blast pass ask it too, through wpSheets
 function dmgFxo(c) { var n = net(); return { now: Date.now(), inCombat: !!(c && n && typeof n.charInCombat === 'function' && n.charInCombat(c.id)) }; }
+// 1.6.0 (the core's gaps 6 and 7): each roll the blow calls (info.follows: a Major Wound's and each wound's, why 'major' or 'wound'), and where
+// that roll reads Blow.<name> or Hit.<name>, or its failure cripples, its card names a record of the blow the host keeps (net.blowMake)
 function majorFollow(c, info) {
-    var n = net(), sys = systemOf(); if (!c || !dmgObj(info) || typeof info.majorRoll !== 'string' || !sys || !n || typeof n.postDue !== 'function') return false;
-    var r = (Array.isArray(sys.rolls) ? sys.rolls : []).find(function(x) { return dmgObj(x) && x.id === info.majorRoll; }); if (!r) return false;
-    n.postDue(c, r, 'major', 1, !c.npc && !!c.ownerId && r.vis !== 'gm'); return true;
+    var n = net(), sys = systemOf(); if (!c || !dmgObj(info) || !sys || !n || typeof n.postDue !== 'function') return false;
+    var fl = Array.isArray(info.follows) ? info.follows : typeof info.majorRoll === 'string' ? [{ roll: info.majorRoll, why: 'major' }] : [], did = false;
+    fl.forEach(function(f) {
+        var r = dmgObj(f) ? (Array.isArray(sys.rolls) ? sys.rolls : []).find(function(x) { return dmgObj(x) && x.id === f.roll; }) : null; if (!r) return;
+        var nm = typeof F === 'function' && F() && typeof r.formula === 'string' ? F().names(r.formula) : [], reads = nm.some(function(x) { return /^(blow|hit)\./i.test(x); });
+        var att = dmgObj(info.blow) && (reads || typeof f.crip === 'string') && typeof n.blowMake === 'function' ? n.blowMake(c, r.id, info.blow, f.crip) : '';
+        n.postDue(c, r, f.why === 'wound' ? 'wound' : 'major', 1, !c.npc && !!c.ownerId && r.vis !== 'gm', att ? { att: att } : undefined); did = true;
+    });
+    return did;
 }
 // A damage roll's card: its total on the character its roller targets, else on the one character token selected here
 function damageFromRoll(fromId, total, done, type, more) {   // 1.5.7: done, called once the window applies it; type, the damage type the roll names; more (1.6.0): { dice, ad }, the dice it rolled and the armour divisor its row names

@@ -40,6 +40,13 @@ function openMenu(id) {   // one menu of the row is up at a time
 function menuRows(id) { var m = document.getElementById(id); return m ? Array.prototype.slice.call(m.querySelectorAll('button')).filter(function(r) { return r.offsetParent !== null; }) : []; }
 // The keys of a menu: Down and Up go round its rows, Home and End to the first and the last. at: the row that has the focus, n: how many
 // rows there are. Answers the row to go to, or -1 where the key is not the menu's
+// 1.6.0 (the sweep of 2026-10-17, seen live: End inside Export As's kinds went to More's last row): Home and End from a row that stands in a
+// list beside the menu go to that list's first and last row. subs: for each row, the list it stands in, or null. -1 where the row is in none
+function menuSubEnd(key, at, subs) {
+    if ((key !== 'Home' && key !== 'End') || !Array.isArray(subs) || !(at >= 0 && at < subs.length) || !subs[at]) return -1;
+    var s = subs[at], first = -1, last = -1; for (var i = 0; i < subs.length; i++) if (subs[i] === s) { if (first < 0) first = i; last = i; }
+    return key === 'Home' ? first : last;
+}
 function menuStep(key, at, n) {
     if (!(n > 0)) return -1;
     if (!(at >= 0 && at < n)) at = -1;   // no row has the focus
@@ -161,6 +168,7 @@ function wire() {
             if (!menuShown(id)) { if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); openMenu(id); menuFocus(id); } return; }   // on the button, its menu put away: Down opens it
             if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); menuSet(id, false); b.focus(); return; }   // Escape puts it away, goes no further, and hands the focus back
             var rows = menuRows(id), at = rows.indexOf(document.activeElement), to = menuStep(e.key, at, rows.length);
+            if (e.key === 'Home' || e.key === 'End') { var se = menuSubEnd(e.key, at, rows.map(function(x) { var d = x.closest ? x.closest('.dropdown') : null; return d && d !== m && m.contains(d) ? d : null; })); if (se >= 0) to = se; }   // 1.6.0 (the sweep of 2026-10-17, seen live): inside a list beside the menu, as Export As's kinds, Home and End stay in that list
             if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) to = menuType(rows.map(function(r) { return r.textContent; }), at, e.key);   // a key of one character is a letter, never an arrow: the next row that begins with it. The space bar begins no row's words, so it stays the press it is
             if (to < 0 && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); e.stopPropagation(); return; }   // the page's own keys for what is selected on the map: a menu that has the focus takes them and does nothing with them (the review of 2026-10-09)
             if (to < 0) return;

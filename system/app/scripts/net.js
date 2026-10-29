@@ -7584,6 +7584,20 @@ function handleMessage(msg, conn) {
         }
         if (onA && typeof allyCard === 'function' && Array.isArray(resA.onLines) && resA.onLines.length) allyCard(chA, onA.ch, onA.tok.charName || onA.tok.name || onA.ch.name, labelA, resA.onLines, Sa.applyScope(campA.system, onA.ch, actA, rowGmA, Fa), diceFrom(profA, false), conn, profA.id);   // 1.5.9: the card of what moved on the one it was used on
         // [netcheck:charapply-end]
+    } else if (msg.type === 'blast-roll' && net.role === 'host') {
+        // [netcheck:blastroll-start]
+        // 1.6.0 (the core's gap 8): a player's press of a blast card: one rate token; the record must be one of the host's, for a character of
+        // theirs; the host rolls it and applies it (whiteboard.js wpBlastOwedRoll), and a refusal is said to them alone
+        var Db = DC(), qb = Db && typeof Db.cleanBlastRoll === 'function' ? Db.cleanBlastRoll(msg) : null; if (!qb) return;
+        if (net.paused || peerPaused(conn.peer)) return;
+        if (!charLimit && window.wpDiceCore) charLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: 20, windowMs: 10000, table: 400 });
+        if (charLimit && charLimit.allow(conn.peer, Date.now()) !== true) return;
+        var profB = net.roster[conn.peer]; if (!profB || typeof profB.id !== 'string') return;
+        var rb = typeof window.wpBlastOwedRoll === 'function' ? window.wpBlastOwedRoll(qb.att, profB.id) : null;
+        if (rb && rb.error) { try { conn.send({ type: 'blast-deny', msg: String(rb.error).slice(0, 200) }); } catch (e) { sendFailed(e); } }
+        // [netcheck:blastroll-end]
+    } else if (msg.type === 'blast-deny' && net.role === 'client') {
+        if (typeof msg.msg === 'string' && msg.msg) toast(msg.msg.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 200));   // 1.6.0 (the core's gap 8): the host's refusal of a blast card's press, as text
     } else if (msg.type === 'char-damage' && net.role === 'host') {
         // [netcheck:chardamage-start]
         // 1.5.6, the damage step: a player's blow on their own character — char-apply's gates and ONE rate token; then the step worked out with the
@@ -9541,6 +9555,19 @@ net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, 
     if (rec.why === 'resist') { rec.att = more.att; if (more.by) rec.by = String(more.by).slice(0, 60); if (typeof more.m === 'number' && isFinite(more.m)) rec.m = Math.max(-9999, Math.min(9999, more.m)); if (Array.isArray(more.or) && more.or.length) rec.or = more.or.slice(0, 3).map(function(r) { return { act: r.id, label: String(r.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll' }; }); }   // 1.6.0 (B2)   // 1.6.0 (the core's gap 5): a button for each
     if (!Array.isArray(act.apply)) { rec.roll = 1; if (rec.label === 'Apply') rec.label = String(act.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll'; }   // 1.5.9 (book es/et plan 4b): a roll that is due; its card's button rolls it
     postDue(rec, ch, !!toOwner);
+};
+// 1.6.0 (the core's gap 8): a blast's share a character rolls of its own (the Combat card's eachBy 'victim'): its card, the record's id and
+// words alone (whiteboard.js keeps the dice), to the character's player where toOwner, else the GM's
+net.postBlastDue = function(ch, att, label, toOwner) {
+    if (!ch || typeof ch.id !== 'string' || typeof att !== 'string') return;
+    var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, label: String(label || 'A blast').slice(0, 60), why: 'blast', round: 1, roll: 1, att: att, ts: Date.now() };
+    if (ch.name) rec.as = String(ch.name).slice(0, 60);
+    postDue(rec, ch, !!toOwner);
+};
+// ... and a player's press of that card, sent to the host, which rolls it (whiteboard.js wpBlastOwedRoll)
+net.blastRoll = function(att) {
+    if (!net.active || net.role !== 'client' || !net.conns[0] || !net.conns[0].open || typeof att !== 'string') return false;
+    try { net.conns[0].send({ type: 'blast-roll', att: att }); return true; } catch (e) { sendFailed(e); return false; }
 };
 // [netcheck:postdue-start]
 function postDue(rec, ch, toOwner) {

@@ -133,10 +133,15 @@ function renderDue(m) {
     if (rec.as) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'for ' + rec.as)); }
     wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
     wrap.appendChild(el('br'));
-    wrap.appendChild(el('div', 'roll-expr', (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + ' \u2014 ' + (rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? (typeof resistWhy === 'function' ? resistWhy(rec) : 'resisting an attempt') : rec.why === 'major' ? 'a Major Wound' : rec.why === 'wound' ? 'a wound' : 'round ' + rec.round)));   // 1.6.0 (B2): an attempt to resist   // 1.6.0 (the core's gap 6): or a wound
+    wrap.appendChild(el('div', 'roll-expr', (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + ' \u2014 ' + (rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? (typeof resistWhy === 'function' ? resistWhy(rec) : 'resisting an attempt') : rec.why === 'major' ? 'a Major Wound' : rec.why === 'wound' ? 'a wound' : rec.why === 'blast' ? 'a blast' : 'round ' + rec.round)));   // 1.6.0 (B2): an attempt to resist   // 1.6.0 (the core's gap 6): or a wound
     if (rec.theirs) wrap.appendChild(el('div', 'chat-due-note', 'Its player presses it.'));
     else if (m.done) wrap.appendChild(el('div', 'chat-due-note', 'Pressed.'));
     else if (!window.wpPopout) {
+        if (rec.why === 'blast') {   // 1.6.0 (the core's gap 8): its own dice of a blast, rolled by the host on the press (whiteboard.js wpBlastOwedPress)
+            var bb = el('button', 'tool chat-due-run', 'Roll'); bb.type = 'button'; bb.title = 'Roll your own dice of this blast; the GM\u2019s machine rolls them and applies what gets through';
+            bb.addEventListener('click', function() { if (m.done) return; m.done = true; bb.disabled = true; bb.textContent = 'Pressed'; var ok = typeof window.wpBlastOwedPress === 'function' ? window.wpBlastOwedPress(rec.att) : false; if (!ok) { m.done = false; bb.disabled = false; bb.textContent = 'Roll'; } });
+            wrap.appendChild(bb); return wrap;
+        }
         if (rec.why === 'resist' && Array.isArray(rec.or) && rec.or.length) {   // 1.6.0 (the core's gap 5; the owner: "A button each"): a button for each roll it may be resisted with; one press uses the card up
             var picks = [{ act: rec.act, label: rec.label || 'Roll' }].concat(rec.or), bs = [];
             picks.forEach(function(p) {

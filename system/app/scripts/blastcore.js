@@ -30,6 +30,20 @@ function diceCount(expr) {
     while ((m = re.exec(expr.slice(0, 1200))) && guard++ < 200) n += m[1] ? Math.min(1000, parseInt(m[1], 10)) : 1;
     return n;
 }
+// 1.6.0 (the core's gap 8, each victim rolls its own dice): a damage formula at n dice in all, 1 to 100. The dice come off its last term
+// first (a term left with none reads 0), and any past its own go onto its first: 6d6+2 at 4 is 4d6+2, 2d6+1d4 at 2 is 2d6+0. '' where the
+// formula rolls no dice or n is no whole number from 1 to 100
+function diceAt(expr, n) {
+    if (typeof expr !== 'string' || !fin(n) || Math.floor(n) !== n || n < 1 || n > 100) return '';
+    var src = expr.slice(0, 1200), re = /(\d*)\s*d\s*(\d+|%|F)/gi, m, terms = [], guard = 0;
+    while ((m = re.exec(src)) && guard++ < 200) terms.push({ at: m.index, len: m[0].length, n: m[1] ? Math.min(1000, parseInt(m[1], 10)) : 1, sides: m[2] });
+    if (!terms.length) return '';
+    var tot = terms.reduce(function(a, t) { return a + t.n; }, 0);
+    for (var i = terms.length - 1; i >= 0 && tot > n; i--) { var cut = Math.min(terms[i].n, tot - n); terms[i].n -= cut; tot -= cut; }
+    if (tot < n) terms[0].n += n - tot;
+    var out = '', last = 0; terms.forEach(function(t) { out += src.slice(last, t.at) + (t.n > 0 ? t.n + 'd' + t.sides : '0'); last = t.at + t.len; });
+    return out + src.slice(last);
+}
 // A token's share of a blast by the Combat card's falloff formula, with its four names: BlastDamage (what was rolled), BlastDistance (yards
 // from the blast's centre, height counted), BlastDice (how many dice the damage rolled) and Direct (1 for the token struck directly, else 0).
 // Centre: 1 for a token in the blast's own cell. No dice are ever rolled. A whole number, 0 or more, at most what was rolled; null where the formula cannot be worked out
@@ -184,6 +198,6 @@ var STAND_INS = Object.freeze({
     grenade: Object.freeze(['M12 9a6 6 0 1 0 0 12 6 6 0 0 0 0-12z', 'M10 9V6h4v3', 'M14 7l4-3', 'M9.5 13.5h5M9.5 16.5h5']),
     mine: Object.freeze(['M4 15c0-2.5 3.6-4 8-4s8 1.5 8 4-3.6 4-8 4-8-1.5-8-4z', 'M12 11V7', 'M7.5 11.5L6 8.5M16.5 11.5L18 8.5', 'M10 7h4'])
 });
-var API = { VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
+var API = { diceAt: diceAt, VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
 if (typeof window !== 'undefined') window.wpBlastCore = API;
-export { VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanMine, inTrigger, STAND_INS };
+export { diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanMine, inTrigger, STAND_INS };

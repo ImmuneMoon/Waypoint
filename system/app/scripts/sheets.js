@@ -7809,6 +7809,7 @@ function listApplyEditor(box, rr, ri, key, sp, targets) {   // key (R2b): 'apply
 // it, the cleaner's own reading. Values and text nodes only
 var BLAST_BOXES = [
     ['fall', 'Blast falloff', 'Each token\u2019s share of a blast. Names: BlastDamage, BlastDistance in yards, BlastDice, Direct and Centre, the blast\u2019s own cell. With none, every token takes the whole roll.', 'if(or(Direct, Centre), BlastDamage, if(BlastDistance > 2 * BlastDice, 0, floor(BlastDamage / (3 * BlastDistance))))'],
+    ['each', 'Each victim\u2019s dice', 'The dice each character in a blast rolls of its own. Names: BlastDice, the blast\u2019s own dice, BlastDistance in yards, Direct and Centre. Below 1 it rolls none. With none, one roll for all.', 'BlastDice - floor(BlastDistance)'],
     ['roll', 'Throw roll', 'The check a throw rolls first. ThrowSkill stands for the item\u2019s throw skill. RangeMod reads the distance to the aim. Row. reads the thrown item\u2019s row, and ThrowDistance the yards to the aim. With none, a throw lands where it is aimed.', '3d6 <= ThrowSkill + RangeMod'],
     ['scatter', 'Scatter on a miss', 'How many yards a miss lands from its aim. Names: Margin and ThrowDistance. With none, a yard a point missed, never more than half the distance thrown.', 'min(Margin, ThrowDistance / 2)'],
     ['hand', 'In the hand', 'Whether a critical failure goes off in the thrower\u2019s hand. Name: Natural, its dice. With none, it drops at the thrower\u2019s feet.', 'Natural >= 18'],
@@ -7831,7 +7832,7 @@ function fragSays(v) {   // what Save does with Fragmentation reaches: '' where 
 function blastSays(k, v) {   // what Save does with one formula: '' where it keeps it
     var SCb = window.wpSystemCore; if (!v || !SCb || typeof SCb.cleanBlastRules !== 'function') return '';
     var o = {}; o[k] = v; var c = SCb.cleanBlastRules(o, F());
-    return c && c[k] ? '' : k === 'fall' ? 'Save drops it: it may read only BlastDamage, BlastDistance, BlastDice, Direct and Centre, with no dice.' : k === 'scatter' ? 'Save drops it: it may read only Margin and ThrowDistance.' : k === 'hand' ? 'Save drops it: it may read only Natural, with no dice.' : k === 'roll' ? 'Save drops it: it does not read as a formula.' : 'Save drops it: it does not read as a formula with no dice.';
+    return c && c[k] ? '' : k === 'each' ? 'Save drops it: it may read only BlastDice, BlastDistance, Direct and Centre, with no dice.' : k === 'fall' ? 'Save drops it: it may read only BlastDamage, BlastDistance, BlastDice, Direct and Centre, with no dice.' : k === 'scatter' ? 'Save drops it: it may read only Margin and ThrowDistance.' : k === 'hand' ? 'Save drops it: it may read only Natural, with no dice.' : k === 'roll' ? 'Save drops it: it does not read as a formula.' : 'Save drops it: it does not read as a formula with no dice.';
 }
 function blastBox(box, cm) {
     var bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : {};
@@ -7842,6 +7843,7 @@ function blastBox(box, cm) {
         lineUnder(box, d[2]);
         var er = el('div', 'sys-blast-err'); er.dataset.bk = d[0]; er.textContent = blastSays(d[0], bl[d[0]]); box.appendChild(er);
     });
+    if (typeof bl.each === 'string' && bl.each) { box.appendChild(labeledSelect('sys-combat-beachby', 'Each victim\u2019s dice rolled by', [['', 'The GM, each at once'], ['victim', 'The victim, from a card']], bl.eachBy === 'victim' ? 'victim' : '', EACH_BY_LINE)); lineUnder(box, EACH_BY_LINE); }   // 1.6.0 (the core's gap 8)
     box.appendChild(labeledSelect('sys-combat-bways', 'Ways a miss goes', [['6', 'Six, a d6 (the sides of a hex)'], ['8', 'Eight']], bl.ways === 8 ? '8' : '6', 'How many ways a miss may scatter from its aim, rolled as a die'));
     box.appendChild(labeledSelect('sys-combat-bfuse', 'A thrown explosive goes off', [['', 'At once, where it lands'], ['turn', 'At the start of the next turn in a fight']], bl.fuse === 'turn' ? 'turn' : '', 'With a fight on its map, a fused explosive lies there until the next turn starts. Outside a fight it goes off at once'));
     var lnB = bl.launch && typeof bl.launch === 'object' && !Array.isArray(bl.launch) ? bl.launch : {};   // 1.5.9 (es): a launched round's miss; each first choice is the book's reading where it has ruled (the fuse, (eu) H1), else the plan's
@@ -7867,6 +7869,7 @@ function blastBox(box, cm) {
     var re = el('div', 'sys-blast-err'); re.dataset.rk = 'resist'; re.textContent = resistSays(rsV); box.appendChild(re);
     box.appendChild(labeledSelect('sys-combat-affhurt', 'Those an affliction hurts', [['', 'Took a wound, after DR'], ['share', 'Took any share of the blast']], bl.hurt === 'share' ? 'share' : '', HURT_LINE)); lineUnder(box, HURT_LINE);
 }
+var EACH_BY_LINE = 'The GM: each victim\u2019s dice are rolled as the blast goes off. The victim: each player gets a card with a Roll button, and an NPC\u2019s card is yours.';   // 1.6.0 (the core's gap 8)
 var RESIST_LINE = 'The check a character rolls against an affliction. Resist stands for what the item says it is resisted against. With none, you are told who must resist.';
 var HURT_LINE = 'For an affliction that reaches those it hurts. A wound is damage that got through DR.';
 function resistSays(v) {   // what Save does with the Resist roll: '' where it keeps it
@@ -7875,9 +7878,10 @@ function resistSays(v) {   // what Save does with the Resist roll: '' where it k
 }
 var FRAG_TYPE_LINE = 'The damage type of fragmentation whose item names none. With none, the blast\u2019s own type.';
 function onBlastChange(t) {   // the lists of the Blasts and throws part
-    var c = t && t.className || '', lk = /(^| )sys-combat-bl(fuse|fumble|stop|glance)( |$)/.exec(c), fk = /(^| )sys-combat-fg(type|cover|each|direct|ad)( |$)/.exec(c), hk = /(^| )sys-combat-affhurt( |$)/.test(c); if (c.indexOf('sys-combat-bways') < 0 && c.indexOf('sys-combat-bfuse') < 0 && !lk && !fk && !hk) return false;
+    var c = t && t.className || '', lk = /(^| )sys-combat-bl(fuse|fumble|stop|glance)( |$)/.exec(c), fk = /(^| )sys-combat-fg(type|cover|each|direct|ad)( |$)/.exec(c), hk = /(^| )sys-combat-affhurt( |$)/.test(c), ek = /(^| )sys-combat-beachby( |$)/.test(c); if (c.indexOf('sys-combat-bways') < 0 && c.indexOf('sys-combat-bfuse') < 0 && !lk && !fk && !hk && !ek) return false;
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : (cm.blast = {});
-    if (hk) { if (t.value === 'share') bl.hurt = 'share'; else delete bl.hurt; }   // 1.5.9 (es) H7: whom an affliction that reaches those it hurts reaches, kept only off the plan's reading
+    if (ek) { if (t.value === 'victim') bl.eachBy = 'victim'; else delete bl.eachBy; }   // 1.6.0 (the core's gap 8): who rolls each victim's dice
+    else if (hk) { if (t.value === 'share') bl.hurt = 'share'; else delete bl.hurt; }   // 1.5.9 (es) H7: whom an affliction that reaches those it hurts reaches, kept only off the plan's reading
     else if (fk) {   // 1.5.9 (es): fragmentation, kept only off the plan's reading
         var fo = bl.frag && typeof bl.frag === 'object' && !Array.isArray(bl.frag) ? bl.frag : (bl.frag = {}), fv = String(t.value || '');
         if (fk[2] === 'type') { if (fv) fo.type = fv.slice(0, 24); else delete fo.type; } else if (fk[2] === 'cover') { if (fv === 'total') fo.cover = 'total'; else delete fo.cover; }
@@ -7909,7 +7913,7 @@ function onBlastInput(t) {
         var boxF = ui('sysCombatBox'), erF = boxF ? Array.prototype.filter.call(boxF.querySelectorAll('.sys-blast-err'), function(x) { return x.dataset.fk === 'reach'; })[0] : null; if (erF) erF.textContent = fragSays(vF);
         markDirty(); return true;
     }
-    var k = t && t.dataset ? t.dataset.bk : ''; if (!k || !/(^| )sys-combat-b(fall|roll|scatter|max|min|hand)( |$)/.test(t.className || '')) return false;
+    var k = t && t.dataset ? t.dataset.bk : ''; if (!k || !/(^| )sys-combat-b(fall|each|roll|scatter|max|min|hand)( |$)/.test(t.className || '')) return false;   // 1.6.0: each (the core's gap 8)
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
     var bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : (cm.blast = {}), v = String(t.value || '').trim();
     if (v) bl[k] = v.slice(0, 1200); else delete bl[k];

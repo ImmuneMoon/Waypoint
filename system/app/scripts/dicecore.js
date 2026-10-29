@@ -263,10 +263,10 @@ function cleanApply(rec) {
 function cleanDue(rec) {
     if (!rec || typeof rec !== 'object' || typeof rec.id !== 'string' || !ID_RE.test(rec.id)) return null;
     var from = cleanFrom(rec.from); if (!from) return null;
-    if (typeof rec.charId !== 'string' || !/^c_[A-Za-z0-9_]{1,24}$/.test(rec.charId) || typeof rec.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(rec.act)) return null;
-    if (rec.why !== 'round' && rec.why !== 'turn' && rec.why !== 'turnEnd' && rec.why !== 'cross' && rec.why !== 'major' && rec.why !== 'wound' && rec.why !== 'resist') return null;   // 1.6.0 (the core's gap 6): or a wound   // 1.6.0 (B2): or an attempt to resist   // 1.6.0 (B3): or a Major Wound   // 1.6.0: or the end of its turn   // 1.5.9: or a value crossing a step
+    if (typeof rec.charId !== 'string' || !/^c_[A-Za-z0-9_]{1,24}$/.test(rec.charId) || (rec.why === 'blast' ? rec.act !== undefined : (typeof rec.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(rec.act)))) return null;   // 1.6.0 (the core's gap 8): a blast's card names no roll of the system
+    if (rec.why !== 'round' && rec.why !== 'turn' && rec.why !== 'turnEnd' && rec.why !== 'cross' && rec.why !== 'major' && rec.why !== 'wound' && rec.why !== 'resist' && rec.why !== 'blast') return null;   // 1.6.0 (the core's gap 8): or a blast's share to roll   // 1.6.0 (the core's gap 6): or a wound   // 1.6.0 (B2): or an attempt to resist   // 1.6.0 (B3): or a Major Wound   // 1.6.0: or the end of its turn   // 1.5.9: or a value crossing a step
     if (!isInt(rec.round) || rec.round < 1 || rec.round > 9999) return null;
-    var out = { id: rec.id, from: from, charId: rec.charId, act: rec.act, why: rec.why, round: rec.round, ts: typeof rec.ts === 'number' && isFinite(rec.ts) ? rec.ts : 0 };
+    var out = { id: rec.id, from: from, charId: rec.charId, act: rec.act, why: rec.why, round: rec.round, ts: typeof rec.ts === 'number' && isFinite(rec.ts) ? rec.ts : 0 }; if (rec.why === 'blast') delete out.act;
     var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
     var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
     if (rec.theirs !== undefined) { if (rec.theirs !== 1) return null; out.theirs = 1; }
@@ -280,6 +280,8 @@ function cleanDue(rec) {
             for (var oi = 0; oi < rec.or.length; oi++) { var o = rec.or[oi]; if (!o || typeof o !== 'object' || typeof o.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(o.act) || o.act === out.act || ors.some(function(x) { return x.act === o.act; })) return null; var ol = cleanLabel(o.label); if (ol === null) return null; ors.push(ol ? { act: o.act, label: ol } : { act: o.act }); }
             out.or = ors;
         }
+    } else if (rec.why === 'blast') {   // 1.6.0 (the core's gap 8): the share it rolls, by the id of the host's record, which holds the dice
+        if (out.roll !== 1 || typeof rec.att !== 'string' || !ATT_RE.test(rec.att) || rec.by !== undefined || rec.m !== undefined || rec.or !== undefined) return null; out.att = rec.att;
     } else if ((rec.why === 'major' || rec.why === 'wound') && rec.att !== undefined) {   // 1.6.0 (the core's gaps 6 and 7): the blow a roll the damage step posted answers, by the id of the host's record
         if (out.roll !== 1 || typeof rec.att !== 'string' || !ATT_RE.test(rec.att) || rec.by !== undefined || rec.m !== undefined || rec.or !== undefined) return null; out.att = rec.att;
     } else if (rec.att !== undefined || rec.by !== undefined || rec.m !== undefined || rec.or !== undefined) return null;
@@ -287,7 +289,9 @@ function cleanDue(rec) {
 }
 // 1.6.0 (B2): why a resist roll is due, in words: whose attempt, and by how much it succeeded
 function resistWhy(rec) { return !rec ? '' : 'resisting ' + (rec.by ? rec.by + '\u2019s attempt' : 'an attempt') + (typeof rec.m === 'number' ? ', made by ' + fmtNum(rec.m) : ''); }
-function dueText(rec) { return !rec ? '' : (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + (rec.as ? ' for ' + rec.as : '') + ' is due (' + (rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? resistWhy(rec) : rec.why === 'major' ? 'a Major Wound' : rec.why === 'wound' ? 'a wound' : 'round ' + rec.round) + ')'; }
+function dueText(rec) { return !rec ? '' : (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + (rec.as ? ' for ' + rec.as : '') + ' is due (' + (rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? resistWhy(rec) : rec.why === 'major' ? 'a Major Wound' : rec.why === 'wound' ? 'a wound' : rec.why === 'blast' ? 'a blast' : 'round ' + rec.round) + ')'; }
+// 1.6.0 (the core's gap 8): a player's press of a blast card, { type: 'blast-roll', att }: the id of the host's record alone; null otherwise
+function cleanBlastRoll(msg) { return msg && typeof msg === 'object' && msg.type === 'blast-roll' && typeof msg.att === 'string' && ATT_RE.test(msg.att) && Object.keys(msg).length === 2 ? { type: 'blast-roll', att: msg.att } : null; }
 // Stage 6 HUD H7: an apply card as one line (a toast, the session log): who, as whom, the action, each change as "FP \u22123 \u2192 0"
 function applyText(rec) {
     if (!rec || !rec.from || !Array.isArray(rec.lines)) return '';
@@ -494,6 +498,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
+var API = { cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };
+export { cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };

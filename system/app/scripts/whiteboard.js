@@ -4265,6 +4265,7 @@ window.wpFitToGrid = fitToGrid;
       var b = { x: land.x, y: land.y, ft: ft, name: opts.name || '', elev: (opts.elev !== undefined ? opts.elev : 0), autoElev: opts.elev === undefined, thrown: true, by: opts.by || '' };
       if (pre) {   // 1.5.8: the blast's own id (its card's Apply to all), the damage it rolls, its type, the token struck directly, its notes and its icon
           b.bid = 'b_' + Math.random().toString(36).slice(2, 12); b.dmgExpr = typeof opts.damage === 'string' ? opts.damage : ''; if (pre.direct) b.direct = pre.direct; if (opts.gmOnly) b.gm = true;
+          if (typeof opts.charId === 'string' && opts.charId) b.rollBy = opts.charId;   // 1.6.0 (the core's gap 8): whose roll each victim's own dice are, under the GM's rolling
           var dty = opts.goOff ? opts.dtype : pre.area && pre.area.type; if (typeof dty === 'string' && dty) b.dtype = dty;
           var nts = opts.goOff ? opts.notes : pre.def && !opts.gmOnly ? pre.def.notes : ''; if (typeof nts === 'string' && nts.trim()) b.notes = nts.trim().slice(0, 800);
           var ico = opts.goOff ? opts.icon : pre.def ? pre.def.icon : ''; if (typeof ico === 'string' && ico) b.icon = ico;
@@ -4295,6 +4296,7 @@ window.wpFitToGrid = fitToGrid;
       if (auto === 'measure') { if (fgN) toast('Blast automation is Measure only, so the fragmentation of ' + fgN + ' was not rolled.'); if (afN) toast('Blast automation is Measure only, so the afflictions of ' + afN + ' were not rolled.'); return; }
       if (window.wpVtt && !window.wpVtt.on('dice')) { if (fgN) toast('Dice are off, so the fragmentation of ' + fgN + ' was not rolled.'); if (afN) toast('Dice are off, so the afflictions of ' + afN + ' were not rolled.'); return; }
       if (!window.wpDice || !window.wpDice.rollFor) return;
+      var rlE = typeof blastRules === 'function' ? blastRules(sys) : null; if (auto === 'full' && rlE && rlE.each && b && b.dmgExpr) { applyBlastDamage(b, 0, combat.hpResource, mapIn); return; }   // 1.6.0 (the core's gap 8): each rolls its own dice, so none is rolled for all
       var dr = window.wpDice.rollFor(opts.charId, opts.damage, (opts.name || 'Blast') + ' damage', { gmOnly: !!opts.gmOnly, dmg: true, blast: b && b.bid });   // a GM-only item's damage stays the GM's; chat cards: a damage card (an item's damage is damage by nature, as on his reference sheets)
       var total = dr && dr.ok && typeof dr.value === 'number' ? dr.value : null;
       if (auto !== 'full' || total === null) { if (fgN && auto === 'roll' && total !== null) toast('The fragmentation of ' + fgN + ' is rolled when you press Apply to all in the blast.'); if (afN && auto === 'roll' && total !== null) toast('The afflictions of ' + afN + ' are rolled when you press Apply to all in the blast.'); return; }
@@ -4537,13 +4539,27 @@ window.wpFitToGrid = fitToGrid;
       var noRes = !hpId && !step; if (noRes) { toast('Full auto is on, but no damage resource is set (System editor ▸ Items ▸ Damage subtracts from).'); if (!(b && b.frag && sys.combat && sys.combat.damage) && !(b && Array.isArray(b.aff) && b.aff.length)) return; }   // 1.5.9 (es): an affliction that reaches everyone in the blast goes on all the same   // the review of fold 3: the GM is told whether or not a fragmentation goes on through the damage step
       var byChar = Object.create(null), hits = [], applied = 0, halved = 0, shielded = 0, spared = 0, dice = fall ? BC.diceCount(b.dmgExpr || '') : 0, types = step && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [];
       var typeOk = !!(b.dtype && types.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === String(b.dtype).toLowerCase(); }));
+      var eEx = rules && rules.each && BC && typeof BC.diceAt === 'function' ? (b.dmgExpr || b.eachExpr || '') : '', eDice = eEx ? BC.diceCount(eEx) : 0, eVic = !!(eEx && eDice && rules.eachBy === 'victim'), owed = 0, eachN = 0;   // 1.6.0 (the core's gap 8): each victim's own dice
+      if (!eDice) eEx = '';
       var hurt = { w: [], s: [] }, mark = function(cid, w, sh) { if (w && hurt.w.indexOf(cid) < 0) hurt.w.push(cid); if (sh && hurt.s.indexOf(cid) < 0) hurt.s.push(cid); };   // 1.5.9 (es): whom the blast and its fragmentation wounded, and whom a share reached, in that order
       var write = blastWriter(byChar, hits);   // one entry a character for the Undo (1.5.9: its fragmentation and its afflictions write too)
       blastDistances(b, map).forEach(function(r) {
           if (!shapeHolds(b, r) || !r.tok.charId) return;   // what a blast holds is asked in one place: its radius, a ring's inner distance, a cone's angle, and the token an explosion spares
           var ch = camp.chars && typeof r.tok.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, r.tok.charId) ? camp.chars[r.tok.charId] : null; if (!ch || noRes) return;   // own ids only: a token from a file naming '__proto__' writes no damage onto a prototype
           var share = total;
-          if (fall) { share = BC.fallShare(F, fall, { dmg: total, dist: r.d, dice: dice, direct: !!b.direct && r.tok.id === b.direct, centre: typeof sameCellOn === 'function' && sameCellOn(map, b, tokenCentre(r.tok)) }); if (share === null) return; }   // 1.5.8: the token's share by the card's falloff
+          if (eEx) {   // 1.6.0 (the core's gap 8): this victim's own dice, by the card's formula; rolled now, or owed to its player's card
+              var dirE = !!b.direct && r.tok.id === b.direct, cenE = typeof sameCellOn === 'function' && sameCellOn(map, b, tokenCentre(r.tok));
+              var nE = blastFig(rules.each, function(nm) { var l = String(nm).toLowerCase(); return l === 'blastdice' ? eDice : l === 'blastdistance' ? Math.max(0, r.d) : l === 'direct' ? (dirE ? 1 : 0) : l === 'centre' ? (cenE ? 1 : 0) : undefined; }, false);
+              var exE = typeof nE === 'number' && nE >= 1 ? BC.diceAt(eEx, Math.min(100, Math.floor(nE))) : ''; if (!exE) { spared++; return; }
+              if (eVic) {
+                  var tierV = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, stanceOn('elevation') ? (b.elev || 0) : 0, stanceOn('elevation') ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null;
+                  if (S.coverOutcome && S.coverOutcome(sys, tierV) === 'none') { shielded++; return; }
+                  if (blastOwe(b, r, ch, map, exE, Math.min(100, Math.floor(nE)), dirE, cenE, tierV)) owed++; return;
+              }
+              var rE = window.wpDice && typeof window.wpDice.rollFor === 'function' ? window.wpDice.rollFor(b.rollBy || '', exE, (b.gm === true ? 'Blast' : (b.name || 'Blast')) + ' damage, ' + (r.tok.charName || r.tok.name || ch.name || 'a character'), { gmOnly: b.gm === true, dmg: true, used: true }) : null;
+              if (!rE || !rE.ok || typeof rE.value !== 'number' || !isFinite(rE.value)) return; share = Math.max(0, Math.floor(rE.value)); eachN++;
+          }
+          if (fall) { share = BC.fallShare(F, fall, { dmg: share, dist: r.d, dice: dice, direct: !!b.direct && r.tok.id === b.direct, centre: typeof sameCellOn === 'function' && sameCellOn(map, b, tokenCentre(r.tok)) }); if (share === null) return; }   // 1.5.8: the token's share by the card's falloff (1.6.0: of its own roll, where each rolls its own)
           var tierC = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, stanceOn('elevation') ? (b.elev || 0) : 0, stanceOn('elevation') ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null, ocC = S.coverOutcome ? S.coverOutcome(sys, tierC) : 'full', dmgC = S.coverDamage ? S.coverDamage(sys, tierC, share) : share;   // cover follow-ups (owner 2026-09-28): the system's outcome for the cover this token has from the blast (the host's own board)
           if (ocC === 'none' && share > 0) { shielded++; return; }   // shielded: the system's outcome for this grade is none (a half that rounds to 0 took less)
           if (fall && !(dmgC > 0)) { spared++; return; }   // past the falloff's reach: nothing to apply
@@ -4564,12 +4580,59 @@ window.wpFitToGrid = fitToGrid;
           applied++;
       });
       var fp = typeof fragPass === 'function' ? fragPass(b, map, camp, sys, hpId, write, mark) : null, ap = typeof affPass === 'function' ? affPass(b, map, camp, sys, write, hurt) : null, fragNote = fp ? (fp.hit ? ' · fragmentation hit ' + fp.hit + ' token' + (fp.hit === 1 ? '' : 's') : '') + (fp.shielded ? ' · ' + fp.shielded + ' shielded from fragmentation' : '') : '';   // 1.5.9 (es)
-      var coverNote = (halved ? ' · ' + halved + ' behind cover took less' : '') + (shielded ? ' · ' + shielded + ' shielded by cover' : '') + (spared ? ' · ' + spared + ' too far to be hurt' : '') + fragNote + (ap ? affNote(ap) : '');   // counts only: never a name (a hidden token counts too)
-      if (applied || (fp && fp.hit) || (ap && ap.on)) { _lastThrowTx = { hits: hits }; save(); syncBlastMenu(); if (b.notes) toast((b.name || 'The blast') + ': ' + b.notes); toast((!applied ? 'No blast damage' : fall ? 'Blast damage applied to ' + applied + ' token' + (applied === 1 ? '' : 's') + ' by distance' : '−' + total + ' to ' + applied + ' token' + (applied === 1 ? '' : 's')) + coverNote + '. Undo last throw is in the Radius options.'); }
+      var coverNote = (halved ? ' · ' + halved + ' behind cover took less' : '') + (shielded ? ' · ' + shielded + ' shielded by cover' : '') + (spared ? ' · ' + spared + ' too far to be hurt' : '') + fragNote + (ap ? affNote(ap) : '') + (owed ? ' · ' + owed + ' to roll their own dice' : '');   // counts only: never a name (a hidden token counts too)   // 1.6.0 (the core's gap 8): and those whose card waits
+      if (applied || (fp && fp.hit) || (ap && ap.on)) { _lastThrowTx = { hits: hits }; save(); syncBlastMenu(); if (b.notes) toast((b.name || 'The blast') + ': ' + b.notes); toast((!applied ? 'No blast damage' : eachN ? 'Blast damage applied to ' + applied + ' token' + (applied === 1 ? '' : 's') + ', each by its own dice' : fall ? 'Blast damage applied to ' + applied + ' token' + (applied === 1 ? '' : 's') + ' by distance' : '−' + total + ' to ' + applied + ' token' + (applied === 1 ? '' : 's')) + coverNote + '. Undo last throw is in the Radius options.'); }
+      else if (owed) { if (b.notes) toast((b.name || 'The blast') + ': ' + b.notes); toast('Blast damage waits:' + coverNote.replace(/^ ·/, '') + '.'); }   // 1.6.0 (the core's gap 8)
       else if (shielded && !spared) toast('No damage: ' + shielded + ' token' + (shielded === 1 ? '' : 's') + ' shielded by cover.');
       else if (shielded || spared) toast('No damage:' + coverNote.replace(/^ ·/, '') + '.');
       if (ap && !ap.on && ap.resisted && !applied && !(fp && fp.hit) && !shielded && !spared) toast((b.name || 'The blast') + ': ' + ap.resisted + ' resisted.');   // 1.5.9 (es): an affliction resisted by all, and nothing else said
   }
+  // 1.6.0 (the core's gap 8; the owner, by prompt: "the gm or the victim can roll, controlled by a setting"): under the Combat card's eachBy
+  // 'victim' each character in the blast rolls its own dice from a card: its player's, an NPC's or a GM-only item's the GM's. The host keeps
+  // what each card rolls (memory alone, the newest OWED_MAX, gone with the table): the blast, the character and its token, its yards, the dice
+  // at that distance and the cover it had as the blast went off. A press rolls it once (the host's dice, as the victim), its falloff reads that
+  // roll, its cover is the one it had, and it goes through the damage step as the blast pass's own shares do, an Undo entry of its own
+  var _owed = Object.create(null), _owedIds = [], OWED_MAX = 100;
+  function blastOwe(b, r, ch, map, expr, n, dir, cen, tier) {
+      var id = ''; while (!id || Object.prototype.hasOwnProperty.call(_owed, id)) { id = 'a_'; while (id.length < 10) id += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36)); }
+      _owed[id] = { b: b, mapId: map.id, charId: ch.id, tokId: r.tok.id, d: r.d, expr: expr, n: n, dir: !!dir, cen: !!cen, tier: tier }; _owedIds.push(id); while (_owedIds.length > OWED_MAX) delete _owed[_owedIds.shift()];
+      var yd = Math.round(r.d * 10) / 10, label = (b.gm === true ? 'A blast' : (b.name || 'A blast')) + ': ' + n + (n === 1 ? ' die' : ' dice') + ' at ' + yd + ' yd';
+      if (window.wpNet && typeof window.wpNet.postBlastDue === 'function') window.wpNet.postBlastDue(ch, id, label, !ch.npc && !!ch.ownerId && b.gm !== true);
+      return true;
+  }
+  function blastOwedRoll(att, pid) {   // pid: the profile id of the player who pressed it; null for the GM's own press
+      var o = typeof att === 'string' && Object.prototype.hasOwnProperty.call(_owed, att) ? _owed[att] : null; if (!o) return { error: 'That blast roll was made already, or is not there now.' };
+      var camp = getActiveCampaign(), sys = camp && camp.system, S = window.wpSystemCore, F = window.wpFormula, BC = window.wpBlastCore; if (!sys || !S || !F || !BC) return { error: 'That blast roll cannot be made now.' };
+      var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, o.charId) ? camp.chars[o.charId] : null; if (!ch) return { error: 'That character is not there now.' };
+      if (pid !== null && (ch.npc || !ch.ownerId || ch.ownerId !== pid || o.b.gm === true)) return { error: 'That blast roll is not yours to make.' };
+      if (!window.wpDice || typeof window.wpDice.rollFor !== 'function') return { error: 'Dice are not available.' };
+      delete _owed[att]; _owedIds = _owedIds.filter(function(x) { return x !== att; });
+      var rE = window.wpDice.rollFor(ch.id, o.expr, (o.b.gm === true ? 'Blast' : (o.b.name || 'Blast')) + ' damage', { gmOnly: o.b.gm === true, dmg: true, used: true });
+      if (!rE || !rE.ok || typeof rE.value !== 'number' || !isFinite(rE.value)) return { error: 'That blast roll could not be made.' };
+      var rules = blastRules(sys), fall = rules && rules.fall ? rules.fall : '', share = Math.max(0, Math.floor(rE.value)), hpId = sys.combat ? sys.combat.hpResource : '', step = !!(fall && sys.combat && sys.combat.damage && typeof S.damageStep === 'function');
+      if (fall) { share = BC.fallShare(F, fall, { dmg: share, dist: o.d, dice: BC.diceCount(o.b.dmgExpr || ''), direct: o.dir, centre: o.cen }); if (share === null) return { error: 'Its falloff could not be worked out.' }; }
+      var dmgC = S.coverDamage ? S.coverDamage(sys, o.tier, share) : share; if (!(dmgC > 0)) return { ok: true, amt: 0 };
+      var vals = null, lines = null, st = null;
+      if (step) {   // as the blast pass's own shares: DR at the default location, the blast's damage type, its armour divisor
+          var types = Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch) : ''; if (loc) q.loc = loc;
+          if (o.b.dtype && types.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === String(o.b.dtype).toLowerCase(); })) q.type = o.b.dtype; if (typeof o.b.ad === 'number' && o.b.ad > 0) q.ad = o.b.ad;
+          st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return { error: 'Its damage could not be applied.' };
+          vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info);
+      } else if (hpId) {
+          var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return { error: 'Its damage could not be applied.' };
+          var res = S.applyEdit(sys, ch, hpId, { cur: (typeof e.value === 'number' ? e.value : 0) - dmgC }, F, {}); if (!res.ok) return { error: 'Its damage could not be applied.' };
+          vals = {}; vals[hpId] = res.value;
+      } else return { error: 'No damage resource is set.' };
+      var byChar = Object.create(null), hits = []; blastWriter(byChar, hits)(ch, ch.id, vals);
+      _lastThrowTx = { hits: hits }; save(); syncBlastMenu();
+      if (lines && window.wpNet && typeof window.wpNet.damageCard === 'function') window.wpNet.damageCard(ch, (o.b.name && o.b.gm !== true ? [o.b.name + ':'] : []).concat(lines));
+      return { ok: true, amt: dmgC };
+  }
+  window.wpBlastOwedRoll = function(att, pid) { return blastOwedRoll(att, typeof pid === 'string' ? pid : null); };   // net.js: a player's press, by their profile id
+  window.wpBlastOwedPress = function(att) {   // a blast card's Roll on this machine: a player's goes to the host, the GM's is rolled here
+      var n = window.wpNet; if (n && n.active && n.role === 'client') return typeof n.blastRoll === 'function' ? n.blastRoll(att) : false;
+      var rr = blastOwedRoll(att, null); if (rr && rr.error) { toast(rr.error); return false; } if (rr && rr.ok && !(rr.amt > 0)) toast('Nothing got through.'); return !!(rr && rr.ok);
+  };
   // The card's Apply to all in the blast (Roll to chat): the blast its damage was rolled for, still on the map on screen
   window.wpBlastApply = function(bid, total) {
       var camp = getActiveCampaign(), sys = camp && camp.system, b = blasts.filter(function(x) { return x && x.bid === bid; })[0];
@@ -4820,7 +4883,9 @@ window.wpFitToGrid = fitToGrid;
       var map = getActiveMap(), camp = getActiveCampaign(), sys = camp && camp.system, combat = (sys && sys.combat) || {};
       var auto = !sys ? 'roll' : combat.blastAuto === 'roll' || combat.blastAuto === 'measure' ? combat.blastAuto : 'full';   // with no character system there is nothing to apply the damage to
       var diceOn = !window.wpVtt || window.wpVtt.on('dice'), rolled = false, total = null;
-      if (auto !== 'measure' && diceOn) {   // the roll first: a damage that cannot be rolled sets nothing off
+      var rlX = typeof blastRules === 'function' ? blastRules(sys) : null, eachX = auto === 'full' && !!(rlX && rlX.each);   // 1.6.0 (the core's gap 8): each rolls its own dice, so none is rolled for all
+      if (auto !== 'measure' && diceOn && eachX) { rolled = true; total = 0; }
+      else if (auto !== 'measure' && diceOn) {   // the roll first: a damage that cannot be rolled sets nothing off
           if (!window.wpDice || !window.wpDice.rollFor) { toast('Dice are not available.'); return false; }
           var dr = window.wpDice.rollFor('', q.expr, 'Explosion, ' + q.type + ' damage', { dmg: true });   // the type is named on the card: it changes no number
           if (!dr || dr.error || !dr.ok) return false;   // the roll said why
@@ -4828,6 +4893,7 @@ window.wpFitToGrid = fitToGrid;
       }
       var c = q.c, at = blasts.indexOf(c); if (at < 0) return false;   // the circle went while the roll was made: nothing goes off, and no other shape's place is taken
       var b = { x: c.x, y: c.y, ft: q.ft, name: 'Explosion', elev: typeof c.elev === 'number' && isFinite(c.elev) ? c.elev : 0, autoElev: false, thrown: true, by: '' };
+      if (rlX && rlX.each && typeof q.expr === 'string' && q.expr) b.eachExpr = q.expr;   // 1.6.0 (the core's gap 8): what each victim rolls at its own dice
       if (typeof c.tok === 'string' && hitFor !== c) b.spare = c.tok;   // the token the circle sat on was not inside it: the explosion does not hit it, unless the GM ticked that it does, for this very circle
       var sent = { x: b.x, y: b.y, ft: b.ft, name: b.name, elev: b.elev, by: '' };   // shown to the table as a thrown blast is: its place, its size, its height and the fixed word
       if (shapeOf(c.as) === 'ring' && c.inn > 0 && c.inn < c.yd) { b.shape = sent.shape = 'ring'; b.inFt = sent.inFt = c.inn * 3; }   // a ring with no hole is the whole disc

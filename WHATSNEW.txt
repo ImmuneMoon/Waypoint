@@ -191,6 +191,9 @@ Systems, more
   where the blow lands.
 - Fragmentation's reach can read BlastDice, the dice of the blast's own
   damage, beside FragDice.
+- Each character in a blast can roll dice of its own, a die less each yard
+  for one. The GM rolls them at once, or each victim's player rolls from a
+  card, as the Combat card says.
 - The throw roll can read the thrown item's row as Row. and the yards to
   the aim as ThrowDistance, so each item can have ranges of its own.
 - A list counter can start again at its character's turn start in a

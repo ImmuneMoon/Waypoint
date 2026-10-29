@@ -69,6 +69,9 @@ Pages on the map
   lines of its page.
 - The page panel over the map opens where you last left it on that map.
   Each map keeps its own place on this computer.
+- Rest the pointer on a portal and its card shows a small picture of
+  the map it leads to. A player sees one only of a map they have
+  already reached that has no fog on it.
 
 Your profile
 - The welcome screen says it plainly: no account is needed, there are no

@@ -219,3 +219,66 @@ function shotWire() {
 // [buildcheck:mapshot-end]
 shotWire();
 if (typeof window !== 'undefined') window.wpMapShot = { open: shotShow, shown: shotShown };
+
+// [buildcheck:portalpic-start]
+/* 1.6.0, a portal's destination as a small picture (backlog 32; the owner, 2026-10-29, by prompt). Resting on a portal shows the map it leads
+   to beside its name. The picture is drawn here, on this computer, from the pieces of the map as this app holds it, by the map picture's own
+   core (shotcore.js: shows, bounds, needs, draw), and kept for the next hover while the map is as it was. Nothing is sent to anyone: on a
+   player's app, and in the stream window, it is drawn only from what that copy holds, so a map they have not reached (held as its stub, with
+   nothing on it) has no picture. Fog is not drawn in a picture, so a map under fog has none on their screen either: it would show ground
+   they have not seen. Tokens, hidden pieces, GM note cards, lights and trigger zones are never in it (shows), on the GM's screen too */
+var PIC = { w: 160, h: 100, k: 2, max: 2, keep: 24 };
+var _pics = Object.create(null), _picKeys = [];
+// The GM's own screen (the map is drawn whole) or not (a player's app, someone else's table, the stream window, a window of a page's own)
+function picGm() {
+    var n = window.wpNet, body = document.body, cl = body && body.classList;
+    if (window.wpStream || window.wpPopout || (n && (n.foreign || n.stream || (n.active && n.role === 'client')))) return false;
+    return !(cl && typeof cl.contains === 'function' && (cl.contains('stream-mode') || cl.contains('net-client')));
+}
+// Whether a map has a picture on this screen: a map with pieces, never a stub, and on a screen not the GM's never one under fog
+function picMay(map, gm) {
+    if (!map || typeof map !== 'object' || map.type !== 'map' || !Array.isArray(map.whiteboard) || map.stub === true) return false;
+    return gm === true || !(map.fog && typeof map.fog === 'object' && map.fog.on === true);
+}
+// What changes the picture, as one short word: the pieces it draws and what of them is drawn
+function picSig(items) {
+    var s = JSON.stringify(items.map(function(it) { return [it.id, it.type, it.x, it.y, it.w, it.h, it.rot, it.src, it.color, it.fill, it.texture, it.texSrc, it.texTile, it.opacity, it.layer, it.z, it.shape, Array.isArray(it.pts) ? it.pts.length : 0]; })), h = 2166136261;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return s.length + ':' + h;
+}
+// The box and the scale: the whole of what is drawn, fitted to 160 by 100, drawn at twice that for a sharp picture, never larger than 2 to 1
+function picPlan(items) {
+    var box = SC.bounds(items, { labels: false, grid: false }); if (!box || !(box.w > 0) || !(box.h > 0)) return null;
+    var sc = Math.min(PIC.w * PIC.k / box.w, PIC.h * PIC.k / box.h, PIC.max); if (!(sc > 0) || !isFinite(sc)) return null;
+    return { box: box, scale: sc, w: Math.max(1, Math.ceil(box.w * sc)), h: Math.max(1, Math.ceil(box.h * sc)) };
+}
+function picKeep(key, v) { if (!_pics[key]) _picKeys.push(key); _pics[key] = v; while (_picKeys.length > PIC.keep) delete _pics[_picKeys.shift()]; }
+// The picture of a map of the campaign on screen: its address now where it is drawn and the map is as it was, else '' and done(address) once
+// it is drawn (never for a map that has no picture on this screen). The address is a PNG of this computer's own drawing, a data address
+function picThumb(mapId, done) {
+    var st = state.appState, camp = st && st.campaigns && typeof st.activeCampaignId === 'string' ? st.campaigns[st.activeCampaignId] : null;
+    var map = camp && camp.items && typeof mapId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, mapId) ? camp.items[mapId] : null, gm = picGm();
+    if (!picMay(map, gm)) return '';
+    var items = map.whiteboard.filter(function(it) { return SC.shows(it, false); }), p = picPlan(items); if (!p) return '';
+    var key = String(camp.id) + '/' + mapId + '/' + (gm ? 'g' : 'p'), sig = picSig(items), had = _pics[key];
+    if (had && had.sig === sig && had.url) return had.url;
+    if (had && had.sig === sig && had.wait) { if (typeof done === 'function') had.wait.push(done); return ''; }
+    var job = { sig: sig, url: '', wait: typeof done === 'function' ? [done] : [] }; picKeep(key, job);
+    var need = SC.needs(items, { labels: false, grid: false, box: p.box });
+    Promise.all(need.pics.map(shotPic)).then(function(got) {
+        var pics = Object.create(null), tiles = Object.create(null), k = Math.max(1, Math.ceil(p.scale) + 1);
+        need.pics.forEach(function(a, i) { pics[a] = got[i] || null; });
+        need.tiles.forEach(function(n) { tiles[n] = shotTile(n, k); });
+        var cv = document.createElement('canvas'); cv.width = p.w; cv.height = p.h;
+        var ctx = cv.getContext('2d'); if (!ctx) throw new Error('no context');
+        SC.draw(ctx, { box: p.box, scale: p.scale, bg: 'dark', grid: '', lines: false, labels: false, items: items, res: { pic: function(a) { return pics[a] || null; }, tile: function(n) { return tiles[n] || null; }, text: function() { return []; } } });
+        job.url = cv.toDataURL('image/png');
+    }).catch(function() { job.url = ''; }).then(function() {
+        var w = job.wait; job.wait = null;
+        if (_pics[key] !== job || !job.url) return;   // a newer drawing took its place, or none could be made (the next hover tries again)
+        (w || []).forEach(function(f) { try { f(job.url); } catch (e) {} });
+    });
+    return '';
+}
+// [buildcheck:portalpic-end]
+if (typeof window !== 'undefined') window.wpMapShot.thumb = picThumb;

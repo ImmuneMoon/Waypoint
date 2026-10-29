@@ -647,6 +647,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                                      '<div class="rn">' + esc(wItem.name || 'Trigger zone') + '</div>' +
                                      '<div class="rc" style="color:var(--ink); font-size:11px; white-space:pre-wrap; text-transform:none; letter-spacing:0;">' + esc(wItem.eventMessage || 'No event message yet \u2014 write one in Properties.') + '</div>' +
                                      '<div class="rc" style="color:var(--dim); font-size:11px; text-transform:none; letter-spacing:0;">Trigger zone \u00b7 fires when a character token is dropped here</div></div>';
+                      if (wItem.targetMapId) portalPicFill(tt, wItem.targetMapId);   // 1.6.0: a portal drawn as a zone shows the map it leads to too
                       tt.style.display = 'block';
                       return;
                   }
@@ -675,6 +676,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                                      '<div class="rc" style="color:var(--gold)">&rarr; ' + esc(destP && destP.meta && destP.meta.title || 'another map') + '</div>' +
                                      lockTipP + (lockTipP && isClientP ? '' : '<div class="rc" style="color:var(--dim); font-size:11px;">' + (isClientP ? 'Drop your token here (or double-click) to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>') +
                                      '</div>';
+                      if (destP) portalPicFill(tt, wItem.targetMapId);   // 1.6.0: a small picture of the map it leads to, beside its name
                       tt.style.display = 'block';
                       return;
                   }
@@ -725,6 +727,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
                   
 
+                  if (destTT) portalPicFill(tt, r.targetMapId);   // 1.6.0: a small picture of the map it leads to, beside its name
                   tt.style.display = 'block';
 
               });
@@ -3460,6 +3463,21 @@ window.wpFitToGrid = fitToGrid;
   function targetLightHtml(markHtml, l) { return l ? '<span class="target-pair">' + markHtml + '<span class="target-light' + (l.lv === 0 ? ' dark' : '') + '" title="' + esc(l.name) + '">' + TARGET_LIGHT_GLYPH[l.lv === 0 ? 0 : 1] + '</span></span>' : markHtml; }
   function targetLightCaption(list) { var seen = Object.create(null), out = []; (Array.isArray(list) ? list : []).forEach(function(l) { if (l && typeof l.name === 'string' && l.name && !seen[l.name]) { seen[l.name] = 1; out.push(l.name); } }); return out.join(' \u00b7 '); }
   // [sinkcheck:lightlabel-end]
+  // [buildcheck:portalpeek-start]
+  // 1.6.0 (backlog 32): a portal's hover card shows a small picture of the map it leads to, beside its name. mapshot.js draws it on this
+  // computer from what this app holds and says when it is drawn; it is put in as an image element whose address is a PNG of that drawing and
+  // nothing else, and only while the card is still the one it was asked for (the slot is still on the page)
+  function portalPicFill(tt, mapId) {
+      var MS = window.wpMapShot, card = tt && tt.firstElementChild; if (!MS || typeof MS.thumb !== 'function' || !card || typeof mapId !== 'string' || !mapId) return false;
+      var slot = document.createElement('span'); slot.className = 'portal-peek'; slot.dataset.map = mapId; card.insertBefore(slot, card.firstChild);
+      var put = function(url) {
+          if (!slot.isConnected || slot.firstChild || typeof url !== 'string' || !/^data:image\/png;base64,[A-Za-z0-9+\/]+={0,2}$/.test(url)) return;
+          var im = document.createElement('img'); im.alt = ''; im.src = url; slot.appendChild(im); slot.classList.add('on');
+      };
+      var now = MS.thumb(mapId, put); if (now) put(now);
+      return true;
+  }
+  // [buildcheck:portalpeek-end]
   // [shelfcheck:pagepin-start]
   // A pin (1.5.4, pageshelf.js; the owner by prompt: "Pins on the map"): a piece of the play map that opens a page. The GM's alone: the
   // module says whether this screen sees pins and which page a piece opens. Here are the mark on the piece and the row of its right-click

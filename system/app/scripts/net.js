@@ -3349,7 +3349,7 @@ function linkTell(id) {
             try { c.send({ type: 'char', campId: camp.id, char: v }); n++; } catch (e) { sendFailed(e); }
         });
     });
-    var grpK = Object.create(null); camp.system.links.forEach(function(k) { if (k && k.kind === 'crew' && k.group) grpK[k.id] = 1; });
+    var grpK = Object.create(null); camp.system.links.forEach(function(k) { if (k && (k.kind === 'crew' || k.kind === 'mount') && k.group) grpK[k.id] = 1; });   // a mount that reads its riders too (1.6.0)
     if (Object.keys(grpK).length) {   // 1.6.0 (CORE gap 16): a vehicle that reads its crew gets its copy again where its crew figures moved (one crewed now, or sent figures before)
         var vsK = Object.create(null); Object.keys(camp.chars).forEach(function(cid) { var x = camp.chars[cid]; if (x && x.links && typeof x.links === 'object') Object.keys(x.links).forEach(function(l) { if (grpK[l] === 1 && typeof x.links[l] === 'string') vsK[x.links[l]] = 1; }); });
         Object.keys(_ckSent).forEach(function(key) { var vid0 = key.split('|')[1]; if (vid0) vsK[vid0] = 1; });

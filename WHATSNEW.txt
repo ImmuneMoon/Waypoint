@@ -322,6 +322,9 @@ Systems
   many they hold, for a penalty.
 - A crew sheet reads its own station, as Vehicle.station.Pilot: 1 while it
   holds the Pilot station, else 0.
+- A mount can read its rider as a group, as a vehicle reads its crew: set
+  Mount reads riders as on the Mount link, and the mount reads
+  Riders.count and Riders.max.Riding.
 - A list can keep twelve counters on each row, up from eight.
 - A system holds 160 rolls, up from 50, and 600 fields, up from 400. A
   sheet or its HUD holds 800 placements, up from 400. The System

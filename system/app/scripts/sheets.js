@@ -4789,7 +4789,7 @@ function crewSource(id, linkId, sys) {
 }
 if (typeof setCrewSource === 'function') setCrewSource(crewSource);
 // The characters whose sheets link this one (a Mount's rider, a vehicle's crew): their sheets read it live, so they redraw with it
-function linkRiders(id) { var camp = getActiveCampaign(), sys = systemOf(camp), out = []; if (!sys || !Array.isArray(sys.links) || !sys.links.length) return out; linkedFrom(sys, charsOf(camp), id).forEach(function(g) { g.by.forEach(function(b) { if (out.indexOf(b.id) < 0) out.push(b.id); }); }); var c0 = charById(id, camp); sys.links.forEach(function(k) { var v = k && k.kind === 'crew' && k.group && c0 && c0.links ? c0.links[k.id] : ''; if (typeof v === 'string' && v && out.indexOf(v) < 0) out.push(v); }); return out; }   // 1.6.0 (CORE gap 16): and the vehicle a crew sheet crews, where it reads its crew
+function linkRiders(id) { var camp = getActiveCampaign(), sys = systemOf(camp), out = []; if (!sys || !Array.isArray(sys.links) || !sys.links.length) return out; linkedFrom(sys, charsOf(camp), id).forEach(function(g) { g.by.forEach(function(b) { if (out.indexOf(b.id) < 0) out.push(b.id); }); }); var c0 = charById(id, camp); sys.links.forEach(function(k) { var v = k && (k.kind === 'crew' || k.kind === 'mount') && k.group && c0 && c0.links ? c0.links[k.id] : ''; if (typeof v === 'string' && v && out.indexOf(v) < 0) out.push(v); }); return out; }   // 1.6.0 (CORE gap 16): and the vehicle a crew sheet crews, where it reads its crew
 // [systemcheck:linksrc-end]
 // [systemcheck:linkbar-start]
 // 1.6.0 linked sheets ("A menu on the sheet"): under the head, one row a link of the system: its name, a menu of characters, and Open for the
@@ -8178,6 +8178,9 @@ function renderLinks() {
         var nl = el('label', 'sys-combat-item'); nl.appendChild(el('span', 'sys-num-cap', 'Name')); var ni = input('sys-link-label field', typeof k.label === 'string' ? k.label : '', 'Its name on the sheet. With none, the key', 'Mount'); ni.maxLength = LIMITS.label; nl.appendChild(ni); rw.appendChild(nl);
         rw.appendChild(labeledSelect('sys-link-kind field', 'Kind', LINK_KIND_OPTS, k.kind === 'crew' ? 'crew' : 'mount', 'Mount: one rider to one mount, so a mount another character rides is refused. Crew: many characters to one vehicle'));
         rw.appendChild(labeledSelect('sys-link-edit field', 'Set by', LINK_EDIT_OPTS, k.edit === 'gm' ? 'gm' : 'owner', 'Who may set it on a sheet. A player links only a character of their own. The GM links any character'));
+        if (k.kind === 'mount') {   // 1.6.0: a mount reads its riders as a group, as a vehicle reads its crew
+            var ml0 = el('label', 'sys-combat-item'); ml0.appendChild(el('span', 'sys-num-cap', 'Mount reads riders as')); var mi0 = input('sys-link-group field', typeof k.group === 'string' ? k.group : '', 'The key the mount\u2019s formulas read its rider by: Riders reads Riders.count and Riders.max.Riding. Blank: the mount reads no rider', 'Riders'); mi0.maxLength = LIMITS.key; ml0.appendChild(mi0); rw.appendChild(ml0);
+        }
         if (k.kind === 'crew') {   // 1.6.0 (CORE gap 16): the crew as a group on the vehicle, and its stations
             var gl = el('label', 'sys-combat-item'); gl.appendChild(el('span', 'sys-num-cap', 'Vehicle reads crew as')); var gi = input('sys-link-group field', typeof k.group === 'string' ? k.group : '', 'The key the vehicle\u2019s formulas read its crew by: Crew reads Crew.count, Crew.max.Piloting, and Crew.Pilot.max.Piloting for those at the Pilot station. Blank: the vehicle reads no crew', 'Crew'); gi.maxLength = LIMITS.key; gl.appendChild(gi); rw.appendChild(gl);
             var ml = el('label', 'sys-combat-item'); ml.appendChild(el('span', 'sys-num-cap', 'One holds')); var mi = el('input', 'field sys-link-most'); mi.type = 'number'; mi.min = '1'; mi.max = '4'; mi.step = '1'; mi.value = typeof k.most === 'number' ? String(k.most) : '1'; mi.title = 'How many stations one crew member may hold at once, 1 to 4, as one hand covering a second station. Their sheet reads ' + (k.key || 'Vehicle') + '.stations as how many they hold, so a formula can take a penalty'; ml.appendChild(mi); rw.appendChild(ml);
@@ -8237,10 +8240,10 @@ function linkSays(links, fields, F0) {
         if (!cleanLinks([{ id: 'lk_check', key: key, kind: 'mount' }], F0)) { errs.push({ message: nm + ': a key is letters, digits and underscores, starting with a letter. Save drops it.' }); return; }
         seen[lk] = 1;
         if (fk[lk]) warns.push({ message: nm + ': the field ' + fk[lk] + ' has the key ' + key + ', so formulas read that field, not the linked sheet.' });
-        if (k.kind === 'crew' && typeof k.group === 'string' && k.group.trim()) {   // 1.6.0 (CORE gap 16): the crew's key on the vehicle, read as cleanLinks reads it
+        if ((k.kind === 'crew' || k.kind === 'mount') && typeof k.group === 'string' && k.group.trim()) {   // 1.6.0 (CORE gap 16): the crew's key on the vehicle (a mount's riders' too), read as cleanLinks reads it
             var gk = k.group.trim(), lg = gk.toLowerCase();
-            if (/[.\s]/.test(gk) || LINK_NOT[lg] || seen[lg] || !cleanLinks([{ id: 'lk_check', key: gk, kind: 'mount' }], F0)) errs.push({ message: nm + ': the vehicle reads its crew by a key of letters, digits and underscores, starting with a letter, that no other link has. Save drops ' + gk + '.' });
-            else { seen[lg] = 1; if (fk[lg]) warns.push({ message: nm + ': the field ' + fk[lg] + ' has the key ' + gk + ', so formulas read that field, not the crew.' }); }
+            if (/[.\s]/.test(gk) || LINK_NOT[lg] || seen[lg] || !cleanLinks([{ id: 'lk_check', key: gk, kind: 'mount' }], F0)) errs.push({ message: nm + ': the ' + (k.kind === 'mount' ? 'mount reads its riders' : 'vehicle reads its crew') + ' by a key of letters, digits and underscores, starting with a letter, that no other link has. Save drops ' + gk + '.' });
+            else { seen[lg] = 1; if (fk[lg]) warns.push({ message: nm + ': the field ' + fk[lg] + ' has the key ' + gk + ', so formulas read that field, not the ' + (k.kind === 'mount' ? 'riders' : 'crew') + '.' }); }
         }
         if (k.kind === 'crew' && Array.isArray(k.stations)) {
             var sSeen = {}, bad = k.stations.filter(function(s, si) { var t = String(s).trim(), l = t.toLowerCase(), no = si >= 8 || !/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(t) || ['count', 'max', 'min', 'sum', 'has'].indexOf(l) >= 0 || sSeen[l]; sSeen[l] = 1; return no; });

@@ -82,6 +82,10 @@ Your profile
   you last joined. It is read from this computer, and nothing is sent.
 - Reset Local Preferences, in Settings, keeps the tables that know you,
   as it keeps your name and picture.
+- Start over as a new player, at the bottom of your profile, forgets every
+  table that knows you, erases your name, picture, colour and token face,
+  and unlinks your Waypoint account. You are asked first. To be yourself
+  again, open a saved profile, paste a profile code or link your account.
 - The welcome screen says it plainly: no account is needed, there are no
   ads, the app collects nothing about how you use it, and your campaigns
   are files on your own computer.

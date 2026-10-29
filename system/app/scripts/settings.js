@@ -1443,6 +1443,43 @@ function profWinOpen(from) {
     return true;
 }
 function profWinClose() { var m = ui('profileModal'); if (m) m.style.display = 'none'; }
+// [profilecheck:over-start]
+// Start over as a new player (the owner, 2026-10-29: "keep your table keys with the option to forget all three together, erase your local
+// profile and make a new one (requires re linking to another install, or online profile)"). Never during a table, and asked first with its
+// buttons alone answering (noEnter, noEscape), since it cannot be undone. It forgets the table keys, the GMs' pins and rooms and the record
+// of those tables, makes a new profile with nothing of the old (a new id; no name, picture, colour or token face) and unlinks the website
+// account (account.js's unlink: this computer stops following it, and the account keeps its own copy). The id this install hosts under and
+// the GM's signing key stay: they are this install's table, never its player, as a profile opened from a file leaves them; Reset Multiplayer
+// Identity in Settings still changes them. Each step logs as "profile v1"
+var OVER_STORES = ['wp_tableKeys', 'wp_gmPins', 'wp_gmRooms', 'wp_tablesSeen'];
+function profStartOver() {
+    if (profBusy()) { profStep('over-busy', {}); return; }
+    var words = 'Start over as a new player? This computer forgets every table that knows you, erases your name, picture, colour and token face, and stops following your Waypoint account. Each GM then sees a new player and is asked to let you in. To be yourself again, open a saved profile, paste a profile code from another computer, or link your account. Your own table, if you host one, stays as it is. This cannot be undone.';
+    profStep('over-asked', {});
+    import('./dialogs.js').then(function(d) {
+        d.showConfirm(words, function(yes) {
+            if (yes !== true) { profStep('over-cancelled', {}); return; }
+            if (profBusy()) { profStep('over-busy', {}); return; }
+            profOver();
+        }, { noEnter: true, noEscape: true });
+    });
+}
+function profOver() {
+    if (window.wpNet && typeof window.wpNet.hostId === 'function') window.wpNet.hostId();   // the host id is made from the profile here first, and then stays
+    var wasLinked = ACCT.linked === true; ACCT.linked = false; if (ACCT.timer) { clearTimeout(ACCT.timer); ACCT.timer = null; }   // nothing of the new player goes to the account
+    var np = { id: 'u_' + Math.random().toString(36).slice(2, 10), name: '' };
+    try {
+        OVER_STORES.concat(['wp_acctStamp', 'wp_acctSig']).forEach(function(k) { localStorage.removeItem(k); });
+        localStorage.setItem('wp_profile', JSON.stringify(np));
+    } catch (e) { toast('Your profile could not be changed on this computer.'); profStep('over-failed', { at: 'store' }); return; }
+    if (window.wpNet) window.wpNet.myId = np.id;
+    if (window.wpPrefsPush) window.wpPrefsPush();   // the saves folder's preferences.json follows
+    acctUnlink('start-over');
+    syncPanel(); profFields(); profTablesDraw('over'); if (window.wpFaces && window.wpFaces.paintRows) window.wpFaces.paintRows();
+    toast('You are a new player now. Set your name and picture here.');
+    profStep('over', { wasLinked: wasLinked });
+}
+// [profilecheck:over-end]
 // Your picture follows every change of who you are, from wherever it is written (this window, the welcome's Join screen, the Multiplayer
 // window's name, a profile opened from a file or a code, the account), a moment after it settles; the list follows the tables
 var _meSoon = null;
@@ -1463,6 +1500,7 @@ function profWinWire() {
     if (wc) wc.addEventListener('click', function() { profWinOpen('welcome'); });
     if (row) row.addEventListener('click', function() { profWinOpen('settings'); });
     if (close) close.addEventListener('click', function() { profWinClose(); profStep('window-close', {}); });
+    var over = ui('profStartOverBtn'); if (over) over.addEventListener('click', profStartOver);
     try {
         var SP = Storage.prototype, set1 = SP.setItem, want = { wp_profile: 1, wp_tableKeys: 1, wp_tablesSeen: 1 };
         SP.setItem = function(k, v) { set1.call(this, k, v); if (this === localStorage && want[k] === 1) meSoon(k); };

@@ -116,6 +116,41 @@ const app = p => path.join(__dirname, '..', 'system', 'app', p), read = p => fs.
         check('Reset preferences keeps who you are at tables: the profile, the host id and signing key, the table keys, the GMs\' pins and rooms and the record of those tables stay, every other preference goes; the saves folder\'s mirror keeps the same three as it always did',
             ran && J([...mem.keys()].sort()) === J(['other', 'wp_gmPins', 'wp_gmRooms', 'wp_gmSign', 'wp_hostId', 'wp_profile', 'wp_tableKeys', 'wp_tablesSeen']) && !!bKeep && ['wp_tableKeys', 'wp_gmPins', 'wp_gmRooms', 'wp_hostId'].every(k => bKeep[1].includes(k + ': 1')), J([ran, [...mem.keys()]]));
     }
+    // ---- Start over as a new player (the owner: "the option to forget all three together, erase your local profile and make a new one"):
+    //      settings.js's over slice run for real on a store, with the page's dialogs, net and account stood in for ----
+    {
+        const o0 = st.indexOf('// [profilecheck:over-start]'), o1 = st.indexOf('// [profilecheck:over-end]');
+        const OLD = { id: 'u_old1234', name: 'Kael', color: '#a1b2c3', avatar: 'data:image/png;base64,AAAA', face: 'emoji:x' };
+        const runO = (o) => {
+            const mem = new Map(Object.entries(Object.assign({ wp_profile: J(OLD), wp_tableKeys: J({ u_gm1: 'a'.repeat(32) }), wp_gmPins: '{"u_gm1":{}}', wp_gmRooms: '{"c_abc":"u_gm1"}', wp_tablesSeen: '{"u_gm1":{"gm":"Mara","at":5}}', wp_gmSign: '{"k":1}', wp_acctStamp: '9', wp_theme: 'light' }, o.extra || {})));
+            const order = [], asked = [], steps = [], toasts = [];
+            const LS = { getItem: k => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => { order.push('set:' + k); mem.set(k, String(v)); }, removeItem: k => { order.push('rm:' + k); mem.delete(k); } };
+            const net = { active: !!o.atTable, foreign: false, hostId: () => { order.push('hostId'); if (!mem.has('wp_hostId')) mem.set('wp_hostId', JSON.parse(mem.get('wp_profile')).id); return mem.get('wp_hostId'); } };
+            const ACCT = { linked: !!o.linked, timer: null };
+            const D = { showConfirm: (q, cb, opts) => { asked.push({ q, opts }); cb(o.answer); } };
+            const body = st.slice(o0, o1).replace(/import\('\.\/dialogs\.js'\)/g, 'Promise.resolve(DIALOGS)') + '\nreturn profStartOver;';
+            let go = () => {}; if (o0 > 0 && o1 > o0) try { go = new Function('window', 'localStorage', 'DIALOGS', 'ACCT', 'acctUnlink', 'profBusy', 'profStep', 'toast', 'syncPanel', 'profFields', 'profTablesDraw', body)(
+                { wpNet: net }, LS, D, ACCT, why => order.push('unlink:' + why), () => { if (net.active) { toasts.push('busy'); return true; } return false; }, (a, b) => steps.push(a), t => toasts.push(t), () => {}, () => {}, () => order.push('draw')); } catch (e) { go = () => {}; }
+            return { go, mem, order, asked, steps, toasts, ACCT };
+        };
+        const settle = () => new Promise(r => setTimeout(r, 10));
+        const busy = runO({ atTable: true, answer: true }); busy.go(); await settle();
+        const no = runO({ answer: false }); no.go(); await settle();
+        const yes = runO({ answer: true, linked: true }); yes.go(); await settle();
+        const np = yes.mem.has('wp_profile') ? JSON.parse(yes.mem.get('wp_profile')) : {};
+        check('Start over as a new player: refused at a table with nothing asked or changed; asked first with its buttons alone answering, the question saying how to be yourself again (a saved profile, a profile code, your account) and that your own table stays; Cancel changes nothing',
+            o0 > 0 && o1 > o0 && busy.asked.length === 0 && busy.order.length === 0 && busy.toasts.includes('busy')
+            && no.asked.length === 1 && no.asked[0].opts.noEnter === true && no.asked[0].opts.noEscape === true && /open a saved profile, paste a profile code from another computer, or link your account/.test(no.asked[0].q) && /Your own table, if you host one, stays as it is\. This cannot be undone\.$/.test(no.asked[0].q)
+            && no.order.length === 0 && J(no.steps) === J(['over-asked', 'over-cancelled']), J([busy.order, no.asked.map(a => a.opts), no.order, no.steps]));
+        check('answered yes: the table keys, the GMs\' pins and rooms and the record of those tables are forgotten; the profile is a new one with a new id and nothing of the old; the account is unlinked and nothing more is sent to it; the host id is made from the old profile before anything is written and stays, as does the GM\'s signing key; other preferences stay; the list is drawn again and the step is logged',
+            ['wp_tableKeys', 'wp_gmPins', 'wp_gmRooms', 'wp_tablesSeen', 'wp_acctStamp'].every(k => !yes.mem.has(k)) && /^u_[a-z0-9]{1,8}$/.test(np.id) && np.id !== OLD.id && J(Object.keys(np)) === J(['id', 'name']) && np.name === ''
+            && yes.mem.get('wp_hostId') === OLD.id && yes.mem.get('wp_gmSign') === '{"k":1}' && yes.mem.get('wp_theme') === 'light' && yes.order[0] === 'hostId' && yes.order.indexOf('set:wp_profile') < yes.order.indexOf('unlink:start-over')
+            && yes.order.includes('unlink:start-over') && yes.ACCT.linked === false && yes.order.includes('draw') && J(yes.steps) === J(['over-asked', 'over']), J([yes.order, np, [...yes.mem.keys()], yes.steps]));
+        check('the button is in the Profile window, styled as danger, and Help and both release notes say it',
+            pw.includes('<button class="tool ghost danger" id="profStartOverBtn" type="button"') && pwS.includes("var over = ui('profStartOverBtn'); if (over) over.addEventListener('click', profStartOver);")
+            && ix.includes('<li><b>Start over as a new player</b> is at the bottom of your profile.') && ix.includes('<li>To be yourself again, open a saved profile, paste a profile code from another computer, or link your account.</li>')
+            && [read('assets/whatsnew.txt'), fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8')].every(t => t.replace(/\r\n/g, NL).includes('- Start over as a new player, at the bottom of your profile, forgets every')), '');
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exitCode = 1;

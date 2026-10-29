@@ -192,7 +192,7 @@ Systems, more
 - A list's roll can be ticked Resists an attempt too, and Or resisted by
   can name it. The target's card then has a button for each row of that
   list they hold, such as Parry with each weapon. A row kept from them is
-  never offered.
+  never offered, nor a row where that roll's Shown where is not true.
 - A roll Resisted by can be ticked Not resisted on a critical: a critical
   success then sends its target nothing to resist. Left off, a critical is
   resisted as any success is.

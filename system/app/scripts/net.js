@@ -9602,9 +9602,11 @@ function attemptEntry(sys, q, act) {
 // 1.6.0 (asked by a system build): Or resisted by naming a list's roll (<field id>#<place>, systemcore listRollRef): that roll, ticked Resists an
 // attempt, once for each row of that list the target holds, in the list's order, ATT_ROWS at most. On a player's card only a roll their own
 // view holds and a row their own copy holds that is not kept from them (systemcore rowKeptFrom: a curse the GM keeps on or out of sight, a
-// GM-only entry or row); on the GM's card every row. Each { f, r, i, label } pushed onto out
+// GM-only entry or row); on the GM's card every row. Each { f, r, i, label } pushed onto out. A roll with its own Shown where (showIf) is
+// offered only on the rows where it holds for the target, worked out here from the target's character as the press is judged (a player's
+// through their own view, as the roll-req branch reads it; the GM's through the system, as net.diceRoll does), at: { map, tok, mapId }, its token
 var ATT_ROWS = 8;
-function attRowAlts(camp, tch, ref, toO, out) {
+function attRowAlts(camp, tch, ref, toO, out, at) {
     var S = SC(), lr0 = S && typeof S.listRollRef === 'function' ? S.listRollRef(ref) : null; if (!lr0) return;
     var f = null; (Array.isArray(camp.system.fields) ? camp.system.fields : []).forEach(function(x) { if (x && x.id === lr0.f && x.kind === 'item-list' && x.list && Array.isArray(x.list.rolls)) f = x; }); if (!f) return;
     var lr = f.list.rolls[lr0.i]; if (!lr || lr.resist !== true || typeof lr.formula !== 'string' || !lr.formula || lr.apply) return;
@@ -9617,9 +9619,14 @@ function attRowAlts(camp, tch, ref, toO, out) {
         seen = Object.create(null); (chv.values && Array.isArray(chv.values[lr0.f]) ? chv.values[lr0.f] : []).forEach(function(r) { var id = S.rowIdOf(r); if (id) seen[id] = 1; });
     }
     var lb = String(lr.label || 'Roll').split('{')[0].trim() || 'Roll';
+    var shw = toO ? vr.showIf : lr.showIf, Fs = window.wpFormula, rvs = null;   // 1.6.0: Shown where, as the host judges the press (none: every row, as before)
+    if (typeof shw === 'string' && shw) { if (!Fs) return; var vtA = window.wpVtt, ruA = function(k) { return !vtA || (vtA.rulesOn ? vtA.rulesOn(k) : vtA.on(k)); }, cxA = null;
+        try { cxA = at && typeof S.tokenCtx === 'function' ? S.tokenCtx(at.map, at.tok, { turning: ruA('turning'), posture: ruA('posture'), elevation: ruA('elevation'), viewer: toO ? tch.ownerId : undefined }) : null; if (at && typeof S.withRound === 'function' && typeof net.combatRoundOf === 'function') cxA = S.withRound(cxA, net.combatRoundOf(at.mapId, at.tok.id)); } catch (e) { cxA = null; }
+        try { rvs = S.makeResolver(toO ? view : camp.system, toO ? chv : tch, Fs, cxA); } catch (e) { return; } if (!rvs || typeof rvs.row !== 'function') return; }
     (tch.values && Array.isArray(tch.values[lr0.f]) ? tch.values[lr0.f] : []).forEach(function(row) {
         if (out.length >= ATT_ROWS) return; var rid = S.rowIdOf(row); if (typeof rid !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(rid) || out.some(function(x) { return x.f === lr0.f && x.r === rid && x.i === lr0.i; })) return;
         if (toO && (seen[rid] !== 1 || S.rowKeptFrom(camp.system, row))) return;
+        if (rvs) { var rvA = null; try { rvA = rvs.row(lr0.f, rid); } catch (e) { rvA = null; } if (!rvA || !S.rollNeedsOk({ needs: shw }, rvA, Fs)) return; }   // 1.6.0: only where its Shown where holds on that row
         var rd = S.rowDef(camp.system, row), nm = rd && rd.def && typeof rd.def.name === 'string' && rd.def.name.trim() ? rd.def.name.trim() : 'a row';
         out.push({ f: lr0.f, r: rid, i: lr0.i, label: (lb + ' with ' + nm).slice(0, 60) });
     });
@@ -9635,7 +9642,7 @@ function attemptMake(camp, entry, vd, malf, range, fromCh, priv) {
     var m = typeof S.thenMargin === 'function' ? S.thenMargin(vd, false) : (typeof vd.margin === 'number' ? vd.margin : 0), id = '';
     while (!id || Object.prototype.hasOwnProperty.call(_attempts, id)) { id = 'a_'; while (id.length < 10) id += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36)); }
     var toO = !priv && !tch.npc && !!tch.ownerId && rr.vis !== 'gm', alts = [], rowsA = [];   // 1.6.0 (the core's gap 5): the other rolls the target may pick, each a resist roll of the system, none GM-only on a player's card
-    (Array.isArray(entry.resistOr) ? entry.resistOr : []).forEach(function(oid) { if (typeof oid === 'string' && oid.indexOf('#') > 0) { attRowAlts(camp, tch, oid, toO, rowsA); return; }   // 1.6.0: a list's roll, a button a row
+    (Array.isArray(entry.resistOr) ? entry.resistOr : []).forEach(function(oid) { if (typeof oid === 'string' && oid.indexOf('#') > 0) { attRowAlts(camp, tch, oid, toO, rowsA, { map: map, tok: tok, mapId: range.mapId }); return; }   // 1.6.0: a list's roll, a button a row
         (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === oid && r.id !== rr.id && r.resist === true && typeof r.formula === 'string' && !r.apply && !(toO && r.vis === 'gm') && alts.indexOf(r) < 0 && alts.length < 3) alts.push(r); }); });
     _attempts[id] = { charId: tch.id, act: rr.id, m: m }; if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); if (rowsA.length) _attempts[id].rows = rowsA.map(function(x) { return x.f + '#' + x.i + '#' + x.r; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
     if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, toO, { att: id, by: fromCh && fromCh.name ? fromCh.name : '', m: m, or: alts, rows: rowsA });

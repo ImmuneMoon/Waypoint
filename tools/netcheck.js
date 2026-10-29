@@ -4481,6 +4481,23 @@ pendingChecks.push((async () => {
     const n2 = out.dues.length; dq = [1, 1, 2]; const gC = W.dr('3d6 <= 13', { charId: 'c_a', act: 'r_tr' }); const gmCrit = out.dues.length - n2; camp.system = sys;
     check('1.6.0 Not resisted on a critical: kept in the GM\'s view alone beside Resisted by; a critical success (a natural 3, and the GM\'s own natural 4) then makes no attempt while a plain success still does; without the tick a critical is resisted as any success',
         sysC.rolls[0].noResistOnCrit === true && !('noResistOnCrit' in sysCP.rolls[0]) && !('noResistOnCrit' in sys.rolls[0]) && critPlain === 1 && critTicked === 0 && plainTicked === 1 && gC && gC.ok === true && gmCrit === 0, j([critPlain, critTicked, plainTicked, gC, gmCrit]));
+    // 1.6.0: a list's roll offered for each row the target holds, only where that roll's own Shown where (showIf) holds on the row, as the host then judges the press
+    const shSys = sh => { const r = JSON.parse(JSON.stringify(sys)); r.fields.push({ id: 'f_sc', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm', def: 0 }); r.fields[2].list.rolls[0].showIf = sh; return Sx.cleanSystem(r, { F: Fx, gmView: true }); };
+    const offer = (s, priv) => { camp.system = s; roll(cA, 'c_a', Object.assign({ act: 'r_tr' }, priv ? { priv: 'gm' } : {}), '3d6 <= 13', [2, 3, 4]); return out.dues[out.dues.length - 1]; };
+    const sysSh = shSys('Row.Def >= 11'), sysShG = shSys('Row.Def >= 11 + Secret');
+    const oP = offer(sysSh);
+    roll(cB, 'c_b', { row: { f: 'f_wp', r: 'w_s2', i: 0 }, att: oP.att }, PARRY, [1, 1, 1]); const shDeny = out.sent.pB[out.sent.pB.length - 1], shKept = net.attemptsKept();
+    roll(cB, 'c_b', { row: { f: 'f_wp', r: 'w_sw', i: 0 }, att: oP.att }, PARRY, [1, 1, 1]); const shOk = out.sent.pB[out.sent.pB.length - 1], shLeft = net.attemptsKept();
+    const oG = offer(sysSh, true);
+    const oPg = offer(sysShG), oGg = offer(sysShG, true); camp.system = sys;
+    check('1.6.0 a list\'s roll in Or resisted by is offered only on the rows where its own Shown where holds for the target: Parry shown where Row.Def >= 11 is offered with Blade (Def 11) and never with Staff (Def 10), on Sela\'s card and the GM\'s private card alike; a press of the Staff row is refused and the Blade row takes the attempt; a Shown where that reads a GM-only value, which her view drops, offers her every row as before while the GM\'s card judges it through the system',
+        sysSh.fields[2].list.rolls[0].showIf === 'Row.Def >= 11' && oP && oP.toOwner === true && j(oP.rows.map(x => x.r)) === j(['w_sw']) && oG && oG.toOwner === false && j(oG.rows.map(x => x.r)) === j(['w_sw'])
+        && shDeny.type === 'roll-deny' && shOk === shDeny && shLeft === shKept - 1
+        && !('showIf' in Sx.cleanSystem(sysShG, { F: Fx, gmView: false }).fields[2].list.rolls[0]) && j(oPg.rows.map(x => x.r)) === j(['w_sw', 'w_s2']) && j(oGg.rows.map(x => x.r)) === j(['w_sw']),
+        j([oP, oG, shDeny, shOk, shKept, shLeft, oPg, oGg]));
+    { const ixT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8'), ntT = [path.join(__dirname, '..', 'WHATSNEW.txt'), path.join(__dirname, '..', 'system', 'app', 'assets', 'whatsnew.txt')].map(p => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n'));
+    check('1.6.0 a row offered only where its Shown where holds is said: Help, the integration guide and both 1.6.0 notes',
+        ixT.includes('Where that roll has a <b>Shown where</b>, only the rows where it is true are offered.</li>') && fs.readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').includes('only the rows where it holds for the target') && ntT.every(t => t.indexOf("nor a row where that roll's Shown where is not true.") > 0 && t.indexOf("nor a row where that roll's Shown where is not true.") < t.indexOf('WAYPOINT 1.5.'))); }
 })());
 
 // Chat cards (owner 2026-09-27): a damage roll's mark — the host puts it on the record from the roll entry its formula matched (a system roll by
@@ -16803,7 +16820,7 @@ pendingChecks.push((async () => {
     check('fold 2\'s review (source): the join snapshot seeds what its connection holds of the fights, and its close (fogForgetConn) and a new table (combatForget) forget it; CombatRound reads net.combatRoundOf in the host\'s roll for a player, in an apply action and on the sheet, never the fight the GM plays; the board\'s ring on a token whose turn it is asks every fight on the map through onTurnHere',
         /\n    if \(snapOk && typeof combatsSentSeed === 'function'\) combatsSentSeed\(conn, snap\.combats\);/.test(src) && /function fogForgetConn\(peer\) \{[^\n]*if \(typeof combatsSentForget === 'function'\) combatsSentForget\(peer\); \}/.test(src)
         && /function combatForget\(fid\) \{ if \(fid === undefined\) \{ _combatSeen = Object\.create\(null\); _combatsSent = Object\.create\(null\); \}/.test(src)
-        && (src.match(/net\.combatRoundOf\(/g) || []).length === 2 && !/net\.combatFor\(loc[QA]\)/.test(src) && (shSrcR.match(/n\.combatRoundOf\(/g) || []).length === 1
+        && (src.match(/net\.combatRoundOf\(/g) || []).length === 3 /* 1.6.0: and Or resisted by's list roll, judging its Shown where in the target's fight (moved on purpose) */ && !/net\.combatFor\(loc[QA]\)/.test(src) && (shSrcR.match(/n\.combatRoundOf\(/g) || []).length === 1
         && /el\.classList\.toggle\('wb-turn', onTurnHere\(window\.wpNet, activeMap\.id, item\.id\)\);/.test(wbSrcR) && (wbSrcR.match(/onTurnHere\(/g) || []).length === 2);
     check('fold 2 (source): the join snapshot says fights (true) and carries the fights on the map the player lands on; a player\'s app takes the word through typeof before it reads the snapshot\'s fights and reads every later copy by it; nothing of the host reads a fight by its map\'s id any more (net.js, whiteboard.js, pills.js and sheets.js); fights start, change and end in fightSet alone and end in combatOver alone; the host\'s branches are 31 (voice-up of voice chat, 1.5.9, the newest) (1.6.0, a deliberate change of this pin: blast-roll, the core\'s gap 8, a player\'s press of a blast card, makes the host\'s branches 34)',
         /combats: combatsFor\(prof\.id, prof\.location\), fights: true,/.test(src) && /\n    if \(typeof fightsKnow === 'function'\) fightsKnow\(msg\.fights\);[^\n]*\n    net\.combats = typeof cleanFightsIn === 'function' \? cleanFightsIn\(msg\.combats\) : cleanCombats\(msg\.combats\);/.test(snapBody)

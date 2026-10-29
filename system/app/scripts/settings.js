@@ -335,9 +335,20 @@ if (_relayBtn) _relayBtn.addEventListener('click', function() {
 });
 
 /* Grid opacity is a viewer preference: stored locally, never sent to the table */
+// [videocheck:streamgrid-start]
+// Backlog 34, the stream window's own grid (the owner, by prompt: "Its own grid strength (Recommended)"): wp_streamGrid, this computer's own,
+// read by the stream window alone: As on my screen (the viewer's own strength), Faint or Hidden. Any other word is As on my screen
+function streamGridOf(w) { return w === 'faint' || w === 'hidden' ? w : ''; }
+function gridOpacityFor(own, streamWord, inStream) {
+    var v = (own >= 0.1 && own <= 1) ? own : 1;
+    if (!inStream) return v;
+    var s = streamGridOf(streamWord);
+    return s === 'hidden' ? 0 : s === 'faint' ? Math.min(v, 0.3) : v;
+}
+// [videocheck:streamgrid-end]
 function gridOpacity() {
-    var v = parseFloat(localStorage.getItem('wp_gridOpacity'));
-    return (v >= 0.1 && v <= 1) ? v : 1;
+    var v = NaN, sg = ''; try { v = parseFloat(localStorage.getItem('wp_gridOpacity')); sg = localStorage.getItem('wp_streamGrid') || ''; } catch (e) {}
+    return gridOpacityFor(v, sg, !!window.wpStream);
 }
 function applyGridOpacity() {
     var ov = ui('gridOverlay');
@@ -345,6 +356,16 @@ function applyGridOpacity() {
 }
 window.wpApplyGridOpacity = applyGridOpacity;
 applyGridOpacity();
+window.addEventListener('storage', function(e) { if (e.key === 'wp_streamGrid' || e.key === 'wp_gridOpacity') applyGridOpacity(); });   // backlog 34: the stream window follows a change made in the main window
+var _sg = ui('setStreamGrid');
+if (_sg) {
+    try { _sg.value = streamGridOf(localStorage.getItem('wp_streamGrid')); } catch (e) {}
+    _sg.addEventListener('change', function() {
+        var w = streamGridOf(_sg.value);
+        try { localStorage.setItem('wp_streamGrid', w); } catch (e) {}
+        toast(w === 'hidden' ? 'The stream window draws no grid.' : w === 'faint' ? 'The stream window draws a faint grid.' : 'The stream window draws the grid as your screen does.');
+    });
+}
 var _go = ui('setGridOpacity');
 if (_go) _go.addEventListener('input', function() {
     var v = Math.max(0.1, Math.min(1, parseInt(this.value, 10) / 100));

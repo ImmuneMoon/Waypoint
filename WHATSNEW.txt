@@ -24,6 +24,8 @@ Scenes
 - Settings has Stream window shows: Live, Frozen picture or Cover card.
   Freeze keeps what the stream window shows while you set things up, and
   Cover shows the campaign's name and Back soon.
+- Stream window grid, in Settings, draws the grid in the stream window as
+  your screen does, faint or not at all.
 
 Hidden pieces
 - Settings has Hidden pieces on my map: Faded shows a piece you hid from players see-through, as before, and Invisible leaves it off your screen until you show it. No grey cloud stands in for a hidden piece any more.

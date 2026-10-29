@@ -327,11 +327,22 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             /<select id="setStreamHold"><option value="">Live<\/option><option value="freeze">Frozen picture<\/option><option value="cover">Cover card<\/option><\/select>/.test(ixh)
             && ss.includes("var _holdMode = '', _holdChan = null;") && ss.includes("return !q.get('stream') && !q.get('popout');") && ss.includes("if (e.data && e.data.type === 'stream-hold-query') holdPost();")
             && ss.includes("if (_streamHold && _holdMain) _streamHold.addEventListener('change'")
-            && sj.includes("        if (held === 'freeze') return;   // backlog 34") && sj.includes("hChan.postMessage({ type: 'stream-hold-query' });")
+            && sj.includes("        if (typeof held !== 'undefined' && held === 'freeze') return;   // backlog 34") && sj.includes("hChan.postMessage({ type: 'stream-hold-query' });")
             && sj.includes("d.type === 'video-stage' && !(window.wpStreamHeld && window.wpStreamHeld())") && sj.includes("d.type === 'scene-stage' && !(window.wpStreamHeld && window.wpStreamHeld())")
             && fxs.includes("|| (window.wpStreamHeld && window.wpStreamHeld())) return;   // backlog 34")
             && ixh.includes('<div id="streamCover" style="display:none;"><div id="streamCoverName"></div><div id="streamCoverWords">Back soon</div></div>')
             && ixh.includes('<li><b>Stream window shows</b> in Settings holds it while you set things up.'));
+    }
+
+    /* ---- backlog 34: the stream window's own grid ---- */
+    {
+        const st = read('system/app/scripts/settings.js'), ixg = read('system/app/index.html');
+        const G = new Function(sliceOf(st, 'streamgrid') + '\nreturn { gridOpacityFor: gridOpacityFor, streamGridOf: streamGridOf };')();
+        const f = G.gridOpacityFor;
+        check('backlog 34: the stream window\'s grid (wp_streamGrid, this computer\'s own): the main window always draws its own strength; the stream window draws it As on my screen, Faint (0.3 at most, never stronger than your own) or Hidden (0); any other word, and a strength that is no number, read as before',
+            f(0.8, 'hidden', false) === 0.8 && f(0.8, '', true) === 0.8 && f(0.8, 'faint', true) === 0.3 && f(0.2, 'faint', true) === 0.2 && f(0.8, 'hidden', true) === 0 && f(NaN, 'junk', true) === 1 && f(5, 'faint', true) === 0.3 && G.streamGridOf('Hidden') === ''
+            && /<select id="setStreamGrid"><option value="">As on my screen<\/option><option value="faint">Faint<\/option><option value="hidden">Hidden<\/option><\/select>/.test(ixg)
+            && st.includes("return gridOpacityFor(v, sg, !!window.wpStream);") && st.includes("if (e.key === 'wp_streamGrid' || e.key === 'wp_gridOpacity') applyGridOpacity();"));
     }
 
     summed = true;

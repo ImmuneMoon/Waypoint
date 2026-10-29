@@ -91,7 +91,7 @@ if (on) {
 
     async function tick() {
         if (streamWebJoin()) return;   // 1.5.5: nothing is asked of a website that joins tables alone
-        if (held === 'freeze') return;   // backlog 34: a frozen picture reads nothing of the table
+        if (typeof held !== 'undefined' && held === 'freeze') return;   // backlog 34: a frozen picture reads nothing of the table
         var data;
         try { data = await (await fetch('/api/data', { cache: 'no-store' })).json(); } catch (e) { return; }
         if (!data || !data.campaigns || !Object.keys(data.campaigns).length) return;

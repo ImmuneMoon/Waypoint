@@ -20,6 +20,8 @@ Table trackers
   off for the whole table there. To keep the trackers from one player,
   press Who sees these on the strip, use their menu on the party strip
   or their token, or tick them under the switch in Settings.
+- The strip sits beside the minimap. Fold the minimap or switch it off
+  and the strip moves into its place.
 
 Quick jump
 - Quick jump finds the map's tools and Settings too. Press Ctrl+K and

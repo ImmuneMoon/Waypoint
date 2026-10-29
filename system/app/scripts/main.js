@@ -1356,6 +1356,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             localStorage.setItem('wp_minimap', box.classList.contains('mm-collapsed') ? 'closed' : 'open');
             this.textContent = box.classList.contains('mm-collapsed') ? '▴' : '▾';
             renderMinimap();
+            if (window.wpTrackers && window.wpTrackers.place) window.wpTrackers.place();   // backlog 29: the trackers' strip slides beside it
             if (window.wpSettingsSync) window.wpSettingsSync();   // the Settings row notes "collapsed"
         });
         function jump(e) {

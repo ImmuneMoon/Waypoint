@@ -69,12 +69,36 @@ function fromForm(d, mapId, unitSecs) {
     }
     return T.cleanTracker(t, {});
 }
+// Where the strip stands (the follow-up of 2026-10-29): right of the minimap with a gap, or where the minimap stands when it is folded to its
+// nub (right of the nub) or switched off (at its left); it ends a gap before the first thing that stands in its row at the map's top right
+// (the zoom box, or the party strip in its place when the zoom box is put away). mm: { shown, left, width }; others: [{ left }] of what
+// stands in the row; wide: the map area's width. Whole pixels; never narrower than one pill
+var PLACE_GAP = 8, PLACE_MIN = 120;
+function placeOf(mm, others, wide) {
+    var num = function(v) { return typeof v === 'number' && isFinite(v) ? v : 0; };
+    var left = mm && mm.shown === true ? num(mm.left) + num(mm.width) + PLACE_GAP : num(mm && mm.left), right = num(wide);
+    (Array.isArray(others) ? others : []).forEach(function(o) { var l = o && num(o.left); if (o && l > left && l < right) right = l; });
+    return { left: Math.round(left), wide: Math.max(PLACE_MIN, Math.round(right - PLACE_GAP - left)) };
+}
 // [trackcheck:core-end]
 
 var _rx = { list: [], at: 0 };   // what a host sent this player's app, on this machine's clock
 var _seen = Object.create(null), _seenKey = '';   // each tracker's last state, to say an end once; kept for one campaign or table
 var _menu = '', _form = null, _sig = '';
 function strip() { return document.getElementById('trkStrip'); }
+// The strip's place read from the page, set as two properties the style sheet reads (--trkleft, --trkwide); the stream window keeps its own
+function place(box) {
+    box = box || strip(); if (!box || box.style.display === 'none') return;
+    var n = net(); if (n && n.stream) { box.style.removeProperty('--trkleft'); box.style.removeProperty('--trkwide'); return; }
+    var area = box.offsetParent, mm = document.getElementById('minimap'); if (!area) return;
+    var mmOn = !!mm && mm.parentElement === box.parentElement && mm.offsetParent !== null, cs = mm ? window.getComputedStyle(mm) : null;
+    var mmAt = mmOn ? { shown: true, left: mm.offsetLeft, width: mm.offsetWidth } : { shown: false, left: cs ? parseFloat(cs.left) || 0 : 0 };
+    var row = box.offsetTop + 30, others = [];
+    ['zoomBox', 'partyStrip', 'joinCard', 'combatStrip'].forEach(function(id) { var e = document.getElementById(id); if (e && e.parentElement === box.parentElement && e.offsetParent !== null && e.offsetTop < row && e.offsetWidth > 0) others.push({ left: e.offsetLeft }); });
+    var p = placeOf(mmAt, others, area.clientWidth), L = p.left + 'px', W = p.wide + 'px';
+    if (box.style.getPropertyValue('--trkleft') !== L) box.style.setProperty('--trkleft', L);
+    if (box.style.getPropertyValue('--trkwide') !== W) box.style.setProperty('--trkwide', W);
+}
 function panel() { return document.getElementById('trkPanel'); }
 function menuEl() { return document.getElementById('trkMenu'); }
 function foldOn() { try { return localStorage.getItem('wp_trkFold') === '1'; } catch (e) { return false; } }
@@ -218,6 +242,7 @@ function draw(force) {
     if (!show) { if (box.style.display !== 'none') box.style.display = 'none'; _sig = ''; return; }
     var tv = !!(n && n.stream), folded = !tv && foldOn(), sig = JSON.stringify([gm, folded, gm ? T.cleanHide(camp.trkHide).length : 0, list.map(function(t) { var c = Object.assign({}, t); if (c.kind === 'timer') { c.left = c.run === true ? -1 : c.left; delete c.end; } return c; }), T.LIMITS.list]);
     if (box.style.display === 'none') box.style.display = '';
+    place(box);   // beside the minimap, or in its place, and clear of the zoom box
     if (force || sig !== _sig) {
         var had = document.activeElement && box.contains(document.activeElement) ? focusKey(document.activeElement) : '';   // a press from the keyboard keeps its place when the strip is drawn again
         _sig = sig; box.textContent = '';
@@ -433,5 +458,5 @@ function receive(list, at) {
     setInterval(tick, 1000);
     setTimeout(function() { draw(true); }, 0);
 })();
-window.wpTrackers = { draw: draw, receive: receive, renderLine: renderLine, open: openForm, close: closeForm, closeMenu: closeMenu, list: shownList, on: featOn, players: playersOf, hidden: hiddenNow, setHidden: setHidden };
-export { atTable, gmHand, mapsOf, localCopy, newlyDone, fromForm, playersOf };
+window.wpTrackers = { draw: draw, receive: receive, renderLine: renderLine, open: openForm, close: closeForm, closeMenu: closeMenu, list: shownList, place: place, on: featOn, players: playersOf, hidden: hiddenNow, setHidden: setHidden };
+export { atTable, gmHand, mapsOf, localCopy, newlyDone, fromForm, playersOf, placeOf };

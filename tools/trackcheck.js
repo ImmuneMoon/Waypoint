@@ -104,7 +104,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     /* ================= the strip's module, sliced ================= */
     {
         const win = { wpTrackCore: T };
-        const M = new Function('window', 'TK', slice(trJs, 'trackcheck:core') + '\nreturn { atTable, gmHand, mapsOf, localCopy, newlyDone, fromForm };')(win, () => T);
+        const M = new Function('window', 'TK', slice(trJs, 'trackcheck:core') + '\nreturn { atTable, gmHand, mapsOf, localCopy, newlyDone, fromForm, placeOf };')(win, () => T);
         const host = { active: true, role: 'host' }, pl = { active: true, role: 'client', foreign: true }, wait = { active: true, role: 'client', foreign: false }, stream = { active: true, role: 'client', foreign: true, stream: true };
         check('who may change the trackers (trackers.js gmHand): the campaign\'s own machine, solo or hosting; never a player at a table, never the stream window, never where the app keeps nothing of its own',
             M.gmHand(null, {}) && M.gmHand(host, {}) && !M.gmHand(pl, {}) && !M.gmHand(stream, {}) && !M.gmHand(host, { wpStream: true }) && !M.gmHand(host, { wpCanPersistLocal: () => false }) && M.gmHand(host, { wpCanPersistLocal: () => true }) && M.atTable(pl) && !M.atTable(wait));
@@ -123,6 +123,19 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
         check('the form becomes a tracker (fromForm): blank lowest and highest are none; This map needs a map on screen; a countdown\'s time is its amount times its unit; Keep the time it has left keeps its place',
             j(f1) === j({ id: 'x', kind: 'count', name: 'Fear', color: 'red', map: 'm1', vis: 'all', v: 3, max: 9 }) && j(f2) === j({ id: 'y', kind: 'timer', name: 'Ritual', color: 'blue', total: 600000, left: 600000 })
             && j(f3) === j({ id: 'z', kind: 'timer', name: 'Trip', color: 'gold', vis: 'all', base: 'game', total: 7200, left: 7200 }) && f4.total === 600000 && f5.left === 1000 && f5.run === true && f5.end === 77, j([f1, f2, f3, f4, f5]));
+        // the follow-up of 2026-10-29: the strip slides left when the minimap is folded or switched off, and keeps clear of the zoom box
+        const pOpen = M.placeOf({ shown: true, left: 44, width: 180 }, [{ left: 749 }, { left: 785 }], 985), pFold = M.placeOf({ shown: true, left: 44, width: 26 }, [{ left: 749 }], 985);
+        const pOff = M.placeOf({ shown: false, left: 44 }, [{ left: 749 }], 985), pBare = M.placeOf({ shown: false, left: 8 }, [], 985), pNarrow = M.placeOf({ shown: true, left: 44, width: 180 }, [{ left: 300 }], 400);
+        const pOdd = M.placeOf({ shown: true, left: NaN, width: 'x' }, [null, { left: -5 }, { left: 'a' }], undefined), pBehind = M.placeOf({ shown: false, left: 44 }, [{ left: 20 }], 985);
+        check('the strip stands beside the minimap or in its place (placeOf, sliced and run for real): 8 px right of an open minimap (232, as before) or of its folded nub (78), at the minimap\'s own left when it is switched off (44, or 8 with the rulers hidden); it ends 8 px before the first thing in its row at the top right (the zoom box) and is never narrower than one pill; what stands left of it, or is no number, is passed over',
+            j(pOpen) === j({ left: 232, wide: 509 }) && j(pFold) === j({ left: 78, wide: 663 }) && j(pOff) === j({ left: 44, wide: 697 }) && j(pBare) === j({ left: 8, wide: 969 }) && j(pNarrow) === j({ left: 232, wide: 120 })
+            && j(pOdd) === j({ left: 8, wide: 120 }) && j(pBehind) === j({ left: 44, wide: 933 }), j([pOpen, pFold, pOff, pBare, pNarrow, pOdd, pBehind]));
+        const mainJ = readU('scripts/main.js');
+        check('the strip is placed from the page at every draw (trackers.js place: the minimap open, folded or off, the zoom box, the party strip, a join card and the fight strip when they stand in its row), the style sheet reads the two numbers with the old place as the fallback, the stream window keeps its own place, and the minimap\'s fold moves it at once',
+            trJs.includes("    place(box);   // beside the minimap, or in its place, and clear of the zoom box") && trJs.includes("['zoomBox', 'partyStrip', 'joinCard', 'combatStrip'].forEach(") && trJs.includes("if (n && n.stream) { box.style.removeProperty('--trkleft'); box.style.removeProperty('--trkwide'); return; }")
+            && css.includes('  #trkStrip { position: absolute; top: 26px; left: var(--trkleft, 232px); z-index: 8990;') && css.includes('max-width: min(620px, var(--trkwide, calc(100% - 330px)));') && css.includes('  body.stream-mode #trkStrip { top: 10px; left: 14px; }')
+            && mainJ.includes("if (window.wpTrackers && window.wpTrackers.place) window.wpTrackers.place();   // backlog 29: the trackers' strip slides beside it")
+            && ix.includes('beside the minimap. Fold the minimap or switch it off and the strip moves into its place.') && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => readRoot(f).includes('- The strip sits beside the minimap. Fold the minimap or switch it off' + NL + '  and the strip moves into its place.')));
     }
 
     /* ================= the stream window ================= */

@@ -337,8 +337,10 @@ function firstWallAt(ax, ay, bx, by, lists, ka, kb) {   // how far along a -> b 
     }
     return best;
 }
-// The cells of a set that a thin wall cuts, each with the neighbours it shares a side with (never a corner) on whose side part of it lies:
-// the walls' own geometry, so it is worked out once a set (and a grid) and every draw only walks the list
+// The cells of a set that a thin wall cuts, each with the neighbours it shares a side with on whose side part of it lies: the walls' own
+// geometry, so it is worked out once a set (and a grid) and every draw only walks the list. A square cell that no side neighbour lends to
+// (a room's corner, its centre past two walls) takes its corner neighbours by the same rule (1.6.0, 96): the line from such a neighbour
+// meets the walls where they turn, well inside this cell
 function wallCutCells(blockers, grid) {
     var wl = wallsOf(blockers); if (!wl) return [];
     var sq = grid.type === 'square', sig = grid.type + ':' + (sq ? grid.size : grid.s + '/' + grid.h), kept = EDGE ? EDGE.get(blockers) : null;
@@ -353,6 +355,10 @@ function wallCutCells(blockers, grid) {
         for (var j = 0; j < nb.length; j++) {
             var ks = cellKey(nb[j], grid), ps = cellCenter(nb[j], grid), t = firstWallAt(ps.x, ps.y, pu.x, pu.y, wl, ks, k);
             if (t !== null && t > EDGE_AT) lend.push(ks);   // the first wall lies well inside this cell's half: it runs through this cell
+        }
+        if (sq && !lend.length) for (var dc = -1; dc <= 1; dc += 2) for (var dr = -1; dr <= 1; dr += 2) {
+            var nd = { c: uc.c + dc, r: uc.r + dr }, kd = cellKey(nd, grid), pd = cellCenter(nd, grid), td = firstWallAt(pd.x, pd.y, pu.x, pu.y, wl, kd, k);
+            if (td !== null && td > EDGE_AT) lend.push(kd);
         }
         if (lend.length) out.push({ key: k, cell: uc, lend: lend });
     }

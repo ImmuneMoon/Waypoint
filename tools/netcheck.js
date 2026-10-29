@@ -17394,6 +17394,24 @@ pendingChecks.push((async () => {
     check('backlog 29 a host has NO branch for \'trackers\' (a player never sets one), the join snapshot never carries them (sanitizeAppState deletes them) and a host starting afresh forgets what it sent',
         !/msg\.type === 'trackers' && net\.role === 'host'/.test(src) && /delete camp\.videos;[^\n]*\n\s*delete camp\.trackers;/.test(src) && /net\._lastClockSig = null;[^\n]*\n\s*net\.trackersForget\(\);/.test(src)
         && src.includes("if (snapOk && typeof net.trackersForget === 'function') { net.trackersForget(conn.peer); trkSendTo(conn, Date.now()); }"));
+    // the owner, 2026-10-29: "gm but for the whole table or specific players" — Table trackers switched off (vtt.js), or a player kept from them
+    const mkV = () => {
+        const sent = { a: [], b: [] }, sw = { on: true }, cT = Object.assign({}, campT);
+        const net = { active: true, role: 'host', conns: [{ peer: 'pA', open: true, send: m => sent.a.push(JSON.parse(JSON.stringify(m))) }, { peer: 'pB', open: true, send: m => sent.b.push(JSON.parse(JSON.stringify(m))) }],
+            roster: { pA: { id: 'u_a', location: 'mA' }, pB: { id: 'u_b', location: 'mA' } } };
+        const win = { wpTrackCore: TKx, wpStepLog: () => {}, wpVtt: { campaignOn: (id, c) => id !== 'trackers' || (c === cT && sw.on) } };
+        new Function('net', 'getActiveCampaign', 'own', 'validKey', 'sendFailed', 'window', syncT)(net, () => cT, ownT, k => typeof k === 'string' && k.length > 0 && !(k in Object.prototype), e => { throw e; }, win);
+        return { net, sent, sw, cT };
+    };
+    const v = mkV(); v.cT.trkHide = ['u_b', '<bad>']; const v1 = v.net.syncTrackers(1);
+    const vA1 = v.sent.a.length, vB1 = v.sent.b.length; delete v.cT.trkHide; const v2 = v.net.syncTrackers(2);
+    v.sw.on = false; const v3 = v.net.syncTrackers(3); const v4 = v.net.syncTrackers(4); v.sw.on = true; const v5 = v.net.syncTrackers(5);
+    v.cT.trkHide = ['u_a']; const v6 = v.net.syncTrackers(6);
+    const lastA = v.sent.a[v.sent.a.length - 1], lastB = v.sent.b[v.sent.b.length - 1];
+    check('backlog 29 Table trackers on the wire: a player the GM keeps them from (camp.trkHide by profile id) is sent nothing while the others get theirs, and gets the list once let back in; the switch off sends every player an empty list once, and on again their lists; hiding one player later sends them an empty list',
+        v1 === 1 && vA1 === 1 && vB1 === 0 && v2 === 1 && v.sent.b[0].list.length === 3 && v3 === 2 && v.sent.a[1].list.length === 0 && v.sent.b[1].list.length === 0 && v4 === 0 && v5 === 2 && v.sent.a[2].list.length === 3
+        && v6 === 1 && lastA.list.length === 0 && lastB.list.length === 3 && !/u_a|u_b|trkHide/.test(JSON.stringify(v.sent)), j([v1, v2, v3, v4, v5, v6, v.sent]));
+    check('backlog 29 the join snapshot never names who the trackers are kept from (sanitizeAppState deletes camp.trkHide)', /delete camp\.trackers;[^\n]*\n\s*delete camp\.trkHide;/.test(src));
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */

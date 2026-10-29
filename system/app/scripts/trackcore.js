@@ -19,7 +19,8 @@ var LIMITS = Object.freeze({
     count: 9999,            // a counter runs from -9999 to 9999
     parts: [2, 12],         // a clock's parts
     real: 86400000,         // a real-time countdown: at most 24 hours (milliseconds)
-    game: 315360000         // a game-clock countdown: at most 3650 days of 24 hours (game seconds)
+    game: 315360000,        // a game-clock countdown: at most 3650 days of 24 hours (game seconds)
+    hide: 64                // players a campaign keeps the trackers from
 });
 var KINDS = ['count', 'clock', 'timer'];
 // The colours a tracker may wear, by name: a name is all a tracker stores and all the wire carries, so no colour text ever reaches a style
@@ -194,8 +195,25 @@ function fresh(kind, id, mapId) {
     return cleanTracker(t, {});
 }
 
+// The players the GM keeps every tracker from (the owner, 2026-10-29, by prompt: "gm but for the whole table or specific players"): camp.trkHide,
+// profile ids, each once, at most 64; absent for none. Such a player is sent no tracker at all
+var PID_RE = /^[A-Za-z0-9_.:-]{1,80}$/;
+function cleanHide(v) {
+    var out = [];
+    (Array.isArray(v) ? v.slice(0, LIMITS.hide * 4) : []).forEach(function(id) { if (typeof id === 'string' && PID_RE.test(id) && !(id in Object.prototype) && out.indexOf(id) < 0 && out.length < LIMITS.hide) out.push(id); });
+    return out;
+}
+function hiddenFrom(camp, pid) { return isObj(camp) && typeof pid === 'string' && cleanHide(camp.trkHide).indexOf(pid) >= 0; }
+// The list with one player put in or taken out; null where nothing changes (a hostile id, a full list)
+function hideSet(v, pid, on) {
+    var list = cleanHide(v), at = list.indexOf(pid);
+    if (typeof pid !== 'string' || !PID_RE.test(pid) || (pid in Object.prototype)) return null;
+    if (on) { if (at >= 0 || list.length >= LIMITS.hide) return null; return list.concat([pid]); }
+    if (at < 0) return null; list.splice(at, 1); return list;
+}
+
 var API = { LIMITS: LIMITS, COLORS: COLORS, COLOR_KEYS: COLOR_KEYS, KINDS: KINDS, cleanTracker: cleanTracker, cleanTrackers: cleanTrackers, leftNow: leftNow, doneOf: doneOf, onMap: onMap,
     wireFor: wireFor, wireSig: wireSig, step: step, start: start, pause: pause, reset: reset, settle: settle, fmtReal: fmtReal, fmtGame: fmtGame, fmtLeft: fmtLeft, face: face,
-    endLine: endLine, clockParts: clockParts, fresh: fresh };
+    endLine: endLine, clockParts: clockParts, fresh: fresh, cleanHide: cleanHide, hiddenFrom: hiddenFrom, hideSet: hideSet };
 if (typeof window !== 'undefined') window.wpTrackCore = API;
-export { LIMITS, COLORS, COLOR_KEYS, KINDS, cleanTracker, cleanTrackers, leftNow, doneOf, onMap, wireFor, wireSig, step, start, pause, reset, settle, fmtReal, fmtGame, fmtLeft, face, endLine, clockParts, fresh };
+export { LIMITS, COLORS, COLOR_KEYS, KINDS, cleanTracker, cleanTrackers, leftNow, doneOf, onMap, wireFor, wireSig, step, start, pause, reset, settle, fmtReal, fmtGame, fmtLeft, face, endLine, clockParts, fresh, cleanHide, hiddenFrom, hideSet };

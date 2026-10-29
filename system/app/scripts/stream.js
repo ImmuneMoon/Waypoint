@@ -170,6 +170,7 @@ if (on) {
 // (trackcore wireFor, cleaned again as a player's copy). A GM-only tracker never: this window is the party's view
 function streamTrackers(camp, mapId, now) {
     var TK = typeof window !== 'undefined' ? window.wpTrackCore : null, T = typeof window !== 'undefined' ? window.wpTrackers : null; if (!TK || !T || typeof T.receive !== 'function') return null;
+    var V = window.wpVtt; if (camp && V && typeof V.campaignOn === 'function' && V.campaignOn('trackers', camp) === false) camp = null;   // Table trackers switched off: none
     var ck = camp && camp.clock && typeof camp.clock.t === 'number' && isFinite(camp.clock.t) ? camp.clock.t : 0;
     var list = camp ? TK.cleanTrackers(TK.wireFor(TK.cleanTrackers(camp.trackers), mapId, now, ck), { wire: true }) : [];
     var sig = JSON.stringify(TK.wireSig(TK.cleanTrackers(camp ? camp.trackers : null), mapId, now, ck));

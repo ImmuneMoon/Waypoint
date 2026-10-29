@@ -2537,6 +2537,9 @@
   .trk-menu .trk-mi:hover, .trk-menu .trk-mi:focus-visible { background: rgba(224,165,79,0.16); outline: 1px solid var(--gold); }
   .trk-menu .trk-mi:disabled { color: var(--faint); background: transparent; outline: 0; cursor: default; }
   .trk-menu .trk-msep { height: 1px; background: var(--edge); margin: 3px 6px; }
+  .trk-menu .trk-mnote { padding: 3px 9px 4px; color: var(--dim); font-size: 11px; max-width: 220px; line-height: 1.35; }   /* backlog 29: Who sees these, its words */
+  #trkStrip .trk-who { height: 24px; padding: 0 8px; border-radius: 13px; background: var(--panel2); box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+  .set-trk-hide .combat-row { margin-top: 4px; font-size: 12px; cursor: pointer; }
   #trkPanel { position: fixed; left: 60px; top: 100px; width: 320px; max-width: calc(100vw - 24px); max-height: 80vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #trkHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #trkHead .notepad-btn { padding: 1px 7px; font-size: 11px; }

@@ -427,7 +427,8 @@ var VTT_SAID = {   // the toast after a campaign row moves: [on, off]
     lighting: ['Lighting on \u2014 a fogged map is lit until you place a light source, so every token sees what is in its line of sight.', 'Lighting off for this campaign \u2014 a token sees only as far as its sight, as before.'],
     turning: ['Token facing on \u2014 the turn arrow is back and a facing cone aims itself.', 'Token facing off for this campaign \u2014 no turn arrow; a facing-cone map falls back to all-around.'],
     turns: ['Turn-based combat on \u2014 during a combat, the player whose token has the turn ends it.', 'Turn-based combat off for this campaign \u2014 only your Next turn moves the order on.'],
-    video: ['Video on \u2014 the Scene menu has the Video panel.', 'Video off for this campaign \u2014 nothing plays; the videos and their files are kept.']
+    video: ['Video on \u2014 the Scene menu has the Video panel.', 'Video off for this campaign \u2014 nothing plays; the videos and their files are kept.'],
+    trackers: ['Table trackers on.', 'Table trackers off for this campaign \u2014 the strip is gone and players get none. Your trackers are kept.']
 };
 var VTT_ROLE = {   // what a player's "off for me" does, shown under the row at a table
     dice: 'For you it hides the roller and mutes the dice sound; rolls still show in chat.',
@@ -436,6 +437,23 @@ var VTT_ROLE = {   // what a player's "off for me" does, shown under the row at 
     fx: 'For you it hides the effects; the table still sees them.'
 };
 function vttFeatures() { return (window.wpVtt && window.wpVtt.FEATURES) || []; }
+// Backlog 29 (the owner, 2026-10-29: "gm but for the whole table or specific players"): under Table trackers, a tick for each player who has
+// joined the campaign, ticked where the trackers are kept from them (trackers.js setHidden, as Who sees these and a player's menu)
+function syncTrkHide(camp, editable, client) {
+    var box = ui('setTrkHide'), T = window.wpTrackers, v = window.wpVtt; if (!box) return;
+    box.textContent = '';
+    if (client || !T || !T.players || !camp) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    var on = !v || v.campaignOn('trackers', camp) !== false, ps = T.players(camp);
+    var head = document.createElement('div'); head.className = 'set-line'; head.textContent = ps.length ? 'Hidden from these players:' : 'No player has joined this campaign yet. Once one has, you can keep the trackers from them here.'; box.appendChild(head);
+    ps.forEach(function(p) {
+        var row = document.createElement('label'); row.className = 'combat-row set-trk-hide-row';
+        var cb = document.createElement('input'); cb.type = 'checkbox'; cb.className = 'combat-on'; cb.checked = T.hidden(p.id, camp); cb.disabled = !editable || !on; cb.dataset.tip = 'Keep every tracker from this player';
+        var nm = document.createElement('span'); nm.className = 'combat-name'; nm.textContent = p.name;
+        cb.addEventListener('change', function() { if (!T.setHidden(p.id, cb.checked)) cb.checked = T.hidden(p.id, camp); else toast(cb.checked ? 'Table trackers hidden from ' + p.name + '.' : p.name + ' sees the table\u2019s trackers again.'); });
+        row.appendChild(cb); row.appendChild(nm); box.appendChild(row);
+    });
+}
 function syncVttPanel() {
     var v = window.wpVtt, grp = document.querySelector('#settingsModal details.set-group[data-group="vtt"]');
     if (!grp) return;
@@ -488,6 +506,7 @@ function syncVttPanel() {
             if (role) role.style.display = 'none';
         }
     });
+    syncTrkHide(camp, editable, client);
     var trM = ui('setTimeRulesMode'); if (trM) { var tv0 = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules.time : ''; trM.value = tv0 === 'confirm' || tv0 === 'off' ? tv0 : 'auto'; trM.disabled = !editable; }   // item 20 K5b; 159: Run at once is the default
     var flM = ui('setFillMode'); if (flM) { flM.value = camp && camp.turnRules && camp.turnRules.fill === 'gm' ? 'gm' : 'owner'; flM.disabled = !editable; }
     var taM = ui('setTargetAskMode'); if (taM) { taM.value = camp && camp.turnRules && typeof camp.turnRules === 'object' && camp.turnRules.targetAsk === 'off' ? 'off' : 'ask'; taM.disabled = !editable; }   // the owner's ruling of 2026-10-01

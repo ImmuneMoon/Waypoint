@@ -1166,6 +1166,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         delete camp.uploads;  // Stage 6 U2: the GM's queue of players' sheet uploads to review
         delete camp.videos;   // item 21: the video library is the GM's alone (a video reaches players as a live stream, never as a file or a list)
         delete camp.trackers; // backlog 29: the table trackers go to each player as the list they may see ('trackers', trkSendTo), never raw in the snapshot
+        delete camp.trkHide;  // backlog 29: the players the GM keeps the trackers from are the GM's to know
         if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colors) so a player's Handbook matches; the client re-validates at render too
         var libFx = fxLib(camp.system), libIt = itemLib(camp.system), fullSys = camp.system;   // 5h / Stage 6: the full libraries (and F6: the full system), before the players' view replaces the system (a GM-only effect or item reaches its owner inline)
         if (camp.id === c.activeCampaignId && camp.system && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): the hosted campaign's system travels as the players' view, GM-only fields gone
@@ -2919,13 +2920,15 @@ net.syncTurnRules = function() {
 // Backlog 29 (1.6.0): the table trackers. Each admitted player is sent the trackers they may see (trackcore wireFor: shown to the table, on
 // every map or on the map the roster says they stand on), as one list, after their snapshot and again whenever that list changes for them
 // (wireSig, kept per connection: a running real countdown is sent at its start and its stops, never every second). A GM-only tracker is in no
-// message, and neither is a tracker's map. A first list that is empty is not sent. A host has NO branch for 'trackers': a client never sets them
+// message, and neither is a tracker's map. A first list that is empty is not sent. A host has NO branch for 'trackers': a client never sets them.
+// Table trackers switched off (vtt.js), or the player one the GM keeps them from (camp.trkHide, trackcore hiddenFrom): their list is empty
 var _trkSig = Object.create(null);
 function trkList(camp) { var TK = window.wpTrackCore; return camp && TK && TK.cleanTrackers ? TK.cleanTrackers(camp.trackers) : []; }
 function trkClockT(camp) { return camp && camp.clock && typeof camp.clock.t === 'number' && isFinite(camp.clock.t) ? camp.clock.t : 0; }
 function trkSendTo(conn, now) {
     var camp = getActiveCampaign(), TK = window.wpTrackCore; if (!camp || !TK || !TK.wireFor || !conn || !conn.open || !own(net.roster, conn.peer)) return false;
-    var p = net.roster[conn.peer], where = validKey(p.location) ? p.location : null, t = typeof now === 'number' ? now : Date.now(), list = trkList(camp), ck = trkClockT(camp);
+    var p = net.roster[conn.peer], where = validKey(p.location) ? p.location : null, t = typeof now === 'number' ? now : Date.now(), ck = trkClockT(camp);
+    var V = window.wpVtt, off = (V && typeof V.campaignOn === 'function' && V.campaignOn('trackers', camp) === false) || (typeof TK.hiddenFrom === 'function' && TK.hiddenFrom(camp, p.id)), list = off ? [] : trkList(camp);
     var sig = camp.id + '\n' + TK.wireSig(list, where, t, ck), was = Object.prototype.hasOwnProperty.call(_trkSig, conn.peer) ? _trkSig[conn.peer] : null;
     if (was === sig) return false;
     var out = TK.wireFor(list, where, t, ck);

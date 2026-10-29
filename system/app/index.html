@@ -1007,7 +1007,7 @@
                       <p>Each fight keeps its own time. Each round adds the round&rsquo;s length, set in the Combat card&rsquo;s Turns box, or 6 seconds when it has none. While fights run, the clock shows the fight furthest behind, so two fights move it once for each second. The round a fight ends in counts. With rounds of 1 second, a fight begun at 12:00:00 and ended in round 3 lets the clock go on from 12:00:03. A step back in a fight is a correction, and nothing counts twice. Every move of yours goes in the <b>Session Log</b> under <b>Time</b>. The clock is not a step of Undo: set it back with <b>Set the clock</b> or a negative amount. At a table, players see the chip and the calendar without its controls. <b>Hide the clock for me</b> takes it out of their header, and Settings &#9656; VTT features brings it back.</p>
                       <h4 id="helpVtt">VTT settings</h4>
                       <ul>
-                          <li><b>Per campaign.</b> The features are switched in <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 5.1L10.7 2.8L13.3 2.8L13.8 5.1A7.1 7.1 0 0 1 15.6 5.9L17.6 4.6L19.4 6.4L18.1 8.5A7.1 7.1 0 0 1 18.9 10.2L21.2 10.7L21.2 13.3L18.9 13.8A7.1 7.1 0 0 1 18.1 15.6L19.4 17.6L17.6 19.4L15.6 18.1A7.1 7.1 0 0 1 13.8 18.9L13.3 21.2L10.7 21.2L10.2 18.9A7.1 7.1 0 0 1 8.5 18.1L6.4 19.4L4.6 17.6L5.9 15.6A7.1 7.1 0 0 1 5.1 13.8L2.8 13.3L2.8 10.7L5.1 10.2A7.1 7.1 0 0 1 5.9 8.5L4.6 6.4L6.4 4.6L8.4 5.9A7.1 7.1 0 0 1 10.2 5.1zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z"/></svg> Settings &#9656; VTT features</b> for the campaign on screen. They are token elevation, token posture, token facing, the minimap, sound, music, dice and character sheets. Then come visual effects, fog of war, lighting, turn-based combat, the calendar and video. Every one is on for a new campaign until you switch it off.
+                          <li><b>Per campaign.</b> The features are switched in <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 5.1L10.7 2.8L13.3 2.8L13.8 5.1A7.1 7.1 0 0 1 15.6 5.9L17.6 4.6L19.4 6.4L18.1 8.5A7.1 7.1 0 0 1 18.9 10.2L21.2 10.7L21.2 13.3L18.9 13.8A7.1 7.1 0 0 1 18.1 15.6L19.4 17.6L17.6 19.4L15.6 18.1A7.1 7.1 0 0 1 13.8 18.9L13.3 21.2L10.7 21.2L10.2 18.9A7.1 7.1 0 0 1 8.5 18.1L6.4 19.4L4.6 17.6L5.9 15.6A7.1 7.1 0 0 1 5.1 13.8L2.8 13.3L2.8 10.7L5.1 10.2A7.1 7.1 0 0 1 5.9 8.5L4.6 6.4L6.4 4.6L8.4 5.9A7.1 7.1 0 0 1 10.2 5.1zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z"/></svg> Settings &#9656; VTT features</b> for the campaign on screen. They are token elevation, token posture, token facing, the minimap, sound, music, dice and character sheets. Then come visual effects, fog of war, lighting, turn-based combat, the calendar, video and table trackers. Every one is on for a new campaign until you switch it off.
                               <ul>
                                   <li>They are saved with the campaign in the save file, so a restore or an import brings a campaign's settings back with it.</li>
                                   <li><b>VTT integration</b> is the master switch. Off is the plain whiteboard: every feature off and hidden, with the per-feature choices kept for when it goes back on.</li>
@@ -1031,6 +1031,7 @@
                           <li>Press <b>&minus;</b> and <b>+</b> on a counter or a clock, and the play button on a countdown. Press a tracker&rsquo;s name for its menu: Start or Pause, Reset, who sees it, the map it is on, Edit and Remove.</li>
                           <li>A tracker you keep to yourself wears a small <b>GM</b> mark. It never leaves your computer. One shown to the table reaches every player on its map, and the stream window too. Only you can change a tracker.</li>
                           <li>When a countdown runs out or a clock fills, its pill glows. Table Chat says so on every screen that sees it.</li>
+                          <li>To switch them off for the whole table, use <b>Settings &#9656; VTT features &#9656; Table trackers</b>. To keep them from one player, press <b>Who sees these</b> at the end of the strip and tick that player. A player&rsquo;s menu on the party strip or their token has <b>Hide table trackers from them</b> too, and so do the ticks under the switch in Settings. That player then gets no tracker at all. It is kept with the campaign.</li>
                           <li>The arrow at the start of the strip puts it away on your screen alone, leaving one small <b>Trackers</b> pill. Press it to bring the strip back. Each step is written to <b>saves/error.log</b>.</li>
                       </ul>
                       <h4>Coordinate rulers &amp; minimap</h4>
@@ -1464,9 +1465,9 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Handbook:</b> the pages of the hosted campaign that are not marked <b>GM only</b> reach every player, who read them in a panel over the map. Turning a page GM only mid-session takes it away from them at once. Your edits to an open page arrive as you type. Pages of your other campaigns never travel.</li>
                           <li><b>VTT features:</b> the hosted campaign's settings are the most your players see, and a change mid-session reaches them at once. They are under <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 5.1L10.7 2.8L13.3 2.8L13.8 5.1A7.1 7.1 0 0 1 15.6 5.9L17.6 4.6L19.4 6.4L18.1 8.5A7.1 7.1 0 0 1 18.9 10.2L21.2 10.7L21.2 13.3L18.9 13.8A7.1 7.1 0 0 1 18.1 15.6L19.4 17.6L17.6 19.4L15.6 18.1A7.1 7.1 0 0 1 13.8 18.9L13.3 21.2L10.7 21.2L10.2 18.9A7.1 7.1 0 0 1 8.5 18.1L6.4 19.4L4.6 17.6L5.9 15.6A7.1 7.1 0 0 1 5.1 13.8L2.8 13.3L2.8 10.7L5.1 10.2A7.1 7.1 0 0 1 5.9 8.5L4.6 6.4L6.4 4.6L8.4 5.9A7.1 7.1 0 0 1 10.2 5.1zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z"/></svg> Settings &#9656; VTT features.
                               <ul>
-                                  <li>The list is elevation, posture, token facing, minimap, sound, music, dice and character sheets. Then come visual effects, fog of war, lighting, turn-based combat, the calendar, video, and the VTT integration master.</li>
+                                  <li>The list is elevation, posture, token facing, minimap, sound, music, dice and character sheets. Then come visual effects, fog of war, lighting, turn-based combat, the calendar, video, table trackers, and the VTT integration master.</li>
                                   <li>The <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 3.5c-4.4 4.8-4.4 12.2 0 17M12 3.5c4.4 4.8 4.4 12.2 0 17M4.6 9h14.8M4.6 15h14.8"/></svg> panel shows what the table runs with.</li>
-                                  <li>Players may switch a feature off for themselves, never on. Fog of war, token facing, lighting and turn-based combat are the exception: they are yours alone.</li>
+                                  <li>Players may switch a feature off for themselves, never on. Fog of war, token facing, lighting, turn-based combat and table trackers are the exception: they are yours alone.</li>
                                   <li>A player's own elevation or posture edit is accepted only while that feature is on for the campaign.</li>
                               </ul>
                           </li>
@@ -1555,7 +1556,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       </ol>
                       <h4>What you can do</h4>
                       <ul>
-                          <li><b>Table trackers:</b> the pills at the top left of the map are counters, countdowns and clocks your GM shows the table. Only your GM changes them. The arrow at the start of the strip puts them away on your screen.</li>
+                          <li><b>Table trackers:</b> the pills at the top left of the map are counters, countdowns and clocks your GM shows the table. Only your GM changes them. Your GM may switch them off, for the table or for you alone. The arrow at the start of the strip puts them away on your screen.</li>
                           <li>Pan with <kbd>Middle Click + Drag</kbd>, zoom with the <kbd>Mouse Wheel</kbd>, and use the <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 16.5l13-13 4 4-13 13-4-4zM7.5 12.5l1.8 1.8M10.5 9.5l1.8 1.8M13.5 6.5l1.8 1.8"/></svg> Measure</b> tool freely. Your camera is your own.</li>
                           <li><b>Your token:</b> if the GM assigned you one, just drag it. It lands in a cell while your GM has Snap on, and exactly where you drop it otherwise. You can't move anyone else's.</li>
                           <li><b>Your drawings:</b> you have the pen and the eraser too. You can erase only your own marks. A line of yours that your GM made a wall or a barrier stays: you can no longer erase it, until they hand it back.</li>
@@ -1684,9 +1685,9 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li>Editing tools are the GM's. Your token moves are saved on their side, and nothing is stored on your machine.</li>
                           <li><b>VTT features at the table:</b> the GM's campaign decides which are on.
                               <ul>
-                                  <li>The features are token elevation, token posture, token facing, the minimap, sound, music, dice and character sheets. The others are visual effects, fog of war, lighting, turn-based combat, the calendar and video.</li>
+                                  <li>The features are token elevation, token posture, token facing, the minimap, sound, music, dice and character sheets. The others are visual effects, fog of war, lighting, turn-based combat, the calendar, video and table trackers.</li>
                                   <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 5.1L10.7 2.8L13.3 2.8L13.8 5.1A7.1 7.1 0 0 1 15.6 5.9L17.6 4.6L19.4 6.4L18.1 8.5A7.1 7.1 0 0 1 18.9 10.2L21.2 10.7L21.2 13.3L18.9 13.8A7.1 7.1 0 0 1 18.1 15.6L19.4 17.6L17.6 19.4L15.6 18.1A7.1 7.1 0 0 1 13.8 18.9L13.3 21.2L10.7 21.2L10.2 18.9A7.1 7.1 0 0 1 8.5 18.1L6.4 19.4L4.6 17.6L5.9 15.6A7.1 7.1 0 0 1 5.1 13.8L2.8 13.3L2.8 10.7L5.1 10.2A7.1 7.1 0 0 1 5.9 8.5L4.6 6.4L6.4 4.6L8.4 5.9A7.1 7.1 0 0 1 10.2 5.1zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z"/></svg> Settings &#9656; VTT features</b> shows the GM's setting for each and lets you switch one <b>off for yourself</b>. You can never switch one on when the GM has it off.</li>
-                                  <li>Fog of war, token facing, lighting and turn-based combat are the GM's alone.</li>
+                                  <li>Fog of war, token facing, lighting, turn-based combat and table trackers are the GM's alone.</li>
                                   <li>The choice is remembered for that table and never changes your own settings.</li>
                                   <li>When a table differs from your own default, a window on joining lists two things. One is what is on there but off for you. The other is what the GM has off.</li>
                                   <li>Your own default carries in, so those features start off for you until you pick <b>Use the table's settings</b>.</li>
@@ -3920,6 +3921,13 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">The campaign&rsquo;s videos, in the &#127902; Video panel under the play map&rsquo;s &#127916; Scene button: add MP4 or WebM files from your computer (they are copied into your saves folder, whatever their size), rename or delete them, and watch one in a panel you move, resize and put full screen. While you host, show one live to everyone or to chosen players; a player may switch Video off for themselves.</div>
                 <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
             </div>
+            <div class="set-vtt-row" data-vtt="trackers" style="margin-bottom:8px;">
+                <div class="set-field-label" style="display:flex; justify-content:space-between;">Table trackers <span id="setTrackersState" style="color:var(--dim);"></span></div>
+                <button class="tool ghost" id="setTrackersBtn" style="width:100%;">Toggle Table Trackers</button>
+                <div id="setTrkHide" class="gm-only set-trk-hide" style="margin-top:6px;"></div>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">Counters, countdowns and clocks in a strip at the top left of the play map (<b>+ Tracker</b>). On by default. You control it for the whole table: there is no per-player switch. To keep the trackers from one player, tick them below. Who sees these on the strip and a player&rsquo;s menu on the party strip or their token do the same. Set per campaign.</div>
+                <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
+            </div>
             </div>
             </div>
             <div id="setVttDefaults" class="gm-only" style="margin-top:14px; border-top:1px solid var(--edge); padding-top:10px;">
@@ -3980,6 +3988,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div style="margin-bottom:8px;">
                     <div class="set-field-label" style="display:flex; justify-content:space-between;">Video <span id="setVttGlobalVideoState" style="color:var(--dim);"></span></div>
                     <button class="tool ghost" id="setVttGlobalVideoBtn" style="width:100%;">Toggle Default Video</button>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <div class="set-field-label" style="display:flex; justify-content:space-between;">Table trackers <span id="setVttGlobalTrackersState" style="color:var(--dim);"></span></div>
+                    <button class="tool ghost" id="setVttGlobalTrackersBtn" style="width:100%;">Toggle Default Table Trackers</button>
                 </div>
                 <button class="tool ghost" id="setVttPushBtn" style="width:100%;" title="Copy the default above onto the campaigns you tick. Nothing is ticked to begin with; the others keep their own settings.">Apply to existing campaigns&hellip;</button>
                 <div class="set-line">Copies the default above onto the campaigns you tick. The others keep their own settings.</div>

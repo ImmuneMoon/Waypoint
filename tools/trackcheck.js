@@ -145,9 +145,11 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
         check('the form is a floating box by the rules (FLOAT_IDS, Z_BOXES, ESC_LAST with its close button) and the menu is put away by Escape as a right-click menu is (ESC_RIGHT)',
             /var FLOAT_IDS = \[[^\]]*'trkPanel'\]/.test(floats) && /var Z_BOXES = \[[^\]]*'trkPanel'\]/.test(sheets) && /var ESC_LAST = \[[^\]]*'trkPanel'\]/.test(esc) && /var ESC_RIGHT = \[[^\]]*'trkMenu'\]/.test(esc)
             && esc.includes("trkPanel: function(el) { if (!escPress(doc, 'trkCloseBtn')) el.style.display = 'none'; } };"));
-        check('a load and an import clean the trackers (io.js, trackcore imported first), the strip follows every render, and no VTT switch of its own yet (the fold puts it away)',
+        check('a load and an import clean the trackers and the players they are kept from (io.js, trackcore imported first), the strip follows every render, and the VTT switch Table trackers is the roster\'s last, the GM\'s alone (moved on purpose: the switch the building fold left out)',
             io.includes("import './trackcore.js';") && io.includes("var tkL = TKl && TKl.cleanTrackers ? TKl.cleanTrackers(c.trackers, { maps: tkM }) : []; if (tkL.length) c.trackers = tkL; else delete c.trackers; }")
-            && !vtt.includes("'trackers'") && count(main, 'if (window.wpTrackers) window.wpTrackers.draw();') === 2);
+            && io.includes("if (c.trkHide !== undefined) { var tkH = window.wpTrackCore && window.wpTrackCore.cleanHide ? window.wpTrackCore.cleanHide(c.trkHide) : []; if (tkH.length) c.trkHide = tkH; else delete c.trkHide; }")
+            && vtt.includes("    { id: 'trackers',  label: 'Table trackers',   legacyKey: null, noLocal: true }   // 1.6.0 backlog 29") && /\n\];/.test(vtt.slice(vtt.indexOf("{ id: 'trackers'"), vtt.indexOf("{ id: 'trackers'") + 400))
+            && count(main, 'if (window.wpTrackers) window.wpTrackers.draw();') === 2);
         check('the snapshot never carries the trackers (sanitizeAppState deletes them); a joiner is sent theirs after it; a player at another map is sent that map\'s; the chat line is a whisper of this machine\'s own, drawn by trackers.js',
             net.includes("delete camp.trackers; // backlog 29") && net.includes("if (snapOk && typeof net.trackersForget === 'function') { net.trackersForget(conn.peer); trkSendTo(conn, Date.now()); }")
             && net.includes("broadcast({ type: 'roster', roster: rosterPayload(), away: awayMap() }, null); if (typeof net.syncTrackers === 'function') net.syncTrackers(); }")
@@ -162,6 +164,27 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
             help.length > 400 && help.includes('<b>+ Tracker</b> opens a small form.') && help.includes('It never leaves your computer.') && help.includes('Table Chat says so on every screen that sees it.') && help.includes('Each step is written to <b>saves/error.log</b>.')
             && ix.includes('<li><b>Table trackers:</b> the pills at the top left of the map are counters, countdowns and clocks your GM shows the table.')
             && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => readRoot(f).includes(NL + 'Table trackers' + NL + '- Put counters, countdowns and clocks on the play map.')));
+        /* the owner, 2026-10-29, by prompt: "gm but for the whole table or specific players", and for the one player "maybe a combo of all?" */
+        const H = T.cleanHide(['u_a', 'u_a', '<b>', '', 5, null, '__proto__', 'constructor', 'x'.repeat(81), 'u.b:1-_'].concat(Array.from({ length: 80 }, (_, i) => 'p' + i)));
+        check('backlog 29 the players the trackers are kept from: profile ids only, each once, no prototype name, at most 64; none from no list; hiddenFrom asks that list; hideSet puts one in or takes one out, null where nothing changes',
+            H.length === 64 && H[0] === 'u_a' && H[1] === 'u.b:1-_' && !H.includes('<b>') && !H.includes('__proto__') && !H.includes('constructor') && j(T.cleanHide('u_a')) === '[]' && j(T.cleanHide(undefined)) === '[]'
+            && T.hiddenFrom({ trkHide: ['u_a'] }, 'u_a') === true && T.hiddenFrom({ trkHide: ['u_a'] }, 'u_b') === false && T.hiddenFrom(null, 'u_a') === false && T.hiddenFrom({ trkHide: 'u_a' }, 'u_a') === false
+            && j(T.hideSet(['u_a'], 'u_b', true)) === j(['u_a', 'u_b']) && j(T.hideSet(['u_a', 'u_b'], 'u_a', false)) === j(['u_b']) && T.hideSet(['u_a'], 'u_a', true) === null && T.hideSet([], 'u_a', false) === null
+            && T.hideSet([], '<b>', true) === null && T.hideSet([], '__proto__', true) === null && T.hideSet(H, 'zz', true) === null && T.LIMITS.hide === 64, j(H));
+        const wbJ = readU('scripts/whiteboard.js'), setJ = readU('scripts/settings.js');
+        check('backlog 29 Table trackers switched off: the strip, the menu and the form stand aside and no end is said (trackers.js featOn), the stream window shows none, and a change of the switch reaches the wire at once (vtt.js changed)',
+            trJs.includes("function featOn() { var v = window.wpVtt; return !v || typeof v.on !== 'function' || v.on('trackers') !== false; }") && trJs.includes("play = onPlay() && !!camp && on,") && trJs.includes("if (!on) { if (_menu) closeMenu(); if (_form) closeForm(); }")
+            && trJs.includes("if (!featOn()) { _seen = Object.create(null); _seenKey = ''; return; }") && trJs.includes("|| !gmHand(net(), window) || !featOn()) return;")
+            && stJs.includes("if (camp && V && typeof V.campaignOn === 'function' && V.campaignOn('trackers', camp) === false) camp = null;") && vtt.includes("if (n && n.syncTrackers) n.syncTrackers();"));
+        check('backlog 29 the GM keeps the trackers from one player in three places, all through trackers.js setHidden (the GM\'s hand, saved, sent at once, logged): Who sees these at the end of the GM\'s strip, a player\'s menu on the party strip and on their token, and a tick per player under the switch in Settings',
+            trJs.includes("wb.id = 'trkWho';") && trJs.includes("if (b.id === 'trkWho') { if (_menu === '@who') closeMenu(); else openWho(b); return; }") && trJs.includes("b.dataset.trkwho = p.id;") && trJs.includes("log('hide', { on: on === true, n: next.length });")
+            && trJs.includes("var camp = campNow(), T = TK(); if (!camp || !T || !gmHand(net(), window)) return false;") && trJs.includes("setHidden: setHidden };")
+            && wbJ.includes("items.push({ act: 'trkHide', label:") && wbJ.includes("else if (act === 'trkHide') {") && wbJ.includes("<div class=\"menu-item cm-trk-hide\">") && wbJ.includes("} else if (action.includes('cm-trk-hide')) {")
+            && setJ.includes("function syncTrkHide(camp, editable, client) {") && setJ.includes("if (!T.setHidden(p.id, cb.checked))") && ix.includes('<div id="setTrkHide" class="gm-only set-trk-hide"')
+            && ix.includes('<div class="set-vtt-row" data-vtt="trackers"') && ix.includes('id="setTrackersBtn"') && ix.includes('id="setVttGlobalTrackersBtn"'));
+        check('backlog 29 Help says where the switch is and the three ways to keep the trackers from one player, the player\'s line says the GM may, and both release notes say it',
+            help.includes('<b>Settings &#9656; VTT features &#9656; Table trackers</b>') && help.includes('<b>Who sees these</b>') && help.includes('<b>Hide table trackers from them</b>') && help.includes('That player then gets no tracker at all.')
+            && ix.includes('Your GM may switch them off, for the table or for you alone.') && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => readRoot(f).includes('- Table trackers is a VTT feature in Settings, on by default.')));
         const ci = readRoot('.github/workflows/checks.yml');
         check('CI runs this suite', ci.includes('run: node tools/trackcheck.js'));
     }

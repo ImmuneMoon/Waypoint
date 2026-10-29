@@ -10,7 +10,12 @@
    to the table, from the save it reads (stream.js).
 
    The GM's machine ticks once a second: a countdown that reaches its end stops there, and each machine that sees a tracker reach its end
-   (a countdown run out, a clock filled) says so once in Table Chat (net.trackerLine) and lights its pill. Every step is logged ('trackers v1'). */
+   (a countdown run out, a clock filled) says so once in Table Chat (net.trackerLine) and lights its pill. Every step is logged ('trackers v1').
+
+   The VTT feature "Table trackers" (vtt.js, the GM's for the whole table) switched off puts the strip, the menu and the form away and says
+   no end; the host then sends every player an empty list. The players the GM keeps them from (the owner, 2026-10-29: "gm but for the whole
+   table or specific players") are camp.trkHide, set in three places that all call setHidden: Who sees these at the end of the GM's strip,
+   a player's menu on the party strip or their token, and the ticks under the switch in Settings. Such a player is sent no tracker. */
 import { state } from './state.js';
 import { getActiveCampaign, getActiveMap } from './models.js';
 import { save, toast } from './io.js';
@@ -86,6 +91,28 @@ function shownList() {
     return T.onMap(ownList(camp), mapNow());
 }
 function onPlay() { return state.viewMode === 'visual' && !!mapNow(); }
+// The VTT feature "Table trackers": the campaign's own switch, or the GM's at someone's table (a player has none of their own)
+function featOn() { var v = window.wpVtt; return !v || typeof v.on !== 'function' || v.on('trackers') !== false; }
+// The players the GM may keep the trackers from: everyone who has joined this campaign (camp.players), by name
+function playersOf(camp) {
+    var P = camp && camp.players && typeof camp.players === 'object' ? camp.players : {}, out = [];
+    Object.keys(P).forEach(function(id) { var r = P[id]; if (r && typeof r === 'object' && typeof id === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(id)) out.push({ id: id, name: typeof r.name === 'string' && r.name.trim() ? r.name.trim().slice(0, 40) : 'A player' }); });
+    return out.sort(function(a, b) { return a.name.localeCompare(b.name); });
+}
+function hiddenNow(pid, camp) { var T = TK(); return !!T && T.hiddenFrom(camp || campNow(), pid); }
+// Keep every tracker from one player, or stop: the GM's hand only; saved, sent at once (net.js trkSendTo), logged
+function setHidden(pid, on) {
+    var camp = campNow(), T = TK(); if (!camp || !T || !gmHand(net(), window)) return false;
+    var next = T.hideSet(camp.trkHide, pid, on === true); if (!next) return false;
+    if (next.length) camp.trkHide = next; else delete camp.trkHide;
+    save();
+    var n = net(); if (n && typeof n.syncTrackers === 'function') n.syncTrackers();
+    log('hide', { on: on === true, n: next.length });
+    if (window.wpSettingsSync) window.wpSettingsSync();
+    draw(true);
+    if (_menu === '@who') drawWho();
+    return true;
+}
 
 // The GM's hand: one change to the campaign's list, saved, sent to the table and logged
 function commit(fn, step, facts) {
@@ -129,6 +156,7 @@ function removeOne(id) {
 // What every machine that sees a tracker does once a second: the GM's settles a countdown at its end; each says an end it sees once
 function seeNow() {
     var T = TK(), n = net(), camp = campNow(); if (!T || !camp) return;
+    if (!featOn()) { _seen = Object.create(null); _seenKey = ''; return; }   // switched off: no end is said, and none waits to be said when it comes back
     var key = (atTable(n) ? 't:' + (n.syncedPeer || '') : 'c:') + camp.id; if (key !== _seenKey) { _seenKey = key; _seen = Object.create(null); }
     var list = atTable(n) ? _rx.list : ownList(camp), now = Date.now(), ck = clockT(camp);
     newlyDone(list, _seen, now, ck).forEach(function(t) {
@@ -184,10 +212,11 @@ function focusKey(b) {
 }
 function draw(force) {
     var box = strip(), T = TK(); if (!box || !T) return;
-    var n = net(), camp = campNow(), gm = gmHand(n, window), play = onPlay() && !!camp, list = play ? shownList() : [], now = Date.now();
+    var n = net(), camp = campNow(), gm = gmHand(n, window), on = featOn(), play = onPlay() && !!camp && on, list = play ? shownList() : [], now = Date.now();
+    if (!on) { if (_menu) closeMenu(); if (_form) closeForm(); }   // Table trackers off: the strip, the menu and the form stand aside
     var show = play && (list.length > 0 || gm);
     if (!show) { if (box.style.display !== 'none') box.style.display = 'none'; _sig = ''; return; }
-    var tv = !!(n && n.stream), folded = !tv && foldOn(), sig = JSON.stringify([gm, folded, list.map(function(t) { var c = Object.assign({}, t); if (c.kind === 'timer') { c.left = c.run === true ? -1 : c.left; delete c.end; } return c; }), T.LIMITS.list]);
+    var tv = !!(n && n.stream), folded = !tv && foldOn(), sig = JSON.stringify([gm, folded, gm ? T.cleanHide(camp.trkHide).length : 0, list.map(function(t) { var c = Object.assign({}, t); if (c.kind === 'timer') { c.left = c.run === true ? -1 : c.left; delete c.end; } return c; }), T.LIMITS.list]);
     if (box.style.display === 'none') box.style.display = '';
     if (force || sig !== _sig) {
         var had = document.activeElement && box.contains(document.activeElement) ? focusKey(document.activeElement) : '';   // a press from the keyboard keeps its place when the strip is drawn again
@@ -196,6 +225,7 @@ function draw(force) {
         if (!folded) {
             list.forEach(function(t) { box.appendChild(pill(t, gm, camp, now)); });
             if (gm) { var a = btn('trk-pill trk-add', '+ Tracker', 'Add a counter, a countdown or a clock to this map or every map'); a.id = 'trkAdd'; if (ownList(camp).length >= T.LIMITS.list) a.disabled = true; box.appendChild(a); }
+            if (gm) { var hN = T.cleanHide(camp.trkHide).length, wb = btn('trk-btn trk-who', hN ? 'Who sees these · ' + hN + ' hidden' : 'Who sees these', 'Keep the trackers from chosen players'); wb.id = 'trkWho'; wb.setAttribute('aria-haspopup', 'true'); box.appendChild(wb); }
         }
         if (had) { var back = box.querySelector(had); if (back) back.focus(); }
         return;
@@ -231,6 +261,23 @@ function openMenu(id, anchor) {
     var first = m.querySelector('button'); if (first) first.focus();
 }
 
+// Who sees these: the players who joined this campaign, a tick on each the trackers are kept from. Kept open while the GM ticks
+var _whoAt = null;
+function drawWho() {
+    var m = menuEl(), camp = campNow(); if (!m || !camp) return;
+    m.textContent = ''; _menu = '@who';
+    m.appendChild(el('div', 'trk-mlabel', 'Hide the trackers from'));
+    var ps = playersOf(camp);
+    if (!ps.length) m.appendChild(el('div', 'trk-mnote', 'No player has joined this campaign yet.'));
+    ps.forEach(function(p) { var h = hiddenNow(p.id, camp), b = btn('trk-mi trk-who-row', (h ? '\u2611 ' : '\u2610 ') + p.name, h ? 'They get no tracker. Press to show them the table\u2019s trackers again' : 'Keep every tracker from this player'); b.dataset.trkwho = p.id; b.setAttribute('role', 'menuitemcheckbox'); b.setAttribute('aria-checked', h ? 'true' : 'false'); m.appendChild(b); });
+    m.appendChild(el('div', 'trk-mnote', 'A hidden player gets no tracker at all. It is kept with the campaign.'));
+    m.style.display = 'block';
+    _whoAt = document.getElementById('trkWho') || _whoAt;   // the strip drawn again holds a new button
+    var r = _whoAt && _whoAt.isConnected ? _whoAt.getBoundingClientRect() : null, mw = m.offsetWidth || 220, mh = m.offsetHeight || 200;
+    if (r) { m.style.left = Math.max(4, Math.min(r.left, window.innerWidth - mw - 4)) + 'px'; m.style.top = Math.max(4, Math.min(r.bottom + 4, window.innerHeight - mh - 4)) + 'px'; }
+}
+function openWho(anchor) { if (!gmHand(net(), window) || !featOn()) return; _whoAt = anchor; drawWho(); var first = menuEl() && menuEl().querySelector('button'); if (first) first.focus(); }
+
 // The form, a floating box beside the strip
 var UNITS = [['s', 'Seconds', 1], ['m', 'Minutes', 60], ['h', 'Hours', 3600], ['d', 'Days', 0]];
 function unitSecs(u, camp) { var x = UNITS.filter(function(k) { return k[0] === u; })[0]; return x ? (x[2] || dayLen(camp)) : 60; }
@@ -244,7 +291,7 @@ function draftOf(t, camp) {
     return d;
 }
 function openForm(id) {
-    var p = panel(), T = TK(), camp = campNow(); if (!p || !T || !camp || !gmHand(net(), window)) return;
+    var p = panel(), T = TK(), camp = campNow(); if (!p || !T || !camp || !gmHand(net(), window) || !featOn()) return;
     var t = id ? ownList(camp).filter(function(x) { return x.id === id; })[0] : null;
     if (!t) { if (ownList(camp).length >= T.LIMITS.list) { toast('A campaign holds at most ' + T.LIMITS.list + ' trackers.'); return; } t = T.fresh('count', 'tk' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), mapNow()); }
     _form = { isNew: !id, d: draftOf(t, camp) };
@@ -342,17 +389,20 @@ function receive(list, at) {
         var b = e.target && e.target.closest ? e.target.closest('button') : null; if (!b || !box.contains(b)) return;
         if (b.id === 'trkFold') { foldSet(!foldOn()); closeMenu(); draw(true); log('fold', { on: foldOn() }); return; }
         if (b.id === 'trkAdd') { closeMenu(); openForm(''); return; }
+        if (b.id === 'trkWho') { if (_menu === '@who') closeMenu(); else openWho(b); return; }
         if (b.dataset.trkstep) { stepBy(b.dataset.trkstep, Number(b.dataset.by) || 0); return; }
         if (b.dataset.trkrun) { startStop(b.dataset.trkrun); return; }
         if (b.dataset.trkmenu) { if (_menu === b.dataset.trkmenu) closeMenu(); else openMenu(b.dataset.trkmenu, b); }
     });
     var m = menuEl();
     if (m) m.addEventListener('click', function(e) {
-        var b = e.target && e.target.closest ? e.target.closest('button') : null; if (!b || !b.dataset.trkact) return;
+        var b = e.target && e.target.closest ? e.target.closest('button') : null; if (!b) return;
+        if (b.dataset.trkwho) { var pid = b.dataset.trkwho; setHidden(pid, !hiddenNow(pid)); var again = menuEl().querySelector('[data-trkwho="' + pid.replace(/[^A-Za-z0-9_.:-]/g, '') + '"]'); if (again) again.focus(); return; }
+        if (!b.dataset.trkact) return;
         var id = _menu, act = b.dataset.trkact; closeMenu();
         if (act === 'run') startStop(id); else if (act === 'reset') resetOne(id); else if (act === 'vis' || act === 'where') flip(id, act); else if (act === 'edit') openForm(id); else if (act === 'remove') removeOne(id);
     });
-    document.addEventListener('pointerdown', function(e) { if (!_menu) return; var mm = menuEl(); if (mm && mm.contains(e.target)) return; if (e.target && e.target.closest && e.target.closest('[data-trkmenu]')) return; closeMenu(); }, true);
+    document.addEventListener('pointerdown', function(e) { if (!_menu) return; var mm = menuEl(); if (mm && mm.contains(e.target)) return; if (e.target && e.target.closest && e.target.closest('[data-trkmenu], #trkWho')) return; closeMenu(); }, true);
     window.addEventListener('resize', closeMenu);
     var p = panel();
     if (p) {
@@ -383,5 +433,5 @@ function receive(list, at) {
     setInterval(tick, 1000);
     setTimeout(function() { draw(true); }, 0);
 })();
-window.wpTrackers = { draw: draw, receive: receive, renderLine: renderLine, open: openForm, close: closeForm, closeMenu: closeMenu, list: shownList };
-export { atTable, gmHand, mapsOf, localCopy, newlyDone, fromForm };
+window.wpTrackers = { draw: draw, receive: receive, renderLine: renderLine, open: openForm, close: closeForm, closeMenu: closeMenu, list: shownList, on: featOn, players: playersOf, hidden: hiddenNow, setHidden: setHidden };
+export { atTable, gmHand, mapsOf, localCopy, newlyDone, fromForm, playersOf };

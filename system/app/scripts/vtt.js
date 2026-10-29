@@ -32,7 +32,8 @@ var FEATURES = [
     { id: 'turns',     label: 'Turn-based combat', legacyKey: null, noLocal: true },  // 1.5.0 turn-based combat (owner, 2026-09-26): while a combat runs, turns are taken in order — the player on turn ends it; ON by default since 2026-09-30 (every feature is opt-out); GM-controlled                  // 1.5.0: per-campaign named playlists, per-map auto-play, GM take-control; a self-toggle with its OWN volume, separate from Sound/SFX
     { id: 'lighting',  label: 'Lighting',         legacyKey: null, noLocal: true },  // 1.5.0 light & darkness (owner 2026-09-28): a fogged map is lit until the GM places a light source; GM-controlled like fog; ON by default
     { id: 'calendar',  label: 'Calendar',         legacyKey: null },     // 1.5.0 item 20 (owner 2026-09-30): the campaign's date and time in the header; ON by default (every feature is opt-out); a player may hide it for themselves
-    { id: 'video',     label: 'Video',            legacyKey: null }      // 1.5.0 item 21 (owner 2026-09-30): the campaign's videos, the GM's Video panel (V1) and the live stream to the table (V2); ON by default; a player may switch it off for themselves
+    { id: 'video',     label: 'Video',            legacyKey: null },     // 1.5.0 item 21 (owner 2026-09-30): the campaign's videos, the GM's Video panel (V1) and the live stream to the table (V2); ON by default; a player may switch it off for themselves
+    { id: 'trackers',  label: 'Table trackers',   legacyKey: null, noLocal: true }   // 1.6.0 backlog 29 (the owner, 2026-10-29, by prompt: "gm but for the whole table or specific players"): the strip, its menu and the wire; ON by default; the GM's for the whole table, and the players they keep it from are camp.trkHide (trackers.js), never a player's own switch
 ];
 // noLocal: a feature the GM controls for the whole table — no per-player "off for me". def: a default-off flag (def:false) for an
 // opt-in feature — none today: every feature is on by default and the GM switches it off (owner, 2026-09-30: "all features are opt out").
@@ -511,6 +512,7 @@ function changed(reason) {
     var cm = document.getElementById('contextMenu');
     if (cm && cm.style.display !== 'none' && cm.querySelector('.cm-stance')) cm.style.display = 'none';   // its rows would be stale
     var n = net(); if (n && n.syncStance) n.syncStance();
+    if (n && n.syncTrackers) n.syncTrackers();   // backlog 29: Table trackers switched: each player's list follows at once
     if (window.wpSettingsSync) window.wpSettingsSync();
 }
 

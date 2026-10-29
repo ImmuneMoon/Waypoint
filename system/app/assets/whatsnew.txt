@@ -16,6 +16,10 @@ Table trackers
 - A countdown runs on real time or on the game clock, as you pick.
 - When a countdown runs out or a clock fills, its pill glows and Table
   Chat says so. The arrow at the start of the strip puts it away.
+- Table trackers is a VTT feature in Settings, on by default. Switch it
+  off for the whole table there. To keep the trackers from one player,
+  press Who sees these on the strip, use their menu on the party strip
+  or their token, or tick them under the switch in Settings.
 
 Quick jump
 - Quick jump finds the map's tools and Settings too. Press Ctrl+K and

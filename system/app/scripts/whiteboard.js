@@ -2842,6 +2842,7 @@ window.wpFitToGrid = fitToGrid;
               }
           }
           var isClient = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
+          if (!isClient && ownerId && !window.wpStream && window.wpTrackers && window.wpTrackers.on && window.wpTrackers.on()) items.push({ act: 'trkHide', label: (window.wpTrackers.hidden(ownerId) ? '\u2611 ' : '\u2610 ') + 'Hide table trackers from them' });   // backlog 29: the owner, "gm but for the whole table or specific players"
           if (!isClient && am && am.type === 'map' && !(hosting && connected)) items.push({ act: 'bring', label: '\u27A4 Bring ' + name + ' here (this map)' });
           if (window.wpNet && window.wpNet.active && !hosting && !window.wpStream) items.push({ act: 'target', label: '\u25CE Target ' + name });
           if (loc && loc.tok && window.wpSheets && (!isClient ? true : (loc.tok.charId && window.wpSheets.canOpen(loc.tok.charId)))) items.push({ act: 'sheet', label: String.fromCharCode(55357, 56523) + ' ' + (loc.tok.charId ? 'Sheet\u2026' : 'New character sheet\u2026') });   // character sheets (1.5.0)
@@ -2899,6 +2900,7 @@ window.wpFitToGrid = fitToGrid;
           else if (act === 'clearTarget') { if (window.wpNet.clearTargetOf) window.wpNet.clearTargetOf(key.slice(2)); }   // 1.5.9: the host's alone (clearTargetOf answers nothing elsewhere)
           else if (act === 'pausePlayer') { if (window.wpNet.pausePlayer) window.wpNet.pausePlayer(key.slice(2), true); }
           else if (act === 'unpausePlayer') { if (window.wpNet.pausePlayer) window.wpNet.pausePlayer(key.slice(2), false); }
+          else if (act === 'trkHide') { var pidK = key.slice(2); if (window.wpTrackers && window.wpTrackers.setHidden(pidK, !window.wpTrackers.hidden(pidK))) toast(window.wpTrackers.hidden(pidK) ? 'Table trackers hidden from this player.' : 'This player sees the table\u2019s trackers again.'); }
           else if (act === 'joinCard') { if (window.wpJoinCard) window.wpJoinCard.show(); }
           else if (act === 'invite') { if (window.wpSheets && window.wpSheets.inviteMaking) window.wpSheets.inviteMaking(key.slice(2)); }
           else if (act === 'bring') { var ctrB = viewCentre(); bringKeyHere(key, ctrB.x, ctrB.y); }
@@ -9582,6 +9584,7 @@ document.addEventListener('contextmenu', function(e) {
                 var pausedTok = window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(firstItem.ownerId);
                 html += '<div class="menu-item cm-player-pause">' + (pausedTok ? '&#9654;&#65039; Resume this player' : '&#9208;&#65039; Pause this player') + '</div>';
             }
+            if (isWb && firstItem && firstItem.isChar && firstItem.ownerId && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client') && !window.wpStream && window.wpTrackers && window.wpTrackers.on && window.wpTrackers.on()) html += '<div class="menu-item cm-trk-hide">' + (window.wpTrackers.hidden(firstItem.ownerId) ? '&#9745; ' : '&#9744; ') + 'Hide table trackers from them</div>';   // backlog 29
             if (isWb && firstItem && firstItem.id && !firstItem.hidden && window.wpFx && window.wpVtt && window.wpVtt.on('fx')) html += '<div class="menu-item cm-pulse">✨ Pulse</div>';
             html += '<div class="menu-item cm-dup">&#10697; Duplicate</div>';
             if (isWb && firstItem && (firstItem.isChar || firstItem.charName)) html += '<div class="menu-item cm-cast-save">&#9733; Save to Campaign Cast</div>';
@@ -9755,6 +9758,11 @@ document.addEventListener('contextmenu', function(e) {
                 } else if (action.includes('cm-player-pause')) {
                     var itPP = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });
                     if (itPP && itPP.ownerId && window.wpNet.pausePlayer) window.wpNet.pausePlayer(itPP.ownerId, !(window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(itPP.ownerId)));
+                    return;
+                } else if (action.includes('cm-trk-hide')) {   // backlog 29: keep the table trackers from this token's player, or stop
+                    var itTH = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });
+                    cMenu.style.display = 'none';
+                    if (itTH && itTH.ownerId && window.wpTrackers && window.wpTrackers.setHidden(itTH.ownerId, !window.wpTrackers.hidden(itTH.ownerId))) toast(window.wpTrackers.hidden(itTH.ownerId) ? 'Table trackers hidden from this player.' : 'This player sees the table\u2019s trackers again.');
                     return;
                 } else if (action.includes('cm-cast-save')) {
                     castSave(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean));

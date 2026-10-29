@@ -15860,6 +15860,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ixM.includes('<li>A Mount link&rsquo;s <b>Mount reads riders as</b> is the key the mount reads its rider by') && gdM.includes('the mount then reads its rider as') && ntM.every(t => t.indexOf('- A mount can read its rider as a group') > 0 && t.indexOf('- A mount can read its rider as a group') < t.indexOf('WAYPOINT 1.5.')),
             J([lsW]));
     }
+    {   // 1.6.0: a list's roll that Resists an attempt, offered by Or resisted by once a row (the host's side is netcheck's)
+        const J = v => JSON.stringify(v), LSr = v => S.cleanListSpec(v, true, F), LSp = v => S.cleanListSpec(v, false, F);
+        const spR = { rolls: [{ label: 'Parry', formula: '3d6 <= 10 - AttemptMargin', resist: true }, { label: 'Cut', formula: '3d6', resist: 'yes' }, { label: 'Heal', apply: [{ c: 'T0', formula: '1' }], resist: true }], counters: [{ key: 'T0' }] };
+        const g = LSr(spR), p = LSp(spR), shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), ixR = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        const ntR = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, NL));
+        const vR = S.validateSystem(cleanSystem({ v: 1, name: 'R', fields: [{ id: 'f_wp', key: 'Weapons', kind: 'item-list', vis: 'all', edit: 'owner', list: spR }, { id: 'f_x', key: 'X', kind: 'item-list', vis: 'all', edit: 'owner', list: { rolls: [{ label: 'Plain', formula: '3d6 <= 10 - AttemptMargin' }] } }], rolls: [] }, { F, gmView: true }), F);
+        check('1.6.0 a list\'s roll may be ticked Resists an attempt: kept only as true on a roll that is no apply action, the same in both views; its formula knows AttemptMargin, a list roll not ticked never; the Lists card has the tick and its handler, Or resisted by offers each list roll so ticked as <field id>#<place>, and Help and both 1.6.0 notes say it',
+            g.rolls[0].resist === true && p.rolls[0].resist === true && !('resist' in g.rolls[1]) && !('resist' in g.rolls[2]) && J(LSr(g)) === J(g)
+            && !vR.errors.some(e => e.id === 'f_wp') && vR.errors.some(e => e.id === 'f_x' && /known only in a roll ticked Resists an attempt/.test(e.message))
+            && shR.includes("if (!rApply) rw.appendChild(checkLabel('sys-list-rsist', rr.resist === true, 'Resists an attempt',") && shR.includes("else if (c.indexOf('sys-list-rsist') >= 0) {") && shR.includes("rs.push([f.id + '#' + li, (f.label || f.key || 'A list') + ': ' + (lr.label || 'Roll') + ', a button a row']);")
+            && ixR.includes('<li>A list&rsquo;s roll can be ticked <b>Resists an attempt</b> too, in the Lists tab') && ntR.every(t => t.indexOf("- A list's roll can be ticked Resists an attempt too") > 0 && t.indexOf("- A list's roll can be ticked Resists an attempt too") < t.indexOf('WAYPOINT 1.5.')),
+            J([g.rolls, p.rolls, vR.errors]));
+    }
     {   // 1.6.0: a list's roll or action only the GM presses (gm)
         const J = JSON.stringify;
         const rawG = { v: 1, name: 'G', rolls: [], fields: [{ id: 'f_wear', key: 'Wear', kind: 'number', def: 0, edit: 'owner' }, { id: 'f_kit', key: 'Kit', kind: 'item-list', edit: 'owner', list: { counters: [{ key: 'Jam' }], rolls: [

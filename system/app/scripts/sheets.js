@@ -4732,6 +4732,7 @@ function resistOrBox(cls, by, cur, sys) {
     var box = el('span', 'sys-flags sys-rsor'); if (typeof by !== 'string' || !by) return box;
     var on = Array.isArray(cur) ? cur.filter(function(x) { return typeof x === 'string' && x !== by; }) : [], max = window.wpSystemCore && window.wpSystemCore.RESIST_OR || 3;
     var rs = (sys && Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(x) { return x && typeof x.id === 'string' && x.id !== by && x.resist === true && !Array.isArray(x.apply); }).map(function(x) { return [x.id, x.label || 'Roll']; });
+    (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (!f || f.kind !== 'item-list' || typeof f.id !== 'string' || !f.list || !Array.isArray(f.list.rolls)) return; f.list.rolls.forEach(function(lr, li) { if (lr && lr.resist === true && !Array.isArray(lr.apply)) rs.push([f.id + '#' + li, (f.label || f.key || 'A list') + ': ' + (lr.label || 'Roll') + ', a button a row']); }); });   // 1.6.0: a list's roll ticked Resists an attempt
     on.forEach(function(id) { if (!rs.some(function(x) { return x[0] === id; })) rs.push([id, 'a roll no longer ticked Resists an attempt']); });
     if (!rs.length) return box;
     box.appendChild(el('span', 'sys-note', 'Or resisted by:'));
@@ -4739,7 +4740,18 @@ function resistOrBox(cls, by, cur, sys) {
     return box;
 }
 function resistOrTick(d, t) { var l = Array.isArray(d.resistOr) ? d.resistOr.filter(function(x) { return typeof x === 'string' && x !== t.dataset.rid; }) : []; if (t.checked && t.dataset.rid) l.push(t.dataset.rid); if (l.length) d.resistOr = l; else delete d.resistOr; }   // 1.6.0 (the core's gap 5)
-function runDue(charId, actId, att) {   // att (1.6.0, B2): the attempt a resist card answers, handed to the roll its button makes
+function runDue(charId, actId, att, row) {   // att (1.6.0, B2): the attempt a resist card answers, handed to the roll its button makes; row (1.6.0): a list's roll on one row, { f, r, i }
+    if (row && typeof row === 'object') {   // a resist card's button for one row the target holds: its list's roll, made as that row's button makes it, which the host judges
+        var campW = getActiveCampaign(), sysW = systemOf(campW), cW = charById(charId, campW), lfW = null;
+        (sysW && Array.isArray(sysW.fields) ? sysW.fields : []).forEach(function(x) { if (x && x.id === row.f && x.kind === 'item-list' && x.list && Array.isArray(x.list.rolls)) lfW = x; });
+        var lrW = lfW && typeof row.i === 'number' ? lfW.list.rolls[row.i] : null, rowsW = cW && cW.values && Array.isArray(cW.values[row.f]) ? cW.values[row.f] : [];
+        if (!cW || !lrW || typeof lrW.formula !== 'string' || !lrW.formula || Array.isArray(lrW.apply) || !rowsW.some(function(x) { return rowIdOf(x) === row.r; })) { toast('That roll is not on the sheet any more.'); return false; }
+        if (!canRoll(cW)) { toast('That character is not yours to roll for here.'); return false; }
+        if (!window.wpDice || !window.wpDice.rollFor) return false;
+        var nW = typeof att === 'string' ? net() : null; if (nW) nW._attNext = { att: att, charId: cW.id, row: { f: row.f, r: row.r, i: row.i } };
+        try { window.wpDice.rollFor(cW.id, lrW.formula, String(lrW.label || 'Roll').split('{')[0].trim() || 'Roll', { row: { f: row.f, r: row.r, i: row.i } }); } finally { if (nW) nW._attNext = null; }
+        return true;
+    }
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp), r = null, rl = null;
     (sys && Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(x) { if (x && x.id === actId && Array.isArray(x.apply)) r = x; else if (x && x.id === actId && typeof x.formula === 'string' && x.formula) rl = x; });
     if (c && rl) {   // 1.5.9 (book es/et plan 4b; the owner: "Reminder card"): a roll that is due is rolled as its own button rolls it, which the host judges
@@ -7675,6 +7687,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         var actsL = Array.isArray(acts) ? acts : [];   // turn-based combat T1: what one press costs
         if (actsL.length || rr.cost) { var rco = el('select', 'sys-list-rollcost'); rco.title = 'What one press costs in turn-based combat: one of the actions a turn allows'; var rcOpts = [['', 'Costs nothing']].concat(actsL.map(function(a) { return [a.key, 'Costs: ' + (a.label || a.key)]; })); if (rr.cost && !actsL.some(function(a) { return a.key.toLowerCase() === String(rr.cost).toLowerCase(); })) rcOpts.push([rr.cost, 'Costs: ' + rr.cost + ' (no such action)']); rcOpts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; rco.appendChild(op); }); rco.value = rr.cost || ''; rw.appendChild(rco); }
         var rnr = el('select', 'sys-list-near'); rnr.title = 'Applies to: whom its changes go on. With an adjacent character, a press asks who it is for when someone stands next to you, your target first. A row\u2019s own counters stay with the user. Its formulas read OnSelf, 1 on yourself and 0 on another'; [['', 'Applies to the user'], ['near', 'Applies to the user or an adjacent character']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; rnr.appendChild(op); }); rnr.value = rr.to === 'near' ? 'near' : ''; rw.appendChild(rnr);   // 1.5.9 (book es/et plan, section 3): Applies to
+        if (!rApply) rw.appendChild(checkLabel('sys-list-rsist', rr.resist === true, 'Resists an attempt', 'This roll answers an attempt made on its character. Another roll\u2019s Or resisted by can name it, and the target\u2019s card then has a button for each row that holds it. Its formula reads AttemptMargin, such as 3d6 <= Row.Def - AttemptMargin'));   // 1.6.0
         if (!rApply && typeof resistBySel === 'function') rw.appendChild(resistBySel('sys-list-rsby', rr.resistBy, typeof draft !== 'undefined' ? draft : null));   // 1.6.0 (B2)
         if (!rApply && rr.resistBy && typeof resistOrBox === 'function') rw.appendChild(resistOrBox('sys-list-rsor', rr.resistBy, rr.resistOr, typeof draft !== 'undefined' ? draft : null));   // 1.6.0 (the core's gap 5)
         rw.appendChild(checkLabel('sys-list-gmonly', rr.gm === true, 'GM only', 'Only you press it. Players never see its button, and the table refuses theirs'));   // 1.6.0
@@ -10013,6 +10026,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-statpdef') >= 0) { var spr = t.closest('.sys-list-stat'), spD = spr && Array.isArray(lsc.stats) ? lsc.stats[+spr.dataset.si] : null; if (!spD || typeof spD !== 'object') return; if (t.value) spD.def = t.value; else delete spD.def; }   // Stage 6 F5a2: a choice's default
         else if (c.indexOf('sys-list-statshow') >= 0 || c.indexOf('sys-list-stathide') >= 0) { var ssr = t.closest('.sys-list-stat'), ssD = ssr && Array.isArray(lsc.stats) ? lsc.stats[+ssr.dataset.si] : null; if (!ssD || typeof ssD !== 'object') return; statTick(ssD, c.indexOf('sys-list-stathide') >= 0 ? 'hide' : 'show', t.checked, ssr); }   // Stage 6 F4c1; 1.5.4: Hidden
         else if (c.indexOf('sys-list-xs') >= 0) { var xr2 = t.closest('.sys-list-xsrow'), xD2 = xr2 && Array.isArray(lsc.rolls) ? lsc.rolls[+xr2.dataset.ri] : null; if (!xD2 || typeof xD2 !== 'object') return; listCrossEdit(xD2, c, t); }   // 1.6.0: a row's counter crossing
+        else if (c.indexOf('sys-list-rsist') >= 0) { var rsr = t.closest('.sys-list-roll'), rsD = rsr && Array.isArray(lsc.rolls) ? lsc.rolls[+rsr.dataset.ri] : null; if (!rsD || typeof rsD !== 'object') return; if (t.checked) rsD.resist = true; else delete rsD.resist; markDirty(); renderAll(); return; }   // 1.6.0: a list's roll that Resists an attempt (the Or resisted by lists follow)
         else if (c.indexOf('sys-list-gmonly') >= 0) { var rgr = t.closest('.sys-list-roll'), rgD = rgr && Array.isArray(lsc.rolls) ? lsc.rolls[+rgr.dataset.ri] : null; if (!rgD || typeof rgD !== 'object') return; if (t.checked) rgD.gm = true; else delete rgD.gm; }   // 1.6.0: GM only
         else if (c.indexOf('sys-list-dmg') >= 0) { var rdr = t.closest('.sys-list-roll'), rdD = rdr && Array.isArray(lsc.rolls) ? lsc.rolls[+rdr.dataset.ri] : null; if (!rdD || typeof rdD !== 'object') return; if (t.checked) rdD.dmg = true; else delete rdD.dmg; }   // chat cards: a damage roll
         else if (c.indexOf('sys-list-rolldie') >= 0) { var rir = t.closest('.sys-list-roll'), riD = rir && Array.isArray(lsc.rolls) ? lsc.rolls[+rir.dataset.ri] : null; if (!riD || typeof riD !== 'object') return; if (t.value) riD.die = t.value; else delete riD.die; }   // 1.5.8: the die a list roll's button wears

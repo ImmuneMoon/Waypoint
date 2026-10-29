@@ -8406,7 +8406,7 @@ function handleMessage(msg, conn) {
             tcQ = SQ.withRound(tcQ, mapQ ? net.combatRoundOf(locQ, (SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }) || {}).id) : null);   // fold 2: the fight that holds their token, else the first begun on that map, as their own sheet reads it (net.combatRoundOf)
             if (typeof rangeTo === 'function' && SQ.withRange) tcQ = SQ.withRange(tcQ, rangeTo(campQ, mapQ, locQ, SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }), pidQ));   // range R2: RangeMod and TargetDistance, to their own target as their copy holds it   // HUD frame (HF5b): CombatRound reads the combat on the map they are on (the token context stays null without a token)
             chQ = srcQ; varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ);
-            if (q.att) { var atQ = typeof attemptPeek === 'function' ? attemptPeek(q.att, q.charId, q.act) : null; if (atQ === null || !SQ.withAttempt) { denyQ('error', { error: { message: typeof ATT_GONE === 'string' ? ATT_GONE : 'That attempt is not there now.', pos: 0, len: 0 } }); return; } tcQ = SQ.withAttempt(tcQ, atQ); var abQ = typeof attemptRec === 'function' ? attemptRec(q.att) : null; if (abQ && abQ.blow && SQ.withBlow) tcQ = SQ.withBlow(tcQ, abQ.blow); varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ); }   // 1.6.0 (B2): the attempt it resists, from the host's own record   // 1.6.0 (the core's gaps 6 and 7): or the blow it answers
+            if (q.att) { var atQ = typeof attemptPeek === 'function' ? attemptPeek(q.att, q.charId, q.act, q.row) : null; if (atQ === null || !SQ.withAttempt) { denyQ('error', { error: { message: typeof ATT_GONE === 'string' ? ATT_GONE : 'That attempt is not there now.', pos: 0, len: 0 } }); return; } tcQ = SQ.withAttempt(tcQ, atQ); var abQ = typeof attemptRec === 'function' ? attemptRec(q.att) : null; if (abQ && abQ.blow && SQ.withBlow) tcQ = SQ.withBlow(tcQ, abQ.blow); varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ); }   // 1.6.0 (B2): the attempt it resists, from the host's own record   // 1.6.0 (the core's gaps 6 and 7): or the blow it answers
             if (q.row && q.row.k) {   // 1.6.0 Rolls unheld entries: the entry as their view has it (a system item they see, else an entry of a pack players may see: never a GM-only one), judged by the one judge against the host's own copy, its level worked out here
                 var ueQ = null; (Array.isArray(viewQ.items) ? viewQ.items : []).forEach(function(it) { if (!ueQ && it && it.id === q.row.k) ueQ = it; }); if (!ueQ && window.wpLibrary && typeof window.wpLibrary.playerEntry === 'function') ueQ = window.wpLibrary.playerEntry(q.row.k) || null;
                 var ujQ = typeof SQ.unheldJudge === 'function' ? SQ.unheldJudge(viewQ, srcQ, q.row.f, ueQ) : { ok: false, msg: 'That list does not roll entries nobody holds.' }; if (!ujQ.ok) { denyQ('error', { error: { message: ujQ.msg, pos: 0, len: 0 } }); return; }
@@ -9553,6 +9553,7 @@ net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, 
     if (ch.name) rec.as = String(ch.name).slice(0, 60);
     if ((rec.why === 'major' || rec.why === 'wound') && more && typeof more.att === 'string') rec.att = more.att;   // 1.6.0 (the core's gaps 6 and 7): the blow it answers, by the id of the host's record
     if (rec.why === 'resist') { rec.att = more.att; if (more.by) rec.by = String(more.by).slice(0, 60); if (typeof more.m === 'number' && isFinite(more.m)) rec.m = Math.max(-9999, Math.min(9999, more.m)); if (Array.isArray(more.or) && more.or.length) rec.or = more.or.slice(0, 3).map(function(r) { return { act: r.id, label: String(r.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll' }; }); }   // 1.6.0 (B2)   // 1.6.0 (the core's gap 5): a button for each
+    if (rec.why === 'resist' && Array.isArray(more.rows) && more.rows.length) rec.or = (rec.or || []).concat(more.rows.slice(0, 8).map(function(x) { return { row: { f: x.f, r: x.r, i: x.i }, label: String(x.label || 'Roll').slice(0, 60) }; }));   // 1.6.0: a list's roll, a button for each row the target holds
     if (!Array.isArray(act.apply)) { rec.roll = 1; if (rec.label === 'Apply') rec.label = String(act.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll'; }   // 1.5.9 (book es/et plan 4b): a roll that is due; its card's button rolls it
     postDue(rec, ch, !!toOwner);
 };
@@ -9585,7 +9586,7 @@ function postDue(rec, ch, toOwner) {
 // once. The margin is the host's own record, never a player's word. Memory alone, the newest ATT_MAX, gone with the table
 var _attempts = Object.create(null), _attIds = [], ATT_MAX = 100, ATT_GONE = 'That attempt has been resisted already, or is not there now.';
 function attemptForget() { _attempts = Object.create(null); _attIds = []; }
-function attemptPeek(id, charId, act) { var a = typeof id === 'string' && Object.prototype.hasOwnProperty.call(_attempts, id) ? _attempts[id] : null; return a && a.charId === charId && (a.act === act || (Array.isArray(a.alts) && a.alts.indexOf(act) >= 0)) ? a.m : null; }   // 1.6.0 (the core's gap 5): or one of the other rolls it may be resisted by
+function attemptPeek(id, charId, act, row) { var a = typeof id === 'string' && Object.prototype.hasOwnProperty.call(_attempts, id) ? _attempts[id] : null; if (row && typeof row === 'object') return a && a.charId === charId && typeof row.i === 'number' && typeof row.r === 'string' && Array.isArray(a.rows) && a.rows.indexOf(row.f + '#' + row.i + '#' + row.r) >= 0 ? a.m : null; return a && a.charId === charId && (a.act === act || (Array.isArray(a.alts) && a.alts.indexOf(act) >= 0)) ? a.m : null; }   // 1.6.0: or a list's roll on one of the rows it offers   // 1.6.0 (the core's gap 5): or one of the other rolls it may be resisted by
 function attemptDrop(id) { if (typeof id === 'string' && Object.prototype.hasOwnProperty.call(_attempts, id)) { delete _attempts[id]; _attIds = _attIds.filter(function(x) { return x !== id; }); } }
 // the roll's entry as the GM's own system holds it: a players' view says only that it is resisted (resisted: true), so the host finds the
 // whole entry, a system roll by its id, a list's roll by the same label and formula
@@ -9597,6 +9598,31 @@ function attemptEntry(sys, q, act) {
     for (var i = 0; i < pool.length; i++) { var r = pool[i]; if (r && typeof r.resistBy === 'string' && r.formula === act.formula && r.label === act.label) return r; }
     return null;
 }
+// 1.6.0 (asked by a system build): Or resisted by naming a list's roll (<field id>#<place>, systemcore listRollRef): that roll, ticked Resists an
+// attempt, once for each row of that list the target holds, in the list's order, ATT_ROWS at most. On a player's card only a roll their own
+// view holds and a row their own copy holds that is not kept from them (systemcore rowKeptFrom: a curse the GM keeps on or out of sight, a
+// GM-only entry or row); on the GM's card every row. Each { f, r, i, label } pushed onto out
+var ATT_ROWS = 8;
+function attRowAlts(camp, tch, ref, toO, out) {
+    var S = SC(), lr0 = S && typeof S.listRollRef === 'function' ? S.listRollRef(ref) : null; if (!lr0) return;
+    var f = null; (Array.isArray(camp.system.fields) ? camp.system.fields : []).forEach(function(x) { if (x && x.id === lr0.f && x.kind === 'item-list' && x.list && Array.isArray(x.list.rolls)) f = x; }); if (!f) return;
+    var lr = f.list.rolls[lr0.i]; if (!lr || lr.resist !== true || typeof lr.formula !== 'string' || !lr.formula || lr.apply) return;
+    var seen = null;
+    if (toO) {
+        if (f.vis === 'gm' || lr.gm === true || !window.wpSheets || typeof window.wpSheets.playerSystem !== 'function') return;
+        var view = window.wpSheets.playerSystem(camp), vf = null; (view && Array.isArray(view.fields) ? view.fields : []).forEach(function(x) { if (x && x.id === lr0.f && x.kind === 'item-list') vf = x; });
+        var vr = vf && vf.list && Array.isArray(vf.list.rolls) ? vf.list.rolls[lr0.i] : null; if (!vr || vr.resist !== true || vr.formula !== lr.formula) return;
+        var chv = S.charFor(tch, view, tch.ownerId, { lib: fxLib(camp.system), items: itemLib(camp.system), full: camp.system }); if (!chv) return;
+        seen = Object.create(null); (chv.values && Array.isArray(chv.values[lr0.f]) ? chv.values[lr0.f] : []).forEach(function(r) { var id = S.rowIdOf(r); if (id) seen[id] = 1; });
+    }
+    var lb = String(lr.label || 'Roll').split('{')[0].trim() || 'Roll';
+    (tch.values && Array.isArray(tch.values[lr0.f]) ? tch.values[lr0.f] : []).forEach(function(row) {
+        if (out.length >= ATT_ROWS) return; var rid = S.rowIdOf(row); if (typeof rid !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(rid) || out.some(function(x) { return x.f === lr0.f && x.r === rid && x.i === lr0.i; })) return;
+        if (toO && (seen[rid] !== 1 || S.rowKeptFrom(camp.system, row))) return;
+        var rd = S.rowDef(camp.system, row), nm = rd && rd.def && typeof rd.def.name === 'string' && rd.def.name.trim() ? rd.def.name.trim() : 'a row';
+        out.push({ f: lr0.f, r: rid, i: lr0.i, label: (lb + ' with ' + nm).slice(0, 60) });
+    });
+}
 function attemptMake(camp, entry, vd, malf, range, fromCh, priv) {
     var S = SC(); if (!S || !camp || !camp.system || !entry || typeof entry.resistBy !== 'string' || !vd || vd.kind !== 'check' || vd.pass !== true || malf === true) return null;
     var rr = null; (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === entry.resistBy && r.resist === true && typeof r.formula === 'string' && !r.apply) rr = r; });
@@ -9606,10 +9632,11 @@ function attemptMake(camp, entry, vd, malf, range, fromCh, priv) {
     var tch = camp.chars[tok.charId]; if (!tch || typeof tch.id !== 'string' || (fromCh && tch.id === fromCh.id)) return null;
     var m = typeof S.thenMargin === 'function' ? S.thenMargin(vd, false) : (typeof vd.margin === 'number' ? vd.margin : 0), id = '';
     while (!id || Object.prototype.hasOwnProperty.call(_attempts, id)) { id = 'a_'; while (id.length < 10) id += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36)); }
-    var toO = !priv && !tch.npc && !!tch.ownerId && rr.vis !== 'gm', alts = [];   // 1.6.0 (the core's gap 5): the other rolls the target may pick, each a resist roll of the system, none GM-only on a player's card
-    (Array.isArray(entry.resistOr) ? entry.resistOr : []).forEach(function(oid) { (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === oid && r.id !== rr.id && r.resist === true && typeof r.formula === 'string' && !r.apply && !(toO && r.vis === 'gm') && alts.indexOf(r) < 0 && alts.length < 3) alts.push(r); }); });
-    _attempts[id] = { charId: tch.id, act: rr.id, m: m }; if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
-    if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, toO, { att: id, by: fromCh && fromCh.name ? fromCh.name : '', m: m, or: alts });
+    var toO = !priv && !tch.npc && !!tch.ownerId && rr.vis !== 'gm', alts = [], rowsA = [];   // 1.6.0 (the core's gap 5): the other rolls the target may pick, each a resist roll of the system, none GM-only on a player's card
+    (Array.isArray(entry.resistOr) ? entry.resistOr : []).forEach(function(oid) { if (typeof oid === 'string' && oid.indexOf('#') > 0) { attRowAlts(camp, tch, oid, toO, rowsA); return; }   // 1.6.0: a list's roll, a button a row
+        (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === oid && r.id !== rr.id && r.resist === true && typeof r.formula === 'string' && !r.apply && !(toO && r.vis === 'gm') && alts.indexOf(r) < 0 && alts.length < 3) alts.push(r); }); });
+    _attempts[id] = { charId: tch.id, act: rr.id, m: m }; if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); if (rowsA.length) _attempts[id].rows = rowsA.map(function(x) { return x.f + '#' + x.i + '#' + x.r; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
+    if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, toO, { att: id, by: fromCh && fromCh.name ? fromCh.name : '', m: m, or: alts, rows: rowsA });
     return id;
 }
 net.attemptsKept = function() { return _attIds.length; };
@@ -9707,7 +9734,7 @@ function diceSessionReset(clearChat) {
 // [netcheck:diceroll-start]
 net.diceRoll = function(expr, o) {
     o = o || {}; var D = DC(), F = window.wpFormula;
-    var atN = net._attNext; if (atN && !o.att && o.charId === atN.charId && o.act === atN.act && !o.row) o = Object.assign({}, o, { att: atN.att });   // 1.6.0 (B2): a resist card's press (sheets.js runDue) names the attempt it answers
+    var atN = net._attNext; if (atN && !o.att && o.charId === atN.charId && ((o.act === atN.act && !o.row && !atN.row) || (atN.row && o.row && !o.act && o.row.f === atN.row.f && o.row.r === atN.row.r && o.row.i === atN.row.i))) o = Object.assign({}, o, { att: atN.att });   // 1.6.0: or a list's roll on one row   // 1.6.0 (B2): a resist card's press (sheets.js runDue) names the attempt it answers
     if (!D || !F) return { error: 'Dice are not available.' };
     if (net.stream) return { error: 'Not from the stream window.' };
     if (window.wpVtt && !window.wpVtt.on('dice')) return { error: D.denyText('off') };
@@ -9722,7 +9749,7 @@ net.diceRoll = function(expr, o) {
         if (o.label) req.label = String(o.label).slice(0, D.LIMITS.label);
         if (o.row && o.charId) { req.row = { f: String(o.row.f), r: String(o.row.r) }; if (typeof o.row.k === 'string') req.row = { f: String(o.row.f), k: o.row.k }; if (typeof o.row.i === 'number') req.row.i = o.row.i; if (typeof o.row.i === 'number' && typeof o.row.lv === 'number') req.row.lv = o.row.lv; }   // R2b: a list's roll with consequences or needs names its index
         if (o.charId && ((o.act && !o.row) || (o.fr && !o.act && !o.row) || (o.row && typeof o.row.i === 'number'))) { if (o.act && !o.row) req.act = String(o.act); if (o.fr && !o.act && !o.row) req.fr = String(o.fr); if (Array.isArray(o.sw) && o.sw.length) req.sw = o.sw.slice(0, D.LIMITS.swPicks).map(function(x) { return { s: String(x && x.s), i: x && x.i }; }); if (o.mod) req.mod = o.mod; if (o.adv) req.adv = o.adv; if (typeof o.on === 'string' && o.on) req.on = o.on.slice(0, 80); }   // 1.5.9: on, the token of the adjacent character it is used on (the host judges it)   // Stage 6 HUD R1: the entry, its modifier and advantage (the host rebuilds the formula)   // Stage 6 F5b: a roll on a row
-        if (typeof o.att === 'string' && o.act && !o.row && o.charId) req.att = o.att;   // 1.6.0 (B2): the attempt a resist roll answers
+        if (typeof o.att === 'string' && o.charId && ((o.act && !o.row) || (o.row && !o.act && typeof o.row.i === 'number' && typeof o.row.r === 'string'))) req.att = o.att;   // 1.6.0: or beside a list's roll on one row   // 1.6.0 (B2): the attempt a resist roll answers
         _dicePending = { rid: rid, expr: expr, charId: o.charId || '', timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); }, D.LIMITS.timeoutMs) };
         try { net.conns[0].send(req); } catch (e) { clearTimeout(_dicePending.timer); _dicePending = null; return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
@@ -9731,7 +9758,7 @@ net.diceRoll = function(expr, o) {
     if (o.charId) { chR = (campR && campR.chars && typeof o.charId === 'string' && Object.prototype.hasOwnProperty.call(campR.chars, o.charId) ? campR.chars[o.charId] : null); if (!chR || !campR.system || !SR) return { error: D.denyText('char') }; tcR = window.wpSheets && window.wpSheets.tokenCtxFor ? window.wpSheets.tokenCtxFor(chR.id, campR) : null; varsR = SR.makeResolver(campR.system, chR, F, tcR); }
     if (chR && o.range && typeof o.range === 'object' && SR && SR.withRange) { tcR = SR.withRange(tcR || {}, o.range); varsR = SR.makeResolver(campR.system, chR, F, tcR); }
     if (chR && o.cross && typeof o.cross === 'object' && SR && typeof SR.withCross === 'function') { tcR = SR.withCross(tcR, o.cross); varsR = SR.makeResolver(campR.system, chR, F, tcR); }   // 1.6.0: a crossing's run reads CrossStep and Crossed (this machine's own word, never over the wire)   // 1.5.8 explosives: a throw's range to the point it aims at (this machine's own word, never over the wire)
-    if (chR && typeof o.att === 'string') { var atR = typeof attemptPeek === 'function' ? attemptPeek(o.att, chR.id, o.act) : null; if (atR === null || o.row || !SR.withAttempt) return { error: typeof ATT_GONE === 'string' ? ATT_GONE : 'That attempt is not there now.' }; tcR = SR.withAttempt(tcR, atR); var abR = typeof attemptRec === 'function' ? attemptRec(o.att) : null; if (abR && abR.blow && SR.withBlow) tcR = SR.withBlow(tcR, abR.blow); varsR = SR.makeResolver(campR.system, chR, F, tcR); }   // 1.6.0 (B2): the attempt it resists, from this machine's own record   // 1.6.0 (the core's gaps 6 and 7): or the blow it answers
+    if (chR && typeof o.att === 'string') { var atR = typeof attemptPeek === 'function' ? attemptPeek(o.att, chR.id, o.act, o.row) : null; if (atR === null || !SR.withAttempt) return { error: typeof ATT_GONE === 'string' ? ATT_GONE : 'That attempt is not there now.' }; tcR = SR.withAttempt(tcR, atR); var abR = typeof attemptRec === 'function' ? attemptRec(o.att) : null; if (abR && abR.blow && SR.withBlow) tcR = SR.withBlow(tcR, abR.blow); varsR = SR.makeResolver(campR.system, chR, F, tcR); }   // 1.6.0 (B2): the attempt it resists, from this machine's own record   // 1.6.0 (the core's gaps 6 and 7): or the blow it answers
     var rowP = null;
     var uDefR = null;   // 1.6.0 Rolls unheld entries: the entry from this machine's own system and library, judged by the one judge, its level worked out here
     if (o.row && typeof o.row.k === 'string' && varsR) {

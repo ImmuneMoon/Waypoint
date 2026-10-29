@@ -196,12 +196,13 @@ function cleanRollReq(msg) {
         out.on = msg.on;
     }
     if (msg.att !== undefined) {   // 1.6.0 (the SotMW v2 sort, B2): the attempt a resist roll answers, by the id the host gave it (the host holds its margin)
-        if (!out.act || typeof msg.att !== 'string' || !ATT_RE.test(msg.att)) return null;
+        if (!(out.act || (out.row && out.row.i !== undefined && out.row.r !== undefined)) || typeof msg.att !== 'string' || !ATT_RE.test(msg.att)) return null;   // 1.6.0: or a list's roll on one row, offered on a resist card
         out.att = msg.att;
     }
     return out;
 }
 var ATT_RE = /^a_[a-z0-9]{8}$/;   // 1.6.0 (B2): an attempt's id, made by the host
+var RESIST_ROWS = 8;   // 1.6.0: a resist card's buttons for a list's roll, one a row the target holds, at most
 // The host's record: { type: 'roll', id, from, expr, draws, v, ts, priv?, to?, rid? }
 function cleanRoll(rec) {
     if (!rec || typeof rec !== 'object') return null;
@@ -276,8 +277,14 @@ function cleanDue(rec) {
         var byA = cleanLabel(rec.by); if (byA === null) return null; if (byA) out.by = byA;
         if (rec.m !== undefined) { if (typeof rec.m !== 'number' || !isFinite(rec.m) || Math.abs(rec.m) > 9999) return null; out.m = rec.m; }
         if (rec.or !== undefined) {   // 1.6.0 (the core's gap 5): the other rolls the target may resist it with, each a button of its own: at most 3, each an id once and never act's, with its label
-            if (!Array.isArray(rec.or) || !rec.or.length || rec.or.length > 3) return null; var ors = [];
-            for (var oi = 0; oi < rec.or.length; oi++) { var o = rec.or[oi]; if (!o || typeof o !== 'object' || typeof o.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(o.act) || o.act === out.act || ors.some(function(x) { return x.act === o.act; })) return null; var ol = cleanLabel(o.label); if (ol === null) return null; ors.push(ol ? { act: o.act, label: ol } : { act: o.act }); }
+            if (!Array.isArray(rec.or) || !rec.or.length || rec.or.length > 3 + RESIST_ROWS) return null; var ors = [], nOr = 0, nRw = 0;
+            for (var oi = 0; oi < rec.or.length; oi++) { var o = rec.or[oi];
+                if (o && typeof o === 'object' && o.row !== undefined) {   // 1.6.0: a list's roll on one row the target holds ({ f, r, i }), RESIST_ROWS at most, each once
+                    var ow = o.row; if (o.act !== undefined || !ow || typeof ow !== 'object' || Array.isArray(ow) || typeof ow.f !== 'string' || !/^f_[A-Za-z0-9_]{1,24}$/.test(ow.f) || typeof ow.r !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(ow.r) || !isInt(ow.i) || ow.i < 0 || ow.i >= LIMITS.rowRolls || ++nRw > RESIST_ROWS || ors.some(function(x) { return x.row && x.row.f === ow.f && x.row.r === ow.r && x.row.i === ow.i; })) return null;
+                    var owl = cleanLabel(o.label); if (owl === null) return null; ors.push(owl ? { row: { f: ow.f, r: ow.r, i: ow.i }, label: owl } : { row: { f: ow.f, r: ow.r, i: ow.i } }); continue;
+                }
+                if (++nOr > 3) return null;
+                if (!o || typeof o !== 'object' || typeof o.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(o.act) || o.act === out.act || ors.some(function(x) { return x.act === o.act; })) return null; var ol = cleanLabel(o.label); if (ol === null) return null; ors.push(ol ? { act: o.act, label: ol } : { act: o.act }); }
             out.or = ors;
         }
     } else if (rec.why === 'blast') {   // 1.6.0 (the core's gap 8): the share it rolls, by the id of the host's record, which holds the dice

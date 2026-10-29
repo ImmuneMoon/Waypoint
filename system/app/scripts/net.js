@@ -1084,7 +1084,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
             var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false, pages: (window.wpSheets && window.wpSheets.readablePages) ? window.wpSheets.readablePages(camp) : [], libCats: window.wpLibrary && window.wpLibrary.catsFor ? window.wpLibrary.catsFor() : null, needShown: window.wpLibrary && window.wpLibrary.needShown ? window.wpLibrary.needShown : null, ruleShown: window.wpLibrary && window.wpLibrary.needRuleShown ? window.wpLibrary.needRuleShown : null }); if (psys) camp.system = psys; else delete camp.system;   // chips/links only to pages players may read (Stage 5f; fails closed)
         } else delete camp.system;
         if (camp.id === c.activeCampaignId && recipientId && camp.chars && camp.system && window.wpSystemCore) {   // characters (1.5.0): this recipient's own in full, other PCs' hover fields, NPCs never
-            var outCh = {}; Object.keys(camp.chars).forEach(function(id) { var v = withHoverLines(window.wpSystemCore.charFor(camp.chars[id], camp.system, recipientId, { lib: libFx, items: libIt, full: fullSys }), camp.chars[id], camp.system, libFx, libIt, fullSys); if (v) outCh[id] = v; }); camp.chars = outCh;
+            var outCh = {}; Object.keys(camp.chars).forEach(function(id) { var v = (typeof withLinkFigs === 'function' ? withLinkFigs : function(v0) { return v0; })(withHoverLines(window.wpSystemCore.charFor(camp.chars[id], camp.system, recipientId, { lib: libFx, items: libIt, full: fullSys }), camp.chars[id], camp.system, libFx, libIt, fullSys), camp.system); if (v) outCh[id] = v; }); camp.chars = outCh;   // 1.6.0: an owner's copy with the figures of the sheets it links
         } else delete camp.chars;
         // fog of war (1.5.0 FV2): the sight-field mapping + default travel for the hosted campaign, so a client resolves
         // its own sight the same way the host does (character sheets already travel per recipient above)
@@ -2978,7 +2978,7 @@ function charViewFor(charId, recipientId) {   // the copy one peer may hold, or 
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !(camp && camp.chars && typeof charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null) || !window.wpSheets) return null;
     var view = window.wpSheets.playerSystem(camp); if (!view) return null;
     var lib = fxLib(camp.system), items = itemLib(camp.system);
-    return withHoverLines(S.charFor(camp.chars[charId], view, recipientId, { lib: lib, items: items, full: camp.system }), camp.chars[charId], view, lib, items, camp.system);
+    return (typeof withLinkFigs === 'function' ? withLinkFigs : function(v0) { return v0; })(withHoverLines(S.charFor(camp.chars[charId], view, recipientId, { lib: lib, items: items, full: camp.system }), camp.chars[charId], view, lib, items, camp.system), view);   // 1.6.0: an owner's copy carries the figures of the sheets it links
 }
 net.dropPending = function(charId) { Object.keys(_charPending).forEach(function(rid) { if (_charPending[rid].charId === charId) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; } }); };   // a sheet that stopped being ours: its queued edits go
 function charSessionReset() { Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = Object.create(null); _charSlowSaid = {}; _charHost = Object.create(null); _rowGrace = {}; _triedSaid = {}; if (charLimit) charLimit.reset(); if (typeof styleReset === 'function') styleReset(); }
@@ -3037,6 +3037,7 @@ net.syncChar = function(id) {   // one character whole (renamed, reassigned, por
     if (!net.active || net.role !== 'host') return;
     if (net.sensesMoved) net.sensesMoved(id);
     if (typeof fxbMoved === 'function') fxbMoved(id);   // conditions C1
+    if (typeof linkTell === 'function') linkTell(id);   // 1.6.0: the figures of the sheets that link it
     var camp = getActiveCampaign(); if (!camp) return;
     var srcM = (camp && camp.chars && typeof id === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, id) ? camp.chars[id] : null), mkM = !!(srcM && srcM.making === 1);   // Onboarding F3: a character in the making: its owner hears of it, nobody else (not even that it is gone)
     net.conns.forEach(function(c) {
@@ -3071,6 +3072,7 @@ net.syncCharDelta = function(id, values) {   // changed values, filtered to what
         var msgD = { type: 'charDelta', campId: camp.id, id: id, values: sub }; if (unMove || unJ !== '[]') msgD.unseen = (proj && proj.unseen) || []; _unseenSent[unK] = unJ;
         try { c.send(msgD); } catch (e) { sendFailed(e); }
     });
+    if (typeof linkTell === 'function') linkTell(id);   // 1.6.0: the figures of the sheets that link it
 };
 // [netcheck:chardelta-end]
 // [netcheck:charlook-start]
@@ -3197,6 +3199,41 @@ net.charEdit = function(charId, fieldId, value) {
 };
 // HUD frame (HF4b): several values of one of our characters at once (a section's Reset all) — ONE message the host judges all-or-nothing (one
 // rate token, one answer); applied here at once, every value undone together on a refusal or silence
+// 1.6.0 linked sheets: a player's link set on their own character, sent and waited for (nothing changes here first). The host answers with
+// char-ack and the character whole, its figures with it, or char-deny with its words
+net.charLink = function(charId, linkId, toId) {
+    var S = SC(), camp = getActiveCampaign();
+    if (!S || !camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    var c = (camp.chars && typeof charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null); if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
+    var q = S.cleanCharLink({ rid: 'k' + Math.random().toString(36).slice(2, 10), charId: charId, linkId: linkId, to: toId || '' }); if (!q) return { error: 'That link is not allowed.' };
+    _charPending[q.rid] = { charId: charId, fieldId: '', batch: [], timer: setTimeout(function() { charPendingDone(q.rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
+    try { net.conns[0].send({ type: 'char-link', rid: q.rid, charId: q.charId, linkId: q.linkId, to: q.to }); } catch (e) { charPendingDone(q.rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
+    return { ok: true, pending: true };
+};
+// [netcheck:linktell-start]
+// 1.6.0 linked sheets: an owner's whole copy (never a teammate's) with the figures of the sheets it links, worked out through view (systemcore linkFigs)
+function withLinkFigs(v, view) { var S = SC(); if (!v || v.partial || !v.links || !S || !S.linkFigs || !window.wpFormula) return v; var lk = S.linkFigs(view, v, window.wpFormula); if (lk) v.lk = lk; return v; }
+// 1.6.0 linked sheets ("Only the figures read"): a character's change reaches the figures of every sheet that links it. That sheet's owner gets
+// their copy again, whole, where the figures it carries moved since the host last sent them
+var _lkSent = Object.create(null);
+function linkTell(id) {
+    if (!net.active || net.role !== 'host') return;
+    var camp = getActiveCampaign(); if (!camp || !camp.chars || !camp.system || !Array.isArray(camp.system.links) || !camp.system.links.length) return;
+    var n = 0;
+    Object.keys(camp.chars).forEach(function(rid) {
+        var r = camp.chars[rid]; if (!r || rid === id || !r.links || typeof r.links !== 'object' || r.npc || !r.ownerId) return;
+        if (!Object.keys(r.links).some(function(k) { return r.links[k] === id; })) return;
+        net.conns.forEach(function(c) {
+            if (!c.open || !net.roster[c.peer] || peerProfileId(c) !== r.ownerId) return;
+            var v = charViewFor(rid, r.ownerId); if (!v || v.partial) return;
+            var sig = JSON.stringify(v.lk || null), key = c.peer + '|' + rid; if (_lkSent[key] === sig) return; _lkSent[key] = sig;
+            try { c.send({ type: 'char', campId: camp.id, char: v }); n++; } catch (e) { sendFailed(e); }
+        });
+    });
+    if (n && window.wpStepLog) window.wpStepLog('links v1', 'told', { copies: n });
+}
+// [netcheck:linktell-end]
 net.charEdits = function(charId, list) {
     var S = SC(), camp = getActiveCampaign();
     if (!S || !camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
@@ -7245,6 +7282,33 @@ function handleMessage(msg, conn) {
         var dE = {}; dE[q.fieldId] = resE.value; net.syncCharDelta(q.charId, dE);
         if (window.wpSheets) window.wpSheets.charChanged(q.charId);
         // [netcheck:charedit-end]
+    } else if (msg.type === 'char-link' && net.role === 'host') {
+        // [netcheck:charlink-start]
+        // 1.6.0 linked sheets: a player's link set on their own character (the menu on the sheet): shape, rate, feature, ownership, then
+        // systemcore linkSet, the one judge; every refusal answered with its words. Done: the character whole to whoever holds it (its figures with it)
+        var Sk = SC(); if (!Sk) return;
+        var qk = Sk.cleanCharLink(msg); if (!qk) return;
+        var logK = function(step, facts) { try { if (window.wpStepLog) window.wpStepLog('links v1', step, facts); } catch (e) {} };
+        var denyK = function(reason, text) { logK('refused', { reason: reason }); var d = { type: 'char-deny', rid: qk.rid, reason: reason }; if (text) d.msg = String(text).slice(0, Sk.LIMITS.rmMsg); try { conn.send(d); } catch (e) { sendFailed(e); } };
+        logK('asked', { on: qk.to ? 1 : 0 });
+        if (net.paused || peerPaused(conn.peer)) { denyK('paused'); return; }
+        if (!charLimit && window.wpDiceCore) charLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: Sk.LIMITS.editsPerWindow, windowMs: Sk.LIMITS.editWindowMs, table: 400 });
+        var limK = charLimit ? charLimit.allow(conn.peer, Date.now()) : true;
+        if (limK !== true) { var skK = conn.peer + '|slow'; if (!_charSlowSaid[skK] || Date.now() - _charSlowSaid[skK] > Sk.LIMITS.editWindowMs) { _charSlowSaid[skK] = Date.now(); denyK('slow'); } return; }
+        if (window.wpVtt && !window.wpVtt.on('sheets')) { denyK('off'); return; }
+        var campK = getActiveCampaign(), chK = (campK && campK.chars && Object.prototype.hasOwnProperty.call(campK.chars, qk.charId) ? campK.chars[qk.charId] : null);
+        if (!campK || !campK.system || !chK) { denyK('missing'); return; }
+        var profK = net.roster[conn.peer]; if (chK.npc || !chK.ownerId || !profK || chK.ownerId !== profK.id) { denyK('owner'); return; }
+        var resK = Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, { player: true, pid: profK.id });
+        if (!resK.ok) { denyK('error', resK.msg); return; }
+        if (resK.links) chK.links = resK.links; else delete chK.links;
+        chK.updated = Date.now();
+        saveRemoteSoon();
+        try { conn.send({ type: 'char-ack', rid: qk.rid }); } catch (e) { sendFailed(e); }
+        logK('done', { on: qk.to ? 1 : 0 });
+        net.syncChar(qk.charId);
+        if (window.wpSheets) window.wpSheets.charChanged(qk.charId);
+        // [netcheck:charlink-end]
     } else if (msg.type === 'char-edits' && net.role === 'host') {
         // [netcheck:charedits-start]
         // HUD frame (HF4b): a player's several values at once (a section's Reset all) — the same gates as one char-edit and ONE rate token, then

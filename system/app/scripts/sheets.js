@@ -12,6 +12,7 @@ import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, partsSrc, par
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
 import { groupRolls, groupWeakest } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
+import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT } from './systemcore.js';   // 1.6.0: linked sheets
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
@@ -597,11 +598,13 @@ function deleteCharacter(id) {
     var camp = getActiveCampaign(), c = charById(id, camp); if (!c) return;
     var prev = c.ownerId || '';
     delete charsOf(camp)[id];
+    var lkGone = linksDrop(charsOf(camp), id);   // 1.6.0: every link to it goes
     Object.values(camp.items || {}).forEach(function(m) { if (m && m.type === 'map') (m.whiteboard || []).forEach(function(w) { if (w && w.charId === id) delete w.charId; }); });
     if (prev) { unbindStale(camp, prev, c); if (c.made === 1) unbindMade(camp, prev, c.name); syncOwners(camp); var nD = net(); if (nD && nD.logEvent) nD.logEvent('char', c.name + ' deleted (played by ' + (playerNames(camp)[prev] || 'a player') + '; they keep its tokens)'); }   // their leftover tokens stay theirs (by name); another character of theirs may now be in play
     save(true);
     var n = net(); if (n && n.active && n.role === 'host') n.syncCharGone(id, c.making === 1 ? prev : '');   // Onboarding F3: one in the making was its player's alone
     if (n && n.active && n.role === 'host' && n.sensesMoved) n.sensesMoved(null);   // Senses S0: its tokens now see by the campaign's default
+    if (n && n.active && n.role === 'host') lkGone.forEach(function(rid) { n.syncChar(rid); });   // 1.6.0: the sheets that linked it, whole, with no figures of it
     if (prev && n && n.reconcilePresence) n.reconcilePresence(prev, { mode: 'give' });
     if (sheetOpen === id) closeSheet();
     closeHud(id);
@@ -1018,6 +1021,7 @@ function renderSheet() {
     var dlX = ui('sheetDelete'); if (dlX) { var mineX = isClient() && own && !c.partial && charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }).length > 1; dlX.style.display = (gm && canWrite()) || mineX ? '' : 'none'; dlX.title = gm ? 'Delete this sheet: its values are gone; its tokens keep their name and lose the link' : 'Delete this sheet of yours: one you are still making, or one you do not play (your GM is told)'; }
     renderReviewBar(c, camp, gm);
     var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';   // 126: the point budgets, under the head
+    var lkB = ui('sheetLinks'); if (lkB) lkB.style.display = linkBar(lkB, sys, c, camp, lockedS) ? '' : 'none';   // 1.6.0: the linked sheets, under the budgets
     if (typeof renderStaleBar === 'function') renderStaleBar(c, camp, gm, own);   // 1.6.0 (backlog 190): an out-of-date sheet says so
     var rvB = ui('sheetReview'), rvN = gm ? uploadsOf(camp, c.id) : []; if (rvB) { rvB.style.display = rvN.length ? '' : 'none'; if (rvN.length) rvB.textContent = 'Review (' + rvN[0].changes.length + ')'; }   // U3: the GM's review of it
     var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + (sys.sheet.hud.title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
@@ -1083,6 +1087,7 @@ function renderSheetInto(container, charId, camp) {
     var sys = cleanSystem(raw, { F: F(), gmView: true }), c = sys ? cleanChar(c0, sys) : null;
     if (!sys || !c) return null;
     _fxLive = false; try { buildSections(container, sys, c, resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)), true, false, function() { renderSheetInto(container, charId, camp); }, { campId: camp.id, view: 'sheet', preview: false }); } finally { _fxLive = true; }   // 5h: a pop-out's effect controls act on nothing
+    var lkP = el('div', 'sheet-lks'); if (linkBar(lkP, sys, c, camp, true)) container.insertBefore(lkP, container.firstChild);   // 1.6.0: its linked sheets, by name
     var bdP = el('div', 'sheet-budgets'); if (budgetBar(bdP, sys, c)) container.insertBefore(bdP, container.firstChild);   // 126: a sheet in a window of its own shows its point budgets too, at its top
     container.querySelectorAll('input, select, textarea').forEach(function(el) { el.disabled = true; });
     container.querySelectorAll('[data-part="up"], [data-part="down"]').forEach(function(el) { el.disabled = true; });   // Stage 6 look fold (L8): arrows inside a box look live otherwise
@@ -1389,6 +1394,7 @@ function renderViews(charId, skip) {
     var any = charId == null, held = typeof sbxHeld === 'function' ? sbxHeld : null;   // item 35: a view whose text box must stay on the page now is drawn a moment later
     if (sheetOpen && (any || sheetOpen === charId) && ui('sheetBody') !== skip) { if (held && held(ui('sheetBody'))) sbxDefer(); else renderSheet(); }
     Object.keys(huds).forEach(function(id) { var v = huds[id]; if (v && (any || id === charId) && v.body !== skip) { if (held && held(v.body)) sbxDefer(); else renderHud(id); } });
+    if (!any && typeof linkRiders === 'function') linkRiders(charId).forEach(function(rid) { if (rid === charId) return; if (sheetOpen === rid && ui('sheetBody') !== skip) renderSheet(); if (huds[rid] && huds[rid].body !== skip) renderHud(rid); });   // 1.6.0: a sheet that links this one reads it live
 }
 // A token turned (tokenTurned): a HUD's dial and stance follow in place; its numbers that read a facing name redraw once the turn is final
 function turnView(v, final) {
@@ -4584,6 +4590,70 @@ function rollInit(charId, opts) {   // opts.priv: rolled in private whatever the
     if (whyI) toast('Kept private: its label shows a GM-only value (' + whyI + ').');
     return window.wpDice.rollFor(charId, r.formula, lbI || 'Initiative', { source: 'combat', priv: !!whyI || !!(opts && opts.priv === true), gmOnly: r.vis === 'gm' });
 }
+// [systemcheck:linksrc-start]
+// 1.6.0 linked sheets: the sheet a link holds, as systemcore reads it with the system it is handed (setLinkSource). On the GM's machine the
+// character itself for the GM's own system (the campaign's, or one cleaned for the GM), and its owner's projection for any other, so the
+// figures worked out for a player never read what players may not see; on a player's app their own whole copy (the host sends the rest)
+function linkSource(id, sys) {
+    var camp = getActiveCampaign(), c = charById(id, camp); if (!c || c.partial) return null;
+    if (isClient()) return c;
+    if (sys && (sys === camp.system || sys.gmSide === true)) return c;
+    return sys && Array.isArray(sys.fields) ? charForView(c, sys, { full: camp.system }) : null;
+}
+if (typeof setLinkSource === 'function') setLinkSource(linkSource);   // (a suite's slice of this file holds no import)
+// The characters whose sheets link this one (a Mount's rider, a vehicle's crew): their sheets read it live, so they redraw with it
+function linkRiders(id) { var camp = getActiveCampaign(), sys = systemOf(camp), out = []; if (!sys || !Array.isArray(sys.links) || !sys.links.length) return out; linkedFrom(sys, charsOf(camp), id).forEach(function(g) { g.by.forEach(function(b) { if (out.indexOf(b.id) < 0) out.push(b.id); }); }); return out; }
+// [systemcheck:linksrc-end]
+// [systemcheck:linkbar-start]
+// 1.6.0 linked sheets ("A menu on the sheet"): under the head, one row a link of the system: its name, a menu of characters, and Open for the
+// sheet it holds. The GM's menu lists every character; a player's lists their own, where the link's Who edits gives it to them or the
+// character is open to them. A player sees a link the host sent them by its name alone. Then who links to this sheet: a Mount's rider, a
+// vehicle's crew. Nothing at all where the system has no links
+function linkBar(box, sys, c, camp, locked) {
+    box.textContent = '';
+    var ks = sys && Array.isArray(sys.links) ? sys.links : []; if (!ks.length || !c) return false;
+    var gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId()), n = 0;
+    ks.forEach(function(k) {
+        var cur = c.links && typeof c.links[k.id] === 'string' ? c.links[k.id] : '', lkF = c.lk && c.lk[k.id] ? c.lk[k.id] : null, tgt = cur ? charById(cur, camp) : null;
+        var tName = tgt && !tgt.partial ? tgt.name : lkF && lkF.id === cur ? lkF.name : ''; if (!tName) cur = '';   // a link to a character not here reads as none
+        var may = !locked && !c.partial && (gm ? canWrite() : (isClient() && own && (k.edit === 'owner' || c.making === 1 || c.unlocked === 1)));
+        if (!cur && !may) return;
+        var row = el('div', 'sheet-lk'); row.appendChild(el('span', 'sheet-lk-name', k.label));
+        if (may) {
+            var s = el('select', 'field sheet-select sheet-lk-pick'), list = charList(camp).filter(function(x) { return x.id !== c.id && !x.partial && (gm || x.ownerId === myId()); });
+            s.title = k.kind === 'mount' ? 'The mount this character rides. Its formulas read the mount\u2019s figures as ' + k.key + '.<name>' : 'The vehicle this character crews. Its formulas read the vehicle\u2019s figures as ' + k.key + '.<name>';
+            s.appendChild(opt('', 'None', !cur));
+            if (cur && !list.some(function(x) { return x.id === cur; })) s.appendChild(opt(cur, tName, true));
+            list.forEach(function(x) { s.appendChild(opt(x.id, x.name, x.id === cur)); });
+            s.addEventListener('change', function() { setLink(c.id, k.id, s.value); });
+            row.appendChild(s);
+        } else row.appendChild(el('span', 'sheet-lk-to', tName));
+        if (cur && canOpen(cur)) { var ob = el('button', 'tool ghost sheet-lk-open', 'Open'); ob.title = 'Open ' + tName + '\u2019s sheet'; ob.addEventListener('click', function() { openSheet(cur); }); row.appendChild(ob); }
+        box.appendChild(row); n++;
+    });
+    linkedFrom(sys, charsOf(camp), c.id).forEach(function(g) {
+        var same = ks.filter(function(x) { return x.kind === g.link.kind; }).length > 1, word = g.link.kind === 'mount' ? 'Rider' : 'Crew';
+        var row = el('div', 'sheet-lk sheet-lk-from'); row.appendChild(el('span', 'sheet-lk-name', same ? g.link.label + ' ' + word.toLowerCase() : word));
+        g.by.forEach(function(b) { if (canOpen(b.id)) { var bb = el('button', 'tool ghost sheet-lk-by', b.name); bb.title = 'Open ' + b.name + '\u2019s sheet'; bb.addEventListener('click', function() { openSheet(b.id); }); row.appendChild(bb); } else row.appendChild(el('span', 'sheet-lk-to', b.name)); });
+        box.appendChild(row); n++;
+    });
+    return n > 0;
+}
+// A link set from the menu: the GM's own, judged by systemcore linkSet as the host judges a player's, then saved and sent whole; a player's
+// asks the host (net.charLink) and changes nothing here until it answers
+function setLink(cid, linkId, to) {
+    var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(cid, camp); if (!c || !sys) return;
+    var lg = function(step, facts) { if (window.wpStepLog) window.wpStepLog('links v1', step, facts); };
+    if (isClient()) { var nc = net(), rc = nc && nc.charLink ? nc.charLink(cid, linkId, to) : { error: 'Not at a table.' }; lg('sent', { on: to ? 1 : 0, ok: !(rc && rc.error) }); if (rc && rc.error) { toast(rc.error); renderViews(cid); } return; }
+    if (!canWrite()) return;
+    var was = c.links && typeof c.links[linkId] === 'string' ? c.links[linkId] : '', res = linkSet(sys, charsOf(camp), c, linkId, to, {});
+    if (!res.ok) { lg('refused', { reason: res.reason }); toast(res.msg || 'That link is not allowed.'); renderViews(cid); return; }
+    if (res.links) c.links = res.links; else delete c.links;
+    lg('done', { on: to ? 1 : 0 });
+    afterCharChange(c, true);
+    [was, to].forEach(function(id) { if (id && id !== cid) renderViews(id); });   // the linked sheets' Rider and Crew rows
+}
+// [systemcheck:linkbar-end]
 // One value changed on the open sheet: the GM applies it here; a player asks the host and shows it meanwhile
 function commit(c, f, value) {
     var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys) return;
@@ -5458,10 +5528,12 @@ function removeMade(id, note) {
         if (m.whiteboard.length !== before) maps.push(m.id);
     });
     delete charsOf(camp)[id];
+    var lkMade = linksDrop(charsOf(camp), id);   // 1.6.0: every link to it goes
     if (pid) { unbindStale(camp, pid, c); unbindMade(camp, pid, c.name); syncOwners(camp); }   // its name binds nothing of theirs any more; their other character may now be in play
     if (maps.length && window.wpHistBarrier) window.wpHistBarrier(maps);   // an undo never brings its tokens back
     save(true);
     if (n && n.active && n.role === 'host') { if (n.pushItems && maps.length) n.pushItems(maps); n.syncCharGone(id); if (n.charReview) n.charReview(pid, id, c.name, 'removed', note); }
+    if (n && n.active && n.role === 'host') lkMade.forEach(function(rid) { n.syncChar(rid); });   // 1.6.0: the sheets that linked it, whole
     if (n && n.logEvent) n.logEvent('char', 'Removed ' + c.name + ' (made by ' + (playerNames(camp)[pid] || 'a player') + ') and its tokens');
     if (pid && n && n.allowWaiting) n.allowWaiting(pid);
     if (pid && n && n.reconcilePresence) n.reconcilePresence(pid, { near: spot });   // a waiting token where it stood (or their other character's token)
@@ -6508,6 +6580,7 @@ function refreshErrors() {
         });
     });
     if (bErr.length) errorsById.budgets = bErr;
+    var lkS = typeof linkSays === 'function' ? linkSays(draft.links, draft.fields, F()) : { errs: [], warns: [] }; if (lkS.errs.length) errorsById.links = lkS.errs; if (lkS.warns.length) warningsById.links = lkS.warns;   // 1.6.0: what Save drops of the linked sheets, as the cleaner reads them
     if (typeof envSays === 'function' && F()) { var eSy = null, eS = envSays(draft.env, draft.fields, F(), function(ns) { eSy = eSy || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core }; return gmDerivedNames(eSy, F(), ns); }); if (eS.errs.length) errorsById.env = (errorsById.env || []).concat(eS.errs); if (eS.warns.length) warningsById.env = (warningsById.env || []).concat(eS.warns); }   // 1.6.0: what Save does with the environment readings
     if (typeof damageSays === 'function') { var dmS = damageSays(draft.combat && draft.combat.damage, clean, F()); if (dmS.errs.length) errorsById.damage = dmS.errs; if (dmS.warns.length) warningsById.damage = dmS.warns; }   // 1.5.6: what Save drops of the damage rules, as the cleaner reads them
 }
@@ -7735,6 +7808,78 @@ function budgetClick(b) {
     markDirty(); renderBudgets(); patchErrors(); return true;
 }
 // [systemcheck:budgetbox-end]
+// [systemcheck:linkbox-start]
+// 1.6.0 linked sheets in the System editor (the owner, by prompt: "Two kinds"): the Lists tab's Linked sheets box. A link a line: its key,
+// which formulas read it by (Mount.Move), its name on the sheet, its kind (a Mount, one rider to one mount; a Crew link, many people to one
+// vehicle) and who sets it on a sheet. None: nothing new on any sheet
+var LINK_KIND_OPTS = [['mount', 'Mount: one rider'], ['crew', 'Crew: many to one vehicle']], LINK_EDIT_OPTS = [['owner', 'Its player or the GM'], ['gm', 'The GM only']];
+function linkDraft() { return Array.isArray(draft.links) ? draft.links : (draft.links = []); }
+function renderLinks() {
+    var box = ui('sysLinks'); if (!box) return; box.textContent = '';
+    var arr = Array.isArray(draft.links) ? draft.links : [], wrap = el('div', 'sys-budgets sys-links');
+    wrap.appendChild(el('div', 'sys-light-head', 'Linked sheets'));
+    wrap.appendChild(el('div', 'sys-note', 'A link lets one sheet read the figures of another. A Mount link holds the one mount a rider rides. A Crew link holds the vehicle a character crews, and many characters may crew one vehicle. Formulas read the linked sheet by the key: Mount.Move is the mount\u2019s Move, and Mount.has is 1 while linked. With no link each reads 0. Each sheet shows a menu for its links under its head.'));
+    arr.forEach(function(k0, i) {
+        var k = k0 && typeof k0 === 'object' ? k0 : {}, rw = el('div', 'sys-flags sys-link-row'); rw.dataset.ki = String(i);
+        var kl = el('label', 'sys-combat-item'); kl.appendChild(el('span', 'sys-num-cap', 'Key')); var ki = input('sys-link-key field', typeof k.key === 'string' ? k.key : '', 'The name formulas read it by: the key Mount reads Mount.Move', 'Mount'); ki.maxLength = LIMITS.key; kl.appendChild(ki); rw.appendChild(kl);
+        var nl = el('label', 'sys-combat-item'); nl.appendChild(el('span', 'sys-num-cap', 'Name')); var ni = input('sys-link-label field', typeof k.label === 'string' ? k.label : '', 'Its name on the sheet. With none, the key', 'Mount'); ni.maxLength = LIMITS.label; nl.appendChild(ni); rw.appendChild(nl);
+        rw.appendChild(labeledSelect('sys-link-kind field', 'Kind', LINK_KIND_OPTS, k.kind === 'crew' ? 'crew' : 'mount', 'Mount: one rider to one mount, so a mount another character rides is refused. Crew: many characters to one vehicle'));
+        rw.appendChild(labeledSelect('sys-link-edit field', 'Set by', LINK_EDIT_OPTS, k.edit === 'gm' ? 'gm' : 'owner', 'Who may set it on a sheet. A player links only a character of their own. The GM links any character'));
+        [['up', '\u25B2', 'Move up'], ['down', '\u25BC', 'Move down'], ['del', '\u00D7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'lk' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        wrap.appendChild(rw);
+    });
+    var ad = el('button', 'tool ghost sys-btn sys-bud-add', '+ Link'); ad.dataset.act = 'lkadd'; ad.disabled = arr.length >= LIMITS.links; ad.title = ad.disabled ? 'At most ' + LIMITS.links : 'A link to another sheet: a mount, or a vehicle and its crew'; wrap.appendChild(ad);
+    var err = errorCell('links'); err.dataset.errFor = 'links'; wrap.appendChild(err);
+    box.appendChild(wrap);
+}
+function onLinkInput(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-link-') < 0) return false;
+    if (c.indexOf('sys-link-kind') >= 0 || c.indexOf('sys-link-edit') >= 0) return true;   // their change events do the work
+    var rw = t.closest('.sys-link-row'), i = rw ? +rw.dataset.ki : -1, arr = linkDraft(), k = arr[i] && typeof arr[i] === 'object' ? arr[i] : null; if (!k) return true;
+    if (c.indexOf('sys-link-key') >= 0) k.key = t.value.slice(0, LIMITS.key);
+    else if (c.indexOf('sys-link-label') >= 0) k.label = t.value.slice(0, LIMITS.label);
+    else return true;
+    markDirty(); patchErrors(); return true;
+}
+function onLinkChange(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-link-') < 0) return false;
+    if (c.indexOf('sys-link-kind') < 0 && c.indexOf('sys-link-edit') < 0) return true;   // the boxes' change events (their input events did the work)
+    var rw = t.closest('.sys-link-row'), i = rw ? +rw.dataset.ki : -1, arr = linkDraft(), k = arr[i] && typeof arr[i] === 'object' ? arr[i] : null; if (!k) return true;
+    if (c.indexOf('sys-link-kind') >= 0) k.kind = t.value === 'crew' ? 'crew' : 'mount';
+    else k.edit = t.value === 'gm' ? 'gm' : 'owner';
+    markDirty(); patchErrors(); return true;
+}
+function linkClick(b) {
+    var m = /^lk(add|up|down|del)$/.exec(b.dataset.act || ''); if (!m) return false;
+    var arr = linkDraft(), rw = b.closest('.sys-link-row'), i = rw ? +rw.dataset.ki : -1;
+    if (m[1] === 'add') { if (arr.length >= LIMITS.links) { toast('At most ' + LIMITS.links + '.'); return true; } arr.push({ id: uid('lk_'), key: arr.some(function(x) { return x && String(x.key).toLowerCase() === 'mount'; }) ? '' : 'Mount', label: '', kind: 'mount', edit: 'owner' }); }
+    else if (!(i >= 0 && i < arr.length && Math.floor(i) === i)) return true;
+    else if (m[1] === 'up') { if (i > 0) arr.splice(i - 1, 0, arr.splice(i, 1)[0]); }
+    else if (m[1] === 'down') { if (i < arr.length - 1) arr.splice(i + 1, 0, arr.splice(i, 1)[0]); }
+    else arr.splice(i, 1);
+    if (!arr.length) delete draft.links;
+    markDirty(); renderLinks(); patchErrors(); return true;
+}
+// What Save drops of the links, read as the cleaner reads them, and a key a field of the system already has (that field keeps the name)
+function linkSays(links, fields, F0) {
+    var errs = [], warns = [], seen = {}, fk = {};
+    (Array.isArray(fields) ? fields : []).forEach(function(f) { if (f && typeof f.key === 'string') fk[f.key.toLowerCase()] = f.label || f.key; });
+    (Array.isArray(links) ? links : []).forEach(function(k, i) {
+        var nm = 'Link ' + (i + 1);
+        if (i >= LIMITS.links) { if (i === LIMITS.links) errs.push({ message: 'At most ' + LIMITS.links + ' links: Save drops the rest.' }); return; }
+        if (!k || typeof k !== 'object') return;
+        var key = typeof k.key === 'string' ? k.key : '', lk = key.toLowerCase();
+        if (!key.trim()) { errs.push({ message: nm + ': it needs a key, such as Mount. Save drops it.' }); return; }
+        if (/[.\s]/.test(key)) { errs.push({ message: nm + ': a key has no dot and no space. Save drops it.' }); return; }
+        if (LINK_NOT[lk]) { errs.push({ message: nm + ': formulas read ' + key + ' already. Pick another key. Save drops it.' }); return; }
+        if (seen[lk]) { errs.push({ message: nm + ': another link has the key ' + key + '. Save drops it.' }); return; }
+        if (!cleanLinks([{ id: 'lk_check', key: key, kind: 'mount' }], F0)) { errs.push({ message: nm + ': a key is letters, digits and underscores, starting with a letter. Save drops it.' }); return; }
+        seen[lk] = 1;
+        if (fk[lk]) warns.push({ message: nm + ': the field ' + fk[lk] + ' has the key ' + key + ', so formulas read that field, not the linked sheet.' });
+    });
+    return { errs: errs, warns: warns };
+}
+// [systemcheck:linkbox-end]
 // Conditions C3 (docs/CONDITIONS_PLAN.md): the system's own postures on the Combat card — how a token can stand, in order. None: posture is
 // switched off (1.6.0, backlog 183 (3)). Add postures starts a list of Standing and one more. Each row a name, its chip's tag, a ranged note
 // (a whole number a foe's ranged roll takes, shown only: "A ranged note per posture (Recommended)"), notes and changes as an effect's; the first
@@ -8915,6 +9060,7 @@ function renderAll() {
     var slEl = ui('sysLists'); if (slEl) { slEl.style.display = tab === 'lists' ? '' : 'none'; if (tab === 'lists') renderLists(); }   // Stage 6 F4b
     if (tab === 'lists') renderBudgets();   // 126: the Point budgets box, under the list rules
     if (tab === 'lists') renderEnv();   // 1.6.0: the Environment readings box, under the budgets
+    if (tab === 'lists') renderLinks();   // 1.6.0: the Linked sheets box, under the readings
     var efr = ui('sysEffectRows'); if (efr) { efr.textContent = ''; if (!draft.effects || !draft.effects.length) efr.appendChild(el('div', 'sys-empty', 'No status effects yet. Add Rage, Prone, Blessed\u2026 each with the numbers it changes, then put a Status effects field on the sheet.')); (draft.effects || []).forEach(function(d) { efr.appendChild(effectRow(d)); }); }
     var sl = ui('sysLayout'); if (sl) { sl.style.display = tab === 'layout' ? '' : 'none'; if (tab === 'layout') renderLayout(); }
     var scal = ui('sysCalendar'); if (scal) { scal.style.display = tab === 'calendar' ? '' : 'none'; if (tab === 'calendar') renderCalendar(); }   // item 20 K1: the calendar
@@ -9001,6 +9147,7 @@ function onInput(e) {
     if (onInitInput(t)) return;   // initiative O2
     if (onBudgetInput(t)) return;   // 126: the Lists tab's point budgets
     if (onEnvInput(t)) return;   // 1.6.0: the Environment readings
+    if (onLinkInput(t)) return;   // 1.6.0: the Linked sheets
     if (onHeightInput(t)) return;   // item 19 H2
     if (onCalendarInput(t)) return;   // item 20 K1
     if (onDamageInput(t)) return;   // 1.5.6: the Taking damage box
@@ -9198,6 +9345,7 @@ function onChange(e) {
     if (onInitChange(t)) return;   // initiative O2
     if (onBudgetChange(t)) return;   // 126
     if (onEnvChange(t)) return;   // 1.6.0
+    if (onLinkChange(t)) return;   // 1.6.0: the Linked sheets
     if (onHeightChange(t)) return;   // item 19 H2
     if (onCalendarChange(t)) return;   // item 20 K1
     if (onDamageChange(t)) return;   // 1.5.6: the Taking damage box
@@ -9413,6 +9561,7 @@ function onClick(e) {
     if (calendarClick(b)) return;   // item 20 K1: the Calendar tab
     if (budgetClick(b)) return;   // 126: the Lists tab's point budgets
     if (envClick(b)) return;   // 1.6.0: the Environment readings
+    if (linkClick(b)) return;   // 1.6.0: the Linked sheets
     if (damageClick(b)) return;   // 1.5.6: the Taking damage box
     var crow = b.closest('.sys-char-row');
     if (crow) {

@@ -84,6 +84,12 @@ Systems, more
   300, and a longer formula was lost on Save.
 - Group roll, on your right-click menu for two or more character tokens,
   rolls a check once for the group. The one with the lowest target rolls.
+- Linked sheets let one sheet read the figures of another. A Mount link
+  holds the one mount a rider rides. A Crew link holds the vehicle a
+  character crews, and many characters can crew one vehicle. Set them up in
+  the Lists tab, and pick the link from the menu under a sheet's head.
+  Formulas read Mount.Move, and Mount.has is 1 while linked. A player gets
+  only the figures their own sheet reads.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

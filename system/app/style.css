@@ -4056,6 +4056,12 @@
   .sheet-budget-left { color: var(--dim); font-size: 11px; }
   .sheet-budget.over { border-color: var(--red); }
   .sheet-budget.over .sheet-budget-fig, .sheet-budget.over .sheet-budget-left { color: var(--red); }
+  .sheet-lks { display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--edge); font-size: 12px; flex: none; }
+  .sheet-lk { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .sheet-lk-name { font-weight: 600; min-width: 64px; }
+  .sheet-lk-pick { min-width: 140px; max-width: 220px; }
+  .sheet-lk-to { color: inherit; }
+  .sheet-lk-open, .sheet-lk-by { padding: 1px 8px; font-size: 12px; }
   /* ... and the Lists tab's Point budgets box in the System editor: a budget a line, its fields boxed as the Combat card's are */
   #sysBudgets { padding: 2px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }
   .sys-budgets { display: flex; flex-direction: column; gap: 6px; }

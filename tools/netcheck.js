@@ -428,7 +428,7 @@ pendingChecks.push((async () => {
     check('M1: a Ban from the Players panel (its branch run for real) calls net.kickPlayer exactly once, with the first roster key of the profile, and that one call takes both of Pat\'s connections (told, closed, forgotten once); a profile not at the table and a player\'s machine call it not at all; in the source the Ban branch calls it once and never in a loop, net.js calls it twice (the roster\'s kick button, the Ban branch) and no other script does, and kickPlayer is the only place that sends \'kicked\'; the host has 31 message branches (video-up of item 21 among them, and voice-up of voice chat, 1.5.9, the newest)',
         js(ban1) === js({ threw: '', calls: ['pA1'], roster: ['pB', 'pX', 'pY'], kicked: ['pA1', 'pA2'], timers: 2, forgot: ['forget:u_a'], banned: ['u_a'], session: ['u_a'], saves: 1 }) && js(banAway.calls) === js([]) && banAway.kicked.length === 0 && banAway.threw === '' && js(banClient.calls) === js([]) && banClient.kicked.length === 0 && banClient.threw === ''
         && (noCom(banBody).match(/net\.kickPlayer\(/g) || []).length === 1 && !/forEach|\bfor \(|\bwhile \(/.test(noCom(banBody)) && js(kickCalls) === js([['net.js', 2]]) && (noCom(src).match(/net\.kickPlayer\(/g) || []).length === 2
-        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 32, js([ban1, banAway, banClient, kickCalls, kickedSends]));
+        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 33, js([ban1, banAway, banClient, kickCalls, kickedSends]));
 
     /* round 2: the review's three older gaps — a removed player's pointer and roster row, a second connection under one key, a queued request */
     const tg = { u_a: { mapId: 'm1', id: 'orc' }, u_b: { mapId: 'm1', id: 'gob' } }, withT = t => h => { h.env.net.targets = JSON.parse(js(t)); };
@@ -5341,7 +5341,7 @@ pendingChecks.push((async () => {
     check('fold M0 (source): combatHidden is defined once and read only by combatsFor and net.syncCombatHidden, inside the combats slice; net.syncCombatHidden is called once, from the host\'s save; the GM\'s own strip (whiteboard.js) reads neither; the host\'s message handler has the same number of branches as before',
         (src.match(/function combatHidden\(/g) || []).length === 1 && (src.match(/combatHidden\(/g) || []).length === 3 && (cbSrc.match(/combatHidden\(/g) || []).length === 3
         && (src.match(/syncCombatHidden/g) || []).length === 3 && (cbSrc.match(/syncCombatHidden/g) || []).length === 1 && (olsSrc.match(/syncCombatHidden/g) || []).length === 2 && (cbSrc.match(/_combatHidSig = combatHidSigNow\(\);/g) || []).length === 1
-        && !/combatsFor|combatHidden|syncCombatHidden/.test(wbAll) && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 32,
+        && !/combatsFor|combatHidden|syncCombatHidden/.test(wbAll) && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 33,
         j([(src.match(/combatHidden\(/g) || []).length, (src.match(/syncCombatHidden/g) || []).length, (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length]));
 }
 
@@ -8482,7 +8482,7 @@ pendingChecks.push((async () => {
             && /if \(hosting\) \{ window\.wpNet\.applyingRemote = true; save\(true\); window\.wpNet\.applyingRemote = false; if \(window\.wpFog\) window\.wpFog\.invalidateVision\(\); if \(backS && backS\.length && typeof window\.wpNet\.strokesBack === 'function'\) window\.wpNet\.strokesBack\(item\.id, backS\); if \(window\.wpNet\.sendItem\) window\.wpNet\.sendItem\(camp\.id, item\.id\);/.test(ioT));
         const dmT = read('datamap.js'), posCode = posS2.replace(/\/\/[^\n]*/g, ''), patCode = patS2.replace(/\/\/[^\n]*/g, '');
         check('senses S0 (source): nothing new comes in from a player — no branch of the host\'s message handler was added or names sight or senses, the hook and its timer read nothing of a message or of a connection\'s word, and what is kept (what a copy was made by, the text last known, the sends that wait) is never saved or sent: it lives in the host\'s memory, named nowhere else',
-            hostBranches.length === 32 && !hostBranches.some(b => /sens|sight/i.test(b)) && !/msg\.type === '[^']*(sens|sight)/i.test(src) && !/\bmsg\b/.test(smCode) && !/\bconn\b/.test(smCode) && !/type: '(?!combats'|targets')/.test(smCode)
+            hostBranches.length === 33 && !hostBranches.some(b => /sens|sight/i.test(b)) && !/msg\.type === '[^']*(sens|sight)/i.test(src) && !/\bmsg\b/.test(smCode) && !/\bconn\b/.test(smCode) && !/type: '(?!combats'|targets')/.test(smCode)
             && count(src, /_sensesSig/g) === count(flS + smS, /_sensesSig/g) && count(src, /_sensesPend/g) === count(smS, /_sensesPend/g) && count(smS, /_sensesPend/g) > 0 && count(flS, /_sensesSig/g) > 0 && !/_senses(Sig|Pend|At)/.test(sheetsT + ioT + fogT + dmT + read('main.js'))
             && count(src, /_sensesAt/g) === count(flS + smS, /_sensesAt/g) && count(flS, /_sensesAt/g) > 0 && count(smS, /_sensesAt/g) > 0
             && !/sensesReads|sensesHidden/.test(src) && count(smCode, /setTimeout\(/g) === 1 && count(smCode, /SENSES_RESEND_MS/g) === 2, j([hostBranches.length, count(src, /_sensesSig/g), count(src, /_sensesPend/g), count(src, /_sensesAt/g), count(smCode, /setTimeout\(/g)]));
@@ -8522,7 +8522,7 @@ pendingChecks.push((async () => {
         const cnt = (s, re) => (s.match(re) || []).length, hostB = cnt(src, /msg\.type === '[a-z-]+' && net\.role === 'host'/g);
         check('fold M0 (source): no pointer message goes to all outside broadcastTargets — net.js broadcasts one only there, in its branch for a table without fog, and (hidden pieces) that one too is built by targetsFor; every other pointer message is a player\'s own copy built by targetsFor; the combats slice now defines broadcastTargets, and the host\'s message handler has the same number of branches as before',
             btSrc.length > 0 && cnt(src, /broadcast\(\{ type: 'targets'/g) === 1 && cnt(btSrc, /broadcast\(\{ type: 'targets'/g) === 1 && cnt(src, /targets: net\.targets/g) === 0 && /broadcast\(\{ type: 'targets', targets: targetsFor\(null\) \}, null\)/.test(btSrc)
-            && cnt(src, /type: 'targets'/g) === cnt(src, /type: 'targets', targets: targetsFor\(/g) && cbS.indexOf(btSrc) >= 0 && cbS.indexOf('function targetsFor(') >= 0 && hostB === 32,
+            && cnt(src, /type: 'targets'/g) === cnt(src, /type: 'targets', targets: targetsFor\(/g) && cbS.indexOf(btSrc) >= 0 && cbS.indexOf('function targetsFor(') >= 0 && hostB === 33,
             j([btSrc.length, cnt(src, /broadcast\(\{ type: 'targets'/g), cnt(src, /type: 'targets'/g), cbS.indexOf(btSrc), hostB]));
 
         // (c) the live position relay and the drag that feeds it
@@ -8857,7 +8857,7 @@ pendingChecks.push((async () => {
 
     // (8) where it sits: a client branch (the host's branches still 25), and nothing sends the message yet
     check('fold M3: the catch-up is a client branch only (the host\'s branches are 31: none new but video-up of item 21, char-delete of 1.5.4, char-style of item 35, char-ask of 1.5.5, char-damage and trade of 1.5.6, and voice-up of voice chat, 1.5.9); the host builds it in one place only, its catch-up of a copy (fold M7)',
-        (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 32 && /\} else if \(msg\.type === 'fogDiff' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:fogdiff-start\]/.test(src)
+        (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 33 && /\} else if \(msg\.type === 'fogDiff' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:fogdiff-start\]/.test(src)
         && (src.match(/msg\.type === 'fogDiff'/g) || []).length === 1 && (src.match(/type: 'fogDiff'/g) || []).length === 1 && /function fogCatchUp\([^]*?type: 'fogDiff'/.test(between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove')));
 })());
 // fold M4: an open drag is judged where it began. The real pos gate, patch path, relay, sends, kick, senses and the fogmove slice are compiled as
@@ -16387,7 +16387,7 @@ pendingChecks.push((async () => {
         /combats: combatsFor\(prof\.id, prof\.location\), fights: true,/.test(src) && /\n    if \(typeof fightsKnow === 'function'\) fightsKnow\(msg\.fights\);[^\n]*\n    net\.combats = typeof cleanFightsIn === 'function' \? cleanFightsIn\(msg\.combats\) : cleanCombats\(msg\.combats\);/.test(snapBody)
         && src.split('fightsKnow(').length === 3 && /var before = net\.combats, after = typeof cleanFightsIn === 'function' \? cleanFightsIn\(msg\.combats\) : cleanCombats\(msg\.combats\);/.test(src)
         && !/combats\[(mapId|am\.id|map\.id|activeMap\.id|combatDraft\.mapId|getActiveMap\(\)\.id|msg\.mapId|locQ|locA|pr\.location|mid)\]/.test(src + rdApp('scripts/whiteboard.js') + rdApp('scripts/pills.js') + rdApp('scripts/sheets.js'))
-        && (src.match(/net\.combats\[fid\] = f;/g) || []).length === 1 && (src.match(/combatOver\(/g) || []).length === 4 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 32);
+        && (src.match(/net\.combats\[fid\] = f;/g) || []).length === 1 && (src.match(/combatOver\(/g) || []).length === 4 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 33);
 })());
 // Fold 4 (backlog 152, docs/FIGHT_CLOCK_DESIGN.md sections 1 and 4 to 6; the owner's answer to question 1, "Every character"): each fight keeps its own
 // time, and the clock reads the one furthest behind, counting every second once. net.js run for real (the combats slice, everything from combatRefresh
@@ -17044,6 +17044,70 @@ pendingChecks.push((async () => {
         && nS.includes('net.myId = hostId();') && nS.includes("    var profile = setProfileName(name || getProfile().name || 'Player');\n    net.myId = profile.id;") && nS.includes("if (!window.wpStream && !net.stream && typeof hostId === 'function') net.myId = hostId();"),
         JSON.stringify([first, after, healed, store, sites, gmSites]));
 }
+// 1.6.0 linked sheets (the owner, by prompt: "Two kinds", "A menu on the sheet", "Its owner and the GM", "Only the figures read"): a player's
+// link set on the host (char-link, sliced and run for real with the real systemcore and formula engine), the figures an owner's copy carries
+// (withLinkFigs) and the copy sent again when the linked sheet moves (linkTell). Invented names only
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const lkS = between('// [netcheck:charlink-start]', '// [netcheck:charlink-end]', 'charlink'), ltS = between('// [netcheck:linktell-start]', '// [netcheck:linktell-end]', 'linktell');
+    const raw = { v: 1, name: 'L', rolls: [], fields: [{ id: 'f_mv', key: 'Move', kind: 'number', def: 5 }, { id: 'f_sc', key: 'Secret', kind: 'number', def: 9, vis: 'gm' }, { id: 'f_sp', key: 'Speed', kind: 'formula', formula: 'if(Mount.has, Mount.Move, Move)' }, { id: 'f_sn', key: 'Sneak', kind: 'formula', formula: 'Mount.Secret + 1' }],
+        links: [{ id: 'lk_m', key: 'Mount', label: 'Mount', kind: 'mount' }, { id: 'lk_v', key: 'Vehicle', label: 'Vehicle', kind: 'crew', edit: 'gm' }] };
+    const sys = Sx.cleanSystem(raw, { F: Fx, gmView: true }), view = Sx.cleanSystem(raw, { F: Fx, gmView: false });
+    const chars0 = () => ({ c_kael: { id: 'c_kael', name: 'Kael', ownerId: 'u_a', npc: false, values: {} }, c_peb: { id: 'c_peb', name: 'Pebbles', ownerId: 'u_a', npc: false, values: { f_mv: 12, f_sc: 3 } },
+        c_sela: { id: 'c_sela', name: 'Sela', ownerId: 'u_b', npc: false, values: {} }, c_npc: { id: 'c_npc', name: 'Old cart', ownerId: '', npc: true, values: { f_mv: 4 } } });
+    const host = (msg, chars, more) => {
+        const camp = { id: 'k', system: sys, chars: chars || chars0() }, out = { answer: [], synced: [], saves: 0, logs: [], changed: [] }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
+        const conn = { peer: 'pA', send: box(out.answer) };
+        const net = Object.assign({ active: true, role: 'host', paused: false, conns: [], roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } }, syncChar: id => out.synced.push(id) }, more || {});
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { charChanged: id => out.changed.push(id) }, wpDiceCore: null, wpStepLog: (a, s, f) => out.logs.push([a, s, f]) };
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'var charLimit = { allow: () => true }, _charSlowSaid = {};\n' + lkS)(
+            msg, conn, net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; });
+        out.camp = camp; return out;
+    };
+    const M = (to, more) => Object.assign({ type: 'char-link', rid: 'k1', charId: 'c_kael', linkId: 'lk_m', to }, more || {});
+    const ok = host(M('c_peb')), off = (() => { const cs = chars0(); cs.c_kael.links = { lk_m: 'c_peb' }; return host(M(''), cs); })();
+    check('1.6.0 linked sheets: a player\'s char-link (the host, run for real) links their own character as a mount: stored, saved once, acked, the character sent whole and redrawn, each step logged with no name; taking it off leaves no links key; every message packs',
+        j(ok.camp.chars.c_kael.links) === j({ lk_m: 'c_peb' }) && ok.saves === 1 && j(ok.answer) === j([{ type: 'char-ack', rid: 'k1' }]) && j(ok.synced) === j(['c_kael']) && j(ok.changed) === j(['c_kael'])
+        && j(ok.logs) === j([['links v1', 'asked', { on: 1 }], ['links v1', 'done', { on: 1 }]]) && !('links' in off.camp.chars.c_kael) && j(off.answer) === j([{ type: 'char-ack', rid: 'k1' }]) && off.saves === 1,
+        j([ok.camp.chars.c_kael, ok.answer, ok.synced, ok.logs, off.camp.chars.c_kael]));
+    const quiet = r => r.saves === 0 && r.synced.length === 0 && !('links' in r.camp.chars.c_kael || (r.camp.chars.c_sela && 'links' in r.camp.chars.c_sela && r.camp.chars.c_sela.links.lk_m !== 'c_peb'));
+    const npc = host(M('c_npc')), mate = host(M('c_sela')), gmOnly = host(M('c_peb', { linkId: 'lk_v' })), self = host(M('c_kael')), gone = host(M('c_zed'));
+    const other = host(M('c_peb', { charId: 'c_sela' })), taken = (() => { const cs = chars0(); cs.c_sela.links = { lk_m: 'c_peb' }; return host(M('c_peb'), cs); })();
+    const words = r => r.answer.map(a => [a.type, a.reason, a.msg || '']);
+    check('1.6.0 linked sheets: the host refuses with its words, storing, saving and sending nothing: an NPC or a teammate\'s character (a player links only their own), a link the GM sets, the character itself, one that is not there, another player\'s character as the rider, and a mount another rides (a player is never told who rides it)',
+        [npc, mate, gmOnly, self, gone, taken].every(quiet) && other.saves === 0 && !('links' in other.camp.chars.c_sela)
+        && j(words(npc)) === j([['char-deny', 'error', 'You can link only a character of your own.']]) && j(words(mate)) === j(words(npc)) && j(words(gmOnly)) === j([['char-deny', 'error', 'Only the GM sets Vehicle here.']])
+        && j(words(self)) === j([['char-deny', 'error', 'A sheet cannot link to itself.']]) && j(words(gone)) === j([['char-deny', 'error', 'That character is not here now.']]) && j(words(other)) === j([['char-deny', 'owner', '']])
+        && j(words(taken)) === j([['char-deny', 'error', 'Pebbles already has a rider.']]) && !/Sela/.test(j(taken.answer)),
+        j([words(npc), words(gmOnly), words(self), words(gone), words(other), words(taken)]));
+    const bad = [M('c_peb', { rid: 'bad rid' }), M('c_peb', { linkId: 'f_mv' }), M('c_peb', { to: 5 }), M('__proto__'), M('c_peb', { charId: 'constructor' })].map(m => host(m)), paused = host(M('c_peb'), null, { paused: true });
+    check('1.6.0 linked sheets: a char-link of the wrong shape (a request id, a link id, a target that is not a character id, a prototype key) is dropped unanswered; a paused table answers paused and changes nothing',
+        bad.every(r => r.answer.length === 0 && quiet(r)) && j(words(paused)) === j([['char-deny', 'paused', '']]) && quiet(paused), j(bad.map(r => r.answer).concat([paused.answer])));
+    // withLinkFigs and linkTell: the owner's copy carries the figures read through the players' view, and a change of the mount sends it again once
+    const camp = { id: 'k', system: sys, chars: chars0() }; camp.chars.c_kael.links = { lk_m: 'c_peb' };
+    Sx.setLinkSource((id, s) => { const c = camp.chars[id]; return !c ? null : s === sys ? c : Sx.charForView(c, s, { full: sys }); });
+    const sentL = [], logsL = [], mk = peer => ({ peer, open: true, send: m => { packCheck(m); sentL.push([peer, JSON.parse(JSON.stringify(m))]); } });
+    const netL = { active: true, role: 'host', conns: [mk('pA'), mk('pB')], roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } } };
+    const winL = { wpFormula: Fx, wpStepLog: (a, s, f) => logsL.push([a, s, f]) };
+    const charViewFor = (id, pid) => { const f = new Function('SC', 'window', ltS + '\nreturn withLinkFigs;')(() => Sx, winL); return f(Sx.charFor(camp.chars[id], view, pid, {}), view); };
+    const api = new Function('net', 'SC', 'window', 'getActiveCampaign', 'charViewFor', 'peerProfileId', 'sendFailed', ltS + '\nreturn { linkTell: linkTell, withLinkFigs: withLinkFigs };')(netL, () => Sx, winL, () => camp, charViewFor, c => netL.roster[c.peer].id, e => { throw e; });
+    const own = charViewFor('c_kael', 'u_a'), mateV = api.withLinkFigs(Sx.charFor(camp.chars.c_kael, view, 'u_b', {}), view), cl = Sx.cleanChar(JSON.parse(j(own)), view, { state: 'owner' }); Sx.setLinkSource(null);
+    const rP = Sx.makeResolver(view, cl, Fx); Sx.setLinkSource((id, s) => { const c = camp.chars[id]; return !c ? null : s === sys ? c : Sx.charForView(c, s, { full: sys }); });
+    check('1.6.0 linked sheets: an owner\'s whole copy carries the figures of the sheet it links, worked out through the players\' view (Move 12, never the GM-only Secret, whose formula players see as GM only); a teammate\'s copy carries none; the player\'s app reads them as the host does',
+        j(own.links) === j({ lk_m: 'c_peb' }) && j(own.lk) === j({ lk_m: { id: 'c_peb', name: 'Pebbles', v: { move: 12 } } }) && !/secret|"3"/i.test(j(own.lk)) && !('lk' in (mateV || {})) && !('links' in (mateV || {}))
+        && rP('Speed') === 12 && rP('Mount.has') === 1 && view.fields.find(f => f.key === 'Sneak').formula === null, j([own, mateV, rP('Speed')]));
+    api.linkTell('c_peb'); const first = sentL.slice(); sentL.length = 0; api.linkTell('c_peb'); const same = sentL.slice(); sentL.length = 0;
+    camp.chars.c_peb.values.f_mv = 15; api.linkTell('c_peb'); const moved = sentL.slice(); sentL.length = 0; camp.chars.c_peb.values.f_sc = 1; api.linkTell('c_peb'); const secret = sentL.slice(); sentL.length = 0;
+    api.linkTell('c_sela'); const none = sentL.slice(); netL.role = 'client'; camp.chars.c_peb.values.f_mv = 3; api.linkTell('c_peb'); const client = sentL.slice();
+    check('1.6.0 linked sheets: a change of the linked sheet sends its rider\'s owner their copy whole, with the new figures, once (the same figures again send nothing, nor does a GM-only change), to them alone; a sheet nobody links sends nothing, and a player\'s app never sends; logged by count',
+        first.length === 1 && first[0][0] === 'pA' && first[0][1].type === 'char' && first[0][1].char.id === 'c_kael' && same.length === 0 && moved.length === 1 && moved[0][1].char.lk.lk_m.v.move === 15
+        && secret.length === 0 && none.length === 0 && client.length === 0 && logsL.every(l => l[0] === 'links v1' && l[1] === 'told' && typeof l[2].copies === 'number'), j([first, same, moved, secret, none, client, logsL]));
+    Sx.setLinkSource(null);
+    check('1.6.0 linked sheets (source): every way a character change leaves the host reaches linkTell through typeof (syncChar and syncCharDelta), the copy an owner is sent and the join snapshot carry the figures, and the host\'s branch judges by linkSet alone',
+        (src.match(/if \(typeof linkTell === 'function'\) linkTell\(id\);/g) || []).length === 2 && (src.match(/\(typeof withLinkFigs === 'function' \? withLinkFigs : function\(v0\) \{ return v0; \}\)\(withHoverLines\(/g) || []).length === 2
+        && (src.match(/linkSet\(/g) || []).length === 1 && lkS.indexOf('Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, { player: true, pid: profK.id })') > lkS.indexOf("denyK('owner')"));
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */
     {

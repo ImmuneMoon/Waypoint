@@ -2068,6 +2068,19 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>Its Damage is worked out inside <code>floor(&hellip; / if(and(Row.Half &gt; 0, TargetDistance &gt; Row.Half), 2, 1))</code>, so a shot past Half does half damage.</li>
                               </ul>
                           </li>
+                          <li><b>Linked sheets</b> let one sheet read the figures of another. You set them up at the foot of the <b>Lists</b> tab.
+                              <ul>
+                                  <li>A <b>Mount</b> link holds the one mount a rider rides. A mount has one rider at a time.</li>
+                                  <li>A <b>Crew</b> link holds the vehicle a character crews. Many characters can crew one vehicle.</li>
+                                  <li>A mount or a vehicle is an ordinary sheet of your system. Each keeps its own token and its own turn.</li>
+                                  <li>Formulas read the linked sheet by the link&rsquo;s key, such as <code>Mount.Move</code> or <code>Vehicle.HP.max</code>. <code>Mount.has</code> is 1 while linked. With no link each reads 0.</li>
+                                  <li>A field of your system with the same key as a link keeps that name. Formulas then read the field.</li>
+                                  <li>The sheet shows a menu for each link under its head, with Open for the linked sheet. The linked sheet lists its rider or its crew.</li>
+                                  <li><b>Set by</b> says who picks the link. A player links only a character of their own. You can link any character.</li>
+                                  <li>Only you and the linked sheet&rsquo;s owner change it. A player gets only the figures their own sheet reads. A formula that reads a GM-only figure of the linked sheet is GM only.</li>
+                                  <li>Deleting a character takes every link to it away. A character file brings no links. Each step is written to <b>saves/error.log</b>.</li>
+                              </ul>
+                          </li>
                           <li><b>What it opens</b> lets one entry make others usable without buying them, such as a stance that opens a move. You set it in the Library, in the entry&rsquo;s <b>What it opens</b> box.
                               <ul>
                                   <li>Pick each entry it opens, the list it shows on, and a <b>From level</b> of this entry where it should open later.</li>
@@ -4111,7 +4124,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <!-- Character sheets (1.5.0): one character's sheet over the play map (sheets.js) -->
 <div id="sheetPanel" style="display:none;">
     <div id="sheetHead"><img id="sheetPortrait" alt="" style="display:none;"><span class="sheet-titles"><span id="sheetTitle" class="notepad-title">Sheet</span><span id="sheetSub" class="notepad-who"></span></span><select id="sheetPick" class="tool sheet-pick" title="Another character" style="display:none;"></select><button class="tool ghost notepad-btn" id="sheetHud" title="Open the HUD" style="display:none;"><span class="wp-glyph hud-ico-open" aria-hidden="true"></span></button><button class="tool ghost notepad-btn" id="sheetPop" title="Pop out into its own window (drag it to another monitor); dock it back from there"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.2A1.2 1.2 0 0 0 2 4.7v8.1A1.2 1.2 0 0 0 3.2 14h8.1a1.2 1.2 0 0 0 1.2-1.2V9.5"/><path d="M9.5 2.5H14v4.5"/><path d="M14 2.5 7.5 9"/></svg></button><button class="tool ghost notepad-btn" id="sheetClose" title="Close (Esc)">&times;</button><button class="tool ghost notepad-btn" id="sheetRevert" title="Put back the last value you changed" style="display:none;">&#8630;</button><button class="tool ghost notepad-btn sheet-endturn" id="sheetEndTurn" title="End your turn: play moves on to the next in the order" style="display:none;">End turn</button><button class="tool ghost notepad-btn" id="sheetName" title="Rename the character you are making" style="display:none;">Name&hellip;</button><button class="tool notepad-btn sheet-done" id="sheetDone" title="Finished: it goes into play (your GM is told and may send it back)" style="display:none;">Done</button><button class="tool ghost notepad-btn" id="sheetPic" title="Your character's picture: a face, a bundled picture or one you upload (your GM is told)" style="display:none;">Picture</button><button class="tool ghost notepad-btn" id="sheetUpload" title="Import: fill this sheet from a file" style="display:none;">Import</button><button class="tool ghost notepad-btn sheet-review" id="sheetReview" title="A player sent a sheet update for this character: review it" style="display:none;">Review</button><button class="tool ghost notepad-btn" id="sheetUnlock" title="Let its player fill in every field they can see" style="display:none;">Unlock for player</button><button class="tool ghost notepad-btn sheet-edit" id="sheetEdit" title="Edit sheet" style="display:none;">Edit sheet</button><button class="tool ghost notepad-btn sheet-delete" id="sheetDelete" title="Delete this sheet" style="display:none;">Delete</button><button class="tool ghost notepad-btn" id="sheetDownload" title="Download this sheet: a character file or a readable page" style="display:none;"><span class="wp-glyph sheet-dl-ico" aria-hidden="true"></span></button></div>
-    <div id="sheetBudgets" class="sheet-budgets" role="status" style="display:none;"></div><div id="sheetReviewBar" class="sheet-review-bar" role="status" style="display:none;"></div><div id="sheetStaleBar" class="sheet-review-bar sheet-stale-bar" role="status" style="display:none;"></div><div id="sheetBody"></div>
+    <div id="sheetBudgets" class="sheet-budgets" role="status" style="display:none;"></div><div id="sheetLinks" class="sheet-lks" style="display:none;"></div><div id="sheetReviewBar" class="sheet-review-bar" role="status" style="display:none;"></div><div id="sheetStaleBar" class="sheet-review-bar sheet-stale-bar" role="status" style="display:none;"></div><div id="sheetBody"></div>
     <div id="sheetResize" class="sheet-resize" title="Drag to resize the sheet (double-click: the default size)"></div>
 </div>
 <!-- The HUD (Stage 6): one window per character, cloned from the template (no ids inside: clones never share one) -->
@@ -4190,6 +4203,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div id="sysListRules"></div>
             <div id="sysBudgets"></div>
             <div id="sysEnv"></div>
+            <div id="sysLinks"></div>
             <div id="sysListRows" class="sys-rows"></div>
         </div>
         <div id="sysEffects" class="sys-tab" style="display:none;">

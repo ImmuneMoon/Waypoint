@@ -8244,6 +8244,16 @@ function renderLinks() {
             var ml = el('label', 'sys-combat-item'); ml.appendChild(el('span', 'sys-num-cap', 'One holds')); var mi = el('input', 'field sys-link-most'); mi.type = 'number'; mi.min = '1'; mi.max = '4'; mi.step = '1'; mi.value = typeof k.most === 'number' ? String(k.most) : '1'; mi.title = 'How many stations one crew member may hold at once, 1 to 4, as one hand covering a second station. Their sheet reads ' + (k.key || 'Vehicle') + '.stations as how many they hold, so a formula can take a penalty'; ml.appendChild(mi); rw.appendChild(ml);
             var sl = el('label', 'sys-combat-item'); sl.appendChild(el('span', 'sys-num-cap', 'Stations')); var si = input('sys-link-stations field', Array.isArray(k.stations) ? k.stations.join(', ') : '', 'Where a crew member may sit, separated by commas, each a key: Pilot, Gunner, Engineer. A crew sheet picks one beside its vehicle, and a skill counts at a station only for those there. At most 8 (systemcore LINK_STATIONS)', 'Pilot, Gunner'); si.maxLength = 240; sl.appendChild(si); rw.appendChild(sl);
         }
+        if ((k.kind === 'crew' || k.kind === 'mount') && typeof k.group === 'string' && k.group.trim()) {   // the core handbook session's ask 6 (2026-10-29): figures each sheet of the group works out, read as <group>.max|min|sum.<key>
+            var gkW = k.group.trim(), figsW = Array.isArray(k.figs) ? k.figs : [];
+            figsW.forEach(function(x0, fi) {
+                var x = x0 && typeof x0 === 'object' ? x0 : {}, fl = el('label', 'sys-combat-item'); fl.appendChild(el('span', 'sys-num-cap', 'Each sheet works out'));
+                var fk = input('sys-link-fkey field', typeof x.key === 'string' ? x.key : '', 'The name the group reads it by: ' + gkW + '.max.' + (x.key || 'PilotRoll') + ' reads the highest any sheet works out', 'PilotRoll'); fk.maxLength = LIMITS.key; fk.dataset.fi = String(fi); fl.appendChild(fk);
+                var ff = input('sys-link-fform field', typeof x.formula === 'string' ? x.formula : '', 'A formula worked out on each sheet with its own names, such as Piloting - 2 * (' + (k.key || 'Vehicle') + '.stations > 1). No dice', 'Piloting'); ff.maxLength = LIMITS.formula; ff.dataset.fi = String(fi); fl.appendChild(ff);
+                var fx = el('button', 'tool ghost sys-btn', '\u00D7'); fx.dataset.act = 'lkfdel'; fx.dataset.fi = String(fi); fx.title = 'Remove this figure'; fl.appendChild(fx); rw.appendChild(fl);
+            });
+            var fa = el('button', 'tool ghost sys-btn', '+ Figure'); fa.dataset.act = 'lkfadd'; fa.disabled = figsW.length >= 4; fa.title = fa.disabled ? 'At most 4 figures a link' : 'A figure each sheet of the ' + (k.kind === 'mount' ? 'riders' : 'crew') + ' works out, which ' + gkW + '.max, .min and .sum read'; rw.appendChild(fa);
+        }
         [['up', '\u25B2', 'Move up'], ['down', '\u25BC', 'Move down'], ['del', '\u00D7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'lk' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
         wrap.appendChild(rw);
     });
@@ -8260,6 +8270,7 @@ function onLinkInput(t) {
     else if (c.indexOf('sys-link-group') >= 0) { var gv = t.value.slice(0, LIMITS.key); if (gv.trim()) k.group = gv; else delete k.group; }   // 1.6.0 (CORE gap 16)
     else if (c.indexOf('sys-link-most') >= 0) { var mv = Number(t.value); if (String(t.value).trim() && isFinite(mv) && Math.round(mv) >= 2) k.most = Math.min(4, Math.round(mv)); else delete k.most; }   // 1.6.0: stations one crew member may hold
     else if (c.indexOf('sys-link-stations') >= 0) { var sv = t.value.split(',').map(function(x) { return x.trim(); }).filter(Boolean); if (sv.length) k.stations = sv; else delete k.stations; }
+    else if (c.indexOf('sys-link-fkey') >= 0 || c.indexOf('sys-link-fform') >= 0) { var fiI = +t.dataset.fi, xF = Array.isArray(k.figs) && fiI >= 0 && fiI < k.figs.length && k.figs[fiI] && typeof k.figs[fiI] === 'object' ? k.figs[fiI] : null; if (!xF) return true; if (c.indexOf('sys-link-fkey') >= 0) xF.key = t.value.slice(0, LIMITS.key); else xF.formula = t.value.slice(0, LIMITS.formula); }   // the core handbook session's ask 6
     else return true;
     markDirty(); patchErrors(); return true;
 }
@@ -8272,6 +8283,14 @@ function onLinkChange(t) {
     markDirty(); patchErrors(); return true;
 }
 function linkClick(b) {
+    var mf = /^lkf(add|del)$/.exec(b.dataset.act || '');   // the core handbook session's ask 6: a group's figures
+    if (mf) {
+        var arrF = linkDraft(), rwF = b.closest('.sys-link-row'), iF = rwF ? +rwF.dataset.ki : -1, kF = arrF[iF] && typeof arrF[iF] === 'object' ? arrF[iF] : null; if (!kF) return true;
+        var fs0 = Array.isArray(kF.figs) ? kF.figs : (kF.figs = []);
+        if (mf[1] === 'add') { if (fs0.length >= 4) return true; fs0.push({ key: '', formula: '' }); } else { var fiD = +b.dataset.fi; if (fiD >= 0 && fiD < fs0.length && Math.floor(fiD) === fiD) fs0.splice(fiD, 1); }
+        if (!fs0.length) delete kF.figs;
+        markDirty(); renderLinks(); patchErrors(); return true;
+    }
     var m = /^lk(add|up|down|del)$/.exec(b.dataset.act || ''); if (!m) return false;
     var arr = linkDraft(), rw = b.closest('.sys-link-row'), i = rw ? +rw.dataset.ki : -1;
     if (m[1] === 'add') { if (arr.length >= LIMITS.links) { toast('At most ' + LIMITS.links + '.'); return true; } arr.push({ id: uid('lk_'), key: arr.some(function(x) { return x && String(x.key).toLowerCase() === 'mount'; }) ? '' : 'Mount', label: '', kind: 'mount', edit: 'owner' }); }
@@ -8286,6 +8305,7 @@ function linkClick(b) {
 function linkSays(links, fields, F0) {
     var errs = [], warns = [], seen = {}, fk = {};
     (Array.isArray(fields) ? fields : []).forEach(function(f) { if (f && typeof f.key === 'string') fk[f.key.toLowerCase()] = f.label || f.key; });
+    var fk2 = function(l) { return Object.prototype.hasOwnProperty.call(fk, l) ? fk[l] : ''; };
     (Array.isArray(links) ? links : []).forEach(function(k, i) {
         var nm = 'Link ' + (i + 1);
         if (i >= LIMITS.links) { if (i === LIMITS.links) errs.push({ message: 'At most ' + LIMITS.links + ' links: Save drops the rest.' }); return; }
@@ -8302,6 +8322,16 @@ function linkSays(links, fields, F0) {
             var gk = k.group.trim(), lg = gk.toLowerCase();
             if (/[.\s]/.test(gk) || LINK_NOT[lg] || seen[lg] || !cleanLinks([{ id: 'lk_check', key: gk, kind: 'mount' }], F0)) errs.push({ message: nm + ': the ' + (k.kind === 'mount' ? 'mount reads its riders' : 'vehicle reads its crew') + ' by a key of letters, digits and underscores, starting with a letter, that no other link has. Save drops ' + gk + '.' });
             else { seen[lg] = 1; if (fk[lg]) warns.push({ message: nm + ': the field ' + fk[lg] + ' has the key ' + gk + ', so formulas read that field, not the ' + (k.kind === 'mount' ? 'riders' : 'crew') + '.' }); }
+        }
+        if ((k.kind === 'crew' || k.kind === 'mount') && Array.isArray(k.figs) && k.figs.length) {   // the core handbook session's ask 6: a group's figures, read as cleanLinks reads them
+            var hasG = typeof k.group === 'string' && k.group.trim();
+            if (!hasG) warns.push({ message: nm + ': its figures need the key the ' + (k.kind === 'mount' ? 'mount reads its riders' : 'vehicle reads its crew') + ' by. Save drops them.' });
+            else { var fSeen = {}; k.figs.forEach(function(x, fi) {
+                var fk = x && typeof x.key === 'string' ? x.key.trim() : '', fl = fk.toLowerCase(), cl = cleanLinks([{ id: 'lk_check', key: 'LinkCheck', kind: 'crew', group: 'GroupCheck', figs: [{ key: fk, formula: x && typeof x.formula === 'string' ? x.formula : '' }] }], F0);
+                if (fi >= 4 || fSeen[fl] || !(cl && cl[0].figs)) warns.push({ message: nm + ': a figure is a key of letters, digits and underscores, never count, max, min, sum or has, once each, and a formula with no dice, 4 at most. Save drops ' + (fk || 'one with no key') + '.' });
+                else if (fk2(fl)) warns.push({ message: nm + ': the field ' + fk2(fl) + ' has the key ' + fk + ', so ' + k.group.trim() + '.max.' + fk + ' reads the figure, not that field.' });
+                fSeen[fl] = 1;
+            }); }
         }
         if (k.kind === 'crew' && Array.isArray(k.stations)) {
             var sSeen = {}, bad = k.stations.filter(function(s, si) { var t = String(s).trim(), l = t.toLowerCase(), no = si >= 8 || !/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(t) || ['count', 'max', 'min', 'sum', 'has'].indexOf(l) >= 0 || sSeen[l]; sSeen[l] = 1; return no; });

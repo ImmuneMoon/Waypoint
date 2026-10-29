@@ -15500,6 +15500,44 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && shV.includes("if (typeof m.vf === 'string' && m.vf) return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : m.op === 'min' ? ' at most ' : ' by ') + m.vf;")
             && ixV.includes('A change&rsquo;s amount may be <b>by a formula</b>') && ntV.every(t => t.indexOf("- An effect's change can be sized by a formula") > 0 && t.indexOf("- An effect's change can be sized by a formula") < t.indexOf('WAYPOINT 1.5.')));
     }
+    {   // 1.6.0 (CORE gap 13, a power's "5, then 3 a turn"): a list's upkeep, what a row switched on keeps paying, on invented data
+        const J = JSON.stringify;
+        const pw = (each, extra) => ({ id: 'f_pw', key: 'Powers', kind: 'item-list', vis: 'all', edit: 'owner', list: Object.assign({ on: { label: 'Up' }, stats: [{ key: 'keep' }], upkeep: Object.assign({ pool: 'f_mp', amt: 'Row.keep', each: each }, extra || {}) }) });
+        const rawU = (each, extra) => ({ v: 1, name: 'U', rolls: [], fields: [{ id: 'f_mp', key: 'MP', kind: 'resource', maxFormula: '10', def: 'max', vis: 'all' }, pw(each, extra)],
+            items: [{ id: 'i_sh', name: 'Shield', stats: { keep: 3 } }, { id: 'i_gl', name: 'Glow', stats: { keep: 2 } }, { id: 'i_fr', name: 'Free', stats: { keep: 0 } }], sheet: { sections: [] } });
+        const sT = cleanSystem(rawU('turn'), { F, gmView: true }), sP = cleanSystem(rawU('turn'), { F, gmView: false }), sR = cleanSystem(rawU('round'), { F, gmView: true }), sS = cleanSystem(rawU('turn', { stop: true }), { F, gmView: true });
+        const sC = cleanSystem(rawU('clock', { per: { n: 1, u: 'min' } }), { F, gmView: true });
+        const upOf = sy => (sy.fields.find(f => f.id === 'f_pw').list || {}).upkeep;
+        const odd = [cleanSystem(Object.assign(rawU('turn'), { fields: [rawU('turn').fields[0], Object.assign(pw('turn'), { list: { stats: [{ key: 'keep' }], upkeep: { pool: 'f_mp', amt: '3', each: 'turn' } } })] }), { F, gmView: true }),
+            cleanSystem(rawU('turn', { amt: '1d6' }), { F, gmView: true }), cleanSystem(rawU('turn', { pool: 'f_pw' }), { F, gmView: true }), cleanSystem(rawU('clock', { per: { n: 0, u: 'min' } }), { F, gmView: true })].map(upOf);
+        check('CORE gap 13: a list\'s upkeep cleans to { pool, amt, each, per, stop } in the GM\'s view alone: turn, round or clock (with its per, as a timed counter\'s), stop only ticked; none on a list with no switch, with an amount that rolls dice, off a field that is no pool, or by the clock with no step',
+            J(upOf(sT)) === J({ pool: 'f_mp', amt: 'Row.keep', each: 'turn' }) && upOf(sP) === undefined && upOf(sR).each === 'round' && upOf(sS).stop === true && J(upOf(sC)) === J({ pool: 'f_mp', amt: 'Row.keep', each: 'clock', per: { n: 1, u: 'min' } })
+            && odd.every(u => u === undefined), J([upOf(sT), upOf(sP), upOf(sC), odd]));
+        const chU = (mp, rows) => ({ id: 'c_u', name: 'U', ownerId: 'u_u', values: { f_mp: { cur: mp }, f_pw: rows } });
+        const rows3 = [{ id: 'w_1', defId: 'i_sh', qty: 1, on: true }, { id: 'w_2', defId: 'i_gl', qty: 1, on: true }, { id: 'w_3', defId: 'i_fr', qty: 1, on: true }, { id: 'w_4', defId: 'i_sh', qty: 1, on: false }];
+        const VF = sy => w => S.makeResolver(sy, w, F), mpOf = (sy, ch, vals) => S.makeResolver(sy, Object.assign({}, ch, { values: Object.assign({}, ch.values, vals) }), F)('MP');
+        const c1 = chU(10, rows3), tu = S.applyRound(sT, c1, VF(sT), F, null, 'turn'), tuR = S.applyRound(sT, c1, VF(sT), F, null, 'round'), rr = S.applyRound(sR, c1, VF(sR), F, null, 'round'), rrT = S.applyRound(sR, c1, VF(sR), F, null, 'turn');
+        const low = chU(4, rows3), st = S.applyRound(sS, low, VF(sS), F, null, 'turn'), stList = st.values.f_pw;
+        check('CORE gap 13: at its character\'s turn start (applyRound turn) each row switched on pays its Row.keep from MP (Shield 3, Glow 2, Free 0, a row off nothing: 10 to 5), never at a round; a list paid each round pays at a round and never at a turn; ticked to stop, a row whose pool holds less switches off and pays nothing (MP 4: Shield pays 3, Glow cannot pay 2 from 1 and goes off); the character itself is untouched',
+            mpOf(sT, c1, tu.values) === 5 && tu.upkeep.paid === 5 && Object.keys(tuR.values).length === 0 && mpOf(sR, c1, rr.values) === 5 && Object.keys(rrT.values).length === 0
+            && mpOf(sS, low, st.values) === 1 && J(st.upkeep) === J({ paid: 3, off: ['Glow'] }) && stList.find(r => r.id === 'w_2').on === false && stList.find(r => r.id === 'w_1').on === true && c1.values.f_mp.cur === 10 && low.values.f_pw[1].on === true,
+            J([mpOf(sT, c1, tu.values), tu.upkeep, mpOf(sS, low, st.values), st.upkeep, stList]));
+        const per = () => 60, c2 = chU(10, [{ id: 'w_1', defId: 'i_sh', qty: 1, on: true }]);
+        const k1 = S.rowTimers(sC, c2, 150, per, F), c2b = Object.assign({}, c2, { values: Object.assign({}, c2.values, k1.values) }), k2 = S.rowTimers(sC, c2b, 30, per, F), k3 = S.rowTimers(sC, c2, 30, per, F);
+        const keptGm = S.cleanValue(sC.fields.find(f => f.id === 'f_pw'), k1.values.f_pw, S.valueOpts(sC)), ownC = S.charFor(Object.assign({}, c2, { values: Object.assign({}, c2.values, { f_pw: keptGm }) }), sP, 'u_u', {});
+        check('CORE gap 13: by the clock a row pays once each step of its character\'s own game time (one a minute: 150 seconds pays twice, the 30 left kept on the row as ut, and 30 more pays once and clears it; 30 alone pays nothing, its part kept); the pool is a moved field, the list alone is not; the GM\'s copy keeps ut, its owner\'s never carries it',
+            mpOf(sC, c2, k1.values) === 4 && k1.values.f_pw[0].ut === 30 && k1.moved.indexOf('f_mp') >= 0 && k1.moved.indexOf('f_pw') < 0 && mpOf(sC, c2b, k2.values) === 1 && !('ut' in k2.values.f_pw[0]) && !('f_mp' in k3.values) && k3.values.f_pw[0].ut === 30
+            && keptGm[0].ut === 30 && !('ut' in ownC.values.f_pw[0]),
+            J([k1.values, k1.moved, k2.values, k3.values, keptGm, ownC.values.f_pw]));
+        const shU = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ixU = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n'), nU = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+        const ntU = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n'));
+        const vU = S.validateSystem(cleanSystem(rawU('turn', { amt: 'Row.nope + 1' }), { F, gmView: true }), F);
+        check('CORE gap 13 is in the editor, logged and said (source): Keeps paying under a list\'s switch, its pool, amount, when, step and stop; the round hook and the clock log each payment (upkeep v1); the validator reads the amount with the row\'s names; Help and both 1.6.0 notes say it',
+            shU.includes("if (sw && typeof upkeepBox === 'function') upkeepBox(card, sp);") && shU.includes("checkLabel('sys-list-upon', !!up, 'Keeps paying'") && shU.includes("lsc.upkeep = { pool: p0 ? p0.id : '', amt: '1', each: 'turn' };") && shU.includes("window.wpStepLog('upkeep v1', 'paid', { when: kind")
+            && nU.includes("window.wpStepLog('upkeep v1', 'paid', { when: 'clock'") && vU.errors.concat(vU.warnings).some(e => /^Keeps paying: /.test(e.message) && /nope/i.test(e.message))
+            && ixU.includes('<li><b>Keeps paying</b>, under the switch, is what a row switched on keeps paying') && ntU.every(t => t.indexOf("- A list's rows can keep paying while switched on") > 0 && t.indexOf("- A list's rows can keep paying while switched on") < t.indexOf('WAYPOINT 1.5.')),
+            J(vU.errors.concat(vU.warnings).map(e => e.message)));
+    }
     {   // 1.6.0: a list's roll or action only the GM presses (gm)
         const J = JSON.stringify;
         const rawG = { v: 1, name: 'G', rolls: [], fields: [{ id: 'f_wear', key: 'Wear', kind: 'number', def: 0, edit: 'owner' }, { id: 'f_kit', key: 'Kit', kind: 'item-list', edit: 'owner', list: { counters: [{ key: 'Jam' }], rolls: [

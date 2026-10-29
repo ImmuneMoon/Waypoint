@@ -4561,6 +4561,7 @@ function timedHook(mapId, combat, kind) {
         var tc = withRound(tokenCtx(mp, e.tok, Object.assign({}, tokenFlags(), { viewer: typeof e.tok.ownerId === 'string' ? e.tok.ownerId : undefined })), combat), vvD = null;   // 1.5.5 (the release trace, F2): a player's character is judged by what its player sees, as turnMoveStart judges it, so an attacker hidden from them counts for nothing
         dues.forEach(function(a) { if (a.needs && typeof rollNeedsOk === 'function') { vvD = vvD || resolveAll(sys, c, F(), tc).vars; if (!rollNeedsOk(a, a.to === 'near' ? withOnSelf(vvD, true) : vvD, F())) return; } if (n.postDue) n.postDue(c, a, kind, combat.round, a.by === 'owner' && a.vis !== 'gm'); });   // 1.5.4: no reminder while its needs are not met
         var res = applyRound(sys, c, function(w) { return resolveAll(sys, w, F(), tc).vars; }, F(), tc, kind, window.wpDiceCore || null, { now: Date.now(), inCombat: true }), ids = Object.keys(res.values);   // 1.5.9: the host's dice roll a Rolled amount
+        if (res.upkeep && window.wpStepLog) window.wpStepLog('upkeep v1', 'paid', { when: kind, paid: res.upkeep.paid, off: res.upkeep.off.length });   // 1.6.0 (CORE gap 13)
         if (!ids.length) return;
         c.values = c.values || {}; ids.forEach(function(fid) { c.values[fid] = res.values[fid]; }); c.updated = Date.now();
         if (n.active) n.syncCharDelta(c.id, res.values);
@@ -7441,6 +7442,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         orow.appendChild(input('sys-list-swwords field', typeof sw.needsText === 'string' ? sw.needsText : '', 'What a refused switch says (blank: Not now: it needs and the formula)', 'Its words'));
     }
     card.appendChild(orow);
+    if (sw && typeof upkeepBox === 'function') upkeepBox(card, sp);   // 1.6.0 (CORE gap 13) (a suite's slice of the card holds no box)
     // Stage 6 F4c1: the list's stats — a number every item of it carries (Acc, Wt, Cost), ten at most — and the one that is its price
     var sts = Array.isArray(sp.stats) ? sp.stats : [], sb = el('div', 'sys-list-stats');
     sb.appendChild(el('span', 'sys-num-cap', 'Stats'));
@@ -8133,6 +8135,38 @@ function linkSays(links, fields, F0) {
     return { errs: errs, warns: warns };
 }
 // [systemcheck:linkbox-end]
+// 1.6.0 (CORE gap 13, a power's "5, then 3 a turn"): Keeps paying, under a list's switch: a row switched on pays an amount, a formula of the
+// row, from a pool of the sheet, at its character's turn start, each round of its fight, or every so often of its own game time; ticked, a
+// row whose pool holds less switches off. The GM's machine pays it. Save cleans it (systemcore cleanUpkeep)
+function upkeepBox(card, sp) {
+    var up = sp.upkeep && typeof sp.upkeep === 'object' && !Array.isArray(sp.upkeep) ? sp.upkeep : null, rw = el('div', 'sys-flags sys-list-upkeep');
+    rw.appendChild(checkLabel('sys-list-upon', !!up, 'Keeps paying', 'A row switched on keeps paying from a pool, such as 3 MP a turn for a power kept up. The GM\u2019s machine pays it. The first cost, if any, is the row\u2019s own roll or action'));
+    if (up) {
+        var sl = function(cls, os, cur, title) { var s = el('select', cls); os.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0] === cur) op.selected = true; s.appendChild(op); }); s.value = cur; s.title = title; return s; };   // values and text only
+        var pools = (draft.fields || []).filter(function(f) { return f && f.kind === 'resource' && typeof f.id === 'string'; }).map(function(f) { return [f.id, f.label || f.key || f.id]; }), pc = typeof up.pool === 'string' ? up.pool : '';
+        if (!pools.some(function(o) { return o[0] === pc; })) pools.unshift([pc, pc ? '(a pool that is gone)' : 'Pick a pool']);
+        rw.appendChild(sl('sys-list-uppool', pools, pc, 'The pool it comes off, such as MP'));
+        var am = input('sys-list-upamt field', typeof up.amt === 'string' ? up.amt : '', 'How much a row pays each time: a formula of the row, such as 3 or Row.keep. Row names are read. No dice. Whole, and 0 pays nothing', 'Pays (e.g. 3)'); am.maxLength = LIMITS.formula; rw.appendChild(am);
+        var ea = up.each === 'round' || up.each === 'clock' ? up.each : 'turn';
+        rw.appendChild(sl('sys-list-upeach', [['turn', 'At its turn\u2019s start'], ['round', 'Each round'], ['clock', 'By the clock']], ea, 'When it pays: at its character\u2019s turn start in a fight, at each new round of its fight, or every so often of its character\u2019s own game time'));
+        if (ea === 'clock') {
+            var pn = el('input', 'field sys-list-upn'); pn.type = 'number'; pn.min = '1'; pn.max = '1000'; pn.step = '1'; pn.placeholder = 'Every'; pn.value = up.per && typeof up.per.n === 'number' ? String(up.per.n) : '1'; pn.title = 'It pays once every so many of the unit beside, 1 to 1000'; rw.appendChild(pn);
+            var us = (draft.combat && draft.combat.turn && Array.isArray(draft.combat.turn.units) ? draft.combat.turn.units : []).filter(function(u) { return u && typeof u.key === 'string' && u.key; });
+            var uo = [['min', 'minutes'], ['hour', 'hours'], ['day', 'days'], ['week', 'weeks']].concat(us.map(function(u) { return [u.key, typeof u.label === 'string' && u.label ? u.label : u.key]; })), uc = up.per && typeof up.per.u === 'string' && up.per.u ? up.per.u : 'min'; if (!uo.some(function(o) { return o[0] === uc; })) uo.push([uc, uc + ' (no such unit)']);
+            rw.appendChild(sl('sys-list-upu', uo, uc, 'What it counts in: the calendar\u2019s minutes, hours, days and weeks, or one of your time units (the Combat card\u2019s Turns box)'));
+        }
+        rw.appendChild(checkLabel('sys-list-upstop', up.stop === true, 'Switches off when it cannot pay', 'A row whose pool holds less than it pays switches off and pays nothing. Unticked, it pays anyway, as far as the pool goes'));
+    }
+    card.appendChild(rw);
+}
+function upkeepChange(lsc, t, c) {
+    if (c.indexOf('sys-list-upon') >= 0) { if (t.checked) { var p0 = (draft.fields || []).filter(function(f) { return f && f.kind === 'resource' && typeof f.id === 'string'; })[0]; lsc.upkeep = { pool: p0 ? p0.id : '', amt: '1', each: 'turn' }; } else delete lsc.upkeep; return; }
+    var up = lsc.upkeep && typeof lsc.upkeep === 'object' && !Array.isArray(lsc.upkeep) ? lsc.upkeep : null; if (!up) return;
+    if (c.indexOf('sys-list-uppool') >= 0) up.pool = String(t.value).slice(0, 64);
+    else if (c.indexOf('sys-list-upeach') >= 0) { up.each = t.value === 'round' || t.value === 'clock' ? t.value : 'turn'; if (up.each === 'clock') up.per = up.per && typeof up.per === 'object' ? up.per : { n: 1, u: 'min' }; else delete up.per; }
+    else if (c.indexOf('sys-list-upu') >= 0) up.per = Object.assign({ n: 1 }, up.per, { u: String(t.value).slice(0, 24) });
+    else if (c.indexOf('sys-list-upstop') >= 0) { if (t.checked) up.stop = true; else delete up.stop; }
+}
 // Conditions C3 (docs/CONDITIONS_PLAN.md): the system's own postures on the Combat card — how a token can stand, in order. None: posture is
 // switched off (1.6.0, backlog 183 (3)). Add postures starts a list of Standing and one more. Each row a name, its chip's tag, a ranged note
 // (a whole number a foe's ranged roll takes, shown only: "A ranged note per posture (Recommended)"), notes and changes as an effect's; the first
@@ -9550,6 +9584,8 @@ function onInput(e) {
         else if (lcc.indexOf('sys-list-chambercats') >= 0) { if (!lsp.chamber || typeof lsp.chamber !== 'object') return; var ccv = t.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (ccv.length) lsp.chamber.cats = ccv; else delete lsp.chamber.cats; }   // 1.5.9 Chambers from (Save cleans them)
         else if (lcc.indexOf('sys-list-chamberby') >= 0 || lcc.indexOf('sys-list-chamberto') >= 0 || lcc.indexOf('sys-list-chamberlabel') >= 0) { if (!lsp.chamber || typeof lsp.chamber !== 'object') return; var cKy = lcc.indexOf('sys-list-chamberby') >= 0 ? 'by' : lcc.indexOf('sys-list-chamberto') >= 0 ? 'to' : 'label'; if (t.value.trim()) lsp.chamber[cKy] = cKy === 'label' ? t.value.slice(0, LIMITS.label) : t.value.trim(); else delete lsp.chamber[cKy]; }
         else if (lcc.indexOf('sys-list-loadby') >= 0) { if (!lsp.load || typeof lsp.load !== 'object') return; if (t.value.trim()) lsp.load.by = t.value.trim(); else delete lsp.load.by; }   // 1.5.8 Matched by (Save keeps the pair only where both name a stat)
+        else if (lcc.indexOf('sys-list-upamt') >= 0) { if (lsp.upkeep && typeof lsp.upkeep === 'object') lsp.upkeep.amt = t.value.slice(0, LIMITS.formula); }   // 1.6.0 (CORE gap 13): what a row pays
+        else if (lcc.indexOf('sys-list-upn') >= 0) { if (!lsp.upkeep || typeof lsp.upkeep !== 'object') return; var upn = Number(t.value); lsp.upkeep.per = Object.assign({ u: 'min' }, lsp.upkeep.per); if (String(t.value).trim() && isFinite(upn)) lsp.upkeep.per.n = Math.round(upn); }
         else if (lcc.indexOf('sys-list-loadto') >= 0) { if (!lsp.load || typeof lsp.load !== 'object') return; if (t.value.trim()) lsp.load.to = t.value.trim(); else delete lsp.load.to; }
         else if (lcc.indexOf('sys-list-loadneedstext') >= 0) { if (!lsp.load || typeof lsp.load !== 'object') return; if (t.value.trim()) lsp.load.needsText = t.value; else delete lsp.load.needsText; }   // 1.5.8 Loads only where's words
         else if (lcc.indexOf('sys-list-loadneeds') >= 0) { if (!lsp.load || typeof lsp.load !== 'object') return; if (t.value.trim()) lsp.load.needs = t.value; else delete lsp.load.needs; }   // 1.5.8 Loads only where (Save cleans it as a list roll's needs)
@@ -9762,6 +9798,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-haslvl') >= 0) { if (t.checked) lsc.lvl = { label: 'Level', min: 0, step: 1, def: 0 }; else delete lsc.lvl; }
         else if (c.indexOf('sys-list-hason') >= 0) { if (t.checked) lsc.on = { label: 'On' }; else delete lsc.on; }
         else if (c.indexOf('sys-list-ondef') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.def = true; else delete lsc.on.def; } }
+        else if (c.indexOf('sys-list-upon') >= 0 || c.indexOf('sys-list-uppool') >= 0 || c.indexOf('sys-list-upeach') >= 0 || c.indexOf('sys-list-upu') >= 0 || c.indexOf('sys-list-upstop') >= 0) upkeepChange(lsc, t, c);   // 1.6.0 (CORE gap 13): Keeps paying
         else if (c.indexOf('sys-list-onone') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.one = true; else { delete lsc.on.one; delete lsc.on.per; delete lsc.on.over; } } }   // 1.5.4 One at a time
         else if (c.indexOf('sys-list-ctroll') >= 0) { var ctr2 = t.closest('.sys-list-ct'), ctD2 = ctr2 && Array.isArray(lsc.counters) ? lsc.counters[+ctr2.dataset.ti] : null; if (!ctD2 || typeof ctD2 !== 'object') return; if (t.checked) ctD2.roll = true; else delete ctD2.roll; }   // 1.5.7: Set by rolls only
         else if (c.indexOf('sys-list-ctnewturn') >= 0) { var ctr5 = t.closest('.sys-list-ct'), ctD5 = ctr5 && Array.isArray(lsc.counters) ? lsc.counters[+ctr5.dataset.ti] : null; if (!ctD5 || typeof ctD5 !== 'object') return; if (t.checked) ctD5.turn = true; else delete ctD5.turn; }   // 1.6.0: Starts again each turn

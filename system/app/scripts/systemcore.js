@@ -1096,6 +1096,57 @@ function cleanRowTimer(v) {
     var w = o.dir === 'down' ? cutText(v.end, LIMITS.label) : ''; if (w) o.end = w;
     return o;
 }
+// 1.6.0 (CORE gap 13, a power's "5, then 3 a turn"): a list's upkeep, what a row switched on keeps paying. { pool: a resource field's id, amt: a
+// formula of the row (Row.* known; no dice; whole, at least 0), each: 'turn' (its character's turn start in a fight), 'round' (each new round of
+// its fight) or 'clock' (every per of its character's own game time, as a timed counter's per), stop: true, a row whose pool holds less than it
+// pays switches off and pays nothing }. Only on a list with a switch, in the GM's view alone (the GM's machine pays it, as a crossing's action
+// runs); cleanSystem drops one whose pool is no pool of the view. Absent: as before
+function cleanUpkeep(v, F) {
+    if (!isObj(v) || typeof v.pool !== 'string' || !FIELD_ID.test(v.pool)) return null;
+    var amt = cleanFormulaText(v.amt), p = amt && F && typeof F.parse === 'function' ? F.parse(amt) : null; if (!p || !p.ok || !p.ast || hasDice(p.ast.body)) return null;
+    var each = v.each === 'round' || v.each === 'clock' ? v.each : 'turn', o = { pool: v.pool, amt: amt, each: each };
+    if (each === 'clock') { var tm = cleanRowTimer({ per: v.per }); if (!tm) return null; o.per = tm.per; }
+    if (v.stop === true) o.stop = true;
+    return o;
+}
+// Every row switched on of a list whose upkeep is paid at each, on a working copy (work.values's lists are replaced, never changed in place):
+// 'turn' and 'round' once (applyRound), 'clock' (rowTimers) once for each per its character lived, the part of a step lived kept on the row as
+// ut (the GM's alone: an owner's copy never carries it). Its amount is worked out with the row's names, and taken through applyAct as a
+// Subtract, so a pool's most and Spills into hold as for any change; stop: a row whose pool holds less switches off and pays nothing; a row whose
+// amount cannot be worked out pays nothing. out.values gets each list and pool that changed; { paid, off: [names], moved: [field ids] }
+function rowUpkeep(sys, work, out, each, F, secs, perOf) {
+    var res = { paid: 0, off: [], moved: [] }; if (!isObj(sys) || !Array.isArray(sys.fields) || !F || !isObj(work) || !isObj(work.values) || !isObj(out) || !isObj(out.values)) return res;
+    var put = function(fid, v, mv) { work.values[fid] = v; out.values[fid] = v; if (mv && res.moved.indexOf(fid) < 0) res.moved.push(fid); };
+    sys.fields.forEach(function(f) {
+        var spec = isObj(f) && f.kind === 'item-list' && isObj(f.list) ? f.list : null, up = spec && isObj(spec.on) && isObj(spec.upkeep) && spec.upkeep.each === each ? spec.upkeep : null;
+        var pf = up ? fieldById(sys, up.pool) : null; if (!pf || pf.kind !== 'resource' || !Array.isArray(work.values[f.id])) return;
+        var step = each === 'clock' ? (typeof perOf === 'function' ? perOf(up.per) : 0) : 0; if (each === 'clock' && !(fin(step) && step > 0 && fin(secs) && secs > 0)) return;
+        work.values[f.id].map(function(r) { return isObj(r) && r.hid !== 1 && rowOn(spec, r) ? rowIdOf(r) : ''; }).filter(Boolean).forEach(function(rid) {
+            var at = function() { var L = work.values[f.id]; for (var i = 0; i < L.length; i++) if (rowIdOf(L[i]) === rid) return i; return -1; }, n = 1, i0 = at(); if (i0 < 0) return;
+            if (each === 'clock') {
+                var r0 = work.values[f.id][i0], lived = (typeof r0.ut === 'number' && fin(r0.ut) && r0.ut > 0 ? r0.ut : 0) + secs; n = Math.floor(lived / step + 1e-9);
+                var left = lived - n * step, nr = Object.assign({}, r0), L0 = work.values[f.id].slice(); if (left > 1e-6) nr.ut = Math.min(1e9, left); else delete nr.ut; L0[i0] = nr; put(f.id, L0, false);
+                n = Math.min(n, 500);
+            }
+            for (var k = 0; k < n; k++) {
+                var vv = makeResolver(sys, work, F), rv = vv.row(f.id, rid); if (typeof rv !== 'function') return;
+                var ar = null; try { ar = F.evaluate(up.amt, { vars: rv, random: noDice }); } catch (e) { ar = null; }
+                var amt = ar && ar.ok ? (typeof ar.value === 'boolean' ? (ar.value ? 1 : 0) : ar.value) : NaN; if (typeof amt !== 'number' || !fin(amt)) return;
+                amt = Math.max(0, Math.min(1e9, Math.round(amt))); if (!amt) continue;
+                var have = vv(pf.key);
+                if (up.stop === true && typeof have === 'number' && fin(have) && have < amt) {
+                    var ix = at(); if (ix < 0) return; var L1 = work.values[f.id].slice(), off = Object.assign({}, L1[ix], { on: false }); delete off.ut; L1[ix] = off; put(f.id, L1, true);
+                    var rd = rowDef(sys, off); res.off.push(cutText(rd && isObj(rd.def) ? rd.def.name : '', LIMITS.label) || 'A row'); return;
+                }
+                var done = applyAct(sys, work, { label: 'Upkeep', apply: [{ f: pf.id, formula: String(amt) }] }, rv, F, null, { f: f.id, r: rid }, true);
+                if (!done || !done.ok) return;
+                Object.keys(done.values).forEach(function(fid) { put(fid, done.values[fid], true); });
+                res.paid += amt;
+            }
+        });
+    });
+    return res;
+}
 function cleanEvery(v, needs) {
     if (!isObj(v)) return null;
     var n = typeof v.n === 'number' && fin(v.n) && Math.floor(v.n) === v.n && v.n >= 1 && v.n <= 1000 ? v.n : 0, u = typeof v.u === 'string' && (EVERY_UNITS[v.u] === 1 || STAT_KEY.test(v.u)) && lower(v.u) !== 'round' ? v.u : '';
@@ -1291,6 +1342,10 @@ function rowTimers(sys, char, secs, perOf, F) {   // F (1.6.0): the formula engi
         if (changed) out.values[f.id] = list;
         if (moved) out.moved.push(f.id);
     });
+    if (F && (sys.fields || []).some(function(f) { return isObj(f) && f.kind === 'item-list' && isObj(f.list) && isObj(f.list.upkeep) && f.list.upkeep.each === 'clock'; })) {   // 1.6.0 (CORE gap 13): an upkeep paid by the clock, on what the counters left
+        var wkU = Object.assign({}, char, { values: Object.assign({}, char.values, out.values) }), upC = rowUpkeep(sys, wkU, out, 'clock', F, secs, perOf);
+        upC.moved.forEach(function(fid) { if (out.moved.indexOf(fid) < 0) out.moved.push(fid); }); if (upC.paid || upC.off.length) out.upkeep = { paid: upC.paid, off: upC.off };
+    }
     return out;
 }
 // [systemcheck:damage-start]
@@ -2639,6 +2694,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
         var oby = onum(v.once.by), ork = v.once.rank === 'lvl' && out.lvl ? 'lvl' : onum(v.once.rank);
         if (oby && ork) { var oo = { by: oby, rank: ork }, oc = onum(v.once.cost) || ocol(v.once.cost), ofr = onum(v.once.free); if (oc) oo.cost = oc; if (ofr) oo.free = ofr; out.once = oo; }
     }
+    if (gmView && out.on && isObj(v.upkeep)) { var upk = cleanUpkeep(v.upkeep, F); if (upk) out.upkeep = upk; }   // 1.6.0 (CORE gap 13): what a row switched on keeps paying, the GM's view alone
     if (Array.isArray(v.rolls)) {   // F5b: its rolls — a button on each row, the formula worked out with the row's names (Row.*; dice allowed), LIMITS.rowRolls at most
         var rls = [];
         v.rolls.forEach(function(rv) { if (rls.length >= LIMITS.rowRolls || !isObj(rv)) return; if (Array.isArray(rv.apply)) { var lap = { label: cutText(rv.label, LIMITS.label) || 'Apply', apply: cleanApplyChanges(rv.apply, false, true) }, lac = costKey(rv.cost); if (lac) lap.cost = lac; if (rv.to === 'near') lap.to = 'near'; if (rv.gm === true) lap.gm = true; var lsh = cleanFormulaText(rv.showIf); if (lsh) lap.showIf = lsh; var lal = cleanAlt(rv.alt, F); if (lal) lap.alt = lal; var lic = cleanIcon(rv.icon); if (lic) lap.icon = lic; if (gmView) { var lxc = cleanRowCross(rv.cross, out.counters); if (lxc) lap.cross = lxc; } partPlaceIn(lap, rv); rls.push(lap); return; } var rro = { label: cutText(rv.label, LIMITS.label) || 'Roll', formula: cleanFormulaText(rv.formula) || '' }; if (Array.isArray(rv.then)) { var rth = cleanApplyChanges(rv.then, true, true); if (rth.length) rro.then = rth; } var rmf2 = cleanFormulaText(rv.malf); if (rmf2) rro.malf = rmf2; critRangeInto(rro, rv); var rbg2 = cleanFormulaText(rv.bigAt); if (rbg2) rro.bigAt = rbg2; if (rv.dmg === true) { rro.dmg = true; var rdt = cleanFormulaText(rv.dtype); if (rdt) rro.dtype = rdt; var rad = cleanFormulaText(rv.ad); if (rad) rro.ad = rad; } var rnd = cleanFormulaText(rv.needs); if (rnd) { rro.needs = rnd; var rnt = cutText(rv.needsText, LIMITS.label); if (rnt) rro.needsText = rnt; } var lrc = costKey(rv.cost); if (lrc) rro.cost = lrc; var lrd = cleanDie(rv.die); if (lrd) rro.die = lrd; if (rv.to === 'near') rro.to = 'near'; if (rv.gm === true) rro.gm = true; var rsh = cleanFormulaText(rv.showIf); if (rsh) rro.showIf = rsh; var ral = cleanAlt(rv.alt, F); if (ral) rro.alt = ral; var rshw = rollShowOf(rv.show, out.cols); if (rshw) rro.show = rshw; var ric = cleanIcon(rv.icon); if (ric) rro.icon = ric; if (rv.askLvl === true && out.lvl) rro.askLvl = true; if (gmView) { var rxc = cleanRowCross(rv.cross, out.counters); if (rxc) rro.cross = rxc; } resistByInto(rro, rv, gmView); partPlaceIn(rro, rv); rls.push(rro); });   // cross (1.6.0): it also runs on a row whose counter crosses a step   // showIf (1.6.0): Shown where, a formula of the row's names; its button only on rows where it holds   // 1.6.0: gm, only the GM presses it (the players' view drops it: applyTargets)   // R2b: a list roll's consequences (a counter too) and what it needs   // HUD H7b: or an apply action on each row (its amounts read the row as Row.*)
@@ -3088,7 +3144,8 @@ function cleanSystem(sys, opts) {
     out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.load) && (f.list.load.from === f.id || ldLv[f.list.load.from] !== 1)) delete f.list.load; });
     var chIl = map(); out.fields.forEach(function(f) { if (f.kind === 'item-list') chIl[f.id] = 1; });   // 1.5.9 Chambers from: an item list of this view, this very list too (the players' view: a GM-only list is not there, so its chamber goes)
     out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.chamber) && chIl[f.list.chamber.from] !== 1) delete f.list.chamber; });
-    out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.parts) && chIl[f.list.parts.from] !== 1) delete f.list.parts; });   // 1.6.0 R14: parts from an item list of this view, this very list too
+    out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.parts) && chIl[f.list.parts.from] !== 1) delete f.list.parts; });
+    var upRs = map(); out.fields.forEach(function(f) { if (f.kind === 'resource') upRs[f.id] = 1; }); out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.upkeep) && upRs[f.list.upkeep.pool] !== 1) delete f.list.upkeep; });   // 1.6.0 (CORE gap 13): an upkeep comes off a pool of this view   // 1.6.0 R14: parts from an item list of this view, this very list too
     if (gmView) oneSpelling(out.fields);   // Stage 6 F4c1 (critic 2): one spelling per stat key, the first list's in field order
     var seenR = map();
     (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (out.rolls.length >= LIMITS.rolls) return; var c = cleanRollDef(r, gmView); if (!c || seenR[c.id]) return; seenR[c.id] = 1; out.rolls.push(c); });
@@ -3585,6 +3642,7 @@ function applyRound(sys, char, varsFor, F, tctx, kind, D, fxo) {   // fxo (1.6.0
     var out = { values: {}, ran: 0 }; if (!sys || !isObj(char) || typeof varsFor !== 'function' || !F) return out;
     var work = Object.assign({}, char, { values: Object.assign({}, isObj(char.values) ? char.values : {}) });
     if (kind === 'turn') turnCounters(sys, work, out);   // 1.6.0: counters that start again each turn, before the turn's own actions run
+    if (kind === 'turn' || kind === 'round') { var upT = rowUpkeep(sys, work, out, kind, F); if (upT.paid || upT.off.length) out.upkeep = { paid: upT.paid, off: upT.off }; }   // 1.6.0 (CORE gap 13): then what rows switched on keep paying
     roundActs(sys, kind).forEach(function(act) {
         var vv = varsFor(work); if (typeof vv !== 'function') return;
         if (act.to === 'near') vv = withOnSelf(vv, true);   // 1.6.0 (the review of 96e39ae6): a run by itself is on its own character, so OnSelf reads 1
@@ -4139,6 +4197,7 @@ function rowFacts(o, e, spec) {
     if (typeof e.paid === 'number' && fin(e.paid) && e.paid >= 0 && e.paid <= LIMITS.statAbs) o.paid = e.paid;
     var ct = cleanCt(e.ct, spec); if (ct) o.ct = ct;   // Stage 6 HUD R2: its counters
     var tt = cleanTt(e.tt, spec); if (tt) o.tt = tt;   // 1.6.0: the part of a step its timed counters have lived
+    if (isObj(spec) && isObj(spec.upkeep) && spec.upkeep.each === 'clock' && typeof e.ut === 'number' && fin(e.ut) && e.ut > 0) o.ut = Math.min(1e9, e.ut);   // 1.6.0 (CORE gap 13): ... and of a step its upkeep by the clock (the GM's alone)
     if (typeof e.in === 'string' && ROW_ID.test(e.in)) o.in = e.in;   // 1.6.0 R14: a part, by its host row's id
     if (typeof e.gr === 'string' && ROW_ID.test(e.gr)) o.gr = e.gr;   // 1.6.0 (v2, B4): a row another row granted, by that row's id (applyRowOp)
     var slF = lvlNum(e.sl); if (slF !== undefined && typeof e.sl === 'number') o.sl = isObj(spec) && isObj(spec.lvl) ? lvlClamp(spec.lvl, slF) : slF;   // 1.6.0: the level it started at (Row.startlvl; applyRowOp stamps it where its list keeps the starting level, as a level is kept)
@@ -6856,6 +6915,7 @@ function validateSystem(sys, F) {
     });
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.badges)) f.list.badges.forEach(function(b, j) { if (isObj(b) && typeof b.if === 'string') { badgeNow = true; try { checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#badge' }, 'list.badge.' + j + '.' + (b.words || 'badge'), b.if, false, f.vis, f); } finally { badgeNow = false; } } }); });   // 1.6.0 R4: a badge's Shown where (no dice, Row.* known)
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.on) && typeof f.list.on.needs === 'string' && f.list.on.needs) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#onneeds' }, 'list.onneeds', f.list.on.needs, false, f.vis, f); });
+    sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.upkeep) && typeof f.list.upkeep.amt === 'string' && f.list.upkeep.amt) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#upkeep' }, 'list.upamt', f.list.upkeep.amt, false, f.vis, f); });   // 1.6.0 (CORE gap 13): an upkeep's amount (no dice, Row.* known)
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.on) && typeof f.list.on.showIf === 'string' && f.list.on.showIf) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#onshow' }, 'list.onshow', f.list.on.showIf, false, f.vis, f); });   // 1.6.0: where a row's switch is shown (no dice, Row.* known)   // 1.5.8: what a row's switch needs (no dice, Row.* known)
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && typeof f.list.unheld === 'string' && f.list.unheld) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#unheld' }, 'list.unheld', f.list.unheld, false, f.vis, f); });   // 1.6.0 Rolls unheld entries: the Unheld level (no dice, Row.* known)
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.chamber) && typeof f.list.chamber.needs === 'string' && f.list.chamber.needs) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#chneeds' }, 'list.chneeds', f.list.chamber.needs, false, f.vis, f); });   // 1.5.9 Chambers only where: what a row must meet to chamber (no dice, Row.* known)
@@ -7053,6 +7113,7 @@ function validateSystem(sys, F) {
     function nodeName(x) { if (ix[x]) return ix[x].key; var ln = listNode(x); return ln ? (ln.pick ? ln.f.key + '.' + ln.pick.key + ' (choice)' : ln.f.key + '.' + (ln.col ? ln.col.key : '') + ' (column)') : x; }
     lowerKeys.forEach(function(k) { if (!state[k]) visit(k); });
     Object.keys(edges).forEach(function(k) { if (!state[k]) visit(k); });   // F5a1: the list columns' own nodes
+    [errors, warnings].forEach(function(a) { a.forEach(function(e) { if (e.prop === 'list.upamt') { e.message = 'Keeps paying: ' + e.message; e.prop = 'list'; } }); });   // 1.6.0 (CORE gap 13)
     [errors, warnings].forEach(function(a) { a.forEach(function(e) { if (e.prop === 'list.onneeds') { e.message = 'Needs to switch on: ' + e.message; e.prop = 'list'; } else if (e.prop === 'list.chneeds') { e.message = 'Chambers only where: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.col.') === 0) { e.message = 'Column \u201c' + e.prop.slice(9) + '\u201d: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && (e.prop.indexOf('list.then.') === 0 || e.prop.indexOf('list.needs.') === 0 || e.prop.indexOf('list.malf.') === 0 || e.prop.indexOf('list.cost.') === 0 || e.prop.indexOf('list.critAt.') === 0 || e.prop.indexOf('list.fumbleAt.') === 0 || e.prop.indexOf('list.bigAt.') === 0)) { var thq = e.prop.split('.'), isN = thq[1] === 'needs' || thq[1] === 'malf' || thq[1] === 'cost' || thq[1] === 'critAt' || thq[1] === 'fumbleAt' || thq[1] === 'bigAt'; e.message = 'Roll \u201c' + thq.slice(isN ? 3 : 4).join('.') + '\u201d, ' + (isN ? (thq[1] === 'malf' ? 'Malf' : thq[1] === 'cost' ? 'costs' : thq[1] === 'critAt' ? 'critical at' : thq[1] === 'fumbleAt' ? 'critical failure at' : thq[1] === 'bigAt' ? 'lands as a Big Hit at' : 'needs') : 'then ' + (+thq[3] + 1)) + ': ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.ctr.') === 0) { e.message = 'Counter \u201c' + e.prop.slice(9) + '\u201d, its most: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.apply.') === 0) { var apq = e.prop.slice(11).split('.'); e.message = 'Apply \u201c' + apq.slice(2).join('.') + '\u201d' + (apq[1] === 'x' ? '' : ', change ' + (+apq[1] + 1)) + ': ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.roll.') === 0) { var rp = e.prop.slice(10), rd2 = rp.indexOf('.'); e.message = 'Roll \u201c' + (rd2 >= 0 ? rp.slice(rd2 + 1) : rp) + '\u201d: ' + e.message; e.prop = 'list'; } }); });   // F5b: a list roll's too   // F5a1: a column's messages under its list's card
     return { ok: errors.length === 0, errors: errors, warnings: warnings };
 }

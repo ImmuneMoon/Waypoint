@@ -1322,12 +1322,20 @@ function rowTimers(sys, char, secs, perOf, F) {   // F (1.6.0): the formula engi
 // 1.6.0 (the core's armour rule, asked by the campaign build's session): a layer may say by formula what a hit wears. majorWear on a Major
 // Wound in place of a quarter of its listed figure; brokenWear and brokenMajorWear once its figure there is used up (Broken), for an
 // injuring hit and a Major Wound (a Major Wound with no brokenMajorWear reads majorWear). Each reads the row (Row.), the location (Hit.),
-// Listed (its figure there) and Worn (what has worn off); one that gives no number, or less than 0, wears what the layer wore before
+// Listed (its figure there) and Worn (what has worn off); one that gives no number, or less than 0, wears what the layer wore before.
+// The blow's own names too (book round hg, asked by the same session): Blow.dmg the damage rolled, before Protection; Blow.through what got
+// past it; Blow.wound the wound it dealt; Blow.type the damage type's place in the Combat card's list, 1 the first, 0 none; Blow.cuts 1 for a
+// type ticked as cutting; and ToDestroy, the wear that takes the piece to minus its listed figure, destroyed
 var LAYER_WEAR = ['majorWear', 'brokenWear', 'brokenMajorWear'];
-function layerStep(ly, major, listed, worn, ev, both) {
+function layerStep(ly, major, listed, worn, ev, both, blow) {
     var base = major ? Math.ceil(listed / 4) : 1, brk = listed - worn <= 0, wf = brk ? (major ? (ly.brokenMajorWear || ly.majorWear) : ly.brokenWear) : (major ? ly.majorWear : null);
     if (typeof wf !== 'string' || !wf) return base;
-    var lw = function(l, text) { if (l === 'listed') return listed; if (l === 'worn') return worn; return both(l, text); };
+    var bw = blow && typeof blow === 'object' ? blow : {}, bn = function(v) { return typeof v === 'number' && isFinite(v) ? v : 0; };
+    var lw = function(l, text) {
+        if (l === 'listed') return listed; if (l === 'worn') return worn; if (l === 'todestroy') return Math.max(0, listed * 2 - worn);
+        if (l === 'blow.dmg') return bn(bw.dmg); if (l === 'blow.through') return bn(bw.through); if (l === 'blow.wound') return bn(bw.wound); if (l === 'blow.type') return bn(bw.type); if (l === 'blow.cuts') return bw.cuts ? 1 : 0;
+        return both(l, text);
+    };
     var v = ev(wf, lw); return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.floor(v) : base;
 }
 var DMG_LIM = Object.freeze({ types: 24, layers: 8, weapons: 4, plus: 8, mult: 10, amt: 1000000, wears: 8, dice: 100 });
@@ -1513,6 +1521,7 @@ function damageStep(sys, char, inp, F, ropts, fxo) {   // 1.6.0 (B3): fxo, the c
             if (pool === (rules.pool || sys.combat.hpResource) && rules.major) { var th = num(ev(rules.major, hitR)); if (th > 0 && wound >= th) { info.major = true; lines.push('A Major Wound.'); dmgOnMajor(sys, char, rules.onMajor, values, lines, info, F, fxo); } }
             if (lrow && rules.locs.crip) { var cp = get(lf, lrow, rules.locs.crip); if (cp > 0 && wound > cp) { info.crip = true; lines.push('Enough to cripple ' + lname + '.'); } }
         }
+        var blowW = { dmg: amt, through: info.through, wound: info.wound, type: ty ? (rules.types || []).indexOf(ty) + 1 : 0, cuts: !!(ty && ty.cuts === true) };   // the blow, for a layer's wear formulas
         if (lrow && !noWear && (wound > 0 || dWear > 0)) (rules.layers || []).forEach(function(ly) {   // 1.6.0: a type that wears by the dice wears whether or not the blow gets through
             var f = fieldById(sys, ly.list), src = f && char.values && Array.isArray(char.values[f.id]) ? char.values[f.id] : null; if (!src || !f.list) return;
             var list = JSON.parse(JSON.stringify(src)), changed = false, hasOn = isObj(f.list.on);
@@ -1523,7 +1532,7 @@ function damageStep(sys, char, inp, F, ropts, fxo) {   // 1.6.0 (B3): fxo, the c
                 var listed = Math.floor(num(ev(ly.at, both))); if (listed <= 0) return;
                 var wk = ly.wear; if (Array.isArray(ly.wears) && ly.pick) { var pi = Math.round(num(ev(ly.pick, both))); if (pi >= 1 && pi <= ly.wears.length) wk = ly.wears[pi - 1]; }   // 1.6.0: the stat worn where it struck
                 var w = num(R.stat(f, row, wk)), beats = wound > 0 && amt > Math.max(0, listed - w); if (!beats && !dWear) return;   // the blow is more than it as it stands
-                var step = (beats ? layerStep(ly, info.major, listed, w, ev, both) : 0) + dWear, nw = Math.min(listed * 2, w + step); if (nw === w) return;   // 1.6.0: by the layer's own formulas where it has them
+                var step = (beats ? layerStep(ly, info.major, listed, w, ev, both, blowW) : 0) + dWear, nw = Math.min(listed * 2, w + step); if (nw === w) return;   // 1.6.0: by the layer's own formulas where it has them
                 dmgRowPut(row, wk, nw); changed = true;
                 var rd = rowDef(sys, row), nm = rd && rd.def && rd.def.name ? rd.def.name : 'A piece';
                 var wi = { list: f.id, row: rid, from: listed - w, to: listed - nw }; if (wk !== ly.wear) wi.stat = wk; info.wear.push(wi);

@@ -8241,8 +8241,8 @@ function damageBox(box, cm) {
         }
         if (l.list) {   // 1.6.0: what a hit wears, by formula (systemcore layerStep)
             var ww = el('div', 'sys-flags sys-dmgr-layer sys-dmgr-lwearby'); ww.dataset.li = String(i);
-            dbxCap(ww, 'Wears on a Major Wound'); var mw = input('sys-dmgr-lmajw field', dbxStr(l.majorWear), 'What a Major Wound wears off this layer. Empty: a quarter of its figure, rounded up. It reads Row, Hit, Listed (its figure there) and Worn (what has worn off)', 'e.g. ceil(Listed / 4)'); mw.maxLength = LIMITS.formula; ww.appendChild(mw);
-            dbxCap(ww, 'Once broken, a hit'); var bw = input('sys-dmgr-lbrkw field', dbxStr(l.brokenWear), 'What an injuring hit wears once this layer is broken there (its figure used up). Empty: 1', 'e.g. 1'); bw.maxLength = LIMITS.formula; ww.appendChild(bw);
+            dbxCap(ww, 'Wears on a Major Wound'); var mw = input('sys-dmgr-lmajw field', dbxStr(l.majorWear), 'What a Major Wound wears off this layer. Empty: a quarter of its figure, rounded up. It reads Row, Hit, Listed (its figure there), Worn (what has worn off), ToDestroy, and the blow: Blow.dmg, Blow.through, Blow.wound, Blow.type and Blow.cuts', 'e.g. ceil(Listed / 4)'); mw.maxLength = LIMITS.formula; ww.appendChild(mw);
+            dbxCap(ww, 'Once broken, a hit'); var bw = input('sys-dmgr-lbrkw field', dbxStr(l.brokenWear), 'What an injuring hit wears once this layer is broken there (its figure used up). Empty: 1. ToDestroy destroys the piece', 'e.g. 1'); bw.maxLength = LIMITS.formula; ww.appendChild(bw);
             dbxCap(ww, 'and a Major Wound'); var bm = input('sys-dmgr-lbrkm field', dbxStr(l.brokenMajorWear), 'What a Major Wound wears once this layer is broken there. Empty: as on a Major Wound above', 'e.g. ceil(Row.Dur / 4)'); bm.maxLength = LIMITS.formula; ww.appendChild(bm);
             wrap.appendChild(ww);
         }

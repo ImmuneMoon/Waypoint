@@ -5394,6 +5394,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             h.kids.length === 1 && h.kids[0].title === 'Counted once with ' + BAD + ': the higher applies, and this row gives nothing of its own.' && h.kids[0].textContent === 'counted once'
             && opts.indexOf(BAD + ' (grp)') >= 0 && made.indexOf('innerHTML') < 0 && !/innerHTML|insertAdjacentHTML|outerHTML/.test(cut('onceBits') + cut('onceBox')), JSON.stringify([h.kids.map(k => k.title), opts]));
     }
+    {   // 1.6.0 (v2, B7a) Group roll on the GM's menu: a roll's label from a campaign file reaches the menu's markup escaped, by whiteboard.js gmEsc
+        const wbR = read('whiteboard.js').replace(/\r\n/g, '\n'), a = wbR.indexOf('// [systemcheck:grouproll-menu-start]'), b = wbR.indexOf('// [systemcheck:grouproll-menu-end]'), gl = wbR.match(/\nfunction gmEsc\(s\) \{[^\n]*\n/);
+        const BAD = '"><img src=x onerror=alert(1)><b x=\'', GR = new Function('window', '"use strict";\n' + (gl ? gl[0] : '') + wbR.slice(a, b) + '\nreturn { model: groupRollModel, html: groupRollHtml };')({ wpSheets: { groupRollsFor: () => [{ id: 'r_1', label: BAD }, { id: 'r_2', label: 7 }] } });
+        const hR = GR.html(GR.model({ whiteboard: [{ id: 't1', charId: 'c_1' }, { id: 't2', charId: 'c_2' }] }, ['t1', 't2']));
+        check('Group roll on the GM\'s menu: a roll label from a file is written escaped (no tag, no attribute break), a label that is no text written as text, and nothing of a token or a character is written',
+            a > 0 && b > a && !!gl && hR.indexOf('<img') < 0 && hR.indexOf('<b x') < 0 && hR.indexOf('&lt;img src=x onerror=alert(1)&gt;') > 0 && hR.indexOf('&quot;&gt;') > 0 && hR.indexOf('&#39;') > 0 && />7<\/div>/.test(hR) && hR.indexOf('c_1') < 0 && hR.indexOf('t1') < 0, hR);
+    }
     {   // 1.5.8 the Library window's blast extras: a hostile damage type and number from a campaign file reach the form as values and text alone, and Save keeps neither
         const SYB = await import(modUrl('systemcore.js')), LCB = await import(modUrl('librarycore.js')), FB = await import(modUrl('formula.js'));
         const wS = fs.readFileSync(path.join(dir, 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n'), made = [], j = JSON.stringify;

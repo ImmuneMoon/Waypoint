@@ -11,6 +11,7 @@ import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsKept, grantsKept, GRANT_MAX, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
+import { groupRolls, groupWeakest } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
@@ -4207,6 +4208,29 @@ var _swMemo = null;
 function swAll(sys, c) { if (!_swMemo) { _swMemo = typeof Map === 'function' ? new Map() : null; if (_swMemo) Promise.resolve().then(function() { _swMemo = null; }); } var hit = _swMemo ? _swMemo.get(c) : null; if (hit && hit.sys === sys) return hit.all; var all = rollSwitchesAll(sys, c); if (_swMemo) _swMemo.set(c, { sys: sys, all: all }); return all; }
 function swCount(c, ref) { var sys = systemOf(); if (!sys || !c || typeof c !== 'object') return 0; try { return rollSwitches(sys, c, ref, swAll(sys, c)).length; } catch (e) { return 0; } }
 function rollSwitchesFor(charId, ref) { var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp); if (!sys || !c || !ref || typeof ref !== 'object') return []; try { return rollSwitches(sys, c, ref).map(function(w) { return { s: w.s, i: w.i, name: w.name, v: w.v }; }); } catch (e) { return []; } }
+// [systemcheck:grouproll-start]
+// 1.6.0 (v2, B7a; the owner, 2026-10-29, by prompt: "Lowest target (Recommended)", "Right-click menu (Recommended)"): a group roll by its weakest
+// member, on the GM's own machine. groupRollsFor: the rolls two or more characters picked may roll as a group (none for a player, the stream
+// window or with dice off). groupRoll works each one's target out (systemcore groupWeakest) and rolls once as the lowest, as its sheet's button
+// would, its card named for the group; the GM is told who rolled and against what
+function groupMembers(ids, camp) { var out = [], seen = {}; (Array.isArray(ids) ? ids : []).forEach(function(id) { var c = charById(id, camp); if (!c || seen[id]) return; seen[id] = 1; out.push({ id: id, char: c, tctx: tokenCtxFor(id, camp) }); }); return out; }
+function groupRollsFor(ids) {
+    var camp = getActiveCampaign(), sys = systemOf(camp); if (isClient() || window.wpStream || !sys || !F() || !window.wpDice || !window.wpDice.rollFor || (window.wpVtt && !window.wpVtt.on('dice'))) return [];
+    if (groupMembers(ids, camp).length < 2) return [];
+    return groupRolls(sys, F()).map(function(r) { return { id: r.id, label: r.label || 'Roll' }; });
+}
+function groupRoll(ids, rollId) {
+    var camp = getActiveCampaign(), sys = systemOf(camp), ms = groupMembers(ids, camp); if (!groupRollsFor(ids).length) return null;
+    var gw = groupWeakest(sys, ms, rollId, F());
+    if (!gw) { toast('No one picked has a target for that roll.'); if (window.wpStepLog) window.wpStepLog('grouproll v1', 'none', { n: ms.length }); return null; }
+    var r = gw.roll, who = charById(gw.pick.id, camp), oR = r.vis === 'gm' ? { gmOnly: true } : undefined;
+    if (r.needs || (Array.isArray(r.then) && r.then.length) || r.malf || r.cost || r.dmg) { oR = oR || {}; oR.act = r.id; }
+    var rr = window.wpDice.rollFor(gw.pick.id, r.formula, (r.label && r.label.indexOf('{') < 0 ? r.label : 'Roll') + ', for the group of ' + ms.length, oR);
+    if (window.wpStepLog) window.wpStepLog('grouproll v1', rr && rr.error ? 'failed' : 'rolled', { n: ms.length, read: gw.all.filter(function(a) { return a.target !== null; }).length });
+    if (!(rr && rr.error)) toast(String((who && who.name) || 'The weakest').slice(0, 60) + ' rolls for the group, against ' + fmtNum(gw.pick.target) + '.');
+    return gw;
+}
+// [systemcheck:grouproll-end]
 function sheetRoll(e, charId, expr, label, opts, swRef) {   // swRef (1.6.0): which roll this is, for the roll switches its \u00b1 window offers (handed to that window alone)
     if (!window.wpDice) return;
     if ((e.shiftKey || e.altKey) && window.wpDice.rollWithMod) { if (swRef) window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget, swRef); else window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget); }
@@ -9745,7 +9769,7 @@ function damageFromRoll(fromId, total, done, type, more) {   // 1.5.7: done, cal
 }
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
 // [systemcheck:dmgwin-end]
-window.wpSheets = { bellNote: bellNote, majorFollow: majorFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, majorFollow: majorFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

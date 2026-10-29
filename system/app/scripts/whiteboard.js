@@ -9200,6 +9200,25 @@ function tableMenuParts(e, role) {
     }
     return { html: html, wire: wire };
 }
+// [systemcheck:grouproll-menu-start]
+// 1.6.0 (v2, B7a): Group roll on the GM's menu for two or more character tokens: a flyout of the system's checks by name, and the one with the
+// lowest target rolls once for everyone picked (wpSheets.groupRoll). A roll's label is the one word of the system it writes, escaped
+function groupRollModel(map, ids) {
+    var S = window.wpSheets; if (!map || !Array.isArray(map.whiteboard) || !Array.isArray(ids) || ids.length < 2 || !S || typeof S.groupRollsFor !== 'function') return null;
+    var cids = []; ids.forEach(function(id) { var w = map.whiteboard.find(function(x) { return x.id === id; }); if (w && typeof w.charId === 'string' && w.charId && !w.waiting && cids.indexOf(w.charId) < 0) cids.push(w.charId); });
+    var rolls = cids.length > 1 ? S.groupRollsFor(cids) : []; return rolls.length ? { ids: cids, rolls: rolls } : null;
+}
+function groupRollHtml(m) {
+    if (!m) return '';
+    var h = '<div class="menu-item cm-grp-open" title="The one with the lowest target for the roll rolls once for everyone picked"><span>&#127922; Group roll</span><span style="margin-left:auto; color:var(--dim);">&#8250;</span><div class="cm-sub">';
+    m.rolls.forEach(function(r, i) { h += '<div class="menu-item cm-grp-roll" data-i="' + i + '">' + gmEsc(String(r.label).slice(0, 60)) + '</div>'; });
+    return h + '</div></div>';
+}
+function groupRollWire(cMenu, m) {
+    var open = cMenu.querySelector('.cm-grp-open'); if (!open || !m) return;
+    open.addEventListener('click', function(ce) { ce.stopPropagation(); var row = ce.target && ce.target.closest ? ce.target.closest('.cm-grp-roll') : null, g = row ? m.rolls[+row.dataset.i] : null; if (!row) { open.classList.toggle('open'); return; } cMenu.style.display = 'none'; if (g) window.wpSheets.groupRoll(m.ids, g.id); });
+}
+// [systemcheck:grouproll-menu-end]
 // [systemcheck:gmfight-start]
 // The GM's own rows on a character token's menu at a hosted table (the owner, 2026-10-04: "theres no way for me to target a player as an NPC
 // and start combat, or join combat"): Target (the GM's one pointer, which an NPC's rolls read the range by and which ticks its token when a
@@ -9371,6 +9390,7 @@ document.addEventListener('contextmenu', function(e) {
             var selNow = state.selWbIds && state.selWbIds.length ? state.selWbIds : (state.selWbId ? [state.selWbId] : []), selAs = isWb && selNow.length === 1 ? am.whiteboard.find(function(x) { return x.id === selNow[0]; }) : null;   // 158: the one token selected, which may target the token under the pointer
             var gmF = isWb ? gmFightModel(am, selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean), selAs) : null; html += gmFightHtml(gmF);   // the GM's own Target, Start combat, Add to the fight
             var gmR = isWb ? gmRulesModel(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean)) : null; html += gmRulesHtml(gmR);   // 152 fold 4b: an NPC's Rules run switch
+            var grpM = isWb ? groupRollModel(am, selectedIds) : null; html += groupRollHtml(grpM);   // 1.6.0 (v2, B7a): Group roll
             if (sheetTop && firstItem.charId && window.wpTrade && window.wpTrade.canAsk) { var trQ = window.wpTrade.canAsk(firstItem, am, selAs); if (trQ) html += '<div class="menu-item cm-trade" title="Open a barter window: each side puts items and money on the table, and both confirm">&#8644; ' + esc(trQ.label) + '</div>'; }   // 1.5.6 trading: as the one NPC selected
             
             if (isWb) {
@@ -9488,6 +9508,7 @@ document.addEventListener('contextmenu', function(e) {
             placeMenu(cMenu, e);
             Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-gm-fight'), function(rw) { rw.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; gmFightDo(am, gmF, rw.dataset.fight); }); });
             Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-gm-rules'), function(rw) { rw.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; gmRulesDo(gmR); }); });   // 152 fold 4b
+            groupRollWire(cMenu, grpM);   // 1.6.0 (v2, B7a)
 
             // Elevation / posture rows (character tokens, when the toggles are on)
             if (isWb) wireStanceMenu(cMenu, selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), function() { save(); render(); });

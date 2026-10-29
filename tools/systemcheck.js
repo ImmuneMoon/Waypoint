@@ -13805,6 +13805,46 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && r5.ok && r5.valuesB.f_mods.length === 1 && r5.valuesB.f_mods[0].in === undefined && r6.ok && r6.valuesB.f_mods.length === 1 && typeof r6.valuesB.f_mods[0].in === 'string'
             && r7.ok === false && r7.reason === 'one' && r8.ok === false && r8.reason === 'changed', j([r2, r3, r4, r5, r6, r7, r8]));
     }
+    {   // 1.6.0 (v2, B7a): a group roll by its weakest member (systemcore groupweak, sheets.js grouproll and whiteboard.js grouproll-menu, run for real)
+        const j = JSON.stringify, sG = S.cleanSystem({ v: 1, name: 'G', fields: [{ id: 'f_s', key: 'Stealth', label: 'Stealth', kind: 'number', vis: 'all', def: 10 }],
+            rolls: [{ id: 'r_st', label: 'Stealth', formula: '3d6 <= Stealth' }, { id: 'r_sum', label: 'Damage', formula: '2d6 + 1' }, { id: 'r_in', label: 'Initiative', formula: 'd20 >= 5', init: true },
+                { id: 'r_dd', label: 'Dodge', formula: '3d6 <= 1d6 + Stealth' }, { id: 'r_co', label: 'Sneak', formula: '3d6 <= Stealth - 2', cost: 'Move' }, { id: 'r_ac', label: 'Heal', apply: [{ formula: '1' }] }] }, { F, gmView: true });
+        const ch = (id, v) => ({ id, char: { id, name: id === 'c_s' ? 'Sela' : id === 'c_k' ? 'Kael' : 'Pebbles', values: v === undefined ? {} : { f_s: v } } });
+        const gw = S.groupWeakest(sG, [ch('c_k', 12), ch('c_s', 9), ch('c_p', 14), ch('c_t', 9), ch('c_s', 3), null, { id: 'c_x' }], 'r_st', F), gDef = S.groupWeakest(sG, [ch('c_k', 12), ch('c_p')], 'r_st', F);
+        const many = S.groupWeakest(sG, Array.from({ length: 60 }, (x, i) => ch('c_' + i, 60 - i)), 'r_st', F);
+        check('1.6.0 group roll by the weakest (systemcore): groupRolls lists the system\'s checks alone (never a plain sum, the initiative roll or an action); groupWeakest reads each one\'s target, the right side of the check, from their own sheet, and the lowest rolls, the first picked on a tie; a character once; one with no value reads the field\'s default; a target that rolls dice, a roll that is no check and one that is not there answer none; 40 picked at most',
+            j(S.groupRolls(sG, F).map(r => r.id)) === j(['r_st', 'r_dd', 'r_co']) && gw && gw.pick.id === 'c_s' && gw.pick.target === 9 && gw.roll.id === 'r_st' && j(gw.all) === j([{ id: 'c_k', target: 12 }, { id: 'c_s', target: 9 }, { id: 'c_p', target: 14 }, { id: 'c_t', target: 9 }])
+            && gDef && gDef.pick.id === 'c_p' && gDef.pick.target === 10 && S.groupWeakest(sG, [ch('c_k', 12), ch('c_s', 9)], 'r_dd', F) === null && S.groupWeakest(sG, [ch('c_k', 12), ch('c_s', 9)], 'r_sum', F) === null && S.groupWeakest(sG, [ch('c_k', 12)], 'r_nope', F) === null
+            && many.all.length === S.GROUP_MAX && many.pick.target === 21 && S.rollTargetOf(F, '3d6 <= 12', null) === 12 && S.rollTargetOf(F, '2d6', null) === null, j([gw, gDef]));
+        const shG = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), wbG = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
+        const cutG = (s, k) => { const a = s.indexOf('// [systemcheck:' + k + '-start]'), b = s.indexOf('// [systemcheck:' + k + '-end]'); if (a < 0 || b < 0) throw new Error('grouproll slice ' + k); return s.slice(a, b); };
+        const mkGR = o => {
+            o = o || {}; const out = { rolls: [], toasts: [], logs: [] }, chars = { c_k: { id: 'c_k', name: 'Kael', values: { f_s: 12 } }, c_s: { id: 'c_s', name: 'Sela', values: { f_s: 9 } }, c_p: { id: 'c_p', name: 'Pebbles', values: { f_s: 14 } } }, camp = { system: sG, chars };
+            const win = { wpDice: { rollFor: (...a) => { out.rolls.push(a); return o.err ? { error: 'x' } : { ok: true }; } }, wpVtt: { on: () => o.dice !== false }, wpStepLog: (...a) => out.logs.push(a), wpStream: o.stream ? {} : undefined };
+            out.api = new Function('charById', 'tokenCtxFor', 'getActiveCampaign', 'systemOf', 'isClient', 'F', 'toast', 'fmtNum', 'groupRolls', 'groupWeakest', 'window', '"use strict";\n' + cutG(shG, 'grouproll') + '\nreturn { groupRollsFor: groupRollsFor, groupRoll: groupRoll };')(
+                id => chars[id] || null, () => null, () => camp, c => c.system, () => !!o.client, () => F, m => out.toasts.push(m), n => String(n), S.groupRolls, S.groupWeakest, win);
+            return out;
+        };
+        const G1 = mkGR(), lst = G1.api.groupRollsFor(['c_k', 'c_s', 'c_p']), done = G1.api.groupRoll(['c_k', 'c_s', 'c_p', 'c_s', 'c_gone'], 'r_st'), G2 = mkGR(); G2.api.groupRoll(['c_k', 'c_s'], 'r_co');
+        const G3 = mkGR(); const none = G3.api.groupRoll(['c_k', 'c_s'], 'r_dd');
+        check('1.6.0 group roll by the weakest (sheets.js, run for real): the GM\'s machine lists the checks for two or more characters picked, none for one, a player, the stream window or with dice off; Group roll rolls once, as the lowest target, the roll\'s own formula named for the group, a roll with a cost naming itself for the host; the GM is told who rolled and against what, and each step is logged by its structure alone; none with a target is said and rolls nothing',
+            j(lst) === j([{ id: 'r_st', label: 'Stealth' }, { id: 'r_dd', label: 'Dodge' }, { id: 'r_co', label: 'Sneak' }]) && mkGR().api.groupRollsFor(['c_k']).length === 0 && mkGR({ client: true }).api.groupRollsFor(['c_k', 'c_s']).length === 0
+            && mkGR({ stream: true }).api.groupRollsFor(['c_k', 'c_s']).length === 0 && mkGR({ dice: false }).api.groupRollsFor(['c_k', 'c_s']).length === 0
+            && done && done.pick.id === 'c_s' && j(G1.rolls) === j([['c_s', '3d6 <= Stealth', 'Stealth, for the group of 3', undefined]]) && j(G1.toasts) === j(['Sela rolls for the group, against 9.']) && j(G1.logs) === j([['grouproll v1', 'rolled', { n: 3, read: 3 }]])
+            && j(G2.rolls) === j([['c_s', '3d6 <= Stealth - 2', 'Sneak, for the group of 2', { act: 'r_co' }]]) && none === null && G3.rolls.length === 0 && j(G3.toasts) === j(['No one picked has a target for that roll.']) && j(G3.logs) === j([['grouproll v1', 'none', { n: 2 }]]),
+            j([lst, G1, G2.rolls, G3]));
+        const called = [], wS = { groupRollsFor: ids => ids.length > 1 ? [{ id: 'r_st', label: '<img src=x onerror=1>"' }] : [], groupRoll: (ids, id) => called.push([ids, id]) };
+        const GM = new Function('window', 'gmEsc', '"use strict";\n' + cutG(wbG, 'grouproll-menu') + '\nreturn { model: groupRollModel, html: groupRollHtml, wire: groupRollWire };')({ wpSheets: wS }, s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'));
+        const mapG = { whiteboard: [{ id: 't1', charId: 'c_k' }, { id: 't2', charId: 'c_s' }, { id: 't3', charId: 'c_s' }, { id: 't4' }, { id: 't5', charId: 'c_p', waiting: true }] };
+        const mG = GM.model(mapG, ['t1', 't2', 't3', 't4', 't5']), hG = GM.html(mG), lone = GM.model(mapG, ['t2', 't3', 't4', 't5']);
+        const open = { cls: {}, on: {}, classList: { toggle(c) { open.cls[c] = !open.cls[c]; } }, addEventListener(t, fn) { open.on[t] = fn; } }, menuG = { style: { display: 'flex' }, querySelector: q => q === '.cm-grp-open' ? open : null };
+        GM.wire(menuG, mG); const stop = { n: 0 }, ev = t => ({ target: t, stopPropagation() { stop.n++; } });
+        open.on.click(ev({ closest: () => null })); const toggled = open.cls.open === true, shown = menuG.style.display;
+        open.on.click(ev({ closest: () => ({ dataset: { i: '0' } }) }));
+        check('1.6.0 group roll by the weakest (whiteboard.js, run for real): the GM\'s menu offers Group roll for two or more characters selected, each character once whatever its tokens, never a token with no character or a waiting one; a flyout of the checks by name, each label escaped; pressing the row opens it, pressing a roll closes the menu and rolls for those characters; nothing for one character',
+            mG && j(mG.ids) === j(['c_k', 'c_s']) && lone === null && GM.model(mapG, ['t1']) === null && /Group roll/.test(hG) && hG.indexOf('<img') < 0 && hG.indexOf('&lt;img src=x onerror=1&gt;&quot;') > 0 && (hG.match(/cm-grp-roll/g) || []).length === 1 && GM.html(null) === ''
+            && toggled && shown === 'flex' && menuG.style.display === 'none' && j(called) === j([[['c_k', 'c_s'], 'r_st']]) && stop.n === 2, j([mG, hG, called]));
+    }
     {   // 1.5.6 buying and selling: the Money box, the site's rules for money in and out, and a row op's price (systemcore, run for real)
         const j = JSON.stringify, mkS = (gm) => S.cleanSystem({ v: 1, name: 'M', rolls: [], fields: [
             { id: 'f_chips', key: 'Chips', label: 'Chips', kind: 'item-list', edit: 'owner', vis: 'all', list: { multi: true, cats: ['Credit Chip'], on: { label: 'Stowed' }, lvl: { label: 'Stored', min: 0, max: 100000, step: 0.01, def: 0 }, money: '@lvl' } },

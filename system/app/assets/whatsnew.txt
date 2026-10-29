@@ -82,6 +82,8 @@ Systems, more
   traded alone lands loose.
 - A formula may be up to 1000 characters, and a table roll too. It was
   300, and a longer formula was lost on Save.
+- Group roll, on your right-click menu for two or more character tokens,
+  rolls a check once for the group. The one with the lowest target rolls.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

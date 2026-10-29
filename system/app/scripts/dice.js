@@ -137,6 +137,15 @@ function renderDue(m) {
     if (rec.theirs) wrap.appendChild(el('div', 'chat-due-note', 'Its player presses it.'));
     else if (m.done) wrap.appendChild(el('div', 'chat-due-note', 'Pressed.'));
     else if (!window.wpPopout) {
+        if (rec.why === 'resist' && Array.isArray(rec.or) && rec.or.length) {   // 1.6.0 (the core's gap 5; the owner: "A button each"): a button for each roll it may be resisted with; one press uses the card up
+            var picks = [{ act: rec.act, label: rec.label || 'Roll' }].concat(rec.or), bs = [];
+            picks.forEach(function(p) {
+                var pb = el('button', 'tool chat-due-run', p.label || 'Roll'); pb.type = 'button'; pb.title = 'Resist with ' + (p.label || 'this roll') + ', as its button on the sheet rolls it'; bs.push(pb);
+                pb.addEventListener('click', function() { if (m.done) return; m.done = true; bs.forEach(function(x) { x.disabled = true; }); var ok = window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, p.act, rec.att) : false; if (!ok) { m.done = false; bs.forEach(function(x) { x.disabled = false; }); } });   // done first: the press's own card redraws the chat
+                wrap.appendChild(pb); wrap.appendChild(document.createTextNode(' '));
+            });
+            return wrap;
+        }
         var runW = rec.roll === 1 ? 'Roll' : 'Run', b = el('button', 'tool chat-due-run', runW); b.type = 'button'; b.title = rec.roll === 1 ? 'Roll it now, as its button on the sheet does' : 'Apply it now, as its button on the sheet does';   // 1.5.9: a roll that is due
         b.addEventListener('click', function() { if (m.done) return; m.done = true; b.disabled = true; b.textContent = 'Pressed'; var ok = window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, rec.act, rec.why === 'resist' ? rec.att : undefined) : false; if (!ok) { m.done = false; b.disabled = false; b.textContent = runW; } });   // done first: the press's own card redraws the chat
         wrap.appendChild(b);

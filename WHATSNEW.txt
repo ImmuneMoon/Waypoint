@@ -172,6 +172,9 @@ Systems, more
 - A roll can be Resisted by a roll ticked Resists an attempt. When it
   succeeds against your target, the target's player gets that roll as a card
   to press, and it reads AttemptMargin, how far the attempt succeeded.
+- A roll can be Or resisted by up to three more resist rolls. The target's
+  card has a button for each, such as Dodge, Parry and Block, and the
+  target picks one.
 - A success can wear a name on its card, such as Strong success when it
   beats its target by 5 or more.
 - A damage type can count the dice a blow rolled: DR, a wound, a vital

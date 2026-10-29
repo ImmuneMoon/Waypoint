@@ -275,7 +275,12 @@ function cleanDue(rec) {
         if (out.roll !== 1 || typeof rec.att !== 'string' || !ATT_RE.test(rec.att)) return null; out.att = rec.att;
         var byA = cleanLabel(rec.by); if (byA === null) return null; if (byA) out.by = byA;
         if (rec.m !== undefined) { if (typeof rec.m !== 'number' || !isFinite(rec.m) || Math.abs(rec.m) > 9999) return null; out.m = rec.m; }
-    } else if (rec.att !== undefined || rec.by !== undefined || rec.m !== undefined) return null;
+        if (rec.or !== undefined) {   // 1.6.0 (the core's gap 5): the other rolls the target may resist it with, each a button of its own: at most 3, each an id once and never act's, with its label
+            if (!Array.isArray(rec.or) || !rec.or.length || rec.or.length > 3) return null; var ors = [];
+            for (var oi = 0; oi < rec.or.length; oi++) { var o = rec.or[oi]; if (!o || typeof o !== 'object' || typeof o.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(o.act) || o.act === out.act || ors.some(function(x) { return x.act === o.act; })) return null; var ol = cleanLabel(o.label); if (ol === null) return null; ors.push(ol ? { act: o.act, label: ol } : { act: o.act }); }
+            out.or = ors;
+        }
+    } else if (rec.att !== undefined || rec.by !== undefined || rec.m !== undefined || rec.or !== undefined) return null;
     return out;
 }
 // 1.6.0 (B2): why a resist roll is due, in words: whose attempt, and by how much it succeeded

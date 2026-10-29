@@ -9531,11 +9531,11 @@ function applyLine(rec) { var D = DC(); return D && D.applyText ? D.applyText(re
 function dueLine(rec) { var D = DC(); return D && D.dueText ? D.dueText(rec) : 'An action is due.'; }
 // Turn-based combat T2b: a timed action that waits for a press — its reminder card (sheets.js timedHook): the character's player's when asked
 // (each connection of theirs; the GM's copy then says whose it is to press), else the GM's alone. A whisper: never in the join's history
-net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, B2): an attempt to resist, { att, by, m }
+net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, B2): an attempt to resist, { att, by, m } (1.6.0, the core's gap 5: and or, the other rolls it may be resisted by)
     if (!ch || typeof ch.id !== 'string' || !act || typeof act.id !== 'string') return;
     var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : kind === 'turnEnd' ? 'turnEnd' : kind === 'cross' ? 'cross' : kind === 'major' ? 'major' : kind === 'resist' && more && typeof more.att === 'string' ? 'resist' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
     if (ch.name) rec.as = String(ch.name).slice(0, 60);
-    if (rec.why === 'resist') { rec.att = more.att; if (more.by) rec.by = String(more.by).slice(0, 60); if (typeof more.m === 'number' && isFinite(more.m)) rec.m = Math.max(-9999, Math.min(9999, more.m)); }   // 1.6.0 (B2)
+    if (rec.why === 'resist') { rec.att = more.att; if (more.by) rec.by = String(more.by).slice(0, 60); if (typeof more.m === 'number' && isFinite(more.m)) rec.m = Math.max(-9999, Math.min(9999, more.m)); if (Array.isArray(more.or) && more.or.length) rec.or = more.or.slice(0, 3).map(function(r) { return { act: r.id, label: String(r.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll' }; }); }   // 1.6.0 (B2)   // 1.6.0 (the core's gap 5): a button for each
     if (!Array.isArray(act.apply)) { rec.roll = 1; if (rec.label === 'Apply') rec.label = String(act.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll'; }   // 1.5.9 (book es/et plan 4b): a roll that is due; its card's button rolls it
     postDue(rec, ch, !!toOwner);
 };
@@ -9555,7 +9555,7 @@ function postDue(rec, ch, toOwner) {
 // once. The margin is the host's own record, never a player's word. Memory alone, the newest ATT_MAX, gone with the table
 var _attempts = Object.create(null), _attIds = [], ATT_MAX = 100, ATT_GONE = 'That attempt has been resisted already, or is not there now.';
 function attemptForget() { _attempts = Object.create(null); _attIds = []; }
-function attemptPeek(id, charId, act) { var a = typeof id === 'string' && Object.prototype.hasOwnProperty.call(_attempts, id) ? _attempts[id] : null; return a && a.charId === charId && a.act === act ? a.m : null; }
+function attemptPeek(id, charId, act) { var a = typeof id === 'string' && Object.prototype.hasOwnProperty.call(_attempts, id) ? _attempts[id] : null; return a && a.charId === charId && (a.act === act || (Array.isArray(a.alts) && a.alts.indexOf(act) >= 0)) ? a.m : null; }   // 1.6.0 (the core's gap 5): or one of the other rolls it may be resisted by
 function attemptDrop(id) { if (typeof id === 'string' && Object.prototype.hasOwnProperty.call(_attempts, id)) { delete _attempts[id]; _attIds = _attIds.filter(function(x) { return x !== id; }); } }
 // the roll's entry as the GM's own system holds it: a players' view says only that it is resisted (resisted: true), so the host finds the
 // whole entry, a system roll by its id, a list's roll by the same label and formula
@@ -9576,8 +9576,10 @@ function attemptMake(camp, entry, vd, malf, range, fromCh, priv) {
     var tch = camp.chars[tok.charId]; if (!tch || typeof tch.id !== 'string' || (fromCh && tch.id === fromCh.id)) return null;
     var m = typeof S.thenMargin === 'function' ? S.thenMargin(vd, false) : (typeof vd.margin === 'number' ? vd.margin : 0), id = '';
     while (!id || Object.prototype.hasOwnProperty.call(_attempts, id)) { id = 'a_'; while (id.length < 10) id += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36)); }
-    _attempts[id] = { charId: tch.id, act: rr.id, m: m }; _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
-    if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, !priv && !tch.npc && !!tch.ownerId && rr.vis !== 'gm', { att: id, by: fromCh && fromCh.name ? fromCh.name : '', m: m });
+    var toO = !priv && !tch.npc && !!tch.ownerId && rr.vis !== 'gm', alts = [];   // 1.6.0 (the core's gap 5): the other rolls the target may pick, each a resist roll of the system, none GM-only on a player's card
+    (Array.isArray(entry.resistOr) ? entry.resistOr : []).forEach(function(oid) { (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === oid && r.id !== rr.id && r.resist === true && typeof r.formula === 'string' && !r.apply && !(toO && r.vis === 'gm') && alts.indexOf(r) < 0 && alts.length < 3) alts.push(r); }); });
+    _attempts[id] = { charId: tch.id, act: rr.id, m: m }; if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
+    if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, toO, { att: id, by: fromCh && fromCh.name ? fromCh.name : '', m: m, or: alts });
     return id;
 }
 net.attemptsKept = function() { return _attIds.length; };

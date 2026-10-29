@@ -3226,8 +3226,8 @@ pendingChecks.push((async () => {
         { id: 'f_gl', key: 'GMList', kind: 'item-list', vis: 'gm', list: { rolls: [{ label: 'G', apply: [{ f: 'f_ep', formula: '1' }] }] } }],
         items: [{ id: 'i_push', name: 'Ether Push', stats: { FPCost: 3, EPCost: 2 } }, { id: 'i_dark', name: 'Dark', vis: 'gm', stats: { FPCost: 1, EPCost: 1 } }] }, { F: Fx, gmView: true });
     const START = { f_fp: { cur: 5 }, f_pw: [{ id: 'w_1', defId: 'i_push' }, { id: 'w_2', defId: 'i_dark' }, { id: 'w_3', defId: 'i_push', hid: 1 }], f_gl: [{ id: 'w_g', defId: 'i_push' }] };
-    const host = msg => {
-        const camp = { id: 'k', system: sysL, items: {}, chars: { c_1: { id: 'c_1', name: 'Jed', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(START)) } } };
+    const host = (msg, sysX) => {
+        const camp = { id: 'k', system: sysX || sysL, items: {}, chars: { c_1: { id: 'c_1', name: 'Jed', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(START)) } } };
         const out = { owner: [], mate: [], chat: [], saves: 0 }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
         const conns = [{ peer: 'pA', open: true, send: box(out.owner) }, { peer: 'pB', open: true, send: box(out.mate) }];
         const net = { active: true, role: 'host', paused: false, combats: {}, conns, roster: { pA: { id: 'u_a', name: 'Jed P' }, pB: { id: 'u_b', name: 'Bo P' } } };
@@ -3255,6 +3255,11 @@ pendingChecks.push((async () => {
         j(typ(dH.owner)) === j(['char-deny:missing']) && j(typ(dNone.owner)) === j(['char-deny:missing']) && j(typ(dRoll.owner)) === j(['char-deny:field']) && j(typ(dList.owner)) === j(['char-deny:field']) && j(typ(dGl.owner)) === j(['char-deny:field'])
         && j(typ(dSly.owner)) === j(['char-deny:error']) && /GM only/.test(dSly.owner[0].msg || '') && [dH, dNone, dRoll, dList, dSly, dGl].every(quietL),
         j([dH.owner, dNone.owner, dRoll.owner, dList.owner, dSly.owner]));
+    // the core handbook session's ask (b) (2026-10-29): a list action keeps its needs, and the host judges a player's press of it by them, on the row
+    const rawNd = JSON.parse(JSON.stringify(sysL)); rawNd.fields[3].list.counters = [{ key: 'Charges' }]; rawNd.fields[3].list.rolls.push({ label: 'Zap', apply: [{ f: 'f_ep', formula: '1' }], needs: 'Row.Charges >= 1', needsText: 'Out of charges' }, { label: 'Calm', apply: [{ f: 'f_ep', formula: '1' }], needs: 'Row.Charges < 1' });
+    const sysNd = Sx.cleanSystem(rawNd, { F: Fx, gmView: true }), nZap = host(R('w_1', 4), sysNd), nCalm = host(R('w_1', 5), sysNd);
+    check('the core handbook session\'s ask (b): a player\'s press of a list\'s apply action on a row that does not meet its needs is refused in its words ("error", Out of charges), nothing moved, nothing saved; one whose needs hold is applied (EP 6 - 1)',
+        j(typ(nZap.owner)) === j(['char-deny:error']) && nZap.owner[0].msg === 'Out of charges' && quietL(nZap) && j(nCalm.vals.f_ep) === j({ cur: 5 }) && nCalm.owner.some(m => m.type === 'char-ack'), j([nZap.owner, typ(nCalm.owner), nCalm.vals]));
     const nsrcL = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), caAt = nsrcL.indexOf('net.charApply = function(charId, actId, label, row, on) {'), caSrc = nsrcL.slice(caAt, nsrcL.indexOf('\n};', caAt) + 3);
     const clientReq = (calls, o) => { o = o || {}; const sent = [], pend = {}, camp = { system: sysL, chars: { c_1: { id: 'c_1', ownerId: 'u_a' }, c_2: { id: 'c_2', ownerId: 'u_b' } } }, conn = { peer: 'H', open: true, send: m => sent.push(JSON.parse(JSON.stringify(m))) };
         const netC = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'H', myId: 'u_a', conns: [conn] };

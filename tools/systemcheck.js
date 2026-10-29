@@ -4846,8 +4846,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && j(b5_on.ch.values.f_fp) === j({ cur: 3 }) && b5_on.cards.length === 1 && b5_on.cards[0][3] === 'owner' && b5_on.toasts.length === 0, j([b5_kept.cards, b5_kept.toasts, b5_on.cards, b5_on.toasts]));
         }
         const hA = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
-        check('H7b the Lists card (source) and Help: a list roll has Kind: Roll | Apply and, as an apply action, its own change editor (listApplyEditor, built with el only); Help says a list\'s action works its amount out from the row',
-            /var rApply = Array\.isArray\(rr\.apply\), rk = el\('select', 'sys-list-rollkind'\);/.test(shL) && /if \(rApply\) \{ cb2\.appendChild\(rw\); var lxA = typeof listCrossRow === 'function' \? listCrossRow\(rr, ri, sp\.counters\) : null; if \(lxA\) cb2\.appendChild\(lxA\); listApplyEditor\(cb2, rr, ri, 'apply', sp, targets\); return; \}/.test(shL) && /function listApplyEditor\(box, rr, ri, key, sp, targets\) \{/.test(shL)
+        check('H7b the Lists card (source) and Help: a list roll has Kind: Roll | Apply and, as an apply action, its Needs row (the core handbook session\'s ask (b), moved on purpose) and its own change editor (listApplyEditor, built with el only); Help says a list\'s action works its amount out from the row',
+            /var rApply = Array\.isArray\(rr\.apply\), rk = el\('select', 'sys-list-rollkind'\);/.test(shL) && /if \(rApply\) \{ cb2\.appendChild\(rw\); var ndA = el\('div', 'sys-flags sys-list-needsrow'\);[^\n]*cb2\.appendChild\(ndA\); var lxA = typeof listCrossRow === 'function' \? listCrossRow\(rr, ri, sp\.counters\) : null; if \(lxA\) cb2\.appendChild\(lxA\); listApplyEditor\(cb2, rr, ri, 'apply', sp, targets\); return; \}/.test(shL) && /function listApplyEditor\(box, rr, ri, key, sp, targets\) \{/.test(shL)
             && /A list&rsquo;s roll can be an <b>apply<\/b> action too/.test(hA));
     }
     /* ---- Stage 6 HUD C8: show-if — a section or a placement shows only while its formula is true (render only, fail open) ---- */
@@ -15773,6 +15773,28 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('the core handbook session\'s ask 5 in the Lists tab (sheets.js upkeepChange, run for real; the box\'s Pays when its Pace says, its dispatcher and Help pinned): picking the stat names it and gives a row that says the clock its Every, a minute by default; changing when every row pays keeps that Every while the stat is picked; picking Every row pays so takes both away',
             e1 === J({ pool: 'f_mp', amt: '1', each: 'turn', eachBy: 'Pace', per: { n: 1, u: 'min' } }) && e2 === J({ pool: 'f_mp', amt: '1', each: 'round', eachBy: 'Pace', per: { n: 1, u: 'min' } }) && e3 === J({ pool: 'f_mp', amt: '1', each: 'round' })
             && shE.includes("rw.appendChild(sl('sys-list-upby', ebo, ebc,") && shE.includes("|| c.indexOf('sys-list-upby') >= 0) upkeepChange(lsc, t, c);") && fs.readFileSync(path.join(app, 'index.html'), 'utf8').includes('Then pick <b>Pays when its Pace says</b>.'), J([e1, e2, e3]));
+    }
+    {   // the core handbook session's asks (a) and (b) (2026-10-29): a counter keyed paid, and a list action's needs, on invented data
+        const J = JSON.stringify;
+        const rawN = { v: 1, name: 'N', rolls: [], fields: [{ id: 'f_mp', key: 'MP', kind: 'resource', maxFormula: '10', def: 'max', vis: 'all', edit: 'owner' }, { id: 'f_sg', key: 'Sight', kind: 'number', def: 0, vis: 'gm' },
+            { id: 'f_wd', key: 'Wands', kind: 'item-list', vis: 'all', edit: 'owner', list: { counters: [{ key: 'Charges', def: 2 }, { key: 'paid' }, { key: 'Paid' }], stats: [{ key: 'Pow' }],
+                rolls: [{ label: 'Zap', apply: [{ f: 'f_mp', formula: '1' }], needs: 'Row.Charges >= 1', needsText: 'Out of charges' }, { label: 'Peek', apply: [{ f: 'f_mp', formula: '1' }], needs: 'Sight > 2' }] } }],
+            items: [{ id: 'i_w', name: 'Wand', stats: { Pow: 1 } }], sheet: { sections: [] } };
+        const gN = cleanSystem(rawN, { F, gmView: true }), pN = cleanSystem(rawN, { F, gmView: false }), lrN = sy => sy.fields.find(f => f.id === 'f_wd').list;
+        const cleanN = J(lrN(gN).counters.map(t => t.key)) === J(['Charges']) && lrN(gN).rolls[0].needs === 'Row.Charges >= 1' && lrN(gN).rolls[0].needsText === 'Out of charges' && lrN(gN).rolls[1].needs === 'Sight > 2'
+            && !('needs' in lrN(pN).rolls[1]) && lrN(pN).rolls[0].needs === 'Row.Charges >= 1' && J(cleanSystem(gN, { F, gmView: true })) === J(gN);
+        const chN = ct => ({ id: 'c_n', values: { f_mp: { cur: 10 }, f_wd: [{ id: 'w_1', defId: 'i_w', qty: 1, ct: { Charges: ct } }] } });
+        const actN = (ch, ri) => S.applyAct(gN, ch, lrN(gN).rolls[ri], S.makeResolver(gN, ch, F).row('f_wd', 'w_1'), F, null, { f: 'f_wd', r: 'w_1' });
+        const okN = actN(chN(1), 0), noN = actN(chN(0), 0), allN = S.resolveAll(gN, chN(0), F).f_wd;
+        const vN = S.validateSystem(gN, F), vBadN = S.validateSystem(cleanSystem(Object.assign(JSON.parse(J(rawN)), { fields: [rawN.fields[0], rawN.fields[1], Object.assign(JSON.parse(J(rawN.fields[2])), { list: Object.assign({}, rawN.fields[2].list, { rolls: [{ label: 'Zap', apply: [{ f: 'f_mp', formula: '1' }], needs: 'Row.Nope >= 1' }] }) })] }), { F, gmView: true }), F);
+        const judgeN = okN.ok && !noN.ok && noN.message === 'Out of charges' && allN.rn && J(allN.rn.w_1) === J([false, false]) && !vN.errors.length && vBadN.errors.some(e => /Unknown name "Row\.Nope"/.test(e.message));
+        const shN = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), cs0 = shN.indexOf('function ctKeySays('), cs1 = shN.indexOf('\n}\n', cs0) + 3;
+        const CKS = new Function('statKey', shN.slice(cs0, cs1) + '\nreturn ctKeySays;')(S.statKey);
+        const saysN = CKS({ stats: [{ key: 'Pow' }], cols: [{ key: 'Reach' }], counters: [{ key: 'Charges' }, { key: 'paid' }, { key: 'pow' }, { key: 'charges' }, { key: '' }] }, F);
+        check('the core handbook session\'s asks (a) and (b) (2026-10-29): a list counter keyed paid (any case) is no counter, as a stat keyed so is not, and the Lists tab says why under the list (ctKeySays: a word formulas use, a stat\'s or column\'s key, another counter\'s, no key); a list\'s apply action keeps its needs and their words as a list roll does (the players\' view dropping needs read from a GM-only value), applyAct refuses it on a row that does not meet them in their words, the sheet\'s row reads them (e.rn), and the validator reads them with the row\'s names',
+            cleanN && judgeN && saysN.length === 4 && /^Counter key "paid" is not usable: .*paid.*Save drops it\.$/.test(saysN[0]) && saysN[1] === 'Counter key "pow" is already a stat\u2019s or a column\u2019s key of this list: Save drops it.' && saysN[2] === 'Counter key "charges" is already another counter\u2019s key: Save drops it.' && saysN[3] === 'Counter 5 needs a key: Save drops it.'
+            && shN.includes("if (typeof ctKeySays === 'function') ctKeySays(sp, F()).forEach(") && shN.includes("var nOkA = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false;") && shN.includes("var ndA = el('div', 'sys-flags sys-list-needsrow');"),
+            J([lrN(gN), lrN(pN), okN, noN, allN.rn, vN.errors, vBadN.errors, saysN]));
     }
     {   // 1.6.0 (CORE gap 15, an implant's mandatory flaws once a character): a grant counted once per character, on invented data
         const J = JSON.stringify;

@@ -3334,6 +3334,7 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
             if (applyOk === null) applyOk = canApply(c);
             if (!applyOk || !r.apply.length) return;
             var al = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Apply', ab = el('button', 'tool ghost sheet-item-roll sheet-item-apply', al); ab.type = 'button'; ab.title = nm + ' \u00b7 ' + al + ': ' + applyTitle(r, systemOf(getActiveCampaign())); ab.insertBefore(iconNode(typeof r.icon === 'string' && r.icon ? r.icon : 'icon:bolt', 'sheet-item-rollico'), ab.firstChild);   // 1.6.0: its icon, as a roll wears its die
+            var nOkA = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false; if (!nOkA) { ab.disabled = true; ab.title = (r.needsText || 'Not now') + ' \u2014 it needs ' + r.needs; }   // the core handbook session's ask (b): its needs for this row, as a list roll's
             var cbA = typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbA) { ab.disabled = true; ab.title = cbA + ' \u2014 ' + ab.title; }   // turn-based combat T4
             ab.addEventListener('click', function() { var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return; if (r.to === 'near' && typeof allyPick === 'function') { allyPick(ab, cN, function(on) { applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }, on || undefined); }); return; } applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }); });   // 1.5.9: whom it is for first, where it Applies to an adjacent character
             host.appendChild(ab); return;
@@ -6470,6 +6471,7 @@ function refreshErrors() {
             if (!firstSp[l]) firstSp[l] = { key: k, list: nm }; else if (firstSp[l].key !== k) errs.push({ message: 'Stat "' + k + '" is spelled "' + firstSp[l].key + '" on ' + firstSp[l].list + ': Save uses that spelling here too (one key, one spelling).' });
         });
         if (n > capS) errs.push({ message: 'At most ' + capS + ' stats a list: Save keeps the first ' + capS + '.' });
+        if (typeof ctKeySays === 'function') ctKeySays(sp, F()).forEach(function(m) { errs.push({ message: m }); });   // the core handbook session's ask (a): a counter's key as the cleaner reads it
         if (typeof sp.price === 'string' && sp.price && !mine[sp.price.toLowerCase()]) errs.push({ message: 'The price names no stat of this list: Save drops it.' });
         var onD = sp.on && typeof sp.on === 'object' && !Array.isArray(sp.on) ? sp.on : null, onPer = onD && typeof onD.per === 'string' ? onD.per.trim() : '';   // 1.5.4 One at a time: a Per stat as Save reads it
         if (onPer && !keptW[onPer.toLowerCase()]) errs.push({ message: 'One at a time goes by "' + onD.per + '", which is no stat of this list. ' + (onD.one === true ? 'Save keeps one row on for the whole list.' : 'Save drops it.') });
@@ -7628,7 +7630,19 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         cb2.appendChild(cr);
     });
     var cadd = el('button', 'tool ghost sys-btn sys-list-coladd', '+ Column'); cadd.dataset.act = 'coladd'; cadd.disabled = cls.length >= LIMITS.listCols; cadd.title = cadd.disabled ? 'At most ' + LIMITS.listCols + ' columns a list' : 'A formula worked out for each row (a skill\u2019s cost from its level, a weapon\u2019s to-hit)'; cb2.appendChild(cadd);
-    // Stage 6 HUD R2: the list's counters — a whole number each row keeps (Charges, Hits), LIMITS.rowCounters at most: its key (Row.<key>), label, start and most
+    // The core handbook session's ask (a), 2026-10-29: what Save drops of a list counter's key, as cleanListSpec reads it (statKey: never a word formulas
+// already use, paid among them; never a stat's or a column's key of the list, nor another counter's). Words for each, as text
+function ctKeySays(sp, F0) {
+    var out = [], seen = Object.create(null); (Array.isArray(sp && sp.stats) ? sp.stats : []).concat(Array.isArray(sp && sp.cols) ? sp.cols : []).forEach(function(x) { if (x && typeof x.key === 'string') seen[x.key.toLowerCase()] = 'stat'; });
+    (Array.isArray(sp && sp.counters) ? sp.counters : []).forEach(function(t, i) {
+        var k = t && typeof t === 'object' && typeof t.key === 'string' ? t.key.trim() : ''; if (!k) { out.push('Counter ' + (i + 1) + ' needs a key: Save drops it.'); return; }
+        if (!statKey(k, F0)) { out.push('Counter key "' + k + '" is not usable: a letter, then letters, digits and _ (up to 24, no spaces); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, min, cur, ranks, base; a function or reserved word such as floor, and, true). Save drops it.'); return; }
+        var l = k.toLowerCase(); if (seen[l]) { out.push('Counter key "' + k + '" is already ' + (seen[l] === 'stat' ? 'a stat\u2019s or a column\u2019s key of this list' : 'another counter\u2019s key') + ': Save drops it.'); return; }
+        seen[l] = 'counter';
+    });
+    return out;
+}
+// Stage 6 HUD R2: the list's counters — a whole number each row keeps (Charges, Hits), LIMITS.rowCounters at most: its key (Row.<key>), label, start and most
     var ctsL = Array.isArray(sp.counters) ? sp.counters : [];
     cb2.appendChild(el('span', 'sys-num-cap', 'Counters'));
     ctsL.forEach(function(t0, ti) {
@@ -7731,7 +7745,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         var rsI = input('sys-list-rollshow field', typeof rr.showIf === 'string' ? rr.showIf : '', 'Its button shows only on rows where this is true, such as Row.Kind = 2. Row names are read. No dice. Empty: on every row', 'Shown where (optional)'); rsI.maxLength = LIMITS.formula; rw.appendChild(rsI);   // 1.6.0
         if (typeof altBox === 'function') rw.appendChild(altBox(rr, 'Its button reads this name on rows where the formula holds, such as Fix malfunction where Row.Kind = 2. The first that holds wins.'));   // 1.6.0: its other names
         if (typeof rollExtras === 'function') rollExtras(rw, rr, sp, rApply);   // 1.6.0: its icon, and R7 the figure it shows
-        if (rApply) { cb2.appendChild(rw); var lxA = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxA) cb2.appendChild(lxA); listApplyEditor(cb2, rr, ri, 'apply', sp, targets); return; }   // 1.6.0: when a row's counter crosses a step
+        if (rApply) { cb2.appendChild(rw); var ndA = el('div', 'sys-flags sys-list-needsrow'); ndA.dataset.ri = String(ri); var ndAI = input('sys-list-needs field', typeof rr.needs === 'string' ? rr.needs : '', 'Pressed only while this is true for the row (no dice): Row.Charges >= 1, Row.Hits > 0; empty: always', 'Needs (e.g. Row.Charges >= 1)'); ndAI.maxLength = LIMITS.formula; ndA.appendChild(ndAI); var ndAT = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the greyed button says when it cannot be pressed', 'Out of charges'); ndAT.maxLength = LIMITS.label; ndA.appendChild(ndAT); cb2.appendChild(ndA); var lxA = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxA) cb2.appendChild(lxA); listApplyEditor(cb2, rr, ri, 'apply', sp, targets); return; }   // 1.6.0: when a row's counter crosses a step
         var rf = input('sys-list-rollformula field', typeof rr.formula === 'string' ? rr.formula : '', 'Rolled for the row: dice allowed; Row.lvl, Row.<stat>, Row.<column> read the row, any other name the character (3d6 <= Row.Skill, d20 + Row.Hit)', 'Formula (d20 + Row.Hit)'); rf.maxLength = LIMITS.formula; rw.appendChild(rf);
         rw.appendChild(checkLabel('sys-list-dmg', rr.dmg === true, 'Damage', 'A damage roll: its card in Table Chat takes the damage colour, a larger total and a damage tag'));   // chat cards (owner 2026-09-27)
         if (rr.dmg === true) { var mjL = input('sys-list-rollmjif field', typeof rr.dmgMajorIf === 'string' ? rr.dmgMajorIf : '', 'A Major Wound where: Apply to target on its card lands the blow as a Major Wound while this formula is true, read with the row\u2019s names (Row.Edge >= 3) and the character\u2019s. No dice. Always a Major Wound wins', 'A Major Wound where'); mjL.maxLength = LIMITS.formula; rw.appendChild(mjL); }   // 1.6.0

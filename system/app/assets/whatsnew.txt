@@ -333,6 +333,8 @@ Systems
   switches off when the pool cannot pay. Each payment can count on a
   counter of the row, so a roll can follow it. Each row can say when it
   pays instead, by a choice stat of the list such as Pace.
+- A list's apply action can need something first, as a list roll can, such
+  as Row.Charges >= 1. Its button greys out, and the table refuses it.
 - A list roll's or action's change can switch its own row off, such as a
   power that ends when its roll fails.
 - A grant can come once a character, such as an implant's mandatory

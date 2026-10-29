@@ -7612,7 +7612,7 @@ function handleMessage(msg, conn) {
         if (!resI.ok) {
             if (resI.reason === 'stays') { itemNotice(chI, resI.name, resI.by ? 'eq-held-try' : resI.moved ? 'eq-move-try' : resI.eq && qi.op === 'set' ? 'eq-bound-try' : 'bound-try', resI.by); try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'stays', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // a bound item: it stays, with the GM's message
             if (resI.reason === 'needs') { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'needs', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // 126b: what the entry needs, in the GM's own words or by the names a player may know
-            if ((qi.op === 'chamber' || qi.op === 'unchamber' || qi.op === 'load' || qi.op === 'setQty') && resI.msg) { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: Si.cleanDenyReason(resI.reason), msg: String(resI.msg).slice(0, 200) }); } catch (e) { sendFailed(e); } return; }   // 1.5.9: what does not fit, a chamber that is full, in words
+            if ((qi.op === 'chamber' || qi.op === 'unchamber' || qi.op === 'load' || qi.op === 'setQty' || resI.cap === true) && resI.msg) { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: Si.cleanDenyReason(resI.reason), msg: String(resI.msg).slice(0, 200) }); } catch (e) { sendFailed(e); } return; }   // 1.5.9: what does not fit, a chamber that is full, in words
             denyI(resI.reason); return;
         }
         var mvI = Si.rowOpMoney ? Si.rowOpMoney(campI.system, chI, qi.fieldId, qi, resI) : null;   // 1.5.6: what a purchase paid, or a sale was paid, moves the money with the row, all or nothing

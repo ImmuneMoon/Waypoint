@@ -3791,6 +3791,33 @@ pendingChecks.push((async () => {
         J(rd) === J([[0, ['Not before round 2']], [0, ['Not before round 2']], [1, []]]), J(rd));
 })());
 
+// 1.6.0 At most at a level on the wire (the owner, by prompt, 2026-10-29: "Passes, and the GM is told"): the host's char-item branch, run for real,
+// refuses a player's add or raise into a full level in the core's own words, with nothing stored, and lets one into a level with room
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), J = JSON.stringify;
+    const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+    const sysC = Sx.cleanSystem({ v: 1, name: 'Cap', rolls: [], fields: [{ id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', vis: 'all', edit: 'owner', list: { lvl: { label: 'Level', min: 0, max: 10, def: 1, caps: [{ at: 1, n: 1 }, { at: 5, n: 1, up: true }] } } }],
+        items: [{ id: 'i_climb', name: 'Climb' }, { id: 'i_swim', name: 'Swim' }, { id: 'i_ride', name: 'Ride', lvl: 3 }, { id: 'i_sing', name: 'Sing', lvl: 3 }] }, { F: Fx, gmView: true });
+    const START = [{ id: 'w_1', defId: 'i_climb', qty: 1, lvl: 1 }, { id: 'w_2', defId: 'i_ride', qty: 1, lvl: 5 }, { id: 'w_3', defId: 'i_ride', qty: 1, lvl: 3 }];
+    const host = msg => {
+        const camp = { id: 'k', system: sysC, chars: { c_1: { id: 'c_1', name: 'Sela', ownerId: 'u_a', npc: false, values: { f_sk: JSON.parse(J(START)) } } } }, ans = [], owner = [], box = b => m => { packCheck(m); b.push(JSON.parse(J(m))); };
+        const netH = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(owner) }], roster: { pA: { id: 'u_a' } }, syncCharDelta() {} };
+        const winH = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+        let saves = 0;
+        new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn function(msg, conn) {\n' + ciSrc + '\n};')(
+            netH, () => Sx, winH, () => false, () => camp, () => { saves++; }, e => { throw e; }, c => (netH.roster[c.peer] ? netH.roster[c.peer].id : null), { allow: () => true }, () => {}, () => {})(Object.assign({ type: 'char-item', rid: 'ri1', charId: 'c_1', fieldId: 'f_sk' }, msg), { peer: 'pA', send: box(ans) });
+        return { ans, owner, saves, rows: camp.chars.c_1.values.f_sk };
+    };
+    const add = host({ op: 'add', defId: 'i_swim', rowId: 'w_9' }), raise = host({ op: 'set', rowId: 'w_3', facts: { lvl: 6 } }), room = host({ op: 'add', defId: 'i_sing', rowId: 'w_8' });
+    check('1.6.0 At most at a level, the host\'s char-item branch (run for real): Sela\'s own Swim into the full Level 1, and Ride raised into the full 5 or higher, are each refused to her in the core\'s words with nothing stored or saved; a Sing that starts at 3, where no cap stands, is stored',
+        J(add.ans) === J([{ type: 'char-deny', rid: 'ri1', reason: 'value', msg: 'Skills holds at most 1 row at Level 1.' }]) && J(add.rows) === J(START) && add.saves === 0
+        && J(raise.ans) === J([{ type: 'char-deny', rid: 'ri1', reason: 'value', msg: 'Skills holds at most 1 row at Level 5 or higher.' }]) && J(raise.rows) === J(START) && raise.saves === 0
+        && room.ans.length === 1 && room.ans[0].type === 'char-ack' && room.rows.length === 4 && room.saves >= 1, J([add.ans, raise.ans, room.ans, room.rows.length, room.saves]));
+})());
+
 // [m410 review] SITE_EQUIVALENT_PLAN fold 2 on the wire, what its review found, each run for real: (4) the host's two readings of a roll's needs roll
 // no die; (5) a bound row inside its grace goes for another row's switch-on and its grace is spent; (6) a curse kept on beside a row switched on that
 // has a lock of its own is said, on the answer and to the GM; reviewer two (2) a bound row that keeps a switch-on off is said in words that name both

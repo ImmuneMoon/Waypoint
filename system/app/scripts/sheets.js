@@ -5085,6 +5085,7 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
     undoFollow(res);
     if (Array.isArray(res.offRows) && res.offRows.length && window.wpSystemCore && window.wpSystemCore.overSays) toast(res.offRows.slice(0, 4).map(window.wpSystemCore.overSays).join(' '));   // 1.6.0 O1: what came off, and where
     if (typeof res.onNeeds === 'string' && res.onNeeds) toast('Switched on all the same. A player would be told: ' + res.onNeeds);   // 1.5.8: the GM's own hand passes a switch's needs, and is told
+    if (typeof res.capSays === 'string' && res.capSays) toast(res.capSays + ' A player would be refused.');   // 1.6.0 At most at a level: the GM's own hand passes, and is told
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;
     var extraI = null; if (mvG && mvG.values) Object.keys(mvG.values).forEach(function(k) { if (k === f.id) return; extraI = extraI || {}; extraI[k] = c.values && Object.prototype.hasOwnProperty.call(c.values, k) ? clone(c.values[k]) : undefined; });   // 1.5.8: Revert takes back every list the change moved (a load's other list, a purchase's money)
     lastChange = extraI ? { charId: c.id, fieldId: f.id, prev: prev, extra: extraI } : { charId: c.id, fieldId: f.id, prev: prev };
@@ -6204,6 +6205,12 @@ function refreshErrors() {
         if (onPer && !keptW[onPer.toLowerCase()]) errs.push({ message: 'One at a time goes by "' + onD.per + '", which is no stat of this list. ' + (onD.one === true ? 'Save keeps one row on for the whole list.' : 'Save drops it.') });
         if (onD && typeof onD.needsText === 'string' && onD.needsText.trim() && !(typeof onD.needs === 'string' && onD.needs.trim())) errs.push({ message: 'The switch has words but no Needs to switch on, so Save drops its words.' });   // 1.5.8: as the cleaner reads them (rollNeedsInto keeps the words only beside a formula)
         (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(rr, ri) { if (rr && typeof rr === 'object' && !Array.isArray(rr.apply) && typeof rr.ad === 'string' && rr.ad.trim() && rr.dmg !== true) errs.push({ message: 'Roll ' + (ri + 1) + (typeof rr.label === 'string' && rr.label.trim() ? ', ' + rr.label.trim() : '') + ': an armour divisor needs Damage ticked, so Save drops it.' }); });   // 1.6.0: as the cleaner reads it
+        if (sp.lvl && typeof sp.lvl === 'object' && Array.isArray(sp.lvl.caps) && typeof cleanListSpec === 'function') {   // 1.6.0 At most at a level, as the cleaner reads it
+            var capOne = function(c) { var lk = (cleanListSpec({ lvl: Object.assign({}, sp.lvl, { caps: [c] }) }, true, F()) || {}).lvl; return lk && Array.isArray(lk.caps) ? lk.caps[0] : null; }, capOk = 0;
+            sp.lvl.caps.forEach(function(c, ci) { var k = capOne(c); if (!k) { errs.push({ message: 'At most, cap ' + (ci + 1) + ': it needs a number of rows, 0 or more, and a level, so Save drops it.' }); return; } capOk++; if (c.at !== k.at) errs.push({ message: 'At most, cap ' + (ci + 1) + ': ' + c.at + ' is not one of this list\u2019s levels, so Save reads it as ' + k.at + '.' }); else if (c.n !== k.n) errs.push({ message: 'At most, cap ' + (ci + 1) + ': rows are a whole number up to ' + LIMITS.carried + ', so Save keeps ' + k.n + '.' }); });
+            var capKept = ((cleanListSpec(sp, true, F()) || {}).lvl || {}).caps || [];
+            if (capKept.length < capOk) errs.push({ message: 'At most: a level is capped once, and or higher once, ' + LIMITS.lvlCaps + ' caps at most, so Save keeps ' + capKept.length + '.' });
+        }
         if (sp.once && typeof sp.once === 'object' && typeof cleanListSpec === 'function') {   // 1.5.8 Counted once, as the cleaner reads it
             var onceK = (cleanListSpec(sp, true, F()) || {}).once;
             if (!onceK) errs.push({ message: 'Counted once needs a group stat and what makes a row the higher, each a number stat of this list or its level. Save drops it.' });
@@ -7216,6 +7223,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         if (!(Array.isArray(lv.labels) && lv.labels.length)) lr.appendChild(checkLabel('sys-list-lvlsplit', lv.split === true, 'Split in trades', 'A trade may give part of this figure, as money from a chip. A row of quantity 1 only'));   // 1.5.6 trading: a chip's stored money as its level
     }
     card.appendChild(lr);
+    if (lv) lvlCapsBox(card, lv);   // 1.6.0 At most at a level
     var sw = sp.on && typeof sp.on === 'object' ? sp.on : null, orow = el('div', 'sys-flags sys-list-on');
     orow.appendChild(checkLabel('sys-list-hason', !!sw, 'Rows have a switch', 'Each row can be switched on and off: Readied, Equipped, Active, Stowed\u2026 In Layout a placement of the list can show only the rows switched on'));
     if (sw) {
@@ -7401,6 +7409,23 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     cb2.appendChild(el('div', 'sys-note sys-list-names', listNamesText(f.key, sp)));
     card.appendChild(cb2);
     return card;
+}
+// 1.6.0 At most at a level (the owner, by prompt: "Passes, and the GM is told", "At the level, or that and higher"): a row a cap, how many rows,
+// the level and or higher, and + At most up to LIMITS.lvlCaps
+function lvlCapsBox(box, lv) {
+    var cps = Array.isArray(lv.caps) ? lv.caps : [], wrap = el('div', 'sys-list-lcaps'), lw = typeof lv.label === 'string' && lv.label ? lv.label : 'Level';
+    cps.forEach(function(c, ci) {
+        var cc = c && typeof c === 'object' ? c : {}, rw = el('div', 'sys-flags sys-list-lcap'); rw.dataset.ci = String(ci);
+        rw.appendChild(el('span', 'sys-num-cap', 'At most'));
+        rw.appendChild(numField('sys-list-lcapn', cc.n, 'How many rows may stand there. 0: none', 'rows'));
+        rw.appendChild(numField('sys-list-lcapat', cc.at, 'The ' + lw.toLowerCase() + ' they stand at, as a number' + (Array.isArray(lv.labels) && lv.labels.length ? ': the first value name is the lowest' : ''), 'at ' + lw));
+        rw.appendChild(checkLabel('sys-list-lcapup', cc.up === true, 'or higher', 'Count every row at this ' + lw.toLowerCase() + ' and above it'));
+        var del = el('button', 'tool ghost sys-btn sys-list-lcapdel', '\u00d7'); del.dataset.act = 'lvlcapdel'; del.title = 'Remove this cap'; rw.appendChild(del);
+        wrap.appendChild(rw);
+    });
+    var add = el('button', 'tool ghost sys-btn sys-list-lcapadd', '+ At most'); add.dataset.act = 'lvlcapadd'; add.disabled = cps.length >= LIMITS.lvlCaps;
+    add.title = add.disabled ? 'At most ' + LIMITS.lvlCaps + ' caps a list' : 'Cap how many rows may stand at a ' + lw.toLowerCase() + ', as one row at the free first one. A player is refused one more, and you are told'; wrap.appendChild(add);
+    box.appendChild(wrap);
 }
 // 1.5.8 Counted once: the Lists tab's box. A group stat, what makes a row the higher, its full price and what was given free, each a select of
 // this list's own stats (and for the price its columns), by key, so a key or a label typed meanwhile reads at the next draw
@@ -9227,6 +9252,7 @@ function onInput(e) {
         else if (lcc.indexOf('sys-list-lvlmax') >= 0 && lvD) numOr(lvD, 'max');
         else if (lcc.indexOf('sys-list-lvlstep') >= 0 && lvD) numOr(lvD, 'step');
         else if (lcc.indexOf('sys-list-lvldef') >= 0 && lvD) numOr(lvD, 'def');
+        else if ((lcc.indexOf('sys-list-lcapn') >= 0 || lcc.indexOf('sys-list-lcapat') >= 0) && lvD) { var lcR = t.closest('.sys-list-lcap'), lcO = lcR && Array.isArray(lvD.caps) ? lvD.caps[+lcR.dataset.ci] : null; if (lcO && typeof lcO === 'object') numOr(lcO, lcc.indexOf('sys-list-lcapn') >= 0 ? 'n' : 'at'); }   // 1.6.0 At most at a level
         else if (lcc.indexOf('sys-list-lvlnames') >= 0 && lvD) { var lvn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (lvn.length && !lvn[lvn.length - 1]) lvn.pop(); if (lvn.some(Boolean)) lvD.labels = lvn; else delete lvD.labels; }
         else if (lcc.indexOf('sys-list-onlabel') >= 0 && lsp.on && typeof lsp.on === 'object') lsp.on.label = t.value.slice(0, LIMITS.label);
         else if (lcc.indexOf('sys-list-swshow') >= 0 && lsp.on && typeof lsp.on === 'object') { if (t.value.trim()) lsp.on.showIf = t.value.slice(0, LIMITS.formula); else delete lsp.on.showIf; }   // 1.6.0: where a row's switch is shown (Save cleans it)
@@ -9450,6 +9476,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-trade') >= 0) { if (t.checked) lsc.trade = true; else delete lsc.trade; }   // 1.5.6 Tradable
         else if (c.indexOf('sys-list-lvlentry') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.entry = true; else delete lsc.lvl.entry; } }   // 1.6.0 R8
         else if (c.indexOf('sys-list-lvlsplit') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.split = true; else delete lsc.lvl.split; } }   // 1.5.6 trading
+        else if (c.indexOf('sys-list-lcapup') >= 0) { var lcU = t.closest('.sys-list-lcap'), lcV = lcU && lsc.lvl && Array.isArray(lsc.lvl.caps) ? lsc.lvl.caps[+lcU.dataset.ci] : null; if (lcV && typeof lcV === 'object') { if (t.checked) lcV.up = true; else delete lcV.up; } }   // 1.6.0 At most at a level: or higher
         else if (c.indexOf('sys-list-statsplit') >= 0) { var sxr = t.closest('.sys-list-stat'), sxD = sxr && Array.isArray(lsc.stats) ? lsc.stats[+sxr.dataset.si] : null; if (!sxD || typeof sxD !== 'object') return; if (t.checked) sxD.split = true; else delete sxD.split; }
         else if (c.indexOf('sys-list-haslvl') >= 0) { if (t.checked) lsc.lvl = { label: 'Level', min: 0, step: 1, def: 0 }; else delete lsc.lvl; }
         else if (c.indexOf('sys-list-hason') >= 0) { if (t.checked) lsc.on = { label: 'On' }; else delete lsc.on; }
@@ -9653,6 +9680,14 @@ function onClick(e) {
         else if (aAct === 'lapplydel' && aJ >= 0 && aJ < aArr2.length) aArr2.splice(aJ, 1);
         else return;
         if (aK2 === 'then' && !aArr2.length) delete aRoll.then;   // R2b: no consequences left
+        markDirty(); renderAll(); return;
+    }
+    if (lcb && /^lvlcap(add|del)$/.test(b.dataset.act || '')) {   // 1.6.0 At most at a level: a cap added (at the level a new row starts at, one row) or removed
+        var lvC = lcb.list && lcb.list.lvl && typeof lcb.list.lvl === 'object' ? lcb.list.lvl : null; if (!lvC) return;
+        var cArr = Array.isArray(lvC.caps) ? lvC.caps : [];
+        if (b.dataset.act === 'lvlcapadd') { if (cArr.length >= LIMITS.lvlCaps) { toast('At most ' + LIMITS.lvlCaps + ' caps a list.'); return; } cArr.push({ at: typeof lvC.def === 'number' ? lvC.def : typeof lvC.min === 'number' ? lvC.min : 0, n: 1 }); lvC.caps = cArr; }
+        else { var cRw = b.closest('.sys-list-lcap'), cI = cRw ? +cRw.dataset.ci : -1; if (!(cI >= 0 && cI < cArr.length)) return; cArr.splice(cI, 1); }
+        if (!cArr.length) delete lvC.caps;
         markDirty(); renderAll(); return;
     }
     if (lcb && /^roll(add|up|down|del)$/.test(b.dataset.act || '')) {   // Stage 6 F5b: a Lists card's roll buttons (add, move, remove)

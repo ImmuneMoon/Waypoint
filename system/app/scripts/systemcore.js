@@ -41,7 +41,7 @@ var LIMITS = Object.freeze({
     core: 1000, coreBytes: 256 * 1024,       // Stage 6 library L1d: library entries a formula addresses by key, copied into the system
     items: 200, carried: 150, category: 40, maxBlastFt: 3000, maxQty: 99,   // item library (Stage 5); Stage 6: 150 rows a list (a big sheet's skills)
     rmMsg: 200, undoMs: 10000, undoGraceMs: 15000,   // Stage 6: a bound or cursed item's message; a pickup's Undo (the host allows a little longer: the round trip)
-    listCats: 20, rowNote: 200, lvlAbs: 1e6,     // Stage 6 F4b: a list's categories, a row's note, the size of a row level
+    listCats: 20, rowNote: 200, lvlAbs: 1e6, lvlCaps: 4,     // Stage 6 F4b: a list's categories, a row's note, the size of a row level; 1.6.0: a level's caps (At most at a level)
     placeCats: 8,                            // 1.5.5: the categories one placement of an item list shows (a list placed once a category)
     rollSw: 4, swTo: 8,                      // 1.6.0: the roll switches one item or effect offers (a bonus ticked in a roll's ± window), and the rolls one names
     areaAffs: 2,                             // 1.5.9 (the book's (es)): the afflictions one explosive carries (Affliction (HT-2) and a second one)
@@ -2569,6 +2569,15 @@ function cleanLvlSpec(v) {
     if (lbs) out.labels = lbs;
     else if (v.split === true) out.split = true;   // 1.5.6 Split in trades: a trade may take part of a row's level (a money chip's stored amount); never a level of named values
     if (v.entry === true) out.entry = true;   // 1.6.0 R8 (the owner, by prompt: "A list ticks it"): Levels from the entry, a row's level a menu of its entry's own By level rows
+    if (Array.isArray(v.caps)) {   // 1.6.0 At most at a level: { at, n, up }, a level on the list's own terms, a whole number of rows 0 to LIMITS.carried, and or higher; each level and up once, LIMITS.lvlCaps at most. The same in both views
+        var cps = [], seenCp = map();
+        v.caps.slice(0, 64).forEach(function(c) {
+            if (cps.length >= LIMITS.lvlCaps || !isObj(c)) return; var ca = lvlNum(c.at), cn = typeof c.n === 'number' && fin(c.n) ? Math.round(c.n) : NaN; if (ca === undefined || !(cn >= 0)) return;
+            var co = { at: lvlClamp(out, ca), n: Math.min(LIMITS.carried, cn) }; if (c.up === true) co.up = true;
+            var ck = co.at + '|' + (co.up ? 1 : 0); if (seenCp[ck]) return; seenCp[ck] = 1; cps.push(co);
+        });
+        if (cps.length) out.caps = cps;
+    }
     return out;
 }
 // A level on a list's terms: stepped from its minimum, clamped to its range (a bound left out is open, within LIMITS.lvlAbs)
@@ -4060,6 +4069,30 @@ function onMoved(sys, spec, list, idx, g0, hand, extra, o) {
     r.on = false;
     return null;
 }
+// 1.6.0 At most at a level (the owner, by prompt, 2026-10-29: "Passes, and the GM is told", "At the level, or that and higher"): a list's level
+// may cap how many of its rows stand at a level, spec.lvl.caps [{ at, n, up }]: at most n rows at the level at, or at it and higher (up).
+// lvlCapHit is the one judge, asked by applyRowOp wherever a row comes to stand at a level: a new row (an add that makes a row, a split, a
+// restore, a custom row made) and a level changed (set). A cap is judged only where the change brings that row into it (was: its level before,
+// absent for a new row), so a list over a cap already refuses nothing else. A kept curse (hid) counts for nothing; a granted row counts, though
+// a grant is never refused by it, nor a trade. null, or { cap, have }: the first cap broken. A player's change, a character in the making's
+// too, is refused in lvlCapSays' words; the GM's hand passes and is told (extra.capSays). A file that fills a character is not judged
+function lvlIn(c, v) { return typeof v === 'number' && fin(v) && (c.up === true ? v >= c.at - 1e-9 : Math.abs(v - c.at) < 1e-9); }
+function lvlCapHit(sys, spec, list, idx, was) {
+    var caps = isObj(spec) && isObj(spec.lvl) && Array.isArray(spec.lvl.caps) ? spec.lvl.caps : null; if (!caps || !caps.length || !isObj(list[idx])) return null;
+    var lv = function(r) { var rd = rowDef(sys, r); return rowLvl(spec, r, rd ? rd.def : null); }, now = lv(list[idx]);
+    for (var i = 0; i < caps.length; i++) {
+        var c = caps[i]; if (!isObj(c) || !lvlIn(c, now) || lvlIn(c, was)) continue;
+        var have = 0; list.forEach(function(r) { if (isObj(r) && r.hid !== 1 && lvlIn(c, lv(r))) have++; });
+        if (have > c.n) return { cap: c, have: have };
+    }
+    return null;
+}
+function lvlCapSays(f, spec, hit, gm) {
+    var c = hit.cap, L = isObj(spec) && isObj(spec.lvl) ? spec.lvl : {}, nm = '';
+    if (Array.isArray(L.labels)) { var li = Math.round((c.at - (typeof L.min === 'number' ? L.min : 0)) / (L.step > 0 ? L.step : 1)); if (typeof L.labels[li] === 'string') nm = L.labels[li]; }
+    var at = (nm || (L.label || 'Level') + ' ' + fmtNum(c.at)) + (c.up === true ? ' or higher' : '');
+    return ((isObj(f) && f.label) || 'This list') + ' holds ' + (c.n === 0 ? 'no row' : 'at most ' + c.n + (c.n === 1 ? ' row' : ' rows')) + ' at ' + at + '.' + (gm ? ' Now it holds ' + hit.have + '.' : '');
+}
 function rowPaid(spec, row, def) { if (isObj(row) && typeof row.paid === 'number' && fin(row.paid)) return row.paid; return isObj(spec) && typeof spec.price === 'string' && spec.price ? Math.max(0, rowStat(spec, def, spec.price)) : 0; }
 function catIn(cats, c) { var l = lower(cutText(c, LIMITS.category)); return !!l && cats.some(function(x) { return lower(x) === l; }); }
 // Stage 6 F4c2: a definition with a copy's own values over it (the library entry, or a deleted one's copy) — a new object, base untouched; base
@@ -4367,6 +4400,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
     var grOn = opts.copy !== true && !fl, grSteps = [];   // 1.6.0 (v2, B4): the rows a row grants, moved in this same change on the machine that owns the character (a player's own app waits for its host; a file brings its granted rows as they come)
     var hnd = opts.player && !mkR ? 'player' : 'gm', gsp = opts.player ? (actorSpec(sys, fieldId, spec, opts) || spec) : spec;   // 1.5.4 One at a time: whose hand, and the list options a row's group is read by (a player's own view, on the host and on their own app alike)
     var at = function(rid) { for (var i = 0; i < list.length; i++) if (rowIdOf(list[i]) === rid) return i; return -1; };
+    var capJudge = function(ix, was) { if (fl) return null; var ch = lvlCapHit(sys, spec, list, ix, was); if (!ch) return null; if (opts.player) return { ok: false, reason: 'value', msg: lvlCapSays(f, spec, ch, false), cap: true }; extra.capSays = lvlCapSays(f, spec, ch, true); return null; };   // 1.6.0 At most at a level: a player refused in words, the GM told
     if (q.op !== 'add' && typeof q.rowId === 'string') { var oxA = at(q.rowId); if (oxA >= 0 && isObj(list[oxA]) && typeof list[oxA].opn === 'string' && (opts.player || q.op !== 'remove')) return { ok: false, reason: 'opened' }; }   // 1.5.8: an opened row comes and goes with what opens it (openSync); only the GM may take one off, and it comes back while it is opened
     if (q.op === 'load') return rowLoad(sys, char, f, list, spec, q, opts, at, vo, F);   // 1.5.8 Loads from
     if (q.op === 'chamber' || q.op === 'unchamber') return rowChamber(sys, char, f, list, spec, q, opts, at, vo, F);   // 1.5.9 Chambers from
@@ -4415,6 +4449,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             list.push(row); extra.base = 0; extra.row = rowIdOf(row); extra.qty = n; extra.added = n;
             if (row.on === true && onHeld(sys, spec, list, list.length - 1, gsp)) row.on = false;   // 1.5.4 One at a time: it starts off while its group holds one on
             if (row.on === true && RM_MODES[ent.eq] === 1 && opts.player && !mkR) { extra.onRow = extra.row; extra.eqNote = ent.eq; }   // F4b: picked up already on — the equip lock's grace opens
+            var capA = capJudge(list.length - 1); if (capA) return capA;   // 1.6.0 At most at a level
         }
         var dN = have >= 0 ? ((rowDef(sys, list[have]) || {}).def || ent) : ent;   // F4c2 review: merged into a copy, its own lock and name tell the GM (a new row has no ov: the entry)
         if (RM_MODES[dN.rm] === 1 && !mkR) { extra.note = dN.rm; extra.name = dN.name || 'Item'; }
@@ -4426,6 +4461,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         var cu = applyCustom(sys, list, q, spec, F, opts, extra, actorSpec(sys, fieldId, spec, opts), fl); if (cu) return cu;
         if (phC) { var cxN = at(q.rowId), ptcC = phC.f.list.parts.cats; if (cxN < 0) return { ok: false, reason: 'value' }; if (Array.isArray(ptcC) && ptcC.length && !catIn(ptcC, (list[cxN].def || {}).category)) return { ok: false, reason: 'missing' }; var roomC = partsRoom(sys, phC.f.list, phC.row, list, q.in); if (roomC && roomC.used + Math.max(1, list[cxN].qty | 0) > roomC.cap) return { ok: false, reason: 'value', msg: partsFullSays(roomC) }; list[cxN].in = q.in; }   // 1.6.0 (v2, B6): the room it is made into
         if (cx < 0 && char && (char.making === 1 || char.making === true)) { var cxM = at(q.rowId); if (cxM >= 0) list[cxM].mk = 1; }   // 1.6.0 (v2, B5): a row of its own made while making
+        if (cx < 0) { var cxK = at(q.rowId), capC = cxK >= 0 ? capJudge(cxK) : null; if (capC) return capC; }   // 1.6.0 At most at a level: a row of its own made
         if (cx >= 0) { var mvC = onMoved(sys, spec, list, cx, g0C, hnd, extra, { read: gsp, onGrace: opts.onGrace === true }); if (mvC) return mvC; }   // ... moved by its stats into a group that holds one on: it goes off
     } else if (q.op === 'split') {   // 1.6.0, backlog 180 R11: n of a stack into a row of its own, right after it (the GM's hand and a player's alike: nothing leaves the character)
         var ixS = typeof q.rowId === 'string' && ROW_ID.test(q.rowId) ? at(q.rowId) : -1; if (ixS < 0 || (opts.player && list[ixS].hid === 1)) return { ok: false, reason: 'missing' };
@@ -4438,11 +4474,13 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         if (list.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return { ok: false, reason: 'field' };
         var cpS = JSON.parse(JSON.stringify(rwS)); cpS.id = q.back; cpS.qty = nS; delete cpS.tt; if (spec && isObj(spec.on) && cpS.on === true) cpS.on = false;   // the part split off starts off: a row on stays the one in use
         rwS.qty = curS - nS; list.splice(ixS + 1, 0, cpS); extra.row = q.back; extra.qty = nS; extra.split = true;
+        var capP = capJudge(ixS + 1); if (capP) return capP;   // 1.6.0 At most at a level: the part split off is a row of its own
     } else if (q.op === 'restore') {   // 1.5.8: a removed row put back whole at its place, the very row (q.row, q.at) the caller kept from before it went: the GM's sheet, or the host's own record for a player (never the player's word)
         if (typeof q.rowId !== 'string' || !ROW_ID.test(q.rowId) || !isObj(q.row) || rowIdOf(q.row) !== q.rowId || at(q.rowId) >= 0) return { ok: false, reason: 'missing' };
         if (list.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return { ok: false, reason: 'field' };
         var atR = Math.max(0, Math.min(list.length, cleanNum(q.at, list.length) | 0));
         list.splice(atR, 0, JSON.parse(JSON.stringify(q.row))); extra.row = q.rowId; extra.qty = q.row.qty | 0; extra.restored = true;
+        var capR = capJudge(atR); if (capR) return capR;   // 1.6.0 At most at a level
         if (grOn && isObj(q.grants)) grSteps.push({ put: q.grants, rid: q.rowId });   // 1.6.0 (v2, B4): the rows it granted come back with it, as the caller kept them
         if (isObj(q.parts) && spec && isObj(spec.parts)) {   // 1.6.0 R14: its parts come back with it, as the caller kept them from before it went (never the player's word: the host's own record)
             var ptR = partsSrc(sys, spec);
@@ -4473,7 +4511,9 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             }
             var lvJ = !!(fx.lvl !== undefined && opts.player && !fl && spec && isObj(spec.lvl)), rdJ = lvJ ? rowDef(sys, rw) : null, dfJ = rdJ ? rdJ.def : null, wasL = lvJ ? rowLvl(spec, rw, dfJ) : undefined;   // the level the row reads at before the change: its own, else its entry's, else the list's
             var grL = grOn && fx.lvl !== undefined && spec && isObj(spec.lvl) ? rowDef(sys, rw) : null, grL0 = grL ? rowLvl(spec, rw, grL.def) : 0;   // 1.6.0 (v2, B4): a level that rises past a grant's from grants it; one that falls below takes it
+            var capW = fx.lvl !== undefined && spec && isObj(spec.lvl) && Array.isArray(spec.lvl.caps) ? (function() { var dW = rowDef(sys, rw); return rowLvl(spec, rw, dW ? dW.def : null); })() : undefined;   // 1.6.0 At most at a level: the level it stood at
             if (fx.lvl !== undefined) { if (!spec || !isObj(spec.lvl)) return { ok: false, reason: 'value' }; if (fx.lvl === null) delete rw.lvl; else { var nl = lvlNum(fx.lvl); if (nl === undefined || typeof fx.lvl !== 'number') return { ok: false, reason: 'value' }; rw.lvl = lvlClamp(spec.lvl, nl); } }
+            if (capW !== undefined) { var capS = capJudge(idx, capW); if (capS) return capS; }
             if (grL && isObj(grL.def) && Array.isArray(grL.def.grants)) { var grL1 = rowLvl(spec, rw, grL.def); if (grL1 !== grL0) grSteps.push({ rid: q.rowId, w0: grantWant(grL.def, grL0), w1: grantWant(grL.def, grL1) }); }
             var nowL = lvJ ? rowLvl(spec, rw, dfJ) : undefined;   // ... and after it. The owed review, 2026-10-09: a level handed back (null) reads at its entry's own, which is a raise for a row kept lower, and was judged by nothing
             if (lvJ && typeof wasL === 'number' && typeof nowL === 'number' && nowL > wasL) {   // 126b, a level's own needs: a player's raise is judged like a pick, at the level asked for. Never the GM's hand, a file that fills a character, or a level taken down

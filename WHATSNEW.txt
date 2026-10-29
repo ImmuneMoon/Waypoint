@@ -165,6 +165,8 @@ Systems, more
 - A damage roll can be ticked Always a Major Wound, such as a strike that
   always wounds badly: Apply to target on its card then lands it as a Major
   Wound whatever its size.
+- Beside it, A Major Wound where takes a formula, such as Edge >= 3: the
+  card lands the blow as a Major Wound while it is true for the roller.
 - A roll a wound asks for reads the blow and the location hit, as Blow. and
   Hit., so a Big Hit roll can be -2 on the face. Its failure can cripple
   the location hit, by how far it failed, or by a formula that reads the

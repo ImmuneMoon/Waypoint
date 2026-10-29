@@ -4229,6 +4229,16 @@ pendingChecks.push((async () => {
     check('1.6.0 a Big Hit on the GM\'s own roll (net.diceRoll): marked on the record with RollBig 1 and no critical; one read from a GM-only value (Secret + 2) still marks it for the GM and keeps the roll private; a plain success carries no mark',
         hG.ret.ok && hG.recs[0].big === true && j(hG.vals) === j({ f_gd: 12 }) && hG.pushed[0] === 'global' && hGg.recs[0].big === true && hGg.recs[0].priv === 'gm' && j(hGg.vals) === j({ f_gd: 12 }) && !('big' in hGp.recs[0]) && hGp.pushed[0] === 'global',
         j([hG.recs[0], hG.vals, hGg.recs[0], hGg.toasts, hGp.recs[0]]));
+    // 1.6.0: A Major Wound where (dmgMajorIf) on a damage roll, worked out by the host as it makes the card, from the entry and never from the roller's word
+    const sysMj = f => sysOfB({ dmg: true, dmgMajorIf: f }, {}), sysMjW = sysOfB({ dmg: true, dmgMajor: true, dmgMajorIf: 'Edge > 99' }, {}), sysMj0 = sysOfB({ dmg: true }, {});
+    const jA = runB(sysMj('Edge >= 4'), [1, 1, 2]), jB = runB(sysMj('Edge >= 5'), [1, 1, 2]), jS = runB(sysMj('Secret >= 2'), [1, 1, 2]), jW = runB(sysMjW, [1, 1, 2]), j0 = runB(sysMj0, [1, 1, 2]), jX = runB(sysMj('Edge >= 5'), [1, 1, 2], { major: 1, dmgMajor: true, dmgMajorIf: 'Edge > 0' });
+    check('1.6.0 A Major Wound where on a player\'s damage roll (the host\'s roll-req branch): a formula true for the roller (Edge 4 >= 4) marks the record major 1, one that is false marks nothing; one that reads a GM-only value is dropped from their view and marks nothing; Always a Major Wound still wins; a roll with neither as before; a major, dmgMajor or dmgMajorIf in the player\'s message is never read',
+        jA.table.length === 1 && jA.table[0].dmg === 1 && jA.table[0].major === 1 && !('major' in jB.table[0]) && !('major' in jS.table[0]) && jW.table[0].major === 1 && !('major' in j0.table[0]) && j0.table[0].dmg === 1 && !('major' in jX.table[0]),
+        j([jA.table[0], jB.table[0], jS.table[0], jW.table[0], j0.table[0], jX.table[0]]));
+    const jGA = runBG(sysMj('Edge >= 4'), [1, 1, 2]), jGB = runBG(sysMj('Edge >= 5'), [1, 1, 2]), jGS = runBG(sysMj('Secret >= 2'), [1, 1, 2]), jGW = runBG(sysMjW, [1, 1, 2]), jG0 = runBG(sysMj0, [1, 1, 2]);
+    check('1.6.0 A Major Wound where on the GM\'s own damage roll (net.diceRoll): true for the roller marks the record major 1, false nothing; one that reads a GM-only value marks nothing, as a GM-only armour divisor, since the record travels to the table; Always a Major Wound still wins; a roll with neither as before',
+        jGA.ret.ok && jGA.recs[0].major === 1 && !('major' in jGB.recs[0]) && !('major' in jGS.recs[0]) && jGW.recs[0].major === 1 && !('major' in jG0.recs[0]) && jG0.recs[0].dmg === 1,
+        j([jGA.recs[0], jGB.recs[0], jGS.recs[0], jGW.recs[0], jG0.recs[0]]));
 })());
 
 // 1.6.0 (the SotMW v2 sort, B2: "resist at minus the attempt's margin"): a roll Resisted by a system roll that succeeds against the roller's

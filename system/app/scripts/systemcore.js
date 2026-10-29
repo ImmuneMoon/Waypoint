@@ -2633,7 +2633,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     }
     if (Array.isArray(v.counters)) {   // Stage 6 HUD R2: its counters — a whole number each row keeps (Charges, Hits), LIMITS.rowCounters at most: a key of its own (never a stat's or a
         // column's), a label, where a row starts (0..1e6) and its most (a formula, Row.* read; null: the players' view blanked a GM-only name)
-        var cts = [], seenT = map(); (out.stats || []).concat(out.cols || []).forEach(function(x) { seenT[lower(x.key)] = 1; });
+        var cts = [], ctPass = [], seenT = map(); (out.stats || []).concat(out.cols || []).forEach(function(x) { seenT[lower(x.key)] = 1; });
         for (var ti = 0; ti < v.counters.length && cts.length < LIMITS.rowCounters; ti++) {
             var tv = v.counters[ti]; if (!isObj(tv)) continue;
             var tk = statKey(tv.key, F); if (!tk || seenT[lower(tk)]) continue; seenT[lower(tk)] = 1;
@@ -2644,8 +2644,10 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
             if (tv.roll === true) to.roll = true;   // 1.5.7: Set by rolls only (a roll's change, an action and the GM set it; a player never by hand)
             partPlaceIn(to, tv);   // 1.6.0 R2
             if (tv.turn === true) to.turn = true;   // 1.6.0 (the v2 combat module): Starts again each turn, at its character's turn start in a fight
+            if (to.turn && typeof tv.pass === 'string') ctPass.push([to, tv.pass]);   // 1.6.0 (the core's gap 14): Passes its count to, settled once every counter is known
             cts.push(to);
         }
+        ctPass.forEach(function(pp) { var hit = ''; cts.forEach(function(x) { if (!hit && x !== pp[0] && lower(x.key) === lower(pp[1])) hit = x.key; }); if (hit) pp[0].pass = hit; });
         if (cts.length) out.counters = cts;
     }
     if (isObj(v.load) && out.counters) {   // 1.5.8 Loads from: a row of this list loads one unit of a row of another item list (from, a field id; cleanSystem keeps it only where that is another item list with a level); ct, one of this list's counters, holds what the loaded row has left; cats, the categories of that list it takes (none: any row). The same in both views
@@ -3669,15 +3671,22 @@ function applyRound(sys, char, varsFor, F, tctx, kind, D, fxo) {   // fxo (1.6.0
     return out;
 }
 // 1.6.0 (the v2 combat module): a list counter ticked Starts again each turn (turn) goes back to where a row starts (its def, else 0) at its
-// character's turn start in a fight: its stored count is taken off, as a new row has none. A row already there is left as it is
+// character's turn start in a fight: its stored count is taken off, as a new row has none. A row already there is left as it is.
+// 1.6.0 (the core's gap 14, heavy swings): one that names Passes its count to (pass, another counter of its list) first hands the count it
+// had, its start where none is stored, to that counter, so what was done last turn lasts one turn more. Every pass reads the counts as the
+// turn found them, before any is reset; a count equal to the other counter's own start is stored as none, as a new row's
 function turnCounters(sys, work, out) {
     (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
         var spec = isObj(f) && f.kind === 'item-list' && isObj(f.list) ? f.list : null, ts = spec && Array.isArray(spec.counters) ? spec.counters.filter(function(t) { return isObj(t) && t.turn === true && typeof t.key === 'string'; }) : [];
         var src = ts.length && Array.isArray(work.values[f.id]) ? work.values[f.id] : null; if (!src) return;
+        var defOf = function(t) { return typeof t.def === 'number' ? t.def : 0; }, byKey = map(); spec.counters.forEach(function(t) { if (isObj(t) && typeof t.key === 'string') byKey[lower(t.key)] = t; });
+        var ps = ts.filter(function(t) { return typeof t.pass === 'string' && isObj(byKey[lower(t.pass)]) && byKey[lower(t.pass)] !== t; });
         var changed = false, list = src.map(function(r) {
-            if (!isObj(r) || !isObj(r.ct)) return r;
-            var ct = Object.assign({}, r.ct), did = false;
-            ts.forEach(function(t) { if (typeof ct[t.key] === 'number' && ct[t.key] !== (typeof t.def === 'number' ? t.def : 0)) { delete ct[t.key]; did = true; } });
+            if (!isObj(r) || (!isObj(r.ct) && !ps.length)) return r;
+            var ct0 = isObj(r.ct) ? r.ct : {}, ct = Object.assign({}, ct0), did = false;
+            var got = ps.map(function(t) { var v = typeof ct0[t.key] === 'number' ? ct0[t.key] : defOf(t); return [byKey[lower(t.pass)], v]; });
+            ts.forEach(function(t) { if (typeof ct[t.key] === 'number' && ct[t.key] !== defOf(t)) { delete ct[t.key]; did = true; } });
+            got.forEach(function(g) { var k = g[0].key, v = g[1]; if (v === defOf(g[0])) { if (typeof ct[k] === 'number' && ct[k] !== v) { delete ct[k]; did = true; } } else if (ct[k] !== v) { ct[k] = v; did = true; } });
             if (!did) return r; changed = true; var nr = Object.assign({}, r); if (Object.keys(ct).length) nr.ct = ct; else delete nr.ct; return nr;
         });
         if (changed) { work.values[f.id] = list; out.values[f.id] = list; }

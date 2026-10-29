@@ -13544,6 +13544,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             d1.info.major === true && wearOf(d1, 0) === 2 && j(d1.values.f_kit[0].ov.held) === j(['wear']) && d1.lines.includes('A Major Wound.') && d1.lines.includes('Plate: 6 → 4, damaged.') && !d1.values.f_kit[1].ov
             && d2.info.major === false && wearOf(d2, 0) === 1 && j(d2.info.wear) === j([{ list: 'f_kit', row: 'w_plate', from: 6, to: 5 }]) && wearOf(d3, 1) === 1 && wearOf(d3, 0) === null
             && wearOf(dw11, 0) === 12 && dw11.lines.includes('Plate: -5 → -6, destroyed.') && dw12.ok && dw12.info.major === true && !('f_kit' in dw12.values) && dw12.info.wear.length === 0, j([d1.values, dw11.values, dw12.values]));
+        // 1.6.0 (the core's armour rule, asked by the campaign build's session): a layer's own formulas for what a hit wears (systemcore layerStep)
+        const lwMkW = o => { const s = mkD(); Object.assign(s.combat.damage.layers[0], o); return cleanSystem(s, { F, gmView: true }); };
+        const lwSysW = lwMkW({ majorWear: 'ceil(Listed / 2)', brokenWear: '2', brokenMajorWear: 'ceil(Row.drBody / 3) + 1' });
+        const lwLyW = lwSysW.combat.damage.layers[0], lwLyP = cleanSystem((() => { const s = mkD(); Object.assign(s.combat.damage.layers[0], { majorWear: 'Listed' }); return s; })(), { F, gmView: false });
+        const lwWMaj = hitD({ amt: 14, type: 'cut', loc: 'w_body' }, null, lwSysW), lwWHit = hitD({ amt: 8, type: 'cut', loc: 'w_body' }, null, lwSysW);
+        const lwWBrk = hitD({ amt: 8, type: 'cut', loc: 'w_body' }, wornD(6), lwSysW), lwWBrkMaj = hitD({ amt: 20, type: 'cut', loc: 'w_body' }, wornD(6), lwSysW);
+        const lwSysW2 = lwMkW({ majorWear: 'Worn + 2' }), lwWBrkMaj2 = hitD({ amt: 20, type: 'cut', loc: 'w_body' }, wornD(7), lwSysW2), lwWBrkHit2 = hitD({ amt: 8, type: 'cut', loc: 'w_body' }, wornD(7), lwSysW2);
+        const lwSysBad = lwMkW({ majorWear: 'Listed + Nope', brokenWear: '0 - 3' }), lwWBad = hitD({ amt: 14, type: 'cut', loc: 'w_body' }, null, lwSysBad), lwWBadB = hitD({ amt: 8, type: 'cut', loc: 'w_body' }, wornD(6), lwSysBad);
+        const lwWNone = hitD({ amt: 14, type: 'cut', loc: 'w_body' }, null, lwMkW({ majorWear: '  ', brokenWear: '' }));
+        check('1.6.0 a layer\'s own wear formulas: kept on the layer in the GM\'s view (none of a blank one), never in the players\' (no layer there); a Major Wound wears majorWear (ceil(Listed / 2): 6 to 3), an ordinary hit still 1; once broken there (its figure used up) a hit wears brokenWear (2) and a Major Wound brokenMajorWear (ceil(Row.drBody / 3) + 1: 3), with no brokenMajorWear the majorWear (Worn + 2, read as worn so far) and no brokenWear 1; a formula that gives no number or less than 0 wears as before; none set exactly as before',
+            lwLyW.majorWear === 'ceil(Listed / 2)' && lwLyW.brokenWear === '2' && lwLyW.brokenMajorWear === 'ceil(Row.drBody / 3) + 1' && !('layers' in (lwLyP.combat.damage || {}))
+            && lwWMaj.info.major === true && wearOf(lwWMaj, 0) === 3 && lwWMaj.lines.includes('Plate: 6 → 3, damaged.') && lwWHit.info.major === false && wearOf(lwWHit, 0) === 1
+            && lwWBrk.info.major === false && wearOf(lwWBrk, 0) === 8 && lwWBrkMaj.info.major === true && wearOf(lwWBrkMaj, 0) === 9
+            && lwWBrkMaj2.info.major === true && wearOf(lwWBrkMaj2, 0) === 12 && lwWBrkHit2.info.major === false && wearOf(lwWBrkHit2, 0) === 8
+            && wearOf(lwWBad, 0) === 2 && wearOf(lwWBadB, 0) === 7 && j(lwWNone.values) === j(d1.values) && j(lwMkW({ majorWear: '  ', brokenWear: '' }).combat.damage) === j(sysD.combat.damage) && j(lwMkW({}).combat.damage) === j(sysD.combat.damage),
+            j([lwWMaj.values.f_kit, lwWHit.values.f_kit, lwWBrk.info, lwWBrkMaj.info, lwWBrkMaj2.info.wear, lwWBrkHit2.info.wear, lwWBad.info.wear, lwWBadB.info.wear]));
         const ds = hitD({ amt: 10, type: 'stun', loc: 'w_body' }), di = hitD({ amt: 10, type: 'ion', loc: 'w_body' }), drd = chD(); drd.values.f_droid = true; const did = hitD({ amt: 9, type: 'ion', loc: 'w_body' }, drd);
         check('1.5.6 damageStep, a type\'s own pool and its alternative: stun comes off Endurance and wears nothing (no Major Wound off another pool); ion off Endurance at half on flesh, and where its If holds (a droid) off Hit Points at its own multiplier, wearing as any hit does',
             ds.ok && ds.info.pool === 'EP' && j(Object.keys(ds.values)) === j(['f_ep']) && ds.values.f_ep.cur === 6 && ds.info.major === false && ds.info.wear.length === 0

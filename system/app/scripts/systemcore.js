@@ -1319,6 +1319,17 @@ function rowTimers(sys, char, secs, perOf, F) {   // F (1.6.0): the formula engi
 //           locs.die (1.6.0): a formula of the location's names and the character's, added to a wound that gets through for each die the blow rolled
 //   weapons [{ list, dur, wear, cond }]: a weapon tested by a blow: its listed Dur (a formula of Row.), its stat of wear and its stat of condition
 // The players' view keeps what the window asks (the pool, the types by name, the location list) and no formula: the host works the blow out.
+// 1.6.0 (the core's armour rule, asked by the campaign build's session): a layer may say by formula what a hit wears. majorWear on a Major
+// Wound in place of a quarter of its listed figure; brokenWear and brokenMajorWear once its figure there is used up (Broken), for an
+// injuring hit and a Major Wound (a Major Wound with no brokenMajorWear reads majorWear). Each reads the row (Row.), the location (Hit.),
+// Listed (its figure there) and Worn (what has worn off); one that gives no number, or less than 0, wears what the layer wore before
+var LAYER_WEAR = ['majorWear', 'brokenWear', 'brokenMajorWear'];
+function layerStep(ly, major, listed, worn, ev, both) {
+    var base = major ? Math.ceil(listed / 4) : 1, brk = listed - worn <= 0, wf = brk ? (major ? (ly.brokenMajorWear || ly.majorWear) : ly.brokenWear) : (major ? ly.majorWear : null);
+    if (typeof wf !== 'string' || !wf) return base;
+    var lw = function(l, text) { if (l === 'listed') return listed; if (l === 'worn') return worn; return both(l, text); };
+    var v = ev(wf, lw); return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.floor(v) : base;
+}
 var DMG_LIM = Object.freeze({ types: 24, layers: 8, weapons: 4, plus: 8, mult: 10, amt: 1000000, wears: 8, dice: 100 });
 function dmgStatOk(fl, listId, key) {   // a number stat of that list, value names or not (a stat its rows may hold as their own), never a pick
     var f = fl ? fl(listId) : null, sp = f && isObj(f.list) ? f.list : null; if (!sp || typeof key !== 'string' || !STAT_KEY.test(key)) return '';
@@ -1374,6 +1385,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
             var lo = { list: l.list, at: at, wear: w }, ws = [], pk = cleanFormulaText(l.pick);   // 1.6.0: the stat worn by location
             (Array.isArray(l.wears) ? l.wears : []).forEach(function(k) { var n = dmgStatOk(fl, l.list, k); if (n && ws.indexOf(n) < 0 && ws.length < DMG_LIM.wears) ws.push(n); });
             if (ws.length && pk) { lo.wears = ws; lo.pick = pk; }
+            LAYER_WEAR.forEach(function(k) { var wt = cleanFormulaText(l[k]); if (wt) lo[k] = wt; });   // 1.6.0: what a hit wears, by formula (layerStep)
             lys.push(lo);
         }); if (lys.length) out.layers = lys;
         var wps = []; (Array.isArray(d.weapons) ? d.weapons : []).forEach(function(l) {
@@ -1511,7 +1523,7 @@ function damageStep(sys, char, inp, F, ropts, fxo) {   // 1.6.0 (B3): fxo, the c
                 var listed = Math.floor(num(ev(ly.at, both))); if (listed <= 0) return;
                 var wk = ly.wear; if (Array.isArray(ly.wears) && ly.pick) { var pi = Math.round(num(ev(ly.pick, both))); if (pi >= 1 && pi <= ly.wears.length) wk = ly.wears[pi - 1]; }   // 1.6.0: the stat worn where it struck
                 var w = num(R.stat(f, row, wk)), beats = wound > 0 && amt > Math.max(0, listed - w); if (!beats && !dWear) return;   // the blow is more than it as it stands
-                var step = (beats ? (info.major ? Math.ceil(listed / 4) : 1) : 0) + dWear, nw = Math.min(listed * 2, w + step); if (nw === w) return;
+                var step = (beats ? layerStep(ly, info.major, listed, w, ev, both) : 0) + dWear, nw = Math.min(listed * 2, w + step); if (nw === w) return;   // 1.6.0: by the layer's own formulas where it has them
                 dmgRowPut(row, wk, nw); changed = true;
                 var rd = rowDef(sys, row), nm = rd && rd.def && rd.def.name ? rd.def.name : 'A piece';
                 var wi = { list: f.id, row: rid, from: listed - w, to: listed - nw }; if (wk !== ly.wear) wi.stat = wk; info.wear.push(wi);

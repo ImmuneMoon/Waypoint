@@ -6,13 +6,14 @@
 import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
-import { picRef } from './safecore.js';
+import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsKept, grantsKept, GRANT_MAX, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
 import { groupRolls, groupWeakest } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
 import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT } from './systemcore.js';   // 1.6.0: linked sheets
+import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
@@ -2767,7 +2768,7 @@ function onCtl(entry, c, f, spec, editable, labelled, okOn, show) {   // okOn (1
     var l = el('label', 'sheet-item-onl'); l.appendChild(cb); l.appendChild(el('span', 'sheet-item-onn', S.label)); return l;
 }
 // F4b: 📝 — the item's notes and the row's own note (a box for whoever may change the row); null when there is nothing to show
-function noteBits(entry, def, c, f, editable, ovc) {   // ovc (F4c2): what the copy holds of its own (ovCtx), for the dots
+function noteBits(entry, def, c, f, editable, ovc, sysI, gm, may) {   // ovc (F4c2): what the copy holds of its own (ovCtx), for the dots; sysI, gm, may (1.6.0, backlog 206): the system drawn, the GM's sheet, and whether this viewer may change the row's look and log
     var box = el('div', 'sheet-item-noteline'), spec = f.list || null;
     if (spec && Array.isArray(spec.stats) && spec.stats.length) { var sln = spec.boxes === true && typeof statBoxes === 'function' ? statBoxes(entry, def, spec, ovc) : statLineNode(entry, def, spec, ovc); if (sln) box.appendChild(sln); }   // 1.6.0 R3: as boxes where the list ticks it   // F4c1: every stat (1.5.4: but a Hidden one), and what one cost
     var ab = descBits(entry, def, spec);   // 1.5.4: what the entry does, and what each of its levels gives
@@ -2775,6 +2776,7 @@ function noteBits(entry, def, c, f, editable, ovc) {   // ovc (F4c2): what the c
     if (ab) box.appendChild(ab);
     if (editable) { var ni = el('input', 'field sheet-item-note'); ni.type = 'text'; ni.dataset.fid = f.id; ni.dataset.part = 'note-' + rowIdOf(entry); ni.maxLength = LIMITS.rowNote; ni.placeholder = 'A note on this one'; ni.value = entry.note || ''; ni.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { note: ni.value } }); }); box.appendChild(ni); }
     else if (entry.note) box.appendChild(el('div', 'sheet-item-rownote', entry.note));
+    if (spec && (spec.look || spec.workLog === true) && sysI && typeof lookBits === 'function') lookBits(box, entry, c, f, spec, sysI, gm, may);   // 1.6.0, backlog 206
     return box.childNodes.length ? box : null;
 }
 // 1.5.4 (the owner, of a power's details: "theres no actually useful info here about the ability"; by prompt: "On the row itself"): what
@@ -2859,6 +2861,115 @@ function noteToggle(line, entry, c, f) {
     b.addEventListener('click', function() { if (_noteOpen[k]) delete _noteOpen[k]; else _noteOpen[k] = 1; line.style.display = _noteOpen[k] ? '' : 'none'; });
     return b;
 }
+// [sinkcheck:rowlook-start]
+// 1.6.0, backlog 206 (the owner, 2026-10-29, by prompt: "Swatches on the row", "A Look button in details (Recommended)", "GM only, no refund
+// (Recommended)"): a row's look as small swatches beside its name (the HUD shows them alone), its finish, markings and each part's finish in its
+// details with a Look button that opens a small form there, and its work log under them with + Work, whose fee the host takes from the
+// character's money. A colour reaches a style only as a strict #rrggbb through safecore cssColor; every word is a text node
+var _lookForm = null, _workForm = null, LOOK_SW_RE = /^#[0-9a-f]{6}$/;   // the form open: { k: charId|fieldId|rowId, view, draft }
+function lookLog(step, facts) { try { if (window.wpStepLog) window.wpStepLog('rowlook v1', step, facts || {}); } catch (e) {} }   // structure only, never a colour or a word
+function lookKey(c, f, entry) { return String(c.id) + '|' + f.id + '|' + rowIdOf(entry); }
+function lookSw(hex) { var h = typeof hex === 'string' && LOOK_SW_RE.test(hex) ? cssColor(hex, '') : ''; if (!h) return null; var s = el('span', 'sheet-look-sw'); s.style.backgroundColor = h; return s; }
+function rowLookSays(sh) { var w = sh && sh.overall ? finishWords(sh.overall, false) : ''; return (sh.from === 'main' ? 'The look of its ' + sh.main : sh.from === 'shade' ? 'Its material\u2019s shade, ' + sh.shade : 'Its look') + (w ? ': ' + w : '') + (sh.tint === 'main' ? '. Its colour is its main part\u2019s' : sh.tint === 'shade' ? '. Its colour is its material\u2019s shade' : ''); }
+function lookSwatches(host, sysI, c, spec, entry) {   // what the row shows (rowLookShown): its own, else its main part's or its material's shade, marked as derived
+    var sh = spec && spec.look ? rowLookShown(sysI, c, spec, entry) : null, cs = sh && sh.overall && Array.isArray(sh.overall.colors) ? sh.overall.colors : [];
+    if (!cs.length) return null;
+    var box = el('span', 'sheet-look' + (sh.from !== 'own' || sh.tint ? ' sheet-look-derived' : '')); cs.forEach(function(h) { var sw = lookSw(h); if (sw) box.appendChild(sw); });
+    if (!box.childNodes.length) return null;
+    box.title = rowLookSays(sh); host.appendChild(box); return box;
+}
+function finishInto(host, fz) { (fz && Array.isArray(fz.colors) ? fz.colors : []).forEach(function(h) { var sw = lookSw(h); if (sw) host.appendChild(sw); }); var w = finishWords(fz, false); if (w) host.appendChild(el('span', 'sheet-look-words', w)); }
+// may: its owner at their own sheet, or the GM, whatever the sheet's lock says (a look and a log are kept at any time); a row the GM keeps from
+// its player is the GM's alone. A fitted part's look stands on its host
+function lookBits(box, entry, c, f, spec, sysI, gm, may) {
+    var k = lookKey(c, f, entry), vw = _fxView, rid = rowIdOf(entry);
+    may = !!may && (!!gm || entry.hid !== 1);
+    if (spec.look && typeof entry.in !== 'string') {
+        var sh = rowLookShown(sysI, c, spec, entry), lw = el('div', 'sheet-look-box');
+        if (sh && sh.overall) { var ln = el('div', 'sheet-look-line'); ln.appendChild(el('span', 'sheet-look-cap', sh.from === 'main' ? 'Look of its ' + sh.main : sh.from === 'shade' ? 'Shade of ' + sh.shade : 'Look')); finishInto(ln, sh.overall); lw.appendChild(ln); }
+        (sh ? sh.parts : []).forEach(function(p) { if (sh.from === 'main' && String(p.part).toLowerCase() === String(sh.main).toLowerCase()) return; var pl = el('div', 'sheet-look-line sheet-look-part'); pl.appendChild(el('span', 'sheet-look-cap', p.part)); finishInto(pl, p.finish); lw.appendChild(pl); });
+        var open = !!(may && _lookForm && _lookForm.k === k && _lookForm.view === vw);
+        if (may && !open) { var lb = el('button', 'tool ghost sys-btn sheet-look-btn', 'Look\u2026'); lb.type = 'button'; lb.dataset.fid = f.id; lb.dataset.part = 'lk-' + rid; lb.title = 'Its colours, finish and markings, and each part\u2019s'; lb.addEventListener('click', function() { _lookForm = { k: k, view: vw, draft: lookDraft(entry.look) }; lookLog('form', { parts: _lookForm.draft.parts.length }); renderViews(c.id); }); lw.appendChild(lb); }
+        if (open) lw.appendChild(lookForm(entry, c, f, sysI));
+        if (lw.childNodes.length) box.appendChild(lw);
+    }
+    if (spec.workLog === true) {
+        var lg = Array.isArray(entry.workLog) ? entry.workLog : [], wb = el('div', 'sheet-work');
+        if (lg.length || may) wb.appendChild(el('div', 'sheet-look-cap', 'Work log'));
+        lg.forEach(function(w, i) {
+            var wl = el('div', 'sheet-work-line'); wl.appendChild(el('span', 'sheet-work-words', workWords(w)));
+            if (gm && may) { var x = el('button', 'tool ghost sheet-look-x', '\u2715'); x.type = 'button'; x.title = 'Take this line off. Its fee is not given back'; x.setAttribute('aria-label', x.title); x.dataset.fid = f.id; x.dataset.part = 'wk-x-' + rid + '-' + i; x.addEventListener('click', function() { lookLog('drop', {}); commitItem(c, f, { op: 'work', rowId: rid, drop: i }); }); wl.appendChild(x); }   // the owner, 2026-10-29: "GM only, no refund"
+            wb.appendChild(wl);
+        });
+        var wOpen = !!(may && _workForm && _workForm.k === k && _workForm.view === vw);
+        if (wOpen) wb.appendChild(workForm(entry, c, f, sysI));
+        else if (may) { var ab = el('button', 'tool ghost sys-btn sheet-work-add', '+ Work'); ab.type = 'button'; ab.dataset.fid = f.id; ab.dataset.part = 'wk-' + rid; ab.title = 'Write down work done on it: a repair, a fit, a restyle or a build'; ab.addEventListener('click', function() { _workForm = { k: k, view: vw, draft: { kind: 'repair', by: 'self', fee: '', note: '' } }; lookLog('workform', {}); renderViews(c.id); }); wb.appendChild(ab); }
+        if (wb.childNodes.length) box.appendChild(wb);
+    }
+}
+function lookDraft(look) { var d = look && typeof look === 'object' ? clone(look) : {}; if (!d.overall || typeof d.overall !== 'object') d.overall = {}; if (!Array.isArray(d.parts)) d.parts = []; d.parts.forEach(function(p) { if (!p.finish || typeof p.finish !== 'object') p.finish = {}; }); return d; }
+function lookPartNames(sysI, c, f, entry) {   // the row's own parts, by name (none: a part is named freely)
+    var out = []; if (!f.list || !f.list.parts) return out;
+    partsOf(sysI, c, f.list, rowIdOf(entry)).forEach(function(p) { var d = rowDef(sysI, p), n = d && d.def && typeof d.def.name === 'string' ? d.def.name.slice(0, ROW_LOOK.part) : ''; if (n && !out.some(function(x) { return x.toLowerCase() === n.toLowerCase(); })) out.push(n); });
+    return out;
+}
+function lookForm(entry, c, f, sysI) {   // its draft lives in _lookForm across redraws; Save sends it through the one cleaner, Cancel forgets it
+    var d = _lookForm.draft, rid = rowIdOf(entry), pn = 'lk-' + rid + '-', rd = rowDef(sysI, entry), names = lookPartNames(sysI, c, f, entry);
+    var form = el('div', 'sheet-row-form sheet-look-form'), head = el('div', 'sheet-rf-head');
+    head.appendChild(el('span', 'sheet-look-title', 'Look of ' + (rd && rd.def && rd.def.name ? rd.def.name : 'this')));
+    var sv = el('button', 'tool sys-btn sheet-look-save', 'Save'); sv.type = 'button'; sv.dataset.fid = f.id; sv.dataset.part = pn + 'save';
+    sv.addEventListener('click', function() { var lk = cleanRowLook({ look: d }).look || null; _lookForm = null; lookLog(lk ? 'saved' : 'cleared', { colors: lk && lk.overall && lk.overall.colors ? lk.overall.colors.length : 0, parts: lk && lk.parts ? lk.parts.length : 0 }); commitItem(c, f, { op: 'look', rowId: rid, look: lk }); renderViews(c.id); });
+    var cn = el('button', 'tool ghost sys-btn sheet-look-cancel', 'Cancel'); cn.type = 'button'; cn.dataset.fid = f.id; cn.dataset.part = pn + 'cancel'; cn.addEventListener('click', function() { _lookForm = null; renderViews(c.id); });
+    head.appendChild(sv); head.appendChild(cn); form.appendChild(head);
+    form.appendChild(finishFields(c, f, d.overall, pn + 'o-', null, names));
+    d.parts.forEach(function(p, i) { form.appendChild(finishFields(c, f, p.finish, pn + 'p' + i + '-', p, names, function() { d.parts.splice(i, 1); renderViews(c.id); })); });
+    if (d.parts.length < ROW_LOOK.parts) {
+        var ap = el('button', 'tool ghost sys-btn sheet-look-addpart', '+ Part'); ap.type = 'button'; ap.dataset.fid = f.id; ap.dataset.part = pn + 'addpart'; ap.title = names.length ? 'The look of one of its parts' : 'The look of one part of it, such as its grip';
+        ap.addEventListener('click', function() { var used = d.parts.map(function(p) { return String(p.part || '').toLowerCase(); }), nx = names.filter(function(n) { return used.indexOf(n.toLowerCase()) < 0; })[0] || ''; d.parts.push({ part: nx, finish: {} }); renderViews(c.id); });
+        form.appendChild(ap);
+    }
+    return form;
+}
+function finishFields(c, f, fz, pn, rec, names, rm) {   // one finish's boxes: a part's name (a menu of the row's own parts where it has any), up to four colours, the finish word, the markings
+    var row = el('div', 'sheet-look-ff'), tag = function(ctl, part) { ctl.dataset.fid = f.id; ctl.dataset.part = pn + part; return ctl; };
+    if (rec) {
+        var known = names.some(function(n) { return n.toLowerCase() === String(rec.part || '').toLowerCase(); });
+        if (names.length) { var ps = tag(el('select', 'field sheet-look-partname'), 'name'); if (!known) ps.appendChild(opt(String(rec.part || ''), rec.part ? String(rec.part) : 'Pick a part', true)); names.forEach(function(n) { ps.appendChild(opt(n, n, n.toLowerCase() === String(rec.part || '').toLowerCase())); }); ps.addEventListener('change', function() { rec.part = ps.value; }); row.appendChild(ps); }
+        else { var pi = tag(el('input', 'field sheet-look-partname'), 'name'); pi.type = 'text'; pi.maxLength = ROW_LOOK.part; pi.placeholder = 'Part, such as grip'; pi.value = String(rec.part || ''); pi.addEventListener('input', function() { rec.part = pi.value; }); row.appendChild(pi); }
+    } else row.appendChild(el('span', 'sheet-look-cap', 'Overall'));
+    if (!Array.isArray(fz.colors)) fz.colors = [];
+    var cw = el('span', 'sheet-look-colors');
+    fz.colors.forEach(function(h, i) {
+        var ci = tag(el('input', 'sheet-look-color'), 'c' + i); ci.type = 'color'; ci.value = LOOK_SW_RE.test(String(h).toLowerCase()) ? String(h).toLowerCase() : '#808080'; ci.title = 'A colour'; ci.addEventListener('input', function() { fz.colors[i] = String(ci.value).toLowerCase(); });
+        var cx = tag(el('button', 'tool ghost sheet-look-x', '\u2715'), 'cx' + i); cx.type = 'button'; cx.title = 'Take this colour off'; cx.setAttribute('aria-label', cx.title); cx.addEventListener('click', function() { fz.colors.splice(i, 1); renderViews(c.id); });
+        cw.appendChild(ci); cw.appendChild(cx);
+    });
+    if (fz.colors.length < ROW_LOOK.colors) { var ca = tag(el('button', 'tool ghost sheet-look-x', '+'), 'ca'); ca.type = 'button'; ca.title = 'Add a colour, up to ' + ROW_LOOK.colors; ca.setAttribute('aria-label', ca.title); ca.addEventListener('click', function() { fz.colors.push('#808080'); renderViews(c.id); }); cw.appendChild(ca); }
+    row.appendChild(cw);
+    var fi = tag(el('input', 'field sheet-look-finish'), 'f'); fi.type = 'text'; fi.maxLength = ROW_LOOK.finish; fi.placeholder = 'Finish: polished, matte, weathered'; fi.value = typeof fz.finish === 'string' ? fz.finish : ''; fi.addEventListener('input', function() { fz.finish = fi.value; }); row.appendChild(fi);
+    var mi = tag(el('input', 'field sheet-look-marks'), 'm'); mi.type = 'text'; mi.maxLength = ROW_LOOK.marks; mi.placeholder = 'Markings, patterns, engraving, trim'; mi.value = typeof fz.markings === 'string' ? fz.markings : ''; mi.addEventListener('input', function() { fz.markings = mi.value; }); row.appendChild(mi);
+    if (rm) { var rb = tag(el('button', 'tool ghost sheet-look-x', '\u2715'), 'rm'); rb.type = 'button'; rb.title = 'Take this part off the look'; rb.setAttribute('aria-label', rb.title); rb.addEventListener('click', rm); row.appendChild(rb); }
+    return row;
+}
+function workForm(entry, c, f, sysI) {   // one line: its kind, by whom, its fee (a whole number) and a note; Add sends it, and the host pays the fee
+    var d = _workForm.draft, rid = rowIdOf(entry), pn = 'wk-' + rid + '-', form = el('div', 'sheet-row-form sheet-work-form'), row = el('div', 'sheet-look-ff'), tag = function(ctl, part) { ctl.dataset.fid = f.id; ctl.dataset.part = pn + part; return ctl; };
+    var ks = tag(el('select', 'field sheet-work-kind'), 'kind'); Object.keys(WORK_KINDS).forEach(function(k) { ks.appendChild(opt(k, WORK_KINDS[k], d.kind === k)); }); ks.addEventListener('change', function() { d.kind = ks.value; }); row.appendChild(ks);
+    var bs = tag(el('select', 'field sheet-work-by'), 'by'); [['self', 'Own work'], ['hired', 'Hired']].forEach(function(b) { bs.appendChild(opt(b[0], b[1], d.by === b[0])); }); bs.addEventListener('change', function() { d.by = bs.value; }); row.appendChild(bs);
+    var fe = tag(el('input', 'field sheet-work-fee'), 'fee'); fe.type = 'number'; fe.min = '0'; fe.max = String(ROW_LOOK.fee); fe.step = '1'; fe.placeholder = 'Fee'; fe.value = d.fee; fe.title = 'What the work cost, a whole number'; fe.addEventListener('input', function() { d.fee = fe.value; }); row.appendChild(fe);
+    var no = tag(el('input', 'field sheet-work-note'), 'note'); no.type = 'text'; no.maxLength = ROW_LOOK.note; no.placeholder = 'A note, such as who did it'; no.value = d.note; no.addEventListener('input', function() { d.note = no.value; }); row.appendChild(no);
+    var ad = tag(el('button', 'tool sys-btn sheet-work-save', 'Add'), 'save'); ad.type = 'button';
+    ad.addEventListener('click', function() {
+        var fs = String(d.fee).trim(), fee = fs === '' ? 0 : Number(fs);
+        if (!(fee >= 0 && fee <= ROW_LOOK.fee && Math.floor(fee) === fee)) { toast('A fee is a whole number from 0 to 10,000,000.'); return; }
+        var w = cleanRowLook({ workLog: [{ kind: d.kind, by: d.by, fee: fee, note: d.note }] }).workLog; if (!w) return;
+        _workForm = null; lookLog('work', { by: w[0].by, fee: w[0].fee > 0 }); commitItem(c, f, { op: 'work', rowId: rid, work: w[0] }); renderViews(c.id);
+    });
+    var cn = tag(el('button', 'tool ghost sys-btn sheet-work-cancel', 'Cancel'), 'cancel'); cn.type = 'button'; cn.addEventListener('click', function() { _workForm = null; renderViews(c.id); });
+    row.appendChild(ad); row.appendChild(cn); form.appendChild(row);
+    if (moneyBoxes(sysI).length) form.appendChild(el('div', 'sheet-rf-ask', 'A fee is paid from the character\u2019s money when the line is added.'));
+    return form;
+}
+// [sinkcheck:rowlook-end]
 // F4b: a list's picker — the items of its categories (every one when it names none), a group per category; on a list with no quantity that
 // holds an item once, one already carried is greyed. Returns how many it offers
 // 1.5.5: a list placed once a category opens its pickers on the placement's first category. A list cannot open part way down, so the
@@ -3139,7 +3250,7 @@ function setStrip(wrap, c, f, spec, sysI, carried, editable, res) {
     wrap.appendChild(box); return box;
 }
 // [systemcheck:setstrip-end]
-function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, res, edit) {   // empty (F4b): the note when nothing shows; res (F5a1): the field's resolved entry (its columns' cells and totals); edit (the sheet's lock): may the character be CHANGED here — a level, a note, a row made, removed or given values of its own (absent: as editable) — where editable is what is used in play: the switch, a count, a use
+function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, res, edit, lookOk) {   // empty (F4b): the note when nothing shows; res (F5a1): the field's resolved entry (its columns' cells and totals); edit (the sheet's lock): may the character be CHANGED here — a level, a note, a row made, removed or given values of its own (absent: as editable) — where editable is what is used in play: the switch, a count, a use
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
     var chg = edit === undefined ? editable : !!edit && _fxLive, hudRow = _fxView === 'hud';   // hudRow (the owner, 2026-10-04): the HUD's rows stay short — a description is read on the sheet
     var spec = f.list || null, seenCat = Object.create(null), nCat = 0, unseenL = gm ? unseenKeys(c, f, carried, sysI) : null;   // F4b: a list with options draws its rows' facts, and a category chip while its rows span more than one; F4c3: the keys of rows its owner cannot see (the GM's sheet)
@@ -3155,6 +3266,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         if (def.icon) line.appendChild(iconNode(def.icon, 'sheet-item-icon'));
         var ovc = ovCtx(entry, rd, gm);   // F4c2: what this copy holds of its own (a dot on each)
         var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft'))); if (def.notes) nm.title = def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
+        if (spec && spec.look) lookSwatches(line, sysI, c, spec, entry);   // 1.6.0, backlog 206: its swatches beside its name, on the HUD too
         var opnR = typeof entry.opn === 'string'; if (opnR && typeof openedWords === 'function') { line.className += ' sheet-item-opened'; nm.appendChild(el('span', 'sheet-item-opened-tag', ' (' + openedWords(entry, c, sysI, spec) + ')')); }   // 1.5.8: a row another row opens says so, and holds no control that changes it
         var bdLn = typeof badgeBits === 'function' ? badgeBits(line, spec, res && res.bd ? res.bd[rid] : null, line, hudRow) : null;   // 1.6.0 R4: its badges after the name (no lines on the HUD)
         if (typeof rowEdge === 'function') rowEdge(line, spec, res && res.bd ? res.bd[rid] : null, !!(spec && spec.on) && rowOn(spec, entry), !!(spec && spec.on) && (typeof partHere !== 'function' || partHere(spec.on, 'row', hudRow)));   // 1.6.0 R16
@@ -3163,7 +3275,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         if (typeof onceBits === 'function') onceBits(line, sysI, c, f, carried, entry);   // 1.5.8 Counted once
         var noteLn = null;
         var smR = spec && typeof statMenuMode === 'function' ? statMenuMode(entry, rd, spec, gm, sysI, chg && !hudRow) : ''; _rowMenu = smR ? function(s, sv) { return statMenu(s, sv, entry, rd, c, f, spec, smR); } : null;   // 1.6.0 R10
-        if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null, res && res.cfx ? res.cfx[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); if (typeof loadCtl === 'function') loadCtl(line, entry, c, f, spec, editable, sysI, res && res.ldOk ? res.ldOk[rid] : undefined); if (typeof chamberCtl === 'function') chamberCtl(line, entry, c, f, spec, editable, sysI, gm, canThrow, res && res.chOk ? res.chOk[rid] : undefined); var lc = partHere(spec.lvl, _placeWant, hudRow) ? lvlCtl(entry, def, c, f, spec, chg && !opnR) : null; if (lc) line.appendChild(lc); var oc = partHere(spec.on, _placeWant, hudRow) ? onCtl(entry, c, f, spec, editable, true, res && res.onOk ? res.onOk[rid] : undefined, res && res.onShow ? res.onShow[rid] : undefined) : null; if (oc) line.appendChild(oc); var pcL = partHere({ place: spec.paidPlace }, _placeWant, hudRow) ? paidCtl(entry, def, c, f, spec, chg, gm, true) : null; if (pcL) line.appendChild(pcL); noteLn = hudRow ? null : noteBits(entry, def, c, f, chg, ovc); }   // F4c1: the stats shown On the row, what one cost
+        if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null, res && res.cfx ? res.cfx[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); if (typeof loadCtl === 'function') loadCtl(line, entry, c, f, spec, editable, sysI, res && res.ldOk ? res.ldOk[rid] : undefined); if (typeof chamberCtl === 'function') chamberCtl(line, entry, c, f, spec, editable, sysI, gm, canThrow, res && res.chOk ? res.chOk[rid] : undefined); var lc = partHere(spec.lvl, _placeWant, hudRow) ? lvlCtl(entry, def, c, f, spec, chg && !opnR) : null; if (lc) line.appendChild(lc); var oc = partHere(spec.on, _placeWant, hudRow) ? onCtl(entry, c, f, spec, editable, true, res && res.onOk ? res.onOk[rid] : undefined, res && res.onShow ? res.onShow[rid] : undefined) : null; if (oc) line.appendChild(oc); var pcL = partHere({ place: spec.paidPlace }, _placeWant, hudRow) ? paidCtl(entry, def, c, f, spec, chg, gm, true) : null; if (pcL) line.appendChild(pcL); noteLn = hudRow ? null : noteBits(entry, def, c, f, chg, ovc, sysI, gm, !!lookOk && _fxLive); }   // F4c1: the stats shown On the row, what one cost
         _rowMenu = null;
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
         rowRollBtns(line, spec, entry, def, c, f, res);   // F5b: the list's rolls on this row
@@ -3389,7 +3501,7 @@ function totalsLine(wrap, spec, foot, cap) {   // cap (1.5.5): its caption, Tota
     parts.forEach(function(p) { var sp = el('span', 'sheet-chip sheet-item-total'); sp.appendChild(el('small', null, p.lab)); sp.appendChild(document.createTextNode(' ' + (typeof colShown === 'function' ? colShown(p.c, p.t, true) : p.t.text + (p.c && p.c.unit && !p.t.error ? ' ' + p.c.unit : '')))); if (p.t.error) sp.title = p.t.error; tl.appendChild(sp); });
     wrap.appendChild(tl);
 }
-function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, res, edit) {   // res (F5a1): the field's resolved entry; edit (the sheet's lock): as itemListInto's
+function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, res, edit, lookOk) {   // res (F5a1): the field's resolved entry; edit (the sheet's lock): as itemListInto's
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
     var chg = edit === undefined ? editable : !!edit && _fxLive, hudRow = _fxView === 'hud';
     var tbl = f.table, cols = (tbl.columns || []).slice(), spec = f.list || null, hasL = !!(spec && spec.lvl) && partPlace(spec.lvl, hudRow) === 'row', hasO = !!(spec && spec.on) && partPlace(spec.on, hudRow) === 'row', hasQ = !(spec && spec.noQty);   // 1.6.0 R2: a level or a switch placed elsewhere has no column   // F4b: a level and a switch column; no quantity
@@ -3420,6 +3532,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         nameTd.appendChild(document.createTextNode(def.name));
         if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft')));
         var ovT = ovCtx(entry, rd, gm); ovNameDot(nameTd, ovT);   // F4c2: a dot when the copy holds values of its own
+        if (spec && spec.look) lookSwatches(nameTd, sysI, c, spec, entry);   // 1.6.0, backlog 206: its swatches beside its name
         if (tbl.chips && def.category) nameTd.appendChild(el('span', 'sheet-chip', def.category));
         lostBits(nameTd, rd, entry, c, f, gm, chg); needBits(nameTd, sysI, c, entry, rd, gm); gmItemBits(nameTd, def, entry, gm, hasO); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI);
         if (typeof onceBits === 'function') onceBits(nameTd, sysI, c, f, carried, entry);   // 1.5.8 Counted once
@@ -3442,7 +3555,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
             var actTd = el('td', 'sheet-itcol-act');
             if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) actTd.appendChild(itemThrowBtn(def, c, f, rid));
             if (hudRow) { /* no details line in the HUD */ } else if (spec) {   // F4b: 📝 — the item's notes and the row's own note
-                var nbT = noteBits(entry, def, c, f, chg, ovT);
+                var nbT = noteBits(entry, def, c, f, chg, ovT, sysI, gm, !!lookOk && _fxLive);
                 _placeWant = 'details'; var dpT = el('div', 'sheet-item-parts'), cellsD = res && res.cells ? res.cells[rid] : null;   // 1.6.0 R2: the parts placed in the details
                 colChips(dpT, spec, cellsD); ctCtl(dpT, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null);
                 if (spec.lvl && partHere(spec.lvl, 'details', false)) { var lcDT = lvlCtl(entry, def, c, f, spec, chg); if (lcDT) dpT.appendChild(lcDT); }
@@ -4164,8 +4277,9 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var wrap = el('div', 'sheet-items' + (f.table ? ' sheet-items-table' : ''));
         var phI = typeof partHostIds === 'function' ? partHostIds(sysI, c, f.id) : null; if (phI) rowsI = rowsI.filter(function(r) { return !(r && typeof r.in === 'string' && phI[r.in]); });   // 1.6.0 R14: a part stands under its host
         if (typeof setStrip === 'function' && !onOnly && (!catT || catT.home)) setStrip(wrap, c, f, specI, sysI, carried, playOk, e);   // 1.6.0 R15: the list's sets, once, over its home placement
-        if (f.table) itemTableInto(wrap, f, c, rowsI, sysI, canThrow, playOk, gm, emptyI, resI, editOk);   // Stage 4: rich table (F5a1: e, its columns' cells and totals)
-        else itemListInto(wrap, f, c, rowsI, sysI, canThrow, playOk, gm, emptyI, resI, editOk);            // the plain carried list (as before)
+        var lookOk = !!(gm || (own && f.vis === 'all'));   // 1.6.0, backlog 206: a row's look and its work log are its owner's and the GM's, whoever else may change the list
+        if (f.table) itemTableInto(wrap, f, c, rowsI, sysI, canThrow, playOk, gm, emptyI, resI, editOk, lookOk);   // Stage 4: rich table (F5a1: e, its columns' cells and totals)
+        else itemListInto(wrap, f, c, rowsI, sysI, canThrow, playOk, gm, emptyI, resI, editOk, lookOk);            // the plain carried list (as before)
         if (catT && catT.home && carried.length && specI && e && e.foot && (!f.table || f.table.footer)) totalsLine(wrap, specI, e.foot, 'Whole list');   // 1.5.5: the whole list's totals, once, under its home placement (catHome), where its rows would show them
         var custOK = !!specI && (gm || specI.custom === true);   // F4c3: + Custom… — the GM's on any list shaped in the Lists tab, a player's where it takes custom rows
         var libOK = gm && !!window.wpLibPicker && !!(window.wpLibrary && window.wpLibrary.size && window.wpLibrary.size() > 0);   // Stage 6 library L2c: the GM's machine offers the campaign's library too
@@ -7253,6 +7367,18 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             var plW = el('label', 'sys-check'), plI = el('input', 'field sys-list-partslabel'); plI.type = 'text'; plI.value = sp.parts.label || ''; plI.placeholder = 'Part'; plW.appendChild(document.createTextNode('Add button says ')); plW.appendChild(plI); plW.title = 'The word on the button that adds a part, such as Option or Upgrade'; fl.appendChild(plW);
         }
     }
+    var lkSp = sp.look && typeof sp.look === 'object' ? sp.look : null;   // 1.6.0, backlog 206 (the owner, 2026-10-29, by prompt: "In the list's Look box"): Rows carry a look, then its Main part, Shade by and Shades
+    fl.appendChild(checkLabel('sys-list-rowlook', !!lkSp, 'Rows carry a look', 'Each row may carry up to four colours, a finish and markings, overall and part by part, set by its owner or you at any time. They show as small swatches beside its name. A look never changes a figure'));
+    if (lkSp) {
+        var lmW = el('label', 'sys-check'), lmI = el('input', 'field sys-list-lkmain'); lmI.type = 'text'; lmI.value = typeof lkSp.main === 'string' ? lkSp.main : ''; lmI.placeholder = 'none'; lmW.appendChild(document.createTextNode('Main part ')); lmW.appendChild(lmI); lmW.title = 'A part category, such as Grip: a row with no look of its own shows the look it gives that part'; fl.appendChild(lmW);
+        var lbW = el('label', 'sys-check'), lbS = el('select', 'sys-list-lkby'), lbO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }, lbC = typeof lkSp.by === 'string' ? lkSp.by.toLowerCase() : '', lbHit = false;
+        lbW.appendChild(document.createTextNode('Shade by ')); lbS.appendChild(lbO('', 'None', !lbC));
+        (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(st) { if (!st || typeof st.key !== 'string' || !st.key || st.set === true) return; var on = !lbHit && lbC === st.key.toLowerCase(); if (on) lbHit = true; lbS.appendChild(lbO(st.key, st.label || st.key, on)); });
+        if (lbC && !lbHit) lbS.appendChild(lbO(lkSp.by, lkSp.by + ' (not a stat of this list)', true));
+        lbW.title = 'A stat whose value names the material, such as Material: a row with no look shows that material\u2019s shade'; lbW.appendChild(lbS); fl.appendChild(lbW);
+        if (lbC) { var lsW = el('label', 'sys-check'), lsT = el('textarea', 'field sys-list-lkshades'); lsT.rows = 3; lsT.spellcheck = false; lsT.value = (Array.isArray(lkSp.shades) ? lkSp.shades : []).map(function(x) { return x && typeof x === 'object' ? x.v + ' = ' + x.c : ''; }).filter(Boolean).join('\n'); lsT.placeholder = 'Steel = #8a8f99'; lsW.appendChild(document.createTextNode('Shades ')); lsW.appendChild(lsT); lsW.title = 'One line for each value of that stat: its name, an equals sign, then its colour as #rrggbb'; fl.appendChild(lsW); }
+    }
+    fl.appendChild(checkLabel('sys-list-worklog', sp.workLog === true, 'Rows keep a work log', 'Each row keeps a log of the work done on it: a repair, a fit, a restyle or a build, its owner\u2019s own or hired. A fee is paid from the character\u2019s money where the sheet keeps money. You alone take a line off'));
     if (sp.on && (pbChoices.length || sp.sets)) { var stW = el('label', 'sys-check'), stS = el('select', 'sys-list-sets'), stO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; stW.appendChild(document.createTextNode('Sets by ')); stS.appendChild(stO('', 'None', !sp.sets)); pbChoices.forEach(function(s) { stS.appendChild(stO(s.key, s.label || s.key, !!sp.sets && String(sp.sets).toLowerCase() === s.key.toLowerCase())); }); stW.title = 'Rows whose stat names the same set are switched on together: the sheet shows each set with All on and All off, and Row.setall reads 1 while the whole set is on'; stW.appendChild(stS); fl.appendChild(stW); }   // 1.6.0, backlog 180 R15
     if (pbChoices.length || sp.placeBy) { var pbW = el('label', 'sys-check'), pbS = el('select', 'sys-list-placeby'), pbO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; pbW.appendChild(document.createTextNode('Places split by ')); pbS.appendChild(pbO('', 'Category', !sp.placeBy)); pbChoices.forEach(function(s) { pbS.appendChild(pbO(s.key, s.label || s.key, !!sp.placeBy && String(sp.placeBy).toLowerCase() === s.key.toLowerCase())); }); pbW.title = 'A list placed in several places shows each place\u2019s rows by their category, or by a choice stat\u2019s value: a body slot, a container'; pbW.appendChild(pbS); fl.appendChild(pbW); }
     fl.appendChild(checkLabel('sys-list-edge', sp.edge === true, 'Edge follows its state', 'A row\u2019s left edge takes the colour of its strongest badge, or the accent while it is switched on. Its words always stand beside it'));   // 1.6.0 R16
@@ -7508,6 +7634,7 @@ function listNamesText(key, sp) {
     (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []).forEach(function(x) { if (x && typeof x.key === 'string' && x.key) { own.push(x.key); if (x.kind !== 'pick') nums.push(x.key); } });   // nums (1.5.4): what has a highest and a lowest
     return 'Formulas read ' + k + '.count, ' + k + '.qty' + (sp.price ? ', ' + k + '.paid' : '') + own.map(function(w) { return ', ' + k + '.' + w; }).join('') + ' (the list\u2019s totals)' + (sp.on ? '; ' + k + '.on.\u2026 the same over the rows switched on' : '') + '; ' + k + '.<key>.lvl (and .qty, .on, .has' + (own.length ? ', a stat or a column' : '') + ') one row by its item\u2019s key.' + (nums.length ? ' ' + k + '.max.\u2026 and ' + k + '.min.\u2026 read the highest and the lowest one row gives of a number stat or a column, as ' + k + '.max.' + nums[0] + (sp.on ? '; ' + k + '.on.max.\u2026 and ' + k + '.on.min.\u2026 the same over the rows switched on' : '') + '.' : '') + ' A column or a roll reads its row as Row.lvl, Row.qty, Row.on, Row.has, Row.paid' + (own.length ? ', Row.' + own.join(', Row.') : '') + '.';
 }
+function lookShadesOf(text) { var out = []; String(text || '').split(/\r?\n/).forEach(function(ln) { var i = ln.lastIndexOf('='); if (i < 1) return; var v = ln.slice(0, i).trim(), c = ln.slice(i + 1).trim().toLowerCase(); if (v && /^#[0-9a-f]{6}$/.test(c)) out.push({ v: v.slice(0, 60), c: c }); }); return out.slice(0, ROW_LOOK.shades); }   // 1.6.0, backlog 206: the Lists card's Shades box
 function checkLabel(cls, on, text, title) { var l = el('label', 'sys-check'), cb = el('input', cls); cb.type = 'checkbox'; cb.checked = !!on; l.appendChild(cb); l.appendChild(document.createTextNode(' ' + text)); if (title) l.title = title; return l; }
 function listOfCard(target) { var cd = target && target.closest ? target.closest('.sys-list-card') : null; if (!cd) return null; return (draft.fields || []).find(function(x) { return x.id === cd.dataset.lid; }) || null; }
 // F4c1 review: a stat's key as it is typed. The price follows its OWN stat only (the first stat holding its key, as Save reads it), never another
@@ -9601,6 +9728,11 @@ function onChange(e) {
         else if (c.indexOf('sys-list-menus') >= 0) { if (t.checked) lsc.menus = true; else delete lsc.menus; }   // 1.6.0 R10
         else if (c.indexOf('sys-list-boxes') >= 0) { if (t.checked) lsc.boxes = true; else delete lsc.boxes; }   // 1.6.0 R3   // 1.6.0 R1: Rows open
         else if (c.indexOf('sys-list-trade') >= 0) { if (t.checked) lsc.trade = true; else delete lsc.trade; }   // 1.5.6 Tradable
+        else if (c.indexOf('sys-list-rowlook') >= 0) { if (t.checked) lsc.look = lsc.look && typeof lsc.look === 'object' ? lsc.look : {}; else delete lsc.look; }   // 1.6.0, backlog 206: Rows carry a look
+        else if (c.indexOf('sys-list-lkmain') >= 0) { if (lsc.look) { var lkm = String(t.value || '').trim(); if (lkm) lsc.look.main = lkm; else delete lsc.look.main; } }
+        else if (c.indexOf('sys-list-lkby') >= 0) { if (lsc.look) { if (t.value) lsc.look.by = t.value; else { delete lsc.look.by; delete lsc.look.shades; } } }
+        else if (c.indexOf('sys-list-lkshades') >= 0) { if (lsc.look) { var lks = lookShadesOf(t.value); if (lks.length) lsc.look.shades = lks; else delete lsc.look.shades; } }
+        else if (c.indexOf('sys-list-worklog') >= 0) { if (t.checked) lsc.workLog = true; else delete lsc.workLog; }   // ... and Rows keep a work log
         else if (c.indexOf('sys-list-unheldon') >= 0) { if (t.checked) lsc.unheld = typeof lsc.unheld === 'string' ? lsc.unheld : ''; else delete lsc.unheld; }   // 1.6.0 Rolls unheld entries
         else if (c.indexOf('sys-list-lvlstart') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.start = true; else delete lsc.lvl.start; } }   // 1.6.0 Keeps the starting level
         else if (c.indexOf('sys-list-lvlentry') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.entry = true; else delete lsc.lvl.entry; } }   // 1.6.0 R8

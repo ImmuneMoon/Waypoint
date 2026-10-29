@@ -1960,19 +1960,22 @@ function rowLookShade(sys, spec, row) {
     return null;
 }
 // what a row SHOWS (derived, never stored): its own overall; else, a host, its main part's finish from its own look.parts (the part of the list's
-// Main part category, by name); else its material's shade. { overall (or null), parts, from: 'own' | 'main' | 'shade' | '', main?, shade? };
-// null for a list with no look, a fitted part and a row with nothing to show
+// Main part category, by name); else its material's shade. An own overall that names no colour shows the colour it would derive, and says so
+// (tint: 'main' or 'shade'). { overall (or null), parts, from: 'own' | 'main' | 'shade' | '', main?, shade?, tint? }; null for a list with no
+// look, a fitted part and a row with nothing to show
 function rowLookShown(sys, char, spec, row) {
     var lo = isObj(spec) && isObj(spec.look) ? spec.look : null; if (!lo || !isObj(row) || typeof row.in === 'string') return null;
-    var lk = isObj(row.look) ? row.look : {}, parts = Array.isArray(lk.parts) ? lk.parts : [];
+    var lk = isObj(row.look) ? row.look : {}, parts = Array.isArray(lk.parts) ? lk.parts : [], own = isObj(lk.overall) ? lk.overall : null;
     var res = function(ov, from, k, x) { var o = { overall: ov, parts: parts, from: from }; if (k) o[k] = x; return o; };
-    if (isObj(lk.overall)) return res(lk.overall, 'own');
+    if (own && Array.isArray(own.colors) && own.colors.length) return res(own, 'own');
+    var dv = null;
     if (lo.main && isObj(spec.parts) && parts.length) {
         var mp = ''; partsOf(sys, char, spec, rowIdOf(row)).forEach(function(p) { if (mp) return; var d = rowDef(sys, p); if (d && isObj(d.def) && typeof d.def.category === 'string' && lower(d.def.category) === lower(lo.main) && typeof d.def.name === 'string') mp = d.def.name; });
-        var hit = mp ? parts.filter(function(x) { return lower(x.part) === lower(mp); })[0] : null; if (hit) return res(hit.finish, 'main', 'main', hit.part);
+        var hit = mp ? parts.filter(function(x) { return lower(x.part) === lower(mp); })[0] : null; if (hit) dv = res(hit.finish, 'main', 'main', hit.part);
     }
-    var sh = rowLookShade(sys, spec, row); if (sh) return res({ colors: [sh.c] }, 'shade', 'shade', sh.v);
-    return parts.length ? res(null, '') : null;
+    if (!dv) { var sh = rowLookShade(sys, spec, row); if (sh) dv = res({ colors: [sh.c] }, 'shade', 'shade', sh.v); }
+    if (own) { var ot = res(JSON.parse(JSON.stringify(own)), 'own'), dc = dv && isObj(dv.overall) && Array.isArray(dv.overall.colors) ? dv.overall.colors : []; if (dc.length) { ot.overall.colors = dc.slice(); ot.tint = dv.from; } return ot; }
+    return dv || (parts.length ? res(null, '') : null);
 }
 // words, as text for a text node: a finish ("matte, markings: a red stripe"; colours first with withColors) and a log line ("Repair, hired, fee 150: the shop")
 function finishWords(fz, withColors) { if (!isObj(fz)) return ''; var w = []; if (withColors && Array.isArray(fz.colors) && fz.colors.length) w.push(fz.colors.join(' ')); if (fz.finish) w.push(fz.finish); if (fz.markings) w.push('markings: ' + fz.markings); return w.join(', '); }

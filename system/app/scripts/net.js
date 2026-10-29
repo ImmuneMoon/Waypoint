@@ -7071,7 +7071,7 @@ function handleMessage(msg, conn) {
         net.gmId = String(msg.gmId || (msg.notepad && msg.notepad.gmId) || '').slice(0, 80);   // kept apart from the notepad, which leaveSession resets
         if (typeof msg.key === 'string' && msg.key && !conn.wpKeyTaken) { conn.wpKeyTaken = true; rememberTableKey(net.gmId, msg.key); }   // the table key this host issued me: proves this id is mine next time — taken once per connection (a host cannot fill or overwrite the store snapshot after snapshot)
         // [netcheck:snapkey-end]
-        rememberTableSeen(net.gmId, msg.notepad);   // 1.6.0: for the Profile window's list (the GM's name, their campaign's, the time), never sent
+        if (!conn.wpSeenTaken && typeof msg.gmId === 'string') { conn.wpSeenTaken = true; rememberTableSeen(net.gmId, msg.notepad); }   // 1.6.0: for the Profile window's list (the GM's name, their campaign's, the time), never sent; once per connection and only from an id sent as text, as the key is taken, so a host cannot fill the list with names of its own
         applySnapshot(msg);   // after gmId: the settings refresh inside it keys this table's off-list by campaign + GM
         syncSessionButtons();
         if (window.wpTrackers && typeof window.wpTrackers.receive === 'function') window.wpTrackers.receive([], 0);   // backlog 29: a whole campaign from the host: none of its trackers until it sends them

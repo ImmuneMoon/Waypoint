@@ -91,8 +91,8 @@ const app = p => path.join(__dirname, '..', 'system', 'app', p), read = p => fs.
     }
     check('the record at a snapshot (net.js): the GM\'s name and their campaign\'s, plain text cut to 60 and 120, and the time, nothing else of the notepad; an id that is none is not kept; the newest last and the oldest forgotten past the cap; a store that is no object is read as empty',
         !!R && J(s1) === J({ u_gm1: { gm: 'Mara <i>' + 'x'.repeat(52), campaign: 'Reach', at: 1234 } }) && J(Object.keys(s2)) === J(['u_gm3', 'u_gm4', 'u_gm1']) && J(s2.u_gm3) === J({ gm: '', campaign: '', at: 1234 }) && s2.u_gm1.gm === 'Mara again' && J(R.seen()) === '{}', J([s1, s2]));
-    check('it is kept at the snapshot a table sends, after the key and before the campaign is drawn, and nowhere else; it is this computer\'s alone: no message names it, it is not in a profile pack or the account\'s stores',
-        nj.includes('        // [netcheck:snapkey-end]\n        rememberTableSeen(net.gmId, msg.notepad);') && (nj.match(/rememberTableSeen\(/g) || []).length === 2 && (nj.match(/wp_tablesSeen/g) || []).length === 2
+    check('it is kept at the snapshot a table sends, after the key and before the campaign is drawn, once per connection and only from a GM id sent as text, and nowhere else; it is this computer\'s alone: no message names it, it is not in a profile pack or the account\'s stores',
+        nj.includes('        // [netcheck:snapkey-end]\n        if (!conn.wpSeenTaken && typeof msg.gmId === \'string\') { conn.wpSeenTaken = true; rememberTableSeen(net.gmId, msg.notepad); }') && (nj.match(/rememberTableSeen\(/g) || []).length === 2 && (nj.match(/wp_tablesSeen/g) || []).length === 2
         && !core.includes('wp_tablesSeen\'') && st.includes("var PROF_STORES = ['wp_profile', 'wp_tableKeys', 'wp_gmPins', 'wp_gmRooms'];"), '');
     // ---- the window's wiring (settings.js profilewin) ----
     const pwS = st.slice(st.indexOf('// [settings:profilewin-start]'), st.indexOf('// [settings:profilewin-end]'));

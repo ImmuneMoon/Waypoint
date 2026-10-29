@@ -7425,7 +7425,7 @@ function fillMaking(sys, char, fill, F, opts) {
                 if (bad1) left++; return;
             }
             if (r.ok) { work.values[g.f] = r.value; return; }
-            if (q.op === 'ov' || q.op === 'set' || q.op === 'setQty') { left++; return; }   // a copy's own values, a fact, a count: the row stays without them (counted)
+            if (q.op === 'ov' || q.op === 'set' || q.op === 'setQty' || q.op === 'look' || q.op === 'work') { left++; return; }   // a copy's own values, a fact, a count, a look or a log (1.6.0, backlog 206): the row stays without them (counted)
             ok = false;
         });
         if (ok) done++; else { work.values[g.f] = before; left++; }

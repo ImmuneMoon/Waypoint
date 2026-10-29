@@ -615,6 +615,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && ['c_2', 'c_3', 'c_4', 'c_5'].every(id => chL[id] && !('looks' in chL[id])) && !/javascript|url\(|Evil|onclick|huge/.test(JSON.stringify(chL))
                 && (mainSrc.match(/window\.wpSystemCore\.cleanChar\(/g) || []).length === 2 && !/\.looks\b/.test(mainSrc) && (ioSrc.match(/window\.wpSystemCore\.cleanChar\(/g) || []).length === 1 && !/\.looks\b/.test(ioSrc), chL && JSON.stringify(chL));
         }
+        // 1.6.0, backlog 206: a file's row looks and work logs come in through the one cleaner (cleanChar, the load's normaliser), only on a list that keeps them
+        {
+            const HOST = '<img src=x onerror=alert(1)>';
+            const lookCamp = { activeCampaignId: 'cR', campaigns: { cR: { id: 'cR', name: 'R', items: {}, system: { v: 1, name: 'T', rolls: [], items: [{ id: 'i_gun', name: 'Gun' }], fields: [
+                { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { look: {}, workLog: true } }, { id: 'f_bag', key: 'Bag', label: 'Bag', kind: 'item-list', edit: 'owner', vis: 'all', list: {} }] },
+                chars: { c_1: { id: 'c_1', name: 'Hero', ownerId: 'u_x', values: {
+                    f_gear: [{ id: 'w_1', defId: 'i_gun', qty: 1, look: { overall: { colors: ['#AABBCC', 'url(//e)', 'expression(alert(1))', 'red'], finish: HOST + 'x'.repeat(80), markings: 'm'.repeat(500), onclick: 'x' }, parts: [{ part: 'Grip', finish: { colors: ['#000000;background:url(x)'] } }, { part: 'Barrel', finish: { finish: 'blued' } }], style: 'x' }, workLog: [{ kind: 'repair', by: 'hired', fee: 40, note: HOST }, { kind: 'hack', by: 'self' }, { kind: 'fit', by: 'self', fee: -3 }] }],
+                    f_bag: [{ id: 'w_2', defId: 'i_gun', qty: 1, look: { overall: { finish: 'gone' } }, workLog: [{ kind: 'build', by: 'self' }] }] } } } } } };
+            const outR = cleanImport(JSON.parse(JSON.stringify(lookCamp)), deps), chR = outR && outR.campaigns.cR && outR.campaigns.cR.chars && outR.campaigns.cR.chars.c_1, gR = chR && chR.values.f_gear && chR.values.f_gear[0], bR = chR && chR.values.f_bag && chR.values.f_bag[0];
+            check('backlog 206 import: a file\'s row look and work log come in through the one cleaner (the real load normaliser with the real core): strict #rrggbb colours only, in lower case (url(, expression(, a name and a colour with more after it go), the finish and markings cut to 40 and 200 plain characters, markup kept as characters, a part with nothing left and keys of a file\'s own invention gone, a line of an unknown kind or a fee below 0 gone; a list that keeps neither keeps neither',
+                !!gR && JSON.stringify(gR.look) === JSON.stringify({ overall: { colors: ['#aabbcc'], finish: (HOST + 'x'.repeat(80)).slice(0, 40), markings: 'm'.repeat(200) }, parts: [{ part: 'Barrel', finish: { finish: 'blued' } }] })
+                && JSON.stringify(gR.workLog) === JSON.stringify([{ kind: 'repair', by: 'hired', fee: 40, note: HOST }]) && !!bR && !('look' in bR) && !('workLog' in bR) && !/url\(|expression|onclick|style/.test(JSON.stringify(chR)), chR && JSON.stringify(chR.values));
+        }
         // senses S1: a file's senses (the system's combat.senses) come in cleaned as the app cleans them, on Replace (the load's normaliser) and on Merge (main.js)
         const sensesSys = () => ({ v: 1, name: 'Sn', rolls: [], fields: [{ id: 'f_st', key: 'Sight', label: 'S', kind: 'number', def: 6, vis: 'all' }, { id: 'f_gm', key: 'GMFig', label: 'G', kind: 'number', def: 5, vis: 'gm' }],
             combat: { senses: { vis: 'gm', blind: { field: 'f_gm' }, list: [

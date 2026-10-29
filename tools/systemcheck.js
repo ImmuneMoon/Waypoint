@@ -17387,6 +17387,23 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('backlog 206: a look NEVER feeds a figure: every figure, column, total, budget and need of a character works out the same with a look and a log on its rows as with none; outside the rowlook slice systemcore names a row\'s look or log only to keep it (ROW_OPS, rowFacts, the owner\'s copy, a list\'s room, the list options, applyRowOp handing the op on, the wire, the Pay): no row word, formula, roll, budget, need or resolver reads it',
             j(figs(rsA)) === j(figs(rsB)) && j(figs(rsA)).length > 200 && rsA.f_gear.value[0].look && j(bwA) === j(bwB) && reads.length === keeps.length && reads.every(l => keeps.some(k => k.test(l))) && keeps.every(k => reads.some(l => k.test(l))), j(reads.map(l => l.slice(0, 60))));
     }
+    {   // 1.6.0, backlog 206: the character file and the readable page carry a row's look and its work log (sheetexport.js, run for real)
+        const j = JSON.stringify, X = await import(url('sheetexport.js')), HOST = '<img src=x onerror=alert(1)>';
+        const sX = S.cleanSystem({ v: 1, name: 'X', rolls: [], fields: [{ id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { look: { by: 'Mat', shades: [{ v: 'Brass', c: '#b5a642' }] }, workLog: true, stats: [{ key: 'Mat', label: 'M', kind: 'pick', opts: [{ label: 'Brass', name: 'brass' }] }] } }],
+            items: [{ id: 'i_gun', name: 'Gun' }, { id: 'i_bgun', name: 'Brass gun', stats: { Mat: 'Brass' } }] }, { F, gmView: true }), sXp = S.cleanSystem(sX, { F, gmView: false });
+        const lkX = { overall: { colors: ['#112233'], finish: 'matte', markings: HOST }, parts: [{ part: 'Grip', finish: { finish: 'polished' } }] }, wlX = [{ kind: 'repair', by: 'hired', fee: 40, note: 'Kessa' }];
+        const chX = S.cleanChar({ id: 'c_x', name: 'Ana', ownerId: 'u_p', values: { f_gear: [{ id: 'w_g1', defId: 'i_gun', qty: 1, look: lkX, workLog: wlX }, { id: 'w_g2', defId: 'i_bgun', qty: 1 }] } }, sX);
+        const view = S.charFor(chX, sXp, 'u_p', {}), file = X.charToJson(sXp, view, S.resolveAll(sXp, view, F), {}), fr = file.values.f_gear;
+        const back = X.charFromJson(sXp, JSON.parse(j(file)), () => [], () => []), opsX = back.ops.filter(o => o.q.op === 'look' || o.q.op === 'work');
+        const mk = { id: 'c_m', name: 'New', ownerId: 'u_p', making: 1, values: {} }, filled = S.fillMaking(sX, mk, back, F, { view: sXp }), fg = filled.values && filled.values.f_gear;
+        const badFile = JSON.parse(j(file)); badFile.values.f_gear[0].look = { overall: { colors: ['url(x)'] } }; badFile.values.f_gear[0].workLog = [{ kind: 'x' }]; const backB = X.charFromJson(sXp, badFile, () => [], () => []), fillB = S.fillMaking(sX, mk, backB, F, { view: sXp });
+        check('backlog 206: the character file carries a row\'s look and work log as its owner\'s copy holds them; read back they are a look op and a whole log op on that row, a fill applies them through the one cleaner, and a look or a log that cleans to nothing leaves the row without it (counted), never takes the row',
+            j(fr[0].look) === j(lkX) && j(fr[0].workLog) === j(wlX) && opsX.length === 2 && j(opsX.map(o => o.q.op)) === j(['look', 'work']) && j(opsX[1].q.log) === j(wlX)
+            && filled.ok && fg.length === 2 && j(fg[0].look) === j(lkX) && j(fg[0].workLog) === j(wlX) && fillB.ok && fillB.values.f_gear.length === 2 && fillB.values.f_gear[0].look === undefined && fillB.values.f_gear[0].workLog === undefined, j([opsX, fg, fillB]));
+        const md = X.sheetToMarkdown(sXp, view, S.resolveAll(sXp, view, F), {});
+        check('backlog 206: the readable page says each row\'s look (its colours as #rrggbb, its finish and markings, each part, a derived one by where it comes from) and its work log under the list, markup escaped as the page escapes text',
+            md.includes('Gear, looks:') && md.includes('#112233, matte, markings: \\<img src=x onerror=alert(1)\\>; Grip: polished') && md.includes('its material’s shade, #b5a642') && md.includes('Gear, work log:') && md.includes('Repair, hired, fee 40: Kessa') && !/[^\\]<img/.test(md), md.slice(-600));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

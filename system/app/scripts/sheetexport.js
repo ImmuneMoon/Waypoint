@@ -6,7 +6,7 @@
      page), the sheet walked as it is laid out: the header, the dashboard, the band as one line, every tab, every section.
    fileBase(name): a character's name as a file name. isCharFile(j): a character file. The caller (sheets.js) picks the view, works out
    `all` (resolveAll) on that same view and saves the file. */
-import { STORED, fmtNum, headerEntry, autoLayout, catPlace, placeVal, setsOf, partsOf, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, postureAt, ownPostures, lookOf, unitWords, textWords, listWords } from './systemcore.js';
+import { STORED, fmtNum, headerEntry, autoLayout, catPlace, placeVal, setsOf, partsOf, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, postureAt, ownPostures, lookOf, unitWords, textWords, listWords, rowLookShown, finishWords, workWords } from './systemcore.js';
 import { docToMarkdown, mdEscapeText, fmtFromInline } from './docmd.js';
 import { cleanFmt, runsOf, SIZE_EM } from './textfmt.js';
 import { LIMITS as DOC_LIMITS } from './docrender.js';
@@ -138,6 +138,8 @@ function charFromJson(view, j, find, findKey) {
             if (typeof r.note === 'string' && r.note.trim()) facts.note = r.note.slice(0, 200);
             if (Array.isArray(spec.counters) && isObj(r.ct)) { var ct = {}; spec.counters.forEach(function(t) { if (!isObj(t) || typeof t.key !== 'string') return; Object.keys(r.ct).forEach(function(k) { if (k.toLowerCase() === t.key.toLowerCase() && typeof r.ct[k] === 'number' && isFinite(r.ct[k])) ct[t.key] = r.ct[k]; }); }); if (Object.keys(ct).length) facts.ct = ct; }   // the list's own counters
             if (Object.keys(facts).length) out.ops.push({ f: f.id, q: { op: 'set', rowId: id, facts: facts } });
+            if (isObj(spec.look) && isObj(r.look)) out.ops.push({ f: f.id, q: { op: 'look', rowId: id, look: r.look } });   // 1.6.0, backlog 206: its look and its work log, as the file has them (the one cleaner cleans them where the fill is applied)
+            if (spec.workLog === true && Array.isArray(r.workLog) && r.workLog.length) out.ops.push({ f: f.id, q: { op: 'work', rowId: id, log: r.workLog } });
         });
     };
     var fxInto = function(f, rows) {
@@ -307,6 +309,15 @@ function sheetToMarkdown(sys, view, all, opts) {
         B.push({ type: 'table', title: label, cols: cols.map(function(c) { return cell(c.t); }), rows: rows.map(function(r, i) { return cols.map(function(c) { return cell(c.g(r, defs[i])); }); }) });
         var notes = rows.map(function(r, i) { return typeof r.note === 'string' && r.note ? li((defs[i] && defs[i].name) || '?', r.note) : ''; }).filter(Boolean);
         if (notes.length) B.push(textBlock('<ul>' + notes.join('') + '</ul>'));
+        var lookLi = isObj(spec.look) ? rows.map(function(r, i) {   // 1.6.0, backlog 206: each row's look as words, its colours as #rrggbb, and where it comes from when derived
+            var sh = rowLookShown(sys, { values: vals }, spec, r), w = []; if (!sh) return '';
+            var ow = sh.overall ? finishWords(sh.overall, true) : ''; if (ow) w.push(sh.from === 'main' ? 'its ' + sh.main + '\u2019s look, ' + ow : sh.from === 'shade' ? 'its material\u2019s shade, ' + ow : ow);
+            sh.parts.forEach(function(p) { if (sh.from === 'main' && String(p.part).toLowerCase() === String(sh.main).toLowerCase()) return; var pw = finishWords(p.finish, true); if (pw) w.push(p.part + ': ' + pw); });
+            return w.length ? li((defs[i] && defs[i].name) || '?', w.join('; ')) : '';
+        }).filter(Boolean) : [];
+        if (lookLi.length) { B.push(textBlock('<p><b>' + esc(label + ', looks') + ':</b></p>')); B.push(textBlock('<ul>' + lookLi.join('') + '</ul>')); }
+        var workLi = spec.workLog === true ? rows.map(function(r, i) { var lg = Array.isArray(r.workLog) ? r.workLog : []; return lg.length ? li((defs[i] && defs[i].name) || '?', lg.map(workWords).join('; ')) : ''; }).filter(Boolean) : [];   // ... and its work log, oldest first
+        if (workLi.length) { B.push(textBlock('<p><b>' + esc(label + ', work log') + ':</b></p>')); B.push(textBlock('<ul>' + workLi.join('') + '</ul>')); }
         if (!onOnly && (!catT || catT.home) && typeof spec.sets === 'string' && spec.sets) { var setW = setsOf(sys, spec, vals[f.id]).map(function(g) { return g.name + ' ' + g.on + '/' + g.n + ' ' + String(isObj(spec.on) && spec.on.label || 'on').toLowerCase() + (g.all ? ', complete' : ''); }); if (setW.length) B.push(textBlock('<p><b>Sets:</b> ' + esc(plain(setW.join('; '))) + '</p>')); }   // 1.6.0 R15: each set with its count, once, under the home placement
     }
     function fxBlock(f) {

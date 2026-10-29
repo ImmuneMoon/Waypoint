@@ -764,7 +764,7 @@ function appVersionPromise() {   // the newer of the shell's version and the app
    can take it (canSelfInstall): the shell downloads the installer, checks it, runs it and Waypoint
    reopens; Get Installer and its steps remain for every case where that cannot be done. */
 var _upd = { info: null, shellOld: null, shell: null, selfBusy: false, selfFailed: false, selfText: '', failNote: '', failSeen: '' };
-var SHELL_WANTED = '1.5.9';   // 1.5.9 carries the outside sheet reader's folder (system/app/private) across an update and a restore; 1.5.6 adds the right-click menu of a text box, Cut, Copy, Paste and Select all (shellguard.editMenuTemplate); 1.5.0 added /api/library (the item library's pack files beside the save), serves a file in byte ranges under its media type (servefile.js: a video seeks without being read whole), takes only signed updates, keeps a way back and updates its own core; 1.4.6 added /api/delete-image (Image Library → Delete picture)   // the core this app expects; older cores are walked through the installer. It is the version tools/shellrev.json records as the core's last change: updatercheck holds the two together, and a release's manifest says the same as minShell
+var SHELL_WANTED = '1.6.0';   // 1.6.0 adds /api/account (account.js: this install linked to a Waypoint website account, the key kept in saves/account.json); 1.5.9 carries the outside sheet reader's folder (system/app/private) across an update and a restore; 1.5.6 adds the right-click menu of a text box, Cut, Copy, Paste and Select all (shellguard.editMenuTemplate); 1.5.0 added /api/library (the item library's pack files beside the save), serves a file in byte ranges under its media type (servefile.js: a video seeks without being read whole), takes only signed updates, keeps a way back and updates its own core; 1.4.6 added /api/delete-image (Image Library → Delete picture)   // the core this app expects; older cores are walked through the installer. It is the version tools/shellrev.json records as the core's last change: updatercheck holds the two together, and a release's manifest says the same as minShell
 var RELEASES_PAGE = 'https://github.com/ImmuneMoon/Waypoint/releases/latest';
 function vcmp(x, y) { var p = String(x).split('-')[0].split('.').map(Number), q = String(y).split('-')[0].split('.').map(Number); for (var k = 0; k < 3; k++) { if ((p[k] || 0) !== (q[k] || 0)) return (p[k] || 0) - (q[k] || 0); } return 0; }
 // Is the core older than this app wants? The shell says so itself from 1.3.6 on; before that, the
@@ -1212,6 +1212,131 @@ function profWire() {
 }
 profWire();
 // [settings:profcarry-end]
+// [settings:account-start]
+// 1.6.0: this computer linked to a Waypoint website account (the owner, 2026-10-29: "we can go further and link it to the website profiles if
+// the user wishes"). The page asks only its own server (/api/account/*, system/resources/app/account.js), which alone talks to the site and
+// keeps the key. What the account keeps is the profile pack's four stores, never wp_hostId. On linking the account is read first and then
+// decided on, before any sync (an early sync merges this computer's table keys and makes the account count as played): an account that has
+// played nowhere adopts this computer's player; one that has takes over a computer that has played nowhere; where both have, you are asked.
+// After that every change of the four is sent, and at launch a newer copy on the account is taken, only between tables
+var ACCT = { linked: false, poll: null, url: '', timer: null };
+function acctStep(step, o) { if (typeof window.wpStepLog === 'function') window.wpStepLog('account v1', step, o); }
+function acctApi(method, p, body) {
+    var o = { method: method }; if (body) { o.headers = { 'Content-Type': 'application/json' }; o.body = JSON.stringify(body); }
+    return fetch(p, o).then(function(r) { return r.json().then(function(j) { return { status: r.status, json: j && typeof j === 'object' ? j : {} }; }, function() { return { status: r.status, json: {} }; }); }, function() { return { status: 0, json: {} }; });
+}
+function acctSig() { var s = profStores(); return PROF_STORES.map(function(k) { return typeof s[k] === 'string' ? s[k].length + ':' + s[k].slice(-24) : '-'; }).join('|'); }
+function acctPrefs() { var s = profStores(), out = {}; PROF_STORES.forEach(function(k) { if (typeof s[k] === 'string') out[k] = s[k]; }); return { updated: Date.now(), prefs: out }; }
+function acctPlayed() { try { var t = JSON.parse(localStorage.getItem('wp_tableKeys') || 'null'); return !!t && typeof t === 'object' && !Array.isArray(t) && Object.keys(t).length > 0; } catch (e) { return false; } }
+function acctMark(updated) { try { localStorage.setItem('wp_acctStamp', String(updated || Date.now())); localStorage.setItem('wp_acctSig', acctSig()); } catch (e) {} }
+function acctDraw(st) {
+    var line = ui('setAcctLine'), code = ui('setAcctCode'), ct = ui('setAcctCodeText'), link = ui('setAcctLinkBtn'), open = ui('setAcctOpenBtn'), stop = ui('setAcctStopBtn'), un = ui('setAcctUnlinkBtn'); if (!line) return;
+    var waiting = !!(st && st.code), linked = !!(st && st.linked);
+    line.textContent = waiting ? 'Sign in on the page that opened, and check that it shows this code. This computer is linked once you say yes there.'
+        : linked ? (st.offline ? 'Linked to your account. The website cannot be reached just now: your profile is sent when it can be.' : 'Linked to ' + (st.email || 'your account') + '. Your profile follows this account to every computer you link.')
+        : st && st.err ? 'The website cannot be reached just now. Try again later.' : 'Link this computer to your account on the Waypoint website, and your profile follows you to every computer you link.';
+    if (code) code.hidden = !waiting; if (ct) ct.textContent = waiting ? st.code : '';
+    if (link) link.hidden = waiting || linked; if (open) open.hidden = !waiting; if (stop) stop.hidden = !waiting; if (un) un.hidden = !linked;
+}
+function acctRefresh() {
+    return acctApi('GET', '/api/account').then(function(r) {
+        var j = r.status === 200 ? r.json : { err: true }; ACCT.linked = j.linked === true;
+        if (!ACCT.poll && j.linked !== true && j.pending && typeof j.pending.userCode === 'string' && typeof j.pending.url === 'string') { ACCT.url = j.pending.url; acctDraw({ code: j.pending.userCode }); acctStep('resumed', {}); acctPoll(5); return j; }   // a wait this page did not begin (a reload, another window) is taken up again
+        if (!ACCT.poll) acctDraw(j); return j;
+    });
+}
+function acctStopPoll() { if (ACCT.poll) clearTimeout(ACCT.poll); ACCT.poll = null; }
+// The account's copy over this computer's: the profile pack's own rules (the profile replaced, the table keys, pins and rooms joined)
+function acctTake(how, given) {   // given: the account's copy already in hand (adopt's answer), else it is asked for
+    return (given ? Promise.resolve({ status: 200, json: given }) : acctApi('GET', '/api/account/prefs')).then(function(r) {
+        var PC = window.wpProfileCore, pack = r.status === 200 && PC && r.json.prefs ? PC.packOf(r.json.prefs, profRules(), Date.now()) : null;
+        if (!pack) { acctStep('take-failed', { how: how, status: r.status }); return false; }
+        if (window.wpNet && typeof window.wpNet.hostId === 'function') window.wpNet.hostId();   // the host id stays this computer's own
+        var w = PC.openWrites(profStores(), pack); if (!w) { acctStep('take-failed', { how: how, at: 'writes' }); return false; }
+        try { Object.keys(w).forEach(function(k) { localStorage.setItem(k, w[k]); }); } catch (e) { acctStep('take-failed', { how: how, at: 'store' }); return false; }
+        acctMark(r.json.updated); if (window.wpPrefsPush) window.wpPrefsPush();
+        if (typeof syncPanel === 'function') syncPanel(); if (window.wpFaces && window.wpFaces.paintRows) window.wpFaces.paintRows();
+        acctStep('taken', { how: how, tables: Object.keys(pack.tableKeys).length }); return true;
+    });
+}
+function acctSync(why) {
+    if (!ACCT.linked) return Promise.resolve(false);
+    return acctApi('POST', '/api/account/prefs', acctPrefs()).then(function(r) { if (r.status === 200) { acctMark(); acctStep('sent', { why: why }); return true; } if (r.json.gone || r.json.error === 'unlinked') { ACCT.linked = false; acctRefresh(); } acctStep('send-failed', { why: why, status: r.status }); return false; });
+}
+function acctSoon() { if (!ACCT.linked) return; if (ACCT.timer) clearTimeout(ACCT.timer); ACCT.timer = setTimeout(function() { ACCT.timer = null; if (acctSig() !== (localStorage.getItem('wp_acctSig') || '')) acctSync('change'); }, 2000); }
+function acctUnlink(why) { acctStopPoll(); return acctApi('DELETE', '/api/account').then(function() { ACCT.linked = false; acctStep('unlinked', { why: why }); return acctRefresh(); }); }
+// Once the key is here: the account read first, then decided on, and only then the first sync
+function acctDecide() {
+    return acctApi('GET', '/api/account').then(function(r) {
+        var a = r.status === 200 ? r.json : {}; if (a.linked !== true || a.offline) { acctStep('decide-failed', { status: r.status }); toast('Linked, but the website cannot be reached just now. Open Settings again later.'); return acctRefresh(); }
+        ACCT.linked = true; var mine = acctPlayed();
+        var take = function() { return acctTake('link').then(function(ok) { if (!ok) { toast('Your account\u2019s player could not be read. Try again later.'); return acctUnlink('take-failed'); } toast('Linked. You now join tables as your account\u2019s player.'); return acctSync('link').then(acctRefresh); }); };
+        var both = function() {
+            if (!mine) return take();
+            import('./dialogs.js').then(function(d) {
+                d.showConfirm('Your account and this computer have each played at tables. Use your account\u2019s player? Tables that knew this computer ask the GM once. Or keep this computer\u2019s player, and this computer is not linked.', function(yes) {
+                    if (yes === true) { acctStep('asked', { pick: 'account' }); take(); }
+                    else { acctStep('asked', { pick: 'keep' }); toast('This computer keeps its own player and is not linked.'); acctUnlink('kept'); }
+                }, { noEnter: true, yes: 'Use my account\u2019s player', alt: 'Keep this computer\u2019s player' });
+            });
+        };
+        if (a.played === true) return both();
+        return acctApi('POST', '/api/account/adopt', acctPrefs()).then(function(ad) {
+            if (ad.status === 200) { acctStep('adopted', {}); return acctTake('adopt', ad.json).then(function() { toast('Linked. Your account now holds the player you are here.'); return acctRefresh(); }); }   // what the site added (a colour) is taken too
+            if (ad.status === 409) return both();
+            acctStep('adopt-failed', { status: ad.status }); toast('Linked, but your player could not be sent. Try again later.'); return acctRefresh();
+        });
+    });
+}
+function acctPoll(interval) {
+    ACCT.poll = setTimeout(function() {
+        acctApi('POST', '/api/account/poll').then(function(r) {
+            var s = r.json.state; if (!ACCT.poll) return;
+            if (s === 'approved') { ACCT.poll = null; acctStep('approved', {}); acctDecide(); return; }
+            if (s === 'denied' || s === 'expired' || s === 'none') { ACCT.poll = null; toast(s === 'denied' ? 'The website was told not to link this computer.' : 'The code ran out. Press Link to my account again.'); acctStep(s, {}); acctRefresh(); return; }
+            acctPoll(interval);
+        });
+    }, Math.max(5, interval || 5) * 1000);
+}
+function acctOpenPage() { if (ACCT.url) { try { window.open(ACCT.url, '_blank', 'noopener'); } catch (e) {} } }
+function acctLink() {
+    if (profBusy()) return;
+    var name = ''; try { var p = JSON.parse(localStorage.getItem('wp_profile') || 'null'); name = p && typeof p.name === 'string' ? p.name : ''; } catch (e) {}
+    acctApi('POST', '/api/account/link', { name: (name ? name + '\u2019s ' : '') + 'Waypoint' }).then(function(r) {
+        if (r.status !== 200 || typeof r.json.userCode !== 'string' || typeof r.json.url !== 'string') { toast(r.status === 429 ? 'Wait a few minutes before you try to link again.' : 'The website cannot be reached just now. Try again later.'); acctStep('start-failed', { status: r.status }); return; }
+        ACCT.url = r.json.url; acctStopPoll(); acctDraw({ code: r.json.userCode }); acctOpenPage(); acctStep('started', {});
+        acctPoll(r.json.interval);
+    });
+}
+// At launch: a newer copy on the account is taken (between tables only); else this computer's, if it changed since the last sync, is sent
+function acctLaunch() {
+    if (window.wpStream || /[?&]popout=/.test(location.search) || (window.wpWebMode && window.wpWebMode.joinOnly && window.wpWebMode.joinOnly())) return;
+    acctRefresh().then(function(a) {
+        if (!a || a.linked !== true || a.offline) return;
+        var stamp = parseInt(localStorage.getItem('wp_acctStamp') || '0', 10) || 0;
+        acctApi('GET', '/api/account/prefs').then(function(r) {
+            var n = window.wpNet, atTable = !!(n && (n.active || n.foreign));
+            if (r.status === 200 && (r.json.updated || 0) > stamp && !atTable) { acctTake('launch'); return; }
+            if (acctSig() !== (localStorage.getItem('wp_acctSig') || '')) acctSync('launch');
+        });
+    });
+}
+function acctWire() {
+    var link = ui('setAcctLinkBtn'), open = ui('setAcctOpenBtn'), stop = ui('setAcctStopBtn'), un = ui('setAcctUnlinkBtn');
+    if (link) link.addEventListener('click', acctLink);
+    if (open) open.addEventListener('click', acctOpenPage);
+    if (stop) stop.addEventListener('click', function() { acctStopPoll(); acctStep('stopped', {}); acctRefresh(); });
+    if (un) un.addEventListener('click', function() {
+        import('./dialogs.js').then(function(d) { d.showConfirm('Unlink this computer from your account? Your profile here stays as it is, and the account keeps its own copy.', function(yes) { if (yes === true) acctUnlink('asked'); }, { yes: 'Unlink' }); });
+    });
+    try {   // a change of who you are at a table goes to the account, a moment after it settles
+        var SP = Storage.prototype, set0 = SP.setItem, want = {}; PROF_STORES.forEach(function(k) { want[k] = 1; });
+        SP.setItem = function(k, v) { set0.call(this, k, v); if (this === localStorage && want[k] === 1) acctSoon(); };
+    } catch (e) {}
+    acctLaunch();
+}
+acctWire();
+// [settings:account-end]
 
 var _ident = ui('setResetIdentityBtn');
 if (_ident) _ident.addEventListener('click', function() {

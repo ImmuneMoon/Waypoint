@@ -1334,7 +1334,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
            whose Update would have swapped the repository's own system/app. */
         {
             const tree0 = path.join(tmp, 'devtree' + (++seq)), sys0 = path.join(tree0, 'system'), app0 = path.join(sys0, 'app');
-            for (const f of ['tools/dev-server.js', 'system/resources/app/updater.js', 'system/resources/app/libstore.js', 'system/resources/app/servefile.js', 'system/resources/app/reqguard.js', 'system/resources/app/shellguard.js', 'system/resources/app/package.json', 'system/resources/app/main.js']) {
+            for (const f of ['tools/dev-server.js', 'system/resources/app/updater.js', 'system/resources/app/account.js', 'system/resources/app/libstore.js', 'system/resources/app/servefile.js', 'system/resources/app/reqguard.js', 'system/resources/app/shellguard.js', 'system/resources/app/package.json', 'system/resources/app/main.js']) {
                 fs.mkdirSync(path.dirname(path.join(tree0, f)), { recursive: true }); if (has(f)) fs.copyFileSync(path.join(ROOT, f), path.join(tree0, f));
             }
             fs.writeFileSync(path.join(tree0, 'system/resources/app/updatekey.js'), signkey ? signkey.keyFileText(PUB) : '');

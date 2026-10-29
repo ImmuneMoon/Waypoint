@@ -23,6 +23,7 @@ const dataFile = path.join(savesDir, 'data.json');
 // Without a scratch folder named — or with the source tree's own system folder named, under any spelling — the dev server
 // changes nothing: Update and Restore answer 409 and the tree it runs from stays as it is (the check itself still answers).
 const updater = require('../system/resources/app/updater');
+const account = require('../system/resources/app/account');   // 1.6.0: the shell's own website account link (WAYPOINT_SITE names a local site to test against)
 const libstore = require('../system/resources/app/libstore');   // Stage 6 library L1b: the shell's own pack store
 const servefile = require('../system/resources/app/servefile');   // item 21 V1: the shell's own file serving (media types, byte ranges)
 const reqguard = require('../system/resources/app/reqguard');   // the shell's own rules for what the server takes and refuses (names, sizes, bodies, backups, the launch secret)
@@ -36,6 +37,7 @@ const updateHandler = updater.makeHandler({
     systemDir: scratchSystem || ownSystem,
     apiUrl: process.env.WAYPOINT_UPDATE_API || undefined,
 });
+const accountHandler = account.makeHandler({ savesDir, base: account.siteBase(process.env), version: shellPkg.version, readBody: reqguard.readBody, bodyCap: reqguard.BODY.small, log: (s) => console.log('[account] ' + s) });
 
 // mirrors main.js: only this server's own pages may talk to it — no CORS, a foreign Origin / Sec-Fetch-Site / Host is refused
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
@@ -78,7 +80,8 @@ const server = http.createServer((req, res) => {
         res.writeHead(409, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ ok: false, error: 'the dev server never changes the source tree: set WAYPOINT_SYSTEM_DIR to a scratch copy of system/ to try an update' }));
     }
-    if (updater.UPDATE_ROUTES.includes(url.pathname)) { updateHandler(req, res, url); return; }   // the shell's own list (a core update's routes too: here they answer that this copy cannot install one)
+    if (updater.UPDATE_ROUTES.includes(url.pathname)) { updateHandler(req, res, url); return; }
+    if (account.ACCOUNT_ROUTES.includes(url.pathname)) { accountHandler(req, res, url); return; }   // 1.6.0: the website account link, as the shell   // the shell's own list (a core update's routes too: here they answer that this copy cannot install one)
     if (url.pathname === '/api/open-external' && req.method === 'POST') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true,"note":"dev server: not opening a browser"}'); }
     if (url.pathname === '/api/ping') { res.writeHead(200); return res.end(); }
     if (url.pathname === '/api/version') {

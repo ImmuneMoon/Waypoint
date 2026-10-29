@@ -303,6 +303,8 @@
                                   <li>On the other computer, <b>Open a profile</b> or <b>Paste a profile code</b>. You then join tables there as yourself, and every GM&rsquo;s table knows you at once.</li>
                                   <li>Keep the file and the code private: they let someone join as you.</li>
                                   <li>Your own table, if you host one, stays as it is. Your players still know it.</li>
+                                  <li><b>Link to my account</b> links this computer to your account on the Waypoint website. Sign in on the page it opens and check the code. Then your profile follows you to every computer you link.</li>
+                                  <li>The first computer you link gives the account its player. A computer that has played nowhere takes the account&rsquo;s. Where both have played, you are asked which to keep.</li>
                               </ul></li>
                           <li><b>Settings &#9656; Profile &#9656; Welcome screen on launch</b> sets how often the screen appears: every time, on the first run only, or never. The Welcome screen itself asks only the first time.</li>
                           <li>The screen lists a campaign to continue only once that campaign holds something.</li>
@@ -3609,6 +3611,17 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             </div>
             <input type="file" id="setProfFile" accept=".json,application/json" title="The profile file to open, saved on your other computer" hidden>
             <div class="set-line">Take your profile to another computer and every table knows you there. Keep the file and the code private: they let someone join as you. Your own table, if you host one, stays as it is.</div>
+            <div class="set-acct" style="margin-top:12px;">
+                <div class="set-field-label">Your Waypoint account</div>
+                <div id="setAcctLine" class="set-acct-line" aria-live="polite">Link this computer to your account on the Waypoint website, and your profile follows you to every computer you link.</div>
+                <div id="setAcctCode" class="set-acct-code" hidden><span>Your code</span> <b id="setAcctCodeText"></b></div>
+                <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+                    <button class="tool ghost" id="setAcctLinkBtn" type="button" style="flex:1;" title="Opens the Waypoint website, where you sign in and say yes to this computer">Link to my account&hellip;</button>
+                    <button class="tool ghost" id="setAcctOpenBtn" type="button" style="flex:1;" title="Opens the website's page for this code again" hidden>Open the page again</button>
+                    <button class="tool ghost" id="setAcctStopBtn" type="button" style="flex:1;" title="Stops waiting for the website" hidden>Stop</button>
+                    <button class="tool ghost" id="setAcctUnlinkBtn" type="button" style="flex:1;" title="This computer stops following your account. Your profile here stays as it is" hidden>Unlink this computer</button>
+                </div>
+            </div>
         </div>
         <div class="set-welcome" style="margin-top:6px;">
             <div class="set-field-label">Welcome screen on launch</div>

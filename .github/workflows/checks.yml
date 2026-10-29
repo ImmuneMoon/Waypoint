@@ -96,6 +96,9 @@ jobs:
       - name: profilecheck — a profile carried to another computer, its file, its code and what opening it writes
         if: ${{ !cancelled() }}
         run: node tools/profilecheck.js
+      - name: accountcheck — this install linked to a Waypoint website account, the shell's routes and the order of linking
+        if: ${{ !cancelled() }}
+        run: node tools/accountcheck.js
       - name: scenecheck — a picture shown big to the table, the GM box, the player window, the wire and the pill
         if: ${{ !cancelled() }}
         run: node tools/scenecheck.js

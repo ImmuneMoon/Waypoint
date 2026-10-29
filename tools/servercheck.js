@@ -1337,9 +1337,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             let shellSrv = null, setPort = null, built = '';
             try {
                 if (a < 0 || b < a) throw new Error('main.js: the request handling was not found between its LOCAL_HOSTS line and the timeout line');
-                const mk = new Function('app', 'shell', 'updater', 'updateHandler', 'libstore', 'servefile', 'reqguard', 'shellguard', 'fs', 'path', 'http', 'savesDir', 'dataFile', 'SHELL_VERSION', 'UPDATE_REPO', 'appVersion', 'process', 'require',
+                const mk = new Function('app', 'shell', 'updater', 'updateHandler', 'libstore', 'servefile', 'reqguard', 'shellguard', 'fs', 'path', 'http', 'savesDir', 'dataFile', 'SHELL_VERSION', 'UPDATE_REPO', 'appVersion', 'process', 'require', 'account', 'accountHandler',
                     'let port = 0;' + NL + main.slice(a, b) + NL + 'return { server: server, setPort: function(p) { port = p; } };');
-                const made = mk(appStub, { openExternal: u => rec.opened.push(u) }, require('../system/resources/app/updater.js'), (rq, rs) => { rs.writeHead(200); rs.end('{"update":"stub"}'); }, lib, sf, rg, require('../system/resources/app/shellguard.js'), fs, path, http, savesS, path.join(savesS, 'data.json'), '1.5.0', 'owner/repo', () => '1.5.0', { on() {}, platform: process.platform, pid: process.pid }, req2);
+                const made = mk(appStub, { openExternal: u => rec.opened.push(u) }, require('../system/resources/app/updater.js'), (rq, rs) => { rs.writeHead(200); rs.end('{"update":"stub"}'); }, lib, sf, rg, require('../system/resources/app/shellguard.js'), fs, path, http, savesS, path.join(savesS, 'data.json'), '1.5.0', 'owner/repo', () => '1.5.0', { on() {}, platform: process.platform, pid: process.pid }, req2, require('../system/resources/app/account.js'), (rq, rs) => { rs.writeHead(200, { 'Content-Type': 'application/json' }); rs.end('{"linked":false}'); });
                 shellSrv = made.server; setPort = made.setPort;
                 await new Promise(r => shellSrv.listen(0, '127.0.0.1', r)); shellSrv.unref(); setPort(shellSrv.address().port);
             } catch (e) { built = String(e && e.message); }

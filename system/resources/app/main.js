@@ -7,6 +7,7 @@ const { app, BrowserWindow, shell } = require('electron');
 // put there by the installer (updater.js), with the walk-through in the browser as the fallback.
 const UPDATE_REPO = 'ImmuneMoon/Waypoint';   // <owner>/<repo> — change here and nowhere else
 const updater = require('./updater');
+const account = require('./account');   // 1.6.0: the link between this install and a Waypoint website account (only this server talks to the site)
 const libstore = require('./libstore');   // Stage 6 library L1b: a campaign's pack files, shared with tools/dev-server.js
 const servefile = require('./servefile');   // item 21 V1: a media file's type and byte ranges, shared with tools/dev-server.js
 const reqguard = require('./reqguard');   // what the local server takes and refuses (the launch secret, names, sizes, bodies, backups), shared with tools/dev-server.js
@@ -87,6 +88,8 @@ const updateCfg = {
 };
 Object.defineProperty(updateCfg, 'currentVersion', { get: appVersion, enumerable: true });
 const updateHandler = updater.makeHandler(updateCfg);
+const accountHandler = account.makeHandler({ savesDir, base: account.siteBase(process.env), get version() { return appVersion(); }, readBody: reqguard.readBody, bodyCap: reqguard.BODY.small,
+    log: (s) => { try { reqguard.appendLog(savesDir, '[account] ' + s); } catch (e) {} } });
 
 // Only Waypoint's own pages may talk to this server. It listens on localhost with no login and a
 // predictable port, so any web page open in the GM's browser could otherwise read /api/data (the whole
@@ -128,6 +131,7 @@ const server = http.createServer((req, res) => {
         updateHandler(req, res, url);
         return;
     }
+    if (account.ACCOUNT_ROUTES.includes(url.pathname)) { accountHandler(req, res, url); return; }   // 1.6.0: the website account link
     // Open a release page or installer link in the system browser — this project's own release pages on github.com only
     // (shellguard.releaseLink: no other host, no other part of the project, no port, no user name)
     if (url.pathname === '/api/open-external' && req.method === 'POST') {

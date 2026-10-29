@@ -2349,7 +2349,10 @@
   body.web-join #netPaneHostBtn, body.web-join #netPaneHost, body.web-join #netPlayersBtn, body.web-join #netEndBtn,
   body.web-join #settingsModal .set-welcome, body.web-join #settingsModal .set-devmode,
   body.web-join #setSnapNowBtn, body.web-join #setSnapNowBtn + .set-line, body.web-join #settingsModal .set-snaps,
-  body.web-join #settingsModal .set-group[data-group="updates"], body.web-join #settingsModal .set-saves { display: none !important; }
+  body.web-join #settingsModal .set-group[data-group="updates"], body.web-join #settingsModal .set-saves, body.web-join #settingsModal .set-acct { display: none !important; }
+  .set-acct-line { margin-top: 3px; font-size: 10.5px; color: var(--dim); line-height: 1.4; }   /* the account's state, words a script sets: a set-line's look, not one of Settings' fixed lines */
+  .set-acct-code { margin-top: 6px; font-size: 12px; color: var(--dim); }
+  .set-acct-code b { font-size: 16px; letter-spacing: 2px; color: var(--text); font-family: ui-monospace, Consolas, monospace; }
   body.web-join .wc-actions { grid-template-columns: 1fr; }
   body.web-join #headerBrand { pointer-events: none; cursor: default !important; }
   body.web-join.web-gate > .app, body.web-join.web-gate > .app * { visibility: hidden !important; transition: none !important; }

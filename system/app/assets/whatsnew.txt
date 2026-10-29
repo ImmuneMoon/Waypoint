@@ -33,6 +33,9 @@ Your profile
   private.
 - Your own table keeps its own id, apart from the one you join tables
   with, so your players still know it whatever profile you open.
+- Link to my account, in Settings, Profile, links this computer to your
+  account on the Waypoint website. Your profile then follows you to every
+  computer you link. Unlink this computer stops it.
 
 Systems, more
 - A row can hold a set number of parts: Holds, in the Lists tab, reads it from

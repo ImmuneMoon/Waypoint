@@ -337,7 +337,8 @@ Systems
   One crew member may cover a second station, and their sheet reads how
   many they hold, for a penalty.
 - A crew sheet reads its own station, as Vehicle.station.Pilot: 1 while it
-  holds the Pilot station, else 0.
+  holds the Pilot station, else 0. It reads so even where the system has a
+  field keyed Station.
 - A mount can read its rider as a group, as a vehicle reads its crew: set
   Mount reads riders as on the Mount link, and the mount reads
   Riders.count and Riders.max.Riding.

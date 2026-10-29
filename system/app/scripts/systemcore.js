@@ -5771,8 +5771,16 @@ function groupByKey(sys) { var m = map(); (sys && Array.isArray(sys.links) ? sys
 function stationsIn(k, v) { var out = []; (Array.isArray(v) ? v.slice(0, STATION_MOST) : [v]).forEach(function(x) { var s = typeof x === 'string' ? stationOf(k, x) : ''; if (s && out.indexOf(s) < 0 && out.length < (isObj(k) && typeof k.most === 'number' ? k.most : 1)) out.push(s); }); return out; }
 var STATION_MOST = 4;
 // 1.6.0: a crew sheet's read of one station it may hold, <Key>.station.<Station>: the station in the link's own spelling where rest (the
-// name after the link's key, lower case) is station.<a station of a Crew link> and the system has no field keyed station, else ''
-function crewStation(k, rest, ix) { if (!isObj(k) || k.kind !== 'crew' || typeof rest !== 'string' || rest.indexOf('station.') !== 0 || (ix && ix.station)) return ''; return stationOf(k, rest.slice(8)); }
+// name after the link's key, lower case) is station.<a station of a Crew link>, else ''. It reads so whatever fields the system has, but
+// where a field keyed station reads that third part itself: an ending of a field's part (NAME_SUFFIX: Station.max), or, for a list keyed
+// station, what the list reads at two parts (count, qty, paid, a stat, a column)
+function crewStation(k, rest, ix) {
+    if (!isObj(k) || k.kind !== 'crew' || typeof rest !== 'string' || rest.indexOf('station.') !== 0) return '';
+    var x = rest.slice(8), fs = ix ? ix.station : null;
+    if (isObj(fs) && (NAME_SUFFIX[x] || (fs.kind === 'item-list' && stationListReads(fs, x)))) return '';
+    return stationOf(k, x);
+}
+function stationListReads(f, x) { if (x === 'count' || x === 'qty' || x === 'paid') return true; var sp = isObj(f.list) ? f.list : null, hit = false; ['stats', 'cols'].forEach(function(p) { (sp && Array.isArray(sp[p]) ? sp[p] : []).forEach(function(c) { if (isObj(c) && typeof c.key === 'string' && lower(c.key) === x) hit = true; }); }); return hit; }
 function stationOf(k, v) { var l = lower(String(v === undefined || v === null ? '' : v).trim()), hit = ''; (isObj(k) && Array.isArray(k.stations) ? k.stations : []).forEach(function(s) { if (!hit && l && lower(s) === l) hit = s; }); return hit; }
 // A group read's parts: { st: the station ('' the whole crew), agg: count|max|min|sum, name: the name read (as written) } or null
 function crewParts(k, rest) {
@@ -5839,7 +5847,8 @@ function linkNamesIn(sys, key) {
     var s = ''; try { s = JSON.stringify(sys) || ''; } catch (e) { s = ''; }
     var esc = String(key).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), re = new RegExp('(^|[^A-Za-z0-9_.])' + esc + '\\.([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*){0,3})', 'gi'), m, out = [], seen = map();
     var lkCrew = linkByKey(sys)[lower(key)], crewK = !!(lkCrew && lkCrew.kind === 'crew');   // 1.6.0: a crew sheet's own stations are no figure of its vehicle
-    while ((m = re.exec(s)) && out.length < LIMITS.linkNames) { var w = lower(m[2]); if (w === 'has' || (crewK && (w === 'stations' || crewStation(lkCrew, w, null))) || seen[w] || w in Object.prototype) continue; seen[w] = 1; out.push(w); }
+    var ixN = crewK && sys && Array.isArray(sys.fields) ? keyIndex(sys) : null;   // a field keyed Station that reads the third part itself keeps it a figure of the vehicle
+    while ((m = re.exec(s)) && out.length < LIMITS.linkNames) { var w = lower(m[2]); if (w === 'has' || (crewK && (w === 'stations' || crewStation(lkCrew, w, ixN))) || seen[w] || w in Object.prototype) continue; seen[w] = 1; out.push(w); }
     return out;
 }
 // "Only the figures read": the figures a character's own copy carries for each link it holds, worked out by the host with the players' view

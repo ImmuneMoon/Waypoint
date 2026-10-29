@@ -275,10 +275,10 @@ function eligibleBlocker(w) {
 // Senses S7b (the owner's answer 5a): smoke — a piece the GM ticks as smoke (item.smoke, true) hides what is in it and past it from the eyes and
 // from every sense the walls stop that does not see through smoke (a sense's veil). A set of its own beside the sight-blockers, so movement,
 // cover, light and doors never read it: tokens walk through it, it gives no cover, light passes and a light in it stays put. Like a wall, only
-// a piece that is not hidden counts (a player's app judges from its own copy); a turned shape other than a circle is not supported
+// a piece that is not hidden counts (a player's app judges from its own copy); a turned shape by its outline, turned as the board draws it
 // Difficult terrain T2: the map's difficult cells, { cellKey: cost } (the highest cost of the shown pieces over each cell) or null, kept on
 // the map's save stamp and grid. A piece counts as Smoke's would be read: one of the four shapes (a painted cell is one), never hidden, a
-// token, a waiting token, a GM-note card or a turned one but a circle; its cost as fogcore cleanTerrain keeps it. Under the walls' cap, judged
+// token, a waiting token or a GM-note card, a turned one by its outline (1.6.0, 18a); its cost as fogcore cleanTerrain keeps it. Under the walls' cap, judged
 // on a piece's box first: over it no terrain counts (the same answer on every side), and the GM is told once
 var _terrCache = Object.create(null), _terrStamp = Object.create(null), _terrWarned = Object.create(null);
 function terrainFor(map, grid) {
@@ -288,10 +288,11 @@ function terrainFor(map, grid) {
     var C = core(), set = null, n = 0, over = false, cap = C.LIMITS.blockerCells, cw = grid.type === 'square' ? grid.size : 1.5 * grid.s, ch = grid.type === 'square' ? grid.size : grid.h;
     (map.whiteboard || []).forEach(function(w) {
         var t = w && C.cleanTerrain ? C.cleanTerrain(w.terrain) : null;
-        if (over || !t || w.hidden || w.isChar || w.waiting || w.gmNoteFor || ['rect', 'hexagon', 'circle', 'diamond'].indexOf(w.type) < 0 || (w.type !== 'circle' && w.rot)) return;
+        if (over || !t || w.hidden || w.isChar || w.waiting || w.gmNoteFor || ['rect', 'hexagon', 'circle', 'diamond'].indexOf(w.type) < 0) return;
         var bw = Math.abs(Number(w.w) || 0), bh = Math.abs(Number(w.h) || 0);
         if (!isFinite(bw) || !isFinite(bh) || (bw / cw + 2) * (bh / ch + 2) > cap) { over = true; return; }
-        footprintCells(w, grid, C).forEach(function(c) { var k = C.cellKey(c, grid); set = set || Object.create(null); if (!set[k]) { if (++n > cap) over = true; set[k] = t; } else if (t > set[k]) set[k] = t; });
+        var fcT = footprintCells(w, grid, C); if (fcT.over) { over = true; return; }
+        fcT.forEach(function(c) { var k = C.cellKey(c, grid); set = set || Object.create(null); if (!set[k]) { if (++n > cap) over = true; set[k] = t; } else if (t > set[k]) set[k] = t; });
     });
     if (over) { set = null; if (!_terrWarned[map.id] && !isClientView()) { _terrWarned[map.id] = 1; toast('Too much difficult terrain on this map — none of it counts here.'); } }
     else _terrWarned[map.id] = 0;
@@ -306,10 +307,11 @@ function smokeFor(map, grid) {   // { cellKey: 1 } or null, kept on the map's sa
     // on every side, as for walls), and the GM is told once
     var C = core(), set = null, n = 0, over = false, cap = C.LIMITS.blockerCells, cw = grid.type === 'square' ? grid.size : 1.5 * grid.s, ch = grid.type === 'square' ? grid.size : grid.h;
     (map.whiteboard || []).forEach(function(w) {
-        if (over || !w || w.smoke !== true || w.hidden || w.isChar || w.waiting || w.gmNoteFor || ['rect', 'hexagon', 'circle', 'diamond'].indexOf(w.type) < 0 || (w.type !== 'circle' && w.rot)) return;
+        if (over || !w || w.smoke !== true || w.hidden || w.isChar || w.waiting || w.gmNoteFor || ['rect', 'hexagon', 'circle', 'diamond'].indexOf(w.type) < 0) return;
         var bw = Math.abs(Number(w.w) || 0), bh = Math.abs(Number(w.h) || 0);
         if (!isFinite(bw) || !isFinite(bh) || (bw / cw + 2) * (bh / ch + 2) > cap) { over = true; return; }
-        footprintCells(w, grid, C).forEach(function(c) { var k = C.cellKey(c, grid); set = set || Object.create(null); if (!set[k]) { set[k] = 1; if (++n > cap) over = true; } });
+        var fcS = footprintCells(w, grid, C); if (fcS.over) { over = true; return; }
+        fcS.forEach(function(c) { var k = C.cellKey(c, grid); set = set || Object.create(null); if (!set[k]) { set[k] = 1; if (++n > cap) over = true; } });
     });
     if (over) { set = null; if (!_smokeWarned[map.id] && !isClientView()) { _smokeWarned[map.id] = 1; toast('Too much smoke on this map — smoke is not hiding anything here.'); } }
     else _smokeWarned[map.id] = 0;

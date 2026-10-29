@@ -25,6 +25,11 @@ Scenes
 Hidden pieces
 - Settings has Hidden pieces on my map: Faded shows a piece you hid from players see-through, as before, and Invisible leaves it off your screen until you show it. No grey cloud stands in for a hidden piece any more.
 
+Smoke and difficult terrain
+- A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain
+  now counts by its own outline, turned as it is drawn. Before, only a
+  turned circle counted, and any other turned shape did nothing.
+
 Systems
 - A row can hold parts, such as purchases on a power or upgrades in a limb. They show as pills under it, and its formulas can add up their costs. Undo after removing a row brings its parts back too. A list can name which rows may hold parts, and a character file can bring a row of its own as a part.
 - A list's place can say its own words when it holds no row. A place by category waits for your library on a player's sheet, where it once showed every row in its first place.

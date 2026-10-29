@@ -1399,6 +1399,38 @@ function memLayer(map, m, z, sx, sy, W, H, traceOn) {
 // [fogcheck:memory-end]
 var HEX_COS = [0, 1, 2, 3, 4, 5].map(function(i) { return Math.cos(Math.PI / 180 * (60 * i)); }), HEX_SIN = [0, 1, 2, 3, 4, 5].map(function(i) { return Math.sin(Math.PI / 180 * (60 * i)); });   // a hexagon's six corners, worked out once: the very numbers each cell used to work out for itself
 function hexPath(ctx, cx, cy, s) { for (var i = 0; i < 6; i++) { var px = cx + s * HEX_COS[i], py = cy + s * HEX_SIN[i]; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); } ctx.closePath(); }
+// [fogcheck:seenpic-start]
+/* 1.6.0, backlog 32 (the owner, 2026-10-29, by prompt: "Only what they've seen"): what a portal's picture of a map may hold on a player's
+   screen. A player's app holds whole only the map its player stands on; the others reach it as stubs with nothing on them. So mapshot.js
+   draws the map they stand on as they have seen it, now and then, and keeps that picture in memory for the session: the whole map where no
+   fog is on it (or it is on Reveal all), else only the ground this screen remembers (the memory above, S6: never a cell only a sense through
+   walls gave, never one the GM cut, emptied by a new fog epoch, a change of grid or another campaign). With "Players remember what they have
+   seen" unticked there is no memory, and so no picture of a fogged map. The GM's screen and the stream window keep none: the GM's picture is
+   drawn whole by mapshot.js's own rule, and the stream window shows no hover card */
+function seenKind(map) {
+    if (!map || typeof map !== 'object' || map.type !== 'map' || map.stub === true || !Array.isArray(map.whiteboard)) return '';
+    if (isGmView() || isStreamView()) return '';
+    if (!fogFeatureOn() || !(map.fog && typeof map.fog === 'object' && map.fog.on === true) || mapFog(map).mode === 'reveal') return 'whole';
+    return isClientView() && rememberOn(activeCamp()) ? 'mem' : '';
+}
+// What of this map's memory a picture was drawn from: '' with none
+function memSeenSig(map) { var m = map && typeof map.id === 'string' ? _mem[map.id] : null; return m ? m.key + '#' + m.n : ''; }
+// The ground this screen remembers on a map, each cell's outline added to the path of ctx at the scale z and the offset ox, oy (as the
+// overlay traces it). Says how many cells it traced: none for a map with no memory, or one kept under another grid or fog epoch
+function memTrace(map, ctx, z, ox, oy) {
+    var C = core(), grid = map ? gridForMap(map) : null, m = map && typeof map.id === 'string' ? _mem[map.id] : null;
+    if (!C || !grid || !m || !m.n || !ctx || !(z > 0)) return 0;
+    if (m.key !== grid.type + ':' + (grid.size || grid.s) + '|' + (mapFog(map).epoch || 0)) return 0;
+    var n = 0;
+    for (var k in m.cells) {
+        var ctr = C.cellCenter(m.cells[k], grid), lx = ctr.x * z - ox, ly = ctr.y * z - oy;
+        if (grid.type === 'square') { var half = grid.size * z / 2; ctx.rect(lx - half, ly - half, half * 2, half * 2); }
+        else hexPath(ctx, lx, ly, grid.s * z * 1.02);
+        n++;
+    }
+    return n;
+}
+// [fogcheck:seenpic-end]
 // [fogcheck:maskclip-start]
 // The play area's clip as a kept path. A frame with the same play area and the same view as the frame before it clips to a Path2D made
 // once by the very calls the frame itself would make (traceOn, cell for cell, in order), and the frames after it trace nothing: the
@@ -2192,5 +2224,6 @@ window.wpFog = {
     fogMarksFor: fogMarksFor, campMarkSenses: campMarkSenses,   // senses S4: a player's marks (the host's, for their copy)
     marksHold: marksHold, marksForget: marksForget, marksStrictOn: marksStrictOn,   // senses S4b: a refresh of what is held, forgetting it, and whether a map plays it
     fogOffFor: fogOffFor, nullsAt: nullsAt,   // senses S7a: a player's word of their own tokens' senses a null area switches off, and what is off where a token stands
+    seenKind: seenKind, memSeenSig: memSeenSig, memTrace: memTrace, rememberOff: function() { return !rememberOn(activeCamp()); },   // 1.6.0: what a portal's picture of a map may hold on a player's screen (mapshot.js)
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }
 };

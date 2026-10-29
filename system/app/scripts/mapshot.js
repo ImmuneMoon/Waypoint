@@ -226,7 +226,11 @@ if (typeof window !== 'undefined') window.wpMapShot = { open: shotShow, shown: s
    core (shotcore.js: shows, bounds, needs, draw), and kept for the next hover while the map is as it was. Nothing is sent to anyone: on a
    player's app, and in the stream window, it is drawn only from what that copy holds, so a map they have not reached (held as its stub, with
    nothing on it) has no picture. Fog is not drawn in a picture, so a map under fog has none on their screen either: it would show ground
-   they have not seen. Tokens, hidden pieces, GM note cards, lights and trigger zones are never in it (shows), on the GM's screen too */
+   they have not seen. Tokens, hidden pieces, GM note cards, lights and trigger zones are never in it (shows), on the GM's screen too.
+   The owner, 2026-10-29, by prompt: "Only what they've seen". A player's app holds whole only the map they stand on, so it keeps a picture
+   of that map as they have seen it (seenTick, every few seconds while it changes): the whole map with no fog on it, else only the ground
+   their screen remembers (fog.js memTrace), the rest dark. It is kept in memory alone, for the session, as the fog memory is, and never
+   sent; a portal they rest on shows it for a map they now hold as a stub or under fog (seenPic). A map they have never stood on has none */
 var PIC = { w: 160, h: 100, k: 2, max: 2, keep: 24 };
 var _pics = Object.create(null), _picKeys = [];
 // The GM's own screen (the map is drawn whole) or not (a player's app, someone else's table, the stream window, a window of a page's own)
@@ -258,7 +262,7 @@ function picKeep(key, v) { if (!_pics[key]) _picKeys.push(key); _pics[key] = v; 
 function picThumb(mapId, done) {
     var st = state.appState, camp = st && st.campaigns && typeof st.activeCampaignId === 'string' ? st.campaigns[st.activeCampaignId] : null;
     var map = camp && camp.items && typeof mapId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, mapId) ? camp.items[mapId] : null, gm = picGm();
-    if (!picMay(map, gm)) return '';
+    if (!picMay(map, gm)) return gm || !map || map.type !== 'map' ? '' : seenPic(camp, mapId);   // a player's own picture of a map they now hold as a stub, or under fog
     var items = map.whiteboard.filter(function(it) { return SC.shows(it, false); }), p = picPlan(items); if (!p) return '';
     var key = String(camp.id) + '/' + mapId + '/' + (gm ? 'g' : 'p'), sig = picSig(items), had = _pics[key];
     if (had && had.sig === sig && had.url) return had.url;
@@ -280,5 +284,49 @@ function picThumb(mapId, done) {
     });
     return '';
 }
+// A player's own pictures of the maps they have stood on, as they saw them: { sig, kind, url } by "<campaign>/<map>", 24 at most, in memory
+var SEEN = { every: 3000 }, _seen = Object.create(null), _seenKeys = [], _seenBusy = Object.create(null);
+function seenKeep(key, v) { if (!_seen[key]) _seenKeys.push(key); _seen[key] = v; while (_seenKeys.length > PIC.keep) delete _seen[_seenKeys.shift()]; }
+function seenFog() { var F = window.wpFog; return F && typeof F.seenKind === 'function' && typeof F.memTrace === 'function' && typeof F.memSeenSig === 'function' ? F : null; }
+// The picture this player keeps of a map, where it may still be shown: one drawn from their memory goes once the GM unticks remembering
+function seenPic(camp, mapId) {
+    var s = camp && typeof camp.id === 'string' ? _seen[camp.id + '/' + mapId] : null; if (!s || !s.url) return '';
+    var F = seenFog(); if (s.kind === 'mem' && (!F || typeof F.rememberOff !== 'function' || F.rememberOff())) return '';
+    return s.url;
+}
+// Now and then on a player's app: the map they stand on, drawn as they have seen it, kept when it changed. Says whether a drawing was started
+function seenTick() {
+    if (picGm() || window.wpStream || window.wpPopout) return false;
+    var st = state.appState, camp = st && st.campaigns && typeof st.activeCampaignId === 'string' ? st.campaigns[st.activeCampaignId] : null;
+    var id = camp && typeof camp.activeItemId === 'string' ? camp.activeItemId : '', map = id && camp.items && Object.prototype.hasOwnProperty.call(camp.items, id) ? camp.items[id] : null;
+    var F = seenFog(), kind = F && map ? F.seenKind(map) : ''; if (!kind || typeof camp.id !== 'string') return false;
+    var items = map.whiteboard.filter(function(it) { return SC.shows(it, false); }), p = picPlan(items); if (!p) return false;
+    var key = camp.id + '/' + id, sig = picSig(items) + '|' + kind + '|' + (kind === 'mem' ? F.memSeenSig(map) : ''), had = _seen[key];
+    if ((had && had.sig === sig) || _seenBusy[key] === sig) return false;
+    if (kind === 'mem' && !F.memSeenSig(map)) return false;   // nothing remembered yet: nothing to draw
+    _seenBusy[key] = sig;
+    var need = SC.needs(items, { labels: false, grid: false, box: p.box });
+    Promise.all(need.pics.map(shotPic)).then(function(got) {
+        var pics = Object.create(null), tiles = Object.create(null), k = Math.max(1, Math.ceil(p.scale) + 1);
+        need.pics.forEach(function(a, i) { pics[a] = got[i] || null; });
+        need.tiles.forEach(function(n) { tiles[n] = shotTile(n, k); });
+        var cv = document.createElement('canvas'); cv.width = p.w; cv.height = p.h;
+        var ctx = cv.getContext('2d'); if (!ctx) throw new Error('no context');
+        SC.draw(ctx, { box: p.box, scale: p.scale, bg: 'dark', grid: '', lines: false, labels: false, items: items, res: { pic: function(a) { return pics[a] || null; }, tile: function(n) { return tiles[n] || null; }, text: function() { return []; } } });
+        if (kind === 'mem') {   // only the ground this screen remembers stays; the rest is dark, as the fog shows it
+            var mk = document.createElement('canvas'); mk.width = p.w; mk.height = p.h;
+            var mc = mk.getContext('2d'); if (!mc) throw new Error('no context');
+            mc.fillStyle = '#000'; mc.beginPath();
+            if (!F.memTrace(map, mc, p.scale, p.box.x * p.scale, p.box.y * p.scale)) throw new Error('nothing remembered');
+            mc.fill();
+            ctx.globalCompositeOperation = 'destination-in'; ctx.drawImage(mk, 0, 0);
+            ctx.globalCompositeOperation = 'destination-over'; ctx.fillStyle = '#05060c'; ctx.fillRect(0, 0, p.w, p.h);
+            ctx.globalCompositeOperation = 'source-over';
+        }
+        seenKeep(key, { sig: sig, kind: kind, url: cv.toDataURL('image/png') });
+    }).catch(function() {}).then(function() { if (_seenBusy[key] === sig) delete _seenBusy[key]; });
+    return true;
+}
 // [buildcheck:portalpic-end]
 if (typeof window !== 'undefined') window.wpMapShot.thumb = picThumb;
+if (typeof window !== 'undefined' && typeof setInterval === 'function') setInterval(seenTick, SEEN.every);   // 1.6.0: a player's own picture of the map they stand on, as they see it

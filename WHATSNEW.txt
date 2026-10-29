@@ -209,6 +209,8 @@ Systems, more
   level in the Lists tab. A player is refused one more, and you are told.
 - Row.parts.max.Damage reads the highest figure one part of a row gives,
   and Row.parts.min.Damage the lowest. A part's count does not multiply it.
+- Row.parts.Family reads a choice of the parts: the value of the first part
+  that has it chosen, so a weapon can take its skill from its grip.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

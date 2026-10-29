@@ -17598,9 +17598,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const gmOk = J(S.gmDerivedNames(gmy, F, [{ name: 'Weapons.HiG' }, { name: 'Plain' }])) === J(['Weapons.HiG']) && S.gmDerivedNames(gX, F, [{ name: 'Weapons.Hi' }, { name: 'Weapons.Sum' }]).length === 0;
         const shX = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
         const LNx = new Function(shX.slice(shX.indexOf('function listNamesText('), shX.indexOf('function checkLabel(')) + '\nreturn listNamesText;')();
-        const namesOk = LNx('Weapons', gX.fields[2].list).includes('Row.parts.max.\u2026 and Row.parts.min.\u2026 the highest and the lowest one part gives.') && !LNx('Comps', gX.fields[3].list).includes('Row.parts');
+        const namesOk = LNx('Weapons', gX.fields[2].list).includes('Row.parts.max.\u2026 and Row.parts.min.\u2026 the highest and the lowest one part gives') && !LNx('Comps', gX.fields[3].list).includes('Row.parts');
         check('205 (1) Row.parts.max.<w> and Row.parts.min.<w>: the highest and the lowest figure one part of a host gives of a number stat or a column of the parts\' list (never times its quantity, mixed signs, a kept curse\'s part nowhere, 0 with no part); the validator knows them only in a column of a list that takes parts and never for a choice, an unknown word or a fifth segment; a loop through them is caught by the resolver and the chain reader; a GM-derived column of the parts read through them, or through Row.parts.<w>, makes the host\'s list names GM-derived (gmDerivedNames); the Lists card names them',
             resOk && valOk && loopOk && gmOk && namesOk, J([resOk, valOk, loopOk, gmOk, namesOk, cells, lpCell]));
+    }
+    {   // 205 (2) (the core handbook session's parts brief, 2026-10-29: a grip's family sets the weapon's skill): Row.parts.<choice>, the first part that has it chosen
+        const J = JSON.stringify;
+        const rawK = { v: 1, name: 'K', rolls: [], items: [{ id: 'i_wp', name: 'Staff', category: 'Weapon' }, { id: 'i_hd', name: 'Head', category: 'Comp', stats: { Dmg: 5 } }, { id: 'i_ga', name: 'Axe grip', category: 'Comp', stats: { Family: 'Axe' } }, { id: 'i_gs', name: 'Sword grip', category: 'Comp', stats: { Family: 'sword' } }, { id: 'i_gx', name: 'Odd grip', category: 'Comp', stats: { Family: 'Spear' } }],
+            fields: [{ id: 'f_sa', key: 'SkAxe', label: 'Axe', kind: 'number', vis: 'all', def: 12 }, { id: 'f_ss', key: 'SkSword', label: 'Sword', kind: 'number', vis: 'all', def: 9 },
+                { id: 'f_w', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_c' }, cols: [{ key: 'Skill', label: 'Skill', formula: 'Row.parts.Family' }, { key: 'Hit', label: 'Hit', formula: 'Row.parts.Family + Row.parts.max.Dmg' }] } },
+                { id: 'f_c', key: 'Comps', label: 'Comps', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Dmg', label: 'Dmg' }, { key: 'Family', label: 'Family', kind: 'pick', opts: [{ label: 'Axe', name: 'SkAxe' }, { label: 'Sword', name: 'SkSword' }] }] } }], sheet: { sections: [] } };
+        const gK = cleanSystem(rawK, { F, gmView: true });
+        const ch = { id: 'c1', values: { f_w: [{ id: 'w_1', defId: 'i_wp', qty: 1 }, { id: 'w_2', defId: 'i_wp', qty: 1 }, { id: 'w_3', defId: 'i_wp', qty: 1 }, { id: 'w_4', defId: 'i_wp', qty: 1 }],
+            f_c: [{ id: 'w_k', defId: 'i_gs', qty: 1, in: 'w_1', hid: 1 }, { id: 'w_x', defId: 'i_gx', qty: 1, in: 'w_1' }, { id: 'w_h', defId: 'i_hd', qty: 1, in: 'w_1' }, { id: 'w_a', defId: 'i_ga', qty: 1, in: 'w_1' }, { id: 'w_s', defId: 'i_gs', qty: 1, in: 'w_1' }, { id: 'w_h2', defId: 'i_hd', qty: 1, in: 'w_2' }, { id: 'w_s3', defId: 'i_gs', qty: 1, in: 'w_3' }] } };
+        const cells = S.resolveAll(gK, ch, F, null).f_w.cells;
+        const resOk = J(['w_1', 'w_2', 'w_3', 'w_4'].map(id => cells[id].map(x => x.value))) === J([[12, 17], [0, 5], [9, 9], [0, 0]]);
+        const withCol = formula => { const s = JSON.parse(J(gK)); s.fields.find(f => f.id === 'f_w').list.cols.push({ key: 'Q', label: 'Q', formula }); return s; };
+        const errsOf = s => S.validateSystem(s, F).errors.map(e => e.message);
+        const valOk = errsOf(gK).length === 0 && /Unknown name/.test(errsOf(withCol('Row.parts.max.Family')).join()) && /Unknown name/.test(errsOf(withCol('Row.parts.min.Family')).join());
+        const loopy = JSON.parse(J(gK)); loopy.fields.find(f => f.id === 'f_c').list.stats[1].opts.push({ label: 'Loop', name: 'Weapons.Skill' });
+        loopy.items.push({ id: 'i_lp', name: 'Loop grip', category: 'Comp', stats: { Family: 'Loop' } }); const chL = JSON.parse(J(ch)); chL.values.f_c = [{ id: 'w_l', defId: 'i_lp', qty: 1, in: 'w_1' }];
+        const lpCell = S.resolveAll(loopy, chL, F, null).f_w.cells.w_1[0];
+        const loopOk = S.chainsShallow(gK, F) === true && S.chainsShallow(loopy, F) === false && /loop/.test(lpCell.error);
+        const gmy = JSON.parse(J(gK)); gmy.fields[0].vis = 'gm';
+        const gmOk = J(S.gmDerivedNames(gmy, F, [{ name: 'Weapons.Skill' }, { name: 'Weapons.w_1.Hit' }, { name: 'SkSword' }])) === J(['Weapons.Skill', 'Weapons.w_1.Hit']) && S.gmDerivedNames(gK, F, [{ name: 'Weapons.Skill' }]).length === 0;
+        check('205 (2) Row.parts.<choice>: a column of a list that takes parts reads a choice stat of its parts as the first part, in the list\'s order, whose choice names one of its options (a kept curse\'s part and a value that names none passed over; spelled in any case), that part\'s own Row.<choice>; 0 with none; never its highest or lowest; a loop through its options is caught by the resolver and the chain reader; a GM-only option makes the host\'s names GM-derived',
+            resOk && valOk && loopOk && gmOk, J([resOk, valOk, loopOk, gmOk, cells, lpCell]));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

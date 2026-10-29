@@ -6332,13 +6332,15 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var cd = rowDef(sys, cp); return rowVal(SL, { r: Object.assign({}, cp, { qty: 1 }), d: cd ? cd.def : null, id: (x.id || '') + '~' + sg[0] }, sg[1]);
     }
     // 1.6.0 R14: Row.parts, how many parts a host holds (their quantities), and Row.parts.<w>, a stat or a column of the parts' list summed over them, each times its quantity.
-    // 205 (1): Row.parts.max.<w> and Row.parts.min.<w>, the highest or the lowest figure one part gives (never times its quantity, true reading 1), 0 with none
+    // 205 (1): Row.parts.max.<w> and Row.parts.min.<w>, the highest or the lowest figure one part gives (never times its quantity, true reading 1), 0 with none.
+    // 205 (2): Row.parts.<choice>, the value of the first part (in the list's order) whose choice names one of its options, read as that part's own Row.<choice>; 0 with none
     function partsVal(L, x, w) {
         if (!L.spec || !isObj(L.spec.parts)) return undefined;
         var sf = partsSrc(sys, L.spec); if (!sf) return undefined;
         var ws = w ? w.split('.') : [], ext = ws.length === 2 && (ws[0] === 'max' || ws[0] === 'min') ? ws[0] : ''; if (ws.length > (ext ? 2 : 1)) return undefined; if (ext) w = ws[1];
-        var SL = listCtx(sf); if (w && !(SL.st[w] && SL.st[w].kind !== 'pick') && !SL.cl[w]) return undefined;
+        var SL = listCtx(sf), pk = !ext && w && SL.st[w] && SL.st[w].kind === 'pick' ? SL.st[w] : null; if (w && !pk && !(SL.st[w] && SL.st[w].kind !== 'pick') && !SL.cl[w]) return undefined;
         if (x.virt) return 0;
+        if (pk) { for (var ki = 0; ki < SL.rows.length; ki++) { var kt = SL.rows[ki]; if (!isObj(kt.r) || kt.r.in !== x.id) continue; var kl = rowStat(SL.spec, kt.d, pk.key); if (typeof kl === 'string' && kl && (pk.opts || []).some(function(o) { return lower(o.label) === lower(kl); })) return rowVal(SL, kt, w); } return 0; }
         var sum = 0, best = null; for (var pi = 0; pi < SL.rows.length; pi++) { var it = SL.rows[pi]; if (!isObj(it.r) || it.r.in !== x.id) continue; var q = SL.spec && SL.spec.noQty ? 1 : (it.r.qty | 0) || 1; if (!w) { sum += q; continue; } var pv = SL.cl[w] ? colVal(SL, it, SL.cl[w]) : rowVal(SL, it, w); if (isObj(pv) && pv.error) return pv; var pn = pv === true ? 1 : typeof pv === 'number' && isFinite(pv) ? pv : 0; if (ext) { if (best === null || (ext === 'max' ? pn > best : pn < best)) best = pn; continue; } sum += pn * q; }
         return ext ? (best === null ? 0 : best) : sum;
     }
@@ -6898,7 +6900,7 @@ function validateSystem(sys, F) {
         if (sg[0] === 'row' && sg[1] === 'parts' && !ix.row && (sg.length === 3 || (sg.length === 4 && (sg[2] === 'max' || sg[2] === 'min')))) {   // 1.6.0 R14: Row.parts.<w>, a number stat or a column of the parts' list, on a list that takes parts (205 (1): Row.parts.max.<w>, Row.parts.min.<w>)
             if (!rowList) return { rowOutside: true };
             var ptV = isObj(rowList.list) && isObj(rowList.list.parts) ? partsSrc(sys, rowList.list) : null; if (!ptV) return null;
-            var pwV = listWords(ptV)[sg[sg.length - 1]]; return pwV === 'stat' || pwV === 'col' ? { id: '', key: 'l#' + lower(ptV.key), kind: 'number', vis: ptV.vis, noEdge: true } : null;
+            var pwV = listWords(ptV)[sg[sg.length - 1]]; return pwV === 'stat' || pwV === 'col' || (pwV === 'pick' && sg.length === 3) ? { id: '', key: 'l#' + lower(ptV.key), kind: 'number', vis: ptV.vis, noEdge: true } : null;
         }
         if (sg[0] === 'row' && sg.length === 3 && (sg[1] === 'round' || sg[1] === 'fired') && !ix.row) {   // 1.5.9 Chambers from: Row.round.<w>, Row.fired.<w> — a stat or a column of the chamber's list, on a list with a chamber
             if (!rowList) return { rowOutside: true };

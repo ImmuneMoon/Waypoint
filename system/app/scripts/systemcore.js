@@ -3794,7 +3794,7 @@ function chainsShallow(sys, F) {
     try { return chainsWalk(sys, F); } catch (e) { return false; }
 }
 function chainsWalk(sys, F) {
-    var lim = isObj(F.LIMITS) && typeof F.LIMITS.maxDepth === 'number' ? F.LIMITS.maxDepth : 64, ix = keyIndex(sys), lists = map(), info = map(), memo = map(), on = map();
+    var lim = isObj(F.LIMITS) && typeof F.LIMITS.maxDepth === 'number' ? F.LIMITS.maxDepth : 64, ix = keyIndex(sys), lists = map(), info = map(), memo = map(), on = map(), lkC = linkByKey(sys);
     var node = function(id, texts, L, names, more) { if (!info[id]) info[id] = { texts: texts, L: L, names: names, more: more }; return id; };
     var listOf = function(f) {   // listCtx's own reading of a list's stats, columns and counters
         var lk = lower(f.key); if (lists[lk]) return lists[lk];
@@ -3804,7 +3804,7 @@ function chainsWalk(sys, F) {
         (spec && Array.isArray(spec.counters) ? spec.counters : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') ct[lower(x.key)] = x; });
         var chs = spec && isObj(spec.chamber) ? chamberSrc(sys, spec) : null;   // 1.5.9: the list its chambered rounds come from (Row.round.*, Row.fired.*)
         var pts = spec && isObj(spec.parts) ? partsSrc(sys, spec) : null;   // 1.6.0 R14: the list its parts come from (Row.parts.*)
-        return (lists[lk] = { k: lk, st: st, cl: cl, ct: ct, chs: chs, pts: pts });
+        return (lists[lk] = { k: lk, fid: f.id, st: st, cl: cl, ct: ct, chs: chs, pts: pts });
     };
     var defNode = function(f, sfx) {   // a field's name: its definition worked out (a formula, a skill's base, a pool's most), '' for one read as stored
         var t = DEF_PROP[f.kind] ? f[DEF_PROP[f.kind]] : null; if (typeof t !== 'string' || !t) return '';   // none, GM only or missing: answered with nothing on the chain
@@ -3835,6 +3835,7 @@ function chainsWalk(sys, F) {
     };
     var nodeOf = function(name, L) {   // the resolver's own lookup (fn, and a column's rowVars): the node a name is worked out under, or ''
         var l = lower(name);
+        if (L && l.slice(0, 5) === 'host.' && !ix.host && !lkC.host) { var hw = l.slice(5), hn = []; if (hw.indexOf('.') < 0) sys.fields.forEach(function(hf) { if (isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === L.fid) { var hd = rowNode(listOf(hf), hw); if (hd) hn.push(hd); } }); if (hn.length) return hn.length === 1 ? hn[0] : node('h|' + L.k + '|' + hw, [], null, [], hn); }   // 205 (3): a part's Host.<w>, on each list its host may be in
         if (L && l.slice(0, 4) === 'row.') { var w = l.slice(4), cw = w.split('.'); return w.indexOf('.') < 0 ? rowNode(L, w) : cw.length === 2 && (cw[0] === 'round' || cw[0] === 'fired') && L.chs ? rowNode(listOf(L.chs), cw[1]) : cw[0] === 'parts' && L.pts && (cw.length === 2 || (cw.length === 3 && (cw[1] === 'max' || cw[1] === 'min'))) ? rowNode(listOf(L.pts), cw[cw.length - 1]) : ''; }   // 1.5.9: a round's stat or column, on its own list; 1.6.0 R14: a part's (205 (1): its highest or lowest too)
         if (ix[l]) return defNode(ix[l], '');
         if (l.indexOf('.') > 0) { var ln = listNode(l); if (ln !== undefined) return ln; }
@@ -6344,8 +6345,22 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var sum = 0, best = null; for (var pi = 0; pi < SL.rows.length; pi++) { var it = SL.rows[pi]; if (!isObj(it.r) || it.r.in !== x.id) continue; var q = SL.spec && SL.spec.noQty ? 1 : (it.r.qty | 0) || 1; if (!w) { sum += q; continue; } var pv = SL.cl[w] ? colVal(SL, it, SL.cl[w]) : rowVal(SL, it, w); if (isObj(pv) && pv.error) return pv; var pn = pv === true ? 1 : typeof pv === 'number' && isFinite(pv) ? pv : 0; if (ext) { if (best === null || (ext === 'max' ? pn > best : pn < best)) best = pn; continue; } sum += pn * q; }
         return ext ? (best === null ? 0 : best) : sum;
     }
+    // 205 (3): Host.<w> in a part's own formulas: a number stat, a choice or a column of its host, the row its in names in a list whose parts come
+    // from this one, read as that row's own Row.<w>; 0 for a row that is no part or whose host is not carried (a kept curse's); undefined where no
+    // such list has w. A field or a linked sheet keyed Host keeps the name (rowVars asks only where neither is)
+    function hostVal(L, x, w) {
+        if (!w || w.indexOf('.') >= 0) return undefined;
+        var known = false, hit = null;
+        sys.fields.forEach(function(hf) {
+            if (hit || !isObj(hf) || hf.kind !== 'item-list' || !isObj(hf.list) || !isObj(hf.list.parts) || hf.list.parts.from !== L.f.id) return;
+            var HL = listCtx(hf); if (!HL.st[w] && !HL.cl[w]) return; known = true;
+            if (x.virt || !isObj(x.r) || typeof x.r.in !== 'string') return;
+            for (var hi = 0; hi < HL.rows.length; hi++) if (HL.rows[hi].id === x.r.in && !HL.rows[hi].virt) { hit = { L: HL, x: HL.rows[hi] }; break; }
+        });
+        return hit ? rowVal(hit.L, hit.x, w) : known ? 0 : undefined;
+    }
     function rowVars(L, x) {   // a column's names: Row.* reads this row, every other name the resolver (one cache)
-        var v = function(name) { var l = lower(name); if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); return w.indexOf('.') < 0 ? rowVal(L, x, w) : roundVal(L, x, w); } return fn(name); };
+        var v = function(name) { var l = lower(name); if (l.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hv = hostVal(L, x, l.slice(5)); if (hv !== undefined) return hv; } if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); return w.indexOf('.') < 0 ? rowVal(L, x, w) : roundVal(L, x, w); } return fn(name); };
         v.detail = function(name) { var l = lower(name); if (l.slice(0, 4) === 'row.' && l.indexOf('.', 4) < 0) return detail[lower(L.f.key) + '#' + x.id + '.' + l.slice(4)] || null; return detail[l] || null; };   // 1.5.8: a row's own column under its own key
         return v;
     }
@@ -6906,6 +6921,10 @@ function validateSystem(sys, F) {
             if (!rowList) return { rowOutside: true };
             var chV = isObj(rowList.list) && isObj(rowList.list.chamber) ? chamberSrc(sys, rowList.list) : null; if (!chV) return { noChamber: true, list: rowList };
             var cwV = listWords(chV)[sg[2]]; return cwV === 'stat' || cwV === 'col' || cwV === 'pick' ? { id: '', key: 'l#' + lower(chV.key), kind: 'number', vis: chV.vis, noEdge: true } : null;
+        }
+        if (sg[0] === 'host' && sg.length === 2 && rowList && !ix.host && !linkByKey(sys).host) {   // 205 (3): a part's Host.<w>, a number stat, a choice or a column of a list whose parts come from this one
+            var hsV = sys.fields.filter(function(hf) { return isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === rowList.id && /^(stat|col|pick)$/.test(listWords(hf)[sg[1]] || ''); });
+            if (hsV.length) return { id: '', key: 'l#' + lower(hsV[0].key), kind: 'number', vis: hsV.some(function(hf) { return hf.vis === 'gm'; }) ? 'gm' : hsV[0].vis, noEdge: true };
         }
         var lf = lsts[sg[0]]; if (!lf || sg.length < 2 || sg.length > 4) return null;
         if (sg.length === 2) return wordTarget(lf, sg[1], true);
@@ -7796,7 +7815,9 @@ function gmDerivedNames(sys, F, names) {
         sys.fields.forEach(function(f) {   // F5a1: a visible list's columns — reading a GM-only value makes the list's names derived from one; a choice's options too (owed review F5a2#1)
             if (f.kind !== 'item-list' || f.vis === 'gm' || !isObj(f.list)) return;
             var ptG = isObj(f.list.parts) && !ix.row ? partsSrc(sys, f.list) : null;   // 205: Row.parts.<w> (its max and min too) is worked out from the parts' list's names
-            var node = 'l#' + lower(f.key), edge = function(nm) { var r = ptG && lower(nm).indexOf('row.parts.') === 0 ? { f: { id: 'l#' + lower(ptG.key), vis: ptG.vis === 'gm' ? 'gm' : 'all' }, def: true } : reads(nm); if (!r) return; if (r.f.vis === 'gm') { if (!hot[node]) { hot[node] = 1; queue.push(node); } } else if (r.def) (readBy[r.f.id] = readBy[r.f.id] || []).push(node); };
+            var hsG = ix.host ? [] : sys.fields.filter(function(hf) { return isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === f.id; });   // 205 (3): a part's Host.<w> is worked out from its hosts' lists
+            var node = 'l#' + lower(f.key), one = function(r) { if (!r) return; if (r.f.vis === 'gm') { if (!hot[node]) { hot[node] = 1; queue.push(node); } } else if (r.def) (readBy[r.f.id] = readBy[r.f.id] || []).push(node); };
+            var edge = function(nm) { var ln = lower(nm); if (hsG.length && ln.indexOf('host.') === 0) { hsG.forEach(function(hf) { one({ f: { id: 'l#' + lower(hf.key), vis: hf.vis === 'gm' ? 'gm' : 'all' }, def: true }); }); return; } one(ptG && ln.indexOf('row.parts.') === 0 ? { f: { id: 'l#' + lower(ptG.key), vis: ptG.vis === 'gm' ? 'gm' : 'all' }, def: true } : reads(nm)); };
             (Array.isArray(f.list.stats) ? f.list.stats : []).forEach(function(st) { if (isObj(st) && st.kind === 'pick') (Array.isArray(st.opts) ? st.opts : []).forEach(function(o) { if (isObj(o) && typeof o.name === 'string' && o.name) edge(o.name); }); });
             (Array.isArray(f.list.cols) ? f.list.cols : []).forEach(function(c) { if (!isObj(c) || typeof c.formula !== 'string' || !c.formula) return; (F.names(c.formula) || []).forEach(function(n) { edge(nameOf(n)); }); });
         });

@@ -7622,7 +7622,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         listApplyEditor(cb2, rr, ri, 'then', sp, targets);
     });
     var radd = el('button', 'tool ghost sys-btn sys-list-rolladd', '+ Roll'); radd.dataset.act = 'rolladd'; radd.disabled = rls.length >= LIMITS.rowRolls; radd.title = radd.disabled ? 'At most ' + LIMITS.rowRolls + ' rolls a list' : 'A button on each row that rolls this formula with the row\u2019s names (a weapon\u2019s Attack, a skill\u2019s Check)'; cb2.appendChild(radd);
-    cb2.appendChild(el('div', 'sys-note sys-list-names', listNamesText(f.key, sp)));
+    cb2.appendChild(el('div', 'sys-note sys-list-names', listNamesText(f.key, sp, partsHostIn(f.id))));
     card.appendChild(cb2);
     return card;
 }
@@ -7665,11 +7665,13 @@ function onceBox(box, sp) {
     if (o.by) box.appendChild(el('div', 'sys-note sys-list-oncenote', 'A row of a group that does not apply gives none of its changes. Charge a group once with a cost column such as if(Row.once, max(0, Row.oncecost - Row.oncefree), 0).'));
 }
 // F5a1: the names a list offers formulas, as one line of text for its card (its key as typed)
-function listNamesText(key, sp) {
+// 205 (3): whether a list of the draft takes its parts from this one (its parts then read Host.<w>)
+function partsHostIn(id) { return (typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : []).some(function(x) { return x && x.kind === 'item-list' && x.list && x.list.parts && x.list.parts.from === id; }); }
+function listNamesText(key, sp, isParts) {
     var k = String(key || 'List'), own = [], nums = [];
     if (k.indexOf('.') >= 0) return 'A list whose key has a dot has no names formulas can read (they would read ' + k.split('.')[0] + '.\u2026): give it a key without one.';   // owed review F5a1#6
     (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []).forEach(function(x) { if (x && typeof x.key === 'string' && x.key) { own.push(x.key); if (x.kind !== 'pick') nums.push(x.key); } });   // nums (1.5.4): what has a highest and a lowest
-    return 'Formulas read ' + k + '.count, ' + k + '.qty' + (sp.price ? ', ' + k + '.paid' : '') + own.map(function(w) { return ', ' + k + '.' + w; }).join('') + ' (the list\u2019s totals)' + (sp.on ? '; ' + k + '.on.\u2026 the same over the rows switched on' : '') + '; ' + k + '.<key>.lvl (and .qty, .on, .has' + (own.length ? ', a stat or a column' : '') + ') one row by its item\u2019s key.' + (nums.length ? ' ' + k + '.max.\u2026 and ' + k + '.min.\u2026 read the highest and the lowest one row gives of a number stat or a column, as ' + k + '.max.' + nums[0] + (sp.on ? '; ' + k + '.on.max.\u2026 and ' + k + '.on.min.\u2026 the same over the rows switched on' : '') + '.' : '') + ' A column or a roll reads its row as Row.lvl, Row.qty, Row.on, Row.has, Row.paid' + (own.length ? ', Row.' + own.join(', Row.') : '') + '.' + (sp.parts ? ' Row.parts reads how many parts a row holds, Row.parts.<stat> their total, and Row.parts.max.\u2026 and Row.parts.min.\u2026 the highest and the lowest one part gives; Row.parts.<choice> reads the first part that has that choice made.' : '');   // 205 (1)
+    return 'Formulas read ' + k + '.count, ' + k + '.qty' + (sp.price ? ', ' + k + '.paid' : '') + own.map(function(w) { return ', ' + k + '.' + w; }).join('') + ' (the list\u2019s totals)' + (sp.on ? '; ' + k + '.on.\u2026 the same over the rows switched on' : '') + '; ' + k + '.<key>.lvl (and .qty, .on, .has' + (own.length ? ', a stat or a column' : '') + ') one row by its item\u2019s key.' + (nums.length ? ' ' + k + '.max.\u2026 and ' + k + '.min.\u2026 read the highest and the lowest one row gives of a number stat or a column, as ' + k + '.max.' + nums[0] + (sp.on ? '; ' + k + '.on.max.\u2026 and ' + k + '.on.min.\u2026 the same over the rows switched on' : '') + '.' : '') + ' A column or a roll reads its row as Row.lvl, Row.qty, Row.on, Row.has, Row.paid' + (own.length ? ', Row.' + own.join(', Row.') : '') + '.' + (sp.parts ? ' Row.parts reads how many parts a row holds, Row.parts.<stat> their total, and Row.parts.max.\u2026 and Row.parts.min.\u2026 the highest and the lowest one part gives; Row.parts.<choice> reads the first part that has that choice made.' : '') + (isParts ? ' A row that is a part reads its host row as Host.<stat>, a stat, a choice or a column of the list it is a part of.' : '');   // 205 (1), (3)
 }
 function lookShadesOf(text) { var out = []; String(text || '').split(/\r?\n/).forEach(function(ln) { var i = ln.lastIndexOf('='); if (i < 1) return; var v = ln.slice(0, i).trim(), c = ln.slice(i + 1).trim().toLowerCase(); if (v && /^#[0-9a-f]{6}$/.test(c)) out.push({ v: v.slice(0, 60), c: c }); }); return out.slice(0, ROW_LOOK.shades); }   // 1.6.0, backlog 206: the Lists card's Shades box
 function checkLabel(cls, on, text, title) { var l = el('label', 'sys-check'), cb = el('input', cls); cb.type = 'checkbox'; cb.checked = !!on; l.appendChild(cb); l.appendChild(document.createTextNode(' ' + text)); if (title) l.title = title; return l; }
@@ -9659,7 +9661,7 @@ function onInput(e) {
             else if (lcc.indexOf('sys-list-colnames') >= 0) { var cln = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (cln.length && !cln[cln.length - 1]) cln.pop(); if (cln.some(Boolean)) cD.labels = cln; else delete cD.labels; }
             else if (lcc.indexOf('sys-list-colplus') >= 0) { var cpl = t.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean).slice(0, 64); if (cpl.length) cD.plus = cpl; else delete cD.plus; }   // 1.5.4 With: stat keys as typed, which Save reads by the list's own stats
             else return;
-            var nCard = t.closest('.sys-list-card'), nLine = nCard ? nCard.querySelector('.sys-list-names') : null; if (nLine) nLine.textContent = listNamesText(lcd.key, lsp);   // the names line follows a key as it is typed
+            var nCard = t.closest('.sys-list-card'), nLine = nCard ? nCard.querySelector('.sys-list-names') : null; if (nLine) nLine.textContent = listNamesText(lcd.key, lsp, partsHostIn(lcd.id));   // the names line follows a key as it is typed
         }
         else if (lcc.indexOf('sys-list-stat') >= 0) {   // Stage 6 F4c1: a stat's boxes
             var srw = t.closest('.sys-list-stat'), sti = srw ? +srw.dataset.si : -1, stL = Array.isArray(lsp.stats) ? lsp.stats : null; if (!stL || !(sti >= 0 && sti < stL.length)) return;

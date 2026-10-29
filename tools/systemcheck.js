@@ -17625,6 +17625,37 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('205 (2) Row.parts.<choice>: a column of a list that takes parts reads a choice stat of its parts as the first part, in the list\'s order, whose choice names one of its options (a kept curse\'s part and a value that names none passed over; spelled in any case), that part\'s own Row.<choice>; 0 with none; never its highest or lowest; a loop through its options is caught by the resolver and the chain reader; a GM-only option makes the host\'s names GM-derived',
             resOk && valOk && loopOk && gmOk, J([resOk, valOk, loopOk, gmOk, cells, lpCell]));
     }
+    {   // 205 (3) (the core handbook session's parts brief, 2026-10-29: Durability by material, Row.dur * Host.matMult): a part reads its host row as Host.<w>
+        const J = JSON.stringify;
+        const rawH = { v: 1, name: 'H', rolls: [], items: [{ id: 'i_ar', name: 'Mail', category: 'Armour', stats: { MatMult: 2, Mat: 'Steel' } }, { id: 'i_sd', name: 'Buckler', category: 'Shield', stats: { MatMult: 0.5, Mat: 'Wood' } }, { id: 'i_pl', name: 'Plate', category: 'Plate', stats: { Dur: 10 } }],
+            fields: [{ id: 'f_n', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm', def: 4 }, { id: 'f_st', key: 'SteelBonus', label: 'Steel', kind: 'number', vis: 'all', def: 3 }, { id: 'f_wo', key: 'WoodBonus', label: 'Wood', kind: 'number', vis: 'all', def: 1 },
+                { id: 'f_a', key: 'Armour', label: 'Armour', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_p' }, stats: [{ key: 'MatMult', label: 'Mult' }, { key: 'Mat', label: 'Material', kind: 'pick', opts: [{ label: 'Steel', name: 'SteelBonus' }, { label: 'Wood', name: 'WoodBonus' }] }], cols: [{ key: 'Gauge', label: 'Gauge', formula: 'Row.MatMult * 2' }, { key: 'Prot', label: 'Prot', formula: 'Row.parts.D' }] } },
+                { id: 'f_s', key: 'Shields', label: 'Shields', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_p' }, stats: [{ key: 'MatMult', label: 'Mult' }] } },
+                { id: 'f_p', key: 'Plates', label: 'Plates', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Dur', label: 'Dur' }], cols: [{ key: 'D', label: 'D', formula: 'Row.Dur * Host.MatMult' }, { key: 'G', label: 'G', formula: 'Host.Gauge' }, { key: 'M', label: 'M', formula: 'Host.Mat' }] } }], sheet: { sections: [] } };
+        const gH = cleanSystem(rawH, { F, gmView: true });
+        const ch = { id: 'c1', values: { f_a: [{ id: 'w_a', defId: 'i_ar', qty: 1 }, { id: 'w_k', defId: 'i_ar', qty: 1, hid: 1 }], f_s: [{ id: 'w_s', defId: 'i_sd', qty: 1 }], f_p: [{ id: 'w_1', defId: 'i_pl', qty: 2, in: 'w_a' }, { id: 'w_2', defId: 'i_pl', qty: 1, in: 'w_s' }, { id: 'w_3', defId: 'i_pl', qty: 1 }, { id: 'w_4', defId: 'i_pl', qty: 1, in: 'w_k' }] } };
+        const rH = S.resolveAll(gH, ch, F, null), pc = rH.f_p.cells;
+        const resOk = J(['w_1', 'w_2', 'w_3', 'w_4'].map(id => pc[id].map(x => x.value))) === J([[20, 4, 3], [5, 0, 0], [0, 0, 0], [0, 0, 0]]) && J(rH.f_a.cells.w_a.map(x => x.value)) === J([4, 40]);
+        const withCol = (fid, formula) => { const s = JSON.parse(J(gH)); s.fields.find(f => f.id === fid).list.cols = (s.fields.find(f => f.id === fid).list.cols || []).concat([{ key: 'Q', label: 'Q', formula }]); return s; };
+        const errsOf = s => S.validateSystem(s, F).errors.map(e => e.message);
+        const plainErr = s => errsOf(s).join();
+        const valOk = errsOf(gH).length === 0 && /Unknown name/.test(plainErr(withCol('f_p', 'Host.Nope'))) && /Unknown name/.test(plainErr(withCol('f_a', 'Host.MatMult'))) && /Unknown name/.test(plainErr(withCol('f_p', 'Host.MatMult.x')))
+            && /Unknown name "Host.MatMult"/.test(plainErr(Object.assign(JSON.parse(J(gH)), { fields: gH.fields.concat([{ id: 'f_z', key: 'Z', label: 'Z', kind: 'formula', vis: 'all', formula: 'Host.MatMult' }]) })));
+        const keyed = JSON.parse(J(gH)); keyed.fields.push({ id: 'f_ho', key: 'Host', label: 'Host', kind: 'number', vis: 'all', def: 7 }); keyed.fields.find(f => f.id === 'f_p').list.cols.push({ key: 'K', label: 'K', formula: 'Host.base' });
+        const keyedOk = errsOf(keyed).some(e => /Host\.MatMult/.test(e)) && S.resolveAll(keyed, ch, F, null).f_p.cells.w_1[3].value === 7;
+        const loopy = JSON.parse(J(gH)); loopy.fields.find(f => f.id === 'f_a').list.cols.push({ key: 'LA', label: 'LA', formula: 'Row.parts.LP' }); loopy.fields.find(f => f.id === 'f_p').list.cols.push({ key: 'LP', label: 'LP', formula: 'Host.LA' });
+        const lpCell = S.resolveAll(loopy, ch, F, null).f_a.cells.w_a[2];
+        const loopOk = S.chainsShallow(gH, F) === true && S.chainsShallow(loopy, F) === false && /loop/.test(lpCell.error);
+        const gmy = JSON.parse(J(gH)); gmy.fields.find(f => f.id === 'f_s').list.cols = [{ key: 'GmC', label: 'GmC', formula: 'Secret' }]; gmy.fields.find(f => f.id === 'f_p').list.cols.push({ key: 'HG', label: 'HG', formula: 'Host.GmC' });
+        const gmOk = J(S.gmDerivedNames(gmy, F, [{ name: 'Plates.HG' }, { name: 'SteelBonus' }])) === J(['Plates.HG']) && S.gmDerivedNames(gH, F, [{ name: 'Plates.D' }]).length === 0
+            && S.validateSystem(withCol('f_p', 'Host.MatMult'), F).warnings.length === S.validateSystem(gH, F).warnings.length;
+        const shH = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const LNh = new Function(shH.slice(shH.indexOf('function listNamesText('), shH.indexOf('function checkLabel(')) + '\nreturn listNamesText;')();
+        const namesOk = LNh('Plates', gH.fields[5].list, true).includes('A row that is a part reads its host row as Host.<stat>') && !LNh('Plates', gH.fields[5].list, false).includes('Host')
+            && shH.includes("listNamesText(f.key, sp, partsHostIn(f.id))") && shH.includes("listNamesText(lcd.key, lsp, partsHostIn(lcd.id))");
+        check('205 (3) Host.<w>: a column of a list another list takes parts from reads its host row, the row its in names, as that row\'s own Row.<w> (a number stat, a choice\'s value, a column), on whichever list the host is in; 0 for a loose row or a kept curse\'s part; the validator knows it only in such a column and never with a dot more, a field keyed Host keeps the name; a loop through it is caught by the resolver and the chain reader; a GM-derived column of a host makes its parts\' names GM-derived; the Lists card names it',
+            resOk && valOk && keyedOk && loopOk && gmOk && namesOk, J([resOk, valOk, keyedOk, loopOk, gmOk, namesOk, pc, rH.f_a.cells, lpCell]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -211,6 +211,8 @@ Systems, more
   and Row.parts.min.Damage the lowest. A part's count does not multiply it.
 - Row.parts.Family reads a choice of the parts: the value of the first part
   that has it chosen, so a weapon can take its skill from its grip.
+- A part reads the row it is fitted to as Host, such as
+  Row.Durability * Host.MatMult in a column of the parts' list.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

@@ -5303,7 +5303,7 @@ function partsRoom(sys, hspec, hostRow, list, hostId) {
 // beside partsRoom. The core handbook session's ask 4 (2026-10-29): a line may count the parts whose own choice stat (slot, a choice stat of the
 // parts' list) reads one value (is) in place of their categories; pd, the part's own definition as its row reads it (rowDef), which such a line
 // reads it by (none: a line by a choice stat counts nothing for it)
-var PART_CAPS = 12;
+var PART_CAPS = 24;   // the core handbook session's ask (2026-10-29): a system build used all twelve, so twenty-four
 function partsCapSays(sys, hspec, hostRow, list, hostId, cat, n, less, pd) {
     var p = isObj(hspec) && isObj(hspec.parts) ? hspec.parts : null; if (!p || !Array.isArray(p.caps) || !p.caps.length || !isObj(hostRow)) return '';
     var d = rowDef(sys, hostRow), nm = d && d.def && d.def.name ? String(d.def.name) : 'That row', out = '', psC = partsSrc(sys, hspec), pspC = psC && isObj(psC.list) ? psC.list : null;

@@ -259,7 +259,8 @@ Systems, more
 - Holds by kind, under Holds in the Lists tab, caps parts of some
   categories apart, such as 1 head and 2 arms on a body, each by one of the
   row's own stats. One more is refused, and a raised count too. A line can
-  count by a choice stat of the parts instead, such as their Slot.
+  count by a choice stat of the parts instead, such as their Slot. A list
+  takes 24 kinds at most.
 - A number can be Taken from a formula while another formula holds, in the
   Fields tab. Then it reads the formula and is closed to editing, so a
   construct takes its Might from its chassis. Otherwise it is as typed.

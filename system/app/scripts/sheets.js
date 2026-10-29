@@ -6240,7 +6240,7 @@ function rollExtras(row, rr, sp, isApply) {
 // handbook session's ask 4 (2026-10-29): where the parts' list has a choice stat (a pick, or a number with value names), a line may count by it
 // in place of categories (Counts: the parts whose slot reads one value), its value picked from the stat's own
 function partCapsBox(sp) {
-    var box = el('div', 'sys-badges sys-pcaps'), max = typeof PART_CAPS === 'number' ? PART_CAPS : 12, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var box = el('div', 'sys-badges sys-pcaps'), max = typeof PART_CAPS === 'number' ? PART_CAPS : 24, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
     var nums = function() { return (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.kind !== 'pick' && s.set !== true; }); };
     var vals = function(s) { return s.kind === 'pick' ? (Array.isArray(s.opts) ? s.opts.map(function(o) { return o && typeof o === 'object' ? o.label : ''; }) : []).filter(function(x) { return typeof x === 'string' && x; }) : (Array.isArray(s.labels) ? s.labels : []).filter(function(x) { return typeof x === 'string' && x; }); };
     var slots = function() { var fs0 = typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : [], src = sp.parts && typeof sp.parts.from === 'string' ? fs0.filter(function(f) { return f && f.id === sp.parts.from && f.kind === 'item-list'; })[0] : null, st = src && src.list && Array.isArray(src.list.stats) ? src.list.stats : [];

@@ -17348,7 +17348,7 @@ pendingChecks.push((async () => {
     Sx.setLinkSource(null);
     check('1.6.0 linked sheets (source): every way a character change leaves the host reaches linkTell through typeof (syncChar and syncCharDelta), the copy an owner is sent and the join snapshot carry the figures, and the host\'s branch judges by linkSet alone',
         (src.match(/if \(typeof linkTell === 'function'\) linkTell\(id\);/g) || []).length === 2 && (src.match(/\(typeof withLinkFigs === 'function' \? withLinkFigs : function\(v0\) \{ return v0; \}\)\(withHoverLines\(/g) || []).length === 2
-        && (src.match(/linkSet\(/g) || []).length === 1 && lkS.indexOf('Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, { player: true, pid: profK.id })') > lkS.indexOf("denyK('owner')"));
+        && (src.match(/linkSet\(/g) || []).length === 1 && lkS.indexOf("Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, typeof qk.stn === 'string' ? { player: true, pid: profK.id, stn: qk.stn } : { player: true, pid: profK.id })") > lkS.indexOf("denyK('owner')"));   // CORE gap 16 (a deliberate change of this pin): and the station the player picked
 })());
 // Backlog 29 (1.6.0): the table trackers on the wire — the host's sync (sliced by its trksync markers) and a player's branch (trkmsg), each run
 // for real over the real trackcore. A GM-only tracker is in no message, a player is sent their map's and every map's, a host has no branch

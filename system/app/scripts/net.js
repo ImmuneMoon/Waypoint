@@ -3319,22 +3319,22 @@ net.charEdit = function(charId, fieldId, value) {
 // rate token, one answer); applied here at once, every value undone together on a refusal or silence
 // 1.6.0 linked sheets: a player's link set on their own character, sent and waited for (nothing changes here first). The host answers with
 // char-ack and the character whole, its figures with it, or char-deny with its words
-net.charLink = function(charId, linkId, toId) {
+net.charLink = function(charId, linkId, toId, stn) {   // stn (1.6.0, CORE gap 16): a station picked ('' none); none given: kept
     var S = SC(), camp = getActiveCampaign();
     if (!S || !camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
     var c = (camp.chars && typeof charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null); if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
-    var q = S.cleanCharLink({ rid: 'k' + Math.random().toString(36).slice(2, 10), charId: charId, linkId: linkId, to: toId || '' }); if (!q) return { error: 'That link is not allowed.' };
+    var q0 = { rid: 'k' + Math.random().toString(36).slice(2, 10), charId: charId, linkId: linkId, to: toId || '' }; if (typeof stn === 'string') q0.stn = stn; var q = S.cleanCharLink(q0); if (!q) return { error: 'That link is not allowed.' };
     _charPending[q.rid] = { charId: charId, fieldId: '', batch: [], timer: setTimeout(function() { charPendingDone(q.rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
-    try { net.conns[0].send({ type: 'char-link', rid: q.rid, charId: q.charId, linkId: q.linkId, to: q.to }); } catch (e) { charPendingDone(q.rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
+    try { var mK = { type: 'char-link', rid: q.rid, charId: q.charId, linkId: q.linkId, to: q.to }; if (typeof q.stn === 'string') mK.stn = q.stn; net.conns[0].send(mK); } catch (e) { charPendingDone(q.rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true };
 };
 // [netcheck:linktell-start]
 // 1.6.0 linked sheets: an owner's whole copy (never a teammate's) with the figures of the sheets it links, worked out through view (systemcore linkFigs)
-function withLinkFigs(v, view) { var S = SC(); if (!v || v.partial || !v.links || !S || !S.linkFigs || !window.wpFormula) return v; var lk = S.linkFigs(view, v, window.wpFormula); if (lk) v.lk = lk; return v; }
+function withLinkFigs(v, view) { var S = SC(); if (!v || v.partial || !S || !window.wpFormula) return v; if (v.links && S.linkFigs) { var lk = S.linkFigs(view, v, window.wpFormula); if (lk) v.lk = lk; } if (S.crewFigs) { var ck = S.crewFigs(view, v, window.wpFormula); if (ck) v.ck = ck; } return v; }   // 1.6.0 (CORE gap 16): and a vehicle's crew figures
 // 1.6.0 linked sheets ("Only the figures read"): a character's change reaches the figures of every sheet that links it. That sheet's owner gets
 // their copy again, whole, where the figures it carries moved since the host last sent them
-var _lkSent = Object.create(null);
+var _lkSent = Object.create(null), _ckSent = Object.create(null);   // 1.6.0 (CORE gap 16): the crew figures last sent, by peer and vehicle
 function linkTell(id) {
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(); if (!camp || !camp.chars || !camp.system || !Array.isArray(camp.system.links) || !camp.system.links.length) return;
@@ -3349,6 +3349,20 @@ function linkTell(id) {
             try { c.send({ type: 'char', campId: camp.id, char: v }); n++; } catch (e) { sendFailed(e); }
         });
     });
+    var grpK = Object.create(null); camp.system.links.forEach(function(k) { if (k && k.kind === 'crew' && k.group) grpK[k.id] = 1; });
+    if (Object.keys(grpK).length) {   // 1.6.0 (CORE gap 16): a vehicle that reads its crew gets its copy again where its crew figures moved (one crewed now, or sent figures before)
+        var vsK = Object.create(null); Object.keys(camp.chars).forEach(function(cid) { var x = camp.chars[cid]; if (x && x.links && typeof x.links === 'object') Object.keys(x.links).forEach(function(l) { if (grpK[l] === 1 && typeof x.links[l] === 'string') vsK[x.links[l]] = 1; }); });
+        Object.keys(_ckSent).forEach(function(key) { var vid0 = key.split('|')[1]; if (vid0) vsK[vid0] = 1; });
+        Object.keys(vsK).forEach(function(vid) {
+            var vr = own(camp.chars, vid) ? camp.chars[vid] : null; if (!vr || vr.npc || !vr.ownerId) return;
+            net.conns.forEach(function(c) {
+                if (!c.open || !net.roster[c.peer] || peerProfileId(c) !== vr.ownerId) return;
+                var v = charViewFor(vid, vr.ownerId); if (!v || v.partial) return;
+                var sig = JSON.stringify(v.ck || null), key = c.peer + '|' + vid; if (_ckSent[key] === sig) return; _ckSent[key] = sig;
+                try { c.send({ type: 'char', campId: camp.id, char: v }); n++; } catch (e) { sendFailed(e); }
+            });
+        });
+    }
     if (n && window.wpStepLog) window.wpStepLog('links v1', 'told', { copies: n });
 }
 // [netcheck:linktell-end]
@@ -7474,9 +7488,10 @@ function handleMessage(msg, conn) {
         var campK = getActiveCampaign(), chK = (campK && campK.chars && Object.prototype.hasOwnProperty.call(campK.chars, qk.charId) ? campK.chars[qk.charId] : null);
         if (!campK || !campK.system || !chK) { denyK('missing'); return; }
         var profK = net.roster[conn.peer]; if (chK.npc || !chK.ownerId || !profK || chK.ownerId !== profK.id) { denyK('owner'); return; }
-        var resK = Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, { player: true, pid: profK.id });
+        var resK = Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, typeof qk.stn === 'string' ? { player: true, pid: profK.id, stn: qk.stn } : { player: true, pid: profK.id });   // 1.6.0 (CORE gap 16): and its station
         if (!resK.ok) { denyK('error', resK.msg); return; }
         if (resK.links) chK.links = resK.links; else delete chK.links;
+        if (resK.stn) chK.stn = resK.stn; else delete chK.stn;
         chK.updated = Date.now();
         saveRemoteSoon();
         try { conn.send({ type: 'char-ack', rid: qk.rid }); } catch (e) { sendFailed(e); }

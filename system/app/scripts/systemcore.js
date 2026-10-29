@@ -3428,6 +3428,8 @@ function cleanChar(c, sys, opts) {
     Object.keys(vals).forEach(function(fid) { var f = fieldById(sys, fid); if (!f || !STORED[f.kind]) return; var v = cleanValue(f, vals[fid], vo); if (v !== undefined) out.values[fid] = v; });
     var lkC = cleanLooks(c.looks, out.values, sys); if (lkC) out.looks = lkC;   // item 35: the look of a text value, beside it (never an empty key)
     var lkL = c.partial !== true ? cleanCharLinks(c.links, sys, out.id) : null; if (lkL) out.links = lkL;   // 1.6.0: the sheets it links (absent: none)
+    var stL = lkL ? cleanCharStn(c.stn, sys, lkL) : null; if (stL) out.stn = stL;   // 1.6.0 (CORE gap 16): its stations
+    if (opts && opts.state === 'owner' && c.partial !== true) { var ckG = cleanCk(c.ck, sys); if (ckG) out.ck = ckG; }   // ... and on its owner's copy the crew figures its host worked out
     if (opts && opts.state === 'owner' && c.partial !== true) { var lkG = cleanLk(c.lk, sys); if (lkG) out.lk = lkG; }   // ... and on its owner's copy the figures its host worked out for them
     var srC = cleanSheetRev(c.sheetRev); if (srC) out.sheetRev = srC;   // 1.6.0 (backlog 190): the revision it was last made current at
     // 5h: a teammate's copy (partial) carries the host's worked-out hover lines — text only, at most 12 of 120 characters
@@ -3458,7 +3460,9 @@ function valueOpts(sys) {
 function cleanCharLink(msg) {
     if (!isObj(msg) || typeof msg.rid !== 'string' || !RID_RE.test(msg.rid) || typeof msg.charId !== 'string' || !CHAR_ID.test(msg.charId) || typeof msg.linkId !== 'string' || !LINK_ID.test(msg.linkId)) return null;
     var to = msg.to === undefined || msg.to === null ? '' : msg.to; if (typeof to !== 'string' || (to !== '' && !CHAR_ID.test(to))) return null;
-    return { rid: msg.rid, charId: msg.charId, linkId: msg.linkId, to: to };
+    var oK = { rid: msg.rid, charId: msg.charId, linkId: msg.linkId, to: to };
+    if (msg.stn !== undefined) { if (typeof msg.stn !== 'string' || (msg.stn !== '' && !STATION_KEY.test(msg.stn))) return null; oK.stn = msg.stn; }   // 1.6.0 (CORE gap 16): its station ('' none)
+    return oK;
 }
 function cleanCharEdit(msg) {
     if (!isObj(msg) || typeof msg.rid !== 'string' || !RID_RE.test(msg.rid) || typeof msg.charId !== 'string' || !CHAR_ID.test(msg.charId) || typeof msg.fieldId !== 'string' || !FIELD_ID.test(msg.fieldId)) return null;
@@ -5540,16 +5544,72 @@ function cleanLinks(raw, F) {
         if (out.length >= LIMITS.links || !isObj(k) || typeof k.id !== 'string' || !LINK_ID.test(k.id) || ids[k.id] || !hasOwn(LINK_KINDS, k.kind)) return;
         if (typeof k.key !== 'string' || k.key.indexOf('.') >= 0 || LINK_NOT[lower(k.key)] || ks[lower(k.key)] || !validKey(k.key, F)) return;
         ids[k.id] = 1; ks[lower(k.key)] = 1;
-        out.push({ id: k.id, key: k.key, label: str(k.label, LIMITS.label).replace(CTRL_RE_G, ' ').trim() || k.key, kind: k.kind, edit: k.edit === 'gm' ? 'gm' : 'owner' });
+        var lo = { id: k.id, key: k.key, label: str(k.label, LIMITS.label).replace(CTRL_RE_G, ' ').trim() || k.key, kind: k.kind, edit: k.edit === 'gm' ? 'gm' : 'owner' };
+        if (k.kind === 'crew') {   // 1.6.0 (CORE gap 16): what the vehicle reads its crew by, and the crew's stations
+            var gk = typeof k.group === 'string' ? k.group.trim() : '';
+            if (gk && gk.indexOf('.') < 0 && !LINK_NOT[lower(gk)] && !ks[lower(gk)] && validKey(gk, F)) { ks[lower(gk)] = 1; lo.group = gk; }
+            if (Array.isArray(k.stations)) { var stS = [], stM = map(); k.stations.slice(0, 32).forEach(function(s) { var t = typeof s === 'string' ? s.trim() : ''; if (stS.length >= LINK_STATIONS || !STATION_KEY.test(t) || CREW_WORDS[lower(t)] || stM[lower(t)]) return; stM[lower(t)] = 1; stS.push(t); }); if (stS.length) lo.stations = stS; }
+        }
+        out.push(lo);
     });
     return out.length ? out : null;
 }
 function linkByKey(sys) { var m = map(); (sys && Array.isArray(sys.links) ? sys.links : []).forEach(function(k) { if (isObj(k) && typeof k.id === 'string' && typeof k.key === 'string' && k.key.indexOf('.') < 0 && hasOwn(LINK_KINDS, k.kind) && !m[lower(k.key)]) m[lower(k.key)] = k; }); return m; }
+// 1.6.0 (CORE gap 16; the owner, by prompt: "they have to be assigned to piloting for their skill to be available", stations "On the link",
+// "Players' view, as links"): a Crew link may name group, the key the vehicle reads its crew by, and stations, the places a crew member takes
+// (Pilot, Gunner), each a key; a crew sheet holds stn: { <link id>: <station> }. On the vehicle <group>.count is how many sheets crew it, and
+// <group>.max.<name>, .min.<name> and .sum.<name> read a name over them; <group>.<Station>.count and <group>.<Station>.max.<name> (min, sum)
+// over those at that station alone. Each crew sheet is read with the very system the vehicle is read with (crewSource: the players' view on
+// the host reads each as its owner holds it, so a GM-only figure never counts for a player), one level deep. None of a number: 0
+var LINK_STATIONS = 8, STATION_KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/, CREW_WORDS = Object.freeze({ count: 1, max: 1, min: 1, sum: 1, has: 1 }), _crewSrc = null;
+function groupByKey(sys) { var m = map(); (sys && Array.isArray(sys.links) ? sys.links : []).forEach(function(k) { if (isObj(k) && k.kind === 'crew' && typeof k.id === 'string' && typeof k.group === 'string' && k.group && k.group.indexOf('.') < 0 && !m[lower(k.group)]) m[lower(k.group)] = k; }); return m; }
+function stationOf(k, v) { var l = lower(String(v === undefined || v === null ? '' : v).trim()), hit = ''; (isObj(k) && Array.isArray(k.stations) ? k.stations : []).forEach(function(s) { if (!hit && l && lower(s) === l) hit = s; }); return hit; }
+// A group read's parts: { st: the station ('' the whole crew), agg: count|max|min|sum, name: the name read (as written) } or null
+function crewParts(k, rest) {
+    var segs = String(rest).split('.'), st = '', i = 0;
+    if (segs.length > 1 && !CREW_WORDS[lower(segs[0])]) { st = stationOf(k, segs[0]); if (!st) return null; i = 1; }
+    var agg = lower(segs[i] || ''), name = segs.slice(i + 1).join('.');
+    if (agg === 'count') return i + 1 === segs.length ? { st: st, agg: agg, name: '' } : null;
+    return (agg === 'max' || agg === 'min' || agg === 'sum') && name ? { st: st, agg: agg, name: name } : null;
+}
+function crewBare(k, rest) { var p = crewParts(k, rest); return p && p.name ? p.name : ''; }
+// The source of a vehicle's crew: fn(vehicle id, link id, sys) answers the characters whose link holds it, each as it is to be read with that
+// system (sheets.js crewSource; a player's app none: their copy reads the figures its host worked out, ck). None: every group read is 0
+function setCrewSource(fn) { _crewSrc = typeof fn === 'function' ? fn : null; return !!_crewSrc; }
+// A crew sheet's stations, by link, each a station of that link and only for a link it holds
+function cleanCharStn(raw, sys, links) {
+    if (!isObj(raw) || !isObj(links) || !sys || !Array.isArray(sys.links)) return null;
+    var out = {}, n = 0;
+    sys.links.forEach(function(k) { if (!isObj(k) || k.kind !== 'crew' || !hasOwn(links, k.id) || !hasOwn(raw, k.id) || typeof raw[k.id] !== 'string') return; var s = stationOf(k, raw[k.id]); if (s) { out[k.id] = s; n++; } });
+    return n ? out : null;
+}
+// The figures a vehicle's own copy carries for its crew, worked out by the host with the players' view through the crew source: { <link id>:
+// { v: { <name as the system writes it, lower case>: number } } } or null; a player's resolver reads these in place of the crew
+function crewFigs(sys, char, F) {
+    var ks = sys && Array.isArray(sys.links) ? sys.links.filter(function(k) { return isObj(k) && k.kind === 'crew' && typeof k.group === 'string' && k.group; }) : [];
+    if (!ks.length || !isObj(char) || typeof char.id !== 'string' || !F || !_crewSrc) return null;
+    var ixC = keyIndex(sys), plain = Object.assign({}, char), out = null; delete plain.ck;
+    var r = makeResolver(sys, plain, F);
+    ks.forEach(function(k) { if (ixC[lower(k.group)]) return; var v = {}; linkNamesIn(sys, k.group).forEach(function(w) { var x; try { x = r(k.group + '.' + w); } catch (e) { x = undefined; } if (typeof x === 'number' && fin(x)) v[w] = x; }); (out = out || {})[k.id] = { v: v }; });
+    return out;
+}
+function cleanCk(raw, sys) {
+    if (!isObj(raw) || !sys || !Array.isArray(sys.links)) return null;
+    var out = null;
+    sys.links.forEach(function(k) {
+        var e = isObj(k) && k.kind === 'crew' && typeof k.group === 'string' && hasOwn(raw, k.id) ? raw[k.id] : null; if (!isObj(e)) return;
+        var v = {}, n = 0, src = isObj(e.v) ? e.v : {};   // a plain object, named only by names no prototype holds
+        Object.keys(src).forEach(function(w) { if (n >= LIMITS.linkNames || !LINK_NAME.test(w) || w in Object.prototype) return; var x = src[w]; if (typeof x === 'number' && fin(x)) { v[w] = x; n++; } });
+        (out = out || {})[k.id] = { v: v };
+    });
+    return out;
+}
 // A name read through a link (Mount.Move) judged as the name it reads on the linked sheet (Move), as On.<name> is: the GM-only judges and the
 // players' view's mention check. Any other name as it is
 function linkBare(sys, ix, name) {
     var s = String(name), d = s.indexOf('.'); if (d <= 0 || !sys || !Array.isArray(sys.links) || !sys.links.length) return s;
-    var k = lower(s.slice(0, d)); if (!linkByKey(sys)[k]) return s;
+    var k = lower(s.slice(0, d)), gkB = groupByKey(sys)[k]; if (gkB && !(ix || keyIndex(sys))[k]) return crewBare(gkB, s.slice(d + 1)) || s;   // 1.6.0 (CORE gap 16): Crew.max.Piloting as Piloting
+    if (!linkByKey(sys)[k]) return s;
     if ((ix || keyIndex(sys))[k]) return s;   // a field of the system's own keyed so keeps its name
     return s.slice(d + 1);
 }
@@ -5607,7 +5667,9 @@ function linkSet(sys, chars, c, linkId, toId, opts) {
     if (opts.player && k.edit !== 'owner' && !openChar(c)) return { ok: false, reason: 'field', msg: 'Only the GM sets ' + k.label + ' here.' };
     var cur = isObj(c.links) ? c.links : {}, next = {}, n = 0;
     Object.keys(cur).forEach(function(id) { if (id !== linkId && LINK_ID.test(id) && typeof cur[id] === 'string') { next[id] = cur[id]; n++; } });
-    if (toId === '' || toId === null) return { ok: true, links: n ? next : null };
+    var stC = isObj(c.stn) ? c.stn : {}, stN = {}, stOut = function(o) { var sn = Object.keys(stN).length ? stN : null; if (sn || isObj(c.stn)) o.stn = sn; return o; };   // 1.6.0 (CORE gap 16): its stations, this link's judged below (opts.stn: a station, '' none; none given: kept); answered where it has or had one
+    Object.keys(stC).forEach(function(id) { if (id !== linkId && LINK_ID.test(id) && typeof stC[id] === 'string' && typeof next[id] === 'string') stN[id] = stC[id]; });
+    if (toId === '' || toId === null) return stOut({ ok: true, links: n ? next : null });
     if (typeof toId !== 'string' || !CHAR_ID.test(toId)) return { ok: false, reason: 'value', msg: 'That is not a character.' };
     if (toId === c.id) return { ok: false, reason: 'value', msg: 'A sheet cannot link to itself.' };
     var t = isObj(chars) && hasOwn(chars, toId) ? chars[toId] : null; if (!isObj(t)) return { ok: false, reason: 'missing', msg: 'That character is not here now.' };
@@ -5616,18 +5678,21 @@ function linkSet(sys, chars, c, linkId, toId, opts) {
         var by = null; Object.keys(chars).forEach(function(id) { var x = chars[id]; if (!by && id !== c.id && isObj(x) && isObj(x.links) && x.links[linkId] === toId) by = x; });
         if (by) return { ok: false, reason: 'error', msg: (t.name || 'That mount') + ' already has a rider' + (opts.player ? '.' : ': ' + (by.name || 'another character') + '. Take that link off first.') };
     }
-    next[linkId] = toId; return { ok: true, links: next };
+    next[linkId] = toId;
+    var stW = typeof opts.stn === 'string' ? opts.stn : typeof stC[linkId] === 'string' ? stC[linkId] : '';
+    if (stW) { var stG = stationOf(k, stW); if (!stG) { if (typeof opts.stn === 'string') return { ok: false, reason: 'value', msg: 'That station is not on ' + k.label + '.' }; } else stN[linkId] = stG; }
+    return stOut({ ok: true, links: next });
 }
 // Who links to a character, for its sheet: [{ link, by: [{ id, name }] }] in the system's order (a Mount's rider, a vehicle's crew)
 function linkedFrom(sys, chars, id) {
     var out = []; if (!isObj(chars) || typeof id !== 'string') return out;
-    (sys && Array.isArray(sys.links) ? sys.links : []).forEach(function(k) { if (!isObj(k)) return; var by = []; Object.keys(chars).forEach(function(cid) { var x = chars[cid]; if (cid !== id && isObj(x) && x.partial !== true && isObj(x.links) && x.links[k.id] === id) by.push({ id: cid, name: x.name || 'Character' }); }); if (by.length) out.push({ link: k, by: by }); });
+    (sys && Array.isArray(sys.links) ? sys.links : []).forEach(function(k) { if (!isObj(k)) return; var by = []; Object.keys(chars).forEach(function(cid) { var x = chars[cid]; if (cid !== id && isObj(x) && x.partial !== true && isObj(x.links) && x.links[k.id] === id) { var bo = { id: cid, name: x.name || 'Character' }; if (isObj(x.stn) && typeof x.stn[k.id] === 'string') bo.stn = x.stn[k.id]; by.push(bo); } }); if (by.length) out.push({ link: k, by: by }); });
     return out;
 }
 // A character gone: every link to it goes. The ids of the characters whose links changed
 function linksDrop(chars, id) {
     var out = []; if (!isObj(chars) || typeof id !== 'string') return out;
-    Object.keys(chars).forEach(function(cid) { var x = chars[cid]; if (!isObj(x) || !isObj(x.links)) return; var hit = false; Object.keys(x.links).forEach(function(l) { if (x.links[l] === id) { delete x.links[l]; hit = true; } }); if (hit) { if (!Object.keys(x.links).length) delete x.links; out.push(cid); } });
+    Object.keys(chars).forEach(function(cid) { var x = chars[cid]; if (!isObj(x) || !isObj(x.links)) return; var hit = false; Object.keys(x.links).forEach(function(l) { if (x.links[l] === id) { delete x.links[l]; if (isObj(x.stn)) { delete x.stn[l]; if (!Object.keys(x.stn).length) delete x.stn; } hit = true; } }); if (hit) { if (!Object.keys(x.links).length) delete x.links; out.push(cid); } });
     return out;
 }
 // 1.6.0: the campaign's date, read through one registered source (calendar.js: the clock on the system's calendar, or on a player's app the
@@ -6135,6 +6200,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     var lctx = map(), asts = map(), pretty = map();   // Stage 6 F5a1: each list's rows (once a render), each column formula parsed once, readable names for a loop's message
     var rangeRead = false;   // range penalties R3: whether anything this resolver worked out read RangeMod or TargetDistance (fn.rangeRead)
     var lkx = linkByKey(sys), linkC = map();   // 1.6.0 linked sheets: the system's links by key, and each link's reader once a resolver
+    var gkx = groupByKey(sys), crewC = map();   // 1.6.0 (CORE gap 16): the Crew links by the key the vehicle reads its crew by, and each crew once a resolver
     // 1.6.0 linked sheets: <Key>.<name> reads the sheet a link holds, live, with this very system (so a player's press judged through the
     // players' view reads only what players may see); <Key>.has 1 while linked; every name 0 with no link. A player's copy reads the figures its
     // host worked out (char.lk). The linked sheet's own links are not followed: each name reads 0 there
@@ -6156,6 +6222,31 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var v = s.r(rest), d = s.r.detail(rest);
         if (d) { var vv = []; d.mods.forEach(function(m) { vv.push({ through: k.key + '.' + rest, name: m.name, op: m.op, v: m.v, gm: m.gm }); }); d.via.forEach(function(m) { vv.push(m); }); detail[l] = { base: d.base, mods: [], via: vv }; }   // a GM-only effect on the linked sheet keeps a public roll private, as one of the character's own does
         return v;
+    }
+    // 1.6.0 (CORE gap 16): <group>.count, <group>.max|min|sum.<name>, and the same under a station, over the sheets that crew this one, each
+    // read with this very system, one level deep; a player's copy reads the figures its host worked out (char.ck). A GM-only effect on a crew
+    // sheet's figure keeps a public roll private, as one on a linked sheet does
+    function crewVal(k, rest, l) {
+        var p = crewParts(k, rest); if (!p) return undefined;
+        var fg = isObj(char) && isObj(char.ck) && hasOwn(char.ck, k.id) && isObj(char.ck[k.id]) ? char.ck[k.id] : null;
+        if (fg) { var fv = isObj(fg.v) && hasOwn(fg.v, rest) ? fg.v[rest] : 0; return typeof fv === 'number' && fin(fv) ? fv : 0; }
+        if (ropts && ropts.linkDepth > 0) return 0;
+        var mem = crewC[k.id];
+        if (mem === undefined) {
+            mem = []; var cs = null; try { cs = _crewSrc && isObj(char) && typeof char.id === 'string' ? _crewSrc(char.id, k.id, sys) : null; } catch (e) { cs = null; }
+            (Array.isArray(cs) ? cs : []).forEach(function(o) { if (isObj(o) && o.id !== char.id && isObj(o.links) && o.links[k.id] === char.id) mem.push({ c: o, s: isObj(o.stn) && typeof o.stn[k.id] === 'string' ? lower(o.stn[k.id]) : '', r: null }); });
+            crewC[k.id] = mem;
+        }
+        var sel = p.st ? mem.filter(function(m) { return m.s === lower(p.st); }) : mem; if (p.agg === 'count') return sel.length;
+        var best = null, sum = 0, gm = [];
+        sel.forEach(function(m) {
+            if (!m.r) m.r = makeResolver(sys, m.c, F, { linkDepth: 1 });
+            var v; try { v = m.r(p.name); } catch (e) { v = undefined; } if (typeof v === 'boolean') v = v ? 1 : 0; if (typeof v !== 'number' || !fin(v)) return;
+            sum += v; best = best === null ? v : p.agg === 'max' ? Math.max(best, v) : Math.min(best, v);
+            var d = m.r.detail(p.name); if (d) d.mods.concat(d.via).forEach(function(x) { if (isObj(x) && x.gm && gm.length < 12) gm.push({ through: k.group + '.' + rest, name: x.name, op: x.op, v: x.v, gm: true }); });
+        });
+        if (gm.length) detail[l] = { base: 0, mods: [], via: gm };
+        return p.agg === 'sum' ? Math.max(-1e15, Math.min(1e15, sum)) : best === null ? 0 : best;
     }
     // 5h: where a derived value's effects came from — the sources recorded on the names its formula read (theirs and their own "via")
     function viaOf(names) {
@@ -6360,6 +6451,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     function builtin(l) {   // 5h Fold 3: Facing, Arc, Arc.front|side|rear, Threats, Threats.front|side|rear — a field named Facing, Arc or Threats keeps its whole family
         var fam = l.split('.')[0]; if (ix[fam]) return undefined;
         if (lkx[fam] && l.length > fam.length + 1) return linkVal(lkx[fam], l.slice(fam.length + 1), l);   // 1.6.0: a linked sheet's names (a field keyed so keeps them, above)
+        if (gkx[fam] && l.length > fam.length + 1) return crewVal(gkx[fam], l.slice(fam.length + 1), l);   // 1.6.0 (CORE gap 16): its crew as a group
         if (fam === 'date') { var dk = l.slice(5); if (dk !== 'year' && dk !== 'day' && dk !== 'days' && dk !== 'hour' && dk !== 'minute') return undefined; var dv = null; try { dv = _dateSrc ? _dateSrc() : null; } catch (e) { dv = null; } return isObj(dv) && fin(dv[dk]) ? dv[dk] : 0; }   // 1.6.0: the campaign's date
         // 1.6.0: TargetSize reads with the range, so the host's privacy rule counts it too
         if (l === 'rangemod' || l === 'targetdistance' || l === 'heightmod' || l === 'heightdiff' || l === 'targetsize') { rangeRead = true; var rgc = ropts && isObj(ropts.range) ? ropts.range : null, rgv = rgc ? (l === 'rangemod' ? rgc.mod : l === 'targetdistance' ? rgc.dist : l === 'heightmod' ? rgc.hmod : l === 'targetsize' ? rgc.size : rgc.hdiff) : 0; return typeof rgv === 'number' && isFinite(rgv) ? rgv : 0; }   // item 19 H2: HeightMod and HeightDiff read with the range, so the host's privacy rule counts them too   // range penalties R2: to the roller's target; 0 with none (a field of the system's own of that name keeps it)
@@ -6821,7 +6913,9 @@ function validateSystem(sys, F) {
         ta.addr = sg[1]; if (gmKsV[lower(lf.key)] && gmKsV[lower(lf.key)][sg[1]] === 1) ta.gmKey = true;
         return ta;
     }
-    function listT(n) { var t = listTarget(n, null); return t && !t.rowOutside ? t : linkT(n); }   // captions and labels: never inside a column (1.6.0: a linked sheet's names too)
+    function listT(n) { var t = listTarget(n, null); return t && !t.rowOutside ? t : (linkT(n) || crewT(n)); }   // captions and labels: never inside a column (1.6.0: a linked sheet's names too)
+    var gnV = groupByKey(sys);   // 1.6.0 (CORE gap 16): <group>.count, <group>.max|min|sum.<name> and the same under a station, a number of the crew sheets; never an edge of the loop graph
+    function crewT(n) { var l = lower(n), d = l.indexOf('.'), k = d > 0 ? l.slice(0, d) : ''; if (!k || !gnV[k] || ix[k]) return null; var p = crewParts(gnV[k], l.slice(d + 1)); if (!p) return null; if (p.agg === 'count') return { id: '', key: n, kind: 'number', vis: 'all', noEdge: true }; var t = known[lower(p.name)] || listTarget(lower(p.name), null); return t && !t.rowOutside ? Object.assign({}, t, { noEdge: true }) : null; }
     var lnkV = linkByKey(sys);   // 1.6.0: <Key>.<name> reads the system's own name on the sheet a link holds, and <Key>.has; never an edge of the loop graph, since it is another character
     function linkT(n) { var l = lower(n), d = l.indexOf('.'), k = d > 0 ? l.slice(0, d) : ''; if (!k || !lnkV[k] || ix[k]) return null; var w = l.slice(d + 1); if (w === 'has' && !ix.has) return { id: '', key: n, kind: 'number', vis: 'all', noEdge: true }; var t = known[w] || listTarget(w, null); return t && !t.rowOutside ? Object.assign({}, t, { noEdge: true }) : null; }
     function isRollProp(p) { return p === 'roll' || p === 'rollFormula' || (typeof p === 'string' && p.indexOf('list.roll.') === 0); }   // F5b: a list's roll is a roll
@@ -6846,7 +6940,7 @@ function validateSystem(sys, F) {
             if (!target && (l === 'crossstep' || l === 'crossed')) { if (!crossV || /(^|\.)cross\./.test(prop)) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only in a roll or an action that runs When a value crosses.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = { id: '', key: l === 'crossstep' ? 'CrossStep' : 'Crossed', kind: 'number', vis: 'all', noEdge: true }; }   // 1.6.0
             if (!target && l === 'onself') { errors.push({ id: owner.id, prop: prop, message: '"OnSelf" is known only in a roll or an action that Applies to the user or an adjacent character.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
             if (!target && l.length > 3 && l.indexOf('on.') === 0) { if (!nearV) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" reads the one it is used on, so it is known only in a roll or an action that Applies to the user or an adjacent character.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = known[l.slice(3)] || null; }   // 1.6.0: On.<name>, the one it is used on
-            if (!target) { var lt = listTarget(n, rowList); if (lt && lt.rowOutside) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" names a row, so it is known only in a list\u2019s own columns.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = lt; } if (!target) target = linkT(n);   // F5a1; 1.6.0: a linked sheet's name
+            if (!target) { var lt = listTarget(n, rowList); if (lt && lt.rowOutside) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" names a row, so it is known only in a list\u2019s own columns.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = lt; } if (!target) target = linkT(n) || crewT(n);   // F5a1; 1.6.0: a linked sheet's name, or its crew's as a group
             if (target && target.noChamber) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" reads a chambered round, but ' + (target.list.label || target.list.key) + ' has no Chambers from.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // 1.5.9
             if (target && target.ctrTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is a counter, so it has no ' + (target.ext ? 'highest or lowest' : 'total') + ': read one row (' + target.list.key + '.<key>.' + n.split('.').pop() + ').', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // R2
             if (target && target.pickTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is a choice, so it has no ' + (target.ext ? 'highest or lowest' : 'total') + ': read one row (' + target.list.key + '.<key>.' + n.split('.').pop() + ').', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // F5a2
@@ -7208,7 +7302,7 @@ function charView(c, sys, own, opts) {
     var outC = { id: c.id, name: c.name, ownerId: c.ownerId, portrait: c.portrait || '', npc: false, values: values, updated: c.updated || 0, partial: !own };
     if (own && !probe) { var lkV = cleanLooks(c.looks, values, sys); if (lkV) outC.looks = lkV; }   // item 35: the look of a text value goes with the value on its owner's whole copy, and nowhere else (a teammate's hover copy is read as the host's plain lines)
     var faceF = cleanFace(c.face); if (faceF && faceF !== 'photo' && !outC.portrait) outC.face = faceF;   // Onboarding F1c: its own face (everyone sees it on its tokens anyway)
-    if (own && !probe) { var lnV = cleanCharLinks(c.links, sys, c.id); if (lnV) outC.links = lnV; }   // 1.6.0: the sheets it links, to its owner (the host adds the figures they read: net.js withLinkFigs)
+    if (own && !probe) { var lnV = cleanCharLinks(c.links, sys, c.id); if (lnV) { outC.links = lnV; var snV = cleanCharStn(c.stn, sys, lnV); if (snV) outC.stn = snV; } }   // 1.6.0 (CORE gap 16): and its stations   // 1.6.0: the sheets it links, to its owner (the host adds the figures they read: net.js withLinkFigs)
     if (own && !probe) { var srV = cleanSheetRev(c.sheetRev); if (srV) outC.sheetRev = srV; }   // 1.6.0 (backlog 190): its owner's app judges whether it is out of date
     if (own && !probe) { if (c.making === 1) { outC.making = 1; if (c.invited === 1) outC.invited = 1; } else if (c.unlocked === 1) outC.unlocked = 1; }   // Onboarding F3: its state, to its owner alone (the review and the made mark are the GM's)
     if (own && !probe) { var un = unseenMods(c, sys, opts && opts.full); if (un) outC.unseen = un; }   // F6 (owner, 2026-09-27): what rows they cannot see change, nameless
@@ -7861,5 +7955,7 @@ function chosenNext(rows, turn, pick) {
     return { at: after.length ? after[0] : p.at[0], round: false };
 }
 var API = { unheldJudge: unheldJudge, GROUP_MAX: GROUP_MAX, rollTargetOf: rollTargetOf, groupRolls: groupRolls, groupWeakest: groupWeakest, dmgAdOf: dmgAdOf, dmgDiceRead: dmgDiceRead, turnCounters: turnCounters, cleanCharLink: cleanCharLink, LINK_KINDS: LINK_KINDS, LINK_NOT: LINK_NOT, cleanLinks: cleanLinks, linkByKey: linkByKey, linkBare: linkBare, setLinkSource: setLinkSource, cleanCharLinks: cleanCharLinks, linkNamesIn: linkNamesIn, linkFigs: linkFigs, cleanLk: cleanLk, linkSet: linkSet, linkedFrom: linkedFrom, linksDrop: linksDrop, withAttempt: withAttempt, bigOf: bigOf, critRange: critRange, cleanTier: cleanTier, grantWaits: grantWaits, cleanGrants: cleanGrants, hideGrants: hideGrants, grantWant: grantWant, grantsKept: grantsKept, GRANT_MAX: GRANT_MAX, rangeBandOf: rangeBandOf, partsRoom: partsRoom, partHostOk: partHostOk, partsKept: partsKept, partsPut: partsPut, partsSrc: partsSrc, partHost: partHost, partsOf: partsOf, capsAt: capsAt, droppedWords: droppedWords, setOf: setOf, setsOf: setsOf, statName: statName, placeVal: placeVal, rollFigOf: rollFigOf, rollShowOf: rollShowOf, cleanBadges: cleanBadges, BADGE_MAX: BADGE_MAX, cleanSheetRev: cleanSheetRev, sheetRevOf: sheetRevOf, charStale: charStale, staleOf: staleOf, revProposal: revProposal, cleanAlt: cleanAlt, ALT_MAX: ALT_MAX, againFold: againFold, cleanEnv: cleanEnv, ENV_BANDS: ENV_BANDS, envBands: envBands, envWorst: envWorst, cleanRollSw: cleanRollSw, rollSwitchesAll: rollSwitchesAll, rollSwitches: rollSwitches, swJudge: swJudge, DATE_NAMES: DATE_NAMES, setDateSource: setDateSource, dateReads: dateReads, VERSION: VERSION, overSays: overSays, overNames: overNames, overSet: overSet, onClash: onClash, rowTimers: rowTimers, cleanRowTimer: cleanRowTimer, readsOn: readsOn, cleanRowGone: cleanRowGone, cleanCross: cleanCross, crossings: crossings, crossSteps: crossSteps, postureFx: postureFx, withOnSelf: withOnSelf, tokOnOk: tokOnOk, mapYardPx: mapYardPx, loadFits: loadFits, DIE_NAMES: DIE_NAMES, cleanDie: cleanDie, dieOf: dieOf, rollDie: rollDie, tradeOfferable: tradeOfferable, tradeInto: tradeInto, moneyBoxes: moneyBoxes, moneyHeld: moneyHeld, moneyMove: moneyMove, rowOpMoney: rowOpMoney, ROW_LOOK: ROW_LOOK, WORK_KINDS: WORK_KINDS, WORK_BY: WORK_BY, cleanRowLook: cleanRowLook, rowLookShown: rowLookShown, rowLookShade: rowLookShade, finishWords: finishWords, workWords: workWords, cleanTradeOffer: cleanTradeOffer, tradeApply: tradeApply, TRADE_LINES: TRADE_LINES, cleanDamageRules: cleanDamageRules, damageStep: damageStep, cleanCharDamage: cleanCharDamage, DMG_CONDS: DMG_CONDS, cleanPlaceCats: cleanPlaceCats, catSplits: catSplits, catHome: catHome, catPlace: catPlace, cleanFieldUnit: cleanFieldUnit, metricOf: metricOf, unitTail: unitTail, readMeasure: readMeasure, heightWords: heightWords, MEASURES: MEASURES, measureWords: measureWords, unitWords: unitWords, unitHead: unitHead, listFig: listFig, listWords: listWords, unitOf: unitOf, figText: figText, figFmt: figFmt, weightWords: weightWords, textWords: textWords, measureStore: measureStore, rollNeedsOk: rollNeedsOk, rollNeedsSays: rollNeedsSays, onGroup: onGroup, onlyOne: onlyOne, onHeld: onHeld, cleanNeeds: cleanNeeds, hideNeeds: hideNeeds, needsMet: needsMet, needsSays: needsSays, needRule: needRule, ruleTrue: ruleTrue, setRuleJudge: setRuleJudge, cleanBudgets: cleanBudgets, budgetsOf: budgetsOf, budgetWatch: budgetWatch, budgetSays: budgetSays, cleanDesc: cleanDesc, cleanLvls: cleanLvls, EVERY_UNITS: EVERY_UNITS, cleanEvery: cleanEvery, FIGHT_UNITS: FIGHT_UNITS, cleanInFight: cleanInFight, timeRuleRun: timeRuleRun, ruleRunCtx: ruleRunCtx, needsHeld: needsHeld, chainsShallow: chainsShallow, cleanFace: cleanFace, charForView: charForView, mapGridOf: mapGridOf, tokenCell: tokenCell, shapeStandIn: shapeStandIn, cleanFrame: cleanFrame, openChar: openChar, newCharRules: newCharRules, charClash: charClash, coreOf: coreOf, setLibraryFind: setLibraryFind, statKeys: statKeys, statPicks: statPicks, cleanIcon: cleanIcon, droppedCounts: droppedCounts, parseLasts: parseLasts, lastsSecs: lastsSecs, roundSecs: roundSecs, fxLeftNow: fxLeftNow, fxTick: fxTick, mapCellScale: mapCellScale, moveAllowCells: moveAllowCells, dueActs: dueActs, gridCells: gridCells, cleanTurn: cleanTurn, TURN_UNITS: TURN_UNITS, TIME_WORDS: TIME_WORDS, roundActs: roundActs, combatChars: combatChars, applyRound: applyRound, thenChanges: thenChanges, thenCrit: thenCrit, withRollCrit: withRollCrit, THEN_WHEN: THEN_WHEN, dmgTypeOf: dmgTypeOf, rollMods: rollMods, openSync: openSync, cleanOpens: cleanOpens, showsIf: showsIf, rowRollNames: rowRollNames, applyAct: applyAct, applyScope: applyScope, cleanCharApply: cleanCharApply, APPLY_KINDS: APPLY_KINDS, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, cleanNewPlayers: cleanNewPlayers, newPlayerRules: newPlayerRules, waitingTokensOf: waitingTokensOf, waitingNeed: waitingNeed, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, cleanListSpec: cleanListSpec, STAT_KEY: STAT_KEY, statKey: statKey, cleanEntryStats: cleanEntryStats, rowStats: rowStats, rowStat: rowStat, plusText: plusText, rowPaid: rowPaid, cleanListRules: cleanListRules, cleanOv: cleanOv, mergeOv: mergeOv, itemReach: itemReach, OV_LOCK: OV_LOCK, lvlClamp: lvlClamp, rowLvl: rowLvl, rowOn: rowOn, cleanItemKey: cleanItemKey, ROW_WORDS: ROW_WORDS, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, libSnaps: libSnaps, carriedBy: carriedBy, cleanItemMods: cleanItemMods, fieldKinds: fieldKinds, unseenMods: unseenMods, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, tokenEffects: tokenEffects, autoEffectsOn: autoEffectsOn, tokenOwnEffects: tokenOwnEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, postureRangedOf: postureRangedOf, cleanPostures: cleanPostures, postureList: postureList, ownPostures: ownPostures, postureAt: postureAt, postureSeven: postureSeven, stanceCtx: stanceCtx, tokenCtx: tokenCtx, setAimSource: setAimSource, bearingTo: bearingTo, aimsOf: aimsOf, facingNow: facingNow, withRound: withRound, withCross: withCross, rangeCtx: rangeCtx, withRange: withRange, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, ROUNDS: ROUNDS, ROUND_TO: ROUND_TO, roundBy: roundBy, roundSays: roundSays, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, cleanLightRules: cleanLightRules, lightName: lightName, lightPresets: lightPresets, LIGHT_UNITS: LIGHT_UNITS, cleanRangeRules: cleanRangeRules, rangeModOf: rangeModOf, rangeDist: rangeDist, rangeOf: rangeOf, RANGE_UNITS: RANGE_UNITS, cleanSenses: cleanSenses, secretFieldIds: secretFieldIds, gmViewFields: gmViewFields, coverTier: coverTier, coverOutcome: coverOutcome, coverDamage: coverDamage, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, orderByInit: orderByInit, cleanInitRules: cleanInitRules, cleanHeightRules: cleanHeightRules, heightModOf: heightModOf, heightOf: heightOf, HEIGHT_UNITS: HEIGHT_UNITS, initTie: initTie, sideFirst: sideFirst, orderBySide: orderBySide, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, cleanCharUpload: cleanCharUpload, cleanUploads: cleanUploads, fillMaking: fillMaking, applyProposal: applyProposal, statAsk: statAsk, readerKit: readerKit, registerReader: registerReader, dropReader: dropReader, readers: readers, readerById: readerById, readerFor: readerFor, fmtNum: fmtNum, suggest: suggest, lookRule: lookRule, cleanLooks: cleanLooks, applyStyle: applyStyle, cleanCharStyle: cleanCharStyle, lookOf: lookOf, lookFor: lookFor, loadSame: loadSame, loadMax: loadMax, cleanLd: cleanLd, chamberTakes: chamberTakes, chamberFits: chamberFits, chamberCap: chamberCap, chamberHolds: chamberHolds, chamberSays: chamberSays, cleanRd: cleanRd, CHAMBER_CAP: CHAMBER_CAP, thenMargin: thenMargin, onceOf: onceOf, cleanBlastRules: cleanBlastRules, BLAST_FALL: BLAST_FALL, cleanReach: cleanReach, cleanAffs: cleanAffs, affLastsSecs: affLastsSecs, AFF_UNITS: AFF_UNITS, chosenPicks: chosenPicks, chosenNext: chosenNext, BAR_COLORS: BAR_COLORS, BAR_SHOW_WORDS: BAR_SHOW_WORDS, cleanBars: cleanBars, cleanTokBars: cleanTokBars, tokenBarSpec: tokenBarSpec, tokenBarFigs: tokenBarFigs, cleanBarFigs: cleanBarFigs, barFill: barFill, barTip: barTip };
+Object.assign(API, { setCrewSource: setCrewSource, crewFigs: crewFigs, cleanCk: cleanCk, cleanCharStn: cleanCharStn, groupByKey: groupByKey, stationOf: stationOf, crewParts: crewParts, LINK_STATIONS: LINK_STATIONS });   // 1.6.0 (CORE gap 16)
 if (typeof window !== 'undefined') window.wpSystemCore = API;
 export { unheldJudge, GROUP_MAX, rollTargetOf, groupRolls, groupWeakest, dmgAdOf, dmgDiceRead, turnCounters, cleanCharLink, LINK_KINDS, LINK_NOT, cleanLinks, linkByKey, linkBare, setLinkSource, cleanCharLinks, linkNamesIn, linkFigs, cleanLk, linkSet, linkedFrom, linksDrop, withAttempt, bigOf, critRange, cleanTier, grantWaits, cleanGrants, hideGrants, grantWant, grantsKept, GRANT_MAX, rangeBandOf, partsRoom, partHostOk, partsKept, partsPut, partsSrc, partHost, partsOf, capsAt, droppedWords, setOf, setsOf, statName, placeVal, rollFigOf, rollShowOf, cleanBadges, BADGE_MAX, cleanSheetRev, sheetRevOf, charStale, staleOf, revProposal, cleanAlt, ALT_MAX, againFold, cleanEnv, ENV_BANDS, envBands, envWorst, cleanRollSw, rollSwitchesAll, rollSwitches, swJudge, DATE_NAMES, setDateSource, dateReads, VERSION, overSays, overNames, overSet, onClash, rowTimers, cleanRowTimer, readsOn, cleanRowGone, cleanCross, crossings, crossSteps, postureFx, withOnSelf, tokOnOk, mapYardPx, loadFits, DIE_NAMES, cleanDie, dieOf, rollDie, tradeOfferable, tradeInto, moneyBoxes, moneyHeld, moneyMove, rowOpMoney, ROW_LOOK, WORK_KINDS, WORK_BY, cleanRowLook, rowLookShown, rowLookShade, finishWords, workWords, cleanTradeOffer, tradeApply, TRADE_LINES, cleanDamageRules, damageStep, cleanCharDamage, DMG_CONDS, cleanPlaceCats, catSplits, catHome, catPlace, cleanFieldUnit, metricOf, unitTail, readMeasure, heightWords, MEASURES, measureWords, unitWords, unitHead, listFig, listWords, unitOf, figText, figFmt, weightWords, textWords, measureStore, rollNeedsOk, rollNeedsSays, onGroup, onlyOne, onHeld, cleanNeeds, hideNeeds, needsMet, needsSays, needRule, ruleTrue, setRuleJudge, cleanBudgets, budgetsOf, budgetWatch, budgetSays, cleanDesc, cleanLvls, EVERY_UNITS, cleanEvery, FIGHT_UNITS, cleanInFight, timeRuleRun, ruleRunCtx, needsHeld, chainsShallow, cleanFace, charForView, mapGridOf, tokenCell, shapeStandIn, cleanFrame, openChar, newCharRules, charClash, coreOf, setLibraryFind, statKeys, statPicks, cleanIcon, droppedCounts, parseLasts, lastsSecs, roundSecs, fxLeftNow, fxTick, mapCellScale, moveAllowCells, dueActs, gridCells, cleanTurn, TURN_UNITS, TIME_WORDS, roundActs, combatChars, applyRound, thenChanges, thenCrit, withRollCrit, THEN_WHEN, dmgTypeOf, rollMods, openSync, cleanOpens, showsIf, rowRollNames, applyAct, applyScope, cleanCharApply, APPLY_KINDS, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, cleanNewPlayers, newPlayerRules, waitingTokensOf, waitingNeed, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, plusText, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, libSnaps, carriedBy, cleanItemMods, fieldKinds, unseenMods, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, tokenEffects, autoEffectsOn, tokenOwnEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, postureRangedOf, cleanPostures, postureList, ownPostures, postureAt, postureSeven, stanceCtx, tokenCtx, setAimSource, bearingTo, aimsOf, facingNow, withRound, withCross, rangeCtx, withRange, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, ROUNDS, ROUND_TO, roundBy, roundSays, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, cleanLightRules, lightName, lightPresets, LIGHT_UNITS, cleanRangeRules, rangeModOf, rangeDist, rangeOf, RANGE_UNITS, cleanSenses, secretFieldIds, gmViewFields, coverTier, coverOutcome, coverDamage, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, orderByInit, cleanInitRules, cleanHeightRules, heightModOf, heightOf, HEIGHT_UNITS, initTie, sideFirst, orderBySide, validateSystem, charFor, applyEdit, autoLayout, cleanCharUpload, cleanUploads, fillMaking, applyProposal, statAsk, readerKit, registerReader, dropReader, readers, readerById, readerFor, fmtNum, suggest, lookRule, cleanLooks, applyStyle, cleanCharStyle, lookOf, lookFor, loadSame, loadMax, cleanLd, chamberTakes, chamberFits, chamberCap, chamberHolds, chamberSays, cleanRd, CHAMBER_CAP, thenMargin, onceOf, cleanBlastRules, BLAST_FALL, cleanReach, cleanAffs, affLastsSecs, AFF_UNITS, chosenPicks, chosenNext, BAR_COLORS, BAR_SHOW_WORDS, cleanBars, cleanTokBars, tokenBarSpec, tokenBarFigs, cleanBarFigs, barFill, barTip };
+export { setCrewSource, crewFigs, cleanCk, cleanCharStn, groupByKey, stationOf, crewParts, LINK_STATIONS };   // 1.6.0 (CORE gap 16)

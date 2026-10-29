@@ -290,6 +290,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 () => w.camp, () => ({ active: w.live, fightsOn: id => (w.fights && w.fights[id]) || [] }), (k, d) => (k === 'wp_musicSolo' ? (w.solo ? 'on' : 'off') : d), () => w.on, cleanMapMusic, () => ({ trackIds: { t_a: 1, t_b: 1 }, playlistIds: { pl_1: 1 } }), w);
             return w;
         };
+        {   // 1.6.0, backlog 88 (the owner, by prompt: "Yes, a campaign default (Recommended)", and after a fight "should usually go back to normal music"): the campaign's own fight music
+            const C = mkTick(), nm = { type: 'map', music: { track: 't_a', loop: 'list' } }, own = { type: 'map', music: { track: 't_a', loop: 'list', fight: { track: 't_b', loop: 'one' } } }, none = { type: 'map' };
+            C.fights = {}; C.camp = { activeItemId: 'nm', music: { tracks: [], playlists: [], fight: { playlist: 'pl_1', loop: 'list' } }, items: { nm: nm, own: own, none: none } };
+            C.tick(); C.fights.nm = ['f_1']; C.tick(); C.fights.nm = []; C.tick(); const a1 = j(C.calls);
+            C.calls.length = 0; C.camp.activeItemId = 'own'; C.tick(); C.fights.own = ['f_2']; C.tick(); const a2 = j(C.calls);
+            C.calls.length = 0; C.camp.activeItemId = 'none'; C.tick(); C.fights.none = ['f_3']; C.tick(); C.fights.none = []; C.tick(); const a3 = j(C.calls);
+            C.calls.length = 0; C.camp.music.fight = 7; C.camp.activeItemId = 'nm'; C.fights = {}; C.tick(); C.fights.nm = ['f_4']; C.tick(); const a4 = j(C.calls);
+            const cm = cleanMusic({ tracks: [{ id: 't_a', path: P, size: 10 }], playlists: [{ id: 'pl_1', name: 'L', tracks: ['t_a'] }], fight: { playlist: 'pl_1', loop: 'one', shuffle: true } }), cmGone = cleanMusic({ tracks: [{ id: 't_a', path: P, size: 10 }], fight: { track: 't_zz', loop: 'one' } });
+            const mv = musicView({ tracks: [{ id: 't_a', path: P, size: 10 }], playlists: [], fight: { track: 't_a', loop: 'one' } }), mvList = musicView({ tracks: [{ id: 't_a', path: P, size: 10 }], fight: [1] });
+            check('1.6.0 the campaign\'s fight music (backlog 88; tick run for real): a map with only its normal music plays the campaign\'s fight music while a fight runs there and its own again after; a map\'s own fight music wins; a map with no music at all plays the campaign\'s in a fight and stops after; a campaign fight music that is no setting plays nothing; cleanMusic keeps it only where it names a track or playlist that survived, after the playlists, and musicView passes it on',
+                a1 === j([['play', 'track', 't_a', 'list', false], ['play', 'playlist', 'pl_1', 'list', false], ['play', 'track', 't_a', 'list', false]])
+                && a2 === j([['play', 'track', 't_b', 'one', false]])   /* the same normal song plays on: no restart when the map changes */
+                && a3 === j([['play', 'playlist', 'pl_1', 'list', false], ['stop']]) && a4 === j([['play', 'track', 't_a', 'list', false]])
+                && j(cm.fight) === j({ loop: 'one', shuffle: true, playlist: 'pl_1' }) && Object.keys(cm).pop() === 'fight' && !('fight' in cmGone) && j(mv.fight) === j({ loop: 'one', shuffle: false, track: 't_a' }) && !('fight' in mvList),
+                j([a1, a2, a3, a4, cm, mv]));
+        }
         {   // 1.5.6, backlog 88: a map's own music while a fight runs there
             const F = mkTick(), fm = { type: 'map', music: { track: 't_a', loop: 'list', fight: { playlist: 'pl_1', loop: 'list', shuffle: true } } }, om = { type: 'map', music: { fight: { track: 't_b', loop: 'one' } } };
             F.fights = {}; F.camp = { activeItemId: 'fm', items: { fm: fm, om: om } };

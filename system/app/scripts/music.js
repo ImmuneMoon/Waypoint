@@ -218,9 +218,18 @@ function soloAutoOn() { return pref('wp_musicSolo', 'off') === 'on'; }
 // 1.5.6: a fight runs on this map (net.js's fights by their map, on the GM's machine and on a player's app alike)
 function fightOn(mapId) { var n = net(); try { return !!(mapId && n && typeof n.fightsOn === 'function' && n.fightsOn(mapId).length); } catch (e) { return false; } }
 // What a map plays now: its In a fight music while a fight runs there and it has one, else its own music. null for none
+// 1.6.0, backlog 88 (the owner, by prompt: "Yes, a campaign default (Recommended)"): the campaign's own fight music, for a map that sets none
+function fightDefault() {
+    if (typeof isClient === 'function' && isClient()) { var n = net(), nm = n && n.music; return nm && nm.fight && typeof nm.fight === 'object' ? nm.fight : null; }
+    var camp = getActiveCampaign(), cm = camp && camp.music && typeof camp.music === 'object' && !Array.isArray(camp.music) ? camp.music : null;
+    return cm && cm.fight && typeof cm.fight === 'object' && !Array.isArray(cm.fight) ? cm.fight : null;
+}
+// While a fight runs: the map's own fight music, else the campaign's; else, and after the fight (the owner: "should usually go back to
+// normal music"), the map's own, silence where it has none
 function mapSetting(it, mapId) {
-    var mm = it && it.music && typeof it.music === 'object' ? it.music : null; if (!mm) return null;
-    return mm.fight && typeof mm.fight === 'object' && fightOn(mapId) ? mm.fight : mm;
+    var mm = it && it.music && typeof it.music === 'object' ? it.music : null;
+    if (it && fightOn(mapId)) { if (mm && mm.fight && typeof mm.fight === 'object') return mm.fight; var d = fightDefault(); if (d) return d; }
+    return mm;
 }   // GM option: auto-play map music even when NOT in a session (off by default)
 // Runs on every render() — MUST be cheap in the common case (zoom / pan re-renders on the same map). It only does
 // real work when the active MAP changes, and only auto-plays while a multiplayer session is live (solo prep can
@@ -242,7 +251,7 @@ function tick() {
     if (mapId === lastMapId && set === lastSet) return;   // same map, same setting (or still no map): nothing to do — the cheap path for zoom/pan
     var same = mapId === lastMapId;   // the map on screen had its setting changed (Remember on this map, or the GM's change arriving on a player's app): it plays at once
     lastMapId = mapId; lastSet = set;
-    if (!it || !it.music) { if (same && autoStarted && (cur || source)) { stop(0.5); autoStarted = false; lastKey = ''; } return; }   // no map open, or a map with no preset: leave the current music alone (seamless) — but a setting cleared on this very map ends what it started
+    if (!it || !mm) { if (same && autoStarted && (cur || source)) { stop(0.5); autoStarted = false; lastKey = ''; } return; }   // no map open, or a map with no preset: leave the current music alone (seamless) — but a setting cleared on this very map ends what it started
     var cfg = cleanMapMusic(mm, idSets());
     if (!cfg) { if (same && autoStarted && (cur || source)) { stop(0.5); autoStarted = false; lastKey = ''; } return; }   // 1.5.6: a fight that ends on a map with no music of its own stops the fight's music
     var kind = cfg.playlist ? 'playlist' : 'track', id = cfg.playlist || cfg.track, key = kind + ':' + id;
@@ -256,7 +265,7 @@ function tick() {
 var liveWas = false;
 var fightWas = false;
 function watchLive() {
-    var live = sessionLive(), it = activeMapItem(), camp = getActiveCampaign(), f = !!(it && it.music && it.music.fight) && fightOn(camp ? camp.activeItemId : null);   // 1.5.6: a fight that begins or ends on the map on screen
+    var live = sessionLive(), it = activeMapItem(), camp = getActiveCampaign(), f = !!it && fightOn(camp ? camp.activeItemId : null) && !!((it.music && it.music.fight) || fightDefault());   // 1.5.6: a fight that begins or ends on the map on screen
     if (live === liveWas && f === fightWas) return;
     var lc = live !== liveWas; liveWas = live; fightWas = f; tick(); if (lc && panelOpen()) renderPanel();
 }   // the panel too: Take control is offered only at a table
@@ -605,6 +614,27 @@ function renderPanel() {
         }); bindWrap.appendChild(setB);
         if (cfg || fcfg) bindWrap.appendChild(el('div', 'music-empty music-bindnote', 'It starts by itself while a session is live' + (soloAutoOn() ? ', and while you are alone (ticked above).' : '. Alone, press ▶ above, or tick “Auto-play map music while solo”.')));
         p.appendChild(bindWrap);
+    }
+
+    // 1.6.0, backlog 88: the campaign's own fight music, for any map that sets none of its own
+    if (canWrite()) {
+        var cfw = el('div', 'music-section'), cmd = getActiveCampaign(), dcfg = cleanMapMusic(fightDefault(), idSets());
+        cfw.appendChild(el('div', 'music-sec-head', 'In a fight, on any map'));
+        var csel = el('select', 'music-cfightpl'); csel.appendChild(new Option('\u2014 nothing \u2014', ''));
+        m.playlists.forEach(function(pl) { var o = new Option('\u25b6 ' + pl.name, 'pl:' + pl.id); if (dcfg && dcfg.playlist === pl.id) o.selected = true; csel.appendChild(o); });
+        m.tracks.forEach(function(tr) { var o = new Option('\u266a ' + tr.name, 'tr:' + tr.id); if (dcfg && dcfg.track === tr.id) o.selected = true; csel.appendChild(o); });
+        cfw.appendChild(csel);
+        var cloop = el('select', 'music-cfightloop'); [['list', 'Loop list'], ['one', 'Loop one'], ['off', 'No loop']].forEach(function(o) { var op = new Option(o[1], o[0]); if (dcfg && dcfg.loop === o[0]) op.selected = true; cloop.appendChild(op); }); cfw.appendChild(cloop);
+        var cshL = el('label', 'music-bindshuf'), csh = el('input'); csh.type = 'checkbox'; csh.checked = !!(dcfg && dcfg.shuffle); cshL.appendChild(csh); cshL.appendChild(document.createTextNode(' Shuffle')); cfw.appendChild(cshL);
+        var cset = el('button', 'tool music-cfightset', 'Remember for the campaign'); cset.title = 'Plays while a fight runs on any map that has no fight music of its own. When the fight ends, the map\u2019s own music comes back.';
+        cset.addEventListener('click', function() {
+            if (getActiveCampaign() !== cmd) { renderPanel(); return; }
+            var cw = campMusicW(cmd); if (!cw) return; var cv = csel.value;
+            if (cv) { var fm = { loop: cloop.value, shuffle: csh.checked }; if (cv.indexOf('pl:') === 0) fm.playlist = cv.slice(3); else fm.track = cv.slice(3); cw.fight = fm; } else delete cw.fight;
+            save(true); toast(cv ? 'Saved the campaign\u2019s fight music.' : 'Cleared the campaign\u2019s fight music.'); lastKey = ''; lastMapId = null; tick(); renderPanel();
+        }); cfw.appendChild(cset);
+        cfw.appendChild(el('div', 'music-empty music-bindnote', 'A map\u2019s own fight music plays in its place.'));
+        p.appendChild(cfw);
     }
 
     // library: upload songs + manage tracks, or (while picking) bring some in from another campaign

@@ -130,6 +130,9 @@ System editor
   13, 14 or 16 px. The HUD keeps its own small labels.
 - A pool's colour can be ticked Band only: coloured on the pinned band,
   plain in its own section.
+- The Music panel has In a fight, on any map: the campaign's own fight
+  music, for every map with none of its own. When the fight ends the
+  map's own music comes back, or silence where it has none.
 - Each row of a range table can carry a name, such as Melee or Far.
   Set Range shows to Band name in the Measure options, and the ruler and
   the target marks show that name in place of the modifier.

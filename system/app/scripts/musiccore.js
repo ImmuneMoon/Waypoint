@@ -71,6 +71,7 @@ function cleanMusic(music) {
         var pl = cleanPlaylist(p, { trackIds: seenT }); if (!pl || seen[pl.id]) return;
         seen[pl.id] = 1; out.playlists.push(pl);
     });
+    var fg = cleanMapMusic(music.fight, { playlistIds: seen, trackIds: seenT }); if (fg) out.fight = fg;   // 1.6.0, backlog 88: the campaign's fight music, for a map that sets none (absent: none)
     return out;
 }
 // A map's remembered playback config. Null when it names neither a playlist nor a track (nothing to auto-play).
@@ -118,7 +119,7 @@ function newId(taken, kind, rand) {
 function musicView(m) {
     var isObj = function(x) { return !!x && typeof x === 'object'; };
     if (!isObj(m) || Array.isArray(m)) return cleanMusic(null);
-    return cleanMusic({ tracks: Array.isArray(m.tracks) ? m.tracks.filter(isObj) : [], playlists: Array.isArray(m.playlists) ? m.playlists.filter(function(p) { return isObj(p) && Array.isArray(p.tracks); }) : [] });
+    return cleanMusic({ tracks: Array.isArray(m.tracks) ? m.tracks.filter(isObj) : [], playlists: Array.isArray(m.playlists) ? m.playlists.filter(function(p) { return isObj(p) && Array.isArray(p.tracks); }) : [], fight: isObj(m.fight) && !Array.isArray(m.fight) ? m.fight : null });   // 1.6.0: the fight music too
 }
 // Every id the stored music holds (a track's, a playlist's) and every id one of its playlists names, as { id: 1 }: a new id is none of them
 function storedIds(m) {

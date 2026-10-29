@@ -564,6 +564,7 @@ function cleanApplyChanges(list, withWhen, withCounters) {   // withWhen (R1): a
         if (out.length >= LIMITS.applyChanges || !isObj(c)) return;
         if (c.fire === true && withWhen && withCounters) { var fw = c.when === 'hit' || c.when === 'miss' || c.when === 'malf' || c.when === 'crit' || c.when === 'fumble' ? c.when : '', fk = 'fire|' + fw; if (seen[fk]) return; seen[fk] = 1; var fo = { fire: true }; if (fw) fo.when = fw; out.push(fo); return; }   // 1.5.9 Chambers from: a list roll's Then may fire the first chambered round (once per when)
         var whX = withWhen && (c.when === 'hit' || c.when === 'miss' || c.when === 'malf' || c.when === 'crit' || c.when === 'fumble') ? c.when : '';
+        if (c.off === true) { if (!withCounters) return; var ok0 = 'off|' + whX; if (seen[ok0]) return; seen[ok0] = 1; var oo0 = { off: true }; if (whX) oo0.when = whX; out.push(oo0); return; }   // 1.6.0 (CORE gap 13, a power that ends when its upkeep's roll fails): a list's action or Then may switch its own row off (once per when; no amount)
         if (typeof c.fx === 'string') {   // 1.6.0: switch a library effect on (or off, on: false), once per effect and when; no amount
             if (!EFFECT_ID.test(c.fx)) return; var xk = 'fx:' + c.fx + '|' + whX; if (seen[xk]) return; seen[xk] = 1;
             var xo = { fx: c.fx, on: c.on !== false }; if (whX) xo.when = whX; out.push(xo); return;
@@ -1104,7 +1105,9 @@ function cleanRowTimer(v) {
 // 1.6.0 (CORE gap 13, a power's "5, then 3 a turn"): a list's upkeep, what a row switched on keeps paying. { pool: a resource field's id, amt: a
 // formula of the row (Row.* known; no dice; whole, at least 0), each: 'turn' (its character's turn start in a fight), 'round' (each new round of
 // its fight) or 'clock' (every per of its character's own game time, as a timed counter's per), stop: true, a row whose pool holds less than it
-// pays switches off and pays nothing }. Only on a list with a switch, in the GM's view alone (the GM's machine pays it, as a crossing's action
+// pays switches off and pays nothing, ct: a counter of the list each payment adds 1 to, so a list roll that runs when it crosses a step, such
+// as a Focus roll that ends the power on a failure with a change that switches its row off, follows every payment }. Only on a list with a
+// switch, in the GM's view alone (the GM's machine pays it, as a crossing's action
 // runs); cleanSystem drops one whose pool is no pool of the view. Absent: as before
 function cleanUpkeep(v, F) {
     if (!isObj(v) || typeof v.pool !== 'string' || !FIELD_ID.test(v.pool)) return null;
@@ -1143,7 +1146,8 @@ function rowUpkeep(sys, work, out, each, F, secs, perOf) {
                     var ix = at(); if (ix < 0) return; var L1 = work.values[f.id].slice(), off = Object.assign({}, L1[ix], { on: false }); delete off.ut; L1[ix] = off; put(f.id, L1, true);
                     var rd = rowDef(sys, off); res.off.push(cutText(rd && isObj(rd.def) ? rd.def.name : '', LIMITS.label) || 'A row'); return;
                 }
-                var done = applyAct(sys, work, { label: 'Upkeep', apply: [{ f: pf.id, formula: String(amt) }] }, rv, F, null, { f: f.id, r: rid }, true);
+                var upA = [{ f: pf.id, formula: String(amt) }]; if (typeof up.ct === 'string') upA.push({ c: up.ct, formula: '1', add: true });   // 1.6.0: a payment counted on its row
+                var done = applyAct(sys, work, { label: 'Upkeep', apply: upA }, rv, F, null, { f: f.id, r: rid }, true);
                 if (!done || !done.ok) return;
                 Object.keys(done.values).forEach(function(fid) { put(fid, done.values[fid], true); });
                 res.paid += amt;
@@ -2766,7 +2770,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
         var oby = onum(v.once.by), ork = v.once.rank === 'lvl' && out.lvl ? 'lvl' : onum(v.once.rank);
         if (oby && ork) { var oo = { by: oby, rank: ork }, oc = onum(v.once.cost) || ocol(v.once.cost), ofr = onum(v.once.free); if (oc) oo.cost = oc; if (ofr) oo.free = ofr; out.once = oo; }
     }
-    if (gmView && out.on && isObj(v.upkeep)) { var upk = cleanUpkeep(v.upkeep, F); if (upk) out.upkeep = upk; }   // 1.6.0 (CORE gap 13): what a row switched on keeps paying, the GM's view alone
+    if (gmView && out.on && isObj(v.upkeep)) { var upk = cleanUpkeep(v.upkeep, F); if (upk && typeof v.upkeep.ct === 'string') { var upC = (out.counters || []).filter(function(t) { return lower(t.key) === lower(v.upkeep.ct.trim()); })[0]; if (upC) upk.ct = upC.key; } if (upk) out.upkeep = upk; }   // 1.6.0 (CORE gap 13): ... and the counter of the list each payment adds 1 to (its spelling; none of the list: none)   // 1.6.0 (CORE gap 13): what a row switched on keeps paying, the GM's view alone
     if (Array.isArray(v.rolls)) {   // F5b: its rolls — a button on each row, the formula worked out with the row's names (Row.*; dice allowed), LIMITS.rowRolls at most
         var rls = [];
         v.rolls.forEach(function(rv) { if (rls.length >= LIMITS.rowRolls || !isObj(rv)) return; if (Array.isArray(rv.apply)) { var lap = { label: cutText(rv.label, LIMITS.label) || 'Apply', apply: cleanApplyChanges(rv.apply, false, true) }, lac = costKey(rv.cost); if (lac) lap.cost = lac; if (rv.to === 'near') lap.to = 'near'; if (rv.gm === true) lap.gm = true; var lsh = cleanFormulaText(rv.showIf); if (lsh) lap.showIf = lsh; var lal = cleanAlt(rv.alt, F); if (lal) lap.alt = lal; var lic = cleanIcon(rv.icon); if (lic) lap.icon = lic; if (gmView) { var lxc = cleanRowCross(rv.cross, out.counters); if (lxc) lap.cross = lxc; } partPlaceIn(lap, rv); rls.push(lap); return; } var rro = { label: cutText(rv.label, LIMITS.label) || 'Roll', formula: cleanFormulaText(rv.formula) || '' }; if (Array.isArray(rv.then)) { var rth = cleanApplyChanges(rv.then, true, true); if (rth.length) rro.then = rth; } var rmf2 = cleanFormulaText(rv.malf); if (rmf2) rro.malf = rmf2; critRangeInto(rro, rv); var rbg2 = cleanFormulaText(rv.bigAt); if (rbg2) rro.bigAt = rbg2; if (rv.dmg === true) { rro.dmg = true; var rdt = cleanFormulaText(rv.dtype); if (rdt) rro.dtype = rdt; var rad = cleanFormulaText(rv.ad); if (rad) rro.ad = rad; } var rnd = cleanFormulaText(rv.needs); if (rnd) { rro.needs = rnd; var rnt = cutText(rv.needsText, LIMITS.label); if (rnt) rro.needsText = rnt; } var lrc = costKey(rv.cost); if (lrc) rro.cost = lrc; var lrd = cleanDie(rv.die); if (lrd) rro.die = lrd; if (rv.to === 'near') rro.to = 'near'; if (rv.gm === true) rro.gm = true; var rsh = cleanFormulaText(rv.showIf); if (rsh) rro.showIf = rsh; var ral = cleanAlt(rv.alt, F); if (ral) rro.alt = ral; var rshw = rollShowOf(rv.show, out.cols); if (rshw) rro.show = rshw; var ric = cleanIcon(rv.icon); if (ric) rro.icon = ric; if (rv.askLvl === true && out.lvl) rro.askLvl = true; if (gmView) { var rxc = cleanRowCross(rv.cross, out.counters); if (rxc) rro.cross = rxc; } resistByInto(rro, rv, gmView); partPlaceIn(rro, rv); rls.push(rro); });   // cross (1.6.0): it also runs on a row whose counter crosses a step   // showIf (1.6.0): Shown where, a formula of the row's names; its button only on rows where it holds   // 1.6.0: gm, only the GM presses it (the players' view drops it: applyTargets)   // R2b: a list roll's consequences (a counter too) and what it needs   // HUD H7b: or an apply action on each row (its amounts read the row as Row.*)
@@ -3591,6 +3595,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
     var amts = [], names = [], seenN = map();
     for (var i = 0; i < act.apply.length; i++) {
         var c = act.apply[i], f = isObj(c) && typeof c.f === 'string' ? fieldById(sys, c.f) : null, ctr = null, lfC = null;
+        if (isObj(c) && c.off === true) { amts.push({ off: true, lf: rowCtx && typeof rowCtx.f === 'string' ? fieldById(sys, rowCtx.f) : null }); continue; }   // 1.6.0: its own row switched off
         if (isObj(c) && c.fire === true) { amts.push({ fire: true, lf: rowCtx && typeof rowCtx.f === 'string' ? fieldById(sys, rowCtx.f) : null }); continue; }
         if (isObj(c) && typeof c.fx === 'string') { var fxD = null; (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (!fxD && isObj(d) && d.id === c.fx) fxD = d; }); if (!fxD) return { ok: false, reason: 'field' }; amts.push({ fx: fxD, on: c.on !== false }); continue; }   // 1.6.0: an effect switched on or off
         var rq = isObj(c) && c.q === true ? 'q' : isObj(c) && typeof c.s === 'string' ? 's' : '', lfQ = null, stQ = null;   // 1.6.0: the row's quantity or one of its own number stats
@@ -3608,11 +3613,19 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
         if (ctr || rq === 'q' || (f && f.kind === 'resource')) v = Math.round(v);
         amts.push({ f: f, ctr: ctr, rq: rq, st: stQ, lf: lfC || lfQ, amt: c.set === true ? v : (v > 0 ? v : 0), add: c.add === true, set: c.set === true, roll: rolled && res.diceRolled > 0 ? rollWords(res) : '' });   // R1: Set to takes the amount as it is; 1.5.9: what a Rolled amount drew
     }
-    if (!amts.some(function(a) { return a.fire || a.fx || a.set || a.amt > 0; })) return { ok: false, reason: 'none' };
+    if (!amts.some(function(a) { return a.fire || a.off || a.fx || a.set || a.amt > 0; })) return { ok: false, reason: 'none' };
     var work = Object.assign({}, char, { values: JSON.parse(JSON.stringify(char.values || {})) }), out = {}, lines = [], asIs = same === true, fired = null;   // asIs: work still as char stands
     var onW = isObj(on) && isObj(on.char) ? Object.assign({}, on.char, { values: JSON.parse(JSON.stringify(on.char.values || {})) }) : null, onTc = onW ? (on.tctx || null) : null, onOut = {}, onLines = [], gone = [];   // gone (1.6.0): the rows a quantity used up took out, each as it was   // 1.5.9 (book es/et plan, section 3): the character it is used on, on a working copy of its own
     for (var j = 0; j < amts.length; j++) {
-        var a = amts[j]; if (!a.fire && !a.fx && !a.set && !(a.amt > 0)) continue;
+        var a = amts[j]; if (!a.fire && !a.off && !a.fx && !a.set && !(a.amt > 0)) continue;
+        if (a.off) {   // 1.6.0 (CORE gap 13): the row switches itself off, on a list with a switch; one off already moves nothing
+            if (!a.lf || !isObj(a.lf.list) || !isObj(a.lf.list.on) || !rowCtx || typeof rowCtx.r !== 'string') continue;
+            var rowsO = JSON.parse(JSON.stringify(Array.isArray(work.values[a.lf.id]) ? work.values[a.lf.id] : [])), ixO = -1; rowsO.forEach(function(r, i) { if (ixO < 0 && isObj(r) && rowIdOf(r) === rowCtx.r) ixO = i; }); if (ixO < 0 || rowsO[ixO].hid === 1) return { ok: false, reason: 'missing' };
+            if (!rowOn(a.lf.list, rowsO[ixO])) continue;
+            rowsO[ixO].on = false; delete rowsO[ixO].ut; work.values[a.lf.id] = rowsO; out[a.lf.id] = rowsO; asIs = false;
+            var offD = rowDef(sys, rowsO[ixO]); lines.push({ f: a.lf.id, n: ((offD && offD.def && offD.def.name) || 'A row') + ' switched off', d: -1, v: 0 });
+            continue;
+        }
         if (a.fx) {   // 1.6.0 (the book's W-16): an effect goes on, or off, on the character it is used on (the user where none), through the effects' own rules (applyEffectOp: once per character, its timer)
             var twX = onW || work, fxF = null, fxRow = null, fxs = sys.fields.filter(function(x) { return isObj(x) && x.kind === 'effects' && typeof x.id === 'string'; });
             fxs.forEach(function(x) { var rs = isObj(twX.values) && Array.isArray(twX.values[x.id]) ? twX.values[x.id] : []; rs.forEach(function(r0) { if (!fxRow && isObj(r0) && r0.ref === a.fx.id) { fxRow = r0; fxF = x; } }); });

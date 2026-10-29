@@ -304,7 +304,10 @@ Systems
 - A list's rows can keep paying while switched on, such as a power's
   3 MP a turn: Keeps paying names the pool and the amount, and whether it
   is paid at its turn's start, each round or by the clock. Ticked, a row
-  switches off when the pool cannot pay.
+  switches off when the pool cannot pay. Each payment can count on a
+  counter of the row, so a roll can follow it.
+- A list roll's or action's change can switch its own row off, such as a
+  power that ends when its roll fails.
 - A grant can come once a character, such as an implant's mandatory
   flaw: a second implant grants no second flaw.
 - A granted row stays while another row that grants it is left: remove

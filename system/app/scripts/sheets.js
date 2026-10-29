@@ -7076,14 +7076,15 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
 // 1.6.0: what a change's target select names, written on the change: a field, a counter (c:), Fire, an effect switched on or off (fx+: / fx-:),
 // the row's quantity (q) or one of its own stats (s:). An effect switched has no amount
 function setChangeTarget(ch, v) {
-    v = String(v || ''); ['f', 'c', 'fire', 'fx', 'on', 'q', 's'].forEach(function(k) { delete ch[k]; });
-    if (v === 'fire') ch.fire = true;
+    v = String(v || ''); ['f', 'c', 'fire', 'off', 'fx', 'on', 'q', 's'].forEach(function(k) { delete ch[k]; });
+    if (v === 'off') { ch.off = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0 (CORE gap 13): this row switched off, no amount
+    else if (v === 'fire') ch.fire = true;
     else if (v.indexOf('fx+:') === 0 || v.indexOf('fx-:') === 0) { ch.fx = v.slice(4); ch.on = v.charAt(2) === '+'; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }
     else if (v === 'q') ch.q = true;
     else if (v.indexOf('s:') === 0) ch.s = v.slice(2);
     else if (v.indexOf('c:') === 0) ch.c = v.slice(2);
     else ch.f = v;
-    if (typeof ch.fx !== 'string' && typeof ch.formula !== 'string' && ch.fire !== true) ch.formula = '';
+    if (typeof ch.fx !== 'string' && typeof ch.formula !== 'string' && ch.fire !== true && ch.off !== true) ch.formula = '';
 }
 function applyChangeOf(t, r) { var rw = t.closest('.sys-apply-row'), i = rw ? +rw.dataset.ai : -1, k = rw && rw.dataset.k === 'then' ? 'then' : 'apply'; return r && Array.isArray(r[k]) && i >= 0 && i < r[k].length && r[k][i] && typeof r[k][i] === 'object' ? r[k][i] : null; }
 function rollRow(r) {
@@ -7798,9 +7799,10 @@ function listApplyEditor(box, rr, ri, key, sp, targets) {   // key (R2b): 'apply
         (typeof draft !== 'undefined' && draft && Array.isArray(draft.effects) ? draft.effects : []).forEach(function(d) { if (d && typeof d.id === 'string') opts.push(['fx+:' + d.id, 'Switch on: ' + (d.name || d.id)], ['fx-:' + d.id, 'Switch off: ' + (d.name || d.id)]); });   // 1.6.0: an effect switched on or off, the row's quantity, one of its own number stats
         opts.push(['q', 'This row\u2019s quantity']); (sp && Array.isArray(sp.stats) ? sp.stats : []).forEach(function(t) { if (t && typeof t.key === 'string' && t.key && t.kind !== 'pick') opts.push(['s:' + t.key, 'This row\u2019s ' + (t.label || t.key)]); });
         if (typeof ch.fx === 'string' && !opts.some(function(o) { return o[0].slice(4) === ch.fx && o[0].indexOf('fx') === 0; })) opts.push([(ch.on === false ? 'fx-:' : 'fx+:') + ch.fx, 'An effect that is gone']); if (typeof ch.s === 'string' && !opts.some(function(o) { return o[0] === 's:' + ch.s; })) opts.push(['s:' + ch.s, 'A stat that is gone']);
+        if ((sp && sp.on && typeof sp.on === 'object') || ch.off === true) opts.push(['off', sp && sp.on ? 'Switch this row off' : 'Switch off, but this list has no switch']);   // 1.6.0 (CORE gap 13)
         if (key === 'then' && ((sp && sp.chamber && typeof sp.chamber === 'object') || ch.fire === true)) opts.push(['fire', sp && sp.chamber ? 'Fire the next chambered round' : 'Fire, but this list has no Chambers from']);   // 1.5.9 Chambers from
-        rw.appendChild(sel('sys-list-applytarget', opts, ch.fire === true ? 'fire' : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : ch.q === true ? 'q' : typeof ch.s === 'string' ? 's:' + ch.s : ch.c ? 'c:' + ch.c : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or one of the row\u2019s counters. Fire takes the next chambered round out, as the round last fired. A shot that jams fires nothing'));
-        if (ch.fire !== true && typeof ch.fx !== 'string') {
+        rw.appendChild(sel('sys-list-applytarget', opts, ch.off === true ? 'off' : ch.fire === true ? 'fire' : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : ch.q === true ? 'q' : typeof ch.s === 'string' ? 's:' + ch.s : ch.c ? 'c:' + ch.c : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or one of the row\u2019s counters. Fire takes the next chambered round out, as the round last fired. A shot that jams fires nothing'));
+        if (ch.fire !== true && ch.off !== true && typeof ch.fx !== 'string') {
         rw.appendChild(sel('sys-list-applyop', [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']], ch.set ? 'set' : ch.add ? 'add' : 'sub', 'Subtract (a cost) or add; never past the field\u2019s min and max'));
         var fm = input('sys-list-applyformula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount for the row: no dice unless Rolled is ticked; Row.lvl, Row.<stat>, Row.<column> read the row (Row.FPCost)', 'Amount (Row.FPCost)'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
         var lrlL = el('label', 'sys-hover'), lrlC = el('input'); lrlC.type = 'checkbox'; lrlC.className = 'sys-list-applyrolled'; lrlC.checked = ch.roll === true; lrlL.appendChild(lrlC); lrlL.appendChild(el('span', null, ' Rolled')); lrlL.title = 'Rolled: the amount may roll dice, such as 1d6. The host rolls it each time, and the card shows the dice'; rw.appendChild(lrlL);   // 1.5.9 (book es/et plan, section 0)
@@ -8265,6 +8267,8 @@ function upkeepBox(card, sp) {
             var uo = [['min', 'minutes'], ['hour', 'hours'], ['day', 'days'], ['week', 'weeks']].concat(us.map(function(u) { return [u.key, typeof u.label === 'string' && u.label ? u.label : u.key]; })), uc = up.per && typeof up.per.u === 'string' && up.per.u ? up.per.u : 'min'; if (!uo.some(function(o) { return o[0] === uc; })) uo.push([uc, uc + ' (no such unit)']);
             rw.appendChild(sl('sys-list-upu', uo, uc, 'What it counts in: the calendar\u2019s minutes, hours, days and weeks, or one of your time units (the Combat card\u2019s Turns box)'));
         }
+        var cts = (Array.isArray(sp.counters) ? sp.counters : []).filter(function(t) { return t && typeof t.key === 'string' && t.key; }), ctc = typeof up.ct === 'string' ? up.ct : '';
+        if (cts.length || ctc) { var cto = [['', 'Counts no payment']].concat(cts.map(function(t) { return [t.key, 'Counts each payment on ' + (t.label || t.key)]; })); if (ctc && !cts.some(function(t) { return t.key === ctc; })) cto.push([ctc, '(a counter that is gone)']); rw.appendChild(sl('sys-list-upct', cto, ctc, 'Each payment adds 1 to this counter of the row. A list roll set to run when that counter crosses a step then follows every payment, such as a Focus roll whose failure switches the row off')); }   // 1.6.0 (CORE gap 13)
         rw.appendChild(checkLabel('sys-list-upstop', up.stop === true, 'Switches off when it cannot pay', 'A row whose pool holds less than it pays switches off and pays nothing. Unticked, it pays anyway, as far as the pool goes'));
     }
     card.appendChild(rw);
@@ -8276,6 +8280,7 @@ function upkeepChange(lsc, t, c) {
     else if (c.indexOf('sys-list-upeach') >= 0) { up.each = t.value === 'round' || t.value === 'clock' ? t.value : 'turn'; if (up.each === 'clock') up.per = up.per && typeof up.per === 'object' ? up.per : { n: 1, u: 'min' }; else delete up.per; }
     else if (c.indexOf('sys-list-upu') >= 0) up.per = Object.assign({ n: 1 }, up.per, { u: String(t.value).slice(0, 24) });
     else if (c.indexOf('sys-list-upstop') >= 0) { if (t.checked) up.stop = true; else delete up.stop; }
+    else if (c.indexOf('sys-list-upct') >= 0) { if (t.value) up.ct = String(t.value).slice(0, 24); else delete up.ct; }
 }
 // Conditions C3 (docs/CONDITIONS_PLAN.md): the system's own postures on the Combat card — how a token can stand, in order. None: posture is
 // switched off (1.6.0, backlog 183 (3)). Add postures starts a list of Standing and one more. Each row a name, its chip's tag, a ranged note
@@ -9938,7 +9943,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-haslvl') >= 0) { if (t.checked) lsc.lvl = { label: 'Level', min: 0, step: 1, def: 0 }; else delete lsc.lvl; }
         else if (c.indexOf('sys-list-hason') >= 0) { if (t.checked) lsc.on = { label: 'On' }; else delete lsc.on; }
         else if (c.indexOf('sys-list-ondef') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.def = true; else delete lsc.on.def; } }
-        else if (c.indexOf('sys-list-upon') >= 0 || c.indexOf('sys-list-uppool') >= 0 || c.indexOf('sys-list-upeach') >= 0 || c.indexOf('sys-list-upu') >= 0 || c.indexOf('sys-list-upstop') >= 0) upkeepChange(lsc, t, c);   // 1.6.0 (CORE gap 13): Keeps paying
+        else if (c.indexOf('sys-list-upon') >= 0 || c.indexOf('sys-list-uppool') >= 0 || c.indexOf('sys-list-upeach') >= 0 || c.indexOf('sys-list-upu') >= 0 || c.indexOf('sys-list-upstop') >= 0 || c.indexOf('sys-list-upct') >= 0) upkeepChange(lsc, t, c);   // 1.6.0 (CORE gap 13): Keeps paying
         else if (c.indexOf('sys-list-onone') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.one = true; else { delete lsc.on.one; delete lsc.on.per; delete lsc.on.over; } } }   // 1.5.4 One at a time
         else if (c.indexOf('sys-list-ctroll') >= 0) { var ctr2 = t.closest('.sys-list-ct'), ctD2 = ctr2 && Array.isArray(lsc.counters) ? lsc.counters[+ctr2.dataset.ti] : null; if (!ctD2 || typeof ctD2 !== 'object') return; if (t.checked) ctD2.roll = true; else delete ctD2.roll; }   // 1.5.7: Set by rolls only
         else if (c.indexOf('sys-list-ctnewturn') >= 0) { var ctr5 = t.closest('.sys-list-ct'), ctD5 = ctr5 && Array.isArray(lsc.counters) ? lsc.counters[+ctr5.dataset.ti] : null; if (!ctD5 || typeof ctD5 !== 'object') return; if (t.checked) ctD5.turn = true; else { delete ctD5.turn; delete ctD5.pass; } }   // 1.6.0: Starts again each turn

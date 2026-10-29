@@ -17615,7 +17615,7 @@ pendingChecks.push((async () => {
         J([h3.answer, h4.answer, h5.answer, h6.answer, h7.answer, h8.answer, h9.answer]));
     const flat = src.replace(/\r\n/g, '\n');
     check('backlog 206 on the wire (source): the host\'s char-item branch sends a look\'s and a work line\'s refusal with its words, logs each step by its structure alone, and never names a look in any other branch',
-        flat.includes("qi.op === 'look' || qi.op === 'work' || resI.cap === true) && resI.msg)") && flat.includes("window.wpStepLog('rowlook v1', 'host', { op: qi.op, fee: !!(qi.work && qi.work.fee > 0) });") && (flat.match(/rowlook v1/g) || []).length === 1);
+        flat.includes("qi.op === 'look' || qi.op === 'work' || resI.cap === true || ((qi.op === 'add' || qi.op === 'custom') && qi.in !== undefined)) && resI.msg)") /* 205 (5) beside it (moved on purpose) */ && flat.includes("window.wpStepLog('rowlook v1', 'host', { op: qi.op, fee: !!(qi.work && qi.work.fee > 0) });") && (flat.match(/rowlook v1/g) || []).length === 1);
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */

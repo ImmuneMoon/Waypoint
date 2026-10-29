@@ -298,6 +298,23 @@ Restore points, a trial run and a test copy
 - A roll back waits until you end your table. Each step is written to
   saves/error.log, so a problem can be traced.
 
+Looks and the work log
+- A list can let its rows carry a look: tick Rows carry a look in the
+  System editor's Lists tab. Each row may have up to four colours, a
+  finish such as matte, and markings, overall and part by part.
+- The colours show as small swatches beside the row's name, on the
+  sheet and the HUD. The finish, the markings and each part are in the
+  row's details, with a Look button that opens a small form.
+- A row with no look of its own shows the look of its main part, a part
+  category the list names. Else it shows its material's shade, from a
+  stat the list names, with one colour for each of its values.
+- The row's owner and you may change a look at any time, on any list
+  they see. A look never changes a figure.
+- Tick Rows keep a work log and + Work writes down a repair, a fit, a
+  restyle or a build, the owner's own or hired, with a fee and a note.
+  The fee is paid from the character's money. Only you take a line off,
+  and that gives no money back.
+
 Sound and music
 - The Sound button is now named Sound effects: its volume and mute are
   for sound effects, and its panel points at Music, which has its own.

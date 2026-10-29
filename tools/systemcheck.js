@@ -17404,6 +17404,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('backlog 206: the readable page says each row\'s look (its colours as #rrggbb, its finish and markings, each part, a derived one by where it comes from) and its work log under the list, markup escaped as the page escapes text',
             md.includes('Gear, looks:') && md.includes('#112233, matte, markings: \\<img src=x onerror=alert(1)\\>; Grip: polished') && md.includes('its material’s shade, #b5a642') && md.includes('Gear, work log:') && md.includes('Repair, hired, fee 40: Kessa') && !/[^\\]<img/.test(md), md.slice(-600));
     }
+    {   // 1.6.0, backlog 206 is said: Help's System editor pane and the player's page, both release notes of 1.6.0, the integration guide
+        const ixL = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, NL), notesL = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, NL));
+        const guideL = fs.readFileSync(path.join(app, '..', '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').replace(/\r\n/g, NL);
+        check('backlog 206 is said: Help\'s Lists part names Rows carry a look, Main part, Shade by, Shades and Rows keep a work log, who may change a look and that a look never changes a figure; the player\'s page says what they see and do; the Lists key has each tick; both release notes of 1.6.0 have Looks and the work log; the integration guide gives the shape and its limits',
+            ixL.includes('<li>Tick <b>Rows carry a look</b> and each row may have up to four colours') && ixL.includes('A look never changes a figure: no formula reads it.') && ixL.includes('<b>Shade by</b> names a stat of the list') && ixL.includes('Only you take a line off, and that gives no money back. The 50 newest lines are kept.')
+            && ixL.includes('<li><b>Looks and work:</b> where the GM lets a list carry looks') && ['Rows carry a look', 'Main part', 'Shade by', 'Rows keep a work log'].every(w => ixL.includes('<b>' + w + '</b><small>'))
+            && notesL.every(n => { const i = n.indexOf(NL + 'Looks and the work log' + NL + '- A list can let its rows carry a look'); return n.indexOf('WAYPOINT 1.6.0') === 0 && i > 0 && i < n.indexOf(NL + 'WAYPOINT 1.5.'); })
+            && guideL.includes('look?: { overall?: Finish, parts?: [{ part, finish: Finish }] }') && guideL.includes('workLog?: [{ kind: repair | fit | restyle | build, by: self | hired, fee, note? }]'));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -15731,6 +15731,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             upK.ct === 'Kept' && !('ct' in upOf(cleanSystem(rawK2, { F, gmView: true }))) && mpOf(sK, cK, tK.values) === 7 && tK.values.f_pw[0].ct.Kept === 1
             && offA.ok && offA.values.f_pw[0].on === false && J(offA.lines) === J([{ f: 'f_pw', n: 'Shield switched off', d: -1, v: 0 }]) && cK.values.f_pw[0].on === true && !offNone.ok
             && J(clOff) === J([[{ off: true, when: 'miss' }, { off: true }], []]), J([offNone, clOff, upK, tK.values, offA]));
+        const rawV = JSON.parse(J(rawR)); rawV.fields[1].list.rolls.push({ label: 'Drop', apply: [{ off: true }] });
+        const vOff = S.validateSystem(cleanSystem(rawV, { F, gmView: true }), F), offMsgs = vOff.errors.concat(vOff.warnings).filter(e => /Pick the pool|Switch this row off/.test(e.message));
+        const rawV2 = JSON.parse(J(rawV)); delete rawV2.fields[1].list.on; delete rawV2.fields[1].list.upkeep; const vOff2 = S.validateSystem(cleanSystem(rawV2, { F, gmView: true }), F);
+        const plOff = cleanSystem(rawV, { F, gmView: false }).fields[1].list.rolls;
+        check('the core handbook session\'s ask 1 (2026-10-29): the validator reads a list roll\'s Then and a list action\'s change that switches its own row off ({ off: true }) as a change, never as a field to pick; on a list with no switch it says the change needs one; the players\' view keeps the action and the Then (no amount to read)',
+            offMsgs.length === 0 && vOff2.errors.filter(e => /: Switch this row off needs a switch, but this list has none\.$/.test(e.message)).length === 3 && vOff2.errors.every(e => !/Pick the pool/.test(e.message))
+            && J(plOff.map(r => r.then || r.apply)) === J([[{ off: true, when: 'miss' }, { off: true }], [{ off: true }]]), J([offMsgs, vOff2.errors, plOff]));
         check('CORE gap 13 is in the editor, logged and said (source): Keeps paying under a list\'s switch, its pool, amount, when, step and stop; the round hook and the clock log each payment (upkeep v1); the validator reads the amount with the row\'s names; Help and both 1.6.0 notes say it',
             shU.includes("if (sw && typeof upkeepBox === 'function') upkeepBox(card, sp);") && shU.includes("checkLabel('sys-list-upon', !!up, 'Keeps paying'") && shU.includes("lsc.upkeep = { pool: p0 ? p0.id : '', amt: '1', each: 'turn' };") && shU.includes("window.wpStepLog('upkeep v1', 'paid', { when: kind")
             && nU.includes("window.wpStepLog('upkeep v1', 'paid', { when: 'clock'") && vU.errors.concat(vU.warnings).some(e => /^Keeps paying: /.test(e.message) && /nope/i.test(e.message))

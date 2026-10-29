@@ -5,12 +5,17 @@
    A tool runs through its own button's press (whiteboard.js wireTool and toolPress decide what the press does), so a row of the quick jump
    does what a press of the icon does: it takes the tool, and puts away a tool already in hand. Every run is logged (steplog.js, the area
    "commands v1"): its id, how it was asked for and whether it ran, never a name of the campaign's.
-   A new command is one more entry of COMMANDS, { id, name, does, also, icon, can, run, act }: can() answers true or the words that say
-   why not, run() does it, act() says in words what Enter does. Backlog 202 (moving tokens from the keyboard and a controller) adds its own
-   rows here. Published as window.wpCommands. */
+   A new command is one more entry of COMMANDS, { id, name, does, also, icon, key, can, run, act }: can() answers true or the words that
+   say why not, run() does it, act() says in words what Enter does, and key is its default key (keycore.js names keys). Backlog 202 (moving
+   tokens from the keyboard and a controller) adds its own rows here.
+   A key runs its command from anywhere on the page but a field being typed in, never while a question, a prompt, a window, the welcome
+   screen or the tour is up, and never in the stream window or a window of its own (hotkeyHeld). It is heard after every listener of the
+   page (at the window, as the key comes back up), so a key a box or a dialog takes for itself never reaches it. Published as window.wpCommands. */
 import { state } from './state.js';
-import { getActiveMap } from './models.js';
+import { getActiveMap, getActiveCampaign } from './models.js';
 import { toast } from './io.js';
+import { navigateToMap } from './sidebar.js';
+import { keyOf, keyName, keysNow, keyAt } from './keycore.js';
 
 // [shelfcheck:cmds-start]
 // A tool of the play map's toolbar: its id, its name, the button that is its press, what it does, other words that find it, and how its
@@ -48,11 +53,37 @@ function toolAct(t) {
     if (held && t[5] === 'keep') return t[1] + ' is in your hand.';
     return held ? 'Enter puts ' + t[1] + ' away.' : 'Enter takes ' + t[1] + '.';
 }
+// The map you were on last (the owner, 2026-10-29: "Recent maps on one key", its key "Q (Recommended)"): the newest map of this computer's
+// list (sidebar.js keeps it, wp_recent_<campaign>, newest first) that is not the one on screen, gone to as a map tab goes there. A second
+// press goes back the other way, since the list then holds the map left first
+function lastMapOf(camp, store) {
+    if (!camp || !camp.items || typeof camp.id !== 'string' || !store) return '';
+    var list = []; try { list = JSON.parse(store.getItem('wp_recent_' + camp.id) || '[]'); } catch (e) { return ''; }
+    if (!Array.isArray(list)) return '';
+    for (var i = 0; i < list.length; i++) {
+        var id = list[i];
+        if (typeof id === 'string' && id !== camp.activeItemId && Object.prototype.hasOwnProperty.call(camp.items, id) && camp.items[id] && camp.items[id].type === 'map') return id;
+    }
+    return '';
+}
+function lastStore() { try { return typeof localStorage !== 'undefined' ? localStorage : null; } catch (e) { return null; } }
+function lastCan() {
+    var n = window.wpNet;
+    if (n && n.active && n.role === 'client') return 'At a table the GM picks the map.';
+    var camp = getActiveCampaign(); if (!camp) return 'No campaign is open.';
+    return lastMapOf(camp, lastStore()) ? true : 'There is no map to go back to yet.';
+}
+function lastAct() {
+    var camp = getActiveCampaign(), id = lastMapOf(camp, lastStore()), m = id ? camp.items[id] : null, t = m && m.meta && typeof m.meta.title === 'string' && m.meta.title.trim() ? m.meta.title.trim().slice(0, 60) : '';
+    return t ? 'Enter goes back to ' + t + '.' : 'Enter goes back to the map you were on.';
+}
+var CMD_LAST = { id: 'map.last', name: 'Last map', does: 'Go back to the map you were on before.', also: ['previous', 'recent', 'back'], icon: '\u21A9\uFE0F', key: 'KeyQ',
+    can: lastCan, run: function() { var id = lastMapOf(getActiveCampaign(), lastStore()); if (!id || navigateToMap(id) === false) throw new Error('not gone'); }, act: lastAct };
 function winCan(w) { var b = document.getElementById(w[2]); return b && b.disabled !== true ? true : w[1] + ' is not in this window.'; }
 var COMMANDS = CMD_TOOLS.map(function(t) {
     return { id: t[0], name: t[1], does: t[3], also: t[4], icon: '\u{1F6E0}️', can: function() { return toolCan(t); },
         run: function() { document.getElementById(t[2]).click(); }, act: function() { return toolAct(t); } };   // the tool's own press, as the toolbar's
-}).concat(CMD_WINDOWS.map(function(w) {
+}).concat([CMD_LAST], CMD_WINDOWS.map(function(w) {
     return { id: w[0], name: w[1], does: w[3], also: w[4], icon: w[0] === 'open.settings' ? '⚙️' : '❔', can: function() { return winCan(w); },
         run: function() { document.getElementById(w[2]).click(); }, act: function() { return 'Enter opens ' + w[1] + '.'; } };
 }));
@@ -69,6 +100,44 @@ function cmdRun(id, via) {
     return true;
 }
 // [shelfcheck:cmds-end]
+
+// [shelfcheck:hotkey-start]
+// Each command's key now: its default from the list, unless this computer's choice says another or none (keycore keysNow)
+var _keys = {};
+function keysMine() { return {}; }
+function keysTalk() { try { var v = typeof localStorage !== 'undefined' ? localStorage.getItem('wp_voice_bind') : null; return typeof v === 'string' && v ? v : 'KeyV'; } catch (e) { return 'KeyV'; } }   // voice.js: push to talk, V at first
+function keysLoad() { _keys = keysNow(COMMANDS, keysMine(), keysTalk()); return _keys; }
+// Why a key press runs no command now, as one short word, or '' where it may: a press held down, a key a listener took, a window of its
+// own or the stream window, a field being typed in (told by isContentEditable and the field tags), the tour, a question
+// or a prompt of the app's own, the welcome screen (a website's join page among them), a window of the app's
+function hotkeyHeld(doc, win, e) {
+    if (!e || e.repeat === true) return 'repeat';
+    if (e.defaultPrevented === true) return 'taken';
+    if (win.wpStream || win.wpPopout) return 'window';
+    var t = e.target, tag = t && t.tagName ? String(t.tagName).toUpperCase() : '';
+    if (t && (t.isContentEditable === true || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT')) return 'typing';
+    var b = doc.body; if (b && b.classList && b.classList.contains('tour-on')) return 'tour';   // a website's join page is the welcome screen, held below
+    var up = function(el) { return !!el && typeof el.getClientRects === 'function' && el.getClientRects().length > 0; };
+    if (up(doc.getElementById('customConfirm')) || up(doc.getElementById('customPrompt'))) return 'asking';
+    if (up(doc.getElementById('welcomeScreen'))) return 'welcome';
+    var wins = doc.querySelectorAll('[id$="Modal"]');
+    for (var i = 0; i < wins.length; i++) if (up(wins[i])) return 'window';
+    return '';
+}
+function hotkeyDown(e) {
+    var k = keyOf(e); if (!k || k === keysTalk()) return;   // a held key alone, and push to talk's own key, are no command's
+    var id = keyAt(_keys, k); if (!id) return;
+    var why = hotkeyHeld(document, window, e);
+    if (why) { if (why !== 'repeat' && why !== 'typing') cmdLog('key-held', { id: id, why: why }); return; }
+    e.preventDefault();
+    var r = cmdRun(id, 'key');
+    if (r !== true) toast(r);
+}
+// [shelfcheck:hotkey-end]
+keysLoad();
+cmdLog('keys-load', { n: Object.keys(_keys).filter(function(id) { return !!_keys[id]; }).length });
+window.addEventListener('keydown', hotkeyDown);   // at the window, coming back up: after every listener of the page
+window.wpCommandKey = function(id) { return keyName(_keys[id] || ''); };
 
 // [shelfcheck:setrows-start]
 // Settings' options, read from the page as it stands: a group by its heading, an option by its name (a .set-field-label, a label, or a

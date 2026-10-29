@@ -1030,13 +1030,13 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         const ids = ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'fillModeBtn', 'buildModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'envModeBtn', 'settingsBtn', 'helpBtn'].filter(id => (o.gone || []).indexOf(id) < 0), els = {};
         ids.forEach(id => { els[id] = btn(id); });
         const st = { viewMode: o.view || 'visual' }, map = o.map === undefined ? { type: 'map' } : o.map;
-        const api = new Function('window', 'document', 'state', 'getActiveMap', cmdSrc + '\nreturn { list: COMMANDS, byId: cmdById, run: cmdRun, TOOLS: CMD_TOOLS, WINDOWS: CMD_WINDOWS };')(
-            { wpStepLog: (area, step, f) => { R.log.push(area + ' ' + step + ' ' + Object.keys(f || {}).map(k => k + '=' + f[k]).join(' ')); } }, { getElementById: id => els[id] || null }, st, () => map);
+        const api = new Function('window', 'document', 'state', 'getActiveMap', 'getActiveCampaign', 'navigateToMap', 'localStorage', cmdSrc + '\nreturn { list: COMMANDS, byId: cmdById, run: cmdRun, TOOLS: CMD_TOOLS, WINDOWS: CMD_WINDOWS };')(
+            { wpStepLog: (area, step, f) => { R.log.push(area + ' ' + step + ' ' + Object.keys(f || {}).map(k => k + '=' + f[k]).join(' ')); } }, { getElementById: id => els[id] || null }, st, () => map, () => null, () => false, null);
         return Object.assign(api, { R });
     };
     const C = mkCmds(), ids = C.list.map(c => c.id);
-    check('one list of commands: each has its own id, a name, what it does as a sentence that ends in a full stop, other words that find it, how it runs, whether it can and what Enter does; the ten tools of the play map in the toolbar\'s order, then Settings and Help',
-        J(ids) === J(['tool.select', 'tool.pan', 'tool.pen', 'tool.eraser', 'tool.fill', 'tool.build', 'tool.ruler', 'tool.radius', 'tool.fog', 'tool.env', 'open.settings', 'open.help']) && new Set(ids).size === ids.length
+    check('one list of commands: each has its own id, a name, what it does as a sentence that ends in a full stop, other words that find it, how it runs, whether it can and what Enter does; the ten tools of the play map in the toolbar\'s order, then the last map, Settings and Help',
+        J(ids) === J(['tool.select', 'tool.pan', 'tool.pen', 'tool.eraser', 'tool.fill', 'tool.build', 'tool.ruler', 'tool.radius', 'tool.fog', 'tool.env', 'map.last', 'open.settings', 'open.help']) && new Set(ids).size === ids.length
         && C.list.every(c => typeof c.name === 'string' && c.name && /^[A-Z][^]*\.$/.test(c.does) && c.does.length <= 60 && Array.isArray(c.also) && typeof c.run === 'function' && typeof c.can === 'function' && typeof c.act === 'function' && typeof c.icon === 'string'),
         J(C.list.map(c => [c.id, c.name, c.does])));
     check('a tool command is its toolbar button\'s own press, and each button it names is in the page once, the tools of the play map\'s toolbar that updateWbToolbar knows; each window command names the top row\'s button',
@@ -1092,7 +1092,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     check('the line under the list says what Enter does for a command and an option, in the command\'s own words; Enter on a command closes quick-jump and runs it, on an option opens Settings there, and neither asks to switch campaigns',
         hint({ kind: 'cmd', label: 'Pen' }) === 'act:Pen' && hint({ kind: 'set', label: 'Grid' }) === 'act:Grid' && hint({ kind: 'cmd', label: 'Pen' }, false) === '' && J(went) === J(['close', 'Pen', 'close', 'Grid opacity']), J(went));
     check('the page loads the module once, after the modules whose buttons it presses; the module publishes the list, its run, the rows and what Enter does, and logs in the shared words; the style sheet draws a key and the option Settings opened at; quick-jump\'s box says what it finds',
-        count(ix, 'scripts/commands.js') === 1 && ix.includes('<script type="module" src="scripts/trade.js"></script>\n<script type="module" src="scripts/commands.js"></script>\n') && ix.indexOf('scripts/commands.js') > ix.indexOf('scripts/settings.js')
+        count(ix, 'scripts/commands.js') === 1 && ix.includes('<script type="module" src="scripts/trade.js"></script>\n<script type="module" src="scripts/keycore.js"></script>\n<script type="module" src="scripts/commands.js"></script>\n') && ix.indexOf('scripts/commands.js') > ix.indexOf('scripts/settings.js')
         && cm.includes("window.wpCommands = { list: COMMANDS, byId: cmdById, run: cmdRun, rows: jumpRows, go: jumpGo, act: jumpAct,") && cm.includes("window.wpStepLog('commands v1', step, facts)")
         && /\n\s*\.cmdk-row \.cmdk-key \{ flex: none;/.test(css) && /\n\s*#settingsModal \.set-found \{ outline: 2px solid var\(--gold\);/.test(css) && ix.includes('placeholder="Jump to a map, a page, a tool or a setting&hellip;  (Esc to close)"'));
     const wn = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, '\n'));
@@ -1102,6 +1102,95 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && start.includes('<li>Type an option of Settings, such as Grid opacity. Enter opens Settings at that option and lights it for a moment.</li>') && start.includes('<li>Settings and Help are in the list too. With nothing typed the tools come after your maps and pages.</li>')
         && start.indexOf('<li><b>Tools and settings</b>') > start.indexOf('<li><kbd>Ctrl + K</kbd> opens quick-jump.') && keysP.includes('<li><kbd>Ctrl + K</kbd> &nbsp; Quick-jump to any map, planner, or room. It finds the map&rsquo;s tools and the options of Settings too.</li>')
         && wn.every(t => count(t, "Quick jump\n- Quick jump finds the map's tools and Settings too. Press Ctrl+K and\n  type a tool's name, such as Pen or Ruler: Enter takes it, as its icon\n") === 1 && t.indexOf('\nQuick jump\n') < t.indexOf('WAYPOINT 1.5.') ));
+}
+
+/* ---------- the keys (keycore.js and commands.js, 1.6.0, backlog 33): the last map on one key ---------- */
+{
+    // The owner, 2026-10-29, by prompt: "Recent maps on one key", its key "Q (Recommended)". keycore.js is pure and run for real; the last
+    // map and the key's listener are commands.js's cmds and hotkey slices, run for real on plain objects
+    const kc = read('scripts/keycore.js'), cm = read('scripts/commands.js');
+    const K = new Function(kc.replace(/^export \{[^}]*\};?\s*$/m, '') + '\nreturn { keyOf, keyClean, keyName, APP_KEYS, keyRefusal, keysClean, keysNow, keyAt };')();
+    const ev = (code, o) => Object.assign({ code }, o || {});
+    check('a key press is one name: the keys held in the order Ctrl, Alt, Shift, then the key\'s own code, a Mac\'s Command as Ctrl; a held key alone, a press with no code and a code that is no key\'s are no key',
+        K.keyOf(ev('KeyQ')) === 'KeyQ' && K.keyOf(ev('KeyP', { shiftKey: true, ctrlKey: true, altKey: true })) === 'Ctrl+Alt+Shift+KeyP' && K.keyOf(ev('KeyP', { metaKey: true })) === 'Ctrl+KeyP' && K.keyOf(ev('Digit2', { shiftKey: true })) === 'Shift+Digit2'
+        && ['ShiftLeft', 'ControlRight', 'AltLeft', 'MetaLeft', 'CapsLock', 'Fn', ''].every(c => K.keyOf(ev(c, { shiftKey: true })) === '') && K.keyOf(null) === '' && K.keyOf({}) === '' && K.keyOf(ev('Key Q')) === '' && K.keyOf(ev('<b>')) === '' && K.keyOf(ev(7)) === '');
+    check('a key is said as people say it: a letter, a digit, a sign, an arrow, with the keys held first; a stored key that is no key\'s name is no key',
+        K.keyName('KeyQ') === 'Q' && K.keyName('Ctrl+Shift+KeyP') === 'Ctrl+Shift+P' && K.keyName('Shift+Digit1') === 'Shift+1' && K.keyName('Backquote') === '\x60' && K.keyName('ArrowLeft') === 'Left' && K.keyName('Numpad4') === 'Num 4' && K.keyName('F7') === 'F7' && K.keyName('Space') === 'Space'
+        && ['', 'Shift+ShiftLeft', 'Shift+Ctrl+KeyP', 'Ctrl+', 'KeyQ ', 'Hyper+KeyQ', 'x'.repeat(41), null, 7, {}].every(v => K.keyName(v) === '' && K.keyClean(v) === '') && K.keyName('toString') === 'toString');
+    const names = { 'map.last': 'Last map', 'tool.pen': 'Pen' };
+    const ref = (k, id, keys, talk) => K.keyRefusal(k, id || 'tool.pen', keys || {}, names, talk === undefined ? 'KeyV' : talk);
+    check('a key the app or the window already uses is refused in words that name what it does: quick jump, undo, copy, fit to content, target, panning, nudging, Delete, reload, the developer tools, the View menu; Esc, Enter and Tab with any key held; push to talk\'s own key; another command\'s key, by its name; a key that is no key',
+        ref('Ctrl+KeyK') === 'Ctrl+K is already quick jump. Pick another key.' && ref('Ctrl+KeyZ') === 'Ctrl+Z is already Undo. Pick another key.' && ref('Shift+Digit1') === 'Shift+1 is already Fit to content. Pick another key.' && ref('KeyT') === 'T is already Target. Pick another key.'
+        && ref('Space') === 'Space is already panning. Pick another key.' && ref('Shift+ArrowUp') === 'Shift+Up is already nudging. Pick another key.' && ref('Backspace') === 'Backspace is already Delete. Pick another key.' && ref('F5') === 'F5 is already Reload. Pick another key.'
+        && ref('Ctrl+Shift+KeyI') === 'Ctrl+Shift+I is already the developer tools. Pick another key.' && ref('Alt+KeyV') === 'Alt+V is already the View menu. Pick another key.' && ref('Backquote') === '\x60 is already the developer console. Pick another key.'
+        && ['Escape', 'Shift+Escape', 'Ctrl+Escape'].every(k => ref(k) === 'Esc closes what is on top. Pick another key.') && ref('Ctrl+Enter') === 'Ctrl+Enter moves and presses in a window. Pick another key.' && ref('Shift+Tab') === 'Shift+Tab moves and presses in a window. Pick another key.'
+        && ref('KeyV') === 'V is already Push to talk. Pick another key.' && ref('KeyB', 'tool.pen', {}, 'KeyB') === 'B is already Push to talk. Pick another key.' && ref('KeyV', 'tool.pen', {}, 'KeyB') === ''
+        && ref('KeyQ', 'tool.pen', { 'map.last': 'KeyQ' }) === 'Q is already Last map. Pick another key.' && ref('KeyQ', 'map.last', { 'map.last': 'KeyQ' }) === '' && ref('KeyQ', 'tool.pen', { 'tool.x': 'KeyQ' }) === 'Q is already another command. Pick another key.'
+        && ref('Hyper+KeyQ') === 'That key cannot be used. Pick another.' && ref('Key Q') === 'That key cannot be used. Pick another.' && ref('KeyQ') === '' && ref('Ctrl+Alt+KeyK') === '' && ref('Shift+KeyT') === '' && ref('F7') === '');
+    const cmds = [{ id: 'map.last', key: 'KeyQ' }, { id: 'tool.pen', key: 'KeyP' }, { id: 'tool.fog', key: '' }, { id: 'tool.bad', key: 'Ctrl+KeyZ' }, { id: 'tool.talk', key: 'KeyV' }];
+    check('each command\'s key now: its default where this computer chose none, this computer\'s choice first, a choice of none taken as none, and a default that another key already holds, that the app uses or that is push to talk\'s left off; the key a press runs is found by its name',
+        J(K.keysNow(cmds, {}, 'KeyV')) === J({ 'map.last': 'KeyQ', 'tool.pen': 'KeyP', 'tool.fog': '', 'tool.bad': '', 'tool.talk': '' }) && J(K.keysNow(cmds, { 'tool.fog': 'KeyP', 'map.last': '' }, 'KeyB')) === J({ 'map.last': '', 'tool.fog': 'KeyP', 'tool.pen': '', 'tool.bad': '', 'tool.talk': 'KeyV' })
+        && K.keyAt({ 'map.last': 'KeyQ' }, 'KeyQ') === 'map.last' && K.keyAt({ 'map.last': 'KeyQ' }, 'KeyW') === '' && K.keyAt({ 'map.last': '' }, '') === '' && K.keyAt(null, 'KeyQ') === '');
+    const ids = ['map.last', 'tool.pen'];
+    check('this computer\'s choice is read for the commands of the list alone, a key or none each; anything else is no choice and the default stands',
+        J(K.keysClean({ 'map.last': 'KeyW', 'tool.pen': '', 'tool.gone': 'KeyX', toString: 'KeyY' }, ids)) === J({ 'map.last': 'KeyW', 'tool.pen': '' }) && J(K.keysClean({ 'map.last': 'Hyper+Q', 'tool.pen': 7 }, ids)) === '{}'
+        && ['nope', null, [], 7].every(v => J(K.keysClean(v, ids)) === '{}') && J(K.keysClean(JSON.parse('{"__proto__": {"x": 1}, "map.last": "KeyE"}'), ids)) === J({ 'map.last': 'KeyE' }));
+    check('keycore is the pure half it says: no state, no page, it imports nothing, and what it publishes on window is what it exports',
+        !/\bimport\b/.test(kc) && !/document\.|localStorage|state\./.test(kc) && kc.includes("if (typeof window !== 'undefined') window.wpKeyCore = { keyOf: keyOf, keyClean: keyClean, keyName: keyName, APP_KEYS: APP_KEYS, keyRefusal: keyRefusal, keysClean: keysClean, keysNow: keysNow, keyAt: keyAt };")
+        && kc.includes('export { keyOf, keyClean, keyName, APP_KEYS, keyRefusal, keysClean, keysNow, keyAt };') && count(ix, 'scripts/keycore.js') === 1 && ix.indexOf('scripts/keycore.js') < ix.indexOf('scripts/commands.js'));
+    // the last map
+    const lastSrc = sliceOf(cm, 'cmds');
+    const mkLast = o => {
+        o = o || {}; const R = { went: [], log: [] }, store = { getItem: k => (o.lists || {})[k] === undefined ? null : o.lists[k] };
+        const camp = o.camp === null ? null : Object.assign({ id: 'c1', activeItemId: 'm2', items: { m1: { type: 'map', meta: { title: 'Town' } }, m2: { type: 'map', meta: { title: 'Tavern' } }, p1: { type: 'planner', meta: {} }, m3: { type: 'map', meta: { title: '  ' } } } }, o.camp || {});
+        const api = new Function('window', 'document', 'state', 'getActiveMap', 'getActiveCampaign', 'navigateToMap', 'localStorage', lastSrc + '\nreturn { last: lastMapOf, cmd: cmdById("map.last"), run: cmdRun, ids: COMMANDS.map(function(c) { return c.id; }) };')(
+            { wpNet: o.net || null, wpStepLog: (a, s, f) => { R.log.push(s + ' ' + J(f)); } }, { getElementById: () => null }, { viewMode: 'visual' }, () => ({ type: 'map' }), () => camp, id => { R.went.push(id); return o.refuse ? false : true; }, o.noStore ? undefined : store);
+        return Object.assign(api, { R, camp, store });
+    };
+    const L1 = mkLast({ lists: { wp_recent_c1: J(['m2', 'p1', 'gone', 'm1', 'm3']) } });
+    const r1 = L1.run('map.last', 'key');
+    check('the last map is the newest map of this computer\'s list that is not the one on screen, a page, a map that is gone or an id the list only inherits passed over; Q is its key; a run goes there as a map tab goes there, and says which map Enter goes back to',
+        L1.last(L1.camp, L1.store) === 'm1' && r1 === true && J(L1.R.went) === J(['m1']) && L1.cmd.key === 'KeyQ' && L1.cmd.name === 'Last map' && L1.cmd.act() === 'Enter goes back to Town.' && L1.ids.indexOf('map.last') === 10
+        && mkLast({ lists: { wp_recent_c1: J(['m2', 'm3']) } }).cmd.act() === 'Enter goes back to the map you were on.' && mkLast({ lists: { wp_recent_c1: J(['m2', 'toString', 'constructor']) } }).last(L1.camp, L1.store) === 'm1' && L1.R.log.indexOf('run {"id":"map.last","via":"key"}') >= 0, J(L1.R));
+    const L2 = mkLast({ lists: { wp_recent_c1: J(['m1', 'm2']) }, camp: { activeItemId: 'm1' } }), L3 = mkLast({ lists: { wp_recent_c1: J(['m2']) } }), L4 = mkLast({ lists: { wp_recent_c1: '{"a":1}' } }), L5 = mkLast({ lists: { wp_recent_c1: 'not json' } }), L6 = mkLast({ camp: null }), L7 = mkLast({ lists: { wp_recent_c1: J(['m1']) }, net: { active: true, role: 'client' } }), L8 = mkLast({ lists: { wp_recent_c1: J(['m1']) }, refuse: true }), L9 = mkLast({ noStore: true });
+    check('a second press goes back the other way (the list then holds the map left first); with no other map on the list, a list that does not read, no campaign, at someone else\'s table and where the map would not open, nothing is gone to and the words say why',
+        L2.last(L2.camp, L2.store) === 'm2' && J([L3.run('map.last', 'key'), L4.run('map.last', 'key'), L5.run('map.last', 'jump'), L6.run('map.last', 'key'), L7.run('map.last', 'key'), L8.run('map.last', 'key'), L9.run('map.last', 'key')]) === J(['There is no map to go back to yet.', 'There is no map to go back to yet.', 'There is no map to go back to yet.', 'No campaign is open.', 'At a table the GM picks the map.', 'Last map did not run.', 'There is no map to go back to yet.'])
+        && [L3, L4, L5, L6, L7, L9].every(X => X.R.went.length === 0) && J(L8.R.went) === J(['m1']));
+    // the key's listener
+    const hkSrc = sliceOf(cm, 'hotkey');
+    const mkKey = o => {
+        o = o || {}; const R = { ran: [], toasts: [], log: [] }, shown = new Set(o.shown || []), ids = {};
+        const el = id => ({ id, getClientRects: () => (shown.has(id) ? [{ width: 1, height: 1 }] : []) });
+        ['customConfirm', 'customPrompt', 'welcomeScreen', 'settingsModal', 'cmdkModal', 'helpModal'].forEach(id => { ids[id] = el(id); });
+        const doc = { body: { classList: { contains: c => (o.body || []).indexOf(c) >= 0 } }, getElementById: id => ids[id] || null, querySelectorAll: sel => (sel === '[id$="Modal"]' ? Object.values(ids).filter(e => /Modal$/.test(e.id)) : []), querySelector: sel => (sel === '.hk-picking' && o.picking ? {} : null) };
+        const win = { wpStream: !!o.stream, wpPopout: !!o.popout };
+        const api = new Function('document', 'window', 'COMMANDS', 'keysNow', 'keyOf', 'keyAt', 'cmdRun', 'cmdLog', 'toast', 'localStorage', 'keysClean', hkSrc + '\nkeysLoad();\nreturn { held: hotkeyHeld, down: hotkeyDown, keys: function() { return _keys; } };')(
+            doc, win, [{ id: 'map.last', key: 'KeyQ' }, { id: 'tool.pen', key: '' }], K.keysNow, K.keyOf, K.keyAt, (id, via) => { R.ran.push(id + ':' + via); return o.says || true; }, (s, f) => { R.log.push(s + ' ' + J(f)); }, m => { R.toasts.push(m); },
+            { getItem: k => (k === 'wp_voice_bind' ? (o.talk || null) : (o.mine || null)), setItem() {}, removeItem() {} }, K.keysClean);
+        return Object.assign(api, { R, doc, win });
+    };
+    const press = (X, code, o) => { const e = Object.assign({ code, key: code, target: { tagName: 'DIV' }, prevented: false, preventDefault() { this.prevented = true; this.defaultPrevented = true; } }, o || {}); X.down(e); return e; };
+    const H1 = mkKey(), e1 = press(H1, 'KeyQ'), e2 = press(H1, 'KeyW'), e3 = press(H1, 'KeyQ', { shiftKey: true });
+    check('Q runs the last map from the page, once, its default taken by the browser no further; a key no command holds, and Q with Shift held, run nothing and are left alone',
+        J(H1.R.ran) === J(['map.last:key']) && e1.prevented && !e2.prevented && !e3.prevented && H1.R.toasts.length === 0, J(H1.R));
+    const fields = [{ tagName: 'INPUT' }, { tagName: 'textarea' }, { tagName: 'SELECT' }, { tagName: 'DIV', isContentEditable: true }];
+    const cases = [[{}, { target: fields[0] }], [{}, { target: fields[1] }], [{}, { target: fields[2] }], [{}, { target: fields[3] }], [{}, { repeat: true }], [{}, { defaultPrevented: true }], [{ stream: true }, {}], [{ popout: true }, {}], [{ body: ['tour-on'] }, {}], [{ body: ['web-join', 'web-gate'], shown: ['welcomeScreen'] }, {}],
+        [{ shown: ['customConfirm'] }, {}], [{ shown: ['customPrompt'] }, {}], [{ shown: ['welcomeScreen'] }, {}], [{ shown: ['settingsModal'] }, {}], [{ shown: ['cmdkModal'] }, {}]];
+    const heldW = cases.map(c => { const X = mkKey(c[0]), e = press(X, 'KeyQ', c[1]); return [X.held(X.doc, X.win, Object.assign({ target: { tagName: 'DIV' } }, c[1])), X.R.ran.length, e.prevented]; });
+    check('a key never runs a command while you type in a field (told by isContentEditable and the field tags, a text box, a list and a page\'s text alike), while it is held down or a listener took it, in the stream window or a window of its own, while the tour or a website\'s join page is up, behind a question or a prompt, behind the welcome screen or any window of the app\'s',
+        J(heldW.map(h => h[0])) === J(['typing', 'typing', 'typing', 'typing', 'repeat', 'taken', 'window', 'window', 'tour', 'welcome', 'asking', 'asking', 'welcome', 'window', 'window']) && heldW.every(h => h[1] === 0 && h[2] === false) && mkKey().held(mkKey().doc, mkKey().win, { target: { tagName: 'BUTTON' } }) === '', J(heldW));
+    const H2 = mkKey({ shown: ['settingsModal'] }); press(H2, 'KeyQ'); press(H2, 'KeyQ', { target: fields[0] }); press(H2, 'KeyQ', { repeat: true });
+    const H3 = mkKey({ says: 'There is no map to go back to yet.' }); press(H3, 'KeyQ');
+    const H4 = mkKey({ talk: 'KeyQ' }), H5 = mkKey({ talk: 'KeyB' }); press(H4, 'KeyQ'); press(H5, 'KeyQ');
+    check('a key held back is logged with its command and why, but never for typing or a key held down; a command that cannot run says why; push to talk\'s own key is no command\'s, and Q is free again once push to talk moves off it',
+        J(H2.R.log) === J(['key-held {"id":"map.last","why":"window"}']) && H2.R.ran.length === 0 && J(H3.R.toasts) === J(['There is no map to go back to yet.']) && H4.R.ran.length === 0 && J(H4.keys()) === J({ 'map.last': '', 'tool.pen': '' }) && J(H5.R.ran) === J(['map.last:key']), J([H2.R, H4.R]));
+    check('the listener is heard at the window as the key comes back up, after every listener of the page; it loads the keys once and logs how many it holds; quick-jump shows a command\'s key by its name',
+        cm.includes("window.addEventListener('keydown', hotkeyDown);") && count(cm, "addEventListener('keydown', hotkeyDown") === 1 && cm.includes("cmdLog('keys-load', { n: ") && cm.includes("window.wpCommandKey = function(id) { return keyName(_keys[id] || ''); };") && cm.includes("function keyFor(id) { return typeof window.wpCommandKey === 'function' ? String(window.wpCommandKey(id) || '') : ''; }"));
+    const wn = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, '\n'));
+    const start = ix.slice(ix.indexOf('<div class="help-pane" data-pane="start">'), ix.indexOf('<div class="help-pane" data-pane="tutorial"')), keysP = ix.slice(ix.indexOf('<div class="help-pane" data-pane="keys"'), ix.indexOf('<h4 id="helpDevMode">'));
+    check('Help says the last map under Getting around fast and in the Keyboard part: Q goes back to the map you were on, again goes the other way, never while you type; both release notes carry it, alike',
+        start.includes('<li><b>Last map</b>: <kbd>Q</kbd> takes you back to the map you were on before. Press it again to go back the other way.') && keysP.includes('<li><kbd>Q</kbd> &nbsp; Back to the map you were on last. Press it again to go back the other way.</li>')
+        && wn.every(t => count(t, "- Q takes you back to the map you were on last. Press it again to go\n  back the other way. Last map is in quick jump too.\n") === 1));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

@@ -8934,6 +8934,17 @@ function renderCombatStrip() {
     var cur = c.rows[c.turn] || {}, nxt = c.rows[(c.turn + 1) % c.rows.length] || {};
     var host = n.role === 'host', mine = !host && n.myTurnTok ? n.myTurnTok() : null;   // turn-based combat T2: the player on turn ends it here
     if (mine && mine.fid && mine.fid !== fidS) mine = null;   // fold 2: on the strip of the fight they are on turn in
+    // initiative O5 (backlog 34): Next is chosen. Up next is the next in the standing order who has not gone this round, and Pick next lists those
+    // who may go next instead, for the GM at any time and for a player at their own turn; a pick is judged by the host
+    var campC = getActiveCampaign(), sysC = campC && campC.system, irC = sysC && sysC.combat && typeof sysC.combat === 'object' && sysC.combat.initiative && typeof sysC.combat.initiative === 'object' ? sysC.combat.initiative : null;
+    var SCc = window.wpSystemCore, chS = !!(irC && irC.chosen === true && SCc && typeof SCc.chosenNext === 'function' && typeof SCc.chosenPicks === 'function'), nxC = chS ? SCc.chosenNext(c.rows, c.turn) : null;
+    if (nxC) nxt = c.rows[nxC.at] || {};
+    var pickH = '';
+    if (chS && (host || mine)) {
+        var pkOpen = strip.wpPickOpen === fidS, pkL = SCc.chosenPicks(c.rows, c.turn);
+        pickH = '<button class="combat-strip-btn' + (pkOpen ? ' is-open' : '') + '" data-act="pickopen" title="' + (pkL.round ? 'Everyone has gone this round: pick who opens round ' + (c.round + 1) : 'Pick who goes next from those who have not gone this round') + (host ? '' : '. It ends your turn') + '">Pick next</button>';
+        if (pkOpen) pickH += '<span class="combat-strip-picks">' + pkL.at.map(function(i) { var pr = c.rows[i] || {}, prN = esc(String(pr.name || 'Someone')); return '<button class="combat-strip-btn combat-strip-pick' + (nxC && nxC.at === i ? ' is-next' : '') + '" data-act="pick" data-row="' + esc(String(pr.id || '')) + '" title="' + prN + (pkL.round ? ' opens round ' + (c.round + 1) : ' goes next') + '">' + prN + '</button>'; }).join('') + '</span>';
+    }
     strip.style.display = 'flex';
     var who = findWho(n, !!window.wpStream), nameOf = function(r) { return findName(r.name || '', r.tokId, !!findOf(am.id, r.tokId, who, am, state.viewMode)); };   // backlog 26: a name that finds its token on this screen is a button
     var myTokIds = {}; if (!host && am && Array.isArray(am.whiteboard)) am.whiteboard.forEach(function(w) { if (w && w.isChar && w.ownerId && w.ownerId === n.myId && typeof w.id === 'string') myTokIds[w.id] = 1; });   // initiative O3: whose held rows a player may act from
@@ -8946,9 +8957,10 @@ function renderCombatStrip() {
         + (host ? '<button class="combat-strip-btn" data-act="prev" title="Previous turn">&#9664;</button>' : '')
         + '<span class="combat-strip-cur" data-tip="Whose turn it is">' + (cur.src ? '<img src="' + esc(resolveImg(cur.src)) + '" alt="">' : '') + nameOf(cur) + '</span>'
         + (typeof stripMoveHtml === 'function' ? stripMoveHtml(n, fidS, c, am) : '')   // 1.5.7: the turn's move, asked through typeof for the suites that slice the strip alone
-        + '<span class="combat-strip-next" data-tip="Up next">next ' + nameOf(nxt) + '</span>'
-        + (mine ? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn" title="End your turn: play moves on to the next in the order">End turn</button>' : '')
-        + (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="Hold this turn: play moves on, and Act later this round puts them right after whoever is acting (a hold not used by the round&rsquo;s end is lost)">Hold</button>' : '') + heldH
+        + '<span class="combat-strip-next" data-tip="' + (chS ? 'Up next: the next in the order who has not gone this round' : 'Up next') + '">next ' + nameOf(nxt) + (nxC && nxC.round ? ', opening round ' + (c.round + 1) : '') + '</span>'
+        + (mine ? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn" title="End your turn: play moves on to the next in the order' + (chS ? ' who has not gone. Pick next chooses another' : '') + '">End turn</button>' : '')
+        + pickH
+        + (chS ? '' : (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="Hold this turn: play moves on, and Act later this round puts them right after whoever is acting (a hold not used by the round&rsquo;s end is lost)">Hold</button>' : '') + heldH)
         + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn">&#9654;</button><button class="combat-strip-btn" data-act="edit" title="Combat roster">&#9998;</button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
     if (strip.wpDrawn !== html) { strip.innerHTML = html; strip.wpDrawn = html; }
 }
@@ -8963,6 +8975,13 @@ window.wpRenderCombatStrip = renderCombatStrip;
         e.stopPropagation();
         var n = window.wpNet, am = getActiveMap();
         if (b.dataset.act === 'switch') { if (am && stripSwitch(am.id)) renderCombatStrip(); return; }   // fold 2: the next fight on this map, on this screen alone
+        if (b.dataset.act === 'pickopen') { var fidO = am ? stripFightId(am.id) : null; strip.wpPickOpen = strip.wpPickOpen === fidO ? null : fidO; renderCombatStrip(); return; }   // initiative O5: the list of those who may go next, on this screen alone
+        if (b.dataset.act === 'pick') {   // initiative O5: the GM's pick goes at once (the host judges it); a player's ends their own turn with it
+            var rowP = String(b.dataset.row || ''), fidP = am ? stripFightId(am.id) : null; strip.wpPickOpen = null;
+            if (n && n.role === 'host') { if (fidP && n.fightStep(fidP, 1, undefined, rowP) === false) toast('They have had their turn this round.'); }
+            else { var rp = n && n.turnEnd ? n.turnEnd(rowP) : null; if (rp && rp.error) toast(rp.error); }
+            renderCombatStrip(); return;
+        }
         if (b.dataset.act === 'endturn') { var rt = n && n.turnEnd ? n.turnEnd() : null; if (rt && rt.error) toast(rt.error); return; }   // turn-based combat T2
         if (n && n.role !== 'host' && (b.dataset.act === 'hold' || b.dataset.act === 'act')) { var rh = b.dataset.act === 'hold' ? (n.turnHold ? n.turnHold() : null) : (n.turnAct ? n.turnAct(String(b.dataset.row || '')) : null); if (rh && rh.error) toast(rh.error); return; }   // initiative O3: a player's own hold or act
         if (!(n && n.role === 'host' && am)) return;

@@ -2409,6 +2409,8 @@
   .combat-strip-btn { font: inherit; background: transparent; border: 1px solid var(--edge); color: var(--ink); border-radius: 10px; padding: 1px 8px; cursor: pointer; font-size: 11px; }
   .combat-strip-btn:hover { border-color: var(--gold); color: var(--gold); }
   .combat-strip-btn.danger:hover { border-color: var(--red); color: var(--red); }
+  .combat-strip-picks { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }   /* initiative O5: those who may go next */
+  .combat-strip-btn.is-open, .combat-strip-btn.combat-strip-pick.is-next { border-color: var(--gold); color: var(--gold); }
   .combat-find { font: inherit; color: inherit; background: none; border: 0; border-radius: 3px; padding: 0; margin: 0; cursor: pointer; text-decoration: underline dotted; text-decoration-color: var(--dim); text-underline-offset: 3px; }   /* backlog 26: a name on the turn strip or in the roster finds its token on this screen */
   .combat-find:hover, .combat-find:focus-visible { color: var(--gold); text-decoration-color: var(--gold); }
   .combat-find:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }

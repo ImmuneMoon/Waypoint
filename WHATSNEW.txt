@@ -350,6 +350,19 @@ Same person as... and Merge into...
   names each character that moved. To give one back, pick its player in
   System ▸ Characters.
 
+Turn order
+- The System editor's Initiative box has Next is chosen, a third way to
+  order turns. The order stands as initiative made it and repeats each
+  round. When a turn ends, the one who acted may pick who goes next from
+  those who have not gone this round: Kael ends his turn and picks Sela,
+  and Sela picks the bandit.
+- The turn strip has Pick next. You can pick for anyone at any time, and a
+  player picks at the end of their own turn. With no pick, the next in the
+  order who has not gone goes. Once everyone has gone, a new round starts
+  from the order's first, or from whoever the last to act picks.
+- It takes the place of a Sides roll, and there is no Hold. A step back on
+  the strip goes back to whoever went before, as a correction.
+
 WAYPOINT 1.5.9 — What's New
 ============================
 

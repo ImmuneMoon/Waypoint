@@ -6608,6 +6608,7 @@ function refreshErrors() {
     if (sdE && (sdE.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(sdE))) iErr.push({ message: 'Sides roll: a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' });
     else if (sdE && (!paS || !paS.ok)) iErr.push({ message: 'Sides roll: ' + (paS && paS.error && paS.error.message ? paS.error.message : 'the formula cannot be read.') + ' Save drops it.' });
     else if (sdE && Array.isArray(paS.names) && paS.names.length) iErr.push({ message: 'Sides roll: it reads ' + paS.names[0] + ', but a side rolls it as one, never as one character: Save drops it.' });
+    else if (sdE && irE.chosen === true) iErr.push({ message: 'Sides roll: Next is chosen takes the place of sides, so Save drops it. Untick Next is chosen to keep it.' });   // initiative O5, as the cleaner reads it
     if (iErr.length) errorsById.initiative = iErr;
     // 126: what Save drops of the point budgets, under their box, read as the cleaner reads them: a budget with no name, a formula that is
     // missing, too long, unreadable or rolls dice, one that reads what players cannot read, and any budget past the eighth
@@ -7713,13 +7714,14 @@ function renderCombat() {
 function initBox(box, cm) {
     var ir = cm.initiative && typeof cm.initiative === 'object' && !Array.isArray(cm.initiative) ? cm.initiative : {}, ties = Array.isArray(ir.ties) ? ir.ties : [], wrap = el('div', 'sys-init');
     wrap.appendChild(el('div', 'sys-light-head', 'Initiative'));
-    wrap.appendChild(el('div', 'sys-note', 'The combat roster orders a fight by the roll you tick Initiative on (the Rolls tab): one with no dice is worked out (Basic Speed), one with dice rolled (d20 + DEX). When two tie, the steps below settle it in turn: a value puts the higher first (DX); a roll (1d6, d20) is made only for those still tied, and made again while they stay tied. They read only what players can read: the order is public. Rolled again every round has everyone roll it again when a new round begins; a Sides roll (1d6) plays the players against the rest each round, the higher side first.'));
+    wrap.appendChild(el('div', 'sys-note', 'The combat roster orders a fight by the roll you tick Initiative on (the Rolls tab): one with no dice is worked out (Basic Speed), one with dice rolled (d20 + DEX). When two tie, the steps below settle it in turn: a value puts the higher first (DX); a roll (1d6, d20) is made only for those still tied, and made again while they stay tied. They read only what players can read: the order is public. Rolled again every round has everyone roll it again when a new round begins; a Sides roll (1d6) plays the players against the rest each round, the higher side first. Next is chosen keeps the order as it stands each round, and whoever ends a turn may pick who goes next from those who have not gone; it takes the place of sides.'));
     var r = el('div', 'sys-flags sys-init-ties'); r.appendChild(el('span', 'sys-num-cap', 'Ties go to the higher'));
     for (var i = 0; i < LIMITS.initTies; i++) { var ti = input('sys-init-tie field', typeof ties[i] === 'string' ? ties[i] : '', i === 0 ? 'The first step for a tie: a value (DX) or a roll (1d6)' : 'If still tied: a value or a roll', i === 0 ? 'e.g. DX' : i === 1 ? 'then, e.g. 1d6' : 'then\u2026'); ti.maxLength = LIMITS.formula; ti.dataset.ti = String(i); r.appendChild(ti); }
     wrap.appendChild(r);
     // initiative O4: rolled again every round (a tick), and a sides roll (the players' characters against everyone else, each round)
     var r2 = el('div', 'sys-flags sys-init-more'), evL = el('label', 'sys-hover'), evC = el('input', 'sys-init-every'); evC.type = 'checkbox'; evC.checked = ir.every === true; evL.appendChild(evC); evL.appendChild(document.createTextNode(' Rolled again every round')); evL.title = 'When a new round begins, everyone in the fight rolls the initiative roll again and the order re-sorts (a row with no character keeps its number)'; r2.appendChild(evL);
     r2.appendChild(el('span', 'sys-num-cap', 'Sides roll')); var sdI = input('sys-init-side field', typeof ir.side === 'string' ? ir.side : '', 'Side initiative: the players\u2019 characters and everyone else each roll this when the fight starts and at every new round, the higher side first, each side in its own order. It reads no one\u2019s values. Blank: no sides', 'e.g. 1d6'); sdI.maxLength = LIMITS.formula; r2.appendChild(sdI);
+    var chL = el('label', 'sys-hover'), chC = el('input', 'sys-init-chosen'); chC.type = 'checkbox'; chC.checked = ir.chosen === true; chL.appendChild(chC); chL.appendChild(document.createTextNode(' Next is chosen')); chL.title = 'When a turn ends, the one who acted may pick who goes next from those who have not gone this round, on the turn strip. The GM can always pick for anyone. With no pick the next in the order goes, and once everyone has gone a new round starts from the order\u2019s first'; r2.appendChild(chL);   // initiative O5: a third order, Next is chosen
     wrap.appendChild(r2);
     var err = errorCell('initiative'); err.dataset.errFor = 'initiative'; wrap.appendChild(err);
     box.appendChild(wrap);
@@ -7743,6 +7745,11 @@ function onInitChange(t) {   // the boxes' change events (their input events did
     if (c.indexOf('sys-init-every') >= 0) {
         var cmE = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), irV = cmE.initiative && typeof cmE.initiative === 'object' && !Array.isArray(cmE.initiative) ? cmE.initiative : (cmE.initiative = {});
         if (t.checked === true) irV.every = true; else { delete irV.every; if (!Object.keys(irV).length) delete cmE.initiative; }
+        markDirty(); patchErrors();
+    }
+    if (c.indexOf('sys-init-chosen') >= 0) {   // initiative O5: the Next is chosen tick, true only
+        var cmC = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), irCh = cmC.initiative && typeof cmC.initiative === 'object' && !Array.isArray(cmC.initiative) ? cmC.initiative : (cmC.initiative = {});
+        if (t.checked === true) irCh.chosen = true; else { delete irCh.chosen; if (!Object.keys(irCh).length) delete cmC.initiative; }
         markDirty(); patchErrors();
     }
     return true;

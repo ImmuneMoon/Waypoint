@@ -3482,10 +3482,11 @@ net.myTurnTok = function() {
     return hit;
 };
 // the player ends their own turn: the host checks the row is still theirs and the one on turn, then steps as the GM's Next turn
-net.turnEnd = function() {
+net.turnEnd = function(pick) {   // initiative O5: pick, the row they choose to go next (the id their copy holds), else the next in the order
     var t = net.myTurnTok(); if (!t) return { error: 'It is not your turn.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
-    try { net.conns[0].send({ type: 'turn-end', mapId: t.mapId, row: t.rowId }); } catch (e) { return { error: 'Could not reach the GM.' }; }
+    var mT = { type: 'turn-end', mapId: t.mapId, row: t.rowId }; if (typeof pick === 'string' && pick && pick.length <= 40) mT.pick = pick;
+    try { net.conns[0].send(mT); } catch (e) { return { error: 'Could not reach the GM.' }; }
     return { ok: true };
 };
 // Initiative O3: the player holds their own turn, or acts from their own hold (the host checks the row is theirs and still on turn or held)
@@ -4604,6 +4605,7 @@ function cleanFightBody(k, mapId) {   // one fight's order, cleaned: { mapId, ro
             var o = { id: String(r.id || '').slice(0, 40), name: String(r.name || '').slice(0, 60), tokId: r.tokId ? String(r.tokId).slice(0, 80) : null, init: Math.max(-1e6, Math.min(1e6, Number(r.init) || 0)), src: typeof r.src === 'string' && r.src.length <= 400 ? r.src : null };
             if (r.rolled === 1 || r.rolled === true) o.rolled = 1;   // initiative O1: the row has its number (rolled or given); the host's own, never sent to a player (combatRowOut)
             if (r.held === 1 || r.held === true) o.held = 1;   // initiative O3: holding its turn this round (shown to the table)
+            if (r.dn === 1 || r.dn === true) o.dn = 1;   // initiative O5: Next is chosen, it had its turn this round (shown to the table)
             if (Array.isArray(r.tb)) { var tb = r.tb.slice(0, 3).map(function(v) { return Array.isArray(v) ? v.slice(0, 8).filter(function(n) { return typeof n === 'number' && isFinite(n); }).map(function(n) { return Math.max(-1e6, Math.min(1e6, n)); }) : null; }); if (tb.some(function(v) { return v && v.length; })) o.tb = tb; }   // initiative O2: its tie rolls, each step's in order, kept so a later sort never shuffles; the host's own
             return o;
         }).filter(Boolean);
@@ -4657,7 +4659,8 @@ function combatsFor(recipientId, mapId) {
             var unseen = !!(r.tokId && ((drop && drop[r.tokId]) || hid[r.tokId]));
             if (unseen && combatSeen(fid, recipientId, r.tokId)) unseen = false;   // seen in this fight already: the name stays
             if (!unseen && r.tokId) combatSaw(fid, recipientId, r.tokId);
-            return combatRowOut(r, i, unseen);
+            var oD = combatRowOut(r, i, unseen); if (r.dn === 1) oD.dn = 1;   // initiative O5: whether it had its turn this round, which the strip showed as it went
+            return oD;
         }) };
         if (cmb.side === 'pc' || cmb.side === 'rest') out[fid].side = cmb.side;   // initiative O4: which side goes first this round (never its rolls: those are their cards)
         var stMv = net.turnMove && Object.prototype.hasOwnProperty.call(net.turnMove, fid) ? net.turnMove[fid] : null, curMv = cmb.rows[cmb.turn];   // 1.5.7: the turn's move, to the token's own player alone
@@ -4835,6 +4838,8 @@ function fightReachKept(had, f) {   // a roster edit: how far the fight has gone
     if (had.et && typeof had.et === 'object') f.et = had.et;
     if (had.th && typeof had.th === 'object') f.th = had.th;
     if (had.turned && typeof had.turned === 'object') f.turned = had.turned;
+    if (Array.isArray(had.ps)) f.ps = had.ps.slice();   // initiative O5: who had their turn this round, in the order they had it
+    if (Array.isArray(had.pp)) f.pp = had.pp;   // ...and in the rounds before (a step back's way)
 }
 // [netcheck:turnmove-start]
 // Turn-based combat T3b (D1, D2): the move of the character whose turn begins — how far its token may go this turn, in the map's cells (its
@@ -5343,6 +5348,7 @@ function fightSet(fid, combat) {
         if (had && (had.side === 'pc' || had.side === 'rest')) f.side = had.side;
         if (typeof combatSides === 'function') combatSides(mapId, f, !had);   // ...and each side together (a new fight rolls the sides first)
         if (had && typeof fightReachKept === 'function') fightReachKept(had, f);   // fold 3: a roster edit keeps how far the fight has gone (rh, th, turned), put back after cleaning as rr and side are; a new fight starts with none
+        if (had && chosenRule()) chosenMark(f);   // initiative O5: each row's mark of having gone, by its id, the row on turn none
         if (!had || had.round !== f.round) roundChanged(mapId, f);   // G10: the first round (a roster edit keeps its round)
         if (!had) { net.fightOn = fid; logEvent('table', 'Combat started on ' + mapTitleOf(mapId) + ': ' + f.rows.map(function(r) { return r.name; }).join(', ')); }   // a new fight is the one played
         toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + ' — ' + (f.rows[f.turn] || f.rows[0]).name + ' goes first.');
@@ -5354,22 +5360,60 @@ function fightSet(fid, combat) {
     if (tg) ordersMoved(had ? 'edit' : 'start', tg);   // fold 4: a round edited in the roster moves the fight's time with it; those who join walk in
     return f ? fid : null;
 }
-function fightStep(fid, dir, by) {   // host: that fight's next turn (dir 1) or the one before (dir -1); by 'player': a player's own End turn or hold
+// Initiative O5 (backlog 34; the owner, by prompt, 2026-10-29: "A Turn order choice"; of a new round, "the standing order repeats, but there should be
+// the option to choose otherwise"): Next is chosen. A fight's rows keep their standing order, the initiative's, and a turn's end goes to the next in it
+// who has not gone this round unless the one whose turn ends picks another of those (systemcore chosenNext); with none left a new round begins from the
+// order's first, or from anyone the last to act picks. A player picks only at their own turn's end (the turn-end branch), the GM at any time. The
+// host's own, never sent: ps, the ids of the rows that had their turn this round in the order they had it, and pp, the rounds before's (ten at most),
+// kept through a roster edit (fightReachKept). Each row's dn (chosenMark) is ps as the table sees it. A step back takes back the last turn had, into
+// the round before if need be: a correction, the round's time and how far the fight has gone (rh, th, eh, et) as for any step back
+function chosenRule() { var camp = campNow(), sy = camp && camp.system, cm = sy && sy.combat && typeof sy.combat === 'object' ? sy.combat : null, ir = cm && cm.initiative && typeof cm.initiative === 'object' ? cm.initiative : null; return !!(ir && ir.chosen === true); }
+function chosenMark(c) {   // each row's dn from ps (rows gone from the fight dropped from it, the row on turn never gone)
+    if (!c || !Array.isArray(c.rows)) return;
+    var cur = c.rows[c.turn], ids = Object.create(null), gone = Object.create(null); c.rows.forEach(function(r) { if (r && typeof r.id === 'string') ids[r.id] = 1; });
+    c.ps = (Array.isArray(c.ps) ? c.ps : []).filter(function(id) { return ids[id] === 1 && !(cur && cur.id === id); });
+    c.ps.forEach(function(id) { gone[id] = 1; });
+    c.rows.forEach(function(r) { if (!r) return; if (gone[r.id] === 1) r.dn = 1; else delete r.dn; });
+}
+function chosenGo(c, dir, nx, t0) {   // the place play goes: forward, nx (from chosenNext; a new round when none is left), back, the last turn had
+    if (dir > 0) {
+        var cur = c.rows[t0], ps = Array.isArray(c.ps) ? c.ps : [];
+        if (cur && typeof cur.id === 'string' && ps.indexOf(cur.id) < 0) ps.push(cur.id);
+        c.ps = ps;
+        if (nx.round) { c.pp = (Array.isArray(c.pp) ? c.pp : []).concat([ps]).slice(-10); c.ps = []; c.round += 1; }
+        return nx.at;
+    }
+    var ps2 = Array.isArray(c.ps) ? c.ps.slice() : [], back = false;
+    if (!ps2.length && c.round > 1 && Array.isArray(c.pp) && c.pp.length) { ps2 = c.pp[c.pp.length - 1].slice(); back = true; }
+    while (ps2.length) {
+        var id = ps2.pop(), at = c.rows.findIndex(function(r) { return !!r && r.id === id; });
+        if (at >= 0) { c.ps = ps2; if (back) { c.pp = c.pp.slice(0, -1); c.round -= 1; } return at; }
+    }
+    return t0;   // nothing to go back to
+}
+function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 1) or the one before (dir -1); by 'player': a player's own End turn or hold; initiative O5: pick, the row chosen to go next
     if (net.role !== 'host') return;
     var c = orderById(fid); if (!c || !c.rows.length) return;
+    var S5 = chosenRule() && typeof SC === 'function' ? SC() : null; if (S5 && typeof S5.chosenNext !== 'function') S5 = null;   // initiative O5: Next is chosen
+    var nx = S5 && dir > 0 ? S5.chosenNext(c.rows, c.turn, typeof pick === 'string' ? pick : undefined) : null;
+    if (S5 && dir > 0 && !nx) return false;   // a pick that may not go next (one who has gone, the one on turn, one not there): nothing moves
     if (by !== 'player') net.fightOn = fid;   // fold 4: the GM's own step of a fight makes it the one played
     var campS = campNow(), a0 = timeCore() ? fightAtOf(c, campS) : null;   // fold 4: the fight's own time before the step
     var mapId = c.mapId, t = c.turn + (dir < 0 ? -1 : 1), r0 = c.round, t0 = c.turn, endRow = dir > 0 && c.rows[t0] && !c.rows[t0].held ? c.rows[t0] : null;   // 1.6.0: the turn a forward step ends (never a held one)
-    if (t >= c.rows.length) { t = 0; c.round += 1; }
+    var pkFrom = c.rows[t0], pkRow = nx && nx.round && typeof pick === 'string' ? c.rows[nx.at] : null;   // initiative O5: whose turn ends, and the row picked to open a new round, found again once its order is made
+    if (S5) t = chosenGo(c, dir, nx, t0);   // initiative O5: the place chosen (a new round where none is left), or back to the last turn had (a correction)
+    else if (t >= c.rows.length) { t = 0; c.round += 1; }
     else if (t < 0) { if (c.round > 1) { c.round -= 1; t = c.rows.length - 1; } else t = 0; }
     c.turn = t;
     if (c.round !== r0) c.rows.forEach(function(r) { if (r) delete r.held; });   // initiative O3 (the owner's answer): a hold not used by the round's end is lost
     if (c.rows[t]) delete c.rows[t].held;   // ...and a row whose turn it is holds nothing
     if (endRow && typeof turnEnded === 'function') turnEnded(mapId, c, endRow, r0, t0);   // 1.6.0: its end first, before the new round and the next turn
-    if (c.round > r0 && typeof combatNewRound === 'function') { combatNewRound(mapId, c); t = c.turn; }   // initiative O4: a new round's order (rolled again, by side), the first time the fight reaches it
+    if (c.round > r0 && typeof combatNewRound === 'function') { combatNewRound(mapId, c); t = c.turn; }
+    if (S5) { var atP = pkRow ? c.rows.indexOf(pkRow) : -1; if (atP >= 0) { c.turn = atP; t = atP; } chosenMark(c); }   // initiative O5: the new round opened by the one picked, and each row's mark of having gone   // initiative O4: a new round's order (rolled again, by side), the first time the fight reaches it
     if (c.round !== r0) roundChanged(mapId, c);   // G10
     var tg = c.round !== r0 && a0 ? fightTurned(campS, c, a0, r0) : null;   // fold 4: its own time moves by the round's length (a step back, back)
-    toast((c.rows[t].name || 'Someone') + "'s turn" + (t === 0 && dir > 0 ? ' — round ' + c.round : '') + '.');
+    toast((c.rows[t].name || 'Someone') + "'s turn" + ((S5 ? c.round > r0 : t === 0 && dir > 0) ? ' — round ' + c.round : '') + '.');
+    if (S5 && typeof pick === 'string') logEvent('table', (by === 'player' ? (pkFrom && pkFrom.name) || 'Someone' : 'The GM') + ' picked ' + (c.rows[t].name || 'someone') + ' to go ' + (c.round > r0 ? 'first in round ' + c.round : 'next') + ' on ' + mapTitleOf(mapId));   // initiative O5: a pick, in the Session Log
     broadcastCombats(); combatRefresh();
     if (c.round !== r0 || c.turn !== t0) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing), after the broadcast
     if (tg) ordersMoved('step', tg);   // fold 4: the round it closed counted, and the clock moved once the fight furthest behind moves on
@@ -5380,6 +5424,7 @@ function fightStep(fid, dir, by) {   // host: that fight's next turn (dir 1) or 
 function fightHold(fid, by) {   // by 'player': a player's own hold (fold 4: it makes no fight the one played)
     if (net.role !== 'host') return false;
     var c = orderById(fid), row = c ? c.rows[c.turn] : null; if (!row) return false;
+    if (chosenRule()) return false;   // initiative O5: with Next is chosen there is no hold, a pick does it
     row.held = 1; toast((row.name || 'Someone') + ' holds their turn.'); logEvent('table', (row.name || 'Someone') + ' held their turn on ' + mapTitleOf(c.mapId));
     fightStep(fid, 1, by);   // play moves on (it broadcasts); a hold on the round's last turn is lost at once, as fightStep clears holds at a new round
     return true;
@@ -5387,6 +5432,7 @@ function fightHold(fid, by) {   // by 'player': a player's own hold (fold 4: it 
 function fightAct(fid, rowId) {
     if (net.role !== 'host') return false;
     var c = orderById(fid); if (!c || typeof rowId !== 'string') return false;
+    if (chosenRule()) return false;   // initiative O5: no act from a hold, which would move the standing order
     var i = c.rows.findIndex(function(r) { return r && r.id === rowId; }); if (i < 0 || i === c.turn || c.rows[i].held !== 1) return false;
     var row = c.rows.splice(i, 1)[0], t = c.turn - (i < c.turn ? 1 : 0); delete row.held;
     c.rows.splice(t + 1, 0, row); c.turn = t;
@@ -5417,7 +5463,7 @@ function fightMineKey(cs, camp, mid) {
 function combatToasts(before, after) {
     var camp = getActiveCampaign(), mid = camp && camp.activeItemId, kB = fightMineKey(before, camp, mid), kA = fightMineKey(after, camp, mid);
     var cA = kA !== null ? after[kA] : null, cB = kA !== null && before && Object.prototype.hasOwnProperty.call(before, kA) ? before[kA] : null;
-    if (cA && (!cB || cB.turn !== cA.turn || cB.round !== cA.round)) toast((cB ? '' : 'Combat! ') + (cA.rows[cA.turn] || {}).name + "'s turn" + (cA.round > 1 && cA.turn === 0 ? ' — round ' + cA.round : '') + '.');
+    if (cA && (!cB || cB.turn !== cA.turn || cB.round !== cA.round)) toast((cB ? '' : 'Combat! ') + (cA.rows[cA.turn] || {}).name + "'s turn" + ((chosenRule() ? !!cB && cB.round < cA.round : cA.round > 1 && cA.turn === 0) ? ' — round ' + cA.round : '') + '.');
     else if (kB !== null && !Object.prototype.hasOwnProperty.call(after, kB)) toast('Combat is over.');
 }
 // [netcheck:orders-end]
@@ -7462,7 +7508,9 @@ function handleMessage(msg, conn) {
         var campT = getActiveCampaign(), mapT = campT && campT.items && own(campT.items, msg.mapId) ? campT.items[msg.mapId] : null;
         var tokT = mapT && mapT.type === 'map' && Array.isArray(mapT.whiteboard) ? mapT.whiteboard.find(function(w) { return w && w.id === rowT.tokId; }) : null;
         if (!tokT || !tokT.isChar || !tokT.ownerId || tokT.ownerId !== prT.id) return;
-        fightStep(fidT, 1, 'player');   // 152 fold 4: a player's End turn makes no fight the one played
+        var pkT;   // initiative O5: the row they picked to go next, read by the copy they are sent (a row they read as Hidden by its place) and judged by fightStep; with Next is chosen off a pick is no word at all
+        if (msg.pick !== undefined && chosenRule()) { var cpT = typeof msg.pick === 'string' && msg.pick && msg.pick.length <= 40 ? combatsFor(prT.id, msg.mapId)[fidT] : null, jT = cpT && Array.isArray(cpT.rows) ? cpT.rows.findIndex(function(r) { return !!r && r.id === msg.pick; }) : -1; if (jT < 0 || !cbT.rows[jT]) return; pkT = cbT.rows[jT].id; }
+        fightStep(fidT, 1, 'player', pkT);   // 152 fold 4: a player's End turn makes no fight the one played
         // [netcheck:turnend-end]
     } else if (msg.type === 'char-upload' && net.role === 'host') {
         // [netcheck:charupload-start]

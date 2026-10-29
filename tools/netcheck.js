@@ -16705,10 +16705,50 @@ pendingChecks.push((async () => {
         && help5.includes('While the table is paused none run. A campaign set to Ask me before 1.5.5 now runs at once. Pick Ask me again to keep it.')
         && help5.includes('Leave or end a multiplayer session first. Going back from 1.5.5 to 1.5.4 keeps your campaigns, but their next save drops what 1.5.5 added. Updating again does not bring it back. Launch copies made before then hold it in the saves folder&rsquo;s <b>backups</b>, until ten newer launches replace them. To keep a copy until you delete it, press <b>Snapshot the Save Now</b> in Settings &#9656; Advanced before you go back.')
         && !help5.includes('still hold it'));
+    // initiative O5 (backlog 34; the owner, by prompt, 2026-10-29: "A Turn order choice"; the standing order repeats, "but there should be the option to
+    // choose otherwise"): Next is chosen, run for real in this world. Kael ends his turn and picks the bandit; the host judges every pick
+    const chRows = () => [row('t_kael', 'Kael'), row('t_u7', 'Unit 7'), { id: 'c_bandit', name: 'Bandit', tokId: null, init: 0, src: null }];
+    const P5 = mkT(); P5.camp.system.combat.initiative = { chosen: true };
+    const hk5 = []; Object.assign(P5.win.wpSheets, { turnHook: (m, c) => hk5.push('start ' + c.rows[c.turn].name + ' r' + c.round), turnEndHook: (m, c) => hk5.push('end ' + c.rows[0].name + ' r' + c.round), roundHook: (m, c) => hk5.push('round ' + c.round) });
+    const f5 = P5.net.fightSet(null, docks(chRows())), c5 = () => P5.net.combats[f5], who5 = () => c5().rows[c5().turn].name, dn5 = () => c5().rows.filter(r => r.dn === 1).map(r => r.name), pA5 = P5.conns[0];
+    const copy5 = () => { const m = pA5.sent.filter(x => x.type === 'combats').pop(); return m && m.combats[f5] ? m.combats[f5].rows.filter(r => r.dn === 1).map(r => r.name) : null; };
+    const te5 = pick => P5.api.turnEnd({ type: 'turn-end', mapId: 'mDocks', row: 'rt_kael', pick }, pA5);
+    te5('c_bandit'); const p51 = [who5(), J(dn5()), J(copy5()), c5().round, P5.camp.clock.t];
+    const was5 = J(c5()); P5.net.fightStep(f5, 1, undefined, 'rt_kael'); P5.net.fightStep(f5, 1, undefined, 'c_bandit'); P5.net.fightStep(f5, 1, undefined, 'nobody'); te5('rt_u7');
+    const p52 = [J(c5()) === was5, P5.net.fightStep(f5, 1, undefined, 'rt_kael')];
+    P5.net.fightStep(f5, 1); const p53 = [who5(), J(dn5())];
+    P5.net.fightStep(f5, 1); const p54 = [who5(), J(dn5()), c5().round, P5.camp.clock.t];
+    P5.net.fightStep(f5, 1, undefined, 'c_bandit'); const p55 = [who5(), J(dn5())];
+    P5.net.fightStep(f5, -1); const p56 = [who5(), J(dn5()), c5().round];
+    P5.net.fightStep(f5, -1); const p57 = [who5(), J(dn5()), c5().round, P5.camp.clock.t];
+    const runs5 = P5.out.runs.length, hooks5 = hk5.length;
+    P5.net.fightStep(f5, 1); const p58 = [who5(), c5().round, P5.camp.clock.t, P5.out.runs.length === runs5, hk5.length === hooks5];
+    P5.net.fightStep(f5, 1); P5.net.fightStep(f5, 1); const p59a = who5(); P5.net.fightStep(f5, 1, undefined, 'c_bandit');
+    const p59 = [p59a, who5(), c5().round, J(dn5()), P5.out.logs.filter(t => / picked /.test(t))];
+    const p510 = [P5.net.fightHold(f5), P5.net.fightAct(f5, 'rt_kael'), who5()];
+    const R5 = mkT(); R5.camp.system.combat.initiative = { chosen: true }; R5.camp.items.mDocks.whiteboard.find(w => w.id === 't_u7').hidden = true;
+    const fR5 = R5.net.fightSet(null, docks(chRows())), whoR5 = () => R5.net.combats[fR5].rows[R5.net.combats[fR5].turn].name, teR5 = pick => R5.api.turnEnd({ type: 'turn-end', mapId: 'mDocks', row: 'rt_kael', pick }, R5.conns[0]);
+    const seenR5 = J(R5.conns[0].sent.filter(x => x.type === 'combats').pop().combats[fR5].rows.map(r => r.id));
+    teR5('rt_u7'); const p511b = whoR5(); teR5('h1'); const p511 = [seenR5, p511b, whoR5(), J(R5.net.combats[fR5].rows.filter(r => r.dn === 1).map(r => r.name)), R5.out.errs.length];
+    P5.net.fightStep(f5, 1); P5.net.fightStep(f5, 1, undefined, 'rt_u7');
+    const ed5 = c5().rows.map(r => ({ id: r.id, name: r.name, tokId: r.tokId, init: r.init, src: r.src })).reverse(); P5.net.fightSet(f5, { mapId: 'mDocks', round: c5().round, turn: ed5.findIndex(r => r.id === 'rt_u7'), rows: ed5 });
+    const p512 = [who5(), J(dn5()), J(c5().rows.map(r => r.name))];
+    check('initiative O5 Next is chosen (net.js and calendar.js, run for real): Kael\'s player ends his turn and picks the bandit, who goes at once, Kael marked as gone on the host and in the copy his player is sent; a pick of one who has gone, the one on turn or a row not there moves nothing and answers false, and a player\'s pick when it is not their turn is no word; with no pick the next in the order who has not gone goes, and once everyone has gone round 2 starts from the order\'s first with nobody gone, the clock a second on',
+        J(p51) === J(['Bandit', J(['Kael']), J(['Kael']), 1, 43200]) && J(p52) === J([true, false]) && J(p53) === J(['Unit 7', J(['Kael', 'Bandit'])]) && J(p54) === J(['Kael', J([]), 2, 43201]), J([p51, p52, p53, p54]));
+    check('initiative O5 a step back is a correction: back from the bandit picked in round 2 to Kael, nobody gone, then into round 1\'s last turn (Unit 7) with Kael and the bandit gone and the clock back a second; on again, round 2 from Kael, the clock where it was, nothing counted twice and no round, turn start or turn end hook run again',
+        J(p55) === J(['Bandit', J(['Kael'])]) && J(p56) === J(['Kael', J([]), 2]) && J(p57) === J(['Unit 7', J(['Kael', 'Bandit']), 1, 43200]) && J(p58) === J(['Kael', 2, 43201, true, true]), J([p55, p56, p57, p58, hk5]));
+    check('initiative O5 the last to act may pick who opens the next round, themselves too: the bandit, last in round 2, opens round 3; each pick is in the Session Log, the player\'s by their character\'s name; there is no Hold and no Act from a hold while the next is chosen',
+        J(p59) === J(['Bandit', 'Bandit', 3, J([]), ['Kael picked Bandit to go next on Docks', 'The GM picked Bandit to go next on Docks', 'The GM picked Bandit to go first in round 3 on Docks']]) && J(p510) === J([false, false, 'Bandit']), J([p59, p510]));
+    check('initiative O5 a player picks by the copy they are sent: a row they read as Hidden by its place (h1, Unit 7), never by its real id, which their copy does not hold; a roster edit that turns the order round keeps who has gone by each row\'s id, the row on turn kept',
+        J(p511) === J([J(['rt_kael', 'h1', 'c_bandit']), 'Kael', 'Unit 7', J(['Kael']), 0]) && J(p512) === J(['Unit 7', J(['Bandit', 'Kael']), J(['Bandit', 'Unit 7', 'Kael'])]) && P5.out.errs.length === 0, J([p511, p512, P5.out.errs.slice(0, 2)]));
+    const Q5 = mkT(), fQ5 = Q5.net.fightSet(null, docks(chRows())); Q5.api.turnEnd({ type: 'turn-end', mapId: 'mDocks', row: 'rt_kael', pick: 'c_bandit' }, Q5.conns[0]);
+    const cQ5 = Q5.net.combats[fQ5], q5 = [cQ5.rows[cQ5.turn].name, cQ5.rows.some(r => 'dn' in r), 'ps' in cQ5, 'pp' in cQ5, Q5.conns[0].sent.filter(x => x.type === 'combats').some(m => /"dn"/.test(J(m))), Q5.net.fightHold(fQ5)];
+    check('initiative O5 a system without Next is chosen works as before: a pick a player names is no word and their End turn goes to the next in the order; no row is marked, nothing of it is kept or sent, and Hold works',
+        J(q5) === J(['Unit 7', false, false, false, false, true]), J(q5));
     const errs = [A, B, C2, D, E, W, G, L, H4, X, Y, R, D2w, Qw, Mw, Vw, Frw, Lxw, Axw].reduce((acc, w) => acc.concat(w.out.errs), []);
     check('152 fold 4 (source): the clock\'s old hooks are gone; ordersMoved is the one coordinator, asked by a fight\'s start or roster edit, a step that changes its round and an end, each once; a player\'s End turn and hold step their fight as a player; the session takes its second away; calendar.js counts a character\'s span only through livedSpans, in spansOf (which ownTime and moveTo ask), and has no rounds or fightEnded; no world above logged an error',
         !/clockRounds|clockFightEnd/.test(src) && (src.match(/ordersMoved\(/g) || []).length === 4 && /if \(tg\) ordersMoved\(had \? 'edit' : 'start', tg\);/.test(src) && /if \(tg\) ordersMoved\('step', tg\);/.test(src) && /ordersMoved\('end', endO\);/.test(src)
-        && src.includes("fightStep(fidT, 1, 'player');") && src.includes("fightHold(fidH, 'player');") && src.includes('net.fightOn = null; net.second = null;')
+        && src.includes("fightStep(fidT, 1, 'player', pkT);") && src.includes("fightHold(fidH, 'player');") && src.includes('net.fightOn = null; net.second = null;')
         && (calJs.match(/livedSpans\(/g) || []).length === 2 && !/function rounds\(|fightEnded|roundPend/.test(calJs) && errs.length === 0, J(errs.slice(0, 3)));
 })());
     /* ---- 1.5.6, backlog 173: a player's time rule notes, as they chose (the timenote slice, run for real) ---- */

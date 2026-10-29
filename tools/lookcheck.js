@@ -2976,6 +2976,46 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && J(tf.log) === J(['step f_dock0001 1', 'step f_dock0002 1', 'roster mDocks {"fid":"f_dock0002"}', 'end f_dock0002', 'step f_dock0002 1', 'roster mDocks {"fresh":true}', 'roster mDocks {}'])
         && J(tf.sela) === J(['2 of 2', 'Sela', '1 of 2', 'Kael', 0]) && J(tf.kael) === J(['1 of 2', 'Kael']) && J(tf.one) === J([null, 'Kael', true]) && J(tf.none) === J(['', true, false]), tfErr || J(tf));
 
+    // initiative O5 (backlog 34; the owner, by prompt, 2026-10-29: "A Turn order choice"): Next is chosen on the turn strip. Up next is the next in the
+    // order who has not gone; Pick next lists those who may go next, for the GM at any time and for a player at their own turn; a pick is the host's to judge
+    let pn = {}, pnErr = '';
+    try {
+        const cutP = (a, z) => { const i = wbSrc.indexOf(a), k = wbSrc.indexOf(z, i + 1); return i >= 0 && k > i && count(wbSrc, a) === 1 ? wbSrc.slice(i, k) : ''; };
+        const stripP = cutP('function renderCombatStrip() {', '\nwindow.wpRenderCombatStrip = renderCombatStrip;'), wireP = cutP('(function wireCombatStrip() {', '\n// [lookcheck:combatfind-start]');
+        const fhP = (() => { const i = wbSrc.indexOf('function fightsHere('); return i < 0 ? '' : wbSrc.slice(i, wbSrc.indexOf('\n', i)); })(), escP = (/\n  (function esc\(s\)\{return [^\n]*\})\n/.exec(read('scripts/inspector.js')) || [])[1] || '', ordP = ordersOf(read('scripts/net.js'));
+        const coreP = read('scripts/systemcore.js'), coreA = coreP.indexOf('// Initiative O5 (backlog 34;'), coreZ = coreP.indexOf('\nvar API = {', coreA);
+        const CH = new Function('isObj', coreP.slice(coreA, coreZ) + '\nreturn { chosenPicks: chosenPicks, chosenNext: chosenNext };')(v => !!v && typeof v === 'object' && !Array.isArray(v));
+        const world = o => {
+            o = o || {}; const log = [];
+            const map = { id: 'mDocks', type: 'map', meta: { title: 'Docks' }, whiteboard: [{ id: 't_kael', isChar: true, ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }, { id: 't_u7', isChar: true, x: 100, y: 0, w: 50, h: 50 }] };
+            const camp = { id: 'k', activeItemId: 'mDocks', items: { mDocks: map }, players: {}, system: { combat: o.off ? {} : { initiative: { chosen: true } } } };
+            const rows = [{ id: 'rt_kael', name: 'Kael', tokId: 't_kael' }, { id: 'rt_u7', name: 'Unit 7', tokId: 't_u7' }, { id: 'c_bandit', name: 'Bandit <b>', tokId: null }];
+            (o.dn || []).forEach(i => { rows[i].dn = 1; });
+            const net = { active: true, role: o.role || 'host', myId: o.me || 'u_gm', combats: { f_dock0001: { id: 'f_dock0001', mapId: 'mDocks', round: 2, turn: o.turn || 0, n: 1, rows } }, notepad: { on: false }, targets: {} };
+            net.myTurnTok = () => (o.mine ? { mapId: 'mDocks', fid: 'f_dock0001', rowId: 'rt_kael', tok: map.whiteboard[0] } : null);
+            new Function('net', 'getActiveCampaign', ordP)(net, () => camp);
+            Object.assign(net, { fightStep: (id, d, by, pk) => { log.push('step ' + id + ' ' + d + ' ' + by + ' ' + pk); return 1; }, fightHold: id => log.push('hold ' + id), turnEnd: pk => { log.push('turnEnd ' + pk); return { ok: true }; } });
+            let html = ''; const strip = { style: {}, dataset: {}, on: {}, get innerHTML() { return html; }, set innerHTML(v) { html = v; }, addEventListener(t, f) { (this.on[t] = this.on[t] || []).push(f); } };
+            const api = new Function('document', 'window', 'state', 'getActiveMap', 'getActiveCampaign', 'toast', 'resolveImg', 'setTimeout', 'clearTimeout', 'openCombatModal',
+                escP + '\n' + fhP + '\n' + sliceOf(wbSrc, 'stripfight') + '\n' + sliceOf(wbSrc, 'combatfind') + '\n' + stripP + '\n' + wireP + '\nreturn { draw: renderCombatStrip };')(
+                { getElementById: id => (id === 'combatStrip' ? strip : null) }, { wpNet: net, wpSystemCore: CH }, { viewMode: 'visual', zoomLevel: 1, wbEls: {} }, () => map, () => camp, t => log.push('toast ' + t), s => s, () => 0, () => {}, () => {});
+            const press = (act, row) => { const b = { dataset: row === undefined ? { act } : { act, row } }; (strip.on.click || []).forEach(f => f({ target: { closest: q => (q === '.combat-strip-btn' ? b : null) }, stopPropagation() {} })); };
+            const picks = () => { const m = /<span class="combat-strip-picks">(.*?)<\/span>/.exec(html); return m ? (m[1].match(/data-row="[^"]*"[^>]*>[^<]*/g) || []).map(x => x.replace(/data-row="([^"]*)" title="([^"]*)">(.*)/, '$1|$2|$3')) : null; };
+            api.draw(); return { log, html: () => html, press, picks, strip };
+        };
+        const G = world({ turn: 1, dn: [0] }), g0 = G.html(); G.press('pickopen'); const gp = G.picks(), gNext = /class="combat-strip-btn combat-strip-pick is-next" data-act="pick" data-row="c_bandit"/.test(G.html()); G.press('pick', 'c_bandit');
+        pn.gm = [/data-act="pickopen"/.test(g0), /data-act="hold"/.test(g0), /next <button[^>]*>Bandit &lt;b&gt;<\/button><\/span>/.test(g0) || /next Bandit &lt;b&gt;<\/span>/.test(g0), gp, gNext, G.log.slice(), G.picks(), G.strip.wpPickOpen];
+        const R = world({ turn: 1, dn: [0, 2] }); R.press('pickopen'); pn.round = [/, opening round 3<\/span>/.test(R.html()), R.picks()];
+        const K = world({ role: 'client', me: 'u_a', mine: true }), k0 = K.html(); K.press('pickopen'); const kp = K.picks(); K.press('pick', 'rt_u7');
+        pn.kael = [/data-act="endturn" title="End your turn: play moves on to the next in the order who has not gone. Pick next chooses another"/.test(k0), /data-act="pickopen" title="[^"]*It ends your turn"/.test(k0), kp, K.log.slice()];
+        const S2 = world({ role: 'client', me: 'u_b' }); pn.other = [/data-act="pickopen"/.test(S2.html()), /data-act="hold"/.test(S2.html())];
+        const OFF = world({ off: true }); pn.off = [/data-act="pickopen"/.test(OFF.html()), /data-act="hold"/.test(OFF.html()), /next <button[^>]*>Unit 7<\/button><\/span>/.test(OFF.html())];
+    } catch (e) { pnErr = String(e && e.stack || e); }
+    check('initiative O5 the turn strip\'s Pick next (whiteboard.js run for real over net.js\'s orders slice and systemcore\'s chosenNext and chosenPicks): the GM\'s strip says the next in the order who has not gone and has Pick next, no Hold; its list holds those not gone less the one on turn, names as text, the next marked; a press steps that fight with the pick and closes the list; with everyone gone it says the round to come and lists everyone; a player on turn has Pick next and End turn saying so, and their pick ends their turn with it; a player not on turn has neither; a system without it shows Hold and the plain next',
+        pnErr === '' && J(pn.gm) === J([true, false, true, ['c_bandit|Bandit &lt;b&gt; goes next|Bandit &lt;b&gt;'], true, ['step f_dock0001 1 undefined c_bandit'], null, null])
+        && J(pn.round) === J([true, ['rt_kael|Kael opens round 3|Kael', 'rt_u7|Unit 7 opens round 3|Unit 7', 'c_bandit|Bandit &lt;b&gt; opens round 3|Bandit &lt;b&gt;']])
+        && J(pn.kael) === J([true, true, ['rt_u7|Unit 7 goes next|Unit 7', 'c_bandit|Bandit &lt;b&gt; goes next|Bandit &lt;b&gt;'], ['turnEnd rt_u7']]) && J(pn.other) === J([false, false]) && J(pn.off) === J([false, true, true]), pnErr || J(pn));
+
     // fold 2's review: the board's ring on a token whose turn it is (whiteboard.js onTurnHere, run for real over net.js's own orders slice) goes on a token
     // on turn in ANY fight on the map; the board asks it for every token
     let ot = null, otErr = '';

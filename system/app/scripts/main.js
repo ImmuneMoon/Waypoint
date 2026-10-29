@@ -202,6 +202,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (window.wpCharList) window.wpCharList.sync();
       if (window.wpNotices) window.wpNotices.sync();
       if (window.wpPills) window.wpPills.sync();
+      if (window.wpTrackers) window.wpTrackers.draw();   // backlog 29: the table trackers' strip (trackers.js)
   }
 
   export function render() {
@@ -327,6 +328,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (window.wpCharList) window.wpCharList.sync();   // the left panel's Characters section (charlist.js): every change of a character ends in a redraw, and the list is drawn again only when it changed
       if (window.wpNotices) window.wpNotices.sync();   // 1.5.5: the bell's number, for the campaign on screen (notices.js)
       if (window.wpPills) window.wpPills.sync();   // and its state pills (pills.js): the view, the map on screen
+      if (window.wpTrackers) window.wpTrackers.draw();   // backlog 29: and the table trackers' strip (trackers.js): the view, the map on screen
 
       if (isPlanner) {
 

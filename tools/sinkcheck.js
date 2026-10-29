@@ -5521,6 +5521,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && j(r3.items) === j([['Yourself', 'On <b>Kael</b>'], [BAD, 'Next to you']]) && [r1, r2, r3].every(r => r.world.markup === 0),
             j([r1.items, r1.got, r2.got, r3.items, [r1, r2, r3].map(r => r.world.markup)]));
     }
+    // Backlog 29 (1.6.0): a tracker's pill (trackers.js clockSvg and pill, sliced by their trkpill markers and run for real on the boxdom page,
+    // which refuses markup) draws a name from a file or a host as text, a colour only from trackcore's fixed list, and a clock from numbers alone
+    {
+        const TKs = await import(modUrl('trackcore.js')), { makeDom } = require('./boxdom.js'), dom = makeDom();
+        const trS = fs.readFileSync(path.join(dir, 'trackers.js'), 'utf8').replace(/\r\n/g, '\n');
+        const a = trS.indexOf('// [sinkcheck:trkpill-start]'), b = trS.indexOf('// [sinkcheck:trkpill-end]');
+        let P = null, err = '';
+        try {
+            P = new Function('document', 'TK', 'clockT', 'dayLen', 'SVG', 'el', 'btn', trS.slice(a, b) + '\nreturn pill;')(dom.document, () => TKs, () => 0, () => 86400, 'http://www.w3.org/2000/svg',
+                (tag, cls, text) => { const e = dom.document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; },
+                (cls, text, tip) => { const e = dom.document.createElement('button'); e.className = cls; e.textContent = text; e.type = 'button'; if (tip) e.dataset.tip = tip; return e; });
+        } catch (e) { err = String(e && e.stack || e); }
+        const evil = '<img src=x onerror=alert(1)>"' + String.fromCharCode(10) + 'x';
+        const raw = [{ id: 'a', kind: 'count', name: evil, color: 'red;background:url(http://x)', v: 3, vis: 'all' }, { id: 'b', kind: 'clock', name: evil, color: 'violet', parts: 6, fill: 2 }, { id: 'c', kind: 'timer', name: evil, total: 9000, run: true, end: 4000 }];
+        const ts = TKs.cleanTrackers(raw, {}), out = [];
+        let ok = !err && ts.length === 3;
+        if (ok) ts.forEach(t => [true, false].forEach(gm => { const p = P(t, gm, {}, 1000); out.push(p); }));
+        const all = []; out.forEach(p => { (function walk(n) { all.push(n); (n.childNodes || []).forEach(walk); })(p); });
+        const names = out.map(p => p.querySelector('.trk-name')), dots = out.map(p => p.querySelector('.trk-dot').style.background), cols = Object.keys(TKs.COLORS).map(k => TKs.COLORS[k]);
+        const paths = all.filter(n => n.tagName === 'PATH').map(n => n.attrs.d), fills = all.filter(n => n.tagName === 'PATH').map(n => n.attrs.fill);
+        check('backlog 29 a tracker\'s pill (trackers.js clockSvg and pill, sliced by their trkpill markers and run for real on a page that refuses markup): a name from a file or a host is one line of text, never markup, on the GM\'s pill and a player\'s; the colour dot is only one of trackcore\'s fixed colours whatever the file said; a clock is drawn from numbers alone; no tooltip carries the name',
+            ok && out.length === 6 && names.every(n => n && n.childNodes.length === 1 && n.childNodes[0].nodeType === 3 && n.textContent === TKs.cleanTracker({ id: 'z', kind: 'count', name: evil }, {}).name)
+            && dots.every(c => cols.indexOf(c) >= 0) && dots[0] === TKs.COLORS.gold && paths.length === 12 && paths.every(d => /^M10 10L[0-9. ]+A8\.5 8\.5 0 0 1 [0-9. ]+Z$/.test(d)) && fills.every(f => f === 'none' || cols.indexOf(f) >= 0)
+            && all.every(n => !n.dataset || !n.dataset.tip || n.dataset.tip.indexOf('<img') < 0) && out.filter(p => p.querySelector('.trk-gm')).length === 2 && out[1].querySelector('button') === null,
+            err || JSON.stringify([names.map(n => n && n.textContent), dots, paths.slice(0, 2)]));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

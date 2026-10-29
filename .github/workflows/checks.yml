@@ -102,6 +102,9 @@ jobs:
       - name: scenecheck — a picture shown big to the table, the GM box, the player window, the wire and the pill
         if: ${{ !cancelled() }}
         run: node tools/scenecheck.js
+      - name: trackcheck — the table trackers, the pure core, the strip, the stream window and the pins
+        if: ${{ !cancelled() }}
+        run: node tools/trackcheck.js
       - name: voicecheck — voice chat's pure core, the host's hub and a player's link on stub connections
         if: ${{ !cancelled() }}
         run: node tools/voicecheck.js

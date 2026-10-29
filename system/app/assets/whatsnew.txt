@@ -6,6 +6,17 @@ Campaigns
   with a New map button. Before, the last campaign's map stayed on
   screen. Any campaign with no map shows this screen.
 
+Table trackers
+- Put counters, countdowns and clocks on the play map. + Tracker at the
+  top left of the map adds one. A counter has - and +, a countdown has
+  start and pause, and a clock is a circle of 2 to 12 parts you fill.
+- Each tracker is on this map or every map, and yours alone or shown to
+  the table. One you keep to yourself never leaves your computer. Players
+  see the ones you show, and only you change them.
+- A countdown runs on real time or on the game clock, as you pick.
+- When a countdown runs out or a clock fills, its pill glows and Table
+  Chat says so. The arrow at the start of the strip puts it away.
+
 Scenes
 - Show as a scene... puts a picture big on your players' screens, with no
   need to place it on the map or bring anyone to it. Find it on the

@@ -204,7 +204,7 @@ check('the handout a scene is saved as (handouts.js wpHandoutFor): the one named
         netJs.includes("net.sceneShut = function(id) {\n    if (!net.active || net.role !== 'client' || !net.foreign || typeof id !== 'string' || !id || id.length > 80) return false;")
         && netJs.includes("try { c.send({ type: 'scene-closed', id: id }); return true; } catch (e) { return false; }")
         && pillsJs.includes("(typeof st.scene.shut === 'string' && st.scene.shut ? ' ' + st.scene.shut : '')") && sceneJs.includes('function again() { var n = now(); if (!n) return; n.shut = [];')
-        && sceneJs.includes("if (!_chan || window.wpStream) return;") && count(esc, "'charMenu', 'sceneMenu']") === 1 && count(ix, '<div id="sceneMenu" class="shape-menu" role="menu"') === 1 && count(ix, '<div id="streamScene" style="display:none;">') === 1);
+        && sceneJs.includes("if (!_chan || window.wpStream) return;") && count(esc, "'charMenu', 'sceneMenu', 'trkMenu']") === 1 /* 1.6.0, backlog 29: a tracker's menu after it (moved on purpose) */ && count(ix, '<div id="sceneMenu" class="shape-menu" role="menu"') === 1 && count(ix, '<div id="streamScene" style="display:none;">') === 1);
 }
 {   // the Handouts window's Clear all (the owner, 2026-10-28: "the clear all would still be nice to have")
     const hsrc = read('scripts/handouts.js'), ix = read('index.html'), J = JSON.stringify;

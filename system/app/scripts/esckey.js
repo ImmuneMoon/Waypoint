@@ -33,7 +33,7 @@
 
 // [floatcheck:esc-start]
 var ESC_ASIDE = ['customConfirm', 'customPrompt', 'cleanupAskModal', 'cleanupSummaryModal', 'cleanupMissingModal', 'cleanupBackupModal', 'frameModal', 'genModal', 'cityModal', 'worldModal', 'shotModal', 'imgLibPreview'];
-var ESC_RIGHT = ['contextMenu', 'sidebarContextMenu', 'edgeMenu', 'charMenu', 'sceneMenu'];   // the right-click menus: put away by their display
+var ESC_RIGHT = ['contextMenu', 'sidebarContextMenu', 'edgeMenu', 'charMenu', 'sceneMenu', 'trkMenu'];   // the right-click menus: put away by their display
 var ESC_OWN_MENUS = '#pageNavMenu, #pageLinkMenu, .face-pop, .sheet-dl-pop, .dice-modpop, .sys-glyph-pop, .lib-pick, .rte-symwrap.open';   // menus whose own listener takes Escape
 var ESC_ROW_MENUS = ['campMenu', 'moreMenu', 'notesMenu', 'rowTray'];   // the top row's (toprow.js): put away by hidden
 var ESC_TOOL_OPTS = ['drawMenu', 'eraserMenu', 'fillMenu', 'measureMenu', 'blastMenu', 'buildMenu'];   // a tool's options: a menu the first Escape closes, the tool staying in hand; a field of theirs keeps its own Escape first (the Radius tool's two boxes)
@@ -49,7 +49,7 @@ var ESC_WINDOWS = [['helpModal', 'helpCloseBtn'], ['settingsModal', 'settingsClo
 var ESC_BOXES = ['sheetPanel', 'fxPanel', 'videoPanel', 'docPanel', 'dicePanel'];   // floating boxes that answer Escape when the focus is in them (a HUD too)
 // Table Chat, the table notepad, Sound and Music: closed on Escape as a window is, while the focus is in one of them or it is the box last
 // used (the owner, 2026-10-17, by prompt: "Yes, when on top (Recommended)"). One whose module is not there to close it keeps its fields' keys
-var ESC_LAST = ['chatPanel', 'notepadPanel', 'soundPanel', 'musicPanel', 'timePanel'];
+var ESC_LAST = ['chatPanel', 'notepadPanel', 'soundPanel', 'musicPanel', 'timePanel', 'trkPanel'];
 
 function escEach(list, fn) { if (list) for (var i = 0; i < list.length; i++) fn(list[i]); }
 // Shown: drawn on the page (a box that is put away, or inside one, has no box to draw)
@@ -121,7 +121,8 @@ function escLastBoxes(doc, win) {
         notepadPanel: N && typeof N.notepadAway === 'function' ? function() { N.notepadAway(); } : null,
         soundPanel: S && typeof S.closePanel === 'function' ? function() { S.closePanel(); } : null,
         musicPanel: M && typeof M.closePanel === 'function' ? function() { M.closePanel(); } : null,
-        timePanel: function(el) { if (!escPress(doc, 'timeCloseBtn')) el.style.display = 'none'; } };   // 1.6.0, backlog 173: the Time rules panel by its own close
+        timePanel: function(el) { if (!escPress(doc, 'timeCloseBtn')) el.style.display = 'none'; },   // 1.6.0, backlog 173: the Time rules panel by its own close
+        trkPanel: function(el) { if (!escPress(doc, 'trkCloseBtn')) el.style.display = 'none'; } };   // 1.6.0, backlog 29: a tracker's form by its own close
     ESC_LAST.forEach(function(id) { var el = doc.getElementById(id), fn = shut[id]; if (fn && escShown(el)) out.push({ el: el, close: function() { fn(el); } }); });
     return out;
 }

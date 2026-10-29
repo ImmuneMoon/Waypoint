@@ -17251,6 +17251,58 @@ pendingChecks.push((async () => {
         (src.match(/if \(typeof linkTell === 'function'\) linkTell\(id\);/g) || []).length === 2 && (src.match(/\(typeof withLinkFigs === 'function' \? withLinkFigs : function\(v0\) \{ return v0; \}\)\(withHoverLines\(/g) || []).length === 2
         && (src.match(/linkSet\(/g) || []).length === 1 && lkS.indexOf('Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, { player: true, pid: profK.id })') > lkS.indexOf("denyK('owner')"));
 })());
+// Backlog 29 (1.6.0): the table trackers on the wire — the host's sync (sliced by its trksync markers) and a player's branch (trkmsg), each run
+// for real over the real trackcore. A GM-only tracker is in no message, a player is sent their map's and every map's, a host has no branch
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const TKx = await import(url('trackcore.js')), ownT = (o, k) => !!o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k) && o[k] != null;
+    const syncT = between('// [netcheck:trksync-start]', '// [netcheck:trksync-end]', 'trksync'), rcvT = between('// [netcheck:trkmsg-start]', '// [netcheck:trkmsg-end]', 'trkmsg');
+    const campT = { id: 'k_1', clock: { t: 1000 }, trackers: [
+        { id: 'fear', kind: 'count', name: 'Fear', v: 2, vis: 'all' },
+        { id: 'secret', kind: 'count', name: 'Ambush', v: 5 },
+        { id: 'alarm', kind: 'clock', name: 'Alarm', parts: 6, fill: 1, vis: 'all', map: 'mA' },
+        { id: 'rit', kind: 'timer', name: 'Ritual', total: 60000, run: true, end: 40000, vis: 'all' }] };
+    const mkT = () => {
+        const sent = { a: [], b: [], w: [], c: [] }, logs = [];
+        const net = { active: true, role: 'host', conns: [
+            { peer: 'pA', open: true, send: m => { packCheck(m); sent.a.push(JSON.parse(JSON.stringify(m))); } },
+            { peer: 'pB', open: true, send: m => { packCheck(m); sent.b.push(JSON.parse(JSON.stringify(m))); } },
+            { peer: 'pW', open: true, send: m => sent.w.push(m) }, { peer: 'pC', open: false, send: m => sent.c.push(m) }],
+            roster: { pA: { id: 'u_a', location: 'mA' }, pB: { id: 'u_b', location: 'mB' }, pC: { id: 'u_c', location: 'mA' } } };
+        const win = { wpTrackCore: TKx, wpStepLog: (a, s, f) => logs.push([a, s, f]) };
+        new Function('net', 'getActiveCampaign', 'own', 'validKey', 'sendFailed', 'window', syncT)(net, () => campT, ownT, k => typeof k === 'string' && k.length > 0 && !(k in Object.prototype), e => { throw e; }, win);
+        return { net, sent, logs };
+    };
+    const h = mkT(), n1 = h.net.syncTrackers(10000), n2 = h.net.syncTrackers(20000);
+    const firstA = h.sent.a[0], firstB = h.sent.b[0], txt = JSON.stringify(h.sent);
+    check('backlog 29 the table trackers on the wire (net.syncTrackers, sliced by its trksync markers, run for real): each admitted open player is sent the trackers they may see, those shown to the table on every map and on the map the roster says they stand on; a waiting peer and a closed connection get nothing',
+        n1 === 2 && j(firstA.list.map(t => t.id)) === j(['fear', 'alarm', 'rit']) && j(firstB.list.map(t => t.id)) === j(['fear', 'rit']) && firstA.type === 'trackers' && firstA.campId === 'k_1' && h.sent.w.length === 0 && h.sent.c.length === 0, txt);
+    check('backlog 29 a GM-only tracker is in no message, and neither is a tracker\'s map, its vis or a countdown\'s end: a running countdown goes as its time left when sent',
+        !/Ambush|secret|"map"|"vis"|"end"|mA|mB/.test(txt) && j(firstA.list[2]) === j({ id: 'rit', kind: 'timer', name: 'Ritual', color: 'gold', total: 60000, left: 30000, run: true }), txt);
+    const before = h.sent.a.length; campT.trackers[0].v = 3; const n3 = h.net.syncTrackers(25000);
+    h.net.roster.pB.location = 'mA'; const n4 = h.net.syncTrackers(26000);
+    check('backlog 29 nothing is sent again while nothing a player sees has changed (a running countdown is not sent every second); a change goes to each player who sees it; a player on another map is sent that map\'s list',
+        n2 === 0 && n3 === 2 && h.sent.a.length === before + 1 && h.sent.a[before].list[0].v === 3 && n4 === 1 && j(h.sent.b[h.sent.b.length - 1].list.map(t => t.id)) === j(['fear', 'alarm', 'rit'])
+        && h.logs.length === 3 && h.logs.every(l => l[0] === 'trackers v1' && l[1] === 'sent' && typeof l[2].to === 'number'), j([n2, n3, n4, h.logs]));
+    const savedL = campT.trackers; campT.trackers = savedL.map(t => Object.assign({}, t, { vis: undefined })); const n5 = h.net.syncTrackers(27000); campT.trackers = savedL;
+    const e = mkT(), saved = campT.trackers; campT.trackers = [{ id: 's', kind: 'count', name: 'Only me' }]; const n6 = e.net.syncTrackers(1); campT.trackers = saved;
+    const c = mkT(); c.net.role = 'client'; const n7 = c.net.syncTrackers(1); const o = mkT(); o.net.active = false; const n8 = o.net.syncTrackers(1);
+    const f = mkT(); f.net.syncTrackers(1); f.net.trackersForget('pA'); const n9 = f.net.syncTrackers(1); f.net.trackersForget(); const n10 = f.net.syncTrackers(1);
+    check('backlog 29 every tracker kept to the GM again sends each player an empty list; a campaign whose trackers are all the GM\'s own sends no message at all (a first empty list is never sent); a client or a host off its table sends nothing; a forgotten player is sent their list again',
+        n5 === 2 && h.sent.a[h.sent.a.length - 1].list.length === 0 && n6 === 0 && e.sent.a.length === 0 && e.sent.b.length === 0 && n7 === 0 && c.sent.a.length === 0 && n8 === 0 && n9 === 1 && n10 === 2, j([n5, n6, n7, n8, n9, n10]));
+    const runT = (msg, peer, o2) => { o2 = o2 || {}; const got = [];
+        new Function('net', 'conn', 'msg', 'state', 'window', rcvT)(Object.assign({ role: 'client', foreign: true, syncedPeer: 'host1', stream: false }, o2.net || {}), { peer }, msg, { appState: { activeCampaignId: 'k_1' } },
+            { wpTrackCore: TKx, wpTrackers: { receive: (l, at) => got.push(l) } });
+        return got; };
+    const good = runT({ type: 'trackers', campId: 'k_1', list: [{ id: 'a', kind: 'count', name: 'Fear', v: 2, map: 'mA', vis: 'all', junk: '<img>' }, { id: '__proto__', kind: 'count' }, { id: 'r', kind: 'timer', total: 9000, left: 4000, run: true, end: 5 }, 'x'] }, 'host1');
+    const nos = [runT({ type: 'trackers', campId: 'k_1', list: [] }, 'other'), runT({ type: 'trackers', campId: 'k_2', list: [] }, 'host1'), runT({ type: 'trackers', campId: 'k_1', list: [] }, 'host1', { net: { stream: true } }),
+        runT({ type: 'trackers', campId: 'k_1', list: [] }, 'host1', { net: { foreign: false } }), runT({ type: 'trackers', campId: 'k_1', list: 'x' }, 'host1'), runT({ type: 'trackers', campId: 5, list: [] }, 'host1')];
+    check('backlog 29 a player\'s app takes the trackers (the trkmsg branch, run for real) from the synced host only, for the campaign on screen only, never in the stream window, cleaned again as a player\'s copy: no map, no vis, no end, nothing else; a list that is no list is nothing',
+        good.length === 1 && j(good[0]) === j([{ id: 'a', kind: 'count', name: 'Fear', color: 'gold', v: 2 }, { id: 'r', kind: 'timer', name: 'Countdown', color: 'gold', total: 9000, left: 4000, run: true }]) && nos.every(g => g.length === 0), j([good, nos]));
+    check('backlog 29 a host has NO branch for \'trackers\' (a player never sets one), the join snapshot never carries them (sanitizeAppState deletes them) and a host starting afresh forgets what it sent',
+        !/msg\.type === 'trackers' && net\.role === 'host'/.test(src) && /delete camp\.videos;[^\n]*\n\s*delete camp\.trackers;/.test(src) && /net\._lastClockSig = null;[^\n]*\n\s*net\.trackersForget\(\);/.test(src)
+        && src.includes("if (snapOk && typeof net.trackersForget === 'function') { net.trackersForget(conn.peer); trkSendTo(conn, Date.now()); }"));
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */
     {

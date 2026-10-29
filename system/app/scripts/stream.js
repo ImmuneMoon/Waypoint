@@ -96,6 +96,7 @@ if (on) {
         try { data = await (await fetch('/api/data', { cache: 'no-store' })).json(); } catch (e) { return; }
         if (!data || !data.campaigns || !Object.keys(data.campaigns).length) return;
         var seenBy = Object.create(null); Object.keys(data.campaigns).forEach(function(id) { seenBy[id] = lastSeen(data.campaigns[id]); });
+        var rawTk = data.activeCampaignId && data.campaigns[data.activeCampaignId] ? data.campaigns[data.activeCampaignId] : null;   // backlog 29: the trackers, read before the copy for players drops them
         var clean = net.sanitizeAppState(data);
         var campId = clean.activeCampaignId && clean.campaigns[clean.activeCampaignId] ? clean.activeCampaignId : Object.keys(clean.campaigns)[0];
         var camp = clean.campaigns[campId];
@@ -138,6 +139,7 @@ if (on) {
         }
         refreshSelect(camp);
         refreshCharSelect(camp);
+        streamTrackers(rawTk && rawTk.id === campId ? rawTk : null, want, Date.now());
     }
     try {
         var hChan = new BroadcastChannel('waypoint');
@@ -163,6 +165,18 @@ if (on) {
         } catch (e) {}
     }
 }
+// [trackcheck:stream-start]
+// Backlog 29: the stream window shows the table trackers shown to the table, on every map and on the map it shows, as a player is sent them
+// (trackcore wireFor, cleaned again as a player's copy). A GM-only tracker never: this window is the party's view
+function streamTrackers(camp, mapId, now) {
+    var TK = typeof window !== 'undefined' ? window.wpTrackCore : null, T = typeof window !== 'undefined' ? window.wpTrackers : null; if (!TK || !T || typeof T.receive !== 'function') return null;
+    var ck = camp && camp.clock && typeof camp.clock.t === 'number' && isFinite(camp.clock.t) ? camp.clock.t : 0;
+    var list = camp ? TK.cleanTrackers(TK.wireFor(TK.cleanTrackers(camp.trackers), mapId, now, ck), { wire: true }) : [];
+    var sig = JSON.stringify(TK.wireSig(TK.cleanTrackers(camp ? camp.trackers : null), mapId, now, ck));
+    if (sig === streamTrackers.sig) return list; streamTrackers.sig = sig;
+    T.receive(list, now); return list;
+}
+// [trackcheck:stream-end]
 // [scenecheck:stream-start]
 // Backlog 181: a scene shown to everyone, as the main window says it over BroadcastChannel (scene.js stagePost). Another window's data: the
 // picture only as a path of the campaign's own pictures, the title and the caption as text; anything else takes the scene down

@@ -1078,6 +1078,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         delete camp.library;  // the item library's manifest (Stage 6 L1c): the GM's; a player holds only the copies the host puts on their rows
         delete camp.uploads;  // Stage 6 U2: the GM's queue of players' sheet uploads to review
         delete camp.videos;   // item 21: the video library is the GM's alone (a video reaches players as a live stream, never as a file or a list)
+        delete camp.trackers; // backlog 29: the table trackers go to each player as the list they may see ('trackers', trkSendTo), never raw in the snapshot
         if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colors) so a player's Handbook matches; the client re-validates at render too
         var libFx = fxLib(camp.system), libIt = itemLib(camp.system), fullSys = camp.system;   // 5h / Stage 6: the full libraries (and F6: the full system), before the players' view replaces the system (a GM-only effect or item reaches its owner inline)
         if (camp.id === c.activeCampaignId && camp.system && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): the hosted campaign's system travels as the players' view, GM-only fields gone
@@ -2825,6 +2826,31 @@ net.syncTurnRules = function() {
     net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
 // [netcheck:turnrulessync-end]
+// [netcheck:trksync-start]
+// Backlog 29 (1.6.0): the table trackers. Each admitted player is sent the trackers they may see (trackcore wireFor: shown to the table, on
+// every map or on the map the roster says they stand on), as one list, after their snapshot and again whenever that list changes for them
+// (wireSig, kept per connection: a running real countdown is sent at its start and its stops, never every second). A GM-only tracker is in no
+// message, and neither is a tracker's map. A first list that is empty is not sent. A host has NO branch for 'trackers': a client never sets them
+var _trkSig = Object.create(null);
+function trkList(camp) { var TK = window.wpTrackCore; return camp && TK && TK.cleanTrackers ? TK.cleanTrackers(camp.trackers) : []; }
+function trkClockT(camp) { return camp && camp.clock && typeof camp.clock.t === 'number' && isFinite(camp.clock.t) ? camp.clock.t : 0; }
+function trkSendTo(conn, now) {
+    var camp = getActiveCampaign(), TK = window.wpTrackCore; if (!camp || !TK || !TK.wireFor || !conn || !conn.open || !own(net.roster, conn.peer)) return false;
+    var p = net.roster[conn.peer], where = validKey(p.location) ? p.location : null, t = typeof now === 'number' ? now : Date.now(), list = trkList(camp), ck = trkClockT(camp);
+    var sig = camp.id + '\n' + TK.wireSig(list, where, t, ck), was = Object.prototype.hasOwnProperty.call(_trkSig, conn.peer) ? _trkSig[conn.peer] : null;
+    if (was === sig) return false;
+    var out = TK.wireFor(list, where, t, ck);
+    if (was === null && !out.length) { _trkSig[conn.peer] = sig; return false; }   // nothing to show and nothing shown: no message at all
+    try { conn.send({ type: 'trackers', campId: camp.id, list: out }); _trkSig[conn.peer] = sig; return true; } catch (e) { sendFailed(e, 'trackers'); return false; }
+}
+net.syncTrackers = function(now) {
+    if (!net.active || net.role !== 'host') return 0;
+    var n = 0; net.conns.forEach(function(c) { if (trkSendTo(c, now)) n++; });
+    if (n && typeof window.wpStepLog === 'function') window.wpStepLog('trackers v1', 'sent', { to: n });
+    return n;
+};
+net.trackersForget = function(peer) { if (typeof peer === 'string') delete _trkSig[peer]; else _trkSig = Object.create(null); };
+// [netcheck:trksync-end]
 // Onboarding F1a: the campaign's rules for players without a character (a waiting token or none; its sight under fog) — in the snapshot
 // with the campaign (camp.newPlayers, stored only when not the default), and on a change mid-session once, admitted peers only; the host
 // then settles every player's waiting token. A host has NO branch for 'newPlayers': a client never sets the table's rules.
@@ -4296,7 +4322,7 @@ function rosterPayload() {
     });
     return out;
 }
-function broadcastRoster() { broadcast({ type: 'roster', roster: rosterPayload(), away: awayMap() }, null); }
+function broadcastRoster() { broadcast({ type: 'roster', roster: rosterPayload(), away: awayMap() }, null); if (typeof net.syncTrackers === 'function') net.syncTrackers(); }   // backlog 29: a player on another map is sent that map's trackers
 // [netcheck:roster-end]
 
 // Is this player currently on the given map? (self is always present to itself)
@@ -4997,6 +5023,13 @@ net.timeRunLine = function(run) {
 };
 net.timeNotesNow = function() { var mode = timeNotesMode(); if (mode === 'off') { _timeBuf.length = 0; if (_timeTimer) { clearTimeout(_timeTimer); _timeTimer = null; } } else timeFlush(); };
 // [netcheck:timenote-end]
+// Backlog 29: a tracker reached its end. Each machine that sees the tracker says it for itself (trackers.js), so the line is this machine's
+// own: a whisper, which no join's history holds (chatHistoryOf), never sent. None in the stream window
+net.trackerLine = function(text) {
+    if (net.stream || typeof text !== 'string' || !text) return false;
+    pushChat({ type: 'chat', scope: 'whisper', from: { id: 'tracker', name: 'Tracker' }, text: text.slice(0, 200), ts: Date.now(), trk: true });
+    return true;
+};
 function fxCombatChars(mapId, combat) { var camp = getActiveCampaign(); if (!camp || !camp.system) return []; var S = SC(), mp = camp && camp.items && own(camp.items, mapId) ? camp.items[mapId] : null; return S && S.combatChars && mp ? S.combatChars(mp, combat, camp.chars || {}).map(function(e) { return camp.chars[e.charId]; }).filter(Boolean) : []; }
 function turnFxStart(mapId, c) {   // the character whose turn begins: a round of its timed effects passes, once in each round of that fight (fold 3: c.turned, so two rows of one sheet count once)
     var camp = getActiveCampaign(), row = c && Array.isArray(c.rows) ? c.rows[c.turn] : null; if (!camp || !row) return;
@@ -6294,6 +6327,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (snapOk && typeof hidNoteAll === 'function') hidNoteAll();   // hidden pieces: the drawings of theirs the GM hid, which this copy lacks
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
     var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) { sendFailed(e); } net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
+    if (snapOk && typeof net.trackersForget === 'function') { net.trackersForget(conn.peer); trkSendTo(conn, Date.now()); }   // backlog 29: the table trackers this player may see, after their snapshot
     var mm = net.musicMessage(); if (mm) { try { conn.send(mm); } catch (e) { sendFailed(e); } net._lastMusicSig = musicSig(mm); }   // the hosted campaign's music library, to this peer only (before any control so its refs validate)
     var mc = window.wpMusic && window.wpMusic.controlSnapshot ? window.wpMusic.controlSnapshot() : null; if (mc) { mc.type = 'music-ctl'; try { conn.send(mc); } catch (e) { sendFailed(e); } }   // if the GM is driving the table's music now, catch this joiner up (fresh position)
     var sysm = net.systemMessage(); if (sysm) { net._lastSystemSig = quickHash(JSON.stringify(sysm.system)); net._lastSensesSig = sensesSigOf(sysm); }   // the snapshot carried the system, its senses too: no re-send on the next save
@@ -6947,6 +6981,7 @@ function handleMessage(msg, conn) {
         // [netcheck:snapkey-end]
         applySnapshot(msg);   // after gmId: the settings refresh inside it keys this table's off-list by campaign + GM
         syncSessionButtons();
+        if (window.wpTrackers && typeof window.wpTrackers.receive === 'function') window.wpTrackers.receive([], 0);   // backlog 29: a whole campaign from the host: none of its trackers until it sends them
         var webJ = typeof webJoinOnly === 'function' && webJoinOnly();   // 1.5.5: a website's plan that joins tables alone has no campaign of the player's own to speak of (webmode.js)
         setStatus(webJ ? 'Connected. You are at the GM’s table.' : 'Connected — you are at the GM’s table. Your own campaigns are untouched and come back when you leave the session.');   // the owner, 2026-10-04: a player asked where their own campaigns had gone
         var backS = conn.wpRetry === true && !conn.wpBackSaid; conn.wpBackSaid = true;
@@ -7838,6 +7873,16 @@ function handleMessage(msg, conn) {
         var fgIn = !ckIn && CCk.cleanDateFig ? CCk.cleanDateFig(msg.date) : null; if (fgIn) campCk.dateFig = fgIn; else delete campCk.dateFig;   // 1.6.0: the date's numbers alone, while no clock is sent
         if (window.wpCalendar) window.wpCalendar.refresh();
         // [netcheck:clockmsg-end]
+    } else if (msg.type === 'trackers' && net.role === 'client') {
+        // [netcheck:trkmsg-start]
+        // backlog 29: the table trackers this player may see, from the synced host only, for the campaign on screen, never in the stream window;
+        // cleaned again as a player's copy (trackcore cleanTrackers with wire: no map, no vis, no end) and drawn by trackers.js, never stored
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
+        var TKm = window.wpTrackCore; if (!TKm || !TKm.cleanTrackers || !Array.isArray(msg.list)) return;
+        var trkIn = TKm.cleanTrackers(msg.list, { wire: true });
+        if (window.wpTrackers && typeof window.wpTrackers.receive === 'function') window.wpTrackers.receive(trkIn, Date.now());
+        // [netcheck:trkmsg-end]
     } else if (msg.type === 'fogDiff' && net.role === 'client') {
         // [netcheck:fogdiff-start]
         // Fold M: the host catching this player's copy of one fogged map up in place (applyFogDiff): from the synced host only, never in the
@@ -8857,6 +8902,7 @@ function startHosting(forceFresh) {
     net._lastDocStyleSig = null; // and the campaign's document look
     net._lastNewPlayersSig = null; // and the rules for players without a character (Onboarding F1a)
     net._lastClockSig = null;    // and the campaign's clock (item 20 K2)
+    net.trackersForget();        // and the table trackers each player was sent (backlog 29)
     setStatus((resumed ? 'Resuming host with your last room code...' : 'Starting host...') + relayNote());
     relayWarn();   // transport: relay-only switched on with no relay on this machine connects directly — said, never implied otherwise
     // [netcheck:hostpeer-start]
@@ -9665,7 +9711,7 @@ function renderChat() {
     var frag = document.createDocumentFragment();
     chatLog.forEach(function(m) {
         var node = null;
-        try { node = m.roll ? (window.wpDice ? window.wpDice.renderCard(m) : null) : m.apply ? (window.wpDice && window.wpDice.renderApply ? window.wpDice.renderApply(m) : null) : m.due ? (window.wpDice && window.wpDice.renderDue ? window.wpDice.renderDue(m) : null) : m.trun && window.wpTimePanel && window.wpTimePanel.renderLine ? window.wpTimePanel.renderLine(m) : chatEntryNode(m); } catch (e) { node = null; }   // one bad entry never blanks the panel
+        try { node = m.roll ? (window.wpDice ? window.wpDice.renderCard(m) : null) : m.apply ? (window.wpDice && window.wpDice.renderApply ? window.wpDice.renderApply(m) : null) : m.due ? (window.wpDice && window.wpDice.renderDue ? window.wpDice.renderDue(m) : null) : m.trun && window.wpTimePanel && window.wpTimePanel.renderLine ? window.wpTimePanel.renderLine(m) : m.trk && window.wpTrackers && window.wpTrackers.renderLine ? window.wpTrackers.renderLine(m) : chatEntryNode(m); } catch (e) { node = null; }   // one bad entry never blanks the panel
         if (node) frag.appendChild(node);
     });
     log.textContent = ''; log.appendChild(frag);

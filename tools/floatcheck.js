@@ -78,12 +78,12 @@ const VIEWS = ['play', 'data', 'page'];
     const backP = W.go('play'), again = W.all().concat(W.is(h));
     const w1 = a.IDS.map(id => W.els[id].writes), told = a.IDS.map(id => J(W.els[id].ev)).concat(J(h.ev));
     check('boxes that came up on the play map show there, and on the data map and on a page every one is put away: the sheet panel, the page panel, Sound, Music, Video, Effects, the notepad, Table Chat, the dice roller and a HUD',
-        onPlay.every(s => s === 'shown') && onData.every(s => s === 'away') && onPage.every(s => s === 'away') && backD === 0 && backG === 0 && a.IDS.length === 10 && J(a.IDS) === J(['sheetPanel', 'docPanel', 'soundPanel', 'musicPanel', 'videoPanel', 'fxPanel', 'notepadPanel', 'chatPanel', 'dicePanel', 'timePanel'])   /* 1.6.0, backlog 173: the Time rules panel (moved on purpose) */,
+        onPlay.every(s => s === 'shown') && onData.every(s => s === 'away') && onPage.every(s => s === 'away') && backD === 0 && backG === 0 && a.IDS.length === 11 && J(a.IDS) === J(['sheetPanel', 'docPanel', 'soundPanel', 'musicPanel', 'videoPanel', 'fxPanel', 'notepadPanel', 'chatPanel', 'dicePanel', 'timePanel', 'trkPanel'])   /* 1.6.0, backlog 173: the Time rules panel; backlog 29: a tracker's form (moved on purpose) */,
         J([onPlay, onData, onPage, backD, backG]));
     check('nothing is closed: a box is put away with the one class wp-away and its own display is never written, so its module still holds it open and it keeps its place',
         J(classes) === J(['wp-away']) && a.AWAY === 'wp-away' && J(w0) === J(w1) && w0.every(n => n === 1), J([classes, w0, w1]));
     check('back on the play map every box shows as it was left: the class is gone, each box is told once that it is back (wpfloatback), and the count of boxes that came back is returned',
-        again.every(s => s === 'shown') && backP === 11 /* 1.6.0, backlog 173: the Time rules panel (moved on purpose) */ && told.every(t => t === J(['wpfloatback'])) && a.BACK === 'wpfloatback' && W.go('play') === 0, J([again, backP, told]));
+        again.every(s => s === 'shown') && backP === 12 /* 1.6.0, backlog 173: the Time rules panel; backlog 29: a tracker's form (moved on purpose) */ && told.every(t => t === J(['wpfloatback'])) && a.BACK === 'wpfloatback' && W.go('play') === 0, J([again, backP, told]));
 }
 {
     const W = world(), a = W.api; W.go('play'); W.up('sheetPanel'); W.go('data');

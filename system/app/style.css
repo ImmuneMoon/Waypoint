@@ -2477,6 +2477,50 @@
   .chat-trun .ico { width: 15px; height: 15px; flex: none; }
   .chat-trun-txt { flex: 1; } .chat-trun-txt small { display: block; color: var(--dim); font-size: 11px; }
   .chat-trun-open { padding: 1px 8px; font-size: 12px; }
+  /* 1.6.0, backlog 29: the table trackers' strip, a tracker's menu and its form (trackers.js) */
+  #trkStrip { position: absolute; top: 26px; left: 232px; z-index: 8990; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: min(620px, calc(100% - 330px)); pointer-events: auto; }
+  body.stream-mode #trkStrip { top: 10px; left: 14px; }
+  body.row-hidden:not(.tour-on):not(.stream-mode) #trkStrip { top: calc(var(--rowbar) + 32px); }
+  #trkStrip .trk-pill { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; box-sizing: border-box; padding: 2px 6px 2px 7px; border: 1px solid var(--edge); border-radius: 13px; background: var(--panel2); color: var(--ink); box-shadow: 0 2px 6px rgba(0,0,0,0.35); font: inherit; font-size: 12px; white-space: nowrap; }
+  #trkStrip .trk-pill.trk-done { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.35), 0 0 12px rgba(224,165,79,0.45); }
+  #trkStrip .trk-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  #trkStrip .trk-gm { font-size: 9.5px; line-height: 12px; padding: 0 3px; border: 1px solid var(--edge); border-radius: 3px; color: var(--dim); }
+  #trkStrip .trk-name { max-width: 150px; overflow: hidden; text-overflow: ellipsis; color: var(--dim); background: none; border: 0; padding: 0; font: inherit; font-size: 12px; }
+  #trkStrip button.trk-name { cursor: pointer; } #trkStrip button.trk-name:hover, #trkStrip button.trk-name:focus-visible { color: var(--ink); text-decoration: underline; }
+  #trkStrip .trk-val { font-variant-numeric: tabular-nums; font-weight: 600; }
+  #trkStrip .trk-clock { width: 16px; height: 16px; flex: none; }
+  #trkStrip .trk-part { stroke: var(--panel2); stroke-width: 0.9; }
+  #trkStrip .trk-btn { min-width: 20px; height: 18px; padding: 0 4px; border: 1px solid var(--edge); border-radius: 4px; background: transparent; color: var(--dim); font: inherit; font-size: 11px; line-height: 16px; cursor: pointer; }
+  #trkStrip .trk-btn:hover, #trkStrip .trk-btn:focus-visible { color: var(--ink); border-color: var(--gold); }
+  #trkStrip .trk-add { color: var(--gold); border-style: dashed; cursor: pointer; opacity: 0.8; } #trkStrip .trk-add:hover { opacity: 1; } #trkStrip .trk-add:disabled { opacity: 0.4; cursor: default; }
+  #trkStrip .trk-fold { min-height: 24px; padding: 0 8px; border: 1px solid var(--edge); border-radius: 13px; background: var(--panel2); color: var(--dim); font: inherit; font-size: 12px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+  #trkStrip .trk-fold:hover { color: var(--ink); }
+  .trk-menu { position: fixed; z-index: 99998; min-width: 190px; padding: 4px; background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; box-shadow: var(--shadow); font-size: 12.5px; }
+  .trk-menu .trk-mlabel { padding: 3px 9px 4px; color: var(--dim); font-size: 11px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trk-menu .trk-mi { display: block; width: 100%; text-align: left; padding: 4px 9px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); font: inherit; cursor: pointer; }
+  .trk-menu .trk-mi:hover, .trk-menu .trk-mi:focus-visible { background: rgba(224,165,79,0.16); outline: 1px solid var(--gold); }
+  .trk-menu .trk-mi:disabled { color: var(--faint); background: transparent; outline: 0; cursor: default; }
+  .trk-menu .trk-msep { height: 1px; background: var(--edge); margin: 3px 6px; }
+  #trkPanel { position: fixed; left: 60px; top: 100px; width: 320px; max-width: calc(100vw - 24px); max-height: 80vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #trkHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
+  #trkHead .notepad-btn { padding: 1px 7px; font-size: 11px; }
+  #trkBody { overflow: auto; padding: 10px 12px 12px; font-size: 13px; }
+  #trkPanel .trk-cap { display: flex; flex-direction: column; gap: 3px; margin-bottom: 9px; }
+  #trkPanel .trk-cap > span { font-size: 10.5px; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
+  #trkPanel .trk-note { color: var(--dim); font-size: 11.5px; line-height: 1.4; }
+  #trkPanel .trk-row { display: flex; gap: 8px; flex-wrap: wrap; } #trkPanel .trk-row .trk-cap { flex: 1 1 60px; min-width: 60px; }
+  #trkPanel .trk-num { width: 100%; box-sizing: border-box; }
+  #trkPanel .trk-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  #trkPanel .trk-chip { font: inherit; font-size: 12px; padding: 2px 10px; border-radius: 12px; border: 1px solid var(--edge); background: transparent; color: var(--dim); cursor: pointer; }
+  #trkPanel .trk-chip.on { background: var(--gold); border-color: var(--gold); color: var(--gold-ink, #1a1a1a); }
+  #trkPanel .trk-chip:disabled { opacity: 0.45; cursor: default; }
+  #trkPanel .trk-swatch { width: 20px; height: 20px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer; }
+  #trkPanel .trk-swatch.on { border-color: var(--ink); box-shadow: 0 0 0 2px var(--gold); }
+  #trkPanel .trk-keep { display: flex; align-items: center; gap: 4px; margin: -2px 0 9px; color: var(--dim); font-size: 12px; }
+  #trkPanel .trk-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+  .chat-trk { display: flex; gap: 8px; align-items: center; margin-bottom: 7px; padding: 5px 7px; border-left: 3px solid var(--gold); border-radius: 4px; background: rgba(0,0,0,0.12); }
+  .chat-trk .ico { width: 15px; height: 15px; flex: none; }
+  .chat-trk-txt { flex: 1; } .chat-trk-txt small { display: block; color: var(--dim); font-size: 11px; }
   #soundPanel.min #soundBody { display: none; }
   #soundBody { padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 8px; max-height: 55vh; overflow: auto; }
   .snd-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }

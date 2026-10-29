@@ -5559,7 +5559,8 @@ function rangeTo(camp, map, mapId, tok, pid) {
         var drop = fogDrop(camp, map, pid); if (drop && drop[w.id]) return null;
         var vt = window.wpVtt, el = !vt || (vt.rulesOn ? vt.rulesOn('elevation') : vt.on('elevation'));
         var gOf = function(t) { var St = window.wpStance; return St && St.tokenGround ? St.tokenGround(t, map, true) : 0; };   // item 19b H5: each on the ground it stands on, as the player's copy reads it (never a piece the GM hid)
-        var rc = S.rangeCtx(camp.system, map, tok, w, { F: window.wpFormula, elev: !!el, groundOf: gOf }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target
+        var cOf = function(t) { return t && typeof t.charId === 'string' && camp.chars && own(camp.chars, t.charId) ? camp.chars[t.charId] : null; };   // 1.6.0: TargetSize, from the target's own character
+        var rc = S.rangeCtx(camp.system, map, tok, w, { F: window.wpFormula, elev: !!el, groundOf: gOf, charOf: cOf }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target
         return rc;
     };
     return typeof fogLanded === 'function' ? fogLanded(mapId, judge) : judge();

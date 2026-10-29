@@ -774,12 +774,13 @@ function rangeFor(c, mapId, map, tok, camp) {
     if (!w || !w.isChar || w === tok || (w.hidden && pc)) return null;
     if (pc && !isClient() && window.wpFog && typeof window.wpFog.fogDropIds === 'function') { var drop = window.wpFog.fogDropIds(c.ownerId, camp, map); if (drop && drop[w.id]) return null; }
     var gOf = function(t) { var St = window.wpStance; return St && St.tokenGround ? St.tokenGround(t, map, pc) : 0; };   // item 19b H5: each on the ground it stands on; a player's character as its player's copy reads it (never a piece the GM hid)
-    var rc = rangeCtx(systemOf(camp), map, tok, w, { F: F(), elev: !!tokenFlags().elevation, groundOf: gOf }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target, for the GM's privacy check
+    var cOf = function(t) { return t && typeof t.charId === 'string' && camp && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, t.charId) ? camp.chars[t.charId] : null; };   // 1.6.0: TargetSize, from the target's own character where this screen holds it (the host works a player's roll out from its own)
+    var rc = rangeCtx(systemOf(camp), map, tok, w, { F: F(), elev: !!tokenFlags().elevation, groundOf: gOf, charOf: cOf }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target, for the GM's privacy check
     return rc;
 }
 // [sinkcheck:rangefor-end]
 function tokenCtxFor(charId, camp) { var c = charById(charId, camp), t = c ? facingTarget(c, camp) : null; return t ? withRange(withRound(tokenCtx(t.map, t.tok, tokenFlags()), combatOn(t.mapId, t.tok && t.tok.id)), rangeFor(c, t.mapId, t.map, t.tok, camp)) : null; }   // Stage 6: { facing, stance } of the token the sheet reads; HF5b: and the round of the combat on its map
-function rangeSigOf(c, camp) { var t = c ? facingTarget(c, camp) : null, r = t ? rangeFor(c, t.mapId, t.map, t.tok, camp) : null; return r ? r.mod + '|' + r.dist + '|' + (r.hmod || 0) + '|' + (r.hdiff || 0) : ''; }   // range R2: what RangeMod and TargetDistance read for this character, so a new target or a move redraws the view (item 19 H2: HeightMod and HeightDiff too)
+function rangeSigOf(c, camp) { var t = c ? facingTarget(c, camp) : null, r = t ? rangeFor(c, t.mapId, t.map, t.tok, camp) : null; return r ? r.mod + '|' + r.dist + '|' + (r.hmod || 0) + '|' + (r.hdiff || 0) + '|' + (r.size || 0) : ''; }   // range R2: what RangeMod and TargetDistance read for this character, so a new target or a move redraws the view (item 19 H2: HeightMod and HeightDiff too)
 function roundSigOf(c, camp) { var t = c ? facingTarget(c, camp) : null, cb = t ? combatOn(t.mapId, t.tok && t.tok.id) : null; return cb && typeof cb.round === 'number' ? String(cb.round) : ''; }   // HF5b: what CombatRound reads for this character, so a round change redraws the view
 function dialSigOf(c, camp) {
     var fl = tokenFlags(), t = c ? facingTarget(c, camp) : null, fc = t ? (typeof facingNow === 'function' ? facingNow : facingCtx)(t.map, t.tok, fl.turning) : null, st = t ? stanceCtx(t.tok, fl) : null, n = net();
@@ -6253,6 +6254,12 @@ function refreshErrors() {
         });
         if (!rKept) rErr.push({ message: 'Range: add a step, or Save drops the rule.' });
     }
+    var tszE = draft.combat && typeof draft.combat.targetSize === 'string' ? draft.combat.targetSize : '';   // 1.6.0: TargetSize's field, judged as the cleaner judges it (a number its viewer can read truthfully)
+    if (tszE) {
+        var tszF = (draft.fields || []).find(function(f) { return f && f.id === tszE; }), tszSec = null; try { tszSec = typeof secretFieldIds === 'function' ? secretFieldIds({ fields: gmViewFields(draft, F()), items: draft.items, core: draft.core }, F()) : null; } catch (e) { tszSec = null; }
+        if (!tszF || ['number', 'formula', 'skill', 'resource'].indexOf(tszF.kind) < 0) rErr.push({ message: 'Target size reads: that field is gone or is no number, so Save drops it.' });
+        else if (tszSec && Object.prototype.hasOwnProperty.call(tszSec, tszE)) rErr.push({ message: 'Target size reads: players cannot read that field, or it is worked out from one they cannot, so Save drops it.' });
+    }
     if (rErr.length) errorsById.range = (errorsById.range || []).concat(rErr);
     // item 19 H2: what Save drops of the height modifier, said under the Height box — read as the cleaner reads it
     var hgE = draft.combat && draft.combat.height && typeof draft.combat.height === 'object' && !Array.isArray(draft.combat.height) ? draft.combat.height : null, hErr = [];
@@ -8128,6 +8135,12 @@ function rangeBox(box, cm) {
         });
         var ad = el('button', 'tool ghost sys-btn sys-range-add', '+ Step'); ad.dataset.act = 'rgadd'; ad.disabled = st.length >= LIMITS.rangeSteps; ad.title = ad.disabled ? 'At most ' + LIMITS.rangeSteps : 'A distance and its modifier; Save puts the steps in order'; wrap.appendChild(ad);
     }
+    {   // 1.6.0 (the SotMW v2 combat module): the field of a target's sheet an attack reads as TargetSize, beside TargetDistance
+        var szs = (draft.fields || []).filter(function(f) { return f && typeof f.id === 'string' && (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource'); }).map(function(f) { return [f.id, f.label || f.key || f.id]; });
+        var cur = typeof cm.targetSize === 'string' ? cm.targetSize : '', ro = [['', 'None']].concat(szs); if (cur && !szs.some(function(o) { return o[0] === cur; })) ro.push([cur, 'One that is gone']);
+        var rz = el('div', 'sys-flags sys-range-sizerow'); rz.appendChild(labeledSelect('sys-range-size', 'Target size reads', ro, cur, 'A number of the target\u2019s sheet. A roll reads it as TargetSize, as it reads TargetDistance. A field players cannot read Save drops.'));
+        wrap.appendChild(rz);
+    }
     var err = errorCell('range'); err.dataset.errFor = 'range'; wrap.appendChild(err);
     box.appendChild(wrap);
 }
@@ -8163,7 +8176,7 @@ function onChecksInput(t) {
 }
 function onRangeInput(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-range-') < 0) return false;
-    if (c.indexOf('sys-range-by') >= 0 || c.indexOf('sys-range-unit') >= 0) return true;   // their change events do the work
+    if (c.indexOf('sys-range-by') >= 0 || c.indexOf('sys-range-unit') >= 0 || c.indexOf('sys-range-size') >= 0) return true;   // their change events do the work
     var rg = rangeDraft();
     if (c.indexOf('sys-range-formula') >= 0) rg.formula = t.value.slice(0, LIMITS.formula);
     else {
@@ -8176,6 +8189,7 @@ function onRangeInput(t) {
 }
 function onRangeChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-range-') < 0) return false;
+    if (c.indexOf('sys-range-size') >= 0) { var cmZ = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmZ.targetSize = t.value; else delete cmZ.targetSize; markDirty(); patchErrors(); return true; }   // 1.6.0: TargetSize's field
     if (c.indexOf('sys-range-by') < 0 && c.indexOf('sys-range-unit') < 0) return true;   // the boxes' change events (their input events did the work)
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
     if (c.indexOf('sys-range-unit') >= 0) { var ru = rangeDraft(); if (typeof t.value === 'string' && Object.prototype.hasOwnProperty.call(RANGE_UNITS, t.value)) ru.unit = t.value; else delete ru.unit; markDirty(); patchErrors(); return true; }

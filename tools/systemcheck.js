@@ -9013,7 +9013,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const seqR2 = [stR2('', true), stR2('-4|10', true), stR2('-4|10', true), stR2('-2|4', false), stR2('-2|4', true), stR2('', true)];
         check('range R2 a HUD follows the range (turnView, run for real): a new target, a move or a cleared pointer changes what RangeMod and TargetDistance read, marks the view stale and the final call redraws it once; the same range redraws nothing; the sheet does the same (pinned), both views taking their signature after each render',
             j(seqR2) === j([0, 1, 1, 1, 2, 3]) && vR2.rangeSig === ''
-            && shL.includes("function rangeSigOf(c, camp) { var t = c ? facingTarget(c, camp) : null, r = t ? rangeFor(c, t.mapId, t.map, t.tok, camp) : null; return r ? r.mod + '|' + r.dist + '|' + (r.hmod || 0) + '|' + (r.hdiff || 0) : ''; }")
+            && shL.includes("function rangeSigOf(c, camp) { var t = c ? facingTarget(c, camp) : null, r = t ? rangeFor(c, t.mapId, t.map, t.tok, camp) : null; return r ? r.mod + '|' + r.dist + '|' + (r.hmod || 0) + '|' + (r.hdiff || 0) + '|' + (r.size || 0) : ''; }")
             && shL.includes("var rgS = typeof rangeSigOf === 'function' ? rangeSigOf(c, camp) : ''; if (rgS !== _rangeSig) { _rangeSig = rgS; _dialStale = true; }") && shL.includes('_roundSig = roundSigOf(c, camp); _rangeSig = rangeSigOf(c, camp);') && shL.includes('v.roundSig = roundSigOf(c, camp); v.rangeSig = rangeSigOf(c, camp);')
             && shL.includes("fam === 'combatround' || fam === 'rangemod' || fam === 'targetdistance' || fam === 'heightmod' || fam === 'heightdiff') && own[fam] !== 1"), j(seqR2));
         check('range R2 Help and the integration guide say it: formulas read RangeMod (the Range box\'s modifier to the target the character\'s player marked, the GM\'s own mark for an NPC) and TargetDistance (in the range\'s unit, yards with no rule), a roll taking its penalty by itself; both 0 with no target, one the player cannot see, no token or offline; a field of the same name keeps it',
@@ -13529,6 +13529,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             plJ === j({ pool: 'f_hp', locs: { list: 'f_locs' }, types: [{ key: 'cut', label: 'Cutting' }, { key: 'heat', label: 'Heat' }, { key: 'stun', label: 'Stun', pool: 'f_ep' }, { key: 'ion', label: 'Ion', pool: 'f_ep' }, { key: 'pierce', label: 'Piercing' }], weapons: [{ list: 'f_arms' }] })
             && !/HP\.max|Row\.|Hit\.|mult|vital|plus|layers|"dr"/.test(plJ) && j(sysD.combat.damage.types[1]) === j({ key: 'heat', label: 'Heat', mult: 1, plus: ['vsHeat'] }), plJ);
 
+
+        /* 1.6.0 (the SotMW v2 combat module): TargetSize, the target's own Size read in an attack beside TargetDistance */
+        const mkZ = (ts, sm) => ({ v: 1, name: 'Z', rolls: [{ id: 'r_hit', label: 'Hit', formula: '3d6 + TargetSize', vis: 'all' }], fields: [
+            { id: 'f_sm', key: sm || 'SM', label: 'Size', kind: 'number', vis: 'all', edit: 'owner' }, { id: 'f_sec', key: 'Sec', label: 'Secret', kind: 'number', vis: 'gm', edit: 'gm' },
+            { id: 'f_name', key: 'Nm', label: 'Name', kind: 'text', vis: 'all', edit: 'owner' }], combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: '', targetSize: ts } });
+        const zG = cleanSystem(mkZ('f_sm'), { F, gmView: true }), zP = cleanSystem(mkZ('f_sm'), { F, gmView: false });
+        check('1.6.0 TargetSize\'s field (combat.targetSize): kept as a number field its viewer can read truthfully, the same in both views; a GM-only field, a text and a field that is not there dropped in both',
+            zG.combat.targetSize === 'f_sm' && zP.combat.targetSize === 'f_sm' && ['f_sec', 'f_name', 'f_nope', 5].every(v => !('targetSize' in cleanSystem(mkZ(v), { F, gmView: true }).combat) && !('targetSize' in cleanSystem(mkZ(v), { F, gmView: false }).combat)), j([zG.combat, zP.combat]));
+        const tgt = { id: 'c_tg', name: 'Rancor', values: { f_sm: 3 } }, mapZ = { whiteboard: [] }, fromZ = { id: 't_a', x: 0, y: 0, isChar: true }, toZ = { id: 't_b', x: 200, y: 0, isChar: true, charId: 'c_tg' };
+        const rcZ = S.rangeCtx(zG, mapZ, fromZ, toZ, { F, charOf: t => t.charId === 'c_tg' ? tgt : null }), rcN = S.rangeCtx(zG, mapZ, fromZ, toZ, { F }), rcO = S.rangeCtx(zG, mapZ, fromZ, Object.assign({}, toZ, { charId: 'c_none' }), { F, charOf: () => null });
+        const ctxZ = S.withRange({}, rcZ), RZ = S.makeResolver(zG, { id: 'c_me', values: {} }, F, ctxZ), RZ0 = S.makeResolver(zG, { id: 'c_me', values: {} }, F, {});
+        check('1.6.0 TargetSize: the range context carries the target character\'s own Size (3), worked out as its sheet works it out, and the resolver reads it as TargetSize marking the range read (so the host\'s privacy rule counts it); none with no character, no lookup or no target, 0 then',
+            rcZ && rcZ.size === 3 && !('size' in rcN) && !('size' in rcO) && ctxZ.range.size === 3 && RZ('targetsize') === 3 && RZ.rangeRead() === true && RZ0('targetsize') === 0 && S.validateSystem(zG, F).errors.length === 0, j([rcZ, ctxZ]));
+        const zOwn = cleanSystem(mkZ('f_sm', 'TargetSize'), { F, gmView: true }), RZown = S.makeResolver(zOwn, { id: 'c_me', values: { f_sm: 7 } }, F, ctxZ);
+        check('1.6.0 TargetSize is additive: a field of the system\'s own named TargetSize keeps its own value', RZown('targetsize') === 7, RZown('targetsize'));
         /* 1.6.0 (the SotMW v2 sort, B3): a Major Wound's threshold reads the hit location as Hit.<name>, and what a Major Wound does (onMajor) */
         const mkM = (om, major) => { const s = mkD(); s.fields.push({ id: 'f_fx', key: 'Fx', label: 'Effects', kind: 'effects', vis: 'all', edit: 'owner' });
             s.effects = [{ id: 'e_shock', name: 'Shock', vis: 'all', mods: [] }]; s.rolls = [{ id: 'r_vit', label: 'Stay up', formula: '3d6', vis: 'all' }];

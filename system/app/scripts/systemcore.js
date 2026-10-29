@@ -1726,6 +1726,7 @@ function cleanCombat(c, resIds, fieldIds, secretIds, F, viewKinds, pl, fl) {   /
     var lt = cleanLightRules(c.light); if (lt) out.light = lt;   // lighting L4: the system's light rules (absent: none)
     var sn = cleanSenses(c.senses, fieldIds, secretIds); if (sn) out.senses = sn;   // senses S1: the system's senses (absent: none)
     var rg = cleanRangeRules(c.range, F); if (rg) out.range = rg;   // range penalties R1: the system's range rule (absent: none)
+    if (c.targetSize !== undefined) { var tsz = senseField({ field: c.targetSize }, SENSE_RANGE_KINDS, fieldIds, secretIds); if (tsz) out.targetSize = tsz; }   // 1.6.0 (the v2 combat module): the field of a target's sheet TargetSize reads, a number its viewer can read truthfully, the same in both views
     var ps = cleanPostures(c.postures, viewKinds); if (ps) out.postures = ps;   // conditions C3: the system's own postures (absent: the seven)
     var ir = cleanInitRules(c.initiative, F); if (ir) out.initiative = ir;   // initiative O2: how ties of initiative break (absent: they keep their place)
     var hr = cleanHeightRules(c.height, F); if (hr) out.height = hr;   // item 19 H1: what height does (absent: nothing, as before); H2: its table or formula
@@ -2811,7 +2812,7 @@ function cleanSystem(sys, opts) {
     }
     if (effs.length) out.effects = effs;
     out.items.concat(core).forEach(function(it) { var ar = it && it.area; if (!ar || !Array.isArray(ar.aff)) return; ar.aff = ar.aff.filter(function(a) { return seenFx[a.fx] === 1; }); if (!ar.aff.length) delete ar.aff; });   // 1.5.9 (es): an affliction whose effect this view does not hold goes (the GM's view alone holds any)
-    var gmF = isObj(sys.combat) && sys.combat.senses !== undefined ? gmViewFields(sys, F) : null, gmKinds = map(), secret = null;   // senses S1: judged on the fields as the GM's view has them, in both views
+    var gmF = isObj(sys.combat) && (sys.combat.senses !== undefined || sys.combat.targetSize !== undefined) ? gmViewFields(sys, F) : null, gmKinds = map(), secret = null;   // senses S1: judged on the fields as the GM's view has them, in both views (1.6.0: TargetSize's field too)
     if (gmF) { gmF.forEach(function(f) { gmKinds[f.id] = f.kind; }); secret = secretFieldIds({ fields: gmF, items: sys.items, core: sys.core }, F); }
     out.combat = cleanCombat(sys.combat, resIds, gmKinds, secret, F, fieldIds, !gmView, function(id) { var hitF = null; out.fields.forEach(function(x) { if (!hitF && x.id === id) hitF = x; }); return hitF; });
     if (!gmView && typeof mentions === 'function') ['critAt', 'fumbleAt'].forEach(function(k) { if (out.combat[k] && mentions(out.combat[k])) delete out.combat[k]; });   // 1.6.0: the Combat card's critical range naming a GM-only value goes from the players' view (their rolls then read 3 and 18)
@@ -4997,7 +4998,7 @@ var POSTURE_IDS = Object.freeze(['standing', 'crouching', 'sitting', 'kneeling',
 var DATE_NAMES = Object.freeze(['Date.year', 'Date.day', 'Date.days', 'Date.hour', 'Date.minute']), _dateSrc = null;
 function setDateSource(fn) { _dateSrc = typeof fn === 'function' ? fn : null; return !!_dateSrc; }
 function dateReads(sys) { var s = ''; try { s = JSON.stringify(sys) || ''; } catch (e) { s = ''; } return /\bdate\.(year|days?|hour|minute)\b/i.test(s); }   // whether a system's formulas name the date at all
-var TOKEN_NAMES = Object.freeze(FACING_NAMES.concat(['Posture', 'Elevation', 'CombatRound', 'RangeMod', 'TargetDistance', 'HeightMod', 'HeightDiff']));   // item 19 H2: HeightMod and HeightDiff   // range penalties R2: RangeMod and TargetDistance, the range to the roller's target (withRange)   // HUD frame (HF5b): CombatRound, the round of the combat on the token's map (round is the rounding function)
+var TOKEN_NAMES = Object.freeze(FACING_NAMES.concat(['Posture', 'Elevation', 'CombatRound', 'RangeMod', 'TargetDistance', 'HeightMod', 'HeightDiff', 'TargetSize']));   // item 19 H2: HeightMod and HeightDiff   // range penalties R2: RangeMod and TargetDistance, the range to the roller's target (withRange)   // HUD frame (HF5b): CombatRound, the round of the combat on the token's map (round is the rounding function)
 function postureIndex(v) {   // how a posture written before 1.6.0 reads: the old ids, the 1.4.6 ids, the long names
     if (typeof v !== 'string') return 0;
     var s = v.toLowerCase().replace(/[^a-z]+/g, ' ').trim();
@@ -5113,14 +5114,25 @@ function rangeCtx(sys, mp, from, to, opts) {
     var m = rr ? rangeModOf(rr, d, opts.F) : null, out = { mod: m === null ? 0 : m, dist: d };
     var hg = heightOf(sys, from, to, opts); if (hg) out.hmod = hg.mod;   // item 19 H2: HeightMod, the system's height modifier (none without its table or formula)
     var hd = opts.elev ? heightIn(el(from) - el(to), hg ? hg.unit : 'yd') : 0; if (hd) out.hdiff = hd;   // ...and HeightDiff, the roller's height over the target's (in its unit, else yards)
+    var sz = targetSizeOf(sys, to, opts); if (sz) out.size = sz;   // 1.6.0: TargetSize, the target's own Size
     return out;
+}
+// 1.6.0 (the SotMW v2 combat module: "Size adds to attack rolls against the target"): what TargetSize reads, the target's own value of the field the
+// Combat card names (combat.targetSize), worked out on the target's character as its sheet works it out; 0 with no such field, no character
+// behind the token (opts.charOf, the caller's own lookup: the host holds every character, a player's app only its own), or a value that is no
+// number. Held to within 1000 either way
+function targetSizeOf(sys, to, opts) {
+    var fid = sys && isObj(sys.combat) && typeof sys.combat.targetSize === 'string' ? sys.combat.targetSize : ''; if (!fid || !isObj(opts) || typeof opts.charOf !== 'function' || !opts.F) return 0;
+    var f = fieldById(sys, fid), tc = null; try { tc = opts.charOf(to); } catch (e) { tc = null; } if (!f || !isObj(tc)) return 0;
+    var v = null; try { v = makeResolver(sys, tc, opts.F)(lower(f.key)); } catch (e) { v = null; }
+    return typeof v === 'number' && fin(v) ? Math.max(-1000, Math.min(1000, v)) : 0;
 }
 // ... merged into a token context as withRound merges the round: a NEW object, or the context unchanged with no token or no range (the
 // names read 0 then)
 function withRange(tctx, rc) {   // R3: the target's id and map ride along (tid, mapId: text), for the host's privacy check
     if (!isObj(tctx) || !isObj(rc) || !fin(rc.mod) || !fin(rc.dist)) return tctx;
     var rg = { mod: rc.mod, dist: rc.dist }; ['tid', 'mapId'].forEach(function(k) { if (typeof rc[k] === 'string' && rc[k].length <= 200) rg[k] = rc[k]; });
-    ['hmod', 'hdiff'].forEach(function(k) { if (fin(rc[k])) rg[k] = rc[k]; });   // item 19 H2: HeightMod and HeightDiff ride with the range
+    ['hmod', 'hdiff', 'size'].forEach(function(k) { if (fin(rc[k])) rg[k] = rc[k]; });   // item 19 H2: HeightMod and HeightDiff ride with the range; 1.6.0: and TargetSize
     return Object.assign({}, tctx, { range: rg });
 }
 // 1.6.0 (docs/BOOK_ES_ET_PLAN.md 4a): the names a crossing's run reads, laid on the token context it is worked out in: CrossStep, the number of the
@@ -5687,7 +5699,8 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     function builtin(l) {   // 5h Fold 3: Facing, Arc, Arc.front|side|rear, Threats, Threats.front|side|rear — a field named Facing, Arc or Threats keeps its whole family
         var fam = l.split('.')[0]; if (ix[fam]) return undefined;
         if (fam === 'date') { var dk = l.slice(5); if (dk !== 'year' && dk !== 'day' && dk !== 'days' && dk !== 'hour' && dk !== 'minute') return undefined; var dv = null; try { dv = _dateSrc ? _dateSrc() : null; } catch (e) { dv = null; } return isObj(dv) && fin(dv[dk]) ? dv[dk] : 0; }   // 1.6.0: the campaign's date
-        if (l === 'rangemod' || l === 'targetdistance' || l === 'heightmod' || l === 'heightdiff') { rangeRead = true; var rgc = ropts && isObj(ropts.range) ? ropts.range : null, rgv = rgc ? (l === 'rangemod' ? rgc.mod : l === 'targetdistance' ? rgc.dist : l === 'heightmod' ? rgc.hmod : rgc.hdiff) : 0; return typeof rgv === 'number' && isFinite(rgv) ? rgv : 0; }   // item 19 H2: HeightMod and HeightDiff read with the range, so the host's privacy rule counts them too   // range penalties R2: to the roller's target; 0 with none (a field of the system's own of that name keeps it)
+        // 1.6.0: TargetSize reads with the range, so the host's privacy rule counts it too
+        if (l === 'rangemod' || l === 'targetdistance' || l === 'heightmod' || l === 'heightdiff' || l === 'targetsize') { rangeRead = true; var rgc = ropts && isObj(ropts.range) ? ropts.range : null, rgv = rgc ? (l === 'rangemod' ? rgc.mod : l === 'targetdistance' ? rgc.dist : l === 'heightmod' ? rgc.hmod : l === 'targetsize' ? rgc.size : rgc.hdiff) : 0; return typeof rgv === 'number' && isFinite(rgv) ? rgv : 0; }   // item 19 H2: HeightMod and HeightDiff read with the range, so the host's privacy rule counts them too   // range penalties R2: to the roller's target; 0 with none (a field of the system's own of that name keeps it)
         if (l === 'crossstep' || l === 'crossed') { var cxR = ropts && isObj(ropts.cross) ? ropts.cross : null, cxV = cxR ? cxR[l === 'crossstep' ? 'step' : 'n'] : 0; return fin(cxV) ? cxV : 0; }   // 1.6.0: a crossing's run (withCross); 0 for a press, a reminder or anything else (a field of the system's own of that name keeps it, above)
         if (l === 'making') return isObj(char) && (char.making === 1 || char.making === true) ? 1 : 0;   // 1.6.0: 1 while the character is in the making (its owner's copy carries it too), else 0; a field of the system's own named Making keeps the name, above
         if (l === 'combatround') { var cb = ropts && isObj(ropts.combat) ? ropts.combat : null; return cb && fin(cb.round) ? Math.max(0, Math.floor(cb.round)) : 0; }   // HUD frame (HF5b): the round of the combat on the token's map; 0 with no token, no combat, or offline (a field of the system's own keeps the name, above)

@@ -949,7 +949,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             camp.system = sys;
             const rtr = new Function('getActiveCampaign', 'systemOf', 'net', 'F', 'charById', 'timeRuleRun', 'gmOnlyNames', 'applyScope', 'renderViews', 'save', 'window', 'makeResolver', 'hasDice', 'figText', 'ruleRunCtx', 'chainsShallow', "'use strict';" + NL + trSrcE + NL + 'return runTimeRules;')(
                 () => camp, c => c.system, () => ({ active: false, timeCard: (ch, text) => cards.push([ch.id, text]) }), () => F, (id, c) => (Object.prototype.hasOwnProperty.call(c.chars, id) ? c.chars[id] : null), S.timeRuleRun, S.gmOnlyNames, S.applyScope, () => {}, () => {}, { wpDiceCore: null, appRender: () => {} }, S.makeResolver, S.hasDice, S.figText, S.ruleRunCtx, S.chainsShallow);
-            H.W.win.wpSheets.runTimeRules = (fires, words, at, back) => { H.W.runs.push([JSON.parse(j(fires)), words]); return rtr(fires, words, at, back); };
+            H.W.win.wpSheets.runTimeRules = (fires, words, at, back, when) => { H.W.runs.push([JSON.parse(j(fires)), words]); return rtr(fires, words, at, back, when); };   // 176: when, as the app hands it
             H.W.win.wpNet.fxSpans = sp => Object.keys(sp).forEach(id => { const ch = camp.chars[id]; if (!ch) return; const r = S.fxTick(sys, ch, 'game', Date.now(), sp[id]); Object.keys(r.values).forEach(k => { ch.values[k] = r.values[k]; }); });   // as net.fxSpans and fxApply store them
             return Object.assign(H, { cards });
         };
@@ -980,6 +980,21 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const run = steps => { const E = mkE(sysOfE(['r_hd']), kaelE({ f_pp: { cur: 3 } })), ch = E.camp.chars.c_a; steps.forEach(s => E.W.api.moveBy(s)); const mid = [ppE(ch), canon(E.camp.clock.acc)]; ch.values.f_pp = { cur: 5 }; E.W.api.moveBy(1800); return [mid, ppE(ch), canon(E.camp.clock.acc)]; };
             const one = run([37800]), many = run([3600, 3600, 3600, 3600, 3600, 3600, 3600, 3600, 3600, 3600, 1800]);
             return [j(one) === j([[0, null], 5, canon({ c_a: { r_hd: 1800 } })]) && j(many) === j(one), j([one, many])];
+        });
+        tcH('176 (the owner, 2026-10-28, by prompt: "Hour by hour (Recommended)"): a long step runs one character\'s rules in the order their runs came due (calendar.js whenOf, sheets.js runTimeRules, end to end): a lamp of 5 Charge whose Battery takes 1 an hour and whose Shine needs Charge above 0 shines 4 hours in one step of 10 hours, as in ten steps of an hour; one summary line a rule, its values summed; a rule due on the half hour runs between them; with no when, rule by rule as before', () => {
+            if (!trSrcE) return [false, 'sheets.js has no timerules slice'];
+            const rawL = { v: 1, name: 'Lamp', calendar: tw, fields: [{ id: 'f_cg', key: 'Charge', kind: 'resource', maxFormula: '5', def: 'max', min: 0 }, { id: 'f_lm', key: 'Lumen', kind: 'number', def: 0 }, { id: 'f_hf', key: 'Half', kind: 'number', def: 0 }],
+                rolls: [{ id: 'r_bt', label: 'Battery', apply: [{ f: 'f_cg', formula: '1' }], every: { n: 1, u: 'hour' } }, { id: 'r_sh', label: 'Shine', apply: [{ f: 'f_lm', formula: '1', add: true }], needs: 'Charge > 0', every: { n: 1, u: 'hour' } },
+                    { id: 'r_hf', label: 'Tick', apply: [{ f: 'f_hf', formula: 'Charge', add: true }], every: { n: 30, u: 'min' } }] };
+            const sysL = S.cleanSystem(rawL, { F, gmView: true }), RL = ids => Object.assign({}, sysL, { rolls: ids.map(id => sysL.rolls.find(r => r.id === id)) });
+            const cg = ch => ch.values.f_cg && typeof ch.values.f_cg.cur === 'number' ? ch.values.f_cg.cur : 5, lm = ch => typeof ch.values.f_lm === 'number' ? ch.values.f_lm : 0;
+            const run = (ids, steps) => { const E = mkE(RL(ids), kaelE()), ch = E.camp.chars.c_a; steps.forEach(s => E.W.api.moveBy(s)); return { r: [cg(ch), lm(ch)], cards: E.cards.map(c => c[1]), ch }; };
+            const one = run(['r_bt', 'r_sh'], [36000]), many = run(['r_bt', 'r_sh'], Array(10).fill(3600));
+            const half = run(['r_bt', 'r_hf'], [7200]);
+            const fx = { values: {} }, noWhen = (() => { const E = mkE(RL(['r_bt', 'r_sh']), kaelE()), ch = E.camp.chars.c_a; E.W.win.wpSheets.runTimeRules = ((orig) => (f, w, a, b) => orig(f, w, a, b))(E.W.win.wpSheets.runTimeRules); E.W.api.moveBy(36000); return [cg(ch), lm(ch)]; })();
+            const card = one.cards[0] || '';
+            return [j(one.r) === j([0, 4]) && j(many.r) === j([0, 4]) && /Battery \u00d710: Charge -5 \u2192 0/.test(card) && /Shine \u00d710: Lumen \+4 \u2192 4/.test(card) && card.indexOf('Battery') < card.indexOf('Shine')
+                && half.ch.values.f_hf === 16 && j(noWhen) === j([0, 0]), j([one.r, many.r, card, half.ch.values, noWhen])];
         });
         tcH('1.5.5\'s review: time kept behind a list holds for none of a character it never judged (calendar.js gapOf, needOf, joinStretch): a character made while a list waits counts none of the hour stepped on before it was made, once you skip, while Kael, asleep through it, counts it whole; two such hours run on as one keep each character\'s own', () => {
             const E = mkH(sysOfE(['r_sl']), { time: 'confirm' }, kaelE({ f_sl: true }));

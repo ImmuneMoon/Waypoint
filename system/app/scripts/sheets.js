@@ -4418,7 +4418,20 @@ function ruleDice(rule) {   // whether a time rule's roll rolls dice: its own fo
 // 1.5.5's review: a fire of a rule ticked Only while its needs hold may carry due (calendar.js dueOn), the timed effects its character had where each
 // of its runs came due, which timeRuleRun makes them with; and back, where it is handed in, is told of each fire run, (fire, runs made, whether its
 // needs held it back), as it was run, so that calendar.js keeps the time of a run held back (heldBack). Without either, exactly as before
-function runTimeRules(fires, words, at, back) {
+// 176 (the owner, 2026-10-28, by prompt: "Hour by hour (Recommended)"): when (calendar.js whenOf) says, for each fire, when each of its runs came
+// due in the stretch. Where a character's runs then come in another order than fire by fire, they are made one at a time in the order they came due
+// (a tie in the order the fires were handed, which is the Rolls tab's), each run as its character then stands, so one long step gives what many short
+// ones give. A fire's runs end at the first its needs hold back, as timeRuleRun's do; what each fire made is told to back in the order of its first
+// run; each fire says one line, its values summed as they moved run by run. Without when, or where the order is the same, exactly as before
+function runOrder(list, when) {
+    if (typeof when !== 'function' || !Array.isArray(list) || list.length < 2) return null;
+    var runs = [];
+    for (var i = 0; i < list.length; i++) { var ts = null; try { ts = when(list[i]); } catch (e) { ts = null; } var n = Math.min(500, Math.floor(list[i].n)); if (!Array.isArray(ts) || ts.length !== n) return null; for (var k = 0; k < n; k++) { if (typeof ts[k] !== 'number' || !isFinite(ts[k])) return null; runs.push({ i: i, k: k, t: ts[k] }); } }
+    var sorted = runs.slice().sort(function(a, b) { return a.t - b.t || a.i - b.i || a.k - b.k; });
+    return sorted.some(function(s, j) { return s !== runs[j]; }) ? sorted : null;
+}
+function dueAt(due, k) { var c = 0; for (var j = 0; j < due.length; j++) { var d = due[j]; if (!d || typeof d.n !== 'number' || !(d.n >= 1)) continue; c += Math.floor(d.n); if (k < c) return [{ n: 1, fx: d.fx }]; } return null; }   // the one run's due, as dueFx reads its group
+function runTimeRules(fires, words, at, back, when) {
     var camp = getActiveCampaign(), sys = systemOf(camp), n = net(), D = window.wpDiceCore; if (!camp || !sys || !F() || !Array.isArray(fires)) return 0;
     var byChar = Object.create(null), order = [], changed = 0, aud = Object.create(null), runChars = [];
     var flat = typeof makeResolver === 'function' && typeof ruleRunCtx === 'function' && typeof chainsShallow === 'function' && chainsShallow(sys, F());   // shared only where sharing changes nothing
@@ -4426,6 +4439,34 @@ function runTimeRules(fires, words, at, back) {
     order.forEach(function(cid) {
         var c = charById(cid, camp); if (!c) return;
         var parts = [], pl = [], lines = [], all = {}, gm = false, kept = null;   // pl, lines (backlog 173): what its player is told, and the run's lines for the Time rules panel   // kept (1.5.5): { k, r } — a resolver of c as it now stands, in the context k, while nothing is stored
+        var seq = runOrder(byChar[cid], when);   // 176: its runs in the order they came due, where that is not fire by fire
+        if (seq) {
+            var acc = byChar[cid].map(function(fi) { return { fi: fi, rule: null, ran: 0, held: false, stop: false, first: -1, made: 0, pass: 0, drew: 0, lines: [] }; });
+            seq.forEach(function(s, si) {
+                var A = acc[s.i], fi = A.fi; if (A.stop) return;
+                var rule = A.rule || (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return r && r.id === fi.r && (r.every || r.inFight); })[0]; if (!rule) { A.stop = true; return; }
+                if (!A.rule) { A.rule = rule; A.first = si; var ak = rule.id + (c.npc || !c.ownerId ? '|n' : '|o'); if (aud[ak] === undefined) { var acts = Array.isArray(rule.apply) ? rule : { apply: Array.isArray(rule.then) ? rule.then : [] }, reads = typeof rule.formula === 'string' ? gmOnlyNames(sys, F().names(rule.formula).map(function(x) { return { name: x }; })).length > 0 : false; aud[ak] = rule.vis === 'gm' || applyScope(sys, c, acts, reads, F()) === 'gm'; } if (aud[ak]) gm = true; }
+                var atF = fi.x === 1 ? (typeof fi.rd === 'number' && isFinite(fi.rd) ? { round: fi.rd } : at && typeof at === 'object' ? at : undefined) : undefined;
+                var tcF = atF && typeof atF === 'object' && typeof atF.round === 'number' && isFinite(atF.round) ? { combat: { round: Math.max(0, Math.min(9999, Math.floor(atF.round))) } } : null;
+                var dk = Array.isArray(fi.due) && fi.due.length ? dueAt(fi.due, s.k) : null;
+                var res = timeRuleRun(sys, c, rule, 1, F(), D, atF, dk ? { due: dk, flat: flat === true } : undefined), ks = Object.keys(res.values);
+                A.ran += res.ran; A.made += res.rolls.made; A.pass += res.rolls.pass; A.drew += res.drew > 0 ? res.drew : 0; if (res.held) { A.held = true; A.stop = true; }
+                var wrote = ks.filter(function(k) { return JSON.stringify(c.values ? c.values[k] : undefined) !== JSON.stringify(res.values[k]); });
+                var pre = wrote.length ? ruleReads(sys, c, wrote, tcF) : null;
+                if (wrote.length) { c.values = c.values || {}; wrote.forEach(function(k) { c.values[k] = res.values[k]; all[k] = res.values[k]; }); }
+                var mv = !wrote.length ? [] : pre ? ruleMoves(sys, c, wrote, pre, tcF, res.lines) : res.lines.filter(function(l) { return l.d !== 0; });
+                mv.forEach(function(l) { var h = A.lines.filter(function(x) { return x.n === l.n; })[0]; if (h) { h.d = Math.round((h.d + (typeof l.d === 'number' ? l.d : 0)) * 1000) / 1000; h.v = l.v; } else A.lines.push({ n: l.n, d: typeof l.d === 'number' ? l.d : 0, v: l.v }); });
+            });
+            acc.filter(function(A) { return A.rule; }).sort(function(a, b) { return a.first - b.first; }).forEach(function(A) {
+                var fi = A.fi, rule = A.rule;
+                if (typeof back === 'function') { try { back(fi, A.ran, A.held); } catch (e) { console.error(e); } }
+                if (A.held && !A.ran) return;
+                if (!A.lines.length && !(A.made && ruleDice(rule)) && !(A.drew > 0)) return;   // the flood fix, over all its runs
+                var head = (rule.label || 'A rule') + ' \u00d7' + fi.n + (A.made ? ' (' + A.pass + ' of ' + A.made + ' succeeded)' : '');
+                var lnA = A.lines.filter(function(l) { return l.d !== 0; }), body = lnA.length ? lnA.map(function(l) { return l.n + ' ' + (l.d >= 0 ? '+' : '') + l.d + ' \u2192 ' + l.v; }).join(', ') : 'no change', nt = rule.notes === 'quiet' || rule.notes === 'panel' ? rule.notes : '';
+                parts.push(head + ': ' + body); if (nt !== 'quiet') pl.push(head + ': ' + body); lines.push({ r: rule.id, head: head, body: body, notes: nt, roll: !Array.isArray(rule.apply) });
+            });
+        } else
         byChar[cid].forEach(function(fi) {
             var rule = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return r && r.id === fi.r && (r.every || r.inFight); })[0]; if (!rule) return;
             var ak = rule.id + (c.npc || !c.ownerId ? '|n' : '|o');   // applyScope reads nothing else of the character

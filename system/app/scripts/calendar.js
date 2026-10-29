@@ -173,10 +173,10 @@ function groupRules(camp, sys, g, spans, only) {
     var now = only ? [] : rules.filter(function(r) { return !asks(r); }), later = only ? rules.filter(function(r) { return only === true || only.indexOf(r.id) >= 0; }) : rules.filter(asks);
     var off = offOf(camp), list = [], asked = null, rd = function(f) { if (fight && f.x === 1 && typeof g.round === 'number') f.rd = g.round; return f; };
     if (now.length) {
-        var rn = firesOf(camp, sys, now, g, spans), go = [];
+        var before = accNow(camp), rn = firesOf(camp, sys, now, g, spans), go = [];   // 176: before, the counts the stretch began from, for when each run came due
         commitAcc(rn.acc, g.live === true); heldFollow(now, rn.acc);
         rn.fires.forEach(function(f) { rd(f); if (!off(f.c)) go.push(f); else if (cal) list.push(f); });
-        if (go.length && window.wpSheets && window.wpSheets.runTimeRules) { var backs = []; window.wpSheets.runTimeRules(go, groupWords(g), fight && typeof g.round === 'number' ? { round: g.round } : undefined, backTo(backs)); heldBack(camp, sys, backs, true, g.live === true); }   // 1.5.5's review: a run held back keeps its time, or spends it after another count's run in this go (heldBack)
+        if (go.length && window.wpSheets && window.wpSheets.runTimeRules) { var backs = []; window.wpSheets.runTimeRules(go, groupWords(g), fight && typeof g.round === 'number' ? { round: g.round } : undefined, backTo(backs), whenOf(sys, now, before, g)); heldBack(camp, sys, backs, true, g.live === true); }   // 1.5.5's review: a run held back keeps its time, or spends it after another count's run in this go (heldBack)
     }
     if (later.length && !cal) { var rx = firesOf(camp, sys, later, g, spans); commitAcc(rx.acc, g.live === true); heldFollow(later, rx.acc); if (rx.fires.length) bellUp(camp, sys, rx.fires.map(rd), groupWords(g)); }   // the Calendar off: counted, and its runs wait in the bell for the GM's word (fold 4b)
     else if (later.length && pend) queueStretch(camp, g, spans, later, rules);   // 159: a list waits for the GM's word, and this time is judged once it is answered
@@ -187,6 +187,23 @@ function groupRules(camp, sys, g, spans, only) {
     }
     return list.length ? listUp(camp, g, list, asked) : false;
 }
+// [calendarcheck:whenof-start]
+// 176 (the owner, 2026-10-28, by prompt: "Hour by hour (Recommended)"): when each run of a fire came due, in seconds into its stretch, so that
+// sheets.js runTimeRules runs one character's rules in the order their runs came due and one long step gives what many short ones give. A count's
+// first run comes due when it reaches its period from what it held before the stretch (before), each next one a period later. A count ticked Only
+// while its needs hold is read in its own counted time, the time its needs held. null for a fire whose period cannot be read
+function whenOf(sys, rules, before, g) {
+    var cal = sysCal(), un = sysUnits(sys), rs = g && typeof g.rs === 'number' && g.rs > 0 ? g.rs : roundSecs(sys), b = before && typeof before === 'object' ? before : {};
+    return function(fi) {
+        if (!fi || typeof fi.c !== 'string' || typeof fi.r !== 'string' || !(typeof fi.n === 'number' && fi.n >= 1)) return null;
+        var rl = (Array.isArray(rules) ? rules : []).filter(function(r) { return r && r.id === fi.r; })[0]; if (!rl) return null;
+        var fx = fi.x === 1, k = fx ? 'x_' + fi.r.slice(2) : fi.r, per = fx ? fightSecs(cal, un, rl.inFight, rs) : everySecs(cal, un, rl.every); if (!(per > 0)) return null;
+        var m = hasOwn(b, fi.c) && b[fi.c] && typeof b[fi.c] === 'object' ? b[fi.c] : {}, had = hasOwn(m, k) && typeof m[k] === 'number' && m[k] > 0 ? m[k] : 0, out = [];
+        for (var i = 0; i < Math.min(500, Math.floor(fi.n)); i++) out.push(Math.round((per - had + i * per) * 1000) / 1000);
+        return out;
+    };
+}
+// [calendarcheck:whenof-end]
 function firesOf(camp, sys, rules, g, spans) {   // the fires of these rules over each character's span; outside a fight with every span the same, as it always counted
     var acc = accNow(camp), ids = Object.keys(spans), one = uniformOf(spans), need = needOf(g, spans), res;   // 1.5.5: need, undefined with no rule ticked Only while its needs hold
     if (g.kind !== 'fight' && one !== null) res = need ? ruleFires(sysCal(), sysUnits(sys), rules, ids, acc, one, !!g.rest, undefined, need) : ruleFires(sysCal(), sysUnits(sys), rules, ids, acc, one, !!g.rest);

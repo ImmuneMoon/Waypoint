@@ -23,7 +23,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     const rec = (o) => Object.assign({ id: 'r_abc123', from: { id: 'u_pat', name: 'Pat', gm: false }, expr: '2d6 + 3', draws: [4, 5], v: V, ts: 1000 }, o);
 
     /* ---- expressions ---- */
-    check('cleanExpr trims, caps at 300, refuses empty and control characters', cleanExpr('  d20 ') === 'd20' && cleanExpr('x'.repeat(301)) === null && cleanExpr('') === null && cleanExpr('d20' + String.fromCharCode(0)) === null && cleanExpr(5) === null && cleanExpr('x'.repeat(300)) !== null);
+    check('cleanExpr trims, caps at 1000 (300 before 1.6.0, backlog 200: a sheet formula\'s own cap), refuses empty and control characters', cleanExpr('  d20 ') === 'd20' && cleanExpr('x'.repeat(1001)) === null && cleanExpr('') === null && cleanExpr('d20' + String.fromCharCode(0)) === null && cleanExpr(5) === null && cleanExpr('x'.repeat(1000)) !== null);
 
     /* ---- Stage 5a: composeModifier (the situational-modifier dialog folds a flat bonus into a roll) ---- */
     const co = (e, m) => composeModifier(e, m, F.parse);

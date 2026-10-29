@@ -166,7 +166,7 @@ const DOTS = '<path d="M12 5h.01M12 12h.01M12 19h.01"/>', TICK = '<path d="M5 12
         + '                      <button class="draw-style-btn" id="blastUndoThrow" title="Takes back the damage of the last thrown blast or explosion, for every token it hit.">' + SVG + UNDO + '</svg> Undo last throw</button>\n'
         + '                  </div>\n'
         + '                  <div class="gm-only" id="blastExplodeForm" style="display:none;">\n'
-        + '                      <div class="draw-menu-row"><span ' + WORD + '>Damage</span><input type="text" id="blastDmg" autocomplete="off" spellcheck="false" maxlength="300" aria-label="Damage, a number or a roll" ' + TXT + '></div>\n'
+        + '                      <div class="draw-menu-row"><span ' + WORD + '>Damage</span><input type="text" id="blastDmg" autocomplete="off" spellcheck="false" maxlength="1000" aria-label="Damage, a number or a roll" ' + TXT + '></div>\n'
         + '                      <div class="draw-menu-row"><span ' + WORD + '>Type</span><input type="text" id="blastDmgType" autocomplete="off" spellcheck="false" maxlength="40" aria-label="Damage type, a word" ' + TXT + '></div>\n'
         + '                      <label class="draw-menu-row fog-tick" id="blastHitCentreRow" style="display:none; align-items:center; gap:6px; cursor:pointer; font-size:12px;" title="Ticked, this explosion also hits the token the circle sits on. It is unticked each time these boxes open."><input type="checkbox" id="blastHitCentre"> <span>Also hits the token at the centre</span><small>Unticked, that token is spared.</small></label>\n'
         + '                      <div class="draw-menu-row">\n'

@@ -285,8 +285,8 @@ function renderForm() {
     field(form, 'tags', 'Tags', (e.tags || []).join(', '), { max: 220, ph: 'comma, separated', title: 'Words the search finds it by' });
     field(form, 'ref', 'Reference', e.ref, { max: LIB.ref, ph: 'e.g. Core p. 152' });
     form.appendChild(el('div', 'lib-fsub', 'At the table'));
-    field(form, 'damage', 'Damage', e.damage, { max: 300, ph: 'e.g. 2d6 + 1' });
-    field(form, 'cost', 'Cost', e.cost, { max: 300 });
+    field(form, 'damage', 'Damage', e.damage, { max: 1000, ph: 'e.g. 2d6 + 1' });
+    field(form, 'cost', 'Cost', e.cost, { max: 1000 });
     field(form, 'areaFt', 'Blast (ft)', e.area && e.area.ft ? e.area.ft : '', { max: 5, title: 'A blast radius in feet: the character can throw it from the sheet' });
     blastBox(form, e.area);   // 1.5.8: the blast's extras, as systemcore areaExtra keeps them
     field(form, 'throwSkill', 'Thrown with', e.throwSkill, { max: 40, ph: 'A skill key', title: 'The skill a throw of it rolls' });
@@ -341,7 +341,7 @@ function needsBox(form, e) {
         box.appendChild(sel);
     };
     draw();
-    field(form, 'needsIf', 'Rule', e.needsIf, { max: 300, ph: 'A formula that must be true, such as ST >= 12 (optional)', title: 'A formula with no dice that must be true for the character. It reads the character as a list’s column does, and it can stand beside the entries above or alone' });
+    field(form, 'needsIf', 'Rule', e.needsIf, { max: 1000, ph: 'A formula that must be true, such as ST >= 12 (optional)', title: 'A formula with no dice that must be true for the character. It reads the character as a list’s column does, and it can stand beside the entries above or alone' });
     form.appendChild(el('div', 'lib-note', 'A rule is a formula that must be true for the character, such as ST >= 12. It rolls no dice.'));
     field(form, 'needsFrom', 'Rule from level', e.needsFrom, { max: 8, ph: 'The level of this entry from which the rule applies (optional)', title: 'Leave it empty for a rule that must be true to take the entry at all' });
     form.appendChild(el('div', 'lib-note', 'A need or a rule with a From level counts only once the row of this entry is at that level. A player who raises a level is judged as when they take the entry.'));
@@ -541,11 +541,11 @@ function affRows(form, i, a) {
     var fxP = [['', 'Pick an effect']].concat(effs.map(function(d) { return [d.id, typeof d.name === 'string' && d.name ? d.name : d.id]; })); if (typeof a.fx === 'string' && a.fx && !effs.some(function(d) { return d.id === a.fx; })) fxP.push([a.fx, 'An effect that is gone']);
     var tu = c && c.system && c.system.combat && c.system.combat.turn && Array.isArray(c.system.combat.turn.units) ? c.system.combat.turn.units.filter(function(u) { return u && typeof u.key === 'string'; }) : [], ls = a.lasts && typeof a.lasts === 'object' ? a.lasts : {};
     var uP = [['turns', 'Turns'], ['seconds', 'Seconds'], ['minutes', 'Minutes'], ['hours', 'Hours'], ['days', 'Days']].concat(tu.map(function(u) { return [u.key, typeof u.label === 'string' && u.label ? u.label : u.key]; })); if (typeof ls.u === 'string' && ls.u && !uP.some(function(o) { return o[0] === ls.u; })) uP.push([ls.u, ls.u]);
-    field(form, 'areaAff' + i + 'Vs', n + 'resisted against', typeof a.vs === 'string' ? a.vs : '', { max: 300, ph: 'e.g. HT-2', title: 'What a character it reaches rolls the Combat card\u2019s resist roll against, read with their own names. Blank: no affliction' });
+    field(form, 'areaAff' + i + 'Vs', n + 'resisted against', typeof a.vs === 'string' ? a.vs : '', { max: 1000, ph: 'e.g. HT-2', title: 'What a character it reaches rolls the Combat card\u2019s resist roll against, read with their own names. Blank: no affliction' });
     field(form, 'areaAff' + i + 'Fx', n + 'on a failure', typeof a.fx === 'string' ? a.fx : '', { pairs: fxP, title: 'The effect put on a character that fails to resist, one of the system\u2019s effects' });
     field(form, 'areaAff' + i + 'Who', n + 'reaches', a.who === 'all' ? 'all' : '', { pairs: [['', 'Those it hurts'], ['all', 'Everyone in the blast']], title: 'Whom it reaches: those the blast or its fragmentation hurt, or everyone in the blast\u2019s radius' });
-    field(form, 'areaAff' + i + 'Needs', n + 'only where', typeof a.needs === 'string' ? a.needs : '', { max: 300, ph: 'e.g. not Droid', title: 'A formula of the character it reaches that must hold for it to touch them at all. Blank: everyone it reaches' });
-    field(form, 'areaAff' + i + 'Lasts', n + 'lasts', typeof ls.n === 'string' ? ls.n : '', { max: 300, ph: 'e.g. 1d6', title: 'How long the effect lasts, a formula that may roll dice. Blank: the effect\u2019s own duration' });
+    field(form, 'areaAff' + i + 'Needs', n + 'only where', typeof a.needs === 'string' ? a.needs : '', { max: 1000, ph: 'e.g. not Droid', title: 'A formula of the character it reaches that must hold for it to touch them at all. Blank: everyone it reaches' });
+    field(form, 'areaAff' + i + 'Lasts', n + 'lasts', typeof ls.n === 'string' ? ls.n : '', { max: 1000, ph: 'e.g. 1d6', title: 'How long the effect lasts, a formula that may roll dice. Blank: the effect\u2019s own duration' });
     field(form, 'areaAff' + i + 'Unit', n + 'lasts in', typeof ls.u === 'string' && ls.u ? ls.u : 'minutes', { pairs: uP, title: 'The unit of its Lasts' });
 }
 // what the cleaner left out of the blast's extras, said in fixed words (an empty text: nothing)

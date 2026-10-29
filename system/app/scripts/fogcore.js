@@ -601,8 +601,10 @@ function cleanSeenTip(v) { return v === 'round' || v === 'square' || v === 'flat
 // A colour that draws nothing, read as the board's own rule reads the very text (BOARD_COLOR is safecore.js COLOR_RE with its 40
 // characters, and sinkcheck holds the copy to it). A text that rule takes is clear where it is the word transparent, a hex colour
 // whose alpha is 0, or an rgba / hsla of FOUR parts whose alpha is 0 (rgba(255, 0, 0) is plain red). A text it REFUSES (a blank
-// beside the colour, RGBA in capitals, no text at all) draws no fill on a rectangle or a circle, which is clear, and ink on a line
-// or a filled region, which is not; a hexagon and a diamond then show their own ground. box: true asks for a rectangle or a circle
+// beside the colour, RGBA in capitals, an empty text) draws no fill on a rectangle or a circle, which is clear, and ink on a line
+// or a filled region, which is not; a hexagon and a diamond then show their own ground. A colour that is no text at all (no colour
+// key, null, a number) answers false, though the board draws no fill for it either (a kept limit, 23b). box: true asks for a
+// rectangle or a circle
 var BOARD_COLOR = /^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?\([\d.,\s%]+\)|[a-zA-Z]{1,20}|var\(--[\w-]+\))$/;
 function clearColor(c, box) {
     if (typeof c !== 'string') return false;
@@ -682,7 +684,8 @@ function secretReveal(w) { if (!isObj(w) || w.secret === undefined) return false
 // end to the middle and MATCH.reach px): such a wall runs beside the door there. A door whose two ends lie within the lesser of
 // MATCH.reach px and half its own length of each other (a ring) has no two ends: the ends say nothing and no wall is aside. Walls of
 // one look are those DRAWN alike: colour, width, opacity, nib and scale, the colour read in lower case and each number to a
-// thousandth, so two walls resized together are one look but at a rounding step of the thousandth.
+// thousandth, so two walls resized together are one look where they keep the same factors: not across a rounding step of the
+// thousandth, nor where a group made smaller leaves a level wall [k, 1] and an upright one [1, k] (the board's floor of 10 px).
 // (2) A wall that is not ASIDE before one that is. A wall is aside where it runs BESIDE the door (it passes both ends and the middle
 // at about one distance and reaches neither end) or CROSSES it (it passes the middle clear of both ends), unless the two strokes
 // overlap at the door's two ends and at its middle: then the door was drawn over that wall, however roughly.
@@ -702,7 +705,8 @@ function secretReveal(w) { if (!isObj(w) || w.secret === undefined) return false
 // THE ANSWER. Its colour (a six-digit hex colour, or the word transparent for a wall that draws nothing: the two forms a secret door
 // may be seen in, else null), its opacity as lineOpacity reads it, and the WIDTH and NIB at which the door's copy is drawn as thick
 // as its wall IS drawn where they meet, since the eye has only that to compare with: the wall's width times its pen's factor along
-// the wall's own leg there, over the door's box's factor along the door's stretch (a stretch of half a run or more by its own
+// the wall's own leg there (a stretch of half a run or more; a shorter one by the run that spoke for the pair, which beside a
+// corner is a chord across it), over the door's box's factor along the door's stretch (a stretch of half a run or more by its own
 // direction, as the board draws it, a shorter one by its run). For two lines never resized nor turned that is the wall's own number
 // and nib, with one exception. A flat nib is a ribbon, as thick as the way it runs makes it, so it is read along the DOOR's stretch on
 // both: how thick the wall's own nib would draw there. Where that is under a pixel, or the door's own box would need a nib more than
@@ -711,8 +715,10 @@ function secretReveal(w) { if (!isObj(w) || w.secret === undefined) return false
 // THE BOUND. A wall's points are read as the fog reads them (pathSegs, LIMITS.wallSegs stretches of a line at the most). Then every
 // wall stretch and every pair looked at costs one unit of work, a tidying of the list of pairs one for each pair in it, and each pair
 // judged for its runs 64: past MATCH.work the answer is { over: true } and nothing else, so no farther wall answers in the place of
-// one that was not read. A list of pairs too long to be judged within the bound is over as soon as it is that long. Each stretch's
-// runs are read once and kept, so a pair judged costs a few products
+// one that was not read. A list of pairs too long to be judged within the bound is over when it is next tidied, so up to twice that
+// long. Each stretch's runs are read once and kept, so a pair judged costs a few products. The first reading of a wall stretch's runs
+// is not counted (up to five reads of up to 512 stretches inside one pair's 64): the bound holds the work, not the time, and a file
+// made for it can make one press take seconds (a kept limit, 23b)
 var MATCH = Object.freeze({ reach: 12, touch: 4, cap: 100, work: 20000000, run: 40, same: 0.86 });
 function ptSeg2(px, py, s) {
     var dx = s[2] - s[0], dy = s[3] - s[1], l2 = dx * dx + dy * dy, t = l2 ? ((px - s[0]) * dx + (py - s[1]) * dy) / l2 : 0;
@@ -825,7 +831,6 @@ function secretMatch(door, pieces) {
         if (!(near <= N2)) continue;   // within the widest reach a line could have, yet not within this pair's own
         // An END is reached where the door's end point itself lies in the wall's stroke, or near it: the door's own width does not count here, or a thick wall that runs BESIDE a thick door would reach both its ends
         var Te2 = (hw + MATCH.touch) * (hw + MATCH.touch), Ne2 = (hw + MATCH.reach) * (hw + MATCH.reach), On2 = (hw + 1) * (hw + 1), Li2 = (hw + hd) * (hw + hd);
-        var on = e0 <= On2 && e1 <= On2;   // both of the door's ends lie IN this wall's stroke: the door lies on the wall, whatever its middle does
         var lies = e0 <= Li2 && e1 <= Li2 && em <= Li2;   // the two strokes overlap at the door's two ends and at its middle: the door was drawn over this wall
         var past = two && em <= R2, dm = Math.sqrt(em), de0 = Math.sqrt(e0), de1 = Math.sqrt(e1), ga = Math.min(ma, MATCH.reach), gb = Math.min(mb, MATCH.reach);   // the wall passes the door's middle within the widest reach (where every stretch of it was read)...
         var out0 = past && e0 > On2 && dm < de0 + ga, out1 = past && e1 > On2 && dm < de1 + gb;   // ...about as near as it passes that end, or nearer, and the end is not in its stroke: it runs beside the door there, and does not reach the end
@@ -857,9 +862,10 @@ function secretMatch(door, pieces) {
     var wide = lwB * r;
     return { color: clearColor(best.w.color) ? 'transparent' : cleanSeenColor(best.w.color), width: fin(wide) && wide > 0 ? Math.min(wide, 1e15) : lwB, opacity: lineOpacity(best.w), tip: tip };
 }
-// How thick a matched door is DRAWN for the players, in px of the map, as [the thinnest, the thickest] over its own runs: its seen
-// width times the factor of the nib its copy wears along each run (one figure twice for a straight door, or one never resized). Null
-// where no width is set
+// How thick a matched door is DRAWN for the players, in px of the map, as [the thinnest, the thickest] over its first 2,000 stretches:
+// its seen width times the factor of the nib its copy wears along each, a stretch of half a run or more by its own direction and a
+// shorter one by its run. One figure twice where every stretch reads alike; a flat nib gives two where the legs lie differently to
+// it, a door never resized or drawn straight by hand too. Null where no width is set
 function seenDrawn(w) {
     var sw = lineOf(w) ? cleanSeenWidth(w.seenWidth) : null; if (sw === null) return null;
     var ds = pathSegs(w), tip = cleanSeenTip(w.seenTip) || lineTip(w), lo = Infinity, hi = -Infinity, n = Math.min(ds.length, 2000), k, t;

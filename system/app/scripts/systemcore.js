@@ -4414,7 +4414,9 @@ function setLibraryFind(fn) { _libFind = typeof fn === 'function' ? fn : null; }
 // 1.6.0 (v2, B4; the SotMW session's v2 sort, 2026-10-29: a trait tier's fixed kit, a species' free package rows, an implant's mandatory flaws):
 // what a row of an entry grants. At most GRANT_MAX of { list: an item list's field id, entry: an item or a library entry by id, qty: how many,
 // from: the level of THIS entry from which it grants (none: from the start) }, each list, entry and level once, never the entry itself. kinds:
-// the view's fields by id (fieldKinds), so a grant on a list the view lacks goes; none: the key rule alone. None: undefined
+// the view's fields by id (fieldKinds), so a grant on a list the view lacks goes; none: the key rule alone. None: undefined. 1.6.0 (CORE gap 15,
+// an implant's mandatory flaws, once a character with the first implant): once: true, the entry is granted only where the character holds no
+// row of it on that list, and the row it granted passes to another row that grants it once rather than going with its granter (grantHeirs)
 var GRANT_MAX = 8, GRANT_DEPTH = 3;
 function cleanGrants(v, kinds, self) {
     if (!Array.isArray(v)) return undefined;
@@ -4422,7 +4424,7 @@ function cleanGrants(v, kinds, self) {
     v.slice(0, 32).forEach(function(g) {
         if (out.length >= GRANT_MAX || !isObj(g) || typeof g.list !== 'string' || !FIELD_ID.test(g.list) || typeof g.entry !== 'string' || !ITEM_ID.test(g.entry) || g.entry === self) return;
         if (isObj(kinds) && kinds[g.list] !== 'item-list') return;
-        var o = { list: g.list, entry: g.entry, qty: clampNum(Math.round(cleanNum(g.qty, 1)) || 1, 1, LIMITS.maxQty) }, fr = typeof g.from === 'number' ? lvlNum(g.from) : undefined; if (fr !== undefined) o.from = fr;
+        var o = { list: g.list, entry: g.entry, qty: clampNum(Math.round(cleanNum(g.qty, 1)) || 1, 1, LIMITS.maxQty) }, fr = typeof g.from === 'number' ? lvlNum(g.from) : undefined; if (fr !== undefined) o.from = fr; if (g.once === true) o.once = true;
         var k = o.list + '|' + o.entry + '|' + (fr === undefined ? '' : fr); if (seen[k]) return; seen[k] = 1;
         out.push(o);
     });
@@ -4444,6 +4446,7 @@ function grantWant(def, lvl) {
         if (!isObj(g) || typeof g.list !== 'string' || typeof g.entry !== 'string' || (typeof g.from === 'number' && at < g.from)) return;
         var k = g.list + '|' + g.entry, n = clampNum(cleanNum(g.qty, 1) | 0, 1, LIMITS.maxQty);
         if (out[k]) out[k].qty = clampNum(out[k].qty + n, 1, LIMITS.maxQty); else out[k] = { list: g.list, entry: g.entry, qty: n };
+        if (g.once === true) out[k].once = true;   // 1.6.0 (CORE gap 15)
     });
     return out;
 }
@@ -4483,13 +4486,34 @@ function grantLists(sys, char, f, list, extra) {
 // it is, hidden from its player under ids they never held, each still marked by the row that grants it
 function grantCut(sys, W, seed, withSeed, keptTo) {
     var fids = itemListIds(sys), vals = map(); fids.forEach(function(fid) { var L = W.get(fid); if (L) vals[fid] = L; });
-    var ids = grantIds(sys, vals, seed), hit = function(r) { return isObj(r) && ((typeof r.gr === 'string' && ids[r.gr] === 1) || (withSeed && seed[rowIdOf(r)] === 1)); }, nu = map();
+    var ids = grantIds(sys, vals, seed); if (grantHeirs(sys, vals, ids, seed, withSeed, W)) ids = grantIds(sys, vals, seed);   // 1.6.0 (CORE gap 15): a row granted once a character passes to another row that grants it, and stays
+    var hit = function(r) { return isObj(r) && ((typeof r.gr === 'string' && ids[r.gr] === 1) || (withSeed && seed[rowIdOf(r)] === 1)); }, nu = map();
     if (keptTo) { Object.keys(seed).forEach(function(k) { nu[k] = keptTo; }); fids.forEach(function(fid) { (vals[fid] || []).forEach(function(r) { if (hit(r)) nu[rowIdOf(r)] = uid('w_'); }); }); }
     fids.forEach(function(fid) {
         var L = vals[fid]; if (!L) return; var keep = [], did = false;
         L.forEach(function(r) { if (!hit(r)) { keep.push(r); return; } did = true; if (keptTo) { var kr = JSON.parse(JSON.stringify(r)); kr.id = nu[rowIdOf(r)]; kr.gr = nu[r.gr] || keptTo; kr.hid = 1; keep.push(kr); } });
         if (did) { L.length = 0; keep.forEach(function(r) { L.push(r); }); W.touched[fid] = 1; }
     });
+}
+// 1.6.0 (CORE gap 15): before the rows a cut takes go, each one granted once a character (its granter's entry grants it once on that list)
+// passes to the first row, in list order, that grants it once at its level now and is neither going nor kept hidden: its gr then names that
+// row, so it stays, with what it granted. A seed row that passes leaves the seed. Answers whether any passed
+function grantHeirs(sys, vals, ids, seed, withSeed, W) {
+    var fids = Object.keys(vals), byId = map(), moved = false;
+    fids.forEach(function(fid) { vals[fid].forEach(function(r) { var id = rowIdOf(r); if (isObj(r) && id) byId[id] = { r: r, f: fid }; }); });
+    var defOf = function(r) { var rd = rowDef(sys, r); return rd && isObj(rd.def) ? rd.def : null; };
+    var grantsOnce = function(r, fid, k, now) { var d = defOf(r); if (!isObj(d) || !Array.isArray(d.grants)) return false; if (!now) return d.grants.some(function(g) { return isObj(g) && g.once === true && g.list + '|' + g.entry === k; }); var f = fieldById(sys, fid), w = grantWant(d, rowLvl(f && isObj(f.list) ? f.list : null, r, d)); return !!(w[k] && w[k].once); };
+    fids.forEach(function(fid) {
+        vals[fid].forEach(function(r) {
+            if (!isObj(r) || r.hid === 1 || typeof r.gr !== 'string' || typeof r.defId !== 'string') return;
+            var rid = rowIdOf(r), going = ids[r.gr] === 1 || (withSeed && seed[rid] === 1); if (!going) return;
+            var k = fid + '|' + r.defId, from = byId[r.gr]; if (from && !grantsOnce(from.r, from.f, k, false)) return;   // a granter that is gone (cut already) is judged by no grant of its own: its row passes where an heir grants it once
+            var heir = null; fids.forEach(function(f2) { vals[f2].forEach(function(x) { var xid = rowIdOf(x); if (heir || !isObj(x) || x.hid === 1 || !xid || xid === rid || xid === r.gr || ids[xid] === 1 || seed[xid] === 1) return; if (grantsOnce(x, f2, k, true)) heir = x; }); });
+            if (!heir) return;
+            r.gr = rowIdOf(heir); if (withSeed && seed[rid] === 1) delete seed[rid]; W.touched[fid] = 1; moved = true;
+        });
+    });
+    return moved;
 }
 // A row granted: a row of its own, at Paid 0, marked by the row that grants it (gr), its level, switch and making mark as an add writes them.
 // On a list that holds each entry once, an entry already held is not granted again. Then what it grants in turn, GRANT_DEPTH deep at most.
@@ -4498,6 +4522,7 @@ function grantAdd(sys, W, g, qty, rid, ctx, depth) {
     var ent = itemDef(sys, g.entry), fromLib = false; if (!ent) { ent = libFind(g.entry); fromLib = isObj(ent); } if (!isObj(ent)) return null;   // an entry that is gone grants nothing
     var tf = fieldById(sys, g.list), sp = tf && isObj(tf.list) ? tf.list : null, L = W.get(g.list); if (!L) return null;
     if (sp && sp.noQty && !sp.multi && L.some(function(r) { return isObj(r) && r.defId === g.entry && r.hid !== 1 && typeof r.opn !== 'string'; })) return null;
+    if (g.once === true && L.some(function(r) { return isObj(r) && r.defId === g.entry && r.hid !== 1 && typeof r.opn !== 'string'; })) return null;   // 1.6.0 (CORE gap 15): once a character, whatever row holds it
     if (L.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return { ok: false, reason: 'value', msg: 'No room on ' + (tf.label || 'that list') + ' for ' + (ent.name || 'what it grants') + '.' };
     var id = uid('w_'); while (L.some(function(r) { return rowIdOf(r) === id; })) id = uid('w_');
     var row = { id: id, defId: g.entry, qty: sp && sp.noQty ? 1 : clampNum(qty, 1, LIMITS.maxQty), gr: rid };

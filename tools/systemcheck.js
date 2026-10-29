@@ -15538,6 +15538,41 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ixU.includes('<li><b>Keeps paying</b>, under the switch, is what a row switched on keeps paying') && ntU.every(t => t.indexOf("- A list's rows can keep paying while switched on") > 0 && t.indexOf("- A list's rows can keep paying while switched on") < t.indexOf('WAYPOINT 1.5.')),
             J(vU.errors.concat(vU.warnings).map(e => e.message)));
     }
+    {   // 1.6.0 (CORE gap 15, an implant's mandatory flaws once a character): a grant counted once per character, on invented data
+        const J = JSON.stringify;
+        const rawO = { v: 1, name: 'O', rolls: [], items: [
+            { id: 'i_eye', name: 'Eye', category: 'Implant', grants: [{ list: 'f_fl', entry: 'i_dep', once: true }, { list: 'f_fl', entry: 'i_dep', once: 'yes', from: 4 }] },
+            { id: 'i_arm', name: 'Arm', category: 'Implant', grants: [{ list: 'f_fl', entry: 'i_dep', once: true }] },
+            { id: 'i_hub', name: 'Hub', category: 'Implant', grants: [{ list: 'f_fl', entry: 'i_dep', once: true, from: 2 }] },
+            { id: 'i_old', name: 'Old', category: 'Implant', grants: [{ list: 'f_fl', entry: 'i_dep' }] },
+            { id: 'i_dep', name: 'Dependence', category: 'Flaw' }],
+            fields: [{ id: 'f_im', key: 'Implants', kind: 'item-list', vis: 'all', edit: 'owner', list: { lvl: { min: 1, max: 5, def: 1 } } },
+                { id: 'f_fl', key: 'Flaws', kind: 'item-list', vis: 'all', edit: 'owner' }], sheet: { sections: [] } };
+        const gO = cleanSystem(rawO, { F, gmView: true }), pO = cleanSystem(rawO, { F, gmView: false });
+        const put = (ch, f, r) => { if (r.ok) { ch.values[f] = r.value; if (r.also) Object.keys(r.also).forEach(k => { ch.values[k] = r.also[k]; }); } return r; };
+        const op = (ch, q) => put(ch, 'f_im', S.applyRowOp(gO, ch, 'f_im', q, F, {})), fl = ch => ch.values.f_fl.map(r => r.defId + ':' + r.qty + ':' + (r.gr || 'own'));
+        const cleanOk = J(gO.items[0].grants) === J([{ list: 'f_fl', entry: 'i_dep', qty: 1, once: true }, { list: 'f_fl', entry: 'i_dep', qty: 1, from: 4 }]) && J(pO.items[0].grants) === J(gO.items[0].grants) && !('once' in gO.items[3].grants[0])
+            && J(S.grantWant(gO.items[0], 1)) === J({ 'f_fl|i_dep': { list: 'f_fl', entry: 'i_dep', qty: 1, once: true } }) && J(cleanSystem(gO, { F, gmView: true })) === J(gO);
+        const c1 = { id: 'c_o', name: 'Rin', values: { f_im: [], f_fl: [] } }, s = [];
+        op(c1, { op: 'add', defId: 'i_eye', rowId: 'w_a' }); s.push(fl(c1)); op(c1, { op: 'add', defId: 'i_arm', rowId: 'w_b' }); s.push(fl(c1));
+        op(c1, { op: 'remove', rowId: 'w_a' }); s.push(fl(c1)); op(c1, { op: 'remove', rowId: 'w_b' }); s.push(fl(c1));
+        const onceOk = J(s) === J([['i_dep:1:w_a'], ['i_dep:1:w_a'], ['i_dep:1:w_b'], []]);
+        const c2 = { id: 'c_o', name: 'Rin', values: { f_im: [], f_fl: [] } }, t = [];
+        op(c2, { op: 'add', defId: 'i_hub', rowId: 'w_c' }); op(c2, { op: 'set', rowId: 'w_c', facts: { lvl: 2 } }); t.push(fl(c2)); op(c2, { op: 'add', defId: 'i_eye', rowId: 'w_a' }); t.push(fl(c2));
+        op(c2, { op: 'set', rowId: 'w_c', facts: { lvl: 1 } }); t.push(fl(c2)); op(c2, { op: 'set', rowId: 'w_c', facts: { lvl: 2 } }); t.push(fl(c2));
+        const lvlOk = J(t) === J([['i_dep:1:w_c'], ['i_dep:1:w_c'], ['i_dep:1:w_a'], ['i_dep:1:w_a']]);
+        const c3 = { id: 'c_o', name: 'Rin', values: { f_im: [], f_fl: [{ id: 'w_own', defId: 'i_dep', qty: 1 }] } }; op(c3, { op: 'add', defId: 'i_arm', rowId: 'w_b' }); const held = fl(c3);
+        op(c3, { op: 'add', defId: 'i_old', rowId: 'w_o' }); op(c3, { op: 'add', defId: 'i_eye', rowId: 'w_a' }); const both = fl(c3);
+        const heldOk = J(held) === J(['i_dep:1:own']) && J(both) === J(['i_dep:1:own', 'i_dep:1:w_o']);
+        check('CORE gap 15: a grant ticked Once a character (once, kept by cleanGrants as true only, in both views, carried by grantWant): a second implant grants no second flaw; when the first goes the flaw passes to the second (its gr names it) and stays, and goes with the last; a granter whose level falls below its From passes it to another that grants it once, and its level back grants none again; a row the character holds of its own counts as held; a grant with no tick grants as before',
+            cleanOk && onceOk && lvlOk && heldOk, J([cleanOk, s, t, held, both]));
+        const shO = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), lbO = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n'), ixO = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+        const ntO = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n'));
+        check('CORE gap 15 is in both editors and said (source): the System editor\'s and the Library\'s grant lines tick Once a character, each handler writing once true or taking it off; Help and both 1.6.0 notes say it',
+            shO.includes("if (typeof checkLabel === 'function') ln.appendChild(checkLabel('sys-grant-once', g.once === true, 'Once a character'") && shO.includes("if (gO) { if (t.checked) gO.once = true; else delete gO.once; markDirty(); }")
+            && lbO.includes("var ol = el('label', 'lib-mod-lvl lib-grant-once'), oc = el('input'); oc.type = 'checkbox'; oc.checked = g.once === true;") && lbO.includes("ol.appendChild(el('span', null, ' Once a character'))") && lbO.indexOf("var ol = el('label', 'lib-mod-lvl lib-grant-once')") > lbO.indexOf("x.title = 'It no longer grants this'") && lbO.includes("oc.addEventListener('change', function() { if (oc.checked) g.once = true; else delete g.once; }); ln.appendChild(ol);")
+            && ixO.includes('<li>Tick <b>Once a character</b> on a grant') && ntO.every(t => t.indexOf("- A grant can come once a character") > 0 && t.indexOf("- A grant can come once a character") < t.indexOf('WAYPOINT 1.5.')));
+    }
     {   // 1.6.0: a list's roll or action only the GM presses (gm)
         const J = JSON.stringify;
         const rawG = { v: 1, name: 'G', rolls: [], fields: [{ id: 'f_wear', key: 'Wear', kind: 'number', def: 0, edit: 'owner' }, { id: 'f_kit', key: 'Kit', kind: 'item-list', edit: 'owner', list: { counters: [{ key: 'Jam' }], rolls: [

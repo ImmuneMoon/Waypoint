@@ -9463,6 +9463,7 @@ function grantBox(it) {
         ln.appendChild(select('sys-grant-list', lo, g.list || '', 'The list it is added to'));
         ln.appendChild(numField('sys-grant-qty', typeof g.qty === 'number' ? g.qty : 1, 'How many it adds', 'how many', '1'));
         ln.appendChild(numField('sys-grant-from', typeof g.from === 'number' ? g.from : '', 'The level of this item from which it is granted. Blank: from the start', 'from level', 'any'));
+        if (typeof checkLabel === 'function') ln.appendChild(checkLabel('sys-grant-once', g.once === true, 'Once a character', 'Granted only where the character holds no row of it on that list yet, as an implant\u2019s mandatory flaw comes with the first implant. While another row that grants it once is left, it stays when this row goes'));   // 1.6.0 (CORE gap 15)
         ln.appendChild(btnRow([['grantdel', 'It no longer grants this', '&times;']]));
         box.appendChild(ln);
     });
@@ -9738,6 +9739,7 @@ function onChange(e) {
     if (iit) {
         if (c.indexOf('sys-item-vis') >= 0) { iit.vis = t.value; markDirty(); patchErrors(); return; }
         if (/(^| )sys-grant-list( |$)/.test(c)) { var glC = t.closest('.sys-grant'), gC = glC && Array.isArray(iit.grants) ? iit.grants[+glC.dataset.gi] : null; if (gC) { if (t.value) gC.list = t.value; else delete gC.list; markDirty(); renderAll(); } return; }   // 1.6.0 (v2, B4): a grant's list
+        if (/(^| )sys-grant-once( |$)/.test(c)) { var glO = t.closest('.sys-grant'), gO = glO && Array.isArray(iit.grants) ? iit.grants[+glO.dataset.gi] : null; if (gO) { if (t.checked) gO.once = true; else delete gO.once; markDirty(); } return; }   // 1.6.0 (CORE gap 15): once a character
         if (/(^| )sys-grant-add( |$)/.test(c)) { var gv = t.value; if (!gv) return; iit.grants = Array.isArray(iit.grants) ? iit.grants : []; if (iit.grants.length >= GRANT_MAX) { toast('At most ' + GRANT_MAX + ' grants an item.'); return; } iit.grants.push({ list: grantListFor(gv), entry: gv, qty: 1 }); markDirty(); renderAll(); return; }
         if (/(^| )sys-grant-(qty|from)( |$)/.test(c)) return;
         if (c.indexOf('sys-item-mtarget') >= 0) { var itl = t.closest('.sys-item-mod'), itm = itl ? (iit.mods || [])[+itl.dataset.mi] : null; if (itm) { var itp = t.value.split('|'); itm.f = itp[0]; if (itp[1] === 'on') { itm.op = 'on'; delete itm.v; delete itm.part; delete itm.lvl; } else { itm.op = itm.op === 'max' || itm.op === 'min' ? itm.op : 'add'; if (typeof itm.v !== 'number') itm.v = 1; if (itp[1] === 'max') itm.part = 'max'; else delete itm.part; } rowAimSet(itm, draft, t.value); markDirty(); renderAll(); } return; }   // F6

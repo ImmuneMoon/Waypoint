@@ -276,6 +276,9 @@ Systems
   3 MP a turn: Keeps paying names the pool and the amount, and whether it
   is paid at its turn's start, each round or by the clock. Ticked, a row
   switches off when the pool cannot pay.
+- A grant can come once a character, such as an implant's mandatory
+  flaw: a second implant grants no second flaw, and the flaw stays while
+  any implant that grants it is left.
 - A system holds 160 rolls, up from 50, and 600 fields, up from 400. A
   sheet or its HUD holds 800 placements, up from 400. The System
   editor's + Roll now greys out at the limit and says why, where before

@@ -40,6 +40,8 @@ Briefing for anyone (human or AI) generating campaign content for the Waypoint a
 
 4. **Zip bundle (new option): one file with images included.** The in-app Import also accepts a `.zip` containing `data.json` (a normal merge file) plus `images/<mapId>/<file>` entries. On Merge/Replace the app copies each image to `saves/images/<mapId>/<file>` at its exact path. For a drop that ships new art, you may deliver a single zip instead of a merge file + separate image placement instructions. Plain merge JSON handoffs remain fine.
 
+   **A share card (1.6.0, optional).** A zip may also hold `share.json` beside `data.json`: the card Import shows at the top of its box before anything comes in. It never changes `data.json`, and an older Waypoint passes over it. Its shape: `{ "v": 1, "kind": "campaign" | "all", "title", "author", "version", "desc", "cover": "images/<folder>/<file>.png", "contents": { "maps": { "n": 6 }, "pictures": { "n": 83, "bytes": 222298112 }, ... }, "left": ["music", "players"] }`. Every key is optional but `v`. The title, author and version are one line each (120, 80 and 24 characters), the description up to 1,000 characters and 20 lines. `cover` names a PNG, JPEG, GIF or WebP entry of the same zip, never under `images/journal/`, `images/audio/` or `images/video/`; the app shows it only when its bytes are that picture. The kinds are `maps`, `pages`, `chars`, `pictures`, `sounds`, `music`, `videos` and `players`. The file is read as data and drawn as text, so anything else in it is dropped.
+
 Always keep a backup copy of `saves/data.json` before writing to it. (The app also snapshots it into `saves/backups/` on every launch, but make your own before a bulk write anyway.)
 
 ## Data schema (`saves/data.json`)

@@ -395,7 +395,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const sh5 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), css5 = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
         const hb5 = sh5.slice(sh5.indexOf('function headerBlocks('), sh5.indexOf('function buildSections('));
         check('Stage 5g: a ledger number is a live box only for whoever may edit it (the section\'s own rule, never on another player\'s copy or an error) and commits like the section\'s; the portrait comes through imgSrc; nothing reaches innerHTML',
-            /if \(ledger && f\.kind === 'number' && !f\.labels && !en\.error && !c\.partial && openF\(f\) && \(gm \|\| \(own && f\.vis === 'all' && \(f\.edit === 'owner' \|\| c\.making === 1 \|\| c\.unlocked === 1\)\)\)\)[\s\S]{0,900}?inp\.addEventListener\('change', function\(\) \{ commit\(c, f, Number\(inp\.value\)\); \}\);/.test(hb5)
+            /if \(ledger && f\.kind === 'number' && !f\.labels && !en\.error && !c\.partial && !\(all\[f\.id\] && all\[f\.id\]\.over\) && openF\(f\) && \(gm \|\| \(own && f\.vis === 'all' && \(f\.edit === 'owner' \|\| c\.making === 1 \|\| c\.unlocked === 1\)\)\)\)[\s\S]{0,900}?inp\.addEventListener\('change', function\(\) \{ commit\(c, f, Number\(inp\.value\)\); \}\);/.test(hb5)
             && /inp\.dataset\.part = 'hdr';/.test(hb5) && /im\.src = imgSrc\(c\.portrait\);/.test(hb5) && !/innerHTML/.test(hb5) && /block\(sh\.identity, 'sheet-identity', 'sheet-identity-item', false\);/.test(hb5));
         check('Stage 5g: the head and the frame take the sheet look\'s colours through --sheet-ink/--sheet-bg, removed again when the look has none; the accent is a variable set only when the look has one',
             /pair = !!\(style && HEXC\.test\(style\.textColor \|\| ''\) && HEXC\.test\(style\.bgColor \|\| ''\)\);\s*if \(pair\) \{ node\.style\.setProperty\('--sheet-ink', style\.textColor\); node\.style\.setProperty\('--sheet-bg', style\.bgColor\);[\s\S]{0,200}?else \{ node\.style\.removeProperty\('--sheet-ink'\); node\.style\.removeProperty\('--sheet-bg'\); node\.style\.removeProperty\('--sheet-dim'\); \}/.test(sh5)
@@ -4381,7 +4381,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const sh3 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), hb3 = sh3.slice(sh3.indexOf('function headerBlocks('), sh3.indexOf('function buildSections(')), idn = sh3.slice(sh3.indexOf('function idnControl('), sh3.indexOf('function accentInk('));
         check('look L3: the header edits a row in place only for whoever may edit the field (the section\'s rule, never on a teammate\'s copy) and never on an error, after the ledger branch; every control is data-part "idn" and goes through commit; nothing in the header uses innerHTML',
             idn.length > 0 && hb3.indexOf('function idnControl(') > 0 && !/innerHTML/.test(hb3) && /var idnOk = function\(f\) \{ return !c\.partial && openF\(f\) && \(gm \|\| \(own && f\.vis === 'all' && \(f\.edit === 'owner' \|\| c\.making === 1 \|\| c\.unlocked === 1\)\)\); \};/.test(hb3)
-            && /it\.appendChild\(ed\); box\.appendChild\(it\); return;\s*\n\s*\}\s*\n\s*if \(!ledger && IDN_EDIT\[f\.kind\] === 1 && !en\.error && idnOk\(f\)\) \{ it\.appendChild\(idnControl\(f, c, all\[f\.id\], tone\)\);/.test(hb3)
+            && /it\.appendChild\(ed\); box\.appendChild\(it\); return;\s*\n\s*\}\s*\n\s*if \(!ledger && IDN_EDIT\[f\.kind\] === 1 && !en\.error && !\(all\[f\.id\] && all\[f\.id\]\.over\) && idnOk\(f\)\) \{ it\.appendChild\(idnControl\(f, c, all\[f\.id\], tone\)\);/.test(hb3)
             && /ctl\.dataset\.fid = f\.id; ctl\.dataset\.part = 'idn';/.test(idn) && (idn.match(/commit\(c, f, /g) || []).length === 5);
         const css3 = fs.readFileSync(path.join(app, 'style.css'), 'utf8'), tut3 = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
         check('look L3: with the portrait and name in the header, the title bar\'s name (and the pop-out\'s) is hidden visually but kept for screen readers; the tour seeds Class alone and moves an old seed (abilities stay tiles)',
@@ -17707,6 +17707,43 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && shC.includes("if (typeof partCapsBox === 'function') fl.appendChild(partCapsBox(sp));   // 205 (5): a cap per kind");
         check('205 (5) a cap per kind of part: a list\'s parts.caps, each { cats, by } (the categories once each, by a number stat of this list spelled as the list spells it, never a choice or a set stat; a line short of either dropped; PART_CAPS at most; the same in both views and a fixed point); a host holds as many parts of a line\'s categories, their quantities added, as its own figure there reads, a figure of 0 none; one more is refused by the GM\'s hand and a player\'s alike, an add of several at once, a part\'s count raised (Holds too) and a row of the character\'s own made as a part, in words that name the host and the kind; the Lists tab\'s Holds by kind box (partCapsBox, run for real)',
             cleanOk && opsOk && boxOk, J([cleanOk, opsOk, boxOk, spC.parts, steps, mid, opts, dirty]));
+    }
+    {   // 205 (6) (the core handbook session's parts brief, 2026-10-29: a construct's Might its chassis's, a number its owner edits on a living character): a number field's override
+        const J = JSON.stringify;
+        const rawO = { v: 1, name: 'O', rolls: [], items: [{ id: 'i_ch', name: 'Chassis', category: 'Body', stats: { Might: 14 } }, { id: 'i_bg', name: 'Big chassis', category: 'Body', stats: { Might: 18 } }],
+            fields: [{ id: 'f_s', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm', def: 3 },
+                { id: 'f_b', key: 'Bodies', label: 'Bodies', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Might', label: 'Might' }] } },
+                { id: 'f_m', key: 'Might', label: 'Might', kind: 'number', vis: 'all', edit: 'owner', def: 10, override: { when: ' Bodies.count > 0 ', value: 'Bodies.max.Might' } },
+                { id: 'f_x', key: 'Wits', label: 'Wits', kind: 'number', vis: 'all', edit: 'owner', def: 9, override: { when: 'Bodies.count > 0' } },
+                { id: 'f_g', key: 'Grit', label: 'Grit', kind: 'number', vis: 'all', edit: 'owner', def: 5, override: { when: 'Secret > 0', value: 'Secret * 2' } },
+                { id: 'f_c', key: 'Cost', label: 'Cost', kind: 'formula', vis: 'all', formula: 'Might.base * 10' },
+                { id: 'f_e', key: 'Fx', label: 'Fx', kind: 'effects', vis: 'all' }], sheet: { sections: [] } };
+        const gO = cleanSystem(rawO, { F, gmView: true }), pO = cleanSystem(rawO, { F, gmView: false }), fOf = (s, id) => s.fields.find(f => f.id === id);
+        const cleanOk = J(fOf(gO, 'f_m').override) === J({ when: 'Bodies.count > 0', value: 'Bodies.max.Might' }) && !('override' in fOf(gO, 'f_x')) && J(fOf(pO, 'f_m').override) === J(fOf(gO, 'f_m').override)
+            && J(fOf(gO, 'f_g').override) === J({ when: 'Secret > 0', value: 'Secret * 2' }) && fOf(pO, 'f_g').override === null && J(cleanSystem(gO, { F, gmView: true })) === J(gO)
+            && !('override' in cleanField({ id: 'f_t', key: 'T', label: 'T', kind: 'formula', formula: '1', override: { when: '1', value: '2' } }, F, true)) && !('override' in cleanField({ id: 'f_y', key: 'Y', label: 'Y', kind: 'number', override: { when: '1', value: 12 } }, F, true));
+        const chOf = (rows, vals) => ({ id: 'c1', values: Object.assign({ f_b: rows, f_m: 11, f_g: 5 }, vals || {}) });
+        const none = chOf([]), one = chOf([{ id: 'w_1', defId: 'i_ch', qty: 1 }, { id: 'w_2', defId: 'i_bg', qty: 1 }]);
+        const fxOne = chOf([{ id: 'w_1', defId: 'i_ch', qty: 1 }], { f_e: [{ id: 'x_1', name: 'Strong', on: true, mods: [{ f: 'f_m', op: 'add', v: 2 }] }] });
+        const rN = S.resolveAll(gO, none, F, null), rY = S.resolveAll(gO, one, F, null), rF = S.resolveAll(gO, fxOne, F, null);
+        const resOk = rN.f_m.value === 11 && !('over' in rN.f_m) && rN.f_c.value === 110 && rY.f_m.value === 18 && rY.f_m.over === true && rY.f_c.value === 180 && rF.f_m.value === 16 && rF.f_m.over === true && rF.f_m.base === 14
+            && rY.f_x.value === 9 && !('over' in rY.f_x) && J(Object.keys(rN.f_x).sort()) === J(['error', 'text', 'value']) && rY.f_g.value === 6 && rY.f_g.over === true;
+        const pY = S.resolveAll(pO, one, F, null);
+        const playerOk = pY.f_g.error === 'GM only' && pY.f_m.value === 18 && pY.f_m.over === true;
+        const withOv = (when, value) => { const s = JSON.parse(J(gO)); fOf(s, 'f_m').override = { when, value }; return s; };
+        const errsOf = s => S.validateSystem(s, F).errors.map(e => e.prop + ': ' + e.message);
+        const loopV = withOv('Bodies.count > 0', 'Might + 1'), loopW = withOv('Might.base > 0', '3');
+        const valOk = errsOf(gO).length === 0 && /override\.value: Dice are not allowed/.test(errsOf(withOv('1', 'd6')).join()) && /override\.when: Unknown name "Nope"/.test(errsOf(withOv('Nope > 1', '2')).join())
+            && errsOf(loopV).some(m => /loop/i.test(m)) && errsOf(loopW).some(m => /loop/i.test(m)) && S.chainsShallow(gO, F) === true && S.chainsShallow(loopV, F) === false && S.chainsShallow(loopW, F) === false
+            && /loop/.test(S.resolveAll(loopV, one, F, null).f_m.error) && /loop/.test(S.resolveAll(loopW, one, F, null).f_m.error);
+        const gmOk = J(S.gmDerivedNames(gO, F, [{ name: 'Grit' }, { name: 'Grit.base' }, { name: 'Might' }, { name: 'Wits' }])) === J(['Grit', 'Grit.base']) && S.secretFieldIds(gO, F).f_g === 1 && !S.secretFieldIds(gO, F).f_m;
+        const edits = [S.applyEdit(gO, one, 'f_m', 12, F), S.applyEdit(gO, one, 'f_m', 12, F, { player: true }), S.applyEdit(gO, none, 'f_m', 12, F, { player: true }), S.applyEdit(gO, none, 'f_x', 4, F, { player: true })].map(r => r.ok ? 'ok' : r.reason);
+        const editOk = J(edits) === J(['field', 'field', 'ok', 'ok']);
+        const shO = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ixO = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        const sheetOk = shO.includes("if (k === 'number' && e && e.over === true) {   // 205 (6)") && shO.includes("!en.error && !c.partial && !(all[f.id] && all[f.id].over) && openF(f)") && shO.includes("!en.error && !(all[f.id] && all[f.id].over) && idnOk(f)")
+            && shO.includes("input('sys-ovr-value field', ovF.value,") && shO.includes("else if (c.indexOf('sys-ovr-value') >= 0 || c.indexOf('sys-ovr-when') >= 0) {") && ixO.includes('<b>Taken from</b><small>A number reads a formula, closed to editing, while another formula holds.</small>');
+        check('205 (6) a number field\'s override { when, value }: both formulas cleaned (one short of either: none; never on another kind), the same in both views, blanked to null in the players\' view where it reads a GM-only value (which reads GM only there); the field and its .base read value while when holds, effects on top, and its stored number otherwise (resolveAll marks e.over); the validator reads both formulas (no dice, the names known, a loop through the field or its .base), the chain reader and the resolver catch the loop; gmDerivedNames and secretFieldIds count it; the host refuses an edit while it holds, the GM\'s hand and a player\'s alike; the sheet shows it closed, and the Fields tab edits it',
+            cleanOk && resOk && playerOk && valOk && gmOk && editOk && sheetOk, J([cleanOk, resOk, playerOk, valOk, gmOk, editOk, sheetOk, rY.f_m, rF.f_m, pY.f_g, edits, errsOf(loopW)]));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

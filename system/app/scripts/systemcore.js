@@ -449,6 +449,8 @@ function cleanField(f, F, gmView) {
         var step = cleanNum(f.step, 1); out.step = step > 0 ? step : 1;
         out.def = clampNum(cleanNum(f.def, 0), out.min, out.max);
         if (k === 'skill') { var b = cleanFormulaText(f.base); out.base = b === null ? (f.base === null ? null : '') : b; }
+        if (k === 'number' && isObj(f.override)) { var ovW = cleanFormulaText(f.override.when), ovV = cleanFormulaText(f.override.value); if (ovW && ovV) out.override = { when: ovW, value: ovV }; }   // 205 (6): the field reads value, closed to editing, while when holds (both formulas, no dice)
+        else if (k === 'number' && f.override === null) out.override = null;   // ... blanked in the players' view: it read a GM-only value
     } else if (k === 'formula') {
         var fm = cleanFormulaText(f.formula); out.formula = fm === null ? (f.formula === null ? null : '') : fm;
     } else if (k === 'resource') {
@@ -3170,6 +3172,7 @@ function cleanSystem(sys, opts) {
         };
         var showMention = mentions;   // Stage 6 HUD C8: the sheet's show-ifs are checked once the sheet is cleaned (below)
         var capMentions = function(t) { return String(t).split('{').slice(1).some(function(p) { return mentions(capExpr(p.split('}')[0]).expr); }); };   // Stage 6: after every "{" (closed or not, drawn or not), the ± stripped   // Fold B: a caption's {formula} is formula text too
+        out.fields.forEach(function(f) { if (f.kind === 'number' && isObj(f.override) && (mentions(f.override.when) || mentions(f.override.value))) f.override = null; });   // 205 (6): a number taken from a GM-only value reads "GM only"
         out.fields.forEach(function(f) { var p = DEF_PROP[f.kind]; if (p && f[p] && mentions(f[p])) f[p] = null; if (f.roll && mentions(f.roll)) delete f.roll; if (f.caption && capMentions(f.caption)) delete f.caption; if (f.list && Array.isArray(f.list.cols)) f.list.cols.forEach(function(c) { if (c.formula && mentions(c.formula)) c.formula = null; }); if (f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(x) { if (x.kind !== 'pick') return; x.opts = x.opts.filter(function(o) { return !mentions(o.name); }); if (x.def && !x.opts.some(function(o) { return lower(o.label) === lower(x.def); })) delete x.def; }); if (f.list && Array.isArray(f.list.counters)) f.list.counters.forEach(function(t) { if (t.max && mentions(t.max)) t.max = null; }); if (f.list && Array.isArray(f.list.rolls)) { f.list.rolls = f.list.rolls.filter(function(r) { return r.apply ? !r.apply.some(function(c) { return mentions(c.formula); }) : !mentions(r.formula); }); if (!f.list.rolls.length) delete f.list.rolls; } });   // F5b: a list roll naming a GM-only value is dropped   // F5a2: a choice's option naming a GM-only value is dropped (critic 3: never a blanked one)   // F5a1: a list column too (it reads "GM only")
         out.fields.forEach(function(f) { if (f.list && Array.isArray(f.list.rolls)) f.list.rolls.forEach(function(r) { if (r.then && r.then.some(function(c) { return mentions(c.formula); })) delete r.then; if (r.needs && mentions(r.needs)) { delete r.needs; delete r.needsText; } if (r.malf && mentions(r.malf)) delete r.malf; if (r.ad && mentions(r.ad)) delete r.ad; if (r.showIf && mentions(r.showIf)) delete r.showIf; if (r.alt) { r.alt = r.alt.filter(function(a) { return !mentions(a.if); }); if (!r.alt.length) delete r.alt; } }); if (f.list && Array.isArray(f.list.counters)) f.list.counters.forEach(function(t) { if (t.alt) { t.alt = t.alt.filter(function(a) { return !mentions(a.if); }); if (!t.alt.length) delete t.alt; } }); if (f.list && Array.isArray(f.list.badges)) { f.list.badges = f.list.badges.filter(function(b) { return !mentions(b.if); }); if (!f.list.badges.length) delete f.list.badges; } });   // 1.6.0 R4: a badge too   // 1.6.0: another name chosen by a GM-only value would tell it
         out.fields.forEach(function(f) { if (f.list && isObj(f.list.on) && f.list.on.needs && mentions(f.list.on.needs)) { delete f.list.on.needs; delete f.list.on.needsText; } if (f.list && isObj(f.list.on) && f.list.on.showIf && mentions(f.list.on.showIf)) delete f.list.on.showIf; });
@@ -3816,6 +3819,7 @@ function chainsWalk(sys, F) {
         return (lists[lk] = { k: lk, fid: f.id, st: st, cl: cl, ct: ct, chs: chs, pts: pts });
     };
     var defNode = function(f, sfx) {   // a field's name: its definition worked out (a formula, a skill's base, a pool's most), '' for one read as stored
+        if (f.kind === 'number' && isObj(f.override)) return sfx && sfx !== 'base' ? '' : node('f|' + lower(f.key), [f.override.when, f.override.value].filter(function(x) { return typeof x === 'string' && x; }), null, [], []);   // 205 (6): a number's override (its .base too)
         var t = DEF_PROP[f.kind] ? f[DEF_PROP[f.kind]] : null; if (typeof t !== 'string' || !t) return '';   // none, GM only or missing: answered with nothing on the chain
         if (f.kind === 'formula' ? sfx : f.kind === 'skill' ? sfx && sfx !== 'base' : sfx && sfx !== 'max' && sfx !== 'cur') return '';   // a pool full or by .cur reads its most
         return node('f|' + lower(f.key), [t], null, [], []);
@@ -6310,6 +6314,16 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (res.ok) return { value: res.value, via: viaOf(res.breakdown && res.breakdown.names) };
         return { error: res.error };
     }
+    // 205 (6): a number field's override. null where when does not hold (the stored number), { value, via } where it does, or the error that
+    // stops it; overOn keeps, by key, whether it held. Worked out under the field's own name, so a loop through it is caught
+    var overOn = map();
+    function overOf(l, field) {
+        var o = field.override; if (!isObj(o)) return { error: { message: 'GM only', pos: 0, len: 0 } };
+        var w = evalDef(l, o.when); if (w.error) return w;
+        if (!(typeof w.value === 'number' ? w.value !== 0 && isFinite(w.value) : !!w.value)) { overOn[lower(field.key)] = 0; return null; }
+        var v = evalDef(l, o.value); if (v.error) return v;
+        overOn[lower(field.key)] = 1; return { value: typeof v.value === 'number' && isFinite(v.value) ? v.value : 0, via: v.via };
+    }
     function loopError(name) { return { error: { message: 'Formulas refer to each other in a loop: ' + chain.concat(name).map(function(n) { return pretty[n] || n; }).join(' → '), pos: 0, len: 0 } }; }
     // Stage 6 F5a1: a carried list for formulas — its rows (a kept curse, hid, counts nowhere: the GM's sheet agrees with its owner's and the host's
     // roll path), each with the definition it draws from; its number stats and columns by lower-case key
@@ -6526,6 +6540,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var out, r, k = field.kind;
         if (k === 'text' || k === 'select') out = storedOf(field, char);
         else if (k === 'notes') return undefined;
+        else if (k === 'number' && field.override !== undefined) { var ovR = overOf(l, field); if (ovR && ovR.error) return ovR; var ovB = ovR ? ovR.value : storedOf(field, char); out = suffix ? ovB : withFx(l, ovB, ovR ? ovR.via : null); }   // 205 (6): a number taken from a formula while its when holds (.base reads it too: the number before effects)
         else if (k === 'number' || k === 'toggle') { var sv = storedOf(field, char); out = suffix ? sv : withFx(l, sv, null); }   // 5h: an effect adds to a number or switches a toggle on (a suffixed name reads the stored value, as before)
         else if (k === 'skill') {
             var ranks = storedOf(field, char);
@@ -6557,6 +6572,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     fn.cell = function(f, row, colKey) { var L = listCtx(f), c = L.cl[lower(colKey)]; if (!c || !isObj(row)) return undefined; var rd = rowDef(sys, row); return colVal(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }, c); };   // F5a1: one row's column (the sheet's cells)
     fn.stat = function(f, row, key) { var L = listCtx(f), s = L.st[lower(key)]; if (!s || s.kind === 'pick' || !isObj(row)) return undefined; var rd = rowDef(sys, row); return rowStat(L.spec, rd ? rd.def : null, s.key); };   // 1.5.4 With: one row's number stat, as its columns read it (Row.<stat>)
     fn.chain = function() { return chain.slice(); };
+    fn.overOn = function(key) { return overOn[lower(key)] === 1; };   // 205 (6): whether a number field's override held when it was worked out
     fn.detail = function(name) { return detail[lower(name)] || null; };   // 5h: { base, mods: [{name, op, v, gm}], via: [{through, name, op, v, gm}] } or null
     return fn;
 }
@@ -6638,6 +6654,7 @@ function resolveAll(sys, char, F, tctx, ropts) {   // tctx: tokenCtx(...) = { fa
         if (k === 'text' || k === 'select' || k === 'notes') { e.value = storedOf(f, char); e.text = String(e.value); }
         else if (k === 'item-list') { e.value = storedOf(f, char); e.text = ''; if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.cols) && f.list.cols.length) listCells(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.counters) && f.list.counters.length) listCts(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(x) { return isObj(x) && x.needs; })) listNeeds(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(x) { return isObj(x) && x.showIf; })) listRollShow(f, e, r); if (!(ropts && ropts.noRows) && f.list && [].concat(Array.isArray(f.list.rolls) ? f.list.rolls : [], Array.isArray(f.list.counters) ? f.list.counters : []).some(function(x) { return isObj(x) && Array.isArray(x.alt); })) listAltNames(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.badges) && f.list.badges.length) listBadges(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(x) { return isObj(x) && x.show === '@fig'; })) listRollFigs(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.on) && typeof f.list.on.needs === 'string' && f.list.on.needs) listOnNeeds(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.on) && typeof f.list.on.showIf === 'string' && f.list.on.showIf) listOnShow(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.load) && typeof f.list.load.needs === 'string' && f.list.load.needs) listLdNeeds(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.chamber) && typeof f.list.chamber.needs === 'string' && f.list.chamber.needs) listChNeeds(f, e, r); }   // a carried list; sheets.js renders it, not a number. F5a1: its columns' cells and totals
         else if (k === 'effects') { e.value = storedOf(f, char); e.text = ''; e.active = activeEffects(sys, e.value); }   // 5h: the rows; e.active names the ones switched on
+        else if (k === 'number' && f.override !== undefined) { var ov = r(f.key); if (ov && typeof ov === 'object' && ov.error) { e.error = ov.error.message; e.text = '\u2014'; e.value = storedOf(f, char); } else { e.value = typeof ov === 'number' ? ov : storedOf(f, char); e.text = figText(f, e.value); } if (r.overOn(f.key)) e.over = true; }   // 205 (6): e.over while it reads its override (the sheet closes it)
         else if (k === 'toggle' || k === 'number') { var tv = r(f.key); e.value = (tv === undefined || (tv && typeof tv === 'object')) ? storedOf(f, char) : tv; e.text = k === 'number' ? figText(f, e.value) : fmtNum(e.value); }   // 5h: through the resolver, so an effect shows; 1.5.4: a number by its decimals and grouping
         else {
             var v = r(f.key);
@@ -7019,6 +7036,7 @@ function validateSystem(sys, F) {
         if (gmP[f.id] === 1) warnings.push({ id: f.id, prop: 'maxFormula', message: 'The max reads a GM-only value, so this pool is GM only: players will not see it.' });
         if (p && !(p === 'base' && f.base === '')) checkFormula(f, p, f[p], false, f.vis);   // a skill with no base is ranks alone
         if (f.kind === 'resource' && isObj(f.spill) && f.spill.at === 'f' && typeof f.spill.below === 'string' && f.spill.below) checkFormula(f, 'spill', f.spill.below, false, f.vis);   // 1.6.0 Spills into: below a formula
+        if (f.kind === 'number' && isObj(f.override)) { checkFormula(f, 'override.when', f.override.when, false, f.vis); checkFormula(f, 'override.value', f.override.value, false, f.vis); }   // 205 (6): Taken from, and while
         if (f.roll) checkFormula(f, 'roll', f.roll, true, f.vis);
         if (f.caption) {   // Fold B: each {formula} in the caption, as warnings
             var cre = /\{([^{}]{1,300})\}/g, cm, cn = 0;
@@ -7373,6 +7391,7 @@ function applyEdit(sys, char, fieldId, value, F, opts) {
     if (opts.player && f.edit !== 'owner' && !openChar(char)) return { ok: false, reason: 'field' };   // Onboarding F3: a character in the making or unlocked: every field its owner can see (D3 = (a))
     if (opts.player && f.vis !== 'all') return { ok: false, reason: 'field' };
     if (opts.player && f.kind === 'resource' && gmPools(sys, F)[f.id] === 1) return { ok: false, reason: 'field' };   // a pool whose max is GM-only is GM-only: the answer to 999 would be the max
+    if (f.kind === 'number' && isObj(f.override) && F) { var ovE = typeof opts.vars === 'function' && typeof opts.vars.overOn === 'function' ? opts.vars : makeResolver(sys, char, F, isObj(opts.tctx) ? opts.tctx : undefined); ovE(f.key); if (ovE.overOn(f.key)) return { ok: false, reason: 'field' }; }   // 205 (6): closed while it reads its override, for the GM's hand and a player's alike
     var max = null;
     if (f.kind === 'resource') { var r = (typeof opts.vars === 'function' ? opts.vars : makeResolver(sys, char, F, isObj(opts.tctx) ? opts.tctx : undefined))(f.key + '.max'); max = typeof r === 'number' && isFinite(r) ? r : null; }
     var v = cleanValue(f, value, { max: max });
@@ -7835,11 +7854,12 @@ function gmDerivedNames(sys, F, names) {
             if (f.kind === 'formula') def = !sfx;   // a suffix on a formula is an unknown name
             else if (f.kind === 'skill') def = !sfx || sfx === 'base';
             else if (f.kind === 'resource') def = !sfx || sfx === 'max' || sfx === 'cur';   // the pool's value goes with its max, full or stored (the players' view drops the pool)
+            else if (f.kind === 'number') def = isObj(f.override) && (!sfx || sfx === 'base');   // 205 (6): a number taken from a formula, its .base too
             return { f: f, def: def };
         };
         sys.fields.forEach(function(f) {
-            var p = DEF_PROP[f.kind], text = p ? f[p] : null; if (f.vis === 'gm' || typeof text !== 'string' || !text) return;
-            (F.names(text) || []).forEach(function(n) {
+            var p = DEF_PROP[f.kind], text = p ? f[p] : null, texts = f.kind === 'number' && isObj(f.override) ? [f.override.when, f.override.value] : [text]; if (f.vis === 'gm' || !texts.every(function(x) { return typeof x === 'string' && x; })) return;   // 205 (6): a number's override, its two formulas
+            texts.reduce(function(a, x) { return a.concat(F.names(x) || []); }, []).forEach(function(n) {
                 var r = reads(nameOf(n)); if (!r) return;
                 if (r.f.vis === 'gm') { if (!hot[f.id]) { hot[f.id] = 1; queue.push(f.id); } }
                 else if (r.def) (readBy[r.f.id] = readBy[r.f.id] || []).push(f.id);

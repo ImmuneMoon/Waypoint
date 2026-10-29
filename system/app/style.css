@@ -3575,6 +3575,7 @@
   .sys-list-cat, .sys-check { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; cursor: pointer; }
   .sys-list-card .sys-flags { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
   .sys-list-card .sys-pcaps { flex-basis: 100%; }   /* 205 (5): Holds by kind, a line of its own */
+  .sheet-value.sheet-over { font-style: italic; }   /* 205 (6): a number taken from a formula, closed to editing */
   .sys-list-card .sys-flags input.field { width: auto; flex: 1 1 140px; min-width: 100px; }
   .sys-list-card input[type=number] { width: 68px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 6px; font-size: 12px; box-sizing: border-box; }
   /* Stage 6 look fold (L1): a sheet palette. The palette remaps the theme's variables on the sheet (sheets.js applyPaletteTo); these rules

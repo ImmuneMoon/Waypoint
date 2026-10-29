@@ -115,9 +115,9 @@ function mapPinOf(camp, w) { return mapPinMay(w) && typeof w.page === 'string' &
 // Set a piece's page, or take it off (an id that names no page takes it off). Says what it did: 'set', 'cleared' or '' (nothing changed)
 function mapPinPut(camp, w, id) {
     if (!w || typeof w !== 'object') return '';
-    if (mapPinMay(w) && typeof id === 'string' && PIN_ID.test(id) && pageOf(camp, id)) { if (w.page === id) return ''; w.page = id; return 'set'; }
+    if (mapPinMay(w) && typeof id === 'string' && PIN_ID.test(id) && pageOf(camp, id)) { if (w.page === id) return ''; w.page = id; if (w.pageAt !== undefined) delete w.pageAt; return 'set'; }   // 1.6.0: another page, and the part of the old one goes
     if (w.page === undefined) return '';
-    delete w.page; return 'cleared';
+    delete w.page; if (w.pageAt !== undefined) delete w.pageAt; return 'cleared';
 }
 // The pages a pin may name, for a list: planners first, then handbook pages, each by its name
 function mapPinChoices(camp) {
@@ -286,6 +286,22 @@ function linkGo(id, at, way) {
     if (!r) toast(gone);
     return r;
 }
+/* 1.6.0, a pin to one part of its page (backlog 32; the owner, 2026-10-29, by prompt). A pin may name one part of its page: the piece's own
+   key pageAt, the block id of a heading, a scene node or a titled table of that page (the parts a page link may land at, linkSecs). It is
+   the GM's as the pin is: net.js sends no piece with it and a player's app keeps none; an import keeps it only as a short plain id. A part
+   that is gone, or a pin with no page, names none, and the pin opens at the top of its page as before */
+function mapPinAtOf(camp, w) {
+    var it = mapPinOf(camp, w); if (!it || typeof w.pageAt !== 'string' || !LAND_AT.test(w.pageAt)) return null;
+    return linkSecs(it).filter(function(s) { return s.at === w.pageAt; })[0] || null;
+}
+// Set the part a pin names, or take it off (a part its page does not have takes it off). Says what it did: 'set', 'cleared' or ''
+function mapPinAtPut(camp, w, at) {
+    if (!w || typeof w !== 'object') return '';
+    var it = mapPinOf(camp, w);
+    if (it && typeof at === 'string' && LAND_AT.test(at) && linkSecs(it).some(function(s) { return s.at === at; })) { if (w.pageAt === at) return ''; w.pageAt = at; return 'set'; }
+    if (w.pageAt === undefined) return '';
+    delete w.pageAt; return 'cleared';
+}
 // [shelfcheck:pagelink-end]
 
 /* ---------- pins ---------- */
@@ -314,10 +330,20 @@ function pinPage(id) {
 // Whose screen sees and sets pins: the GM's own. Never a player's app, the stream window or a window of its own
 function mapPinGm() { var n = window.wpNet; return !(window.wpStream || window.wpPopout || (n && (n.foreign || (n.active && n.role === 'client')))); }
 // The page a piece opens, for the board: its id and its name, or null
-function mapPin(w) { var camp = mapPinGm() ? getActiveCampaign() : null, it = camp ? mapPinOf(camp, w) : null; return it ? { id: w.page, title: pageTitle(it) } : null; }
+function mapPin(w) {
+    var camp = mapPinGm() ? getActiveCampaign() : null, it = camp ? mapPinOf(camp, w) : null; if (!it) return null;
+    var r = { id: w.page, title: pageTitle(it) }, s = w.pageAt !== undefined ? mapPinAtOf(camp, w) : null;   // 1.6.0: and the part it names, where it names one its page has
+    if (s) { r.at = s.at; r.sec = s.title; }
+    return r;
+}
 // What Properties shows for a piece: the page it opens now and the pages on offer, or null where there is nothing to show
-function mapPinField(w) { var camp = mapPinGm() ? getActiveCampaign() : null; if (!camp || !mapPinMay(w)) return null; var it = mapPinOf(camp, w); return { cur: it ? w.page : '', choices: mapPinChoices(camp) }; }
+function mapPinField(w) {
+    var camp = mapPinGm() ? getActiveCampaign() : null; if (!camp || !mapPinMay(w)) return null; var it = mapPinOf(camp, w), f = { cur: it ? w.page : '', choices: mapPinChoices(camp) };
+    if (it) { var s = w.pageAt !== undefined ? mapPinAtOf(camp, w) : null; f.at = s ? s.at : ''; f.secs = linkSecs(it); }   // 1.6.0: the part the pin names, and the parts its page has
+    return f;
+}
 function mapPinSet(w, id) { return mapPinGm() ? mapPinPut(getActiveCampaign(), w, id) : ''; }
+function mapPinAtSet(w, at) { return mapPinGm() ? mapPinAtPut(getActiveCampaign(), w, at) : ''; }
 // [shelfcheck:mappin-end]
 
 /* ---------- a map's scene page: what Properties asks, and P on the play map ---------- */
@@ -410,4 +436,6 @@ window.wpPageShelf = { way: pageWay, wayNow: function(ev) { return pageWay(viewN
 shelfWire();
 // 1.6.0, a map's scene page: what Properties and the map's right-click menu ask, and P on the play map
 window.wpPageShelf.scenePageField = scenePageField; window.wpPageShelf.scenePageSet = scenePageSet; window.wpPageShelf.sceneOpen = sceneOpen; window.wpPageShelf.scenePage = scenePageNow;
+// 1.6.0, a pin to one part of its page
+window.wpPageShelf.mapPinAtSet = mapPinAtSet;
 document.addEventListener('keydown', sceneKey);

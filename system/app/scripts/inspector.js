@@ -1204,6 +1204,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbTrapPortal) _el_wbTrapPortal.addEventListener('change', function() { if (this.checked) w.trap = true; else delete w.trap; save(); render(); import('./io.js').then(function(io) { io.toast(w.trap ? 'Armed as a trap — it fires while hidden.' : 'No longer a trap — hidden means inert again.'); }); });
             var _el_wbPagePin = document.getElementById('wbPagePin');   // 1.5.4: a pin: the id of a page that is there, or no key
             if (_el_wbPagePin) _el_wbPagePin.addEventListener('change', function() { setItemPagePin(w, this.value); });
+            var _el_wbPagePinAt = document.getElementById('wbPagePinAt');   // 1.6.0: where on its page the pin opens
+            if (_el_wbPagePinAt) _el_wbPagePinAt.addEventListener('change', function() { setItemPagePinAt(w, this.value); });
             var _el_wbPortalLock = document.getElementById('wbPortalLock');   // a portal's own lock: true or no key
             if (_el_wbPortalLock) _el_wbPortalLock.addEventListener('change', function() { setItemPortalLock(w, this.checked, activeMap); });
             var _el_wbPortalRoom = document.getElementById('wbPortalRoom');
@@ -2127,7 +2129,20 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       var PS = window.wpPageShelf, f = PS && typeof PS.mapPinField === 'function' ? PS.mapPinField(w) : null; if (!f) return '';
       var opt = function(c) { return '<option value="' + esc(c.id) + '"' + (c.id === f.cur ? ' selected' : '') + '>' + esc(c.title) + '</option>'; };
       var grp = function(label, kind) { var l = f.choices.filter(function(c) { return c.kind === kind; }); return l.length ? '<optgroup label="' + label + '">' + l.map(opt).join('') + '</optgroup>' : ''; };
-      return '<div class="field"><label for="wbPagePin" title="A click on the mark this piece then wears opens that page over the map. The link is yours alone: players never get it.">&#128209; Opens page</label><select id="wbPagePin"><option value="">None</option>' + grp('Planners', 'planner') + grp('Handbook', 'doc') + '</select></div>';
+      return '<div class="field"><label for="wbPagePin" title="A click on the mark this piece then wears opens that page over the map. The link is yours alone: players never get it.">&#128209; Opens page</label><select id="wbPagePin"><option value="">None</option>' + grp('Planners', 'planner') + grp('Handbook', 'doc') + '</select></div>'
+          + pagePinAtHtml(f);   // 1.6.0: and where on the page it opens
+  }
+  // 1.6.0 (backlog 32): where on its page a pin opens, a heading, a scene node or a titled table of that page, or its top. Only for a pin
+  // with a page that has such parts; the names are escaped and the setter keeps only a part the page has (pageshelf.js judges)
+  function pagePinAtHtml(f) {
+      if (!f || !f.cur || !Array.isArray(f.secs) || !f.secs.length) return '';
+      var opt = function(s) { return '<option value="' + esc(s.at) + '"' + (s.at === f.at ? ' selected' : '') + '>' + esc(s.title) + '</option>'; };
+      return '<div class="field"><label for="wbPagePinAt" title="The pin opens its page there: at a heading, a scene node or a titled table of it.">&#8627; Opens at</label><select id="wbPagePinAt"><option value="">The top of the page</option>' + f.secs.map(opt).join('') + '</select></div>';
+  }
+  function setItemPagePinAt(w, at) {
+      var PS = window.wpPageShelf, did = PS && typeof PS.mapPinAtSet === 'function' ? PS.mapPinAtSet(w, at) : ''; if (!did) return;
+      save(); render();
+      toast(did === 'set' ? 'This piece opens its page at that part now.' : 'This piece opens its page at the top now.');
   }
   function setItemPagePin(w, id) {
       var PS = window.wpPageShelf, did = PS && typeof PS.mapPinSet === 'function' ? PS.mapPinSet(w, id) : ''; if (!did) return;

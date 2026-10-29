@@ -3468,20 +3468,29 @@ window.wpFitToGrid = fitToGrid;
   function pagePinRow(items) {
       var its = (Array.isArray(items) ? items : []).filter(Boolean); if (its.length !== 1) return null;
       var pin = pagePinOf(its[0]); if (!pin) return null;
-      return { id: pin.id, html: '<div class="menu-item cm-open-page" title="A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.">&#128209; Open page: ' + esc(pin.title) + '</div>' };
+      var r = { id: pin.id, html: '<div class="menu-item cm-open-page" title="A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.">&#128209; Open page: ' + esc(pin.title) + (pin.at ? ' \u203a ' + esc(pin.sec) : '') + '</div>' };
+      if (pin.at) r.at = pin.at;   // 1.6.0: the part of the page the pin names, where the row lands
+      return r;
   }
+  // 1.6.0: a pin's landing, the part of its page it names, for the one rule; none opens the page at the top, exactly as before
+  function pagePinLand(at) { return typeof at === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(at) ? { at: at } : null; }
+  // A pin's tooltip: the page, the part it names and what a press does. Plain text, read by the app's tooltip as text
+  function pagePinTip(name, sec) { return 'Opens ' + name + (sec ? ' at ' + sec : '') + '. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.'; }
   // The mark: a small button at the piece's corner. A press on it is no press on the piece: nothing is selected or dragged, and the page opens by the one rule
   function pagePinMark() {
       var b = document.createElement('button'); b.type = 'button'; b.className = 'wb-pin';
       ['pointerdown', 'mousedown', 'dblclick'].forEach(function(ev) { b.addEventListener(ev, function(e) { e.stopPropagation(); }); });
-      b.addEventListener('click', function(e) { e.stopPropagation(); e.preventDefault(); var PS = window.wpPageShelf; if (PS && b.dataset.page) PS.open(b.dataset.page, PS.wayNow(e)); });
+      b.addEventListener('click', function(e) { e.stopPropagation(); e.preventDefault(); var PS = window.wpPageShelf, land = pagePinLand(b.dataset.at); if (PS && b.dataset.page) { if (land) PS.open(b.dataset.page, PS.wayNow(e), land); else PS.open(b.dataset.page, PS.wayNow(e)); } });
       return b;
   }
   function pagePinSync(el, item, hidden) {
       var mark = el.querySelector(':scope > .wb-pin'), pin = hidden ? null : pagePinOf(item);
       if (!pin) { if (mark) mark.remove(); return; }
       if (!mark) { mark = pagePinMark(); el.appendChild(mark); }
-      if (mark.dataset.page !== pin.id || mark.dataset.name !== pin.title) { mark.dataset.page = pin.id; mark.dataset.name = pin.title; mark.dataset.tip = 'Opens ' + pin.title + '. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.'; mark.setAttribute('aria-label', 'Open ' + pin.title); }
+      if (mark.dataset.page !== pin.id || mark.dataset.name !== pin.title || (mark.dataset.at || '') !== (pin.at || '') || (mark.dataset.sec || '') !== (pin.sec || '')) {
+          mark.dataset.page = pin.id; mark.dataset.name = pin.title; mark.dataset.tip = pagePinTip(pin.title, pin.sec || ''); mark.setAttribute('aria-label', 'Open ' + pin.title + (pin.sec ? ' at ' + pin.sec : ''));
+          if (pin.at) { mark.dataset.at = pin.at; mark.dataset.sec = pin.sec || ''; } else { delete mark.dataset.at; delete mark.dataset.sec; }   // 1.6.0: the part of the page the pin names
+      }
   }
   // [shelfcheck:pagepin-end]
   // [sinkcheck:tokenfx-start]
@@ -9741,7 +9750,7 @@ document.addEventListener('contextmenu', function(e) {
                     if (wentS) { if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } toast(wentS === 'shown' ? 'Secret door revealed. Your players see it as a door now.' : 'Secret door. Your players see wall here until it is found.'); }
                 } else if (action.includes('cm-open-page')) {   // 1.5.4 (pageshelf.js): a pin's page, opened by the one rule (over the map by a plain click)
                     var ppDo = pagePinRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
-                    if (ppDo && window.wpPageShelf) window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce));
+                    if (ppDo && window.wpPageShelf) { if (ppDo.at) window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce), { at: ppDo.at }); else window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce)); }   // 1.6.0: at the part the pin names
                 } else if (action.includes('cm-mine-off')) {   // 1.5.8 explosives: each selected mine goes off at its centre (it saves and draws itself)
                     var mnDo = mineRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
                     if (mnDo) mnDo.items.forEach(function(z) { mineOff(am, z, null); });

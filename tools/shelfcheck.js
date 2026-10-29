@@ -65,7 +65,7 @@ const W = new Function(waySrc + '\nreturn { way: pageWay, pageOf: pageOf };')();
     check('at someone else\'s table a handbook page is read in the reader whatever way is asked, never opened to edit and never in a window, and a planner is not opened at all',
         fDoc.every(r => r.how === 'reader' && J(r.read) === J(['d1']) && kept(r) && r.opened.length === 0 && r.popped.length === 0) && fPlan.every(r => r.how === '' && kept(r) && r.read.length === 0 && r.opened.length === 0 && r.popped.length === 0), J([fDoc.map(r => r.how), fPlan.map(r => r.how)]));
     check('the module publishes the rule, the rule for the view on screen, the opener and the shelf\'s few calls, and wires the shelf once; the view is asked of the one place that knows it (floats.js), and nothing in the module draws markup or opens a window by itself',
-        /\nwindow\.wpPageShelf = \{ way: pageWay, wayNow: function\(ev\) \{ return pageWay\(viewNow\(\), ev\); \}, open: openPage, isPinned: isPinned, pinLabel: pinLabel, pin: pinPage, opened: pageOpened, noteActive: noteActive, close: shelfClose, mapPin: mapPin, mapPinField: mapPinField, mapPinSet: mapPinSet,\n    linkGo: linkGo, linkChoices: function\(\) \{ return linkChoices\(getActiveCampaign\(\)\); \}, linkWords: function\(id, at\) \{ return linkWords\(getActiveCampaign\(\), id, at\); \} \};\nshelfWire\(\);\n\/\/ 1\.6\.0, a map's scene page: what Properties and the map's right-click menu ask, and P on the play map\nwindow\.wpPageShelf\.scenePageField = [^\n]*\ndocument\.addEventListener\('keydown', sceneKey\);\n$/.test(ps)   /* 1.6.0: a map's scene page after the wiring (moved on purpose) */
+        /\nwindow\.wpPageShelf = \{ way: pageWay, wayNow: function\(ev\) \{ return pageWay\(viewNow\(\), ev\); \}, open: openPage, isPinned: isPinned, pinLabel: pinLabel, pin: pinPage, opened: pageOpened, noteActive: noteActive, close: shelfClose, mapPin: mapPin, mapPinField: mapPinField, mapPinSet: mapPinSet,\n    linkGo: linkGo, linkChoices: function\(\) \{ return linkChoices\(getActiveCampaign\(\)\); \}, linkWords: function\(id, at\) \{ return linkWords\(getActiveCampaign\(\), id, at\); \} \};\nshelfWire\(\);\n\/\/ 1\.6\.0, a map's scene page: what Properties and the map's right-click menu ask, and P on the play map\nwindow\.wpPageShelf\.scenePageField = [^\n]*\n(?:\/\/ 1\.6\.0, [^\n]*\nwindow\.wpPageShelf\.[^\n]*\n)*document\.addEventListener\('keydown', sceneKey\);\n$/.test(ps)   /* 1.6.0: a map's scene page after the wiring (moved on purpose) */
         && /\nfunction viewNow\(\) \{ var fl = window\.wpFloats; return fl && fl\.view \? fl\.view\(\) : ''; \}\n/.test(ps)
         && /\nfunction pageOpened\(id\) \{ recentNote\(id\); panelSync\(\); \}\n/.test(ps) && /\n    var camp = getActiveCampaign\(\); if \(camp && pageOf\(camp, camp\.activeItemId\)\) recentNote\(camp\.activeItemId\);\n    if \(shelfIsOpen\(\) && viewNow\(\) !== 'play'\) shelfClose\(\);/.test(ps)
         && /\nfunction shelfClose\(\) \{ var m = shelfMenu\(\); if \(m && m\.classList\.contains\('show'\)\) \{ m\.classList\.remove\('show'\); m\.textContent = ''; \} \}/.test(ps)
@@ -816,7 +816,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
 }
 {
     // the GM's gate: what the board and Properties ask
-    const src = waySrc + '\n' + shelfSrc + '\n' + sliceOf(ps, 'mappin');
+    const src = waySrc + '\n' + shelfSrc + '\n' + sliceOf(ps, 'pagelink') + '\n' + sliceOf(ps, 'mappin');   // 1.6.0: with the parts of a page a pin may name (moved on purpose)
     const mk = win => { const camp = mkCamp(); return { camp, api: new Function('window', 'getActiveCampaign', src + '\nreturn { gm: mapPinGm, pin: mapPin, field: mapPinField, set: mapPinSet };')(win, () => camp) }; };
     const piece = () => ({ id: 'w1', type: 'image', page: 'p_bar' });
     const gm = mk({}), host = mk({ wpNet: { active: true, role: 'host', foreign: false } }), idle = mk({ wpNet: { active: false, role: null } });
@@ -861,7 +861,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     check('the board asks these and nothing else: the mark is synced for every piece as the map is drawn, after its effect icons; the row is built from the selection and its press opens by the rule with the keys held; the mark keeps its size at any zoom and is centred on the piece\'s corner, so it takes a corner of a small token and no more',
         count(wb, "          } else if (fxEl) fxEl.remove();\n          pagePinSync(el, item, hideFromMe);") === 1
         && count(wb, "                var ppRow = pagePinRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));") === 1 && count(wb, "                if (ppRow) html += ppRow.html;\n                var drRow = doorRows(") === 1
-        && count(wb, "                } else if (action.includes('cm-open-page')) {") === 1 && count(wb, "                    if (ppDo && window.wpPageShelf) window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce));") === 1
+        && count(wb, "                } else if (action.includes('cm-open-page')) {") === 1 && count(wb, "                    if (ppDo && window.wpPageShelf) { if (ppDo.at) window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce), { at: ppDo.at }); else window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce)); }   // 1.6.0: at the part the pin names") === 1   /* 1.6.0: a pin's part (moved on purpose) */
         && /\n\s*\.wb-item > \.wb-pin \{ position: absolute; right: -11px; top: -11px; z-index: 6; width: 22px; height: 22px; [^\n]*transform: scale\(var\(--wbz, 1\)\); transform-origin: 50% 50%;/.test(css) && /\n\s*\.wb-item > \.wb-pin::before \{ content: '\\1F4D1'; \}/.test(css) && !/innerHTML/.test(wbS));
 }
 {
@@ -888,6 +888,85 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && count(cuS, "            if (w.page !== undefined && !(typeof w.page === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(w.page) && !(w.page in Object.prototype))) delete w.page;") === 1);
 }
 
+/* ---------- a pin to one part of its page (1.6.0, backlog 32; the owner, 2026-10-29, by prompt) ---------- */
+{
+    const M = new Function('getActiveCampaign', 'openPage', 'toast', 'window', waySrc + '\n' + shelfSrc + '\n' + sliceOf(ps, 'pagelink') + '\nreturn { at: mapPinAtOf, put: mapPinAtPut, pin: mapPinPut, secs: linkSecs };')(() => null, () => '', () => {}, {});
+    const camp = () => { const c = mkCamp(); c.items.p_x = { type: 'planner', meta: { title: 'Docks' }, blocks: [{ type: 'h1', id: 't0', title: 'Docks' }, { type: 'h2', id: 's1', title: 'The <b>quay</b>' }, { type: 'node', id: 'n1', title: 'The cellar' }, { type: 'text', id: 'tx', content: 'words' }, { type: 'table', id: 'tb', title: 'Prices' }, { type: 'h3', id: 'bad id', title: 'Spaced' }, { type: 'h2', id: 's2' }] }; c.items.d_y = { type: 'doc', meta: { title: 'Rules' }, blocks: [{ type: 'h2', id: 'r1', title: 'Cover' }] }; return c; };
+    const pc = o => Object.assign({ id: 'w1', type: 'image', x: 0, y: 0, w: 50, h: 50, page: 'p_x' }, o || {}), C = camp();
+    check('a pin may name one part of its page: a heading, a scene node or a titled table, by its block id, as a page link lands; the part comes back with its name as plain text; a text block, a part with no name, an id that is no sound block id, a part the page does not have, a pin with no page or one that may carry none names none',
+        J(M.at(C, pc({ pageAt: 's1' }))) === J({ at: 's1', title: 'The quay' }) && J(M.at(C, pc({ pageAt: 'n1' }))) === J({ at: 'n1', title: 'The cellar' }) && J(M.at(C, pc({ pageAt: 'tb' }))) === J({ at: 'tb', title: 'Prices' }) && J(M.at(C, pc({ page: 'd_y', pageAt: 'r1' }))) === J({ at: 'r1', title: 'Cover' })
+        && ['tx', 's2', 'bad id', 'gone', 'r1', '', 7, null, ['s1'], 'constructor', 'x'.repeat(65)].every(v => M.at(C, pc({ pageAt: v })) === null) && M.at(C, pc({ page: undefined, pageAt: 's1' })) === null && M.at(C, pc({ page: 'gone', pageAt: 's1' })) === null && M.at(C, pc({ type: 'text', pageAt: 's1' })) === null && M.at(C, pc({})) === null);
+    const a = pc(), r1 = M.put(C, a, 's1'), v1 = a.pageAt, r2 = M.put(C, a, 's1'), r3 = M.put(C, a, 'n1'), v3 = a.pageAt, r4 = M.put(C, a, ''), has4 = 'pageAt' in a, r5 = M.put(C, a, ''), b = pc({ pageAt: 's1' }), r6 = M.put(C, b, 'tx'), has6 = 'pageAt' in b, c = pc({ page: undefined }), r7 = M.put(C, c, 's1'), has7 = 'pageAt' in c;
+    check('the part is set and taken off by one call that says what it did: set, cleared, or nothing when nothing changed; a part the page does not have takes it off; a pin with no page takes none',
+        r1 === 'set' && v1 === 's1' && r2 === '' && r3 === 'set' && v3 === 'n1' && r4 === 'cleared' && has4 === false && r5 === '' && r6 === 'cleared' && has6 === false && r7 === '' && has7 === false && M.put(C, null, 's1') === '' && M.put(C, 'x', 's1') === '', J([r1, r2, r3, r4, r5, r6, r7]));
+    const d = pc({ pageAt: 's1' }), p1 = M.pin(C, d, 'p_x'), k1 = d.pageAt, p2 = M.pin(C, d, 'd_y'), k2 = 'pageAt' in d, e = pc({ pageAt: 's1' }), p3 = M.pin(C, e, ''), k3 = ['page' in e, 'pageAt' in e];
+    check('the part belongs to its page: the same page picked again keeps it, another page takes it off, and the pin taken off takes it with it',
+        p1 === '' && k1 === 's1' && p2 === 'set' && k2 === false && d.page === 'd_y' && p3 === 'cleared' && J(k3) === J([false, false]), J([p1, k1, p2, k2, p3, k3]));
+}
+{
+    // the GM's gate: the part on the board's pin and in Properties, and its setter
+    const src = waySrc + '\n' + shelfSrc + '\n' + sliceOf(ps, 'pagelink') + '\n' + sliceOf(ps, 'mappin');
+    const mk = win => { const camp = mkCamp(); camp.items.p_bar.blocks.push({ type: 'h2', id: 'sec_a', title: 'The <i>back</i> door' }, { type: 'node', id: 'sec_b', title: 'Cellar' }); return { camp, api: new Function('window', 'getActiveCampaign', 'openPage', 'toast', src + '\nreturn { pin: mapPin, field: mapPinField, at: mapPinAtSet };')(win, () => camp, () => '', () => {}) }; };
+    const gm = mk({}), piece = o => Object.assign({ id: 'w1', type: 'image', page: 'p_bar' }, o || {});
+    const f1 = gm.api.field(piece({ pageAt: 'sec_a' })), f2 = gm.api.field(piece()), f3 = gm.api.field({ id: 'w1', type: 'rect' }), f4 = gm.api.field(piece({ pageAt: 'gone' }));
+    const w1 = piece(), s1 = gm.api.at(w1, 'sec_b'), s2 = gm.api.at(w1, 'sec_b'), s3 = gm.api.at(w1, '');
+    const others = [{ wpNet: { active: true, role: 'client' } }, { wpNet: { foreign: true } }, { wpStream: true }, { wpPopout: true }].map(mk);
+    check('on the GM\'s screen a pin that names a part says which, by id and name, and one that names none or a part that is gone is the page alone as before; Properties is told the part and the parts the page has, and none for a pin with no page; the setter says what it did; on a player\'s app, at someone else\'s table, in the stream window and in a window of its own nothing of it is shown or set',
+        J(gm.api.pin(piece({ pageAt: 'sec_a' }))) === J({ id: 'p_bar', title: '3.10 The Bar', at: 'sec_a', sec: 'The back door' }) && J(gm.api.pin(piece())) === J({ id: 'p_bar', title: '3.10 The Bar' }) && J(gm.api.pin(piece({ pageAt: 'gone' }))) === J({ id: 'p_bar', title: '3.10 The Bar' })
+        && f1.at === 'sec_a' && J(f1.secs) === J([{ at: 'sec_a', title: 'The back door' }, { at: 'sec_b', title: 'Cellar' }]) && f2.at === '' && f2.secs.length === 2 && f3.cur === '' && !('secs' in f3) && f4.at === ''
+        && s1 === 'set' && s2 === '' && s3 === 'cleared' && !('pageAt' in w1)
+        && others.every(o => { const p = piece({ pageAt: 'sec_a' }); return o.api.pin(p) === null && o.api.field(p) === null && o.api.at(p, 'sec_b') === '' && p.pageAt === 'sec_a'; }), J([f1, f2.at, s1, s2, s3]));
+}
+{
+    // the board (whiteboard.js): the menu row, the mark and its press, with a part
+    const wbS = sliceOf(wb, 'pagepin'), esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const mk = pins => { const dom = makeDom(), R = { opened: [] };
+        const win = { wpPageShelf: { mapPin: w => (w && Object.prototype.hasOwnProperty.call(pins, w.id) ? pins[w.id] : null), open: function(id, way, land) { R.opened.push([id, way, arguments.length, land === undefined ? 'none' : J(land)]); }, wayNow: e => W.way('play', e) } };
+        const api = new Function('window', 'document', 'esc', wbS + '\nreturn { row: pagePinRow, mark: pagePinMark, sync: pagePinSync, land: pagePinLand, tip: pagePinTip };')(win, dom.document, esc);
+        const host = () => { const kids = []; return { kids, querySelector: q => (q === ':scope > .wb-pin' ? kids.find(k => k.className === 'wb-pin') || null : null), appendChild: k => { kids.push(k); k.remove = () => { kids.splice(kids.indexOf(k), 1); }; return k; } }; };
+        return { dom, R, api, host }; };
+    const HOST = '<img src=x onerror=alert(1)> & "q"';
+    const pins = { a: { id: 'p_bar', title: 'Bar', at: 'sec_a', sec: HOST }, b: { id: 'd_rules', title: 'Rules' } }, A = mk(pins);
+    const row = A.api.row([{ id: 'a' }]), rowB = A.api.row([{ id: 'b' }]);
+    check('a pin that names a part: its menu row says the page and the part, the part\'s name escaped, and carries the part for its press; a pin with none has the row it had and carries none',
+        row.id === 'p_bar' && row.at === 'sec_a' && row.html === '<div class="menu-item cm-open-page" title="A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.">&#128209; Open page: Bar \u203a &lt;img src=x onerror=alert(1)&gt; &amp; &quot;q&quot;</div>'
+        && !('at' in rowB) && rowB.html === '<div class="menu-item cm-open-page" title="A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.">&#128209; Open page: Rules</div>', J([row, rowB]));
+    const h = A.host(); A.api.sync(h, { id: 'a' }, false); const m = h.kids[0]; A.dom.fire(m, 'click'); A.dom.fire(m, 'click', { ctrlKey: true }); A.dom.fire(m, 'click', { altKey: true });
+    const hb = A.host(); A.api.sync(hb, { id: 'b' }, false); const mb = hb.kids[0]; A.dom.fire(mb, 'click');
+    check('its mark carries the part and names it in its tooltip and label as plain text; a click opens the page at the part by the one rule with the keys held, as a landing at a block; a mark with no part opens the page alone, asked exactly as before',
+        m.dataset.at === 'sec_a' && m.dataset.sec === HOST && m.dataset.tip === 'Opens Bar at ' + HOST + '. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.' && m.attrs['aria-label'] === 'Open Bar at ' + HOST && m.childNodes.length === 0
+        && J(A.R.opened) === J([['p_bar', 'panel', 3, '{"at":"sec_a"}'], ['p_bar', 'window', 3, '{"at":"sec_a"}'], ['p_bar', 'go', 3, '{"at":"sec_a"}'], ['d_rules', 'panel', 2, 'none']]) && !('at' in mb.dataset) && !('sec' in mb.dataset), J([m.dataset, A.R.opened]));
+    pins.a = { id: 'p_bar', title: 'Bar', at: 'sec_b', sec: 'Cellar' }; A.api.sync(h, { id: 'a' }, false); const moved = [h.kids.length, h.kids[0] === m, m.dataset.at, m.dataset.sec];
+    pins.a = { id: 'p_bar', title: 'Bar' }; A.api.sync(h, { id: 'a' }, false); const dropped = [h.kids.length, 'at' in m.dataset, 'sec' in m.dataset, m.dataset.tip.slice(0, 10)];
+    m.dataset.at = 'bad id'; A.R.opened.length = 0; A.dom.fire(m, 'click');
+    check('the mark follows its pin across redraws: another part changes the same mark, a part taken off leaves the page alone; a part that is no sound block id is no landing at the press',
+        J(moved) === J([1, true, 'sec_b', 'Cellar']) && J(dropped) === J([1, false, false, 'Opens Bar.']) && J(A.R.opened) === J([['p_bar', 'panel', 2, 'none']]) && A.api.land('sec_1') !== null && A.api.land('a b') === null && A.api.land(7) === null && A.api.land('') === null, J([moved, dropped, A.R.opened]));
+}
+{
+    // Properties (inspector.js): where on its page a pin opens
+    const insS = read('scripts/inspector.js'), boxS = sliceOf(insS, 'pagepinbox'), esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const mk = o => { const R = { saved: 0, drawn: 0, toasts: [], set: [] };
+        const win = { wpPageShelf: o.none ? undefined : { mapPinField: () => o.field || null, mapPinAtSet: (w, at) => { R.set.push(at); return o.did === undefined ? 'set' : o.did; } } };
+        const api = new Function('window', 'esc', 'save', 'render', 'toast', boxS + '\nreturn { html: pagePinFieldHtml, at: pagePinAtHtml, set: setItemPagePinAt };')(win, esc, () => { R.saved++; }, () => { R.drawn++; }, t => { R.toasts.push(t); });
+        return { api, R }; };
+    const field = { cur: 'p1', at: 'b"2', choices: [{ id: 'p1', title: 'Docks', kind: 'planner' }], secs: [{ at: 'b1', title: '<b>Quay</b>' }, { at: 'b"2', title: 'Cellar & "stairs"' }] };
+    const html = mk({ field }).api.html({ id: 'w' });
+    check('Properties has an Opens at row under Opens page for a pin whose page has parts: The top of the page, then each part by name, the part the pin names picked, names and ids escaped; a pin with no page, or a page with no parts, has none',
+        html.endsWith('</select></div><div class="field"><label for="wbPagePinAt" title="The pin opens its page there: at a heading, a scene node or a titled table of it.">&#8627; Opens at</label><select id="wbPagePinAt"><option value="">The top of the page</option><option value="b1">&lt;b&gt;Quay&lt;/b&gt;</option><option value="b&quot;2" selected>Cellar &amp; &quot;stairs&quot;</option></select></div>')
+        && mk({}).api.at({ cur: '', secs: field.secs }) === '' && mk({}).api.at({ cur: 'p1', secs: [] }) === '' && mk({}).api.at({ cur: 'p1' }) === '' && mk({}).api.at(null) === ''
+        && !/wbPagePinAt/.test(mk({ field: { cur: 'p1', choices: field.choices } }).api.html({})), html.slice(-400));
+    const S1 = mk({ did: 'set' }); S1.api.set({}, 'b1'); const S2 = mk({ did: 'cleared' }); S2.api.set({}, ''); const S3 = mk({ did: '' }); S3.api.set({}, 'b1'); const S4 = mk({ none: true }); S4.api.set({}, 'b1');
+    check('picking a part saves the campaign, draws the map again and says what happened; a pick that changed nothing, or one made where pins are not this screen\'s, does none of the three; Properties wires the row',
+        J(S1.R) === J({ saved: 1, drawn: 1, toasts: ['This piece opens its page at that part now.'], set: ['b1'] }) && J(S2.R) === J({ saved: 1, drawn: 1, toasts: ['This piece opens its page at the top now.'], set: [''] }) && J(S3.R) === J({ saved: 0, drawn: 0, toasts: [], set: ['b1'] }) && J(S4.R) === J({ saved: 0, drawn: 0, toasts: [], set: [] })
+        && count(insS, "            var _el_wbPagePinAt = document.getElementById('wbPagePinAt');   // 1.6.0: where on its page the pin opens\n            if (_el_wbPagePinAt) _el_wbPagePinAt.addEventListener('change', function() { setItemPagePinAt(w, this.value); });") === 1
+        && count(read('scripts/cleanup.js'), "            if (w.pageAt !== undefined && !(w.page !== undefined && typeof w.pageAt === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(w.pageAt) && !(w.pageAt in Object.prototype))) delete w.pageAt;") === 1);
+    const wn = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, '\n'));
+    const plan = ix.slice(ix.indexOf('<div class="help-pane" data-pane="planners"'), ix.indexOf('<div class="help-pane" data-pane="handbook"'));
+    check('Help says a pin may open its page at one part, under map pins; both release notes of 1.6.0 say it',
+        plan.includes('<li>Pick a part of the page under <b>Opens at</b>, a heading, a scene node or a titled table, and the pin opens the page there. <b>The top of the page</b> opens it at the top.</li>')
+        && wn.every(t => count(t.slice(0, t.indexOf('WAYPOINT 1.5.9')), "- A map pin can open its page at one part of it: a heading, a scene node\n  or a titled table. Pick it under Opens at, beside Opens page.") === 1));
+}
+
 /* ---------- a map's scene page (1.6.0, backlog 26; the owner, 2026-10-29, by prompt: "Map's Properties, key P (Recommended)") ---------- */
 {
     const M = new Function(waySrc + '\n' + shelfSrc + '\nreturn { of: scenePageOf, put: scenePagePut, model: shelfModel };')();
@@ -910,7 +989,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
 }
 {
     // the GM's gate, what Properties and the map's menu ask, and P (pageshelf.js, its scene slice run for real)
-    const src = waySrc + '\n' + shelfSrc + '\n' + sliceOf(ps, 'mappin') + '\n' + sliceOf(ps, 'scene');
+    const src = waySrc + '\n' + shelfSrc + '\n' + sliceOf(ps, 'pagelink') + '\n' + sliceOf(ps, 'mappin') + '\n' + sliceOf(ps, 'scene');
     const mk = (win, o) => { o = o || {}; const camp = mkCamp(), R = { opened: [], toasts: [] }; camp.items.m_bar.meta.scenePage = 'p_city';
         const api = new Function('window', 'getActiveCampaign', 'getActiveMap', 'viewNow', 'openPage', 'toast', 'document', src + '\nreturn { field: scenePageField, set: scenePageSet, now: scenePageNow, open: sceneOpen, is: sceneKeyIs, key: sceneKey };')(
             win, () => camp, () => (o.map === undefined ? camp.items.m_bar : o.map === null ? null : camp.items[o.map]), () => (o.view === undefined ? 'play' : o.view), (id, way) => { R.opened.push(id + ':' + way); return way; }, t => { R.toasts.push(t); }, o.doc || null);

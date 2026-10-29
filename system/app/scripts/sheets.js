@@ -10510,22 +10510,25 @@ function dmgApply(charId, q) {
         afterCharChange(c, false, r.values);
     }
     if (n && typeof n.damageCard === 'function') n.damageCard(c, r.lines);
-    majorFollow(c, r.info);
+    majorFollow(c, r.info, r.values);
     return true;
 }
 // 1.6.0 (B3): the clock an effect a Major Wound switches on starts its timer by, as an apply action's (this machine's time, and whether the
 // character is in a fight); and a Major Wound's roll posted as a reminder (net.postDue, why 'major'): to the wounded character's player where it
 // has one and the roll is not the GM's, else to the GM alone. The host's char-damage branch and the blast pass ask it too, through wpSheets
 function dmgFxo(c) { var n = net(); return { now: Date.now(), inCombat: !!(c && n && typeof n.charInCombat === 'function' && n.charInCombat(c.id)) }; }
-// 1.6.0 (the core's gaps 6 and 7): each roll the blow calls (info.follows: a Major Wound's and each wound's, why 'major' or 'wound'), and where
-// that roll reads Blow.<name> or Hit.<name>, or its failure cripples, its card names a record of the blow the host keeps (net.blowMake)
-function majorFollow(c, info) {
+// 1.6.0 (the core's gaps 6 and 7): each roll the blow calls (info.follows: a Major Wound's and each wound's, why 'major' or 'wound') names a
+// record of the blow the host keeps (net.blowMake), so it reads Blow.<name> and Hit.<name> and its failure cripples. The core handbook session's
+// ask 3 (2026-10-29): the record keeps the character's values as the blow left them (the character's, with vals, the step's own writes, laid
+// over), one copy for all the blow's rolls, and each of them is worked out on that copy, whatever order they are pressed in: an effect a wound's
+// roll switched on never reaches the same blow's Major Wound roll. A blow with no follows' record (no info.blow) posts as before
+function majorFollow(c, info, vals) {
     var n = net(), sys = systemOf(); if (!c || !dmgObj(info) || !sys || !n || typeof n.postDue !== 'function') return false;
-    var fl = Array.isArray(info.follows) ? info.follows : typeof info.majorRoll === 'string' ? [{ roll: info.majorRoll, why: 'major' }] : [], did = false;
+    var fl = Array.isArray(info.follows) ? info.follows : typeof info.majorRoll === 'string' ? [{ roll: info.majorRoll, why: 'major' }] : [], did = false, snap = null;
+    if (dmgObj(info.blow)) { snap = JSON.parse(JSON.stringify(dmgObj(c.values) ? c.values : {})); if (dmgObj(vals)) Object.keys(vals).forEach(function(k) { if (vals[k] === undefined) delete snap[k]; else snap[k] = JSON.parse(JSON.stringify(vals[k])); }); }
     fl.forEach(function(f) {
         var r = dmgObj(f) ? (Array.isArray(sys.rolls) ? sys.rolls : []).find(function(x) { return dmgObj(x) && x.id === f.roll; }) : null; if (!r) return;
-        var nm = typeof F === 'function' && F() && typeof r.formula === 'string' ? F().names(r.formula) : [], reads = nm.some(function(x) { return /^(blow|hit)\./i.test(x); });
-        var att = dmgObj(info.blow) && (reads || typeof f.crip === 'string') && typeof n.blowMake === 'function' ? n.blowMake(c, r.id, info.blow, f.crip, f.cripBy) : '';
+        var att = snap && typeof n.blowMake === 'function' ? n.blowMake(c, r.id, info.blow, f.crip, f.cripBy, snap) : '';
         n.postDue(c, r, f.why === 'wound' ? 'wound' : 'major', 1, !c.npc && !!c.ownerId && r.vis !== 'gm', att ? { att: att } : undefined); did = true;
     });
     return did;

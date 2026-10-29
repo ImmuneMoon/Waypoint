@@ -174,6 +174,9 @@ Systems, more
   Hit., so a Big Hit roll can be -2 on the face. Its failure can cripple
   the location hit, by how far it failed, or by a formula that reads the
   margin, the natural roll and the blow.
+- Each roll one blow asks for reads the sheet as the blow left it, in any
+  order they are pressed. An effect one of them switches on does not reach
+  the next.
 - An entry can grant rows of another list, such as a calling's starting kit or
   a flaw that comes with an implant. Set it in the Items tab or the Library,
   under Grants: the entry, the list, how many, and a level it starts from.

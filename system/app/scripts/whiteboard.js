@@ -3556,6 +3556,10 @@ window.wpFitToGrid = fitToGrid;
       return S.rangeOf(sys, map, a, b, { F: window.wpFormula, dz: dz });
   }
   function rangeModText(m) { return typeof m !== 'number' || !isFinite(m) ? '' : m < 0 ? '\u2212' + String(-m) : m > 0 ? '+' + String(m) : '0'; }
+  // 1.6.0, backlog 30 (the owner's ruling: the ruler keeps its numbers and gains a switch that shows the band's name instead, the same at a
+  // target mark): this computer's own choice (wp_rangeNames), a band's name where its step has one, else the modifier as before
+  function rangeNamesOn() { try { return typeof localStorage !== 'undefined' && localStorage.getItem('wp_rangeNames') === '1'; } catch (e) { return false; } }
+  function rangeWord(rg) { return rangeNamesOn() && typeof rg.band === 'string' && rg.band ? rg.band : rangeModText(rg.mod); }
   var RANGE_UNIT_WORD = { yd: 'yd', ft: 'ft', m: 'm', cells: 'cells' };
   // A target mark's tooltip says the distance in the viewer's own unit (1.5.4, the review of the v1.0.4 merge; docs/V104_PLAN.md gap 2): a rule
   // that counts in yards or feet reads in metres under Metric, and one in metres reads in yards under Imperial, by the exact definitions, as a
@@ -3563,10 +3567,10 @@ window.wpFitToGrid = fitToGrid;
   function rangeTitle(rg) {
       var u = Object.prototype.hasOwnProperty.call(RANGE_UNIT_WORD, rg.unit) ? RANGE_UNIT_WORD[rg.unit] : 'yd', d = rg.dist, mo = typeof metricOn === 'function' ? metricOn() : null;
       if (mo === true && (u === 'yd' || u === 'ft')) { d = d * (u === 'yd' ? 0.9144 : 0.3048); u = 'm'; } else if (mo === false && u === 'm') { d = d / 0.9144; u = 'yd'; }
-      return 'Range ' + rangeModText(rg.mod) + ' (' + (Math.round(d * 10) / 10) + ' ' + u + ')';
+      return 'Range ' + (typeof rg.band === 'string' && rg.band ? rg.band + ' ' : '') + rangeModText(rg.mod) + ' (' + (Math.round(d * 10) / 10) + ' ' + u + ')';
   }
-  function rulerRangeText(x, y, rg) { return rg ? '<text x="' + x + '" y="' + y + '">Range ' + esc(rangeModText(rg.mod)) + '</text>' : ''; }
-  function targetRangeHtml(markHtml, rg) { return rg && rg.mod !== 0 ? '<span class="target-pair">' + markHtml + '<span class="target-range" title="' + esc(rangeTitle(rg)) + '">' + esc(rangeModText(rg.mod)) + '</span></span>' : markHtml; }
+  function rulerRangeText(x, y, rg) { return rg ? '<text x="' + x + '" y="' + y + '">Range ' + esc(rangeWord(rg)) + '</text>' : ''; }
+  function targetRangeHtml(markHtml, rg) { var nm = rg && rangeNamesOn() && typeof rg.band === 'string' && rg.band; return rg && (rg.mod !== 0 || nm) ? '<span class="target-pair">' + markHtml + '<span class="target-range" title="' + esc(rangeTitle(rg)) + '">' + esc(rangeWord(rg)) + '</span></span>' : markHtml; }
   // [sinkcheck:rangelabel-end]
   // [sinkcheck:heightlabel-start]
   // Item 19 H2 (the owner's answer: shown on the ruler and at a target mark): the system's height modifier between two character tokens — the
@@ -3827,6 +3831,12 @@ window.wpFitToGrid = fitToGrid;
 
   });
 
+  // 1.6.0, backlog 30: Range shows, the modifier or the band's name, this computer's own
+  function rangeShowSync() { var on = rangeNamesOn(); document.querySelectorAll('#rangeShowRow .draw-style-btn').forEach(function(b) { b.classList.toggle('active', (b.dataset.rshow === 'name') === on); }); }
+  document.querySelectorAll('#rangeShowRow .draw-style-btn').forEach(function(b) {
+      b.addEventListener('click', function() { try { if (this.dataset.rshow === 'name') localStorage.setItem('wp_rangeNames', '1'); else localStorage.removeItem('wp_rangeNames'); } catch (e) {} rangeShowSync(); render(); renderMeasures(); });
+  });
+  rangeShowSync();
   var _el_measureClearBtn = document.getElementById('measureClearBtn');
 
   if(_el_measureClearBtn) _el_measureClearBtn.addEventListener('click', clearMeasures);

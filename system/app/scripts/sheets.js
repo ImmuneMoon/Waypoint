@@ -8086,6 +8086,8 @@ function rangeBox(box, cm) {
                 var ni = el('input', 'field sys-range-s' + g[0]); ni.type = 'number'; ni.step = 'any'; if (g[0] === 'to') { ni.min = '0'; ni.max = '1000000'; } else { ni.min = '-1000'; ni.max = '1000'; }
                 ni.value = typeof s[g[0]] === 'number' ? String(s[g[0]]) : ''; ni.title = g[2]; nl.appendChild(ni); rw.appendChild(nl);
             });
+            var nml = el('label', 'sys-num'); if (i === 0) nml.appendChild(el('span', 'sys-num-cap', 'Name'));
+            var nmi = el('input', 'field sys-range-sname'); nmi.type = 'text'; nmi.maxLength = 30; nmi.placeholder = 'optional'; nmi.value = typeof s.name === 'string' ? s.name : ''; nmi.title = 'A name for this band, as Melee or Far. The ruler shows it where Range shows is set to Band name'; nml.appendChild(nmi); rw.appendChild(nml);   // 1.6.0, backlog 30
             var db = el('button', 'tool ghost sys-btn', '\u00d7'); db.dataset.act = 'rgdel'; db.title = 'Remove this step'; rw.appendChild(db);
             wrap.appendChild(rw);
         });
@@ -8101,6 +8103,7 @@ function onRangeInput(t) {
     if (c.indexOf('sys-range-formula') >= 0) rg.formula = t.value.slice(0, LIMITS.formula);
     else {
         var rw = t.closest('.sys-range-row'), i = rw ? +rw.dataset.ri : -1, s = Array.isArray(rg.steps) && rg.steps[i] && typeof rg.steps[i] === 'object' ? rg.steps[i] : null; if (!s) return true;
+        if (c.indexOf('sys-range-sname') >= 0) { var nmv = t.value.slice(0, 30); if (nmv.trim()) s.name = nmv; else delete s.name; markDirty(); patchErrors(); return true; }   // 1.6.0, backlog 30
         var key = c.indexOf('sys-range-sto') >= 0 ? 'to' : c.indexOf('sys-range-smod') >= 0 ? 'mod' : ''; if (!key) return true;
         var nv = Number(t.value); if (t.value.trim() && isFinite(nv)) s[key] = nv; else delete s[key];
     }

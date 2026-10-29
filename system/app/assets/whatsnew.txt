@@ -130,6 +130,9 @@ System editor
   13, 14 or 16 px. The HUD keeps its own small labels.
 - A pool's colour can be ticked Band only: coloured on the pinned band,
   plain in its own section.
+- Each row of a range table can carry a name, such as Melee or Far.
+  Set Range shows to Band name in the Measure options, and the ruler and
+  the target marks show that name in place of the modifier.
 - A roll or an apply action can also be due, or run, at the end of its
   character's turn in a fight: Also at its turn's end. A held turn ends
   once it is played, and a step back runs nothing again.

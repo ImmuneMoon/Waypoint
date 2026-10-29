@@ -2125,6 +2125,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Range</b>, on the Combat card under cover, is your game&rsquo;s range penalty: a modifier by how far the target is.
                               <ul>
                                   <li><b>By a table</b> gives a row for each distance and its modifier, such as &ldquo;up to 10: &minus;4&rdquo;. The rows are put in order when you save. A distance takes the first row that reaches it, and past the last row its modifier holds.</li>
+                                  <li>A row may also carry a <b>Name</b>, such as Melee, Close or Far. In the Measure options, <b>Range shows</b> set to <b>Band name</b> then shows the name in place of the modifier, on the ruler and at a target mark. The modifier stays in the tooltip. That choice is your own, on this computer.</li>
                                   <li><b>By a formula</b> works the modifier out from <b>Distance</b>, as in <code>-2 * floor(Distance / 30)</code>, with no dice and no other name.</li>
                                   <li><b>Counts in</b> says what its distances are in: yards, feet, metres or grid cells. Each map&rsquo;s scale converts it.</li>
                                   <li>Every ruler then shows the modifier, as <b>Range &minus;4</b>. Each target mark carries it at its lower corner, beside its cover and light. The distance in its tooltip follows your choice of Imperial or Metric.</li>
@@ -2760,6 +2761,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <option value="km">kilometers</option>
                           <option value="mi">miles</option>
                       </select>
+                  </div>
+                  <div class="draw-menu-label">Range shows</div>
+                  <div class="draw-menu-row" id="rangeShowRow">
+                      <button class="draw-style-btn active" data-rshow="mod" title="The ruler and a target mark show the range modifier, as &minus;2">Modifier</button>
+                      <button class="draw-style-btn" data-rshow="name" title="Where your system names its range bands, the ruler and a target mark show the name, as Close. The modifier stays in the tooltip">Band name</button>
                   </div>
                   <div class="draw-menu-row">
                       <button class="draw-style-btn" id="measureClearBtn" title="Remove all placed rulers">Clear rulers</button>

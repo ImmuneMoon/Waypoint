@@ -2312,6 +2312,39 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             wbP.includes("if (postAt && postAt.i > 0 && postAt.p) stanceHtml += '<span class=\"chip post\" title=\"' + esc(postAt.p.name) + (postureRangedLine(postAt.p) ? '&#10;' + esc(postureRangedLine(postAt.p)) : '') + '\">' + esc(postAt.p.tag) + '</span>';")
             && inspP.replace(/\r\n/g, '\n').includes("html += '<div class=\"field\"><label for=\"wbPosture\">Posture</label><select id=\"wbPosture\">' + stanceApi.postures().map(function(p, i) { return '<option value=\"' + esc(p.id) + '\"' + (i === curPI ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></div>'; }"));
     }
+    {   // backlog 28, token bars: the ring (whiteboard.js tokenBarsSvg), the System editor's Token bars box (sheets.js barsBox) and a token's Bars in its Properties (inspector.js barsFieldHtml), each run for real
+        const J = JSON.stringify, SYb = await import(modUrl('systemcore.js') + '?b28'), inspB = read('inspector.js'), escB = new Function((/\n  function esc\(s\)\{[^\n]*\}\n/.exec(inspB) || ['function esc(s){return String(s)}'])[0] + '\nreturn esc;')();
+        const mkN = (ns, tag) => ({ ns, tag, attrs: {}, kids: [], style: {}, setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return this.attrs[k]; }, appendChild(k) { this.kids.push(k); return k; } });
+        const docB = { createElementNS: mkN, createElement() { throw new Error('createElement'); } };
+        const tbS = slice('whiteboard.js', 'tokenbars');
+        const ring = new Function('document', 'window', tbS + '\nreturn { sig: tokenBarsSig, svg: tokenBarsSvg };')(docB, { wpSystemCore: SYb });
+        const sv = ring.svg({ w: 60, h: 60, rot: 90 }, [{ s: 0, v: 7, m: 14, n: T, c: 'red;background:url(' + U + ')' }, { s: 1, v: 0, m: 5, n: P, c: '#00ff00', g: 1 }, { s: 3, v: 1, m: 1, n: 'x', c: '#000000' }]);
+        const flatS = n => [n.tag, n.attrs, n.style, (n.kids || []).map(flatS)];
+        check('backlog 28: a token\'s ring (whiteboard.js tokenBarsSvg, run for real on a recording document): SVG elements and attributes alone, a bar a group whose tooltip is its label and numbers as an attribute\'s text (markup and quotes never read as such), its track and fill paths of numbers alone, the fill\'s colour a #rrggbb else Bar 1\'s red, an empty bar no fill, a GM-only bar marked and said; turned back against the token\'s turn; a slot that is none draws nothing; no markup from a string',
+            sv.tag === 'svg' && sv.ns === 'http://www.w3.org/2000/svg' && sv.attrs.class === 'token-bars' && sv.style.transform === 'rotate(-90deg)' && sv.kids.length === 2
+            && sv.kids[0].attrs['data-tip'] === T + ' 7 / 14' && sv.kids[0].attrs.class === 'tbar' && sv.kids[0].kids.length === 2 && sv.kids[0].kids[1].attrs.stroke === '#d9534f'
+            && sv.kids[1].attrs['data-tip'] === P + ' 0 / 5 (GM only)' && sv.kids[1].attrs.class === 'tbar gm' && sv.kids[1].kids.length === 1
+            && sv.kids.every(g => g.kids.every(p => /^M [-\d. ]+ A [\d. ]+ 0 0 1 [-\d. ]+$/.test(p.attrs.d))) && !/evil/.test(J(flatS(sv))) && !/innerHTML|insertAdjacentHTML|outerHTML|createElement\(/.test(tbS)
+            && ring.sig({ w: 60, h: 60 }, [{ s: 0, v: 1, m: 2, n: 'a', c: '#000000' }]) !== ring.sig({ w: 60, h: 60 }, [{ s: 0, v: 2, m: 2, n: 'a', c: '#000000' }]), J(flatS(sv)).slice(0, 600));
+        const bbS = slice('sheets.js', 'barsbox');
+        const mkE = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined ? '' : String(text), kids: [], dataset: {}, appendChild(k) { this.kids.push(k); return k; } });
+        const selE = (cls, opts, val, title) => { const s = mkE('select', cls); s.value = val; s.title = title; s.opts = opts.map(o => [o[0], o[1]]); return s; };
+        const runBB = (draft, cm) => { const box = mkE('div'); new Function('el', 'select', 'draft', 'window', bbS + '\nreturn barsBox;')(mkE, selE, draft, { wpSystemCore: SYb })(box, cm); return box; };
+        const dB = { fields: [{ id: 'f_hp', key: 'HP', label: T, kind: 'resource', vis: 'gm' }, { id: 'f_x', key: 'X', kind: 'number' }] };
+        const bb1 = runBB(dB, {}), bb2 = runBB(dB, { bars: [{ f: 'f_hp', show: 'all', color: P }, { f: 'f_gone', show: 'gm', color: '#00ff00' }] }), bb0 = runBB({ fields: [] }, {});
+        const rowsB = bb2.kids[0].kids.filter(k => / sys-tokbar-row$/.test(k.className)).map(r => r.kids.map(k => [k.tag, k.className, k.textContent, k.opts || null, k.value === undefined ? null : k.value]));
+        check('backlog 28: the System editor\'s Token bars box (sheets.js barsBox, run for real): built of elements, options and values alone, a pool\'s label from a system file an option\'s text (a GM-only pool said so); with none yet, Add token bars (none to add without a pool); then a row a bar, its pool, who sees it and a colour that is #rrggbb or the slot\'s own, a pool that is gone said so; no markup from a string',
+            J(rowsB[0]) === J([['span', 'sys-num-cap', 'Bar 1', null, null], ['select', 'sys-tokbar-pool', '', [['', '— none —'], ['f_hp', T + ' (GM only)']], 'f_hp'], ['select', 'sys-tokbar-show', '', [['owner', 'Its owner and the GM'], ['all', 'Everyone'], ['gm', 'GM only']], 'all'], ['input', 'sys-tokbar-color', '', null, '#d9534f']])
+            && J(rowsB[1][1][3].slice(-1)) === J([['f_gone', '(a pool that is gone)']]) && rowsB[1][3][4] === '#00ff00' && bb2.kids[0].kids.slice(-1)[0].kids[0].textContent === 'Remove token bars'
+            && bb1.kids[0].kids.slice(-1)[0].kids[0].textContent === 'Add token bars' && bb1.kids[0].kids.slice(-1)[0].kids[0].disabled === false && bb0.kids[0].kids.slice(-1)[0].kids[0].disabled === true && !/innerHTML|insertAdjacentHTML|outerHTML|btnRow\(/.test(bbS), J(rowsB));
+        const tfS = slice('inspector.js', 'tokbarsfield');
+        const runTF = (camp, w) => new Function('getActiveCampaign', 'esc', 'window', tfS + '\nreturn barsFieldHtml;')(() => camp, escB, { wpSystemCore: SYb })(w);
+        const campB = { system: { fields: [{ id: 'f_hp', key: 'HP', label: T, kind: 'resource', vis: 'all' }, { id: P, key: 'Y', label: P, kind: 'resource' }], combat: {} } };
+        const h1 = runTF(campB, { isChar: true, bars: [{ n: '<i x="q">', cur: 3, max: 4, show: 'all', color: '#00ff00' }, null] }), h2 = runTF(campB, { isChar: true, charId: 'c_a', bars: [{ f: 'f_hp', show: 'gm' }, { f: 'f_zz' }] }), h3 = runTF(campB, { isChar: true, charId: 'c_a' });
+        check('backlog 28: a token\'s Bars in its Properties (inspector.js barsFieldHtml, run for real): a pool\'s label and id from a system file and a bar\'s name and numbers from a save land escaped in options and values, so nothing in the field can run or call out; a token with no sheet has Name, Now and Most and no pool list; a character token As the system or its own, a pool that is gone said so',
+            risks(h1).length === 0 && risks(h2).length === 0 && risks(h3).length === 0 && h1.indexOf(T) < 0 && h2.indexOf(T) < 0 && h2.indexOf(escB(T)) >= 0 && h1.indexOf('value="' + escB('<i x="q">') + '"') >= 0 && h1.indexOf('<i x') < 0
+            && !/wb-tokbar-pool/.test(h1) && /wb-tokbar-cur/.test(h1) && /<option value="own" selected>/.test(h2) && /\(a pool that is gone\)/.test(h2) && /<option value="sys" selected>/.test(h3) && !/wb-tokbar/.test(h3), [risks(h1), risks(h2), h2.slice(0, 300)]);
+    }
     /* ---- item 21 V1: the GM's Video panel — names, numbers and ids from a campaign file reach its markup through esc; a video element's address only through videoSrc ---- */
     {
         const VC = await import(modUrl('videocore.js'));

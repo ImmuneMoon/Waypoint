@@ -193,6 +193,17 @@ Postures
   Kneeling and Prone. A token keeps the posture it had, unseen while its
   system lists none.
 
+Token bars
+- Show up to two pools of the sheet, such as HP, as a thin ring around
+  every character token. Bar 1 is the left half of the ring and Bar 2
+  the right. Add token bars on the System editor's Combat card.
+- Each bar has its pool, its colour and who sees it: its owner and the
+  GM, everyone, or the GM only. Hover over a bar to see its numbers.
+- A token's Properties can give it bars of its own. A token with no
+  sheet has a name, a Now and a Most for each bar.
+- Your computer works out what each player sees. A GM-only pool never
+  leaves it, and a hidden token sends nothing.
+
 Restore points, a trial run and a test copy
 - Try something out without keeping it. The campaign menu has three new
   ways, and each one leaves your other campaigns as they are.

@@ -1192,6 +1192,11 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               if (fxEl.dataset.sig !== fxHtml) { fxEl.dataset.sig = fxHtml; fxEl.innerHTML = fxHtml; }
           } else if (fxEl) fxEl.remove();
           pagePinSync(el, item, hideFromMe);   // 1.5.4 (pageshelf.js): a pin's mark, on the GM's screen alone
+          var barL = item.isChar && window.wpSheets && window.wpSheets.tokenBars ? window.wpSheets.tokenBars(item, activeMap.id) : [], barEl = el.querySelector(':scope > svg.token-bars');   // backlog 28: its bars, a ring around it
+          if (barL.length) {
+              var barSig = tokenBarsSig(item, barL);
+              if (!barEl || barEl.getAttribute('data-sig') !== barSig) { var barNew = tokenBarsSvg(item, barL); barNew.setAttribute('data-sig', barSig); if (barEl) el.replaceChild(barNew, barEl); else el.appendChild(barNew); }
+          } else if (barEl) barEl.remove();
           var envT = item.isChar && window.wpSheets && window.wpSheets.tokenEnv ? window.wpSheets.tokenEnv(item) : null, envEl = el.querySelector(':scope > .token-env');   // 1.6.0: the map environment's badge (the owner: "As drawn")
           if (envT) {
               if (!envEl) { envEl = document.createElement('div'); envEl.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13.5V5a2 2 0 0 1 4 0v8.5a4 4 0 1 1-4 0z"/></svg>'; el.appendChild(envEl); }
@@ -3484,6 +3489,31 @@ window.wpFitToGrid = fitToGrid;
   // GM-only one dashed, their names in the row's title. A glyph is a mask whose URL is built only from glyphPath's answer (the fixed table);
   // an emoji or a symbol is escaped text; an effect with no icon shows its name's first letter
   var FX_GLYPH_BASE = '/assets/icons/fa/';
+  // [sinkcheck:tokenbars-start]
+  // Backlog 28 (the owner, 2026-10-29, by prompt: "A ring around it", the numbers on hover, each bar its own colour): a token's bars as a thin ring
+  // just outside its edge, Bar 1 filling the left half from the bottom up and over, Bar 2 the right half from the top down, each its own colour
+  // over a dark track, a GM-only bar dashed (the GM's screen alone); turned back against the token's own turn, so Bar 1 stays at the left. Built
+  // of elements and attributes alone: numbers as the cleaners gave them, a colour that is a #rrggbb, the tooltip ("HP 7 / 14") a text
+  var BAR_GAP = 6, BAR_SPAN = 168;
+  function tokenBarsSig(item, list) { return [+item.w || 60, +item.h || 52, +item.rot || 0].join(',') + '|' + list.map(function(e) { return [e.s, e.v, e.m, e.n, e.c, e.g === 1 ? 1 : 0].join(','); }).join(';'); }
+  function tokenBarsSvg(item, list) {
+      var NS = 'http://www.w3.org/2000/svg', S = window.wpSystemCore, w = Math.max(8, +item.w || 60), h = Math.max(8, +item.h || 52), sw = Math.round(Math.max(2.5, Math.min(w, h) * 0.06) * 10) / 10, pad = sw + 2;
+      var W = w + 2 * pad, H = h + 2 * pad, cx = W / 2, cy = H / 2, rx = w / 2 + sw / 2 + 0.5, ry = h / 2 + sw / 2 + 0.5;
+      var sv = document.createElementNS(NS, 'svg'); sv.setAttribute('class', 'token-bars'); sv.setAttribute('viewBox', '0 0 ' + W + ' ' + H); sv.setAttribute('width', String(W)); sv.setAttribute('height', String(H));
+      sv.style.left = -pad + 'px'; sv.style.top = -pad + 'px'; if (+item.rot) sv.style.transform = 'rotate(' + (-item.rot) + 'deg)';
+      var at = function(deg) { var t = deg * Math.PI / 180; return (Math.round((cx - rx * Math.sin(t)) * 100) / 100) + ' ' + (Math.round((cy + ry * Math.cos(t)) * 100) / 100); };   // 0 the bottom, 90 the left, 180 the top, 270 the right
+      var arc = function(a0, a1) { return 'M ' + at(a0) + ' A ' + rx + ' ' + ry + ' 0 0 1 ' + at(a1); };
+      list.forEach(function(e) {
+          if (!e || (e.s !== 0 && e.s !== 1)) return;
+          var a0 = e.s === 0 ? BAR_GAP : 180 + BAR_GAP, fill = S && S.barFill ? S.barFill(e) : 0, g = document.createElementNS(NS, 'g');
+          g.setAttribute('class', 'tbar' + (e.g === 1 ? ' gm' : '')); g.setAttribute('data-tip', S && S.barTip ? S.barTip(e) + (e.g === 1 ? ' (GM only)' : '') : '');
+          var tr = document.createElementNS(NS, 'path'); tr.setAttribute('class', 'tbar-track'); tr.setAttribute('d', arc(a0, a0 + BAR_SPAN)); tr.setAttribute('stroke-width', String(sw)); g.appendChild(tr);
+          if (fill > 0) { var fp = document.createElementNS(NS, 'path'); fp.setAttribute('class', 'tbar-fill'); fp.setAttribute('d', arc(a0, a0 + Math.max(1, BAR_SPAN * fill))); fp.setAttribute('stroke-width', String(sw)); fp.setAttribute('stroke', /^#[0-9a-f]{6}$/.test(e.c) ? e.c : '#d9534f'); g.appendChild(fp); }
+          sv.appendChild(g);
+      });
+      return sv;
+  }
+  // [sinkcheck:tokenbars-end]
   function tokenFxHtml(list) {
       if (!Array.isArray(list) || !list.length) return '';
       var S = window.wpSystemCore, names = [], h = '', n = 0;

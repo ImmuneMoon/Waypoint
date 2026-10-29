@@ -909,6 +909,13 @@
   .token-fx .tfx.debuff { box-shadow: 0 0 0 1.5px #d9534f; }
   /* 1.6.0: the map environment's badge on a character's token, amber near an extreme and red at one (the owner: "As drawn") */
   .token-env { position: absolute; right: -6px; top: -6px; z-index: 6; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid #111; transform: scale(var(--wbz, 1)); transform-origin: 100% 0; pointer-events: auto; }
+  .sys-tokbars { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); flex: 1 1 100%; }   /* backlog 28: the Combat card's Token bars, a row of its own as the Postures box */
+  .sys-tokbars > .sys-flags { border-top: none; padding-top: 0; align-items: center; }
+  /* Backlog 28: a token's bars, a thin ring just outside its edge (the owner: "A ring around it"); only the arcs take the pointer, for their tooltip */
+  .wb-item > svg.token-bars { position: absolute; z-index: 5; overflow: visible; pointer-events: none; transform-origin: 50% 50%; }
+  .token-bars .tbar-track { fill: none; stroke: rgba(0, 0, 0, 0.72); pointer-events: stroke; }
+  .token-bars .tbar-fill { fill: none; pointer-events: stroke; }
+  .token-bars .tbar.gm .tbar-fill { stroke-dasharray: 3 2; }
   .token-env svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
   .token-env.warn { background: #e0a03a; color: #1a1a1a; }
   .token-env.danger { background: #d9534f; color: #fff; }

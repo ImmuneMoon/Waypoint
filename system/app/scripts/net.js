@@ -402,13 +402,28 @@ function sanitizeRichText(html) {
 }
 net.sanitizeRichText = sanitizeRichText;
 // A play map as a client keeps it: text items rebuilt, category colors that are colors, collections bounded.
-function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.font !== undefined) { var TFf = window.wpTextFmt, fn = TFf && TFf.cleanFont ? TFf.cleanFont(w.font) : undefined; if (fn) w.font = fn; else delete w.font; } if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined || w.seenWidth !== undefined || w.seenOpacity !== undefined || w.seenTip !== undefined) { delete w.secret; delete w.seenColor; delete w.seenTexture; delete w.seenWidth; delete w.seenOpacity; delete w.seenTip; } if (w.mine !== undefined) delete w.mine; if (w.page !== undefined) delete w.page; if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand; if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier; if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } if (w.texSrc !== undefined || w.texTile !== undefined) { var FCq = window.wpFogCore, tsi = FCq && typeof FCq.cleanTexSrc === 'function' ? FCq.cleanTexSrc(w.texSrc) : null, tti = tsi && typeof FCq.cleanTexTile === 'function' ? FCq.cleanTexTile(w.texTile) : null; if (tsi) w.texSrc = tsi; else delete w.texSrc; if (tti) w.texTile = tti; else delete w.texTile; } if (w.texture !== undefined) { var FCx = window.wpFogCore, tx = FCx && FCx.cleanTexture ? FCx.cleanTexture(w.texture) : null; if (tx) w.texture = tx; else delete w.texture; } if (w.ground !== undefined) { var FCg = window.wpFogCore, gr = FCg && FCg.cleanGround ? FCg.cleanGround(w.ground) : null; if (gr) w.ground = gr; else delete w.ground; } return w; }   // senses S7b: smoke only as true; see-through barriers (1.5.1): barrier only as true; a portal's own lock: portalLock only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards; item 19b H5: a piece's ground height, yards (a pit below 0); map builder B1: a piece's texture only as a name of the app's own list (fogcore cleanTexture), none without the cleaner
+function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.font !== undefined) { var TFf = window.wpTextFmt, fn = TFf && TFf.cleanFont ? TFf.cleanFont(w.font) : undefined; if (fn) w.font = fn; else delete w.font; } if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.tbr !== undefined || w.bars !== undefined) cleanHostBars(w); if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined || w.seenWidth !== undefined || w.seenOpacity !== undefined || w.seenTip !== undefined) { delete w.secret; delete w.seenColor; delete w.seenTexture; delete w.seenWidth; delete w.seenOpacity; delete w.seenTip; } if (w.mine !== undefined) delete w.mine; if (w.page !== undefined) delete w.page; if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand; if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier; if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } if (w.texSrc !== undefined || w.texTile !== undefined) { var FCq = window.wpFogCore, tsi = FCq && typeof FCq.cleanTexSrc === 'function' ? FCq.cleanTexSrc(w.texSrc) : null, tti = tsi && typeof FCq.cleanTexTile === 'function' ? FCq.cleanTexTile(w.texTile) : null; if (tsi) w.texSrc = tsi; else delete w.texSrc; if (tti) w.texTile = tti; else delete w.texTile; } if (w.texture !== undefined) { var FCx = window.wpFogCore, tx = FCx && FCx.cleanTexture ? FCx.cleanTexture(w.texture) : null; if (tx) w.texture = tx; else delete w.texture; } if (w.ground !== undefined) { var FCg = window.wpFogCore, gr = FCg && FCg.cleanGround ? FCg.cleanGround(w.ground) : null; if (gr) w.ground = gr; else delete w.ground; } return w; }   // senses S7b: smoke only as true; see-through barriers (1.5.1): barrier only as true; a portal's own lock: portalLock only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards; item 19b H5: a piece's ground height, yards (a pit below 0); map builder B1: a piece's texture only as a name of the app's own list (fogcore cleanTexture), none without the cleaner
 // Senses S2b: a token's own ranges, kept on a token of this player's alone (the host sends no other), cleaned again; none from a hostile host
 // on anyone else's token, and none with no cleaner on hand. S3: the GM's Blind tick likewise, and only as true
 function cleanHostTokSenses(w) { var FCs = window.wpFogCore, mine = !!w.ownerId && w.ownerId === net.myId, ts = FCs && FCs.cleanTokSenses && mine ? FCs.cleanTokSenses(w.senses) : null; if (ts) w.senses = ts; else delete w.senses; if (!(mine && w.blind === true)) delete w.blind; }
 // Conditions C1: a character token's effects as the host sent them, cleaned again — at most 8, a name as plain text of 60 at most, an icon the
 // app draws (systemcore cleanIcon), a tone of the two words; only on a character token; with no cleaner on hand they do not come in
 function cleanHostFxb(w) { var S = window.wpSystemCore, out = []; if (w.isChar && S && S.cleanIcon && Array.isArray(w.fxb)) w.fxb.slice(0, 8).forEach(function(e) { if (!e || typeof e !== 'object' || typeof e.n !== 'string') return; var n = e.n.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, ' ').trim().slice(0, 60); if (n) out.push({ n: n, i: S.cleanIcon(e.i), t: e.t === 'buff' || e.t === 'debuff' ? e.t : '' }); }); if (out.length) w.fxb = out; else delete w.fxb; }
+// Backlog 28: a token's bars everyone is shown, as the host sent them, cleaned again (systemcore cleanBarFigs: two at most, numbers, a plain
+// label, a colour); only on a token; a token's own list never comes in, and with no cleaner on hand nothing does
+function cleanHostBars(w) { var S = window.wpSystemCore, tb = w.isChar && !w.waiting && S && S.cleanBarFigs ? S.cleanBarFigs(w.tbr) : []; delete w.bars; if (tb.length) w.tbr = tb; else delete w.tbr; }
+// Backlog 28: the bars of this player's own tokens shown to their owner alone, by map, as the host last said them (tokBars): kept in memory beside
+// the map, never on it and never saved; cleaned again, a token's id as a fogged map's are, at most OWN_BARS_MAX tokens a map, only for a map of
+// the campaign; forgotten with the session (charSessionReset). The board draws them on a token of this player's alone (wpSheets.tokenBars)
+var _ownBars = Object.create(null), OWN_BARS_MAX = 200;
+function ownBarsTake(campId, mapId, bars) {
+    var S = window.wpSystemCore, camp = campOf(campId), out = Object.create(null), n = 0;
+    if (!camp || !camp.items || !own(camp.items, mapId)) return;
+    if (bars && typeof bars === 'object' && !Array.isArray(bars) && S && S.cleanBarFigs) Object.keys(bars).forEach(function(id) { if (n >= OWN_BARS_MAX || !fogDiffId(id)) return; var f = S.cleanBarFigs(bars[id]); if (f.length) { out[id] = f; n++; } });
+    if (n) _ownBars[mapId] = out; else delete _ownBars[mapId];
+}
+function ownBarsReset() { _ownBars = Object.create(null); }
+net.ownBars = function(mapId, tokId) { return typeof mapId === 'string' && typeof tokId === 'string' && own(_ownBars, mapId) && own(_ownBars[mapId], tokId) ? _ownBars[mapId][tokId] : []; };
 // Lighting L4: an item's light as the host sent it, cleaned again (fogcore cleanLight: numbers clamped, a unit the app knows, the name short
 // plain text); with no cleaner on hand it does not come in
 function cleanHostLight(w) { var FCl = window.wpFogCore, lc = FCl && FCl.cleanLight ? FCl.cleanLight(w.light) : null; if (lc) w.light = lc; else if (w.type === 'light' && FCl && FCl.cleanLight) w.light = { bright: 0, dim: 0 }; else delete w.light; }
@@ -796,6 +811,9 @@ function wireWbItem(w, cloned) {
     if (w.fxb !== undefined) delete w.fxb;   // conditions C1: never taken from the map; worked out afresh below
     if (w.isChar && typeof fxbOf === 'function') { var fxb = fxbOf(w); if (fxb) w.fxb = fxb; }   // C2: a token with no sheet, from its own
     if (w.fx !== undefined) delete w.fx;   // conditions C2: a token's own rows are the GM's (their GM-only ids and names): the table gets fxb
+    var tbrW = w.isChar && !w.waiting && typeof barsOf === 'function' ? barsOf(w, 'all') : null;   // backlog 28: the bars everyone is shown, worked out before the token's own list goes
+    if (w.bars !== undefined || w.tbr !== undefined) { delete w.bars; delete w.tbr; }   // a token's own bars (its own numbers, a GM-only bar among them) are the GM's: the table gets the figures alone
+    if (tbrW) w.tbr = tbrW;
     if (w.mine !== undefined) delete w.mine;   // 1.5.8 explosives: a placed mine's blast (its damage formula, who placed it) is the GM's: a hidden mine is not sent at all, and a shown one goes as a plain trigger zone
     if (w.page !== undefined) delete w.page;   // 1.5.4 (pageshelf.js): a pin, the page a piece opens, is the GM's own link and names a planner: never on the wire
     if (w.eventMessage !== undefined) delete w.eventMessage;   // secrets (R2): a trigger zone's message is GM prep until a token lands in it — the host says it then, to the dropper alone (triggerFire)
@@ -857,6 +875,7 @@ function fxbOf(w) {
 // made is sent again, its per-player delta carrying the one token. id: one character, or null for every one (the system changed: a token
 // with no sheet looked at again too, since its library effects may have)
 function fxbMoved(id) {
+    if (typeof barsMoved === 'function') barsMoved(id);   // backlog 28: the bars on the tokens, at every change the effects are looked at for
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.tokenEffects || !camp.chars) return;
     var moved = Object.create(null), out = Object.create(null);
@@ -874,6 +893,61 @@ function fxbMoved(id) {
         });
     });
     Object.keys(out).forEach(function(mid) { net.sendItem(camp.id, mid); });
+}
+// Backlog 28 (token bars): the figures of a token's bars a player is given, or null. who: 'all' those everyone is shown (on the token in every
+// copy, as tbr) or 'owner' those its owner alone is shown (tokBarsTell). Worked out in the players' view with that view's copy of its character
+// (as a teammate's hover lines are), so a GM-only pool, or one whose most reads a GM-only value, is never among them; a pool's bar needs character
+// sheets on, a token's own numbers do not. What everyone is shown of each token is remembered (_barSig), so a change of it is found once (barsMoved)
+var _barSig = Object.create(null);
+function barsOf(w, who) {
+    if (net.role !== 'host' || !w || typeof w !== 'object' || !w.isChar || w.waiting || typeof w.id !== 'string') return null;
+    var camp = getActiveCampaign(), S = SC(); if (!camp || !S || typeof S.tokenBarSpec !== 'function') return null;
+    var spec = S.tokenBarSpec(camp.system, w), view = null, ch = null;
+    if (spec && spec.some(function(b) { return !!b && typeof b.f === 'string'; }) && window.wpSheets && (!window.wpVtt || window.wpVtt.on('sheets')) && typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId) && camp.chars[w.charId] && camp.chars[w.charId].making !== 1) {
+        view = window.wpSheets.playerSystem(camp);
+        if (view) ch = S.charForView(camp.chars[w.charId], view, { lib: fxLib(camp.system), items: itemLib(camp.system), full: camp.system });
+    }
+    var figs = spec ? S.tokenBarFigs(spec, view, ch, window.wpFormula, who) : [];
+    if (who === 'all') _barSig[w.id] = JSON.stringify(figs);
+    return figs.length ? figs : null;
+}
+// A character's change (called where fxbMoved is): every map holding a shown token whose bars everyone is shown moved since a copy was last made
+// is sent again, its delta carrying the one token; and the owners' own bars are looked at again. id: one character, or null for every token
+function barsMoved(id) {
+    if (!net.active || net.role !== 'host') return;
+    var camp = getActiveCampaign(); if (!camp || !camp.items) return;
+    var out = Object.create(null);
+    Object.keys(camp.items).forEach(function(mid) {
+        var m = camp.items[mid]; if (!m || m.type !== 'map' || !Array.isArray(m.whiteboard)) return;
+        m.whiteboard.forEach(function(w) {
+            if (!w || !w.isChar || w.hidden || w.waiting || typeof w.id !== 'string' || _barSig[w.id] === undefined) return;   // a hidden token is not sent at all; one no copy was made with has nothing to catch up
+            if (id !== null && w.charId !== id) return;
+            var was = _barSig[w.id]; barsOf(w, 'all'); if (was !== _barSig[w.id]) out[mid] = 1;
+        });
+    });
+    Object.keys(out).forEach(function(mid) { net.sendItem(camp.id, mid); });
+    tokBarsSoon();
+}
+// The bars of a player's own tokens shown to their owner alone ('tokBars'; the player's side is ownBarsTake): one message a map their connection
+// holds whole, sent only when what it says changed (_barSent, by connection and map: the host's memory only), {} once to clear it. A hidden or a
+// waiting token sends nothing, as on the board. Soon: what one moment changed is looked at once
+var _barSent = Object.create(null), _barTimer = null;
+function tokBarsSoon() { if (_barTimer !== null || !net.active || net.role !== 'host') return; _barTimer = setTimeout(function() { _barTimer = null; tokBarsTell(); }, 40); }
+function tokBarsTell() {
+    if (!net.active || net.role !== 'host' || !Array.isArray(net.conns)) return;
+    var camp = getActiveCampaign(); if (!camp || !camp.items) return;
+    net.conns.forEach(function(c) {
+        var pr = c && c.open && own(net.roster, c.peer) ? net.roster[c.peer] : null, pid = pr && typeof pr.id === 'string' && pr.id ? pr.id : null; if (!pid) return;
+        var held = mapHeldOf(c), sent = own(_barSent, c.peer) ? _barSent[c.peer] : (_barSent[c.peer] = Object.create(null));
+        Object.keys(held).forEach(function(mid) {
+            var m = held[mid] === 1 && own(camp.items, mid) ? camp.items[mid] : null; if (!m || m.type !== 'map' || !Array.isArray(m.whiteboard)) return;
+            var bars = {}, any = false;
+            m.whiteboard.forEach(function(w) { if (!w || !w.isChar || w.hidden || w.waiting || w.gmNoteFor || typeof w.id !== 'string' || w.ownerId !== pid) return; var f = barsOf(w, 'owner'); if (f) { bars[w.id] = f; any = true; } });
+            var h = any ? String(quickHash(JSON.stringify(bars))) : '';
+            if ((own(sent, mid) ? sent[mid] : '') === h) return;
+            try { c.send({ type: 'tokBars', campId: camp.id, itemId: mid, bars: bars }); sent[mid] = h; } catch (e) { sendFailed(e); }
+        });
+    });
 }
 /* ---------- fog of war (1.5.0 FV2): per-recipient creature drop ----------
    window.wpFog.fogDropIds(recipientId, camp, map) → the ids of character tokens the recipient cannot see, or null
@@ -973,9 +1047,9 @@ function wireNum(k, v) { return (typeof v === 'number' && (v > 1e15 || v < -1e15
 // asking for a map it was never given gets nothing
 var _mapHeld = Object.create(null);
 function mapHeld(conn, mapId) { return !!(conn && typeof conn.peer === 'string' && typeof mapId === 'string' && own(_mapHeld, conn.peer) && _mapHeld[conn.peer][mapId] === 1); }
-function mapHeldNote(conn, mapId) { if (!conn || typeof conn.peer !== 'string' || typeof mapId !== 'string') return; (own(_mapHeld, conn.peer) ? _mapHeld[conn.peer] : (_mapHeld[conn.peer] = Object.create(null)))[mapId] = 1; }
+function mapHeldNote(conn, mapId) { if (!conn || typeof conn.peer !== 'string' || typeof mapId !== 'string') return; if (typeof tokBarsSoon === 'function') tokBarsSoon(); (own(_mapHeld, conn.peer) ? _mapHeld[conn.peer] : (_mapHeld[conn.peer] = Object.create(null)))[mapId] = 1; }
 function mapHeldOf(conn) { return conn && typeof conn.peer === 'string' && own(_mapHeld, conn.peer) ? _mapHeld[conn.peer] : Object.create(null); }
-function mapForgetConn(peer) { if (typeof peer === 'string') delete _mapHeld[peer]; }
+function mapForgetConn(peer) { if (typeof peer === 'string') { delete _mapHeld[peer]; if (typeof _barSent === 'object' && _barSent) delete _barSent[peer]; } }
 function mapForgetMap(mapId) { Object.keys(_mapHeld).forEach(function(p) { delete _mapHeld[p][mapId]; }); if (typeof mapId === 'string') delete _stubSaid[mapId]; }
 function mapForgetAll() { _mapHeld = Object.create(null); _stubSaid = Object.create(null); }
 // the stub a player holds for a map they have not reached: its name, its lock and its place in the Maps list; nothing of what is on it
@@ -2061,6 +2135,7 @@ function mapFogged(it) { return !!(it && it.type === 'map' && it.fog && it.fog.o
 net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M10: exceptConn, a connection a fogged map is not sent to (its own copy catches up in place); at: the action of onlyConn's that this whole copy answers (14c)
     var camp = own(state.appState.campaigns, campId) ? state.appState.campaigns[campId] : null, it = camp && own(camp.items, itemId) ? camp.items[itemId] : null; if (!it) return;   // own keys only: an id from the wire (needItem) that is a prototype's names nothing — never a prototype object sent as a map, never a function handed to the packer
     var ak = typeof withAck === 'function' ? withAck : function(m) { return m; };   // 14c: how far each connection's copy goes (a harness without it sends as before)
+    if (it.type === 'map' && typeof tokBarsSoon === 'function') tokBarsSoon();   // backlog 28: a token's own bars changed with the map
     if (typeof hidNote === 'function') hidNote(it);   // hidden pieces: a player's drawing the GM hid, noted for each of their connections before the copy without it goes
     // fog of war (1.5.0 FV2): a fogged map is sent per recipient — the heavy map is cloned once (sanitizeItem), then a
     // cheap shallow copy drops each player's unseen creatures. No shared delta while fog is on (baselines differ per peer).
@@ -2095,6 +2170,7 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M1
 // one-off sends (travel, summon, bring, push) that always send whole; a fogged map never leaks a creature through them.
 net.broadcastItemFiltered = function(campId, itemId) {
     var camp = own(state.appState.campaigns, campId) ? state.appState.campaigns[campId] : null, it = camp && own(camp.items, itemId) ? camp.items[itemId] : null; if (!it) return;   // own keys only, as sendItem
+    if (it.type === 'map' && typeof tokBarsSoon === 'function') tokBarsSoon();   // backlog 28: as sendItem
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(itemId);   // Senses S0: a map sent this way was changed as a remote change (a traveller arrived or left, a waiting token placed, a light switched): who sees what on it is judged afresh
     if (typeof hidNote === 'function') hidNote(it);   // hidden pieces: as sendItem
     if (it.type === 'map' && typeof mapStubSend === 'function' && typeof mapHeld === 'function') mapStubSend(mapStubMsg(campId, itemId, it));   // possession: a connection holding this map's stub (a lock changed, say) gets the stub afresh — its name and its lock, nothing of what is on it (never one arriving on it now: the whole map follows)
@@ -3007,7 +3083,7 @@ function charViewFor(charId, recipientId) {   // the copy one peer may hold, or 
     return (typeof withLinkFigs === 'function' ? withLinkFigs : function(v0) { return v0; })(withHoverLines(S.charFor(camp.chars[charId], view, recipientId, { lib: lib, items: items, full: camp.system }), camp.chars[charId], view, lib, items, camp.system), view);   // 1.6.0: an owner's copy carries the figures of the sheets it links
 }
 net.dropPending = function(charId) { Object.keys(_charPending).forEach(function(rid) { if (_charPending[rid].charId === charId) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; } }); };   // a sheet that stopped being ours: its queued edits go
-function charSessionReset() { Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = Object.create(null); _charSlowSaid = {}; _charHost = Object.create(null); _rowGrace = {}; _triedSaid = {}; if (charLimit) charLimit.reset(); if (typeof styleReset === 'function') styleReset(); }
+function charSessionReset() { if (typeof ownBarsReset === 'function') ownBarsReset(); Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = Object.create(null); _charSlowSaid = {}; _charHost = Object.create(null); _rowGrace = {}; _triedSaid = {}; if (charLimit) charLimit.reset(); if (typeof styleReset === 'function') styleReset(); }
 // Stage 6: the GM alone hears when a player picks up, tries to remove or drops a bound or cursed item (a toast and the session log's Items)
 function itemNotice(ch, name, what, by) {   // by (1.5.4 One at a time): the row a player switched on, which a bound row of its group kept off
     var who = ch && ch.name ? ch.name : 'A character', nm = name || 'an item';
@@ -7891,6 +7967,15 @@ function handleMessage(msg, conn) {
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId || !validKey(msg.itemId)) return;
         applyFogDiff(msg);
         // [netcheck:fogdiff-end]
+    } else if (msg.type === 'tokBars' && net.role === 'client') {
+        // [netcheck:tokbars-start]
+        // Backlog 28: the bars of this player's own tokens on one map that their owner alone is shown, worked out by the host (tokBarsTell): from
+        // the synced host only, never in the stream window, for the hosted campaign
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId || !validKey(msg.itemId)) return;
+        ownBarsTake(msg.campId, msg.itemId, msg.bars);
+        var myB = getActiveCampaign(); if (myB && myB.id === msg.campId && myB.activeItemId === msg.itemId) render();
+        // [netcheck:tokbars-end]
     } else if (msg.type === 'campName' && net.role === 'client') {
         // [netcheck:campname-start]
         // the hosted campaign renamed mid-session: from the synced host only, for the hosted campaign, a string (cut to 200); the top bar

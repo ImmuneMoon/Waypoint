@@ -1099,6 +1099,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                   return lightFieldHtml(w, L, lightPresetsNow());
               })() : '')+
               (w.isChar && !w.waiting && window.wpCanPersistLocal && window.wpCanPersistLocal() ? sensesFieldHtml(w, activeMap) : '')+   // senses S2b: the system's senses, as this token has them
+              (w.isChar && !w.waiting && window.wpCanPersistLocal && window.wpCanPersistLocal() ? barsFieldHtml(w) : '')+   // backlog 28: its bars
               (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.waiting && !w.gmNoteFor && window.wpCanPersistLocal && window.wpCanPersistLocal() ? nullsFieldHtml(w) : '')+   // senses S7a: a null area (hidden or not)
               '<div class="divider"></div>'+
               '<button class="tool ghost" id="wbDup" style="width:100%; margin-bottom:5px;" title="Make a full copy of this item, settings and data included (Ctrl+D)">&#10697; Duplicate</button>'+
@@ -1360,6 +1361,9 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbLP) _el_wbLP.addEventListener('change', function() { applyLightPreset(w, this.value, activeMap); });
             inspector.querySelectorAll('.wb-sense-ov').forEach(function(el) { el.addEventListener('change', function() { setTokenSense(w, this.dataset.si, this.value); }); });   // senses S2b: a token's own range for a sense
             inspector.querySelectorAll('.wb-unsensed').forEach(function(el) { el.addEventListener('change', function() { setTokenUnsensed(w, this.dataset.mi, this.checked); }); });   // senses S4: never shown as a mark by that sense
+            var _el_wbBM = document.getElementById('wbBarsMode');
+            if (_el_wbBM) _el_wbBM.addEventListener('change', function() { setTokenBarsMode(w, this.value === 'own'); });   // backlog 28: the system's bars or the token's own
+            inspector.querySelectorAll('.wb-tokbar').forEach(function(row) { row.querySelectorAll('select, input').forEach(function(el) { el.addEventListener('change', function() { var pt = /\bwb-tokbar-(pool|name|cur|max|show|color)\b/.exec(this.className || ''); var nm = row.querySelector('.wb-tokbar-name'); if (pt) setTokenBar(w, row.dataset.bi, pt[1], this.value, nm ? nm.value : ''); }); }); });   // backlog 28: one bar's parts (a bar made by its numbers takes the name already typed)
             inspector.querySelectorAll('.wb-null').forEach(function(el) { el.addEventListener('change', function() { setItemNulls(w, this.dataset.ni, this.checked); }); });   // senses S7a: the senses that fail in this area
             var _el_wbBT = document.getElementById('wbBlindTick');
             if (_el_wbBT) _el_wbBT.addEventListener('change', function() { setTokenBlind(w, this.checked); });   // senses S3: the GM's Blind tick
@@ -1805,6 +1809,54 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
               : o ? String(o.n) + ' ' + word(s.unit) + from(o) + ': ' + (o.why === 'blind' ? 'off while blind' : o.why === 'null' ? 'fails here (a null area)' : 'off, ' + offBy(s)) : mine ? 'Off for this token' : 'Not held';
           return '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:2px 0;"><span style="flex:1 1 120px; min-width:0;">' + esc(s.name) + '</span><input type="number" class="wb-sense-ov" data-si="' + i + '" min="0" max="100000" step="any" value="' + (mine ? String(ov[s.id]) : '') + '" placeholder="default" title="This token&rsquo;s own range for the sense (a creature&rsquo;s sense, a plain token&rsquo;s): it counts before the sheet&rsquo;s; 0 switches it off for this token; empty: the sheet&rsquo;s or the system&rsquo;s again" style="width:78px;"><span class="muted">' + word(s.unit) + '</span></div><div class="muted" style="margin:-1px 0 4px; font-size:10.5px;">' + esc(say) + '</div>';
       }).join('') + '</div>' + unHtml + tick;
+  }
+  // [sinkcheck:tokbarsfield-start]
+  // Backlog 28 (the owner, 2026-10-29, by prompt: the system's bars, a token may change its own): a token's bars in its Properties, the GM's. A
+  // character token takes the system's (System editor, Combat, Token bars) or This token's own; a token with no sheet has numbers of its own
+  // alone. A row a bar: a pool of the sheet or numbers of its own (a name, now and most), who sees it and its colour. Every text and number is
+  // escaped into a value or an option
+  function barsFieldHtml(w) {
+      var S = window.wpSystemCore, camp = getActiveCampaign(); if (!S || typeof S.cleanTokBars !== 'function' || !camp) return '';
+      var sys = camp.system && typeof camp.system === 'object' ? camp.system : null, pools = sys && Array.isArray(sys.fields) ? sys.fields.filter(function(f) { return f && f.kind === 'resource' && typeof f.id === 'string'; }) : [];
+      var hasChar = typeof w.charId === 'string' && !!w.charId, own = Array.isArray(w.bars), arr = S.cleanTokBars(w.bars) || [null, null], words = S.BAR_SHOW_WORDS || [], cols = S.BAR_COLORS || ['#d9534f', '#4f8fd9'];
+      var sysBars = !!(sys && sys.combat && Array.isArray(sys.combat.bars) && (sys.combat.bars[0] || sys.combat.bars[1]));
+      var h = '<div class="field"><label' + (hasChar ? ' for="wbBarsMode"' : '') + '>Bars</label>';
+      if (hasChar) h += '<select id="wbBarsMode" title="A thin ring around the token: the system&rsquo;s Token bars, or bars of this token&rsquo;s own"><option value="sys"' + (own ? '' : ' selected') + '>As the system</option><option value="own"' + (own ? ' selected' : '') + '>This token&rsquo;s own</option></select>';
+      if (hasChar && !own) return h + '<div class="muted" style="margin:4px 0 6px; font-size:10.5px;">' + (sysBars ? 'The system&rsquo;s Token bars (System editor, Combat).' : 'The system has no Token bars (System editor, Combat).') + '</div></div>';
+      [0, 1].forEach(function(i) {
+          var b = arr[i], nums = !hasChar || (!!b && typeof b.f !== 'string');
+          h += '<div class="wb-tokbar" data-bi="' + i + '" style="display:flex; gap:4px; align-items:center; flex-wrap:wrap; margin:4px 0;"><span class="muted" style="width:38px;">Bar ' + (i + 1) + '</span>';
+          if (hasChar) {
+              var val = !b ? '' : typeof b.f === 'string' ? b.f : '#own', gone = !!b && typeof b.f === 'string' && !pools.some(function(f) { return f.id === b.f; });
+              h += '<select class="wb-tokbar-pool" title="The pool this bar shows, or numbers of the token&rsquo;s own"><option value="">&mdash; none &mdash;</option>' + pools.map(function(f) { return '<option value="' + esc(f.id) + '"' + (val === f.id ? ' selected' : '') + '>' + esc((f.label || f.key) + (f.vis === 'gm' ? ' (GM only)' : '')) + '</option>'; }).join('') + (gone ? '<option value="' + esc(b.f) + '" selected>(a pool that is gone)</option>' : '') + '<option value="#own"' + (val === '#own' ? ' selected' : '') + '>Numbers of its own</option></select>';
+          }
+          if (nums) h += '<input type="text" class="wb-tokbar-name" maxlength="40" placeholder="Name" title="The bar&rsquo;s name, shown with its numbers" style="flex:2 1 60px; min-width:0;" value="' + esc(b && b.n ? b.n : '') + '"><input type="number" class="wb-tokbar-cur" step="any" placeholder="Now" title="How full it is now' + (hasChar ? '' : '. Empty: no bar') + '" style="flex:1 1 44px; min-width:0;" value="' + (b ? esc(String(b.cur)) : '') + '"><span class="muted">/</span><input type="number" class="wb-tokbar-max" step="any" placeholder="Most" title="The most it holds" style="flex:1 1 44px; min-width:0;" value="' + (b ? esc(String(b.max)) : '') + '">';
+          if (b) h += '<select class="wb-tokbar-show" title="Who sees this bar. The GM always does">' + words.map(function(o) { return '<option value="' + esc(o[0]) + '"' + (b.show === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select><input type="color" class="wb-tokbar-color" title="This bar&rsquo;s colour" value="' + esc(b.color || cols[i]) + '">';
+          h += '</div>';
+      });
+      return h + '<div class="muted" style="margin:0 0 6px; font-size:10.5px;">A thin ring around the token: Bar 1 its left half, Bar 2 its right.' + (hasChar ? '' : ' Type a number in Now to show a bar.') + '</div></div>';
+  }
+  // [sinkcheck:tokbarsfield-end]
+  // The mode of a character token's bars: the system's (no list) or its own (a list, empty at first: no bar until one is picked)
+  function setTokenBarsMode(w, own) { if (own) { if (!Array.isArray(w.bars)) w.bars = [null, null]; } else delete w.bars; save(); render(); renderInspector(); }
+  // One part of one bar of a token's own list, cleaned whole after (systemcore cleanTokBars). A token with no sheet whose list is empty has none.
+  // nameNow: the words in the bar's name box, which a bar made by typing its numbers takes
+  function setTokenBar(w, bi, part, value, nameNow) {
+      var S = window.wpSystemCore, i = bi === '0' ? 0 : bi === '1' ? 1 : -1; if (!S || typeof S.cleanTokBars !== 'function' || i < 0) return;
+      var arr = S.cleanTokBars(w.bars) || [null, null], b = arr[i], cols = S.BAR_COLORS || ['#d9534f', '#4f8fd9'], v = typeof value === 'string' ? value.trim() : '', n = Number(v), shape = false;
+      var fresh = function() { return { cur: 0, max: 0, show: b ? b.show : 'owner', color: b ? b.color : cols[i] }; };
+      if (part === 'pool') { shape = true; if (v === '') arr[i] = null; else if (v === '#own') { if (!b || typeof b.f === 'string') { arr[i] = fresh(); arr[i].cur = 10; arr[i].max = 10; } } else arr[i] = { f: v, show: b ? b.show : 'owner', color: b ? b.color : cols[i] }; }
+      else if (part === 'cur' || part === 'max') {
+          if (v === '' && part === 'cur' && !w.charId) { arr[i] = null; shape = true; }
+          else if (v !== '' && isFinite(n)) { if (!b || typeof b.f === 'string') { b = arr[i] = fresh(); b.cur = n; b.max = n; shape = true; var nn = typeof nameNow === 'string' ? nameNow.trim() : ''; if (nn) b.n = nn.slice(0, 40); } b[part] = n; }
+      }
+      else if (part === 'name') { if (!b || typeof b.f === 'string') return; if (v) b.n = v.slice(0, 40); else delete b.n; }
+      else if (part === 'show') { if (!b) return; b.show = v; }
+      else if (part === 'color') { if (!b || !/^#[0-9a-fA-F]{6}$/.test(v)) return; b.color = v.toLowerCase(); }
+      else return;
+      var out = S.cleanTokBars(arr); if (out && !w.charId && !out[0] && !out[1]) out = null;
+      if (out) w.bars = out; else delete w.bars;
+      save(); render(); if (shape) renderInspector();
   }
   // Senses S4: a mark sense that never marks this token (a flyer and a tremorsense), from its Properties — by its place in the system's mark
   // senses, digits alone; the rest of the ticks kept (true, every sense, becomes their ids); none left, no key

@@ -672,6 +672,20 @@ function tokenFx(w) {
     if (c) return S.tokenEffects ? S.tokenEffects(sys, c, true, F()) : [];   // conditions C4: its automatic effects too
     return Array.isArray(w.fx) && S.tokenOwnEffects ? S.tokenOwnEffects(sys, w.fx, true) : [];   // C2: a token with no sheet, its own
 }
+// Backlog 28: a token's bars on this screen, [{ s, v, m, n, c, g? }] in slot order: the GM's worked out from the token and its character, a GM-only
+// bar marked; a player's (and the GM's campaign on a player's screen) as the host sent them, everyone's on the token (tbr) and, on a token of
+// their own, their own (net.ownBars, by the map it stands on). A pool's bar needs character sheets on; a token's own numbers do not
+function tokenBars(w, mapId) {
+    var n = window.wpNet, S = window.wpSystemCore; if (!w || !w.isChar || w.waiting || !S || !S.tokenBarFigs) return [];
+    if (n && (n.foreign || (n.active && n.role === 'client'))) {
+        var all = Array.isArray(w.tbr) ? w.tbr : [], mine = !!myId() && w.ownerId === myId() && typeof n.ownBars === 'function' && typeof mapId === 'string' ? n.ownBars(mapId, w.id) : [];
+        if (!mine.length) return all;
+        var by = [null, null]; all.concat(mine).forEach(function(e) { if (e && (e.s === 0 || e.s === 1) && !by[e.s]) by[e.s] = e; });
+        return by.filter(function(e) { return !!e; });
+    }
+    var camp = getActiveCampaign(), sys = systemOf(camp), spec = S.tokenBarSpec ? S.tokenBarSpec(sys, w) : null; if (!spec) return [];
+    return S.tokenBarFigs(spec, featureOn() ? sys : null, featureOn() ? charById(w.charId, camp) : null, F(), 'gm');
+}
 // Conditions C2: what a token's Effects menu offers on this screen, or null — { char: the character's id ('' for a token with no sheet),
 // field: its effects list's id, rows: [{ ref, rowId, name, icon, tone, gm, on }] } — each effect of the system's library (rowId: the row
 // that applies it, on: applied and switched on), then those made on the spot that it carries. The GM: a character token whose sheet has an
@@ -7697,6 +7711,7 @@ function renderCombat() {
     lineUnder(box, 'How a check against a target reads its dice.');
     if (typeof checksBox === 'function') checksBox(box, cm);   // 1.6.0 (the v2 sort's B1): the critical range, and a named success
     if (typeof blastBox === 'function') blastBox(box, cm);   // 1.5.8 explosives: the falloff, the throw's roll, the scatter, the hand, how far and how near, the ways and the fuse
+    if (typeof barsBox === 'function') barsBox(box, cm);   // backlog 28: the token bars, under the blast's
     rangeBox(box, cm);   // range penalties R1: the system's range rule, under cover
     heightBox(box, cm);   // item 19 H2: the system's height modifier, under range
     lightBox(box, cm);   // lighting L4: the system's light rules
@@ -8016,6 +8031,55 @@ function postureBox(box, cm) {
     wrap.appendChild(bar);
     var err = errorCell('postures'); err.dataset.errFor = 'postures'; wrap.appendChild(err);
     box.appendChild(wrap);
+}
+// [sinkcheck:barsbox-start]
+// Backlog 28 (the owner, 2026-10-29, by prompt: the system's bars, a token may change its own): the Combat card's Token bars box. Bar 1 and Bar 2,
+// each a pool of the sheet, who is shown it and its colour; every character token takes them unless its Properties give it bars of its own. Add
+// token bars starts Bar 1 on the pool damage subtracts from. Every text lands as a value or a text node; Save cleans them (systemcore cleanBars)
+function barsBox(box, cm) {
+    var S = window.wpSystemCore, words = S && S.BAR_SHOW_WORDS ? S.BAR_SHOW_WORDS : [['owner', 'Its owner and the GM']], cols = S && S.BAR_COLORS ? S.BAR_COLORS : ['#d9534f', '#4f8fd9'];
+    var wrap = el('div', 'sys-tokbars'), arr = Array.isArray(cm.bars) ? cm.bars : null, pools = (draft.fields || []).filter(function(f) { return f && f.kind === 'resource' && typeof f.id === 'string'; });
+    wrap.appendChild(el('div', 'sys-light-head', 'Token bars'));
+    wrap.appendChild(el('div', 'sys-note', arr ? 'A thin ring around every character token: Bar 1 is its left half, Bar 2 its right. Hovering over a bar shows its numbers to whoever may see it. A GM-only pool, or one whose most reads a GM-only value, is shown to the GM alone whatever is picked here. A token\u2019s Properties can give it bars of its own.' : 'Show up to two pools of the sheet, such as HP, as a thin ring around every character token.'));
+    if (!arr) {
+        var bar = el('div', 'sys-flags'), ad = el('button', 'tool ghost sys-btn sys-tokbars-add', 'Add token bars'); ad.dataset.act = 'tbadd'; ad.disabled = !pools.length; ad.title = pools.length ? 'Bar 1 starts as the pool damage subtracts from, shown to its owner and the GM' : 'Add a resource field (a pool) first'; bar.appendChild(ad);
+        wrap.appendChild(bar); box.appendChild(wrap); return;
+    }
+    [0, 1].forEach(function(i) {
+        var b = arr[i] && typeof arr[i] === 'object' ? arr[i] : null, row = el('div', 'sys-flags sys-tokbar-row'); row.dataset.bi = String(i);
+        row.appendChild(el('span', 'sys-num-cap', 'Bar ' + (i + 1)));
+        var opts = [['', '\u2014 none \u2014']].concat(pools.map(function(f) { return [f.id, (f.label || f.key) + (f.vis === 'gm' ? ' (GM only)' : '')]; }));
+        if (b && typeof b.f === 'string' && !pools.some(function(f) { return f.id === b.f; })) opts.push([b.f, '(a pool that is gone)']);
+        row.appendChild(select('sys-tokbar-pool', opts, b && typeof b.f === 'string' ? b.f : '', 'The pool this bar shows'));
+        if (b) {
+            row.appendChild(select('sys-tokbar-show', words, typeof b.show === 'string' ? b.show : 'owner', 'Who sees this bar. The GM always does'));
+            var ci = el('input', 'sys-tokbar-color'); ci.type = 'color'; ci.value = typeof b.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(b.color) ? b.color : cols[i]; ci.title = 'This bar\u2019s colour'; row.appendChild(ci);
+        }
+        wrap.appendChild(row);
+    });
+    var off = el('div', 'sys-flags'), rm = el('button', 'tool ghost sys-btn sys-tokbars-clear', 'Remove token bars'); rm.dataset.act = 'tbclear'; rm.title = 'No bars on character tokens. A token with bars of its own keeps them'; off.appendChild(rm); wrap.appendChild(off);
+    box.appendChild(wrap);
+}
+// [sinkcheck:barsbox-end]
+function onBarsChange(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-tokbar-') < 0) return false;
+    var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), arr = Array.isArray(cm.bars) ? cm.bars : (cm.bars = [null, null]);
+    var row = t.closest && t.closest('.sys-tokbar-row'), i = row ? +row.dataset.bi : -1; if (i !== 0 && i !== 1) return true;
+    var S = window.wpSystemCore, cols = S && S.BAR_COLORS ? S.BAR_COLORS : ['#d9534f', '#4f8fd9'], b = arr[i] && typeof arr[i] === 'object' ? arr[i] : null;
+    if (c.indexOf('sys-tokbar-pool') >= 0) { if (!t.value) arr[i] = null; else if (b) b.f = t.value; else arr[i] = { f: t.value, show: 'owner', color: cols[i] }; markDirty(); renderAll(); return true; }
+    if (!b) return true;
+    if (c.indexOf('sys-tokbar-show') >= 0) b.show = t.value;
+    else if (c.indexOf('sys-tokbar-color') >= 0) { if (/^#[0-9a-fA-F]{6}$/.test(t.value)) b.color = t.value.toLowerCase(); }
+    else return true;
+    markDirty(); patchErrors(); return true;
+}
+function barsClick(b) {
+    var mt = /^tb(add|clear)$/.exec(b.dataset.act || ''); if (!mt) return false;
+    var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), S = window.wpSystemCore, cols = S && S.BAR_COLORS ? S.BAR_COLORS : ['#d9534f', '#4f8fd9'];
+    if (mt[1] === 'clear') { delete cm.bars; markDirty(); renderAll(); return true; }
+    var pools = (draft.fields || []).filter(function(f) { return f && f.kind === 'resource' && typeof f.id === 'string'; }); if (!pools.length) return true;
+    var hp = pools.some(function(f) { return f.id === cm.hpResource; }) ? cm.hpResource : pools[0].id;
+    cm.bars = [{ f: hp, show: 'owner', color: cols[0] }, null]; markDirty(); renderAll(); return true;
 }
 function postureRowOf(t) { var arr = postureDraft(), row = t.closest && t.closest('.sys-posture-row'), i = row ? +row.dataset.pi : -1; return i >= 0 && i < arr.length && Math.floor(i) === i && arr[i] && typeof arr[i] === 'object' ? arr[i] : null; }
 function onPostureInput(t) {
@@ -9440,6 +9504,7 @@ function onChange(e) {
     if (onInitChange(t)) return;   // initiative O2
     if (onBudgetChange(t)) return;   // 126
     if (onEnvChange(t)) return;   // 1.6.0
+    if (onBarsChange(t)) return;   // backlog 28: the Token bars box
     if (onLinkChange(t)) return;   // 1.6.0: the Linked sheets
     if (onHeightChange(t)) return;   // item 19 H2
     if (onCalendarChange(t)) return;   // item 20 K1
@@ -9661,6 +9726,7 @@ function onClick(e) {
     if (calendarClick(b)) return;   // item 20 K1: the Calendar tab
     if (budgetClick(b)) return;   // 126: the Lists tab's point budgets
     if (envClick(b)) return;   // 1.6.0: the Environment readings
+    if (barsClick(b)) return;   // backlog 28: the Combat card's Token bars
     if (linkClick(b)) return;   // 1.6.0: the Linked sheets
     if (damageClick(b)) return;   // 1.5.6: the Taking damage box
     var crow = b.closest('.sys-char-row');
@@ -10029,7 +10095,7 @@ function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient(
 window.wpSheets = { bellNote: bellNote, majorFollow: majorFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
-    charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
+    charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, LIMITS: LIMITS,
     readerKit: function() { return { exportView: exportView, charById: charById, tokenFlags: tokenFlags, facingTarget: facingTarget, stanceCtx: stanceCtx, el: el, saveTextFile: saveTextFile, systemOf: systemOf, F: F, isClient: isClient, canWrite: canWrite, newCharacter: newCharacter, linkToken: linkToken, afterCharChange: afterCharChange, openReview: openReview, gmFinder: gmFinder, renderViews: renderViews, sheetOpen: function() { return sheetOpen; } }; } };   // what an outside reader's page code reads the sheet by

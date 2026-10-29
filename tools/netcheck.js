@@ -1023,6 +1023,93 @@ pendingChecks.push((async () => {
         /net\.syncChars = function\(\) \{[^\n]*\n[^\n]*\n[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(null\);/.test(src) && /net\.syncChar = function\(id\) \{[^\n]*\n[^\n]*\n[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(id\);/.test(src)
         && /net\.syncCharDelta = function\(id, values\) \{[^\n]*\n[^\n]*\n[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(id\);/.test(src));
 })());
+// backlog 28, token bars on the wire: the real sanitizeItem and wireWbItem with barsOf, barsMoved and tokBarsTell (the slice fxb's checks run), and
+// a player's side (cleanHostBars, ownBarsTake, net.ownBars), sliced and run for real
+pendingChecks.push((async () => {
+    const T = 'backlog 28 token bars (run for real)';
+    try {
+        const Sx = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js')).split(String.fromCharCode(92)).join('/'));
+        const Fx = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'formula.js')).split(String.fromCharCode(92)).join('/'));
+        const J = JSON.stringify;
+        const fxA = src.indexOf('// Conditions C1 (docs/CONDITIONS_PLAN.md): the effects the table sees'), fxB = src.indexOf('/* ---------- fog of war (1.5.0 FV2): per-recipient creature drop');
+        const bS = siSrc() + '\n' + (fxA > 0 && fxB > fxA ? src.slice(fxA, fxB) : '');
+        const sysB = Sx.cleanSystem({ v: 1, name: 'B', fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', vis: 'all', maxFormula: '10' }, { id: 'f_fp', key: 'FP', label: 'FP', kind: 'resource', vis: 'all', maxFormula: '5' }, { id: 'f_sec', key: 'Sec', kind: 'number', vis: 'gm' },
+            { id: 'f_mp', key: 'MP', label: 'MP', kind: 'resource', vis: 'all', maxFormula: 'Sec' }, { id: 'f_gp', key: 'GP', label: 'GP', kind: 'resource', vis: 'gm', maxFormula: '3' }], rolls: [], combat: { bars: [{ f: 'f_hp', show: 'all', color: '#ff0000' }, { f: 'f_fp', show: 'owner', color: '#00ff00' }] } }, { F: Fx, gmView: true });
+        const mk = role => {
+            const sent = [], sends = [], timers = [];
+            const camp = { id: 'k', system: sysB, chars: { c_a: { id: 'c_a', name: 'A', ownerId: 'p1', values: { f_hp: { cur: 7 }, f_fp: { cur: 2 }, f_sec: 8, f_mp: { cur: 4 }, f_gp: { cur: 1 } } }, c_n: { id: 'c_n', name: 'N', npc: true, values: { f_hp: { cur: 3 } } } },
+                items: { m1: { id: 'm1', type: 'map', whiteboard: [
+                    { id: 'tA', isChar: true, charId: 'c_a', ownerId: 'p1', x: 0, y: 0, w: 50, h: 50 }, { id: 'tN', isChar: true, charId: 'c_n', x: 0, y: 0, w: 50, h: 50 },
+                    { id: 'tP', isChar: true, x: 0, y: 0, w: 50, h: 50, bars: [{ n: 'Morale', cur: 3, max: 6, show: 'all' }, { n: 'Secret', cur: 1, max: 2, show: 'gm' }] },
+                    { id: 'tO', isChar: true, charId: 'c_a', ownerId: 'p1', x: 0, y: 0, w: 50, h: 50, bars: [{ f: 'f_mp', show: 'all' }, { f: 'f_gp', show: 'owner' }] },
+                    { id: 'tQ', isChar: true, ownerId: 'p1', x: 0, y: 0, w: 50, h: 50, bars: [{ n: 'Grit', cur: 2, max: 4, show: 'owner' }, null] },
+                    { id: 'box', type: 'rect', x: 0, y: 0, w: 50, h: 50, bars: [{ n: 'Odd', cur: 1, max: 1, show: 'all' }], tbr: [{ s: 0, v: 1, m: 1 }] }, { id: 'plain', type: 'rect', x: 0, y: 0, w: 50, h: 50 }] },
+                    m3: { id: 'm3', type: 'map', whiteboard: [{ id: 'tH', isChar: true, charId: 'c_a', ownerId: 'p1', hidden: true, x: 0, y: 0, w: 50, h: 50, bars: [{ n: 'Hid', cur: 1, max: 1, show: 'all' }] }] } } };
+            const conns = [{ peer: 'k1', open: true, send: m => { packCheck(m); sends.push(['k1', JSON.parse(J(m))]); } }, { peer: 'k2', open: true, send: m => sends.push(['k2', JSON.parse(J(m))]) }, { peer: 'k3', open: false, send: m => sends.push(['k3', m]) }];
+            const net = { role, active: true, sendItem: (cid, mid) => sent.push(cid + ':' + mid), conns, roster: { k1: { id: 'p1' }, k2: { id: 'p2' }, k3: { id: 'p1' } } };
+            const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) } };
+            const held = { k1: { m1: 1, m3: 1 }, k2: { m1: 1 }, k3: { m1: 1 } };
+            const api = new Function('net', 'getActiveCampaign', 'SC', 'own', 'window', 'fxLib', 'itemLib', 'quickHash', 'mapHeldOf', 'sendFailed', 'setTimeout', "'use strict';\n" + bS + '\nreturn { sanitizeItem: sanitizeItem, wireWbItem: wireWbItem, barsOf: barsOf, barsMoved: barsMoved, tokBarsTell: tokBarsTell, tokBarsSoon: tokBarsSoon };')(
+                net, () => camp, () => Sx, H.own, win, () => ({}), () => ({}), s => s.length + ':' + s, c => held[c.peer] || {}, () => {}, fn => { timers.push(fn); return 1; });
+            return { camp, net, api, sent, sends, timers, held };
+        };
+        const tokOf = (m, id) => m.whiteboard.find(w => w.id === id);
+        const B1 = mk('host'), c1 = B1.api.sanitizeItem(B1.camp.items.m1), c3 = B1.api.sanitizeItem(B1.camp.items.m3), alone = B1.api.wireWbItem(B1.camp.items.m1.whiteboard[0], false), kept = J(B1.camp.items);
+        const cl = mk('client'), cc1 = cl.api.sanitizeItem(cl.camp.items.m1);
+        check(T + ': a token\'s copy carries the bars everyone is shown (tbr: slot, now, most, label, colour), worked out in the players\' view: a character token the system\'s, an NPC\'s too, a token with no sheet its own numbers; never a bar shown to its owner or the GM alone, never a pool that is GM-only or whose most reads a GM-only value, never a token\'s own list (bars) nor a stray tbr on a piece that is no token; a hidden token is not in the copy at all; the host\'s map is left as it was; worked out on a host alone',
+            J(tokOf(c1, 'tA').tbr) === J([{ s: 0, v: 7, m: 10, n: 'HP', c: '#ff0000' }]) && J(alone.tbr) === J(tokOf(c1, 'tA').tbr) && J(tokOf(c1, 'tN').tbr) === J([{ s: 0, v: 3, m: 10, n: 'HP', c: '#ff0000' }])
+            && J(tokOf(c1, 'tP').tbr) === J([{ s: 0, v: 3, m: 6, n: 'Morale', c: '#d9534f' }]) && !('tbr' in tokOf(c1, 'tO')) && !('tbr' in tokOf(c1, 'tQ')) && !('tbr' in tokOf(c1, 'box')) && !('bars' in tokOf(c1, 'box'))
+            && !c1.whiteboard.some(w => 'bars' in w) && !/Secret|Grit|f_mp|f_gp|"MP"|"GP"|"FP"/.test(J(c1)) && tokOf(c3, 'tH') === undefined && B1.api.wireWbItem(B1.camp.items.m3.whiteboard[0], false) === null
+            && /Secret/.test(kept) && /Grit/.test(kept) && !/"tbr":\[\{"s":0,"v":7/.test(kept) && !cc1.whiteboard.some(w => 'tbr' in w || 'bars' in w) && J(tokOf(c1, 'plain')) === J({ id: 'plain', type: 'rect', x: 0, y: 0, w: 50, h: 50 }),
+            J([tokOf(c1, 'tA'), tokOf(c1, 'tN'), tokOf(c1, 'tP'), tokOf(c1, 'tO'), tokOf(c1, 'tQ'), tokOf(c1, 'box')]));
+        B1.api.tokBarsTell(); const t1 = B1.sends.slice(); B1.sends.length = 0;
+        B1.api.tokBarsTell(); const t2 = B1.sends.slice(); B1.sends.length = 0;
+        B1.camp.chars.c_a.values.f_fp = { cur: 1 }; B1.api.tokBarsTell(); const t3 = B1.sends.slice(); B1.sends.length = 0;
+        B1.camp.items.m1.whiteboard[0].hidden = true; B1.camp.items.m1.whiteboard[4].hidden = true; B1.api.tokBarsTell(); const t4 = B1.sends.slice(); B1.sends.length = 0;
+        B1.api.tokBarsTell(); const t5 = B1.sends.slice(); B1.sends.length = 0;
+        B1.camp.items.m1.whiteboard[0].hidden = false; B1.held.k1 = { m3: 1 }; B1.api.tokBarsTell(); const t6 = B1.sends.slice(); B1.sends.length = 0;
+        const cl2 = mk('client'); cl2.api.tokBarsTell(); const B0 = mk('host'); B0.net.active = false; B0.api.tokBarsTell();
+        check(T + ': the bars a token\'s owner alone is shown go to that player\'s connections alone (tokBars: the map, a token of theirs, its figures), one message a map they hold whole and only when it changed; a GM-only pool is never among them; a hidden token sends nothing, and {} clears what was sent once; a map no longer held, a closed connection, another player, a player\'s app and a session not running send nothing',
+            J(t1) === J([['k1', { type: 'tokBars', campId: 'k', itemId: 'm1', bars: { tA: [{ s: 1, v: 2, m: 5, n: 'FP', c: '#00ff00' }], tQ: [{ s: 0, v: 2, m: 4, n: 'Grit', c: '#d9534f' }] } }]]) && J(t2) === J([])
+            && J(t3) === J([['k1', { type: 'tokBars', campId: 'k', itemId: 'm1', bars: { tA: [{ s: 1, v: 1, m: 5, n: 'FP', c: '#00ff00' }], tQ: [{ s: 0, v: 2, m: 4, n: 'Grit', c: '#d9534f' }] } }]])
+            && J(t4) === J([['k1', { type: 'tokBars', campId: 'k', itemId: 'm1', bars: {} }]]) && J(t5) === J([]) && J(t6) === J([]) && J(cl2.sends) === J([]) && J(B0.sends) === J([]) && !/GP|Secret|Hid/.test(J(t1.concat(t3))),
+            J([t1, t2, t3, t4, t5, t6]));
+        const B2 = mk('host'); B2.api.sanitizeItem(B2.camp.items.m1);
+        B2.camp.chars.c_a.values.f_hp = { cur: 5 }; B2.api.barsMoved('c_a'); const mv1 = B2.sent.slice(); B2.sent.length = 0;
+        B2.api.barsMoved('c_a'); const mv2 = B2.sent.slice(); B2.sent.length = 0;
+        B2.camp.chars.c_a.values.f_fp = { cur: 0 }; B2.camp.chars.c_a.values.f_gp = { cur: 0 }; B2.api.barsMoved('c_a'); const mv3 = B2.sent.slice(); B2.sent.length = 0;
+        B2.camp.items.m1.whiteboard[2].bars[0].cur = 1; B2.api.barsMoved('c_a'); const mv4 = B2.sent.slice(); B2.api.barsMoved(null); const mv5 = B2.sent.slice(); B2.sent.length = 0;
+        B2.camp.chars.c_n.values.f_hp = { cur: 1 }; B2.api.barsMoved('constructor'); B2.api.barsMoved(5); const mv6 = B2.sent.slice(); B2.net.active = false; B2.api.barsMoved(null); const mv7 = B2.sent.slice();
+        const timersN = B2.timers.length; B2.net.active = true; B2.api.tokBarsSoon(); B2.api.tokBarsSoon(); const timersN2 = B2.timers.length;
+        const cl3 = mk('client'); cl3.api.sanitizeItem(cl3.camp.items.m1); cl3.camp.chars.c_a.values.f_hp = { cur: 1 }; cl3.api.barsMoved('c_a');
+        check(T + ': a change that moves the bars everyone is shown sends the map holding the token again, once; one only its owner or the GM sees sends no map (the owner\'s message is looked at, once a moment); a token\'s own numbers move with every token looked at; a name that is no character, a session not running and a player\'s app send nothing',
+            J(mv1) === J(['k:m1']) && J(mv2) === J([]) && J(mv3) === J([]) && J(mv4) === J([]) && J(mv5) === J(['k:m1']) && J(mv6) === J([]) && J(mv7) === J([]) && timersN === 1 && timersN2 === 1 && J(cl3.sent) === J([]) && cl3.timers.length === 0,
+            J([mv1, mv2, mv3, mv4, mv5, mv6, mv7, timersN, timersN2]));
+        // a player's side: everyone's bars cleaned again on the token, their own kept beside the map
+        const cA = src.indexOf("// Backlog 28: a token's bars everyone is shown, as the host sent them"), cB = src.indexOf("// Lighting L4: an item's light as the host sent it");
+        const cS = cA > 0 && cB > cA ? src.slice(cA, cB) : '';
+        const ccamp = { id: 'k', items: { m1: { id: 'm1', type: 'map', whiteboard: [] } } }, cnet = {}, cwin = { wpSystemCore: Sx };
+        const capi = new Function('net', 'window', 'campOf', 'own', 'fogDiffId', "'use strict';\n" + cS + '\nreturn { cleanHostBars: cleanHostBars, ownBarsTake: ownBarsTake, ownBarsReset: ownBarsReset };')(cnet, cwin, id => id === 'k' ? ccamp : null, H.own, v => typeof v === 'string' && v.length > 0 && v.length <= 256);
+        const hw = { id: 't', isChar: true, tbr: [{ s: 0, v: 1, m: 2, n: '<i>x', c: '#ABCDEF', g: 1 }, { s: 0, v: 9, m: 9 }, { s: 1, v: 'x', m: 1 }], bars: [{ n: 'Secret', cur: 1, max: 1 }] }; capi.cleanHostBars(hw);
+        const hr = { id: 'r', type: 'rect', tbr: [{ s: 0, v: 1, m: 1 }], bars: [] }; capi.cleanHostBars(hr); const hwt = { id: 'w', isChar: true, waiting: true, tbr: [{ s: 0, v: 1, m: 1 }] }; capi.cleanHostBars(hwt);
+        const noS = new Function('net', 'window', 'campOf', 'own', 'fogDiffId', "'use strict';\n" + cS + '\nreturn { cleanHostBars: cleanHostBars };')({}, {}, () => null, H.own, () => true), hn = { id: 'n', isChar: true, tbr: [{ s: 0, v: 1, m: 1 }] }; noS.cleanHostBars(hn);
+        const many = {}; for (let i = 0; i < 250; i++) many['t' + i] = [{ s: 0, v: i, m: 300 }];
+        capi.ownBarsTake('k', 'm1', Object.assign(JSON.parse('{"__proto__":[{"s":0,"v":1,"m":1}]}'), { tA: [{ s: 1, v: 2, m: 5, n: 'FP', c: '#00ff00', g: 1 }], ['x'.repeat(300)]: [{ s: 0, v: 1, m: 1 }], tB: 'x' }));
+        const o1 = [cnet.ownBars('m1', 'tA'), cnet.ownBars('m1', '__proto__'), cnet.ownBars('m1', 'tB'), cnet.ownBars('m1', 'x'.repeat(300)), cnet.ownBars('m1', 'nope'), cnet.ownBars(5, 'tA')];
+        capi.ownBarsTake('k', 'm9', { tA: [{ s: 0, v: 1, m: 1 }] }); const o2 = cnet.ownBars('m9', 'tA');
+        capi.ownBarsTake('k', 'm1', many); const o3 = Object.keys(many).filter(id => cnet.ownBars('m1', id).length).length;
+        capi.ownBarsTake('k', 'm1', {}); const o4 = cnet.ownBars('m1', 't0'); capi.ownBarsTake('k', 'm1', { tA: [{ s: 0, v: 1, m: 1 }] }); capi.ownBarsReset(); const o5 = cnet.ownBars('m1', 'tA');
+        check(T + ': a player\'s app cleans the bars everyone is shown again on a token (the first per slot, numbers, a plain label, a #rrggbb colour, never a GM mark), never on a piece that is no token or a waiting token, never with no cleaner, and never keeps a token\'s own list; their own bars are kept beside a map of the campaign by token id, in a map of no prototype where a prototype\'s name is only a name (no id past 256, at most 200 a map), {} or a new session clears them',
+            J(hw) === J({ id: 't', isChar: true, tbr: [{ s: 0, v: 1, m: 2, n: '<i>x', c: '#abcdef' }] }) && J(hr) === J({ id: 'r', type: 'rect' }) && J(hwt) === J({ id: 'w', isChar: true, waiting: true }) && J(hn) === J({ id: 'n', isChar: true })
+            && J(o1) === J([[{ s: 1, v: 2, m: 5, n: 'FP', c: '#00ff00' }], [{ s: 0, v: 1, m: 1, n: 'Bar 1', c: '#d9534f' }], [], [], [], []]) && J(Object.keys(Object.prototype)) === J([]) && ({}).s === undefined && J(o2) === J([]) && o3 === 200 && J(o4) === J([]) && J(o5) === J([]), J([hw, hr, o1, o2, o3, o4, o5]));
+        check(T + ' (source): a player hears tokBars from the synced host alone, never in the stream window, for the hosted campaign; a whole map\'s items clean tbr; a new session forgets their own bars; every change of a character looks at the bars as it looks at the effects (fxbMoved, which the three funnels call); a map given whole, sent or sent filtered looks at the owners\' bars; a connection forgotten forgets what it was sent',
+            /\} else if \(msg\.type === 'tokBars' && net\.role === 'client'\) \{\n[^\n]*\n[^\n]*\n[^\n]*\n        if \(!net\.foreign \|\| conn\.peer !== net\.syncedPeer \|\| net\.stream\) return;\n        if \(typeof msg\.campId !== 'string' \|\| msg\.campId !== state\.appState\.activeCampaignId \|\| !validKey\(msg\.itemId\)\) return;\n        ownBarsTake\(msg\.campId, msg\.itemId, msg\.bars\);/.test(src)
+            && src.includes('if (w.fxb !== undefined) cleanHostFxb(w); if (w.tbr !== undefined || w.bars !== undefined) cleanHostBars(w);') && src.includes('function charSessionReset() { if (typeof ownBarsReset === \'function\') ownBarsReset();')
+            && src.includes("function fxbMoved(id) {\n    if (typeof barsMoved === 'function') barsMoved(id);") && (src.match(/fxbMoved\((?:null|id)\);/g) || []).length === 3
+            && src.includes("function mapHeldNote(conn, mapId) { if (!conn || typeof conn.peer !== 'string' || typeof mapId !== 'string') return; if (typeof tokBarsSoon === 'function') tokBarsSoon();") && (src.match(/if \(it\.type === 'map' && typeof tokBarsSoon === 'function'\) tokBarsSoon\(\);/g) || []).length === 2
+            && src.includes("if (typeof _barSent === 'object' && _barSent) delete _barSent[peer];"));
+    } catch (e) { check(T, false, 'threw: ' + (e && e.stack || e)); }
+})());
 /* ================= a session is one campaign (owner's answer 2026-09-29, found during senses S0 (b)): the real sanitizeAppState copies only the hosted campaign ================= */
 {
     const saSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');

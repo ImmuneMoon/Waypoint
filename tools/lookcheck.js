@@ -3321,6 +3321,24 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         count(ix, 'id="wcPromise"') === 1 && ix.includes('<p class="wc-promise" id="wcPromise">' + PROM + '</p>') && css.includes('body.web-join #wcPromise { display: none !important; }')
         && rd.includes('**What the app does not do.** ' + PROM.replace('own computer.', 'own computer, in the saves folder.')));
 }
+/* ---------- backlog 28: the token bars' controls, an inventory of their own ---------- */
+// The owner, 2026-10-29, by prompt: a thin ring around the token ("D A ring around it"), the system's bars with a token's own, the numbers on
+// hover, each bar its own colour. The controls are built by script, so they are held here by the statements that build and wire them: the
+// System editor's Token bars box (Add token bars, a row a bar with its pool, who sees it and its colour, Remove token bars) and a token's Bars in
+// its Properties (As the system or This token's own, a pool or numbers of its own, who sees it, its colour), each wired once; the ring drawn
+// after the page pin's mark, and its look
+{
+    const sh = read('scripts/sheets.js'), insp = read('scripts/inspector.js');
+    const SYS = ["el('button', 'tool ghost sys-btn sys-tokbars-add', 'Add token bars'); ad.dataset.act = 'tbadd';", "row.appendChild(select('sys-tokbar-pool', opts,", "row.appendChild(select('sys-tokbar-show', words,", "var ci = el('input', 'sys-tokbar-color'); ci.type = 'color';",
+        "el('button', 'tool ghost sys-btn sys-tokbars-clear', 'Remove token bars'); rm.dataset.act = 'tbclear';", "    if (typeof barsBox === 'function') barsBox(box, cm);   // backlog 28", "    if (onBarsChange(t)) return;   // backlog 28", "    if (barsClick(b)) return;   // backlog 28"];
+    const PROPS = ['<select id="wbBarsMode"', '<option value="sys"', '<option value="own"', '<select class="wb-tokbar-pool"', '<option value="#own"', '<input type="text" class="wb-tokbar-name"', '<input type="number" class="wb-tokbar-cur"', '<input type="number" class="wb-tokbar-max"', '<select class="wb-tokbar-show"', '<input type="color" class="wb-tokbar-color"',
+        "var _el_wbBM = document.getElementById('wbBarsMode');", "inspector.querySelectorAll('.wb-tokbar').forEach(function(row) {", "? barsFieldHtml(w) : '')+   // backlog 28: its bars"];
+    const goneS = SYS.filter(s => count(sh, s) !== 1), goneP = PROPS.filter(s => count(insp, s) !== 1);
+    check('backlog 28: the token bars\' controls are each in place once, built and wired: the System editor\'s Token bars box (Add token bars, a pool, who sees it and a colour a bar, Remove token bars) and a token\'s Bars in its Properties (As the system or This token\'s own, a pool or Numbers of its own with a name, Now and Most, who sees it, a colour); the ring is drawn after the page pin\'s mark and before the environment\'s badge, a thin ring that only its arcs take the pointer for, a GM-only bar dashed',
+        goneS.length === 0 && goneP.length === 0 && wbSrc.indexOf("window.wpSheets.tokenBars(item, activeMap.id)") > wbSrc.indexOf('          pagePinSync(el, item, hideFromMe);') && wbSrc.indexOf("window.wpSheets.tokenBars(item, activeMap.id)") < wbSrc.indexOf("var envT = item.isChar && window.wpSheets && window.wpSheets.tokenEnv")
+        && css.includes('\n  .wb-item > svg.token-bars { position: absolute; z-index: 5; overflow: visible; pointer-events: none; transform-origin: 50% 50%; }\n') && css.includes('\n  .token-bars .tbar-track { fill: none; stroke: rgba(0, 0, 0, 0.72); pointer-events: stroke; }\n')
+        && css.includes('\n  .token-bars .tbar-fill { fill: none; pointer-events: stroke; }\n') && css.includes('\n  .token-bars .tbar.gm .tbar-fill { stroke-dasharray: 3 2; }\n'), J([goneS, goneP]));
+}
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

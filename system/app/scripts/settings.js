@@ -1259,7 +1259,7 @@ profWire();
 // decided on, before any sync (an early sync merges this computer's table keys and makes the account count as played): an account that has
 // played nowhere adopts this computer's player; one that has takes over a computer that has played nowhere; where both have, you are asked.
 // After that every change of the four is sent, and at launch a newer copy on the account is taken, only between tables
-var ACCT = { linked: false, poll: null, url: '', timer: null };
+var ACCT = { linked: false, poll: null, url: '', timer: null, code: '', stopped: '' };   // code: the one waiting; stopped: the one Stop ended
 function acctStep(step, o) { if (typeof window.wpStepLog === 'function') window.wpStepLog('account v1', step, o); }
 function acctApi(method, p, body) {
     var o = { method: method }; if (body) { o.headers = { 'Content-Type': 'application/json' }; o.body = JSON.stringify(body); }
@@ -1281,11 +1281,18 @@ function acctDraw(st) {
 function acctRefresh() {
     return acctApi('GET', '/api/account').then(function(r) {
         var j = r.status === 200 ? r.json : { err: true }; ACCT.linked = j.linked === true;
-        if (!ACCT.poll && j.linked !== true && j.pending && typeof j.pending.userCode === 'string' && typeof j.pending.url === 'string') { ACCT.url = j.pending.url; acctDraw({ code: j.pending.userCode }); acctStep('resumed', {}); acctPoll(5); return j; }   // a wait this page did not begin (a reload, another window) is taken up again
+        if (!ACCT.poll && j.linked !== true && j.pending && typeof j.pending.userCode === 'string' && typeof j.pending.url === 'string' && j.pending.userCode !== ACCT.stopped) { ACCT.url = j.pending.url; ACCT.code = j.pending.userCode; acctDraw({ code: j.pending.userCode }); acctStep('resumed', {}); acctPoll(5); return j; }   // a wait this page did not begin (a reload, another window) is taken up again
         if (!ACCT.poll) acctDraw(j); return j;
     });
 }
 function acctStopPoll() { if (ACCT.poll) clearTimeout(ACCT.poll); ACCT.poll = null; }
+// Stop ends the wait on this page and on this computer's server (DELETE /api/account/link), so a refresh finds none to take up again (found
+// live: the server kept its wait and the next read resumed it). The code stopped is remembered as well, since a server older than this page
+// has no such route and keeps its wait: that code is not taken up again here
+function acctStop() {
+    acctStopPoll(); ACCT.stopped = ACCT.code; acctStep('stopped', {});
+    return acctApi('DELETE', '/api/account/link').then(function(r) { if (r.status !== 200) acctStep('stop-here-only', { status: r.status }); return acctRefresh(); });
+}
 // The account's copy over this computer's: the profile pack's own rules (the profile replaced, the table keys, pins and rooms joined)
 function acctTake(how, given) {   // given: the account's copy already in hand (adopt's answer), else it is asked for
     return (given ? Promise.resolve({ status: 200, json: given }) : acctApi('GET', '/api/account/prefs')).then(function(r) {
@@ -1344,7 +1351,7 @@ function acctLink() {
     var name = ''; try { var p = JSON.parse(localStorage.getItem('wp_profile') || 'null'); name = p && typeof p.name === 'string' ? p.name : ''; } catch (e) {}
     acctApi('POST', '/api/account/link', { name: (name ? name + '\u2019s ' : '') + 'Waypoint' }).then(function(r) {
         if (r.status !== 200 || typeof r.json.userCode !== 'string' || typeof r.json.url !== 'string') { toast(r.status === 429 ? 'Wait a few minutes before you try to link again.' : 'The website cannot be reached just now. Try again later.'); acctStep('start-failed', { status: r.status }); return; }
-        ACCT.url = r.json.url; acctStopPoll(); acctDraw({ code: r.json.userCode }); acctOpenPage(); acctStep('started', {});
+        ACCT.url = r.json.url; ACCT.code = r.json.userCode; ACCT.stopped = ''; acctStopPoll(); acctDraw({ code: r.json.userCode }); acctOpenPage(); acctStep('started', {});
         acctPoll(r.json.interval);
     });
 }
@@ -1365,7 +1372,7 @@ function acctWire() {
     var link = ui('setAcctLinkBtn'), open = ui('setAcctOpenBtn'), stop = ui('setAcctStopBtn'), un = ui('setAcctUnlinkBtn');
     if (link) link.addEventListener('click', acctLink);
     if (open) open.addEventListener('click', acctOpenPage);
-    if (stop) stop.addEventListener('click', function() { acctStopPoll(); acctStep('stopped', {}); acctRefresh(); });
+    if (stop) stop.addEventListener('click', acctStop);
     if (un) un.addEventListener('click', function() {
         import('./dialogs.js').then(function(d) { d.showConfirm('Unlink this computer from your account? Your profile here stays as it is, and the account keeps its own copy.', function(yes) { if (yes === true) acctUnlink('asked'); }, { yes: 'Unlink' }); });
     });

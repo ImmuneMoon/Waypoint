@@ -5,6 +5,7 @@
 // Only this server ever talks to the website: the page's script policy names no outside address, and the install's key never leaves
 // this machine's saves folder (saves/account.json) or reaches the page. The page asks its own routes:
 //   POST   /api/account/link   { name }          -> { userCode, url, interval, expiresIn }   a device code begun on the site
+//   DELETE /api/account/link                     -> { ok: true }   the wait for that code ended here (Stop): a later read finds none
 //   POST   /api/account/poll                     -> { state: pending | denied | expired | approved | none }
 //   GET    /api/account                          -> { linked: false, pending? } | { linked: true, email, playerId, played, colour?, offline? }
 //   GET    /api/account/prefs                    -> { updated, prefs }   the account's copy of the profile
@@ -80,6 +81,7 @@ function makeHandler(cfg) {
                 log('link started');
                 send(res, 200, { userCode: o.userCode, url: base + '/link?code=' + encodeURIComponent(o.userCode), interval, expiresIn });
             });
+            if (p === '/api/account/link' && m === 'DELETE') { const had = !!pending; pending = null; if (had) log('link stopped'); return send(res, 200, { ok: true }); }   // the site's code runs out by itself
             if (p === '/api/account/poll' && m === 'POST') return body(req, res, async () => {
                 if (!pending) return send(res, 200, { state: 'none' });
                 if (now() > pending.until) { pending = null; return send(res, 200, { state: 'expired' }); }

@@ -57,6 +57,11 @@ function call(h, method, p, body) {
         const p0 = await call(h, 'POST', '/api/account/poll'), n0 = S.calls.length, p0b = await call(h, 'POST', '/api/account/poll');
         check('while it waits: the account reads not linked with the waiting code; the first poll reaches the site and one sooner than 2.6 s after it does not',
             J(pend.json) === J({ linked: false, pending: { userCode: 'BCDF-GH23', url: 'http://localhost:3002/link?code=BCDF-GH23' } }) && p0.json.state === 'pending' && n0 === 2 && p0b.json.state === 'pending' && S.calls.length === 2, J([pend.json, S.calls.length]));
+        const S2 = siteStub(), h2 = A.makeHandler({ savesDir: saves, base: 'http://localhost:3002', version: '1.6.0', fetch: S2.fetch, now, readBody, bodyCap: 65536, log: () => {} });
+        S2.answer['POST /api/link/start'] = S.answer['POST /api/link/start']; await call(h2, 'POST', '/api/account/link', {});
+        const w0 = await call(h2, 'GET', '/api/account'), stop = await call(h2, 'DELETE', '/api/account/link'), w1 = await call(h2, 'GET', '/api/account'), w2 = await call(h2, 'POST', '/api/account/poll'), stop2 = await call(h2, 'DELETE', '/api/account/link');
+        check('Stop (DELETE /api/account/link) ends the wait on this computer\'s server: the account then reads not linked with no code waiting, a poll finds none and asks the site nothing, and a second Stop is answered as well (found live: the wait was taken up again)',
+            !!w0.json.pending && J(stop.json) === J({ ok: true }) && J(w1.json) === J({ linked: false }) && J(w2.json) === J({ state: 'none' }) && J(stop2.json) === J({ ok: true }) && S2.calls.length === 1 && !fs.existsSync(file), J([w0.json, stop, w1.json, w2.json, S2.calls.length]));
         clock += 3000; const p1 = await call(h, 'POST', '/api/account/poll');
         S.answer['POST /api/link/poll'] = { status: 200, json: { state: 'approved', key: KEY, keyId: 'k1' } }; clock += 3000;
         const p2 = await call(h, 'POST', '/api/account/poll'), kept = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -116,12 +121,23 @@ function call(h, method, p, body) {
             const fetchS = (p, op) => { const m = (op && op.method) || 'GET', key = m + ' ' + p; calls.push(key + (op && op.body ? ' ' + op.body : '')); const a = answers[key]; const r = typeof a === 'function' ? a(op && op.body ? JSON.parse(op.body) : null) : a || { status: 200, json: {} }; return Promise.resolve({ status: r.status, json: () => Promise.resolve(r.json || {}) }); };
             const dialogs = { showConfirm: (q, cb, opts) => { asked.push({ q, opts }); setTimeout(() => cb(o.pick), 0); } };
             const win = { wpProfileCore: PC.default || PC, wpNet: { active: false, hostId: () => 'u_mine' } };
-            const body = sSrc.slice(pc0, pc1).replace('function profWire() {', 'function profWireOff() {') + '\n' + sSrc.slice(a0, a1).replace(/import\('\.\/dialogs\.js'\)/g, 'Promise.resolve(DIALOGS)') + '\nreturn { acctDecide: acctDecide, ACCT: ACCT, acctPlayed: acctPlayed };';
+            const body = sSrc.slice(pc0, pc1).replace('function profWire() {', 'function profWireOff() {') + '\n' + sSrc.slice(a0, a1).replace(/import\('\.\/dialogs\.js'\)/g, 'Promise.resolve(DIALOGS)') + '\nreturn { acctDecide: acctDecide, ACCT: ACCT, acctPlayed: acctPlayed, acctRefresh: acctRefresh, acctStop: typeof acctStop === "function" ? acctStop : null, acctStopPoll: acctStopPoll };';
             const api = new Function('window', 'localStorage', 'fetch', 'ui', 'toast', 'DIALOGS', 'location', 'syncPanel', "'use strict';\n" + body)(win, ls, fetchS, el, t => toasts.push(t), dialogs, { search: '' }, () => {});
             return { api, calls, toasts, asked, store, els };
         };
         const PROF = J({ id: 'p_here', name: 'Kael' }), acct = (played) => ({ status: 200, json: { linked: true, email: 'k@example.test', playerId: 'p_acct', played } });
         const settle = () => new Promise(r => setTimeout(r, 30));
+        // 0: Stop ends the wait (found live: the next read of the account took the server's wait up again)
+        {
+            const waiting = { status: 200, json: { linked: false, pending: { userCode: 'BCDF-GH23', url: 'http://localhost:3002/link?code=BCDF-GH23' } } };
+            const r0 = run({ local: { wp_profile: PROF }, answers: { 'GET /api/account': waiting, 'DELETE /api/account/link': { status: 404, json: { error: 'not found' } } } });   // a server older than this page: it keeps its wait
+            await r0.api.acctRefresh(); const before = !!r0.api.ACCT.poll;
+            if (r0.api.acctStop) await r0.api.acctStop(); await settle();
+            const after = !!r0.api.ACCT.poll, lineAfter = r0.els.setAcctLine.textContent, codeHidden = r0.els.setAcctCode.hidden, linkShown = r0.els.setAcctLinkBtn.hidden === false;
+            await r0.api.acctRefresh(); const again = !!r0.api.ACCT.poll; r0.api.acctStopPoll();
+            check('Stop ends the wait: the page stops asking, tells its server to end the wait (DELETE /api/account/link), and draws Link to my account again; a server that still holds the wait for that code (one older than the page) does not start it again at the next read',
+                before === true && !!r0.api.acctStop && after === false && again === false && r0.calls.includes('DELETE /api/account/link') && codeHidden === true && linkShown && /^Link this computer/.test(lineAfter), J([before, after, again, r0.calls, lineAfter]));
+        }
         // 1: an account that played nowhere adopts this computer's player, and nothing is sent before the account is read
         const r1 = run({ local: { wp_profile: PROF }, answers: { 'GET /api/account': acct(false), 'POST /api/account/adopt': b => ({ status: 200, json: { updated: 77, prefs: Object.assign({}, b.prefs, { wp_profile: J({ id: 'p_here', name: 'Kael', color: '#5976cf' }) }) } }) } });
         await r1.api.acctDecide(); await settle();

@@ -2068,6 +2068,7 @@ function cleanEffectDef(d, fieldKinds, gmView, F) {   // conditions C4: F, for a
 function autoFormulaOk(text, F) { if (!F || typeof F.parse !== 'function') return false; var p = F.parse(text); return !!(p && p.ok && p.ast && !hasDice(p.ast.body)); }
 // Stage 5g: the sheet's own shape — headline section titles, filled (angled) tabs, one accent colour, the portrait and the name leading
 // the header block. Whitelisted values only; absent (or nothing valid) = today's look, and the key is left out.
+var LABEL_PX = Object.freeze([13, 14, 16]);
 function cleanLook(v) {
     if (!isObj(v)) return null;
     var out = {};
@@ -2075,7 +2076,9 @@ function cleanLook(v) {
     if (v.tabs === 'filled' || v.tabs === 'angular') out.tabs = v.tabs;   // L5: angular tabs ('angled' stays invalid)
     if (typeof v.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.accent)) out.accent = v.accent.toLowerCase();
     if (v.portrait === true) out.portrait = true;
-    if (v.labels === 'caps') out.labels = 'caps';   // Fold B: field labels in small bold capitals
+    if (v.labels === 'caps' || v.labels === 'plain') out.labels = v.labels;   // Fold B: field labels in small bold capitals; 1.6.0: 'plain', the header's labels plain too
+    if (v.labelInk === 'text') out.labelInk = 'text';   // 1.6.0: labels in the sheet's text colour, not the muted one
+    if (LABEL_PX.indexOf(v.labelSize) >= 0) out.labelSize = v.labelSize;   // 1.6.0: labels at a size of their own (the sheet; the HUD keeps its own)
     if (v.sticky === true) out.sticky = true;   // L5: a section's title stays at the top while that section scrolls
     if (v.numbers === 'mono') out.numbers = 'mono';   // L8: figures in a monospaced face
     if (v.band === 'inline' || v.band === 'chips') out.band = v.band;   // L8: the band as one inline row, or as chips

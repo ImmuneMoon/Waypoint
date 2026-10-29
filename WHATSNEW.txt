@@ -125,6 +125,9 @@ The top row in a narrow window
   their names and counts. More keeps Export, Import and About.
 
 System editor
+- The Sheet look box has three more label choices: the header's labels
+  plain too, every label in the sheet's text colour, and a label size of
+  13, 14 or 16 px. The HUD keeps its own small labels.
 - A roll or an apply action can also be due, or run, at the end of its
   character's turn in a fight: Also at its turn's end. A held turn ends
   once it is played, and a step back runs nothing again.

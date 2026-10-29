@@ -4115,6 +4115,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('look L8: cleanLook keeps numbers mono, band inline|chips, steppers inside, values boxed and rows cards, and every look key comes out in the spec order (titles, tabs, accent, portrait, labels, sticky, numbers, band, steppers, values, effects, rows, palette); other values leave no look key',
             all8 && j(Object.keys(all8)) === j(['titles', 'tabs', 'accent', 'portrait', 'labels', 'sticky', 'numbers', 'band', 'steppers', 'values', 'effects', 'rows', 'palette']) && sys8({ band: 'inline' }).band === 'inline' && bad8.every(x => x === undefined), j([all8 && Object.keys(all8), bad8]));
         const sh8 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        {   // 1.6.0, the backlog's sheet look options (b) and (c): the header's labels plain, labels in the text colour, a label size
+            const lb = sys8({ labelSize: 14, labelInk: 'text', labels: 'plain', titles: 'headline' }), lbBad = [{ labels: 'Plain' }, { labelInk: 'muted' }, { labelInk: 'constructor' }, { labelSize: 12 }, { labelSize: '14' }, { labelSize: 14.5 }, { labelSize: 17 }].map(sys8);
+            const llSrc = sh8.slice(sh8.indexOf('function labelLook('), sh8.indexOf('function buildSections('));
+            const labelLook = new Function(llSrc + '; return labelLook;')();
+            const cls = look => { const s = new Set(); const body = { classList: { toggle(c, on) { if (on) s.add(c); else s.delete(c); } } }; labelLook(body, look); return [...s].sort().join(' '); };
+            const cssL = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
+            check('1.6.0 the sheet look\'s labels: cleanLook keeps labels plain (the header too) beside caps, labelInk text and labelSize 13, 14 or 16 as a number, after labels; anything else leaves no look key; labelLook sets one class each and none for a look without them; the style sheet draws them (the size on the sheet alone, never the HUD); the editor offers each choice',
+                lb && j(Object.keys(lb)) === j(['titles', 'labels', 'labelInk', 'labelSize']) && lb.labels === 'plain' && lb.labelSize === 14 && lbBad.every(x => x === undefined)
+                && cls({}) === '' && cls({ labels: 'caps' }) === '' && cls(lb) === 'sheet-labels-ink sheet-labels-plain sheet-lsize-14' && cls({ labelSize: 16 }) === 'sheet-lsize-16'
+                && /if \(typeof labelLook === 'function'\) labelLook\(body, look\);/.test(sh8)
+                && /\.sheet-labels-plain \.sheet-identity-item \.sheet-label, \.sheet-labels-plain \.sheet-ledger-fig \.sheet-label \{[^}]*text-transform: none;/.test(cssL) && /\.sheet-labels-ink \.sheet-head \.sheet-label[^{]*\{ color: var\(--sheet-ink, var\(--ink\)\); \}/.test(cssL)
+                && [13, 14, 16].every(n => cssL.indexOf(':where(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint) .sheet-lsize-' + n + ' :is(.sheet-field, .sheet-identity-item, .sheet-ledger-fig) > .sheet-label, :where(#sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint).sheet-lsize-' + n + ' :is(.sheet-field, .sheet-identity-item, .sheet-ledger-fig) > .sheet-label { font-size: ' + n + 'px; }') >= 0)
+                && /select\('sys-look-labels', \[\['', 'Plain labels'\], \['caps', 'Capital labels'\], \['plain', 'Plain labels, the header too'\]\]/.test(sh8) && /select\('sys-look-labelink', \[\['', 'Muted labels'\], \['text', 'Labels in text colour'\]\]/.test(sh8)
+                && /setShape\('labelSize', lsizeSel\.value \? Number\(lsizeSel\.value\) : null\)/.test(sh8) && /<b>Labels in text colour<\/b>/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')),
+                j([lb, lbBad, cls(lb)]));
+        }
         // the real stepWrap, run against a small fake DOM: the box changes at once, one commit after the last click, none when back where it started
         const swSrc = sh8.slice(sh8.indexOf('function stepWrap('), sh8.indexOf('// Stage 6 look fold (L7): a badge'));
         const fakeEl = (tag, cls, text) => ({ tag, className: cls || '', textContent: text || '', dataset: {}, children: [], disabled: false, title: '', type: '', listeners: {}, appendChild(x) { this.children.push(x); return x; }, classList: { add() {} }, addEventListener(t, fn) { this.listeners[t] = fn; } });

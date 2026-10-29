@@ -1778,6 +1778,13 @@ function glyphPicker(inp, anchor, repaint) {
     document.addEventListener('mousedown', glyphOutside, true);
     try { q.focus(); } catch (er) {}
 }
+// 1.6.0 (the backlog's sheet look options, (b) and (c)): the header's labels plain too, every label in the text colour, a label size of the
+// look's own (the style sheet draws the size on the sheet alone, so the HUD keeps its small labels). A look with none sets no class
+function labelLook(body, look) {
+    body.classList.toggle('sheet-labels-plain', look.labels === 'plain');
+    body.classList.toggle('sheet-labels-ink', look.labelInk === 'text');
+    [13, 14, 16].forEach(function(n) { body.classList.toggle('sheet-lsize-' + n, look.labelSize === n); });
+}
 function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerender: the caller's own render fn (renderSheet for the live panel, renderPreview for the Layout preview) so a tab click repaints THIS container, not the wrong one
     var previewV = !!(vctx && vctx.preview);   // Stage 6 HUD C8: the Layout preview draws a part whose show-if is false, dimmed (the sheet leaves it out)
     var hudV = !!(vctx && vctx.view === 'hud'); _fxView = hudV ? 'hud' : 'sheet';   // Stage 6 HUD frame (HF1): which view this draws (sys is then hudView's projection)
@@ -1795,6 +1802,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     var look = (sys.sheet && sys.sheet.look) || {};   // Stage 5g: the sheet's shape — absent = today's look (no class, no variable)
     body.classList.toggle('sheet-titles-headline', look.titles === 'headline');
     body.classList.toggle('sheet-labels-caps', look.labels === 'caps');   // Fold B
+    if (typeof labelLook === 'function') labelLook(body, look);   // 1.6.0 (asked through typeof: a suite slices buildSections alone)
     if (typeof look.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(look.accent)) { body.style.setProperty('--sheet-accent', look.accent); body.style.setProperty('--sheet-accent-ink', accentInk(look.accent)); }   // re-checked here: a hex or nothing reaches the variable
     else { body.style.removeProperty('--sheet-accent'); body.style.removeProperty('--sheet-accent-ink'); }
     // The top of the sheet (Stages 5c/5d, reworked after the owner's reference note): the header block (identity rows, ledger figures)
@@ -2138,8 +2146,10 @@ function renderLayout() {
     var shapeRow = el('div', 'sys-sec-style sys-lookshape');
     var titlesSel = select('sys-look-titles', [['', 'Small titles'], ['headline', 'Headline titles'], ['accordion', 'Accordion titles']], shape.titles || '', 'Section titles: small capitals (as now), bigger headline titles, or accordion titles (a line under each section, a chevron on the ones that fold)');
     var tabsSel = select('sys-look-tabs', [['', 'Underlined tabs'], ['filled', 'Filled tabs'], ['angular', 'Angular tabs']], shape.tabs || '', 'The tab strip: an underline under the open tab (as now), angled tabs with the open one filled in the accent, or angular tabs across the whole strip');
-    var labelsSel = select('sys-look-labels', [['', 'Plain labels'], ['caps', 'Capital labels']], shape.labels || '', 'Field labels: as they are, or small bold capitals like a printed sheet');
-    shapeRow.appendChild(titlesSel); shapeRow.appendChild(tabsSel); shapeRow.appendChild(labelsSel);
+    var labelsSel = select('sys-look-labels', [['', 'Plain labels'], ['caps', 'Capital labels'], ['plain', 'Plain labels, the header too']], shape.labels || '', 'Field labels: as they are, small bold capitals like a printed sheet, or plain everywhere, the header’s labels too');
+    var inkSel = select('sys-look-labelink', [['', 'Muted labels'], ['text', 'Labels in text colour']], shape.labelInk || '', 'The colour of every label: the muted grey (as now), or the sheet’s own text colour');
+    var lsizeSel = select('sys-look-labelsize', [['', 'Label size as now'], ['13', '13 px labels'], ['14', '14 px labels'], ['16', '16 px labels']], shape.labelSize ? String(shape.labelSize) : '', 'How large a label is drawn on the sheet. The HUD keeps its own small labels');
+    shapeRow.appendChild(titlesSel); shapeRow.appendChild(tabsSel); shapeRow.appendChild(labelsSel); shapeRow.appendChild(inkSel); shapeRow.appendChild(lsizeSel);
     shapeRow.appendChild(el('span', 'sys-sec-style-lbl', 'Accent'));
     var accentIn = el('input', 'sys-look-accent'); accentIn.type = 'color'; accentIn.value = shape.accent || themeGold(); accentIn.title = 'The sheet\u2019s accent: section titles, the open tab, the name in the header'; shapeRow.appendChild(accentIn);
     var portLbl = el('label', 'sys-hover'); var portChk = el('input', 'sys-look-portrait'); portChk.type = 'checkbox'; portChk.checked = !!shape.portrait; portLbl.appendChild(portChk); portLbl.appendChild(document.createTextNode(' Portrait & name in the header')); portLbl.title = 'The character\u2019s portrait and name lead the header block, with the identity rows and ledger figures beside the picture'; shapeRow.appendChild(portLbl);
@@ -2182,6 +2192,8 @@ function renderLayout() {
     titlesSel.addEventListener('change', function() { setShape('titles', titlesSel.value); });
     tabsSel.addEventListener('change', function() { setShape('tabs', tabsSel.value); });
     labelsSel.addEventListener('change', function() { setShape('labels', labelsSel.value); });
+    inkSel.addEventListener('change', function() { setShape('labelInk', inkSel.value); });   // 1.6.0
+    lsizeSel.addEventListener('change', function() { setShape('labelSize', lsizeSel.value ? Number(lsizeSel.value) : null); });   // 1.6.0
     accentIn.addEventListener('input', function() { setShape('accent', accentIn.value); });
     accentIn.addEventListener('change', function() { renderLayout(); });   // the "Theme accent" button appears once one is picked
     portChk.addEventListener('change', function() { setShape('portrait', portChk.checked); });

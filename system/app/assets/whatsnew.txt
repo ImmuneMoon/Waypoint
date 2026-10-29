@@ -80,6 +80,8 @@ Your profile
   Settings, Profile. It holds your picture, name, colour and token face.
 - Below them is a short list of the GMs whose tables know you, with when
   you last joined. It is read from this computer, and nothing is sent.
+- Reset Local Preferences, in Settings, keeps the tables that know you,
+  as it keeps your name and picture.
 - The welcome screen says it plainly: no account is needed, there are no
   ads, the app collects nothing about how you use it, and your campaigns
   are files on your own computer.

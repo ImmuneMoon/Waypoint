@@ -13174,7 +13174,7 @@ pendingChecks.push((async () => {
         chk('g', J(pubA2) === J(s1.gmPub) && typeof kept1 === 'string' && gone && !!pubA3 && pubA3.x !== s1.gmPub.x && typeof A.store.m.wp_gmSign === 'string' && A.store.m.wp_gmSign !== kept1
             && J(idRuns) === J([[], [], ['save:true', 'set:wp_hostId:new', 'reset', 'toast'], ['save:true', 'set:wp_hostId:new', 'rm:wp_gmSign', 'toast']])
             && /saveProfile\(np\);\n\s*try \{ localStorage\.setItem\('wp_hostId', np\.id\); \} catch \(e\) \{\}[^\n]*\n\s*if \(window\.wpNet\) window\.wpNet\.myId = np\.id;\n\s*if \(window\.wpNet && window\.wpNet\.gmSignReset\) window\.wpNet\.gmSignReset\(\); else \{ try \{ localStorage\.removeItem\('wp_gmSign'\); \} catch \(e\) \{\} \}/.test(setJs)
-            && /var keep = \{ wp_profile: 1, wp_hostId: 1, wp_version: 1, wp_lastHost: 1, wp_prefsStamp: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 \};/.test(setJs) && /var KEEP = \{ wp_profile: 1, wp_hostId: 1, wp_tableKeys: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 \};/.test(bootS) && !/var KEEP = /.test(htmlS) && /<script src="\/api\/prefs\.js"><\/script>\n<script src="scripts\/bootprefs\.js"><\/script>/.test(htmlS),
+            && /var keep = \{ wp_profile: 1, wp_hostId: 1, wp_version: 1, wp_lastHost: 1, wp_prefsStamp: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1, wp_tableKeys: 1, wp_tablesSeen: 1 \};/.test(setJs) && /var KEEP = \{ wp_profile: 1, wp_hostId: 1, wp_tableKeys: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 \};/.test(bootS) && !/var KEEP = /.test(htmlS) && /<script src="\/api\/prefs\.js"><\/script>\n<script src="scripts\/bootprefs\.js"><\/script>/.test(htmlS),
             J([J(pubA2) === J(s1.gmPub), gone, pubA3 && pubA3.x !== s1.gmPub.x, idRuns]));
 
         /* ---- (h) ---- */

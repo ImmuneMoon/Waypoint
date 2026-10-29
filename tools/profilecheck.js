@@ -106,6 +106,16 @@ const app = p => path.join(__dirname, '..', 'system', 'app', p), read = p => fs.
         ix.includes('<li><b>Your profile</b> has a window of its own. Your picture at the right end of the top row opens it.') && ix.includes('<li>The list is read from this computer alone. A table&rsquo;s key is never shown, and nothing is sent.</li>')
         && ix.includes('<li><b>Your picture:</b> your picture at the right end of the top row, beside Settings, opens your profile.') && ix.includes('It offers five things:')
         && [read('assets/whatsnew.txt'), fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8')].every(t => t.replace(/\r\n/g, NL).includes('- Your profile has a window of its own. Your picture at the right of the\n  top row opens it,')), '');
+    // ---- Reset preferences keeps who you are at tables (the owner, 2026-10-29: "keep your table keys"): settings.js's reset, its keep and its sweep run on a store ----
+    {
+        const k0 = st.indexOf('    var keep = { wp_profile: 1,'), k1 = st.indexOf('    if (window.wpPrefsPush) window.wpPrefsPush();', k0);
+        const mem = new Map([['wp_profile', '{"id":"u_me"}'], ['wp_hostId', 'u_host'], ['wp_tableKeys', '{"u_gm1":"' + 'a'.repeat(32) + '"}'], ['wp_gmPins', '{}'], ['wp_gmRooms', '{}'], ['wp_gmSign', '{}'], ['wp_tablesSeen', '{}'], ['wp_theme', 'light'], ['wp_snap', 'on'], ['other', 'x']]);
+        const LS = { get length() { return mem.size; }, key: i => [...mem.keys()][i], getItem: k => (mem.has(k) ? mem.get(k) : null), removeItem: k => { mem.delete(k); } };
+        let ran = false; try { if (k0 > 0 && k1 > k0) { new Function('localStorage', st.slice(k0, k1))(LS); ran = true; } } catch (e) { ran = false; }
+        const bp = fs.readFileSync(app('scripts/bootprefs.js'), 'utf8'), bKeep = /var KEEP = (\{[^}]*\});/.exec(bp);
+        check('Reset preferences keeps who you are at tables: the profile, the host id and signing key, the table keys, the GMs\' pins and rooms and the record of those tables stay, every other preference goes; the saves folder\'s mirror keeps the same three as it always did',
+            ran && J([...mem.keys()].sort()) === J(['other', 'wp_gmPins', 'wp_gmRooms', 'wp_gmSign', 'wp_hostId', 'wp_profile', 'wp_tableKeys', 'wp_tablesSeen']) && !!bKeep && ['wp_tableKeys', 'wp_gmPins', 'wp_gmRooms', 'wp_hostId'].every(k => bKeep[1].includes(k + ': 1')), J([ran, [...mem.keys()]]));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exitCode = 1;

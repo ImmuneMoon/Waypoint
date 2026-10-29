@@ -750,8 +750,10 @@ if (_snapList) _snapList.addEventListener('click', async function(e) {
 
 var _prefs = ui('setResetPrefsBtn');
 if (_prefs) _prefs.addEventListener('click', function() {
-    // Every wp_* preference goes — except identity/profile (a GM's signing key and the GMs this app knows with it), the version marker and the last host code
-    var keep = { wp_profile: 1, wp_hostId: 1, wp_version: 1, wp_lastHost: 1, wp_prefsStamp: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 };
+    // Every wp_* preference goes — except identity/profile (a GM's signing key and the GMs this app knows with it), the version marker and the last host code.
+    // 1.6.0 (the owner, 2026-10-29: "keep your table keys"): the table keys stay too, with what this computer noted of those tables (wp_tablesSeen);
+    // forgetting them is the Profile window's Start over as a new player
+    var keep = { wp_profile: 1, wp_hostId: 1, wp_version: 1, wp_lastHost: 1, wp_prefsStamp: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1, wp_tableKeys: 1, wp_tablesSeen: 1 };
     var keys = [];
     try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('wp_') === 0 && !keep[k]) keys.push(k); } } catch (e) {}
     keys.forEach(function(k) { try { localStorage.removeItem(k); } catch (e) {} });

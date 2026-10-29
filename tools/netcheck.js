@@ -16693,10 +16693,10 @@ pendingChecks.push((async () => {
         const bad = [MR(mk(), 'u_app', 'u_app'), MR(mk(), 'u_none', 'u_web'), MR(mk(), 'u_app', 'u_none'), MR(null, 'u_app', 'u_web')];
         const flat = src.split('\r\n').join('\n');
         check('1.5.6 Merge into… in Player History (mergeRecords run for real): the kept record keeps its own name and table key, takes the other\'s character binding and last map, the earlier first time seen, the later last time and both join counts, and notes the old id as was; every character and token the other owned becomes the kept one\'s on every map; the other record goes; nothing happens for one record, a record that is not there or no campaign; the button shows only for a player not at the table with another known player to merge into, and its ask is buttons only, one player at a time',
-            ok && !c.players.u_app && k.name === 'Kael (web)' && k.key === 'K_WEB' && k.charId === 'c_1' && k.charName === 'Kael' && k.lastMap === 'm2' && k.firstSeen === 100 && k.lastSeen === 950 && k.joinCount === 8 && k.was === 'u_app'
+            ok && !c.players.u_app && k.name === 'Kael (web)' && k.key === 'K_WEB' && k.charId === 'c_1' && k.charName === 'Kael' && k.lastMap === 'm2' && k.firstSeen === 100 && k.lastSeen === 950 && k.joinCount === 8 && JSON.stringify(k.was) === '["u_app"]'
             && c.chars.c_1.ownerId === 'u_web' && c.chars.c_2.ownerId === 'u_o' && c.items.m1.whiteboard[0].ownerId === 'u_web' && c.items.m2.whiteboard[0].ownerId === 'u_web' && c.items.m1.whiteboard[1].ownerId === 'u_web' && bad.every(b => b === false)
             && flat.includes("(!online[pid] && ids.some(function(o) { return o !== pid && !online[o]; }) ? '<button class=\"tool ghost player-act\" data-merge=\"' + escTextRoster(pid) + '\"")
-            && flat.includes("}, { noEnter: true, noEscape: true, yes: 'Merge', body: pk ? pk.el : undefined });") && flat.includes("var pk = typeof playerPick === 'function' ? playerPick(camp, cands, 'Merge into') : null;") && flat.includes("    } else if (btn.dataset.merge) {\n        mergeAsk(camp, btn.dataset.merge);"), JSON.stringify([ok, c.players, bad]));
+            && flat.includes("}, { noEnter: true, noEscape: true, yes: 'Merge', body: pk ? pk.el : undefined, ready: pk ? pk.ready : undefined });") && flat.includes("var pk = typeof playerPick === 'function' ? playerPick(camp, cands, 'Merge into', { name: camp.players[oldId].name, from: oldId }) : null;") && flat.includes("    } else if (btn.dataset.merge) {\n        mergeAsk(camp, btn.dataset.merge);"), JSON.stringify([ok, c.players, bad]));
     }
     /* ---- 1.5.6, backlog 185: "Same person as…" at the GM's Let them in? (the approval slice, run for real) ---- */
     {
@@ -16709,8 +16709,8 @@ pendingChecks.push((async () => {
             const env = { approvalOpen: false, pendingJoins: [{ conn, prof: { id: 'u_new', name: 'Web' } }], bannedIds: {}, net: { active: true, role: 'host', roster: { pC: { id: 'u_c' } } },
                 getActiveCampaign: () => camp, denyJoin: () => {}, own: H.own, validProfileId: H.validProfileId, admitPlayer: (c, p) => admitted.push(p.id), toast: s => toasts.push(s), logEvent: () => {},
                 SC: () => ({ playsAs: (cp, pid) => (pid === 'u_a' ? 'Kael' : '') }),
-                document: { createElement: tag => ({ tagName: tag, children: [], className: '', textContent: '', value: '', appendChild(c) { this.children.push(c); if (this.tagName === 'select' && this.value === '') this.value = c.value; return c; } }) },
-                showConfirm: (text, cb, o) => { asks.push({ text, o: o || {} }); if (opts && opts.dropAt === asks.length) conn.open = false; let a = ans.shift(); if (a && typeof a === 'object') { o.body.children[1].value = a.pick; a = true; } cb(a === undefined ? false : a); } };
+                document: { createElement: tag => ({ tagName: tag, children: [], className: '', textContent: '', value: '', checked: false, ls: {}, appendChild(c) { this.children.push(c); return c; }, removeChild(c) { this.children.splice(this.children.indexOf(c), 1); return c; }, get firstChild() { return this.children[0] || null; }, addEventListener(t, f) { (this.ls[t] = this.ls[t] || []).push(f); } }), createTextNode: t => ({ textContent: String(t), children: [] }) },
+                showConfirm: (text, cb, o) => { asks.push({ text, o: o || {} }); if (opts && opts.dropAt === asks.length) conn.open = false; let a = ans.shift(); if (a && typeof a === 'object') { const s = o.body.children[1]; s.value = a.pick; (s.ls.change || []).forEach(f => f()); a = true; } cb(a === undefined ? false : a); } };
             if (opts && opts.noOthers) camp.players = { u_c: { name: 'Cy' } };
             const names = Object.keys(env);
             let threw = ''; try { new Function(...names, apS + '\nprocessNextApproval();\nreturn { sameCandidates, takeOver };')(...names.map(n => env[n])); } catch (e) { threw = String(e && e.message); }
@@ -16726,15 +16726,98 @@ pendingChecks.push((async () => {
         const J2 = JSON.stringify;
         check('1.5.6 "Same person as…" (backlog 185; processNextApproval, sameCandidates and takeOver run for real): the GM\'s Let them in? offers a third answer only where the campaign knows a player who is not at the table, listed one at a time, most recently seen first, never one at the table, a banned one, the newcomer or a GM character\'s key; Not them goes on, past the last back to the first question, Cancel back to it; a yes gives the newcomer the old player\'s record (no table key, the old id kept as was) and every character and token they own on every map, then lets them in; a connection gone by then is let in as nobody and nothing moves; with nobody to be, the question is as before',
             [A, B, C, D, E].every(r => r.threw === '') && J2(cand) === J2(['u_b', 'u_a'])
-            && took && !tc.players.u_a && tc.players.u_new.was === 'u_a' && tc.players.u_new.key === undefined && tc.players.u_new.charId === 'c_1' && tc.players.u_new.lastMap === 'm1' && tc.chars.c_1.ownerId === 'u_new' && tc.chars.c_2.ownerId === 'u_b'
+            && took && !tc.players.u_a && J2(tc.players.u_new.was) === J2(['u_a']) && tc.players.u_new.key === undefined && tc.players.u_new.charId === 'c_1' && tc.players.u_new.lastMap === 'm1' && tc.chars.c_1.ownerId === 'u_new' && tc.chars.c_2.ownerId === 'u_b'
             && tc.items.m1.whiteboard[0].ownerId === 'u_new' && tc.items.m1.whiteboard[1].ownerId === 'u_b' && tc.items.m2.whiteboard[0].ownerId === 'u_new' && bad.every(b => b === false)
             && A.asks.length === 2 && A.asks[0].o.alt === 'Same person as…' && /Who is "Web"/.test(A.asks[1].text) && A.asks[1].o.yes === 'Yes, the same' && A.asks[1].o.alt === undefined && A.asks.every(a => a.o.noEnter === true && a.o.noEscape === true)
-            && A.asks[1].o.body.className === 'player-pick' && J2(A.asks[1].o.body.children[1].children.map(c => c.value)) === J2(['u_b', 'u_a']) && J2(A.asks[1].o.body.children[1].children.map(c => c.textContent)) === J2(['Bo', 'Ana, plays Kael'])
-            && J2(A.admitted) === J2(['u_new']) && A.camp.players.u_new.was === 'u_a' && A.camp.chars.c_1.ownerId === 'u_new' && /takes over from Ana, playing Kael/.test(A.toasts.join())
+            && A.asks[1].o.body.className === 'player-pick' && J2(A.asks[1].o.body.children[1].children.map(c => c.value)) === J2(['', 'u_b', 'u_a']) && J2(A.asks[1].o.body.children[1].children.map(c => c.textContent)) === J2(['Pick a player\u2026', 'Bo', 'Ana, plays Kael'])
+            && J2(A.admitted) === J2(['u_new']) && J2(A.camp.players.u_new.was) === J2(['u_a']) && A.camp.chars.c_1.ownerId === 'u_new' && /takes over from Ana, playing Kael/.test(A.toasts.join())
             && B.asks.length === 3 && /wants to join/.test(B.asks[2].text) && J2(B.admitted) === J2(['u_new']) && !B.camp.players.u_new && B.camp.players.u_a.key === 'K_A'
             && C.admitted.length === 0 && C.camp.players.u_a && !C.camp.players.u_new && /already dropped/.test(C.toasts.join())
             && D.asks.length === 1 && D.asks[0].o.alt === undefined && J2(D.admitted) === J2(['u_new'])
             && E.asks.length === 3 && /wants to join/.test(E.asks[2].text) && J2(E.admitted) === J2(['u_new']) && !E.camp.players.u_new && E.camp.players.u_c, J2([cand, A.asks.map(a => a.text.slice(0, 60)), A.admitted, A.toasts, B.asks.length, C.toasts, D.asks.length, E.asks.length, [A, B, C, D, E].map(r => r.threw)]));
+    }
+    /* ---- 1.6.0: a hand-over moves only what the GM leaves ticked (found at the owner's table: a "Same person as…" opened on the wrong player and moved every character, with no list) ---- */
+    {
+        const apS = src.slice(src.indexOf('// [netcheck:approval-start]'), src.indexOf('// [netcheck:approval-end]')), J2 = JSON.stringify;
+        // a page of plain objects: elements and text nodes alone, markup refused, a change heard by its listeners
+        const fakeDoc = () => { const mk = tag => { const n = { tagName: tag, nodeType: 1, children: [], className: '', textContent: '', value: '', checked: false, disabled: false, type: '', ls: {}, parentNode: null,
+                appendChild(c) { this.children.push(c); c.parentNode = this; return c; }, removeChild(c) { const i = this.children.indexOf(c); if (i >= 0) this.children.splice(i, 1); c.parentNode = null; return c; },
+                get firstChild() { return this.children[0] || null; }, addEventListener(t, f) { (this.ls[t] = this.ls[t] || []).push(f); }, fire(t) { (this.ls[t] || []).forEach(f => f({ target: this })); } };
+                Object.defineProperty(n, 'innerHTML', { set() { throw new Error('markup'); } }); return n; };
+            return { createElement: mk, createTextNode: t => ({ nodeType: 3, textContent: String(t), children: [] }) }; };
+        const mk16 = () => ({ id: 'k', players: {
+                u_rin: { name: 'Rin', lastSeen: 50, key: 'K_R', charId: 'c_r1', charName: 'Rook', firstSeen: 10, joinCount: 3, was: 'u_rin_old' },
+                u_tam: { name: 'Tam', lastSeen: 90, key: 'K_T', charId: 'c_t1', charName: 'Wisp', firstSeen: 20, joinCount: 5, was: ['u_tam_a'] },
+                u_rin2: { name: ' rIN ', lastSeen: 20 } },
+            chars: { c_r1: { id: 'c_r1', name: 'Rook', ownerId: 'u_rin' }, c_r2: { id: 'c_r2', name: 'Moss', ownerId: 'u_rin' }, c_t1: { id: 'c_t1', name: 'Wisp', ownerId: 'u_tam' } },
+            items: { m1: { id: 'm1', type: 'map', meta: { title: 'Harbour' }, whiteboard: [{ id: 't_r1', ownerId: 'u_rin', charId: 'c_r1', charName: 'Rook' }, { id: 't_r2', ownerId: 'u_rin', charId: 'c_r2', charName: 'Moss' }, { id: 't_rx', ownerId: 'u_rin', name: 'Crate' }, { id: 't_t1', ownerId: 'u_tam', charId: 'c_t1', charName: 'Wisp' }] },
+                m2: { id: 'm2', type: 'map', meta: { title: 'Tower' }, whiteboard: [{ id: 't_r2b', ownerId: 'u_rin', charId: 'c_r2', charName: 'Moss' }] }, d1: { id: 'd1', type: 'doc' } } });
+        const names = ['net', 'own', 'validProfileId', 'showConfirm', 'admitPlayer', 'toast', 'getActiveCampaign', 'pendingJoins', 'approvalOpen', 'bannedIds', 'denyJoin', 'logEvent', 'SC', 'document', 'window'];
+        const run = (o) => {
+            const camp = (o.camp || mk16)(), asks = [], admitted = [], toasts = [], logs = [], steps = [], conn = { open: true }, ans = o.answers.slice();
+            const env = { net: { active: true, role: 'host', roster: {} }, own: H.own, validProfileId: H.validProfileId, admitPlayer: (c, p) => admitted.push(p.id), toast: s => toasts.push(s), getActiveCampaign: () => camp,
+                pendingJoins: [{ conn, prof: { id: 'u_new', name: o.name } }], approvalOpen: false, bannedIds: {}, denyJoin: () => {}, logEvent: (k, t) => logs.push([k, t]), SC: () => ({ playsAs: (cp, pid) => (pid === 'u_rin' ? 'Rook' : '') }),
+                document: fakeDoc(), window: { wpStepLog: (a, s, f) => steps.push([a, s, f]) },
+                showConfirm: (text, cb, op) => { const q = { text, o: op || {}, ready: op && op.ready ? op.ready() : null }; asks.push(q);
+                    let a = ans.shift();
+                    if (a && typeof a === 'object') { const s = op.body.children[1]; if (a.pick !== undefined) { s.value = a.pick; s.fire('change'); } q.picked = s.value; q.rows = rowsOf(op.body);
+                        (a.untick || []).forEach(t => { const r = op.body.children[2].children.find(x => x.children.length && x.children[1].textContent === t); r.children[0].checked = false; r.children[0].fire('change'); });
+                        q.after = rowsOf(op.body); q.readyAt = op.ready ? op.ready() : null; a = true; }
+                    cb(a === undefined ? false : a); } };
+            let threw = ''; try { new Function(...names, apS + '\nprocessNextApproval();')(...names.map(n => env[n])); } catch (e) { threw = String(e && e.stack || e); }
+            return { camp, asks, admitted, toasts, logs, steps, threw };
+        };
+        const rowsOf = body => body.children[2].children.map(r => r.children.length ? [r.className, r.children[0].checked, r.children[0].disabled, r.children[1].textContent] : r.textContent);
+        // the join: Rin's new profile is asked about; the list opens on Rin (ignoring case and outer spaces, the most recently seen of two), Moss unticked
+        const A = run({ name: '  rin', answers: ['alt', { untick: ['Moss'] }] });
+        // a name the table does not know: the list opens on no one, Yes is not ready, and a Yes there moves nothing and asks the first question again
+        const B = run({ name: 'Quill', answers: ['alt', {}, true] });
+        // the same name, nothing changed: all ticked, everything moves and the old record goes, its older one-id was kept first
+        const C = run({ name: 'Rin', answers: ['alt', { pick: 'u_rin' }] });
+        // the list is drawn again when the pick changes
+        const D = run({ name: 'Rin', answers: ['alt', { pick: 'u_tam' }] });
+        const fns = new Function(...names, apS + '\nreturn { playerPick, takeOver, mergeRecords, wasList, ownedOf };')(...names.map(n => ({ own: H.own, validProfileId: H.validProfileId, document: fakeDoc(), net: {} })[n]));
+        // Merge into…, from Player History's ask: Rin folded into Tam with Moss unticked; Moss and its tokens keep their owner, and Rin's record stays with them
+        const cm = mk16(), pkM = fns.playerPick(cm, ['u_tam', 'u_rin2'], 'Merge into', { name: 'Rin', from: 'u_rin' }), mDef = pkM.pick();
+        pkM.el.children[1].value = 'u_tam'; pkM.el.children[1].fire('change');
+        const mossRow = pkM.el.children[2].children.find(r => r.children.length && r.children[1].textContent === 'Moss'); mossRow.children[0].checked = false; mossRow.children[0].fire('change');
+        const mRows = rowsOf(pkM.el), mv = fns.mergeRecords(cm, 'u_rin', pkM.pick(), pkM.moves());
+        // the same with everything ticked: the record goes, its history and its ids folded into was, oldest first
+        const cw = mk16(), mw = fns.mergeRecords(cw, 'u_rin', 'u_tam', fns.playerPick(cw, ['u_tam'], 'Merge into', { from: 'u_rin' }).moves());
+        // a was of a long history is bounded to the last 20, plain ids alone; one that is no list nor id goes
+        const many = Array.from({ length: 25 }, (x, i) => 'u_old' + i), cb = mk16(); cb.players.u_rin.was = many.concat(['bad id!', 5, '__proto__', 'u_old3']);
+        const mb = fns.mergeRecords(cb, 'u_rin', 'u_tam'), wb = cb.players.u_tam.was;
+        const cn = mk16(); cn.players.u_rin.was = { x: 1 }; delete cn.players.u_tam.was; fns.takeOver(cn, 'u_rin', 'u_new');
+        const own16 = fns.ownedOf(mk16(), 'u_rin');
+        const noPick = fns.playerPick(mk16(), ['u_tam', 'u_rin'], 'Same person as', {}), noRows = noPick.el.children[2].children.length;
+        const flat16 = src.split('\r\n').join('\n');
+        check('1.6.0 a hand-over moves only what is ticked (processNextApproval, playerPick, takeOver and mergeRecords run for real on a page of plain objects): the "Same person as…" list opens on the record of the joiner\'s name, ignoring case and outer spaces, the most recently seen of two; with no name it knows it opens on an empty Pick a player… row, Yes is not ready, and a Yes there moves nothing and asks the first question again; under the list every character of the picked record by name with its tokens by name and map beneath it, following its tick, and its other tokens with ticks of their own, all ticked, drawn again when the pick changes; only the ticked ones move, and an unticked character and its tokens keep their owner, whose record stays with them; the toast says how many moved and stayed, one Session Log line names the record, the joiner and each character moved, the steps go to the app\'s log as counts; was a list, an older one-id was kept first, bounded to the last 20 plain ids; Merge into… the same, from its own record',
+            [A, B, C, D].every(r => r.threw === '') && A.asks[1].ready === true && A.asks[1].picked === 'u_rin'
+            && J2(A.asks[1].rows) === J2(['What moves. Untick anything that stays with Rin.', ['player-pick-row', true, false, 'Rook'], ['player-pick-row sub', true, true, 'Token Rook on Harbour'], ['player-pick-row', true, false, 'Moss'], ['player-pick-row sub', true, true, 'Token Moss on Harbour'], ['player-pick-row sub', true, true, 'Token Moss on Tower'], ['player-pick-row', true, false, 'Token Crate on Harbour']])
+            && J2(A.asks[1].after.slice(3, 6).map(r => r[1])) === J2([false, false, false])
+            && A.camp.chars.c_r1.ownerId === 'u_new' && A.camp.chars.c_r2.ownerId === 'u_rin' && A.camp.chars.c_t1.ownerId === 'u_tam'
+            && J2(A.camp.items.m1.whiteboard.map(w => w.ownerId)) === J2(['u_new', 'u_rin', 'u_new', 'u_tam']) && A.camp.items.m2.whiteboard[0].ownerId === 'u_rin'
+            && A.camp.players.u_rin && A.camp.players.u_rin.key === 'K_R' && A.camp.players.u_rin.charId === undefined && A.camp.players.u_rin.was === 'u_rin_old' && A.camp.players.u_new.charId === 'c_r1' && A.camp.players.u_new.key === undefined && A.camp.players.u_new.was === undefined
+            && J2(A.toasts) === J2(['  rin takes over from Rin, playing Rook. Moved 1 character and 2 tokens. 1 character and 2 tokens stay with Rin.'])
+            && J2(A.logs) === J2([['player', '  rin took over from Rin: moved Rook and 2 tokens, and 1 character and 2 tokens stay with Rin']]) && J2(A.admitted) === J2(['u_new'])
+            && J2(A.steps) === J2([['players v1', 'same-asked', { offered: 3, named: true }], ['players v1', 'same-done', { chars: 1, toks: 2, leftChars: 1, leftToks: 2, kept: true }]])
+            && B.asks.length === 3 && B.asks[1].ready === false && B.asks[1].picked === '' && B.asks[1].readyAt === false && J2(B.asks[1].rows) === J2([]) && B.asks[1].o.ready && /wants to join/.test(B.asks[2].text)
+            && J2(B.admitted) === J2(['u_new']) && !B.camp.players.u_new && B.camp.chars.c_r1.ownerId === 'u_rin' && B.logs.length === 0 && B.steps[1][1] === 'same-back'
+            && !C.camp.players.u_rin && J2(C.camp.players.u_new.was) === J2(['u_rin_old', 'u_rin']) && C.camp.chars.c_r2.ownerId === 'u_new' && C.camp.items.m2.whiteboard[0].ownerId === 'u_new' && /Moved 2 characters and 4 tokens\.$/.test(C.toasts[0])
+            && C.logs[0][1] === 'Rin took over from Rin: moved Rook, Moss and 4 tokens'
+            && J2(D.asks[1].rows) === J2(['What moves. Untick anything that stays with Tam.', ['player-pick-row', true, false, 'Wisp'], ['player-pick-row sub', true, true, 'Token Wisp on Harbour']]) && D.camp.chars.c_t1.ownerId === 'u_new' && D.camp.chars.c_r1.ownerId === 'u_rin'
+            && mDef === 'u_rin2' && mRows[0] === 'What moves. Untick anything that stays with Rin.' && mv && mv.kept === true
+            && cm.chars.c_r1.ownerId === 'u_tam' && cm.chars.c_r2.ownerId === 'u_rin' && J2(cm.items.m1.whiteboard.map(w => w.ownerId)) === J2(['u_tam', 'u_rin', 'u_tam', 'u_tam']) && cm.items.m2.whiteboard[0].ownerId === 'u_rin'
+            && cm.players.u_rin && cm.players.u_rin.charId === undefined && cm.players.u_tam.charId === 'c_r1' && cm.players.u_tam.joinCount === 5 && J2(cm.players.u_tam.was) === J2(['u_tam_a'])
+            && mw && !cw.players.u_rin && J2(cw.players.u_tam.was) === J2(['u_tam_a', 'u_rin_old', 'u_rin']) && cw.players.u_tam.joinCount === 8 && cw.chars.c_r2.ownerId === 'u_tam'
+            && mb && wb.length === 20 && wb[19] === 'u_rin' && wb.every(x => /^u_[a-z0-9_]+$/.test(x)) && !wb.includes('bad id!') && wb.indexOf('u_old3') < 0 && wb[0] === 'u_old6'
+            && J2(fns.wasList('u_x')) === J2(['u_x']) && J2(fns.wasList(['u_x', 'u_x', '', null], ['u_y'])) === J2(['u_x', 'u_y']) && J2(fns.wasList(7)) === J2([]) && J2(cn.players.u_new.was) === J2(['u_rin'])
+            && J2(own16.chars.map(c => [c.name, c.toks.map(t => t.mapName)])) === J2([['Rook', ['Harbour']], ['Moss', ['Harbour', 'Tower']]]) && J2(own16.toks.map(t => t.name)) === J2(['Crate'])
+            && noPick.pick() === null && noPick.ready() === false && noRows === 0
+            && flat16.includes("var pid = pk ? pk.pick() : null; if (!pid) { pickLog('same-back', { picked: false }); askMain(); return; }") && flat16.includes("var kid = pk ? pk.pick() : null; if (!kid) { pickLog('merge-back', { picked: false }); renderPlayersPanel(); return; }")
+            && !/sameOf\[0\]|cands\[0\]/.test(flat16.slice(flat16.indexOf('function processNextApproval()'), flat16.indexOf('// [netcheck:approval-end]')) + flat16.slice(flat16.indexOf('function mergeAsk('), flat16.indexOf('var _playersBtn')))
+            && flat16.includes("}, { noEnter: true, noEscape: true, yes: 'Yes, the same', body: pk ? pk.el : undefined, ready: pk ? pk.ready : undefined });"),
+            J2([[A, B, C, D].map(r => r.threw), A.asks.map(q => [q.ready, q.picked, q.rows, q.after]), A.toasts, A.logs, A.steps, B.asks.map(q => [q.ready, q.picked, q.rows]), B.steps, C.toasts, C.logs, C.camp.players, D.asks.map(q => q.rows), mDef, mRows, mv, cm.players, cw.players, wb, cn.players]));
     }
     /* ---- 1.5.6: a GM-only page keeps every page nested under it from players (found at a test join on 2026-10-24: 55 old pages under a GM-only folder reached a player) ---- */
     pendingChecks.push((async () => { try {

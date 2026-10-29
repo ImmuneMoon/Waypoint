@@ -586,6 +586,14 @@ function cleanupInfo() { return { lastRun: lastRun, tiers: lastTiers, ledgerSize
 // their click directives, the formats of its plain fields are cleaned against their texts, handbook pages go through cleanDoc, a play map's text items are rebuilt, and no id is ever a prototype key.
 // Fails closed: with no sanitiser on hand a raw block, a diagram and a text item come in empty and a page does not come in.
 // deps: { DR: docrender.js (cleanDoc, stripMermaidLinks), sanitize: net.js sanitizeRichText, FC: fogcore.js, TF: textfmt.js (cleanFont), GEN: gencore.js (cleanGen), CITY: citycore.js (cleanCity), WORLD: worldcore.js (cleanWorld) }. Merge runs it on each campaign.
+// 1.6.0: a player record's was, every id folded into it, as net.js wasList writes it: a list of plain ids, oldest first, an older build's one
+// id kept as its first, the last WAS_MAX; anything else goes
+var WAS_MAX = 20;
+function cleanWas(p) {
+    var out = [];
+    (Array.isArray(p.was) ? p.was : typeof p.was === 'string' ? [p.was] : []).forEach(function(x) { if (typeof x === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(x) && !(x in Object.prototype) && out.indexOf(x) < 0) out.push(x); });
+    if (out.length) p.was = out.slice(-WAS_MAX); else delete p.was;
+}
 function cleanImportItems(ic, deps) {
     // A table key from a file proves nothing: the players a campaign file names come in with their names, bindings and history, never
     // the secret each proves their identity with at THIS table (the export drops them too, io.js stripTableKeys). Whoever wrote the file is
@@ -593,7 +601,7 @@ function cleanImportItems(ic, deps) {
     // a campaign with no items yet still has players
     if (ic.players !== undefined) {
         if (!isObj(ic.players)) delete ic.players;
-        else Object.keys(ic.players).forEach(function(pid) { var p = ic.players[pid]; if (isObj(p)) delete p.key; else delete ic.players[pid]; });
+        else Object.keys(ic.players).forEach(function(pid) { var p = ic.players[pid]; if (isObj(p)) { delete p.key; cleanWas(p); } else delete ic.players[pid]; });
     }
     if (!isObj(ic.items)) { ic.items = {}; return; }
     var DR = deps && deps.DR, san = deps && typeof deps.sanitize === 'function' ? deps.sanitize : null, FC = deps && deps.FC && typeof deps.FC.cleanLight === 'function' ? deps.FC : null, TFd = deps && deps.TF && typeof deps.TF.cleanFont === 'function' ? deps.TF : null, GENd = deps && deps.GEN && typeof deps.GEN.cleanGen === 'function' ? deps.GEN : null, CITYd = deps && deps.CITY && typeof deps.CITY.cleanCity === 'function' ? deps.CITY : null, WORLDd = deps && deps.WORLD && typeof deps.WORLD.cleanWorld === 'function' ? deps.WORLD : null, BLASTd = deps && deps.BLAST && typeof deps.BLAST.cleanMine === 'function' ? deps.BLAST : typeof window !== 'undefined' && window.wpBlastCore && typeof window.wpBlastCore.cleanMine === 'function' ? window.wpBlastCore : null;   // 1.5.8: the mine cleaner the deps name, else the page's own
@@ -716,4 +724,4 @@ function cleanImportOf(data, deps) {
     return out;
 }
 
-export { classifyState, fileVerdict, pickRecovery, inspectCampaign, removeCampaign, unmovePlanners, runSweep, onLoad, askOwnership, sweepRecents, cleanupInfo, cleanImport, cleanImportItems, dropWaiting };
+export { classifyState, fileVerdict, pickRecovery, inspectCampaign, removeCampaign, unmovePlanners, runSweep, onLoad, askOwnership, sweepRecents, cleanupInfo, cleanImport, cleanImportItems, cleanWas, dropWaiting };

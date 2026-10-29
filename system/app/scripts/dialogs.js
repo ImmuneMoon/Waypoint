@@ -117,6 +117,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       // was once the question is answered. A question without them is drawn exactly as before
       var yesText = opts && typeof opts.yes === 'string' ? opts.yes.slice(0, 60) : '', altText = opts && typeof opts.alt === 'string' ? opts.alt.slice(0, 60) : '', altBtn = null, okWas = null;
 
+      // opts.ready: a question whose OK waits on its body (1.6.0: Same person as… and Merge into… until a player is picked). While ready()
+      // answers false OK is shown as not ready and a press of it answers nothing; it is asked again at each change inside the body.
+      // A question without it is drawn exactly as before
+      var readyFn = opts && typeof opts.ready === 'function' ? opts.ready : null, readyChk = null;
+
       if (p.style.display === 'flex' || layerUp('customPrompt')) { _confirmQueue.push([title, callback, opts]); return; }   // one question at a time: a second waits its turn instead of silently replacing the first (whose answer would then never arrive)
 
       document.getElementById('customConfirmTitle').textContent = title;
@@ -148,6 +153,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (isAlert) cancelBtn.style.display = '';
 
           if (careful) { clearTimeout(readyT); okBtn.disabled = false; }
+          if (readyChk) { if (slot) slot.removeEventListener('change', readyChk); okBtn.disabled = false; readyChk = null; }
 
           document.removeEventListener('keydown', handleKey);
 
@@ -174,10 +180,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (altText && okBtn.parentNode) { altBtn = document.createElement('button'); altBtn.type = 'button'; altBtn.className = 'tool'; altBtn.id = 'customConfirmAlt'; altBtn.textContent = altText; altBtn.onclick = function() { cleanup(); callback('alt'); }; okBtn.parentNode.insertBefore(altBtn, okBtn); }
 
       if (careful) { okBtn.disabled = true; readyT = setTimeout(function() { okBtn.disabled = false; }, CONFIRM_CAREFUL_MS); }
+      if (readyFn) { readyChk = function() { var r = false; try { r = !!readyFn(); } catch (e) {} okBtn.disabled = !r; return r; }; readyChk(); if (slot) slot.addEventListener('change', readyChk); }
 
       okBtn.onclick = function(e) {
 
           if (careful && !(e && (e.detail === 0 || e.detail === 1) && Date.now() - shownAt >= CONFIRM_CAREFUL_MS)) return;
+          if (readyChk && !readyChk()) return;
 
           cleanup(); callback(true);
 

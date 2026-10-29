@@ -3862,6 +3862,12 @@
   .player-pick-cap { font-size: 12px; color: var(--muted); }
   .player-pick-list { width: 100%; background: var(--panel2); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 7px 10px; font-size: 13px; outline: none; cursor: pointer; color-scheme: dark; }
   .player-pick-list:focus { border-color: var(--gold); }
+  .player-pick-moves { display: flex; flex-direction: column; gap: 5px; max-height: 240px; overflow-y: auto; }   /* 1.6.0: what a hand-over moves, each with a tick */
+  .player-pick-say { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .player-pick-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); cursor: pointer; }
+  .player-pick-row.sub { padding-left: 24px; color: var(--muted); cursor: default; }
+  .player-pick-row input[type="checkbox"] { width: 16px; height: 16px; margin: 0; flex: 0 0 auto; accent-color: var(--gold); cursor: pointer; }
+  .player-pick-row input[type="checkbox"]:disabled { cursor: default; }
   .combat-strip-move.over { color: var(--danger, #e06c6c); }
   .move-tip { position: fixed; z-index: 95500; pointer-events: none; display: none; padding: 3px 8px; border-radius: 6px; font-size: 12px; background: rgba(15,17,24,0.92); color: var(--ink); border: 1px solid var(--edge); white-space: nowrap; }   /* 1.5.7: a drag of the token on turn */
   .move-tip.over { color: var(--danger, #e06c6c); border-color: var(--danger, #e06c6c); }

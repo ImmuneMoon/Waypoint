@@ -6257,7 +6257,8 @@ function unboundNotice(prof) {
 // joined from the app makes an account on the website and joins the same table from there, under the account's own player id, so the table
 // sees a stranger). The GM's question offers Same person as…, then each player this campaign knows who is not at the table now, most recently
 // seen first: a yes gives the newcomer that player's record (their character, their last map, their history) and every character and token
-// they own, and retires the old id (the record keeps it as was). admitPlayer then issues a fresh table key, as for any player let in
+// they own, and retires the old id (the record keeps it in was). admitPlayer then issues a fresh table key, as for any player let in.
+// 1.6.0: only what the GM leaves ticked moves, and the old record stays while anything is left with it
 function sameCandidates(camp, newId, roster) {
     if (!camp || !camp.players || typeof camp.players !== 'object') return [];
     var on = Object.create(null); Object.keys(roster || {}).forEach(function(k) { var p = roster[k]; if (p && typeof p.id === 'string') on[p.id] = 1; });
@@ -6268,47 +6269,149 @@ function sameCandidates(camp, newId, roster) {
 }
 // 1.5.7 (the owner, 2026-10-25: "flipping through a bunch of prompts looking for a particular player when a dropdown bar can complete the same
 // function, is inefficient and not good UI"): the known players as ONE list in the question, each by its name, whom it plays and when it was last
-// seen, made of elements and text alone (a name comes from the table or a file); pick() answers the chosen id, only one of those offered
-function playerPick(camp, ids, label) {
+// seen, made of elements and text alone (a name comes from the table or a file); pick() answers the chosen id, only one of those offered.
+// 1.6.0 (a hand-over at the owner's table opened on the wrong player and took every character with it, with no list): the list opens on the
+// record whose name is o.name, ignoring case and outer spaces, the most recently seen of several, and with none on an empty "Pick a player…"
+// row, ready() false until one is picked. Under it, every character and token of the record that would move (o.from, else the pick), each
+// with a tick, all ticked, drawn again when the pick changes; moves() answers the ticked ones. A token of a listed character goes with it
+function playerPick(camp, ids, label, o) {
     var d = typeof document !== 'undefined' ? document : null; if (!d || !camp || !camp.players || !ids || !ids.length) return null;
-    var box = d.createElement('label'); box.className = 'player-pick';
+    o = o || {};
+    var box = d.createElement('div'); box.className = 'player-pick';
     var cap = d.createElement('span'); cap.className = 'player-pick-cap'; cap.textContent = label; box.appendChild(cap);
     var sel = d.createElement('select'); sel.className = 'player-pick-list';
-    var Sp = typeof SC === 'function' ? SC() : null;
+    var Sp = typeof SC === 'function' ? SC() : null, low = function(s) { return String(s == null ? '' : s).trim().toLowerCase(); }, want = low(o.name), def = '';
+    var none = d.createElement('option'); none.value = ''; none.textContent = 'Pick a player…'; sel.appendChild(none);
     ids.forEach(function(pid) {
-        var r = camp.players[pid] || {}, plays = Sp && Sp.playsAs ? Sp.playsAs(camp, pid) : '', seen = Number(r.lastSeen) || 0, o = d.createElement('option');
-        o.value = pid; o.textContent = String(r.name || 'A player').slice(0, 60) + (plays ? ', plays ' + String(plays).slice(0, 60) : '') + (seen > 1e11 ? ' \u00b7 last seen ' + new Date(seen).toLocaleDateString() : '');
-        sel.appendChild(o);
+        var r = camp.players[pid] || {}, plays = Sp && Sp.playsAs ? Sp.playsAs(camp, pid) : '', seen = Number(r.lastSeen) || 0, op = d.createElement('option');
+        op.value = pid; op.textContent = String(r.name || 'A player').slice(0, 60) + (plays ? ', plays ' + String(plays).slice(0, 60) : '') + (seen > 1e11 ? ' · last seen ' + new Date(seen).toLocaleDateString() : '');
+        sel.appendChild(op);
+        if (want && low(r.name) === want && (!def || seen > (Number((camp.players[def] || {}).lastSeen) || 0))) def = pid;
     });
-    box.appendChild(sel);
-    return { el: box, pick: function() { var v = sel.value; return ids.indexOf(v) >= 0 ? v : null; } };
+    sel.value = def; box.appendChild(sel);
+    var list = d.createElement('div'); list.className = 'player-pick-moves'; box.appendChild(list);
+    var ticks = { chars: Object.create(null), toks: Object.create(null) };
+    var pick = function() { var v = sel.value; return ids.indexOf(v) >= 0 ? v : null; };
+    var row = function(text, sub, onTick) {
+        var lb = d.createElement('label'); lb.className = 'player-pick-row' + (sub ? ' sub' : '');
+        var cb = d.createElement('input'); cb.type = 'checkbox'; cb.checked = true;
+        if (onTick) cb.addEventListener('change', function() { onTick(cb.checked); }); else cb.disabled = true;   // a character's token follows its tick
+        lb.appendChild(cb); lb.appendChild(d.createTextNode(text)); list.appendChild(lb); return cb;
+    };
+    var draw = function() {
+        while (list.firstChild) list.removeChild(list.firstChild);
+        ticks = { chars: Object.create(null), toks: Object.create(null) };
+        var pid = typeof o.from === 'string' ? o.from : pick(); if (!pid) return;
+        var ow = ownedOf(camp, pid), nm = String((camp.players[pid] || {}).name || 'That player').slice(0, 60), say = d.createElement('div'); say.className = 'player-pick-say';
+        say.textContent = ow.chars.length || ow.toks.length ? 'What moves. Untick anything that stays with ' + nm + '.' : nm + ' owns no characters or tokens.';
+        list.appendChild(say);
+        ow.chars.forEach(function(c) {
+            var subs = []; ticks.chars[c.id] = true;
+            row(c.name, false, function(on) { ticks.chars[c.id] = on; subs.forEach(function(s) { s.checked = on; }); });
+            c.toks.forEach(function(t) { subs.push(row('Token ' + t.name + ' on ' + t.mapName, true, null)); });
+        });
+        ow.toks.forEach(function(t) { var m = ticks.toks[t.map] || (ticks.toks[t.map] = Object.create(null)); m[t.id] = true; row('Token ' + t.name + ' on ' + t.mapName, false, function(on) { m[t.id] = on; }); });
+    };
+    sel.addEventListener('change', draw); draw();
+    return { el: box, pick: pick, ready: function() { return !!pick(); }, moves: function() { return { chars: ticks.chars, toks: ticks.toks }; } };
 }
-function takeOver(camp, oldId, newId) {
+// 1.6.0: what a player record owns, by name: its characters, each with its tokens, and the tokens of no character of theirs, by map
+function ownedOf(camp, pid) {
+    var chars = [], toks = [], byChar = Object.create(null);
+    Object.keys(camp.chars || {}).forEach(function(cid) { var c = camp.chars[cid]; if (c && typeof c === 'object' && c.ownerId === pid) { byChar[cid] = []; chars.push({ id: cid, name: String(c.name || 'A character').slice(0, 60), toks: byChar[cid] }); } });
+    Object.keys(camp.items || {}).forEach(function(iid) {
+        var it = camp.items[iid]; if (!it || it.type !== 'map' || !Array.isArray(it.whiteboard)) return;
+        var mn = String((it.meta && it.meta.title) || 'a map').slice(0, 60);
+        it.whiteboard.forEach(function(w) {
+            if (!w || typeof w !== 'object' || w.ownerId !== pid || typeof w.id !== 'string') return;
+            var t = { map: iid, id: w.id, name: String(w.charName || w.name || 'a token').slice(0, 60), mapName: mn };
+            if (typeof w.charId === 'string' && own(byChar, w.charId)) byChar[w.charId].push(t); else toks.push(t);
+        });
+    });
+    return { chars: chars, toks: toks };
+}
+// 1.6.0: hands what fromId owns to toId. With sel (playerPick moves()) only the ticked ones go, a token of one of fromId's characters with its
+// character; without it everything goes, as before. Answers what moved and what was left
+function moveOwned(camp, fromId, toId, sel) {
+    var on = function(set, k) { return !sel || (!!set && own(set, k) && set[k] === true); };
+    var out = { chars: [], names: [], toks: 0, leftChars: 0, leftToks: 0 }, mine = Object.create(null);
+    Object.keys(camp.chars || {}).forEach(function(cid) {
+        var c = camp.chars[cid]; if (!c || typeof c !== 'object' || c.ownerId !== fromId) return;
+        mine[cid] = 1;
+        if (on(sel && sel.chars, cid)) { c.ownerId = toId; out.chars.push(cid); out.names.push(String(c.name || 'a character').slice(0, 40)); } else out.leftChars++;
+    });
+    Object.keys(camp.items || {}).forEach(function(iid) {
+        var it = camp.items[iid]; if (!it || it.type !== 'map' || !Array.isArray(it.whiteboard)) return;
+        it.whiteboard.forEach(function(w) {
+            if (!w || typeof w !== 'object' || w.ownerId !== fromId) return;
+            var go = typeof w.charId === 'string' && own(mine, w.charId) ? out.chars.indexOf(w.charId) >= 0 : on(sel && sel.toks && own(sel.toks, iid) ? sel.toks[iid] : null, w.id);
+            if (go) { w.ownerId = toId; out.toks++; } else out.leftToks++;
+        });
+    });
+    return out;
+}
+// 1.6.0: was is every id ever folded into a record, oldest first: an older build's one id kept as the first, plain ids alone, the last WAS_MAX
+var WAS_MAX = 20;
+function wasList(v, add) {
+    var out = [];
+    (Array.isArray(v) ? v : typeof v === 'string' ? [v] : []).concat(add === undefined ? [] : add).forEach(function(x) { if (validProfileId(x) && out.indexOf(x) < 0) out.push(x); });
+    return out.slice(-WAS_MAX);
+}
+// Is fromId's played character one that stays with it? Then its binding stays too
+function bindStays(camp, rec, fromId) { var b = rec && rec.charId; return typeof b === 'string' && !!camp.chars && own(camp.chars, b) && !!camp.chars[b] && camp.chars[b].ownerId === fromId; }
+function takeOver(camp, oldId, newId, sel) {
     if (!camp || !camp.players || typeof camp.players !== 'object' || !own(camp.players, oldId) || oldId === newId || !validProfileId(newId)) return false;
-    var rec = camp.players[oldId], nr = Object.assign({}, rec && typeof rec === 'object' ? rec : {});
-    delete nr.key; nr.was = oldId;   // the old table key goes with the old id: admitPlayer issues the newcomer a fresh one
-    camp.players[newId] = nr; delete camp.players[oldId];
-    Object.keys(camp.chars || {}).forEach(function(cid) { var c = camp.chars[cid]; if (c && typeof c === 'object' && c.ownerId === oldId) c.ownerId = newId; });
-    Object.keys(camp.items || {}).forEach(function(iid) { var it = camp.items[iid]; if (it && it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard.forEach(function(w) { if (w && typeof w === 'object' && w.ownerId === oldId) w.ownerId = newId; }); });
-    return true;
+    var rec = camp.players[oldId], o = rec && typeof rec === 'object' ? rec : {}, nr = Object.assign({}, o);
+    delete nr.key;   // the old table key goes with the old id: admitPlayer issues the newcomer a fresh one
+    var mv = moveOwned(camp, oldId, newId, sel);
+    mv.kept = mv.leftChars + mv.leftToks > 0; mv.bound = !mv.kept || !bindStays(camp, o, oldId);
+    if (mv.kept) {   // 1.6.0: something stays, so the old record stays with it, its key and its was its own
+        delete nr.was;
+        if (mv.bound) { delete o.charId; delete o.charName; } else { delete nr.charId; delete nr.charName; }
+    } else {
+        var w = wasList(o.was, [oldId]); if (w.length) nr.was = w; else delete nr.was;
+        delete camp.players[oldId];
+    }
+    camp.players[newId] = nr;
+    return mv;
 }
 // 1.5.6 (the owner, 2026-10-24, asked whether Player History should fold two known records of one person, the app's and a website account's:
 // "yes"): Merge into… keeps one record and folds the other into it. The kept record keeps its own id, name and table key (so its player
 // walks straight in), and takes the other's character binding and last map, the earlier first time seen, the later last time and both join
-// counts; every character and token the other owned becomes the kept one's; the other record goes, its id kept as was
-function mergeRecords(camp, oldId, keptId) {
+// counts; every character and token the other owned becomes the kept one's; the other record goes, its id kept in was. 1.6.0: with sel only
+// the ticked ones move, and where something is left the other record stays with it, its history its own
+function mergeRecords(camp, oldId, keptId, sel) {
     if (!camp || !camp.players || typeof camp.players !== 'object' || oldId === keptId || !own(camp.players, oldId) || !own(camp.players, keptId)) return false;
     var o = camp.players[oldId] || {}, k = camp.players[keptId] || {}, nr = Object.assign({}, k);
-    ['charId', 'charName', 'lastMap'].forEach(function(f) { if (o[f] !== undefined && o[f] !== null && o[f] !== '') nr[f] = o[f]; });
-    var fs = [Number(o.firstSeen) || 0, Number(k.firstSeen) || 0].filter(function(n) { return n > 0; }); if (fs.length) nr.firstSeen = Math.min.apply(null, fs);
-    nr.lastSeen = Math.max(Number(o.lastSeen) || 0, Number(k.lastSeen) || 0) || nr.lastSeen;
-    nr.joinCount = (Number(o.joinCount) || 0) + (Number(k.joinCount) || 0);
-    nr.was = oldId;
-    camp.players[keptId] = nr; delete camp.players[oldId];
-    Object.keys(camp.chars || {}).forEach(function(cid) { var c = camp.chars[cid]; if (c && typeof c === 'object' && c.ownerId === oldId) c.ownerId = keptId; });
-    Object.keys(camp.items || {}).forEach(function(iid) { var it = camp.items[iid]; if (it && it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard.forEach(function(w) { if (w && typeof w === 'object' && w.ownerId === oldId) w.ownerId = keptId; }); });
-    return true;
+    var mv = moveOwned(camp, oldId, keptId, sel);
+    mv.kept = mv.leftChars + mv.leftToks > 0; mv.bound = !mv.kept || !bindStays(camp, o, oldId);
+    (mv.kept ? (mv.bound ? ['charId', 'charName'] : []) : ['charId', 'charName', 'lastMap']).forEach(function(f) { if (o[f] !== undefined && o[f] !== null && o[f] !== '') nr[f] = o[f]; });
+    if (mv.kept) {
+        if (mv.bound) { delete o.charId; delete o.charName; }
+    } else {
+        var fs = [Number(o.firstSeen) || 0, Number(k.firstSeen) || 0].filter(function(n) { return n > 0; }); if (fs.length) nr.firstSeen = Math.min.apply(null, fs);
+        nr.lastSeen = Math.max(Number(o.lastSeen) || 0, Number(k.lastSeen) || 0) || nr.lastSeen;
+        nr.joinCount = (Number(o.joinCount) || 0) + (Number(k.joinCount) || 0);
+        var w = wasList(k.was, wasList(o.was, [oldId])); if (w.length) nr.was = w; else delete nr.was;
+        delete camp.players[oldId];
+    }
+    camp.players[keptId] = nr;
+    return mv;
 }
+// 1.6.0: what a hand-over moved, in words: the toast's counts, and the Session Log's names of each character moved
+function nOf(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+function bothOf(c, t) { return c && t ? nOf(c, 'character') + ' and ' + nOf(t, 'token') : c ? nOf(c, 'character') : nOf(t, 'token'); }
+function movedSay(mv, fromName) {
+    var left = mv.leftChars + mv.leftToks;
+    return (mv.chars.length || mv.toks ? 'Moved ' + bothOf(mv.chars.length, mv.toks) + '.' : 'Nothing moved.') + (left ? ' ' + bothOf(mv.leftChars, mv.leftToks) + (left === 1 ? ' stays' : ' stay') + ' with ' + fromName + '.' : '');
+}
+function movedLog(mv, fromName) {
+    var left = mv.leftChars + mv.leftToks;
+    return (mv.names.length ? 'moved ' + mv.names.join(', ') : 'moved no character') + (mv.toks ? ' and ' + nOf(mv.toks, 'token') : '') + (left ? ', and ' + bothOf(mv.leftChars, mv.leftToks) + (left === 1 ? ' stays' : ' stay') + ' with ' + fromName : '');
+}
+// Each step of a hand-over to the app's log (counts only, never a name)
+function pickLog(step, facts) { try { if (typeof window !== 'undefined' && window && typeof window.wpStepLog === 'function') window.wpStepLog('players v1', step, facts); } catch (e) {} }
+function movedFacts(mv) { return { chars: mv.chars.length, toks: mv.toks, leftChars: mv.leftChars, leftToks: mv.leftToks, kept: !!mv.kept }; }
 function processNextApproval() {
     if (approvalOpen) return;
     var next = pendingJoins.shift();
@@ -6320,20 +6423,22 @@ function processNextApproval() {
     approvalOpen = true;
     var hint = next.why ? ' — a name this table already knows, but without its table key (a fresh install, or someone else using that name)' : '';
     var who = next.prof.name || 'A player', sameOf = campQ && typeof sameCandidates === 'function' ? sameCandidates(campQ, next.prof.id, net.roster) : [];
-    var askSame = function() {   // 1.5.7: the known players in one list, most recently seen first; Cancel goes back to the first question
-        var pk = typeof playerPick === 'function' ? playerPick(campQ, sameOf, 'Same person as') : null;
-        showConfirm('Who is "' + who + '"? Pick the player they were. Yes gives them that player\'s character, tokens and place, and retires the old name.', function(ans) {
-            if (ans !== true) { askMain(); return; }
-            var pid = pk ? pk.pick() : sameOf[0]; if (!pid) { askMain(); return; }
-            var recS = campQ.players[pid] || {}, Sp = typeof SC === 'function' ? SC() : null, plays = Sp && Sp.playsAs ? Sp.playsAs(campQ, pid) : '';
+    var askSame = function() {   // 1.5.7: the known players in one list, most recently seen first; Cancel goes back to the first question. 1.6.0: it opens on the joiner's name or on none, and lists what moves
+        var pk = typeof playerPick === 'function' ? playerPick(campQ, sameOf, 'Same person as', { name: next.prof.name }) : null;
+        pickLog('same-asked', { offered: sameOf.length, named: !!(pk && pk.pick()) });
+        showConfirm('Who is "' + who + '"? Pick the player they were. Yes gives them the ticked characters and tokens and that player\'s place. The old name is retired unless something stays with it.', function(ans) {
+            if (ans !== true) { pickLog('same-back', { picked: false }); askMain(); return; }
+            var pid = pk ? pk.pick() : null; if (!pid) { pickLog('same-back', { picked: false }); askMain(); return; }   // nothing picked moves nothing: never a default
+            var recS = campQ.players[pid] || {}, nmS = String(recS.name || 'a player'), Sp = typeof SC === 'function' ? SC() : null, plays = Sp && Sp.playsAs ? Sp.playsAs(campQ, pid) : '';
             approvalOpen = false;
             if (!net.active || net.role !== 'host') return;
-            if (!next.conn.open) { toast(who + ' had already dropped — you will be asked again when they come back.'); processNextApproval(); return; }
-            var campT = getActiveCampaign();
-            if (campT && takeOver(campT, pid, next.prof.id)) { toast(who + ' takes over from ' + String(recS.name || 'a player') + (plays ? ', playing ' + plays : '') + '.'); if (typeof logEvent === 'function') logEvent('player', who + ' took over from ' + String(recS.name || 'a player')); }
+            if (!next.conn.open) { pickLog('same-failed', { at: 'dropped' }); toast(who + ' had already dropped — you will be asked again when they come back.'); processNextApproval(); return; }
+            var campT = getActiveCampaign(), mv = campT ? takeOver(campT, pid, next.prof.id, pk.moves()) : false;
+            if (mv) { toast(who + ' takes over from ' + nmS + (plays && mv.bound ? ', playing ' + plays : '') + '. ' + movedSay(mv, nmS)); if (typeof logEvent === 'function') logEvent('player', who + ' took over from ' + nmS + ': ' + movedLog(mv, nmS)); pickLog('same-done', movedFacts(mv)); }
+            else pickLog('same-failed', { at: 'record' });
             admitPlayer(next.conn, next.prof);
             processNextApproval();
-        }, { noEnter: true, noEscape: true, yes: 'Yes, the same', body: pk ? pk.el : undefined });
+        }, { noEnter: true, noEscape: true, yes: 'Yes, the same', body: pk ? pk.el : undefined, ready: pk ? pk.ready : undefined });
     };
     var askMain = function() {
     showConfirm('"' + who + '" wants to join your table' + hint + '. Let them in?' + (sameOf.length ? ' If they played here before from another app or browser, Same person as… gives them that player\'s character.' : ''), function(yes) {
@@ -9612,16 +9717,19 @@ function mergeAsk(camp, oldId) {
     var nmO = String(camp.players[oldId].name || 'Player'), cands = Object.keys(camp.players).filter(function(pid) { return pid !== oldId && !on[pid]; })
         .sort(function(a, b) { return (Number(camp.players[b].lastSeen) || 0) - (Number(camp.players[a].lastSeen) || 0); });
     if (!cands.length) { toast('There is no other player here to merge into.'); return; }
-    var ask = function() {   // 1.5.7: the players to merge into in one list, most recently seen first
-        var pk = typeof playerPick === 'function' ? playerPick(camp, cands, 'Merge into') : null;
-        showConfirm('Merge "' + nmO + '" into another player? The one you pick keeps its name and table key, and takes ' + nmO + '\'s character, tokens and history. ' + nmO + '\'s record goes.', function(ans) {
-            if (ans !== true || getActiveCampaign() !== camp) { renderPlayersPanel(); return; }
-            var kid = pk ? pk.pick() : cands[0]; if (!kid) { renderPlayersPanel(); return; }
+    var ask = function() {   // 1.5.7: the players to merge into in one list, most recently seen first. 1.6.0: it opens on the same name or on none, and lists what moves
+        var pk = typeof playerPick === 'function' ? playerPick(camp, cands, 'Merge into', { name: camp.players[oldId].name, from: oldId }) : null;
+        pickLog('merge-asked', { offered: cands.length, named: !!(pk && pk.pick()) });
+        showConfirm('Merge "' + nmO + '" into another player? The one you pick keeps its name and table key, and takes the ticked characters and tokens. ' + nmO + '\'s record goes once nothing is left in it.', function(ans) {
+            if (ans !== true || getActiveCampaign() !== camp) { pickLog('merge-back', { picked: false }); renderPlayersPanel(); return; }
+            var kid = pk ? pk.pick() : null; if (!kid) { pickLog('merge-back', { picked: false }); renderPlayersPanel(); return; }   // nothing picked merges nothing: never a default
             var nmK = String((camp.players[kid] || {}).name || 'Player');
-            if (Object.values(net.roster).some(function(p) { return p && (p.id === oldId || p.id === kid); })) { toast('One of them is at the table now. Merge when neither is.'); renderPlayersPanel(); return; }
-            if (mergeRecords(camp, oldId, kid)) { save(); if (typeof logEvent === 'function') logEvent('player', nmO + ' merged into ' + nmK); toast(nmO + ' merged into ' + nmK + '.'); if (typeof render === 'function') render(); }
+            if (Object.values(net.roster).some(function(p) { return p && (p.id === oldId || p.id === kid); })) { pickLog('merge-failed', { at: 'online' }); toast('One of them is at the table now. Merge when neither is.'); renderPlayersPanel(); return; }
+            var mv = mergeRecords(camp, oldId, kid, pk.moves());
+            if (mv) { save(); if (typeof logEvent === 'function') logEvent('player', nmO + ' merged into ' + nmK + ': ' + movedLog(mv, nmO)); toast(nmO + ' merged into ' + nmK + '. ' + movedSay(mv, nmO)); pickLog('merge-done', movedFacts(mv)); if (typeof render === 'function') render(); }
+            else pickLog('merge-failed', { at: 'record' });
             renderPlayersPanel();
-        }, { noEnter: true, noEscape: true, yes: 'Merge', body: pk ? pk.el : undefined });
+        }, { noEnter: true, noEscape: true, yes: 'Merge', body: pk ? pk.el : undefined, ready: pk ? pk.ready : undefined });
     };
     ask();
 }

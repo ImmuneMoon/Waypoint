@@ -260,6 +260,18 @@ Using an item on someone next to you
   OnSelf reading 1. Before, one that read OnSelf did not run at all.
 - Revert after such a press takes back both characters' changes.
 
+Same person as... and Merge into...
+- The list of players opens on the one with the joiner's name. With no
+  such name it opens on Pick a player..., and Yes waits until you pick
+  one. Before, it opened on the most recent player, whoever that was.
+- Under the list are that player's characters and tokens, each ticked.
+  Untick any that should stay. Only the ticked ones move, and a
+  character's tokens go with it.
+- If something stays, the old record stays too and keeps it.
+- A note says how many moved and how many stayed, and the Session Log
+  names each character that moved. To give one back, pick its player in
+  System ▸ Characters.
+
 WAYPOINT 1.5.9 — What's New
 ============================
 

@@ -113,7 +113,7 @@ let summed = false;   // a check that never settles (a promise nothing answers) 
 process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      the asynchronous checks never finished (a promise was left waiting)'); process.exitCode = 1; } });
 (async () => {
     const url = 'file:///' + path.resolve(mod).replace(/\\/g, '/');
-    const { classifyState, fileVerdict, pickRecovery, inspectCampaign, removeCampaign, unmovePlanners, runSweep, cleanImport, cleanImportItems, dropWaiting } = await import(url);
+    const { classifyState, fileVerdict, pickRecovery, inspectCampaign, removeCampaign, unmovePlanners, runSweep, cleanImport, cleanImportItems, cleanWas, dropWaiting } = await import(url);
     DOC = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'docrender.js')).replace(/\\/g, '/'));
     const KNOWN = { images: [] };          // list-images answered: nothing on disk
     const UNKNOWN = { images: null };      // list-images failed
@@ -1121,6 +1121,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && gateOk
                 && /cleanImportedItems\(ic\);[\s\S]*?if \(!existing\) \{[\s\S]*?state\.appState\.campaigns\[ic\.id\] = ic;/.test(mergeSrc) && mergeSrc.indexOf('cleanImportedItems(ic);') < mergeSrc.indexOf('state.appState.campaigns[ic.id] = ic;'),
                 JSON.stringify([outKy && outKy.campaigns.cX.players, icKy.players, icKn.players, icKs.players, gateSrc.length]));
+        }
+        // 1.6.0: a player record's was is every id folded into it. A file's comes in as net.js wasList writes it: a list of plain ids, oldest
+        // first, an older build's one id kept as its first, the last 20 alone; anything else goes
+        {
+            const long = Array.from({ length: 30 }, (x, i) => 'u_w' + i), J3 = JSON.stringify;
+            const icW = { items: {}, players: { u_s: { name: 'S', was: 'u_old' }, u_l: { name: 'L', was: long.concat(['bad id!', 7, '__proto__', 'u_w29', '<b>x</b>']) }, u_o: { name: 'O', was: { a: 1 } }, u_e: { name: 'E', was: ['', null] }, u_n: { name: 'N' } } };
+            cleanImportItems(icW, deps);
+            const p = icW.players, solo = { was: '../x' }; cleanWas(solo);
+            check('import: a player record\'s was (1.6.0, every id folded into it) comes in a list of plain ids, oldest first: an older one-id was kept as its first, the last 20 of a long one, markup, a path, a number, a prototype key and a repeat dropped; one that is no list or id, or holds none, goes',
+                J3(p.u_s.was) === J3(['u_old']) && J3(p.u_l.was) === J3(long.slice(10)) && !('was' in p.u_o) && !('was' in p.u_e) && !('was' in p.u_n) && !('was' in solo) && p.u_l.name === 'L',
+                J3([p, solo]));
         }
         // The owed review, 2026-10-09 (backlog 137). (a) The item cleaners ran only for an item whose type was exactly 'map', 'planner' or 'doc',
         // while the app draws every item that is neither a planner nor a page as a map: a file's 'Map' or 'board' kept its whole play map as

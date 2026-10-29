@@ -2228,7 +2228,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const CNOTE = "- The left panel has a Characters section, under Maps. It lists the\n  campaign's character sheets: your players' characters first, each\n  with its player's name, and the NPCs under one fold. Click one to\n  open its sheet. Right-click it for its HUD, to find its token on the\n  map or to delete the sheet. It has its own icon on the rail, and a\n  player sees their own characters there. Its + asks whether a new\n  sheet is a player's character or an NPC. Only the question's\n  buttons answer it, so Enter does nothing there.\n";
     // The question the plus asks (dialogs.js showConfirm with opts.yes and opts.alt, run for real on a page of plain objects that refuses markup): two
     // answers beside Cancel, put back as they were once it is answered, and a question without them exactly as before
-    let dq = '', dqerr = '';
+    let dq = '', dqerr = '', rq = '';
     try {
         const dlgT = read('scripts/dialogs.js'), dlgSrc = dlgT.slice(dlgT.indexOf('  var _confirmQueue = [];'), dlgT.indexOf('  // One-button variant of showConfirm'));
         const mkQ = () => {
@@ -2253,8 +2253,18 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         const H = mkQ(); H.sc('Long?', () => {}, { yes: 'y'.repeat(90), alt: 'a'.repeat(90) }); const hUp = H.view()[2].map(b => b[1].length);
         // as the plus asks it, its buttons alone (the owner, 2026-10-17, by prompt: "None, buttons only (Recommended)"): Enter answers neither, Escape is Cancel
         const F = mkQ(); F.sc('Which?', v => got.push(['F', v]), Object.assign({ noEnter: true }, TWO)); F.press('Enter'); const fUp = F.view(); F.press('Escape'); const fDone = F.view();
+        // opts.ready (1.6.0: Same person as… and Merge into… until a player is picked): OK not ready and answering nothing while ready() is
+        // false, nor when it throws, answering once it is true, and as it was once answered; a question without it never touches OK
+        const rGot = [], okOf = Q => Q.row.kids.find(b => b.id === 'customConfirmOk'); let rOn = false;
+        const R = mkQ(); R.sc('Pick?', v => rGot.push(['R', v]), { noEnter: true, noEscape: true, ready: () => rOn }); const rUp = [R.view()[0], okOf(R).disabled]; okOf(R).onclick({ detail: 1 }); const rStill = R.view()[0];
+        rOn = true; okOf(R).onclick({ detail: 1 }); const rDone = [R.view()[0], okOf(R).disabled];
+        const T = mkQ(); T.sc('Odd?', v => rGot.push(['T', v]), { ready: () => { throw new Error('x'); } }); const tUp = okOf(T).disabled; okOf(T).onclick({ detail: 1 }); const tStill = T.view()[0]; T.press('Escape');
+        const P = mkQ(); P.sc('Plain?', v => rGot.push(['P', v])); const pUp = okOf(P).disabled; okOf(P).onclick({ detail: 1 });
+        rq = J([rUp, rStill, rDone, tUp, tStill, pUp, rGot]);
         dq = J([aUp, aMade, aDone, bDone, cDone, dUp, eFirst, eSecond, eDone, gUp, hUp, fUp, fDone, got]);
     } catch (e) { dqerr = String(e && e.stack || e); }
+    check('a question whose OK waits on its body (dialogs.js showConfirm with opts.ready, run for real; 1.6.0, Same person as… and Merge into… until a player is picked): OK is shown as not ready and a press answers nothing while ready() is false or throws, it answers once ready() is true, and is ready again once the question is put away; a question without it never touches OK',
+        !dqerr && rq === J([['flex', true], 'flex', ['none', false], true, 'flex', undefined, [['R', true], ['T', false], ['P', true]]]), dqerr || rq);
     const QC = ['customConfirmCancel', 'Cancel', 'tool ghost', '', ''], QO = ['customConfirmOk', 'OK', 'tool danger', '', ''], QALT = ['customConfirmAlt', 'Player\u2019s character', 'tool', 'button', 'button'], QN = ['customConfirmOk', 'NPC', 'tool', '', ''];
     check('the question the plus asks (dialogs.js showConfirm with opts.yes and opts.alt, run for real on a page of plain objects that refuses markup): two answers beside Cancel, OK in the words opts.yes gives and without its red, and a second button made before OK in the words opts.alt gives, which answers alt; Enter answers OK and Escape Cancel as ever, and asked with noEnter, as the plus asks it, Enter answers neither while Escape is Cancel; once answered, by any of the three, the second button is gone and OK says OK in red again; a question that waits behind another comes up with its two answers, and the one before it had none; words that are no text are no answer, and are left out; each set as text and cut to 60; a question without them is drawn exactly as before and makes no element',
         !dqerr && dq === J([['flex', 'Which?', [QC, QALT, QN]], 1, [['none', 'Which?', [QC, QO]], 0], ['none', 'Which?', [QC, QO]], ['none', 'Which?', [QC, QO]], [['flex', 'Plain?', [QC, QO]], 0],

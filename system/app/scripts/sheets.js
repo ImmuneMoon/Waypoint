@@ -4167,17 +4167,23 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
             add.addEventListener('change', function() { if (add.value === '__lib') { add.value = ''; openLibPicker(add, c, f, specI, carried); return; } if (add.value === '__custom') { var nr = uid('w_'); _rowForm = { charId: c.id, fieldId: f.id, rowId: nr, view: vwP, typed: {}, focus: 'name' }; commitItem(c, f, { op: 'custom', rowId: nr, def: catAt ? { category: catAt } : {} }); return; } if (add.value) { var avA = add.value, goA = function(nm) { var cpA = getActiveCampaign(), chA = cpA && cpA.chars ? cpA.chars[c.id] : null, ffA = chA ? fieldById(systemOf(cpA), f.id) : null; if (!chA || !ffA) return; var qA = { op: 'add', defId: avA, rowId: uid('w_'), qty: 1 }; if (nm) qA.name = nm; commitItem(chA, ffA, qA); }; if (typeof againAsk === 'function') againAsk(specI, carried, avA, againEnt(sysI, avA), goA); else goA(null); } });   // 1.6.0: an entry held again asks for its copy's name   // Stage 6 F4a: a new row's id from here (the host never mints)
             if (nPick !== 0 || custOK || libOK) wrap.appendChild(add);   // F4b: none of the list's categories has an item: no picker (F4c3: unless it takes custom rows)
         }
+        if (specI && typeof specI.unheld === 'string' && specI.unheld && libOK && !onOnly && unheldRolls(specI).length && (gm || c.ownerId === myId()) && !(window.wpVtt && !window.wpVtt.on('dice'))) {   // 1.6.0 Rolls unheld entries: the library picker, to roll an entry nobody holds
+            var uhB = el('button', 'tool ghost sheet-item-unheld', '\ud83c\udfb2 Roll unheld\u2026'); uhB.type = 'button'; uhB.title = 'Roll an entry of the library that ' + (c.name || 'this character') + ' does not hold, at its unheld level';
+            uhB.addEventListener('click', function() { openLibPicker(uhB, c, f, specI, carried, undefined, true); }); wrap.appendChild(uhB);
+        }
         box.appendChild(wrap); return box;
     }
     return box;
 }
 // Stage 6 library L2c: "From the library…" on the GM's machine — the picker over the campaign's packs (libpicker.js), filtered to the list's
 // categories; each pick is an ordinary add, the character and the field looked up again (the picker can stay open across renders)
-function openLibPicker(anchor, c, f, spec, carried, partIn) {   // partIn (1.6.0 R14): a part's host, handed on to each add
+function openLibPicker(anchor, c, f, spec, carried, partIn, rollOnly) {   // partIn (1.6.0 R14): a part's host, handed on to each add; rollOnly (1.6.0): opened to roll an entry nobody holds
+    if (isClient() && rollOnly) { openLibPickerPlayer(anchor, c, f, spec, partIn, rollOnly); return; }
     if (isClient()) { openLibPickerPlayer(anchor, c, f, spec, partIn); return; }
     var LB = window.wpLibrary, LP = window.wpLibPicker, camp = getActiveCampaign(); if (!LB || !LP || !camp || !camp.library) return;
     var once = null; if (spec && spec.noQty && !spec.multi) { once = Object.create(null); carried.forEach(function(r) { if (r && typeof r.defId === 'string' && r.hid !== 1) { var oe = LB.entry ? LB.entry(r.defId) : null; if (!(oe && oe.again === 'name')) once[r.defId] = 1; } }); }   // 1.6.0: an entry held again stays offered
     var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string' && s.hide !== true) labels[s.key] = s.label || s.key; });
+    LP = unheldVia(LP, c, f, spec, rollOnly);   // 1.6.0 Rolls unheld entries: the picker's Roll unheld
     LP.open({ anchor: anchor, cat: typeof catOf === 'function' ? catOf(anchor) : null, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) && spec.cats.length ? spec.cats : null, once: once, noQty: !!(spec && spec.noQty), labels: labels, gm: true, needs: function(e) { var cpN = getActiveCampaign(), chN = cpN && cpN.chars ? cpN.chars[c.id] : null, syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e, false, F()).missing : []; },   // 126b: the GM is told, never stopped
         source: { packs: function() { return (camp.library && camp.library.packs) || []; }, entries: function(pid) { return LB.entriesOf(pid); } },
         onAdd: function(ids, qty) { var cp = getActiveCampaign(), ch = cp && cp.chars ? cp.chars[c.id] : null, sy = systemOf(cp), ff = sy ? fieldById(sy, f.id) : null; if (cp !== camp || !ch || !ff) return; ids.forEach(function(id) { againAsk(ff.list || null, ch.values ? ch.values[ff.id] : null, id, LB.entry ? LB.entry(id) : null, function(nm) { var qL = { op: 'add', defId: id, rowId: uid('w_'), qty: qty }; if (nm) qL.name = nm; if (partIn) qL.in = partIn; commitItem(ch, ff, qL); }); }); } });   // 1.6.0: an entry held again asks for its copy's name
@@ -4185,11 +4191,12 @@ function openLibPicker(anchor, c, f, spec, carried, partIn) {   // partIn (1.6.0
 // Stage 6 library L3b: a player's "From the library…" — the same picker over the packs the host lets them see, loaded over the wire a page at
 // a time (wpNet.libLoad), an entry fetched in full for the preview and before it is added (the pick is judged by the host; what the player
 // predicts reads the entry fetched). The rows a player holds carry no library id, so a list that holds each once is left to the host
-function openLibPickerPlayer(anchor, c, f, spec, partIn) {
+function openLibPickerPlayer(anchor, c, f, spec, partIn, rollOnly) {
     var N = window.wpNet, LP = window.wpLibPicker, camp = getActiveCampaign(), man = N && N.libManifest ? N.libManifest() : null; if (!LP || !camp || !man) return;
     var packs = man.packs.filter(function(p) { return p.count > 0; }), total = packs.reduce(function(n, p) { return n + p.count; }, 0), done = false;
     var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string' && s.hide !== true) labels[s.key] = s.label || s.key; });
     var asEntry = function(r) { var o = { id: r[0], key: r[1], name: r[2], category: r[3], icon: r[4], tags: r[5] }; if (Array.isArray(r[7])) o.needs = r[7]; if (typeof r[8] === 'string') o.needsIf = r[8]; return o; };   // 126b: a row's needs, so the picker greys it before the entry is opened
+    LP = unheldVia(LP, c, f, spec, rollOnly);   // 1.6.0 Rolls unheld entries
     LP.open({ anchor: anchor, cat: typeof catOf === 'function' ? catOf(anchor) : null, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) ? spec.cats : null, once: null, noQty: !!(spec && spec.noQty), labels: labels, gm: false, needs: function(e) { var cpN = getActiveCampaign(), chN = charById(c.id, cpN), syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e, true, F()).missing : []; },   // 126b: what their character does not meet, by the needs their copy of the entry names (the host judges the rest)
         source: {
             packs: function() { return packs; },
@@ -4206,6 +4213,24 @@ function openLibPickerPlayer(anchor, c, f, spec, partIn) {
             if (miss) toast(miss === 1 ? 'That entry could not be fetched from the GM.' : miss + ' entries could not be fetched from the GM.');
         } });
 }
+// 1.6.0 Rolls unheld entries (the owner, by prompt: "On the list (Recommended)", "The library picker (Recommended)", "GM and owner, by a tick
+// (Recommended)"): the picker's Roll unheld beside Add, for the GM and the character's owner, on a list that ticks Rolls unheld entries; rollOnly,
+// the picker opened to roll alone (the list's Roll unheld… button). The roll names the list, the entry's id and the roll's index, and the host,
+// or the GM's own roll, finds the entry and works its level out (systemcore unheldJudge, the resolver's unheld)
+function unheldRolls(spec) { var out = []; (spec && Array.isArray(spec.rolls) ? spec.rolls : []).forEach(function(r, i) { if (r && typeof r.formula === 'string' && r.formula && !r.apply) out.push({ i: i, label: typeof r.label === 'string' && r.label && r.label.indexOf('{') < 0 ? r.label : 'Roll', formula: r.formula }); }); return out; }
+function unheldOpts(c, f, spec, rollOnly, o) {
+    var rl = spec && typeof spec.unheld === 'string' && spec.unheld && (!isClient() || c.ownerId === myId()) ? unheldRolls(spec) : [];
+    if (rollOnly) { o.rollOnly = true; o.title = 'Roll unheld on ' + (f.label || f.key || 'the list'); o.once = null; delete o.needs; }
+    if (!rl.length) return o;
+    var held = Object.create(null), cn = charById(c.id, getActiveCampaign()) || c; (cn.values && Array.isArray(cn.values[f.id]) ? cn.values[f.id] : []).forEach(function(r) { if (r && r.hid !== 1) { if (typeof r.defId === 'string') held[r.defId] = 1; if (typeof r.src === 'string') held[r.src] = 1; } });
+    o.roll = { rolls: rl.map(function(r) { return { i: r.i, label: r.label }; }), held: held, go: function(id, i, pid, name) {
+        var r = rl.filter(function(x) { return x.i === i; })[0]; if (!r || !window.wpDice || !window.wpDice.rollFor) return;
+        var rr = window.wpDice.rollFor(c.id, r.formula, String(name || 'Entry') + ' \u00b7 ' + r.label + ' (unheld)', { row: { f: f.id, k: id, i: i } });
+        if (window.wpStepLog) window.wpStepLog('unheld v1', rr && rr.error ? 'refused' : 'rolled', { i: i, player: isClient() });
+    } };
+    return o;
+}
+function unheldVia(LP, c, f, spec, rollOnly) { return { open: function(o) { return LP.open(unheldOpts(c, f, spec, rollOnly, o)); } }; }
 // A roll from a sheet button: shift/alt-click opens the situational-modifier popover (Stage 5a); a plain click rolls straight away.
 // 1.6.0 roll switches (the owner, by prompt: "In the ± window"): the bonuses this character's items and effects offer one roll (ref: { f } a
 // field's own roll, { r } a system roll, { l, row } a roll on that row), read from the system and the character this screen holds (a player's
@@ -6235,6 +6260,11 @@ function refreshErrors() {
                 else { seenP[pl] = 1; if (++keptP === LIMITS.colPlus + 1) errs.push({ message: 'Column "' + cn + '": at most ' + LIMITS.colPlus + ' With stats a column. Save keeps the first ' + LIMITS.colPlus + '.' }); }
             });
         });
+        if (typeof sp.unheld === 'string') {   // 1.6.0 Rolls unheld entries, as the cleaner reads it
+            if (!(sp.lvl && typeof sp.lvl === 'object')) errs.push({ message: 'Rolls unheld entries needs Rows have a level. Save drops it.' });
+            else if (!sp.unheld.trim()) errs.push({ message: 'Rolls unheld entries needs an Unheld level, such as -5 or Row.Dflt. Save drops the tick.' });
+            else if (!unheldRolls(sp).length) (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ message: 'Rolls unheld entries: this list has no roll yet, so Roll unheld has nothing to roll.' });
+        }
         if (sp.lvl && typeof sp.lvl === 'object') {   // 1.6.0 Keeps the starting level: Row.startlvl as the resolver reads it
             var slKeyed = (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []).some(function(x) { return x && typeof x.key === 'string' && x.key.toLowerCase() === 'startlvl'; });
             if (slKeyed && sp.lvl.start === true) (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ message: 'This list keys a stat or a column startlvl, so Row.startlvl reads that and not the level a row started at.' });
@@ -7224,6 +7254,8 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         lr.appendChild(numField('sys-list-lvlstep', lv.step, 'The step between levels', 'step'));
         lr.appendChild(numField('sys-list-lvldef', lv.def, 'The level a new row starts at (an item\u2019s own Level in Items comes first); a row with no level of its own reads it', 'default'));
         lr.appendChild(input('sys-list-lvlnames field', (lv.labels || []).join(', '), 'Names for the levels from the minimum up, separated by commas (Broken, Accented, Fluent): the level becomes a dropdown', 'Value names (optional)'));
+        lr.appendChild(checkLabel('sys-list-unheldon', typeof sp.unheld === 'string', 'Rolls unheld entries', 'The library picker gets Roll unheld: a roll of this list on an entry the character does not hold, at the Unheld level. You and the character\u2019s owner may roll it'));   // 1.6.0
+        if (typeof sp.unheld === 'string') lr.appendChild(input('sys-list-unheldlvl field', sp.unheld, 'The level an entry nobody holds is rolled at: a formula of the entry\u2019s own names, such as Row.Dflt or -5. Row.has reads 0 there', 'Unheld level'));
         lr.appendChild(checkLabel('sys-list-lvlstart', lv.start === true, 'Keeps the starting level', 'Each new row remembers the level it starts at, and Row.startlvl reads it. A level changed in play can then be priced, as a drawback bought down. While a character is being made, the start follows the level'));   // 1.6.0
         lr.appendChild(checkLabel('sys-list-lvlentry', lv.entry === true, 'Levels from the entry', 'A row\u2019s level is a menu of its entry\u2019s own By level rows, each with its words beside it in a box: Level 2 (10 pts). An entry with none keeps the level box'));   // 1.6.0 R8
         if (!(Array.isArray(lv.labels) && lv.labels.length)) lr.appendChild(checkLabel('sys-list-lvlsplit', lv.split === true, 'Split in trades', 'A trade may give part of this figure, as money from a chip. A row of quantity 1 only'));   // 1.5.6 trading: a chip's stored money as its level
@@ -9261,6 +9293,7 @@ function onInput(e) {
         else if ((lcc.indexOf('sys-list-lcapn') >= 0 || lcc.indexOf('sys-list-lcapat') >= 0) && lvD) { var lcR = t.closest('.sys-list-lcap'), lcO = lcR && Array.isArray(lvD.caps) ? lvD.caps[+lcR.dataset.ci] : null; if (lcO && typeof lcO === 'object') numOr(lcO, lcc.indexOf('sys-list-lcapn') >= 0 ? 'n' : 'at'); }   // 1.6.0 At most at a level
         else if (lcc.indexOf('sys-list-lvlnames') >= 0 && lvD) { var lvn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (lvn.length && !lvn[lvn.length - 1]) lvn.pop(); if (lvn.some(Boolean)) lvD.labels = lvn; else delete lvD.labels; }
         else if (lcc.indexOf('sys-list-onlabel') >= 0 && lsp.on && typeof lsp.on === 'object') lsp.on.label = t.value.slice(0, LIMITS.label);
+        else if (lcc.indexOf('sys-list-unheldlvl') >= 0 && lvD) lsp.unheld = t.value.slice(0, LIMITS.formula);   // 1.6.0 Rolls unheld entries: the Unheld level (Save cleans it)
         else if (lcc.indexOf('sys-list-swshow') >= 0 && lsp.on && typeof lsp.on === 'object') { if (t.value.trim()) lsp.on.showIf = t.value.slice(0, LIMITS.formula); else delete lsp.on.showIf; }   // 1.6.0: where a row's switch is shown (Save cleans it)
         else if (lcc.indexOf('sys-list-swneeds') >= 0 && lsp.on && typeof lsp.on === 'object') { if (t.value.trim()) lsp.on.needs = t.value.slice(0, LIMITS.formula); else delete lsp.on.needs; }   // 1.5.8: a switch's needs (Save cleans them)
         else if (lcc.indexOf('sys-list-swwords') >= 0 && lsp.on && typeof lsp.on === 'object') { if (t.value.trim()) lsp.on.needsText = t.value.slice(0, LIMITS.label); else delete lsp.on.needsText; }
@@ -9480,6 +9513,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-menus') >= 0) { if (t.checked) lsc.menus = true; else delete lsc.menus; }   // 1.6.0 R10
         else if (c.indexOf('sys-list-boxes') >= 0) { if (t.checked) lsc.boxes = true; else delete lsc.boxes; }   // 1.6.0 R3   // 1.6.0 R1: Rows open
         else if (c.indexOf('sys-list-trade') >= 0) { if (t.checked) lsc.trade = true; else delete lsc.trade; }   // 1.5.6 Tradable
+        else if (c.indexOf('sys-list-unheldon') >= 0) { if (t.checked) lsc.unheld = typeof lsc.unheld === 'string' ? lsc.unheld : ''; else delete lsc.unheld; }   // 1.6.0 Rolls unheld entries
         else if (c.indexOf('sys-list-lvlstart') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.start = true; else delete lsc.lvl.start; } }   // 1.6.0 Keeps the starting level
         else if (c.indexOf('sys-list-lvlentry') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.entry = true; else delete lsc.lvl.entry; } }   // 1.6.0 R8
         else if (c.indexOf('sys-list-lvlsplit') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.split = true; else delete lsc.lvl.split; } }   // 1.5.6 trading

@@ -3297,6 +3297,71 @@ pendingChecks.push((async () => {
         j([gHit, gMiss]));
 })());
 
+// 1.6.0 Rolls unheld entries (the owner, by prompt: "On the list (Recommended)", "The library picker (Recommended)", "GM and owner, by a tick
+// (Recommended)"): a list's roll on an entry the character holds none of, at the list's Unheld level. The roll-req branch and the GM's own
+// net.diceRoll, each sliced and run for real: the host finds the entry in the players' copy of the library, judges it (systemcore unheldJudge),
+// works the level out and rebuilds the formula from the list; a GM-only entry is never one a player may roll, and the GM's own roll of one stays private
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const srcU = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const line = k => { const i = srcU.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return srcU.slice(i, srcU.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
+    const paSrc = between('// [netcheck:postapply-start]', '// [netcheck:postapply-end]', 'postapply');
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
+    const listOf = (key, id, extra) => ({ id, key, label: key, kind: 'item-list', vis: 'all', edit: 'gm', list: Object.assign({ noQty: true, cats: ['Skill'], lvl: { min: -10, max: 20, def: 0 }, stats: [{ key: 'Dflt', label: 'Default' }], rolls: [{ label: 'Check', formula: '3d6 <= DX + Row.lvl' }, { label: 'Use', apply: [{ q: true, formula: '1' }] }] }, extra || {}) });
+    const sysU = Sx.cleanSystem({ v: 1, name: 'U', combat: { checks: 'under3d6' }, fields: [{ id: 'f_dx', key: 'DX', label: 'DX', kind: 'number', vis: 'all' }, listOf('Skills', 'f_sk', { unheld: 'Row.Dflt' }), listOf('Arts', 'f_ar'), listOf('Odd', 'f_od', { unheld: 'Nope.x + 1' })],
+        items: [{ id: 'i_stealth', name: 'Stealth', category: 'Skill', vis: 'all', stats: { Dflt: -4 } }], sheet: { sections: [] } }, { F: Fx, gmView: true });
+    const lib = { i_climb: { id: 'i_climb', name: 'Climb', category: 'Skill', vis: 'all', stats: { Dflt: -5 } }, i_lore: { id: 'i_lore', name: 'Old lore', category: 'Skill', vis: 'gm', stats: { Dflt: -6 } }, i_cake: { id: 'i_cake', name: 'Cake', category: 'Food', vis: 'all' } };
+    const wpLibrary = { entry: id => lib[id] || null, playerEntry: id => lib[id] && lib[id].vis !== 'gm' ? lib[id] : null };
+    const fixedF = v => Object.assign({}, Fx, { evaluate: (t, o) => Fx.evaluate(t, o && o.random ? o : Object.assign({}, o, { random: () => v })) });
+    const kael = () => ({ id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: { f_dx: 12, f_sk: [{ id: 'w_s', defId: 'i_stealth', lvl: 2 }] } });
+    const runQ = (row, exprX, more) => {
+        const camp = { id: 'k', activeItemId: 'm1', system: sysU, chars: { c_a: kael() }, items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 't_a', isChar: true, charId: 'c_a', ownerId: 'u_a', x: 0, y: 100 }] } } };
+        const sent = [], table = [], conn = { peer: 'pA', open: true, send(m) { packCheck(m); sent.push(JSON.parse(JSON.stringify(m))); } };
+        const net = { active: true, role: 'host', paused: false, conns: [conn], roster: { pA: { id: 'u_a', name: 'Pebbles', location: 'm1' } }, combats: {}, syncCharDelta() {} };
+        const win = { wpFormula: fixedF(3), wpLibrary, wpSheets: { playerSystem: cc => Sx.cleanSystem(cc.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
+        let err = '';
+        try { new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'pushChat', 'applyLine', 'rangeTo', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + paSrc + '\n' + rqSrc)(
+            Object.assign({ type: 'roll-req', rid: 'q1', charId: 'c_a', expr: exprX || '3d6 <= DX + Row.lvl', row }, more || {}), conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, r => { table.push(JSON.parse(JSON.stringify(r))); }, () => {}, () => {}, () => {}, () => {}, r => Dx.applyText(r), () => null); } catch (e) { err = String(e && e.stack || e).slice(0, 400); }
+        return { err, sent, table, vals: camp.chars.c_a.values }; };
+    const named = (rec, n) => ((rec && rec.names) || []).filter(x => x && x.name === n).map(x => x.value)[0];
+    const qClimb = runQ({ f: 'f_sk', k: 'i_climb', i: 0 }), qLore = runQ({ f: 'f_sk', k: 'i_lore', i: 0 }), qHeld = runQ({ f: 'f_sk', k: 'i_stealth', i: 0 }), qOff = runQ({ f: 'f_ar', k: 'i_climb', i: 0 });
+    const qFake = runQ({ f: 'f_sk', k: 'i_climb', i: 0 }, '3d6 <= 99'), qCake = runQ({ f: 'f_sk', k: 'i_cake', i: 0 }), qOdd = runQ({ f: 'f_od', k: 'i_climb', i: 0 }), qAct = runQ({ f: 'f_sk', k: 'i_climb', i: 1 }, '1');
+    const qMod = runQ({ f: 'f_sk', k: 'i_climb', i: 0 }, Dx.composeModifier('3d6 <= DX + Row.lvl', 2, Fx.parse).expr, { mod: 2 }), qSw = runQ({ f: 'f_sk', k: 'i_climb', i: 0 }, null, { sw: [{ s: 'f_sk|w_s', i: 0 }] });
+    const deny = (q, msg) => !q.err && q.table.length === 0 && q.sent.length === 1 && q.sent[0].type === 'roll-deny' && (msg === undefined || q.sent[0].message === msg);
+    const rc = qClimb.table[0];
+    check('1.6.0 Rolls unheld entries, the host (the roll-req branch run for real): a player\'s roll of the list\'s roll on Climb, an entry of the library their character holds none of, is rolled at the list\'s Unheld level read from the entry\'s own stat (Row.lvl -5, DX 12: 3d6 under 7), public, nothing stored; a GM-only entry reads as not there, one they hold says to roll it from its row, a list without the tick refuses, an entry outside the list\'s categories, a level that cannot be worked out, a formula that is not the button\'s, an action and a roll bonus are refused; a modifier is rebuilt as for a row',
+        !qClimb.err && qClimb.table.length === 1 && rc.expr === '3d6 <= DX + Row.lvl' && named(rc, 'Row.lvl') === -5 && named(rc, 'DX') === 12 && rc.as === 'Kael' && !rc.priv && j(qClimb.vals) === j(kael().values)
+        && deny(qLore, 'That entry is not there now.') && deny(qHeld, 'Kael holds Stealth. Roll it from its row.') && deny(qOff, 'That list does not roll entries nobody holds.')
+        && deny(qCake, 'Cake is not an entry of Skills.') && deny(qOdd, 'Climb has no unheld level here.') && deny(qFake, 'That roll does not match its button now.') && deny(qAct) && deny(qSw, 'A roll on an entry nobody holds takes no bonus.')
+        && !qMod.err && qMod.table.length === 1 && named(qMod.table[0], 'Row.lvl') === -5,
+        j([qClimb.err, rc, qLore.sent, qHeld.sent, qOff.sent, qCake.sent, qOdd.sent, qFake.sent, qAct.sent, qSw.sent, qMod.err, qMod.sent, qMod.table]));
+    const CQ = m => Dx.cleanRollReq(Object.assign({ rid: 'q1', expr: '3d6', charId: 'c_a' }, m));
+    check('1.6.0 Rolls unheld entries, the wire (dicecore cleanRollReq): a roll names the list, the entry by its id and the roll by its index, never with a row id, a level or no index; a row\'s roll as before',
+        j(CQ({ row: { f: 'f_sk', k: 'i_climb', i: 0 } }).row) === j({ f: 'f_sk', k: 'i_climb', i: 0 }) && CQ({ row: { f: 'f_sk', k: 'i_climb', i: 0 }, mod: 2 }).mod === 2
+        && CQ({ row: { f: 'f_sk', k: 'i_climb' } }) === null && CQ({ row: { f: 'f_sk', k: 'i_climb', i: 0, r: 'w_s' } }) === null && CQ({ row: { f: 'f_sk', k: 'i_climb', i: 0, lv: 1 } }) === null
+        && CQ({ row: { f: 'f_sk', k: 'w_climb', i: 0 } }) === null && CQ({ row: { f: 'f_sk', k: 'i_climb', i: 99 } }) === null && CQ({ row: { f: 'f_sk', k: 7, i: 0 } }) === null
+        && j(CQ({ row: { f: 'f_sk', r: 'w_s', i: 0, lv: 1 } }).row) === j({ f: 'f_sk', r: 'w_s', i: 0, lv: 1 }) && j(CQ({ row: { f: 'f_sk', r: 'w_s' } }).row) === j({ f: 'f_sk', r: 'w_s' }),
+        j([CQ({ row: { f: 'f_sk', k: 'i_climb', i: 0 } })]));
+    const runG = (row, sw) => {
+        const camp = { id: 'k', system: sysU, chars: { c_a: kael() } }, rolled = [];
+        const net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta() {}, postApplyCard() {} };
+        const win = { wpFormula: fixedF(3), wpLibrary, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null, charChanged() {}, playerSystem: cc => Sx.cleanSystem(cc.system, { F: Fx, gmView: false }) } };
+        let err = '', ret = null;
+        try { const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
+            net, () => Dx, () => Sx, win, () => camp, () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, e => { throw e; }, () => {}, (rec, res, scope) => { rolled.push({ rec: JSON.parse(JSON.stringify(rec)), scope }); }, () => {}, () => {});
+            ret = dr('3d6 <= DX + Row.lvl', { charId: 'c_a', row, sw }); } catch (e) { err = String(e && e.stack || e).slice(0, 400); }
+        return { err, ret, rolled }; };
+    const gClimb = runG({ f: 'f_sk', k: 'i_climb', i: 0 }), gLore = runG({ f: 'f_sk', k: 'i_lore', i: 0 }), gHeld = runG({ f: 'f_sk', k: 'i_stealth', i: 0 }), gOff = runG({ f: 'f_ar', k: 'i_climb', i: 0 }), gSw = runG({ f: 'f_sk', k: 'i_climb', i: 0 }, [{ s: 'x_1', i: 0 }]);
+    check('1.6.0 Rolls unheld entries, the GM\'s own roll (net.diceRoll run for real): Climb rolls at its Unheld level for all to see; a GM-only entry rolls at its own (Row.lvl -6) and stays the GM\'s; one the character holds, a list without the tick and a roll bonus are refused in words; a player\'s app names the entry by its id and the roll\'s index on the wire',
+        !gClimb.err && gClimb.rolled.length === 1 && gClimb.rolled[0].scope === 'global' && named(gClimb.rolled[0].rec, 'Row.lvl') === -5
+        && !gLore.err && gLore.rolled.length === 1 && gLore.rolled[0].rec.priv === 'gm' && named(gLore.rolled[0].rec, 'Row.lvl') === -6
+        && j(gHeld.ret) === j({ error: 'Kael holds Stealth. Roll it from its row.' }) && j(gOff.ret) === j({ error: 'That list does not roll entries nobody holds.' }) && j(gSw.ret) === j({ error: 'A roll on an entry nobody holds takes no bonus.' })
+        && srcU.includes("req.row = { f: String(o.row.f), r: String(o.row.r) }; if (typeof o.row.k === 'string') req.row = { f: String(o.row.f), k: o.row.k };"),
+        j([gClimb, gLore, gHeld.ret, gOff.ret, gSw.ret]));
+})());
+
 // 1.5.9 (docs/BOOK_ES_ET_PLAN.md section 0): a change ticked Rolled rolls its amount on the host, with the host's own dice, never from a player's
 // word. char-apply, the roll-req branch's Then and the GM's own net.diceRoll, each sliced and run for real: the amount drawn by the host's dice, the
 // card's line saying the dice, a Then that drew dice saying them on an apply card of its own kept as private as the roll, and a player's message that

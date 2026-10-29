@@ -37,18 +37,21 @@ function open(opts) {
     list.appendChild(spacer); body.appendChild(list); body.appendChild(prev); pop.appendChild(body);
     var foot = el('div', 'lib-pick-foot'), qty = el('input', 'field lib-pick-qty'); qty.type = 'number'; qty.min = '1'; qty.max = '99'; qty.value = '1'; qty.title = 'How many';
     var add = el('button', 'tool lib-pick-add', 'Add'); add.type = 'button';
-    var hint = el('span', 'lib-pick-hint', 'Enter adds · Shift+Enter adds and stays open · Ctrl-click picks several');
-    if (!opts.noQty) foot.appendChild(qty); foot.appendChild(add); foot.appendChild(hint); pop.appendChild(foot);
-    st.els = { search: search, chips: chips, list: list, spacer: spacer, prev: prev, qty: qty, add: add, hint: hint };
+    var hint = el('span', 'lib-pick-hint', hintText(opts));
+    var roll = null, rsel = null, rl = opts.roll && Array.isArray(opts.roll.rolls) && opts.roll.rolls.length && typeof opts.roll.go === 'function' ? opts.roll.rolls : null;   // 1.6.0 Rolls unheld entries: Roll unheld beside Add, with a menu of the list's rolls where it has more than one
+    if (rl) { roll = el('button', 'tool lib-pick-roll', 'Roll unheld'); roll.type = 'button'; if (rl.length > 1) { rsel = el('select', 'field lib-pick-rollsel'); rsel.title = 'Which of the list\u2019s rolls'; rl.forEach(function(r) { var o = el('option', null, r.label); o.value = String(r.i); rsel.appendChild(o); }); } }
+    if (!opts.noQty && !opts.rollOnly) foot.appendChild(qty); if (!opts.rollOnly) foot.appendChild(add); if (rsel) foot.appendChild(rsel); if (roll) foot.appendChild(roll); foot.appendChild(hint); pop.appendChild(foot);
+    st.els = { search: search, chips: chips, list: list, spacer: spacer, prev: prev, qty: qty, add: add, hint: hint, roll: roll, rsel: rsel };
 
     search.addEventListener('input', function() { clearTimeout(st.timer); st.timer = setTimeout(function() { if (!st) return; st.q = search.value; filter(); }, 100); });
     list.addEventListener('scroll', draw, { passive: true });
     add.addEventListener('click', function() { doAdd(false); });
+    if (roll) roll.addEventListener('click', function() { doRoll(); });
     pop.addEventListener('keydown', function(e) {
         e.stopPropagation();   // its keys stay its own: nothing under it (the sheet, the HUD, the map) hears them
         if (e.key === 'Escape') { e.preventDefault(); close(); }
         else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); move(e.key === 'ArrowDown' ? 1 : -1); }
-        else if (e.key === 'Enter' && e.target !== add) { e.preventDefault(); doAdd(e.shiftKey); }
+        else if (e.key === 'Enter' && e.target !== add && e.target !== roll) { e.preventDefault(); if (st.opts.rollOnly) doRoll(); else doAdd(e.shiftKey); }
     });
     st.outside = function(e) { if (st && !st.pop.contains(e.target)) close(); };
     document.addEventListener('mousedown', st.outside, true);
@@ -72,7 +75,7 @@ function wantCat() {
     if (!st.want || st.cat !== null) return;
     for (var i = 0; i < st.all.length; i++) { var k = st.all[i].e.category || ''; if (lc(k) === st.want) { st.cat = k; st.want = ''; return; } }
 }
-function status() { var t = typeof st.opts.source.status === 'function' ? st.opts.source.status() : ''; st.els.hint.textContent = t || 'Enter adds · Shift+Enter adds and stays open · Ctrl-click picks several'; }
+function status() { var t = typeof st.opts.source.status === 'function' ? st.opts.source.status() : ''; st.els.hint.textContent = t || hintText(st.opts); }
 function place() {
     var pop = st.pop, a = st.opts.anchor, r = a && a.getBoundingClientRect ? a.getBoundingClientRect() : { left: 80, right: 80, top: 80, bottom: 80 };
     var w = Math.min(W, window.innerWidth - 16), h = Math.min(520, window.innerHeight - 16);
@@ -137,7 +140,7 @@ function draw() {
         if (gmOnly(x)) r.appendChild(el('span', 'sheet-chip sheet-chip-gm', 'GM'));
         r.appendChild(el('span', 'lib-row-cat', x.p.name));
         r.addEventListener('click', function(ev) { if (once) return; if ((ev.ctrlKey || ev.metaKey) && !no) { if (st.picked[x.e.id]) delete st.picked[x.e.id]; else st.picked[x.e.id] = 1; } st.hi = i; draw(); preview(); addLabel(); });
-        r.addEventListener('dblclick', function() { if (once || no) return; st.hi = i; st.picked = map(); doAdd(false); });
+        r.addEventListener('dblclick', function() { if (once || no) return; st.hi = i; st.picked = map(); if (st.opts.rollOnly) doRoll(); else doAdd(false); });
         sp.appendChild(r);
     })(st.rows[i], i);
 }
@@ -150,6 +153,7 @@ function move(d) {
 }
 function line(box, label, value) { if (value === undefined || value === null || value === '') return; var r = el('div', 'lib-pick-line'); r.appendChild(el('span', 'lib-pick-k', label)); r.appendChild(el('span', 'lib-pick-v', value)); box.appendChild(r); }
 function preview() {
+    if (typeof rollState === 'function') rollState();
     var box = st.els.prev, x = st.hi >= 0 ? st.rows[st.hi] : null; box.textContent = '';
     if (!x || x.hdr) { box.appendChild(el('div', 'lib-empty', 'Choose an entry to see it here.')); return; }
     var src = st.opts.source, need = typeof src.get === 'function' && !st.full[x.e.id];
@@ -184,6 +188,18 @@ function doAdd(stay) {
     if (opts.once) ids.forEach(function(id) { opts.once[id] = 1; });   // a list that holds each once: what was just added greys out
     st.picked = map(); st.els.hint.textContent = 'Added ' + (ids.length === 1 ? 'one' : ids.length) + '. Enter adds · Shift+Enter adds and stays open';
     if (opts.once) filter(); else { draw(); addLabel(); }
+}
+function hintText(o) { return o && o.rollOnly ? 'Enter rolls the entry at its unheld level' : 'Enter adds · Shift+Enter adds and stays open · Ctrl-click picks several'; }
+// 1.6.0 Rolls unheld entries: Roll unheld, for the entry highlighted where the character holds none of it (opts.roll.held, by entry id). The
+// press hands the caller the entry's id, the roll's index, its pack and its name, and closes the picker
+function rollState() {
+    var b = st && st.els.roll; if (!b) return; var x = st.hi >= 0 ? st.rows[st.hi] : null, held = !!(x && !x.hdr && st.opts.roll.held && st.opts.roll.held[x.e.id] === 1);
+    b.disabled = !x || !!x.hdr || held; b.title = !x || x.hdr ? 'Choose an entry first' : held ? 'Already on the list: roll it from its row' : 'Roll ' + x.e.name + ' at its unheld level';
+}
+function doRoll() {
+    var b = st && st.els.roll; if (!b) return; rollState(); if (b.disabled) return;
+    var x = st.rows[st.hi], i = st.els.rsel ? parseInt(st.els.rsel.value, 10) : st.opts.roll.rolls[0].i, go = st.opts.roll.go, id = x.e.id, pid = x.p.id, nm = x.e.name;
+    close(); try { go(id, i, pid, nm); } catch (e) { console.error(e); }
 }
 
 window.wpLibPicker = { open: open, close: close, isOpen: isOpen };

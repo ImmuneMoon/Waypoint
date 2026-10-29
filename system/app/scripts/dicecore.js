@@ -164,8 +164,12 @@ function cleanRollReq(msg) {
     if (msg.charId !== undefined) { if (typeof msg.charId !== 'string' || !CHAR_RE.test(msg.charId)) return null; out.charId = msg.charId; }   // roll as this character (its own values)
     var label = cleanLabel(msg.label); if (label === null) return null; if (label) out.label = label;
     if (msg.row !== undefined) {   // Stage 6 F5b: a roll on one row of a carried list (its Row.* names), only as a character
-        var rw = msg.row; if (!out.charId || !rw || typeof rw !== 'object' || Array.isArray(rw) || typeof rw.f !== 'string' || !/^[A-Za-z0-9_]{1,64}$/.test(rw.f) || typeof rw.r !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(rw.r)) return null;
-        out.row = { f: rw.f, r: rw.r };
+        var rw = msg.row; if (!out.charId || !rw || typeof rw !== 'object' || Array.isArray(rw) || typeof rw.f !== 'string' || !/^[A-Za-z0-9_]{1,64}$/.test(rw.f)) return null;
+        if (rw.k !== undefined) {   // 1.6.0 Rolls unheld entries: a list's roll, by its index, on an entry the character holds none of, named by its id (the host finds the entry and works its level out)
+            if (rw.r !== undefined || rw.lv !== undefined || rw.i === undefined || typeof rw.k !== 'string' || !/^i_[A-Za-z0-9_]{1,24}$/.test(rw.k)) return null;
+            out.row = { f: rw.f, k: rw.k };
+        } else if (typeof rw.r !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(rw.r)) return null;
+        else out.row = { f: rw.f, r: rw.r };
         if (rw.i !== undefined) { if (!isInt(rw.i) || rw.i < 0 || rw.i >= LIMITS.rowRolls) return null; out.row.i = rw.i; }
         if (rw.lv !== undefined) { if (rw.i === undefined || !isInt(rw.lv) || Math.abs(rw.lv) > 1e6) return null; out.row.lv = rw.lv; }   // 1.6.0 R12: the level a roll that asks it runs at   // Stage 6 HUD R2b: the list's roll (with consequences or needs: the host rebuilds it), by its place among the list's LIMITS.rowRolls
     }

@@ -3183,10 +3183,12 @@ function paidCtl(entry, def, c, f, spec, editable, gm, labelled) {
 // the entries that fit (the system's own, From the library...). partHostIds: the hosts of a list's parts on a character, so a part is drawn
 // under its host and not again among the list's own rows. Every change is a row op of the parts' list, judged as any is
 function partHostIds(sys, c, fieldId) {
-    var out = null; (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(hf) { if (!hf || hf.kind !== 'item-list' || !hf.list || !hf.list.parts || hf.list.parts.from !== fieldId) return; (c && c.values && Array.isArray(c.values[hf.id]) ? c.values[hf.id] : []).forEach(function(r) { if (r && typeof r.in !== 'string') { out = out || Object.create(null); out[rowIdOf(r)] = 1; } }); });
+    var out = null; (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(hf) { if (!hf || hf.kind !== 'item-list' || !hf.list || !hf.list.parts || hf.list.parts.from !== fieldId) return; (c && c.values && Array.isArray(c.values[hf.id]) ? c.values[hf.id] : []).forEach(function(r) { if (r && (typeof r.in !== 'string' || hf.list.parts.deep === true)) { out = out || Object.create(null); out[rowIdOf(r)] = 1; } }); });   // 205 (4): a part that holds parts too
     return out;
 }
-function partPills(wrap, c, f, spec, sysI, entry, chg) {
+// 205 (4): where the parts' list says Parts hold parts, each part's own parts are drawn under it, a level in (dep: the host's level, 0 for a
+// row that is no part); no add control past PART_DEPTH, where the host refuses one
+function partPills(wrap, c, f, spec, sysI, entry, chg, dep) {
     if (!spec || !spec.parts || typeof partsSrc !== 'function') return null;
     var pf = partsSrc(sysI, spec); if (!pf) return null;
     var pspec = pf.list || {}, hid = rowIdOf(entry), parts = partsOf(sysI, c, spec, hid); if (!parts.length && !chg) return null;
@@ -3206,8 +3208,10 @@ function partPills(wrap, c, f, spec, sysI, entry, chg) {
         } else if (q > 1) pill.appendChild(el('span', 'sheet-part-n', '\u00d7' + q));
         if (chg) { var rx = el('button', 'tool ghost sheet-part-rm', '\u00d7'); rx.title = 'Remove ' + pd.name; rx.ariaLabel = rx.title; rx.addEventListener('click', function() { commitItem(c, pf, { op: 'remove', rowId: prid }); }); pill.appendChild(rx); }
         box.appendChild(pill);
+        if (pspec.parts && pspec.parts.deep === true && pspec.parts.from === pf.id) { var subP = partPills(box, c, pf, pspec, sysI, p, chg, (dep | 0) + 1); if (subP) subP.className += ' sheet-parts-sub'; }   // 205 (4): its own parts, a level in
     });
     if (chg && typeof partHostOk === 'function' && !partHostOk(sysI, spec, entry)) chg = false;   // 198: a row the list's hosts do not name holds no parts (its own, if any, still shown)
+    if (chg && (dep | 0) >= (typeof PART_DEPTH === 'number' ? PART_DEPTH : 6)) chg = false;   // 205 (4): no deeper than the host takes
     if (!parts.length && !chg) return null;
     if (chg) {
         var fit = Object.assign({}, pspec, { cats: Array.isArray(spec.parts.cats) && spec.parts.cats.length ? spec.parts.cats : pspec.cats }), word = spec.parts.label || 'Part';
@@ -7437,6 +7441,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             pkN.forEach(function(s) { var o = el('option', null, 'as many as the row\u2019s ' + (s.label || s.key)); o.value = s.key; if (!pkHit && pkC && s.key.toLowerCase() === pkC) { o.selected = true; pkHit = true; } pkS.appendChild(o); });
             if (pkC && !pkHit) { var pkx = el('option', null, sp.parts.capBy + ' (not a number stat of this list)'); pkx.value = sp.parts.capBy; pkx.selected = true; pkS.appendChild(pkx); }
             pkW.title = 'Where a row\u2019s figure in this stat is set, the row holds that many parts at most, their quantities added. Adding one more is refused with a word of why'; pkW.appendChild(pkS); fl.appendChild(pkW);
+            if (sp.parts.from === f.id) fl.appendChild(checkLabel('sys-list-partsdeep', sp.parts.deep === true, 'Parts hold parts', 'A part may hold parts of its own, as a hand fitted to an arm. Row.parts.all.<stat> adds up every level under a row, and removing a row takes all that is fitted to it'));   // 205 (4): only where the parts come from this list
             if (typeof partCapsBox === 'function') fl.appendChild(partCapsBox(sp));   // 205 (5): a cap per kind
             var plW = el('label', 'sys-check'), plI = el('input', 'field sys-list-partslabel'); plI.type = 'text'; plI.value = sp.parts.label || ''; plI.placeholder = 'Part'; plW.appendChild(document.createTextNode('Add button says ')); plW.appendChild(plI); plW.title = 'The word on the button that adds a part, such as Option or Upgrade'; fl.appendChild(plW);
         }
@@ -7709,7 +7714,7 @@ function listNamesText(key, sp, isParts) {
     var k = String(key || 'List'), own = [], nums = [];
     if (k.indexOf('.') >= 0) return 'A list whose key has a dot has no names formulas can read (they would read ' + k.split('.')[0] + '.\u2026): give it a key without one.';   // owed review F5a1#6
     (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []).forEach(function(x) { if (x && typeof x.key === 'string' && x.key) { own.push(x.key); if (x.kind !== 'pick') nums.push(x.key); } });   // nums (1.5.4): what has a highest and a lowest
-    return 'Formulas read ' + k + '.count, ' + k + '.qty' + (sp.price ? ', ' + k + '.paid' : '') + own.map(function(w) { return ', ' + k + '.' + w; }).join('') + ' (the list\u2019s totals)' + (sp.on ? '; ' + k + '.on.\u2026 the same over the rows switched on' : '') + '; ' + k + '.<key>.lvl (and .qty, .on, .has' + (own.length ? ', a stat or a column' : '') + ') one row by its item\u2019s key.' + (nums.length ? ' ' + k + '.max.\u2026 and ' + k + '.min.\u2026 read the highest and the lowest one row gives of a number stat or a column, as ' + k + '.max.' + nums[0] + (sp.on ? '; ' + k + '.on.max.\u2026 and ' + k + '.on.min.\u2026 the same over the rows switched on' : '') + '.' : '') + ' A column or a roll reads its row as Row.lvl, Row.qty, Row.on, Row.has, Row.paid' + (own.length ? ', Row.' + own.join(', Row.') : '') + '.' + (sp.parts ? ' Row.parts reads how many parts a row holds, Row.parts.<stat> their total, and Row.parts.max.\u2026 and Row.parts.min.\u2026 the highest and the lowest one part gives; Row.parts.<choice> reads the first part that has that choice made.' : '') + (isParts ? ' A row that is a part reads its host row as Host.<stat>, a stat, a choice or a column of the list it is a part of.' : '');   // 205 (1), (3)
+    return 'Formulas read ' + k + '.count, ' + k + '.qty' + (sp.price ? ', ' + k + '.paid' : '') + own.map(function(w) { return ', ' + k + '.' + w; }).join('') + ' (the list\u2019s totals)' + (sp.on ? '; ' + k + '.on.\u2026 the same over the rows switched on' : '') + '; ' + k + '.<key>.lvl (and .qty, .on, .has' + (own.length ? ', a stat or a column' : '') + ') one row by its item\u2019s key.' + (nums.length ? ' ' + k + '.max.\u2026 and ' + k + '.min.\u2026 read the highest and the lowest one row gives of a number stat or a column, as ' + k + '.max.' + nums[0] + (sp.on ? '; ' + k + '.on.max.\u2026 and ' + k + '.on.min.\u2026 the same over the rows switched on' : '') + '.' : '') + ' A column or a roll reads its row as Row.lvl, Row.qty, Row.on, Row.has, Row.paid' + (own.length ? ', Row.' + own.join(', Row.') : '') + '.' + (sp.parts ? ' Row.parts reads how many parts a row holds, Row.parts.<stat> their total, and Row.parts.max.\u2026 and Row.parts.min.\u2026 the highest and the lowest one part gives; Row.parts.<choice> reads the first part that has that choice made.' + (sp.parts.deep === true ? ' Row.parts.all.<stat> adds up every level of parts under a row.' : '') : '') + (isParts ? ' A row that is a part reads its host row as Host.<stat>, a stat, a choice or a column of the list it is a part of.' : '');   // 205 (1), (3)
 }
 function lookShadesOf(text) { var out = []; String(text || '').split(/\r?\n/).forEach(function(ln) { var i = ln.lastIndexOf('='); if (i < 1) return; var v = ln.slice(0, i).trim(), c = ln.slice(i + 1).trim().toLowerCase(); if (v && /^#[0-9a-f]{6}$/.test(c)) out.push({ v: v.slice(0, 60), c: c }); }); return out.slice(0, ROW_LOOK.shades); }   // 1.6.0, backlog 206: the Lists card's Shades box
 function checkLabel(cls, on, text, title) { var l = el('label', 'sys-check'), cb = el('input', cls); cb.type = 'checkbox'; cb.checked = !!on; l.appendChild(cb); l.appendChild(document.createTextNode(' ' + text)); if (title) l.title = title; return l; }
@@ -9852,6 +9857,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-partscats') >= 0) { if (lsc.parts) { var pcs = String(t.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (pcs.length) lsc.parts.cats = pcs; else delete lsc.parts.cats; } }
         else if (c.indexOf('sys-list-partshosts') >= 0) { if (lsc.parts) { var phs = String(t.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (phs.length) lsc.parts.hosts = phs; else delete lsc.parts.hosts; } }   // 198: Held by
         else if (c.indexOf('sys-list-partscap') >= 0) { if (lsc.parts) { if (t.value) lsc.parts.capBy = t.value; else delete lsc.parts.capBy; } }   // 1.6.0 (v2, B6): Holds as many as the row's stat
+        else if (c.indexOf('sys-list-partsdeep') >= 0) { if (lsc.parts) { if (t.checked) lsc.parts.deep = true; else delete lsc.parts.deep; } }   // 205 (4): Parts hold parts
         else if (c.indexOf('sys-list-partslabel') >= 0) { if (lsc.parts) { var plv = String(t.value || '').trim(); if (plv) lsc.parts.label = plv; else delete lsc.parts.label; } }
         else if (c.indexOf('sys-list-sets') >= 0) { if (t.value) lsc.sets = t.value; else delete lsc.sets; }   // 1.6.0 R15: Sets by
         else if (c.indexOf('sys-list-placeby') >= 0) { if (t.value) lsc.placeBy = t.value; else delete lsc.placeBy; }   // 1.6.0 R13: the places' ticks are then the stat's value names

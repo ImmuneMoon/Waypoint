@@ -219,6 +219,10 @@ Systems, more
 - A number can be Taken from a formula while another formula holds, in the
   Fields tab. Then it reads the formula and is closed to editing, so a
   construct takes its Might from its chassis. Otherwise it is as typed.
+- Parts can hold parts, such as a hand fitted to an arm: tick Parts hold
+  parts on a list that takes parts from itself. Row.parts.all.XP adds up
+  every level under a row. Removing a row takes all that is fitted to it,
+  and Undo brings it all back.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

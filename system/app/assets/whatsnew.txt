@@ -50,6 +50,9 @@ Systems, more
   one of the row's own stats, such as Slots. One more is refused.
 - Row.made reads 1 for a row added while its character was being made, so a
   cost can count only what was bought at creation.
+- A list's level can tick Keeps the starting level. Row.startlvl then reads
+  the level a row started at, so a level changed in play can be priced, such
+  as a drawback bought down.
 - An attack can read its target's Size: the Range box's Target size reads
   names a number of the target's sheet, read as TargetSize.
 - A Major Wound's threshold may read the location hit, as Hit.<name>. A

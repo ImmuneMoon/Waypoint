@@ -6235,6 +6235,11 @@ function refreshErrors() {
                 else { seenP[pl] = 1; if (++keptP === LIMITS.colPlus + 1) errs.push({ message: 'Column "' + cn + '": at most ' + LIMITS.colPlus + ' With stats a column. Save keeps the first ' + LIMITS.colPlus + '.' }); }
             });
         });
+        if (sp.lvl && typeof sp.lvl === 'object') {   // 1.6.0 Keeps the starting level: Row.startlvl as the resolver reads it
+            var slKeyed = (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []).some(function(x) { return x && typeof x.key === 'string' && x.key.toLowerCase() === 'startlvl'; });
+            if (slKeyed && sp.lvl.start === true) (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ message: 'This list keys a stat or a column startlvl, so Row.startlvl reads that and not the level a row started at.' });
+            else if (!slKeyed && sp.lvl.start !== true && /(^|[^A-Za-z0-9_.])Row\.startlvl(?![A-Za-z0-9_])/i.test(JSON.stringify(sp))) (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ message: 'Row.startlvl reads each row\u2019s level now. Tick Keeps the starting level, and new rows remember the level they start at.' });
+        }
         if (sp.load && typeof sp.load === 'object') {   // 1.5.8 Loads from, as the cleaner reads it
             var ldr = sp.load, ldSrc = null, ctsE = Array.isArray(sp.counters) ? sp.counters : [], ldK = typeof ldr.ct === 'string' ? ldr.ct.trim().toLowerCase() : '';
             draft.fields.forEach(function(x) { if (!ldSrc && x && x.id === ldr.from) ldSrc = x; });
@@ -7219,6 +7224,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         lr.appendChild(numField('sys-list-lvlstep', lv.step, 'The step between levels', 'step'));
         lr.appendChild(numField('sys-list-lvldef', lv.def, 'The level a new row starts at (an item\u2019s own Level in Items comes first); a row with no level of its own reads it', 'default'));
         lr.appendChild(input('sys-list-lvlnames field', (lv.labels || []).join(', '), 'Names for the levels from the minimum up, separated by commas (Broken, Accented, Fluent): the level becomes a dropdown', 'Value names (optional)'));
+        lr.appendChild(checkLabel('sys-list-lvlstart', lv.start === true, 'Keeps the starting level', 'Each new row remembers the level it starts at, and Row.startlvl reads it. A level changed in play can then be priced, as a drawback bought down. While a character is being made, the start follows the level'));   // 1.6.0
         lr.appendChild(checkLabel('sys-list-lvlentry', lv.entry === true, 'Levels from the entry', 'A row\u2019s level is a menu of its entry\u2019s own By level rows, each with its words beside it in a box: Level 2 (10 pts). An entry with none keeps the level box'));   // 1.6.0 R8
         if (!(Array.isArray(lv.labels) && lv.labels.length)) lr.appendChild(checkLabel('sys-list-lvlsplit', lv.split === true, 'Split in trades', 'A trade may give part of this figure, as money from a chip. A row of quantity 1 only'));   // 1.5.6 trading: a chip's stored money as its level
     }
@@ -9474,6 +9480,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-menus') >= 0) { if (t.checked) lsc.menus = true; else delete lsc.menus; }   // 1.6.0 R10
         else if (c.indexOf('sys-list-boxes') >= 0) { if (t.checked) lsc.boxes = true; else delete lsc.boxes; }   // 1.6.0 R3   // 1.6.0 R1: Rows open
         else if (c.indexOf('sys-list-trade') >= 0) { if (t.checked) lsc.trade = true; else delete lsc.trade; }   // 1.5.6 Tradable
+        else if (c.indexOf('sys-list-lvlstart') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.start = true; else delete lsc.lvl.start; } }   // 1.6.0 Keeps the starting level
         else if (c.indexOf('sys-list-lvlentry') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.entry = true; else delete lsc.lvl.entry; } }   // 1.6.0 R8
         else if (c.indexOf('sys-list-lvlsplit') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.split = true; else delete lsc.lvl.split; } }   // 1.5.6 trading
         else if (c.indexOf('sys-list-lcapup') >= 0) { var lcU = t.closest('.sys-list-lcap'), lcV = lcU && lsc.lvl && Array.isArray(lsc.lvl.caps) ? lsc.lvl.caps[+lcU.dataset.ci] : null; if (lcV && typeof lcV === 'object') { if (t.checked) lcV.up = true; else delete lcV.up; } }   // 1.6.0 At most at a level: or higher

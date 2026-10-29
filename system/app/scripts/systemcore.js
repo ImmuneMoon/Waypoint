@@ -105,11 +105,11 @@ var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1,
 var ROW_ID = /^w_[A-Za-z0-9_]{1,24}$/, ROW_OPS = Object.freeze({ add: 1, remove: 1, setQty: 1, keep: 1, undo: 1, set: 1, ov: 1, custom: 1, load: 1, restore: 1, chamber: 1, unchamber: 1, split: 1 });   // 1.5.9 Chambers from: chamber, one unit of a round into a row's chamber; unchamber, the last one in back to its list   // restore (1.5.8): a removed row put back whole at its place (its Undo)   // undo (Stage 6): a pickup taken back; set (F4b): a row's facts; ov (F4c2): a copy's own values; custom (F4c3): a character's own row, made or changed
 var CHAMBER_CAP = 8;   // 1.5.9 Chambers from: the most rounds a chamber holds
 // Stage 6 F4b: an item's key in formulas (F5a: Skills.<Key>.lvl) — never a row word, which a row's own names use
-var ITEM_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/, ROW_WORDS = Object.freeze({ count: 1, qty: 1, on: 1, has: 1, lvl: 1, paid: 1, row: 1, opened: 1, loaded: 1, loadmax: 1, once: 1, oncecost: 1, oncefree: 1, chambered: 1, setall: 1, parts: 1, again: 1, needsmet: 1, made: 1 });   // 1.6.0 (v2, B5): made, 1 for a row added while its character was in the making
+var ITEM_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/, ROW_WORDS = Object.freeze({ count: 1, qty: 1, on: 1, has: 1, lvl: 1, paid: 1, row: 1, opened: 1, loaded: 1, loadmax: 1, once: 1, oncecost: 1, oncefree: 1, chambered: 1, setall: 1, parts: 1, again: 1, needsmet: 1, made: 1, startlvl: 1 });   // 1.6.0 (v2, B5): made, 1 for a row added while its character was in the making
 // 1.6.0 (the owner, 2026-10-29: "this is additive functionality, we arent removing usable features that other campaign systems can utilize"): a row word
 // added after systems were built takes no key away from them. A list that keys a stat or a column so keeps it, and its formulas read that stat or
 // column under the name (the validator finds the stat first); the row word answers only in a list with none of that key
-var ROW_SOFT = Object.freeze({ made: 1 });
+var ROW_SOFT = Object.freeze({ made: 1, startlvl: 1 });   // 1.6.0: startlvl, the level a row started at (Keeps the starting level)
 function listKeyed(spec, l) { var has = function(a) { return Array.isArray(a) && a.some(function(s) { return isObj(s) && typeof s.key === 'string' && s.key.toLowerCase() === l; }); }; return isObj(spec) && (has(spec.stats) || has(spec.cols)); }   // 1.6.0 R14 Parts from: parts, how many parts a row holds   // 1.6.0 R15 Sets by: setall, 1 while the row's whole set is on   // 1.5.9 Chambers from: chambered, how many rounds a row holds   // 1.5.8 Loads from: loaded, a row that holds a loaded copy; loadmax, that copy's full level   // 1.5.8: opened, a row another row opens (openSync)   // 1.5.8 Counted once: once, oncecost, oncefree
 // 1.5.4: the words a list's names put between the list and what they read — List.on.Wt (the rows switched on), List.max.Parry and List.min.Wt
 // (the highest and the lowest one row gives), List.on.max.Parry — so never an item's key or a stat's: List.<word>.<name> never reads a row by its key.
@@ -2578,8 +2578,12 @@ function cleanLvlSpec(v) {
         });
         if (cps.length) out.caps = cps;
     }
+    if (v.start === true) out.start = true;   // 1.6.0 (the owner, by prompt: "Row.startlvl (Recommended)"): Keeps the starting level, each new row stamped with the level it starts at (startStamp)
     return out;
 }
+// 1.6.0 Keeps the starting level: a new row remembers the level it starts at as sl, read as Row.startlvl. Only where its list ticks it, so a
+// list that does not stores what it always did
+function startStamp(spec, row) { if (isObj(spec) && isObj(spec.lvl) && spec.lvl.start === true && isObj(row) && typeof row.lvl === 'number') row.sl = row.lvl; }
 // A level on a list's terms: stepped from its minimum, clamped to its range (a bound left out is open, within LIMITS.lvlAbs)
 function lvlClamp(spec, n) {
     var st = spec.step > 0 ? spec.step : 1, b = spec.min !== undefined ? spec.min : 0, k = Math.round((n - b) / st), e = st * 1e-9;
@@ -3943,6 +3947,7 @@ function rowFacts(o, e, spec) {
     var tt = cleanTt(e.tt, spec); if (tt) o.tt = tt;   // 1.6.0: the part of a step its timed counters have lived
     if (typeof e.in === 'string' && ROW_ID.test(e.in)) o.in = e.in;   // 1.6.0 R14: a part, by its host row's id
     if (typeof e.gr === 'string' && ROW_ID.test(e.gr)) o.gr = e.gr;   // 1.6.0 (v2, B4): a row another row granted, by that row's id (applyRowOp)
+    var slF = lvlNum(e.sl); if (slF !== undefined && typeof e.sl === 'number') o.sl = isObj(spec) && isObj(spec.lvl) ? lvlClamp(spec.lvl, slF) : slF;   // 1.6.0: the level it started at (Row.startlvl; applyRowOp stamps it where its list keeps the starting level, as a level is kept)
     if (e.mk === 1) o.mk = 1;   // 1.6.0 (v2, B5): added while its character was in the making (applyRowOp stamps it; nothing on the wire names it)
     if (e.ag === 1 && e.lnk === 1) o.ag = 1;   // 193: an owner's inline copy held again under a name (only there: the host reads its own row)
     if (typeof e.opn === 'string' && ROW_ID.test(e.opn)) o.opn = e.opn;   // 1.5.8: a row another row opens (openSync), by that row's id   // F4c1: what one cost when it was added (kept while the list has no price, as a level is)
@@ -4244,6 +4249,7 @@ function grantAdd(sys, W, g, qty, rid, ctx, depth) {
     var row = { id: id, defId: g.entry, qty: sp && sp.noQty ? 1 : clampNum(qty, 1, LIMITS.maxQty), gr: rid };
     if (ctx.mk) row.mk = 1;
     if (sp && isObj(sp.lvl)) row.lvl = lvlClamp(sp.lvl, typeof ent.lvl === 'number' ? ent.lvl : sp.lvl.def);
+    startStamp(sp, row);   // 1.6.0: Keeps the starting level
     if (sp && isObj(sp.on)) row.on = sp.on.def === true;
     if (sp && sp.price) row.paid = 0;
     if (fromLib) row.snap = cleanRowDef(ent, true);
@@ -4325,6 +4331,7 @@ function openSync(sys, char, lib) {
             while (next.some(function(r) { return isObj(r) && rowIdOf(r) === id; }) && n < 100) id = (base.slice(0, 22) + n++);
             var row = { id: id, defId: w.id, qty: 1 };
             if (spec && isObj(spec.lvl)) row.lvl = lvlClamp(spec.lvl, typeof spec.lvl.min === 'number' ? spec.lvl.min : 1);
+            startStamp(spec, row);   // 1.6.0: Keeps the starting level
             if (!itemDef(sys, w.id)) row.snap = cleanRowDef(ent, true);
             row.opn = w.by; next.push(row); did = true;
         });
@@ -4342,7 +4349,7 @@ function rowDef(sys, row) {
 // players' fields only (the 5h rule: the owner's sheet, their rolls and the host agree); a custom row without its GM texts; a kept curse
 // (hid) not at all. lib: the host's full items by id — without it a GM-only row is left out (fail closed). F4b: the facts go as stored, a
 // curse the GM keeps on (keptOn) as switched off.
-function projFacts(o, r) { if (isObj(r.ct)) o.ct = JSON.parse(JSON.stringify(r.ct)); if (typeof r.opn === 'string') o.opn = r.opn; if (typeof r.in === 'string') o.in = r.in; if (r.mk === 1) o.mk = 1; if (typeof r.gr === 'string') o.gr = r.gr;   // 1.6.0 R14: a part says its host on its owner's copy; 1.6.0 (v2, B5): a row made while making says so   // 1.5.8: an opened row says so on its owner's copy   // R2: its counters go as stored
+function projFacts(o, r) { if (isObj(r.ct)) o.ct = JSON.parse(JSON.stringify(r.ct)); if (typeof r.opn === 'string') o.opn = r.opn; if (typeof r.in === 'string') o.in = r.in; if (r.mk === 1) o.mk = 1; if (typeof r.sl === 'number') o.sl = r.sl; if (typeof r.gr === 'string') o.gr = r.gr;   // 1.6.0 R14: a part says its host on its owner's copy; 1.6.0 (v2, B5): a row made while making says so   // 1.5.8: an opened row says so on its owner's copy   // R2: its counters go as stored
  if (typeof r.lvl === 'number') o.lvl = r.lvl; if (typeof r.on === 'boolean') o.on = r.keptOn === 1 ? false : r.on; if (typeof r.note === 'string' && r.note) o.note = r.note; if (typeof r.paid === 'number') o.paid = r.paid; }   // F4c1: paid
 // F4c1: an inline or custom copy's stats as its owner holds them — its list's (spec: the view's list options; none: no stats); spec true is compare
 // only (sheets.js ownerSeesSame): every stat as the GM's machine holds it, so a change to one is never taken for "the same"
@@ -4439,6 +4446,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             if (char && (char.making === 1 || char.making === true)) row.mk = 1;   // 1.6.0 (v2, B5): Row.made; from the character as the host holds it, never from the message
             if (agN) row.ov = { name: agN };   // 1.6.0: the copy's own name, as the GM's own values name a row
             if (spec && isObj(spec.lvl)) row.lvl = lvlClamp(spec.lvl, typeof ent.lvl === 'number' ? ent.lvl : spec.lvl.def);   // F4b: the facts are written as it is added (a later default moves no row)
+            startStamp(spec, row);   // 1.6.0: Keeps the starting level, the level it is added at
             if (spec && isObj(spec.on)) row.on = spec.on.def === true;
             if (spec && spec.price) row.paid = clampNum(rowStat(spec, ent, spec.price), 0, LIMITS.statAbs);
             if (typeof row.gr === 'string' && spec && spec.price) row.paid = 0;   // 1.6.0 (v2, B4): a file's granted row, at Paid 0 as a grant makes it
@@ -4461,7 +4469,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         var cu = applyCustom(sys, list, q, spec, F, opts, extra, actorSpec(sys, fieldId, spec, opts), fl); if (cu) return cu;
         if (phC) { var cxN = at(q.rowId), ptcC = phC.f.list.parts.cats; if (cxN < 0) return { ok: false, reason: 'value' }; if (Array.isArray(ptcC) && ptcC.length && !catIn(ptcC, (list[cxN].def || {}).category)) return { ok: false, reason: 'missing' }; var roomC = partsRoom(sys, phC.f.list, phC.row, list, q.in); if (roomC && roomC.used + Math.max(1, list[cxN].qty | 0) > roomC.cap) return { ok: false, reason: 'value', msg: partsFullSays(roomC) }; list[cxN].in = q.in; }   // 1.6.0 (v2, B6): the room it is made into
         if (cx < 0 && char && (char.making === 1 || char.making === true)) { var cxM = at(q.rowId); if (cxM >= 0) list[cxM].mk = 1; }   // 1.6.0 (v2, B5): a row of its own made while making
-        if (cx < 0) { var cxK = at(q.rowId), capC = cxK >= 0 ? capJudge(cxK) : null; if (capC) return capC; }   // 1.6.0 At most at a level: a row of its own made
+        if (cx < 0) { var cxK = at(q.rowId), capC = cxK >= 0 ? capJudge(cxK) : null; if (capC) return capC; if (cxK >= 0) startStamp(spec, list[cxK]); }   // 1.6.0 At most at a level, then Keeps the starting level: a row of its own made
         if (cx >= 0) { var mvC = onMoved(sys, spec, list, cx, g0C, hnd, extra, { read: gsp, onGrace: opts.onGrace === true }); if (mvC) return mvC; }   // ... moved by its stats into a group that holds one on: it goes off
     } else if (q.op === 'split') {   // 1.6.0, backlog 180 R11: n of a stack into a row of its own, right after it (the GM's hand and a player's alike: nothing leaves the character)
         var ixS = typeof q.rowId === 'string' && ROW_ID.test(q.rowId) ? at(q.rowId) : -1; if (ixS < 0 || (opts.player && list[ixS].hid === 1)) return { ok: false, reason: 'missing' };
@@ -4512,8 +4520,10 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             var lvJ = !!(fx.lvl !== undefined && opts.player && !fl && spec && isObj(spec.lvl)), rdJ = lvJ ? rowDef(sys, rw) : null, dfJ = rdJ ? rdJ.def : null, wasL = lvJ ? rowLvl(spec, rw, dfJ) : undefined;   // the level the row reads at before the change: its own, else its entry's, else the list's
             var grL = grOn && fx.lvl !== undefined && spec && isObj(spec.lvl) ? rowDef(sys, rw) : null, grL0 = grL ? rowLvl(spec, rw, grL.def) : 0;   // 1.6.0 (v2, B4): a level that rises past a grant's from grants it; one that falls below takes it
             var capW = fx.lvl !== undefined && spec && isObj(spec.lvl) && Array.isArray(spec.lvl.caps) ? (function() { var dW = rowDef(sys, rw); return rowLvl(spec, rw, dW ? dW.def : null); })() : undefined;   // 1.6.0 At most at a level: the level it stood at
+            var slW = fx.lvl !== undefined && spec && isObj(spec.lvl) && spec.lvl.start === true ? rowLvl(spec, rw, (rowDef(sys, rw) || {}).def) : undefined;   // 1.6.0 Keeps the starting level: the level before the change
             if (fx.lvl !== undefined) { if (!spec || !isObj(spec.lvl)) return { ok: false, reason: 'value' }; if (fx.lvl === null) delete rw.lvl; else { var nl = lvlNum(fx.lvl); if (nl === undefined || typeof fx.lvl !== 'number') return { ok: false, reason: 'value' }; rw.lvl = lvlClamp(spec.lvl, nl); } }
             if (capW !== undefined) { var capS = capJudge(idx, capW); if (capS) return capS; }
+            if (slW !== undefined) { if (char && (char.making === 1 || char.making === true)) rw.sl = rowLvl(spec, rw, (rowDef(sys, rw) || {}).def); else if (typeof rw.sl !== 'number') rw.sl = slW; }   // while its character is being made the start follows the level; in play the first change keeps where a row made before the tick stood
             if (grL && isObj(grL.def) && Array.isArray(grL.def.grants)) { var grL1 = rowLvl(spec, rw, grL.def); if (grL1 !== grL0) grSteps.push({ rid: q.rowId, w0: grantWant(grL.def, grL0), w1: grantWant(grL.def, grL1) }); }
             var nowL = lvJ ? rowLvl(spec, rw, dfJ) : undefined;   // ... and after it. The owed review, 2026-10-09: a level handed back (null) reads at its entry's own, which is a raise for a row kept lower, and was judged by nothing
             if (lvJ && typeof wasL === 'number' && typeof nowL === 'number' && nowL > wasL) {   // 126b, a level's own needs: a player's raise is judged like a pick, at the level asked for. Never the GM's hand, a file that fills a character, or a level taken down
@@ -5906,6 +5916,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (w === 'chambered') return !x.virt && isObj(x.r) && Array.isArray(x.r.rd) ? x.r.rd.length : 0;   // 1.5.9 Chambers from: how many rounds it holds
         if (w === 'once' || w === 'oncecost' || w === 'oncefree') return onceWord(L, x, w);   // 1.5.8 Counted once
         if (w === 'made' && !listKeyed(L.spec, 'made')) return x.virt || !isObj(x.r) ? 0 : x.r.mk === 1 ? 1 : 0;   // 1.6.0 (v2, B5): added while its character was in the making
+        if (w === 'startlvl' && !listKeyed(L.spec, 'startlvl')) return !x.virt && isObj(x.r) && typeof x.r.sl === 'number' && isObj(L.spec) && isObj(L.spec.lvl) && L.spec.lvl.start === true ? x.r.sl : rowLvl(L.spec, x.r, x.d);   // 1.6.0: the level it started at where its list keeps it, else its level now
         if (w === 'again') return x.virt || !isObj(x.r) ? 0 : (x.r.lnk === 1 && x.r.ag === 1) || (isObj(x.d) && x.d.again === 'name' && isObj(x.r.ov) && typeof x.r.ov.name === 'string' && !!x.r.ov.name.trim()) ? 1 : 0;   // 193: a copy held again under a name of its own (an owner's inline copy says so as ag)
         if (w === 'needsmet') { if (!x.badge) return undefined; if (x.virt || !isObj(x.d)) return 0; return needsMet(sys, char, x.d, x.r.lnk === 1, F, fn, L.spec && isObj(L.spec.lvl) ? rowLvl(L.spec, x.r, x.d) : null).ok ? 1 : 0; }   // 193: its entry's needs met, at the row's level, by the definition this machine holds (the GM's, or the owner's copy); a badge alone reads it, since a badge is worked out on each machine for its own screen and never sent, where a column or a roll the host works out could tell a player of a need they may not see
         if (w === 'setall') { if (x.virt || !L.spec || typeof L.spec.sets !== 'string') return 0; if (!L.sets) { L.sets = map(); setsOf(sys, L.spec, L.rows.map(function(it) { return it.r; })).forEach(function(g) { L.sets[lower(g.name)] = g; }); } var sgN = setOf(sys, L.spec, x.r), sg = sgN ? L.sets[lower(sgN)] : null; return sg && sg.all ? 1 : 0; }   // 1.6.0 R15: 1 while every row of its set is on
@@ -6415,6 +6426,7 @@ function validateSystem(sys, F) {
         if (!total && (word === 'opened' || word === 'loaded' || word === 'loadmax')) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.5.8: Row.opened; Row.loaded and Row.loadmax (Loads from)
         if (!total && word === 'granted') return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.6.0 (v2, B4): Row.granted
         if (!total && word === 'made' && !listKeyed(lf.list, 'made')) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.6.0 (v2, B5): Row.made
+        if (!total && word === 'startlvl' && !listKeyed(lf.list, 'startlvl') && isObj(lf.list) && isObj(lf.list.lvl)) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.6.0: Row.startlvl, on a list with a level
         if (!total && word === 'again') return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 193: Row.again
         if (!total && word === 'needsmet' && badgeNow) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // ... and Row.needsMet, in a badge alone
         if (!total && word === 'parts' && isObj(lf.list) && isObj(lf.list.parts)) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.6.0 R14: Row.parts

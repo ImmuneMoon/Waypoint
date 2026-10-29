@@ -16684,6 +16684,47 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 (v2, B5) Row.made: a row added, or made the character\'s own, while its character is in the making is marked mk: 1 by applyRowOp from the character as the host holds it, never from a message (the wire keeps no mk); the cleaner keeps it, a column reads Row.made as 1 or 0, the validator knows the name',
             madeOk && resOk, J([madeOk, resOk, cR.values.f_c]));
     }
+    {   // 1.6.0 Keeps the starting level (the owner, by prompt: "Row.startlvl (Recommended)"): a row remembers the level it started at
+        const J = JSON.stringify;
+        const rawS = { v: 1, name: 'S', rolls: [], items: [{ id: 'i_luck', name: 'Bad luck', key: 'BadLuck', lvl: 3 }, { id: 'i_bold', name: 'Bold' }],
+            fields: [{ id: 'f_dr', key: 'Flaws', label: 'Flaws', kind: 'item-list', vis: 'all', edit: 'owner', list: { lvl: { min: 0, max: 5, def: 1, start: true }, custom: true, cols: [{ key: 'Off', label: 'Bought off', formula: '(Row.startlvl - Row.lvl) * 5' }, { key: 'St', label: 'St', formula: 'Row.startlvl' }] } }], sheet: { sections: [] } };
+        const gS = cleanSystem(rawS, { F, gmView: true }), pS = cleanSystem(rawS, { F, gmView: false });
+        const offS = JSON.parse(J(rawS)); delete offS.fields[0].list.lvl.start; const gOff = cleanSystem(offS, { F, gmView: true });
+        const cleanOk = gS.fields[0].list.lvl.start === true && pS.fields[0].list.lvl.start === true && J(cleanSystem(gS, { F, gmView: true })) === J(gS) && !('start' in gOff.fields[0].list.lvl)
+            && !('start' in cleanSystem(Object.assign(JSON.parse(J(offS)), {}), { F, gmView: true }).fields[0].list.lvl) && S.validateSystem(gS, F).errors.length === 0;
+        const ch = (rows, making) => ({ id: 'c_k', name: 'Kael', ownerId: 'u_k', making: making ? 1 : undefined, values: { f_dr: rows } });
+        const op = (sys, c, q, o) => S.applyRowOp(sys, c, 'f_dr', q, F, o || {});
+        const aOn = op(gS, ch([]), { op: 'add', defId: 'i_luck', rowId: 'w_l' }), aOff = op(gOff, ch([]), { op: 'add', defId: 'i_luck', rowId: 'w_l' });
+        const cOn = op(gS, ch([]), { op: 'custom', rowId: 'w_c', def: { name: 'Own flaw' } }), cOff = op(gOff, ch([]), { op: 'custom', rowId: 'w_c', def: { name: 'Own flaw' } });
+        const addOk = aOn.ok && J(aOn.value) === J([{ id: 'w_l', defId: 'i_luck', qty: 1, lvl: 3, sl: 3 }]) && J(aOff.value) === J([{ id: 'w_l', defId: 'i_luck', qty: 1, lvl: 3 }])
+            && cOn.value[0].sl === 1 && !('sl' in cOff.value[0]) && J(Object.keys(cOff.value[0])) === J(Object.keys(cOn.value[0]).filter(k => k !== 'sl'));
+        const play = op(gS, ch(aOn.value), { op: 'set', rowId: 'w_l', facts: { lvl: 1 } }), play2 = op(gS, ch(play.value), { op: 'set', rowId: 'w_l', facts: { lvl: 2 } });
+        const mk = op(gS, ch(aOn.value, true), { op: 'set', rowId: 'w_l', facts: { lvl: 4 } }, { player: true, view: pS });
+        const old = op(gS, ch([{ id: 'w_l', defId: 'i_luck', qty: 1, lvl: 4 }]), { op: 'set', rowId: 'w_l', facts: { lvl: 2 } }), oldMk = op(gS, ch([{ id: 'w_l', defId: 'i_luck', qty: 1, lvl: 4 }], true), { op: 'set', rowId: 'w_l', facts: { lvl: 2 } });
+        const back = op(gS, ch(play.value), { op: 'set', rowId: 'w_l', facts: { lvl: null } }), offSet = op(gOff, ch(aOff.value), { op: 'set', rowId: 'w_l', facts: { lvl: 1 } });
+        const setOk = play.value[0].lvl === 1 && play.value[0].sl === 3 && play2.value[0].sl === 3 && mk.ok && mk.value[0].lvl === 4 && mk.value[0].sl === 4 && old.value[0].sl === 4 && oldMk.value[0].sl === 2
+            && back.value[0].sl === 3 && !('lvl' in back.value[0]) && J(offSet.value) === J([{ id: 'w_l', defId: 'i_luck', qty: 1, lvl: 1 }]);
+        const cR = S.cleanChar(ch(play.value), gS, { state: 'host' }), rv = S.resolveAll(gS, cR, F, null), cell = id => rv.f_dr.cells[id];
+        const cOffR = S.cleanChar(ch(play.value), gOff, { state: 'host' }), rvOff = S.resolveAll(gOff, cOffR, F, null);
+        const own = S.charFor(cR, pS, 'u_k'), rvP = S.resolveAll(pS, own, F, null);
+        const resOk = cR.values.f_dr[0].sl === 3 && cell('w_l')[0].value === 10 && cell('w_l')[1].value === 3 && rvOff.f_dr.cells.w_l[0].value === 0 && rvOff.f_dr.cells.w_l[1].value === 1
+            && own.values.f_dr[0].sl === 3 && rvP.f_dr.cells.w_l[0].value === 10;
+        const keyS = JSON.parse(J(rawS)); keyS.fields[0].list.stats = [{ key: 'StartLvl', label: 'Start' }]; keyS.items[0].stats = { StartLvl: 9 };
+        const gK = cleanSystem(keyS, { F, gmView: true }), rvK = S.resolveAll(gK, S.cleanChar(ch(play.value), gK, { state: 'host' }), F, null);
+        const noLvl = cleanSystem({ v: 1, name: 'N', rolls: [], fields: [{ id: 'f_g', key: 'Gear', kind: 'item-list', list: { cols: [{ key: 'S', label: 'S', formula: 'Row.startlvl' }] } }], sheet: { sections: [] } }, { F, gmView: true });
+        const softOk = S.ROW_WORDS.startlvl === 1 && gK.fields[0].list.stats.length === 1 && rvK.f_dr.cells.w_l[1].value === 9 && S.validateSystem(gK, F).errors.length === 0
+            && S.cleanItemKey('StartLvl', F) === 'StartLvl' && S.validateSystem(noLvl, F).errors.length > 0
+            && S.cleanCharItem({ rid: 'e12345678', charId: 'c_1', fieldId: 'f_dr', op: 'add', defId: 'i_luck', rowId: 'w_x', sl: 9 }).sl === undefined;
+        const shS = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), ixS = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, NL);
+        const notesS = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, NL));
+        const edOk = shS.includes("checkLabel('sys-list-lvlstart', lv.start === true, 'Keeps the starting level'") && shS.includes("else if (c.indexOf('sys-list-lvlstart') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.start = true; else delete lsc.lvl.start; } }")
+            && shS.includes("message: 'Row.startlvl reads each row\\u2019s level now. Tick Keeps the starting level, and new rows remember the level they start at.'") && ixS.includes('<b>Keeps the starting level</b>')
+            && notesS.every(t => { const i = t.indexOf('Systems, more'), k = t.indexOf('- A list\'s level can tick Keeps the starting level.'); return i >= 0 && k > i && k < t.indexOf(NL + NL, i); });
+        check('1.6.0 Keeps the starting level: lvl.start is kept by cleanLvlSpec in both views, absent unticked; a row added or made the character\'s own on such a list is stamped sl, the level it starts at (an unticked list stores what it always did, key for key); a level changed in play keeps it, one changed while the character is being made moves it, a row made before the tick is stamped by its first change in play',
+            cleanOk && addOk && setOk, J([cleanOk, addOk, setOk, aOn.value, cOn.value, play.value, mk.value, old.value, oldMk.value]));
+        check('1.6.0 Row.startlvl: a column reads where a row started, (Row.startlvl - Row.lvl) * 5 prices a drawback bought down from 3 to 1 as 10, on the host and on the owner\'s copy (projFacts carries sl); unticked it reads the level now; a list that keys a stat StartLvl reads its stat (a soft row word, as Row.made); the validator knows it only on a list with a level; the wire never carries sl; the Lists tab\'s tick, its warning, Help and both release notes',
+            resOk && softOk && edOk, J([resOk, softOk, edOk, rv.f_dr.cells, rvOff.f_dr.cells, rvP.f_dr && rvP.f_dr.cells, rvK.f_dr.cells]));
+    }
     {   // 1.6.0 (v2, B4; the SotMW session's v2 sort, 2026-10-29): an entry, or one level of it, grants rows of another list
         const J = JSON.stringify;
         const rawG = { v: 1, name: 'G', rolls: [], items: [

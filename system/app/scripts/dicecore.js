@@ -201,7 +201,7 @@ function cleanRollReq(msg) {
     }
     return out;
 }
-var ATT_RE = /^a_[a-z0-9]{8}$/;   // 1.6.0 (B2): an attempt's id, made by the host
+var ATT_RE = /^[ab]_[a-z0-9]{8}$/;   // 1.6.0 (B2): an attempt's id, made by the host (b_: a blow's soft record, which a roll may do without)
 var RESIST_ROWS = 8;   // 1.6.0: a resist card's buttons for a list's roll, one a row the target holds, at most
 // The host's record: { type: 'roll', id, from, expr, draws, v, ts, priv?, to?, rid? }
 function cleanRoll(rec) {

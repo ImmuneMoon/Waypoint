@@ -10598,7 +10598,8 @@ function majorFollow(c, info, vals) {
     if (dmgObj(info.blow)) { snap = JSON.parse(JSON.stringify(dmgObj(c.values) ? c.values : {})); if (dmgObj(vals)) Object.keys(vals).forEach(function(k) { if (vals[k] === undefined) delete snap[k]; else snap[k] = JSON.parse(JSON.stringify(vals[k])); }); }
     fl.forEach(function(f) {
         var r = dmgObj(f) ? (Array.isArray(sys.rolls) ? sys.rolls : []).find(function(x) { return dmgObj(x) && x.id === f.roll; }) : null; if (!r) return;
-        var att = snap && typeof n.blowMake === 'function' ? n.blowMake(c, r.id, info.blow, f.crip, f.cripBy, snap) : '';
+        var nm = typeof F === 'function' && F() && typeof r.formula === 'string' ? F().names(r.formula) : [], reads = nm.some(function(x) { return /^(blow|hit)\./i.test(x); });   // a roll that reads neither and cripples nothing needs the record only for the sheet as the blow left it: a soft one, which it may do without
+        var att = snap && typeof n.blowMake === 'function' ? n.blowMake(c, r.id, info.blow, f.crip, f.cripBy, snap, !reads && typeof f.crip !== 'string') : '';
         n.postDue(c, r, f.why === 'wound' ? 'wound' : 'major', 1, !c.npc && !!c.ownerId && r.vis !== 'gm', att ? { att: att } : undefined); did = true;
     });
     return did;

@@ -5666,6 +5666,27 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             !err && st.list.length === 1 && Object.keys(st.by).length === 1 && nodes.every(n => n.nodeType === 3 || n.nodeType === 1) && nodes.some(n => n.nodeType === 3 && n.nodeValue === st.list[0]) && menu.querySelectorAll('button').some(b => b.dataset.act === 'toggle' && b.dataset.cat === st.list[0])
             && wbT.includes('TagCore.drawRow(document, row, m);') && wbT.includes('TagCore.drawMenu(document, menu,') && wbT.includes('TagCore.cellTags(document, cell,') && wbT.includes('TagCore.previewTags(document,'), err || JSON.stringify(st));
     }
+    /* ---- 1.6.0 backlog 34, the export share sheet's cover pictures (share.js buildGrid, sliced by its sharegrid and sharetip markers and run for
+       real with safecore on a page that refuses markup): a picture's path comes from the campaign, and an imported campaign names its own ---- */
+    {
+        let err = '', g = null, st = null, target = null; const steps = [], FIRST = '/saves/images/m/"><img src=x onerror=alert(1)>.png';
+        try {
+            const { makeDom } = require('./boxdom.js'), dom = makeDom(), doc = dom.document, SFg = await import(modUrl('safecore.js'));
+            g = doc.createElement('div'); g.id = 'shareCoverGrid'; doc.body.appendChild(g); target = g;
+            st = { pics: ['/saves/images/m/"><img src=x onerror=alert(1)>.png', '/saves/images/m/a b%20c.png', '/saves/images/m/javascript:alert(1).png', '/saves/images/m/<script>x<\\script>.jpg'], cover: '' };
+            const run = new Function('el', 'document', '_s', 'picRef', 'log', 'drawCover', slice('share.js', 'sharetip') + '\n' + slice('share.js', 'sharegrid') + '\nreturn buildGrid;')(id => (id === 'shareCoverGrid' ? target : null), doc, st, SFg.picRef, (s, o) => steps.push(s + ' ' + JSON.stringify(o)), null);
+            run();
+            const first = g.childNodes[0]; if (first && first.handlers && first.handlers.click) first.handlers.click.forEach(fn => fn.call(first, {}));
+            const empty = doc.createElement('div'); doc.body.appendChild(empty); target = empty; st.pics = []; run(); g = [g, empty];
+        } catch (e) { err = String(e && e.message || e); }
+        const [grid, none] = Array.isArray(g) ? g : [g, null], btns = grid ? grid.childNodes : [], imgs = btns.map(b => b.childNodes[0]);
+        check('1.6.0 the share sheet\'s cover pictures (share.js buildGrid, run for real on a page that refuses markup, with safecore): each picture is a button holding one img whose address is its path made a plain address under /saves/images/ by encodeURI and picRef, with no quote, angle bracket or space left in it; the file\'s name is a tooltip and a label as text; a press picks that very path as the cover; a campaign with no picture says so in words',
+            !err && btns.length === 4 && btns.every(b => b.tagName === 'BUTTON' && b.childNodes.length === 1 && b.attrs['data-tip'] && b.attrs['aria-label'] === b.attrs['data-tip'] && !('title' in b.attrs))
+            && imgs.every(i => i.tagName === 'IMG' && typeof i.src === 'string' && i.src.indexOf('/saves/images/m/') === 0 && !/["<> ]/.test(i.src) && i.alt === '')
+            && btns[0].attrs['data-tip'] === '"><img src=x onerror=alert(1)>.png' && btns[3].attrs['data-tip'] === '<script>x<\\script>.jpg' && st.cover === FIRST && grid.hidden === true && steps.join() === 'cover-pick {"n":4}'
+            && !!none && none.childNodes.length === 1 && none.childNodes[0].textContent === 'The file carries no picture to use as a cover.',
+            err || JSON.stringify([imgs.map(i => i && i.src), steps]));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

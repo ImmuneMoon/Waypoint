@@ -67,6 +67,7 @@
 <script type="module" src="scripts/popout.js"></script>
 <script type="module" src="scripts/pagenav.js"></script>
 <script type="module" src="scripts/docimport.js"></script>
+<script type="module" src="scripts/share.js"></script>
 <script type="module" src="scripts/charlist.js"></script>
 <script type="module" src="scripts/notices.js"></script>
 <script type="module" src="scripts/timepanel.js"></script>
@@ -189,7 +190,7 @@
             <div class="rm-label">More</div>
             <div class="rm-part" id="moreFiles">
               <div class="dropdown-wrap" id="saveAsDropdownWrap">
-                <button class="rm-row" id="saveAsBtn" aria-haspopup="true" title="Export As. Save the open map, the campaign or everything as a file."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5H6v17h12v-5.5M11.5 9.5H21M17.5 6L21 9.5 17.5 13"/></svg><span>Export As</span><small>12 kinds &rsaquo;</small></button>
+                <button class="rm-row" id="saveAsBtn" aria-haspopup="true" title="Export As. Save the open map, the campaign or everything as a file."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5H6v17h12v-5.5M11.5 9.5H21M17.5 6L21 9.5 17.5 13"/></svg><span>Export As</span><small>13 kinds &rsaquo;</small></button>
                 <div id="saveAsMenu" class="dropdown header-dropdown" style="display:none;">
                   <button type="button" class="menu-item" id="exportImgBtn" title="Export current view as PNG"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3zM7.5 8.5a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zM3.5 17l5-5 3.5 3.5 3-3 5.5 5.5"/></svg><span>Save as Image</span></button>
                   <button type="button" class="menu-item" id="exportMapPicBtn" title="The open map drawn as one picture file, without tokens, hidden pieces or your GM marks"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5V5h3.5M17.5 5H21v3.5M21 15.5V19h-3.5M6.5 19H3v-3.5M7.5 8.5h9v7h-9zM12 8.5v7M7.5 12h9"/></svg><span>Save Map as Picture</span></button>
@@ -203,8 +204,9 @@
                   <button type="button" class="menu-item" id="exportPlannersBtn" title="Every planner in this campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM10 10v6l5-3z"/></svg><span>Export All Planners</span></button>
                   <button type="button" class="menu-item" id="exportDocsBtn" title="Every handbook page in this campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5c-2-1.3-4.6-1.8-8-1.5v13c3.4-.3 6 .2 8 1.5 2-1.3 4.6-1.8 8-1.5V5c-3.4-.3-6 .2-8 1.5zM12 6.5v13"/></svg><span>Export All Pages</span></button>
                   <div class="menu-divider"></div>
-                  <button type="button" class="menu-item" id="exportCampaignBtn" title="This campaign on its own &mdash; every map and planner, its players, handouts and cast, with its images, sounds and videos bundled (whatever their size). Imports as this campaign."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6h6l2 2.5h9v11h-17z"/></svg><span>Export This Campaign</span></button>
-                  <button type="button" class="menu-item" id="exportBtn" title="The entire save &mdash; every campaign, with all images bundled"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></svg><span>Export Everything</span></button>
+                  <button type="button" class="menu-item" id="exportCampaignBtn" title="This campaign on its own &mdash; every map and planner, its players, handouts and cast, with its images, sounds and videos bundled (whatever their size). Imports as this campaign. A sheet comes first, where you can add a card or leave kinds out."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6h6l2 2.5h9v11h-17z"/></svg><span>Export This Campaign</span></button>
+                  <button type="button" class="menu-item" id="exportShareBtn" title="This campaign for someone else: the same sheet, with your players left out to start with. Add a cover, your name, a version and a few words for Import to show first."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 3.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM6.5 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM17.5 15.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM8.7 10.8l6.6-3.6M8.7 13.2l6.6 3.6"/></svg><span>Share This Campaign</span></button>
+                  <button type="button" class="menu-item" id="exportBtn" title="The entire save &mdash; every campaign, with all images bundled. A sheet comes first, where you can add a card or leave kinds out."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></svg><span>Export Everything</span></button>
                 </div>
               </div>
               <button class="rm-row" id="importBtn" title="Import. Bring in a campaign, a map, a planner or a page from a file."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5H6v17h12v-5.5M21 9.5h-9.5M15 6l-3.5 3.5L15 13"/></svg><span>Import</span></button>
@@ -479,6 +481,8 @@
                               </ul>
                           </li>
                           <li><b>Export As</b> makes shareable files at any scope: the open map or planner, all the maps, play maps or planners of the campaign, or everything. <b>Save Map as Picture</b> draws the open map as one picture file. An export that uses images arrives as a <b>.zip</b> with the pictures bundled in. A campaign export, and Everything, also carry the campaign&rsquo;s sounds and its <b>videos</b>, whole. An export has no size limit: files are read from disk and written in parts. A zip past 4 GB is written as ZIP64, which any current unzip tool opens. When the videos and music together pass 1 GB, the export asks where to save it and writes straight to that file. It then reads the file back and checks every file in it before it calls the export done.</li>
+                          <li><b>Export This Campaign</b>, <b>Share This Campaign</b> and <b>Export Everything</b> open a sheet first. It counts what the file will carry, kind by kind: maps, pages, characters, pictures, sounds, music, videos and players, with the size of the files. Untick a kind to leave it out. Pictures left out means the maps and sheets come without them.</li>
+                          <li>On the sheet you can add a cover, picked from the pictures the file carries, a title, your name, a version and a few words. The file then carries them as a card. Share This Campaign starts with Players unticked, so a campaign you hand to someone else carries none of your players&rsquo; names, history or handouts. Left as it is, the sheet makes the same file as before. What you type is kept for that campaign on this computer.</li>
                           <li><b>Import</b> accepts those zips and plain .json files. It merges by id or replaces. It reads the file in pieces and checks every bundled file against its checksum before copying it. A damaged file is counted as failed and never written.</li>
                       </ul>
                       <h4>Updates</h4>
@@ -4438,6 +4442,40 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <button class="tool ghost danger" id="importReplaceBtn">Replace everything</button>
             <button class="tool ghost" id="importCancelBtn">Cancel</button>
         </div>
+    </div>
+</div>
+
+<div id="shareModal" class="gen-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+    <div class="gen-box share-box">
+        <h3 id="shareTitle">Export this campaign</h3>
+        <div class="share-top">
+            <div class="share-cover" id="shareCover" title="The cover. Import shows it first. Pick one of the pictures this file carries."><img id="shareCoverImg" alt="The cover" hidden><span id="shareCoverNone">No cover</span></div>
+            <div class="share-fields">
+                <div class="gen-row"><label class="gen-name" for="shareName">Title</label><input type="text" id="shareName" maxlength="120" autocomplete="off" title="The name Import shows. It starts as the campaign&rsquo;s own name, which stays as it is."></div>
+                <div class="gen-row"><label class="gen-name" for="shareAuthor">Author</label><input type="text" id="shareAuthor" maxlength="80" autocomplete="off" placeholder="Your name" title="Who made it, as you want it shown"></div>
+                <div class="gen-row"><label class="gen-name" for="shareVersion">Version</label><input type="text" id="shareVersion" maxlength="24" autocomplete="off" spellcheck="false" placeholder="1.0" title="Any version you like, such as 1.0 or Draft 2"></div>
+                <div class="gen-row share-cover-btns"><button type="button" class="tool ghost" id="shareCoverPick" title="Pick the cover from the pictures this file carries">Pick a cover</button><button type="button" class="tool ghost" id="shareCoverClear" title="Leave the cover out">No cover</button></div>
+            </div>
+        </div>
+        <div class="share-grid" id="shareCoverGrid" hidden></div>
+        <label class="gen-name share-desc-name" for="shareDesc">Description</label>
+        <textarea id="shareDesc" maxlength="1000" rows="3" title="A few words on what it is. Import shows them with the cover."></textarea>
+        <div class="gen-rule"></div>
+        <div class="share-kinds-head"><span>Contents</span><span>Untick to leave out</span></div>
+        <div class="share-kinds" role="group" aria-label="Contents">
+                <label class="gen-tick share-kind" title="Every map, with its play map"><input type="checkbox" id="shareKeep_maps" checked><span class="share-kname">Maps</span><span class="share-kn" id="shareN_maps"></span><span class="share-kb" id="shareB_maps"></span></label>
+                <label class="gen-tick share-kind" title="Every planner and handbook page"><input type="checkbox" id="shareKeep_pages" checked><span class="share-kname">Pages</span><span class="share-kn" id="shareN_pages"></span><span class="share-kb" id="shareB_pages"></span></label>
+                <label class="gen-tick share-kind" title="Every character sheet. Left out, a token stays on its map without a sheet."><input type="checkbox" id="shareKeep_chars" checked><span class="share-kname">Characters</span><span class="share-kn" id="shareN_chars"></span><span class="share-kb" id="shareB_chars"></span></label>
+                <label class="gen-tick share-kind" title="The picture files the campaign uses and keeps. Left out, maps and sheets come without them. The cover always comes along."><input type="checkbox" id="shareKeep_pictures" checked><span class="share-kname">Pictures</span><span class="share-kn" id="shareN_pictures"></span><span class="share-kb" id="shareB_pictures"></span></label>
+                <label class="gen-tick share-kind" title="The Sound list and its uploaded files"><input type="checkbox" id="shareKeep_sounds" checked><span class="share-kname">Sounds</span><span class="share-kn" id="shareN_sounds"></span><span class="share-kb" id="shareB_sounds"></span></label>
+                <label class="gen-tick share-kind" title="The Music library: its songs and playlists"><input type="checkbox" id="shareKeep_music" checked><span class="share-kname">Music</span><span class="share-kn" id="shareN_music"></span><span class="share-kb" id="shareB_music"></span></label>
+                <label class="gen-tick share-kind" title="The Video library and its files"><input type="checkbox" id="shareKeep_videos" checked><span class="share-kname">Videos</span><span class="share-kn" id="shareN_videos"></span><span class="share-kb" id="shareB_videos"></span></label>
+                <label class="gen-tick share-kind" title="Your players: their names, their history, the Session Log and who was handed what. Their table keys never go in any file."><input type="checkbox" id="shareKeep_players" checked><span class="share-kname">Players</span><span class="share-kn" id="shareN_players"></span><span class="share-kb" id="shareB_players"></span></label>
+        </div>
+        <div class="gen-line" id="shareAllLine" hidden></div>
+        <div class="gen-line" id="shareTotal" aria-live="polite"></div>
+        <div class="gen-line">Fill in any of these, or untick a kind, and the file carries a card that Import shows first. Left as it is, the file is the same as before.</div>
+        <div class="gen-foot"><button type="button" class="tool ghost" id="shareCancel">Cancel</button><button type="button" class="tool" id="shareGo">Export</button></div>
     </div>
 </div>
 

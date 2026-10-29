@@ -30,6 +30,7 @@ var wb = document.getElementById('whiteboard');
 import { state, dom, CATS } from './state.js';
 import './trackcore.js';   // 1.6.0 backlog 29: the trackers' cleaner (window.wpTrackCore), there before the first load
 import './imgtagcore.js';   // 1.6.0 backlog 34: the Image Library tags' cleaner (window.wpImgTagCore), there before the first load
+import * as Share from './sharecore.js';   // 1.6.0 backlog 34: the share sheet's pure half (what an export leaves out, and its card)
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap } from './models.js';
 
@@ -1800,13 +1801,14 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
   // list is counted for each, so this errs high): past EXPORT_BIG the archive is written straight to a file, since a window can
   // hold only so large a Blob
   var EXPORT_BIG = 1024 * 1024 * 1024;
-  function exportMediaBytes(scope) {
+  function exportMediaBytes(scope, leave) {
       if (scope !== 'campaign' && scope !== 'all') return 0;
       var camps = scope === 'all' ? Object.values((state.appState && state.appState.campaigns) || {}) : [getActiveCampaign()], n = 0;
       var add = function(v) { if (v && typeof v.size === 'number' && isFinite(v.size) && v.size > 0) n += v.size; };
+      var out = function(k) { return Array.isArray(leave) && leave.indexOf(k) >= 0; };   // the share sheet's kinds left out (1.6.0 backlog 34)
       camps.forEach(function(c) {
-          (c && Array.isArray(c.videos) ? c.videos : []).forEach(add);
-          (c && c.music && typeof c.music === 'object' && Array.isArray(c.music.tracks) ? c.music.tracks : []).forEach(add);
+          if (!out('videos')) (c && Array.isArray(c.videos) ? c.videos : []).forEach(add);
+          if (!out('music')) (c && c.music && typeof c.music === 'object' && Array.isArray(c.music.tracks) ? c.music.tracks : []).forEach(add);
       });
       return n;
   }
@@ -1840,9 +1842,40 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
       Object.values((payload && payload.campaigns) || {}).forEach(function(c) { if (c && c.players && typeof c.players === 'object') Object.keys(c.players).forEach(function(pid) { var p = c.players[pid]; if (p && typeof p === 'object') delete p.key; }); });
       return payload;
   }
+  // A campaign's own pictures travel even when nothing references them yet: those the saves folder lists in the folder of one of its items
+  // (every folder but the Journal's, for everything) are added to paths. sizes (optional) takes each listed picture's size by its path (the
+  // share sheet's count). Answers false when the list could not be read
+  async function exportListed(scope, payload, paths, sizes) {
+      try {
+          var listed = await (await fetch('/api/list-images')).json();
+          var own = {}; Object.values(payload.campaigns || {}).forEach(function(c) { Object.keys(c.items || {}).forEach(function(id) { own[id] = 1; }); });
+          (Array.isArray(listed) ? listed : []).forEach(function(im) {
+              if (!im || !im.path) return;
+              if (sizes && typeof im.size === 'number' && isFinite(im.size)) sizes[im.path] = im.size;
+              if (!/^journal(\/|$)/.test(im.folder || '') && (scope === 'all' || own[im.folder]) && paths.indexOf(im.path) < 0) paths.push(im.path);
+          });
+          return true;
+      } catch (e) { return false; }
+  }
+  // 1.6.0 backlog 34: what Export This Campaign or Export Everything would carry, for the share sheet (share.js) to count before anything is
+  // written: the payload as the export makes it, the files it names with the campaign's own pictures, and each listed picture's size
+  async function exportPlan(scope) {
+      if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return null; }
+      var camp = getActiveCampaign();
+      if (!camp) { toast('No campaign selected.'); return null; }
+      if (scope !== 'campaign' && scope !== 'all') return null;
+      var cc = {}; cc[camp.id] = clone(camp);
+      var payload = scope === 'all' ? stripTableKeys(clone(state.appState)) : stripTableKeys({ activeCampaignId: camp.id, campaigns: cc });
+      Object.values(payload.campaigns || {}).forEach(function(c) { if (c) dropWaiting(c); });
+      var paths = collectImagePaths(payload), sizes = {};
+      var ok = await exportListed(scope, payload, paths, sizes);
+      return { payload: payload, paths: paths, sizes: sizes, unlisted: !ok, campId: camp.id, name: scope === 'all' ? '' : String(camp.name || ''), camps: Object.keys(payload.campaigns || {}).length };
+  }
+  window.wpExportPlan = exportPlan;
   // handle (optional): a file to write the archive straight to (exportScope asks for one when the export is large); without it
-  // the archive is a Blob, as ever
-  async function buildExport(scope, handle) {
+  // the archive is a Blob, as ever. share (optional, 1.6.0 backlog 34): the share sheet's { card, cover, leave, sizes }: the kinds it leaves
+  // out go before anything is counted, and its card is written as share.json beside data.json. A sheet left as it came hands none
+  async function buildExport(scope, handle, share) {
       if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return null; }
       var camp = getActiveCampaign();
       if (!camp) { toast('No campaign selected.'); return null; }
@@ -1899,16 +1932,14 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
       // Bookkeeping keys never travel: the origin marker and the cleanup's own notes
       delete payload._foreign; delete payload._keptByUser; delete payload._cleanup;
       Object.values(payload.campaigns || {}).forEach(function(c) { delete c._foreign; delete c._keptByUser; delete c._cleanup; dropWaiting(c); });   // Onboarding F1a: nor a waiting token
+      var shareSets = null;   // the files each list named before a kind was left out: a file of a kind left out stays out, wherever else it is named
+      if (share && share.leave) { shareSets = Share.fileSets(payload); Share.leaveOut(payload, share.leave); }
 
       var json = JSON.stringify(payload, null, 2);
       var libMissing = 0, unlisted = false;   // what could not be read is said at the end, never passed over (the owed review, 2026-10-09)
       var paths = collectImagePaths(payload);   // item 21: a campaign's videos travel too — the archive is made of the files as they lie on disk, of any size (zip.js)
       if (scope === 'campaign' || scope === 'all') {   // a campaign's own pictures travel even when nothing references them yet
-          try {
-              var listed = await (await fetch('/api/list-images')).json();
-              var own = {}; Object.values(payload.campaigns || {}).forEach(function(c) { Object.keys(c.items || {}).forEach(function(id) { own[id] = 1; }); });
-              (Array.isArray(listed) ? listed : []).forEach(function(im) { if (im && im.path && !/^journal(\/|$)/.test(im.folder || '') && (scope === 'all' || own[im.folder]) && paths.indexOf(im.path) < 0) paths.push(im.path); });
-          } catch (e) { unlisted = true; }
+          if (!(await exportListed(scope, payload, paths))) unlisted = true;
       }
       // Stage 6 library L1c2: a campaign export carries each pack file its manifest pins (library/<dir>/<id>.<rev>.json), so a campaign
       // with a library always travels as a zip
@@ -1923,7 +1954,17 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
               }
           }
       }
-      if (!paths.length && !libFiles.length && !handle) return { name: base + '.json', text: json, libMissing: libMissing, unlisted: unlisted };
+      // the share sheet's card (1.6.0 backlog 34): its cover is one of the campaign's pictures and always comes along, even with Pictures left out;
+      // the contents it counts are the file's as it is made. A file with a card is always a .zip
+      var shareCover = share && typeof share.cover === 'string' && exportPathOk(share.cover) && Share.coverName(share.cover.replace(/^\/saves\//, '')) ? share.cover : '';
+      if (shareSets) paths = Share.keepPaths(paths, share.leave, shareSets, shareCover);
+      else if (shareCover && paths.indexOf(shareCover) < 0) paths.push(shareCover);
+      var shareE = null;
+      if (share && share.card) {
+          var shareCard = Share.cardFor(Object.assign({}, share.card, { cover: shareCover.replace(/^\/saves\//, ''), leave: share.leave }), Share.tally(payload, paths, share.sizes), scope === 'all' ? 'all' : 'campaign');
+          if (shareCard) shareE = { name: 'share.json', data: new TextEncoder().encode(JSON.stringify(shareCard, null, 2)) };
+      }
+      if (!paths.length && !libFiles.length && !handle && !shareE) return { name: base + '.json', text: json, libMissing: libMissing, unlisted: unlisted };
 
       var isVideo = function(p) { return p.indexOf('/saves/images/video/') === 0; };
       var nVid = paths.filter(isVideo).length, nImg = paths.length - nVid;
@@ -1931,6 +1972,7 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
       var zip = await import('./zip.js');
       var enc = new TextEncoder();
       var entries = [{ name: 'data.json', data: enc.encode(json) }].concat(libFiles);
+      if (shareE) entries.splice(1, 0, shareE);   // share.json right after data.json
       var skipped = [], vidAt = 0;
       if (handle) {
           // straight to the file: each entry is read part by part and written as it comes (never held whole), its checksum written back
@@ -1982,29 +2024,38 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
   }
   window.wpBuildExport = buildExport;
 
-  async function exportScope(scope) {
+  async function exportScope(scope, share) {
       if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }
       // a large export (its videos and music past 1 GB) is written straight to a file you pick, never held in this window's memory; the
       // picker must open while the click still counts, so the size is judged first, from the library's own numbers
       var handle = null;
-      if (typeof window.showSaveFilePicker === 'function' && exportMediaBytes(scope) > EXPORT_BIG) {
+      if (typeof window.showSaveFilePicker === 'function' && exportMediaBytes(scope, share && share.leave) > EXPORT_BIG) {
           try { handle = await window.showSaveFilePicker({ suggestedName: exportBaseName(scope) + '.zip', types: [{ description: 'Waypoint export', accept: { 'application/zip': ['.zip'] } }] }); }
           catch (e) { if (e && e.name === 'AbortError') return; handle = null; }   // cancelled: no export; a window that cannot ask: the archive as a download, as ever
       }
-      var r = await buildExport(scope, handle);
-      if (!r) return;
+      var r = await buildExport(scope, handle, share);
+      if (!r) return null;
       if (r.text) { download(r.name, r.text); toast('Exported ' + r.name + '.' + exportLeftWords(r)); }
       else {
           if (!r.saved) downloadBlob(r.name, r.blob);
           toast(exportDoneWords(r));
       }
+      return r;
   }
+  window.wpExportScope = exportScope;   // the share sheet's Export (share.js)
 
   var _exportScopeBtns = { exportItemBtn: 'item', exportMapsBtn: 'maps', exportWbsBtn: 'whiteboards', exportPlannersBtn: 'planners', exportDocsBtn: 'docs', exportCampaignBtn: 'campaign', exportBtn: 'all' };
   Object.keys(_exportScopeBtns).forEach(function(id) {
       var el = document.getElementById(id);
-      if (el) el.addEventListener('click', function() { exportScope(_exportScopeBtns[id]); });
+      if (el) el.addEventListener('click', function() {
+          var sc = _exportScopeBtns[id];
+          if ((sc === 'campaign' || sc === 'all') && window.wpShare && typeof window.wpShare.open === 'function') window.wpShare.open(sc, false);   // 1.6.0 backlog 34: the share sheet first
+          else exportScope(sc);
+      });
   });
+  // Share This Campaign: the same sheet, with Players unticked (the owner, 2026-10-29: "Yes, Share starts Players unticked (Recommended)")
+  var _el_exportShareBtn = document.getElementById('exportShareBtn');
+  if (_el_exportShareBtn) _el_exportShareBtn.addEventListener('click', function() { if (window.wpShare && typeof window.wpShare.open === 'function') window.wpShare.open('campaign', true); else exportScope('campaign'); });
 
   // "Export This …" reflects whatever is open when the menu drops down
   var _el_saveAsBtn2 = document.getElementById('saveAsBtn');

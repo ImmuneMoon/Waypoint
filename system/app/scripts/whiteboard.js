@@ -6846,6 +6846,7 @@ if(_el_helpCloseBtn) _el_helpCloseBtn.addEventListener('click', function() {
           imgLibModal: 'imgLibCloseBtn',
           settingsModal: 'settingsCloseBtn',
           profileModal: 'profileCloseBtn',
+          shareModal: 'shareCancel',   // 1.6.0 backlog 34: the export share sheet
           playersModal: 'playersCloseBtn',
           sheetViewModal: 'sheetViewCloseBtn',
           vttNoticeModal: 'vttNoticeKeepBtn',   // the backdrop means "Keep mine"

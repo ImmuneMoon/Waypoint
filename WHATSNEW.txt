@@ -28,6 +28,17 @@ Campaigns
   with a New map button. Before, the last campaign's map stayed on
   screen. Any campaign with no map shows this screen.
 
+Sharing a campaign
+- Export This Campaign, Share This Campaign and Export Everything open a
+  sheet first. It counts the maps, pages, characters, pictures, sounds,
+  music, videos and players, with the size of the files. Untick a kind
+  to leave it out of the file.
+- Add a cover from the campaign's own pictures, a title, your name, a
+  version and a few words. The file carries them as a card.
+- Share This Campaign starts with your players left out. Their names,
+  their history and what you handed them stay with you.
+- Left as it is, the sheet makes the same file as before.
+
 Table trackers
 - Put counters, countdowns and clocks on the play map. + Tracker at the
   top left of the map adds one. A counter has - and +, a countdown has

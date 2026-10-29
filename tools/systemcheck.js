@@ -18270,6 +18270,86 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('205 (4) parts of parts (the owner\'s word): a list whose parts come from itself may say deep (Parts hold parts; kept only there, the same in both views); a part there holds parts of its own, six levels under its top row at most and never round a loop (partDepth), while elsewhere a part still holds none; Row.parts.all.<w> sums every level under a row, each times its own quantity, Row.parts.<w> its own parts alone, the same down another list\'s parts; removing a row takes its whole tree, through another list too, a kept curse keeping the tree under new ids as it stood; partsKept and partsPut keep and bring back the whole tree, so its Undo restores the list as it was; the validator knows Row.parts.all.<w> for a number stat or a column; the sheet draws a part\'s parts under it a level in (partPills, run for real), no add past the depth, a part of a part never among the list\'s own rows; the Lists tab\'s tick and the readable page',
             cleanOk && resOk && depthOk && rmOk && curseOk && keptOk && undoOk && valOk && drawOk, J([cleanOk, resOk, depthOk, rmOk, curseOk, keptOk, undoOk, valOk, drawOk, cc, wc.w_w, adds, rmArm, rmWp, mid, shape(wP.kids[0])]));
     }
+    {   // 1.6.0 Changes apply where (list.modsIf; the campaign build's ask): a formula of the holder's names and each row's own, read with no item or effect change applied; a row where it does not hold gives none of its changes
+        const J = JSON.stringify;
+        const rawM = (gear, garb, hex, quiet, more) => ({ v: 1, name: 'T', rolls: [], fields: [
+            { id: 'f_con', key: 'Construct', label: 'Construct', kind: 'toggle', vis: 'all' },
+            { id: 'f_sec', key: 'Secret', label: 'Secret', kind: 'toggle', vis: 'gm' },
+            { id: 'f_car', key: 'Carry', label: 'Carry', kind: 'number', def: 10, vis: 'all' },
+            { id: 'f_agi', key: 'Agility', label: 'Agility', kind: 'number', def: 10, vis: 'all' },
+            { id: 'f_sly', key: 'Sly', label: 'Sly', kind: 'formula', formula: 'Secret + 1', vis: 'all' },
+            { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'over', label: 'Over' }], modsIf: gear } },
+            { id: 'f_wear', key: 'Garb', label: 'Garb', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'layer', label: 'Layer' }], cols: [{ key: 'Under', label: 'Under', formula: 'Row.layer - 1' }].concat(more || []), modsIf: garb } },
+            { id: 'f_cur', key: 'Hexes', label: 'Hexes', kind: 'item-list', vis: 'all', edit: 'owner', list: { on: { label: 'On', def: true }, modsIf: hex } },
+            { id: 'f_hid', key: 'Quiet', label: 'Quiet', kind: 'item-list', vis: 'gm', edit: 'owner', list: { modsIf: quiet } }],
+            items: [
+                { id: 'i_pack', name: 'Pack', vis: 'all', mods: [{ f: 'f_car', op: 'add', v: 5 }] },
+                { id: 'i_vest', name: 'Vest', vis: 'all', mods: [{ f: 'f_agi', op: 'add', v: -1 }] },
+                { id: 'i_plate', name: 'Plate', vis: 'all', stats: { over: 1 }, mods: [{ f: 'f_agi', op: 'add', v: 2 }] },
+                { id: 'i_coat', key: 'coat', name: 'Coat', vis: 'all', stats: { layer: 1 }, mods: [{ f: 'f_agi', op: 'add', v: 100 }] },
+                { id: 'i_harn', name: 'Harness', vis: 'all', stats: { layer: 1 }, mods: [{ f: 'f_wear', op: 'add', v: 5, key: 'coat', col: 'Under' }] },
+                { id: 'i_hex', name: 'Hex', vis: 'all', mods: [{ f: 'f_car', op: 'add', v: 1000 }] },
+                { id: 'i_hush', name: 'Hush', vis: 'gm', mods: [{ f: 'f_car', op: 'add', v: 20000 }] }] });
+        const GATE = 'not Construct or Row.over > 0';
+        const gM = cleanSystem(rawM(GATE, 'Row.Under < 1', 'not Row.on', 'Secret'), { F, gmView: true }), pM = cleanSystem(rawM(GATE, 'Row.Under < 1', 'not Row.on', 'Secret'), { F, gmView: false });
+        const nM = cleanSystem(rawM(undefined, undefined, undefined, undefined), { F, gmView: true });
+        const gi = (s, k) => (s.fields.filter(f => f.key === k)[0] || {}).list || {};
+        const clM = v => (S.cleanListSpec({ stats: [{ key: 'over', label: 'Over' }], modsIf: v }, true, F) || {}).modsIf;
+        check('1.6.0 Changes apply where, the cleaner: a list keeps its gate as trimmed formula text, the same in both views; one that is no text, empty or blank is none; a list with none holds no modsIf key',
+            gi(gM, 'Gear').modsIf === GATE && gi(pM, 'Gear').modsIf === GATE && gi(gM, 'Garb').modsIf === 'Row.Under < 1' && gi(pM, 'Garb').modsIf === 'Row.Under < 1' && gi(pM, 'Hexes').modsIf === 'not Row.on'
+            && clM('  Carry > 1  ') === 'Carry > 1' && clM('') === undefined && clM('   ') === undefined && clM(5) === undefined && clM(null) === undefined
+            && !J(nM).includes('modsIf') && (S.cleanListSpec({ stats: [{ key: 'over', label: 'Over' }] }, true, F) || {}).modsIf === undefined,
+            J([gi(gM, 'Gear'), gi(pM, 'Gear'), clM('  Carry > 1  ')]));
+        // what cannot stand goes in both views: no formula, dice, a GM-only value read directly, through a field worked out from one, or through a column of the list; a GM-only list's gate stands
+        const dM = (gear, garb, more) => { const r = rawM(gear, garb, undefined, 'Secret and Sly > 0', more); return [cleanSystem(JSON.parse(J(r)), { F, gmView: true }), cleanSystem(JSON.parse(J(r)), { F, gmView: false })]; };
+        const [dg1, dp1] = dM('((', '1d6 > 2'), [dg2, dp2] = dM('Secret', 'Sly > 1'), [dg3, dp3] = dM(GATE, 'Row.Hush < 1', [{ key: 'Hush', label: 'Hush', formula: 'Secret + 0' }]), [dg4, dp4] = dM(GATE, 'Row.layer < 2', [{ key: 'Hush', label: 'Hush', formula: 'Secret + 0' }]);
+        check('1.6.0 Changes apply where, what Save drops, in both views alike (modsIfOk, judged over the GM\'s view): one that does not parse, one that rolls dice, and on a list players see one that reads a GM-only value at any depth (Secret itself, Sly worked out from it, a row\'s own names where a column of the list reads one, so the owner\'s copy and the host give the same figures); a GM-only list keeps a gate that reads one, since its rows reach their owner only as amounts the host works out; a sound gate stays',
+            gi(dg1, 'Gear').modsIf === undefined && gi(dp1, 'Gear').modsIf === undefined && gi(dg1, 'Garb').modsIf === undefined && gi(dp1, 'Garb').modsIf === undefined
+            && gi(dg2, 'Gear').modsIf === undefined && gi(dp2, 'Gear').modsIf === undefined && gi(dg2, 'Garb').modsIf === undefined && gi(dp2, 'Garb').modsIf === undefined
+            && gi(dg3, 'Garb').modsIf === undefined && gi(dp3, 'Garb').modsIf === undefined && gi(dg4, 'Garb').modsIf === undefined && gi(dg3, 'Gear').modsIf === GATE && gi(dp3, 'Gear').modsIf === GATE
+            && gi(dg2, 'Quiet').modsIf === 'Secret and Sly > 0' && !dp2.fields.some(f => f.key === 'Quiet')
+            && S.modsIfOk(gM, F, gM.fields.filter(f => f.key === 'Gear')[0], GATE) === true && S.modsIfOk(gM, F, gM.fields.filter(f => f.key === 'Gear')[0], 'Sly') === false && S.modsIfOk(gM, null, gM.fields[5], GATE) === false,
+            J([gi(dg1, 'Gear'), gi(dg2, 'Gear'), gi(dg3, 'Garb'), gi(dg4, 'Garb'), gi(dg2, 'Quiet')]));
+        // the resolver, on the host and on the owner's copy
+        const chM = (con, sec) => ({ id: 'c_kael', name: 'Kael', ownerId: 'u_p', npc: false, values: { f_con: con, f_sec: !!sec,
+            f_gear: [{ id: 'w_a', defId: 'i_pack', qty: 1 }, { id: 'w_b', defId: 'i_vest', qty: 1 }, { id: 'w_c', defId: 'i_plate', qty: 1 }, { id: 'w_d', def: { name: 'Charm', stats: { over: 0 }, mods: [{ f: 'f_car', op: 'add', v: 50 }] }, own: 1, qty: 1 }, { id: 'w_k', defId: 'i_pack', qty: 1, hid: 1 }],
+            f_wear: [{ id: 'w_e', defId: 'i_coat', qty: 1 }, { id: 'w_f', defId: 'i_harn', qty: 1 }],
+            f_cur: [{ id: 'w_h', defId: 'i_hex', qty: 1, on: true }, { id: 'w_i', defId: 'i_hex', qty: 1, on: true, keptOn: 1 }], f_hid: [{ id: 'w_j', defId: 'i_hush', qty: 1 }] } });
+        const both = (c, o) => { const R = resolveAll(gM, c, F), ownC = charFor(c, pM, 'u_p', Object.assign({ full: gM }, o || { F })), RP = ownC ? resolveAll(pM, cleanChar(JSON.parse(J(ownC)), pM, { state: 'owner' }), F) : null; return { h: [R.f_car.value, R.f_agi.value], o: RP ? [RP.f_car.value, RP.f_agi.value] : null, un: ownC && ownC.unseen, cell: (R.f_wear.cells || {}).w_e }; };
+        const mFlesh = both(chM(false)), mCon = both(chM(true)), mSec = both(chM(false, true)), RNone = resolveAll(nM, chM(true), F);
+        check('1.6.0 Changes apply where, the resolver: judged row by row with the holder\'s names and the row\'s own, so a character that is no Construct takes every change of Gear (Carry 10 + 5 pack + 50 a row of its own + 5 a kept curse, Agility -1 vest +2 plate), and a Construct only the plate\'s, whose Over is above 0 (Carry 10, Agility +2): an item\'s changes, a row of the character\'s own and a kept curse\'s alike; the other lists keep theirs; with no gate every row gives its changes as before (Carry 22070 with every list, a Construct alike)',
+            J(mFlesh.h) === J([1070, 111]) && J(mCon.h) === J([1010, 112]) && RNone.f_car.value === 22070 && RNone.f_agi.value === 111,
+            J([mFlesh.h, mCon.h, RNone.f_car.value, RNone.f_agi.value]));
+        check('1.6.0 Changes apply where reads the sheet before any item or effect changes it, and never loops: the coat\'s Under column, which the harness moves to 5, is read as 0 by Garb\'s gate, so the coat gives its +100; a gate that reads the very figure its own rows change (Carry < 12, while the pack makes Carry 15) reads Carry as 10 and holds; a gate that reads its own list\'s total holds too; one that cannot be worked out does not hold',
+            J(mFlesh.cell) === J([{ key: 'Under', value: 5, text: '5' }]) && mFlesh.h[1] === 111
+            && (() => { const g5 = cleanSystem(rawM('Carry < 12', undefined, undefined, undefined), { F, gmView: true }), c5 = { id: 'c_vesk', name: 'Vesk', ownerId: 'u_p', npc: false, values: { f_gear: [{ id: 'w_a', defId: 'i_pack', qty: 1 }] } }; const R5 = resolveAll(g5, c5, F);
+                const g6 = cleanSystem(rawM('Gear.count > 0 and Carry < 11', undefined, undefined, undefined), { F, gmView: true }), R6 = resolveAll(g6, c5, F), g7 = cleanSystem(rawM('Nope > 1', undefined, undefined, undefined), { F, gmView: true }), R7 = resolveAll(g7, c5, F);
+                return R5.f_car.value === 15 && !R5.f_car.error && R6.f_car.value === 15 && R7.f_car.value === 10; })(),
+            J(mFlesh.cell));
+        check('1.6.0 Changes apply where, the two machines: the owner\'s copy gives the host\'s very figures, for a Construct and not (the kept curse\'s +5 as the nameless amount the host works out); a curse the GM keeps on reads Row.on as off on both, so its +1000 counts on both; a GM-only list whose gate reads a GM-only value is judged on the host alone and reaches the owner as its amount (Carry 21070 on both); with the engine registered in place of charView\'s own the same',
+            J(mFlesh.o) === J(mFlesh.h) && J(mCon.o) === J(mCon.h) && J(mFlesh.un) === J([{ f: 'f_car', op: 'add', v: 5 }]) && mCon.un === undefined && mSec.h[0] === 21070 && J(mSec.o) === J(mSec.h)
+            && (() => { const was = S.setGateEngine(() => F), r = both(chM(true, true), {}); S.setGateEngine(null); return was === true && J(r.o) === J(r.h) && r.h[0] === 21010; })(),
+            J([mFlesh, mCon, mSec]));
+        // the validator: the holder's names and Row.* are known there, no dice, said as the gate's
+        const vM = s => validateSystem(s, F), rawV = rawM('Row.nope + Carry2', '1d6 > 2', 'Row.on', undefined);
+        const vE = vM(JSON.parse(J(rawV))), vOk = vM(gM), vG = vM(JSON.parse(J(rawM('Secret', undefined, undefined, undefined))));
+        const vRow = vM(JSON.parse(J(Object.assign(rawM(undefined, undefined, undefined, undefined), { fields: rawM().fields.concat([{ id: 'f_bad', key: 'Bad', label: 'Bad', kind: 'formula', formula: 'Row.over', vis: 'all' }]) }))));
+        check('1.6.0 Changes apply where, the validator: it reads the gate with the holder\'s names and the row\'s own (no error for a sound gate), says an unknown name and dice as the gate\'s ("Changes apply where: ..."), warns that Save drops one that reads a GM-only value, and Row.* is known on that list alone (a field\'s formula that reads Row.over is still an error)',
+            vOk.errors.length === 0 && vE.errors.some(e => e.id === 'f_gear' && e.message === 'Changes apply where: Unknown name "Row.nope"') && vE.errors.some(e => e.id === 'f_gear' && /^Changes apply where: Unknown name "Carry2"/.test(e.message))
+            && vE.errors.some(e => e.id === 'f_wear' && /^Changes apply where: Dice are not allowed/.test(e.message)) && !vE.errors.some(e => e.id === 'f_cur')
+            && vG.warnings.some(e => e.id === 'f_gear' && e.message === 'Changes apply where: "Secret" is GM only: Save drops it, so the rows give their changes whatever it says.')
+            && vRow.errors.some(e => e.id === 'f_bad'),
+            J([vE.errors, vG.warnings, vOk.errors]));
+        // the System editor, Help and the release notes
+        const shM = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ixM = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), wnM = fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wnM2 = fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8').replace(/\r\n/g, '\n');
+        check('1.6.0 Changes apply where in the System editor: the Lists tab\'s box after Tradable with its handler, what refreshErrors says Save drops as the cleaner reads it, the engine registered for the host\'s hidden rows; the Lists key, Help and both release notes say it',
+            shM.includes("var miW = el('label', 'sys-check'), miI = el('input', 'field sys-list-modsif');") && shM.includes("miW.appendChild(document.createTextNode('Changes apply where '));")
+            && shM.includes("else if (c.indexOf('sys-list-modsif') >= 0) { var miV = String(t.value || '').trim(); if (miV) lsc.modsIf = miV.slice(0, LIMITS.formula); else delete lsc.modsIf; }")
+            && shM.includes("var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0]; if (!cf || (cf.list && cf.list.modsIf)) return;") && shM.includes("if (typeof setGateEngine === 'function') setGateEngine(F);")
+            && ixM.includes('<b>Changes apply where</b><small>A row gives its changes only where this formula holds.</small>') && ixM.includes('<li><b>Changes apply where</b> is a formula that says where a list&rsquo;s rows give their changes.')
+            && ixM.includes('It reads the sheet before any item or effect changes it, so a column an item change moves is read before that change.')
+            && wnM.includes("- A list can say where its rows' changes apply. Changes apply where, in the") && wnM2.includes("- A list can say where its rows' changes apply. Changes apply where, in the"));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

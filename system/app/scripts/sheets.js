@@ -12,7 +12,7 @@ import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, partsSrc, par
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
 import { groupRolls, groupWeakest } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
-import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT } from './systemcore.js';   // 1.6.0: linked sheets
+import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, setGateEngine } from './systemcore.js';   // 1.6.0: linked sheets
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
@@ -4792,6 +4792,7 @@ function linkSource(id, sys) {
     return sys && Array.isArray(sys.fields) ? charForView(c, sys, { full: camp.system }) : null;
 }
 if (typeof setLinkSource === 'function') setLinkSource(linkSource);   // (a suite's slice of this file holds no import)
+if (typeof setGateEngine === 'function') setGateEngine(F);   // 1.6.0 Changes apply where: the engine the host judges a hidden row's gate with (systemcore unseenMods)
 // 1.6.0 (CORE gap 16): a vehicle's crew, every character whose link holds it, each as linkSource hands a linked sheet (the GM's own for the GM's
 // system, the owner's projection for any other, so a GM-only figure never counts for a player); on a player's app none (their copy reads the
 // figures its host sent)
@@ -6574,6 +6575,13 @@ function refreshErrors() {
     });
     var clean = cleanSystem(draft, { F: F(), gmView: true });
     if (!clean) return;
+    draft.fields.forEach(function(f) {   // 1.6.0 Changes apply where, as the cleaner reads it (the validator says the rest)
+        if (!f || f.kind !== 'item-list' || !f.list || typeof f.list.modsIf !== 'string' || !f.list.modsIf.trim()) return;
+        var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0]; if (!cf || (cf.list && cf.list.modsIf)) return;
+        var pz = null; try { pz = F().parse(f.list.modsIf.trim()); } catch (e) { pz = null; }
+        var said = !pz || !pz.ok ? 'is no formula Save can keep, so Save drops it.' : typeof hasDice === 'function' && pz.ast && hasDice(pz.ast.body) ? 'rolls dice, and a gate is read with none, so Save drops it.' : 'reads a GM-only value, here or through what it reads. Your players\u2019 sheets must give the same figures as yours, so Save drops it.';
+        (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Changes apply where ' + said + ' The rows then give their changes whatever it says.' });
+    });
     (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {   // 1.5.4: a roll's or an apply action's needs that Save cannot keep, as the cleaner reads it (the validator says the rest)
         if (!r || typeof r !== 'object' || typeof r.needs !== 'string' || !r.needs.trim()) return;
         var cr = (clean.rolls || []).filter(function(x) { return x && x.id === r.id; })[0]; if (cr && !cr.needs) (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'needs', message: 'This is no formula Save can keep, so Save drops it.' });
@@ -7503,6 +7511,8 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     fl.appendChild(checkLabel('sys-list-custom', sp.custom === true, 'Custom rows', 'Players may add rows of their own with + Custom\u2026 on their sheet (a name, an icon, a category, notes, a key and stats) and change the ones they made; you can add them on any shaped list'));   // Stage 6 F4c3
     fl.appendChild(checkLabel('sys-list-open', sp.open === true, 'Rows open', 'Each row gets an arrow before its name that opens its details: what each part set to Shows In the details holds, its description and its note. Open all and Close all stand over the list.'));   // 1.6.0 R1
     fl.appendChild(checkLabel('sys-list-trade', sp.trade === true, 'Tradable', 'Rows of this list can be put on the table in a trade between two characters: gear and money, never skills'));   // 1.5.6 trading
+    var miW = el('label', 'sys-check'), miI = el('input', 'field sys-list-modsif'); miI.type = 'text'; miI.value = typeof sp.modsIf === 'string' ? sp.modsIf : ''; miI.placeholder = 'always'; miI.spellcheck = false; miI.autocomplete = 'off'; miW.appendChild(document.createTextNode('Changes apply where ')); miW.appendChild(miI);   // 1.6.0 Changes apply where (the campaign build's ask)
+    miW.title = 'A formula read with the character\u2019s own names and each row\u2019s own, such as not Droid or Row.over > 0. A row where it does not hold gives none of its changes. It reads the sheet before any item or effect changes it. Blank: always'; fl.appendChild(miW);
     var pbChoices = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s.key === 'string' && s.key && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length : Array.isArray(s.labels) && s.labels.length); });   // 1.6.0, backlog 180 R13
     var ptLists = typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields.filter(function(x) { return x && x.kind === 'item-list'; }) : [];   // 1.6.0, backlog 180 R14: Parts from
     if (ptLists.length) {
@@ -10080,6 +10090,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-menus') >= 0) { if (t.checked) lsc.menus = true; else delete lsc.menus; }   // 1.6.0 R10
         else if (c.indexOf('sys-list-boxes') >= 0) { if (t.checked) lsc.boxes = true; else delete lsc.boxes; }   // 1.6.0 R3   // 1.6.0 R1: Rows open
         else if (c.indexOf('sys-list-trade') >= 0) { if (t.checked) lsc.trade = true; else delete lsc.trade; }   // 1.5.6 Tradable
+        else if (c.indexOf('sys-list-modsif') >= 0) { var miV = String(t.value || '').trim(); if (miV) lsc.modsIf = miV.slice(0, LIMITS.formula); else delete lsc.modsIf; }   // 1.6.0 Changes apply where (Save cleans it)
         else if (c.indexOf('sys-list-rowlook') >= 0) { if (t.checked) lsc.look = lsc.look && typeof lsc.look === 'object' ? lsc.look : {}; else delete lsc.look; }   // 1.6.0, backlog 206: Rows carry a look
         else if (c.indexOf('sys-list-lkmain') >= 0) { if (lsc.look) { var lkm = String(t.value || '').trim(); if (lkm) lsc.look.main = lkm; else delete lsc.look.main; } }
         else if (c.indexOf('sys-list-lkby') >= 0) { if (lsc.look) { if (t.value) lsc.look.by = t.value; else { delete lsc.look.by; delete lsc.look.shades; } } }

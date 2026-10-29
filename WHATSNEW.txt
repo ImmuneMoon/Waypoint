@@ -152,6 +152,11 @@ Systems, more
 - A list with a level can tick Rolls unheld entries. Roll unheld, in the
   library picker, rolls the list's roll on an entry the character does not
   hold, at the list's Unheld level, such as -5 or Row.Dflt.
+- A list can say where its rows' changes apply. Changes apply where, in the
+  Lists tab, is a formula read with the character's names and each row's
+  own, such as not Construct or Row.over > 0. A row where it does not hold
+  gives none of its changes. It reads the sheet before any item or effect
+  changes it.
 - An attack can read its target's Size: the Range box's Target size reads
   names a number of the target's sheet, read as TargetSize.
 - A Major Wound's threshold may read the location hit, as Hit.<name>. A

@@ -966,7 +966,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     if (window.wpSheets) html += window.wpSheets.charSelectHtml(w);   // 1.5.6 (backlog 186 (1), the owner: "hes not linked"): who this token is, first: its character sheet, with Open sheet
                     html += '<div class="field"><label for="wbCharName">Character Name</label><input type="text" id="wbCharName" value="'+esc(w.charName||'')+'"></div>';
                     html += '<div class="field"><label for="wbCharStats">Stats / Notes</label><textarea id="wbCharStats">'+esc(w.charStats||'')+'</textarea></div>';
-                    if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) html += '<div class="field"><label for="wbGmInfo">GM note / dialogue <span class="muted">(this token only — hidden from players)</span></label><textarea id="wbGmInfo" placeholder="Private notes, read-aloud dialogue…">'+esc(w.gmInfo||'')+'</textarea></div>';
+                    if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) html += '<div class="field"><label for="wbGmInfo">GM note / dialogue <span class="muted">(this token only — hidden from players)</span></label><textarea id="wbGmInfo" placeholder="Private notes, read-aloud dialogue…">'+esc(w.gmInfo||'')+'</textarea><div id="wbGmDice" class="gm-dice" hidden></div></div>';
                     // Character (roster): the linked roster entry's Info/Background + Reference — one source of truth with the Data Map editor; unlinked → a link-or-create picker. GM only.
                     var _rEntry = null, _rRoom = null;
                     if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) {
@@ -1223,7 +1223,9 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 if(wbCharName) wbCharName.addEventListener('input', function() { w.charName = this.value; save(); });
                 var wbCharStats = document.getElementById('wbCharStats');
                 if(wbCharStats) wbCharStats.addEventListener('input', function() { w.charStats = this.value; save(); });
-                var wbGmInfo = document.getElementById('wbGmInfo'); if (wbGmInfo) wbGmInfo.addEventListener('input', function() { w.gmInfo = this.value || undefined; save(); });
+                var gmDice = function(tx) { var gd = document.getElementById('wbGmDice'); if (gd && window.wpInlineDice) window.wpInlineDice.list(gd, typeof tx === 'string' ? tx : (w.gmInfo || '')); }; gmDice();   // 1.6.0, backlog 27: the note's dice formulas as roll buttons
+                var wbGmInfo = document.getElementById('wbGmInfo'); if (wbGmInfo) wbGmInfo.addEventListener('input', function() { gmDice(this.value); });
+                if (wbGmInfo) wbGmInfo.addEventListener('input', function() { w.gmInfo = this.value || undefined; save(); });
                 var wbRosterInfo = document.getElementById('wbRosterInfo'); if (wbRosterInfo) wbRosterInfo.addEventListener('input', function() { if (_rEntry) { _rEntry.info = this.value; save(); } });   // writes the linked roster character's Info/Background — one source of truth with the Data Map
                 var wbRosterRef = document.getElementById('wbRosterRef'); if (wbRosterRef) wbRosterRef.addEventListener('input', function() { if (_rEntry) { _rEntry.ref = this.value || undefined; save(); } });
                 var wbRosterUnlink = document.getElementById('wbRosterUnlink'); if (wbRosterUnlink) wbRosterUnlink.addEventListener('click', function(e) { e.preventDefault(); delete w.charRef; save(); renderInspector(); });

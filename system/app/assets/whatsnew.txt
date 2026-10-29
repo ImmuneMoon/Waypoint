@@ -130,6 +130,9 @@ System editor
   13, 14 or 16 px. The HUD keeps its own small labels.
 - A pool's colour can be ticked Band only: coloured on the pinned band,
   plain in its own section.
+- A dice formula written in text, such as 2d6 + 3, is a button that rolls
+  it: in pages and planners as you read them, in Table Chat messages, and
+  under a token's GM note in Properties. It rolls like any roll.
 - The Music panel has In a fight, on any map: the campaign's own fight
   music, for every map with none of its own. When the fight ends the
   map's own music comes back, or silence where it has none.

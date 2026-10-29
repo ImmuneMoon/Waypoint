@@ -317,6 +317,47 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('Chat cards: dice.js roll() (run for real) hands this machine\'s damage word to the dice path only as true (a thrown item\'s damage), never anything else',
             seenR.length === 3 && seenR[0].dmg === true && !('dmg' in seenR[1]) && !('dmg' in seenR[2]), j(seenR));
     }
+    {   // 1.6.0, backlog 27 (the owner, by prompt: pages and planners, GM info on tokens, Table Chat messages; "Like any roll"): inlinedice.js, sliced and run for real on a page of plain objects
+        const j = JSON.stringify;
+        const idS = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', 'inlinedice.js'), 'utf8').replace(/\r\n/g, '\n');
+        const iA = idS.indexOf('// [dicecheck:inline-start]'), iZ = idS.indexOf('// [dicecheck:inline-end]');
+        const mkNode = (doc, type, tag, text) => {
+            const n = { nodeType: type, tagName: tag ? tag.toUpperCase() : undefined, ownerDocument: doc, parentNode: null, childNodes: [], attrs: {}, className: '', hidden: false, type: '', title: '', nodeValue: type === 3 ? text : null };
+            n.appendChild = c => { if (c.frag) { c.childNodes.slice().forEach(k => n.appendChild(k)); c.childNodes = []; return c; } c.parentNode = n; n.childNodes.push(c); return c; };
+            n.replaceChild = (nw, old) => { const i = n.childNodes.indexOf(old); const add = nw.frag ? nw.childNodes.slice() : [nw]; add.forEach(k => { k.parentNode = n; }); n.childNodes.splice(i, 1, ...add); old.parentNode = null; return old; };
+            n.setAttribute = (k, v) => { n.attrs[k] = String(v); }; n.getAttribute = k => (k in n.attrs ? n.attrs[k] : null);
+            n.matches = sel => !!tag && sel.split(',').map(s => s.trim()).some(s => (s === tag) || (s.charAt(0) === '.' && (' ' + n.className + ' ').indexOf(' ' + s.slice(1) + ' ') >= 0) || (s === '[contenteditable]' && 'contenteditable' in n.attrs));
+            n.closest = sel => { for (let x = n; x; x = x.parentNode) if (x.nodeType === 1 && x.matches(sel)) return x; return null; };
+            n.querySelectorAll = sel => { const out = []; (function w(x) { x.childNodes.forEach(k => { if (k.nodeType === 1) { if (k.matches(sel)) out.push(k); w(k); } }); })(n); return out; };
+            n.normalize = () => { const k = []; n.childNodes.forEach(c => { const last = k[k.length - 1]; if (c.nodeType === 3 && last && last.nodeType === 3) last.nodeValue += c.nodeValue; else k.push(c); }); n.childNodes = k; };
+            Object.defineProperty(n, 'textContent', { get: () => (n.nodeType === 3 ? n.nodeValue : n.childNodes.map(c => c.textContent).join('')), set: v => { n.childNodes = []; if (v !== '') n.appendChild(doc.createTextNode(String(v))); } });
+            return n;
+        };
+        const doc = { createElement: tag => mkNode(doc, 1, tag), createTextNode: s => mkNode(doc, 3, null, s), createDocumentFragment: () => { const f = mkNode(doc, 11, null); f.frag = true; return f; } };
+        const el = (tag, cls, kids) => { const n = doc.createElement(tag); if (cls) n.className = cls; (kids || []).forEach(k => n.appendChild(typeof k === 'string' ? doc.createTextNode(k) : k)); return n; };
+        const winI = {}; const I = new Function('window', 'document', "'use strict';\n" + idS.slice(iA, iZ) + '\nreturn { runs: diceRuns, apply: apply, strip: strip, list: list };')(winI, doc);
+        const runs = I.runs('Roll 2d6 + 3 then d20, or 4dF and 3d6−1; not and20, x2d6, 2d6x, 1.5d6, d, d0x; Damage 1d10+2d6-1') .map(r => r.expr);
+        const many = I.runs(Array(60).fill('d6').join(' ')).length, long = I.runs('d6' + '+1'.repeat(40)).length, none = [I.runs(''), I.runs(null), I.runs(7)].map(x => x.length);
+        const page = el('div', 'pv', [el('div', 'pv-blk', [el('h2', '', ['Bandits'])]), el('div', 'pv-blk', [el('p', '', ['They hit for 2d6 + 1, ', el('a', '', ['see 1d4']), ' or ', el('code', '', ['3d6']), ' and d8.'])])]);
+        const made = I.apply(page), p0 = page.childNodes[1].childNodes[0], btns = page.querySelectorAll('.inline-dice');
+        const again = I.apply(page), txt = page.textContent, first = p0.childNodes[0].nodeValue;
+        I.strip(page); const back = page.querySelectorAll('.inline-dice').length, txt2 = page.textContent;
+        const chat = el('span', 'chat-text', ['<b>3d6</b> please']); I.apply(chat);
+        const box = el('div', 'gm-dice'); const nL = I.list(box, 'Guard: 2d6 + 2 sword, 1d20 + 4 to hit'), lst = box.childNodes.map(b => [b.textContent, b.attrs['data-roll'], b.type, b.title]); const nL0 = I.list(box, 'no dice'), hid = box.hidden;
+        winI.wpStream = true; const st = el('p', '', ['2d6']); const madeS = I.apply(st);
+        check('1.6.0 inline dice (backlog 27; inlinedice.js run for real): diceRuns finds a formula with dice as the roller takes it (a true minus as -, a space round each sign), never inside a word, a decimal or after one, never a bare d, at most 40 a text and none longer than 60; apply makes each a button with the words as written and the formula in data-roll, of elements and text nodes only, never inside a link or code, and once only; strip puts the text back; a chat text with markup in it is words; list makes a GM note\'s buttons, hidden with none; nothing in the stream window',
+            j(runs) === j(['2d6 + 3', 'd20', '4dF', '3d6 - 1', '1d10 + 2d6 - 1']) && many === 40 && long === 0 && j(none) === j([0, 0, 0])
+            && made === 2 && again === 0 && btns.length === 2 && btns[0].textContent === '2d6 + 1' && btns[0].attrs['data-roll'] === '2d6 + 1' && btns[0].type === 'button' && btns[0].title === 'Roll 2d6 + 1' && btns[1].attrs['data-roll'] === 'd8'
+            && first === 'They hit for ' && txt === 'BanditsThey hit for 2d6 + 1, see 1d4 or 3d6 and d8.' && back === 0 && txt2 === txt
+            && chat.childNodes.length === 3 && chat.childNodes[1].attrs['data-roll'] === '3d6' && chat.childNodes[0].nodeValue === '<b>' && chat.childNodes[2].nodeValue === '</b> please'
+            && nL === 2 && j(lst) === j([['2d6 + 2', '2d6 + 2', 'button', 'Roll 2d6 + 2'], ['1d20 + 4', '1d20 + 4', 'button', 'Roll 1d20 + 4']]) && nL0 === 0 && hid === true && madeS === 0
+            && !/innerHTML|insertAdjacentHTML/.test(idS), j([runs, many, long, made, again, txt, txt2, lst, first, back, hid, madeS]));
+        const ix = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8'), pn = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', 'pagenav.js'), 'utf8'), nj = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8'), ij = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', 'inspector.js'), 'utf8');
+        check('1.6.0 inline dice, the wiring: the module loaded after the dice roller; every place a page is read asks it after its folds and an export takes it off with them; a chat message\'s own words (never its sender\'s name) and a GM note in Properties; Help says it',
+            ix.indexOf('<script type="module" src="scripts/inlinedice.js"></script>') > ix.indexOf('<script type="module" src="scripts/dice.js"></script>') && /root\.classList\.add\('pv-folds'\);\s*if \(typeof window !== 'undefined' && window\.wpInlineDice && typeof window\.wpInlineDice\.apply === 'function'\) window\.wpInlineDice\.apply\(root\);/.test(pn)
+            && /function foldStrip\(root\) \{[^\n]*window\.wpInlineDice\.strip\(root\); \}/.test(pn) && nj.indexOf("var tx = document.createElement('span'); tx.className = 'chat-text'; tx.textContent = String(m.text || ''); wrap.appendChild(tx);") > 0
+            && /<div id="wbGmDice" class="gm-dice" hidden><\/div>/.test(ij) && /A <b>dice formula written in text<\/b>, such as 2d6 \+ 3, is a button that rolls it\./.test(ix), '');
+    }
     delete global.window;
 
     summed = true;

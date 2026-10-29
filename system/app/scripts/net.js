@@ -9337,7 +9337,8 @@ function chatEntryNode(m) {   // one text entry, built from nodes: nothing from 
     if (whisper) { var t = document.createElement('span'); t.className = 'chat-tag'; t.textContent = 'whisper'; wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(t); }
     var tm = document.createElement('span'); tm.className = 'chat-time'; tm.textContent = chatTime(m.ts); wrap.appendChild(tm);
     wrap.appendChild(document.createElement('br'));
-    wrap.appendChild(document.createTextNode(String(m.text || '')));
+    var tx = document.createElement('span'); tx.className = 'chat-text'; tx.textContent = String(m.text || ''); wrap.appendChild(tx);
+    if (typeof window !== 'undefined' && window.wpInlineDice && typeof window.wpInlineDice.apply === 'function') window.wpInlineDice.apply(tx);   // 1.6.0, backlog 27: a dice formula in a message a roll button
     return wrap;
 }
 // [sinkcheck:cardlook-start]

@@ -188,6 +188,7 @@ function foldApply(root) {
         if (head) btn.removeAttribute('tabindex'); else btn.setAttribute('tabindex', '-1');   // the keyboard steps through the sections' arrows, not every block's
     }
     root.classList.add('pv-folds');
+    if (typeof window !== 'undefined' && window.wpInlineDice && typeof window.wpInlineDice.apply === 'function') window.wpInlineDice.apply(root);   // 1.6.0, backlog 27: a dice formula in the page a roll button
 }
 // Sets what is folded on the page a place shows: kept, drawn there, and drawn in every other place of this window that shows the same page.
 // A mark that is on no part of the page as it is drawn there is let go: its part was changed or taken away
@@ -229,7 +230,7 @@ function foldReveal(root, el, own) {
     return changed;
 }
 // the page as it was drawn: every arrow, class and word of the folds taken off (before the page's markup is read for an export)
-function foldStrip(root) { if (!root) return; navBlocks(root).forEach(foldClear); if (root.classList) root.classList.remove('pv-folds'); }
+function foldStrip(root) { if (!root) return; navBlocks(root).forEach(foldClear); if (root.classList) root.classList.remove('pv-folds'); if (typeof window !== 'undefined' && window.wpInlineDice && typeof window.wpInlineDice.strip === 'function') window.wpInlineDice.strip(root); }
 // [pagecheck:fold-end]
 
 // [pagecheck:land-start]

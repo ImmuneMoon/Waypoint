@@ -132,6 +132,18 @@ function tableKeys() { try { var k = JSON.parse(localStorage.getItem('wp_tableKe
 function tableKeyFor(gmId) { var k = tableKeys(); return (own(k, gmId) && typeof k[gmId] === 'string') ? k[gmId].slice(0, 64) : ''; }
 var TABLE_KEYS_MAX = 50;   // as many tables as vtt.js remembers: a host sending snapshots under ever new GM ids cannot grow the store (or the preferences file it mirrors to)
 function rememberTableKey(gmId, key) { if (typeof gmId !== 'string' || !gmId || typeof key !== 'string' || !key) return; var k = tableKeys(); delete k[gmId]; k[gmId] = key.slice(0, 64); var ks = Object.keys(k); for (var i = 0; i < ks.length - TABLE_KEYS_MAX; i++) delete k[ks[i]]; try { localStorage.setItem('wp_tableKeys', JSON.stringify(k)); } catch (e) {} }   // newest last, the oldest forgotten
+// 1.6.0 (the owner, 2026-10-29, by prompt: "Keep a small record"): at each snapshot a GM's table sends, this computer notes the GM's name, their
+// campaign's name and the time, for the Profile window's list of the tables that know you (profilecore tablesOf). Plain text, cut, kept on
+// this computer alone and never sent; newest last, the oldest forgotten past TABLE_KEYS_MAX as the keys are. np: the snapshot's notepad
+function tablesSeen() { try { var s = JSON.parse(localStorage.getItem('wp_tablesSeen') || 'null'); return s && typeof s === 'object' && !Array.isArray(s) ? s : {}; } catch (e) { return {}; } }
+function rememberTableSeen(gmId, np) {
+    if (!validProfileId(gmId)) return;
+    var plain = function(v, n) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n) : ''; };
+    var o = np && typeof np === 'object' ? np : {}, s = tablesSeen(); delete s[gmId];
+    s[gmId] = { gm: plain(o.gm, 60), campaign: plain(o.campaign, 120), at: Date.now() };
+    var ks = Object.keys(s); for (var i = 0; i < ks.length - TABLE_KEYS_MAX; i++) delete s[ks[i]];
+    try { localStorage.setItem('wp_tablesSeen', JSON.stringify(s)); } catch (e) {}
+}
 // The key is PROVEN, never sent: the host challenges with a fresh nonce and the player answers with HMAC-SHA256(key, authData(nonce, the room id
 // they dialled)); the host checks it over its own room id. A proof made at another room (a squatted generation of the code, another GM's table
 // relaying the challenge) or for another nonce never verifies here, and the key itself never travels. Without WebCrypto there is no proof:
@@ -7056,6 +7068,7 @@ function handleMessage(msg, conn) {
         net.gmId = String(msg.gmId || (msg.notepad && msg.notepad.gmId) || '').slice(0, 80);   // kept apart from the notepad, which leaveSession resets
         if (typeof msg.key === 'string' && msg.key && !conn.wpKeyTaken) { conn.wpKeyTaken = true; rememberTableKey(net.gmId, msg.key); }   // the table key this host issued me: proves this id is mine next time — taken once per connection (a host cannot fill or overwrite the store snapshot after snapshot)
         // [netcheck:snapkey-end]
+        rememberTableSeen(net.gmId, msg.notepad);   // 1.6.0: for the Profile window's list (the GM's name, their campaign's, the time), never sent
         applySnapshot(msg);   // after gmId: the settings refresh inside it keys this table's off-list by campaign + GM
         syncSessionButtons();
         if (window.wpTrackers && typeof window.wpTrackers.receive === 'function') window.wpTrackers.receive([], 0);   // backlog 29: a whole campaign from the host: none of its trackers until it sends them

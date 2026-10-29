@@ -1227,6 +1227,22 @@ window.wpHandoutFor = function(src, title, caption, hid) {
     return h.id;
 };
 window.wpHandoutName = function(src) { return niceName(src); };
+// 1.6.0: what the Journal knows of a GM, for the Profile window's list of the tables that know you (settings.js profTablesDraw). want: GM ids.
+// Answers { <gm id>: { gm, campaign } }, read from the journals on this computer as their own index has them (the newest journal of a GM
+// kept); nothing is sent and nothing written
+window.wpJournalGms = async function(want) {
+    var out = Object.create(null), by = Object.create(null), best = Object.create(null);
+    (Array.isArray(want) ? want : []).forEach(function(g) { if (typeof g === 'string' && safeId(g)) by[safeId(g)] = g; });
+    if (!Object.keys(by).length) return out;
+    var keys = await readRegistry();
+    for (var k in keys) {
+        var at = k.indexOf('__'), g = at > 0 ? by[k.slice(at + 2)] : undefined; if (!g) continue;
+        var idx = await readIndex(k); if (!idx || (!idx.gm && !idx.campaign)) continue;
+        if (best[g] !== undefined && best[g] >= (idx.updated || 0)) continue;
+        best[g] = idx.updated || 0; out[g] = { gm: String(idx.gm || '').slice(0, 60), campaign: String(idx.campaign || '').slice(0, 120) };
+    }
+    return out;
+};
 var _hTagRow = ui('handoutTagRow');
 if (_hTagRow) _hTagRow.addEventListener('click', function(e) {
     var b = e.target.closest && e.target.closest('[data-tag]'); if (!b) return;

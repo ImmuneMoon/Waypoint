@@ -5589,6 +5589,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && all.every(n => !n.dataset || !n.dataset.tip || n.dataset.tip.indexOf('<img') < 0) && out.filter(p => p.querySelector('.trk-gm')).length === 2 && out[1].querySelector('button') === null,
             err || JSON.stringify([names.map(n => n && n.textContent), dots, paths.slice(0, 2)]));
     }
+    /* ---- 1.6.0, the Profile window's list of the tables that know you (settings.js profTablesDraw, sliced by its proftables markers and run for
+       real with profilecore on a page that refuses markup): a GM's name and their campaign's come from their table or the Journal ---- */
+    {
+        let err = '', box = null, rows = [], again = null; const steps = [];
+        try {
+            const { makeDom } = require('./boxdom.js'), dom = makeDom(), doc = dom.document, PCm = await import(modUrl('profilecore.js'));
+            box = doc.createElement('div'); box.id = 'profTables'; doc.body.appendChild(box);
+            const evil = '<img src=x onerror=alert(1)><script>x</script>', mem = { wp_tableKeys: JSON.stringify({ u_a: 'a'.repeat(32), u_b: 'b'.repeat(32), u_c: 'c'.repeat(32) }), wp_tablesSeen: JSON.stringify({ u_a: { gm: evil, campaign: '"><svg onload=1>', at: 1761600000000 } }) };
+            let journal = null; const win = { wpProfileCore: PCm, wpJournalGms: ids => { journal = ids; return Promise.resolve({ u_b: { gm: '<b onmouseover=1>Tobias</b>', campaign: evil } }); } };
+            const fn = new Function('ui', 'window', 'document', 'localStorage', 'profStep', 'profWinShown', slice('settings.js', 'proftables') + '\nreturn profTablesDraw;')(id => (id === 'profTables' ? box : null), win, doc, { getItem: k => (k in mem ? mem[k] : null) }, (st, o) => steps.push(st + ' ' + JSON.stringify(o)), () => true);
+            rows = fn('open'); await new Promise(r => setTimeout(r, 20)); again = journal;
+        } catch (e) { err = String(e && e.message || e); }
+        const all = []; if (box) (function walk(n) { all.push(n); (n.childNodes || []).forEach(walk); })(box);
+        const els = all.filter(n => n.nodeType === 1), texts = all.filter(n => n.nodeType === 3).map(n => n.nodeValue), said = texts.join('|');
+        check('1.6.0 the tables that know you (settings.js profTablesDraw, run for real on a page that refuses markup, with profilecore and a Journal that answers markup): every GM\'s name and campaign is a text node of its own, whatever it holds; the page holds rows of div, span and small and nothing else; a GM with no name known is said plainly; no key and no GM id is drawn; the Journal is asked by the GM ids alone; each drawing logs counts only',
+            !err && rows.length === 3 && els.every(n => /^(DIV|SPAN|SMALL)$/.test(n.tagName)) && texts.includes('<img src=x onerror=alert(1)><script>x</script>') && texts.includes('<b onmouseover=1>Tobias</b>') && texts.includes('"><svg onload=1>')
+            && texts.includes('A GM whose name this computer does not know') && !/aaaa|bbbb|cccc|u_[abc]/.test(said) && JSON.stringify(again) === JSON.stringify(['u_a', 'u_b', 'u_c'])
+            && steps.length === 2 && steps.every(t => /^tables(-named)? \{("why":"open",)?"n":3,"named":[0-9],"dated":1\}$/.test(t)) && box.querySelectorAll('.prof-table').length === 3,
+            err || JSON.stringify([texts.slice(0, 8), steps]));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

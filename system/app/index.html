@@ -180,6 +180,7 @@
         </div>
       </div>
       <div class="hdr-group" data-label="App">
+        <button class="tool ghost icon" id="rowMeBtn" title="Your profile. Your picture, name and colour, and the tables that know you."><span id="rowMeFace" class="row-me-face" aria-hidden="true"></span></button>
         <button class="tool ghost icon" id="settingsBtn" title="Settings"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 5.1L10.7 2.8L13.3 2.8L13.8 5.1A7.1 7.1 0 0 1 15.6 5.9L17.6 4.6L19.4 6.4L18.1 8.5A7.1 7.1 0 0 1 18.9 10.2L21.2 10.7L21.2 13.3L18.9 13.8A7.1 7.1 0 0 1 18.1 15.6L19.4 17.6L17.6 19.4L15.6 18.1A7.1 7.1 0 0 1 13.8 18.9L13.3 21.2L10.7 21.2L10.2 18.9A7.1 7.1 0 0 1 8.5 18.1L6.4 19.4L4.6 17.6L5.9 15.6A7.1 7.1 0 0 1 5.1 13.8L2.8 13.3L2.8 10.7L5.1 10.2A7.1 7.1 0 0 1 5.9 8.5L4.6 6.4L6.4 4.6L8.4 5.9A7.1 7.1 0 0 1 10.2 5.1zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z"/></svg></button>
         <button class="tool ghost icon" id="helpBtn" title="Help &amp; Shortcuts"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM9.4 9.6a2.7 2.7 0 1 1 3.9 2.4c-.8.4-1.3 1-1.3 1.9M12 16.9h.01"/></svg></button>
         <div class="row-menu-wrap" id="moreMenuWrap">
@@ -297,12 +298,17 @@
                       <p>Waypoint organizes a tabletop campaign into <b>Maps</b> and <b>Planners</b>. A map is a location with two faces. Its <b>Data Map</b> holds your notes as linked nodes. Its <b>Play Map</b> is the freeform battle map. A planner is a document page for a session plan. Everything lives in the left sidebar.</p>
                       <p>New here? The <b>&#127891; Tutorial</b> tab runs a guided tour over a small demo campaign. You can keep that campaign and build on it. To jump straight to a topic, type in the <b>search box</b> above.</p>
                       <h4>The welcome screen</h4>
-                      <p>When Waypoint opens you land on a <b>Welcome</b> screen. It offers four things: <b>Start a campaign</b>, <b>Import</b> one from a file, <b>Continue</b> a campaign you already have, or <b>Join a game</b>.</p>
+                      <p>When Waypoint opens you land on a <b>Welcome</b> screen. It offers five things: <b>Start a campaign</b>, <b>Import</b> one from a file, <b>Continue</b> a campaign you already have, <b>Join a game</b>, or <b>Your profile</b>.</p>
                       <ul>
                           <li><b>Join a game</b> opens its own screen. There you set your <b>name</b>, <b>color</b>, <b>picture</b> and <b>token face</b>, and enter the GM&rsquo;s <b>room code</b>. The picture is framed first: drag and zoom to the part that shows. Together these are your profile, which follows you to every table. The screen stays up and shows the connection. It drops you in once the GM&rsquo;s table loads.</li>
                           <li>Click the <b>Waypoint</b> logo at the top left to bring the Welcome screen back at any time.</li>
-                          <li>Set your profile at any time under <b>Settings &#9656; Profile</b>.</li>
-                          <li><b>Your profile on another computer</b>: in <b>Settings &#9656; Profile</b>, <b>Save my profile</b> makes a file, and <b>Copy my profile code</b> copies the same as one long code.
+                          <li><b>Your profile</b> has a window of its own. Your picture at the right end of the top row opens it. So do <b>Your profile</b> on the Welcome screen and <b>Open your profile</b> in <b>Settings &#9656; Profile</b>.
+                              <ul>
+                                  <li>It holds your picture, name, colour and token face. A change there shows at once in the top row.</li>
+                                  <li>Below them is a short list of the GMs whose tables know you. Each GM is shown by name where this computer knows it, with when you last joined.</li>
+                                  <li>The list is read from this computer alone. A table&rsquo;s key is never shown, and nothing is sent.</li>
+                              </ul></li>
+                          <li><b>Your profile on another computer</b>: in <b>Your profile</b>, <b>Save my profile</b> makes a file, and <b>Copy my profile code</b> copies the same as one long code.
                               <ul>
                                   <li>On the other computer, <b>Open a profile</b> or <b>Paste a profile code</b>. You then join tables there as yourself, and every GM&rsquo;s table knows you at once.</li>
                                   <li>Keep the file and the code private: they let someone join as you.</li>
@@ -331,6 +337,7 @@
                                   <li>Players have no tabs. Their row names the map they are on.</li>
                               </ul>
                           </li>
+                          <li><b>Your picture:</b> your picture at the right end of the top row, beside Settings, opens your profile. With no picture it shows the plain default on your colour. It stays in the row when the row is short.</li>
                           <li><b>Pills:</b> small pills in the top row say what is going on. A pill shows only while it has something to say, and a press opens its thing.
                               <ul>
                                   <li><b>Table</b> and a number show while you host, with how many players are connected. It opens Multiplayer.</li>
@@ -1549,7 +1556,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>No character yet?</b> You get a <b>waiting token</b>, your face in a dashed outline, to move about until your GM gives you a character. Right-click it and a card says where you stand.
                               <ul>
                                   <li>Its face is yours to choose: your picture, the plain default, one of the bundled token pictures or an emoji.</li>
-                                  <li>You choose it on the Join screen, in <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 5.1L10.7 2.8L13.3 2.8L13.8 5.1A7.1 7.1 0 0 1 15.6 5.9L17.6 4.6L19.4 6.4L18.1 8.5A7.1 7.1 0 0 1 18.9 10.2L21.2 10.7L21.2 13.3L18.9 13.8A7.1 7.1 0 0 1 18.1 15.6L19.4 17.6L17.6 19.4L15.6 18.1A7.1 7.1 0 0 1 13.8 18.9L13.3 21.2L10.7 21.2L10.2 18.9A7.1 7.1 0 0 1 8.5 18.1L6.4 19.4L4.6 17.6L5.9 15.6A7.1 7.1 0 0 1 5.1 13.8L2.8 13.3L2.8 10.7L5.1 10.2A7.1 7.1 0 0 1 5.9 8.5L4.6 6.4L6.4 4.6L8.4 5.9A7.1 7.1 0 0 1 10.2 5.1zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z"/></svg> Settings &#9656; Profile</b>, or from that card.</li>
+                                  <li>You choose it on the Join screen, in <b>Your profile</b>, or from that card.</li>
                                   <li>A character your GM gives you while you are at the table takes a copy of that face, if it has no picture yet.</li>
                                   <li>Your GM may also ask you to make a character. The request appears on your card.</li>
                               </ul>
@@ -3634,6 +3641,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <button class="wc-card" id="wcStartBtn"><span class="wc-ic">&#10133;</span><b>Start a campaign</b><small>A fresh world of your own</small></button>
         <button class="wc-card" id="wcLoadBtn"><span class="wc-ic">&#128193;</span><b>Import a campaign</b><small>Open one from a file</small></button>
         <button class="wc-card" id="wcJoinBtn"><span class="wc-ic">&#127760;</span><b>Join a game</b><small>With a room code</small></button>
+        <button class="wc-card" id="wcProfileBtn"><span class="wc-ic wc-me" id="wcProfFace" aria-hidden="true"></span><b>Your profile</b><small>Your picture, name and tables</small></button>
       </div>
       <div class="wc-continue" id="wcContinue" style="display:none;"><div class="wc-continue-head">Continue a campaign</div><div id="wcContinueList" class="wc-continue-list"></div></div>
       <div class="wc-foot">
@@ -3667,13 +3675,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
   </div>
 </div>
-<div id="settingsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+<div id="profileModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100001; align-items:center; justify-content:center;">
     <div style="background:var(--bg2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:460px; max-width:92vw; max-height:85vh; overflow-y:auto;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Settings <button id="settingsCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
-
-        <details class="set-group" data-group="profile">
-            <summary>Profile</summary>
-            <div class="set-group-body">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Your profile <button id="profileCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
+        <div class="set-line" style="margin:-8px 0 14px;">Who you are at every table. It is kept on this computer.</div>
         <div style="display:flex; gap:14px; align-items:center; margin-bottom:12px;">
             <div id="setAvatarPreview" title="Your table picture">?</div>
             <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
@@ -3723,6 +3728,24 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                     <button class="tool ghost" id="setAcctUnlinkBtn" type="button" style="flex:1;" title="This computer stops following your account. Your profile here stays as it is" hidden>Unlink this computer</button>
                 </div>
             </div>
+        </div>
+        <div class="prof-tables" style="margin-top:16px;">
+            <div class="set-field-label">Tables that know you</div>
+            <div id="profTables" class="prof-tables-list"></div>
+            <div class="set-line">The GMs whose tables have let you in. Each table knows you by a key kept on this computer. The key is never shown, and nothing here is sent.</div>
+        </div>
+    </div>
+</div>
+<div id="settingsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:var(--bg2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:460px; max-width:92vw; max-height:85vh; overflow-y:auto;">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Settings <button id="settingsCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
+
+        <details class="set-group" data-group="profile">
+            <summary>Profile</summary>
+            <div class="set-group-body">
+        <div class="set-profile-open" style="margin-bottom:12px;">
+            <button class="tool ghost" id="setProfileOpenBtn" type="button" style="width:100%;" title="Opens your profile in a window of its own">Open your profile</button>
+            <div class="set-line">Your picture, name, colour and token face, your profile on another computer and the tables that know you.</div>
         </div>
         <div class="set-welcome" style="margin-top:6px;">
             <div class="set-field-label">Welcome screen on launch</div>

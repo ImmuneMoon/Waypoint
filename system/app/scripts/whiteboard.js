@@ -6704,6 +6704,7 @@ if(_el_helpCloseBtn) _el_helpCloseBtn.addEventListener('click', function() {
           importChoiceModal: 'importCancelBtn',
           imgLibModal: 'imgLibCloseBtn',
           settingsModal: 'settingsCloseBtn',
+          profileModal: 'profileCloseBtn',
           playersModal: 'playersCloseBtn',
           sheetViewModal: 'sheetViewCloseBtn',
           vttNoticeModal: 'vttNoticeKeepBtn',   // the backdrop means "Keep mine"

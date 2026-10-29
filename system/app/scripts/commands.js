@@ -257,7 +257,7 @@ function setHidden(el, top, win) {
 function setRows(doc, win) {
     var top = doc.getElementById('settingsModal'), out = [], seen = {};
     if (!top) return out;
-    var add = function(name, sub, group, el) { var k = (sub + '|' + name).toLowerCase(); if (!name || seen[k]) return; seen[k] = 1; out.push({ name: name, sub: sub, group: group, el: el }); };
+    var add = function(name, sub, group, el, w) { var k = (sub + '|' + name).toLowerCase(); if (!name || seen[k]) return; seen[k] = 1; var r = { name: name, sub: sub, group: group, el: el }; if (w) r.win = w; out.push(r); };
     Array.prototype.forEach.call(top.querySelectorAll('details.set-group'), function(g) {
         var sum = g.querySelector('summary'), gname = sum ? setWords(sum) : '', gkey = g.getAttribute('data-group') || '';
         if (!gname || setHidden(g, top, win)) return;
@@ -266,6 +266,12 @@ function setRows(doc, win) {
             if (el.tagName === 'BUTTON') { var nx = setNext(el); if (!nx || !nx.classList || !nx.classList.contains('set-line')) return; }   // a button that is an option of its own has its grey line under it
             if (!setHidden(el, top, win)) add(setName(el), 'Settings ▸ ' + gname, gkey, el);
         });
+    });
+    // 1.6.0: the Profile window's options (the profile moved out of Settings into a window of its own), found the same way and opened there
+    var pw = doc.getElementById('profileModal');
+    if (pw && typeof pw.querySelectorAll === 'function') Array.prototype.forEach.call(pw.querySelectorAll('.set-field-label, label, button.tool'), function(el) {
+        if (el.tagName === 'BUTTON') { var nx = setNext(el); if (!nx || !nx.classList || !nx.classList.contains('set-line')) return; }
+        if (!setHidden(el, pw, win)) add(setName(el), 'Your profile', 'profile', el, 'profile');
     });
     return out;
 }
@@ -285,7 +291,8 @@ function setControl(el) {
 // given the focus
 function setOpen(row) {
     if (!row || !row.el) return false;
-    if (typeof window.wpOpenSettings === 'function') window.wpOpenSettings(row.group || '');
+    if (row.win === 'profile') { if (typeof window.wpOpenProfile === 'function') window.wpOpenProfile('jump'); }   // 1.6.0: an option of the Profile window opens there
+    else if (typeof window.wpOpenSettings === 'function') window.wpOpenSettings(row.group || '');
     for (var p = row.el; p; p = p.parentNode) if (p.tagName === 'DETAILS') p.open = true;
     setTimeout(function() {
         var el = row.el, c = setControl(el);
@@ -318,7 +325,7 @@ function jumpGo(en) {
 }
 function jumpAct(en) {
     if (!en) return '';
-    if (en.kind === 'set') return 'Enter opens Settings at this option.';
+    if (en.kind === 'set') return _setFound[en.setAt] && _setFound[en.setAt].win === 'profile' ? 'Enter opens your profile at this option.' : 'Enter opens Settings at this option.';
     var c = cmdById(en.cmdId); if (!c) return '';
     try { return String(c.act() || ''); } catch (e) { return ''; }
 }

@@ -107,7 +107,7 @@ function rowWraps() { var h = document.querySelector('header'); return !!h && h.
 // folding would hide six controls and win nothing. Nothing is drawn in between. An icon that stepped out wears row-fold, the style sheet's
 // one word for it, the body carries row-narrow while any did, and the » button shows. While the tour's card is up nothing folds, so that a
 // step finds the control it points at. true: folded
-var FOLD_ORDER = ['helpBtn', 'handoutsBtn', 'soundInd', 'musicInd', 'journalBtn', 'voiceInd'];
+var FOLD_ORDER = ['helpBtn', 'handoutsBtn', 'soundInd', 'musicInd', 'journalBtn', 'voiceInd'];   // your picture (#rowMeBtn, 1.6.0) never folds, as Settings does not (the owner, by prompt: "Stays, like Settings")
 function foldSet(n) {
     FOLD_ORDER.forEach(function(id, i) { var c = document.getElementById(id); if (c) c.classList.toggle('row-fold', i < n); });
     document.body.classList.toggle('row-narrow', n > 0); document.body.classList.toggle('row-squeeze', n >= FOLD_ORDER.length); var b = document.getElementById('rowTrayBtn'); if (b) b.hidden = !(n > 0);

@@ -1340,6 +1340,19 @@
   #netJoinAvatar { width: 34px; height: 34px; font-size: 12px; }
   #netJoinAvatar:hover, #setAvatarPreview:hover { border-color: var(--gold); }
   #setAvatarPreview img, #netJoinAvatar img { width: 100%; height: 100%; object-fit: cover; }
+  /* 1.6.0: the Profile window (settings.js profilewin). Your picture in the top row, drawn as the roster draws you, and the tables that know you */
+  header #rowMeBtn { padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  #rowMeFace { display: block; width: 20px; height: 20px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 1px var(--edge); }
+  #rowMeFace img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  header #rowMeBtn:hover #rowMeFace { box-shadow: 0 0 0 1px var(--gold); }
+  .prof-tables-list { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 2px; }
+  .prof-table { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 6px 8px; border: 1px solid var(--edge); border-radius: 6px; background: var(--panel); }
+  .prof-table-who { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .prof-table-gm { font-size: 12.5px; color: var(--ink); overflow-wrap: anywhere; }
+  .prof-table-gm.unknown { color: var(--dim); font-style: italic; }
+  .prof-table-who small { font-size: 10.5px; color: var(--dim); overflow-wrap: anywhere; }
+  .prof-table-when { flex: none; font-size: 10.5px; color: var(--dim); white-space: nowrap; }
+  .prof-none { font-size: 11px; color: var(--dim); line-height: 1.4; }
   .roster-avatar { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; display: block; }
 
   /* Table pause */
@@ -2329,12 +2342,14 @@
   .wc-field input[type=text] { width: 260px; max-width: 55vw; padding: 6px 9px; background: var(--panel2); color: var(--ink); border: 1px solid var(--edge); border-radius: 7px; font-size: 14px; box-sizing: border-box; }
   .wc-field input[type=color] { width: 40px; height: 30px; padding: 0; border: 1px solid var(--edge); background: none; cursor: pointer; color-scheme: dark; }
   .wc-note { flex-basis: 100%; font-size: 10.5px; color: var(--dim); line-height: 1.4; }
-  .wc-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .wc-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }   /* 1.6.0: four choices, two by two (the owner, by prompt: "Two by two") */
   .wc-card { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 16px; background: var(--panel); border: 1px solid var(--edge); border-radius: 12px; color: var(--ink); cursor: pointer; text-align: left; transition: border-color .12s, transform .12s, background .12s; }
   .wc-card:hover { border-color: var(--gold); transform: translateY(-2px); background: var(--panel2); }
   .wc-card .wc-ic { font-size: 22px; }
   .wc-card b { font-size: 14px; }
   .wc-card small { color: var(--dim); font-size: 11px; }
+  .wc-card .wc-me { display: block; width: 26px; height: 26px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 1px var(--edge); }   /* 1.6.0: Your profile wears your own picture */
+  .wc-card .wc-me img { display: block; width: 100%; height: 100%; object-fit: cover; }
   .wc-continue { background: var(--panel); border: 1px solid var(--edge); border-radius: 12px; padding: 12px 14px; }
   .wc-continue-head { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
   .wc-continue-list { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -2367,14 +2382,14 @@
      While the join page is up (main.js wcGate writes web-gate) the app behind it is put away, so no key or press reaches it: every part of it,
      with no transition, since a part that eases its look stays in reach while it eases, and a page that is not drawn never ends one. No :has() here:
      a browser that does not know it would drop the whole rule */
-  body.web-join #wcStartBtn, body.web-join #wcLoadBtn, body.web-join #wcContinue, body.web-join #wcEnterBtn, body.web-join #welcomeScreen .wc-launch,
+  body.web-join #wcStartBtn, body.web-join #wcLoadBtn, body.web-join #wcProfileBtn, body.web-join #wcContinue, body.web-join #wcEnterBtn, body.web-join #welcomeScreen .wc-launch,
   body.web-join #moreMenu [data-press="headerBrand"], body.web-join #moreFiles, body.web-join #campMenuWrap, body.web-join #mapTabs, body.web-join #rowPills,
   body.web-join #handoutsBtn, body.web-join #imgLibBtn, body.web-join #importCharBtn, body.web-join .gm-only,
   body.web-join #updateBtn, body.web-join #updateBanner, body.web-join #installerModal, body.web-join #wcUpdate,
   body.web-join #netPaneHostBtn, body.web-join #netPaneHost, body.web-join #netPlayersBtn, body.web-join #netEndBtn,
   body.web-join #settingsModal .set-welcome, body.web-join #settingsModal .set-devmode,
   body.web-join #setSnapNowBtn, body.web-join #setSnapNowBtn + .set-line, body.web-join #settingsModal .set-snaps,
-  body.web-join #settingsModal .set-group[data-group="updates"], body.web-join #settingsModal .set-saves, body.web-join #settingsModal .set-acct, body.web-join #wcPromise { display: none !important; }
+  body.web-join #settingsModal .set-group[data-group="updates"], body.web-join #settingsModal .set-saves, body.web-join #profileModal .set-acct, body.web-join #wcPromise { display: none !important; }
   .set-acct-line { margin-top: 3px; font-size: 10.5px; color: var(--dim); line-height: 1.4; }   /* the account's state, words a script sets: a set-line's look, not one of Settings' fixed lines */
   .set-acct-code { margin-top: 6px; font-size: 12px; color: var(--dim); }
   .set-acct-code b { font-size: 16px; letter-spacing: 2px; color: var(--text); font-family: ui-monospace, Consolas, monospace; }

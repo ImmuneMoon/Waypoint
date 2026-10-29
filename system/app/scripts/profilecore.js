@@ -89,11 +89,31 @@ function openWrites(local, pack) {
         wp_gmRooms: JSON.stringify(join(l.wp_gmRooms, pack.gmRooms || {}, roomOk, idOk))
     };
 }
+// The Profile window's list of the tables that know you (1.6.0; the owner, 2026-10-29, by prompt: "Yes, a short list", and of when you last
+// joined: "Keep a small record"). store: the texts localStorage holds for wp_tableKeys (the GMs whose table gave this player a key) and
+// wp_tablesSeen (net.js: at each snapshot a table sends, the GM's name, their campaign's name and the time). names: what the Journal knows of
+// a GM, { <gm id>: { gm, campaign } }, or nothing. Answers one row a table, [{ gm, campaign, at }]: the names plain text ('' where none is
+// known), at the time last joined (0 where it is not known). The newest joined first, then those with no time, the newest key first. A key
+// and a GM's id are never in a row
+function plainOf(v, n) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n) : ''; }
+function tablesOf(store, names) {
+    var s = isObj(store) ? store : {}, keys = parse(s.wp_tableKeys), seen = parse(s.wp_tablesSeen), nm = isObj(names) ? names : {};
+    keys = isObj(keys) ? keys : {}; seen = isObj(seen) ? seen : {};
+    var ids = Object.keys(keys).filter(function(k) { return idOk(k) && keyOk(keys[k]); });
+    ids = ids.slice(Math.max(0, ids.length - MAX_KNOWN)).reverse();
+    var rows = ids.map(function(id, i) {
+        var a = own(seen, id) && isObj(seen[id]) ? seen[id] : {}, b = own(nm, id) && isObj(nm[id]) ? nm[id] : {};
+        var at = typeof a.at === 'number' && isFinite(a.at) && a.at > 0 ? Math.floor(a.at) : 0;
+        return { gm: plainOf(a.gm, 60) || plainOf(b.gm, 60), campaign: plainOf(a.campaign, 120) || plainOf(b.campaign, 120), at: at, i: i };
+    });
+    rows.sort(function(x, y) { return (x.at && y.at) ? y.at - x.at : x.at ? -1 : y.at ? 1 : x.i - y.i; });
+    return rows.map(function(r) { return { gm: r.gm, campaign: r.campaign, at: r.at }; });
+}
 // The words a question about a pack shows: whose it is and how many tables know it
 function packWords(pack) {
     if (!isObj(pack) || !isObj(pack.profile)) return '';
     var n = Object.keys(pack.tableKeys || {}).length, name = pack.profile.name || 'A player with no name';
     return name + ', known at ' + n + ' ' + (n === 1 ? 'table' : 'tables');
 }
-if (typeof window !== 'undefined') window.wpProfileCore = { KIND: KIND, CODE_HEAD: CODE_HEAD, cleanPack: cleanPack, packOf: packOf, fileText: fileText, fromFile: fromFile, codeOf: codeOf, fromCode: fromCode, openWrites: openWrites, packWords: packWords };
-export { KIND, CODE_HEAD, cleanPack, packOf, fileText, fromFile, codeOf, fromCode, openWrites, packWords };
+if (typeof window !== 'undefined') window.wpProfileCore = { KIND: KIND, CODE_HEAD: CODE_HEAD, cleanPack: cleanPack, packOf: packOf, fileText: fileText, fromFile: fromFile, codeOf: codeOf, fromCode: fromCode, openWrites: openWrites, packWords: packWords, tablesOf: tablesOf };
+export { KIND, CODE_HEAD, cleanPack, packOf, fileText, fromFile, codeOf, fromCode, openWrites, packWords, tablesOf };

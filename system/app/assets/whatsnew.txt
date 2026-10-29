@@ -75,17 +75,22 @@ Pages on the map
   left dark.
 
 Your profile
+- Your profile has a window of its own. Your picture at the right of the
+  top row opens it, and so do Your profile on the welcome screen and
+  Settings, Profile. It holds your picture, name, colour and token face.
+- Below them is a short list of the GMs whose tables know you, with when
+  you last joined. It is read from this computer, and nothing is sent.
 - The welcome screen says it plainly: no account is needed, there are no
   ads, the app collects nothing about how you use it, and your campaigns
   are files on your own computer.
-- Take your profile to another computer: Settings, Profile has Save my
+- Take your profile to another computer: Your profile has Save my
   profile and Copy my profile code, and on the other computer Open a
   profile and Paste a profile code. Every GM's table then knows you there
   at once, with no question for the GM. Keep the file and the code
   private.
 - Your own table keeps its own id, apart from the one you join tables
   with, so your players still know it whatever profile you open.
-- Link to my account, in Settings, Profile, links this computer to your
+- Link to my account, in Your profile, links this computer to your
   account on the Waypoint website. Your profile then follows you to every
   computer you link. Unlink this computer stops it.
 

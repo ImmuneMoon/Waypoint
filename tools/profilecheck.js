@@ -1,6 +1,8 @@
 // profilecheck — a player's profile carried to another computer (1.6.0; the owner, 2026-10-29: "if we need to have a hardened profile section so the
 // app can know who is who each time, we should", and by prompt "Both", a file and a code). profilecore.js imported and run: what a pack holds and
 // never holds, its cleaner against hostile input, the file and the code both ways, what opening one writes; and settings.js's four buttons pinned.
+// 1.6.0, the Profile window (the owner: "a dedicated profile section in waypoint thats easy to get to"): the list of the tables that know you
+// (profilecore tablesOf, run), the small record net.js keeps at a snapshot (run), the window's wiring and its words.
 'use strict';
 const fs = require('fs'), path = require('path'), url = require('url');
 let pass = 0, fail = 0, summed = false;
@@ -55,14 +57,55 @@ const app = p => path.join(__dirname, '..', 'system', 'app', p), read = p => fs.
     const ix = read('index.html'), st = read('scripts/settings.js'), core = read('scripts/profilecore.js'), nj = read('scripts/net.js');
     const sl = st.slice(st.indexOf('// [settings:profcarry-start]'), st.indexOf('// [settings:profcarry-end]'));
     const ids = ['setProfSaveBtn', 'setProfOpenBtn', 'setProfCopyBtn', 'setProfPasteBtn', 'setProfFile'];
-    check('Settings ▸ Profile holds the four buttons and the file picker once each, in the Profile group, each saying what it does in its tooltip, with a grey line that says to keep the file and the code private and that your own table stays as it is',
-        ids.every(id => ix.split('id="' + id + '"').length === 2) && ix.indexOf('id="setProfSaveBtn"') > ix.indexOf('data-group="profile"') && ix.indexOf('id="setProfSaveBtn"') < ix.indexOf('data-group="appearance"')
+    const pw = ix.slice(ix.indexOf('<div id="profileModal"'), ix.indexOf('<div id="settingsModal"'));
+    check('the Profile window holds the four buttons and the file picker once each in the page (in Settings\' Profile group until 1.6.0\'s Profile window, moved on purpose), each saying what it does in its tooltip, with a grey line that says to keep the file and the code private and that your own table stays as it is',
+        ids.every(id => ix.split('id="' + id + '"').length === 2 && pw.includes('id="' + id + '"')) && pw.length > 3000 && ids.every(id => new RegExp('id="' + id + '"[^>]* title="[^"]{30,}"').test(pw))
         && ix.includes('Keep the file and the code private: they let someone join as you. Your own table, if you host one, stays as it is.'), ids.map(id => ix.split('id="' + id + '"').length));
     check('the wiring: settings.js imports the module; nothing changes during a table; opening asks first with the buttons alone; the host id is made from the profile here before anything is written; each write goes through openWrites; the settings file follows; every step logs as profile v1; the core reads no storage and no page',
         st.includes("import './profilecore.js';") && sl.includes("if (n && (n.active || n.foreign))") && sl.includes("{ noEnter: true, yes: 'Open it' }") && sl.indexOf('window.wpNet.hostId();') > 0 && sl.indexOf('window.wpNet.hostId();') < sl.indexOf('PC.openWrites(')
         && sl.includes('window.wpPrefsPush()') && (sl.match(/profStep\('/g) || []).length >= 10 && !/localStorage|document|window\.(?!wpProfileCore)/.test(core.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')), '');
-    check('Help says it in its own entry, and both release notes', ix.includes('<li><b>Your profile on another computer</b>: in <b>Settings &#9656; Profile</b>, <b>Save my profile</b> makes a file')
+    check('Help says it in its own entry, and both release notes', ix.includes('<li><b>Your profile on another computer</b>: in <b>Your profile</b>, <b>Save my profile</b> makes a file')
         && read('assets/whatsnew.txt').replace(/\r\n/g, NL).includes('Take your profile to another computer') && fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, NL).includes('Take your profile to another computer') && nj.includes('function hostId() {'), '');
+    // ---- 1.6.0: the tables that know you (profilecore tablesOf, run) ----
+    const keysT = J({ u_a: 'a'.repeat(32), u_b: 'b'.repeat(32), u_c: 'c'.repeat(32), u_bad: 'not a key', 'x y': 'd'.repeat(32) });
+    const seenT = J({ u_a: { gm: 'Mara\u0007 <b>x</b>', campaign: 'Reach\u202e', at: 2000 }, u_c: { gm: '', campaign: 'Coast', at: 5000 }, u_z: { gm: 'Gone', at: 9 }, u_b: { gm: 7, at: 'soon' } });
+    const rowsT = P.tablesOf({ wp_tableKeys: keysT, wp_tablesSeen: seenT }, { u_b: { gm: 'Tobias', campaign: 'Drowned' }, u_c: { gm: 'From the Journal', campaign: 'Not this' } });
+    check('the tables that know you: one row a GM whose table gave this player a key, the newest joined first; a name and a campaign from the record, else the Journal\'s; a name is plain text, cut, with what is no text put away; a time that is no time is none; a GM the record keeps whose key is gone, a key that is none and an id that is none are not listed',
+        J(rowsT) === J([{ gm: 'From the Journal', campaign: 'Coast', at: 5000 }, { gm: 'Mara <b>x</b>', campaign: 'Reach', at: 2000 }, { gm: 'Tobias', campaign: 'Drowned', at: 0 }]), rowsT);
+    const T2 = P.tablesOf({ wp_tableKeys: J({ u_p: 'e'.repeat(32), u_q: 'f'.repeat(32) }) }, { u_p: { gm: 'P' }, u_q: { gm: 'Q' } });
+    const many60 = {}; for (let i = 0; i < 60; i++) many60['u_' + i] = 'a'.repeat(32);
+    const T3 = P.tablesOf({ wp_tableKeys: J(many60) }, null);
+    check('with no time known, the newest key first; never past fifty; nothing, garbage and a store that is no object answer no row; a row holds a name, a campaign and a time and never a key or an id',
+        J(T2.map(r => r.gm)) === J(['Q', 'P']) && T3.length === 50 && P.tablesOf(null).length === 0 && P.tablesOf({ wp_tableKeys: 'not json', wp_tablesSeen: '[]' }).length === 0 && P.tablesOf({ wp_tableKeys: '[1,2]' }).length === 0
+        && rowsT.concat(T2, T3).every(r => J(Object.keys(r)) === J(['gm', 'campaign', 'at'])) && !/u_[abc]|aaaa|bbbb|cccc/.test(J(rowsT)), J([T2, T3.length]));
+    // ---- the small record at a snapshot (net.js tablesSeen and rememberTableSeen, run on a store of their own) ----
+    const r0 = nj.indexOf('function tablesSeen() {'), r1 = nj.indexOf('// The key is PROVEN', r0), mem = new Map();
+    const LS = { getItem: k => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => { mem.set(k, String(v)); } };
+    const vId = id => typeof id === 'string' && id.length >= 1 && id.length <= 80 && /^[A-Za-z0-9_.:-]+$/.test(id) && !(id in Object.prototype);
+    const R = r0 > 0 && r1 > r0 ? new Function('localStorage', 'validProfileId', 'TABLE_KEYS_MAX', 'Date', nj.slice(r0, r1) + '\nreturn { seen: tablesSeen, remember: rememberTableSeen };')(LS, vId, 3, { now: () => 1234 }) : null;
+    let s1 = null, s2 = null;
+    if (R) {
+        R.remember('u_gm1', { gm: 'Mara\u202e<i>' + 'x'.repeat(80), campaign: 'Reach', text: 'the GM\'s notes', gmId: 'u_gm1', look: { bg: 'red' } }); s1 = JSON.parse(mem.get('wp_tablesSeen'));
+        R.remember('__proto__', { gm: 'x' }); R.remember('u gm', { gm: 'x' }); R.remember('u_gm2', null); R.remember('u_gm3', { gm: 7, campaign: ['x'] }); R.remember('u_gm4', { gm: 'D' }); R.remember('u_gm1', { gm: 'Mara again' });
+        s2 = JSON.parse(mem.get('wp_tablesSeen')); mem.set('wp_tablesSeen', '[1]');
+    }
+    check('the record at a snapshot (net.js): the GM\'s name and their campaign\'s, plain text cut to 60 and 120, and the time, nothing else of the notepad; an id that is none is not kept; the newest last and the oldest forgotten past the cap; a store that is no object is read as empty',
+        !!R && J(s1) === J({ u_gm1: { gm: 'Mara <i>' + 'x'.repeat(52), campaign: 'Reach', at: 1234 } }) && J(Object.keys(s2)) === J(['u_gm3', 'u_gm4', 'u_gm1']) && J(s2.u_gm3) === J({ gm: '', campaign: '', at: 1234 }) && s2.u_gm1.gm === 'Mara again' && J(R.seen()) === '{}', J([s1, s2]));
+    check('it is kept at the snapshot a table sends, after the key and before the campaign is drawn, and nowhere else; it is this computer\'s alone: no message names it, it is not in a profile pack or the account\'s stores',
+        nj.includes('        // [netcheck:snapkey-end]\n        rememberTableSeen(net.gmId, msg.notepad);') && (nj.match(/rememberTableSeen\(/g) || []).length === 2 && (nj.match(/wp_tablesSeen/g) || []).length === 2
+        && !core.includes('wp_tablesSeen\'') && st.includes("var PROF_STORES = ['wp_profile', 'wp_tableKeys', 'wp_gmPins', 'wp_gmRooms'];"), '');
+    // ---- the window's wiring (settings.js profilewin) ----
+    const pwS = st.slice(st.indexOf('// [settings:profilewin-start]'), st.indexOf('// [settings:profilewin-end]'));
+    check('the window opens from your picture in the top row, the welcome\'s Your profile, Settings\' row and the quick jump, each logged as profile v1 with where from; the list is drawn on each opening and when the tables change, and asks the Journal for names it lacks; your picture follows every change of who you are (a write of the profile from anywhere, another window of this app), as do the welcome\'s Join boxes; nothing in it writes markup',
+        pwS.length > 2000 && ["ui('rowMeBtn')", "ui('wcProfileBtn')", "ui('setProfileOpenBtn')", "ui('profileCloseBtn')"].every(t => pwS.includes(t)) && /profWinOpen\('row'\)[\s\S]*profWinOpen\('welcome'\)[\s\S]*profWinOpen\('settings'\)/.test(pwS)
+        && pwS.includes("profStep('window-open', { from: typeof from === 'string' ? from : 'other' });") && pwS.includes("profStep('tables', ") && pwS.includes("profStep('tables-named', ") && pwS.includes('window.wpJournalGms(ids)')
+        && pwS.includes("want = { wp_profile: 1, wp_tableKeys: 1, wp_tablesSeen: 1 }") && pwS.includes("window.addEventListener('storage'") && pwS.includes('window.wpOpenProfile = profWinOpen;') && !/innerHTML|insertAdjacentHTML|outerHTML/.test(pwS)
+        && st.includes("['setAvatarPreview', 'netJoinAvatar', 'rowMeFace', 'wcProfFace', 'wcAvatarPrev'].forEach(function(id) {") && read('scripts/commands.js').includes("if (row.win === 'profile') { if (typeof window.wpOpenProfile === 'function') window.wpOpenProfile('jump'); }")
+        && read('scripts/handbook.js').includes("'settingsModal', 'profileModal', 'helpModal'"), '');
+    check('Help says where the profile is and what its list shows, the top row\'s part names your picture, and both release notes say it',
+        ix.includes('<li><b>Your profile</b> has a window of its own. Your picture at the right end of the top row opens it.') && ix.includes('<li>The list is read from this computer alone. A table&rsquo;s key is never shown, and nothing is sent.</li>')
+        && ix.includes('<li><b>Your picture:</b> your picture at the right end of the top row, beside Settings, opens your profile.') && ix.includes('It offers five things:')
+        && [read('assets/whatsnew.txt'), fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8')].every(t => t.replace(/\r\n/g, NL).includes('- Your profile has a window of its own. Your picture at the right of the\n  top row opens it,')), '');
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exitCode = 1;

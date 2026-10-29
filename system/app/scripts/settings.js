@@ -63,7 +63,7 @@ function safeAv(v) { return typeof v === 'string' && v.length <= 200000 && /^dat
 function renderAvatarPreview() {
     var p = getProfile();
     var def = window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color) : '';   // color-tinted silhouette default (no photo)
-    ['setAvatarPreview', 'netJoinAvatar'].forEach(function(id) {
+    ['setAvatarPreview', 'netJoinAvatar', 'rowMeFace', 'wcProfFace', 'wcAvatarPrev'].forEach(function(id) {   // 1.6.0: your picture in the top row, on the welcome's Your profile and its Join screen
         var el = ui(id);
         if (!el) return;
         el.textContent = ''; var im = document.createElement('img'); im.alt = ''; im.src = safeAv(p.avatar) ? p.avatar : def; el.appendChild(im); el.style.background = '';   // built as a node
@@ -1377,6 +1377,93 @@ function acctWire() {
 }
 acctWire();
 // [settings:account-end]
+// [settings:profilewin-start]
+// 1.6.0: the Profile window (the owner, 2026-10-29: "there should probably be a dedicated profile section in waypoint thats easy to get to", and
+// by prompt "welcome screen and also in the top row" and "Yes, a short list"). The controls of who you are moved out of Settings' first group
+// into #profileModal with their ids and their handlers above unchanged; Settings keeps one row that opens it. It opens from your picture in
+// the top row (#rowMeBtn, which never folds: "Stays, like Settings"), from the welcome's Your profile, from that row and from the quick jump.
+// Your picture there and on the welcome is the one the roster draws (renderAvatarPreview), and follows every change of who you are. Below the
+// profile, the GMs whose tables know you, read from this computer alone (profilecore tablesOf, with the Journal's names) and drawn as text;
+// a key is never shown and nothing is sent. Every step logs as "profile v1" (structure only)
+function profWinShown() { var m = ui('profileModal'); return !!m && m.style.display === 'flex'; }
+function profFields() {   // the window's fields as the profile holds them; a name being typed is left as it is
+    var p = getProfile(), n = ui('setNameInput'), c = ui('setColorInput');
+    if (n && document.activeElement !== n) n.value = p.name || '';
+    if (c) c.value = p.color || '#7aa7ff';
+    renderAvatarPreview();
+}
+// [sinkcheck:proftables-start]
+function profWhen(at) { try { return new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { return ''; } }
+var _profTurn = 0;
+function profTablesDraw(why) {
+    var box = ui('profTables'), PC = window.wpProfileCore; if (!box || !PC || typeof PC.tablesOf !== 'function') return [];
+    var st = {}; ['wp_tableKeys', 'wp_tablesSeen'].forEach(function(k) { try { st[k] = localStorage.getItem(k); } catch (e) { st[k] = null; } });
+    var draw = function(names) {
+        var rows = PC.tablesOf(st, names);
+        while (box.firstChild) box.removeChild(box.firstChild);
+        if (!rows.length) { var none = document.createElement('div'); none.className = 'prof-none'; none.textContent = 'No GM\u2019s table knows you yet. When a GM lets you in, their table is listed here.'; box.appendChild(none); return rows; }
+        rows.forEach(function(r) {   // every name a text node: a GM's name and their campaign's come from their table
+            var row = document.createElement('div'), who = document.createElement('div'), nm = document.createElement('span');
+            row.className = 'prof-table'; who.className = 'prof-table-who';
+            nm.className = 'prof-table-gm' + (r.gm ? '' : ' unknown'); nm.textContent = r.gm || 'A GM whose name this computer does not know';
+            who.appendChild(nm);
+            if (r.campaign) { var cp = document.createElement('small'); cp.textContent = r.campaign; who.appendChild(cp); }
+            row.appendChild(who);
+            if (r.at) { var when = document.createElement('span'); when.className = 'prof-table-when'; when.textContent = 'last joined ' + profWhen(r.at); row.appendChild(when); }
+            box.appendChild(row);
+        });
+        return rows;
+    };
+    var turn = ++_profTurn, rows = draw(null), count = function(list) { return { n: list.length, named: list.filter(function(r) { return !!r.gm; }).length, dated: list.filter(function(r) { return r.at > 0; }).length }; };
+    profStep('tables', Object.assign({ why: why || 'open' }, count(rows)));
+    var nameless = rows.some(function(r) { return !r.gm || !r.campaign; });
+    if (nameless && typeof window.wpJournalGms === 'function') {   // a name the record has not: the Journal's, then drawn again
+        var ids = []; try { var k = JSON.parse(st.wp_tableKeys || 'null'); if (k && typeof k === 'object' && !Array.isArray(k)) ids = Object.keys(k); } catch (e) {}
+        Promise.resolve(window.wpJournalGms(ids)).then(function(names) {
+            if (turn !== _profTurn || !profWinShown()) return;
+            var again = draw(names); profStep('tables-named', count(again));
+        }, function() { profStep('tables-named-failed', {}); });
+    }
+    return rows;
+}
+// [sinkcheck:proftables-end]
+function profWinOpen(from) {
+    var m = ui('profileModal'); if (!m) return false;
+    profFields(); m.style.display = 'flex'; profTablesDraw('open');
+    profStep('window-open', { from: typeof from === 'string' ? from : 'other' });
+    return true;
+}
+function profWinClose() { var m = ui('profileModal'); if (m) m.style.display = 'none'; }
+// Your picture follows every change of who you are, from wherever it is written (this window, the welcome's Join screen, the Multiplayer
+// window's name, a profile opened from a file or a code, the account), a moment after it settles; the list follows the tables
+var _meSoon = null;
+// The welcome's Join screen keeps its own name and colour boxes, filled as the welcome opens and saved by each of its buttons (main.js
+// saveWcProfile): they follow the profile too, or a change made in this window over the welcome went back at Enter Waypoint (found live)
+function wcFields() {
+    var p = getProfile(), n = ui('wcNameInput'), c = ui('wcColorInput');
+    if (n && document.activeElement !== n) n.value = p.name || '';
+    if (c && document.activeElement !== c) c.value = p.color || '#7aa7ff';
+}
+function meSoon(k) {
+    if (_meSoon) return;
+    _meSoon = setTimeout(function() { _meSoon = null; renderAvatarPreview(); if (k === 'wp_profile') wcFields(); if (profWinShown()) { profFields(); if (k !== 'wp_profile') profTablesDraw('change'); } }, 0);
+}
+function profWinWire() {
+    var me = ui('rowMeBtn'), wc = ui('wcProfileBtn'), row = ui('setProfileOpenBtn'), close = ui('profileCloseBtn');
+    if (me) me.addEventListener('click', function() { profWinOpen('row'); });
+    if (wc) wc.addEventListener('click', function() { profWinOpen('welcome'); });
+    if (row) row.addEventListener('click', function() { profWinOpen('settings'); });
+    if (close) close.addEventListener('click', function() { profWinClose(); profStep('window-close', {}); });
+    try {
+        var SP = Storage.prototype, set1 = SP.setItem, want = { wp_profile: 1, wp_tableKeys: 1, wp_tablesSeen: 1 };
+        SP.setItem = function(k, v) { set1.call(this, k, v); if (this === localStorage && want[k] === 1) meSoon(k); };
+    } catch (e) {}
+    try { window.addEventListener('storage', function(e) { if (e && e.key && { wp_profile: 1, wp_tableKeys: 1, wp_tablesSeen: 1 }[e.key] === 1) meSoon(e.key); }); } catch (e) {}   // another window of this app
+    window.wpOpenProfile = profWinOpen;
+    renderAvatarPreview();   // your picture in the top row and on the welcome from the start
+}
+profWinWire();
+// [settings:profilewin-end]
 
 var _ident = ui('setResetIdentityBtn');
 if (_ident) _ident.addEventListener('click', function() {

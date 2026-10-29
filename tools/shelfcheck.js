@@ -967,6 +967,49 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && wn.every(t => count(t.slice(0, t.indexOf('WAYPOINT 1.5.9')), "- A map pin can open its page at one part of it: a heading, a scene node\n  or a titled table. Pick it under Opens at, beside Opens page.") === 1));
 }
 
+/* ---------- the hover preview of a pin (1.6.0, backlog 32; the owner, 2026-10-29, by prompt) ---------- */
+{
+    const P = new Function('getActiveCampaign', 'openPage', 'toast', 'window', waySrc + '\n' + shelfSrc + '\n' + sliceOf(ps, 'pagelink') + '\n' + sliceOf(ps, 'peek') + '\nreturn { plain: peekPlain, lines: peekLines, PEEK: PEEK };')(() => null, () => '', () => {}, {});
+    const pg = { type: 'planner', meta: { title: 'Docks' }, blocks: [{ type: 'h1', id: 't0', title: 'Docks' }, { type: 'text', id: 'x1', content: '<p>The <b>quay</b> &amp; the &lt;img src=x onerror=alert(1)&gt; crane.</p><p>Second&nbsp;line &#8212; here &#x41;.</p>' },
+        { type: 'diagram', content: 'graph TD; secret-->source' }, { type: 'raw', content: '<script>raw()</script>' }, { type: 'image', caption: 'a picture' }, { type: 'h2', id: 's1', title: 'The cellar' }, { type: 'node', id: 'n1', title: 'Cellar <i>door</i>', must: 'find the key' }, { type: 'text', content: 'After the cellar.' }] };
+    const top = P.lines(pg, '', ['Docks']), at = P.lines(pg, 's1', ['Docks', 'The cellar']), none = P.lines(pg, 'gone', []), bad = P.lines(pg, 'a b', ['Docks']);
+    check('a pin\'s preview is the first lines of its page as plain text: markup left out, the entities a page holds read as the characters they are (so a tag written as words stays words), a diagram\'s source, a raw block and a picture passed over, a line that only says the page\'s name again left out; at a part it starts there, the part\'s own name left out; a part the page does not have, or no sound block id, starts at the top',
+        J(top) === J(['The quay & the <img src=x onerror=alert(1)> crane.', 'Second line \u2014 here A.', 'The cellar', 'Cellar door']) && J(at) === J(['Cellar door', 'find the key', 'After the cellar.'])
+        && J(none) === J(['Docks', 'The quay & the <img src=x onerror=alert(1)> crane.', 'Second line \u2014 here A.', 'The cellar']) && J(bad) === J(top) && !/secret|raw\(|a picture/.test(J([top, at, none])), J([top, at, none]));
+    const long = { blocks: [{ type: 'text', content: 'w'.repeat(500) }, { type: 'text', content: 'x '.repeat(200) }, { type: 'text', content: 'v'.repeat(200) }, { type: 'text', content: 'z' }, { type: 'text', content: 'q' }] }, L = P.lines(long, '', []);
+    const odd = [P.lines(null, '', []), P.lines({ blocks: 'x' }, '', []), P.lines({ blocks: [null, 7, 'text', { type: 'text', content: 5 }, { type: 'text', title: { a: 1 } }] }, '', [])], ctl = P.plain('a\u0000b\u0007c &#0; &#xD800; &bogus; &AMP;');
+    check('the preview is short: four lines at most, a line of 120 characters at most and 320 in all, cut with an ellipsis; a page of no blocks, of blocks that are no blocks, or of fields that are no text gives none; control characters, a NUL entity, a lone surrogate and a name that is no entity are not made into characters',
+        L.length === 3 && Array.from(L[0]).length === 120 && L[0].endsWith('\u2026') && L.join('').length <= 320 + 3 && L[2].endsWith('\u2026') && P.PEEK.lines === 4 && J(odd) === J([[], [], []]) && ctl === 'a b c   &bogus; &', J([L.map(l => l.length), ctl]));
+}
+{
+    // the GM's gate (mapPinPeek) and the mark's tooltip, read when the pointer comes to rest on it (whiteboard.js, run for real)
+    const src = waySrc + '\n' + shelfSrc + '\n' + sliceOf(ps, 'pagelink') + '\n' + sliceOf(ps, 'peek') + '\n' + sliceOf(ps, 'mappin');
+    const mk = win => { const camp = mkCamp(); camp.items.p_bar.blocks = [{ type: 'h1', id: 't0', title: '3.10 The Bar' }, { type: 'text', content: 'Smoky &amp; loud.' }, { type: 'h2', id: 'sec_a', title: 'The back door' }, { type: 'text', content: 'Locked at night.' }]; return new Function('window', 'getActiveCampaign', 'openPage', 'toast', src + '\nreturn { peek: mapPinPeek };')(win, () => camp, () => '', () => {}); };
+    const gm = mk({}), others = [{ wpNet: { active: true, role: 'client' } }, { wpNet: { foreign: true } }, { wpStream: true }, { wpPopout: true }].map(mk);
+    check('the preview is the GM\'s alone: on the GM\'s screen a pin\'s page gives its first lines, from its part where it names one the page has and from the top otherwise; a page that is not there gives none; on a player\'s app, at someone else\'s table, in the stream window and in a window of its own nothing is read',
+        gm.peek('p_bar', '') === 'Smoky & loud.\nThe back door\nLocked at night.' && gm.peek('p_bar', 'sec_a') === 'Locked at night.' && gm.peek('p_bar', 'gone') === gm.peek('p_bar', '') && gm.peek('gone', '') === '' && gm.peek('m_bar', '') === '' && gm.peek('bad id', '') === '' && gm.peek(7) === ''
+        && others.every(o => o.peek('p_bar', '') === '' && o.peek('p_bar', 'sec_a') === ''), J([gm.peek('p_bar', ''), gm.peek('p_bar', 'sec_a')]));
+    const wbS = sliceOf(wb, 'pagepin'), esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const HOST = '<img src=x onerror=alert(1)>';
+    const mkB = peekFn => { const dom = makeDom(), asked = []; const win = { wpPageShelf: { mapPin: w => (w.id === 'a' ? { id: 'p_bar', title: 'Bar', at: 'sec_a', sec: 'Door' } : { id: 'd_rules', title: 'Rules' }), open: () => {}, wayNow: () => 'panel', mapPinPeek: peekFn === undefined ? undefined : (id, at) => { asked.push([id, at]); return peekFn; } } };
+        const api = new Function('window', 'document', 'esc', wbS + '\nreturn { sync: pagePinSync, tip: pagePinTip };')(win, dom.document, esc);
+        const host = () => { const kids = []; return { kids, querySelector: q => (q === ':scope > .wb-pin' ? kids.find(k => k.className === 'wb-pin') || null : null), appendChild: k => { kids.push(k); k.remove = () => {}; return k; } }; };
+        return { dom, api, host, asked }; };
+    const B = mkB('Line one ' + HOST + '\nLine two'), h = B.host(); B.api.sync(h, { id: 'a' }, false); const m = h.kids[0], before = m.dataset.tip; B.dom.fire(m, 'pointerenter'); const after = m.dataset.tip;
+    const C = mkB(''), hc = C.host(); C.api.sync(hc, { id: 'b' }, false); const mc = hc.kids[0]; C.dom.fire(mc, 'pointerenter');
+    const D = mkB(undefined), hd = D.host(); D.api.sync(hd, { id: 'b' }, false); const md = hd.kids[0]; D.dom.fire(md, 'pointerenter');
+    check('resting on a pin\'s mark reads its page then, at its part, and the tooltip says the page, the part, the first lines and what a press does, as plain text with the lines kept; a page with nothing to show, or no preview at hand, keeps the tooltip it had; the mark holds no markup',
+        before === 'Opens Bar at Door. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.' && J(B.asked) === J([['p_bar', 'sec_a']])
+        && after === 'Opens Bar at Door.\n\nLine one ' + HOST + '\nLine two\n\nA click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.' && m.childNodes.length === 0
+        && mc.dataset.tip === 'Opens Rules. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.' && J(C.asked) === J([['d_rules', '']]) && md.dataset.tip === mc.dataset.tip && !/innerHTML/.test(wbS), J([before, after, mc.dataset.tip]));
+    const tipS = read('scripts/tooltips.js'), wn = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, '\n'));
+    const plan = ix.slice(ix.indexOf('<div class="help-pane" data-pane="planners"'), ix.indexOf('<div class="help-pane" data-pane="handbook"'));
+    check('the app\'s tooltip writes the words as text and keeps their line breaks; the module publishes the preview; Help and both release notes of 1.6.0 say it',
+        /\n\s*t\.textContent = text;\n/.test(tipS) && /#wpTip \{[^\n]*white-space: pre-line;/.test(css) && count(ps, '\nwindow.wpPageShelf.mapPinPeek = mapPinPeek;\n') === 1
+        && plan.includes('<li>Rest the pointer on the mark and its tooltip shows the first lines of the page, from the part the pin opens at.</li>')
+        && wn.every(t => count(t.slice(0, t.indexOf('WAYPOINT 1.5.9')), "- Rest the pointer on a map pin's mark and its tooltip shows the first\n  lines of its page.") === 1));
+}
+
 /* ---------- a map's scene page (1.6.0, backlog 26; the owner, 2026-10-29, by prompt: "Map's Properties, key P (Recommended)") ---------- */
 {
     const M = new Function(waySrc + '\n' + shelfSrc + '\nreturn { of: scenePageOf, put: scenePagePut, model: shelfModel };')();

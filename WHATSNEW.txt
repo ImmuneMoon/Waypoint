@@ -65,6 +65,8 @@ Pages on the map
   does the Pages shelf. It is yours alone: players never get it.
 - A map pin can open its page at one part of it: a heading, a scene node
   or a titled table. Pick it under Opens at, beside Opens page.
+- Rest the pointer on a map pin's mark and its tooltip shows the first
+  lines of its page.
 
 Your profile
 - The welcome screen says it plainly: no account is needed, there are no

@@ -304,6 +304,45 @@ function mapPinAtPut(camp, w, at) {
 }
 // [shelfcheck:pagelink-end]
 
+// [shelfcheck:peek-start]
+/* 1.6.0, the hover preview of a pin (backlog 32; the owner, 2026-10-29, by prompt): the first lines of its page, from the part the pin names
+   or from the top, as plain text. A block's words are read from its own fields and markup is left out; a diagram's source, a raw block,
+   code, a picture and a divider are passed over, and so is a line that only says again the name the tooltip already says. What this gives
+   is put on the page only as text: the app's tooltip writes it with textContent */
+var PEEK = { lines: 4, chars: 320, line: 120, read: 400 }, PEEK_SKIP = { diagram: 1, mermaid: 1, flowchart: 1, raw: 1, html: 1, code: 1, image: 1, divider: 1 };
+var PEEK_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+function peekPlain(s) {
+    if (typeof s !== 'string' || !s) return '';
+    var t = s.slice(0, 4000).replace(/<(br|\/p|\/div|\/li|\/h[1-6])\b[^>]*>/gi, '\n').replace(/<[^>]*>/g, '');
+    t = t.replace(/&(#x[0-9a-f]{1,6}|#\d{1,7}|[a-z]{2,6});/gi, function(m, b) {
+        if (b[0] !== '#') return Object.prototype.hasOwnProperty.call(PEEK_ENT, b.toLowerCase()) ? PEEK_ENT[b.toLowerCase()] : m;
+        var cp = b[1] === 'x' || b[1] === 'X' ? parseInt(b.slice(2), 16) : parseInt(b.slice(1), 10);
+        return cp > 31 && cp < 0x110000 && !(cp >= 0xd800 && cp <= 0xdfff) ? String.fromCodePoint(cp) : '';
+    });
+    return t.replace(/[\u0000-\u0009\u000b-\u001f\u007f]+/g, ' ');
+}
+// The first lines of a page, from the block whose id is at (or from the top), each a line of plain text; names: lines left out where they
+// only say a name again
+function peekLines(it, at, names) {
+    var out = [], used = 0, blocks = it && Array.isArray(it.blocks) ? it.blocks : [], from = 0, skip = Object.create(null);
+    (Array.isArray(names) ? names : []).forEach(function(n) { if (typeof n === 'string' && n) skip[n] = 1; });
+    if (typeof at === 'string' && LAND_AT.test(at)) for (var k = 0; k < blocks.length && k < PEEK.read * 10; k++) { var bk = blocks[k]; if (bk && typeof bk === 'object' && bk.id === at) { from = k; break; } }
+    for (var i = from; i < blocks.length && i < from + PEEK.read && out.length < PEEK.lines; i++) {
+        var b = blocks[i]; if (!b || typeof b !== 'object' || PEEK_SKIP[b.type] === 1) continue;
+        ['title', 'sub', 'content', 'text', 'caption', 'must'].forEach(function(key) {
+            if (out.length >= PEEK.lines || used >= PEEK.chars || !Object.prototype.hasOwnProperty.call(b, key)) return;
+            peekPlain(b[key]).split('\n').forEach(function(raw) {
+                var line = raw.replace(/\s+/g, ' ').trim(); if (!line || skip[line] === 1 || out.length >= PEEK.lines || used >= PEEK.chars) return;
+                var cut = Array.from(line); if (cut.length > PEEK.line) line = cut.slice(0, PEEK.line - 1).join('').trim() + '\u2026';
+                if (used + line.length > PEEK.chars) line = Array.from(line).slice(0, Math.max(1, PEEK.chars - used - 1)).join('').trim() + '\u2026';
+                out.push(line); used += line.length;
+            });
+        });
+    }
+    return out;
+}
+// [shelfcheck:peek-end]
+
 /* ---------- pins ---------- */
 // [shelfcheck:pins-start]
 function isPinned(id) { var camp = getActiveCampaign(); return !!camp && pinnedOf(camp).indexOf(id) >= 0; }
@@ -344,6 +383,13 @@ function mapPinField(w) {
 }
 function mapPinSet(w, id) { return mapPinGm() ? mapPinPut(getActiveCampaign(), w, id) : ''; }
 function mapPinAtSet(w, at) { return mapPinGm() ? mapPinAtPut(getActiveCampaign(), w, at) : ''; }
+// 1.6.0: the first lines of a pin's page, from the part it names, as one plain text: '' where the page is not there or this is not the GM's
+// screen. Read when the pointer comes to rest on the mark, so it is the page as it stands then
+function mapPinPeek(id, at) {
+    var camp = mapPinGm() ? getActiveCampaign() : null, it = camp && typeof id === 'string' && PIN_ID.test(id) ? pageOf(camp, id) : null; if (!it) return '';
+    var sec = typeof at === 'string' && LAND_AT.test(at) ? linkSecs(it).filter(function(s) { return s.at === at; })[0] : null;
+    return peekLines(it, sec ? sec.at : '', [pageTitle(it), sec ? sec.title : '']).join('\n');
+}
 // [shelfcheck:mappin-end]
 
 /* ---------- a map's scene page: what Properties asks, and P on the play map ---------- */
@@ -438,4 +484,6 @@ shelfWire();
 window.wpPageShelf.scenePageField = scenePageField; window.wpPageShelf.scenePageSet = scenePageSet; window.wpPageShelf.sceneOpen = sceneOpen; window.wpPageShelf.scenePage = scenePageNow;
 // 1.6.0, a pin to one part of its page
 window.wpPageShelf.mapPinAtSet = mapPinAtSet;
+// 1.6.0, the hover preview of a pin
+window.wpPageShelf.mapPinPeek = mapPinPeek;
 document.addEventListener('keydown', sceneKey);

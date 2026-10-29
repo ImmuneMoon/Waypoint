@@ -1328,6 +1328,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             /^var lgU = lgL && lgL\.unit \? lgL\.unit : 'yd', lgT = 'Light source' \+ \(lgL && lgL\.name \? ' \(' \+ lgL\.name \+ '\)' : ''\) \+ /.test(tipLine) && /var lgL = window\.wpFogCore && window\.wpFogCore\.cleanLight \? window\.wpFogCore\.cleanLight\(item\.light\) : null;/.test(wbL)
             && /\n\s*if \(el\.dataset\.tip !== lgT\) el\.dataset\.tip = lgT;\n/.test(wbL) && !/innerHTML[^\n]*lgT|lgT[^\n]*innerHTML/.test(wbL) && /return el\.dataset\.tip \|\| '';/.test(tipSrc) && /t\.textContent = text;/.test(tipSrc) && !/innerHTML/.test(tipSrc), tipLine);
 
+        {   // 1.6.0, backlog 32: a pin's hover preview. A page's words reach the mark only through peekLines (markup left out), then dataset.tip, which tooltips.js writes as text
+            const psL = read('pageshelf.js'), pkA = psL.indexOf('// [shelfcheck:peek-start]'), pkZ = psL.indexOf('// [shelfcheck:peek-end]'), pk = pkA >= 0 && pkZ > pkA ? psL.slice(pkA, pkZ) : '';
+            const PK = new Function("var LAND_AT = /^[A-Za-z0-9_-]{1,64}$/;\n" + pk + '\nreturn peekLines;')();
+            const HOSTILE = '<img src=x onerror=alert(1)><script>evil()</script><a href="javascript:x">link</a><svg onload=y>';
+            const got = PK({ blocks: [{ type: 'text', content: HOSTILE }, { type: 'h2', title: HOSTILE }, { type: 'raw', content: HOSTILE }] }, '', []);
+            check('a pin\'s hover preview (pageshelf.js peekLines, run for real): no tag of a page\'s markup survives into its lines, and the lines reach the page only through the mark\'s dataset.tip, which the app\'s tooltip writes with textContent; the module and the mark draw no markup',
+                got.every(l => !/[<>]/.test(l)) && got.length === 2 && !/innerHTML|insertAdjacentHTML|outerHTML/.test(pk) && /b\.dataset\.tip = pagePinTip\(b\.dataset\.name, b\.dataset\.sec \|\| '', typeof peek === 'string' \? peek : ''\);/.test(wbL)
+                && /t\.textContent = text;/.test(tipSrc) && !/innerHTML/.test(tipSrc), JSON.stringify(got));
+        }
         // the Combat card's Light box (sheets.js lightBox), run for real on a page that records every node and any use of innerHTML
         const shL = read('sheets.js'), boxSrc = slice('sheets.js', 'lightbox');
         const lineAt = k => { const i = shL.indexOf('\n' + k); if (i < 0) throw new Error('sinkcheck: sheets.js ' + k + ' not found'); return shL.slice(i + 1, shL.indexOf('\n', i + 1)); };

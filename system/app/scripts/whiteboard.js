@@ -3474,13 +3474,18 @@ window.wpFitToGrid = fitToGrid;
   }
   // 1.6.0: a pin's landing, the part of its page it names, for the one rule; none opens the page at the top, exactly as before
   function pagePinLand(at) { return typeof at === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(at) ? { at: at } : null; }
-  // A pin's tooltip: the page, the part it names and what a press does. Plain text, read by the app's tooltip as text
-  function pagePinTip(name, sec) { return 'Opens ' + name + (sec ? ' at ' + sec : '') + '. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.'; }
+  // A pin's tooltip: the page, the part it names, the first lines of the page where they were read (1.6.0) and what a press does. Plain
+  // text, read by the app's tooltip as text (tooltips.js writes textContent; its box keeps the line breaks)
+  function pagePinTip(name, sec, peek) { return 'Opens ' + name + (sec ? ' at ' + sec : '') + '.' + (typeof peek === 'string' && peek ? '\n\n' + peek + '\n\n' : ' ') + 'A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.'; }
   // The mark: a small button at the piece's corner. A press on it is no press on the piece: nothing is selected or dragged, and the page opens by the one rule
   function pagePinMark() {
       var b = document.createElement('button'); b.type = 'button'; b.className = 'wb-pin';
       ['pointerdown', 'mousedown', 'dblclick'].forEach(function(ev) { b.addEventListener(ev, function(e) { e.stopPropagation(); }); });
       b.addEventListener('click', function(e) { e.stopPropagation(); e.preventDefault(); var PS = window.wpPageShelf, land = pagePinLand(b.dataset.at); if (PS && b.dataset.page) { if (land) PS.open(b.dataset.page, PS.wayNow(e), land); else PS.open(b.dataset.page, PS.wayNow(e)); } });
+      b.addEventListener('pointerenter', function() {   // 1.6.0: resting on the mark shows the first lines of its page, read as it stands now, as text alone
+          var PS = window.wpPageShelf, peek = PS && typeof PS.mapPinPeek === 'function' && b.dataset.page ? PS.mapPinPeek(b.dataset.page, b.dataset.at || '') : '';
+          if (b.dataset.name) b.dataset.tip = pagePinTip(b.dataset.name, b.dataset.sec || '', typeof peek === 'string' ? peek : '');
+      });
       return b;
   }
   function pagePinSync(el, item, hidden) {

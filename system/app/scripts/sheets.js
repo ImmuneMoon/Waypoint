@@ -4815,10 +4815,16 @@ function linkBar(box, sys, c, camp, locked) {
             s.addEventListener('change', function() { setLink(c.id, k.id, s.value); });
             row.appendChild(s);
         } else row.appendChild(el('span', 'sheet-lk-to', tName));
-        var stNow = cur && c.stn && typeof c.stn[k.id] === 'string' ? c.stn[k.id] : '';   // 1.6.0 (CORE gap 16): its station on the vehicle
+        var stHeld = cur && c.stn ? (Array.isArray(c.stn[k.id]) ? c.stn[k.id].filter(function(x) { return typeof x === 'string'; }) : typeof c.stn[k.id] === 'string' ? [c.stn[k.id]] : []) : [];   // 1.6.0 (CORE gap 16): its stations on the vehicle
         if (cur && k.kind === 'crew' && Array.isArray(k.stations) && k.stations.length) {
-            if (may) { var ss = el('select', 'field sheet-select sheet-lk-stn'); ss.title = 'Where this character crews it. The vehicle\u2019s formulas read each station\u2019s crew, such as ' + (k.group || 'Crew') + '.' + k.stations[0] + '.max.<name>'; ss.appendChild(opt('', 'No station', !stNow)); k.stations.forEach(function(st0) { ss.appendChild(opt(st0, st0, st0 === stNow)); }); ss.addEventListener('change', function() { setLink(c.id, k.id, cur, ss.value); }); row.appendChild(ss); }
-            else if (stNow) row.appendChild(el('span', 'sheet-lk-to sheet-lk-stnto', stNow));
+            var stMost = typeof k.most === 'number' ? k.most : 1, slots = Math.max(1, Math.min(stMost, stHeld.length + (stHeld.length && stHeld.length < stMost ? 1 : 0)));
+            if (may) for (var si = 0; si < slots; si++) (function(i) {
+                var ss = el('select', 'field sheet-select sheet-lk-stn'); ss.title = i ? 'A second station this character covers at once. The vehicle reads them at both, and their sheet reads ' + k.key + '.stations as how many they hold' : 'Where this character crews it. The vehicle\u2019s formulas read each station\u2019s crew, such as ' + (k.group || 'Crew') + '.' + k.stations[0] + '.max.<name>';
+                ss.appendChild(opt('', i ? 'No other station' : 'No station', !stHeld[i])); k.stations.forEach(function(st0) { if (st0 === stHeld[i] || stHeld.indexOf(st0) < 0) ss.appendChild(opt(st0, st0, st0 === stHeld[i])); });
+                ss.addEventListener('change', function() { var nx = stHeld.slice(); if (ss.value) nx[i] = ss.value; else nx.splice(i, 1); nx = nx.filter(function(x, j) { return x && nx.indexOf(x) === j; }); setLink(c.id, k.id, cur, nx.length > 1 ? nx : (nx[0] || '')); });
+                row.appendChild(ss);
+            })(si);
+            else if (stHeld.length) row.appendChild(el('span', 'sheet-lk-to sheet-lk-stnto', stHeld.join(' & ')));
         }
         if (cur && canOpen(cur)) { var ob = el('button', 'tool ghost sheet-lk-open', 'Open'); ob.title = 'Open ' + tName + '\u2019s sheet'; ob.addEventListener('click', function() { openSheet(cur); }); row.appendChild(ob); }
         box.appendChild(row); n++;
@@ -4826,19 +4832,19 @@ function linkBar(box, sys, c, camp, locked) {
     linkedFrom(sys, charsOf(camp), c.id).forEach(function(g) {
         var same = ks.filter(function(x) { return x.kind === g.link.kind; }).length > 1, word = g.link.kind === 'mount' ? 'Rider' : 'Crew';
         var row = el('div', 'sheet-lk sheet-lk-from'); row.appendChild(el('span', 'sheet-lk-name', same ? g.link.label + ' ' + word.toLowerCase() : word));
-        g.by.forEach(function(b) { var bN = b.name + (b.stn ? ' \u00b7 ' + b.stn : ''); if (canOpen(b.id)) { var bb = el('button', 'tool ghost sheet-lk-by', bN); bb.title = 'Open ' + b.name + '\u2019s sheet'; bb.addEventListener('click', function() { openSheet(b.id); }); row.appendChild(bb); } else row.appendChild(el('span', 'sheet-lk-to', bN)); });   // 1.6.0 (CORE gap 16): with its station
+        g.by.forEach(function(b) { var bN = b.name + (b.stn ? ' \u00b7 ' + (Array.isArray(b.stn) ? b.stn.join(' & ') : b.stn) : ''); if (canOpen(b.id)) { var bb = el('button', 'tool ghost sheet-lk-by', bN); bb.title = 'Open ' + b.name + '\u2019s sheet'; bb.addEventListener('click', function() { openSheet(b.id); }); row.appendChild(bb); } else row.appendChild(el('span', 'sheet-lk-to', bN)); });   // 1.6.0 (CORE gap 16): with its station
         box.appendChild(row); n++;
     });
     return n > 0;
 }
 // A link set from the menu: the GM's own, judged by systemcore linkSet as the host judges a player's, then saved and sent whole; a player's
 // asks the host (net.charLink) and changes nothing here until it answers
-function setLink(cid, linkId, to, stn) {   // stn (1.6.0, CORE gap 16): a station picked ('' none); none given: kept
+function setLink(cid, linkId, to, stn) {   // stn (1.6.0, CORE gap 16): a station picked ('' none), or the stations; none given: kept
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(cid, camp); if (!c || !sys) return;
     var lg = function(step, facts) { if (window.wpStepLog) window.wpStepLog('links v1', step, facts); };
     if (isClient()) { var nc = net(), rc = nc && nc.charLink ? nc.charLink(cid, linkId, to, stn) : { error: 'Not at a table.' }; lg('sent', { on: to ? 1 : 0, ok: !(rc && rc.error) }); if (rc && rc.error) { toast(rc.error); renderViews(cid); } return; }
     if (!canWrite()) return;
-    var was = c.links && typeof c.links[linkId] === 'string' ? c.links[linkId] : '', res = linkSet(sys, charsOf(camp), c, linkId, to, typeof stn === 'string' ? { stn: stn } : {});
+    var was = c.links && typeof c.links[linkId] === 'string' ? c.links[linkId] : '', res = linkSet(sys, charsOf(camp), c, linkId, to, stn !== undefined ? { stn: stn } : {});
     if (!res.ok) { lg('refused', { reason: res.reason }); toast(res.msg || 'That link is not allowed.'); renderViews(cid); return; }
     if (res.links) c.links = res.links; else delete c.links;
     if (res.stn) c.stn = res.stn; else delete c.stn;   // 1.6.0 (CORE gap 16)
@@ -8169,6 +8175,7 @@ function renderLinks() {
         rw.appendChild(labeledSelect('sys-link-edit field', 'Set by', LINK_EDIT_OPTS, k.edit === 'gm' ? 'gm' : 'owner', 'Who may set it on a sheet. A player links only a character of their own. The GM links any character'));
         if (k.kind === 'crew') {   // 1.6.0 (CORE gap 16): the crew as a group on the vehicle, and its stations
             var gl = el('label', 'sys-combat-item'); gl.appendChild(el('span', 'sys-num-cap', 'Vehicle reads crew as')); var gi = input('sys-link-group field', typeof k.group === 'string' ? k.group : '', 'The key the vehicle\u2019s formulas read its crew by: Crew reads Crew.count, Crew.max.Piloting, and Crew.Pilot.max.Piloting for those at the Pilot station. Blank: the vehicle reads no crew', 'Crew'); gi.maxLength = LIMITS.key; gl.appendChild(gi); rw.appendChild(gl);
+            var ml = el('label', 'sys-combat-item'); ml.appendChild(el('span', 'sys-num-cap', 'One holds')); var mi = el('input', 'field sys-link-most'); mi.type = 'number'; mi.min = '1'; mi.max = '4'; mi.step = '1'; mi.value = typeof k.most === 'number' ? String(k.most) : '1'; mi.title = 'How many stations one crew member may hold at once, 1 to 4, as one hand covering a second station. Their sheet reads ' + (k.key || 'Vehicle') + '.stations as how many they hold, so a formula can take a penalty'; ml.appendChild(mi); rw.appendChild(ml);
             var sl = el('label', 'sys-combat-item'); sl.appendChild(el('span', 'sys-num-cap', 'Stations')); var si = input('sys-link-stations field', Array.isArray(k.stations) ? k.stations.join(', ') : '', 'Where a crew member may sit, separated by commas, each a key: Pilot, Gunner, Engineer. A crew sheet picks one beside its vehicle, and a skill counts at a station only for those there. At most 8 (systemcore LINK_STATIONS)', 'Pilot, Gunner'); si.maxLength = 240; sl.appendChild(si); rw.appendChild(sl);
         }
         [['up', '\u25B2', 'Move up'], ['down', '\u25BC', 'Move down'], ['del', '\u00D7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'lk' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
@@ -8185,6 +8192,7 @@ function onLinkInput(t) {
     if (c.indexOf('sys-link-key') >= 0) k.key = t.value.slice(0, LIMITS.key);
     else if (c.indexOf('sys-link-label') >= 0) k.label = t.value.slice(0, LIMITS.label);
     else if (c.indexOf('sys-link-group') >= 0) { var gv = t.value.slice(0, LIMITS.key); if (gv.trim()) k.group = gv; else delete k.group; }   // 1.6.0 (CORE gap 16)
+    else if (c.indexOf('sys-link-most') >= 0) { var mv = Number(t.value); if (String(t.value).trim() && isFinite(mv) && Math.round(mv) >= 2) k.most = Math.min(4, Math.round(mv)); else delete k.most; }   // 1.6.0: stations one crew member may hold
     else if (c.indexOf('sys-link-stations') >= 0) { var sv = t.value.split(',').map(function(x) { return x.trim(); }).filter(Boolean); if (sv.length) k.stations = sv; else delete k.stations; }
     else return true;
     markDirty(); patchErrors(); return true;

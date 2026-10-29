@@ -3324,9 +3324,9 @@ net.charLink = function(charId, linkId, toId, stn) {   // stn (1.6.0, CORE gap 1
     if (!S || !camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
     var c = (camp.chars && typeof charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null); if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
-    var q0 = { rid: 'k' + Math.random().toString(36).slice(2, 10), charId: charId, linkId: linkId, to: toId || '' }; if (typeof stn === 'string') q0.stn = stn; var q = S.cleanCharLink(q0); if (!q) return { error: 'That link is not allowed.' };
+    var q0 = { rid: 'k' + Math.random().toString(36).slice(2, 10), charId: charId, linkId: linkId, to: toId || '' }; if (stn !== undefined) q0.stn = stn; var q = S.cleanCharLink(q0); if (!q) return { error: 'That link is not allowed.' };
     _charPending[q.rid] = { charId: charId, fieldId: '', batch: [], timer: setTimeout(function() { charPendingDone(q.rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
-    try { var mK = { type: 'char-link', rid: q.rid, charId: q.charId, linkId: q.linkId, to: q.to }; if (typeof q.stn === 'string') mK.stn = q.stn; net.conns[0].send(mK); } catch (e) { charPendingDone(q.rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
+    try { var mK = { type: 'char-link', rid: q.rid, charId: q.charId, linkId: q.linkId, to: q.to }; if (q.stn !== undefined) mK.stn = q.stn; net.conns[0].send(mK); } catch (e) { charPendingDone(q.rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true };
 };
 // [netcheck:linktell-start]
@@ -7488,7 +7488,7 @@ function handleMessage(msg, conn) {
         var campK = getActiveCampaign(), chK = (campK && campK.chars && Object.prototype.hasOwnProperty.call(campK.chars, qk.charId) ? campK.chars[qk.charId] : null);
         if (!campK || !campK.system || !chK) { denyK('missing'); return; }
         var profK = net.roster[conn.peer]; if (chK.npc || !chK.ownerId || !profK || chK.ownerId !== profK.id) { denyK('owner'); return; }
-        var resK = Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, typeof qk.stn === 'string' ? { player: true, pid: profK.id, stn: qk.stn } : { player: true, pid: profK.id });   // 1.6.0 (CORE gap 16): and its station
+        var resK = Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, qk.stn !== undefined ? { player: true, pid: profK.id, stn: qk.stn } : { player: true, pid: profK.id });   // 1.6.0 (CORE gap 16): and its station
         if (!resK.ok) { denyK('error', resK.msg); return; }
         if (resK.links) chK.links = resK.links; else delete chK.links;
         if (resK.stn) chK.stn = resK.stn; else delete chK.stn;

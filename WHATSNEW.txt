@@ -314,6 +314,8 @@ Systems
   Crew.Pilot.max.Piloting. A Crew link lists its stations, and each crew
   sheet picks one beside its vehicle, so a pilot's skill counts only at
   the Pilot station. A player's vehicle reads only what players may read.
+  One crew member may cover a second station, and their sheet reads how
+  many they hold, for a penalty.
 - A system holds 160 rolls, up from 50, and 600 fields, up from 400. A
   sheet or its HUD holds 800 placements, up from 400. The System
   editor's + Roll now greys out at the limit and says why, where before

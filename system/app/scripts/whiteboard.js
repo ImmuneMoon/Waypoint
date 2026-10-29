@@ -586,6 +586,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
               el.addEventListener('pointerenter', function(e) {
 
+                  cardAside(el, document.elementFromPoint ? document.elementFromPoint(e.clientX, e.clientY) : null);   // entered on a bar's arc: its own tooltip alone
                   var _am = getActiveMap(); if (!_am) return; var wItem = _am.whiteboard.find(x => x.id === item.id);
 
                   if(!wItem) return;
@@ -736,6 +737,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
               el.addEventListener('pointermove', function(e) {
 
+                  cardAside(el, e.target);
                   var tt = document.getElementById('wbTooltip');
 
                   if (tt.style.display === 'block') {
@@ -759,6 +761,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               el.addEventListener('pointerleave', function(e) {
 
                   document.getElementById('wbTooltip').style.display = 'none';
+                  document.getElementById('wbTooltip').classList.remove('wb-aside');
 
               });
 
@@ -3523,6 +3526,18 @@ window.wpFitToGrid = fitToGrid;
   // GM-only one dashed, their names in the row's title. A glyph is a mask whose URL is built only from glyphPath's answer (the fixed table);
   // an emoji or a symbol is escaped text; an effect with no icon shows its name's first letter
   var FX_GLYPH_BASE = '/assets/icons/fa/';
+  // [lookcheck:cardaside-start]
+  // One bubble at a time on a token (the owner, 2026-10-29, by prompt, of a bar's ring: "Card steps aside"; and no double tooltips anywhere):
+  // while the pointer rests on a part of the token with a tooltip of its own (a bar's arc, the effect icons, a badge), the hover card is kept
+  // out of sight and that part's tooltip shows alone; back on the token itself the card shows again. The card stays built and placed
+  function cardAside(el, node) {
+      var tt = document.getElementById('wbTooltip'); if (!tt) return false;
+      var t = node && node.closest ? node.closest('[data-tip], [title]') : null;
+      var on = !!t && t !== el && !!el && el.contains(t) && !!(t.getAttribute('data-tip') || t.getAttribute('title'));
+      if (tt.classList.contains('wb-aside') !== on) tt.classList.toggle('wb-aside', on);
+      return on;
+  }
+  // [lookcheck:cardaside-end]
   // [sinkcheck:tokenbars-start]
   // Backlog 28 (the owner, 2026-10-29, by prompt: "A ring around it", the numbers on hover, each bar its own colour): a token's bars as a thin ring
   // just outside its edge, Bar 1 filling the left half from the bottom up and over, Bar 2 the right half from the top down, each its own colour

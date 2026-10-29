@@ -3382,5 +3382,22 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && css.includes('  .field input, .field select, .field textarea,') && css.includes('  .field .scene-page-hint { margin-top:5px; font-size:11.5px; line-height:1.4; }'), J(PAGE_PROPS.map(id => [id, count(insL, '<select id="' + id + '">'), count(insL, "document.getElementById('" + id + "')")])));
 }
 
+{
+    // backlog 28, the owner (2026-10-29, by prompt, of a bar's ring): "Card steps aside (Recommended)"; the house rule: no double tooltips anywhere.
+    // whiteboard.js cardAside, sliced by its markers and run on stand-ins: a part of the token with a tooltip of its own puts the hover card out of sight
+    const cls = new Set(), doc = { getElementById: id => id === 'wbTooltip' ? tt : null }, tt = { classList: { contains: c => cls.has(c), toggle: (c, on) => { if (on) cls.add(c); else cls.delete(c); } } };
+    const node = (attrs, parent) => ({ attrs, parent, getAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k) ? this.attrs[k] : null; },
+        closest(sel) { let n = this; while (n) { if (n.getAttribute('data-tip') !== null || n.getAttribute('title') !== null) return n; n = n.parent; } return null; } });
+    const el = node({}), arc = node({ 'data-tip': 'HP 7 / 14' }, el), arcPath = node({}, arc), icons = node({ title: 'Prone' }, el), blank = node({ 'data-tip': '' }, el), body = node({}, el);
+    const tipped = node({ title: 'Token' }), part = node({}, tipped), away = node({ 'data-tip': 'Elsewhere' });
+    el.contains = n => { while (n) { if (n === el) return true; n = n.parent; } return false; }; tipped.contains = n => { while (n) { if (n === tipped) return true; n = n.parent; } return false; };
+    const aside = new Function('document', sliceOf(wbSrc, 'cardaside') + '\nreturn cardAside;')(doc);
+    const r = [aside(el, arcPath), cls.has('wb-aside'), aside(el, body), cls.has('wb-aside'), aside(el, icons), aside(el, blank), aside(el, null), aside(tipped, part), aside(el, away), aside(el, arc)];
+    check('one bubble at a time on a token (whiteboard.js cardAside, sliced and run): on a bar\'s arc, or any part of the token with a tooltip of its own, the hover card steps aside (wb-aside); on the token itself, on a part whose tooltip is empty, on nothing, on the token\'s own tooltip or on another piece it shows; the token\'s enter, move and leave ask it, and the style sheet keeps the card out of sight, built and placed',
+        J(r) === J([true, true, false, false, true, false, false, false, false, true])
+        && count(wbSrc, "cardAside(el, document.elementFromPoint ? document.elementFromPoint(e.clientX, e.clientY) : null);") === 1 && count(wbSrc, '                  cardAside(el, e.target);') === 1
+        && count(wbSrc, "document.getElementById('wbTooltip').classList.remove('wb-aside');") === 1 && css.includes('  #wbTooltip.wb-aside { visibility: hidden; }'), J(r));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

@@ -7843,7 +7843,7 @@ function blastBox(box, cm) {
         lineUnder(box, d[2]);
         var er = el('div', 'sys-blast-err'); er.dataset.bk = d[0]; er.textContent = blastSays(d[0], bl[d[0]]); box.appendChild(er);
     });
-    if (typeof bl.each === 'string' && bl.each) { box.appendChild(labeledSelect('sys-combat-beachby', 'Each victim\u2019s dice rolled by', [['', 'The GM, each at once'], ['victim', 'The victim, from a card']], bl.eachBy === 'victim' ? 'victim' : '', EACH_BY_LINE)); lineUnder(box, EACH_BY_LINE); }   // 1.6.0 (the core's gap 8)
+    { box.appendChild(labeledSelect('sys-combat-beachby', 'Each victim\u2019s dice rolled by', [['', 'The GM, each at once'], ['victim', 'The victim, from a card']], bl.eachBy === 'victim' ? 'victim' : '', EACH_BY_LINE)); lineUnder(box, EACH_BY_LINE); }   // 1.6.0 (the core's gap 8)
     box.appendChild(labeledSelect('sys-combat-bways', 'Ways a miss goes', [['6', 'Six, a d6 (the sides of a hex)'], ['8', 'Eight']], bl.ways === 8 ? '8' : '6', 'How many ways a miss may scatter from its aim, rolled as a die'));
     box.appendChild(labeledSelect('sys-combat-bfuse', 'A thrown explosive goes off', [['', 'At once, where it lands'], ['turn', 'At the start of the next turn in a fight']], bl.fuse === 'turn' ? 'turn' : '', 'With a fight on its map, a fused explosive lies there until the next turn starts. Outside a fight it goes off at once'));
     var lnB = bl.launch && typeof bl.launch === 'object' && !Array.isArray(bl.launch) ? bl.launch : {};   // 1.5.9 (es): a launched round's miss; each first choice is the book's reading where it has ruled (the fuse, (eu) H1), else the plan's
@@ -7869,7 +7869,7 @@ function blastBox(box, cm) {
     var re = el('div', 'sys-blast-err'); re.dataset.rk = 'resist'; re.textContent = resistSays(rsV); box.appendChild(re);
     box.appendChild(labeledSelect('sys-combat-affhurt', 'Those an affliction hurts', [['', 'Took a wound, after DR'], ['share', 'Took any share of the blast']], bl.hurt === 'share' ? 'share' : '', HURT_LINE)); lineUnder(box, HURT_LINE);
 }
-var EACH_BY_LINE = 'The GM: each victim\u2019s dice are rolled as the blast goes off. The victim: each player gets a card with a Roll button, and an NPC\u2019s card is yours.';   // 1.6.0 (the core's gap 8)
+var EACH_BY_LINE = 'With Each victim\u2019s dice set. The GM: each one is rolled as the blast goes off. The victim: each player gets a card with a Roll button, and an NPC\u2019s card is yours.';   // 1.6.0 (the core's gap 8)
 var RESIST_LINE = 'The check a character rolls against an affliction. Resist stands for what the item says it is resisted against. With none, you are told who must resist.';
 var HURT_LINE = 'For an affliction that reaches those it hurts. A wound is damage that got through DR.';
 function resistSays(v) {   // what Save does with the Resist roll: '' where it keeps it
@@ -10038,7 +10038,7 @@ function onChange(e) {
         else if (c.indexOf('sys-roll-evu') >= 0 || c.indexOf('sys-roll-evrest') >= 0 || c.indexOf('sys-roll-evwait') >= 0 || c.indexOf('sys-roll-ifu') >= 0 || c.indexOf('sys-roll-iffresh') >= 0 || c.indexOf('sys-roll-evask') >= 0 || c.indexOf('sys-roll-evhold') >= 0 || c.indexOf('sys-roll-ifhold') >= 0 || c.indexOf('sys-roll-tnote') >= 0) everyEdit(r, c, t);   // item 20 K5; backlog 152, fold 5: Waits in a fight, In a fight's unit and tick, Ask me first; 1.5.5: Only while its needs hold, in both rows
         else if (c.indexOf('sys-dmg-chk') >= 0) { if (t.checked) r.dmg = true; else delete r.dmg; }   // chat cards: a damage roll
         else if (c.indexOf('sys-roll-rsist') >= 0) { if (t.checked) r.resist = true; else delete r.resist; markDirty(); renderAll(); return; }   // 1.6.0 (B2): the Resisted by lists follow
-        else if (c.indexOf('sys-roll-rsby') >= 0) { if (t.value) { r.resistBy = t.value; if (Array.isArray(r.resistOr)) { r.resistOr = r.resistOr.filter(function(x) { return x !== t.value; }); if (!r.resistOr.length) delete r.resistOr; } } else { delete r.resistBy; delete r.resistOr; } }   // 1.6.0 (B2)
+        else if (c.indexOf('sys-roll-rsby') >= 0) { if (t.value) { r.resistBy = t.value; if (Array.isArray(r.resistOr)) { r.resistOr = r.resistOr.filter(function(x) { return x !== t.value; }); if (!r.resistOr.length) delete r.resistOr; } } else { delete r.resistBy; delete r.resistOr; } markDirty(); renderAll(); return; }   // 1.6.0 (B2)   // 1.6.0 (the core's gap 5): Or resisted by follows it
         else if (c.indexOf('sys-roll-rsor') >= 0) resistOrTick(r, t);   // 1.6.0 (the core's gap 5)
         else if (c.indexOf('sys-init-chk') >= 0) { r.init = t.checked; if (t.checked) draft.rolls.forEach(function(o) { if (o !== r) delete o.init; }); markDirty(); renderAll(); return; }
         else return;

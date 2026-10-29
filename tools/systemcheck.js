@@ -15747,6 +15747,33 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ixU.includes('<li><b>Keeps paying</b>, under the switch, is what a row switched on keeps paying') && ntU.every(t => t.indexOf("- A list's rows can keep paying while switched on") > 0 && t.indexOf("- A list's rows can keep paying while switched on") < t.indexOf('WAYPOINT 1.5.')),
             J(vU.errors.concat(vU.warnings).map(e => e.message)));
     }
+    {   // the core handbook session's ask 5 (2026-10-29): when a row keeps paying, read from the row (upkeep.eachBy, a choice stat of the list), on invented data
+        const J = JSON.stringify;
+        const PACE = { key: 'Pace', label: 'Pace', kind: 'pick', opts: [{ label: 'Each turn', name: 'PTurn' }, { label: 'Each round', name: 'PRound' }, { label: 'By the clock', name: 'PClock' }, { label: 'Whenever', name: 'PNone' }] };
+        const rawE = up => ({ v: 1, name: 'E', rolls: [], fields: [{ id: 'f_mp', key: 'MP', kind: 'resource', maxFormula: '20', def: 'max', vis: 'all' },
+            { id: 'f_pw', key: 'Powers', kind: 'item-list', vis: 'all', edit: 'owner', list: { on: { label: 'Up' }, stats: [{ key: 'keep' }, PACE, { key: 'Bare' }], upkeep: up } }],
+            items: [{ id: 'i_sh', name: 'Shield', stats: { keep: 3, Pace: 'Each round' } }, { id: 'i_gl', name: 'Glow', stats: { keep: 2, Pace: 'By the clock' } }, { id: 'i_fr', name: 'Free', stats: { keep: 1, Pace: 'Whenever' } }, { id: 'i_sn', name: 'Sun', stats: { keep: 4 } }], sheet: { sections: [] } });
+        const upOfE = sy => (sy.fields.find(f => f.id === 'f_pw').list || {}).upkeep;
+        const sE = cleanSystem(rawE({ pool: 'f_mp', amt: 'Row.keep', each: 'turn', eachBy: 'pace', per: { n: 1, u: 'min' } }), { F, gmView: true });
+        const sE0 = cleanSystem(rawE({ pool: 'f_mp', amt: 'Row.keep', each: 'turn', per: { n: 1, u: 'min' } }), { F, gmView: true }), sEb = cleanSystem(rawE({ pool: 'f_mp', amt: 'Row.keep', each: 'turn', eachBy: 'Bare', per: { n: 1, u: 'min' } }), { F, gmView: true });
+        const cleanE = J(upOfE(sE)) === J({ pool: 'f_mp', amt: 'Row.keep', each: 'turn', per: { n: 1, u: 'min' }, eachBy: 'Pace' }) && J(cleanSystem(sE, { F, gmView: true })) === J(sE)
+            && J(upOfE(sE0)) === J({ pool: 'f_mp', amt: 'Row.keep', each: 'turn' }) && J(upOfE(sEb)) === J({ pool: 'f_mp', amt: 'Row.keep', each: 'turn' });
+        const chE = { id: 'c_e', name: 'Kael', ownerId: 'u_e', values: { f_mp: { cur: 20 }, f_pw: [{ id: 'w_1', defId: 'i_sh', qty: 1, on: true }, { id: 'w_2', defId: 'i_gl', qty: 1, on: true }, { id: 'w_3', defId: 'i_fr', qty: 1, on: true }, { id: 'w_4', defId: 'i_sn', qty: 1, on: true }] } };
+        const VFE = w => S.makeResolver(sE, w, F), mpE = vals => S.makeResolver(sE, Object.assign({}, chE, { values: Object.assign({}, chE.values, vals) }), F)('MP');
+        const tE = S.applyRound(sE, chE, VFE, F, null, 'turn'), rE = S.applyRound(sE, chE, VFE, F, null, 'round'), kE = S.rowTimers(sE, chE, 120, per => per && per.u === 'min' ? 60 * per.n : 0, F);
+        const eachOf = id => S.upkeepEach(sE, sE.fields[1].list, chE.values.f_pw.find(r => r.id === id));
+        const payE = mpE(tE.values) === 15 && mpE(rE.values) === 17 && mpE(kE.values) === 16 && J(['w_1', 'w_2', 'w_3', 'w_4'].map(eachOf)) === J(['round', 'clock', 'turn', 'turn']) && S.upkeepEach(sE0, sE0.fields[1].list, chE.values.f_pw[0]) === 'turn';
+        const vE = S.validateSystem(sEb, F), vE2 = S.validateSystem(cleanSystem(rawE({ pool: 'f_mp', amt: '1', each: 'turn', eachBy: 'Pace' }), { F, gmView: true }), F), wds = v => v.warnings.filter(w => /^Keeps paying: /.test(w.message) && /turn, round or clock|until Every/.test(w.message)).length;
+        check('the core handbook session\'s ask 5 (2026-10-29): a list\'s upkeep may read when each row pays from a choice stat of the list (eachBy, spelled as the list spells it, a pick or a number with value names, its per kept beside it; one that is no such stat dropped with its per, so a system that names none is as before; a fixed point); a row whose value says turn, round or clock pays then (Shield each round, Glow by the clock, twice in 120 seconds), one whose value says none pays at the upkeep\'s own each (Free, and Sun with no value, at its turn); the validator says when no value says turn, round or clock, and when a row says clock with no Every',
+            cleanE && payE && wds(vE) === 0 && wds(vE2) === 1, J([upOfE(sE), upOfE(sE0), upOfE(sEb), tE.values, rE.values, kE.values, ['w_1', 'w_2', 'w_3', 'w_4'].map(eachOf), vE2.warnings]));
+        const shE = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), a0E = shE.indexOf('function upkeepChange(lsc, t, c) {'), a1E = shE.indexOf('\n}\n', a0E) + 3;
+        const UC = new Function('draft', shE.slice(a0E, a1E) + '\nreturn upkeepChange;')({ fields: [] });
+        const lscE = { upkeep: { pool: 'f_mp', amt: '1', each: 'turn' } }; UC(lscE, { value: 'Pace' }, 'sys-list-upby'); const e1 = J(lscE.upkeep);
+        UC(lscE, { value: 'round' }, 'sys-list-upeach'); const e2 = J(lscE.upkeep); UC(lscE, { value: '' }, 'sys-list-upby'); const e3 = J(lscE.upkeep);
+        check('the core handbook session\'s ask 5 in the Lists tab (sheets.js upkeepChange, run for real; the box\'s Pays when its Pace says, its dispatcher and Help pinned): picking the stat names it and gives a row that says the clock its Every, a minute by default; changing when every row pays keeps that Every while the stat is picked; picking Every row pays so takes both away',
+            e1 === J({ pool: 'f_mp', amt: '1', each: 'turn', eachBy: 'Pace', per: { n: 1, u: 'min' } }) && e2 === J({ pool: 'f_mp', amt: '1', each: 'round', eachBy: 'Pace', per: { n: 1, u: 'min' } }) && e3 === J({ pool: 'f_mp', amt: '1', each: 'round' })
+            && shE.includes("rw.appendChild(sl('sys-list-upby', ebo, ebc,") && shE.includes("|| c.indexOf('sys-list-upby') >= 0) upkeepChange(lsc, t, c);") && fs.readFileSync(path.join(app, 'index.html'), 'utf8').includes('Then pick <b>Pays when its Pace says</b>.'), J([e1, e2, e3]));
+    }
     {   // 1.6.0 (CORE gap 15, an implant's mandatory flaws once a character): a grant counted once per character, on invented data
         const J = JSON.stringify;
         const rawO = { v: 1, name: 'O', rolls: [], items: [

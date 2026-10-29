@@ -2399,15 +2399,19 @@ function cleanSecStyle(v) {
 }
 // 5h: one change an effect makes — ADD a number to a number, a skill's total, a formula or a resource's max, or switch a toggle ON. The
 // target must exist (fieldKinds: id -> kind; in the players' view GM-only fields are absent, so such a change is dropped) and fit its kind.
-function cleanMod(m, fieldKinds) {
+// withVf (1.6.0, CORE gap 12, an effect's change only; the owner, by prompt: "Sheet before effects"): its amount may be a formula, vf (its v
+// then 0), kept here by its shape; fxVf reads it, and cleanSystem drops one that does not parse, rolls dice or reads a GM-only value
+function cleanMod(m, fieldKinds, withVf) {
     if (!isObj(m) || typeof m.f !== 'string' || !FIELD_ID.test(m.f) || !fieldKinds || !fieldKinds[m.f]) return null;
     var k = fieldKinds[m.f];
     if (m.op === 'on') return k === 'toggle' ? { f: m.f, op: 'on' } : null;
     if (m.op !== 'add' && !MOD_LIM[m.op]) return null;
-    var op = m.op, v = typeof m.v === 'number' ? m.v : Number(m.v); if (!isFinite(v) || Math.abs(v) > LIMITS.effectAmount) return null;   // 1.6.0: max, at least v; min, at most v
-    if (m.part === 'max') return k === 'resource' ? { f: m.f, op: op, v: v, part: 'max' } : null;
-    if (k === 'item-list') return rowModAim(m) ? { f: m.f, op: op, v: v, key: m.key, col: m.col } : null;   // 1.5.8: one row of a list, by its key
-    return (k === 'number' || k === 'skill' || k === 'formula') ? { f: m.f, op: op, v: v } : null;
+    var op = m.op, vfT = withVf === true ? cleanFormulaText(m.vf) : null, v = vfT ? 0 : typeof m.v === 'number' ? m.v : Number(m.v); if (!isFinite(v) || Math.abs(v) > LIMITS.effectAmount) return null;   // 1.6.0: max, at least v; min, at most v
+    var o = m.part === 'max' ? (k === 'resource' ? { f: m.f, op: op, v: v, part: 'max' } : null)
+        : k === 'item-list' ? (rowModAim(m) ? { f: m.f, op: op, v: v, key: m.key, col: m.col } : null)   // 1.5.8: one row of a list, by its key
+        : (k === 'number' || k === 'skill' || k === 'formula') ? { f: m.f, op: op, v: v } : null;
+    if (o && vfT) o.vf = vfT;
+    return o;
 }
 // 1.6.0 (the campaign build: two effects that each mean "state 1" on a coded field added up to 2, another state): a change may set a floor or a
 // ceiling. op 'max' holds the value at least v and op 'min' at most v, after every change that adds; of several floors the highest counts and of
@@ -2420,7 +2424,7 @@ function rowModAim(m) { return isObj(m) && typeof m.key === 'string' && ITEM_KEY
 // 5h: what a library effect and an ad hoc row share — name, icon, tone, duration note, notes, changes (plain literals, fixed key order)
 function cleanEffectCore(d, fieldKinds) {
     var mods = [];
-    (Array.isArray(d.mods) ? d.mods : []).forEach(function(m) { if (mods.length >= LIMITS.effectMods) return; var c = cleanMod(m, fieldKinds); if (c) mods.push(c); });
+    (Array.isArray(d.mods) ? d.mods : []).forEach(function(m) { if (mods.length >= LIMITS.effectMods) return; var c = cleanMod(m, fieldKinds, true); if (c) mods.push(c); });   // 1.6.0: a change by a formula too
     return { name: str(d.name, LIMITS.name).replace(CTRL_RE_G, ' ').trim() || 'Effect', icon: cleanIcon(d.icon), tone: d.tone === 'buff' || d.tone === 'debuff' ? d.tone : '',
              dur: cutPoints(d.dur, LIMITS.effectDur, ' '), notes: str(d.notes, LIMITS.text).replace(CTRL_RE_G, ' ').trim(), mods: mods };
 }
@@ -3156,6 +3160,10 @@ function cleanSystem(sys, opts) {
     if (effs.some(function(d) { return typeof d.auto === 'string'; })) {   // conditions C4 ("Only public ones"): a formula that reads a GM-only value, at any depth, goes — judged over the GM's view, in both views alike
         var sysAu = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core };
         effs.forEach(function(d) { if (typeof d.auto !== 'string') return; var pa = F.parse(d.auto), nm = pa && pa.ok && Array.isArray(pa.names) ? pa.names : null; if (!nm || gmDerivedNames(sysAu, F, nm).length) delete d.auto; });
+    }
+    if (effs.some(function(d) { return d.mods.some(function(m) { return typeof m.vf === 'string'; }); })) {   // 1.6.0 (CORE gap 12): a change by a formula that does not parse, rolls dice or reads a GM-only value at any depth goes, judged over the GM's view, in both views alike (its player's sheet and the GM's agree)
+        var sysVf = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core };
+        effs.forEach(function(d) { d.mods = d.mods.filter(function(m) { if (typeof m.vf !== 'string') return true; var pv = F.parse(m.vf); return !!(pv && pv.ok && pv.ast && !hasDice(pv.ast.body) && Array.isArray(pv.names) && !gmDerivedNames(sysVf, F, pv.names).length); }); });
     }
     if (effs.length) out.effects = effs;
     out.items.concat(core).forEach(function(it) { var ar = it && it.area; if (!ar || !Array.isArray(ar.aff)) return; ar.aff = ar.aff.filter(function(a) { return seenFx[a.fx] === 1; }); if (!ar.aff.length) delete ar.aff; });   // 1.5.9 (es): an affliction whose effect this view does not hold goes (the GM's view alone holds any)
@@ -5321,7 +5329,20 @@ function onceIn(sys, spec, rows) {   // a stored list's groups as its changes ar
     var items = rows.map(function(r) { var rd = isObj(r) ? rowDef(sys, r) : null; return { r: r, d: rd ? rd.def : null }; });
     return onceOf(spec, items, function(it) { return !(isObj(it.d) && it.d.modsOn === true && isObj(spec.on) && !rowOn(spec, it.r)); });
 }
-function fxIndex(sys, char, stance, autos) {   // conditions C3: stance (stanceCtx) — the posture the token takes, from the system's own list; C4: autos (autoEffectsOn) — the automatic effects on
+// 1.6.0 (CORE gap 12; the owner, by prompt: "Sheet before effects"): a change sized by a formula (vf) reads the character with no effect or
+// item change applied (a resolver of the same context with noFx, made once a resolver and only when a change asks), so it never loops. It
+// rolls no dice; a value that is no number reads 0; the amount is held within LIMITS.effectAmount
+function fxVf(sys, char, F, ropts) {
+    var base = null;
+    return function(text) {
+        if (!F || typeof text !== 'string' || !text) return 0;
+        if (!base) base = makeResolver(sys, char, F, Object.assign({}, isObj(ropts) ? ropts : {}, { noFx: true, reuse: false }));
+        var r = null; try { r = F.evaluate(text, { vars: base, random: noDice }); } catch (e) { r = null; }
+        var x = r && r.ok ? (typeof r.value === 'boolean' ? (r.value ? 1 : 0) : r.value) : 0;
+        return typeof x === 'number' && isFinite(x) ? Math.max(-LIMITS.effectAmount, Math.min(LIMITS.effectAmount, x)) : 0;
+    };
+}
+function fxIndex(sys, char, stance, autos, vfOf) {   // vfOf (1.6.0, fxVf): a change's formula to its amount (none: such a change adds 0)   // conditions C3: stance (stanceCtx) — the posture the token takes, from the system's own list; C4: autos (autoEffectsOn) — the automatic effects on
     var idx = null, lib = null, byId = map(), seenRef = map();   // a library effect counts once per character, whichever list holds it
     (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(x) { if (isObj(x) && typeof x.id === 'string') byId[x.id] = x; });
     var put = function(m, name, gm, mult) {   // one change onto the field it names (checked against that field's kind), with its source for the breakdown
@@ -5329,7 +5350,8 @@ function fxIndex(sys, char, stance, autos) {   // conditions C3: stance (stanceC
         if (m.op === 'on') { if (tf.kind !== 'toggle') return; }
         else if (m.op === 'add' || MOD_LIM[m.op]) { if (typeof m.v !== 'number' || !isFinite(m.v)) return; if (tf.kind === 'item-list' ? m.part === 'max' || !rowModAim(m) : m.part === 'max' ? tf.kind !== 'resource' : !(tf.kind === 'number' || tf.kind === 'skill' || tf.kind === 'formula')) return; }
         else return;
-        var v = m.op === 'add' ? m.v * mult : MOD_LIM[m.op] ? m.v : 0, key = tf.kind === 'item-list' ? rowModSlot(tf.key, m.key, m.col) : lower(tf.key) + (m.part === 'max' ? '.max' : '');
+        var mv = typeof m.vf === 'string' && m.vf ? (typeof vfOf === 'function' ? vfOf(m.vf) : 0) : m.v;   // 1.6.0: a change by a formula
+        var v = m.op === 'add' ? mv * mult : MOD_LIM[m.op] ? mv : 0, key = tf.kind === 'item-list' ? rowModSlot(tf.key, m.key, m.col) : lower(tf.key) + (m.part === 'max' ? '.max' : '');
         idx = idx || map(); var slot = idx[key] || (idx[key] = { add: 0, on: false, src: [] });
         if (m.op === 'on') slot.on = true; else if (m.op === 'max') slot.lo = typeof slot.lo === 'number' ? Math.max(slot.lo, v) : v; else if (m.op === 'min') slot.hi = typeof slot.hi === 'number' ? Math.min(slot.hi, v) : v; else slot.add += v;
         srcKeep(slot.src, { name: name, op: m.op, v: v, gm: gm });   // 12 at most, a GM-only one kept past them
@@ -6024,7 +6046,7 @@ function rollMods(vars, names) {
 function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no effect applied (the breakdown's true base); ropts.facing / ropts.stance: tokenCtx(...) for the built-in token names
     var first = {}, autoL = (ropts && (ropts.noFx || ropts.noAuto)) ? null : autoEffectsOn(sys, char, F, first);   // conditions C4: the automatic effects on, from a first pass that holds none
     if (ropts && ropts.reuse === true && autoL && !autoL.length && first.r && !ropts.facing && !ropts.stance && !ropts.combat && !ropts.range && !ropts.cross) return first.r;   // 1.5.5 (a time rule's run, in a system chainsShallow passes): with no automatic effect on and no token's context, that first pass answers every name as this resolver would, so it is this resolver
-    var ix = keyIndexOf(sys), cache = map(), chain = [], fx = (ropts && ropts.noFx) ? null : fxIndex(sys, char, ropts ? ropts.stance : null, autoL), detail = map();
+    var ix = keyIndexOf(sys), cache = map(), chain = [], fx = (ropts && ropts.noFx) ? null : fxIndex(sys, char, ropts ? ropts.stance : null, autoL, fxVf(sys, char, F, ropts)), detail = map();
     var unr = map();   // clarity package: a value as it worked out before its rounding, kept only where the rounding changed it (the sheet says so)
     var lctx = map(), asts = map(), pretty = map();   // Stage 6 F5a1: each list's rows (once a render), each column formula parsed once, readable names for a loop's message
     var rangeRead = false;   // range penalties R3: whether anything this resolver worked out read RangeMod or TargetDistance (fn.rangeRead)
@@ -7053,7 +7075,7 @@ function projectEffects(rows, sys, own, lib) {
             if (own && view[r.ref]) { var pr0 = { id: r.id, ref: r.ref, on: on }, pt0 = cleanFxTimer(r.t); if (pt0) pr0.t = pt0; out.push(pr0); return; }   // T5a: its timer to its owner
             d = view[r.ref] || (own && lib && lib[r.ref]) || null; if (!d) return;
         }
-        var mods = own ? (Array.isArray(d.mods) ? d.mods : []).filter(function(m) { return isObj(m) && vf[m.f] === 1; }).map(function(m) { var o = { f: m.f, op: m.op }; if (m.op === 'add' || MOD_LIM[m.op]) o.v = m.v; if (m.part) o.part = m.part; else if ((m.op === 'add' || MOD_LIM[m.op]) && rowModAim(m)) { o.key = m.key; o.col = m.col; } return o; }) : [];
+        var mods = own ? (Array.isArray(d.mods) ? d.mods : []).filter(function(m) { return isObj(m) && vf[m.f] === 1; }).map(function(m) { var o = { f: m.f, op: m.op }; if (m.op === 'add' || MOD_LIM[m.op]) { o.v = m.v; if (typeof m.vf === 'string' && m.vf) o.vf = m.vf; } if (m.part) o.part = m.part; else if ((m.op === 'add' || MOD_LIM[m.op]) && rowModAim(m)) { o.key = m.key; o.col = m.col; } return o; }) : [];
         var pr1 = { id: r.id, name: d.name || 'Effect', icon: d.icon || '', tone: d.tone || '', dur: own ? (d.dur || '') : '', notes: own ? (d.notes || '') : '', on: on, mods: mods }, pt1 = own ? cleanFxTimer(r.t) : null; if (pt1) pr1.t = pt1;   // T5a: the owner's timer (a teammate gets names only)
         out.push(pr1);
     });
@@ -7168,7 +7190,7 @@ function applyEffectOp(sys, char, fieldId, q, F, opts) {
         var fk = vo.fields;
         if (opts.player) {   // every change must name a field the player can see
             fk = map(); (opts.view && Array.isArray(opts.view.fields) ? opts.view.fields : []).forEach(function(x) { fk[x.id] = x.kind; });
-            var bad = (Array.isArray(q.row.mods) ? q.row.mods : []).some(function(m) { return !isObj(m) || typeof m.f !== 'string' || !fk[m.f]; });
+            var bad = (Array.isArray(q.row.mods) ? q.row.mods : []).some(function(m) { return !isObj(m) || typeof m.f !== 'string' || !fk[m.f] || m.vf !== undefined; });   // 1.6.0: a player's own effect changes by plain numbers (a change by a formula is the GM's)
             if (bad) return { ok: false, reason: 'value' };
         }
         var core = cleanEffectCore(q.row, fk);

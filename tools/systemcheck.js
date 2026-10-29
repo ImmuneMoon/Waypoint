@@ -15460,6 +15460,46 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             shM.includes("function modHowSel(cls, op) { return select(cls, [['add', 'Adds'], ['max', 'At least'], ['min', 'At most']]") && shM.includes("ln.appendChild(modHowSel('sys-fx-how', m.op))") && shM.includes("ln.appendChild(modHowSel('sys-item-mhow', m.op))")
             && shM.includes("hm.op = t.value === 'max' || t.value === 'min' ? t.value : 'add';") && shM.includes("ihm.op = t.value === 'max' || t.value === 'min' ? t.value : 'add';") && shM.includes("tm.op = tm.op === 'max' || tm.op === 'min' ? tm.op : 'add';"));
     }
+    {   // 1.6.0 (CORE gap 12; the owner, by prompt: "Sheet before effects"): an effect's change sized by a formula (vf), on invented data
+        const J = JSON.stringify;
+        const rawV = { v: 1, name: 'V', rolls: [], fields: [
+            { id: 'f_agi', key: 'Agility', kind: 'number', def: 10, vis: 'all' },
+            { id: 'f_mp', key: 'MP', kind: 'resource', maxFormula: '10', def: 'max', vis: 'all' },
+            { id: 'f_sec', key: 'Secret', kind: 'number', def: 4, vis: 'gm' },
+            { id: 'f_fx', key: 'Effects', kind: 'effects', vis: 'all', edit: 'owner' }],
+            effects: [
+                { id: 'e_over', name: 'Overdrawn', auto: 'MP < 0', mods: [{ f: 'f_agi', op: 'add', vf: '-max(0, -MP)' }] },
+                { id: 'e_haste', name: 'Haste', mods: [{ f: 'f_agi', op: 'add', v: 2 }] },
+                { id: 'e_echo', name: 'Echo', mods: [{ f: 'f_agi', op: 'add', vf: 'Agility', v: 99 }] },
+                { id: 'e_cap', name: 'Cap', mods: [{ f: 'f_agi', op: 'min', vf: 'MP' }] },
+                { id: 'e_hid', name: 'Hidden', vis: 'gm', mods: [{ f: 'f_agi', op: 'add', vf: 'MP - 1' }] },
+                { id: 'e_bad', name: 'Bad', mods: [{ f: 'f_agi', op: 'add', vf: '1d6' }, { f: 'f_agi', op: 'add', vf: 'Secret' }, { f: 'f_agi', op: 'add', vf: '(' }, { f: 'f_agi', op: 'add', v: 1 }] }],
+            items: [{ id: 'i_x', name: 'Charm', mods: [{ f: 'f_agi', op: 'add', vf: 'MP' }, { f: 'f_agi', op: 'add', v: 1 }] }],
+            sheet: { sections: [] } };
+        const gV = cleanSystem(rawV, { F, gmView: true }), pV = cleanSystem(rawV, { F, gmView: false }), modsOf = (sy, id) => (sy.effects.find(e => e.id === id) || {}).mods;
+        const chV = (mp, rows) => ({ id: 'c_v', name: 'V', ownerId: 'u_v', values: { f_mp: { cur: mp }, f_fx: rows.map((r, i) => ({ id: 'x_' + i, ref: r })) } });
+        const ag = (sy, ch) => S.makeResolver(sy, ch, F)('Agility');
+        const over = S.makeResolver(gV, chV(-3, []), F), overA = over('Agility'), od = over.detail('agility');
+        check('CORE gap 12: an effect\'s change may be sized by a formula (vf, its v then 0): Overdrawn, on by itself while MP < 0, takes 1 off Agility for each MP below 0 (MP -3: 7; MP 4: 10, and off); the breakdown says Overdrawn -3; the formula reads the sheet with no effect applied (Echo adds Agility as it stands before effects, 10, never Haste\'s +2: 22); a formula may set a ceiling (Cap at most MP 5: 5 with Haste on); the same in the players\' view',
+            J(modsOf(gV, 'e_over')) === J([{ f: 'f_agi', op: 'add', v: 0, vf: '-max(0, -MP)' }]) && J(modsOf(gV, 'e_echo')) === J([{ f: 'f_agi', op: 'add', v: 0, vf: 'Agility' }])
+            && overA === 7 && !!od && od.mods.length === 1 && od.mods[0].name === 'Overdrawn' && od.mods[0].v === -3 && ag(gV, chV(4, [])) === 10
+            && ag(gV, chV(5, ['e_haste', 'e_echo'])) === 22 && ag(gV, chV(5, ['e_haste', 'e_cap'])) === 5 && ag(pV, chV(-3, [])) === 7 && ag(pV, chV(5, ['e_haste', 'e_echo'])) === 22,
+            J([over('Agility'), od, ag(gV, chV(5, ['e_haste', 'e_echo'])), ag(gV, chV(5, ['e_haste', 'e_cap'])), ag(pV, chV(-3, []))]));
+        const own = S.charFor(Object.assign(chV(3, []), { values: { f_mp: { cur: 3 }, f_fx: [{ id: 'x_h', ref: 'e_hid' }] } }), pV, 'u_v', { lib: Object.fromEntries(gV.effects.map(e => [e.id, e])) });
+        const adP = S.applyEffectOp(gV, chV(3, []), 'f_fx', { op: 'adhoc', row: { id: 'x_9', name: 'Mine', mods: [{ f: 'f_agi', op: 'add', vf: 'MP' }] } }, F, { player: true, view: pV });
+        const adG = S.applyEffectOp(gV, chV(3, []), 'f_fx', { op: 'adhoc', row: { id: 'x_9', name: 'Mine', mods: [{ f: 'f_agi', op: 'add', vf: 'MP' }] } }, F, {});
+        check('CORE gap 12: what Save drops of a change by a formula, in both views alike: one that rolls dice, reads a GM-only value or does not parse (the plain change beside them stays); an item\'s change is never by a formula; a GM-only effect\'s change reaches its player inline with its formula, and reads there as on the GM\'s sheet (MP 3 - 1: Agility 12); a player\'s own ad hoc effect changes by plain numbers (refused), the GM\'s may be by a formula',
+            J(modsOf(gV, 'e_bad')) === J([{ f: 'f_agi', op: 'add', v: 1 }]) && J(modsOf(pV, 'e_bad')) === J([{ f: 'f_agi', op: 'add', v: 1 }]) && J(gV.items[0].mods) === J([{ f: 'f_agi', op: 'add', v: 1 }])
+            && J(own.values.f_fx[0].mods) === J([{ f: 'f_agi', op: 'add', v: 0, vf: 'MP - 1' }]) && ag(pV, own) === 12 && ag(gV, Object.assign(chV(3, []), { values: { f_mp: { cur: 3 }, f_fx: [{ id: 'x_h', ref: 'e_hid' }] } })) === 12
+            && !adP.ok && adP.reason === 'value' && adG.ok && J(adG.value[0].mods) === J([{ f: 'f_agi', op: 'add', v: 0, vf: 'MP' }]),
+            J([modsOf(gV, 'e_bad'), gV.items[0].mods, own.values.f_fx, ag(pV, own), adP, adG.value]));
+        const shV = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ixV = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+        const ntV = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n'));
+        check('CORE gap 12 is in the editor and said (source): an effect\'s change has a by-a-formula box after its number, whose handler writes vf (emptied, the number again); the validator says what Save drops; the sheet shows the formula; Help and both 1.6.0 notes say it',
+            shV.includes("var amF = input('sys-fx-amtf field'") && shV.includes("if (vfV.trim()) { mmF.vf = vfV; mmF.v = 0; } else delete mmF.vf;") && shV.includes("hd + 'the formula cannot roll dice: Save drops the change.'")
+            && shV.includes("if (typeof m.vf === 'string' && m.vf) return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : m.op === 'min' ? ' at most ' : ' by ') + m.vf;")
+            && ixV.includes('A change&rsquo;s amount may be <b>by a formula</b>') && ntV.every(t => t.indexOf("- An effect's change can be sized by a formula") > 0 && t.indexOf("- An effect's change can be sized by a formula") < t.indexOf('WAYPOINT 1.5.')));
+    }
     {   // 1.6.0: a list's roll or action only the GM presses (gm)
         const J = JSON.stringify;
         const rawG = { v: 1, name: 'G', rolls: [], fields: [{ id: 'f_wear', key: 'Wear', kind: 'number', def: 0, edit: 'owner' }, { id: 'f_kit', key: 'Kit', kind: 'item-list', edit: 'owner', list: { counters: [{ key: 'Jam' }], rolls: [

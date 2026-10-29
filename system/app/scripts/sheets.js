@@ -3894,7 +3894,7 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
 // 1.6.0: how a change that is no switch works — it adds, or it holds the value at least or at most at its figure (op max, op min)
 function modHowSel(cls, op) { return select(cls, [['add', 'Adds'], ['max', 'At least'], ['min', 'At most']], op === 'max' || op === 'min' ? op : 'add', 'Adds: the figure is added. At least: the value is never below it. At most: never above it. Two effects that each say at least 1 still read 1'); }
 // 5h: an effect's changes as short text, with the field labels ("+2 ST · HP max +5 · Prone on")
-function fxChangeText(m, labels) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm + ' on'; if (m.op === 'max' || m.op === 'min') return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : ' at most ') + fmtNum(m.v); return nm + (m.part === 'max' ? ' max ' : ' ') + (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)); }
+function fxChangeText(m, labels) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm + ' on'; if (typeof m.vf === 'string' && m.vf) return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : m.op === 'min' ? ' at most ' : ' by ') + m.vf; if (m.op === 'max' || m.op === 'min') return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : ' at most ') + fmtNum(m.v); return nm + (m.part === 'max' ? ' max ' : ' ') + (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)); }
 // 5h: what an effect can change, for a picker: [value, label] with value "fieldId|add" / "fieldId|max" / "fieldId|on"
 function fxTargets(sys, rows) {   // rows (1.5.8): an item list with columns as a target of its own, one entry of it by its key
     var out = [];
@@ -4068,7 +4068,7 @@ function fxCard(line, sw, r, d, f, c, labels, editable, sys) {   // sys (T5a): a
     return line;
 }
 // L6: a pill's text, the amount first (the owner's Q10): "+2 ST", "−5 HP max"; a switch reads as the name of what it turns on
-function fxPillText(m, labels) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm; if (m.op === 'max' || m.op === 'min') return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' \u2265 ' : ' \u2264 ') + fmtNum(m.v); return (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)) + ' ' + nm + (m.part === 'max' ? ' max' : ''); }
+function fxPillText(m, labels) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm; if (typeof m.vf === 'string' && m.vf) return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' \u2265 ' : m.op === 'min' ? ' \u2264 ' : ' ') + m.vf; if (m.op === 'max' || m.op === 'min') return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' \u2265 ' : ' \u2264 ') + fmtNum(m.v); return (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)) + ' ' + nm + (m.part === 'max' ? ' max' : ''); }
 // 5h: the New… form: a name, a tone, a duration note and up to LIMITS.effectMods changes (a field and an amount, or a toggle switched on)
 function effectForm(f, c, sys, onClose) {
     var form = el('div', 'sheet-fx-form');
@@ -6697,6 +6697,24 @@ function refreshErrors() {
         }
         if (msg) errorsById[d.id] = (errorsById[d.id] || []).concat([msg]);
     });
+    // 1.6.0 (CORE gap 12): what Save drops of an effect's change by a formula, under the effect's row, read as the cleaner reads it (systemcore
+    // cleanSystem: it parses, rolls no dice and reads no GM-only value, in both views)
+    (draft.effects || []).forEach(function(d) {
+        if (!d || typeof d !== 'object' || typeof d.id !== 'string' || !Array.isArray(d.mods)) return;
+        d.mods.forEach(function(m, mi) {
+            if (!m || typeof m !== 'object' || m.op === 'on' || typeof m.vf !== 'string' || !m.vf.trim()) return;
+            var t1 = m.vf.trim(), pv = F() ? F().parse(t1) : null, hd = 'Change ' + (mi + 1) + ', by a formula: ', mv = null;
+            if (t1.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t1)) mv = { message: hd + 'a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops the change.' };
+            else if (!pv || !pv.ok) mv = { message: hd + (pv && pv.error && pv.error.message ? pv.error.message : 'the formula cannot be read.') + ' Save drops the change.' };
+            else if (rfDice(pv.ast && pv.ast.body)) mv = { message: hd + 'the formula cannot roll dice: Save drops the change.' };
+            else {
+                auSys = auSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core };
+                var gmV = gmDerivedNames(auSys, F(), Array.isArray(pv.names) ? pv.names : []);
+                if (gmV.length) mv = { message: hd + 'it reads ' + gmV[0] + ', which players cannot read (a GM-only value, or one worked out from one): Save drops the change, so the GM\u2019s sheet and its player\u2019s agree.' };
+            }
+            if (mv) errorsById[d.id] = (errorsById[d.id] || []).concat([mv]);
+        });
+    });
     // conditions C3: what Save drops or changes of the postures, under the Combat card's Postures box — read as systemcore cleanPostures reads
     var psE = draft.combat && Array.isArray(draft.combat.postures) ? draft.combat.postures : null, pErr = [], pKept = 0, pSeen = Object.create(null), kindsP = Object.create(null);
     if (psE && psE.length) {
@@ -7062,7 +7080,8 @@ function effectRow(d) {
         if (!opts.some(function(o) { return o[0] === val; })) opts.unshift([val, '(a field that is gone or changed kind)']);
         ln.appendChild(select('sys-fx-target', opts, val, 'What this change affects'));
         if (val.slice(-4) === '|row') rowAimInto(ln, draft, m, 'sys-fx-', mi);   // 1.5.8
-        if (m.op !== 'on') { ln.appendChild(modHowSel('sys-fx-how', m.op)); var am = numInput('sys-fx-amt', m.v, 'How much it adds (negative to take away), or the figure it holds the value at'); am.step = 'any'; ln.appendChild(am); }   // 1.6.0: Adds, At least or At most
+        if (m.op !== 'on') { ln.appendChild(modHowSel('sys-fx-how', m.op)); var am = numInput('sys-fx-amt', m.v, 'How much it adds (negative to take away), or the figure it holds the value at'); am.step = 'any'; ln.appendChild(am);
+            var amF = input('sys-fx-amtf field', typeof m.vf === 'string' ? m.vf : '', 'By a formula, in place of the number: the amount it adds or holds the value at, worked out for each character, such as -max(0, -MP) for 1 off each MP below 0. It reads the sheet with no effect applied, rolls no dice, and may not read a GM-only value', 'or by a formula'); amF.maxLength = LIMITS.formula; ln.appendChild(amF); if (typeof m.vf === 'string' && m.vf.trim()) am.disabled = true; }   // 1.6.0: Adds, At least or At most; CORE gap 12: by a formula
         ln.appendChild(btnRow([['fxmoddel', 'Remove this change', '&times;']]));
         mods.appendChild(ln);
     });
@@ -9460,6 +9479,7 @@ function onInput(e) {
         else if (fc.indexOf('sys-fx-dur') >= 0) fxd.dur = t.value.slice(0, 200);
         else if (fc.indexOf('sys-fx-notes') >= 0) fxd.notes = t.value.slice(0, LIMITS.text);
         else if (fc.indexOf('sys-fx-auto') >= 0) { var auV = t.value.slice(0, LIMITS.formula); if (auV.trim()) fxd.auto = auV; else delete fxd.auto; }   // conditions C4: the automatic formula (emptied: the key goes)
+        else if (fc.indexOf('sys-fx-amtf') >= 0) { var mlnF = t.closest('.sys-fx-mod'), mmF = mlnF ? (fxd.mods || [])[+mlnF.dataset.mi] : null; if (mmF) { var vfV = t.value.slice(0, LIMITS.formula); if (vfV.trim()) { mmF.vf = vfV; mmF.v = 0; } else delete mmF.vf; var amN = mlnF.querySelector('.sys-fx-amt'); if (amN) amN.disabled = !!vfV.trim(); } }   // 1.6.0 (CORE gap 12): the amount by a formula (emptied: the number again)
         else if (fc.indexOf('sys-fx-amt') >= 0) { var mln = t.closest('.sys-fx-mod'), mm = mln ? (fxd.mods || [])[+mln.dataset.mi] : null; if (mm) mm.v = t.value === '' ? 0 : Number(t.value); }
         else if (fc.indexOf('sys-fx-mkey') >= 0) { var kln = t.closest('.sys-fx-mod'), km = kln ? (fxd.mods || [])[+kln.dataset.mi] : null; if (km) km.key = t.value.trim().slice(0, 40); }   // 1.5.8
         else return;

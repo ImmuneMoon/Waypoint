@@ -268,6 +268,10 @@ Systems
   formulas read the blow too, its damage, type and wound, and wearing
   ToDestroy destroys the piece. Wears at most sets, by formula, how much
   wear destroys it, in place of minus its figure.
+  ToDestroy destroys the piece.
+- An effect's change can be sized by a formula, such as -max(0, -MP)
+  for 1 off Agility each MP below 0. The formula reads the sheet with no
+  effect applied, rolls no dice, and may not read a GM-only value.
 - A system holds 160 rolls, up from 50, and 600 fields, up from 400. A
   sheet or its HUD holds 800 placements, up from 400. The System
   editor's + Roll now greys out at the limit and says why, where before

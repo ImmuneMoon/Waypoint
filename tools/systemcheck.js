@@ -15772,6 +15772,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && nC.includes("if (S.crewFigs) { var ck = S.crewFigs(view, v, window.wpFormula); if (ck) v.ck = ck; }") && nC.includes("var sig = JSON.stringify(v.ck || null), key = c.peer + '|' + vid; if (_ckSent[key] === sig) return; _ckSent[key] = sig;") && nC.includes("if (resK.stn) chK.stn = resK.stn; else delete chK.stn;")
             && ixC.includes('<li>A Crew link&rsquo;s <b>Vehicle reads crew as</b> is the key the vehicle reads its crew by') && ntC.every(t => t.indexOf('- A vehicle can read its crew as a group') > 0 && t.indexOf('- A vehicle can read its crew as a group') < t.indexOf('WAYPOINT 1.5.')));
     }
+    {   // 1.6.0: a crew sheet reads its own station on a Crew link, <Key>.station.<Station> (asked by a system build), on invented data
+        const J = v => JSON.stringify(v);
+        const rawS = { v: 1, name: 'S', rolls: [], fields: [{ id: 'f_pi', key: 'Piloting', kind: 'number', def: 10, vis: 'all' }, { id: 'f_sg', key: 'Secret', kind: 'number', def: 3, vis: 'gm' },
+            { id: 'f_pr', key: 'PilotRoll', kind: 'formula', formula: 'Piloting + 2 * Vessel.station.Pilot - 4 * Vessel.station.GUNNER', vis: 'all' }, { id: 'f_at', key: 'AtHelm', kind: 'formula', formula: 'Vessel.station.pilot', vis: 'all' }],
+            links: [{ id: 'lk_v', key: 'Vessel', kind: 'crew', group: 'Hands', stations: ['Pilot', 'Gunner'], most: 2 }, { id: 'lk_m', key: 'Steed', kind: 'mount' }], sheet: { sections: [] } };
+        const g = cleanSystem(rawS, { F, gmView: true }), p = cleanSystem(rawS, { F, gmView: false });
+        const chars = { c_sk: { id: 'c_sk', name: 'Skiff', ownerId: 'u_a', values: {} },
+            c_ka: { id: 'c_ka', name: 'Kael', ownerId: 'u_a', values: { f_pi: 12 }, links: { lk_v: 'c_sk', lk_m: 'c_sk' }, stn: { lk_v: 'Pilot' } },
+            c_pe: { id: 'c_pe', name: 'Pebbles', ownerId: 'u_b', values: { f_pi: 9 }, links: { lk_v: 'c_sk' }, stn: { lk_v: ['Gunner', 'Pilot'] } },
+            c_no: { id: 'c_no', name: 'Nobody', ownerId: 'u_c', values: { f_pi: 7 }, links: { lk_v: 'c_sk' } },
+            c_off: { id: 'c_off', name: 'Off', ownerId: 'u_c', values: { f_pi: 7 }, stn: { lk_v: 'Pilot' } } };
+        const rd = (s, c, n) => makeResolver(s, c, F)(n); S.setLinkSource((id, s) => chars[id] || null);
+        const gmV = ['c_ka', 'c_pe', 'c_no', 'c_off', 'c_sk'].map(id => [rd(g, chars[id], 'Vessel.station.Pilot'), rd(g, chars[id], 'Vessel.station.Gunner'), rd(g, chars[id], 'PilotRoll')]);
+        const own = S.charFor(chars.c_pe, p, 'u_b', {}), plV = [rd(p, own, 'Vessel.station.Pilot'), rd(p, own, 'Vessel.station.Gunner'), rd(p, own, 'PilotRoll'), rd(p, own, 'AtHelm')];
+        const noStn = rd(g, chars.c_ka, 'Vessel.station.Engineer'), mountV = rd(g, chars.c_ka, 'Steed.station.Pilot');
+        const rawK = JSON.parse(J(rawS)); rawK.fields.push({ id: 'f_st', key: 'Station', kind: 'item-list', vis: 'all' }); const gK = cleanSystem(rawK, { F, gmView: true }), keptK = rd(gK, chars.c_ka, 'Vessel.station.Pilot');
+        S.setLinkSource(null); const vS = validateSystem(g, F), vBad = validateSystem(cleanSystem(Object.assign({}, rawS, { fields: rawS.fields.concat([{ id: 'f_bd', key: 'Bad', kind: 'formula', formula: 'Vessel.station.Engineer', vis: 'all' }]) }), { F, gmView: true }), F);
+        check('1.6.0 a crew sheet reads its own station: <Key>.station.<Station> is 1 while the sheet holds that station on its Crew link (any case, one of two held too), else 0 (no station, no link); a player\'s own copy reads the same from what it holds; a station the link lacks, a Mount link and a system with a field keyed Station read as before; the validator knows it as a number, never an edge, and says one the link lacks; linkBare keeps it whole; the linked sheet\'s figures never carry it',
+            J(gmV) === J([[1, 0, 14], [1, 1, 7], [0, 0, 7], [0, 0, 7], [0, 0, 10]]) && J(plV) === J([1, 1, 7, 1]) && noStn === undefined && mountV === undefined && keptK === undefined
+            && !vS.errors.length && !vS.warnings.some(w => /station/i.test(w.message)) && vBad.errors.some(e => e.id === 'f_bd' && /^Unknown name "Vessel\.station\.Engineer"/.test(e.message))
+            && S.linkBare(g, null, 'Vessel.station.Pilot') === 'Vessel.station.Pilot' && S.linkBare(g, null, 'Vessel.Piloting') === 'Piloting' && S.linkNamesIn(g, 'Vessel').every(w => !/^station\./.test(w)) && S.crewStation(g.links[0], 'station.gunner') === 'Gunner' && S.crewStation(g.links[1], 'station.pilot') === '',
+            J([gmV, plV, noStn, mountV, keptK, vS.errors, vBad.errors, S.linkNamesIn(g, 'Vessel')]));
+        const ixS = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n'), ntS = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n')), gdS = fs.readFileSync(path.join(app, '..', '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8');
+        check('1.6.0 a crew sheet\'s own station is said: Help, the integration guide and both 1.6.0 notes',
+            ixS.includes('Their sheet reads <code>Vehicle.station.Pilot</code> as 1 while it holds the Pilot station, else 0.') && gdS.includes('<Key>.station.<Station>') && ntS.every(t => t.indexOf('- A crew sheet reads its own station') > 0 && t.indexOf('- A crew sheet reads its own station') < t.indexOf('WAYPOINT 1.5.')));
+    }
     {   // 1.6.0: a list's roll or action only the GM presses (gm)
         const J = JSON.stringify;
         const rawG = { v: 1, name: 'G', rolls: [], fields: [{ id: 'f_wear', key: 'Wear', kind: 'number', def: 0, edit: 'owner' }, { id: 'f_kit', key: 'Kit', kind: 'item-list', edit: 'owner', list: { counters: [{ key: 'Jam' }], rolls: [

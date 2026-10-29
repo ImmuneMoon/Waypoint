@@ -4245,7 +4245,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         if (f.icon) r.appendChild(iconNode(f.icon, 'sheet-pool-icon'));   // Fold B (Stage 6: or a bundled glyph)
         if (f.icon || f.reset) r.classList.add('sheet-ctl-wrap');   // the extra controls wrap to a second line in a narrow cell, never into the next column
         var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !use;
-        var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'number'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !use; if (f.min !== undefined) ci.min = String(f.min); if (max !== null) ci.max = String(max);
+        var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'number'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !use; if (f.minNeg === true ? max !== null : f.min !== undefined) ci.min = String(f.minNeg === true ? -max : f.min); if (max !== null) ci.max = String(max);   // 1.6.0: a pool that goes down to minus its max
         var plus = el('button', 'tool ghost sheet-pm', '+'); plus.dataset.fid = f.id; plus.dataset.part = 'plus'; plus.title = 'One more'; plus.disabled = !use;
         var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max)) + (f.unit ? ' ' + (typeof unitText === 'function' ? unitText(f, cur, String(cur), max, max === null ? '' : fmtNum(max)) : f.unit) : '')); mx.title = e && e.error ? e.error : (f.maxFormula || 'no max'); if (e && !e.error && e.maxUnrounded !== undefined && typeof roundSays === 'function') mx.title += '\n' + roundSays(f, e.maxUnrounded); var fmR = fxMark(e, true); if (fmR) mx.title += '\n' + fmR.title;
         minus.addEventListener('click', function() { commit(c, f, { cur: cur - 1 }); });
@@ -4260,7 +4260,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         }
         box.appendChild(r);
         if (f.bar === false) return box;   // Fold B: no bar
-        var bar = el('div', 'sheet-bar'); var fill = el('div', 'sheet-bar-fill'); var pct = max ? Math.max(0, Math.min(100, (cur - (f.min || 0)) / Math.max(1, max - (f.min || 0)) * 100)) : 0; fill.style.width = pct + '%'; bar.appendChild(fill); box.appendChild(bar);
+        var bar = el('div', 'sheet-bar'); var fill = el('div', 'sheet-bar-fill'); var bmn = f.minNeg === true ? 0 : (f.min || 0), pct = max ? Math.max(0, Math.min(100, (cur - bmn) / Math.max(1, max - bmn) * 100)) : 0; fill.style.width = pct + '%'; bar.appendChild(fill); box.appendChild(bar);
         return box;
     }
     if (k === 'toggle') { var lb = el('label', 'sheet-toggle'); var cb = el('input'); cb.type = 'checkbox'; cb.dataset.fid = f.id; cb.checked = raw === undefined ? f.def === true : raw === true; cb.disabled = !use; cb.addEventListener('change', function() { commit(c, f, cb.checked); }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + (cb.checked ? 'on' : 'off'))); box.appendChild(lb); if (e && e.value === true && !cb.checked && e.mods && e.mods.length) { var ft = el('span', 'sheet-eff sheet-eff-same', 'on (' + e.mods.map(function(m) { return m.name; }).join(', ') + ')'); ft.title = 'Switched on by ' + e.mods.map(function(m) { return m.name; }).join(', '); box.appendChild(ft); } return box; }
@@ -6391,6 +6391,11 @@ function refreshErrors() {
         if (f.group === true && !numK) said.push('Only a number, a formula or a skill groups its thousands, so Save drops 1,000s.');
         if (said.length) said.forEach(function(m) { (warningsById[f.id] = warningsById[f.id] || []).push({ prop: 'fmt', message: m }); });
     });
+    draft.fields.forEach(function(f) {   // 1.6.0: a pool down to minus its max, as the cleaner reads it
+        if (!f || f.minNeg !== true) return;
+        if (f.kind !== 'resource') (warningsById[f.id] = warningsById[f.id] || []).push({ prop: 'minNeg', message: 'Only a pool goes down to minus its max, so Save drops that tick.' });
+        else if (!(typeof f.maxFormula === 'string' && f.maxFormula.trim())) (warningsById[f.id] = warningsById[f.id] || []).push({ prop: 'minNeg', message: 'It goes down to minus its max, but it has no max formula, so it stops at 0.' });
+    });
     draft.fields.forEach(function(f) {   // 1.6.0 Spills into, as the cleaner reads it
         var sp = f && f.kind === 'resource' && f.spill && typeof f.spill === 'object' ? f.spill : null; if (!sp) return;
         var to = draft.fields.filter(function(x) { return x && x.id === sp.to; })[0];
@@ -7017,7 +7022,8 @@ function buildDefCell(def, f) {
     else if (k === 'resource') {
         def.appendChild(capBox(input('sys-formula field', f.maxFormula, 'The maximum, as a formula (no dice): 10 + CONmod * 2', '10 + CONmod * 2'), 'Max formula')); roundCells(def, f);   // clarity package: its max rounded as a formula's value is
         def.appendChild(capBox(input('sys-def-res field', f.def === 'max' || f.def === undefined ? 'max' : f.def, 'Starting value: a number, or "max" for full', 'max'), 'Starting value'));
-        def.appendChild(numField('sys-min', f.min === undefined ? 0 : f.min, 'Minimum', 'Min'));
+        if (f.minNeg !== true) def.appendChild(numField('sys-min', f.min === undefined ? 0 : f.min, 'Minimum', 'Min'));
+        var nml = el('label', 'sys-hover'), nmc = el('input'); nmc.type = 'checkbox'; nmc.className = 'sys-negmin-chk'; nmc.checked = f.minNeg === true; nml.appendChild(nmc); nml.appendChild(document.createTextNode(' Down to minus max')); nml.title = 'Its least value is minus its max, as Hit Points down to -HP. Spills into below minus its full value then stops it there'; def.appendChild(nml);   // 1.6.0
     } else if (k === 'toggle') { var t = el('label', 'sys-toggle-def'); var c = el('input'); c.type = 'checkbox'; c.className = 'sys-def-bool'; c.checked = f.def === true; t.appendChild(c); t.appendChild(document.createTextNode(' On by default')); def.appendChild(t); }
     else if (k === 'text') { def.appendChild(capBox(input('sys-def-text field', f.def, 'Default text', 'optional'), 'Default text')); def.appendChild(numField('sys-max', f.max === undefined ? 200 : f.max, 'Most characters (up to 200)', 'Chars')); }
     else if (k === 'notes') def.appendChild(el('span', 'sys-note', 'A long text on the sheet; not read by formulas.'));
@@ -10028,6 +10034,7 @@ function onChange(e) {
         else if (c.indexOf('sys-res-color') >= 0) { markDirty(); renderAll(); return; }   // L7: a colour picked — "No colour" appears
         else if (c.indexOf('sys-reset-chk') >= 0) { if (t.checked) f.reset = true; else delete f.reset; }   // Fold B: fill-to-max button
         else if (c.indexOf('sys-bar-chk') >= 0) { if (t.checked) delete f.bar; else f.bar = false; }   // Fold B: the bar (absent = shown)
+        else if (c.indexOf('sys-negmin-chk') >= 0) { if (t.checked) { f.minNeg = true; delete f.min; } else delete f.minNeg; markDirty(); renderAll(); return; }   // 1.6.0: down to minus its max (the Min box goes while ticked)
         else if (c.indexOf('sys-colorband-chk') >= 0) { if (t.checked) f.colorBand = true; else delete f.colorBand; }   // 1.6.0: the pool's colour on the band alone
         else if (c.indexOf('sys-spill-to') >= 0) { if (t.value) f.spill = Object.assign({}, f.spill && typeof f.spill === 'object' ? f.spill : {}, { to: t.value }); else delete f.spill; markDirty(); renderAll(); return; }   // 1.6.0 Spills into: from where follows
         else if (c.indexOf('sys-spill-at') >= 0) { if (f.spill && typeof f.spill === 'object') { if (t.value === 'neg' || t.value === 'f') f.spill.at = t.value; else delete f.spill.at; if (t.value !== 'f') delete f.spill.below; } markDirty(); renderAll(); return; }   // ... and the formula's box

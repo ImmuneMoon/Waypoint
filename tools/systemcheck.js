@@ -17590,6 +17590,34 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && fs.readFileSync(path.join(app, 'index.html'), 'utf8').includes('<li>A resource can <b>Spill into</b> another pool, as Stamina into Hit Points.')
             && [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, NL)).every(t => { const i = t.indexOf('Systems, more'), k = t.indexOf('- A pool can spill into another pool, such as Stamina into Hit Points.'); return i >= 0 && k > i && k < t.indexOf(NL + NL, i); }), J([cA, cB, cC]));
     }
+    {   // 1.6.0: a pool down to minus its max (minNeg, asked by a system build), on invented data
+        const J = JSON.stringify, base = (o) => ({ v: 1, name: 'Ng', fields: [
+            { id: 'f_hp', key: 'HP', label: 'Hit Points', kind: 'resource', maxFormula: '12', min: 0, minNeg: o.hpNeg, vis: 'all', edit: 'owner' },
+            { id: 'f_st', key: 'ST', label: 'Stamina', kind: 'resource', maxFormula: o.noMax ? undefined : '10', min: 0, minNeg: o.stNeg, vis: 'all', edit: 'owner', spill: o.sp },
+            { id: 'f_n', key: 'Pebbles', kind: 'number', minNeg: true, vis: 'all' }],
+            rolls: [{ id: 'r_tire', label: 'Tire', apply: [{ f: 'f_st', formula: '16' }] }], combat: { hpResource: 'f_hp', damage: { pool: 'f_hp', types: [{ key: 'tire', label: 'Tiring', pool: 'f_st' }] } } });
+        const gN = o => cleanSystem(base(o), { F, gmView: true }), pN = o => cleanSystem(base(o), { F, gmView: false }), fOf = (sy, id) => sy.fields.filter(f => f.id === id)[0];
+        const kael = st => ({ id: 'c_k', name: 'Kael', ownerId: 'u_a', values: { f_hp: { cur: 12 }, f_st: { cur: st === undefined ? 3 : st } } });
+        const cl = [fOf(gN({ stNeg: true }), 'f_st').minNeg, fOf(pN({ stNeg: true }), 'f_st').minNeg, 'minNeg' in fOf(gN({ stNeg: 'yes' }), 'f_st'), 'minNeg' in fOf(gN({}), 'f_st'), 'minNeg' in fOf(gN({ stNeg: true }), 'f_n')];
+        const g = gN({ stNeg: true, sp: { to: 'f_hp', at: 'neg' } }), gL = gN({ stNeg: true, sp: { to: 'f_hp' } }), gOld = gN({ sp: { to: 'f_hp', at: 'neg' } });
+        const hits = [S.damageStep(g, kael(), { amt: 16, type: 'tire' }, F), S.damageStep(gL, kael(), { amt: 16, type: 'tire' }, F), S.damageStep(gOld, kael(), { amt: 16, type: 'tire' }, F), S.damageStep(gN({ stNeg: true }), kael(), { amt: 30, type: 'tire' }, F)].map(r => [r.ok, r.values, r.lines]);
+        const fSt = fOf(g, 'f_st'), vals = [S.cleanValue(fSt, { cur: -30 }, { max: 10 }), S.cleanValue(fSt, { cur: -30 }, { max: null }), S.cleanValue(fOf(gOld, 'f_st'), { cur: -30 }, { max: 10 }), S.applyEdit(g, kael(), 'f_st', { cur: -25 }, F), S.applyEdit(gN({ stNeg: true, noMax: true }), kael(), 'f_st', { cur: -25 }, F)];
+        const act = S.applyAct(g, kael(), g.rolls[0], makeResolver(g, kael(), F), F, null, null);
+        const leasts = [S.poolLeast(fSt, 10), S.poolLeast(fSt, null), S.poolLeast(fOf(gOld, 'f_st'), 10), S.poolLeast({ min: -3 }, 10), S.poolLeast(null)];
+        check('1.6.0 a pool down to minus its max: the cleaner keeps minNeg only as true on a resource, the same in both views, and nowhere else; poolLeast is minus its max (none where the max is not known), else its min; a stored value, applyEdit, the damage step and an apply action all stop it at -10, and a spill below minus its full value (or below its least value) goes on into Hit Points, 3 of 16 from 3; without the tick as before (Stamina stops at its min 0, and spills past -10 all the same)',
+            J(cl) === J([true, true, false, false, false]) && J(leasts) === J([-10, null, 0, -3, 0])
+            && J(vals) === J([{ cur: -10 }, { cur: -30 }, { cur: 0 }, { ok: true, value: { cur: -10 } }, { ok: true, value: { cur: 0 } }])
+            && J(hits[0][1]) === J({ f_st: { cur: -10 }, f_hp: { cur: 9 } }) && J(hits[1][1]) === J(hits[0][1]) && J(hits[2][1]) === J({ f_st: { cur: 0 }, f_hp: { cur: 9 } }) && J(hits[3][1]) === J({ f_st: { cur: -10 } })
+            && act.ok && J(act.values) === J({ f_st: { cur: -10 }, f_hp: { cur: 9 } }) && J(cleanSystem(g, { F, gmView: true })) === J(g),
+            J([cl, leasts, vals, hits, act]));
+        const shN = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), ixN = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        const ntN = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, NL));
+        check('1.6.0 a pool down to minus its max is set and said: the Fields tab\'s tick in place of Min and its handler, the sheet\'s box and bar, Save\'s two words, Help and both 1.6.0 notes',
+            shN.includes("nmc.className = 'sys-negmin-chk'; nmc.checked = f.minNeg === true;") && shN.includes("nml.appendChild(document.createTextNode(' Down to minus max'));") && shN.includes("if (f.minNeg !== true) def.appendChild(numField('sys-min',")
+            && shN.includes("else if (c.indexOf('sys-negmin-chk') >= 0) { if (t.checked) { f.minNeg = true; delete f.min; } else delete f.minNeg; markDirty(); renderAll(); return; }") && shN.includes("ci.min = String(f.minNeg === true ? -max : f.min)") && shN.includes("var bmn = f.minNeg === true ? 0 : (f.min || 0)")
+            && shN.includes("message: 'Only a pool goes down to minus its max, so Save drops that tick.'") && shN.includes("message: 'It goes down to minus its max, but it has no max formula, so it stops at 0.'")
+            && ixN.includes('<li>Tick <b>Down to minus max</b> on a resource and its least value is minus its max') && ntN.every(t => t.indexOf('- A pool can go down to minus its max') > 0 && t.indexOf('- A pool can go down to minus its max') < t.indexOf('WAYPOINT 1.5.')));
+    }
     /* ---- 1.6.0 At most at a level (the owner, by prompt, 2026-10-29: "Passes, and the GM is told", "At the level, or that and higher"): a list's
        level caps how many rows stand at a level, judged by lvlCapHit wherever applyRowOp brings a row to a level, run for real on an invented system ---- */
     {

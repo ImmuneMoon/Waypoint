@@ -456,7 +456,8 @@ function cleanField(f, F, gmView) {
     } else if (k === 'resource') {
         var mf = cleanFormulaText(f.maxFormula); out.maxFormula = mf === null ? (f.maxFormula === null ? null : '') : mf;
         out.min = fin(Number(f.min)) ? Number(f.min) : 0;
-        out.def = f.def === 'max' ? 'max' : clampNum(cleanNum(f.def, 0), out.min, undefined);
+        if (f.minNeg === true) out.minNeg = true;   // 1.6.0: its least value is minus its full value (poolLeast), as Hit Points down to -HP
+        out.def = f.def === 'max' ? 'max' : clampNum(cleanNum(f.def, 0), out.minNeg ? undefined : out.min, undefined);
     } else if (k === 'toggle') { out.def = f.def === true; }
     else if (k === 'text') { out.max = Math.max(1, Math.min(LIMITS.text, cleanNum(f.max, LIMITS.text) | 0)); out.def = str(f.def, out.max).replace(CTRL_RE_G, ''); }
     else if (k === 'notes') { /* no default, no cap below the limit */ }
@@ -1567,12 +1568,15 @@ function blowCripOf(sys, char, b, crip, n) {
 // a value typed, a Set to, an Add and an effect's clamp never do, and what spills is no wound (no Major Wound, no wear). spillPast: how much of
 // loss goes on, from cur as R read it, or { error }. poolSpill: each pool it reaches, written onto w.values (a working copy, its values as the
 // loss left them): { steps: [{ f, label, amt, v, value }] } or { error }
+// 1.6.0: a pool's least value, the one judge wherever it is read: minus its full value (max, as worked out) where it is ticked minNeg, else
+// its min. A minNeg pool whose max is not known has no least value here (undefined): nothing is clamped below
+function poolLeast(pf, max) { if (isObj(pf) && pf.minNeg === true) return typeof max === 'number' && fin(max) ? (max ? -max : 0) : undefined; return isObj(pf) && typeof pf.min === 'number' && fin(pf.min) ? pf.min : 0; }
 function spillPast(pf, cur, loss, R, F) {
     var sp = isObj(pf) && isObj(pf.spill) ? pf.spill : null; if (!sp || !(loss > 0) || typeof cur !== 'number' || !fin(cur)) return 0;
     var at = null;
     if (sp.at === 'neg') { var mx = R(pf.key + '.max'); if (typeof mx === 'number' && fin(mx)) at = -mx; }
     else if (sp.at === 'f') { var ev = F.evaluate(sp.below, { vars: R, random: noDice }); if (ev && ev.ok && typeof ev.value === 'number' && fin(ev.value)) at = ev.value; }
-    else at = typeof pf.min === 'number' && fin(pf.min) ? pf.min : 0;
+    else { var mxL = pf.minNeg === true ? R(pf.key + '.max') : null; at = poolLeast(pf, mxL); if (at === undefined) at = null; }
     if (at === null) return { error: 'Where ' + (pf.label || pf.key) + ' spills could not be worked out.' };
     var left = cur - loss; return left >= at ? 0 : Math.max(0, Math.round(Math.min(loss, at - left)));
 }
@@ -1628,7 +1632,7 @@ function damageStep(sys, char, inp, F, ropts, fxo) {   // 1.6.0 (B3): fxo, the c
         info.dr = eff; info.through = through; info.wound = wound;
         lines.push((ty ? ty.label + ' ' : '') + amt + (lrow ? ' to ' + lname : '') + (eff ? ', DR ' + eff : '') + ': ' + (through ? through + ' through' + (mult !== 1 ? ' \u00d7' + mult : '') + (dieAdd ? ' ' + (dieAdd > 0 ? '+' : '\u2212') + Math.abs(dieAdd) + ' for ' + dice + (dice === 1 ? ' die' : ' dice') : '') + ', ' + wound + ' ' + (pf.label || pf.key) : 'nothing gets through'));
         if (wound > 0) {
-            var cur = num(R(pf.key)), mn = typeof pf.min === 'number' ? pf.min : 0, nv = Math.max(mn, cur - wound);
+            var cur = num(R(pf.key)), mn = poolLeast(pf, pf.minNeg === true ? R(pf.key + '.max') : null), nv = mn === undefined ? cur - wound : Math.max(mn, cur - wound);
             var ed = applyEdit(sys, char, pf.id, nv, F, { vars: R }); if (!ed.ok) return { ok: false, reason: ed.reason || 'value' };
             values[pf.id] = ed.value;
             if (isObj(pf.spill)) {   // 1.6.0 Spills into: what the wound takes it past its spill point goes on into another pool (no wound of its own)
@@ -3420,7 +3424,7 @@ function cleanValue(field, v, opts) {
     if (k === 'select') return typeof v === 'string' && field.options.indexOf(v) >= 0 ? v : undefined;
     if (k === 'resource') {
         var cur = isObj(v) ? Number(v.cur) : Number(v); if (!fin(cur)) return undefined;
-        cur = clampNum(Math.round(cur), field.min, opts && fin(opts.max) ? opts.max : undefined);
+        cur = clampNum(Math.round(cur), field.minNeg === true ? poolLeast(field, opts ? opts.max : null) : field.min, opts && fin(opts.max) ? opts.max : undefined);
         return { cur: cur };
     }
     if (k === 'effects') {   // 5h: [{id, ref, on}] library rows or [{id, name, icon, tone, dur, notes, on, mods}] ad hoc rows; opts.effects / opts.fields from valueOpts
@@ -7630,7 +7634,7 @@ function applyEffectOp(sys, char, fieldId, q, F, opts) {
             var st = char.values ? char.values[rf.id] : undefined; if (!isObj(st) || typeof st.cur !== 'number') return;
             var mx = rv(rf.key + '.max'), mb = rb(rf.key + '.max');
             if (!fin(mx) || !(typeof mb === 'number' && mx < mb) || st.cur <= mx) return;
-            var to = Math.floor(mx); if (fin(rf.min) && to < rf.min) to = rf.min;
+            var to = Math.floor(mx), lstR = rf.minNeg === true ? poolLeast(rf, mx) : rf.min; if (typeof lstR === 'number' && fin(lstR) && to < lstR) to = lstR;
             if (fin(to) && to < st.cur) { clamp = clamp || {}; clamp[rf.id] = { cur: to }; }
         });
     }
@@ -8190,4 +8194,4 @@ var API = { blowCripN: blowCripN, BLAST_EACH: BLAST_EACH, withBlow: withBlow, bl
 Object.assign(API, { stationsIn: stationsIn, setCrewSource: setCrewSource, crewFigs: crewFigs, cleanCk: cleanCk, cleanCharStn: cleanCharStn, groupByKey: groupByKey, stationOf: stationOf, crewParts: crewParts, LINK_STATIONS: LINK_STATIONS });   // 1.6.0 (CORE gap 16)
 if (typeof window !== 'undefined') window.wpSystemCore = API;
 export { blowCripN, BLAST_EACH, withBlow, blowCripOf, BLOW_NAMES, RESIST_OR, unheldJudge, GROUP_MAX, rollTargetOf, groupRolls, groupWeakest, dmgAdOf, dmgDiceRead, turnCounters, cleanCharLink, LINK_KINDS, LINK_NOT, cleanLinks, linkByKey, linkBare, setLinkSource, cleanCharLinks, linkNamesIn, linkFigs, cleanLk, linkSet, linkedFrom, linksDrop, withAttempt, bigOf, critRange, cleanTier, grantWaits, cleanGrants, hideGrants, grantWant, grantsKept, GRANT_MAX, rangeBandOf, partsRoom, partsCapSays, PART_CAPS, PART_DEPTH, partDepth, partsTree, partHostOk, partsKept, partsPut, partsSrc, partHost, partsOf, capsAt, droppedWords, setOf, setsOf, statName, placeVal, rollFigOf, rollShowOf, cleanBadges, BADGE_MAX, cleanSheetRev, sheetRevOf, charStale, staleOf, revProposal, cleanAlt, ALT_MAX, againFold, cleanEnv, ENV_BANDS, envBands, envWorst, cleanRollSw, rollSwitchesAll, rollSwitches, swJudge, DATE_NAMES, setDateSource, dateReads, VERSION, overSays, overNames, overSet, onClash, rowTimers, cleanRowTimer, readsOn, cleanRowGone, cleanCross, crossings, crossSteps, postureFx, withOnSelf, tokOnOk, mapYardPx, loadFits, DIE_NAMES, cleanDie, dieOf, rollDie, tradeOfferable, tradeInto, moneyBoxes, moneyHeld, moneyMove, rowOpMoney, ROW_LOOK, WORK_KINDS, WORK_BY, cleanRowLook, rowLookShown, rowLookShade, finishWords, workWords, cleanTradeOffer, tradeApply, TRADE_LINES, cleanDamageRules, damageStep, cleanCharDamage, DMG_CONDS, cleanPlaceCats, catSplits, catHome, catPlace, cleanFieldUnit, metricOf, unitTail, readMeasure, heightWords, MEASURES, measureWords, unitWords, unitHead, listFig, listWords, unitOf, figText, figFmt, weightWords, textWords, measureStore, rollNeedsOk, rollNeedsSays, onGroup, onlyOne, onHeld, cleanNeeds, hideNeeds, needsMet, needsSays, needRule, ruleTrue, setRuleJudge, cleanBudgets, budgetsOf, budgetWatch, budgetSays, cleanDesc, cleanLvls, EVERY_UNITS, cleanEvery, FIGHT_UNITS, cleanInFight, timeRuleRun, ruleRunCtx, needsHeld, chainsShallow, cleanFace, charForView, mapGridOf, tokenCell, shapeStandIn, cleanFrame, openChar, newCharRules, charClash, coreOf, setLibraryFind, statKeys, statPicks, cleanIcon, droppedCounts, parseLasts, lastsSecs, roundSecs, fxLeftNow, fxTick, mapCellScale, moveAllowCells, dueActs, gridCells, cleanTurn, TURN_UNITS, TIME_WORDS, roundActs, combatChars, applyRound, thenChanges, thenCrit, withRollCrit, THEN_WHEN, dmgTypeOf, rollMods, openSync, cleanOpens, showsIf, rowRollNames, applyAct, applyScope, cleanCharApply, APPLY_KINDS, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, cleanNewPlayers, newPlayerRules, waitingTokensOf, waitingNeed, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, plusText, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, libSnaps, carriedBy, cleanItemMods, fieldKinds, unseenMods, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, tokenEffects, autoEffectsOn, tokenOwnEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, postureRangedOf, cleanPostures, postureList, ownPostures, postureAt, postureSeven, stanceCtx, tokenCtx, setAimSource, bearingTo, aimsOf, facingNow, withRound, withCross, rangeCtx, withRange, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, ROUNDS, ROUND_TO, roundBy, roundSays, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, cleanLightRules, lightName, lightPresets, LIGHT_UNITS, cleanRangeRules, rangeModOf, rangeDist, rangeOf, RANGE_UNITS, cleanSenses, secretFieldIds, gmViewFields, coverTier, coverOutcome, coverDamage, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, orderByInit, cleanInitRules, cleanHeightRules, heightModOf, heightOf, HEIGHT_UNITS, initTie, sideFirst, orderBySide, validateSystem, charFor, applyEdit, autoLayout, cleanCharUpload, cleanUploads, fillMaking, applyProposal, statAsk, readerKit, registerReader, dropReader, readers, readerById, readerFor, fmtNum, suggest, lookRule, cleanLooks, applyStyle, cleanCharStyle, lookOf, lookFor, loadSame, loadMax, cleanLd, chamberTakes, chamberFits, chamberCap, chamberHolds, chamberSays, cleanRd, CHAMBER_CAP, thenMargin, onceOf, cleanBlastRules, BLAST_FALL, cleanReach, cleanAffs, affLastsSecs, AFF_UNITS, chosenPicks, chosenNext, BAR_COLORS, BAR_SHOW_WORDS, cleanBars, cleanTokBars, tokenBarSpec, tokenBarFigs, cleanBarFigs, barFill, barTip };
-export { stationsIn, setCrewSource, crewFigs, cleanCk, cleanCharStn, groupByKey, stationOf, crewParts, LINK_STATIONS, crewStation, groupLink };   // 1.6.0 (CORE gap 16)
+export { stationsIn, setCrewSource, crewFigs, cleanCk, cleanCharStn, groupByKey, stationOf, crewParts, LINK_STATIONS, crewStation, groupLink, poolLeast };   // 1.6.0 (CORE gap 16)

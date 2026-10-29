@@ -218,6 +218,9 @@ Systems, more
   Spills into on the pool in the Fields tab, and where it starts: below its
   least value, below minus its full value, or below a formula. Damage and an
   action's Subtract spill. A value you type never does.
+- A pool can go down to minus its max, as Hit Points down to -HP: tick
+  Down to minus max on the pool in the Fields tab. A spill below minus its
+  full value then stops the pool there.
 - A list's level can cap how many rows stand at a level, such as one row at
   the free first level, or two at level 5 or higher. Set At most under the
   level in the Lists tab. A player is refused one more, and you are told.

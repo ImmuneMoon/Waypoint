@@ -1424,7 +1424,7 @@ function layerVars(listed, worn, blow, both, cap) {
     var bw = blow && typeof blow === 'object' ? blow : {}, bn = function(v) { return typeof v === 'number' && isFinite(v) ? v : 0; };
     return function(l, text) {
         if (l === 'listed') return listed; if (l === 'worn') return worn; if (l === 'todestroy') return Math.max(0, (typeof cap === 'number' ? cap : listed * 2) - worn);
-        if (l === 'blow.dmg') return bn(bw.dmg); if (l === 'blow.through') return bn(bw.through); if (l === 'blow.wound') return bn(bw.wound); if (l === 'blow.type') return bn(bw.type); if (l === 'blow.cuts') return bw.cuts ? 1 : 0;
+        if (l === 'blow.dmg') return bn(bw.dmg); if (l === 'blow.through') return bn(bw.through); if (l === 'blow.wound') return bn(bw.wound); if (l === 'blow.type') return bn(bw.type); if (l === 'blow.cuts') return bw.cuts ? 1 : 0; if (l === 'blow.major') return bw.major ? 1 : 0;
         return both(l, text);
     };
 }
@@ -1569,10 +1569,11 @@ function dmgOnMajor(sys, char, om, values, lines, info, F, fxo, wnd) {   // wnd 
 }
 // 1.6.0 (the core's gaps 6 and 7): the blow a roll the damage step posts answers, laid on its token context by the host from its own record
 // (never a player's word): Blow.dmg, Blow.through, Blow.wound, Blow.type and Blow.cuts, and hit, the location struck ({ f, r }), read as Hit.<name>
-var BLOW_NAMES = Object.freeze({ dmg: 1, through: 1, wound: 1, type: 1, cuts: 1 });
+// Blow.major (1.6.0, asked by the campaign build's session): 1 where the step judged the blow a Major Wound, by its size or by the card's mark, else 0
+var BLOW_NAMES = Object.freeze({ dmg: 1, through: 1, wound: 1, type: 1, cuts: 1, major: 1 });
 function withBlow(tctx, b) {
     var o = {}; if (!isObj(b)) b = {};
-    Object.keys(BLOW_NAMES).forEach(function(k) { o[k] = k === 'cuts' ? (b.cuts === true || b.cuts === 1 ? 1 : 0) : fin(b[k]) ? Math.max(-1e6, Math.min(1e6, b[k])) : 0; });
+    Object.keys(BLOW_NAMES).forEach(function(k) { o[k] = k === 'cuts' || k === 'major' ? (b[k] === true || b[k] === 1 ? 1 : 0) : fin(b[k]) ? Math.max(-1e6, Math.min(1e6, b[k])) : 0; });
     if (isObj(b.hit) && typeof b.hit.f === 'string' && typeof b.hit.r === 'string') o.hit = { f: b.hit.f, r: b.hit.r };
     return Object.assign({}, isObj(tctx) ? tctx : {}, { blow: o });
 }
@@ -1582,7 +1583,7 @@ function withBlow(tctx, b) {
 // ... and what cripBy writes: its whole number, read with Margin, Natural and the blow's names alone, no dice; null where it gives no number
 function blowCripN(text, margin, natural, b, F) {
     if (typeof text !== 'string' || !text || !F || typeof F.evaluate !== 'function') return null;
-    var bw = isObj(b) ? b : {}, r = F.evaluate(text, { vars: function(n) { var l = lower(n); if (l === 'margin') return fin(margin) ? margin : 0; if (l === 'natural') return fin(natural) ? natural : 0; if (l.indexOf('blow.') === 0 && BLOW_NAMES[l.slice(5)] === 1) return l === 'blow.cuts' ? (bw.cuts === true || bw.cuts === 1 ? 1 : 0) : fin(bw[l.slice(5)]) ? bw[l.slice(5)] : 0; return undefined; }, random: noDice });
+    var bw = isObj(b) ? b : {}, r = F.evaluate(text, { vars: function(n) { var l = lower(n); if (l === 'margin') return fin(margin) ? margin : 0; if (l === 'natural') return fin(natural) ? natural : 0; if (l.indexOf('blow.') === 0 && BLOW_NAMES[l.slice(5)] === 1) return l === 'blow.cuts' || l === 'blow.major' ? (bw[l.slice(5)] === true || bw[l.slice(5)] === 1 ? 1 : 0) : fin(bw[l.slice(5)]) ? bw[l.slice(5)] : 0; return undefined; }, random: noDice });
     var v = r && r.ok ? (typeof r.value === 'boolean' ? (r.value ? 1 : 0) : r.value) : null; return typeof v === 'number' && fin(v) ? Math.floor(v) : null;
 }
 function blowCripOf(sys, char, b, crip, n) {
@@ -1673,10 +1674,10 @@ function damageStep(sys, char, inp, F, ropts, fxo) {   // 1.6.0 (B3): fxo, the c
                 spD.steps.forEach(function(s) { values[s.f] = s.value; var sf = fieldById(sys, s.f); if (sf && sf.vis !== 'gm' && spHid[s.f] !== 1) lines.push(s.amt + ' spill' + (s.amt === 1 ? 's' : '') + ' into ' + s.label + '.'); (info.spill = info.spill || []).push({ f: s.f, amt: s.amt }); });
             }
             var blowF = { dmg: amt, through: through, wound: wound, type: ty ? (rules.types || []).indexOf(ty) + 1 : 0, cuts: !!(ty && ty.cuts === true) }, follows = [];   // 1.6.0 (the core's gaps 6 and 7): the blow, for onWound, onMajor's if and the rolls posted
-            var wR = function(l, text) { if (/^blow\./.test(l)) { var bk = l.slice(5); return BLOW_NAMES[bk] === 1 ? (bk === 'cuts' ? (blowF.cuts ? 1 : 0) : blowF[bk]) : R(l, text); } return hitR(l, text); };
+            var wR = function(l, text) { if (/^blow\./.test(l)) { var bk = l.slice(5); return BLOW_NAMES[bk] === 1 ? (bk === 'cuts' || bk === 'major' ? (blowF[bk] ? 1 : 0) : blowF[bk]) : R(l, text); } return hitR(l, text); };
             var omP = null;
             if (pool === (rules.pool || sys.combat.hpResource) && (rules.major || inp.major === true)) { var th = rules.major ? num(ev(rules.major, hitR)) : 0; if (inp.major === true || (th > 0 && wound >= th)) {   // 1.6.0: a blow the host marked Always a Major Wound (inp.major, the roll's record) is one whatever its size
-                info.major = true; lines.push('A Major Wound.'); omP = majPick(rules.onMajor, ev, wR); dmgOnMajor(sys, char, omP, values, lines, info, F, fxo); } }   // 1.6.0: the row of onMajor the blow picks
+                info.major = true; blowF.major = 1; lines.push('A Major Wound.'); omP = majPick(rules.onMajor, ev, wR); dmgOnMajor(sys, char, omP, values, lines, info, F, fxo); } }   // 1.6.0: the row of onMajor the blow picks
             var folOf = function(roll, why, o) { var fo = { roll: roll, why: why }; if (o.crip) { fo.crip = o.crip; if (o.cripBy) fo.cripBy = o.cripBy; } return fo; };
             if (info.majorRoll) follows.push(folOf(info.majorRoll, 'major', omP || {}));
             if (Array.isArray(rules.onWound)) {
@@ -1689,7 +1690,7 @@ function damageStep(sys, char, inp, F, ropts, fxo) {   // 1.6.0 (B3): fxo, the c
             if (follows.length) { info.follows = follows; info.blow = Object.assign({}, blowF, lrow ? { hit: { f: lf.id, r: inp.loc } } : {}); }
             if (lrow && rules.locs.crip) { var cp = get(lf, lrow, rules.locs.crip); if (cp > 0 && wound > cp) { info.crip = true; lines.push('Enough to cripple ' + lname + '.'); } }
         }
-        var blowW = { dmg: amt, through: info.through, wound: info.wound, type: ty ? (rules.types || []).indexOf(ty) + 1 : 0, cuts: !!(ty && ty.cuts === true) };   // the blow, for a layer's wear formulas
+        var blowW = { dmg: amt, through: info.through, wound: info.wound, type: ty ? (rules.types || []).indexOf(ty) + 1 : 0, cuts: !!(ty && ty.cuts === true), major: info.major === true };   // the blow, for a layer's wear formulas
         if (lrow && !noWear && (wound > 0 || dWear > 0)) (rules.layers || []).forEach(function(ly) {   // 1.6.0: a type that wears by the dice wears whether or not the blow gets through
             var f = fieldById(sys, ly.list), src = f && char.values && Array.isArray(char.values[f.id]) ? char.values[f.id] : null; if (!src || !f.list) return;
             var list = JSON.parse(JSON.stringify(src)), changed = false, hasOn = isObj(f.list.on);

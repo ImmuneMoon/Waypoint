@@ -4550,7 +4550,7 @@ window.wpFitToGrid = fitToGrid;
           if (eEx) {   // 1.6.0 (the core's gap 8): this victim's own dice, by the card's formula; rolled now, or owed to its player's card
               var dirE = !!b.direct && r.tok.id === b.direct, cenE = typeof sameCellOn === 'function' && sameCellOn(map, b, tokenCentre(r.tok));
               var nE = blastFig(rules.each, function(nm) { var l = String(nm).toLowerCase(); return l === 'blastdice' ? eDice : l === 'blastdistance' ? Math.max(0, r.d) : l === 'direct' ? (dirE ? 1 : 0) : l === 'centre' ? (cenE ? 1 : 0) : undefined; }, false);
-              var exE = typeof nE === 'number' && nE >= 1 ? BC.diceAt(eEx, Math.min(100, Math.floor(nE))) : ''; if (!exE) { spared++; return; }
+              var exE = typeof nE === 'number' && nE >= 1 ? BC.diceAt(eEx, Math.min(100, Math.floor(nE)), rules.eachAdd === true) : ''; if (!exE) { spared++; return; }   // and its adds with its dice, where the card says so
               if (eVic) {
                   var tierV = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, stanceOn('elevation') ? (b.elev || 0) : 0, stanceOn('elevation') ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null;
                   if (S.coverOutcome && S.coverOutcome(sys, tierV) === 'none') { shielded++; return; }

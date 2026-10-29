@@ -32,13 +32,18 @@ function diceCount(expr) {
 }
 // 1.6.0 (the core's gap 8, each victim rolls its own dice): a damage formula at n dice in all, 1 to 100. The dice come off its last term
 // first (a term left with none reads 0), and any past its own go onto its first: 6d6+2 at 4 is 4d6+2, 2d6+1d4 at 2 is 2d6+0. '' where the
-// formula rolls no dice or n is no whole number from 1 to 100
-function diceAt(expr, n) {
+// formula rolls no dice or n is no whole number from 1 to 100. withAdds (the core's rule, "that die's add goes with it"): each plain number
+// added or taken off is scaled with the dice too, rounded down, so 4d6+4 at 3 is 3d6+3 and 2d6+3 at 1 is 1d6+1
+function diceAt(expr, n, withAdds) {
     if (typeof expr !== 'string' || !fin(n) || Math.floor(n) !== n || n < 1 || n > 100) return '';
     var src = expr.slice(0, 1200), re = /(\d*)\s*d\s*(\d+|%|F)/gi, m, terms = [], guard = 0;
     while ((m = re.exec(src)) && guard++ < 200) terms.push({ at: m.index, len: m[0].length, n: m[1] ? Math.min(1000, parseInt(m[1], 10)) : 1, sides: m[2] });
     if (!terms.length) return '';
     var tot = terms.reduce(function(a, t) { return a + t.n; }, 0);
+    if (withAdds === true) {   // scale the adds first (none is a die's count or sides), then find the dice again in what is left
+        var k = n / tot; src = src.replace(/([+-]\s*)(\d+(?:\.\d+)?)(?![\d.]|\s*d)/gi, function(all, sg, num, at, whole) { return /d\s*$/i.test(whole.slice(0, at)) ? all : sg + Math.floor(parseFloat(num) * k + 1e-9); });
+        terms = []; re.lastIndex = 0; guard = 0; while ((m = re.exec(src)) && guard++ < 200) terms.push({ at: m.index, len: m[0].length, n: m[1] ? Math.min(1000, parseInt(m[1], 10)) : 1, sides: m[2] });
+    }
     for (var i = terms.length - 1; i >= 0 && tot > n; i--) { var cut = Math.min(terms[i].n, tot - n); terms[i].n -= cut; tot -= cut; }
     if (tot < n) terms[0].n += n - tot;
     var out = '', last = 0; terms.forEach(function(t) { out += src.slice(last, t.at) + (t.n > 0 ? t.n + 'd' + t.sides : '0'); last = t.at + t.len; });

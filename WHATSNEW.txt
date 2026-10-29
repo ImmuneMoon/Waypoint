@@ -161,7 +161,8 @@ Systems, more
   formula of the blow and the location hit holds.
 - A roll a wound asks for reads the blow and the location hit, as Blow. and
   Hit., so a Big Hit roll can be -2 on the face. Its failure can cripple
-  the location hit, by how far it failed.
+  the location hit, by how far it failed, or by a formula that reads the
+  margin, the natural roll and the blow.
 - An entry can grant rows of another list, such as a calling's starting kit or
   a flaw that comes with an implant. Set it in the Items tab or the Library,
   under Grants: the entry, the list, how many, and a level it starts from.
@@ -193,7 +194,7 @@ Systems, more
   damage, beside FragDice.
 - Each character in a blast can roll dice of its own, a die less each yard
   for one. The GM rolls them at once, or each victim's player rolls from a
-  card, as the Combat card says.
+  card, as the Combat card says. A lost die can take its add with it.
 - The throw roll can read the thrown item's row as Row. and the yards to
   the aim as ThrowDistance, so each item can have ranges of its own.
 - A list counter can start again at its character's turn start in a

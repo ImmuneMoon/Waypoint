@@ -8466,7 +8466,7 @@ function handleMessage(msg, conn) {
         var ruleQ = Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '');   // Stage 6 F8: the system's roll outcomes (1.6.0: or the record's own critical range)
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars, rule: ruleQ }));
         if (actQ && actQ.resisted === true && chQ && typeof attemptMake === 'function') attemptMake(campQ, attemptEntry(campQ.system, q, actQ), Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, tcQ && tcQ.range, chQ, !!recQ.priv);   // 1.6.0 (B2): a success against their target that it resists
-        if (blowRecQ && typeof blowCrip === 'function') blowCripWrite(blowCrip(campQ, blowRecQ, Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ), saveRemoteSoon);   // 1.6.0 (the core's gap 7): a failed roll of a blow cripples the location struck
+        if (blowRecQ && typeof blowCrip === 'function') blowCripWrite(blowCrip(campQ, blowRecQ, Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, Dq.naturalOf(resQ)), saveRemoteSoon);   // 1.6.0 (the core's gap 7): a failed roll of a blow cripples the location struck
         if (actQ && actQ.init === true && typeof initIntoFight === 'function') initIntoFight(campQ, locQ, q.charId, pidQ, resQ.value);   // initiative O1: their own initiative roll into the fight on their map, once
         if (actQ && actQ.then) {   // Stage 6 HUD R1: its consequences on the host's copy, through the roller's view, all or nothing (nothing to apply is quiet)
             var mfHitQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ, vdQ = Dq.verdictOf(resQ, ruleQ), crQ = typeof SQ.thenCrit === 'function' ? SQ.thenCrit(vdQ, mfHitQ) : '', thQ = SQ.thenChanges(actQ, mfHitQ ? false : (vdQ && vdQ.kind === 'check' ? vdQ.pass : null), mfHitQ, crQ);   // R3: a malfunction is a failure, with its own changes; 1.5.8: and a critical, with its own
@@ -9616,20 +9616,22 @@ net.attemptsKept = function() { return _attIds.length; };
 // 1.6.0 (the core's gaps 6 and 7): a roll the damage step posts (a Major Wound's or a wound's) answers the blow that called it. Its record is
 // an attempt's, with no margin, the blow (systemcore withBlow reads it as Blow.<name> and Hit.<name>) and crip, the location list's stat its
 // failure sets: made here on the host as the card is posted (wpSheets.majorFollow), read when that roll is made with the record's id, once
-net.blowMake = function(ch, actId, blow, crip) {
+net.blowMake = function(ch, actId, blow, crip, cripBy) {   // cripBy (the core's ruling on gap 7): what the failure writes, by formula
     if (!ch || typeof ch.id !== 'string' || typeof actId !== 'string' || !blow || typeof blow !== 'object') return '';
     var id = ''; while (!id || Object.prototype.hasOwnProperty.call(_attempts, id)) { id = 'a_'; while (id.length < 10) id += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36)); }
-    _attempts[id] = { charId: ch.id, act: actId, m: 0, blow: blow }; if (typeof crip === 'string' && crip) _attempts[id].crip = crip; _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
+    _attempts[id] = { charId: ch.id, act: actId, m: 0, blow: blow }; if (typeof crip === 'string' && crip) { _attempts[id].crip = crip; if (typeof cripBy === 'string' && cripBy) _attempts[id].cripBy = cripBy; } _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
     return id;
 };
 function attemptRec(id) { return typeof id === 'string' && Object.prototype.hasOwnProperty.call(_attempts, id) ? _attempts[id] : null; }
 // the location a failed roll of a blow's record cripples: how far it failed (a malfunction 1 at least), on the host's own copy of the character,
 // through systemcore blowCripOf. { charId, values, line } for the caller to write as it writes the roll's own changes, or null
-function blowCrip(camp, rec, vd, malf) {
+function blowCrip(camp, rec, vd, malf, nat) {   // nat: the roll's natural total, read by cripBy as Natural
     var S = SC(); if (!S || typeof S.blowCripOf !== 'function' || !camp || !camp.system || !rec || !rec.blow || typeof rec.crip !== 'string') return null;
     var failed = malf === true || (vd && vd.kind === 'check' && vd.pass === false); if (!failed) return null;
     var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, rec.charId) ? camp.chars[rec.charId] : null; if (!ch) return null;
-    var by = vd && typeof vd.margin === 'number' && isFinite(vd.margin) && vd.margin < 0 ? -vd.margin : 1, cp = S.blowCripOf(camp.system, ch, rec.blow, rec.crip, by); if (!cp) return null;
+    var by = vd && typeof vd.margin === 'number' && isFinite(vd.margin) && vd.margin < 0 ? -vd.margin : 1;
+    if (typeof rec.cripBy === 'string' && typeof S.blowCripN === 'function') { var cbN = S.blowCripN(rec.cripBy, by, typeof nat === 'number' ? nat : 0, rec.blow, window.wpFormula); if (cbN === null) return null; if (!(cbN > 0)) return null; by = cbN; }   // its own formula, where the system names one; 0 or below cripples nothing
+    var cp = S.blowCripOf(camp.system, ch, rec.blow, rec.crip, by); if (!cp) return null;
     return { charId: ch.id, ch: ch, values: cp.values, line: cp.name + ' is crippled: the roll failed by ' + cp.n + '.' };
 }
 function blowCripWrite(bc, persist) {   // its changes onto the character, sent to the table and told to the sheet, and its card
@@ -9801,7 +9803,7 @@ net.diceRoll = function(expr, o) {
     var ruleR = D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '');   // Stage 6 F8 (1.6.0: or the record's own critical range)
     logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName, rule: ruleR }));
     if (entR && typeof entR.resistBy === 'string' && chR && typeof attemptMake === 'function') attemptMake(campR, entR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, tcR && tcR.range, chR, !!rec.priv || !!rec.to);   // 1.6.0 (B2): a success against its target that it resists
-    if (blowRecR && typeof blowCrip === 'function') blowCripWrite(blowCrip(campR, blowRecR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR), function() { save(true); });   // 1.6.0 (the core's gap 7): a failed roll of a blow cripples the location struck
+    if (blowRecR && typeof blowCrip === 'function') blowCripWrite(blowCrip(campR, blowRecR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, D.naturalOf(res)), function() { save(true); });   // 1.6.0 (the core's gap 7): a failed roll of a blow cripples the location struck
     if (entR && entR.then && chR && SR && campR && campR.system) {   // Stage 6 HUD R1/R2b: the GM's own roll's consequences, here (a player's are the host's); a list's roll may move its row's counters
         var mfHitR = mfR !== null && D.naturalOf(res) >= mfR, vdR = D.verdictOf(res, ruleR), crR = typeof SR.thenCrit === 'function' ? SR.thenCrit(vdR, mfHitR) : '', thR = SR.thenChanges(entR, mfHitR ? false : (vdR && vdR.kind === 'check' ? vdR.pass : null), mfHitR, crR);   // R3; 1.5.8: and its critical
         var taR = thR.length ? SR.applyAct(campR.system, chR, { apply: thR }, typeof SR.withRollCrit === 'function' ? SR.withRollCrit(varsR, crR, typeof SR.thenMargin === 'function' ? SR.thenMargin(vdR, mfHitR) : 0, rec.big === true) : varsR, F, null, o.row && o.row.r ? { f: o.row.f, r: o.row.r } : null, undefined, D, onR ? { char: onR.ch, tctx: typeof allyCtx === 'function' ? allyCtx(ftR.map, onR.tok) : null } : null, typeof fxNow === 'function' ? fxNow(chR.id, onR) : null) : null;   // 1.5.8: its amounts read RollCrit   // 1.5.9: this machine's dice roll a Rolled amount (it owns the campaign: a player's app sent a roll-req above), and its field changes land on the one it is used on

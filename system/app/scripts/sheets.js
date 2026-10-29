@@ -7851,6 +7851,7 @@ function blastBox(box, cm) {
         lineUnder(box, d[2]);
         var er = el('div', 'sys-blast-err'); er.dataset.bk = d[0]; er.textContent = blastSays(d[0], bl[d[0]]); box.appendChild(er);
     });
+    { box.appendChild(labeledSelect('sys-combat-beachadd', 'A die each victim loses', [['', 'Leaves the adds whole'], ['go', 'Takes its add with it']], bl.eachAdd === true ? 'go' : '', EACH_ADD_LINE)); lineUnder(box, EACH_ADD_LINE); }   // 1.6.0 (the core's rule on gap 8)
     { box.appendChild(labeledSelect('sys-combat-beachby', 'Each victim\u2019s dice rolled by', [['', 'The GM, each at once'], ['victim', 'The victim, from a card']], bl.eachBy === 'victim' ? 'victim' : '', EACH_BY_LINE)); lineUnder(box, EACH_BY_LINE); }   // 1.6.0 (the core's gap 8)
     box.appendChild(labeledSelect('sys-combat-bways', 'Ways a miss goes', [['6', 'Six, a d6 (the sides of a hex)'], ['8', 'Eight']], bl.ways === 8 ? '8' : '6', 'How many ways a miss may scatter from its aim, rolled as a die'));
     box.appendChild(labeledSelect('sys-combat-bfuse', 'A thrown explosive goes off', [['', 'At once, where it lands'], ['turn', 'At the start of the next turn in a fight']], bl.fuse === 'turn' ? 'turn' : '', 'With a fight on its map, a fused explosive lies there until the next turn starts. Outside a fight it goes off at once'));
@@ -7877,6 +7878,7 @@ function blastBox(box, cm) {
     var re = el('div', 'sys-blast-err'); re.dataset.rk = 'resist'; re.textContent = resistSays(rsV); box.appendChild(re);
     box.appendChild(labeledSelect('sys-combat-affhurt', 'Those an affliction hurts', [['', 'Took a wound, after DR'], ['share', 'Took any share of the blast']], bl.hurt === 'share' ? 'share' : '', HURT_LINE)); lineUnder(box, HURT_LINE);
 }
+var EACH_ADD_LINE = 'With Each victim\u2019s dice set. Takes its add with it: 4d6+4 at 3 dice rolls 3d6+3. Leaves the adds whole: it rolls 3d6+4.';   // 1.6.0
 var EACH_BY_LINE = 'With Each victim\u2019s dice set. The GM: each one is rolled as the blast goes off. The victim: each player gets a card with a Roll button, and an NPC\u2019s card is yours.';   // 1.6.0 (the core's gap 8)
 var RESIST_LINE = 'The check a character rolls against an affliction. Resist stands for what the item says it is resisted against. With none, you are told who must resist.';
 var HURT_LINE = 'For an affliction that reaches those it hurts. A wound is damage that got through DR.';
@@ -7886,9 +7888,10 @@ function resistSays(v) {   // what Save does with the Resist roll: '' where it k
 }
 var FRAG_TYPE_LINE = 'The damage type of fragmentation whose item names none. With none, the blast\u2019s own type.';
 function onBlastChange(t) {   // the lists of the Blasts and throws part
-    var c = t && t.className || '', lk = /(^| )sys-combat-bl(fuse|fumble|stop|glance)( |$)/.exec(c), fk = /(^| )sys-combat-fg(type|cover|each|direct|ad)( |$)/.exec(c), hk = /(^| )sys-combat-affhurt( |$)/.test(c), ek = /(^| )sys-combat-beachby( |$)/.test(c); if (c.indexOf('sys-combat-bways') < 0 && c.indexOf('sys-combat-bfuse') < 0 && !lk && !fk && !hk && !ek) return false;
+    var c = t && t.className || '', lk = /(^| )sys-combat-bl(fuse|fumble|stop|glance)( |$)/.exec(c), fk = /(^| )sys-combat-fg(type|cover|each|direct|ad)( |$)/.exec(c), hk = /(^| )sys-combat-affhurt( |$)/.test(c), ek = /(^| )sys-combat-beachby( |$)/.test(c), ak = /(^| )sys-combat-beachadd( |$)/.test(c); if (c.indexOf('sys-combat-bways') < 0 && c.indexOf('sys-combat-bfuse') < 0 && !lk && !fk && !hk && !ek && !ak) return false;
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : (cm.blast = {});
-    if (ek) { if (t.value === 'victim') bl.eachBy = 'victim'; else delete bl.eachBy; }   // 1.6.0 (the core's gap 8): who rolls each victim's dice
+    if (ak) { if (t.value === 'go') bl.eachAdd = true; else delete bl.eachAdd; }   // 1.6.0 (the core's rule on gap 8): a lost die's add
+    else if (ek) { if (t.value === 'victim') bl.eachBy = 'victim'; else delete bl.eachBy; }   // 1.6.0 (the core's gap 8): who rolls each victim's dice
     else if (hk) { if (t.value === 'share') bl.hurt = 'share'; else delete bl.hurt; }   // 1.5.9 (es) H7: whom an affliction that reaches those it hurts reaches, kept only off the plan's reading
     else if (fk) {   // 1.5.9 (es): fragmentation, kept only off the plan's reading
         var fo = bl.frag && typeof bl.frag === 'object' && !Array.isArray(bl.frag) ? bl.frag : (bl.frag = {}), fv = String(t.value || '');
@@ -8425,7 +8428,8 @@ function postureClick(b) {
 // the weapons a blow tests. Every name reaches the box as a value or a text node. Save cleans it (systemcore cleanDamageRules); damageSays says
 // under the box what Save drops, judged a part at a time by the cleaner itself
 // [sinkcheck:dmgbox-start]
-var DBX_LIM = { types: 24, layers: 8, weapons: 4, wears: 8, onWound: 4 };   // systemcore's DMG_LIM: what the cleaner keeps
+var DBX_LIM = { types: 24, layers: 8, weapons: 4, wears: 8, onWound: 4 };
+var CRIP_BY_LINE = 'What the failure writes, instead of how far it failed. It reads Margin, how far it failed, Natural, the roll\u2019s bare total, and the blow as Blow. and a name. 0 or below writes nothing';   // 1.6.0 (the core's ruling on gap 7)   // systemcore's DMG_LIM: what the cleaner keeps
 // 1.6.0: a damage type's figures a die: its control, its key, its caption, its line, its least and its words
 var DBX_DIE = [
     ['sys-dmgr-ydiedr', 'dieDr', 'DR', 'Added to the DR at the location for each die the blow rolled, for this blow alone. A minus takes armour off. -10 to 10', -10, 'its DR a die'],
@@ -8472,6 +8476,7 @@ function damageBox(box, cm) {
         dbxCap(rM, 'and asks for'); rM.appendChild(select('sys-dmgr-mjroll', dbxOpts(['', 'No roll'], rls, om.roll), dbxStr(om.roll), 'A roll of the system posted as a reminder to the wounded character\'s player, such as a roll to stay up. Rolled from its card, it reads the blow as Blow. and the location hit as Hit. and a name'));
         var mjL = dbxObj(d.locs) && d.locs.list ? d.locs.list : '';   // 1.6.0 (the core's gap 7): the location its failure cripples
         if (om.roll && mjL) { dbxCap(rM, 'its failure cripples'); rM.appendChild(select('sys-dmgr-mjcrip', dbxOpts(['', 'Nothing'], dbxKeys(mjL, true), om.crip), dbxStr(om.crip), 'Where that roll fails, the location hit gets how far it failed in this number stat, at least 1. A formula can read 1 or more as crippled, and 5 or more as severed')); }
+        if (om.roll && mjL && om.crip) { var mjB = input('sys-dmgr-mjcripby field', dbxStr(om.cripBy), CRIP_BY_LINE, 'by, e.g. if(Natural = 18, max(5, Margin), Margin)'); mjB.maxLength = LIMITS.formula; rM.appendChild(mjB); }   // 1.6.0 (the core's ruling on gap 7)
         wrap.appendChild(rM);
         var ows = Array.isArray(d.onWound) ? d.onWound : [];   // 1.6.0 (the core's gap 6): what any wound does
         wrap.appendChild(el('span', 'sys-num-cap', 'Any wound'));
@@ -8481,6 +8486,7 @@ function damageBox(box, cm) {
             dbxCap(rw, 'switches on'); rw.appendChild(select('sys-dmgr-ofx', dbxOpts(['', 'No effect'], fxs, w.fx), dbxStr(w.fx), 'An effect of the library the wound switches on, as an apply action does'));
             dbxCap(rw, 'and asks for'); rw.appendChild(select('sys-dmgr-oroll', dbxOpts(['', 'No roll'], rls, w.roll), dbxStr(w.roll), 'A roll of the system posted as a reminder to the wounded character\'s player. Rolled from its card, it reads the blow as Blow. and the location hit as Hit. and a name, such as a Vitality roll at minus Blow.wound'));
             if (w.roll && mjL) { dbxCap(rw, 'its failure cripples'); rw.appendChild(select('sys-dmgr-ocrip', dbxOpts(['', 'Nothing'], dbxKeys(mjL, true), w.crip), dbxStr(w.crip), 'Where that roll fails, the location hit gets how far it failed in this number stat, at least 1')); }
+            if (w.roll && mjL && w.crip) { var owB = input('sys-dmgr-ocripby field', dbxStr(w.cripBy), CRIP_BY_LINE, 'by, e.g. Margin'); owB.maxLength = LIMITS.formula; rw.appendChild(owB); }   // 1.6.0 (the core's ruling on gap 7)
             rw.appendChild(dbxBtn('dmgrodel', '\u00d7', 'Remove this'));
             wrap.appendChild(rw);
         });
@@ -8586,6 +8592,8 @@ function onDamageInput(t) {
     else if (dbxHas(c, 'sys-dmgr-locvital')) { var d = dbxDraft(); if (!dbxObj(d.locs)) return true; dbxSet(d.locs, 'vital', txt.trim() ? txt : ''); }
     else if (dbxHas(c, 'sys-dmgr-locmult')) { var dM = dbxDraft(); if (!dbxObj(dM.locs)) return true; dbxSet(dM.locs, 'mult', txt.trim() ? txt : ''); }
     else if (dbxHas(c, 'sys-dmgr-locdie')) { var dD = dbxDraft(); if (!dbxObj(dD.locs)) return true; dbxSet(dD.locs, 'die', txt.trim() ? txt : ''); }   // 1.6.0
+    else if (dbxHas(c, 'sys-dmgr-mjcripby')) { var dB = dbxDraft(); if (!dbxObj(dB.onMajor)) return true; dbxSet(dB.onMajor, 'cripBy', txt.trim() ? txt : ''); }   // 1.6.0 (the core's ruling on gap 7)
+    else if (dbxHas(c, 'sys-dmgr-ocripby')) { var oB = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oB) return true; dbxSet(oB, 'cripBy', txt.trim() ? txt : ''); }
     else if (dbxHas(c, 'sys-dmgr-oif')) { var oI = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oI) return true; dbxSet(oI, 'if', txt.trim() ? txt : ''); }   // 1.6.0 (the core's gap 6)
     else if (DBX_DIE.some(function(g) { return dbxHas(c, g[0]); })) { var yD = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!yD) return true; DBX_DIE.forEach(function(g) { if (dbxHas(c, g[0])) dbxSet(yD, g[1], dbxNumOf(t)); }); }   // 1.6.0: a figure a die
     else if (dbxHas(c, 'sys-dmgr-lpick')) { var lP = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lP) return true; dbxSet(lP, 'pick', txt.trim() ? txt : ''); }   // 1.6.0
@@ -8606,8 +8614,8 @@ function onDamageChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-dmgr-') < 0) return false;
     var v = typeof t.value === 'string' ? t.value : '', on = t.checked === true, redraw = false;
     if (dbxHas(c, 'sys-dmgr-pool')) { dbxSet(dbxDraft(), 'pool', v); dbxTidy(); }
-    else if (dbxHas(c, 'sys-dmgr-mjfx') || dbxHas(c, 'sys-dmgr-mjroll') || dbxHas(c, 'sys-dmgr-mjcrip')) { var dJ = dbxDraft(), oJ = dbxObj(dJ.onMajor) ? dJ.onMajor : {}; dbxSet(oJ, dbxHas(c, 'sys-dmgr-mjfx') ? 'fx' : dbxHas(c, 'sys-dmgr-mjroll') ? 'roll' : 'crip', v); if (!oJ.roll) delete oJ.crip; if (Object.keys(oJ).length) dJ.onMajor = oJ; else delete dJ.onMajor; redraw = dbxHas(c, 'sys-dmgr-mjroll'); }   // 1.6.0 (B3)   // 1.6.0 (the core's gap 7): its failure cripples
-    else if (dbxHas(c, 'sys-dmgr-ofx') || dbxHas(c, 'sys-dmgr-oroll') || dbxHas(c, 'sys-dmgr-ocrip')) { var oC = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oC) return true; dbxSet(oC, dbxHas(c, 'sys-dmgr-ofx') ? 'fx' : dbxHas(c, 'sys-dmgr-oroll') ? 'roll' : 'crip', v); if (!oC.roll) delete oC.crip; redraw = dbxHas(c, 'sys-dmgr-oroll'); }   // 1.6.0 (the core's gap 6)
+    else if (dbxHas(c, 'sys-dmgr-mjfx') || dbxHas(c, 'sys-dmgr-mjroll') || dbxHas(c, 'sys-dmgr-mjcrip')) { var dJ = dbxDraft(), oJ = dbxObj(dJ.onMajor) ? dJ.onMajor : {}; dbxSet(oJ, dbxHas(c, 'sys-dmgr-mjfx') ? 'fx' : dbxHas(c, 'sys-dmgr-mjroll') ? 'roll' : 'crip', v); if (!oJ.roll) delete oJ.crip; if (!oJ.crip) delete oJ.cripBy; if (Object.keys(oJ).length) dJ.onMajor = oJ; else delete dJ.onMajor; redraw = dbxHas(c, 'sys-dmgr-mjroll') || dbxHas(c, 'sys-dmgr-mjcrip'); }   // 1.6.0 (B3)   // 1.6.0 (the core's gap 7): its failure cripples
+    else if (dbxHas(c, 'sys-dmgr-ofx') || dbxHas(c, 'sys-dmgr-oroll') || dbxHas(c, 'sys-dmgr-ocrip')) { var oC = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oC) return true; dbxSet(oC, dbxHas(c, 'sys-dmgr-ofx') ? 'fx' : dbxHas(c, 'sys-dmgr-oroll') ? 'roll' : 'crip', v); if (!oC.roll) delete oC.crip; if (!oC.crip) delete oC.cripBy; redraw = dbxHas(c, 'sys-dmgr-oroll') || dbxHas(c, 'sys-dmgr-ocrip'); }   // 1.6.0 (the core's gap 6)
     else if (dbxHas(c, 'sys-dmgr-loclist')) {   // another list: its DR, its cripple key and every type's typed DR belonged to the old one
         var d = dbxDraft(), was = dbxObj(d.locs) ? d.locs : {};
         if (!v) delete d.locs; else if (was.list !== v) { d.locs = { list: v }; if (was.vital) d.locs.vital = was.vital; (Array.isArray(d.types) ? d.types : []).forEach(function(y) { if (dbxObj(y)) delete y.plus; }); }
@@ -8672,12 +8680,14 @@ function damageSays(d, sys, Fx) {
         if ((d.onMajor.fx || d.onMajor.roll) && !(typeof d.major === 'string' && d.major.trim())) say('A Major Wound switches on and asks for: Save keeps them only with a Major Wound formula, so it drops them.');
         if (typeof d.onMajor.fx === 'string' && d.onMajor.fx && !(Array.isArray(sys.effects) ? sys.effects : []).some(function(e) { return dbxObj(e) && e.id === d.onMajor.fx; })) warn('A Major Wound switches on: that effect is gone, so it switches nothing on.');
         if (typeof d.onMajor.roll === 'string' && d.onMajor.roll && !(Array.isArray(sys.rolls) ? sys.rolls : []).some(function(r) { return dbxObj(r) && r.id === d.onMajor.roll; })) warn('A Major Wound asks for: that roll is gone, so it asks for nothing.');
+        if (typeof d.onMajor.cripBy === 'string' && d.onMajor.cripBy.trim()) reads(d.onMajor.cripBy, 'A Major Wound\u2019s roll, what its failure writes');   // 1.6.0 (the core's ruling on gap 7)
         if (typeof d.onMajor.crip === 'string' && d.onMajor.crip && !(dbxObj(d.locs) && numStat(d.locs.list, d.onMajor.crip))) say('A Major Wound\u2019s roll: its failure cripples a number stat of the hit locations, and that is none, so Save drops it.');   // 1.6.0 (the core's gap 7)
     }
     (Array.isArray(d.onWound) ? d.onWound : []).forEach(function(w, i) {   // 1.6.0 (the core's gap 6)
         if (!dbxObj(w)) return; var nth = 'Any wound, row ' + (i + 1);
         if (!(typeof w.fx === 'string' && w.fx) && !(typeof w.roll === 'string' && w.roll)) say(nth + ': it switches nothing on and asks for nothing, so Save drops it.');
         if (typeof w.if === 'string' && w.if.trim()) reads(w.if, nth);
+        if (typeof w.cripBy === 'string' && w.cripBy.trim()) reads(w.cripBy, nth + ', what its failure writes');
         if (typeof w.fx === 'string' && w.fx && !(Array.isArray(sys.effects) ? sys.effects : []).some(function(e) { return dbxObj(e) && e.id === w.fx; })) warn(nth + ': that effect is gone, so it switches nothing on.');
         if (typeof w.roll === 'string' && w.roll && !(Array.isArray(sys.rolls) ? sys.rolls : []).some(function(r) { return dbxObj(r) && r.id === w.roll; })) warn(nth + ': that roll is gone, so it asks for nothing.');
         if (typeof w.crip === 'string' && w.crip && !(dbxObj(d.locs) && numStat(d.locs.list, w.crip))) say(nth + ': its failure cripples a number stat of the hit locations, and that is none, so Save drops it.');
@@ -10436,7 +10446,7 @@ function majorFollow(c, info) {
     fl.forEach(function(f) {
         var r = dmgObj(f) ? (Array.isArray(sys.rolls) ? sys.rolls : []).find(function(x) { return dmgObj(x) && x.id === f.roll; }) : null; if (!r) return;
         var nm = typeof F === 'function' && F() && typeof r.formula === 'string' ? F().names(r.formula) : [], reads = nm.some(function(x) { return /^(blow|hit)\./i.test(x); });
-        var att = dmgObj(info.blow) && (reads || typeof f.crip === 'string') && typeof n.blowMake === 'function' ? n.blowMake(c, r.id, info.blow, f.crip) : '';
+        var att = dmgObj(info.blow) && (reads || typeof f.crip === 'string') && typeof n.blowMake === 'function' ? n.blowMake(c, r.id, info.blow, f.crip, f.cripBy) : '';
         n.postDue(c, r, f.why === 'wound' ? 'wound' : 'major', 1, !c.npc && !!c.ownerId && r.vis !== 'gm', att ? { att: att } : undefined); did = true;
     });
     return did;

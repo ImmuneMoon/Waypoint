@@ -3,7 +3,7 @@
    feature switch. The wire and the rolling itself live in net.js (net.diceRoll, the roll-req / roll / roll-deny
    handlers); the validators, replay and text in dicecore.js. Design of record: docs/DICE_PLAN.md. */
 import { toast } from './io.js';
-import { LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf } from './dicecore.js';
+import { LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy } from './dicecore.js';
 import { dieNode } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
 
 var ui = function(id) { return document.getElementById(id); };
@@ -132,12 +132,12 @@ function renderDue(m) {
     if (rec.as) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'for ' + rec.as)); }
     wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
     wrap.appendChild(el('br'));
-    wrap.appendChild(el('div', 'roll-expr', (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + ' \u2014 ' + (rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'major' ? 'a Major Wound' : 'round ' + rec.round)));
+    wrap.appendChild(el('div', 'roll-expr', (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + ' \u2014 ' + (rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? (typeof resistWhy === 'function' ? resistWhy(rec) : 'resisting an attempt') : rec.why === 'major' ? 'a Major Wound' : 'round ' + rec.round)));   // 1.6.0 (B2): an attempt to resist
     if (rec.theirs) wrap.appendChild(el('div', 'chat-due-note', 'Its player presses it.'));
     else if (m.done) wrap.appendChild(el('div', 'chat-due-note', 'Pressed.'));
     else if (!window.wpPopout) {
         var runW = rec.roll === 1 ? 'Roll' : 'Run', b = el('button', 'tool chat-due-run', runW); b.type = 'button'; b.title = rec.roll === 1 ? 'Roll it now, as its button on the sheet does' : 'Apply it now, as its button on the sheet does';   // 1.5.9: a roll that is due
-        b.addEventListener('click', function() { if (m.done) return; m.done = true; b.disabled = true; b.textContent = 'Pressed'; var ok = window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, rec.act) : false; if (!ok) { m.done = false; b.disabled = false; b.textContent = runW; } });   // done first: the press's own card redraws the chat
+        b.addEventListener('click', function() { if (m.done) return; m.done = true; b.disabled = true; b.textContent = 'Pressed'; var ok = window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, rec.act, rec.why === 'resist' ? rec.att : undefined) : false; if (!ok) { m.done = false; b.disabled = false; b.textContent = runW; } });   // done first: the press's own card redraws the chat
         wrap.appendChild(b);
     }
     return wrap;

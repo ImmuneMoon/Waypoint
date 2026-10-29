@@ -13530,6 +13530,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && !/HP\.max|Row\.|Hit\.|mult|vital|plus|layers|"dr"/.test(plJ) && j(sysD.combat.damage.types[1]) === j({ key: 'heat', label: 'Heat', mult: 1, plus: ['vsHeat'] }), plJ);
 
 
+
+        /* 1.6.0 (the SotMW v2 sort, B2): a roll Resisted by a roll ticked Resists an attempt, which reads AttemptMargin */
+        const mkR = (by, lby, rs) => ({ v: 1, name: 'R', fields: [{ id: 'f_wl', key: 'Will', label: 'Will', kind: 'number', vis: 'all', edit: 'owner', def: 12 }, { id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { rolls: [{ label: 'Push', formula: '3d6 <= Will', resistBy: lby }] } }],
+            rolls: [{ id: 'r_tr', label: 'Trick', formula: '3d6 <= 13', vis: 'all', resistBy: by }, { id: 'r_rs', label: 'Resist', formula: '3d6 <= Will - AttemptMargin', vis: 'all', resist: rs }, { id: 'r_in', label: 'Init', formula: '3d6', vis: 'all', init: true, resist: true }] });
+        const rG = cleanSystem(mkR('r_rs', 'r_rs', true), { F, gmView: true }), rP = cleanSystem(mkR('r_rs', 'r_rs', true), { F, gmView: false }), rP2 = cleanSystem(rP, { F, gmView: false });
+        const rlG = rG.fields[1].list.rolls[0], rlP = rP.fields[1].list.rolls[0];
+        check('1.6.0 (B2) a roll\'s Resisted by: the GM\'s view keeps the roll\'s id, a players\' view says only resisted: true (no id travels), cleaned again byte for byte; Resists an attempt kept only as true and never on the initiative roll; a Resisted by that is no roll id kept nowhere',
+            rG.rolls[0].resistBy === 'r_rs' && !('resisted' in rG.rolls[0]) && rP.rolls[0].resisted === true && !('resistBy' in rP.rolls[0]) && j(rP2) === j(rP)
+            && rlG.resistBy === 'r_rs' && rlP.resisted === true && !('resistBy' in rlP) && rG.rolls[1].resist === true && rP.rolls[1].resist === true && !('resist' in rG.rolls[2])
+            && !('resist' in cleanSystem(mkR('r_rs', 'r_rs', 'yes'), { F, gmView: true }).rolls[1]) && !('resistBy' in cleanSystem(mkR('nope', '', true), { F, gmView: true }).rolls[0]) && !('resisted' in cleanSystem(mkR(5, '', true), { F, gmView: false }).rolls[0]), j([rG.rolls, rP.rolls, rlG, rlP]));
+        const RA = S.makeResolver(rG, { id: 'c_s', values: {} }, F, S.withAttempt(null, 4)), RA0 = S.makeResolver(rG, { id: 'c_s', values: {} }, F, null), vR = S.validateSystem(rG, F);
+        const bad = S.validateSystem(cleanSystem(Object.assign(mkR('r_rs', '', true), { rolls: [{ id: 'r_tr', label: 'Trick', formula: '3d6 <= 13 + AttemptMargin', vis: 'all' }] }), { F, gmView: true }), F);
+        const warnR = S.validateSystem(cleanSystem(mkR('r_tr', 'r_tr', true), { F, gmView: true }), F);
+        check('1.6.0 (B2) AttemptMargin: a resist roll reads the margin the host lays on its context (withAttempt, 4), 0 with none; the validator knows it in a roll ticked Resists an attempt and nowhere else; Resisted by naming a roll not ticked so is warned of on a system roll and on a list roll',
+            RA('attemptmargin') === 4 && RA0('attemptmargin') === 0 && vR.errors.length === 0 && bad.errors.some(e => /AttemptMargin/.test(e.message) && /Resists an attempt/.test(e.message))
+            && warnR.warnings.filter(w => /Resisted by names a roll/.test(w.message)).length === 2 && !vR.warnings.some(w => /Resisted by/.test(w.message)) && j(S.withAttempt({ range: { mod: 1 } }, 3)) === j({ range: { mod: 1 }, att: { m: 3 } }), j([vR, bad.errors, warnR.warnings]));
         /* 1.6.0 (the SotMW v2 combat module): TargetSize, the target's own Size read in an attack beside TargetDistance */
         const mkZ = (ts, sm) => ({ v: 1, name: 'Z', rolls: [{ id: 'r_hit', label: 'Hit', formula: '3d6 + TargetSize', vis: 'all' }], fields: [
             { id: 'f_sm', key: sm || 'SM', label: 'Size', kind: 'number', vis: 'all', edit: 'owner' }, { id: 'f_sec', key: 'Sec', label: 'Secret', kind: 'number', vis: 'gm', edit: 'gm' },

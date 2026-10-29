@@ -59,6 +59,9 @@ Systems, more
 - A roll can say what Lands as a Big Hit. A success whose natural roll is
   at or under it is marked a Big Hit. It is not a critical. Its changes
   read RollBig.
+- A roll can be Resisted by a roll ticked Resists an attempt. When it
+  succeeds against your target, the target's player gets that roll as a card
+  to press, and it reads AttemptMargin, how far the attempt succeeded.
 - A success can wear a name on its card, such as Strong success when it
   beats its target by 5 or more.
 

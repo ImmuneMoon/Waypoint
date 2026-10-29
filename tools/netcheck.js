@@ -4004,6 +4004,65 @@ pendingChecks.push((async () => {
         j([hG.recs[0], hG.vals, hGg.recs[0], hGg.toasts, hGp.recs[0]]));
 })());
 
+// 1.6.0 (the SotMW v2 sort, B2: "resist at minus the attempt's margin"): a roll Resisted by a system roll that succeeds against the roller's
+// target makes an attempt on the host (net.js's attempt slice), posts the resist roll to the target's character as a reminder, and that roll,
+// made with the attempt's id, reads AttemptMargin from the host's own record, once (invented data: Kael, Sela, Pebbles)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx0 = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const src4 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const line = k => { const i = src4.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src4.slice(i, src4.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll'), atSrc = between('// [netcheck:attempt-start]', '// [netcheck:attempt-end]', 'attempt');
+    let dq = []; const Fx = Object.assign({}, Fx0, { evaluate: (e, o) => Fx0.evaluate(e, Object.assign({ random: () => { if (!dq.length) throw new Error('netcheck: no die left'); return dq.shift(); } }, o)) });
+    const sys = Sx.cleanSystem({ v: 1, name: 'R', combat: { checks: 'under3d6' }, fields: [{ id: 'f_wl', key: 'Will', label: 'Will', kind: 'number', vis: 'all', edit: 'owner', def: 12 }, { id: 'f_sn', key: 'Seen', label: 'Seen', kind: 'number', vis: 'all', edit: 'owner', def: 0 }],
+        rolls: [{ id: 'r_tr', label: 'Trick', formula: '3d6 <= 13', vis: 'all', resistBy: 'r_rs' }, { id: 'r_rs', label: 'Resist', formula: '3d6 <= Will - AttemptMargin', vis: 'all', resist: true, then: [{ f: 'f_sn', formula: 'AttemptMargin', set: true }] }] }, { F: Fx, gmView: true });
+    const out = { table: [], sent: { pA: [], pB: [] }, dues: [], pushed: [] }, aim = { u_a: 't_b', u_b: 't_a', gm: 't_b' };
+    const camp = { id: 'k', activeItemId: 'm1', system: sys, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: {} }, c_b: { id: 'c_b', name: 'Sela', ownerId: 'u_b', npc: false, values: {} }, c_n: { id: 'c_n', name: 'Pebbles', npc: true, values: {} } },
+        items: { m1: { type: 'map', whiteboard: [{ id: 't_a', charId: 'c_a', ownerId: 'u_a', isChar: true, x: 0, y: 0 }, { id: 't_b', charId: 'c_b', ownerId: 'u_b', isChar: true, x: 50, y: 0 }, { id: 't_n', charId: 'c_n', isChar: true, x: 100, y: 0 }, { id: 't_h', charId: 'c_n', isChar: true, hidden: true, x: 150, y: 0 }] } } };
+    const net = { role: 'host', active: true, stream: false, paused: false, conns: [], roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' }, pB: { id: 'u_b', name: 'Bo', location: 'm1' } }, combats: {}, syncCharDelta() {},
+        postDue: (ch, act, kind, round, toOwner, more) => out.dues.push({ ch: ch.id, act: act.id, kind: kind, toOwner: toOwner, more: JSON.parse(JSON.stringify(more || null)) }) };
+    const conn = p => ({ peer: p, send(m) { packCheck(m); out.sent[p].push(JSON.parse(JSON.stringify(m))); } }), cA = conn('pA'), cB = conn('pB');
+    const rng = t => t ? { mod: 0, dist: 2, tid: t, mapId: 'm1' } : null;
+    const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {}, tokenCtxFor: () => aim.gm ? { range: rng(aim.gm) } : null }, wpVtt: { on: () => true, rulesOn: () => true } };
+    const W = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'rangeTo', 'getProfile', 'toast', 'ui', 'save',
+        'var diceLimit = null, _diceSlowSaid = {}, _dicePending = null;\n' + helpers + atSrc + '\n' + drSrc + '\nreturn { rq: function(msg, conn) {\ndiceLimit = null; _diceSlowSaid = {};\n' + rqSrc + '\n}, dr: net.diceRoll };')(
+        net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, (rec, res, scope) => out.pushed.push(scope), () => {}, () => {},
+        (c, m, l, tok, pid) => rng(aim[pid]), () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, () => {});
+    const roll = (cn, charId, act, expr, dice, extra) => { dq = dice.slice(); W.rq(Object.assign({ type: 'roll-req', rid: 'q' + Math.random().toString(36).slice(2, 7), charId: charId, act: act, expr: expr }, extra || {}), cn); };
+    const RS = '3d6 <= Will - AttemptMargin';
+    roll(cA, 'c_a', 'r_tr', '3d6 <= 13', [2, 3, 4]);
+    const d1 = out.dues.slice(), att1 = d1[0] && d1[0].more && d1[0].more.att, kept1 = net.attemptsKept();
+    roll(cA, 'c_a', 'r_tr', '3d6 <= 13', [6, 6, 5]); const dFail = out.dues.length;
+    roll(cB, 'c_b', 'r_rs', RS, [2, 2, 2], { att: att1 }); const seenB = camp.chars.c_b.values.f_sn, rsRec = out.table[out.table.length - 1], kept2 = net.attemptsKept();
+    roll(cB, 'c_b', 'r_rs', RS, [2, 2, 2], { att: att1 }); const again = out.sent.pB[out.sent.pB.length - 1];
+    check('1.6.0 (B2) a player\'s Trick that succeeds against their target (9 against 13) makes an attempt and posts the target\'s Resist to Sela\'s player, naming Kael and the margin 4; a failure makes none; Sela\'s Resist made with the attempt\'s id reads AttemptMargin 4 (6 against 12 - 4, its Then sets Seen to 4), once: the same id again is refused in words',
+        d1.length === 1 && d1[0].ch === 'c_b' && d1[0].act === 'r_rs' && d1[0].kind === 'resist' && d1[0].toOwner === true && /^a_[a-z0-9]{8}$/.test(att1) && d1[0].more.by === 'Kael' && d1[0].more.m === 4 && kept1 === 1
+        && dFail === 1 && seenB === 4 && rsRec && rsRec.expr === RS && kept2 === 0 && again && again.type === 'roll-deny' && /resisted already/.test(again.message), j([d1, dFail, seenB, rsRec, kept2, again]));
+    roll(cA, 'c_a', 'r_tr', '3d6 <= 13', [2, 3, 4]); const att2 = out.dues[out.dues.length - 1].more.att;
+    roll(cA, 'c_a', 'r_rs', RS, [2, 2, 2], { att: att2 }); const wrongWho = out.sent.pA[out.sent.pA.length - 1];
+    roll(cB, 'c_b', 'r_tr', '3d6 <= 13', [2, 2, 2], { att: att2 }); const wrongRoll = out.sent.pB[out.sent.pB.length - 1];
+    const keptW = net.attemptsKept();
+    aim.u_a = 't_a'; const nOwn = out.dues.length; roll(cA, 'c_a', 'r_tr', '3d6 <= 13', [2, 3, 4]); const ownD = out.dues.length - nOwn;
+    aim.u_a = 't_h'; roll(cA, 'c_a', 'r_tr', '3d6 <= 13', [2, 3, 4]); const hidD = out.dues.length - nOwn;
+    aim.u_a = 't_b'; roll(cA, 'c_a', 'r_tr', '3d6 <= 13', [2, 3, 4], { priv: 'gm' }); const privD = out.dues[out.dues.length - 1];
+    check('1.6.0 (B2) an attempt answers only its own target\'s own resist roll: Kael using Sela\'s attempt is refused and so is Sela\'s Trick named with it, the attempt still kept; no attempt at your own token or a hidden one; a private attempt goes to the GM alone',
+        wrongWho.type === 'roll-deny' && wrongRoll.type === 'roll-deny' && keptW === 1 && ownD === 0 && hidD === 0 && privD.ch === 'c_b' && privD.toOwner === false, j([wrongWho, wrongRoll, keptW, ownD, hidD, privD]));
+    aim.u_a = 't_n'; roll(cA, 'c_a', 'r_tr', '3d6 <= 13', [1, 2, 3]); const npcD = out.dues[out.dues.length - 1];
+    net._attNext = { att: npcD.more.att, charId: 'c_n', act: 'r_rs' }; dq = [1, 1, 1]; const gR = W.dr(RS, { charId: 'c_n', act: 'r_rs' }); net._attNext = null;
+    dq = [1, 1, 1]; const gAgain = W.dr(RS, { charId: 'c_n', act: 'r_rs', att: npcD.more.att });
+    const nG = out.dues.length; dq = [2, 3, 4]; const gT = W.dr('3d6 <= 13', { charId: 'c_n', act: 'r_tr' }); const gD = out.dues[nG];
+    check('1.6.0 (B2) Kael\'s attempt on the GM\'s Pebbles goes to the GM (margin 7); the GM\'s press of its card names the attempt (net._attNext) and Pebbles\' Resist reads 7, once; the GM\'s own Trick as Pebbles against Sela posts her Resist to her player, naming Pebbles',
+        npcD.ch === 'c_n' && npcD.toOwner === false && npcD.more.m === 7 && gR.ok && camp.chars.c_n.values.f_sn === 7 && gAgain.error && /resisted already/.test(gAgain.error) && gT.ok && gD && gD.ch === 'c_b' && gD.toOwner === true && gD.more.by === 'Pebbles' && gD.more.m === 4,
+        j([npcD, gR, camp.chars.c_n.values, gAgain, gT, gD]));
+    const dueR = { type: 'due', id: 'r_abcdefgh', from: { id: 'u_gm', name: 'GM', gm: true }, charId: 'c_b', act: 'r_rs', label: 'Resist', why: 'resist', round: 1, roll: 1, att: 'a_abcd1234', by: 'Kael', m: 4, ts: 1 };
+    const cdR = Dx.cleanDue(dueR);
+    check('1.6.0 (B2) the wire: a resist card keeps its attempt\'s id, who made it and the margin, and says so in words; one without its roll mark or a usable id is no card, and no other card carries them; a roll request names an attempt only beside its entry, by the host\'s own pattern',
+        cdR && cdR.att === 'a_abcd1234' && cdR.by === 'Kael' && cdR.m === 4 && /resisting Kael\u2019s attempt, made by 4/.test(Dx.dueText(cdR)) && Dx.cleanDue(Object.assign({}, dueR, { roll: undefined })) === null && Dx.cleanDue(Object.assign({}, dueR, { att: 'x' })) === null
+        && Dx.cleanDue(Object.assign({}, dueR, { why: 'turn' })) === null && Dx.cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6', charId: 'c_b', act: 'r_rs', att: 'a_abcd1234' }).att === 'a_abcd1234'
+        && Dx.cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6', charId: 'c_b', att: 'a_abcd1234' }) === null && Dx.cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6', charId: 'c_b', act: 'r_rs', att: 'a_ABCD1234' }) === null, j([cdR, Dx.dueText(cdR)]));
+})());
+
 // Chat cards (owner 2026-09-27): a damage roll's mark — the host puts it on the record from the roll entry its formula matched (a system roll by
 // its id, a list's roll by its index), never from the player's word; the GM's own roll from its entry, or this machine's own word (a thrown item's damage)
 pendingChecks.push((async () => {

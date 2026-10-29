@@ -8115,6 +8115,7 @@ function handleMessage(msg, conn) {
             tcQ = SQ.withRound(tcQ, mapQ ? net.combatRoundOf(locQ, (SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }) || {}).id) : null);   // fold 2: the fight that holds their token, else the first begun on that map, as their own sheet reads it (net.combatRoundOf)
             if (typeof rangeTo === 'function' && SQ.withRange) tcQ = SQ.withRange(tcQ, rangeTo(campQ, mapQ, locQ, SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }), pidQ));   // range R2: RangeMod and TargetDistance, to their own target as their copy holds it   // HUD frame (HF5b): CombatRound reads the combat on the map they are on (the token context stays null without a token)
             chQ = srcQ; varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ);
+            if (q.att) { var atQ = typeof attemptPeek === 'function' ? attemptPeek(q.att, q.charId, q.act) : null; if (atQ === null || !SQ.withAttempt) { denyQ('error', { error: { message: typeof ATT_GONE === 'string' ? ATT_GONE : 'That attempt is not there now.', pos: 0, len: 0 } }); return; } tcQ = SQ.withAttempt(tcQ, atQ); varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ); }   // 1.6.0 (B2): the attempt it resists, from the host's own record
             if (q.row) {   // Stage 6 F5b: a roll on one of their rows — its names through their own view; a row of a GM-only item keeps the roll between them and the GM
                 var rvQ = varsQ.row(q.row.f, q.row.r, typeof q.row.lv === 'number' ? q.row.lv : undefined); if (!rvQ) { denyQ('char'); return; }   // 1.6.0 R12: at the level asked, from the list's lowest to the row's own
                 varsQ = rvQ; if (SQ.rowRollNames(campQ.system, srcQ, q.row.f, q.row.r, [], Fq).gm) q.priv = 'gm';
@@ -8130,6 +8131,7 @@ function handleMessage(msg, conn) {
                 if (swQ && !swQ.ok) { denyQ('error', { error: { message: 'That bonus is not yours to add to this roll now.', pos: 0, len: 0 } }); return; }
                 var cmQ = wantQ ? Dq.composeModifier(wantQ, (q.mod || 0) + (swQ ? swQ.v : 0), Fq.parse) : null;
                 if (!cmQ || !cmQ.ok || cmQ.expr !== q.expr) { denyQ('error', { error: { message: 'That roll does not match its button now.', pos: 0, len: 0 } }); return; }
+                if (q.att && actQ.resist !== true) { denyQ('error', { error: { message: 'That roll does not resist an attempt.', pos: 0, len: 0 } }); return; }   // 1.6.0 (B2)
                 if (q.on && actQ.to !== 'near') { denyQ('error', { error: { message: 'That cannot be used on someone else.', pos: 0, len: 0 } }); return; }   // 1.5.9 (book es/et plan, section 3)
                 if (actQ.to === 'near') {   // judged on the host's own map before anything is rolled; OnSelf in its formula, its needs and its Then, 1 on themselves and 0 on another
                     if (q.on) { onQ = typeof allyOn === 'function' ? allyOn(campQ, mapQ, mapQ ? SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }) : null, q.on, pidQ) : { error: 'missing', message: 'That character is not there.' }; if (onQ.error) { denyQ('error', { error: { message: onQ.message, pos: 0, len: 0 } }); return; } }
@@ -8145,6 +8147,7 @@ function handleMessage(msg, conn) {
         var whyQ = Dq.checkTableRoll(resQ); if (whyQ) { denyQ(whyQ); return; }
         if (actQ && actQ.cost && chQ && typeof actSpend === 'function') { var costQ = actSpend(campQ, q.charId, net.roster[conn.peer], actQ.cost, conn, chQ.name); if (costQ) { denyQ('error', { error: { message: costQ, pos: 0, len: 0 } }); return; } }   // turn-based combat T4: what it costs
         var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid };
+        if (q.att && typeof attemptDrop === 'function') attemptDrop(q.att);   // 1.6.0 (B2): an attempt is resisted once
         var mfQ = null; if (actQ && actQ.malf && varsQ) { var mqQ = Fq.evaluate(actQ.malf, { vars: varsQ }); if (mqQ.ok && typeof mqQ.value === 'number' && isFinite(mqQ.value)) mfQ = Math.max(1, Math.min(1000000, Math.round(mqQ.value))); }   // Stage 6 HUD R3: its Malf, through their view
         if (mfQ !== null) recQ.malf = mfQ;
         var crgQ = SQ && typeof SQ.critRange === 'function' ? SQ.critRange(viewQ ? viewQ : (getActiveCampaign() || {}).system, actQ, varsQ, Fq) : null; if (crgQ) recQ.crit = crgQ;
@@ -8163,6 +8166,7 @@ function handleMessage(msg, conn) {
         else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
         var ruleQ = Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '');   // Stage 6 F8: the system's roll outcomes (1.6.0: or the record's own critical range)
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars, rule: ruleQ }));
+        if (actQ && actQ.resisted === true && chQ && typeof attemptMake === 'function') attemptMake(campQ, attemptEntry(campQ.system, q, actQ), Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, tcQ && tcQ.range, chQ, !!recQ.priv);   // 1.6.0 (B2): a success against their target that it resists
         if (actQ && actQ.init === true && typeof initIntoFight === 'function') initIntoFight(campQ, locQ, q.charId, pidQ, resQ.value);   // initiative O1: their own initiative roll into the fight on their map, once
         if (actQ && actQ.then) {   // Stage 6 HUD R1: its consequences on the host's copy, through the roller's view, all or nothing (nothing to apply is quiet)
             var mfHitQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ, vdQ = Dq.verdictOf(resQ, ruleQ), crQ = typeof SQ.thenCrit === 'function' ? SQ.thenCrit(vdQ, mfHitQ) : '', thQ = SQ.thenChanges(actQ, mfHitQ ? false : (vdQ && vdQ.kind === 'check' ? vdQ.pass : null), mfHitQ, crQ);   // R3: a malfunction is a failure, with its own changes; 1.5.8: and a critical, with its own
@@ -9242,10 +9246,11 @@ function applyLine(rec) { var D = DC(); return D && D.applyText ? D.applyText(re
 function dueLine(rec) { var D = DC(); return D && D.dueText ? D.dueText(rec) : 'An action is due.'; }
 // Turn-based combat T2b: a timed action that waits for a press — its reminder card (sheets.js timedHook): the character's player's when asked
 // (each connection of theirs; the GM's copy then says whose it is to press), else the GM's alone. A whisper: never in the join's history
-net.postDue = function(ch, act, kind, round, toOwner) {
+net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, B2): an attempt to resist, { att, by, m }
     if (!ch || typeof ch.id !== 'string' || !act || typeof act.id !== 'string') return;
-    var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : kind === 'turnEnd' ? 'turnEnd' : kind === 'cross' ? 'cross' : kind === 'major' ? 'major' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
+    var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : kind === 'turnEnd' ? 'turnEnd' : kind === 'cross' ? 'cross' : kind === 'major' ? 'major' : kind === 'resist' && more && typeof more.att === 'string' ? 'resist' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
     if (ch.name) rec.as = String(ch.name).slice(0, 60);
+    if (rec.why === 'resist') { rec.att = more.att; if (more.by) rec.by = String(more.by).slice(0, 60); if (typeof more.m === 'number' && isFinite(more.m)) rec.m = Math.max(-9999, Math.min(9999, more.m)); }   // 1.6.0 (B2)
     if (!Array.isArray(act.apply)) { rec.roll = 1; if (rec.label === 'Apply') rec.label = String(act.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll'; }   // 1.5.9 (book es/et plan 4b): a roll that is due; its card's button rolls it
     postDue(rec, ch, !!toOwner);
 };
@@ -9257,6 +9262,41 @@ function postDue(rec, ch, toOwner) {
     if (ch && typeof ch.id === 'string' && typeof bellOut === 'function') bellOut(ch.id, { due: rec });
 }
 // [netcheck:postdue-end]
+// [netcheck:attempt-start]
+// 1.6.0 (the SotMW v2 sort, B2: "resist at minus the attempt's margin"): a roll whose entry names Resisted by (a system roll ticked Resists an
+// attempt) and that succeeds against the roller's target makes an attempt here, on the host alone: the target's character, the roll that
+// resists it and how far it succeeded. The resist roll is posted to the target's character as a reminder card (to its player where it is a
+// player's and the attempt was rolled in the open, else to the GM), and when that card's roll is made it reads the margin as AttemptMargin,
+// once. The margin is the host's own record, never a player's word. Memory alone, the newest ATT_MAX, gone with the table
+var _attempts = Object.create(null), _attIds = [], ATT_MAX = 100, ATT_GONE = 'That attempt has been resisted already, or is not there now.';
+function attemptForget() { _attempts = Object.create(null); _attIds = []; }
+function attemptPeek(id, charId, act) { var a = typeof id === 'string' && Object.prototype.hasOwnProperty.call(_attempts, id) ? _attempts[id] : null; return a && a.charId === charId && a.act === act ? a.m : null; }
+function attemptDrop(id) { if (typeof id === 'string' && Object.prototype.hasOwnProperty.call(_attempts, id)) { delete _attempts[id]; _attIds = _attIds.filter(function(x) { return x !== id; }); } }
+// the roll's entry as the GM's own system holds it: a players' view says only that it is resisted (resisted: true), so the host finds the
+// whole entry, a system roll by its id, a list's roll by the same label and formula
+function attemptEntry(sys, q, act) {
+    if (!act || act.resisted !== true || !sys) return null;
+    var pool = [];
+    if (q.act) pool = Array.isArray(sys.rolls) ? sys.rolls.filter(function(r) { return r && r.id === q.act; }) : [];
+    else if (q.row) (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (f && f.id === q.row.f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) pool = f.list.rolls; });
+    for (var i = 0; i < pool.length; i++) { var r = pool[i]; if (r && typeof r.resistBy === 'string' && r.formula === act.formula && r.label === act.label) return r; }
+    return null;
+}
+function attemptMake(camp, entry, vd, malf, range, fromCh, priv) {
+    var S = SC(); if (!S || !camp || !camp.system || !entry || typeof entry.resistBy !== 'string' || !vd || vd.kind !== 'check' || vd.pass !== true || malf === true) return null;
+    var rr = null; (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === entry.resistBy && r.resist === true && typeof r.formula === 'string' && !r.apply) rr = r; });
+    if (!rr || !range || typeof range.tid !== 'string' || typeof range.mapId !== 'string' || !camp.items || !Object.prototype.hasOwnProperty.call(camp.items, range.mapId)) return null;
+    var map = camp.items[range.mapId], tok = null; (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) { if (w && w.id === range.tid) tok = w; });
+    if (!tok || tok.hidden || tok.waiting || typeof tok.charId !== 'string' || !camp.chars || !Object.prototype.hasOwnProperty.call(camp.chars, tok.charId)) return null;
+    var tch = camp.chars[tok.charId]; if (!tch || typeof tch.id !== 'string' || (fromCh && tch.id === fromCh.id)) return null;
+    var m = typeof S.thenMargin === 'function' ? S.thenMargin(vd, false) : (typeof vd.margin === 'number' ? vd.margin : 0), id = '';
+    while (!id || Object.prototype.hasOwnProperty.call(_attempts, id)) { id = 'a_'; while (id.length < 10) id += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36)); }
+    _attempts[id] = { charId: tch.id, act: rr.id, m: m }; _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
+    if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, !priv && !tch.npc && !!tch.ownerId && rr.vis !== 'gm', { att: id, by: fromCh && fromCh.name ? fromCh.name : '', m: m });
+    return id;
+}
+net.attemptsKept = function() { return _attIds.length; };
+// [netcheck:attempt-end]
 // Stage 6 HUD H7: the GM's own press (sheets.js has worked it out and stored it): the card, as the GM's
 net.postApplyCard = function(ch, label, lines, scope) {
     var rec = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), lines: applyLines(lines), ts: Date.now() };
@@ -9316,6 +9356,7 @@ function diceSessionReset(clearChat) {
     if (_dicePending) { clearTimeout(_dicePending.timer); _dicePending = null; }
     if (diceLimit) diceLimit.reset();
     _diceSlowSaid = {};
+    if (typeof attemptForget === 'function') attemptForget();   // 1.6.0 (B2): the attempts waiting to be resisted are the table's
     charSessionReset();
     if (clearChat) { chatLog = []; chatUnread = 0; renderChat(); rollRing = []; ringRepaint(); }   // the table that is over keeps its chat and its rolls to itself (the HUDs' history too; ringSeq runs on)
 }
@@ -9323,6 +9364,7 @@ function diceSessionReset(clearChat) {
 // [netcheck:diceroll-start]
 net.diceRoll = function(expr, o) {
     o = o || {}; var D = DC(), F = window.wpFormula;
+    var atN = net._attNext; if (atN && !o.att && o.charId === atN.charId && o.act === atN.act && !o.row) o = Object.assign({}, o, { att: atN.att });   // 1.6.0 (B2): a resist card's press (sheets.js runDue) names the attempt it answers
     if (!D || !F) return { error: 'Dice are not available.' };
     if (net.stream) return { error: 'Not from the stream window.' };
     if (window.wpVtt && !window.wpVtt.on('dice')) return { error: D.denyText('off') };
@@ -9337,6 +9379,7 @@ net.diceRoll = function(expr, o) {
         if (o.label) req.label = String(o.label).slice(0, D.LIMITS.label);
         if (o.row && o.charId) { req.row = { f: String(o.row.f), r: String(o.row.r) }; if (typeof o.row.i === 'number') req.row.i = o.row.i; if (typeof o.row.i === 'number' && typeof o.row.lv === 'number') req.row.lv = o.row.lv; }   // R2b: a list's roll with consequences or needs names its index
         if (o.charId && ((o.act && !o.row) || (o.fr && !o.act && !o.row) || (o.row && typeof o.row.i === 'number'))) { if (o.act && !o.row) req.act = String(o.act); if (o.fr && !o.act && !o.row) req.fr = String(o.fr); if (Array.isArray(o.sw) && o.sw.length) req.sw = o.sw.slice(0, D.LIMITS.swPicks).map(function(x) { return { s: String(x && x.s), i: x && x.i }; }); if (o.mod) req.mod = o.mod; if (o.adv) req.adv = o.adv; if (typeof o.on === 'string' && o.on) req.on = o.on.slice(0, 80); }   // 1.5.9: on, the token of the adjacent character it is used on (the host judges it)   // Stage 6 HUD R1: the entry, its modifier and advantage (the host rebuilds the formula)   // Stage 6 F5b: a roll on a row
+        if (typeof o.att === 'string' && o.act && !o.row && o.charId) req.att = o.att;   // 1.6.0 (B2): the attempt a resist roll answers
         _dicePending = { rid: rid, expr: expr, charId: o.charId || '', timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); }, D.LIMITS.timeoutMs) };
         try { net.conns[0].send(req); } catch (e) { clearTimeout(_dicePending.timer); _dicePending = null; return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
@@ -9345,6 +9388,7 @@ net.diceRoll = function(expr, o) {
     if (o.charId) { chR = (campR && campR.chars && typeof o.charId === 'string' && Object.prototype.hasOwnProperty.call(campR.chars, o.charId) ? campR.chars[o.charId] : null); if (!chR || !campR.system || !SR) return { error: D.denyText('char') }; tcR = window.wpSheets && window.wpSheets.tokenCtxFor ? window.wpSheets.tokenCtxFor(chR.id, campR) : null; varsR = SR.makeResolver(campR.system, chR, F, tcR); }
     if (chR && o.range && typeof o.range === 'object' && SR && SR.withRange) { tcR = SR.withRange(tcR || {}, o.range); varsR = SR.makeResolver(campR.system, chR, F, tcR); }
     if (chR && o.cross && typeof o.cross === 'object' && SR && typeof SR.withCross === 'function') { tcR = SR.withCross(tcR, o.cross); varsR = SR.makeResolver(campR.system, chR, F, tcR); }   // 1.6.0: a crossing's run reads CrossStep and Crossed (this machine's own word, never over the wire)   // 1.5.8 explosives: a throw's range to the point it aims at (this machine's own word, never over the wire)
+    if (chR && typeof o.att === 'string') { var atR = typeof attemptPeek === 'function' ? attemptPeek(o.att, chR.id, o.act) : null; if (atR === null || o.row || !SR.withAttempt) return { error: typeof ATT_GONE === 'string' ? ATT_GONE : 'That attempt is not there now.' }; tcR = SR.withAttempt(tcR, atR); varsR = SR.makeResolver(campR.system, chR, F, tcR); }   // 1.6.0 (B2): the attempt it resists, from this machine's own record
     var rowP = null;
     if (o.row && varsR) { var rvR = varsR.row(o.row.f, o.row.r, typeof o.row.lv === 'number' ? o.row.lv : undefined); if (!rvR) return { error: D.denyText('char') }; varsR = rvR; }   // 1.6.0 R12: at the level asked
     var entR = null;   // Stage 6 HUD R1/R2b: the entry a roll with consequences or needs names — a system roll by act, a list's roll by its index
@@ -9359,6 +9403,7 @@ net.diceRoll = function(expr, o) {
         if (typeof SR.withOnSelf === 'function') varsR = SR.withOnSelf(varsR, !onR, onR ? SR.makeResolver(campR.system, onR.ch, F, typeof allyCtx === 'function' && ftR ? allyCtx(ftR.map, onR.tok) : null) : null);   // 1.6.0: On.<name>   // OnSelf in its formula, its needs and its Then
     }
     if (o.row && typeof o.row.lv === 'number' && !(entR && entR.askLvl === true)) return { error: D.denyText('char') };   // 1.6.0 R12: a level only for a roll that asks it
+    if (typeof o.att === 'string' && !(entR && entR.resist === true)) return { error: 'That roll does not resist an attempt.' };   // 1.6.0 (B2)
     if (o.row && entR && typeof entR.showIf === 'string' && entR.showIf && varsR && !SR.rollNeedsOk({ needs: entR.showIf }, varsR, F)) return { error: 'That roll is not offered on this row.' };   // 1.6.0: Shown where
     if (entR && entR.needs && varsR && !SR.rollNeedsOk(entR, varsR, F)) return { error: SR.rollNeedsSays(entR) };
     var swR = null; if (Array.isArray(o.sw) && o.sw.length) { var refSw = o.act && !o.row ? { r: String(o.act) } : o.fr ? { f: String(o.fr) } : o.row ? { l: String(o.row.f), row: String(o.row.r), i: typeof o.row.i === 'number' ? o.row.i : undefined } : null; swR = chR && SR && campR && campR.system && refSw && typeof SR.swJudge === 'function' ? SR.swJudge(campR.system, chR, refSw, o.sw) : { ok: false }; if (!swR.ok) return { error: 'That bonus is not this character\u2019s to add to this roll now.' }; }   // 1.6.0: the roll switches ticked, judged as a player's are (the formula already holds them)   // R2b: its needs (before anything is rolled)   // Stage 6 F5b: a roll on one row — its Row.* names
@@ -9368,6 +9413,7 @@ net.diceRoll = function(expr, o) {
     var why = D.checkTableRoll(res); if (why) return { error: D.denyText(why) };
     var rec = { type: 'roll', id: D.uid(), from: diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() };
     var mfR = null; if (entR && entR.malf && varsR) { var mqR = F.evaluate(entR.malf, { vars: varsR }); if (mqR.ok && typeof mqR.value === 'number' && isFinite(mqR.value)) mfR = Math.max(1, Math.min(1000000, Math.round(mqR.value))); }   // Stage 6 HUD R3: its Malf
+    if (typeof o.att === 'string' && typeof attemptDrop === 'function') attemptDrop(o.att);   // 1.6.0 (B2): an attempt is resisted once
     if (mfR !== null) rec.malf = mfR;
     var crgR = SR && typeof SR.critRange === 'function' && campR && campR.system ? SR.critRange(campR.system, entR, varsR, F) : null; if (crgR) rec.crit = crgR;
     if (entR && entR.bigAt && SR && typeof SR.bigOf === 'function' && SR.bigOf(entR, varsR, F, D, res, D.verdictOf(res, D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '')), mfR !== null && D.naturalOf(res) >= mfR)) rec.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): a success that lands as a Big Hit (no critical)   // 1.6.0 (the v2 sort's B1): criticals at fixed rolls, this roll's range (its own formula, else the Combat card's)
@@ -9404,6 +9450,7 @@ net.diceRoll = function(expr, o) {
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
     var ruleR = D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '');   // Stage 6 F8 (1.6.0: or the record's own critical range)
     logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName, rule: ruleR }));
+    if (entR && typeof entR.resistBy === 'string' && chR && typeof attemptMake === 'function') attemptMake(campR, entR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, tcR && tcR.range, chR, !!rec.priv || !!rec.to);   // 1.6.0 (B2): a success against its target that it resists
     if (entR && entR.then && chR && SR && campR && campR.system) {   // Stage 6 HUD R1/R2b: the GM's own roll's consequences, here (a player's are the host's); a list's roll may move its row's counters
         var mfHitR = mfR !== null && D.naturalOf(res) >= mfR, vdR = D.verdictOf(res, ruleR), crR = typeof SR.thenCrit === 'function' ? SR.thenCrit(vdR, mfHitR) : '', thR = SR.thenChanges(entR, mfHitR ? false : (vdR && vdR.kind === 'check' ? vdR.pass : null), mfHitR, crR);   // R3; 1.5.8: and its critical
         var taR = thR.length ? SR.applyAct(campR.system, chR, { apply: thR }, typeof SR.withRollCrit === 'function' ? SR.withRollCrit(varsR, crR, typeof SR.thenMargin === 'function' ? SR.thenMargin(vdR, mfHitR) : 0, rec.big === true) : varsR, F, null, o.row ? { f: o.row.f, r: o.row.r } : null, undefined, D, onR ? { char: onR.ch, tctx: typeof allyCtx === 'function' ? allyCtx(ftR.map, onR.tok) : null } : null, typeof fxNow === 'function' ? fxNow(chR.id, onR) : null) : null;   // 1.5.8: its amounts read RollCrit   // 1.5.9: this machine's dice roll a Rolled amount (it owns the campaign: a player's app sent a roll-req above), and its field changes land on the one it is used on

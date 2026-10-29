@@ -5955,9 +5955,10 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       var menu = document.getElementById('imgCatMenu'); if (!menu) return;
       var many = Array.isArray(src), mine = many ? [] : imgCatsOf(src);
       var from = soleTag();
-      var others = catList().filter(function(c) { return mine.indexOf(c.name) < 0; });
-      // in All, By map and No tag only Add is offered (backlog 181: Show as a scene for one picture)
-      TagCore.drawMenu(document, menu, { scene: !many && !!window.wpScene, head: many ? 'Tag ' + src.length + ' pictures with' : 'Add a tag', add: others, from: from && (many || mine.indexOf(from) >= 0) ? from : '', move: others });
+      var others = catList().filter(function(c) { return mine.indexOf(c.name) < 0; }), paths = many ? src : [src];
+      // backlog 34: every tag, marked when all or some of the pictures have it; Move and Remove only in a tag's own view (backlog 181: Show as a scene for one picture)
+      var tags = catList().map(function(c) { var n = paths.filter(function(p) { return imgCatsOf(p).indexOf(c.name) >= 0; }).length; return { name: c.name, store: c.store, state: TagCore.tagState(n, paths.length), n: n, of: paths.length }; });
+      TagCore.drawMenu(document, menu, { scene: !many && !!window.wpScene, head: many ? 'Tags of ' + paths.length + ' pictures' : 'Tags', tags: tags, from: from && (many || mine.indexOf(from) >= 0) ? from : '', move: others });
       menu.dataset.src = many ? '' : src; menu.dataset.multi = many ? '1' : '';
       menu.style.display = 'flex'; menu.classList.add('show');
       window.wpClampMenu(menu, x, y);
@@ -6116,7 +6117,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       grid.addEventListener('contextmenu', function(e) {
           var cell = e.target.closest && e.target.closest('.img-lib-cell'); if (!cell || cell.classList.contains('cast-cell') || _imgLibPicker) return;
           e.preventDefault(); e.stopPropagation();
-          openImgCatMenu(cell.dataset.src, e.clientX, e.clientY);
+          var pickedN = Object.keys(_imgLibSel);
+          openImgCatMenu(_imgLibSel[cell.dataset.src] && pickedN.length > 1 ? pickedN : cell.dataset.src, e.clientX, e.clientY);   // backlog 34: a picked picture speaks for all the picked
       });
       menu.addEventListener('click', function(e) {
           var b = e.target.closest && e.target.closest('button'); if (!b) return;
@@ -6126,6 +6128,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           if (menu.dataset.multi && !src.length) return;
           if (act === 'scene') { if (!menu.dataset.multi && window.wpScene) window.wpScene.open(src); return; }   // backlog 181
           if (act === 'new-add' || act === 'new-move') { imgCatNew(function(name) { imgCatChange(src, act === 'new-move' ? 'move' : 'add', name); }); return; }
+          if (act === 'toggle') { var tps = Array.isArray(src) ? src : [src]; imgCatChange(src, tps.every(function(p) { return imgCatsOf(p).indexOf(cat) >= 0; }) ? 'remove' : 'add', cat); return; }   // backlog 34: to all, or from all when all have it
           if (act === 'add' || act === 'move' || act === 'remove') imgCatChange(src, act, cat);
       });
       document.addEventListener('pointerdown', function(e) { if (menu.style.display !== 'none' && !e.target.closest('#imgCatMenu')) hideImgCatMenu(); }, true);
@@ -6144,13 +6147,17 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           else if (b.dataset.act === 'add-map') placeImagesBlock(picked);
           else if (b.dataset.act === 'cat') { var r = b.getBoundingClientRect(); openImgCatMenu(picked, r.left, r.top - 4); }
           else if (b.dataset.act === 'add-cast') placeCastPicked();
+          else if (b.dataset.act === 'all') { selectAllShown(); renderImgLib(document.getElementById('imgLibSearch').value); }
+          else if (b.dataset.act === 'done') { _imgLibSelMode = false; renderImgLib(document.getElementById('imgLibSearch').value); }
       });
+      var selBtn = document.getElementById('imgLibSelectBtn');   // backlog 34: Select, so a plain click picks
+      if (selBtn) selBtn.addEventListener('click', function() { _imgLibSelMode = !_imgLibSelMode; tagLog('select', { on: _imgLibSelMode }); closeImgPreview(); renderImgLib(document.getElementById('imgLibSearch').value); });
       document.addEventListener('keydown', function(e) {   // Ctrl+A in the library picks everything in view
           var modal = document.getElementById('imgLibModal'), pv = document.getElementById('imgLibPreview');
           if (!modal || modal.style.display === 'none' || (pv && pv.style.display !== 'none') || (_imgLibPick && !_imgLibPicker)) return;
           if (!(e.ctrlKey || e.metaKey) || (e.key !== 'a' && e.key !== 'A') || /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
           e.preventDefault(); e.stopPropagation();
-          _imgLibOrder.forEach(function(p) { _imgLibSel[p] = 1; });
+          selectAllShown();
           renderImgLib(document.getElementById('imgLibSearch').value);
       }, true);
       document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && (!window.wpEsc || window.wpEsc.free(e))) hideImgCatMenu(); });   // 1.5.4: esckey.js puts it away, one thing a press
@@ -6204,11 +6211,20 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   }
   // Multi-pick: Ctrl-click toggles a picture, Shift-click picks the run from the last one, Ctrl+A picks the view
   var _imgLibSel = {}, _imgLibOrder = [], _imgLibLastPick = null;
+  var _imgLibSelMode = false;   // backlog 34: Select is on, so a plain click picks a picture too
+  function selectBtnSync() {
+      var b = document.getElementById('imgLibSelectBtn'); if (!b) return;
+      b.style.display = _imgLibPick && !_imgLibPicker ? 'none' : '';   // choosing one picture for a block: nothing to pick many for
+      b.classList.toggle('active', _imgLibSelMode); b.setAttribute('aria-pressed', _imgLibSelMode ? 'true' : 'false');
+  }
+  function selectAllShown() { _imgLibOrder.forEach(function(p) { _imgLibSel[p] = 1; }); tagLog('select-all', { pics: _imgLibOrder.length }); }
   // Campaign Cast picks live in their own bucket (cast = tokens, not images). Selecting one type clears the other, so the single selection bar always shows a single type.
   var _castSel = {}, _castOrder = [], _castLastPick = null;
   function renderImgSelBar() {
       var bar = document.getElementById('imgLibSelBar'); if (!bar) return;
       var n = Object.keys(_imgLibSel).length;
+      selectBtnSync();
+      var allB = '<button class="tool ghost" data-act="all" title="Pick every picture shown now">Select all shown</button>', doneB = _imgLibSelMode ? '<button class="tool ghost" data-act="done" title="A plain click looks at a picture again; what is picked stays picked">Done</button>' : '';
       if (_imgLibPicker === 'shared') {   // shared pictures are already every campaign's: nothing to bring
           bar.innerHTML = '<span style="color:var(--dim);">Shared pictures are available in every campaign already — find them under the Shared chip.</span><button class="tool ghost" data-act="back">← Back</button>';
           bar.style.display = 'flex'; return;
@@ -6216,7 +6232,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       if (_imgLibPicker) {   // bringing pictures in from another campaign or Unfiled
           var meC = getActiveCampaign();
           bar.innerHTML = '<span style="color:var(--gold);">' + (n ? n + ' picked' : 'Pick pictures to bring in') + '</span>'
-              + (n ? '<button class="tool" data-act="bring">Bring ' + n + ' into ' + esc((meC && meC.name) || 'this campaign') + '</button><button class="tool ghost" data-act="clear">Clear</button>' : '')
+              + (n ? '<button class="tool" data-act="bring">Bring ' + n + ' into ' + esc((meC && meC.name) || 'this campaign') + '</button>' : '') + allB + doneB + (n ? '<button class="tool ghost" data-act="clear">Clear</button>' : '')
               + '<button class="tool ghost" data-act="back">\u2190 Back</button>'
               + '<span style="color:var(--dim); font-size:11px; margin-left:auto;">Ctrl-click picks, Shift-click a run, Ctrl+A everything shown \u2014 nothing is copied, this campaign remembers them</span>';
           bar.style.display = 'flex'; return;
@@ -6230,11 +6246,17 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
               + '<span style="color:var(--dim); font-size:11px; margin-left:auto;">Ctrl-click picks, Shift-click a run</span>';
           bar.style.display = 'flex'; return;
       }
+      if (!n && _imgLibSelMode && !_imgLibPick) {   // Select is on and nothing is picked yet
+          bar.innerHTML = '<span style="color:var(--gold);">Click pictures to pick them</span>' + allB + doneB
+              + '<span style="color:var(--dim); font-size:11px; margin-left:auto;">Then Tags\u2026 gives them a tag, or takes one away, all at once</span>';
+          bar.style.display = 'flex'; return;
+      }
       if (!n || _imgLibPick) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
       var canPlace = state.viewMode === 'visual' && getActiveMap() && getActiveMap().type === 'map';
       bar.innerHTML = '<span style="color:var(--gold);">' + n + ' picked</span>'
           + '<button class="tool" data-act="add-map" title="Lay them out in a block at the centre of your view"' + (canPlace ? '' : ' disabled title="Open a play map first"') + '>Add ' + n + ' to map</button>'
-          + '<button class="tool ghost" data-act="cat">Tags\u2026</button>'
+          + '<button class="tool ghost" data-act="cat" title="Every tag, marked when all or some of them have it: a click gives it to all, or takes it from all">Tags\u2026</button>'
+          + allB + doneB
           + '<button class="tool ghost" data-act="clear">Clear</button>'
           + '<span style="color:var(--dim); font-size:11px; margin-left:auto;">Ctrl-click picks, Shift-click a run, Ctrl+A everything shown</span>';
       bar.style.display = 'flex';
@@ -6308,7 +6330,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   }
   window.wpPickImage = async function(cb) {
       _imgLibPick = cb;
-      _imgLibSel = {}; _imgLibLastPick = null; _imgLibPicker = null; _imgLibStash = null; _imgIndex = null; _imgLibScope = 'camp';
+      _imgLibSel = {}; _imgLibLastPick = null; _imgLibSelMode = false; _imgLibPicker = null; _imgLibStash = null; _imgIndex = null; _imgLibScope = 'camp';
       var copiesEl = document.getElementById('imgLibCopies'); if (copiesEl) copiesEl.value = castBatch();
       imgLibLift(true);
       document.getElementById('imgLibModal').style.display = 'flex';
@@ -6319,7 +6341,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   var _el_imgLibBtn = document.getElementById('imgLibBtn');
 
   if (_el_imgLibBtn) _el_imgLibBtn.addEventListener('click', async function() {
-      _imgLibSel = {}; _imgLibLastPick = null; _imgLibPicker = null; _imgLibStash = null; _imgIndex = null; _imgLibScope = 'camp';
+      _imgLibSel = {}; _imgLibLastPick = null; _imgLibSelMode = false; _imgLibPicker = null; _imgLibStash = null; _imgIndex = null; _imgLibScope = 'camp';
       var copiesEl = document.getElementById('imgLibCopies'); if (copiesEl) copiesEl.value = castBatch();
       document.getElementById('imgLibModal').style.display = 'flex';
       document.getElementById('imgLibGrid').innerHTML = '<div style="color:var(--dim); padding:20px;">Loading…</div>';
@@ -6348,7 +6370,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   if (_el_imgLibGrid) _el_imgLibGrid.addEventListener('click', function(e) {
       var cell = e.target.closest('.img-lib-cell');
       if (!cell) return;
-      if ((!_imgLibPick || _imgLibPicker) && !cell.classList.contains('cast-cell') && (e.ctrlKey || e.metaKey || e.shiftKey)) { e.preventDefault(); imgSelToggle(cell, e); return; }
+      if ((!_imgLibPick || _imgLibPicker) && !cell.classList.contains('cast-cell') && (e.ctrlKey || e.metaKey || e.shiftKey || (_imgLibSelMode && !e.target.closest('.img-cell-batch')))) { e.preventDefault(); imgSelToggle(cell, e); return; }   // backlog 34: with Select on a plain click picks too
       var batchBtn = e.target.closest('.img-cell-batch');
       if (batchBtn) { e.stopPropagation(); var copies = []; for (var ci = 0; ci < castBatch(); ci++) copies.push(batchBtn.dataset.src); placeImagesBlock(copies); return; }
       if (cell.classList.contains('cast-cell')) {

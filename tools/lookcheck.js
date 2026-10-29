@@ -3408,6 +3408,9 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && css.includes('  #imgLibCats .img-match { padding: 1px; gap: 1px; align-items: center; border-radius: 12px; margin-left: 4px; }') && css.includes('  #imgLibCats .img-match .seg-btn { padding: 1px 9px; font-size: 11px; border-radius: 10px; }')
         && css.includes('  .seg-control{') && tagC.includes("var b = el(doc, 'button', 'journal-from' + (o.active ? ' active' : '') + (o.cls ? ' ' + o.cls : ''), o.text);") && tagC.includes("cls: 'img-saved'")
         && tagC.includes("var b = el(doc, 'button', 'wb-tool-btn party-menu-item' + (o.cls ? ' ' + o.cls : ''), o.text);") && css.includes('  #imgCatMenu .party-menu-note {'));
+    check('Image Library tags: Select is the app\'s own ghost button in the search row, lit gold while on; the Tags list\'s marks have a column of their own; the bar\'s new buttons are the bar\'s own',
+        count(ix, 'id="imgLibSelectBtn"') === 1 && ix.includes('<button type="button" class="tool ghost" id="imgLibSelectBtn"') && css.includes('  #imgLibSelectBtn.active { color: var(--gold); border-color: var(--gold); background: rgba(212,175,55,0.08); }')
+        && css.includes('  #imgCatMenu .img-tag-state { display: inline-block; width: 14px; color: var(--gold); font-weight: 700; }') && css.includes('  .img-lib-cell.picked .img-lib-tag { left: 26px; max-width: calc(100% - 30px); }') && wbSrc.includes('\'<button class="tool ghost" data-act="all" title="Pick every picture shown now">Select all shown</button>\''));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

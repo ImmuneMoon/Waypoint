@@ -101,7 +101,7 @@ const ch = n => String.fromCharCode(n);
         try {
             T.drawRow(d, row, { scopes: [{ scope: 'camp', text: evil, count: 3, title: 't', active: true }, { scope: 'all', text: 'All campaigns', count: 9 }], imp: true, all: { count: 4, active: false }, bymap: false,
                 tags: [{ name: evil, store: 'camp', count: 2, active: true }, { name: 'Ships', store: 'shared', count: 1 }], none: { count: 5, active: false }, make: true, tools: { shelf: true, shared: false } });
-            T.drawMenu(d, menu, { scene: true, head: 'Add a tag', add: [{ name: evil, store: 'shared' }], from: evil, move: [{ name: 'Ships', store: 'camp' }] });
+            T.drawMenu(d, menu, { scene: true, head: 'Tags of 3 pictures', tags: [{ name: evil, store: 'shared', state: 'all', n: 3, of: 3 }, { name: 'Ships', store: 'camp', state: 'some', n: 1, of: 3 }, { name: 'Dock', store: 'camp', state: 'none', n: 0, of: 3 }], from: evil, move: [{ name: 'Ships', store: 'camp' }] });
         } catch (e) { err = String(e && e.stack || e); }
         const btns = walk(row).filter(n => n.tagName === 'BUTTON'), tagB = btns.find(b => b.dataset.cat === evil);
         check('the chip row (imgtagcore drawRow, run for real on a page that refuses markup): a tag\'s name and a campaign\'s name are text nodes, a chip names its tag in data-cat as written, the shared mark is its own span, what was there before is gone',
@@ -111,9 +111,12 @@ const ch = n => String.fromCharCode(n);
             && btns.every(b => b.type === 'button' && /\bjournal-from\b/.test(b.className)) && row.textContent.indexOf('No tag') >= 0 && row.textContent.indexOf('+ New tag') >= 0 && row.textContent.indexOf('Delete tag') >= 0,
             err || j(btns.map(b => [b.className, b.dataset, b.textContent])));
         const mb = walk(menu).filter(n => n.tagName === 'BUTTON');
-        check('the tag menu (drawMenu): Show as a scene, the tags to add, a new tag, and inside a tag\'s view Move and Remove, every name a text node and named in data-cat as written',
-            !err && textOnly(menu) && j(mb.map(b => b.dataset.act)) === j(['scene', 'add', 'new-add', 'move', 'new-move', 'remove']) && mb[1].dataset.cat === evil && mb[1].childNodes[0].nodeValue === evil && mb[5].dataset.cat === evil
-            && walk(menu).filter(n => n.className === 'party-menu-head').map(n => n.textContent).join('|') === 'Add a tag|Move from ' + evil + ' to' && mb.every(b => /party-menu-item/.test(b.className)), j(mb.map(b => b.dataset)));
+        const marks = mb.filter(b => b.dataset.act === 'toggle').map(b => [b.querySelector('.img-tag-state').textContent, b.attrs['aria-pressed'], b.querySelector('.img-tag-some') ? b.querySelector('.img-tag-some').textContent : '', b.title]);
+        check('the tag menu (drawMenu; the owner: "Add a Select button (Recommended)" with a Tags list that adds to all or takes from all): Show as a scene, every tag a toggle marked with a check when all have it, a dash and how many when some do, nothing when none, a new tag, and inside a tag\'s view Move and Remove; every name a text node, named in data-cat as written',
+            !err && textOnly(menu) && j(mb.map(b => b.dataset.act)) === j(['scene', 'toggle', 'toggle', 'toggle', 'new-add', 'move', 'new-move', 'remove']) && mb[1].dataset.cat === evil && mb[1].childNodes[1].nodeValue === evil + ' ' + ch(0x25c7) && mb[7].dataset.cat === evil
+            && j(marks.map(x => x.slice(0, 3))) === j([[ch(0x2713), 'true', ''], [ch(0x2013), 'mixed', '1 of 3'], ['', 'false', '']]) && marks[0][3] === 'All 3 have it. Click to take it from all' && marks[1][3] === '1 of 3 have it. Click to give it to all' && marks[2][3] === 'None has it. Click to give it to all 3'
+            && walk(menu).filter(n => n.className === 'party-menu-head').map(n => n.textContent).join('|') === 'Tags of 3 pictures|Move from ' + evil + ' to' && mb.every(b => /party-menu-item/.test(b.className))
+            && T.tagState(0, 3) === 'none' && T.tagState(2, 3) === 'some' && T.tagState(3, 3) === 'all' && T.tagState(1, 1) === 'all', j(marks));
         const cell = d.createElement('div'); cell.dataset.src = '/a.png'; cell.dataset.name = 'a.png'; cell.appendChild(d.createElement('img')); cell.appendChild(d.createElement('div'));
         T.cellTags(d, cell, [evil, 'Ships'], true, 'right-click to tag it'); T.cellTags(d, cell, [evil, 'Ships'], true, 'right-click to tag it');
         const lab = cell.querySelectorAll('.img-lib-tag');
@@ -157,6 +160,19 @@ const ch = n => String.fromCharCode(n);
         check('Help says how to filter by several tags, what the words match, how to save, rename, delete and bring in a saved filter, and both release notes say it',
             ix.includes('<kbd>Ctrl</kbd>-click more. <b>Match</b> beside them') && ix.includes('Each word must be in the picture&rsquo;s name, its map or its tags.') && ix.includes('<li><b>Save this filter&hellip;</b> under <b>Saved</b>') && ix.includes('Only the ones you take come in.')
             && [readRoot('WHATSNEW.txt'), readU('assets/whatsnew.txt')].every(t => t.includes('- Filter by several tags: pick a tag\'s chip, then Ctrl-click more.') && t.includes('- Save a filter by name: Save this filter... keeps the tags, the switch')));
+        const om2 = between(wb, '  function openImgCatMenu(', '  function hideImgCatMenu()'), bar = between(wb, '  function renderImgSelBar() {', '  function castCells()');
+        check('the Tags list: each tag with how many of the pictures have it (tagState); its click takes the tag from all when all have it, else gives it to all; a right-click on a picked picture speaks for all the picked',
+            om2.includes("return { name: c.name, store: c.store, state: TagCore.tagState(n, paths.length), n: n, of: paths.length };") && om2.includes("head: many ? 'Tags of ' + paths.length + ' pictures' : 'Tags', tags: tags,")
+            && wb.includes("if (act === 'toggle') { var tps = Array.isArray(src) ? src : [src]; imgCatChange(src, tps.every(function(p) { return imgCatsOf(p).indexOf(cat) >= 0; }) ? 'remove' : 'add', cat); return; }")
+            && wb.includes("openImgCatMenu(_imgLibSel[cell.dataset.src] && pickedN.length > 1 ? pickedN : cell.dataset.src, e.clientX, e.clientY);"));
+        check('Select: a button of the app\'s own beside the search box, a switch (aria-pressed) that makes a plain click pick, never the copies button; hidden while one picture is chosen for a block; off each time the library opens; Select all shown and Done on the bar, Ctrl+A the same pick; each logs',
+            ix.includes('<button type="button" class="tool ghost" id="imgLibSelectBtn" aria-pressed="false"') && wb.includes("(e.ctrlKey || e.metaKey || e.shiftKey || (_imgLibSelMode && !e.target.closest('.img-cell-batch')))")
+            && wb.includes("b.style.display = _imgLibPick && !_imgLibPicker ? 'none' : '';") && (wb.match(/_imgLibSel = \{\}; _imgLibLastPick = null; _imgLibSelMode = false;/g) || []).length === 2
+            && bar.includes('data-act="all"') && bar.includes('data-act="done"') && bar.includes('Click pictures to pick them') && wb.includes("else if (b.dataset.act === 'all') { selectAllShown();") && wb.includes("else if (b.dataset.act === 'done') { _imgLibSelMode = false;")
+            && (wb.match(/selectAllShown\(\);/g) || []).length === 2 && wb.includes("tagLog('select-all', { pics: _imgLibOrder.length })") && wb.includes("tagLog('select', { on: _imgLibSelMode })"));
+        check('Help says how to pick many and what the marks of the Tags list mean, and both release notes say it',
+            ix.includes('press <b>Select</b> beside the search box. A plain click then picks a picture, and <b>Select all shown</b> picks every one in view.') && ix.includes('A tick means every picked picture has it. A short line means only some do.')
+            && [readRoot('WHATSNEW.txt'), readU('assets/whatsnew.txt')].every(t => t.includes('- Tag many pictures at once. Select beside the search box makes a plain')));
         const steps = ['tag-new', 'tag-shelf', 'tag-share', 'tag-rename', 'tag-delete'];
         check('every step of a tag logs as imglib v1, with counts and a store\'s kind only (stepLog cleans the rest)', wb.includes("function tagLog(step, facts) { if (window.wpStepLog) window.wpStepLog('imglib v1', step, facts); }")
             && steps.every(s => wb.includes("tagLog('" + s + "'")) && wb.includes("tagLog('tag-' + act, { pics: many ? path.length : 1 });") && !/tagLog\([^)]*name\s*[,}]/.test(wb));

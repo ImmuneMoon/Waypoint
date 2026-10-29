@@ -141,7 +141,7 @@ function drawRow(doc, row, m) {
     row.appendChild(chip(doc, { text: 'By map', active: m.bymap, cat: '__bymap', title: 'Grouped under the map, planner or page each picture was uploaded from' }));
     m.tags.forEach(function(t) {
         var sh = t.store === 'shared';
-        row.appendChild(chip(doc, { text: t.name, count: t.count, active: t.active, cat: t.name, cls: sh ? 'img-cat-shared' : '', mark: sh ? '\u25c7' : '', title: (sh ? 'A shared tag: every campaign sees it' : 'This campaign\'s tag') + '. Ctrl-click to add it to the tags you filter by' }));
+        row.appendChild(chip(doc, { text: t.name, count: t.count, active: t.active, cat: t.name, cls: sh ? 'img-cat-shared' : '', mark: sh ? '\u25C7' : '', title: (sh ? 'A shared tag: every campaign sees it' : 'This campaign\'s tag') + '. Ctrl-click to add it to the tags you filter by' }));
     });
     row.appendChild(chip(doc, { text: 'No tag', count: m.none.count, active: m.none.active, cat: '__none', title: 'Pictures with no tag' }));
     if (m.match) {
@@ -200,14 +200,26 @@ function menuItem(doc, o) {
     if (o.mark) b.appendChild(doc.createTextNode(' ' + o.mark));
     return b;
 }
-/* The tag menu of one picture or of the picked set. m: { scene: true for Show as a scene\u2026, head, add: [{ name, store }], from: '' or the
-   one tag in view, move: [{ name, store }] } */
+/* The tag menu of one picture or of the picked set (the owner, by prompt: "Add a Select button (Recommended)", with a Tags\u2026 list that adds
+   to all or takes from all). m: { scene: true for Show as a scene\u2026, head, tags: [{ name, store, state: 'all' | 'some' | 'none', n, of }],
+   from: '' or the one tag in view, move: [{ name, store }] }. A tag's row is a toggle: the caller takes it from all when every picture
+   has it, else gives it to all. */
+var STATE_MARK = { all: '\u2713', some: '\u2013', none: '' };
+function tagState(n, of) { return n <= 0 ? 'none' : n >= of ? 'all' : 'some'; }
 function drawMenu(doc, menu, m) {
     while (menu.firstChild) menu.removeChild(menu.firstChild);
-    var tagRow = function(act) { return function(t) { menu.appendChild(menuItem(doc, { text: t.name, act: act, cat: t.name, mark: t.store === 'shared' ? '\u25c7' : '' })); }; };
+    var tagRow = function(act) { return function(t) { menu.appendChild(menuItem(doc, { text: t.name, act: act, cat: t.name, mark: t.store === 'shared' ? '\u25C7' : '' })); }; };
     if (m.scene) menu.appendChild(menuItem(doc, { text: 'Show as a scene\u2026', act: 'scene', title: 'Show this picture big to everyone or to some players' }));
-    menu.appendChild(el(doc, 'div', 'party-menu-head', m.head));
-    (m.add || []).forEach(tagRow('add'));
+    var head = el(doc, 'div', 'party-menu-head', m.head); head.title = 'A click gives a tag to all of them, or takes it from all when they all have it'; menu.appendChild(head);
+    (m.tags || []).forEach(function(t) {
+        var st = STATE_MARK[t.state] !== undefined ? t.state : 'none', b = menuItem(doc, { text: '', act: 'toggle', cat: t.name, cls: 'img-tag-row img-tag-' + st });
+        var mk = el(doc, 'span', 'img-tag-state', STATE_MARK[st]); mk.setAttribute('aria-hidden', 'true'); b.appendChild(mk);
+        b.appendChild(doc.createTextNode(t.name + (t.store === 'shared' ? ' \u25C7' : '')));
+        if (st === 'some') b.appendChild(el(doc, 'span', 'img-tag-some', t.n + ' of ' + t.of));
+        b.title = st === 'all' ? (t.of > 1 ? 'All ' + t.of + ' have it. Click to take it from all' : 'It has this tag. Click to take it off') : st === 'some' ? t.n + ' of ' + t.of + ' have it. Click to give it to all' : (t.of > 1 ? 'None has it. Click to give it to all ' + t.of : 'Click to give it this tag');
+        b.setAttribute('aria-pressed', st === 'all' ? 'true' : st === 'some' ? 'mixed' : 'false');
+        menu.appendChild(b);
+    });
     menu.appendChild(menuItem(doc, { text: '+ New tag\u2026', act: 'new-add' }));
     if (m.from) {
         menu.appendChild(el(doc, 'div', 'party-menu-head', 'Move from ' + m.from + ' to'));
@@ -236,6 +248,6 @@ function previewTags(doc, box, mapName, tags) {
 
 var API = { LIMITS: LIMITS, RESERVED: RESERVED, tagName: tagName, pathKey: pathKey, filterWords: filterWords, cleanFilter: cleanFilter, cleanFilters: cleanFilters, cleanStore: cleanStore, storeEmpty: storeEmpty, mergeStores: mergeStores,
     matchTags: matchTags, words: words, matchWords: matchWords, sameFilter: sameFilter, freeName: freeName,
-    chip: chip, drawRow: drawRow, drawFilterMenu: drawFilterMenu, menuItem: menuItem, drawMenu: drawMenu, cellTags: cellTags, previewTags: previewTags };
+    chip: chip, drawRow: drawRow, drawFilterMenu: drawFilterMenu, menuItem: menuItem, tagState: tagState, drawMenu: drawMenu, cellTags: cellTags, previewTags: previewTags };
 if (typeof window !== 'undefined') window.wpImgTagCore = API;
-export { LIMITS, RESERVED, tagName, pathKey, filterWords, cleanFilter, cleanFilters, cleanStore, storeEmpty, mergeStores, matchTags, words, matchWords, sameFilter, freeName, chip, drawRow, drawFilterMenu, menuItem, drawMenu, cellTags, previewTags };
+export { LIMITS, RESERVED, tagName, pathKey, filterWords, cleanFilter, cleanFilters, cleanStore, storeEmpty, mergeStores, matchTags, words, matchWords, sameFilter, freeName, chip, drawRow, drawFilterMenu, menuItem, tagState, drawMenu, cellTags, previewTags };

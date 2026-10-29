@@ -4058,6 +4058,11 @@
   #imgLibCats .img-saved.active { color: var(--gold); }
   #imgLibCats .img-saved-none { color: var(--dim); font-size: 11px; margin-right: 4px; }
   #imgCatMenu .party-menu-note { color: var(--dim); font-size: 11px; padding: 4px 10px 6px; }
+  /* backlog 34: Select, and the tag rows of the Tags list with their mark (all, some, none) */
+  #imgLibSelectBtn.active { color: var(--gold); border-color: var(--gold); background: rgba(212,175,55,0.08); }
+  #imgCatMenu .img-tag-state { display: inline-block; width: 14px; color: var(--gold); font-weight: 700; }
+  #imgCatMenu .img-tag-some { color: var(--dim); font-size: 10.5px; margin-left: 6px; }
+  .img-lib-cell.picked .img-lib-tag { left: 26px; max-width: calc(100% - 30px); }   /* the picked mark sits in the corner the label starts in */
   #imgCatMenu .party-menu-head { color: var(--dim); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 6px 10px 2px; }
   #imgCatMenu .party-menu-item { width: 100%; border-radius: 0; font-size: 12px; height: auto; padding: 8px 10px; text-align: left; }
   #imgCatMenu .party-menu-item.on { color: var(--gold); }

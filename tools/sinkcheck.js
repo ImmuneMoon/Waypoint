@@ -5620,13 +5620,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         let err = '';
         try {
             ITs.drawRow(d, row, { scopes: [], all: { count: 1 }, tags: st.list.map(n => ({ name: n, store: 'camp', count: 1, active: true })), none: { count: 0 }, make: true, tools: { shelf: false, shared: false } });
-            ITs.drawMenu(d, menu, { head: 'Add a tag', add: st.list.map(n => ({ name: n, store: 'shared' })), from: st.list[0], move: [] });
+            ITs.drawMenu(d, menu, { head: 'Tags of 2 pictures', tags: st.list.map(n => ({ name: n, store: 'shared', state: 'some', n: 1, of: 2 })), from: st.list[0], move: st.list.map(n => ({ name: n, store: 'camp' })) });
             ITs.cellTags(d, cell, st.by['/saves/images/m/a.png'], true, ''); ITs.previewTags(d, meta, evil, st.list);
         } catch (e) { err = String(e && e.stack || e); }
         const nodes = []; [row, menu, cell, meta].forEach(n => (function w(x) { nodes.push(x); (x.childNodes || []).forEach(w); })(n));
         const wbT = fs.readFileSync(path.join(dir, 'whiteboard.js'), 'utf8');
         check('backlog 34 the Image Library tags from a campaign file (imgtagcore cleanStore, then drawRow, drawMenu, cellTags and previewTags run for real on a page that refuses markup): a name is text in every place, the chip row\'s own words are no tag, a key that is no path is dropped; whiteboard.js draws them through the core',
-            !err && st.list.length === 1 && Object.keys(st.by).length === 1 && nodes.every(n => n.nodeType === 3 || n.nodeType === 1) && nodes.some(n => n.nodeType === 3 && n.nodeValue === st.list[0])
+            !err && st.list.length === 1 && Object.keys(st.by).length === 1 && nodes.every(n => n.nodeType === 3 || n.nodeType === 1) && nodes.some(n => n.nodeType === 3 && n.nodeValue === st.list[0]) && menu.querySelectorAll('button').some(b => b.dataset.act === 'toggle' && b.dataset.cat === st.list[0])
             && wbT.includes('TagCore.drawRow(document, row, m);') && wbT.includes('TagCore.drawMenu(document, menu,') && wbT.includes('TagCore.cellTags(document, cell,') && wbT.includes('TagCore.previewTags(document,'), err || JSON.stringify(st));
     }
     summed = true;

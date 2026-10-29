@@ -15,6 +15,13 @@ Image Library tags
   and the words as a chip under Saved. Saved filters are kept with the
   campaign. Import from another campaign... brings in another campaign's
   saved filter when you want it.
+- Tag many pictures at once. Select beside the search box makes a plain
+  click pick a picture, and Select all shown picks every one in view.
+  Tags... on the bar lists every tag: a check mark when every picked
+  picture has it, a dash when some do. A click gives the tag to all of
+  them, or takes it from all when they all have it. Right-click a picked
+  picture for the same list. Ctrl-click, Shift-click and Ctrl+A still
+  pick as before.
 
 Campaigns
 - A new campaign opens on an empty screen that says it has no map yet,

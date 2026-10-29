@@ -610,6 +610,8 @@
                                   <li>To filter by several tags, pick a tag&rsquo;s chip, then <kbd>Ctrl</kbd>-click more. <b>Match</b> beside them shows the pictures with <b>all</b> of them, or with <b>any</b> of them. <kbd>Ctrl</kbd>-click a picked tag to take it off.</li>
                                   <li>Words in the search box narrow what shows. Each word must be in the picture&rsquo;s name, its map or its tags.</li>
                                   <li><b>Save this filter&hellip;</b> under <b>Saved</b> keeps the picked tags, the switch and the words by a name. Its chip shows them again. Pick it and the tools under it rename or delete it. Saved filters are kept with the campaign, and a campaign file carries them.</li>
+                                  <li>To tag many pictures at once, press <b>Select</b> beside the search box. A plain click then picks a picture, and <b>Select all shown</b> picks every one in view. <b>Done</b> ends it. <kbd>Ctrl</kbd>-click, <kbd>Shift</kbd>-click and <kbd>Ctrl</kbd> + <kbd>A</kbd> pick too.</li>
+                                  <li><b>Tags&hellip;</b> on the bar lists every tag. A tick means every picked picture has it. A short line means only some do. A click gives the tag to all of them, or takes it from all when they all have it. Right-click a picked picture for the same list. One picture&rsquo;s right-click menu works the same way.</li>
                                   <li><b>Import from another campaign&hellip;</b> beside them brings in a saved filter of another campaign of yours. Only the ones you take come in. A tag it names that this campaign lacks is made here, with no pictures yet.</li>
                                   <li>Each step is written to <b>saves/error.log</b>, as imglib v1 lines: what was done and how many pictures, never a tag&rsquo;s name.</li>
                               </ul>
@@ -4132,6 +4134,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Image Library <button id="imgLibCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
             <input type="text" id="imgLibSearch" placeholder="Filter by name, map or tag&hellip;" style="flex:1; min-width:0; box-sizing:border-box;">
+            <button type="button" class="tool ghost" id="imgLibSelectBtn" aria-pressed="false" title="Pick pictures with a plain click, to tag them or add them all at once. Ctrl-click, Shift-click and Ctrl+A pick too">Select</button>
             <span id="imgLibSourceWrap" style="display:none; align-items:center; gap:6px;"><label style="font-size:12px; color:var(--dim); display:inline-flex; align-items:center; gap:6px;">From <select id="imgLibSource" class="tool" title="Whose pictures to pick from"></select></label></span>
             <label class="cast-batch-wrap" title="How many copies a picture's &times; button (or Add to map in the preview) places, 1 to 50 &mdash; remembered">Copies <input type="number" id="imgLibCopies" class="cast-batch" min="1" max="50" value="1"></label>
         </div>
@@ -4156,7 +4159,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         </div>
         <div id="imgCatMenu" class="shape-menu" style="display:none; position:fixed; flex-direction:column; min-width:180px; z-index:100001;"></div>
         <div id="imgLibSelBar" style="display:none; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap;"></div>
-        <div style="color:var(--dim); font-size:11px; margin-top:10px;">The chips at the top pick whose pictures you see: this campaign's (uploaded from its maps, planners and pages, used by them, or brought in), Shared, Unfiled, or every campaign's. Click an image for a large preview, then Add to map. Ctrl-click to pick several (Shift-click for a run), then add them all or tag them at once. Right-click one to give it a tag. The &times; on a picture drops the number set in Copies.</div>
+        <div style="color:var(--dim); font-size:11px; margin-top:10px;">The chips at the top pick whose pictures you see: this campaign's (uploaded from its maps, planners and pages, used by them, or brought in), Shared, Unfiled, or every campaign's. Click an image for a large preview, then Add to map. Press Select, or Ctrl-click, to pick several (Shift-click for a run), then add them all or tag them at once. Right-click one to give it a tag. The &times; on a picture drops the number set in Copies.</div>
     </div>
 </div>
 

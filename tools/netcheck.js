@@ -1121,6 +1121,13 @@ pendingChecks.push((async () => {
     check('a session is one campaign: the join snapshot and the stream window carry the hosted campaign alone — never the GM\'s other games, their names, maps or planners; an active campaign that is no campaign of theirs (a prototype\'s name, one gone) carries none; the GM\'s own state is left as it was',
         JSON.stringify(Object.keys(forP.campaigns)) === '["k1"]' && forP.campaigns.k1.items.m1.whiteboard.length === 1 && JSON.stringify(Object.keys(forStream.campaigns)) === '["k1"]' && !/Secret game|orc_m2|p2/.test(JSON.stringify(forP)) && forP._schema === 2
         && JSON.stringify(odd.campaigns) === '{}' && JSON.stringify(none.campaigns) === '{}' && JSON.stringify(Object.keys(kept.campaigns)) === '["k1","k2"]', JSON.stringify([Object.keys(forP.campaigns), Object.keys(forStream.campaigns), odd.campaigns, none.campaigns]));
+    // 1.6.0 backlog 34: the Image Library's tags are the GM's own. The shared store and the hosted campaign's (its tags, the pictures they are on,
+    // a shelf and its saved filters) are in no join snapshot and no stream window's copy, and the GM's own state keeps them
+    const tg = () => { const s = gm(); s.imageCats = { list: ['SharedTagQ'], by: { '/saves/images/m1/a.png': ['SharedTagQ'] }, shelf: { SharedTagQ: true } };
+        s.campaigns.k1.imageCats = { list: ['VillainTagQ'], by: { '/saves/images/m1/b.png': ['VillainTagQ'] }, shelf: {}, filters: [{ name: 'SavedFilterQ', tags: ['VillainTagQ'], match: 'all', words: 'docksQ' }] }; return s; };
+    const tgP = JSON.stringify(SA(tg(), 'u_p')), tgS = JSON.stringify(SA(tg())), tgKept = tg(); SA(tgKept, 'u_p');
+    check('backlog 34 the Image Library tags never leave (the real sanitizeAppState): no tag, no picture it is on, no shelf and no saved filter in a player\'s snapshot or the stream window\'s, of the shared store or the hosted campaign\'s; the GM\'s own state keeps both',
+        ![tgP, tgS].some(t => /imageCats|SharedTagQ|VillainTagQ|SavedFilterQ|docksQ/.test(t)) && !!tgKept.imageCats && tgKept.campaigns.k1.imageCats.filters.length === 1, [tgP.slice(0, 300)]);
 }
 // 1.5.5, a list placed once a category (the review of that fold): a placement's categories in the join snapshot and the stream window are judged as a
 // list's own are (Stage 6 F4b), so a category only GM-only things carry never reaches a player — the real sanitizeAppState with the real systemcore

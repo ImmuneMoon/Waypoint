@@ -816,6 +816,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 d: { id: 'd', type: 'doc', meta: { title: 'D' }, blocks: [{ id: 'db', type: 'h3', title: 'T' }] } } } } });
             const wf = run(() => loadNorm(wellFormed()));
             check('load: a save that was already well formed comes through byte for byte, not marked changed (no "Save upgraded" note)', !wf.err && !!wf.v && wf.v.changed === false && jl(wf.v.data) === jl(wellFormed()), wf.err || jl(wf.v));
+            // 1.6.0 backlog 34: the Image Library's tags are cleaned on every way in, by the load's own normaliser with the real imgtagcore (a
+            // Replace runs it on the file first): a name from a file is text, the chip row's own words are no tag, a key is a path, an empty
+            // shared store stays (the classifier reads one as a mark), and a store that is already clean comes through as it was
+            {
+                const ITCm = await import(surl('imgtagcore.js'));
+                const tagWin = Object.assign({}, loadWin, { wpImgTagCore: ITCm });
+                const tagNorm = new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', '"use strict";\n' + ioSrc.slice(mi, mk) + '\nreturn migrateAppState;')(
+                    tagWin, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} }));
+                const bad = '<b onmouseover=x>Night' + String.fromCharCode(0x202e, 7) + '</b>';
+                const tagFile = () => { const w = wellFormed(); w.imageCats = { list: [], by: {}, shelf: {} }; w.campaigns.c.imageCats = JSON.parse(jl({ list: [bad, '__none', 'Docks', 7], by: { '/saves/images/m/a.png': [bad, 'Gone'], 'x.png': ['Docks'], '/saves/images/m/b.png': 'Docks' }, shelf: { Docks: 1, Gone: true } })); return w; };
+                const tl = run(() => tagNorm(tagFile())), tc = tl.v && tl.v.data && tl.v.data.campaigns.c.imageCats, clean = ITCm.tagName(bad);
+                const tr = run(() => cleanImport(tagFile(), { migrate: d => tagNorm(d).data, DR: DOC, sanitize, FC: FCj })), trc = tr.v && tr.v.campaigns && tr.v.campaigns.c.imageCats;
+                const kept0 = () => { const w = wellFormed(); w.campaigns.c.imageCats = { list: ['Docks'], by: { '/saves/images/m/b.png': ['Docks'] }, shelf: {} }; return w; };
+                const tk = run(() => tagNorm(kept0()));
+                check('backlog 34 the Image Library tags on the way in (the real migrateAppState with the real imgtagcore, on a load and on a Replace): a name from a file is cleaned text, the chip row\'s own words and a name that is no text are no tag, a key that is no path and a tag the store does not list are dropped, an empty shared store stays, a clean store comes through as it was',
+                    !tl.err && !!tc && jl(tc) === jl({ list: [clean, 'Docks'], by: { '/saves/images/m/a.png': [clean], '/saves/images/m/b.png': ['Docks'] }, shelf: { Docks: true } }) && clean.indexOf(String.fromCharCode(7)) < 0
+                    && !!tl.v.data.imageCats && jl(tl.v.data.imageCats) === jl({ list: [], by: {}, shelf: {} }) && !tr.err && jl(trc) === jl(tc)
+                    && !tk.err && jl(tk.v.data) === jl(kept0()) && tk.v.changed === false, tl.err || tr.err || tk.err || jl([tc, trc]));
+            }
             // R3 (the 1.4.9 -> 1.5.0 upgrade path, 2026-10-01): a whole save from before 1.5.0 (no _schema, no per-campaign vtt set, none of the
             // 1.5.0 keys: system, chars, fog, music, videos, clock, library, uploads) loads through the real migrateAppState with a wpVtt present —
             // every old thing kept, the VTT feature set filled once per campaign, the schema stamped, nothing of 1.5.0 invented, and silently

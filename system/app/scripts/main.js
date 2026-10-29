@@ -716,7 +716,8 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
           }
           // the picture library's per-campaign bookkeeping merges too (brought-in pictures and categories)
           if (Array.isArray(ic.pictures)) { existing.pictures = Array.isArray(existing.pictures) ? existing.pictures : []; ic.pictures.forEach(function(p) { if (existing.pictures.indexOf(p) < 0) existing.pictures.push(p); }); }
-          if (ic.imageCats && typeof ic.imageCats === 'object') {
+          if (ic.imageCats && typeof ic.imageCats === 'object' && window.wpImgTagCore) { var mgT = window.wpImgTagCore.mergeStores(existing.imageCats, ic.imageCats); if (mgT && !window.wpImgTagCore.storeEmpty(mgT)) existing.imageCats = mgT; else delete existing.imageCats; }   // 1.6.0 backlog 34: the tags merge through their cleaner
+          else if (ic.imageCats && typeof ic.imageCats === 'object') {
               var ec = existing.imageCats && typeof existing.imageCats === 'object' ? existing.imageCats : (existing.imageCats = { list: [], by: {}, shelf: {} });
               ec.list = Array.isArray(ec.list) ? ec.list : []; ec.by = ec.by && typeof ec.by === 'object' ? ec.by : {}; ec.shelf = ec.shelf && typeof ec.shelf === 'object' ? ec.shelf : {};
               (ic.imageCats.list || []).forEach(function(n) { if (ec.list.indexOf(n) < 0) ec.list.push(n); });

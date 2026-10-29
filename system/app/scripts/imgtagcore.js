@@ -1,0 +1,153 @@
+/* The Image Library's tags (1.6.0, backlog 34; the owner, by prompt: "Categories become Tags (Recommended)"). A tag is what the library
+   called a category: a name a picture may wear, several at once, kept in one of two stores of one shape
+   { list: [names], by: { path: [names] }, shelf: { name: true } }: appState.imageCats (the shared tags, every campaign sees them) and
+   camp.imageCats (the campaign's own). Both are the GM's bookkeeping and never leave this machine (net.js sanitizeAppState deletes them,
+   cleanup.js STRIPPED).
+   cleanStore is the one cleaner of a store, run on every way in (the load's normaliser in io.js, which a Replace and a Merge run on the
+   file first, and main.js's Merge of a campaign's store through mergeStores): names are text, cut to LIMITS.name, with no control or
+   direction characters, unique, and never one of the chip row's own words (RESERVED); a picture's key is a path the app could have made;
+   a picture's tags are names the store lists.
+   drawRow, drawMenu, cellTags and previewTags draw tag names as text nodes only, on any document (the app's, or tools/boxdom.js, which
+   refuses markup). Pure but for the document it is handed. Published as window.wpImgTagCore. */
+
+var LIMITS = { name: 40, tags: 400, pics: 20000, perPic: 60, path: 1024 };
+var RESERVED = ['__none', '__bymap'];   // the chip row's own values for No tag and By map: no tag may be named either
+var BAD = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/g;
+function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+function cut(s, n) { var a = Array.from(s); return a.length > n ? a.slice(0, n).join('') : s; }
+// a tag's name as the app keeps it, or '' when nothing is left
+function tagName(s) {
+    if (typeof s !== 'string') return '';
+    var t = cut(s.replace(BAD, ' ').replace(/\s+/g, ' ').trim(), LIMITS.name).trim();
+    return RESERVED.indexOf(t) >= 0 ? '' : t;
+}
+// a picture's key: a path of the saves folder or the app, as the library lists one
+function pathKey(p) { return typeof p === 'string' && p.length > 1 && p.length <= LIMITS.path && p.charAt(0) === '/' && !/[\u0000-\u001f\u007f]/.test(p); }
+function names(v) { return Array.isArray(v) ? v : typeof v === 'string' ? [v] : []; }
+// One store cleaned; null for what is no store at all
+function cleanStore(c) {
+    if (!isObj(c)) return null;
+    var out = { list: [], by: {}, shelf: {} }, seen = Object.create(null), was = Object.create(null);
+    names(c.list).forEach(function(raw) {
+        var n = tagName(raw); if (!n || out.list.length >= LIMITS.tags) return;
+        if (typeof raw === 'string') was[raw] = n;
+        if (!seen[n]) { seen[n] = 1; out.list.push(n); }
+    });
+    var by = isObj(c.by) ? c.by : {}, pics = 0;
+    Object.keys(by).forEach(function(p) {
+        if (!pathKey(p) || pics >= LIMITS.pics) return;
+        var got = [];
+        names(by[p]).forEach(function(raw) { var n = typeof raw === 'string' ? (own(was, raw) ? was[raw] : tagName(raw)) : ''; if (n && seen[n] && got.indexOf(n) < 0 && got.length < LIMITS.perPic) got.push(n); });
+        if (got.length) { out.by[p] = got; pics++; }
+    });
+    var shelf = isObj(c.shelf) ? c.shelf : {};
+    Object.keys(shelf).forEach(function(raw) { var n = own(was, raw) ? was[raw] : tagName(raw); if (n && seen[n] && shelf[raw]) out.shelf[n] = true; });
+    return out;
+}
+function storeEmpty(c) { return !c || (!c.list.length && !Object.keys(c.by).length && !Object.keys(c.shelf).length); }
+// A Merge of a file's store into this campaign's: the file's tags join, a picture keeps its tags and gains the file's, a shelf stays on
+function mergeStores(dst, src) {
+    var a = cleanStore(dst) || { list: [], by: {}, shelf: {} }, b = cleanStore(src);
+    if (!b) return a;
+    b.list.forEach(function(n) { if (a.list.indexOf(n) < 0 && a.list.length < LIMITS.tags) a.list.push(n); });
+    Object.keys(b.by).forEach(function(p) { var d = a.by[p] || []; b.by[p].forEach(function(n) { if (a.list.indexOf(n) >= 0 && d.indexOf(n) < 0 && d.length < LIMITS.perPic) d.push(n); }); if (d.length) a.by[p] = d; });
+    Object.keys(b.shelf).forEach(function(n) { if (a.list.indexOf(n) >= 0) a.shelf[n] = true; });
+    return cleanStore(a);
+}
+
+/* ---- drawing: elements and text nodes only ---- */
+function el(doc, tag, cls, text) { var e = doc.createElement(tag); if (cls) e.className = cls; if (text !== undefined && text !== null && text !== '') e.appendChild(doc.createTextNode(String(text))); return e; }
+function data(e, k, v) { e.dataset[k] = String(v); return e; }
+// a chip: { text, count?, active?, title?, cls?, cat?, scope?, act?, mark? }
+function chip(doc, o) {
+    var b = el(doc, 'button', 'journal-from' + (o.active ? ' active' : '') + (o.cls ? ' ' + o.cls : ''), o.text);
+    b.type = 'button';
+    if (o.title) b.title = o.title;
+    if (o.cat !== undefined) data(b, 'cat', o.cat);
+    if (o.scope !== undefined) data(b, 'scope', o.scope);
+    if (o.act !== undefined) data(b, 'act', o.act);
+    if (o.mark) { var m = el(doc, 'span', 'img-cat-mark', o.mark); m.setAttribute('aria-hidden', 'true'); b.appendChild(m); }
+    if (typeof o.count === 'number') { b.appendChild(doc.createTextNode(' ')); b.appendChild(el(doc, 'span', 'journal-count', String(o.count))); }
+    return b;
+}
+/* The chip row above the grid. m: { scopes: [{ scope, text, count, title, active }] (none in the picker), imp: true for Import from
+   another campaign\u2026, all: { count, active }, bymap: active, tags: [{ name, store, count, active }], none: { count, active }, make: true
+   for + New tag and + New shared tag, tools: null or { shelf, shared } for the one tag in view } */
+function drawRow(doc, row, m) {
+    while (row.firstChild) row.removeChild(row.firstChild);
+    if (m.scopes && m.scopes.length) {
+        row.appendChild(el(doc, 'span', 'journal-chip-label', 'Pictures'));
+        m.scopes.forEach(function(s) { row.appendChild(chip(doc, { text: s.text, count: s.count, title: s.title, active: s.active, scope: s.scope })); });
+        if (m.imp) row.appendChild(chip(doc, { text: 'Import from another campaign\u2026', cls: 'img-lib-import', act: 'picker', title: 'Pick pictures from another campaign, Shared or Unfiled and bring them into this one' }));
+        row.appendChild(el(doc, 'span', 'img-scope-break'));
+    }
+    row.appendChild(el(doc, 'span', 'journal-chip-label', 'Show'));
+    row.appendChild(chip(doc, { text: 'All', count: m.all.count, active: m.all.active, cat: '' }));
+    row.appendChild(chip(doc, { text: 'By map', active: m.bymap, cat: '__bymap', title: 'Grouped under the map, planner or page each picture was uploaded from' }));
+    m.tags.forEach(function(t) {
+        var sh = t.store === 'shared';
+        row.appendChild(chip(doc, { text: t.name, count: t.count, active: t.active, cat: t.name, cls: sh ? 'img-cat-shared' : '', mark: sh ? '\u25c7' : '', title: (sh ? 'A shared tag: every campaign sees it' : 'This campaign\'s tag') + '. Ctrl-click to add it to the tags you filter by' }));
+    });
+    row.appendChild(chip(doc, { text: 'No tag', count: m.none.count, active: m.none.active, cat: '__none', title: 'Pictures with no tag' }));
+    if (m.make) {
+        row.appendChild(chip(doc, { text: '+ New tag', cls: 'img-cat-new', act: 'new', title: 'Make a tag for this campaign' }));
+        row.appendChild(chip(doc, { text: '+ New shared tag', cls: 'img-cat-new', act: 'new-shared', title: 'Make a tag every campaign sees' }));
+    }
+    if (m.tools) {
+        var tl = el(doc, 'div', 'img-cat-tools');
+        tl.appendChild(chip(doc, { text: m.tools.shelf ? 'Own shelf: on' : 'Own shelf: off', cls: 'img-cat-tool', act: 'shelf', title: 'Own shelf: its pictures show under this chip only, not under All' }));
+        tl.appendChild(chip(doc, { text: m.tools.shared ? 'Shared \u2192 this campaign\'s' : 'Make shared', cls: 'img-cat-tool', act: 'share', title: m.tools.shared ? 'Make it this campaign\'s own: only this campaign sees it' : 'Make it shared: every campaign sees it' }));
+        tl.appendChild(chip(doc, { text: 'Rename', cls: 'img-cat-tool', act: 'rename', title: 'Rename this tag' }));
+        tl.appendChild(chip(doc, { text: 'Delete tag', cls: 'img-cat-tool danger', act: 'delete', title: 'Delete this tag (the pictures stay)' }));
+        row.appendChild(tl);
+    }
+    return row;
+}
+// a menu row: { text, act, cat?, cls?, title?, mark? }
+function menuItem(doc, o) {
+    var b = el(doc, 'button', 'wb-tool-btn party-menu-item' + (o.cls ? ' ' + o.cls : ''), o.text);
+    b.type = 'button';
+    data(b, 'act', o.act); if (o.cat !== undefined) data(b, 'cat', o.cat);
+    if (o.title) b.title = o.title;
+    if (o.mark) b.appendChild(doc.createTextNode(' ' + o.mark));
+    return b;
+}
+/* The tag menu of one picture or of the picked set. m: { scene: true for Show as a scene\u2026, head, add: [{ name, store }], from: '' or the
+   one tag in view, move: [{ name, store }] } */
+function drawMenu(doc, menu, m) {
+    while (menu.firstChild) menu.removeChild(menu.firstChild);
+    var tagRow = function(act) { return function(t) { menu.appendChild(menuItem(doc, { text: t.name, act: act, cat: t.name, mark: t.store === 'shared' ? '\u25c7' : '' })); }; };
+    if (m.scene) menu.appendChild(menuItem(doc, { text: 'Show as a scene\u2026', act: 'scene', title: 'Show this picture big to everyone or to some players' }));
+    menu.appendChild(el(doc, 'div', 'party-menu-head', m.head));
+    (m.add || []).forEach(tagRow('add'));
+    menu.appendChild(menuItem(doc, { text: '+ New tag\u2026', act: 'new-add' }));
+    if (m.from) {
+        menu.appendChild(el(doc, 'div', 'party-menu-head', 'Move from ' + m.from + ' to'));
+        (m.move || []).forEach(tagRow('move'));
+        menu.appendChild(menuItem(doc, { text: '+ New tag\u2026', act: 'new-move' }));
+        menu.appendChild(menuItem(doc, { text: 'Remove from ' + m.from, act: 'remove', cat: m.from, cls: 'danger' }));
+    }
+    return menu;
+}
+// A grid cell's tag label (the names joined) and its title, after the cell is drawn
+function cellTags(doc, cell, tags, label, hint) {
+    var old = cell.querySelector ? cell.querySelector('.img-lib-tag') : null; if (old) old.parentNode.removeChild(old);
+    var txt = tags.join(', ');
+    if (label && txt) cell.insertBefore(el(doc, 'span', 'img-lib-tag', txt), cell.childNodes[1] || null);
+    cell.title = (cell.dataset.name || '') + (txt ? ' \u00b7 ' + txt : '') + (hint ? ' \u2014 ' + hint : '');
+    return cell;
+}
+// The preview's lines: the map the picture came from and its tags
+function previewTags(doc, box, mapName, tags) {
+    while (box.firstChild) box.removeChild(box.firstChild);
+    var line = function(lead, v) { var d = el(doc, 'div', '', lead); d.appendChild(el(doc, 'b', '', v)); box.appendChild(d); };
+    if (mapName) line('Map: ', mapName);
+    line(tags.length === 1 ? 'Tag: ' : 'Tags: ', tags.length ? tags.join(', ') : 'none');
+    return box;
+}
+
+var API = { LIMITS: LIMITS, RESERVED: RESERVED, tagName: tagName, pathKey: pathKey, cleanStore: cleanStore, storeEmpty: storeEmpty, mergeStores: mergeStores,
+    chip: chip, drawRow: drawRow, menuItem: menuItem, drawMenu: drawMenu, cellTags: cellTags, previewTags: previewTags };
+if (typeof window !== 'undefined') window.wpImgTagCore = API;
+export { LIMITS, RESERVED, tagName, pathKey, cleanStore, storeEmpty, mergeStores, chip, drawRow, menuItem, drawMenu, cellTags, previewTags };

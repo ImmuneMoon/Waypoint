@@ -1,6 +1,13 @@
 WAYPOINT 1.6.0 — What's New
 ============================
 
+Image Library tags
+- What the Image Library called categories are now tags. A picture can
+  wear several, and every category you had is a tag now. Right-click a
+  picture, or press Tags... in its preview, to give it one.
+- Tags are yours alone: they stay on your computer and never go to your
+  players.
+
 Campaigns
 - A new campaign opens on an empty screen that says it has no map yet,
   with a New map button. Before, the last campaign's map stayed on

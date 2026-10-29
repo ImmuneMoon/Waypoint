@@ -5609,6 +5609,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && steps.length === 2 && steps.every(t => /^tables(-named)? \{("why":"open",)?"n":3,"named":[0-9],"dated":1\}$/.test(t)) && box.querySelectorAll('.prof-table').length === 3,
             err || JSON.stringify([texts.slice(0, 8), steps]));
     }
+    /* ---- 1.6.0 backlog 34: the Image Library's tags come from a campaign file (its own store, and a shared one a file may carry). The
+       store is cleaned on the way in, and the chip row, the tag menu, a cell's label and the preview are drawn by imgtagcore with
+       elements and text nodes only (run for real on tools/boxdom.js, which refuses markup); whiteboard.js draws them through it ---- */
+    {
+        const ITs = await import(modUrl('imgtagcore.js')), { makeDom } = require('./boxdom.js'), dom = makeDom(), d = dom.document;
+        const evil = '<img src=x onerror=alert(1)>' + String.fromCharCode(34, 10) + 'x', st = ITs.cleanStore({ list: [evil, '__bymap'], by: { '/saves/images/m/a.png': [evil], 'javascript:alert(1)': [evil] }, shelf: {} });
+        const row = d.createElement('div'), menu = d.createElement('div'), cell = d.createElement('div'), meta = d.createElement('div');
+        cell.dataset.name = 'a.png'; cell.appendChild(d.createElement('img'));
+        let err = '';
+        try {
+            ITs.drawRow(d, row, { scopes: [], all: { count: 1 }, tags: st.list.map(n => ({ name: n, store: 'camp', count: 1, active: true })), none: { count: 0 }, make: true, tools: { shelf: false, shared: false } });
+            ITs.drawMenu(d, menu, { head: 'Add a tag', add: st.list.map(n => ({ name: n, store: 'shared' })), from: st.list[0], move: [] });
+            ITs.cellTags(d, cell, st.by['/saves/images/m/a.png'], true, ''); ITs.previewTags(d, meta, evil, st.list);
+        } catch (e) { err = String(e && e.stack || e); }
+        const nodes = []; [row, menu, cell, meta].forEach(n => (function w(x) { nodes.push(x); (x.childNodes || []).forEach(w); })(n));
+        const wbT = fs.readFileSync(path.join(dir, 'whiteboard.js'), 'utf8');
+        check('backlog 34 the Image Library tags from a campaign file (imgtagcore cleanStore, then drawRow, drawMenu, cellTags and previewTags run for real on a page that refuses markup): a name is text in every place, the chip row\'s own words are no tag, a key that is no path is dropped; whiteboard.js draws them through the core',
+            !err && st.list.length === 1 && Object.keys(st.by).length === 1 && nodes.every(n => n.nodeType === 3 || n.nodeType === 1) && nodes.some(n => n.nodeType === 3 && n.nodeValue === st.list[0])
+            && wbT.includes('TagCore.drawRow(document, row, m);') && wbT.includes('TagCore.drawMenu(document, menu,') && wbT.includes('TagCore.cellTags(document, cell,') && wbT.includes('TagCore.previewTags(document,'), err || JSON.stringify(st));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

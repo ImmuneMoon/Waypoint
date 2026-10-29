@@ -605,7 +605,9 @@
                           <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h15v11H3zM6 8V5h15v11h-3M3.5 17l4-4 3 3 2.5-2.5 4.5 4.5"/></svg> Image Library</b> shows <b>this campaign's pictures</b> by default: every picture uploaded from its maps, planners and pages, used by them, or brought in. <b>Shared</b>, <b>Unfiled</b> and <b>All campaigns</b> are a chip away. Shared is the tutorial art. Unfiled holds pictures whose map, planner or page is gone. Click a picture for a large preview, then Add to map.
                               <ul>
                                   <li><b>Import from another campaign&hellip;</b> lets you pick pictures from another campaign, from Shared or from Unfiled, and bring them in. Ctrl-click picks several. Nothing is copied: this campaign simply remembers them.</li>
-                                  <li>Categories are per campaign. Right-click a picture to tag it, and press <b>+ New</b> for a new category. The tools on a chip rename, shelve or delete it. <b>Make shared</b> turns one into a category every campaign sees, marked &#9671;.</li>
+                                  <li><b>Tags</b> sort your pictures. A picture can wear several. Right-click a picture to give it a tag, and press <b>+ New tag</b> for a new one. A tag is this campaign&rsquo;s own, or shared with every campaign and marked &#9671;. Pick a tag&rsquo;s chip and the tools under it rename it, put it on its own shelf, share it or delete it. Deleting a tag never deletes a picture by itself: you are asked about the files after.</li>
+                                  <li>Tags are yours alone. They stay on your computer and never go to your players. What used to be called a category is now a tag, and every one you had is still there.</li>
+                                  <li>Each step is written to <b>saves/error.log</b>, as imglib v1 lines: what was done and how many pictures, never a tag&rsquo;s name.</li>
                               </ul>
                           </li>
                           <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 9.5H7l5-4v13l-5-4H3.5zM15.5 9.3a4 4 0 0 1 0 5.4M18.2 6.8a8 8 0 0 1 0 10.4"/></svg> Sound</b> is the GM&rsquo;s panel for the scene&rsquo;s sound. It is small and stays open while you run the scene. <b>Ambient</b> loops are chips: click one to crossfade to it, and &#9632; fades it out. <b>Cues</b> are buttons: click one to fire it once, and up to four overlap. Every player at the table hears what you play at your <b>Master</b> volume. <b>Mute mine</b> silences your own speakers only.
@@ -4125,7 +4127,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div style="background:var(--bg2); padding:20px; border:1px solid var(--gold); border-radius:8px; width:720px; max-width:94vw; height:78vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Image Library <button id="imgLibCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-            <input type="text" id="imgLibSearch" placeholder="Filter by name or map&hellip;" style="flex:1; min-width:0; box-sizing:border-box;">
+            <input type="text" id="imgLibSearch" placeholder="Filter by name, map or tag&hellip;" style="flex:1; min-width:0; box-sizing:border-box;">
             <span id="imgLibSourceWrap" style="display:none; align-items:center; gap:6px;"><label style="font-size:12px; color:var(--dim); display:inline-flex; align-items:center; gap:6px;">From <select id="imgLibSource" class="tool" title="Whose pictures to pick from"></select></label></span>
             <label class="cast-batch-wrap" title="How many copies a picture's &times; button (or Add to map in the preview) places, 1 to 50 &mdash; remembered">Copies <input type="number" id="imgLibCopies" class="cast-batch" min="1" max="50" value="1"></label>
         </div>
@@ -4143,14 +4145,14 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div id="imgLibPreviewMeta" class="ilp-meta"></div>
                 <button class="tool" id="imgLibPreviewAdd">Add to map</button>
                 <button class="tool ghost" id="imgLibPreviewScene" title="Show this picture big to everyone or to some players, without putting it on the map"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg> Show as a scene&hellip;</button>
-                <button class="tool ghost" id="imgLibPreviewCat" title="Tag this picture with a category (it can be in several)">Add to category&hellip;</button>
+                <button class="tool ghost" id="imgLibPreviewCat" title="Give this picture a tag (it can wear several)">Tags&hellip;</button>
                 <button class="tool ghost danger" id="imgLibPreviewDel" title="Delete this picture file from your saves folder (asks first, and says where it is used)">Delete picture</button>
                 <button class="tool ghost" id="imgLibPreviewBack">&larr; Back to the library</button>
             </div>
         </div>
         <div id="imgCatMenu" class="shape-menu" style="display:none; position:fixed; flex-direction:column; min-width:180px; z-index:100001;"></div>
         <div id="imgLibSelBar" style="display:none; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap;"></div>
-        <div style="color:var(--dim); font-size:11px; margin-top:10px;">The chips at the top pick whose pictures you see: this campaign's (uploaded from its maps, planners and pages, used by them, or brought in), Shared, Unfiled, or every campaign's. Click an image for a large preview, then Add to map. Ctrl-click to pick several (Shift-click for a run), then add them all or tag them at once. Right-click one to add it to a category. The &times; on a picture drops the number set in Copies.</div>
+        <div style="color:var(--dim); font-size:11px; margin-top:10px;">The chips at the top pick whose pictures you see: this campaign's (uploaded from its maps, planners and pages, used by them, or brought in), Shared, Unfiled, or every campaign's. Click an image for a large preview, then Add to map. Ctrl-click to pick several (Shift-click for a run), then add them all or tag them at once. Right-click one to give it a tag. The &times; on a picture drops the number set in Copies.</div>
     </div>
 </div>
 

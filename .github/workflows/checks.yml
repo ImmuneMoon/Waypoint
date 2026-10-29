@@ -105,6 +105,9 @@ jobs:
       - name: trackcheck — the table trackers, the pure core, the strip, the stream window and the pins
         if: ${{ !cancelled() }}
         run: node tools/trackcheck.js
+      - name: imgtagcheck — the Image Library tags, the pure core, the chips and menus drawn as text, and the pins
+        if: ${{ !cancelled() }}
+        run: node tools/imgtagcheck.js
       - name: voicecheck — voice chat's pure core, the host's hub and a player's link on stub connections
         if: ${{ !cancelled() }}
         run: node tools/voicecheck.js

@@ -29,6 +29,7 @@ var wb = document.getElementById('whiteboard');
 
 import { state, dom, CATS } from './state.js';
 import './trackcore.js';   // 1.6.0 backlog 29: the trackers' cleaner (window.wpTrackCore), there before the first load
+import './imgtagcore.js';   // 1.6.0 backlog 34: the Image Library tags' cleaner (window.wpImgTagCore), there before the first load
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap } from './models.js';
 
@@ -205,6 +206,13 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
         if (c.clock !== undefined) { var ckL = window.wpCalendarCore && window.wpCalendarCore.cleanClock ? window.wpCalendarCore.cleanClock(c.clock) : null; if (ckL) c.clock = ckL; else delete c.clock; }   // item 20 K2: the campaign's clock, cleaned on load (none without the cleaner)   // fog of war (1.5.0): campaign sight-field mapping + default, cleaned on load
     });
 
+    // The Image Library's tags (1.6.0, backlog 34), the shared store and each campaign's, cleaned on load and import (imgtagcore cleanStore:
+    // names as text, unique, a picture's tags named by its store); what is no store goes, an empty one stays (the cleanup reads a shared one as a mark). Not a fix(): it persists with the next save.
+    if (window.wpImgTagCore) {
+        var ITC = window.wpImgTagCore;
+        if (data.imageCats !== undefined) { var itA = ITC.cleanStore(data.imageCats); if (itA) data.imageCats = itA; else delete data.imageCats; }
+        Object.keys(data.campaigns).forEach(function(cid) { var cc = data.campaigns[cid]; if (!cc || typeof cc !== 'object' || cc.imageCats === undefined) return; var itC = ITC.cleanStore(cc.imageCats); if (itC) cc.imageCats = itC; else delete cc.imageCats; });
+    }
     // Picture categories (1.5.0): the app-wide ones move into the campaign that owns or uses most of each
     // category's pictures, once (whiteboard.js wpMigratePictures; the _picsV marker keeps it from running twice)
     if (window.wpMigratePictures && window.wpMigratePictures(data)) fix('picture categories moved into their campaigns');

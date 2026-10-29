@@ -752,7 +752,7 @@ var STEPS = [
       help: ['grids', 'Measuring'],
       before: function() { openItem('map_tut_city'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#imgLibBtn', title: 'The picture library',
-      html: 'Under the <b>+ Add</b> button. It holds this campaign&rsquo;s pictures: the ones uploaded from its maps, planners and pages, and any you bring in from another campaign. Filter by name or map, and group pictures into categories. Click one for a large preview, then <b>Add to map</b>. The tutorial&rsquo;s art is under <b>Shared</b>, in the <b>Default</b> category.',
+      html: 'Under the <b>+ Add</b> button. It holds this campaign&rsquo;s pictures: the ones uploaded from its maps, planners and pages, and any you bring in from another campaign. Filter by name, map or tag, and give pictures tags to sort them. Click one for a large preview, then <b>Add to map</b>. The tutorial&rsquo;s art is under <b>Shared</b>, with the <b>Default</b> tag.',
       help: ['whiteboard', 'Image Library'],
       before: function() { openItem('map_tut_inn'); goView('visual'); var am = document.getElementById('addMenu'); if (am) am.classList.add('show'); } },   // the library lives in the Add flyout now — open it so the step points at it
     { section: 'Planners & handbook', target: '#plannerNavList', title: 'Planners',
@@ -833,7 +833,7 @@ var STEPS = [
       html: 'Every topic in more depth, the keyboard shortcuts, and this tour again whenever you want it. The <b>search box</b> at the top of Help finds any topic by keyword and jumps straight to it.',
       before: function() { closeSettingsForTour(); } },
     { target: null, title: 'That\'s the tour', finish: true,
-      html: 'The <b>Tutorial</b> campaign stays in your save so you can keep building on it. Or discard it now. Your other campaigns are untouched either way. Its pictures stay in the Image Library under <b>Shared</b>, in the <b>Default</b> category, until you delete them there.' }
+      html: 'The <b>Tutorial</b> campaign stays in your save so you can keep building on it. Or discard it now. Your other campaigns are untouched either way. Its pictures stay in the Image Library under <b>Shared</b>, with the <b>Default</b> tag, until you delete them there.' }
 ];
 
 // The tour is one flow grouped into labelled sections (a step carries `section` to open one). Used for the card's

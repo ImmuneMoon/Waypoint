@@ -7,6 +7,14 @@ Image Library tags
   picture, or press Tags... in its preview, to give it one.
 - Tags are yours alone: they stay on your computer and never go to your
   players.
+- Filter by several tags: pick a tag's chip, then Ctrl-click more. The
+  Match switch beside them shows the pictures with all of them or with
+  any of them. Words in the search box narrow it further, every word in
+  the picture's name, its map or its tags.
+- Save a filter by name: Save this filter... keeps the tags, the switch
+  and the words as a chip under Saved. Saved filters are kept with the
+  campaign. Import from another campaign... brings in another campaign's
+  saved filter when you want it.
 
 Campaigns
 - A new campaign opens on an empty screen that says it has no map yet,

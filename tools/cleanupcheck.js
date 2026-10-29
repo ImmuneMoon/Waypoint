@@ -142,7 +142,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     { const e = clone(M0); e.campaigns.camp_a.imageCats = { list: [], by: {}, shelf: {} }; const ce = classifyState(e, KNOWN);
       check('a shaped-empty imageCats on a contaminated campaign is not a local mark (still CERTAIN)', ce.tiers.camp_a === 'CERTAIN', tiersOf(ce));
       e.campaigns.camp_a.imageCats.list.push('Mine'); const cf = classifyState(e, KNOWN);
-      check('a real per-campaign category is a local mark (ASK)', cf.tiers.camp_a === 'ASK', tiersOf(cf)); }
+      check('a real per-campaign category is a local mark (ASK)', cf.tiers.camp_a === 'ASK', tiersOf(cf));
+      const eF = clone(M0); eF.campaigns.camp_a.imageCats = { list: [], by: {}, shelf: {}, filters: [{ name: 'Wet', tags: [], match: 'all', words: 'rain' }] }; const cF = classifyState(eF, KNOWN);
+      check('backlog 34: a saved filter of the Image Library is a local mark (ASK), like a tag', cF.tiers.camp_a === 'ASK', tiersOf(cF)); }
     // the sound index (1.5.0): never on the wire, a shaped-empty index is not a local mark
     check('sanitizer: camp.sounds never travels', !('sounds' in M0.campaigns.camp_a) && !('sounds' in M0.campaigns.camp_b), JSON.stringify(Object.keys(M0.campaigns.camp_a)));
     { const e = clone(M0); e.campaigns.camp_a.sounds = { v: 1, list: [] }; const ce = classifyState(e, KNOWN);

@@ -207,11 +207,11 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
     });
 
     // The Image Library's tags (1.6.0, backlog 34), the shared store and each campaign's, cleaned on load and import (imgtagcore cleanStore:
-    // names as text, unique, a picture's tags named by its store); what is no store goes, an empty one stays (the cleanup reads a shared one as a mark). Not a fix(): it persists with the next save.
+    // names as text, unique, a picture's tags named by its store, and a campaign's saved filters); what is no store goes, an empty one stays (the cleanup reads a shared one as a mark). Not a fix(): it persists with the next save.
     if (window.wpImgTagCore) {
         var ITC = window.wpImgTagCore;
         if (data.imageCats !== undefined) { var itA = ITC.cleanStore(data.imageCats); if (itA) data.imageCats = itA; else delete data.imageCats; }
-        Object.keys(data.campaigns).forEach(function(cid) { var cc = data.campaigns[cid]; if (!cc || typeof cc !== 'object' || cc.imageCats === undefined) return; var itC = ITC.cleanStore(cc.imageCats); if (itC) cc.imageCats = itC; else delete cc.imageCats; });
+        Object.keys(data.campaigns).forEach(function(cid) { var cc = data.campaigns[cid]; if (!cc || typeof cc !== 'object' || cc.imageCats === undefined) return; var itC = ITC.cleanStore(cc.imageCats, { filters: true }); if (itC) cc.imageCats = itC; else delete cc.imageCats; });
     }
     // Picture categories (1.5.0): the app-wide ones move into the campaign that owns or uses most of each
     // category's pictures, once (whiteboard.js wpMigratePictures; the _picsV marker keeps it from running twice)

@@ -25,7 +25,7 @@ var safeId = function(s) { return String(s || '').replace(/[^A-Za-z0-9_-]/g, '')
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function nonEmpty(v) { return Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object') ? Object.keys(v).length > 0 : !!v; }
 // a category store { list, by, shelf } with nothing in it is empty, whatever its shape (a reader must never create one, but a save may carry one)
-function catsNonEmpty(c) { return !!c && typeof c === 'object' && (nonEmpty(c.list) || nonEmpty(c.by) || nonEmpty(c.shelf)); }
+function catsNonEmpty(c) { return !!c && typeof c === 'object' && (nonEmpty(c.list) || nonEmpty(c.by) || nonEmpty(c.shelf) || nonEmpty(c.filters)); }   // a saved filter (1.6.0, backlog 34) is local work too
 function soundsNonEmpty(s) { return !!s && typeof s === 'object' && nonEmpty(s.list); }   // a sound index { v, list } with nothing in it proves nothing either
 function isObj(v) { return !!v && typeof v === 'object'; }
 function campaignsOf(s) { return isObj(s) && isObj(s.campaigns) ? s.campaigns : {}; }

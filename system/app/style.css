@@ -4050,6 +4050,14 @@
   #imgLibCats .img-cat-tool { margin-left: 0; border-radius: 4px; background: var(--edge); border-color: var(--border); padding: 2px 10px; }
   #imgLibCats .img-cat-tool:hover { background: var(--panel); }
   #imgLibCats .img-cat-tool.danger { color: var(--red); }
+  /* backlog 34: the Match switch once two or more tags are picked, and the Saved row */
+  #imgLibCats .img-match { padding: 1px; gap: 1px; align-items: center; border-radius: 12px; margin-left: 4px; }
+  #imgLibCats .img-match .seg-btn { padding: 1px 9px; font-size: 11px; border-radius: 10px; }
+  #imgLibCats .img-match-label { color: var(--dim); font-size: 10.5px; padding: 0 4px 0 7px; }
+  #imgLibCats .img-saved { color: var(--ink); }
+  #imgLibCats .img-saved.active { color: var(--gold); }
+  #imgLibCats .img-saved-none { color: var(--dim); font-size: 11px; margin-right: 4px; }
+  #imgCatMenu .party-menu-note { color: var(--dim); font-size: 11px; padding: 4px 10px 6px; }
   #imgCatMenu .party-menu-head { color: var(--dim); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 6px 10px 2px; }
   #imgCatMenu .party-menu-item { width: 100%; border-radius: 0; font-size: 12px; height: auto; padding: 8px 10px; text-align: left; }
   #imgCatMenu .party-menu-item.on { color: var(--gold); }

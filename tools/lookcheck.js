@@ -3399,5 +3399,16 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && count(wbSrc, "document.getElementById('wbTooltip').classList.remove('wb-aside');") === 1 && css.includes('  #wbTooltip.wb-aside { visibility: hidden; }'), J(r));
 }
 
+{
+    // 1.6.0, backlog 34 (the Image Library's tags): its new controls are the app's own. The Match switch is the segmented control the view
+    // switch wears (.seg-control, .seg-btn), sized for the chip row; the Saved row's chips and its tools are the row's own chips (.journal-from)
+    const tagC = read('scripts/imgtagcore.js');
+    check('Image Library tags: the Match switch is the app\'s segmented control, sized for the chip row; the Saved row and its tools are the row\'s own chips; the import menu\'s rows are the menu\'s own',
+        tagC.includes("var sw = el(doc, 'span', 'seg-control img-match');") && tagC.includes("var b = el(doc, 'button', 'seg-btn' + (m.match === o[0] ? ' active' : ''), o[1]);")
+        && css.includes('  #imgLibCats .img-match { padding: 1px; gap: 1px; align-items: center; border-radius: 12px; margin-left: 4px; }') && css.includes('  #imgLibCats .img-match .seg-btn { padding: 1px 9px; font-size: 11px; border-radius: 10px; }')
+        && css.includes('  .seg-control{') && tagC.includes("var b = el(doc, 'button', 'journal-from' + (o.active ? ' active' : '') + (o.cls ? ' ' + o.cls : ''), o.text);") && tagC.includes("cls: 'img-saved'")
+        && tagC.includes("var b = el(doc, 'button', 'wb-tool-btn party-menu-item' + (o.cls ? ' ' + o.cls : ''), o.text);") && css.includes('  #imgCatMenu .party-menu-note {'));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

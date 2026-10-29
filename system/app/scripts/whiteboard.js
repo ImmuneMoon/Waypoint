@@ -5582,6 +5582,9 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
      create a store (an empty shaped store would count as local work for the cleanup classifier). */
   var EMPTY_CATS = Object.freeze({ list: Object.freeze([]), by: Object.freeze({}), shelf: Object.freeze({}) });
   var _imgLibCat = '';          // '' = the whole view, '__bymap', '__none', or a category name
+  var _imgLibAlso = [];         // backlog 34: the tags Ctrl-click added to _imgLibCat's (the filter is _imgLibCat's and these)
+  var _imgLibMatch = 'all';     // and which pictures they show: 'all' (every tag) or 'any' (one of them)
+  var _imgLibSavedAt = -1;      // the campaign's saved filter that is what the view shows now, else -1
   var _imgLibCatCamp = null;    // the campaign the chip was chosen in: a switch resets it
   var _imgLibScope = 'camp';    // 'camp' | 'shared' | 'unfiled' | 'all'
   var _imgLibPicker = null;     // Import from another campaign…: the source ('<campId>' | 'shared' | 'unfiled'), else null
@@ -5792,6 +5795,13 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       });
       return { count: n, maps: Object.keys(maps) };
   }
+  function isTagCat(v) { return !!v && v !== '__none' && v !== '__bymap'; }
+  // the tags the view filters by: the chip picked first, then the ones Ctrl-click added (backlog 34)
+  function pickedTags() { return isTagCat(_imgLibCat) ? [_imgLibCat].concat(_imgLibAlso) : []; }
+  function soleTag() { return isTagCat(_imgLibCat) && !_imgLibAlso.length ? _imgLibCat : ''; }   // the one tag in view (its tools, Move and Remove)
+  // a campaign's saved filters, kept in its own store (the shared store keeps none)
+  function savedFilters(campId) { var c = campId ? catStore(campId) : EMPTY_CATS; return Array.isArray(c.filters) ? c.filters : []; }
+  function nowFilter() { var s = document.getElementById('imgLibSearch'); return { tags: pickedTags(), match: _imgLibMatch, words: s ? s.value : '' }; }
   function scopeChip(val, label, n, title) { return '<button class="journal-from' + (_imgLibScope === val ? ' active' : '') + '" data-scope="' + val + '" title="' + esc(title) + '">' + label + ' <span class="journal-count">' + n + '</span></button>'; }
   // The chip row: a model of what it shows, drawn by imgtagcore drawRow with text nodes only (a tag's name comes from a campaign file)
   function renderImgCats() {
@@ -5802,9 +5812,12 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       list.forEach(function(im) { var ns = imgCatsOf(im.path); if (ns.length) ns.forEach(function(n) { counts[n] = (counts[n] || 0) + 1; }); else none++; });
       var cats = catList();
       if (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap' && !cats.some(function(c) { return c.name === _imgLibCat; })) _imgLibCat = '';
+      _imgLibAlso = isTagCat(_imgLibCat) ? _imgLibAlso.filter(function(n, i, a) { return n !== _imgLibCat && a.indexOf(n) === i && cats.some(function(c) { return c.name === n; }); }) : [];
+      var pk = pickedTags();
       var allN = list.filter(function(im) { return !shelf || !imgCatsOf(im.path).some(isShelved); }).length;
       var m = { scopes: [], imp: false, all: { count: allN, active: !_imgLibCat }, bymap: _imgLibCat === '__bymap', none: { count: none, active: _imgLibCat === '__none' }, make: !_imgLibPicker, tools: null,
-          tags: cats.map(function(c) { return { name: c.name, store: c.store, count: counts[c.name] || 0, active: _imgLibCat === c.name }; }) };
+          match: pk.length > 1 ? _imgLibMatch : null, saved: null,
+          tags: cats.map(function(c) { return { name: c.name, store: c.store, count: counts[c.name] || 0, active: pk.indexOf(c.name) >= 0 }; }) };
       if (!_imgLibPicker) {   // the scope row: which pictures
           var all = (_imgLibCache || []).filter(notJournal), nCamp = 0, nShared = 0, nUnf = 0;
           all.forEach(function(im) { if (inScope(im, 'camp', campId)) nCamp++; if (inScope(im, 'shared')) nShared++; if (inScope(im, 'unfiled')) nUnf++; });
@@ -5815,16 +5828,22 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
               { scope: 'all', text: 'All campaigns', count: all.length, title: 'Every picture in your saves folder', active: _imgLibScope === 'all' }];
           m.imp = true;
       }
-      if (!_imgLibPicker && _imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap') {
+      if (!_imgLibPicker && soleTag()) {
           var home = catHome(_imgLibCat), c = home ? catStore(home) : EMPTY_CATS;
           m.tools = { shelf: !!c.shelf[_imgLibCat], shared: home === 'shared' };
+      }
+      _imgLibSavedAt = -1;
+      if (!_imgLibPicker && campId) {   // the Saved row: this campaign's filters; another campaign's only when asked for (Import from another campaign…)
+          var sv = savedFilters(campId), now = nowFilter();
+          sv.forEach(function(f, i) { if (_imgLibSavedAt < 0 && TagCore.sameFilter(f, now)) _imgLibSavedAt = i; });
+          m.saved = { list: sv.map(function(f, i) { return { name: f.name, active: i === _imgLibSavedAt }; }), save: _imgLibSavedAt < 0 && (pk.length > 0 || TagCore.words(now.words).length > 0), imp: true, tools: _imgLibSavedAt >= 0 };
       }
       TagCore.drawRow(document, row, m);
   }
   function tagLog(step, facts) { if (window.wpStepLog) window.wpStepLog('imglib v1', step, facts); }   // structure only: counts and the store's kind, never a tag's name
   // act: 'add' (tag with another), 'move' (drop the current view's category, tag with the chosen one), 'remove'
   function imgCatApply(path, act, name) {
-      var cur = imgCatsOf(path), from = (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap') ? _imgLibCat : '';
+      var cur = imgCatsOf(path), from = soleTag();
       if (act === 'remove') cur = cur.filter(function(n) { return n !== name; });
       else {
           if (act === 'move' && from) cur = cur.filter(function(n) { return n !== from; });
@@ -5854,12 +5873,88 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           imgCatsSave(); if (cb) cb(name); else renderImgLib(document.getElementById('imgLibSearch').value);
       });
   }
+  /* ---- saved filters (backlog 34; the owner: "chips, kept with the campaign, export/ importable from another campaign without always showing
+     by default"): what is picked now, the tags, the switch and the words, under a name, in the campaign's own store ---- */
+  function filterList(campId, create) { var c = catStore(campId, create); if (c === EMPTY_CATS) return null; if (!Array.isArray(c.filters)) { if (!create) return []; c.filters = []; } return c.filters; }
+  function filterAt(list, name, skip) { var at = -1; list.forEach(function(x, i) { if (at < 0 && i !== skip && String(x.name).toLowerCase() === String(name).toLowerCase()) at = i; }); return at; }
+  function filterTidy(campId) { var c = catStore(campId); if (c !== EMPTY_CATS && Array.isArray(c.filters) && !c.filters.length) delete c.filters; }
+  function saveFilter() {
+      var camp = getActiveCampaign(); if (!camp) return;
+      var now = nowFilter(); now.words = TagCore.filterWords(now.words);
+      if (!now.tags.length && !now.words) return;
+      showPrompt('Save this filter as:', TagCore.tagName(now.tags.slice(0, 3).join(' + ') || now.words), function(name) {
+          name = TagCore.tagName(String(name || '')); if (!name) return;
+          var f = TagCore.cleanFilter({ name: name, tags: now.tags, match: now.match, words: now.words }); if (!f) return;
+          var list = filterList(camp.id, true), at = filterAt(list, name, -1);
+          var put = function() {
+              if (at >= 0) list[at] = f;
+              else if (list.length >= TagCore.LIMITS.filters) { toast('This campaign keeps ' + TagCore.LIMITS.filters + ' saved filters at most. Delete one first.'); return; }
+              else list.push(f);
+              tagLog('filter-save', { tags: f.tags.length, words: !!f.words, over: at >= 0 });
+              imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
+              toast('Saved "' + f.name + '". Its chip is under Saved.');
+          };
+          if (at >= 0) showConfirm('This campaign already has a saved filter "' + list[at].name + '". Put this one in its place?', function(yes) { if (yes) put(); });
+          else put();
+      });
+  }
+  function applySaved(i) {
+      var camp = getActiveCampaign(), f = camp ? savedFilters(camp.id)[i] : null; if (!f) return;
+      var have = catList().map(function(c) { return c.name; }), tags = f.tags.filter(function(t) { return have.indexOf(t) >= 0; }), gone = f.tags.length - tags.length;
+      _imgLibCat = tags[0] || ''; _imgLibAlso = tags.slice(1); _imgLibMatch = f.match === 'any' ? 'any' : 'all';
+      var s = document.getElementById('imgLibSearch'); if (s) s.value = f.words;
+      tagLog('filter-apply', { tags: tags.length, gone: gone, words: !!f.words });
+      renderImgLib(s ? s.value : '');
+      if (gone) toast(gone + ' of its tags ' + (gone === 1 ? 'is' : 'are') + ' gone, so it shows what the rest pick.');
+  }
+  function renameFilter() {
+      var camp = getActiveCampaign(), list = camp ? filterList(camp.id, false) : null, at = _imgLibSavedAt; if (!list || !list[at]) return;
+      showPrompt('Rename saved filter:', list[at].name, function(name) {
+          name = TagCore.tagName(String(name || '')); if (!name || name === list[at].name) return;
+          if (filterAt(list, name, at) >= 0) { toast('This campaign already has a saved filter "' + name + '".'); return; }
+          list[at].name = name;
+          tagLog('filter-rename', { n: list.length });
+          imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
+      });
+  }
+  function deleteFilter() {
+      var camp = getActiveCampaign(), list = camp ? filterList(camp.id, false) : null, at = _imgLibSavedAt; if (!list || !list[at]) return;
+      showConfirm('Delete the saved filter "' + list[at].name + '"? No tag or picture changes.', function(yes) {
+          if (!yes || !list[at]) return;
+          list.splice(at, 1); filterTidy(camp.id);
+          tagLog('filter-delete', { left: list.length });
+          imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
+      });
+  }
+  // Import from another campaign…: the other campaigns' saved filters, asked for, never shown by default
+  function openFilterImport(x, y) {
+      var menu = document.getElementById('imgCatMenu'), me = getActiveCampaign(), s = state.appState; if (!menu || !me) return;
+      var groups = [];
+      Object.keys((s && s.campaigns) || {}).forEach(function(cid) { if (cid === me.id) return; var fl = savedFilters(cid); if (fl.length) groups.push({ camp: cid, name: String((s.campaigns[cid] && s.campaigns[cid].name) || 'A campaign'), filters: fl }); });
+      TagCore.drawFilterMenu(document, menu, groups);
+      menu.dataset.src = ''; menu.dataset.multi = '';
+      menu.style.display = 'flex'; menu.classList.add('show');
+      window.wpClampMenu(menu, x, y);
+  }
+  // one of them becomes this campaign's: a name it has is numbered, a tag it lacks is made here (with no pictures yet)
+  function takeFilter(cid, i) {
+      var me = getActiveCampaign(), f = savedFilters(cid)[i]; if (!me || !f || cid === me.id) return;
+      var list = filterList(me.id, true);
+      if (list.length >= TagCore.LIMITS.filters) { toast('This campaign keeps ' + TagCore.LIMITS.filters + ' saved filters at most. Delete one first.'); return; }
+      var name = TagCore.freeName(f.name, list), nf = name ? TagCore.cleanFilter({ name: name, tags: f.tags, match: f.match, words: f.words }) : null; if (!nf) return;
+      var c = catStore(me.id, true), made = 0;
+      nf.tags.forEach(function(t) { if (!catHome(t) && c.list.length < TagCore.LIMITS.tags) { c.list.push(t); made++; } });
+      list.push(nf);
+      tagLog('filter-import', { tags: nf.tags.length, made: made });
+      imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
+      toast('"' + name + '" is saved here now.' + (made ? ' ' + made + ' of its tags ' + (made === 1 ? 'was' : 'were') + ' new here and ' + (made === 1 ? 'is' : 'are') + ' made in this campaign, with no pictures yet.' : ''));
+  }
   // The tag menu for one picture. Inside a tag's view it offers Move (out of this one, into
   // another) and Remove; everywhere it offers Add (a picture can wear several tags).
   function openImgCatMenu(src, x, y) {   // src: one path, or an array (the picked set)
       var menu = document.getElementById('imgCatMenu'); if (!menu) return;
       var many = Array.isArray(src), mine = many ? [] : imgCatsOf(src);
-      var from = (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap') ? _imgLibCat : '';
+      var from = soleTag();
       var others = catList().filter(function(c) { return mine.indexOf(c.name) < 0; });
       // in All, By map and No tag only Add is offered (backlog 181: Show as a scene for one picture)
       TagCore.drawMenu(document, menu, { scene: !many && !!window.wpScene, head: many ? 'Tag ' + src.length + ' pictures with' : 'Add a tag', add: others, from: from && (many || mine.indexOf(from) >= 0) ? from : '', move: others });
@@ -5889,7 +5984,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       if (!me) return;
       var first = Object.keys((s && s.campaigns) || {}).filter(function(cid) { return cid !== me.id; })[0] || 'shared';
       var grid = document.getElementById('imgLibGrid'), search = document.getElementById('imgLibSearch');
-      _imgLibStash = { scope: _imgLibScope, cat: _imgLibCat, search: search ? search.value : '', sel: _imgLibSel, last: _imgLibLastPick, scroll: grid ? grid.scrollTop : 0 };
+      _imgLibStash = { scope: _imgLibScope, cat: _imgLibCat, also: _imgLibAlso, match: _imgLibMatch, search: search ? search.value : '', sel: _imgLibSel, last: _imgLibLastPick, scroll: grid ? grid.scrollTop : 0 };
       _imgLibSel = {}; _imgLibLastPick = null; _imgLibCat = '';
       if (search) search.value = '';
       closeImgPreview();
@@ -5899,7 +5994,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   function exitPicker(keepSel) {
       if (!_imgLibPicker) return;
       var st = _imgLibStash || {}; _imgLibPicker = null; _imgLibStash = null;
-      _imgLibScope = st.scope || 'camp'; _imgLibCat = st.cat || ''; _imgLibSel = keepSel ? {} : (st.sel || {}); _imgLibLastPick = st.last || null;
+      _imgLibScope = st.scope || 'camp'; _imgLibCat = st.cat || ''; _imgLibAlso = st.also || []; _imgLibMatch = st.match || 'all'; _imgLibSel = keepSel ? {} : (st.sel || {}); _imgLibLastPick = st.last || null;
       var search = document.getElementById('imgLibSearch'); if (search) search.value = st.search || '';
       closeImgPreview();
       renderImgLib(search ? search.value : '');
@@ -5924,6 +6019,12 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       row.addEventListener('click', function(e) {
           var b = e.target.closest && e.target.closest('button'); if (!b) return;
           var act = b.dataset.act;
+          if (b.dataset.match) { _imgLibMatch = b.dataset.match === 'any' ? 'any' : 'all'; tagLog('filter-match', { any: _imgLibMatch === 'any' }); renderImgLib(document.getElementById('imgLibSearch').value); return; }   // backlog 34
+          if (b.dataset.saved !== undefined) { applySaved(+b.dataset.saved); return; }
+          if (act === 'filter-save') { saveFilter(); return; }
+          if (act === 'filter-rename') { renameFilter(); return; }
+          if (act === 'filter-delete') { deleteFilter(); return; }
+          if (act === 'filter-import') { var rI = b.getBoundingClientRect(); openFilterImport(rI.left, rI.bottom + 4); return; }
           if (act === 'picker') { if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; } enterPicker(); return; }
           if (b.dataset.scope !== undefined) { _imgLibScope = b.dataset.scope; _imgLibSel = {}; _imgLibLastPick = null; renderImgLib(document.getElementById('imgLibSearch').value); return; }
           if (act === 'new' || act === 'new-shared') { imgCatNew(function(name) { _imgLibCat = name; renderImgLib(document.getElementById('imgLibSearch').value); }, act === 'new-shared'); return; }
@@ -6000,7 +6101,16 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
               });
               return;
           }
-          if (b.dataset.cat !== undefined) { _imgLibCat = b.dataset.cat; renderImgLib(document.getElementById('imgLibSearch').value); }
+          if (b.dataset.cat !== undefined) {
+              var cv = b.dataset.cat;
+              if ((e.ctrlKey || e.metaKey) && isTagCat(cv) && isTagCat(_imgLibCat)) {   // backlog 34: Ctrl-click adds a tag to the filter, or takes one off
+                  var pkC = pickedTags(), atC = pkC.indexOf(cv);
+                  if (atC < 0) pkC.push(cv); else if (pkC.length > 1) pkC.splice(atC, 1);
+                  _imgLibCat = pkC[0]; _imgLibAlso = pkC.slice(1);
+                  tagLog('filter-tags', { tags: pkC.length });
+              } else { _imgLibCat = cv; _imgLibAlso = []; }
+              renderImgLib(document.getElementById('imgLibSearch').value);
+          }
       });
       // right-click a picture: give it a tag (and, inside a tag's view, move it or take it off)
       grid.addEventListener('contextmenu', function(e) {
@@ -6012,6 +6122,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           var b = e.target.closest && e.target.closest('button'); if (!b) return;
           e.stopPropagation();
           var src = menu.dataset.multi ? Object.keys(_imgLibSel) : menu.dataset.src, act = b.dataset.act, cat = b.dataset.cat || ''; hideImgCatMenu();
+          if (act === 'filter-take') { takeFilter(b.dataset.camp, +b.dataset.i); return; }   // backlog 34: a saved filter of another campaign
           if (menu.dataset.multi && !src.length) return;
           if (act === 'scene') { if (!menu.dataset.multi && window.wpScene) window.wpScene.open(src); return; }   // backlog 181
           if (act === 'new-add' || act === 'new-move') { imgCatNew(function(name) { imgCatChange(src, act === 'new-move' ? 'move' : 'add', name); }); return; }
@@ -6052,17 +6163,16 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       // players' journals live under images/journal/ — not campaign art, keep them out of the library
       _imgLibCache = _imgLibCache.filter(notJournal);
       // The Campaign Cast shows inside a shelf category (the tutorial's "Default") and nowhere else — and only under THIS campaign's own scope, never the Shared/Unfiled/All-campaigns views (the cast is a per-campaign store with no picture category/scope tags, so a scope chip can't filter it).
-      grid.dataset.cast = (!_imgLibPick && !_imgLibPicker && state.viewMode === 'visual' && _imgLibScope === 'camp' && !!(_imgLibCat && isShelved(_imgLibCat))) ? '1' : '';
+      grid.dataset.cast = (!_imgLibPick && !_imgLibPicker && state.viewMode === 'visual' && _imgLibScope === 'camp' && !!(soleTag() && isShelved(soleTag()))) ? '1' : '';
       if (!grid.dataset.cast) { _castSel = {}; _castLastPick = null; }   // cast roster hidden: drop any cast picks so a stale count can't linger
-      var q = (filter || '').toLowerCase();
       renderImgCats(); renderImgSource();
-      var shelf = shelfApplies(), byMap = _imgLibCat === '__bymap';
+      var shelf = shelfApplies(), byMap = _imgLibCat === '__bymap', picked = pickedTags(), ws = TagCore.words(filter);   // backlog 34: the tags picked (all or any) and every word typed
       var byFolder = {};
       scopedCache().forEach(function(im) {
           var label = folderLabel(im.folder), cat = imgCatOf(im.path);
-          if (_imgLibCat === '__none' ? cat : (_imgLibCat && !byMap && !imgCatHas(im.path, _imgLibCat))) return;
+          if (_imgLibCat === '__none' ? cat : (picked.length && !TagCore.matchTags(imgCatsOf(im.path), picked, _imgLibMatch))) return;
           if ((!_imgLibCat || byMap) && shelf && imgCatsOf(im.path).some(isShelved)) return;   // shelved pictures show under their own category only
-          if (q && im.name.toLowerCase().indexOf(q) === -1 && label.toLowerCase().indexOf(q) === -1 && (cat || '').toLowerCase().indexOf(q) === -1) return;
+          if (!TagCore.matchWords([im.name, label].concat(imgCatsOf(im.path)), ws)) return;
           var key = byMap ? label : '';
           (byFolder[key] = byFolder[key] || []).push(im);
       });
@@ -6081,6 +6191,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       });
       var empty = _imgLibPicker ? 'Nothing here to bring in.'
           : _imgLibCat === '__none' ? 'Every picture here has a tag.'
+          : picked.length > 1 ? (_imgLibMatch === 'any' ? 'No picture has any of these tags.' : 'No picture has all of these tags. Match any shows the pictures with one of them.')
           : _imgLibCat && _imgLibCat !== '__bymap' ? 'No picture has this tag yet \u2014 right-click a picture to tag it.'
           : _imgLibScope === 'camp' ? 'Nothing in this campaign yet \u2014 other campaigns\u2019 pictures are under All campaigns, or Import from another campaign\u2026'
           : _imgLibScope === 'shared' ? 'No shared pictures yet \u2014 the Tutorial\u2019s art lands here once it has run.'
@@ -6257,7 +6368,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       document.getElementById('imgLibPreviewImg').src = encodeURI(src);
       document.getElementById('imgLibPreviewName').textContent = im ? im.name : src.split('/').pop();
       TagCore.previewTags(document, document.getElementById('imgLibPreviewMeta'), mapName, imgCatsOf(src));
-      var catBtn = document.getElementById('imgLibPreviewCat'), fromV = (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap') ? _imgLibCat : '';
+      var catBtn = document.getElementById('imgLibPreviewCat'), fromV = soleTag();
       if (catBtn) { catBtn.textContent = fromV ? 'Tags / move\u2026' : 'Tags\u2026'; catBtn.title = fromV ? 'Add another tag, move it from ' + fromV + ' to another, or take it off' : 'Give this picture a tag (it can wear several)'; }
       var add = document.getElementById('imgLibPreviewAdd'), delBtn = document.getElementById('imgLibPreviewDel');
       if (_imgLibPicker) { add.textContent = _imgLibPick ? 'Bring in & use' : 'Bring into this campaign'; add.title = 'This campaign remembers the picture (nothing is copied)' + (_imgLibPick ? ' and the block gets it' : ''); }

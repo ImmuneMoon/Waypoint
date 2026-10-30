@@ -167,6 +167,9 @@ Systems, more
 - A press right after typing a number now lands: a tick in the Combat
   window, and Confirm in a trade.
 - A player's double-click on their own token opens its sheet.
+- A long name on a sheet's list now wraps, or takes a line of its own,
+  and never ends in dots. Its tip and its opened details lead with it.
+- A sheet's angled tabs wrap to a second row in place of cutting their words.
 - A join request says Let in and Turn away.
 - A player held for a new sheet can no longer drag their token.
 - A list can hold each skill's specialties. Tick Specialties in the Lists

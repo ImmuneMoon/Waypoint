@@ -3317,7 +3317,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         _placeWant = hudRow ? null : 'row';
         if (def.icon) line.appendChild(iconNode(def.icon, 'sheet-item-icon'));
         var ovc = ovCtx(entry, rd, gm);   // F4c2: what this copy holds of its own (a dot on each)
-        var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft'))); if (def.notes) nm.title = def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
+        var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft'))); if (def.notes) nm.title = def.name + '\n' + def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
         if (spec && spec.look) lookSwatches(line, sysI, c, spec, entry);   // 1.6.0, backlog 206: its swatches beside its name, on the HUD too
         var opnR = typeof entry.opn === 'string'; if (opnR && typeof openedWords === 'function') { line.className += ' sheet-item-opened'; nm.appendChild(el('span', 'sheet-item-opened-tag', ' (' + openedWords(entry, c, sysI, spec) + ')')); }   // 1.5.8: a row another row opens says so, and holds no control that changes it
         var bdLn = typeof badgeBits === 'function' ? badgeBits(line, spec, res && res.bd ? res.bd[rid] : null, line, hudRow) : null;   // 1.6.0 R4: its badges after the name (no lines on the HUD)
@@ -3340,6 +3340,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
             if (partHere({ place: spec.paidPlace }, 'details', false)) { var pcD = paidCtl(entry, def, c, f, spec, chg, gm, true); if (pcD) dp.appendChild(pcD); }
             rowRollBtns(dp, spec, entry, def, c, f, res);
             if (dp.childNodes.length) { if (!noteLn) noteLn = el('div', 'sheet-item-noteline'); noteLn.insertBefore(dp, noteLn.firstChild); }
+            if (noteLn) noteLn.insertBefore(el('div', 'sheet-item-dname', def.name), noteLn.firstChild);   // 1.6.0: the details say whose they are
         }
         _placeWant = null;
         if (opSlot) {   // R1: the arrow before the name opens the details, and so does a press on the name; no 📝 then
@@ -3617,6 +3618,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
                 if (spec.price && partHere({ place: spec.paidPlace }, 'details', false)) { var pcDT = paidCtl(entry, def, c, f, spec, chg, gm, true); if (pcDT) dpT.appendChild(pcDT); }
                 rowRollBtns(dpT, spec, entry, def, c, f, res); _placeWant = null;
                 if (dpT.childNodes.length) { if (!nbT) nbT = el('div', 'sheet-item-noteline'); nbT.insertBefore(dpT, nbT.firstChild); }
+                if (nbT) nbT.insertBefore(el('div', 'sheet-item-dname', def.name), nbT.firstChild);   // 1.6.0: the details say whose they are
                 if (nbT) { notesRow = el('tr', 'sheet-itemtable-notes'); var ntdS = el('td'); ntdS.colSpan = span; ntdS.appendChild(nbT); notesRow.appendChild(ntdS); if (opSlotT) { var opBT = rowOpener(notesRow, entry, c, f, def.name, false); opSlotT.appendChild(opBT); openersT.push(opBT); } else actTd.appendChild(noteToggle(notesRow, entry, c, f)); }
                 else if (opSlotT) opSlotT.appendChild(rowOpener(null, entry, c, f, def.name, true));
             } else if (wantNotes && def.notes) {

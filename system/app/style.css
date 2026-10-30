@@ -3531,7 +3531,7 @@
   .apply-d { font-weight: 700; } .apply-d.apply-sub { color: var(--red); } .apply-d.apply-add { color: var(--green); }
   .apply-roll { color: var(--dim); font-family: ui-monospace, Consolas, monospace; font-size: 12px; }   /* 1.5.9: the dice a Rolled amount drew */
   .sys-list-card .sys-flags.sys-list-roll input.sys-list-rollformula { flex: 3 1 260px; font-family: ui-monospace, Consolas, monospace; }
-  .sheet-item-name > .sheet-ov { margin: 0 4px 0 0; }   /* F4c2 review: a list row's dot sits before the name (a long name is cut at its end) */
+  .sheet-item-name > .sheet-ov { margin: 0 4px 0 0; }   /* F4c2 review: a list row's dot sits before the name (a long name wraps) */
   .sheet-item-edit { padding: 0 6px; height: 24px; }
   .sheet-row-form { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 6px 20px; padding: 6px 8px; border: 1px dashed var(--edge); border-radius: 6px; font-size: 12px; }
   .sheet-itemtable-form td { padding: 2px 8px 6px; white-space: normal; }
@@ -3761,8 +3761,8 @@
   #sheetBody.sheet-sticky-titles > .sheet-section:first-child, .sys-layout-preview.sheet-sticky-titles > .sheet-section:first-child { margin-top: 8px; }
   #popoutBody.sheet-view.sheet-sticky-titles > .sheet-section:first-child { margin-top: 18px; }
   /* L5: angular tabs — cut-corner tabs sharing the strip; the open one filled in the primary colour, a hovered one in the accent with dark text (as the reference's stylesheet means it) */
-  .sheet-frame .sheet-tabs.sheet-tabs-angular { flex-wrap: nowrap; gap: 0; padding: 4px 4px 0 14px; border-bottom: 1px solid var(--edge); background: color-mix(in srgb, var(--dim) 10%, transparent); }
-  .sheet-frame .sheet-tabs.sheet-tabs-angular > .sheet-tab { flex: 1 1 0; min-width: 0; margin: 0 0 0 -12px; padding: 9px 16px; border: 0; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); background: color-mix(in srgb, var(--sheet-card, var(--panel2)) 45%, transparent); color: var(--sheet-ink, var(--ink)); font-weight: 500; font-size: 12.5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sheet-frame .sheet-tabs.sheet-tabs-angular { flex-wrap: wrap; gap: 2px 0; padding: 4px 4px 0 14px; border-bottom: 1px solid var(--edge); background: color-mix(in srgb, var(--dim) 10%, transparent); }
+  .sheet-frame .sheet-tabs.sheet-tabs-angular > .sheet-tab { flex: 1 1 auto; min-width: 0; margin: 0 0 0 -12px; padding: 9px 16px; border: 0; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); background: color-mix(in srgb, var(--sheet-card, var(--panel2)) 45%, transparent); color: var(--sheet-ink, var(--ink)); font-weight: 500; font-size: 12.5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sheet-frame .sheet-tabs.sheet-tabs-angular > .sheet-tab:first-child { margin-left: 0; }
   .sheet-frame .sheet-tabs.sheet-tabs-angular > .sheet-tab:not(.active):hover { background: color-mix(in srgb, var(--sheet-accent, var(--gold)) 75%, transparent); color: var(--sheet-accent-ink, #111318); }
   .sheet-frame .sheet-tabs.sheet-tabs-angular > .sheet-tab.active { background: color-mix(in srgb, var(--sheet-primary, var(--sheet-accent, var(--gold))) 75%, transparent); color: var(--sheet-primary-ink, var(--sheet-accent-ink, #111318)); font-weight: 600; box-shadow: inset 0 2px 4px rgba(0,0,0,.05); }
@@ -3871,7 +3871,12 @@
   .sheet-items { display: flex; flex-direction: column; gap: 4px; }
   .sheet-item { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; font-size: 12px; }   /* a narrow sheet: the row's controls wrap under the name (right-aligned), never squeezing it to nothing */
   .sheet-item-icon { flex: 0 0 auto; }
-  .sheet-item-name { flex: 1 1 7em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sheet-item-name { flex: 1 1 auto; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }   /* 1.6.0: a name is never cut. Where the row's controls would squeeze it they go to the next line, and a name wider than the row wraps */
+  .sheet-item-icon + .sheet-item-name { max-width: calc(100% - 2.6em); }
+  .sheet-item-opslot + .sheet-item-name { max-width: calc(100% - 30px); }
+  .sheet-item-opslot + .sheet-item-icon + .sheet-item-name { max-width: calc(100% - 30px - 2.6em); }   /* the arrow and the icon stay on the name's line */
+  .sheet-item-dname { margin: 0 0 3px; font-size: 12.5px; font-weight: 600; color: var(--sheet-ink, var(--ink)); overflow-wrap: anywhere; }   /* the row's name at the top of its details */
+  #sheetPrint .sheet-item-dname { display: none; }
   .sheet-item-area-tag { color: var(--dim); font-size: 11px; }
   .sheet-item-qty { display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto; }
   .sheet-item-qtyn { min-width: 26px; text-align: center; color: var(--dim); }

@@ -3076,7 +3076,8 @@
   .sys-tabs button { background: transparent; color: var(--dim); border: none; border-bottom: 2px solid transparent; padding: 4px 10px; font-size: 12.5px; cursor: pointer; font-family: inherit; }
   .sys-tabs button.active { color: var(--gold); border-bottom-color: var(--gold); }
   .sys-tab { display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1; }
-  #sysItems { overflow-y: auto; }   /* the Combat card (range, light, senses, turns, postures) can be taller than the editor: the tab scrolls rather than spilling out of it */
+  #sysItems, #sysLists { overflow-y: auto; }   /* the Combat card (range, light, senses, turns, postures) and the Lists tab's budgets, readings, links and tables can be taller than the editor: the tab scrolls rather than spilling out of it */
+  #sysItems > .sys-rows, #sysLists > .sys-rows { flex: 0 0 auto; max-height: none; overflow: visible; }   /* and its rows keep their whole height: as a box of their own they were squeezed to a slit of 12 px under all that in a window 800 high (found live, 2026-10-30) */
   .sys-toolbar { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--dim); }
   /* ---- the System editor's keys (syskey.js): a button at the end of a tab's toolbar opens a key that names each tick of the tab's rows ---- */
   .sys-key-btn { margin-left: auto; white-space: nowrap; flex: none; }

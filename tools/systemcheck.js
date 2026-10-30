@@ -19065,6 +19065,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             axe.throwSkill === 'Traits.KeenSense.Smell.lvl' && J(crewOk) === J({ st: '', agg: 'max', name: 'Traits.KeenSense.Smell.lvl' }) && RT(axe.throwSkill) === 4,
             J([axe.throwSkill, crewOk]));
     }
+    {   // 1.6.0 Fits where, judged again (the core handbook session's ask after ask 18): a part or a host changed in place, on invented data
+        const J = JSON.stringify;
+        const mkF2 = parts => ({ v: 1, name: 'Fi', rolls: [], listRules: { ownerStats: true }, items: [{ id: 'i_sl', name: 'Sling', category: 'Gear', stats: { Grip: 2 } }, { id: 'i_lo', name: 'Small scope', category: 'Mod', stats: { Grip: 1 } }],
+            fields: [{ id: 'f_g', key: 'Slings', label: 'Slings', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Grip', label: 'Grip' }], parts: parts } },
+                { id: 'f_m', key: 'Mods', label: 'Mods', kind: 'item-list', vis: 'all', edit: 'owner', list: { custom: true, stats: [{ key: 'Grip', label: 'Grip' }] } }], sheet: { sections: [] } });
+        const gF = cleanSystem(mkF2({ from: 'f_m', fitIf: 'Row.Grip <= Host.Grip' }), { F, gmView: true }), pF = cleanSystem(mkF2({ from: 'f_m', fitIf: 'Row.Grip <= Host.Grip' }), { F, gmView: false }), gN2 = cleanSystem(mkF2({ from: 'f_m' }), { F, gmView: true });
+        let ch2 = null; const fresh2 = () => { ch2 = { id: 'c1', ownerId: 'u1', values: { f_g: [{ id: 'w_s', defId: 'i_sl', qty: 1 }], f_m: [{ id: 'w_1', defId: 'i_lo', qty: 1, in: 'w_s' }] } }; };
+        const op2 = (sys, fid, q, o) => { const r = S.applyRowOp(sys, ch2, fid, q, F, o || {}); if (r.ok) { ch2.values = Object.assign({}, ch2.values); ch2.values[fid] = r.value; } return r.ok ? 'ok' + (r.fitSays ? ' told: ' + r.fitSays : '') : r.reason + (r.msg ? ': ' + r.msg : ''); };
+        const PL = { player: true, view: pF }, NO = 'Small scope does not fit Sling: it needs Row.Grip <= Host.Grip.';
+        fresh2(); const partP = op2(gF, 'f_m', { op: 'ov', rowId: 'w_1', ov: { stats: { Grip: 3 } } }, PL), partKept = J(ch2.values.f_m[0].ov || null);
+        fresh2(); const partG = op2(gF, 'f_m', { op: 'ov', rowId: 'w_1', ov: { stats: { Grip: 3 } } });
+        fresh2(); const hostP = op2(gF, 'f_g', { op: 'ov', rowId: 'w_s', ov: { stats: { Grip: 0 } } }, PL), hostOk = op2(gF, 'f_g', { op: 'ov', rowId: 'w_s', ov: { stats: { Grip: 5 } } }, PL);
+        fresh2(); const own = [op2(gF, 'f_m', { op: 'custom', rowId: 'w_o', in: 'w_s', def: { name: 'Own scope', category: 'Mod', stats: { Grip: 1 } } }, PL), op2(gF, 'f_m', { op: 'custom', rowId: 'w_o', def: { name: 'Own scope', category: 'Mod', stats: { Grip: 4 } } }, PL)];
+        fresh2(); const none = op2(gN2, 'f_m', { op: 'ov', rowId: 'w_1', ov: { stats: { Grip: 9 } } });
+        check('1.6.0 Fits where, judged again: a part whose own values change so it no longer fits its host is refused to its player in the same words as an add, and kept as it was; the GM\'s hand passes and is told; a host changed so a part it holds no longer fits is refused alike, one that still fits passes; a part of the character\'s own changed in place is judged too; a list with no Fits where is never read',
+            partP === 'value: ' + NO && partKept === J(null) && partG === 'ok told: ' + NO && hostP === 'value: ' + NO && hostOk === 'ok' && J(own) === J(['ok', 'value: Own scope does not fit Sling: it needs Row.Grip <= Host.Grip.']) && none === 'ok'
+            && typeof S.fitAgain === 'function',
+            J([partP, partG, hostP, hostOk, own, none]));
+    }
     {   // 1.6.0 Changes apply where (list.modsIf; the campaign build's ask): a formula of the holder's names and each row's own, read with no item or effect change applied; a row where it does not hold gives none of its changes
         const J = JSON.stringify;
         const rawM = (gear, garb, hex, quiet, more) => ({ v: 1, name: 'T', rolls: [], fields: [

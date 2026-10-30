@@ -312,6 +312,8 @@ Systems, more
   character's. A player is refused where it does not hold, in the words
   under Refused with, and the add list greys that part out. You may fit
   it all the same, and you are told.
+- Fits where is judged again when a fitted part or the row it is on
+  changes, as when a part's material is changed after it was fitted.
 - A number can be Taken from a formula while another formula holds, in the
   Fields tab. Then it reads the formula and is closed to editing, so a
   construct takes its Might from its chassis. Otherwise it is as typed.

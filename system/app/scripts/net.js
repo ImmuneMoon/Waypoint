@@ -590,6 +590,8 @@ function hbTick() {
     if (!net.active) { setIndicator(null); return; }
     var now = Date.now();
     if (net.role === 'host') {
+        // found live, 2026-10-30: the room code was noted once, as the table opened, and a table more than 15 minutes old came back under a new code, so its players could not reattach
+        if (net.code && typeof rememberHostCode === 'function' && now - (net._codeAt || 0) >= 300000) { net._codeAt = now; rememberHostCode(net.code); }
         // every open connection, a peer still waiting for the GM's Allow too: a heartbeat carries nothing of the table, and without it a
         // waiting player takes the silence for a lost GM and reconnects every 20 s (the host keeps a waiting peer for a while: UNADMITTED_TTL)
         net.conns.forEach(function(c) { if (c.open) { try { c.send({ type: 'hb' }); } catch (e) { sendFailed(e); } } });
@@ -10397,7 +10399,14 @@ function refreshMark() {   // what a reload needs in order to come straight back
     } catch (e) {}
 }
 var _refreshBtn = ui('refreshBtn');
-if (_refreshBtn) _refreshBtn.addEventListener('click', function() { refreshMark(); location.reload(); });
+function refreshNow() { refreshMark(); location.reload(); }
+function refreshGo() {   // a fight lives in the host's memory alone, so a Refresh at a running fight is asked first
+    if (!(net.active && net.role === 'host' && net.combats && Object.keys(net.combats).length)) { refreshNow(); return; }
+    import('./dialogs.js').then(function(d) {
+        d.showConfirm('A fight is running. Refresh brings the table back with no fight: its round and its order are lost. Refresh anyway?', function(yes) { if (yes) refreshNow(); }, { noEnter: true });
+    });
+}
+if (_refreshBtn) _refreshBtn.addEventListener('click', refreshGo);
 if (typeof window.addEventListener === 'function') window.addEventListener('pagehide', refreshMark);
 // after a refresh: straight back to where you were
 setTimeout(function() {

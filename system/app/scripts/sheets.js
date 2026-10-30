@@ -12,6 +12,7 @@ import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, partsSrc, par
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
 import { groupRolls, groupWeakest } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
+import { partsTree } from './systemcore.js';   // 205 follow-up (2): the removal question counts a deep list's whole tree of parts
 import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, setGateEngine } from './systemcore.js';   // 1.6.0: linked sheets
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
@@ -2635,16 +2636,27 @@ function splitAsk(entry, c, f) {
     });
 }
 // [systemcheck:split-end]
+// [systemcheck:itemrm-start] 205 follow-up (2): how many parts go with a row that is removed: its own parts, and on a list whose parts hold
+// parts (parts.deep) its whole tree (systemcore partsTree, as the removal takes it); a kept curse's part counted nowhere, as partsOf counts
+function rmPartsN(sysR, c, f, rowId) {
+    if (!(f && f.list && f.list.parts) || typeof partsOf !== 'function') return 0;
+    var psR = typeof partsSrc === 'function' ? partsSrc(sysR, f.list) : null, deepR = !!(psR && psR.list && psR.list.parts && psR.list.parts.deep === true && psR.list.parts.from === psR.id);
+    if (!deepR || typeof partsTree !== 'function') return partsOf(sysR, c, f.list, rowId).length;
+    var rowsR = c && c.values && Array.isArray(c.values[psR.id]) ? c.values[psR.id] : [], trR = partsTree(rowsR, rowId, psR.list, psR.id), nT = 0;
+    rowsR.forEach(function(r) { var id = r && typeof r === 'object' ? rowIdOf(r) : ''; if (id && id !== rowId && trR[id] === 1 && r.hid !== 1) nT++; });
+    return nT;
+}
 function itemRmBtn(entry, def, c, f) {
     var rm = el('button', 'tool ghost sheet-item-rm', '×'); rm.title = entry.hid === 1 ? 'Dispel: remove ' + def.name + ' from the character' : 'Remove ' + def.name; rm.ariaLabel = rm.title;
     rm.addEventListener('click', function() {
-        var sysR = systemOf(getActiveCampaign()), nP = f.list && f.list.parts && typeof partsOf === 'function' ? partsOf(sysR, c, f.list, rowIdOf(entry)).length : 0;   // 1.6.0 R14: a row that holds parts asks first, since they go with it
+        var sysR = systemOf(getActiveCampaign()), nP = rmPartsN(sysR, c, f, rowIdOf(entry));   // 1.6.0 R14: a row that holds parts asks first, since they go with it (205 follow-up (2): its whole tree on a deep list)
         var gkR = typeof grantsKept === 'function' ? grantsKept(sysR, c && c.values, rowIdOf(entry)) : null, nG = gkR ? gkR.rows.filter(function(p) { return p.row.hid !== 1; }).length : 0;   // 1.6.0 (v2, B4): and one that granted rows
         if (!nP && !nG) { commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); return; }
         var wR = [nP ? 'its ' + (nP === 1 ? 'part' : nP + ' parts') : '', nG ? 'the ' + (nG === 1 ? 'row' : nG + ' rows') + ' it granted' : ''].filter(Boolean).join(' and '), mR = nP + nG > 1;
         showConfirm('Remove ' + def.name + '? ' + wR.charAt(0).toUpperCase() + wR.slice(1) + (mR ? ' go' : ' goes') + ' with it. Undo brings ' + (mR ? 'them' : 'it') + ' back too.', function(ok) { if (ok) commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); }, { noEnter: true });
     }); return rm;
 }
+// [systemcheck:itemrm-end]
 function itemCellText(col, def, len) {   // len: how the sheet on screen says a blast's radius (blastTag); with none the item's feet, as the readable page writes them
     if (col === 'category') return def.category || '';
     if (col === 'cost') return def.cost || '';

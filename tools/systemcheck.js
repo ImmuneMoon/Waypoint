@@ -18624,6 +18624,34 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('205 follow-up (1): a list roll that asks the level reads its row at a chosen level (fn.row\'s third argument, the id <id>@<lvl>), and there Row.parts, Row.parts.<w>, Row.parts.max.<w>, Row.parts.min.<w>, Row.parts.<choice> and Row.parts.all.<w> read the host row\'s own parts (a host whose parts sum to 3 reads 3 at level 2 as at its own), as do the columns worked out from them, while Row.lvl reads the chosen level; the row\'s own reading unchanged',
             lvlOk && deepOk && cellsOk && noneOk, J([own, at2, at4, o2, allOwn, allAt, allCol, cells.w_1.map(x => x.value)]));
     }
+    {   // 205 follow-up (2): the removal question counts a deep list's whole tree of parts (sheets.js itemRmBtn, run for real)
+        const J = JSON.stringify;
+        const rawR = { v: 1, name: 'R', rolls: [], items: [{ id: 'i_ch', name: 'Chassis', category: 'Body' }, { id: 'i_ar', name: 'Arm', category: 'Limb' }, { id: 'i_hn', name: 'Hand', category: 'Limb' }, { id: 'i_fg', name: 'Finger', category: 'Limb' }, { id: 'i_wp', name: 'Staff', category: 'Weapon' }],
+            fields: [{ id: 'f_c', key: 'Cyber', label: 'Cyber', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_c', deep: true } } },
+                { id: 'f_w', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_k' } } },
+                { id: 'f_k', key: 'Comps', label: 'Comps', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_k', deep: true } } },
+                { id: 'f_x', key: 'Kit', label: 'Kit', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_y' } } },
+                { id: 'f_y', key: 'Bits', label: 'Bits', kind: 'item-list', vis: 'all', edit: 'owner', list: {} }], sheet: { sections: [] } };
+        const gR = cleanSystem(rawR, { F, gmView: true }), fOf = id => gR.fields.find(f => f.id === id);
+        const chR = { id: 'c1', values: { f_c: [{ id: 'w_c', defId: 'i_ch', qty: 1 }, { id: 'w_a', defId: 'i_ar', qty: 1, in: 'w_c' }, { id: 'w_b', defId: 'i_ar', qty: 1, in: 'w_c' }, { id: 'w_h', defId: 'i_hn', qty: 1, in: 'w_a' }, { id: 'w_f', defId: 'i_fg', qty: 3, in: 'w_h' }, { id: 'w_q', defId: 'i_fg', qty: 1, in: 'w_h', hid: 1 }, { id: 'w_s', defId: 'i_ar', qty: 1 }],
+            f_w: [{ id: 'w_w', defId: 'i_wp', qty: 1 }], f_k: [{ id: 'w_k1', defId: 'i_ar', qty: 1, in: 'w_w' }, { id: 'w_k2', defId: 'i_hn', qty: 2, in: 'w_k1' }],
+            f_x: [{ id: 'w_x', defId: 'i_wp', qty: 1 }], f_y: [{ id: 'w_y1', defId: 'i_fg', qty: 1, in: 'w_x' }, { id: 'w_y2', defId: 'i_fg', qty: 1, in: 'w_x' }] } };
+        const shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const sliceR = shR.slice(shR.indexOf('// [systemcheck:itemrm-start]'), shR.indexOf('// [systemcheck:itemrm-end]'));
+        const asked = [], commits = [];
+        const mkR = (tag, cls, tx) => ({ tag, className: cls || '', textContent: tx === undefined ? '' : String(tx), title: '', on: {}, addEventListener(t, fn) { this.on[t] = fn; } });
+        const IR = new Function('el', 'systemOf', 'getActiveCampaign', 'partsOf', 'partsSrc', 'partsTree', 'grantsKept', 'rowIdOf', 'showConfirm', 'commitItem', sliceR + '\nreturn { n: rmPartsN, btn: itemRmBtn };')(
+            mkR, () => gR, () => ({}), S.partsOf, S.partsSrc, S.partsTree, S.grantsKept, S.rowIdOf, (words) => asked.push(words), (c, f, q) => commits.push([f.id, J(q)]));
+        const words = (fid, rowId, name) => { asked.length = 0; commits.length = 0; const row = chR.values[fid].find(r => r.id === rowId); IR.btn(row, { name }, chR, fOf(fid)).on.click(); return asked.length ? asked[0] : commits.length ? 'removed:' + commits[0][1] : 'nothing'; };
+        const nOk = IR.n(gR, chR, fOf('f_c'), 'w_c') === 4 && IR.n(gR, chR, fOf('f_c'), 'w_a') === 2 && IR.n(gR, chR, fOf('f_c'), 'w_h') === 1 && IR.n(gR, chR, fOf('f_c'), 'w_s') === 0
+            && IR.n(gR, chR, fOf('f_w'), 'w_w') === 2 && IR.n(gR, chR, fOf('f_x'), 'w_x') === 2 && IR.n(gR, chR, fOf('f_y'), 'w_y1') === 0;
+        const wC = words('f_c', 'w_c', 'Chassis'), wA = words('f_c', 'w_a', 'Arm'), wH = words('f_c', 'w_h', 'Hand'), wW = words('f_w', 'w_w', 'Staff'), wX = words('f_x', 'w_x', 'Staff'), wS = words('f_c', 'w_s', 'Arm');
+        const wordsOk = wC === 'Remove Chassis? Its 4 parts go with it. Undo brings them back too.' && wA === 'Remove Arm? Its 2 parts go with it. Undo brings them back too.' && wH === 'Remove Hand? Its part goes with it. Undo brings it back too.'
+            && wW === 'Remove Staff? Its 2 parts go with it. Undo brings them back too.' && wX === 'Remove Staff? Its 2 parts go with it. Undo brings them back too.' && wS === 'removed:' + J({ op: 'remove', rowId: 'w_s' });
+        const wiredOk = shR.includes("import { partsTree } from './systemcore.js';") && shR.includes('nP = rmPartsN(sysR, c, f, rowIdOf(entry));');
+        check('205 follow-up (2): the removal question (sheets.js itemRmBtn, run for real) counts a row\'s whole tree of parts on a list whose parts hold parts (parts.deep: a chassis with two arms, a hand and its fingers, two levels down, says 4; a weapon whose parts come from a deep list says its part and the part it holds), never a kept curse\'s part, and a list whose parts hold none its own parts as before; a row with none is removed with no question',
+            nOk && wordsOk && wiredOk, J([nOk, wordsOk, wiredOk, wC, wA, wH, wW, wX, wS]));
+    }
     {   // 1.6.0 Changes apply where (list.modsIf; the campaign build's ask): a formula of the holder's names and each row's own, read with no item or effect change applied; a row where it does not hold gives none of its changes
         const J = JSON.stringify;
         const rawM = (gear, garb, hex, quiet, more) => ({ v: 1, name: 'T', rolls: [], fields: [

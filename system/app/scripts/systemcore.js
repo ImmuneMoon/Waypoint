@@ -6685,10 +6685,14 @@ function targetHitFor(sys, tc, rowId, F, o) {
     var mk = function(s, c) { if (!s || !isObj(c)) return null; var fv = targetHitList(s), R = null; try { R = fv ? makeResolver(s, c, F) : null; } catch (e) { R = null; } var rv = R ? R.row(fv.id, rowId) : null; return typeof rv === 'function' ? rv : null; };
     var rd = function(rv, n) { if (!rv) return 0; var v; try { v = rv(n); } catch (e) { v = 0; } return num(v); };
     if (!targetHitRows(sys, tc, true).some(function(r) { return r.id === rowId; })) { if (o.player || !targetHitRows(sys, tc, false).some(function(r) { return r.id === rowId; })) return null; }
-    else if (o.player) { var rvP0 = mk(o.view, o.vtc); return rvP0 ? { fn: function(n) { return rd(rvP0, n); }, secret: function() { return false; } } : null; }
+    var seen = [], lab = function(n) { var k = lower(String(n)).replace(/^row\./, ''), lsp = isObj(f.list) ? f.list : {}, hit = (Array.isArray(lsp.stats) ? lsp.stats : []).concat(Array.isArray(lsp.cols) ? lsp.cols : []).filter(function(s) { return isObj(s) && lower(s.key || '') === k; })[0]; return cutText(hit && hit.label ? hit.label : k, 24) || k; };
+    var note = function(n, v) { var l = lab(n); if (seen.length < 4 && !seen.some(function(s) { return s.k === l; })) seen.push({ k: l, v: v }); return v; };
+    var rowName = (targetHitRows(sys, tc, !!o.player).filter(function(r) { return r.id === rowId; })[0] || {}).name || '';
+    var aim = function() { return rowName ? { n: rowName, f: seen.map(function(s) { return { k: s.k, v: s.v }; }) } : null; };   // 1.6.0 (B5): where the roll was aimed and each figure it read, for its card
+    if (o.player) { var rvP0 = mk(o.view, o.vtc); return rvP0 ? { fn: function(n) { return note(n, rd(rvP0, n)); }, secret: function() { return false; }, aim: aim } : null; }
     var kept = !targetHitRows(sys, tc, true).some(function(r) { return r.id === rowId; }), rvG = mk(sys, tc); if (!rvG) return null;
     var rvP = kept ? null : mk(o.view, o.vtc), sec = false;
-    return { fn: function(n) { var g = rd(rvG, n); if (!rvP || rd(rvP, n) !== g) sec = true; return g; }, secret: function() { return sec; } };
+    return { fn: function(n) { var g = rd(rvG, n); if (!rvP || rd(rvP, n) !== g) sec = true; return note(n, g); }, secret: function() { return sec; }, aim: aim };
 }
 // ... laid on the token context its roll is worked out in, as the range is: a NEW object, or the context unchanged for no reader
 function withTargetHit(tctx, th) { var fn = isObj(th) && typeof th.fn === 'function' ? th.fn : typeof th === 'function' ? th : null; return fn ? Object.assign({}, isObj(tctx) ? tctx : {}, { thit: fn }) : tctx; }

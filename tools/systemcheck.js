@@ -13711,6 +13711,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && F.evaluate('12 + Target.Hit.aim', { vars: RS }).value === 7, j([RS('target.hit.aim'), RC('target.hit.aim'), R0('target.hit.aim')]));
             const thCoreP = S.targetHitFor(hG, unit, 'w_cor', F, { player: true, view: hP, vtc: vU }), thHidP = S.targetHitFor(hG, unit, 'w_hid', F, { player: true, view: hP, vtc: vU }), thKaelP = S.targetHitFor(hG, unit, 'w_kh', F, { player: true, view: hP, vtc: vU });
             const thCoreG = S.targetHitFor(hG, unit, 'w_cor', F, { view: hP, vtc: vU }), thSrvG = S.targetHitFor(hG, unit, 'w_srv', F, { view: hP, vtc: vU }), thSrvN = S.targetHitFor(hG, unit, 'w_srv', F, {});
+            {   /* 1.6.0 (B5 follow-up): aim(), where the roll was aimed and each figure it read, for its card */
+                const thA = S.targetHitFor(hG, unit, 'w_srv', F, { player: true, view: hP, vtc: vU }), aim0 = thA.aim(); thA.fn('row.aim'); thA.fn('row.aim'); thA.fn('row.sz'); const aim1 = thA.aim();
+                const thB = S.targetHitFor(hG, unit, 'w_srv', F, { view: hP, vtc: vU }); thB.fn('row.pen');
+                check('1.6.0 (B5 follow-up) targetHitFor\'s aim(): the location\'s name and each figure the roll read once, by its label (Aim -5, Size -3), for a player and the GM alike; nothing read, the name alone',
+                    j(aim0) === j({ n: 'Servo-arm', f: [] }) && j(aim1) === j({ n: 'Servo-arm', f: [{ k: 'Aim', v: -5 }, { k: 'Size', v: -3 }] }) && j(thB.aim()) === j({ n: 'Servo-arm', f: [{ k: 'Penalty', v: -2 }] }), j([aim0, aim1, thB.aim()]));
+            }
             const gC = thCoreG.fn('row.pen'), gS = thSrvG.fn('row.aim'), gN = thSrvN.fn('row.aim');
             check('1.6.0 (B5) a player cannot name a row kept from them (a GM-only entry, one out of their sight) nor a row their target does not hold; the GM may aim at any row of the target, and a figure players would read otherwise (a GM-only row) marks the GM\'s roll secret, as does having no players\' view to compare with, while a row players read alike does not',
                 thCoreP === null && thHidP === null && thKaelP === null && gC === -9 && thCoreG.secret() === true && gS === -5 && thSrvG.secret() === false && gN === -5 && thSrvN.secret() === true && S.targetHitFor(hG, unit, 'w_nope', F, {}) === null && S.targetHitFor(hG, unit, 'w_hid', F, {}) === null, j([gC, gS, gN]));

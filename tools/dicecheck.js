@@ -308,6 +308,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && !kBad.children.some(k => k.className === 'roll-break') && drawn(kHost) === pathsOf('2d6') && !J(kHost).includes('onerror')
                 && dj.includes("    if (typeof dieInto === 'function') dieInto(brk, rec);   // 1.5.8: the die its formula rolls, first on the dice line\n    wrap.appendChild(brk);"), e9 || J([k3 && dieOf9(k3), kF && drawn(kF)]));
         }
+        {   // 1.6.0 (B5 follow-up): where a called shot was aimed, on the host's record (cleanAim, cleanRoll): text and numbers in their bounds; one that does not clean is left off and the roll kept
+            const rA = cleanRoll(rec({ aim: { n: 'Servo-arm', f: [{ k: 'Aim', v: -5 }] } })), rA0 = cleanRoll(rec({ aim: { n: 'Torso', f: [] } }));
+            const badA = [{ n: '', f: [] }, { n: 'x'.repeat(61), f: [] }, { n: 'Arm' }, { n: 'Arm', f: [{ k: 'A', v: NaN }] }, { n: 'Arm', f: [{ k: '', v: 1 }] }, { n: 'Arm', f: [1, 2, 3, 4, 5].map(i => ({ k: 'K' + i, v: i })) }, { n: 'Arm\u0007', f: [] }, [1], 'x', null].map(b => cleanRoll(rec({ aim: b })));
+            check('1.6.0 (B5 follow-up) cleanRoll keeps where a called shot was aimed (the location\'s name, up to 4 figures each a label and a number); a malformed one is left off and the roll kept; cleanAim alone',
+                !!rA && JSON.stringify(rA.aim) === JSON.stringify({ n: 'Servo-arm', f: [{ k: 'Aim', v: -5 }] }) && JSON.stringify(rA0.aim) === JSON.stringify({ n: 'Torso', f: [] }) && badA.every(r => r && !('aim' in r)) && D.cleanAim({ n: 'A', f: [], x: 1 }).x === undefined,
+                JSON.stringify([rA, badA]));
+        }
         {   // 1.6.0 (B3): a damage roll's second part on the host's record (cleanDmg2, cleanRoll): kept only beside dmg 1, text and numbers in their bounds; one that does not clean is left off and the roll kept
             const r2 = cleanRoll(rec({ dmg: 1, dmg2: { t: 4, n: 1, dtype: 'burn', ad: 2 } })), r0 = cleanRoll(rec({ dmg2: { t: 4 } })), rT = cleanRoll(rec({ dmg: 1, dmg2: { t: 0 } }));
             const badD2 = [{ t: -1 }, { t: 1.5 }, { t: 1000001 }, { t: 4, n: 0 }, { t: 4, n: 101 }, { t: 4, dtype: '9x' }, { t: 4, dtype: '<b>' }, { t: 4, ad: 1 }, { t: 4, ad: 0.05 }, { t: 4, ad: 'x' }, [4], 'x', null].map(b => cleanRoll(rec({ dmg: 1, dmg2: b })));
@@ -357,6 +364,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('1.6.0 (B3) a damage card says its second part under the total ("and 4 Burning in the same blow", by the type\'s label) and Apply to target hands it to the window as part2 (its amount, type, divisor and dice); a card with none says nothing and hands none',
                 kid(c3, 'roll-part2') && kid(c3, 'roll-part2').textContent === 'and 4 Burning in the same blow' && JSON.stringify(more3[0]) === JSON.stringify([7, 'cut', { dice: 2, ad: 0, major: false, part2: { amt: 4, type: 'burn', ad: 2, dice: 1 } }])
                 && !kid(c4, 'roll-part2') && more3[1][2].part2 === undefined, JSON.stringify(more3));
+            // 1.6.0 (B5 follow-up, the owner: "Yes, add it"): a called shot's card says where it was aimed and what its location gave
+            const cA1 = rc3({ roll: rec({ expr: '3d6 + Target.Hit.aim', label: 'Aimed shot', aim: { n: 'Servo-arm', f: [{ k: 'Aim', v: -5 }] } }), res: F.evaluate('3d6', { random: scripted([1, 5, 1]) }) });
+            const cA2 = rc3({ roll: rec({ expr: '3d6', aim: { n: 'Crane arm', f: [{ k: 'Penalty', v: -2 }, { k: 'Size', v: 1 }] } }), res: F.evaluate('3d6', { random: scripted([1, 5, 1]) }) });
+            const cA3 = rc3({ roll: rec({ expr: '3d6', aim: { n: 'Torso', f: [] } }), res: F.evaluate('3d6', { random: scripted([1, 5, 1]) }) }), cA0 = rc3({ roll: rec({ expr: '3d6' }), res: F.evaluate('3d6', { random: scripted([1, 5, 1]) }) });
+            check('1.6.0 (B5 follow-up) a called shot\'s card names where it was aimed and what its location gave: one figure in brackets ("at Servo-arm (\u22125)"), several by their labels ("at Crane arm (Penalty \u22122, Size +1)"), none as the name alone; a card with no aim says nothing',
+                kid(cA1, 'roll-aim') && kid(cA1, 'roll-aim').textContent === 'at Servo-arm (\u22125)' && kid(cA2, 'roll-aim').textContent === 'at Crane arm (Penalty \u22122, Size +1)' && kid(cA3, 'roll-aim').textContent === 'at Torso' && !kid(cA0, 'roll-aim'),
+                JSON.stringify([kid(cA1, 'roll-aim') && kid(cA1, 'roll-aim').textContent, kid(cA2, 'roll-aim') && kid(cA2, 'roll-aim').textContent]));
         }
         const kOk = card({ expr: 'd20 + 5 >= 10', draws: [10], label: 'Attack' }, [10]), kNo = card({ expr: 'd20 + 5 >= 10', draws: [1], label: 'Attack' }, [1]);
         const kDm = card({ expr: '2d6', draws: [3, 4], label: 'Sword \u00b7 Damage', dmg: 1 }, [3, 4]), kMf = card({ expr: '3d6', draws: [1, 1, 1], label: 'Blaster', dmg: 1, malf: 3 }, [1, 1, 1]);

@@ -185,6 +185,8 @@ Systems, more
   Target.Hit.<name> first asks where it is aimed, offering only the
   locations that target has, and reads that stat or column of its row, as
   Target.Hit.pen. A damage roll's Apply to target then picks that location.
+  The roll's card says where it was aimed and what the location gave, as
+  "at Servo-arm (-5)".
 - A Major Wound's threshold may read the location hit, as Hit.<name>. A
   Major Wound can switch an effect on and ask the wounded character's player
   for a roll, set in the Combat card's Taking damage box.

@@ -1221,7 +1221,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 if(wbEventMsg) wbEventMsg.addEventListener('input', function() { w.eventMessage = this.value; save(); });
             } else {
                 var wbIsChar = document.getElementById('wbIsChar');
-                if(wbIsChar) wbIsChar.addEventListener('change', function() { if (typeof secretCharOk === 'function' && !secretCharOk(w, this.checked)) { this.checked = false; return; } w.isChar = this.checked; save(); renderInspector(); });
+                // 1.6.0, found by hand: with no layer a token stood at a picture's height, and a picture laid later covered it
+                if(wbIsChar) wbIsChar.addEventListener('change', function() { if (typeof secretCharOk === 'function' && !secretCharOk(w, this.checked)) { this.checked = false; return; } var low = this.checked && !w.layer; w.isChar = this.checked; if (low) w.layer = 'middle'; save(); if (low) render(); renderInspector(); });
                 var wbCharName = document.getElementById('wbCharName');
                 if(wbCharName) wbCharName.addEventListener('input', function() { w.charName = this.value; save(); });
                 var wbCharStats = document.getElementById('wbCharStats');

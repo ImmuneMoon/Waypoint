@@ -7624,6 +7624,7 @@ function handleMessage(msg, conn) {
             if (qa.on) { onA = typeof allyOn === 'function' ? allyOn(campA, mapA, tkA, qa.on, profA.id) : { error: 'missing', message: 'That character is not there.' }; if (onA.error) { denyA('error', onA.message); return; } }
             if (typeof Sa.withOnSelf === 'function') varsA = Sa.withOnSelf(varsA, !onA, onA ? Sa.makeResolver(viewA, onA.ch, Fa, typeof allyCtx === 'function' ? allyCtx(mapA, onA.tok) : null) : null);   // 1.6.0: On.<name> reads the one it is used on, through their view   // OnSelf: 1 on themselves, 0 on another
         }
+        var offA = typeof offTurnBar === 'function' ? offTurnBar(campA, chA, qa.act, qa.row, actA.label, conn) : ''; if (offA) { denyA('error', offA); return; }   // 1.6.0: off their turn, by the system's rule
         var resA = Sa.applyAct(campA.system, chA, actA, varsA, Fa, tcA, qa.row ? { f: qa.row.f, r: qa.row.r } : null, undefined, window.wpDiceCore || null, onA ? { char: onA.ch, tctx: typeof allyCtx === 'function' ? allyCtx(mapA, onA.tok) : null } : null, typeof fxNow === 'function' ? fxNow(qa.charId, onA) : null);   // R2b: a list's action may move its row's counters; 1.5.9: the host's dice roll a Rolled amount (never the player's word); and its changes land on the one it is used on
         if (!resA.ok) { denyA(resA.reason, resA.message); return; }
         var costA = typeof actSpend === 'function' ? actSpend(campA, qa.charId, profA, actA.cost, conn, chA.name) : ''; if (costA) { denyA('error', costA); return; }   // turn-based combat T4: what it costs (worked out first: a press that cannot land spends nothing)
@@ -8504,6 +8505,7 @@ function handleMessage(msg, conn) {
             }
         }
         if (Fq.names(q.expr).length && !varsQ) { denyQ('names'); return; }
+        if (chQ && !q.att && typeof offTurnBar === 'function') { var offQ = offTurnBar(campQ, chQ, q.act, q.row, q.label || (actQ && actQ.label), conn); if (offQ) { denyQ('error', { error: { message: offQ, pos: 0, len: 0 } }); return; } }   // 1.6.0: off their turn, by the system's rule; a card's press answers the host's own record
         if (actQ && actQ.burst === 'extra' && q.row && typeof SQ.burstBar === 'function') { var bbQ = SQ.burstBar(campQ.system, chQ, q.row.f, q.row.r); if (bbQ) { denyQ('error', { error: { message: bbQ, pos: 0, len: 0 } }); return; } }   // 1.6.0 A burst: its extra dice, once, after an attack that hit
         var hvQ = null; if (actQ && actQ.dmg === true && actQ.hits && varsQ && typeof SQ.hitCount === 'function') { var hnQ = SQ.hitCount(actQ, varsQ, Fq); if (hnQ === null) { denyQ('error', { error: { message: 'How many hits it rolls for could not be worked out.', pos: 0, len: 0 } }); return; } if (hnQ < 1) { denyQ('error', { error: { message: 'There are no hits to roll for.', pos: 0, len: 0 } }); return; } hvQ = SQ.hitVars(varsQ, hnQ); varsQ = hvQ[0]; }   // 1.6.0 A burst: how many times it rolls, from the entry through their view; the first hit reads its own round
         var resQ = Fq.evaluate(q.expr, varsQ ? { vars: varsQ } : {});
@@ -9892,6 +9894,7 @@ net.diceRoll = function(expr, o) {
     if (typeof o.att === 'string' && !(entR && entR.resist === true) && !(typeof attemptRec === 'function' && attemptRec(o.att) && attemptRec(o.att).blow)) return { error: 'That roll does not resist an attempt.' };   // 1.6.0 (B2)   // 1.6.0 (the core's gaps 6 and 7): or it answers a blow
     if (o.row && entR && typeof entR.showIf === 'string' && entR.showIf && varsR && !SR.rollNeedsOk({ needs: entR.showIf }, varsR, F)) return { error: 'That roll is not offered on this row.' };   // 1.6.0: Shown where
     if (entR && entR.needs && varsR && !SR.rollNeedsOk(entR, varsR, F)) return { error: SR.rollNeedsSays(entR) };
+    if (chR && !o.att && typeof net.offTurnSay === 'function') net.offTurnSay(chR, o.act, o.row, o.label);   // 1.6.0: off its turn, the GM is told
     var swR = null; if (Array.isArray(o.sw) && o.sw.length) { var refSw = o.act && !o.row ? { r: String(o.act) } : o.fr ? { f: String(o.fr) } : o.row ? { l: String(o.row.f), row: String(o.row.r), i: typeof o.row.i === 'number' ? o.row.i : undefined } : null; swR = chR && SR && campR && campR.system && refSw && typeof SR.swJudge === 'function' ? SR.swJudge(campR.system, chR, refSw, o.sw) : { ok: false }; if (!swR.ok) return { error: 'That bonus is not this character\u2019s to add to this roll now.' }; }   // 1.6.0: the roll switches ticked, judged as a player's are (the formula already holds them)   // R2b: its needs (before anything is rolled)   // Stage 6 F5b: a roll on one row — its Row.* names
     if (entR && entR.burst === 'extra' && o.row && SR && typeof SR.burstBar === 'function') { var bbR = SR.burstBar(campR.system, chR, o.row.f, o.row.r); if (bbR) return { error: bbR }; }   // 1.6.0 A burst: its extra dice, once, after an attack that hit
     var hvR = null; if (entR && entR.dmg === true && entR.hits && varsR && SR && typeof SR.hitCount === 'function') { var hnR = SR.hitCount(entR, varsR, F); if (hnR === null) return { error: 'How many hits it rolls for could not be worked out.' }; if (hnR < 1) return { error: 'There are no hits to roll for.' }; hvR = SR.hitVars(varsR, hnR); varsR = hvR[0]; }   // 1.6.0 A burst: how many times it rolls, from the entry; the first hit reads its own round
@@ -10403,6 +10406,35 @@ if (_joinBtn) _joinBtn.addEventListener('click', function() {
 var _leaveBtn = ui('netLeaveBtn');
 if (_leaveBtn) _leaveBtn.addEventListener('click', function() { net.leaveSessionConfirm(); });
 
+// [netcheck:offturn-start]
+// 1.6.0 Off a character's turn (combat.turn.off, in a system's Turns): a system may hold a fight to what is called for off a character's turn. Absent,
+// anything goes, as ever. A player's chosen roll or action off their turn is refused, or goes through with a word, and the GM is told. The GM's own
+// press always goes through, and the GM is told. What is called for is systemcore offTurnFree's, and a card's press answers a record the host holds, so
+// it passes too. A row holding its turn may act, which is a held action's way through. A move is the turn rules' own to judge (moveMode)
+var _offSaid = Object.create(null);
+function offTurnOf(camp, charId) {   // the system's word where this character is in a fight and it is not their turn, else ''
+    var sys = camp && camp.system, tn = sys && sys.combat && sys.combat.turn, md = tn ? tn.off : ''; if (md !== 'refuse' && md !== 'warn') return '';
+    if (window.wpVtt && !window.wpVtt.on('turns')) return '';
+    var fid = orderOfIn(camp, charId), c = fid ? net.combats[fid] : null, mp = c && own(camp.items, c.mapId) ? camp.items[c.mapId] : null; if (!c || !mp) return '';
+    var mine = function(r) { return !!r && typeof r.tokId === 'string' && mp.whiteboard.some(function(w) { return !!w && w.id === r.tokId && !!w.isChar && w.charId === charId; }); };
+    if (mine(c.rows[c.turn]) || c.rows.some(function(r) { return mine(r) && r.held === 1; })) return '';
+    return md;
+}
+function offTurnTell(name, text) {   // to the GM, once in a while for one character, and always in the Session Log
+    var k = String(name), now = Date.now(); logEvent('table', text); if (_offSaid[k] && now - _offSaid[k] < 3000) return; _offSaid[k] = now; toast(text);
+}
+function offTurnBar(camp, ch, act, row, label, conn) {   // a player's press: '' when it may go ahead, else the refusal's words
+    var S = SC(), md = offTurnOf(camp, ch.id); if (!md || !S || S.offTurnFree(camp.system, act, row)) return '';
+    var nm = String(ch.name || 'A character').slice(0, 60), what = String(label || 'a roll').slice(0, 60);
+    offTurnTell(nm, nm + (md === 'refuse' ? ' tried ' : ' used ') + what + ' out of turn.');
+    if (md === 'refuse') return 'It is not your turn.';
+    turnNote(conn, 'It is not your turn. The GM is told.', ch.id); return '';
+};
+net.offTurnSay = function(ch, act, row, label) {   // the GM's own press goes through, and the GM is told
+    var camp = getActiveCampaign(), S = SC(); if (net.role !== 'host' || !ch || !camp || !S || !offTurnOf(camp, ch.id) || S.offTurnFree(camp.system, act, row)) return;
+    var nm = String(ch.name || 'A character').slice(0, 60); offTurnTell(nm, nm + ' used ' + String(label || 'a roll').slice(0, 60) + ' out of turn.');
+};
+// [netcheck:offturn-end]
 // [netcheck:fightsave-start]
 // 1.6.0 (the owner, 2026-10-30, by prompt: "Yes, save it (Recommended)"): a running fight is kept in its campaign, so a Refresh or a crash loses it no more.
 // camp.fights is { on: the fight played, list: net.combats as the host holds it }, kept a moment after each change and let go when the last fight ends,

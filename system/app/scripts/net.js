@@ -7223,7 +7223,7 @@ function handleMessage(msg, conn) {
         if (campG && campG.items && validKey(msg.itemId) && own(campG.items, msg.itemId)) {
             net.applyingRemote = true;
             delete campG.items[msg.itemId];
-            if (campG.activeItemId === msg.itemId) { campG.activeItemId = Object.keys(campG.items).find(function(id) { return campG.items[id].type === 'map'; }) || null; state.selId = null; state.selWbId = null; state.selWbIds = []; }
+            if (campG.activeItemId === msg.itemId) { var wasMapG = state.viewMode === 'visual'; campG.activeItemId = Object.keys(campG.items).find(function(id) { return campG.items[id].type === 'map'; }) || null; state.selId = null; state.selWbId = null; state.selWbIds = []; if (wasMapG) toast('The GM deleted the map you were on. They can bring you to another.'); }   // 1.6.0 (found by hand): said, or the player only finds a line that says they are not on this map
             try { if (window.wpDocGone) window.wpDocGone(msg.campId, msg.itemId); } catch (e) {}
             try { if (window.wpSheets && window.wpSheets.sheetRefsChanged && window.wpSheets.sheetRefsChanged()) window.wpSheets.renderSheet(); } catch (e) {}   // a chip/link to that page goes with it (Stage 5f)
             updateSidebarNav(); render();

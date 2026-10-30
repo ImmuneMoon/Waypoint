@@ -115,9 +115,9 @@ function wire() {
         else if (b.id === 'railSearch') { act({ t: 'away' }); if (window.wpCmdkOpen) window.wpCmdkOpen(); }
         else if (b.getAttribute('data-rail')) act({ t: 'icon', sec: b.getAttribute('data-rail') });
     });
-    document.addEventListener('pointerdown', function(e) {   // a press anywhere but the panel and the rail folds a panel that was only opened
+    document.addEventListener('pointerdown', function(e) {   // a press anywhere but the panel, the rail and a menu of theirs folds a panel that was only opened (1.6.0, found by hand: folding took the row of the panel's own menu away from under the press)
         if (st.mode !== 'open') return;
-        var t = e.target; if (t && t.closest && (t.closest('#campaignSidebar') || t.closest('#leftRail') || t.closest('.context-menu') || t.closest('#tourCard'))) return;
+        var t = e.target; if (t && t.closest && (t.closest('#campaignSidebar') || t.closest('#leftRail') || t.closest('.context-menu') || t.closest('#sidebarContextMenu') || t.closest('#tourCard'))) return;
         act({ t: 'away' });
     }, true);
     document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && st.mode === 'open' && (!window.wpEsc || window.wpEsc.free(e))) act({ t: 'away' }); });

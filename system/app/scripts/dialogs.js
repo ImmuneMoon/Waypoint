@@ -650,6 +650,13 @@ if(_el_ctxRenameItem) _el_ctxRenameItem.addEventListener('click', function() {
       return ids.length;
   }
   // [netcheck:mapfights-end]
+  // [netcheck:deletewords-start]
+  // 1.6.0 (found by hand): a delete names what goes, and says what ends with it
+  function deleteWords(camp, id) {
+      var it = camp.items[id], nm = it && it.meta && typeof it.meta.title === 'string' ? it.meta.title.trim() : '', n = window.wpNet, ids = n && n.active && typeof n.fightsOn === 'function' ? n.fightsOn(id) : null, f = Array.isArray(ids) ? ids.length : 0;
+      return 'Are you sure you want to delete ' + (nm || 'this item') + '? This cannot be undone (a safety copy is taken first).' + (f === 1 ? ' The fight on it ends.' : f > 1 ? ' The ' + f + ' fights on it end.' : '');
+  }
+  // [netcheck:deletewords-end]
   var _el_ctxDeleteItem = document.getElementById('ctxDeleteItem');
   if(_el_ctxDeleteItem) _el_ctxDeleteItem.addEventListener('click', function() {
       var menu = document.getElementById('sidebarContextMenu');
@@ -661,7 +668,7 @@ if(_el_ctxRenameItem) _el_ctxRenameItem.addEventListener('click', function() {
       var keys = Object.keys(camp.items);
       if(keys.length <= 1) { toast("Cannot delete the last item in a campaign."); return; }
       
-      showConfirm("Are you sure you want to delete this item? This cannot be undone (a safety copy is taken first).", function(yes) {
+      showConfirm(deleteWords(camp, id), function(yes) {
           if(yes) takeSafetyCopy().then(function() {
               if (typeof endFightsOn === 'function') endFightsOn(id);   // 1.5.5: a fight on the map ends first, while the map stands
               // Promote any nested children to the deleted item's parent
@@ -674,7 +681,7 @@ if(_el_ctxRenameItem) _el_ctxRenameItem.addEventListener('click', function() {
               }
               delete camp.items[id];
               if (window.wpNet && window.wpNet.itemGone) window.wpNet.itemGone(camp.id, id, removed && removed.meta ? removed.meta.title : undefined);   // hosting: the item leaves every player's copy too (a fight on a map ends, named as the map was)
-              if (camp.activeItemId === id) { camp.activeItemId = Object.keys(camp.items)[0] || null; state.viewMode = 'data'; }
+              if (camp.activeItemId === id) { var nextM = removed && removed.type === 'map' ? Object.keys(camp.items).find(function(k) { return camp.items[k].type === 'map'; }) : null; camp.activeItemId = nextM || Object.keys(camp.items)[0] || null; if (!(nextM && state.viewMode === 'visual')) state.viewMode = 'data'; }   // 1.6.0 (found by hand): a map deleted on the play map leaves you on the next map's play map
               updateSidebarNav(); render(); save(true);
               if (window.appRestoreCamera) window.appRestoreCamera();
           });
@@ -701,7 +708,7 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
 
       if(keys.length <= 1) { toast("Cannot delete the last item in a campaign."); return; }
 
-      showConfirm("Are you sure you want to delete this item? This cannot be undone (a safety copy is taken first).", function(yes) {
+      showConfirm(deleteWords(camp, camp.activeItemId), function(yes) {
 
           if(yes) takeSafetyCopy().then(function() {
 
@@ -710,7 +717,7 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
               delete camp.items[goneId];
               if (window.wpNet && window.wpNet.itemGone) window.wpNet.itemGone(camp.id, goneId, goneIt && goneIt.meta ? goneIt.meta.title : undefined);   // hosting: the item leaves every player's copy too (a fight on a map ends, named as the map was)
 
-              camp.activeItemId = Object.keys(camp.items)[0];
+              camp.activeItemId = (goneIt && goneIt.type === 'map' && Object.keys(camp.items).find(function(k) { return camp.items[k].type === 'map'; })) || Object.keys(camp.items)[0];
 
               state.selId = null; state.selWbId = null; state.linkStart = null;
 

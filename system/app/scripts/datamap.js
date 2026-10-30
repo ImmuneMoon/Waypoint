@@ -1584,29 +1584,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               marqueeBox.remove();
               marqueeBox = null;
               
-              if (mw > 5 && mh > 5) {
-                  var activeMap = getActiveMap();
-                  var selected = [];
-                  activeMap.whiteboard.forEach(w => {
-                      var cx = w.x + (w.w||100)/2;
-                      var cy = w.y + (w.h||100)/2;
-                      if (cx >= mx && cx <= mx + mw && cy >= my && cy <= my + mh) {
-                          selected.push(w.id);
-                      }
-                  });
-                  if (selected.length > 0) {
-                      if (e.shiftKey || e.ctrlKey || e.metaKey) {
-                          state.selWbIds = Array.from(new Set([...(state.selWbIds||[]), ...selected]));
-                      } else {
-                          state.selWbIds = selected;
-                      }
-                      state.selWbId = state.selWbIds[state.selWbIds.length - 1];
-                  } else if (!(e.shiftKey || e.ctrlKey || e.metaKey)) {
-                      state.selWbIds = [];
-                      state.selWbId = null;
-                  }
-                  render();
-              }
+              if (mw > 5 && mh > 5) selectItemsInMarquee(mx, my, mw, mh, e);   // 1.6.0 (found by hand): the one rule, so a player's sweep takes only what they may move
               return;
           }
 

@@ -17764,6 +17764,16 @@ pendingChecks.push((async () => {
     check('1.5.5 (the release trace, F3, source): dialogs.js ends the fights on a map in one place, endFightsOn, asked through typeof by both deletes before the item is taken out, through net.fightSet as End does',
         mfF3.length > 0 && /n\.fightsOn\(id\)/.test(mfF3) && /n\.fightSet\(fid, null\)/.test(mfF3) && (dlgF3.match(/if \(typeof endFightsOn === 'function'\) endFightsOn\(/g) || []).length === 2
         && delF3(0).indexOf('endFightsOn(id)') >= 0 && delF3(0).indexOf('endFightsOn(id)') < delF3(0).indexOf('delete camp.items[id]') && delF3(1).indexOf('endFightsOn(camp.activeItemId)') >= 0 && delF3(1).indexOf('endFightsOn(camp.activeItemId)') < delF3(1).indexOf('delete camp.items[goneId]'));
+    { const dwA = dlgF3.indexOf('// [netcheck:deletewords-start]'), dwB = dlgF3.indexOf('// [netcheck:deletewords-end]');
+        const dw = (n, title) => new Function('window', dlgF3.slice(dwA, dwB) + '\nreturn deleteWords;')({ wpNet: n })({ items: { m: { meta: { title } } } }, 'm');
+        const tail = '? This cannot be undone (a safety copy is taken first).';
+        check('1.6.0 a delete names what goes and what ends with it (dialogs.js deleteWords, run for real): the item by its name, this item with none, and the fights a table holds on it, which only a table that is on says; both deletes ask it',
+            dw(null, 'Docks') === 'Are you sure you want to delete Docks' + tail && dw(null, ' ') === 'Are you sure you want to delete this item' + tail
+            && dw({ active: true, fightsOn: () => ['a'] }, 'Docks').endsWith(tail + ' The fight on it ends.') && dw({ active: true, fightsOn: () => ['a', 'b'] }, 'Docks').endsWith(tail + ' The 2 fights on it end.') && dw({ active: false, fightsOn: () => ['a'] }, 'Docks').endsWith(tail)
+            && (dlgF3.match(/showConfirm\(deleteWords\(camp, /g) || []).length === 2 && dlgF3.indexOf('delete this item?') < 0, dw(null, 'Docks'));
+        check('1.6.0 a map deleted on the play map leaves you on the next map, on its play map (found by hand: it dropped to a data map), and only a map hands on to a map; a player whose map went is told',
+            /var nextM = removed && removed\.type === 'map' \?/.test(delF3(0)) && /if \(!\(nextM && state\.viewMode === 'visual'\)\) state\.viewMode = 'data';/.test(delF3(0)) && /goneIt\.type === 'map' && Object\.keys\(camp\.items\)\.find/.test(delF3(1))
+            && /if \(wasMapG\) toast\('The GM deleted the map you were on\. They can bring you to another\.'\);/.test(src)); }
     // the review of that fold: a fight on another map goes on with its round as it was, and two fights on the deleted map both end, each said once; every
     // delete leaves all of it as End and then the delete leave it (a delete that ended every fight at the table, or one of the map's two, fails here)
     const sceneF3o = () => { const s = sceneF3(); s.fb = s.Wd.net.fightSet(null, bridge([row('t_sela', 'Sela'), row('t_u9', 'Unit 9')])); s.Wd.net.fightStep(s.fb, 1); s.Wd.net.fightStep(s.fb, 1); return s; };

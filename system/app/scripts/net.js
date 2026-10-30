@@ -4966,6 +4966,7 @@ function fightReachTurnEnd(c, round, row, at) {
 function turnEnded(mapId, c, row, round, at) {
     if (!fightReachTurnEnd(c, round, row, at)) return;
     try { if (window.wpSheets && window.wpSheets.turnEndHook) window.wpSheets.turnEndHook(mapId, Object.assign({}, c, { round: round, turn: 0, rows: [row] })); } catch (e) { console.error(e); }
+    try { if (typeof turnFxEnd === 'function') turnFxEnd(mapId, c, row, round); } catch (e) { console.error(e); }   // after the hook: what is rolled at a turn's end still reads what wears off there
 }
 // [netcheck:turnended-end]
 function fightReachKept(had, f) {   // a roster edit: how far the fight has gone, kept whole (a row taken out and put back in the same round keeps its turn had)
@@ -4974,6 +4975,7 @@ function fightReachKept(had, f) {   // a roster edit: how far the fight has gone
     if (had.et && typeof had.et === 'object') f.et = had.et;
     if (had.th && typeof had.th === 'object') f.th = had.th;
     if (had.turned && typeof had.turned === 'object') f.turned = had.turned;
+    if (had.fxEnded && typeof had.fxEnded === 'object') f.fxEnded = had.fxEnded;   // 1.6.0: and whose end-of-turn effects it has counted
     if (Array.isArray(had.ps)) f.ps = had.ps.slice();   // initiative O5: who had their turn this round, in the order they had it
     if (Array.isArray(had.pp)) f.pp = had.pp;   // ...and in the rounds before (a step back's way)
 }
@@ -5145,6 +5147,12 @@ function turnFxStart(mapId, c) {   // the character whose turn begins: a round o
     var camp = getActiveCampaign(), row = c && Array.isArray(c.rows) ? c.rows[c.turn] : null; if (!camp || !row) return;
     var tn = c.turned && typeof c.turned === 'object' ? c.turned : (c.turned = Object.create(null)), rd = typeof c.round === 'number' ? c.round : 1;
     fxCombatChars(mapId, { rows: [row] }).forEach(function(ch) { if (typeof ch.id === 'string') { if (Object.prototype.hasOwnProperty.call(tn, ch.id) && tn[ch.id] >= rd) return; tn[ch.id] = rd; } fxApply(camp, ch, 'turn', Date.now()); });
+}
+// 1.6.0 Counts at its turn's end: the character whose turn ended, in the round it ended: a round passes for its effects set so, once in each round of that fight (c.fxEnded, { charId: round }, the host's own and never sent, as turned is)
+function turnFxEnd(mapId, c, row, round) {
+    var camp = getActiveCampaign(); if (!camp || !c || !row) return;
+    var tn = c.fxEnded && typeof c.fxEnded === 'object' ? c.fxEnded : (c.fxEnded = Object.create(null)), rd = typeof round === 'number' ? round : 1;
+    fxCombatChars(mapId, { rows: [row] }).forEach(function(ch) { if (typeof ch.id !== 'string') return; if (Object.prototype.hasOwnProperty.call(tn, ch.id) && tn[ch.id] >= rd) return; tn[ch.id] = rd; fxApply(camp, ch, 'turnEnd', Date.now()); });
 }
 function fxCombatEdge(mapId, combat, kind) { var camp = getActiveCampaign(), now = Date.now(); fxCombatChars(mapId, combat).forEach(function(ch) { fxApply(camp, ch, kind, now); }); }   // bank at a combat's start, resume at its end
 function fxClockTick() {   // out of combat: the clock, on the GM's own machine

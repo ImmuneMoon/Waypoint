@@ -499,6 +499,9 @@ Systems
   it goes, your trait falls back to the level it had. A level you set
   by hand above the grant stays. A list with a quantity does this only
   when ticked A grant raises a held row.
+- An effect can last to the end of a turn: set its Counts at to Its
+  turn's end, and an effect of 1 turn stays on through its character's
+  whole next turn. Its turn's start is as before.
 - An effect can say what happens when it is added again while it is
   on: When added again is Replace, as before, Keep the longer, or Add
   the times. A short stun no longer cuts a long one short. The card

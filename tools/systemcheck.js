@@ -16514,6 +16514,30 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && shR.includes("if (typeof res.raised === 'string' && res.raised) toast(res.raised);") && ixR.includes('<li><b>A grant raises a held row</b> is for a list with a quantity.') && ixR.includes('When the row that granted it goes, the held row falls back to the level it had.')
             && ntR.every(t => t.includes('- A grant of a trait you already hold raises it to the grant\'s level')) && giR.includes('`"grantRaise": true`') && giR.includes('marked `"gb"`'));
     }
+    {   // 1.6.0 Counts at its turn's end: an effect "until the end of your next turn", on invented data
+        const J = JSON.stringify, RND = 6;
+        const rawE = { v: 1, name: 'E', rolls: [], items: [], effects: [{ id: 'e_st', name: 'Dazed', dur: '1 turn' }, { id: 'e_en', name: 'Shaken', dur: 'next turn', ends: 'turnEnd' }, { id: 'e_tw', name: 'Slowed', dur: '2 turns', ends: 'turnEnd' }, { id: 'e_bad', name: 'Odd', ends: 'turnStart' }],
+            fields: [{ id: 'f_fx', key: 'Fx', kind: 'effects', vis: 'all', edit: 'owner' }], sheet: { sections: [] } };
+        const gE = cleanSystem(rawE, { F, gmView: true }), pE = cleanSystem(rawE, { F, gmView: false }), en = s => s.effects.map(d => d.ends || '-');
+        check('1.6.0 Counts at, the cleaner: a library effect keeps ends only as turnEnd, the same in both views, and a system that names none keeps no key, cleaned twice alike',
+            J(en(gE)) === J(['-', 'turnEnd', 'turnEnd', '-']) && J(en(pE)) === J(en(gE)) && !('ends' in gE.effects[0]) && !('ends' in gE.effects[3]) && J(cleanSystem(gE, { F, gmView: true })) === J(gE), J(en(gE)));
+        const chr = rows => ({ id: 'c_e', name: 'Rin', values: { f_fx: rows } }), row = (ref, left) => ({ id: 'x_' + ref, ref: ref, on: true, t: { left: left, at: 0 } });
+        const step = (c, kind) => { const r = S.fxTick(gE, c, kind, 1000); Object.keys(r.values).forEach(k => { c.values[k] = r.values[k]; }); return r.expired; };
+        const a = chr([row('e_st', RND), row('e_en', RND)]);
+        const s1 = step(a, 'turn'), left1 = a.values.f_fx.map(r => [r.ref, r.t.left, r.t.e === 1]), e1 = step(a, 'turnEnd');
+        check('1.6.0 Counts at, fxTick: at its turn\'s start an effect of 1 turn counted there runs out as before and one counted at the end stays on, whole and marked; at that turn\'s end it runs out, so its character holds it through the whole turn',
+            J(s1) === J(['Dazed']) && J(left1) === J([['e_en', RND, true]]) && J(e1) === J(['Shaken']) && a.values.f_fx.length === 0, J([s1, left1, e1]));
+        const b = chr([row('e_en', RND)]), e0 = step(b, 'turnEnd'), b0 = b.values.f_fx[0] && b.values.f_fx[0].t.left; step(b, 'turn'); const e2 = step(b, 'turnEnd');
+        check('1.6.0 Counts at, fxTick: one put on during a turn is not marked, so that turn\'s end takes nothing and it lasts through the turn after', J(e0) === J([]) && b0 === RND && J(e2) === J(['Shaken']), J([e0, b0, e2]));
+        const c2 = chr([row('e_tw', RND * 2)]); step(c2, 'turn'); step(c2, 'turnEnd'); const l2 = [c2.values.f_fx[0].t.left, 'e' in c2.values.f_fx[0].t]; step(c2, 'turnEnd'); const l3 = c2.values.f_fx[0].t.left; step(c2, 'turn'); const e3 = step(c2, 'turnEnd');
+        const d2 = chr([row('e_st', 30), row('e_en', 30)]); step(d2, 'turnEnd'); const un = J(d2.values.f_fx.map(r => r.t));
+        step(d2, 'turn'); const m2 = d2.values.f_fx.map(r => r.t.left); step(d2, 'resume'); const r2 = d2.values.f_fx.map(r => 'e' in r.t);
+        check('1.6.0 Counts at, fxTick: an effect of 2 turns takes one off each turn\'s end and no more until the next turn begins; a turn\'s end leaves every effect counted at the start alone; an effect counted at the start loses its round as before; a fight\'s end clears the mark, which the timer keeps only as 1',
+            J(l2) === J([RND, false]) && l3 === RND && J(e3) === J(['Slowed']) && un === J([{ left: 30, at: 0 }, { left: 30, at: 0 }]) && J(m2) === J([24, 30]) && J(r2) === J([false, false]) && !('e' in S.fxTick(gE, chr([{ id: 'x_o', ref: 'e_st', on: true, t: { left: 30, at: 0, e: 2 } }]), 'turn', 1000).values.f_fx[0].t), J([l2, l3, e3, un, m2, r2]));
+        const shE = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), ixE = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), ntE = [path.join(app, '..', '..', 'WHATSNEW.txt'), path.join(app, 'assets', 'whatsnew.txt')].map(p => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n')), giE = fs.readFileSync(path.join(app, '..', '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8');
+        check('1.6.0 Counts at is in the System editor and said: an effect\'s row offers Its turn\'s start and Its turn\'s end, its handler writing ends or taking it off; Help, the Items key, the guide and both release notes say it',
+            shE.includes("select('sys-fx-ends', [['', 'Its turn\\u2019s start'], ['turnEnd', 'Its turn\\u2019s end']]") && shE.includes("if (t.value === 'turnEnd') fxc.ends = 'turnEnd'; else delete fxc.ends;") && ixE.includes('An effect&rsquo;s <b>Counts at</b> says when a fight takes a turn off its time.') && ixE.includes('<b>Counts at</b><small>') && giE.includes('"ends": "turnEnd"') && ntE.every(n => n.includes('- An effect can last to the end of a turn:')));
+    }
     {   // 1.6.0 (a builder audit): an effect added again while it is on, by its When added again, on invented data
         const J = JSON.stringify;
         const rawE = { v: 1, name: 'E', rolls: [], items: [], effects: [

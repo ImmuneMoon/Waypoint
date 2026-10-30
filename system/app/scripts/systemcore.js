@@ -1369,6 +1369,7 @@ function cleanFxTimer(t) {
     if (!isObj(t) || typeof t.left !== 'number' || !fin(t.left)) return null;
     var o = { left: Math.max(0, Math.min(1e9, Math.round(t.left * 1000) / 1000)), at: typeof t.at === 'number' && fin(t.at) && t.at > 0 && t.at < 1e14 ? Math.floor(t.at) : 0 };
     if (t.p === 1) o.p = 1;
+    if (t.e === 1) o.e = 1;   // 1.6.0: a turn of its character has begun with it on, so that turn's end counts it (fxTick)
     return o;
 }
 function fxLeftNow(t, now) { if (!isObj(t) || typeof t.left !== 'number') return Infinity; return t.at > 0 && typeof now === 'number' ? t.left - Math.max(0, (now - t.at) / 1000) : t.left; }
@@ -1377,19 +1378,24 @@ function fxLeftNow(t, now) { if (!isObj(t) || typeof t.left !== 'number') return
 // 'clock' — out of combat, real time; 'game' (item 20 K4: the Calendar on, out of combat) — the game clock moved on secs seconds: a row not paused
 // loses that much (a clock still running is banked first) and stops. A row whose time is up comes off. { values: { fieldId: list } (changed lists
 // only), expired: [names] }
+// 1.6.0 Counts at its turn's end (a library effect's ends: 'turnEnd'; the session that keeps a campaign's build, of an effect "until the end of your next
+// turn" that ran out as that turn began): 'turn' takes nothing off such a row and marks it (t.e); 'turnEnd', its turn ended, takes a round off a row so
+// marked. So the row lives through a whole turn of its character, and one put on during that turn waits for the turn after
 function fxTick(sys, char, kind, now, secs) {
     var out = { values: {}, expired: [] }; if (!isObj(sys) || !Array.isArray(sys.fields) || !isObj(char) || !isObj(char.values) || typeof now !== 'number') return out;
     var rs = roundSecs(sys), defs = map(); (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (isObj(d) && typeof d.id === 'string') defs[d.id] = d; });
+    var byEnd = function(r) { return typeof r.ref === 'string' && !!defs[r.ref] && defs[r.ref].ends === 'turnEnd'; };
     sys.fields.forEach(function(f) {
         var src = f.kind === 'effects' ? char.values[f.id] : null; if (!Array.isArray(src)) return;
         var changed = false, list = [];
         src.forEach(function(r) {
             if (!isObj(r) || !isObj(r.t)) { list.push(r); return; }
-            var t = { left: r.t.left, at: r.t.at || 0 }; if (r.t.p === 1) t.p = 1;
-            var left = fxLeftNow(t, now);
-            if (kind === 'turn') { t.left = left - rs; t.at = 0; changed = true; }
+            var t = { left: r.t.left, at: r.t.at || 0 }; if (r.t.p === 1) t.p = 1; if (r.t.e === 1) t.e = 1;
+            var left = fxLeftNow(t, now), ends = byEnd(r);
+            if (kind === 'turn') { t.left = ends ? left : left - rs; t.at = 0; if (ends) t.e = 1; changed = true; }
+            else if (kind === 'turnEnd') { if (ends && t.e === 1) { t.left = left - rs; t.at = 0; delete t.e; changed = true; } }
             else if (kind === 'bank') { if (t.at > 0) { t.left = left; t.at = 0; changed = true; } }
-            else if (kind === 'resume') { if (!t.p && !(t.at > 0)) { t.at = now; changed = true; } }
+            else if (kind === 'resume') { if (t.e === 1) { delete t.e; changed = true; } if (!t.p && !(t.at > 0)) { t.at = now; changed = true; } }
             else if (kind === 'game') { if (!t.p && typeof secs === 'number' && fin(secs) && secs > 0) { t.left = left - secs; t.at = 0; changed = true; } }   // item 20 K4: the game clock's move
             var endL = kind === 'resume' ? t.left : fxLeftNow(t, now);
             if (kind !== 'resume' && endL <= 0.0005) { out.expired.push(typeof r.ref === 'string' ? (defs[r.ref] ? defs[r.ref].name : 'An effect') : (r.name || 'An effect')); changed = true; return; }
@@ -2906,6 +2912,7 @@ function cleanEffectDef(d, fieldKinds, gmView, F) {   // conditions C4: F, for a
     var fxP = typeof d.posture === 'string' && (POSTURE_ID.test(d.posture) || POSTURE_IDS.indexOf(d.posture) >= 0) ? d.posture : ''; if (fxP) { o.posture = fxP; if (d.postureBack === true) o.postureBack = true; if (Array.isArray(d.postureKeep)) { var fxK = []; d.postureKeep.forEach(function(x) { if (fxK.length < LIMITS.postures && typeof x === 'string' && x !== fxP && (POSTURE_ID.test(x) || POSTURE_IDS.indexOf(x) >= 0) && fxK.indexOf(x) < 0) fxK.push(x); }); if (fxK.length) o.postureKeep = fxK; } }   // 1.5.9 (book es/et plan, the owner's O6): the posture its token takes the moment it comes on (a posture of the list by its id), and, ticked, back when it ends; absent, as ever
     var esw = cleanRollSw(d.rollSw, fieldKinds); if (esw) o.rollSw = esw;   // 1.6.0: the bonuses it offers a roll while it is on
     if (FX_AGAIN[d.again] === 1) o.again = d.again;   // 1.6.0 (a builder audit): When added again, Keep the longer or Add the times (absent: Replace, as ever)
+    if (d.ends === 'turnEnd') o.ends = 'turnEnd';   // 1.6.0 Counts at its turn's end (fxTick), the same in both views (absent: at its turn's start, as ever)
     return o;
 }
 // Conditions C4: an automatic effect's formula — one that reads, rolls no dice (whether it names a GM-only value is judged over the whole system)

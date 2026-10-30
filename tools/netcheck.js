@@ -5932,11 +5932,21 @@ pendingChecks.push((async () => {
             c_r: { id: 'c_r', name: 'Rex', npc: true, values: { f_fx: [{ id: 'x_3', ref: 'e_q', on: true, t: { left: 10, at: 1000 } }] } } } };
         const out = { deltas: [], changed: [], chat: [], saves: 0 }, mk = p => ({ peer: p, open: true, sent: [], send(m) { this.sent.push(m); } }), conns = [mk('pA'), mk('pB')];
         const net = { active: true, role: o.role || 'host', stream: false, myId: 'u_gm', conns, roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } }, combats: o.combats || {}, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]) };
-        const api = new Function('net', 'window', 'SC', 'getActiveCampaign', 'own', 'saveRemoteSoon', 'pushChat', 'sendFailed', pidF + ftS + '\n' + ordersSrc + '\nreturn { apply: fxApply, turn: turnFxStart, edge: fxCombatEdge, clock: fxClockTick, inCombat: net.charInCombat };')(
+        const api = new Function('net', 'window', 'SC', 'getActiveCampaign', 'own', 'saveRemoteSoon', 'pushChat', 'sendFailed', pidF + ftS + '\n' + ordersSrc + '\nreturn { apply: fxApply, turn: turnFxStart, turnEnd: turnFxEnd, edge: fxCombatEdge, clock: fxClockTick, inCombat: net.charInCombat };')(
             net, { wpVtt: { on: k => (k === 'sheets' ? o.sheets !== false : k === 'calendar' ? o.calendar === true : true) }, wpSheets: { charChanged: id => out.changed.push(id) } }, () => Sx, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), () => out.saves++, m => out.chat.push(m), e => { throw e; });
         return { out, net, camp, api, conns };
     };
     const cb = { mapId: 'm1', round: 1, turn: 0, rows: [{ id: 'r_p', tokId: 't_p' }] };
+    {   // 1.6.0 Counts at its turn's end, on the host: the row's own turn starts and ends, a step back and two rows of one sheet
+        const fxE = Object.assign(JSON.parse(JSON.stringify(sysF)), {}); fxE.effects = fxE.effects.map(d => Object.assign({}, d, { ends: 'turnEnd' }));
+        const g = mkF({ combats: { m1: cb } }), cE = JSON.parse(JSON.stringify(cb)); g.camp.system = fxE; const row = cE.rows[0], secs = g.camp.chars.c_p.values.f_fx[0].t.left;
+        g.api.turn('m1', cE); const held = JSON.parse(JSON.stringify(g.camp.chars.c_p.values.f_fx)), told = g.out.chat.length;
+        g.api.turnEnd('m1', cE, row, 1); const gone = g.camp.chars.c_p.values.f_fx.length, said = g.out.chat.map(m => m.text);
+        const h = mkF({ combats: { m1: cb } }), cH = JSON.parse(JSON.stringify(cb)); h.camp.system = fxE; h.camp.chars.c_p.values.f_fx[0].t = { left: secs * 2, at: 0 }; h.api.turn('m1', cH); h.api.turnEnd('m1', cH, cH.rows[0], 1); const once = h.camp.chars.c_p.values.f_fx[0].t.left; h.api.turnEnd('m1', cH, cH.rows[0], 1); const twice = h.camp.chars.c_p.values.f_fx[0].t.left;
+        const sn = JSON.stringify(Object.keys(h.net.combats));
+        check('1.6.0 Counts at on the host (turnFxStart and turnFxEnd over the real fxTick): an effect set to its turn\'s end stays on through its character\'s turn start with nothing said, runs out as that turn ends and is said then; a turn\'s end counts once in a round of that fight, whichever row of the sheet ends',
+            held.length === 1 && held[0].t.left === secs && held[0].t.e === 1 && told === 0 && gone === 0 && said.some(s => /ran out on Pat/.test(s)) && once === secs && twice === secs && sn.length > 0, j([held, told, gone, said, once, twice]));
+    }
     {   // item 20 K4: the Calendar on — the tick only stops a running clock; the game clock's move (net.fxGameTime) runs every timed effect outside a fight
         const g = mkF({ calendar: true, combats: { m1: cb } }), now0 = Date.now(); g.camp.chars.c_q.values.f_fx[0].t = { left: 10, at: now0 - 2000 }; g.camp.chars.c_r.values.f_fx[0].t = { left: 30, at: 0, p: 1 };
         g.api.clock(); const gq1 = JSON.parse(JSON.stringify(g.camp.chars.c_q.values.f_fx[0].t)), gd1 = g.out.deltas.length; g.api.clock(); const gd2 = g.out.deltas.length;

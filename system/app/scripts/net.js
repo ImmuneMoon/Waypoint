@@ -7842,7 +7842,7 @@ function handleMessage(msg, conn) {
         if (Array.isArray(resI.graceSpent)) resI.graceSpent.forEach(function(rid) { delete _rowGrace[qi.charId + '|' + qi.fieldId + '|' + rid + '|on']; });   // 1.5.4 One at a time: a bound row the switch-on took off spent its grace
         if (typeof resI.onRow === 'string' && resI.eqNote === 'bound') _rowGrace[qi.charId + '|' + qi.fieldId + '|' + resI.onRow + '|on'] = { until: nowI + Si.LIMITS.undoGraceMs, added: 0 };   // F4b: switched on (or picked up on) — it may come off for a moment, as a pickup's Undo
         saveRemoteSoon();
-        var itMI = resI.hid && resI.msg ? resI.msg : resI.keptOn && resI.keptMsg ? resI.keptMsg : '';   // an item's own message: a curse dropped, or a curse kept on (1.5.4: its own field, beside a row switched on)
+        var itMI = resI.hid && resI.msg ? resI.msg : resI.keptOn && resI.keptMsg ? resI.keptMsg : typeof resI.raised === 'string' ? resI.raised : '';   /* 1.6.0 (a builder audit): else a held row a grant raised, in its words */   // an item's own message: a curse dropped, or a curse kept on (1.5.4: its own field, beside a row switched on)
         if (bwI.warn.length && !itMI) { try { conn.send({ type: 'char-ack', rid: qi.rid, msg: Si.budgetSays(bwI.warn[0]) }); } catch (e) { sendFailed(e); } }   // 126: a budget that only warns lets the change through, with its words to the player (an item's own message, when one is due, goes first)
         else
         try { conn.send(itMI ? { type: 'char-ack', rid: qi.rid, msg: itMI } : { type: 'char-ack', rid: qi.rid }); } catch (e) { sendFailed(e); }   // a cursed item's message rides the answer (none: the answer any removal gets); F4b: a curse kept on, too

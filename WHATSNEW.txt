@@ -404,6 +404,11 @@ Systems
 - A grant can set the level its row starts at, held to that list's
   levels. A granted row that passes to another row takes that row's
   grant as it stands.
+- A grant of a trait you already hold raises it to the grant's level
+  and adds no second row. The sheet says so. When the row that granted
+  it goes, your trait falls back to the level it had. A level you set
+  by hand above the grant stays. A list with a quantity does this only
+  when ticked A grant raises a held row.
 - A vehicle can read its crew as a group, such as Crew.count and
   Crew.Pilot.max.Piloting. A Crew link lists its stations, and each crew
   sheet picks one beside its vehicle, so a pilot's skill counts only at

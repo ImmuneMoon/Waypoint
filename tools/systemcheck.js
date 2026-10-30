@@ -16012,6 +16012,66 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && shN.includes("if (typeof ctKeySays === 'function') ctKeySays(sp, F()).forEach(") && shN.includes("var nOkA = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false;") && shN.includes("var ndA = el('div', 'sys-flags sys-list-needsrow');"),
             J([lrN(gN), lrN(pN), okN, noN, allN.rn, vN.errors, vBadN.errors, saysN]));
     }
+    {   // 1.6.0 (a builder audit, the core's rule: the higher, with no double): a grant of an entry its list already holds raises the held row, on invented data
+        const J = JSON.stringify;
+        const rawR = { v: 1, name: 'R', rolls: [], items: [
+            { id: 'i_amu', name: 'Amulet', category: 'Gear', grants: [{ list: 'f_tr', entry: 'i_acu', lvl: 4 }, { list: 'f_bg', entry: 'i_rop' }] },
+            { id: 'i_rng', name: 'Ring', category: 'Gear', grants: [{ list: 'f_tr', entry: 'i_acu', lvl: 3 }] },
+            { id: 'i_ban', name: 'Band', category: 'Gear', grants: [{ list: 'f_tr', entry: 'i_acu', lvl: 5, once: true }, { list: 'f_bq', entry: 'i_rop', once: true }] },
+            { id: 'i_acu', name: 'Keen Ears', category: 'Trait' }, { id: 'i_rop', name: 'Rope', category: 'Gear' }],
+            fields: [{ id: 'f_gr', key: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { trade: true } },
+                { id: 'f_tr', key: 'Traits', kind: 'item-list', vis: 'all', edit: 'owner', list: { noQty: true, trade: true, lvl: { min: 1, max: 6, def: 1 } } },
+                { id: 'f_bg', key: 'Bag', kind: 'item-list', vis: 'all', edit: 'owner', list: { grantRaise: true } },
+                { id: 'f_bq', key: 'Pack', kind: 'item-list', vis: 'all', edit: 'owner' }], sheet: { sections: [] } };
+        const gR = cleanSystem(rawR, { F, gmView: true }), pR = cleanSystem(rawR, { F, gmView: false });
+        const putR = (ch, f, r) => { if (r.ok) { ch.values[f] = r.value; if (r.also) Object.keys(r.also).forEach(k => { ch.values[k] = r.also[k]; }); } return r; };
+        const opR = (ch, f, q, o) => putR(ch, f, S.applyRowOp(gR, ch, f, q, F, o || {}));
+        const trR = ch => ch.values.f_tr.map(r => [r.defId, r.lvl === undefined ? '-' : r.lvl, r.gb || '', r.gl === undefined ? '-' : r.gl, r.gr || ''].join(':'));
+        const mkR = (lvl) => ({ id: 'c_r', name: 'Rin', ownerId: 'u_p', npc: false, values: { f_gr: [], f_tr: [lvl === undefined ? { id: 'w_own', defId: 'i_acu', qty: 1 } : { id: 'w_own', defId: 'i_acu', qty: 1, lvl: lvl }], f_bg: [{ id: 'w_rp', defId: 'i_rop', qty: 2 }], f_bq: [{ id: 'w_rq', defId: 'i_rop', qty: 1 }] } });
+        const c1 = mkR(1), a1 = opR(c1, 'f_gr', { op: 'add', defId: 'i_amu', rowId: 'w_am' }), s1 = trR(c1), bag1 = J(c1.values.f_bg);
+        const r1 = opR(c1, 'f_gr', { op: 'remove', rowId: 'w_am' }), s2 = trR(c1);
+        const raiseOk = a1.ok && a1.raised === 'Keen Ears raised to 4 by Amulet.' && J(s1) === J(['i_acu:4:w_am:1:']) && bag1 === J([{ id: 'w_rp', defId: 'i_rop', qty: 2, gb: 'w_am' }]) && r1.ok && J(s2) === J(['i_acu:1::-:']) && J(c1.values.f_bg) === J([{ id: 'w_rp', defId: 'i_rop', qty: 2 }]);
+        check('1.6.0 (a builder audit) a grant of an entry its list already holds (applyRowOp, run for real): on a list with no quantity the held row is raised to the grant\'s level and marked as backed by it (gb, its own level before kept as gl), never doubled, and the answer says "Keen Ears raised to 4 by Amulet."; on a list ticked A grant raises a held row the same, adding no second row; when the granting row goes the held row falls back to the level it stood at and loses its marks',
+            raiseOk, J([a1.raised, s1, bag1, s2, c1.values.f_bg]));
+        const c2 = mkR(), b2 = opR(c2, 'f_gr', { op: 'add', defId: 'i_amu', rowId: 'w_am' }), s3 = trR(c2); opR(c2, 'f_gr', { op: 'remove', rowId: 'w_am' }); const s4 = trR(c2);
+        const c3 = mkR(2); opR(c3, 'f_gr', { op: 'add', defId: 'i_amu', rowId: 'w_am' }); const h1 = opR(c3, 'f_tr', { op: 'set', rowId: 'w_own', facts: { lvl: 5 } }), s5 = trR(c3); const h2 = opR(c3, 'f_tr', { op: 'set', rowId: 'w_own', facts: { lvl: 1 } }), s6 = trR(c3);
+        opR(c3, 'f_tr', { op: 'set', rowId: 'w_own', facts: { lvl: 6 } }); opR(c3, 'f_gr', { op: 'remove', rowId: 'w_am' }); const s7 = trR(c3);
+        check('1.6.0 (a builder audit) a held row\'s own level (run for real): a row that stored no level falls back to none, reading its entry\'s again; a level set by hand while it is backed is its own level, so one above the grant stays when the granting row goes, and one below it reads the grant\'s while it is backed',
+            b2.ok && J(s3) === J(['i_acu:4:w_am:-:']) && J(s4) === J(['i_acu:-::-:']) && h1.ok && J(s5) === J(['i_acu:5:w_am:5:']) && h2.ok && J(s6) === J(['i_acu:4:w_am:1:']) && J(s7) === J(['i_acu:6::-:']), J([s3, s4, s5, s6, s7]));
+        const c4 = mkR(1); opR(c4, 'f_gr', { op: 'add', defId: 'i_amu', rowId: 'w_am' }); opR(c4, 'f_gr', { op: 'add', defId: 'i_rng', rowId: 'w_rg' }); const s8 = trR(c4);
+        opR(c4, 'f_gr', { op: 'remove', rowId: 'w_am' }); const s9 = trR(c4); opR(c4, 'f_gr', { op: 'remove', rowId: 'w_rg' }); const s10 = trR(c4);
+        const c4b = mkR(1); opR(c4b, 'f_gr', { op: 'add', defId: 'i_rng', rowId: 'w_rg' }); opR(c4b, 'f_gr', { op: 'add', defId: 'i_amu', rowId: 'w_am' }); const s11 = trR(c4b); opR(c4b, 'f_gr', { op: 'remove', rowId: 'w_am' }); const s12 = trR(c4b);
+        check('1.6.0 (a builder audit) an heir (grantHeirs, run for real): a second row that grants the entry at a level no higher leaves the row backed by the first; when the first goes the row passes to the second, at the higher of its own level and that grant\'s, and falls back with the last; a grant that raises it higher takes it over, and the one it took over takes it back when it goes',
+            J(s8) === J(['i_acu:4:w_am:1:']) && J(s9) === J(['i_acu:3:w_rg:1:']) && J(s10) === J(['i_acu:1::-:']) && J(s11) === J(['i_acu:4:w_am:1:']) && J(s12) === J(['i_acu:3:w_rg:1:']), J([s8, s9, s10, s11, s12]));
+        const c5 = mkR(1); opR(c5, 'f_gr', { op: 'add', defId: 'i_ban', rowId: 'w_bn' }); const s13 = trR(c5), pk5 = J(c5.values.f_bq);
+        const c6 = mkR(1); opR(c6, 'f_gr', { op: 'add', defId: 'i_amu', rowId: 'w_am' }); const rm6 = opR(c6, 'f_tr', { op: 'remove', rowId: 'w_own' }), s14 = c6.values.f_tr.map(r => [r.defId, r.lvl, r.gr || ''].join(':'));
+        const kept6 = J(c6.values); const re6 = opR(c6, 'f_gr', { op: 'remove', rowId: 'w_am' }), s15 = J(c6.values.f_tr);
+        check('1.6.0 (a builder audit) once and a list with a quantity: a grant ticked Once a character backs and raises the row a list with no quantity holds as any grant does, while on a list with a quantity that is not ticked it grants nothing as before; the held row taken off by hand lets its grant give a row of its own again, at its level, and that row goes with the granting row',
+            J(s13) === J(['i_acu:5:w_bn:1:']) && pk5 === J([{ id: 'w_rq', defId: 'i_rop', qty: 1 }]) && rm6.ok && s14.length === 1 && s14[0] === 'i_acu:4:w_am' && re6.ok && s15 === '[]', J([s13, pk5, s14, s15]));
+        const rawQ = JSON.parse(J(rawR)); delete rawQ.fields[2].list.grantRaise; const gQ = cleanSystem(rawQ, { F, gmView: true });
+        const cQ = mkR(1); putR(cQ, 'f_gr', S.applyRowOp(gQ, cQ, 'f_gr', { op: 'add', defId: 'i_amu', rowId: 'w_am' }, F, {})); const bagQ = cQ.values.f_bg.map(r => r.defId + ':' + r.qty + ':' + (r.gr || 'own') + ':' + (r.gb || ''));
+        const viewOk = gR.fields[2].list.grantRaise === true && pR.fields[2].list.grantRaise === true && !(gQ.fields[2].list && 'grantRaise' in gQ.fields[2].list) && J(cleanSystem(gR, { F, gmView: true })) === J(gR) && J(cleanSystem(gQ, { F, gmView: true })) === J(gQ);
+        const c7 = mkR(1); opR(c7, 'f_gr', { op: 'add', defId: 'i_amu', rowId: 'w_am' }); const own7 = S.charFor(c7, pR, 'u_p'), ownRow = own7 && own7.values.f_tr[0];
+        const ldR = S.cleanChar({ id: 'c_r', name: 'Rin', values: { f_tr: [{ id: 'w_own', defId: 'i_acu', qty: 1, lvl: 4, gb: 'w_am', gl: 1 }, { id: 'w_x', defId: 'i_rop', qty: 1, gl: 2 }] } }, gR);
+        check('1.6.0 (a builder audit) the option in both views and a system without it byte for byte: A grant raises a held row (grantRaise, true only) is kept in both views and absent where not ticked; a list with a quantity that is not ticked grants a second row as before and marks nothing; the owner\'s copy of a backed row says it is backed (gb) and never the level it stood at (gl), as the players\' view reads it; a load keeps gb and keeps gl only beside it',
+            viewOk && J(bagQ) === J(['i_rop:2:own:', 'i_rop:1:w_am:']) && !!ownRow && typeof ownRow === 'object' && ownRow.gb === 'w_am' && !('gl' in ownRow) && ownRow.lvl === 4
+            && J(ldR && ldR.values.f_tr.map(r => [r.gb || '', r.gl === undefined ? '-' : r.gl])) === J([['w_am', 1], ['', '-']]), J([viewOk, bagQ, ownRow, ldR && ldR.values.f_tr]));
+        const c8 = mkR(1); opR(c8, 'f_gr', { op: 'add', defId: 'i_amu', rowId: 'w_am' }); const kp8 = S.grantsKept(gR, c8.values, 'w_am'); opR(c8, 'f_gr', { op: 'remove', rowId: 'w_am' }); const u8 = opR(c8, 'f_gr', { op: 'restore', rowId: 'w_am', row: { id: 'w_am', defId: 'i_amu', qty: 1 }, at: 0, grants: kp8 || undefined }), s16 = trR(c8);
+        const c9a = mkR(1), c9b = { id: 'c_s', name: 'Vo', values: { f_gr: [], f_tr: [], f_bg: [], f_bq: [] } }; opR(c9a, 'f_gr', { op: 'add', defId: 'i_amu', rowId: 'w_am' });
+        const tA = S.tradeApply(gR, c9a, c9b, [{ fid: 'f_gr', rowId: 'w_am', qty: 1 }], [], 'gm', 'gm'), tB = S.tradeApply(gR, c9a, c9b, [{ fid: 'f_tr', rowId: 'w_own', qty: 1 }], [], 'gm', 'gm');
+        const tAok = tA.ok && J(tA.valuesA.f_tr) === J([{ id: 'w_own', defId: 'i_acu', qty: 1, lvl: 1 }]), tBok = tB.ok && J((tB.valuesB.f_tr || []).map(r => [r.defId, r.lvl, r.gb || '', r.gl === undefined ? '-' : r.gl])) === J([['i_acu', 1, '', '-']]);
+        const fill = S.fillMaking(gR, { id: 'c_m', name: 'Pax', ownerId: 'u_a', npc: false, making: 1, values: { f_gr: [], f_tr: [], f_bg: [], f_bq: [] } }, { lists: ['f_gr', 'f_tr'], ops: [{ f: 'f_gr', q: { op: 'add', defId: 'i_amu', rowId: 'w_fa', qty: 1 } }, { f: 'f_tr', q: { op: 'add', defId: 'i_acu', rowId: 'w_fk', qty: 1, gb: 'w_fa', gl: 2 } }, { f: 'f_tr', q: { op: 'set', rowId: 'w_fk', facts: { lvl: 4 } } }] }, F, { view: pR, lib: null });
+        const fill2 = S.fillMaking(gR, { id: 'c_m', name: 'Pax', ownerId: 'u_a', npc: false, making: 1, values: { f_gr: [], f_tr: [], f_bg: [], f_bq: [] } }, { lists: ['f_tr'], ops: [{ f: 'f_tr', q: { op: 'add', defId: 'i_acu', rowId: 'w_fk', qty: 1, gb: 'w_gone', gl: 2 } }, { f: 'f_tr', q: { op: 'set', rowId: 'w_fk', facts: { lvl: 4 } } }] }, F, { view: pR, lib: null });
+        const fillOk = fill.ok && J(fill.values.f_tr.map(r => [r.lvl, r.gb, r.gl])) === J([[4, 'w_fa', 2]]) && fill2.ok && J(fill2.values.f_tr.map(r => [r.lvl, r.gb || '', r.gl === undefined ? '-' : r.gl])) === J([[2, '', '-']]);
+        check('1.6.0 (a builder audit) the mark goes where the row goes: an Undo that puts the granting row back backs the held row again; a trade of the granting row leaves the giver\'s held row at its own level, and a held row traded alone arrives at its own level with no mark; a character file brings the mark and the level it stood at (fillMaking), and a row backed by a row the file did not bring is at its own level',
+            u8.ok && J(s16) === J(['i_acu:4:w_am:1:']) && tAok && tBok && fillOk, J([s16, tA.ok && tA.valuesA.f_tr, tB.ok && tB.valuesB.f_tr, fill.values && fill.values.f_tr, fill2.values && fill2.values.f_tr]));
+        const shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ixR = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+        const ntR = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n')), giR = fs.readFileSync(path.join(app, '..', '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8');
+        check('1.6.0 (a builder audit) said and wired (source): the Lists tab ticks A grant raises a held row and its handler writes grantRaise true or takes it off; the sheet says what was raised; Help, both 1.6.0 notes and the integration guide say it',
+            shR.includes("fl.appendChild(checkLabel('sys-list-graise', sp.grantRaise === true, 'A grant raises a held row'") && shR.includes("else if (c.indexOf('sys-list-graise') >= 0) { if (t.checked) lsc.grantRaise = true; else delete lsc.grantRaise; }")
+            && shR.includes("if (typeof res.raised === 'string' && res.raised) toast(res.raised);") && ixR.includes('<li><b>A grant raises a held row</b> is for a list with a quantity.') && ixR.includes('When the row that granted it goes, the held row falls back to the level it had.')
+            && ntR.every(t => t.includes('- A grant of a trait you already hold raises it to the grant\'s level')) && giR.includes('`"grantRaise": true`') && giR.includes('marked `"gb"`'));
+    }
     {   // 1.6.0 (CORE gap 15, an implant's mandatory flaws once a character): a grant counted once per character, on invented data
         const J = JSON.stringify;
         const rawO = { v: 1, name: 'O', rolls: [], items: [

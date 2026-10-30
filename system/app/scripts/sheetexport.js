@@ -119,7 +119,7 @@ function charFromJson(view, j, find, findKey) {
             var e = typeof r.defId === 'string' && own(items, r.defId) ? items[r.defId] : named(nm, key);
             if (!e && r.lnk === 1 && key && typeof findKey === 'function') (findKey(key) || []).forEach(function(x) { if (!e && isObj(x) && typeof x.id === 'string' && x.vis !== 'gm' && (!cats || catOk(cats, x.category))) e = x; });   // a library copy with its own name ("Guns (Pistol)" over Guns): by its key
             if (e) {
-                var qA = { op: 'add', defId: e.id, rowId: id, qty: qty }; out.ops.push({ f: f.id, q: qA }); if (typeof r.gr === 'string') grQ.push({ q: qA, gr: r.gr, gp: r.gp === 1 });
+                var qA = { op: 'add', defId: e.id, rowId: id, qty: qty }; out.ops.push({ f: f.id, q: qA }); if (typeof r.gr === 'string') grQ.push({ q: qA, gr: r.gr, gp: r.gp === 1 }); else if (typeof r.gb === 'string') grQ.push({ q: qA, gb: r.gb, gl: r.gl });   // 1.6.0 (a builder audit): a row a grant backs keeps its mark too
                 var ov = {}, src = isObj(r.ov) ? r.ov : def || {};
                 var nm2 = typeof src.name === 'string' ? src.name : ''; if (nm2 && nm2 !== e.name) ov.name = nm2;
                 if (isObj(src.stats) && Object.keys(src.stats).length) ov.stats = src.stats;
@@ -165,7 +165,7 @@ function charFromJson(view, j, find, findKey) {
         out.values[f.id] = k === 'resource' ? { cur: v.cur } : v;
         if (fileLooks && (k === 'text' || k === 'notes') && own(fileLooks, fid)) { if (!out.looks) out.looks = {}; out.looks[f.id] = recShapeOk(fileLooks[fid]) ? clone(fileLooks[fid]) : null; }   // item 35 (a look that is no record: null, which ends the text's old look where the fill is applied, as a look that does not clean does)
     });
-    grQ.forEach(function(x) { if (own(idMap, x.gr)) { x.q.gr = idMap[x.gr]; if (x.gp) x.q.gp = 1; } });   // 1.6.0 (v2, B4): a granted row keeps its mark (systemcore fillMaking takes it as it comes); 1.6.0: and its Pays back
+    grQ.forEach(function(x) { if (x.gb !== undefined) { if (own(idMap, x.gb)) { x.q.gb = idMap[x.gb]; if (typeof x.gl === 'number' && isFinite(x.gl)) x.q.gl = x.gl; } return; } if (own(idMap, x.gr)) { x.q.gr = idMap[x.gr]; if (x.gp) x.q.gp = 1; } });   // 1.6.0 (v2, B4): a granted row keeps its mark (systemcore fillMaking takes it as it comes); 1.6.0: and its Pays back
     return out;
 }
 

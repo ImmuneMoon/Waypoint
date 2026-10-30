@@ -103,8 +103,9 @@ function campPick(id) {
 // The row's controls do not fit on one line: the header grew past one row
 function rowWraps() { var h = document.querySelector('header'); return !!h && h.offsetHeight > ONE_ROW; }
 // The row is fitted to the window, one icon at a time (1.6.0): with every icon back it is asked whether it wraps, and while it does the next
-// icon of FOLD_ORDER steps out, until the row holds one line. A row that wraps even with all six out is left whole, on its two lines, since
-// folding would hide six controls and win nothing. Nothing is drawn in between. An icon that stepped out wears row-fold, the style sheet's
+// icon of FOLD_ORDER steps out, until the row holds one line. With all six out and the row still wrapping, the row goes tight (row-tight: the
+// saved note put away, a pill cut short). A row that wraps even then is left whole, on its two lines, since folding would hide six controls
+// and win nothing. Nothing is drawn in between. An icon that stepped out wears row-fold, the style sheet's
 // one word for it, the body carries row-narrow while any did, and the » button shows. While the tour's card is up nothing folds, so that a
 // step finds the control it points at. true: folded
 var FOLD_ORDER = ['helpBtn', 'handoutsBtn', 'soundInd', 'musicInd', 'journalBtn', 'voiceInd'];   // your picture (#rowMeBtn, 1.6.0) never folds, as Settings does not (the owner, by prompt: "Stays, like Settings")
@@ -115,8 +116,11 @@ function foldSet(n) {
 }
 function foldFit() {
     var cl = document.body.classList, n = 0;
-    foldSet(0);
-    if (!cl.contains('tour-on') && rowWraps()) { for (n = 1; n <= FOLD_ORDER.length; n++) { foldSet(n); if (!rowWraps()) break; } if (n > FOLD_ORDER.length) n = foldSet(0); }
+    foldSet(0); cl.toggle('row-tight', false);
+    if (!cl.contains('tour-on') && rowWraps()) {
+        for (n = 1; n <= FOLD_ORDER.length; n++) { foldSet(n); if (!rowWraps()) break; }
+        if (n > FOLD_ORDER.length) { cl.toggle('row-tight', true); if (rowWraps()) { cl.toggle('row-tight', false); n = foldSet(0); } else n = FOLD_ORDER.length; }   // 1.6.0, found by hand: the Round pill's words sent every icon back onto a second line
+    }
     foldSync();
     return n > 0;
 }

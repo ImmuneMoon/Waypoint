@@ -454,7 +454,7 @@ if(_el_exportImgBtn) _el_exportImgBtn.addEventListener('click', function() {
 
       if(isDocLike(activeMap)) {
 
-          target = document.getElementById('plannerPreviewWrap');
+          target = document.getElementById('plannerPreviewWrap'); opts.onclone = function(d) { Array.prototype.forEach.call(d.querySelectorAll('.diagram'), function(x) { x.style.background = '#fbfbfd'; }); };   // a picture of the page draws a chart's own colours alone, so it stays on its light block
 
       } else {
 

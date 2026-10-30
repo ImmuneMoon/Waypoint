@@ -102,6 +102,7 @@ function campPick(id) {
 }
 // The row's controls do not fit on one line: the header grew past one row
 function rowWraps() { var h = document.querySelector('header'); return !!h && h.offsetHeight > ONE_ROW; }
+function rowSpills() { var h = document.querySelector('header'); return !!h && h.scrollWidth > h.clientWidth + 1; }
 // The row is fitted to the window, one icon at a time (1.6.0): with every icon back it is asked whether it wraps, and while it does the next
 // icon of FOLD_ORDER steps out, until the row holds one line. With all six out and the row still wrapping, or holding one line only by cutting
 // the map's name to a letter or two (tabsCramped), the row goes tight (row-tight: the saved note put away, a pill cut short). A row that wraps even then is left whole, on its two lines, since folding would hide six controls
@@ -114,8 +115,8 @@ function foldSet(n) {
     document.body.classList.toggle('row-narrow', n > 0); document.body.classList.toggle('row-squeeze', n >= FOLD_ORDER.length); var b = document.getElementById('rowTrayBtn'); if (b) b.hidden = !(n > 0);
     return n;
 }
-var TABS_ROOM = 96;   // the map tabs narrower than this are cutting the map's name
-function tabsCramped() { var t = document.getElementById('mapTabs'); return !!t && t.offsetWidth > 0 && t.offsetWidth < TABS_ROOM; }
+var TABS_ROOM = 96, NAME_ROOM = 100;   // the map tabs narrower than this are cutting the map's name; and the name, where it is longer than this, shows at least this much of itself (the live test, 2026-10-30)
+function tabsCramped() { var t = document.getElementById('mapTabs'), m = window.wpMapTabs, n = m && m.name ? m.name() : null; return !!t && t.offsetWidth > 0 && (t.offsetWidth < TABS_ROOM || (!!n && n.shown < Math.min(n.whole - 0.5, NAME_ROOM))); }
 function foldFit() {
     var cl = document.body.classList, n = 0;
     cl.toggle('row-fit', true);   // no easing while it is measured: a control caught mid-ease gave another answer each time, and the row went on changing by itself
@@ -123,8 +124,8 @@ function foldFit() {
     if (!cl.contains('tour-on') && rowWraps()) {
         for (n = 1; n <= FOLD_ORDER.length; n++) { foldSet(n); if (!rowWraps()) break; }
         if (n > FOLD_ORDER.length || (n === FOLD_ORDER.length && tabsCramped())) {   // 1.6.0, found by hand: the Round pill's words sent every icon back onto a second line, and a row that fitted cut the map's name to a letter
-            var wrapped = n > FOLD_ORDER.length; cl.toggle('row-tight', true);
-            if (rowWraps()) { cl.toggle('row-tight', false); n = wrapped ? foldSet(0) : n; } else n = FOLD_ORDER.length;
+            cl.toggle('row-tight', true);
+            if (rowWraps() || tabsCramped()) { cl.toggle('row-tight', false); n = foldSet(0); if (rowSpills()) { n = foldSet(FOLD_ORDER.length); cl.toggle('row-tight', true); } } else n = FOLD_ORDER.length;   // the live test, 2026-10-30: a whole row on two lines reads better than a map's name cut to a letter; only on a phone, where the icons alone are wider than the window and would push the page sideways, they stay out
         }
     }
     foldSync();
@@ -168,6 +169,7 @@ function anchorBox(el) {
 // [lookcheck:toprow-end]
 
 // [lookcheck:toprowwire-start]
+var fitLater = null;   // the row measured again, once a frame at most (maptabs.js: another map's name)
 function wire() {
     MENUS.forEach(function(id) {
         var b = menuBtn(id), m = document.getElementById(id); if (!b || !m) return;
@@ -198,7 +200,7 @@ function wire() {
         closeMenus();
     }, true);
     var sel = document.getElementById('campaignSelect'), hdr = document.querySelector('header'), touring = document.body.classList.contains('tour-on'), due = false;
-    var fitSoon = function() { if (due) return; due = true; var go = function() { if (!due) return; due = false; foldFit(); }; requestAnimationFrame(go); setTimeout(go, 150); };   // once a frame at most, and before that frame is drawn; 1.6.0: a timer too, since a page out of sight runs no frame, and one held back stopped every later fit
+    var fitSoon = fitLater = function() { if (due) return; due = true; var go = function() { if (!due) return; due = false; foldFit(); }; requestAnimationFrame(go); setTimeout(go, 150); };   // once a frame at most, and before that frame is drawn; 1.6.0: a timer too, since a page out of sight runs no frame, and one held back stopped every later fit
     if (sel) sel.addEventListener('change', campSync);
     if (typeof ResizeObserver === 'function' && hdr) { var ro = new ResizeObserver(fitSoon); ro.observe(hdr); Array.prototype.forEach.call(hdr.children, function(c) { ro.observe(c); }); }   // the window, or anything in the row, changed its size
     else window.addEventListener('resize', fitSoon);
@@ -246,4 +248,4 @@ function reportSync() {
 // [sinkcheck:report-end]
 reportSync(); document.addEventListener('wp-version', reportSync);
 wire();
-window.wpTopRow = { open: openMenu, close: closeMenus, shown: menuShown, sync: campSync, box: anchorBox };
+window.wpTopRow = { open: openMenu, close: closeMenus, shown: menuShown, sync: campSync, box: anchorBox, fit: function() { if (fitLater) fitLater(); } };

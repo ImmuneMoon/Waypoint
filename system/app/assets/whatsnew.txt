@@ -834,6 +834,24 @@ Turn order
 - It takes the place of a Sides roll, and there is no Hold. A step back on
   the strip goes back to whoever went before, as a correction.
 
+Small fixes from a long test by hand
+- The right-click menu's Opacity slider is gold, like the app's other
+  sliders.
+- A greyed row in a right-click menu no longer lights up under the pointer.
+- A tooltip goes as soon as you drag a box by its head.
+- The Join button stays put when the Multiplayer window's status grows to
+  two lines.
+- The turn strip keeps a gap from the party strip in a narrow window. It
+  steps aside, or down under the party strip where there is no room.
+- A chart in a dark page stands on the page, not on a white block, over the
+  map, in a window of its own and in the planner. Printed pages are as they
+  were.
+- The page panel no longer comes up over the turn strip's Next button.
+- The top row keeps the map's name readable. It goes to two lines before it
+  cuts the name short.
+- At phone width the page no longer scrolls sideways, and the sheet and a
+  HUD fit inside the window, under the top row.
+
 WAYPOINT 1.5.9 — What's New
 ============================
 

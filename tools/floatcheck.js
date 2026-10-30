@@ -345,6 +345,20 @@ function spotPage() {
         check('a fight that starts moves a box at its own place clear of the turn strip as the strip comes, and leaves one the user moved; the box stays where it is when the fight ends',
             top0 !== top1 && sr4.top >= 137 && nb1 === nb0 && top2 === top1, J([top0, top1, nb1, top2]));
     }
+    {   // the live test, 2026-10-30: the page panel stored its place as it was first drawn, and that place stood over the turn strip's Next
+        const F6 = spotPage(), stripMo = F6.mos[F6.mos.length - 2], strip = F6.keep.combatStrip, gap = 8;
+        const over = (a, b) => a.left < b.r && b.l < a.right && a.top < b.b && b.t < a.bottom;
+        const d1 = F6.open('docPanel', el => { el.style.left = '500px'; el.style.top = '100px'; el.style.right = 'auto'; el.style.width = '440px'; el.style.height = '500px'; }), r1 = d1.getBoundingClientRect(); F6.shut('docPanel');
+        const d2 = F6.open('docPanel', el => { el.style.left = '500px'; el.style.top = '300px'; el.style.maxHeight = ''; }), at2 = F6.at(d2); F6.shut('docPanel');
+        const d3 = F6.open('docPanel', el => { el.style.left = '40px'; el.style.top = String(strip.t) + 'px'; el.style.width = '200px'; el.style.maxHeight = ''; }), at3 = F6.at(d3); F6.shut('docPanel');
+        F6.keep.combatStrip = null; const d4 = F6.open('docPanel', el => { el.style.left = '500px'; el.style.top = '100px'; el.style.width = '440px'; el.style.maxHeight = ''; }), at4 = F6.at(d4);
+        F6.keep.combatStrip = strip; stripMo.cb([]); const r4 = d4.getBoundingClientRect(); F6.keep.combatStrip = null; stripMo.cb([]); const r5 = d4.getBoundingClientRect(); F6.keep.combatStrip = strip; F6.shut('docPanel');
+        const d6 = F6.open('docPanel', el => { el.style.left = '500px'; el.style.top = '100px'; el.style.height = '900px'; el.style.maxHeight = ''; }), r6 = d6.getBoundingClientRect(); F6.shut('docPanel');
+        const nb = F6.open('notepadPanel', el => { el.style.left = '500px'; el.style.top = '100px'; el.style.right = 'auto'; }), atN = F6.at(nb);
+        check('the live test, 2026-10-30: the page panel, whatever place it was given, comes up clear of the turn strip by the gap and no further; one that a fight comes under moves down past the strip and stays there when the fight ends; a place clear of the strip, or beside it, is left as it is; held to the room left under the strip where it would run off the window; and no other box takes notice',
+            !over(r1, strip) && r1.top === strip.b + gap && r1.left === 500 && /\|300px\|/.test(at2) && at3.indexOf('40px|' + strip.t + 'px') === 0 && /\|100px\|/.test(at4) && !over(r4, strip) && r4.top === strip.b + gap && r5.top === r4.top && r6.bottom === F6.VH - gap && r6.top === strip.b + gap && /\|100px\|/.test(atN),
+            J([r1, at2, at3, at4, r4, r5, r6, atN, strip]));
+    }
     {   // the live test, 2026-10-30: your own roll raised Table Chat over the sheet you were rolling from
         const F3 = spotPage(), over = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
         const sh = F3.open('sheetPanel'), ch = F3.open('chatPanel'), sr = sh.getBoundingClientRect(), cr = ch.getBoundingClientRect();

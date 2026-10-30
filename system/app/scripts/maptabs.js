@@ -109,10 +109,20 @@ function tabsFit() {   // the path gives way before the map's own name, then the
     if (bc && bc.style.display === 'flex') crumbFit(bc, function() { return crumbCut(bc.querySelector('.crumb-current')); });
     tabsClip();
 }
+// How much of the map's own name shows, the path having given way first: { shown, whole } in pixels, or null with no name up (toprow.js tabsCramped)
+function tabsName() {
+    var bc = document.getElementById('mapBreadcrumb'), c = bc && bc.style.display === 'flex' ? bc.querySelector('.crumb-current') : document.getElementById('mapTabName'); if (!c || c.hidden || typeof document.createRange !== 'function') return null;
+    tabsFit();
+    var cs = getComputedStyle(c), rg = document.createRange(); rg.selectNodeContents(c);
+    var whole = rg.getBoundingClientRect().width, box = c.getBoundingClientRect().width - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+    return whole > 0 ? { shown: Math.min(box, whole), whole: whole } : null;
+}
+var _tabName = null;   // the name last in front: another name is another length, and the row is measured again
 function tabsSync() {
     var camp = getActiveCampaign(), bc = document.getElementById('mapBreadcrumb'); if (!camp) return;
     var model = tabsModel(camp, tabsRecent(localStorage, camp), function(id) { return tabsHere(window.wpNet, id); });
     tabsDraw(document, model, !!bc && bc.style.display === 'flex'); tabsFit();
+    var nameNow = model.front ? model.front.title : ''; if (nameNow !== _tabName) { _tabName = nameNow; if (window.wpTopRow && window.wpTopRow.fit) window.wpTopRow.fit(); }
 }
 function wire() {
     var list = document.getElementById('mapTabList'), add = document.getElementById('mapTabAdd'), box = document.getElementById('mapTabs');
@@ -123,4 +133,4 @@ function wire() {
     tabsSync();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
-window.wpMapTabs = { sync: tabsSync };
+window.wpMapTabs = { sync: tabsSync, name: tabsName };

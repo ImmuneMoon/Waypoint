@@ -1625,6 +1625,7 @@
   #handoutModal.handout-scene #handoutTitle { font-size: 1.35em; }
   #handoutCloseBtn[hidden] { display: none; }
   #contextMenu .menu-item .ico { pointer-events: none; margin-right: 4px; }   /* the menu reads the class of what was pressed: never the drawing's */
+  #cmOpacitySlider { accent-color: var(--gold); }   /* the live test, 2026-10-30: gold is the one accent */
   #genCount { color: var(--ink); min-height: 16px; }
   /* the city's dialog (fold B6) is the same box with ids of its own: its seed, its new map's name, its list of maps and its count sized alike */
   #citySeed { width: 130px; font-family: ui-monospace, Consolas, monospace; }
@@ -2069,6 +2070,8 @@
   .context-menu { position: absolute; background: var(--panel2); border: 1px solid var(--gold); box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 100000; border-radius: 6px; padding: 4px 0; min-width: 150px; display: none; flex-direction: column; }
   .context-menu button { background: none; border: none; color: var(--ink); padding: 8px 16px; text-align: left; width: 100%; cursor: pointer; font-size: 13px; font-family: inherit; }
   .context-menu button:hover { background: var(--blue); color: #fff; }
+  .context-menu button:disabled { opacity: 0.4; cursor: default; }   /* the live test, 2026-10-30: a row that does nothing does not light up (Give to a player's row for the one who has it) */
+  .context-menu button:disabled:hover { background: transparent; color: var(--ink); }
   .nav-list { min-height: 20px; padding-bottom: 10px; }
   .nav-list.drag-over { background: rgba(255,255,255,0.05); border-radius: 4px; }
   
@@ -2111,6 +2114,15 @@
   .doc-view .oneline { background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; padding: 12px 15px; color: var(--dim); margin-top: 14px; }
   .doc-view .oneline b { color: var(--ink); }
   .doc-view .diagram { background: #fbfbfd; border: 1px solid var(--edge); border-radius: 12px; padding: 14px; margin: 14px 0 6px; overflow-x: auto; text-align: center; }
+  /* The live test, 2026-10-30: a chart in a dark page stands on the page, not on a white block. On screen alone, so a printed page stays as it is, and not on a page that has a look of its own
+     (its .wrap carries it). A chart built in the planner draws dark shapes already: only its lines and their words change. A diagram written by hand is drawn for a light ground in any of its kinds: turned over whole, its hues kept */
+  @media screen {
+      html:not([data-theme="light"]) .doc-view .wrap:not([style*="background"]) .diagram { background: transparent; }
+      html:not([data-theme="light"]) .doc-view .wrap:not([style*="background"]) .diagram.fc-box :is(.flowchart-link, .edgePath .path) { stroke: currentColor !important; }
+      html:not([data-theme="light"]) .doc-view .wrap:not([style*="background"]) .diagram.fc-box :is(.marker, .arrowMarkerPath, marker path) { fill: currentColor !important; stroke: currentColor !important; }
+      html:not([data-theme="light"]) .doc-view .wrap:not([style*="background"]) .diagram.fc-box :is(.edgeLabel, .edgeLabel .label, .edgeLabel p, .edgeLabel span) { background-color: var(--panel2) !important; color: var(--ink) !important; }
+      html:not([data-theme="light"]) .doc-view .wrap:not([style*="background"]) .diagram:not(.fc-box) svg { filter: invert(1) hue-rotate(180deg); }
+  }
   /* Flowchart box: drag the corner to resize (remembered), scroll inside when zoomed, drag nodes to nudge */
   .doc-view .diagram.fc-box { resize: both; overflow: auto; min-height: 80px; min-width: 120px; max-width: 100%; box-sizing: border-box; text-align: left; }
   .doc-view .diagram.fc-box svg[data-zoomed] { max-width: none !important; }
@@ -2233,8 +2245,8 @@
       color: var(--ink);
   }
   
-  #sidebarContextMenu .menu-item.disabled { opacity: 0.4; cursor: default !important; }
-  #sidebarContextMenu .menu-item.disabled:hover { background: transparent; }
+  #sidebarContextMenu .menu-item.disabled, #contextMenu .menu-item.disabled { opacity: 0.4; cursor: default !important; }
+  #sidebarContextMenu .menu-item.disabled:hover, #contextMenu .menu-item.disabled:hover { background: transparent; }
   #sidebarContextMenu .menu-item.danger:hover {
       background: var(--red);
       color: #fff !important;
@@ -2490,7 +2502,7 @@
 
   /* Combat: the ring, the turn strip, the roster panel */
   .wb-item.wb-turn { outline: 3px solid var(--gold); outline-offset: 3px; box-shadow: 0 0 0 7px rgba(224,165,79,0.28), 0 0 18px rgba(224,165,79,0.55) !important; z-index: 40 !important; }
-  #combatStrip { position: absolute; top: 62px; left: 50%; transform: translateX(-50%); z-index: 8990; display: flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--gold); border-radius: 18px; background: var(--panel2); box-shadow: var(--shadow); font-size: 12.5px; white-space: nowrap; pointer-events: auto; }
+  #combatStrip { position: absolute; top: 62px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 52px); box-sizing: border-box; flex-wrap: wrap; justify-content: center; z-index: 8990; display: flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--gold); border-radius: 18px; background: var(--panel2); box-shadow: var(--shadow); font-size: 12.5px; white-space: nowrap; pointer-events: auto; }
   .combat-strip-round { color: var(--gold); font-weight: 700; letter-spacing: .04em; }
   .combat-strip-cur { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink); }
   .combat-strip-cur img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold); }

@@ -9360,10 +9360,23 @@ function renderCombatStrip() {
         + (chS ? '' : (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="Hold this turn: play moves on, and Act later this round puts them right after whoever is acting (a hold not used by the round&rsquo;s end is lost)">Hold</button>' : '') + heldH)
         + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn">&#9654;</button><button class="combat-strip-btn" data-act="edit" title="Combat roster">&#9998;</button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
     if (strip.wpDrawn !== html) { strip.innerHTML = html; strip.wpDrawn = html; }
+    if (typeof stripGap === 'function') stripGap();
 }
+// [lookcheck:stripgap-start]
+// The live test, 2026-10-30: with Properties open in a narrow window the turn strip ran into the party strip. It steps left to keep a gap, and where the map has no room for that, down under the party strip
+function stripGap() {
+    var strip = document.getElementById('combatStrip'), party = document.getElementById('partyStrip'), main = document.getElementById('main'); if (!strip || !party || !main) return false;
+    strip.style.marginLeft = ''; strip.style.marginTop = '';
+    var s = strip.getBoundingClientRect(), p = party.getBoundingClientRect(), G = 12, over = s.right + G - p.left, room = s.left - main.getBoundingClientRect().left - 44;   // 44: past the left ruler
+    if (!(s.width > 0 && p.width > 0) || over <= 0 || s.top >= p.bottom || p.top >= s.bottom) return false;
+    if (over <= room) strip.style.marginLeft = -Math.ceil(over) + 'px'; else strip.style.marginTop = Math.ceil(p.bottom + G - s.top) + 'px';
+    return true;
+}
+// [lookcheck:stripgap-end]
 window.wpRenderCombatStrip = renderCombatStrip;
 (function wireCombatStrip() {
     var strip = document.getElementById('combatStrip'); if (!strip) return;
+    if (typeof ResizeObserver === 'function') { var gapRo = new ResizeObserver(stripGap); ['main', 'partyStrip'].forEach(function(id) { var e = document.getElementById(id); if (e) gapRo.observe(e); }); }   // the map's room changed, or the party's
     strip.addEventListener('pointerdown', function(e) { e.stopPropagation(); });
     strip.addEventListener('click', function(e) {
         var fb = e.target.closest && e.target.closest('.combat-find');

@@ -43,7 +43,7 @@
     document.addEventListener('mouseover', function(e) {
         px = e.clientX; py = e.clientY;
         var el = e.target && e.target.closest && e.target.closest('[title], [data-tip]');
-        if (!el || el === current) return;
+        if (!el || el === current || e.buttons) return;   // the live test, 2026-10-30: a button held is a drag under way, and a captured pointer still says it is over the head it holds
         clearTimeout(timer);
         hide();
         timer = setTimeout(function() { if (!gone(el)) show(el); }, DELAY);
@@ -56,6 +56,7 @@
         hide();
     });
     document.addEventListener('mousedown', hide, true);
+    document.addEventListener('pointerdown', hide, true);   // a press that calls preventDefault on its pointerdown, as a floating box's head does, sends no mousedown
     document.addEventListener('keydown', hide, true);
     document.addEventListener('scroll', hide, true);
     window.addEventListener('blur', hide);

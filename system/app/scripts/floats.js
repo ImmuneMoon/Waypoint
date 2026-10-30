@@ -215,29 +215,42 @@ function fitView(el) {
 }
 function fitAll() { var n = 0; floatBoxes().forEach(function(el) { if (fitView(el)) n++; }); return n; }
 // [floatcheck:fitview-end]
+// [floatcheck:stripclear-start]
+// The live test, 2026-10-30: the page panel stores its place the moment it is drawn (docpanel.js, its size watcher), so from its second opening on it stood at a place nobody chose, spotPlace let it be
+// as a place given, and it could come up over the turn strip's Next. So the panel alone, whatever place it was given, does not come up over the strip nor stay over a strip that comes under it: it moves
+// down past the strip. Dragged there during a fight it stays. Any other box keeps the place it was given, as above
+function stripClear(el) {
+    if (!el || el.id !== 'docPanel') return false;
+    var sr = spotRect(document.getElementById('combatStrip')), r = sr && floatUp(el) && !floatAway(el) ? spotRect(el) : null, G = SPOT_GAP; if (!r) return false;
+    if (!(r.left < sr.right + G && sr.left - G < r.right && r.top < sr.bottom + G && sr.top - G < r.bottom)) return false;
+    var top = Math.ceil(sr.bottom + G), room = window.innerHeight - G - top;
+    el.style.top = top + 'px'; if (room < r.height) el.style.maxHeight = Math.floor(room) + 'px';
+    return true;
+}
+// [floatcheck:stripclear-end]
 // A style change of a box: one that came up is put clear; one the user moved or sized since it was put clear is theirs, and loses the
 // height it was held to. Nothing is measured for a box dragged about
 function spotSeen(el) {
     if (!el || !el.style || !_spotHome.has(el)) return;
     var up = floatUp(el), was = _spotWas.get(el) === true, mine = _spotMine.get(el); _spotWas.set(el, up);
     if (mine && spotShape(el) !== mine.shape) { if (el.style.maxHeight === mine.cap) el.style.maxHeight = _spotHome.get(el).max; _spotMine.delete(el); }
-    if (up && !was) { spotPlace(el); fitView(el); }   // 1.6.0: and held inside the window
+    if (up && !was) { spotPlace(el); stripClear(el); fitView(el); }   // 1.6.0: and held inside the window
 }
 function spotWatch() {
     if (typeof MutationObserver !== 'function' || typeof document === 'undefined') return;
     var els = FLOAT_IDS.filter(function(id) { return !Object.prototype.hasOwnProperty.call(FLOAT_WITH, id); }).map(function(id) { return document.getElementById(id); }).filter(Boolean);
     els.forEach(function(el) { _spotHome.set(el, { at: spotAt(el), parts: SPOT_PARTS.map(function(k) { return el.style[k] || ''; }), max: el.style.maxHeight || '' }); _spotWas.set(el, floatUp(el)); });
     var strip = document.getElementById('combatStrip'), stripUp = false;   // the live test, 2026-10-30: a fight that starts under a box at its own place: the box moves clear of the turn strip as it comes, as the reader does (handbook.js)
-    if (strip) new MutationObserver(function() { var up = !!spotRect(strip); if (up && !stripUp) els.forEach(spotPlace); stripUp = up; }).observe(strip, { attributes: true, attributeFilter: ['style', 'hidden'] });
+    if (strip) new MutationObserver(function() { var up = !!spotRect(strip); if (up && !stripUp) els.forEach(function(el) { spotPlace(el); stripClear(el); }); stripUp = up; }).observe(strip, { attributes: true, attributeFilter: ['style', 'hidden'] });
     var mo = new MutationObserver(function(recs) { recs.forEach(function(r) { spotSeen(r.target); }); });
     els.forEach(function(el) {
         mo.observe(el, { attributes: true, attributeFilter: ['style'] });
-        if (typeof el.addEventListener === 'function') el.addEventListener(FLOAT_BACK, function() { spotPlace(el); });   // one that came up while put away, back on screen
+        if (typeof el.addEventListener === 'function') el.addEventListener(FLOAT_BACK, function() { spotPlace(el); stripClear(el); });   // one that came up while put away, back on screen
     });
     var due = false;   // the window changed size: every box this put clear is put clear again, once a frame
     if (typeof window.addEventListener === 'function') window.addEventListener('resize', function() {
         if (due) return; due = true;
-        var go = function() { due = false; els.forEach(function(el) { if (_spotMine.has(el)) spotPlace(el); }); fitAll(); };   // 1.6.0: and every box held inside the window
+        var go = function() { due = false; els.forEach(function(el) { if (_spotMine.has(el)) spotPlace(el); stripClear(el); }); fitAll(); };   // 1.6.0: and every box held inside the window
         if (typeof requestAnimationFrame === 'function') requestAnimationFrame(go); else setTimeout(go, 16);
     });
 }

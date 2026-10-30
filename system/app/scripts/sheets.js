@@ -1197,6 +1197,7 @@ function placeHud(v) {
     p.style.left = Math.round(Math.max(0, Math.min(W - 160, x))) + 'px'; p.style.top = Math.round(Math.max(0, Math.min(H - 80, y))) + 'px';
     if (sized) sizePanel(p, o.w, o.h);
     else if (foot !== null && y + h > foot) p.style.height = Math.max(240, Math.round(foot - y)) + 'px';
+    if (window.wpFloats && typeof window.wpFloats.fit === 'function') window.wpFloats.fit(p);   // the live test, 2026-10-30: at phone width no place was clear, and the HUD stood over the top row
 }
 function closeHud(charId) { var v = huds[charId]; if (!v) return; if (typeof sbxFlush === 'function') sbxFlush(); if (typeof closeLoadMenu === 'function') closeLoadMenu(); clearTimeout(v.redraw); delete huds[charId]; if (v.panel && v.panel.parentNode) v.panel.parentNode.removeChild(v.panel); }
 function closeHuds() { Object.keys(huds).forEach(function(id) { closeHud(id); }); }

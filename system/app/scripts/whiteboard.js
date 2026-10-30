@@ -3750,10 +3750,24 @@ window.wpFitToGrid = fitToGrid;
 
   }
 
+  // [lookcheck:rulerpass-start]
+  // 1.6.0 (the by-hand test of 2026-10-30): a ruler left on the map measures, and a token is what is played: a press on a ruler over a token goes to the
+  // token. The press is handed on as the board hands a press on (datamap.js handOn), so the ruler stays and the token is dragged
+  function rulerToken(x, y) {
+      var els = document.elementsFromPoint ? document.elementsFromPoint(x, y) : [], map = getActiveMap(), list = map && Array.isArray(map.whiteboard) ? map.whiteboard : [];
+      for (var i = 0; i < els.length; i++) {
+          var el = els[i] && els[i].closest ? els[i].closest('#whiteboard .wb-item') : null, id = el && el.dataset ? el.dataset.id : '';
+          if (id && list.some(function(w) { return !!w && w.id === id && w.isChar; })) return el;
+      }
+      return null;
+  }
+  // [lookcheck:rulerpass-end]
+  var _rulerPass = false;
   (function wireMeasureClicks() {
       var layer = document.getElementById('measureLayer');
       if (!layer) return;
       layer.addEventListener('pointerdown', function(e) {
+          _rulerPass = false;
           if (!e.target.closest || window.isPanMode) return;
           var _boom = e.target.closest('.blast-boom');
           if (_boom && e.button === 0) { var _bi = parseInt(_boom.dataset.i, 10); var _bb = blasts[_bi]; if (_bb && window.wpFx) { var _ppy = mapMeasureConfig().cellPx / cellYards(); window.wpFx.blastBoom(_bb.x, _bb.y, blastRadiusYd(_bb) * _ppy); } e.stopPropagation(); e.preventDefault(); return; }
@@ -3769,7 +3783,12 @@ window.wpFitToGrid = fitToGrid;
               if (bi0 >= 0 && bi0 < blasts.length && typeof blasts[bi0].tok !== 'string') { blastDrag = { i: bi0, sx: e.clientX, sy: e.clientY, ox: blasts[bi0].x, oy: blasts[bi0].y, moved: false }; e.preventDefault(); }   // a circle on a token is not dragged: it goes where its token goes
               e.stopPropagation(); return;
           }
-          if (e.target.closest('g.measure') || gbd) e.stopPropagation();
+          var gmP = e.target.closest('g.measure');
+          if (gmP && e.button === 0 && !window.isMeasureMode && !gmP.classList.contains('live')) {
+              var tkP = rulerToken(e.clientX, e.clientY);
+              if (tkP) { _rulerPass = true; e.stopPropagation(); e.preventDefault(); tkP.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, buttons: 1, pointerId: e.pointerId, pointerType: e.pointerType, isPrimary: e.isPrimary, clientX: e.clientX, clientY: e.clientY, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey })); return; }
+          }
+          if (gmP || gbd) e.stopPropagation();
       });
       // Right-click a blast to remove it
       layer.addEventListener('contextmenu', function(e) {
@@ -3799,6 +3818,7 @@ window.wpFitToGrid = fitToGrid;
           if (e.target.closest && e.target.closest('g.blast')) { e.stopPropagation(); return; }   // blasts: drag moves, right-click removes
           var g = e.target.closest && e.target.closest('g.measure');
           if (!g || g.classList.contains('live')) return;
+          if (_rulerPass) { _rulerPass = false; e.stopPropagation(); return; }   // this press went to the token under the ruler
           var i = parseInt(g.dataset.i, 10);
           if (i >= 0 && i < measures.length) { measures.splice(i, 1); renderMeasures(); toast('Ruler removed.'); }
           e.stopPropagation();
@@ -4203,6 +4223,12 @@ window.wpFitToGrid = fitToGrid;
   window.wpRulerUnit = function() { return rulerUnitNow() + '|' + rulerImpNow(); };   // ... and that unit with the one its metres are turned from, so the sheet is drawn again on a map in another unit
   window.wpRefreshBlasts = function() { if (blasts.length || _blastHitIds.length || measures.length) renderMeasures(); };   // and the rulers placed: their words read the tokens they end on (a posture, a height) and the table's switches
   window.wpBlasts = function() { return blasts; };   // sandbox testing hook
+  window.wpFightBlastsGo = function(mapId) {   // 1.6.0: the last fight on a map is over: the circles of what was thrown there go on every screen. The Radius tool's own stay, and one that waits on its fuse
+      var had = blasts.length, fz = typeof _fused !== 'undefined' ? _fused : [];
+      blasts = blasts.filter(function(b) { return ownCircle(b) || fz.some(function(f) { return f.b === b; }); });
+      if (blasts.length !== had) { renderMeasures(); syncBlastMenu(); }
+      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlastClear) window.wpNet.broadcastBlastClear(mapId);
+  };
   function clearBlasts() { blasts = []; renderMeasures(); syncBlastMenu(); if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlastClear) { var mc = getActiveMap(); window.wpNet.broadcastBlastClear(mc ? mc.id : null); } }
   // Seat a blast in its grid cell; a blast whose height was never edited follows the token standing there
   function seatBlast(b) {
@@ -4283,7 +4309,7 @@ window.wpFitToGrid = fitToGrid;
       var seatB = window.wpFog && window.wpFog.blastSeat ? window.wpFog.blastSeat(map, b.x, b.y, thrB ? thrB.x + (thrB.w || 60) / 2 : opts.x, thrB ? thrB.y + (thrB.h || 52) / 2 : opts.y) : null;   // a blast can't go off inside a wall or a closed door: it goes off in front, on the thrower's side
       if (seatB) { b.x = seatB.x; b.y = seatB.y; if (b.autoElev) { var underB = tokenAtPoint(map, b.x, b.y, true); b.elev = underB ? tokenElevation(underB, map, true) : groundAt(map, b.x, b.y, true); } }
       if (onScreen) { pushBlast(b); renderMeasures(); syncBlastMenu(); }
-      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: opts.gmOnly ? '' : b.name, elev: b.elev, by: b.by }, map.id);   // a GM-only item's blast reaches players unnamed
+      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: opts.gmOnly ? '' : b.name, elev: b.elev, by: b.by }, map.id, opts.charId);   // a GM-only item's blast reaches players unnamed
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
       var rw = typeof blastSize === 'function' && typeof rulerUnitNow === 'function' ? blastSize({ ft: b.ft }, rulerUnitNow(), typeof rulerImpNow === 'function' ? rulerImpNow() : '') : 'Radius ' + b.ft + ' ft';   // in the ruler's unit, as its label (1.5.4): in metres as the sheet says a measure
       toast((opts.goOff ? (b.name || 'A mine') + (pre && pre.fuse ? ' lands' : ' goes off') : (b.by ? b.by + ' throws ' : 'Thrown: ') + (b.name || 'a blast')) + ', ' + rw.charAt(0).toLowerCase() + rw.slice(1) + '. ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.' + (pre ? pre.said : '') + (seatB ? ' It went off in front of the wall or door it hit.' : '') + (onScreen ? '' : (pre && pre.fuse ? ' It is on ' : ' It went off on ') + ((map.meta && map.meta.title) || map.title || 'another map') + '.'));

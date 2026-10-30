@@ -86,10 +86,11 @@ function charNoToken(name, waiting, client) { return name + (waiting ? ' has a t
 // The rows of a character's menu, as the owner picked them: Sheet, HUD where the sheet has one, Find on the map, Delete sheet. Backlog 152 fold 4b (the
 // owner's answer 1, 2026-10-19: a Rules run switch on each NPC, "placed somewhere easy to use quickly"): after Find on the map, an NPC's Rules run as a
 // tick row where it has the switch. rules: which way it stands, true or false (calendar.js rulesRun); anything else, no row
-function charMenuRows(hud, del, rules) {
+function charMenuRows(hud, del, rules, give) {
     var rows = [{ act: 'sheet', text: 'Sheet\u2026' }];
     if (hud) rows.push({ act: 'hud', text: 'HUD\u2026' });
     rows.push({ rule: true }, { act: 'find', text: 'Find on the map' });
+    if (give === true) rows.push({ act: 'give', text: 'Give to a player\u2026' });   // 1.6.0: the GM's, here and on the sheet's own line
     if (rules === true || rules === false) rows.push({ act: 'rules', text: 'Rules run', tick: rules });
     if (del) rows.push({ rule: true }, { act: 'delete', text: 'Delete sheet\u2026', red: true });
     return rows;
@@ -99,7 +100,7 @@ function charNpcsKeep(store, open) { try { if (open === true) store.setItem('wp_
 // [lookcheck:charlist-end]
 
 // [lookcheck:charwire-start]
-var _sig = null, _open = charNpcsRead(localStorage), _menu = null;
+var _sig = null, _open = charNpcsRead(localStorage), _menu = null, _menuAt = [0, 0];
 function sheets() { return window.wpSheets || null; }
 function foreign() { var n = window.wpNet; return !!(n && (n.foreign || (n.active && n.role === 'client'))); }   // someone else's table on this screen, its link up or between attempts
 function linkUp() { var n = window.wpNet; return !!(n && n.active && n.role === 'client'); }   // a player's app as the sheet module knows one (sheets.js isClient)
@@ -140,34 +141,59 @@ function findOf(id) {
     toast('Found ' + charText(c.name, CHAR_NAME) + '. Its token is hidden from players.');
 }
 function menuAway() { if (_menu) _menu.style.display = 'none'; }
+function giveTo(cid, pid) {   // the same step and the same question as the party chip's Give a character
+    var S = sheets(), camp = getActiveCampaign(), c = camp && S ? S.charById(cid, camp) : null; if (!c || !S.giveCharacter) return;
+    var name = charText(c.name, CHAR_NAME) || 'Unnamed', go = function() { if (S.giveCharacter(pid, cid)) toast(pid ? name + ' given.' : name + ' has no player now.'); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); };
+    if (c.ownerId && c.ownerId !== pid) showConfirm('Give ' + name + (pid ? ' to this player? ' : ' up? ') + 'Their current player loses it: its sheet closes for them' + (pid ? ', and its tokens go to the new player.' : '.'), function(yes) { if (yes) go(); });
+    else go();
+}
+function giveMenu(id, x, y) {   // the players this campaign knows, by name: a row for each, and one to take it from the player who has it
+    var S = sheets(), camp = getActiveCampaign(), c = camp && S ? S.charById(id, camp) : null; if (!c || !_menu) return;
+    var names = namesOf(camp), pids = Object.keys(names).sort(function(a, b) { return String(names[a]).localeCompare(String(names[b])); });
+    if (!pids.length && !c.ownerId) { toast('No player has joined this campaign yet. Host a table, and they can join from the Multiplayer window.'); return; }
+    while (_menu.firstChild) _menu.removeChild(_menu.firstChild);
+    _menu.dataset.char = id;
+    pids.forEach(function(pid) {
+        var d = document.createElement('button'); d.type = 'button'; d.setAttribute('role', 'menuitem'); d.dataset.give = pid; d.textContent = charText(names[pid], CHAR_NAME) + (pid === c.ownerId ? ' (has it now)' : ''); d.disabled = pid === c.ownerId; _menu.appendChild(d);
+    });
+    if (c.ownerId) { var dv = document.createElement('div'); dv.className = 'menu-divider'; _menu.appendChild(dv); var no = document.createElement('button'); no.type = 'button'; no.setAttribute('role', 'menuitem'); no.dataset.give = ''; no.textContent = 'No player'; _menu.appendChild(no); }
+    _menu.style.display = 'flex';
+    if (window.wpClampMenu) window.wpClampMenu(_menu, x, y); else { _menu.style.left = x + 'px'; _menu.style.top = y + 'px'; }
+}
+function menuMake() {
+    if (_menu) return;
+    _menu = document.createElement('div'); _menu.id = 'charMenu'; _menu.className = 'context-menu char-menu'; _menu.setAttribute('role', 'menu'); _menu.style.display = 'none';
+    document.body.appendChild(_menu);
+    _menu.addEventListener('click', menuPress);
+}
 function menuFor(id, x, y) {
     var S = sheets(), camp = getActiveCampaign(), c = camp && S ? S.charById(id, camp) : null; if (!c) return;
-    if (!_menu) {
-        _menu = document.createElement('div'); _menu.id = 'charMenu'; _menu.className = 'context-menu char-menu'; _menu.setAttribute('role', 'menu'); _menu.style.display = 'none';
-        document.body.appendChild(_menu);
-        _menu.addEventListener('click', function(e) {
-            var b = e.target && e.target.closest ? e.target.closest('[data-act]') : null; if (!b) return;
-            var act = b.dataset.act, cid = _menu.dataset.char; menuAway();
-            var S2 = sheets(); if (!S2 || !cid) return;
-            if (act === 'sheet') openOf(cid);
-            else if (act === 'hud') { if (!away() && S2.hudFor(cid)) S2.openHud(cid); }
-            else if (act === 'find') findOf(cid);
-            else if (act === 'delete') { if (S2.askDeleteSheet) S2.askDeleteSheet(cid); }
-            else if (act === 'rules') { var C2 = window.wpCalendar, now = !foreign() && C2 && typeof C2.rulesRun === 'function' ? C2.rulesRun(cid) : null; if (typeof now === 'boolean' && typeof C2.setRulesRun === 'function') C2.setRulesRun(cid, !now); }   // 152 fold 4b: the switch the other way, as it stands at the press
-        });
-    }
+    menuMake();
+    _menuAt = [x, y];
     while (_menu.firstChild) _menu.removeChild(_menu.firstChild);
     _menu.dataset.char = id;
     // Delete only where the sheet module will take it: a player's own whole sheet while their link is up, the GM's where the campaign can be written
     var client = foreign(), del = client ? !!(linkUp() && c.ownerId && c.ownerId === window.wpNet.myId && !c.partial) : !!(window.wpCanPersistLocal && window.wpCanPersistLocal());
     var Cal = window.wpCalendar, rules = !client && Cal && typeof Cal.rulesRun === 'function' ? Cal.rulesRun(id) : null;   // 152 fold 4b: the GM's alone, and only where calendar.js says the character has the switch
-    charMenuRows(!!(S.hudFor && S.hudFor(id)), del, rules).forEach(function(r) {
+    charMenuRows(!!(S.hudFor && S.hudFor(id)), del, rules, !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal())).forEach(function(r) {
         var d = document.createElement(r.rule ? 'div' : 'button');
         if (r.rule) d.className = 'menu-divider'; else { d.type = 'button'; if (r.red) d.className = 'danger'; d.dataset.act = r.act; d.setAttribute('role', r.tick === true || r.tick === false ? 'menuitemcheckbox' : 'menuitem'); if (r.tick === true || r.tick === false) { d.setAttribute('aria-checked', r.tick ? 'true' : 'false'); d.title = 'Ticked, this NPC\u2019s time rules run by themselves as time passes. Unticked, they do not'; } d.appendChild(document.createTextNode((r.tick === true ? '\u2713 ' : '') + r.text)); }
         _menu.appendChild(d);
     });
     _menu.style.display = 'flex';
     if (window.wpClampMenu) window.wpClampMenu(_menu, x, y); else { _menu.style.left = x + 'px'; _menu.style.top = y + 'px'; }
+}
+function menuPress(e) {
+            var gv = e.target && e.target.closest ? e.target.closest('[data-give]') : null;
+            if (gv) { var cidG = _menu.dataset.char, pidG = gv.dataset.give; menuAway(); if (cidG) giveTo(cidG, pidG); return; }
+            var b = e.target && e.target.closest ? e.target.closest('[data-act]') : null; if (!b) return;
+            var act = b.dataset.act, cid = _menu.dataset.char; if (act === 'give') { giveMenu(cid, _menuAt[0], _menuAt[1]); return; } menuAway();
+            var S2 = sheets(); if (!S2 || !cid) return;
+            if (act === 'sheet') openOf(cid);
+            else if (act === 'hud') { if (!away() && S2.hudFor(cid)) S2.openHud(cid); }
+            else if (act === 'find') findOf(cid);
+            else if (act === 'delete') { if (S2.askDeleteSheet) S2.askDeleteSheet(cid); }
+            else if (act === 'rules') { var C2 = window.wpCalendar, now = !foreign() && C2 && typeof C2.rulesRun === 'function' ? C2.rulesRun(cid) : null; if (typeof now === 'boolean' && typeof C2.setRulesRun === 'function') C2.setRulesRun(cid, !now); }   // 152 fold 4b: the switch the other way, as it stands at the press
 }
 function wire() {
     var box = document.getElementById('charNavList'); if (!box) return;
@@ -211,4 +237,5 @@ function wire() {
 }
 // [lookcheck:charwire-end]
 window.wpCharList = { sync: sync };
+window.wpCharList.give = function(id, x, y) { menuMake(); menuAway(); giveMenu(id, x, y); };   // 1.6.0: the sheet's own line asks the same list of players
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();

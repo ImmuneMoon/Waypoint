@@ -181,6 +181,15 @@ Systems, more
   out at once while a fight goes on.
 - A wound or a Major Wound follows an effect's When added again.
 - A greyed roll or switch tells a player its own words, never its formula.
+- A character can be given to a player from its sheet or its row under Characters.
+- A system can call its Major Wound step by its own name.
+- A ruler left on the map no longer takes the press meant for a token under it.
+- A thrown blast's circle goes when the map's last fight ends, on every screen.
+- A player's target comes back with a fight kept over a reload.
+- An NPC a player cannot see goes unnamed on the table's cards and throws.
+- Targeting a token outside the fight says so.
+- A player's app no longer asks again and again for a picture the save names
+  with no folder.
 - The Combat card can let a hold last to a character's next turn, and can
   leave the order as it is when a held character acts.
 - The Combat window numbers rows of one name.

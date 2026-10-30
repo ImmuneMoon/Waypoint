@@ -1928,6 +1928,7 @@ function snapItems(cS) {
 // [netcheck:snapitems-end]
 function applySnapshot(msg) {
     if (!msg || !msg.appState || typeof msg.appState !== 'object' || !msg.appState.campaigns || typeof msg.appState.campaigns !== 'object') return;   // a host that sends no state gets nothing applied — and nothing left half-set
+    if (typeof window !== 'undefined' && window.wpClearSharedBlasts) window.wpClearSharedBlasts();   // 1.6.0: a table taken afresh holds no circle of the table before it, so a GM's reload leaves both sides alike
     // BinaryPack decodes a map by ASSIGNING its keys, so a packed "__proto__" re-parents the decoded object: the state and the campaign map get
     // a plain prototype back first, or a campaign (or a field deleted below) could still be inherited from the host's choice
     [msg.appState, msg.appState.campaigns].forEach(function(o) { if (Object.getPrototypeOf(o) !== Object.prototype) Object.setPrototypeOf(o, Object.prototype); });
@@ -2804,7 +2805,7 @@ net.sendFxArrival = function(conn, mapId) {   // a peer landing on a map gets it
 };
 // A blast thrown from a character sheet, shown to the players ON THAT MAP (item library, 1.5.0). Host only; no GM-only data.
 // [netcheck:blast-start]
-net.broadcastBlast = function(blast, mapId) {
+net.broadcastBlast = function(blast, mapId, charId) {   // charId: who threw it, whose name a player who cannot see them does not get (1.6.0)
     if (!net.active || net.role !== 'host' || !blast) return;
     var b = { x: Number(blast.x), y: Number(blast.y), ft: Number(blast.ft), elev: Number(blast.elev) || 0, name: typeof blast.name === 'string' ? blast.name.slice(0, 60) : '', by: typeof blast.by === 'string' ? blast.by.slice(0, 60) : '' };
     if (!isFinite(b.x) || !isFinite(b.y) || !(b.ft > 0)) return;
@@ -2813,8 +2814,8 @@ net.broadcastBlast = function(blast, mapId) {
     if (blast.shape === 'ring') { var inF = Number(blast.inFt); if (isFinite(inF) && inF > 0 && inF < b.ft) { b.shape = 'ring'; b.inFt = inF; } }
     else if (blast.shape === 'cone') { var dgB = Math.round(Number(blast.deg)), drB = Number(blast.dir); if (isFinite(dgB) && dgB >= 1 && dgB <= 360 && isFinite(drB)) { b.shape = 'cone'; b.deg = dgB; b.dir = Math.atan2(Math.sin(drB), Math.cos(drB)); } }
     var camp = getActiveCampaign(); if (!camp) return;
-    var msg = { type: 'blast', campId: camp.id, mapId: mapId, blast: b };
-    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && net.roster[c.peer].location === mapId) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
+    var msg = { type: 'blast', campId: camp.id, mapId: mapId, blast: b }, chB = b.by && typeof charId === 'string' && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null, bare = null;
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && net.roster[c.peer].location === mapId) { var mB = msg; if (chB && typeof npcShown === 'function' && !npcShown(camp, chB, net.roster[c.peer])) { if (!bare) bare = Object.assign({}, msg, { blast: Object.assign({}, b, { by: '' }) }); mB = bare; } try { c.send(mB); } catch (e) { sendFailed(e); } } });
 };
 // [netcheck:blast-end]
 net.broadcastBlastClear = function(mapId) {
@@ -4871,6 +4872,7 @@ function broadcastCombats() {
 }
 function broadcastTargets() {
     var camp = getActiveCampaign();
+    if (typeof fightsKeepSoon === 'function') fightsKeepSoon();   // 1.6.0: the pointers are kept with a running fight, so a reload does not lose what an attack aims at
     _targetHidSig = targetHidSigNow();   // hidden pieces: which pointers the table now goes without
     if (!anyFog(camp)) { broadcast({ type: 'targets', targets: targetsFor(null) }, null); return; }
     var sendAll = function() { net.conns.forEach(function(c) { var pr = net.roster[c.peer]; if (!pr || !c.open) return; try { c.send({ type: 'targets', targets: targetsFor(pr.id) }); } catch (e) { sendFailed(e); } }); };
@@ -5227,6 +5229,7 @@ function combatOver(fid, had, quiet, title) {   // fold 2: by the fight's own id
     if (had && net.fightOn === fid) net.fightOn = typeof fightBehind === 'function' ? fightBehind() : (fightIds()[0] || null);   // fold 4: the Active fight ended: the one furthest behind is played
     if (had && typeof marksEnd === 'function' && !fightsOn(mapId).length) { try { marksEnd(mapId); } catch (e) { console.error(e); } }   // senses S4b: the marks follow every move again, once the map's last fight is over (fold 2)
     if (typeof fid === 'string' && typeof combatForget === 'function') combatForget(fid);   // the fight over: nothing of it seen
+    if (had && !gone && !fightsOn(mapId).length && typeof window !== 'undefined' && window.wpFightBlastsGo) { try { window.wpFightBlastsGo(mapId); } catch (e) { console.error(e); } }   // 1.6.0: the circles of what was thrown there go with the map's last fight
     var leftO = fightIds().length;
     if (had && !leftO) { try { fxCombatEdge(mapId, had, 'resume'); } catch (e) { console.error(e); } }   // T5a: their effects' clocks run again, once no fight is left
     if (gone) { try { combatFreed(campO); } catch (e) { console.error(e); } }
@@ -5662,7 +5665,8 @@ net.setTarget = function(itemId, mapId, itemName) {
         applyTarget(me, getProfile().name || 'GM', next);
         broadcastTargets();
     }
-    toast(next ? 'Targeting ' + (itemName || 'that token') + '. Click it again (or press Esc) to clear.' : 'Target cleared.');
+    var outF = !!next && typeof fightsOn === 'function' && typeof fightOfTok === 'function' && fightsOn(mapId).length > 0 && !fightOfTok(mapId, itemId);   // 1.6.0: a fight runs here and this token is in none of it
+    toast(next ? 'Targeting ' + (itemName || 'that token') + (outF ? ', who is not in the fight' : '') + '. Click it again (or press Esc) to clear.' : 'Target cleared.');
 };
 net.clearMyTarget = function() { var t = net.targets[net.myId]; if (t) net.setTarget(t.id, t.mapId); };
 // [netcheck:targetas-start]
@@ -6460,7 +6464,7 @@ function admitPlayer(conn, prof, provenKey) {
     // remember this player on the campaign so token ownership can outlive the session
     setTimeout(function() { sendMissedHandouts(conn, prof); }, 2500);
     setTimeout(function() {   // the table's recent conversation, so a latecomer is not lost
-        var recent = chatHistoryOf(chatLog);
+        var recent = chatHistoryOf(chatLog); if (typeof historyBare === 'function') recent = historyBare(recent);
         if (recent.length && conn.open) { try { conn.send({ type: 'chat-history', log: recent }); } catch (e) { sendFailed(e); } }
     }, 1200);
     var camp = getActiveCampaign();
@@ -8454,6 +8458,7 @@ function handleMessage(msg, conn) {
         var amB = getActiveMap(); if (amB && msg.mapId === amB.id) window.wpRenderSharedBlast(msg.blast);
     } else if (msg.type === 'blastClear' && net.role === 'client') {
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpClearSharedBlasts) return;
+        var amC = getActiveMap(); if (typeof msg.mapId === 'string' && amC && amC.id !== msg.mapId) return;   // 1.6.0: another map's circles are not on this screen
         window.wpClearSharedBlasts();
     } else if (msg.type === 'roll-req' && net.role === 'host') {
         // [netcheck:rollreq-start]
@@ -9460,7 +9465,7 @@ net.assetSrc = function(path) {
     if (!net.foreign) return path;   // R2 security: no snapshot yet (a join waiting for the GM's Allow) — the campaign on screen is this machine's own, its pictures come from its own server, and none of their paths is asked of a host
     if (/^(data:|blob:)/.test(path)) return path;   // already self-contained
     if (/^[a-zA-Z][a-zA-Z0-9+.-]*:|^\/\//.test(path)) return ASSET_PLACEHOLDER;   // an absolute URL from a host would make this machine call out to it (an IP beacon, a LAN probe): never
-    if (!/^\/?saves\//.test(path)) return path;     // shipped with the app (assets/…): every install has it
+    if (!/^\/?saves\//.test(path)) return /^\/?assets\//.test(path) ? path : ASSET_PLACEHOLDER;     // shipped with the app (assets/): every install has it. 1.6.0: anything else names no file here, and a page would ask for it at every redraw
     if (assetCache[path]) return assetCache[path];
     if (!assetPending[path] && net.conns[0] && net.conns[0].open && net.syncedPeer && net.conns[0].peer === net.syncedPeer) {   // asked only of the synced host: between a reconnect's attempts nothing is asked and nothing marked, so the first draw after its snapshot asks
         assetPending[path] = true;
@@ -9609,6 +9614,31 @@ function handleAssetArrival(msg) {
    machine replays expr + draws through its own engine. Nothing rendered travels; nothing a client says is trusted. */
 var diceLimit = null, _dicePending = null, _diceSlowSaid = {};
 function DC() { return window.wpDiceCore || null; }
+// [netcheck:npcseen-start]
+// 1.6.0 (the by-hand test of 2026-10-30): an NPC a player cannot see goes unnamed on the table's cards. A player's character is no secret; an NPC's
+// name stands on a card only for a player who sees one of its tokens on the map they are on. Host-side: the record a player gets has no `as`
+var _npcCards = typeof WeakMap === 'function' ? new WeakMap() : null;
+function npcShown(camp, ch, p) {
+    if (!ch || (ch.npc !== true && ch.ownerId)) return true;
+    var mapId = p && p.location, map = camp && camp.items && typeof mapId === 'string' && own(camp.items, mapId) ? camp.items[mapId] : null;
+    if (!map || !Array.isArray(map.whiteboard)) return false;
+    var judge = function() { var drop = fogDrop(camp, map, p.id); return map.whiteboard.some(function(w) { return !!w && w.isChar && !w.hidden && w.charId === ch.id && !(drop && drop[w.id]); }); };
+    return typeof fogLanded === 'function' ? !!fogLanded(mapId, judge) : judge();
+}
+function sendTableAs(rec, ch) {   // the table's copy of a card made as a character
+    if (_npcCards && ch && (ch.npc === true || !ch.ownerId)) _npcCards.set(rec, 1);
+    var camp = getActiveCampaign(), bare = null;
+    net.conns.forEach(function(c) {
+        var p = c.open ? net.roster[c.peer] : null; if (!p) return;
+        var m = rec; if (rec.as && !npcShown(camp, ch, p)) { if (!bare) { bare = Object.assign({}, rec); delete bare.as; } m = bare; }
+        try { c.send(m); } catch (e) { sendFailed(e); }
+    });
+}
+function historyBare(list) {   // a latecomer's history: such a card's name goes, since they saw none of it
+    if (!_npcCards) return list;
+    return list.map(function(m) { var r = m && (m.roll || m.apply); if (!r || !_npcCards.has(r) || !r.as) return m; var c = Object.assign({}, r); delete c.as; return Object.assign({}, m, m.roll ? { roll: c } : { apply: c }); });
+}
+// [netcheck:npcseen-end]
 function sendTable(msg, exceptConn) {   // admitted peers only: broadcast() would reach a peer still waiting for the GM's Allow
     net.conns.forEach(function(c) { if (c !== exceptConn && c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 }
@@ -9619,7 +9649,7 @@ function sendTable(msg, exceptConn) {   // admitted peers only: broadcast() woul
 function postApply(rec, scope, ch, conn) {
     if (scope !== 'table') rec.priv = 'gm';
     if (net.active && net.role === 'host') {
-        if (scope === 'table') sendTable(rec, null);
+        if (scope === 'table') { if (ch && typeof sendTableAs === 'function') sendTableAs(rec, ch); else sendTable(rec, null); }
         else net.conns.forEach(function(c) { if (!c.open || !net.roster[c.peer]) return; if (c === conn || (scope === 'owner' && ch && ch.ownerId && peerProfileId(c) === ch.ownerId)) { try { c.send(rec); } catch (e) { sendFailed(e); } } });
     }
     pushChat({ from: rec.from, text: '', scope: scope === 'table' ? 'global' : 'whisper', ts: rec.ts, apply: rec });
@@ -9965,7 +9995,7 @@ net.diceRoll = function(expr, o) {
         if (target && target.open && net.roster[toKey]) { rec.to = toKey; toName = net.roster[toKey].name || 'a player'; try { target.send(rec); } catch (e) { sendFailed(e); } }
     }
     var scope = rec.priv || rec.to ? 'whisper' : 'global';
-    if (hosting && scope === 'global') sendTable(rec, null);
+    if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rec, chR); else sendTable(rec, null); }
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
     var ruleR = D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '');   // Stage 6 F8 (1.6.0: or the record's own critical range)
     logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName, rule: ruleR }));
@@ -10475,7 +10505,8 @@ function fightsKeep() {
     if (net.role !== 'host' || net.stream) return false;
     var camp = getActiveCampaign(); if (!camp) return false;
     if (!fightIds().length) { _fightKept = ''; if (!camp.fights) return false; delete camp.fights; saveRemoteSoon(); return true; }
-    var text = JSON.stringify({ on: net.fightOn, list: net.combats }); if (text === _fightKept) return false;
+    var bodyK = { on: net.fightOn, list: net.combats }; if (net.targets && Object.keys(net.targets).length) bodyK.targets = net.targets;
+    var text = JSON.stringify(bodyK); if (text === _fightKept) return false;
     _fightKept = text; camp.fights = JSON.parse(text); saveRemoteSoon(); return true;
 }
 function fightsKeepSoon() { if (net.role !== 'host' || net.stream || _fightSoon) return; _fightSoon = setTimeout(fightsKeep, 200); }
@@ -10504,7 +10535,9 @@ function fightsRead(raw, camp) {   // what the save holds, as data: { list, on }
         list[id] = Object.assign({ id: id }, f);
     });
     if (typeof raw.on === 'string' && Object.prototype.hasOwnProperty.call(list, raw.on)) on = raw.on;
-    return { list: list, on: on };
+    var kept = {}, tgRaw = raw.targets && typeof raw.targets === 'object' && typeof cleanTargets === 'function' ? cleanTargets(raw.targets) : {};   // 1.6.0: a pointer whose token still stands
+    Object.keys(tgRaw).forEach(function(pid) { var t = tgRaw[pid], map = own(camp.items, t.mapId) ? camp.items[t.mapId] : null; if (map && Array.isArray(map.whiteboard) && map.whiteboard.some(function(w) { return !!w && w.id === t.id; })) kept[pid] = t; });
+    return { list: list, on: on, targets: kept };
 }
 function fightsBack() {   // as the host's table opens: the fights its campaign kept, if none runs yet; how many came back
     if (net.role !== 'host' || net.stream || fightIds().length) return 0;
@@ -10514,12 +10547,13 @@ function fightsBack() {   // as the host's table opens: the fights its campaign 
     var maps = Object.create(null);
     ids.forEach(function(id) { net.combats[id] = back.list[id]; if (typeof back.list[id].n === 'number' && back.list[id].n > _fightN) _fightN = back.list[id].n; });
     net.fightOn = back.on || ids[0]; _fightKept = '';
+    Object.keys(back.targets || {}).forEach(function(pid) { if (!own(net.targets, pid)) net.targets[pid] = back.targets[pid]; });   // 1.6.0: what was aimed at is still aimed at
     ids.forEach(function(id) {
         var f = net.combats[id];
         if (!maps[f.mapId]) { maps[f.mapId] = 1; if (typeof marksStart === 'function') { try { marksStart(f.mapId); } catch (e) { console.error(e); } } }
         try { fxCombatEdge(f.mapId, f, 'bank'); } catch (e) { console.error(e); }
     });
-    broadcastCombats(); combatRefresh();
+    broadcastCombats(); combatRefresh(); if (Object.keys(back.targets || {}).length && typeof broadcastTargets === 'function') broadcastTargets();
     ids.forEach(function(id) { turnStarted(net.combats[id].mapId, net.combats[id]); });
     var f0 = net.combats[ids[0]], says = ids.length === 1 ? 'The fight on ' + mapTitleOf(f0.mapId) + ' came back at round ' + f0.round + '.' : ids.length + ' fights came back.';
     toast(says); logEvent('table', says);

@@ -3194,6 +3194,8 @@
   #sheetTitle { overflow: hidden; text-overflow: ellipsis; }
   #sheetPortrait { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold); }
   .sheet-titles { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+  #sheetSub.sheet-sub-give { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }   /* 1.6.0: who has this character, pressed to give it to a player */
+  #sheetSub.sheet-sub-give:hover, #sheetSub.sheet-sub-give:focus-visible { color: var(--gold); }
   .sheet-pick { max-width: 150px; padding: 2px 6px; font-size: 11px; }
   #sheetPanel .notepad-btn { padding: 1px 7px; font-size: 11px; }
   #sheetBody { overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 10px; }

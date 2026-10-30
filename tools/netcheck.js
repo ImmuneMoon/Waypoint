@@ -477,7 +477,7 @@ pendingChecks.push((async () => {
         && js(q1b) === js({ says: [askOf('Ann'), askOf('Bo')], waiting: 0, open: true, admitted: ['qA'], closed: ['qS', 'qC'], S: ['wait', 'denied(' + RM + ')'], C: ['wait', 'denied(' + BN + ')'], B: ['wait'] })
         && js(q1d) === js({ admitted: ['qA', 'qB'], open: false, asks: 2, roster: ['qA', 'qB'] }), js([q1a, q1b, q1d]));
     check('a join request takes its buttons alone (the owed review of 2026-10-09; processNextApproval, run for real): each request put to the GM carries the two marks that keep Enter and Escape from answering it, since a key typed for something else let a stranger in or turned a player away for the session',
-        js(Q1.asks.map(a => a.o)) === js([{ noEnter: true, noEscape: true }, { noEnter: true, noEscape: true }]) && src.includes("    }, { noEnter: true, noEscape: true });"), js(Q1.asks.map(a => a.o)));
+        js(Q1.asks.map(a => a.o)) === js([{ noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away' }, { noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away' }]) && src.includes("{ noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away' });"), js(Q1.asks.map(a => a.o)));
     // nothing on screen: a banned request is refused at once and leaves no prompt open, so the next request is shown; a prototype name is never taken for a ban
     const Q2 = withQ(harness({ bannedPlayers: calBan() })); Q2.env.bannedIds.u_sam = true;
     Q2.env.queueJoin(Q2.conn('qS'), { id: 'u_sam', name: 'Sam' }, 'nokey'); Q2.env.queueJoin(Q2.conn('qC'), { id: 'u_cal', name: 'Cal' }, '');

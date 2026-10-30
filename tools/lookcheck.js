@@ -3438,5 +3438,10 @@ check('the System editor\'s Items and Lists tabs scroll as one page, so their ro
         && wbS.includes('pressHold(list, window)') && wbS.includes('if (hold && hold.busy()) hold.then(sortLater); else sortLater();') && trS.includes('_tw.hold = pressHold(bd, window);') && trS.includes('if (_tw.hold && _tw.hold.busy()) { _tw.hold.then(twRender); return; }'), J([log, during, after]));
 }
 
+check('a player\'s double-click on their own token opens its sheet, the first thing a player tries (found live), and any other piece does nothing on their app, with the GM\'s Properties as they were; a join request says Let in and Turn away, its Cancel put back with the answer',
+    /window\.wpNet\.role === 'client'\) \{ if \(it2\.isChar && it2\.charId && it2\.ownerId === window\.wpNet\.myId && window\.wpSheets && window\.wpSheets\.openSheet\) \{ e\.stopPropagation\(\); window\.wpSheets\.openSheet\(it2\.charId\); \} return; \}/.test(rootRead('system/app/scripts/datamap.js'))
+    && rootRead('system/app/scripts/datamap.js').indexOf('window.wpSheets.openSheet(it2.charId)') < rootRead('system/app/scripts/datamap.js').indexOf('var wallD = wallPickEl(am2, it2, e)')
+    && rootRead('system/app/scripts/dialogs.js').includes('if (noWas !== null) { cancelBtn.textContent = noWas; noWas = null; }'));
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

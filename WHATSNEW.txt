@@ -166,6 +166,9 @@ Systems, more
   drop-down. Press a row to put it on the table.
 - A press right after typing a number now lands: a tick in the Combat
   window, and Confirm in a trade.
+- A player's double-click on their own token opens its sheet.
+- A join request says Let in and Turn away.
+- A player held for a new sheet can no longer drag their token.
 - A list can hold each skill's specialties. Tick Specialties in the Lists
   tab. A formula then reads one as Skills.Blade.Longsword.Target. It reads
   the row with that specialty, whatever the row is called. Without one it

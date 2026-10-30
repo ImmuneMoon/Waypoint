@@ -115,7 +115,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       // opts.yes and opts.alt: a question with two answers beside Cancel (the Characters section's +: a player's character or an NPC). OK says
       // opts.yes and loses its red; a second button, put before OK, says opts.alt and answers 'alt'. Both are words set as text, and OK is as it
       // was once the question is answered. A question without them is drawn exactly as before
-      var yesText = opts && typeof opts.yes === 'string' ? opts.yes.slice(0, 60) : '', altText = opts && typeof opts.alt === 'string' ? opts.alt.slice(0, 60) : '', altBtn = null, okWas = null;
+      var yesText = opts && typeof opts.yes === 'string' ? opts.yes.slice(0, 60) : '', altText = opts && typeof opts.alt === 'string' ? opts.alt.slice(0, 60) : '', altBtn = null, okWas = null, noText = opts && typeof opts.no === 'string' ? opts.no.slice(0, 60) : '', noWas = null;
 
       // opts.ready: a question whose OK waits on its body (1.6.0: Same person as… and Merge into… until a player is picked). While ready()
       // answers false OK is shown as not ready and a press of it answers nothing; it is asked again at each change inside the body.
@@ -160,6 +160,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (slot) { if (slot.parentNode) { slot.parentNode.classList.remove('confirm-wide'); slot.parentNode.removeChild(slot); } slot = null; }
 
           if (okWas) { okBtn.textContent = okWas.text; if (okWas.danger) okBtn.classList.add('danger'); okWas = null; }
+          if (noWas !== null) { cancelBtn.textContent = noWas; noWas = null; }
 
           if (altBtn) { altBtn.onclick = null; if (altBtn.parentNode) altBtn.parentNode.removeChild(altBtn); altBtn = null; }
 
@@ -176,6 +177,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (isAlert) cancelBtn.style.display = 'none';
 
       if (yesText) { okWas = { text: okBtn.textContent, danger: okBtn.classList.contains('danger') }; okBtn.textContent = yesText; okBtn.classList.remove('danger'); }
+      if (noText) { noWas = cancelBtn.textContent; cancelBtn.textContent = noText; }   // opts.no: what Cancel means here (1.6.0: a join request turns a player away), set as text and put back with the answer
 
       if (altText && okBtn.parentNode) { altBtn = document.createElement('button'); altBtn.type = 'button'; altBtn.className = 'tool'; altBtn.id = 'customConfirmAlt'; altBtn.textContent = altText; altBtn.onclick = function() { cleanup(); callback('alt'); }; okBtn.parentNode.insertBefore(altBtn, okBtn); }
 

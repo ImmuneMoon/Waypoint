@@ -879,7 +879,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         // Players may only drag tokens the GM assigned to them — and nothing while paused
         if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
             if (modeStr !== 'visual') return;
-            if (window.wpNet.paused || window.wpNet.selfPaused) return;   // table paused, or the GM paused me specifically
+            if (window.wpNet.paused || window.wpNet.selfPaused || window.wpNet.selfHeld) return;   // table paused, the GM paused me specifically, or held for a new sheet
             if (!((item.isChar || item.waiting) && item.ownerId === window.wpNet.myId)) {   // Onboarding F1a: their waiting token moves too
                 // Nothing else is draggable for a player, so anything covering their
                 // token (a text box, a note card, a trigger zone) must not trap it:
@@ -1092,6 +1092,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       el.addEventListener('dblclick', function(e) {
           if (modeStr !== 'visual') return;
           var am2 = getActiveMap(); var it2 = am2 && am2.whiteboard.find(function(x){ return x.id === el.dataset.id; }); if (!it2) return;
+          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { if (it2.isChar && it2.charId && it2.ownerId === window.wpNet.myId && window.wpSheets && window.wpSheets.openSheet) { e.stopPropagation(); window.wpSheets.openSheet(it2.charId); } return; }   // 1.6.0: a player's double-click on their own token opens its sheet, the first thing a player tries (found live, 2026-10-30)
           var wallD = wallPickEl(am2, it2, e), wallDi = wallD && am2.whiteboard.find(function(x){ return x.id === wallD.dataset.id; });   // a double-click near a wall's line opens the wall, as its press picked it
           if (wallDi) { e.stopImmediatePropagation(); it2 = wallDi; }
           else if (it2.type === 'text' || it2.nodeId || it2.targetMapId) return;   // text boxes edit and portals travel on double-click — leave those to their own handlers

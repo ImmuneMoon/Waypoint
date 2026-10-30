@@ -6738,7 +6738,7 @@ function processNextApproval() {
             toast((next.prof.name || 'Player') + ' was turned away.');
         }
         processNextApproval();
-    }, sameOf.length ? { noEnter: true, noEscape: true, alt: 'Same person as…' } : { noEnter: true, noEscape: true });   // its buttons alone (the owed review, 2026-10-09): a key typed for something else let a stranger in, or turned a player away for the session
+    }, sameOf.length ? { noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away', alt: 'Same person as…' } : { noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away' });   // its buttons alone (the owed review, 2026-10-09): a key typed for something else let a stranger in, or turned a player away for the session
     };
     askMain();
 }

@@ -2662,7 +2662,7 @@ pendingChecks.push((async () => {
     check('1.6.0 Specialties on the host (roll-req, run for real): a player\'s weapon roll whose Skill reads Talents.Blade.Saber.Target through a choice stat is worked out through their own view, at their best Blade row less its Fallback (11), and its record says so (refs, as Blade (Longsword) -2); a formula field reading it alike; the GM-only row named Blade (Saber) counts for nothing and is named nowhere; a GM-only entry\'s specialty reads on their view as not carried (Agility - 5), never at the GM\'s row; the GM\'s own roll asks rollRefs as it asks rollMods',
         lr.sent.length === 0 && lr.table.length === 1 && j(rk(lr).names) === j([{ name: 'Row.Skill', value: 11 }]) && j(rk(lr).refs) === j(SAB)
         && fr.table.length === 1 && j(rk(fr).names) === j([{ name: 'Hit', value: 11 }]) && j(rk(fr).refs) === j(SAB)
-        && sh.table.length === 1 && j(rk(sh).names) === j([{ name: 'Talents.Shadow.Step.Target', value: 5 }]) && j(rk(sh).refs) === j([{ s: 'as Shadow, untrained', c: 3 }])
+        && sh.table.length === 1 && j(rk(sh).names) === j([{ name: 'Talents.Shadow.Step.Target', value: 5 }]) && j(rk(sh).refs) === j([{ s: 'untrained Shadow', c: 3 }])
         && !j([lr.table, fr.table, sh.table]).includes('Saber)') && !j(sh.table).includes('Step)') && j(Dx.cleanRoll(rk(lr)).refs) === j(SAB)
         && src.includes('var rfR = SR.rollRefs(varsR, rec.names); if (rfR) rec.refs = rfR;') && src.includes('var rfQ = SQ.rollRefs(varsQ, recQ.names); if (rfQ) recQ.refs = rfQ;'),
         j([lr, fr, sh]));

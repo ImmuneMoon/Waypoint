@@ -192,6 +192,8 @@ Systems, more
 - The left panel's right-click menu works when the panel is opened from
   its rail.
 - The top row stays on one line in more window sizes when a fight starts.
+- A portal's small picture of a map shows that map's pictures on a
+  player's screen too.
 - In the Combat window the rows wait until you leave the list to sort, so
   numbers typed down the list stay in their boxes.
 - Joining a table just after the GM's app reloaded waits longer for it, so

@@ -294,6 +294,12 @@ function seenPic(camp, mapId) {
     var F = seenFog(); if (s.kind === 'mem' && (!F || typeof F.rememberOff !== 'function' || F.rememberOff())) return '';
     return s.url;
 }
+// A picture of the map, as this player's app may have it: from the table, never from its own server, which does not hold the GM's files. '' while its bytes are on their way
+function seenAddr(a) {
+    var N = window.wpNet; if (!N || typeof N.assetSrc !== 'function' || /^(data:|blob:)/i.test(a)) return a;
+    var raw = a; try { raw = decodeURIComponent(a); } catch (e) {}
+    var out = N.assetSrc(raw); return out === raw ? a : (out === N.ASSET_PLACEHOLDER ? '' : out);
+}
 // Now and then on a player's app: the map they stand on, drawn as they have seen it, kept when it changed. Says whether a drawing was started
 function seenTick() {
     if (picGm() || window.wpStream || window.wpPopout) return false;
@@ -301,12 +307,12 @@ function seenTick() {
     var id = camp && typeof camp.activeItemId === 'string' ? camp.activeItemId : '', map = id && camp.items && Object.prototype.hasOwnProperty.call(camp.items, id) ? camp.items[id] : null;
     var F = seenFog(), kind = F && map ? F.seenKind(map) : ''; if (!kind || typeof camp.id !== 'string') return false;
     var items = map.whiteboard.filter(function(it) { return SC.shows(it, false); }), p = picPlan(items); if (!p) return false;
-    var key = camp.id + '/' + id, sig = picSig(items) + '|' + kind + '|' + (kind === 'mem' ? F.memSeenSig(map) : ''), had = _seen[key];
+    var need = SC.needs(items, { labels: false, grid: false, box: p.box }), addrs = need.pics.map(seenAddr), waits = addrs.filter(function(a) { return !a; }).length;   // 1.6.0: a picture still on its way is left out, and the drawing is made again once it is here
+    var key = camp.id + '/' + id, sig = picSig(items) + '|' + kind + '|' + (kind === 'mem' ? F.memSeenSig(map) : '') + '|' + waits, had = _seen[key];
     if ((had && had.sig === sig) || _seenBusy[key] === sig) return false;
     if (kind === 'mem' && !F.memSeenSig(map)) return false;   // nothing remembered yet: nothing to draw
     _seenBusy[key] = sig;
-    var need = SC.needs(items, { labels: false, grid: false, box: p.box });
-    Promise.all(need.pics.map(shotPic)).then(function(got) {
+    Promise.all(addrs.map(function(a) { return a ? shotPic(a) : null; })).then(function(got) {
         var pics = Object.create(null), tiles = Object.create(null), k = Math.max(1, Math.ceil(p.scale) + 1);
         need.pics.forEach(function(a, i) { pics[a] = got[i] || null; });
         need.tiles.forEach(function(n) { tiles[n] = shotTile(n, k); });

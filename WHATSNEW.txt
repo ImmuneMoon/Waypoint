@@ -191,6 +191,8 @@ Systems, more
 - A player's selection box takes only their own tokens.
 - The left panel's right-click menu works when the panel is opened from
   its rail.
+- Joining a table just after the GM's app reloaded waits longer for it, so
+  the first try no longer gives up after a few seconds.
 - Deleting a map says its name and any fights it ends, and leaves you on
   the next map's play map. Players on it are told.
 - Targeting a token outside the fight says so.

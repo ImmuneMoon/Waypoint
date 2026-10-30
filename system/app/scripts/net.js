@@ -2386,7 +2386,7 @@ function heldSync() {
     if (was && !net.selfHeld && net.reconcileLook) net.reconcileLook();   // a face picked while held goes now
 }
 function heldSay(w) { return net.selfHeld && !net.paused && !net.selfPaused ? HELD_WORDS : w; }   // a refusal a hold gave is said as one
-function heldBanner() { var h = net.heldNames || [], nm = h.length === 1 ? h[0] : h.length + ' of your characters'; return nm + ' needs a new sheet before you can play. Open its sheet and press Send a new sheet. Chat and pages still work.'; }
+function heldBanner() { var h = net.heldNames || [], one = h.length === 1, nm = one ? h[0] : h.length + ' of your characters'; return nm + (one ? ' needs a new sheet before you can play. Open its sheet and press' : ' need a new sheet before you can play. Open each sheet and press') + ' Send a new sheet. Chat and pages still work.'; }
 net.heldSync = heldSync; net.isPlayerHeld = function(playerId) { return heldById(playerId); };
 // [netcheck:sheetheld-end]
 
@@ -6913,7 +6913,7 @@ function snapAsk(code, name) {   // at the end of a join the player began, when 
 // has LEFT this machine: it carries the player's picture, and on a slow uplink its sending would otherwise be counted against the host — the
 // channel's own queue and the connection library's are looked at every HOST_SENT_MS, HOST_SENT_LOOKS times at most (15 s: a host that reads
 // nothing cannot hold the clock back longer), and where neither can be read the clock starts at once.
-var HOST_PROOF_MS = 5000, HOST_SENT_MS = 250, HOST_SENT_LOOKS = 60;
+var HOST_PROOF_MS = 5000, HOST_JOIN_MS = 15000, HOST_SENT_MS = 250, HOST_SENT_LOOKS = 60;   // 1.6.0: a join the player began waits longer, since a GM's app just reloaded on a large campaign may be busy; nothing but the wait changes
 function hostHeld(conn) {   // the GM this app holds the host on this connection to — { gmId, pub } — or null when it knows nothing to hold it to
     var retry = conn.wpRetry === true, was = retry ? (_joinTrust.was || null) : null, code = roomCodeOf(net.code), acc = (!retry && _joinTrust.accept && !_joinTrust.accept.late && _joinTrust.accept.code === code) ? _joinTrust.accept : null;
     var gm = was ? was.gmId : acc ? acc.gmId : gmRoomFor(code); if (!gm) return null;
@@ -6928,7 +6928,7 @@ function hostWait(conn) {   // as this connection's hello goes out: the time the
     var a = _joinTrust.accept; if (conn.wpRetry !== true && a && a.late === true && a.code === roomCodeOf(net.code)) return;   // the player's yes to a late table: this join waits on it with no clock (what it then shows is judged as ever)
     var looks = 0, look = function() {
         if (helloQueued(conn) && looks++ < HOST_SENT_LOOKS) { conn.wpProofT = setTimeout(look, HOST_SENT_MS); return; }
-        conn.wpProofT = setTimeout(function() { conn.wpProofT = null; hostLate(conn); }, HOST_PROOF_MS);
+        conn.wpProofT = setTimeout(function() { conn.wpProofT = null; hostLate(conn); }, conn.wpRetry === true ? HOST_PROOF_MS : HOST_JOIN_MS);
     };
     look();
 }

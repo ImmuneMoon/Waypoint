@@ -3210,8 +3210,8 @@ function mutations(tpl) {
         const signedSnap = (signer, c, over) => { const s = Object.assign(clone(snapshotForClient), over || {}); s.gmPub = Object.assign({}, signer.pub); s.sig = signer.sign(snapText(c.wpCn, c.peer, s.gmId, s.key)); return s; };
         // The app gives a host it knows the GM of five seconds from its hello to prove itself (HOST_PROOF_MS). The suite's timers all fire at a flush, so
         // each dial sets that connection's proof timer aside: a scenario then plays inside the window, and late(c) is the five seconds passing.
-        const PROOF_MS = 5000, proofT = new Map();
-        const holdProof = c => { const mine = timers.q.filter(t => t.ms === PROOF_MS); timers.q = timers.q.filter(t => t.ms !== PROOF_MS); proofT.set(c, (proofT.get(c) || []).concat(mine)); return mine.length; };
+        const PROOF_MS = [5000, 15000], proofT = new Map();
+        const holdProof = c => { const mine = timers.q.filter(t => PROOF_MS.includes(t.ms)); timers.q = timers.q.filter(t => !PROOF_MS.includes(t.ms)); proofT.set(c, (proofT.get(c) || []).concat(mine)); return mine.length; };
         const late = c => { const due = (proofT.get(c) || []).filter(t => !timers.cleared.has(t.id)); proofT.set(c, []); due.forEach(t => { try { t.fn(); } catch (e) { flushed.threw.push(e); } }); return due.length; };   // the time is up — unless the app cleared its timer
         const dial = () => { const p = peers[peers.length - 1]; p.emit('open'); flushTimers(); const c = p.conns[0]; c.emit('open'); c.proofArmed = holdProof(c); flushTimers(); return c; };   // the newest peer registers and its connection to the room opens (its hello goes out; the wait for the host's proof is the suite's to end)
         const freshJoin = () => { document.getElementById('netJoinBtn').click(); return dial(); };   // a join the player begins, through the real Join button

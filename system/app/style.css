@@ -2936,6 +2936,7 @@
   .upl-from, .upl-to { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .upl-from { color: var(--dim); } .upl-arrow { color: var(--dim); }
   .upl-remove .upl-to { color: var(--red); } .upl-note { font-size: 10.5px; color: var(--gold); }
   .upl-line { cursor: default; } .upl-line:hover { background: none; }
+  .upl-none { padding: 8px 6px; color: var(--dim); font-size: 12px; }
   .sheet-review { color: var(--gold); border-color: var(--gold); }
   .roll-crit, .roll-fumble { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 6px; border-radius: 10px; color: #fff; }
   .roll-crit { background: var(--green); } .roll-fumble { background: var(--red); }

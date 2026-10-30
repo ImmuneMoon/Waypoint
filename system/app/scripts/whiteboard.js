@@ -9001,6 +9001,7 @@ window.wpCastSaveCharacter = function(c) {
     import('./io.js').then(function(m) { m.save(true); m.toast((c.name || 'Character') + ' saved to the campaign cast.'); });
     return true;
 };
+// [systemcheck:castplace-start]
 function castPlace(cid, x, y, count) {
     var camp = getActiveCampaign(), am = getActiveMap();
     if (!camp || !am || am.type !== 'map') return;
@@ -9018,8 +9019,10 @@ function castPlace(cid, x, y, count) {
         if (window.wpSeatCell) window.wpSeatCell(it, am); else if (window.wpSeatHex) window.wpSeatHex(it, am);
         am.whiteboard.push(it);
     }
+    if (c.charId && count === 1 && window.wpSheets && window.wpSheets.syncOwners) window.wpSheets.syncOwners(camp);   // found live, 2026-10-30: a dropped character's token goes to its player by the one rule (systemcore ownedTokenPlan), as a token made any other way does
     import('./io.js').then(function(m) { m.save(true); if (window.appRender) window.appRender(); m.toast(count === 1 ? c.name + ' placed.' : count + ' × ' + c.name + ' placed.'); });
 }
+// [systemcheck:castplace-end]
 // Cast cells at the top of the image library (new-token flow)
 function castLibraryHtml(filter) {
     var camp = getActiveCampaign(); if (!camp) return '';

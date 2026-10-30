@@ -466,6 +466,10 @@ Systems
   sheet, which takes a Waypoint character file. It waits in your Review,
   one line a field that differs, and applying it makes the character
   current. Mark current on a sheet, or Mark all current, does it at once.
+- A new sheet that changes nothing now says so, and Mark current clears it
+  from your Review. One with changes stays there to apply or keep out.
+- A character dropped from the Campaign Cast now goes to its player, who
+  can move it. A kept character's token stays yours to move.
 - Rows that open. Tick Rows open on a list and each row gets an arrow
   before its name. It opens the row's details, and so does a press on the
   name. Open all and Close all stand over the list.

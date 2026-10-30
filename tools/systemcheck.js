@@ -9519,16 +9519,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         rvW.gm = false; RV.render(); const rvNoWrite = rvW.els.reviewChip.style.display; rvW.gm = true;
         rvW.on = false; RV.render(); const rvOff = rvW.els.reviewChip.style.display; rvW.on = true;
         rvW.camp.uploads = [{ charId: 'c_a', changes: [1] }]; RV.render(); const rv1 = j(rvState());
+        rvW.camp.uploads = [{ charId: 'c_a', changes: [{ kind: 'note' }] }]; RV.render(); const rvNil = j(rvState());
         rvW.camp.uploads = []; rvW.opened = []; RV.next(); const rvNone = j([rvW.opened, rvW.els.reviewChip.style.display]);
-        check('the header\'s Review button (run for real): hidden while nothing waits; there with the number of uploads waiting and, as its tooltip\'s text, each character\'s name and count, an upload whose character is gone not counted; a press opens the oldest one\'s sheet and its Review; never on a player\'s app, a machine that cannot write or with sheets off; a press with nothing waiting opens nothing; wired once, repainted when an upload arrives, when a Review closes and every second; in the page it starts hidden; Help and the GM\'s toast name it',
+        check('the header\'s Review button (run for real): hidden while nothing waits; there with the number of uploads waiting and, as its tooltip\'s text, each character\'s name and count (a note is no change: nothing to apply, said in words), an upload whose character is gone not counted; a press opens the oldest one\'s sheet and its Review; never on a player\'s app, a machine that cannot write or with sheets off; a press with nothing waiting opens nothing; wired once, repainted when an upload arrives, when a Review closes and every second; in the page it starts hidden; Help and the GM\'s toast name it',
             rv0 === j(['none', '', '']) && rv2 === j(['', '2', '2 sheet updates wait for your review: Tavis <b> (3), Sorrell (1)']) && rvOpen === j([['sheet', 'c_b'], ['review', 'c_b']]) && rvClient === 'none' && rvNoWrite === 'none' && rvOff === 'none'
-            && rv1 === j(['', '1', 'A sheet update waits for your review: Sorrell (1)']) && rvNone === j([[], 'none'])
+            && rv1 === j(['', '1', 'A sheet update waits for your review: Sorrell (1)']) && rvNil === j(['', '1', 'A sheet update waits for your review: Sorrell (nothing to apply)']) && rvNone === j([[], 'none'])
             && shS3.includes("var rvChip = ui('reviewChip'); if (rvChip) rvChip.addEventListener('click', reviewNext);") && shS3.split("addEventListener('click', reviewNext)").length === 2
             && shS3.includes("function uploadsChanged(charId) { renderViews(typeof charId === 'string' ? charId : null); renderReviewChip(); }") && shS3.includes("_review = null; renderReviewChip(); }") && shS3.includes("try { renderReviewChip(); } catch (e) { console.error(e); }")
             && ixS2.includes('<button class="tool" id="reviewChip" style="display:none;" title="A player sent a sheet update: review what changes"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 5H6v15.5h12V5h-2.5M9 3.5h6v3H9zM9 13.5l2.2 2.2 3.8-4.2"/></svg> Review <span id="reviewChipN"></span></button>')
             && ixS2.includes('Nothing changes until you press <b>Review</b> and apply the ones you tick. Review is a gold button in the header for as long as an upload waits, and on the character&rsquo;s sheet.')
             && rdx('scripts/net.js').includes("' to review (the gold Review button in the header).';"),
-            j([rv0, rv2, rvOpen, rvClient, rvNoWrite, rvOff, rv1, rvNone]));
+            j([rv0, rv2, rvOpen, rvClient, rvNoWrite, rvOff, rv1, rvNil, rvNone]));
         // (i) the GM's own Target, Start combat and Add to the fight on a character token's menu (whiteboard.js sliced by its gmfight markers, run for real)
         const gfW = { net: { active: true, role: 'host', myId: 'gm1', targets: {}, combats: {}, calls: [], setTarget(id, mid, nm) { this.calls.push(['target', id, mid, nm]); } }, stream: false, opened: [] };
         const ntX = rdx('scripts/net.js'); new Function('net', 'getActiveCampaign', ntX.slice(ntX.indexOf('// [netcheck:orders-start]'), ntX.indexOf('// [netcheck:orders-end]')))(gfW.net, () => null);   // fold 2: the real fightsOn, on the stand-in's fights
@@ -17634,12 +17635,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const SB = new Function('ui', 'el', 'systemOf', 'uploadsOf', 'isClient', 'canWrite', 'openReview', 'importJson', 'getActiveCampaign', 'charById', 'afterCharChange', 'toast', 'net', 'charsOf', 'showConfirm', 'save', 'renderAll', 'renderViews', 'window', 'draft',
             sbSrc + '\nreturn { renderStaleBar, markCurrent, askNewSheets, allSheetsCurrent, staleCount };')(
             id => (id === 'sheetStaleBar' ? bar : null), mkE, c => (c ? c.system : null), () => upl, () => gmClient, () => writeOk, (a, b, cId) => log.push('review ' + cId), () => log.push('import'), () => campV, id => (campV.chars[id] || null),
-            (c, whole) => log.push('after ' + c.id + ' ' + c.sheetRev + ' ' + whole), t => log.push('toast ' + t), () => ({ logEvent: (k, t) => log.push('log ' + t), syncSystem: () => log.push('sync') }), c => c.chars,
+            (c, whole) => log.push('after ' + c.id + ' ' + c.sheetRev + ' ' + whole), t => log.push('toast ' + t), () => ({ logEvent: (k, t) => log.push('log ' + t), syncSystem: () => log.push('sync'), uploadDone: (id, a, b) => log.push('done ' + id + ' ' + a + ' ' + b) }), c => c.chars,
             (q, cb, o) => { log.push('ask ' + (o && o.yes)); cb(true); }, () => log.push('save'), () => log.push('renderAll'), () => log.push('renderViews'), { wpSystemCore: S }, null);
         const labels = () => bar.children.filter(k => k.tag === 'button').map(b => b.textContent);
         campV = { system: gV, chars: { c_k: JSON.parse(J(kael)), c_n: { id: 'c_n', name: 'Npc', npc: true, values: {} } } };
         SB.renderStaleBar(campV.chars.c_k, campV, true, false); const gmL = [bar.style.display, labels()];
-        upl = [{ id: 'up_r', rev: true, changes: [] }, { id: 'up_x', changes: [] }]; SB.renderStaleBar(campV.chars.c_k, campV, true, false); const gmR = labels(); bar.children[1].on.click(); const revLog = log.slice(-1)[0];
+        upl = [{ id: 'up_r', rev: true, changes: [{ id: 'u_0', kind: 'value' }] }, { id: 'up_x', changes: [] }]; SB.renderStaleBar(campV.chars.c_k, campV, true, false); const gmR = labels(); bar.children[1].on.click(); const revLog = log.slice(-1)[0];
         gmClient = true; SB.renderStaleBar(campV.chars.c_k, campV, false, true); const plL = [bar.style.display, labels()]; bar.children[1].on.click(); const impLog = log.slice(-1)[0];
         SB.renderStaleBar(campV.chars.c_k, campV, false, false); const mateL = bar.style.display; gmClient = false;
         SB.renderStaleBar(Object.assign({}, campV.chars.c_k, { sheetRev: 2 }), campV, true, false); const curL = bar.style.display;
@@ -17649,6 +17650,51 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         writeOk = false; log.length = 0; const noW = SB.markCurrent('c_k') === false && log.length === 0; writeOk = true;
         const barOk = sbSrc !== '' && gmL[0] === '' && J(gmL[1]) === J(['Mark current']) && J(gmR) === J(['Review', 'Mark current']) && revLog === 'review up_r' && plL[0] === '' && J(plL[1]) === J(['Send a new sheet…']) && impLog === 'import'
             && mateL === 'none' && curL === 'none' && mkOk && allOk && askOk && noW && !/innerHTML/.test(sbSrc);
+        // found live, 2026-10-30: a new sheet with nothing to apply is said so and offered as no work; the Review it opens says so; Mark current settles it, and what waits goes at once
+        {
+            const sysN = Object.assign(JSON.parse(J(gV)), { sheetRev: 9 }), mkN = (id, nm) => Object.assign(JSON.parse(J(kael)), { id, name: nm, sheetRev: 1 });
+            const ent = (id, charId, extra) => Object.assign({ id, charId, from: 'u_1', name: 'Pat', at: 1, changes: [] }, extra);
+            const line = { id: 'u_0', kind: 'value', f: 'f_str', label: 'Strength', from: '10', to: '12', value: 12, accept: true }, note = { id: 'u_1', kind: 'note', label: 'Read as is' };
+            const coreOk = S.upChanges(ent('up_a', 'c_k')) === 0 && S.upChanges(ent('up_a', 'c_k', { changes: [note] })) === 0 && S.upChanges(ent('up_a', 'c_k', { changes: [note, line] })) === 1 && S.upChanges(null) === 0
+                && S.revIdle(sysN, mkN('c_k', 'Kael'), ent('up_a', 'c_k', { rev: true })) === false && S.revIdle(sysN, Object.assign(mkN('c_k', 'Kael'), { sheetRev: 9 }), ent('up_a', 'c_k', { rev: true })) === true
+                && S.revIdle(sysN, Object.assign(mkN('c_k', 'Kael'), { sheetRev: 9 }), ent('up_a', 'c_k', { rev: true, changes: [line] })) === false && S.revIdle(sysN, Object.assign(mkN('c_k', 'Kael'), { sheetRev: 9 }), ent('up_a', 'c_k')) === false && S.revIdle(sysN, null, ent('up_a', 'c_k', { rev: true })) === true;
+            const uoI = shV.indexOf('function uploadsOf('), uoSrc = shV.slice(uoI, shV.indexOf('\n', uoI));
+            const uploadsOfR = new Function('cleanUploads', 'revIdle', 'systemOf', 'charById', uoSrc + '\nreturn uploadsOf;')(S.cleanUploads, S.revIdle, c => c.system, (id, c) => c.chars[id] || null);
+            const held = { system: sysN, chars: { c_k: mkN('c_k', 'Kael') }, uploads: [ent('up_a', 'c_k', { rev: true })] }, done = { system: sysN, chars: { c_k: Object.assign(mkN('c_k', 'Kael'), { sheetRev: 9 }) }, uploads: [ent('up_a', 'c_k', { rev: true }), ent('up_b', 'c_k', { rev: true, changes: [line] }), ent('up_c', 'c_k', { ask: true, changes: [line] })] };
+            const waitsOk = J(uploadsOfR(held, 'c_k').map(u => u.id)) === J(['up_a']) && J(uploadsOfR(done, 'c_k').map(u => u.id)) === J(['up_b', 'up_c']) && J(uploadsOfR(done, null).map(u => u.id)) === J(['up_b', 'up_c']) && J(uploadsOfR(done, 'c_z')) === '[]';
+            campV = { system: sysN, chars: { c_k: mkN('c_k', 'Kael'), c_m: mkN('c_m', 'Mira') } };
+            upl = [ent('up_e', 'c_k', { rev: true })]; SB.renderStaleBar(campV.chars.c_k, campV, true, false); const noneL = labels(), noneT = bar.children[0].textContent;
+            upl = [ent('up_e', 'c_k', { rev: true, changes: [note] })]; SB.renderStaleBar(campV.chars.c_k, campV, true, false); const noteL = labels();
+            upl = [ent('up_e', 'c_k', { rev: true, changes: [note, line] })]; SB.renderStaleBar(campV.chars.c_k, campV, true, false); const realL = labels(), realT = bar.children[0].textContent; upl = [];
+            const barNOk = J(noneL) === J(['Mark current']) && noneT === 'Its player sent a new sheet and it changes nothing here. Press Mark current and they play again.' && J(noteL) === J(['Mark current']) && J(realL) === J(['Review', 'Mark current']) && /waits for your review/.test(realT);
+            // Mark current: an entry with nothing to apply goes and its player is told; one with changes stays as any update; another character's and an ask stay as they were
+            campV.uploads = [ent('up_e', 'c_k', { rev: true }), ent('up_m', 'c_m', { rev: true }), ent('up_a', 'c_k', { ask: true, changes: [line] })]; log.length = 0;
+            const mkE1 = SB.markCurrent('c_k'), left1 = campV.uploads.map(u => u.id), log1 = log.slice();
+            campV.chars.c_k.sheetRev = 1; campV.uploads = [ent('up_r', 'c_k', { rev: true, changes: [line] })]; log.length = 0;
+            const mkE2 = SB.markCurrent('c_k'), left2 = J(campV.uploads), log2 = log.slice();
+            const markOk = mkE1 === true && J(left1) === J(['up_m', 'up_a']) && campV.chars.c_k.sheetRev === 9 && log1.indexOf('done c_k 0 0') >= 0 && log1.some(x => x === 'toast Kael is current: its player plays again.')
+                && mkE2 === true && left2 === J([ent('up_r', 'c_k', { changes: [line] })]) && log2.indexOf('done c_k 0 0') < 0 && log2.some(x => x === 'toast Kael is current: its player plays again. The new sheet it sent still waits in your Review.');
+            // Mark all current settles every one of them; a new ask leaves no sheet that said nothing behind it
+            campV.chars.c_k.sheetRev = 1; campV.chars.c_m.sheetRev = 1; campV.uploads = [ent('up_e', 'c_k', { rev: true }), ent('up_r', 'c_m', { rev: true, changes: [line] })]; log.length = 0; SB.allSheetsCurrent();
+            const allNOk = J(campV.uploads.map(u => [u.id, u.rev === true])) === J([['up_r', false]]) && campV.chars.c_k.sheetRev === 9 && campV.chars.c_m.sheetRev === 9;
+            campV.uploads = [ent('up_e', 'c_k', { rev: true }), ent('up_r', 'c_m', { rev: true, changes: [line] }), ent('up_x', 'c_k')]; SB.askNewSheets();
+            const askNOk = J(campV.uploads.map(u => u.id)) === J(['up_r', 'up_x']) && S.sheetRevOf(campV.system) === 10; sysN.sheetRev = 9;
+            // the Review, sliced and run for real: the head and the list say so, its button makes the character current, and that is all the toast says
+            const urK = shV.indexOf('// [sinkcheck:uploadreview-start]'), urZ = shV.indexOf('// [sinkcheck:uploadreview-end]'), nodes = { uploadModal: mkE('div'), uploadHead: mkE('h3'), uploadHint: mkE('div'), uploadList: mkE('div'), uploadApply: mkE('button'), uploadReject: mkE('button') }, logQ = [];
+            const campQ = { system: sysN, chars: { c_k: mkN('c_k', 'Kael') }, uploads: [ent('up_e', 'c_k', { rev: true })] };
+            const REVQ = new Function('ui', 'getActiveCampaign', 'uploadsOf', 'charById', 'isClient', 'el', 'systemOf', 'F', 'applyProposal', 'afterCharChange', 'net', 'toast', 'save', 'renderViews', 'closeReview', 'window', 'var _review = null, lastChange = null;\n' + shV.slice(urK, urZ) + '\nreturn openReview;')(
+                id => nodes[id], () => campQ, (cp, id) => uploadsOfR(cp, id), (id, cp) => (cp || campQ).chars[id] || null, () => false, mkE, cp => cp && cp.system, () => F, S.applyProposal, () => logQ.push('after'), () => ({ uploadDone: (id, a, b) => logQ.push('done ' + a + ' ' + b) }), t => logQ.push(t), () => {}, () => {}, () => logQ.push('closed'), { wpSystemCore: S });
+            REVQ('c_k'); const headQ = nodes.uploadHead.textContent, listQ = nodes.uploadList.children.map(k => [k.className, k.textContent]), btnQ = [nodes.uploadApply.textContent, nodes.uploadApply.disabled], hintQ = nodes.uploadHint.style.display;
+            nodes.uploadApply.onclick();
+            const reviewOk = headQ === 'Pat\u2019s sheet update for Kael \u2014 nothing to apply' && hintQ === 'none' && J(listQ) === J([['upl-none', 'Nothing in it differs from the sheet as it stands. Mark current lets its player play again.']]) && J(btnQ) === J(['Mark current', false])
+                && J(logQ) === J(['after', 'done 0 0', 'Kael is current: its player plays again.', 'closed']) && campQ.chars.c_k.sheetRev === 9 && campQ.uploads.length === 0;
+            const netV = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+            const wordsOk = netV.includes("if (staleU && !nU) tU = (profU.name || 'A player') + ' sent a new sheet for ' + (chU.name || 'their character') + '. It changes nothing, so Mark current lets them play again.';")
+                && netV.includes("(ofN ? ' (' + ofN + (ofN === 1 ? ' change' : ' changes') + ' not taken)' : '') + '.');") && netV.includes('if (prU.changes.length || staleU) {') && shV.includes("import { upChanges, revIdle } from './systemcore.js';")
+                && sbSrc.includes("if (typeof renderReviewChip === 'function') renderReviewChip();   // the header's Review goes at once");
+            check('found live, 2026-10-30: a new sheet with nothing to apply: upChanges counts what can be applied (a note is no change) and revIdle is an entry that asks nothing; uploadsOf (the one list the header\'s Review, the sheet\'s Review, the card and the bell read) leaves such an entry out, an out-of-date character\'s stays; the sheet\'s bar says so and offers Mark current alone; Mark current and Mark all current settle what waits: nothing to apply goes and its player is told, changes stay as a plain sheet update and say so, another character\'s and an ask are left, the header\'s Review repainted at once; a new ask drops such an entry; the Review, run for real, says so in its head and its list, with no word of ticks, and its button makes the character current',
+                coreOk && waitsOk && barNOk && markOk && allNOk && askNOk && reviewOk && wordsOk, J([coreOk, waitsOk, barNOk, markOk, allNOk, askNOk, reviewOk, wordsOk, noneL, noneT, noteL, realL, left1, log1, left2, log2, headQ, listQ, btnQ, logQ]));
+        }
         const ixV = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
         const wiredOk = shV.includes("    if (typeof renderStaleBar === 'function') renderStaleBar(c, camp, gm, own);") && shV.includes("var nsB = ui('sysNewSheets'); if (nsB) nsB.addEventListener('click', askNewSheets);") && shV.includes("var acB = ui('sysSheetsCurrent'); if (acB) acB.addEventListener('click', allSheetsCurrent);")
             && shV.includes("if (up.rev === true && window.wpSystemCore && typeof window.wpSystemCore.sheetRevOf === 'function') { var srA = window.wpSystemCore.sheetRevOf(sys); if (srA) { ch2.sheetRev = srA;") && shV.includes("apply.disabled = (!n && up.rev !== true) || noRd;")
@@ -17659,6 +17705,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             + 'revProposal reads Waypoint\'s own file as a fill of one in the making would be and offers one value change a field that differs, a GM-only row kept, an effects list and a GM field never offered, nothing for a file that changes nothing, and applyProposal applies it; '
             + 'the sheet\'s bar (renderStaleBar, sliced and run for real): the GM\'s Review and Mark current, the player\'s Send a new sheet, nothing for a teammate or a current sheet; Mark current, Mark all current and Ask for new sheets, the wiring, the page and Help',
             revOk && staleOk && charOk && upOk && propOk && applyOk && barOk && wiredOk, J([revOk, staleOk, charOk, upOk, propOk, applyOk, barOk, wiredOk, pr && pr.changes.map(c => [c.f, c.from, c.to]), gList.map(r => [r.id, r.defId]), gmL, gmR, plL, mateL, curL, log]));
+    }
+    {   // found live, 2026-10-30: a character dropped from the Campaign Cast (whiteboard.js castPlace, and sheets.js syncOwners, sliced and run for real with the real chooser)
+        const J = JSON.stringify, rd = f => fs.readFileSync(path.join(app, 'scripts', f), 'utf8').replace(/\r\n/g, '\n');
+        const wbC = rd('whiteboard.js'), shC = rd('sheets.js'), cpA = wbC.indexOf('// [systemcheck:castplace-start]'), cpZ = wbC.indexOf('// [systemcheck:castplace-end]');
+        if (cpA < 0 || cpZ < cpA) throw new Error('systemcheck: the castplace slice is not marked');
+        const soA = shC.indexOf('function syncOwners(camp, keep) {'), soSrc = shC.slice(soA, shC.indexOf('\n}\n', soA) + 3);
+        const drop = (o) => {   // o: chars, players, cid (the cast entry's character), count, already (the map's own tokens), off (sheets off)
+            const m = { id: 'm1', type: 'map', whiteboard: (o.already || []).slice() }, camp = { id: 'k1', chars: o.chars, players: o.players || {}, items: { m1: m }, cast: { e1: { id: 'e1', name: 'Hero', kind: 'circle', src: '', w: 60, h: 52, color: '#123456', charStats: '', shape: '', charId: o.cid } } };
+            if (o.cid === undefined) delete camp.cast.e1.charId;
+            const seen = [], sync = new Function('getActiveCampaign', 'migrateBindings', 'net', 'charsOf', 'playerNames', 'applyOwnerOps', 'ownedTokenPlan', 'sheetsOnIn', soSrc + '\nreturn syncOwners;')(() => camp, S.migrateBindings, () => null, c => c.chars, () => ({}), S.applyOwnerOps, S.ownedTokenPlan, () => !o.off);
+            const win = { wpSheets: { syncOwners: sync } };
+            const IO = () => ({ then: f => f({ save() { seen.push(m.whiteboard.map(w => w.ownerId || '')); }, toast() {} }) });
+            new Function('getActiveCampaign', 'getActiveMap', 'castOf', 'window', 'IO', wbC.slice(cpA, cpZ).replace("import('./io.js')", 'IO()') + '\nreturn castPlace;')(() => camp, () => m, c => c.cast, win, IO)('e1', 100, 100, o.count || 1);
+            return { toks: m.whiteboard, made: m.whiteboard.filter(w => !(o.already || []).includes(w)), seen };
+        };
+        const char = (id, ownerId, extra) => Object.assign({ id, name: id, ownerId, npc: false, values: {}, updated: 1 }, extra), P = { u_a: { name: 'Pat', charId: 'c_a' }, u_b: { name: 'Sam', charId: 'c_b' } };
+        const cs = () => ({ c_a: char('c_a', 'u_a'), c_b: char('c_b', 'u_b'), c_kept: char('c_kept', 'u_a'), c_none: char('c_none', ''), c_npc: char('c_npc', '', { npc: true }), c_make: char('c_make', 'u_b', { making: 1 }) });
+        const inPlay = drop({ chars: cs(), players: P, cid: 'c_a' }), another = drop({ chars: cs(), players: P, cid: 'c_b' }), none = drop({ chars: cs(), players: P, cid: 'c_none' }), npc = drop({ chars: cs(), players: P, cid: 'c_npc' }), kept = drop({ chars: cs(), players: P, cid: 'c_kept' }), making = drop({ chars: cs(), players: P, cid: 'c_make' });
+        const off = drop({ chars: cs(), players: P, cid: 'c_kept', off: true }), bare = drop({ chars: cs(), players: P }), mooks = drop({ chars: cs(), players: P, cid: 'c_a', count: 3 });
+        const heldT = { id: 't_held', isChar: true, charId: 'c_a', ownerId: 'u_a', x: 0, y: 0 }, twice = drop({ chars: cs(), players: P, cid: 'c_a', already: [heldT] });
+        const own1 = r => J(r.made.map(w => [w.charId || '', 'ownerId' in w ? w.ownerId : null]));
+        check('a character dropped from the Campaign Cast (castPlace and syncOwners run for real with the real chooser): its token goes to the character\'s player, whichever character it is, before the save that sends it; a character with no player, an NPC or one in the making stays with none; a kept character\'s token stays the GM\'s, as the chooser has it, and with sheets off every owned one counts as in play; a second token where its player holds one stays the GM\'s, the held one untouched; several copies are separate mooks with no owner and no sheet; an entry with no character is left alone',
+            own1(inPlay) === J([['c_a', 'u_a']]) && own1(another) === J([['c_b', 'u_b']]) && J(inPlay.seen) === J([['u_a']]) && own1(none) === J([['c_none', null]]) && own1(npc) === J([['c_npc', null]]) && own1(making) === J([['c_make', null]]) && own1(kept) === J([['c_kept', null]]) && own1(off) === J([['c_kept', 'u_a']])
+            && own1(bare) === J([['', null]]) && mooks.made.length === 3 && mooks.made.every(w => !w.charId && !('ownerId' in w)) && own1(twice) === J([['c_a', null]]) && heldT.ownerId === 'u_a'
+            && wbC.includes("if (c.charId && count === 1 && window.wpSheets && window.wpSheets.syncOwners) window.wpSheets.syncOwners(camp);") && shC.includes('syncOwners: syncOwners,'),
+            J([inPlay, another, none, npc, making, kept, off, bare, mooks, twice].map(own1)));
     }
     {   // 1.6.0, backlog 180 R4 and R5 (the owner, by prompt: "A. After the name", "A. Tint and an edge", "A. The badge itself", "A. Label, then badge"): a row's badges and a value name's tone
         const J = JSON.stringify;

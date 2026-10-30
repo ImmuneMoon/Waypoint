@@ -2679,7 +2679,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>A player with a character out of date can chat and read pages, and nothing else. Their map is dimmed and a line at the top says why.</li>
                                   <li>The sheet says it is out of date. Its player presses <b>Send a new sheet&hellip;</b> and picks a Waypoint character file. A file a sheet reader of yours takes works too.</li>
                                   <li>The file waits in your <b>Review</b>, one line a field that differs. Applying it makes the character current, even with nothing ticked. Rows only you can see stay as they are.</li>
-                                  <li><b>Mark current</b> on the sheet makes a character current as it is. <b>Mark all current</b> in the Characters tab does it for every one. You are never held yourself.</li>
+                                  <li><b>Mark current</b> on the sheet makes a character current as it is. <b>Mark all current</b> in the Characters tab does it for every one. You are never held yourself. A new sheet that changes nothing goes with it, and one with changes stays in your <b>Review</b> to apply or keep out.</li>
                               </ul>
                           </li>
                           <li><b>A player&rsquo;s sheet update</b>: where your Waypoint reads a sheet file made elsewhere, a player can send you theirs.
@@ -4415,7 +4415,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <div id="uploadModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100005; align-items:center; justify-content:center;">
     <div class="upl-box" role="dialog" aria-label="Sheet update">
         <div class="lib-head"><h3 id="uploadHead"></h3><span style="flex:1;"></span><button class="tool ghost" id="uploadClose" title="Close (the update stays to review)">&times;</button></div>
-        <div class="sys-note">Ticked changes apply; a value you set yourself, and a row the file no longer has, are left unticked for you to decide.</div>
+        <div class="sys-note" id="uploadHint">Ticked changes apply; a value you set yourself, and a row the file no longer has, are left unticked for you to decide.</div>
         <div id="uploadList" class="upl-list"></div>
         <div class="lib-fbtns"><button class="tool lib-save" id="uploadApply" type="button">Apply</button><button class="tool ghost" id="uploadReject" type="button" title="Take none of it">Keep as it is</button></div>
     </div>

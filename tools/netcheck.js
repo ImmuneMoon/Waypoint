@@ -2007,6 +2007,31 @@ pendingChecks.push((async () => {
         && /net\.broadcastItemFiltered = function\([^\n]*\n\s*var camp = own\(state\.appState\.campaigns, campId\) \? state\.appState\.campaigns\[campId\] : null, it = camp && own\(camp\.items, itemId\) \? camp\.items\[itemId\] : null; if \(!it\) return;/.test(src)
         && /var campN = getActiveCampaign\(\); if \(!campN \|\| msg\.campId !== campN\.id \|\| !validKey\(msg\.itemId\) \|\| !own\(campN\.items, msg\.itemId\)\) return;[^\n]*\n\s*if \(!allow\('need'/.test(niSrc));
 }
+// found live, 2026-10-30: a token a drop makes for a character has its owner. A player's drop on a portal, and the GM's of a player who is away: the real
+// net.tokenDropped, hostTravel, ensurePlayerToken, tokenFromChar, offlinePlayerTravel and npcTravel with the real resolver and chooser
+pendingChecks.push((async () => {
+    const T = 'a drop gives the token its owner (the real net.tokenDropped, hostTravel, ensurePlayerToken, offlinePlayerTravel and npcTravel with the real chooser): a player\'s drop through a door makes their character\'s token on the far map theirs, or takes an unowned one there; the GM\'s drop of a player who is away does the same; a character with no player, and an NPC, stay with none; and the two ways a token could come out with nobody\'s name on it have the player\'s: one made new from the character, and one copied from an unowned token of it, which is what a dropped token used to be';
+    try {
+        const Sx = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js')).split(String.fromCharCode(92)).join('/'));
+        const body = (a, b, l) => fnSrc(a, b, l) + b;
+        const code = ownKeySrc + fnSrc('function hostTravel(conn, traveler, portal, fromMap, gmHand) {', '\n// The portal item under a token\'s center', 'hostTravel') + '\n' + body('function freeSpotNear(', '\n}\n', 'freeSpotNear') + body('function stepOffPortal(', '\n}\n', 'stepOffPortal') + body('function portalUnder(item, map) {', '\n}\n', 'portalUnder')
+            + body('function tokenFromChar(ch, pid) {', '\n}\n', 'tokenFromChar') + body('function spawnSpot(', '\n}\n', 'spawnSpot') + body('function ensurePlayerToken(pid, mapId, landRoomId, opts) {', '\n}\n', 'ensurePlayerToken') + body('function offlinePlayerTravel(item, map) {', '\n}\n', 'offlinePlayerTravel') + body('function npcTravel(item, map) {', '\n}\n', 'npcTravel') + body('net.tokenDropped = function(item, map, gmHand) {', '\n};\n', 'tokenDropped');
+        const run = (o) => {   // o: owner (the dragged token's), charOwner (the character's), npc, away (the player is not at the table), there (the far map's tokens), arrive (no drop: they arrive on the far map; 'none': with no token of it anywhere)
+            const tok = Object.assign({ id: 'tok', isChar: true, charId: 'c_p', charName: 'Ann', x: 0, y: 0, w: 60, h: 52 }, o.owner ? { ownerId: o.owner } : {});
+            const from = { id: 'm1', type: 'map', meta: { title: 'Here', gridType: 'square' }, rooms: [], whiteboard: [tok, { id: 'po', targetMapId: 'm2', x: 0, y: 0, w: 60, h: 52 }] }, dest = { id: 'm2', type: 'map', meta: { title: 'There' }, rooms: [], whiteboard: o.there || [] };
+            const camp = { id: 'c1', activeItemId: 'm1', chars: { c_p: { id: 'c_p', name: 'Ann', ownerId: o.charOwner === undefined ? 'u_p' : o.charOwner, npc: !!o.npc, values: {}, made: 1 } }, players: { u_p: { name: 'P', charId: 'c_p' } }, items: { m1: from, m2: dest } };
+            if (o.arrive === 'none') from.whiteboard.shift();
+            const conn = mkConn('pA'), net = { active: true, role: 'host', paused: false, travelLocked: false, roster: o.away ? {} : { pA: { id: 'u_p', name: 'P', location: 'm1', color: '#112233' } }, conns: [conn], broadcastItemFiltered() {} };
+            const ret = new Function('net', 'getActiveCampaign', '_travelDenyLast', 'sendFailed', 'findLandingRoom', 'landingPoint', 'renderRoster', 'broadcastRoster', 'save', 'toast', 'logEvent', 'window', 'pausedById', 'SC', 'healBindings', 'sheetsOnFor', 'render', 'settleWaiting', 'cleanFace', 'tok', 'from', 'arrive',
+                code + '\nreturn arrive ? ensurePlayerToken(\'u_p\', \'m2\') : net.tokenDropped(tok, from);')(net, () => camp, {}, e => { throw e; }, () => null, () => null, () => {}, () => {}, () => {}, () => {}, () => {}, {}, () => false, () => Sx, () => {}, () => true, () => {}, () => [], () => null, tok, from, !!o.arrive);
+            return { ret, far: dest.whiteboard.filter(w => w.isChar).map(w => [w.id === 't_x' ? 't_x' : 'new', w.charId || '', 'ownerId' in w ? w.ownerId : null]) };
+        };
+        const playerDrop = run({ owner: 'u_p' }), adopted = run({ owner: 'u_p', there: [{ id: 't_x', isChar: true, charId: 'c_p', charName: 'Ann', x: 500, y: 500, w: 60, h: 52 }] }), awayDrop = run({ owner: 'u_p', away: true });
+        const noPlayer = run({ charOwner: '' }), npcDrop = run({ charOwner: '', npc: true }), made = run({ arrive: 'none' }), copied = run({ arrive: 'unowned' });
+        check(T, j(playerDrop.far) === j([['new', 'c_p', 'u_p']]) && j(adopted.far) === j([['t_x', 'c_p', 'u_p']]) && j(awayDrop.far) === j([['new', 'c_p', 'u_p']]) && j(noPlayer.far) === j([['new', 'c_p', null]]) && j(npcDrop.far) === j([['new', 'c_p', null]]) && j(made.far) === j([['new', 'c_p', 'u_p']]) && j(copied.far) === j([['new', 'c_p', 'u_p']]) && [playerDrop, adopted, awayDrop, noPlayer, npcDrop, made, copied].every(r => r.ret === true),
+            j([playerDrop, adopted, awayDrop, noPlayer, npcDrop, made, copied]));
+    } catch (e) { check(T, false, 'threw: ' + (e && e.stack || e)); }
+})());
 // R2 security (cluster H, #4): a player's travel through a door — the real travel branch run with the real hostTravel, stepOffPortal, freeSpotNear,
 // portalUnder, turnCombatOf and moveMode: the token the GM locked, or one a Refuse-order fight holds off its turn, keeps its player on the map;
 // a travel by double-click moves no token that is not on the portal; a drop on the portal still steps off

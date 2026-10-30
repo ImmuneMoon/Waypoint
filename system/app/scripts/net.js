@@ -7424,7 +7424,7 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'char-upload-done' && net.role === 'client') {   // U2: what the GM did with it
         var campD = getActiveCampaign(), chD = campD && campD.chars && typeof msg.charId === 'string' && Object.prototype.hasOwnProperty.call(campD.chars, msg.charId) ? campD.chars[msg.charId] : null;
         var dn = typeof msg.done === 'number' && isFinite(msg.done) ? Math.max(0, msg.done | 0) : 0, ofN = typeof msg.of === 'number' && isFinite(msg.of) ? Math.max(0, msg.of | 0) : 0;
-        toast(dn ? 'The GM applied ' + dn + ' of ' + ofN + ' changes from your sheet' + (chD ? ' to ' + chD.name : '') + '.' : 'The GM kept ' + (chD ? chD.name + ' as it was' : 'your character as it was') + ' (' + ofN + (ofN === 1 ? ' change' : ' changes') + ' not taken).');
+        toast(dn ? 'The GM applied ' + dn + ' of ' + ofN + ' changes from your sheet' + (chD ? ' to ' + chD.name : '') + '.' : 'The GM kept ' + (chD ? chD.name + ' as it was' : 'your character as it was') + (ofN ? ' (' + ofN + (ofN === 1 ? ' change' : ' changes') + ' not taken)' : '') + '.');
     } else if ((msg.type === 'charStyle' || msg.type === 'charstyle-ack' || msg.type === 'charstyle-deny') && net.role === 'client') {
         // [netcheck:charstylein-start]
         // looks from the synced host only (item 35), under the guards of a character's values. Each record is cleaned again here, against
@@ -7803,6 +7803,7 @@ function handleMessage(msg, conn) {
             var entU = { id: idU, charId: qu.charId, from: profU.id, name: String(profU.name || 'A player').slice(0, 60), at: nowU, changes: prU.changes }; if (rdU) entU.reader = rdU.id; if (staleU) entU.rev = true; upsU.push(entU);   // the reader that read it applies it
             campU.uploads = upsU.slice(-Su.LIMITS.uploads);
             var tU = (profU.name || 'A player') + (staleU ? ' sent a new sheet for ' : ' sent a sheet update for ') + (chU.name || 'their character') + (staleU ? ' (out of date)' : '') + ': ' + nU + (nU === 1 ? ' change' : ' changes') + ' to review (the gold Review button in the header).';
+            if (staleU && !nU) tU = (profU.name || 'A player') + ' sent a new sheet for ' + (chU.name || 'their character') + '. It changes nothing, so Mark current lets them play again.';   // found live, 2026-10-30: no zero to review
             toast(tU); logEvent('char', tU);
             if (window.wpSheets && window.wpSheets.approveNote) window.wpSheets.approveNote(qu.charId, tU, 'review', idU);   // 1.5.5: a card that stays until the GM opens it, naming its entry
             if (window.wpSheets && window.wpSheets.uploadsChanged) window.wpSheets.uploadsChanged(qu.charId);

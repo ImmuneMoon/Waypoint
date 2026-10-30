@@ -13,6 +13,7 @@ import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: ho
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
 import { groupRolls, groupWeakest } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
 import { partsTree } from './systemcore.js';   // 205 follow-up (2): the removal question counts a deep list's whole tree of parts
+import { upChanges, revIdle } from './systemcore.js';   // 1.6.0: what a Review entry can apply, and when it asks nothing
 import { lvlOnlyRead, lvlOnlyText, lvlOnlyOn, lvlOnlyHas, lvlOnlyList, lvlOnlySays, modTiersRead, modTiersText, modAt } from './systemcore.js';   // 1.6.0: Levels it may be, and a change's figures By level
 import { upkeepLines } from './systemcore.js';   // 205 follow-up (3): a turn's or a round's upkeep said on a card
 import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, setGateEngine } from './systemcore.js';   // 1.6.0: linked sheets
@@ -5729,25 +5730,39 @@ function renderStaleBar(c, camp, gm, own) {
     bar.textContent = '';
     var S = window.wpSystemCore, sys = systemOf(camp), st = !!(S && typeof S.charStale === 'function' && c && !c.partial && S.charStale(sys, c)), mine = !gm && !!own && isClient();
     if (!st || (!gm && !mine)) { bar.style.display = 'none'; return; }
-    var ups = gm ? uploadsOf(camp, c.id).filter(function(u) { return u && u.rev === true; }) : [];
+    var ups = gm ? uploadsOf(camp, c.id).filter(function(u) { return u && u.rev === true; }) : [], toDo = ups.filter(function(u) { return S.upChanges(u) > 0; });   // found live, 2026-10-30: a new sheet that changes nothing is no work to review
     bar.appendChild(el('span', 'sheet-rv-text', gm
-        ? (ups.length ? 'A new sheet for this character waits for your review. Its player is held until you apply it or mark it current.' : 'This sheet is out of date: the system changed since it was made. Its player is held until a new sheet is approved.')
+        ? (toDo.length ? 'A new sheet for this character waits for your review. Its player is held until you apply it or mark it current.' : ups.length ? 'Its player sent a new sheet and it changes nothing here. Press Mark current and they play again.' : 'This sheet is out of date: the system changed since it was made. Its player is held until a new sheet is approved.')
         : 'This sheet is out of date: your GM changed the game. Send a new sheet for your GM to approve. Until then you can chat and read pages.'));
     var bt = function(label, title, fn) { var b = el('button', 'tool ghost notepad-btn', label); b.type = 'button'; b.title = title; b.addEventListener('click', fn); bar.appendChild(b); };
     if (gm && canWrite()) {
-        if (ups.length) bt('Review', 'Open the new sheet its player sent', function() { openReview(c.id, null, ups[0].id); });
+        if (toDo.length) bt('Review', 'Open the new sheet its player sent', function() { openReview(c.id, null, toDo[0].id); });
         bt('Mark current', 'The sheet is fine as it is: its player plays again', function() { markCurrent(c.id); });
         if (typeof staleCount === 'function' && staleCount(camp) > 1) bt('Mark all current', 'Every out-of-date sheet is fine as it is: their players play again', function() { var b = document.getElementById('sysSheetsCurrent'); if (b) b.click(); });   // 1.6.0: found from the sheet that says so, not only in the System editor
     }
     if (mine) bt('Send a new sheet\u2026', 'Pick a character file for your GM to review', function() { importJson(); });
     bar.style.display = '';
 }
+// A character made current: the new sheet that waited for it is settled. With nothing to apply it goes, and its player is told; with changes it
+// stays in the Review as any sheet update, no longer what holds its player. Answers how many stayed
+function revSettle(camp, id) {
+    if (!camp || !Array.isArray(camp.uploads)) return 0;
+    var left = 0, n = net();
+    camp.uploads = camp.uploads.filter(function(u) {
+        if (!u || u.charId !== id || u.rev !== true) return true;
+        if (window.wpSystemCore.upChanges(u)) { delete u.rev; left++; return true; }
+        if (n && n.uploadDone) n.uploadDone(id, 0, 0);
+        return false;
+    });
+    return left;
+}
 function markCurrent(id) {
     var camp = getActiveCampaign(), c = charById(id, camp), S = window.wpSystemCore, sys = systemOf(camp);
     if (!c || isClient() || !canWrite() || !S || typeof S.sheetRevOf !== 'function') return false;
     var r = S.sheetRevOf(sys); if (!r) return false;
-    c.sheetRev = r; afterCharChange(c, true);
-    toast(c.name + ' is current: its player plays again.');
+    c.sheetRev = r; var keptU = revSettle(camp, id); afterCharChange(c, true);
+    if (typeof renderReviewChip === 'function') renderReviewChip();   // the header's Review goes at once, not at its next second
+    toast(c.name + ' is current: its player plays again.' + (keptU ? ' The new sheet it sent still waits in your Review.' : ''));
     var n = net(); if (n && n.logEvent) n.logEvent('char', c.name + ' marked current');
     if (window.wpStepLog) window.wpStepLog('sheetrev v1', 'current', { by: 'gm', chars: 1 });
     return true;
@@ -5760,6 +5775,7 @@ function askNewSheets() {
     showConfirm('Ask every player for a new sheet? ' + pl + (pl === 1 ? ' character goes' : ' characters go') + ' out of date. Their players can only chat and read pages until you approve a new sheet or mark it current. Use it after a change to the system that their sheets no longer fit.', function(y) {
         if (!y) return;
         var cur = getActiveCampaign(), sy = systemOf(cur); if (cur !== camp || !sy) return;
+        if (Array.isArray(cur.uploads)) cur.uploads = cur.uploads.filter(function(u) { return !(u && u.rev === true && !S.upChanges(u)); });   // a sheet that changed nothing under the old revision says nothing of the new one
         sy.sheetRev = Math.min(1e6, S.sheetRevOf(sy) + 1); if (draft) draft.sheetRev = sy.sheetRev;
         save(true);
         var n = net(); if (n && n.syncSystem) n.syncSystem(); if (n && n.logEvent) n.logEvent('char', 'Asked every player for a new sheet');
@@ -5774,7 +5790,8 @@ function allSheetsCurrent() {
     if (!ids.length) { toast('Every sheet is current.'); return; }
     showConfirm('Mark all ' + ids.length + ' out-of-date ' + (ids.length === 1 ? 'sheet' : 'sheets') + ' current as they are? Their players play again.', function(y) {
         if (!y) return;
-        ids.forEach(function(k) { var c = cs[k]; if (c && S.charStale(sys, c)) { c.sheetRev = r; afterCharChange(c, true); } });
+        ids.forEach(function(k) { var c = cs[k]; if (c && S.charStale(sys, c)) { c.sheetRev = r; revSettle(camp, k); afterCharChange(c, true); } });
+        if (typeof renderReviewChip === 'function') renderReviewChip();
         var n = net(); if (n && n.logEvent) n.logEvent('char', 'Marked ' + ids.length + ' sheets current');
         if (window.wpStepLog) window.wpStepLog('sheetrev v1', 'current', { by: 'gm', chars: ids.length });
         toast(ids.length + (ids.length === 1 ? ' sheet is' : ' sheets are') + ' current again.'); renderAll();
@@ -6027,7 +6044,7 @@ function sheetFilesOk() { if (!isClient()) return sheetReaders().length > 0; var
 function readerUiFor(j) { var S = window.wpSystemCore, r = S && typeof S.readerFor === 'function' ? S.readerFor(j) : null; return r && r.ui ? r.ui : null; }
 function keepFile(campId, charId, j, txt, name) { var u = readerUiFor(j); if (u && typeof u.keep === 'function' && campId) { try { u.keep(campId, charId, txt, name); } catch (e) {} } }   // a reader may remember the file it read here (in memory only)
 function readersChanged() { renderViews(null); renderReviewChip(); }   // a reader registered after the sheet was drawn
-function uploadsOf(camp, charId) { return cleanUploads(camp && camp.uploads).filter(function(u) { return !charId || u.charId === charId; }); }
+function uploadsOf(camp, charId) { var sysU = systemOf(camp); return cleanUploads(camp && camp.uploads).filter(function(u) { return (!charId || u.charId === charId) && !revIdle(sysU, charById(u.charId, camp), u); }); }   // an entry that asks nothing waits for nobody
 // Onboarding F4: whether this table lets a player start a character from a file (the rules the host sent)
 function fillOk() { var camp = getActiveCampaign(), S = window.wpSystemCore; if (!camp || !S || !S.newCharRules) return false; return !!S.newCharRules(camp, !window.wpVtt || !window.wpVtt.rulesOn || window.wpVtt.rulesOn('sheets') !== false).fromFile; }
 // [sinkcheck:fillnote-start]
@@ -6145,8 +6162,10 @@ function openReview(charId, mine, pick) {   // mine: the GM's own file, read on 
     _review = { upId: up.id }; var ticks = {};
     var realC = up.changes.filter(function(ch) { return ch.kind !== 'note'; }), noteC = up.changes.length - realC.length;   // 1.6.0: a note is read: it has no tick and is no change in any count
     realC.forEach(function(ch) { ticks[ch.id] = ch.accept === true; });
-    var head = ui('uploadHead'), list = ui('uploadList'); head.textContent = (up.own === true ? 'Your file for ' : up.ask === true ? up.name + ' asks to change ' : up.name + '\u2019s sheet update for ') + c.name + ' \u2014 ' + (realC.length || !noteC ? realC.length + (realC.length === 1 ? ' change' : ' changes') : '') + (noteC ? (realC.length ? ', ' : '') + noteC + (noteC === 1 ? ' note' : ' notes') : '');
+    var head = ui('uploadHead'), list = ui('uploadList'); head.textContent = (up.own === true ? 'Your file for ' : up.ask === true ? up.name + ' asks to change ' : up.name + '\u2019s sheet update for ') + c.name + ' \u2014 ' + (realC.length ? realC.length + (realC.length === 1 ? ' change' : ' changes') : noteC ? '' : 'nothing to apply') + (noteC ? (realC.length ? ', ' : '') + noteC + (noteC === 1 ? ' note' : ' notes') : '');
     list.textContent = '';
+    var hintQ = ui('uploadHint'); if (hintQ) hintQ.style.display = realC.length ? '' : 'none';   // no tick to speak of
+    if (!realC.length) list.appendChild(el('div', 'upl-none', 'Nothing in it differs from the sheet as it stands.' + (up.rev === true ? ' Mark current lets its player play again.' : '')));   // here, not in the head: the head is one line and is cut
     var KIND = { value: 'Value', add: 'New row', fact: 'Row', stat: 'Its own values', def: 'Its numbers', remove: 'Not in the file' };
     up.changes.forEach(function(ch) {
         if (ch.kind === 'note') { var nRow = el('div', 'upl-row upl-line'); nRow.appendChild(el('span', 'upl-tick')); nRow.appendChild(el('span', 'upl-kind', 'Note')); nRow.appendChild(el('span', 'upl-label', ch.label)); nRow.appendChild(el('span', 'upl-from', ch.from || '')); nRow.appendChild(el('span', 'upl-arrow', ch.from || ch.to ? '\u2192' : '')); nRow.appendChild(el('span', 'upl-to', ch.to || '')); list.appendChild(nRow); return; }   // 1.6.0: no tick: nothing to apply
@@ -6164,7 +6183,7 @@ function openReview(charId, mine, pick) {   // mine: the GM's own file, read on 
     });
     var apply = ui('uploadApply'), rej = ui('uploadReject'), SCr = window.wpSystemCore, rdA = up.reader && SCr && SCr.readerById ? SCr.readerById(up.reader) : null, noRd = !!up.reader && !rdA;   // the reader that read the file applies it (its own row op)
     if (noRd) head.textContent += '. It was read by a sheet reader this Waypoint does not have, so it cannot be applied here.';
-    if (up.rev === true) head.textContent += '. A new sheet for an out-of-date character: applying it makes the character current.';   // 1.6.0 (backlog 190)
+    if (up.rev === true && realC.length) head.textContent += '. A new sheet for an out-of-date character: applying it makes the character current.';   // 1.6.0 (backlog 190)
     var count = function() { var n = Object.keys(ticks).filter(function(k) { return ticks[k]; }).length; apply.textContent = !n && up.rev === true ? 'Mark current' : 'Apply ' + n + (n === 1 ? ' change' : ' changes'); apply.disabled = (!n && up.rev !== true) || noRd; };
     count();
     var stale = function(cmp) {   // 1.5.5: an entry the player changed while the Review was open (an ask that grew, was replaced or taken back) is applied and removed by nobody: it is shown again as it stands
@@ -6181,7 +6200,7 @@ function openReview(charId, mine, pick) {   // mine: the GM's own file, read on 
         cmp.uploads = (Array.isArray(cmp.uploads) ? cmp.uploads : []).filter(function(u) { return !u || u.id !== up.id; });
         afterCharChange(ch2, true);
         var n2 = net(); if (up.own !== true && n2 && n2.uploadDone) n2.uploadDone(up.charId, r.done, realC.length);
-        toast(r.done + ' of ' + realC.length + ' changes applied to ' + ch2.name + (r.failed ? ' (' + r.failed + ' no longer applied)' : '') + '.');
+        toast(!realC.length && up.rev === true ? ch2.name + ' is current: its player plays again.' : r.done + ' of ' + realC.length + ' changes applied to ' + ch2.name + (r.failed ? ' (' + r.failed + ' no longer applied)' : '') + '.');
         closeReview();
     };
     rej.onclick = function() {
@@ -6240,7 +6259,7 @@ function renderReviewChip() {
     if (!ups.length) return;
     var nEl = ui('reviewChipN'); if (nEl) nEl.textContent = String(ups.length);
     if (typeof window !== 'undefined' && window.wpNotices) ups.forEach(function(u) { var cn = charById(u.charId, camp); if (cn) window.wpNotices.wait('appr:' + u.charId, u.ask === true ? cn.name + ' asks for a change. It waits for your review.' : 'A sheet update from ' + cn.name + ' waits for your review.', 'review', [u.charId, 'review', null], true); });   // 160: what waits after a restart, said again (the list keeps no waiting)
-    chip.title = (ups.length === 1 ? 'A sheet update waits' : ups.length + ' sheet updates wait') + ' for your review: ' + ups.map(function(u) { var c = charById(u.charId, camp); return (c ? c.name : 'a character') + ' (' + u.changes.length + ')'; }).join(', ');
+    chip.title = (ups.length === 1 ? 'A sheet update waits' : ups.length + ' sheet updates wait') + ' for your review: ' + ups.map(function(u) { var c = charById(u.charId, camp); return (c ? c.name : 'a character') + ' (' + (u.changes.filter(function(x) { return !x || x.kind !== 'note'; }).length || 'nothing to apply') + ')'; }).join(', ');
 }
 function reviewNext() { var up = reviewWaiting()[0]; if (!up) { renderReviewChip(); return; } openSheet(up.charId); openReview(up.charId); }
 // [systemcheck:reviewchip-end]

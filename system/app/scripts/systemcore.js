@@ -1634,10 +1634,11 @@ function withBlow(tctx, b) {
 // 1.6.0 (the core's gap 7): a failed roll the step posted cripples the location the blow struck: crip, a number stat of the location list, set
 // to n (how far the roll failed, at least 1) on that row of char's, as the step writes a row's own stat. { values } or null where the system
 // has no such stat or the row is not there
-// ... and what cripBy writes: its whole number, read with Margin, Natural and the blow's names alone, no dice; null where it gives no number
-function blowCripN(text, margin, natural, b, F) {
+// ... and what cripBy writes: its whole number, read with Margin, Natural and the blow's names alone, no dice; null where it gives no number.
+// 1.6.0: sys, where the caller hands it, adds Type.<key>, a damage type's place, so Blow.type is compared by name (placeName)
+function blowCripN(text, margin, natural, b, F, sys) {
     if (typeof text !== 'string' || !text || !F || typeof F.evaluate !== 'function') return null;
-    var bw = isObj(b) ? b : {}, r = F.evaluate(text, { vars: function(n) { var l = lower(n); if (l === 'margin') return fin(margin) ? margin : 0; if (l === 'natural') return fin(natural) ? natural : 0; if (l.indexOf('blow.') === 0 && BLOW_NAMES[l.slice(5)] === 1) return l === 'blow.cuts' || l === 'blow.major' ? (bw[l.slice(5)] === true || bw[l.slice(5)] === 1 ? 1 : 0) : fin(bw[l.slice(5)]) ? bw[l.slice(5)] : 0; return undefined; }, random: noDice });
+    var bw = isObj(b) ? b : {}, r = F.evaluate(text, { vars: function(n) { var l = lower(n); if (l === 'margin') return fin(margin) ? margin : 0; if (l === 'natural') return fin(natural) ? natural : 0; if (l.indexOf('blow.') === 0 && BLOW_NAMES[l.slice(5)] === 1) return l === 'blow.cuts' || l === 'blow.major' ? (bw[l.slice(5)] === true || bw[l.slice(5)] === 1 ? 1 : 0) : fin(bw[l.slice(5)]) ? bw[l.slice(5)] : 0; if (isObj(sys) && l.indexOf('type.') === 0) return placeName(sys, l); return undefined; }, random: noDice });
     var v = r && r.ok ? (typeof r.value === 'boolean' ? (r.value ? 1 : 0) : r.value) : null; return typeof v === 'number' && fin(v) ? Math.floor(v) : null;
 }
 function blowCripOf(sys, char, b, crip, n) {
@@ -6316,6 +6317,66 @@ function postureAt(sys, v) {
     if (i < 0) i = 0;
     return { i: i, p: pl[i] };
 }
+// 1.6.0 (a builder audit): a rule that reads a place in a list by its number means something else once that list is reordered or added to.
+// Three names read a thing's CURRENT place by its name, so a rule says what it means; nothing is stored, each is read from the system as it
+// stands. Posture.<posture>: the place Posture reads (0 the first), found by the posture's id, else its name, else its id, each compared
+// folded (nameFold: case, and every character that is no letter or digit, left out, so Low crawl is Posture.LowCrawl and p_prone
+// Posture.p_prone); -1 for a posture the list does not hold, so it never equals Posture. Type.<key>: a damage type's place in the Combat
+// card's list, the place Blow.type and a damage roll's type formula read (1 the first, 0 for a type the list does not hold). Place.<stat>.
+// <value>: a set of places' place by its value name, the place has() reads (1 the first, 0 for none), in the first item list, in the
+// system's order, whose number stat of that key is a set of places and names that value. Value.<key>.<value>: the figure a number with
+// value names stores for that name, its place in the names, 0 the first (a material picked from a list of names, so Row.Mat = Value.Mat.Steel
+// keeps its meaning when a material is added); -1 for a name none holds, so it never equals a stored figure: the number field of that key,
+// else the first item list, in the system's order, whose number stat (not a set of places) or column of that key names it. A field, a
+// linked sheet or a crew group keyed Posture, Type, Place or Value keeps the whole family, as Date's does. The validator knows the four and
+// says where one names nothing
+function nameFold(s) { return typeof s === 'string' ? s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '') : ''; }
+function postureNamed(sys, w) {
+    var pl = postureList(sys), lw = lower(String(w || '')), fw = nameFold(String(w || '')), i; if (!fw) return -1;
+    for (i = 0; i < pl.length; i++) if (isObj(pl[i]) && typeof pl[i].id === 'string' && lower(pl[i].id) === lw) return i;
+    for (i = 0; i < pl.length; i++) if (isObj(pl[i]) && nameFold(pl[i].name) === fw) return i;
+    for (i = 0; i < pl.length; i++) if (isObj(pl[i]) && nameFold(pl[i].id) === fw) return i;
+    return -1;
+}
+function dmgTypePlace(sys, w) {
+    var t = isObj(sys) && isObj(sys.combat) && isObj(sys.combat.damage) && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], lw = lower(String(w || ''));
+    for (var i = 0; i < t.length; i++) if (isObj(t[i]) && typeof t[i].key === 'string' && lower(t[i].key) === lw) return i + 1;
+    return 0;
+}
+function setStatOf(f, key) {   // a list's number stat of that key that is a set of places (its switch's over), or null
+    var sp = isObj(f) && f.kind === 'item-list' && isObj(f.list) ? f.list : null, k = lower(String(key || '')); if (!sp || !k) return null;
+    var st = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return isObj(s) && typeof s.key === 'string' && lower(s.key) === k && s.kind !== 'pick'; })[0];
+    return st && (st.set === true || (isObj(sp.on) && typeof sp.on.over === 'string' && lower(sp.on.over) === k)) ? st : null;
+}
+function placeNamed(sys, stat, w) {   // { n: the place, also: how many later lists name it at another place }
+    var fw = nameFold(String(w || '')), n = 0, also = 0; if (!fw || !isObj(sys) || !Array.isArray(sys.fields)) return { n: 0, also: 0 };
+    sys.fields.forEach(function(f) {
+        var st = setStatOf(f, stat), L = st && Array.isArray(st.labels) ? st.labels : [], at = 0;
+        for (var i = 0; i < Math.min(L.length, OVER_PLACES); i++) if (nameFold(L[i]) === fw) { at = i + 1; break; }
+        if (!at) return; if (!n) n = at; else if (at !== n) also++;
+    });
+    return { n: n, also: also };
+}
+function valueNamed(sys, key, w) {   // { n: the figure, also: how many later holders name it at another figure }
+    var fw = nameFold(String(w || '')), k = lower(String(key || '')), n = -1, also = 0; if (!fw || !k || !isObj(sys) || !Array.isArray(sys.fields)) return { n: -1, also: 0 };
+    var at = function(L) { L = Array.isArray(L) ? L : []; for (var i = 0; i < Math.min(L.length, LIMITS.labels); i++) if (nameFold(L[i]) === fw) return i; return -1; };
+    var see = function(i) { if (i < 0) return; if (n < 0) n = i; else if (i !== n) also++; };
+    sys.fields.forEach(function(f) { if (isObj(f) && f.kind === 'number' && typeof f.key === 'string' && lower(f.key) === k) see(at(f.labels)); });
+    sys.fields.forEach(function(f) {
+        var sp = isObj(f) && f.kind === 'item-list' && isObj(f.list) ? f.list : null; if (!sp) return;
+        (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(s) { if (isObj(s) && typeof s.key === 'string' && lower(s.key) === k && s.kind !== 'pick' && !setStatOf(f, s.key)) see(at(s.labels)); });
+        (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(c) { if (isObj(c) && typeof c.key === 'string' && lower(c.key) === k) see(at(c.labels)); });
+    });
+    return { n: n, also: also };
+}
+function placeName(sys, l) {   // the resolver's reading of one of the four (l: the name in lower case), or undefined for no such name
+    var sg = String(l).split('.');
+    if (sg[0] === 'posture' && sg.length === 2) return postureNamed(sys, sg[1]);
+    if (sg[0] === 'type' && sg.length === 2) return dmgTypePlace(sys, sg[1]);
+    if (sg[0] === 'place' && sg.length === 3) return placeNamed(sys, sg[1], sg[2]).n;
+    if (sg[0] === 'value' && sg.length === 3) return valueNamed(sys, sg[1], sg[2]).n;
+    return undefined;
+}
 // One of the website's seven postures for a token's stored text, by its id: the ids themselves, the 1.4.6 ids and the handbook's long names, as
 // the map reads them. '' for a text that is none of them (a posture of a system's own list, a word nobody knows, nothing). sys: the system
 // in use. A posture of its own list, by its id, is never one of the seven, whatever letters the id holds: the reading below is by the words
@@ -7092,6 +7153,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (lkx[fam] && l.length > fam.length + 1) return linkVal(lkx[fam], l.slice(fam.length + 1), l);   // 1.6.0: a linked sheet's names (a field keyed so keeps them, above)
         if (gkx[fam] && l.length > fam.length + 1) return crewVal(gkx[fam], l.slice(fam.length + 1), l);   // 1.6.0 (CORE gap 16): its crew as a group
         if (fam === 'date') { var dk = l.slice(5); if (dk !== 'year' && dk !== 'day' && dk !== 'days' && dk !== 'hour' && dk !== 'minute') return undefined; var dv = null; try { dv = _dateSrc ? _dateSrc() : null; } catch (e) { dv = null; } return isObj(dv) && fin(dv[dk]) ? dv[dk] : 0; }   // 1.6.0: the campaign's date
+        if ((fam === 'posture' || fam === 'type' || fam === 'place' || fam === 'value') && l.length > fam.length + 1) return placeName(sys, l);   // 1.6.0: Posture.<posture>, Type.<key>, Place.<stat>.<value>, Value.<key>.<value>, a thing's place by its name (a field, link or crew group keyed so keeps them, above)
         // 1.6.0: TargetSize reads with the range, so the host's privacy rule counts it too
         if (l === 'rangemod' || l === 'targetdistance' || l === 'heightmod' || l === 'heightdiff' || l === 'targetsize') { rangeRead = true; var rgc = ropts && isObj(ropts.range) ? ropts.range : null, rgv = rgc ? (l === 'rangemod' ? rgc.mod : l === 'targetdistance' ? rgc.dist : l === 'heightmod' ? rgc.hmod : l === 'targetsize' ? rgc.size : rgc.hdiff) : 0; return typeof rgv === 'number' && isFinite(rgv) ? rgv : 0; }   // item 19 H2: HeightMod and HeightDiff read with the range, so the host's privacy rule counts them too   // range penalties R2: to the roller's target; 0 with none (a field of the system's own of that name keeps it)
         if (l === 'attemptmargin') { var atR = ropts && isObj(ropts.att) ? ropts.att.m : 0; return fin(atR) ? atR : 0; }   // 1.6.0 (B2): the margin of the attempt a resist roll answers (withAttempt); 0 for any other roll
@@ -7581,6 +7643,25 @@ function validateSystem(sys, F) {
     function crewT(n) { var l = lower(n), d = l.indexOf('.'), k = d > 0 ? l.slice(0, d) : ''; if (!k || !gnV[k] || ix[k]) return null; var p = crewParts(gnV[k], l.slice(d + 1)); if (!p) return null; if (p.agg === 'count') return { id: '', key: n, kind: 'number', vis: 'all', noEdge: true }; if (linkFig(gnV[k], p.name)) return { id: '', key: n, kind: 'number', vis: 'all', noEdge: true }; /* the core handbook session's ask 6: a figure of the link's own */ var t = known[lower(p.name)] || listTarget(lower(p.name), null); return t && !t.rowOutside ? Object.assign({}, t, { noEdge: true }) : null; }
     var lnkV = linkByKey(sys);   // 1.6.0: <Key>.<name> reads the system's own name on the sheet a link holds, and <Key>.has; never an edge of the loop graph, since it is another character
     function linkT(n) { var l = lower(n), d = l.indexOf('.'), k = d > 0 ? l.slice(0, d) : ''; if (!k || !lnkV[k] || ix[k]) return null; var w = l.slice(d + 1); if (w === 'has' && !ix.has) return { id: '', key: n, kind: 'number', vis: 'all', noEdge: true }; if (w === 'stations' && lnkV[k].kind === 'crew' && !ix.stations) return { id: '', key: n, kind: 'number', vis: 'all', noEdge: true }; if (crewStation(lnkV[k], w, ix)) return { id: '', key: n, kind: 'number', vis: 'all', noEdge: true }; var t = known[w] || listTarget(w, null); return t && !t.rowOutside ? Object.assign({}, t, { noEdge: true }) : null; }
+    function placeT(n) {   // 1.6.0: Posture.<posture>, Type.<key>, Place.<stat>.<value>, Value.<key>.<value> (placeName), a number of the system's own; one that names nothing says so (says)
+        var l = lower(n), sg = l.split('.'), fam = sg[0]; if ((fam !== 'posture' && fam !== 'type' && fam !== 'place' && fam !== 'value') || ix[fam] || lnkV[fam] || gnV[fam]) return null;
+        var v = placeName(sys, l); if (v === undefined) return null;
+        var t = { id: '', key: n, kind: 'number', vis: 'all', noEdge: true };
+        if (fam === 'posture' && v < 0) t.says = '"' + n + '" names no posture of this system, so it reads -1 and never matches Posture.';
+        if (fam === 'type' && v === 0) t.says = '"' + n + '" names no damage type on the Combat card, so it reads 0.';
+        if (fam === 'value') { var vr = valueNamed(sys, sg[1], sg[2]); t.says = vr.n < 0 ? '"' + n + '" names no value: no number of that key has that value name, so it reads -1 and never matches it.' : vr.also ? '"' + n + '" is a value name of more than one number, at different figures: it reads the first one\u2019s.' : ''; }
+        if (fam === 'place') { var pr = placeNamed(sys, sg[1], sg[2]); t.says = !pr.n ? '"' + n + '" names no place: no list has a set of places ' + n.split('.')[1] + ' with that value name, so it reads 0, which has() refuses.' : pr.also ? '"' + n + '" is a place of more than one list, at different places: it reads the first list\u2019s.' : ''; }
+        return t;
+    }
+    var CMP_RE = '(?:==|=|!=|<>|<=|>=|<|>|\u2265|\u2264|\u2260)';
+    function bareCmp(owner, prop, text) {   // 1.6.0 (a nicety): Posture or Blow.type compared with a bare number, whose meaning a list added to or reordered changes
+        [['posture', 'Posture', !ix.posture && ownPostures(sys), 'a posture\u2019s place: a posture added or moved changes what it means. Posture.<name> reads it by its name.'],
+         ['blow\\.type', 'Blow.type', !ix.blow && isObj(sys.combat) && isObj(sys.combat.damage) && Array.isArray(sys.combat.damage.types) && sys.combat.damage.types.length > 0, 'a damage type\u2019s place: a type added or moved changes what it means. Type.<key> reads it by its key.']].forEach(function(c) {
+            if (!c[2] || typeof text !== 'string') return;
+            var re = new RegExp('(?:^|[^\\p{L}\\p{N}_.])' + c[0] + '\\s*' + CMP_RE + '\\s*[-+]?\\d|(?:^|[^\\p{L}\\p{N}_.])\\d+(?:\\.\\d+)?\\s*' + CMP_RE + '\\s*' + c[0] + '(?![\\p{L}\\p{N}_.])', 'iu');
+            if (re.test(text)) warnings.push({ id: owner.id, prop: prop, message: '"' + c[1] + '" is compared with a bare number, which is ' + c[3] });
+        });
+    }
     function isRollProp(p) { return p === 'roll' || p === 'rollFormula' || (typeof p === 'string' && p.indexOf('list.roll.') === 0); }   // F5b: a list's roll is a roll
     function rolledWarn(id, prop, c) { if (!isObj(c) || c.roll !== true || typeof c.formula !== 'string' || !c.formula) return; var rp = F.parse(c.formula); if (rp.ok && !hasDice(rp.ast.body)) warnings.push({ id: id, prop: prop, message: 'Rolled, but this amount rolls no dice, so nothing is rolled.' }); }   // 1.5.9 (book es/et plan, section 0)
     var resistV = false;   // 1.6.0 (B2): the roll being read Resists an attempt, so AttemptMargin is known in it
@@ -7596,6 +7677,7 @@ function validateSystem(sys, F) {
         var p = F.parse(text);
         if (!p.ok) { errors.push({ id: owner.id, prop: prop, message: p.error.message, pos: p.error.pos, len: p.error.len }); return; }
         if (!allowDice && hasDice(p.ast.body)) { errors.push({ id: owner.id, prop: prop, message: isApplyProp(prop) ? 'An amount cannot roll dice: roll first, and let the amount read the field the result goes in.' : 'Dice are not allowed in a definition; put the dice in a roll.', pos: 0, len: text.length }); }
+        bareCmp(owner, prop, text);   // 1.6.0: a comparison of Posture or Blow.type with a bare number
         p.names.forEach(function(n) {
             var l = lower(n), target = known[l];
             if (!target && l === 'rollcrit' && /(^|\.)then\./.test(prop)) target = { id: '', key: 'RollCrit', kind: 'number', vis: 'all', noEdge: true };   // 1.5.8: a roll's consequence reads its critical
@@ -7610,6 +7692,7 @@ function validateSystem(sys, F) {
             if (!target && l.length > 3 && l.indexOf('on.') === 0) { if (!nearV) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" reads the one it is used on, so it is known only in a roll or an action that Applies to the user or an adjacent character.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = known[l.slice(3)] || null; }   // 1.6.0: On.<name>, the one it is used on
             if (!target && figK) { var fvT = figVeh(figK, ix, n); if (fvT && groupReadV(fvT)) { warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" reads the crew again, so inside a figure it reads 0.' }); target = { id: '', key: n, kind: 'number', vis: 'all', noEdge: true }; } }   // the core handbook session's ask (after ask 6): a vehicle name that is itself a group read
             if (!target) { var lt = listTarget(n, rowList); if (lt && lt.rowOutside) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" names a row, so it is known only in a list\u2019s own columns.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = lt; } if (!target) target = linkT(n) || crewT(n);   // F5a1; 1.6.0: a linked sheet's name, or its crew's as a group
+            if (!target) { target = placeT(n); if (target && target.says) warnings.push({ id: owner.id, prop: prop, message: target.says }); }   // 1.6.0: Posture.<posture>, Type.<key>, Place.<stat>.<value>, Value.<key>.<value>
             if (target && target.noChamber) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" reads a chambered round, but ' + (target.list.label || target.list.key) + ' has no Chambers from.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // 1.5.9
             if (target && target.ctrTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is a counter, so it has no ' + (target.ext ? 'highest or lowest' : 'total') + ': read one row (' + target.list.key + '.<key>.' + n.split('.').pop() + ').', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // R2
             if (target && target.pickTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is a choice, so it has no ' + (target.ext ? 'highest or lowest' : 'total') + ': read one row (' + target.list.key + '.<key>.' + n.split('.').pop() + ').', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // F5a2

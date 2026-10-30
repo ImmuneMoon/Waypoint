@@ -9674,7 +9674,7 @@ function blowCrip(camp, rec, vd, malf, nat) {   // nat: the roll's natural total
     var failed = malf === true || (vd && vd.kind === 'check' && vd.pass === false); if (!failed) return null;
     var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, rec.charId) ? camp.chars[rec.charId] : null; if (!ch) return null;
     var by = vd && typeof vd.margin === 'number' && isFinite(vd.margin) && vd.margin < 0 ? -vd.margin : 1;
-    if (typeof rec.cripBy === 'string' && typeof S.blowCripN === 'function') { var cbN = S.blowCripN(rec.cripBy, by, typeof nat === 'number' ? nat : 0, rec.blow, window.wpFormula); if (cbN === null) return null; if (!(cbN > 0)) return null; by = cbN; }   // its own formula, where the system names one; 0 or below cripples nothing
+    if (typeof rec.cripBy === 'string' && typeof S.blowCripN === 'function') { var cbN = S.blowCripN(rec.cripBy, by, typeof nat === 'number' ? nat : 0, rec.blow, window.wpFormula, camp.system); if (cbN === null) return null; if (!(cbN > 0)) return null; by = cbN; }   // its own formula, where the system names one; 0 or below cripples nothing
     var cp = S.blowCripOf(camp.system, ch, rec.blow, rec.crip, by); if (!cp) return null;
     return { charId: ch.id, ch: ch, values: cp.values, line: cp.name + ' is crippled: the roll failed by ' + cp.n + '.' };
 }

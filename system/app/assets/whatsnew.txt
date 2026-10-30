@@ -184,6 +184,17 @@ Systems, more
   Set to if(Row.Sev >= 5, Row.Sev, 0) clears a crippling of 1 to 4 and
   keeps a severing of 5 or more. Where the figure differs by row, the card
   says set with no figure.
+- A rule can name a thing's place by its name, so it keeps its meaning when
+  a list changes. Posture.Prone reads the Prone posture's place, so
+  Posture = Posture.Prone still means prone after a posture is added before
+  it. Type.burn reads a damage type's place, for Blow.type and a damage
+  roll's type. Place.Covers.Body reads a place of a set of places, for
+  has(). Value.Mat.Steel reads the figure a number with value names stores
+  for Steel, such as a material picked from a list. A name with spaces is
+  written without them, as Posture.LowCrawl. One that names nothing reads
+  nothing that matches, and the System editor says so. A rule that compares
+  Posture or Blow.type with a bare number works as before, and the editor
+  now says that a list change would change what it means.
 - A damage roll can be ticked Always a Major Wound, such as a strike that
   always wounds badly: Apply to target on its card then lands it as a Major
   Wound whatever its size.

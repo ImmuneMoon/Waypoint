@@ -18897,6 +18897,58 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ixM.includes('It reads the sheet before any item or effect changes it, so a column an item change moves is read before that change.')
             && wnM.includes("- A list can say where its rows' changes apply. Changes apply where, in the") && wnM2.includes("- A list can say where its rows' changes apply. Changes apply where, in the"));
     }
+    {   // 1.6.0 (a builder audit): Posture.<posture>, Type.<key>, Place.<stat>.<value> and Value.<key>.<value>, a thing's place read by its name
+        const J = JSON.stringify;
+        const PT = ['Standing', 'Kneeling', 'Prone', 'Low crawl'].map((n, i) => ({ id: ['p_stand', 'p_kneel', 'p_prone', 'low-crawl'][i], name: n }));
+        const TY = [{ key: 'cut', label: 'Cut' }, { key: 'burn', label: 'Burn' }, { key: 'crush', label: 'Crush' }];
+        const PL = ['Head', 'Body', 'Left hand'], ML = ['Wood', 'Iron', 'Steel'];
+        const fld = (id, key, formula) => ({ id, key, label: key, kind: 'formula', formula, vis: 'all' });
+        const rawN = (pt, ty, pl, ml, extra) => ({ v: 1, name: 'N', rolls: [{ id: 'r_shock', label: 'Shock', formula: '3d6 <= 10 + if(Blow.type = 2, 1, 0)' }], sheet: { sections: [] }, fields: [
+            fld('f_lo', 'Low', 'if(Posture = Posture.Prone, 1, 0)'), fld('f_pp', 'PP', 'Posture.Prone * 100 + Posture.p_kneel * 10 + Posture.LowCrawl'),
+            fld('f_ty', 'TT', 'Type.burn * 10 + Type.crush'), fld('f_bare', 'Bare', 'if(Posture = 2, 1, 0)'),
+            { id: 'f_mat', key: 'Mat', label: 'Mat', kind: 'number', labels: ml, def: 0, vis: 'all' },
+            { id: 'f_kit', key: 'Kit', label: 'Kit', kind: 'item-list', vis: 'all', list: { on: { label: 'Worn', over: 'Covers' }, stats: [{ key: 'Covers', label: 'Covers', labels: pl }, { key: 'Grade', label: 'Grade', labels: ml }] } },
+            fld('f_pl', 'PlaceAt', 'Place.Covers.Body * 10 + Place.Covers.LeftHand'), fld('f_has', 'HasBody', 'if(has(6, Place.Covers.Body), 1, 0)'),
+            fld('f_va', 'Steel', 'Value.Mat.Steel * 10 + Value.Grade.iron'), fld('f_isS', 'IsSteel', 'if(Mat = Value.Mat.Steel, 1, 0)') ].concat(extra || []),
+            combat: { postures: pt, damage: { types: ty, onWound: [{ roll: 'r_shock' }] } } });
+        const gN = (pt, ty, pl, ml, extra) => cleanSystem(rawN(pt, ty, pl, ml, extra), { F, gmView: true });
+        const rd = (sy, pid, mat) => { const R = resolveAll(sy, { id: 'c_n', name: 'Nim', values: { f_mat: mat === undefined ? 2 : mat } }, F, { stance: { pid: pid, elevation: 0 } }); return ['f_lo', 'f_pp', 'f_ty', 'f_bare', 'f_pl', 'f_has', 'f_va', 'f_isS'].map(k => R[k] && R[k].error ? 'E' : R[k].value); };
+        const s0 = gN(PT, TY, PL, ML), s1 = gN([PT[0], { id: 'p_crouch', name: 'Crouching' }].concat(PT.slice(1)), [{ key: 'pierce', label: 'Pierce' }].concat(TY), ['Brow'].concat(PL), ['Bone'].concat(ML));
+        const r0 = rd(s0, 'p_prone'), r1 = rd(s1, 'p_prone', 3);
+        check('1.6.0 names read by their place (the resolver): Posture.Prone, Posture.p_kneel and Posture.LowCrawl (an id, a name, a word id with a hyphen) read the place Posture reads; Type.burn a damage type\'s place, 1 the first; Place.Covers.Body a set of places\' place, 1 the first, as has() reads it; Value.Mat.Steel the figure a named number stores, 0 the first, a list stat\'s too',
+            J(r0) === J([1, 213, 23, 1, 23, 1, 21, 1]), J(r0));
+        check('1.6.0 names read by their place, after a reorder: Crouching, Pierce, Brow and Bone added first, every name follows its thing (Posture = Posture.Prone still true for a prone token, Type.burn 3, Place.Covers.Body 3, Value.Mat.Steel 3), while a bare number does not (Posture = 2 now means Kneeling, so false)',
+            J(r1) === J([1, 324, 34, 0, 34, 1, 32, 1]) && rd(s1, 'p_kneel')[3] === 1, J(r1));
+        const sG = gN(PT.slice(0, 2), TY.slice(0, 1), PL.slice(0, 1), ML.slice(0, 1)), rG = rd(sG, 'p_stand', 0), sOff = gN(null, TY, PL, ML), rOff = rd(sOff, 'p_stand');
+        const vG = validateSystem(sG, F), sayG = vG.warnings.map(w => w.message);
+        check('1.6.0 names read by their place, a thing that is gone: a posture the list does not hold reads -1, so Posture = Posture.Prone is never true even standing at 0; a damage type 0; a place 0, which has() refuses as an error; a value name -1; with no postures every Posture.<name> reads -1 while Posture reads 0',
+            rG[0] === 0 && rG[1] === -91 && rG[2] === 0 && rG[4] === 0 && rG[5] === 'E' && rG[6] === -11 && rG[7] === 0 && rOff[0] === 0 && rOff[1] === -111, J([rG, rOff]));
+        check('1.6.0 names read by their place, the validator: it knows the four (no error), and says where one names nothing, in its own words',
+            vG.errors.length === 0 && validateSystem(s0, F).errors.length === 0
+            && sayG.includes('"Posture.Prone" names no posture of this system, so it reads -1 and never matches Posture.') && sayG.includes('"Type.burn" names no damage type on the Combat card, so it reads 0.')
+            && sayG.includes('"Place.Covers.Body" names no place: no list has a set of places Covers with that value name, so it reads 0, which has() refuses.')
+            && sayG.includes('"Value.Mat.Steel" names no value: no number of that key has that value name, so it reads -1 and never matches it.')
+            && !validateSystem(s0, F).warnings.some(w => /names no|more than one/.test(w.message)), J(vG));
+        const v0 = validateSystem(s0, F).warnings.filter(w => /bare number/.test(w.message));
+        check('1.6.0 names read by their place: a formula that compares Posture or Blow.type with a bare number reads exactly as before, and the validator says once a formula that a list change would change what it means; none where the system has no postures or no damage types, or for a name read by its name',
+            J(v0.map(w => w.id + ':' + w.message.split(' is ')[0])) === J(['f_bare:"Posture"', 'r_shock:"Blow.type"'])
+            && !validateSystem(gN(null, [], PL, ML), F).warnings.some(w => /bare number/.test(w.message)) && rd(s0, 'p_prone')[3] === 1 && rd(s0, 'p_kneel')[3] === 0, J(v0));
+        const sK = gN(PT, TY, PL, ML, [{ id: 'f_type', key: 'Type', label: 'Type', kind: 'number', def: 7, vis: 'all' }]);
+        check('1.6.0 names read by their place: a field keyed Type keeps the whole family, so Type.burn is no name there (the validator says so, and the resolver reads it as an error)',
+            validateSystem(sK, F).errors.some(e => e.id === 'f_ty' && /Unknown name "Type\.burn"/.test(e.message)) && rd(sK, 'p_prone')[2] === 'E', J(validateSystem(sK, F).errors));
+        const V0 = makeResolver(s0, { id: 'c_n', name: 'Nim', values: {} }, F), V1 = makeResolver(s1, { id: 'c_n', name: 'Nim', values: {} }, F);
+        check('1.6.0 a damage roll\'s type by its key (dmgTypeOf): a dtype formula of Type.burn names burn before and after a type is added before it, where the bare 2 now names cut; and cripBy reads Type.<key> where the caller hands the system (blowCripN\'s sixth argument), none without',
+            S.dmgTypeOf(s0, { dmg: true, dtype: 'Type.burn' }, V0, F) === 'burn' && S.dmgTypeOf(s1, { dmg: true, dtype: 'Type.burn' }, V1, F) === 'burn' && S.dmgTypeOf(s0, { dmg: true, dtype: '2' }, V0, F) === 'burn' && S.dmgTypeOf(s1, { dmg: true, dtype: '2' }, V1, F) === 'cut'
+            && S.blowCripN('if(Blow.type = Type.burn, 5, 1)', 1, 10, { type: 3 }, F, s1) === 5 && S.blowCripN('if(Blow.type = Type.burn, 5, 1)', 1, 10, { type: 2 }, F, s1) === 1 && S.blowCripN('Type.burn', 1, 10, {}, F) === null);
+        const pre = [['d20', d20], ['3d6', g3d6]].map(([n, p]) => { const c = cleanSystem(p, { F, gmView: true }), v = validateSystem(c, F); return n + ':' + v.errors.length + ':' + v.warnings.filter(w => /names no|bare number|more than one/.test(w.message)).length; });
+        check('1.6.0 names read by their place: a system that uses none of it validates as before, with no word of the new names', J(pre) === J(['d20:0:0', '3d6:0:0']), J(pre));
+        const ixN = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), wnN = [fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, NL)), giN = fs.readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8');
+        check('1.6.0 names read by their place: Help, both release notes and the integration guide say them',
+            ixN.includes('<li><b>Posture.Prone</b> reads a posture&rsquo;s place by its name or id, so <code>Posture = Posture.Prone</code> keeps its meaning when the list changes.')
+            && ixN.includes('<b>Type.burn</b> reads a type&rsquo;s place by its key') && ixN.includes('<code>has(Row.Covers, Place.Covers.Body)</code> keeps its meaning when places move.')
+            && wnN.every(t => t.includes('- A rule can name a thing\'s place by its name, so it keeps its meaning when' + NL + '  a list changes.') && t.includes('Value.Mat.Steel reads the figure'))
+            && giN.includes('**A place read by its name (1.6.0):**') && giN.includes('Value.<key>.<value>'));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

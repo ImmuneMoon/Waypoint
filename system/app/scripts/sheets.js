@@ -6608,7 +6608,7 @@ function refreshErrors() {
         if (sp.once && typeof sp.once === 'object' && typeof cleanListSpec === 'function') {   // 1.5.8 Counted once, as the cleaner reads it
             var onceK = (cleanListSpec(sp, true, F()) || {}).once;
             if (!onceK) errs.push({ message: 'Counted once needs a group stat and what makes a row the higher, each a number stat of this list or its level. Save drops it.' });
-            else { if (sp.once.cost && !onceK.cost) errs.push({ message: 'Counted once: its full price names no number stat or column of this list, so Save drops it.' }); if (sp.once.free && !onceK.free) errs.push({ message: 'Counted once: what was given free names no number stat of this list, so Save drops it.' }); }
+            else { if (sp.once.cost && !onceK.cost) errs.push({ message: 'Counted once: its full price names no number stat or column of this list, so Save drops it.' }); if (sp.once.free && !onceK.free) errs.push({ message: 'Counted once: what was given free names no number stat of this list, so Save drops it.' }); if (sp.once.across === true && !onceK.across) errs.push({ message: 'Counted once: Across specialties needs a list with Specialties, so Save drops it.' }); }
         }
         (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(cc) {   // 1.5.4: a column's Metric list and its decimals, as the cleaner reads them
             if (!cc || typeof cc !== 'object') return;
@@ -8054,6 +8054,9 @@ function onceBox(box, sp) {
     rw.appendChild(sel('sys-list-oncerank', 'Higher by', o.rank, (sp.lvl && typeof sp.lvl === 'object' ? [['lvl', 'Its ' + (typeof sp.lvl.label === 'string' && sp.lvl.label ? sp.lvl.label : 'level')]] : []).concat(nums), 'Of a group, the row with the higher figure here applies. A tie goes to the row with less given free, then the later row'));
     rw.appendChild(sel('sys-list-oncecost', 'Full price', o.cost, [['', 'None']].concat(nums, cols), 'Row.oncecost reads the highest figure here in the row\u2019s group'));
     rw.appendChild(sel('sys-list-oncefree', 'Given free', o.free, [['', 'None']].concat(nums), 'Row.oncefree reads the largest figure here in the row\u2019s group'));
+    if (sp.specs && typeof sp.specs === 'object') {   // 1.6.0: Across specialties, shown only on a list with Specialties
+        var acL = el('label', 'sys-check'), acI = el('input', 'sys-list-onceacross'); acI.type = 'checkbox'; acI.checked = o.across === true; acL.title = 'Rows of one group count once whatever specialty each row names. Without this, each specialty counts on its own'; acL.appendChild(acI); acL.appendChild(el('span', null, 'Across specialties')); rw.appendChild(acL);
+    }
     box.appendChild(rw);
     if (o.by) box.appendChild(el('div', 'sys-note sys-list-oncenote', 'A row of a group that does not apply gives none of its changes. Charge a group once with a cost column such as if(Row.once, max(0, Row.oncecost - Row.oncefree), 0).'));
 }
@@ -10611,6 +10614,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-chambercap') >= 0) { if (lsc.chamber && typeof lsc.chamber === 'object') lsc.chamber.cap = Math.max(1, Math.min(CHAMBER_CAP || 32, parseInt(t.value, 10) || 1)); }
         else if (c.indexOf('sys-list-chamberholdsby') >= 0) { if (lsc.chamber && typeof lsc.chamber === 'object') { if (t.value) lsc.chamber.capBy = t.value; else delete lsc.chamber.capBy; } }   // the review of fold 2: Holds as the row's stat reads (Save keeps it only as a number stat of this list)
         else if (c.indexOf('sys-list-loadct') >= 0) { if (lsc.load && typeof lsc.load === 'object') { if (t.value) lsc.load.ct = t.value; else delete lsc.load.ct; } }
+        else if (c.indexOf('sys-list-onceacross') >= 0) { if (lsc.once && typeof lsc.once === 'object') { if (t.checked) lsc.once.across = true; else delete lsc.once.across; } }   // 1.6.0 Across specialties
         else if (c.indexOf('sys-list-once') >= 0) {   // 1.5.8 Counted once (Save keeps it only with a group stat and a Higher by, each of this list)
             var oKey = c.indexOf('sys-list-onceby') >= 0 ? 'by' : c.indexOf('sys-list-oncerank') >= 0 ? 'rank' : c.indexOf('sys-list-oncecost') >= 0 ? 'cost' : c.indexOf('sys-list-oncefree') >= 0 ? 'free' : ''; if (!oKey) return;
             if (oKey === 'by' && !t.value) delete lsc.once;

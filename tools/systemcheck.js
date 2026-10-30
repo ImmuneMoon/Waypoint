@@ -19556,6 +19556,36 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && S.specSquash('Ter\u00e4s K\u00e4si') === 'teraskasi' && S.specSquash('Jitte/Sai') === 'jittesai' && S.specInfo({ specs: {} }, { name: 'Lone' }) === null && S.specInfo({ specs: {} }, null) === null
             && fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').includes("soS = el('select', 'sys-list-specof')") && fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').includes("['of', 'Parent from names no choice stat of this list']"));
     }
+    {   // 1.6.0 Counted once Across specialties (asked by the session that builds a game system): a list that reads subjects but groups rows whatever specialty they name
+        const J = JSON.stringify;
+        const rawA = (across, specs) => ({ v: 1, name: 'T', rolls: [], fields: [
+            { id: 'f_str', key: 'Might', label: 'Might', kind: 'number', def: 10, vis: 'all' },
+            { id: 'f_adv', key: 'Boons', label: 'Boons', kind: 'item-list', vis: 'all', edit: 'owner', list: Object.assign({ cats: ['Boon'], noQty: true, multi: true,
+                stats: [{ key: 'pair', label: 'Pair' }, { key: 'tier', label: 'Tier' }, { key: 'price', label: 'Price' }],
+                cols: [{ key: 'Cost', label: 'Cost', formula: 'if(Row.once, Row.oncecost, 0)' }],
+                once: Object.assign({ by: 'pair', rank: 'tier', cost: 'price' }, across === undefined ? {} : { across: across }) }, specs === null ? {} : { specs: specs }) },
+            { id: 'f_sum', key: 'Spent', label: 'Spent', kind: 'formula', formula: 'Boons.Cost', vis: 'all' }],
+            items: [
+                { id: 'i_a', name: 'Hard Hitter', category: 'Boon', vis: 'all', stats: { pair: 1, tier: 1, price: 20 }, mods: [{ f: 'f_str', op: 'add', v: 1 }] },
+                { id: 'i_b', name: 'Hard Hitter (Gears)', category: 'Boon', vis: 'all', stats: { pair: 1, tier: 2, price: 35 }, mods: [{ f: 'f_str', op: 'add', v: 1 }] }] });
+        const chA = () => ({ id: 'c_a', name: 'Ash', ownerId: 'u_p', npc: false, values: { f_str: 10, f_adv: [{ id: 'w_a', defId: 'i_a', qty: 1 }, { id: 'w_b', defId: 'i_b', qty: 1 }] } });
+        const read = (across, specs) => { const g = cleanSystem(rawA(across, specs), { F, gmView: true }), R = makeResolver(g, cleanChar(chA(), g, { state: 'gm' }), F); return [R('Might'), R('Spent')]; };
+        const sp = (across, specs) => (cleanSystem(rawA(across, specs), { F, gmView: true }).fields[1].list || {}).once;
+        const pl = cleanSystem(rawA(true, {}), { F, gmView: false }).fields[1].list.once;
+        check('1.6.0 Counted once Across specialties, the cleaner: kept only as true and only on a list with Specialties, the same in both views, and a once with no tick has the keys it always had',
+            sp(true, {}).across === true && pl.across === true && sp(false, {}).across === undefined && sp('yes', {}).across === undefined && sp(1, {}).across === undefined && sp(true, null).across === undefined && J(sp(undefined, {})) === J({ by: 'pair', rank: 'tier', cost: 'price' }), J([sp(true, {}), pl]));
+        check('1.6.0 Counted once Across specialties, the one judge: a pair whose rows name different specialties is one group with the tick, so one row gives its change (Might 11) and the group is charged once (35); with none each specialty counts on its own (12 and 55), and a list with no Specialties groups them as ever',
+            J(read(true, {})) === J([11, 35]) && J(read(undefined, {})) === J([12, 55]) && J(read(undefined, null)) === J([11, 35]), J([read(true, {}), read(undefined, {}), read(undefined, null)]));
+        const shA = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const mkEl = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined ? '' : text, kids: [], title: '', value: '', selected: false, checked: false, appendChild(x) { this.kids.push(x); return x; } });
+        const obA = shA.slice(shA.indexOf('function onceBox(box, sp) {'), shA.indexOf('// F5a1: the names a list offers formulas, as one line of text for its card')), OXA = new Function('el', obA + '\nreturn onceBox;')(mkEl);
+        const drawn = sp2 => { const b = mkEl('div'); OXA(b, sp2); const out = []; (function walk(n) { (n.kids || n.children || []).forEach(k => { if (String(k.className).includes('sys-list-onceacross')) out.push(k); walk(k); }); })(b); return out; };
+        check('1.6.0 Counted once Across specialties, the Lists tab: its tick stands only on a list with Specialties, ticked by true alone, and Save\'s words say where it is dropped',
+            drawn({ stats: [], once: { by: 'pair', across: true } }).length === 0 && drawn({ stats: [], specs: {}, once: { by: 'pair' } }).length === 1 && drawn({ stats: [], specs: {}, once: { by: 'pair', across: true } })[0].checked === true && drawn({ stats: [], specs: {}, once: { by: 'pair' } })[0].checked === false
+            && shA.includes("else if (c.indexOf('sys-list-onceacross') >= 0) {") && shA.indexOf("c.indexOf('sys-list-onceacross')") < shA.indexOf("else if (c.indexOf('sys-list-once') >= 0) {") && shA.includes('Counted once: Across specialties needs a list with Specialties, so Save drops it.'));
+        const ixA = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), wnA = fs.readFileSync(path.join(app, '..', '..', 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wnA2 = fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8').replace(/\r\n/g, '\n');
+        check('1.6.0 Counted once Across specialties: Help, the Lists key and both release notes say it', ixA.includes('unless it is ticked <b>Across specialties</b>.') && ixA.includes('<b>Across specialties</b><small>') && wnA.includes('- Counted once may be ticked Across specialties:') && wnA2.includes('- Counted once may be ticked Across specialties:'));
+    }
     {   // 1.6.0 Specialties, round three (the builder audit): a subject read and covered, Counted once by subject, and the rules aimed at a key (needs, Roll unheld, roll bonuses, a change aimed at one entry, throwSkill, a crew read) finding the row the key means; a grant's specifier
         const J = JSON.stringify;
         const rawT = specs => ({ v: 1, name: 'T', rolls: [], fields: [

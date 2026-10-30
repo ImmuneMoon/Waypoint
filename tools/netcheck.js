@@ -17605,6 +17605,15 @@ pendingChecks.push((async () => {
                 hp(dB.camp.chars.c_1) === 7 && /2 through \+3 for 3 dice, 5 Hit Points/.test(dB.chat[0].text) && hp(dB0.camp.chars.c_1) === 10 && dJunk.every(r => r.owner.length === 0 && quiet(r))
                 && sQ.ok === true && sentQ.length === 1 && sentQ[0].dice === 3 && sentQ[0].dtype === 'cut', j([hp(dB.camp.chars.c_1), dB.chat, hp(dB0.camp.chars.c_1), sentQ]));
         }
+        {   /* 1.6.0: a player's own blow of two parts is one blow on the host */
+            const dP = runD({ type: 'char-damage', rid: 'dp', charId: 'c_1', amt: 8, dtype: 'cut', loc: 'w_body', part2: { amt: 16, type: 'stun' } }), dP0 = runD({ type: 'char-damage', rid: 'dq', charId: 'c_1', amt: 8, dtype: 'cut', loc: 'w_body' });
+            const dPbad = runD({ type: 'char-damage', rid: 'dr', charId: 'c_1', amt: 8, dtype: 'cut', loc: 'w_body', part2: { amt: -4 } });
+            const sentR = [], sendR = new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', sendD + '\nreturn net.charDamage;')(Object.assign({}, netP, { conns: [{ peer: 'H', open: true, send: m => sentR.push(JSON.parse(JSON.stringify(m))) }] }), () => Sx, () => campP, {}, {}, () => {}, () => 0);
+            sendR('c_1', { amt: 8, type: 'cut', loc: 'w_body', part2: { amt: 16, type: 'stun' }, part3: { amt: 2 } });
+            const epOf = r => j(r.camp.chars.c_1.values.f_ep);
+            check('1.6.0 a player\'s own blow of several parts (char-damage run for real): the second part lands on its own pool in the same blow, where the blow with no part leaves that pool alone; a part that does not clean is not answered and changes nothing; a player\'s app sends every part',
+                hp(dP.camp.chars.c_1) === hp(dP0.camp.chars.c_1) && epOf(dP) !== epOf(dP0) && dPbad.owner.length === 0 && quiet(dPbad) && j(sentR[0].part2) === j({ amt: 16, type: 'stun' }) && j(sentR[0].part3) === j({ amt: 2 }), j([epOf(dP), epOf(dP0), hp(dP.camp.chars.c_1), sentR]));
+        }
         check('1.5.6 the damage step (pinned): one host branch for char-damage, named in the host\'s count; the GM\'s token menu and a damage roll\'s card open the window through wpSheets alone',
             (nsD.match(/msg\.type === 'char-damage' && net\.role === 'host'/g) || []).length === 1);
     })());

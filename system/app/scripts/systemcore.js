@@ -1840,6 +1840,15 @@ function damageStep(sys, char, inp, F, ropts, fxo) {   // 1.6.0 (B3): fxo, the c
     return dmgOk;
 }
 // A player's blow on their own character, as it rides the wire: { rid, charId, q: damageStep's inp } or null
+// 1.6.0: an added part of a player's blow on their own character, { amt, type, ad, dice } as the Take damage window hands it; null when anything is malformed
+function cleanCharPart(p) {
+    if (!isObj(p) || typeof p.amt !== 'number' || !fin(p.amt) || p.amt < 0 || p.amt > DMG_LIM.amt) return null;
+    var o = { amt: Math.floor(p.amt) };
+    if (p.type !== undefined) { if (typeof p.type !== 'string' || !STAT_KEY.test(p.type)) return null; o.type = p.type; }
+    if (p.ad !== undefined) { if (typeof p.ad !== 'number' || !fin(p.ad) || p.ad < 0.1 || p.ad > 100) return null; o.ad = p.ad; }
+    if (p.dice !== undefined) { if (typeof p.dice !== 'number' || !fin(p.dice) || Math.floor(p.dice) !== p.dice || p.dice < 0 || p.dice > DMG_LIM.dice) return null; if (p.dice) o.dice = p.dice; }
+    return o;
+}
 function cleanCharDamage(msg) {
     if (!isObj(msg) || typeof msg.rid !== 'string' || !RID_RE.test(msg.rid) || typeof msg.charId !== 'string' || !CHAR_ID.test(msg.charId)) return null;
     if (typeof msg.amt !== 'number' || !fin(msg.amt) || msg.amt < 0 || msg.amt > DMG_LIM.amt) return null;
@@ -1849,6 +1858,8 @@ function cleanCharDamage(msg) {
     if (msg.ad !== undefined) { if (typeof msg.ad !== 'number' || !fin(msg.ad) || msg.ad < 0.1 || msg.ad > 100) return null; q.ad = msg.ad; }
     if (msg.dice !== undefined) { if (typeof msg.dice !== 'number' || !fin(msg.dice) || Math.floor(msg.dice) !== msg.dice || msg.dice < 0 || msg.dice > DMG_LIM.dice) return null; if (msg.dice) q.dice = msg.dice; }   // 1.6.0: the dice the blow rolled
     if (msg.weapon !== undefined) { if (typeof msg.weapon !== 'string' || !ROW_ID.test(msg.weapon)) return null; q.weapon = msg.weapon; if (msg.only === true) q.only = true; }
+    var bad = false; [2].concat(DMG_MORE).forEach(function(k) { var pk = 'part' + k; if (msg[pk] === undefined) return; var pc = cleanCharPart(msg[pk]); if (!pc) bad = true; else q[pk] = pc; });   // 1.6.0: the blow's added parts, on their own character as its first is
+    if (bad) return null;
     return { rid: msg.rid, charId: msg.charId, q: q };
 }
 // [systemcheck:damage-end]

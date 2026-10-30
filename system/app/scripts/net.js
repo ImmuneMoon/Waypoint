@@ -3413,7 +3413,7 @@ net.charDamage = function(charId, q) {
     var c = (camp && camp.chars && typeof charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null); if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
     if (Object.keys(_charPending).some(function(k) { return _charPending[k].apply && _charPending[k].charId === charId; })) return { error: 'Waiting for the GM to apply the last one.' };
     var rid = 'd' + Math.random().toString(36).slice(2, 10), qq = q && typeof q === 'object' ? q : {}, req = { type: 'char-damage', rid: rid, charId: charId, amt: qq.amt };   // the damage type rides as dtype: type is the message's own
-    if (qq.type !== undefined) req.dtype = qq.type; ['loc', 'ad', 'dice', 'weapon', 'only'].forEach(function(k) { if (qq[k] !== undefined) req[k] = qq[k]; });   // 1.6.0: dice, the dice the blow rolled
+    if (qq.type !== undefined) req.dtype = qq.type; ['loc', 'ad', 'dice', 'weapon', 'only', 'part2', 'part3', 'part4', 'part5'].forEach(function(k) { if (qq[k] !== undefined) req[k] = qq[k]; });   // 1.6.0: dice, the dice the blow rolled, and the blow's added parts
     if (!S.cleanCharDamage || !S.cleanCharDamage(req)) return { error: 'Check the damage and its type.' };
     _charPending[rid] = { charId: charId, apply: true, batch: [], timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
     try { net.conns[0].send(req); } catch (e) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; return { error: 'Could not reach the GM.' }; }

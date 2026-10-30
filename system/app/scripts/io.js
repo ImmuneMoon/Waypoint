@@ -1417,6 +1417,7 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
       var am = getActiveMap();
       if (!am || am.type !== 'map' || !am.meta) return;
       var v = am.meta.lastView;
+      if (v !== 'data' && v !== 'visual' && (state.viewMode === 'data' || state.viewMode === 'visual') && !(window.wpNet && window.wpNet.role === 'client')) { am.meta.lastView = state.viewMode; return; }   // 1.6.0, found by hand: a map reached in Play and never switched had no view to come back to after a reload
       if ((v === 'data' || v === 'visual') && state.viewMode !== v) {
           state.viewMode = v;
           _segBtns.forEach(function(b){ b.classList.toggle('active', b.dataset.mode === v); });

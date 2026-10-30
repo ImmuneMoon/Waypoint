@@ -85,11 +85,15 @@ function twDraw(doc, root, v, off, act) {
     root.appendChild(twEl(doc, 'div', 'trade-msg', line));
 }
 // the control that held the focus, found again in a window drawn anew: a key leaves a box and lands on what comes next, and the host's answer draws that again
-function twFocus(body, k) {
+function twFocus(body, k, n) {
     if (!k) return; var all = body.querySelectorAll('[data-k]'), at = null; for (var i = 0; i < all.length; i++) if (all[i].getAttribute('data-k') === k) at = all[i];
-    if (!at && k.indexOf('add|') === 0) for (var j = 0; j < all.length; j++) if (all[j].getAttribute('data-k').indexOf('add|') === 0 && !all[j].disabled) { at = all[j]; break; }
-    if (at && !at.disabled) at.focus();
+    if (!at && k.indexOf('add|') === 0) { var rows = [].filter.call(all, function(e) { return e.getAttribute('data-k').indexOf('add|') === 0 && !e.disabled; }); at = rows[Math.min(n || 0, rows.length - 1)] || null; }   // the row that took its place
+    if (at && !at.disabled) at.focus({ preventScroll: true });
 }
+// where each list of a side stood: a row put on the table leaves the rest where they were under the pointer (found live: the list went back to its top at every press)
+function twScrolls(body) { return [].map.call(body.querySelectorAll('.trade-inv'), function(e) { return e.scrollTop; }); }
+function twScrollsBack(body, was) { [].forEach.call(body.querySelectorAll('.trade-inv'), function(e, i) { if (was[i]) e.scrollTop = was[i]; }); }
+function twAddAt(body, k) { if (!k || k.indexOf('add|') !== 0) return 0; var rows = [].filter.call(body.querySelectorAll('[data-k]'), function(e) { return e.getAttribute('data-k').indexOf('add|') === 0 && !e.disabled; }); for (var i = 0; i < rows.length; i++) if (rows[i].getAttribute('data-k') === k) return i; return 0; }
 // [sinkcheck:tradewin-end]
 
 function twNet() { return window.wpNet || null; }
@@ -112,11 +116,11 @@ function twRender() {
     var v = _tw.view, body = document.getElementById('tradeBody'); if (!body) return;
     if (!v) { twShow(false); return; }
     if (_tw.hold && _tw.hold.busy()) { _tw.hold.then(twRender); return; }   // a press on the window lands first
-    var act = document.activeElement, was = act && body.contains(act) && act.getAttribute ? act.getAttribute('data-k') : null;
+    var act = document.activeElement, was = act && body.contains(act) && act.getAttribute ? act.getAttribute('data-k') : null, addAt = twAddAt(body, was), sc = twScrolls(body);
     var n = twNet(), off = { a: [], b: [] }; twMine(v).forEach(function(sd) { off[sd] = n && n.tradeOffer ? n.tradeOffer(v[sd].charId, twGm()) : []; });
     var t = document.getElementById('tradeTitle'); if (t) t.textContent = 'Trade: ' + v.a.name + ' and ' + v.b.name;
     twDraw(document, body, v, off, twAct);
-    twShow(true); twFocus(body, was);
+    twShow(true); twScrollsBack(body, sc); twFocus(body, was, addAt);
 }
 // the side asked answers by a question; the GM's ask also waits in the bell until it is answered
 function twAsk(v) {

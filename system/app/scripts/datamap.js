@@ -783,8 +783,18 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function handZ(cand) {
       var SC = window.wpSystemCore;
       if (SC && typeof SC.stackZ === 'function') return SC.stackZ(cand);
-      var LZ = { back: 10, 'back-mid': 15, middle: 20, 'front-mid': 25, front: 30 }, n = Number(cand.z), z = Object.prototype.hasOwnProperty.call(LZ, cand.layer) ? LZ[cand.layer] : (isFinite(n) && n ? n : 10);
+      var LZ = { back: 10, 'back-mid': 15, middle: 20, 'front-mid': 25, front: 30 }, n = Number(cand.z), z = Object.prototype.hasOwnProperty.call(LZ, cand.layer) ? LZ[cand.layer] : (isFinite(n) && n ? n : (cand.isChar ? 20 : 10));
       return cand.aboveGrid ? z + 15020 : z;
+  }
+  // The topmost unlocked character token under a press on a piece that is no token (1.6.0, found by hand: the press handed the token on, and a double-click then opened the picture over it)
+  function tokenUnder(map, item, e) {
+      if (!map || !Array.isArray(map.whiteboard) || !item || item.isChar || item.waiting || e.shiftKey || e.ctrlKey || e.metaKey) return null;
+      var wr = wbWrap.getBoundingClientRect(), px = (e.clientX - wr.left + wbWrap.scrollLeft) / state.zoomLevel, py = (e.clientY - wr.top + wbWrap.scrollTop) / state.zoomLevel, tok = null, tz = -Infinity, at = -1;
+      map.whiteboard.forEach(function(c, i) {
+          if (!c.isChar || c.locked || c.id === item.id || px < c.x || px > c.x + (c.w || 0) || py < c.y || py > c.y + (c.h || 0)) return;
+          var z = handZ(c); if (z > tz || (z === tz && i > at)) { tok = c; tz = z; at = i; }
+      });
+      return tok;
   }
   // [systemcheck:wallpick-start]
   // A wall or a door drawn as a line is easy for the GM to pick (the owner, at the table on 2026-10-25: "id like to be able to more easily
@@ -1096,6 +1106,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var wallD = wallPickEl(am2, it2, e), wallDi = wallD && am2.whiteboard.find(function(x){ return x.id === wallD.dataset.id; });   // a double-click near a wall's line opens the wall, as its press picked it
           if (wallDi) { e.stopImmediatePropagation(); it2 = wallDi; }
           else if (it2.type === 'text' || it2.nodeId || it2.targetMapId) return;   // text boxes edit and portals travel on double-click — leave those to their own handlers
+          else { var tokD = typeof tokenUnder === 'function' ? tokenUnder(am2, it2, e) : null; if (tokD) { e.stopImmediatePropagation(); it2 = tokD; } }
           e.stopPropagation();
           if (!state.selWbIds || state.selWbIds.length !== 1 || state.selWbIds[0] !== it2.id) { state.selWbIds = [it2.id]; state.selWbId = it2.id; render(); }   // select it, then open Properties
           if (window.wpOpenRightPanel) window.wpOpenRightPanel();

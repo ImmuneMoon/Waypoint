@@ -1929,6 +1929,7 @@ function snapItems(cS) {
 function applySnapshot(msg) {
     if (!msg || !msg.appState || typeof msg.appState !== 'object' || !msg.appState.campaigns || typeof msg.appState.campaigns !== 'object') return;   // a host that sends no state gets nothing applied — and nothing left half-set
     if (typeof window !== 'undefined' && window.wpClearSharedBlasts) window.wpClearSharedBlasts();   // 1.6.0: a table taken afresh holds no circle of the table before it, so a GM's reload leaves both sides alike
+    if (typeof tradeLost === 'function') tradeLost('The connection dropped, so the trade ended.');   // 1.6.0: nor a trade: the host ended it when the connection went
     // BinaryPack decodes a map by ASSIGNING its keys, so a packed "__proto__" re-parents the decoded object: the state and the campaign map get
     // a plain prototype back first, or a campaign (or a field deleted below) could still be inherited from the host's choice
     [msg.appState, msg.appState.campaigns].forEach(function(o) { if (Object.getPrototypeOf(o) !== Object.prototype) Object.setPrototypeOf(o, Object.prototype); });
@@ -2805,7 +2806,7 @@ net.sendFxArrival = function(conn, mapId) {   // a peer landing on a map gets it
 };
 // A blast thrown from a character sheet, shown to the players ON THAT MAP (item library, 1.5.0). Host only; no GM-only data.
 // [netcheck:blast-start]
-net.broadcastBlast = function(blast, mapId, charId) {   // charId: who threw it, whose name a player who cannot see them does not get (1.6.0)
+net.broadcastBlast = function(blast, mapId, charId, only) {   // charId: who threw it, whose name a player who cannot see them does not get (1.6.0); only: one connection, for what stood there before they came
     if (!net.active || net.role !== 'host' || !blast) return;
     var b = { x: Number(blast.x), y: Number(blast.y), ft: Number(blast.ft), elev: Number(blast.elev) || 0, name: typeof blast.name === 'string' ? blast.name.slice(0, 60) : '', by: typeof blast.by === 'string' ? blast.by.slice(0, 60) : '' };
     if (!isFinite(b.x) || !isFinite(b.y) || !(b.ft > 0)) return;
@@ -2815,7 +2816,7 @@ net.broadcastBlast = function(blast, mapId, charId) {   // charId: who threw it,
     else if (blast.shape === 'cone') { var dgB = Math.round(Number(blast.deg)), drB = Number(blast.dir); if (isFinite(dgB) && dgB >= 1 && dgB <= 360 && isFinite(drB)) { b.shape = 'cone'; b.deg = dgB; b.dir = Math.atan2(Math.sin(drB), Math.cos(drB)); } }
     var camp = getActiveCampaign(); if (!camp) return;
     var msg = { type: 'blast', campId: camp.id, mapId: mapId, blast: b }, chB = b.by && typeof charId === 'string' && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null, bare = null;
-    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && net.roster[c.peer].location === mapId) { var mB = msg; if (chB && typeof npcShown === 'function' && !npcShown(camp, chB, net.roster[c.peer])) { if (!bare) bare = Object.assign({}, msg, { blast: Object.assign({}, b, { by: '' }) }); mB = bare; } try { c.send(mB); } catch (e) { sendFailed(e); } } });
+    net.conns.forEach(function(c) { if ((!only || c === only) && c.open && net.roster[c.peer] && net.roster[c.peer].location === mapId) { var mB = msg; if (chB && typeof npcShown === 'function' && !npcShown(camp, chB, net.roster[c.peer])) { if (!bare) bare = Object.assign({}, msg, { blast: Object.assign({}, b, { by: '' }) }); mB = bare; } try { c.send(mB); } catch (e) { sendFailed(e); } } });
 };
 // [netcheck:blast-end]
 net.broadcastBlastClear = function(mapId) {
@@ -3174,6 +3175,7 @@ net.syncCharDelta = function(id, values) {   // changed values, filtered to what
     if (!net.active || net.role !== 'host') return;
     if (net.sensesMoved) net.sensesMoved(id);   // before anything turns this away: a change that sends its owner nothing (a kept curse) moves their sight all the same
     if (typeof fxbMoved === 'function') fxbMoved(id);   // conditions C1: the effects on their tokens
+    if (typeof tradeMoved === 'function') tradeMoved(id);   // 1.6.0: a trade with a row of theirs on offer
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !(camp && camp.chars && typeof id === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, id) ? camp.chars[id] : null) || !window.wpSheets) return;
     var view = window.wpSheets.playerSystem(camp); if (!view) return;
     var src = camp.chars[id], probe = { id: id, name: src.name, ownerId: src.ownerId, npc: src.npc, making: src.making, values: {} };   // making (Onboarding F3): charFor itself refuses it to anyone but its owner
@@ -3438,6 +3440,8 @@ net.damageCard = function(ch, lines) {
 // character whose player is away: the GM's own hand). One trade at a time a character. Both confirm, then tradeApply moves everything at once
 var _trades = Object.create(null), _tradeViews = Object.create(null), TRADE_TID = /^t_[a-z0-9]{8}$/;
 function tradeForget() { _trades = Object.create(null); _tradeViews = Object.create(null); }
+// a trade open on this screen when its table went: the host ended it and could not say so, so the window goes with these words (1.6.0, found live: a player who dropped and came back kept a dead window)
+function tradeLost(words) { Object.keys(_tradeViews).forEach(function(k) { tradeKeep({ tid: k, status: 'cancelled', msg: words }); }); }
 function tradeChar(camp, id) { return camp && camp.chars && typeof id === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, id) ? camp.chars[id] : null; }
 function tradeHere(pid) { return !!pid && net.active && net.role === 'host' && net.conns.some(function(c) { return c.open && net.roster[c.peer] && net.roster[c.peer].id === pid; }); }
 // who acts for a character: its player while at the table, '' for the GM (an NPC, one with no player, one whose player is away)
@@ -3477,6 +3481,7 @@ function tradeKeep(v) {   // a view on this screen: kept while it is open, said 
     try { window.dispatchEvent(new CustomEvent('wptrade', { detail: JSON.parse(JSON.stringify(v)) })); } catch (e) {}
 }
 function tradeTell(tr, status, msg) {   // each one who acts gets one view: a player's to their every connection, the GM's on this machine; one who holds both sides sees both as theirs
+    tr.sig = tradeSig(tr);
     var by = Object.create(null); [['a', tr.a.by], ['b', tr.b.by]].forEach(function(s) { (by[s[1]] = by[s[1]] || []).push(s[0]); });
     Object.keys(by).forEach(function(k) {
         var v = tradeView(tr, by[k].length === 2 ? 'both' : by[k][0], status, msg);
@@ -3486,6 +3491,20 @@ function tradeTell(tr, status, msg) {   // each one who acts gets one view: a pl
     });
 }
 function tradeEnd(tr, status, msg) { delete _trades[tr.tid]; tradeTell(tr, status, msg); }
+// What the rows on offer stand at now, each as a side's own list reads it (1.6.0, found by hand: the GM took a row on offer away, and the window went on
+// showing it until a Confirm was refused). A change to a side's character is held against it, and only a change to a row on offer says anything
+function tradeSig(tr) {
+    var S = SC(), camp = getActiveCampaign(), sys = camp && camp.system; if (!S || !sys) return '';
+    var one = function(sd, off) {
+        var ch = tradeChar(camp, sd.charId), can = Object.create(null); if (ch) S.tradeOfferable(sys, ch, sd.by ? 'player' : 'gm').forEach(function(e) { can[e.fid + '|' + e.rowId] = e; });
+        return (off || []).map(function(l) { return can[l.fid + '|' + l.rowId] || null; });
+    };
+    return JSON.stringify([one(tr.a, tr.offA), one(tr.b, tr.offB)]);
+}
+function tradeMoved(id) {
+    var tr = typeof id === 'string' ? tradeOfChar(id) : null; if (!tr || tr.status !== 'open' || tr.closing || tradeSig(tr) === tr.sig) return;
+    var had = tr.okA || tr.okB; tr.okA = false; tr.okB = false; tradeTell(tr, null, had ? 'The offer changed: confirm again.' : '');
+}
 // a player's last connection closed: their trades end, the other side told
 function tradeConnGone(pid) { Object.keys(_trades).forEach(function(k) { var tr = _trades[k]; if (tr.a.by === pid || tr.b.by === pid) tradeEnd(tr, 'cancelled', 'A player left the table, so the trade ended.'); }); }
 // one step of a trade, on the host: actor { pid } for a player (by their profile id), {} for the GM. Answers { ok } or { error: words }
@@ -3535,7 +3554,7 @@ function tradeDo(actor, msg) {
         if (!(tr2.okA && tr2.okB)) { tradeTell(tr2); return { ok: true }; }
         var res = S.tradeApply(camp.system, ca, cb, tr2.offA, tr2.offB, who(tr2.a), who(tr2.b), { a: tr2.intoA, b: tr2.intoB });
         if (!res.ok) { tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, res.msg); return { error: res.msg }; }
-        var now = Date.now(); ca.values = ca.values || {}; cb.values = cb.values || {};
+        tr2.closing = true; var now = Date.now(); ca.values = ca.values || {}; cb.values = cb.values || {};
         Object.keys(res.valuesA).forEach(function(k) { ca.values[k] = res.valuesA[k]; }); Object.keys(res.valuesB).forEach(function(k) { cb.values[k] = res.valuesB[k]; }); ca.updated = now; cb.updated = now;
         saveRemoteSoon();
         if (Object.keys(res.valuesA).length) net.syncCharDelta(tr2.a.charId, res.valuesA); if (Object.keys(res.valuesB).length) net.syncCharDelta(tr2.b.charId, res.valuesB);
@@ -4823,8 +4842,24 @@ function combatsSentForget(peer) { if (typeof peer === 'string') delete _combats
 function connMap(c) { var pr = c && typeof c.peer === 'string' && net.roster && Object.prototype.hasOwnProperty.call(net.roster, c.peer) ? net.roster[c.peer] : null; return pr && typeof pr.location === 'string' ? pr.location : null; }   // the map a connection's player is on
 // Fold 2: one connection is sent the fights on the map it is on now, after the word that moved it there (a travel, a stage), where the map it left
 // (was) or the one it is on holds a fight; judged with every open drag at its start
+// 1.6.0, found by hand: a player who walks off a map with their token still in its fight had no word of it
+function fightFar(c, pr, was, loc) {
+    if (typeof was !== 'string' || was === loc || !pr.id) return;
+    var camp = getActiveCampaign(), map = camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, was) ? camp.items[was] : null; if (!map) return;
+    var still = fightsOn(was).some(function(fid) { return net.combats[fid].rows.some(function(r) {
+        var w = r && typeof r.tokId === 'string' && Array.isArray(map.whiteboard) ? map.whiteboard.filter(function(x) { return x && x.id === r.tokId; })[0] : null, ch = w && typeof w.charId === 'string' && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, w.charId) ? camp.chars[w.charId] : null;
+        return !!ch && ch.ownerId === pr.id;
+    }); });
+    if (still) { try { c.send({ type: 'fightfar', title: String((map.meta && map.meta.title) || 'another map').slice(0, 80) }); } catch (e) { sendFailed(e); } }
+}
+function blastsSendTo(c, mapId) {   // 1.6.0: what stands on the map a player comes to, told to them alone
+    if (typeof window === 'undefined' || typeof window.wpBlastsShown !== 'function' || typeof mapId !== 'string') return;
+    window.wpBlastsShown(mapId).forEach(function(b) { net.broadcastBlast(b.wire, mapId, b.charId, c); });
+}
 function combatsSendTo(c, was) {
     var pr = c && c.open && typeof c.peer === 'string' && net.roster && Object.prototype.hasOwnProperty.call(net.roster, c.peer) ? net.roster[c.peer] : null, loc = connMap(c); if (!pr) return;
+    if (typeof blastsSendTo === 'function') blastsSendTo(c, loc);
+    if (typeof fightFar === 'function') fightFar(c, pr, was, loc);
     if (!fightsOn(loc).length && !(typeof was === 'string' && was !== loc && fightsOn(was).length)) return;
     var go = function() { try { combatsTo(c, combatsFor(pr.id, loc)); } catch (e) { sendFailed(e); } };
     if (anyFog(getActiveCampaign()) && typeof fogLanded === 'function') fogLanded(null, go); else go();
@@ -5491,6 +5526,8 @@ net.ordersMoved = ordersMoved;
 function newFightId() { var id; do { id = 'f_'; while (id.length < 10) id += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36)); } while (orderById(id)); return id; }   // as a dated note's id is made
 // host: a fight started (fid null: a new one on combat.mapId), its roster changed (a roster edit keeps its round and its side), or ended (combat null).
 // The fight's id, or null
+var _fightWas = Object.create(null);   // 1.6.0: fight -> token -> the number it had when it was taken out, the host's memory alone
+net.fightWas = function(fid, tokId) { var f = _fightWas[fid]; return f && f[tokId] ? f[tokId] : null; };
 function fightSet(fid, combat) {
     if (net.role !== 'host') return null;
     var had = orderById(fid), mapId = had ? had.mapId : (combat && typeof combat === 'object' && typeof combat.mapId === 'string' && combat.mapId ? combat.mapId : null), f = null, tg = null;
@@ -5502,6 +5539,7 @@ function fightSet(fid, combat) {
         var first = !had && !fightsOn(mapId).length;   // the map's first fight: the marks are held from now
         if (!had) fid = newFightId();
         f = Object.assign({ id: fid }, f); f.n = had && typeof had.n === 'number' ? had.n : ++_fightN;
+        if (had) had.rows.forEach(function(r) { if (r && typeof r.tokId === 'string' && !f.rows.some(function(x) { return x && x.tokId === r.tokId; })) { var wn = _fightWas[fid] = _fightWas[fid] || Object.create(null); wn[r.tokId] = { init: r.init, rolled: r.rolled === 1 }; } });
         tg = fightTime(campNow(), had, f);   // fold 4: its own time (a new fight's, or a roster edit's), before it is stored
         net.combats[fid] = f;
         if (first && typeof marksStart === 'function') { try { marksStart(mapId); } catch (e) { console.error(e); } }   // senses S4b: everyone's marks held from the fight's start
@@ -6500,6 +6538,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (snapOk && typeof hidNoteAll === 'function') hidNoteAll();   // hidden pieces: the drawings of theirs the GM hid, which this copy lacks
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
     var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) { sendFailed(e); } net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
+    if (snapOk && typeof blastsSendTo === 'function') blastsSendTo(conn, connMap(conn));
     if (snapOk && typeof net.trackersForget === 'function') { net.trackersForget(conn.peer); trkSendTo(conn, Date.now()); }   // backlog 29: the table trackers this player may see, after their snapshot
     var mm = net.musicMessage(); if (mm) { try { conn.send(mm); } catch (e) { sendFailed(e); } net._lastMusicSig = musicSig(mm); }   // the hosted campaign's music library, to this peer only (before any control so its refs validate)
     var mc = window.wpMusic && window.wpMusic.controlSnapshot ? window.wpMusic.controlSnapshot() : null; if (mc) { mc.type = 'music-ctl'; try { conn.send(mc); } catch (e) { sendFailed(e); } }   // if the GM is driving the table's music now, catch this joiner up (fresh position)
@@ -7161,6 +7200,7 @@ function handleMessage(msg, conn) {
         var backS = conn.wpRetry === true && !conn.wpBackSaid; conn.wpBackSaid = true;
         toast(backS ? 'Reconnected ✓' : webJ ? 'Campaign synced from host.' : 'Campaign synced from host. Your own campaigns come back when you leave.');   // security (2026-10-01): a reconnect is said when the table is taken — once per connection, in place of the synced notice (the app shows one notice at a time) — never for a connection that merely opened (whoever answers at the code could raise it at every dial)
         if (window.wpVtt) window.wpVtt.joined();   // seed this table's off-list and queue the join notice
+        if (conn.wpRetry !== true) { var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'none'; }   // 1.6.0, found by hand: a join you began is done: the window stood open over the table
         net.videoWake();   // item 21 V2: a video the GM is showing, offered before this snapshot, is asked for now
         if (window.wpVoice) { try { window.wpVoice.tableReady(); } catch (e) {} }   // voice chat: a player who was in voice before a reconnect is back in it
     } else if (msg.type === 'item') {
@@ -8619,6 +8659,9 @@ function handleMessage(msg, conn) {
         if (typeof msg.refused === 'string') { var rfx = msg.refused.replace(/[ --​-‏‪-‮⁦-⁩]/g, ' ').slice(0, 200).trim(); if (rfx) toast(rfx); return; }
         var tvx = cleanTradeView(msg.view); if (tvx) tradeKeep(tvx);
         // [netcheck:tradestate-end]
+    } else if (msg.type === 'fightfar' && net.role === 'client') {
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || typeof msg.title !== 'string') return;
+        toast('You are still in the fight on ' + msg.title.slice(0, 80) + '.');
     } else if (msg.type === 'trigmsg' && net.role === 'client') {
         // [netcheck:trigmsg-start]
         // Secrets (R2): a trigger zone's message, said by the host when a token of theirs landed in a shown zone (triggerFire) — from the synced host
@@ -8758,6 +8801,14 @@ function giveUpAndRestore(msg) {
 // Players keep trying for about two minutes — long enough for a GM whose app
 // crashed to relaunch and press Host again (which reuses the same code).
 var RECONNECT_TRIES = 30;
+// [netcheck:rejoin-start]
+// 1.6.0: a reload at a table that finds no table is no failed join. The GM may be reloading too, so it goes on as a reconnect does, in place of
+// the advice about a relay server (found live). Armed by the reload alone, and let go by the table answering or by a join the player began
+var _rejoinBack = null;
+function rejoinArm(code, name) { _rejoinBack = typeof webJoinOnly === 'function' && webJoinOnly() ? null : { code: code, name: name }; }
+function rejoinDone() { _rejoinBack = null; }
+function rejoinKeep() { var b = _rejoinBack; _rejoinBack = null; if (!b) return false; reconn.code = b.code; reconn.name = b.name; reconn.tries = 0; reconn.gen = 0; scheduleReconnect(); return true; }
+// [netcheck:rejoin-end]
 function scheduleReconnect() {
     if (reconn.tries >= RECONNECT_TRIES) { giveUpAndRestore('Could not reconnect — the GM may have ended the session.'); return; }
     reconn.pending = true;
@@ -9252,6 +9303,7 @@ function joinSession(code, name, isRetry, probe) {
     code = typedCode(code);   // transport: a code typed or pasted in its two groups dials the same room (hyphen and spaces out, lower case)
     probe = probe || 0;                       // which generation this attempt targets
     if (!isRetry && !probe) cancelReconnect();
+    if (!isRetry && !probe && typeof rejoinDone === 'function') rejoinDone();
     if (!isRetry && !probe) ringReset();   // HF3: a new table's HUD history starts empty (a retry or a probe keeps it)
     leaveSession(true);
     if (!isRetry && !probe) joinTrustReset();   // security (2026-10-01): a join the player began — what the last one refused is forgotten (a yes the player just gave holds for this one)
@@ -9293,6 +9345,7 @@ function joinSession(code, name, isRetry, probe) {
             try { peer.destroy(); } catch (e) {}
             net.peer = null; net.conns = []; net.active = false; net.role = null; net.code = null;
             setIndicator(null);
+            if (!_joinTrust.refused && typeof rejoinKeep === 'function' && rejoinKeep()) return;
             var rfJ = _joinTrust.refused;   // security (2026-10-01): a table answered at this code, but not as the GM this app knows: that is what is said (in the app's own words), not the network advice
             if (rfJ) setStatus(rfJ.late ? HOST_LATE + ' You have not joined.' : SNAP_REFUSED + ' You have not joined.' + (rfJ.offer ? ' Join again to be asked whether to trust this table\u2019s GM.' : ''));
             else setStatus(why + ' This usually means your connection is behind carrier-grade NAT and the table needs a relay server: ask the GM to set one under Settings \u25B8 Relay server, then try again.');
@@ -9313,6 +9366,7 @@ function joinSession(code, name, isRetry, probe) {
             var wasRetry = reconn.pending;
             conn.wpBefore = wasRetry ? { tries: reconn.tries, gen: reconn.gen } : null;   // security (2026-10-01): where the reconnect stood, should this host turn out not to be the GM (snapRefuse)
             cancelReconnect();
+            if (typeof rejoinDone === 'function') rejoinDone();
             reconn.gen = gen;
             net.active = true;
             var pwIn = ui('netJoinPassInput');
@@ -9332,6 +9386,7 @@ function joinSession(code, name, isRetry, probe) {
             return;
         }
         if (_joinTrust.refused && nextGen && net.peer === peer && !net.active) { nextGen(); return; }   // security (2026-10-01): after a host this app refused, a generation that is not there is passed over at once (its seven seconds are for a host that may yet answer)
+        if (!net.active && typeof rejoinKeep === 'function' && rejoinKeep()) { try { peer.destroy(); } catch (e) {} return; }
         setStatus('Connection error: ' + err.type);
         if (net.fromWelcome && window.wpJoinFailed) window.wpJoinFailed();   // re-enable the welcome Join button (the error shows on that screen)
         toast('Could not reach that room (' + err.type + ').');
@@ -9358,6 +9413,7 @@ function leaveSession(silent) {
     var peerL = net.peer; net.peer = null; if (peerL) { try { peerL.destroy(); } catch (e) {} }   // transport: let go of first — destroy() says "disconnected" on its way down, and a peer this table has let go of is never registered again
     net.conns = []; net.roster = Object.create(null); if (!silent) net.away = Object.create(null); net.active = false; net.role = null; net.code = null; net.roomPeer = null; net.lastStage = null;   // a reconnect retry (silent) keeps the away map: tokens stay on their last-known maps while it retries
     diceSessionReset(!silent);   // a deliberate leave or end clears the chat panel too; a retry keeps it
+    if (!silent && typeof tradeLost === 'function') tradeLost('The table ended, so the trade ended.');
     // do not null net.stance / net.stanceCamps / net.gmId here — joinSession calls leaveSession(true) on every retry,
     // and the GM's campaign stays on screen until load() brings the player's own back; load() is the one clear point
     net.syncedPeer = null;
@@ -10604,6 +10660,7 @@ setTimeout(function() {
                 toast('Refreshed — rejoining the table…');
                 if (typeof webJoinOnly === 'function' && webJoinOnly()) net.fromWelcome = true;   // 1.5.5: on a website whose plan joins tables alone the welcome's Join a game is up, and what the rejoin says goes to its line
                 joinSession(j.code, j.name);
+                if (typeof rejoinArm === 'function') rejoinArm(j.code, j.name);
             }
         } catch (e) {}
     } else if (rh) {

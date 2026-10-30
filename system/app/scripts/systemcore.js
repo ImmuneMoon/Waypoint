@@ -7273,7 +7273,7 @@ function charTokenOn(map, charId, ownerId, opts) {
 // these derive. The legacy name binding (players[pid].charName) is read only for a player who owns no character.
 var LAYER_Z = Object.freeze({ back: 10, 'back-mid': 15, middle: 20, 'front-mid': 25, front: 30 });
 function hasOwn(o, k) { return !!o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k); }
-function stackZ(w) { var z = hasOwn(LAYER_Z, w.layer) ? LAYER_Z[w.layer] : (fin(Number(w.z)) && Number(w.z) ? Number(w.z) : 10); return w.aboveGrid ? z + 15020 : z; }   // the map's own stacking (whiteboard.js)
+function stackZ(w) { var z = hasOwn(LAYER_Z, w.layer) ? LAYER_Z[w.layer] : (fin(Number(w.z)) && Number(w.z) ? Number(w.z) : (w.isChar ? 20 : 10)); return w.aboveGrid ? z + 15020 : z; }   // the map's own stacking (whiteboard.js)
 function playerRec(camp, pid) { var ps = camp && isObj(camp.players) ? camp.players : null; return ps && hasOwn(ps, pid) && isObj(ps[pid]) ? ps[pid] : null; }
 function mapsOf(camp) { var out = []; if (camp && isObj(camp.items)) Object.keys(camp.items).forEach(function(k) { var m = camp.items[k]; if (isObj(m) && m.type === 'map' && Array.isArray(m.whiteboard)) out.push(m); }); return out; }
 function charsIn(camp) { return camp && isObj(camp.chars) ? camp.chars : {}; }

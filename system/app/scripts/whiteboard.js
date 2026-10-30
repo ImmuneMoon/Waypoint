@@ -778,7 +778,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
           el.style.height = item.h + 'px';
 
-          var z = item.z || 10;
+          var z = item.z || (item.isChar ? 20 : 10);   // 1.6.0, found by hand: a token with no layer stands with the tokens, never at a picture's height
 
           var layerZ = { 'back': 10, 'back-mid': 15, 'middle': 20, 'front-mid': 25, 'front': 30 };
 
@@ -4223,6 +4223,7 @@ window.wpFitToGrid = fitToGrid;
   window.wpRulerUnit = function() { return rulerUnitNow() + '|' + rulerImpNow(); };   // ... and that unit with the one its metres are turned from, so the sheet is drawn again on a map in another unit
   window.wpRefreshBlasts = function() { if (blasts.length || _blastHitIds.length || measures.length) renderMeasures(); };   // and the rulers placed: their words read the tokens they end on (a posture, a height) and the table's switches
   window.wpBlasts = function() { return blasts; };   // sandbox testing hook
+  window.wpBlastsShown = function(mapId) { return blasts.filter(function(b) { return !!b.wire && b.wireMap === mapId; }).map(function(b) { return { wire: b.wire, charId: b.wireChar }; }); };   // 1.6.0: what the table was told is standing on that map, for one who comes to it after
   window.wpFightBlastsGo = function(mapId) {   // 1.6.0: the last fight on a map is over: the circles of what was thrown there go on every screen. The Radius tool's own stay, and one that waits on its fuse
       var had = blasts.length, fz = typeof _fused !== 'undefined' ? _fused : [];
       blasts = blasts.filter(function(b) { return ownCircle(b) || fz.some(function(f) { return f.b === b; }); });
@@ -4309,7 +4310,7 @@ window.wpFitToGrid = fitToGrid;
       var seatB = window.wpFog && window.wpFog.blastSeat ? window.wpFog.blastSeat(map, b.x, b.y, thrB ? thrB.x + (thrB.w || 60) / 2 : opts.x, thrB ? thrB.y + (thrB.h || 52) / 2 : opts.y) : null;   // a blast can't go off inside a wall or a closed door: it goes off in front, on the thrower's side
       if (seatB) { b.x = seatB.x; b.y = seatB.y; if (b.autoElev) { var underB = tokenAtPoint(map, b.x, b.y, true); b.elev = underB ? tokenElevation(underB, map, true) : groundAt(map, b.x, b.y, true); } }
       if (onScreen) { pushBlast(b); renderMeasures(); syncBlastMenu(); }
-      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: opts.gmOnly ? '' : b.name, elev: b.elev, by: b.by }, map.id, opts.charId);   // a GM-only item's blast reaches players unnamed
+      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) { b.wire = { x: b.x, y: b.y, ft: b.ft, name: opts.gmOnly ? '' : b.name, elev: b.elev, by: b.by }; b.wireMap = map.id; b.wireChar = opts.charId; window.wpNet.broadcastBlast(b.wire, map.id, opts.charId); }   // a GM-only item's blast reaches players unnamed
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
       var rw = typeof blastSize === 'function' && typeof rulerUnitNow === 'function' ? blastSize({ ft: b.ft }, rulerUnitNow(), typeof rulerImpNow === 'function' ? rulerImpNow() : '') : 'Radius ' + b.ft + ' ft';   // in the ruler's unit, as its label (1.5.4): in metres as the sheet says a measure
       toast((opts.goOff ? (b.name || 'A mine') + (pre && pre.fuse ? ' lands' : ' goes off') : (b.by ? b.by + ' throws ' : 'Thrown: ') + (b.name || 'a blast')) + ', ' + rw.charAt(0).toLowerCase() + rw.slice(1) + '. ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.' + (pre ? pre.said : '') + (seatB ? ' It went off in front of the wall or door it hit.' : '') + (onScreen ? '' : (pre && pre.fuse ? ' It is on ' : ' It went off on ') + ((map.meta && map.meta.title) || map.title || 'another map') + '.'));
@@ -5015,7 +5016,7 @@ window.wpFitToGrid = fitToGrid;
       blasts.splice(at, 1, b);   // the shape becomes the blast, where it stood
       if (typeof circleRekept === 'function') circleRekept();
       renderMeasures(); syncBlastMenu();
-      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast(sent, map.id);
+      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) { b.wire = sent; b.wireMap = map.id; window.wpNet.broadcastBlast(sent, map.id); }
       var n = blastDistances(b, map).filter(function(r) { return shapeHolds(b, r); }).length, said = 'Explosion, ' + q.type + '. ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.';
       if (!rolled) { toast(said + (auto === 'measure' ? ' Nothing was rolled. This system\u2019s blasts only measure.' : ' Nothing was rolled. Dice are off.')); return true; }
       if (auto !== 'full') { toast(said); return true; }
@@ -9704,10 +9705,10 @@ function gmFightDo(map, m, act) {
     ids.forEach(function(f) { if (n.combats[f].rows.some(function(r) { return !!r && typeof r.tokId === 'string' && out[r.tokId] === 1; })) gmFightPut(n, map, f, null, out); });   // each fight that holds a token of the selection
     return true;
 }
-function gmFightPut(n, map, fid, add, out) {   // that fight with the tokens added at the end of its order, or those out taken out (its last row taken out ends it, asked first)
+function gmFightPut(n, map, fid, add, out) {   // that fight with the tokens added at the end of its order (one coming back by its number), or those out taken out (its last row taken out ends it, asked first)
     var c = n.combats[fid]; if (!c || !Array.isArray(c.rows)) return false;
     var rows = c.rows.map(function(r) { var o = { id: r.id, name: r.name, tokId: r.tokId, init: r.init, src: r.src }; if (r.rolled === 1) o.rolled = 1; if (Array.isArray(r.tb)) o.tb = r.tb; if (r.held === 1) o.held = 1; return o; }), curId = (c.rows[c.turn] || {}).id;
-    if (add) add.forEach(function(w) { rows.push({ id: 'r' + w.id, name: w.charName || w.name || 'Unnamed', tokId: w.id, init: 0, src: w.src || null }); });
+    if (add) add.forEach(function(w) { var was = typeof n.fightWas === 'function' ? n.fightWas(fid, w.id) : null, o = { id: 'r' + w.id, name: w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, src: w.src || null }; if (was && was.rolled) o.rolled = 1; var low = was ? rows.findIndex(function(r) { return !(Number(r.init) >= o.init); }) : -1; if (low >= 0) rows.splice(low, 0, o); else rows.push(o); });   // one coming back stands where its number puts it, the row on turn kept below
     if (out) { rows = rows.filter(function(r) { return !(typeof r.tokId === 'string' && out[r.tokId] === 1); }); if (!rows.length) { n.fightEnd(fid); return true; } }
     var at = rows.findIndex(function(r) { return r.id === curId; });
     n.fightSet(fid, { mapId: map.id, round: c.round, turn: at >= 0 ? at : Math.min(c.turn, rows.length - 1), rows: rows });

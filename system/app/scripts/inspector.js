@@ -1068,11 +1068,11 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               '<div class="field"><label for="wbRot">Rotation</label><div style="display:flex; gap:8px;"><input type="range" id="wbRot" min="-180" max="180" value="'+num(w.rot, 0)+'" style="flex:1"><input type="number" id="wbRotNum" value="'+num(w.rot, 0)+'" style="width:60px" aria-label="Rotation degrees"></div></div>'+
               '<div class="field"><label for="wbLayer">Layer</label>'+
               '<select id="wbLayer">'+
-              '<option value="front"'+(w.layer==='front'?' selected':'')+'>Front Layer (Above all)</option>'+
-              '<option value="front-mid"'+(w.layer==='front-mid'?' selected':'')+'>Front-Mid Layer</option>'+
-              '<option value="middle"'+((w.layer||'middle')==='middle'?' selected':'')+'>Middle Layer (Default)</option>'+
-              '<option value="back-mid"'+(w.layer==='back-mid'?' selected':'')+'>Back-Mid Layer</option>'+
-              '<option value="back"'+(w.layer==='back'?' selected':'')+'>Back Layer (Background)</option>'+
+              '<option value="front"'+(layerNow(w)==='front'?' selected':'')+'>Front Layer (Above all)</option>'+
+              '<option value="front-mid"'+(layerNow(w)==='front-mid'?' selected':'')+'>Front-Mid Layer</option>'+
+              '<option value="middle"'+(layerNow(w)==='middle'?' selected':'')+'>Middle Layer (Tokens)</option>'+
+              '<option value="back-mid"'+(layerNow(w)==='back-mid'?' selected':'')+'>Back-Mid Layer</option>'+
+              '<option value="back"'+(layerNow(w)==='back'?' selected':'')+'>Back Layer (New pieces)</option>'+
               '</select></div>'+
               '<div class="field check-row"><input type="checkbox" id="wbLock" '+(w.locked?'checked':'')+'> <label for="wbLock">Locked (Prevent drag & resize)</label></div>'+
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? '<div class="field check-row"><input type="checkbox" id="wbBlocksSight" '+(w.blocksSight?'checked':'')+'> <label for="wbBlocksSight">'+(w.type === 'path' ? 'Blocks sight (a wall along the line)' : 'Blocks sight (wall / pillar)')+'</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">'+(w.type === 'path' ? 'Fog vision (and each player&rsquo;s view), light, cover and players&rsquo; moves stop at the line itself, a thin wall between cells.' : 'Fog vision (and each player&rsquo;s view) stops at the cells its outline covers, turned as it is drawn.')+' Needs fog on for the map.</div>' : '')+   // item 18 W2: a pen line
@@ -2047,6 +2047,12 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // Unticked on a token that still carries the tick (a save from before the refusal): the tick goes, so no secret door comes back, open
   // door and all, where the players held a door all along. A hidden secret door has neither the Secret tick nor the Reveal row on
   // screen, so its refusal names what it does offer
+  // Where a piece really stands, as the board stacks it (1.6.0, found by hand: a picture with no layer stood under the tokens while this list said Middle)
+  function layerNow(w) {
+      if (w && (w.layer === 'front' || w.layer === 'front-mid' || w.layer === 'middle' || w.layer === 'back-mid' || w.layer === 'back')) return w.layer;
+      var z = Number(w && w.z) || (w && w.isChar ? 20 : 10); if (w && w.type === 'path') z = Math.max(z, 35);
+      return z >= 30 ? 'front' : z >= 25 ? 'front-mid' : z >= 20 ? 'middle' : z >= 15 ? 'back-mid' : 'back';
+  }
   function secretCharOk(w, on) {
       if (!w || typeof w !== 'object') return true;
       if (!on) { if (w.isChar && w.secret !== undefined) delete w.secret; return true; }

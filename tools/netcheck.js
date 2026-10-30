@@ -7360,6 +7360,16 @@ pendingChecks.push((async () => {
         check('a reload by the browser\'s own key comes back to the table as the app\'s Refresh does (found live, 2026-10-30: F5 left a player at the welcome screen): the page going away marks a player\'s rejoin with their code, name and password, a host\'s return, and nothing once they left the table; the button and the page\'s going away ask the one function',
             j(JSON.parse(markC.wp_rejoin)) === j({ code: 'ABCDEFGHJK', name: 'Kael', pass: 'pw' }) && !('wp_rehost' in markC) && markH.wp_rehost === '1' && !('wp_rejoin' in markH) && j(markN) === '{}'
             && src.includes("window.addEventListener('pagehide', refreshMark);") && src.includes('function refreshNow() { refreshMark(); location.reload(); }') && src.includes("_refreshBtn.addEventListener('click', refreshGo);"), j([markC, markH, markN]));
+        {   // a reload at a table that finds no table goes on as a reconnect does, the rejoin slice run for real
+            const rjS = src.slice(src.indexOf('// [netcheck:rejoin-start]'), src.indexOf('// [netcheck:rejoin-end]'));
+            const mkR = joinOnly => { const reconn = { tries: 7, gen: 2 }, log = []; const f = new Function('reconn', 'scheduleReconnect', 'webJoinOnly', rjS + '\nreturn { arm: rejoinArm, done: rejoinDone, keep: rejoinKeep };')(reconn, () => log.push('again'), () => joinOnly); return { f, reconn, log }; };
+            const R1 = mkR(false); const none = R1.f.keep(); R1.f.arm('ABCDEFGHJK', 'Kael'); const kept = R1.f.keep(), twice = R1.f.keep();
+            const R2 = mkR(false); R2.f.arm('ABCDEFGHJK', 'Kael'); R2.f.done(); const answered = R2.f.keep();
+            const R3 = mkR(true); R3.f.arm('ABCDEFGHJK', 'Kael'); const web = R3.f.keep();
+            check('a reload at a table that finds no table goes on as a reconnect does, from its first try and once, never for a join the player began, once the table answers, or on a website whose plan joins tables alone',
+                none === false && kept === true && twice === false && R1.log.length === 1 && R1.reconn.code === 'ABCDEFGHJK' && R1.reconn.name === 'Kael' && R1.reconn.tries === 0 && R1.reconn.gen === 0 && answered === false && R2.log.length === 0 && web === false
+                && src.includes("if (!_joinTrust.refused && typeof rejoinKeep === 'function' && rejoinKeep()) return;") && src.includes("if (!net.active && typeof rejoinKeep === 'function' && rejoinKeep())") && src.includes("if (!isRetry && !probe && typeof rejoinDone === 'function') rejoinDone();") && src.includes("if (typeof rejoinArm === 'function') rejoinArm(j.code, j.name);"), j([R1.reconn, R1.log]));
+        }
         {   // a trade's steps (found live: Confirm pressed right after a number was dropped, since the two arrive together)
             const m = /allow\('trade', (\{ perMs: \d+, burst: \d+, windowMs: \d+, table: \d+ \})/.exec(src), Dt = await import(require('url').pathToFileURL(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dicecore.js')).href);
             const cfg = m ? new Function('return ' + m[1])() : {}, rl = Dt.RateLimit(cfg), got = []; for (let i = 0; i < 21; i++) got.push(rl.allow('p', 1000));
@@ -7438,7 +7448,7 @@ pendingChecks.push((async () => {
                 const hist = fnN.historyBare([{ roll: rec }, { roll: recP }, { text: 'hello' }]);
                 check('1.6.0 an NPC a player cannot see goes unnamed on the table\'s cards: the name stands only for a player who sees one of its tokens on the map they are on (never a hidden token, one their fog drops or another map), a player\'s character is named to all, the host\'s own record keeps it, and a latecomer\'s history drops it',
                     j(npcAs) === j([['Hanharr'], [null], [null], [null]].map(x => x[0] === null ? [undefined] : x)) && j(plAs) === j([['Ava'], ['Ava'], ['Ava'], ['Ava']]) && rec.as === 'Hanharr' && !('as' in hist[0].roll) && hist[1].roll === recP && hist[2].text === 'hello', j([npcAs, plAs]));
-                const bbS = src.slice(src.indexOf('net.broadcastBlast = function(blast, mapId, charId)'), src.indexOf('// [netcheck:blast-end]')), sentB = [], connsB = [{ open: true, peer: 'a', send: m => sentB.push(['a', m.blast.by]) }, { open: true, peer: 'b', send: m => sentB.push(['b', m.blast.by]) }];
+                const bbS = src.slice(src.indexOf('net.broadcastBlast = function(blast, mapId, charId, only)'), src.indexOf('// [netcheck:blast-end]')), sentB = [], connsB = [{ open: true, peer: 'a', send: m => sentB.push(['a', m.blast.by]) }, { open: true, peer: 'b', send: m => sentB.push(['b', m.blast.by]) }];
                 const netB = { active: true, role: 'host', conns: connsB, roster: { a: { id: 'p_a', location: 'm1' }, b: { id: 'p_b', location: 'm1' } } };
                 new Function('net', 'getActiveCampaign', 'sendFailed', 'npcShown', bbS)(netB, () => ({ id: 'k', chars: campN.chars }), () => {}, (c, ch, p) => p.id === 'p_a');
                 netB.broadcastBlast({ x: 1, y: 2, ft: 9, by: 'Hanharr' }, 'm1', 'c_npc');
@@ -8904,7 +8914,7 @@ pendingChecks.push((async () => {
         check('senses S0 (source): each of the three funnels every character change leaves by calls the hook as its first statement after its host test — syncChars for any character, syncChar and syncCharDelta for the one that changed, ahead of whatever turns a change away — and nothing else in net.js calls it but a change of the rules for new players',
             /net\.syncChars = function\(\) \{[^\n]*\n    if \(!net\.active \|\| net\.role !== 'host'\) return;\n    if \(net\.sensesMoved\) net\.sensesMoved\(null\);\n/.test(src)
             && /net\.syncChar = function\(id\) \{[^\n]*\n    if \(!net\.active \|\| net\.role !== 'host'\) return;\n    if \(net\.sensesMoved\) net\.sensesMoved\(id\);\n/.test(src)
-            && /net\.syncCharDelta = function\(id, values\) \{[^\n]*\n    if \(!net\.active \|\| net\.role !== 'host'\) return;\n    if \(net\.sensesMoved\) net\.sensesMoved\(id\);[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(id\);[^\n]*\n    var camp = getActiveCampaign\(\), S = SC\(\); if \(/.test(src)
+            && /net\.syncCharDelta = function\(id, values\) \{[^\n]*\n    if \(!net\.active \|\| net\.role !== 'host'\) return;\n    if \(net\.sensesMoved\) net\.sensesMoved\(id\);[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(id\);[^\n]*\n    if \(typeof tradeMoved === 'function'\) tradeMoved\(id\);[^\n]*\n    var camp = getActiveCampaign\(\), S = SC\(\); if \(/.test(src)
             && (srcC.match(/sensesMoved\(/g) || []).length === 4 && (srcC.replace(nsS2.replace(/\/\/[^\n]*/g, ''), '').match(/sensesMoved\(/g) || []).length === 3 && (srcC.match(/net\.sensesMoved = function\(charId\) \{/g) || []).length === 1 && (srcC.match(/sensesFire\(/g) || []).length === 2);
     }
 
@@ -17993,13 +18003,27 @@ pendingChecks.push((async () => {
             const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { charChanged(id) { out.changed.push(id); } }, wpNotices: { wait: (k) => { out.waits.push(k); return true; }, done: (k) => { out.dones.push(k); } }, dispatchEvent: e => out.gm.push(e.detail) };
             function CustomEvent(type, init) { this.type = type; this.detail = init.detail; }
             const api = new Function('net', 'SC', 'window', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'logEvent', 'pushChat', 'CustomEvent', 'allow', 'peerPaused', 'toast',
-                apiT + '\nreturn { tradeDo: tradeDo, tradeConnGone: tradeConnGone, trades: function() { return _trades; }, cleanTradeView: cleanTradeView, tradeKeep: tradeKeep,\n' +
+                apiT + '\nreturn { tradeMoved: tradeMoved, tradeLost: tradeLost, tradeDo: tradeDo, tradeConnGone: tradeConnGone, trades: function() { return _trades; }, cleanTradeView: cleanTradeView, tradeKeep: tradeKeep,\n' +
                 ' branch: function(msg, conn) { if (msg.type === "trade" && net.role === "host") {\n' + brT + '\n} },\n client: function(msg, conn) { if (msg.type === "tradeState" && net.role === "client") {\n' + stT + '\n} } };')(
                 net, () => Sx, win, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), (k, tx) => out.logs.push([k, tx]), m => out.chat.push(JSON.parse(JSON.stringify(m))), CustomEvent,
                 (name, cfg, peer) => o.limit !== true, () => false, m => out.toasts = (out.toasts || []).concat([m]));
             return { camp, out, net, api, conns };
         };
         const st = l => l.filter(m => m.type === 'tradeState').map(m => m.view ? m.view.status + ':' + m.view.you : 'refused:' + m.refused);
+        {   // 1.6.0, found by hand: the GM took away a row on offer and the window went on showing it until a Confirm was refused
+            const M = mkW(), B = M.api; M.net.syncCharDelta = id => B.tradeMoved(id);
+            B.branch({ type: 'trade', op: 'ask', from: 'c_1', to: 'c_3' }, M.conns[0]); const tidM = Object.keys(B.trades())[0]; B.tradeDo({}, { op: 'answer', tid: tidM, yes: true });
+            B.tradeDo({}, { op: 'put', tid: tidM, offer: [{ fid: 'f_gear', rowId: 'w_g1', qty: 2 }] }); B.branch({ type: 'trade', op: 'confirm', tid: tidM, on: true }, M.conns[0]);
+            const n0 = M.out.a.length; M.camp.chars.c_1.values.f_gear = [{ id: 'w_x', defId: 'i_lamp', qty: 1 }]; B.tradeMoved('c_1'); const quiet = M.out.a.length === n0;
+            M.camp.chars.c_3.values.f_gear = [{ id: 'w_g1', defId: 'i_lamp', qty: 1 }, { id: 'w_g2', defId: 'i_gm', qty: 1 }]; B.tradeMoved('c_3'); const less = M.out.a.filter(m => m.view).slice(-1)[0].view;
+            B.branch({ type: 'trade', op: 'confirm', tid: tidM, on: true }, M.conns[0]); M.camp.chars.c_3.values.f_gear = []; B.tradeMoved('c_3'); const gone = M.out.a.filter(m => m.view).slice(-1)[0].view;
+            check('a trade window follows a row on offer (tradeMoved, run for real): a change to a row not on offer says nothing and clears no confirm; a row on offer that shrinks clears both confirms and says to confirm again; one that goes leaves the table in the window, as the host reads it',
+                quiet && less.a.ok === false && /confirm again/.test(less.msg || '') && gone.b.lines.length === 0 && gone.a.ok === false, j([quiet, less.msg, gone.b.lines]));
+            const D = mkW(), E = D.api; D.net.syncCharDelta = id => E.tradeMoved(id);
+            E.branch({ type: 'trade', op: 'ask', from: 'c_1', to: 'c_3' }, D.conns[0]); const tidD = Object.keys(E.trades())[0]; E.tradeDo({}, { op: 'answer', tid: tidD, yes: true }); E.tradeDo({}, { op: 'put', tid: tidD, offer: [{ fid: 'f_gear', rowId: 'w_g1', qty: 2 }] });
+            E.branch({ type: 'trade', op: 'confirm', tid: tidD, on: true }, D.conns[0]); E.tradeDo({}, { op: 'confirm', tid: tidD, on: true }); const lastD = D.out.a.filter(m => m.view).slice(-1)[0].view;
+            check('a trade that completes is not told its own rows changed: it ends done, with no word to confirm again', lastD.status === 'done' && !/confirm again/.test(lastD.msg || '') && Object.keys(E.trades()).length === 0, j(lastD));
+        }
         // a player asks the GM's NPC, the GM answers, both put and confirm
         const W = mkW(), A = W.api;
         A.branch({ type: 'trade', op: 'ask', from: 'c_1', to: 'c_3' }, W.conns[0]);
@@ -18090,6 +18114,10 @@ pendingChecks.push((async () => {
         check('1.5.6 trading (a player\'s app): a host\'s view taken from the synced host alone and cleaned again, ids by their patterns, names as text, numbers as numbers, an ok only as true; a view that is no view kept as nothing; a refusal said as plain text',
             fromOther === 0 && kept.tid === 't_abcdefgh' && kept.a.lines[0].price === 20 && bad.every(b => b === null) && ugly.a.name === '<b>K </b>' && ugly.a.ok === false && ugly.a.lines.length === 1 && ugly.a.lines[0].qty === 2 && ugly.a.lines[0].price === undefined && j(Cl.out.toasts) === j(['Nope .']),
             j([kept, ugly, Cl.out.toasts]));
+        const Lo = mkW({ role: 'client' }); Lo.api.client({ type: 'tradeState', view: good }, host); Lo.api.tradeLost('Gone.'); Lo.api.tradeLost('Again.');
+        const loE = Lo.out.gm.slice(-1)[0], loN = Lo.out.gm.filter(v => v.status === 'cancelled').length;
+        check('1.6.0 trading: a trade open on a player\'s screen when its connection went ends there once, with the words given; a table taken afresh and a table left each say so',
+            loE.status === 'cancelled' && loE.msg === 'Gone.' && loE.tid === 't_abcdefgh' && loN === 1 && /tradeLost\('The connection dropped/.test(nsT) && /if \(!silent && typeof tradeLost === 'function'\)/.test(nsT), j(Lo.out.gm));
         check('1.5.6 trading (pinned): one host branch for trade, its step judged in one place (tradeDo), the GM\'s side local; a trade ends with a player\'s last connection and a new table starts with none',
             (nsT.match(/msg\.type === 'trade' && net\.role === 'host'/g) || []).length === 1 && nsT.indexOf("if (net.role === 'host' && typeof fogDragSweep === 'function') fogDragSweep();") >= 0 && /tradeConnGone\(p\.id\);/.test(nsT) && /diceSessionReset\(true\);[^\n]*\n\s*if \(typeof tradeForget === 'function'\) tradeForget\(\);/.test(nsT));
     })());
@@ -18672,6 +18700,29 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
     }
     check('1.6.0 On.<name> on the host (source): a player\'s press and a player\'s roll read the one it is used on through THEIR view of the system (no GM-only field of the other reaches a formula of theirs), the GM\'s own roll through the system; each in that token\'s own context',
         src.includes("varsA = Sa.withOnSelf(varsA, !onA, onA ? Sa.makeResolver(viewA, onA.ch, Fa,") && src.includes("varsQ = SQ.withOnSelf(varsQ, !onQ, onQ && viewQ ? SQ.makeResolver(viewQ, onQ.ch, Fq,") && src.includes("varsR = SR.withOnSelf(varsR, !onR, onR ? SR.makeResolver(campR.system, onR.ch, F,"));
+    {   // 1.6.0, found by hand on a live table
+        const flat = src.split('\r\n').join('\n'), cutN = (a, b) => { const i = flat.indexOf(a), k = flat.indexOf(b, i); if (i < 0 || k < 0) throw new Error('slice ' + a); return flat.slice(i, k); };
+        const farS = cutN('function fightFar(c, pr, was, loc) {', 'function combatsSendTo(c, was) {'), said = [], blasts = [];
+        const camp = { items: { m1: { meta: { title: 'Upper Deck' }, whiteboard: [{ id: 't1', charId: 'c1' }, { id: 't2', charId: 'c2' }] } }, chars: { c1: { ownerId: 'p1' }, c2: { ownerId: 'p2' } } };
+        const nF = { combats: { f1: { rows: [{ tokId: 't1' }] } }, broadcastBlast: (w, m, ch, only) => blasts.push([w.x, m, ch, only && only.peer]) };
+        const winF = { wpBlastsShown: m => (m === 'm1' ? [{ wire: { x: 7 }, charId: 'c9' }] : []) };
+        const far = new Function('net', 'getActiveCampaign', 'fightsOn', 'sendFailed', 'window', farS + '\nreturn { fightFar: fightFar, blastsSendTo: blastsSendTo };')(nF, () => camp, m => (m === 'm1' ? ['f1'] : []), () => {}, winF), cF = { peer: 'pc', send: m => said.push(m) };
+        far.fightFar(cF, { id: 'p1' }, 'm1', 'm2'); far.fightFar(cF, { id: 'p2' }, 'm1', 'm2'); far.fightFar(cF, { id: 'p1' }, 'm1', 'm1'); far.fightFar(cF, { id: 'p1' }, undefined, 'm2'); far.fightFar(cF, { id: 'p1' }, 'gone', 'm2');
+        check('a player who leaves a map with their token still in its fight is told, by the map\'s name (fightFar, run for real): nobody else, nobody who stayed, no word for a first landing or a map that is gone',
+            said.length === 1 && said[0].type === 'fightfar' && said[0].title === 'Upper Deck', JSON.stringify(said));
+        far.blastsSendTo(cF, 'm1'); far.blastsSendTo(cF, 'm2'); far.blastsSendTo(cF, 7);
+        check('one who comes to a map is told what the table was told stands there, alone (blastsSendTo, run for real): as it was sent, with its thrower so that an unseen NPC stays unnamed, and nothing for a map with none',
+            JSON.stringify(blasts) === JSON.stringify([[7, 'm1', 'c9', 'pc']]) && flat.includes('if ((!only || c === only) && c.open && net.roster[c.peer] && net.roster[c.peer].location === mapId)'), JSON.stringify(blasts));
+        const brS = cutN("    } else if (msg.type === 'fightfar' && net.role === 'client') {", "    } else if (msg.type === 'trigmsg' && net.role === 'client') {").replace('    } else if', 'if') + '}', toasts = [];
+        const runB = (m, n, c) => new Function('msg', 'net', 'conn', 'toast', brS)(m, n, c, t => toasts.push(t));
+        const okN = { role: 'client', foreign: true, syncedPeer: 'h', stream: false };
+        runB({ type: 'fightfar', title: 'Deck' }, okN, { peer: 'h' }); runB({ type: 'fightfar', title: 'Deck' }, okN, { peer: 'x' }); runB({ type: 'fightfar', title: 7 }, okN, { peer: 'h' }); runB({ type: 'fightfar', title: 'Deck' }, Object.assign({}, okN, { stream: true }), { peer: 'h' });
+        check('a player\'s app says the word from the synced host alone, as text, never in the stream window', JSON.stringify(toasts) === JSON.stringify(['You are still in the fight on Deck.']), JSON.stringify(toasts));
+        const wasS = cutN('var _fightWas = Object.create(null);', 'function fightSet(fid, combat) {'), nW = {}; const wasF = new Function('net', wasS + '\nreturn _fightWas;')(nW); wasF.f1 = Object.create(null); wasF.f1.t1 = { init: 9, rolled: true };
+        check('the host remembers what a token held when it left a fight (net.fightWas): by fight and token, nothing else answered, and the stored rows are noted as a roster edit drops them',
+            nW.fightWas('f1', 't1').init === 9 && nW.fightWas('f1', 'zz') === null && nW.fightWas('f9', 't1') === null && flat.includes('wn[r.tokId] = { init: r.init, rolled: r.rolled === 1 };'));
+        check('a join the player began closes the Multiplayer window; a reconnect leaves it as it stands', flat.includes("if (conn.wpRetry !== true) { var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'none'; }"));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

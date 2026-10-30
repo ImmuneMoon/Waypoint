@@ -194,8 +194,24 @@ Systems, more
 - The top row stays on one line in more window sizes when a fight starts.
 - A portal's small picture of a map shows that map's pictures on a
   player's screen too.
-- A shape ticked Is Character stands with the tokens, so a picture laid
-  later no longer covers it.
+- A token always stands over pictures and shapes on the default layer,
+  a double-click on a picture over a token opens the token, and the Layer
+  list says where a piece really stands.
+- A trade window follows a row on offer that changes, and says to confirm
+  again.
+- A trade window closes when its table goes or its connection drops, and the
+  list to add from keeps its place as a row goes on the table.
+- A player who reloads while the GM's table cannot be found keeps trying, as
+  a dropped connection does, and is not told to set up a relay server.
+- The desktop app keeps its pace while its window is minimised or covered, so
+  a GM who looks at something else no longer loses the table.
+- A token taken out of a fight and added back keeps its initiative and stands
+  where that number puts it.
+- A player who leaves a map with their token still in a fight is told so.
+- A player who joins or arrives on a map sees the blast circles standing
+  there.
+- A map opened in the Play view comes back in it after a reload.
+- The Multiplayer window closes once a join is done.
 - In the Combat window the rows wait until you leave the list to sort, so
   numbers typed down the list stay in their boxes.
 - Joining a table just after the GM's app reloaded waits longer for it, so

@@ -414,7 +414,8 @@ waitForInstanceLock(8000, function() {
                 // The renderer is a web page and nothing more: no Node, isolated context, OS sandbox. These are
                 // Electron's defaults for a window without a preload, stated here so an Electron upgrade can never
                 // quietly change them — content from another table or an imported file runs with web powers only.
-                webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, webviewTag: false }
+                // A window that is minimised or covered keeps its timers at full pace: it holds a live table, and a GM's window held back loses its players and turns new ones away.
+                webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, webviewTag: false, backgroundThrottling: false }
             });
             win.loadURL(`http://localhost:${port}`);
         });

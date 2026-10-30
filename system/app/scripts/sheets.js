@@ -6644,6 +6644,20 @@ function refreshErrors() {
         if (!r || typeof r !== 'object' || r.dmg !== true || typeof r.dmgMajorIf !== 'string' || !r.dmgMajorIf.trim()) return;
         var cm = (clean.rolls || []).filter(function(x) { return x && x.id === r.id; })[0]; if (cm && !cm.dmgMajorIf) (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'dmgMajorIf', message: 'This is no formula Save can keep, so Save drops it.' });
     });
+    var p2Says = function(r, cr, push) {   // 1.6.0 (B3): a second part Save cannot keep, and its type or armour divisor where no part is kept
+        if (!r || typeof r !== 'object' || r.dmg !== true || !cr) return;
+        var has = function(k) { return typeof r[k] === 'string' && !!r[k].trim(); };
+        if (has('dmg2') && !cr.dmg2) push('dmg2', 'This is no formula Save can keep, so Save drops it.');
+        else if (!has('dmg2') && (has('dtype2') || has('ad2'))) push('dmg2', 'A second part\u2019s type and armour divisor need its formula, so Save drops them.');
+        else if (has('dtype2') && cr.dmg2 && !cr.dtype2) push('dmg2', 'Its type is no formula Save can keep, so Save drops it.');
+        if (has('ad2') && cr.dmg2 && !cr.ad2) push('ad2', 'This is no formula Save can keep, so Save drops it.');
+    };
+    (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) { var cp2 = r && typeof r === 'object' ? (clean.rolls || []).filter(function(x) { return x && x.id === r.id; })[0] : null; p2Says(r, cp2, function(p, m) { (errorsById[r.id] = errorsById[r.id] || []).push({ prop: p, message: m }); }); });
+    draft.fields.forEach(function(f) {   // and a list roll's, alike
+        var cf2 = f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls) ? (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0] : null, cr2 = cf2 && cf2.list && Array.isArray(cf2.list.rolls) ? cf2.list.rolls : null;
+        if (!cr2 || cr2.length !== f.list.rolls.length) return;
+        f.list.rolls.forEach(function(r, i) { p2Says(r, cr2[i], function(p, m) { (errorsById[f.id] = errorsById[f.id] || []).push({ prop: 'list.' + p + '.' + i + '.' + (r.label || 'Roll'), message: m }); }); });
+    });
     draft.fields.forEach(function(f) {   // 1.6.0: a list roll's A Major Wound where, alike
         var cf = f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls) ? (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0] : null, cr = cf && cf.list && Array.isArray(cf.list.rolls) ? cf.list.rolls : null;
         if (!cr || cr.length !== f.list.rolls.length) return;
@@ -6990,7 +7004,7 @@ function errorCell(id) {
     if (!cell.childNodes.length) cell.style.display = 'none';
     return cell;
 }
-function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (p === 'dmgMajorIf' || /^list\.mjif\./.test(p || '')) return 'A Major Wound where: '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; if (p === 'bigAt') return 'Lands as a Big Hit at: '; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
+function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (p === 'dmgMajorIf' || /^list\.mjif\./.test(p || '')) return 'A Major Wound where: '; if (p === 'dmg2' || /^list\.dmg2\./.test(p || '')) return 'Second part: '; if (p === 'ad2' || /^list\.ad2\./.test(p || '')) return 'Second part armour divisor: '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; if (p === 'bigAt') return 'Lands as a Big Hit at: '; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
 function formulaTextFor(id, prop) {
     if (id === 'combat' && prop === 'turn.move') return (draft.combat && draft.combat.turn && draft.combat.turn.move) || '';   // turn-based combat T1
     if (id === 'checks') return draft.combat && (prop === 'critAt' || prop === 'fumbleAt') && typeof draft.combat[prop] === 'string' ? draft.combat[prop] : '';   // 1.6.0: the Combat card's critical range
@@ -7004,6 +7018,7 @@ function formulaTextFor(id, prop) {
     if (r && (prop === 'critAt' || prop === 'fumbleAt' || prop === 'bigAt')) return r[prop] || '';   // 1.6.0
     if (r && prop === 'needs') return r.needs || '';   // 1.5.4
     if (r && prop === 'dmgMajorIf') return r.dmgMajorIf || '';   // 1.6.0
+    if (r && prop === 'dmg2') return r.dmg2 || '';   // 1.6.0 (B3)
     if (r) { var amI = /^(apply|then)\.(\d+)$/.exec(prop || ''); return amI ? ((Array.isArray(r[amI[1]]) && r[amI[1]][+amI[2]] && r[amI[1]][+amI[2]].formula) || '') : (r.formula || ''); }   // H7: a change's amount
     var it = (draft.items || []).find(function(x) { return x.id === id; });
     return it ? (prop === 'cost' ? it.cost || '' : it.damage || '') : '';
@@ -7239,6 +7254,7 @@ function rollRow(r) {
     if (!isApply && r.resistBy && typeof checkLabel === 'function') top.appendChild(checkLabel('sys-roll-rsnocrit', r.noResistOnCrit === true, 'Not resisted on a critical', 'A critical success sends its target nothing to resist. Leave it off where a critical is resisted as any success is'));   // 1.6.0
     if (!isApply) { var dl = el('label', 'sys-hover'); var dc = el('input'); dc.type = 'checkbox'; dc.className = 'sys-dmg-chk'; dc.checked = r.dmg === true; dl.appendChild(dc); dl.appendChild(document.createTextNode(' Damage')); dl.title = 'A damage roll: its card in Table Chat takes the damage colour, a larger total and a damage tag'; top.appendChild(dl); }   // chat cards (owner 2026-09-27)
     if (!isApply && r.dmg === true && typeof input === 'function') { var mjI = input('sys-roll-mjif field', typeof r.dmgMajorIf === 'string' ? r.dmgMajorIf : '', 'A Major Wound where: Apply to target on its card lands the blow as a Major Wound while this formula of the roller\u2019s names is true, such as Edge >= 3. No dice. Always a Major Wound wins', 'A Major Wound where'); mjI.maxLength = LIMITS.formula; top.appendChild(mjI); }   // 1.6.0
+    if (!isApply && r.dmg === true && typeof input === 'function') { var dtI = input('sys-roll-dtype field', typeof r.dtype === 'string' ? r.dtype : '', 'A damage roll\u2019s type, filled in when you press Apply to target on its card: a type\u2019s key from the Combat card (stun), or a formula giving its place in that list, 1 for the first. Kept only on a damage roll', 'Damage type'); dtI.maxLength = LIMITS.formula; top.appendChild(dtI); var p2I = input('sys-roll-p2f field', typeof r.dmg2 === 'string' ? r.dmg2 : '', 'Second part: damage of another type in the same blow, rolled with it, such as 1d6+1. Its own DR is taken off, then both parts are one wound: one Major Wound test, one Any wound and one wear. Empty: none', 'Second part'); p2I.maxLength = LIMITS.formula; top.appendChild(p2I); var p2T = input('sys-roll-p2t field', typeof r.dtype2 === 'string' ? r.dtype2 : '', 'The second part\u2019s type: a type\u2019s key from the Combat card, or a formula giving its place in that list, 1 for the first. Kept only beside a second part', 'Second part type'); p2T.maxLength = LIMITS.formula; top.appendChild(p2T); }   // 1.6.0 (B3): a blow of two damage types counts as one blow
     if (!isApply && r.dmg === true && typeof checkLabel === 'function') top.appendChild(checkLabel('sys-roll-mjdmg', r.dmgMajor === true, 'Always a Major Wound', 'Apply to target on its card lands the blow as a Major Wound whatever its size, as a strike that always wounds badly'));   // 1.6.0
     top.appendChild(select('sys-roll-near', [['', 'Applies to the user'], ['near', 'Applies to the user or an adjacent character']], r.to === 'near' ? 'near' : '', 'Applies to: whom its changes go on. With an adjacent character, a press asks who it is for when someone stands next to you, your target first. A row\u2019s own counters stay with the user. Its formulas read OnSelf, 1 on yourself and 0 on another'));   // 1.5.9 (book es/et plan, section 3): Applies to
     top.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['del', 'Delete this roll', '&times;']]));
@@ -7873,6 +7889,7 @@ function ctKeySays(sp, F0) {
         if (rr.dmg === true) rw.appendChild(checkLabel('sys-list-mjdmg', rr.dmgMajor === true, 'Always a Major Wound', 'Apply to target on its card lands the blow as a Major Wound whatever its size, as a strike that always wounds badly'));   // 1.6.0
         var rdt = input('sys-list-rolldtype field', typeof rr.dtype === 'string' ? rr.dtype : '', 'A damage roll\u2019s type, filled in when you press Apply to target on its card: a type\u2019s key from the Combat card (stun), or a formula giving its place in that list, 1 for the first (Row.dt). Kept only on a damage roll', 'Damage type'); rdt.maxLength = LIMITS.formula; rw.appendChild(rdt);   // 1.5.7
         var rad = input('sys-list-rolldiv field', typeof rr.ad === 'string' ? rr.ad : '', 'A damage roll\u2019s armour divisor, filled in when you press Apply to target on its card: a number, or a formula of the row\u2019s names (Row.ap). 1 or empty for none. Kept only on a damage roll', 'Armour divisor'); rad.maxLength = LIMITS.formula; rw.appendChild(rad);   // 1.6.0
+        if (rr.dmg === true) { var p2L = input('sys-list-rollp2f field', typeof rr.dmg2 === 'string' ? rr.dmg2 : '', 'Second part: damage of another type in the same blow, rolled with it, such as 1d6+1 or Row.burn. Its own DR is taken off, then both parts are one wound: one Major Wound test, one Any wound and one wear. Empty: none', 'Second part'); p2L.maxLength = LIMITS.formula; rw.appendChild(p2L); var p2LT = input('sys-list-rollp2t field', typeof rr.dtype2 === 'string' ? rr.dtype2 : '', 'The second part\u2019s type: a type\u2019s key from the Combat card, or a formula giving its place in that list, 1 for the first (Row.dt2). Kept only beside a second part', 'Second part type'); p2LT.maxLength = LIMITS.formula; rw.appendChild(p2LT); var p2LA = input('sys-list-rollp2d field', typeof rr.ad2 === 'string' ? rr.ad2 : '', 'The second part\u2019s own armour divisor: a number, or a formula of the row\u2019s names. 1 or empty for none. Kept only beside a second part', 'Second part armour divisor'); p2LA.maxLength = LIMITS.formula; rw.appendChild(p2LA); }   // 1.6.0 (B3): a blow of two damage types counts as one blow
         if (typeof dieSel === 'function') rw.appendChild(dieSel('sys-list-rolldie', rr.die, 'The die its button wears on each row. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20'));   // 1.5.8, backlog 149
         [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this roll']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
         cb2.appendChild(rw);
@@ -10033,6 +10050,9 @@ function onInput(e) {
             else if (lcc.indexOf('sys-list-rolldtype') >= 0) { var dtv = t.value.slice(0, LIMITS.formula).trim(); if (dtv) rD.dtype = dtv; else delete rD.dtype; }   // 1.5.7: a damage roll's type
             else if (lcc.indexOf('sys-list-rollmjif') >= 0) { var mjv = t.value.slice(0, LIMITS.formula).trim(); if (mjv) rD.dmgMajorIf = mjv; else delete rD.dmgMajorIf; }   // 1.6.0: A Major Wound where
             else if (lcc.indexOf('sys-list-rolldiv') >= 0) { var adv = t.value.slice(0, LIMITS.formula).trim(); if (adv) rD.ad = adv; else delete rD.ad; }   // 1.6.0: a damage roll's armour divisor
+            else if (lcc.indexOf('sys-list-rollp2f') >= 0) { var p2v = t.value.slice(0, LIMITS.formula).trim(); if (p2v) rD.dmg2 = p2v; else delete rD.dmg2; }   // 1.6.0 (B3): a second part of the blow
+            else if (lcc.indexOf('sys-list-rollp2t') >= 0) { var p2tv = t.value.slice(0, LIMITS.formula).trim(); if (p2tv) rD.dtype2 = p2tv; else delete rD.dtype2; }   // its type
+            else if (lcc.indexOf('sys-list-rollp2d') >= 0) { var p2dv = t.value.slice(0, LIMITS.formula).trim(); if (p2dv) rD.ad2 = p2dv; else delete rD.ad2; }   // its own armour divisor
             else return;
         }
         else if (lcc.indexOf('sys-list-col') >= 0) {   // Stage 6 F5a1: a column's boxes (Save cleans them)
@@ -10103,6 +10123,9 @@ function onInput(e) {
         else if (c.indexOf('sys-roll-malf') >= 0) { if (t.value.trim()) r.malf = t.value.slice(0, LIMITS.formula); else delete r.malf; }   // Stage 6 HUD R3
         else if (c.indexOf('sys-roll-critat') >= 0 || c.indexOf('sys-roll-fumbleat') >= 0 || c.indexOf('sys-roll-bigat') >= 0) { var crK = c.indexOf('sys-roll-critat') >= 0 ? 'critAt' : c.indexOf('sys-roll-bigat') >= 0 ? 'bigAt' : 'fumbleAt'; if (t.value.trim()) r[crK] = t.value.slice(0, LIMITS.formula); else delete r[crK]; }   // 1.6.0: its own critical range (Save cleans it)
         else if (c.indexOf('sys-roll-mjif') >= 0) { if (t.value.trim()) r.dmgMajorIf = t.value.slice(0, LIMITS.formula); else delete r.dmgMajorIf; }   // 1.6.0: A Major Wound where (Save cleans it)
+        else if (c.indexOf('sys-roll-dtype') >= 0) { if (t.value.trim()) r.dtype = t.value.slice(0, LIMITS.formula); else delete r.dtype; }   // 1.6.0 (B3): a damage roll's type (Save cleans it)
+        else if (c.indexOf('sys-roll-p2f') >= 0) { if (t.value.trim()) r.dmg2 = t.value.slice(0, LIMITS.formula); else delete r.dmg2; }   // 1.6.0 (B3): a second part of the blow (Save cleans it)
+        else if (c.indexOf('sys-roll-p2t') >= 0) { if (t.value.trim()) r.dtype2 = t.value.slice(0, LIMITS.formula); else delete r.dtype2; }   // and its type
         else if (c.indexOf('sys-roll-needstext') >= 0) { if (t.value.trim()) r.needsText = t.value.slice(0, LIMITS.label); else delete r.needsText; }   // 1.5.4: what it needs (Save cleans it)
         else if (c.indexOf('sys-roll-needs') >= 0) { if (t.value.trim()) r.needs = t.value.slice(0, LIMITS.formula); else delete r.needs; }
         else if (c.indexOf('sys-roll-xs') >= 0) { if (crossEdit(r, c, t) === 'all') { markDirty(); renderAll(); return; } }   // 1.5.9 (book es/et plan 4a): When a value crosses
@@ -10675,10 +10698,16 @@ function takeDamage(charId, pre) {
         row('Weapon tested', wsel, 'A weapon targeted, or one held on a hard hit. Its Dur is tested.');
         var ol = el('label', 'dmg-tick'); ol.appendChild(only); ol.appendChild(document.createTextNode(' Only the weapon was hit')); card.appendChild(ol);
     }
+    var p2p = dmgObj(pre.part2) && typeof pre.part2.amt === 'number' && isFinite(pre.part2.amt) && pre.part2.amt >= 0 ? pre.part2 : null, p2amt = el('input', 'dmg-amt2'), p2sel = el('select', 'dmg-type2'), p2ad = el('input', 'dmg-ad2');   // 1.6.0 (B3): a card's second part, of another type, the same blow
+    if (p2p) {
+        p2amt.type = 'number'; p2amt.min = '0'; p2amt.step = '1'; p2amt.value = String(Math.floor(p2p.amt)); row('Second part', p2amt, 'Damage of another type in the same blow. Its own DR comes off, then both parts are one wound.');
+        types.forEach(function(t) { p2sel.appendChild(new Option(t.label, t.key)); }); if (typeof p2p.type === 'string') p2sel.value = p2p.type; if (types.length) row('Second part type', p2sel, 'How the second part wounds.');
+        p2ad.type = 'number'; p2ad.min = '0.1'; p2ad.step = '0.5'; p2ad.value = typeof p2p.ad === 'number' && isFinite(p2p.ad) && p2p.ad > 0 ? String(p2p.ad) : '1'; row('Second part armour divisor', p2ad, '1 for none.');
+    }
     var mjt = el('input', 'dmg-major'); mjt.type = 'checkbox'; mjt.checked = pre.major === true;   // 1.6.0: a card of a roll ticked Always a Major Wound
     if (pre.major === true) { var mjl = el('label', 'dmg-tick'); mjl.appendChild(mjt); mjl.appendChild(document.createTextNode(' A Major Wound whatever its size')); mjl.title = 'Its roll is ticked Always a Major Wound. Untick it to judge the blow by its size'; card.appendChild(mjl); }
     var prev = el('div', 'dmg-preview'); card.appendChild(prev);
-    var inp = function() { var o = { amt: Number(amt.value) }; if (tsel.value) o.type = tsel.value; if (lsel.value) o.loc = lsel.value; var a = Number(ad.value); if (isFinite(a) && a > 0) o.ad = a; if (wps.length && wsel.value) { o.weapon = wsel.value; if (only.checked) o.only = true; } if (diceOn) { var dn = Number(dce.value); if (dce.value !== '' && isFinite(dn) && dn > 0) o.dice = Math.min(100, Math.floor(dn)); } if (pre.major === true && mjt.checked) o.major = true; return o; };
+    var inp = function() { var o = { amt: Number(amt.value) }; if (tsel.value) o.type = tsel.value; if (lsel.value) o.loc = lsel.value; var a = Number(ad.value); if (isFinite(a) && a > 0) o.ad = a; if (wps.length && wsel.value) { o.weapon = wsel.value; if (only.checked) o.only = true; } if (diceOn) { var dn = Number(dce.value); if (dce.value !== '' && isFinite(dn) && dn > 0) o.dice = Math.min(100, Math.floor(dn)); } if (p2p && p2amt.value !== '') { var a2 = Number(p2amt.value); if (isFinite(a2) && a2 >= 0) { var o2 = { amt: a2 }; if (p2sel.value) o2.type = p2sel.value; var d2 = Number(p2ad.value); if (isFinite(d2) && d2 > 0) o2.ad = d2; if (diceOn && typeof p2p.dice === 'number' && isFinite(p2p.dice) && p2p.dice > 0) o2.dice = Math.min(100, Math.floor(p2p.dice)); o.part2 = o2; } } if (pre.major === true && mjt.checked) o.major = true; return o; };
     var show = function() {
         while (prev.firstChild) prev.removeChild(prev.firstChild);
         var q = inp(); if (amt.value === '' || !(q.amt >= 0)) { prev.appendChild(el('div', 'dmg-hint', 'Type the damage.')); return; }
@@ -10688,6 +10717,7 @@ function takeDamage(charId, pre) {
         r.lines.forEach(function(l) { prev.appendChild(el('div', 'dmg-pl', l)); });
     };
     [amt, tsel, lsel, ad, dce, wsel, only, mjt].forEach(function(x) { x.addEventListener('input', show); x.addEventListener('change', show); });
+    [p2amt, p2sel, p2ad].forEach(function(x) { x.addEventListener('input', show); x.addEventListener('change', show); });   // 1.6.0 (B3)
     var bar = el('div', 'dmg-btns'), cancel = el('button', 'tool ghost', 'Cancel'), go = el('button', 'tool', 'Apply'); cancel.type = 'button'; go.type = 'button';
     bar.appendChild(cancel); bar.appendChild(go); card.appendChild(bar);
     cancel.addEventListener('click', dmgClose);
@@ -10750,6 +10780,7 @@ function damageFromRoll(fromId, total, done, type, more) {   // 1.5.7: done, cal
     if (!tok || typeof tok.charId !== 'string' || !tok.charId) { toast('Target a character first, or select its token, then press Apply to target again.'); return false; }
     var pre = { amt: total }; if (typeof done === 'function') pre.done = done; if (typeof type === 'string' && type) pre.type = type;
     if (dmgObj(more)) { if (typeof more.dice === 'number' && isFinite(more.dice) && more.dice > 0) pre.dice = more.dice; if (typeof more.ad === 'number' && isFinite(more.ad) && more.ad > 0) pre.ad = more.ad; if (more.major === true) pre.major = true; }   // 1.6.0: a roll ticked Always a Major Wound
+    if (dmgObj(more) && dmgObj(more.part2) && typeof more.part2.amt === 'number' && isFinite(more.part2.amt) && more.part2.amt >= 0) { var p2m = { amt: Math.floor(more.part2.amt) }; if (typeof more.part2.type === 'string' && more.part2.type) p2m.type = more.part2.type; if (typeof more.part2.ad === 'number' && isFinite(more.part2.ad) && more.part2.ad > 0) p2m.ad = more.part2.ad; if (typeof more.part2.dice === 'number' && isFinite(more.part2.dice) && more.part2.dice > 0) p2m.dice = more.part2.dice; pre.part2 = p2m; }   // 1.6.0 (B3): the blow's second part, of another type
     return takeDamage(tok.charId, pre);
 }
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine

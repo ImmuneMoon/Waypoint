@@ -115,6 +115,8 @@ function renderCard(m) {
     var tierC = sy && sy.combat && sy.combat.tier && typeof sy.combat.tier === 'object' ? sy.combat.tier : null;   // 1.6.0: a success at or past the Combat card's margin wears its name
     if (!mf && tierC && typeof tierC.name === 'string' && tierC.name && typeof tierC.at === 'number' && v && v.kind === 'check' && v.pass === true && typeof v.margin === 'number' && v.margin >= tierC.at) total.appendChild(el('span', 'roll-tier', tierC.name));
     wrap.appendChild(total);
+    var p2c = rec.dmg === 1 && rec.dmg2 && typeof rec.dmg2 === 'object' && typeof rec.dmg2.t === 'number' && isFinite(rec.dmg2.t) ? rec.dmg2 : null;   // 1.6.0 (B3): the blow's second part, of another type, rolled by the host
+    if (p2c && !mf) { var p2y = sy && sy.combat && sy.combat.damage && Array.isArray(sy.combat.damage.types) ? sy.combat.damage.types.filter(function(y) { return y && y.key === p2c.dtype; })[0] : null; wrap.appendChild(el('div', 'roll-part2', 'and ' + p2c.t + (p2y ? ' ' + (p2y.label || p2y.key) : typeof p2c.dtype === 'string' ? ' ' + p2c.dtype : '') + ' in the same blow')); }
     var dS = window.wpSheets, dv = res && typeof res.value === 'number' && isFinite(res.value) ? res.value : null;   // 1.5.6, the damage step: the GM takes a damage roll off its target in one press
     if (rec.dmg === 1 && dv !== null && !mf && rec.dmgUsed === 1) wrap.appendChild(el('div', 'chat-dmgdone', 'Applied'));   // 1.5.7: a hit is applied once
     else if (rec.dmg === 1 && dv !== null && !mf && typeof rec.blast === 'string' && typeof window.wpBlastApply === 'function' && dS && typeof dS.damageOn === 'function' && dS.damageOn()) {   // 1.5.8 explosives: a blast's damage, to everyone in it, once
@@ -125,7 +127,7 @@ function renderCard(m) {
     else if (rec.dmg === 1 && dv !== null && !mf && dS && typeof dS.damageOn === 'function' && typeof dS.damageFromRoll === 'function' && dS.damageOn()) {
         var ab = el('button', 'tool ghost chat-dmgapply', 'Apply to target\u2026'); ab.type = 'button'; ab.title = 'Take this damage off the character its roller targets, through its DR. Its window opens first. Once applied, the button goes.';
         var dN = 0; (res.breakdown && Array.isArray(res.breakdown.dice) ? res.breakdown.dice : []).forEach(function(g) { if (g && typeof g.count === 'number' && isFinite(g.count)) dN += g.count; });   // 1.6.0: the dice it rolled, and the armour divisor the host put on the record
-        ab.addEventListener('click', function() { if (rec.dmgUsed === 1) return; dS.damageFromRoll(rec.from && rec.from.id, dv, function() { rec.dmgUsed = 1; if (ab.parentNode) ab.parentNode.replaceChild(el('div', 'chat-dmgdone', 'Applied'), ab); }, typeof rec.dtype === 'string' ? rec.dtype : undefined, { dice: dN, ad: typeof rec.ad === 'number' ? rec.ad : 0, major: rec.major === 1 }); });
+        ab.addEventListener('click', function() { if (rec.dmgUsed === 1) return; dS.damageFromRoll(rec.from && rec.from.id, dv, function() { rec.dmgUsed = 1; if (ab.parentNode) ab.parentNode.replaceChild(el('div', 'chat-dmgdone', 'Applied'), ab); }, typeof rec.dtype === 'string' ? rec.dtype : undefined, { dice: dN, ad: typeof rec.ad === 'number' ? rec.ad : 0, major: rec.major === 1, part2: p2c ? { amt: p2c.t, type: p2c.dtype, ad: p2c.ad, dice: p2c.n } : undefined }); });
         wrap.appendChild(ab);
     }
     return wrap;

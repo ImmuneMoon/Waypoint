@@ -308,6 +308,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && !kBad.children.some(k => k.className === 'roll-break') && drawn(kHost) === pathsOf('2d6') && !J(kHost).includes('onerror')
                 && dj.includes("    if (typeof dieInto === 'function') dieInto(brk, rec);   // 1.5.8: the die its formula rolls, first on the dice line\n    wrap.appendChild(brk);"), e9 || J([k3 && dieOf9(k3), kF && drawn(kF)]));
         }
+        {   // 1.6.0 (B3): a damage roll's second part on the host's record (cleanDmg2, cleanRoll): kept only beside dmg 1, text and numbers in their bounds; one that does not clean is left off and the roll kept
+            const r2 = cleanRoll(rec({ dmg: 1, dmg2: { t: 4, n: 1, dtype: 'burn', ad: 2 } })), r0 = cleanRoll(rec({ dmg2: { t: 4 } })), rT = cleanRoll(rec({ dmg: 1, dmg2: { t: 0 } }));
+            const badD2 = [{ t: -1 }, { t: 1.5 }, { t: 1000001 }, { t: 4, n: 0 }, { t: 4, n: 101 }, { t: 4, dtype: '9x' }, { t: 4, dtype: '<b>' }, { t: 4, ad: 1 }, { t: 4, ad: 0.05 }, { t: 4, ad: 'x' }, [4], 'x', null].map(b => cleanRoll(rec({ dmg: 1, dmg2: b })));
+            check('1.6.0 (B3) cleanRoll keeps a damage roll\'s second part (its total, its dice, its type\'s key, its armour divisor) only beside dmg 1; a malformed one is left off and the roll kept; cleanDmg2 alone',
+                !!r2 && JSON.stringify(r2.dmg2) === JSON.stringify({ t: 4, n: 1, dtype: 'burn', ad: 2 }) && !!r0 && !('dmg2' in r0) && JSON.stringify(rT.dmg2) === JSON.stringify({ t: 0 })
+                && badD2.every(r => r && r.dmg === 1 && !('dmg2' in r)) && D.cleanDmg2({ t: 3, extra: 1 }).extra === undefined && D.cleanDmg2({}) === null,
+                JSON.stringify([r2, r0, rT, badD2]));
+        }
         {   // 1.5.8 (book handoff 90 Part B): what changed the values a roll read — the host's list cleaned (cleanMods) and drawn under the dice (modsInto, run for real)
             const md = [{ n: 'Row.Attack', b: 14, a: 17, m: [{ s: 'Battle Rage', v: 3 }], w: [{ s: 'Cracked charm', v: -1, t: 'Skill' }, { s: 'High Guard', v: 1, t: 'Skill' }] }, { n: 'Parry', b: 12, a: 12, w: [{ s: 'Combat Reflexes', v: 1, t: 'ParryBonus' }] }];
             const kept = cleanRoll(Object.assign({}, rec({ label: 'Hit' }), { mods: md }));
@@ -341,6 +349,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('1.5.7 chat cards (dice.js readableInto and renderCard, run for real): a roll whose formula names the sheet shows no formula line, its dice in brackets, what they came to and what it needed ("3d6 [4, 2, 5] = 11 · needs 17 or less"), the formula and its working on the line\'s tooltip; a typed roll keeps its formula line and whole working; a damage card\'s Apply to target hands the window the roll\'s total and type, and once applied the card says Applied with no button, also when drawn again',
                 !exN && flat(brkN) === '3d6 [4, 2, 5] = 11 \u00b7 needs 17 or less' && /^3d6 <= Row\.Attack \+ 2\n/.test(brkN.title) && !!kid(cP, 'roll-expr') && /3d6|2d6/.test(flat(kid(cP, 'roll-break')))
                 && JSON.stringify(clicks) === JSON.stringify([['u_pat', 11, 'cut']]) && !after && !!done && done.textContent === 'Applied' && rD.dmgUsed === 1 && !kid(cD2, 'chat-dmgapply') && !!kid(cD2, 'chat-dmgdone'), JSON.stringify([flat(brkN), brkN.title, clicks, !!after, !!done]));
+            // 1.6.0 (B3): a damage card's second part, said under its total and handed to the window as part2; none on a card without one
+            const more3 = [], sheets3 = { systemOf: () => ({ combat: { damage: { types: [{ key: 'cut', label: 'Cutting' }, { key: 'burn', label: 'Burning' }] } } }), damageOn: () => true, damageFromRoll: (from, amt, done, type, more) => { more3.push([amt, type, more]); return true; } };
+            const rc3 = new Function('el', 'playerHue', 'chatTime', 'net', 'F', 'verdictOf', 'critOf', 'malfOf', 'LIMITS', 'fmtNum', 'window', 'document', "'use strict';\n" + rc2Src + '\nreturn renderCard;')(fe2, () => 0, () => '12:00', () => ({ active: false }), () => F, verdictOf, critOf, D.malfOf, LIMITS, D.fmtNum, { wpSheets: sheets3 }, { createTextNode: t => ({ text: t }) });
+            const c3 = rc3({ roll: rec({ expr: '2d6', label: 'Blade \u00b7 Damage', dmg: 1, dtype: 'cut', dmg2: { t: 4, n: 1, dtype: 'burn', ad: 2 } }), res: F.evaluate('2d6', { random: scripted([3, 4]) }) }); kid(c3, 'chat-dmgapply').listeners.click();
+            const c4 = rc3({ roll: rec({ expr: '2d6', dmg: 1 }), res: F.evaluate('2d6', { random: scripted([3, 4]) }) }); kid(c4, 'chat-dmgapply').listeners.click();
+            check('1.6.0 (B3) a damage card says its second part under the total ("and 4 Burning in the same blow", by the type\'s label) and Apply to target hands it to the window as part2 (its amount, type, divisor and dice); a card with none says nothing and hands none',
+                kid(c3, 'roll-part2') && kid(c3, 'roll-part2').textContent === 'and 4 Burning in the same blow' && JSON.stringify(more3[0]) === JSON.stringify([7, 'cut', { dice: 2, ad: 0, major: false, part2: { amt: 4, type: 'burn', ad: 2, dice: 1 } }])
+                && !kid(c4, 'roll-part2') && more3[1][2].part2 === undefined, JSON.stringify(more3));
         }
         const kOk = card({ expr: 'd20 + 5 >= 10', draws: [10], label: 'Attack' }, [10]), kNo = card({ expr: 'd20 + 5 >= 10', draws: [1], label: 'Attack' }, [1]);
         const kDm = card({ expr: '2d6', draws: [3, 4], label: 'Sword \u00b7 Damage', dmg: 1 }, [3, 4]), kMf = card({ expr: '3d6', draws: [1, 1, 1], label: 'Blaster', dmg: 1, malf: 3 }, [1, 1, 1]);

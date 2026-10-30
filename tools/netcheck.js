@@ -4472,6 +4472,19 @@ pendingChecks.push((async () => {
     check('1.6.0 A Major Wound where on the GM\'s own damage roll (net.diceRoll): true for the roller marks the record major 1, false nothing; one that reads a GM-only value marks nothing, as a GM-only armour divisor, since the record travels to the table; Always a Major Wound still wins; a roll with neither as before',
         jGA.ret.ok && jGA.recs[0].major === 1 && !('major' in jGB.recs[0]) && !('major' in jGS.recs[0]) && jGW.recs[0].major === 1 && !('major' in jG0.recs[0]) && jG0.recs[0].dmg === 1,
         j([jGA.recs[0], jGB.recs[0], jGS.recs[0], jGW.recs[0], jG0.recs[0]]));
+    // 1.6.0 (B3): a damage roll's second part, rolled by the host from the entry as it makes the card (the suite's own dice: the roll's three, then the part's one)
+    const typesP = { damage: { types: [{ key: 'cut', label: 'Cutting' }, { key: 'burn', label: 'Burning' }] } };
+    const sysP2 = sysOfB({ dmg: true, dmg2: '1d6 + Edge', dtype2: 'burn' }, typesP), sysP2g = sysOfB({ dmg: true, dmg2: 'Secret + 1d6', dtype2: 'burn' }, typesP), sysP20 = sysOfB({ dmg: true }, typesP);
+    const kA = runB(sysP2, [1, 1, 2, 5]), kG = runB(sysP2g, [1, 1, 2]), k0 = runB(sysP20, [1, 1, 2], { dmg2: { t: 99 }, dtype2: 'burn', part2: { amt: 9 } }), kX = runB(sysP2, [1, 1, 2, 3], { dmg2: { t: 99, dtype: 'cut' } });
+    check('1.6.0 (B3) a second part on a player\'s damage roll (the host\'s roll-req branch): rolled from the entry through their view (1d6 5 + Edge 4 is 9 Burning), on the record and kept by a player\'s cleaner; one read from a GM-only value is dropped from their view and rolls nothing; a roll with none has none; a dmg2, dtype2 or part2 in the player\'s message is never read',
+        kA.table.length === 1 && j(kA.table[0].dmg2) === j({ t: 9, n: 1, dtype: 'burn' }) && kA.left === 0 && j(Dx.cleanRoll(kA.table[0]).dmg2) === j({ t: 9, n: 1, dtype: 'burn' })
+        && kG.table[0].dmg === 1 && !('dmg2' in kG.table[0]) && kG.left === 0 && !('dmg2' in k0.table[0]) && k0.left === 0 && j(kX.table[0].dmg2) === j({ t: 7, n: 1, dtype: 'burn' }),
+        j([kA.table[0], kG.table[0], k0.table[0], kX.table[0]]));
+    const kGA = runBG(sysP2, [1, 1, 2, 5]), kGG = runBG(sysP2g, [1, 1, 2, 4]), kG0 = runBG(sysP20, [1, 1, 2]);
+    check('1.6.0 (B3) a second part on the GM\'s own damage roll (net.diceRoll): rolled from the entry (9 Burning) and the card public; one read from a GM-only value is rolled for the GM (Secret 2 + 4 is 6) and keeps the card private, since it says the amount; a roll with none as before',
+        kGA.ret.ok && j(kGA.recs[0].dmg2) === j({ t: 9, n: 1, dtype: 'burn' }) && kGA.pushed[0] === 'global' && j(kGG.recs[0].dmg2) === j({ t: 6, n: 1, dtype: 'burn' }) && kGG.recs[0].priv === 'gm' && kGG.pushed[0] === 'whisper' && kGG.toasts.some(t => /Secret/.test(t))
+        && !('dmg2' in kG0.recs[0]) && kG0.pushed[0] === 'global',
+        j([kGA.recs[0], kGG.recs[0], kGG.toasts, kG0.recs[0]]));
 })());
 
 // 1.6.0 (the SotMW v2 sort, B2: "resist at minus the attempt's margin"): a roll Resisted by a system roll that succeeds against the roller's

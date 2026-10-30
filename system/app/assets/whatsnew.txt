@@ -219,6 +219,10 @@ Systems, more
   Wound whatever its size.
 - Beside it, A Major Wound where takes a formula, such as Edge >= 3: the
   card lands the blow as a Major Wound while it is true for the roller.
+- A damage roll can have a Second part, damage of another type in the same
+  blow, with its own type. The card rolls both. Each part's DR comes off
+  on its own, then the blow is one wound: one Major Wound test, one Any
+  wound and one wear. The Rolls tab can now set a roll's Damage type too.
 - Any wound's Where, and the rolls a wound posts, read Blow.major: 1 where the
   blow is a Major Wound, by its size or by the roll's mark, else 0.
 - A roll a wound asks for reads the blow and the location hit, as Blow. and

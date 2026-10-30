@@ -9174,9 +9174,10 @@ function renderCombatModal() {
     document.getElementById('combatStartBtn').textContent = running ? 'Update Combat' : 'Start Combat';
     var rallB = document.getElementById('combatRollAllBtn'); if (rallB) rallB.style.display = window.wpSheets && window.wpSheets.hasInitRoll() ? '' : 'none';   // initiative O1: only with an initiative roll in the system
     var nameN = {}, nameAt = {}; combatDraft.rows.forEach(function(r) { nameN['n' + r.name] = (nameN['n' + r.name] || 0) + 1; });   // 1.6.0: rows of one name told apart by a number
+    var fa = document.activeElement, fr = fa && list.contains(fa) && fa.closest ? fa.closest('.combat-row') : null, keepR = fr ? fr.dataset.rid : '', keepC = fr ? ['combat-on', 'combat-init', 'combat-roll', 'combat-up', 'combat-down'].filter(function(c) { return fa.classList.contains(c); })[0] : '';   // 1.6.0: a redraw keeps the keyboard's place in the list
     list.innerHTML = combatDraft.rows.map(function(r, i) {
         var dupT = nameN['n' + r.name] > 1 ? ' <span class="combat-tag" title="Rows of one name, numbered down the list">' + (nameAt['n' + r.name] = (nameAt['n' + r.name] || 0) + 1) + '</span>' : '';
-        return '<div class="combat-row' + (r.on ? '' : ' off') + '" draggable="true" data-i="' + i + '">'
+        return '<div class="combat-row' + (r.on ? '' : ' off') + '" draggable="true" data-i="' + i + '" data-rid="' + esc(String(r.id)) + '">'
             + '<span class="combat-grip" title="Drag to reorder">&#8942;</span>'
             + '<input type="checkbox" class="combat-on"' + (r.on ? ' checked' : '') + (r.busy ? ' disabled title="In another fight on this map: a token is in one fight at a time"' : ' title="In the fight"') + '>'
             + (r.src ? '<img class="combat-face" src="' + esc(resolveImg(r.src)) + '" alt="">' : '<span class="combat-face combat-face-empty">' + (r.custom ? '&#10022;' : '&#9733;') + '</span>')
@@ -9188,6 +9189,7 @@ function renderCombatModal() {
             + '</div>';
     }).join('') || '<div style="color:var(--dim); padding:8px;">No character tokens on this map. Add a custom row below, or place tokens first.</div>';
     m.style.display = 'flex';
+    if (keepC) { var backR = [].slice.call(list.querySelectorAll('.combat-row')).filter(function(x) { return x.dataset.rid === keepR; })[0], backE = backR && backR.querySelector('.' + keepC); if (backE) backE.focus({ preventScroll: true }); }
 }
 function openCombatModal(mapId, opts) {   // opts.fid: that fight's roster; opts.fresh: a new fight beside those on the map (fold 2); else the strip's fight there, or a new one
     var n = window.wpNet; if (!(n && n.active && n.role === 'host')) { toast('Combat runs at the table — host a session first.'); return; }
@@ -9200,16 +9202,18 @@ window.wpOpenCombat = openCombatModal;
 (function wireCombatModal() {
     var m = document.getElementById('combatModal'), list = document.getElementById('combatRows'); if (!m || !list) return;
     function rowOf(e) { var r = e.target.closest && e.target.closest('.combat-row'); return r ? +r.dataset.i : -1; }
-    var hold = typeof pressHold === 'function' ? pressHold(list, window) : null, sortLater = function() { if (!combatDraft) return; combatDraft.rows = combatSortByInit(combatDraft.rows); renderCombatModal(); };   // a number left by a press on the list: the rows move once that press has landed
+    var hold = typeof pressHold === 'function' ? pressHold(list, window) : null, sortLater = function() { if (!combatDraft || !combatDraft.sortDue) return; combatDraft.sortDue = false; combatDraft.rows = combatSortByInit(combatDraft.rows); renderCombatModal(); };   // 1.6.0, found by hand: numbers typed down the list move no row until the list is left, so a row never moves under the next press and no box loses its focus
     list.addEventListener('change', function(e) {
         var i = rowOf(e); if (i < 0) return;
         if (e.target.classList.contains('combat-on')) { combatDraft.rows[i].on = e.target.checked && !combatDraft.rows[i].busy; renderCombatModal(); }   // fold 2: never a token in another fight
-        if (e.target.classList.contains('combat-init')) { combatDraft.rows[i].init = Number(e.target.value) || 0; combatDraft.rows[i].rolled = true; delete combatDraft.rows[i].tb; if (hold && hold.busy()) hold.then(sortLater); else sortLater(); }   // initiative O1: a number given is its number (a player's roll no longer changes it)
+        if (e.target.classList.contains('combat-init')) { combatDraft.rows[i].init = Number(e.target.value) || 0; combatDraft.rows[i].rolled = true; delete combatDraft.rows[i].tb; combatDraft.sortDue = true; }   // initiative O1: a number given is its number (a player's roll no longer changes it)
     });
+    list.addEventListener('focusout', function(e) { if (!combatDraft || !combatDraft.sortDue || (e.relatedTarget && list.contains(e.relatedTarget))) return; if (hold && hold.busy()) hold.then(sortLater); else sortLater(); });
     list.addEventListener('keydown', function(e) { e.stopPropagation(); });
     m.addEventListener('pointerdown', function() { rosterUnpeek(m); });   // backlog 26: a press on the roster while it is faded for a find brings it back at once
     list.addEventListener('click', function(e) {
         var i = rowOf(e); if (i < 0) return;
+        if (combatDraft.sortDue && e.target.closest('.combat-up, .combat-down')) { var mvR = combatDraft.rows[i]; combatDraft.sortDue = false; combatDraft.rows = combatSortByInit(combatDraft.rows); i = combatDraft.rows.indexOf(mvR); }   // an arrow moves a row of the order the numbers give
         var rows = combatDraft.rows;
         if (e.target.closest('.combat-up') && i > 0) { rows.splice(i - 1, 0, rows.splice(i, 1)[0]); renderCombatModal(); }
         else if (e.target.closest('.combat-down') && i < rows.length - 1) { rows.splice(i + 1, 0, rows.splice(i, 1)[0]); renderCombatModal(); }
@@ -9222,7 +9226,7 @@ window.wpOpenCombat = openCombatModal;
     list.addEventListener('dragover', function(e) { if (dragI < 0) return; e.preventDefault(); var r = e.target.closest && e.target.closest('.combat-row'); list.querySelectorAll('.combat-row').forEach(function(x) { x.classList.toggle('drop-before', x === r); }); });
     list.addEventListener('drop', function(e) {
         e.preventDefault(); var j = rowOf(e); if (dragI < 0 || j < 0 || j === dragI) { dragI = -1; renderCombatModal(); return; }
-        var rows = combatDraft.rows, mv = rows.splice(dragI, 1)[0]; rows.splice(j, 0, mv); dragI = -1; renderCombatModal();
+        var rows = combatDraft.rows, mv = rows.splice(dragI, 1)[0]; rows.splice(j, 0, mv); dragI = -1; combatDraft.sortDue = false; renderCombatModal();
     });
     list.addEventListener('dragend', function() { dragI = -1; list.querySelectorAll('.drop-before').forEach(function(x) { x.classList.remove('drop-before'); }); });
     // [systemcheck:rollall-start]
@@ -9259,6 +9263,7 @@ window.wpOpenCombat = openCombatModal;
     document.getElementById('combatCloseBtn').addEventListener('click', function() { m.style.display = 'none'; combatDraft = null; });
     document.getElementById('combatStartBtn').addEventListener('click', function() {
         var n = window.wpNet; if (!combatDraft || !n) return;
+        if (combatDraft.sortDue) { combatDraft.sortDue = false; combatDraft.rows = combatSortByInit(combatDraft.rows); }
         var rows = combatDraft.rows.filter(function(r) { return r.on && !r.busy; }).map(function(r) { var o = { id: r.id, name: r.name, tokId: r.tokId, init: r.init, src: r.src }; if (r.rolled) o.rolled = 1; if (Array.isArray(r.tb)) o.tb = r.tb; return o; });   // initiative O1: whether a row has its number
         if (!rows.length) { toast('Tick at least one combatant.'); return; }
         var was = combatDraft.fid && n.combats && Object.prototype.hasOwnProperty.call(n.combats, combatDraft.fid) ? n.combats[combatDraft.fid] : null;   // fold 2: the fight this roster edits, by its id

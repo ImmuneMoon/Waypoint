@@ -233,6 +233,13 @@ Systems, more
   blow, with its own type. The card rolls both. Each part's DR comes off
   on its own, then the blow is one wound: one Major Wound test, one Any
   wound and one wear. The Rolls tab can now set a roll's Damage type too.
+- A blow can have a Third part and a Fourth part too, each with its own
+  type, and on a list's roll its own armour divisor. Every part counts in
+  the one blow. Each box shows once the part before it has a formula.
+- Any wound's Where, and the rolls a wound posts, read Blow.type2 and
+  Blow.wound2: the second part's own type and wound, 0 with none. So a
+  roll can follow the second part alone. Blow.type3, Blow.wound3,
+  Blow.type4 and Blow.wound4 read the third and fourth parts.
 - Any wound's Where, and the rolls a wound posts, read Blow.major: 1 where the
   blow is a Major Wound, by its size or by the roll's mark, else 0.
 - A roll a wound asks for reads the blow and the location hit, as Blow. and
@@ -567,7 +574,7 @@ System editor
   stats, such as a medkit's wear. Used up to 0, the row goes, and its
   notice offers Undo for a few seconds, as the sheet's minus does.
 - A list can carry up to 64 stats, up from 24, 32 columns, up from 12,
-  and up to 10 rolls, up from 8. A field or a stat can name up to 32 of its values, up from 10.
+  and up to 16 rolls, up from 8. A field or a stat can name up to 32 of its values, up from 10.
 - A change of an effect or an item can hold a value at least or at most
   a figure. Two effects that each say Stun at least 1 now read 1, not 2.
 - One at a time can go by where rows sit: Where Covers meet. Each entry

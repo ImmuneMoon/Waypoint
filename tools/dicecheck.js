@@ -151,17 +151,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     /* ---- Stage 6 HUD R2b: a list roll with consequences or needs names its index (0 to LIMITS.rowRolls - 1, 0-7 since 1.5.4); its modifier and advantage then travel as data ---- */
     {
         const J = JSON.stringify, q = o => cleanRollReq(Object.assign({ type: 'roll-req', rid: 'q1', expr: '3d6 <= 30', charId: 'c_a' }, o));
-        check('R2b cleanRollReq: row.i from 0 to 9, a list\'s ten rolls since 1.6.0 (eight since 1.5.4; with a modifier and advantage beside it, the fifth to the tenth too); an index out of range (10 and past it, below 0, not whole) or a modifier on a plain row roll refuses the request whole',
+        check('R2b cleanRollReq: row.i from 0 to 15, a list\'s sixteen rolls (eight since 1.5.4, ten since 1.6.0, sixteen since the raise the session that builds a game system asked for: moved on purpose; with a modifier and advantage beside it, the fifth to the sixteenth too); an index out of range (16 and past it, below 0, not whole) or a modifier on a plain row roll refuses the request whole',
             J(q({ row: { f: 'f_w', r: 'w_1', i: 3 }, mod: -2, adv: 'dis' })) === J({ rid: 'q1', expr: '3d6 <= 30', charId: 'c_a', row: { f: 'f_w', r: 'w_1', i: 3 }, mod: -2, adv: 'dis' })
-            && [0, 4, 5, 6, 7, 8, 9].every(i => J(q({ row: { f: 'f_w', r: 'w_1', i: i }, mod: 1 })) === J({ rid: 'q1', expr: '3d6 <= 30', charId: 'c_a', row: { f: 'f_w', r: 'w_1', i: i }, mod: 1 }))
-            && [{ row: { f: 'f_w', r: 'w_1', i: 10 } }, { row: { f: 'f_w', r: 'w_1', i: 11 } }, { row: { f: 'f_w', r: 'w_1', i: -1 } }, { row: { f: 'f_w', r: 'w_1', i: 1.5 } }, { row: { f: 'f_w', r: 'w_1' }, mod: 2 }, { row: { f: 'f_w', r: 'w_1' }, adv: 'adv' }].every(o => q(o) === null));
+            && [0, 4, 5, 6, 7, 8, 9, 10, 15].every(i => J(q({ row: { f: 'f_w', r: 'w_1', i: i }, mod: 1 })) === J({ rid: 'q1', expr: '3d6 <= 30', charId: 'c_a', row: { f: 'f_w', r: 'w_1', i: i }, mod: 1 }))
+            && [{ row: { f: 'f_w', r: 'w_1', i: 16 } }, { row: { f: 'f_w', r: 'w_1', i: 17 } }, { row: { f: 'f_w', r: 'w_1', i: -1 } }, { row: { f: 'f_w', r: 'w_1', i: 1.5 } }, { row: { f: 'f_w', r: 'w_1' }, mod: 2 }, { row: { f: 'f_w', r: 'w_1' }, adv: 'adv' }].every(o => q(o) === null));
     }
 
     /* ---- the review of the fold of 409: dicecore's own figures for what a sheet sends are the character system's, so the editor's caps and the wire agree ---- */
     {
         let SC = null; try { SC = await import(url('systemcore.js')); } catch (e) { SC = null; }
-        check('409 dicecore\'s caps are the character system\'s: a row roll\'s index under LIMITS.rowRolls (10 since 1.6.0) and an apply card\'s lines under LIMITS.applyChanges (12 since 1.6.0, 8 before), each the same figure in systemcore.js',
-            !!SC && LIMITS.rowRolls === 10 && LIMITS.rowRolls === SC.LIMITS.rowRolls && LIMITS.applyLines === SC.LIMITS.applyChanges, SC ? JSON.stringify([LIMITS.rowRolls, SC.LIMITS.rowRolls, LIMITS.applyLines, SC.LIMITS.applyChanges]) : 'no systemcore');
+        check('409 dicecore\'s caps are the character system\'s: a row roll\'s index under LIMITS.rowRolls (16 since the raise the session that builds a game system asked for, 10 before it: moved on purpose) and an apply card\'s lines under LIMITS.applyChanges (12 since 1.6.0, 8 before), each the same figure in systemcore.js',
+            !!SC && LIMITS.rowRolls === 16 && LIMITS.rowRolls === SC.LIMITS.rowRolls && LIMITS.applyLines === SC.LIMITS.applyChanges, SC ? JSON.stringify([LIMITS.rowRolls, SC.LIMITS.rowRolls, LIMITS.applyLines, SC.LIMITS.applyChanges]) : 'no systemcore');
     }
 
     /* ---- Stage 6 HUD R3: a record's malfunction threshold; the natural total; the card's words ---- */
@@ -322,6 +322,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 !!r2 && JSON.stringify(r2.dmg2) === JSON.stringify({ t: 4, n: 1, dtype: 'burn', ad: 2 }) && !!r0 && !('dmg2' in r0) && JSON.stringify(rT.dmg2) === JSON.stringify({ t: 0 })
                 && badD2.every(r => r && r.dmg === 1 && !('dmg2' in r)) && D.cleanDmg2({ t: 3, extra: 1 }).extra === undefined && D.cleanDmg2({}) === null,
                 JSON.stringify([r2, r0, rT, badD2]));
+            const r34 = cleanRoll(rec({ dmg: 1, dmg2: { t: 4 }, dmg3: { t: 2, dtype: 'burn' }, dmg4: { t: 6, n: 2, ad: 3 } })), r3a = cleanRoll(rec({ dmg: 1, dmg3: { t: 2 } })), r3n = cleanRoll(rec({ dmg3: { t: 2 }, dmg4: { t: 1 } })), r3b = cleanRoll(rec({ dmg: 1, dmg3: { t: -2 }, dmg4: 'x', dmg5: { t: 1 } }));
+            check('1.6.0 cleanRoll keeps a third and a fourth part (dmg3, dmg4) as it keeps the second, each through cleanDmg2, only beside dmg 1, each alone; a malformed one is left off and the roll kept; a fifth is no key',
+                JSON.stringify([r34.dmg2, r34.dmg3, r34.dmg4]) === JSON.stringify([{ t: 4 }, { t: 2, dtype: 'burn' }, { t: 6, n: 2, ad: 3 }]) && JSON.stringify(r3a.dmg3) === JSON.stringify({ t: 2 }) && !('dmg2' in r3a)
+                && !!r3n && !('dmg3' in r3n) && !('dmg4' in r3n) && !!r3b && r3b.dmg === 1 && !('dmg3' in r3b) && !('dmg4' in r3b) && !('dmg5' in r3b), JSON.stringify([r34, r3a, r3n, r3b]));
         }
         {   // 1.5.8 (book handoff 90 Part B): what changed the values a roll read — the host's list cleaned (cleanMods) and drawn under the dice (modsInto, run for real)
             const md = [{ n: 'Row.Attack', b: 14, a: 17, m: [{ s: 'Battle Rage', v: 3 }], w: [{ s: 'Cracked charm', v: -1, t: 'Skill' }, { s: 'High Guard', v: 1, t: 'Skill' }] }, { n: 'Parry', b: 12, a: 12, w: [{ s: 'Combat Reflexes', v: 1, t: 'ParryBonus' }] }];
@@ -371,6 +375,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('1.6.0 (B5 follow-up) a called shot\'s card names where it was aimed and what its location gave: one figure in brackets ("at Servo-arm (\u22125)"), several by their labels ("at Crane arm (Penalty \u22122, Size +1)"), none as the name alone; a card with no aim says nothing',
                 kid(cA1, 'roll-aim') && kid(cA1, 'roll-aim').textContent === 'at Servo-arm (\u22125)' && kid(cA2, 'roll-aim').textContent === 'at Crane arm (Penalty \u22122, Size +1)' && kid(cA3, 'roll-aim').textContent === 'at Torso' && !kid(cA0, 'roll-aim'),
                 JSON.stringify([kid(cA1, 'roll-aim') && kid(cA1, 'roll-aim').textContent, kid(cA2, 'roll-aim') && kid(cA2, 'roll-aim').textContent]));
+            // 1.6.0 (asked by the session that builds a game system): a third and a fourth part, said one line each under the second and handed to the window as part3 and part4
+            const c5 = rc3({ roll: rec({ expr: '2d6', dmg: 1, dtype: 'cut', dmg2: { t: 4, n: 1, dtype: 'burn' }, dmg3: { t: 2, dtype: 'cut' }, dmg4: { t: 6, n: 2, dtype: 'burn', ad: 3 } }), res: F.evaluate('2d6', { random: scripted([3, 4]) }) }); kid(c5, 'chat-dmgapply').listeners.click();
+            const c6 = rc3({ roll: rec({ expr: '2d6', dmg: 1, dmg3: { t: 5, dtype: 'burn' } }), res: F.evaluate('2d6', { random: scripted([3, 4]) }) }); kid(c6, 'chat-dmgapply').listeners.click();
+            check('1.6.0 a damage card says a third and a fourth part, one line each after the second ("and 2 Cutting in the same blow"), and Apply to target hands them to the window as part3 and part4 (amount, type, divisor and dice); a third part with no second is said and handed alone; a card of one or two parts hands nothing more (above)',
+                c5.children.filter(k => k.className === 'roll-part2').map(k => k.textContent).join('|') === 'and 4 Burning in the same blow|and 2 Cutting in the same blow|and 6 Burning in the same blow'
+                && JSON.stringify(more3[2]) === JSON.stringify([7, 'cut', { dice: 2, ad: 0, major: false, part2: { amt: 4, type: 'burn', dice: 1 }, part3: { amt: 2, type: 'cut' }, part4: { amt: 6, type: 'burn', ad: 3, dice: 2 } }])
+                && c6.children.filter(k => k.className === 'roll-part2').map(k => k.textContent).join('|') === 'and 5 Burning in the same blow' && JSON.stringify(more3[3][2]) === JSON.stringify({ dice: 2, ad: 0, major: false, part3: { amt: 5, type: 'burn' } }), JSON.stringify(more3.slice(2)));
         }
         const kOk = card({ expr: 'd20 + 5 >= 10', draws: [10], label: 'Attack' }, [10]), kNo = card({ expr: 'd20 + 5 >= 10', draws: [1], label: 'Attack' }, [1]);
         const kDm = card({ expr: '2d6', draws: [3, 4], label: 'Sword \u00b7 Damage', dmg: 1 }, [3, 4]), kMf = card({ expr: '3d6', draws: [1, 1, 1], label: 'Blaster', dmg: 1, malf: 3 }, [1, 1, 1]);

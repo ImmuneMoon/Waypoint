@@ -24,7 +24,7 @@ var LIMITS = Object.freeze({
     cardChars: 240,     // describe() cap in a toast / plain-text card
     swPicks: 8,         // 1.6.0: the roll switches one roll may name (systemcore LIMITS.rollSw a holder)
     applyLines: 12,     // an apply card's lines: one a change an action or a roll's Then makes (systemcore LIMITS.applyChanges; 8 before 1.6.0, 4 before 1.5.4)
-    rowRolls: 10        // a list's rolls, so a row roll's index is 0 to 9 (systemcore LIMITS.rowRolls; 4 before 1.5.4, 8 before 1.6.0)
+    rowRolls: 16        // a list's rolls, so a row roll's index is 0 to 15 (systemcore LIMITS.rowRolls; 4 before 1.5.4, 8 before 1.6.0, 10 before the raise the session that builds a game system asked for)
 });
 var ID_RE = /^r_[A-Za-z0-9]{1,16}$/;
 var RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
@@ -261,7 +261,8 @@ function cleanRoll(rec) {
     if (rec.refs !== undefined) { var rfc = cleanRefs(rec.refs); if (rfc) out.refs = rfc; }   // 1.6.0 Specialties: the case each reference used
     if (rec.dmg !== undefined) { if (rec.dmg !== 1) return null; out.dmg = 1; }
     if (rec.aim !== undefined) { var amc = cleanAim(rec.aim); if (amc) out.aim = amc; }   // 1.6.0 (B5): where a called shot was aimed (one that does not clean is left off, the roll kept)
-    if (rec.dmg2 !== undefined && out.dmg === 1) { var d2c = cleanDmg2(rec.dmg2); if (d2c) out.dmg2 = d2c; }   // 1.6.0 (B3): the blow's second part, only on a damage roll (one that does not clean is left off, the roll kept)   // chat cards: a damage roll, marked by the host from its roll (never the roller's word)   // Stage 6 HUD R3: the roll's malfunction threshold (every machine works the malfunction out from the draws)
+    if (rec.dmg2 !== undefined && out.dmg === 1) { var d2c = cleanDmg2(rec.dmg2); if (d2c) out.dmg2 = d2c; }
+    [3, 4].forEach(function(k) { if (rec['dmg' + k] !== undefined && out.dmg === 1) { var dkc = cleanDmg2(rec['dmg' + k]); if (dkc) out['dmg' + k] = dkc; } });   // 1.6.0: a third and a fourth part, each as the second   // 1.6.0 (B3): the blow's second part, only on a damage roll (one that does not clean is left off, the roll kept)   // chat cards: a damage roll, marked by the host from its roll (never the roller's word)   // Stage 6 HUD R3: the roll's malfunction threshold (every machine works the malfunction out from the draws)
     var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
     var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
     return out;

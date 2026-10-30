@@ -213,6 +213,12 @@ Systems, more
   list keeps it. Where the gun's stat is a set of places, as Where it
   meets on a switch makes it, the gun takes a round of every value it
   ticks, so one gun can take two calibres. What fitted before still fits.
+- A row's chamber now holds up to 32 rounds, where it held 8. Holds and a
+  row's own figure both go up to 32.
+- Fire has a How many box, for a burst, such as Row.Rate. That many rounds
+  go in order, and it stops when the chamber is empty. Empty, it fires one.
+  The card says how many went. Row.fired.<stat> reads the last one that
+  went, and a launched blast is that round's alone.
 - A rule can name a thing's place by its name, so it keeps its meaning when
   a list changes. Posture.Prone reads the Prone posture's place, so
   Posture = Posture.Prone still means prone after a posture is added before
@@ -233,13 +239,14 @@ Systems, more
   blow, with its own type. The card rolls both. Each part's DR comes off
   on its own, then the blow is one wound: one Major Wound test, one Any
   wound and one wear. The Rolls tab can now set a roll's Damage type too.
-- A blow can have a Third part and a Fourth part too, each with its own
-  type, and on a list's roll its own armour divisor. Every part counts in
-  the one blow. Each box shows once the part before it has a formula.
+- A blow can have a Third part, a Fourth part and a Fifth part too, each
+  with its own type, and on a list's roll its own armour divisor. Every
+  part counts in the one blow. Each box shows once the part before it has
+  a formula.
 - Any wound's Where, and the rolls a wound posts, read Blow.type2 and
   Blow.wound2: the second part's own type and wound, 0 with none. So a
-  roll can follow the second part alone. Blow.type3, Blow.wound3,
-  Blow.type4 and Blow.wound4 read the third and fourth parts.
+  roll can follow the second part alone. Blow.type3 to Blow.wound5 read
+  the third, fourth and fifth parts.
 - Any wound's Where, and the rolls a wound posts, read Blow.major: 1 where the
   blow is a Major Wound, by its size or by the roll's mark, else 0.
 - A roll a wound asks for reads the blow and the location hit, as Blow. and

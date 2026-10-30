@@ -262,7 +262,7 @@ function cleanRoll(rec) {
     if (rec.dmg !== undefined) { if (rec.dmg !== 1) return null; out.dmg = 1; }
     if (rec.aim !== undefined) { var amc = cleanAim(rec.aim); if (amc) out.aim = amc; }   // 1.6.0 (B5): where a called shot was aimed (one that does not clean is left off, the roll kept)
     if (rec.dmg2 !== undefined && out.dmg === 1) { var d2c = cleanDmg2(rec.dmg2); if (d2c) out.dmg2 = d2c; }
-    [3, 4].forEach(function(k) { if (rec['dmg' + k] !== undefined && out.dmg === 1) { var dkc = cleanDmg2(rec['dmg' + k]); if (dkc) out['dmg' + k] = dkc; } });   // 1.6.0: a third and a fourth part, each as the second   // 1.6.0 (B3): the blow's second part, only on a damage roll (one that does not clean is left off, the roll kept)   // chat cards: a damage roll, marked by the host from its roll (never the roller's word)   // Stage 6 HUD R3: the roll's malfunction threshold (every machine works the malfunction out from the draws)
+    [3, 4, 5].forEach(function(k) { if (rec['dmg' + k] !== undefined && out.dmg === 1) { var dkc = cleanDmg2(rec['dmg' + k]); if (dkc) out['dmg' + k] = dkc; } });   // 1.6.0: a third and a fourth part, each as the second   // 1.6.0 (B3): the blow's second part, only on a damage roll (one that does not clean is left off, the roll kept)   // chat cards: a damage roll, marked by the host from its roll (never the roller's word)   // Stage 6 HUD R3: the roll's malfunction threshold (every machine works the malfunction out from the draws)
     var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
     var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
     return out;

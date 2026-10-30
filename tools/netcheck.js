@@ -3637,16 +3637,16 @@ pendingChecks.push((async () => {
     const callsOf = () => { const c = { hit: [], miss: [] }; return { c, win: { wpLaunchHit: o => { c.hit.push(JSON.parse(JSON.stringify(o))); return null; }, wpLaunchMiss: o => { c.miss.push(JSON.parse(JSON.stringify(o))); return null; } } }; };
     // the review of fold 2: a system whose checks are no 3d6 roll-under (a d20's), whose natural 1 is a critical failure as a throw reads it (dicecore checkOf)
     const sysD = Sx.cleanSystem(Object.assign(JSON.parse(JSON.stringify(sysL)), { combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }, fields: JSON.parse(JSON.stringify(sysL.fields)).map(f => (f.list.rolls.forEach(r => { r.formula = '1d20 + 5 >= 15'; }), f)) }), { F: Fx, gmView: true });
-    const runQ = (ri, fv, aimed, sysX, exprX) => {
-        const camp = { id: 'k', activeItemId: 'm1', system: sysX || sysL, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: { f_gear: rowsL() } } }, items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 't_a', isChar: true, charId: 'c_a', ownerId: 'u_a', x: 0, y: 100 }, { id: 't_foe', isChar: true, charId: 'c_foe', x: 300, y: 100 }] } } };
-        const conn = { peer: 'pA', open: true, send(m) { packCheck(m); } }, { c, win } = callsOf();
+    const runQ = (ri, fv, aimed, sysX, exprX, rowsX) => {
+        const camp = { id: 'k', activeItemId: 'm1', system: sysX || sysL, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: { f_gear: rowsX || rowsL() } } }, items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 't_a', isChar: true, charId: 'c_a', ownerId: 'u_a', x: 0, y: 100 }, { id: 't_foe', isChar: true, charId: 'c_foe', x: 300, y: 100 }] } } }, sent = [], chats = [];
+        const conn = { peer: 'pA', open: true, send(m) { packCheck(m); sent.push(JSON.parse(JSON.stringify(m))); } }, { c, win } = callsOf();
         const net = { active: true, role: 'host', paused: false, conns: [conn], roster: { pA: { id: 'u_a', name: 'Pebbles', location: 'm1' } }, combats: {}, syncCharDelta() {} };
         Object.assign(win, { wpFormula: fixedF(fv), wpSheets: { playerSystem: cc => Sx.cleanSystem(cc.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } });
         let err = '';
         try { new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'pushChat', 'applyLine', 'rangeTo', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + paSrc + '\n' + rqSrc)(
-            { type: 'roll-req', rid: 'q1', charId: 'c_a', expr: exprX || '3d6 <= 10', row: { f: 'f_gear', r: 'w_t', i: ri } }, conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, () => {}, () => {}, () => {}, () => {}, () => {}, r => Dx.applyText(r),
+            { type: 'roll-req', rid: 'q1', charId: 'c_a', expr: exprX || '3d6 <= 10', row: { f: 'f_gear', r: 'w_t', i: ri } }, conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, () => {}, () => {}, () => {}, () => {}, m => chats.push(JSON.parse(JSON.stringify(m))), r => Dx.applyText(r),
             aimed ? () => ({ mod: 0, dist: 6, tid: 't_foe', mapId: 'm1' }) : () => null); } catch (e) { err = String(e && e.stack || e).slice(0, 400); }
-        return { err, c, fd: camp.chars.c_a.values.f_gear[0].fd ? 1 : 0 }; };
+        return { err, c, fd: camp.chars.c_a.values.f_gear[0].fd ? 1 : 0, rd: camp.chars.c_a.values.f_gear[0].rd, sent, chats }; };
     const qHit = runQ(0, 3, true), qMiss = runQ(0, 5, true), qFum = runQ(0, 6, true), qNoAim = runQ(0, 5, false), qHitOnly = runQ(1, 5, true);
     const qD1 = runQ(0, 1, true, sysD, '1d20 + 5 >= 15'), qD2 = runQ(0, 2, true, sysD, '1d20 + 5 >= 15');
     check('1.5.9 (es), the review of fold 2: a launched round\'s critical failure is read as a throw\'s is, by the system\'s own criticals (dicecore checkOf), so a d20 system\'s natural 1 on the roll-req branch, run for real, says fumble to wpLaunchMiss, and a 2 that misses says none; the 3d6 system\'s as before',
@@ -3661,16 +3661,25 @@ pendingChecks.push((async () => {
         && !qHitOnly.err && qHitOnly.c.hit.length === 0 && qHitOnly.c.miss.length === 0 && qHitOnly.fd === 0,
         j([qHit, qMiss, qFum, qNoAim, qHitOnly]));
     // the GM's own roll on an NPC's launcher: net.diceRoll, the same lines
-    const runG = (fv, sysX, exprX) => { const { c, win } = callsOf();
-        const camp = { id: 'k', system: sysX || sysL, chars: { c_a: { id: 'c_a', name: 'Kael', npc: true, values: { f_gear: rowsL() } } } };
-        const net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta() {}, postApplyCard() {} };
+    const runG = (fv, sysX, exprX, rowsX) => { const { c, win } = callsOf(), cards = [];
+        const camp = { id: 'k', system: sysX || sysL, chars: { c_a: { id: 'c_a', name: 'Kael', npc: true, values: { f_gear: rowsX || rowsL() } } } };
+        const net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta() {}, postApplyCard: (ch, label, lines, scope) => cards.push([label, JSON.parse(JSON.stringify(lines)), scope]) };
         Object.assign(win, { wpFormula: fixedF(fv), wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => ({ range: { mod: 0, dist: 6, tid: 't_foe', mapId: 'm1' } }), charChanged() {} } });
         let err = '', ret = null;
         try { const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
             net, () => Dx, () => Sx, win, () => camp, () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, e => { throw e; }, () => {}, () => {}, () => {}, () => {});
             ret = dr(exprX || '3d6 <= 10', { charId: 'c_a', row: { f: 'f_gear', r: 'w_t', i: 0 } }); } catch (e) { err = String(e && e.stack || e).slice(0, 400); }
-        return { err, ret, c }; };
+        return { err, ret, c, cards, rd: camp.chars.c_a.values.f_gear[0].rd }; };
     const gHit = runG(3), gMiss = runG(5), gD1 = runG(1, sysD, '1d20 + 5 >= 15'), gFum = runG(6);
+    // 1.6.0 (asked by the session that builds a game system): Fire's How many, on the host: one card a burst, saying how many went, and one blast of the last round
+    const sysBu = Sx.cleanSystem(Object.assign(JSON.parse(JSON.stringify(sysL)), { fields: JSON.parse(JSON.stringify(sysL.fields)).map(f => (f.list.chamber.cap = 32, f.list.rolls[0].then = [{ fire: true, n: '3' }], f.list.rolls[1].then = [{ fire: true, n: '9', when: 'miss' }], f)) }), { F: Fx, gmView: true });
+    const rows32 = () => [{ id: 'w_t', defId: 'i_tube', qty: 1, rd: Array.from({ length: 32 }, () => ({ defId: 'i_fizz' })) }];
+    const qBu = runQ(0, 3, true, sysBu, null, rows32()), qBuE = runQ(0, 3, true, sysBu), gBu = runG(3, sysBu, null, rows32()), q1No = runQ(0, 3, true);
+    check('1.6.0 Fire\'s How many on the host (the roll-req branch and net.diceRoll, run for real): a burst of 3 out of 32 leaves 29, sends its owner one apply card that says how many went, kept by a player\'s cleaner, and goes off once at the target; a count past the chamber stops at the empty chamber and says the 2 that went; the GM\'s own roll alike through net.postApplyCard; a fire with no How many posts no card, as before',
+        !qBu.err && qBu.rd.length === 29 && qBu.c.hit.length === 1 && qBu.chats.length === 1 && j(qBu.chats[0].apply.lines) === j([{ n: 'Fizz Grenade fired, chambered', d: -3, v: 29 }]) && qBu.chats[0].scope === 'whisper' && qBu.sent.filter(m => m.type === 'apply').length === 1 && j(Dx.cleanApply(qBu.sent.filter(m => m.type === 'apply')[0]).lines) === j([{ n: 'Fizz Grenade fired, chambered', d: -3, v: 29 }]) && /Fizz Grenade fired, chambered \u22123 \u2192 29/.test(Dx.applyText(qBu.chats[0].apply))
+        && !qBuE.err && qBuE.rd === undefined && j(qBuE.chats[0].apply.lines) === j([{ n: 'Fizz Grenade fired, chambered', d: -2, v: 0 }])
+        && !gBu.err && gBu.rd.length === 29 && gBu.c.hit.length === 1 && gBu.cards.length === 1 && j(gBu.cards[0][1]) === j([{ f: 'f_gear', n: 'Fizz Grenade fired, chambered', d: -3, v: 29 }]) && !q1No.err && q1No.chats.length === 0 && gHit.cards.length === 0,
+        j([qBu.err, qBu.rd, qBu.chats, qBuE.chats, gBu, q1No.chats]));
     check('1.5.9 (es), the review of fold 2: the GM\'s own roll (net.diceRoll, run for real) reads a launched round\'s critical failure as a throw\'s is: a d20 system\'s natural 1 says fumble, and the 3d6 system\'s 18 too',
         !gD1.err && gD1.c.miss.length === 1 && gD1.c.miss[0].crit === 'fumble' && !gFum.err && gFum.c.miss.length === 1 && gFum.c.miss[0].crit === 'fumble',
         j([gD1, gFum]));
@@ -4586,6 +4595,13 @@ pendingChecks.push((async () => {
         q4GA.ret.ok && j([q4GA.recs[0].dmg2, q4GA.recs[0].dmg3, q4GA.recs[0].dmg4]) === j([{ t: 3, n: 1, dtype: 'burn' }, { t: 9, n: 1, dtype: 'cut' }, { t: 2, dtype: 'burn' }]) && q4GA.pushed[0] === 'global'
         && j(q4GG.recs[0].dmg3) === j({ t: 6, n: 1, dtype: 'burn' }) && j(q4GG.recs[0].dmg4) === j({ t: 6, n: 1 }) && q4GG.recs[0].priv === 'gm' && q4GG.pushed[0] === 'whisper' && q4GG.toasts.some(t => /Secret/.test(t)),
         j([q4GA.recs[0], q4GG.recs[0], q4GG.toasts]));
+    // 1.6.0 (asked by the session that builds a game system): a fifth part, by its own slot
+    const sysP5 = sysOfB({ dmg: true, dmg2: '1', dmg3: '1', dmg4: '1', dmg5: '1d6 + Edge', dtype5: 'burn' }, typesP), sysP5g = sysOfB({ dmg: true, dmg2: '1', dmg5: 'Secret + 1d6', dtype5: 'burn' }, typesP);
+    const q5A = runB(sysP5, [1, 1, 2, 5]), q5G = runB(sysP5g, [1, 1, 2]), q5X = runB(sysP2, [1, 1, 2, 3], { dmg5: { t: 99 }, part5: { amt: 9 } }), q5GA = runBG(sysP5, [1, 1, 2, 5]), q5GG = runBG(sysP5g, [1, 1, 2, 4]);
+    check('1.6.0 a fifth part on a damage roll: on a player\'s (the host\'s roll-req branch) rolled from the entry through their view (1d6 5 + Edge 4 is 9 Burning), on the record and kept by a player\'s cleaner; one read from a GM-only value dropped from their view; a dmg5 or part5 in the player\'s message never read; on the GM\'s own (net.diceRoll) rolled and the card public, and one read from a GM-only value rolled for the GM and keeping the card private',
+        q5A.table.length === 1 && j(q5A.table[0].dmg5) === j({ t: 9, n: 1, dtype: 'burn' }) && q5A.left === 0 && j(Dx.cleanRoll(q5A.table[0]).dmg5) === j({ t: 9, n: 1, dtype: 'burn' }) && !('dmg5' in q5G.table[0]) && q5G.left === 0 && !('dmg5' in q5X.table[0])
+        && q5GA.ret.ok && j(q5GA.recs[0].dmg5) === j({ t: 9, n: 1, dtype: 'burn' }) && q5GA.pushed[0] === 'global' && j(q5GG.recs[0].dmg5) === j({ t: 6, n: 1, dtype: 'burn' }) && q5GG.recs[0].priv === 'gm' && q5GG.pushed[0] === 'whisper' && q5GG.toasts.some(t => /Secret/.test(t)),
+        j([q5A.table[0], q5G.table[0], q5X.table[0], q5GA.recs[0], q5GG.recs[0], q5GG.toasts]));
 })());
 
 // 1.6.0 (the SotMW v2 sort, B2: "resist at minus the attempt's margin"): a roll Resisted by a system roll that succeeds against the roller's

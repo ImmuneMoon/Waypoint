@@ -1995,8 +1995,9 @@
      ones opened. The box takes the room the row has left and its list fades out where it is too long, so the tabs never wrap the row ---- */
   #mapTabs { display: flex; align-items: center; gap: 2px; flex: 1 1 0; min-width: 180px; }   /* the row would rather fold five icons into More than leave the tabs less than this */
   body.row-tight #saveNote { display: none; }   /* 1.6.0: the last step before the row wraps; a save that fails is still said in a notice */
-  body.row-tight header #rowPills .pill { max-width: 104px; transition: none; }
-  body.row-tight header .seg-btn { font-size: 0; transition: none; }   /* the two views by their drawings alone; each keeps its name for a screen reader. No easing: the fold measures the row in the same breath */
+  body.row-fit header, body.row-fit header * { transition: none !important; }   /* only while toprow.js measures the row */
+  body.row-tight header #rowPills .pill { max-width: 104px; }
+  body.row-tight header .seg-btn { font-size: 0; }   /* the two views by their drawings alone; each keeps its name for a screen reader */
   body.row-tight header .seg-btn .ico { margin-right: 0; }
   body.row-tight header #rowPills .pill-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   body.row-squeeze #mapTabs { min-width: 30px; }   /* 1.6.0: only with every icon in the tray do the tabs take what is left, down to the plus alone; before that an icon steps out first */

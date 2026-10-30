@@ -103,8 +103,8 @@ function campPick(id) {
 // The row's controls do not fit on one line: the header grew past one row
 function rowWraps() { var h = document.querySelector('header'); return !!h && h.offsetHeight > ONE_ROW; }
 // The row is fitted to the window, one icon at a time (1.6.0): with every icon back it is asked whether it wraps, and while it does the next
-// icon of FOLD_ORDER steps out, until the row holds one line. With all six out and the row still wrapping, the row goes tight (row-tight: the
-// saved note put away, a pill cut short). A row that wraps even then is left whole, on its two lines, since folding would hide six controls
+// icon of FOLD_ORDER steps out, until the row holds one line. With all six out and the row still wrapping, or holding one line only by cutting
+// the map's name to a letter or two (tabsCramped), the row goes tight (row-tight: the saved note put away, a pill cut short). A row that wraps even then is left whole, on its two lines, since folding would hide six controls
 // and win nothing. Nothing is drawn in between. An icon that stepped out wears row-fold, the style sheet's
 // one word for it, the body carries row-narrow while any did, and the » button shows. While the tour's card is up nothing folds, so that a
 // step finds the control it points at. true: folded
@@ -114,14 +114,21 @@ function foldSet(n) {
     document.body.classList.toggle('row-narrow', n > 0); document.body.classList.toggle('row-squeeze', n >= FOLD_ORDER.length); var b = document.getElementById('rowTrayBtn'); if (b) b.hidden = !(n > 0);
     return n;
 }
+var TABS_ROOM = 96;   // the map tabs narrower than this are cutting the map's name
+function tabsCramped() { var t = document.getElementById('mapTabs'); return !!t && t.offsetWidth > 0 && t.offsetWidth < TABS_ROOM; }
 function foldFit() {
     var cl = document.body.classList, n = 0;
+    cl.toggle('row-fit', true);   // no easing while it is measured: a control caught mid-ease gave another answer each time, and the row went on changing by itself
     foldSet(0); cl.toggle('row-tight', false);
     if (!cl.contains('tour-on') && rowWraps()) {
         for (n = 1; n <= FOLD_ORDER.length; n++) { foldSet(n); if (!rowWraps()) break; }
-        if (n > FOLD_ORDER.length) { cl.toggle('row-tight', true); if (rowWraps()) { cl.toggle('row-tight', false); n = foldSet(0); } else n = FOLD_ORDER.length; }   // 1.6.0, found by hand: the Round pill's words sent every icon back onto a second line
+        if (n > FOLD_ORDER.length || (n === FOLD_ORDER.length && tabsCramped())) {   // 1.6.0, found by hand: the Round pill's words sent every icon back onto a second line, and a row that fitted cut the map's name to a letter
+            var wrapped = n > FOLD_ORDER.length; cl.toggle('row-tight', true);
+            if (rowWraps()) { cl.toggle('row-tight', false); n = wrapped ? foldSet(0) : n; } else n = FOLD_ORDER.length;
+        }
     }
     foldSync();
+    rowWraps(); cl.toggle('row-fit', false);
     return n > 0;
 }
 // A button of the tray stands for an icon that stepped out of the row, and shows only while that icon would show were it in the row: one that

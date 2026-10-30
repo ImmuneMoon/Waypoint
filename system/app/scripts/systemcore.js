@@ -2900,6 +2900,11 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
         v.rolls.forEach(function(rv) { if (rls.length >= LIMITS.rowRolls || !isObj(rv)) return; if (Array.isArray(rv.apply)) { var lap = { label: cutText(rv.label, LIMITS.label) || 'Apply', apply: cleanApplyChanges(rv.apply, false, true) }, lac = costKey(rv.cost); if (lac) lap.cost = lac; rollNeedsInto(lap, rv); if (rv.to === 'near') lap.to = 'near'; if (rv.gm === true) lap.gm = true; var lsh = cleanFormulaText(rv.showIf); if (lsh) lap.showIf = lsh; var lal = cleanAlt(rv.alt, F); if (lal) lap.alt = lal; var lic = cleanIcon(rv.icon); if (lic) lap.icon = lic; if (gmView) { var lxc = cleanRowCross(rv.cross, out.counters); if (lxc) lap.cross = lxc; } partPlaceIn(lap, rv); rls.push(lap); return; } var rro = { label: cutText(rv.label, LIMITS.label) || 'Roll', formula: cleanFormulaText(rv.formula) || '' }; if (Array.isArray(rv.then)) { var rth = cleanApplyChanges(rv.then, true, true); if (rth.length) rro.then = rth; } var rmf2 = cleanFormulaText(rv.malf); if (rmf2) rro.malf = rmf2; critRangeInto(rro, rv); var rbg2 = cleanFormulaText(rv.bigAt); if (rbg2) rro.bigAt = rbg2; if (rv.dmg === true) { rro.dmg = true; var rdt = cleanFormulaText(rv.dtype); if (rdt) rro.dtype = rdt; var rad = cleanFormulaText(rv.ad); if (rad) rro.ad = rad; if (rv.dmgMajor === true) rro.dmgMajor = true; var rmi = cleanFormulaText(rv.dmgMajorIf); if (rmi) rro.dmgMajorIf = rmi; } var rnd = cleanFormulaText(rv.needs); if (rnd) { rro.needs = rnd; var rnt = cutText(rv.needsText, LIMITS.label); if (rnt) rro.needsText = rnt; } var lrc = costKey(rv.cost); if (lrc) rro.cost = lrc; var lrd = cleanDie(rv.die); if (lrd) rro.die = lrd; if (rv.to === 'near') rro.to = 'near'; if (rv.gm === true) rro.gm = true; var rsh = cleanFormulaText(rv.showIf); if (rsh) rro.showIf = rsh; var ral = cleanAlt(rv.alt, F); if (ral) rro.alt = ral; var rshw = rollShowOf(rv.show, out.cols); if (rshw) rro.show = rshw; var ric = cleanIcon(rv.icon); if (ric) rro.icon = ric; if (rv.askLvl === true && out.lvl) rro.askLvl = true; if (gmView) { var rxc = cleanRowCross(rv.cross, out.counters); if (rxc) rro.cross = rxc; } if (rv.resist === true) rro.resist = true; resistByInto(rro, rv, gmView); partPlaceIn(rro, rv); rls.push(rro); });   // cross (1.6.0): it also runs on a row whose counter crosses a step   // showIf (1.6.0): Shown where, a formula of the row's names; its button only on rows where it holds   // 1.6.0: gm, only the GM presses it (the players' view drops it: applyTargets)   // R2b: a list roll's consequences (a counter too) and what it needs   // HUD H7b: or an apply action on each row (its amounts read the row as Row.*)
         if (rls.length) out.rolls = rls;
     }
+    if (isObj(v.at)) {   // 1.6.0 (asked by the campaign build's session, for an implant that reads the location it sits at): Stands at, a row of another item list (from, a field id; cleanSystem keeps it only where that list is in the view and is not this one) named by a choice stat of this list (by: a pick, or a number with value names, spelled as the list spells it; never parts, round or fired, Row.'s own words with a dot). The same in both views (atIndex, atVal)
+        var atF = typeof v.at.from === 'string' && FIELD_ID.test(v.at.from) ? v.at.from : '', atB = typeof v.at.by === 'string' ? lower(v.at.by.trim()) : '', atS = '';
+        (out.stats || []).forEach(function(s) { if (!atS && atB && AT_NOT[atB] !== 1 && lower(s.key) === atB && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length > 0 : Array.isArray(s.labels) && s.labels.length > 0)) atS = s.key; });
+        if (atF && atS) out.at = { from: atF, by: atS };
+    }
     return Object.keys(out).length ? out : null;
 }
 // Stage 6 F5a2: a choice stat's options — { label ≤60, name } each, at most LIMITS.pickOpts, a label once ignoring case; the name one formula name
@@ -3345,6 +3350,7 @@ function cleanSystem(sys, opts) {
     var chIl = map(); out.fields.forEach(function(f) { if (f.kind === 'item-list') chIl[f.id] = 1; });   // 1.5.9 Chambers from: an item list of this view, this very list too (the players' view: a GM-only list is not there, so its chamber goes)
     out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.chamber) && chIl[f.list.chamber.from] !== 1) delete f.list.chamber; });
     out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.parts) && chIl[f.list.parts.from] !== 1) delete f.list.parts; });
+    out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.at) && (chIl[f.list.at.from] !== 1 || f.list.at.from === f.id)) delete f.list.at; });   // 1.6.0 Stands at: a list of this view (the players' view: a GM-only list is not there, so its at goes)
     out.fields.forEach(function(f) {   // the core handbook session's ask 4 (2026-10-29): a cap line by a part's own choice stat names a choice stat of the parts' list (a pick, or a number with value names) and one of its values, each spelled as that list spells it; a line that names neither goes
         if (f.kind !== 'item-list' || !isObj(f.list) || !isObj(f.list.parts) || !Array.isArray(f.list.parts.caps)) return;
         var srcC = null; out.fields.forEach(function(x) { if (!srcC && x.id === f.list.parts.from && x.kind === 'item-list') srcC = x; }); var sstC = srcC && isObj(srcC.list) && Array.isArray(srcC.list.stats) ? srcC.list.stats : [];
@@ -3365,9 +3371,10 @@ function cleanSystem(sys, opts) {
     var hasPicks = out.fields.some(function(f) { return f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.stats) && f.list.stats.some(function(x) { return x.kind === 'pick'; }); });   // F5a2
     if (!gmView && (dropped.length || hasGmKeys || hasPicks)) {   // a visible formula that named a GM-only key is blanked: the player sees "GM only", never the name
         var isDropped = map(); dropped.forEach(function(k) { isDropped[k] = 1; });
+        var atGm = map(); (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (!isObj(f) || f.kind !== 'item-list' || !isObj(f.list) || !isObj(f.list.at) || typeof f.list.at.by !== 'string') return; (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(g) { if (isObj(g) && g.id === f.list.at.from && typeof g.key === 'string' && droppedList[lower(g.key)] === 1) atGm[lower(f.list.at.by)] = 1; }); });   // 1.6.0 Stands at: Row.<by>.<w> is the other list's name, GM only where that list is
         var mentions = function(text) {
             if (!text) return false;
-            var hit = function(n) { var l = lower(n); if (l.length > 3 && l.indexOf('on.') === 0) l = l.slice(3); l = lower(linkBare(sys, null, l)); var dot = l.lastIndexOf('.'); if (isDropped[l]) return true; var sg = l.split('.'); if (sg.length > 1 && (droppedList[sg[0]] === 1 || (sg.length > 2 && gmKeys[sg[0]] && gmKeys[sg[0]][sg[1]] === 1))) return true; return dot > 0 && NAME_SUFFIX[l.slice(dot + 1)] && isDropped[l.slice(0, dot)]; };   // F5a1: a GM-only list by its first segment, L.<a GM-only entry's key> (critic 5)
+            var hit = function(n) { var l = lower(n); var sgA = l.split('.'); if (sgA.length === 3 && sgA[0] === 'row' && atGm[sgA[1]] === 1) return true; if (l.length > 3 && l.indexOf('on.') === 0) l = l.slice(3); l = lower(linkBare(sys, null, l)); var dot = l.lastIndexOf('.'); if (isDropped[l]) return true; var sg = l.split('.'); if (sg.length > 1 && (droppedList[sg[0]] === 1 || (sg.length > 2 && gmKeys[sg[0]] && gmKeys[sg[0]][sg[1]] === 1))) return true; return dot > 0 && NAME_SUFFIX[l.slice(dot + 1)] && isDropped[l.slice(0, dot)]; };   // F5a1: a GM-only list by its first segment, L.<a GM-only entry's key> (critic 5)
             if (F.parse(text).ok) return figExpand(sys, F.names(text)).some(hit);   // the core handbook session's ask 6: a group's figure by what its formula reads
             return (String(text).match(/[A-Za-z_][A-Za-z0-9_.]*/g) || []).some(function(t) { return hit(t) || hit(t.split('.')[0]); });   // Stage 6: text that does not parse is checked word by word — a typo never carries a GM-only name to players
         };
@@ -4081,7 +4088,8 @@ function chainsWalk(sys, F) {
         (spec && Array.isArray(spec.counters) ? spec.counters : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') ct[lower(x.key)] = x; });
         var chs = spec && isObj(spec.chamber) ? chamberSrc(sys, spec) : null;   // 1.5.9: the list its chambered rounds come from (Row.round.*, Row.fired.*)
         var pts = spec && isObj(spec.parts) ? partsSrc(sys, spec) : null;   // 1.6.0 R14: the list its parts come from (Row.parts.*)
-        return (lists[lk] = { k: lk, fid: f.id, st: st, cl: cl, ct: ct, chs: chs, pts: pts });
+        var ats = spec && isObj(spec.at) ? atSrc(sys, spec) : null;   // 1.6.0 Stands at: the list the row its stat names is in (Row.<by>.*)
+        return (lists[lk] = { k: lk, fid: f.id, st: st, cl: cl, ct: ct, chs: chs, pts: pts, ats: ats && ats.id !== f.id ? ats : null, atb: ats ? lower(spec.at.by) : '' });
     };
     var defNode = function(f, sfx) {   // a field's name: its definition worked out (a formula, a skill's base, a pool's most), '' for one read as stored
         if (f.kind === 'number' && isObj(f.override)) return sfx && sfx !== 'base' ? '' : node('f|' + lower(f.key), [f.override.when, f.override.value].filter(function(x) { return typeof x === 'string' && x; }), null, [], []);   // 205 (6): a number's override (its .base too)
@@ -4114,7 +4122,7 @@ function chainsWalk(sys, F) {
     var nodeOf = function(name, L) {   // the resolver's own lookup (fn, and a column's rowVars): the node a name is worked out under, or ''
         var l = lower(name);
         if (L && l.slice(0, 5) === 'host.' && !ix.host && !lkC.host) { var hw = l.slice(5), hn = []; if (hw.indexOf('.') < 0) sys.fields.forEach(function(hf) { if (isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === L.fid) { var hd = rowNode(listOf(hf), hw); if (hd) hn.push(hd); } }); if (hn.length) return hn.length === 1 ? hn[0] : node('h|' + L.k + '|' + hw, [], null, [], hn); }   // 205 (3): a part's Host.<w>, on each list its host may be in
-        if (L && l.slice(0, 4) === 'row.') { var w = l.slice(4), cw = w.split('.'); return w.indexOf('.') < 0 ? rowNode(L, w) : cw.length === 2 && (cw[0] === 'round' || cw[0] === 'fired') && L.chs ? rowNode(listOf(L.chs), cw[1]) : cw[0] === 'parts' && L.pts && (cw.length === 2 || (cw.length === 3 && (cw[1] === 'max' || cw[1] === 'min' || cw[1] === 'all'))) ? rowNode(listOf(L.pts), cw[cw.length - 1]) : ''; }   // 1.5.9: a round's stat or column, on its own list; 1.6.0 R14: a part's (205 (1): its highest or lowest too)
+        if (L && l.slice(0, 4) === 'row.') { var w = l.slice(4), cw = w.split('.'); return w.indexOf('.') < 0 ? rowNode(L, w) : cw.length === 2 && (cw[0] === 'round' || cw[0] === 'fired') && L.chs ? rowNode(listOf(L.chs), cw[1]) : cw.length === 2 && L.ats && cw[0] === L.atb ? rowNode(listOf(L.ats), cw[1]) : cw[0] === 'parts' && L.pts && (cw.length === 2 || (cw.length === 3 && (cw[1] === 'max' || cw[1] === 'min' || cw[1] === 'all'))) ? rowNode(listOf(L.pts), cw[cw.length - 1]) : ''; }   // 1.5.9: a round's stat or column, on its own list; 1.6.0 R14: a part's (205 (1): its highest or lowest too)
         if (ix[l]) return defNode(ix[l], '');
         if (l.indexOf('.') > 0) { var ln = listNode(l); if (ln !== undefined) return ln; }
         var dot = l.lastIndexOf('.'); if (dot > 0 && NAME_SUFFIX[l.slice(dot + 1)] && ix[l.slice(0, dot)]) return defNode(ix[l.slice(0, dot)], l.slice(dot + 1));
@@ -5394,6 +5402,20 @@ function rowLoad(sys, char, f, list, spec, q, opts, at, vo, F) {
 // the right to change both lists. Answers the host list as value and, where the round list is another, that list in also
 // 1.6.0, backlog 180 R14: rows in rows. partsSrc, the item list a list's parts come from; partHost, the host a part is added to: a row of a list whose
 // parts come from fieldId, by its id, never itself a part (one level), never a row kept from its player; partsOf, a host's parts on a character
+// 1.6.0 Stands at (asked by the campaign build's session, for an implant that reads the location it sits at): a list's at { from, by }. A row's
+// choice stat by (a pick's label, or a number's value name: statName) names a row of the list from: the first row there whose entry's key reads
+// the same, else the first whose name does, each folded to its letters and digits in lower case, so Upper Torso is the entry UpperTorso. The key
+// first: it is the entry's own and moves with no rename, where a figure two entries share (two locations at one armour slot) names the wrong one
+// and a name a copy may change. Formulas of the list read that row's stat, choice or column as Row.<by>.<w> (atVal), 0 where none is named or held
+var AT_NOT = Object.freeze({ parts: 1, round: 1, fired: 1 });
+function atFold(s) { return typeof s === 'string' ? lower(s).replace(/[^a-z0-9]/g, '') : ''; }
+function atSrc(sys, spec) { var a = isObj(spec) && isObj(spec.at) ? spec.at : null, sf = a && isObj(sys) && Array.isArray(sys.fields) ? fieldById(sys, a.from) : null; return sf && sf.kind === 'item-list' ? sf : null; }
+function atIndex(spec, d, defs) {
+    var a = isObj(spec) && isObj(spec.at) ? spec.at : null, nm = a ? atFold(statName(spec, d, a.by)) : ''; if (!nm || !Array.isArray(defs)) return -1;
+    for (var i = 0; i < defs.length; i++) if (isObj(defs[i]) && atFold(defs[i].key) === nm) return i;
+    for (var j = 0; j < defs.length; j++) if (isObj(defs[j]) && atFold(defs[j].name) === nm) return j;
+    return -1;
+}
 function partsSrc(sys, spec) { var p = isObj(spec) && isObj(spec.parts) ? spec.parts : null, sf = p && isObj(sys) && Array.isArray(sys.fields) ? fieldById(sys, p.from) : null; return sf && sf.kind === 'item-list' ? sf : null; }
 // 198 (the SotMW session, 2026-10-28): which rows of a list may hold parts. A list's parts.hosts names the categories a host may be; none
 // named, every row that is no part itself. The sheet's add control and the host's judge (partHost) both ask it
@@ -5894,7 +5916,7 @@ function rowAsks(sysG, f, names) {
     var asks = [], key = isObj(f) && typeof f.key === 'string' ? f.key : '', sp = isObj(f) && isObj(f.list) ? f.list : null, flds = isObj(sysG) && Array.isArray(sysG.fields) ? sysG.fields : [], fid = isObj(f) ? f.id : null;
     (Array.isArray(names) ? names : []).forEach(function(n) {
         var nm = typeof n === 'string' ? n : n && typeof n.name === 'string' ? n.name : '', l = lower(nm); if (!nm) return;
-        if (l.indexOf('row.') === 0) { asks.push({ name: key + '.count' }); if (l.indexOf('row.parts') === 0 && sp) { var ps = partsSrc(sysG, sp); if (ps) asks.push({ name: ps.key + '.count' }); } return; }
+        if (l.indexOf('row.') === 0) { asks.push({ name: key + '.count' }); if (l.indexOf('row.parts') === 0 && sp) { var ps = partsSrc(sysG, sp); if (ps) asks.push({ name: ps.key + '.count' }); } if (sp && isObj(sp.at) && typeof sp.at.by === 'string' && l.indexOf('row.' + lower(sp.at.by) + '.') === 0) { var as2 = atSrc(sysG, sp); if (as2) asks.push({ name: as2.key + '.count' }); } return; }
         if (l.indexOf('host.') === 0) flds.forEach(function(hf) { if (isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === fid) asks.push({ name: hf.key + '.count' }); });
         asks.push({ name: nm });
     });
@@ -7012,6 +7034,16 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     // 205 (3): Host.<w> in a part's own formulas: a number stat, a choice or a column of its host, the row its in names in a list whose parts come
     // from this one, read as that row's own Row.<w>; 0 for a row that is no part or whose host is not carried (a kept curse's); undefined where no
     // such list has w. A field or a linked sheet keyed Host keeps the name (rowVars asks only where neither is)
+    // 1.6.0 Stands at: Row.<by>.<w>, a stat, a choice or a column of the row this row's stat by names in the list from (atIndex), read as that row's
+    // own Row.<w>; 0 where the stat names no row held there; undefined where the list has no such at or that list has no w
+    function atVal(L, x, w) {
+        var a = L.spec && isObj(L.spec.at) ? L.spec.at : null, sg = w.split('.'); if (!a || sg.length !== 2 || sg[0] !== lower(a.by)) return undefined;
+        var af = atSrc(sys, L.spec); if (!af || af.id === L.f.id) return undefined;
+        var AL = listCtx(af); if (!AL.st[sg[1]] && !AL.cl[sg[1]]) return undefined;
+        if (x.virt || !isObj(x.d)) return 0;
+        var ai = atIndex(L.spec, x.d, AL.rows.map(function(it) { return it.d; }));
+        return ai < 0 ? 0 : rowVal(AL, AL.rows[ai], sg[1]);
+    }
     function hostVal(L, x, w) {
         if (!w || w.indexOf('.') >= 0) return undefined;
         var known = false, hit = null;
@@ -7024,7 +7056,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         return hit ? rowVal(hit.L, hit.x, w) : known ? 0 : undefined;
     }
     function rowVars(L, x) {   // a column's names: Row.* reads this row, every other name the resolver (one cache)
-        var v = function(name, nt) { var l = lower(name); if (l.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hv = hostVal(L, x, l.slice(5)); if (hv !== undefined) return hv; } if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); return w.indexOf('.') < 0 ? rowVal(L, x, w) : roundVal(L, x, w); } return fn(name, nt); };
+        var v = function(name, nt) { var l = lower(name); if (l.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hv = hostVal(L, x, l.slice(5)); if (hv !== undefined) return hv; } if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); if (w.indexOf('.') < 0) return rowVal(L, x, w); var av = atVal(L, x, w); return av !== undefined ? av : roundVal(L, x, w); } return fn(name, nt); };
         v.refs = function(names) { return refsOut(refUp(names, L, x)); };   // 1.6.0 Specialties: the cases a roll's names used, for its card
         v.detail = function(name) { var l = lower(name); if (l.slice(0, 4) === 'row.' && l.indexOf('.', 4) < 0) return detail[lower(L.f.key) + '#' + x.id + '.' + l.slice(4)] || null; return detail[l] || null; };   // 1.5.8: a row's own column under its own key
         return v;
@@ -7627,6 +7659,10 @@ function validateSystem(sys, F) {
             if (!rowList) return { rowOutside: true };
             var ptV = isObj(rowList.list) && isObj(rowList.list.parts) ? partsSrc(sys, rowList.list) : null; if (!ptV) return null;
             var pwV = listWords(ptV)[sg[sg.length - 1]]; return pwV === 'stat' || pwV === 'col' || (pwV === 'pick' && sg.length === 3) ? { id: '', key: 'l#' + lower(ptV.key), kind: 'number', vis: ptV.vis, noEdge: true } : null;
+        }
+        if (sg[0] === 'row' && sg.length === 3 && !ix.row && rowList && isObj(rowList.list) && isObj(rowList.list.at) && typeof rowList.list.at.by === 'string' && sg[1] === lower(rowList.list.at.by)) {   // 1.6.0 Stands at: Row.<by>.<w>, a stat, a choice or a column of the list the row its stat names is in
+            var atV = atSrc(sys, rowList.list); if (!atV || atV.id === rowList.id) return null;
+            var awV = listWords(atV)[sg[2]]; return awV === 'stat' || awV === 'col' || awV === 'pick' ? { id: '', key: 'l#' + lower(atV.key), kind: 'number', vis: atV.vis, noEdge: true } : null;
         }
         if (sg[0] === 'row' && sg.length === 3 && (sg[1] === 'round' || sg[1] === 'fired') && !ix.row) {   // 1.5.9 Chambers from: Row.round.<w>, Row.fired.<w> — a stat or a column of the chamber's list, on a list with a chamber
             if (!rowList) return { rowOutside: true };
@@ -8602,9 +8638,10 @@ function gmDerivedNames(sys, F, names) {
         sys.fields.forEach(function(f) {   // F5a1: a visible list's columns — reading a GM-only value makes the list's names derived from one; a choice's options too (owed review F5a2#1)
             if (f.kind !== 'item-list' || f.vis === 'gm' || !isObj(f.list)) return;
             var ptG = isObj(f.list.parts) && !ix.row ? partsSrc(sys, f.list) : null;   // 205: Row.parts.<w> (its max and min too) is worked out from the parts' list's names
+            var atG = isObj(f.list.at) && !ix.row ? atSrc(sys, f.list) : null, atP = atG ? 'row.' + lower(f.list.at.by) + '.' : '';   // 1.6.0 Stands at: Row.<by>.<w> is worked out from that list's names
             var hsG = ix.host ? [] : sys.fields.filter(function(hf) { return isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === f.id; });   // 205 (3): a part's Host.<w> is worked out from its hosts' lists
             var node = 'l#' + lower(f.key), one = function(r) { if (!r) return; if (r.f.vis === 'gm') { if (!hot[node]) { hot[node] = 1; queue.push(node); } } else if (r.def) (readBy[r.f.id] = readBy[r.f.id] || []).push(node); };
-            var edge = function(nm) { var ln = lower(nm); if (hsG.length && ln.indexOf('host.') === 0) { hsG.forEach(function(hf) { one({ f: { id: 'l#' + lower(hf.key), vis: hf.vis === 'gm' ? 'gm' : 'all' }, def: true }); }); return; } one(ptG && ln.indexOf('row.parts.') === 0 ? { f: { id: 'l#' + lower(ptG.key), vis: ptG.vis === 'gm' ? 'gm' : 'all' }, def: true } : reads(nm)); };
+            var edge = function(nm) { var ln = lower(nm); if (hsG.length && ln.indexOf('host.') === 0) { hsG.forEach(function(hf) { one({ f: { id: 'l#' + lower(hf.key), vis: hf.vis === 'gm' ? 'gm' : 'all' }, def: true }); }); return; } one(ptG && ln.indexOf('row.parts.') === 0 ? { f: { id: 'l#' + lower(ptG.key), vis: ptG.vis === 'gm' ? 'gm' : 'all' }, def: true } : atG && ln.indexOf(atP) === 0 ? { f: { id: 'l#' + lower(atG.key), vis: atG.vis === 'gm' ? 'gm' : 'all' }, def: true } : reads(nm)); };
             (Array.isArray(f.list.stats) ? f.list.stats : []).forEach(function(st) { if (isObj(st) && st.kind === 'pick') (Array.isArray(st.opts) ? st.opts : []).forEach(function(o) { if (isObj(o) && typeof o.name === 'string' && o.name) edge(o.name); }); });
             (Array.isArray(f.list.cols) ? f.list.cols : []).forEach(function(c) { if (!isObj(c) || typeof c.formula !== 'string' || !c.formula) return; figExpand(sys, F.names(c.formula) || []).forEach(function(n) { edge(nameOf(n)); }); });
         });

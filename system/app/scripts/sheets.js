@@ -7615,6 +7615,19 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             var plW = el('label', 'sys-check'), plI = el('input', 'field sys-list-partslabel'); plI.type = 'text'; plI.value = sp.parts.label || ''; plI.placeholder = 'Part'; plW.appendChild(document.createTextNode('Add button says ')); plW.appendChild(plI); plW.title = 'The word on the button that adds a part, such as Option or Upgrade'; fl.appendChild(plW);
         }
     }
+    if (ptLists.length > 1 && (pbChoices.length || sp.at)) {   // 1.6.0 Stands at (asked by the campaign build's session): a row reads the row of another list its choice stat names, as Row.<stat>.<name>
+        var atA = sp.at && typeof sp.at === 'object' ? sp.at : null, atW = el('label', 'sys-check'), atS = el('select', 'sys-list-atfrom'), atO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; };
+        atW.appendChild(document.createTextNode('Stands at a row of ')); atS.appendChild(atO('', 'None', !atA));
+        ptLists.forEach(function(x) { if (x.id !== f.id) atS.appendChild(atO(x.id, x.label || x.key || 'List', !!atA && atA.from === x.id)); });
+        atW.title = 'Each row stands at a row of the list you pick, such as an implant at a hit location: the row whose entry key, else whose name, its choice stat names. Row.<stat>.<name> then reads that row\u2019s stat, choice or column, and 0 where none is held';
+        atW.appendChild(atS); fl.appendChild(atW);
+        if (atA) {
+            var abW = el('label', 'sys-check'), abS = el('select', 'sys-list-atby'), abC = typeof atA.by === 'string' ? atA.by.toLowerCase() : '', abHit = false;
+            abW.appendChild(document.createTextNode('named by ')); pbChoices.forEach(function(s) { var on = !abHit && abC === s.key.toLowerCase(); if (on) abHit = true; abS.appendChild(atO(s.key, s.label || s.key, on)); });
+            if (!abHit) abS.appendChild(atO(atA.by || '', (atA.by || 'Nothing') + ' (not a choice stat of this list)', true));
+            abW.title = 'The choice stat whose value names the row it stands at, such as Location'; abW.appendChild(abS); fl.appendChild(abW);
+        }
+    }
     var lkSp = sp.look && typeof sp.look === 'object' ? sp.look : null;   // 1.6.0, backlog 206 (the owner, 2026-10-29, by prompt: "In the list's Look box"): Rows carry a look, then its Main part, Shade by and Shades
     fl.appendChild(checkLabel('sys-list-rowlook', !!lkSp, 'Rows carry a look', 'Each row may carry up to four colours, a finish and markings, overall and part by part, set by its owner or you at any time. They show as small swatches beside its name. A look never changes a figure'));
     if (lkSp) {
@@ -10165,6 +10178,8 @@ function onChange(e) {
         else if (c.indexOf('sys-list-place') >= 0) { if (typeof placeSet === 'function') placeSet(lsc, t.dataset.part, t.value); }   // 1.6.0 R2: a part's Shows list
         else if (c.indexOf('sys-list-open') >= 0) { if (t.checked) lsc.open = true; else delete lsc.open; }
         else if (c.indexOf('sys-list-edge') >= 0) { if (t.checked) lsc.edge = true; else delete lsc.edge; }   // 1.6.0 R16
+        else if (c.indexOf('sys-list-atfrom') >= 0) { if (t.value) { var atC = (Array.isArray(lsc.stats) ? lsc.stats : []).filter(function(s) { return s && typeof s.key === 'string' && s.key && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length : Array.isArray(s.labels) && s.labels.length); })[0]; lsc.at = { from: t.value, by: (lsc.at && lsc.at.by) || (atC ? atC.key : '') }; } else delete lsc.at; }   // 1.6.0 Stands at
+        else if (c.indexOf('sys-list-atby') >= 0) { if (lsc.at) lsc.at.by = t.value; }
         else if (c.indexOf('sys-list-partsfrom') >= 0) { if (t.value) lsc.parts = Object.assign({}, lsc.parts || {}, { from: t.value }); else delete lsc.parts; }   // 1.6.0 R14: Parts from
         else if (c.indexOf('sys-list-partscats') >= 0) { if (lsc.parts) { var pcs = String(t.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (pcs.length) lsc.parts.cats = pcs; else delete lsc.parts.cats; } }
         else if (c.indexOf('sys-list-partshosts') >= 0) { if (lsc.parts) { var phs = String(t.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (phs.length) lsc.parts.hosts = phs; else delete lsc.parts.hosts; } }   // 198: Held by

@@ -19,6 +19,7 @@ import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWord
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
 import { fitIfOk, partFitEntry } from './systemcore.js';   // 1.6.0 Fits where (the core handbook session's ask 18)
 import { targetHitList, targetHitRows, readsTargetHit } from './systemcore.js';   // 1.6.0 (B5): a called shot by the target's own location
+import { tableKeyOk, TABLE_KEY, TABLE_ROW_KEY, nameFold } from './systemcore.js';   // 1.6.0: a system's tables, as Save reads them (tableSays)
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
@@ -6682,7 +6683,7 @@ function refreshErrors() {
         var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0]; if (!cf || !cf.list || !cf.list.parts) return;
         var said = '';
         if (!cf.list.parts.fitIf) { var pzF = null; try { pzF = F().parse(f.list.parts.fitIf.trim()); } catch (e) { pzF = null; } said = !pzF || !pzF.ok ? 'is no formula Save can keep, so Save drops it.' : 'rolls dice, and it is read with none, so Save drops it.'; }
-        else if (typeof fitIfOk === 'function' && !fitIfOk({ fields: clean.fields, items: clean.items, core: clean.core }, F(), cf, cf.list.parts.fitIf)) said = 'reads a GM-only value, here or through what it reads, so your players\u2019 sheets keep none of it and their parts are not judged by it. Yours are.';
+        else if (typeof fitIfOk === 'function' && !fitIfOk({ fields: clean.fields, items: clean.items, core: clean.core, tables: clean.tables }, F(), cf, cf.list.parts.fitIf)) said = 'reads a GM-only value, here or through what it reads, so your players\u2019 sheets keep none of it and their parts are not judged by it. Yours are.';
         if (said) (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Fits where ' + said });
     });
     draft.fields.forEach(function(f) {   // 1.6.0 Specialties, as the cleaner reads it: a part that names no stat or column of the list goes
@@ -6815,7 +6816,7 @@ function refreshErrors() {
     }
     var tszE = draft.combat && typeof draft.combat.targetSize === 'string' ? draft.combat.targetSize : '';   // 1.6.0: TargetSize's field, judged as the cleaner judges it (a number its viewer can read truthfully)
     if (tszE) {
-        var tszF = (draft.fields || []).find(function(f) { return f && f.id === tszE; }), tszSec = null; try { tszSec = typeof secretFieldIds === 'function' ? secretFieldIds({ fields: gmViewFields(draft, F()), items: draft.items, core: draft.core }, F()) : null; } catch (e) { tszSec = null; }
+        var tszF = (draft.fields || []).find(function(f) { return f && f.id === tszE; }), tszSec = null; try { tszSec = typeof secretFieldIds === 'function' ? secretFieldIds({ fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }, F()) : null; } catch (e) { tszSec = null; }
         if (!tszF || ['number', 'formula', 'skill', 'resource'].indexOf(tszF.kind) < 0) rErr.push({ message: 'Target size reads: that field is gone or is no number, so Save drops it.' });
         else if (tszSec && Object.prototype.hasOwnProperty.call(tszSec, tszE)) rErr.push({ message: 'Target size reads: players cannot read that field, or it is worked out from one they cannot, so Save drops it.' });
     }
@@ -6965,7 +6966,7 @@ function refreshErrors() {
         else if (!pa || !pa.ok) msg = { message: 'Applies itself when: ' + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops it.', prop: 'formula', pos: pa && pa.error ? pa.error.pos : undefined, len: pa && pa.error ? pa.error.len : undefined };
         else if (rfDice(pa.ast && pa.ast.body)) msg = { message: 'Applies itself when: the formula cannot roll dice: Save drops it.' };
         else {
-            auSys = auSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core };
+            auSys = auSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables };
             var gmN = gmDerivedNames(auSys, F(), Array.isArray(pa.names) ? pa.names : []);
             if (gmN.length) msg = { message: 'Applies itself when: it reads ' + gmN[0] + ', which players cannot read (a GM-only value, or one worked out from one), so its switching on would give it away: Save drops the formula.' };
             else { var tokN = (Array.isArray(pa.names) ? pa.names : []).filter(function(n) { return typeof n === 'string' && auTok[n.toLowerCase().split('.')[0]] === 1 && !(draft.fields || []).some(function(f) { return f && typeof f.key === 'string' && f.key.toLowerCase() === n.toLowerCase().split('.')[0]; }); }); if (tokN.length) warningsById[d.id] = (warningsById[d.id] || []).concat([{ message: 'Applies itself when: ' + tokN[0] + ' reads 0 here: an automatic effect works from the character\u2019s own values, never a token\u2019s.' }]); }
@@ -6983,7 +6984,7 @@ function refreshErrors() {
             else if (!pv || !pv.ok) mv = { message: hd + (pv && pv.error && pv.error.message ? pv.error.message : 'the formula cannot be read.') + ' Save drops the change.' };
             else if (rfDice(pv.ast && pv.ast.body)) mv = { message: hd + 'the formula cannot roll dice: Save drops the change.' };
             else {
-                auSys = auSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core };
+                auSys = auSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables };
                 var gmV = gmDerivedNames(auSys, F(), Array.isArray(pv.names) ? pv.names : []);
                 if (gmV.length) mv = { message: hd + 'it reads ' + gmV[0] + ', which players cannot read (a GM-only value, or one worked out from one): Save drops the change, so the GM\u2019s sheet and its player\u2019s agree.' };
             }
@@ -7023,7 +7024,7 @@ function refreshErrors() {
         var t0 = t.trim(), nm = 'Tie step ' + (i + 1), pa = F() ? F().parse(t0) : null;
         if (t0.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t0)) iErr.push({ message: nm + ': a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' });
         else if (!pa || !pa.ok) iErr.push({ message: nm + ': ' + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops it.' });
-        else { iSys = iSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core }; var gmI = gmDerivedNames(iSys, F(), Array.isArray(pa.names) ? pa.names : []); if (gmI.length) iErr.push({ message: nm + ': it reads ' + gmI[0] + ', which players cannot read, and the order is public: Save drops it.' }); }
+        else { iSys = iSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }; var gmI = gmDerivedNames(iSys, F(), Array.isArray(pa.names) ? pa.names : []); if (gmI.length) iErr.push({ message: nm + ': it reads ' + gmI[0] + ', which players cannot read, and the order is public: Save drops it.' }); }
     });
     var sdE = irE && typeof irE.side === 'string' ? irE.side.trim() : '', paS = sdE && F() ? F().parse(sdE) : null;   // initiative O4: the sides' roll, read as the cleaner reads it
     if (sdE && (sdE.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(sdE))) iErr.push({ message: 'Sides roll: a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' });
@@ -7046,7 +7047,7 @@ function refreshErrors() {
             var pa = F().parse(t);
             if (!pa || !pa.ok) { bErr.push({ message: at + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops the budget.' }); return true; }
             if (rfDice(pa.ast && pa.ast.body)) { bErr.push({ message: at + 'a budget rolls no dice. Save drops the budget.' }); return true; }
-            bSys = bSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core };
+            bSys = bSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables };
             var gmB = gmDerivedNames(bSys, F(), Array.isArray(pa.names) ? pa.names : []);
             if (gmB.length) { bErr.push({ message: at + 'it reads ' + gmB[0] + ', which players cannot read, and a player sees their own budget. Save drops the budget.' }); return true; }
             return false;
@@ -7054,7 +7055,8 @@ function refreshErrors() {
     });
     if (bErr.length) errorsById.budgets = bErr;
     var lkS = typeof linkSays === 'function' ? linkSays(draft.links, draft.fields, F()) : { errs: [], warns: [] }; if (lkS.errs.length) errorsById.links = lkS.errs; if (lkS.warns.length) warningsById.links = lkS.warns;   // 1.6.0: what Save drops of the linked sheets, as the cleaner reads them
-    if (typeof envSays === 'function' && F()) { var eSy = null, eS = envSays(draft.env, draft.fields, F(), function(ns) { eSy = eSy || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core }; return gmDerivedNames(eSy, F(), ns); }); if (eS.errs.length) errorsById.env = (errorsById.env || []).concat(eS.errs); if (eS.warns.length) warningsById.env = (warningsById.env || []).concat(eS.warns); }   // 1.6.0: what Save does with the environment readings
+    if (typeof envSays === 'function' && F()) { var eSy = null, eS = envSays(draft.env, draft.fields, F(), function(ns) { eSy = eSy || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }; return gmDerivedNames(eSy, F(), ns); }); if (eS.errs.length) errorsById.env = (errorsById.env || []).concat(eS.errs); if (eS.warns.length) warningsById.env = (warningsById.env || []).concat(eS.warns); }   // 1.6.0: what Save does with the environment readings
+    if (typeof tableSays === 'function') { var tbSy = tableSays(draft.tables); if (tbSy.errs.length) errorsById.tables = tbSy.errs; }   // 1.6.0: what Save drops of the tables, as the cleaner reads them
     if (typeof damageSays === 'function') { var dmS = damageSays(draft.combat && draft.combat.damage, clean, F()); if (dmS.errs.length) errorsById.damage = dmS.errs; if (dmS.warns.length) warningsById.damage = dmS.warns; }   // 1.5.6: what Save drops of the damage rules, as the cleaner reads them
 }
 function errorCell(id) {
@@ -8384,6 +8386,131 @@ function envSays(env, fields, F0, gmNames) {   // what Save does with each readi
     return { errs: errs, warns: warns };
 }
 // [systemcheck:envbox-end]
+// [systemcheck:tablebox-start]
+// [sinkcheck:tablebox-start]
+// 1.6.0: the Tables box (the Lists tab, under the linked sheets): tables of figures a formula reads by name. A table a block: its key, its name, who reads
+// it, and a grid of its rows and columns with a number box a figure. Every text a value, a word a text node. A column's key is renamed at its change,
+// never at each key press, since the figures are kept under it and two columns may not share one. What Save drops is said under the box (tableSays)
+var TABLE_VIS_OPTS = [['', 'Everyone'], ['gm', 'The GM alone']];
+function tablesDraft() { return Array.isArray(draft.tables) ? draft.tables : (draft.tables = []); }
+function tableFresh(list, word) { var has = function(k) { return list.some(function(x) { return x && typeof x.key === 'string' && x.key.toLowerCase() === k; }); }, n = list.length + 1; while (has(word + n)) n++; return word + n; }
+function tableBtn(text, act, title) { var b = el('button', 'tool ghost sys-btn', text); b.dataset.act = act; b.title = title; return b; }
+function renderTables() {
+    var box = ui('sysTables'); if (!box) return; box.textContent = '';
+    var arr = Array.isArray(draft.tables) ? draft.tables : [], wrap = el('div', 'sys-budgets sys-tables');
+    wrap.appendChild(el('div', 'sys-light-head', 'Tables'));
+    wrap.appendChild(el('div', 'sys-note', 'A table holds figures a formula reads by name, such as a metal\u2019s density and price. Table.Metal.Steel.density reads one figure. Table.Metal.by.Row.mat.density finds the row by what the row\u2019s choice says, so one short formula serves every metal. A row is matched by its key or its name, and a row or a column that is not there reads 0.'));
+    arr.forEach(function(t0, i) {
+        var t = t0 && typeof t0 === 'object' ? t0 : {}, blk = el('div', 'sys-tbl'), head = el('div', 'sys-flags sys-tbl-head'), cols = Array.isArray(t.cols) ? t.cols : [], rows = Array.isArray(t.rows) ? t.rows : [];
+        blk.dataset.ti = String(i);
+        var cap = function(txt, x) { var l = el('label', 'sys-combat-item sys-bud-f'); l.appendChild(el('span', 'sys-num-cap', txt)); l.appendChild(x); head.appendChild(l); };
+        var k = input('sys-tbl-key field', typeof t.key === 'string' ? t.key : '', 'The table\u2019s key in a formula: a letter, then letters, digits or _', 'Metal'); k.maxLength = 24; cap('Key', k);
+        var n = input('sys-tbl-label field', typeof t.label === 'string' ? t.label : '', 'Its name in this box', 'Metals'); n.maxLength = LIMITS.label; cap('Name', n);
+        head.appendChild(labeledSelect('sys-tbl-vis field', 'Who reads it', TABLE_VIS_OPTS, t.vis === 'gm' ? 'gm' : '', 'A table for the GM alone never reaches players, and a formula that reads it is GM only too'));
+        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove this table']].forEach(function(bd) { head.appendChild(tableBtn(bd[1], 'table' + bd[0], bd[2])); });
+        blk.appendChild(head);
+        var sc = el('div', 'sys-tbl-scroll'), grid = el('table', 'sys-tbl-grid'), hr = el('tr');
+        hr.appendChild(el('th', null, 'Row key')); hr.appendChild(el('th', null, 'Row name'));
+        cols.forEach(function(c0, ci) {
+            var c = c0 && typeof c0 === 'object' ? c0 : {}, th = el('th'), ck = input('sys-tbl-ckey field', typeof c.key === 'string' ? c.key : '', 'The column\u2019s key in a formula: a letter, then letters, digits or _', 'density'), cl = input('sys-tbl-clabel field', typeof c.label === 'string' ? c.label : '', 'Its name in this box', 'Name'), cd = tableBtn('\u00d7', 'tablecoldel', 'Remove this column');
+            ck.maxLength = 24; cl.maxLength = LIMITS.label; ck.dataset.ci = String(ci); cl.dataset.ci = String(ci); cd.dataset.ci = String(ci);
+            th.appendChild(ck); th.appendChild(cl); th.appendChild(cd); hr.appendChild(th);
+        });
+        grid.appendChild(hr);
+        rows.forEach(function(r0, ri) {
+            var r = r0 && typeof r0 === 'object' ? r0 : {}, tr = el('tr'), vals = r.vals && typeof r.vals === 'object' ? r.vals : {};
+            var cell = function(x) { var td = el('td'); td.appendChild(x); tr.appendChild(td); return td; };
+            var rk = input('sys-tbl-rkey field', typeof r.key === 'string' ? r.key : '', 'The row\u2019s key: a letter, then letters, digits or _. A formula finds it by this key, or by its name', 'Steel'), rl = input('sys-tbl-rlabel field', typeof r.label === 'string' ? r.label : '', 'Its name: a choice that says this name finds the row too', 'Name');
+            rk.maxLength = 40; rl.maxLength = LIMITS.label; rk.dataset.ri = String(ri); rl.dataset.ri = String(ri); cell(rk); cell(rl);
+            cols.forEach(function(c0, ci) { var ky = c0 && typeof c0.key === 'string' ? c0.key : '', has = Object.prototype.hasOwnProperty.call(vals, ky) && typeof vals[ky] === 'number', vi = numInput('sys-tbl-val field', has ? vals[ky] : '', 'A figure: empty reads 0', 'any'); vi.dataset.ri = String(ri); vi.dataset.ci = String(ci); cell(vi); });
+            var rd = tableBtn('\u00d7', 'tablerowdel', 'Remove this row'); rd.dataset.ri = String(ri); cell(rd); grid.appendChild(tr);
+        });
+        sc.appendChild(grid); blk.appendChild(sc);
+        var more = el('div', 'sys-flags'), ac = tableBtn('+ Column', 'tablecoladd', cols.length >= LIMITS.tableCols ? 'At most ' + LIMITS.tableCols : 'A column of figures'), ar = tableBtn('+ Row', 'tablerowadd', rows.length >= LIMITS.tableRows ? 'At most ' + LIMITS.tableRows : 'A row of figures');
+        ac.disabled = cols.length >= LIMITS.tableCols; ar.disabled = rows.length >= LIMITS.tableRows; more.appendChild(ac); more.appendChild(ar); blk.appendChild(more);
+        wrap.appendChild(blk);
+    });
+    var ad = tableBtn('+ Table', 'tableadd', arr.length >= LIMITS.tables ? 'At most ' + LIMITS.tables : 'A table of figures a formula reads by name'); ad.className += ' sys-tbl-add'; ad.disabled = arr.length >= LIMITS.tables; wrap.appendChild(ad);
+    var err = errorCell('tables'); err.dataset.errFor = 'tables'; wrap.appendChild(err);
+    box.appendChild(wrap);
+}
+function tableOfEl(t) { var b = t.closest('.sys-tbl'), i = b ? +b.dataset.ti : -1, arr = tablesDraft(); return arr[i] && typeof arr[i] === 'object' ? arr[i] : null; }
+function onTableInput(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-tbl-') < 0) return false;
+    var x = tableOfEl(t); if (!x) return true;
+    var col = Array.isArray(x.cols) ? x.cols[+t.dataset.ci] : null, row = Array.isArray(x.rows) ? x.rows[+t.dataset.ri] : null;
+    if (c.indexOf('sys-tbl-key') >= 0) x.key = t.value.slice(0, 24);
+    else if (c.indexOf('sys-tbl-label') >= 0) x.label = t.value.slice(0, LIMITS.label);
+    else if (c.indexOf('sys-tbl-clabel') >= 0 && col) col.label = t.value.slice(0, LIMITS.label);
+    else if (c.indexOf('sys-tbl-rkey') >= 0 && row) row.key = t.value.slice(0, 40);
+    else if (c.indexOf('sys-tbl-rlabel') >= 0 && row) row.label = t.value.slice(0, LIMITS.label);
+    else if (c.indexOf('sys-tbl-val') >= 0 && row && col) { var v = t.value.trim() === '' ? NaN : Number(t.value); if (!row.vals || typeof row.vals !== 'object') row.vals = {}; if (isFinite(v)) row.vals[col.key] = v; else delete row.vals[col.key]; }
+    else return true;
+    markDirty(); patchErrors(); return true;
+}
+function onTableChange(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-tbl-') < 0) return false;
+    var x = tableOfEl(t); if (!x) return true;
+    if (c.indexOf('sys-tbl-vis') >= 0) { if (t.value === 'gm') x.vis = 'gm'; else delete x.vis; }
+    else if (c.indexOf('sys-tbl-ckey') >= 0) {
+        var cols = Array.isArray(x.cols) ? x.cols : [], col = cols[+t.dataset.ci]; if (!col) return true;
+        var to = t.value.trim().slice(0, 24), from = col.key;
+        if (cols.some(function(o) { return o !== col && o && typeof o.key === 'string' && o.key.toLowerCase() === to.toLowerCase(); })) { t.value = typeof from === 'string' ? from : ''; toast('Another column has this key.'); return true; }   // the figures are kept under a column's key
+        (Array.isArray(x.rows) ? x.rows : []).forEach(function(r) { if (r && r.vals && typeof r.vals === 'object' && Object.prototype.hasOwnProperty.call(r.vals, from)) { var v = r.vals[from]; delete r.vals[from]; if (to) r.vals[to] = v; } });
+        col.key = to; t.value = to;
+    } else return true;
+    markDirty(); patchErrors(); return true;
+}
+function tableClick(b) {
+    var m = /^table(add|up|down|del|coladd|coldel|rowadd|rowdel)$/.exec(b.dataset.act || ''); if (!m) return false;
+    var arr = tablesDraft(), blk = b.closest('.sys-tbl'), i = blk ? +blk.dataset.ti : -1, x = arr[i] && typeof arr[i] === 'object' ? arr[i] : null;
+    if (m[1] === 'add') { if (arr.length >= LIMITS.tables) { toast('At most ' + LIMITS.tables + '.'); return true; } arr.push({ key: '', label: '', cols: [{ key: 'value', label: 'Value' }], rows: [{ key: 'row1', vals: {} }] }); }
+    else if (!x) return true;
+    else if (m[1] === 'up') { if (i > 0) arr.splice(i - 1, 0, arr.splice(i, 1)[0]); }
+    else if (m[1] === 'down') { if (i < arr.length - 1) arr.splice(i + 1, 0, arr.splice(i, 1)[0]); }
+    else if (m[1] === 'del') arr.splice(i, 1);
+    else {
+        var cols = Array.isArray(x.cols) ? x.cols : (x.cols = []), rows = Array.isArray(x.rows) ? x.rows : (x.rows = []), ci = +b.dataset.ci, ri = +b.dataset.ri;
+        if (m[1] === 'coladd') { if (cols.length >= LIMITS.tableCols) { toast('At most ' + LIMITS.tableCols + '.'); return true; } var ck = tableFresh(cols, 'col'); cols.push({ key: ck, label: ck }); }
+        else if (m[1] === 'rowadd') { if (rows.length >= LIMITS.tableRows) { toast('At most ' + LIMITS.tableRows + '.'); return true; } rows.push({ key: tableFresh(rows, 'row'), vals: {} }); }
+        else if (m[1] === 'coldel') { if (!cols[ci]) return true; var gone = cols.splice(ci, 1)[0]; rows.forEach(function(r) { if (r && r.vals && gone && typeof gone.key === 'string') delete r.vals[gone.key]; }); }
+        else { if (!rows[ri]) return true; rows.splice(ri, 1); }
+    }
+    if (!arr.length) delete draft.tables;
+    markDirty(); renderTables(); patchErrors(); return true;
+}
+// What Save does with the tables, as cleanTables reads them: { errs }. A table's words name it by its place, since its key may be what is wrong
+function tableSays(tables) {
+    var errs = [], seen = Object.create(null), kept = 0, KEYS = 'a key is a letter, then letters, digits or _, and never a word scripts keep for themselves', say = function(t) { errs.push({ message: t }); };
+    (Array.isArray(tables) ? tables : []).forEach(function(t, i) {
+        if (!t || typeof t !== 'object') return;
+        var nm = 'Table ' + (i + 1); if (kept >= LIMITS.tables) { say(nm + ': at most ' + LIMITS.tables + ' tables. Save drops it.'); return; }
+        var key = tableKeyOk(t.key, TABLE_KEY); if (!key) { say(nm + ': ' + KEYS + '. Save drops it.'); return; }
+        if (seen[key.toLowerCase()]) { say(nm + ': another table has the key ' + key + '. Save drops it.'); return; }
+        var cs = Object.create(null), kc = [], rs = Object.create(null), rn = 0;
+        (Array.isArray(t.cols) ? t.cols : []).forEach(function(c, j) {
+            if (!c || typeof c !== 'object') return;
+            var at = nm + ', column ' + (j + 1) + ': '; if (kc.length >= LIMITS.tableCols) { say(at + 'at most ' + LIMITS.tableCols + ' columns. Save drops it.'); return; }
+            var ck = tableKeyOk(c.key, TABLE_KEY); if (!ck) { say(at + KEYS + '. Save drops it.'); return; }
+            if (cs[ck.toLowerCase()]) { say(at + 'another column has the key ' + ck + '. Save drops it.'); return; }
+            cs[ck.toLowerCase()] = 1; kc.push(ck);
+        });
+        if (!kc.length) { say(nm + ': it needs a column. Save drops it.'); return; }
+        (Array.isArray(t.rows) ? t.rows : []).forEach(function(r, j) {
+            if (!r || typeof r !== 'object') return;
+            var at = nm + ', row ' + (j + 1) + ': '; if (rn >= LIMITS.tableRows) { say(at + 'at most ' + LIMITS.tableRows + ' rows. Save drops it.'); return; }
+            var rk = tableKeyOk(r.key, TABLE_ROW_KEY), fk = rk ? nameFold(rk) : ''; if (!fk) { say(at + KEYS + '. Save drops it.'); return; }
+            if (rs[fk]) { say(at + 'another row reads as ' + rk + '. Save drops it.'); return; }
+            rs[fk] = 1; rn++;
+            kc.forEach(function(ck) { var v = r.vals && typeof r.vals === 'object' && Object.prototype.hasOwnProperty.call(r.vals, ck) ? r.vals[ck] : undefined; if (v !== undefined && !(typeof v === 'number' && isFinite(v) && Math.abs(v) <= LIMITS.statAbs)) say(at + 'the figure under ' + ck + ' is no number of ' + LIMITS.statAbs + ' or less. Save drops that figure.'); });
+        });
+        if (!rn) { say(nm + ': it needs a row. Save drops it.'); return; }
+        seen[key.toLowerCase()] = 1; kept++;
+    });
+    return { errs: errs };
+}
+// [sinkcheck:tablebox-end]
+// [systemcheck:tablebox-end]
 function budgetDraft() { return Array.isArray(draft.budgets) ? draft.budgets : (draft.budgets = []); }
 function renderBudgets() {
     var box = ui('sysBudgets'); if (!box) return; box.textContent = '';
@@ -9554,7 +9681,7 @@ var SENSE_GLYPH_SAY = { sound: 'three arcs, “Heard”', tremor: 'a zigzag, “
 function senseGlyphOf(s) { return typeof s.glyph === 'string' && Object.prototype.hasOwnProperty.call(SENSE_GLYPH_SAY, s.glyph) ? s.glyph : 'presence'; }
 function sensesDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); return cm.senses && typeof cm.senses === 'object' && !Array.isArray(cm.senses) ? cm.senses : (cm.senses = {}); }
 function senseRangeFields() { return (draft.fields || []).filter(function(f) { return !!f && (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource'); }); }
-function senseSecrets() { try { return secretFieldIds({ fields: gmViewFields(draft, F()), items: draft.items, core: draft.core }, F()); } catch (e) { return null; } }
+function senseSecrets() { try { return secretFieldIds({ fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }, F()); } catch (e) { return null; } }
 // senses S3: the fields a switch may read (a sense's off, the blind switch): toggles first, then numbers and formulas, as the cleaner takes them
 function senseSwitchFields() { var fs = (draft.fields || []).filter(function(f) { return !!f && (f.kind === 'toggle' || f.kind === 'number' || f.kind === 'formula'); }); return fs.filter(function(f) { return f.kind === 'toggle'; }).concat(fs.filter(function(f) { return f.kind !== 'toggle'; })); }
 function senseSwitchOf(v) { var id = v && typeof v === 'object' && typeof v.field === 'string' ? v.field : '', out = null; if (id) senseSwitchFields().forEach(function(f) { if (f.id === id) out = f; }); return out; }
@@ -9917,6 +10044,7 @@ function renderAll() {
     var slEl = ui('sysLists'); if (slEl) { slEl.style.display = tab === 'lists' ? '' : 'none'; if (tab === 'lists') renderLists(); }   // Stage 6 F4b
     if (tab === 'lists') renderBudgets();   // 126: the Point budgets box, under the list rules
     if (tab === 'lists') renderEnv();   // 1.6.0: the Environment readings box, under the budgets
+    if (tab === 'lists') renderTables();   // 1.6.0: the Tables box
     if (tab === 'lists') renderLinks();   // 1.6.0: the Linked sheets box, under the readings
     var efr = ui('sysEffectRows'); if (efr) { efr.textContent = ''; if (!draft.effects || !draft.effects.length) efr.appendChild(el('div', 'sys-empty', 'No status effects yet. Add Rage, Prone, Blessed\u2026 each with the numbers it changes, then put a Status effects field on the sheet.')); (draft.effects || []).forEach(function(d) { efr.appendChild(effectRow(d)); }); }
     var sl = ui('sysLayout'); if (sl) { sl.style.display = tab === 'layout' ? '' : 'none'; if (tab === 'layout') renderLayout(); }
@@ -10009,6 +10137,7 @@ function onInput(e) {
     if (onInitInput(t)) return;   // initiative O2
     if (onBudgetInput(t)) return;   // 126: the Lists tab's point budgets
     if (onEnvInput(t)) return;   // 1.6.0: the Environment readings
+    if (onTableInput(t)) return;   // 1.6.0: the Tables box
     if (onLinkInput(t)) return;   // 1.6.0: the Linked sheets
     if (onHeightInput(t)) return;   // item 19 H2
     if (onCalendarInput(t)) return;   // item 20 K1
@@ -10225,6 +10354,7 @@ function onChange(e) {
     if (onInitChange(t)) return;   // initiative O2
     if (onBudgetChange(t)) return;   // 126
     if (onEnvChange(t)) return;   // 1.6.0
+    if (onTableChange(t)) return;   // 1.6.0: the Tables box
     if (onBarsChange(t)) return;   // backlog 28: the Token bars box
     if (onLinkChange(t)) return;   // 1.6.0: the Linked sheets
     if (onHeightChange(t)) return;   // item 19 H2
@@ -10477,6 +10607,7 @@ function onClick(e) {
     if (calendarClick(b)) return;   // item 20 K1: the Calendar tab
     if (budgetClick(b)) return;   // 126: the Lists tab's point budgets
     if (envClick(b)) return;   // 1.6.0: the Environment readings
+    if (tableClick(b)) return;   // 1.6.0: the Tables box
     if (barsClick(b)) return;   // backlog 28: the Combat card's Token bars
     if (linkClick(b)) return;   // 1.6.0: the Linked sheets
     if (damageClick(b)) return;   // 1.5.6: the Taking damage box

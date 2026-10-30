@@ -2181,6 +2181,16 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>Its Damage is worked out inside <code>floor(&hellip; / if(and(Row.Half &gt; 0, TargetDistance &gt; Row.Half), 2, 1))</code>, so a shot past Half does half damage.</li>
                               </ul>
                           </li>
+                          <li><b>Tables</b> hold figures a formula reads by name, such as a metal&rsquo;s density and price. You set them up in the Tables box on the <b>Lists</b> tab.
+                              <ul>
+                                  <li>A table has a key, columns and rows. Each row has a key, a name and a figure in each column.</li>
+                                  <li><code>Table.Metal.Steel.density</code> reads one figure. A row or a column that is not there reads 0, and the editor warns you.</li>
+                                  <li><code>Table.Metal.by.Row.mat.density</code> finds the row by what the row&rsquo;s choice says, so one short formula serves every metal. A list put in another order changes nothing.</li>
+                                  <li>A row is found by its key or its name, ignoring case and anything that is no letter or digit. So a choice that says Mild Steel finds the row MildSteel.</li>
+                                  <li>The word after <code>by</code> may be a text field, a list field, a number with value names, a row&rsquo;s choice, <code>Host.mat</code> or <code>Row.parts.mat</code>.</li>
+                                  <li><b>Who reads it</b> keeps a table from your players. A formula that reads it is then GM only too.</li>
+                              </ul>
+                          </li>
                           <li><b>Linked sheets</b> let one sheet read the figures of another. You set them up at the foot of the <b>Lists</b> tab.
                               <ul>
                                   <li>A <b>Mount</b> link holds the one mount a rider rides. A mount has one rider at a time.</li>
@@ -4424,6 +4434,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div id="sysBudgets"></div>
             <div id="sysEnv"></div>
             <div id="sysLinks"></div>
+            <div id="sysTables"></div>
             <div id="sysListRows" class="sys-rows"></div>
         </div>
         <div id="sysEffects" class="sys-tab" style="display:none;">

@@ -249,7 +249,7 @@ function needRuleShown(text) {
     try {
         var p = f.parse(text);
         if (p && p.ok && Array.isArray(p.names)) {
-            m.view = m.view || { fields: gmViewFields(camp.system, f), items: camp.system.items, core: camp.system.core };
+            m.view = m.view || { fields: gmViewFields(camp.system, f), items: camp.system.items, core: camp.system.core, tables: camp.system.tables };
             ok = !gmDerivedNames(m.view, f, p.names).length;
             if (ok) {
                 if (!m.lists) { m.lists = map(); m.view.fields.forEach(function(fl) { if (fl && fl.kind === 'item-list' && typeof fl.key === 'string') m.lists[fl.key.toLowerCase()] = 1; }); m.idx = byKey(camp); }

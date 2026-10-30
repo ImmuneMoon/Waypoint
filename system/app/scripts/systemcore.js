@@ -76,6 +76,7 @@ var LIMITS = Object.freeze({
     budgets: 8,                              // 126: the system's point budgets (a name and two formulas each)
     links: 8, linkNames: 64,                 // 1.6.0: a system's linked sheets, and the figures under one link a player's copy carries
     env: 8,                                  // 1.6.0: the environment readings a system names (a temperature, a gravity)
+    tables: 24, tableCols: 16, tableRows: 64,   // 1.6.0: a system's tables (figures a formula reads by name), the columns and the rows of one
     needs: 8                                 // 126b: the entries one entry needs
 });
 // item-list is a STORED, non-numeric list kind (a character's carried items); never in NUMERIC/DEF_PROP.
@@ -3401,8 +3402,9 @@ function cleanSystem(sys, opts) {
         seenId[c.id] = 1; seenKey[lower(c.key)] = 1; out.fields.push(c);
     });
     var gmEnt = (Array.isArray(sys.items) ? sys.items : []).concat(Array.isArray(sys.core) ? sys.core : []).some(function(it) { return isObj(it) && it.vis === 'gm'; });   // owed review leftover (b): a GM-only entry a pool's max reads is a secret too
-    if (!gmView && (gmFields.length || gmEnt) && out.fields.some(function(f) { return f.kind === 'resource' && !!f.maxFormula; })) {   // a pool whose max is GM-only is GM-only as a whole: gone, as a GM-only field is (the GM-only fields last: one wins a key both use)
-        var gmP = gmPools({ fields: out.fields.concat(gmFields), items: sys.items, core: sys.core }, F);
+    var gmTbl = Array.isArray(sys.tables) && sys.tables.some(function(t) { return isObj(t) && t.vis === 'gm'; });   // 1.6.0: a GM-only table a pool's max reads is a secret too
+    if (!gmView && (gmFields.length || gmEnt || gmTbl) && out.fields.some(function(f) { return f.kind === 'resource' && !!f.maxFormula; })) {   // a pool whose max is GM-only is GM-only as a whole: gone, as a GM-only field is (the GM-only fields last: one wins a key both use)
+        var gmP = gmPools({ fields: out.fields.concat(gmFields), items: sys.items, core: sys.core, tables: sys.tables }, F);
         out.fields = out.fields.filter(function(f) { if (gmP[f.id] !== 1) return true; dropped.push(lower(f.key)); return false; });
     }
     var ldLv = map(); out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.lvl)) ldLv[f.id] = 1; });   // 1.5.8 Loads from: another item list of this view, with a level (the players' view: a GM-only list is not there, so its load goes)
@@ -3429,12 +3431,13 @@ function cleanSystem(sys, opts) {
     (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (out.rolls.length >= LIMITS.rolls) return; var c = cleanRollDef(r, gmView); if (!c || seenR[c.id]) return; seenR[c.id] = 1; out.rolls.push(c); });
     var gmKeys = gmView ? map() : gmEntryKeys(sys, out.fields), hasGmKeys = Object.keys(gmKeys).length > 0;   // F5a1: per visible list, the keys of the GM-only entries in its scope
     var hasPicks = out.fields.some(function(f) { return f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.stats) && f.list.stats.some(function(x) { return x.kind === 'pick'; }); });   // F5a2
-    if (!gmView && (dropped.length || hasGmKeys || hasPicks)) {   // a visible formula that named a GM-only key is blanked: the player sees "GM only", never the name
+    var tbS = gmView ? null : { fields: Array.isArray(sys.fields) ? sys.fields : [], links: cleanLinks(sys.links, F) || [], tables: cleanTables(sys.tables, true) || [] }, tbLive = !!tbS && tableFam(tbS), tbGm = tbLive && tbS.tables.some(function(t) { return t.vis === 'gm'; });   // 1.6.0: a formula that reads a GM-only table is blanked as one that reads a GM-only field is
+    if (!gmView && (dropped.length || hasGmKeys || hasPicks || tbGm)) {   // a visible formula that named a GM-only key is blanked: the player sees "GM only", never the name
         var isDropped = map(); dropped.forEach(function(k) { isDropped[k] = 1; });
         var atGm = map(); (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (!isObj(f) || f.kind !== 'item-list' || !isObj(f.list) || !isObj(f.list.at) || typeof f.list.at.by !== 'string') return; (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(g) { if (isObj(g) && g.id === f.list.at.from && typeof g.key === 'string' && droppedList[lower(g.key)] === 1) atGm[lower(f.list.at.by)] = 1; }); });   // 1.6.0 Stands at: Row.<by>.<w> is the other list's name, GM only where that list is
         var mentions = function(text) {
             if (!text) return false;
-            var hit = function(n) { var l = lower(n); var sgA = l.split('.'); if (sgA.length === 3 && sgA[0] === 'row' && atGm[sgA[1]] === 1) return true; if (l.length > 3 && l.indexOf('on.') === 0) l = l.slice(3); l = lower(linkBare(sys, null, l)); var dot = l.lastIndexOf('.'); if (isDropped[l]) return true; var sg = l.split('.'); if (sg.length > 1 && (droppedList[sg[0]] === 1 || (sg.length > 2 && gmKeys[sg[0]] && gmKeys[sg[0]][sg[1]] === 1))) return true; return dot > 0 && NAME_SUFFIX[l.slice(dot + 1)] && isDropped[l.slice(0, dot)]; };   // F5a1: a GM-only list by its first segment, L.<a GM-only entry's key> (critic 5)
+            var hit = function(n) { var l = lower(n); var sgA = l.split('.'); if (sgA.length === 3 && sgA[0] === 'row' && atGm[sgA[1]] === 1) return true; if (l.length > 3 && l.indexOf('on.') === 0) l = l.slice(3); l = lower(linkBare(sys, null, l)); if (tbLive) { var tbH = tableRead(tbS, l); if (tbH) { if (tbH.gm) return true; if (!tbH.by) return false; l = tbH.by; } } var dot = l.lastIndexOf('.'); if (isDropped[l]) return true; var sg = l.split('.'); if (sg.length > 1 && (droppedList[sg[0]] === 1 || (sg.length > 2 && gmKeys[sg[0]] && gmKeys[sg[0]][sg[1]] === 1))) return true; return dot > 0 && NAME_SUFFIX[l.slice(dot + 1)] && isDropped[l.slice(0, dot)]; };   // F5a1: a GM-only list by its first segment, L.<a GM-only entry's key> (critic 5)
             if (F.parse(text).ok) return figExpand(sys, F.names(text)).some(hit);   // the core handbook session's ask 6: a group's figure by what its formula reads
             return (String(text).match(/[A-Za-z_][A-Za-z0-9_.]*/g) || []).some(function(t) { return hit(t) || hit(t.split('.')[0]); });   // Stage 6: text that does not parse is checked word by word — a typo never carries a GM-only name to players
         };
@@ -3477,7 +3480,7 @@ function cleanSystem(sys, opts) {
     if (core.length) out.core = core;
     if (!gmView && opts.needShown !== true) {   // 126b: a need that names an entry players cannot see is left out of their view. opts.needShown: the host's judge of a library entry (sheets.js playerSystem); true on a player's own app, which keeps what its host sent; absent (fail closed): only this view's own items are known
         var visIt = map(), nsF = opts.needShown, sysNd = null; out.items.concat(core).forEach(function(it) { visIt[it.id] = 1; });
-        var ruleOkS = function(t) { try { var pr = F.parse(t); if (!pr || !pr.ok || !Array.isArray(pr.names)) return false; sysNd = sysNd || { fields: gmViewFields(sys, F), items: sys.items, core: sys.core }; return !gmDerivedNames(sysNd, F, pr.names).length; } catch (e) { return false; } };   // a rule is shown only where a player's own app could work it out: it reads no GM-only value at any depth, judged over the GM's view as a budget is
+        var ruleOkS = function(t) { try { var pr = F.parse(t); if (!pr || !pr.ok || !Array.isArray(pr.names)) return false; sysNd = sysNd || { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables }; return !gmDerivedNames(sysNd, F, pr.names).length; } catch (e) { return false; } };   // a rule is shown only where a player's own app could work it out: it reads no GM-only value at any depth, judged over the GM's view as a budget is
         out.items.concat(core).forEach(function(it) { hideGrants(it, function(id) { return visIt[id] === 1 || (typeof nsF === 'function' && nsF(id) === true); }); });   // 1.6.0 (v2, B4): a grant of an entry players cannot see is left out of their view
         out.items.concat(core).forEach(function(it) { hideNeeds(it, function(id) { return visIt[id] === 1 || (typeof nsF === 'function' && nsF(id) === true); }, typeof opts.ruleShown === 'function' ? opts.ruleShown : ruleOkS); if (!it.needs && !it.needsIf && !it.needsHid) delete it.needsMsg; });   // opts.ruleShown: the library's judge, which also knows its own GM-only keys
     }
@@ -3496,35 +3499,35 @@ function cleanSystem(sys, opts) {
     var seenFx = map(), effs = [];   // 5h: the status-effect library, after the fields (its changes are checked against them); absent when empty
     (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (effs.length >= LIMITS.effects) return; var c = cleanEffectDef(d, fieldIds, gmView, F); if (!c || seenFx[c.id]) return; seenFx[c.id] = 1; effs.push(c); });
     if (effs.some(function(d) { return typeof d.auto === 'string'; })) {   // conditions C4 ("Only public ones"): a formula that reads a GM-only value, at any depth, goes — judged over the GM's view, in both views alike
-        var sysAu = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core };
+        var sysAu = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables };
         effs.forEach(function(d) { if (typeof d.auto !== 'string') return; var pa = F.parse(d.auto), nm = pa && pa.ok && Array.isArray(pa.names) ? pa.names : null; if (!nm || gmDerivedNames(sysAu, F, nm).length) delete d.auto; });
     }
     if (effs.some(function(d) { return d.mods.some(function(m) { return typeof m.vf === 'string'; }); })) {   // 1.6.0 (CORE gap 12): a change by a formula that does not parse, rolls dice or reads a GM-only value at any depth goes, judged over the GM's view, in both views alike (its player's sheet and the GM's agree)
-        var sysVf = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core };
+        var sysVf = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables };
         effs.forEach(function(d) { d.mods = d.mods.filter(function(m) { if (typeof m.vf !== 'string') return true; var pv = F.parse(m.vf); return !!(pv && pv.ok && pv.ast && !hasDice(pv.ast.body) && Array.isArray(pv.names) && !gmDerivedNames(sysVf, F, pv.names).length); }); });
     }
     if (out.fields.some(function(f) { return f.kind === 'item-list' && isObj(f.list) && typeof f.list.modsIf === 'string'; }) && (!gmView || (F && typeof F.parse === 'function'))) {   // 1.6.0 Changes apply where: one that does not parse, rolls dice or, on a list players see, reads a GM-only value at any depth goes, judged over the GM's view, in both views alike (its player's sheet and the GM's agree)
-        var sysMi = { fields: F ? gmViewFields(sys, F) : [], items: sys.items, core: sys.core };
+        var sysMi = { fields: F ? gmViewFields(sys, F) : [], items: sys.items, core: sys.core, tables: sys.tables };
         out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && typeof f.list.modsIf === 'string' && !modsIfOk(sysMi, F, f, f.list.modsIf)) delete f.list.modsIf; });
     }
     if (out.fields.some(function(f) { return f.kind === 'item-list' && isObj(f.list) && isObj(f.list.parts) && typeof f.list.parts.fitIf === 'string'; }) && (!gmView || (F && typeof F.parse === 'function'))) {   // 1.6.0 Fits where (ask 18): one that does not parse or rolls dice goes in both views; from the players' view one that reads a GM-only value at any depth goes too, judged over the GM's view with the part's own names and its host's as modsIfOk judges a list's gate. Their parts are then not judged by it, as needs a player cannot read never hold them back
-        var sysFi = { fields: F ? gmViewFields(sys, F) : [], items: sys.items, core: sys.core };
+        var sysFi = { fields: F ? gmViewFields(sys, F) : [], items: sys.items, core: sys.core, tables: sys.tables };
         out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.parts) && typeof f.list.parts.fitIf === 'string' && !fitIfOk(sysFi, F, f, f.list.parts.fitIf, gmView)) { delete f.list.parts.fitIf; delete f.list.parts.fitIfSays; } });
     }
     var rowAll = function(c) { return isObj(c) && typeof c.list === 'string' && readsRow(c.formula, F); };   // 1.6.0: a system change on every row of a list worked out row by row (Row.*)
     if (!gmView && F && typeof F.parse === 'function' && out.rolls.some(function(r) { return (Array.isArray(r.apply) && r.apply.some(rowAll)) || (Array.isArray(r.then) && r.then.some(rowAll)); })) {   // the players' view drops it where its row names read a GM-only value, judged over the GM's view with the list's own names as modsIfOk judges a list's gate (a column or a choice that reads one): an apply action whole, a roll's Then, as the mention check drops them
-        var sysAr = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core }, rowBad = function(c) { return rowAll(c) && !allRowOk(sysAr, F, fieldById(sysAr, c.list), c.formula); };
+        var sysAr = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables }, rowBad = function(c) { return rowAll(c) && !allRowOk(sysAr, F, fieldById(sysAr, c.list), c.formula); };
         out.rolls = out.rolls.filter(function(r) { return !(Array.isArray(r.apply) && r.apply.some(rowBad)); });
         out.rolls.forEach(function(r) { if (Array.isArray(r.then) && r.then.some(rowBad)) delete r.then; });
     }
     if (effs.length) out.effects = effs;
     out.items.concat(core).forEach(function(it) { var ar = it && it.area; if (!ar || !Array.isArray(ar.aff)) return; ar.aff = ar.aff.filter(function(a) { return seenFx[a.fx] === 1; }); if (!ar.aff.length) delete ar.aff; });   // 1.5.9 (es): an affliction whose effect this view does not hold goes (the GM's view alone holds any)
     var gmF = isObj(sys.combat) && (sys.combat.senses !== undefined || sys.combat.targetSize !== undefined || sys.combat.targetHit !== undefined) ? gmViewFields(sys, F) : null, gmKinds = map(), secret = null;   // senses S1: judged on the fields as the GM's view has them, in both views (1.6.0: TargetSize's field too)
-    if (gmF) { gmF.forEach(function(f) { gmKinds[f.id] = f.kind; }); secret = secretFieldIds({ fields: gmF, items: sys.items, core: sys.core }, F); }
+    if (gmF) { gmF.forEach(function(f) { gmKinds[f.id] = f.kind; }); secret = secretFieldIds({ fields: gmF, items: sys.items, core: sys.core, tables: sys.tables }, F); }
     out.combat = cleanCombat(sys.combat, resIds, gmKinds, secret, F, fieldIds, !gmView, function(id) { var hitF = null; out.fields.forEach(function(x) { if (!hitF && x.id === id) hitF = x; }); return hitF; });
     if (!gmView && typeof mentions === 'function') ['critAt', 'fumbleAt'].forEach(function(k) { if (out.combat[k] && mentions(out.combat[k])) delete out.combat[k]; });   // 1.6.0: the Combat card's critical range naming a GM-only value goes from the players' view (their rolls then read 3 and 18)
     if (out.combat.initiative && Array.isArray(out.combat.initiative.ties)) {   // initiative O2: a step that reads a GM-only value goes (the order is public: a player would learn which is higher), judged over the GM's view, in both views alike
-        var sysTi = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core };
+        var sysTi = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables };
         out.combat.initiative.ties = out.combat.initiative.ties.filter(function(t) { var pt = F.parse(t); return !!(pt && pt.ok && Array.isArray(pt.names)) && !gmDerivedNames(sysTi, F, pt.names).length; });
         if (!out.combat.initiative.ties.length) { delete out.combat.initiative.ties; if (!Object.keys(out.combat.initiative).length) delete out.combat.initiative; }
     }
@@ -3536,7 +3539,7 @@ function cleanSystem(sys, opts) {
     var srS = cleanSheetRev(sys.sheetRev); if (srS) out.sheetRev = srS;   // 1.6.0 (backlog 190): the sheet revision, in both views (absent: none)
     var bud = cleanBudgets(sys.budgets, F);   // 126: the point budgets, the same in both views (absent: none)
     if (bud) {   // one that reads a GM-only value, at any depth, goes: a player's own app must work out the very figures the host judges by. Judged over the GM's view, in both views alike
-        var sysBu = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core };
+        var sysBu = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables };
         bud = bud.filter(function(b) { return [b.has, b.spent].every(function(t) { var pb = F.parse(t); return !!(pb && pb.ok && Array.isArray(pb.names)) && !gmDerivedNames(sysBu, F, pb.names).length; }); });
         if (bud.length) out.budgets = bud;
     }
@@ -3552,6 +3555,7 @@ function cleanSystem(sys, opts) {
     });
     var ss = cleanSheetStyle(sys.sheetStyle); if (ss) out.sheetStyle = ss;   // the sheet's own look (doc theming), players' view included
     var lnk = cleanLinks(sys.links, F); if (lnk) out.links = lnk;   // 1.6.0: the linked sheets, the same in both views (absent: none)
+    var tbls = cleanTables(sys.tables, gmView); if (tbls) out.tables = tbls;   // 1.6.0: the tables a formula reads by name (absent: none)
     if (!gmView && typeof mentions === 'function' && out.links) out.links.forEach(function(k) { if (!Array.isArray(k.figs)) return; k.figs = k.figs.filter(function(x) { return !mentions(x.formula); }); if (!k.figs.length) delete k.figs; });   // the core handbook session's ask 6: a group's figure read from a GM-only value is the GM's alone
     var cal = cleanCalendar(sys.calendar); if (cal) out.calendar = cal;   // item 20 K1: the calendar, the same in both views (absent: a plain count of days)
     if (gmView) Object.defineProperty(out, 'gmSide', { value: true });   // 1.6.0 linked sheets: a system cleaned for the GM, never written or sent (not enumerable), so the link source reads the GM's own character with it
@@ -3561,7 +3565,7 @@ function cleanSystem(sys, opts) {
 // (only kinds that lost something; a file's own count, never more than the file had)
 function droppedCounts(raw, clean) {
     var out = {}; if (!isObj(raw) || !isObj(clean)) return out;
-    ['fields', 'rolls', 'items', 'effects'].forEach(function(k) { var n = Array.isArray(raw[k]) ? raw[k].length : 0, m = Array.isArray(clean[k]) ? clean[k].length : 0; if (n > m) out[k] = n - m; });
+    ['fields', 'rolls', 'items', 'effects', 'tables'].forEach(function(k) { var n = Array.isArray(raw[k]) ? raw[k].length : 0, m = Array.isArray(clean[k]) ? clean[k].length : 0; if (n > m) out[k] = n - m; });
     // 1.6.0 (the owner, 2026-10-28: "count dropped sections and placements, sheet and HUD"): a layout's sections, and the placements of the sections it kept (a section left out takes its own with it, so they are not counted twice)
     var lay = function(r, c, pre) {
         var rs = isObj(r) && Array.isArray(r.sections) ? r.sections : [], cs = isObj(c) && Array.isArray(c.sections) ? c.sections : [], kept = map(), lost = 0;
@@ -3579,7 +3583,7 @@ function droppedCounts(raw, clean) {
 function capsAt(sys) {
     var out = []; if (!isObj(sys)) return out;
     var at = function(what, n, max) { if (n >= max) out.push({ what: what, n: n, max: max }); };
-    at('fields', Array.isArray(sys.fields) ? sys.fields.length : 0, LIMITS.fields); at('rolls', Array.isArray(sys.rolls) ? sys.rolls.length : 0, LIMITS.rolls);
+    at('fields', Array.isArray(sys.fields) ? sys.fields.length : 0, LIMITS.fields); at('rolls', Array.isArray(sys.rolls) ? sys.rolls.length : 0, LIMITS.rolls); at('tables', Array.isArray(sys.tables) ? sys.tables.length : 0, LIMITS.tables);
     var lay = function(l, pre) { var ss = isObj(l) && Array.isArray(l.sections) ? l.sections : [], p = 0; ss.forEach(function(s) { p += isObj(s) && Array.isArray(s.fields) ? s.fields.length : 0; }); at(pre + 'sections', ss.length, LIMITS.sections); at(pre + 'placements', p, LIMITS.placements); };
     var sh = isObj(sys.sheet) ? sys.sheet : null; lay(sh, ''); lay(sh && sh.hud, 'HUD ');
     return out;
@@ -3831,7 +3835,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
             (isObj(tgA.values) && Array.isArray(tgA.values[lfA.id]) ? tgA.values[lfA.id] : []).forEach(function(rw) {
                 if (!isObj(rw) || rw.hid === 1) return; var ridA = rowIdOf(rw); if (!ridA || perA[ridA]) return;
                 var rvA = null; try { rvA = typeof srA.row === 'function' ? srA.row(lfA.id, ridA) : null; } catch (e) { rvA = null; } if (typeof rvA !== 'function') return;
-                var rrA = function(l, t) { var lo = String(l).toLowerCase(); return lo.indexOf('row.') === 0 || lo.indexOf('host.') === 0 ? rvA(l, t) : vars(l, t); };
+                var rrA = function(l, t) { return ROW_NAME.test(String(l)) ? rvA(l, t) : vars(l, t); };
                 var rsA = null; try { rsA = F.evaluate(c.formula, rnd ? { vars: rrA, random: rnd } : { vars: rrA }); } catch (e) { rsA = null; } if (!rsA || !rsA.ok) return;
                 var vA = typeof rsA.value === 'boolean' ? (rsA.value ? 1 : 0) : rsA.value; if (typeof vA !== 'number' || !fin(vA)) return;
                 ((rsA.breakdown && Array.isArray(rsA.breakdown.names)) ? rsA.breakdown.names : []).forEach(function(n) { if (n && typeof n.name === 'string') rnA.push(n.name); });
@@ -4139,7 +4143,7 @@ function chainsShallow(sys, F) {
     try { return chainsWalk(sys, F); } catch (e) { return false; }
 }
 function chainsWalk(sys, F) {
-    var lim = isObj(F.LIMITS) && typeof F.LIMITS.maxDepth === 'number' ? F.LIMITS.maxDepth : 64, ix = keyIndex(sys), lists = map(), info = map(), memo = map(), on = map(), lkC = linkByKey(sys);
+    var lim = isObj(F.LIMITS) && typeof F.LIMITS.maxDepth === 'number' ? F.LIMITS.maxDepth : 64, ix = keyIndex(sys), lists = map(), info = map(), memo = map(), on = map(), lkC = linkByKey(sys), tbW = tableFam(sys, ix);
     var node = function(id, texts, L, names, more) { if (!info[id]) info[id] = { texts: texts, L: L, names: names, more: more }; return id; };
     var listOf = function(f) {   // listCtx's own reading of a list's stats, columns and counters
         var lk = lower(f.key); if (lists[lk]) return lists[lk];
@@ -4186,6 +4190,7 @@ function chainsWalk(sys, F) {
         if (L && l.slice(0, 5) === 'host.' && !ix.host && !lkC.host) { var hw = l.slice(5), hn = []; if (hw.indexOf('.') < 0) sys.fields.forEach(function(hf) { if (isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === L.fid) { var hd = rowNode(listOf(hf), hw); if (hd) hn.push(hd); } }); if (hn.length) return hn.length === 1 ? hn[0] : node('h|' + L.k + '|' + hw, [], null, [], hn); }   // 205 (3): a part's Host.<w>, on each list its host may be in
         if (L && l.slice(0, 4) === 'row.') { var w = l.slice(4), cw = w.split('.'); return w.indexOf('.') < 0 ? rowNode(L, w) : cw.length === 2 && (cw[0] === 'round' || cw[0] === 'fired') && L.chs ? rowNode(listOf(L.chs), cw[1]) : cw.length === 2 && L.ats && cw[0] === L.atb ? rowNode(listOf(L.ats), cw[1]) : cw[0] === 'parts' && L.pts && (cw.length === 2 || (cw.length === 3 && (cw[1] === 'max' || cw[1] === 'min' || cw[1] === 'all'))) ? rowNode(listOf(L.pts), cw[cw.length - 1]) : ''; }   // 1.5.9: a round's stat or column, on its own list; 1.6.0 R14: a part's (205 (1): its highest or lowest too)
         if (ix[l]) return defNode(ix[l], '');
+        if (tbW) { var tbN = tableRead(sys, l); if (tbN) return tbN.by ? nodeOf(tbN.by, L) : ''; }   // 1.6.0: a table read by a name is worked out as that name is; a fixed row is a figure
         if (l.indexOf('.') > 0) { var ln = listNode(l); if (ln !== undefined) return ln; }
         var dot = l.lastIndexOf('.'); if (dot > 0 && NAME_SUFFIX[l.slice(dot + 1)] && ix[l.slice(0, dot)]) return defNode(ix[l.slice(0, dot)], l.slice(dot + 1));
         return '';
@@ -4216,7 +4221,7 @@ function applyScope(sys, char, act, gm, F) {
     if (gm || !sys || !Array.isArray(sys.fields) || !isObj(act) || act.vis === 'gm' || !char || char.npc || !char.ownerId || !Array.isArray(act.apply) || !act.apply.length) return 'gm';
     var rowOwn = function(c) { return isObj(c) && (typeof c.c === 'string' || c.q === true || typeof c.s === 'string' || typeof c.fx === 'string' || typeof c.list === 'string'); };   // 1.6.0: a row's quantity or stat is its owner's, as a counter is, and so is a switched effect
     if (act.apply.some(function(c) { if (!isObj(c) || typeof c.list !== 'string') return false; var lf = fieldById(sys, c.list); return !lf || lf.kind !== 'item-list' || lf.vis === 'gm'; })) return 'gm';   // 1.6.0: every row of a list hidden from its owner
-    if (F && act.apply.some(function(c) { return isObj(c) && typeof c.list === 'string' && readsRow(c.formula, F); })) { var sysAr = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core }; if (act.apply.some(function(c) { return isObj(c) && typeof c.list === 'string' && readsRow(c.formula, F) && !allRowOk(sysAr, F, fieldById(sysAr, c.list), c.formula); })) return 'gm'; }   // 1.6.0: and one worked out row by row whose row names read a GM-only value (allRowOk)
+    if (F && act.apply.some(function(c) { return isObj(c) && typeof c.list === 'string' && readsRow(c.formula, F); })) { var sysAr = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables }; if (act.apply.some(function(c) { return isObj(c) && typeof c.list === 'string' && readsRow(c.formula, F) && !allRowOk(sysAr, F, fieldById(sysAr, c.list), c.formula); })) return 'gm'; }   // 1.6.0: and one worked out row by row whose row names read a GM-only value (allRowOk)
     if (act.apply.some(function(c) { if (!isObj(c) || typeof c.fx !== 'string') return false; var d = null; (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(x) { if (!d && isObj(x) && x.id === c.fx) d = x; }); return !d || d.vis === 'gm'; })) return 'gm';   // 1.6.0: a GM-only effect's card is the GM's
     var gmP = F ? gmPools(sys, F) : map(), ctrs = act.apply.some(rowOwn), fs = act.apply.filter(function(c) { return !rowOwn(c); }).map(function(c) { return isObj(c) && typeof c.f === 'string' ? fieldById(sys, c.f) : null; });
     var spSeen = map(); fs.slice().forEach(function(f) { for (var g = f, n = 0; isObj(g) && isObj(g.spill) && spSeen[g.id] !== 1 && n < LIMITS.fields; n++) { spSeen[g.id] = 1; g = fieldById(sys, g.spill.to); fs.push(g); } });   // 1.6.0 Spills into: a pool a loss may spill into is moved too, so its card is judged with it
@@ -6123,6 +6128,7 @@ function rowAsks(sysG, f, names) {
     var asks = [], key = isObj(f) && typeof f.key === 'string' ? f.key : '', sp = isObj(f) && isObj(f.list) ? f.list : null, flds = isObj(sysG) && Array.isArray(sysG.fields) ? sysG.fields : [], fid = isObj(f) ? f.id : null;
     (Array.isArray(names) ? names : []).forEach(function(n) {
         var nm = typeof n === 'string' ? n : n && typeof n.name === 'string' ? n.name : '', l = lower(nm); if (!nm) return;
+        var tbA = tableRead(sysG, l); if (tbA && tbA.by) { asks.push({ name: nm }); l = tbA.by; }   // 1.6.0: a table read by a row's own name is asked as the table and as that name
         if (l.indexOf('row.') === 0) { asks.push({ name: key + '.count' }); if (l.indexOf('row.parts') === 0 && sp) { var ps = partsSrc(sysG, sp); if (ps) asks.push({ name: ps.key + '.count' }); } if (sp && isObj(sp.at) && typeof sp.at.by === 'string' && l.indexOf('row.' + lower(sp.at.by) + '.') === 0) { var as2 = atSrc(sysG, sp); if (as2) asks.push({ name: as2.key + '.count' }); } return; }
         if (l.indexOf('host.') === 0) flds.forEach(function(hf) { if (isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === fid) asks.push({ name: hf.key + '.count' }); });
         asks.push({ name: nm });
@@ -6131,7 +6137,8 @@ function rowAsks(sysG, f, names) {
 }
 // 1.6.0 (asked by a campaign build's session): whether a formula reads a row's own names (Row.*, and a part's Host.*). A system change on every
 // row of a list whose amount reads one is worked out row by row (applyAct); with none it is worked out once, as before
-function readsRow(text, F) { if (typeof text !== 'string' || !text || !F || typeof F.names !== 'function') return false; try { return F.names(text).some(function(n) { return /^(row|host)\./i.test(String(n)); }); } catch (e) { return false; } }
+var ROW_NAME = /^(?:table\.[^.]+\.by\.)?(?:row|host)\./i;   // 1.6.0: a row's own name, a table read by one too
+function readsRow(text, F) { if (typeof text !== 'string' || !text || !F || typeof F.names !== 'function') return false; try { return F.names(text).some(function(n) { return ROW_NAME.test(String(n)); }); } catch (e) { return false; } }
 // 1.6.0: whether such a change may reach players, judged over the GM's view sysG as modsIfOk judges a list's gate (a Rolled amount's dice
 // allowed): on a list players see, read with that list's own names, it reads no GM-only value at any depth. cleanSystem drops one that cannot
 // from the players' view, applyScope keeps its card the GM's, and the validator warns of it
@@ -6402,7 +6409,7 @@ function cleanCharLinks(raw, sys, selfId) {
 // LIMITS.linkNames; never has (worked out on each machine)
 function linkNamesIn(sys, key) {
     var s = ''; try { s = JSON.stringify(sys) || ''; } catch (e) { s = ''; }
-    var esc = String(key).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), re = new RegExp('(^|[^A-Za-z0-9_.])' + esc + '\\.([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*){0,3})', 'gi'), m, out = [], seen = map();
+    var esc = String(key).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), re = new RegExp('(^|[^A-Za-z0-9_.])' + esc + '\\.([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*){0,6})', 'gi'), m, out = [], seen = map();
     var lkCrew = linkByKey(sys)[lower(key)], crewK = !!(lkCrew && lkCrew.kind === 'crew');   // 1.6.0: a crew sheet's own stations are no figure of its vehicle
     var ixN = crewK && sys && Array.isArray(sys.fields) ? keyIndex(sys) : null;   // a field keyed Station that reads the third part itself keeps it a figure of the vehicle
     while ((m = re.exec(s)) && out.length < LIMITS.linkNames) { var w = lower(m[2]); if (w === 'has' || (crewK && (w === 'stations' || crewStation(lkCrew, w, ixN))) || seen[w] || w in Object.prototype) continue; seen[w] = 1; out.push(w); }
@@ -6423,7 +6430,7 @@ function linkFigs(sys, char, F) {
     });
     return out;
 }
-var LINK_NAME = /^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*){0,3}$/;
+var LINK_NAME = /^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*){0,6}$/;   // 1.6.0: seven parts, so a table read by a name reaches a player's copy (a crew group's max too)
 function cleanLk(raw, sys) {
     if (!isObj(raw) || !sys || !Array.isArray(sys.links)) return null;
     var out = null;
@@ -6627,6 +6634,73 @@ function placeName(sys, l) {   // the resolver's reading of one of the four (l: 
     if (sg[0] === 'value' && sg.length === 3) return valueNamed(sys, sg[1], sg[2]).n;
     return undefined;
 }
+// 1.6.0: a system's tables, figures a formula reads by name, so one short formula serves every material of a table and a list reordered changes
+// nothing. A table: { key, label, vis?, cols: [{ key, label }], rows: [{ key, label?, vals: { <col key>: number } }] }, absent where a system
+// keeps none. Table.<table>.<row>.<col> reads a row by its key, and Table.<table>.by.<name>.<col> by what <name> holds: a text or a list field's
+// words, a number's or a formula's value name, or in a list's own formulas a row's choice (Row.<w>), its host's (Host.<w>) or its first part's
+// (Row.parts.<w>). A row is found by its key, else its name, each by nameFold; one that is not there, and a column that is not there, read 0, never an
+// error. All of it is one name to the engine, so every judge reads it by the name: the resolver (tableVal), the validator (tableT), the chain reader
+// and the GM-only judges, which take a GM-only table as a GM-only value and a by read as the name it reads (tableRead). A field, a link or a crew
+// group keyed Table keeps the whole family (tableFam), as the four name forms do. A table is the same in both views, but one marked vis 'gm' is left out
+// of the players' view. A key: letters, digits and _, starting with a letter, never a name the wire's packer refuses (statKey's rule)
+var TABLE_KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/, TABLE_ROW_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
+function tableKeyOk(k, re) { var t = typeof k === 'string' ? k.trim() : '', l = lower(t); if (!re.test(t) || (t in Object.prototype) || (l in Object.prototype) || l === 'bytes_per_element') return ''; return t; }
+function cleanTables(v, gmView) {
+    var out = [], seen = map();
+    (Array.isArray(v) ? v : []).forEach(function(t) {
+        if (out.length >= LIMITS.tables || !isObj(t)) return;
+        var key = tableKeyOk(t.key, TABLE_KEY); if (!key || seen[lower(key)]) return;
+        var cols = [], cs = map(), rows = [], rs = map();
+        (Array.isArray(t.cols) ? t.cols : []).forEach(function(c) { if (cols.length >= LIMITS.tableCols || !isObj(c)) return; var ck = tableKeyOk(c.key, TABLE_KEY); if (!ck || cs[lower(ck)]) return; cs[lower(ck)] = 1; cols.push({ key: ck, label: cutText(c.label, LIMITS.label) || ck }); });
+        if (!cols.length) return;
+        (Array.isArray(t.rows) ? t.rows : []).forEach(function(r) {
+            if (rows.length >= LIMITS.tableRows || !isObj(r)) return; var rk = tableKeyOk(r.key, TABLE_ROW_KEY), fk = rk ? nameFold(rk) : ''; if (!fk || rs[fk]) return; rs[fk] = 1;
+            var ro = { key: rk }, lb = cutText(r.label, LIMITS.label), vals = {}, src = isObj(r.vals) ? r.vals : {}; if (lb && lb !== rk) ro.label = lb;
+            cols.forEach(function(c) { var nv = hasOwn(src, c.key) ? statNum(src[c.key]) : undefined; if (nv !== undefined) vals[c.key] = nv; });
+            ro.vals = vals; rows.push(ro);
+        });
+        if (!rows.length) return;
+        seen[lower(key)] = 1;
+        var o = { key: key, label: cutText(t.label, LIMITS.label) || key }; if (t.vis === 'gm') o.vis = 'gm'; o.cols = cols; o.rows = rows; out.push(o);
+    });
+    var kept = gmView ? out : out.filter(function(t) { return t.vis !== 'gm'; });   // cut to the cap first, so both views hold the same tables
+    return kept.length ? kept : null;
+}
+function tableFam(sys, ix) {   // whether the family is live: the system keeps a table, and no field, link or crew group is keyed Table
+    if (!isObj(sys) || !Array.isArray(sys.tables) || !sys.tables.length) return false;
+    if (!ix) { ix = map(); (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (isObj(f) && typeof f.key === 'string') ix[lower(f.key)] = f; }); }
+    return !ix.table && !linkByKey(sys).table && !groupByKey(sys).table;
+}
+function tableParts(l) {   // a name in lower case: { k, row, col } or { k, by, col }, or null for no such name
+    var sg = String(l).split('.'); if (sg[0] !== 'table' || sg.length < 4) return null;
+    if (sg.length === 4) return { k: sg[1], row: sg[2], col: sg[3] };
+    return sg[2] === 'by' ? { k: sg[1], by: sg.slice(3, -1).join('.'), col: sg[sg.length - 1] } : null;
+}
+function tableRead(sys, l) {   // for the judges: null for no such name, else { t: the table or null, gm: a GM-only table's, by: the name a by read reads, '' for a fixed row }
+    if (typeof l !== 'string' || l.slice(0, 6) !== 'table.' || !isObj(sys) || !Array.isArray(sys.tables)) return null;
+    var p = tableParts(l); if (!p) return null;
+    var t = null; sys.tables.forEach(function(x) { if (!t && isObj(x) && typeof x.key === 'string' && lower(x.key).trim() === p.k) t = x; });
+    return { t: t, gm: !!t && t.vis === 'gm', by: p.by || '' };
+}
+function tableRowOf(t, name) {   // a table's row by a name, nameFold's reading: its key first, else its name
+    var fw = nameFold(String(name || '')), rs = isObj(t) && Array.isArray(t.rows) ? t.rows : [], i; if (!fw) return null;
+    for (i = 0; i < rs.length; i++) if (isObj(rs[i]) && nameFold(rs[i].key) === fw) return rs[i];
+    for (i = 0; i < rs.length; i++) if (isObj(rs[i]) && nameFold(rs[i].label) === fw) return rs[i];
+    return null;
+}
+function tableIndex(sys) {   // by a table's key in lower case: { cols: its keys by lower case, rows: by nameFold, keys before names }, made once a resolver
+    var m = map();
+    sys.tables.forEach(function(t) {
+        if (!isObj(t) || typeof t.key !== 'string' || m[lower(t.key)]) return;
+        var e = { cols: map(), rows: map() }, rs = Array.isArray(t.rows) ? t.rows : [];
+        (Array.isArray(t.cols) ? t.cols : []).forEach(function(c) { if (isObj(c) && typeof c.key === 'string' && e.cols[lower(c.key)] === undefined) e.cols[lower(c.key)] = c.key; });
+        rs.forEach(function(r) { var f = isObj(r) ? nameFold(r.key) : ''; if (f && !e.rows[f]) e.rows[f] = r; });
+        rs.forEach(function(r) { var f = isObj(r) ? nameFold(r.label) : ''; if (f && !e.rows[f]) e.rows[f] = r; });
+        m[lower(t.key)] = e;
+    });
+    return m;
+}
+function tableFig(e, name, col) { var ck = e.cols[col], r = e.rows[nameFold(String(name || ''))], v = r && ck !== undefined && isObj(r.vals) && hasOwn(r.vals, ck) ? r.vals[ck] : 0; return typeof v === 'number' && fin(v) ? v : 0; }   // a figure, 0 where the row, the column or the figure is not there
 // One of the website's seven postures for a token's stored text, by its id: the ids themselves, the 1.4.6 ids and the handbook's long names, as
 // the map reads them. '' for a text that is none of them (a posture of a system's own list, a word nobody knows, nothing). sys: the system
 // in use. A posture of its own list, by its id, is never one of the seven, whatever letters the id holds: the reading below is by the words
@@ -7160,6 +7234,36 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     var gkx = groupByKey(sys), crewC = map();   // 1.6.0 (CORE gap 16): the Crew links by the key the vehicle reads its crew by, and each crew once a resolver
     var refRec = map();   // 1.6.0 Specialties: the case each reference used, by the name worked out (a column's under its own key), for a roll's card
     var vehR = null;   // the core handbook session's ask (after ask 6): this very sheet read from inside a group figure (vehRead), made once a resolver
+    var tbOn = tableFam(sys, ix), tbI = null;   // 1.6.0: a system's tables, read by name (tableVal), their index once a resolver
+    // ... Table.<table>.<row>.<col>, or Table.<table>.by.<name>.<col> by what <name> holds (L and x: a list's row, in its own formulas). undefined for a table that is not there or a name of no such shape (then an unknown name), an error of what it read (a loop) as it is, and any row or column that is not there 0
+    function tableVal(l, L, x) {
+        var p = tableParts(l); if (!p) return undefined;
+        if (!tbI) tbI = tableIndex(sys);
+        var e = tbI[p.k]; if (!e) return undefined;
+        if (!p.by) return tableFig(e, p.row, p.col);
+        var nm = tableWord(p.by, L, x); if (isObj(nm)) return nm;
+        var v = tableFig(e, nm, p.col), via = L ? null : viaOf([{ name: p.by }]); if (via) detail[l] = { base: v, mods: [], via: via };   // a GM-only effect on what chose the row keeps a public roll private
+        return v;
+    }
+    function tableWord(by, L, x) {   // the words a name holds, '' for none, or the error of working it out
+        if (L && by.slice(0, 4) === 'row.' && !ix.row) { var w = by.slice(4); return w.slice(0, 6) === 'parts.' ? partsWord(L, x, w.slice(6)) : w.indexOf('.') < 0 ? rowWord(L, x, w) : ''; }
+        if (L && by.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hw = by.slice(5), hh = hostRow(L, x, hw).hit; return hh ? rowWord(hh.L, hh.x, hw) : ''; }
+        var f = ix[by]; if (!f) return '';
+        if (f.kind === 'text' || f.kind === 'select') { var sv = storedOf(f, char); return typeof sv === 'string' ? sv : ''; }
+        if ((f.kind === 'number' || f.kind === 'formula') && Array.isArray(f.labels)) { var v = fn(f.key); if (isObj(v) && v.error) return v; return typeof v === 'number' && v === Math.floor(v) && typeof f.labels[v] === 'string' ? f.labels[v] : ''; }
+        return '';
+    }
+    function rowWord(L, x, w) {   // a row's choice read as a name: a stat's (statName), a column's value name
+        if (L.st[w]) return statName(L.spec, x.d, w);
+        var c = L.cl[w]; if (!c || !Array.isArray(c.labels)) return '';
+        var v = colVal(L, x, c); if (isObj(v) && v.error) return v; return typeof v === 'number' && v === Math.floor(v) && typeof c.labels[v] === 'string' ? c.labels[v] : '';
+    }
+    function partsWord(L, x, w) {   // the first part, in the list's order, whose choice names something (as Row.parts.<choice> reads it)
+        var sf = L.spec && isObj(L.spec.parts) ? partsSrc(sys, L.spec) : null; if (!sf || x.virt || w.indexOf('.') >= 0) return '';
+        var SL = listCtx(sf), hid = typeof x.pid === 'string' ? x.pid : x.id;
+        for (var i = 0; i < SL.rows.length; i++) { var it = SL.rows[i]; if (!isObj(it.r) || it.r.in !== hid) continue; var nm = rowWord(SL, it, w); if (nm) return nm; }
+        return '';
+    }
     // 1.6.0 linked sheets: <Key>.<name> reads the sheet a link holds, live, with this very system (so a player's press judged through the
     // players' view reads only what players may see); <Key>.has 1 while linked; every name 0 with no link. A player's copy reads the figures its
     // host worked out (char.lk). The linked sheet's own links are not followed: each name reads 0 there
@@ -7342,8 +7446,9 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var ai = atIndex(L.spec, x.d, AL.rows.map(function(it) { return it.d; }));
         return ai < 0 ? 0 : rowVal(AL, AL.rows[ai], sg[1]);
     }
-    function hostVal(L, x, w) {
-        if (!w || w.indexOf('.') >= 0) return undefined;
+    function hostVal(L, x, w) { var h = hostRow(L, x, w); return h.hit ? rowVal(h.hit.L, h.hit.x, w) : h.known ? 0 : undefined; }
+    function hostRow(L, x, w) {
+        if (!w || w.indexOf('.') >= 0) return { known: false, hit: null };
         var known = false, hit = null;
         sys.fields.forEach(function(hf) {
             if (hit || !isObj(hf) || hf.kind !== 'item-list' || !isObj(hf.list) || !isObj(hf.list.parts) || hf.list.parts.from !== L.f.id) return;
@@ -7351,10 +7456,10 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
             if (x.virt || !isObj(x.r) || typeof x.r.in !== 'string') return;
             for (var hi = 0; hi < HL.rows.length; hi++) if (HL.rows[hi].id === x.r.in && !HL.rows[hi].virt) { hit = { L: HL, x: HL.rows[hi] }; break; }
         });
-        return hit ? rowVal(hit.L, hit.x, w) : known ? 0 : undefined;
+        return { known: known, hit: hit };
     }
     function rowVars(L, x) {   // a column's names: Row.* reads this row, every other name the resolver (one cache)
-        var v = function(name, nt) { var l = lower(name); if (l.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hv = hostVal(L, x, l.slice(5)); if (hv !== undefined) return hv; } if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); if (w.indexOf('.') < 0) return rowVal(L, x, w); var av = atVal(L, x, w); return av !== undefined ? av : roundVal(L, x, w); } return fn(name, nt); };
+        var v = function(name, nt) { var l = lower(name); if (tbOn && l.slice(0, 6) === 'table.' && !ix[l]) { var tb0 = tableVal(l, L, x); if (tb0 !== undefined) return tb0; } if (l.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hv = hostVal(L, x, l.slice(5)); if (hv !== undefined) return hv; } if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); if (w.indexOf('.') < 0) return rowVal(L, x, w); var av = atVal(L, x, w); return av !== undefined ? av : roundVal(L, x, w); } return fn(name, nt); };
         v.refs = function(names) { return refsOut(refUp(names, L, x)); };   // 1.6.0 Specialties: the cases a roll's names used, for its card
         v.detail = function(name) { var l = lower(name); if (l.slice(0, 4) === 'row.' && l.indexOf('.', 4) < 0) return detail[lower(L.f.key) + '#' + x.id + '.' + l.slice(4)] || null; return detail[l] || null; };   // 1.5.8: a row's own column under its own key
         return v;
@@ -7527,6 +7632,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var fam = l.split('.')[0]; if (ix[fam]) return undefined;
         if (lkx[fam] && l.length > fam.length + 1) return linkVal(lkx[fam], l.slice(fam.length + 1), l);   // 1.6.0: a linked sheet's names (a field keyed so keeps them, above)
         if (gkx[fam] && l.length > fam.length + 1) return crewVal(gkx[fam], l.slice(fam.length + 1), l);   // 1.6.0 (CORE gap 16): its crew as a group
+        if (fam === 'table' && tbOn) return tableVal(l, null, null);   // 1.6.0: a system's tables (a field, link or crew group keyed Table keeps the family, above)
         if (fam === 'date') { var dk = l.slice(5); if (dk !== 'year' && dk !== 'day' && dk !== 'days' && dk !== 'hour' && dk !== 'minute') return undefined; var dv = null; try { dv = _dateSrc ? _dateSrc() : null; } catch (e) { dv = null; } return isObj(dv) && fin(dv[dk]) ? dv[dk] : 0; }   // 1.6.0: the campaign's date
         if (fam === 'target' && l.slice(0, 11) === 'target.hit.' && l.length > 11) { rangeRead = true; var thR = ropts && typeof ropts.thit === 'function' ? ropts.thit : null, thv = 0; if (thR) { try { thv = thR('row.' + l.slice(11)); } catch (e) { thv = 0; } } return typeof thv === 'number' && isFinite(thv) ? thv : 0; }   // 1.6.0 (B5): a stat or a column of the location row the roller picked on its target's sheet (withTargetHit); 0 with none. Read with the range, so the host's privacy rule counts it too (a field, link or crew group keyed Target keeps the family, above)
         if ((fam === 'posture' || fam === 'type' || fam === 'place' || fam === 'value') && l.length > fam.length + 1) return placeName(sys, l);   // 1.6.0: Posture.<posture>, Type.<key>, Place.<stat>.<value>, Value.<key>.<value>, a thing's place by its name (a field, link or crew group keyed so keeps them, above)
@@ -8006,7 +8112,7 @@ function validateSystem(sys, F) {
         ta.addr = sg[1]; if (gmKsV[lower(lf.key)] && gmKsV[lower(lf.key)][sg[1]] === 1) ta.gmKey = true;
         return ta;
     }
-    function listT(n) { var t = listTarget(n, null); return t && !t.rowOutside ? t : (linkT(n) || crewT(n)); }   // captions and labels: never inside a column (1.6.0: a linked sheet's names too)
+    function listT(n) { var t = listTarget(n, null); if (t && !t.rowOutside) return t; var tb = linkT(n) || crewT(n) || tableT(n, null); return tb && !tb.rowOutside ? tb : null; }   // captions and labels: never inside a column (1.6.0: a linked sheet's names too)
     var figK = null;   // the core handbook session's ask (after ask 6): the group link whose figure is being checked, so <LinkKey>.<name> reads the vehicle
     function groupReadV(nm) { var l = lower(nm), d = l.indexOf('.'), g = d > 0 ? l.slice(0, d) : ''; return !!(g && gnV[g] && !ix[g] && crewParts(gnV[g], l.slice(d + 1))); }
     function readsGroupV(nm, seen) {   // whether a name reads the group, itself or through the definitions of the fields it reads
@@ -8032,6 +8138,32 @@ function validateSystem(sys, F) {
         if (fam === 'value') { var vr = valueNamed(sys, sg[1], sg[2]); t.says = vr.n < 0 ? '"' + n + '" names no value: no number of that key has that value name, so it reads -1 and never matches it.' : vr.also ? '"' + n + '" is a value name of more than one number, at different figures: it reads the first one\u2019s.' : ''; }
         if (fam === 'place') { var pr = placeNamed(sys, sg[1], sg[2]); t.says = !pr.n ? '"' + n + '" names no place: no list has a set of places ' + n.split('.')[1] + ' with that value name, so it reads 0, which has() refuses.' : pr.also ? '"' + n + '" is a place of more than one list, at different places: it reads the first list\u2019s.' : ''; }
         return t;
+    }
+    // 1.6.0: Table.<table>.<row>.<col> and Table.<table>.by.<name>.<col>, a number of the table's own; a row, a column or a name that holds none says so (says), since each reads 0. One the system's tables do not hold is an unknown name, and a GM-only table a GM-only value
+    function tableT(n, rowList) {
+        var l = lower(n); if (l.slice(0, 6) !== 'table.' || !tableFam(sys, ix)) return null;
+        var p = tableParts(l), rd = p ? tableRead(sys, l) : null; if (!rd || !rd.t) return null;
+        var t = rd.t, lab = t.label || t.key, out = { id: '', key: n, kind: 'number', vis: rd.gm ? 'gm' : 'all', noEdge: true };
+        var nameIn = function(lf, w) { var sp = isObj(lf.list) ? lf.list : {}, st = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(x) { return isObj(x) && lower(String(x.key)) === w; })[0], c = (Array.isArray(sp.cols) ? sp.cols : []).filter(function(x) { return isObj(x) && lower(String(x.key)) === w; })[0]; return st ? (st.kind === 'pick' || Array.isArray(st.labels) ? 'stat' : '') : c && Array.isArray(c.labels) ? 'col' : ''; };
+        var says = '';
+        if (p.by) {
+            var by = p.by, named = false;
+            if (by.slice(0, 4) === 'row.' && !ix.row) {
+                if (!rowList) return { rowOutside: true };
+                var w = by.slice(4), ps = w.slice(0, 6) === 'parts.' && isObj(rowList.list) && isObj(rowList.list.parts) ? partsSrc(sys, rowList.list) : null, nk = w.slice(0, 6) === 'parts.' ? (ps ? nameIn(ps, w.slice(6)) : '') : w.indexOf('.') < 0 ? nameIn(rowList, w) : '';
+                named = !!nk; if (nk === 'col' && !ps) { out.key = 'l#' + lower(rowList.key) + '.' + w; delete out.noEdge; }   // a column of value names is worked out: a node of the loop graph
+            } else if (by.slice(0, 5) === 'host.' && !ix.host && !lnkV.host) {
+                if (!rowList) return { rowOutside: true };
+                sys.fields.forEach(function(hf) { if (isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === rowList.id && nameIn(hf, by.slice(5))) { named = true; if (hf.vis === 'gm') out.vis = 'gm'; } });
+            } else {
+                var bf = ix[by];
+                if (bf) { named = bf.kind === 'text' || bf.kind === 'select' || ((bf.kind === 'number' || bf.kind === 'formula') && Array.isArray(bf.labels)); out.id = bf.id; if (bf.vis === 'gm') out.vis = 'gm'; if (named) { out.key = bf.key; delete out.noEdge; } }
+            }
+            if (!named) says = '"' + n + '" reads ' + by + ', which holds no name, so it reads 0. A text field, a list field, a number with value names or a choice holds one.';
+        } else if (!tableRowOf(t, p.row)) says = '"' + n + '": ' + lab + ' has no row ' + n.split('.')[2] + ', so it reads 0.';
+        if (!(Array.isArray(t.cols) ? t.cols : []).some(function(c) { return isObj(c) && lower(String(c.key)).trim() === p.col; })) says = '"' + n + '": ' + lab + ' has no column ' + n.split('.').pop() + ', so it reads 0.';
+        if (says) out.says = says;
+        return out;
     }
     var CMP_RE = '(?:==|=|!=|<>|<=|>=|<|>|\u2265|\u2264|\u2260)';
     function bareCmp(owner, prop, text) {   // 1.6.0 (a nicety): Posture or Blow.type compared with a bare number, whose meaning a list added to or reordered changes
@@ -8070,10 +8202,11 @@ function validateSystem(sys, F) {
             if (!target && !ix.target && l.indexOf('target.hit.') === 0 && l.length > 11) { var thF = targetHitList(sys); if (!thF) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only where the Combat card names the list of hit locations (Called shots read).', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } var thT = wordTarget(thF, l.slice(11), false); if (!thT || thT.ctrTotal || thT.pickTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '": ' + (thF.label || thF.key) + ' has no stat or column ' + n.slice(11) + '.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = Object.assign({}, thT, { noEdge: true }); }   // 1.6.0 (B5): the target's own location row
             if (!target && (l === 'crossstep' || l === 'crossed')) { if (!crossV || /(^|\.)cross\./.test(prop)) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only in a roll or an action that runs When a value crosses.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = { id: '', key: l === 'crossstep' ? 'CrossStep' : 'Crossed', kind: 'number', vis: 'all', noEdge: true }; }   // 1.6.0
             if (!target && l === 'onself') { errors.push({ id: owner.id, prop: prop, message: '"OnSelf" is known only in a roll or an action that Applies to the user or an adjacent character.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
-            if (!target && l.length > 3 && l.indexOf('on.') === 0) { if (!nearV) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" reads the one it is used on, so it is known only in a roll or an action that Applies to the user or an adjacent character.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = known[l.slice(3)] || null; }   // 1.6.0: On.<name>, the one it is used on
+            if (!target && l.length > 3 && l.indexOf('on.') === 0) { if (!nearV) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" reads the one it is used on, so it is known only in a roll or an action that Applies to the user or an adjacent character.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } var tbOn0 = tableT(n.slice(3), null); target = known[l.slice(3)] || (tbOn0 && !tbOn0.rowOutside ? tbOn0 : null); }   // 1.6.0: On.<name>, the one it is used on (a table read too)
             if (!target && figK) { var fvT = figVeh(figK, ix, n); if (fvT && groupReadV(fvT)) { warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" reads the crew again, so inside a figure it reads 0.' }); target = { id: '', key: n, kind: 'number', vis: 'all', noEdge: true }; } }   // the core handbook session's ask (after ask 6): a vehicle name that is itself a group read
             if (!target) { var lt = listTarget(n, rowList); if (lt && lt.rowOutside) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" names a row, so it is known only in a list\u2019s own columns.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = lt; } if (!target) target = linkT(n) || crewT(n);   // F5a1; 1.6.0: a linked sheet's name, or its crew's as a group
             if (!target) { target = placeT(n); if (target && target.says) warnings.push({ id: owner.id, prop: prop, message: target.says }); }   // 1.6.0: Posture.<posture>, Type.<key>, Place.<stat>.<value>, Value.<key>.<value>
+            if (!target) { target = tableT(n, rowList); if (target && target.rowOutside) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" names a row, so it is known only in a list\u2019s own columns.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } if (target && target.says) warnings.push({ id: owner.id, prop: prop, message: target.says }); }   // 1.6.0: a system's tables
             if (target && target.noChamber) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" reads a chambered round, but ' + (target.list.label || target.list.key) + ' has no Chambers from.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // 1.5.9
             if (target && target.ctrTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is a counter, so it has no ' + (target.ext ? 'highest or lowest' : 'total') + ': read one row (' + target.list.key + '.<key>.' + n.split('.').pop() + ').', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // R2
             if (target && target.pickTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is a choice, so it has no ' + (target.ext ? 'highest or lowest' : 'total') + ': read one row (' + target.list.key + '.<key>.' + n.split('.').pop() + ').', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // F5a2
@@ -8126,7 +8259,7 @@ function validateSystem(sys, F) {
         if (!lf || lf.kind !== 'item-list') { errors.push({ id: id, prop: prop, message: 'Pick the list this changes on every row: that one is gone.' }); return; }
         if (!(isObj(lf.list) && Array.isArray(lf.list.stats) ? lf.list.stats : []).some(function(t) { return isObj(t) && t.kind !== 'pick' && typeof t.key === 'string' && lower(t.key) === lower(c.s); })) errors.push({ id: id, prop: prop, message: 'Pick the stat this changes on every row: "' + c.s + '" is no number stat of ' + (lf.label || lf.key) + '.' });
         else if (vis === 'all' && lf.vis === 'gm') warnings.push({ id: id, prop: prop, message: '"' + lf.key + '" is GM only: ' + (then ? 'players\u2019 rolls will not change it.' : 'players will not get this action.') });
-        else if (vis === 'all' && readsRow(c.formula, F) && !allRowOk({ fields: gmViewFields(sys, F), items: sys.items, core: sys.core }, F, lf, c.formula)) warnings.push({ id: id, prop: prop, message: 'Its row names read a value worked out from a GM-only one in ' + (lf.label || lf.key) + ': ' + (then ? 'players\u2019 rolls will not change it.' : 'players will not get this action.') });   // 1.6.0: worked out row by row (allRowOk)
+        else if (vis === 'all' && readsRow(c.formula, F) && !allRowOk({ fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables }, F, lf, c.formula)) warnings.push({ id: id, prop: prop, message: 'Its row names read a value worked out from a GM-only one in ' + (lf.label || lf.key) + ': ' + (then ? 'players\u2019 rolls will not change it.' : 'players will not get this action.') });   // 1.6.0: worked out row by row (allRowOk)
     };
     var allList = function(c) { var lf = fieldById(sys, c.list); return lf && lf.kind === 'item-list' ? lf : undefined; };   // 1.6.0: Row.* is known in a change on every row of a list, with that list's names
     var rowSays = function(lf, prop, c) {
@@ -8924,10 +9057,11 @@ function rowRollNames(sys, char, fieldId, rowId, names, F, uDef) {   // uDef (1.
 var _inFig = 0;   // the core handbook session's ask 6: while a group figure's own formula is judged, its figures are read no deeper
 function gmOnlyNames(sys, names) {
     if (!sys || !Array.isArray(sys.fields) || !Array.isArray(names)) return [];
-    var ix = keyIndex(sys), out = [], gmKs = gmEntryKeys(sys, sys.fields), figs0 = !_inFig && Array.isArray(sys.links) && sys.links.some(function(k) { return isObj(k) && Array.isArray(k.figs); });
+    var ix = keyIndex(sys), out = [], gmKs = gmEntryKeys(sys, sys.fields), figs0 = !_inFig && Array.isArray(sys.links) && sys.links.some(function(k) { return isObj(k) && Array.isArray(k.figs); }), tbJ = tableFam(sys, ix);
     names.forEach(function(n) {
         if (figs0) { var s0 = n && typeof n.name === 'string' ? n.name : '', fr0 = s0 ? figRead(sys, ix, /^on\./i.test(s0) && s0.length > 3 ? s0.slice(3) : s0) : null; if (fr0) { var hit0 = 0; _inFig++; try { hit0 = gmOnlyNames(sys, (String(fr0.formula).match(/[A-Za-z_][A-Za-z0-9_.]*/g) || []).map(function(t) { return { name: t }; })).length; } finally { _inFig--; } if (hit0) out.push(n.name); return; } }   // a group's figure is GM-only where its formula reads a GM-only value
         var l = lower(n && n.name || ''), f = ix[l]; if (!f && l.length > 3 && l.indexOf('on.') === 0) { l = l.slice(3); f = ix[l]; } if (!f) { var lbN = lower(linkBare(sys, ix, l)); if (lbN !== l) { l = lbN; f = ix[l]; } }   // 1.6.0: a linked sheet's name, judged as that name   // 1.6.0: On.<name>, the one it is used on, is judged as that name
+        if (!f && tbJ) { var tbO = tableRead(sys, l); if (tbO) { if (tbO.gm) { out.push(n.name); return; } if (!tbO.by) return; l = tbO.by; f = ix[l]; } }   // 1.6.0: a GM-only table is a GM-only value, and a table read by a name is judged as that name
         if (!f) { var dot = l.lastIndexOf('.'); if (dot > 0 && NAME_SUFFIX[l.slice(dot + 1)]) f = ix[l.slice(0, dot)]; }
         if (!f) { var sg = l.split('.'), lf = sg.length > 1 ? ix[sg[0]] : null; if (lf && lf.kind === 'item-list' && (lf.vis === 'gm' || (sg.length > 2 && gmKs[lower(lf.key)] && gmKs[lower(lf.key)][sg[1]] === 1))) f = { vis: 'gm' }; }   // F5a1: a GM-only list, L.<a GM-only entry's key> (critic 4)
         if (f && f.vis === 'gm') out.push(n.name);
@@ -8960,9 +9094,10 @@ function gmDerivedNames(sys, F, names) {
         names = plainN;
     }
     try {
-        var ix = keyIndex(sys), hot = map(), readBy = map(), queue = [], gmKs = gmEntryKeys(sys, sys.fields);
+        var ix = keyIndex(sys), hot = map(), readBy = map(), queue = [], gmKs = gmEntryKeys(sys, sys.fields), tbD = tableFam(sys, ix);
         var reads = function(name) {   // the field a name reads (the resolver's lookup) and whether its value is that field's definition worked out
             var l = lower(name), f = ix[l], sfx = '';
+            if (!f && tbD) { var tbQ = tableRead(sys, l); if (tbQ) { if (tbQ.gm) return { f: { id: '#gm', vis: 'gm' }, def: false }; if (!tbQ.by) return null; l = tbQ.by; f = ix[l]; } }   // 1.6.0: a GM-only table is a GM-only value, and a table read by a name is judged as that name
             if (!f) { var dot = l.lastIndexOf('.'); if (dot > 0 && NAME_SUFFIX[l.slice(dot + 1)]) { f = ix[l.slice(0, dot)]; sfx = l.slice(dot + 1); } }
             if (!f) { var sg = l.split('.'), lf = sg.length > 1 ? ix[sg[0]] : null; if (lf && lf.kind === 'item-list') { if (lf.vis === 'gm' || (sg.length > 2 && gmKs[lower(lf.key)] && gmKs[lower(lf.key)][sg[1]] === 1)) return { f: { id: '#gm', vis: 'gm' }, def: false }; return { f: { id: 'l#' + lower(lf.key), vis: 'all' }, def: true }; } }   // F5a1: a list's names are worked out from its columns (one node per list)
             if (!f) return null;
@@ -8987,7 +9122,7 @@ function gmDerivedNames(sys, F, names) {
             var atG = isObj(f.list.at) && !ix.row ? atSrc(sys, f.list) : null, atP = atG ? 'row.' + lower(f.list.at.by) + '.' : '';   // 1.6.0 Stands at: Row.<by>.<w> is worked out from that list's names
             var hsG = ix.host ? [] : sys.fields.filter(function(hf) { return isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === f.id; });   // 205 (3): a part's Host.<w> is worked out from its hosts' lists
             var node = 'l#' + lower(f.key), one = function(r) { if (!r) return; if (r.f.vis === 'gm') { if (!hot[node]) { hot[node] = 1; queue.push(node); } } else if (r.def) (readBy[r.f.id] = readBy[r.f.id] || []).push(node); };
-            var edge = function(nm) { var ln = lower(nm); if (hsG.length && ln.indexOf('host.') === 0) { hsG.forEach(function(hf) { one({ f: { id: 'l#' + lower(hf.key), vis: hf.vis === 'gm' ? 'gm' : 'all' }, def: true }); }); return; } one(ptG && ln.indexOf('row.parts.') === 0 ? { f: { id: 'l#' + lower(ptG.key), vis: ptG.vis === 'gm' ? 'gm' : 'all' }, def: true } : atG && ln.indexOf(atP) === 0 ? { f: { id: 'l#' + lower(atG.key), vis: atG.vis === 'gm' ? 'gm' : 'all' }, def: true } : reads(nm)); };
+            var edge = function(nm) { var ln = lower(nm), tbE = tbD ? tableRead(sys, ln) : null; if (tbE) { if (tbE.gm) { one({ f: { id: '#gm', vis: 'gm' }, def: false }); return; } if (!tbE.by) return; nm = tbE.by; ln = nm; } if (hsG.length && ln.indexOf('host.') === 0) { hsG.forEach(function(hf) { one({ f: { id: 'l#' + lower(hf.key), vis: hf.vis === 'gm' ? 'gm' : 'all' }, def: true }); }); return; } one(ptG && ln.indexOf('row.parts.') === 0 ? { f: { id: 'l#' + lower(ptG.key), vis: ptG.vis === 'gm' ? 'gm' : 'all' }, def: true } : atG && ln.indexOf(atP) === 0 ? { f: { id: 'l#' + lower(atG.key), vis: atG.vis === 'gm' ? 'gm' : 'all' }, def: true } : reads(nm)); };
             (Array.isArray(f.list.stats) ? f.list.stats : []).forEach(function(st) { if (isObj(st) && st.kind === 'pick') (Array.isArray(st.opts) ? st.opts : []).forEach(function(o) { if (isObj(o) && typeof o.name === 'string' && o.name) edge(o.name); }); });
             (Array.isArray(f.list.cols) ? f.list.cols : []).forEach(function(c) { if (!isObj(c) || typeof c.formula !== 'string' || !c.formula) return; figExpand(sys, F.names(c.formula) || []).forEach(function(n) { edge(nameOf(n)); }); });
         });
@@ -9155,9 +9290,11 @@ Object.assign(API, { dmgMajorOf: dmgMajorOf, dmgPart2Of: dmgPart2Of, dmgPartOf: 
 Object.assign(API, { specSquash: specSquash, specNameParts: specNameParts, specInfo: specInfo, specWords: specWords, specContains: specContains, specCoversRow: specCoversRow, fitBroke: fitBroke, fitAgain: fitAgain, specBase: specBase, specMeans: specMeans, grantSpecOf: grantSpecOf, refSays: refSays, rollRefs: rollRefs, SPEC_REFS: SPEC_REFS });   // 1.6.0 Specialties
 Object.assign(API, { figVeh: figVeh, linkFig: linkFig, figRead: figRead, figExpand: figExpand, LINK_FIGS: LINK_FIGS, stationsIn: stationsIn, setCrewSource: setCrewSource, crewFigs: crewFigs, cleanCk: cleanCk, cleanCharStn: cleanCharStn, groupByKey: groupByKey, stationOf: stationOf, crewParts: crewParts, LINK_STATIONS: LINK_STATIONS });   // 1.6.0 (CORE gap 16)
 Object.assign(API, { upkeepLines: upkeepLines, upkeepWords: upkeepWords });   // 205 follow-up (3): an upkeep's payments said
+Object.assign(API, { cleanTables: cleanTables, tableKeyOk: tableKeyOk, tableParts: tableParts, tableRead: tableRead, tableFam: tableFam, tableRowOf: tableRowOf, TABLE_KEY: TABLE_KEY, TABLE_ROW_KEY: TABLE_ROW_KEY, nameFold: nameFold });   // 1.6.0: a system's tables
 if (typeof window !== 'undefined') window.wpSystemCore = API;
 export { targetHitList, targetHitRows, targetHitFor, withTargetHit, readsTargetHit, HIT_ROWS, setGateEngine, fxGate, modsIfOk, rowAsks, readsRow, allRowOk, blowCripN, BLAST_EACH, withBlow, blowCripOf, BLOW_NAMES, RESIST_OR, unheldJudge, GROUP_MAX, rollTargetOf, groupRolls, groupWeakest, dmgAdOf, dmgDiceRead, turnCounters, cleanCharLink, LINK_KINDS, LINK_NOT, cleanLinks, linkByKey, linkBare, setLinkSource, cleanCharLinks, linkNamesIn, linkFigs, cleanLk, linkSet, linkedFrom, linksDrop, withAttempt, bigOf, critRange, cleanTier, grantWaits, grantRaises, cleanGrants, hideGrants, grantWant, grantsKept, GRANT_MAX, rangeBandOf, partsRoom, partsCapSays, fitIfOk, partFitSays, partFitEntry, upkeepEach, PART_CAPS, PART_DEPTH, partDepth, partsTree, partHostOk, partsKept, partsPut, partsSrc, partHost, partsOf, capsAt, droppedWords, setOf, setsOf, statName, placeVal, rollFigOf, rollShowOf, cleanBadges, BADGE_MAX, cleanSheetRev, sheetRevOf, charStale, staleOf, revProposal, cleanAlt, ALT_MAX, againFold, cleanEnv, ENV_BANDS, envBands, envWorst, cleanRollSw, rollSwitchesAll, rollSwitches, swJudge, DATE_NAMES, setDateSource, dateReads, VERSION, overSays, overNames, overSet, onClash, rowTimers, cleanRowTimer, readsOn, cleanRowGone, cleanCross, crossings, crossSteps, postureFx, withOnSelf, tokOnOk, mapYardPx, loadFits, DIE_NAMES, cleanDie, dieOf, rollDie, tradeOfferable, tradeInto, moneyBoxes, moneyHeld, moneyMove, rowOpMoney, ROW_LOOK, WORK_KINDS, WORK_BY, cleanRowLook, rowLookShown, rowLookShade, finishWords, workWords, cleanTradeOffer, tradeApply, TRADE_LINES, cleanDamageRules, damageStep, cleanCharDamage, DMG_CONDS, cleanPlaceCats, catSplits, catHome, catPlace, cleanFieldUnit, metricOf, unitTail, readMeasure, heightWords, MEASURES, measureWords, unitWords, unitHead, listFig, listWords, unitOf, figText, figFmt, weightWords, textWords, measureStore, rollNeedsOk, rollNeedsSays, onGroup, onlyOne, onHeld, cleanNeeds, hideNeeds, needsMet, needsSays, needRule, ruleTrue, setRuleJudge, cleanBudgets, budgetsOf, budgetWatch, budgetSays, cleanDesc, cleanLvls, EVERY_UNITS, cleanEvery, FIGHT_UNITS, cleanInFight, timeRuleRun, ruleRunCtx, needsHeld, chainsShallow, cleanFace, charForView, mapGridOf, tokenCell, shapeStandIn, cleanFrame, openChar, newCharRules, charClash, coreOf, setLibraryFind, statKeys, statPicks, cleanIcon, droppedCounts, parseLasts, lastsSecs, roundSecs, fxLeftNow, fxTick, mapCellScale, moveAllowCells, dueActs, gridCells, cleanTurn, TURN_UNITS, TIME_WORDS, roundActs, combatChars, applyRound, thenChanges, thenCrit, withRollCrit, THEN_WHEN, dmgTypeOf, rollMods, openSync, cleanOpens, showsIf, rowRollNames, applyAct, applyScope, cleanCharApply, APPLY_KINDS, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, cleanNewPlayers, newPlayerRules, waitingTokensOf, waitingNeed, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, plusText, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, libSnaps, carriedBy, cleanItemMods, fieldKinds, unseenMods, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, tokenEffects, autoEffectsOn, tokenOwnEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, postureRangedOf, cleanPostures, postureList, ownPostures, postureAt, postureSeven, stanceCtx, tokenCtx, setAimSource, bearingTo, aimsOf, facingNow, withRound, withCross, rangeCtx, withRange, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, ROUNDS, ROUND_TO, roundBy, roundSays, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, cleanLightRules, lightName, lightPresets, LIGHT_UNITS, cleanRangeRules, rangeModOf, rangeDist, rangeOf, RANGE_UNITS, cleanSenses, secretFieldIds, gmViewFields, coverTier, coverOutcome, coverDamage, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, orderByInit, cleanInitRules, cleanHeightRules, heightModOf, heightOf, HEIGHT_UNITS, initTie, sideFirst, orderBySide, validateSystem, charFor, applyEdit, autoLayout, cleanCharUpload, cleanUploads, fillMaking, applyProposal, statAsk, readerKit, registerReader, dropReader, readers, readerById, readerFor, fmtNum, suggest, lookRule, cleanLooks, applyStyle, cleanCharStyle, lookOf, lookFor, loadSame, loadMax, cleanLd, chamberTakes, chamberFits, chamberCap, chamberHolds, chamberSays, cleanRd, CHAMBER_CAP, thenMargin, onceOf, cleanBlastRules, BLAST_FALL, cleanReach, cleanAffs, affLastsSecs, AFF_UNITS, chosenPicks, chosenNext, BAR_COLORS, BAR_SHOW_WORDS, cleanBars, cleanTokBars, tokenBarSpec, tokenBarFigs, cleanBarFigs, barFill, barTip };
 export { figVeh, linkFig, figRead, figExpand, LINK_FIGS, stationsIn, setCrewSource, crewFigs, cleanCk, cleanCharStn, groupByKey, stationOf, crewParts, LINK_STATIONS, crewStation, groupLink, poolLeast, majPick, listRollRef, resistOrOk, rowKeptFrom };   // 1.6.0 (CORE gap 16)
 export { specWords, specContains, specCoversRow, fitBroke, fitAgain, specBase, specMeans, grantSpecOf, specSquash, specNameParts, specInfo, refSays, rollRefs, SPEC_REFS };   // 1.6.0 Specialties
 export { dmgMajorOf, dmgPart2Of, dmgPartOf, DMG_MORE };   // 1.6.0: A Major Wound where; B3: a blow's second part
 export { upkeepLines, upkeepWords };   // 205 follow-up (3): an upkeep's payments said
+export { cleanTables, tableKeyOk, tableParts, tableRead, tableFam, tableRowOf, TABLE_KEY, TABLE_ROW_KEY, nameFold };   // 1.6.0: a system's tables

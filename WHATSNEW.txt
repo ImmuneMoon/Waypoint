@@ -347,6 +347,13 @@ Systems, more
   parts on a list that takes parts from itself. Row.parts.all.XP adds up
   every level under a row. Removing a row takes all that is fitted to it,
   and Undo brings it all back.
+- Tables. A system can keep tables of figures on the Lists tab, such as
+  a metal's density and price. A formula reads one by name, as
+  Table.Metal.Steel.density. Table.Metal.by.Row.mat.density finds the row
+  by what the row's choice says, so one short formula serves every metal,
+  and a list put in another order changes nothing. A row or a column that
+  is not there reads 0. A table can be kept from your players, and a
+  formula that reads it is then GM only too.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

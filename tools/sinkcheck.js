@@ -5753,6 +5753,27 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ids.gone.hidden === true && ids.gone.img === true && ids.gone.dropped === 1 && steps.length === 2 && steps.every(s => /^card-shown \{"picture":(true|false),"desc":(true|false),"left":[01]\}$/.test(s)),
             err || JSON.stringify([ids.texts1, texts.slice(0, 6), ids.shown1, ids.shown2, ids.gone, steps]));
     }
+    /* ---- 1.6.0: a system's tables: a table's key and name, a column's and a row's, come from a system file and reach the System editor's Tables box as
+       values and text alone (sheets.js renderTables, sliced by its tablebox markers and run on a page that records every node and any markup) ---- */
+    {
+        const j = JSON.stringify, SYt = await import(modUrl('systemcore.js')), shT = read('sheets.js'), srcT = slice('sheets.js', 'tablebox');
+        const lineT = k => { const i = shT.indexOf(k); if (i < 0) throw new Error('sinkcheck: sheets.js ' + k + ' not found'); return shT.slice(i, shT.indexOf('\n', i)); };
+        const T = '<img src=x onerror=alert(1)>', P = '"><script>alert(1)</script>', made = [], htmlSet = [];
+        const fake = tag => { const e = { tag, children: [], childNodes: [], style: {}, dataset: {}, className: '', title: '', value: '', appendChild(k) { this.children.push(k); this.childNodes.push(k); return k; }, addEventListener() {} }; ['innerHTML', 'outerHTML'].forEach(p => Object.defineProperty(e, p, { set(v) { htmlSet.push(v); } })); let txt = ''; Object.defineProperty(e, 'textContent', { get() { return txt; }, set(v) { txt = String(v); e.children.length = 0; e.childNodes.length = 0; } }); made.push(e); return e; };
+        const box = fake('div'), doc = { createElement: fake, createTextNode: t => { const n = { tag: '#text', textContent: String(t) }; made.push(n); return n; } };
+        const draftT = { tables: [{ key: T, label: P, vis: P, cols: [{ key: P, label: T }, null, 'x', { key: 'ok', label: T }], rows: [{ key: T, label: P, vals: Object.assign(JSON.parse('{"__proto__": {"ok": 1}}'), { ok: T }) }, null, { key: 'r', vals: { ok: 2 } }, { key: 'q', vals: P }] }, { key: 'k', cols: P, rows: T }, P] };
+        const api = new Function('env', "'use strict';\nvar draft = env.draft, document = env.document, ui = env.ui, LIMITS = env.LIMITS, toast = env.toast, markDirty = env.noop, patchErrors = env.noop, tableKeyOk = env.tableKeyOk, TABLE_KEY = env.TABLE_KEY, TABLE_ROW_KEY = env.TABLE_ROW_KEY, nameFold = env.nameFold, errorCell = env.errorCell;\n"
+            + lineT('function el(tag, cls, text) {') + '\n' + lineT('function opt(value, text, selected) {') + '\n' + lineT('function input(cls, value, title, placeholder) {') + '\n' + lineT('function numInput(cls, value, title, step) {') + '\n' + lineT('function select(cls, options, value, title) {') + '\n' + lineT('function labeledSelect(cls, cap, options, value, title) {') + '\n'
+            + srcT + '\nreturn { renderTables: renderTables, tableSays: tableSays };')({ draft: draftT, document: doc, ui: id => (id === 'sysTables' ? box : null), LIMITS: SYt.LIMITS, toast() {}, noop() {}, tableKeyOk: SYt.tableKeyOk, TABLE_KEY: SYt.TABLE_KEY, TABLE_ROW_KEY: SYt.TABLE_ROW_KEY, nameFold: SYt.nameFold, errorCell: () => fake('div') });
+        let errT = ''; try { api.renderTables(); } catch (e) { errT = String(e && e.stack || e); }
+        const byC = c => made.filter(e => typeof e.className === 'string' && e.className.split(' ').indexOf(c) >= 0), texts = made.filter(e => e.tag === '#text' || e.tag === 'option' || e.tag === 'span' || e.tag === 'th' || e.tag === 'button').map(e => e.textContent), says = api.tableSays(draftT.tables).errs.map(e => e.message), cleaned = SYt.cleanTables(draftT.tables, true);
+        check('1.6.0 tables from a hostile system file (sheets.js renderTables, run for real on a page that records every node and any use of innerHTML): a table\'s key and name, a column\'s and a row\'s reach the box as an input\'s value alone, a figure that is no number as an empty box, a Who reads it that is no word of the list as Everyone, and nothing of them in a title, a word on the page or what Save says; the box writes no markup; and the cleaner keeps no such key',
+            !errT && !/innerHTML|insertAdjacentHTML|outerHTML/.test(srcT) && htmlSet.length === 0 && made.every(e => ['div', 'span', 'input', 'select', 'option', 'label', 'button', 'table', 'tr', 'th', 'td', '#text'].indexOf(e.tag) >= 0)
+            && byC('sys-tbl-key')[0].value === T && byC('sys-tbl-label')[0].value === P && byC('sys-tbl-ckey')[0].value === P && byC('sys-tbl-clabel')[0].value === T && byC('sys-tbl-rkey')[0].value === T && byC('sys-tbl-rlabel')[0].value === P
+            && byC('sys-tbl-val').every(v => v.type === 'number' && (v.value === '' || v.value === '2')) && byC('sys-tbl-vis')[0].children.filter(o => o.selected).map(o => o.value).join() === ''
+            && texts.every(t => t.indexOf('<') < 0 && t.indexOf('alert') < 0) && made.filter(e => e.tag !== '#text').every(e => String(e.title).indexOf('<') < 0) && says.every(m => m.indexOf('<') < 0 && m.indexOf('alert') < 0) && says.length >= 2 && cleaned === null,
+            errT || j([htmlSet, texts.filter(t => t.indexOf('<') >= 0), says, cleaned]));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

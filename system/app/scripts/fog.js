@@ -87,7 +87,7 @@ function sightSecret(camp, fid) {
     if (!fid || typeof fid !== 'string' || !sys || typeof sys !== 'object') return false;
     if (!S0 || typeof S0.secretFieldIds !== 'function' || typeof S0.gmViewFields !== 'function' || !F) return true;
     if (_sightSec.sys !== sys || _sightSec.u !== sys.updated) {
-        var sec = null; try { sec = S0.secretFieldIds({ fields: S0.gmViewFields(sys, F), items: sys.items, core: sys.core }, F); } catch (e) { sec = null; }
+        var sec = null; try { sec = S0.secretFieldIds({ fields: S0.gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables }, F); } catch (e) { sec = null; }
         _sightSec = { sys: sys, u: sys.updated, sec: sec };
     }
     return !_sightSec.sec || Object.prototype.hasOwnProperty.call(_sightSec.sec, fid);

@@ -4238,6 +4238,21 @@
   .sys-bud-row .sys-bud-f { flex: 1 1 170px; min-width: 130px; }
   .sys-bud-row .sys-bud-f input { width: 100%; font-family: ui-monospace, Consolas, monospace; }
   .sys-budgets .sys-bud-add { align-self: flex-start; }
+  /* ... and the Tables box: a table a block, its figures a grid that scrolls inside the block */
+  #sysTables { padding: 8px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }
+  #sysTables input, #sysTables select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 7px; font-size: 12px; box-sizing: border-box; }
+  #sysTables input:focus, #sysTables select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.22); }
+  .sys-tbl { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--edge); border-radius: 8px; }
+  .sys-tbl-head { align-items: flex-end; }
+  .sys-tbl-head .sys-bud-f { flex: 0 1 180px; min-width: 110px; }
+  .sys-tbl-head .sys-bud-f input { width: 100%; }
+  .sys-tbl-scroll { overflow: auto; max-height: 340px; }
+  .sys-tbl-grid { border-collapse: collapse; }
+  .sys-tbl-grid th, .sys-tbl-grid td { padding: 2px 3px; vertical-align: top; text-align: left; font-weight: 400; color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .sys-tbl-grid th input { display: block; width: 92px; margin-bottom: 3px; }
+  .sys-tbl-grid td input { width: 92px; }
+  .sys-tbl-grid td input.sys-tbl-rkey, .sys-tbl-grid td input.sys-tbl-rlabel { width: 120px; }
+  .sys-budgets .sys-tbl-add { align-self: flex-start; }
   .sheet-done { border-color: var(--gold); color: var(--gold); }
   .join-card > .join-act { display: block; margin-top: 8px; padding: 3px 10px; font-size: 12px; }
   .party-tok.party-making { box-shadow: 0 0 0 2px rgba(122,167,255,0.9), 0 2px 6px rgba(0,0,0,0.55); }

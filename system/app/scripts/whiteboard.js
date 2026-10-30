@@ -5001,7 +5001,7 @@ window.wpFitToGrid = fitToGrid;
       if (auto !== 'measure' && diceOn && eachX) { rolled = true; total = 0; }
       else if (auto !== 'measure' && diceOn) {   // the roll first: a damage that cannot be rolled sets nothing off
           if (!window.wpDice || !window.wpDice.rollFor) { toast('Dice are not available.'); return false; }
-          var dr = window.wpDice.rollFor('', q.expr, 'Explosion, ' + q.type + ' damage', { dmg: true });   // the type is named on the card: it changes no number
+          var dr = window.wpDice.rollFor('', q.expr, 'Explosion, ' + q.type + ' damage', auto === 'full' ? { dmg: true, used: true } : { dmg: true });   // the type is named on the card: it changes no number
           if (!dr || dr.error || !dr.ok) return false;   // the roll said why
           rolled = true; total = typeof dr.value === 'number' && isFinite(dr.value) ? dr.value : null;
       }

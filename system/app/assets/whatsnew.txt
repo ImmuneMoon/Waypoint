@@ -247,6 +247,14 @@ Systems, more
   Blow.wound2: the second part's own type and wound, 0 with none. So a
   roll can follow the second part alone. Blow.type3 to Blow.wound5 read
   the third, fourth and fifth parts.
+- A blow can carry its kind. The Combat card names up to 8 kinds of blow,
+  none shipped, and a damage roll names its Kind beside its Damage type,
+  each added part its own or the first part's. Blasts name theirs on the
+  Combat card too. DR and a layer read Blow.kind for the part they judge, so
+  a second part of another type is stopped by what stops its own kind.
+  Kind. and a key read a kind's place, and Blow.kind2 to Blow.kind5 read
+  each added part's.
+- A system now holds up to 32 damage types, up from 24.
 - Any wound's Where, and the rolls a wound posts, read Blow.major: 1 where the
   blow is a Major Wound, by its size or by the roll's mark, else 0.
 - A roll a wound asks for reads the blow and the location hit, as Blow. and

@@ -220,8 +220,8 @@ function cleanRollReq(msg) {
 }
 var ATT_RE = /^[ab]_[a-z0-9]{8}$/;   // 1.6.0 (B2): an attempt's id, made by the host (b_: a blow's soft record, which a roll may do without)
 var RESIST_ROWS = 8;   // 1.6.0: a resist card's buttons for a list's roll, one a row the target holds, at most
-// 1.6.0 (B3): a damage roll's second part as the host rolled it, { t, n?, dtype?, ad? }: its total (a whole number, 0 to a million), the dice it
-// rolled (1 to 100), the damage type's key and its armour divisor (0.1 to 100, never 1); null when anything is malformed
+// 1.6.0 (B3): a damage roll's second part as the host rolled it, { t, n?, dtype?, ad?, dkind? }: its total (a whole number, 0 to a million), the dice it
+// rolled (1 to 100), the damage type's key, its armour divisor (0.1 to 100, never 1) and its own kind of blow's key; null when anything is malformed
 var DMG2_TYPE = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
 function cleanDmg2(v) {
     if (!v || typeof v !== 'object' || Array.isArray(v) || !isInt(v.t) || v.t < 0 || v.t > 1000000) return null;
@@ -229,6 +229,7 @@ function cleanDmg2(v) {
     if (v.n !== undefined) { if (!isInt(v.n) || v.n < 1 || v.n > 100) return null; o.n = v.n; }
     if (v.dtype !== undefined) { if (typeof v.dtype !== 'string' || !DMG2_TYPE.test(v.dtype)) return null; o.dtype = v.dtype; }
     if (v.ad !== undefined) { if (typeof v.ad !== 'number' || !isFinite(v.ad) || v.ad < 0.1 || v.ad > 100 || v.ad === 1) return null; o.ad = v.ad; }
+    if (v.dkind !== undefined) { if (typeof v.dkind !== 'string' || !DMG2_TYPE.test(v.dkind)) return null; o.dkind = v.dkind; }
     return o;
 }
 // 1.6.0 (B5): where a called shot was aimed, { n, f: [{ k, v }] }: the location's name (60 at most) and up to 4 figures it read, each its label
@@ -261,6 +262,7 @@ function cleanRoll(rec) {
     if (rec.refs !== undefined) { var rfc = cleanRefs(rec.refs); if (rfc) out.refs = rfc; }   // 1.6.0 Specialties: the case each reference used
     if (rec.dmg !== undefined) { if (rec.dmg !== 1) return null; out.dmg = 1; }
     if (rec.aim !== undefined) { var amc = cleanAim(rec.aim); if (amc) out.aim = amc; }   // 1.6.0 (B5): where a called shot was aimed (one that does not clean is left off, the roll kept)
+    if (rec.dkind !== undefined && out.dmg === 1 && typeof rec.dkind === 'string' && DMG2_TYPE.test(rec.dkind)) out.dkind = rec.dkind;   // 1.6.0: the blow's kind, the host's from its entry, only on a damage roll (one that does not clean is left off, the roll kept)
     if (rec.dmg2 !== undefined && out.dmg === 1) { var d2c = cleanDmg2(rec.dmg2); if (d2c) out.dmg2 = d2c; }
     [3, 4, 5].forEach(function(k) { if (rec['dmg' + k] !== undefined && out.dmg === 1) { var dkc = cleanDmg2(rec['dmg' + k]); if (dkc) out['dmg' + k] = dkc; } });   // 1.6.0: a third and a fourth part, each as the second   // 1.6.0 (B3): the blow's second part, only on a damage roll (one that does not clean is left off, the roll kept)   // chat cards: a damage roll, marked by the host from its roll (never the roller's word)   // Stage 6 HUD R3: the roll's malfunction threshold (every machine works the malfunction out from the draws)
     var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;

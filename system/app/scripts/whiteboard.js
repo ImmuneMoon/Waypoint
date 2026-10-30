@@ -4317,6 +4317,7 @@ window.wpFitToGrid = fitToGrid;
   // (combat.blast.fall) and, where the system has the damage step, sends it through it: DR at the default location (the first row named
   // Torso), the blast's damage type, the pool. With no falloff a blast is what it always was
   function blastRules(sys) { var c = sys && sys.combat && typeof sys.combat === 'object' ? sys.combat : null; return c && c.blast && typeof c.blast === 'object' && !Array.isArray(c.blast) ? c.blast : null; }
+  function blastKind(sys, rules) { var k = rules && typeof rules.kind === 'string' ? rules.kind : '', ks = sys && sys.combat && sys.combat.damage && Array.isArray(sys.combat.damage.kinds) ? sys.combat.damage.kinds : []; return k && ks.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === k.toLowerCase(); }) ? k : ''; }   // 1.6.0: the kind of blow a blast's shares and fragmentation carry, one the damage rules still name
   function throwRowOf(camp, opts) {   // the carried row a throw names, on this machine's own copy: { ch, f, row, def } (def: its definition, the GM's view)
       var S = window.wpSystemCore, sys = camp && camp.system; if (!S || !sys || !opts || typeof opts.charId !== 'string' || typeof opts.fieldId !== 'string' || typeof opts.rowId !== 'string') return null;
       var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, opts.charId) ? camp.chars[opts.charId] : null; if (!ch) return null;
@@ -4436,7 +4437,7 @@ window.wpFitToGrid = fitToGrid;
           amt = Math.floor(amt); if (!(amt > 0)) return;
           var vals = null, lines = null;
           if (dstep) {
-              var q = { amt: amt }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch) : ''; if (loc) q.loc = loc; if (tyOk) q.type = ty; if (fr.ad === true && typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad; if (dice > 0) q.dice = Math.min(100, dice);   // 1.6.0: the dice it rolled, for a figure a die
+              var q = { amt: amt }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch) : ''; if (loc) q.loc = loc; if (tyOk) q.type = ty; var bkF = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkF) q.kind = bkF; if (fr.ad === true && typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad; if (dice > 0) q.dice = Math.min(100, dice);   // 1.6.0: the dice it rolled, for a figure a die
               var st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return; vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info, st.values);   // 1.6.0 (B3): a Major Wound's roll is posted
           } else if (hpId) {
               var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return;
@@ -4565,7 +4566,7 @@ window.wpFitToGrid = fitToGrid;
           if (fall && !(dmgC > 0)) { spared++; return; }   // past the falloff's reach: nothing to apply
           var vals = null, lines = null;
           if (step) {   // through the damage step: DR at the default location, the blast's damage type, the pool
-              var q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch) : ''; if (loc) q.loc = loc; if (typeOk) q.type = b.dtype; if (typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad;
+              var q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch) : ''; if (loc) q.loc = loc; if (typeOk) q.type = b.dtype; var bkS = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkS) q.kind = bkS; if (typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad;
               var st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return;
               vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info, st.values);   // 1.6.0 (B3): a Major Wound's roll is posted
           } else {
@@ -4615,7 +4616,7 @@ window.wpFitToGrid = fitToGrid;
       var vals = null, lines = null, st = null;
       if (step) {   // as the blast pass's own shares: DR at the default location, the blast's damage type, its armour divisor
           var types = Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch) : ''; if (loc) q.loc = loc;
-          if (o.b.dtype && types.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === String(o.b.dtype).toLowerCase(); })) q.type = o.b.dtype; if (typeof o.b.ad === 'number' && o.b.ad > 0) q.ad = o.b.ad;
+          if (o.b.dtype && types.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === String(o.b.dtype).toLowerCase(); })) q.type = o.b.dtype; var bkO = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkO) q.kind = bkO; if (typeof o.b.ad === 'number' && o.b.ad > 0) q.ad = o.b.ad;
           st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return { error: 'Its damage could not be applied.' };
           vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info, st.values);
       } else if (hpId) {

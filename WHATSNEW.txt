@@ -142,6 +142,11 @@ Your profile
   computer you link. Unlink this computer stops it.
 
 Systems, more
+- Starts with, in the Lists tab, gives every new character rows of a list.
+  Pick entries from your items or the library and say how many of each. They
+  come free, whoever makes the character, and each is an ordinary row: it can
+  be removed, and it takes the list's level and switch. A row past the list's
+  At most is left off. A character that already exists is not changed.
 - A row can hold a set number of parts: Holds, in the Lists tab, reads it from
   one of the row's own stats, such as Slots. One more is refused.
 - Row.made reads 1 for a row added while its character was being made, so a

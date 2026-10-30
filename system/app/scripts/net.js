@@ -8172,6 +8172,7 @@ function handleMessage(msg, conn) {
         var chK = { id: SK.uid('c_'), name: cleanCharName(msg.name) || cleanRosterName(prK.name), ownerId: prK.id, portrait: '', npc: false, values: {}, updated: Date.now(), making: 1, made: 1 };
         while (Object.prototype.hasOwnProperty.call(csK, chK.id)) chK.id = SK.uid('c_');
         csK[chK.id] = chK;
+        if (window.wpSheets && window.wpSheets.startsGiven) window.wpSheets.startsGiven(campK.system, chK, 'make');   // 1.6.0 Starts with
         saveRemoteSoon();
         sendCharTo(prK.id, chK.id);
         var tK = (prK.name || 'A player') + ' is making a character (' + chK.name + ')'; toast(tK + '.'); logEvent('char', tK);
@@ -8273,6 +8274,7 @@ function handleMessage(msg, conn) {
             var chJ = { id: SJ.uid('c_'), name: nmJ, ownerId: prJ.id, portrait: '', npc: false, values: {}, updated: Date.now(), made: 1, unlocked: 1, review: 1 };
             while (Object.prototype.hasOwnProperty.call(csJ, chJ.id)) chJ.id = SJ.uid('c_');
             csJ[chJ.id] = chJ;
+            if (window.wpSheets.startsGiven) window.wpSheets.startsGiven(campJ.system, chJ, 'token');   // 1.6.0 Starts with
             if (window.wpHistFlush) window.wpHistFlush();
             var wasRJ = net.applyingRemote; net.applyingRemote = true;
             try { window.wpSheets.giveCharacter(prJ.id, chJ.id, { play: true, pic: true }); } finally { net.applyingRemote = wasRJ; }

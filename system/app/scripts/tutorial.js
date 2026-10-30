@@ -110,7 +110,7 @@ function ensureTutorialSheet(camp) {
     var changed = false;
     if (!camp.system || typeof camp.system !== 'object') { camp.system = tutorialSystem(); changed = true; }
     if (!camp.chars || typeof camp.chars !== 'object') camp.chars = {};
-    if (!camp.chars.c_tut_bren) { camp.chars.c_tut_bren = tutorialCharacter(TUTORIAL_ART_URL); changed = true; }
+    if (!camp.chars.c_tut_bren) { camp.chars.c_tut_bren = tutorialCharacter(TUTORIAL_ART_URL); if (typeof window !== 'undefined' && window.wpSheets && window.wpSheets.startsGiven) window.wpSheets.startsGiven(camp.system, camp.chars.c_tut_bren, 'demo'); changed = true; }   // 1.6.0 Starts with: a demo character made here begins as any other
     // item library (1.5.0): a demo Firepot, a Kit field, full-auto blasts, and Bren carrying it — added to an older Tutorial too
     if (camp.system && typeof camp.system === 'object') {
         if (!Array.isArray(camp.system.items)) camp.system.items = [];

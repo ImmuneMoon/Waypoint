@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
 import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsKept, grantsKept, GRANT_MAX, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
 import { groupRolls, groupWeakest } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
@@ -367,10 +367,16 @@ function giveTokenChar(camp, w, c) {
     giveCharacter(pid, c.id, { keep: w.id, play: play, nearTok: w });
     if (!play) { var cur = charById(playing, camp); toast(c.name + ' is kept: ' + (playerNames(camp)[pid] || 'the player') + ' plays ' + (cur ? cur.name : 'another character') + ', so you move its token. Switch with In play in System \u25B8 Characters.'); }
 }
+// 1.6.0 Starts with: what a character just made begins holding (startRows), and the line of the step log. Structure only: counts, never a name
+function startsGiven(sys, c, by) {
+    if (!sys || !F() || !(sys.fields || []).some(function(f) { return f && f.list && Array.isArray(f.list.starts); })) return;
+    var r = startRows(sys, c, F()); if (window.wpStepLog) window.wpStepLog('starts v1', 'given', { by: by, lists: r.lists.length, left: r.left.length });
+}
 function newCharacter(o) {
     var camp = getActiveCampaign(); if (!camp) return null;
     var c = { id: uid('c_'), name: String(o && o.name || 'New character').slice(0, LIMITS.charName), ownerId: '', portrait: o && o.portrait || '', npc: !!(o && o.npc), values: {}, updated: Date.now() };
     var srN = window.wpSystemCore && typeof window.wpSystemCore.sheetRevOf === 'function' ? window.wpSystemCore.sheetRevOf(camp.system) : 0; if (srN) c.sheetRev = srN;   // 1.6.0 (backlog 190): made under this system
+    if (typeof startsGiven === 'function') startsGiven(camp.system, c, 'gm');   // 1.6.0 Starts with
     charsOf(camp)[c.id] = c;   // born unassigned: an owner is given through giveCharacter
     return c;
 }
@@ -2445,6 +2451,7 @@ function renderPreview() {
     var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) { box.textContent = ''; return; }
     var c = pick && pick.value ? charById(pick.value, camp) : null;
     var pc = c || { id: 'c_preview', name: 'Preview', ownerId: '', npc: false, values: {}, portrait: '' };
+    if (!c) startRows(clean, pc, F());   // 1.6.0 Starts with: Defaults shows a character as it is made
     var pv = layoutView === 'hud' ? hudView(clean) : clean;   // Stage 6 HUD frame (HF1): the HUD's own layout, in the shared look
     box.classList.toggle('sys-layout-preview-hud', layoutView === 'hud');
     if (!pv) { box.textContent = ''; box.appendChild(el('div', 'sys-empty', 'No HUD yet: add a section, a band figure or a ledger figure on the left.')); return; }
@@ -5822,6 +5829,7 @@ function inviteMaking(pid) {
     var raw = playerNames(camp)[pid] || '', nm = (n && n.cleanCharName ? n.cleanCharName(raw) : String(raw).slice(0, 60)) || 'Character', id = S.uid('c_');
     while (Object.prototype.hasOwnProperty.call(cs, id)) id = S.uid('c_');
     cs[id] = { id: id, name: nm, ownerId: pid, portrait: '', npc: false, values: {}, updated: Date.now(), making: 1, made: 1, invited: 1 };
+    if (typeof startsGiven === 'function') startsGiven(camp.system, cs[id], 'invite');   // 1.6.0 Starts with
     save(true);
     if (n && n.active && n.role === 'host') { if (n.sendCharTo) n.sendCharTo(pid, id); if (n.charReview) n.charReview(pid, id, nm, 'invited', ''); }
     if (n && n.logEvent) n.logEvent('char', 'Asked ' + (raw || 'a player') + ' to make a character');
@@ -6431,6 +6439,58 @@ function partCapsBox(sp) {
     return box;
 }
 // [systemcheck:partcaps-end]
+// [systemcheck:startsbox-start]
+// 1.6.0 Starts with: the Lists tab's box beside the list, edited in place on the list's draft, with its own listeners and class names no handler
+// of the Lists tab reads (sys-start-*). A line an entry: its name, how many (not on a list with no quantity) and \u00d7. The picker below offers the
+// system's items and the library, as a grant's, those of the list's categories, each once. startsSay says what Save does with it
+function startsBox(f) {
+    var box = el('div', 'sys-badges sys-starts'), ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var sp = function() { return f.list && typeof f.list === 'object' ? f.list : {}; }, rows = function() { return Array.isArray(sp().starts) ? sp().starts : []; };
+    var fits = function(id) { var cs = Array.isArray(sp().cats) ? sp().cats : []; return !cs.length || startCatIn(cs, id); };
+    var draw = function() {
+        box.textContent = ''; box.appendChild(el('span', 'sys-num-cap', 'Starts with'));
+        var list = rows(), held = Object.create(null);
+        list.forEach(function(s, i) {
+            if (!s || typeof s !== 'object') return; held[s.entry] = 1;
+            var rw = el('div', 'sys-flags sys-start-row'); rw.appendChild(el('span', 'sys-start-name', grantName(s.entry) || 'An entry that is not here'));
+            if (sp().noQty !== true) { var q = numField('sys-start-qty', typeof s.qty === 'number' ? s.qty : 1, 'How many a new character begins with', 'how many', '1'); q.querySelector('input').addEventListener('input', function(e) { e.stopPropagation(); if (e.target.validity && e.target.validity.badInput) return; if (String(e.target.value).trim() === '') delete s.qty; else s.qty = Number(e.target.value); ch(); }); rw.appendChild(q); }
+            var x = el('button', 'tool ghost sys-btn sys-start-del', '\u00d7'); x.type = 'button'; x.title = 'A new character no longer begins with this';
+            x.addEventListener('click', function(e) { e.stopPropagation(); list.splice(i, 1); if (!list.length) delete sp().starts; ch(); draw(); }); rw.appendChild(x);
+            box.appendChild(rw);
+        });
+        var full = list.length >= START_MAX, ad = select('sys-start-add', [['', '+ Starts with\u2026']].concat(grantEntries().filter(function(o) { return !held[o[0]] && fits(o[0]); })), '', full ? 'At most ' + START_MAX + ' entries a list' : 'Pick an entry every new character begins holding on this list, free. It takes the list\u2019s level and its switch, and a character that already exists is not changed');
+        ad.disabled = full || ad.options.length < 2;
+        ad.addEventListener('change', function(e) { e.stopPropagation(); var v = ad.value; if (!v) return; if (!f.list || typeof f.list !== 'object') f.list = {}; if (!Array.isArray(f.list.starts)) f.list.starts = []; f.list.starts.push({ entry: v, qty: 1 }); ch(); draw(); });
+        box.appendChild(ad);
+    };
+    draw();
+    return box;
+}
+function startCatIn(cats, id) {
+    var it = (draft.items || []).find(function(x) { return x && x.id === id; }), LBc = window.wpLibrary, e = it || (LBc && typeof LBc.entry === 'function' ? LBc.entry(id) : null), cg = e && typeof e.category === 'string' ? e.category.trim().toLowerCase() : '';
+    return !!cg && cats.some(function(x) { return String(x).trim().toLowerCase() === cg; });
+}
+// What Save does with a list's Starts with, and what a new character would not get, as the cleaner and startRows read them: words, under the list's card
+function startsSay(f) {
+    var sp = f && f.list && typeof f.list === 'object' ? f.list : null, out = []; if (!sp || !Array.isArray(sp.starts)) return out;
+    var seen = Object.create(null), n = 0, LBw = window.wpLibrary, whole = !!(LBw && typeof LBw.whole === 'function' && LBw.whole() === true), cats = Array.isArray(sp.cats) ? sp.cats : [];
+    sp.starts.forEach(function(s, i) {
+        var w = 'Starts with, line ' + (i + 1) + ': ';
+        if (!s || typeof s !== 'object' || typeof s.entry !== 'string' || !s.entry) { out.push(w + 'it names no entry, so Save drops it.'); return; }
+        if (seen[s.entry]) { out.push(w + 'it repeats line ' + seen[s.entry] + ', so Save drops it.'); return; } seen[s.entry] = i + 1;
+        if (++n > START_MAX) { out.push(w + 'a list starts with ' + START_MAX + ' at most, so Save drops it.'); return; }
+        var q = typeof s.qty === 'number' && isFinite(s.qty) ? Math.round(s.qty) : 1; if (s.qty !== undefined && (q < 1 || q > LIMITS.maxQty || q !== s.qty)) out.push(w + 'how many is a whole number from 1 to ' + LIMITS.maxQty + ', so Save keeps ' + Math.max(1, Math.min(LIMITS.maxQty, q || 1)) + '.');
+        var nm = grantName(s.entry);
+        if (!nm) { if (whole || !(LBw && typeof LBw.entry === 'function')) out.push(w + 'that entry is gone, so it gives nothing until it is back.'); return; }
+        if (cats.length && !startCatIn(cats, s.entry)) out.push(w + nm + ' is outside this list\u2019s categories, so a new character does not get it.');
+    });
+    if (n && sp.lvl && typeof sp.lvl === 'object') {   // a dry run, on a list with levels alone: what its caps would leave out
+        var cl = cleanSystem(draft, { F: F(), gmView: true }), dry = cl ? startRows(cl, { id: 'c_preview', name: 'Preview', values: {} }, F()) : null;
+        (dry ? dry.left : []).forEach(function(l) { if (l.f === f.id && (l.why === 'cap' || l.why === 'level')) out.push('Starts with: ' + (grantName(l.entry) || 'an entry') + (l.why === 'cap' ? ' is past this list\u2019s At most' : ' may be none of this list\u2019s levels') + ', so a new character does not get it.'); });
+    }
+    return out;
+}
+// [systemcheck:startsbox-end]
 // [systemcheck:badgebox-start]
 // 1.6.0 R4 and R5 (backlog 180): the Lists tab's Badges box and a value name's tone, each edited in place on the draft object it is handed, with its
 // own listeners and class names no handler of the Lists tab reads (sys-badge-*, sys-ltone-*). A badge: its words, Shown where (a formula of the
@@ -6629,6 +6689,7 @@ function refreshErrors() {
             var capKept = ((cleanListSpec(sp, true, F()) || {}).lvl || {}).caps || [];
             if (capKept.length < capOk) errs.push({ message: 'At most: a level is capped once, and or higher once, ' + LIMITS.lvlCaps + ' caps at most, so Save keeps ' + capKept.length + '.' });
         }
+        if (typeof startsSay === 'function') startsSay(f).forEach(function(m) { errs.push({ message: m }); });   // 1.6.0 Starts with, as the cleaner reads it
         if (sp.once && typeof sp.once === 'object' && typeof cleanListSpec === 'function') {   // 1.5.8 Counted once, as the cleaner reads it
             var onceK = (cleanListSpec(sp, true, F()) || {}).once;
             if (!onceK) errs.push({ message: 'Counted once needs a group stat and what makes a row the higher, each a number stat of this list or its level. Save drops it.' });
@@ -7721,6 +7782,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     shown.forEach(function(x) { var lb = el('label', 'sys-list-cat'), cb = el('input', 'sys-list-catcb'); cb.type = 'checkbox'; cb.checked = low.indexOf(x.toLowerCase()) >= 0; cb.dataset.cat = x; if (!cb.checked && mine.length >= LIMITS.listCats) { cb.disabled = true; lb.title = 'At most ' + LIMITS.listCats + ' categories a list'; } lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + x)); cl.appendChild(lb); });   // review: the cap Save keeps, shown
     if (shown.length && !mine.length) cl.appendChild(el('span', 'sys-note', 'None ticked: every category.'));
     card.appendChild(cl);
+    if (typeof startsBox === 'function') card.appendChild(startsBox(f));   // 1.6.0 Starts with
     var fl = el('div', 'sys-flags');
     fl.appendChild(checkLabel('sys-list-multi', sp.multi === true, 'Same item more than once', 'Adding an item it already holds makes a new row (a skill twice, with two specialties) instead of raising the quantity'));
     fl.appendChild(checkLabel('sys-list-noqty', sp.noQty === true, 'No quantity', 'Rows have no quantity (skills, powers): the \u2212/+ and \u00d7n go, and an item is on the list once unless the same item may be there more than once. Quantities already stored come back if you untick it'));
@@ -11166,7 +11228,7 @@ function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient(
 // [systemcheck:dmgwin-end]
 window.wpSheets = { bellNote: bellNote, majorFollow: majorFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
-    charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
+    charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, LIMITS: LIMITS,

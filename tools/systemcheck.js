@@ -20296,6 +20296,96 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ixH.includes('A <b>burst</b> is set up on a list&rsquo;s rolls.') && ixH.includes('<code>Row.bursthits</code> reads the hits landed') && ixH.includes('A stray waits for you in the bell.') && gdH.includes('**A burst (1.6.0):**') && gdH.includes('`"hits"`') && gdH.includes('launch.stray`')
             && nsH.every(t => { const k = t.indexOf('- A burst can land every hit with one press.'); return k > 0 && k < t.indexOf('WAYPOINT 1.5.') && t.indexOf('Click\n  on the map') > 0; }));
     }
+    /* ---- 1.6.0 Starts with: a list's entries a new character begins holding ---- */
+    {
+        const S = await import(url('systemcore.js')), F = (await import(url('formula.js'))).default || (await import(url('formula.js'))), J = JSON.stringify, cs = S.cleanSystem;
+        const cl = v => S.cleanStarts(v), many = Array.from({ length: 70 }, (_, i) => ({ entry: 'i_e' + i, qty: 2 }));
+        check('1.6.0 Starts with, the cleaner (cleanListSpec, cleanStarts): an entry by id and how many, 1 to 99 and whole, each entry once (the first), 64 at most; what is no entry goes; nothing left, or nothing asked, is no key at all, so a list that uses none stays as it was; the same in both views and a fixed point',
+            J(cl([{ entry: 'i_rope', qty: 3 }, { entry: 'i_rope', qty: 9 }, { entry: 'i_lamp' }, { entry: 'nope' }, { entry: 5 }, null, { entry: 'i_a', qty: 0 }, { entry: 'i_b', qty: 500 }, { entry: 'i_c', qty: 2.6 }, { entry: 'i_d', qty: 'x' }])) === J([{ entry: 'i_rope', qty: 3 }, { entry: 'i_lamp', qty: 1 }, { entry: 'i_a', qty: 1 }, { entry: 'i_b', qty: 99 }, { entry: 'i_c', qty: 3 }, { entry: 'i_d', qty: 1 }])
+            && cl(many).length === 64 && S.START_MAX === 64 && cl([]) === undefined && cl('i_rope') === undefined && cl(undefined) === undefined
+            && !('starts' in S.cleanListSpec({ cats: ['Gear'] }, true, F)) && !('starts' in S.cleanListSpec({ cats: ['Gear'], starts: [{ entry: 'nope' }] }, true, F)) && S.cleanListSpec({ starts: [] }, true, F) === null
+            && J(S.cleanListSpec({ starts: [{ entry: 'i_rope', qty: 2 }] }, true, F)) === J(S.cleanListSpec({ starts: [{ entry: 'i_rope', qty: 2 }] }, false, F)) && J(S.cleanListSpec(S.cleanListSpec({ starts: [{ entry: 'i_rope', qty: 2 }] }, true, F), true, F)) === J({ starts: [{ entry: 'i_rope', qty: 2 }] }));
+
+        const item = (id, name, cat, more) => Object.assign({ id, name, category: cat, vis: 'all' }, more || {});
+        const raw = {
+            v: 1, name: 'Marsh Rules',
+            fields: [
+                { id: 'f_kit', key: 'Kit', label: 'Kit', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Gear'], stats: [{ key: 'Cost', label: 'Cost' }, { key: 'Slot', label: 'Slot' }, { key: 'Twin', label: 'Twin' }], price: 'Cost', on: { label: 'Worn', def: true, one: true, per: 'Slot' }, once: { by: 'Twin', rank: 'Cost' },
+                    starts: [{ entry: 'i_rope', qty: 3 }, { entry: 'i_cloak', qty: 1 }, { entry: 'i_hood', qty: 1 }, { entry: 'i_lantern', qty: 2 }, { entry: 'i_secret', qty: 1 }, { entry: 'i_lute', qty: 1 }, { entry: 'i_gone', qty: 1 }] } },
+                { id: 'f_skl', key: 'Skills', label: 'Skills', kind: 'item-list', edit: 'owner', vis: 'all', list: { noQty: true, lvl: { min: 0, max: 5, def: 1, caps: [{ n: 1, at: 2 }] },
+                    starts: [{ entry: 'i_wade', qty: 4 }, { entry: 'i_row', qty: 1 }, { entry: 'i_swim', qty: 1 }, { entry: 'i_fish', qty: 1 }] } },
+                { id: 'f_bag', key: 'Bag', label: 'Bag', kind: 'item-list', edit: 'owner', vis: 'all' },
+                { id: 'f_hp', key: 'HP', label: 'HP', kind: 'number', edit: 'owner', vis: 'all' },
+            ],
+            items: [
+                item('i_rope', 'Rope', 'Gear', { stats: { Cost: 5 } }), item('i_cloak', 'Cloak', 'Gear', { stats: { Cost: 4, Slot: 1, Twin: 7 } }), item('i_hood', 'Hood', 'Gear', { stats: { Cost: 2, Slot: 1, Twin: 7 } }),
+                item('i_secret', 'Secret Map', 'Gear', { vis: 'gm', stats: { Cost: 1 } }), item('i_lute', 'Lute', 'Music'), item('i_torch', 'Torch', 'Gear'),
+                item('i_wade', 'Wading', 'Skill', { lvl: 2, grants: [{ list: 'f_bag', entry: 'i_torch', qty: 2 }] }), item('i_row', 'Rowing', 'Skill', { lvl: 2 }), item('i_swim', 'Swimming', 'Skill', { lvl: 3, lvlOnly: [3] }), item('i_fish', 'Fishing', 'Skill'),
+            ],
+            rolls: [], sheet: { sections: [] },
+        };
+        const lib = { i_lantern: { id: 'i_lantern', name: 'Lantern', category: 'Gear', vis: 'all', stats: { Cost: 8 } } };
+        S.setLibraryFind(id => lib[id] || null);
+        const sys = cs(JSON.parse(J(raw)), { F, gmView: true }), kit = sys.fields[0].list, Spl = cs(JSON.parse(J(raw)), { F, gmView: false, needShown: id => id === 'i_lantern' });
+        const ran = c => S.startRows(sys, c, F), gm = { id: 'c_a', name: 'Ansa', ownerId: '', npc: false, values: {} }, mk = { id: 'c_b', name: 'Bram', ownerId: 'p_1', npc: false, values: {}, making: 1, made: 1 };
+        const rGm = ran(gm), rMk = ran(mk), rows = (c, f) => c.values[f] || [], byD = (c, f, d) => rows(c, f).find(r => r.defId === d), noId = c => J(Object.keys(c.values).sort().map(k => c.values[k].map(r => { const x = Object.assign({}, r); delete x.id; delete x.gr; delete x.opn; return x; })));
+        check('1.6.0 Starts with, the players\' view: an entry they can see stays, a library entry only where the host says they may see it, a GM-only one goes, and a list with none left has no key; their own app, re-cleaning what the host sent, keeps it as it came',
+            J(kit.starts.map(s => s.entry)) === J(['i_rope', 'i_cloak', 'i_hood', 'i_lantern', 'i_secret', 'i_lute', 'i_gone'])
+            && J(Spl.fields[0].list.starts.map(s => s.entry)) === J(['i_rope', 'i_cloak', 'i_hood', 'i_lantern', 'i_lute']) && J(Spl.fields[1].list.starts.map(s => s.entry)) === J(['i_wade', 'i_row', 'i_swim', 'i_fish'])
+            && J(cs(JSON.parse(J(raw)), { F, gmView: false }).fields[0].list.starts.map(s => s.entry)) === J(['i_rope', 'i_cloak', 'i_hood', 'i_lute'])
+            && cs({ v: 1, name: 'x', fields: [{ id: 'f_k', key: 'K', label: 'K', kind: 'item-list', edit: 'owner', vis: 'all', list: { starts: [{ entry: 'i_s', qty: 1 }] } }], items: [item('i_s', 'S', 'G', { vis: 'gm' })], rolls: [], sheet: { sections: [] } }, { F, gmView: false }).fields[0].list === undefined
+            && J(cs(JSON.parse(J(Spl)), { F, gmView: false, needShown: true }).fields[0].list.starts) === J(Spl.fields[0].list.starts), J([Spl.fields[0].list.starts, Spl.fields[1].list.starts, cs(JSON.parse(J(raw)), { F, gmView: false }).fields[0].list.starts]));
+        check('1.6.0 Starts with, the rows (startRows): each as an add makes it, in the list\'s order and how many it says: Rope × 3, a library Lantern × 2 with its own copy, a GM-only entry for the GM\'s own to give; an entry gone or outside the list\'s categories is left out and said',
+            J(rows(gm, 'f_kit').map(r => [r.defId, r.qty])) === J([['i_rope', 3], ['i_cloak', 1], ['i_hood', 1], ['i_lantern', 2], ['i_secret', 1]]) && rows(gm, 'f_kit').every(r => typeof r.id === 'string' && /^w_/.test(r.id)) && byD(gm, 'f_kit', 'i_lantern').snap && byD(gm, 'f_kit', 'i_lantern').snap.name === 'Lantern' && !byD(gm, 'f_kit', 'i_rope').snap
+            && J(rGm.left.filter(l => l.f === 'f_kit')) === J([{ f: 'f_kit', entry: 'i_lute', why: 'cats' }, { f: 'f_kit', entry: 'i_gone', why: 'gone' }]) && J(rGm.lists.slice().sort()) === J(['f_bag', 'f_kit', 'f_skl']), J([gm.values, rGm]));
+        check('1.6.0 Starts with, what it costs: free. Paid 0 on a list with a price, whatever the entry\'s price says (a row of Rope added by hand records 5), and no money moves',
+            rows(gm, 'f_kit').every(r => r.paid === 0) && S.applyRowOp(sys, { id: 'c_x', values: {} }, 'f_kit', { op: 'add', defId: 'i_rope', qty: 1, rowId: 'w_hand' }, F, {}).value[0].paid === 5, J(rows(gm, 'f_kit')));
+        check('1.6.0 Starts with, One at a time and Counted once: the list\'s switch starts its rows on, the second of a group starts off, and two rows of one group stand as two rows of which one applies, as rows added by hand do',
+            byD(gm, 'f_kit', 'i_cloak').on === true && byD(gm, 'f_kit', 'i_hood').on === false && byD(gm, 'f_kit', 'i_rope').on === true
+            && J(S.onceOf(kit, rows(gm, 'f_kit').slice(1, 3).map(r => ({ r, d: S.rowDef(sys, r).def })))) === J([{ top: 0, mem: [0, 1] }, { top: 0, mem: [0, 1] }]), J(rows(gm, 'f_kit')));
+        check('1.6.0 Starts with, levels and caps: a row starts at its entry\'s level, on a list with no quantity it is one row whoever says how many, what it grants comes with it onto another list, an entry\'s Levels it may be is met, and a row past the list\'s At most is left out and said, in the order the list gives them',
+            J(rows(gm, 'f_skl').map(r => [r.defId, r.lvl, r.qty])) === J([['i_wade', 2, 1], ['i_swim', 3, 1], ['i_fish', 1, 1]]) && J(rows(gm, 'f_bag').map(r => [r.defId, r.qty])) === J([['i_torch', 2]]) && rows(gm, 'f_bag')[0].gr === byD(gm, 'f_skl', 'i_wade').id
+            && J(rGm.left.filter(l => l.f === 'f_skl')) === J([{ f: 'f_skl', entry: 'i_row', why: 'cap' }]), J([rows(gm, 'f_skl'), rGm.left]));
+        check('1.6.0 Starts with, the same whoever makes it: a character in the making gets the very rows the GM\'s does, and no row reads as bought in the making (no mk), so Row.made is 0 on each',
+            noId(gm) === noId(mk) && J(rMk.left) === J(rGm.left) && Object.keys(mk.values).every(k => mk.values[k].every(r => r.mk === undefined)), J([mk.values, gm.values]));
+        const rmP = S.applyRowOp(sys, mk, 'f_kit', { op: 'remove', rowId: byD(mk, 'f_kit', 'i_rope').id }, F, { player: true, view: Spl, lib: id => lib[id] || null }), setP = S.applyRowOp(sys, mk, 'f_kit', { op: 'setQty', rowId: byD(mk, 'f_kit', 'i_lantern').id, qty: 5 }, F, { player: true, view: Spl, lib: id => lib[id] || null });
+        const filled = S.fillMaking(sys, mk, { lists: ['f_kit'], ops: [{ f: 'f_kit', q: { op: 'add', defId: 'i_rope', qty: 1, rowId: 'w_file' } }] }, F, { view: Spl, lib: id => lib[id] || null });
+        check('1.6.0 Starts with, an ordinary row: its owner may remove it and change how many, and a character file that fills the list takes its place, so nothing doubles',
+            rmP.ok && !rmP.value.some(r => r.defId === 'i_rope') && setP.ok && setP.value.find(r => r.defId === 'i_lantern').qty === 5 && filled.ok && filled.values.f_kit.filter(r => r.defId === 'i_rope').length === 1 && filled.values.f_kit.filter(r => r.defId === 'i_rope')[0].qty === 1, J([rmP, setP, filled]));
+        const plain = { id: 'c_p', name: 'Plain', values: {} }, plainSys = cs({ v: 1, name: 'Plain', fields: [{ id: 'f_k', key: 'K', label: 'K', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Gear'] } }], items: [item('i_a', 'A', 'Gear')], rolls: [], sheet: { sections: [] } }, { F, gmView: true }), rP = S.startRows(plainSys, plain, F);
+        check('1.6.0 Starts with, a system that uses none: its list has no key and a new character is left as it was; a character with no values or no system is passed over',
+            !('starts' in plainSys.fields[0].list) && J(plain) === J({ id: 'c_p', name: 'Plain', values: {} }) && J(rP) === J({ lists: [], left: [] }) && J(S.startRows(null, plain, F)) === J({ lists: [], left: [] }) && J(S.startRows(sys, {}, F)) === J({ lists: [], left: [] }), J([rP, plainSys.fields[0]]));
+        S.setLibraryFind(null);
+        // the editor's words (the startsbox slice, run on a page of plain objects) and where it is wired
+        const shS = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ixS = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n'), netS = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'latin1').replace(/\r\n/g, '\n'), tuS = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8').replace(/\r\n/g, '\n'), wnS = fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wnA = fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8').replace(/\r\n/g, '\n'), gdS = fs.readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').replace(/\r\n/g, '\n');
+        const ssA = shS.indexOf('// [systemcheck:startsbox-start]'), ssZ = shS.indexOf('// [systemcheck:startsbox-end]');
+        const mkE = (tag, cls, tx) => { const n = { tag, className: cls || '', kids: [], dataset: {}, textContent: tx === undefined ? '' : tx, ls: {}, title: '', appendChild(k) { this.kids.push(k); return k; }, addEventListener(t, h) { this.ls[t] = h; }, querySelector() { return this.kids[1] || null; } }; return n; };
+        const selS = (cls, opts, value, title) => { const s = mkE('select', cls); s.opts = opts; s.options = opts; s.value = value; s.title = title; return s; };
+        const nfS = (cls, value, title, cap, step) => { const l = mkE('label', 'sys-num'); l.appendChild(mkE('span', 'sys-num-cap', cap)); const i = mkE('input', cls); i.value = String(value); i.step = step; i.validity = { badInput: false }; l.appendChild(i); return l; };
+        const drS = { fields: [
+            { id: 'f_k', key: 'Kit', kind: 'item-list', list: { cats: ['Gear'], starts: [{ entry: 'i_rope', qty: 2 }, { entry: 'i_rope', qty: 1 }, { entry: 'i_lute', qty: 150 }, { entry: 'i_gone' }, {}, { entry: 'i_lamp', qty: 1.5 }] } },
+            { id: 'f_s', key: 'Skills', kind: 'item-list', list: { noQty: true, lvl: { min: 0, max: 5, caps: [{ n: 1, at: 2 }] }, starts: [{ entry: 'i_wade', qty: 1 }, { entry: 'i_row', qty: 1 }] } },
+            { id: 'f_e', key: 'Empty', kind: 'item-list' }], items: [item('i_rope', 'Rope', 'Gear'), item('i_lute', 'Lute', 'Music'), item('i_wade', 'Wading', 'Skill', { lvl: 2 }), item('i_row', 'Rowing', 'Skill', { lvl: 2 }), item('i_bell', 'Bell', 'Gear')] };
+        const libS = { whole: () => true, entry: id => (id === 'i_lamp' ? { id: 'i_lamp', name: 'Lamp', category: 'Gear' } : null) };
+        let dirty = 0;
+        const grantEntriesS = () => [['i_bell', 'Bell'], ['i_lamp', 'Lamp'], ['i_lute', 'Lute'], ['i_rope', 'Rope']], grantNameS = id => (drS.items.find(x => x.id === id) || {}).name || (id === 'i_lamp' ? 'Lamp' : '');
+        const SB = new Function('el', 'select', 'numField', 'draft', 'window', 'markDirty', 'patchErrors', 'grantEntries', 'grantName', 'START_MAX', 'LIMITS', 'cleanSystem', 'startRows', 'F', shS.slice(ssA, ssZ) + '\nreturn { startsBox: startsBox, startsSay: startsSay };')(mkE, selS, nfS, drS, { wpLibrary: libS }, () => { dirty++; }, () => {}, grantEntriesS, grantNameS, S.START_MAX, S.LIMITS, cs, S.startRows, () => F);
+        const b0 = SB.startsBox(drS.fields[0]), lines = b0.kids.filter(k => /sys-start-row/.test(k.className)), addS = b0.kids[b0.kids.length - 1];
+        const b1 = SB.startsBox(drS.fields[1]), bE = SB.startsBox(drS.fields[2]), addE = bE.kids[bE.kids.length - 1];
+        addE.value = 'i_bell'; addE.ls.change({ stopPropagation() {} });
+        const eList = J(drS.fields[2].list), xE = bE.kids.filter(k => /sys-start-row/.test(k.className))[0].kids.filter(k => /sys-start-del/.test(k.className))[0]; xE.ls.click({ stopPropagation() {} });
+        const saySk = SB.startsSay(drS.fields[1]);
+        check('1.6.0 Starts with, the box: a line an entry with its name, how many and ×, none of how many on a list with no quantity; the picker offers the list\'s categories alone, what the list holds no more, and a pick on a list that had no options at all makes them, and × on the last takes the key away again',
+            b0.kids[0].textContent === 'Starts with' && lines.length === 6 && lines[0].kids[0].textContent === 'Rope' && lines[0].kids[1].kids[1].value === '2' && lines[3].kids[0].textContent === 'An entry that is not here' && J(addS.opts.map(o => o[0])) === J(['', 'i_bell']) && addS.className === 'sys-start-add'
+            && b1.kids.filter(k => /sys-start-row/.test(k.className))[0].kids.length === 2 && eList === J({ starts: [{ entry: 'i_bell', qty: 1 }] }) && J(drS.fields[2].list) === J({}) && dirty >= 2, J([eList, drS.fields[2].list]));
+        check('1.6.0 Starts with, what Save does (startsSay, under the list\'s card): a repeat, a line with no entry, how many past its bounds, an entry that is gone, one outside the list\'s categories, and, by a dry run, one past its At most; a list that uses none says nothing',
+            J(SB.startsSay(drS.fields[0])) === J(['Starts with, line 2: it repeats line 1, so Save drops it.', 'Starts with, line 3: how many is a whole number from 1 to 99, so Save keeps 99.', 'Starts with, line 3: Lute is outside this list’s categories, so a new character does not get it.', 'Starts with, line 4: that entry is gone, so it gives nothing until it is back.', 'Starts with, line 5: it names no entry, so Save drops it.', 'Starts with, line 6: how many is a whole number from 1 to 99, so Save keeps 2.'])
+            && J(saySk) === J(['Starts with: Rowing is past this list’s At most, so a new character does not get it.']) && J(SB.startsSay(drS.fields[2])) === J([]) && J(SB.startsSay({ id: 'f_x', kind: 'item-list' })) === J([]), J([SB.startsSay(drS.fields[0]), saySk]));
+        check('1.6.0 Starts with is wired and said: every way a character is made gives its rows once, the GM\'s, an invited maker\'s, a player\'s own, just a token\'s and the demo\'s; the preview\'s Defaults shows them; the box stands on each list\'s card and Save\'s words under it; nothing but a new character calls it; Help, the key, both release notes and the file guide say so',
+            /function newCharacter\(o\) \{[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*\n    if \(typeof startsGiven === 'function'\) startsGiven\(camp\.system, c, 'gm'\);/.test(shS) && shS.includes("if (typeof startsGiven === 'function') startsGiven(camp.system, cs[id], 'invite');") && netS.includes("window.wpSheets.startsGiven(campK.system, chK, 'make');") && netS.includes("window.wpSheets.startsGiven(campJ.system, chJ, 'token');") && tuS.includes("window.wpSheets.startsGiven(camp.system, camp.chars.c_tut_bren, 'demo');")
+            && (shS.match(/startsGiven\(/g) || []).length === 3 && (netS.match(/startsGiven\(/g) || []).length === 2 && (shS.match(/startRows\(/g) || []).length === 3 && shS.includes("if (!c) startRows(clean, pc, F());") && shS.includes("if (typeof startsBox === 'function') card.appendChild(startsBox(f));") && shS.includes("if (typeof startsSay === 'function') startsSay(f).forEach(function(m) { errs.push({ message: m }); });") && shS.includes("window.wpStepLog('starts v1', 'given', { by: by, lists: r.lists.length, left: r.left.length })")
+            && ixS.includes('<li><b>Starts with</b> gives every new character rows of a list.') && ixS.includes('<b>Starts with</b><small>Entries of the list every new character begins holding, free.</small>') && wnS.includes('- Starts with, in the Lists tab, gives every new character rows of a list.') && wnA.includes('- Starts with, in the Lists tab, gives every new character rows of a list.') && gdS.includes('**Starts with (1.6.0):**'));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

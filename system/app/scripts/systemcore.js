@@ -2880,7 +2880,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
         var spCv = typeof v.specs.cover === 'string' ? lower(v.specs.cover.trim()) : '', spC = '', spOf = typeof v.specs.of === 'string' ? lower(v.specs.of.trim()) : '', spO = '', spS = {}, spBy = typeof v.specs.by === 'string' ? lower(v.specs.by.trim()) : '', spFa = typeof v.specs.fall === 'string' ? lower(v.specs.fall.trim()) : '', spDf = typeof v.specs.dflt === 'string' ? lower(v.specs.dflt.trim()) : '', spB = '', spF = '', spD = '';
         (out.stats || []).forEach(function(s) { if (!spC && spCv && s.kind !== 'pick' && Array.isArray(s.labels) && s.labels.length && lower(s.key) === spCv) spC = s.key; if (!spO && spOf && s.kind === 'pick' && lower(s.key) === spOf) spO = s.key; if (!spB && spBy && s.kind === 'pick' && lower(s.key) === spBy) spB = s.key; if (!spF && spFa && s.kind !== 'pick' && lower(s.key) === spFa) spF = s.key; if (!spN && spNv && s.kind !== 'pick' && lower(s.key) === spNv) spN = s.key; if (!spP && spPn && s.kind !== 'pick' && lower(s.key) === spPn) spP = s.key; });
         (out.cols || []).forEach(function(c) { if (!spF && spFa && lower(c.key) === spFa) spF = c.key; if (!spD && spDf && lower(c.key) === spDf) spD = c.key; if (!spN && spNv && lower(c.key) === spNv) spN = c.key; if (!spP && spPn && lower(c.key) === spPn) spP = c.key; });
-        if (spB) spS.by = spB; if (spO) spS.of = spO; if (spC) spS.cover = spC; if (spF) spS.fall = spF; if (spD) spS.dflt = spD; if (spN) spS.never = spN; if (spP) spS.pen = spP;
+        if (spB) spS.by = spB; if (spO) spS.of = spO; if (spC) spS.cover = spC; if (spF) spS.fall = spF; if (spD) spS.dflt = spD; if (spN) spS.never = spN; if (spP) spS.pen = spP; if (v.specs.sum === true) spS.sum = true;   // gap 20: Subject reads Add the rows, true only, the same in both views
         out.specs = spS;
     }
     if (isObj(v.load) && out.counters) {   // 1.5.8 Loads from: a row of this list loads one unit of a row of another item list (from, a field id; cleanSystem keeps it only where that is another item list with a level); ct, one of this list's counters, holds what the loaded row has left; cats, the categories of that list it takes (none: any row). The same in both views
@@ -7414,7 +7414,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var three = sk === null, nw = w === 'lvl' || w === 'qty' || w === 'paid' || !!(L.st[w] && L.st[w].kind !== 'pick') || !!L.cl[w] || !!(L.ct && L.ct[w]);
         if (!nw && !(three ? (w === 'on' || w === 'has' || L.st[w]) : w === 'has')) return undefined;   // round three: <List>.<Parent>.<Spec>.has, whether that specialty is held
         if (l in cache) return cache[l];   // a loop through it is caught on the column it reads (colVal's own chain)
-        var sp = L.spec.specs, pq = specSquash(pk), sq = three ? '' : specSquash(sk), cats = L.spec && Array.isArray(L.spec.cats) ? L.spec.cats : null, hit = null, near = null, alt = null, con = null, num = function(v) { return v === true ? 1 : typeof v === 'number' && fin(v) ? v : 0; };
+        var sp = L.spec.specs, pq = specSquash(pk), sq = three ? '' : specSquash(sk), cats = L.spec && Array.isArray(L.spec.cats) ? L.spec.cats : null, hit = null, hits = [], near = null, alt = null, con = null, num = function(v) { return v === true ? 1 : typeof v === 'number' && fin(v) ? v : 0; };
         for (var i = 0; i < L.rows.length; i++) {
             var x = L.rows[i], d = x.d; if (!isObj(d) || (d.vis === 'gm' && !(gmKeyed(L, pk) && (!cats || catIn(cats, d.category))))) continue;
             var bn = specBase(sys, x.r, d), si = specInfo(L.spec, d, bn), byKey = typeof d.key === 'string' && lower(d.key) === pk;
@@ -7423,9 +7423,12 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
             var v = rowVal(L, x, w); if (isObj(v) && v.error) return v;
             var one = { x: x, v: num(v), raw: v, bn: bn };
             if (three) { if (byKey) { if (!hit || one.v > hit.v) hit = one; } else if (hasW) { if (!con || one.v > con.v) con = one; } else if (!alt || one.v > alt.v) alt = one; }
-            else if (sq && (si.s === sq || specCovers(L, x, sq))) { if (!hit || one.v > hit.v) hit = one; } else if (!near || one.v > near.v) near = one;
+            else if (sq && (si.s === sq || specCovers(L, x, sq))) { hits.push(one); if (!hit || one.v > hit.v) hit = one; } else if (!near || one.v > near.v) near = one;
         }
         if (!three && w === 'has') { cache[l] = !!hit; return cache[l]; }   // held or covered, never by a sibling or untrained
+        // gap 20 (the core, from the owner): Subject reads Add the rows (specs.sum), every row held for the subject or covering it added up, as
+        // a sense held alone and one held for every sense; the best row where it is not ticked. Only a figure: has reads as above
+        if (!three && nw && sp.sum === true && hits.length > 1) { var smH = 0, smB = 0, smM = [], smV = [], smD = false; hits.forEach(function(h) { smH += h.v; var dH = detail[lower(L.f.key) + '#' + h.x.id + '.' + w]; if (dH) { smD = true; smB += typeof dH.base === 'number' ? dH.base : h.v; smM = smM.concat(dH.mods || []); smV = smV.concat(dH.via || []); } else smB += h.v; }); hit = { x: hits[0].x, v: smH, raw: smH, bn: hits[0].bn, all: hits, det: smD ? { base: smB, mods: smM, via: smV } : null }; }
         if (three && !alt && con) alt = con;   // a name that holds the key only where none is it
         var c = hit ? 1 : (three ? alt : near) ? (three ? 1 : 2) : 3, use = hit || (three ? alt : near), fv = 0, uw = w;
         if (c === 2 && sp.fall) { var fp = findRow(L, pk), fr = rowVal(L, fp && isObj(fp.d) ? fp : near.x, lower(sp.fall)); if (isObj(fr) && fr.error) return fr; fv = num(fr); }
@@ -7433,9 +7436,9 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (c === 3 && nw && sp.never) { var nvR = rowVal(L, use.x, lower(sp.never)); if (isObj(nvR) && nvR.error) return nvR; if (nvR === true || (typeof nvR === 'number' && fin(nvR) && nvR !== 0)) return { error: { message: ((isObj(use.x.d) && typeof use.x.d.name === 'string' && use.x.d.name) || (typeof name === 'string' && name.split('.')[1]) || pk) + ' cannot be tried untrained.', pos: 0, len: 0 } }; }   // round four: Never untrained, no figure and no roll
         if (c === 3 && nw && sp.pen) { var pnR = rowVal(L, use.x, lower(sp.pen)); if (isObj(pnR) && pnR.error) return pnR; fv = 0; use.pen = num(pnR); }   // round four: the untrained penalty its card says, never added
         var out = three ? use.raw : use.v + fv; if (typeof out === 'number') { if (out > 1e15) out = 1e15; else if (out < -1e15) out = -1e15; }
-        var ux = use.x, dA = detail[lower(L.f.key) + '#' + ux.id + '.' + uw]; if (dA) detail[l] = dA;   // the effects on the figure it read
-        var nm0 = typeof name === 'string' && name ? name : l, pn = nm0.split('.')[1] || pk, un = isObj(ux.d) && typeof ux.d.name === 'string' && ux.d.name ? ux.d.name : pn;
-        if (nw && (!three || (c === 3 && ux.virt) || use === alt || (use.bn && specSquash(use.bn) !== specSquash(un)))) refRec[l] = [{ n: nm0, c: c, s: un, v: c === 3 && typeof use.pen === 'number' ? use.pen : fv, gm: L.f.vis === 'gm' || (isObj(ux.d) && ux.d.vis === 'gm') }];   // a three-part name is said only where it read a row by its name, or none
+        var ux = use.x, dA = use.all ? use.det : detail[lower(L.f.key) + '#' + ux.id + '.' + uw]; if (dA) detail[l] = dA;   // the effects on the figure it read (gap 20: on every row it added)
+        var nm0 = typeof name === 'string' && name ? name : l, pn = nm0.split('.')[1] || pk, un = use.all ? use.all.map(function(h) { return isObj(h.x.d) && typeof h.x.d.name === 'string' && h.x.d.name ? h.x.d.name : pn; }).join(' + ') : isObj(ux.d) && typeof ux.d.name === 'string' && ux.d.name ? ux.d.name : pn;   // gap 20: every row it added, by name
+        if (nw && (!three || (c === 3 && ux.virt) || use === alt || (use.bn && specSquash(use.bn) !== specSquash(un)))) refRec[l] = [{ n: nm0, c: c, s: un, v: c === 3 && typeof use.pen === 'number' ? use.pen : fv, gm: L.f.vis === 'gm' || (isObj(ux.d) && ux.d.vis === 'gm') || (!!use.all && use.all.some(function(h) { return isObj(h.x.d) && h.x.d.vis === 'gm'; })) }];   // a three-part name is said only where it read a row by its name, or none
         cache[l] = out; return out;
     }
     // Round three: whether a row covers a subject through the list's Covers stat, a number with value names read as a set (as has() reads one)

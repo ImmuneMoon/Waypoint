@@ -19203,6 +19203,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && toastN(shB) === 2 && toastN(ntB) === 4,
             J([bA.fitSays, bB.fitSays, bN.fitSays, toastN(shB), toastN(ntB)]));
     }
+    {   // gap 20 (the core, from the owner): Subject reads Add the rows, every row held for a subject or covering it added up, on invented data
+        const J = JSON.stringify;
+        const rawS = sum => ({ v: 1, name: 'S', rolls: [], fields: [
+            { id: 'f_tr', key: 'Traits', label: 'Traits', kind: 'item-list', vis: 'all', edit: 'owner', list: { cats: ['Trait'], noQty: true, multi: true, lvl: { label: 'Level', min: 0, max: 5, def: 1 },
+                stats: [{ key: 'senses', label: 'Senses', labels: ['Taste', 'Smell', 'Sight'] }], cols: [{ key: 'Bonus', label: 'Bonus', formula: 'Row.lvl * 2' }], specs: Object.assign({ cover: 'senses' }, sum === undefined ? {} : { sum: sum }) } },
+            { id: 'f_eye', key: 'Eye', label: 'Eye', kind: 'formula', formula: 'Traits.KeenSense.Sight.Bonus + 0', vis: 'all' }],
+            items: [{ id: 'i_ks', key: 'KeenSense', name: 'Keen Sense', category: 'Trait', vis: 'all', again: 'name' },
+                { id: 'i_ksall', key: 'KeenSense__AllSenses', name: 'Keen Sense: All senses', category: 'Trait', vis: 'all', stats: { senses: 7 } }] });
+        const chS = () => ({ id: 'c_s', name: 'Sol', ownerId: 'u_p', npc: false, values: { f_tr: [{ id: 'w_a', defId: 'i_ksall', qty: 1, lvl: 1 }, { id: 'w_b', defId: 'i_ks', qty: 1, lvl: 1, ov: { name: 'Sight' } }] } });
+        const gA = cleanSystem(rawS(true), { F, gmView: true }), pA = cleanSystem(rawS(true), { F, gmView: false }), gB = cleanSystem(rawS(undefined), { F, gmView: true }), gX = cleanSystem(rawS('yes'), { F, gmView: true });
+        const RA = makeResolver(gA, cleanChar(chS(), gA, { state: 'gm' }), F), RB = makeResolver(gB, cleanChar(chS(), gB, { state: 'gm' }), F), own = charFor(chS(), pA, 'u_p', { full: gA, F }), RP = makeResolver(pA, cleanChar(JSON.parse(J(own)), pA, { state: 'owner' }), F);
+        const rd = (R, n) => { const v = R(n); return [v, R.refs([{ name: n, value: v }])]; };
+        const sums = [rd(RA, 'Traits.KeenSense.Sight.Bonus'), rd(RB, 'Traits.KeenSense.Sight.Bonus'), rd(RA, 'Traits.KeenSense.Smell.Bonus'), RA('Traits.KeenSense.Sight.has'), RB('Traits.KeenSense.Sight.has'), RA('Eye'), RP('Eye'), RP('Traits.KeenSense.Sight.Bonus')];
+        check('gap 20, Subject reads: Add the rows (specs.sum, true only, the same in both views) adds every row held for a subject or covering it, so Keen Sense held for Sight and an entry for all senses read Sight as 2 + 2 = 4, the card naming both rows; Best row, the default, reads 2 as before; a subject one row covers reads that row (Smell 2); has reads alike either way; the owner\'s copy gives the host\'s figure',
+            J(gA.fields[0].list.specs) === J({ cover: 'senses', sum: true }) && J(pA.fields[0].list.specs) === J(gA.fields[0].list.specs) && J(gB.fields[0].list.specs) === J({ cover: 'senses' }) && J(gX.fields[0].list.specs) === J({ cover: 'senses' })
+            && J(sums[0]) === J([4, [{ s: 'as Keen Sense: All senses + Sight', c: 1 }]]) && J(sums[1]) === J([2, [{ s: 'as Keen Sense: All senses', c: 1 }]]) && J(sums[2]) === J([2, [{ s: 'as Keen Sense: All senses', c: 1 }]])
+            && sums[3] === true && sums[4] === true && sums[5] === 4 && sums[6] === 4 && sums[7] === 4
+            && fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').includes("ssS = el('select', 'sys-list-specsum')"),
+            J(sums));
+    }
     {   // 1.6.0 Changes apply where (list.modsIf; the campaign build's ask): a formula of the holder's names and each row's own, read with no item or effect change applied; a row where it does not hold gives none of its changes
         const J = JSON.stringify;
         const rawM = (gear, garb, hex, quiet, more) => ({ v: 1, name: 'T', rolls: [], fields: [

@@ -3447,5 +3447,9 @@ check('the paused dim is set with a true or a false, so an unset hold never flip
     /classList\.toggle\('net-paused', !!\(\(net\.paused \|\| \(\(net\.selfPaused \|\| net\.selfHeld\) && isClient\)\) && net\.active\)\);/.test(rootRead('system/app/scripts/net.js'))
     && rootRead('system/app/scripts/net.js').split("'net-paused'").length === 2);
 
+check('a card that names its character says so on its button and hands that character on, and the host writes the word from the entry on both roads',
+    /rec\.dmgOn \? 'Apply to this character\\u2026' : 'Apply to target\\u2026'/.test(rootRead('system/app/scripts/dice.js')) && rootRead('system/app/scripts/dice.js').includes("{ on: typeof rec.dmgOn === 'string' ? rec.dmgOn : undefined, dice: dN,")
+    && rootRead('system/app/scripts/net.js').includes('SQ.dmgOnSelf(fullQ || actQ, q.att)) recQ.dmgOn = chQ.id;') && rootRead('system/app/scripts/net.js').includes('SC().dmgOnSelf(entR, o.att)) rec.dmgOn = o.charId;'));
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

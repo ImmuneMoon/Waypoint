@@ -44,6 +44,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
 
     /* ---- records ---- */
     const r1 = cleanRoll(rec({}));
+    check('cleanRoll keeps the character a damage roll lands on only as a character id on a damage roll',
+        cleanRoll(rec({ dmg: 1, dmgOn: 'c_abc' })).dmgOn === 'c_abc' && !('dmgOn' in cleanRoll(rec({ dmgOn: 'c_abc' }))) && !('dmgOn' in cleanRoll(rec({ dmg: 1, dmgOn: '<b>' }))) && !('dmgOn' in cleanRoll(rec({ dmg: 1, dmgOn: 7 }))));
     check('cleanRoll keeps id, from, expr, draws, v, ts', r1 && r1.id === 'r_abc123' && r1.from.name === 'Pat' && r1.from.gm === false && r1.expr === '2d6 + 3' && r1.draws.join() === '4,5' && r1.v === V && r1.ts === 1000 && r1.priv === undefined && r1.to === undefined, JSON.stringify(r1));
     check('cleanRoll: bad id, missing from, bad draws, missing v, bad priv, bad to all refused', cleanRoll(rec({ id: 'x' })) === null && cleanRoll(rec({ from: null })) === null && cleanRoll(rec({ draws: [4, 0] })) === null && cleanRoll(rec({ draws: [4, 1.5] })) === null && cleanRoll(rec({ draws: 'x' })) === null && cleanRoll(rec({ v: undefined })) === null && cleanRoll(rec({ priv: 'all' })) === null && cleanRoll(rec({ to: 'bad peer!' })) === null);
     check('cleanRoll: 1000 draws pass, 1001 refused; from fields capped; gm only when true', cleanRoll(rec({ draws: new Array(1000).fill(1) })) !== null && cleanRoll(rec({ draws: new Array(1001).fill(1) })) === null && cleanRoll(rec({ from: { id: 'i'.repeat(100), name: 'n'.repeat(100), gm: 'yes' } })).from.name.length === 60 && cleanRoll(rec({ from: { id: 'x', name: '', gm: 1 } })).from.gm === false && cleanRoll(rec({ from: { id: 'x', name: '' } })).from.name === 'Player');

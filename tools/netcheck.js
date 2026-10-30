@@ -17566,6 +17566,12 @@ pendingChecks.push((async () => {
     const hh = [!!H4.net.combats[h1].at && typeof H4.net.combats[h1].n === 'number', /"at"|"n":|"rh"|"turned"/.test(sent + snap), J(Object.keys(oc)), H4.api.charCombat(H4.camp, 'c_crate'), Object.keys(H4.camp.chars).every(id => (oc[id] || null) === H4.api.orderOfIn(H4.camp, id)), H4.camp.chars.c_crate.values.f_fx[0].t.left, H4.camp.chars.c_rook.values.f_fx[0].t.left];
     check('152 fold 4 a fight\'s own time and count are the host\'s own: neither is in anything a player was sent nor in combatsFor; the one judge for every character at once (ordersOfChars) answers as orderOfIn does for each, so a token with Is Character unticked puts its character in no fight: its timed effects follow the second as everyone\'s outside a fight do (three rounds: Crate and Rook three seconds each)',
         J(hh) === J([true, false, J(['c_kael']), null, true, 7, 27]), J(hh));
+    // found live: a timer begun on someone in no fight once real time stopped counting loses none of it at the bank, or a one-round effect ran out at the next tick
+    { const XS = mkT({ calendar: false }), nowS = Date.now(), fxS = XS.camp.chars.c_rook.values.f_fx; XS.net.fightSet(null, docks([row('t_kael', 'Kael')])); XS.net._fxStop = nowS - 4000;
+      fxS[0].t = { left: 1, at: nowS - 3000 }; XS.api.fxClockTick(); const lNew = XS.camp.chars.c_rook.values.f_fx[0] && XS.camp.chars.c_rook.values.f_fx[0].t ? J([XS.camp.chars.c_rook.values.f_fx[0].t.left, XS.camp.chars.c_rook.values.f_fx[0].t.at]) : 'gone';
+      XS.camp.chars.c_rook.values.f_fx[0].t = { left: 30, at: nowS - 6000 }; XS.api.fxClockTick(); const lOld = XS.camp.chars.c_rook.values.f_fx[0].t;
+      check('1.6.0 the clock\'s tick while a fight runs: a timer begun after real time stopped counting loses no real seconds at the bank, one begun before it loses what ran until then',
+        lNew === J([1, 0]) && lOld.at === 0 && Math.abs(lOld.left - 28) < 0.01, J([lNew, lOld])); }
     // timed effects with the Calendar off, while a fight runs: the clock's tick banks everyone, and the second moving runs the effects of everyone in no fight
     const X = mkT({ calendar: false }), now0 = Date.now(); X.camp.chars.c_rook.values.f_fx[0].t = { left: 30, at: now0 - 2000 };
     const x1 = X.net.fightSet(null, docks([row('t_kael', 'Kael')])); X.api.fxClockTick(); const xBank = J(Object.keys(X.camp.chars.c_rook.values.f_fx[0].t).sort()) + ':' + X.camp.chars.c_rook.values.f_fx[0].t.at;

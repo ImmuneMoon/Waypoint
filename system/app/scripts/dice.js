@@ -175,7 +175,7 @@ function renderApply(m) {
     rec.lines.forEach(function(l) {
         var s = el('span', 'apply-line'); s.appendChild(el('span', 'apply-n', l.n + ' '));
         if (l.fx === 1 || l.fx === 0) s.appendChild(el('span', 'apply-d ' + (l.fx ? 'apply-add' : 'apply-sub'), l.fx ? 'on' : 'off'));   // 1.6.0: an effect switched on or off
-        else if (l.s === 1) s.appendChild(el('span', 'apply-d apply-add', 'set'));   // 1.5.9: a value set on another character, with no figure
+        else if (l.s === 1) s.appendChild(el('span', 'apply-d apply-add', l.mv === 1 ? 'moved row by row' : 'set'));   // 1.5.9: a value set on another character, with no figure
         else s.appendChild(el('span', 'apply-d ' + (l.d < 0 ? 'apply-sub' : 'apply-add'), (l.d < 0 ? '\u2212' : '+') + fmtNum(Math.abs(l.d))));
         if (typeof l.v === 'number') { s.appendChild(document.createTextNode(' \u2192 ')); s.appendChild(el('b', null, fmtNum(l.v))); }   // 1.5.9: none where the line has no figure
         if (typeof l.roll === 'string' && l.roll) s.appendChild(el('span', 'apply-roll', ' ' + l.roll));   // 1.5.9: the dice a Rolled amount drew, as text

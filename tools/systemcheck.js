@@ -6378,7 +6378,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             j(msgOk.def) === j({ mods: [{ f: 'f_dx', op: 'add', v: 2, lvl: true }], modsOn: true }) && msgBad.every(m => m === null), j([msgOk, msgBad]));
         const shB = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
         check('F6b the sheet shows each row\'s changes as chips (list and table), and a custom row\'s form edits them — the whole list with each change, a field of the system the sheet draws',
-            /keyShareChip\(line, entry, rd, unseenL\); modsBits\(line, def, entry, spec, sysI\);/.test(shB) && /keyShareChip\(nameTd, entry, rd, unseenT\); modsBits\(nameTd, def, entry, spec, sysI\);/.test(shB)
+            /keyShareChip\(line, entry, rd, unseenL\); modsBits\(line, def, entry, spec, sysI, c, f\);/.test(shB) /* the pre-Sunday review: the gate (moved on purpose) */ && /keyShareChip\(nameTd, entry, rd, unseenT\); modsBits\(nameTd, def, entry, spec, sysI, c, f\);/.test(shB)
             && /var mTg = typeof fxTargets === 'function' \? fxTargets\(sysI\) : \[\], mCur = Array\.isArray\(d\.mods\) \? d\.mods : \[\];/.test(shB) && /sendM = function\(arr\) \{ one\('mods', arr\.length \? arr : null\); \}/.test(shB) && /one\('modsOn', moc\.checked \? true : null\)/.test(shB));
     }
 
@@ -13805,6 +13805,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                     && j(mo) === j([true, false, true, false, false, false, true, false, false, false, false])
                     && vM.errors.some(e => e.id === 'r_d' && e.prop === 'dmgMajorIf') && !vM.errors.some(e => e.id === 'r_g' || e.id === 'r_h' || e.id === 'f_w') && vBad.errors.some(e => e.id === 'r_x' && e.prop === 'dmgMajorIf' && /^Unknown name "Nothing"/.test(e.message)),
                     j([gM.rolls, lr(gM), pM.rolls, lr(pM), mo, vM.errors, vBad.errors]));
+                check('1.6.0 the pre-Sunday review: a GM-only A Major Wound where is said as never marking a Major Wound (on a player roll or the GM own), on a system roll and on a list roll, never as an error players see; and a row its list gate holds off draws its change chips off, saying why (sheets.js rowGated, through systemcore fxGate, one gate a character as drawn)',
+                    vM.warnings.some(w => w.id === 'r_h' && w.prop === 'dmgMajorIf' && /it never marks a Major Wound, on a player\u2019s roll or the GM\u2019s\.$/.test(w.message)) && vM.warnings.some(w => w.id === 'f_w' && /^list\.mjif\./.test(w.prop) && /it never marks a Major Wound/.test(w.message))
+                    && !vM.warnings.some(w => (w.prop === 'dmgMajorIf' || /^list\.mjif\./.test(w.prop || '')) && /players will see an error/.test(w.message))
+                    && shM.includes("var gated = rowGated(spec, c, f, entry, sysI);") && shM.includes("(off || gated ? ' off' : '')") && shM.includes("modsBits(line, def, entry, spec, sysI, c, f)") && shM.includes("modsBits(nameTd, def, entry, spec, sysI, c, f)") && shM.includes("g = { sys: sysI, fn: core.fxGate(sysI, c, Fm) }"),
+                    j(vM.warnings.filter(w => w.prop === 'dmgMajorIf' || /^list\.mjif\./.test(w.prop || ''))));
                 check('1.6.0 A Major Wound where is wired and said: the host marks the record from the entry through the roller\'s view in roll-req, the GM\'s own roll marks nothing from a GM-only one (as the armour divisor); the Rolls tab and the Lists card have its box beside the tick while Damage is ticked, with its handlers, what Save drops and its prefix; Help, the integration guide and both 1.6.0 notes',
                     ntM.includes("if (recQ.dmg === 1 && recQ.major !== 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgMajorOf === 'function' && SQ.dmgMajorOf(actQ, varsQ, Fq)) recQ.major = 1;")
                     && ntM.includes("if (!(mjN.gm || SR.gmOnlyNames(campR.system, mjN.names).concat(SR.gmDerivedNames(campR.system, F, mjN.names)).length) && SR.dmgMajorOf(entR, varsR, F)) rec.major = 1; }")

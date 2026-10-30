@@ -3294,7 +3294,7 @@ pendingChecks.push((async () => {
         && /applied Mend: Locations: Severity \(2 rows\) set → 0$/.test(m1.logs[0] || ''), j([m1.answer, m1.vals, m1.owner, m1.logs]));
     const w1 = host(A('r_wear')), cW = card(w1.owner)[0] || {}, s1 = host(A('r_sec'));
     check('1.6.0 every row of a list worked out row by row, char-apply: Add Row.Wt moves each row by its own Weight, and the card, the figure differing by row, says set with no figure (net.js applyLines), which a player\'s app takes (dicecore cleanApply); a change whose row names read a value worked out from a GM-only one is not in the player\'s view ("field"), nothing stored, sent or saved',
-        j(w1.vals.f_loc.map(sevOf)) === j([5, 7, 6, null]) && j(cW.lines) === j([{ n: 'Locations: Severity (3 rows)', s: 1 }]) && Dx.cleanApply(cW) !== null && /applied Wear: Locations: Severity \(3 rows\) set$/.test(w1.logs[0] || '')
+        j(w1.vals.f_loc.map(sevOf)) === j([5, 7, 6, null]) && j(cW.lines) === j([{ n: 'Locations: Severity (3 rows)', s: 1, mv: 1 }]) && Dx.cleanApply(cW) !== null && /applied Wear: Locations: Severity \(3 rows\) moved row by row$/.test(w1.logs[0] || '') /* the pre-Sunday review: an Add carded as moved row by row (moved on purpose) */
         && j(s1.answer.map(m => m.reason)) === j(['field']) && s1.owner.length === 0 && s1.saves === 0 && j(s1.vals.f_sec) === j(START.f_sec), j([w1.vals, cW, s1.answer]));
 })());
 

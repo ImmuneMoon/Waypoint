@@ -2654,8 +2654,16 @@ function itemCellText(col, def, len) {   // len: how the sheet on screen says a 
 }
 // Stage 6 F6b: what a row's item changes on its character, as chips on the row ("DEX −2", "HP max +5", "Inspiration on") — a change per level
 // times the row's level; dimmed while an item that works only while switched on is off. The viewer's own fields only (their copy holds no other)
-function modsBits(host, def, entry, spec, sysI) {
+var _gateOf = typeof WeakMap === 'function' ? new WeakMap() : null;   // 1.6.0 Changes apply where: one gate a character as drawn (systemcore fxGate)
+function rowGated(spec, c, f, entry, sysI) {
+    var core = typeof window !== 'undefined' ? window.wpSystemCore : null, Fm = typeof window !== 'undefined' ? window.wpFormula : null;
+    if (!spec || typeof spec.modsIf !== 'string' || !spec.modsIf || !c || !f || !_gateOf || !core || typeof core.fxGate !== 'function' || !Fm || !sysI) return false;
+    var g = _gateOf.get(c); if (!g || g.sys !== sysI) { g = { sys: sysI, fn: core.fxGate(sysI, c, Fm) }; _gateOf.set(c, g); }
+    try { return g.fn(f, entry) === false; } catch (e) { return false; }
+}
+function modsBits(host, def, entry, spec, sysI, c, f) {
     if (!def || !Array.isArray(def.mods) || !def.mods.length) return;
+    var gated = rowGated(spec, c, f, entry, sysI);
     var byId = Object.create(null); ((sysI && sysI.fields) || []).forEach(function(x) { if (x && typeof x.id === 'string') byId[x.id] = x; });
     var off = def.modsOn === true && !!(spec && spec.on && typeof spec.on === 'object') && !rowOn(spec, entry), lv = rowLvl(spec, entry, def);
     def.mods.forEach(function(m) {
@@ -2663,7 +2671,7 @@ function modsBits(host, def, entry, spec, sysI) {
         var nm = fx.label || fx.key, t;
         if (m.op === 'on') t = nm + ' on';
         else { var v = (typeof m.v === 'number' ? m.v : 0) * (m.lvl === true ? (typeof lv === 'number' && isFinite(lv) ? lv : 0) : 1); t = nm + (m.part === 'max' ? ' max' : '') + ' ' + (v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(v)); }
-        var ch = el('span', 'sheet-chip sheet-item-mod' + (off ? ' off' : ''), t); ch.title = off ? 'Counts while switched on' : m.lvl === true ? 'Per level (times its level)' : 'While carried'; host.appendChild(ch);
+        var ch = el('span', 'sheet-chip sheet-item-mod' + (off || gated ? ' off' : ''), t); ch.title = gated ? 'Does not count: the list\u2019s Changes apply where does not hold for this row' : off ? 'Counts while switched on' : m.lvl === true ? 'Per level (times its level)' : 'While carried'; host.appendChild(ch);
     });
 }
 // Stage 6: what only the GM sees on a row — a bound or cursed item, and a curse the player dropped (kept here, out of their sight)
@@ -3276,7 +3284,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         var bdLn = typeof badgeBits === 'function' ? badgeBits(line, spec, res && res.bd ? res.bd[rid] : null, line, hudRow) : null;   // 1.6.0 R4: its badges after the name (no lines on the HUD)
         if (typeof rowEdge === 'function') rowEdge(line, spec, res && res.bd ? res.bd[rid] : null, !!(spec && spec.on) && rowOn(spec, entry), !!(spec && spec.on) && (typeof partHere !== 'function' || partHere(spec.on, 'row', hudRow)));   // 1.6.0 R16
         if (chips && def.category) line.appendChild(el('span', 'sheet-chip', def.category));
-        lostBits(line, rd, entry, c, f, gm, chg); needBits(line, sysI, c, entry, rd, gm); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL); modsBits(line, def, entry, spec, sysI);
+        lostBits(line, rd, entry, c, f, gm, chg); needBits(line, sysI, c, entry, rd, gm); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL); modsBits(line, def, entry, spec, sysI, c, f);
         if (typeof onceBits === 'function') onceBits(line, sysI, c, f, carried, entry);   // 1.5.8 Counted once
         var noteLn = null;
         var smR = spec && typeof statMenuMode === 'function' ? statMenuMode(entry, rd, spec, gm, sysI, chg && !hudRow) : ''; _rowMenu = smR ? function(s, sv) { return statMenu(s, sv, entry, rd, c, f, spec, smR); } : null;   // 1.6.0 R10
@@ -3540,7 +3548,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         var ovT = ovCtx(entry, rd, gm); ovNameDot(nameTd, ovT);   // F4c2: a dot when the copy holds values of its own
         if (spec && spec.look) lookSwatches(nameTd, sysI, c, spec, entry);   // 1.6.0, backlog 206: its swatches beside its name
         if (tbl.chips && def.category) nameTd.appendChild(el('span', 'sheet-chip', def.category));
-        lostBits(nameTd, rd, entry, c, f, gm, chg); needBits(nameTd, sysI, c, entry, rd, gm); gmItemBits(nameTd, def, entry, gm, hasO); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI);
+        lostBits(nameTd, rd, entry, c, f, gm, chg); needBits(nameTd, sysI, c, entry, rd, gm); gmItemBits(nameTd, def, entry, gm, hasO); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI, c, f);
         if (typeof onceBits === 'function') onceBits(nameTd, sysI, c, f, carried, entry);   // 1.5.8 Counted once
         if (typeof badgeBits === 'function') { var bdT = badgeBits(nameTd, spec, res && res.bd ? res.bd[rid] : null, tr, hudRow); if (bdT) nameTd.appendChild(bdT); }   // 1.6.0 R4: in a table the badges go in the name's cell
         if (typeof rowEdge === 'function') rowEdge(tr, spec, res && res.bd ? res.bd[rid] : null, !!(spec && spec.on) && rowOn(spec, entry), !!(spec && spec.on));   // 1.6.0 R16

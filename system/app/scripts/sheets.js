@@ -18,6 +18,7 @@ import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, se
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
 import { fitIfOk, partFitEntry } from './systemcore.js';   // 1.6.0 Fits where (the core handbook session's ask 18)
+import { targetHitList, targetHitRows, readsTargetHit } from './systemcore.js';   // 1.6.0 (B5): a called shot by the target's own location
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
@@ -4428,6 +4429,7 @@ function groupRoll(ids, rollId) {
 // [systemcheck:grouproll-end]
 function sheetRoll(e, charId, expr, label, opts, swRef) {   // swRef (1.6.0): which roll this is, for the roll switches its \u00b1 window offers (handed to that window alone)
     if (!window.wpDice) return;
+    if (!(e && e.wpHit !== undefined) && typeof hitPick === 'function') { var ndH = hitNeed(charId, expr, opts, swRef); if (ndH) { var evH = pressOf(e, e && e.currentTarget); hitPick(evH.currentTarget, ndH, function(id) { evH.wpHit = id || ''; sheetRoll(evH, charId, expr, label, id ? hitNamed(opts, swRef, id) : opts, swRef); }); return; } }   // 1.6.0 (B5): where it is aimed first, a location of its target's own
     if ((e.shiftKey || e.altKey) && window.wpDice.rollWithMod) { if (swRef) window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget, swRef); else window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget); }
     else if (window.wpDice.rollFor) window.wpDice.rollFor(charId, expr, label, opts);
 }
@@ -4465,6 +4467,56 @@ function allyPick(anchor, c, go) {
     document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
     var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
 }
+// [sinkcheck:hitmenu-start]
+// 1.6.0 (B5, a called shot by the target's own location; the owner's handbook: "A limb out of scale changes its penalty by its own Size", and "A
+// body has only the locations its parts give it"): pressed, a roll that reads Target.Hit (directly or through a value worked out from it) asks
+// where it is aimed: a location row of its TARGET's own sheet, only where the system names the list of hit locations (Called shots read), the
+// roll can be named for the host (a system roll, a field's own roll, a list's roll by its place) and the character has a target. With none,
+// it is rolled at once and Target.Hit reads 0. The GM's screen lists the target's rows from its own campaign; a player's app asks the host
+// (net.hitRows), which offers only rows a player may name, and an older host is never asked. The menu: No called shot first, then each
+// location by its name as text; a pick hands on the row's id (go(id)), which the host judges again. A target with no location rolls at once
+function hitNeed(charId, expr, opts, swRef) {
+    if (typeof readsTargetHit !== 'function' || typeof targetHitList !== 'function') return null;   // asked through typeof: a suite runs the roll's press alone
+    var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp); if (!c || !sys || !targetHitList(sys) || !F()) return null;
+    var sr = swRef && typeof swRef === 'object' ? swRef : {}, named = !!(opts && (opts.act || opts.fr || (opts.row && typeof opts.row.i === 'number' && typeof opts.row.r === 'string'))) || typeof sr.r === 'string' || typeof sr.f === 'string' || (typeof sr.l === 'string' && typeof sr.row === 'string' && typeof sr.i === 'number');
+    if (!named) return null;
+    var n = net(); if (isClient() && !(n && typeof n.hitsOk === 'function' && n.hitsOk())) return null;   // an older host: rolled with no location picked, as before
+    var tc = tokenCtxFor(charId, camp); if (!tc || !tc.range || typeof tc.range.tid !== 'string' || typeof tc.range.mapId !== 'string') return null;
+    var row = opts && opts.row && typeof opts.row.r === 'string' ? { f: opts.row.f, r: opts.row.r } : typeof sr.l === 'string' && typeof sr.row === 'string' ? { f: sr.l, r: sr.row } : null;
+    if (!readsTargetHit(sys, c, F(), expr, row, tc)) return null;
+    return { c: c, camp: camp, sys: sys, tid: tc.range.tid, mapId: tc.range.mapId };
+}
+// ... the roll named for the host as its \u00b1 window names one (dice.js modOpts), with the location picked
+function hitNamed(opts, swRef, id) {
+    var o = Object.assign({}, opts || {}), sr = swRef && typeof swRef === 'object' ? swRef : {};
+    if (!(o.act || o.fr || (o.row && typeof o.row.i === 'number'))) { if (typeof sr.r === 'string') o.act = sr.r; else if (typeof sr.f === 'string') o.fr = sr.f; else if (typeof sr.l === 'string' && typeof sr.row === 'string' && typeof sr.i === 'number') o.row = { f: sr.l, r: sr.row, i: sr.i }; }
+    o.hit = id; return o;
+}
+function hitPick(anchor, need, go) {
+    var show = function(rows) {
+        if (!Array.isArray(rows)) { toast('No answer from the GM about where to aim. Try again.'); return; }
+        if (!rows.length) { go(null); return; }
+        if (_ldPop) closeLoadMenu();
+        var pop = el('div', 'sheet-dl-pop sheet-hit-pop'); pop.setAttribute('role', 'menu'); pop.setAttribute('aria-label', 'Where it is aimed'); pop._anchor = anchor;
+        var item = function(label, sub, id) { var b = el('button', 'sheet-dl-item'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.appendChild(el('span', 'sheet-dl-t', label)); b.appendChild(el('span', 'sheet-dl-s', sub)); b.addEventListener('click', function(e) { e.preventDefault(); closeLoadMenu(); go(id); }); pop.appendChild(b); };
+        item('No called shot', 'Aim at no one location', null);
+        rows.forEach(function(r) { if (r && typeof r.id === 'string' && typeof r.name === 'string') item(r.name, 'A location of your target', r.id); });
+        pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+        pop.addEventListener('keydown', function(e) {
+            e.stopPropagation(); if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+            e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {}
+        });
+        document.body.appendChild(pop); _ldPop = pop;
+        var r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 8, bottom: 8 }, nI = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (24 + 52 * Math.min(nI, 8)), r.bottom + 6)) + 'px';
+        document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
+        var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
+    };
+    if (isClient()) { var n = net(); if (!n || typeof n.hitRows !== 'function') { go(null); return; } n.hitRows(need.c.id, show); return; }
+    var mp = need.camp && need.camp.items && Object.prototype.hasOwnProperty.call(need.camp.items, need.mapId) ? need.camp.items[need.mapId] : null, w = mp && Array.isArray(mp.whiteboard) ? mp.whiteboard.find(function(x) { return x && x.id === need.tid; }) : null;
+    var tc = w && typeof w.charId === 'string' && need.camp.chars && Object.prototype.hasOwnProperty.call(need.camp.chars, w.charId) ? need.camp.chars[w.charId] : null;
+    show(tc ? targetHitRows(need.sys, tc, false) : []);
+}
+// [sinkcheck:hitmenu-end]
 // the press as it was made, kept for after the menu (an event's currentTarget is gone once it is dispatched)
 function pressOf(e, b) { return { shiftKey: !!(e && e.shiftKey), altKey: !!(e && e.altKey), currentTarget: (e && (e.modAt || e.currentTarget)) || b, preventDefault: function() {} }; }
 // [sinkcheck:allymenu-end]
@@ -6758,6 +6810,8 @@ function refreshErrors() {
         if (!tszF || ['number', 'formula', 'skill', 'resource'].indexOf(tszF.kind) < 0) rErr.push({ message: 'Target size reads: that field is gone or is no number, so Save drops it.' });
         else if (tszSec && Object.prototype.hasOwnProperty.call(tszSec, tszE)) rErr.push({ message: 'Target size reads: players cannot read that field, or it is worked out from one they cannot, so Save drops it.' });
     }
+    var thE = draft.combat && typeof draft.combat.targetHit === 'string' ? draft.combat.targetHit : '';   // 1.6.0 (B5): the list of hit locations, judged as the cleaner judges it
+    if (thE) { var thFe = (draft.fields || []).find(function(f) { return f && f.id === thE; }); if (!thFe || thFe.kind !== 'item-list') rErr.push({ message: 'Called shots read: that list is gone or is no list, so Save drops it.' }); }
     if (rErr.length) errorsById.range = (errorsById.range || []).concat(rErr);
     // item 19 H2: what Save drops of the height modifier, said under the Height box — read as the cleaner reads it
     var hgE = draft.combat && draft.combat.height && typeof draft.combat.height === 'object' && !Array.isArray(draft.combat.height) ? draft.combat.height : null, hErr = [];
@@ -9151,6 +9205,12 @@ function rangeBox(box, cm) {
         var rz = el('div', 'sys-flags sys-range-sizerow'); rz.appendChild(labeledSelect('sys-range-size', 'Target size reads', ro, cur, 'A number of the target\u2019s sheet. A roll reads it as TargetSize, as it reads TargetDistance. A field players cannot read Save drops.'));
         wrap.appendChild(rz);
     }
+    {   // 1.6.0 (B5): the list of a target's sheet whose rows are its hit locations; a roll reads the row its roller picks as Target.Hit.<name>
+        var hls = (draft.fields || []).filter(function(f) { return f && typeof f.id === 'string' && f.kind === 'item-list'; }).map(function(f) { return [f.id, f.label || f.key || f.id]; });
+        var curH = typeof cm.targetHit === 'string' ? cm.targetHit : '', roH = [['', 'None']].concat(hls); if (curH && !hls.some(function(o) { return o[0] === curH; })) roH.push([curH, 'One that is gone']);
+        var rh = el('div', 'sys-flags sys-range-aimrow'); rh.appendChild(labeledSelect('sys-range-hit', 'Called shots read', roH, curH, 'A list of the target\u2019s sheet whose rows are its hit locations. The roller picks one of the target\u2019s own rows, and a roll reads its stat or column as Target.Hit.<name>, as Target.Hit.pen.'));
+        wrap.appendChild(rh);
+    }
     var err = errorCell('range'); err.dataset.errFor = 'range'; wrap.appendChild(err);
     box.appendChild(wrap);
 }
@@ -9186,7 +9246,7 @@ function onChecksInput(t) {
 }
 function onRangeInput(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-range-') < 0) return false;
-    if (c.indexOf('sys-range-by') >= 0 || c.indexOf('sys-range-unit') >= 0 || c.indexOf('sys-range-size') >= 0) return true;   // their change events do the work
+    if (c.indexOf('sys-range-by') >= 0 || c.indexOf('sys-range-unit') >= 0 || c.indexOf('sys-range-size') >= 0 || c.indexOf('sys-range-hit') >= 0) return true;   // their change events do the work
     var rg = rangeDraft();
     if (c.indexOf('sys-range-formula') >= 0) rg.formula = t.value.slice(0, LIMITS.formula);
     else {
@@ -9200,6 +9260,7 @@ function onRangeInput(t) {
 function onRangeChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-range-') < 0) return false;
     if (c.indexOf('sys-range-size') >= 0) { var cmZ = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmZ.targetSize = t.value; else delete cmZ.targetSize; markDirty(); patchErrors(); return true; }   // 1.6.0: TargetSize's field
+    if (c.indexOf('sys-range-hit') >= 0) { var cmH = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmH.targetHit = t.value; else delete cmH.targetHit; markDirty(); patchErrors(); return true; }   // 1.6.0 (B5): the list of hit locations
     if (c.indexOf('sys-range-by') < 0 && c.indexOf('sys-range-unit') < 0) return true;   // the boxes' change events (their input events did the work)
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
     if (c.indexOf('sys-range-unit') >= 0) { var ru = rangeDraft(); if (typeof t.value === 'string' && Object.prototype.hasOwnProperty.call(RANGE_UNITS, t.value)) ru.unit = t.value; else delete ru.unit; markDirty(); patchErrors(); return true; }
@@ -10689,6 +10750,7 @@ function takeDamage(charId, pre) {
     var locs = rules.locs ? dmgRowsOf(sys, c, rules.locs.list) : [], lsel = el('select', 'dmg-loc');
     lsel.appendChild(new Option('No location', '')); locs.forEach(function(l) { lsel.appendChild(new Option(l.name, l.id)); });
     var dl = locs.filter(function(l) { return /^torso$/i.test(l.name); })[0] || locs.filter(function(l) { return /torso/i.test(l.name); })[0] || locs[0]; if (dl) lsel.value = dl.id;
+    if (typeof pre.loc === 'string' && locs.some(function(l) { return l.id === pre.loc; })) lsel.value = pre.loc;   // 1.6.0 (B5): where its roll was aimed, a row of this very character
     if (locs.length) row('Location', lsel, 'Where the blow lands. Its DR is taken off first.');
     var ad = el('input', 'dmg-ad'); ad.type = 'number'; ad.min = '0.1'; ad.step = '0.5'; ad.value = typeof pre.ad === 'number' && isFinite(pre.ad) && pre.ad > 0 ? String(pre.ad) : '1';   // 1.6.0: a card's roll may fill it in
     row('Armour divisor', ad, '1 for none. DR is divided by it.');
@@ -10776,12 +10838,15 @@ function majorFollow(c, info, vals) {
     return did;
 }
 // A damage roll's card: its total on the character its roller targets, else on the one character token selected here
+var _aimNext = '';   // 1.6.0 (B5): the location row a damage roll was aimed at (its card says it just before it asks), taken once by the window it opens
+function aimNext(id) { _aimNext = typeof id === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(id) ? id : ''; }
 function damageFromRoll(fromId, total, done, type, more) {   // 1.5.7: done, called once the window applies it; type, the damage type the roll names; more (1.6.0): { dice, ad }, the dice it rolled and the armour divisor its row names
     var n = net(), camp = getActiveCampaign(), t = n && dmgObj(n.targets) && typeof fromId === 'string' && Object.prototype.hasOwnProperty.call(n.targets, fromId) ? n.targets[fromId] : null;
     var mp = t && camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, t.mapId) ? camp.items[t.mapId] : null, tok = mp && Array.isArray(mp.whiteboard) ? mp.whiteboard.find(function(w) { return w && w.id === t.id; }) : null;
     if (!tok) { var am = camp && camp.items ? camp.items[camp.activeItemId] : null, sel = state.selWbIds && state.selWbIds.length === 1 ? state.selWbIds[0] : state.selWbId; if (am && Array.isArray(am.whiteboard) && sel) tok = am.whiteboard.find(function(w) { return w && w.id === sel; }); }
+    var aimD = _aimNext; _aimNext = '';
     if (!tok || typeof tok.charId !== 'string' || !tok.charId) { toast('Target a character first, or select its token, then press Apply to target again.'); return false; }
-    var pre = { amt: total }; if (typeof done === 'function') pre.done = done; if (typeof type === 'string' && type) pre.type = type;
+    var pre = { amt: total }; if (aimD) pre.loc = aimD; if (typeof done === 'function') pre.done = done; if (typeof type === 'string' && type) pre.type = type;
     if (dmgObj(more)) { if (typeof more.dice === 'number' && isFinite(more.dice) && more.dice > 0) pre.dice = more.dice; if (typeof more.ad === 'number' && isFinite(more.ad) && more.ad > 0) pre.ad = more.ad; if (more.major === true) pre.major = true; }   // 1.6.0: a roll ticked Always a Major Wound
     if (dmgObj(more) && dmgObj(more.part2) && typeof more.part2.amt === 'number' && isFinite(more.part2.amt) && more.part2.amt >= 0) { var p2m = { amt: Math.floor(more.part2.amt) }; if (typeof more.part2.type === 'string' && more.part2.type) p2m.type = more.part2.type; if (typeof more.part2.ad === 'number' && isFinite(more.part2.ad) && more.part2.ad > 0) p2m.ad = more.part2.ad; if (typeof more.part2.dice === 'number' && isFinite(more.part2.dice) && more.part2.dice > 0) p2m.dice = more.part2.dice; pre.part2 = p2m; }   // 1.6.0 (B3): the blow's second part, of another type
     return takeDamage(tok.charId, pre);
@@ -10795,7 +10860,7 @@ window.wpSheets = { bellNote: bellNote, majorFollow: majorFollow, envSoon: envSo
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, LIMITS: LIMITS,
     readerKit: function() { return { exportView: exportView, charById: charById, tokenFlags: tokenFlags, facingTarget: facingTarget, stanceCtx: stanceCtx, el: el, saveTextFile: saveTextFile, systemOf: systemOf, F: F, isClient: isClient, canWrite: canWrite, newCharacter: newCharacter, linkToken: linkToken, afterCharChange: afterCharChange, openReview: openReview, gmFinder: gmFinder, renderViews: renderViews, sheetOpen: function() { return sheetOpen; } }; } };   // what an outside reader's page code reads the sheet by
-Object.assign(window.wpSheets, { takeDamage: takeDamage, canDamage: canDamage, damageFromRoll: damageFromRoll, damageOn: damageOn });   // 1.5.6, the damage step
+Object.assign(window.wpSheets, { takeDamage: takeDamage, canDamage: canDamage, damageFromRoll: damageFromRoll, damageOn: damageOn, aimNext: aimNext });   // 1.5.6, the damage step
 
 // An outside sheet reader (2026-10-18): a module of the GM's own may stand beside the app, in the repository's private/ folder, which only the
 // development server serves (none ships with the app). It is asked for once, after the page has drawn and never in the stream window; it

@@ -1973,6 +1973,7 @@ function applySnapshot(msg) {
     if (typeof noteHostChar === 'function') Object.values(state.appState.campaigns || {}).forEach(function(cs) { if (cs && cs.chars && typeof cs.chars === 'object') Object.keys(cs.chars).forEach(function(id) { noteHostChar(cs.chars[id]); }); });   // item 35: and its looks, on our own whole copies alone
     if (typeof styleHostKnows === 'function') styleHostKnows(msg.looks);   // item 35: a host that knows text looks says so here; an older one says nothing
     if (typeof rowTextKnows === 'function') rowTextKnows(msg.rowText);   // 155: a host that keeps a row of its own's long text says so here; an older one would drop it unanswered
+    if (typeof hitsKnow === 'function') hitsKnow(msg.hits);   // 1.6.0 (B5): a host that answers which locations a target has says so here
     _sheetFilesOk = msg.sheetFiles === true;   // 2026-10-18: a host that reads a sheet file made elsewhere says so here, true only
     net.stanceCamps = cleanStanceCamps(msg.stanceCamps);   // null from an older host: msg.stance governs every campaign
     net.targets = cleanTargets(msg.targets);
@@ -5840,6 +5841,48 @@ net.tokUnseen = function(mapId, tokId) {
     return typeof fogLanded === 'function' ? fogLanded(mapId, judge) : judge();
 };
 // [netcheck:rangeto-end]
+// [netcheck:targethit-start]
+// 1.6.0 (B5, a called shot by the target's own location; the owner's handbook: "A body has only the locations its parts give it"): the location
+// row a roll's roller picked on its target's sheet, judged here. The target is the token the range was read to (rc, the token context's range:
+// its tid and mapId), a character token of a character of the campaign; the row one systemcore targetHitRows offers that roller (a player:
+// never a row kept from players, nor one of a GM-only list). A player's figure is worked out through the players' view alone (the target as
+// that view projects it); the GM's through the system, its secret() saying when a name it read gives players another figure. null: none
+function targetHitIn(camp, rc, rowId, pid) {
+    var S = SC(); if (!S || typeof S.targetHitFor !== 'function' || !camp || !camp.system || !rc || typeof rc.tid !== 'string' || typeof rc.mapId !== 'string' || typeof rowId !== 'string' || !camp.items || !own(camp.items, rc.mapId)) return null;
+    var map = camp.items[rc.mapId], w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === rc.tid; }) : null;
+    var tc = w && w.isChar && typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null; if (!tc) return null;
+    var view = window.wpSheets && typeof window.wpSheets.playerSystem === 'function' ? window.wpSheets.playerSystem(camp) : null;
+    var vtc = view && typeof S.charForView === 'function' ? S.charForView(tc, view, { lib: typeof fxLib === 'function' ? fxLib(camp.system) : undefined, items: typeof itemLib === 'function' ? itemLib(camp.system) : undefined, full: camp.system }) : null;
+    if (pid && (!view || !vtc)) return null;
+    return S.targetHitFor(camp.system, tc, rowId, window.wpFormula, { player: !!pid, view: view, vtc: vtc });
+}
+// ... and which rows a player may pick, asked before their roll (the branch hit-ask): their own pointer's target as their copy holds it, as
+// their roll's range is read (rangeTo: never a token the GM hid or their sight drops), each row as its id and its name and nothing else of the
+// target. null: no target, or no hit-locations list
+function targetHitAsk(camp, peer, pid, charId) {
+    var S = SC(); if (!S || typeof S.targetHitRows !== 'function' || typeof S.targetHitList !== 'function' || !camp || !camp.system || !S.targetHitList(camp.system) || typeof rangeTo !== 'function') return null;
+    var loc = net.roster && net.roster[peer] ? net.roster[peer].location : null, map = typeof loc === 'string' && camp.items && own(camp.items, loc) ? camp.items[loc] : null; if (!map) return null;
+    var rc = rangeTo(camp, map, loc, S.charTokenOn(map, charId, pid, { strict: true }), pid); if (!rc || typeof rc.tid !== 'string') return null;
+    var w = Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === rc.tid; }) : null, tc = w && typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null;
+    return tc ? { tid: rc.tid, rows: S.targetHitRows(camp.system, tc, true) } : null;
+}
+var hitLimit = null;
+// A player's app: a host that answers hit-ask says so in its join snapshot (hits: true, read as true only); an older one would stay silent, so
+// such a roll is rolled with no location picked, as before. net.hitRows asks the host for the rows of its own target (cb(rows), or cb(null)
+// when no answer comes); one question at a time, a newer one dropping the older unanswered
+var _hitAsk = null, _hitsOk = false;
+function hitsKnow(v) { _hitsOk = v === true; }
+net.hitsOk = function() { return net.role === 'client' ? _hitsOk : true; };
+net.hitRows = function(charId, cb) {
+    if (typeof cb !== 'function') return false;
+    if (!(net.active && net.role === 'client') || !_hitsOk || !net.foreign || !net.conns || !net.conns[0] || !net.conns[0].open || typeof charId !== 'string') { cb(null); return false; }
+    if (_hitAsk) { clearTimeout(_hitAsk.timer); _hitAsk = null; }
+    var rid = 'q' + Math.random().toString(36).slice(2, 10);
+    _hitAsk = { rid: rid, cb: cb, timer: setTimeout(function() { if (_hitAsk && _hitAsk.rid === rid) { var c0 = _hitAsk.cb; _hitAsk = null; try { c0(null); } catch (e) {} } }, 5000) };
+    try { net.conns[0].send({ type: 'hit-ask', rid: rid, charId: charId }); } catch (e) { clearTimeout(_hitAsk.timer); _hitAsk = null; cb(null); return false; }
+    return true;
+};
+// [netcheck:targethit-end]
 /* ---------- handouts (host) ----------
    revealHandout(hid, playerIds|null): resize the picture, send it to those players (all connected
    when null), record it on camp.handoutReveals so late joiners and reconnects get it too. A room
@@ -6427,7 +6470,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
     var snapOk = false;
     try {
-        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
+        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, hits: true, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
         if (typeof fogLanded === 'function') fogLanded(null, mkSnap); else mkSnap();   // fold M4: judged with every open drag at its start
         conn.send(snap); snapOk = true;
     } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + ' \u2014 something in it cannot be sent (the console has the details).'); if (typeof mapForgetConn === 'function') mapForgetConn(conn.peer); }
@@ -8410,6 +8453,7 @@ function handleMessage(msg, conn) {
             tcQ = SQ.withRound(tcQ, mapQ ? net.combatRoundOf(locQ, (SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }) || {}).id) : null);   // fold 2: the fight that holds their token, else the first begun on that map, as their own sheet reads it (net.combatRoundOf)
             if (typeof rangeTo === 'function' && SQ.withRange) tcQ = SQ.withRange(tcQ, rangeTo(campQ, mapQ, locQ, SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }), pidQ));   // range R2: RangeMod and TargetDistance, to their own target as their copy holds it   // HUD frame (HF5b): CombatRound reads the combat on the map they are on (the token context stays null without a token)
             chQ = srcQ; varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ);
+            if (q.hit) { var thQ0 = typeof targetHitIn === 'function' && typeof SQ.withTargetHit === 'function' ? targetHitIn(campQ, tcQ && tcQ.range, q.hit, pidQ) : null; if (!thQ0) { denyQ('error', { error: { message: 'That location is not on your target now.', pos: 0, len: 0 } }); return; } tcQ = SQ.withTargetHit(tcQ, thQ0); varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ); }   // 1.6.0 (B5): the location row they picked on their target, judged here and read through their view
             if (q.att && typeof attSoftGone === 'function' && attSoftGone(q.att)) delete q.att;
             if (q.att) { var atQ = typeof attemptPeek === 'function' ? attemptPeek(q.att, q.charId, q.act, q.row) : null; if (atQ === null || !SQ.withAttempt) { denyQ('error', { error: { message: typeof ATT_GONE === 'string' ? ATT_GONE : 'That attempt is not there now.', pos: 0, len: 0 } }); return; } tcQ = SQ.withAttempt(tcQ, atQ); var abQ = typeof attemptRec === 'function' ? attemptRec(q.att) : null; if (abQ && abQ.blow && SQ.withBlow) tcQ = SQ.withBlow(tcQ, abQ.blow); var cvB = abQ && abQ.blow && abQ.vals ? SQ.charFor(Object.assign({}, srcQ, { values: abQ.vals }), viewQ, pidQ, { lib: fxLib(campQ.system), items: itemLib(campQ.system), full: campQ.system }) : null; varsQ = SQ.makeResolver(viewQ, cvB || chvQ, Fq, tcQ); }   // 1.6.0 (B2): the attempt it resists, from the host's own record   // 1.6.0 (the core's gaps 6 and 7): or the blow it answers
             if (q.row && q.row.k) {   // 1.6.0 Rolls unheld entries: the entry as their view has it (a system item they see, else an entry of a pack players may see: never a GM-only one), judged by the one judge against the host's own copy, its level worked out here
@@ -8460,6 +8504,7 @@ function handleMessage(msg, conn) {
         if (recQ.dmg === 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgAdOf === 'function') { var adQ = SQ.dmgAdOf(actQ, varsQ, Fq); if (adQ) recQ.ad = adQ; }   // 1.6.0: the armour divisor its row names, worked out on the host (a player's app keeps no such key)
         if (recQ.dmg === 1 && recQ.major !== 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgMajorOf === 'function' && SQ.dmgMajorOf(actQ, varsQ, Fq)) recQ.major = 1;   // 1.6.0: A Major Wound where, worked out on the host through the roller's view (a list roll's row's names too); never from the roller's word
         if (recQ.dmg === 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgPart2Of === 'function' && campQ && campQ.system) { var p2Q = SQ.dmgPart2Of(campQ.system, actQ, varsQ, Fq); if (p2Q) recQ.dmg2 = p2Q; }   // 1.6.0 (B3): a second part of the blow, of another type, rolled here from the entry through the roller's view (their view drops one read from a GM-only value); never from the roller's word
+        if (recQ.dmg === 1 && q.hit) recQ.hit = q.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target (a player's app keeps no such key)
         if (resQ.breakdown && resQ.breakdown.names && resQ.breakdown.names.length) { var nmQ = Dq.cleanNames(resQ.breakdown.names); if (!nmQ) { denyQ('error'); return; } if (nmQ.length) recQ.names = nmQ; }
         if (recQ.names && typeof SQ !== 'undefined' && SQ && typeof SQ.rollMods === 'function' && typeof varsQ === 'function') { var mdQ = SQ.rollMods(varsQ, recQ.names); if (mdQ) recQ.mods = mdQ; }
         if (recQ.names && typeof SQ !== 'undefined' && SQ && typeof SQ.rollRefs === 'function' && typeof varsQ === 'function') { var rfQ = SQ.rollRefs(varsQ, recQ.names); if (rfQ) recQ.refs = rfQ; }   // 1.6.0 Specialties: the case each reference used, worked out through the player's view
@@ -8487,6 +8532,23 @@ function handleMessage(msg, conn) {
             else if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === false && typeof window.wpLaunchMiss === 'function') window.wpLaunchMiss({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ && tcQ.range && typeof tcQ.range.tid === 'string' ? tcQ.range.tid : '', mapId: tcQ && tcQ.range && typeof tcQ.range.mapId === 'string' ? tcQ.range.mapId : '', margin: vdQ.margin, crit: ((typeof Dq.checkOf === 'function' ? Dq.checkOf(resQ, ruleQ) : null) || vdQ).crit === 'fumble' ? 'fumble' : '' });   // 1.5.9 (es): a miss lands as its round says, by the verdict's margin (a round that says nothing: the GM places it); its critical failure read as a throw's is, by every system's own (the review of fold 2: a d20's natural 1 too)
         }
         // [netcheck:rollreq-end]
+    } else if (msg.type === 'hit-ask' && net.role === 'host') {
+        // [netcheck:hitask-start]
+        // 1.6.0 (B5): a player asks which locations their own target has, before a roll that reads Target.Hit: admitted (the gate above), their
+        // own character in play, limited; answered with the rows a pick of theirs may name (targetHitAsk), as id and name, and nothing else
+        var Dh = DC(), ridH = Dh ? Dh.cleanRid(msg) : null; if (!ridH || typeof msg.charId !== 'string' || !/^c_[A-Za-z0-9_]{1,24}$/.test(msg.charId)) return;
+        if (!hitLimit) hitLimit = Dh.RateLimit(Dh.LIMITS); if (hitLimit.allow(conn.peer, Date.now()) !== true) return;
+        var campH = getActiveCampaign(), pidH = peerProfileId(conn), chH = campH && campH.chars && own(campH.chars, msg.charId) ? campH.chars[msg.charId] : null;
+        var anH = chH && !chH.npc && pidH && chH.ownerId === pidH && chH.making !== 1 && typeof targetHitAsk === 'function' ? targetHitAsk(campH, conn.peer, pidH, msg.charId) : null;
+        try { conn.send({ type: 'hit-rows', rid: ridH, rows: anH ? anH.rows : [] }); } catch (e) { sendFailed(e); }
+        // [netcheck:hitask-end]
+    } else if (msg.type === 'hit-rows' && net.role === 'client') {
+        // [netcheck:hitrows-start]
+        // 1.6.0 (B5): the host's answer to our hit-ask, from the synced host only, for the question still open: each row an id and a name as text
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !_hitAsk || msg.rid !== _hitAsk.rid) return;
+        var rowsH = []; (Array.isArray(msg.rows) ? msg.rows : []).slice(0, 40).forEach(function(r) { if (!r || typeof r !== 'object' || typeof r.id !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(r.id) || typeof r.name !== 'string' || rowsH.some(function(x) { return x.id === r.id; })) return; var nmH = r.name.slice(0, 60).replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, ' ').trim(); rowsH.push({ id: r.id, name: nmH || 'A location' }); });
+        var cbH = _hitAsk.cb; clearTimeout(_hitAsk.timer); _hitAsk = null; try { cbH(rowsH); } catch (e) {}
+        // [netcheck:hitrows-end]
     } else if (msg.type === 'apply' && net.role === 'client') {
         // [netcheck:applyin-start]
         // Stage 6 HUD H7: an apply action's card, from the synced host only — text and numbers, cleaned like a roll's record
@@ -9771,6 +9833,7 @@ net.diceRoll = function(expr, o) {
         if (o.row && o.charId) { req.row = { f: String(o.row.f), r: String(o.row.r) }; if (typeof o.row.k === 'string') req.row = { f: String(o.row.f), k: o.row.k }; if (typeof o.row.i === 'number') req.row.i = o.row.i; if (typeof o.row.i === 'number' && typeof o.row.lv === 'number') req.row.lv = o.row.lv; }   // R2b: a list's roll with consequences or needs names its index
         if (o.charId && ((o.act && !o.row) || (o.fr && !o.act && !o.row) || (o.row && typeof o.row.i === 'number'))) { if (o.act && !o.row) req.act = String(o.act); if (o.fr && !o.act && !o.row) req.fr = String(o.fr); if (Array.isArray(o.sw) && o.sw.length) req.sw = o.sw.slice(0, D.LIMITS.swPicks).map(function(x) { return { s: String(x && x.s), i: x && x.i }; }); if (o.mod) req.mod = o.mod; if (o.adv) req.adv = o.adv; if (typeof o.on === 'string' && o.on) req.on = o.on.slice(0, 80); }   // 1.5.9: on, the token of the adjacent character it is used on (the host judges it)   // Stage 6 HUD R1: the entry, its modifier and advantage (the host rebuilds the formula)   // Stage 6 F5b: a roll on a row
         if (typeof o.att === 'string' && o.charId && ((o.act && !o.row) || (o.row && !o.act && typeof o.row.i === 'number' && typeof o.row.r === 'string'))) req.att = o.att;   // 1.6.0: or beside a list's roll on one row   // 1.6.0 (B2): the attempt a resist roll answers
+        if (typeof o.hit === 'string' && o.charId && (req.act || req.fr || (req.row && typeof req.row.i === 'number' && typeof req.row.r === 'string'))) req.hit = o.hit;   // 1.6.0 (B5): the location row picked on their target, beside a named roll (the host judges it)
         _dicePending = { rid: rid, expr: expr, charId: o.charId || '', timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); }, D.LIMITS.timeoutMs) };
         try { net.conns[0].send(req); } catch (e) { clearTimeout(_dicePending.timer); _dicePending = null; return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
@@ -9779,6 +9842,7 @@ net.diceRoll = function(expr, o) {
     if (o.charId) { chR = (campR && campR.chars && typeof o.charId === 'string' && Object.prototype.hasOwnProperty.call(campR.chars, o.charId) ? campR.chars[o.charId] : null); if (!chR || !campR.system || !SR) return { error: D.denyText('char') }; tcR = window.wpSheets && window.wpSheets.tokenCtxFor ? window.wpSheets.tokenCtxFor(chR.id, campR) : null; varsR = SR.makeResolver(campR.system, chR, F, tcR); }
     if (chR && o.range && typeof o.range === 'object' && SR && SR.withRange) { tcR = SR.withRange(tcR || {}, o.range); varsR = SR.makeResolver(campR.system, chR, F, tcR); }
     if (chR && o.cross && typeof o.cross === 'object' && SR && typeof SR.withCross === 'function') { tcR = SR.withCross(tcR, o.cross); varsR = SR.makeResolver(campR.system, chR, F, tcR); }   // 1.6.0: a crossing's run reads CrossStep and Crossed (this machine's own word, never over the wire)   // 1.5.8 explosives: a throw's range to the point it aims at (this machine's own word, never over the wire)
+    var thR = null; if (chR && typeof o.hit === 'string') { thR = typeof targetHitIn === 'function' && SR && typeof SR.withTargetHit === 'function' ? targetHitIn(campR, tcR && tcR.range, o.hit, '') : null; if (!thR) return { error: 'That location is not on the target now.' }; tcR = SR.withTargetHit(tcR, thR); varsR = SR.makeResolver(campR.system, chR, F, tcR); }   // 1.6.0 (B5): the location row picked on its target, this machine's own word
     if (chR && typeof o.att === 'string' && typeof attSoftGone === 'function' && attSoftGone(o.att)) o = Object.assign({}, o, { att: undefined });
     if (chR && typeof o.att === 'string') { var atR = typeof attemptPeek === 'function' ? attemptPeek(o.att, chR.id, o.act, o.row) : null; if (atR === null || !SR.withAttempt) return { error: typeof ATT_GONE === 'string' ? ATT_GONE : 'That attempt is not there now.' }; tcR = SR.withAttempt(tcR, atR); var abR = typeof attemptRec === 'function' ? attemptRec(o.att) : null; if (abR && abR.blow && SR.withBlow) tcR = SR.withBlow(tcR, abR.blow); varsR = SR.makeResolver(campR.system, abR && abR.blow && abR.vals ? Object.assign({}, chR, { values: abR.vals }) : chR, F, tcR); }   // 1.6.0 (B2): the attempt it resists, from this machine's own record   // 1.6.0 (the core's gaps 6 and 7): or the blow it answers
     var rowP = null;
@@ -9822,6 +9886,7 @@ net.diceRoll = function(expr, o) {
     if (rec.dmg === 1 && entR && SR && typeof SR.dmgAdOf === 'function' && typeof entR.ad === 'string' && entR.ad) { var adN = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, F.names(entR.ad), F, uDefR || undefined) : { names: F.names(entR.ad).map(function(n) { return { name: n }; }) }, adR = adN.gm || SR.gmOnlyNames(campR.system, adN.names).concat(SR.gmDerivedNames(campR.system, F, adN.names)).length ? 0 : SR.dmgAdOf(entR, varsR, F); if (adR) rec.ad = adR; }   // 1.6.0: the armour divisor its row names, for Apply to target; never one read from a GM-only value, as the record travels to the table
     if (rec.dmg === 1 && rec.major !== 1 && entR && SR && typeof SR.dmgMajorOf === 'function' && typeof entR.dmgMajorIf === 'string' && entR.dmgMajorIf) { var mjN = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, F.names(entR.dmgMajorIf), F, uDefR || undefined) : { names: F.names(entR.dmgMajorIf).map(function(n) { return { name: n }; }) }; if (!(mjN.gm || SR.gmOnlyNames(campR.system, mjN.names).concat(SR.gmDerivedNames(campR.system, F, mjN.names)).length) && SR.dmgMajorOf(entR, varsR, F)) rec.major = 1; }   // 1.6.0: A Major Wound where, for Apply to target; never from a GM-only value, as the armour divisor, since the record travels to the table
     if (rec.dmg === 1 && entR && SR && typeof SR.dmgPart2Of === 'function' && campR && campR.system) { var p2R = SR.dmgPart2Of(campR.system, entR, varsR, F); if (p2R) rec.dmg2 = p2R; }   // 1.6.0 (B3): a second part of the blow, of another type, rolled from the entry (its card says its amount, so a GM-only one keeps the roll private, below)
+    if (rec.dmg === 1 && thR) rec.hit = o.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target
     if (rec.dmg === 1 && typeof o.blast === 'string' && /^b_[a-z0-9]{1,16}$/.test(o.blast)) rec.blast = o.blast;   // 1.5.8 explosives: the blast this damage is for (this machine's own word): the card's Apply to all in the blast
     if (rec.dmg === 1 && o.used === true) rec.dmgUsed = 1;   // 1.5.9 (es): this machine's own word, a damage roll already applied as it is rolled (a blast's fragmentation): its card says Applied (the cleaner of a player's app keeps no such key)
     if (res.breakdown && res.breakdown.names && res.breakdown.names.length) { var nmR = D.cleanNames(res.breakdown.names); if (!nmR) return { error: 'That roll could not be recorded.' }; if (nmR.length) rec.names = nmR; }
@@ -9842,6 +9907,7 @@ net.diceRoll = function(expr, o) {
     else if (hosting && swR && swR.names.some(function(x) { return x.gm; })) { rec.priv = 'gm'; toast('Kept private: it adds a GM-only bonus (' + swR.names.filter(function(x) { return x.gm; }).map(function(x) { return x.n; }).join(', ') + ').'); }   // 1.6.0: a roll switch of a GM-only item or effect
     else if (hosting && o.gmOnly) { rec.priv = 'gm'; toast('Kept private: that roll is GM only' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // the caller's word: a GM-only field's own roll, a GM-only roll, a GM-only item's damage — its label and formula are the GM's
     else if (gmR.length) { rec.priv = 'gm'; toast('Kept private: that roll uses a GM-only value (' + gmR.join(', ') + ').'); }   // a public roll never carries a GM-only value
+    else if (hosting && thR && thR.secret()) { rec.priv = 'gm'; toast('Kept private: it reads a figure of its target\u2019s location that players do not see' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // 1.6.0 (B5): a GM-only row, or a figure worked out from a GM-only value
     else if (hosting && tcR && tcR.range && typeof rangeUnseen === 'function' && typeof rangeReadBy === 'function' && rangeUnseen(campR, tcR.range, '') && rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row && o.row.k ? null : o.row)) { rec.priv = 'gm'; toast('Kept private: a player on that map cannot see its target' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // range R3: its card would tell them how far it is
     else if (hosting && rowP && SR && varsR && SR.gmEffectNames(varsR, rowP.names).length) { rec.priv = 'gm'; toast('Kept private: a GM-only effect changes ' + SR.gmEffectNames(varsR, rowP.names).join(', ') + '.'); }   // F5b: through a column
     else if (hosting && rec.names && SR && varsR && SR.gmEffectNames(varsR, rec.names).length) { rec.priv = 'gm'; toast('Kept private: a GM-only effect changes ' + SR.gmEffectNames(varsR, rec.names).join(', ') + '.'); }   // 5h: nor a number a GM-only effect moved

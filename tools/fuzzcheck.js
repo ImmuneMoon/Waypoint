@@ -1008,6 +1008,7 @@ function mutations(tpl) {
             'char-delete': { type: 'char-delete', rid: 'r12d', charId: 'c_p1' },
             'char-ask': { type: 'char-ask', rid: 'r12a', charId: 'c_p1', fieldId: 'f_inv', rowId: 'w_x', stats: { wt: 2 } },   // 1.5.5: an ask for a copy's stats; this world's system has no ask rule
             'char-token': { type: 'char-token', rid: 'r13', name: 'Just Tok' },
+            'hit-ask': { type: 'hit-ask', rid: 'r13h', charId: 'c_p1' },   // 1.6.0 (B5): which locations their target has; this world's system names no list of hit locations, so the answer holds none
             'tok-pic': { type: 'tok-pic', rid: 'r14', mapId: 'm_open', wbId: 'tok_p1plain', img: 'data:image/png;base64,iVBORw0KGgo=' },
             'tok-light': { type: 'tok-light', rid: 'r15', mapId: 'm_open', wbId: 'tok_p1', on: true, preset: 0, name: 'Torch' },
             'my-look': { type: 'my-look', face: '🙂' },
@@ -1196,6 +1197,7 @@ function mutations(tpl) {
         'char-delete': o => o.p1.some(m => m.type === 'char-delete-ans' && m.reason === 'inplay'),
         'char-ask': o => o.p1.some(m => m.type === 'char-ask-ans' && typeof m.reason === 'string') && !(campH().uploads || []).some(u => u && u.ask === true),
         'char-token': o => o.p1.some(m => m.type === 'char-token-ans' && m.reason === 'have'),
+        'hit-ask': o => o.p1.some(m => m.type === 'hit-rows' && m.rid === 'r13h' && Array.isArray(m.rows) && m.rows.length === 0),
         'tok-pic': o => rec.pics.length === 1 && o.p1.some(m => m.type === 'tok-pic-ans' && m.ok === true),
         'tok-light': o => tokH('tok_p1').light && tokH('tok_p1').light.name === 'Torch' && o.p1.some(m => m.type === 'tok-light-ans' && m.ok === true) && o.p2.some(m => m.type === 'item' || m.type === 'itemDelta'),
         'my-look': o => net.roster.peer_p1.face === '\ud83d\ude42' && o.p2.some(m => m.type === 'roster'),

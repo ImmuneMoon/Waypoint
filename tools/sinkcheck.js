@@ -5600,6 +5600,44 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && j(r3.items) === j([['Yourself', 'On <b>Kael</b>'], [BAD, 'Next to you']]) && [r1, r2, r3].every(r => r.world.markup === 0),
             j([r1.items, r1.got, r2.got, r3.items, [r1, r2, r3].map(r => r.world.markup)]));
     }
+    // 1.6.0 (B5, a called shot by the target's own location): the sheet's menu of where a roll is aimed (sheets.js hitPick and hitNamed, sliced by
+    // their hitmenu markers and run for real on a page of plain objects that refuses markup): the target's own rows, each name a text node
+    {
+        const j = JSON.stringify;
+        const shH = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const aH = shH.indexOf('// [sinkcheck:hitmenu-start]'), bH = shH.indexOf('// [sinkcheck:hitmenu-end]');
+        const mkDoc = () => { const world = { markup: 0, body: [] };
+            const mk = tag => { const e = { tag, className: '', children: [], attrs: {}, style: {}, listeners: {}, type: '', _t: '',
+                get textContent() { return this._t + this.children.map(c => c.textContent).join(''); }, set textContent(v) { this._t = String(v); this.children = []; },
+                set innerHTML(v) { world.markup++; }, get innerHTML() { return ''; }, set outerHTML(v) { world.markup++; }, insertAdjacentHTML() { world.markup++; },
+                appendChild(c) { this.children.push(c); return c; }, setAttribute(k, v) { this.attrs[k] = String(v); }, addEventListener(k, f) { (this.listeners[k] = this.listeners[k] || []).push(f); },
+                querySelector(s) { const all = []; const walk = n => n.children.forEach(k => { all.push(k); walk(k); }); walk(this); return all.find(k => (' ' + k.className + ' ').indexOf(' ' + s.slice(1) + ' ') >= 0) || null; },
+                querySelectorAll(s) { const all = []; const walk = n => n.children.forEach(k => { all.push(k); walk(k); }); walk(this); return all.filter(k => (' ' + k.className + ' ').indexOf(' ' + s.slice(1) + ' ') >= 0); },
+                focus() {}, getBoundingClientRect() { return { left: 10, bottom: 20, top: 0, right: 40 }; } }; return e; };
+            const doc = { createElement: mk, body: { appendChild(c) { world.body.push(c); return c; } }, addEventListener() {}, activeElement: null }; return { doc, world }; };
+        const BAD = '<img src=x onerror=alert(1)>Servo-arm';
+        const camp = { items: { m1: { whiteboard: [{ id: 't_u', charId: 'c_u' }] } }, chars: { c_u: { id: 'c_u', name: 'Unit' } } };
+        const runH = (rowsGm, client, answer) => { const { doc, world } = mkDoc(), got = [], toasts = [], asked = [];
+            const n = { hitRows: (cid, cb) => { asked.push(cid); cb(answer); } };
+            const api = new Function('document', 'window', 'net', 'isClient', 'toast', 'targetHitRows', 'closeLoadMenu', 'ldOutside', 'ldKey', 'getActiveCampaign', 'systemOf', 'charById', 'tokenCtxFor', 'F',
+                'var _ldPop = null;\nfunction el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }\n' + shH.slice(aH, bH) + '\nreturn { hitPick: hitPick, hitNamed: hitNamed, hitNeed: hitNeed };')(
+                doc, { innerWidth: 800, innerHeight: 600 }, () => n, () => !!client, t => toasts.push(t), () => rowsGm, () => {}, () => {}, () => {}, () => camp, () => ({}), () => null, () => null, () => null);
+            api.hitPick({ getBoundingClientRect() { return { left: 10, bottom: 20 }; } }, { c: { id: 'c_a' }, camp, sys: {}, tid: 't_u', mapId: 'm1' }, id => got.push(id));
+            const pop = world.body[0] || null, items = pop ? pop.querySelectorAll('.sheet-dl-item') : [];
+            return { api, world, got, toasts, asked, items: items.map(b => [b.children[0].textContent, b.children[1].textContent]), click: k => items[k].listeners.click.forEach(f => f({ preventDefault() {}, stopPropagation() {} })) }; };
+        const g1 = runH([{ id: 'w_srv', name: BAD }, { id: 'w_tor', name: 'Torso' }], false);
+        g1.click(1);
+        const g0 = runH([{ id: 'w_tor', name: 'Torso' }], false); g0.click(0);
+        const p1 = runH([], true, [{ id: 'w_srv', name: BAD }]); p1.click(1);
+        const pNone = runH([], true, []), pGone = runH([], true, null), gEmpty = runH([], false);
+        const nm1 = g1.api.hitNamed({ priv: true }, { r: 'r_aim' }, 'w_srv'), nm2 = g1.api.hitNamed(undefined, { l: 'f_gear', row: 'w_g', i: 1 }, 'w_tor'), nm3 = g1.api.hitNamed({ act: 'r_x' }, { f: 'f_y' }, 'w_tor');
+        check('1.6.0 (B5) a called shot, the sheet\'s menu of where a roll is aimed (sheets.js hitPick and hitNamed, run for real on a page that refuses markup): No called shot first, then each of the target\'s own locations, every name a text node and a hostile name as the very text; a pick hands on that row\'s id and No called shot nothing; a player\'s app asks the host for its own character, and with no answer says so and rolls nothing, with no location rolls at once; the roll named for the host as its \u00b1 window names one; no markup is ever written',
+            j(g1.items) === j([['No called shot', 'Aim at no one location'], [BAD, 'A location of your target'], ['Torso', 'A location of your target']]) && j(g1.got) === j(['w_srv']) && j(g0.got) === j([null])
+            && j(p1.asked) === j(['c_a']) && j(p1.items.map(i => i[0])) === j(['No called shot', BAD]) && j(p1.got) === j(['w_srv'])
+            && j(pNone.got) === j([null]) && !pNone.world.body.length && pGone.got.length === 0 && pGone.toasts.length === 1 && !pGone.world.body.length && j(gEmpty.got) === j([null])
+            && j(nm1) === j({ priv: true, act: 'r_aim', hit: 'w_srv' }) && j(nm2) === j({ row: { f: 'f_gear', r: 'w_g', i: 1 }, hit: 'w_tor' }) && j(nm3) === j({ act: 'r_x', hit: 'w_tor' })
+            && [g1, g0, p1, pNone, pGone, gEmpty].every(r => r.world.markup === 0), j([g1.items, g1.got, p1.items, p1.got, pNone.got, pGone, nm1, nm2, nm3]));
+    }
     // Backlog 29 (1.6.0): a tracker's pill (trackers.js clockSvg and pill, sliced by their trkpill markers and run for real on the boxdom page,
     // which refuses markup) draws a name from a file or a host as text, a colour only from trackcore's fixed list, and a clock from numbers alone
     {

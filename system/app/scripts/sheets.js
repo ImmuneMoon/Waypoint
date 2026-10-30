@@ -1043,7 +1043,7 @@ function renderSheet() {
     var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';   // 126: the point budgets, under the head
     var lkB = ui('sheetLinks'); if (lkB) lkB.style.display = linkBar(lkB, sys, c, camp, lockedS) ? '' : 'none';   // 1.6.0: the linked sheets, under the budgets
     if (typeof renderStaleBar === 'function') renderStaleBar(c, camp, gm, own);   // 1.6.0 (backlog 190): an out-of-date sheet says so
-    var rvB = ui('sheetReview'), rvN = gm ? uploadsOf(camp, c.id) : []; if (rvB) { rvB.style.display = rvN.length ? '' : 'none'; if (rvN.length) rvB.textContent = 'Review (' + rvN[0].changes.length + ')'; }   // U3: the GM's review of it
+    var rvB = ui('sheetReview'), rvN = gm ? uploadsOf(camp, c.id) : []; if (rvB) { rvB.style.display = rvN.length ? '' : 'none'; if (rvN.length) { var rvC = rvN[0].changes.filter(function(x) { return !x || x.kind !== 'note'; }).length; rvB.textContent = rvC ? 'Review (' + rvC + ')' : 'Review'; } }   // U3: the GM's review of it
     var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + (sys.sheet.hud.title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
     p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
     var all = resolveAll(sys, c, F(), tokenCtxFor(c.id, camp));   // 5h Fold 3 / Stage 6: the token names read this character's token
@@ -6113,11 +6113,13 @@ function openReview(charId, mine, pick) {   // mine: the GM's own file, read on 
         return a && a.reason === 'same' ? Object.assign({}, ch, { accept: false, now: true }) : ch;
     }) });
     _review = { upId: up.id }; var ticks = {};
-    up.changes.forEach(function(ch) { ticks[ch.id] = ch.accept === true; });
-    var head = ui('uploadHead'), list = ui('uploadList'); head.textContent = (up.own === true ? 'Your file for ' : up.ask === true ? up.name + ' asks to change ' : up.name + '\u2019s sheet update for ') + c.name + ' \u2014 ' + up.changes.length + (up.changes.length === 1 ? ' change' : ' changes');
+    var realC = up.changes.filter(function(ch) { return ch.kind !== 'note'; }), noteC = up.changes.length - realC.length;   // 1.6.0: a note is read: it has no tick and is no change in any count
+    realC.forEach(function(ch) { ticks[ch.id] = ch.accept === true; });
+    var head = ui('uploadHead'), list = ui('uploadList'); head.textContent = (up.own === true ? 'Your file for ' : up.ask === true ? up.name + ' asks to change ' : up.name + '\u2019s sheet update for ') + c.name + ' \u2014 ' + (realC.length || !noteC ? realC.length + (realC.length === 1 ? ' change' : ' changes') : '') + (noteC ? (realC.length ? ', ' : '') + noteC + (noteC === 1 ? ' note' : ' notes') : '');
     list.textContent = '';
     var KIND = { value: 'Value', add: 'New row', fact: 'Row', stat: 'Its own values', def: 'Its numbers', remove: 'Not in the file' };
     up.changes.forEach(function(ch) {
+        if (ch.kind === 'note') { var nRow = el('div', 'upl-row upl-line'); nRow.appendChild(el('span', 'upl-tick')); nRow.appendChild(el('span', 'upl-kind', 'Note')); nRow.appendChild(el('span', 'upl-label', ch.label)); nRow.appendChild(el('span', 'upl-from', ch.from || '')); nRow.appendChild(el('span', 'upl-arrow', ch.from || ch.to ? '\u2192' : '')); nRow.appendChild(el('span', 'upl-to', ch.to || '')); list.appendChild(nRow); return; }   // 1.6.0: no tick: nothing to apply
         var row = el('label', 'upl-row' + (ch.kind === 'remove' ? ' upl-remove' : '') + (ch.held ? ' upl-held' : ''));
         var box = el('input'); box.type = 'checkbox'; box.checked = ticks[ch.id]; box.addEventListener('change', function() { ticks[ch.id] = box.checked; count(); });
         row.appendChild(box);
@@ -6148,13 +6150,13 @@ function openReview(charId, mine, pick) {   // mine: the GM's own file, read on 
         if (up.rev === true && window.wpSystemCore && typeof window.wpSystemCore.sheetRevOf === 'function') { var srA = window.wpSystemCore.sheetRevOf(sys); if (srA) { ch2.sheetRev = srA; if (window.wpStepLog) window.wpStepLog('sheetrev v1', 'current', { by: 'review', changes: r.done }); } }   // 1.6.0 (backlog 190): approved: current
         cmp.uploads = (Array.isArray(cmp.uploads) ? cmp.uploads : []).filter(function(u) { return !u || u.id !== up.id; });
         afterCharChange(ch2, true);
-        var n2 = net(); if (up.own !== true && n2 && n2.uploadDone) n2.uploadDone(up.charId, r.done, up.changes.length);
-        toast(r.done + ' of ' + up.changes.length + ' changes applied to ' + ch2.name + (r.failed ? ' (' + r.failed + ' no longer applied)' : '') + '.');
+        var n2 = net(); if (up.own !== true && n2 && n2.uploadDone) n2.uploadDone(up.charId, r.done, realC.length);
+        toast(r.done + ' of ' + realC.length + ' changes applied to ' + ch2.name + (r.failed ? ' (' + r.failed + ' no longer applied)' : '') + '.');
         closeReview();
     };
     rej.onclick = function() {
         var cmp = getActiveCampaign(); if (stale(cmp)) return; cmp.uploads = (Array.isArray(cmp.uploads) ? cmp.uploads : []).filter(function(u) { return !u || u.id !== up.id; });
-        save(true); var n2 = net(); if (up.own !== true && n2 && n2.uploadDone) n2.uploadDone(up.charId, 0, up.changes.length);
+        save(true); var n2 = net(); if (up.own !== true && n2 && n2.uploadDone) n2.uploadDone(up.charId, 0, realC.length);
         toast('Kept ' + c.name + ' as it was.'); closeReview(); renderViews(c.id);
     };
     m.style.display = 'flex';

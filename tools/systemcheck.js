@@ -6679,6 +6679,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         };
         const upOf = rd => Object.assign({ id: 'up_a', charId: 'c_1', from: 'u_a', name: 'Pat', at: 1, changes: [{ id: 'u_1', kind: 'value', f: 'f_st', label: 'ST', from: '10', to: '14', value: 14, accept: true },
             { id: 'u_3', kind: 'fact', f: 'f_sk', row: 'w_a', label: 'Skills: Climbing', from: '12', to: '15', facts: { lvl: 15 }, accept: true }, { id: 'u_5', kind: 'add', f: 'f_sk', label: 'Skills: Juggling', from: '', to: 'Juggling', ops: [{ op: 'custom', rowId: 'w_c', def: { name: 'Juggling' } }], accept: false }] }, rd ? { reader: rd } : {});
+        {   /* 1.6.0: a note in the Review: read, never ticked or applied, and no change in any count */
+            const qN = S.cleanUploads([{ id: 'up_n', charId: 'c_1', changes: [{ id: 'u_n', kind: 'note', label: '  Was converted  ', from: 'a', to: 'b', accept: true, value: 9, f: 'f_st' }, { id: 'u_m', kind: 'note', label: 'No field' }, { id: 'u_e', kind: 'note', label: '   ' }, { id: 'u_b', kind: 'note', label: 'Bad field', f: '<b>' }] }])[0];
+            check('1.6.0 cleanUploads keeps a note: its words, its from and to, a field only where it is one, and none of what a change carries (no accept, no value); a note with no words goes',
+                j(qN.changes) === j([{ id: 'u_n', kind: 'note', label: 'Was converted', from: 'a', to: 'b', f: 'f_st' }, { id: 'u_m', kind: 'note', label: 'No field', from: '', to: '' }, { id: 'u_b', kind: 'note', label: 'Bad field', from: '', to: '' }]), j(qN.changes));
+            const apN = S.applyProposal(sysP, chP(), { changes: [{ id: 'u_n', kind: 'note', f: 'f_st', label: 'x', value: 99 }] }, { u_n: true }, F);
+            check('1.6.0 applyProposal passes a note over, ticked or not: nothing done, nothing failed, nothing changed', apN.done === 0 && apN.failed === 0 && j(apN.values) === j(chP().values), j(apN));
+            const withN = Object.assign({ id: 'up_b', charId: 'c_1', from: 'u_a', name: 'Pat', at: 1, changes: [{ id: 'u_1', kind: 'value', f: 'f_st', label: 'ST', from: '10', to: '14', value: 14, accept: true }, { id: 'u_n', kind: 'note', label: 'Flagged by the site' }] }), vN = review(withN), onlyN = review({ id: 'up_c', charId: 'c_1', from: 'u_a', name: 'Pat', at: 1, changes: [{ id: 'u_n', kind: 'note', label: 'Flagged by the site' }] });
+            check('1.6.0 the Review with a note (openReview, run for real): the heading counts the changes and then the notes, Apply counts only what can be ticked, the toast and the word to its player count no note; with notes alone the heading says so and Apply is off',
+                / \u2014 1 change, 1 note$/.test(vN.head) && vN.label === 'Apply 1 change' && j(vN.rec.toasts) === j(['1 of 1 changes applied to Ana.']) && j(vN.rec.done) === j([['c_1', 1, 1]]) && vN.st === 14
+                && / \u2014 1 note$/.test(onlyN.head) && onlyN.dis === true, j([vN.head, vN.label, vN.rec, onlyN.head, onlyN.dis]));
+        }
         const seenR = [], RV = mkR('revw', 'Review test', { rowOp: (sys, ch, fid, q, F2, o) => { seenR.push([fid, q.op]); return S.applyRowOp(sys, ch, fid, q, F2, o); } });
         const vPlain = review(upOf(null));
         S.registerReader(RV); let vRd = null; try { vRd = review(upOf('revw')); } finally { S.dropReader('revw'); }

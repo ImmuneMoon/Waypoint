@@ -7779,19 +7779,21 @@ function handleMessage(msg, conn) {
             prU.changes = prU.changes.filter(function(ch) { return doneU[ch.id] !== true; });
         }
         if (prU.changes.length || staleU) {   // an out-of-date character's new sheet waits for the GM even where it changes nothing: applying it makes the character current
+            var nU = prU.changes.filter(function(ch) { return !ch || ch.kind !== 'note'; }).length;   // 1.6.0: a note is no change in any count
             var upsU = (Array.isArray(campU.uploads) ? campU.uploads : []).filter(function(u) { return u && (u.charId !== qu.charId || u.ask === true); });   // 1.5.5: a player's asks for that character stay   // a newer upload of the same character replaces the older
             var idU = 'up_' + nowU.toString(36) + Math.random().toString(36).slice(2, 6);
             var entU = { id: idU, charId: qu.charId, from: profU.id, name: String(profU.name || 'A player').slice(0, 60), at: nowU, changes: prU.changes }; if (rdU) entU.reader = rdU.id; if (staleU) entU.rev = true; upsU.push(entU);   // the reader that read it applies it
             campU.uploads = upsU.slice(-Su.LIMITS.uploads);
-            var tU = (profU.name || 'A player') + (staleU ? ' sent a new sheet for ' : ' sent a sheet update for ') + (chU.name || 'their character') + (staleU ? ' (out of date)' : '') + ': ' + prU.changes.length + (prU.changes.length === 1 ? ' change' : ' changes') + ' to review (the gold Review button in the header).';
+            var tU = (profU.name || 'A player') + (staleU ? ' sent a new sheet for ' : ' sent a sheet update for ') + (chU.name || 'their character') + (staleU ? ' (out of date)' : '') + ': ' + nU + (nU === 1 ? ' change' : ' changes') + ' to review (the gold Review button in the header).';
             toast(tU); logEvent('char', tU);
             if (window.wpSheets && window.wpSheets.approveNote) window.wpSheets.approveNote(qu.charId, tU, 'review', idU);   // 1.5.5: a card that stays until the GM opens it, naming its entry
             if (window.wpSheets && window.wpSheets.uploadsChanged) window.wpSheets.uploadsChanged(qu.charId);
             wroteU = true;
         }
         if (wroteU) saveRemoteSoon();
-        ansU(staleU ? { n: prU.changes.length, auto: autoU, rev: true } : { n: prU.changes.length, auto: autoU });
-        if (staleU && window.wpStepLog) window.wpStepLog('sheetrev v1', 'sent', { changes: prU.changes.length, file: isFileU ? 'waypoint' : 'reader' });
+        var nA = prU.changes.filter(function(ch) { return !ch || ch.kind !== 'note'; }).length;
+        ansU(staleU ? { n: nA, auto: autoU, rev: true } : { n: nA, auto: autoU });
+        if (staleU && window.wpStepLog) window.wpStepLog('sheetrev v1', 'sent', { changes: nA, file: isFileU ? 'waypoint' : 'reader' });
         // [netcheck:charupload-end]
     } else if (msg.type === 'char-ask' && net.role === 'host') {
         // [netcheck:charask-start]

@@ -414,6 +414,8 @@ Systems
   hit that takes the body below 0, and only worn by 1 otherwise.
 - A layer ticked Every row wears every row of its list, switched on or
   not, for a list whose switch means something else.
+- The Review can show a note beside a file's changes. A note has no tick
+  and counts as no change.
 - An effect's change can be sized by a formula, such as -max(0, -MP)
   for 1 off Agility each MP below 0. The formula reads the sheet with no
   effect applied, rolls no dice, and may not read a GM-only value.

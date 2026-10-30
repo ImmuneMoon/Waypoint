@@ -8648,14 +8648,15 @@ function cleanCharUpload(msg) {
 // U2: the GM's queue of uploads to review (camp.uploads: the GM's, never sent; a save or an import may carry anything) as the review reads it —
 // at most LIMITS.uploads, each { id, charId, from, name, at, changes, reader? } with its changes' texts cut and their shapes checked; applying
 // still goes through each change's own cleaner (applyProposal). reader: the id of the outside reader that made it, which Apply needs
-var UP_KINDS = Object.freeze({ value: 1, add: 1, fact: 1, stat: 1, def: 1, remove: 1 });
+var UP_KINDS = Object.freeze({ value: 1, add: 1, fact: 1, stat: 1, def: 1, remove: 1, note: 1 });   // 1.6.0: note, a line to read beside the changes: it needs no field, is never ticked or applied and is no change in any count
 function cleanUploads(v) {
     var out = [], seen = map();
     (Array.isArray(v) ? v : []).slice(-LIMITS.uploads).forEach(function(u) {
         if (!isObj(u) || typeof u.id !== 'string' || !/^up_[a-z0-9]{1,24}$/.test(u.id) || seen[u.id] || typeof u.charId !== 'string' || !CHAR_ID.test(u.charId)) return; seen[u.id] = 1;
         var ch = [], cs = map();
         (Array.isArray(u.changes) ? u.changes : []).slice(0, LIMITS.uploadChanges).forEach(function(c) {
-            if (!isObj(c) || typeof c.id !== 'string' || !/^u_[a-z0-9]{1,8}$/.test(c.id) || cs[c.id] || UP_KINDS[c.kind] !== 1 || typeof c.f !== 'string' || !FIELD_ID.test(c.f)) return; cs[c.id] = 1;
+            if (!isObj(c) || typeof c.id !== 'string' || !/^u_[a-z0-9]{1,8}$/.test(c.id) || cs[c.id] || UP_KINDS[c.kind] !== 1 || (c.kind !== 'note' && (typeof c.f !== 'string' || !FIELD_ID.test(c.f)))) return; cs[c.id] = 1;
+            if (c.kind === 'note') { var nt = cutText(c.label, 120); if (!nt) return; var on = { id: c.id, kind: 'note', label: nt, from: cutText(c.from, 80), to: cutText(c.to, 80) }; if (typeof c.f === 'string' && FIELD_ID.test(c.f)) on.f = c.f; ch.push(on); return; }
             var o = { id: c.id, kind: c.kind, f: c.f, label: cutText(c.label, 120) || 'A change', from: cutText(c.from, 80), to: cutText(c.to, 80), accept: c.accept === true, held: c.held === true };
             if (typeof c.row === 'string' && ROW_ID.test(c.row)) o.row = c.row;
             if (c.kind === 'value' && c.value !== undefined) o.value = c.value;
@@ -8751,7 +8752,7 @@ function applyProposal(sys, char, proposal, accepted, F, opts) {
     var ro = isObj(opts) ? Object.assign({}, opts) : {}, rowOp = typeof ro.rowOp === 'function' ? ro.rowOp : plainRowOp; delete ro.rowOp;
     var work = { id: char.id, name: char.name, ownerId: char.ownerId, npc: char.npc, values: JSON.parse(JSON.stringify(isObj(char.values) ? char.values : {})) }, done = 0, failed = 0, vo = valueOpts(sys);
     (isObj(proposal) && Array.isArray(proposal.changes) ? proposal.changes : []).forEach(function(ch) {
-        if (!isObj(ch) || !isObj(accepted) || accepted[ch.id] !== true) return;
+        if (!isObj(ch) || ch.kind === 'note' || !isObj(accepted) || accepted[ch.id] !== true) return;   // 1.6.0: a note is read, never applied
         var f = fieldById(sys, ch.f); if (!f) { failed++; return; }
         if (ch.kind === 'value') { var v = cleanValue(f, ch.value, vo); if (v === undefined) { failed++; return; } work.values[ch.f] = v; done++; return; }
         var qs = ch.kind === 'add' ? (Array.isArray(ch.ops) ? ch.ops : []) : ch.kind === 'fact' ? (isObj(ch.facts) ? [{ op: 'set', rowId: ch.row, facts: ch.facts }] : []).concat(ch.qty ? [{ op: 'setQty', rowId: ch.row, qty: ch.qty }] : [])

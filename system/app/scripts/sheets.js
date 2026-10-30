@@ -7603,7 +7603,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         snW.title = 'A number stat or a column read on the parent as not held: where it is not 0, the parent cannot be tried untrained, and a roll that reads it is refused with those words'; snW.appendChild(snS); fl.appendChild(snW);
         var spW = el('label', 'sys-check'), spS2 = el('select', 'sys-list-specpen'); spW.appendChild(document.createTextNode('Untrained shows ')); spS2.appendChild(spO('', 'No penalty', !sp.specs.pen));
         spSt.filter(function(s) { return s.kind !== 'pick'; }).concat(spCl).forEach(function(s) { spS2.appendChild(spO(s.key, s.label || s.key, sp.specs.pen === s.key)); });
-        spW.title = 'A number stat or a column read on the parent as not held, said on a roll\u2019s card as the untrained penalty, as untrained Blade \u22125. It changes no figure'; spW.appendChild(spS2); fl.appendChild(spW);
+        spW.title = 'A number stat or a column read on the parent as not held, said on a roll\u2019s card as the untrained penalty, as untrained Blade (\u22125). It changes no figure'; spW.appendChild(spS2); fl.appendChild(spW);
         var sdW = el('label', 'sys-check'), sdS = el('select', 'sys-list-specdflt'); sdW.appendChild(document.createTextNode('Untrained ')); sdS.appendChild(spO('', 'The figure read', !sp.specs.dflt));
         spCl.forEach(function(x) { sdS.appendChild(spO(x.key, x.label || x.key, sp.specs.dflt === x.key)); });
         sdW.title = 'What is read where no row of the parent is held: the figure named, worked out on the parent as not held (Row.has 0), or a column of its own'; sdW.appendChild(sdS); fl.appendChild(sdW);

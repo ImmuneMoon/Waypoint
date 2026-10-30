@@ -7036,7 +7036,7 @@ function specMeans(spec, d, base, key) {
 }
 // The words a roll's card says for one reference: as the row it read, with the Fallback taken where it read a sibling, or as the parent untrained
 function refSays(r) {
-    if (!isObj(r)) return ''; var pre = r.c === 3 ? 'untrained ' : 'as ', tail = (r.c === 2 || r.c === 3) && typeof r.v === 'number' && fin(r.v) && r.v ? ' ' + (r.v > 0 ? '+' : '\u2212') + fmtNum(Math.abs(r.v)) : '';
+    if (!isObj(r)) return ''; var pre = r.c === 3 ? 'untrained ' : 'as ', sgn = typeof r.v === 'number' && fin(r.v) && r.v ? (r.v > 0 ? '+' : '\u2212') + fmtNum(Math.abs(r.v)) : '', tail = !sgn ? '' : r.c === 2 ? ' ' + sgn : r.c === 3 ? ' (' + sgn + ')' : '';   // the untrained penalty in brackets, as the core asked: untrained Blade (-5)
     var s = cutPoints(r.s, Math.max(1, 60 - pre.length - tail.length), ''), t = s ? pre + s + tail : '';
     return t.length <= 60 ? t : '';   // within a card's label, as the record's cleaner holds it
 }

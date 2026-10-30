@@ -2668,6 +2668,37 @@ pendingChecks.push((async () => {
         j([lr, fr, sh]));
 })());
 
+// 1.6.0 Specialties, Never untrained (the core's ask, from the owner, before Sunday): a player's roll that reads a parent nobody holds and that
+// cannot be tried untrained is refused on the host in those words, and nothing is rolled — the real roll-req branch; the GM's own roll toasts them
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'));
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); }).join('\n') + '\n';
+    const gmSys = Sx.cleanSystem({ v: 1, name: 'W', fields: [
+        { id: 'f_agi', key: 'Agility', label: 'Agility', kind: 'number', def: 10 },
+        { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', edit: 'owner', list: { cats: ['Skill'], noQty: true, multi: true, lvl: { label: 'Level', min: 0, max: 20, def: 1 }, stats: [{ key: 'grade', label: 'Grade' }],
+            cols: [{ key: 'Target', label: 'Target', formula: 'if(Row.has, Row.lvl + Agility, Agility - 3 - 2 * Row.grade)' }, { key: 'NoU', label: 'No untrained', hide: true, formula: 'Row.grade >= 3' }, { key: 'Pen', label: 'Penalty', hide: true, formula: '-3 - 2 * Row.grade' }], specs: { never: 'NoU', pen: 'Pen' } } }],
+        items: [{ id: 'i_surg', key: 'Surgery', name: 'Surgery', category: 'Skill', stats: { grade: 3 } }, { id: 'i_bl', key: 'Blade', name: 'Blade', category: 'Skill', stats: { grade: 1 } }], sheet: { sections: [] } }, { F: Fx, gmView: true });
+    const run = m => {
+        const camp = { id: 'k', activeItemId: 'm1', system: gmSys, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_agi: 10, f_sk: [] } } }, items: { m1: { type: 'map', whiteboard: [] } } };
+        const net = { active: true, role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {} };
+        const out = { table: [], sent: [] };
+        const conn = { peer: 'pA', send(x) { packCheck(x); out.sent.push(JSON.parse(JSON.stringify(x))); } };
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) }, wpVtt: { on: () => true, rulesOn: () => true } };
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
+            Object.assign({ type: 'roll-req', rid: 'q1', charId: 'c_a' }, m), conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {});
+        return out;
+    };
+    const no = run({ expr: '3d6 <= Skills.Surgery.Stitch.Target' }), no3 = run({ expr: '3d6 <= Skills.Surgery.Target' }), ok = run({ expr: '3d6 <= Skills.Blade.Longsword.Target' });
+    const said = o => o.sent.length === 1 && o.sent[0].type === 'roll-deny' ? JSON.stringify(o.sent[0]) : '';
+    check('1.6.0 Specialties, Never untrained on the host (roll-req, run for real): a player\'s roll reading Surgery, held by none and Exacting, is refused with "Surgery cannot be tried untrained." and nothing is rolled, by a specialty or the bare skill; Blade, which can, is rolled at its default with the penalty on its card ("untrained Blade (-5)"); the GM\'s own roll says the same words (dice.js toasts the error, no card)',
+        no.table.length === 0 && /Surgery cannot be tried untrained\./.test(said(no)) && no3.table.length === 0 && /Surgery cannot be tried untrained\./.test(said(no3))
+        && ok.table.length === 1 && ok.sent.length === 0 && j(ok.table[0].refs) === j([{ s: 'untrained Blade (\u22125)', c: 3 }]) && j(ok.table[0].names) === j([{ name: 'Skills.Blade.Longsword.Target', value: 5 }])
+        && /if \(!res\.ok\) return \{ error: res\.error\.message,/.test(src),
+        j([no.sent, no3.sent, ok.table]));
+})());
+
 // Range penalties R2 (docs/RANGE_PLAN.md 3): a player's roll and apply action read RangeMod and TargetDistance to their own pointer's target
 // as their copy holds it — the real roll-req and char-apply branches with the real rangeTo (sliced by its netcheck markers), systemcore,
 // formula engine and dicecore; never a target the GM hid, one their sight drops on a fogged map, one on another map, their own token or

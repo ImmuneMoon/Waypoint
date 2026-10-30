@@ -1175,6 +1175,11 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
           if (window.wpNet) window.wpNet.fromWelcome = false;
       }
       var joinBtn = document.getElementById('wcJoinBtn'); if (joinBtn) joinBtn.addEventListener('click', showJoinView);
+      // Host a game → the Multiplayer window at Host a table (the live test, 2026-10-30: a GM went Enter Waypoint, Play Map, Multiplayer, Host a table). A tour still owed goes first
+      var hostBtn = document.getElementById('wcHostBtn'); if (hostBtn) hostBtn.addEventListener('click', function() {
+          saveWcProfile(); hideWelcome(); if (window.wpTutorial && window.wpTutorial.pending && window.wpTutorial.pending()) return;
+          var nb = document.getElementById('netBtn'), hp = document.getElementById('netPaneHostBtn'); if (nb) nb.click(); if (hp && hp.getAttribute('aria-expanded') !== 'true') hp.click();
+      });
       var joinBack = document.getElementById('wcJoinBack'); if (joinBack) joinBack.addEventListener('click', function() { if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpNet.leaveSession) window.wpNet.leaveSession(true); showMainView(); });   // Back abandons any in-progress join
       var joinGo = document.getElementById('wcJoinGo');
       if (joinGo) joinGo.addEventListener('click', function() {
@@ -1192,6 +1197,12 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
           joinGo.disabled = true; say('Connecting…');
           var jb = document.getElementById('netJoinBtn'); if (jb) jb.click();
       });
+      // [netcheck:joinenter-start]
+      // Enter in a box of a join form presses its button, as a person expects (the live test, 2026-10-30). A button held back while connecting stays held
+      function pressOnEnter(inp, btn) { if (inp && btn) inp.addEventListener('keydown', function(e) { if (e.key !== 'Enter' || e.isComposing || btn.disabled) return; e.preventDefault(); e.stopPropagation(); btn.click(); }); }
+      // [netcheck:joinenter-end]
+      ['wcJoinCode', 'wcJoinPass'].forEach(function(id) { pressOnEnter(document.getElementById(id), joinGo); });
+      ['netCodeInput', 'netJoinPassInput'].forEach(function(id) { pressOnEnter(document.getElementById(id), document.getElementById('netJoinBtn')); });
       window.wpJoinFailed = function() { var go = document.getElementById('wcJoinGo'); if (go) go.disabled = false; var st = document.getElementById('wcJoinStatus'); if (st) st.className = 'wc-join-status err'; };   // net.js calls this if a welcome-initiated join fails (the error text is already in #wcJoinStatus)
       var enterBtn = document.getElementById('wcEnterBtn'); if (enterBtn) enterBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); });
       var avPrev = document.getElementById('wcAvatarPrev'), avFile = document.getElementById('wcAvatarFile');

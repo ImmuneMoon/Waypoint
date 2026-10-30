@@ -1329,7 +1329,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
             && J(plines) === J(PLINES) && plines.map(read1).every(t => !/[()\[\];\u2014\u2013&]| - /.test(t) && /\.$/.test(t)) && count(pw, ' title="') === 16 && pw.includes('<button class="tool ghost danger" id="profStartOverBtn" type="button"')
             && pw.includes('<button id="profileCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close">') && escS.includes("['profileModal', 'profileCloseBtn']") && read('scripts/whiteboard.js').includes("          profileModal: 'profileCloseBtn',\n")
             && fold.length > 20 && fold.indexOf('rowMeBtn') < 0 && rowS.includes('your picture (#rowMeBtn, 1.6.0) never folds')
-            && J(idsOf(acts)) === J(['wcStartBtn', 'wcLoadBtn', 'wcJoinBtn', 'wcProfileBtn', 'wcProfFace']) && css.includes('  .wc-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }')
+            && J(idsOf(acts)) === J(['wcStartBtn', 'wcLoadBtn', 'wcHostBtn', 'wcJoinBtn', 'wcProfileBtn', 'wcProfFace']) && /var hostBtn = document\.getElementById\('wcHostBtn'\); if \(hostBtn\) hostBtn\.addEventListener\('click', function\(\) \{\r?\n\s+saveWcProfile\(\); hideWelcome\(\); if \(window\.wpTutorial/.test(read('scripts/main.js')) && read('scripts/main.js').includes("hp.getAttribute('aria-expanded') !== 'true'") && css.includes('  .wc-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }')
             && css.includes('body.web-join #wcLoadBtn, body.web-join #wcProfileBtn, body.web-join #wcContinue,') && css.includes('body.web-join #profileModal .set-acct,') && !css.includes('#settingsModal .set-acct'),
             J([idsOf(pw), idsOf(grp), plines, count(pw, ' title="'), fold, idsOf(acts)]).slice(0, 900));
     }
@@ -1380,7 +1380,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         netHtml.length > 10000 && J((netHtml.match(/ id="[A-Za-z]+"/g) || []).map(s => s.slice(5, -1))) === J(IDS) && IDS.length === 38 && IDS.every(id => count(ix, ' id="' + id + '"') === 1)
         && J(ticks) === J(TICKS) && J(under.map(u => u.slice(0, 2))) === J(UNDER) && under.every(u => u[2] === true) && rough.length === 0
         && count(netHtml, 'class="set-name"') === 2 && count(netHtml, 'class="set-line') === 8 && count(netHtml, '<small>') === 2 && above.length === 6 && long.length === 0
-        && count(netHtml, ' title="') === 23 && TICKS.concat(UNDER).every(r => r[0] === 'netJoinPassInput' || tipOn(r[0]))
+        && count(netHtml, ' title="') === 24 && TICKS.concat(UNDER).every(r => r[0] === 'netJoinPassInput' || tipOn(r[0]))
         && count(tips, "    netCodeInput: 'The room code your GM gave you: ten characters, shown as XXXXX-XXXXX. Type or paste it with or without the hyphen.',") === 1 && count(tips, "    netJoinPassInput: 'Only needed if the GM set a session password.',") === 1,
         J([ticks.filter((t, i) => J(t) !== J(TICKS[i])).slice(0, 2), under.filter((u, i) => J(u.slice(0, 2)) !== J(UNDER[i]) || u[2] !== true).slice(0, 2), rough, long, count(netHtml, ' title="')]));
     check('Pause and Lock Travel keep their lines whatever they read: net.js rewrites the words of each button and nothing beside it, so each line stands after its button, begins with the state it tells of, and is true while the button says Resume or Allow as well',

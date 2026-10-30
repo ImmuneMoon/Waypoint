@@ -25,9 +25,9 @@
         var r = el.getBoundingClientRect(), tw = t.offsetWidth, th = t.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
         // A small control: under it, centred. A large area (a card, a wide row, a whole box that carries one tip): beside the pointer, since its
         // bottom edge may be far from where the pointer is — the tip used to appear at the top or the bottom of the area.
-        var big = (r.height > 56 || r.width > 420) && px !== null && px >= r.left && px <= r.right && py >= r.top && py <= r.bottom;
+        var big = !el.dataset.tipUp && (r.height > 56 || r.width > 420) && px !== null && px >= r.left && px <= r.right && py >= r.top && py <= r.bottom;
         var x = (big ? px : r.left + r.width / 2) - tw / 2, y = big ? py + 20 : r.bottom + 8;
-        if (y + th > vh - 6) y = (big ? py : r.top) - th - 8;              // no room below: above
+        if (y + th > vh - 6 || el.dataset.tipUp) y = (big ? py : r.top) - th - 8;              // no room below, or the box below it is the next thing to read (data-tip-up): above
         if (y < 6) y = 6;
         x = Math.max(6, Math.min(x, vw - tw - 6));
         t.style.left = x + 'px'; t.style.top = y + 'px';

@@ -25,6 +25,7 @@ var LIMITS = Object.freeze({
     swPicks: 8,         // 1.6.0: the roll switches one roll may name (systemcore LIMITS.rollSw a holder)
     applyLines: 12,     // an apply card's lines: one a change an action or a roll's Then makes (systemcore LIMITS.applyChanges; 8 before 1.6.0, 4 before 1.5.4)
     hits: 32,           // the hits one damage roll rolls for (systemcore HITS_MAX)
+    hitFaces: 40,       // the dice a hit's card line shows (systemcore HIT_FACES)
     rowRolls: 16        // a list's rolls, so a row roll's index is 0 to 15 (systemcore LIMITS.rowRolls; 4 before 1.5.4, 8 before 1.6.0, 10 before the raise the session that builds a game system asked for)
 });
 var ID_RE = /^r_[A-Za-z0-9]{1,16}$/;
@@ -233,8 +234,22 @@ function cleanDmg2(v) {
     if (v.dkind !== undefined) { if (typeof v.dkind !== 'string' || !DMG2_TYPE.test(v.dkind)) return null; o.dkind = v.dkind; }
     return o;
 }
+// 1.6.0 (the live test, 2026-10-30): which round a hit was, for its card: rno, its place in firing order, and rnd, its name, on any record; each left off where it does not clean
+function roundInto(out, v) {
+    if (isInt(v.rno) && v.rno >= 1 && v.rno <= LIMITS.hits) out.rno = v.rno;
+    if (typeof v.rnd === 'string' && v.rnd && cleanLabel(v.rnd)) out.rnd = cleanLabel(v.rnd);
+}
+// The faces of the dice that counted in a roll, for a hit's line on its card; LIMITS.hitFaces at most
+function hitFaces(res) {
+    var out = [];
+    (res && res.breakdown && Array.isArray(res.breakdown.dice) ? res.breakdown.dice : []).forEach(function(g) {
+        (g && Array.isArray(g.dice) ? g.dice : []).forEach(function(d) { if (d && d.kept && typeof d.value === 'number' && isFinite(d.value) && out.length < LIMITS.hitFaces) out.push(Math.floor(d.value)); });
+    });
+    return out;
+}
 // 1.6.0 A burst: the hits of a damage roll after its first, as the host rolled them from the entry: at most hits - 1 of them (systemcore HITS_MAX), each a
-// part's own keys (cleanDmg2) with major (1) and its added parts (dmg2 to dmg5, each cleaned as such a part); null when anything is malformed
+// part's own keys (cleanDmg2) with major (1) and its added parts (dmg2 to dmg5, each cleaned as such a part); null when anything is malformed. Each may
+// say its dice (f, the faces that counted) and its round (roundInto)
 function cleanHits(v) {
     if (!Array.isArray(v) || !v.length || v.length > LIMITS.hits - 1) return null;
     var out = [];
@@ -242,6 +257,8 @@ function cleanHits(v) {
         var o = cleanDmg2(v[i]); if (!o) return null;
         if (v[i].major !== undefined) { if (v[i].major !== 1) return null; o.major = 1; }
         for (var k = 2; k <= 5; k++) { var pv = v[i]['dmg' + k]; if (pv === undefined) continue; var pc = cleanDmg2(pv); if (!pc) return null; o['dmg' + k] = pc; }
+        if (Array.isArray(v[i].f) && v[i].f.length <= LIMITS.hitFaces && v[i].f.every(function(x) { return isInt(x) && Math.abs(x) <= 1000000; })) o.f = v[i].f.slice();
+        roundInto(o, v[i]);
         out.push(o);
     }
     return out;
@@ -277,6 +294,8 @@ function cleanRoll(rec) {
     if (rec.dmg !== undefined) { if (rec.dmg !== 1) return null; out.dmg = 1; }
     if (rec.dmgOn !== undefined && out.dmg === 1 && typeof rec.dmgOn === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(rec.dmgOn)) out.dmgOn = rec.dmgOn;   // 1.6.0: the character this damage lands on, the host's from its entry (one that does not clean is left off, the roll kept)
     if (rec.aim !== undefined) { var amc = cleanAim(rec.aim); if (amc) out.aim = amc; }   // 1.6.0 (B5): where a called shot was aimed (one that does not clean is left off, the roll kept)
+    if (rec.dtype !== undefined && out.dmg === 1 && typeof rec.dtype === 'string' && DMG2_TYPE.test(rec.dtype)) out.dtype = rec.dtype;   // 1.6.0 (the live test, 2026-10-30): the damage type, for a player's card as for the GM's: a burst's Hit 1 lost it here
+    if (out.dmg === 1) roundInto(out, rec);   // ... and which round its first hit was
     if (rec.dkind !== undefined && out.dmg === 1 && typeof rec.dkind === 'string' && DMG2_TYPE.test(rec.dkind)) out.dkind = rec.dkind;   // 1.6.0: the blow's kind, the host's from its entry, only on a damage roll (one that does not clean is left off, the roll kept)
     if (rec.dmg2 !== undefined && out.dmg === 1) { var d2c = cleanDmg2(rec.dmg2); if (d2c) out.dmg2 = d2c; }
     [3, 4, 5].forEach(function(k) { if (rec['dmg' + k] !== undefined && out.dmg === 1) { var dkc = cleanDmg2(rec['dmg' + k]); if (dkc) out['dmg' + k] = dkc; } });   // 1.6.0: a third and a fourth part, each as the second   // 1.6.0 (B3): the blow's second part, only on a damage roll (one that does not clean is left off, the roll kept)   // chat cards: a damage roll, marked by the host from its roll (never the roller's word)   // Stage 6 HUD R3: the roll's malfunction threshold (every machine works the malfunction out from the draws)
@@ -562,6 +581,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
+var API = { hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };
+export { hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };

@@ -2394,6 +2394,7 @@
   .wc-card { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 16px; background: var(--panel); border: 1px solid var(--edge); border-radius: 12px; color: var(--ink); cursor: pointer; text-align: left; transition: border-color .12s, transform .12s, background .12s; }
   .wc-card:hover { border-color: var(--gold); transform: translateY(-2px); background: var(--panel2); }
   .wc-card .wc-ic { font-size: 22px; }
+  #wcProfileBtn { grid-column: 1 / -1; }   /* the odd card of the five */
   .wc-card b { font-size: 14px; }
   .wc-card small { color: var(--dim); font-size: 11px; }
   .wc-card .wc-me { display: block; width: 26px; height: 26px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 1px var(--edge); }   /* 1.6.0: Your profile wears your own picture */
@@ -2430,7 +2431,7 @@
      While the join page is up (main.js wcGate writes web-gate) the app behind it is put away, so no key or press reaches it: every part of it,
      with no transition, since a part that eases its look stays in reach while it eases, and a page that is not drawn never ends one. No :has() here:
      a browser that does not know it would drop the whole rule */
-  body.web-join #wcStartBtn, body.web-join #wcLoadBtn, body.web-join #wcProfileBtn, body.web-join #wcContinue, body.web-join #wcEnterBtn, body.web-join #welcomeScreen .wc-launch,
+  body.web-join #wcStartBtn, body.web-join #wcHostBtn, body.web-join #wcLoadBtn, body.web-join #wcProfileBtn, body.web-join #wcContinue, body.web-join #wcEnterBtn, body.web-join #welcomeScreen .wc-launch,
   body.web-join #moreMenu [data-press="headerBrand"], body.web-join #moreFiles, body.web-join #campMenuWrap, body.web-join #mapTabs, body.web-join #rowPills,
   body.web-join #handoutsBtn, body.web-join #imgLibBtn, body.web-join #importCharBtn, body.web-join .gm-only,
   body.web-join #updateBtn, body.web-join #updateBanner, body.web-join #installerModal, body.web-join #wcUpdate,
@@ -2508,6 +2509,7 @@
   .combat-face-empty { display: inline-flex; align-items: center; justify-content: center; color: var(--gold); background: var(--panel); }
   .combat-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .combat-tag { font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); border: 1px solid var(--edge); border-radius: 8px; padding: 0 6px; margin-left: 4px; }
+  .combat-row .combat-on { flex: none; width: 18px; height: 18px; margin: 0 3px; cursor: pointer; }   /* the live test, 2026-10-30: a press meant for the tick landed on the name, which finds the token */
   .combat-row .combat-init { width: 58px; flex: none; text-align: center; }   /* beats the base input.field { width: 100% }, or the box took the row and squeezed the name to nothing */
   .combat-row .tool { padding: 1px 7px; font-size: 11px; }
 
@@ -2921,6 +2923,8 @@
   .sheet-fx-left { font-size: 11px; color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }   /* turn-based combat T5a: what a timed effect has left */
   .chat-due .chat-due-run { margin-top: 4px; padding: 2px 12px; }   /* turn-based combat T2b: a reminder's Run */
   .chat-due .chat-due-note { margin-top: 2px; color: var(--dim); font-size: 11.5px; }
+  .chat-due .chat-due-what { white-space: normal; overflow: visible; }   /* the live test, 2026-10-30: a Due card's line is read whole, never cut off with dots */
+  .chat-due-spent .chat-due-run { opacity: .55; }   /* none left to pay for it: the host would refuse the press */
   .combat-strip-btn.combat-strip-endturn, .notepad-btn.sheet-endturn { width: auto; padding: 0 8px; font-size: 11.5px; font-weight: 600; color: var(--gold); white-space: nowrap; }   /* turn-based combat T2: End turn */
   .sys-turn .sys-combat-item, .sys-turn .sys-turn-add { align-self: flex-start; }
   .sys-turn-row input.sys-turn-mvf { flex: 1 1 200px; font-family: ui-monospace, monospace; }
@@ -3109,6 +3113,8 @@
   .sys-row .sys-formula { flex: 1 1 220px; min-width: 180px; width: auto; font-family: ui-monospace, Consolas, monospace; }
   .sys-def { flex: 1 0 100%; min-width: 240px; gap: 10px; align-items: flex-end; }
   .sys-num { display: inline-flex; flex-direction: column; gap: 2px; }
+  .sys-dmgr-kind { display: flex; align-items: center; gap: 6px; } .sys-dmgr-kind .field { flex: 1 1 0; min-width: 0; width: auto; margin: 0; } .sys-dmgr-kind .sys-btn { flex: none; }   /* the live test, 2026-10-30: key, name and remove on one row */
+  .sys-env-add { align-self: flex-start; width: auto; }
   .sys-num-cap { font-size: 9px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); padding-left: 1px; }
   /* clarity package: a captioned text box or list (capBox) takes the room the bare box had, and the box fills it; capInline names one on the row of ticks */
   .sys-cap { min-width: 0; }

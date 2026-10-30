@@ -1372,6 +1372,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       var minX = Math.min.apply(null, its.map(function(i) { return i.x; }));
       var maxR = Math.max.apply(null, its.map(function(i) { return i.x + i.w; }));
       var minY = Math.min.apply(null, its.map(function(i) { return i.y; }));
+      var maxB = Math.max.apply(null, its.map(function(i) { return i.y + (i.h || 100); }));
       var z = state.zoomLevel || 1;
       var anyUnlocked = its.some(function(i) { return !i.locked; });
       var anyVisible = its.some(function(i) { return !i.hidden; });
@@ -1463,6 +1464,8 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       bar.style.transformOrigin = 'top left';
       bar.style.transform = 'translate(-50%, calc(-100% - 36px))';   // clears the blue rotate dot (15px above the item, ~14px tall)
       bar.style.display = 'flex';
+      var stripEl = document.getElementById('combatStrip'), sr = stripEl ? stripEl.getBoundingClientRect() : null, br = sr && sr.width > 0 ? bar.getBoundingClientRect() : null;
+      if (br && br.left < sr.right && sr.left < br.right && br.top < sr.bottom && sr.top < br.bottom) bar.style.transform = 'translate(-50%, ' + (Math.round((maxB - minY) * z) + 12) + 'px)';   // the live test, 2026-10-30: over the turn strip it half-covered its buttons: it stands under the selection
   }
 
   /* Fit to grid: size the selection to whole cells and seat it. Hex maps —
@@ -3616,6 +3619,7 @@ window.wpFitToGrid = fitToGrid;
       cMenu.innerHTML = tokenFxMenuHtml(tok, m);
       cMenu.style.display = 'flex';
       placeMenu(cMenu);   // its rows changed while it was up: fitted again where it stands
+      var fxR = cMenu.getBoundingClientRect(), fxS = window.wpFloats && window.wpFloats.spot ? window.wpFloats.spot({ l: fxR.left, t: fxR.top, w: fxR.width, h: fxR.height }, true) : null; if (fxS) { cMenu.style.left = fxS.l + 'px'; cMenu.style.top = fxS.t + 'px'; }   // and clear of the bars, as near as it can (floats.js)
       var again = function() { setTimeout(function() { if (cMenu.style.display !== 'none') showTokenFxMenu(tok); }, 0); };
       cMenu.querySelectorAll('.cm-fx').forEach(function(line) {
           line.addEventListener('click', function(ce) { ce.stopPropagation(); var r = m.rows[Number(line.dataset.fi)]; if (!r) return; tokenFxOp(tok, m, r.rowId ? { op: 'remove', rowId: r.rowId } : { op: 'add', ref: r.ref }); again(); });
@@ -9115,7 +9119,7 @@ function combatRowsFor(mapId, opts) {
     Object.keys((n && n.targets) || {}).forEach(function(pid) {
         var t = n.targets[pid]; if (!t || t.mapId !== mapId) return;
         pair[t.id] = 'targeted';
-        var mine = (map.whiteboard || []).find(function(w) { return w.isChar && !w.hidden && w.ownerId === pid; });
+        var aimer = pid.indexOf('tk:') === 0 ? pid.slice(3) : '', mine = (map.whiteboard || []).find(function(w) { return w.isChar && !w.hidden && (aimer ? w.id === aimer : w.ownerId === pid); });   // tk: one of the GM's characters aiming (158, Target as; the live test, 2026-10-30: it came unticked)
         if (mine) pair[mine.id] = pair[mine.id] || 'targeting';
     });
     var rows = (map.whiteboard || []).filter(function(w) { return w.isChar && !w.hidden; }).map(function(w) {
@@ -9466,7 +9470,8 @@ function placeMenu(cMenu, e) {
     if (cMenu.offsetHeight > room) cMenu.classList.add('compact');
     if (cMenu.offsetHeight > room) { cMenu.classList.add('tall'); cMenu.style.maxHeight = room + 'px'; }
     if (!cMenu._wheelKept) { cMenu._wheelKept = true; cMenu.addEventListener('wheel', function(we) { if (cMenu.classList.contains('tall')) we.stopPropagation(); }, { passive: true }); }   // scrolling a tall menu never zooms the board under it
-    var x = e ? e.clientX : parseFloat(cMenu.style.left) || 0, y = e ? e.clientY : parseFloat(cMenu.style.top) || 0;
+    if (e) cMenu._wpAt = { x: e.clientX, y: e.clientY };   // the live test, 2026-10-30: fitted again it goes back to the pointer: a tall menu pushed up the screen left a short list far from its token
+    var at = cMenu._wpAt, x = e ? e.clientX : at ? at.x : parseFloat(cMenu.style.left) || 0, y = e ? e.clientY : at ? at.y : parseFloat(cMenu.style.top) || 0;
     cMenu.style.left = x + 'px'; cMenu.style.top = y + 'px';
     // keep it on screen
     var r = cMenu.getBoundingClientRect();

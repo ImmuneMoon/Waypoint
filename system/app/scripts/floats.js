@@ -161,15 +161,21 @@ var _spotHome = new WeakMap(), _spotMine = new WeakMap(), _spotWas = new WeakMap
 function spotAt(el) { return SPOT_PARTS.map(function(k) { return el.style[k] || ''; }).join('|'); }
 function spotShape(el) { return spotAt(el) + '|' + (el.style.width || '') + '|' + (el.style.height || ''); }
 function spotRect(el) { var r = el && !el.hidden && typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect() : null; return r && r.width > 0 && r.height > 0 ? r : null; }
-// What a box leaves clear, as it stands on the page now: each of SPOT_KEEP that shows
-function spotKeep() { return SPOT_KEEP.map(function(id) { var r = spotRect(document.getElementById(id)); return r ? { l: r.left, t: r.top, r: r.right, b: r.bottom } : null; }).filter(Boolean); }
+// What a box leaves clear, as it stands on the page now: each of SPOT_KEEP that shows, and for Table Chat an open sheet or HUD (the live test, 2026-10-30: your own
+// roll raised it over the buttons you press next)
+var SPOT_ALSO = { chatPanel: ['sheetPanel'] };
+function spotKeep(el) {
+    var also = el && Object.prototype.hasOwnProperty.call(SPOT_ALSO, el.id) ? SPOT_ALSO[el.id] : null, boxes = SPOT_KEEP.concat(also || []).map(function(id) { return document.getElementById(id); }), layer = also ? document.getElementById(FLOAT_LAYER) : null;
+    if (layer && layer.children) boxes = boxes.concat(Array.prototype.slice.call(layer.children));
+    return boxes.map(function(b) { var r = spotRect(b); return r ? { l: r.left, t: r.top, r: r.right, b: r.bottom } : null; }).filter(Boolean);
+}
 // Where a box may stand: the window, under the top row (which, hidden, floats at the window's top)
 function spotArea() {
     var hd = typeof document.querySelector === 'function' ? spotRect(document.querySelector('header')) : null;
     return { l: 0, t: hd ? Math.max(0, hd.bottom) : 0, r: window.innerWidth, b: window.innerHeight };
 }
 // For a module that places a box itself (a HUD, a player's page reader): the clear place nearest want, or null
-function spotFind(want, up) { return spotFor(want, spotKeep(), spotArea(), up === true); }
+function spotFind(want, up, el) { return spotFor(want, spotKeep(el), spotArea(), up === true); }
 // A box of the list put clear, where it stands at its own default place or where this put it last. Its default is read with the place
 // this gave it taken off. A box that stands on its bottom edge (Table Chat) keeps standing on it, and one that would be taller than the
 // room left is held to it (its max-height), unless the user gave it a size. Answers whether it was moved
@@ -180,7 +186,7 @@ function spotPlace(el) {
     SPOT_PARTS.forEach(function(k, i) { s[k] = home.parts[i]; }); if (mine && s.maxHeight === mine.cap) s.maxHeight = home.max;
     var r = spotRect(el), low = home.parts[3] !== '', sized = !!s.height; if (!r) { _spotMine.delete(el); return false; }
     var mx = typeof getComputedStyle === 'function' ? parseFloat(getComputedStyle(el).maxHeight) : NaN, h = sized ? r.height : Math.max(r.height, isFinite(mx) ? mx : 0);
-    var p = spotFind({ l: r.left, t: low ? r.bottom - h : r.top, w: r.width, h: h }, low);
+    var p = spotFind({ l: r.left, t: low ? r.bottom - h : r.top, w: r.width, h: h }, low, el);
     if (p) {
         s.right = Math.max(0, Math.round(window.innerWidth - p.l - r.width)) + 'px';
         if (low) s.bottom = Math.max(0, Math.round(window.innerHeight - p.t - p.h)) + 'px'; else s.top = p.t + 'px';
@@ -221,6 +227,8 @@ function spotWatch() {
     if (typeof MutationObserver !== 'function' || typeof document === 'undefined') return;
     var els = FLOAT_IDS.filter(function(id) { return !Object.prototype.hasOwnProperty.call(FLOAT_WITH, id); }).map(function(id) { return document.getElementById(id); }).filter(Boolean);
     els.forEach(function(el) { _spotHome.set(el, { at: spotAt(el), parts: SPOT_PARTS.map(function(k) { return el.style[k] || ''; }), max: el.style.maxHeight || '' }); _spotWas.set(el, floatUp(el)); });
+    var strip = document.getElementById('combatStrip'), stripUp = false;   // the live test, 2026-10-30: a fight that starts under a box at its own place: the box moves clear of the turn strip as it comes, as the reader does (handbook.js)
+    if (strip) new MutationObserver(function() { var up = !!spotRect(strip); if (up && !stripUp) els.forEach(spotPlace); stripUp = up; }).observe(strip, { attributes: true, attributeFilter: ['style', 'hidden'] });
     var mo = new MutationObserver(function(recs) { recs.forEach(function(r) { spotSeen(r.target); }); });
     els.forEach(function(el) {
         mo.observe(el, { attributes: true, attributeFilter: ['style'] });
@@ -257,6 +265,6 @@ function watch() {
 // boxes(): every floating box, which a press is told by (backlog 143: whiteboard.js barPress puts a tool bar's open menu back under the box pressed)
 // spot(want, up): the clear place for a box a module places itself (sheets.js placeHud, handbook.js readerPlace)
 // last(): the box last used, of those that show (esckey.js: Escape closes Table Chat, the notepad, Sound or Music while one of them is it)
-window.wpFloats = { fit: fitView, fitAll: fitAll, sync: floatSync, reveal: floatReveal, leave: floatLeave, away: floatAway, shown: floatShown, view: floatNow, boxes: floatBoxes, spot: spotFind, last: floatLast };
+window.wpFloats = { place: spotPlace, fit: fitView, fitAll: fitAll, sync: floatSync, reveal: floatReveal, leave: floatLeave, away: floatAway, shown: floatShown, view: floatNow, boxes: floatBoxes, spot: spotFind, last: floatLast };
 watch();
 spotWatch();

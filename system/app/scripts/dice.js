@@ -3,7 +3,7 @@
    feature switch. The wire and the rolling itself live in net.js (net.diceRoll, the roll-req / roll / roll-deny
    handlers); the validators, replay and text in dicecore.js. Design of record: docs/DICE_PLAN.md. */
 import { toast } from './io.js';
-import { LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy } from './dicecore.js';
+import { LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy, hitFaces } from './dicecore.js';
 import { dieNode } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
 
 var ui = function(id) { return document.getElementById(id); };
@@ -105,12 +105,13 @@ function renderCard(m) {
     if (named) readableInto(brk, res, parts, rec.expr);
     else parts.forEach(function(p) { if (typeof p === 'string') brk.appendChild(document.createTextNode(p)); else brk.appendChild(el('span', 'roll-die', p.text)); });
     if (typeof dieInto === 'function') dieInto(brk, rec);   // 1.5.8: the die its formula rolls, first on the dice line
-    wrap.appendChild(brk);
+    var hmC = rec.dmg === 1 && Array.isArray(rec.more) ? rec.more : [];   // 1.6.0 A burst: each hit after the first, its total on a line of its own, as text
+    if (!hmC.length || mf) wrap.appendChild(brk);   // the live test, 2026-10-30: several hits show their dice on their own lines, and this line was only the first's
     if (typeof modsInto === 'function') modsInto(wrap, rec.mods);
     if (typeof refsInto === 'function') refsInto(wrap, rec.refs);   // 1.6.0 Specialties: which row a reference read
     if (typeof swInto === 'function') swInto(wrap, rec.sw);   // 1.6.0: the roll switches it was rolled with   // 1.5.8: what changed the values it read (asked through typeof for a suite that slices the card alone)
     wrap.className += mf ? ' card-malf' : v && v.kind === 'check' ? (v.pass ? ' card-ok' : ' card-fail') : rec.dmg === 1 ? ' card-dmg' : '';   // chat cards: the left stripe — a malfunction, the check's outcome, else a damage roll, else plain
-    var total = el('div', 'roll-total' + (mf ? ' roll-fail roll-malf' : v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : rec.dmg === 1 ? ' roll-dmg' : ''), mf ? 'malfunction (Malf ' + rec.malf + ')' : v ? (v.kind === 'check' ? v.text : '= ' + v.text) : '');
+    var total = el('div', 'roll-total' + (mf ? ' roll-fail roll-malf' : v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : rec.dmg === 1 ? ' roll-dmg' : ''), mf ? 'malfunction (Malf ' + rec.malf + ')' : v ? (v.kind === 'check' ? v.text : hmC.length ? (hmC.length + 1) + ' hits' : '= ' + v.text) : '');
     if (crit) total.appendChild(el('span', 'roll-' + crit, v && v.crit ? (crit === 'crit' ? 'critical success' : 'critical failure') : crit === 'crit' ? 'natural 20' : 'natural 1'));
     var tierC = sy && sy.combat && sy.combat.tier && typeof sy.combat.tier === 'object' ? sy.combat.tier : null;   // 1.6.0: a success at or past the Combat card's margin wears its name
     if (!mf && tierC && typeof tierC.name === 'string' && tierC.name && typeof tierC.at === 'number' && v && v.kind === 'check' && v.pass === true && typeof v.margin === 'number' && v.margin >= tierC.at) total.appendChild(el('span', 'roll-tier', tierC.name));
@@ -120,8 +121,8 @@ function renderCard(m) {
     var p2c = rec.dmg === 1 && rec.dmg2 && typeof rec.dmg2 === 'object' && typeof rec.dmg2.t === 'number' && isFinite(rec.dmg2.t) ? rec.dmg2 : null;   // 1.6.0 (B3): the blow's second part, of another type, rolled by the host
     if (p2c && !mf) { var p2y = sy && sy.combat && sy.combat.damage && Array.isArray(sy.combat.damage.types) ? sy.combat.damage.types.filter(function(y) { return y && y.key === p2c.dtype; })[0] : null; wrap.appendChild(el('div', 'roll-part2', 'and ' + p2c.t + (p2y ? ' ' + (p2y.label || p2y.key) : typeof p2c.dtype === 'string' ? ' ' + p2c.dtype : '') + ' in the same blow')); }
     var pkc = {}; [3, 4, 5].forEach(function(k) { var pk = rec.dmg === 1 && rec['dmg' + k] && typeof rec['dmg' + k] === 'object' && typeof rec['dmg' + k].t === 'number' && isFinite(rec['dmg' + k].t) ? rec['dmg' + k] : null; if (!pk) return; pkc[k] = pk; if (mf) return; var pky = sy && sy.combat && sy.combat.damage && Array.isArray(sy.combat.damage.types) ? sy.combat.damage.types.filter(function(y) { return y && y.key === pk.dtype; })[0] : null; wrap.appendChild(el('div', 'roll-part2', 'and ' + pk.t + (pky ? ' ' + (pky.label || pky.key) : typeof pk.dtype === 'string' ? ' ' + pk.dtype : '') + ' in the same blow')); });   // 1.6.0: a third and a fourth part, said and handed on as the second
-    var hmC = rec.dmg === 1 && Array.isArray(rec.more) ? rec.more : [];   // 1.6.0 A burst: each hit after the first, its total on a line of its own, as text
-    if (hmC.length && !mf) { var hnY = function(k) { var y = sy && sy.combat && sy.combat.damage && Array.isArray(sy.combat.damage.types) ? sy.combat.damage.types.filter(function(t) { return t && t.key === k; })[0] : null; return y ? ' ' + (y.label || y.key) : typeof k === 'string' ? ' ' + k : ''; }; wrap.appendChild(el('div', 'roll-hit', 'Hit 1: ' + (typeof res.value === 'number' && isFinite(res.value) ? Math.floor(res.value) : '') + hnY(rec.dtype))); hmC.forEach(function(h, i) { var w = 'Hit ' + (i + 2) + ': ' + h.t + hnY(h.dtype); [2, 3, 4, 5].forEach(function(k) { var p = h['dmg' + k]; if (p && typeof p.t === 'number') w += ' and ' + p.t + hnY(p.dtype); }); wrap.appendChild(el('div', 'roll-hit', w)); }); }
+    if (rec.dmg === 1 && !hmC.length && !mf && roundWords(rec)) wrap.appendChild(el('div', 'roll-hit', 'Hit: ' + roundWords(rec)));   // a burst with one hit says which round it was
+    if (hmC.length && !mf) { var hnY = function(k) { var y = sy && sy.combat && sy.combat.damage && Array.isArray(sy.combat.damage.types) ? sy.combat.damage.types.filter(function(t) { return t && t.key === k; })[0] : null; return y ? ' ' + (y.label || y.key) : typeof k === 'string' ? ' ' + k : ''; }; hitInto(wrap, 1, rec, typeof res.value === 'number' && isFinite(res.value) ? Math.floor(res.value) : '', hnY(rec.dtype), typeof hitFaces === 'function' ? hitFaces(res) : []); hmC.forEach(function(h, i) { var w = hnY(h.dtype); [2, 3, 4, 5].forEach(function(k) { var p = h['dmg' + k]; if (p && typeof p.t === 'number') w += ' and ' + p.t + hnY(p.dtype); }); hitInto(wrap, i + 2, h, h.t, w, h.f); }); }
     var dS = window.wpSheets, dv = res && typeof res.value === 'number' && isFinite(res.value) ? res.value : null;   // 1.5.6, the damage step: the GM takes a damage roll off its target in one press
     if (rec.dmg === 1 && dv !== null && !mf && rec.dmgUsed === 1) wrap.appendChild(el('div', 'chat-dmgdone', 'Applied'));   // 1.5.7: a hit is applied once
     else if (rec.dmg === 1 && dv !== null && !mf && typeof rec.blast === 'string' && typeof window.wpBlastApply === 'function' && dS && typeof dS.damageOn === 'function' && dS.damageOn()) {   // 1.5.8 explosives: a blast's damage, to everyone in it, once
@@ -138,6 +139,15 @@ function renderCard(m) {
     }
     return wrap;
 }
+// 1.6.0 (the live test, 2026-10-30): which round a hit was, in words; '' where it names none
+function roundWords(h) { return typeof h.rno === 'number' ? 'round ' + h.rno + (typeof h.rnd === 'string' && h.rnd ? ' (' + h.rnd + ')' : '') : ''; }
+// A hit's line on a burst's card, as text: its number, its round, its total and damage type, then its own dice and what the total added to them
+function hitInto(wrap, i, h, t, words, faces) {
+    var rw = roundWords(h), d = el('div', 'roll-hit', 'Hit ' + i + (rw ? ', ' + rw : '') + ': ' + t + words), sum = 0;
+    (Array.isArray(faces) ? faces : []).forEach(function(f) { sum += f; d.appendChild(document.createTextNode(' ')); d.appendChild(el('span', 'roll-die', String(f))); });
+    if (Array.isArray(faces) && faces.length && typeof t === 'number' && t !== sum) d.appendChild(document.createTextNode(' ' + (t < sum ? '\u2212' : '+') + ' ' + Math.abs(t - sum)));
+    wrap.appendChild(d);
+}
 // Stage 6 HUD H7: an apply action's card (a chat entry with m.apply = the cleaned record) — who, the tags, the action, then each change
 // "Fatigue \u22123 \u2192 0"; text only
 // Turn-based combat T2b: a reminder card — what is due, for whom and when, and Run (the sheet's own press: the GM's, or the player's through
@@ -148,10 +158,12 @@ function renderDue(m) {
     if (rec.as) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'for ' + rec.as)); }
     wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
     wrap.appendChild(el('br'));
-    wrap.appendChild(el('div', 'roll-expr', (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + ' \u2014 ' + (rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? (typeof resistWhy === 'function' ? resistWhy(rec) : 'resisting an attempt') : rec.why === 'major' ? 'a Major Wound' : rec.why === 'wound' ? 'a wound' : rec.why === 'blast' ? 'a blast' : 'round ' + rec.round)));   // 1.6.0 (B2): an attempt to resist   // 1.6.0 (the core's gap 6): or a wound
+    wrap.appendChild(el('div', 'roll-expr chat-due-what', (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + ' \u2014 ' + (rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? (typeof resistWhy === 'function' ? resistWhy(rec) : 'resisting an attempt') : rec.why === 'major' ? 'a Major Wound' : rec.why === 'wound' ? 'a wound' : rec.why === 'blast' ? 'a blast' : 'round ' + rec.round)));   // 1.6.0 (B2): an attempt to resist   // 1.6.0 (the core's gap 6): or a wound
     if (rec.theirs) wrap.appendChild(el('div', 'chat-due-note', 'Its player presses it.'));
     else if (m.done) wrap.appendChild(el('div', 'chat-due-note', 'Pressed.'));
     else if (!window.wpPopout) {
+        var spentD = window.wpSheets && window.wpSheets.dueBlock ? window.wpSheets.dueBlock(rec.charId, rec.act) : '';   // 1.6.0 (the live test, 2026-10-30): it looked ready with none left. Greyed and said, never disabled: a card is not drawn again when a new turn gives them back, and the host judges the press
+        if (spentD) { wrap.className += ' chat-due-spent'; wrap.appendChild(el('div', 'chat-due-note', spentD + '.')); }
         if (rec.why === 'blast') {   // 1.6.0 (the core's gap 8): its own dice of a blast, rolled by the host on the press (whiteboard.js wpBlastOwedPress)
             var bb = el('button', 'tool chat-due-run', 'Roll'); bb.type = 'button'; bb.title = 'Roll your own dice of this blast; the GM\u2019s machine rolls them and applies what gets through';
             bb.addEventListener('click', function() { if (m.done) return; m.done = true; bb.disabled = true; bb.textContent = 'Pressed'; var ok = typeof window.wpBlastOwedPress === 'function' ? window.wpBlastOwedPress(rec.att) : false; if (!ok) { m.done = false; bb.disabled = false; bb.textContent = 'Roll'; } });
@@ -171,6 +183,13 @@ function renderDue(m) {
         wrap.appendChild(b);
     }
     return wrap;
+}
+// 1.6.0 (the live test, 2026-10-30): whether a card still asks for a press on this machine: an Apply no one has pressed, or a Due card that is theirs. Table Chat raised by a roll stays up for it (net.js chatWaits)
+function waits(m) {
+    if (!m) return false;
+    if (m.due) return !m.done && !m.due.theirs && !window.wpPopout;
+    var rec = m.roll, dS = window.wpSheets; if (!rec || rec.dmg !== 1 || rec.dmgUsed === 1 || !m.res || !m.res.ok) return false;
+    return !malfOf(rec, m.res) && !!(dS && typeof dS.damageOn === 'function' && dS.damageOn());
 }
 function renderApply(m) {
     var rec = m.apply, n = net(), priv = rec.priv === 'gm';
@@ -404,4 +423,4 @@ function sync() {
 })();
 window.wpDiceSync = sync;
 setTimeout(sync, 0);
-window.wpDice = { roll: roll, rollFor: rollFor, rollWithMod: rollWithMod, syncChars: syncChars, renderCard: renderCard, renderApply: renderApply, renderDue: renderDue, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };
+window.wpDice = { waits: waits, roll: roll, rollFor: rollFor, rollWithMod: rollWithMod, syncChars: syncChars, renderCard: renderCard, renderApply: renderApply, renderDue: renderDue, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };

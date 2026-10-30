@@ -187,6 +187,25 @@ Systems, more
 - A sheet that says it is out of date offers Mark all current.
 - A join request says Let in and Turn away.
 - A player held for a new sheet can no longer drag their token.
+- Enter in the Room code box joins the game. A joining player's tooltip
+  there is now theirs, and it no longer covers the Password label.
+- The welcome screen has a Host a game card. It opens Multiplayer at Host
+  a table, and the room code now comes into view when hosting starts.
+- Table Chat raised by a roll stands clear of an open sheet or HUD. It
+  stays up while a card in it waits for your press, such as Apply to
+  target or a Due card, and while your pointer is on it.
+- A Due card shows its whole line, and says when you have none left of
+  what its roll costs.
+- A burst's card says how many hits it made, and each hit shows its round,
+  its total, its damage type and its dice, on every player's card.
+- A weapon row's chamber buttons keep their places after a press. Fill
+  loads a row at one press.
+- The Effects list opens by the token. A box at its own place moves clear
+  of the turn strip when a fight starts, and the selection bar stands
+  under the selection there.
+- Start combat ticks one of your characters aiming at a target.
+- The System editor warns of a Resisted by on a roll with no check. Kinds
+  of blow stand on one row each.
 - A list can hold each skill's specialties. Tick Specialties in the Lists
   tab. A formula then reads one as Skills.Blade.Longsword.Target. It reads
   the row with that specialty, whatever the row is called. Without one it

@@ -3505,11 +3505,14 @@ function chamberCtl(host, entry, c, f, spec, editable, sysI, gm, canThrow, okC) 
     var sys = sysI || systemOf(getActiveCampaign()), sf = sys ? fieldById(sys, spec.chamber.from) : null; if (!sf || sf.kind !== 'item-list') return;
     var rd = Array.isArray(entry.rd) ? entry.rd : [], cap = typeof chamberCap === 'function' ? chamberCap(spec, sys, entry) : 1, lb = spec.chamber.label || 'Chamber', ln = sf.label || sf.key || 'its list';
     var nx = rd[0] ? rowDef(sys, rd[0]) : null, nxN = nx && nx.def && nx.def.name ? nx.def.name : 'A round';
-    var w = el('span', 'sheet-chip sheet-item-load sheet-item-chamber' + (rd.length ? '' : ' sheet-item-load-none')); w.title = rd.length ? 'Next to fire: ' + nxN : 'Nothing chambered from ' + ln;
+    var w = el('span', 'sheet-chip sheet-item-load sheet-item-chamber' + (rd.length ? '' : ' sheet-item-load-none')); w.title = rd.length ? 'Next to fire: ' + nxN : 'Nothing chambered from ' + ln; if (w.dataset) w.dataset.chamberRow = rowIdOf(entry);
     w.appendChild(el('span', 'sheet-item-ctl', rd.length + ' of ' + cap + ' chambered'));
-    if (editable && (entry.qty | 0) === 1) {
-        if (rd.length < cap && okC !== false) { var b = el('button', 'tool ghost sheet-item-ctb sheet-item-chamberb', lb); b.type = 'button'; b.title = lb + ': one from ' + ln + ' goes into the chamber. The first one in fires first'; b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); openChamberMenu(b, c, f, entry, sf, spec, sys); }); w.appendChild(b); }
-        if (rd.length) { var u = el('button', 'tool ghost sheet-item-ctb sheet-item-unchamberb', 'Unchamber'); u.type = 'button'; u.title = 'The last one in goes back to ' + ln; u.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); commitItem(c, f, { op: 'unchamber', rowId: rowIdOf(entry), back: uid('w_') }); }); w.appendChild(u); }
+    if (editable && (entry.qty | 0) === 1) {   // 1.6.0 (the live test, 2026-10-30): each button keeps its place: one with nothing to do stands greyed, so a second press lands where the first did
+        if (okC !== false) {
+            var full = rd.length >= cap, b = el('button', 'tool ghost sheet-item-ctb sheet-item-chamberb', lb); b.type = 'button'; b.disabled = full; b.title = full ? 'It is full: it holds ' + cap + ' at most' : lb + ': one from ' + ln + ' goes into the chamber. The first one in fires first'; b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); openChamberMenu(b, c, f, entry, sf, spec, sys); }); w.appendChild(b);
+            var fl = el('button', 'tool ghost sheet-item-ctb sheet-item-fillb', 'Fill'); fl.type = 'button'; fl.disabled = full; fl.title = full ? 'It is full: it holds ' + cap + ' at most' : 'Fill it from ' + ln + ' at one press'; fl.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); chamberFill(fl, c, f, entry, sf, spec, sys); }); w.appendChild(fl);
+        }
+        var u = el('button', 'tool ghost sheet-item-ctb sheet-item-unchamberb', 'Unchamber'); u.type = 'button'; u.disabled = !rd.length; u.title = rd.length ? 'The last one in goes back to ' + ln : 'Nothing is chambered'; u.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); chamberCommit(u, c, f, { op: 'unchamber', rowId: rowIdOf(entry), back: uid('w_') }); }); w.appendChild(u);
     }
     host.appendChild(w);
     var fc = entry.fd && typeof entry.fd === 'object' ? entry.fd : rd[0], fr = gm && canThrow && fc ? rowDef(sys, fc) : null, fdef = fr && fr.def && fr.def.area && typeof fr.def.area === 'object' ? fr.def : null;
@@ -3529,13 +3532,25 @@ function chamberChoices(sys, c, sf, spec, host) {   // the rows the chamber take
     });
     return out;
 }
+// 1.6.0 Fill (the live test, 2026-10-30): the row's Fill: at one press from the one kind that fits, else the menu, which offers a Fill for each kind. One message, however many rounds
+function chamberFill(anchor, c, f, entry, sf, spec, sys) {
+    var ch = chamberChoices(sys, c, sf, spec, entry);
+    if (ch.length === 1) chamberCommit(anchor, c, f, { op: 'chamber', rowId: rowIdOf(entry), from: ch[0].id, fill: 1 }); else openChamberMenu(anchor, c, f, entry, sf, spec, sys);
+}
+// A press that takes a stack's last round takes a row off the list above, or brings one back: the sheet is held so that the row pressed stays under the pointer
+function chamberCommit(btn, c, f, q) {
+    var sc = btn && typeof btn.closest === 'function' ? btn.closest('.hud-body, #sheetBody') : null, at = sc ? btn.getBoundingClientRect().top : 0;
+    commitItem(c, f, q);
+    var row = sc && sc.isConnected ? sc.querySelector('.sheet-item-chamber[data-chamber-row="' + q.rowId + '"]') : null;
+    if (row) sc.scrollTop += row.getBoundingClientRect().top - at;
+}
 function openChamberMenu(anchor, c, f, entry, sf, spec, sys) {   // on the page, as the Load menu is (its class, its Escape, its arrow keys)
     if (_ldPop) { closeLoadMenu(); return; }
-    var rid = rowIdOf(entry), pop = el('div', 'sheet-dl-pop sheet-load-pop'); pop.setAttribute('role', 'menu'); pop._anchor = anchor;
+    var rid = rowIdOf(entry), pop = el('div', 'sheet-dl-pop sheet-load-pop'), room = (typeof chamberCap === 'function' ? chamberCap(spec, sys, entry) : 1) - (Array.isArray(entry.rd) ? entry.rd.length : 0); pop.setAttribute('role', 'menu'); pop._anchor = anchor;
     chamberChoices(sys, c, sf, spec, entry).forEach(function(x) {
-        var b = el('button', 'sheet-dl-item'); b.type = 'button'; b.setAttribute('role', 'menuitem');
-        b.appendChild(el('span', 'sheet-dl-t', x.name + (x.qty > 1 ? ' \u00d7' + x.qty : ''))); b.appendChild(el('span', 'sheet-dl-s', 'One goes into the chamber'));
-        b.addEventListener('click', function(e) { e.preventDefault(); closeLoadMenu(); commitItem(c, f, { op: 'chamber', rowId: rid, from: x.id }); }); pop.appendChild(b);
+        var row = function(t, s, q) { var b = el('button', 'sheet-dl-item'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.appendChild(el('span', 'sheet-dl-t', t)); b.appendChild(el('span', 'sheet-dl-s', s)); b.addEventListener('click', function(e) { e.preventDefault(); closeLoadMenu(); chamberCommit(anchor, c, f, q); }); pop.appendChild(b); };
+        row(x.name + (x.qty > 1 ? ' \u00d7' + x.qty : ''), 'One goes into the chamber', { op: 'chamber', rowId: rid, from: x.id });
+        var nF = Math.min(room, x.qty); if (nF > 1) row('Fill with ' + x.name, nF + ' go into the chamber', { op: 'chamber', rowId: rid, from: x.id, fill: 1 });
     });
     if (!pop.children.length) pop.appendChild(el('div', 'sheet-dl-note', 'Nothing in ' + (sf.label || sf.key || 'that list') + ' fits it.'));
     pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
@@ -4611,6 +4626,10 @@ function costBlock(c, cost) {
     var n = net(), al = cost && c && n && n.actsLeft ? n.actsLeft[c.id] : null; if (!al || al.mode !== 'refuse' || typeof al.left[cost] !== 'number' || al.left[cost] > 0) return '';
     var actN = typeof systemOf === 'function' && typeof getActiveCampaign === 'function' ? (((systemOf(getActiveCampaign()) || {}).combat || {}).turn || {}).acts : null, actL = Array.isArray(actN) ? actN.filter(function(a) { return a && a.key === cost; })[0] : null;   // its name, as the host's own refusal says it
     return 'No ' + ((actL && actL.label) || cost) + ' left this turn';
+}
+function dueBlock(charId, actId) {   // ... and of the roll a Due card runs (dice.js renderDue)
+    var camp = getActiveCampaign(), sys = camp ? systemOf(camp) : null, r = (sys && Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(x) { return x && x.id === actId; })[0];
+    return r && r.cost ? costBlock(charById(charId, camp), r.cost) : '';
 }
 function canRoll(c) { if (!c || !window.wpDice || !window.wpDice.rollFor) return false; if (window.wpVtt && !window.wpVtt.on('dice')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc && c.making !== 1); return true; }
 // Stage 6 HUD H7: a viewer who may press an apply action on this character — the GM (who may write here), a player on their own character; the
@@ -11237,7 +11256,7 @@ window.wpSheets = { bellNote: bellNote, majorFollow: majorFollow, envSoon: envSo
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, LIMITS: LIMITS,
     readerKit: function() { return { exportView: exportView, charById: charById, tokenFlags: tokenFlags, facingTarget: facingTarget, stanceCtx: stanceCtx, el: el, saveTextFile: saveTextFile, systemOf: systemOf, F: F, isClient: isClient, canWrite: canWrite, newCharacter: newCharacter, linkToken: linkToken, afterCharChange: afterCharChange, openReview: openReview, gmFinder: gmFinder, renderViews: renderViews, sheetOpen: function() { return sheetOpen; } }; } };   // what an outside reader's page code reads the sheet by
-Object.assign(window.wpSheets, { takeDamage: takeDamage, canDamage: canDamage, damageFromRoll: damageFromRoll, damageOn: damageOn, aimNext: aimNext });   // 1.5.6, the damage step
+Object.assign(window.wpSheets, { dueBlock: dueBlock, takeDamage: takeDamage, canDamage: canDamage, damageFromRoll: damageFromRoll, damageOn: damageOn, aimNext: aimNext });   // 1.5.6, the damage step
 
 // An outside sheet reader (2026-10-18): a module of the GM's own may stand beside the app, in the repository's private/ folder, which only the
 // development server serves (none ships with the app). It is asked for once, after the page has drawn and never in the stream window; it

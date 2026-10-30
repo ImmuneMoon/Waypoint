@@ -140,7 +140,7 @@ var BY_TEXT = {
     'players arrive at': 'Where joining players land: their own last map (Player\'s last location), the map you are on (Follow me), or a pinned map.',
     'new players start at': 'Where someone joining this campaign for the first time lands — with you, or parked on a map of your choice.',
     'session password optional': 'An extra lock in case the room code leaks.',
-    'room code': 'Send this to your players. It changes every session you end on purpose.',
+    'room code': 'The code your GM sent you. Capitals and the hyphen do not matter.',
     'player history bans': 'Everyone who has ever joined this campaign, and who is banned from it.',
     // tool menus
     'pen style': 'Freehand sketching, or straight lines from point to point.',

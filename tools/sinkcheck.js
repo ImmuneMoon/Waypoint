@@ -5471,11 +5471,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             items: [{ id: 'i_tube', name: 'Spark Tube', category: 'Launcher', vis: 'all' }, { id: 'i_fizz', name: hostile, category: 'Round', vis: 'all', area: { ft: 6 }, damage: '3d6' }] }, { F: await import(modUrl('formula.js')), gmView: true });
         const c = SYc.cleanChar({ id: 'c_kael', name: 'Kael', values: { f_gear: [{ id: 'w_t1', defId: 'i_tube', qty: 1, rd: [{ defId: 'i_fizz' }] }, { id: 'w_t2', defId: 'i_tube', qty: 1 }, { id: 'w_f1', defId: 'i_fizz', qty: 3 }] } }, sys);
         const sent = [], win = { innerWidth: 1200, innerHeight: 800, wpArmLaunch: o => armedC.push(o) };
-        const CH = new Function('el', 'document', 'window', 'systemOf', 'getActiveCampaign', 'fieldById', 'rowDef', 'rowIdOf', 'rowLvl', 'fmtNum', 'uid', 'commitItem', 'chamberTakes', 'chamberCap', 'closeHud', 'closeSheet', 'loadFits', ldC + '\n' + chC + '\nreturn { chamberCtl: chamberCtl, closeLoadMenu: closeLoadMenu };')(
+        const CH = new Function('el', 'document', 'window', 'systemOf', 'getActiveCampaign', 'fieldById', 'rowDef', 'rowIdOf', 'rowLvl', 'fmtNum', 'uid', 'commitItem', 'chamberTakes', 'chamberCap', 'closeHud', 'closeSheet', 'loadFits', ldC + '\n' + chC + '\nreturn { chamberCommit: chamberCommit, chamberCtl: chamberCtl, closeLoadMenu: closeLoadMenu };')(
             el, docC, win, () => sys, () => ({}), SYc.fieldById, SYc.rowDef, SYc.rowIdOf, SYc.rowLvl, n => String(n), p => p + 'new', (cc, ff, q) => sent.push(q), SYc.chamberTakes, SYc.chamberCap, () => closedC.push('hud'), () => closedC.push('sheet'), SYc.loadFits);
         const f = sys.fields[0], h1 = node('div'), h2 = node('div'), h3 = node('div'), h4 = node('div');
         CH.chamberCtl(h1, c.values.f_gear[0], c, f, f.list, true, sys, true, true); CH.chamberCtl(h2, c.values.f_gear[1], c, f, f.list, false, sys, false, true); CH.chamberCtl(h3, c.values.f_gear[0], c, f, null, true, sys, true, true); CH.chamberCtl(h4, c.values.f_gear[0], c, f, f.list, true, sys, false, true);
-        const chip = h1.children[0], chB = chip && chip.children[1], unB = chip && chip.children[2], launch = h1.children[1];
+        const chip = h1.children[0], chB = chip && chip.children[1], unB = chip && chip.children[3], launch = h1.children[1];
         if (chB) chB.listeners.click({ preventDefault() {}, stopPropagation() {} });
         const pop = docC.body.children[0], rows = pop ? pop.querySelectorAll('.sheet-dl-item') : [];
         if (rows[0]) rows[0].listeners.click({ preventDefault() {} });
@@ -5491,9 +5491,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             JSON.stringify([chip && chip.title, rows.length, sent, armedC, h4.children.length]));
         const h5 = node('div'), h6 = node('div'), h7 = node('div'); CH.chamberCtl(h5, c.values.f_gear[1], c, f, f.list, true, sys, true, true, false); CH.chamberCtl(h6, c.values.f_gear[0], c, f, f.list, true, sys, false, true, false); CH.chamberCtl(h7, c.values.f_gear[1], c, f, f.list, true, sys, false, true, true);
         const chip6 = h6.children[0], btn6 = chip6 ? chip6.children.map(x => x.className) : [], chip7 = h7.children[0];
+        const sentH = sent.length, heldRow = { getBoundingClientRect: () => ({ top: 282 }) }, heldSc = { isConnected: true, scrollTop: 100, querySelector: s => (s === '.sheet-item-chamber[data-chamber-row="w_t1"]' ? heldRow : null) }, heldB = { closest: s => (s === '.hud-body, #sheetBody' ? heldSc : null), getBoundingClientRect: () => ({ top: 300 }) };
+        CH.chamberCommit(heldB, c, f, { op: 'unchamber', rowId: 'w_t1', back: 'w_x' }); const heldTop = heldSc.scrollTop; CH.chamberCommit({}, c, f, { op: 'unchamber', rowId: 'w_t1', back: 'w_y' }); sent.length = sentH;
+        check('the live test, 2026-10-30: a press that takes a stack off the list above leaves the row pressed under the pointer: the sheet is scrolled by what the row moved; with no sheet round it the press is sent all the same',
+            heldTop === 82, String(heldTop));
+        const sent7 = sent.length, fill7 = chip7 ? chip7.children[2] : null, un7 = chip7 ? chip7.children[3] : null; if (fill7) fill7.listeners.click({ preventDefault() {}, stopPropagation() {} });
+        const fillSent = JSON.stringify(sent.slice(sent7)), h8 = node('div'), rd8 = Object.assign({}, c.values.f_gear[0], { rd: [c.values.f_gear[0].rd[0], c.values.f_gear[0].rd[0]] }); CH.chamberCtl(h8, rd8, c, f, f.list, true, sys, false, true, true); const chip8 = h8.children[0];
+        check('the live test, 2026-10-30: a row\'s chamber keeps its buttons in their places: Load, Fill and Unchamber always there in that order, one with nothing to do greyed with its reason; Fill sends one message, however many rounds, where one kind fits; a full row greys Load and Fill and keeps Unchamber',
+            !!chip7 && chip7.children[1].disabled === false && fill7.textContent === 'Fill' && fill7.disabled === false && un7.disabled === true && un7.title === 'Nothing is chambered' && fillSent === JSON.stringify([{ op: 'chamber', rowId: 'w_t2', from: 'w_f1', fill: 1 }])
+            && !!chip8 && chip8.children.length === 4 && chip8.children[1].disabled === true && chip8.children[2].disabled === true && chip8.children[3].disabled === false && /full/.test(chip8.children[2].title), JSON.stringify([fillSent, chip8 && chip8.children.map(x => x.disabled)]));
         check('1.5.9 Chambers only where on the sheet (chamberCtl run for real on a page that refuses markup): a row that does not meet it and holds no round shows no chamber at all, no chip and no button; one that still holds a round keeps its chip and Unchamber and has no Chamber; a row that meets it is drawn as before',
             h5.children.length === 0 && chip6 && chip6.children[0].textContent === '1 of 2 chambered' && btn6.length === 2 && btn6[1].indexOf('sheet-item-unchamberb') >= 0 && !btn6.some(x => x.indexOf('sheet-item-chamberb') >= 0)
-            && chip7 && chip7.children[0].textContent === '0 of 2 chambered' && chip7.children.length === 2 && chip7.children[1].className.indexOf('sheet-item-chamberb') >= 0,
+            && chip7 && chip7.children[0].textContent === '0 of 2 chambered' && chip7.children.length === 4 && chip7.children[1].className.indexOf('sheet-item-chamberb') >= 0,
             JSON.stringify([h5.children.length, btn6, chip7 && chip7.children.length]));
     }
     {   // 1.5.8 Counted once: a row's name from a campaign file reaches the chip as text alone, and the editor's box names a hostile stat as an option's text

@@ -449,7 +449,8 @@
                                   <li>The boxes are a character sheet, a HUD, the page panel, Table Chat with its dice roller and the table notepad. The Sound, Music, Visual effects and Video panels are boxes too.</li>
                                   <li>A box you ask for on another view shows there too, until you close it. Open a sheet from the <b>Characters</b> tab on the data map and it shows there and on the play map.</li>
                                   <li>A box comes in front of the others when you open it or click it.</li>
-                                  <li>Someone else&rsquo;s roll opens Table Chat by itself only on the play map. On another view you get a notice, and a count on the chat button. Your own roll opens the chat where you are for a few seconds.</li>
+                                  <li>A box at its own place moves clear of the turn strip when a fight starts.</li>
+                                  <li>Someone else&rsquo;s roll opens Table Chat by itself only on the play map. On another view you get a notice, and a count on the chat button. Your own roll opens the chat where you are for a few seconds, clear of an open sheet or HUD. It stays up while a card in it waits for your press, such as Apply to target or a Due card, and while your pointer is on it.</li>
                                   <li>A window of its own always stays where you put it: a sheet, a page or the chat you popped out, and the stream window.</li>
                                   <li>A box opens clear of the play map&rsquo;s toolbar, the View, Grid and Snap buttons at its edge and the turn strip. Where the room is short it opens shorter. A box you moved opens where you left it.</li>
                                   <li>The toolbar stays over the boxes. While a tool&rsquo;s options are up, press a box and it comes over the toolbar and the options. One press on the tool brings them back.</li>
@@ -1341,6 +1342,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>Or pick a specific map to pin the table there. That is handy for a staging area while you prep elsewhere.</li>
                               </ul>
                           </li>
+                          <li>The <b>Welcome</b> screen&rsquo;s <b>Host a game</b> opens this window at Host a table.</li>
                           <li>Press <b>Start Hosting This Campaign</b>. A <b>room code</b> appears. Send it to your players however you like, then <b>close the window</b>. The session keeps running while you work, and the <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 3.5c-4.4 4.8-4.4 12.2 0 17M12 3.5c4.4 4.8 4.4 12.2 0 17M4.6 9h14.8M4.6 15h14.8"/></svg> button reopens the window whenever you need the roster, pause or summon.</li>
                           <li>Players who join appear in the roster and see the arrival map. On <b>Follow me</b>, changing maps brings them along. Otherwise they stay where they are until they travel or you <b>Summon</b> them, which moves them once. Your planners, room notes and character dossiers are <b>never sent</b> to them. <b>Handbook</b> pages you leave open to players are sent.</li>
                       </ol>
@@ -1540,7 +1542,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <div class="help-pane" data-pane="mp-player" style="display:none;">
                       <h4>Join your GM's table</h4>
                       <ol>
-                          <li>Get the <b>room code</b> from your GM, plus the session password if they set one. A code looks like <b>AB2CD-EF3GH</b>. Type or paste it with or without the hyphen, in capitals or not.</li>
+                          <li>Get the <b>room code</b> from your GM, plus the session password if they set one. A code looks like <b>AB2CD-EF3GH</b>. Type or paste it with or without the hyphen, in capitals or not. Enter in the box joins, as the button does.</li>
                           <li>On the <b>Welcome</b> screen press <b>Join a game</b>. At any other time press the <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 3.5c-4.4 4.8-4.4 12.2 0 17M12 3.5c4.4 4.8 4.4 12.2 0 17M4.6 9h14.8M4.6 15h14.8"/></svg></b> button in the header, then <b>Join a table</b>.
                               <ul>
                                   <li>Set your name, which is required, and your color, picture and token face.</li>
@@ -1878,6 +1880,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>A roll can also say what <b>Lands as a Big Hit</b>. A success whose natural roll is at or under it is marked a Big Hit. It is not a critical, so <code>RollCrit</code> stays 0 and On a critical success does not happen. Its changes can read <code>RollBig</code>, 1 on a Big Hit and 0 otherwise. A list&rsquo;s roll reads its row&rsquo;s names here too.</li>
                                   <li>A change&rsquo;s amount can read <code>RollCrit</code>. It is 1 on a critical success, minus 1 on a critical failure and 0 otherwise. So <code>floor(Bonus / 2) * (RollCrit + 1)</code> On failure gives half the bonus, and nothing on a critical failure.</li>
                                   <li>A roll can be <b>Resisted by</b> another roll of the system, one ticked <b>Resists an attempt</b>. When it succeeds against your target, that roll is sent to the target&rsquo;s player as a card to press, or to you for an NPC or a private roll. It reads <code>AttemptMargin</code>, how far the attempt succeeded. So <code>3d6 &lt;= Will - AttemptMargin</code> resists at minus that margin. Each attempt is resisted once.</li>
+                                  <li>Only a roll with a check can be resisted, because a card comes from a roll that succeeds against its target. The editor warns of a Resisted by on a roll with no check, such as a plain damage roll.</li>
+                                  <li>A Due card says so when you have none left of what its roll costs. The GM&rsquo;s machine still judges the press.</li>
                                   <li>Beside a Resisted by that is set, <b>Or resisted by</b> ticks up to three other rolls ticked Resists an attempt. The target&rsquo;s card then has a button for each, such as Dodge, Parry and Block. The target picks one, and it reads the same <code>AttemptMargin</code>. One press uses the card up.</li>
                                   <li>A list&rsquo;s roll can be ticked <b>Resists an attempt</b> too, in the Lists tab, and Or resisted by can tick it. The target&rsquo;s card then has a button for each row of that list they hold, such as Parry with each weapon, eight at most. A row kept from them is never offered on their card. Where that roll has a <b>Shown where</b>, only the rows where it is true are offered.</li>
                                   <li>Tick <b>Not resisted on a critical</b> beside a Resisted by where a critical success cannot be resisted. Then a critical sends the target nothing. Left off, a critical is resisted as any success is.</li>
@@ -2145,11 +2149,13 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li><b>Matched by</b> names a stat of this list and a stat of the other. A row loads only what reads the same figure, so a blaster takes only its own kind of pack. A number with value names fits a choice of the same name, so 9mm fits 9mm whichever way each list keeps it. Where this list&rsquo;s stat is a set of places, a row takes what names any place it ticks, so one gun can take two calibres.</li>
                                   <li>A list&rsquo;s <b>Chambers from</b> lets a row hold rounds in a chamber, as a launcher holds its grenades. Any weapon your system gives a chamber is a launcher. Pick the list the rounds come from, this one too, how many it holds, the categories it takes and its button&rsquo;s word. A row holds 32 at most. How many a row holds can come from one of its own number stats instead, as a mortar holds four.</li>
                                   <li><b>Chamber</b> puts one round of a stack into it, and <b>Unchamber</b> gives the last one in back. The row shows how many are chambered, on a locked sheet and in the HUD too. A row with a round in it is never made a stack. <b>Matched by</b> works as for a load.</li>
+                                  <li><b>Fill</b> fills the chamber at one press from the one kind that fits. Where several fit it opens the menu, which has a Fill for each kind. A button with nothing to do stands greyed, so a row&rsquo;s buttons keep their places.</li>
                                   <li><b>Chambers only where</b> is a formula a row must meet before it may chamber, such as <code>Row.Kind = 1</code>. A row that does not meet it shows no chamber. One that still holds rounds can only unchamber them.</li>
                                   <li>A list roll&rsquo;s <b>+ Then&hellip;</b> can <b>Fire the next chambered round</b>. The first one in leaves the chamber and is kept as the round last fired. A shot that jams fires nothing and keeps its round, whatever its When says.</li>
                                   <li>Fire has a <b>How many</b> box for a burst, such as <code>Row.Rate</code>. It reads the row&rsquo;s names and rolls no dice. Empty, it fires one. That many rounds go in order, and it stops when the chamber is empty. The card says how many went.</li>
                                   <li><code>Row.chambered</code> counts the rounds. <code>Row.round.&lt;stat&gt;</code> reads a stat or a column of the next round. <code>Row.fired.&lt;stat&gt;</code> reads the round last fired, else the next one. With none they read 0. After a burst the round last fired is the last one that went, and a launched blast is that round&rsquo;s alone.</li>
                                   <li>So a launcher&rsquo;s Damage can roll <code>(Row.fired.dd)d6 + Row.fired.da</code>, and its Attack can need <code>Row.chambered &gt; 0</code>. Anything more it needs to fire is yours to put in its needs.</li>
+                                  <li>A burst&rsquo;s card says how many hits it made. Each hit has a line of its own: its round, its total, its damage type and its dice.</li>
                                   <li>A <b>burst</b> is set up on a list&rsquo;s rolls. Set the attack to <b>Opens a burst</b>, with Fire and its How many in its Then. Set the roll of the extra dice to <b>A burst&rsquo;s extra dice</b>, such as <code>(max(1, Row.sh - 1))d6cs&gt;=4</code>.</li>
                                   <li>The extra dice roll once, after an attack that hit. The table keeps which dice hit. <code>Row.bursthits</code> reads the hits landed, and a missed attack reads 0.</li>
                                   <li>Put <code>Row.bursthits</code> in a damage roll&rsquo;s <b>Hits it rolls for</b>. One press then rolls once for each hit, 32 at most, on one card with each total on it. With no hits to roll for, it says so.</li>
@@ -3646,7 +3652,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             </div>
             <button class="tool" id="netHostBtn" style="width:100%;">Start Hosting This Campaign</button>
             <div id="netHostInfo" style="display:none; margin-top:10px; text-align:center;">
-                <div style="color:var(--dim); font-size:12px;">Room code</div>
+                <div style="color:var(--dim); font-size:12px;" title="Send this to your players. It changes every session you end on purpose.">Room code</div>
                 <div style="display:flex; gap:8px; align-items:center; justify-content:center;">
                     <span id="netCode" style="font-family:monospace; font-size:24px; font-weight:bold; color:var(--gold); letter-spacing:3px;"></span>
                     <button class="tool ghost" id="netCopyBtn" title="Copy code" style="padding:2px 8px;">&#128203;</button>
@@ -3763,6 +3769,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       <div class="wc-actions">
         <button class="wc-card" id="wcStartBtn"><span class="wc-ic">&#10133;</span><b>Start a campaign</b><small>A fresh world of your own</small></button>
         <button class="wc-card" id="wcLoadBtn"><span class="wc-ic">&#128193;</span><b>Import a campaign</b><small>Open one from a file</small></button>
+        <button class="wc-card" id="wcHostBtn"><span class="wc-ic">&#127922;</span><b>Host a game</b><small>Run a table for your players</small></button>
         <button class="wc-card" id="wcJoinBtn"><span class="wc-ic">&#127760;</span><b>Join a game</b><small>With a room code</small></button>
         <button class="wc-card" id="wcProfileBtn"><span class="wc-ic wc-me" id="wcProfFace" aria-hidden="true"></span><b>Your profile</b><small>Your picture, name and tables</small></button>
       </div>
@@ -3787,7 +3794,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         </div>
       </div>
       <div class="wc-join-fields">
-        <label class="wc-field"><span>Room code</span><input type="text" id="wcJoinCode" placeholder="e.g. AB2CD-EF3GH" autocomplete="off" style="font-family:monospace; text-transform:uppercase;"></label>
+        <label class="wc-field" data-tip-up="1"><span>Room code</span><input type="text" id="wcJoinCode" placeholder="e.g. AB2CD-EF3GH" autocomplete="off" style="font-family:monospace; text-transform:uppercase;"></label>
         <label class="wc-field"><span>Password <span class="wc-opt">(only if the GM set one)</span></span><input type="password" id="wcJoinPass" placeholder="" autocomplete="off"></label>
       </div>
       <div id="wcJoinStatus" class="wc-join-status" role="status" aria-live="polite"></div>

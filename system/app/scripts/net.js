@@ -3656,7 +3656,7 @@ net.charItem = function(charId, fieldId, q) {
         _charPending[ridM] = { charId: charId, fieldId: fieldId, batch: [], kind: 'item', timer: setTimeout(function() { charPendingDone(ridM, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
         if (q.op === 'restore') _charPending[ridM].q = { op: 'restore', rowId: q.rowId };   // 1.5.8: its words, if refused, are the Undo's
         var mM = { type: 'char-item', rid: ridM, charId: charId, fieldId: fieldId, op: q.op };
-        ['defId', 'rowId', 'qty', 'pay', 'get', 'from', 'back', 'in', 'name', 'look', 'work', 'drop'].forEach(function(k) { if (q[k] !== undefined) mM[k] = q[k]; });   // 1.6.0, backlog 206: a look, a work line, a line's place   // 1.6.0 R14: in, a part's host   // 1.5.8: a load's from (null: unload) and back
+        ['defId', 'rowId', 'qty', 'pay', 'get', 'from', 'back', 'fill', 'in', 'name', 'look', 'work', 'drop'].forEach(function(k) { if (q[k] !== undefined) mM[k] = q[k]; });   // 1.6.0, backlog 206: a look, a work line, a line's place   // 1.6.0 R14: in, a part's host   // 1.5.8: a load's from (null: unload) and back
         try { net.conns[0].send(mM); } catch (e) { charPendingDone(ridM, false, 'value'); return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
     }
@@ -8515,10 +8515,10 @@ function handleMessage(msg, conn) {
         if (Fq.names(q.expr).length && !varsQ) { denyQ('names'); return; }
         if (chQ && !q.att && typeof offTurnBar === 'function') { var offQ = offTurnBar(campQ, chQ, q.act, q.row, q.label || (actQ && actQ.label)); if (offQ) { denyQ('error', { error: { message: offQ, pos: 0, len: 0 } }); return; } }   // 1.6.0: off their turn, by the system's rule; a card's press answers the host's own record
         if (actQ && actQ.burst === 'extra' && q.row && typeof SQ.burstBar === 'function') { var bbQ = SQ.burstBar(campQ.system, chQ, q.row.f, q.row.r); if (bbQ) { denyQ('error', { error: { message: bbQ, pos: 0, len: 0 } }); return; } }   // 1.6.0 A burst: its extra dice, once, after an attack that hit
-        var hvQ = null; if (actQ && actQ.dmg === true && actQ.hits && varsQ && typeof SQ.hitCount === 'function') { var hnQ = SQ.hitCount(actQ, varsQ, Fq); if (hnQ === null) { denyQ('error', { error: { message: 'How many hits it rolls for could not be worked out.', pos: 0, len: 0 } }); return; } if (hnQ < 1) { denyQ('error', { error: { message: 'There are no hits to roll for.', pos: 0, len: 0 } }); return; } hvQ = SQ.hitVars(varsQ, hnQ); varsQ = hvQ[0]; }   // 1.6.0 A burst: how many times it rolls, from the entry through their view; the first hit reads its own round
+        var hvQ = null, rnQ = null; if (actQ && actQ.dmg === true && actQ.hits && varsQ && typeof SQ.hitCount === 'function') { var hnQ = SQ.hitCount(actQ, varsQ, Fq); if (hnQ === null) { denyQ('error', { error: { message: 'How many hits it rolls for could not be worked out.', pos: 0, len: 0 } }); return; } if (hnQ < 1) { denyQ('error', { error: { message: 'There are no hits to roll for.', pos: 0, len: 0 } }); return; } hvQ = SQ.hitVars(varsQ, hnQ); rnQ = SQ.hitRounds(viewQ || campQ.system, varsQ, hnQ); varsQ = hvQ[0]; }   // 1.6.0 A burst: how many times it rolls, from the entry through their view; the first hit reads its own round
         var resQ = Fq.evaluate(q.expr, varsQ ? { vars: varsQ } : {});
         if (!resQ.ok) { denyQ('error', resQ); return; }
-        var moQ = hvQ && hvQ.length > 1 ? SQ.hitRolls(campQ.system, actQ, q.expr, hvQ.slice(1), Fq, Dq) : null; if (moQ && moQ.error) { denyQ('error', { error: { message: moQ.error, pos: 0, len: 0 } }); return; }   // ... and each hit after it, rolled here, before what it costs is spent
+        var moQ = hvQ && hvQ.length > 1 ? SQ.hitRolls(campQ.system, actQ, q.expr, hvQ.slice(1), Fq, Dq, { rounds: rnQ.slice(1) }) : null; if (moQ && moQ.error) { denyQ('error', { error: { message: moQ.error, pos: 0, len: 0 } }); return; }   // ... and each hit after it, rolled here, before what it costs is spent
         var whyQ = Dq.checkTableRoll(resQ); if (whyQ) { denyQ(whyQ); return; }
         if (actQ && actQ.cost && chQ && typeof actSpend === 'function') { var costQ = actSpend(campQ, q.charId, net.roster[conn.peer], actQ.cost, conn, chQ.name); if (costQ) { denyQ('error', { error: { message: costQ, pos: 0, len: 0 } }); return; } }   // turn-based combat T4: what it costs
         if (chQ && !q.att && typeof offTurnWarn === 'function') offTurnWarn(campQ, chQ, q.act, q.row, q.label || (actQ && actQ.label), conn);   // 1.6.0: nothing refused it, so a warning is said
@@ -8537,6 +8537,7 @@ function handleMessage(msg, conn) {
         if (recQ.dmg === 1 && recQ.major !== 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgMajorOf === 'function' && SQ.dmgMajorOf(actQ, varsQ, Fq)) recQ.major = 1;   // 1.6.0: A Major Wound where, worked out on the host through the roller's view (a list roll's row's names too); never from the roller's word
         if (recQ.dmg === 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgPart2Of === 'function' && campQ && campQ.system) { var p2Q = SQ.dmgPart2Of(campQ.system, actQ, varsQ, Fq); if (p2Q) recQ.dmg2 = p2Q; if (typeof SQ.dmgPartOf === 'function') [3, 4, 5].forEach(function(k) { var pkQ = SQ.dmgPartOf(campQ.system, actQ, varsQ, Fq, undefined, k); if (pkQ) recQ['dmg' + k] = pkQ; }); }   // 1.6.0 (B3): a second part of the blow, of another type, rolled here from the entry through the roller's view (their view drops one read from a GM-only value); never from the roller's word
         if (recQ.dmg === 1 && moQ && moQ.list) recQ.more = moQ.list;   // 1.6.0 A burst: one record, one card
+        if (recQ.dmg === 1 && rnQ && rnQ[0]) { recQ.rno = rnQ[0].rno; if (rnQ[0].rnd) recQ.rnd = rnQ[0].rnd; }   // ... which says which round each hit was
         if (q.hit && thQ0 && typeof thQ0.aim === 'function') { var amQ = thQ0.aim(); if (amQ) recQ.aim = amQ; }   // 1.6.0 (B5): where it was aimed and what it read there, for its card
         if (recQ.dmg === 1 && q.hit) recQ.hit = q.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target (a player's app keeps no such key)
         if (resQ.breakdown && resQ.breakdown.names && resQ.breakdown.names.length) { var nmQ = Dq.cleanNames(resQ.breakdown.names); if (!nmQ) { denyQ('error'); return; } if (nmQ.length) recQ.names = nmQ; }
@@ -9175,6 +9176,7 @@ function startHosting(forceFresh) {
         var codeEl = ui('netCode');
         if (codeEl) codeEl.textContent = showCode(code);
         ui('netHostInfo').style.display = 'block';
+        var hiEl = ui('netHostInfo'); if (hiEl && typeof hiEl.scrollIntoView === 'function') hiEl.scrollIntoView({ block: 'start' });   // the live test, 2026-10-30: the code came up at the foot of a long window with the words under it cut off
         syncSessionButtons();
         renderRoster();
         toast(resumed ? 'Hosting resumed with the same room code — players can rejoin as before.' : 'Hosting started. Share the room code.');
@@ -9906,13 +9908,13 @@ net.diceRoll = function(expr, o) {
     if (entR && entR.needs && varsR && !SR.rollNeedsOk(entR, varsR, F)) return { error: SR.rollNeedsSays(entR) };
     var swR = null; if (Array.isArray(o.sw) && o.sw.length) { var refSw = o.act && !o.row ? { r: String(o.act) } : o.fr ? { f: String(o.fr) } : o.row ? { l: String(o.row.f), row: String(o.row.r), i: typeof o.row.i === 'number' ? o.row.i : undefined } : null; swR = chR && SR && campR && campR.system && refSw && typeof SR.swJudge === 'function' ? SR.swJudge(campR.system, chR, refSw, o.sw) : { ok: false }; if (!swR.ok) return { error: 'That bonus is not this character\u2019s to add to this roll now.' }; }   // 1.6.0: the roll switches ticked, judged as a player's are (the formula already holds them)   // R2b: its needs (before anything is rolled)   // Stage 6 F5b: a roll on one row — its Row.* names
     if (entR && entR.burst === 'extra' && o.row && SR && typeof SR.burstBar === 'function') { var bbR = SR.burstBar(campR.system, chR, o.row.f, o.row.r); if (bbR) return { error: bbR }; }   // 1.6.0 A burst: its extra dice, once, after an attack that hit
-    var hvR = null; if (entR && entR.dmg === true && entR.hits && varsR && SR && typeof SR.hitCount === 'function') { var hnR = SR.hitCount(entR, varsR, F); if (hnR === null) return { error: 'How many hits it rolls for could not be worked out.' }; if (hnR < 1) return { error: 'There are no hits to roll for.' }; hvR = SR.hitVars(varsR, hnR); varsR = hvR[0]; }   // 1.6.0 A burst: how many times it rolls, from the entry; the first hit reads its own round
+    var hvR = null, rnR = null; if (entR && entR.dmg === true && entR.hits && varsR && SR && typeof SR.hitCount === 'function') { var hnR = SR.hitCount(entR, varsR, F); if (hnR === null) return { error: 'How many hits it rolls for could not be worked out.' }; if (hnR < 1) return { error: 'There are no hits to roll for.' }; hvR = SR.hitVars(varsR, hnR); rnR = SR.hitRounds(campR.system, varsR, hnR); varsR = hvR[0]; }   // 1.6.0 A burst: how many times it rolls, from the entry; the first hit reads its own round
     var res = F.evaluate(expr, varsR ? { vars: varsR } : {});
     if (!res.ok) return { error: res.error.message, pos: res.error.pos, len: res.error.len };
     if (o.row && chR && SR && campR && campR.system) rowP = SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, (res.breakdown && res.breakdown.names) || [], F, uDefR || undefined);   // what its Row.* names read, and whether the row is GM-only
     if (rowP && uDefR && !(window.wpLibrary && typeof window.wpLibrary.playerEntry === 'function' && window.wpLibrary.playerEntry(o.row.k)) && !(Array.isArray(campR.system.items) ? campR.system.items : []).some(function(it) { return it && it.id === o.row.k && it.vis !== 'gm'; })) rowP.gm = true;   // 1.6.0 Rolls unheld entries: an entry players may not see keeps its roll the GM's
     var why = D.checkTableRoll(res); if (why) return { error: D.denyText(why) };
-    var moR = hvR && hvR.length > 1 ? SR.hitRolls(campR.system, entR, expr, hvR.slice(1), F, D) : null; if (moR && moR.error) return { error: moR.error };   // ... and each hit after it, rolled here
+    var moR = hvR && hvR.length > 1 ? SR.hitRolls(campR.system, entR, expr, hvR.slice(1), F, D, { rounds: rnR.slice(1) }) : null; if (moR && moR.error) return { error: moR.error };   // ... and each hit after it, rolled here
     if (chR && !o.att && typeof net.offTurnSay === 'function') net.offTurnSay(chR, o.act, o.row, o.label);   // 1.6.0: off its turn, the GM is told, once nothing has refused it
     var rec = { type: 'roll', id: D.uid(), from: diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() };
     var mfR = null; if (entR && entR.malf && varsR) { var mqR = F.evaluate(entR.malf, { vars: varsR }); if (mqR.ok && typeof mqR.value === 'number' && isFinite(mqR.value)) mfR = Math.max(1, Math.min(1000000, Math.round(mqR.value))); }   // Stage 6 HUD R3: its Malf
@@ -9929,6 +9931,7 @@ net.diceRoll = function(expr, o) {
     if (rec.dmg === 1 && rec.major !== 1 && entR && SR && typeof SR.dmgMajorOf === 'function' && typeof entR.dmgMajorIf === 'string' && entR.dmgMajorIf) { var mjN = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, F.names(entR.dmgMajorIf), F, uDefR || undefined) : { names: F.names(entR.dmgMajorIf).map(function(n) { return { name: n }; }) }; if (!(mjN.gm || SR.gmOnlyNames(campR.system, mjN.names).concat(SR.gmDerivedNames(campR.system, F, mjN.names)).length) && SR.dmgMajorOf(entR, varsR, F)) rec.major = 1; }   // 1.6.0: A Major Wound where, for Apply to target; never from a GM-only value, as the armour divisor, since the record travels to the table
     if (rec.dmg === 1 && entR && SR && typeof SR.dmgPart2Of === 'function' && campR && campR.system) { var p2R = SR.dmgPart2Of(campR.system, entR, varsR, F); if (p2R) rec.dmg2 = p2R; if (typeof SR.dmgPartOf === 'function') [3, 4, 5].forEach(function(k) { var pkR = SR.dmgPartOf(campR.system, entR, varsR, F, undefined, k); if (pkR) rec['dmg' + k] = pkR; }); }   // 1.6.0 (B3): a second part of the blow, of another type, rolled from the entry (its card says its amount, so a GM-only one keeps the roll private, below)
     if (rec.dmg === 1 && moR && moR.list) rec.more = moR.list;   // 1.6.0 A burst: one record, one card
+    if (rec.dmg === 1 && rnR && rnR[0]) { rec.rno = rnR[0].rno; if (rnR[0].rnd) rec.rnd = rnR[0].rnd; }   // ... which says which round each hit was
     if (thR && typeof thR.aim === 'function') { var amR = thR.aim(); if (amR) rec.aim = amR; }   // 1.6.0 (B5): where it was aimed and what it read there, for its card
     if (rec.dmg === 1 && thR) rec.hit = o.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target
     if (rec.dmg === 1 && typeof o.blast === 'string' && /^b_[a-z0-9]{1,16}$/.test(o.blast)) rec.blast = o.blast;   // 1.5.8 explosives: the blast this damage is for (this machine's own word): the card's Apply to all in the blast
@@ -10135,6 +10138,9 @@ function chatGiveBack(p) {
     if (!v || !p || !fl || !fl.leave) return false;
     fl.leave(p, v); return true;
 }
+// 1.6.0 (the live test, 2026-10-30): a card that still waits for a press keeps a chat a roll raised: closing by itself took the GM's Apply to target and a player's Due card out of sight. Only the cards since it was raised count
+var _chatRaisedBy = null;   // the message that raised it
+function chatWaits() { var D = window.wpDice, at = _chatRaisedBy ? chatLog.indexOf(_chatRaisedBy) : 0; return !!(D && typeof D.waits === 'function') && chatLog.slice(Math.max(0, at)).some(D.waits); }
 // [floatcheck:chatback-end]
 function armChatDismiss() {
     if (_chatDismissTimer) clearTimeout(_chatDismissTimer);
@@ -10142,6 +10148,8 @@ function armChatDismiss() {
         _chatDismissTimer = null;
         if (!_chatRollOpened) return;
         var p = ui('chatPanel');
+        if (p && typeof p.matches === 'function' && p.matches(':hover')) { armChatDismiss(); return; }   // it is being read
+        if (chatWaits()) return;
         if (p && p.style.display !== 'none' && !chatGiveBack(p)) { p.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel(); }
         _chatRollOpened = false;
     }, 6000);
@@ -10156,8 +10164,9 @@ function pushChat(m) {
     if ((m.roll || (m.due && !m.due.theirs)) && panel && closed && rise) {   // T2b: a reminder to press surfaces it too (never dismissed by itself)   // a roll always surfaces Table Chat so everyone sees the result (no toast needed then)
         var lent = fl && fl.reveal ? fl.reveal(panel) : '';   // up on another view: borrowed for this one, and given back when the roll's few seconds are over
         panel.style.display = 'flex'; chatUnread = 0; refreshChatRecipients(); closed = false;
-        _chatRollOpened = lent || true;
+        _chatRollOpened = lent || true; _chatRaisedBy = m;
     }
+    else if (m.roll && panel && !closed && fl && fl.place) fl.place(panel);   // up already: clear of a sheet opened since, unless the user moved it (floats.js)
     if (m.roll && _chatRollOpened) armChatDismiss();   // dismiss the roll-opened chat after a few seconds; a fresh roll re-arms it
     if (closed) {
         if (m.from.id !== net.myId) {

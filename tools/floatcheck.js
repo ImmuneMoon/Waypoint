@@ -184,8 +184,8 @@ const VIEWS = ['play', 'data', 'page'];
     sheet.style.display = 'none'; mo.cb([{ type: 'attributes', target: sheet }]); const downCls = J(sheet.classes()); sheet.style.display = 'flex'; mo.cb([{ type: 'attributes', target: sheet }]); const upAgain = W.is(sheet);
     check('what the watcher sees: a box that comes up belongs to the view on screen then (a sheet opened on the play map is away on the data map, opened again on the data map it shows there), a HUD added to the layer alike, a text node is no box, and a box dragged about asks nothing',
         first === 'shown' && dragged === 0 && still === 'away' && hudOn === 'shown' && hudPage === 'away' && downCls === '[]' && upAgain === 'shown', J([first, dragged, still, hudOn, hudPage, downCls, upAgain]));
-    check('the module publishes its eleven calls (1.6.0: fit and fitAll, a box held inside the window) and starts its two watchers (boxes, the one list of the floating boxes, which a press on one is told by: backlog 143, whiteboard.js barPress; spot, the clear place for a box a module places itself; last, the box last used, which Escape asks: esckey.js); it imports only the app\'s state and the two readers of the open item, and nothing in it writes a box\'s own display',
-        /\nwindow\.wpFloats = \{ fit: fitView, fitAll: fitAll, sync: floatSync, reveal: floatReveal, leave: floatLeave, away: floatAway, shown: floatShown, view: floatNow, boxes: floatBoxes, spot: spotFind, last: floatLast \};\nwatch\(\);\nspotWatch\(\);\n$/.test(fl)
+    check('the module publishes its twelve calls (1.6.0: fit and fitAll, a box held inside the window; place, a box put clear again: net.js, a roll landing on an open Table Chat) and starts its two watchers (boxes, the one list of the floating boxes, which a press on one is told by: backlog 143, whiteboard.js barPress; spot, the clear place for a box a module places itself; last, the box last used, which Escape asks: esckey.js); it imports only the app\'s state and the two readers of the open item, and nothing in it writes a box\'s own display',
+        /\nwindow\.wpFloats = \{ place: spotPlace, fit: fitView, fitAll: fitAll, sync: floatSync, reveal: floatReveal, leave: floatLeave, away: floatAway, shown: floatShown, view: floatNow, boxes: floatBoxes, spot: spotFind, last: floatLast \};\nwatch\(\);\nspotWatch\(\);\n$/.test(fl)
         && J((fl.match(/^import [^\n]*$/gm) || [])) === J(["import { state } from './state.js';", "import { getActiveMap, isDocLike } from './models.js';"]) && !/\.style\.display\s*=[^=]/.test(fl) && !/innerHTML|eval\(|new Function/.test(fl), J(fl.match(/^import [^\n]*$/gm)));
 }
 
@@ -336,7 +336,25 @@ function spotPage() {
     P.resize[0](); P.resize[0](); const queued = P.frames.length; P.frames.splice(0).forEach(f => f());
     const r1 = [P.at(ch), P.at(vd), P.at(fx), P.at(sh), P.at(np)];
     check('the window changes size: once a frame, every box this put clear is put clear again for the new window (Table Chat above a toolbar that now wraps, the video, Effects), and a box the user moved or the module placed is left as it is while it stands inside the window (1.6.0)',
-        queued === 1 && J(r1) === J(['||99px|158px|420px||', '|145px|99px|||460px|500px', '|120px|18px||||', '349px|145px|auto||||', '40px|300px|auto||||']), J([queued, r1]));
+        queued === 1 && J(r1) === J(['||20px|302px|403px||', '|145px|99px|||460px|500px', '|120px|18px||||', '349px|145px|auto||||', '40px|300px|auto||||']), J([queued, r1]));
+    {   // the live test, 2026-10-30: a sheet opened before the fight started stood over the turn strip
+        const F4 = spotPage(), stripMo = F4.mos[F4.mos.length - 2], strip = F4.keep.combatStrip; F4.keep.combatStrip = null;
+        const shF = F4.open('sheetPanel'), top0 = F4.at(shF), nb = F4.open('notepadPanel'); nb.style.left = '300px'; nb.style.top = '110px'; nb.style.right = 'auto'; F4.tell(nb); const nb0 = F4.at(nb);
+        F4.keep.combatStrip = strip; stripMo.cb([]); const top1 = F4.at(shF), nb1 = F4.at(nb), sr4 = shF.getBoundingClientRect();
+        F4.keep.combatStrip = null; stripMo.cb([]); const top2 = F4.at(shF);
+        check('a fight that starts moves a box at its own place clear of the turn strip as the strip comes, and leaves one the user moved; the box stays where it is when the fight ends',
+            top0 !== top1 && sr4.top >= 137 && nb1 === nb0 && top2 === top1, J([top0, top1, nb1, top2]));
+    }
+    {   // the live test, 2026-10-30: your own roll raised Table Chat over the sheet you were rolling from
+        const F3 = spotPage(), over = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+        const sh = F3.open('sheetPanel'), ch = F3.open('chatPanel'), sr = sh.getBoundingClientRect(), cr = ch.getBoundingClientRect();
+        F3.shut('chatPanel'); F3.shut('sheetPanel'); const cAlone = F3.open('chatPanel'), ar = cAlone.getBoundingClientRect(), alone = over(ar, sr); F3.shut('chatPanel');
+        const hud = { hidden: false, getBoundingClientRect: () => ({ left: 700, top: 300, right: 1200, bottom: 840, width: 500, height: 540 }) }; F3.box.hudLayer = { children: [hud] };
+        const c2 = F3.open('chatPanel'), hr = c2.getBoundingClientRect(); F3.shut('chatPanel'); delete F3.box.hudLayer;
+        const fxUp = F3.open('sheetPanel'), fx = F3.open('fxPanel'), fxr = fx.getBoundingClientRect(), fxOver = over(fxr, fxUp.getBoundingClientRect());
+        check('Table Chat that comes up at its default place stands clear of an open sheet and of a HUD, on its bottom edge as ever; with neither up it stands where it did; no other box takes notice of them',
+            !over(cr, sr) && cr.width === 320 && alone === true && !over(hr, hud.getBoundingClientRect()) && fxOver === true, J([cr, sr, hr, fxr]));
+    }
     {   // 1.6.0 (the owner, 2026-10-26: "in not a full window, some boxes appear to be cut off"): a box placed outside the window comes back in
         const F2 = spotPage(); F2.VW = 1000; F2.VH = 620;
         const so = F2.open('soundPanel', el => { el.style.left = '1300px'; el.style.top = '700px'; el.style.right = 'auto'; }), sa = F2.at(so);
@@ -424,14 +442,14 @@ function chatWorld(o) {
     const panel = { id: 'chatPanel', style: { display: o.display }, addEventListener: (t, f) => { C.on[t] = f; } };
     const floats = o.floats === false ? undefined : { view: () => C.view, away: p => p === panel && C.away,
         reveal: p => { C.reveals++; const lent = C.away && panel.style.display !== 'none' && C.view && C.view !== 'play' ? C.view : ''; C.away = false; return lent; },
-        leave: (p, v) => { C.leaves.push(v); if (v === C.view) C.away = true; } };
+        leave: (p, v) => { C.leaves.push(v); if (v === C.view) C.away = true; }, place: p => { C.placed = (C.placed || 0) + (p === panel ? 1 : 0); } };
     const win = { wpFloats: floats, wpDice: { line: m => 'ROLL by ' + m.from.name, landed: () => { C.landed++; }, closePanel: () => { C.diceClosed++; } } };
     const ui = id => id === 'chatPanel' ? panel : id === 'chatInput' ? { focus: () => { C.focused++; } } : null;
     const api = new Function('ui', 'renderChat', 'renderChatSoon', 'refreshChatRecipients', 'net', 'toast', 'applyLine', 'dueLine', 'window', 'setTimeout', 'clearTimeout', '_chatBtn',
         'var chatLog = [], chatUnread = 0;\n' + chatParts.join('\n') + '\nreturn { push: pushChat, hidden: chatHidden, back: chatGiveBack, cancel: cancelChatDismiss, arm: armChatDismiss, opened: function(v) { if (arguments.length) _chatRollOpened = v; return _chatRollOpened; }, unread: function(v) { if (arguments.length) chatUnread = v; return chatUnread; } };')(
         ui, () => { C.rendered++; }, () => { C.soon++; }, () => { C.recips++; }, { myId: 'u_me' }, t => { C.toasts.push(t); }, () => 'APPLY', () => 'DUE', win,
         (fn, ms) => { C.timers.push({ fn, ms }); return C.timers.length; }, id => { const t = C.timers[id - 1]; if (t) t.fn = null; }, { addEventListener: (t, f) => { C.btn = f; } });
-    C.api = api; C.panel = panel;
+    C.api = api; C.panel = panel; C.win = win;
     C.fire = () => { const live = C.timers.filter(t => t.fn); live.forEach(t => { const f = t.fn; t.fn = null; f(); }); return live.map(t => t.ms); };
     C.is = () => panel.style.display === 'none' ? 'closed' : C.away ? 'away' : 'shown';
     return C;
@@ -439,6 +457,18 @@ function chatWorld(o) {
 const roll = id => ({ roll: { total: 7 }, from: { id: id, name: id === 'u_me' ? 'Me' : 'Kara' }, text: '', scope: 'global' });
 const said = id => ({ from: { id: id, name: 'Kara' }, text: 'hello there', scope: 'global' });
 const due = theirs => ({ due: { theirs: theirs }, from: { id: 'u_gm', name: 'GM', gm: true }, text: '', scope: 'global' });
+{   // the live test, 2026-10-30: Table Chat closing itself took the GM's Apply to target and a player's Due card out of sight
+    const C = chatWorld({ view: 'play', display: 'none' }), a = C.api, wait = new Set(); C.win.wpDice.waits = m => wait.has(m);
+    a.push(roll('u_me')); const up0 = C.is(); C.fire(); const plain = C.is();
+    const held = roll('u_gm'); wait.add(held); a.push(held); const n1 = C.fire().length, stay1 = C.is(), still = a.opened();
+    wait.delete(held); a.push(roll('u_me')); C.fire(); const gone = C.is();
+    const old = held; wait.add(old); const fresh = roll('u_me'); a.push(fresh); C.fire(); const oldNoHold = C.is();
+    wait.clear(); C.panel.matches = s => s === ':hover'; a.push(roll('u_me')); const n2 = C.fire().length, hover = C.is(), rearmed = C.timers.filter(t => t.fn).length; C.panel.matches = () => false; C.fire(); const after = C.is(); delete C.panel.matches;
+    C.placed = 0; a.push(roll('u_me')); const p0 = C.placed; a.push(roll('u_me')); const p1 = C.placed; a.push(said('u_me')); const p2 = C.placed;
+    check('a chat a roll raised closes after its few seconds unless a card since it was raised still waits for a press, or the pointer is on it (read again a moment later); a card from before it was raised holds nothing; once the card has been pressed it closes as ever; a roll landing on a chat already up asks floats.js to put it clear again, a word does not',
+        up0 === 'shown' && plain === 'closed' && n1 === 1 && stay1 === 'shown' && still === true && gone === 'closed' && oldNoHold === 'closed' && n2 === 1 && hover === 'shown' && rearmed === 1 && after === 'closed' && p0 === 0 && p1 === 1 && p2 === 1,
+        J([up0, plain, n1, stay1, still, gone, oldNoHold, n2, hover, rearmed, after, p0, p1, p2]));
+}
 {
     const C = chatWorld({ view: 'page', display: 'flex', away: true }), a = C.api;
     const noFl = chatWorld({ view: 'page', display: 'flex', away: true, floats: false }).api;
@@ -1017,7 +1047,7 @@ const dice = read('scripts/dice.js');
         start.includes('<li><b>Floating boxes</b> stay with the play map. On the data map, a planner or a handbook page they are put away. Nothing is closed: music plays on and a sheet keeps its place. Back on the play map they are as you left them.\n')
         && start.includes('<li>The boxes are a character sheet, a HUD, the page panel, Table Chat with its dice roller and the table notepad. The Sound, Music, Visual effects and Video panels are boxes too.</li>')
         && start.includes('<li>A box you ask for on another view shows there too, until you close it. Open a sheet from the <b>Characters</b> tab on the data map and it shows there and on the play map.</li>')
-        && start.includes('<li>Someone else&rsquo;s roll opens Table Chat by itself only on the play map. On another view you get a notice, and a count on the chat button. Your own roll opens the chat where you are for a few seconds.</li>')
+        && start.includes('<li>Someone else&rsquo;s roll opens Table Chat by itself only on the play map. On another view you get a notice, and a count on the chat button. Your own roll opens the chat where you are for a few seconds, clear of an open sheet or HUD. It stays up while a card in it waits for your press, such as Apply to target or a Due card, and while your pointer is on it.</li>')
         && start.includes('<li>A window of its own always stays where you put it: a sheet, a page or the chat you popped out, and the stream window.</li>') && count(ix, '<b>Floating boxes</b>') === 1);
     const OPEN_NOTE = "- A sheet, a HUD, the page panel, the notepad, Table Chat and the Sound,\n  Music, Video and Visual effects panels open clear of the toolbar, the\n  View, Grid and Snap buttons at the map's edge and the turn strip. A\n  HUD opened over whose turn it is, and a sheet over the View, Grid and\n  Snap buttons. Where the room is short a box opens shorter. A box you\n  moved still opens where you left it.\n"
         + "- A player's handbook page opens beside the left rail and ends above\n  the toolbar, and in a fight it stands under the turn strip. It\n  covered the rail, half the toolbar and half the strip.\n";

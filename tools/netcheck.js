@@ -6357,8 +6357,8 @@ pendingChecks.push((async () => {
     const stored = Sx.cleanValue(big.fields[0], rowsB, Sx.valueOpts(big)), projB = Sx.charFor({ id: 'c_b', name: 'B', ownerId: 'u_b', npc: false, values: { f_wp: stored } }, viewB, 'u_b', { items: libB }), msgB = { type: 'char', campId: 'k', char: projB };
     let packedB = true; try { packCheck(msgB); } catch (e) { packedB = e.message; }
     const sizeB = J(msgB).length, p0 = projB.values.f_wp[0];
-    check('F4c2 on the wire: 150 rows each with every value of its own at its largest (every stat a list may carry, all held, a blast, 200-character notes) project, pack and stay within 350,000 bytes (' + sizeB + ' bytes; 200,000 while a list carried twelve stats, 250,000 while it carried thirty-two), with no formula or lock in them',
-        packedB === true && sizeB < 350000 && projB.values.f_wp.length === 150 && Object.keys(p0.ov.stats).length === Sx.LIMITS.listStats && p0.ov.held.length === Sx.LIMITS.listStats && Sx.LIMITS.listStats >= 24 && !/9d6|curse|bound|rrrr|eeee/.test(J(msgB)), String(packedB) + ' ' + sizeB);
+    check('F4c2 on the wire: 150 rows each with every value of its own at its largest (every stat a list may carry, all held, a blast, 200-character notes) project, pack and stay within 460,000 bytes (' + sizeB + ' bytes; 200,000 while a list carried twelve stats, 250,000 while it carried thirty-two, 350,000 while it carried forty-eight: the core handbook session\'s ask beside ask 19, moved on purpose), with no formula or lock in them',
+        packedB === true && sizeB < 460000 && projB.values.f_wp.length === 150 && Object.keys(p0.ov.stats).length === Sx.LIMITS.listStats && p0.ov.held.length === Sx.LIMITS.listStats && Sx.LIMITS.listStats >= 24 && !/9d6|curse|bound|rrrr|eeee/.test(J(msgB)), String(packedB) + ' ' + sizeB);
 })());
 {   // the joined player's top bar (1.5.0): "<campaign> › <map>" from the host's strings — the real whereName / tableWhere / paintWhere, sliced from net.js
     const whereSrc = between('// [netcheck:where-start]', '// [netcheck:where-end]', 'where');

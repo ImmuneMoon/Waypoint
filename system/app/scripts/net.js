@@ -5561,7 +5561,7 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     if (S5 && dir > 0 && !nx) return false;   // a pick that may not go next (one who has gone, the one on turn, one not there): nothing moves
     if (by !== 'player') net.fightOn = fid;   // fold 4: the GM's own step of a fight makes it the one played
     var campS = campNow(), a0 = timeCore() ? fightAtOf(c, campS) : null;   // fold 4: the fight's own time before the step
-    var mapId = c.mapId, t = c.turn + (dir < 0 ? -1 : 1), r0 = c.round, t0 = c.turn, endRow = dir > 0 && c.rows[t0] && !c.rows[t0].held ? c.rows[t0] : null;   // 1.6.0: the turn a forward step ends (never a held one)
+    var mapId = c.mapId, t = c.turn + (dir < 0 ? -1 : 1), r0 = c.round, t0 = c.turn, endRow = dir > 0 && c.rows[t0] && (!c.rows[t0].held || holdRule('holdEnd') === 'end') ? c.rows[t0] : null;   // 1.6.0: the turn a forward step ends (a held one only where the system says a hold ends the turn; once a turn, so acting from it runs nothing again)
     var pkFrom = c.rows[t0], pkRow = nx && nx.round && typeof pick === 'string' ? c.rows[nx.at] : null;   // initiative O5: whose turn ends, and the row picked to open a new round, found again once its order is made
     if (S5) t = chosenGo(c, dir, nx, t0);   // initiative O5: the place chosen (a new round where none is left), or back to the last turn had (a correction)
     else if (t >= c.rows.length) { t = 0; c.round += 1; }

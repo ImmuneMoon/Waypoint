@@ -194,6 +194,7 @@ Systems, more
   with no folder.
 - The Combat card can let a hold last to a character's next turn, and can
   leave the order as it is when a held character acts.
+- The Combat card can run what is due at a turn's end as a character holds.
 - The Combat window numbers rows of one name.
 - A sheet that says it is out of date offers Mark all current.
 - A join request says Let in and Turn away.

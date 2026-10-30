@@ -13822,9 +13822,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 callers && (wbM.split('window.wpSheets.majorFollow(ch, st.info, st.values)').length - 1) === 3 && (wbM.split('S.damageStep(sys, ch, q, F, undefined, {').length - 1) === 3
                 && ntM.includes('window.wpSheets.majorFollow(chD, rd.info, rd.values)') && ntM.includes("Sd.damageStep(campD.system, chD, qd.q, Fd, undefined, { now: Date.now()") && ntM.includes("kind === 'major' ? 'major'"), '');
         }
-        { const hs = t => { const s = mkD(); s.combat.turn = Object.assign({ secs: 6 }, t); const a = cleanSystem(s, { F, gmView: true }).combat.turn, b = cleanSystem(s, { F, gmView: false }).combat.turn; return j([a.hold, a.holdAct, b.hold, b.holdAct]); };
+        { const hs = t => { const s = mkD(); s.combat.turn = Object.assign({ secs: 6 }, t); const a = cleanSystem(s, { F, gmView: true }).combat.turn, b = cleanSystem(s, { F, gmView: false }).combat.turn; return j([a.hold, a.holdAct, b.hold, b.holdAct, a.holdEnd, b.holdEnd]); };
           check('1.6.0 the Combat card\'s hold rules: A hold lasts is kept only as next and Acting from a hold only as stay, the same in both views, and nothing else is written',
-            hs({ hold: 'next', holdAct: 'stay' }) === j(['next', 'stay', 'next', 'stay']) && hs({ hold: 'round', holdAct: 'move' }) === j([null, null, null, null]) && hs({}) === j([null, null, null, null]), hs({ hold: 'next', holdAct: 'stay' })); }
+            hs({ hold: 'next', holdAct: 'stay', holdEnd: 'end' }) === j(['next', 'stay', 'next', 'stay', 'end', 'end']) && hs({ hold: 'round', holdAct: 'move', holdEnd: 'x' }) === j([null, null, null, null, null, null]) && hs({}) === j([null, null, null, null, null, null]), hs({ hold: 'next', holdAct: 'stay', holdEnd: 'end' })); }
         {   // 1.6.0: an effect already on, met by a blow, follows its When added again; one with none stays as it was
             const mkA = again => { const s = mkM({ fx: 'e_shock' }); s.effects[0].dur = '3 turns'; if (again) s.effects[0].again = again; return cleanSystem(s, { F, gmView: true }); };
             const onRow = () => { const c = chD(); c.values.f_fx = [{ id: 'x_mine', ref: 'e_shock', on: true, t: { left: 2, at: 0 } }]; return c; };

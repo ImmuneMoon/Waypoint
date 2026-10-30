@@ -175,6 +175,9 @@ Systems, more
 - A short effect on someone in no fight lasts its rounds. It no longer runs
   out at once while a fight goes on.
 - A wound or a Major Wound follows an effect's When added again.
+- A greyed roll or switch tells a player its own words, never its formula.
+- The Combat window numbers rows of one name.
+- A sheet that says it is out of date offers Mark all current.
 - A join request says Let in and Turn away.
 - A player held for a new sheet can no longer drag their token.
 - A list can hold each skill's specialties. Tick Specialties in the Lists

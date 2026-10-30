@@ -2800,7 +2800,7 @@ function onCtl(entry, c, f, spec, editable, labelled, okOn, show) {   // okOn (1
     if (typeof swButton === 'function' && typeof S.offLabel === 'string' && S.offLabel) return swButton(entry, c, f, S, on, editable, okOn);   // 1.6.0 R6: a button with two words
     if (!editable) return on ? el('span', 'sheet-chip sheet-item-onc', labelled ? S.label : '\u2713') : null;
     var cb = el('input', 'sheet-item-on'); cb.type = 'checkbox'; cb.checked = on; cb.title = S.label; cb.dataset.fid = f.id; cb.dataset.part = 'on-' + rowIdOf(entry);
-    if (!on && okOn === false) { var swW = typeof rollNeedsSays === 'function' ? rollNeedsSays(S) : 'Not now'; cb.classList.add('sheet-item-onno'); if (typeof isClient === 'function' && isClient()) { cb.disabled = true; cb.title = swW; } else cb.title = swW + ' You may still switch it on.'; }   // 1.5.8: a player's switch greyed out with the words; the GM's says them
+    if (!on && okOn === false) { var swW = typeof isClient === 'function' && isClient() ? (S.needsText || 'Not now') : typeof rollNeedsSays === 'function' ? rollNeedsSays(S) : 'Not now'; cb.classList.add('sheet-item-onno'); if (typeof isClient === 'function' && isClient()) { cb.disabled = true; cb.title = swW; } else cb.title = swW + ' You may still switch it on.'; }   // 1.5.8: a player's switch greyed out with the words; the GM's says them
     cb.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { on: cb.checked } }); });
     if (!labelled) return cb;
     var l = el('label', 'sheet-item-onl'); l.appendChild(cb); l.appendChild(el('span', 'sheet-item-onn', S.label)); return l;
@@ -3147,7 +3147,7 @@ function swButton(entry, c, f, S, on, editable, okOn) {
     if (!editable) { var ch = el('span', 'sheet-chip sheet-item-onc sheet-item-onw' + (on ? ' is-on' : '')); ch.appendChild(iconNode(ic, 'sheet-item-onico')); ch.appendChild(document.createTextNode(wd)); return ch; }
     var bt = el('button', 'tool sheet-item-onb' + (on ? ' on' : '')); bt.type = 'button'; bt.ariaPressed = on ? 'true' : 'false'; bt.dataset.fid = f.id; bt.dataset.part = 'on-' + rowIdOf(entry);
     bt.appendChild(iconNode(ic, 'sheet-item-onico')); bt.appendChild(document.createTextNode(wd)); bt.title = wd + '. Press for ' + (on ? S.offLabel : S.label) + '.';
-    if (!on && okOn === false) { var swW = typeof rollNeedsSays === 'function' ? rollNeedsSays(S) : 'Not now'; bt.classList.add('sheet-item-onno'); if (typeof isClient === 'function' && isClient()) { bt.disabled = true; bt.title = swW; } else bt.title = swW + ' You may still switch it on.'; }
+    if (!on && okOn === false) { var swW = typeof isClient === 'function' && isClient() ? (S.needsText || 'Not now') : typeof rollNeedsSays === 'function' ? rollNeedsSays(S) : 'Not now'; bt.classList.add('sheet-item-onno'); if (typeof isClient === 'function' && isClient()) { bt.disabled = true; bt.title = swW; } else bt.title = swW + ' You may still switch it on.'; }
     bt.addEventListener('click', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { on: !on } }); });
     return bt;
 }
@@ -3382,7 +3382,7 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
             if (applyOk === null) applyOk = canApply(c);
             if (!applyOk || !r.apply.length) return;
             var al = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Apply', ab = el('button', 'tool ghost sheet-item-roll sheet-item-apply', al); ab.type = 'button'; ab.title = nm + ' \u00b7 ' + al + ': ' + applyTitle(r, systemOf(getActiveCampaign())); ab.insertBefore(iconNode(typeof r.icon === 'string' && r.icon ? r.icon : 'icon:bolt', 'sheet-item-rollico'), ab.firstChild);   // 1.6.0: its icon, as a roll wears its die
-            var nOkA = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false; if (!nOkA) { ab.disabled = true; ab.title = (r.needsText || 'Not now') + ' \u2014 it needs ' + r.needs; }   // the core handbook session's ask (b): its needs for this row, as a list roll's
+            var nOkA = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false; if (!nOkA) { ab.disabled = true; ab.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }   // the core handbook session's ask (b): its needs for this row, as a list roll's
             var cbA = typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbA) { ab.disabled = true; ab.title = cbA + ' \u2014 ' + ab.title; }   // turn-based combat T4
             ab.addEventListener('click', function() { var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return; if (r.to === 'near' && typeof allyPick === 'function') { allyPick(ab, cN, function(on) { applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }, on || undefined); }); return; } applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }); });   // 1.5.9: whom it is for first, where it Applies to an adjacent character
             host.appendChild(ab); return;
@@ -3393,7 +3393,7 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         if (r.to === 'near') withE = true;   // 1.5.9 (book es/et plan, section 3): one that Applies to an adjacent character names its index too, so the host finds whom it may reach
         if (r.resisted === true || typeof r.resistBy === 'string') withE = true;   // 1.6.0 (B2): one its target may resist names its index, so the host finds the whole entry
         if (r.burst) withE = true;   // 1.6.0 A burst: its host keeps the record, so it finds the whole entry
-        if (!nOk) { b.disabled = true; b.title = (r.needsText || 'Not now') + ' \u2014 it needs ' + r.needs; }
+        if (!nOk) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }
         var cbL = typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbL) { b.disabled = true; b.title = cbL + ' \u2014 ' + nm + ' \u00b7 ' + lb; }   // turn-based combat T4
         var goL = function(e) {
             if (r.to === 'near' && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evL = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evL.currentTarget || b, c, function(on) { evL.wpAlly = on || ''; goL(evL); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first
@@ -4584,7 +4584,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild); if (typeof dieFor === 'function') b.insertBefore(dieFor(r.die, r.formula, 'sheet-roll-die'), b.firstChild);   // 1.5.8: its die (the GM's pick, else its formula's); 1.6.0 (the owner, 2026-10-27: "small dice icons on, or before the dice rolling buttons ... without removing any of the current settings"): before an icon of its own too, which stays
     b.title = r.formula + (can ? ' · shift-click to add a modifier' : ' (dice are off here, or this is not your character)'); b.disabled = !can;
     var cbR = can && typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbR) { b.disabled = true; b.title = cbR + ' \u2014 ' + r.formula; }   // turn-based combat T4
-    if (can && r.needs && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, r.to === 'near' && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F()) && !(r.to === 'near' && typeof readsOn === 'function' && readsOn(r.needs, F()))) { b.disabled = true; b.title = (r.needsText || 'Not now') + ' \u2014 it needs ' + r.needs; }   // 1.5.4: what it needs, as a list roll's button (the host judges a player's roll); 1.5.9: read as on its user, OnSelf 1
+    if (can && r.needs && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, r.to === 'near' && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F()) && !(r.to === 'near' && typeof readsOn === 'function' && readsOn(r.needs, F()))) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }   // 1.5.4: what it needs, as a list roll's button (the host judges a player's roll); 1.5.9: read as on its user, OnSelf 1
     var goN = function(e) {   // 1.5.9: named, so its ± runs the very same click
         if (r.to === 'near' && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evN = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evN.currentTarget || b, c, function(on) { evN.wpAlly = on || ''; goN(evN); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first, where someone stands next to it
         var lb = label, vv = vars;
@@ -4616,7 +4616,7 @@ function applyNode(r, c, sys, vars) {
     var label = rollLabel(r, sys, c, vars), can = (_fxLive || window.wpPrintCopy === true) && canApply(c), b = el('button', 'tool sheet-roll sheet-apply' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label);
     b.insertBefore(iconNode(r.icon || 'icon:bolt', 'sheet-roll-icon'), b.firstChild);   // 1.6.0 (the owner: "lets add icons before other buttons too"): the bolt where it names none
     b.title = applyTitle(r, sys) + (r.each ? ' \u2014 also ' + (r.by ? 'due' : 'by itself') + (r.each === 'turn' ? ' at the start of its character\u2019s turn' : r.each === 'turnEnd' ? ' at the end of its character\u2019s turn' : ' on every new round of a combat') + (r.by ? ' (a reminder for ' + (r.by === 'gm' ? 'the GM' : 'its player') + ' to press)' : '') : '') + (can ? '' : ' (not here: this is a preview or a pop-out, or not your character)'); b.disabled = !can;
-    if (can && r.needs && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, r.to === 'near' && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F()) && !(r.to === 'near' && typeof readsOn === 'function' && readsOn(r.needs, F()))) { b.disabled = true; b.title = (r.needsText || 'Not now') + ' \u2014 it needs ' + r.needs; }   // 1.5.4: what it needs (the host judges a player's press, applyAct the GM's); 1.5.9: read as on its user, OnSelf 1
+    if (can && r.needs && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, r.to === 'near' && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F()) && !(r.to === 'near' && typeof readsOn === 'function' && readsOn(r.needs, F()))) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }   // 1.5.4: what it needs (the host judges a player's press, applyAct the GM's); 1.5.9: read as on its user, OnSelf 1
     b.addEventListener('click', function() {
         var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return;
         var lb = label; if (sys && r.label && r.label.indexOf('{') >= 0) { try { lb = rollLabel(r, sys, cN, resolveAll(sys, cN, F(), tokenCtxFor(cN.id, campN)).vars); } catch (err) { lb = label; } }   // the label as it reads at the press
@@ -5737,6 +5737,7 @@ function renderStaleBar(c, camp, gm, own) {
     if (gm && canWrite()) {
         if (ups.length) bt('Review', 'Open the new sheet its player sent', function() { openReview(c.id, null, ups[0].id); });
         bt('Mark current', 'The sheet is fine as it is: its player plays again', function() { markCurrent(c.id); });
+        if (typeof staleCount === 'function' && staleCount(camp) > 1) bt('Mark all current', 'Every out-of-date sheet is fine as it is: their players play again', function() { var b = document.getElementById('sysSheetsCurrent'); if (b) b.click(); });   // 1.6.0: found from the sheet that says so, not only in the System editor
     }
     if (mine) bt('Send a new sheet\u2026', 'Pick a character file for your GM to review', function() { importJson(); });
     bar.style.display = '';

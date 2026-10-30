@@ -2446,7 +2446,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         fSl.length > 2000 && !/\.play\(|save\(|saveView|\.send\(|broadcast|sendFx|innerHTML/.test(fSl.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, ''))
         && count(stripSrc, 'nameOf(cur)') === 1 && count(stripSrc, 'nameOf(nxt)') === 1 && count(stripSrc, "held ' + nameOf(r) + '</span>'") === 1 && !/esc\((cur|nxt|r)\.name/.test(stripSrc)
         && count(stripSrc, "var who = findWho(n, !!window.wpStream), nameOf = function(r) { return findName(r.name || '', r.tokId, !!findOf(am.id, r.tokId, who, am, state.viewMode)); };") === 1
-        && count(modalSrc, "'<span class=\"combat-name\">' + findName(r.name, r.tokId, !!findOf(combatDraft.mapId, r.tokId, findHere, amHere, state.viewMode)) + (r.party") === 1 && !/esc\(r\.name\)/.test(modalSrc)
+        && count(modalSrc, "'<span class=\"combat-name\">' + findName(r.name, r.tokId, !!findOf(combatDraft.mapId, r.tokId, findHere, amHere, state.viewMode)) + dupT + (r.party") === 1 && !/esc\(r\.name\)/.test(modalSrc)
         && count(stripWire, "if (fb) { e.stopPropagation(); var amF = getActiveMap(); if (amF) combatFind(amF.id, String(fb.dataset.tok || '')); return; }") === 1
         && count(modalWire, "else if (e.target.closest('.combat-find')) { if (combatFind(combatDraft.mapId, String(e.target.closest('.combat-find').dataset.tok || ''))) rosterPeek(m, FIND_MS + 200); }") === 1
         && count(modalWire, "    m.addEventListener('pointerdown', function() { rosterUnpeek(m); });") === 1 && count(wbSrc, 'combatFind(') === 3
@@ -3450,6 +3450,13 @@ check('the paused dim is set with a true or a false, so an unset hold never flip
 check('a card that names its character says so on its button and hands that character on, and the host writes the word from the entry on both roads',
     /rec\.dmgOn \? 'Apply to this character\\u2026' : 'Apply to target\\u2026'/.test(rootRead('system/app/scripts/dice.js')) && rootRead('system/app/scripts/dice.js').includes("{ on: typeof rec.dmgOn === 'string' ? rec.dmgOn : undefined, dice: dN,")
     && rootRead('system/app/scripts/net.js').includes('SQ.dmgOnSelf(fullQ || actQ, q.att)) recQ.dmgOn = chQ.id;') && rootRead('system/app/scripts/net.js').includes('SC().dmgOnSelf(entR, o.att)) rec.dmgOn = o.charId;'));
+
+check('a greyed roll, action or switch says its own words to a player and never its formula, which the GM still reads',
+    rootRead('system/app/scripts/sheets.js').split("(r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \\u2014 it needs ' + r.needs);").length === 5
+    && rootRead('system/app/scripts/sheets.js').split("var swW = typeof isClient === 'function' && isClient() ? (S.needsText || 'Not now') :").length === 3);
+
+check('the roster numbers rows of one name, and the sheet that says it is out of date offers Mark all current where more than one is',
+    rootRead('system/app/scripts/whiteboard.js').includes("state.viewMode)) + dupT + (r.party ?") && rootRead('system/app/scripts/sheets.js').includes("staleCount(camp) > 1) bt('Mark all current',"));
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

@@ -18949,6 +18949,34 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && wnN.every(t => t.includes('- A rule can name a thing\'s place by its name, so it keeps its meaning when' + NL + '  a list changes.') && t.includes('Value.Mat.Steel reads the figure'))
             && giN.includes('**A place read by its name (1.6.0):**') && giN.includes('Value.<key>.<value>'));
     }
+    {   // 1.6.0 (a builder audit): Matched by across the two forms of a choice (fitsBy), and a host that takes two calibres
+        const J = JSON.stringify;
+        const CAL = ['Bolt', '9mm', 'Slug', 'Flare'];
+        const wl = (stat, extra) => ({ id: 'f_wp', key: 'Arms', label: 'Arms', kind: 'item-list', vis: 'all', edit: 'owner', list: Object.assign({ cats: ['Arm'], multi: true, stats: [stat], counters: [{ key: 'ch', label: 'Shots', max: 'Row.loadmax' }], load: { from: 'f_rd', ct: 'ch', by: 'cal', to: 'bore' }, chamber: { from: 'f_rd', cap: 2, by: 'cal', to: 'bore' } }, extra || {}) });
+        const rl = st0 => { const stat = Object.assign({}, st0, { key: 'bore' }); return { id: 'f_rd', key: 'Rounds', label: 'Rounds', kind: 'item-list', vis: 'all', edit: 'owner', list: { cats: ['Round'], multi: true, stats: [stat], lvl: { label: 'Count', min: 0, max: 100, def: 0 } } }; };
+        const numS = labels => ({ key: 'cal', label: 'Calibre', labels: labels }), pickS = { key: 'cal', label: 'Calibre', kind: 'pick', opts: CAL.map(c => ({ label: c, name: 'K' + c.replace(/\W/g, '') })) };
+        const mk = (ws, rs, wv, rv, extra) => { const sy = cleanSystem({ fields: [wl(ws, extra), rl(rs)], items: [{ id: 'i_gun', name: 'Hand gun', category: 'Arm', stats: { cal: wv } }, { id: 'i_rnd', name: 'Box', category: 'Round', lvl: 12, stats: { bore: rv } }] }, { F, gmView: true }); const w = { id: 'w_g', defId: 'i_gun', qty: 1 }, r = { id: 'w_r', defId: 'i_rnd', qty: 3, lvl: 12 }; const sp = S.fieldById(sy, 'f_wp').list, sl = S.fieldById(sy, 'f_rd').list; return [S.loadFits(sy, sp, w, sl, r), S.chamberFits(sy, sp, w, sl, r)]; };
+        check('1.6.0 Matched by, today\'s results kept: the same figure fits and another does not, a number against a number and a choice against a choice, for a load and a chamber alike; a number with no value name fits by its figure alone',
+            J(mk(numS(CAL), numS(CAL), 1, 1)) === J([true, true]) && J(mk(numS(CAL), numS(CAL), 1, 2)) === J([false, false]) && J(mk(pickS, pickS, '9mm', '9mm')) === J([true, true]) && J(mk(pickS, pickS, '9mm', 'Slug')) === J([false, false])
+            && J(mk(numS(null), numS(null), 4, 4)) === J([true, true]) && J(mk(numS(null), numS(null), 4, 5)) === J([false, false]));
+        check('1.6.0 Matched by across the two forms: a number named 9mm fits a choice of 9mm and the other way round, by its name whatever its place (the round\'s list names 9mm at another figure), ignoring case; another name does not fit',
+            J(mk(numS(CAL), pickS, 1, '9mm')) === J([true, true]) && J(mk(pickS, numS(CAL), '9mm', 1)) === J([true, true]) && J(mk(numS(CAL), numS(['9MM', 'Bolt']), 1, 0)) === J([true, true])
+            && J(mk(numS(CAL), pickS, 1, 'Slug')) === J([false, false]) && J(mk(numS(CAL), numS(['Bolt']), 1, 0)) === J([false, false]));
+        const two = extra => mk(numS(CAL), pickS, 1 << 1 | 1 << 2, '9mm', extra).concat(mk(numS(CAL), pickS, 6, 'Slug', extra), mk(numS(CAL), pickS, 6, 'Bolt', extra), mk(numS(CAL), numS(CAL), 6, 3, extra), mk(numS(CAL), numS(CAL), 6, 6, extra));
+        const over = { on: { label: 'Ready', over: 'cal' } };
+        check('1.6.0 Matched by, a host that takes two calibres: its stat a set of places (its switch\'s over) holding 9mm and Slug takes a 9mm and a Slug round, a choice or a named number, and not a Bolt or a Flare; the same figure still fits; as a plain number the same host fits neither',
+            J(two(over)) === J([true, true, true, true, false, false, false, false, true, true]) && J(two()) === J([false, false, false, false, false, false, false, false, true, true]), J([two(over), two()]));
+        const sysT = cleanSystem({ fields: [wl(numS(CAL), over), rl(pickS)], items: [{ id: 'i_gun', name: 'Hand gun', category: 'Arm', stats: { cal: 6 } }, { id: 'i_9', name: 'Box 9', category: 'Round', lvl: 12, stats: { bore: '9mm' } }, { id: 'i_b', name: 'Box B', category: 'Round', lvl: 12, stats: { bore: 'Bolt' } }] }, { F, gmView: true });
+        const vex = { id: 'c_vex', name: 'Vex', values: { f_wp: [{ id: 'w_g', defId: 'i_gun', qty: 1 }], f_rd: [{ id: 'w_9', defId: 'i_9', qty: 1, lvl: 12 }, { id: 'w_b', defId: 'i_b', qty: 1, lvl: 12 }] } };
+        const ldNo = S.applyRowOp(sysT, vex, 'f_wp', { op: 'load', rowId: 'w_g', from: 'w_b', back: 'w_x1' }, F, {}), ldYes = S.applyRowOp(sysT, vex, 'f_wp', { op: 'load', rowId: 'w_g', from: 'w_9', back: 'w_x2' }, F, {});
+        check('1.6.0 Matched by, the load op run for real (applyRowOp): the two-calibre weapon loads a 9mm box and refuses a Bolt box in today\'s words',
+            ldYes.ok === true && ldYes.value[0].ct.ch === 12 && ldNo.ok === false && /does not fit/.test(ldNo.msg || ''), J([ldNo, ldYes.ok]));
+        const shB = fs.readFileSync(path.join(app, 'scripts', 'systemcore.js'), 'utf8');
+        const ixB = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), wnB = [fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, NL)), giB = fs.readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8');
+        check('1.6.0 Matched by is judged in one place (fitsBy, asked by loadFits and chamberFits); Help, both release notes and the integration guide say it',
+            (shB.match(/return fitsBy\(spec, hd \? hd\.def : null, /g) || []).length === 2 && ixB.includes('A number with value names fits a choice of the same name, so 9mm fits 9mm whichever way each list keeps it.')
+            && wnB.every(t => t.includes('- Matched by, on Loads from and Chambers from, now also fits by the')) && giB.includes('**Matched by across forms (1.6.0):**'));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

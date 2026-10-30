@@ -5324,8 +5324,25 @@ function loadSame(sys, sl, a, b) {
 function loadSrc(sys, spec) { var ld = isObj(spec) && isObj(spec.load) ? spec.load : null, sf = ld && isObj(sys) && Array.isArray(sys.fields) ? fieldById(sys, ld.from) : null; return sf && sf.kind === 'item-list' && isObj(sf.list) && isObj(sf.list.lvl) ? sf : null; }
 function loadMax(sys, spec, row) { if (!isObj(row) || !isObj(row.ld)) return 0; var sf = loadSrc(sys, spec); if (!sf) return 0; var rd = rowDef(sys, row.ld); return rowLvl(sf.list, null, rd ? rd.def : null); }   // the copy's full level: its entry's own, else the source list's default
 // Matched by (spec.load.by, a stat of the host list; to, a stat of the source list): a source row fits a host row only where the two read the same
-// figure, each as its row reads it (its own values over its entry). With none named every row fits
-function loadFits(sys, spec, h, sl, s) { var ld = isObj(spec) && isObj(spec.load) ? spec.load : null; if (!ld || !ld.by || !ld.to) return true; var hd = rowDef(sys, h), sd = rowDef(sys, s); return rowStat(spec, hd ? hd.def : null, ld.by) === rowStat(sl, sd ? sd.def : null, ld.to); }
+// figure, each as its row reads it (its own values over its entry). With none named every row fits. 1.6.0 (a builder audit): or the same value
+// NAME (fitsBy), so a number with value names fits a choice of that name, and a host whose stat is a set of places takes every value it names
+function loadFits(sys, spec, h, sl, s) { var ld = isObj(spec) && isObj(spec.load) ? spec.load : null; if (!ld || !ld.by || !ld.to) return true; var hd = rowDef(sys, h), sd = rowDef(sys, s); return fitsBy(spec, hd ? hd.def : null, ld.by, sl, sd ? sd.def : null, ld.to); }
+// 1.6.0 (a builder audit): Matched by, judged in one place for a load and a chamber. A source row fits where the two stats read the same figure
+// (as before, kept whole), else where they name the same value, compared ignoring case: a choice by its label, a number by its value name
+// (statName), so a host's number 1 named 9mm fits a round whose choice is 9mm. Where the host's stat is a set of places (a switch's over), the
+// source fits where its value's name is one of the places the host's figure holds, so a weapon that takes two calibres is written once. A
+// value with no name fits by its figure alone
+function fitsBy(hs, hd, hk, ss, sd, sk) {
+    if (rowStat(hs, hd, hk) === rowStat(ss, sd, sk)) return true;
+    var sn = lower(statName(ss, sd, sk)).trim(); if (!sn) return false;
+    var hst = (isObj(hs) && Array.isArray(hs.stats) ? hs.stats : []).filter(function(x) { return isObj(x) && typeof x.key === 'string' && lower(x.key) === lower(hk) && x.kind !== 'pick'; })[0];
+    if (hst && (hst.set === true || (isObj(hs.on) && typeof hs.on.over === 'string' && lower(hs.on.over) === lower(hst.key)))) {
+        var set = overSet(rowStat(hs, hd, hst.key)), L = Array.isArray(hst.labels) ? hst.labels : [];
+        for (var i = 0; i < Math.min(L.length, OVER_PLACES); i++) if (((set >> i) & 1) && typeof L[i] === 'string' && lower(L[i]).trim() === sn) return true;
+        return false;
+    }
+    var hn = lower(statName(hs, hd, hk)).trim(); return !!hn && hn === sn;
+}
 function rowLoad(sys, char, f, list, spec, q, opts, at, vo, F) {
     var ld = isObj(spec) && isObj(spec.load) ? spec.load : null, sf = loadSrc(sys, spec), sl = sf ? sf.list : null;
     if (!ld || !sf || sf.id === f.id) return { ok: false, reason: 'field' };
@@ -5502,8 +5519,9 @@ function partsPut(list, kept, hostId) {
     return n;
 }
 function chamberSrc(sys, spec) { var ch = isObj(spec) && isObj(spec.chamber) ? spec.chamber : null, sf = ch && isObj(sys) && Array.isArray(sys.fields) ? fieldById(sys, ch.from) : null; return sf && sf.kind === 'item-list' ? sf : null; }
-// Matched by (spec.chamber.by, a stat of the host list; to, a stat of the round list): a round fits a host row only where the two read the same figure
-function chamberFits(sys, spec, h, sl, s) { var ch = isObj(spec) && isObj(spec.chamber) ? spec.chamber : null; if (!ch || !ch.by || !ch.to) return true; var hd = rowDef(sys, h), sd = rowDef(sys, s); return rowStat(spec, hd ? hd.def : null, ch.by) === rowStat(sl, sd ? sd.def : null, ch.to); }
+// Matched by (spec.chamber.by, a stat of the host list; to, a stat of the round list): a round fits a host row only where the two read the same figure,
+// or name the same value (fitsBy, 1.6.0)
+function chamberFits(sys, spec, h, sl, s) { var ch = isObj(spec) && isObj(spec.chamber) ? spec.chamber : null; if (!ch || !ch.by || !ch.to) return true; var hd = rowDef(sys, h), sd = rowDef(sys, s); return fitsBy(spec, hd ? hd.def : null, ch.by, sl, sd ? sd.def : null, ch.to); }
 // a row the chamber may take a unit of: live, no launcher itself (it holds no chamber, no fired round, nothing loaded), of a category it takes, a match
 function chamberTakes(sys, spec, h, sl, s) {
     var ch = isObj(spec) && isObj(spec.chamber) ? spec.chamber : null; if (!ch || !isObj(s) || s === h) return false;

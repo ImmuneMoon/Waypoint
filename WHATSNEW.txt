@@ -184,6 +184,12 @@ Systems, more
   Set to if(Row.Sev >= 5, Row.Sev, 0) clears a crippling of 1 to 4 and
   keeps a severing of 5 or more. Where the figure differs by row, the card
   says set with no figure.
+- Matched by, on Loads from and Chambers from, now also fits by the
+  value's name. A number with value names fits a choice of the same name,
+  so a pack that names 9mm fits a gun that names 9mm whichever way each
+  list keeps it. Where the gun's stat is a set of places, as Where it
+  meets on a switch makes it, the gun takes a round of every value it
+  ticks, so one gun can take two calibres. What fitted before still fits.
 - A rule can name a thing's place by its name, so it keeps its meaning when
   a list changes. Posture.Prone reads the Prone posture's place, so
   Posture = Posture.Prone still means prone after a posture is added before

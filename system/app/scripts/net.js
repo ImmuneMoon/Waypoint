@@ -10246,6 +10246,18 @@ function sendChat() {
     if (net.role === 'host' && msg.scope !== 'whisper') logEvent('chat', 'GM: ' + String(msg.text || '').slice(0, 300));
 }
 
+// [netcheck:chatdrag-start]
+(function chatDrag() {   // 1.6.0 (a two-player test by hand): Table Chat moves by its header, as the notepad does; a box moved by hand keeps its place (floats.js), and the dice roller goes with it
+    var p = ui('chatPanel'), head = ui('chatHead'), d = null; if (!p || !head || typeof head.addEventListener !== 'function') return;
+    head.addEventListener('pointerdown', function(e) {
+        if (e.target.closest('button') || (typeof window !== 'undefined' && window.wpPopout)) return;
+        var r = p.getBoundingClientRect(); d = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); e.preventDefault();
+    });
+    head.addEventListener('pointermove', function(e) { if (!d) return; p.style.left = Math.max(0, Math.min(window.innerWidth - 120, e.clientX - d.dx)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 40, e.clientY - d.dy)) + 'px'; p.style.right = 'auto'; p.style.bottom = 'auto'; });
+    var done = function() { if (!d) return; d = null; try { p.dispatchEvent(new Event('wpfloatmoved')); } catch (e) {} };
+    head.addEventListener('pointerup', done); head.addEventListener('pointercancel', done);
+})();
+// [netcheck:chatdrag-end]
 var _chatBtn = ui('chatBtn');
 if (_chatBtn) _chatBtn.addEventListener('click', function() {
     var panel = ui('chatPanel');

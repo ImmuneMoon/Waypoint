@@ -7407,6 +7407,17 @@ pendingChecks.push((async () => {
             check('1.6.0 what a fight aims at comes back with it: a pointer is kept with a running fight, the player\'s and one of the GM\'s characters\' alike, and read back where its token still stands, sent to the table once; a fight with no pointer is kept key for key as it was',
                 heldT.p_ava.id === 't2' && nTB === 1 && j(Object.keys(TB.net.targets).sort()) === j(['p_ava', 'tk:t2']) && TB.net.targets['tk:t2'].from === 't2' && TB.log.tgSent === 1 && !('targets' in noT.fights) && A.log.tgSent === undefined, j([heldT, TB.net.targets, TB.log.tgSent]));
             check('1.6.0 what a fight aims at, the wiring: a change of the pointers is kept with the fight as they are sent', /function broadcastTargets\(\) \{\s+var camp = getActiveCampaign\(\);\s+if \(typeof fightsKeepSoon === 'function'\) fightsKeepSoon\(\);/.test(src), '');
+            {   // 1.6.0 Table Chat moves by its header (the chatdrag slice run for real on a page of plain objects)
+                const cdA = src.indexOf('// [netcheck:chatdrag-start]'), cdB = src.indexOf('// [netcheck:chatdrag-end]'), hs = {}, caught = [], fired = [];
+                const pC = { style: { right: '20px', bottom: '20px' }, getBoundingClientRect: () => ({ left: 300, top: 200 }), dispatchEvent: e => fired.push(e.type) }, hd = { addEventListener: (k, f) => { hs[k] = f; }, setPointerCapture: id => caught.push(id) };
+                const uiC = id => id === 'chatPanel' ? pC : id === 'chatHead' ? hd : null, winC = { innerWidth: 1000, innerHeight: 700 }, on = { closest: () => null }, btn = { closest: () => ({}) };
+                new Function('ui', 'window', 'Event', src.slice(cdA, cdB))(uiC, winC, function(t) { this.type = t; });
+                hs.pointerdown({ target: btn, clientX: 310, clientY: 210, pointerId: 1, preventDefault() {} }); const noBtn = caught.length;
+                hs.pointerdown({ target: on, clientX: 310, clientY: 210, pointerId: 2, preventDefault() {} }); hs.pointermove({ clientX: 110, clientY: 110 }); const moved = [pC.style.left, pC.style.top, pC.style.right, pC.style.bottom];
+                hs.pointermove({ clientX: 5000, clientY: 5000 }); const kept = [pC.style.left, pC.style.top]; hs.pointerup({}); hs.pointermove({ clientX: 50, clientY: 50 }); const after = pC.style.left;
+                check('1.6.0 Table Chat moves by its header: a press on a button of the header does not drag, the box follows the pointer from where it was held and leaves its corner, it stays on the window, the dice roller is told once, and a pointer let go moves it no more',
+                    noBtn === 0 && j(caught) === j([2]) && j(moved) === j(['100px', '100px', 'auto', 'auto']) && j(kept) === j(['880px', '660px']) && j(fired) === j(['wpfloatmoved']) && after === '880px', j([moved, kept, fired, after]));
+            }
             {   // 1.6.0 an NPC a player cannot see goes unnamed on the table's cards (the npcseen slice run for real)
                 const nsA = src.indexOf('// [netcheck:npcseen-start]'), nsB = src.indexOf('// [netcheck:npcseen-end]'), sends = [], mkC = p => ({ open: true, peer: p, send: m => sends.push([p, m]) });
                 const campN = { chars: { c_npc: { id: 'c_npc', name: 'Hanharr', npc: true }, c_pl: { id: 'c_pl', name: 'Ava', ownerId: 'p_a' } }, items: { m1: { whiteboard: [{ id: 't_n', isChar: true, charId: 'c_npc' }] }, m2: { whiteboard: [{ id: 't_h', isChar: true, charId: 'c_npc', hidden: true }] }, m3: { whiteboard: [{ id: 't_f', isChar: true, charId: 'c_npc' }] } } };

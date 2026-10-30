@@ -187,6 +187,7 @@ Systems, more
 - A thrown blast's circle goes when the map's last fight ends, on every screen.
 - A player's target comes back with a fight kept over a reload.
 - An NPC a player cannot see goes unnamed on the table's cards and throws.
+- Table Chat moves by its header.
 - Targeting a token outside the fight says so.
 - An explosion that lands by itself no longer offers its damage a second time.
 - A player's app no longer asks again and again for a picture the save names

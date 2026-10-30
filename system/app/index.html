@@ -463,6 +463,7 @@
                                   <li>A question waits for its answer. Some questions take only their buttons, so <kbd>Esc</kbd> leaves them up.</li>
                                   <li>A tool&rsquo;s options are an open menu too. The first <kbd>Esc</kbd> closes them, and the tool stays in your hand.</li>
                                   <li>Table Chat, the notepad, Sound and Music close when one of them is the box you used last. Chat keeps its messages.</li>
+                                  <li>Drag Table Chat by its header to move it, as you do the notepad.</li>
                                   <li>With nothing open, <kbd>Esc</kbd> puts the tool in your hand away, ends a placement and clears your target.</li>
                               </ul>
                           </li>
@@ -4603,7 +4604,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div class="dice-row"><label id="dicePrivLbl"><input type="checkbox" id="dicePriv"> <span id="dicePrivText">Private</span></label><label title="Play the bundled Dice cue on this machine on every roll"><input type="checkbox" id="diceSoundChk"> Sound</label><span style="flex:1;"></span><button class="tool" id="diceRollBtn" title="Roll (Enter)">Roll</button></div>
 </div>
 <div id="chatPanel" style="display:none; position:fixed; bottom:20px; right:20px; width:320px; max-height:420px; z-index:90000; background:var(--panel2); border:1px solid var(--gold); border-radius:10px; box-shadow:var(--shadow); flex-direction:column;">
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid var(--edge);">
+    <div id="chatHead" title="Drag to move Table Chat" style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid var(--edge); cursor:move;">
         <span style="color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Table Chat</span>
         <span style="display:flex; gap:2px;"><button class="tool ghost modal-close" id="chatPop" title="Pop out into its own window (drag it to another monitor); dock it back from there" aria-label="Pop out"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.2A1.2 1.2 0 0 0 2 4.7v8.1A1.2 1.2 0 0 0 3.2 14h8.1a1.2 1.2 0 0 0 1.2-1.2V9.5"/><path d="M9.5 2.5H14v4.5"/><path d="M14 2.5 7.5 9"/></svg></button><button class="tool ghost modal-close" id="chatCloseBtn" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></span>
     </div>

@@ -2498,6 +2498,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     }
 
 
+    {   // 1.6.0: a running fight is the host's own
+        const icF = { fights: { on: 'f_aaaaaaa1', list: { f_aaaaaaa1: { mapId: 'm1' } } }, items: {} }; cleanImportItems(icF, {});
+        check('1.6.0 a campaign file brings no running fight with it: Replace and Merge both clean a file through the item cleaners, which drop it', !('fights' in icF));
+    }
+
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

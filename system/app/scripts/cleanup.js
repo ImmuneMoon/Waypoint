@@ -595,6 +595,7 @@ function cleanWas(p) {
     if (out.length) p.was = out.slice(-WAS_MAX); else delete p.was;
 }
 function cleanImportItems(ic, deps) {
+    if (isObj(ic)) delete ic.fights;   // 1.6.0: a running fight is the host's own, and never comes in with a file (net.js fightsKeep)
     // A table key from a file proves nothing: the players a campaign file names come in with their names, bindings and history, never
     // the secret each proves their identity with at THIS table (the export drops them too, io.js stripTableKeys). Whoever wrote the file is
     // asked at the GM's table like anyone new, and admitPlayer issues a fresh key once the GM lets them in. Before the early return below:

@@ -1131,7 +1131,7 @@ function mutations(tpl) {
         flushed.threw.forEach(e => finding('exception in a timer the message armed', tag + ' — ' + String(e.message).slice(0, 120), msg, mut));
         const changes = before && after !== EMPTY_SNAP ? diffOf(before, after) : [];
         const pid = senderPid(who, msg);
-        const bad = changes.filter(ch => !allowedHost(ch, pid, msg, before, after));
+        const bad = changes.filter(ch => !/^\.app\.campaigns\.[^.]+\.fights(\.|$)/.test(ch.path) && !allowedHost(ch, pid, msg, before, after));   // camp.fights is the host's own copy of its fights, written from net.combats and never from a message (net.js fightsKeep)
         if (bad.length) finding('state written outside the sender\'s rights', tag + ' → ' + bad[0].path.replace(/\[id=[^\]]+\]/g, '[id=…]'), { msg, change: bad[0] }, mut);
         if (threw && changes.length) finding('half-applied: an exception after state changed', tag + ' → ' + changes.slice(0, 2).map(c => c.path).join('; '), msg, mut);
         const padd = protoAdded(); if (padd.length) finding('prototype pollution', tag + ' → ' + padd.join(', '), msg, mut);

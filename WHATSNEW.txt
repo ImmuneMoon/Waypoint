@@ -157,6 +157,9 @@ Systems, more
   own, such as not Construct or Row.over > 0. A row where it does not hold
   gives none of its changes. It reads the sheet before any item or effect
   changes it.
+- A running fight is kept in the save. After a Refresh or a crash it comes
+  back when you host that campaign again, with its round, its order and
+  whose turn it is. That turn gets its move and its actions afresh.
 - A list can hold each skill's specialties. Tick Specialties in the Lists
   tab. A formula then reads one as Skills.Blade.Longsword.Target. It reads
   the row with that specialty, whatever the row is called. Without one it

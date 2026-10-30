@@ -1160,6 +1160,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         delete camp.cast;
         delete camp.pinnedMaps;
         delete camp.pinnedPages;   // 1.5.4 (pageshelf.js): the pages pinned for the session name planners, which never leave this machine
+        delete camp.fights;   // 1.6.0: a running fight as the host keeps it, numbers, rolls and all (fightsKeep)
         delete camp.sessionLog;
         delete camp.pictures; delete camp.imageCats;   // the picture library's per-campaign bookkeeping (1.5.0)
         delete camp.sounds;   // the sound index (1.5.0): the hosted campaign's playable list goes as its own message, validated on arrival
@@ -4862,6 +4863,7 @@ function targetsFor(recipientId) {
 }
 function broadcastCombats() {
     var camp = getActiveCampaign();
+    if (typeof fightsKeepSoon === 'function') fightsKeepSoon();   // 1.6.0: every change of a fight ends here, so it is kept for a Refresh or a crash
     _combatHidSig = combatHidSigNow();   // fold M0: which rows the table now holds redacted for a hidden token
     var sendAll = function() { net.conns.forEach(function(c) { var pr = net.roster && Object.prototype.hasOwnProperty.call(net.roster, c.peer) ? net.roster[c.peer] : null; if (!pr || !c.open) return; try { combatsTo(c, combatsFor(pr.id, pr.location), true); } catch (e) { sendFailed(e); } }); };   // fold 2: per connection always, each the fights on the map it is on, and nothing where its copy is as it was (fold 2's review)
     if (anyFog(camp) && typeof fogLanded === 'function') fogLanded(null, sendAll); else sendAll();   // fold M4: judged with every open drag at its start
@@ -5241,6 +5243,7 @@ function combatsOverAll() {   // the session's end: every fight ends as End ends
     var n = 0, CCa = typeof timeCore === 'function' ? timeCore() : null, campA = getActiveCampaign(), idsA = fightIds();
     if (CCa) idsA = idsA.map(function(k, i) { return { k: k, i: i, a: fightAtOf(net.combats[k], campA) }; }).sort(function(x, y) { return CCa.tCmp(y.a, x.a) || (x.i - y.i); }).map(function(x) { return x.k; });
     idsA.forEach(function(fid) { if (combatOver(fid, net.combats[fid], true)) n++; });   // fold 2: each fight by its own id
+    if (typeof fightsKeep === 'function') fightsKeep();   // 1.6.0: the session's end: nothing kept comes back at the next table
     return n;
 }
 // host: put a combat on a map (or take it off with null). Fold 2: the old name, a thin wrapper for the strip's fight on that map (fightAt): a roster
@@ -9155,6 +9158,7 @@ function startHosting(forceFresh) {
         if (typeof pagesSync === 'function') pagesSync(true);   // 1.5.6: the pages players may read as the table opens, noted before anyone joins
         net._hostGen = gen;   // a later crash resumes under the generation after this one
         startHeartbeat();
+        if (typeof fightsBack === 'function') fightsBack();   // 1.6.0: a fight its campaign kept comes back with the table
         setStatus(codeLine());
         var codeEl = ui('netCode');
         if (codeEl) codeEl.textContent = showCode(code);
@@ -10399,6 +10403,70 @@ if (_joinBtn) _joinBtn.addEventListener('click', function() {
 var _leaveBtn = ui('netLeaveBtn');
 if (_leaveBtn) _leaveBtn.addEventListener('click', function() { net.leaveSessionConfirm(); });
 
+// [netcheck:fightsave-start]
+// 1.6.0 (the owner, 2026-10-30, by prompt: "Yes, save it (Recommended)"): a running fight is kept in its campaign, so a Refresh or a crash loses it no more.
+// camp.fights is { on: the fight played, list: net.combats as the host holds it }, kept a moment after each change and let go when the last fight ends,
+// the session's end among them. It is the host's own: sanitizeAppState deletes it, and a file's is never taken (cleanImportItems). It comes back as the
+// host's table opens, read as data: a fight of a map that is gone goes, and so does a row whose token is gone. Nothing of a turn runs again, since a fight
+// keeps how far it has gone, but what the turn on hand had spent is not kept, so it gets its move and its actions afresh
+var _fightSoon = null, _fightKept = '';
+function fightsKeep() {
+    if (_fightSoon) { clearTimeout(_fightSoon); _fightSoon = null; }
+    if (net.role !== 'host' || net.stream) return false;
+    var camp = getActiveCampaign(); if (!camp) return false;
+    if (!fightIds().length) { _fightKept = ''; if (!camp.fights) return false; delete camp.fights; saveRemoteSoon(); return true; }
+    var text = JSON.stringify({ on: net.fightOn, list: net.combats }); if (text === _fightKept) return false;
+    _fightKept = text; camp.fights = JSON.parse(text); saveRemoteSoon(); return true;
+}
+function fightsKeepSoon() { if (net.role !== 'host' || net.stream || _fightSoon) return; _fightSoon = setTimeout(fightsKeep, 200); }
+function fightNum(v) { return typeof v === 'number' && isFinite(v) && v >= 0 && v <= 1e6 && Math.floor(v) === v; }
+function fightMarks(v) {   // { a row's or a character's id: a whole number }, into an object with no prototype
+    var o = Object.create(null); if (!v || typeof v !== 'object') return o;
+    Object.keys(v).slice(0, 400).forEach(function(k) { if (k.length <= 80 && fightNum(v[k])) o[k] = v[k]; });
+    return o;
+}
+function fightIdsIn(v) { return Array.isArray(v) ? v.filter(function(x) { return typeof x === 'string' && x.length <= 80; }).slice(0, 80) : []; }
+function fightsRead(raw, camp) {   // what the save holds, as data: { list, on }
+    var list = Object.create(null), on = null; if (!raw || typeof raw !== 'object' || !raw.list || typeof raw.list !== 'object' || !camp || !camp.items) return { list: list, on: on };
+    var CC = typeof timeCore === 'function' ? timeCore() : null;
+    Object.keys(raw.list).slice(0, 40).forEach(function(id) {
+        var k = raw.list[id]; if (!FIGHT_ID.test(id) || !k || typeof k !== 'object' || typeof k.mapId !== 'string' || !k.mapId || k.mapId.length > 80) return;
+        var map = own(camp.items, k.mapId) ? camp.items[k.mapId] : null; if (!map || !Array.isArray(map.whiteboard)) return;
+        var f = cleanFightBody(k, k.mapId); if (!f) return;
+        var has = Object.create(null); map.whiteboard.forEach(function(w) { if (w && typeof w.id === 'string') has[w.id] = 1; });
+        var onTurn = f.rows[f.turn], rows = f.rows.filter(function(r) { return !(typeof r.tokId === 'string' && has[r.tokId] !== 1); }); if (!rows.length) return;
+        f.turn = Math.max(0, rows.indexOf(onTurn)); f.rows = rows; delete f.mv;
+        ['n', 'rr', 'rh', 'eh'].forEach(function(key) { if (fightNum(k[key])) f[key] = k[key]; });
+        ['et', 'th', 'turned', 'fxEnded'].forEach(function(key) { if (k[key] && typeof k[key] === 'object') f[key] = fightMarks(k[key]); });
+        if (Array.isArray(k.ps)) f.ps = fightIdsIn(k.ps);
+        if (Array.isArray(k.pp)) f.pp = k.pp.slice(-10).map(fightIdsIn);
+        var at = CC && k.at ? CC.cleanTime(k.at) : null; if (at) f.at = at;
+        list[id] = Object.assign({ id: id }, f);
+    });
+    if (typeof raw.on === 'string' && Object.prototype.hasOwnProperty.call(list, raw.on)) on = raw.on;
+    return { list: list, on: on };
+}
+function fightsBack() {   // as the host's table opens: the fights its campaign kept, if none runs yet; how many came back
+    if (net.role !== 'host' || net.stream || fightIds().length) return 0;
+    var camp = getActiveCampaign(), back = camp && camp.fights ? fightsRead(camp.fights, camp) : null, ids = back ? Object.keys(back.list) : [];
+    if (!ids.length) { if (camp && camp.fights) { delete camp.fights; saveRemoteSoon(); } return 0; }
+    ids.sort(function(a, b) { return (back.list[a].n || 0) - (back.list[b].n || 0); });
+    var maps = Object.create(null);
+    ids.forEach(function(id) { net.combats[id] = back.list[id]; if (typeof back.list[id].n === 'number' && back.list[id].n > _fightN) _fightN = back.list[id].n; });
+    net.fightOn = back.on || ids[0]; _fightKept = '';
+    ids.forEach(function(id) {
+        var f = net.combats[id];
+        if (!maps[f.mapId]) { maps[f.mapId] = 1; if (typeof marksStart === 'function') { try { marksStart(f.mapId); } catch (e) { console.error(e); } } }
+        try { fxCombatEdge(f.mapId, f, 'bank'); } catch (e) { console.error(e); }
+    });
+    broadcastCombats(); combatRefresh();
+    ids.forEach(function(id) { turnStarted(net.combats[id].mapId, net.combats[id]); });
+    var f0 = net.combats[ids[0]], says = ids.length === 1 ? 'The fight on ' + mapTitleOf(f0.mapId) + ' came back at round ' + f0.round + '.' : ids.length + ' fights came back.';
+    toast(says); logEvent('table', says);
+    if (window.wpStepLog) window.wpStepLog('fights v1', 'back', { n: ids.length });
+    return ids.length;
+}
+// [netcheck:fightsave-end]
 /* ---------- Refresh: reload without losing the session ---------- */
 function refreshMark() {   // what a reload needs in order to come straight back: the app's Refresh, and the browser's own key, which reaches only the page going away (found live, 2026-10-30: F5 left a player at the welcome screen)
     try {
@@ -10408,11 +10476,10 @@ function refreshMark() {   // what a reload needs in order to come straight back
 }
 var _refreshBtn = ui('refreshBtn');
 function refreshNow() { refreshMark(); location.reload(); }
-function refreshGo() {   // a fight lives in the host's memory alone, so a Refresh at a running fight is asked first
+function refreshGo() {   // a running fight goes in the save first, so that it comes back with the table
     if (!(net.active && net.role === 'host' && net.combats && Object.keys(net.combats).length)) { refreshNow(); return; }
-    import('./dialogs.js').then(function(d) {
-        d.showConfirm('A fight is running. Refresh brings the table back with no fight: its round and its order are lost. Refresh anyway?', function(yes) { if (yes) refreshNow(); }, { noEnter: true });
-    });
+    if (typeof fightsKeep === 'function') fightsKeep();
+    setTimeout(refreshNow, 800);
 }
 if (_refreshBtn) _refreshBtn.addEventListener('click', refreshGo);
 if (typeof window.addEventListener === 'function') window.addEventListener('pagehide', refreshMark);

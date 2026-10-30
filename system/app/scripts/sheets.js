@@ -1029,9 +1029,10 @@ function restoreFocus(root, k) { if (!k) return; if (k.reset) { if (!/^s_[A-Za-z
 function subGive(e) {   // the sheet's own line, as the Characters section's row: who has this character
     var s = ui('sheetSub'); if (!s || !s.classList || !s.classList.contains('sheet-sub-give') || !sheetOpen || !window.wpCharList) return;
     if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
-    e.preventDefault(); var r = s.getBoundingClientRect(); window.wpCharList.give(sheetOpen, r.left, r.bottom + 2);
+    e.preventDefault(); e.stopPropagation(); var r = s.getBoundingClientRect(); window.wpCharList.give(sheetOpen, r.left, r.bottom + 2);   // stopped here: the page's own click-away would put the menu away in this very press
 }
-if (typeof document !== 'undefined' && document.addEventListener) { document.addEventListener('click', function(e) { if (e.target && e.target.id === 'sheetSub') subGive(e); }); document.addEventListener('keydown', function(e) { if (e.target && e.target.id === 'sheetSub') subGive(e); }); }
+var _subEl = typeof document !== 'undefined' && document.getElementById ? document.getElementById('sheetSub') : null;
+if (_subEl && _subEl.addEventListener) { _subEl.addEventListener('click', subGive); _subEl.addEventListener('keydown', subGive); }
 function renderSheet() {
     var p = ui('sheetPanel'); if (!p || p.style.display === 'none') return;
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(sheetOpen, camp);
@@ -11067,7 +11068,7 @@ function importFile(file) {
     var etB = ui('sheetEndTurn'); if (etB) etB.addEventListener('click', endTurn);   // turn-based combat T2: the player on turn ends it   // HUD frame (HF2a): the reference's header button
     Z_BOXES.forEach(function(id) { raiseWire(ui(id), window.MutationObserver); });   // every floating box comes forward when pressed or shown (1.5.4: with or without a HUD; the page panel is docpanel.js's, not edited here)
     var drag = null;
-    head.addEventListener('pointerdown', function(e) { if (e.target.closest('button, select')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
+    head.addEventListener('pointerdown', function(e) { if (e.target.closest('button, select, .sheet-sub-give')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
     head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
     head.addEventListener('pointerup', function() {
         if (!drag) return; drag = null;

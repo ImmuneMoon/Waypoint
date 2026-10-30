@@ -17,6 +17,7 @@ import { upkeepLines } from './systemcore.js';   // 205 follow-up (3): a turn's 
 import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, setGateEngine } from './systemcore.js';   // 1.6.0: linked sheets
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
+import { fitIfOk, partFitEntry } from './systemcore.js';   // 1.6.0 Fits where (the core handbook session's ask 18)
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
@@ -3237,7 +3238,8 @@ function partPills(wrap, c, f, spec, sysI, entry, chg, dep) {
     if (chg) {
         var fit = Object.assign({}, pspec, { cats: Array.isArray(spec.parts.cats) && spec.parts.cats.length ? spec.parts.cats : pspec.cats }), word = spec.parts.label || 'Part';
         var add = el('select', 'field sheet-part-add'); add.appendChild(opt('', '+ ' + word + '\u2026', true)); add.title = 'Add a ' + word.toLowerCase() + ' to ' + ((rowDef(sysI, entry) || {}).def || {}).name;
-        var nP = typeof pickerInto === 'function' ? pickerInto(add, (sysI && sysI.items) || [], fit, parts, null) : 0;
+        var fitOf = isClient() && typeof partFitEntry === 'function' ? function(it) { return partFitEntry(sysI, c, pf.id, hid, it, typeof F === 'function' ? F() : null, true); } : null;   // 1.6.0 Fits where (ask 18): a part a player's host would refuse is greyed out and says why, as cantTake does; the GM's own hand passes and is told
+        var nP = typeof pickerInto === 'function' ? pickerInto(add, (sysI && sysI.items) || [], fit, parts, fitOf) : 0;
         var gmL = !isClient() && !!(window.wpLibPicker && window.wpLibrary && window.wpLibrary.size && window.wpLibrary.size() > 0), plL = false;
         if (isClient() && window.wpLibPicker && window.wpNet && window.wpNet.libManifest) { var lmP = window.wpNet.libManifest(); plL = !!lmP && lmP.packs.some(function(pk) { return pk.count > 0; }); }
         if (gmL || plL) add.appendChild(opt('__lib', '\ud83d\udcda From the library\u2026'));
@@ -4345,6 +4347,7 @@ function openLibPicker(anchor, c, f, spec, carried, partIn, rollOnly) {   // par
     var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string' && s.hide !== true) labels[s.key] = s.label || s.key; });
     LP = unheldVia(LP, c, f, spec, rollOnly);   // 1.6.0 Rolls unheld entries: the picker's Roll unheld
     LP.open({ anchor: anchor, cat: typeof catOf === 'function' ? catOf(anchor) : null, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) && spec.cats.length ? spec.cats : null, once: once, noQty: !!(spec && spec.noQty), labels: labels, gm: true, needs: function(e) { var cpN = getActiveCampaign(), chN = cpN && cpN.chars ? cpN.chars[c.id] : null, syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e, false, F()).missing : []; },   // 126b: the GM is told, never stopped
+        fit: partIn && typeof partFitEntry === 'function' ? function(e) { var cpF = getActiveCampaign(), chF = cpF && cpF.chars ? cpF.chars[c.id] : null, syF = systemOf(cpF), enF = (LB.entry && LB.entry(e.id)) || e; return chF && syF ? partFitEntry(syF, chF, f.id, partIn, enF, F(), false) : ''; } : null,   // 1.6.0 Fits where (ask 18): told, never stopped
         source: { packs: function() { return (camp.library && camp.library.packs) || []; }, entries: function(pid) { return LB.entriesOf(pid); } },
         onAdd: function(ids, qty) { var cp = getActiveCampaign(), ch = cp && cp.chars ? cp.chars[c.id] : null, sy = systemOf(cp), ff = sy ? fieldById(sy, f.id) : null; if (cp !== camp || !ch || !ff) return; ids.forEach(function(id) { againAsk(ff.list || null, ch.values ? ch.values[ff.id] : null, id, LB.entry ? LB.entry(id) : null, function(nm) { var qL = { op: 'add', defId: id, rowId: uid('w_'), qty: qty }; if (nm) qL.name = nm; if (partIn) qL.in = partIn; commitItem(ch, ff, qL); }); }); } });   // 1.6.0: an entry held again asks for its copy's name
 }
@@ -4358,6 +4361,7 @@ function openLibPickerPlayer(anchor, c, f, spec, partIn, rollOnly) {
     var asEntry = function(r) { var o = { id: r[0], key: r[1], name: r[2], category: r[3], icon: r[4], tags: r[5] }; if (Array.isArray(r[7])) o.needs = r[7]; if (typeof r[8] === 'string') o.needsIf = r[8]; return o; };   // 126b: a row's needs, so the picker greys it before the entry is opened
     LP = unheldVia(LP, c, f, spec, rollOnly);   // 1.6.0 Rolls unheld entries
     LP.open({ anchor: anchor, cat: typeof catOf === 'function' ? catOf(anchor) : null, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) ? spec.cats : null, once: null, noQty: !!(spec && spec.noQty), labels: labels, gm: false, needs: function(e) { var cpN = getActiveCampaign(), chN = charById(c.id, cpN), syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e, true, F()).missing : []; },   // 126b: what their character does not meet, by the needs their copy of the entry names (the host judges the rest)
+        fit: partIn && typeof partFitEntry === 'function' ? function(e) { var fuF = N.libEntry(e.id), cpF = getActiveCampaign(), chF = charById(c.id, cpF), syF = systemOf(cpF); return fuF && chF && syF ? partFitEntry(syF, chF, f.id, partIn, fuF, F(), true) : ''; } : null,   // 1.6.0 Fits where (ask 18): judged once the entry has come in full, by their own view (the host judges it again)
         source: {
             packs: function() { return packs; },
             entries: function(pid) { return N.libRows(pid).map(asEntry); },
@@ -5332,6 +5336,7 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
     if (Array.isArray(res.offRows) && res.offRows.length && window.wpSystemCore && window.wpSystemCore.overSays) toast(res.offRows.slice(0, 4).map(window.wpSystemCore.overSays).join(' '));   // 1.6.0 O1: what came off, and where
     if (typeof res.onNeeds === 'string' && res.onNeeds) toast('Switched on all the same. A player would be told: ' + res.onNeeds);   // 1.5.8: the GM's own hand passes a switch's needs, and is told
     if (typeof res.capSays === 'string' && res.capSays) toast(res.capSays + ' A player would be refused.');   // 1.6.0 At most at a level: the GM's own hand passes, and is told
+    if (typeof res.fitSays === 'string' && res.fitSays) toast('Fitted all the same. ' + res.fitSays + ' A player would be refused.');   // 1.6.0 Fits where (ask 18): the GM's own hand passes, and is told
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;
     var extraI = null; if (mvG && mvG.values) Object.keys(mvG.values).forEach(function(k) { if (k === f.id) return; extraI = extraI || {}; extraI[k] = c.values && Object.prototype.hasOwnProperty.call(c.values, k) ? clone(c.values[k]) : undefined; });   // 1.5.8: Revert takes back every list the change moved (a load's other list, a purchase's money)
     lastChange = extraI ? { charId: c.id, fieldId: f.id, prev: prev, extra: extraI } : { charId: c.id, fieldId: f.id, prev: prev };
@@ -6615,6 +6620,14 @@ function refreshErrors() {
         var said = !pz || !pz.ok ? 'is no formula Save can keep, so Save drops it.' : typeof hasDice === 'function' && pz.ast && hasDice(pz.ast.body) ? 'rolls dice, and a gate is read with none, so Save drops it.' : 'reads a GM-only value, here or through what it reads. Your players\u2019 sheets must give the same figures as yours, so Save drops it.';
         (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Changes apply where ' + said + ' The rows then give their changes whatever it says.' });
     });
+    draft.fields.forEach(function(f) {   // 1.6.0 Fits where (ask 18), as the cleaner reads it: dropped where it is no formula or rolls dice; kept for you and left out of the players' view where it reads a GM-only value
+        if (!f || f.kind !== 'item-list' || !f.list || !f.list.parts || typeof f.list.parts.fitIf !== 'string' || !f.list.parts.fitIf.trim()) return;
+        var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0]; if (!cf || !cf.list || !cf.list.parts) return;
+        var said = '';
+        if (!cf.list.parts.fitIf) { var pzF = null; try { pzF = F().parse(f.list.parts.fitIf.trim()); } catch (e) { pzF = null; } said = !pzF || !pzF.ok ? 'is no formula Save can keep, so Save drops it.' : 'rolls dice, and it is read with none, so Save drops it.'; }
+        else if (typeof fitIfOk === 'function' && !fitIfOk({ fields: clean.fields, items: clean.items, core: clean.core }, F(), cf, cf.list.parts.fitIf)) said = 'reads a GM-only value, here or through what it reads, so your players\u2019 sheets keep none of it and their parts are not judged by it. Yours are.';
+        if (said) (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Fits where ' + said });
+    });
     (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {   // 1.5.4: a roll's or an apply action's needs that Save cannot keep, as the cleaner reads it (the validator says the rest)
         if (!r || typeof r !== 'object' || typeof r.needs !== 'string' || !r.needs.trim()) return;
         var cr = (clean.rolls || []).filter(function(x) { return x && x.id === r.id; })[0]; if (cr && !cr.needs) (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'needs', message: 'This is no formula Save can keep, so Save drops it.' });
@@ -7577,6 +7590,9 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             pkW.title = 'Where a row\u2019s figure in this stat is set, the row holds that many parts at most, their quantities added. Adding one more is refused with a word of why'; pkW.appendChild(pkS); fl.appendChild(pkW);
             if (sp.parts.from === f.id) fl.appendChild(checkLabel('sys-list-partsdeep', sp.parts.deep === true, 'Parts hold parts', 'A part may hold parts of its own, as a hand fitted to an arm. Row.parts.all.<stat> adds up every level under a row, and removing a row takes all that is fitted to it'));   // 205 (4): only where the parts come from this list
             if (typeof partCapsBox === 'function') fl.appendChild(partCapsBox(sp));   // 205 (5): a cap per kind
+            var pfW = el('label', 'sys-check'), pfI = el('input', 'field sys-list-partsfitif'); pfI.type = 'text'; pfI.value = typeof sp.parts.fitIf === 'string' ? sp.parts.fitIf : ''; pfI.placeholder = 'every part fits'; pfI.spellcheck = false; pfI.autocomplete = 'off'; pfW.appendChild(document.createTextNode('Fits where ')); pfW.appendChild(pfI);   // 1.6.0 Fits where (the core handbook session's ask 18)
+            pfW.title = 'A formula a part must meet to be fitted to a row: the part\u2019s own names as Row.*, the row it goes on as Host.*, and the character\u2019s, such as Row.Grip <= Host.Grip. A player is refused where it does not hold, and you are told. Blank: every part fits'; fl.appendChild(pfW);
+            var pwW = el('label', 'sys-check'), pwI = el('input', 'field sys-list-partsfitwords'); pwI.type = 'text'; pwI.value = typeof sp.parts.fitIfSays === 'string' ? sp.parts.fitIfSays : ''; pwI.placeholder = 'Does not fit'; pwW.appendChild(document.createTextNode('Refused with ')); pwW.appendChild(pwI); pwW.title = 'The words a player is told when a part does not fit. Blank: the part, the row and the formula are named'; fl.appendChild(pwW);
             var plW = el('label', 'sys-check'), plI = el('input', 'field sys-list-partslabel'); plI.type = 'text'; plI.value = sp.parts.label || ''; plI.placeholder = 'Part'; plW.appendChild(document.createTextNode('Add button says ')); plW.appendChild(plI); plW.title = 'The word on the button that adds a part, such as Option or Upgrade'; fl.appendChild(plW);
         }
     }
@@ -10134,6 +10150,8 @@ function onChange(e) {
         else if (c.indexOf('sys-list-partshosts') >= 0) { if (lsc.parts) { var phs = String(t.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (phs.length) lsc.parts.hosts = phs; else delete lsc.parts.hosts; } }   // 198: Held by
         else if (c.indexOf('sys-list-partscap') >= 0) { if (lsc.parts) { if (t.value) lsc.parts.capBy = t.value; else delete lsc.parts.capBy; } }   // 1.6.0 (v2, B6): Holds as many as the row's stat
         else if (c.indexOf('sys-list-partsdeep') >= 0) { if (lsc.parts) { if (t.checked) lsc.parts.deep = true; else delete lsc.parts.deep; } }   // 205 (4): Parts hold parts
+        else if (c.indexOf('sys-list-partsfitif') >= 0) { if (lsc.parts) { var pfv = String(t.value || '').trim(); if (pfv) lsc.parts.fitIf = pfv.slice(0, LIMITS.formula); else delete lsc.parts.fitIf; } }   // 1.6.0 Fits where (Save cleans it)
+        else if (c.indexOf('sys-list-partsfitwords') >= 0) { if (lsc.parts) { var pwv = String(t.value || '').trim(); if (pwv) lsc.parts.fitIfSays = pwv.slice(0, LIMITS.label); else delete lsc.parts.fitIfSays; } }
         else if (c.indexOf('sys-list-partslabel') >= 0) { if (lsc.parts) { var plv = String(t.value || '').trim(); if (plv) lsc.parts.label = plv; else delete lsc.parts.label; } }
         else if (c.indexOf('sys-list-sets') >= 0) { if (t.value) lsc.sets = t.value; else delete lsc.sets; }   // 1.6.0 R15: Sets by
         else if (c.indexOf('sys-list-placeby') >= 0) { if (t.value) lsc.placeBy = t.value; else delete lsc.placeBy; }   // 1.6.0 R13: the places' ticks are then the stat's value names

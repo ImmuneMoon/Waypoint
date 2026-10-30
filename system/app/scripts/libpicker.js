@@ -121,12 +121,16 @@ function isOnce(x) { return !!(st.opts.once && st.opts.once[x.e.id] === 1); }
 // 126b: an entry a character may not take yet. opts.needs(entry) answers the needs it does not meet (none: it may be taken). A player's row
 // is judged once its entry has come in full, which is when its needs are known. The words are the core's, with the names this list holds
 function missOf(x) { if (!st || typeof st.opts.needs !== 'function' || !x || x.hdr) return []; var m = null; try { m = st.opts.needs(st.full[x.e.id] || x.e); } catch (e) { m = null; } return Array.isArray(m) ? m : []; }
+// 1.6.0 Fits where (the core handbook session's ask 18): opts.fit(entry), where the picker adds parts to a host, answers why that entry does
+// not fit it, in words ('' where it does); a player's row is judged once its entry has come in full
+function fitOf(x) { if (!st || typeof st.opts.fit !== 'function' || !x || x.hdr) return ''; var w = ''; try { w = st.opts.fit(st.full[x.e.id] || x.e); } catch (e) { w = ''; } return typeof w === 'string' ? w : ''; }
 function cantText(x) {
-    var miss = missOf(x); if (!miss.length) return '';
+    var miss = missOf(x), fw = fitOf(x); if (!miss.length) return fw;
     var S = window.wpSystemCore, e = st.full[x.e.id] || x.e;
-    return S && S.needsSays ? S.needsSays(e, miss, function(id) { for (var i = 0; i < st.all.length; i++) if (st.all[i].e.id === id) return st.all[i].e.name; return null; }) : 'Your character does not meet what that needs.';
+    var nw = S && S.needsSays ? S.needsSays(e, miss, function(id) { for (var i = 0; i < st.all.length; i++) if (st.all[i].e.id === id) return st.all[i].e.name; return null; }) : 'Your character does not meet what that needs.';
+    return fw ? nw + ' ' + fw : nw;
 }
-function cant(x) { return !st.opts.gm && missOf(x).length > 0; }   // the GM may always give it: their picker only says so
+function cant(x) { return !st.opts.gm && (missOf(x).length > 0 || !!fitOf(x)); }   // the GM may always give it: their picker only says so
 function draw() {
     if (!st) return; var list = st.els.list, sp = st.els.spacer, top = list.scrollTop, h = list.clientHeight || 300;
     sp.textContent = '';
@@ -159,11 +163,11 @@ function preview() {
     var src = st.opts.source, need = typeof src.get === 'function' && !st.full[x.e.id];
     if (need) {   // L3b: a player's entry comes in full a moment after it is highlighted (the arrows running down a list ask for none on the way)
         clearTimeout(st.getTimer); var mine = st, want = x.e.id;
-        st.getTimer = setTimeout(function() { if (st !== mine) return; src.get(x.e, x.p, function(full) { if (st !== mine || !full || full.id !== want) return; st.full[want] = full; if (Array.isArray(full.needs)) { draw(); addLabel(); } var y = st.hi >= 0 ? st.rows[st.hi] : null; if (y && !y.hdr && y.e.id === want) preview(); }); }, 250);
+        st.getTimer = setTimeout(function() { if (st !== mine) return; src.get(x.e, x.p, function(full) { if (st !== mine || !full || full.id !== want) return; st.full[want] = full; if (Array.isArray(full.needs) || typeof st.opts.fit === 'function') { draw(); addLabel(); } var y = st.hi >= 0 ? st.rows[st.hi] : null; if (y && !y.hdr && y.e.id === want) preview(); }); }, 250);
     }
     var e = st.full[x.e.id] || x.e, h = el('div', 'lib-pick-name', ((e.icon && !/^icon:/.test(e.icon)) ? e.icon + ' ' : '') + e.name); if (gmOnly(x)) h.appendChild(el('span', 'sheet-chip sheet-chip-gm', 'GM only')); box.appendChild(h);
     box.appendChild(el('div', 'lib-pick-sub', [e.category || 'No category', x.p.name].join(' · ')));
-    var whyNot = cantText(x); if (whyNot) box.appendChild(el('div', 'lib-pick-need', st.opts.gm ? 'This character does not meet what it needs. ' + whyNot : whyNot));   // 126b
+    var whyNot = cantText(x); if (whyNot) box.appendChild(el('div', 'lib-pick-need', st.opts.gm && missOf(x).length ? 'This character does not meet what it needs. ' + whyNot : whyNot));   // 126b; 1.6.0 Fits where: a part that does not fit says so alone
     var labels = st.opts.labels || {}, stats = e.stats && typeof e.stats === 'object' ? e.stats : {};
     Object.keys(labels).forEach(function(k) { var key = Object.keys(stats).filter(function(s) { return lc(s) === lc(k); })[0]; if (key !== undefined) line(box, labels[k], String(stats[key])); });
     if (typeof e.lvl === 'number') line(box, 'Starts at', String(e.lvl));

@@ -431,8 +431,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && p2.cant(xS) === false && p2.cantText(xS) === '' && p3.cant(xS) === false && p3.cantText(xS) === 'That needs Meditation at level 2 and something else.'
             && p4.cant(xS) === false && p5.cant(xS) === false && p5.cantText(xS) === '' && p6.cantText(xS) === 'Train first.' && p1.cant({ hdr: 'Gear' }) === false && p1.cantText(null) === ''
             && !/innerHTML|outerHTML|insertAdjacentHTML/.test(guardSrc) && pkN.includes("x.e.id === id && !isOnce(x) && !cant(x); }); });") && pkN.includes("r.addEventListener('dblclick', function() { if (once || no) return;")
-            && pkN.includes("if ((ev.ctrlKey || ev.metaKey) && !no) {") && pkN.includes("var whyNot = cantText(x); if (whyNot) box.appendChild(el('div', 'lib-pick-need', st.opts.gm ? 'This character does not meet what it needs. ' + whyNot : whyNot));"),
+            && pkN.includes("if ((ev.ctrlKey || ev.metaKey) && !no) {") && pkN.includes("var whyNot = cantText(x); if (whyNot) box.appendChild(el('div', 'lib-pick-need', st.opts.gm && missOf(x).length ? 'This character does not meet what it needs. ' + whyNot : whyNot));") /* 1.6.0 Fits where (ask 18): a part that does not fit says so alone (moved on purpose) */,
             j([p1.cantText(xS), p3.cantText(xS), p6.cantText(xS)]));
+        // 1.6.0 Fits where (the core handbook session's ask 18): opts.fit, where the picker adds parts to a host, greys out a part that does not fit for a player and only says so to the GM, after any needs
+        const mkF = (gmSide, needs, fit) => new Function('st', 'window', guardSrc + '\nreturn { cantText: cantText, cant: cant };')({ opts: { gm: gmSide, needs, fit }, full: fullS, all: [{ e: { id: 'i_med', name: 'Meditation' } }, { e: { id: 'i_sight', name: 'Sight' } }] }, { wpSystemCore: S });
+        const fitNo = e => e.id === 'i_sight' ? 'Too big for that grip.' : '', fF1 = mkF(false, null, fitNo), fF2 = mkF(true, null, fitNo), fF3 = mkF(false, judge, fitNo), fF4 = mkF(false, null, () => { throw new Error('x'); }), fF5 = mkF(false, null, () => 7);
+        check('1.6.0 Fits where (the core handbook session\'s ask 18; libpicker.js, run for real): a part its host would refuse is greyed out for a player in the words the judge gives, and only said to the GM; after the needs where both hold; a judge that throws or answers no words greys nothing; a heading is no entry; the preview draws again as a player\'s entry comes in full where the picker asks it',
+            fF1.cant(xS) === true && fF1.cantText(xS) === 'Too big for that grip.' && fF1.cant({ e: { id: 'i_med', name: 'Meditation' } }) === false && fF2.cant(xS) === false && fF2.cantText(xS) === 'Too big for that grip.'
+            && fF3.cantText(xS) === 'That needs Meditation at level 2 and something else. Too big for that grip.' && fF4.cant(xS) === false && fF5.cant(xS) === false && fF1.cant({ hdr: 'Gear' }) === false
+            && pkN.includes("st.full[want] = full; if (Array.isArray(full.needs) || typeof st.opts.fit === 'function') { draw(); addLabel(); }"), j([fF1.cantText(xS), fF3.cantText(xS)]));
     }
     /* ---- 126b: the library's own judge and what a kept players' index follows, run for real ---- */
     {
@@ -521,7 +528,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const withNeeds = run({ id: 'i_a', name: 'A', needs: [{ id: 'i_x' }] }), noNeeds = run({ id: 'i_a', name: 'A' }), moved = run({ id: 'i_a', name: 'A', needs: [{ id: 'i_x' }] }, 1), wrong = run({ id: 'i_zz', name: 'Z', needs: [{ id: 'i_x' }] }), none = run(null);
         check('126b a row greys out as its entry comes in full (libpicker.js preview, run for real): when a player\'s entry arrives a moment after it is highlighted and it needs something, the rows are drawn again and the Add button is judged again, so the row is greyed and Add is off at once and not at the next redraw; that holds when another row is in front by then; an entry that needs nothing draws nothing again; an answer for another entry, and no answer, change nothing',
             prevSrc.length > 400 && j(withNeeds) === j([1, 1, 1, 'i_a']) && j(noNeeds) === j([1, 0, 0, 'i_a']) && j(moved) === j([1, 1, 1, 'i_a']) && j(wrong) === j([1, 0, 0, '']) && j(none) === j([1, 0, 0, ''])
-            && prevSrc.includes("st.full[want] = full; if (Array.isArray(full.needs)) { draw(); addLabel(); } var y = st.hi >= 0 ? st.rows[st.hi] : null;"),
+            && prevSrc.includes("st.full[want] = full; if (Array.isArray(full.needs) || typeof st.opts.fit === 'function') { draw(); addLabel(); } var y = st.hi >= 0 ? st.rows[st.hi] : null;") /* 1.6.0 Fits where (ask 18): also where the picker asks whether a part fits (moved on purpose) */,
             j([withNeeds, noNeeds, moved, wrong, none]));
     }
     /* ---- 126b: an index row carries the needs players may see, so a player's picker greys a row before its entry is opened ---- */

@@ -272,6 +272,12 @@ Systems, more
   row's own stats. One more is refused, and a raised count too. A line can
   count by a choice stat of the parts instead, such as their Slot. A list
   takes 24 kinds at most.
+- Fits where, under Holds by kind, is a formula a part must meet to be
+  fitted to a row, such as Row.Grip <= Host.Grip for a grip or a gauge.
+  It reads the part's own names as Row, the row as Host, and the
+  character's. A player is refused where it does not hold, in the words
+  under Refused with, and the add list greys that part out. You may fit
+  it all the same, and you are told.
 - A number can be Taken from a formula while another formula holds, in the
   Fields tab. Then it reads the formula and is closed to editing, so a
   construct takes its Might from its chassis. Otherwise it is as typed.

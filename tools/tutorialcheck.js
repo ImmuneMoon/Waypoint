@@ -188,12 +188,13 @@ for (const t of targets) {
     const mayRun = (o) => {
         let held = null, cur = o.jo === true; const shown = [];
         const win = { wpWebMode: o.mod === false ? undefined : { joinOnly: () => cur, ready: { then(ok, no) { held = o.reject ? no : ok; } } } };
-        try { new Function('window', 'location', 'welcomePref', 'wcProfile', 'showWelcome', '"use strict";' + nl + webSrc + nl + maySrc)(win, { search: o.stream ? '?stream=1' : '' }, () => o.pref, () => ({ name: o.named ? 'Kael' : '' }), () => shown.push('shown')); } catch (e) { return 'threw: ' + e.message; }
+        try { new Function('window', 'location', 'welcomePref', 'wcProfile', 'showWelcome', 'sessionStorage', '"use strict";' + nl + webSrc + nl + maySrc)(win, { search: o.stream ? '?stream=1' : '' }, () => o.pref, () => ({ name: o.named ? 'Kael' : '' }), () => shown.push('shown'), o.ss ? { getItem: k => o.ss[k] || null } : undefined); } catch (e) { return 'threw: ' + e.message; }
         const before = shown.length; if (o.later) cur = true; if (held) held(); return before + ':' + shown.length;
     };
     const mays = [mayRun({ mod: false, pref: 'always' }), mayRun({ mod: false, pref: 'never' }), mayRun({ jo: true, pref: 'never', named: true }), mayRun({ jo: false, pref: 'never' }), mayRun({ jo: false, pref: 'first', named: true }), mayRun({ jo: false, pref: 'first' }), mayRun({ jo: false, pref: 'always', reject: true }),
         mayRun({ jo: true, pref: 'always', stream: true }), mayRun({ jo: false, pref: 'always', stream: true }), mayRun({ jo: false, pref: 'never', later: true }), mayRun({ jo: false, pref: 'always', later: true }), mayRun({ jo: false, pref: 'always', stream: true, later: true }), mayRun({ jo: true, pref: 'never', later: true })];
-    const mayOk = JSON.stringify(mays) === JSON.stringify(['1:1', '0:0', '1:1', '0:0', '0:0', '1:1', '1:1', '1:1', '0:0', '0:1', '1:2', '0:0', '1:1']);
+    const mayBack = [mayRun({ jo: false, pref: 'always', ss: { wp_rehost: '1' } }), mayRun({ jo: false, pref: 'always', ss: { wp_rejoin: '{}' } }), mayRun({ jo: false, pref: 'always', ss: {} }), mayRun({ jo: true, pref: 'always', ss: { wp_rejoin: '{}' } })];
+    const mayOk = JSON.stringify(mays) === JSON.stringify(['1:1', '0:0', '1:1', '0:0', '0:0', '1:1', '1:1', '1:1', '0:0', '0:1', '1:2', '0:0', '1:1']) && JSON.stringify(mayBack) === JSON.stringify(['0:0', '0:0', '1:1', '1:1']);   // 1.6.0: a reload at a table goes straight back to it, a website's join page still coming up
     // the quick jump (Ctrl+K), run for real: never on such a website, at a table or on the join page; elsewhere as before
     const kA = mainLf.indexOf("        document.addEventListener('keydown', function(e) {\n            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {"), kB = kA < 0 ? -1 : mainLf.indexOf('\n        });', kA), kSrc = kA >= 0 && kB > kA ? mainLf.slice(kA, kB + '\n        });'.length) : '';
     const kRun = win => { let fn = null; const opened = []; let prevented = 0;

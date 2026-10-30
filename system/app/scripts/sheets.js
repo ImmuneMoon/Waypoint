@@ -4630,7 +4630,6 @@ function applyAction(r, c, label, row, on, cx) {   // cx (1.6.0): a crossing's r
     var n = net(), camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys || !F()) return;
     if (isClient()) { if (!n || !n.charApply) return; var q = row ? (on ? n.charApply(c.id, null, label, row, on) : n.charApply(c.id, null, label, row)) : on ? n.charApply(c.id, r.id, label, undefined, on) : n.charApply(c.id, r.id, label); if (q && q.error) toast(q.error); return; }
     if (!canWrite()) return;
-    if (n && typeof n.offTurnSay === 'function' && !cx) n.offTurnSay(c, row ? undefined : r.id, row, label);   // 1.6.0: off its turn, the GM is told
     var act = null;
     if (row) { var lfR = fieldById(sys, row.f), lrR = lfR && lfR.kind === 'item-list' && lfR.list && Array.isArray(lfR.list.rolls) ? lfR.list.rolls[row.i] : null; if (lrR && Array.isArray(lrR.apply)) act = lrR; }   // H7b: the saved list's action
     else (sys.rolls || []).forEach(function(x) { if (x && x.id === r.id && Array.isArray(x.apply)) act = x; });
@@ -4644,6 +4643,7 @@ function applyAction(r, c, label, row, on, cx) {   // cx (1.6.0): a crossing's r
     if (act.to === 'near' && typeof withOnSelf === 'function') vv = withOnSelf(vv, !onT, onT ? makeResolver(sys, onT.ch, F(), n && typeof n.allyCtx === 'function' ? n.allyCtx(ftT.map, onT.tok) : null) : null);   // 1.6.0: and On.<name>, the one it is used on   // 1.5.9: OnSelf, 1 on its user and 0 on another
     var res = applyAct(sys, c, act, vv, F(), tc, row ? { f: row.f, r: row.r } : null, undefined, window.wpDiceCore || null, onT ? { char: onT.ch, tctx: n && typeof n.allyCtx === 'function' ? n.allyCtx(ftT.map, onT.tok) : null } : null, { now: Date.now(), inCombat: !!(n && n.charInCombat && n.charInCombat(c.id)), onInCombat: !!(onT && n && n.charInCombat && n.charInCombat(onT.ch.id)) });   // R2b: a list's action may move its row's counters; 1.5.9: this machine's dice roll a Rolled amount, and a field's change lands on the one it is used on
     if (!res.ok) { toast(res.reason === 'none' ? 'Nothing to apply.' : res.reason === 'error' ? (res.message || 'That amount could not be worked out.') : 'That action cannot change those values now.'); return; }
+    if (n && typeof n.offTurnSay === 'function' && !cx) n.offTurnSay(c, row ? undefined : r.id, row, label);   // 1.6.0: off its turn, the GM is told, once nothing has refused it
     if (res && Array.isArray(res.fitSays) && res.fitSays.length && typeof toast === 'function') toast('A part no longer fits. ' + res.fitSays[0]);   // 1.6.0 Fits where, judged again: the GM is told
     var undoOf = function(ch, vals) { var ks = Object.keys(vals), pv = {}, ex = null; ks.forEach(function(fid) { pv[fid] = ch.values && Object.prototype.hasOwnProperty.call(ch.values, fid) ? clone(ch.values[fid]) : undefined; }); ks.slice(1).forEach(function(fid) { (ex = ex || {})[fid] = pv[fid]; }); return { charId: ch.id, fieldId: ks[0], prev: pv[ks[0]], extra: ex }; };
     var keepUndo = function(ch, vals) { lastChange = undoOf(ch, vals); };   // one Revert: the user's change, or where it moved only the one it was used on, that change

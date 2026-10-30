@@ -1210,7 +1210,8 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
   })();
   (function maybeShowWelcome() {
       if (/[?&]stream=1/.test(location.search) && !wcJoinOnly()) return;   // the stream window mirrors the table: never the welcome over its map (as the tour stays out of it). 1.5.5: a website's join-only page opens no stream window (stream.js) and is the join page
-      if (wcAtLaunch(welcomePref(), !!(wcProfile().name || '').trim())) showWelcome();   // at once, as before: a desktop by its stored choice, a website's page always (1.5.5, webmode.js knows one by its address)
+      var backAt = false; try { backAt = !wcJoinOnly() && !!(sessionStorage.getItem('wp_rehost') || sessionStorage.getItem('wp_rejoin')); } catch (e) {}   // 1.6.0: a reload at a table goes straight back to it (net.js refreshMark, found live, 2026-10-30: the GM landed here with the table up behind)
+      if (!backAt && wcAtLaunch(welcomePref(), !!(wcProfile().name || '').trim())) showWelcome();   // at once, as before: a desktop by its stored choice, a website's page always (1.5.5, webmode.js knows one by its address)
       var W = window.wpWebMode;   // 1.5.5: where only the site's answer can say it is join-only (the dev server's test switch), the join page comes up once it does
       if (!wcJoinOnly() && W && W.ready && typeof W.ready.then === 'function') W.ready.then(function() { if (wcJoinOnly()) showWelcome(); }, function() {});
   })();

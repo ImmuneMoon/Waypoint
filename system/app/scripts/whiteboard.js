@@ -418,7 +418,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, findLandingRoom, characterList, locateCharacter } from './models.js';
 
-import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, pressHold } from './io.js';
 
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 
@@ -9136,10 +9136,11 @@ window.wpOpenCombat = openCombatModal;
 (function wireCombatModal() {
     var m = document.getElementById('combatModal'), list = document.getElementById('combatRows'); if (!m || !list) return;
     function rowOf(e) { var r = e.target.closest && e.target.closest('.combat-row'); return r ? +r.dataset.i : -1; }
+    var hold = typeof pressHold === 'function' ? pressHold(list, window) : null, sortLater = function() { if (!combatDraft) return; combatDraft.rows = combatSortByInit(combatDraft.rows); renderCombatModal(); };   // a number left by a press on the list: the rows move once that press has landed
     list.addEventListener('change', function(e) {
         var i = rowOf(e); if (i < 0) return;
         if (e.target.classList.contains('combat-on')) { combatDraft.rows[i].on = e.target.checked && !combatDraft.rows[i].busy; renderCombatModal(); }   // fold 2: never a token in another fight
-        if (e.target.classList.contains('combat-init')) { combatDraft.rows[i].init = Number(e.target.value) || 0; combatDraft.rows[i].rolled = true; delete combatDraft.rows[i].tb; combatDraft.rows = combatSortByInit(combatDraft.rows); renderCombatModal(); }   // initiative O1: a number given is its number (a player's roll no longer changes it)
+        if (e.target.classList.contains('combat-init')) { combatDraft.rows[i].init = Number(e.target.value) || 0; combatDraft.rows[i].rolled = true; delete combatDraft.rows[i].tb; if (hold && hold.busy()) hold.then(sortLater); else sortLater(); }   // initiative O1: a number given is its number (a player's roll no longer changes it)
     });
     list.addEventListener('keydown', function(e) { e.stopPropagation(); });
     m.addEventListener('pointerdown', function() { rosterUnpeek(m); });   // backlog 26: a press on the roster while it is faded for a find brings it back at once

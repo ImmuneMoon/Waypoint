@@ -2156,6 +2156,19 @@ window.wpHist = { refs: function(s) { s = String(s || ''); if (!s) return false;
 
 
 
+// [lookcheck:presshold-start]
+// A box that draws itself again when a field says its change loses the press that made the field say it: the field speaks as the pointer goes down, the
+// row is drawn anew and the pointer comes up on another element, so no click comes (found live, 2026-10-30: a tick in the fight's roster, Confirm in a
+// trade). pressHold(el, win) answers a hold: busy() while a press that began in el is down, then(fn) runs fn once it has ended, after its click
+export function pressHold(el, win) {
+    var down = false, todo = null;
+    var end = function() { if (!down) return; down = false; win.setTimeout(function() { var f = todo; todo = null; if (f) f(); }, 0); };
+    el.addEventListener('pointerdown', function() { down = true; });
+    win.addEventListener('pointerup', end, true); win.addEventListener('pointercancel', end, true);
+    return { busy: function() { return down; }, then: function(fn) { todo = fn; } };
+}
+// [lookcheck:presshold-end]
+
 export function toast(msg) {
 
     var tb = document.getElementById('toastBtn');

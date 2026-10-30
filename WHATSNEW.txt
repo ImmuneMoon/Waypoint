@@ -160,6 +160,12 @@ Systems, more
 - A running fight is kept in the save. After a Refresh or a crash it comes
   back when you host that campaign again, with its round, its order and
   whose turn it is. That turn gets its move and its actions afresh.
+- A reload at a table goes straight back to it, for the GM and for a
+  player. The welcome screen no longer comes up first.
+- The trade window shows your own sheet, list by list, in place of a
+  drop-down. Press a row to put it on the table.
+- A press right after typing a number now lands: a tick in the Combat
+  window, and Confirm in a trade.
 - A list can hold each skill's specialties. Tick Specialties in the Lists
   tab. A formula then reads one as Skills.Blade.Longsword.Target. It reads
   the row with that specialty, whatever the row is called. Without one it

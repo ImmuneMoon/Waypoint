@@ -3,9 +3,9 @@
 // completed", and 2026-10-24: "using npcs as merchants with inventories of items they sell". The host judges every step (net.js tradeDo); this
 // window only draws the host's view (net.tradeNow, the 'wptrade' event) and asks through the net.trade* calls. Every word is a text node
 import { showConfirm } from './dialogs.js';
-import { toast } from './io.js';
+import { toast, pressHold } from './io.js';
 
-var _tw = { view: null, asked: Object.create(null), shown: false };
+var _tw = { view: null, asked: Object.create(null), shown: false, hold: null };
 
 // [sinkcheck:tradewin-start]
 function twEl(doc, tag, cls, text) { var e = doc.createElement(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = String(text); return e; }
@@ -19,10 +19,25 @@ function twChoices(offerable, lines) {
     var out = [];
     (offerable || []).forEach(function(e) {
         if (used[e.fid + '|' + e.rowId]) return;
-        out.push({ v: 'q|' + e.fid + '|' + e.rowId, text: e.list + ': ' + e.name + (e.qty > 1 ? ' (' + e.qty + ')' : '') + (e.no ? ' — ' + e.no : ''), no: !!e.no });
-        (e.split || []).forEach(function(s) { if (!e.no && s.max > 0) out.push({ v: 'a|' + e.fid + '|' + e.rowId + '|' + s.key, text: e.list + ': ' + s.label + ' from ' + e.name + ' (' + twNum(s.max) + ')', no: false }); });
+        out.push({ v: 'q|' + e.fid + '|' + e.rowId, list: e.list, name: e.name, count: e.qty > 1 ? '×' + e.qty : '', why: e.no || '' });
+        (e.split || []).forEach(function(s) { if (!e.no && s.max > 0) out.push({ v: 'a|' + e.fid + '|' + e.rowId + '|' + s.key, list: e.list, name: s.label + ' from ' + e.name, count: twNum(s.max), why: '' }); });
     });
     return out;
+}
+// what you may still put on the table, as your own sheet lists it: each list under its name, a row you cannot take off greyed with its reason (the owner, 2026-10-30:
+// "the picker showing your inventory section instead of a dropdown would be a big gain")
+function twInv(doc, name, ch, add) {
+    var inv = twEl(doc, 'div', 'trade-inv'), list = null; inv.setAttribute('role', 'group'); inv.setAttribute('aria-label', 'Add from ' + name + '’s sheet');
+    inv.appendChild(twEl(doc, 'div', 'trade-inv-head', 'Add from ' + name + '’s sheet'));
+    if (!ch.length) inv.appendChild(twEl(doc, 'div', 'trade-none', 'Nothing left to add.'));
+    ch.forEach(function(c) {
+        if (c.list !== list) { list = c.list; inv.appendChild(twEl(doc, 'div', 'trade-inv-list', c.list)); }
+        var b = twEl(doc, 'button', 'trade-inv-row'); b.type = 'button'; b.title = c.why || 'Put it on the table'; b.setAttribute('data-k', 'add|' + c.v);
+        b.appendChild(twEl(doc, 'span', 'trade-inv-name', c.name)); if (c.count) b.appendChild(twEl(doc, 'span', 'trade-inv-qty', c.count));
+        if (c.why) { b.appendChild(twEl(doc, 'span', 'trade-inv-why', c.why)); b.disabled = true; } else b.addEventListener('click', function() { add(c.v); });
+        inv.appendChild(b);
+    });
+    return inv;
 }
 function twTotal(lines) { var t = 0, any = false; (lines || []).forEach(function(l) { if (typeof l.price === 'number' && l.qty) { t += l.price * l.qty; any = true; } }); return any ? t : null; }
 // draw the window's body for a view: doc the page, root the body to fill, off { a: [...], b: [...] } what each side of this screen may offer,
@@ -39,9 +54,9 @@ function twDraw(doc, root, v, off, act) {
             var row = twEl(doc, 'div', 'trade-line'), nm = twEl(doc, 'span', 'trade-name', l.key !== undefined ? l.label + ' from ' + l.name : l.name); row.appendChild(nm);
             if (me && v.status === 'open') {
                 var box = doc.createElement('input'); box.type = 'number'; box.className = 'trade-num'; box.min = l.key !== undefined ? '0.01' : '1'; box.step = l.key !== undefined ? '0.01' : '1';
-                box.value = twNum(l.key !== undefined ? l.amt : l.qty); box.title = l.key !== undefined ? 'How much of it you give' : 'How many you give'; box.setAttribute('aria-label', box.title);
+                box.value = twNum(l.key !== undefined ? l.amt : l.qty); box.title = l.key !== undefined ? 'How much of it you give' : 'How many you give'; box.setAttribute('aria-label', box.title); box.setAttribute('data-k', 'num|' + sd + '|' + i);
                 box.addEventListener('change', function() { act('num', sd, { i: i, n: Number(box.value) }); }); row.appendChild(box);
-                var x = twEl(doc, 'button', 'tool ghost trade-x', '×'); x.type = 'button'; x.title = 'Take it off the table'; x.setAttribute('aria-label', 'Take ' + l.name + ' off the table'); x.addEventListener('click', function() { act('drop', sd, i); }); row.appendChild(x);
+                var x = twEl(doc, 'button', 'tool ghost trade-x', '×'); x.type = 'button'; x.title = 'Take it off the table'; x.setAttribute('aria-label', 'Take ' + l.name + ' off the table'); x.setAttribute('data-k', 'drop|' + sd + '|' + i); x.addEventListener('click', function() { act('drop', sd, i); }); row.appendChild(x);
             } else row.appendChild(twEl(doc, 'span', 'trade-qty', l.key !== undefined ? twNum(l.amt) : 'x' + l.qty));
             if (typeof l.price === 'number' && l.key === undefined) row.appendChild(twEl(doc, 'span', 'trade-price', twNum(l.price * l.qty)));
             list.appendChild(row);
@@ -58,12 +73,8 @@ function twDraw(doc, root, v, off, act) {
         });
         var tot = twTotal(s.lines); if (tot !== null) col.appendChild(twEl(doc, 'div', 'trade-total', 'Worth at list price: ' + twNum(tot)));
         if (me && v.status === 'open') {
-            var ch = twChoices(off[sd], s.lines), sel = doc.createElement('select'); sel.className = 'trade-add'; sel.title = 'Put a row of your sheet on the table'; sel.setAttribute('aria-label', 'Add from ' + s.name + '’s sheet');
-            var o0 = twEl(doc, 'option', null, ch.length ? 'Add from ' + s.name + '’s sheet…' : 'Nothing left to add'); o0.value = ''; sel.appendChild(o0);
-            ch.forEach(function(c) { var o = twEl(doc, 'option', null, c.text); o.value = c.v; if (c.no) o.disabled = true; sel.appendChild(o); });
-            sel.addEventListener('change', function() { if (sel.value) act('add', sd, sel.value); });
-            col.appendChild(sel);
-            var ok = twEl(doc, 'button', 'tool trade-ok' + (s.ok ? ' on' : ''), s.ok ? 'Confirmed' : 'Confirm'); ok.type = 'button'; ok.setAttribute('aria-pressed', s.ok ? 'true' : 'false');
+            col.appendChild(twInv(doc, s.name, twChoices(off[sd], s.lines), function(v) { act('add', sd, v); }));
+            var ok = twEl(doc, 'button', 'tool trade-ok' + (s.ok ? ' on' : ''), s.ok ? 'Confirmed' : 'Confirm'); ok.type = 'button'; ok.setAttribute('aria-pressed', s.ok ? 'true' : 'false'); ok.setAttribute('data-k', 'ok|' + sd);
             ok.title = s.ok ? 'Take your confirm back' : 'You agree to this trade as it stands. Any change clears both confirms';
             ok.addEventListener('click', function() { act('ok', sd, !s.ok); }); col.appendChild(ok);
         } else if (v.status === 'open') col.appendChild(twEl(doc, 'div', 'trade-state' + (s.ok ? ' on' : ''), s.ok ? s.name + ' has confirmed.' : 'Waiting for ' + s.name + ' to confirm.'));
@@ -72,6 +83,12 @@ function twDraw(doc, root, v, off, act) {
     root.appendChild(cols);
     var line = v.status === 'asking' ? (mine.indexOf('a') >= 0 ? 'Waiting for ' + v.b.name + ' to answer.' : v.a.name + ' asks to trade.') : (v.msg || 'Both sides confirm, and everything moves at once.');
     root.appendChild(twEl(doc, 'div', 'trade-msg', line));
+}
+// the control that held the focus, found again in a window drawn anew: a key leaves a box and lands on what comes next, and the host's answer draws that again
+function twFocus(body, k) {
+    if (!k) return; var all = body.querySelectorAll('[data-k]'), at = null; for (var i = 0; i < all.length; i++) if (all[i].getAttribute('data-k') === k) at = all[i];
+    if (!at && k.indexOf('add|') === 0) for (var j = 0; j < all.length; j++) if (all[j].getAttribute('data-k').indexOf('add|') === 0 && !all[j].disabled) { at = all[j]; break; }
+    if (at && !at.disabled) at.focus();
 }
 // [sinkcheck:tradewin-end]
 
@@ -94,10 +111,12 @@ function twAct(kind, sd, arg) {
 function twRender() {
     var v = _tw.view, body = document.getElementById('tradeBody'); if (!body) return;
     if (!v) { twShow(false); return; }
+    if (_tw.hold && _tw.hold.busy()) { _tw.hold.then(twRender); return; }   // a press on the window lands first
+    var act = document.activeElement, was = act && body.contains(act) && act.getAttribute ? act.getAttribute('data-k') : null;
     var n = twNet(), off = { a: [], b: [] }; twMine(v).forEach(function(sd) { off[sd] = n && n.tradeOffer ? n.tradeOffer(v[sd].charId, twGm()) : []; });
     var t = document.getElementById('tradeTitle'); if (t) t.textContent = 'Trade: ' + v.a.name + ' and ' + v.b.name;
     twDraw(document, body, v, off, twAct);
-    twShow(true);
+    twShow(true); twFocus(body, was);
 }
 // the side asked answers by a question; the GM's ask also waits in the bell until it is answered
 function twAsk(v) {
@@ -140,7 +159,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     nk.trade = { label: 'Answer', still: function(tid) { var n = twNet(), vs = n && n.tradeViews ? n.tradeViews() : []; return vs.some(function(v) { return v.tid === tid && v.status === 'asking'; }); },
         run: function(tid) { var n = twNet(), v = (n && n.tradeViews ? n.tradeViews() : []).filter(function(x) { return x.tid === tid; })[0]; if (v) { delete _tw.asked[tid]; twAsk(v); } } };
     var wire = function() {
-        var cl = document.getElementById('tradeCloseBtn'), ca = document.getElementById('tradeCancelBtn');
+        var cl = document.getElementById('tradeCloseBtn'), ca = document.getElementById('tradeCancelBtn'), bd = document.getElementById('tradeBody');
+        if (bd) _tw.hold = pressHold(bd, window);
         var end = function() { var v = _tw.view; if (!v) { twShow(false); return; } showConfirm('End this trade for both sides?', function(ans) { if (ans === true && twNet()) { var r = twNet().tradeCancel(v.tid); if (r && r.error && typeof toast === 'function') toast(r.error); } }); };
         if (cl) cl.addEventListener('click', end); if (ca) ca.addEventListener('click', end);
     };

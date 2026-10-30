@@ -3425,5 +3425,18 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
 check('the System editor\'s Items and Lists tabs scroll as one page, so their rows keep their height under the Combat card and under the budgets, readings, links and tables (found live: both were squeezed to a slit of 12 px in a window 800 high, and no entry or list could be edited)',
     /#sysItems, #sysLists \{ overflow-y: auto; \}/.test(css) && /#sysItems > \.sys-rows, #sysLists > \.sys-rows \{ flex: 0 0 auto; max-height: none; overflow: visible; \}/.test(css));
 
+{   // a press that a redraw would lose (io.js pressHold, run for real on plain objects)
+    const ioS = rootRead('system/app/scripts/io.js'), phS = ioS.slice(ioS.indexOf('// [lookcheck:presshold-start]'), ioS.indexOf('// [lookcheck:presshold-end]')).replace('export function', 'function');
+    const pressHold = new Function(phS + '\nreturn pressHold;')();
+    const ls = {}, wl = {}, timers = [], el = { addEventListener: (k, f) => { ls[k] = f; } }, win = { addEventListener: (k, f) => { wl[k] = f; }, setTimeout: f => timers.push(f) };
+    const h = pressHold(el, win), log = [], idle = h.busy(); wl.pointerup(); const noneAtRest = timers.length;
+    ls.pointerdown(); const during = h.busy(); h.then(() => log.push('a')); h.then(() => log.push('b')); const held = log.length; wl.pointerup(); const after = h.busy(), before = log.length; timers.forEach(f => f()); timers.length = 0;
+    ls.pointerdown(); h.then(() => log.push('c')); wl.pointercancel(); timers.forEach(f => f());
+    const wbS = rootRead('system/app/scripts/whiteboard.js'), trS = rootRead('system/app/scripts/trade.js');
+    check('a press that a redraw would lose (found live: a tick in the fight\'s roster and Confirm in a trade, each pressed right after typing a number, did nothing): pressHold says busy only while a press that began in its box is down, and what waits runs once, the last asked, after that press has ended and not before, a press cut short too; the roster and the trade window ask it, and a number in the roster moves the rows only then',
+        idle === false && noneAtRest === 0 && during === true && held === 0 && after === false && before === 0 && J(log) === J(['b', 'c'])
+        && wbS.includes('pressHold(list, window)') && wbS.includes('if (hold && hold.busy()) hold.then(sortLater); else sortLater();') && trS.includes('_tw.hold = pressHold(bd, window);') && trS.includes('if (_tw.hold && _tw.hold.busy()) { _tw.hold.then(twRender); return; }'), J([log, during, after]));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

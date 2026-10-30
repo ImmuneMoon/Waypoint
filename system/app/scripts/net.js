@@ -7624,10 +7624,11 @@ function handleMessage(msg, conn) {
             if (qa.on) { onA = typeof allyOn === 'function' ? allyOn(campA, mapA, tkA, qa.on, profA.id) : { error: 'missing', message: 'That character is not there.' }; if (onA.error) { denyA('error', onA.message); return; } }
             if (typeof Sa.withOnSelf === 'function') varsA = Sa.withOnSelf(varsA, !onA, onA ? Sa.makeResolver(viewA, onA.ch, Fa, typeof allyCtx === 'function' ? allyCtx(mapA, onA.tok) : null) : null);   // 1.6.0: On.<name> reads the one it is used on, through their view   // OnSelf: 1 on themselves, 0 on another
         }
-        var offA = typeof offTurnBar === 'function' ? offTurnBar(campA, chA, qa.act, qa.row, actA.label, conn) : ''; if (offA) { denyA('error', offA); return; }   // 1.6.0: off their turn, by the system's rule
+        var offA = typeof offTurnBar === 'function' ? offTurnBar(campA, chA, qa.act, qa.row, actA.label) : ''; if (offA) { denyA('error', offA); return; }   // 1.6.0: off their turn, by the system's rule
         var resA = Sa.applyAct(campA.system, chA, actA, varsA, Fa, tcA, qa.row ? { f: qa.row.f, r: qa.row.r } : null, undefined, window.wpDiceCore || null, onA ? { char: onA.ch, tctx: typeof allyCtx === 'function' ? allyCtx(mapA, onA.tok) : null } : null, typeof fxNow === 'function' ? fxNow(qa.charId, onA) : null);   // R2b: a list's action may move its row's counters; 1.5.9: the host's dice roll a Rolled amount (never the player's word); and its changes land on the one it is used on
         if (!resA.ok) { denyA(resA.reason, resA.message); return; }
         var costA = typeof actSpend === 'function' ? actSpend(campA, qa.charId, profA, actA.cost, conn, chA.name) : ''; if (costA) { denyA('error', costA); return; }   // turn-based combat T4: what it costs (worked out first: a press that cannot land spends nothing)
+        if (typeof offTurnWarn === 'function') offTurnWarn(campA, chA, qa.act, qa.row, actA.label, conn);   // 1.6.0: nothing refused it, so a warning is said
         if (resA && Array.isArray(resA.fitSays) && resA.fitSays.length && typeof toast === 'function') toast('A part no longer fits. ' + resA.fitSays[0]);   // 1.6.0 Fits where, judged again: the GM is told
         var ownA = !onA || Object.keys(resA.values).length > 0;   // 1.5.9: a press that moved only the one it was used on writes nothing of the user's
         if (ownA) { chA.values = chA.values || {}; Object.keys(resA.values).forEach(function(k) { chA.values[k] = resA.values[k]; }); chA.updated = Date.now(); }
@@ -7689,7 +7690,7 @@ function handleMessage(msg, conn) {
         // [netcheck:tradebranch-start]
         // 1.5.6 trading: a player's step of a trade — admitted, its own limiter, then the host's own judge (tradeDo), whose refusal is said to them alone
         var prTr = net.roster[conn.peer]; if (!prTr || !prTr.id || typeof msg.op !== 'string') return;
-        if (!allow('trade', { perMs: 100, burst: 20, windowMs: 4000, table: 400 }, conn.peer)) return;
+        if (!allow('trade', { perMs: 0, burst: 20, windowMs: 4000, table: 400 }, conn.peer)) { try { conn.send({ type: 'tradeState', refused: 'Too many steps at once. Try again in a moment.' }); } catch (e) { sendFailed(e); } return; }   // no spacing: a number left by a press on Confirm sends both at once (found live, 2026-10-30: the Confirm was dropped without a word)
         if (peerPaused(conn.peer)) { try { conn.send({ type: 'tradeState', refused: !net.paused && typeof peerGmPaused === 'function' && !peerGmPaused(conn.peer) && typeof HELD_WORDS === 'string' ? HELD_WORDS : 'The table is paused.' }); } catch (e) { sendFailed(e); } return; }
         var qTr = { op: msg.op }; ['from', 'to', 'tid', 'side', 'fid', 'row'].forEach(function(k) { if (typeof msg[k] === 'string' && msg[k].length <= 40) qTr[k] = msg[k]; });
         if (msg.yes === true) qTr.yes = true; if (msg.on === true) qTr.on = true; if (Array.isArray(msg.offer)) qTr.offer = msg.offer.slice(0, 80);
@@ -8505,7 +8506,7 @@ function handleMessage(msg, conn) {
             }
         }
         if (Fq.names(q.expr).length && !varsQ) { denyQ('names'); return; }
-        if (chQ && !q.att && typeof offTurnBar === 'function') { var offQ = offTurnBar(campQ, chQ, q.act, q.row, q.label || (actQ && actQ.label), conn); if (offQ) { denyQ('error', { error: { message: offQ, pos: 0, len: 0 } }); return; } }   // 1.6.0: off their turn, by the system's rule; a card's press answers the host's own record
+        if (chQ && !q.att && typeof offTurnBar === 'function') { var offQ = offTurnBar(campQ, chQ, q.act, q.row, q.label || (actQ && actQ.label)); if (offQ) { denyQ('error', { error: { message: offQ, pos: 0, len: 0 } }); return; } }   // 1.6.0: off their turn, by the system's rule; a card's press answers the host's own record
         if (actQ && actQ.burst === 'extra' && q.row && typeof SQ.burstBar === 'function') { var bbQ = SQ.burstBar(campQ.system, chQ, q.row.f, q.row.r); if (bbQ) { denyQ('error', { error: { message: bbQ, pos: 0, len: 0 } }); return; } }   // 1.6.0 A burst: its extra dice, once, after an attack that hit
         var hvQ = null; if (actQ && actQ.dmg === true && actQ.hits && varsQ && typeof SQ.hitCount === 'function') { var hnQ = SQ.hitCount(actQ, varsQ, Fq); if (hnQ === null) { denyQ('error', { error: { message: 'How many hits it rolls for could not be worked out.', pos: 0, len: 0 } }); return; } if (hnQ < 1) { denyQ('error', { error: { message: 'There are no hits to roll for.', pos: 0, len: 0 } }); return; } hvQ = SQ.hitVars(varsQ, hnQ); varsQ = hvQ[0]; }   // 1.6.0 A burst: how many times it rolls, from the entry through their view; the first hit reads its own round
         var resQ = Fq.evaluate(q.expr, varsQ ? { vars: varsQ } : {});
@@ -8513,6 +8514,7 @@ function handleMessage(msg, conn) {
         var moQ = hvQ && hvQ.length > 1 ? SQ.hitRolls(campQ.system, actQ, q.expr, hvQ.slice(1), Fq, Dq) : null; if (moQ && moQ.error) { denyQ('error', { error: { message: moQ.error, pos: 0, len: 0 } }); return; }   // ... and each hit after it, rolled here, before what it costs is spent
         var whyQ = Dq.checkTableRoll(resQ); if (whyQ) { denyQ(whyQ); return; }
         if (actQ && actQ.cost && chQ && typeof actSpend === 'function') { var costQ = actSpend(campQ, q.charId, net.roster[conn.peer], actQ.cost, conn, chQ.name); if (costQ) { denyQ('error', { error: { message: costQ, pos: 0, len: 0 } }); return; } }   // turn-based combat T4: what it costs
+        if (chQ && !q.att && typeof offTurnWarn === 'function') offTurnWarn(campQ, chQ, q.act, q.row, q.label || (actQ && actQ.label), conn);   // 1.6.0: nothing refused it, so a warning is said
         var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid };
         var blowRecQ = q.att && typeof attemptRec === 'function' ? attemptRec(q.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
         if (q.att && typeof attemptDrop === 'function') attemptDrop(q.att);   // 1.6.0 (B2): an attempt is resisted once
@@ -9894,7 +9896,6 @@ net.diceRoll = function(expr, o) {
     if (typeof o.att === 'string' && !(entR && entR.resist === true) && !(typeof attemptRec === 'function' && attemptRec(o.att) && attemptRec(o.att).blow)) return { error: 'That roll does not resist an attempt.' };   // 1.6.0 (B2)   // 1.6.0 (the core's gaps 6 and 7): or it answers a blow
     if (o.row && entR && typeof entR.showIf === 'string' && entR.showIf && varsR && !SR.rollNeedsOk({ needs: entR.showIf }, varsR, F)) return { error: 'That roll is not offered on this row.' };   // 1.6.0: Shown where
     if (entR && entR.needs && varsR && !SR.rollNeedsOk(entR, varsR, F)) return { error: SR.rollNeedsSays(entR) };
-    if (chR && !o.att && typeof net.offTurnSay === 'function') net.offTurnSay(chR, o.act, o.row, o.label);   // 1.6.0: off its turn, the GM is told
     var swR = null; if (Array.isArray(o.sw) && o.sw.length) { var refSw = o.act && !o.row ? { r: String(o.act) } : o.fr ? { f: String(o.fr) } : o.row ? { l: String(o.row.f), row: String(o.row.r), i: typeof o.row.i === 'number' ? o.row.i : undefined } : null; swR = chR && SR && campR && campR.system && refSw && typeof SR.swJudge === 'function' ? SR.swJudge(campR.system, chR, refSw, o.sw) : { ok: false }; if (!swR.ok) return { error: 'That bonus is not this character\u2019s to add to this roll now.' }; }   // 1.6.0: the roll switches ticked, judged as a player's are (the formula already holds them)   // R2b: its needs (before anything is rolled)   // Stage 6 F5b: a roll on one row — its Row.* names
     if (entR && entR.burst === 'extra' && o.row && SR && typeof SR.burstBar === 'function') { var bbR = SR.burstBar(campR.system, chR, o.row.f, o.row.r); if (bbR) return { error: bbR }; }   // 1.6.0 A burst: its extra dice, once, after an attack that hit
     var hvR = null; if (entR && entR.dmg === true && entR.hits && varsR && SR && typeof SR.hitCount === 'function') { var hnR = SR.hitCount(entR, varsR, F); if (hnR === null) return { error: 'How many hits it rolls for could not be worked out.' }; if (hnR < 1) return { error: 'There are no hits to roll for.' }; hvR = SR.hitVars(varsR, hnR); varsR = hvR[0]; }   // 1.6.0 A burst: how many times it rolls, from the entry; the first hit reads its own round
@@ -9904,6 +9905,7 @@ net.diceRoll = function(expr, o) {
     if (rowP && uDefR && !(window.wpLibrary && typeof window.wpLibrary.playerEntry === 'function' && window.wpLibrary.playerEntry(o.row.k)) && !(Array.isArray(campR.system.items) ? campR.system.items : []).some(function(it) { return it && it.id === o.row.k && it.vis !== 'gm'; })) rowP.gm = true;   // 1.6.0 Rolls unheld entries: an entry players may not see keeps its roll the GM's
     var why = D.checkTableRoll(res); if (why) return { error: D.denyText(why) };
     var moR = hvR && hvR.length > 1 ? SR.hitRolls(campR.system, entR, expr, hvR.slice(1), F, D) : null; if (moR && moR.error) return { error: moR.error };   // ... and each hit after it, rolled here
+    if (chR && !o.att && typeof net.offTurnSay === 'function') net.offTurnSay(chR, o.act, o.row, o.label);   // 1.6.0: off its turn, the GM is told, once nothing has refused it
     var rec = { type: 'roll', id: D.uid(), from: diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() };
     var mfR = null; if (entR && entR.malf && varsR) { var mqR = F.evaluate(entR.malf, { vars: varsR }); if (mqR.ok && typeof mqR.value === 'number' && isFinite(mqR.value)) mfR = Math.max(1, Math.min(1000000, Math.round(mqR.value))); }   // Stage 6 HUD R3: its Malf
     var blowRecR = typeof o.att === 'string' && typeof attemptRec === 'function' ? attemptRec(o.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
@@ -10423,13 +10425,16 @@ function offTurnOf(camp, charId) {   // the system's word where this character i
 function offTurnTell(name, text) {   // to the GM, once in a while for one character, and always in the Session Log
     var k = String(name), now = Date.now(); logEvent('table', text); if (_offSaid[k] && now - _offSaid[k] < 3000) return; _offSaid[k] = now; toast(text);
 }
-function offTurnBar(camp, ch, act, row, label, conn) {   // a player's press: '' when it may go ahead, else the refusal's words
-    var S = SC(), md = offTurnOf(camp, ch.id); if (!md || !S || S.offTurnFree(camp.system, act, row)) return '';
-    var nm = String(ch.name || 'A character').slice(0, 60), what = String(label || 'a roll').slice(0, 60);
-    offTurnTell(nm, nm + (md === 'refuse' ? ' tried ' : ' used ') + what + ' out of turn.');
-    if (md === 'refuse') return 'It is not your turn.';
-    turnNote(conn, 'It is not your turn. The GM is told.', ch.id); return '';
-};
+function offTurnBar(camp, ch, act, row, label) {   // a player's press under Refuse: '' when it may go ahead, else the refusal's words
+    var S = SC(); if (offTurnOf(camp, ch.id) !== 'refuse' || !S || S.offTurnFree(camp.system, act, row)) return '';
+    var nm = String(ch.name || 'A character').slice(0, 60); offTurnTell(nm, nm + ' tried ' + String(label || 'a roll').slice(0, 60) + ' out of turn.');
+    return 'It is not your turn.';
+}
+function offTurnWarn(camp, ch, act, row, label, conn) {   // a player's press under Warn, asked once nothing else has refused it, so that the GM is told of what happened
+    var S = SC(); if (offTurnOf(camp, ch.id) !== 'warn' || !S || S.offTurnFree(camp.system, act, row)) return;
+    var nm = String(ch.name || 'A character').slice(0, 60); offTurnTell(nm, nm + ' used ' + String(label || 'a roll').slice(0, 60) + ' out of turn.');
+    turnNote(conn, 'It is not your turn. The GM is told.', ch.id);
+}
 net.offTurnSay = function(ch, act, row, label) {   // the GM's own press goes through, and the GM is told
     var camp = getActiveCampaign(), S = SC(); if (net.role !== 'host' || !ch || !camp || !S || !offTurnOf(camp, ch.id) || S.offTurnFree(camp.system, act, row)) return;
     var nm = String(ch.name || 'A character').slice(0, 60); offTurnTell(nm, nm + ' used ' + String(label || 'a roll').slice(0, 60) + ' out of turn.');

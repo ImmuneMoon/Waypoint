@@ -3254,6 +3254,49 @@ pendingChecks.push((async () => {
     check('1.6.0 every row of a list, char-apply: an action on a GM-only list and one whose amount reads a GM-only value are not in the player\'s view ("field"); one whose rows are all at the figure already, the hidden row aside, is "none"; nothing stored, sent or saved',
         j(dG.answer.map(m => m.reason)) === j(['field']) && j(dF.answer.map(m => m.reason)) === j(['field']) && j(dN.answer.map(m => m.reason)) === j(['none']) && [dG, dF, dN].every(quiet) && j(dN.vals.f_loc[1]) === j({ id: 'w_h', defId: 'i_arm', qty: 1, hid: 1 }), j([dG.answer, dF.answer, dN.answer]));
 })());
+// 1.6.0 (asked by a campaign build's session): a change on every row of a list whose amount reads each row's own names (Row.*), through the
+// host's char-apply (sliced, run for real with the real systemcore, formula engine, delta and card): worked out row by row through the player's
+// own view, the severing example clearing a crippling and keeping a severing, a figure that differs by row carded as set with no figure, and a
+// change whose row names read a GM-only value not in the player's view
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const apSrc = (ordersSrc + '\n' + between('// [netcheck:charapply-start]', '// [netcheck:charapply-end]', 'charapply')), paSrc = between('// [netcheck:postapply-start]', '// [netcheck:postapply-end]', 'postapply');
+    const dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const sysW = Sx.cleanSystem({ v: 1, name: 'W', fields: [
+        { id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '12', def: 'max', min: -12, hover: true }, { id: 'f_gx', key: 'GmFig', kind: 'number', def: 1, vis: 'gm' },
+        { id: 'f_loc', key: 'Locs', label: 'Locations', kind: 'item-list', list: { stats: [{ key: 'Sev', label: 'Severity' }, { key: 'Wt', label: 'Weight' }] } },
+        { id: 'f_sec', key: 'Sec', label: 'Secrets', kind: 'item-list', list: { stats: [{ key: 'Mk', label: 'Mark' }], cols: [{ key: 'Hid', label: 'Hidden', formula: 'GmFig + Row.Mk' }] } }],
+        items: [{ id: 'i_arm', name: 'Arm', stats: { Sev: 3, Wt: 2 } }, { id: 'i_leg', name: 'Leg', stats: { Sev: 6, Wt: 1 } }, { id: 'i_gem', name: 'Gem', stats: { Mk: 1 } }],
+        rolls: [{ id: 'r_cut', label: 'Mend', apply: [{ list: 'f_loc', s: 'Sev', formula: 'if(Row.Sev >= 5, Row.Sev, 0)', set: true }] }, { id: 'r_wear', label: 'Wear', apply: [{ list: 'f_loc', s: 'Sev', formula: 'Row.Wt', add: true }] },
+            { id: 'r_sec', label: 'Mark all', apply: [{ list: 'f_sec', s: 'Mk', formula: 'Row.Mk + 1', set: true }] }] }, { F: Fx, gmView: true });
+    const START = { f_loc: [{ id: 'w_a', defId: 'i_arm', qty: 1 }, { id: 'w_l', defId: 'i_leg', qty: 1 }, { id: 'w_o', qty: 1, def: { name: 'Tail', stats: { Sev: 2, Wt: 4 } } }, { id: 'w_h', defId: 'i_arm', qty: 1, hid: 1 }], f_sec: [{ id: 'w_g', defId: 'i_gem', qty: 1 }] };
+    const host = (msg, o) => {
+        o = o || {};
+        const camp = { id: 'k', system: sysW, items: {}, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(o.vals || START)) } } };
+        const out = { answer: [], owner: [], mate: [], chat: [], logs: [], saves: 0, changed: [] }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
+        const conn = { peer: 'pA', send: box(out.answer) };
+        const net = { active: true, role: 'host', paused: false, combats: {}, conns: [{ peer: 'pA', open: true, send: box(out.owner) }, { peer: 'pB', open: true, send: box(out.mate) }], roster: { pA: { id: 'u_a', name: 'Ana P', location: 'm1' }, pB: { id: 'u_b', name: 'Bo P' } } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged: id => out.changed.push(id) }, wpDiceCore: null };
+        const sendTable = (m, ex) => net.conns.forEach(c => { if (c !== ex && c.open && net.roster[c.peer]) c.send(m); });
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'own', 'diceFrom', 'sendTable', 'pushChat', 'logEvent', 'applyLine',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + paSrc + '\n' + apSrc)(
+            msg, conn, net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true },
+            (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), (p, gm) => ({ id: p.id, name: p.name, gm: !!gm }), sendTable, m => out.chat.push(JSON.parse(JSON.stringify(m))), (k, t) => out.logs.push(k + ': ' + t), r => Dx.applyText(r));
+        out.vals = camp.chars.c_1.values; return out;
+    };
+    const A = act => ({ type: 'char-apply', rid: 'a1', charId: 'c_1', act: act }), card = list => list.filter(m => m.type === 'apply');
+    const sevOf = r => r.def ? r.def.stats.Sev : r.ov && r.ov.stats ? r.ov.stats.Sev : null;
+    const m1 = host(A('r_cut')), cM = card(m1.owner)[0] || {};
+    check('1.6.0 every row of a list worked out row by row, char-apply (the host, run for real): the owner\'s Mend, Set to if(Row.Sev >= 5, Row.Sev, 0), clears the crippling of 3 and of 2 and keeps the severing of 6, each row read through their own view, the row kept from them passed over: one ack, one save, one line on the card, Set with its figure where every row moved to the same one',
+        j(m1.answer) === j([{ type: 'char-ack', rid: 'a1' }]) && j(m1.vals.f_loc.map(sevOf)) === j([0, null, 0, null]) && j(m1.vals.f_loc[3]) === j({ id: 'w_h', defId: 'i_arm', qty: 1, hid: 1 }) && m1.saves === 1
+        && j(m1.owner).indexOf('w_h') < 0 && j(cM.lines) === j([{ n: 'Locations: Severity (2 rows)', s: 1, v: 0 }]) && Dx.cleanApply(cM) !== null && card(m1.mate).length === 0
+        && /applied Mend: Locations: Severity \(2 rows\) set → 0$/.test(m1.logs[0] || ''), j([m1.answer, m1.vals, m1.owner, m1.logs]));
+    const w1 = host(A('r_wear')), cW = card(w1.owner)[0] || {}, s1 = host(A('r_sec'));
+    check('1.6.0 every row of a list worked out row by row, char-apply: Add Row.Wt moves each row by its own Weight, and the card, the figure differing by row, says set with no figure (net.js applyLines), which a player\'s app takes (dicecore cleanApply); a change whose row names read a value worked out from a GM-only one is not in the player\'s view ("field"), nothing stored, sent or saved',
+        j(w1.vals.f_loc.map(sevOf)) === j([5, 7, 6, null]) && j(cW.lines) === j([{ n: 'Locations: Severity (3 rows)', s: 1 }]) && Dx.cleanApply(cW) !== null && /applied Wear: Locations: Severity \(3 rows\) set$/.test(w1.logs[0] || '')
+        && j(s1.answer.map(m => m.reason)) === j(['field']) && s1.owner.length === 0 && s1.saves === 0 && j(s1.vals.f_sec) === j(START.f_sec), j([w1.vals, cW, s1.answer]));
+})());
 
 // Stage 6 HUD H7b: a list's apply action on the wire — the owner's press names its row ({ f, r, i }); the host finds the list and its action in
 // THEIR view, works the amounts out through that row's names (a row they cannot see is gone), and a row of a GM-only item keeps the card between

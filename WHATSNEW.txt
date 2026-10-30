@@ -174,6 +174,11 @@ Systems, more
   row kept from its player is passed over, and the card names the list and
   the stat once with how many rows it moved. Run by When a value crosses,
   hit points back to full can clear every crippled limb.
+  Its amount may read each row's own names, such as Row.Sev: it is then
+  worked out for each row, and a row it cannot work out is passed over.
+  Set to if(Row.Sev >= 5, Row.Sev, 0) clears a crippling of 1 to 4 and
+  keeps a severing of 5 or more. Where the figure differs by row, the card
+  says set with no figure.
 - A damage roll can be ticked Always a Major Wound, such as a strike that
   always wounds badly: Apply to target on its card then lands it as a Major
   Wound whatever its size.

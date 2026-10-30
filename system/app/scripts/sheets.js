@@ -4599,7 +4599,7 @@ function ruleReads(sys, c, ks, tc, rr) {   // rr (1.5.5): a resolver of c as it 
     return out;
 }
 // 1.6.0: a summary line's words; one on every row of a list says its list, its stat and its rows once (systemcore applyAct), a Set its figure and an Add or a Subtract its amount on each
-function ruleLineWords(l) { return l.all ? l.n + (l.set ? ' set to ' + l.v : ' ' + (l.d >= 0 ? '+' : '') + l.d + ' each') : l.n + ' ' + (l.d >= 0 ? '+' : '') + l.d + ' \u2192 ' + l.v; }
+function ruleLineWords(l) { return l.all ? l.n + (l.vary ? (l.set ? ' set row by row' : ' moved row by row') : l.set ? ' set to ' + l.v : ' ' + (l.d >= 0 ? '+' : '') + l.d + ' each') : l.n + ' ' + (l.d >= 0 ? '+' : '') + l.d + ' \u2192 ' + l.v; }   // 1.6.0: a figure worked out row by row that differs by row (vary) says no figure
 function ruleMoves(sys, c, ks, pre, tc, lines, rr) {   // the summary's lines for the values written that moved, { n, d, v } as the sheet reads them, in the run's order; rr: as ruleReads'
     var post = ruleReads(sys, c, ks, tc, rr), out = [], num = function(x) { return typeof x === 'number' && isFinite(x); }, step = function(x, y) { return Math.round((y - x) * 1000) / 1000; };
     var shown = function(f, x) { return typeof figText === 'function' ? figText(f, x) : Math.round(x * 1000) / 1000; };   // the figure as the sheet writes it, never a sum's float noise
@@ -4669,8 +4669,8 @@ function runTimeRules(fires, words, at, back, when) {
                 var wrote = ks.filter(function(k) { return JSON.stringify(c.values ? c.values[k] : undefined) !== JSON.stringify(res.values[k]); });
                 var pre = wrote.length ? ruleReads(sys, c, wrote, tcF) : null;
                 if (wrote.length) { c.values = c.values || {}; wrote.forEach(function(k) { c.values[k] = res.values[k]; all[k] = res.values[k]; }); }
-                var mv = !wrote.length ? [] : pre ? ruleMoves(sys, c, wrote, pre, tcF, res.lines) : res.lines.filter(function(l) { return l.d !== 0; });
-                mv.forEach(function(l) { var h = A.lines.filter(function(x) { return x.n === l.n; })[0]; if (h) { h.d = l.all && l.set ? l.d : Math.round((h.d + (typeof l.d === 'number' ? l.d : 0)) * 1000) / 1000; h.v = l.v; } else { var nl = { n: l.n, d: typeof l.d === 'number' ? l.d : 0, v: l.v }; if (l.all) { nl.all = l.all; if (l.set) nl.set = true; } A.lines.push(nl); } });   // 1.6.0: a line on every row keeps saying so
+                var mv = !wrote.length ? [] : pre ? ruleMoves(sys, c, wrote, pre, tcF, res.lines) : res.lines.filter(function(l) { return l.all || l.d !== 0; });   // 1.6.0: a line on every row of a list is said whatever its d (a Set, or a figure that differs by row), as ruleMoves passes it
+                mv.forEach(function(l) { var h = A.lines.filter(function(x) { return x.n === l.n; })[0]; if (h) { h.d = l.all && l.set ? l.d : Math.round((h.d + (typeof l.d === 'number' ? l.d : 0)) * 1000) / 1000; h.v = l.v; if (l.all && l.set) { if (l.vary) h.vary = true; else delete h.vary; } else if (l.vary) h.vary = true; } else { var nl = { n: l.n, d: typeof l.d === 'number' ? l.d : 0, v: l.v }; if (l.all) { nl.all = l.all; if (l.set) nl.set = true; if (l.vary) nl.vary = true; } A.lines.push(nl); } });   // 1.6.0: a line on every row keeps saying so
             });
             acc.filter(function(A) { return A.rule; }).sort(function(a, b) { return a.first - b.first; }).forEach(function(A) {
                 var fi = A.fi, rule = A.rule;

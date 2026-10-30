@@ -814,7 +814,7 @@ function needsMet(sys, char, def, copy, F, vars, lvl) {
             var eid = isObj(r) ? (typeof r.defId === 'string' ? r.defId : copy === true && r.lnk === 1 && typeof r.src === 'string' ? r.src : null) : null;   // the host's row names its entry; an owner's inline copy names it as src, read only on the owner's own app
             if (!eid || r.hid === 1) return;
             var l = lv ? rowLvl(f.list, r, null) : true, h = have[eid];
-            if ((isObj(f.list) && isObj(f.list.specs)) || subj) { var mdD = rowDef(sys, r); if (mdD && isObj(mdD.def)) means.push({ id: eid, sp: f.list, d: mdD.def, b: specBase(sys, r, mdD.def), l: l }); }   // a need on a subject reads every list's rows
+            if ((isObj(f.list) && isObj(f.list.specs)) || subj) { var mdD = rowDef(sys, r); if (mdD && isObj(mdD.def)) means.push({ id: eid, sp: f.list, d: mdD.def, b: specBase(sys, r, mdD.def), l: l }); else if (subj && isObj(r.ov) && typeof r.ov.name === 'string' && r.ov.name.trim()) means.push({ id: eid, sp: f.list, d: { name: r.ov.name }, b: '\u0001', l: l, bare: true }); }   // a player's picker may not hold a pack entry's definition: its held name still says its subject   // a need on a subject reads every list's rows
             if (h === undefined || (typeof l === 'number' && (h === true || l > h))) have[eid] = l;
         });
     });
@@ -822,7 +822,7 @@ function needsMet(sys, char, def, copy, F, vars, lvl) {
         if (!isObj(n)) return; var h = have[n.id], low = function(x) { return x === undefined || (typeof n.lvl === 'number' && typeof x === 'number' && x < n.lvl); };
         var nsq = typeof n.spec === 'string' ? specSquash(n.spec) : '';
         if (nsq) {   // 1.6.0 Specialties: on a subject, only a row of that entry (or one that means its key) held for that subject, or covering it
-            var edS = itemDef(sys, n.id) || libFind(n.id), hs; means.forEach(function(m) { if (!low(hs)) return; var of = m.id === n.id || (isObj(m.sp) && isObj(m.sp.specs) && isObj(edS) && typeof edS.key === 'string' && edS.key && specMeans(m.sp, m.d, m.b, edS.key)); if (!of) return; var si = specInfo(m.sp, m.d, m.b); if ((si && si.s === nsq) || specCoversRow(m.sp, m.d, nsq)) hs = m.l; });
+            var edS = itemDef(sys, n.id) || libFind(n.id), hs; means.forEach(function(m) { if (!low(hs)) return; var of = m.id === n.id || (isObj(m.sp) && isObj(m.sp.specs) && isObj(edS) && typeof edS.key === 'string' && edS.key && specMeans(m.sp, m.d, m.b, edS.key)); if (!of) return; var si = specInfo(m.sp, m.d, m.b), npB = m.bare ? specNameParts(m.d.name) : null, ssB = m.bare ? (npB ? npB.s : specSquash(m.d.name)) : ''; if ((si && si.s === nsq) || (m.bare && ssB === nsq) || specCoversRow(m.sp, m.d, nsq)) hs = m.l; });
             if (low(hs)) out.missing.push(n); return;
         }
         if (low(h) && means.length) { var ed = itemDef(sys, n.id) || libFind(n.id); if (isObj(ed) && typeof ed.key === 'string' && ed.key) means.forEach(function(m) { if (low(h) && specMeans(m.sp, m.d, m.b, ed.key)) h = m.l; }); }   // 1.6.0 Specialties: a row that means the needed entry's key

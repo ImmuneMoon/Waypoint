@@ -1041,6 +1041,20 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         before === 'Opens Bar at Door. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.' && J(B.asked) === J([['p_bar', 'sec_a']])
         && after === 'Opens Bar at Door.\n\nLine one ' + HOST + '\nLine two\n\nA click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.' && m.childNodes.length === 0
         && mc.dataset.tip === 'Opens Rules. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.' && J(C.asked) === J([['d_rules', '']]) && md.dataset.tip === mc.dataset.tip && !/innerHTML/.test(wbS), J([before, after, mc.dataset.tip]));
+    {   // found live, 2026-10-30: a window that closed under the pointer left its control's tooltip up until the pointer moved
+        const tipN = {}, ticks = {}; let tickId = 0;
+        const elT = { isConnected: true, dataset: { tip: 'Put a row on the table' }, hasAttribute: () => false, getBoundingClientRect: () => ({ left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 }), getClientRects: () => [1], closest: () => elT, contains: () => false };
+        const tipEl = { style: {}, classList: { add() {}, remove() {} }, setAttribute() {}, offsetWidth: 10, offsetHeight: 10 };
+        const docT = { createElement: () => tipEl, body: { appendChild() {} }, addEventListener: (k, f) => { tipN[k] = f; } };
+        const later = f => { const i = ++tickId; ticks[i] = f; return i; }, stop = i => { delete ticks[i]; };
+        new Function('document', 'window', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', read('scripts/tooltips.js'))(docT, { addEventListener() {}, innerWidth: 800, innerHeight: 600 }, later, stop, later, stop);
+        const runAll = () => Object.keys(ticks).forEach(k => { if (ticks[k]) ticks[k](); });
+        tipN.mouseover({ target: elT, clientX: 1, clientY: 1 }); runAll(); const up = tipEl.style.display, watching = Object.keys(ticks).length;
+        runAll(); const still = tipEl.style.display; elT.isConnected = false; runAll(); const gone = tipEl.style.display, left = Object.keys(ticks).filter(k => k > 1).length;
+        elT.isConnected = true; elT.getClientRects = () => []; tipN.mouseover({ target: elT, clientX: 1, clientY: 1 }); runAll(); const neverUp = tipEl.style.display;
+        check('a tooltip goes with its control: a window closed or a control taken away under a resting pointer takes the tip with it, though no mouseout comes; a control still there keeps it; one that has gone by the time the wait ends shows none; nothing keeps watching once the tip is down',
+            up === 'block' && watching >= 1 && still === 'block' && gone === 'none' && neverUp === 'none' && left === 0, J([up, watching, still, gone, left, neverUp]));
+    }
     const tipS = read('scripts/tooltips.js'), wn = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, '\n'));
     const plan = ix.slice(ix.indexOf('<div class="help-pane" data-pane="planners"'), ix.indexOf('<div class="help-pane" data-pane="handbook"'));
     check('the app\'s tooltip writes the words as text and keeps their line breaks; the module publishes the preview; Help and both release notes of 1.6.0 say it',

@@ -3,7 +3,7 @@
    data-tip on first hover so the browser's own bubble does not appear as well; an element whose
    title changes later (e.g. a caret's Expand / Collapse) is re-read on the next hover. */
 (function() {
-    var DELAY = 150, tip, timer, current, px = null, py = null;   // px, py: where the pointer is
+    var DELAY = 150, tip, timer, watch, current, px = null, py = null;   // px, py: where the pointer is
     function box() {
         if (tip) return tip;
         tip = document.createElement('div');
@@ -32,10 +32,11 @@
         x = Math.max(6, Math.min(x, vw - tw - 6));
         t.style.left = x + 'px'; t.style.top = y + 'px';
         t.classList.add('show');
-        current = el;
+        current = el; clearInterval(watch); watch = setInterval(function() { if (current && gone(current)) hide(); }, 200);   // a window that closes under the pointer sends no mouseout, so the tip would stay until the pointer moved
     }
+    function gone(el) { return !el.isConnected || !el.getClientRects().length; }
     function hide() {
-        clearTimeout(timer); timer = null; current = null;
+        clearTimeout(timer); timer = null; clearInterval(watch); watch = null; current = null;
         if (tip) { tip.classList.remove('show'); tip.style.display = 'none'; }
     }
     document.addEventListener('mousemove', function(e) { px = e.clientX; py = e.clientY; }, { passive: true });
@@ -45,7 +46,7 @@
         if (!el || el === current) return;
         clearTimeout(timer);
         hide();
-        timer = setTimeout(function() { show(el); }, DELAY);
+        timer = setTimeout(function() { if (!gone(el)) show(el); }, DELAY);
     });
     document.addEventListener('mouseout', function(e) {
         var el = e.target && e.target.closest && e.target.closest('[data-tip], [title]');

@@ -10390,14 +10390,15 @@ var _leaveBtn = ui('netLeaveBtn');
 if (_leaveBtn) _leaveBtn.addEventListener('click', function() { net.leaveSessionConfirm(); });
 
 /* ---------- Refresh: reload without losing the session ---------- */
-var _refreshBtn = ui('refreshBtn');
-if (_refreshBtn) _refreshBtn.addEventListener('click', function() {
+function refreshMark() {   // what a reload needs in order to come straight back: the app's Refresh, and the browser's own key, which reaches only the page going away (found live, 2026-10-30: F5 left a player at the welcome screen)
     try {
         if (net.active && net.role === 'client') sessionStorage.setItem('wp_rejoin', JSON.stringify({ code: net.code, name: getProfile().name || '', pass: (ui('netJoinPassInput') || {}).value || '' }));
         else if (net.active && net.role === 'host') sessionStorage.setItem('wp_rehost', '1');
     } catch (e) {}
-    location.reload();
-});
+}
+var _refreshBtn = ui('refreshBtn');
+if (_refreshBtn) _refreshBtn.addEventListener('click', function() { refreshMark(); location.reload(); });
+if (typeof window.addEventListener === 'function') window.addEventListener('pagehide', refreshMark);
 // after a refresh: straight back to where you were
 setTimeout(function() {
     var rj = null, rh = null;

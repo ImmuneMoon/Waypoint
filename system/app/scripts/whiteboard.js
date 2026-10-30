@@ -9079,7 +9079,7 @@ function combatRowsFor(mapId, opts) {
     var elsewhere = Object.create(null); fightsHere(mapId).forEach(function(f) { if (f !== fidR) (n.combats[f].rows || []).forEach(function(r) { if (r && typeof r.tokId === 'string') elsewhere[r.tokId] = 1; }); });   // fold 2: a token is in one fight at a time
     var byTok = {}; (running ? running.rows : []).forEach(function(r) { if (r.tokId) byTok[r.tokId] = r; });
     // live target pairs on this map: whoever is targeting (their own token) and whoever they target
-    var pair = {}; ((opts && opts.pre) || []).forEach(function(id) { pair[id] = 'targeted'; });
+    var pair = {}, picked = {}; ((opts && opts.pre) || []).forEach(function(id) { picked[id] = 1; });   // what is picked on the map is ticked and says nothing of a target (found live, 2026-10-30: every picked token read targeted)
     Object.keys((n && n.targets) || {}).forEach(function(pid) {
         var t = n.targets[pid]; if (!t || t.mapId !== mapId) return;
         pair[t.id] = 'targeted';
@@ -9088,7 +9088,7 @@ function combatRowsFor(mapId, opts) {
     });
     var rows = (map.whiteboard || []).filter(function(w) { return w.isChar && !w.hidden; }).map(function(w) {
         var was = byTok[w.id], busy = !was && elsewhere[w.id] === 1;
-        var on = !busy && (!!was || !!pair[w.id]);   // only a running combat's rows and the tokens in a target pair start ticked; never a token in another fight (fold 2)
+        var on = !busy && (!!was || !!pair[w.id] || picked[w.id] === 1);   // only a running combat's rows and the tokens in a target pair start ticked; never a token in another fight (fold 2)
         return { id: was ? was.id : 'r' + w.id, name: w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, rolled: !!(was && was.rolled === 1), tb: was && Array.isArray(was.tb) ? was.tb.slice() : undefined, src: w.src || null, on: on, busy: busy, party: !!w.ownerId, targeted: pair[w.id] || '', charId: w.charId || null };
     });
     // custom rows of a running combat (no token) stay
@@ -9096,7 +9096,7 @@ function combatRowsFor(mapId, opts) {
     if (running) {   // keep the running order first, newcomers after
         var order = {}; running.rows.forEach(function(r, i) { order[r.id] = i; });
         rows.sort(function(a, b) { var x = order[a.id] !== undefined ? order[a.id] : 999 + rows.indexOf(a), y = order[b.id] !== undefined ? order[b.id] : 999 + rows.indexOf(b); return x - y; });
-    } else rows.sort(function(a, b) { return (b.targeted ? 1 : 0) - (a.targeted ? 1 : 0) || (b.party ? 1 : 0) - (a.party ? 1 : 0) || a.name.localeCompare(b.name); });
+    } else rows.sort(function(a, b) { return (b.on || b.targeted ? 1 : 0) - (a.on || a.targeted ? 1 : 0) || (b.party ? 1 : 0) - (a.party ? 1 : 0) || a.name.localeCompare(b.name); });
     return rows;
 }
 function combatSortByInit(rows) {   // high to low, ties keep their place (initiative O1: the core's one rule, shared with the host's re-sort)

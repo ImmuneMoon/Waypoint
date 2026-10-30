@@ -219,6 +219,22 @@ Systems, more
   go in order, and it stops when the chamber is empty. Empty, it fires one.
   The card says how many went. Row.fired.<stat> reads the last one that
   went, and a launched blast is that round's alone.
+- A burst can land every hit with one press. A list's roll can be set to
+  Opens a burst, for the attack, or to A burst's extra dice, for the roll
+  that counts the extra hits, such as (max(1, Row.sh - 1))d6cs>=4. The
+  table keeps which dice hit, and Row.bursthits reads the hits landed.
+- A damage roll has a Hits it rolls for box, such as Row.bursthits. One
+  press rolls once for each hit, on one card with each total on it. Each
+  hit reads its own round as Row.fired, in firing order.
+- One Apply to target lands every hit at one location. Each hit is its own
+  blow, and pools move on from hit to hit. Every hit meets the armour as it
+  was before the burst, the wear comes off once at the end, and a hit the
+  armour stops wears nothing. One Revert takes it all back.
+- In a launched burst each round that hits is its own blast at the target,
+  going off at once. A round whose extra die failed strays. With A stray
+  round lands set on the Combat card, such as 1d6, it lands that far off
+  the aim. It waits in the bell, where you press one of the ways or Click
+  on the map, and then waits for a fuse that is set.
 - A rule can name a thing's place by its name, so it keeps its meaning when
   a list changes. Posture.Prone reads the Prone posture's place, so
   Posture = Posture.Prone still means prone after a posture is added before

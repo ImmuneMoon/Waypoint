@@ -9,7 +9,8 @@
    its kinds in window.wpNoticeKinds: { label, still(arg), run(arg) }), or until it says done(key). A kind may offer a second answer beside
    its button, alt(arg) under altLabel, as the time rules that wait in a fight with the Calendar off offer Apply and Skip (backlog 152, fold
    4b); tip and altTip are the two buttons' tooltips, and stay: true keeps the list up after its button, as the second answer always does,
-   the focus going on to the row after it. A kind whose items wait nowhere else says only: true (the time rules that wait in the bell): its
+   the focus going on to the row after it. A kind may offer several answers more, picks(arg), a list of { label, tip } each a button, and pick(arg,
+   place) answers it (a stray round's ways, 1.6.0). A kind whose items wait nowhere else says only: true (the time rules that wait in the bell): its
    row has no x and Clear all leaves it, so its own answers alone take it off the list. The bell's number is what waits. The x
    takes a notice away; on what waits it takes it off the list only, since the thing itself still waits, in the Review or the Calendar, and it
    comes back if its module says it anew. Clear all asks first.
@@ -156,6 +157,7 @@ function draw() {
             var last = null;
             if (k && typeof k.run === 'function') { var go = mkBtn('tool notes-go', typeof k.label === 'string' && k.label ? k.label.slice(0, 20) : 'Open', typeof k.tip === 'string' && k.tip ? k.tip : 'Open what waits', k.stay === true); go.setAttribute('data-note-go', w.key); row.appendChild(go); last = go; }
             if (k && typeof k.run === 'function' && typeof k.alt === 'function') { var al = mkBtn('tool ghost notes-alt', typeof k.altLabel === 'string' && k.altLabel ? k.altLabel.slice(0, 20) : 'Skip', typeof k.altTip === 'string' && k.altTip ? k.altTip : 'Let it go', true); al.setAttribute('data-note-alt', w.key); row.appendChild(al); last = al; }   // 152 fold 4b: a kind's second answer, the list kept up
+            if (k && typeof k.pick === 'function' && typeof k.picks === 'function') { var pl = []; try { pl = k.picks(w.arg); } catch (er) { pl = []; } if (Array.isArray(pl) && pl.length) { var pb = mk('div', 'notes-picks'); pl.slice(0, 12).forEach(function(p, i) { if (!p || typeof p.label !== 'string' || !p.label) return; var pc = mkBtn('tool ghost notes-pick', p.label.slice(0, 40), typeof p.tip === 'string' ? p.tip : '', true); pc.setAttribute('data-note-pick', w.key); pc.setAttribute('data-note-i', String(i)); pb.appendChild(pc); }); row.className += ' notes-wrap'; row.appendChild(pb); } }   // 1.6.0: its other answers, each a button of its own
             if (onlyHere(w.kind) && last) last.setAttribute('data-note-stop', '');   // 152 fold 4b's review: it waits nowhere else, so it has no x, and its last answer is where the focus goes on to
             else { var x = mkBtn('tool ghost notes-x', '\u00d7', 'Take this off the list. It still waits where it waits', true); x.setAttribute('data-note-off', w.key); x.setAttribute('aria-label', 'Take off the list'); x.setAttribute('data-note-stop', ''); row.appendChild(x); }
             box.appendChild(row);
@@ -194,8 +196,13 @@ function sync() {
 // A press in the list: what waits opens (or, where its kind offers one, takes its second answer), an x takes one off and the focus goes on to the
 // row after it, as it does after a button that keeps the list up; Clear all asks
 function onPress(e) {
-    var t = e.target, at = function(s) { return t && t.closest ? t.closest(s) : null; }, go = at('[data-note-go]'), alt = at('[data-note-alt]'), off = at('[data-note-off]'), x = at('[data-note-x]');
+    var t = e.target, at = function(s) { return t && t.closest ? t.closest(s) : null; }, go = at('[data-note-go]'), alt = at('[data-note-alt]'), off = at('[data-note-off]'), x = at('[data-note-x]'), pkB = at('[data-note-pick]');
     if (at('#notesClear')) { clearAll(); return; }
+    if (pkB) {   // 1.6.0: one of its other answers; the list stays up and the focus goes on
+        var pkK = pkB.getAttribute('data-note-pick'), pkI = Number(pkB.getAttribute('data-note-i')), pkW = waiting().filter(function(w) { return w.key === pkK; })[0] || null, pkD = pkW ? kindOf(pkW.kind) : null, pkAt = stops().indexOf(rowStop(pkB.parentNode));
+        if (pkD && typeof pkD.pick === 'function') { try { pkD.pick(pkW.arg, pkI); } catch (er) {} }
+        focusAt(pkAt); return;
+    }
     if (go || alt) {
         var btn = go || alt, key = btn.getAttribute(go ? 'data-note-go' : 'data-note-alt'), it = (waiting().filter(function(w) { return w.key === key; })[0]) || null, k = it ? kindOf(it.kind) : null, fn = k ? (go ? k.run : k.alt) : null;
         var kept = btn.getAttribute('data-keep') != null, at0 = kept ? stops().indexOf(rowStop(btn)) : -1;

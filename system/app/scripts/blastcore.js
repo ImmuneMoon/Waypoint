@@ -79,6 +79,14 @@ function scatterPoint(aim, from, ft, way, pxPerFt, ways) {
     var d = (fin(ft) ? Math.max(0, ft) : 0) * (fin(pxPerFt) && pxPerFt > 0 ? pxPerFt : 0);
     return { x: Math.round((aim.x + Math.cos(a) * d) * 100) / 100, y: Math.round((aim.y + Math.sin(a) * d) * 100) / 100, way: w, words: words[w] };
 }
+// 1.6.0 A burst: where a stray round lands when the GM gives its way by a click: from the aim, dist toward the point clicked, at most the board's
+// own top and left edge left to the caller. null where the click is on the aim itself, which gives no way. pxPer: board pixels to one unit of dist
+function towardPoint(aim, to, dist, pxPer) {
+    if (!isObj(aim) || !isObj(to) || !fin(aim.x) || !fin(aim.y) || !fin(to.x) || !fin(to.y)) return null;
+    var dx = to.x - aim.x, dy = to.y - aim.y, len = Math.hypot(dx, dy); if (!(len > 1e-6)) return null;
+    var d = (fin(dist) ? Math.max(0, dist) : 0) * (fin(pxPer) && pxPer > 0 ? pxPer : 0);
+    return { x: Math.round((aim.x + dx / len * d) * 100) / 100, y: Math.round((aim.y + dy / len * d) * 100) / 100 };
+}
 // The scatter where the Combat card names no formula (the book, fix log (eo)): a yard a point missed, never more than half the distance thrown
 function bookScatterYd(margin, thrownYd) {
     var m = fin(margin) ? Math.max(0, Math.min(100, Math.floor(margin))) : 1, half = fin(thrownYd) ? Math.max(0, thrownYd / 2) : m;
@@ -203,6 +211,6 @@ var STAND_INS = Object.freeze({
     grenade: Object.freeze(['M12 9a6 6 0 1 0 0 12 6 6 0 0 0 0-12z', 'M10 9V6h4v3', 'M14 7l4-3', 'M9.5 13.5h5M9.5 16.5h5']),
     mine: Object.freeze(['M4 15c0-2.5 3.6-4 8-4s8 1.5 8 4-3.6 4-8 4-8-1.5-8-4z', 'M12 11V7', 'M7.5 11.5L6 8.5M16.5 11.5L18 8.5', 'M10 7h4'])
 });
-var API = { diceAt: diceAt, VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
+var API = { towardPoint: towardPoint, diceAt: diceAt, VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
 if (typeof window !== 'undefined') window.wpBlastCore = API;
-export { diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanMine, inTrigger, STAND_INS };
+export { towardPoint, diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanMine, inTrigger, STAND_INS };

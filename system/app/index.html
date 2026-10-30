@@ -2148,6 +2148,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>Fire has a <b>How many</b> box for a burst, such as <code>Row.Rate</code>. It reads the row&rsquo;s names and rolls no dice. Empty, it fires one. That many rounds go in order, and it stops when the chamber is empty. The card says how many went.</li>
                                   <li><code>Row.chambered</code> counts the rounds. <code>Row.round.&lt;stat&gt;</code> reads a stat or a column of the next round. <code>Row.fired.&lt;stat&gt;</code> reads the round last fired, else the next one. With none they read 0. After a burst the round last fired is the last one that went, and a launched blast is that round&rsquo;s alone.</li>
                                   <li>So a launcher&rsquo;s Damage can roll <code>(Row.fired.dd)d6 + Row.fired.da</code>, and its Attack can need <code>Row.chambered &gt; 0</code>. Anything more it needs to fire is yours to put in its needs.</li>
+                                  <li>A <b>burst</b> is set up on a list&rsquo;s rolls. Set the attack to <b>Opens a burst</b>, with Fire and its How many in its Then. Set the roll of the extra dice to <b>A burst&rsquo;s extra dice</b>, such as <code>(max(1, Row.sh - 1))d6cs&gt;=4</code>.</li>
+                                  <li>The extra dice roll once, after an attack that hit. The table keeps which dice hit. <code>Row.bursthits</code> reads the hits landed, and a missed attack reads 0.</li>
+                                  <li>Put <code>Row.bursthits</code> in a damage roll&rsquo;s <b>Hits it rolls for</b>. One press then rolls once for each hit, 32 at most, on one card with each total on it. With no hits to roll for, it says so.</li>
+                                  <li>Each hit reads its own round as <code>Row.fired.&lt;stat&gt;</code>, in firing order. The attack&rsquo;s hit is the first round, and each extra die the next.</li>
+                                  <li>One <b>Apply to target</b> lands them all at one location. Each hit is its own blow, with its own DR and Major Wound. Pools move on from hit to hit.</li>
+                                  <li>Every hit meets the armour as it was before the burst. The wear adds up and comes off once, at the end. A hit the armour stops wears nothing. One Revert takes it all back.</li>
                               </ul>
                           </li>
                           <li><b>Point budgets</b> watch the points a character has against the points it has spent. You set them up at the top of the <b>Lists</b> tab.
@@ -2307,6 +2313,9 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>A list&rsquo;s <b>Flies at most</b> is how far a straight round goes, such as <code>Row.MaxRange</code>. On a map with no grid it stops only at characters and at its farthest.</li>
                                   <li>The Combat card can have a missed round go off at once. It also says what the rules leave open. A critical failure may go off at the shooter&rsquo;s feet or go nowhere. A straight round may pass the characters before its target.</li>
                                   <li>With none of it set, or with no target, your GM places a missed round with the row&rsquo;s <b>&#128165; Launch</b>.</li>
+                                  <li>In a burst each round that hits is its own blast at the target, with its own damage, and goes off at once. A burst&rsquo;s attack that misses lands its first round as a miss does.</li>
+                                  <li>A round whose extra die failed is a stray. One that flies straight goes on as a miss does. One that scatters lands the Combat card&rsquo;s <b>A stray round lands</b> off the aim, such as <code>1d6</code> yards.</li>
+                                  <li>A stray waits for you in the bell. Press one of the ways, or <b>Click on the map</b> and click the way it goes. It then waits for a fuse that is set. With no distance on the card, or an item that says nothing of a miss, you place it with Launch.</li>
                                   <li>Tick <b>Placed, not thrown</b> for a mine. Its button places it, hidden from players. It never goes off as it is placed. It goes off when a character steps into its trigger radius, or with <b>Set off the mine</b> on your right-click menu.</li>
                               </ul>
                           </li>

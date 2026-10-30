@@ -454,6 +454,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     }
     delete global.window;
 
+    {   // 1.6.0 A burst: a record's further hits (dicecore cleanHits, cleanRoll)
+        const base = { id: 'r_a', from: { id: 'u_a', name: 'Pebbles' }, expr: '2d6', draws: [3, 4], v: 1, ts: 1, dmg: 1 }, S = await import(url('systemcore.js'));
+        const hit = { t: 9, n: 2, dtype: 'cut', ad: 2, dkind: 'blunt', major: 1, dmg2: { t: 3, n: 1, dtype: 'cut' }, dmg5: { t: 1 } };
+        const ok = D.cleanRoll(Object.assign({}, base, { more: [hit] })), many = D.cleanRoll(Object.assign({}, base, { more: new Array(31).fill({ t: 1 }) })), over = D.cleanRoll(Object.assign({}, base, { more: new Array(32).fill({ t: 1 }) }));
+        const bad = [[{ t: -1 }], [{ t: 1, major: 2 }], [{ t: 1, dmg2: { t: 'x' } }], [{ t: 1, dtype: '<b>' }], [null], 'all', [], [{ t: 1.5 }]].map(v => D.cleanRoll(Object.assign({}, base, { more: v })));
+        const noDmg = D.cleanRoll(Object.assign({}, base, { dmg: undefined, more: [{ t: 2 }] }));
+        check('1.6.0 A burst, the record (cleanHits, cleanRoll): each hit after the first is a part\'s keys with its Major Wound mark and its added parts; 31 go, 32 do not; a hit that does not clean, or a list that is none, leaves more off and keeps the roll; only a damage roll carries it; dicecore\'s count is the core\'s',
+            JSON.stringify(ok.more) === JSON.stringify([hit]) && many.more.length === 31 && !!over && !('more' in over) && bad.every(r => !!r && !('more' in r)) && !('more' in noDmg) && LIMITS.hits === S.HITS_MAX, JSON.stringify([ok, bad]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

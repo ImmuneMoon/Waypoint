@@ -3216,6 +3216,15 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
             ['tool notes-go', 'Open', 'Open what waits', false], ['tool ghost notes-x', '\u00d7', 'Take this off the list. It still waits where it waits', true], ['tool ghost notes-x', '\u00d7', 'Take this off the list. It still waits where it waits', true]])
         && J(bAlt) === J([J([['alt', 'k1a']]), ['k1b', 'p', 'h'], 'k1b']) && J(bGo) === J([J([['alt', 'k1a'], ['run', 'k1b']]), ['p', 'h'], 'p']) && J(bPlain) === J([J([['open', 'p']]), true]),
         J([btnsB, bAlt, bGo, bPlain]));
+    // 1.6.0 A burst: a kind may offer several answers, each a button of its own (a stray round's ways)
+    const kindsP = { stray: { label: 'Click on the map', only: true, tip: 'Next click', still: a => WSt.left.indexOf(a) >= 0, run: a => WSt.ran.push(['run', a]), picks: () => [{ label: 'Long', tip: 'On past the aim' }, { label: 'Short' }], pick: (a, i) => { WSt.ran.push(['pick', a, i]); WSt.left = []; WSt.api.done('s'); } }, plain: { label: 'Open', run: a => WSt.ran.push(['open', a]) }, half: { label: 'Half', run: () => {}, picks: () => [{ label: 'Never' }] } };
+    const WSt = world({ kinds: kindsP }); WSt.left = ['a']; WSt.api.wait('s', 'Fizz Charge strays.', 'stray', 'a'); WSt.api.wait('p', 'Open me.', 'plain', 'p'); WSt.api.wait('h', 'No pick.', 'half', 'h');
+    WSt.P.reg.notesMenu.hidden = false; WSt.api.draw();
+    const listP = WSt.P.reg.notesList, pickP = WSt.P.walk(listP, k => k.attrs['data-note-pick'] !== undefined, []), rowP = pickP.length ? pickP[0].parentNode.parentNode : null, plainP = WSt.P.walk(listP, k => / notes-wait/.test(k.className), [])[1];
+    const shapeP = [pickP.map(b => [b.className, b.textContent, b.title, b.attrs['data-note-i'], b.attrs['data-keep'] === '']), rowP && rowP.className, pickP[0] && pickP[0].parentNode.className, plainP.className];
+    WSt.api.onPress({ target: pickP[1] }); const afterP = [J(WSt.ran), WSt.api.waiting().map(w => w.key), !!WSt.P.doc.activeElement];
+    check('1.6.0 a kind of what waits may offer several answers, picks and pick (notices.js, run for real): each a button of its own in the row, with its tooltip and its place, the list kept up and the focus going on; only such a row wraps; a kind with picks and no pick draws none; a kind with neither is as it was',
+        J(shapeP) === J([[['tool ghost notes-pick', 'Long', 'On past the aim', '0', true], ['tool ghost notes-pick', 'Short', '', '1', true]], 'notes-item notes-wait notes-wrap', 'notes-picks', 'notes-item notes-wait']) && J(afterP) === J([J([['pick', 'a', 1]]), ['p', 'h'], true]), J([shapeP, afterP]));
     // 152 fold 4b's review: a kind whose items wait nowhere but the bell (only: true, as the time rules that wait there with the Calendar off) has no x,
     // and Clear all leaves it on the list, so its own answers alone take it off; the question says so; a kind that says only with no button of its own
     // keeps its x; an x and Clear all elsewhere are as they were (the check before, and the one on Clear all after)

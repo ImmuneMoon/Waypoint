@@ -3894,6 +3894,7 @@ function applyPosToDom(msg) {
     if (window.wpTexSeat) window.wpTexSeat(el, msg.x, msg.y);   // the map builder: a piece that wears a pattern or a picture keeps its repeat on the board's lattice while it moves
     var fwP = el.querySelector(':scope > .token-front');
     if (fwP) fwP.style.transform = msg.front ? 'rotate(' + msg.front + 'deg)' : '';
+    if (window.wpUpdateHandles && state.selWbId === msg.wbId) window.wpUpdateHandles();   // 1.6.0: the handles go with a token the table moved or put back (found live, 2026-10-30: they stayed where a refused drop left them)
     if (msg.final === true && window.wpStanceChips) window.wpStanceChips();   // item 19b H5: a move that landed: the chips read each token's height where it now stands (whiteboard.js)
     if (msg.final === true) { if (window.wpRefreshBlasts) window.wpRefreshBlasts(); } else if (window.wpCircleFollow) window.wpCircleFollow();   // 128: who stands in a circle or a blast is read again where a move landed, and a circle on a token goes with a move still under way
 }

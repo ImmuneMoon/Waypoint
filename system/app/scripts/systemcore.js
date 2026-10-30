@@ -4254,6 +4254,7 @@ function dmgPart2Of(sys, ent, vars, F, o) {
     var r = F.evaluate(ent.dmg2, op); if (!r || !r.ok || typeof r.value !== 'number' || !fin(r.value)) return null;
     var n = 0; (r.breakdown && Array.isArray(r.breakdown.dice) ? r.breakdown.dice : []).forEach(function(g) { if (g && typeof g.count === 'number' && fin(g.count)) n += g.count; });
     var out = { t: Math.max(0, Math.min(DMG_LIM.amt, Math.floor(r.value))) }; if (n > 0) out.n = Math.min(DMG_LIM.dice, Math.floor(n));
+    if (out.t === 0 && n <= 0) return null;   // 1.6.0 (B3, the build 14 gaps session's ask): a part that comes to 0 with no dice rolled is no part, so a row a list's dmg2 gives none of reads as a one-part blow
     var dt = dmgTypeOf(sys, { dmg: true, dtype: ent.dtype2 }, vars, F); if (dt) out.dtype = dt;
     var a = dmgAdOf({ dmg: true, ad: ent.ad2 }, vars, F); if (a) out.ad = a;
     return out;

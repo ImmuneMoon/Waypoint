@@ -13,6 +13,7 @@ import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: ho
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
 import { groupRolls, groupWeakest } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
 import { partsTree } from './systemcore.js';   // 205 follow-up (2): the removal question counts a deep list's whole tree of parts
+import { upkeepLines } from './systemcore.js';   // 205 follow-up (3): a turn's or a round's upkeep said on a card
 import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, setGateEngine } from './systemcore.js';   // 1.6.0: linked sheets
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
@@ -4598,9 +4599,18 @@ function timedHook(mapId, combat, kind) {
         if (n.active) n.syncCharDelta(c.id, res.values);
         renderViews(c.id); done++;
         if (typeof ruleFollow === 'function') ruleFollow(c, camp);   // the review of folds 4a and 6b: what the funnels ask after a change
+        if (res.upkeepSaid) upkeepCards(c, res.upkeepSaid, n);   // 205 follow-up (3): what a row switched on paid, said
     });
     if (done) { save(true); if (window.appRender) window.appRender(); }
     return done;
+}
+// 205 follow-up (3): a turn's or a round's upkeep said on apply cards (net.postApplyCard), once a character: what its owner may see on a card for
+// them and the GM, the rest on one for the GM alone (systemcore upkeepLines judges which); LIMITS.applyChanges lines a card. The number of cards
+function upkeepCards(c, said, n) {
+    if (!c || !n || typeof n.postApplyCard !== 'function' || typeof upkeepLines !== 'function') return 0;
+    var mx = typeof LIMITS === 'object' && LIMITS && LIMITS.applyChanges > 0 ? LIMITS.applyChanges : 12, k = 0;
+    [[upkeepLines(said, true), 'owner'], [upkeepLines(said, false), 'gm']].forEach(function(p) { for (var i = 0; i < p[0].length; i += mx) { n.postApplyCard(c, 'Upkeep', p[0].slice(i, i + mx), p[1]); k++; } });
+    return k;
 }
 // [sinkcheck:timerules-start]
 // The flood fix (the owner, 2026-10-22, by prompt: "Nothing at all (Recommended)"): a time rule's run that moved nothing and rolled no dice posts no

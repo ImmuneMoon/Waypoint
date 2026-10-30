@@ -5174,6 +5174,7 @@ net.rowSpans = function(spans, perOf) {
         saveRemoteSoon();
         if (r.moved.length) { var mv = {}; r.moved.forEach(function(fid) { mv[fid] = ch.values[fid]; }); ch.updated = now; if (net.active && net.role === 'host') net.syncCharDelta(ch.id, mv); if (window.wpSheets) window.wpSheets.charChanged(ch.id); }
         r.ended.forEach(function(e) { rowEnded(ch, e); });
+        if (r.upkeepSaid && typeof net.timeCard === 'function' && S.upkeepWords) { var upG = S.upkeepWords(r.upkeepSaid, undefined, ch.name), upP = S.upkeepWords(r.upkeepSaid, true, ch.name); if (upG) net.timeCard(ch, upG, !upP, upP && upP !== upG ? { player: upP } : undefined); }   // 205 follow-up (3): what a row switched on paid by the clock, said as a time rule's summary: the GM's whole, its player's the rows they may see
         if (r.upkeep && window.wpStepLog) window.wpStepLog('upkeep v1', 'paid', { when: 'clock', paid: r.upkeep.paid, off: r.upkeep.off.length, secs: Math.round(s) });   // 1.6.0 (CORE gap 13): an upkeep paid by the clock
         if (r.ended.length && window.wpStepLog) window.wpStepLog('rowtimer v1', 'ended', { rows: r.ended.length, lists: r.moved.length, secs: Math.round(s), sent: !!(net.active && net.role === 'host') });
     });

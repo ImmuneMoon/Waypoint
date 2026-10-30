@@ -18652,6 +18652,50 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('205 follow-up (2): the removal question (sheets.js itemRmBtn, run for real) counts a row\'s whole tree of parts on a list whose parts hold parts (parts.deep: a chassis with two arms, a hand and its fingers, two levels down, says 4; a weapon whose parts come from a deep list says its part and the part it holds), never a kept curse\'s part, and a list whose parts hold none its own parts as before; a row with none is removed with no question',
             nOk && wordsOk && wiredOk, J([nOk, wordsOk, wiredOk, wC, wA, wH, wW, wX, wS]));
     }
+    {   // 205 follow-up (3): what Keeps paying paid is said; rowUpkeep's said, upkeepLines and upkeepWords, and the round hook's cards (timedHook, run for real)
+        const J = JSON.stringify;
+        const rawP = (extra, more) => Object.assign({ v: 1, name: 'P', rolls: [], fields: [{ id: 'f_mp', key: 'MP', label: 'MP', kind: 'resource', maxFormula: '10', def: 'max', vis: 'all' }, { id: 'f_sc', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm', def: 1 },
+            { id: 'f_pw', key: 'Powers', label: 'Powers', kind: 'item-list', vis: 'all', edit: 'owner', list: { on: { label: 'Up' }, stats: [{ key: 'keep' }], counters: [{ key: 'Kept', label: 'Kept' }], upkeep: Object.assign({ pool: 'f_mp', amt: 'Row.keep', each: 'turn', stop: true, ct: 'Kept' }, extra || {}) } }],
+            items: [{ id: 'i_sh', name: 'Shield', stats: { keep: 3 } }, { id: 'i_gl', name: 'Glow', stats: { keep: 2 } }, { id: 'i_ve', name: 'Veil', vis: 'gm', stats: { keep: 1 } }], sheet: { sections: [] } }, more || {});
+        const gP = cleanSystem(rawP(), { F, gmView: true }), VF = sy => w => S.makeResolver(sy, w, F);
+        const chP = o => Object.assign({ id: 'c_k', name: 'Kael', ownerId: 'u_k', values: { f_mp: { cur: 4 }, f_pw: [{ id: 'w_1', defId: 'i_sh', qty: 1, on: true }, { id: 'w_2', defId: 'i_gl', qty: 1, on: true }, { id: 'w_3', defId: 'i_ve', qty: 1, on: true }] } }, o || {});
+        const r1 = S.applyRound(gP, chP(), VF(gP), F, null, 'turn');
+        const saidOk = J(r1.upkeep) === J({ paid: 4, off: ['Glow'] }) && J(r1.upkeepSaid) === J([{ name: 'Shield', gm: false, lines: [{ n: 'MP', d: -3, v: 1 }, { n: 'Kept', d: 1, v: 1 }] }, { name: 'Glow', gm: false, lines: [], off: 'MP' }, { name: 'Veil', gm: true, lines: [{ n: 'MP', d: -1, v: 0 }, { n: 'Kept', d: 1, v: 1 }] }]);
+        const linesOk = J(S.upkeepLines(r1.upkeepSaid, true)) === J([{ n: 'Shield: MP', d: -3 }, { n: 'Shield: Kept', d: 1 }, { n: 'Glow (not enough MP)', fx: 0 }]) && J(S.upkeepLines(r1.upkeepSaid, false)) === J([{ n: 'Veil: MP', d: -1, v: 0 }, { n: 'Veil: Kept', d: 1, v: 1 }])
+            && S.upkeepLines(r1.upkeepSaid).length === 5 && S.upkeepWords(r1.upkeepSaid, undefined, 'Kael') === 'Upkeep on Kael: Shield: MP −3 → 1; Shield: Kept +1 → 1; Glow (not enough MP) switched off; Veil: MP −1 → 0; Veil: Kept +1 → 1.'
+            && S.upkeepWords([], true, 'Kael') === '' && S.upkeepWords(null) === '' && J(S.upkeepLines([{ name: 'X', lines: [{ n: 'MP', d: -1, v: 3 }] }], true)) === '[]' && J(S.upkeepLines([{ name: 'X', gm: false, lines: [{ n: 'MP', d: -1, v: 3 }] }], true)) === J([{ n: 'X: MP', d: -1, v: 3 }]);
+        // the audience: an NPC, a GM-only list, a GM-only pool, a row kept on out of its owner's sight and an amount that reads a GM-only value are the GM's alone
+        const gmOf = (sys, ch) => { const r = S.applyRound(sys, ch, VF(sys), F, null, 'turn'); return (r.upkeepSaid || []).map(s => s.name + ':' + s.gm).join(','); };
+        const oneRow = { f_mp: { cur: 10 }, f_pw: [{ id: 'w_1', defId: 'i_sh', qty: 1, on: true }] };
+        const gL = JSON.parse(J(rawP())); gL.fields[2].vis = 'gm'; const gPool = JSON.parse(J(rawP())); gPool.fields[0].vis = 'gm';
+        const gAmt = cleanSystem(rawP({ amt: 'Row.keep + Secret' }), { F, gmView: true });
+        const whoOk = gmOf(gP, chP({ values: oneRow })) === 'Shield:false' && gmOf(gP, chP({ npc: true, values: oneRow })) === 'Shield:true' && gmOf(gP, chP({ ownerId: undefined, values: oneRow })) === 'Shield:true'
+            && gmOf(cleanSystem(gL, { F, gmView: true }), chP({ values: oneRow })) === 'Shield:true' && gmOf(cleanSystem(gPool, { F, gmView: true }), chP({ values: oneRow })) === 'Shield:true'
+            && gmOf(gP, chP({ values: { f_mp: { cur: 10 }, f_pw: [{ id: 'w_1', defId: 'i_sh', qty: 1, on: true, keptOn: 1 }] } })) === 'Shield:true' && gmOf(gAmt, chP({ values: oneRow })) === 'Shield:true';
+        const rC = S.rowTimers(cleanSystem(rawP({ each: 'clock', per: { n: 1, u: 'min' }, stop: false }), { F, gmView: true }), chP({ values: oneRow }), 120, () => 60, F);
+        const clockOk = J(rC.upkeep) === J({ paid: 6, off: [] }) && S.upkeepWords(rC.upkeepSaid, true, 'Kael') === 'Upkeep on Kael: Shield: MP −6 → 4; Shield: Kept +2 → 2.' && !('upkeepSaid' in S.rowTimers(gP, chP({ values: oneRow }), 120, () => 60, F));
+        // the round hook's cards, timedHook run for real
+        const shK = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const hkK = shK.slice(shK.indexOf("// Stage 6 HUD G10: the host's round hook"), shK.indexOf('// The combat roster (whiteboard.js): initiative from the system\'s init roll'));
+        const hookK = (ch, withLines) => {
+            const cards = [], tok = { id: 't1', isChar: true, charId: ch.id, ownerId: ch.ownerId, x: 0, y: 0, w: 50, h: 50 }, camp = { items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'square' }, whiteboard: [tok] } }, chars: { [ch.id]: ch }, system: gP };
+            const n = { role: 'host', active: true, syncCharDelta() {}, postDue() {}, postApplyCard: (c, label, lines, scope) => cards.push([c.id, label, J(lines), scope]) };
+            const hooks = new Function('getActiveCampaign', 'systemOf', 'net', 'F', 'window', 'combatChars', 'charsOf', 'charById', 'withRound', 'tokenCtx', 'tokenFlags', 'applyRound', 'dueActs', 'resolveAll', 'renderViews', 'save', 'rollNeedsOk', 'upkeepLines', 'LIMITS', hkK + NL + 'return { turnHook: turnHook, roundHook: roundHook, cards: upkeepCards };')(
+                () => camp, c => c.system, () => n, () => F, { wpVtt: { on: () => true } }, S.combatChars, c => c.chars, (id, c) => c.chars[id] || null, S.withRound, S.tokenCtx, () => ({ turning: true }), S.applyRound, S.dueActs, S.resolveAll, () => {}, () => {}, S.rollNeedsOk, withLines === false ? undefined : S.upkeepLines, S.LIMITS);
+            hooks.turnHook('m1', { rows: [{ tokId: 't1' }], turn: 0, round: 2 }); hooks.roundHook('m1', { rows: [{ tokId: 't1' }], turn: 0, round: 2 });
+            return { cards, ch, hooks, n };
+        };
+        const hk1 = hookK(chP()), hkN = hookK(chP({ npc: true })), hkNone = hookK(chP(), false);
+        const many = hookK(chP()); const manyN = many.hooks.cards(chP(), Array.from({ length: 15 }, (x, i) => ({ name: 'R' + i, gm: false, lines: [{ n: 'MP', d: -1 }] })), many.n);
+        const cardsOk = J(hk1.cards) === J([['c_k', 'Upkeep', J([{ n: 'Shield: MP', d: -3 }, { n: 'Shield: Kept', d: 1 }, { n: 'Glow (not enough MP)', fx: 0 }]), 'owner'], ['c_k', 'Upkeep', J([{ n: 'Veil: MP', d: -1, v: 0 }, { n: 'Veil: Kept', d: 1, v: 1 }]), 'gm']])
+            && hk1.ch.values.f_mp.cur === 0 && J(hkN.cards.map(c => c[3])) === J(['gm']) && hkNone.cards.length === 0 && hkNone.ch.values.f_mp.cur === 0
+            && manyN === 2 && many.cards.slice(-2).map(c => JSON.parse(c[2]).length).join() === '12,3';
+        const wiredK = shK.includes("if (res.upkeepSaid) upkeepCards(c, res.upkeepSaid, n);   // 205 follow-up (3)") && shK.includes("import { upkeepLines } from './systemcore.js';");
+        const ixK = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), ntK = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n'));
+        const wordsK = ixK.includes('Each payment is said in chat to you and the row&rsquo;s player, or to you alone for a row they cannot see.') && ntK.every(t => t.indexOf('- Each payment of Keeps paying is now said in chat') > 0 && t.indexOf('- Each payment of Keeps paying is now said in chat') < t.indexOf('WAYPOINT 1.5.'));
+        check('205 follow-up (3): what Keeps paying paid is said. rowUpkeep keeps what each row\'s payments moved and a row switched off for lack of its pool (said, handed on by applyRound and rowTimers as upkeepSaid beside upkeep, which is as it was); upkeepLines and upkeepWords say it whole to the GM and to the row\'s owner only the rows they may see, with no figure where a row out of their sight paid too (an NPC, a character with no player, a GM-only list or pool, a row kept on out of their sight and an amount that reads a GM-only value are the GM\'s alone); the round hook posts one card for the owner and the GM and one for the GM alone, twelve lines a card; Help and both release notes say it',
+            saidOk && linesOk && whoOk && clockOk && cardsOk && wiredK && wordsK, J([saidOk, linesOk, whoOk, clockOk, cardsOk, wiredK, wordsK, r1.upkeepSaid, hk1.cards, hkN.cards, many.cards.length, rC.upkeepSaid]));
+    }
     {   // 1.6.0 Changes apply where (list.modsIf; the campaign build's ask): a formula of the holder's names and each row's own, read with no item or effect change applied; a row where it does not hold gives none of its changes
         const J = JSON.stringify;
         const rawM = (gear, garb, hex, quiet, more) => ({ v: 1, name: 'T', rolls: [], fields: [

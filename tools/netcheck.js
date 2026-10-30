@@ -11015,6 +11015,37 @@ pendingChecks.push((async () => {
     check('item 20 K3 a player\'s app keeps the notes a host sends (the clockmsg branch, run for real) as cleaned text in day order — an id of the pattern, a whole day, its text one line — never a vis or anything else; notes that are no list are none',
         j(rN) === j({ t: 90, notes: [{ id: 'n_dddddddd', day: 1, text: '<img src=x onerror=alert(1)>' }, { id: 'n_bbbbbbbb', day: 2, text: 'Market day' }] }) && j(rN2) === j({ t: 90 }), j([rN, rN2]));
 })());
+// 205 follow-up (3): an upkeep paid by the clock (net.rowSpans with the real systemcore) is said through net.timeCard, both run for real: the GM's
+// whole line and its player's the rows they may see, with no figure that would tell of one they may not; an NPC's to the GM alone
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const ftS = between('// [netcheck:fxtime-start]', '// [netcheck:fxtime-end]', 'fxtime'), tcS = between('// [netcheck:timecard-start]', '// [netcheck:timecard-end]', 'timecard'), pidU = (() => { const i = src.indexOf('function peerProfileId('); return src.slice(i, src.indexOf('\n', i)) + '\n'; })();
+    const sysU = Sx.cleanSystem({ v: 1, name: 'U', rolls: [], fields: [{ id: 'f_mp', key: 'MP', label: 'MP', kind: 'resource', maxFormula: '10', def: 'max', vis: 'all' },
+        { id: 'f_pw', key: 'Powers', label: 'Powers', kind: 'item-list', vis: 'all', edit: 'owner', list: { on: { label: 'Up' }, stats: [{ key: 'keep' }], upkeep: { pool: 'f_mp', amt: 'Row.keep', each: 'clock', per: { n: 1, u: 'min' }, stop: true } } }],
+        items: [{ id: 'i_sh', name: 'Shield', stats: { keep: 3 } }, { id: 'i_ve', name: 'Veil', vis: 'gm', stats: { keep: 1 } }, { id: 'i_gl', name: 'Glow', stats: { keep: 9 } }], sheet: { sections: [] } }, { F: Fx, gmView: true });
+    const mkU = role => {
+        const camp = { items: {}, system: sysU, chars: {
+            c_p: { id: 'c_p', name: 'Pat', ownerId: 'u_a', values: { f_mp: { cur: 10 }, f_pw: [{ id: 'w_1', defId: 'i_sh', qty: 1, on: true }, { id: 'w_2', defId: 'i_ve', qty: 1, on: true }, { id: 'w_3', defId: 'i_gl', qty: 1, on: true }] } },
+            c_q: { id: 'c_q', name: 'Quin', ownerId: 'u_b', values: { f_mp: { cur: 10 }, f_pw: [{ id: 'w_1', defId: 'i_sh', qty: 1, on: true }] } },
+            c_r: { id: 'c_r', name: 'Rex', npc: true, values: { f_mp: { cur: 10 }, f_pw: [{ id: 'w_1', defId: 'i_sh', qty: 1, on: true }] } } } };
+        const out = { chat: [], log: [], deltas: [] }, mk = p => ({ peer: p, open: true, sent: [], send(m) { this.sent.push(m); } }), conns = [mk('pA'), mk('pB')];
+        const net = { active: true, role: role || 'host', stream: false, myId: 'u_gm', conns, roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } }, combats: {}, syncCharDelta: (id, d) => out.deltas.push(id) };
+        new Function('net', 'window', 'SC', 'getActiveCampaign', 'own', 'saveRemoteSoon', 'pushChat', 'sendFailed', 'logEvent', pidU + ftS + '\n' + tcS + '\n' + ordersSrc + '\nreturn 0;')(
+            net, { wpVtt: { on: () => true }, wpSheets: { charChanged: () => {} }, wpFormula: Fx }, () => Sx, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), () => {}, m => out.chat.push(m), e => { throw e; }, (k, t) => out.log.push([k, t]));
+        return { net, camp, out, conns };
+    };
+    const U = mkU(); U.net.rowSpans({ c_p: 60, c_q: 60, c_r: 60 }, () => 60);
+    const gmLines = U.out.chat.map(m => m.text), pA = U.conns[0].sent.map(m => m.text), pB = U.conns[1].sent.map(m => m.text);
+    const U2 = mkU(); U2.net.rowSpans({ c_p: 30, c_r: 30 }, () => 60);
+    const U3 = mkU('client'); U3.net.rowSpans({ c_p: 60 }, () => 60);
+    check('205 follow-up (3): an upkeep paid by the clock (net.rowSpans, the real systemcore, and net.timeCard, run for real) is said as a time note: the GM\'s chat gets each payment and a row switched off for lack of its pool, under Time in the Session Log; the row\'s player gets the rows they may see, with no figure after a line where a row out of their sight paid too, and another player nothing of it; an NPC\'s to the GM alone; nothing where nothing was paid, nor on a player\'s app',
+        j(gmLines) === j(['Upkeep on Pat: Shield: MP −3 → 7; Veil: MP −1 → 6; Glow (not enough MP) switched off.', 'Upkeep on Quin: Shield: MP −3 → 7.', 'Upkeep on Rex: Shield: MP −3 → 7.'])
+        && j(pA) === j(['Upkeep on Pat: Shield: MP −3; Glow (not enough MP) switched off.']) && j(pB) === j(['Upkeep on Quin: Shield: MP −3 → 7.'])
+        && U.out.log.filter(l => l[0] === 'time').length === 3 && U.camp.chars.c_p.values.f_pw[2].on === false && U.camp.chars.c_p.values.f_mp.cur === 6
+        && U2.out.chat.length === 0 && U2.conns.every(c => !c.sent.length) && U3.out.chat.length === 0 && U3.camp.chars.c_p.values.f_mp.cur === 10,
+        j([gmLines, pA, pB, U.out.log, U2.out.chat, U3.out.chat]));
+})());
 // Item 20 K5: a time rules summary (net.timeCard) to its player and the GM, or the GM alone; the counts never on the wire; a fight's end asks
 {
     const tcS = between('// [netcheck:timecard-start]', '// [netcheck:timecard-end]', 'timecard'), pidT = (() => { const i = src.indexOf('function peerProfileId('); return src.slice(i, src.indexOf('\n', i)) + '\n'; })();

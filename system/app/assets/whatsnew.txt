@@ -350,6 +350,10 @@ Systems
   switches off when the pool cannot pay. Each payment can count on a
   counter of the row, so a roll can follow it. Each row can say when it
   pays instead, by a choice stat of the list such as Pace.
+- Each payment of Keeps paying is now said in chat, to you and to the
+  row's player: on a card in a fight, in a time note by the clock. A row
+  switched off because its pool ran short says so. A row its player
+  cannot see is said to you alone.
 - A list's apply action can need something first, as a list roll can, such
   as Row.Charges >= 1. Its button greys out, and the table refuses it.
 - A list roll's or action's change can switch its own row off, such as a

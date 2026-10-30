@@ -18601,6 +18601,29 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('205 (4) parts of parts (the owner\'s word): a list whose parts come from itself may say deep (Parts hold parts; kept only there, the same in both views); a part there holds parts of its own, six levels under its top row at most and never round a loop (partDepth), while elsewhere a part still holds none; Row.parts.all.<w> sums every level under a row, each times its own quantity, Row.parts.<w> its own parts alone, the same down another list\'s parts; removing a row takes its whole tree, through another list too, a kept curse keeping the tree under new ids as it stood; partsKept and partsPut keep and bring back the whole tree, so its Undo restores the list as it was; the validator knows Row.parts.all.<w> for a number stat or a column; the sheet draws a part\'s parts under it a level in (partPills, run for real), no add past the depth, a part of a part never among the list\'s own rows; the Lists tab\'s tick and the readable page',
             cleanOk && resOk && depthOk && rmOk && curseOk && keptOk && undoOk && valOk && drawOk, J([cleanOk, resOk, depthOk, rmOk, curseOk, keptOk, undoOk, valOk, drawOk, cc, wc.w_w, adds, rmArm, rmWp, mid, shape(wP.kids[0])]));
     }
+    {   // 205 follow-up (1): a list roll that asks the level reads the row at a chosen level under the id <id>@<lvl>; its parts are still the host row's own
+        const J = JSON.stringify;
+        const rawA = { v: 1, name: 'A', rolls: [], items: [{ id: 'i_st', name: 'Staff', category: 'Weapon' }, { id: 'i_rn', name: 'Rune', category: 'Comp', stats: { Pw: 2, Fam: 'Fire' } }, { id: 'i_gm', name: 'Gem', category: 'Comp', stats: { Pw: 5 } }, { id: 'i_sp', name: 'Spark', category: 'Comp', stats: { Pw: 1 } }],
+            fields: [{ id: 'f_fi', key: 'FireSk', label: 'Fire', kind: 'number', vis: 'all', def: 7 },
+                { id: 'f_w', key: 'Wands', label: 'Wands', kind: 'item-list', vis: 'all', edit: 'owner', list: { lvl: { label: 'Level', min: 1, max: 5 }, parts: { from: 'f_c' }, rolls: [{ label: 'Cast', formula: 'Row.lvl + Row.parts', askLvl: true }],
+                    cols: [{ key: 'N', label: 'N', formula: 'Row.parts' }, { key: 'P', label: 'P', formula: 'Row.parts.Pw' }, { key: 'Hi', label: 'Hi', formula: 'Row.parts.max.Pw' }, { key: 'Lo', label: 'Lo', formula: 'Row.parts.min.Pw' }, { key: 'Fm', label: 'Fm', formula: 'Row.parts.Fam' }, { key: 'L', label: 'L', formula: 'Row.lvl * 10 + Row.parts' }] } },
+                { id: 'f_c', key: 'Comps', label: 'Comps', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Pw', label: 'Pw' }, { key: 'Fam', label: 'Fam', kind: 'pick', opts: [{ label: 'Fire', name: 'FireSk' }] }] } },
+                { id: 'f_d', key: 'Rigs', label: 'Rigs', kind: 'item-list', vis: 'all', edit: 'owner', list: { lvl: { label: 'Level', min: 1, max: 5 }, stats: [{ key: 'Pw', label: 'Pw' }], parts: { from: 'f_d', deep: true }, rolls: [{ label: 'Run', formula: 'Row.lvl', askLvl: true }], cols: [{ key: 'All', label: 'All', formula: 'Row.parts.all.Pw' }] } }], sheet: { sections: [] } };
+        const gA = cleanSystem(rawA, { F, gmView: true });
+        const chA = { id: 'c1', values: { f_w: [{ id: 'w_1', defId: 'i_st', qty: 1, lvl: 4 }, { id: 'w_2', defId: 'i_st', qty: 1, lvl: 3 }],
+            f_c: [{ id: 'w_r', defId: 'i_rn', qty: 2, in: 'w_1' }, { id: 'w_g', defId: 'i_gm', qty: 1, in: 'w_1' }, { id: 'w_s', defId: 'i_sp', qty: 1, in: 'w_2' }],
+            f_d: [{ id: 'w_d', defId: 'i_st', qty: 1, lvl: 3 }, { id: 'w_e', defId: 'i_sp', qty: 2, in: 'w_d' }, { id: 'w_f', defId: 'i_gm', qty: 1, in: 'w_e' }] } };
+        const RA = makeResolver(gA, chA, F), num = (vars, nm) => { if (!vars) return 'none'; const v = F.evaluate(nm, { vars }); return v.ok ? v.value : 'err'; };
+        const reads = vars => ['Row.parts', 'Row.parts.Pw', 'Row.parts.max.Pw', 'Row.parts.min.Pw', 'Row.parts.Fam', 'Row.N', 'Row.P', 'Row.Hi', 'Row.Lo', 'Row.Fm', 'Row.lvl', 'Row.L'].map(nm => num(vars, nm));
+        const own = reads(RA.row('f_w', 'w_1')), at2 = reads(RA.row('f_w', 'w_1', 2)), at4 = reads(RA.row('f_w', 'w_1', 4)), o2 = reads(RA.row('f_w', 'w_2', 1));
+        const lvlOk = J(own) === J([3, 9, 5, 2, 7, 3, 9, 5, 2, 7, 4, 43]) && J(at2) === J([3, 9, 5, 2, 7, 3, 9, 5, 2, 7, 2, 23]) && J(at4) === J(own) && J(o2) === J([1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 11]);
+        const allOwn = num(RA.row('f_d', 'w_d'), 'Row.parts.all.Pw'), allAt = num(RA.row('f_d', 'w_d', 1), 'Row.parts.all.Pw'), allCol = num(RA.row('f_d', 'w_d', 2), 'Row.All');
+        const deepOk = allOwn === 7 && allAt === 7 && allCol === 7;
+        const cells = S.resolveAll(gA, chA, F, null).f_w.cells, cellsOk = J(cells.w_1.map(x => x.value)) === J([3, 9, 5, 2, 7, 43]);
+        const noneOk = RA.row('f_w', 'w_1', 5) === null && RA.row('f_w', 'w_1', 0) === null;
+        check('205 follow-up (1): a list roll that asks the level reads its row at a chosen level (fn.row\'s third argument, the id <id>@<lvl>), and there Row.parts, Row.parts.<w>, Row.parts.max.<w>, Row.parts.min.<w>, Row.parts.<choice> and Row.parts.all.<w> read the host row\'s own parts (a host whose parts sum to 3 reads 3 at level 2 as at its own), as do the columns worked out from them, while Row.lvl reads the chosen level; the row\'s own reading unchanged',
+            lvlOk && deepOk && cellsOk && noneOk, J([own, at2, at4, o2, allOwn, allAt, allCol, cells.w_1.map(x => x.value)]));
+    }
     {   // 1.6.0 Changes apply where (list.modsIf; the campaign build's ask): a formula of the holder's names and each row's own, read with no item or effect change applied; a row where it does not hold gives none of its changes
         const J = JSON.stringify;
         const rawM = (gear, garb, hex, quiet, more) => ({ v: 1, name: 'T', rolls: [], fields: [

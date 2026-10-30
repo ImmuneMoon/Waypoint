@@ -10136,6 +10136,8 @@ function turnBox(box, cm) {
     wrap.appendChild(r1);
     wrap.appendChild(labeledSelect('sys-turn-diag', 'Diagonals on squares', [['line', 'Straight line'], ['one', 'Every diagonal 1 square'], ['alt', 'Alternating 1\u20132 (5-10-5)']], tn.diag === 'one' || tn.diag === 'alt' ? tn.diag : 'line', 'How a diagonal step counts on a square grid, for the move and for the ruler; hexes are not affected'));
     wrap.appendChild(labeledSelect('sys-turn-off', 'Off a character\u2019s turn', [['', 'Any roll or action'], ['refuse', 'What is called for: a player is refused'], ['warn', 'What is called for: a player is warned']], tn.off === 'refuse' || tn.off === 'warn' ? tn.off : '', 'What a fight allows off a character\u2019s turn. What is called for is a roll from a card, one ticked Resists an attempt or Any time, one due at a turn or a round, and initiative. A stat\u2019s own roll, a typed roll and a row holding its turn are never held back, and you are told of what is'));   // 1.6.0
+    wrap.appendChild(labeledSelect('sys-turn-hold', 'A hold lasts', [['', 'Until the round\u2019s end'], ['next', 'Until its next turn']], tn.hold === 'next' ? 'next' : '', 'How long a character may hold its turn. Until its next turn, a hold made on the round\u2019s last turn is not lost, and it ends as that character\u2019s turn comes round'));
+    wrap.appendChild(labeledSelect('sys-turn-holdact', 'Acting from a hold', [['', 'Moves it after whoever is acting'], ['stay', 'Leaves the order as it is']], tn.holdAct === 'stay' ? 'stay' : '', 'What the strip\u2019s button does for a held character. Leaves the order as it is: the character acts while held, and Done ends the hold with nobody moved'));
     var sl = el('label', 'sys-combat-item'); sl.appendChild(el('span', 'sys-num-cap', 'A round is (seconds)'));
     var sc = el('input', 'field sys-turn-secs'); sc.type = 'number'; sc.min = '0'; sc.step = 'any'; sc.value = typeof tn.secs === 'number' ? String(tn.secs) : ''; sc.placeholder = 'e.g. 6'; sc.title = 'How long one round lasts in the game (1 second in some games, 6 seconds in others): an effect that lasts seconds or minutes counts down by it'; sl.appendChild(sc); wrap.appendChild(sl);
     [['act', 'acts', 'Actions per turn', LIMITS.turnActs], ['tu', 'units', 'Time units', LIMITS.turnUnits]].forEach(function(g) {
@@ -10158,7 +10160,7 @@ function turnBox(box, cm) {
     box.appendChild(wrap);
 }
 function onTurnInput(t) {
-    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-turn-') < 0 || c.indexOf('sys-turn-mvu') >= 0 || c.indexOf('sys-turn-diag') >= 0 || c.indexOf('sys-turn-off') >= 0) return false;
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-turn-') < 0 || c.indexOf('sys-turn-mvu') >= 0 || c.indexOf('sys-turn-diag') >= 0 || c.indexOf('sys-turn-off') >= 0 || c.indexOf('sys-turn-hold') >= 0) return false;
     var tn = turnDraft(), rw = t.closest('.sys-turn-act, .sys-turn-tu'), i = rw ? +rw.dataset.ti : -1;
     if (c.indexOf('sys-turn-mvf') >= 0) { if (t.value.trim()) tn.move = t.value.slice(0, LIMITS.formula); else delete tn.move; }
     else if (c.indexOf('sys-turn-secs') >= 0) { var sv = Number(t.value); if (t.value.trim() && isFinite(sv)) tn.secs = sv; else delete tn.secs; }
@@ -10176,6 +10178,8 @@ function onTurnChange(t) {
     if (c.indexOf('sys-turn-mvu') >= 0) turnDraft().unit = t.value;
     else if (c.indexOf('sys-turn-diag') >= 0) { var tn = turnDraft(); if (t.value === 'one' || t.value === 'alt') tn.diag = t.value; else delete tn.diag; }
     else if (c.indexOf('sys-turn-off') >= 0) { var tnO = turnDraft(); if (t.value === 'refuse' || t.value === 'warn') tnO.off = t.value; else delete tnO.off; }   // 1.6.0
+    else if (c.indexOf('sys-turn-holdact') >= 0) { var tnA = turnDraft(); if (t.value === 'stay') tnA.holdAct = 'stay'; else delete tnA.holdAct; }   // 1.6.0
+    else if (c.indexOf('sys-turn-hold') >= 0) { var tnH = turnDraft(); if (t.value === 'next') tnH.hold = 'next'; else delete tnH.hold; }   // 1.6.0
     else return c.indexOf('sys-turn-') >= 0;   // the boxes' change events (their input events did the work)
     markDirty(); patchErrors(); return true;
 }

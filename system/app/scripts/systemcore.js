@@ -1273,6 +1273,8 @@ function cleanTurn(t) {
     if (t.diag === 'one' || t.diag === 'alt') out.diag = t.diag;
     var rs = secs(t.secs, 86400); if (rs) out.secs = rs;
     if (t.off === 'refuse' || t.off === 'warn') out.off = t.off;   // 1.6.0 Off a character's turn: what a fight allows then (absent: anything, as ever; net.js offTurnBar)
+    if (t.hold === 'next') out.hold = 'next';   // 1.6.0 A hold lasts: until its row's next turn (absent: the round's end, as ever; net.js fightStep)
+    if (t.holdAct === 'stay') out.holdAct = 'stay';   // 1.6.0 Act from a hold: the order stays as it is and the hold ends (absent: it moves the row, as ever; net.js fightAct)
     var us = [], seenU = map(), as = [], seenA = map();
     (Array.isArray(t.units) ? t.units : []).forEach(function(u) {
         if (us.length >= LIMITS.turnUnits || !isObj(u) || typeof u.key !== 'string' || !STAT_KEY.test(u.key) || seenU[lower(u.key)] || TIME_WORDS[lower(u.key)] === 1) return;

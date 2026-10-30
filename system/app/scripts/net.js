@@ -5526,6 +5526,7 @@ function fightSet(fid, combat) {
 // kept through a roster edit (fightReachKept). Each row's dn (chosenMark) is ps as the table sees it. A step back takes back the last turn had, into
 // the round before if need be: a correction, the round's time and how far the fight has gone (rh, th, eh, et) as for any step back
 function chosenRule() { var camp = campNow(), sy = camp && camp.system, cm = sy && sy.combat && typeof sy.combat === 'object' ? sy.combat : null, ir = cm && cm.initiative && typeof cm.initiative === 'object' ? cm.initiative : null; return !!(ir && ir.chosen === true); }
+function holdRule(k) { var camp = campNow(), sy = camp && camp.system, cm = sy && sy.combat && typeof sy.combat === 'object' ? sy.combat : null, tn = cm && cm.turn && typeof cm.turn === 'object' ? cm.turn : null; return tn ? tn[k] : undefined; }   // 1.6.0: the Combat card's two hold rules
 function chosenMark(c) {   // each row's dn from ps (rows gone from the fight dropped from it, the row on turn never gone)
     if (!c || !Array.isArray(c.rows)) return;
     var cur = c.rows[c.turn], ids = Object.create(null), gone = Object.create(null); c.rows.forEach(function(r) { if (r && typeof r.id === 'string') ids[r.id] = 1; });
@@ -5563,7 +5564,7 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     else if (t >= c.rows.length) { t = 0; c.round += 1; }
     else if (t < 0) { if (c.round > 1) { c.round -= 1; t = c.rows.length - 1; } else t = 0; }
     c.turn = t;
-    if (c.round !== r0) c.rows.forEach(function(r) { if (r) delete r.held; });   // initiative O3 (the owner's answer): a hold not used by the round's end is lost
+    if (c.round !== r0 && holdRule('hold') !== 'next') c.rows.forEach(function(r) { if (r) delete r.held; });   // initiative O3 (the owner's answer): a hold not used by the round's end is lost (1.6.0: unless the system's hold lasts to the row's next turn, which the next line ends)
     if (c.rows[t]) delete c.rows[t].held;   // ...and a row whose turn it is holds nothing
     if (endRow && typeof turnEnded === 'function') turnEnded(mapId, c, endRow, r0, t0);   // 1.6.0: its end first, before the new round and the next turn
     if (c.round > r0 && typeof combatNewRound === 'function') { combatNewRound(mapId, c); t = c.turn; }
@@ -5592,6 +5593,7 @@ function fightAct(fid, rowId) {
     var c = orderById(fid); if (!c || typeof rowId !== 'string') return false;
     if (chosenRule()) return false;   // initiative O5: no act from a hold, which would move the standing order
     var i = c.rows.findIndex(function(r) { return r && r.id === rowId; }); if (i < 0 || i === c.turn || c.rows[i].held !== 1) return false;
+    if (holdRule('holdAct') === 'stay') { var rowS = c.rows[i]; delete rowS.held; toast((rowS.name || 'Someone') + ' has acted from a hold.'); logEvent('table', (rowS.name || 'Someone') + ' acted from a hold on ' + mapTitleOf(c.mapId)); broadcastCombats(); combatRefresh(); return true; }   // 1.6.0: a system that keeps its order: the hold ends, and nothing moves
     var row = c.rows.splice(i, 1)[0], t = c.turn - (i < c.turn ? 1 : 0); delete row.held;
     c.rows.splice(t + 1, 0, row); c.turn = t;
     toast((row.name || 'Someone') + ' acts next.'); logEvent('table', (row.name || 'Someone') + ' acted from a hold on ' + mapTitleOf(c.mapId));

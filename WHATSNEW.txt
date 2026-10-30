@@ -181,6 +181,8 @@ Systems, more
   out at once while a fight goes on.
 - A wound or a Major Wound follows an effect's When added again.
 - A greyed roll or switch tells a player its own words, never its formula.
+- The Combat card can let a hold last to a character's next turn, and can
+  leave the order as it is when a held character acts.
 - The Combat window numbers rows of one name.
 - A sheet that says it is out of date offers Mark all current.
 - A join request says Let in and Turn away.

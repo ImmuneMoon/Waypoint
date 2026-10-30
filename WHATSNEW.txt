@@ -493,7 +493,7 @@ System editor
 - A list's change can set the row's own quantity, or one of its own number
   stats, such as a medkit's wear. Used up to 0, the row goes, and its
   notice offers Undo for a few seconds, as the sheet's minus does.
-- A list can carry up to 48 stats, up from 24, 24 columns, up from 12,
+- A list can carry up to 48 stats, up from 24, 32 columns, up from 12,
   and up to 10 rolls, up from 8. A field or a stat can name up to 32 of its values, up from 10.
 - A change of an effect or an item can hold a value at least or at most
   a figure. Two effects that each say Stun at least 1 now read 1, not 2.

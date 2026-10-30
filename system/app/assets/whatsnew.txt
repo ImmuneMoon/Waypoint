@@ -409,6 +409,10 @@ Systems
   it goes, your trait falls back to the level it had. A level you set
   by hand above the grant stays. A list with a quantity does this only
   when ticked A grant raises a held row.
+- An effect can say what happens when it is added again while it is
+  on: When added again is Replace, as before, Keep the longer, or Add
+  the times. A short stun no longer cuts a long one short. The card
+  says which time was kept.
 - A vehicle can read its crew as a group, such as Crew.count and
   Crew.Pilot.max.Piloting. A Crew link lists its stations, and each crew
   sheet picks one beside its vehicle, so a pilot's skill counts only at

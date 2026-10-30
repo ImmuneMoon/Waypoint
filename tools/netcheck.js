@@ -3293,6 +3293,37 @@ pendingChecks.push((async () => {
     check('1.6.0 every row of a list, char-apply: an action on a GM-only list and one whose amount reads a GM-only value are not in the player\'s view ("field"); one whose rows are all at the figure already, the hidden row aside, is "none"; nothing stored, sent or saved',
         j(dG.answer.map(m => m.reason)) === j(['field']) && j(dF.answer.map(m => m.reason)) === j(['field']) && j(dN.answer.map(m => m.reason)) === j(['none']) && [dG, dF, dN].every(quiet) && j(dN.vals.f_loc[1]) === j({ id: 'w_h', defId: 'i_arm', qty: 1, hid: 1 }), j([dG.answer, dF.answer, dN.answer]));
 })());
+// 1.6.0 (a builder audit): an action that puts on an effect already on, through the host's char-apply (sliced, run for real with the real
+// systemcore, formula engine, delta and card): by its When added again, the times added and the card's line saying which time was kept; with none,
+// nothing moves, as before
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const apSrc = (ordersSrc + '\n' + between('// [netcheck:charapply-start]', '// [netcheck:charapply-end]', 'charapply')), paSrc = between('// [netcheck:postapply-start]', '// [netcheck:postapply-end]', 'postapply');
+    const dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const sysE = Sx.cleanSystem({ v: 1, name: 'E', fields: [{ id: 'f_fx', key: 'Fx', label: 'Effects', kind: 'effects', edit: 'owner' }],
+        effects: [{ id: 'e_sl', name: 'Slowed', dur: '10 minutes', again: 'add' }, { id: 'e_dz', name: 'Dazed', dur: '10 minutes' }],
+        items: [], rolls: [{ id: 'r_sl', label: 'Slow', apply: [{ fx: 'e_sl', on: true }] }, { id: 'r_dz', label: 'Daze', apply: [{ fx: 'e_dz', on: true }] }] }, { F: Fx, gmView: true });
+    const host = msg => {
+        const camp = { id: 'k', system: sysE, items: {}, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_fx: [{ id: 'x_s', ref: 'e_sl', on: true, t: { left: 600, at: 0 } }, { id: 'x_d', ref: 'e_dz', on: true, t: { left: 600, at: 0 } }] } } } };
+        const out = { answer: [], owner: [], mate: [], chat: [], logs: [], saves: 0, changed: [] }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
+        const conn = { peer: 'pA', send: box(out.answer) };
+        const net = { active: true, role: 'host', paused: false, combats: {}, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a', name: 'Ana P', location: 'm1' } } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged: id => out.changed.push(id) }, wpDiceCore: null };
+        const sendTable = (m, ex) => net.conns.forEach(c => { if (c !== ex && c.open && net.roster[c.peer]) c.send(m); });
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'own', 'diceFrom', 'sendTable', 'pushChat', 'logEvent', 'applyLine',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + paSrc + '\n' + apSrc)(
+            msg, conn, net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true },
+            (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), (p, gm) => ({ id: p.id, name: p.name, gm: !!gm }), sendTable, m => out.chat.push(JSON.parse(JSON.stringify(m))), (k, t) => out.logs.push(k + ': ' + t), r => Dx.applyText(r));
+        out.vals = camp.chars.c_1.values; return out;
+    };
+    const A = act => ({ type: 'char-apply', rid: 'a1', charId: 'c_1', act: act }), card = list => list.filter(m => m.type === 'apply');
+    const s1 = host(A('r_sl')), cS = card(s1.owner)[0] || {}, d1 = host(A('r_dz'));
+    check('1.6.0 (a builder audit) When added again on the host, char-apply (run for real): the owner\'s Slow puts on Slowed, which is on with 600 s left and set to Add the times, so its 600 s are added, 1200 s left, one ack and one save, and the card\'s line says on and which time was kept, which a player\'s app takes (dicecore cleanApply); Daze, whose effect has no When added again and is on already, moves nothing, as before',
+        j(s1.answer) === j([{ type: 'char-ack', rid: 'a1' }]) && s1.saves === 1 && s1.vals.f_fx[0].t.left === 1200 && j(s1.vals.f_fx[1]) === j({ id: 'x_d', ref: 'e_dz', on: true, t: { left: 600, at: 0 } })
+        && j(cS.lines) === j([{ n: 'Slowed', fx: 1, roll: 'the times added, 20 min left' }]) && !!Dx.cleanApply(cS) && j(Dx.cleanApply(cS).lines) === j(cS.lines)
+        && j(d1.answer.map(m => m.reason)) === j(['none']) && d1.saves === 0 && d1.owner.length === 0, j([s1.answer, s1.vals, cS, d1.answer]));
+})());
 // 1.6.0 (asked by a campaign build's session): a change on every row of a list whose amount reads each row's own names (Row.*), through the
 // host's char-apply (sliced, run for real with the real systemcore, formula engine, delta and card): worked out row by row through the player's
 // own view, the severing example clearing a crippling and keeping a severing, a figure that differs by row carded as set with no figure, and a
@@ -18116,7 +18147,7 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
             && flatR.includes("saveRemoteSoon(); if (taQ.gone && typeof rowGoneTell === 'function') rowGoneTell(q.charId, chQ, taQ.gone, conn); net.syncCharDelta(q.charId, taQ.values);")
             && flatR.includes("window.wpSheets.goneLocal(chR.id, taR.gone); }, 0);") && (flatR.match(/typeof fxNow === 'function' \? fxNow\(/g) || []).length === 3
             && flatR.includes("if (msg.type === 'row-gone') { var rgC = typeof SC2.cleanRowGone === 'function' ? SC2.cleanRowGone(msg) : null; if (!rgC) return;") && /msg\.type === 'char-deny' \|\| msg\.type === 'row-gone'\) && net\.role === 'client'\) \{\n        \/\/ \[netcheck:charin-start\]\n[^\n]*\n        if \(!net\.foreign \|\| conn\.peer !== net\.syncedPeer/.test(flatR)
-            && flatR.includes("if (l.fx === 1 || l.fx === 0) return { n: String(l.n).slice(0, 60), fx: l.fx };") && flatR.includes("lines: rec.lines.map(function(l, i) { if (l.fx === 1 || l.fx === 0) return { n: l.n, fx: l.fx };"));
+            && flatR.includes("if (l.fx === 1 || l.fx === 0) { var oF = { n: String(l.n).slice(0, 60), fx: l.fx }; if (typeof l.roll === 'string' && l.roll) oF.roll = l.roll.slice(0, 60); return oF; }") /* 1.6.0 (a builder audit): an effect's line keeps the words of which time was kept (moved on purpose) */ && flatR.includes("lines: rec.lines.map(function(l, i) { if (l.fx === 1 || l.fx === 0) return { n: l.n, fx: l.fx };"));
     }
     check('1.6.0 On.<name> on the host (source): a player\'s press and a player\'s roll read the one it is used on through THEIR view of the system (no GM-only field of the other reaches a formula of theirs), the GM\'s own roll through the system; each in that token\'s own context',
         src.includes("varsA = Sa.withOnSelf(varsA, !onA, onA ? Sa.makeResolver(viewA, onA.ch, Fa,") && src.includes("varsQ = SQ.withOnSelf(varsQ, !onQ, onQ && viewQ ? SQ.makeResolver(viewQ, onQ.ch, Fq,") && src.includes("varsR = SR.withOnSelf(varsR, !onR, onR ? SR.makeResolver(campR.system, onR.ch, F,"));

@@ -2670,6 +2670,7 @@ function cleanEffectDef(d, fieldKinds, gmView, F) {   // conditions C4: F, for a
     var au = vis === 'gm' ? null : cleanFormulaText(d.auto); if (au && autoFormulaOk(au, F)) o.auto = au;   // conditions C4: only a visible effect applies itself (the owner's answer, "Only public ones")
     var fxP = typeof d.posture === 'string' && (POSTURE_ID.test(d.posture) || POSTURE_IDS.indexOf(d.posture) >= 0) ? d.posture : ''; if (fxP) { o.posture = fxP; if (d.postureBack === true) o.postureBack = true; if (Array.isArray(d.postureKeep)) { var fxK = []; d.postureKeep.forEach(function(x) { if (fxK.length < LIMITS.postures && typeof x === 'string' && x !== fxP && (POSTURE_ID.test(x) || POSTURE_IDS.indexOf(x) >= 0) && fxK.indexOf(x) < 0) fxK.push(x); }); if (fxK.length) o.postureKeep = fxK; } }   // 1.5.9 (book es/et plan, the owner's O6): the posture its token takes the moment it comes on (a posture of the list by its id), and, ticked, back when it ends; absent, as ever
     var esw = cleanRollSw(d.rollSw, fieldKinds); if (esw) o.rollSw = esw;   // 1.6.0: the bonuses it offers a roll while it is on
+    if (FX_AGAIN[d.again] === 1) o.again = d.again;   // 1.6.0 (a builder audit): When added again, Keep the longer or Add the times (absent: Replace, as ever)
     return o;
 }
 // Conditions C4: an automatic effect's formula — one that reads, rolls no dice (whether it names a GM-only value is judged over the whole system)
@@ -3812,14 +3813,14 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
             var twX = onW || work, fxF = null, fxRow = null, fxs = sys.fields.filter(function(x) { return isObj(x) && x.kind === 'effects' && typeof x.id === 'string'; });
             fxs.forEach(function(x) { var rs = isObj(twX.values) && Array.isArray(twX.values[x.id]) ? twX.values[x.id] : []; rs.forEach(function(r0) { if (!fxRow && isObj(r0) && r0.ref === a.fx.id) { fxRow = r0; fxF = x; } }); });
             if (!fxF) fxF = fxs[0] || null; if (!fxF) return { ok: false, reason: 'field' };
-            var isOn = !!fxRow && fxRow.on !== false; if (isOn === a.on) continue;   // already as asked: nothing moves, nothing is said
+            var isOn = !!fxRow && fxRow.on !== false; if (isOn === a.on && !(a.on && FX_AGAIN[a.fx.again] === 1)) continue;   // already as asked: nothing moves, nothing is said (1.6.0, a builder audit: unless it is on and When added again keeps the longer time or adds the times)
             var rowsX = isObj(twX.values) && Array.isArray(twX.values[fxF.id]) ? twX.values[fxF.id] : [], ridX = fxRow && typeof fxRow.id === 'string' ? fxRow.id : '';
             if (!ridX) { var bse = ('x_' + a.fx.id.slice(2)).slice(0, 20), nX = 0; ridX = bse; while (rowsX.some(function(r0) { return isObj(r0) && r0.id === ridX; })) ridX = bse + '_' + (++nX); }
             var fxOpt = { now: isObj(fxo) && typeof fxo.now === 'number' ? fxo.now : 0, inCombat: !!(isObj(fxo) && (onW ? fxo.onInCombat : fxo.inCombat)) };
             var eo = applyEffectOp(sys, twX, fxF.id, a.on ? { op: 'add', rowId: ridX, ref: a.fx.id } : { op: 'on', rowId: ridX, on: false }, F, fxOpt); if (!eo.ok) return { ok: false, reason: eo.reason };
             twX.values[fxF.id] = eo.value; if (onW) onOut[fxF.id] = eo.value; else { out[fxF.id] = eo.value; asIs = false; }
             if (isObj(eo.clamp)) Object.keys(eo.clamp).forEach(function(k) { twX.values[k] = eo.clamp[k]; if (onW) onOut[k] = eo.clamp[k]; else out[k] = eo.clamp[k]; });   // a pool the effect's change brought down, in the same change
-            (onW ? onLines : lines).push({ f: fxF.id, n: a.fx.name || 'An effect', fx: a.on ? 1 : 0 });
+            var fxLn = { f: fxF.id, n: a.fx.name || 'An effect', fx: a.on ? 1 : 0 }; if (typeof eo.again === 'string' && eo.again) fxLn.roll = eo.again; (onW ? onLines : lines).push(fxLn);   // 1.6.0 (a builder audit): which time was kept
             continue;
         }
         if (a.all) {   // 1.6.0: the stat on every row of the list, on the character it is used on (the user where none), each row written as a blow writes a row's stat (dmgRowPut): a library row's figure in its ov.stats, held as the GM's, a row of its own in its def.stats. A row kept from its player (hid) is passed over, a row with no definition too; a curse kept on moves as any row, as a row's own change moves it. A row already at its figure is not moved, and no row moved says nothing
@@ -3901,7 +3902,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
     if (!lines.length && !onLines.length) return { ok: false, reason: 'none' };   // 1.5.9: a Then that only fires, with nothing chambered
     var doneA = { ok: true, values: out, lines: lines, names: names }; if (fired) doneA.fired = fired; if (gone.length) doneA.gone = gone;   // 1.6.0: the rows used up, for their Undo   // 1.5.9: the round it fired, for the blast it places
     if (onW) { doneA.onValues = onOut; doneA.onLines = onLines; }   // 1.5.9: what moved on the character it was used on, all or none with the rest
-    if (lines.concat(onLines).some(function(l) { return !!l.roll; })) doneA.drew = true;   // 1.5.9: a Rolled amount drew dice, so its card says so and a time rule's run counts as rolled
+    if (lines.concat(onLines).some(function(l) { return !!l.roll && l.fx === undefined; })) doneA.drew = true;   /* 1.6.0 (a builder audit): an effect's line names which time was kept in the same place, and draws no dice */   // 1.5.9: a Rolled amount drew dice, so its card says so and a time rule's run counts as rolled
     return doneA;
 }
 // Stage 6 HUD G10 (his reference turn sweep, module/combat.mjs: when a combat's round changes, every combatant's Turn follows it and the sweep
@@ -8268,6 +8269,18 @@ function applyStyle(sys, char, fieldId, rec, F, opts) {
     var r = cleanRec(rec, cur, rule); if (r) return { ok: true, look: r };
     return { ok: false, reason: isObj(rec) && typeof rec.sig === 'string' && rec.sig !== textSig(cur) ? 'stale' : 'style' };
 }
+// 1.6.0 (a builder audit): an effect added again while it is on, by its When added again (FX_AGAIN; absent: Replace, the new time in place of
+// what was left). 'longer' keeps whichever has more time left, no timer being the longest; 'add' adds what was left and the new time (no timer
+// on either: none). cur: the row's timer, nu: the new one (null: none), now: the host's clock. { t: the timer kept (null: none), said: words }
+var FX_AGAIN = Object.freeze({ longer: 1, add: 1 });
+function fxSecsWords(s) { if (!fin(s)) return 'no end'; s = Math.max(0, s); return s < 60 ? fmtNum(Math.round(s * 10) / 10) + ' s' : s < 3600 ? fmtNum(Math.round(s / 6) / 10) + ' min' : s < 86400 ? fmtNum(Math.round(s / 360) / 10) + ' h' : fmtNum(Math.round(s / 8640) / 10) + ' days'; }
+function fxAgain(rule, cur, nu, now, inCombat) {
+    var cl = isObj(cur) ? fxLeftNow(cur, now) : Infinity, nl = isObj(nu) ? nu.left : Infinity;
+    if (rule === 'longer') { if (nl > cl) return { t: isObj(nu) ? nu : null, said: isObj(nu) ? 'the new time kept, ' + fxSecsWords(nl) + ' left' : 'kept with no end' }; return { t: isObj(cur) ? cur : null, said: isObj(cur) ? 'its own time kept, ' + fxSecsWords(cl) + ' left' : 'kept with no end' }; }
+    if (!isObj(cur) || !isObj(nu)) return { t: null, said: 'kept with no end' };
+    var sum = Math.min(1e9, Math.round((Math.max(0, cl) + nu.left) * 1000) / 1000), t = cur.p === 1 ? { left: sum, at: 0, p: 1 } : { left: sum, at: inCombat ? 0 : Math.max(0, Math.floor(typeof now === 'number' ? now : 0)) };
+    return { t: t, said: 'the times added, ' + fxSecsWords(sum) + ' left' };
+}
 function fxTimerFor(core, sys, opts) { var s = lastsSecs(core, sys); if (!(s > 0)) return null; var now = opts && typeof opts.now === 'number' ? opts.now : 0; return { left: s, at: opts && opts.inCombat ? 0 : Math.max(0, Math.floor(now)) }; }   // T5a: opts.now (the host's clock), opts.inCombat
 // 5h: the host's (or the GM's own) answer to one change of a character's status effects: { ok, value, clamp } or { ok: false, reason }.
 // q = { op: add|adhoc|on|remove, rowId, ref?, on?, row? }. Rights follow the list field (Player may edit / GM edits, visible); a player can
@@ -8293,7 +8306,9 @@ function applyEffectOp(sys, char, fieldId, q, F, opts) {
         var elsewhere = had < 0 && sys.fields.some(function(x) { var o = x.kind === 'effects' && x.id !== fieldId && char && char.values ? char.values[x.id] : null; return Array.isArray(o) && o.some(function(r0) { return r0 && r0.ref === q.ref; }); });
         if (elsewhere) return { ok: false, reason: 'value' };   // once per character, across every list (another list may have other rights)
         var tA = typeof opts.secs === 'number' && fin(opts.secs) && opts.secs > 0 ? { left: Math.min(1e9, Math.round(opts.secs * 1000) / 1000), at: opts.inCombat ? 0 : Math.max(0, Math.floor(typeof opts.now === 'number' ? opts.now : 0)) } : fxTimerFor(def, sys, opts);   // T5a: what it lasts, from now (added again: afresh); 1.5.9 (es): opts.secs, the host's own word (an affliction's rolled Lasts), in its place
-        if (had >= 0) { list[had].on = true; if (tA) list[had].t = tA; else delete list[had].t; }   // once per character: adding it again turns it back on
+        var agR = had >= 0 && list[had].on !== false && FX_AGAIN[def.again] === 1 ? def.again : '', agS = null;   // 1.6.0 (a builder audit): added again while it is on, by its When added again
+        if (agR) { agS = fxAgain(agR, list[had].t, tA, opts.now, opts.inCombat); if (agS.t) list[had].t = agS.t; else delete list[had].t; }
+        else if (had >= 0) { list[had].on = true; if (tA) list[had].t = tA; else delete list[had].t; }   // once per character: adding it again turns it back on
         else if (idx >= 0) return { ok: false, reason: 'value' };
         else if (list.length >= LIMITS.effectRows) return { ok: false, reason: 'field' };
         else { var nA = { id: rowId, ref: q.ref, on: true }; if (tA) nA.t = tA; list.push(nA); }
@@ -8338,7 +8353,9 @@ function applyEffectOp(sys, char, fieldId, q, F, opts) {
             if (fin(to) && to < st.cur) { clamp = clamp || {}; clamp[rf.id] = { cur: to }; }
         });
     }
-    return clamp ? { ok: true, value: value, clamp: clamp } : { ok: true, value: value };
+    var resE = clamp ? { ok: true, value: value, clamp: clamp } : { ok: true, value: value };
+    if (typeof agS === 'object' && agS) { resE.again = agS.said; resE.againSays = (def.name || 'The effect') + ' added again: ' + agS.said + '.'; }   // 1.6.0 (a builder audit): which time was kept, in words
+    return resE;
 }
 // 5h: a player's effects change off the wire — shape only; the system's rules are applyEffectOp's
 function cleanCharEffect(msg) {

@@ -8881,6 +8881,7 @@ function damageBox(box, cm) {
             dbxCap(ww, 'Once broken, a hit'); var bw = input('sys-dmgr-lbrkw field', dbxStr(l.brokenWear), 'What an injuring hit wears once this layer is broken there (its figure used up). Empty: 1. ToDestroy destroys the piece', 'e.g. 1'); bw.maxLength = LIMITS.formula; ww.appendChild(bw);
             dbxCap(ww, 'Wears at most'); var wc = input('sys-dmgr-lwcap field', dbxStr(l.wearCap), 'The most wear this layer may hold there, where it is destroyed. Empty: twice its figure, so it wears to minus its figure. It reads what the boxes beside it read', 'e.g. Listed + 2 * Row.Dur'); wc.maxLength = LIMITS.formula; ww.appendChild(wc);
             dbxCap(ww, 'and a Major Wound'); var bm = input('sys-dmgr-lbrkm field', dbxStr(l.brokenMajorWear), 'What a Major Wound wears once this layer is broken there. Empty: as on a Major Wound above', 'e.g. ceil(Row.Dur / 4)'); bm.maxLength = LIMITS.formula; ww.appendChild(bm);
+            if ((draft.fields || []).some(function(f) { return f && f.id === l.list && dbxObj(f.list) && dbxObj(f.list.on); })) ww.appendChild(dbxTick('sys-dmgr-lany', l.anyRow === true, 'Every row', 'Ticked: this layer wears every row of its list, switched on or not. Off: only the rows switched on, as a worn piece of armour is. For a list whose switch means something else, as a location the GM marks by hand.'));   // 1.6.0
             wrap.appendChild(ww);
         }
     });
@@ -8957,6 +8958,8 @@ function onDamageChange(t) {
     } else if (dbxHas(c, 'sys-dmgr-llist') || dbxHas(c, 'sys-dmgr-lwear')) {
         var l = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!l) return true;
         if (dbxHas(c, 'sys-dmgr-llist')) { if (l.list !== v) { delete l.wear; delete l.wears; } dbxSet(l, 'list', v); redraw = true; } else dbxSet(l, 'wear', v);
+    } else if (dbxHas(c, 'sys-dmgr-lany')) {   // 1.6.0: Every row
+        var lA = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lA) return true; if (on) lA.anyRow = true; else delete lA.anyRow;
     } else if (dbxHas(c, 'sys-dmgr-lwears')) {   // 1.6.0: the stats it may wear, kept in the list's own order
         var lW = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'), kW = t.dataset && typeof t.dataset.k === 'string' ? t.dataset.k.toLowerCase() : ''; if (!lW || !kW) return true;
         var curW = (Array.isArray(lW.wears) ? lW.wears : []).map(function(x) { return String(x).toLowerCase(); });

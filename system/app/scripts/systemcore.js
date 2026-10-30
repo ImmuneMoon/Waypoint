@@ -1581,6 +1581,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
             (Array.isArray(l.wears) ? l.wears : []).forEach(function(k) { var n = dmgStatOk(fl, l.list, k); if (n && ws.indexOf(n) < 0 && ws.length < DMG_LIM.wears) ws.push(n); });
             if (ws.length && pk) { lo.wears = ws; lo.pick = pk; }
             LAYER_WEAR.forEach(function(k) { var wt = cleanFormulaText(l[k]); if (wt) lo[k] = wt; });   // 1.6.0: what a hit wears, by formula (layerStep)
+            if (l.anyRow === true) lo.anyRow = true;   // 1.6.0: Every row, switched on or not (a location's switch may be the GM's own)
             lys.push(lo);
         }); if (lys.length) out.layers = lys;
         var wps = []; (Array.isArray(d.weapons) ? d.weapons : []).forEach(function(l) {
@@ -1799,7 +1800,7 @@ function damageStep(sys, char, inp, F, ropts, fxo) {   // 1.6.0 (B3): fxo, the c
         var wearW = (noWear ? 0 : A.wound) + Bs.reduce(function(a, B, i) { return a + (twos[i].noWear ? 0 : B.wound); }, 0), wearA = (noWear ? 0 : amt) + twos.reduce(function(a, t) { return a + (t.noWear ? 0 : t.amt); }, 0);   // 1.6.0 (B3): the parts whose type wears, as one blow: each layer wears once
         if (lrow && (!noWear || twos.some(function(t) { return !t.noWear; })) && (wearW > 0 || dWear > 0)) (rules.layers || []).forEach(function(ly) {   // 1.6.0: a type that wears by the dice wears whether or not the blow gets through
             var f = fieldById(sys, ly.list), src = f && char.values && Array.isArray(char.values[f.id]) ? char.values[f.id] : null; if (!src || !f.list) return;
-            var list = JSON.parse(JSON.stringify(src)), changed = false, hasOn = isObj(f.list.on);
+            var list = JSON.parse(JSON.stringify(src)), changed = false, hasOn = isObj(f.list.on) && ly.anyRow !== true;   // 1.6.0: Every row walks the rows that are off too
             list.forEach(function(row) {
                 if (!isObj(row) || row.hid === 1 || (hasOn && row.on !== true)) return;
                 var rid = rowIdOf(row), rv = rid ? R.row(f.id, rid) : null; if (!rv) return;

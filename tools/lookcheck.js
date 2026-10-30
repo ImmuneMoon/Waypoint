@@ -3443,5 +3443,9 @@ check('a player\'s double-click on their own token opens its sheet, the first th
     && rootRead('system/app/scripts/datamap.js').indexOf('window.wpSheets.openSheet(it2.charId)') < rootRead('system/app/scripts/datamap.js').indexOf('var wallD = wallPickEl(am2, it2, e)')
     && rootRead('system/app/scripts/dialogs.js').includes('if (noWas !== null) { cancelBtn.textContent = noWas; noWas = null; }'));
 
+check('the paused dim is set with a true or a false, so an unset hold never flips it on a screen with no pause (found live on a stream window and a GM not yet hosting), and with no second writer of the class',
+    /classList\.toggle\('net-paused', !!\(\(net\.paused \|\| \(\(net\.selfPaused \|\| net\.selfHeld\) && isClient\)\) && net\.active\)\);/.test(rootRead('system/app/scripts/net.js'))
+    && rootRead('system/app/scripts/net.js').split("'net-paused'").length === 2);
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

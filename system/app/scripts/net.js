@@ -2323,7 +2323,7 @@ function refreshPauseUi() {
             : '⏸️ The GM paused you — chat is still open.';
     }
     if (banner && frozenMe && !net.paused && !net.selfPaused && net.selfHeld) banner.textContent = heldBanner();   // 1.6.0 (backlog 190): held for a new sheet
-    document.body.classList.toggle('net-paused', (net.paused || ((net.selfPaused || net.selfHeld) && isClient)) && net.active);
+    document.body.classList.toggle('net-paused', !!((net.paused || ((net.selfPaused || net.selfHeld) && isClient)) && net.active));   // always a true or a false: toggle with undefined flips the class (found live, 2026-10-30: the map dimmed with no pause)
     var btn = ui('netPauseBtn');
     if (btn) { btn.innerHTML = net.paused ? '&#9654;&#65039; Resume the Table' : '&#9208;&#65039; Pause the Table'; btn.classList.toggle('paused', net.paused); }
     var sb = ui('sessionPauseBtn');

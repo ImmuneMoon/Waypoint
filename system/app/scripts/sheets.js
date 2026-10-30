@@ -8765,6 +8765,7 @@ function damageBox(box, cm) {
         }
         if (l.list) {   // 1.6.0: what a hit wears, by formula (systemcore layerStep)
             var ww = el('div', 'sys-flags sys-dmgr-layer sys-dmgr-lwearby'); ww.dataset.li = String(i);
+            dbxCap(ww, 'Wears on a hit'); var hw = input('sys-dmgr-lhitw field', dbxStr(l.hitWear), 'What an injuring hit that is no Major Wound wears off this layer while it is not broken there. Empty: 1. It reads Row, Hit, Listed, Worn, ToDestroy, the blow and the character', 'e.g. ceil(Blow.wound / 2)'); hw.maxLength = LIMITS.formula; ww.appendChild(hw);
             dbxCap(ww, 'Wears on a Major Wound'); var mw = input('sys-dmgr-lmajw field', dbxStr(l.majorWear), 'What a Major Wound wears off this layer. Empty: a quarter of its figure, rounded up. It reads Row, Hit, Listed (its figure there), Worn (what has worn off), ToDestroy, and the blow: Blow.dmg, Blow.through, Blow.wound, Blow.type and Blow.cuts', 'e.g. ceil(Listed / 4)'); mw.maxLength = LIMITS.formula; ww.appendChild(mw);
             dbxCap(ww, 'Once broken, a hit'); var bw = input('sys-dmgr-lbrkw field', dbxStr(l.brokenWear), 'What an injuring hit wears once this layer is broken there (its figure used up). Empty: 1. ToDestroy destroys the piece', 'e.g. 1'); bw.maxLength = LIMITS.formula; ww.appendChild(bw);
             dbxCap(ww, 'Wears at most'); var wc = input('sys-dmgr-lwcap field', dbxStr(l.wearCap), 'The most wear this layer may hold there, where it is destroyed. Empty: twice its figure, so it wears to minus its figure. It reads what the boxes beside it read', 'e.g. Listed + 2 * Row.Dur'); wc.maxLength = LIMITS.formula; ww.appendChild(wc);
@@ -8807,7 +8808,7 @@ function onDamageInput(t) {
     else if (dbxHas(c, 'sys-dmgr-oif')) { var oI = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oI) return true; dbxSet(oI, 'if', txt.trim() ? txt : ''); }   // 1.6.0 (the core's gap 6)
     else if (DBX_DIE.some(function(g) { return dbxHas(c, g[0]); })) { var yD = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!yD) return true; DBX_DIE.forEach(function(g) { if (dbxHas(c, g[0])) dbxSet(yD, g[1], dbxNumOf(t)); }); }   // 1.6.0: a figure a die
     else if (dbxHas(c, 'sys-dmgr-lpick')) { var lP = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lP) return true; dbxSet(lP, 'pick', txt.trim() ? txt : ''); }   // 1.6.0
-    else if (dbxHas(c, 'sys-dmgr-lmajw') || dbxHas(c, 'sys-dmgr-lbrkw') || dbxHas(c, 'sys-dmgr-lbrkm') || dbxHas(c, 'sys-dmgr-lwcap')) { var lQ = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lQ) return true; dbxSet(lQ, dbxHas(c, 'sys-dmgr-lmajw') ? 'majorWear' : dbxHas(c, 'sys-dmgr-lbrkw') ? 'brokenWear' : dbxHas(c, 'sys-dmgr-lwcap') ? 'wearCap' : 'brokenMajorWear', txt.trim() ? txt : ''); }   // 1.6.0: what a hit wears
+    else if (dbxHas(c, 'sys-dmgr-lmajw') || dbxHas(c, 'sys-dmgr-lbrkw') || dbxHas(c, 'sys-dmgr-lbrkm') || dbxHas(c, 'sys-dmgr-lwcap') || dbxHas(c, 'sys-dmgr-lhitw')) { var lQ = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lQ) return true; dbxSet(lQ, dbxHas(c, 'sys-dmgr-lhitw') ? 'hitWear' : dbxHas(c, 'sys-dmgr-lmajw') ? 'majorWear' : dbxHas(c, 'sys-dmgr-lbrkw') ? 'brokenWear' : dbxHas(c, 'sys-dmgr-lwcap') ? 'wearCap' : 'brokenMajorWear', txt.trim() ? txt : ''); }   // 1.6.0: what a hit wears
     else if (dbxHas(c, 'sys-dmgr-ykey') || dbxHas(c, 'sys-dmgr-ylabel') || dbxHas(c, 'sys-dmgr-ymult') || dbxHas(c, 'sys-dmgr-yvital') || dbxHas(c, 'sys-dmgr-aif') || dbxHas(c, 'sys-dmgr-amult')) {
         var y = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!y) return true;
         if (dbxHas(c, 'sys-dmgr-ykey')) y.key = txt.slice(0, 24);
@@ -8984,7 +8985,7 @@ function damageSays(d, sys, Fx) {
     });
     (Array.isArray(d.layers) ? d.layers : []).forEach(function(l, i) {   // 1.6.0: what a hit wears, by formula, as the cleaner reads it
         if (!dbxObj(l)) return; var cl = (piece({ layers: [l] }).layers || [])[0]; if (!cl) return;
-        [['majorWear', 'Wears on a Major Wound'], ['brokenWear', 'Once broken, a hit'], ['brokenMajorWear', 'Once broken, a Major Wound'], ['wearCap', 'Wears at most']].forEach(function(g) {
+        [['hitWear', 'Wears on a hit'], ['majorWear', 'Wears on a Major Wound'], ['brokenWear', 'Once broken, a hit'], ['brokenMajorWear', 'Once broken, a Major Wound'], ['wearCap', 'Wears at most']].forEach(function(g) {
             if (typeof l[g[0]] !== 'string' || !l[g[0]].trim()) return;
             if (!cl[g[0]]) say('Layer ' + (i + 1) + ': ' + g[1] + ' is too long or not on one line, so Save drops it.'); else reads(l[g[0]], 'Layer ' + (i + 1) + ', ' + g[1]);
         });

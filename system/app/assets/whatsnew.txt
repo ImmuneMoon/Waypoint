@@ -368,7 +368,10 @@ Systems
   formulas read the blow too, its damage, type and wound, and wearing
   ToDestroy destroys the piece. Wears at most sets, by formula, how much
   wear destroys it, in place of minus its figure.
-  ToDestroy destroys the piece.
+- Wears on a hit says by formula what an ordinary hit wears off a layer.
+  A Major Wound still wears what Wears on a Major Wound says, and a
+  broken piece what Once broken says. So a piece can be destroyed by a
+  hit that takes the body below 0, and only worn by 1 otherwise.
 - An effect's change can be sized by a formula, such as -max(0, -MP)
   for 1 off Agility each MP below 0. The formula reads the sheet with no
   effect applied, rolls no dice, and may not read a GM-only value.

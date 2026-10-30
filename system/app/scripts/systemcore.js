@@ -1473,7 +1473,10 @@ function rowTimers(sys, char, secs, perOf, F) {   // F (1.6.0): the formula engi
 // wears to minus that figure), or a layer's own wearCap (1.6.0, asked by the same session for a piece whose Durability is one pool across
 // its locations), a formula read alike that gives the most wear the row may hold there; one that gives no number, or less than Worn, keeps
 // twice the listed figure. A piece is destroyed where its wear reaches the cap
-var LAYER_WEAR = ['majorWear', 'brokenWear', 'brokenMajorWear', 'wearCap'];
+// hitWear (1.6.0, asked by the campaign build's session for an implant a blow can destroy): what an injuring hit that is no Major Wound
+// wears while the piece is not broken there, read as the others are. The order: a Major Wound majorWear; once broken brokenWear (or
+// brokenMajorWear); any other hit hitWear; with none of them, or one that gives no number or less than 0, 1 or a quarter as before
+var LAYER_WEAR = ['majorWear', 'brokenWear', 'brokenMajorWear', 'wearCap', 'hitWear'];
 function layerVars(listed, worn, blow, both, cap) {
     var bw = blow && typeof blow === 'object' ? blow : {}, bn = function(v) { return typeof v === 'number' && isFinite(v) ? v : 0; };
     return function(l, text) {
@@ -1487,7 +1490,7 @@ function layerCap(ly, listed, worn, ev, both, blow) {
     var v = ev(ly.wearCap, layerVars(listed, worn, blow, both, dflt)); return typeof v === 'number' && isFinite(v) && v >= worn ? Math.floor(v) : dflt;
 }
 function layerStep(ly, major, listed, worn, ev, both, blow, cap) {
-    var base = major ? Math.ceil(listed / 4) : 1, brk = listed - worn <= 0, wf = brk ? (major ? (ly.brokenMajorWear || ly.majorWear) : ly.brokenWear) : (major ? ly.majorWear : null);
+    var base = major ? Math.ceil(listed / 4) : 1, brk = listed - worn <= 0, wf = brk ? (major ? (ly.brokenMajorWear || ly.majorWear) : ly.brokenWear) : (major ? ly.majorWear : ly.hitWear);
     if (typeof wf !== 'string' || !wf) return base;
     var v = ev(wf, layerVars(listed, worn, blow, both, cap)); return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.floor(v) : base;
 }

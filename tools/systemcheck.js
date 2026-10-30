@@ -13608,6 +13608,20 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             wearOf(lc1, 0) === 16 && lc1.lines.includes('Plate: -5 → -10, destroyed.') && wearOf(lc2, 0) === 12 && lc2.lines.includes('Plate: -5 → -6, destroyed.') && wearOf(lc3, 0) === 16 && lc3.lines.some(l => /destroyed/.test(l))
             && lcSys.combat.damage.layers[0].wearCap === 'Listed + 2 * Row.drHead + 10' && j(lwMkW({ wearCap: '  ' }).combat.damage) === j(sysD.combat.damage),
             j([lc1.info.wear, lc1.lines, lc2.info.wear, lc3.info.wear]));
+        // 1.6.0: hitWear, what an ordinary injuring hit wears while the piece is not broken (asked by the campaign build's session for an implant)
+        const lhRule = 'if(HP - Blow.wound < 0, ToDestroy, 1)', lhSys = lwMkW({ hitWear: lhRule }), lhLow = () => { const c = chD(); c.values.f_hp.cur = 2; return c; };
+        const lhDrop = hitD({ amt: 8, type: 'cut', loc: 'w_body' }, lhLow(), lhSys), lhLess = hitD({ amt: 8, type: 'cut', loc: 'w_body' }, null, lhSys);
+        const lhO = lwMkW({ hitWear: '4', majorWear: '2', brokenWear: '5' }), lhO2 = lwMkW({ hitWear: '4' });
+        const lhOHit = hitD({ amt: 8, type: 'cut', loc: 'w_body' }, null, lhO), lhOMaj = hitD({ amt: 14, type: 'cut', loc: 'w_body' }, null, lhO), lhOBrk = hitD({ amt: 8, type: 'cut', loc: 'w_body' }, wornD(6), lhO);
+        const lhO2Brk = hitD({ amt: 8, type: 'cut', loc: 'w_body' }, wornD(6), lhO2), lhO2Maj = hitD({ amt: 14, type: 'cut', loc: 'w_body' }, null, lhO2);
+        const lhBad = hitD({ amt: 8, type: 'cut', loc: 'w_body' }, null, lwMkW({ hitWear: 'Nope + 1' })), lhNeg = hitD({ amt: 8, type: 'cut', loc: 'w_body' }, null, lwMkW({ hitWear: '0 - 2' })), lhBig = hitD({ amt: 8, type: 'cut', loc: 'w_body' }, null, lwMkW({ hitWear: '100' }));
+        const lhPl = cleanSystem((() => { const s = mkD(); Object.assign(s.combat.damage.layers[0], { hitWear: lhRule }); return s; })(), { F, gmView: false });
+        check('1.6.0 hitWear (Wears on a hit): kept on the layer in the GM\'s view after the other wear formulas, never in the players\' (no layer there); a hit that takes the body below 0 (HP 2, a wound of 3, no Major Wound) wears the plate to its cap, destroyed (6 to -6), and a lesser hit 1; the order: a Major Wound wears majorWear (2), a broken piece brokenWear (5: 6 to 11) or with none 1 (never hitWear), any other hit hitWear (4), and a Major Wound with no majorWear a quarter (2); a formula that gives no number or less than 0 wears 1; it stops at the cap (100 held at 12); none set, or a blank one, exactly as before',
+            lhSys.combat.damage.layers[0].hitWear === lhRule && j(Object.keys(lhSys.combat.damage.layers[0])) === j(['list', 'at', 'wear', 'hitWear']) && !('layers' in (lhPl.combat.damage || {}))
+            && lhDrop.info.major === false && lhDrop.values.f_hp.cur === -1 && wearOf(lhDrop, 0) === 12 && lhDrop.lines.includes('Plate: 6 → -6, destroyed.') && lhLess.info.major === false && wearOf(lhLess, 0) === 1 && lhLess.lines.includes('Plate: 6 → 5, damaged.')
+            && wearOf(lhOHit, 0) === 4 && lhOMaj.info.major === true && wearOf(lhOMaj, 0) === 2 && wearOf(lhOBrk, 0) === 11 && wearOf(lhO2Brk, 0) === 7 && lhO2Maj.info.major === true && wearOf(lhO2Maj, 0) === 2
+            && wearOf(lhBad, 0) === 1 && wearOf(lhNeg, 0) === 1 && wearOf(lhBig, 0) === 12 && j(lwMkW({ hitWear: '  ' }).combat.damage) === j(sysD.combat.damage) && j(lwMkW({ hitWear: '' }).combat.damage) === j(sysD.combat.damage),
+            j([lhDrop.info.wear, lhDrop.lines, lhLess.info.wear, lhOHit.info.wear, lhOMaj.info.wear, lhOBrk.info.wear, lhO2Brk.info.wear, lhO2Maj.info.wear, lhBad.info.wear, lhNeg.info.wear, lhBig.info.wear]));
         const ds = hitD({ amt: 10, type: 'stun', loc: 'w_body' }), di = hitD({ amt: 10, type: 'ion', loc: 'w_body' }), drd = chD(); drd.values.f_droid = true; const did = hitD({ amt: 9, type: 'ion', loc: 'w_body' }, drd);
         check('1.5.6 damageStep, a type\'s own pool and its alternative: stun comes off Endurance and wears nothing (no Major Wound off another pool); ion off Endurance at half on flesh, and where its If holds (a droid) off Hit Points at its own multiplier, wearing as any hit does',
             ds.ok && ds.info.pool === 'EP' && j(Object.keys(ds.values)) === j(['f_ep']) && ds.values.f_ep.cur === 6 && ds.info.major === false && ds.info.wear.length === 0
@@ -13905,6 +13919,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && j(saysJ.warns.map(e => e.message).filter(m => /^A Major Wound/.test(m))) === j(['A Major Wound, row 1: Save keeps the formula, but it cannot be read, so it never holds.', 'A Major Wound, row 3: that roll is gone, so it asks for nothing.'])
                 && fs.readFileSync(path.join(app, 'index.html'), 'utf8').includes('Press <b>+ Another Major Wound</b> for up to four rows, and the first whose where holds is what the Major Wound does.') && fs.readFileSync(path.join(app, '..', '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').includes('(`systemcore majPick`)')
                 && [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, NL)).every(t => t.indexOf('- A Major Wound can do one thing or another by where it lands') > 0 && t.indexOf('- A Major Wound can do one thing or another by where it lands') < t.indexOf('WAYPOINT 1.5.')), j([rows0, one1, two, rows2, back, saysJ]));
+        }
+        {   // 1.6.0: Wears on a hit in the Taking damage box (damageBox, its input handler and damageSays, run for real)
+            const dH = { fields: mkD().fields, combat: { blastAuto: 'full', damage: { pool: 'f_hp', layers: [{ list: 'f_kit', at: 'Row.drBody', wear: 'wear', hitWear: 'Worn + 1' }] } } }, HH = edD(dH).api;
+            const hwBox = findD(drawD(dH), 'sys-dmgr-lhitw')[0], lyT = (cls, value) => ({ className: cls, value: value, checked: false, dataset: {}, closest: s => s === '.sys-dmgr-layer' ? { dataset: { li: '0' } } : null });
+            HH.onDamageInput(lyT('sys-dmgr-lhitw field', 'if(HP < 0, ToDestroy, 1)')); const set1 = dH.combat.damage.layers[0].hitWear; HH.onDamageInput(lyT('sys-dmgr-lhitw field', '  ')); const gone1 = 'hitWear' in dH.combat.damage.layers[0];
+            const saysH = HH.damageSays({ pool: 'f_hp', layers: [{ list: 'f_kit', at: 'Row.drBody', wear: 'wear', hitWear: 'Listed +' }] }, cleanSystem(mkD(), { F, gmView: true }), F);
+            check('1.6.0 Wears on a hit in the Taking damage box: drawn in a layer\'s wear row as a value with its tooltip, its caption Wears on a hit; typed it is kept on the layer, emptied it goes; Save says a formula it cannot read in the box\'s own words; Help says it',
+                !!hwBox && hwBox.value === 'Worn + 1' && /no Major Wound/.test(hwBox.title) && set1 === 'if(HP < 0, ToDestroy, 1)' && gone1 === false
+                && j(saysH.warns.map(e => e.message)) === j(['Layer 1, Wears on a hit: Save keeps the formula, but it cannot be read, so it never holds.'])
+                && fs.readFileSync(path.join(app, 'index.html'), 'utf8').includes('<b>Wears on a hit</b> replaces the 1, and <b>Wears on a Major Wound</b> replaces the quarter.')
+                && fs.readFileSync(path.join(app, '..', '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').includes('`"hitWear"` on any other injuring hit')
+                && [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, NL)).every(t => t.indexOf('- Wears on a hit says by formula what an ordinary hit wears off a layer.') > 0 && t.indexOf('- Wears on a hit says') < t.indexOf('WAYPOINT 1.5.')),
+                j([hwBox && hwBox.value, set1, gone1, saysH]));
         }
         // the handlers
         const rowT = (cls, k, i) => s => s === '.' + cls ? (i === undefined ? null : { dataset: { [k]: String(i) } }) : null;

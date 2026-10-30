@@ -805,7 +805,7 @@ function needsMet(sys, char, def, copy, F, vars, lvl) {
     var at = typeof lvl === 'number' && fin(lvl) ? lvl : null, due = function(from) { return typeof from !== 'number' || (at !== null && at >= from); };
     var nds = (Array.isArray(def.needs) ? def.needs : []).filter(function(n) { return isObj(n) && due(n.from); }), rule = typeof def.needsIf === 'string' && due(def.needsFrom) ? def.needsIf : '';
     if (!nds.length && !rule) return out;
-    var have = map();   // id -> the highest level a carried row of it has; true where its list has no level
+    var have = map(), means = [];   // id -> the highest level a carried row of it has; true where its list has no level. means (Specialties): the rows of such lists, for a need met by a row that means its key
     if (nds.length) (isObj(sys) && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
         if (!isObj(f) || f.kind !== 'item-list') return;
         var rows = isObj(char) && isObj(char.values) && Array.isArray(char.values[f.id]) ? char.values[f.id] : [], lv = isObj(f.list) && isObj(f.list.lvl);
@@ -813,10 +813,15 @@ function needsMet(sys, char, def, copy, F, vars, lvl) {
             var eid = isObj(r) ? (typeof r.defId === 'string' ? r.defId : copy === true && r.lnk === 1 && typeof r.src === 'string' ? r.src : null) : null;   // the host's row names its entry; an owner's inline copy names it as src, read only on the owner's own app
             if (!eid || r.hid === 1) return;
             var l = lv ? rowLvl(f.list, r, null) : true, h = have[eid];
+            if (isObj(f.list) && isObj(f.list.specs)) { var mdD = rowDef(sys, r); if (mdD && isObj(mdD.def)) means.push({ sp: f.list, d: mdD.def, b: specBase(sys, r, mdD.def), l: l }); }
             if (h === undefined || (typeof l === 'number' && (h === true || l > h))) have[eid] = l;
         });
     });
-    nds.forEach(function(n) { if (!isObj(n)) return; var h = have[n.id]; if (h === undefined || (typeof n.lvl === 'number' && typeof h === 'number' && h < n.lvl)) out.missing.push(n); });
+    nds.forEach(function(n) {
+        if (!isObj(n)) return; var h = have[n.id], low = function(x) { return x === undefined || (typeof n.lvl === 'number' && typeof x === 'number' && x < n.lvl); };
+        if (low(h) && means.length) { var ed = itemDef(sys, n.id) || libFind(n.id); if (isObj(ed) && typeof ed.key === 'string' && ed.key) means.forEach(function(m) { if (low(h) && specMeans(m.sp, m.d, m.b, ed.key)) h = m.l; }); }   // 1.6.0 Specialties: a row that means the needed entry's key
+        if (low(h)) out.missing.push(n);
+    });
     if (rule && !ruleTrue(sys, char, rule, F, vars)) out.missing.push({ rule: rule });
     out.ok = out.missing.length === 0; return out;
 }
@@ -2835,10 +2840,10 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
         // of: a choice stat that names the parent (a specialty that is its own entry, or a row of the character's own); fall: a number stat or
         // a column, the Fallback a sibling specialty is read at; dflt: a column, the untrained figure. Each as the list spells it, the same in
         // both views; one that names nothing here is left off
-        var spOf = typeof v.specs.of === 'string' ? lower(v.specs.of.trim()) : '', spO = '', spS = {}, spBy = typeof v.specs.by === 'string' ? lower(v.specs.by.trim()) : '', spFa = typeof v.specs.fall === 'string' ? lower(v.specs.fall.trim()) : '', spDf = typeof v.specs.dflt === 'string' ? lower(v.specs.dflt.trim()) : '', spB = '', spF = '', spD = '';
-        (out.stats || []).forEach(function(s) { if (!spO && spOf && s.kind === 'pick' && lower(s.key) === spOf) spO = s.key; if (!spB && spBy && s.kind === 'pick' && lower(s.key) === spBy) spB = s.key; if (!spF && spFa && s.kind !== 'pick' && lower(s.key) === spFa) spF = s.key; });
+        var spCv = typeof v.specs.cover === 'string' ? lower(v.specs.cover.trim()) : '', spC = '', spOf = typeof v.specs.of === 'string' ? lower(v.specs.of.trim()) : '', spO = '', spS = {}, spBy = typeof v.specs.by === 'string' ? lower(v.specs.by.trim()) : '', spFa = typeof v.specs.fall === 'string' ? lower(v.specs.fall.trim()) : '', spDf = typeof v.specs.dflt === 'string' ? lower(v.specs.dflt.trim()) : '', spB = '', spF = '', spD = '';
+        (out.stats || []).forEach(function(s) { if (!spC && spCv && s.kind !== 'pick' && Array.isArray(s.labels) && s.labels.length && lower(s.key) === spCv) spC = s.key; if (!spO && spOf && s.kind === 'pick' && lower(s.key) === spOf) spO = s.key; if (!spB && spBy && s.kind === 'pick' && lower(s.key) === spBy) spB = s.key; if (!spF && spFa && s.kind !== 'pick' && lower(s.key) === spFa) spF = s.key; });
         (out.cols || []).forEach(function(c) { if (!spF && spFa && lower(c.key) === spFa) spF = c.key; if (!spD && spDf && lower(c.key) === spDf) spD = c.key; });
-        if (spB) spS.by = spB; if (spO) spS.of = spO; if (spF) spS.fall = spF; if (spD) spS.dflt = spD;
+        if (spB) spS.by = spB; if (spO) spS.of = spO; if (spC) spS.cover = spC; if (spF) spS.fall = spF; if (spD) spS.dflt = spD;
         out.specs = spS;
     }
     if (isObj(v.load) && out.counters) {   // 1.5.8 Loads from: a row of this list loads one unit of a row of another item list (from, a field id; cleanSystem keeps it only where that is another item list with a level); ct, one of this list's counters, holds what the loaded row has left; cats, the categories of that list it takes (none: any row). The same in both views
@@ -3036,7 +3041,7 @@ function unheldJudge(sys, char, fieldId, def) {
     if (!isObj(def) || typeof def.id !== 'string' || !ITEM_ID.test(def.id)) return { ok: false, msg: 'That entry is not there now.' };
     if (Array.isArray(sp.cats) && sp.cats.length && !catIn(sp.cats, def.category)) return { ok: false, msg: nm + ' is not an entry of ' + (f.label || f.key || 'that list') + '.' };
     var rows = isObj(char) && isObj(char.values) && Array.isArray(char.values[f.id]) ? char.values[f.id] : [];
-    if (rows.some(function(r) { return isObj(r) && r.hid !== 1 && (r.defId === def.id || (r.lnk === 1 && r.src === def.id)); })) return { ok: false, msg: (isObj(char) && typeof char.name === 'string' && char.name ? char.name : 'This character') + ' holds ' + nm + '. Roll it from its row.' };
+    if (rows.some(function(r) { if (!isObj(r) || r.hid === 1) return false; if (r.defId === def.id || (r.lnk === 1 && r.src === def.id)) return true; if (!isObj(sp.specs) || typeof def.key !== 'string' || !def.key) return false; var rdU = rowDef(sys, r); return !!rdU && specMeans(sp, rdU.def, specBase(sys, r, rdU.def), def.key); })) return { ok: false, msg: (isObj(char) && typeof char.name === 'string' && char.name ? char.name : 'This character') + ' holds ' + nm + '. Roll it from its row.' };
     return { ok: true, f: f };
 }
 // A level on a list's terms: stepped from its minimum, clamped to its range (a bound left out is open, within LIMITS.lvlAbs)
@@ -4744,7 +4749,8 @@ function cleanGrants(v, kinds, self) {
         if (isObj(kinds) && kinds[g.list] !== 'item-list') return;
         var o = { list: g.list, entry: g.entry, qty: clampNum(Math.round(cleanNum(g.qty, 1)) || 1, 1, LIMITS.maxQty) }, fr = typeof g.from === 'number' ? lvlNum(g.from) : undefined; if (fr !== undefined) o.from = fr; if (g.once === true) o.once = true;
         if (g.pay === true) o.pay = true; var gl = typeof g.lvl === 'number' ? lvlNum(g.lvl) : undefined; if (gl !== undefined) o.lvl = gl;   // 1.6.0: Pays back, and the level it grants at
-        var k = o.list + '|' + o.entry + '|' + (fr === undefined ? '' : fr); if (seen[k]) return; seen[k] = 1;
+        var gsp = cutText(g.spec, LIMITS.label); if (gsp && specSquash(gsp)) o.spec = gsp;   // 1.6.0 Specialties: its specifier, the row it adds named for it
+        var k = o.list + '|' + o.entry + '|' + (fr === undefined ? '' : fr) + (o.spec ? '|' + specSquash(o.spec) : ''); if (seen[k]) return; seen[k] = 1;
         out.push(o);
     });
     return out.length ? out : undefined;
@@ -4764,8 +4770,8 @@ function grantWant(def, lvl) {
     var at = typeof lvl === 'number' && fin(lvl) ? lvl : 0, out = map(), by = map();
     (isObj(def) && Array.isArray(def.grants) ? def.grants : []).forEach(function(g) {
         if (!isObj(g) || typeof g.list !== 'string' || typeof g.entry !== 'string' || (typeof g.from === 'number' && at < g.from)) return;
-        var k = g.list + '|' + g.entry, n = clampNum(cleanNum(g.qty, 1) | 0, 1, LIMITS.maxQty);
-        if (out[k]) out[k].qty = clampNum(out[k].qty + n, 1, LIMITS.maxQty); else out[k] = { list: g.list, entry: g.entry, qty: n };
+        var k = g.list + '|' + g.entry + (typeof g.spec === 'string' && specSquash(g.spec) ? '|' + specSquash(g.spec) : ''), n = clampNum(cleanNum(g.qty, 1) | 0, 1, LIMITS.maxQty);   // 1.6.0 Specialties: one holding an entry and specifier
+        if (out[k]) out[k].qty = clampNum(out[k].qty + n, 1, LIMITS.maxQty); else { out[k] = { list: g.list, entry: g.entry, qty: n }; if (typeof g.spec === 'string' && specSquash(g.spec)) out[k].spec = g.spec; }
         if (g.once === true) out[k].once = true;   // 1.6.0 (CORE gap 15)
         var fw = typeof g.from === 'number' ? g.from : -Infinity; if (by[k] === undefined || fw >= by[k]) { by[k] = fw; delete out[k].pay; delete out[k].lvl; if (g.pay === true) out[k].pay = true; if (typeof g.lvl === 'number' && fin(g.lvl)) out[k].lvl = g.lvl; }   // 1.6.0: a grant's own terms
     });
@@ -4840,8 +4846,8 @@ function grantHeirs(sys, vals, ids, seed, withSeed, W) {
         vals[fid].forEach(function(r) {
             if (!isObj(r) || r.hid === 1 || typeof r.gr !== 'string' || typeof r.defId !== 'string') return;
             var rid = rowIdOf(r), going = ids[r.gr] === 1 || (withSeed && seed[rid] === 1); if (!going) return;
-            var k = fid + '|' + r.defId, heir = null, hw = null;
-            fids.forEach(function(f2) { vals[f2].forEach(function(x) { var xid = rowIdOf(x); if (heir || !isObj(x) || x.hid === 1 || !xid || xid === rid || xid === r.gr || ids[xid] === 1 || seed[xid] === 1) return; var w = wantOf(x, f2, k); if (w && !filled(xid, fid, r.defId)) { heir = x; hw = w; } }); });
+            var k = fid + '|' + r.defId, kS = grantSpecOf(r) ? k + '|' + grantSpecOf(r) : k, heir = null, hw = null;   // 1.6.0 Specialties: a row named for its grant's specifier passes to a grant of the same specifier
+            fids.forEach(function(f2) { vals[f2].forEach(function(x) { var xid = rowIdOf(x); if (heir || !isObj(x) || x.hid === 1 || !xid || xid === rid || xid === r.gr || ids[xid] === 1 || seed[xid] === 1) return; var w = wantOf(x, f2, kS) || (kS !== k ? wantOf(x, f2, k) : null); if (w && !filled(xid, fid, r.defId)) { heir = x; hw = w; } }); });
             if (!heir) return;
             r.gr = rowIdOf(heir); var tf = fieldById(sys, fid); if (!(tf && isObj(tf.list) && tf.list.noQty)) r.qty = clampNum(hw.qty, 1, LIMITS.maxQty);
             grantTermsOn(sys, fid, r, hw, null);   // 1.6.0: held now by the heir's grant, on its terms: Pays back as it says, and its level where it names one (else the row keeps its own)
@@ -4863,13 +4869,14 @@ function grantHeirs(sys, vals, ids, seed, withSeed, W) {
 function grantAdd(sys, W, g, qty, rid, ctx, depth) {
     var ent = itemDef(sys, g.entry), fromLib = false; if (!ent) { ent = libFind(g.entry); fromLib = isObj(ent); } if (!isObj(ent)) return null;   // an entry that is gone grants nothing
     var tf = fieldById(sys, g.list), sp = tf && isObj(tf.list) ? tf.list : null, L = W.get(g.list); if (!L) return null;
-    var hd = grantRaises(sp) ? grantHeld(L, g.entry) : null; if (hd) { if (typeof hd.gr !== 'string') grantBack(sys, W, g.list, hd, g, rid, ctx); return null; }   // 1.6.0 (a builder audit, the core's rule: the higher, with no double): an entry its list holds already is raised to the grant's level and marked as backed by it, never doubled; a row another row granted is left to it (grantHeirs)
-    if (sp && sp.noQty && !sp.multi && L.some(function(r) { return isObj(r) && r.defId === g.entry && r.hid !== 1 && typeof r.opn !== 'string'; })) return null;
-    if (g.once === true && L.some(function(r) { return isObj(r) && r.defId === g.entry && r.hid !== 1 && typeof r.opn !== 'string'; })) return null;   // 1.6.0 (CORE gap 15): once a character, whatever row holds it
+    var hd = grantRaises(sp) ? grantHeld(L, g.entry, g) : null; if (hd) { if (typeof hd.gr !== 'string') grantBack(sys, W, g.list, hd, g, rid, ctx); return null; }   // 1.6.0 (a builder audit, the core's rule: the higher, with no double): an entry its list holds already is raised to the grant's level and marked as backed by it, never doubled; a row another row granted is left to it (grantHeirs)
+    if (sp && sp.noQty && !sp.multi && L.some(function(r) { return isObj(r) && r.defId === g.entry && r.hid !== 1 && typeof r.opn !== 'string' && grantSpecIs(r, g); })) return null;
+    if (g.once === true && L.some(function(r) { return isObj(r) && r.defId === g.entry && r.hid !== 1 && typeof r.opn !== 'string' && grantSpecIs(r, g); })) return null;   // 1.6.0 (CORE gap 15): once a character, whatever row holds it
     if (L.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return { ok: false, reason: 'value', msg: 'No room on ' + (tf.label || 'that list') + ' for ' + (ent.name || 'what it grants') + '.' };
     var id = uid('w_'); while (L.some(function(r) { return rowIdOf(r) === id; })) id = uid('w_');
     var row = { id: id, defId: g.entry, qty: sp && sp.noQty ? 1 : clampNum(qty, 1, LIMITS.maxQty), gr: rid };
     if (g.pay === true) row.gp = 1;   // 1.6.0: Pays back (Row.paysback)
+    if (typeof g.spec === 'string' && specSquash(g.spec)) row.ov = { name: cutText((ent.name || 'Item') + ' (' + g.spec + ')', LIMITS.itemName) };   // 1.6.0 Specialties: named for its specifier, as Keen Sense (Smell)
     if (ctx.mk) row.mk = 1;
     if (sp && isObj(sp.lvl)) row.lvl = lvlClamp(sp.lvl, typeof g.lvl === 'number' && fin(g.lvl) ? g.lvl : typeof ent.lvl === 'number' ? ent.lvl : sp.lvl.def);   // 1.6.0: at its grant's level where it names one
     startStamp(sp, row);   // 1.6.0: Keeps the starting level
@@ -4885,8 +4892,8 @@ function grantAdd(sys, W, g, qty, rid, ctx, depth) {
 // already, where the list takes the higher: a list with no quantity that holds each entry once (always), or a list ticked A grant raises a held
 // row (grantRaise). The held row is the first of the entry that is neither kept from its player nor opened, one of its own before a granted one
 function grantRaises(sp) { return isObj(sp) && ((sp.noQty === true && !sp.multi) || sp.grantRaise === true); }
-function grantHeld(L, entry) {
-    var any = null; for (var i = 0; i < L.length; i++) { var r = L[i]; if (!isObj(r) || r.defId !== entry || r.hid === 1 || typeof r.opn === 'string') continue; if (typeof r.gr !== 'string') return r; if (!any) any = r; }
+function grantHeld(L, entry, g) {   // g (1.6.0 Specialties): the grant, so a row of another specifier is not the one it holds
+    var any = null; for (var i = 0; i < L.length; i++) { var r = L[i]; if (!isObj(r) || r.defId !== entry || r.hid === 1 || typeof r.opn === 'string' || (g && !grantSpecIs(r, g))) continue; if (typeof r.gr !== 'string') return r; if (!any) any = r; }
     return any;
 }
 // the level a grant w holds its entry at: its own, else the entry's, else the list's, held to the list's rules; none where the list has no level
@@ -4939,7 +4946,7 @@ function grantReback(sys, W, rid, ctx) {
     Object.keys(want).forEach(function(k) {
         var w = want[k], L = W.get(w.list), tf = fieldById(sys, w.list), sp = tf && isObj(tf.list) ? tf.list : null; if (!L || !grantRaises(sp)) return;
         if (L.some(function(r) { return isObj(r) && (r.gr === rid || r.gb === rid) && r.defId === w.entry && r.hid !== 1; })) return;
-        var hd = grantHeld(L, w.entry); if (hd && typeof hd.gr !== 'string') grantBack(sys, W, w.list, hd, w, rid, ctx);
+        var hd = grantHeld(L, w.entry, w); if (hd && typeof hd.gr !== 'string') grantBack(sys, W, w.list, hd, w, rid, ctx);
     });
 }
 // what was raised, in words: "Acute Sense raised to 4 by Amulet.", a granting row players may not see said as another row
@@ -4952,12 +4959,16 @@ function grantRaisedSays(sys, W, raised) {
 }
 // A granting row's grants moved from what they held (w0) to what they hold now (w1), each entry on each list: rows granted where none were,
 // a quantity moved by the difference, rows taken out (with what they granted) where it holds none now
+// 1.6.0 Specialties: a granted row's specifier, as its name says it (Keen Sense (Smell) reads smell), and whether a row is one a grant would
+// make: any row where the grant names none, else one of that specifier
+function grantSpecOf(r) { var nm = isObj(r) && isObj(r.ov) && typeof r.ov.name === 'string' ? r.ov.name : '', np = nm ? specNameParts(nm) : null; return nm ? (np ? np.s : specSquash(nm)) : ''; }
+function grantSpecIs(r, g) { var gs = isObj(g) && typeof g.spec === 'string' ? specSquash(g.spec) : ''; return !gs || grantSpecOf(r) === gs; }
 function grantMove(sys, W, rid, w0, w1, ctx, depth) {
     var keys = Object.keys(w0).concat(Object.keys(w1).filter(function(k) { return !w0[k]; }));
     for (var i = 0; i < keys.length; i++) {
         var k = keys[i], a = w0[k] ? w0[k].qty : 0, b = w1[k] ? w1[k].qty : 0, g = w1[k] || w0[k], tm = grantTermsMoved(w0[k], w1[k]); if (a === b && !tm) continue;
         var L = W.get(g.list); if (!L) continue;
-        var mine = L.filter(function(r) { return isObj(r) && r.gr === rid && r.defId === g.entry && r.hid !== 1; });
+        var mine = L.filter(function(r) { return isObj(r) && r.gr === rid && r.defId === g.entry && r.hid !== 1 && grantSpecIs(r, g); });
         if (tm && mine.length) { mine.forEach(function(r) { grantTermsOn(sys, g.list, r, w1[k], w0[k]); }); W.touched[g.list] = 1; }   // 1.6.0: a grant's terms that moved with its granter's level
         var bk = mine.length ? null : L.filter(function(r) { return isObj(r) && r.gb === rid && r.defId === g.entry && r.hid !== 1; })[0];   // 1.6.0 (a builder audit): a row of its own this grant backs
         if (bk) { if (b === 0) { var vB = map(); itemListIds(sys).forEach(function(fid) { var LB = W.get(fid); if (LB) vB[fid] = LB; }); grantUnback(sys, vB, g.list, bk, function() { return false; }); } else grantRelevel(sys, g.list, bk, w1[k], ctx); W.touched[g.list] = 1; continue; }   // its grant gone: to another that grants it, else back to its own level; still held: at the higher of its own level and its grant's
@@ -5948,7 +5959,8 @@ function onceOf(spec, items, inPlay) {
     items.forEach(function(it, i) {
         if (!isObj(it) || !isObj(it.r) || it.r.hid === 1 || (typeof inPlay === 'function' && !inPlay(it, i))) return;
         var g = rowStat(spec, it.d, o.by); if (typeof g !== 'number' || !isFinite(g) || g === 0) return;
-        var gk = String(g); if (!by[gk]) { by[gk] = []; keys.push(gk); } by[gk].push(i);
+        var gk = String(g); if (isObj(spec.specs)) { var oi = specInfo(spec, it.d, (isObj(it.r.ov) && typeof it.r.ov.name === 'string' && it.r.ov.name.trim()) || (it.r.lnk === 1 && it.r.ag === 1) ? '\u0001' : ''); gk += '|' + (oi ? oi.s : ''); }   // 1.6.0 Specialties: by group and specialty
+        if (!by[gk]) { by[gk] = []; keys.push(gk); } by[gk].push(i);
     });
     var rk = function(i) { return onceNum(o.rank === 'lvl' ? rowLvl(spec, items[i].r, items[i].d) : rowStat(spec, items[i].d, o.rank)); }, fr = function(i) { return o.free ? onceNum(rowStat(spec, items[i].d, o.free)) : 0; };
     keys.forEach(function(gk) {
@@ -6874,13 +6886,13 @@ function rollSwitchesAll(sys, char) {
 // (a target with a key only where the row's entry has that key; one with a roll only where ref.i is that list's roll of that label, read in the
 // view handed in, so a player's index reads their own list). all: rollSwitchesAll's answer, else worked out here
 function rollSwitches(sys, char, ref, all) {
-    if (!isObj(ref)) return []; var A = Array.isArray(all) ? all : rollSwitchesAll(sys, char), rk = null;
-    if (typeof ref.l === 'string') { if (typeof ref.row !== 'string' || !isObj(char) || !isObj(char.values) || !hasOwn(char.values, ref.l) || !Array.isArray(char.values[ref.l])) return []; var rw = null; char.values[ref.l].forEach(function(r) { if (isObj(r) && r.id === ref.row) rw = r; }); if (!rw) return []; var rdk = rowDef(sys, rw); rk = rdk && isObj(rdk.def) && typeof rdk.def.key === 'string' ? lower(rdk.def.key) : ''; }
+    if (!isObj(ref)) return []; var A = Array.isArray(all) ? all : rollSwitchesAll(sys, char), rk = null, rwS = null;
+    if (typeof ref.l === 'string') { if (typeof ref.row !== 'string' || !isObj(char) || !isObj(char.values) || !hasOwn(char.values, ref.l) || !Array.isArray(char.values[ref.l])) return []; var rw = null; char.values[ref.l].forEach(function(r) { if (isObj(r) && r.id === ref.row) rw = r; }); if (!rw) return []; var rdk = rowDef(sys, rw); rk = rdk && isObj(rdk.def) && typeof rdk.def.key === 'string' ? lower(rdk.def.key) : ''; var lfS = fieldById(sys, ref.l); if (lfS && isObj(lfS.list) && isObj(lfS.list.specs) && rdk && isObj(rdk.def)) rwS = { sp: lfS.list, d: rdk.def, b: specBase(sys, rw, rdk.def) }; }   // 1.6.0 Specialties: a bonus aimed at a key this row means
     return A.filter(function(w) { return w.to.some(function(t) {
         if (!isObj(t)) return false;
         if (typeof ref.f === 'string') return t.f === ref.f;
         if (typeof ref.r === 'string') return t.r === ref.r;
-        if (typeof ref.l === 'string') return t.l === ref.l && (typeof t.key !== 'string' || (!!rk && lower(t.key) === rk)) && (typeof t.roll !== 'string' || swRollIs(sys, ref, t.roll));
+        if (typeof ref.l === 'string') return t.l === ref.l && (typeof t.key !== 'string' || (!!rk && lower(t.key) === rk) || (!!rwS && specMeans(rwS.sp, rwS.d, rwS.b, t.key))) && (typeof t.roll !== 'string' || swRollIs(sys, ref, t.roll));
         return false;
     }); });
 }
@@ -6930,7 +6942,7 @@ function rollMods(vars, names) {
 // Round two (the core's answers and the campaign build's): a parent may be named by a choice stat (of) or by a key Parent__Spec, and a copy
 // held again under a name its player wrote takes that name as its specialty
 var SPEC_REFS = 4;   // the references one roll's card names at most
-function specSquash(s) { return typeof s === 'string' ? s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '') : ''; }
+function specSquash(s) { return typeof s === 'string' ? s.normalize('NFD').replace(/\p{M}+/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '') : ''; }   // accents folded too, so a name written TerasKasi finds a row named with its accents
 function specNameParts(name) {
     var t = typeof name === 'string' ? name.trim() : '', m = /^(.*?)\s*\(([^()]*)\)$/.exec(t) || /^([^:]+):\s*(.+)$/.exec(t);
     if (!m) return null; var p = specSquash(m[1]), s = specSquash(m[2]); return p && s ? { p: p, s: s } : null;
@@ -6950,6 +6962,23 @@ function specInfo(spec, d, base) {
     else if (of && of.length) s = key && p.indexOf(specSquash(key)) < 0 ? specSquash(key) : p.indexOf(n) < 0 ? n : '';
     else if (typeof base === 'string' && base && specSquash(base) !== n && p.indexOf(n) < 0) s = n;
     return p.length && p[0] ? { p: p, s: s, n: n } : null;
+}
+// Round three (the builder audit): the base name specInfo is handed for a row, from the entry it was taken from where that is known (rowDef's
+// base), else a mark that its name is its own where it carries one (an override, or an owner's copy held again), else none
+function specBase(sys, r, d) {
+    var rd = isObj(r) ? rowDef(sys, r) : null; if (rd && isObj(rd.base) && rd.base !== (isObj(d) ? d : rd.def) && typeof rd.base.name === 'string') return rd.base.name;
+    return isObj(r) && ((isObj(r.ov) && typeof r.ov.name === 'string' && r.ov.name.trim()) || (r.lnk === 1 && r.ag === 1)) ? '\u0001' : '';
+}
+// Whether a row means the entry key K: its entry's key is K; or, on a list with Specialties, K is Parent__Spec and the row is of that parent
+// with that specialty, or the row's own specialty or name is K. The one judge for what a rule aimed at a key finds: a change aimed at one
+// entry (the resolver's specSlots), roll bonuses (rollSwitches), needs (needsMet) and Rolls unheld entries (unheldJudge)
+function specMeans(spec, d, base, key) {
+    if (!isObj(d) || typeof key !== 'string' || !key) return false;
+    if (typeof d.key === 'string' && lower(d.key) === lower(key)) return true;
+    if (!isObj(spec) || !isObj(spec.specs)) return false;
+    var si = specInfo(spec, d, base); if (!si) return false;
+    var kc = key.indexOf('__'); if (kc > 0) return si.p.indexOf(specSquash(key.slice(0, kc))) >= 0 && !!si.s && si.s === specSquash(key.slice(kc + 2));
+    var kq = specSquash(key); return !!kq && (si.s === kq || si.n === kq);
 }
 // The words a roll's card says for one reference: as the row it read, with the Fallback taken where it read a sibling, or as the parent untrained
 function refSays(r) {
@@ -7187,7 +7216,9 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var rk = x.d && typeof x.d.key === 'string' && ITEM_KEY.test(x.d.key) ? x.d.key : x.virt && typeof x.id === 'string' && x.id.slice(0, 2) === 'k:' ? x.id.slice(2) : '';   // a row not carried: the key it was asked by
         var rs = fx && rk ? fx[rowModSlot(L.f.key, rk, c.key)] : null;   // 1.5.8: the changes aimed at this row's entry by its key
         if (rs && typeof out === 'number') out = limFx(out + rs.add, rs);
-        if (rs || vv) detail[canon] = { base: res.value, mods: rs ? rs.src : [], via: vv || [] };   // owed review F5a1#4: gmEffectNames sees a GM-only effect through a column
+        var rsX = fx && !x.virt && isObj(L.spec) && isObj(L.spec.specs) ? specSlots(L, x, c.key, rk) : null, rsM = rs ? rs.src : [];   // 1.6.0 Specialties: the changes aimed at a key this row means (its specialty, its name)
+        if (rsX) rsX.forEach(function(s2) { if (typeof out === 'number') out = limFx(out + s2.add, s2); rsM = rsM.concat(s2.src); });
+        if (rs || rsX || vv) detail[canon] = { base: res.value, mods: rsM, via: vv || [] };   // owed review F5a1#4: gmEffectNames sees a GM-only effect through a column
         cache[canon] = out; return out;
     }
     function totalOf(L, l, w, onlyOn) {   // L.count | L.qty | L.paid | L.<stat> | L.<col> (L.on.* over the rows switched on): a stat and paid per unit × qty, a column summed (true counts 1); the first row error wins
@@ -7285,18 +7316,19 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     // specialty is the key (a copy held again, a row of the character's own), else as before (findRow), its card saying untrained
     function specVal(L, l, pk, sk, w, name) {
         var three = sk === null, nw = w === 'lvl' || w === 'qty' || w === 'paid' || !!(L.st[w] && L.st[w].kind !== 'pick') || !!L.cl[w] || !!(L.ct && L.ct[w]);
-        if (!nw && !(three && (w === 'on' || w === 'has' || L.st[w]))) return undefined;
+        if (!nw && !(three ? (w === 'on' || w === 'has' || L.st[w]) : w === 'has')) return undefined;   // round three: <List>.<Parent>.<Spec>.has, whether that specialty is held
         if (l in cache) return cache[l];   // a loop through it is caught on the column it reads (colVal's own chain)
         var sp = L.spec.specs, pq = specSquash(pk), sq = three ? '' : specSquash(sk), cats = L.spec && Array.isArray(L.spec.cats) ? L.spec.cats : null, hit = null, near = null, alt = null, num = function(v) { return v === true ? 1 : typeof v === 'number' && fin(v) ? v : 0; };
         for (var i = 0; i < L.rows.length; i++) {
             var x = L.rows[i], d = x.d; if (!isObj(d) || (d.vis === 'gm' && !(gmKeyed(L, pk) && (!cats || catIn(cats, d.category))))) continue;
-            var rd = rowDef(sys, x.r), bn = rd && isObj(rd.base) && rd.base !== d && typeof rd.base.name === 'string' ? rd.base.name : '', si = specInfo(L.spec, d, bn), byKey = typeof d.key === 'string' && lower(d.key) === pk;
+            var bn = specBase(sys, x.r, d), si = specInfo(L.spec, d, bn), byKey = typeof d.key === 'string' && lower(d.key) === pk;
             if (three ? !(byKey || (si && (si.s === pq || si.n === pq))) : !(si && si.p.indexOf(pq) >= 0)) continue;
             var v = rowVal(L, x, w); if (isObj(v) && v.error) return v;
             var one = { x: x, v: num(v), raw: v, bn: bn };
             if (three) { if (byKey) { if (!hit || one.v > hit.v) hit = one; } else if (!alt || one.v > alt.v) alt = one; }
-            else if (sq && si.s === sq) { if (!hit || one.v > hit.v) hit = one; } else if (!near || one.v > near.v) near = one;
+            else if (sq && (si.s === sq || specCovers(L, x, sq))) { if (!hit || one.v > hit.v) hit = one; } else if (!near || one.v > near.v) near = one;
         }
+        if (!three && w === 'has') { cache[l] = !!hit; return cache[l]; }   // held or covered, never by a sibling or untrained
         var c = hit ? 1 : (three ? alt : near) ? (three ? 1 : 2) : 3, use = hit || (three ? alt : near), fv = 0, uw = w;
         if (c === 2 && sp.fall) { var fp = findRow(L, pk), fr = rowVal(L, fp && isObj(fp.d) ? fp : near.x, lower(sp.fall)); if (isObj(fr) && fr.error) return fr; fv = num(fr); }
         if (c === 3) { var px = findRow(L, pk); if (sp.dflt && !three) uw = lower(sp.dflt); var pv = rowVal(L, px, uw); if (isObj(pv) && pv.error) return pv; use = { x: px, v: num(pv), raw: pv }; if (!px.virt) c = 1; }
@@ -7305,6 +7337,18 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var nm0 = typeof name === 'string' && name ? name : l, pn = nm0.split('.')[1] || pk, un = isObj(ux.d) && typeof ux.d.name === 'string' && ux.d.name ? ux.d.name : pn;
         if (nw && (!three || (c === 3 && ux.virt) || use === alt || (use.bn && specSquash(use.bn) !== specSquash(un)))) refRec[l] = [{ n: nm0, c: c, s: un, v: fv, gm: L.f.vis === 'gm' || (isObj(ux.d) && ux.d.vis === 'gm') }];   // a three-part name is said only where it read a row by its name, or none
         cache[l] = out; return out;
+    }
+    // Round three: whether a row covers a subject through the list's Covers stat, a number with value names read as a set (as has() reads one)
+    function specCovers(L, x, sq) {
+        var ck = L.spec.specs.cover, st = ck ? L.st[lower(ck)] : null, at = -1; if (!st || !Array.isArray(st.labels)) return false;
+        st.labels.forEach(function(lb, i) { if (at < 0 && specSquash(lb) === sq) at = i; }); if (at < 0 || at >= OVER_PLACES) return false;
+        return ((overSet(rowStat(L.spec, x.d, st.key)) >> at) & 1) === 1;
+    }
+    // ... and the changes aimed at another key this row means (specMeans) on a list with Specialties, each slot once
+    function specSlots(L, x, col, rk) {
+        if (!L.slotK) { L.slotK = []; var pre = lower(L.f.key) + '#k:'; Object.keys(fx).forEach(function(k) { if (k.indexOf(pre) === 0) { var r = k.slice(pre.length), dt = r.lastIndexOf('.'); if (dt > 0) L.slotK.push({ k: k, key: r.slice(0, dt), col: r.slice(dt + 1) }); } }); }
+        var out = [], bn = null; L.slotK.forEach(function(s) { if (s.col !== lower(col) || (rk && s.key === lower(rk))) return; if (bn === null) bn = specBase(sys, x.r, x.d); if (specMeans(L.spec, x.d, bn, s.key)) out.push(fx[s.k]); });
+        return out.length ? out : null;
     }
     // ... and the references the names a formula read went through, each once, SPEC_REFS at most (L and x: a row's own names, under its key)
     function refUp(names, L, x) {
@@ -7792,7 +7836,7 @@ function validateSystem(sys, F) {
         if (sg.length === 2) return wordTarget(lf, sg[1], true);
         var on4 = sg.length === 4 && sg[1] === 'on', ex = on4 ? sg[2] : sg[1];   // 1.5.4: L.max.<w>, L.min.<w>, L.on.max.<w>, L.on.min.<w> (the resolver's listName)
         if (ex === 'max' || ex === 'min') { if (sg.length !== (on4 ? 4 : 3)) return null; var te = extTarget(lf, sg[sg.length - 1]); if (te && on4) te.onTotal = true; return te; }
-        if (sg.length === 4) { if (on4) return null; if (!(isObj(lf.list) && isObj(lf.list.specs))) return null; var spW = listWords(lf)[sg[3]], tsp = spW === 'stat' || spW === 'col' || spW === 'ctr' || sg[3] === 'lvl' || sg[3] === 'qty' || sg[3] === 'paid' ? wordTarget(lf, sg[3], false) : null; if (!tsp) return null; tsp.addr = sg[1]; tsp.spec = sg[2]; if (gmKsV[lower(lf.key)] && gmKsV[lower(lf.key)][sg[1]] === 1) tsp.gmKey = true; return tsp; }   // 1.6.0 Specialties: <List>.<Parent>.<Spec>.<w>, read as an addressed row of the parent
+        if (sg.length === 4) { if (on4) return null; if (!(isObj(lf.list) && isObj(lf.list.specs))) return null; var spW = listWords(lf)[sg[3]], tsp = spW === 'stat' || spW === 'col' || spW === 'ctr' || sg[3] === 'has' || sg[3] === 'lvl' || sg[3] === 'qty' || sg[3] === 'paid' ? wordTarget(lf, sg[3], false) : null; if (!tsp) return null; tsp.addr = sg[1]; tsp.spec = sg[2]; if (gmKsV[lower(lf.key)] && gmKsV[lower(lf.key)][sg[1]] === 1) tsp.gmKey = true; return tsp; }   // 1.6.0 Specialties: <List>.<Parent>.<Spec>.<w>, read as an addressed row of the parent
         if (sg[1] === 'on') { var to = wordTarget(lf, sg[2], true); if (to) to.onTotal = true; return to; }
         var ta = wordTarget(lf, sg[2], false); if (!ta) return null;
         ta.addr = sg[1]; if (gmKsV[lower(lf.key)] && gmKsV[lower(lf.key)][sg[1]] === 1) ta.gmKey = true;
@@ -8937,12 +8981,12 @@ function chosenNext(rows, turn, pick) {
 }
 var API = { setGateEngine: setGateEngine, fxGate: fxGate, modsIfOk: modsIfOk, rowAsks: rowAsks, readsRow: readsRow, allRowOk: allRowOk, blowCripN: blowCripN, BLAST_EACH: BLAST_EACH, withBlow: withBlow, blowCripOf: blowCripOf, BLOW_NAMES: BLOW_NAMES, RESIST_OR: RESIST_OR, unheldJudge: unheldJudge, GROUP_MAX: GROUP_MAX, rollTargetOf: rollTargetOf, groupRolls: groupRolls, groupWeakest: groupWeakest, dmgAdOf: dmgAdOf, dmgDiceRead: dmgDiceRead, turnCounters: turnCounters, cleanCharLink: cleanCharLink, LINK_KINDS: LINK_KINDS, LINK_NOT: LINK_NOT, cleanLinks: cleanLinks, linkByKey: linkByKey, linkBare: linkBare, setLinkSource: setLinkSource, cleanCharLinks: cleanCharLinks, linkNamesIn: linkNamesIn, linkFigs: linkFigs, cleanLk: cleanLk, linkSet: linkSet, linkedFrom: linkedFrom, linksDrop: linksDrop, withAttempt: withAttempt, bigOf: bigOf, critRange: critRange, cleanTier: cleanTier, grantWaits: grantWaits, grantRaises: grantRaises, cleanGrants: cleanGrants, hideGrants: hideGrants, grantWant: grantWant, grantsKept: grantsKept, GRANT_MAX: GRANT_MAX, rangeBandOf: rangeBandOf, partsRoom: partsRoom, partsCapSays: partsCapSays, fitIfOk: fitIfOk, partFitSays: partFitSays, partFitEntry: partFitEntry, upkeepEach: upkeepEach, PART_CAPS: PART_CAPS, PART_DEPTH: PART_DEPTH, partDepth: partDepth, partsTree: partsTree, partHostOk: partHostOk, partsKept: partsKept, partsPut: partsPut, partsSrc: partsSrc, partHost: partHost, partsOf: partsOf, capsAt: capsAt, droppedWords: droppedWords, setOf: setOf, setsOf: setsOf, statName: statName, placeVal: placeVal, rollFigOf: rollFigOf, rollShowOf: rollShowOf, cleanBadges: cleanBadges, BADGE_MAX: BADGE_MAX, cleanSheetRev: cleanSheetRev, sheetRevOf: sheetRevOf, charStale: charStale, staleOf: staleOf, revProposal: revProposal, cleanAlt: cleanAlt, ALT_MAX: ALT_MAX, againFold: againFold, cleanEnv: cleanEnv, ENV_BANDS: ENV_BANDS, envBands: envBands, envWorst: envWorst, cleanRollSw: cleanRollSw, rollSwitchesAll: rollSwitchesAll, rollSwitches: rollSwitches, swJudge: swJudge, DATE_NAMES: DATE_NAMES, setDateSource: setDateSource, dateReads: dateReads, VERSION: VERSION, overSays: overSays, overNames: overNames, overSet: overSet, onClash: onClash, rowTimers: rowTimers, cleanRowTimer: cleanRowTimer, readsOn: readsOn, cleanRowGone: cleanRowGone, cleanCross: cleanCross, crossings: crossings, crossSteps: crossSteps, postureFx: postureFx, withOnSelf: withOnSelf, tokOnOk: tokOnOk, mapYardPx: mapYardPx, loadFits: loadFits, DIE_NAMES: DIE_NAMES, cleanDie: cleanDie, dieOf: dieOf, rollDie: rollDie, tradeOfferable: tradeOfferable, tradeInto: tradeInto, moneyBoxes: moneyBoxes, moneyHeld: moneyHeld, moneyMove: moneyMove, rowOpMoney: rowOpMoney, ROW_LOOK: ROW_LOOK, WORK_KINDS: WORK_KINDS, WORK_BY: WORK_BY, cleanRowLook: cleanRowLook, rowLookShown: rowLookShown, rowLookShade: rowLookShade, finishWords: finishWords, workWords: workWords, cleanTradeOffer: cleanTradeOffer, tradeApply: tradeApply, TRADE_LINES: TRADE_LINES, cleanDamageRules: cleanDamageRules, damageStep: damageStep, cleanCharDamage: cleanCharDamage, DMG_CONDS: DMG_CONDS, cleanPlaceCats: cleanPlaceCats, catSplits: catSplits, catHome: catHome, catPlace: catPlace, cleanFieldUnit: cleanFieldUnit, metricOf: metricOf, unitTail: unitTail, readMeasure: readMeasure, heightWords: heightWords, MEASURES: MEASURES, measureWords: measureWords, unitWords: unitWords, unitHead: unitHead, listFig: listFig, listWords: listWords, unitOf: unitOf, figText: figText, figFmt: figFmt, weightWords: weightWords, textWords: textWords, measureStore: measureStore, rollNeedsOk: rollNeedsOk, rollNeedsSays: rollNeedsSays, onGroup: onGroup, onlyOne: onlyOne, onHeld: onHeld, cleanNeeds: cleanNeeds, hideNeeds: hideNeeds, needsMet: needsMet, needsSays: needsSays, needRule: needRule, ruleTrue: ruleTrue, setRuleJudge: setRuleJudge, cleanBudgets: cleanBudgets, budgetsOf: budgetsOf, budgetWatch: budgetWatch, budgetSays: budgetSays, cleanDesc: cleanDesc, cleanLvls: cleanLvls, EVERY_UNITS: EVERY_UNITS, cleanEvery: cleanEvery, FIGHT_UNITS: FIGHT_UNITS, cleanInFight: cleanInFight, timeRuleRun: timeRuleRun, ruleRunCtx: ruleRunCtx, needsHeld: needsHeld, chainsShallow: chainsShallow, cleanFace: cleanFace, charForView: charForView, mapGridOf: mapGridOf, tokenCell: tokenCell, shapeStandIn: shapeStandIn, cleanFrame: cleanFrame, openChar: openChar, newCharRules: newCharRules, charClash: charClash, coreOf: coreOf, setLibraryFind: setLibraryFind, statKeys: statKeys, statPicks: statPicks, cleanIcon: cleanIcon, droppedCounts: droppedCounts, parseLasts: parseLasts, lastsSecs: lastsSecs, roundSecs: roundSecs, fxLeftNow: fxLeftNow, fxTick: fxTick, mapCellScale: mapCellScale, moveAllowCells: moveAllowCells, dueActs: dueActs, gridCells: gridCells, cleanTurn: cleanTurn, TURN_UNITS: TURN_UNITS, TIME_WORDS: TIME_WORDS, roundActs: roundActs, combatChars: combatChars, applyRound: applyRound, thenChanges: thenChanges, thenCrit: thenCrit, withRollCrit: withRollCrit, THEN_WHEN: THEN_WHEN, dmgTypeOf: dmgTypeOf, rollMods: rollMods, openSync: openSync, cleanOpens: cleanOpens, showsIf: showsIf, rowRollNames: rowRollNames, applyAct: applyAct, applyScope: applyScope, cleanCharApply: cleanCharApply, APPLY_KINDS: APPLY_KINDS, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, cleanNewPlayers: cleanNewPlayers, newPlayerRules: newPlayerRules, waitingTokensOf: waitingTokensOf, waitingNeed: waitingNeed, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, cleanListSpec: cleanListSpec, STAT_KEY: STAT_KEY, statKey: statKey, cleanEntryStats: cleanEntryStats, rowStats: rowStats, rowStat: rowStat, plusText: plusText, rowPaid: rowPaid, cleanListRules: cleanListRules, cleanOv: cleanOv, mergeOv: mergeOv, itemReach: itemReach, OV_LOCK: OV_LOCK, lvlClamp: lvlClamp, rowLvl: rowLvl, rowOn: rowOn, cleanItemKey: cleanItemKey, ROW_WORDS: ROW_WORDS, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, libSnaps: libSnaps, carriedBy: carriedBy, cleanItemMods: cleanItemMods, fieldKinds: fieldKinds, unseenMods: unseenMods, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, tokenEffects: tokenEffects, autoEffectsOn: autoEffectsOn, tokenOwnEffects: tokenOwnEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, postureRangedOf: postureRangedOf, cleanPostures: cleanPostures, postureList: postureList, ownPostures: ownPostures, postureAt: postureAt, postureSeven: postureSeven, stanceCtx: stanceCtx, tokenCtx: tokenCtx, setAimSource: setAimSource, bearingTo: bearingTo, aimsOf: aimsOf, facingNow: facingNow, withRound: withRound, withCross: withCross, rangeCtx: rangeCtx, withRange: withRange, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, ROUNDS: ROUNDS, ROUND_TO: ROUND_TO, roundBy: roundBy, roundSays: roundSays, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, cleanLightRules: cleanLightRules, lightName: lightName, lightPresets: lightPresets, LIGHT_UNITS: LIGHT_UNITS, cleanRangeRules: cleanRangeRules, rangeModOf: rangeModOf, rangeDist: rangeDist, rangeOf: rangeOf, RANGE_UNITS: RANGE_UNITS, cleanSenses: cleanSenses, secretFieldIds: secretFieldIds, gmViewFields: gmViewFields, coverTier: coverTier, coverOutcome: coverOutcome, coverDamage: coverDamage, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, orderByInit: orderByInit, cleanInitRules: cleanInitRules, cleanHeightRules: cleanHeightRules, heightModOf: heightModOf, heightOf: heightOf, HEIGHT_UNITS: HEIGHT_UNITS, initTie: initTie, sideFirst: sideFirst, orderBySide: orderBySide, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, cleanCharUpload: cleanCharUpload, cleanUploads: cleanUploads, fillMaking: fillMaking, applyProposal: applyProposal, statAsk: statAsk, readerKit: readerKit, registerReader: registerReader, dropReader: dropReader, readers: readers, readerById: readerById, readerFor: readerFor, fmtNum: fmtNum, suggest: suggest, lookRule: lookRule, cleanLooks: cleanLooks, applyStyle: applyStyle, cleanCharStyle: cleanCharStyle, lookOf: lookOf, lookFor: lookFor, loadSame: loadSame, loadMax: loadMax, cleanLd: cleanLd, chamberTakes: chamberTakes, chamberFits: chamberFits, chamberCap: chamberCap, chamberHolds: chamberHolds, chamberSays: chamberSays, cleanRd: cleanRd, CHAMBER_CAP: CHAMBER_CAP, thenMargin: thenMargin, onceOf: onceOf, cleanBlastRules: cleanBlastRules, BLAST_FALL: BLAST_FALL, cleanReach: cleanReach, cleanAffs: cleanAffs, affLastsSecs: affLastsSecs, AFF_UNITS: AFF_UNITS, chosenPicks: chosenPicks, chosenNext: chosenNext, BAR_COLORS: BAR_COLORS, BAR_SHOW_WORDS: BAR_SHOW_WORDS, cleanBars: cleanBars, cleanTokBars: cleanTokBars, tokenBarSpec: tokenBarSpec, tokenBarFigs: tokenBarFigs, cleanBarFigs: cleanBarFigs, barFill: barFill, barTip: barTip };
 Object.assign(API, { dmgMajorOf: dmgMajorOf });   // 1.6.0: A Major Wound where
-Object.assign(API, { specSquash: specSquash, specNameParts: specNameParts, specInfo: specInfo, refSays: refSays, rollRefs: rollRefs, SPEC_REFS: SPEC_REFS });   // 1.6.0 Specialties
+Object.assign(API, { specSquash: specSquash, specNameParts: specNameParts, specInfo: specInfo, specBase: specBase, specMeans: specMeans, grantSpecOf: grantSpecOf, refSays: refSays, rollRefs: rollRefs, SPEC_REFS: SPEC_REFS });   // 1.6.0 Specialties
 Object.assign(API, { figVeh: figVeh, linkFig: linkFig, figRead: figRead, figExpand: figExpand, LINK_FIGS: LINK_FIGS, stationsIn: stationsIn, setCrewSource: setCrewSource, crewFigs: crewFigs, cleanCk: cleanCk, cleanCharStn: cleanCharStn, groupByKey: groupByKey, stationOf: stationOf, crewParts: crewParts, LINK_STATIONS: LINK_STATIONS });   // 1.6.0 (CORE gap 16)
 Object.assign(API, { upkeepLines: upkeepLines, upkeepWords: upkeepWords });   // 205 follow-up (3): an upkeep's payments said
 if (typeof window !== 'undefined') window.wpSystemCore = API;
 export { setGateEngine, fxGate, modsIfOk, rowAsks, readsRow, allRowOk, blowCripN, BLAST_EACH, withBlow, blowCripOf, BLOW_NAMES, RESIST_OR, unheldJudge, GROUP_MAX, rollTargetOf, groupRolls, groupWeakest, dmgAdOf, dmgDiceRead, turnCounters, cleanCharLink, LINK_KINDS, LINK_NOT, cleanLinks, linkByKey, linkBare, setLinkSource, cleanCharLinks, linkNamesIn, linkFigs, cleanLk, linkSet, linkedFrom, linksDrop, withAttempt, bigOf, critRange, cleanTier, grantWaits, grantRaises, cleanGrants, hideGrants, grantWant, grantsKept, GRANT_MAX, rangeBandOf, partsRoom, partsCapSays, fitIfOk, partFitSays, partFitEntry, upkeepEach, PART_CAPS, PART_DEPTH, partDepth, partsTree, partHostOk, partsKept, partsPut, partsSrc, partHost, partsOf, capsAt, droppedWords, setOf, setsOf, statName, placeVal, rollFigOf, rollShowOf, cleanBadges, BADGE_MAX, cleanSheetRev, sheetRevOf, charStale, staleOf, revProposal, cleanAlt, ALT_MAX, againFold, cleanEnv, ENV_BANDS, envBands, envWorst, cleanRollSw, rollSwitchesAll, rollSwitches, swJudge, DATE_NAMES, setDateSource, dateReads, VERSION, overSays, overNames, overSet, onClash, rowTimers, cleanRowTimer, readsOn, cleanRowGone, cleanCross, crossings, crossSteps, postureFx, withOnSelf, tokOnOk, mapYardPx, loadFits, DIE_NAMES, cleanDie, dieOf, rollDie, tradeOfferable, tradeInto, moneyBoxes, moneyHeld, moneyMove, rowOpMoney, ROW_LOOK, WORK_KINDS, WORK_BY, cleanRowLook, rowLookShown, rowLookShade, finishWords, workWords, cleanTradeOffer, tradeApply, TRADE_LINES, cleanDamageRules, damageStep, cleanCharDamage, DMG_CONDS, cleanPlaceCats, catSplits, catHome, catPlace, cleanFieldUnit, metricOf, unitTail, readMeasure, heightWords, MEASURES, measureWords, unitWords, unitHead, listFig, listWords, unitOf, figText, figFmt, weightWords, textWords, measureStore, rollNeedsOk, rollNeedsSays, onGroup, onlyOne, onHeld, cleanNeeds, hideNeeds, needsMet, needsSays, needRule, ruleTrue, setRuleJudge, cleanBudgets, budgetsOf, budgetWatch, budgetSays, cleanDesc, cleanLvls, EVERY_UNITS, cleanEvery, FIGHT_UNITS, cleanInFight, timeRuleRun, ruleRunCtx, needsHeld, chainsShallow, cleanFace, charForView, mapGridOf, tokenCell, shapeStandIn, cleanFrame, openChar, newCharRules, charClash, coreOf, setLibraryFind, statKeys, statPicks, cleanIcon, droppedCounts, parseLasts, lastsSecs, roundSecs, fxLeftNow, fxTick, mapCellScale, moveAllowCells, dueActs, gridCells, cleanTurn, TURN_UNITS, TIME_WORDS, roundActs, combatChars, applyRound, thenChanges, thenCrit, withRollCrit, THEN_WHEN, dmgTypeOf, rollMods, openSync, cleanOpens, showsIf, rowRollNames, applyAct, applyScope, cleanCharApply, APPLY_KINDS, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, cleanNewPlayers, newPlayerRules, waitingTokensOf, waitingNeed, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, plusText, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, libSnaps, carriedBy, cleanItemMods, fieldKinds, unseenMods, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, tokenEffects, autoEffectsOn, tokenOwnEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, postureRangedOf, cleanPostures, postureList, ownPostures, postureAt, postureSeven, stanceCtx, tokenCtx, setAimSource, bearingTo, aimsOf, facingNow, withRound, withCross, rangeCtx, withRange, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, ROUNDS, ROUND_TO, roundBy, roundSays, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, cleanLightRules, lightName, lightPresets, LIGHT_UNITS, cleanRangeRules, rangeModOf, rangeDist, rangeOf, RANGE_UNITS, cleanSenses, secretFieldIds, gmViewFields, coverTier, coverOutcome, coverDamage, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, orderByInit, cleanInitRules, cleanHeightRules, heightModOf, heightOf, HEIGHT_UNITS, initTie, sideFirst, orderBySide, validateSystem, charFor, applyEdit, autoLayout, cleanCharUpload, cleanUploads, fillMaking, applyProposal, statAsk, readerKit, registerReader, dropReader, readers, readerById, readerFor, fmtNum, suggest, lookRule, cleanLooks, applyStyle, cleanCharStyle, lookOf, lookFor, loadSame, loadMax, cleanLd, chamberTakes, chamberFits, chamberCap, chamberHolds, chamberSays, cleanRd, CHAMBER_CAP, thenMargin, onceOf, cleanBlastRules, BLAST_FALL, cleanReach, cleanAffs, affLastsSecs, AFF_UNITS, chosenPicks, chosenNext, BAR_COLORS, BAR_SHOW_WORDS, cleanBars, cleanTokBars, tokenBarSpec, tokenBarFigs, cleanBarFigs, barFill, barTip };
 export { figVeh, linkFig, figRead, figExpand, LINK_FIGS, stationsIn, setCrewSource, crewFigs, cleanCk, cleanCharStn, groupByKey, stationOf, crewParts, LINK_STATIONS, crewStation, groupLink, poolLeast, majPick, listRollRef, resistOrOk, rowKeptFrom };   // 1.6.0 (CORE gap 16)
-export { specSquash, specNameParts, specInfo, refSays, rollRefs, SPEC_REFS };   // 1.6.0 Specialties
+export { specBase, specMeans, grantSpecOf, specSquash, specNameParts, specInfo, refSays, rollRefs, SPEC_REFS };   // 1.6.0 Specialties
 export { dmgMajorOf };   // 1.6.0: A Major Wound where
 export { upkeepLines, upkeepWords };   // 205 follow-up (3): an upkeep's payments said

@@ -162,6 +162,14 @@ Systems, more
   the row with that specialty, whatever the row is called. Without one it
   reads the best row of Blade plus its Fallback, such as -2. With no row of
   Blade it reads Blade untrained. A roll's card says which one it read.
+- Specialties reads more ways a row says what it is. A parent may be a
+  choice stat or a key such as Blade__Longsword, and an entry held again
+  under a name its player wrote takes that name. A trait held again by
+  subject reads by it, as Traits.KeenSense.Smell.has, and Covers lets a
+  broad row count for each subject it holds. On such a list a need, a roll
+  bonus, a change aimed at one entry and Roll unheld find the row an
+  entry's key means, Counted once counts each subject apart, and a grant
+  may carry a specifier.
 - An attack can read its target's Size: the Range box's Target size reads
   names a number of the target's sheet, read as TargetSize.
 - A Major Wound's threshold may read the location hit, as Hit.<name>. A

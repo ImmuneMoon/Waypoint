@@ -2629,6 +2629,45 @@ pendingChecks.push((async () => {
         j([ok, plainFr.table, sum.sent, gmPick.sent, gmField.sent, unnamed.sent]));
 })());
 
+// 1.6.0 Specialties (the core handbook session's skill reference): a player's roll that reads a parent and a specialty, judged on the host — the
+// real roll-req branch with the real dicecore, formula engine and systemcore: the figure is worked out through the player's own view, the record
+// carries the case each reference used (refs) as its card says it, and a GM-only row neither counts nor is named; the GM's own roll asks the same
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'));
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); }).join('\n') + '\n';
+    const gmSys = Sx.cleanSystem({ v: 1, name: 'W', fields: [
+        { id: 'f_agi', key: 'Agility', label: 'Agility', kind: 'number', def: 10 },
+        { id: 'f_tal', key: 'Talents', label: 'Talents', kind: 'item-list', edit: 'owner', list: { cats: ['Talent'], noQty: true, multi: true, lvl: { label: 'Level', min: 0, max: 20, def: 1 }, stats: [{ key: 'fall', label: 'Fallback' }], cols: [{ key: 'Target', label: 'Target', formula: 'if(Row.has, Row.lvl + Agility, Agility - 5)' }], specs: { fall: 'fall' } } },
+        { id: 'f_wp', key: 'Arms', label: 'Arms', kind: 'item-list', edit: 'owner', list: { cats: ['Arm'], stats: [{ key: 'wsk', label: 'Skill', kind: 'pick', opts: [{ label: 'Saber', name: 'Talents.Blade.Saber.Target' }] }], cols: [{ key: 'Skill', label: 'Skill', formula: 'Row.wsk' }], rolls: [{ label: 'Hit', formula: '3d6 <= Row.Skill' }] } },
+        { id: 'f_hit', key: 'Hit', label: 'Hit', kind: 'formula', formula: 'Talents.Blade.Saber.Target + 0' }],
+        items: [{ id: 'i_blade', key: 'Blade', name: 'Blade', category: 'Talent', again: 'name', stats: { fall: -2 } }, { id: 'i_ghost', name: 'Blade (Saber)', category: 'Talent', vis: 'gm' }, { id: 'i_shadow', key: 'Shadow', name: 'Shadow', category: 'Talent', vis: 'gm', again: 'name' },
+            { id: 'i_sab', name: 'Sabre', category: 'Arm', stats: { wsk: 'Saber' } }], sheet: { sections: [] } }, { F: Fx, gmView: true });
+    const cm = (f, n) => Dx.composeModifier(f, n, Fx.parse).expr;
+    const run = m => {
+        const camp = { id: 'k', activeItemId: 'm1', system: gmSys, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_agi: 10,
+            f_tal: [{ id: 'w_1', defId: 'i_blade', qty: 1, lvl: 3, ov: { name: 'Blade (Longsword)' } }, { id: 'w_4', defId: 'i_ghost', qty: 1, lvl: 9 }, { id: 'w_3', defId: 'i_shadow', qty: 1, lvl: 4, ov: { name: 'Shadow (Step)' } }], f_wp: [{ id: 'w_9', defId: 'i_sab', qty: 1 }] } } }, items: { m1: { type: 'map', whiteboard: [] } } };
+        const net = { active: true, role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {} };
+        const out = { table: [], sent: [] };
+        const conn = { peer: 'pA', send(x) { packCheck(x); out.sent.push(JSON.parse(JSON.stringify(x))); } };
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) }, wpVtt: { on: () => true, rulesOn: () => true } };
+        const msg = Object.assign({ type: 'roll-req', rid: 'q1', charId: 'c_a' }, m);
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
+            msg, conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {});
+        return out;
+    };
+    const lr = run({ expr: cm('3d6 <= Row.Skill', 0), row: { f: 'f_wp', r: 'w_9', i: 0 }, label: 'Hit' }), fr = run({ expr: '3d6 + Hit', label: 'Hit' }), sh = run({ expr: 'd20 + Talents.Shadow.Step.Target' });
+    const SAB = [{ s: 'as Blade (Longsword) −2', c: 2 }], rk = o => o.table[0] || {};
+    check('1.6.0 Specialties on the host (roll-req, run for real): a player\'s weapon roll whose Skill reads Talents.Blade.Saber.Target through a choice stat is worked out through their own view, at their best Blade row less its Fallback (11), and its record says so (refs, as Blade (Longsword) -2); a formula field reading it alike; the GM-only row named Blade (Saber) counts for nothing and is named nowhere; a GM-only entry\'s specialty reads on their view as not carried (Agility - 5), never at the GM\'s row; the GM\'s own roll asks rollRefs as it asks rollMods',
+        lr.sent.length === 0 && lr.table.length === 1 && j(rk(lr).names) === j([{ name: 'Row.Skill', value: 11 }]) && j(rk(lr).refs) === j(SAB)
+        && fr.table.length === 1 && j(rk(fr).names) === j([{ name: 'Hit', value: 11 }]) && j(rk(fr).refs) === j(SAB)
+        && sh.table.length === 1 && j(rk(sh).names) === j([{ name: 'Talents.Shadow.Step.Target', value: 5 }]) && j(rk(sh).refs) === j([{ s: 'as Shadow, untrained', c: 3 }])
+        && !j([lr.table, fr.table, sh.table]).includes('Saber)') && !j(sh.table).includes('Step)') && j(Dx.cleanRoll(rk(lr)).refs) === j(SAB)
+        && src.includes('var rfR = SR.rollRefs(varsR, rec.names); if (rfR) rec.refs = rfR;') && src.includes('var rfQ = SQ.rollRefs(varsQ, recQ.names); if (rfQ) recQ.refs = rfQ;'),
+        j([lr, fr, sh]));
+})());
+
 // Range penalties R2 (docs/RANGE_PLAN.md 3): a player's roll and apply action read RangeMod and TargetDistance to their own pointer's target
 // as their copy holds it — the real roll-req and char-apply branches with the real rangeTo (sliced by its netcheck markers), systemcore,
 // formula engine and dicecore; never a target the GM hid, one their sight drops on a fogged map, one on another map, their own token or

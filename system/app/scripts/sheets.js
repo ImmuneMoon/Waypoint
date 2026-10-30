@@ -6628,6 +6628,11 @@ function refreshErrors() {
         else if (typeof fitIfOk === 'function' && !fitIfOk({ fields: clean.fields, items: clean.items, core: clean.core }, F(), cf, cf.list.parts.fitIf)) said = 'reads a GM-only value, here or through what it reads, so your players\u2019 sheets keep none of it and their parts are not judged by it. Yours are.';
         if (said) (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Fits where ' + said });
     });
+    draft.fields.forEach(function(f) {   // 1.6.0 Specialties, as the cleaner reads it: a part that names no stat or column of the list goes
+        if (!f || f.kind !== 'item-list' || !f.list || !f.list.specs || typeof f.list.specs !== 'object') return;
+        var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0], cs = cf && cf.list && cf.list.specs ? cf.list.specs : null; if (!cs) return;
+        [['by', 'Specialty from names no choice stat of this list'], ['fall', 'Fallback names no number stat or column of this list'], ['dflt', 'Untrained names no column of this list']].forEach(function(p) { var w = f.list.specs[p[0]]; if (typeof w === 'string' && w.trim() && !cs[p[0]]) (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: p[1] + ', so Save drops it.' }); });
+    });
     (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {   // 1.5.4: a roll's or an apply action's needs that Save cannot keep, as the cleaner reads it (the validator says the rest)
         if (!r || typeof r !== 'object' || typeof r.needs !== 'string' || !r.needs.trim()) return;
         var cr = (clean.rolls || []).filter(function(x) { return x && x.id === r.id; })[0]; if (cr && !cr.needs) (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'needs', message: 'This is no formula Save can keep, so Save drops it.' });
@@ -7572,6 +7577,20 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     fl.appendChild(checkLabel('sys-list-trade', sp.trade === true, 'Tradable', 'Rows of this list can be put on the table in a trade between two characters: gear and money, never skills'));   // 1.5.6 trading
     var miW = el('label', 'sys-check'), miI = el('input', 'field sys-list-modsif'); miI.type = 'text'; miI.value = typeof sp.modsIf === 'string' ? sp.modsIf : ''; miI.placeholder = 'always'; miI.spellcheck = false; miI.autocomplete = 'off'; miW.appendChild(document.createTextNode('Changes apply where ')); miW.appendChild(miI);   // 1.6.0 Changes apply where (the campaign build's ask)
     miW.title = 'A formula read with the character\u2019s own names and each row\u2019s own, such as not Droid or Row.over > 0. A row where it does not hold gives none of its changes. It reads the sheet before any item or effect changes it. Blank: always'; fl.appendChild(miW);
+    var spcOn = !!(sp.specs && typeof sp.specs === 'object' && !Array.isArray(sp.specs));   // 1.6.0 Specialties (the core handbook session's skill reference)
+    fl.appendChild(checkLabel('sys-list-specs', spcOn, 'Specialties', 'Each row is a specialty of a parent, as Blade (Longsword). A formula reads one as List.Parent.Specialty.Target: the row held, else the best row of that parent plus its Fallback, else the parent untrained'));
+    if (spcOn) {
+        var spO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }, spSt = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s.key === 'string' && s.key; }), spCl = (Array.isArray(sp.cols) ? sp.cols : []).filter(function(x) { return x && typeof x.key === 'string' && x.key; });
+        var sbW = el('label', 'sys-check'), sbS = el('select', 'sys-list-specby'); sbW.appendChild(document.createTextNode('Specialty from ')); sbS.appendChild(spO('', 'Its name', !sp.specs.by));
+        spSt.filter(function(s) { return s.kind === 'pick'; }).forEach(function(s) { sbS.appendChild(spO(s.key, s.label || s.key, sp.specs.by === s.key)); });
+        sbW.title = 'Where a row says its specialty: its own name, as Blade (Longsword) or Blade: Longsword, or a choice stat of this list'; sbW.appendChild(sbS); fl.appendChild(sbW);
+        var sfW = el('label', 'sys-check'), sfS = el('select', 'sys-list-specfall'); sfW.appendChild(document.createTextNode('Fallback ')); sfS.appendChild(spO('', 'None', !sp.specs.fall));
+        spSt.filter(function(s) { return s.kind !== 'pick'; }).concat(spCl).forEach(function(s) { sfS.appendChild(spO(s.key, s.label || s.key, sp.specs.fall === s.key)); });
+        sfW.title = 'A number stat or a column added where another specialty of the parent is read in place of the one named, such as -2. None: nothing is added'; sfW.appendChild(sfS); fl.appendChild(sfW);
+        var sdW = el('label', 'sys-check'), sdS = el('select', 'sys-list-specdflt'); sdW.appendChild(document.createTextNode('Untrained ')); sdS.appendChild(spO('', 'The figure read', !sp.specs.dflt));
+        spCl.forEach(function(x) { sdS.appendChild(spO(x.key, x.label || x.key, sp.specs.dflt === x.key)); });
+        sdW.title = 'What is read where no row of the parent is held: the figure named, worked out on the parent as not held (Row.has 0), or a column of its own'; sdW.appendChild(sdS); fl.appendChild(sdW);
+    }
     var pbChoices = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s.key === 'string' && s.key && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length : Array.isArray(s.labels) && s.labels.length); });   // 1.6.0, backlog 180 R13
     var ptLists = typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields.filter(function(x) { return x && x.kind === 'item-list'; }) : [];   // 1.6.0, backlog 180 R14: Parts from
     if (ptLists.length) {
@@ -10158,6 +10177,8 @@ function onChange(e) {
         else if (c.indexOf('sys-list-menus') >= 0) { if (t.checked) lsc.menus = true; else delete lsc.menus; }   // 1.6.0 R10
         else if (c.indexOf('sys-list-boxes') >= 0) { if (t.checked) lsc.boxes = true; else delete lsc.boxes; }   // 1.6.0 R3   // 1.6.0 R1: Rows open
         else if (c.indexOf('sys-list-trade') >= 0) { if (t.checked) lsc.trade = true; else delete lsc.trade; }   // 1.5.6 Tradable
+        else if (c.indexOf('sys-list-specs') >= 0) { if (t.checked) lsc.specs = lsc.specs && typeof lsc.specs === 'object' && !Array.isArray(lsc.specs) ? lsc.specs : {}; else delete lsc.specs; }   // 1.6.0 Specialties
+        else if (c.indexOf('sys-list-specby') >= 0 || c.indexOf('sys-list-specfall') >= 0 || c.indexOf('sys-list-specdflt') >= 0) { var spK = c.indexOf('sys-list-specby') >= 0 ? 'by' : c.indexOf('sys-list-specfall') >= 0 ? 'fall' : 'dflt'; if (lsc.specs && typeof lsc.specs === 'object') { if (t.value) lsc.specs[spK] = t.value; else delete lsc.specs[spK]; } }   // ... where a row says its specialty, its Fallback and its untrained figure
         else if (c.indexOf('sys-list-modsif') >= 0) { var miV = String(t.value || '').trim(); if (miV) lsc.modsIf = miV.slice(0, LIMITS.formula); else delete lsc.modsIf; }   // 1.6.0 Changes apply where (Save cleans it)
         else if (c.indexOf('sys-list-rowlook') >= 0) { if (t.checked) lsc.look = lsc.look && typeof lsc.look === 'object' ? lsc.look : {}; else delete lsc.look; }   // 1.6.0, backlog 206: Rows carry a look
         else if (c.indexOf('sys-list-lkmain') >= 0) { if (lsc.look) { var lkm = String(t.value || '').trim(); if (lkm) lsc.look.main = lkm; else delete lsc.look.main; } }

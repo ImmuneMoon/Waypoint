@@ -8459,6 +8459,7 @@ function handleMessage(msg, conn) {
         if (recQ.dmg === 1 && recQ.major !== 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgMajorOf === 'function' && SQ.dmgMajorOf(actQ, varsQ, Fq)) recQ.major = 1;   // 1.6.0: A Major Wound where, worked out on the host through the roller's view (a list roll's row's names too); never from the roller's word
         if (resQ.breakdown && resQ.breakdown.names && resQ.breakdown.names.length) { var nmQ = Dq.cleanNames(resQ.breakdown.names); if (!nmQ) { denyQ('error'); return; } if (nmQ.length) recQ.names = nmQ; }
         if (recQ.names && typeof SQ !== 'undefined' && SQ && typeof SQ.rollMods === 'function' && typeof varsQ === 'function') { var mdQ = SQ.rollMods(varsQ, recQ.names); if (mdQ) recQ.mods = mdQ; }
+        if (recQ.names && typeof SQ !== 'undefined' && SQ && typeof SQ.rollRefs === 'function' && typeof varsQ === 'function') { var rfQ = SQ.rollRefs(varsQ, recQ.names); if (rfQ) recQ.refs = rfQ; }   // 1.6.0 Specialties: the case each reference used, worked out through the player's view
         if (typeof swQ !== 'undefined' && swQ && swQ.ok && swQ.names.length) recQ.sw = swQ.names.map(function(x) { return { n: x.n, v: x.v }; });   // 1.6.0: the roll switches it was rolled with, by name (their view holds no GM-only one)   // 1.5.8 (handoff 90 Part B): what changed the values it reads
         if (q.label) recQ.label = q.label;
         if (chQ) recQ.as = String(chQ.name || '').slice(0, Dq.LIMITS.label);
@@ -9820,6 +9821,7 @@ net.diceRoll = function(expr, o) {
     if (rec.dmg === 1 && o.used === true) rec.dmgUsed = 1;   // 1.5.9 (es): this machine's own word, a damage roll already applied as it is rolled (a blast's fragmentation): its card says Applied (the cleaner of a player's app keeps no such key)
     if (res.breakdown && res.breakdown.names && res.breakdown.names.length) { var nmR = D.cleanNames(res.breakdown.names); if (!nmR) return { error: 'That roll could not be recorded.' }; if (nmR.length) rec.names = nmR; }
     if (rec.names && SR && typeof SR.rollMods === 'function' && typeof varsR === 'function') { var mdR = SR.rollMods(varsR, rec.names); if (mdR) rec.mods = mdR; }
+    if (rec.names && SR && typeof SR.rollRefs === 'function' && typeof varsR === 'function') { var rfR = SR.rollRefs(varsR, rec.names); if (rfR) rec.refs = rfR; }   // 1.6.0 Specialties: the case each reference used (a GM-only row is never named)
     if (swR && swR.names.length) rec.sw = swR.names.map(function(x) { return { n: x.n, v: x.v }; });   // 1.6.0: the roll switches, by name (a GM-only one keeps the roll the GM's, below)   // 1.5.8 (handoff 90 Part B): what changed the values it reads
     if (o.label) rec.label = String(o.label).slice(0, D.LIMITS.label);
     if (chR) rec.as = String(chR.name || '').slice(0, D.LIMITS.label);

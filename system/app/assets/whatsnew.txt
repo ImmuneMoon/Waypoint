@@ -157,6 +157,11 @@ Systems, more
   own, such as not Construct or Row.over > 0. A row where it does not hold
   gives none of its changes. It reads the sheet before any item or effect
   changes it.
+- A list can hold each skill's specialties. Tick Specialties in the Lists
+  tab. A formula then reads one as Skills.Blade.Longsword.Target. It reads
+  the row with that specialty, whatever the row is called. Without one it
+  reads the best row of Blade plus its Fallback, such as -2. With no row of
+  Blade it reads Blade untrained. A roll's card says which one it read.
 - An attack can read its target's Size: the Range box's Target size reads
   names a number of the target's sheet, read as TargetSize.
 - A Major Wound's threshold may read the location hit, as Hit.<name>. A

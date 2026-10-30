@@ -68,6 +68,12 @@ function swInto(wrap, sw) {
     sw.forEach(function(x) { if (x && typeof x === 'object' && typeof x.v === 'number') box.appendChild(el('div', 'chat-mod-src', (x.v > 0 ? '+' : '−') + Math.abs(x.v) + ' ' + x.n + ', added')); });
     if (box.firstChild) wrap.appendChild(box);
 }
+// 1.6.0 Specialties: the case each reference the roll read used, such as as Blade (Longsword) \u22122, as text nodes; nothing where it read none
+function refsInto(wrap, refs) {
+    if (!Array.isArray(refs) || !refs.length) return; var box = el('div', 'chat-mods chat-refs');
+    refs.forEach(function(x) { if (x && typeof x === 'object' && typeof x.s === 'string' && x.s) box.appendChild(el('div', 'chat-mod-src', x.s)); });
+    if (box.firstChild) wrap.appendChild(box);
+}
 function renderCard(m) {
     var rec = m.roll, res = m.res, n = net(), Fm = F();
     var priv = !!(rec.priv || rec.to);
@@ -101,6 +107,7 @@ function renderCard(m) {
     if (typeof dieInto === 'function') dieInto(brk, rec);   // 1.5.8: the die its formula rolls, first on the dice line
     wrap.appendChild(brk);
     if (typeof modsInto === 'function') modsInto(wrap, rec.mods);
+    if (typeof refsInto === 'function') refsInto(wrap, rec.refs);   // 1.6.0 Specialties: which row a reference read
     if (typeof swInto === 'function') swInto(wrap, rec.sw);   // 1.6.0: the roll switches it was rolled with   // 1.5.8: what changed the values it read (asked through typeof for a suite that slices the card alone)
     wrap.className += mf ? ' card-malf' : v && v.kind === 'check' ? (v.pass ? ' card-ok' : ' card-fail') : rec.dmg === 1 ? ' card-dmg' : '';   // chat cards: the left stripe — a malfunction, the check's outcome, else a damage roll, else plain
     var total = el('div', 'roll-total' + (mf ? ' roll-fail roll-malf' : v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : rec.dmg === 1 ? ' roll-dmg' : ''), mf ? 'malfunction (Malf ' + rec.malf + ')' : v ? (v.kind === 'check' ? v.text : '= ' + v.text) : '');

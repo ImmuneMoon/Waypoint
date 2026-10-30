@@ -331,10 +331,12 @@ function needsBox(form, e) {
             lv.addEventListener('input', function() { if (lv.value.trim() === '' || !isFinite(Number(lv.value))) delete n.lvl; else n.lvl = Number(lv.value); });
             var fr = el('input', 'field lib-mod-amt lib-need-from'); fr.type = 'number'; fr.step = 'any'; fr.placeholder = 'From level'; fr.value = typeof n.from === 'number' ? String(n.from) : ''; fr.title = 'The level of THIS entry from which it is needed. Leave it empty to need it from the start'; ln.appendChild(fr);   // a level's own prerequisite
             fr.addEventListener('input', function() { if (fr.value.trim() === '' || !isFinite(Number(fr.value))) delete n.from; else n.from = Number(fr.value); });
+            var sb = el('input', 'field lib-need-spec'); sb.type = 'text'; sb.placeholder = 'Subject'; sb.maxLength = 60; sb.value = typeof n.spec === 'string' ? n.spec : ''; sb.title = 'A subject or specialty it must be held for, such as Smell. Leave it empty for any'; ln.appendChild(sb);   // 1.6.0 Specialties
+            sb.addEventListener('input', function() { var v = sb.value.trim(); if (v) n.spec = v; else delete n.spec; });
             var x = el('button', 'tool ghost', '\u00d7'); x.type = 'button'; x.title = 'It no longer needs this'; x.addEventListener('click', function() { st.fn.splice(ni, 1); draw(); }); ln.appendChild(x);
             box.appendChild(ln);
         });
-        var taken = map(); st.fn.forEach(function(n) { taken[n.id] = 1; }); taken[e.id] = 1;
+        var taken = map(); st.fn.forEach(function(n) { if (!(typeof n.spec === 'string' && n.spec.trim())) taken[n.id] = 1; }); taken[e.id] = 1;   // 1.6.0 Specialties: an entry needed for a subject may be needed again for another
         var opts = [['', '+ An entry it needs\u2026']].concat(all.filter(function(x) { return x && typeof x.id === 'string' && !taken[x.id]; }).sort(function(a, b) { return byName(a.name, b.name); }).slice(0, NEED_PICK).map(function(x) { return [x.id, x.name + (x.vis === 'gm' ? ' (GM only)' : '')]; }));
         var sel = select(opts, ''); sel.title = 'Pick an entry a character must carry before it may take this one'; sel.disabled = st.fn.length >= NEED_MAX;
         sel.addEventListener('change', function() { if (!sel.value || st.fn.length >= NEED_MAX) return; st.fn.push({ id: sel.value }); draw(); });

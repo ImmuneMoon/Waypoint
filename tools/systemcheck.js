@@ -18971,7 +18971,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const rfRun = rfA > 0 ? new Function('el', dkP.slice(rfA, rfZ + 2) + '\nreturn refsInto;')(mkEl) : null, rfBox = mkEl('div', 'w'); if (rfRun) { rfRun(rfBox, [{ s: 'as <b>Blade</b>', c: 1 }, { c: 2 }]); rfRun(rfBox, null); }
         check('1.6.0 Specialties in the app: the Lists tab\'s Specialties tick, its Specialty from, Fallback and Untrained menus and what Save drops; the card draws each case as text nodes under the dice (dice.js refsInto, run on a stand-in), the host and the GM\'s own roll ask rollRefs as they ask rollMods; the Lists key, Help, both release notes and the integration notes say it',
             shP.includes("fl.appendChild(checkLabel('sys-list-specs', spcOn, 'Specialties',") && shP.includes("sbS = el('select', 'sys-list-specby')") && shP.includes("sfS = el('select', 'sys-list-specfall')") && shP.includes("sdS = el('select', 'sys-list-specdflt')")
-            && shP.includes("else if (c.indexOf('sys-list-specs') >= 0) { if (t.checked) lsc.specs =") && shP.includes("['by', 'Specialty from names no choice stat of this list'], ['of', 'Parent from names no choice stat of this list'], ['cover', 'Covers names no number stat with value names of this list'], ['fall', 'Fallback names no number stat or column of this list'], ['dflt', 'Untrained names no column of this list']")
+            && shP.includes("else if (c.indexOf('sys-list-specs') >= 0) { if (t.checked) lsc.specs =") && shP.includes("['by', 'Specialty from names no choice stat of this list'], ['of', 'Parent from names no choice stat of this list'], ['cover', 'Covers names no number stat with value names of this list'], ['never', 'Never untrained names no number stat or column of this list'], ['pen', 'Untrained shows names no number stat or column of this list'], ['fall', 'Fallback names no number stat or column of this list'], ['dflt', 'Untrained names no column of this list']")
             && !!rfRun && rfBox.kids.length === 1 && rfBox.kids[0].c === 'chat-mods chat-refs' && rfBox.kids[0].kids.length === 1 && rfBox.kids[0].kids[0].text === 'as <b>Blade</b>' && !/innerHTML/.test(dkP.slice(rfA, rfZ)) && dkP.includes("if (typeof refsInto === 'function') refsInto(wrap, rec.refs);")
             && ixP.includes('<b>Specialties</b><small>Each row is a specialty of a parent, read as List.Parent.Specialty.Target.</small>') && ixP.includes('<li><b>Specialties</b> lets a list hold each skill&rsquo;s specialties,') && ixP.includes('A roll&rsquo;s card says which one a specialty read,')
             && wnP.includes("- A list can hold each skill's specialties. Tick Specialties in the Lists") && wnP2.includes("- A list can hold each skill's specialties. Tick Specialties in the Lists") && ciP.includes('**Specialties (1.6.0):** an item list may carry `"specs": { "by"?, "of"?, "fall"?, "dflt"? }`'),
@@ -19083,6 +19083,49 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             partP === 'value: ' + NO && partKept === J(null) && partG === 'ok told: ' + NO && hostP === 'value: ' + NO && hostOk === 'ok' && J(own) === J(['ok', 'value: Own scope does not fit Sling: it needs Row.Grip <= Host.Grip.']) && none === 'ok'
             && typeof S.fitAgain === 'function',
             J([partP, partG, hostP, hostOk, own, none]));
+    }
+    {   // 1.6.0 Specialties, round four: a name that holds the key, Never untrained, the untrained penalty on the card, a need on a subject, and Fits where after the host's own act
+        const J = JSON.stringify;
+        const rawU = specs => ({ v: 1, name: 'U', rolls: [], fields: [
+            { id: 'f_agi', key: 'Agility', label: 'Agility', kind: 'number', def: 10, vis: 'all' },
+            { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', vis: 'all', edit: 'owner', list: Object.assign({ cats: ['Skill'], noQty: true, multi: true, lvl: { label: 'Level', min: 0, max: 20, def: 1 }, stats: [{ key: 'grade', label: 'Grade' }, { key: 'fbk', label: 'Fallback' }],
+                cols: [{ key: 'Target', label: 'Target', formula: 'if(Row.has, Row.lvl + Agility, Agility - 3 - 2 * Row.grade)' }, { key: 'NoU', label: 'No untrained', hide: true, formula: 'Row.grade >= 3' }, { key: 'Pen', label: 'Penalty', hide: true, formula: '-3 - 2 * Row.grade' }] }, specs ? { specs: specs } : {}) }],
+            items: [
+                { id: 'i_club', key: 'Club', name: 'Club', category: 'Skill', vis: 'all', again: 'name', stats: { grade: 1, fbk: -2 } },
+                { id: 'i_lore', key: 'Lore', name: 'Lore', category: 'Skill', vis: 'all', again: 'name', stats: { grade: 3 } },
+                { id: 'i_mel', key: 'MeleeArms', name: 'Melee Arms', category: 'Skill', vis: 'all', again: 'name' },
+                { id: 'i_bat', key: 'Baton', name: 'Baton', category: 'Skill', vis: 'all' },
+                { id: 'i_trk', key: 'Warden', name: 'Warden', category: 'Skill', vis: 'all', needs: [{ id: 'i_club', lvl: 2, spec: 'Baton' }, { id: 'i_club', spec: ' baton ' }, { id: 'i_club', lvl: 1 }] }] });
+        const gU = cleanSystem(rawU({ fall: 'fbk', never: 'NoU', pen: 'Pen' }), { F, gmView: true }), nU = cleanSystem(rawU(null), { F, gmView: true });
+        const chU = rows => ({ id: 'c_u', name: 'Uma', ownerId: 'u_p', npc: false, values: { f_agi: 10, f_sk: rows } });
+        const cU = cleanChar(chU([{ id: 'w_1', defId: 'i_mel', qty: 1, lvl: 4, ov: { name: 'Stun Baton' } }]), gU, { state: 'gm' }), RU = makeResolver(gU, cU, F), rf = (R, n) => { const v = R(n); return [v, R.refs([{ name: n, value: v }])]; };
+        const RK = makeResolver(gU, cleanChar(chU([{ id: 'w_1', defId: 'i_mel', qty: 1, lvl: 4, ov: { name: 'Stun Baton' } }, { id: 'w_2', defId: 'i_bat', qty: 1, lvl: 1 }]), gU, { state: 'gm' }), F);
+        const u1 = [rf(RU, 'Skills.Baton.Target'), rf(RK, 'Skills.Baton.Target'), rf(RU, 'Skills.Club.Mace.Target'), RU('Skills.Lore.Starships.Target'), RU('Skills.Lore.Target'), RU('Skills.Lore.has')];
+        const RN = makeResolver(nU, cleanChar(chU([{ id: 'w_1', defId: 'i_mel', qty: 1, lvl: 4, ov: { name: 'Stun Baton' } }]), nU, { state: 'gm' }), F);
+        check('1.6.0 Specialties, round four, the reference: a three-part name finds a row whose name holds the key among its words (Melee Arms held as Stun Baton, 14), last, after a row of that key (Baton 11); Never untrained refuses a figure where the parent reads it (Lore, Exacting: no roll), on three and four parts alike, while has still reads; Untrained shows says the penalty on the card and adds nothing (Club 10 - 3 - 2 = 5, untrained Club -5); a list without Specialties reads as before (Skills.Baton.Target the entry not held, 7)',
+            J(u1[0]) === J([14, [{ s: 'as Stun Baton', c: 1 }]]) && J(u1[1]) === J([11, null]) && J(u1[2]) === J([5, [{ s: 'untrained Club \u22125', c: 3 }]])
+            && J(u1[3]) === J({ error: { message: 'Lore cannot be tried untrained.', pos: 0, len: 0 } }) && J(u1[4]) === J(u1[3]) && u1[5] === false && RN('Skills.Baton.Target') === 7
+            && J(gU.fields[1].list.specs) === J({ fall: 'fbk', never: 'NoU', pen: 'Pen' }) && S.specContains('Stun Baton', 'baton') === true && S.specContains('Batonstun', 'baton') === false && S.specContains('Two Hand Flail', 'handflail') === true,
+            J(u1));
+        const trk = gU.items.filter(i => i.id === 'i_trk')[0], ndU = rows => S.needsMet(gU, chU(rows), trk, false, F);
+        const okB = ndU([{ id: 'w_c', defId: 'i_club', qty: 1, lvl: 3, ov: { name: 'Club: Baton' } }]), noM = ndU([{ id: 'w_c', defId: 'i_club', qty: 1, lvl: 5, ov: { name: 'Club: Mace' } }]), lowB = ndU([{ id: 'w_c', defId: 'i_club', qty: 1, lvl: 1, ov: { name: 'Club: Baton' } }]);
+        check('1.6.0 Specialties, round four, a need on a subject: cleanNeeds keeps a subject (each entry and subject once, so a need on Club for Baton and one on Club stand together); it is met only by a row of that entry held for that subject at the level named (Club: Baton at 3), not by another subject (Club: Mace at 5) nor below its level; the refusal names the subject',
+            J(trk.needs) === J([{ id: 'i_club', lvl: 2, spec: 'Baton' }, { id: 'i_club', lvl: 1 }]) && okB.ok === true && noM.ok === false && J(noM.missing) === J([{ id: 'i_club', lvl: 2, spec: 'Baton' }]) && lowB.ok === false
+            && S.needsSays({}, noM.missing, () => 'Club') === 'That needs Club for Baton at level 2.',
+            J([trk.needs, okB, noM, lowB]));
+        const mkB = parts => ({ v: 1, name: 'Fi', items: [{ id: 'i_sl', name: 'Sling', category: 'Gear', stats: { Grip: 2 } }, { id: 'i_lo', name: 'Small scope', category: 'Mod', stats: { Grip: 1 } }, { id: 'i_hi', name: 'Big scope', category: 'Mod', stats: { Grip: 3 } }],
+            rolls: [{ id: 'r_rust', label: 'Rust', apply: [{ list: 'f_g', s: 'Grip', formula: '0', set: true }] }],
+            fields: [{ id: 'f_g', key: 'Slings', label: 'Slings', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Grip', label: 'Grip' }], parts: parts } },
+                { id: 'f_m', key: 'Mods', label: 'Mods', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Grip', label: 'Grip' }] } }], sheet: { sections: [] } });
+        const gB = cleanSystem(mkB({ from: 'f_m', fitIf: 'Row.Grip <= Host.Grip' }), { F, gmView: true }), nB = cleanSystem(mkB({ from: 'f_m' }), { F, gmView: true });
+        const chB = mods => ({ id: 'c_b', name: 'Bo', ownerId: 'u1', values: { f_g: [{ id: 'w_s', defId: 'i_sl', qty: 1 }], f_m: mods } });
+        const actB = (sys, ch) => { const act = sys.rolls.filter(r => r.id === 'r_rust')[0]; return S.applyAct(sys, ch, act, makeResolver(sys, ch, F), F); };
+        const bA = actB(gB, chB([{ id: 'w_1', defId: 'i_lo', qty: 1, in: 'w_s' }])), bB = actB(gB, chB([{ id: 'w_1', defId: 'i_hi', qty: 1, in: 'w_s' }])), bN = actB(nB, chB([{ id: 'w_1', defId: 'i_lo', qty: 1, in: 'w_s' }]));
+        const shB = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), ntB = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'latin1'), toastN = s2 => (s2.match(/\.fitSays\.length && typeof toast === 'function'\) toast\('A part no longer fits\. '/g) || []).length;
+        check('1.6.0 Fits where, judged again after the host\'s own act: an action that sets a stat on every row stands, and names the part that fitted before and fits no longer (fitSays, the GM told); a part that did not fit before is not named again; a list with no Fits where names none; the GM\'s press and blow, the host\'s judged press and blow and both Then paths tell the GM',
+            bA.ok === true && J(bA.fitSays) === J(['Small scope does not fit Sling: it needs Row.Grip <= Host.Grip.']) && bA.values.f_g[0].ov.stats.Grip === 0 && bB.ok === true && bB.fitSays === undefined && bN.ok === true && bN.fitSays === undefined
+            && toastN(shB) === 2 && toastN(ntB) === 4,
+            J([bA.fitSays, bB.fitSays, bN.fitSays, toastN(shB), toastN(ntB)]));
     }
     {   // 1.6.0 Changes apply where (list.modsIf; the campaign build's ask): a formula of the holder's names and each row's own, read with no item or effect change applied; a row where it does not hold gives none of its changes
         const J = JSON.stringify;

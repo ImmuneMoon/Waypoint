@@ -170,6 +170,11 @@ Systems, more
   bonus, a change aimed at one entry and Roll unheld find the row an
   entry's key means, Counted once counts each subject apart, and a grant
   may carry a specifier.
+- Specialties reads a name that holds the key among its words, as Stun
+  Baton for Baton, when nothing closer is held. Never untrained refuses a
+  roll on a parent nobody holds, and Untrained shows puts its penalty on
+  the card. A need in the Library may name a Subject. Fits where is judged
+  after an action or a blow too, and you are told.
 - An attack can read its target's Size: the Range box's Target size reads
   names a number of the target's sheet, read as TargetSize.
 - A Major Wound's threshold may read the location hit, as Hit.<name>. A

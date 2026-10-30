@@ -4598,10 +4598,13 @@ function ruleReads(sys, c, ks, tc, rr) {   // rr (1.5.5): a resolver of c as it 
     ks.forEach(function(k) { var f = (Array.isArray(sys.fields) ? sys.fields : []).filter(function(x) { return x && x.id === k; })[0]; if (!f) return; var t = r(f.key), b = f.kind === 'number' ? r(f.key + '.base') : null; out[k] = { t: t, b: b, n: f.label || f.key, f: f, s: JSON.stringify([t, b]) }; });
     return out;
 }
+// 1.6.0: a summary line's words; one on every row of a list says its list, its stat and its rows once (systemcore applyAct), a Set its figure and an Add or a Subtract its amount on each
+function ruleLineWords(l) { return l.all ? l.n + (l.set ? ' set to ' + l.v : ' ' + (l.d >= 0 ? '+' : '') + l.d + ' each') : l.n + ' ' + (l.d >= 0 ? '+' : '') + l.d + ' \u2192 ' + l.v; }
 function ruleMoves(sys, c, ks, pre, tc, lines, rr) {   // the summary's lines for the values written that moved, { n, d, v } as the sheet reads them, in the run's order; rr: as ruleReads'
     var post = ruleReads(sys, c, ks, tc, rr), out = [], num = function(x) { return typeof x === 'number' && isFinite(x); }, step = function(x, y) { return Math.round((y - x) * 1000) / 1000; };
     var shown = function(f, x) { return typeof figText === 'function' ? figText(f, x) : Math.round(x * 1000) / 1000; };   // the figure as the sheet writes it, never a sum's float noise
     ks.forEach(function(k) {
+        var alls = lines.filter(function(l) { return l.f === k && l.all; }); if (alls.length) { alls.forEach(function(l) { out.push(l); }); return; }   // 1.6.0: a list it set on every row, as the run says it
         var a = pre[k], b = post ? post[k] : null, own = lines.filter(function(l) { return l.f === k; })[0] || null;
         if (a && b && a.s === b.s) return;   // written in another form: nothing moved
         if (a && b && num(a.t) && num(b.t) && a.t !== b.t) out.push({ n: b.n, d: step(a.t, b.t), v: shown(b.f, b.t) });   // what the sheet shows moved
@@ -4667,7 +4670,7 @@ function runTimeRules(fires, words, at, back, when) {
                 var pre = wrote.length ? ruleReads(sys, c, wrote, tcF) : null;
                 if (wrote.length) { c.values = c.values || {}; wrote.forEach(function(k) { c.values[k] = res.values[k]; all[k] = res.values[k]; }); }
                 var mv = !wrote.length ? [] : pre ? ruleMoves(sys, c, wrote, pre, tcF, res.lines) : res.lines.filter(function(l) { return l.d !== 0; });
-                mv.forEach(function(l) { var h = A.lines.filter(function(x) { return x.n === l.n; })[0]; if (h) { h.d = Math.round((h.d + (typeof l.d === 'number' ? l.d : 0)) * 1000) / 1000; h.v = l.v; } else A.lines.push({ n: l.n, d: typeof l.d === 'number' ? l.d : 0, v: l.v }); });
+                mv.forEach(function(l) { var h = A.lines.filter(function(x) { return x.n === l.n; })[0]; if (h) { h.d = l.all && l.set ? l.d : Math.round((h.d + (typeof l.d === 'number' ? l.d : 0)) * 1000) / 1000; h.v = l.v; } else { var nl = { n: l.n, d: typeof l.d === 'number' ? l.d : 0, v: l.v }; if (l.all) { nl.all = l.all; if (l.set) nl.set = true; } A.lines.push(nl); } });   // 1.6.0: a line on every row keeps saying so
             });
             acc.filter(function(A) { return A.rule; }).sort(function(a, b) { return a.first - b.first; }).forEach(function(A) {
                 var fi = A.fi, rule = A.rule;
@@ -4675,7 +4678,7 @@ function runTimeRules(fires, words, at, back, when) {
                 if (A.held && !A.ran) return;
                 if (!A.lines.length && !(A.made && ruleDice(rule)) && !(A.drew > 0)) return;   // the flood fix, over all its runs
                 var head = (rule.label || 'A rule') + ' \u00d7' + fi.n + (A.made ? ' (' + A.pass + ' of ' + A.made + ' succeeded)' : '');
-                var lnA = A.lines.filter(function(l) { return l.d !== 0; }), body = lnA.length ? lnA.map(function(l) { return l.n + ' ' + (l.d >= 0 ? '+' : '') + l.d + ' \u2192 ' + l.v; }).join(', ') : 'no change', nt = rule.notes === 'quiet' || rule.notes === 'panel' ? rule.notes : '';
+                var lnA = A.lines.filter(function(l) { return l.all || l.d !== 0; }), body = lnA.length ? lnA.map(ruleLineWords).join(', ') : 'no change', nt = rule.notes === 'quiet' || rule.notes === 'panel' ? rule.notes : '';
                 parts.push(head + ': ' + body); if (nt !== 'quiet') pl.push(head + ': ' + body); lines.push({ r: rule.id, head: head, body: body, notes: nt, roll: !Array.isArray(rule.apply) });
             });
         } else
@@ -4699,8 +4702,8 @@ function runTimeRules(fires, words, at, back, when) {
             var moved = !wrote.length ? [] : pre ? ruleMoves(sys, c, wrote, pre, tcF, res.lines, kept ? kept.r : null) : null;   // null: no resolver to ask, so each value written counts as moved
             if (moved !== null && !moved.length && !(res.rolls.made && ruleDice(rule)) && !(res.drew > 0)) return;   // the flood fix: it moved nothing and rolled no dice, so it says nothing (1.5.9: a Rolled amount that drew dice rolled them)
             var head = (rule.label || 'A rule') + ' \u00d7' + fi.n + (res.rolls.made ? ' (' + res.rolls.pass + ' of ' + res.rolls.made + ' succeeded)' : '');
-            var lns = moved || res.lines.filter(function(l) { return l.d !== 0; });   // with no resolver, the run's own lines, as before; a roll of dice that moved nothing says no change
-            var body = lns.length ? lns.map(function(l) { return l.n + ' ' + (l.d >= 0 ? '+' : '') + l.d + ' \u2192 ' + l.v; }).join(', ') : 'no change', nt = rule.notes === 'quiet' || rule.notes === 'panel' ? rule.notes : '';
+            var lns = moved || res.lines.filter(function(l) { return l.all || l.d !== 0; });   // with no resolver, the run's own lines, as before; a roll of dice that moved nothing says no change
+            var body = lns.length ? lns.map(ruleLineWords).join(', ') : 'no change', nt = rule.notes === 'quiet' || rule.notes === 'panel' ? rule.notes : '';
             parts.push(head + ': ' + body); if (nt !== 'quiet') pl.push(head + ': ' + body); lines.push({ r: rule.id, head: head, body: body, notes: nt, roll: !Array.isArray(rule.apply) });   // backlog 173: a rule set Panel only, players never told, is not in its player's summary
         });
         if (Object.keys(all).length) { c.updated = Date.now(); if (n && n.active && n.role === 'host' && n.syncCharDelta) n.syncCharDelta(c.id, all); renderViews(c.id); changed++; }   // what was written is stored, sent and saved, said or not
@@ -6611,6 +6614,14 @@ function refreshErrors() {
         if (over.length) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'stats', message: 'At most ' + LIMITS.entryStats + ' stats an item: Save drops ' + over.map(function(k) { return '“' + k + '”'; }).join(', ') + ' (the first ' + LIMITS.entryStats + ' are kept; clear the ones it does not need).' });
     });
     var v = validateSystem(clean, F());
+    (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {   // 1.6.0: a change on every row of a list, as the cleaner reads it (systemcore applyTargets): a list that is gone, or a stat that is no number stat of it, leaves the amount with nothing to change
+        if (!r || typeof r !== 'object') return;
+        ['apply', 'then'].forEach(function(k) { (Array.isArray(r[k]) ? r[k] : []).forEach(function(c, i) {
+            if (!c || typeof c !== 'object' || typeof c.list !== 'string') return;
+            var lf = (clean.fields || []).filter(function(x) { return x && x.id === c.list && x.kind === 'item-list'; })[0], ok = !!lf && !!(lf.list && Array.isArray(lf.list.stats) ? lf.list.stats : []).filter(function(t) { return t && t.kind !== 'pick' && typeof t.key === 'string' && t.key.toLowerCase() === String(c.s || '').toLowerCase(); })[0];
+            if (!ok) (errorsById[r.id] = errorsById[r.id] || []).push({ prop: k + '.' + i, message: (lf ? 'Every row of ' + (lf.label || lf.key) + ': it has no number stat \u201c' + String(c.s || '') + '\u201d' : 'Every row of: that list is gone') + ', so Save keeps the amount and drops what it changes.' });
+        }); });
+    });
     v.errors.forEach(function(e) { var eid = e.prop === 'list' ? 'list:' + e.id : e.id; (errorsById[eid] = errorsById[eid] || []).push(e); });   // F4c1: a list's own messages sit under its card in Lists
     v.warnings.forEach(function(w) { var wid = w.prop === 'list' ? 'list:' + w.id : w.id; (warningsById[wid] = warningsById[wid] || []).push(w); });
     var tnE = draft.combat && draft.combat.turn && typeof draft.combat.turn === 'object' ? draft.combat.turn : null, tErr = [];   // turn-based combat T1: what Save drops from the turn rules, under the Combat card
@@ -7121,8 +7132,9 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
         var ch = ch0 && typeof ch0 === 'object' ? ch0 : {}, rw = el('div', 'sys-flags sys-apply-row'); rw.dataset.ai = String(i); rw.dataset.k = key;
         if (key === 'then') rw.appendChild(select('sys-apply-when', [['', 'Always'], ['hit', 'On success'], ['crit', 'On a critical success'], ['miss', 'On failure'], ['fumble', 'On a critical failure'], ['malf', 'On malfunction']], ch.when || '', 'When the roll makes this change: always, or only when its test succeeds or fails. A critical success is a success too, and a critical failure a failure'));
         var fxT = []; (Array.isArray(draft.effects) ? draft.effects : []).forEach(function(d) { if (d && typeof d.id === 'string') fxT.push(['fx+:' + d.id, 'Switch on: ' + (d.name || d.id)], ['fx-:' + d.id, 'Switch off: ' + (d.name || d.id)]); });   // 1.6.0: an effect switched on or off
-        var opts = [['', 'Pick a pool, number or effect\u2026']].concat(targets, fxT); if (typeof ch.fx === 'string' && !fxT.some(function(o) { return o[0].slice(4) === ch.fx; })) opts.push([(ch.on === false ? 'fx-:' : 'fx+:') + ch.fx, 'An effect that is gone']); if (ch.f && !targets.some(function(o) { return o[0] === ch.f; })) opts.push([ch.f, 'A field that is gone']);
-        rw.appendChild(select('sys-apply-target', opts, typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or an effect it switches on or off (on the character it is used on)'));
+        var allT = allRowTargets(), allV = typeof ch.list === 'string' ? allRowValue(ch, allT) : '';   // 1.6.0: one number stat on every row of a list
+        var opts = [['', 'Pick a pool, number or effect\u2026']].concat(targets, fxT, allT); if (allV && !allT.some(function(o) { return o[0] === allV; })) opts.push([allV, 'A list or stat that is gone']); if (typeof ch.fx === 'string' && !fxT.some(function(o) { return o[0].slice(4) === ch.fx; })) opts.push([(ch.on === false ? 'fx-:' : 'fx+:') + ch.fx, 'An effect that is gone']); if (ch.f && !targets.some(function(o) { return o[0] === ch.f; })) opts.push([ch.f, 'A field that is gone']);
+        rw.appendChild(select('sys-apply-target', opts, allV ? allV : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or an effect it switches on or off (on the character it is used on). Every row of a list sets one of its number stats on each of the list\u2019s rows'));
         if (typeof ch.fx !== 'string') {   // 1.6.0: an effect switched has no amount
         rw.appendChild(select('sys-apply-op', [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']], ch.set ? 'set' : ch.add ? 'add' : 'sub', 'Subtract (a cost, a wound), add (rest, healing) or set it to the amount (back to 0); never past the field\u2019s min and max'));
         var fm = input('sys-apply-formula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount, worked out when pressed: no dice unless Rolled is ticked (3, FPCost, max(0, Incoming - DR)); below 0 counts as 0', 'Amount'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
@@ -7136,12 +7148,16 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
 }
 // 1.6.0: what a change's target select names, written on the change: a field, a counter (c:), Fire, an effect switched on or off (fx+: / fx-:),
 // the row's quantity (q) or one of its own stats (s:). An effect switched has no amount
+// 1.6.0: a system entry's change may name one number stat on every row of an item list (all:<list id>:<stat key>)
+function allRowTargets() { var o = []; (typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : []).forEach(function(lf) { if (!lf || lf.kind !== 'item-list' || !lf.list || !Array.isArray(lf.list.stats)) return; lf.list.stats.forEach(function(t) { if (t && t.kind !== 'pick' && typeof t.key === 'string' && t.key) o.push(['all:' + lf.id + ':' + t.key, 'Every row of ' + (lf.label || lf.key || lf.id) + ': ' + (t.label || t.key)]); }); }); return o; }
+function allRowValue(ch, allT) { var v = 'all:' + ch.list + ':' + String(ch.s || ''), lv = v.toLowerCase(), hit = (allT || []).filter(function(o) { return o[0].toLowerCase() === lv; })[0]; return hit ? hit[0] : v; }
 function setChangeTarget(ch, v) {
-    v = String(v || ''); ['f', 'c', 'fire', 'off', 'fx', 'on', 'q', 's'].forEach(function(k) { delete ch[k]; });
+    v = String(v || ''); ['f', 'c', 'fire', 'off', 'fx', 'on', 'q', 's', 'list'].forEach(function(k) { delete ch[k]; });
     if (v === 'off') { ch.off = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0 (CORE gap 13): this row switched off, no amount
     else if (v === 'fire') ch.fire = true;
     else if (v.indexOf('fx+:') === 0 || v.indexOf('fx-:') === 0) { ch.fx = v.slice(4); ch.on = v.charAt(2) === '+'; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }
     else if (v === 'q') ch.q = true;
+    else if (v.indexOf('all:') === 0) { var aP = v.slice(4), aC = aP.indexOf(':'); ch.list = aC > 0 ? aP.slice(0, aC) : aP; ch.s = aC > 0 ? aP.slice(aC + 1) : ''; }   // 1.6.0: every row of a list
     else if (v.indexOf('s:') === 0) ch.s = v.slice(2);
     else if (v.indexOf('c:') === 0) ch.c = v.slice(2);
     else ch.f = v;

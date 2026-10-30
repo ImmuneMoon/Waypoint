@@ -570,6 +570,11 @@ function cleanApplyChanges(list, withWhen, withCounters) {   // withWhen (R1): a
             if (!EFFECT_ID.test(c.fx)) return; var xk = 'fx:' + c.fx + '|' + whX; if (seen[xk]) return; seen[xk] = 1;
             var xo = { fx: c.fx, on: c.on !== false }; if (whX) xo.when = whX; out.push(xo); return;
         }
+        if (!withCounters && typeof c.list === 'string') {   // 1.6.0: a system entry's change may set one number stat on every row of an item list ({ list, s }), its amount worked out once with the character's names; applyTargets judges the list and the stat against the view
+            if (!FIELD_ID.test(c.list) || typeof c.s !== 'string' || !STAT_KEY.test(c.s)) return; var lk = 'l:' + c.list + ':' + lower(c.s) + '|' + whX; if (seen[lk]) return; seen[lk] = 1;
+            var lo = { list: c.list, s: c.s, formula: cleanFormulaText(c.formula) || '' }; if (c.set === true) lo.set = true; else if (c.add === true) lo.add = true;
+            if (whX) lo.when = whX; if (c.roll === true && lo.formula) lo.roll = true; out.push(lo); return;
+        }
         if (withCounters && (c.q === true || typeof c.s === 'string')) {   // 1.6.0: a list's own row: its quantity (q), or one of its number stats (s), with an amount as a counter's
             var sq = c.q === true ? '' : STAT_KEY.test(c.s) ? c.s : null; if (sq === null) return; var qk = (c.q === true ? 'q' : 's:' + lower(sq)) + '|' + whX; if (seen[qk]) return; seen[qk] = 1;
             var qo = c.q === true ? { q: true, formula: cleanFormulaText(c.formula) || '' } : { s: sq, formula: cleanFormulaText(c.formula) || '' }; if (c.set === true) qo.set = true; else if (c.add === true) qo.add = true;
@@ -673,9 +678,10 @@ function applyTargets(out, fieldIds, gmView, fxSeen) {   // fxSeen (1.6.0): the 
     out.rolls.forEach(function(r) { if (isObj(r.cross) && fieldIds[r.cross.f] !== 'resource' && fieldIds[r.cross.f] !== 'number') delete r.cross; });   // 1.5.9 (book es/et plan 4a): a crossing watches a pool or a number of the system, else it goes
     var keep = function(r, spec) {   // spec (R2b): the list's options, for a change that moves one of its counters
         if (!gmView && spec && r.gm === true) return false;   // 1.6.0: a list's roll or action only the GM presses never reaches players, so their press of it names nothing their view holds and the host refuses it
-        var fix = function(c) { var tC = null; if (c.c && spec && Array.isArray(spec.counters)) spec.counters.forEach(function(t) { if (!tC && isObj(t) && lower(t.key) === lower(c.c)) tC = t; }); if (tC) c.c = tC.key; var ok = c.c ? !!tC : (!c.f || APPLY_KINDS[fieldIds[c.f]] === 1); if (ok) return c; var o = { f: '', formula: c.formula }; if (c.set) o.set = true; else if (c.add) o.add = true; if (c.when) o.when = c.when; return o; };
+        var allSt = function(c) { var lf = null, t = null; (Array.isArray(out.fields) ? out.fields : []).forEach(function(x) { if (!lf && isObj(x) && x.id === c.list && x.kind === 'item-list') lf = x; }); (lf && isObj(lf.list) && Array.isArray(lf.list.stats) ? lf.list.stats : []).forEach(function(s) { if (!t && isObj(s) && s.kind !== 'pick' && typeof s.key === 'string' && lower(s.key) === lower(c.s)) t = s; }); return t; };   // 1.6.0: every row of a list, a list and a number stat of this view
+        var fix = function(c) { if (typeof c.list === 'string') { var tL = allSt(c); if (tL) { c.s = tL.key; return c; } var oL = { f: '', formula: c.formula }; if (c.set) oL.set = true; else if (c.add) oL.add = true; if (c.when) oL.when = c.when; return oL; } var tC = null; if (c.c && spec && Array.isArray(spec.counters)) spec.counters.forEach(function(t) { if (!tC && isObj(t) && lower(t.key) === lower(c.c)) tC = t; }); if (tC) c.c = tC.key; var ok = c.c ? !!tC : (!c.f || APPLY_KINDS[fieldIds[c.f]] === 1); if (ok) return c; var o = { f: '', formula: c.formula }; if (c.set) o.set = true; else if (c.add) o.add = true; if (c.when) o.when = c.when; return o; };
         var stOk = function(k) { return !!spec && Array.isArray(spec.stats) && spec.stats.some(function(t) { return isObj(t) && t.kind !== 'pick' && typeof t.key === 'string' && lower(t.key) === lower(k); }); };   // 1.6.0: a row's own number stat
-        var dn = function(c) { return c.fire === true || c.off === true || (typeof c.fx === 'string' && (gmView || (!!fxSeen && fxSeen[c.fx] === 1))) || ((!!c.f || !!c.c || c.q === true || (typeof c.s === 'string' && stOk(c.s))) && !!c.formula); };   // 1.5.9: fire has no amount; 1.6.0: nor a switched effect
+        var dn = function(c) { return c.fire === true || c.off === true || (typeof c.fx === 'string' && (gmView || (!!fxSeen && fxSeen[c.fx] === 1))) || ((!!c.f || !!c.c || c.q === true || typeof c.list === 'string' || (typeof c.s === 'string' && stOk(c.s))) && !!c.formula); };   // 1.5.9: fire has no amount; 1.6.0: nor a switched effect
         if (r.then) { r.then = r.then.map(fix); if (!gmView && !r.then.every(dn)) delete r.then; }   // R1: a roll's consequences, the same rules (players' view: all of them or none)
         if (!r.apply) return true;
         r.apply = r.apply.map(fix);
@@ -3680,10 +3686,12 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
         if (isObj(c) && c.off === true) { amts.push({ off: true, lf: rowCtx && typeof rowCtx.f === 'string' ? fieldById(sys, rowCtx.f) : null }); continue; }   // 1.6.0: its own row switched off
         if (isObj(c) && c.fire === true) { amts.push({ fire: true, lf: rowCtx && typeof rowCtx.f === 'string' ? fieldById(sys, rowCtx.f) : null }); continue; }
         if (isObj(c) && typeof c.fx === 'string') { var fxD = null; (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (!fxD && isObj(d) && d.id === c.fx) fxD = d; }); if (!fxD) return { ok: false, reason: 'field' }; amts.push({ fx: fxD, on: c.on !== false }); continue; }   // 1.6.0: an effect switched on or off
-        var rq = isObj(c) && c.q === true ? 'q' : isObj(c) && typeof c.s === 'string' ? 's' : '', lfQ = null, stQ = null;   // 1.6.0: the row's quantity or one of its own number stats
+        var lfA = null, stA = null;   // 1.6.0: one number stat on every row of an item list, a system entry's change
+        if (isObj(c) && typeof c.list === 'string') { lfA = fieldById(sys, c.list); if (!lfA || lfA.kind !== 'item-list' || typeof c.s !== 'string') return { ok: false, reason: 'field' }; (isObj(lfA.list) && Array.isArray(lfA.list.stats) ? lfA.list.stats : []).forEach(function(t) { if (!stA && isObj(t) && t.kind !== 'pick' && typeof t.key === 'string' && lower(t.key) === lower(c.s)) stA = t; }); if (!stA) return { ok: false, reason: 'field' }; }
+        var rq = lfA ? '' : isObj(c) && c.q === true ? 'q' : isObj(c) && typeof c.s === 'string' ? 's' : '', lfQ = null, stQ = null;   // 1.6.0: the row's quantity or one of its own number stats
         if (rq) { lfQ = rowCtx && typeof rowCtx.f === 'string' ? fieldById(sys, rowCtx.f) : null; if (!lfQ || lfQ.kind !== 'item-list' || typeof rowCtx.r !== 'string') return { ok: false, reason: 'field' }; if (rq === 's') { (isObj(lfQ.list) && Array.isArray(lfQ.list.stats) ? lfQ.list.stats : []).forEach(function(t) { if (!stQ && isObj(t) && t.kind !== 'pick' && typeof t.key === 'string' && lower(t.key) === lower(c.s)) stQ = t; }); if (!stQ) return { ok: false, reason: 'field' }; } }   // 1.5.9 Chambers from: fire, no amount (a list with no chamber fires nothing)
         if (isObj(c) && typeof c.c === 'string') { lfC = rowCtx && typeof rowCtx.f === 'string' ? fieldById(sys, rowCtx.f) : null; (lfC && isObj(lfC.list) && Array.isArray(lfC.list.counters) ? lfC.list.counters : []).forEach(function(t) { if (!ctr && isObj(t) && lower(t.key) === lower(c.c)) ctr = t; }); if (!ctr) return { ok: false, reason: 'field' }; }   // R2b
-        if ((!ctr && !rq && (!f || APPLY_KINDS[f.kind] !== 1)) || typeof c.formula !== 'string' || !c.formula) return { ok: false, reason: 'field' };
+        if ((!ctr && !rq && !lfA && (!f || APPLY_KINDS[f.kind] !== 1)) || typeof c.formula !== 'string' || !c.formula) return { ok: false, reason: 'field' };
         var p = F.parse(c.formula); if (!p.ok) return { ok: false, reason: 'error', message: p.error.message };
         var rolled = c.roll === true && !!D && (typeof D === 'object' || typeof D === 'function'), rnd = rolled && typeof D.random === 'function' ? D.random : null;   // 1.5.9: Rolled, on the host
         if (!rolled && hasDice(p.ast.body)) return { ok: false, reason: 'error', message: 'An amount cannot roll dice.' };
@@ -3693,7 +3701,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
         if (typeof v !== 'number' || !fin(v)) return { ok: false, reason: 'error', message: 'That amount is not a number.' };
         ((res.breakdown && Array.isArray(res.breakdown.names)) ? res.breakdown.names : []).forEach(function(n) { if (n && typeof n.name === 'string' && !seenN[lower(n.name)]) { seenN[lower(n.name)] = 1; names.push(n); } });
         if (ctr || rq === 'q' || (f && f.kind === 'resource')) v = Math.round(v);
-        amts.push({ f: f, ctr: ctr, rq: rq, st: stQ, lf: lfC || lfQ, amt: c.set === true ? v : (v > 0 ? v : 0), add: c.add === true, set: c.set === true, roll: rolled && res.diceRolled > 0 ? rollWords(res) : '' });   // R1: Set to takes the amount as it is; 1.5.9: what a Rolled amount drew
+        amts.push({ f: f, ctr: ctr, rq: rq, all: !!lfA, st: stQ || stA, lf: lfC || lfQ || lfA, amt: c.set === true ? v : (v > 0 ? v : 0), add: c.add === true, set: c.set === true, roll: rolled && res.diceRolled > 0 ? rollWords(res) : '' });   // R1: Set to takes the amount as it is; 1.5.9: what a Rolled amount drew
     }
     if (!amts.some(function(a) { return a.fire || a.off || a.fx || a.set || a.amt > 0; })) return { ok: false, reason: 'none' };
     var work = Object.assign({}, char, { values: JSON.parse(JSON.stringify(char.values || {})) }), out = {}, lines = [], asIs = same === true, fired = null;   // asIs: work still as char stands
@@ -3720,6 +3728,19 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
             twX.values[fxF.id] = eo.value; if (onW) onOut[fxF.id] = eo.value; else { out[fxF.id] = eo.value; asIs = false; }
             if (isObj(eo.clamp)) Object.keys(eo.clamp).forEach(function(k) { twX.values[k] = eo.clamp[k]; if (onW) onOut[k] = eo.clamp[k]; else out[k] = eo.clamp[k]; });   // a pool the effect's change brought down, in the same change
             (onW ? onLines : lines).push({ f: fxF.id, n: a.fx.name || 'An effect', fx: a.on ? 1 : 0 });
+            continue;
+        }
+        if (a.all) {   // 1.6.0: the stat on every row of the list, on the character it is used on (the user where none), each row written as a blow writes a row's stat (dmgRowPut): a library row's figure in its ov.stats, held as the GM's, a row of its own in its def.stats. A row kept from its player (hid) is passed over, a row with no definition too; a curse kept on moves as any row, as a row's own change moves it. A row already at its figure is not moved, and no row moved says nothing
+            var twL = onW || work, rowsL = JSON.parse(JSON.stringify(Array.isArray(twL.values[a.lf.id]) ? twL.values[a.lf.id] : [])), spL = isObj(a.lf.list) ? a.lf.list : null, kL = 0;
+            rowsL.forEach(function(rw) {
+                if (!isObj(rw) || rw.hid === 1) return; var rdL = rowDef(sys, rw); if (!rdL || (typeof rw.defId !== 'string' && !isObj(rw.def))) return;
+                var cuL = rowStat(spL, rdL.def, a.st.key); cuL = typeof cuL === 'number' && fin(cuL) ? cuL : 0;
+                var nxL = Math.max(-1e9, Math.min(1e9, a.set ? a.amt : a.add ? cuL + a.amt : cuL - a.amt)); if (nxL === cuL) return;
+                dmgRowPut(rw, a.st.key, nxL); kL++;
+            });
+            if (!kL) continue;
+            twL.values[a.lf.id] = rowsL; if (onW) onOut[a.lf.id] = rowsL; else { out[a.lf.id] = rowsL; asIs = false; }
+            var lnL = { f: a.lf.id, n: cutText(a.lf.label || a.lf.key, 24) + ': ' + cutText(a.st.label || a.st.key, 24) + ' (' + kL + (kL === 1 ? ' row)' : ' rows)'), d: a.add || a.set ? a.amt : -a.amt, v: a.set ? a.amt : 0, all: kL, k: a.st.key }; if (a.set) lnL.set = true; if (a.roll) lnL.roll = a.roll; (onW ? onLines : lines).push(lnL);   // one line: the list and the stat once, with how many rows moved; a Set says its figure, an Add or a Subtract its amount on each (net.js applyLines)
             continue;
         }
         if (a.rq) {   // 1.6.0: the row's own quantity (at 0 the row goes, as the sheet's minus takes it) or one of its own number stats, on the user's row
@@ -3888,10 +3909,10 @@ function timeRuleRun(sys, char, rule, n, F, D, at, opt) {
         var r = applyAct(sys, wk, act, vars, F, tctx, null, lazy, D); if (!r.ok) continue;   // 1.5.9: D rolls a Rolled amount
         if (r.drew) out.drew = (out.drew || 0) + 1;   // and a run that drew dice says so (the flood rule counts it as rolled)
         Object.keys(r.values).forEach(function(k) { work.values[k] = r.values[k]; out.values[k] = r.values[k]; });
-        r.lines.forEach(function(l) { if (!tot[l.f]) { tot[l.f] = { f: l.f, n: l.n, v: l.v }; order.push(l.f); } tot[l.f].v = l.v; });
+        r.lines.forEach(function(l) { if (l.all) { var ka = 'all:' + l.f + ':' + l.k; if (!tot[ka]) { tot[ka] = { f: l.f, n: l.n, d: 0, v: l.v, all: 0, k: l.k }; order.push(ka); } var ta = tot[ka]; ta.n = l.n; ta.v = l.v; ta.all = Math.max(ta.all, l.all); if (l.set) { ta.set = true; ta.d = l.d; } else ta.d = Math.round((ta.d + l.d) * 1000) / 1000; return; } if (!tot[l.f]) { tot[l.f] = { f: l.f, n: l.n, v: l.v }; order.push(l.f); } tot[l.f].v = l.v; });   // 1.6.0: every row of a list, by its list and stat
         out.ran++;
     }
-    out.lines = order.map(function(k) { var v = tot[k].v; return { f: k, n: tot[k].n, d: typeof v === 'number' && fin(v) ? Math.round((v - (init[k] || 0)) * 1000) / 1000 : 0, v: v }; });
+    out.lines = order.map(function(k) { if (tot[k].all) return Object.assign({}, tot[k]); var v = tot[k].v; return { f: k, n: tot[k].n, d: typeof v === 'number' && fin(v) ? Math.round((v - (init[k] || 0)) * 1000) / 1000 : 0, v: v }; });
     return out;
 }
 // the effects lists run i of a fire is made with (timeRuleRun's opt.due): the part of due that holds it, each part n runs in order; only a list of an
@@ -4042,7 +4063,8 @@ function chainsWalk(sys, F) {
 }
 function applyScope(sys, char, act, gm, F) {
     if (gm || !sys || !Array.isArray(sys.fields) || !isObj(act) || act.vis === 'gm' || !char || char.npc || !char.ownerId || !Array.isArray(act.apply) || !act.apply.length) return 'gm';
-    var rowOwn = function(c) { return isObj(c) && (typeof c.c === 'string' || c.q === true || typeof c.s === 'string' || typeof c.fx === 'string'); };   // 1.6.0: a row's quantity or stat is its owner's, as a counter is, and so is a switched effect
+    var rowOwn = function(c) { return isObj(c) && (typeof c.c === 'string' || c.q === true || typeof c.s === 'string' || typeof c.fx === 'string' || typeof c.list === 'string'); };   // 1.6.0: a row's quantity or stat is its owner's, as a counter is, and so is a switched effect
+    if (act.apply.some(function(c) { if (!isObj(c) || typeof c.list !== 'string') return false; var lf = fieldById(sys, c.list); return !lf || lf.kind !== 'item-list' || lf.vis === 'gm'; })) return 'gm';   // 1.6.0: every row of a list hidden from its owner
     if (act.apply.some(function(c) { if (!isObj(c) || typeof c.fx !== 'string') return false; var d = null; (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(x) { if (!d && isObj(x) && x.id === c.fx) d = x; }); return !d || d.vis === 'gm'; })) return 'gm';   // 1.6.0: a GM-only effect's card is the GM's
     var gmP = F ? gmPools(sys, F) : map(), ctrs = act.apply.some(rowOwn), fs = act.apply.filter(function(c) { return !rowOwn(c); }).map(function(c) { return isObj(c) && typeof c.f === 'string' ? fieldById(sys, c.f) : null; });
     var spSeen = map(); fs.slice().forEach(function(f) { for (var g = f, n = 0; isObj(g) && isObj(g.spill) && spSeen[g.id] !== 1 && n < LIMITS.fields; n++) { spSeen[g.id] = 1; g = fieldById(sys, g.spill.to); fs.push(g); } });   // 1.6.0 Spills into: a pool a loss may spill into is moved too, so its card is judged with it
@@ -7434,6 +7456,12 @@ function validateSystem(sys, F) {
         if (!sys.fields.some(function(x) { return isObj(x) && x.kind === 'effects'; })) errors.push({ id: id, prop: prop, message: 'The sheet has no status effects list, so "' + (d.name || d.id) + '" cannot go on.' });
         else if (vis === 'all' && d.vis === 'gm') warnings.push({ id: id, prop: prop, message: '"' + (d.name || d.id) + '" is GM only: players will not get this.' });
     };
+    var allSays = function(id, prop, c, vis, then) {   // 1.6.0: a system entry's change on every row of a list: an item list of the system, a number stat of it, and a list players see where the entry is theirs
+        var lf = fieldById(sys, c.list);
+        if (!lf || lf.kind !== 'item-list') { errors.push({ id: id, prop: prop, message: 'Pick the list this changes on every row: that one is gone.' }); return; }
+        if (!(isObj(lf.list) && Array.isArray(lf.list.stats) ? lf.list.stats : []).some(function(t) { return isObj(t) && t.kind !== 'pick' && typeof t.key === 'string' && lower(t.key) === lower(c.s); })) errors.push({ id: id, prop: prop, message: 'Pick the stat this changes on every row: "' + c.s + '" is no number stat of ' + (lf.label || lf.key) + '.' });
+        else if (vis === 'all' && lf.vis === 'gm') warnings.push({ id: id, prop: prop, message: '"' + lf.key + '" is GM only: ' + (then ? 'players\u2019 rolls will not change it.' : 'players will not get this action.') });
+    };
     var rowSays = function(lf, prop, c) {
         if (typeof c.s === 'string' && !(isObj(lf.list) && Array.isArray(lf.list.stats) ? lf.list.stats : []).some(function(t) { return isObj(t) && t.kind !== 'pick' && typeof t.key === 'string' && lower(t.key) === lower(c.s); })) errors.push({ id: lf.id, prop: prop, message: 'Pick the stat this changes: "' + c.s + '" is no number stat of this list.' });
     };
@@ -7441,7 +7469,7 @@ function validateSystem(sys, F) {
         nearV = r.to === 'near'; crossV = isObj(r.cross); resistV = r.resist === true; blowV = blowRolls[r.id] === 1;   // 1.5.9; 1.6.0: crossV; B2: resistV; the core's gaps 6 and 7: blowV
         if (typeof r.resistBy === 'string' && !sys.rolls.some(function(x) { return isObj(x) && x.id === r.resistBy && x.resist === true && !x.apply; })) warnings.push({ id: r.id, prop: 'resistBy', message: 'Resisted by names a roll that is not ticked Resists an attempt, so nothing is posted to the target.' });   // 1.6.0 (B2)
         if (Array.isArray(r.resistOr) && r.resistOr.some(function(id) { return !resistOrOk(sys, id); })) warnings.push({ id: r.id, prop: 'resistOr', message: 'Or resisted by names a roll that is not ticked Resists an attempt, so the target is not offered it.' });   // 1.6.0 (the core's gap 5)
-        if (nearV && !(Array.isArray(r.apply) ? r.apply : Array.isArray(r.then) ? r.then : []).some(function(c) { return isObj(c) && (!!c.f || typeof c.fx === 'string'); })) warnings.push({ id: r.id, prop: 'to', message: 'It applies to an adjacent character, but no change of it names a value, so nothing lands on the one it is used on.' });
+        if (nearV && !(Array.isArray(r.apply) ? r.apply : Array.isArray(r.then) ? r.then : []).some(function(c) { return isObj(c) && (!!c.f || typeof c.fx === 'string' || typeof c.list === 'string'); })) warnings.push({ id: r.id, prop: 'to', message: 'It applies to an adjacent character, but no change of it names a value, so nothing lands on the one it is used on.' });
         if (r.needs) checkFormula({ id: r.id, key: r.id }, 'needs', r.needs, false, r.vis);   // 1.5.4: what a roll or an apply action needs (no dice)
         if (r.dmgMajorIf) checkFormula({ id: r.id, key: r.id }, 'dmgMajorIf', r.dmgMajorIf, false, r.vis);   // 1.6.0: A Major Wound where (no dice)
         if (!r.apply) {
@@ -7456,6 +7484,7 @@ function validateSystem(sys, F) {
                 r.then.forEach(function(c, i) {
                     var tp = 'then.' + i, tf0 = c.f ? fieldById(sys, c.f) : null;
                     if (typeof c.fx === 'string') { fxSays(r.id, tp, c, r.vis); return; }   // 1.6.0: an effect switched
+                    if (typeof c.list === 'string') { allSays(r.id, tp, c, r.vis, true); if (c.when && !tests && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: r.id, prop: tp, message: 'This roll tests nothing (no comparison, like 3d6 <= Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); checkFormula({ id: r.id, key: r.id }, tp, c.formula, c.roll === true, r.vis); rolledWarn(r.id, tp, c); return; }   // 1.6.0: every row of a list
                     if (!tf0 || APPLY_KINDS[tf0.kind] !== 1) errors.push({ id: r.id, prop: tp, message: 'Pick the pool or number this changes.' });
                     else if (r.vis === 'all' && (tf0.vis === 'gm' || gmP[tf0.id] === 1)) warnings.push({ id: r.id, prop: tp, message: '"' + tf0.key + '" is GM only: players\u2019 rolls will not change it.' });
                     if (c.when && !tests && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: r.id, prop: tp, message: 'This roll tests nothing (no comparison, like 3d6 <= Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' });
@@ -7468,6 +7497,7 @@ function validateSystem(sys, F) {
         r.apply.forEach(function(c, i) {
             var pr = 'apply.' + i, tf = c.f ? fieldById(sys, c.f) : null;
             if (typeof c.fx === 'string') { fxSays(r.id, pr, c, r.vis); return; }   // 1.6.0: an effect switched
+            if (typeof c.list === 'string') { allSays(r.id, pr, c, r.vis, false); checkFormula({ id: r.id, key: r.id }, pr, c.formula, c.roll === true, r.vis); rolledWarn(r.id, pr, c); return; }   // 1.6.0: every row of a list
             if (!tf || APPLY_KINDS[tf.kind] !== 1) errors.push({ id: r.id, prop: pr, message: 'Pick the pool or number this changes.' });
             else if (r.vis === 'all' && (tf.vis === 'gm' || gmP[tf.id] === 1)) warnings.push({ id: r.id, prop: pr, message: '"' + tf.key + '" is GM only: players will not get this action.' });
             checkFormula({ id: r.id, key: r.id }, pr, c.formula, c.roll === true, r.vis); rolledWarn(r.id, pr, c);   // 1.5.9: a Rolled amount may roll dice

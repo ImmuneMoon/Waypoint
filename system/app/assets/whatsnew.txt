@@ -168,6 +168,12 @@ Systems, more
   where formula, or press + Another Major Wound for up to four rows. The
   first whose where holds is what it does.
 - An apply action and a roll's Then can make up to 12 changes, up from 8.
+- A change of the system's own apply action or roll can move one number
+  stat on every row of a list, such as Every row of Locations: Crippled,
+  Set to 0. Its amount is worked out once with the character's names. A
+  row kept from its player is passed over, and the card names the list and
+  the stat once with how many rows it moved. Run by When a value crosses,
+  hit points back to full can clear every crippled limb.
 - A damage roll can be ticked Always a Major Wound, such as a strike that
   always wounds badly: Apply to target on its card then lands it as a Major
   Wound whatever its size.

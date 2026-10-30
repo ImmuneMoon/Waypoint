@@ -262,10 +262,11 @@ Systems, more
   was before the burst, the wear comes off once at the end, and a hit the
   armour stops wears nothing. One Revert takes it all back.
 - In a launched burst each round that hits is its own blast at the target,
-  going off at once. A round whose extra die failed strays. With A stray
-  round lands set on the Combat card, such as 1d6, it lands that far off
-  the aim. It waits in the bell, where you press one of the ways or Click
-  on the map, and then waits for a fuse that is set.
+  going off at once. A round whose extra die failed strays, and so does
+  every round past the first of an attack that missed. With A stray round
+  lands set on the Combat card, such as 1d6, it lands that far from where
+  the first round landed. It waits in the bell, where you press one of the
+  ways, Click on the map or Skip, and then waits for a fuse that is set.
 - A rule can name a thing's place by its name, so it keeps its meaning when
   a list changes. Posture.Prone reads the Prone posture's place, so
   Posture = Posture.Prone still means prone after a posture is added before

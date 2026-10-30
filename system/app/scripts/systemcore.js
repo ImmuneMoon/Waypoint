@@ -2534,7 +2534,7 @@ function cleanCombat(c, resIds, fieldIds, secretIds, F, viewKinds, pl, fl) {   /
 //            a critical failure goes off at the shooter's feet; 'none': it spends the round and goes nowhere; absent: a miss by its margin),
 //            stop ('past': a round that flies straight passes the characters before the target it missed; 'walls': it stops at walls alone;
 //            absent: at the first wall or character), glance (true: a character it stops on is not struck directly) and stray (1.6.0: a dice
-//            formula with no names, the yards off the aim a burst's round lands where its extra die failed; absent: the GM places it with Launch)
+//            formula with no names, the yards off the first round's landing a burst's round lands where it failed; absent: the GM places it with Launch)
 //   frag     1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 2): how an item's fragmentation is rolled, each part absent for the plan's
 //            reading where the book is open: reach (how far it reaches in yards, read with FragDice, the dice it rolls, alone, no dice; absent:
 //            the blast's own radius, and never less), type (the damage type's key of a fragmentation whose item names none; absent: the blast's),

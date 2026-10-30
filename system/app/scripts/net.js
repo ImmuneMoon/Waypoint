@@ -10000,7 +10000,8 @@ net.diceRoll = function(expr, o) {
 // player's roll and the GM's own alike. An attack opens the record, on the row, from the verdict it judged and the rounds its Fire took (systemcore
 // burstOpen). Extra dice add their marks from the dice it judged (burstExtra), never a roller's word: a launched round's hit makes its own blast at the
 // target at once, and a die that failed leaves a stray (wpLaunchStray). The attack's own round is the first it fired: on a hit it goes off at the target, on
-// a miss it lands as its item says, by the same two functions as a single shot. rule: the verdict's rule; persist: this path's own save
+// a miss it lands as its item says, by the same two functions as a single shot, and each other round it fired has failed with it, so each is a stray. A stray
+// lands from where that first round came down (wpBurstFirst, the host's memory). rule: the verdict's rule; persist: this path's own save
 function burstAfter(camp, ch, ent, row, res, rule, malf, ta, tc, persist) {
     var S = SC(), D = DC(), sys = camp && camp.system; if (!S || !D || !sys || !ch || !row || typeof row.f !== 'string' || typeof row.r !== 'string') return null;
     var bx = null, list = null, vd = D.verdictOf(res, rule), hit = malf !== true && !(vd && vd.kind === 'check' && vd.pass === false), shots = ta && ta.ok && Array.isArray(ta.shots) ? ta.shots : null;
@@ -10012,13 +10013,17 @@ function burstAfter(camp, ch, ent, row, res, rule, malf, ta, tc, persist) {
     if (net.active && net.role === 'host' && net.syncCharDelta) { var d = {}; d[row.f] = list; net.syncCharDelta(ch.id, d); }
     if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(ch.id);
     var tid = tc && tc.range && typeof tc.range.tid === 'string' ? tc.range.tid : '', mid = tc && tc.range && typeof tc.range.mapId === 'string' ? tc.range.mapId : '', at = function(s) { return { charId: ch.id, fieldId: row.f, rowId: row.r, tid: tid, mapId: mid, shot: s }; };
-    var lmB = window.wpLaunchMiss;
+    var lmB = window.wpLaunchMiss, fsB = ent.burst === 'attack' ? window.wpBurstFirst : null, atB = null, gotB = null;
+    if (typeof fsB === 'function') fsB(at(null));   // an attack starts afresh, whatever it fires
     if (shots && shots.length && malf !== true) {
-        if (hit && tid && typeof window.wpLaunchHit === 'function') window.wpLaunchHit(at(shots[0]));
-        else if (!hit && typeof lmB === 'function') lmB(Object.assign(at(shots[0]), { margin: vd.margin, crit: ((typeof D.checkOf === 'function' ? D.checkOf(res, rule) : null) || vd).crit === 'fumble' ? 'fumble' : '' }));
+        atB = at(shots[0]);
+        if (hit && tid && typeof window.wpLaunchHit === 'function') gotB = window.wpLaunchHit(atB);
+        else if (!hit && typeof lmB === 'function') gotB = lmB(Object.assign({}, atB, { margin: vd.margin, crit: ((typeof D.checkOf === 'function' ? D.checkOf(res, rule) : null) || vd).crit === 'fumble' ? 'fumble' : '' }));
+        if (typeof fsB === 'function') fsB(atB, gotB);
+        if (!hit && ent.burst === 'attack' && typeof window.wpLaunchStray === 'function') shots.slice(1).forEach(function(s) { window.wpLaunchStray(at(s)); });
     }
     if (bx) {
-        bx.hits.forEach(function(s) { if (tid && typeof window.wpLaunchHit === 'function') window.wpLaunchHit(at(s)); else if (typeof window.wpLaunchStray === 'function') window.wpLaunchStray(at(s)); });
+        bx.hits.forEach(function(s) { if (tid && typeof window.wpLaunchHit === 'function') window.wpLaunchHit(at(s)); else if (typeof window.wpLaunchStray === 'function') window.wpLaunchStray(Object.assign(at(s), { hit: true })); });
         bx.strays.forEach(function(s) { if (typeof window.wpLaunchStray === 'function') window.wpLaunchStray(at(s)); });
     }
     return list;

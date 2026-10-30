@@ -8296,7 +8296,7 @@ function blastBox(box, cm) {
     var re = el('div', 'sys-blast-err'); re.dataset.rk = 'resist'; re.textContent = resistSays(rsV); box.appendChild(re);
     box.appendChild(labeledSelect('sys-combat-affhurt', 'Those an affliction hurts', [['', 'Took a wound, after DR'], ['share', 'Took any share of the blast']], bl.hurt === 'share' ? 'share' : '', HURT_LINE)); lineUnder(box, HURT_LINE);
 }
-var STRAY_LINE = 'For a burst\u2019s round whose extra die failed and whose item scatters on a miss. A dice formula, such as 1d6, gives the yards it lands off the aim. You say which way from the bell, and it waits for the fuse. With none, you place it with Launch.';   // 1.6.0
+var STRAY_LINE = 'For a burst\u2019s round that failed, past the first, whose item scatters on a miss. A dice formula, such as 1d6, gives the yards it lands from the first round. You say which way from the bell, and it waits for the fuse. With none, you place it with Launch.';   // 1.6.0
 var EACH_ADD_LINE = 'With Each victim\u2019s dice set. Takes its add with it: 4d6+4 at 3 dice rolls 3d6+3. Leaves the adds whole: it rolls 3d6+4.';   // 1.6.0
 var EACH_BY_LINE = 'With Each victim\u2019s dice set. The GM: each one is rolled as the blast goes off. The victim: each player gets a card with a Roll button, and an NPC\u2019s card is yours.';   // 1.6.0 (the core's gap 8)
 var RESIST_LINE = 'The check a character rolls against an affliction. Resist stands for what the item says it is resisted against. With none, you are told who must resist.';

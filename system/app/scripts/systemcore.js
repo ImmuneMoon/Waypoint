@@ -41,7 +41,7 @@ var LIMITS = Object.freeze({
     core: 1000, coreBytes: 256 * 1024,       // Stage 6 library L1d: library entries a formula addresses by key, copied into the system
     items: 200, carried: 150, category: 40, maxBlastFt: 3000, maxQty: 99,   // item library (Stage 5); Stage 6: 150 rows a list (a big sheet's skills)
     rmMsg: 200, undoMs: 10000, undoGraceMs: 15000,   // Stage 6: a bound or cursed item's message; a pickup's Undo (the host allows a little longer: the round trip)
-    listCats: 20, rowNote: 200, lvlAbs: 1e6, lvlCaps: 4,     // Stage 6 F4b: a list's categories, a row's note, the size of a row level; 1.6.0: a level's caps (At most at a level)
+    listCats: 20, rowNote: 200, lvlAbs: 1e6, lvlCaps: 4, lvlOnly: 24, modTiers: 16,     // Stage 6 F4b: a list's categories, a row's note, the size of a row level; 1.6.0: a level's caps (At most at a level), an entry's Levels it may be and a change's figures By level
     placeCats: 8,                            // 1.5.5: the categories one placement of an item list shows (a list placed once a category)
     rollSw: 4, swTo: 8,                      // 1.6.0: the roll switches one item or effect offers (a bonus ticked in a roll's ± window), and the rolls one names
     areaAffs: 2,                             // 1.5.9 (the book's (es)): the afflictions one explosive carries (Affliction (HT-2) and a second one)
@@ -891,6 +891,7 @@ function cleanItemDef(it, F, gmView, keys, picks, kinds) {   // kinds (F6): the 
     var isw = cleanRollSw(it.rollSw, kinds); if (isw) out.rollSw = isw;   // 1.6.0: the bonuses it offers a roll, ticked in the roll's ± window
     if (it.again === 'name') out.again = 'name';   // 1.6.0: a list that holds it once may hold it again as another row, each copy under a name of its own (applyRowOp's add with a name)   // 1.5.8: the entries this one opens on another list while its row is on, each from a level (openSync)
     var igr = cleanGrants(it.grants, kinds, out.id); if (igr) out.grants = igr;   // 1.6.0 (v2, B4): the rows a row of it grants on a list, each from a level of its own
+    var ilo = cleanLvlOnly(it.lvlOnly); if (ilo) out.lvlOnly = ilo;   // 1.6.0: Levels it may be, the same in both views; before its needs, which stay the last keys
     // 126b: its needs, the LAST keys of a definition and always in this order (hideNeeds writes them again the same way): a players' view cleaned again reads, and hashes, the same
     var ind = cleanNeeds(it.needs); if (ind) out.needs = ind;   // 126b: what a character must carry before it may take this one, in both views (a player's picker says why)
     var inr = needRule(it.needsIf, F); if (inr) out.needsIf = inr;   // ... its rule, a formula that must be true for the character (a players' view that could not work it out does not hold it: hideNeeds)
@@ -4522,7 +4523,7 @@ function patchOf(v, keys, cap) {   // the keys it knows, each null or of its typ
         else if (k === 'stats') { var sp = statsPatch(x); if (!sp) return null; if (Object.keys(sp).length) out.stats = sp; }
         else if (k === 'mods') {   // Stage 6 F6b: a custom row's changes by their shape only (applyCustom judges their fields); a malformed one refuses the message
             if (!Array.isArray(x) || x.length > LIMITS.effectMods) return null; var pm = [];
-            for (var mi = 0; mi < x.length; mi++) { var mx = x[mi]; if (!isObj(mx) || typeof mx.f !== 'string' || !FIELD_ID.test(mx.f) || (mx.op !== 'add' && mx.op !== 'on')) return null; var po = { f: mx.f, op: mx.op }; if (mx.op === 'add') { if (typeof mx.v !== 'number' || !fin(mx.v)) return null; po.v = mx.v; if (mx.part === 'max') po.part = 'max'; else if (rowModAim(mx)) { po.key = mx.key; po.col = mx.col; } if (mx.lvl === true) po.lvl = true; } pm.push(po); }
+            for (var mi = 0; mi < x.length; mi++) { var mx = x[mi]; if (!isObj(mx) || typeof mx.f !== 'string' || !FIELD_ID.test(mx.f) || (mx.op !== 'add' && mx.op !== 'on')) return null; var po = { f: mx.f, op: mx.op }; if (mx.op === 'add') { if (typeof mx.v !== 'number' || !fin(mx.v)) return null; po.v = mx.v; if (mx.part === 'max') po.part = 'max'; else if (rowModAim(mx)) { po.key = mx.key; po.col = mx.col; } if (mx.lvl === true) po.lvl = true; var ptR = cleanModTiers(mx.tiers); if (ptR) po.tiers = ptR; } pm.push(po); }
             out.mods = pm;
         }
         else if (k === 'modsOn') { if (x !== true) return null; out.modsOn = true; }
@@ -4562,6 +4563,7 @@ function cleanRowDef(d, gmView) {   // an item's definition carried on a row, by
     if (gmView && RM_MODES[d.eq] === 1) { out.eq = d.eq; var eqm = cutText(d.eqMsg, LIMITS.rmMsg); if (eqm) out.eqMsg = eqm; }   // F4b: the equip lock, as secret
     if (gmView || vis === 'all') { var rk = cleanItemKey(d.key); if (rk) out.key = rk; }   // F4b: a GM-only copy's key stays the GM's (critic 2)
     var rl = lvlNum(d.lvl); if (rl !== undefined) out.lvl = rl;
+    var rlo = cleanLvlOnly(d.lvlOnly); if (rlo) out.lvlOnly = rlo;   // 1.6.0: Levels it may be, on a snapshot and on an owner's inline copy: their sheet offers those levels and their own app refuses another
     var ds = cleanEntryStats(d.stats, null, 'labels'); if (ds) out.stats = ds;
     var dm = cleanItemMods(d.mods); if (dm) { out.mods = dm; if (d.modsOn === true) out.modsOn = true; }   // F6: its changes by their shape (a projection keeps the viewer's fields only: viewMods)   // F4c1: its stats by the key rule (a snapshot keeps every one; a custom or inline copy's are narrowed to its list's: rowStats)
     if (gmView) {   // formula text stays on the GM's machine, as an item's does
@@ -4617,7 +4619,7 @@ function cleanRow(e, items, spec, srcSpec, chSpec) {   // spec (F4b): the list's
         var o = {}; if (id) o.id = id; o.defId = e.defId; o.qty = qty; rowFacts(o, e, spec); var ov = cleanOv(e.ov, spec); if (ov) o.ov = ov; if (snap) o.snap = snap; if (id && e.hid === 1) o.hid = 1; if (e.keptOn === 1 && o.on === true) o.keptOn = 1; return withRd(withLd(o, e, items, spec, srcSpec), e, items, spec, chSpec);   // F4c2: its own values (a custom row never has any: its definition is its own)
     }
     if (!id || !isObj(e.def)) return null;
-    var d = cleanRowDef(e.def, e.lnk !== 1); if (!d) return null;
+    var d = cleanRowDef(e.def, e.lnk !== 1); if (!d) return null; if (e.lnk !== 1) delete d.lvlOnly;   // 1.6.0: Levels it may be is an entry's, so a row of the character's own holds none (Make custom ends it)
     var cs = rowStats(e.def.stats, spec); if (cs) d.stats = cs; else delete d.stats;   // F4c1: a custom or inline copy carries its list's stats only
     if (e.lnk === 1) rowText(d, e.def); else ownLong(d, e.def);   // 1.5.4: an owner's inline copy keeps the entry's long text, cleaned again (the host sends it for an entry players may see); 1.5.5 (155): a row of the character's own keeps its own
     var c = { id: id, qty: qty }; rowFacts(c, e, spec); c.def = d; if (e.lnk === 1) { c.lnk = 1; if (typeof e.src === 'string' && ITEM_ID.test(e.src)) { c.src = e.src; var cnR = cleanNeeds(e.needs, true); if (cnR) c.needs = cnR; var crR = cleanFormulaText(e.needsIf); if (crR) { c.needsIf = crR; var cfR = typeof e.needsFrom === 'number' ? lvlNum(e.needsFrom) : undefined; if (cfR !== undefined) c.needsFrom = cfR; } } } else { if (e.own === 1) c.own = 1; if (e.hid === 1) c.hid = 1; if (e.keptOn === 1 && c.on === true) c.keptOn = 1; } return withRd(withLd(c, e, items, spec, srcSpec), e, items, spec, chSpec);   // F4c3: own (a row its owner made), never on an inline copy
@@ -4692,7 +4694,7 @@ function cleanOv(v, spec) {
 function ownOv(v, spec) { return isObj(v) ? cleanOv({ name: v.name, icon: v.icon, category: v.category, notes: v.notes, stats: v.stats, held: v.held, area: v.area }, spec) : null; }
 // F4b: a row's level and switch as read (the sheet; F5a's formulas): a stored level, else the item's default level, else the list's; the
 // switch as stored, else the list's "starts on" (an id-less legacy row follows it: critic 13). A kept-on curse is on.
-function rowLvl(spec, row, def) { var l = isObj(spec) && isObj(spec.lvl) ? spec.lvl : null; if (isObj(row) && typeof row.lvl === 'number') return row.lvl; if (l && isObj(def) && typeof def.lvl === 'number') return lvlClamp(l, def.lvl); return l ? l.def : 0; }
+function rowLvl(spec, row, def) { var l = isObj(spec) && isObj(spec.lvl) ? spec.lvl : null; if (isObj(row) && typeof row.lvl === 'number') return row.lvl; if (l && isObj(def) && (typeof def.lvl === 'number' || Array.isArray(def.lvlOnly))) return lvlStart(spec, def); return l ? l.def : 0; }
 function rowOn(spec, row) { if (isObj(row) && typeof row.on === 'boolean') return row.on; return !!(isObj(spec) && isObj(spec.on) && spec.on.def === true); }
 // F4c1: a row's stat as read (the sheet; F5a's formulas) — the definition the row draws from (rowDef: the library entry, a deleted one's copy, its
 // own), else the stat's default, else 0; the key as the list spells it. What one cost: as recorded when added (the GM may correct it), else the
@@ -4809,6 +4811,120 @@ function lvlCapSays(f, spec, hit, gm) {
     if (Array.isArray(L.labels)) { var li = Math.round((c.at - (typeof L.min === 'number' ? L.min : 0)) / (L.step > 0 ? L.step : 1)); if (typeof L.labels[li] === 'string') nm = L.labels[li]; }
     var at = (nm || (L.label || 'Level') + ' ' + fmtNum(c.at)) + (c.up === true ? ' or higher' : '');
     return ((isObj(f) && f.label) || 'This list') + ' holds ' + (c.n === 0 ? 'no row' : 'at most ' + c.n + (c.n === 1 ? ' row' : ' rows')) + ' at ' + at + '.' + (gm ? ' Now it holds ' + hit.have + '.' : '');
+}
+// 1.6.0 Levels it may be (the owner, 2026-10-30, by prompt: "A box on the entry", "Player refused, GM told"): an entry may exist only at some levels,
+// as "it starts at level 3" or "its levels are 2 and 4". lvlOnly, a key of its definition written before its needs and the same in both views, is
+// a short list of a level or a run [lo, hi], each a number or a name of a list's named levels. An entry is tied to no one list, so a name is read
+// by the list a row stands on (lvlOnlyOn), and what names no level there says nothing there. Absent: any level, exactly as before.
+// cleanLvlOnly is the one cleaner: it takes the box's own text as well as a list, so a form hands it what was typed; lvlOnlyRead says what it
+// could not read, for the words at Save. lvlOnlyHit is the one judge, asked by applyRowOp (capJudge) wherever a row comes to stand at a level
+function lvlTok(x) {
+    if (typeof x === 'number') return lvlNum(x);
+    if (typeof x !== 'string') return undefined;
+    var t = cutText(x, LIMITS.label); if (!t) return undefined;
+    if (/^[+-]?\d+(\.\d+)?$/.test(t)) return lvlNum(Number(t));
+    return /[,;:=]|(^|\s)to(\s|$)/i.test(t) || !nameFold(t) ? undefined : t;   // never what the box's own reading would part, so a name reads back as it was written
+}
+function lvlOnlyRead(v) {
+    var out = [], seen = map(), bad = [];
+    var put = function(a, b, was) {
+        if (a === undefined || b === undefined) { bad.push(was); return; }
+        if (typeof a === 'number' && typeof b === 'number' && b < a) { var sw = a; a = b; b = sw; }
+        var t = a === b ? a : [a, b], k = JSON.stringify(typeof a === 'string' && a === b ? nameFold(a) : t); if (seen[k]) return;
+        if (out.length >= LIMITS.lvlOnly) { bad.push(was); return; }
+        seen[k] = 1; out.push(t);
+    };
+    if (typeof v === 'string') v.slice(0, 400).split(/[,;\n]+/).forEach(function(p) {
+        p = p.trim(); if (!p) return;
+        var m = /^(.+?)\s+to\s+(.+)$/i.exec(p) || /^(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)$/.exec(p);
+        put(lvlTok(m ? m[1] : p), lvlTok(m ? m[2] : p), p);
+    });
+    else if (Array.isArray(v)) v.slice(0, LIMITS.lvlOnly * 4).forEach(function(t) { if (Array.isArray(t) && (t.length === 1 || t.length === 2)) put(lvlTok(t[0]), lvlTok(t[t.length - 1]), String(t)); else if (typeof t === 'number' || typeof t === 'string') put(lvlTok(t), lvlTok(t), String(t)); else bad.push('?'); });
+    return { only: out.length ? out : null, bad: bad };
+}
+function cleanLvlOnly(v) { return lvlOnlyRead(v).only || undefined; }
+function lvlOnlyText(v) { return typeof v === 'string' ? v : Array.isArray(v) ? v.map(function(t) { return Array.isArray(t) ? t[0] + ' to ' + t[1] : String(t); }).join(', ') : ''; }
+function lvlNamed(L, x) { if (typeof x === 'number') return x; var fd = nameFold(x), out; (Array.isArray(L.labels) ? L.labels : []).forEach(function(n, i) { if (out === undefined && fd && nameFold(n) === fd) out = (L.min || 0) + i; }); return out; }
+function lvlGrid(L, lo, hi) {   // the lowest and highest levels of the list's own grid from lo to hi, or null where it has none there
+    var st = L.step > 0 ? L.step : 1, b = L.min !== undefined ? L.min : 0, e = st * 1e-9, a = lvlClamp(L, b + Math.ceil((lo - b) / st - 1e-9) * st), z = lvlClamp(L, b + Math.floor((hi - b) / st + 1e-9) * st);
+    return a >= lo - e && z <= hi + e && a <= z + e ? [a, z] : null;
+}
+// the levels an entry may be on a list, as runs [lo, hi] of the list's own levels, lowest first and joined where they touch. null where the
+// entry names none, or none that is a level of this list: then the box says nothing here, which the validator warns of, and no player is shut out
+function lvlOnlyOn(spec, def) {
+    var L = isObj(spec) && isObj(spec.lvl) ? spec.lvl : null, o = isObj(def) && Array.isArray(def.lvlOnly) ? def.lvlOnly : null; if (!L || !o) return null;
+    var st = L.step > 0 ? L.step : 1, rs = [];
+    o.forEach(function(t) { var p = Array.isArray(t) ? t : [t, t], a = lvlNamed(L, p[0]), b = lvlNamed(L, p[1]); if (a === undefined || b === undefined) return; var g = lvlGrid(L, Math.min(a, b), Math.max(a, b)); if (g) rs.push(g); });
+    if (!rs.length) return null;
+    rs.sort(function(x, y) { return x[0] - y[0]; });
+    var out = [rs[0]]; rs.slice(1).forEach(function(r) { var l = out[out.length - 1]; if (r[0] <= l[1] + st * (1 + 1e-9)) l[1] = Math.max(l[1], r[1]); else out.push(r); });
+    return out;
+}
+function lvlOnlyHas(spec, def, lv) { var on = lvlOnlyOn(spec, def); return !on || (typeof lv === 'number' && on.some(function(r) { return lv >= r[0] - 1e-9 && lv <= r[1] + 1e-9; })); }
+// what a box names that is no level of this list, as text: for the validator's words
+function lvlOnlyMiss(spec, def) {
+    var L = isObj(spec) && isObj(spec.lvl) ? spec.lvl : null, o = isObj(def) && Array.isArray(def.lvlOnly) ? def.lvlOnly : null; if (!L || !o) return [];
+    return o.filter(function(t) { var p = Array.isArray(t) ? t : [t, t], a = lvlNamed(L, p[0]), b = lvlNamed(L, p[1]); return a === undefined || b === undefined || !lvlGrid(L, Math.min(a, b), Math.max(a, b)); }).map(function(t) { return lvlOnlyText([t]); });
+}
+// every level it may be, lowest first, for a menu; null where it names none here, or more than LVL_MENU (a list with no top, a wide run): the box stays
+var LVL_MENU = 64;
+function lvlOnlyList(spec, def) {
+    var on = lvlOnlyOn(spec, def); if (!on) return null;
+    var L = spec.lvl, st = L.step > 0 ? L.step : 1, out = [];
+    for (var i = 0; i < on.length; i++) { var n = Math.round((on[i][1] - on[i][0]) / st); if (out.length + n + 1 > LVL_MENU) return null; for (var k = 0; k <= n; k++) out.push(lvlClamp(L, on[i][0] + k * st)); }
+    return out;
+}
+// the level nearest n it may be: n itself, else the next above, else the highest. With nothing named, n
+function lvlNear(spec, def, n) {
+    var on = lvlOnlyOn(spec, def); if (!on || on.some(function(r) { return n >= r[0] - 1e-9 && n <= r[1] + 1e-9; })) return n;
+    var up, down; on.forEach(function(r) { if (r[0] >= n && up === undefined) up = r[0]; if (r[1] <= n) down = r[1]; });
+    return up !== undefined ? up : down;
+}
+// the level a new row of an entry starts at: its own Starts at level, else the list's, moved to the nearest it may be. Asked by every place a row
+// is made from an entry, and by rowLvl for a row with no stored level (a grant's own Level wins: a grant is not judged)
+function lvlStart(spec, def) { var L = spec.lvl; return lvlNear(spec, def, lvlClamp(L, isObj(def) && typeof def.lvl === 'number' ? def.lvl : L.def)); }
+// The one judge: a row that stands at a level its entry does not allow, brought there by this change. was: the level it stood at before, which
+// is no change (a row already outside stays as it is, and a level moved inside a run asks nothing). A kept curse is not judged. null or { name, runs, lv }
+function lvlOnlyHit(sys, spec, list, idx, was) {
+    var r = list[idx]; if (!isObj(r) || r.hid === 1 || !isObj(spec) || !isObj(spec.lvl)) return null;
+    var rd = rowDef(sys, r), d = rd ? rd.def : null, on = lvlOnlyOn(spec, d); if (!on) return null;
+    var now = rowLvl(spec, r, d); if (typeof was === 'number' && Math.abs(now - was) < 1e-9) return null;
+    return lvlOnlyHas(spec, d, now) ? null : { name: (isObj(d) && d.name) || 'That entry', runs: on, lv: now };
+}
+function lvlOnlyWords(spec, runs) {
+    var L = spec.lvl, named = Array.isArray(L.labels), nm = function(n) { var i = Math.round(n - (L.min || 0)); return named && typeof L.labels[i] === 'string' && L.labels[i] ? L.labels[i] : fmtNum(n); };
+    var ws = runs.map(function(r) { return Math.abs(r[0] - r[1]) < 1e-9 ? nm(r[0]) : nm(r[0]) + ' to ' + nm(r[1]); }), j = ws.length > 1 ? ws.slice(0, -1).join(', ') + ' or ' + ws[ws.length - 1] : ws[0];
+    return named ? j : (L.label || 'Level') + ' ' + j;
+}
+// the words of a refusal, of the GM's notice and of the sheet's mark. at: true says where the row stands now
+function lvlOnlySays(spec, hit, at) {
+    var L = spec.lvl, i = Math.round(hit.lv - (L.min || 0)), now = Array.isArray(L.labels) && typeof L.labels[i] === 'string' && L.labels[i] ? L.labels[i] : (L.label || 'Level') + ' ' + fmtNum(hit.lv);
+    return cutText(hit.name, LIMITS.itemName) + ' may only be ' + lvlOnlyWords(spec, hit.runs) + '.' + (at === true ? ' This row stands at ' + now + '.' : '');
+}
+// 1.6.0 By level (the owner, 2026-10-30, by prompt: figures by tier): a change of an entry may give a figure for each level, tiers [{ at, v }], at a
+// number or a name of the list's named levels. A figure holds from its level up to the next one named, and below the first the change's own v
+// counts. Only beside a change with a figure. It takes the place of per level (a change with tiers keeps no lvl), and an item's change keeps no
+// formula, so the figures are plain numbers. Absent: the change is what it was. modAt is the one reader
+function modTiersRead(v) {
+    var out = [], seen = map(), bad = [];
+    var put = function(at, n, was) {
+        if (at === undefined || typeof n !== 'number' || !fin(n) || Math.abs(n) > LIMITS.effectAmount) { bad.push(was); return; }
+        var k = typeof at === 'string' ? 'n' + nameFold(at) : 'v' + at; if (seen[k]) { bad.push(was); return; }
+        if (out.length >= LIMITS.modTiers) { bad.push(was); return; }
+        seen[k] = 1; out.push({ at: at, v: n });
+    };
+    if (typeof v === 'string') v.slice(0, 400).split(/[,;\n]+/).forEach(function(p) { p = p.trim(); if (!p) return; var m = /^(.+?)\s*[:=]\s*([+\-\u2212]?\d+(?:\.\d+)?)$/.exec(p); put(m ? lvlTok(m[1]) : undefined, m ? Number(m[2].replace('\u2212', '-')) : NaN, p); });
+    else if (Array.isArray(v)) v.slice(0, LIMITS.modTiers * 4).forEach(function(t) { if (isObj(t)) put(lvlTok(t.at), t.v, 'a level'); else bad.push('?'); });
+    return { tiers: out.length ? out : null, bad: bad };
+}
+function cleanModTiers(v) { return modTiersRead(v).tiers || undefined; }
+function modTiersText(v) { return typeof v === 'string' ? v : Array.isArray(v) ? v.filter(isObj).map(function(t) { return t.at + ': ' + (t.v > 0 ? '+' : '') + t.v; }).join(', ') : ''; }
+// a change as it stands at a level on a list: the very change where it has no tiers, else a copy with the figure of the highest tier at or below lv
+function modAt(m, spec, lv) {
+    if (!isObj(m) || !Array.isArray(m.tiers) || !m.tiers.length || m.op === 'on') return m;
+    var L = isObj(spec) && isObj(spec.lvl) ? spec.lvl : null; if (!L || typeof lv !== 'number' || !fin(lv)) return m;
+    var best, v; m.tiers.forEach(function(t) { var a = isObj(t) ? lvlNamed(L, t.at) : undefined; if (a === undefined || a > lv + 1e-9 || (best !== undefined && a < best)) return; best = a; v = t.v; });
+    return best === undefined ? m : Object.assign({}, m, { v: v });
 }
 function rowPaid(spec, row, def) { if (isObj(row) && typeof row.paid === 'number' && fin(row.paid)) return row.paid; return isObj(spec) && typeof spec.price === 'string' && spec.price ? Math.max(0, rowStat(spec, def, spec.price)) : 0; }
 function catIn(cats, c) { var l = lower(cutText(c, LIMITS.category)); return !!l && cats.some(function(x) { return lower(x) === l; }); }
@@ -5016,7 +5132,7 @@ function grantAdd(sys, W, g, qty, rid, ctx, depth) {
     if (g.pay === true) row.gp = 1;   // 1.6.0: Pays back (Row.paysback)
     if (typeof g.spec === 'string' && specSquash(g.spec)) row.ov = { name: cutText((ent.name || 'Item') + ' (' + g.spec + ')', LIMITS.itemName) };   // 1.6.0 Specialties: named for its specifier, as Keen Sense (Smell)
     if (ctx.mk) row.mk = 1;
-    if (sp && isObj(sp.lvl)) row.lvl = lvlClamp(sp.lvl, typeof g.lvl === 'number' && fin(g.lvl) ? g.lvl : typeof ent.lvl === 'number' ? ent.lvl : sp.lvl.def);   // 1.6.0: at its grant's level where it names one
+    if (sp && isObj(sp.lvl)) row.lvl = typeof g.lvl === 'number' && fin(g.lvl) ? lvlClamp(sp.lvl, g.lvl) : lvlStart(sp, ent);   // 1.6.0: at its grant's level where it names one (a grant is never refused for Levels it may be, and such a row is marked on the sheet)
     startStamp(sp, row);   // 1.6.0: Keeps the starting level
     if (sp && isObj(sp.on)) row.on = sp.on.def === true;
     if (sp && sp.price) row.paid = 0;
@@ -5035,7 +5151,7 @@ function grantHeld(L, entry, g) {   // g (1.6.0 Specialties): the grant, so a ro
     return any;
 }
 // the level a grant w holds its entry at: its own, else the entry's, else the list's, held to the list's rules; none where the list has no level
-function grantLvlOf(sp, w, d) { return isObj(sp) && isObj(sp.lvl) ? lvlClamp(sp.lvl, isObj(w) && typeof w.lvl === 'number' && fin(w.lvl) ? w.lvl : isObj(d) && typeof d.lvl === 'number' ? d.lvl : sp.lvl.def) : undefined; }
+function grantLvlOf(sp, w, d) { return isObj(sp) && isObj(sp.lvl) ? (isObj(w) && typeof w.lvl === 'number' && fin(w.lvl) ? lvlClamp(sp.lvl, w.lvl) : lvlStart(sp, d)) : undefined; }
 // A row of its own a grant backs: gb names the granting row, gl the level the row stood at before (none: it read its entry's). It reads the
 // higher of that and the grant's; a row another row backs already passes to this one only where this one raises it (the other is found again
 // by grantHeirs when this one goes). ctx.raised: what was raised, for the notice
@@ -5176,7 +5292,7 @@ function openSync(sys, char, lib) {
             var base = 'w_o' + w.id.replace(/[^A-Za-z0-9]/g, '').slice(-21), id = base, n = 2;
             while (next.some(function(r) { return isObj(r) && rowIdOf(r) === id; }) && n < 100) id = (base.slice(0, 22) + n++);
             var row = { id: id, defId: w.id, qty: 1 };
-            if (spec && isObj(spec.lvl)) row.lvl = lvlClamp(spec.lvl, typeof spec.lvl.min === 'number' ? spec.lvl.min : 1);
+            if (spec && isObj(spec.lvl)) row.lvl = lvlNear(spec, ent, lvlClamp(spec.lvl, typeof spec.lvl.min === 'number' ? spec.lvl.min : 1));
             startStamp(spec, row);   // 1.6.0: Keeps the starting level
             if (!itemDef(sys, w.id)) row.snap = cleanRowDef(ent, true);
             row.opn = w.by; next.push(row); did = true;
@@ -5254,7 +5370,8 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
     var grOn = opts.copy !== true && !fl, grSteps = [];   // 1.6.0 (v2, B4): the rows a row grants, moved in this same change on the machine that owns the character (a player's own app waits for its host; a file brings its granted rows as they come)
     var hnd = opts.player && !mkR ? 'player' : 'gm', gsp = opts.player ? (actorSpec(sys, fieldId, spec, opts) || spec) : spec;   // 1.5.4 One at a time: whose hand, and the list options a row's group is read by (a player's own view, on the host and on their own app alike)
     var at = function(rid) { for (var i = 0; i < list.length; i++) if (rowIdOf(list[i]) === rid) return i; return -1; };
-    var capJudge = function(ix, was) { if (fl) return null; var ch = lvlCapHit(sys, spec, list, ix, was); if (!ch) return null; if (opts.player) return { ok: false, reason: 'value', msg: lvlCapSays(f, spec, ch, false), cap: true }; extra.capSays = lvlCapSays(f, spec, ch, true); return null; };   // 1.6.0 At most at a level: a player refused in words, the GM told
+    var capJudge = function(ix, was, stood) { if (fl) return null; var oh = stood === true ? null : lvlOnlyHit(sys, spec, list, ix, was); if (oh) { if (opts.player) return { ok: false, reason: 'value', msg: lvlOnlySays(spec, oh), cap: true }; extra.onlySays = lvlOnlySays(spec, oh); }   // 1.6.0 Levels it may be: a player refused in words, the GM told. stood: a split and a restore leave a row at the level it stood at, so a row already outside its levels is not shut out of its own stack or its Undo
+        var ch = lvlCapHit(sys, spec, list, ix, was); if (!ch) return null; if (opts.player) return { ok: false, reason: 'value', msg: lvlCapSays(f, spec, ch, false), cap: true }; extra.capSays = lvlCapSays(f, spec, ch, true); return null; };   // 1.6.0 At most at a level: a player refused in words, the GM told
     if (q.op !== 'add' && typeof q.rowId === 'string') { var oxA = at(q.rowId); if (oxA >= 0 && isObj(list[oxA]) && typeof list[oxA].opn === 'string' && (opts.player || q.op !== 'remove')) return { ok: false, reason: 'opened' }; }   // 1.5.8: an opened row comes and goes with what opens it (openSync); only the GM may take one off, and it comes back while it is opened
     if (q.op === 'load') return rowLoad(sys, char, f, list, spec, q, opts, at, vo, F);   // 1.5.8 Loads from
     if (q.op === 'chamber' || q.op === 'unchamber') return rowChamber(sys, char, f, list, spec, q, opts, at, vo, F);   // 1.5.9 Chambers from
@@ -5266,7 +5383,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         if (!ent || !inView || (opts.player && ent.vis === 'gm')) return { ok: false, reason: 'missing' };
         if (opts.player && spec && Array.isArray(spec.cats) && !catIn(spec.cats, ent.category)) return { ok: false, reason: 'missing' };   // F4b: outside the list's categories reads as gone
         if (opts.player && !fl) {   // 126b: what the entry needs, judged for a player's own pick (a character being made too; never a file that fills one, never the GM)
-            var nmR = needsMet(sys, char, ent, opts.copy === true, F, null, spec && isObj(spec.lvl) ? lvlClamp(spec.lvl, typeof ent.lvl === 'number' ? ent.lvl : spec.lvl.def) : undefined);   // copy: a player's own app, judging its copy of the character. At the level the new row starts at
+            var nmR = needsMet(sys, char, ent, opts.copy === true, F, null, spec && isObj(spec.lvl) ? lvlStart(spec, ent) : undefined);   // copy: a player's own app, judging its copy of the character. At the level the new row starts at
             var pvE = nmR.ok ? null : opts.copy === true ? ent : (itemDef(opts.view || null, q.defId) || (typeof opts.libPl === 'function' ? opts.libPl(q.defId) : null));   // the entry as players read it: a rule they may not read is never said
             var missR = nmR.ok ? [] : nmR.missing.map(function(n) { return isObj(n) && n.rule !== undefined && !(isObj(pvE) && pvE.needsIf === n.rule) ? { rule: true } : n; });
             if (!nmR.ok) return { ok: false, reason: 'needs', msg: needsSays(ent, missR, function(id) { var d2 = itemDef(sys, id); if (d2) return valueOpts(opts.view || null).items[id] === 1 ? d2.name : null; var l2 = typeof opts.lib === 'function' ? opts.lib(id) : null; return isObj(l2) && l2.vis !== 'gm' ? l2.name : null; }) };
@@ -5294,7 +5411,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             if (fl && q.gr !== undefined) { if (typeof q.gr !== 'string' || !ROW_ID.test(q.gr)) return { ok: false, reason: 'value' }; row.gr = q.gr; if (q.gp === 1) row.gp = 1; }   // 1.6.0 (v2, B4): a character file's granted row, still marked by the row that grants it (1.6.0: and by Pays back)
             if (char && (char.making === 1 || char.making === true)) row.mk = 1;   // 1.6.0 (v2, B5): Row.made; from the character as the host holds it, never from the message
             if (agN) row.ov = { name: agN };   // 1.6.0: the copy's own name, as the GM's own values name a row
-            if (spec && isObj(spec.lvl)) row.lvl = lvlClamp(spec.lvl, typeof ent.lvl === 'number' ? ent.lvl : spec.lvl.def);   // F4b: the facts are written as it is added (a later default moves no row)
+            if (spec && isObj(spec.lvl)) row.lvl = lvlStart(spec, ent);   // F4b: the facts are written as it is added (a later default moves no row); 1.6.0: at a level the entry may be
             startStamp(spec, row);   // 1.6.0: Keeps the starting level, the level it is added at
             if (spec && isObj(spec.on)) row.on = spec.on.def === true;
             if (spec && spec.price) row.paid = clampNum(rowStat(spec, ent, spec.price), 0, LIMITS.statAbs);
@@ -5331,13 +5448,13 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         if (list.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return { ok: false, reason: 'field' };
         var cpS = JSON.parse(JSON.stringify(rwS)); cpS.id = q.back; cpS.qty = nS; delete cpS.tt; if (spec && isObj(spec.on) && cpS.on === true) cpS.on = false;   // the part split off starts off: a row on stays the one in use
         rwS.qty = curS - nS; list.splice(ixS + 1, 0, cpS); extra.row = q.back; extra.qty = nS; extra.split = true;
-        var capP = capJudge(ixS + 1); if (capP) return capP;   // 1.6.0 At most at a level: the part split off is a row of its own
+        var capP = capJudge(ixS + 1, undefined, true); if (capP) return capP;   // 1.6.0 At most at a level: the part split off is a row of its own
     } else if (q.op === 'restore') {   // 1.5.8: a removed row put back whole at its place, the very row (q.row, q.at) the caller kept from before it went: the GM's sheet, or the host's own record for a player (never the player's word)
         if (typeof q.rowId !== 'string' || !ROW_ID.test(q.rowId) || !isObj(q.row) || rowIdOf(q.row) !== q.rowId || at(q.rowId) >= 0) return { ok: false, reason: 'missing' };
         if (list.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return { ok: false, reason: 'field' };
         var atR = Math.max(0, Math.min(list.length, cleanNum(q.at, list.length) | 0));
         list.splice(atR, 0, JSON.parse(JSON.stringify(q.row))); extra.row = q.rowId; extra.qty = q.row.qty | 0; extra.restored = true;
-        var capR = capJudge(atR); if (capR) return capR;   // 1.6.0 At most at a level
+        var capR = capJudge(atR, undefined, true); if (capR) return capR;   // 1.6.0 At most at a level
         if (grOn && isObj(q.grants)) grSteps.push({ put: q.grants, rid: q.rowId });   // 1.6.0 (v2, B4): the rows it granted come back with it, as the caller kept them
         if (grOn) grSteps.push({ reback: q.rowId });   // 1.6.0 (a builder audit): and the rows of its own it backed are backed again
         if (isObj(q.parts) && spec && isObj(spec.parts)) {   // 1.6.0 R14: its parts come back with it, as the caller kept them from before it went (never the player's word: the host's own record)
@@ -5369,7 +5486,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             }
             var lvJ = !!(fx.lvl !== undefined && opts.player && !fl && spec && isObj(spec.lvl)), rdJ = lvJ ? rowDef(sys, rw) : null, dfJ = rdJ ? rdJ.def : null, wasL = lvJ ? rowLvl(spec, rw, dfJ) : undefined;   // the level the row reads at before the change: its own, else its entry's, else the list's
             var grL = grOn && fx.lvl !== undefined && spec && isObj(spec.lvl) ? rowDef(sys, rw) : null, grL0 = grL ? rowLvl(spec, rw, grL.def) : 0;   // 1.6.0 (v2, B4): a level that rises past a grant's from grants it; one that falls below takes it
-            var capW = fx.lvl !== undefined && spec && isObj(spec.lvl) && Array.isArray(spec.lvl.caps) ? (function() { var dW = rowDef(sys, rw); return rowLvl(spec, rw, dW ? dW.def : null); })() : undefined;   // 1.6.0 At most at a level: the level it stood at
+            var capW = fx.lvl !== undefined && spec && isObj(spec.lvl) ? (function() { var dW = rowDef(sys, rw); return rowLvl(spec, rw, dW ? dW.def : null); })() : undefined;   // 1.6.0 At most at a level, Levels it may be: the level it stood at
             var slW = fx.lvl !== undefined && spec && isObj(spec.lvl) && spec.lvl.start === true ? rowLvl(spec, rw, (rowDef(sys, rw) || {}).def) : undefined;   // 1.6.0 Keeps the starting level: the level before the change
             if (fx.lvl !== undefined) { if (!spec || !isObj(spec.lvl)) return { ok: false, reason: 'value' }; if (fx.lvl === null) delete rw.lvl; else { var nl = lvlNum(fx.lvl); if (nl === undefined || typeof fx.lvl !== 'number') return { ok: false, reason: 'value' }; rw.lvl = lvlClamp(spec.lvl, nl); } }
             if (capW !== undefined) { var capS = capJudge(idx, capW); if (capS) return capS; }
@@ -6258,7 +6375,7 @@ function fxIndex(sys, char, stance, autos, vfOf, gateOf) {   // gateOf (1.6.0, f
             if (d.modsOn === true && spec && isObj(spec.on) && !rowOn(spec, r)) return;
             if (spec && typeof spec.modsIf === 'string' && spec.modsIf && typeof gateOf === 'function' && !gateOf(f, r)) return;   // 1.6.0 Changes apply where: a row where the list's gate does not hold gives none of its changes
             var lv = rowLvl(spec, r, d); lv = typeof lv === 'number' && isFinite(lv) ? lv : 0;
-            d.mods.forEach(function(m) { put(m, d.name || 'Item', d.vis === 'gm', isObj(m) && m.lvl === true ? lv : 1); });
+            d.mods.forEach(function(m) { var mt = modAt(m, spec, lv); put(mt, d.name || 'Item', d.vis === 'gm', isObj(mt) && mt.lvl === true ? lv : 1); });   // 1.6.0 By level: the figure of its tier
         });
     });
     (char && Array.isArray(char.unseen) ? char.unseen : []).forEach(function(m) { put(m, 'An unseen effect', false, 1); });
@@ -6269,8 +6386,10 @@ function fxIndex(sys, char, stance, autos, vfOf, gateOf) {   // gateOf (1.6.0, f
 // the resolver skips a field that is not there); lvl: true multiplies it by the row's level. At most LIMITS.effectMods; none: null
 function cleanItemMod(m, kinds) {
     if (!isObj(m) || typeof m.f !== 'string' || !FIELD_ID.test(m.f)) return null;
+    var tr = m.op === 'on' ? undefined : cleanModTiers(m.tiers); if (tr && typeof m.v !== 'number') m = Object.assign({}, m, { v: 0 });   // 1.6.0 By level: a change that names its figures needs no figure of its own
     var mo = MOD_LIM[m.op] ? m.op : 'add', c = kinds ? cleanMod(m, kinds) : m.op === 'on' ? { f: m.f, op: 'on' } : (m.op === 'add' || MOD_LIM[m.op]) && typeof m.v === 'number' && isFinite(m.v) && Math.abs(m.v) <= LIMITS.effectAmount ? (m.part === 'max' ? { f: m.f, op: mo, v: m.v, part: 'max' } : rowModAim(m) ? { f: m.f, op: mo, v: m.v, key: m.key, col: m.col } : m.key !== undefined || m.col !== undefined ? null : { f: m.f, op: mo, v: m.v }) : null;   // 1.5.8: an aim at a row that is no aim is no change
-    if (c && c.op === 'add' && m.lvl === true) c.lvl = true;
+    if (c && c.op === 'add' && m.lvl === true && !tr) c.lvl = true;
+    if (c && tr) c.tiers = tr;   // 1.6.0 By level, in the place of per level
     return c;
 }
 function cleanItemMods(v, kinds) { var out = []; (Array.isArray(v) ? v : []).forEach(function(m) { if (out.length >= LIMITS.effectMods) return; var c = cleanItemMod(m, kinds); if (c) out.push(c); }); return out.length ? out : null; }
@@ -6297,7 +6416,7 @@ function unseenMods(c, view, full, F) {   // F (1.6.0): the engine for a list's 
             if (spec && typeof spec.modsIf === 'string' && spec.modsIf) { if (!gate) gate = fxGate(sysF, c, Fg); if (!gate(f, r)) return; }   // 1.6.0 Changes apply where, judged as the host's own sheet judges it
             var lv = rowLvl(spec, r, d); lv = typeof lv === 'number' && isFinite(lv) ? lv : 0;
             d.mods.forEach(function(m) {
-                var cm = isObj(m) && vk[m.f] ? cleanMod(m, vk) : null; if (!cm) return;
+                var cm = isObj(m) && vk[m.f] ? cleanMod(modAt(m, spec, lv), vk) : null; if (!cm) return;   // 1.6.0 By level: the figure of its tier
                 var key = cm.f + '|' + cm.op + '|' + (cm.part || '') + '|' + (cm.key || '') + '|' + (cm.col || '');
                 if (!agg[key]) { agg[key] = { f: cm.f, op: cm.op }; if (cm.op === 'add') agg[key].v = 0; else if (MOD_LIM[cm.op]) agg[key].v = cm.v; if (cm.part) agg[key].part = cm.part; if (cm.key) { agg[key].key = cm.key; agg[key].col = cm.col; } order.push(key); }
                 if (cm.op === 'add') agg[key].v += cm.v * (m.lvl === true ? lv : 1); else if (cm.op === 'max') agg[key].v = Math.max(agg[key].v, cm.v); else if (cm.op === 'min') agg[key].v = Math.min(agg[key].v, cm.v);
@@ -8521,6 +8640,19 @@ function validateSystem(sys, F) {
             errors.push({ id: it.id, prop: 'key', message: 'Key "' + it.key + '" is also used by "' + (o.name || 'Item') + '" in ' + (f.label || f.key) + '.' });
         });
     });
+    // 1.6.0 Levels it may be, and a change's figures By level: what reads as nothing on the lists an item can be on (an entry is tied to no one list, so a name is read by the list a row stands on)
+    (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) {
+        if (!isObj(it)) return; var tm = (Array.isArray(it.mods) ? it.mods : []).filter(function(m) { return isObj(m) && Array.isArray(m.tiers); }); if (!Array.isArray(it.lvlOnly) && !tm.length) return;
+        var holds = sys.fields.filter(function(f) { return f.kind === 'item-list' && isObj(f.list) && isObj(f.list.lvl) && !(Array.isArray(f.list.cats) && f.list.cats.length && !catIn(f.list.cats, it.category)); });
+        if (!holds.length) { warnings.push({ id: it.id, prop: 'lvlOnly', message: 'No list it can be on has a level, so ' + (Array.isArray(it.lvlOnly) ? 'Levels it may be says' : 'Figure by level says') + ' nothing.' }); return; }
+        holds.forEach(function(f) {
+            var nm = f.label || f.key, miss = lvlOnlyMiss(f.list, it), on = lvlOnlyOn(f.list, it);
+            if (Array.isArray(it.lvlOnly) && !on) warnings.push({ id: it.id, prop: 'lvlOnly', message: nm + ' has none of its Levels it may be, so the box says nothing there.' });
+            else if (miss.length) warnings.push({ id: it.id, prop: 'lvlOnly', message: nm + ' has no level ' + miss.join(', ') + ', so Levels it may be passes over that there.' });
+            if (on && typeof it.lvl === 'number' && !lvlOnlyHas(f.list, it, lvlClamp(f.list.lvl, it.lvl))) warnings.push({ id: it.id, prop: 'lvlOnly', message: 'Its starting level is not one of its Levels it may be, so a new row on ' + nm + ' starts at ' + fmtNum(lvlStart(f.list, it)) + '.' });
+            tm.forEach(function(m) { m.tiers.forEach(function(t) { if (isObj(t) && lvlNamed(f.list.lvl, t.at) === undefined) warnings.push({ id: it.id, prop: 'mods', message: 'Figure by level: ' + nm + ' has no level ' + t.at + ', so that figure counts for nothing there.' }); }); });
+        });
+    });
     // Stage 6 F4c1: a stat key a GM-only item list shares with a visible one — an item's value under it is in the players' view (the visible list's)
     var visSt = map();
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && f.vis === 'all' && isObj(f.list) && Array.isArray(f.list.stats)) f.list.stats.forEach(function(s) { if (isObj(s) && typeof s.key === 'string' && !visSt[lower(s.key)]) visSt[lower(s.key)] = f; }); });
@@ -9374,6 +9506,7 @@ Object.assign(API, { dmgMajorOf: dmgMajorOf, dmgPart2Of: dmgPart2Of, dmgPartOf: 
 Object.assign(API, { specSquash: specSquash, specNameParts: specNameParts, specInfo: specInfo, specWords: specWords, specContains: specContains, specCoversRow: specCoversRow, fitBroke: fitBroke, fitAgain: fitAgain, specBase: specBase, specMeans: specMeans, grantSpecOf: grantSpecOf, refSays: refSays, rollRefs: rollRefs, SPEC_REFS: SPEC_REFS });   // 1.6.0 Specialties
 Object.assign(API, { figVeh: figVeh, linkFig: linkFig, figRead: figRead, figExpand: figExpand, LINK_FIGS: LINK_FIGS, stationsIn: stationsIn, setCrewSource: setCrewSource, crewFigs: crewFigs, cleanCk: cleanCk, cleanCharStn: cleanCharStn, groupByKey: groupByKey, stationOf: stationOf, crewParts: crewParts, LINK_STATIONS: LINK_STATIONS });   // 1.6.0 (CORE gap 16)
 Object.assign(API, { upkeepLines: upkeepLines, upkeepWords: upkeepWords });   // 205 follow-up (3): an upkeep's payments said
+Object.assign(API, { cleanLvlOnly: cleanLvlOnly, lvlOnlyRead: lvlOnlyRead, lvlOnlyText: lvlOnlyText, lvlOnlyOn: lvlOnlyOn, lvlOnlyHas: lvlOnlyHas, lvlOnlyMiss: lvlOnlyMiss, lvlOnlyList: lvlOnlyList, lvlOnlyHit: lvlOnlyHit, lvlOnlySays: lvlOnlySays, lvlStart: lvlStart, lvlNear: lvlNear, modTiersRead: modTiersRead, cleanModTiers: cleanModTiers, modTiersText: modTiersText, modAt: modAt });   // 1.6.0: Levels it may be, and a change's figures By level
 Object.assign(API, { cleanTables: cleanTables, tableKeyOk: tableKeyOk, tableParts: tableParts, tableRead: tableRead, tableFam: tableFam, tableRowOf: tableRowOf, TABLE_KEY: TABLE_KEY, TABLE_ROW_KEY: TABLE_ROW_KEY, nameFold: nameFold });   // 1.6.0: a system's tables
 if (typeof window !== 'undefined') window.wpSystemCore = API;
 export { targetHitList, targetHitRows, targetHitFor, withTargetHit, readsTargetHit, HIT_ROWS, setGateEngine, fxGate, modsIfOk, rowAsks, readsRow, allRowOk, blowCripN, BLAST_EACH, withBlow, blowCripOf, BLOW_NAMES, RESIST_OR, unheldJudge, GROUP_MAX, rollTargetOf, groupRolls, groupWeakest, dmgAdOf, dmgDiceRead, turnCounters, cleanCharLink, LINK_KINDS, LINK_NOT, cleanLinks, linkByKey, linkBare, setLinkSource, cleanCharLinks, linkNamesIn, linkFigs, cleanLk, linkSet, linkedFrom, linksDrop, withAttempt, bigOf, critRange, cleanTier, grantWaits, grantRaises, cleanGrants, hideGrants, grantWant, grantsKept, GRANT_MAX, rangeBandOf, partsRoom, partsCapSays, fitIfOk, partFitSays, partFitEntry, upkeepEach, PART_CAPS, PART_DEPTH, partDepth, partsTree, partHostOk, partsKept, partsPut, partsSrc, partHost, partsOf, capsAt, droppedWords, setOf, setsOf, statName, placeVal, rollFigOf, rollShowOf, cleanBadges, BADGE_MAX, cleanSheetRev, sheetRevOf, charStale, staleOf, revProposal, cleanAlt, ALT_MAX, againFold, cleanEnv, ENV_BANDS, envBands, envWorst, cleanRollSw, rollSwitchesAll, rollSwitches, swJudge, DATE_NAMES, setDateSource, dateReads, VERSION, overSays, overNames, overSet, onClash, rowTimers, cleanRowTimer, readsOn, cleanRowGone, cleanCross, crossings, crossSteps, postureFx, withOnSelf, tokOnOk, mapYardPx, loadFits, DIE_NAMES, cleanDie, dieOf, rollDie, tradeOfferable, tradeInto, moneyBoxes, moneyHeld, moneyMove, rowOpMoney, ROW_LOOK, WORK_KINDS, WORK_BY, cleanRowLook, rowLookShown, rowLookShade, finishWords, workWords, cleanTradeOffer, tradeApply, TRADE_LINES, cleanDamageRules, damageStep, cleanCharDamage, DMG_CONDS, cleanPlaceCats, catSplits, catHome, catPlace, cleanFieldUnit, metricOf, unitTail, readMeasure, heightWords, MEASURES, measureWords, unitWords, unitHead, listFig, listWords, unitOf, figText, figFmt, weightWords, textWords, measureStore, rollNeedsOk, rollNeedsSays, onGroup, onlyOne, onHeld, cleanNeeds, hideNeeds, needsMet, needsSays, needRule, ruleTrue, setRuleJudge, cleanBudgets, budgetsOf, budgetWatch, budgetSays, cleanDesc, cleanLvls, EVERY_UNITS, cleanEvery, FIGHT_UNITS, cleanInFight, timeRuleRun, ruleRunCtx, needsHeld, chainsShallow, cleanFace, charForView, mapGridOf, tokenCell, shapeStandIn, cleanFrame, openChar, newCharRules, charClash, coreOf, setLibraryFind, statKeys, statPicks, cleanIcon, droppedCounts, parseLasts, lastsSecs, roundSecs, fxLeftNow, fxTick, mapCellScale, moveAllowCells, dueActs, gridCells, cleanTurn, TURN_UNITS, TIME_WORDS, roundActs, combatChars, applyRound, thenChanges, thenCrit, withRollCrit, THEN_WHEN, dmgTypeOf, dmgKindOf, rollMods, openSync, cleanOpens, showsIf, rowRollNames, applyAct, applyScope, cleanCharApply, APPLY_KINDS, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, cleanNewPlayers, newPlayerRules, waitingTokensOf, waitingNeed, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, plusText, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, libSnaps, carriedBy, cleanItemMods, fieldKinds, unseenMods, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, tokenEffects, autoEffectsOn, tokenOwnEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, postureRangedOf, cleanPostures, postureList, ownPostures, postureAt, postureSeven, stanceCtx, tokenCtx, setAimSource, bearingTo, aimsOf, facingNow, withRound, withCross, rangeCtx, withRange, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, ROUNDS, ROUND_TO, roundBy, roundSays, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, cleanLightRules, lightName, lightPresets, LIGHT_UNITS, cleanRangeRules, rangeModOf, rangeDist, rangeOf, RANGE_UNITS, cleanSenses, secretFieldIds, gmViewFields, coverTier, coverOutcome, coverDamage, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, orderByInit, cleanInitRules, cleanHeightRules, heightModOf, heightOf, HEIGHT_UNITS, initTie, sideFirst, orderBySide, validateSystem, charFor, applyEdit, autoLayout, cleanCharUpload, cleanUploads, fillMaking, applyProposal, statAsk, readerKit, registerReader, dropReader, readers, readerById, readerFor, fmtNum, suggest, lookRule, cleanLooks, applyStyle, cleanCharStyle, lookOf, lookFor, loadSame, loadMax, cleanLd, chamberTakes, chamberFits, chamberCap, chamberHolds, chamberSays, cleanRd, CHAMBER_CAP, thenMargin, onceOf, cleanBlastRules, BLAST_FALL, cleanReach, cleanAffs, affLastsSecs, AFF_UNITS, chosenPicks, chosenNext, BAR_COLORS, BAR_SHOW_WORDS, cleanBars, cleanTokBars, tokenBarSpec, tokenBarFigs, cleanBarFigs, barFill, barTip };
@@ -9381,4 +9514,5 @@ export { figVeh, linkFig, figRead, figExpand, LINK_FIGS, stationsIn, setCrewSour
 export { specWords, specContains, specCoversRow, fitBroke, fitAgain, specBase, specMeans, grantSpecOf, specSquash, specNameParts, specInfo, refSays, rollRefs, SPEC_REFS };   // 1.6.0 Specialties
 export { dmgMajorOf, dmgPart2Of, dmgPartOf, DMG_MORE };   // 1.6.0: A Major Wound where; B3: a blow's second part
 export { upkeepLines, upkeepWords };   // 205 follow-up (3): an upkeep's payments said
+export { cleanLvlOnly, lvlOnlyRead, lvlOnlyText, lvlOnlyOn, lvlOnlyHas, lvlOnlyMiss, lvlOnlyList, lvlOnlyHit, lvlOnlySays, lvlStart, lvlNear, modTiersRead, cleanModTiers, modTiersText, modAt };   // 1.6.0: Levels it may be, and a change's figures By level
 export { cleanTables, tableKeyOk, tableParts, tableRead, tableFam, tableRowOf, TABLE_KEY, TABLE_ROW_KEY, nameFold };   // 1.6.0: a system's tables

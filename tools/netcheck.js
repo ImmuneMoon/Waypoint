@@ -4344,6 +4344,40 @@ pendingChecks.push((async () => {
         && room.ans.length === 1 && room.ans[0].type === 'char-ack' && room.rows.length === 4 && room.saves >= 1, J([add.ans, raise.ans, room.ans, room.rows.length, room.saves]));
 })());
 
+// 1.6.0 Levels it may be on the wire (the owner, 2026-10-30, by prompt: "Player refused, GM told"): the host's char-item branch and a player's own app, each run
+// for real, refuse a level the entry does not allow in the core's own words, with nothing stored, sent or saved, and take one it does allow
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), J = JSON.stringify;
+    const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+    const sysL = Sx.cleanSystem({ v: 1, name: 'Lv', rolls: [], fields: [{ id: 'f_k', key: 'Knacks', label: 'Knacks', kind: 'item-list', vis: 'all', edit: 'owner', list: { lvl: { label: 'Rank', min: 1, max: 6, def: 1 } } }],
+        items: [{ id: 'i_two', name: 'Pebble Sense', lvlOnly: '2, 4' }, { id: 'i_three', name: 'Kite Reading', lvlOnly: '3 to 5' }] }, { F: Fx, gmView: true }), viewL = Sx.cleanSystem(sysL, { F: Fx, gmView: false });
+    const START = [{ id: 'w_1', defId: 'i_two', qty: 1, lvl: 2 }, { id: 'w_2', defId: 'i_two', qty: 1, lvl: 3 }];
+    const host = msg => {
+        const camp = { id: 'k', system: sysL, chars: { c_1: { id: 'c_1', name: 'Sela', ownerId: 'u_a', npc: false, values: { f_k: JSON.parse(J(START)) } } } }, ans = [], owner = [], box = b => m => { packCheck(m); b.push(JSON.parse(J(m))); };
+        const netH = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(owner) }], roster: { pA: { id: 'u_a' } }, syncCharDelta() {} };
+        const winH = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+        let saves = 0;
+        new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn function(msg, conn) {\n' + ciSrc + '\n};')(
+            netH, () => Sx, winH, () => false, () => camp, () => { saves++; }, e => { throw e; }, c => (netH.roster[c.peer] ? netH.roster[c.peer].id : null), { allow: () => true }, () => {}, () => {})(Object.assign({ type: 'char-item', rid: 'ri1', charId: 'c_1', fieldId: 'f_k' }, msg), { peer: 'pA', send: box(ans) });
+        return { ans, owner, saves, rows: camp.chars.c_1.values.f_k };
+    };
+    const no = host({ op: 'set', rowId: 'w_1', facts: { lvl: 3 } }), down = host({ op: 'set', rowId: 'w_1', facts: { lvl: 1 } }), ok = host({ op: 'set', rowId: 'w_1', facts: { lvl: 4 } }), add = host({ op: 'add', defId: 'i_three', rowId: 'w_9' }), kept = host({ op: 'set', rowId: 'w_2', facts: { note: 'old' } });
+    check('1.6.0 Levels it may be, the host\'s char-item branch (run for real): a level the entry does not allow, up or down, is refused to Sela in the core\'s words with nothing stored or saved; one it allows is stored; a new row starts at the first it may be; a row already at another level keeps it through a change of its note',
+        J(no.ans) === J([{ type: 'char-deny', rid: 'ri1', reason: 'value', msg: 'Pebble Sense may only be Rank 2 or 4.' }]) && J(no.rows) === J(START) && no.saves === 0 && J(down.ans) === J(no.ans) && J(down.rows) === J(START)
+        && ok.ans[0].type === 'char-ack' && ok.rows[0].lvl === 4 && ok.saves >= 1 && add.ans[0].type === 'char-ack' && add.rows[2].lvl === 3 && kept.ans[0].type === 'char-ack' && kept.rows[1].lvl === 3 && kept.rows[1].note === 'old', J([no.ans, down.ans, ok.ans, add.rows, kept.rows]));
+    const cA = src.indexOf('net.charItem = function('), cZ = src.indexOf('\n};\n', cA) + 3, sentC = [], lvlL = { id: 'i_lib', name: 'Sparrow Step', vis: 'all', lvlOnly: [2, 4] };
+    const rowsP = Sx.projectRows([{ id: 'w_1', defId: 'i_lib', qty: 1, lvl: 2 }, { id: 'w_2', defId: 'i_two', qty: 1, lvl: 2 }], viewL, id => (id === 'i_lib' ? lvlL : null), sysL.fields[0].list);
+    const campC = { id: 'k', system: viewL, chars: { c_1: { id: 'c_1', name: 'Sela', ownerId: 'u_a', npc: false, values: { f_k: rowsP } } } };
+    const netC = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', myId: 'u_a', libEntry: () => null, conns: [{ peer: 'h', open: true, send: m => { packCheck(m); sentC.push(JSON.parse(J(m))); } }] };
+    new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', src.slice(cA, cZ))(netC, () => Sx, () => campC, { wpFormula: Fx, wpVtt: { on: () => true } }, {}, () => {}, () => 0);
+    const before = J(campC.chars.c_1.values.f_k), inl = netC.charItem('c_1', 'f_k', { op: 'set', rowId: 'w_1', facts: { lvl: 3 } }), ptr = netC.charItem('c_1', 'f_k', { op: 'set', rowId: 'w_2', facts: { lvl: 3 } }), same = J(campC.chars.c_1.values.f_k) === before, sentNo = sentC.length, yes = netC.charItem('c_1', 'f_k', { op: 'set', rowId: 'w_1', facts: { lvl: 4 } });
+    check('1.6.0 Levels it may be, a player\'s own app (the real net.charItem): a library row\'s inline copy and a system item\'s pointer each answer a level it does not allow at once, in the core\'s words, with nothing sent or kept; one it allows goes to the host',
+        rowsP[0].lnk === 1 && J(rowsP[0].def.lvlOnly) === '[2,4]' && inl.error === 'Sparrow Step may only be Rank 2 or 4.' && ptr.error === 'Pebble Sense may only be Rank 2 or 4.' && same && sentNo === 0 && yes.ok === true && sentC.length === 1 && sentC[0].facts.lvl === 4, J([inl, ptr, same, sentNo, yes, sentC]));
+})());
+
 // [m410 review] SITE_EQUIVALENT_PLAN fold 2 on the wire, what its review found, each run for real: (4) the host's two readings of a roll's needs roll
 // no die; (5) a bound row inside its grace goes for another row's switch-on and its grace is spent; (6) a curse kept on beside a row switched on that
 // has a lock of its own is said, on the answer and to the GM; reviewer two (2) a bound row that keeps a switch-on off is said in words that name both

@@ -171,6 +171,7 @@ function preview() {
     var labels = st.opts.labels || {}, stats = e.stats && typeof e.stats === 'object' ? e.stats : {};
     Object.keys(labels).forEach(function(k) { var key = Object.keys(stats).filter(function(s) { return lc(s) === lc(k); })[0]; if (key !== undefined) line(box, labels[k], String(stats[key])); });
     if (typeof e.lvl === 'number') line(box, 'Starts at', String(e.lvl));
+    if (Array.isArray(e.lvlOnly) && e.lvlOnly.length) line(box, 'Levels it may be', e.lvlOnly.map(function(t) { return Array.isArray(t) ? t[0] + ' to ' + t[1] : String(t); }).join(', '));   // 1.6.0
     if (e.area && e.area.ft) line(box, 'Blast', e.area.ft + ' ft');
     if (st.opts.gm) { line(box, 'Damage', e.damage); line(box, 'Cost', e.cost); }
     if (e.notes) box.appendChild(el('div', 'lib-pick-notes', e.notes));

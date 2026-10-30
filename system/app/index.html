@@ -2011,11 +2011,19 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li>An item can also <b>change the character carrying it</b>, with <b>+ Change</b> on its row or in the Library&rsquo;s entry form. These are the same changes a status effect makes: a number, skill or formula up or down, a pool&rsquo;s max, a toggle switched on.
                               <ul>
                                   <li>It counts once per row whatever its quantity. It counts <b>per level</b> on a list with levels: a trait at level 3 counts three times. It counts <b>only while switched on</b> when you tick that, on a list with a switch, as with armour while Equipped.</li>
+                                  <li>A change can give <b>a figure for each level</b>. Type them in its <b>Figure by level</b> box, such as <code>1: +2, 2: 0</code>. Each figure holds from its level up, and below the first the amount beside it counts. It takes the place of per level.</li>
                                   <li>The value then shows &#9650; or &#9660; with a breakdown naming the item. <code>DX.base</code> reads it without.</li>
                                   <li>A change can aim at <b>one entry</b> of a list, such as a trait that gives -2 to Disguise. It works for an item and a status effect here, and in the Library&rsquo;s entry form. Pick the list&rsquo;s <b>one entry</b> choice, then the entry&rsquo;s key and the column it adds to, such as Target.</li>
                                   <li>That column changes for every row of that entry, and for a skill not bought too, at its default. A roll&rsquo;s card names the source.</li>
                                   <li>A cursed item a player dropped keeps working on them. Their sheet shows it as &ldquo;an unseen effect&rdquo;, never the item.</li>
                                   <li>Every row shows its item&rsquo;s changes as chips. They are dimmed while an item that works only while switched on is off. A row a player made with <b>+ Custom&hellip;</b> may carry changes too, to the fields they can see, as their own status effects may.</li>
+                              </ul>
+                          </li>
+                          <li><b>Levels it may be</b>, on an item or a Library entry, says which levels it exists at, such as <code>2, 4</code> or <code>3 to 5</code>. A list with named levels takes the names too. Leave it empty for any level.
+                              <ul>
+                                  <li>A new row starts at the first of them. A grant with a level of its own keeps that level.</li>
+                                  <li>A player is offered only those levels and is refused any other. You may set another, and a notice tells you.</li>
+                                  <li>A row that already stands at another level stays as it is, with a mark on the sheet. Nothing is ever taken off.</li>
                               </ul>
                           </li>
                           <li><b>&#128218; Library&hellip;</b>, on the Items tab, opens the campaign&rsquo;s <b>library</b>. It is for collections too large for one tab: thousands of weapons, spells or skills.
@@ -4429,7 +4437,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div id="sysItems" class="sys-tab" style="display:none;">
             <div id="sysCombatBox" title="How thrown blasts behave at this campaign's table"></div>
             <div class="sys-toolbar"><button class="tool" id="sysAddItem" title="Add an item">+ Item</button><button class="tool ghost" id="sysOpenLibrary" title="The campaign&rsquo;s library: packs of entries by the thousand, with a search">&#128218; Library&hellip;</button><span class="sys-note">An item can carry a <b>blast area</b> (a radius in feet) and a <b>damage roll</b>. A character carries items on the sheet and throws one from there. A GM-only item stays out of the players&rsquo; list (one you give a character reaches its owner by name and notes); formulas never leave your machine. An item in a list with <b>stats</b> gets a box for each. Items move into the library&rsquo;s <b>Items</b> pack the next time the campaign opens.</span><button class="tool ghost sys-key-btn" data-key="items" aria-expanded="false" aria-controls="sysKeyItems" title="What each tick of a row on this tab does">What the ticks mean</button></div>
-            <div class="sys-key" id="sysKeyItems" hidden><b>per level</b><small>The change counts once for each level of the row.</small><b>Only while switched on</b><small>The item&rsquo;s changes count only while its row is switched on.</small><b>Pays back</b><small>A row a grant gives reads Row.paysback as 1, so a cost can count it as bought.</small><b>When added again</b><small>An effect added again while on replaces its time, keeps the longer or adds the two.</small></div>
+            <div class="sys-key" id="sysKeyItems" hidden><b>Levels it may be</b><small>The levels it exists at, such as 2, 4 or 3 to 5. A player is refused any other.</small><b>per level</b><small>The change counts once for each level of the row.</small><b>Figure by level</b><small>A change gives a figure for each level, such as 1: +2, 2: 0.</small><b>Only while switched on</b><small>The item&rsquo;s changes count only while its row is switched on.</small><b>Pays back</b><small>A row a grant gives reads Row.paysback as 1, so a cost can count it as bought.</small><b>When added again</b><small>An effect added again while on replaces its time, keeps the longer or adds the two.</small></div>
             <div id="sysItemRows" class="sys-rows"></div>
         </div>
         <div id="sysLists" class="sys-tab" style="display:none;">

@@ -332,6 +332,15 @@ Systems, more
 - A list's level can cap how many rows stand at a level, such as one row at
   the free first level, or two at level 5 or higher. Set At most under the
   level in the Lists tab. A player is refused one more, and you are told.
+- An entry can say which levels it exists at, such as 2, 4 or 3 to 5. Type
+  them in Levels it may be, on the Items tab or in the Library. A list with
+  named levels takes the names too. A new row starts at the first of them,
+  a player is offered only those and is refused any other, and you may
+  still set another and are told. A row already at another level stays,
+  with a mark.
+- A change can give a figure for each level, such as +2 at level 1 and 0 at
+  level 2. Type 1: +2, 2: 0 in its Figure by level box. Each figure holds
+  from its level up.
 - Row.parts.max.Damage reads the highest figure one part of a row gives,
   and Row.parts.min.Damage the lowest. A part's count does not multiply it.
 - Row.parts.Family reads a choice of the parts: the value of the first part

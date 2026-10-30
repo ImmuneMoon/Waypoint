@@ -97,7 +97,7 @@ function charFromJson(view, j, find, findKey) {
         var kid = own(byId, fid) && byId[fid].kind === ff.kind ? byId[fid] : null, kk = typeof ff.key === 'string' && ff.key ? byKey[ff.key.toLowerCase() + '|' + ff.kind] || null : null;
         return same ? (kid || kk) : (kk || kid);
     };
-    var mods = function(ms) { return (Array.isArray(ms) ? ms.slice(0, 12) : []).map(function(m) { if (!isObj(m) || typeof m.f !== 'string') return null; var t = target(m.f); if (!t) return null; var o = { f: t.id, op: m.op }; if (m.v !== undefined) o.v = m.v; if (m.part) o.part = m.part; return o; }).filter(Boolean); };
+    var mods = function(ms) { return (Array.isArray(ms) ? ms.slice(0, 12) : []).map(function(m) { if (!isObj(m) || typeof m.f !== 'string') return null; var t = target(m.f); if (!t) return null; var o = { f: t.id, op: m.op }; if (m.v !== undefined) o.v = m.v; if (m.part) o.part = m.part; if (Array.isArray(m.tiers)) o.tiers = m.tiers; return o; }).filter(Boolean); };
     var n = 0, pfx = Math.random().toString(36).slice(2, 6), rid = function(p) { n++; return p + 'f' + pfx + n.toString(36); };
     var idMap = Object.create(null), grQ = [];   // 1.6.0 (v2, B4): each file row's new id, and the adds of rows another row granted, which then name that row by its new id
     var label = function(fid) { var ff = own(fileF, fid) ? fileF[fid] : null; return isObj(ff) ? String(ff.label || ff.key || 'A field').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 60) : 'A field'; };

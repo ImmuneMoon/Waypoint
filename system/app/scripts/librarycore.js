@@ -169,6 +169,7 @@ export function entryFromForm(f) {
     var tags = s(f.tags).split(',').map(function(t) { return t.trim(); }).filter(Boolean); if (tags.length) out.tags = tags;
     var lvs = lvlsFromBox(s(f.lvls), f.lvlsWas); if (lvs.length) out.lvls = lvs;   // 1.5.4: one level a line (lvlsWas: the entry's levels as stored, kept while the box was not typed in)
     var lv = s(f.lvl).trim(); if (/^-?\d+$/.test(lv)) out.lvl = Number(lv);
+    var lo = s(f.lvlOnly).trim(); if (lo) out.lvlOnly = lo;   // 1.6.0: Levels it may be, as typed (the cleaner reads it)
     if (isObj(f.stats)) { var st = {}, n = 0; Object.keys(f.stats).forEach(function(k) { var v = s(f.stats[k]).trim(); if (!v) return; st[k] = /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v; n++; }); if (n) out.stats = st; }
     var ft = s(f.areaFt).trim(); if (/^\d+$/.test(ft) && Number(ft) > 0) out.area = { ft: Number(ft), shape: s(f.areaShape) || 'circle', name: s(f.areaName) };   // the shape as it was (the cleaner keeps a known one)
     if (out.area) {   // 1.5.8: the blast's extras, each only where set (the cleaner, areaExtra, judges them); a number box that is no number is handed on as text, which the cleaner drops

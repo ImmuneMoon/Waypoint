@@ -13,6 +13,7 @@ import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: ho
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
 import { groupRolls, groupWeakest } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
 import { partsTree } from './systemcore.js';   // 205 follow-up (2): the removal question counts a deep list's whole tree of parts
+import { lvlOnlyRead, lvlOnlyText, lvlOnlyOn, lvlOnlyHas, lvlOnlyList, lvlOnlySays, modTiersRead, modTiersText, modAt } from './systemcore.js';   // 1.6.0: Levels it may be, and a change's figures By level
 import { upkeepLines } from './systemcore.js';   // 205 follow-up (3): a turn's or a round's upkeep said on a card
 import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, setGateEngine } from './systemcore.js';   // 1.6.0: linked sheets
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
@@ -2686,8 +2687,8 @@ function modsBits(host, def, entry, spec, sysI, c, f) {
         var fx = m && byId[m.f]; if (!fx) return;
         var nm = fx.label || fx.key, t;
         if (m.op === 'on') t = nm + ' on';
-        else { var v = (typeof m.v === 'number' ? m.v : 0) * (m.lvl === true ? (typeof lv === 'number' && isFinite(lv) ? lv : 0) : 1); t = nm + (m.part === 'max' ? ' max' : '') + ' ' + (v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(v)); }
-        var ch = el('span', 'sheet-chip sheet-item-mod' + (off || gated ? ' off' : ''), t); ch.title = gated ? 'Does not count: the list\u2019s Changes apply where does not hold for this row' : off ? 'Counts while switched on' : m.lvl === true ? 'Per level (times its level)' : 'While carried'; host.appendChild(ch);
+        else { var mB = typeof modAt === 'function' ? modAt(m, spec, lv) : m, v = (typeof mB.v === 'number' ? mB.v : 0) * (m.lvl === true ? (typeof lv === 'number' && isFinite(lv) ? lv : 0) : 1); t = nm + (m.part === 'max' ? ' max' : '') + ' ' + (v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(v)); }
+        var ch = el('span', 'sheet-chip sheet-item-mod' + (off || gated ? ' off' : ''), t); ch.title = gated ? 'Does not count: the list\u2019s Changes apply where does not hold for this row' : off ? 'Counts while switched on' : m.lvl === true ? 'Per level (times its level)' : Array.isArray(m.tiers) ? 'Figure by level: the figure for its level' : 'While carried'; host.appendChild(ch);
     });
 }
 // Stage 6: what only the GM sees on a row — a bound or cursed item, and a curse the player dropped (kept here, out of their sight)
@@ -2728,10 +2729,20 @@ function entryLvls(def) { return (def && Array.isArray(def.lvls) ? def.lvls : []
 function lvlWord(L, n) { var t = lvlText(L, n); return Array.isArray(L.labels) && L.labels.length && t !== fmtNum(n) ? t : (L.label || 'Level') + ' ' + t; }
 function lvlTagOf(lvs, n) { for (var i = 0; i < lvs.length; i++) if (lvs[i].lvl === n) return typeof lvs[i].tag === 'string' ? lvs[i].tag : ''; return ''; }
 function lvlFace(node, L, n, tag) { node.appendChild(el('span', 'sheet-item-lvlword', lvlWord(L, n))); if (typeof tag === 'string' && tag) node.appendChild(el('span', 'sheet-item-lvltagbox', tag)); return node; }
+// 1.6.0 Levels it may be: the choices of a row's level menu where its entry names its levels. Those levels alone, each with its By level tag where it has
+// one, for a player whatever the list ticks, so a level is picked and never typed to be refused. The GM keeps the box on a list that has no menu
+// (the GM's hand passes, and is told), and on a list that has one also sees the entry's other By level rows, marked (out). lvs: the By level rows
+function lvlOnlyMenu(spec, def, lvs, editable) {
+    var all = typeof lvlOnlyList === 'function' ? lvlOnlyList(spec, def) : null; if (!all) return lvs;
+    var plr = typeof isClient === 'function' && isClient(); if (!lvs.length && !(plr && editable)) return lvs;
+    var out = all.map(function(n) { return { lvl: n, tag: lvlTagOf(lvs, n) }; });
+    if (!plr) lvs.forEach(function(r) { if (all.indexOf(r.lvl) < 0) out.push({ lvl: r.lvl, tag: r.tag, out: true }); });
+    return out.sort(function(a, b) { return a.lvl - b.lvl; });
+}
 function openLvlMenu(anchor, lvs, L, lv, go, always) {   // always (1.6.0 R12): the row's own level is a choice too (a roll at a level)
     if (_ldPop) { var was = _ldPop._anchor === anchor; closeLoadMenu(); if (was) return; }
     var pop = el('div', 'sheet-dl-pop sheet-lvl-pop'); pop.setAttribute('role', 'menu'); pop.setAttribute('aria-label', L.label || 'Level'); pop._anchor = anchor;
-    lvs.forEach(function(r) { var b = lvlFace(el('button', 'sheet-dl-item sheet-lvl-item' + (r.lvl === lv ? ' on' : '')), L, r.lvl, r.tag); b.type = 'button'; b.setAttribute('role', 'menuitemradio'); b.setAttribute('aria-checked', r.lvl === lv ? 'true' : 'false');
+    lvs.forEach(function(r) { var b = lvlFace(el('button', 'sheet-dl-item sheet-lvl-item' + (r.lvl === lv ? ' on' : '') + (r.out === true ? ' sheet-lvl-out' : '')), L, r.lvl, r.tag); b.type = 'button'; if (r.out === true) b.title = 'Not one of this entry\u2019s levels. A player would be refused.'; b.setAttribute('role', 'menuitemradio'); b.setAttribute('aria-checked', r.lvl === lv ? 'true' : 'false');
         b.addEventListener('click', function(e) { e.preventDefault(); closeLoadMenu(); try { anchor.focus(); } catch (er) {} if (always === true || r.lvl !== lv) go(r.lvl); }); pop.appendChild(b); });
     pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
     pop.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return; e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {} });
@@ -2748,6 +2759,7 @@ function askRollLvl(anchor, entry, def, spec, go) {
     var own = rowLvl(spec, entry, def), lo = typeof L.min === 'number' ? L.min : 1; if (typeof own !== 'number' || own <= lo) return false;
     var byE = typeof entryLvls === 'function' ? entryLvls(def).filter(function(r) { return r.lvl >= lo && r.lvl <= own && r.lvl === Math.floor(r.lvl); }) : [], lvs = byE;
     if (!lvs.length) { lvs = []; for (var n = lo; n <= own && lvs.length < 40; n++) lvs.push({ lvl: n }); }
+    if (typeof lvlOnlyHas === 'function') { var lvsO = lvs.filter(function(r) { return lvlOnlyHas(spec, def, r.lvl); }); if (lvsO.length) lvs = lvsO; }   // 1.6.0 Levels it may be
     if (lvs.length < 2) return false;
     openLvlMenu(anchor, lvs, L, own, go, true); return true;
 }
@@ -2758,9 +2770,10 @@ function lvlCtl(entry, def, c, f, spec, editable) {
     var L = spec.lvl; if (!L || typeof L !== 'object') return null;
     var lv = rowLvl(spec, entry, def), w = el('span', 'sheet-item-lvl'), rid = rowIdOf(entry); w.title = L.label;
     var lvsE = L.entry === true && typeof entryLvls === 'function' ? entryLvls(def) : [];   // 1.6.0 R8: Levels from the entry
+    var lvsB = lvsE; if (typeof lvlOnlyMenu === 'function') lvsE = lvlOnlyMenu(spec, def, lvsE, editable);   // 1.6.0 Levels it may be: only the entry's own levels (lvsB: its By level rows, whose tag a row outside them still wears)
     if (lvsE.length) {
-        if (!editable) { lvlFace(w, L, lv, lvlTagOf(lvsE, lv)); return w; }
-        var lb = el('button', 'tool ghost sheet-item-lvlbtn'); lb.type = 'button'; lb.title = L.label + ': pick from this entry\u2019s levels'; lb.dataset.fid = f.id; lb.dataset.part = 'lvl-' + rid; lb.setAttribute('aria-haspopup', 'menu'); lvlFace(lb, L, lv, lvlTagOf(lvsE, lv));
+        if (!editable) { lvlFace(w, L, lv, lvlTagOf(lvsB, lv)); return w; }
+        var lb = el('button', 'tool ghost sheet-item-lvlbtn'); lb.type = 'button'; lb.title = L.label + ': pick from this entry\u2019s levels'; lb.dataset.fid = f.id; lb.dataset.part = 'lvl-' + rid; lb.setAttribute('aria-haspopup', 'menu'); lvlFace(lb, L, lv, lvlTagOf(lvsB, lv));
         lb.addEventListener('click', function(e) { e.preventDefault(); openLvlMenu(lb, lvsE, L, lv, function(n) { commitItem(c, f, { op: 'set', rowId: rid, facts: { lvl: n } }); }); });
         w.appendChild(lb); return w;
     }
@@ -3055,6 +3068,15 @@ function rowQty(c, f, rid) { var v = c && c.values && Array.isArray(c.values[f.i
 // 126b: a row whose entry needs something the character does not carry is marked (the owner, of a prerequisite that stops being true: "Mark
 // it on the sheet"). Nothing is taken off the sheet. The GM's sheet judges by every need of the entry; a player's own by the needs their
 // copy names, so a need they may not see marks nothing for them. A row kept out of its player's sight is not judged. The words are text
+// 1.6.0 Levels it may be: a row that stands at a level its entry does not allow is marked and stays as it is (as a need that stops being true is). A
+// row kept out of its player's sight is not judged. The words are text
+function lvlOnlyBits(host, spec, entry, def) {
+    if (typeof lvlOnlyHas !== 'function' || !entry || entry.hid === 1 || !spec || !spec.lvl || typeof spec.lvl !== 'object' || !def) return;
+    var lv = rowLvl(spec, entry, def), on = lvlOnlyOn(spec, def); if (!on || lvlOnlyHas(spec, def, lv)) return;
+    var chip = el('span', 'sheet-chip sheet-item-unmet sheet-item-lvlout', (spec.lvl.label || 'Level') + ' not allowed');
+    chip.title = lvlOnlySays(spec, { name: def.name || 'This entry', runs: on, lv: lv }, true);
+    host.appendChild(chip);
+}
 function needBits(host, sys, c, entry, rd, gm) {
     if (typeof needsMet !== 'function' || typeof needsSays !== 'function' || !rd || !entry || entry.hid === 1) return;
     var nd = rd.src === 'inline' ? entry.needs : rd.src === 'lib' && rd.base ? rd.base.needs : null, rl = rd.src === 'inline' ? entry.needsIf : rd.src === 'lib' && rd.base ? rd.base.needsIf : null;
@@ -3301,7 +3323,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         var bdLn = typeof badgeBits === 'function' ? badgeBits(line, spec, res && res.bd ? res.bd[rid] : null, line, hudRow) : null;   // 1.6.0 R4: its badges after the name (no lines on the HUD)
         if (typeof rowEdge === 'function') rowEdge(line, spec, res && res.bd ? res.bd[rid] : null, !!(spec && spec.on) && rowOn(spec, entry), !!(spec && spec.on) && (typeof partHere !== 'function' || partHere(spec.on, 'row', hudRow)));   // 1.6.0 R16
         if (chips && def.category) line.appendChild(el('span', 'sheet-chip', def.category));
-        lostBits(line, rd, entry, c, f, gm, chg); needBits(line, sysI, c, entry, rd, gm); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL); modsBits(line, def, entry, spec, sysI, c, f);
+        lostBits(line, rd, entry, c, f, gm, chg); needBits(line, sysI, c, entry, rd, gm); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); if (typeof lvlOnlyBits === 'function') lvlOnlyBits(line, spec, entry, def); keyShareChip(line, entry, rd, unseenL); modsBits(line, def, entry, spec, sysI, c, f);
         if (typeof onceBits === 'function') onceBits(line, sysI, c, f, carried, entry);   // 1.5.8 Counted once
         var noteLn = null;
         var smR = spec && typeof statMenuMode === 'function' ? statMenuMode(entry, rd, spec, gm, sysI, chg && !hudRow) : ''; _rowMenu = smR ? function(s, sv) { return statMenu(s, sv, entry, rd, c, f, spec, smR); } : null;   // 1.6.0 R10
@@ -3565,7 +3587,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         var ovT = ovCtx(entry, rd, gm); ovNameDot(nameTd, ovT);   // F4c2: a dot when the copy holds values of its own
         if (spec && spec.look) lookSwatches(nameTd, sysI, c, spec, entry);   // 1.6.0, backlog 206: its swatches beside its name
         if (tbl.chips && def.category) nameTd.appendChild(el('span', 'sheet-chip', def.category));
-        lostBits(nameTd, rd, entry, c, f, gm, chg); needBits(nameTd, sysI, c, entry, rd, gm); gmItemBits(nameTd, def, entry, gm, hasO); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI, c, f);
+        lostBits(nameTd, rd, entry, c, f, gm, chg); needBits(nameTd, sysI, c, entry, rd, gm); gmItemBits(nameTd, def, entry, gm, hasO); if (typeof lvlOnlyBits === 'function') lvlOnlyBits(nameTd, spec, entry, def); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI, c, f);
         if (typeof onceBits === 'function') onceBits(nameTd, sysI, c, f, carried, entry);   // 1.5.8 Counted once
         if (typeof badgeBits === 'function') { var bdT = badgeBits(nameTd, spec, res && res.bd ? res.bd[rid] : null, tr, hudRow); if (bdT) nameTd.appendChild(bdT); }   // 1.6.0 R4: in a table the badges go in the name's cell
         if (typeof rowEdge === 'function') rowEdge(tr, spec, res && res.bd ? res.bd[rid] : null, !!(spec && spec.on) && rowOn(spec, entry), !!(spec && spec.on));   // 1.6.0 R16
@@ -5392,6 +5414,7 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
     if (typeof res.raised === 'string' && res.raised) toast(res.raised);   // 1.6.0 (a builder audit): a held row a grant raised, "Keen Ears raised to 4 by Amulet."
     if (typeof res.onNeeds === 'string' && res.onNeeds) toast('Switched on all the same. A player would be told: ' + res.onNeeds);   // 1.5.8: the GM's own hand passes a switch's needs, and is told
     if (typeof res.capSays === 'string' && res.capSays) toast(res.capSays + ' A player would be refused.');   // 1.6.0 At most at a level: the GM's own hand passes, and is told
+    if (typeof res.onlySays === 'string' && res.onlySays) toast(res.onlySays + ' A player would be refused.');   // 1.6.0 Levels it may be: and here
     if (typeof res.fitSays === 'string' && res.fitSays) toast('Fitted all the same. ' + res.fitSays + ' A player would be refused.');   // 1.6.0 Fits where (ask 18): the GM's own hand passes, and is told
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;
     var extraI = null; if (mvG && mvG.values) Object.keys(mvG.values).forEach(function(k) { if (k === f.id) return; extraI = extraI || {}; extraI[k] = c.values && Object.prototype.hasOwnProperty.call(c.values, k) ? clone(c.values[k]) : undefined; });   // 1.5.8: Revert takes back every list the change moved (a load's other list, a purchase's money)
@@ -6539,6 +6562,7 @@ function refreshErrors() {
         }
     });
     (draft.items || []).forEach(function(it) { if (it && it.key && !cleanItemKey(String(it.key), F())) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'key', message: 'Not a usable key: a letter, then letters, digits and _ (up to 40); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, min, cur, ranks, base; a function or reserved word such as floor, and, true; constructor). Save drops it.' }); });   // Stage 6 F4b
+    if (typeof lvlBoxSays === 'function') (draft.items || []).forEach(function(it) { lvlBoxSays(it).forEach(function(m) { (errorsById[it.id] = errorsById[it.id] || []).push({ message: m }); }); });   // 1.6.0: Levels it may be and By level, as the cleaner reads them
     if (typeof grantSays === 'function') (draft.items || []).forEach(function(it) { var gS = grantSays(it); gS.drop.forEach(function(m) { (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'grants', message: m }); }); gS.warn.forEach(function(m) { (warningsById[it.id] = warningsById[it.id] || []).push({ prop: 'grants', message: m }); }); });   // 1.6.0 (v2, B4): what Save does with an item's grants
     // Stage 6 F4c1: each list's stats as Save will read them (a key it drops, a repeat, past the cap, a price naming none, another list's spelling),
     // under the list's card; and what Save drops when a saved stat is renamed or removed (a stat's key is its identity)
@@ -7524,6 +7548,7 @@ function itemRow(it) {
     flags.appendChild(select('sys-item-again', [['', 'Held once'], ['name', 'Held again under another name']], it.again === 'name' ? 'name' : '', 'On a list that holds each item once, a character may hold this one again as another row. Each copy is asked for a name of its own, and two copies of one name are refused'));   // 1.6.0
     flags.appendChild(input('sys-item-key field', it.key || '', 'A short fixed name for it, once in each list it can be on: a letter, then letters, digits and _. Formulas read its row by it: List.key.lvl, List.key.qty', 'Key (optional)'));
     if (anyL) flags.appendChild(numField('sys-item-lvl', it.lvl, 'The level a new row of it starts at (blank: the list\u2019s default)', 'Level'));
+    if (anyL) flags.appendChild(input('sys-item-only field', lvlOnlyText(it.lvlOnly), 'The levels it exists at, such as 2, 4 or 3 to 5. A list with named levels takes the names too. A new row starts at the first of them, and a player is refused any other. Blank: any level', 'Levels it may be (optional)'));   // 1.6.0
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this item', '&times;']]));
     row.appendChild(top); row.appendChild(flags);
     var stBox = itemStatsBox(it, sDefs); if (stBox) row.appendChild(stBox);   // F4c1
@@ -7588,7 +7613,7 @@ function itemModsBox(it, anyL, anyO) {
         if (!opts.some(function(o) { return o[0] === val; })) opts.unshift([val, '(a field that is gone or changed kind)']);
         ln.appendChild(select('sys-item-mtarget', opts, val, 'What this change affects'));
         if (val.slice(-4) === '|row') rowAimInto(ln, draft, m, 'sys-item-', mi);   // 1.5.8
-        if (m.op !== 'on') { ln.appendChild(modHowSel('sys-item-mhow', m.op)); var am = numInput('sys-item-mamt', m.v, 'How much it adds (negative to take away), or the figure it holds the value at'); am.step = 'any'; ln.appendChild(am); if (anyL) ln.appendChild(checkLabel('sys-item-mlvl', m.lvl === true, 'per level', 'Times the row\u2019s level (a trait at level 3: three times)')); }
+        if (m.op !== 'on') { ln.appendChild(modHowSel('sys-item-mhow', m.op)); var am = numInput('sys-item-mamt', m.v, 'How much it adds (negative to take away), or the figure it holds the value at'); am.step = 'any'; ln.appendChild(am); if (anyL) { ln.appendChild(checkLabel('sys-item-mlvl', m.lvl === true, 'per level', 'Times the row\u2019s level (a trait at level 3: three times)')); ln.appendChild(input('sys-item-mtiers field', modTiersText(m.tiers), 'A figure for each level, such as 1: +2, 2: 0. Each holds from its level up, and below the first the amount beside it counts. It takes the place of per level. Blank: the same figure at every level', 'Figure by level (optional)')); } }
         ln.appendChild(btnRow([['itemmoddel', 'Remove this change', '&times;']]));
         box.appendChild(ln);
     });
@@ -10163,6 +10188,17 @@ function grantSays(it) {
     return out;
 }
 // [systemcheck:grantbox-end]
+// 1.6.0: what Save does with an item's Levels it may be and its changes' By level boxes, as the cleaner itself reads them
+function lvlBoxSays(it) {
+    var out = []; if (!it || typeof it !== 'object') return out;
+    if (typeof it.lvlOnly === 'string') lvlOnlyRead(it.lvlOnly).bad.forEach(function(b) { out.push('Levels it may be: Save drops “' + b + '”. Write a level, a named level, or a run such as 3 to 5, at most ' + LIMITS.lvlOnly + ' of them.'); });
+    (Array.isArray(it.mods) ? it.mods : []).forEach(function(m, mi) {
+        if (!m || typeof m !== 'object' || m.tiers === undefined) return; var rd = modTiersRead(m.tiers), w = 'Change ' + (mi + 1) + ', Figure by level: ';
+        rd.bad.forEach(function(b) { out.push(w + 'Save drops “' + b + '”. Write each as 2: +1, each level once, at most ' + LIMITS.modTiers + ' of them.'); });
+        if (rd.tiers && m.lvl === true) out.push(w + 'it takes the place of per level, so Save drops that tick.');
+    });
+    return out;
+}
 function itemOfRow(target) { var row = target.closest && target.closest('.sys-item-row'); if (!row) return null; return (draft.items || []).find(function(x) { return x.id === row.dataset.iid; }) || null; }
 function onInput(e) {
     if (!draft) return;
@@ -10221,9 +10257,11 @@ function onInput(e) {
         else if (ic.indexOf('sys-item-eqtext') >= 0) it.eqMsg = t.value.slice(0, LIMITS.rmMsg);   // F4b
         else if (ic.indexOf('sys-item-key') >= 0) { var ikv = t.value.trim().slice(0, 40); if (ikv) it.key = ikv; else delete it.key; }
         else if (ic.indexOf('sys-item-lvl') >= 0) { if (String(t.value).trim() === '') delete it.lvl; else it.lvl = Number(t.value); }
+        else if (ic.indexOf('sys-item-only') >= 0) { if (String(t.value).trim() === '') delete it.lvlOnly; else it.lvlOnly = t.value.slice(0, 400); }   // 1.6.0: as typed, which the cleaner reads at Save (lvlBoxSays says what it drops)
         else if (/(^| )sys-grant-spec( |$)/.test(ic)) { var glS = t.closest('.sys-grant'), gS = glS && Array.isArray(it.grants) ? it.grants[+glS.dataset.gi] : null; if (!gS) return; var sV = String(t.value || '').trim(); if (sV) gS.spec = sV.slice(0, 60); else delete gS.spec; }   // 1.6.0 Specialties: a grant's specifier
         else if (/(^| )sys-grant-(qty|from|lvl)( |$)/.test(ic)) { var glI = t.closest('.sys-grant'), gI = glI && Array.isArray(it.grants) ? it.grants[+glI.dataset.gi] : null; if (!gI || (t.validity && t.validity.badInput)) return; var nG = Number(t.value), kG = /sys-grant-qty/.test(ic) ? 'qty' : /sys-grant-lvl/.test(ic) ? 'lvl' : 'from'; if (String(t.value).trim() === '' || !isFinite(nG)) delete gI[kG]; else gI[kG] = nG; }   // 1.6.0 (v2, B4)
         else if (ic.indexOf('sys-item-mamt') >= 0) { var iml = t.closest('.sys-item-mod'), imm = iml ? (it.mods || [])[+iml.dataset.mi] : null; if (imm) imm.v = t.value === '' ? 0 : Number(t.value); }
+        else if (ic.indexOf('sys-item-mtiers') >= 0) { var itr = t.closest('.sys-item-mod'), itm0 = itr ? (it.mods || [])[+itr.dataset.mi] : null; if (itm0) { if (String(t.value).trim() === '') delete itm0.tiers; else itm0.tiers = t.value.slice(0, 400); } }   // 1.6.0 By level, as typed
         else if (ic.indexOf('sys-item-mkey') >= 0) { var ikl = t.closest('.sys-item-mod'), ikm = ikl ? (it.mods || [])[+ikl.dataset.mi] : null; if (ikm) ikm.key = t.value.trim().slice(0, 40); }   // 1.5.8   // F6
         else if (ic.indexOf('sys-item-stat') >= 0) { var sk = t.dataset.sk || ''; if (!STAT_KEY.test(sk) || (sk in Object.prototype) || (sk.toLowerCase() in Object.prototype)) return; if (t.validity && t.validity.badInput) return; var ist = it.stats && typeof it.stats === 'object' && !Array.isArray(it.stats) ? it.stats : {}, sv = String(t.value).trim(); Object.keys(ist).forEach(function(k2) { if (k2 !== sk && k2.toLowerCase() === sk.toLowerCase()) delete ist[k2]; }); if (sv === '') delete ist[sk]; else if (t.dataset.pick === '1') ist[sk] = sv; else { var sn = Number(sv); if (!isFinite(sn)) return; ist[sk] = sn; } if (Object.keys(ist).length) it.stats = ist; else delete it.stats; }   // Stage 6 F4c1: a stat box (its key checked first: never a prototype name)
         else return;

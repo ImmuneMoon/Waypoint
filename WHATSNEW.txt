@@ -203,6 +203,9 @@ Systems, more
   list to add from keeps its place as a row goes on the table.
 - A player who reloads while the GM's table cannot be found keeps trying, as
   a dropped connection does, and is not told to set up a relay server.
+- A hexagon token's selection and turn mark follow the hexagon, not a box.
+- The welcome screen's choices wear Waypoint's own drawings, the same on every
+  computer.
 - A weapon list says what a blow must beat, the Dur left or the listed Dur, and
   what a heavy blow does: a condition down, or the Dur left taken to 0.
 - A system holds 200 effects, and an effect's or an entry's notes hold 1,000

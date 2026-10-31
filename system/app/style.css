@@ -1762,6 +1762,17 @@
   .wb-hextok > .tok-plate polygon { pointer-events: visiblePainted; }
   body.placing #whiteboard .wb-hextok > .tok-plate polygon { pointer-events: none; }   /* placing a shape passes through tokens, as for every item */
   .wb-hextok > .tok-ring { z-index: 1; }
+  .wb-item.wb-hextok.sel:not(.blast-hit):not(.circle-hit), .wb-item.image.tok-pic-hexagon.sel:not(.blast-hit):not(.circle-hit) { outline: none; }   /* 1.6.0: the ring follows the hexagon in place of the box */
+  .wb-item.wb-hextok.sel { overflow: visible; }   /* a waiting token clips what stands outside it */
+  .wb-item > .tok-selring { display: none; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 1; }
+  .wb-item.sel > .tok-selring, .wb-item.wb-turn > .tok-selring { display: block; }
+  .tok-selring polygon { fill: none; stroke: var(--gold); stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+  .wb-item.sel.locked > .tok-selring polygon { stroke: var(--dim); stroke-dasharray: none; }
+  .wb-item.wb-hextok.wb-turn, .wb-item.image.tok-pic-hexagon.wb-turn { outline: none; box-shadow: none !important; }   /* whose turn it is follows the hexagon too: solid and glowing, and dashed as well while it is selected */
+  .wb-item.wb-hextok.wb-turn { overflow: visible; }
+  .wb-item.wb-turn > .tok-selring { filter: drop-shadow(0 0 5px rgba(224,165,79,0.8)); }
+  .wb-item.wb-turn > .tok-selring polygon { stroke-width: 3; stroke-dasharray: none; }
+  .wb-item.wb-turn.sel > .tok-selring polygon { stroke-dasharray: 6 4; }
   .wb-hextok > .tok-ring polygon { fill: none; stroke: var(--gold); stroke-width: 2; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; }
   .wb-hextok > .token-face-img, .wb-hextok.wb-waiting > .wait-face, .wb-hextok.tok-dead::after { border-radius: 0; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
   .wb-item.rect > .token-face-img, .wb-item.rect.wb-waiting > .wait-face { border-radius: 4px; }
@@ -2412,6 +2423,7 @@
   .wc-card { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 16px; background: var(--panel); border: 1px solid var(--edge); border-radius: 12px; color: var(--ink); cursor: pointer; text-align: left; transition: border-color .12s, transform .12s, background .12s; }
   .wc-card:hover { border-color: var(--gold); transform: translateY(-2px); background: var(--panel2); }
   .wc-card .wc-ic { font-size: 22px; }
+  .wc-card .wc-ic .ico { display: block; width: 24px; height: 24px; color: var(--gold); }   /* 1.6.0: the app's own drawings, never a picture the computer's own emoji font draws */
   #wcProfileBtn { grid-column: 1 / -1; }   /* the odd card of the five */
   .wc-card b { font-size: 14px; }
   .wc-card small { color: var(--dim); font-size: 11px; }

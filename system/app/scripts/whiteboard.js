@@ -1134,6 +1134,10 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
               if (item.waiting) { if (!ringEl) { ringEl = hexSvg('tok-ring'); el.appendChild(ringEl); } }
               else if (ringEl) ringEl.remove();
           } else { if (plateEl) plateEl.remove(); if (ringEl) ringEl.remove(); }
+          // 1.6.0 (the owner, of the box around a hexagon token): the selection follows the hexagon, a drawn token's or a picture's. The ring stands ready, and the style sheet shows it while the piece is selected, which is set with no redraw
+          var hexSel = hexTok || (item.type === 'image' && !!item.isChar && item.shape === 'hexagon' && !hideFromMe), selEl = el.querySelector(':scope > svg.tok-selring');
+          if (hexSel) { if (!selEl) { selEl = hexSvg('tok-selring'); selEl.firstChild.setAttribute('points', '12.7,-3 47.3,-3 63.6,26 47.3,55 12.7,55 -3.6,26'); el.appendChild(selEl); } }
+          else if (selEl) selEl.remove();
           // [sinkcheck:hexplate-end]
           // Tokens carry a small front-side arrow (which side of the art is "forward")
           var fw = el.querySelector(':scope > .token-front');

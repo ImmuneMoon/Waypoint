@@ -2089,7 +2089,7 @@ function foldPress(id) {   // a press on a fold: the other way from how it stand
 // [fogcheck:folds-end]
 
 var LIGHT_SAID = {
-    auto: 'This map is lit until you place a light source on it (the \u2728 effects panel).',
+    auto: 'This map is lit until you place a light source on it (the Effects panel).',
     bright: 'This map is lit: every token sees what is in its line of sight.',
     dim: 'This map is dim: beyond a token\'s sight in the dark it shows darkened.',
     dark: 'This map is dark: a token sees only as far as its sight in the dark.'

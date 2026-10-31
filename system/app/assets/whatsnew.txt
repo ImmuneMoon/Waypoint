@@ -1,6 +1,16 @@
 WAYPOINT 1.6.0 — What's New
 ============================
 
+Drawings in place of emoji
+- Menus, buttons, Help and the sheet now wear Waypoint's own drawings where
+  they wore emoji. They look the same on every computer, in the app's colours.
+- A marker on the map wears a plate, so that it stands out on any map art:
+  a dark one normally, a gold one in the light theme. Doors, walls, barriers,
+  portals, lights, traps and hidden pieces all have one.
+- An open door now looks different from a shut one, on the map and in the
+  menus.
+- The portal marks show which way stairs go.
+
 Image Library tags
 - What the Image Library called categories are now tags. A picture can
   wear several, and every category you had is a tag now. Right-click a

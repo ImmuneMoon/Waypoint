@@ -672,7 +672,7 @@ function liveWords(why, rate) {
 function liveRow(body, camp, ck) {   // the GM's window: Runs / Held, the speed, and what the clock is doing now
     var held = ck.hold === true, rate = liveRate(ck), row = cel('div', 'cal-live');
     row.appendChild(cel('span', 'sys-num-cap', 'The clock'));
-    [['run', '\u25b6 Runs', 'The clock runs by itself while a session is open: it waits while the table is paused and while a fight is on'], ['hold', '\u23f8 Held', 'The clock moves only by your steps and by a fight\u2019s rounds']].forEach(function(k) {
+    [['run', '\u25b6 Runs', 'The clock runs by itself while a session is open: it waits while the table is paused and while a fight is on'], ['hold', '\u275A\u275A Held', 'The clock moves only by your steps and by a fight\u2019s rounds']].forEach(function(k) {
         var b = cbtn('cal-live-btn' + ((k[0] === 'hold') === held ? ' cal-kind-on' : ''), k[1], k[2], 'callive'); b.dataset.live = k[0]; row.appendChild(b);
     });
     var sel = cel('select', 'field cal-live-rate'); sel.title = 'How fast the clock runs by itself';
@@ -809,7 +809,7 @@ function refresh(live) {   // live (1.5.4): the clock ran by itself, or a host's
     var cal = sysCal(), ck = clockOf(camp) || { t: 0 }, txt = chip.querySelector('.clock-txt'), words = fmtWhen(cal, ck.t);
     if (txt && txt.textContent !== words) txt.textContent = words;
     var off = !isPlayer() && !!ck.hide; chip.classList.toggle('clock-private', off);
-    var why = isPlayer() ? 'off' : liveHeld(camp), run = chip.querySelector('.clock-run'), mark = why === '' ? '\u25b6' : why === 'hold' || why === 'paused' || why === 'fight' ? '\u23f8' : '';   // 1.5.4: the GM sees whether the clock is running
+    var why = isPlayer() ? 'off' : liveHeld(camp), run = chip.querySelector('.clock-run'), mark = why === '' ? '\u25b6' : why === 'hold' || why === 'paused' || why === 'fight' ? '\u275A\u275A' : '';   // 1.5.4: the GM sees whether the clock is running
     if (run && run.textContent !== mark) run.textContent = mark;
     pendFor(camp);
     chip.classList.toggle('clock-due', !isPlayer() && !!pend);   // time rules wait for the GM's word

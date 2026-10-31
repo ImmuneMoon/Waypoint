@@ -1388,7 +1388,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (plBtnD) {
           plBtnD.style.display = isDocEd ? '' : 'none';
           var onP = !(activeMap.meta && activeMap.meta.players === false);
-          plBtnD.innerHTML = onP ? '&#128065; Players can read' : '&#128274; GM only';
+          plBtnD.innerHTML = onP ? '<i class="wib wi-eye"></i> Players can read' : '<i class="wib wi-lock"></i> GM only';
           plBtnD.classList.toggle('on', onP);
           plBtnD.title = onP ? 'Players at your table receive this page and read it from their Handbook. Click to keep it to yourself.' : 'Only you see this page. Click to let players read it.';
       }
@@ -1453,7 +1453,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           html += '<div class="block-head"><span>' + (b.type === 'node' ? (b.mode === 'table' ? 'TABLE' : 'SCENE NODE') : esc(String(b.type).toUpperCase())) + '</span>';
 
-          html += '<div class="block-tools"><button class="tool ghost mv-up" data-idx="'+idx+'">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'">▼</button><button class="tool ghost danger del-blk" data-idx="'+idx+'">✖</button></div></div>';
+          html += '<div class="block-tools"><button class="tool ghost mv-up" data-idx="'+idx+'">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'">▼</button><button class="tool ghost danger del-blk" data-idx="'+idx+'"><i class="wib wi-close"></i></button></div></div>';
 
           
 
@@ -1512,7 +1512,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               b.rows.forEach(function(r, ri) {
                   html += '<div class="row-h">';
                   colNames.forEach(function(c, ci) { html += tsBoxHtml('r-col', c||'—', 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', ''); });
-                  html += '<button class="tool ghost danger del-row x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="Remove this row">✖</button>';
+                  html += '<button class="tool ghost danger del-row x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="Remove this row"><i class="wib wi-close"></i></button>';
                   html += '</div>';
               });
               html += '</div>';
@@ -1541,7 +1541,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                   html += tsBoxHtml('field fc-n-text fc-grow', 'Label (Enter for a new line)', 'data-idx="'+idx+'" data-ni="'+ni+'"', 'flex: 1; min-width:0; min-height:31px; line-height:1.3; padding:6px 8px;', true);
 
-                  html += '<button class="tool ghost danger del-fc-n x-btn" data-idx="'+idx+'" data-ni="'+ni+'">✖</button>';
+                  html += '<button class="tool ghost danger del-fc-n x-btn" data-idx="'+idx+'" data-ni="'+ni+'"><i class="wib wi-close"></i></button>';
 
                   html += '</div><div class="row-h">';
 
@@ -1571,7 +1571,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                   html += '<input type="text" value="'+esc(e.to||'')+'" placeholder="To ID" data-idx="'+idx+'" data-ei="'+ei+'" class="fc-e-to" style="flex: 1;">';
 
-                  html += '<button class="tool ghost danger del-fc-e x-btn" data-idx="'+idx+'" data-ei="'+ei+'">✖</button>';
+                  html += '<button class="tool ghost danger del-fc-e x-btn" data-idx="'+idx+'" data-ei="'+ei+'"><i class="wib wi-close"></i></button>';
 
                   html += '</div><div class="row-h">';
 
@@ -1769,7 +1769,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       pw.style.width = plannerFullscreen ? '100%' : '50%';
 
-      if (btn) btn.innerHTML = plannerFullscreen ? '&#9998; Edit' : '&#9654; Render Preview';
+      if (btn) btn.innerHTML = plannerFullscreen ? '<i class="wib wi-pen"></i> Edit' : '&#9654; Render Preview';
 
   }
 
@@ -2615,7 +2615,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   var mapP = camp && camp.items && typeof b.linkMapId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, b.linkMapId) ? camp.items[b.linkMapId] : null;
                   if (mapP && typeof mapP === 'object') {
                       var roomP = b.linkRoomId && Array.isArray(mapP.rooms) ? mapP.rooms.find(function(r) { return r && r.id === b.linkRoomId; }) : null;
-                      html += '<p class="pv-linkrow"><a href="#" class="pv-link" data-map="' + esc(b.linkMapId) + '" data-room="' + esc(b.linkRoomId || '') + '" title="Open this map' + (roomP ? ' at ' + esc(roomP.name || '') : '') + '">&#128205; Open ' + esc((mapP.meta && mapP.meta.title) || 'map') + (roomP ? ' · ' + esc(roomP.name || '') : '') + '</a></p>';
+                      html += '<p class="pv-linkrow"><a href="#" class="pv-link" data-map="' + esc(b.linkMapId) + '" data-room="' + esc(b.linkRoomId || '') + '" title="Open this map' + (roomP ? ' at ' + esc(roomP.name || '') : '') + '"><i class="wib wi-marker"></i> Open ' + esc((mapP.meta && mapP.meta.title) || 'map') + (roomP ? ' · ' + esc(roomP.name || '') : '') + '</a></p>';
                   }
               }
               if (Array.isArray(b.rows) && b.rows.length > 0) {

@@ -135,7 +135,7 @@ function pageChip(id, c) {   // c (H12b): the character whose view shows it — 
     var ref = pageRef(id); if (!ref) return null;
     var ch = el('span', 'sheet-sec-chip' + (ref.gmOnly ? ' sheet-chip-gm' : '')); ch.setAttribute('role', 'button'); ch.tabIndex = 0;
     ch.title = 'Open \u201c' + ref.title + '\u201d' + (ref.gmOnly ? ' \u2014 GM only: players don\u2019t see this chip' : ''); ch.setAttribute('aria-label', ch.title);
-    ch.appendChild(el('span', 'sheet-chip-ico', '\ud83d\udcd6')); ch.appendChild(el('span', 'sheet-chip-txt', ref.title));
+    ch.appendChild(el('span', 'wib wi-book sheet-chip-ico')); ch.appendChild(el('span', 'sheet-chip-txt', ref.title));
     var go = function(e) { e.preventDefault(); e.stopPropagation(); if (ch.closest('#systemModal')) return; openPageFor(c, id); };
     ch.addEventListener('click', go); ch.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') go(e); });
     return ch;
@@ -260,7 +260,7 @@ function rollerNode(pl, c, key) {
 // A handbook link placement: a button that opens its page; nothing at all when the page is not here
 function linkNode(pl, c) {
     var ref = pl.page ? pageRef(pl.page) : null; if (!ref) return null;
-    var b = el('button', 'tool sheet-roll sheet-link' + (ref.gmOnly ? ' sheet-chip-gm' : ''), '\ud83d\udcd6 ' + (pl.text || ref.title)); b.type = 'button';
+    var b = el('button', 'wib wi-book tool sheet-roll sheet-link' + (ref.gmOnly ? ' sheet-chip-gm' : ''), (pl.text || ref.title)); b.type = 'button';
     b.title = 'Open \u201c' + ref.title + '\u201d ' + (hbHudTarget(c) ? 'in the HUD\u2019s handbook search' : 'over the map') + (ref.gmOnly ? ' \u2014 GM only: players don\u2019t see this button' : '');   // H12b: where it will open
     b.addEventListener('click', function(e) { e.preventDefault(); if (b.closest('#systemModal')) return; openPageFor(c, pl.page); });
     var box = el('div', 'sheet-field sheet-kind-link'); box.appendChild(b); return box;
@@ -899,7 +899,7 @@ function facingNode(c, gm) {
     var info = el('div', 'sheet-dial-info'), a0 = th.length ? threatArc(fc, th[0]) : -1;
     info.appendChild(el('span', 'sheet-dial-state', 'Facing ' + (faceSide + 1) + (th.length ? ' \u00b7 threat from the ' + ARC[a0] + (th.length > 1 ? ' (+' + (th.length - 1) + ' queued)' : '') : ' \u00b7 no threat marked')));
     var mt = t.map.meta && typeof t.map.meta.title === 'string' ? t.map.meta.title.slice(0, 60) : ''; if (mt) info.appendChild(el('span', 'sheet-dial-map', 'on ' + mt));
-    if (!gm && t.tok.locked) info.appendChild(el('span', 'sheet-dial-map', '\uD83D\uDD12 Locked by the GM'));
+    if (!gm && t.tok.locked) info.appendChild(el('span', 'wib wi-lock sheet-dial-map', 'Locked by the GM'));
     if (live) {
         var btns = el('div', 'sheet-dial-btns');
         var tf = el('button', 'tool ghost sys-btn', 'Turn to face'); tf.title = 'Turn toward the active threat'; tf.dataset.dk = 'face'; tf.disabled = !th.length || Math.abs(((th[0] - fc.deg) % 360 + 540) % 360 - 180) < 0.5;   // already facing it exactly (a free-angle token between sides may still turn to it)
@@ -943,7 +943,7 @@ function stanceNode(c, gm) {
         er.appendChild(em); er.appendChild(ei); er.appendChild(ep); er.appendChild(el('span', 'sheet-unit', eu.unit)); wrap.appendChild(er);
     }
     var mt = t.map.meta && typeof t.map.meta.title === 'string' ? t.map.meta.title.slice(0, 60) : ''; if (mt) wrap.appendChild(el('span', 'sheet-dial-map', 'on ' + mt));
-    if (!gm && t.tok.locked) wrap.appendChild(el('span', 'sheet-dial-map', '\uD83D\uDD12 Locked by the GM'));
+    if (!gm && t.tok.locked) wrap.appendChild(el('span', 'wib wi-lock sheet-dial-map', 'Locked by the GM'));
     return wrap;
 }
 // [sinkcheck:posturewords-start]
@@ -2188,7 +2188,7 @@ function renderLayout() {
     if (look && look.bgImage) { lookRow.appendChild(el('span', 'sys-sec-style-lbl', 'Dim')); var dim = el('input', 'sys-look-dim'); dim.type = 'range'; dim.min = 0; dim.max = 90; dim.step = 5; dim.value = typeof look.bgDim === 'number' ? look.bgDim : 40; dim.title = 'Dim the picture so the text stays readable'; lookRow.appendChild(dim); }
     if (look) { var lclr = el('button', 'tool ghost sys-btn sys-sec-styleclr', 'Clear'); lclr.dataset.look = 'clear'; lclr.title = 'Back to the campaign default'; lookRow.appendChild(lclr); }
     lookBox.appendChild(lookRow);
-    lookBox.appendChild(el('div', 'sys-hint', 'Absent = the campaign default (the \uD83C\uDFA8 button on a page or planner). Players see the same look on their sheets.'));
+    lookBox.appendChild(el('div', 'sys-hint', 'Absent = the campaign default (the Appearance button on a page or planner). Players see the same look on their sheets.'));
     // Stage 5g: the sheet's shape — kept on the layout (draft.sheet.look), not in the doc-theming style: titles, tabs, one accent, the portrait + name
     var themeGold = function() { try { var x = getComputedStyle(document.documentElement).getPropertyValue('--gold').trim(); return /^#[0-9a-fA-F]{6}$/.test(x) ? x.toLowerCase() : '#e0a54f'; } catch (er) { return '#e0a54f'; } };
     var shape = (draft.sheet && draft.sheet.look && typeof draft.sheet.look === 'object') ? draft.sheet.look : {};
@@ -2636,7 +2636,7 @@ function cantTake(sys, c, it) {
 // ---- item-list widgets (Stage 4: the plain list and the rich table share these) ----
 var ITEM_COL_LABEL = { category: 'Category', cost: 'Cost', damage: 'Damage', area: 'Area', notes: 'Notes' };
 function itemThrowBtn(def, c, f, rid) {   // Stage 6 F4a: the throw names the carried row (the host reads its definition). A GM-only item, or one on a GM-only list: its damage and its blast's name stay the GM's
-    var plc = !!(def.area && def.area.place === true), tb = el('button', 'tool ghost sheet-item-throw', plc ? '\ud83d\udccd Place' : '💥 Throw'); tb.title = plc ? 'Place ' + def.name + ' \u2014 then click the map where it goes. It goes off when someone steps into it.' : 'Throw ' + def.name + ' — then click your target or a place on the map';   // 1.5.8 explosives: a mine is placed, never thrown
+    var plc = !!(def.area && def.area.place === true), tb = el('button', 'wib wi-' + (plc ? 'marker' : 'burst') + ' tool ghost sheet-item-throw', plc ? 'Place' : 'Throw'); tb.title = plc ? 'Place ' + def.name + ' \u2014 then click the map where it goes. It goes off when someone steps into it.' : 'Throw ' + def.name + ' — then click your target or a place on the map';   // 1.5.8 explosives: a mine is placed, never thrown
     tb.addEventListener('click', function() { if (window.wpArmBlast) { window.wpArmBlast(def.area.ft, def.area.name || def.name, { charId: c.id, fieldId: f.id, rowId: rid, by: c.name, damage: def.damage || '', gmOnly: def.vis === 'gm' || f.vis === 'gm' }); var hp = tb.closest('.hud-panel'); if (hp) closeHud(hp.dataset.cid); else closeSheet(); } });
     return tb;
 }
@@ -2913,7 +2913,7 @@ function openAllBar(openers) {
 }
 // [systemcheck:rowplace-end]
 function noteToggle(line, entry, c, f) {
-    var k = c.id + '|' + f.id + '|' + rowIdOf(entry), b = el('button', 'tool ghost sheet-item-notes-t', '📝'); b.title = entry.note ? 'Notes \u00b7 ' + entry.note : 'Notes'; b.ariaLabel = 'Notes';   // a screen reader says Notes, not memo
+    var k = c.id + '|' + f.id + '|' + rowIdOf(entry), b = el('button', 'wib wi-note tool ghost sheet-item-notes-t'); b.title = entry.note ? 'Notes \u00b7 ' + entry.note : 'Notes'; b.ariaLabel = 'Notes';   // a screen reader says Notes, not memo
     line.style.display = _noteOpen[k] ? '' : 'none';
     b.addEventListener('click', function() { if (_noteOpen[k]) delete _noteOpen[k]; else _noteOpen[k] = 1; line.style.display = _noteOpen[k] ? '' : 'none'; });
     return b;
@@ -2955,7 +2955,7 @@ function lookBits(box, entry, c, f, spec, sysI, gm, may) {
         if (lg.length || may) wb.appendChild(el('div', 'sheet-look-cap', 'Work log'));
         lg.forEach(function(w, i) {
             var wl = el('div', 'sheet-work-line'); wl.appendChild(el('span', 'sheet-work-words', workWords(w)));
-            if (gm && may) { var x = el('button', 'tool ghost sheet-look-x', '\u2715'); x.type = 'button'; x.title = 'Take this line off. Its fee is not given back'; x.setAttribute('aria-label', x.title); x.dataset.fid = f.id; x.dataset.part = 'wk-x-' + rid + '-' + i; x.addEventListener('click', function() { lookLog('drop', {}); commitItem(c, f, { op: 'work', rowId: rid, drop: i }); }); wl.appendChild(x); }   // the owner, 2026-10-29: "GM only, no refund"
+            if (gm && may) { var x = el('button', 'wib wi-close tool ghost sheet-look-x'); x.type = 'button'; x.title = 'Take this line off. Its fee is not given back'; x.setAttribute('aria-label', x.title); x.dataset.fid = f.id; x.dataset.part = 'wk-x-' + rid + '-' + i; x.addEventListener('click', function() { lookLog('drop', {}); commitItem(c, f, { op: 'work', rowId: rid, drop: i }); }); wl.appendChild(x); }   // the owner, 2026-10-29: "GM only, no refund"
             wb.appendChild(wl);
         });
         var wOpen = !!(may && _workForm && _workForm.k === k && _workForm.view === vw);
@@ -2998,14 +2998,14 @@ function finishFields(c, f, fz, pn, rec, names, rm) {   // one finish's boxes: a
     var cw = el('span', 'sheet-look-colors');
     fz.colors.forEach(function(h, i) {
         var ci = tag(el('input', 'sheet-look-color'), 'c' + i); ci.type = 'color'; ci.value = LOOK_SW_RE.test(String(h).toLowerCase()) ? String(h).toLowerCase() : '#808080'; ci.title = 'A colour'; ci.addEventListener('input', function() { fz.colors[i] = String(ci.value).toLowerCase(); });
-        var cx = tag(el('button', 'tool ghost sheet-look-x', '\u2715'), 'cx' + i); cx.type = 'button'; cx.title = 'Take this colour off'; cx.setAttribute('aria-label', cx.title); cx.addEventListener('click', function() { fz.colors.splice(i, 1); renderViews(c.id); });
+        var cx = tag(el('button', 'wib wi-close tool ghost sheet-look-x'), 'cx' + i); cx.type = 'button'; cx.title = 'Take this colour off'; cx.setAttribute('aria-label', cx.title); cx.addEventListener('click', function() { fz.colors.splice(i, 1); renderViews(c.id); });
         cw.appendChild(ci); cw.appendChild(cx);
     });
     if (fz.colors.length < ROW_LOOK.colors) { var ca = tag(el('button', 'tool ghost sheet-look-x', '+'), 'ca'); ca.type = 'button'; ca.title = 'Add a colour, up to ' + ROW_LOOK.colors; ca.setAttribute('aria-label', ca.title); ca.addEventListener('click', function() { fz.colors.push('#808080'); renderViews(c.id); }); cw.appendChild(ca); }
     row.appendChild(cw);
     var fi = tag(el('input', 'field sheet-look-finish'), 'f'); fi.type = 'text'; fi.maxLength = ROW_LOOK.finish; fi.placeholder = 'Finish: polished, matte, weathered'; fi.value = typeof fz.finish === 'string' ? fz.finish : ''; fi.addEventListener('input', function() { fz.finish = fi.value; }); row.appendChild(fi);
     var mi = tag(el('input', 'field sheet-look-marks'), 'm'); mi.type = 'text'; mi.maxLength = ROW_LOOK.marks; mi.placeholder = 'Markings, patterns, engraving, trim'; mi.value = typeof fz.markings === 'string' ? fz.markings : ''; mi.addEventListener('input', function() { fz.markings = mi.value; }); row.appendChild(mi);
-    if (rm) { var rb = tag(el('button', 'tool ghost sheet-look-x', '\u2715'), 'rm'); rb.type = 'button'; rb.title = 'Take this part off the look'; rb.setAttribute('aria-label', rb.title); rb.addEventListener('click', rm); row.appendChild(rb); }
+    if (rm) { var rb = tag(el('button', 'wib wi-close tool ghost sheet-look-x'), 'rm'); rb.type = 'button'; rb.title = 'Take this part off the look'; rb.setAttribute('aria-label', rb.title); rb.addEventListener('click', rm); row.appendChild(rb); }
     return row;
 }
 function workForm(entry, c, f, sysI) {   // one line: its kind, by whom, its fee (a whole number) and a note; Add sends it, and the host pays the fee
@@ -3079,7 +3079,7 @@ function noteUndo(c, f, res) {
 function takeBack(c, f, rid, n) { var k = undoKey(c, f, rid), u = _undo[k]; if (!u || !(n > 0)) return; u.added -= n; if (u.added <= 0) delete _undo[k]; }
 function undoBtn(entry, c, f) {
     var rid = rowIdOf(entry), k = undoKey(c, f, rid), u = _undo[k]; if (!u || u.until <= Date.now()) return null;
-    var b = el('button', 'tool ghost sheet-item-undo', '\u21b6 Undo'); b.title = 'Put it back (just after picking it up)';
+    var b = el('button', 'wib wi-undo tool ghost sheet-item-undo', 'Undo'); b.title = 'Put it back (just after picking it up)';
     b.addEventListener('click', function() { var n = u.added; delete _undo[k]; commitItem(c, f, { op: 'undo', rowId: rid, qty: n }); });
     return b;
 }
@@ -3285,7 +3285,7 @@ function partPills(wrap, c, f, spec, sysI, entry, chg, dep) {
         var nP = typeof pickerInto === 'function' ? pickerInto(add, (sysI && sysI.items) || [], fit, parts, fitOf) : 0;
         var gmL = !isClient() && !!(window.wpLibPicker && window.wpLibrary && window.wpLibrary.size && window.wpLibrary.size() > 0), plL = false;
         if (isClient() && window.wpLibPicker && window.wpNet && window.wpNet.libManifest) { var lmP = window.wpNet.libManifest(); plL = !!lmP && lmP.packs.some(function(pk) { return pk.count > 0; }); }
-        if (gmL || plL) add.appendChild(opt('__lib', '\ud83d\udcda From the library\u2026'));
+        if (gmL || plL) add.appendChild(opt('__lib', 'From the library\u2026'));
         add.addEventListener('change', function() { var v = add.value; add.value = ''; if (!v) return; if (v === '__lib') { openLibPicker(add, c, pf, fit, parts, hid); return; } commitItem(c, pf, { op: 'add', defId: v, rowId: uid('w_'), in: hid }); });
         if (nP !== 0 || gmL || plL) box.appendChild(add);
     }
@@ -3528,7 +3528,7 @@ function chamberCtl(host, entry, c, f, spec, editable, sysI, gm, canThrow, okC) 
     host.appendChild(w);
     var fc = entry.fd && typeof entry.fd === 'object' ? entry.fd : rd[0], fr = gm && canThrow && fc ? rowDef(sys, fc) : null, fdef = fr && fr.def && fr.def.area && typeof fr.def.area === 'object' ? fr.def : null;
     if (fdef) {   // the GM's alone: a round that hits goes off at the target by itself, and one that misses is the GM's to place
-        var lB = el('button', 'tool ghost sheet-item-throw sheet-item-launch', '\ud83d\udca5 Launch'); lB.type = 'button';
+        var lB = el('button', 'wib wi-burst tool ghost sheet-item-throw sheet-item-launch', 'Launch'); lB.type = 'button';
         lB.title = 'Place the blast of ' + (fdef.name || 'the round') + ': then click the target or a place on the map. No throw roll and no scatter';
         lB.addEventListener('click', function() { if (window.wpArmLaunch) { window.wpArmLaunch({ charId: c.id, fieldId: f.id, rowId: rowIdOf(entry), name: (fdef.area && fdef.area.name) || fdef.name || '' }); var hp = lB.closest ? lB.closest('.hud-panel') : null; if (hp) closeHud(hp.dataset.cid); else closeSheet(); } });
         host.appendChild(lB);
@@ -3657,7 +3657,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
                 else if (opSlotT) opSlotT.appendChild(rowOpener(null, entry, c, f, def.name, true));
             } else if (wantNotes && def.notes) {
                 notesRow = el('tr', 'sheet-itemtable-notes'); var ntd = el('td', null, def.notes); ntd.colSpan = span; notesRow.appendChild(ntd); notesRow.style.display = 'none';
-                var nt = el('button', 'tool ghost sheet-item-notes-t', '📝'); nt.title = 'Notes';
+                var nt = el('button', 'wib wi-note tool ghost sheet-item-notes-t'); nt.title = 'Notes';
                 nt.addEventListener('click', function() { notesRow.style.display = notesRow.style.display === 'none' ? '' : 'none'; });
                 actTd.appendChild(nt);
             }
@@ -3709,7 +3709,7 @@ function rowRights(entry, rd, spec, gm, sysI) {   // who may change this copy's 
 }
 function rfOpen(c, f, rid, view) { return !!(_rowForm && _rowForm.charId === c.id && _rowForm.fieldId === f.id && _rowForm.rowId === rid && (_rowForm.view || 'sheet') === (view || _fxView)); }
 function editBtn(entry, c, f, mode, cust) {   // ✎ opens this row's form (or closes it), in the view it is drawn in (kept now: another view may be drawn before the click); cust (F4c3): a custom row
-    var rid = rowIdOf(entry), vw = _fxView, b = el('button', 'tool ghost sheet-item-edit', '✎'); b.type = 'button';
+    var rid = rowIdOf(entry), vw = _fxView, b = el('button', 'wib wi-pen tool ghost sheet-item-edit'); b.type = 'button';
     b.title = cust ? 'Change it' : mode === 'gm' ? 'Change this copy' : 'Change this copy’s stats'; b.ariaLabel = b.title; b.dataset.fid = f.id; b.dataset.part = 'ed-' + rid;
     b.addEventListener('click', function() { _rowForm = rfOpen(c, f, rid, vw) ? null : { charId: c.id, fieldId: f.id, rowId: rid, view: vw, typed: {} }; renderViews(c.id); });
     return b;
@@ -4064,10 +4064,10 @@ function fxTimerCtl(r, d, f, c, sys, editable) {
     var camp = getActiveCampaign();
     if (!editable || (isClient() && camp && camp.turnRules && camp.turnRules.timers === 'gm') || !(lastsSecs(d, sys) > 0)) return null;
     var box = el('span', 'sheet-fx-timer'), t = r.t;
-    var mk = function(act, txt, tip) { var b = el('button', 'tool ghost sheet-pm sheet-fx-tbtn', txt); b.type = 'button'; b.title = tip; b.addEventListener('click', function(e) { e.stopPropagation(); commitEffect(c, f, { op: 'timer', rowId: r.id, act: act }); }); box.appendChild(b); };
-    if (t && t.p === 1) mk('resume', '\u25b6', 'Resume the countdown'); else if (t) mk('pause', '\u23f8', 'Pause the countdown (what is left is held)');
-    mk('reset', '\u21bb', 'Start its full time again');
-    if (t) mk('dismiss', '\u23f9', 'Stop the countdown: it stays until someone ends it');
+    var mk = function(act, ico, tip) { var b = el('button', 'wib wi-' + ico + ' tool ghost sheet-pm sheet-fx-tbtn'); b.type = 'button'; b.title = tip; b.addEventListener('click', function(e) { e.stopPropagation(); commitEffect(c, f, { op: 'timer', rowId: r.id, act: act }); }); box.appendChild(b); };
+    if (t && t.p === 1) mk('resume', 'play', 'Resume the countdown'); else if (t) mk('pause', 'pause', 'Pause the countdown (what is left is held)');
+    mk('reset', 'refresh', 'Start its full time again');
+    if (t) mk('dismiss', 'stop', 'Stop the countdown: it stays until someone ends it');
     return box;
 }
 function fxLeftChip(t, sys) {
@@ -4385,13 +4385,13 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
             if (specI) nPick = pickerInto(add, sysI.items || [], specI, carried, cantI);   // F4b: the list's categories, grouped
             else sysI.items.forEach(function(it) { var oI = opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name + (it.category ? ' — ' + it.category : '')), whyI = cantI ? cantI(it) : ''; if (whyI) { oI.disabled = true; oI.title = whyI; } add.appendChild(oI); });
             if (catAt && typeof catLead === 'function') { catLead(add, catAt); add.dataset.cat = catAt; }   // 1.5.5: a placement by category opens its pickers on its first category
-            if (libOK) add.appendChild(opt('__lib', '📚 From the library…'));   // L2c: the picker (libpicker.js)
+            if (libOK) add.appendChild(opt('__lib', 'From the library…'));   // L2c: the picker (libpicker.js)
             if (custOK) add.appendChild(opt('__custom', '+ Custom…'));   // F4c3: a blank row of the character's own, its form open on its name (in the view it was chosen in)
             add.addEventListener('change', function() { if (add.value === '__lib') { add.value = ''; openLibPicker(add, c, f, specI, carried); return; } if (add.value === '__custom') { var nr = uid('w_'); _rowForm = { charId: c.id, fieldId: f.id, rowId: nr, view: vwP, typed: {}, focus: 'name' }; commitItem(c, f, { op: 'custom', rowId: nr, def: catAt ? { category: catAt } : {} }); return; } if (add.value) { var avA = add.value, goA = function(nm) { var cpA = getActiveCampaign(), chA = cpA && cpA.chars ? cpA.chars[c.id] : null, ffA = chA ? fieldById(systemOf(cpA), f.id) : null; if (!chA || !ffA) return; var qA = { op: 'add', defId: avA, rowId: uid('w_'), qty: 1 }; if (nm) qA.name = nm; commitItem(chA, ffA, qA); }; if (typeof againAsk === 'function') againAsk(specI, carried, avA, againEnt(sysI, avA), goA); else goA(null); } });   // 1.6.0: an entry held again asks for its copy's name   // Stage 6 F4a: a new row's id from here (the host never mints)
             if (nPick !== 0 || custOK || libOK) wrap.appendChild(add);   // F4b: none of the list's categories has an item: no picker (F4c3: unless it takes custom rows)
         }
         if (specI && typeof specI.unheld === 'string' && specI.unheld && libOK && !onOnly && unheldRolls(specI).length && (gm || c.ownerId === myId()) && !(window.wpVtt && !window.wpVtt.on('dice'))) {   // 1.6.0 Rolls unheld entries: the library picker, to roll an entry nobody holds
-            var uhB = el('button', 'tool ghost sheet-item-unheld', '\ud83c\udfb2 Roll unheld\u2026'); uhB.type = 'button'; uhB.title = 'Roll an entry of the library that ' + (c.name || 'this character') + ' does not hold, at its unheld level';
+            var uhB = el('button', 'wib wi-die tool ghost sheet-item-unheld', 'Roll unheld\u2026'); uhB.type = 'button'; uhB.title = 'Roll an entry of the library that ' + (c.name || 'this character') + ' does not hold, at its unheld level';
             uhB.addEventListener('click', function() { openLibPicker(uhB, c, f, specI, carried, undefined, true); }); wrap.appendChild(uhB);
         }
         box.appendChild(wrap); return box;
@@ -7309,7 +7309,7 @@ var PLACES = [['', 'On the row'], ['details', 'In the details'], ['hide', 'Hidde
 function placeSel(part, cur) {
     var l = el('label', 'sys-num sys-place-box'), s = el('select', 'sys-list-place'); l.appendChild(el('span', 'sys-num-cap', 'Shows'));
     PLACES.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0] === (cur === 'details' || cur === 'hide' ? cur : '')) op.selected = true; s.appendChild(op); });
-    s.dataset.part = part; s.title = 'Where it stands: on the row, in the row\u2019s details (its \ud83d\udcdd line, or the body of a row that opens), or hidden. The HUD has no details, so there it stands on the row.';
+    s.dataset.part = part; s.title = 'Where it stands: on the row, in the row\u2019s details (its notes line, or the body of a row that opens), or hidden. The HUD has no details, so there it stands on the row.';
     l.appendChild(s); return l;
 }
 // The one handler: the Shows list of a part writes its place, a column's Hidden as the column's own hide
@@ -7380,7 +7380,7 @@ function fieldRow(f) {
         var bcl = el('label', 'sys-hover'); var bcc = el('input'); bcc.type = 'checkbox'; bcc.checked = f.bar !== false; bcc.className = 'sys-bar-chk'; bcl.appendChild(bcc); bcl.appendChild(document.createTextNode(' Bar')); bcl.title = 'The bar under the value (untick for just the numbers)'; flags.appendChild(bcl);
         spillCtl(flags, f);   // 1.6.0 Spills into
     }
-    flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this field', '&times;']]));
+    flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '<i class="wib wi-dup"></i>'], ['del', 'Delete this field', '&times;']]));
     row.appendChild(top); row.appendChild(flags);
     if (f.kind === 'formula' && f.badge && Array.isArray(f.labels) && f.labels.length) {   // Stage 6 look fold (L7): a colour per value name on the badge
         var trow = el('div', 'sys-sec-style sys-tones-row'); trow.appendChild(el('span', 'sys-sec-style-lbl', 'Colours'));
@@ -7594,7 +7594,7 @@ function effectRow(d) {
         var kpW = el('span', 'sys-hover sys-fx-keepbox', ' Unless already: '); kpW.title = 'A token already in a posture ticked here stays as it is when the effect comes on, as Down leaves a token lying face up';
         psL.forEach(function(p) { if (p.id === d.posture) return; var kl = el('label', 'sys-hover'), kc = el('input'); kc.type = 'checkbox'; kc.className = 'sys-fx-posturekeep'; kc.setAttribute('data-pid', p.id); kc.checked = Array.isArray(d.postureKeep) && d.postureKeep.indexOf(p.id) >= 0; kl.appendChild(kc); kl.appendChild(document.createTextNode(' ' + p.name + ' ')); kpW.appendChild(kl); });
         flags.appendChild(kpW); } }   // 1.6.0: the postures it leaves alone   // 1.5.9 (the owner's O6)
-    flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this effect', '&times;']]));
+    flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '<i class="wib wi-dup"></i>'], ['del', 'Delete this effect', '&times;']]));
     row.appendChild(top); row.appendChild(mods); if (typeof swBox === 'function') row.appendChild(swBox(d)); row.appendChild(flags);
     var auR = el('div', 'sys-flags sys-fx-autorow'), auI = input('sys-fx-auto field', typeof d.auto === 'string' ? d.auto : '', 'A formula: while it is true, or a number other than 0, the effect is on by itself for every character, as HP <= 0 turns on Unconscious. It reads the character\u2019s own values with the effects applied by hand (never another automatic effect, and a token\u2019s names read 0). Only a visible effect reading only what players can read applies itself', 'Applies itself when\u2026 (e.g. HP <= 0)'); auI.maxLength = LIMITS.formula; auR.appendChild(auI); row.appendChild(auR);   // conditions C4
     var auE = errorCell(d.id); auE.dataset.errFor = d.id; row.appendChild(auE);
@@ -7721,7 +7721,7 @@ function itemRow(it) {
     flags.appendChild(input('sys-item-key field', it.key || '', 'A short fixed name for it, once in each list it can be on: a letter, then letters, digits and _. Formulas read its row by it: List.key.lvl, List.key.qty', 'Key (optional)'));
     if (anyL) flags.appendChild(numField('sys-item-lvl', it.lvl, 'The level a new row of it starts at (blank: the list\u2019s default)', 'Level'));
     if (anyL) flags.appendChild(input('sys-item-only field', lvlOnlyText(it.lvlOnly), 'The levels it exists at, such as 2, 4 or 3 to 5. A list with named levels takes the names too. A new row starts at the first of them, and a player is refused any other. Blank: any level', 'Levels it may be (optional)'));   // 1.6.0
-    flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this item', '&times;']]));
+    flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '<i class="wib wi-dup"></i>'], ['del', 'Delete this item', '&times;']]));
     row.appendChild(top); row.appendChild(flags);
     var stBox = itemStatsBox(it, sDefs); if (stBox) row.appendChild(stBox);   // F4c1
     var nrow = el('div', 'sys-item-notes-row'); nrow.appendChild(input('sys-item-notes field', it.notes, 'Notes shown on the sheet', 'Notes (optional)')); row.appendChild(nrow);
@@ -7836,7 +7836,7 @@ function itemStatsBox(it, defs) {
 function renderLists() {
     var box = ui('sysListRows'); if (!box) return; box.textContent = '';
     var lists = (draft.fields || []).filter(function(f) { return f.kind === 'item-list'; }), rules = ui('sysListRules');
-    if (rules) { rules.textContent = ''; if (lists.length) rules.appendChild(labeledSelect('sys-listrules-stats', 'Item stats on players’ sheets', [['', 'GM only'], ['owner', 'Players may change them'], ['ask', 'Players ask, the GM approves']], draft.listRules && draft.listRules.statsAsk === true ? 'ask' : draft.listRules && draft.listRules.ownerStats === true ? 'owner' : '', 'Players may change the stats of their own copies with ✎ (a dot marks each; Follow the library takes them back; a stat you set on a copy holds). Turning it off keeps what they set. With Players ask, each change waits for you in the Review, of a library entry they may see too')); if (lists.length) rules.appendChild(labeledSelect('sys-listrules-upload', 'A player’s sheet upload', [['', 'Everything waits for you'], ['facts', 'Their row facts apply at once']], draft.listRules && draft.listRules.uploadFacts === true ? 'facts' : '', 'When a player sends their sheet file (Import JSON on their sheet): everything waits for your review, or the levels, switches and quantities of rows they already carry apply at once (the rest still waits)')); }   // Stage 6 F4c2: the Rules box (Setting A), per system
+    if (rules) { rules.textContent = ''; if (lists.length) rules.appendChild(labeledSelect('sys-listrules-stats', 'Item stats on players’ sheets', [['', 'GM only'], ['owner', 'Players may change them'], ['ask', 'Players ask, the GM approves']], draft.listRules && draft.listRules.statsAsk === true ? 'ask' : draft.listRules && draft.listRules.ownerStats === true ? 'owner' : '', 'Players may change the stats of their own copies with the row\u2019s pencil (a dot marks each; Follow the library takes them back; a stat you set on a copy holds). Turning it off keeps what they set. With Players ask, each change waits for you in the Review, of a library entry they may see too')); if (lists.length) rules.appendChild(labeledSelect('sys-listrules-upload', 'A player’s sheet upload', [['', 'Everything waits for you'], ['facts', 'Their row facts apply at once']], draft.listRules && draft.listRules.uploadFacts === true ? 'facts' : '', 'When a player sends their sheet file (Import JSON on their sheet): everything waits for your review, or the levels, switches and quantities of rows they already carry apply at once (the rest still waits)')); }   // Stage 6 F4c2: the Rules box (Setting A), per system
     if (!lists.length) { box.appendChild(el('div', 'sys-empty', 'No item lists yet. Add an Item list field in Fields (Skills, Weapons, Gear\u2026), then shape it here.')); return; }
     var cats = [], seen = Object.create(null);
     (draft.items || []).forEach(function(it) { var cc = String((it && it.category) || '').trim(); if (cc && !seen[cc.toLowerCase()]) { seen[cc.toLowerCase()] = 1; cats.push(cc); } });
@@ -8014,9 +8014,9 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             if (typeof metricSel === 'function') { sr.appendChild(metricSel('sys-list-statmetric', s.unitShow)); sr.appendChild(numField('sys-list-statdec', typeof s.decMax === 'number' ? s.decMax : '', 'The most decimals a measure shows, 0 to 5, its zeros taken off. Blank: four under Instead or Bare, and as before Beside. An implant\u2019s 0.11438 lbs needs five', 'decimals', '1')); }   // 1.5.4: how a measure reads under Metric, and its most decimals
         }
         if (s.kind !== 'pick') sr.appendChild(checkLabel('sys-list-statsplit', s.split === true, 'Split in trades', 'A trade may give part of this figure, as money from a chip. A row of quantity 1 only'));   // 1.5.6 trading
-        sr.appendChild(checkLabel('sys-list-statshow', s.show === true && s.hide !== true, 'On the row', 'Shown beside the name on each row (a column in a rich table); every stat that is not Hidden reads in the row’s 📝 line'));
+        sr.appendChild(checkLabel('sys-list-statshow', s.show === true && s.hide !== true, 'On the row', 'Shown beside the name on each row (a column in a rich table); every stat that is not Hidden reads in the row’s details'));
         if (s.kind !== 'pick' && typeof toneRow === 'function') { var stR = toneRow(s); if (stR) sr.appendChild(stR); }   // 1.6.0 R5: a tone per value name
-        sr.appendChild(checkLabel('sys-list-stathide', s.hide === true, 'Hidden', 'A figure the row only works with, such as a cost per level. It is never shown on a row or in its 📝 details. Formulas still read it, and ✎ still shows it. It is no secret: use a GM-only list for that'));
+        sr.appendChild(checkLabel('sys-list-stathide', s.hide === true, 'Hidden', 'A figure the row only works with, such as a cost per level. It is never shown on a row or in its details. Formulas still read it, and the row\u2019s pencil still shows it. It is no secret: use a GM-only list for that'));
         [['statup', '▲', 'Move up'], ['statdown', '▼', 'Move down'], ['statdel', '×', 'Remove this stat (Save drops its values)']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; sr.appendChild(bb); });
         sb.appendChild(sr);
     });

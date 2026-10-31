@@ -809,12 +809,12 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
               keys.sort((a,b) => String(camp.items[a].meta.title || '').localeCompare(String(camp.items[b].meta.title || '')));
               keys.forEach(k => {
                   var p = camp.items[k];
-                  html += '<button class="tool ghost doc-search-res" data-id="' + esc(k) + '"><span class="dsr-title">' + ((window.wpDocRender && window.wpDocRender.pageHid ? window.wpDocRender.pageHid(camp.items, k) : p.meta.players === false) ? '&#128274; ' : '') + esc(p.meta.title || '') + '</span></button>';
+                  html += '<button class="tool ghost doc-search-res" data-id="' + esc(k) + '"><span class="dsr-title">' + ((window.wpDocRender && window.wpDocRender.pageHid ? window.wpDocRender.pageHid(camp.items, k) : p.meta.players === false) ? '<i class="wib wi-lock"></i> ' : '') + esc(p.meta.title || '') + '</span></button>';
               });
           } else {                                    // typed query → smart search of page CONTENT + titles, ranked, with a snippet
               (window.wpDocSearch ? window.wpDocSearch(q, camp, ['doc']) : []).forEach(r => {
                   var it = camp.items[r.id], locked = !!it && (window.wpDocRender && window.wpDocRender.pageHid ? window.wpDocRender.pageHid(camp.items, r.id) : !!(it.meta && it.meta.players === false));
-                  html += '<button class="tool ghost doc-search-res" data-id="' + esc(r.id) + '"><span class="dsr-title">' + (locked ? '&#128274; ' : '') + esc(r.title) + '</span><span class="dsr-snip">' + r.snippet + '</span></button>';
+                  html += '<button class="tool ghost doc-search-res" data-id="' + esc(r.id) + '"><span class="dsr-title">' + (locked ? '<i class="wib wi-lock"></i> ' : '') + esc(r.title) + '</span><span class="dsr-snip">' + r.snippet + '</span></button>';
               });
           }
           if (!html) html = '<div class="muted">No pages found.</div>';

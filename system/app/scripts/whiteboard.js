@@ -207,11 +207,11 @@ function newOwnPicture(tok) {
 function showStanceMenu(e, tok) {
     var cMenu = document.getElementById('contextMenu'); if (!cMenu) return;
     cMenu.onclick = null;   // a machine that hosted earlier in this run still holds the GM's item menu's handler: a player's rows are never its business
-    var rows = tok.locked ? (stanceOn('elevation') || stanceOn('posture') ? '<div class="menu-divider"></div><div class="menu-item" style="color:var(--dim); cursor:default;">&#128274; Locked by the GM</div>' : '') : (stanceMenuHtml(tok) || '');   // a locked token is frozen for its player
-    var sheetRow = tok.charId && window.wpSheets && window.wpSheets.canOpen(tok.charId) ? '<div class="menu-item cm-sheet-own">&#128203; Sheet&hellip;</div>' : '';
-    var hudRow = tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(tok.charId) ? '<div class="menu-item cm-hud-own">&#12336; HUD&hellip;</div>' : '';   // HUD frame (HF2b)
-    var picRow = ownPicOk(tok) ? '<div class="menu-item cm-pic-own">&#128444;&#65039; New picture&hellip;</div>' : '';   // the token creator: their own picture, framed
-    var fxRow = window.wpSheets && window.wpSheets.tokenFxModel && window.wpSheets.tokenFxModel(tok) ? '<div class="menu-item cm-fx-own">&#10022; Effects&hellip;</div>' : '';   // conditions C2: where their sheet lets them
+    var rows = tok.locked ? (stanceOn('elevation') || stanceOn('posture') ? '<div class="menu-divider"></div><div class="menu-item" style="color:var(--dim); cursor:default;"><i class="wib wi-lock"></i> Locked by the GM</div>' : '') : (stanceMenuHtml(tok) || '');   // a locked token is frozen for its player
+    var sheetRow = tok.charId && window.wpSheets && window.wpSheets.canOpen(tok.charId) ? '<div class="menu-item cm-sheet-own"><i class="wib wi-clip"></i> Sheet&hellip;</div>' : '';
+    var hudRow = tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(tok.charId) ? '<div class="menu-item cm-hud-own"><i class="wib wi-hud"></i> HUD&hellip;</div>' : '';   // HUD frame (HF2b)
+    var picRow = ownPicOk(tok) ? '<div class="menu-item cm-pic-own"><i class="wib wi-pic"></i> New picture&hellip;</div>' : '';   // the token creator: their own picture, framed
+    var fxRow = window.wpSheets && window.wpSheets.tokenFxModel && window.wpSheets.tokenFxModel(tok) ? '<div class="menu-item cm-fx-own"><i class="wib wi-spark"></i> Effects&hellip;</div>' : '';   // conditions C2: where their sheet lets them
     rows += ownLightHtml(tok);   // lighting L5: their own light
     rows += tokenSensesLine(tok);   // senses S3: its senses, read-only
     if (!rows && !sheetRow && !hudRow && !picRow && !fxRow) return;
@@ -239,7 +239,7 @@ function ownLightPicks() {
 function ownLightHtml(tok) {
     var n = window.wpNet, C = window.wpFogCore; if (!tok || !tok.isChar || tok.waiting || tok.locked || tok.hidden || !n || !n.tokLight || !C || !C.cleanLight) return '';
     var L = C.cleanLight(tok.light), picks = ownLightPicks(); if (!L && !picks.length) return '';
-    if (tok.lightLock === true) return '<div class="menu-item" style="color:var(--dim); cursor:default;">&#128274; Light locked by the GM</div>';
+    if (tok.lightLock === true) return '<div class="menu-item" style="color:var(--dim); cursor:default;"><i class="wib wi-lock"></i> Light locked by the GM</div>';
     var word = function(u) { return u === 'ft' ? 'ft' : u === 'm' ? 'm' : u === 'cells' ? 'cells' : 'yd'; }, cur = -1;
     if (L && L.name) picks.forEach(function(k) { if (cur < 0 && k.p.name === L.name && k.p.bright === L.bright && k.p.dim === L.dim && word(k.p.unit) === word(L.unit)) cur = k.i; });
     var opts = L ? '<option value="off"' + (L.off ? ' selected' : '') + '>Off</option>' + (cur < 0 ? '<option value="on"' + (L.off ? '' : ' selected') + '>' + (L.name ? esc(L.name) : 'Its light') + '</option>' : '') : '<option value="" selected>No light</option>';
@@ -704,7 +704,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                   var isClientTT = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
                   var destTT = r.targetMapId && getActiveCampaign() ? getActiveCampaign().items[r.targetMapId] : null;
                   var destRoomTT = destTT && r.targetRoomId ? (destTT.rooms || []).find(function(x) { return x.id === r.targetRoomId; }) : null;
-                  var lockTT = destTT && destTT.meta && destTT.meta.playerLock ? ' \u00b7 \uD83D\uDD12 ' + (isClientTT ? 'closed for now' : 'locked for players') : '';
+                  var lockTT = destTT && destTT.meta && destTT.meta.playerLock ? ' \u00b7 ' + (isClientTT ? 'closed for now' : 'locked for players') : '';
                   var destLine = destTT ? '<div class="rn" style="color:var(--gold);">\u2192 ' + esc(destTT.meta && destTT.meta.title || r.targetMapId) + (destRoomTT ? ' \u00b7 ' + esc(destRoomTT.name || '') : '') + lockTT + '</div>' : '';
                   var lockTipTT = portalLockTip(wItem, activeMap, !!isClientTT);   // a portal's own lock: a player is told it is locked in place of how to travel
                   var travelHint = r.targetMapId ? destLine + (lockTipTT && isClientTT ? '' : '<div class="rc" style="color:var(--gold)">' + (isClientTT ? 'Drop your token here (or double-click) to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>') : '';
@@ -875,11 +875,11 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
           // to a room that links to another map
 
           var portalIcon = '';
-          var ICON_GLYPH = {'Stairs Up':'\u{1FA9C}','Stairs Down':'\u{1FA9C}','Door':'\u{1F6AA}','Gate':'⛩️','Cave':'\u{1F987}','Tower':'\u{1F5FC}','Camp':'⛺'};
+          var ICON_GLYPH = {'Stairs Up':'stairs-up','Stairs Down':'stairs-down','Door':'door','Gate':'gate','Cave':'cave','Tower':'tower','Camp':'camp'};
 
           if (item.targetMapId) {
 
-              portalIcon = ICON_GLYPH[item.portalIcon] || '\u{1F6AA}';
+              portalIcon = ICON_GLYPH[item.portalIcon] || 'door';
 
           } else if (item.nodeId) {
 
@@ -887,7 +887,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
               if (pRoom && pRoom.targetMapId) {
 
-                  portalIcon = ICON_GLYPH[pRoom.icon] || '\u{1F6AA}';
+                  portalIcon = ICON_GLYPH[pRoom.icon] || 'door';
 
               }
 
@@ -1057,7 +1057,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
               el.classList.add('wb-light'); el.classList.toggle('off', !lgL || !!lgL.off);
               if (!(state.selWbIds && state.selWbIds.length > 1 && state.selWbIds.includes(item.id))) el.style.boxShadow = '';   // the marker's glow ring is the stylesheet's (an inline none would hide it)
               var lgG = el.querySelector(':scope > .wb-light-glyph');
-              if (!lgG) { el.textContent = ''; lgG = document.createElement('span'); lgG.className = 'wb-light-glyph'; lgG.textContent = '\ud83d\udca1'; el.appendChild(lgG); }
+              if (!lgG) { el.textContent = ''; lgG = document.createElement('span'); lgG.className = 'wb-light-glyph'; el.appendChild(lgG); }
               var lgU = lgL && lgL.unit ? lgL.unit : 'yd', lgT = 'Light source' + (lgL && lgL.name ? ' (' + lgL.name + ')' : '') + (lgL ? ': bright ' + lgL.bright + ' ' + lgU + ', dim to ' + lgL.dim + ' ' + lgU + (lgL.off ? ' (off)' : '') : ' (no light set)');
               if (el.dataset.tip !== lgT) el.dataset.tip = lgT;
           } else if(item.type === 'path') {
@@ -1413,12 +1413,12 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
       }
       // The padlock shows the item's STATE (closed = locked), not the action
       var lockBtn = bar.querySelector('.st-lock');
-      lockBtn.textContent = anyUnlocked ? '🔓' : '🔒';
+      lockBtn.innerHTML = '<i class="wib wi-' + (anyUnlocked ? 'unlock' : 'lock') + '"></i>';
       lockBtn.classList.toggle('on', !anyUnlocked);
       var doorSel = !!(window.wpFogCore && window.wpFogCore.isDoor && its.some(function(i) { return window.wpFogCore.isDoor(i); }));
       lockBtn.title = (anyUnlocked ? 'Not locked in place: it can be dragged and resized. Click to lock it in place' : 'Locked in place: no drag or resize. Click to unlock') + (doorSel ? '. This is not the lock of the door itself: right-click the door for Lock door for players' : '');
       var visBtn = bar.querySelector('.st-vis');
-      visBtn.textContent = anyVisible ? '👁' : '🚫';
+      visBtn.innerHTML = '<i class="wib wi-' + (anyVisible ? 'eye' : 'hide') + '"></i>';
       visBtn.classList.toggle('st-hidden', !anyVisible);
       visBtn.title = anyVisible ? 'Visible to players — click to hide from them (GM still sees it dimmed)' : 'HIDDEN from players — click to show it to them';
       // Play-area toggle: only for footprint items (images/shapes, not tokens), and only while the fog feature is on for this campaign
@@ -2831,7 +2831,7 @@ window.wpFitToGrid = fitToGrid;
           var whereName = atM ? (atM.meta && atM.meta.title || 'their map') : (rosterP && rosterP.location && camp.items[rosterP.location] && camp.items[rosterP.location].meta && camp.items[rosterP.location].meta.title) || 'their map';
           var isClientM = window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && !window.wpStream;
           if (isClientM && !here) items.push({ act: 'none', label: name + ' \u2014 on ' + whereName, dim: true });
-          else items.push({ act: 'jump', label: '\uD83C\uDFAF ' + (isClientM ? 'Find ' : 'Jump to ') + name + (here ? '' : ' (' + whereName + ')') });
+          else items.push({ act: 'jump', ico: 'target', label: (isClientM ? 'Find ' : 'Jump to ') + name + (here ? '' : ' (' + whereName + ')') });
           if (hosting && ownerId) {
               var stagedId = window.wpNet.stagedMapId ? window.wpNet.stagedMapId() : null;
               var viewingOther = am && am.type === 'map' && stagedId && stagedId !== am.id;   // GM is looking at a different map than the table's pinned one
@@ -2839,29 +2839,29 @@ window.wpFitToGrid = fitToGrid;
               var stagedTitle = (stagedId && camp.items[stagedId] && camp.items[stagedId].meta && camp.items[stagedId].meta.title) || null;
               var tableSfx = (viewingOther && stagedTitle) ? ' (' + stagedTitle + ')' : '';
               items.push(connected
-                  ? { act: 'summon', label: '\uD83D\uDCE3 Summon ' + name + ' to the table\'s map' + tableSfx }
-                  : { act: 'none', label: '\uD83D\uDCE3 Summon ' + name + ' \u2014 not connected', dim: true });
-              if (viewingOther && connected) items.push({ act: 'summonHere', label: '\uD83D\uDCE3 Summon ' + name + ' to this map (' + amTitle + ')' });
-              items.push({ act: 'summonAll', label: '\uD83D\uDCE3 Summon everyone to the table\'s map' + tableSfx });
-              if (viewingOther) items.push({ act: 'summonAllHere', label: '\uD83D\uDCE3 Summon everyone to this map (' + amTitle + ')' });
+                  ? { act: 'summon', ico: 'summon', label: 'Summon ' + name + ' to the table\'s map' + tableSfx }
+                  : { act: 'none', ico: 'summon', label: 'Summon ' + name + ' \u2014 not connected', dim: true });
+              if (viewingOther && connected) items.push({ act: 'summonHere', ico: 'summon', label: 'Summon ' + name + ' to this map (' + amTitle + ')' });
+              items.push({ act: 'summonAll', ico: 'summon', label: 'Summon everyone to the table\'s map' + tableSfx });
+              if (viewingOther) items.push({ act: 'summonAllHere', ico: 'summon', label: 'Summon everyone to this map (' + amTitle + ')' });
               var waitT = ownerId && window.wpSystemCore && window.wpSystemCore.waitingTokensOf ? window.wpSystemCore.waitingTokensOf(camp, ownerId)[0] : null;   // Onboarding F1a
-              if (waitT) { items.push({ act: 'waitHide', label: (waitT.w.hidden ? '\uD83D\uDC41 Show ' : '\uD83D\uDE48 Hide ') + name + '\u2019s waiting token' }); items.push({ act: 'waitRemove', label: '\u2716 Remove ' + name + '\u2019s waiting token (for this session)' }); }
-              if (!window.wpStream && window.wpNet.targets && Object.prototype.hasOwnProperty.call(window.wpNet.targets, ownerId) && window.wpNet.targets[ownerId] && typeof window.wpNet.clearTargetOf === 'function') items.push({ act: 'clearTarget', label: '\u25EF Clear ' + name + '\u2019s target' });   // 1.5.9: the GM takes a player's pointer off (the label through esc, as every row's)
+              if (waitT) { items.push({ act: 'waitHide', ico: waitT.w.hidden ? 'eye' : 'hide', label: (waitT.w.hidden ? 'Show ' : 'Hide ') + name + '\u2019s waiting token' }); items.push({ act: 'waitRemove', ico: 'close', label: 'Remove ' + name + '\u2019s waiting token (for this session)' }); }
+              if (!window.wpStream && window.wpNet.targets && Object.prototype.hasOwnProperty.call(window.wpNet.targets, ownerId) && window.wpNet.targets[ownerId] && typeof window.wpNet.clearTargetOf === 'function') items.push({ act: 'clearTarget', ico: 'ring', label: 'Clear ' + name + '\u2019s target' });   // 1.5.9: the GM takes a player's pointer off (the label through esc, as every row's)
               if (connected) {
                   var pausedP = window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(ownerId);
-                  items.push({ act: pausedP ? 'unpausePlayer' : 'pausePlayer', label: (pausedP ? '\u25B6\uFE0F Resume ' : '\u23F8\uFE0F Pause ') + name + ' (just this player)' });
+                  items.push({ act: pausedP ? 'unpausePlayer' : 'pausePlayer', ico: pausedP ? 'play' : 'pause', label: (pausedP ? 'Resume ' : 'Pause ') + name + ' (just this player)' });
               }
           }
           var isClient = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
           if (!isClient && ownerId && !window.wpStream && window.wpTrackers && window.wpTrackers.on && window.wpTrackers.on()) items.push({ act: 'trkHide', label: (window.wpTrackers.hidden(ownerId) ? '\u2611 ' : '\u2610 ') + 'Hide table trackers from them' });   // backlog 29: the owner, "gm but for the whole table or specific players"
-          if (!isClient && am && am.type === 'map' && !(hosting && connected)) items.push({ act: 'bring', label: '\u27A4 Bring ' + name + ' here (this map)' });
-          if (window.wpNet && window.wpNet.active && !hosting && !window.wpStream) items.push({ act: 'target', label: '\u25CE Target ' + name });
-          if (loc && loc.tok && window.wpSheets && (!isClient ? true : (loc.tok.charId && window.wpSheets.canOpen(loc.tok.charId)))) items.push({ act: 'sheet', label: String.fromCharCode(55357, 56523) + ' ' + (loc.tok.charId ? 'Sheet\u2026' : 'New character sheet\u2026') });   // character sheets (1.5.0)
-          if (loc && loc.tok && loc.tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(loc.tok.charId)) items.push({ act: 'hud', label: '\u3030 HUD\u2026' });   // HUD frame (HF2b)
-          if (!isClient && ownerId && window.wpSheets && window.wpSheets.giveCharacter && camp && camp.system && giveList(camp, ownerId).length) items.push({ act: 'give', label: '\uD83C\uDFAD Give a character\u2026' });   // Onboarding F0: give, switch the one in play, or put its token here
-          if (!isClient && window.wpSheets) items.push({ act: 'chars', label: String.fromCharCode(55357, 56421) + ' Characters\u2026' });
-          if (!isClient && ownerId && window.wpSheets && window.wpSheets.inviteMaking && camp && camp.system && window.wpSystemCore && window.wpSystemCore.newCharRules && window.wpSystemCore.newCharRules(camp, !window.wpVtt || !window.wpVtt.rulesOn || window.wpVtt.rulesOn('sheets') !== false).create !== 'off' && !Object.keys(camp.chars || {}).some(function(k) { var x = camp.chars[k]; return x && x.ownerId === ownerId && x.making === 1; })) items.push({ act: 'invite', label: '\u270D\uFE0F Let them make a character' });   // Onboarding F3b: the GM's invite (or a replacement for one they play)
-          if (isClientM && ownerId && ownerId === window.wpNet.myId && window.wpJoinCard && window.wpJoinCard.has && window.wpJoinCard.has()) items.push({ act: 'joinCard', label: '\uD83D\uDC64 My character\u2026' });   // Onboarding F3: their own card again (a waiting token, one they are making, or one to make)
+          if (!isClient && am && am.type === 'map' && !(hosting && connected)) items.push({ act: 'bring', ico: 'bring', label: 'Bring ' + name + ' here (this map)' });
+          if (window.wpNet && window.wpNet.active && !hosting && !window.wpStream) items.push({ act: 'target', ico: 'target', label: 'Target ' + name });
+          if (loc && loc.tok && window.wpSheets && (!isClient ? true : (loc.tok.charId && window.wpSheets.canOpen(loc.tok.charId)))) items.push({ act: 'sheet', ico: 'clip', label: (loc.tok.charId ? 'Sheet\u2026' : 'New character sheet\u2026') });   // character sheets (1.5.0)
+          if (loc && loc.tok && loc.tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(loc.tok.charId)) items.push({ act: 'hud', ico: 'hud', label: 'HUD\u2026' });   // HUD frame (HF2b)
+          if (!isClient && ownerId && window.wpSheets && window.wpSheets.giveCharacter && camp && camp.system && giveList(camp, ownerId).length) items.push({ act: 'give', ico: 'mask', label: 'Give a character\u2026' });   // Onboarding F0: give, switch the one in play, or put its token here
+          if (!isClient && window.wpSheets) items.push({ act: 'chars', ico: 'people', label: 'Characters\u2026' });
+          if (!isClient && ownerId && window.wpSheets && window.wpSheets.inviteMaking && camp && camp.system && window.wpSystemCore && window.wpSystemCore.newCharRules && window.wpSystemCore.newCharRules(camp, !window.wpVtt || !window.wpVtt.rulesOn || window.wpVtt.rulesOn('sheets') !== false).create !== 'off' && !Object.keys(camp.chars || {}).some(function(k) { var x = camp.chars[k]; return x && x.ownerId === ownerId && x.making === 1; })) items.push({ act: 'invite', ico: 'note', label: 'Let them make a character' });   // Onboarding F3b: the GM's invite (or a replacement for one they play)
+          if (isClientM && ownerId && ownerId === window.wpNet.myId && window.wpJoinCard && window.wpJoinCard.has && window.wpJoinCard.has()) items.push({ act: 'joinCard', ico: 'people', label: 'My character\u2026' });   // Onboarding F3: their own card again (a waiting token, one they are making, or one to make)
           fillPartyMenu(items, key);
           menu.classList.add('show');
           window.wpClampMenu(menu, cx, cy);
@@ -2869,7 +2869,7 @@ window.wpFitToGrid = fitToGrid;
       window.wpPartyMenuFor = openPartyMenu;
       function fillPartyMenu(items, key) {
           menu.innerHTML = items.map(function(i) {
-              return '<button class="wb-tool-btn party-menu-item' + (i.dim ? ' dim' : '') + '" data-act="' + i.act + '" data-key="' + esc(key) + '"' + (i.cid ? ' data-cid="' + esc(i.cid) + '"' : '') + ' style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 10px; text-align:left;">' + esc(i.label) + '</button>';
+              return '<button class="wb-tool-btn party-menu-item' + (i.dim ? ' dim' : '') + '" data-act="' + i.act + '" data-key="' + esc(key) + '"' + (i.cid ? ' data-cid="' + esc(i.cid) + '"' : '') + ' style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 10px; text-align:left;">' + (i.ico ? '<i class="wib wi-' + i.ico + '"></i> ' : '') + esc(i.label) + '</button>';
           }).join('');
       }
       // Onboarding F0: what the GM can give a player — their own characters first (the one they play: its token onto their map; a kept one:
@@ -2997,7 +2997,7 @@ window.wpFitToGrid = fitToGrid;
       cMenu.onclick = null;   // as showStanceMenu: a machine that hosted earlier in this run still holds the GM's item menu's handler
       var mine = targetedByMe(tok);
       cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || tok.name || 'Token') + '</div>'
-          + '<div class="menu-item cm-target" title="' + (mine ? 'Stop targeting it (Esc does too)' : 'Mark it as your target: everyone sees a small copy of your token on it (T while pointing at a token does the same)') + '">' + (mine ? '&#9711; Clear target' : '&#9678; Target') + '</div>';
+          + '<div class="menu-item cm-target" title="' + (mine ? 'Stop targeting it (Esc does too)' : 'Mark it as your target: everyone sees a small copy of your token on it (T while pointing at a token does the same)') + '">' + (mine ? '<i class="wib wi-ring"></i> Clear target' : '<i class="wib wi-target"></i> Target') + '</div>';
       cMenu.style.display = 'flex';
       placeMenu(cMenu, e);
       var row = cMenu.querySelector('.cm-target'); if (row) row.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; toggleTarget(tok, mapId); });
@@ -3008,7 +3008,7 @@ window.wpFitToGrid = fitToGrid;
   // 1.5.6 trading: a row that asks to trade, made by name with its words as text (trade.js judges who may ask whom)
   function tradeRowInto(cMenu, tok, sel) {
       var T = window.wpTrade, am = typeof getActiveMap === 'function' ? getActiveMap() : null, q = T && T.canAsk ? T.canAsk(tok, am, sel || null) : null; if (!q) return false;
-      var r = document.createElement('div'); r.className = 'menu-item cm-trade'; r.title = 'Open a barter window with them: each side puts items and money on the table, and both confirm'; r.textContent = '\u21c4 ' + q.label;
+      var r = document.createElement('div'); r.className = 'menu-item cm-trade wib wi-trade'; r.title = 'Open a barter window with them: each side puts items and money on the table, and both confirm'; r.textContent = q.label;
       r.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; T.ask(q.from, q.to); });
       cMenu.appendChild(r); return true;
   }
@@ -3021,7 +3021,7 @@ window.wpFitToGrid = fitToGrid;
   function portalLockOn(item, map) { var FC = window.wpFogCore; return !!(item && item.portalLock === true && FC && typeof FC.isPortal === 'function' && FC.isPortal(item, map)); }
   function portalLockTip(item, map, client) {
       if (!portalLockOn(item, map)) return '';
-      return '<div class="rc" style="color:var(--gold); font-size:11px;">' + esc(client === true ? '\uD83D\uDD12 Locked \u2014 the GM will unlock it when the time comes' : '\uD83D\uDD12 Locked for players \u2014 right-click it to unlock') + '</div>';
+      return '<div class="rc" style="color:var(--gold); font-size:11px;">' + '<i class="wib wi-lock"></i> ' + esc(client === true ? 'Locked \u2014 the GM will unlock it when the time comes' : 'Locked for players \u2014 right-click it to unlock') + '</div>';
   }
   function portalLockRow(items, map) {
       var n = window.wpNet, FC = window.wpFogCore;
@@ -3029,7 +3029,7 @@ window.wpFitToGrid = fitToGrid;
       var ps = (Array.isArray(items) ? items : []).filter(function(w) { return !!(w && FC && typeof FC.isPortal === 'function' && FC.isPortal(w, map)); });
       if (!ps.length) return null;
       var lock = ps.some(function(w) { return w.portalLock !== true; });
-      return { lock: lock, items: ps, html: '<div class="menu-item cm-portal-lock" title="' + (lock ? 'No player travels through it until you unlock it: their double-click and a token they drop on it are refused, and where they can see it it wears a small lock. Your own drop of a player&rsquo;s token on it still sends them through.' : 'Players may travel through it again.') + '">' + (lock ? '&#128682; Lock portal for players' : '&#128682; Unlock portal') + '</div>' };
+      return { lock: lock, items: ps, html: '<div class="menu-item cm-portal-lock" title="' + (lock ? 'No player travels through it until you unlock it: their double-click and a token they drop on it are refused, and where they can see it it wears a small lock. Your own drop of a player&rsquo;s token on it still sends them through.' : 'Players may travel through it again.') + '">' + (lock ? '<i class="wib wi-door"></i> Lock portal for players' : '<i class="wib wi-door"></i> Unlock portal') + '</div>' };
   }
   function portalLockSet(items, map) {
       var row = portalLockRow(items, map); if (!row) return '';
@@ -3050,8 +3050,8 @@ window.wpFitToGrid = fitToGrid;
       if (!ds.length) return null;
       var open = ds.some(function(w) { return !w.doorOpen; }), lock = ds.some(function(w) { return w.doorLock !== true; }), s = ds.length > 1 ? 's' : '';
       return { open: open, lock: lock, items: ds, html:
-          '<div class="menu-item cm-door-open" title="' + (open ? 'Open: sight and tokens pass through. A player whose token stands next to an unlocked door can do this by clicking it.' : 'Closed: it blocks as a wall does.') + '">&#128682; ' + (open ? 'Open door' : 'Close door') + s + '</div>'
-          + '<div class="menu-item cm-door-lock" title="' + (lock ? 'No player opens or closes it until you unlock it: their click on it is refused, and it wears a small lock. You still open and close it yourself. This is the lock of the door itself, not Lock in place.' : 'Players next to it may open and close it again.') + '">' + (lock ? '&#128275; Lock door' + s + ' for players' : '&#128274; Unlock door' + s + ' for players') + '</div>' };
+          '<div class="menu-item cm-door-open" title="' + (open ? 'Open: sight and tokens pass through. A player whose token stands next to an unlocked door can do this by clicking it.' : 'Closed: it blocks as a wall does.') + '"><i class="wib wi-' + (open ? 'door-open' : 'door') + '"></i> ' + (open ? 'Open door' : 'Close door') + s + '</div>'
+          + '<div class="menu-item cm-door-lock" title="' + (lock ? 'No player opens or closes it until you unlock it: their click on it is refused, and it wears a small lock. You still open and close it yourself. This is the lock of the door itself, not Lock in place.' : 'Players next to it may open and close it again.') + '">' + (lock ? '<i class="wib wi-unlock"></i> Lock door' + s + ' for players' : '<i class="wib wi-lock"></i> Unlock door' + s + ' for players') + '</div>' };
   }
   function doorRowsDo(items, act) {
       var row = doorRows(items); if (!row) return '';
@@ -3073,8 +3073,8 @@ window.wpFitToGrid = fitToGrid;
       if (!ds.length) return null;
       var nSec = ds.filter(function(w) { return FC.secretOn(w); }).length, found = nSec > 0, s = (found ? nSec : ds.length) > 1 ? 's' : '';   // the row counts what it will act on: the secret doors for Reveal, every door for Make
       return { reveal: found, items: ds, html: found
-          ? '<div class="menu-item cm-secret-show" title="Your players see it as a door from now on. It stays shut until someone opens it.">&#128065; Reveal secret door' + s + '</div>'
-          : '<div class="menu-item cm-secret-make" title="Your players see wall here until it is found. The door is shut first, since an open door cannot be secret.">&#128682; Make secret door' + s + '</div>' };
+          ? '<div class="menu-item cm-secret-show" title="Your players see it as a door from now on. It stays shut until someone opens it."><i class="wib wi-eye"></i> Reveal secret door' + s + '</div>'
+          : '<div class="menu-item cm-secret-make" title="Your players see wall here until it is found. The door is shut first, since an open door cannot be secret."><i class="wib wi-door"></i> Make secret door' + s + '</div>' };
   }
   function secretRowDo(items) {
       var row = secretRow(items), FC = window.wpFogCore; if (!row) return '';
@@ -3113,8 +3113,8 @@ window.wpFitToGrid = fitToGrid;
       if (!ps.length) return null;
       var hide = ps.every(function(w) { return w.fogHand === 'hide'; }), show = ps.every(function(w) { return w.fogHand === 'show'; });
       return { hide: hide, show: show, items: ps, html:
-          '<div class="menu-item cm-fog-hide" title="Every cell under it stays hidden from players, whatever their tokens see, wherever you move it. Pick it again to take the mark off.">' + (hide ? '&#10003; ' : '') + '&#127787; Under fog</div>'
-          + '<div class="menu-item cm-fog-show" title="Every cell under it stays shown to players, wherever their tokens are and wherever you move it. Pick it again to take the mark off.">' + (show ? '&#10003; ' : '') + '&#128065; Always revealed</div>' };
+          '<div class="menu-item cm-fog-hide" title="Every cell under it stays hidden from players, whatever their tokens see, wherever you move it. Pick it again to take the mark off.">' + (hide ? '&#10003; ' : '') + '<i class="wib wi-fog"></i> Under fog</div>'
+          + '<div class="menu-item cm-fog-show" title="Every cell under it stays shown to players, wherever their tokens are and wherever you move it. Pick it again to take the mark off.">' + (show ? '&#10003; ' : '') + '<i class="wib wi-eye"></i> Always revealed</div>' };
   }
   function fogHandSet(items, which) {
       var row = fogHandRows(items); if (!row || (which !== 'hide' && which !== 'show')) return '';
@@ -3499,7 +3499,7 @@ window.wpFitToGrid = fitToGrid;
   function pagePinRow(items) {
       var its = (Array.isArray(items) ? items : []).filter(Boolean); if (its.length !== 1) return null;
       var pin = pagePinOf(its[0]); if (!pin) return null;
-      var r = { id: pin.id, html: '<div class="menu-item cm-open-page" title="A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.">&#128209; Open page: ' + esc(pin.title) + (pin.at ? ' \u203a ' + esc(pin.sec) : '') + '</div>' };
+      var r = { id: pin.id, html: '<div class="menu-item cm-open-page" title="A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself."><i class="wib wi-page"></i> Open page: ' + esc(pin.title) + (pin.at ? ' \u203a ' + esc(pin.sec) : '') + '</div>' };
       if (pin.at) r.at = pin.at;   // 1.6.0: the part of the page the pin names, where the row lands
       return r;
   }
@@ -4206,7 +4206,7 @@ window.wpFitToGrid = fitToGrid;
           var lblName = blastName(b) ? esc(blastName(b)) + ' \u00b7 ' : '', lblSize = esc(blastSize(b, ru, ri));   // a shape of the tool's own and a thrown blast alike in the ruler's unit (1.5.4), the words blastWords says
           var lbl = lblName + '<tspan class="fog-cap">' + lblSize + '</tspan>' + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' ' + lenUnit() : '');   // item 19 H1: a height in the viewer's unit. Its size alone is drawn over the fog on a player's screen (fog.js measureCaps): a name and a height stay on the board
           html += '<text x="' + (b.x + 8) + '" y="' + (kind === 'cone' ? b.y - 12 : b.y - rPx - 8) + '">' + lbl + '</text>';   // a cone's words stand at its point: it has no top
-          if (!playerScreen() && kind !== 'cone' && kind !== 'ring') html += '<text class="blast-boom" data-i="' + i + '" x="' + (b.x + 8) + '" y="' + (b.y - rPx - 26) + '">💥 Boom</text>';   // fires a burst everyone sees (1.5.0)
+          if (!playerScreen() && kind !== 'cone' && kind !== 'ring') html += '<text class="blast-boom" data-i="' + i + '" x="' + (b.x + 8) + '" y="' + (b.y - rPx - 26) + '">Boom</text>';   // fires a burst everyone sees (1.5.0)
           blastDistances(b, map).forEach(function(r) {
               if (!shapeHolds(b, r)) return;
               var cvB = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, elevOn ? (b.elev || 0) : 0, elevOn ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null;   // cover follow-ups: the cover each token in range has from the blast's centre (local, advisory); item 19 H1: from the blast's height
@@ -4771,7 +4771,7 @@ window.wpFitToGrid = fitToGrid;
   function mineRow(items) {
       var n = window.wpNet; if (window.wpStream || (n && (n.foreign || (n.active && n.role === 'client')))) return null;
       var ms = (Array.isArray(items) ? items : []).filter(function(w) { return !!w && w.type === 'trigger' && w.mine && typeof w.mine === 'object'; });
-      return ms.length ? { items: ms, html: '<div class="menu-item cm-mine-off" title="It goes off at its centre now, as if someone stepped on it.">&#128165; Set off the mine' + (ms.length > 1 ? 's' : '') + '</div>' } : null;
+      return ms.length ? { items: ms, html: '<div class="menu-item cm-mine-off" title="It goes off at its centre now, as if someone stepped on it."><i class="wib wi-burst"></i> Set off the mine' + (ms.length > 1 ? 's' : '') + '</div>' } : null;
   }
   // The stand-in drawings a thrown explosive and a placed mine wear at their centre (blastcore STAND_INS), else the item's own icon where it is
   // a character (an emoji); a glyph of the bundled set takes the stand-in. Numbers through svgNum, words through esc
@@ -5608,8 +5608,8 @@ window.wpFitToGrid = fitToGrid;
           flat.style.display = stanceOn('elevation') ? 'none' : '';
           var why = window.wpVtt ? window.wpVtt.whyOff('elevation') : 'own';   // whose setting keeps it flat
           flat.textContent = why === 'gm' ? 'Token elevation is off at this table (the GM\'s setting): flat hex distance.'
-              : why === 'local' ? 'Token elevation is off for you at this table (⚙ Settings ▸ VTT features): flat hex distance.'
-              : 'Token elevation is off for this campaign (⚙ Settings ▸ VTT features): flat hex distance.';
+              : why === 'local' ? 'Token elevation is off for you at this table (Settings ▸ VTT features): flat hex distance.'
+              : 'Token elevation is off for this campaign (Settings ▸ VTT features): flat hex distance.';
       }
       var nOwn = blasts.filter(function(x) { return ownCircle(x) && !x.lost; }).length;   // the shapes on screen: a circle whose token is gone is not one
       var which = document.getElementById('blastWhich'); if (which) which.textContent = nOwn && !circleKeptPicked ? 'The numbers are those of the last shape you placed. You have ' + nOwn + ' on this map.' : now.tok === true ? 'Click a token on the map to put a circle on it.' : now.as === 'ring' ? 'Click a cell on the map to place a ring.' : now.as === 'cone' ? 'Press a cell on the map and drag to aim the cone.' : 'Click a cell on the map to place a circle.';
@@ -6425,7 +6425,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       var nCast = Object.keys(_castSel).length;
       if (nCast && !_imgLibPick) {   // cast picks own the bar (they clear the picture selection, so only one type is ever non-empty)
           var canC = state.viewMode === 'visual' && getActiveMap() && getActiveMap().type === 'map';
-          bar.innerHTML = '<span style="color:var(--gold);">★ ' + nCast + ' cast picked</span>'
+          bar.innerHTML = '<span style="color:var(--gold);"><i class="wib wi-starf"></i> ' + nCast + ' cast picked</span>'
               + '<button class="tool" data-act="add-cast"' + (canC ? '' : ' disabled title="Open a play map first"') + '>Add ' + nCast + ' to map</button>'
               + '<button class="tool ghost" data-act="clear">Clear</button>'
               + '<span style="color:var(--dim); font-size:11px; margin-left:auto;">Ctrl-click picks, Shift-click a run</span>';
@@ -6628,7 +6628,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       document.getElementById('imgLibPreviewImg').src = picRef(c.src) ? encodeURI(picRef(c.src))
           : 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><circle cx="60" cy="60" r="52" fill="' + (cssColor(c.color) || '#4db3d3') + '"/></svg>');
       document.getElementById('imgLibPreviewName').textContent = c.name || 'Character';
-      document.getElementById('imgLibPreviewMeta').innerHTML = '<div style="color:var(--gold);">★ Campaign Cast</div>' + (c.charStats ? '<div>' + esc(c.charStats) + '</div>' : '<div style="color:var(--dim);">No stat line</div>');
+      document.getElementById('imgLibPreviewMeta').innerHTML = '<div style="color:var(--gold);"><i class="wib wi-starf"></i> Campaign Cast</div>' + (c.charStats ? '<div>' + esc(c.charStats) + '</div>' : '<div style="color:var(--dim);">No stat line</div>');
       var add = document.getElementById('imgLibPreviewAdd');
       add.textContent = castBatch() > 1 ? 'Add ×' + castBatch() + ' to map' : 'Add to map';
       add.title = 'Place ' + (c.name || 'this character') + ' on the current play map (the number in Copies)';
@@ -9093,9 +9093,9 @@ function castLibraryHtml(filter) {
     var q = (filter || '').toLowerCase();
     var list = Object.values(castOf(camp)).filter(function(c) { return !q || String(c.name || '').toLowerCase().indexOf(q) >= 0; }).sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
     _castOrder = list.map(function(c) { return c.id; });   // the shown order, for Shift-click runs
-    if (!list.length) return q ? '' : '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span>&#9733; Campaign Cast</span><span class="cast-head-note">\u2014 empty. Right-click a character token on a play map and choose Save to Campaign Cast; it will show here for quick re-use</span></div>';
-    return '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span>&#9733; Campaign Cast</span><span class="cast-head-note">\u2014 click a face for a closer look; Ctrl-click to pick several; its \u00d7 button drops the number in Copies straight onto the map</span></div>'
-        + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">' + list.map(function(c) { return '<div class="img-lib-cell cast-cell' + (_castSel[c.id] ? ' picked' : '') + '" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ' — ' + esc(c.charStats) : '') + ' — click for a closer look; Ctrl-click to pick several">' + (picRef(c.src) ? '<img src="' + encodeURI(picRef(c.src)) + '" loading="lazy" alt="">' : '<div style="height:100%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:24px;">&#9733;</div>') + '<div class="img-lib-name">&#9733; ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies">&times;' + castBatch() + '</button></div>'; }).join('') + '</div>'
+    if (!list.length) return q ? '' : '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span><i class="wib wi-starf"></i> Campaign Cast</span><span class="cast-head-note">\u2014 empty. Right-click a character token on a play map and choose Save to Campaign Cast; it will show here for quick re-use</span></div>';
+    return '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span><i class="wib wi-starf"></i> Campaign Cast</span><span class="cast-head-note">\u2014 click a face for a closer look; Ctrl-click to pick several; its \u00d7 button drops the number in Copies straight onto the map</span></div>'
+        + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">' + list.map(function(c) { return '<div class="img-lib-cell cast-cell' + (_castSel[c.id] ? ' picked' : '') + '" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ' — ' + esc(c.charStats) : '') + ' — click for a closer look; Ctrl-click to pick several">' + (picRef(c.src) ? '<img src="' + encodeURI(picRef(c.src)) + '" loading="lazy" alt="">' : '<div style="height:100%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:24px;"><i class="wib wi-starf"></i></div>') + '<div class="img-lib-name"><i class="wib wi-starf"></i> ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies">&times;' + castBatch() + '</button></div>'; }).join('') + '</div>'
         + '<div class="img-lib-folder" style="margin-top:8px;">Pictures</div>';
 }
 function viewCentre() {
@@ -9117,17 +9117,17 @@ function setCastBatch(v) {
 function castMenuHtml(camp) {
     var list = Object.values(castOf(camp)).sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
     // One row; the members live in a flyout so the rest of the menu keeps its size whatever the cast holds
-    if (!list.length) return '<div class="menu-item cm-session" data-act="cast-manage" title="Right-click a character token and choose Save to Campaign Cast to fill it">&#9733; Campaign Cast <span style="color:var(--dim); font-size:11px;">— empty</span></div>';
-    var html = '<div class="menu-item cm-cast-open" title="Click a member to place a copy here, ×5 for five"><span>&#9733; Campaign Cast</span><span style="color:var(--dim); font-size:11px;">' + list.length + '</span><span style="margin-left:auto; color:var(--dim);">&#8250;</span><div class="cm-sub">';
+    if (!list.length) return '<div class="menu-item cm-session" data-act="cast-manage" title="Right-click a character token and choose Save to Campaign Cast to fill it"><i class="wib wi-starf"></i> Campaign Cast <span style="color:var(--dim); font-size:11px;">— empty</span></div>';
+    var html = '<div class="menu-item cm-cast-open" title="Click a member to place a copy here, ×5 for five"><span><i class="wib wi-starf"></i> Campaign Cast</span><span style="color:var(--dim); font-size:11px;">' + list.length + '</span><span style="margin-left:auto; color:var(--dim);">&#8250;</span><div class="cm-sub">';
     html += '<div class="cm-sub-head">' + (list.length > 8 ? '<input type="text" class="cm-filter" placeholder="Filter the cast\u2026">' : '<span style="flex:1; color:var(--dim); font-size:11px;">One copy per click</span>')
           + '<label class="cm-batch-wrap" title="How many copies the \u00d7 button drops (1\u201350)">\u00d7<input type="number" class="cm-batch" min="1" max="50" value="' + castBatch() + '"></label></div>';
     list.forEach(function(c) {
         html += '<div class="menu-item cm-session cm-cast-row" data-act="cast" data-cid="' + esc(c.id) + '" data-name="' + esc((c.name || '').toLowerCase()) + '" style="display:flex; align-items:center; gap:8px;">'
-              + (picRef(c.src) ? '<img src="' + esc(picRef(c.src)) + '" alt="" style="width:20px; height:20px; object-fit:cover; border-radius:4px;">' : '&#9733;')
+              + (picRef(c.src) ? '<img src="' + esc(picRef(c.src)) + '" alt="" style="width:20px; height:20px; object-fit:cover; border-radius:4px;">' : '<i class="wib wi-starf"></i>')
               + '<span style="flex:1;">' + esc(c.name) + '</span>'
               + '<button class="tool ghost cm-cast-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies here" style="padding:1px 7px; font-size:10.5px;">&times;' + castBatch() + '</button></div>';
     });
-    html += '<div class="menu-divider"></div><div class="menu-item cm-session" data-act="cast-manage">&#9998; Manage Cast…</div></div></div>';
+    html += '<div class="menu-divider"></div><div class="menu-item cm-session" data-act="cast-manage"><i class="wib wi-pen"></i> Manage Cast…</div></div></div>';
     return html;
 }
 /* ---------- combat: roster panel (GM) and the turn strip (everyone) ---------- */
@@ -9185,9 +9185,9 @@ function renderCombatModal() {
         return '<div class="combat-row' + (r.on ? '' : ' off') + '" draggable="true" data-i="' + i + '" data-rid="' + esc(String(r.id)) + '">'
             + '<span class="combat-grip" title="Drag to reorder">&#8942;</span>'
             + '<input type="checkbox" class="combat-on"' + (r.on ? ' checked' : '') + (r.busy ? ' disabled title="In another fight on this map: a token is in one fight at a time"' : ' title="In the fight"') + '>'
-            + (r.src ? '<img class="combat-face" src="' + esc(resolveImg(r.src)) + '" alt="">' : '<span class="combat-face combat-face-empty">' + (r.custom ? '&#10022;' : '&#9733;') + '</span>')
+            + (r.src ? '<img class="combat-face" src="' + esc(resolveImg(r.src)) + '" alt="">' : '<span class="combat-face combat-face-empty">' + (r.custom ? '<i class="wib wi-spark"></i>' : '<i class="wib wi-starf"></i>') + '</span>')
             + '<span class="combat-name">' + findName(r.name, r.tokId, !!findOf(combatDraft.mapId, r.tokId, findHere, amHere, state.viewMode)) + dupT + (r.party ? ' <span class="combat-tag">party</span>' : '') + (r.targeted ? ' <span class="combat-tag" style="color:var(--gold); border-color:var(--gold);">' + r.targeted + '</span>' : '') + (r.custom ? ' <span class="combat-tag">custom</span>' : '') + (r.busy ? ' <span class="combat-tag">in another fight on ' + esc(mapNm) + '</span>' : '') + '</span>'
-            + (r.charId && window.wpSheets && window.wpSheets.hasInitRoll() ? '<button class="tool ghost combat-roll" title="Roll initiative from the character sheet: a table roll, or yours alone when it reads a GM-only value. Players see the order, never the number" aria-label="Roll initiative">' + (window.wpDieIcons && typeof window.wpDieIcons.dieSvg === 'function' ? window.wpDieIcons.dieSvg('d6') : '&#127922;') + '</button>' : '')
+            + (r.charId && window.wpSheets && window.wpSheets.hasInitRoll() ? '<button class="tool ghost combat-roll" title="Roll initiative from the character sheet: a table roll, or yours alone when it reads a GM-only value. Players see the order, never the number" aria-label="Roll initiative">' + (window.wpDieIcons && typeof window.wpDieIcons.dieSvg === 'function' ? window.wpDieIcons.dieSvg('d6') : '<i class="wib wi-die"></i>') + '</button>' : '')
             + '<input type="number" class="combat-init field" value="' + (r.init || 0) + '" title="Initiative — higher goes first">'
             + '<button class="tool ghost combat-up" title="Move up">&#9650;</button><button class="tool ghost combat-down" title="Move down">&#9660;</button>'
             + (r.custom ? '<button class="tool ghost danger combat-del" title="Remove this row">&times;</button>' : '')
@@ -9354,7 +9354,7 @@ function renderCombatStrip() {
     // drawn again only when it changed (found live, 2026-10-17): a redraw between a press and its click took the button pressed off the page, so
     // the press did nothing. What was written last is kept on the strip, since a hover moves each title into data-tip and the page's markup changes
     var html = (idsS.length > 1 ? '<button class="combat-strip-btn combat-strip-switch" data-act="switch" title="' + idsS.length + ' fights run on this map: show the next one. This changes nothing for anyone else">' + (atS + 1) + ' of ' + idsS.length + '</button>' : '')
-        + '<span class="combat-strip-round" title="Round">&#9876; R' + c.round + '</span>'
+        + '<span class="combat-strip-round" title="Round"><i class="wib wi-fight"></i> R' + c.round + '</span>'
         + (c.side === 'pc' || c.side === 'rest' ? '<span class="combat-strip-side" title="Side initiative: this round&rsquo;s sides roll put this side first">' + (c.side === 'pc' ? 'players first' : 'the rest first') + '</span>' : '')
         + (host ? '<button class="combat-strip-btn" data-act="prev" title="Previous turn">&#9664;</button>' : '')
         + '<span class="combat-strip-cur" data-tip="Whose turn it is">' + (cur.src ? '<img src="' + esc(resolveImg(cur.src)) + '" alt="">' : '') + nameOf(cur) + '</span>'
@@ -9363,7 +9363,7 @@ function renderCombatStrip() {
         + (mine ? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn" title="End your turn: play moves on to the next in the order' + (chS ? ' who has not gone. Pick next chooses another' : '') + '">End turn</button>' : '')
         + pickH
         + (chS ? '' : (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="Hold this turn: play moves on, and Act later this round puts them right after whoever is acting (a hold not used by the round&rsquo;s end is lost)">Hold</button>' : '') + heldH)
-        + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn">&#9654;</button><button class="combat-strip-btn" data-act="edit" title="Combat roster">&#9998;</button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
+        + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn">&#9654;</button><button class="combat-strip-btn" data-act="edit" title="Combat roster"><i class="wib wi-pen"></i></button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
     if (strip.wpDrawn !== html) { strip.innerHTML = html; strip.wpDrawn = html; }
     if (typeof stripGap === 'function') stripGap();
 }
@@ -9478,7 +9478,7 @@ function openCastModal() {
     var camp = getActiveCampaign(); if (!camp) return;
     var entries = Object.values(castOf(camp)).sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
     list.innerHTML = entries.length ? entries.map(function(c) {
-        return '<div class="cast-row" data-cid="' + esc(c.id) + '">' + (picRef(c.src) ? '<img src="' + esc(picRef(c.src)) + '" alt="">' : '<div class="cast-thumb-empty">&#9733;</div>')
+        return '<div class="cast-row" data-cid="' + esc(c.id) + '">' + (picRef(c.src) ? '<img src="' + esc(picRef(c.src)) + '" alt="">' : '<div class="cast-thumb-empty"><i class="wib wi-starf"></i></div>')
              + '<div style="flex:1; min-width:0;"><input class="field cast-name" value="' + esc(c.name) + '" placeholder="Name"><input class="field cast-stats" value="' + esc(c.charStats || '') + '" placeholder="Line under the name (optional)" style="margin-top:4px; font-size:12px;"></div>'
              + '<button class="tool ghost danger cast-del" title="Remove from the cast (tokens already placed stay)">&times;</button></div>';
     }).join('') : '<div style="color:var(--dim); padding:12px; line-height:1.5;">Nothing saved yet. Right-click a character token on a play map and choose <b>Save to Campaign Cast</b>; then right-click empty space to drop copies.</div>';
@@ -9536,17 +9536,17 @@ function tableMenuParts(e, role) {
     var pt = { x: (e.clientX - b.left + (wrap ? wrap.scrollLeft : 0)) / z, y: (e.clientY - b.top + (wrap ? wrap.scrollTop : 0)) / z };
     var players = camp && camp.players ? Object.keys(camp.players).map(function(id) { return { id: id, name: camp.players[id].name || id }; }).sort(function(a, c) { return a.name.localeCompare(c.name); }).slice(0, 12) : [];
     function head(label) { return '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + label + '</div>'; }
-    function bringItems() { return players.map(function(p) { return '<div class="menu-item cm-session" data-act="bring" data-pid="' + esc(p.id) + '">&#10148; Bring ' + esc(p.name) + ' here</div>'; }).join(''); }
+    function bringItems() { return players.map(function(p) { return '<div class="menu-item cm-session" data-act="bring" data-pid="' + esc(p.id) + '"><i class="wib wi-bring"></i> Bring ' + esc(p.name) + ' here</div>'; }).join(''); }
     if (role === 'client') {
         html += head('Session') + '<div class="menu-item cm-session" data-act="leave" style="color:var(--danger)">Leave Session</div>';
     } else {
         var nextScene = camp ? Object.values(camp.items).find(function(it) { return it.type === 'planner' && it.meta && it.meta.status === 'next'; }) : null;
         if (nextScene) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(nextScene.id) + '" title="The planner marked Next. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the planner itself.">&#9654; Next scene: ' + esc(nextScene.meta.title || 'planner') + '</div><div class="menu-divider"></div>';
         var scnPg = window.wpPageShelf && typeof window.wpPageShelf.scenePage === 'function' ? window.wpPageShelf.scenePage() : null;   // 1.6.0 (pageshelf.js): the map's scene page, opened by the one rule as Next scene is
-        if (scnPg) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(scnPg.id) + '" title="This map\'s scene page. Shift+P opens it too. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.">&#127917; Scene page: ' + esc(scnPg.title) + '</div>';
+        if (scnPg) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(scnPg.id) + '" title="This map\'s scene page. Shift+P opens it too. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself."><i class="wib wi-mask"></i> Scene page: ' + esc(scnPg.title) + '</div>';
         var amPin = getActiveMap(), isPinned = !!(camp && amPin && Array.isArray(camp.pinnedMaps) && camp.pinnedMaps.indexOf(amPin.id) >= 0);
-        if (amPin && amPin.type === 'map') html += '<div class="menu-item cm-session" data-act="pin" title="Pinned maps sit at the top of the Maps list">&#128204; ' + (isPinned ? 'Unpin this map' : 'Pin this map') + '</div>';
-        if (role !== 'host') html += '<div class="menu-item cm-session" data-act="log">&#128220; Session Log\u2026</div>';
+        if (amPin && amPin.type === 'map') html += '<div class="menu-item cm-session" data-act="pin" title="Pinned maps sit at the top of the Maps list"><i class="wib wi-pin"></i> ' + (isPinned ? 'Unpin this map' : 'Pin this map') + '</div>';
+        if (role !== 'host') html += '<div class="menu-item cm-session" data-act="log"><i class="wib wi-scroll"></i> Session Log\u2026</div>';
         html += '<div class="menu-divider"></div>';
         html += castMenuHtml(camp);
         if (role === 'host') {
@@ -9554,18 +9554,18 @@ function tableMenuParts(e, role) {
             var amM = getActiveMap(), combatM = amM && typeof window.wpStripFight === 'function' ? window.wpStripFight(amM.id) : null;   // fold 2: the fight the strip shows
             if (combatM) {
                 var curM = combatM.rows[combatM.turn] || {};
-                html += '<div class="menu-item cm-session" data-act="combat-next" title="Round ' + combatM.round + ' — ' + esc(curM.name || '') + ' is up">&#9876; Next Turn</div>';
-                html += '<div class="menu-item cm-session" data-act="combat-prev">&#9194; Previous Turn</div>';
-                html += '<div class="menu-item cm-session" data-act="combat-edit">&#9998; Combat Roster\u2026</div>';
+                html += '<div class="menu-item cm-session" data-act="combat-next" title="Round ' + combatM.round + ' — ' + esc(curM.name || '') + ' is up"><i class="wib wi-fight"></i> Next Turn</div>';
+                html += '<div class="menu-item cm-session" data-act="combat-prev"><i class="wib wi-back"></i> Previous Turn</div>';
+                html += '<div class="menu-item cm-session" data-act="combat-edit"><i class="wib wi-pen"></i> Combat Roster\u2026</div>';
                 html += '<div class="menu-item cm-session" data-act="combat-end" style="color:var(--danger)">End Combat</div>';
-                html += '<div class="menu-item cm-session" data-act="combat-new" title="Another fight on this map, with its own order and rounds. A token is in one fight at a time">&#9876; Start another fight here\u2026</div>';
-            } else html += '<div class="menu-item cm-session" data-act="combat" title="Pick who is in the fight, give initiative, run the turns">&#9876; Start Combat\u2026</div>';
-            html += '<div class="menu-item cm-session" data-act="notepad">&#128221; ' + (n.notepad && n.notepad.on ? (typeof n.notepadHidden === 'function' && n.notepadHidden() ? 'Show Table Notepad' : 'Put Away Table Notepad') : 'Open Table Notepad') + '</div>';
+                html += '<div class="menu-item cm-session" data-act="combat-new" title="Another fight on this map, with its own order and rounds. A token is in one fight at a time"><i class="wib wi-fight"></i> Start another fight here\u2026</div>';
+            } else html += '<div class="menu-item cm-session" data-act="combat" title="Pick who is in the fight, give initiative, run the turns"><i class="wib wi-fight"></i> Start Combat\u2026</div>';
+            html += '<div class="menu-item cm-session" data-act="notepad"><i class="wib wi-note"></i> ' + (n.notepad && n.notepad.on ? (typeof n.notepadHidden === 'function' && n.notepadHidden() ? 'Show Table Notepad' : 'Put Away Table Notepad') : 'Open Table Notepad') + '</div>';
             html += '<div class="menu-divider"></div>';
-            html += '<div class="menu-item cm-session" data-act="summon">&#128227; Summon Everyone Here</div>';
-            html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '&#128275; Allow Travel Between Maps' : '&#128274; Lock Travel Between Maps') + '</div>';
-            html += '<div class="menu-item cm-session" data-act="pause">' + (n.paused ? '&#9654;&#65039; Resume the Table' : '&#9208;&#65039; Pause the Table') + '</div>';
-            html += '<div class="menu-item cm-session" data-act="log">&#128220; Session Log\u2026</div>';
+            html += '<div class="menu-item cm-session" data-act="summon"><i class="wib wi-summon"></i> Summon Everyone Here</div>';
+            html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '<i class="wib wi-unlock"></i> Allow Travel Between Maps' : '<i class="wib wi-lock"></i> Lock Travel Between Maps') + '</div>';
+            html += '<div class="menu-item cm-session" data-act="pause">' + (n.paused ? '<i class="wib wi-play"></i> Resume the Table' : '<i class="wib wi-pause"></i> Pause the Table') + '</div>';
+            html += '<div class="menu-item cm-session" data-act="log"><i class="wib wi-scroll"></i> Session Log\u2026</div>';
             html += '<div class="menu-item cm-session" data-act="end" style="color:var(--danger)">End Session for Everyone</div>';
         }
     }
@@ -9647,7 +9647,7 @@ function groupRollModel(map, ids) {
 }
 function groupRollHtml(m) {
     if (!m) return '';
-    var h = '<div class="menu-item cm-grp-open" title="The one with the lowest target for the roll rolls once for everyone picked"><span>&#127922; Group roll</span><span style="margin-left:auto; color:var(--dim);">&#8250;</span><div class="cm-sub">';
+    var h = '<div class="menu-item cm-grp-open" title="The one with the lowest target for the roll rolls once for everyone picked"><span><i class="wib wi-die"></i> Group roll</span><span style="margin-left:auto; color:var(--dim);">&#8250;</span><div class="cm-sub">';
     m.rolls.forEach(function(r, i) { h += '<div class="menu-item cm-grp-roll" data-i="' + i + '">' + gmEsc(String(r.label).slice(0, 60)) + '</div>'; });
     return h + '</div></div>';
 }
@@ -9675,15 +9675,15 @@ function gmEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'
 function gmFightHtml(m) {
     if (!m) return '';
     var h = '';
-    if (m.target && m.as) { var asN = gmEsc(String(m.as.charName || m.as.name || 'your character').slice(0, 40)); h += '<div class="menu-item cm-gm-fight" data-fight="targetas" title="' + (m.asMine ? 'Stop ' + asN + ' targeting it' : asN + ' targets it: its rolls read the range from its own token, and the facing rules know where the attack comes from') + '">' + (m.asMine ? '&#9711; ' + asN + ' stops targeting' : '&#9678; Target as ' + asN) + '</div>'; }
-    if (m.target) h += '<div class="menu-item cm-gm-fight" data-fight="target" title="' + (m.mine ? 'Stop targeting it (Esc does too)' : 'Point at it as the GM: your NPCs&rsquo; rolls read the range to it, and it is ticked when you start a fight (T while pointing at a token does the same)') + '">' + (m.mine ? '&#9711; Clear target' : '&#9678; Target') + '</div>';
-    if (m.target && Array.isArray(m.clears)) m.clears.forEach(function(c, i) { var cN = gmEsc(c.name); h += '<div class="menu-item cm-gm-fight" data-fight="clear:' + i + '" title="Take ' + cN + '&rsquo;s target pointer off this token. Everyone at the table sees it go">&#9711; Clear ' + cN + '&rsquo;s target</div>'; });   // 1.5.9: the row says the pointer by its place in the model, never by its key
-    if (!m.running) h += '<div class="menu-item cm-gm-fight" data-fight="start" title="Open the roster with ' + (m.toks.length === 1 ? 'this token' : 'these tokens') + ' ticked, and whoever is targeted">&#9876; Start combat&hellip;</div>';
+    if (m.target && m.as) { var asN = gmEsc(String(m.as.charName || m.as.name || 'your character').slice(0, 40)); h += '<div class="menu-item cm-gm-fight" data-fight="targetas" title="' + (m.asMine ? 'Stop ' + asN + ' targeting it' : asN + ' targets it: its rolls read the range from its own token, and the facing rules know where the attack comes from') + '">' + (m.asMine ? '<i class="wib wi-ring"></i> ' + asN + ' stops targeting' : '<i class="wib wi-target"></i> Target as ' + asN) + '</div>'; }
+    if (m.target) h += '<div class="menu-item cm-gm-fight" data-fight="target" title="' + (m.mine ? 'Stop targeting it (Esc does too)' : 'Point at it as the GM: your NPCs&rsquo; rolls read the range to it, and it is ticked when you start a fight (T while pointing at a token does the same)') + '">' + (m.mine ? '<i class="wib wi-ring"></i> Clear target' : '<i class="wib wi-target"></i> Target') + '</div>';
+    if (m.target && Array.isArray(m.clears)) m.clears.forEach(function(c, i) { var cN = gmEsc(c.name); h += '<div class="menu-item cm-gm-fight" data-fight="clear:' + i + '" title="Take ' + cN + '&rsquo;s target pointer off this token. Everyone at the table sees it go"><i class="wib wi-ring"></i> Clear ' + cN + '&rsquo;s target</div>'; });   // 1.5.9: the row says the pointer by its place in the model, never by its key
+    if (!m.running) h += '<div class="menu-item cm-gm-fight" data-fight="start" title="Open the roster with ' + (m.toks.length === 1 ? 'this token' : 'these tokens') + ' ticked, and whoever is targeted"><i class="wib wi-fight"></i> Start combat&hellip;</div>';
     else {
         var two = Array.isArray(m.fights) && m.fights.length > 1;
-        if (m.add.length) h += '<div class="menu-item cm-gm-fight" data-fight="add" title="' + (two ? 'Into one of the fights running on this map: you pick which. It goes at the end of the order' : 'Into the fight running on this map, at the end of the order') + ' (its initiative is given or rolled in the roster)">&#9876; Add to the fight</div>';
-        if (m.drop.length) h += '<div class="menu-item cm-gm-fight" data-fight="drop" title="Out of the fight it is in on this map">&#9876; Remove from the fight</div>';
-        if (m.add.length) h += '<div class="menu-item cm-gm-fight" data-fight="new" title="Another fight on this map, with ' + (m.add.length === 1 ? 'this token' : 'these tokens') + ' ticked: its own order and rounds">&#9876; Start another fight&hellip;</div>';   // fold 2
+        if (m.add.length) h += '<div class="menu-item cm-gm-fight" data-fight="add" title="' + (two ? 'Into one of the fights running on this map: you pick which. It goes at the end of the order' : 'Into the fight running on this map, at the end of the order') + ' (its initiative is given or rolled in the roster)"><i class="wib wi-fight"></i> Add to the fight</div>';
+        if (m.drop.length) h += '<div class="menu-item cm-gm-fight" data-fight="drop" title="Out of the fight it is in on this map"><i class="wib wi-fight"></i> Remove from the fight</div>';
+        if (m.add.length) h += '<div class="menu-item cm-gm-fight" data-fight="new" title="Another fight on this map, with ' + (m.add.length === 1 ? 'this token' : 'these tokens') + ' ticked: its own order and rounds"><i class="wib wi-fight"></i> Start another fight&hellip;</div>';   // fold 2
     }
     return h;
 }
@@ -9728,7 +9728,7 @@ function gmRulesModel(items) {
     var w = items[0]; if (!w || typeof w !== 'object' || !w.isChar || w.waiting || w.hidden || typeof w.charId !== 'string' || !w.charId) return null;
     var on = C.rulesRun(w.charId); return on === true || on === false ? { charId: w.charId, on: on } : null;
 }
-function gmRulesHtml(m) { return m ? '<div class="menu-item cm-gm-rules" role="menuitemcheckbox" aria-checked="' + (m.on ? 'true' : 'false') + '" title="Ticked, this NPC&rsquo;s time rules run by themselves as time passes. Unticked, they do not. With the Calendar on, its runs wait unticked in the Calendar&rsquo;s list">' + (m.on ? '&#10003; ' : '') + '&#8987; Rules run</div>' : ''; }
+function gmRulesHtml(m) { return m ? '<div class="menu-item cm-gm-rules" role="menuitemcheckbox" aria-checked="' + (m.on ? 'true' : 'false') + '" title="Ticked, this NPC&rsquo;s time rules run by themselves as time passes. Unticked, they do not. With the Calendar on, its runs wait unticked in the Calendar&rsquo;s list">' + (m.on ? '&#10003; ' : '') + '<i class="wib wi-hourglass"></i> Rules run</div>' : ''; }
 function gmRulesDo(m) { var C = window.wpCalendar; return !!(m && C && typeof C.setRulesRun === 'function' && C.setRulesRun(m.charId, !m.on) === true); }   // the press: the switch the other way
 // T while pointing at a token, for the GM at a hosted table: the same pointer as the menu's Target
 function gmCanTarget(tok) { var n = window.wpNet; return !!(tok && tok.isChar && !tok.hidden && !tok.waiting && n && n.active && n.role === 'host' && !window.wpStream); }
@@ -9822,13 +9822,13 @@ document.addEventListener('contextmenu', function(e) {
             var firstItem = isWb ? am.whiteboard.find(x => x.id === selectedIds[0]) : am.rooms.find(x => x.id === selectedIds[0]);
             // one character token: its sheet (and HUD) first, where a GM looks for them (they sat far down the menu)
             var sheetTop = !!(isWb && selectedIds.length === 1 && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets);
-            if (sheetTop) { html += '<div class="menu-item cm-sheet">&#128203; ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>'; if (firstItem.charId && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud">&#12336; HUD&hellip;</div>'; }
-            if (sheetTop && firstItem.charId && window.wpSheets.canDamage && window.wpSheets.canDamage(firstItem.charId)) html += '<div class="menu-item cm-dmg" title="Apply a blow to this character: its DR first, then its wounds, and the wear on what it wears">&#9876; Take damage&hellip;</div>';   // 1.5.6, the damage step
+            if (sheetTop) { html += '<div class="menu-item cm-sheet"><i class="wib wi-clip"></i> ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>'; if (firstItem.charId && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud"><i class="wib wi-hud"></i> HUD&hellip;</div>'; }
+            if (sheetTop && firstItem.charId && window.wpSheets.canDamage && window.wpSheets.canDamage(firstItem.charId)) html += '<div class="menu-item cm-dmg" title="Apply a blow to this character: its DR first, then its wounds, and the wear on what it wears"><i class="wib wi-fight"></i> Take damage&hellip;</div>';   // 1.5.6, the damage step
             var selNow = state.selWbIds && state.selWbIds.length ? state.selWbIds : (state.selWbId ? [state.selWbId] : []), selAs = isWb && selNow.length === 1 ? am.whiteboard.find(function(x) { return x.id === selNow[0]; }) : null;   // 158: the one token selected, which may target the token under the pointer
             var gmF = isWb ? gmFightModel(am, selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean), selAs) : null; html += gmFightHtml(gmF);   // the GM's own Target, Start combat, Add to the fight
             var gmR = isWb ? gmRulesModel(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean)) : null; html += gmRulesHtml(gmR);   // 152 fold 4b: an NPC's Rules run switch
             var grpM = isWb ? groupRollModel(am, selectedIds) : null; html += groupRollHtml(grpM);   // 1.6.0 (v2, B7a): Group roll
-            if (sheetTop && firstItem.charId && window.wpTrade && window.wpTrade.canAsk) { var trQ = window.wpTrade.canAsk(firstItem, am, selAs); if (trQ) html += '<div class="menu-item cm-trade" title="Open a barter window: each side puts items and money on the table, and both confirm">&#8644; ' + esc(trQ.label) + '</div>'; }   // 1.5.6 trading: as the one NPC selected
+            if (sheetTop && firstItem.charId && window.wpTrade && window.wpTrade.canAsk) { var trQ = window.wpTrade.canAsk(firstItem, am, selAs); if (trQ) html += '<div class="menu-item cm-trade" title="Open a barter window: each side puts items and money on the table, and both confirm"><i class="wib wi-trade"></i> ' + esc(trQ.label) + '</div>'; }   // 1.5.6 trading: as the one NPC selected
             
             if (isWb) {
                 if (selectedIds.length > 1) {
@@ -9875,12 +9875,12 @@ document.addEventListener('contextmenu', function(e) {
                     return it && !it.locked;
                 });
                 // the piece's own lock, worded as what it does; the padlock shows how the piece stands, as the toolbar's does (a door's lock for players is a row of its own: doorRows)
-                html += '<div class="menu-item cm-lock" title="' + (anyUnlocked ? 'It stays where it is: no drag and no resize until you unlock it, and a player&rsquo;s token is frozen for its player too. On a door this is not the lock of the door itself.' : 'It can be dragged and resized again.') + '">' + (anyUnlocked ? '&#128275; Lock in place' : '&#128274; Unlock (free to move)') + '</div>';
+                html += '<div class="menu-item cm-lock" title="' + (anyUnlocked ? 'It stays where it is: no drag and no resize until you unlock it, and a player&rsquo;s token is frozen for its player too. On a door this is not the lock of the door itself.' : 'It can be dragged and resized again.') + '">' + (anyUnlocked ? '<i class="wib wi-unlock"></i> Lock in place' : '<i class="wib wi-lock"></i> Unlock (free to move)') + '</div>';
                 var anyVisible = selectedIds.some(function(sid) {
                     var it = am.whiteboard.find(function(x) { return x.id === sid; });
                     return it && !it.hidden;
                 });
-                html += '<div class="menu-item cm-vis">' + (anyVisible ? '&#128441; Hide from Players' : '&#128065; Show to Players') + '</div>';
+                html += '<div class="menu-item cm-vis">' + (anyVisible ? '<i class="wib wi-hide"></i> Hide from Players' : '<i class="wib wi-eye"></i> Show to Players') + '</div>';
                 var anyUnderGrid = selectedIds.some(function(sid) {
                     var it = am.whiteboard.find(function(x) { return x.id === sid; });
                     return it && !it.aboveGrid;
@@ -9916,29 +9916,29 @@ document.addEventListener('contextmenu', function(e) {
             html += '<div class="menu-divider"></div>';
             if (isWb && firstItem && firstItem.isChar) {
                 html += '<div class="menu-divider"></div>';
-                html += '<div class="menu-item cm-status-alive">&#9825; Alive</div>';
-                html += '<div class="menu-item cm-status-down">&#10006; Incapacitated</div>';
+                html += '<div class="menu-item cm-status-alive"><i class="wib wi-heart"></i> Alive</div>';
+                html += '<div class="menu-item cm-status-down"><i class="wib wi-close"></i> Incapacitated</div>';
                 html += '<div class="menu-item cm-status-dead">&#9760; Dead</div>';
                 html += stanceMenuHtml(firstItem);
                 html += tokenSensesLine(firstItem);   // senses S3: its senses, read-only
             }
             if (!sheetTop) {   // several pieces selected: where the two rows always stood (one character token lists them first, above)
-            if (isWb && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets) html += '<div class="menu-item cm-sheet">&#128203; ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>';
-            if (isWb && firstItem && firstItem.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud">&#12336; HUD&hellip;</div>';   // HUD frame (HF2b)
+            if (isWb && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets) html += '<div class="menu-item cm-sheet"><i class="wib wi-clip"></i> ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>';
+            if (isWb && firstItem && firstItem.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud"><i class="wib wi-hud"></i> HUD&hellip;</div>';   // HUD frame (HF2b)
             }
-            if (isWb && firstItem && selectedIds.length === 1 && window.wpSheets && window.wpSheets.tokenFxModel && window.wpSheets.tokenFxModel(firstItem)) html += '<div class="menu-item cm-effects">&#10022; Effects&hellip;</div>';   // conditions C2
-            if (isWb && firstItem && firstItem.isChar && !firstItem.waiting && firstItem.type === 'image' && firstItem.src && window.wpFrame && window.wpSheets && window.wpSheets.applyTokenFrame) html += '<div class="menu-item cm-frame-pic">&#128444;&#65039; Frame picture&hellip;</div>';
+            if (isWb && firstItem && selectedIds.length === 1 && window.wpSheets && window.wpSheets.tokenFxModel && window.wpSheets.tokenFxModel(firstItem)) html += '<div class="menu-item cm-effects"><i class="wib wi-spark"></i> Effects&hellip;</div>';   // conditions C2
+            if (isWb && firstItem && firstItem.isChar && !firstItem.waiting && firstItem.type === 'image' && firstItem.src && window.wpFrame && window.wpSheets && window.wpSheets.applyTokenFrame) html += '<div class="menu-item cm-frame-pic"><i class="wib wi-pic"></i> Frame picture&hellip;</div>';
             if (isWb && selectedIds.length === 1 && sceneSrcOf(firstItem) && window.wpScene) html += '<div class="menu-item cm-scene-show" title="Show this picture big to everyone or to some players, without moving anyone">' + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg>' + 'Show as a scene&hellip;</div>';   // backlog 181   // the token creator: the selected tokens (a character's change together)
             var gmLit = isWb ? gmLightToggle(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); })) : null;   // lighting L5: the selected lights, switched together
-            if (gmLit) html += '<div class="menu-item cm-light">&#128161; ' + (gmLit.anyOn ? 'Light off' : 'Light on') + '</div>';
+            if (gmLit) html += '<div class="menu-item cm-light"><i class="wib wi-bulb"></i> ' + (gmLit.anyOn ? 'Light off' : 'Light on') + '</div>';
             if (isWb && firstItem && firstItem.isChar && firstItem.ownerId && window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.isConnected && window.wpNet.isConnected(firstItem.ownerId)) {
                 var pausedTok = window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(firstItem.ownerId);
-                html += '<div class="menu-item cm-player-pause">' + (pausedTok ? '&#9654;&#65039; Resume this player' : '&#9208;&#65039; Pause this player') + '</div>';
+                html += '<div class="menu-item cm-player-pause">' + (pausedTok ? '<i class="wib wi-play"></i> Resume this player' : '<i class="wib wi-pause"></i> Pause this player') + '</div>';
             }
             if (isWb && firstItem && firstItem.isChar && firstItem.ownerId && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client') && !window.wpStream && window.wpTrackers && window.wpTrackers.on && window.wpTrackers.on()) html += '<div class="menu-item cm-trk-hide">' + (window.wpTrackers.hidden(firstItem.ownerId) ? '&#9745; ' : '&#9744; ') + 'Hide table trackers from them</div>';   // backlog 29
-            if (isWb && firstItem && firstItem.id && !firstItem.hidden && window.wpFx && window.wpVtt && window.wpVtt.on('fx')) html += '<div class="menu-item cm-pulse">✨ Pulse</div>';
-            html += '<div class="menu-item cm-dup">&#10697; Duplicate</div>';
-            if (isWb && firstItem && (firstItem.isChar || firstItem.charName)) html += '<div class="menu-item cm-cast-save">&#9733; Save to Campaign Cast</div>';
+            if (isWb && firstItem && firstItem.id && !firstItem.hidden && window.wpFx && window.wpVtt && window.wpVtt.on('fx')) html += '<div class="menu-item cm-pulse"><i class="wib wi-spark"></i> Pulse</div>';
+            html += '<div class="menu-item cm-dup"><i class="wib wi-dup"></i> Duplicate</div>';
+            if (isWb && firstItem && (firstItem.isChar || firstItem.charName)) html += '<div class="menu-item cm-cast-save"><i class="wib wi-starf"></i> Save to Campaign Cast</div>';
             html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
 
             cMenu.innerHTML = html;

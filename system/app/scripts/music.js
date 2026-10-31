@@ -405,7 +405,7 @@ function openPill() {
     pop.appendChild(el('div', 'music-pillpop-t', 'Music'));
     var e = nowPlaying(); if (e) pop.appendChild(el('div', 'music-pillpop-now', e.name));
     var row = el('div', 'music-pillpop-vol');
-    var mute = el('button', 'tool ghost', mmuted ? '🔇' : '🔊'); mute.title = mmuted ? 'Unmute music' : 'Mute music'; mute.addEventListener('click', function() { setMute(!mmuted); mute.textContent = mmuted ? '🔇' : '🔊'; });
+    var mute = el('button', 'tool ghost wib wi-' + (mmuted ? 'muted' : 'sound')); mute.title = mmuted ? 'Unmute music' : 'Mute music'; mute.addEventListener('click', function() { setMute(!mmuted); mute.className = 'tool ghost wib wi-' + (mmuted ? 'muted' : 'sound'); });
     var slider = el('input'); slider.type = 'range'; slider.min = 0; slider.max = 100; slider.value = Math.round(mvol * 100); slider.className = 'music-vol'; slider.addEventListener('input', function() { setVolume(Number(slider.value) / 100); });
     row.appendChild(mute); row.appendChild(slider); pop.appendChild(row);
     if (canWrite()) { var open = el('button', 'tool ghost music-pillpop-open', 'Open music panel'); open.addEventListener('click', function() { closePill(); openPanel(); }); pop.appendChild(open); }
@@ -426,11 +426,11 @@ function refreshTransport() {
     var now = q('.music-now'); if (now) now.textContent = st.entry ? st.entry.name : (campMusic().tracks.length ? (source ? 'Stopped' : idleNow()) : 'No tracks yet');
     var bar = q('.music-seekbar'); if (bar && document.activeElement !== bar) { bar.max = Math.max(1, Math.floor(st.dur)); bar.value = Math.floor(st.pos); bar.disabled = !st.entry; }
     var ts = p.querySelectorAll('.music-seek .music-t'); if (ts[0]) ts[0].textContent = fmtTime(st.pos); if (ts[1]) ts[1].textContent = fmtTime(st.dur);
-    var play = q('.music-play'); if (play) { play.textContent = cur ? '⏸' : '▶'; play.title = cur ? 'Pause' : 'Play'; }
-    var loopLbl = { off: '↻ off', one: '🔂 one', list: '🔁 list' }, lp = q('.music-loop'); if (lp) { lp.textContent = loopLbl[st.loop] || '🔁 list'; lp.classList.toggle('on', st.loop !== 'off'); }
+    var play = q('.music-play'); if (play) { play.classList.toggle('wi-pause', !!cur); play.classList.toggle('wi-play', !cur); play.title = cur ? 'Pause' : 'Play'; }
+    var loopLbl = { off: 'off', one: 'one', list: 'list' }, lp = q('.music-loop'); if (lp) { lp.textContent = loopLbl[st.loop] || 'list'; lp.classList.toggle('wi-refresh', st.loop === 'off'); lp.classList.toggle('wi-loop1', st.loop === 'one'); lp.classList.toggle('wi-loop', st.loop !== 'off' && st.loop !== 'one'); lp.classList.toggle('on', st.loop !== 'off'); }
     var sh = q('.music-shuf'); if (sh) sh.classList.toggle('on', st.shuffle);
     var vs = q('.music-vol'); if (vs && document.activeElement !== vs) vs.value = Math.round(st.volume * 100);
-    var mb = q('.music-mute'); if (mb) mb.textContent = st.muted ? '🔇' : '🔊';
+    var mb = q('.music-mute'); if (mb) { mb.classList.toggle('wi-muted', !!st.muted); mb.classList.toggle('wi-sound', !st.muted); }
     var sv = q('.music-speed-val'); if (sv && document.activeElement !== sv) sv.value = st.rate.toFixed(2);
 }
 // [sinkcheck:musicpick-start]
@@ -515,16 +515,16 @@ function renderPanel() {
     seekRow.appendChild(t0); seekRow.appendChild(bar); seekRow.appendChild(t1); tp.appendChild(seekRow);
     var btns = el('div', 'music-btns');
     function tb(cls, label, title, fn, on) { var b = el('button', 'tool ghost music-tb ' + cls + (on ? ' on' : ''), label); b.title = title; b.addEventListener('click', fn); return b; }
-    btns.appendChild(tb('music-prev', '⏮', 'Previous', prev));
-    btns.appendChild(tb('music-play', cur ? '⏸' : '▶', cur ? 'Pause' : 'Play', togglePlay));
-    btns.appendChild(tb('music-next', '⏭', 'Next', next));
-    btns.appendChild(tb('music-stop', '⏹', 'Stop', function() { if (isHost() && controlling) { stopLane(0.4); broadcastControl(); } else stop(0.4); }));   // while controlling, Stop = silence the table (paused, still controlled), not release
-    var loopLbl = { off: '↻ off', one: '🔂 one', list: '🔁 list' };
-    btns.appendChild(tb('music-loop', loopLbl[st.loop] || '🔁 list', 'Loop: off / one track / whole list', function() { setLoop(st.loop === 'off' ? 'list' : st.loop === 'list' ? 'one' : 'off'); }, st.loop !== 'off'));
-    btns.appendChild(tb('music-shuf', '🔀', 'Shuffle the playlist', function() { setShuffle(!st.shuffle); }, st.shuffle));
+    btns.appendChild(tb('music-prev wib wi-prev', '', 'Previous', prev));
+    btns.appendChild(tb('music-play wib wi-' + (cur ? 'pause' : 'play'), '', cur ? 'Pause' : 'Play', togglePlay));
+    btns.appendChild(tb('music-next wib wi-next', '', 'Next', next));
+    btns.appendChild(tb('music-stop wib wi-stop', '', 'Stop', function() { if (isHost() && controlling) { stopLane(0.4); broadcastControl(); } else stop(0.4); }));   // while controlling, Stop = silence the table (paused, still controlled), not release
+    var loopLbl = { off: 'off', one: 'one', list: 'list' };
+    btns.appendChild(tb('music-loop wib wi-' + (st.loop === 'off' ? 'refresh' : st.loop === 'one' ? 'loop1' : 'loop'), loopLbl[st.loop] || 'list', 'Loop: off / one track / whole list', function() { setLoop(st.loop === 'off' ? 'list' : st.loop === 'list' ? 'one' : 'off'); }, st.loop !== 'off'));
+    btns.appendChild(tb('music-shuf wib wi-shuffle', '', 'Shuffle the playlist', function() { setShuffle(!st.shuffle); }, st.shuffle));
     tp.appendChild(btns);
     var volRow = el('div', 'music-volrow');
-    var vmute = el('button', 'tool ghost music-mute', st.muted ? '🔇' : '🔊'); vmute.title = st.muted ? 'Unmute music' : 'Mute music'; vmute.addEventListener('click', function() { setMute(!mmuted); });
+    var vmute = el('button', 'tool ghost music-mute wib wi-' + (st.muted ? 'muted' : 'sound')); vmute.title = st.muted ? 'Unmute music' : 'Mute music'; vmute.addEventListener('click', function() { setMute(!mmuted); });
     var vsl = el('input'); vsl.type = 'range'; vsl.min = 0; vsl.max = 100; vsl.value = Math.round(st.volume * 100); vsl.className = 'music-vol'; vsl.title = 'Music volume'; vsl.addEventListener('input', function() { setVolume(Number(vsl.value) / 100); });
     volRow.appendChild(vmute); volRow.appendChild(vsl); tp.appendChild(volRow);
     var spRow = el('div', 'music-speedrow');
@@ -558,7 +558,7 @@ function renderPanel() {
         var row = el('div', 'music-pl' + (pl.id === selPl ? ' sel' : ''));
         var nm = el('span', 'music-pl-name', pl.name + '  (' + pl.tracks.length + ')'); nm.addEventListener('click', function() { selPl = pl.id === selPl ? null : pl.id; renderPanel(); }); row.appendChild(nm);
         var play0 = el('button', 'tool ghost', '▶'); play0.title = 'Play this playlist'; play0.addEventListener('click', function() { play({ kind: 'playlist', id: pl.id, loop: 'list', shuffle: st.shuffle }); }); row.appendChild(play0);
-        var ren = el('button', 'tool ghost', '✎'); ren.title = 'Rename'; ren.addEventListener('click', function() { if (window.wpPrompt) window.wpPrompt('Rename playlist', pl.name, function(v) { if (v == null) return; pl.name = cleanName(v, pl.name); save(true); renderPanel(); }); }); row.appendChild(ren);
+        var ren = el('button', 'tool ghost wib wi-pen'); ren.title = 'Rename'; ren.addEventListener('click', function() { if (window.wpPrompt) window.wpPrompt('Rename playlist', pl.name, function(v) { if (v == null) return; pl.name = cleanName(v, pl.name); save(true); renderPanel(); }); }); row.appendChild(ren);
         var del = el('button', 'tool ghost music-del', '×'); del.title = 'Delete this playlist'; del.addEventListener('click', function() { var mw = campMusicW(); mw.playlists = mw.playlists.filter(function(x) { return x.id !== pl.id; }); if (selPl === pl.id) selPl = null; save(true); renderPanel(); }); row.appendChild(del);
         plWrap.appendChild(row);
         if (pl.id === selPl) {

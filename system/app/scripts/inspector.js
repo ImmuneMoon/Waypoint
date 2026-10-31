@@ -179,7 +179,7 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
 
                  (c.portrait ? '<button class="tool ghost char-portrait-clear" title="Remove Portrait" data-idx="'+i+'" style="flex:0 0 auto;">&times;</button>' : '') +
 
-                 '<button class="tool ghost char-cast-btn" title="Save this character to the campaign cast, to drop as a token on any play map" data-idx="'+i+'">&#9733; Save to Cast</button>' +
+                 '<button class="tool ghost char-cast-btn" title="Save this character to the campaign cast, to drop as a token on any play map" data-idx="'+i+'"><i class="wib wi-starf"></i> Save to Cast</button>' +
                  '<button class="tool ghost danger del-char" aria-label="Remove Character" data-idx="'+i+'">Remove</button></div>' +
 
                  '</div>';
@@ -230,7 +230,7 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
 
              (picRef(r.image) ? '<img class="room-image-preview" src="'+esc(picRef(r.image))+'" alt="Room image">' : '')+
 
-             '<div class="row" style="margin-bottom:13px;"><button class="tool ghost" id="fImgBtn">&#128444;&#65039; '+(r.image?'Change Image':'Set Room Image')+'</button>'+(r.image?'<button class="tool ghost danger" id="fImgClearBtn">Remove</button>':'')+'</div>'+
+             '<div class="row" style="margin-bottom:13px;"><button class="tool ghost" id="fImgBtn"><i class="wib wi-pic"></i> '+(r.image?'Change Image':'Set Room Image')+'</button>'+(r.image?'<button class="tool ghost danger" id="fImgClearBtn">Remove</button>':'')+'</div>'+
 
              '<div class="field"><label for="fName">Name</label><input id="fName" value="'+esc(r.name)+'"></div>'+
 
@@ -696,7 +696,7 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
 
                      '<input type="text" aria-label="Category Name" class="cat-label" data-id="'+esc(k)+'" value="'+esc(c.label)+'" style="flex:1;">' +
 
-                     '<button class="tool ghost cat-save' + (saved ? ' on' : '') + '" aria-label="Save to library" title="' + (saved ? 'Saved in the campaign library (click to update its color)' : 'Save to the campaign library so other maps can add it') + '" data-id="'+esc(k)+'" style="padding:2px 6px;' + (saved ? ' color:var(--gold);' : '') + '">' + (saved ? '&#9733;' : '&#9734;') + '</button>' +
+                     '<button class="tool ghost cat-save' + (saved ? ' on' : '') + '" aria-label="Save to library" title="' + (saved ? 'Saved in the campaign library (click to update its color)' : 'Save to the campaign library so other maps can add it') + '" data-id="'+esc(k)+'" style="padding:2px 6px;' + (saved ? ' color:var(--gold);' : '') + '">' + (saved ? '<i class="wib wi-starf"></i>' : '<i class="wib wi-star"></i>') + '</button>' +
 
                      '<button class="tool ghost danger cat-del" aria-label="Delete Category" data-id="'+esc(k)+'" style="padding:2px 6px;">×</button>' +
 
@@ -719,7 +719,7 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
                     Object.keys(lib).sort(function(a, b) { return String(lib[a].label).localeCompare(String(lib[b].label)); }).map(function(id) {
                         return '<div style="display:flex; gap:5px; align-items:center; margin-bottom:3px;"><span style="width:14px; height:14px; border-radius:3px; background:' + cssColor(lib[id].color, '#888') + '; display:inline-block;"></span><span style="flex:1; font-size:12px;">' + esc(lib[id].label) + '</span><button class="tool ghost danger cat-lib-del" data-id="' + esc(id) + '" title="Remove from the library (maps keep their copies)" style="padding:0 6px; font-size:10px;">×</button></div>';
                     }).join('') + '</div></details>'
-                  : '<div class="muted">Nothing saved yet. Press &#9734; on a category, or <b>Save all to library</b>, and other maps can add them in one click.</div>' +
+                  : '<div class="muted">Nothing saved yet. Press <i class="wib wi-star"></i> on a category, or <b>Save all to library</b>, and other maps can add them in one click.</div>' +
                     '<button class="tool ghost" id="catLibSaveAll" title="Save every category on this map to the library" style="width:100%; margin-top:5px;">Save all to library</button>') +
               '</div>';
 
@@ -912,7 +912,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 var wpP = document.createElement('div'); wpP.className = 'insp-waiting';
                 var wpH = document.createElement('h2'); wpH.textContent = String(w.name || 'A player') + '\u2019s waiting token'; wpP.appendChild(wpH);
                 var wpN = document.createElement('div'); wpN.className = 'help'; wpN.textContent = 'A player with no character yet. It gives way to their token when you give them a character; it goes three minutes after they leave, at a ban, and at the end of the session.'; wpP.appendChild(wpN);
-                [['give', '\uD83C\uDFAD Give a character\u2026'], ['hide', w.hidden ? '\uD83D\uDC41 Show it to players' : '\uD83D\uDE48 Hide it from players'], ['remove', '\u2716 Remove it for this session']].forEach(function(b) { var bt = document.createElement('button'); bt.className = 'tool ghost'; bt.type = 'button'; bt.style.cssText = 'width:100%; margin-top:6px;'; bt.textContent = b[1]; bt.dataset.act = b[0]; wpP.appendChild(bt); });
+                [['give', 'Give a character\u2026', 'mask'], ['hide', w.hidden ? 'Show it to players' : 'Hide it from players', w.hidden ? 'eye' : 'hide'], ['remove', 'Remove it for this session', 'close']].forEach(function(b) { var bt = document.createElement('button'); bt.className = 'tool ghost wib wi-' + b[2]; bt.type = 'button'; bt.style.cssText = 'width:100%; margin-top:6px;'; bt.textContent = b[1]; bt.dataset.act = b[0]; wpP.appendChild(bt); });
                 inspector.appendChild(wpP);
                 wpP.addEventListener('click', function(e) {
                     var b = e.target.closest && e.target.closest('button'); if (!b) return;
@@ -947,7 +947,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               '<div class="field vis-field' + (w.hidden ? ' is-hidden' : '') + '">' +
                 '<label style="display:flex; align-items:center; gap:8px; margin:0; text-transform:none; cursor:pointer;">' +
                   '<input type="checkbox" id="wbVisible" ' + (w.hidden ? '' : 'checked') + '> ' +
-                  '<span>' + (w.hidden ? '&#128683; <b>Hidden from players</b>' : '&#128065; <b>Visible to players</b>') + '</span>' +
+                  '<span>' + (w.hidden ? '<i class="wib wi-hide"></i> <b>Hidden from players</b>' : '<i class="wib wi-eye"></i> <b>Visible to players</b>') + '</span>' +
                 '</label>' +
                 '<div class="muted" style="margin-top:4px;">' + (w.hidden
                   ? 'Players at your table cannot see this. You see it dimmed. Tick the box to reveal it.'
@@ -999,9 +999,9 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     if (!elevOnI && !postOnI && !noListI) {
                         var vttI = window.wpVtt, whyE = vttI ? vttI.whyOff('elevation') : 'own', whyP = vttI ? vttI.whyOff('posture') : 'own';
                         var offNote = (whyE === 'gm' && whyP === 'gm') ? 'The GM has elevation and posture off at this table.'
-                            : (whyE === 'local' && whyP === 'local') ? 'Elevation and posture are off for you at this table &mdash; &#9881; Settings &#9656; VTT features.'
-                            : (whyE === 'own' && whyP === 'own') ? 'Elevation and posture are off for this campaign &mdash; turn them on in &#9881; Settings &#9656; VTT features.'
-                            : 'Elevation and posture are off at this table &mdash; one by the GM, one by you (&#9881; Settings &#9656; VTT features).';
+                            : (whyE === 'local' && whyP === 'local') ? 'Elevation and posture are off for you at this table &mdash; <i class="wib wi-cog"></i> Settings &#9656; VTT features.'
+                            : (whyE === 'own' && whyP === 'own') ? 'Elevation and posture are off for this campaign &mdash; turn them on in <i class="wib wi-cog"></i> Settings &#9656; VTT features.'
+                            : 'Elevation and posture are off at this table &mdash; one by the GM, one by you (<i class="wib wi-cog"></i> Settings &#9656; VTT features).';
                         html += '<div class="muted" style="margin:-4px 0 10px;">' + offNote + '</div>';
                     }
                     html += '<div class="field"><label for="wbStatus">Condition</label><select id="wbStatus"><option value=""' + (!w.status ? ' selected' : '') + '>Alive</option><option value="down"' + (w.status === 'down' ? ' selected' : '') + '>Incapacitated (red X)</option><option value="dead"' + (w.status === 'dead' ? ' selected' : '') + '>Dead (skull, darkened)</option></select></div>';
@@ -1025,7 +1025,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var campP = getActiveCampaign();
             var parentIdP = activeMap.meta && activeMap.meta.parentId;
             if (campP && parentIdP && campP.items[parentIdP]) {
-                portalOpts += '<option value="' + esc(parentIdP) + '"' + (w.targetMapId === parentIdP ? ' selected' : '') + '>&#11014; Back to ' + esc((campP.items[parentIdP].meta || {}).title || 'parent map') + ' (parent)</option>';
+                portalOpts += '<option value="' + esc(parentIdP) + '"' + (w.targetMapId === parentIdP ? ' selected' : '') + '>Back to ' + esc((campP.items[parentIdP].meta || {}).title || 'parent map') + ' (parent)</option>';
             }
             if (campP && campP.items) {
                 (function walkP(pid, depth) {
@@ -1056,7 +1056,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                         '</div>' +
                         (w.targetMapId ? landingRoomFieldHtml({ targetMapId: w.targetMapId, targetRoomId: w.targetRoomId, id: null, name: w.name }, 'wbPortalRoom') : '');
             }
-            html += (w.targetMapId && w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbTrapPortal" ' + (w.trap ? 'checked' : '') + '> <label for="wbTrapPortal">⚠️ Trap — fires while hidden</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Players never see it, but a token that lands on this tile is still teleported. A locked destination map, locked travel or the tile&rsquo;s own lock (Locked for players) still blocks it.</div>' : '');
+            html += (w.targetMapId && w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbTrapPortal" ' + (w.trap ? 'checked' : '') + '> <label for="wbTrapPortal"><i class="wib wi-warn"></i> Trap — fires while hidden</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Players never see it, but a token that lands on this tile is still teleported. A locked destination map, locked travel or the tile&rsquo;s own lock (Locked for players) still blocks it.</div>' : '');
             html += '<div class="field"><label for="wbNodeLink">Link Node</label><select id="wbNodeLink">'+nodeOpts+'</select></div>'+
               portalLockFieldHtml(w, activeMap)+   // a portal's own lock: Locked for players, on a piece that is a portal (its own Portal to Map, or its linked node's)
               pagePinFieldHtml(w)+   // 1.5.4: a pin, the page this piece opens (the GM's alone)
@@ -1093,7 +1093,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               // [sinkcheck:heightbox-end]
               groundFieldHtml(w)+   // item 19b H5: a piece's Ground height (a hill, a ledge, a pit)
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? ('<div class="field"><label for="wbCover">Cover</label><select id="wbCover" title="What this piece gives as cover (the ruler, blasts and target marks, with Cover from blockers on in your system): as its sight (a wall, pillar or closed door gives it; anything else none), cover you can see over (a crate, a low wall: half or three-quarters, never total), or none. It counts in the grid cells whose centres it covers."><option value="like"'+(w.cover!=='yes'&&w.cover!=='no'?' selected':'')+'>'+(w.blocksSight?'Gives cover (it blocks sight)':'No cover (it does not block sight)')+'</option><option value="yes"'+(w.cover==='yes'?' selected':'')+'>'+(w.blocksSight?'Gives cover':'Gives cover you can see over')+'</option><option value="no"'+(w.cover==='no'?' selected':'')+'>No cover</option></select></div>') : '')+
-              (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbFogged" '+(w.fogged?'checked':'')+'> <label for="wbFogged">Play area (fog covers only this)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">With fog on, only cells under items marked as play areas are fogged &mdash; scenes and map art stay lit. Mark none to fog the whole map (or nothing), per your campaign default in the &#127787; menu.</div>' : '')+
+              (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbFogged" '+(w.fogged?'checked':'')+'> <label for="wbFogged">Play area (fog covers only this)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">With fog on, only cells under items marked as play areas are fogged &mdash; scenes and map art stay lit. Mark none to fog the whole map (or nothing), per your campaign default in the <i class="wib wi-fog"></i> menu.</div>' : '')+
               ((w.type === 'light' || w.isChar) && !w.waiting && !w.hidden && window.wpCanPersistLocal && window.wpCanPersistLocal() ? (function() {   // lighting (L2): the GM sets a light's radii (a player's own light: the host takes none of this from them)
                   var L = window.wpFogCore && window.wpFogCore.cleanLight ? window.wpFogCore.cleanLight(w.light) : null;
                   return lightFieldHtml(w, L, lightPresetsNow());
@@ -1102,7 +1102,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               (w.isChar && !w.waiting && window.wpCanPersistLocal && window.wpCanPersistLocal() ? barsFieldHtml(w) : '')+   // backlog 28: its bars
               (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.waiting && !w.gmNoteFor && window.wpCanPersistLocal && window.wpCanPersistLocal() ? nullsFieldHtml(w) : '')+   // senses S7a: a null area (hidden or not)
               '<div class="divider"></div>'+
-              '<button class="tool ghost" id="wbDup" style="width:100%; margin-bottom:5px;" title="Make a full copy of this item, settings and data included (Ctrl+D)">&#10697; Duplicate</button>'+
+              '<button class="tool ghost" id="wbDup" style="width:100%; margin-bottom:5px;" title="Make a full copy of this item, settings and data included (Ctrl+D)"><i class="wib wi-dup"></i> Duplicate</button>'+
               '<button class="tool ghost danger" id="wbDel" style="width:100%">Delete Shape</button>'+
               '<button class="tool ghost" id="setHomeVisualBtn" style="width:100%; margin-top:5px;">⌖ Set Map Center to Shape</button>'+
               (state.gridType && state.gridType !== 'off' && w.type !== 'path' ? '<button class="tool ghost" id="wbFitGrid" style="width:100%; margin-top:5px;" title="Size to whole grid cells and seat it in the grid">&#8862; Fit to Grid Cells</button>' : '') +
@@ -1110,7 +1110,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             
             var linkedRoom = w.nodeId ? activeMap.rooms.find(x=>x.id===w.nodeId) : null;
             if(linkedRoom) {
-                html += '<button class="tool ghost" id="wbGenNotesBtn" style="width:100%; margin-top:5px;">&#128221; Generate GM Notes on Board</button>';
+                html += '<button class="tool ghost" id="wbGenNotesBtn" style="width:100%; margin-top:5px;"><i class="wib wi-note"></i> Generate GM Notes on Board</button>';
                 html += '<div class="divider"></div>' + getRoomInspectorHtml(linkedRoom);
             }
             
@@ -1541,8 +1541,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
           var name = elementName(item);
           var htmlName = esc(name);
 
-          if (item.locked) htmlName = '🔒 ' + htmlName;
-          if (visual && item.hidden) htmlName = '🚫 ' + htmlName;
+          if (item.locked) htmlName = '<i class="wib wi-lock"></i> ' + htmlName;
+          if (visual && item.hidden) htmlName = '<i class="wib wi-hide"></i> ' + htmlName;
 
           if (visual) {
               var lay = item.layer || 'middle';
@@ -1555,7 +1555,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
           var sel = (state.selWbIds || []).includes(item.id) || state.selWbId === item.id || state.selId === item.id;
           html += '<div class="element-list-item' + (sel ? ' sel' : '') + '" data-id="' + esc(item.id) + '">' +
                   '<div class="el-name" data-id="'+esc(item.id)+'" title="Click to jump to it · double-click to rename">' + htmlName + '</div>' +
-                  '<button class="tool ghost el-rename" aria-label="Rename" title="Rename" data-id="'+esc(item.id)+'">&#9998;</button>' +
+                  '<button class="tool ghost el-rename" aria-label="Rename" title="Rename" data-id="'+esc(item.id)+'"><i class="wib wi-pen"></i></button>' +
                   (visual ? '<button class="tool ghost el-up" aria-label="Move up a layer" title="Move up a layer (toward the front)" data-id="'+esc(item.id)+'">&#9650;</button>' +
                             '<button class="tool ghost el-down" aria-label="Move down a layer" title="Move down a layer (toward the back)" data-id="'+esc(item.id)+'">&#9660;</button>' : '') +
                   '<button class="tool ghost danger el-del" aria-label="Delete Element" title="Delete Element" data-id="'+esc(item.id)+'">X</button>' +
@@ -1763,7 +1763,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
           + '<select id="wbLightUnit" title="What the two radii count in: the map&rsquo;s scale turns yards, feet or metres into cells; grid cells count as they are">' + ['yd', 'ft', 'm', 'cells'].map(function(u) { return '<option value="' + u + '"' + (u === word(unit) ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select></div></div>'
           + '<div class="field check-row"><input type="checkbox" id="wbLightOn" ' + (L && !L.off ? 'checked' : '') + '> <label for="wbLightOn">Light is on</label></div>'
           + (w.type !== 'light' ? '<div class="field check-row"><input type="checkbox" id="wbLightLock" ' + (w.lightLock === true ? 'checked' : '') + '> <label for="wbLightLock" title="Its player may switch this token&rsquo;s light and pick one of the presets you ticked Players may pick, from the token&rsquo;s right-click menu. Locked: only you change it.">Light locked (its player can&rsquo;t change it)</label></div>' : '')
-          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Lights the fog while Lighting is on (&#9881; Settings &#9656; VTT features): bright out to the first radius, dim to the second; walls and closed doors stop it.' + (w.type === 'light' ? ' Players see its light, never this marker.' : '') + '</div>';
+          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Lights the fog while Lighting is on (<i class="wib wi-cog"></i> Settings &#9656; VTT features): bright out to the first radius, dim to the second; walls and closed doors stop it.' + (w.type === 'light' ? ' Players see its light, never this marker.' : '') + '</div>';
   }
   // A preset picked in the Light block: copied onto the item by value (its name kept with it), on or off as the light was. "Custom" keeps the
   // radii and lets the name go. A new light past the map's cap is refused, as a radius typed in is
@@ -2137,7 +2137,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       var PS = window.wpPageShelf, f = PS && typeof PS.mapPinField === 'function' ? PS.mapPinField(w) : null; if (!f) return '';
       var opt = function(c) { return '<option value="' + esc(c.id) + '"' + (c.id === f.cur ? ' selected' : '') + '>' + esc(c.title) + '</option>'; };
       var grp = function(label, kind) { var l = f.choices.filter(function(c) { return c.kind === kind; }); return l.length ? '<optgroup label="' + label + '">' + l.map(opt).join('') + '</optgroup>' : ''; };
-      return '<div class="field"><label for="wbPagePin" title="A click on the mark this piece then wears opens that page over the map. The link is yours alone: players never get it.">&#128209; Opens page</label><select id="wbPagePin"><option value="">None</option>' + grp('Planners', 'planner') + grp('Handbook', 'doc') + '</select></div>'
+      return '<div class="field"><label for="wbPagePin" title="A click on the mark this piece then wears opens that page over the map. The link is yours alone: players never get it."><i class="wib wi-page"></i> Opens page</label><select id="wbPagePin"><option value="">None</option>' + grp('Planners', 'planner') + grp('Handbook', 'doc') + '</select></div>'
           + pagePinAtHtml(f);   // 1.6.0: and where on the page it opens
   }
   // 1.6.0 (backlog 32): where on its page a pin opens, a heading, a scene node or a titled table of that page, or its top. Only for a pin
@@ -2165,7 +2165,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       var PS = window.wpPageShelf, f = PS && typeof PS.scenePageField === 'function' ? PS.scenePageField(map) : null; if (!f) return '';
       var opt = function(c) { return '<option value="' + esc(c.id) + '"' + (c.id === f.cur ? ' selected' : '') + '>' + esc(c.title) + '</option>'; };
       var grp = function(label, kind) { var l = f.choices.filter(function(c) { return c.kind === kind; }); return l.length ? '<optgroup label="' + label + '">' + l.map(opt).join('') + '</optgroup>' : ''; };
-      return '<div class="divider"></div><div class="field"><label for="mapScenePage" title="The page for this map: press Shift+P on the play map and it opens over the map. Yours alone: players never get it.">&#127917; Scene page</label><select id="mapScenePage"><option value="">None</option>' + grp('Planners', 'planner') + grp('Handbook', 'doc') + '</select><div class="muted scene-page-hint">Press <kbd>Shift</kbd>+<kbd>P</kbd> on this map to open it over the map.</div></div>';
+      return '<div class="divider"></div><div class="field"><label for="mapScenePage" title="The page for this map: press Shift+P on the play map and it opens over the map. Yours alone: players never get it."><i class="wib wi-mask"></i> Scene page</label><select id="mapScenePage"><option value="">None</option>' + grp('Planners', 'planner') + grp('Handbook', 'doc') + '</select><div class="muted scene-page-hint">Press <kbd>Shift</kbd>+<kbd>P</kbd> on this map to open it over the map.</div></div>';
   }
   function setMapScenePage(map, id) {
       var PS = window.wpPageShelf, did = PS && typeof PS.scenePageSet === 'function' ? PS.scenePageSet(map, id) : ''; if (!did) return;
@@ -2183,7 +2183,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   function portalLockFieldOk(w, map) { var FC = window.wpFogCore; return portalLockGm() && !!(FC && typeof FC.isPortal === 'function' && FC.isPortal(w, map)); }
   function portalLockFieldHtml(w, map) {
       if (!portalLockFieldOk(w, map)) return '';
-      return '<div class="field check-row"><input type="checkbox" id="wbPortalLock" ' + (w.portalLock === true ? 'checked' : '') + '> <label for="wbPortalLock">&#128274; Locked for players</label></div>'
+      return '<div class="field check-row"><input type="checkbox" id="wbPortalLock" ' + (w.portalLock === true ? 'checked' : '') + '> <label for="wbPortalLock"><i class="wib wi-lock"></i> Locked for players</label></div>'
           + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">No player travels through this portal until you unlock it: their double-click and a token they drop on it are refused, and where they can see the portal it wears a small lock. Your own drop of a player&rsquo;s token on it still sends them through; a summon and Bring move players as ever.</div>';
   }
   function setItemPortalLock(w, on, map) {

@@ -263,11 +263,11 @@ const drawSrc = sliceOf(ps, 'draw');
     const hostile = rows.find(r => r.dataset.id === 'p_free'), tags = hostile.all().map(e => e.tagName).join(' ');
     check('the shelf is drawn with elements and text nodes on a page that refuses markup: a heading for each place, a row for each page with its name, a window button and its pin; the planner marked Next wears its mark where it stands; a hostile title is text and makes no element',
         threw === '' && J(heads) === J(['Here: The Bar', 'Around: City', 'Pinned', 'Recent']) && J(names) === J(['▶ 3.20 Bar fight', '3.10 The Bar', 'City streets', '<img src=x onerror=alert(1)> & "quotes"', 'House rules'])
-        && parts.every(p => p === 'BUTTON.ps-open BUTTON.ps-win BUTTON.ps-pin' || p === 'BUTTON.ps-open BUTTON.ps-win BUTTON.ps-pin on') && tags === 'BUTTON SPAN SPAN BUTTON BUTTON' && J(rows.map(r => r.dataset.id)) === J(['p_fight', 'p_bar', 'p_city', 'p_free', 'd_rules']), J([threw, heads, names, parts, tags]));
+        && parts.every(p => p === 'BUTTON.ps-open BUTTON.ps-win wib wi-dup BUTTON.ps-pin wib wi-pin' || p === 'BUTTON.ps-open BUTTON.ps-win wib wi-dup BUTTON.ps-pin wib wi-pin on') && tags === 'BUTTON SPAN SPAN BUTTON BUTTON' && J(rows.map(r => r.dataset.id)) === J(['p_fight', 'p_bar', 'p_city', 'p_free', 'd_rules']), J([threw, heads, names, parts, tags]));
     const pinOf = id => rows.find(r => r.dataset.id === id).children[2], openOf = id => rows.find(r => r.dataset.id === id).children[0];
     check('a row says what it is: a pin that is set is lit and says so to a screen reader, one that is not is not; a planner and a handbook page wear different marks; a planner here shows the node it plays at; every button is a button and says what a press does',
-        pinOf('p_fight').className === 'ps-pin on' && pinOf('p_fight').attrs['aria-pressed'] === 'true' && pinOf('p_bar').className === 'ps-pin' && pinOf('p_bar').attrs['aria-pressed'] === 'false' && /unpin/.test(pinOf('p_fight').title) && pinOf('p_bar').title === 'Pin for the session'
-        && openOf('p_bar').children[0].textContent === '📑' && openOf('d_rules').children[0].textContent === '📖' && openOf('p_bar').children[2].className === 'ps-sub' && openOf('p_bar').children[2].textContent === 'The back room +1' && openOf('p_fight').children.length === 2
+        pinOf('p_fight').className === 'ps-pin wib wi-pin on' && pinOf('p_fight').attrs['aria-pressed'] === 'true' && pinOf('p_bar').className === 'ps-pin wib wi-pin' && pinOf('p_bar').attrs['aria-pressed'] === 'false' && /unpin/.test(pinOf('p_fight').title) && pinOf('p_bar').title === 'Pin for the session'
+        && openOf('p_bar').children[0].className === 'ps-ico wib wi-page' && openOf('d_rules').children[0].className === 'ps-ico wib wi-book' && openOf('p_bar').children[2].className === 'ps-sub' && openOf('p_bar').children[2].textContent === 'The back room +1' && openOf('p_fight').children.length === 2
         && rows.every(r => r.children.every(b => b.type === 'button' && b.title.length > 10)) && openOf('p_bar').title === 'Open over the map. Ctrl+click opens a new window. Alt+click opens the page itself.');
     const foot = kids[kids.length - 2], note = kids[kids.length - 1];
     check('under the rows: Find a page, with its key, and one line that says what a click does',
@@ -285,7 +285,7 @@ const drawSrc = sliceOf(ps, 'draw');
     const rowAt = at => { const r = D.row(Object.assign({}, base, at === undefined ? {} : { at: at }), true); return ['at' in r.dataset ? r.dataset.at : '-', r.children.map(c => c.tagName + '.' + c.className).join(' ')]; };
     const good = rowAt('b_back'), none = rowAt(undefined), bad = ['x" onclick="y', '<b>', 'b k', 'x'.repeat(65), '', 7, { toString: () => 'b_x' }, ['b_1']].map(rowAt);
     check('a row drawn for a planner of the map carries its node as data-at, and nothing else of the row changes; a row with none carries none; a block id that is not sound never reaches the attribute, whatever the model says (markup, a space, past 64 characters, empty, a number, an object, a list)',
-        good[0] === 'b_back' && good[1] === 'BUTTON.ps-open BUTTON.ps-win BUTTON.ps-pin' && none[0] === '-' && none[1] === good[1] && bad.every(b => b[0] === '-' && b[1] === good[1]), J([good, none, bad]));
+        good[0] === 'b_back' && good[1] === 'BUTTON.ps-open BUTTON.ps-win wib wi-dup BUTTON.ps-pin wib wi-pin' && none[0] === '-' && none[1] === good[1] && bad.every(b => b[0] === '-' && b[1] === good[1]), J([good, none, bad]));
 }
 
 /* ---------- recent pages on this computer ---------- */
@@ -319,8 +319,8 @@ const drawSrc = sliceOf(ps, 'draw');
     const A = run({ open: 'p_free', shelfOpen: true }), did = A.api.pin('p_free'), s1 = [A.head.className, A.head.attrs['aria-pressed'], A.head.title], l1 = J(A.camp.pinnedPages), lab1 = A.api.pinLabel('p_free');
     const undo = A.api.pin('p_free'), s2 = [A.head.className, A.head.attrs['aria-pressed'], A.head.title], lab2 = A.api.pinLabel('p_free');
     check('pinning a page saves the campaign quietly, says so, lights the pin on the page panel\'s head when that page is the one in the panel, and draws an open shelf again; taking the pin off does the same the other way',
-        did === 'pinned' && l1 === J(['p_free']) && J(s1) === J(['on', 'true', 'Pinned for the session: it is on the Pages shelf of the play map. Press to unpin.']) && lab1 === '📌 Unpin from the session'
-        && undo === 'unpinned' && !('pinnedPages' in A.camp) && J(s2) === J(['', 'false', 'Pin this page for the session: it goes on the Pages shelf of the play map']) && lab2 === '📌 Pin for the session'
+        did === 'pinned' && l1 === J(['p_free']) && J(s1) === J(['on', 'true', 'Pinned for the session: it is on the Pages shelf of the play map. Press to unpin.']) && lab1 === 'Unpin from the session'
+        && undo === 'unpinned' && !('pinnedPages' in A.camp) && J(s2) === J(['', 'false', 'Pin this page for the session: it goes on the Pages shelf of the play map']) && lab2 === 'Pin for the session'
         && J(A.R.saved) === J([true, true]) && J(A.R.toasts) === J(['Pinned. It is on the Pages shelf of the play map now.', 'Unpinned.']) && A.R.drawn === 2, J([did, l1, s1, undo, s2, A.R]));
     const other = run({ open: 'd_rules' }); other.api.pin('p_free'); const o1 = other.head.className, drawnClosed = other.R.drawn;
     const fullC = mkCamp(), ids = []; for (let i = 0; i < 24; i++) { fullC.items['p' + i] = { type: 'planner', meta: {} }; ids.push('p' + i); } fullC.pinnedPages = ids;
@@ -416,8 +416,8 @@ const drawSrc = sliceOf(ps, 'draw');
         && count(dp, "    if (!made) return false;") === 1 && dp.indexOf("    if (!made) return false;") < dp.indexOf("    if (window.wpPageShelf && window.wpPageShelf.opened) window.wpPageShelf.opened(id);   // 1.5.4 (pageshelf.js): one of the last pages opened\n    return true;\n}\n") && count(dp, "    if (window.wpPageShelf && window.wpPageShelf.opened) window.wpPageShelf.opened(id);   // 1.5.4 (pageshelf.js): one of the last pages opened\n    return true;\n}\n") === 1 && count(dp, 'wpPageShelf') === 12 && !dp.includes('\r') && count(dp, '\0') === 3);
     check('the page: the Pages button and its shelf sit on the play map\'s toolbar in a part of it that is the GM\'s alone, the shelf empty until it is drawn; the tree\'s menu has the pin where Open over the map is; the page panel\'s head has its pin before the window button',
         /<div style="position:relative; display:inline-block;" class="gm-only">\n\s*<button class="wb-tool-btn" id="pagesBtn" title="[^"<>]+"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="[^"<>]+"\/><\/svg><\/button>\n\s*<div class="shape-menu page-shelf" id="pagesMenu"><\/div>\n\s*<\/div>/.test(ix)
-        && />&#10697; Open in a new window<\/div>\n    <div class="menu-item ctx-docwin-only" id="ctxPinPage" style="padding:8px 16px; cursor:pointer;" title="[^"<>]+">&#128204; Pin for the session<\/div>/.test(ix)
-        && /<span class="docpanel-title" id="docPanelTitle">Document<\/span><button class="tool ghost notepad-btn" id="docPanelPin" aria-pressed="false" title="[^"<>]+">&#128204;<\/button><button class="tool ghost notepad-btn" id="docPanelPop"/.test(ix)
+        && /><i class="wib wi-dup"><\/i> Open in a new window<\/div>\n    <div class="menu-item ctx-docwin-only wib wi-pin" id="ctxPinPage" style="padding:8px 16px; cursor:pointer;" title="[^"<>]+">Pin for the session<\/div>/.test(ix)
+        && /<span class="docpanel-title" id="docPanelTitle">Document<\/span><button class="tool ghost notepad-btn" id="docPanelPin" aria-pressed="false" title="[^"<>]+"><i class=\"wib wi-pin\"><\/i><\/button><button class="tool ghost notepad-btn" id="docPanelPop"/.test(ix)
         && ['pagesBtn', 'pagesMenu', 'ctxPinPage', 'docPanelPin'].every(id => count(ix, 'id="' + id + '"') === 1) && /\n\s*\.floating-toolbar \.shape-menu\.page-shelf \{ flex-direction: column; [^\n]*overflow-y: auto;/.test(css) && /\n\s*\.page-shelf \.ps-pin\.on, #docPanelPin\.on \{ filter: none; opacity: 1; \}/.test(css));
 }
 
@@ -879,7 +879,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     const A = mk({ a: { id: 'p_bar', title: HOSTILE }, b: { id: 'd_rules', title: 'Rules' } });
     const row = A.api.row([{ id: 'a' }]), two = A.api.row([{ id: 'a' }, { id: 'b' }]), none = [A.api.row([{ id: 'z' }]), A.api.row([]), A.api.row(null), A.api.row([null, { id: 'a' }]) && A.api.row([null, { id: 'a' }]).id];
     check('the right-click menu of one selected piece that opens a page has an Open page row, the page\'s name escaped in it; several pieces, or a piece with no link, have none; the row carries the page for its press',
-        row.id === 'p_bar' && row.html === '<div class="menu-item cm-open-page" title="A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.">&#128209; Open page: &lt;img src=x onerror=alert(1)&gt; &quot;Bar&quot; &amp; grill</div>'
+        row.id === 'p_bar' && row.html === '<div class="menu-item cm-open-page" title="A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself."><i class="wib wi-page"><\/i> Open page: &lt;img src=x onerror=alert(1)&gt; &quot;Bar&quot; &amp; grill</div>'
         && two === null && J(none) === J([null, null, null, 'p_bar']) && mk(null).api.row([{ id: 'a' }]) === null, J([row, two, none]));
     const h = A.host(); A.api.sync(h, { id: 'a' }, false); const m1 = h.kids[0], d1 = m1 ? [m1.tagName, m1.type, m1.className, m1.dataset.page, m1.dataset.name, m1.dataset.tip, m1.attrs['aria-label'], m1.childNodes.length] : null;
     A.api.sync(h, { id: 'a' }, false); const same = h.kids.length === 1 && h.kids[0] === m1;
@@ -901,7 +901,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         count(wb, "          } else if (fxEl) fxEl.remove();\n          pagePinSync(el, item, hideFromMe);") === 1
         && count(wb, "                var ppRow = pagePinRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));") === 1 && count(wb, "                if (ppRow) html += ppRow.html;\n                var drRow = doorRows(") === 1
         && count(wb, "                } else if (action.includes('cm-open-page')) {") === 1 && count(wb, "                    if (ppDo && window.wpPageShelf) { if (ppDo.at) window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce), { at: ppDo.at }); else window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce)); }   // 1.6.0: at the part the pin names") === 1   /* 1.6.0: a pin's part (moved on purpose) */
-        && /\n\s*\.wb-item > \.wb-pin \{ position: absolute; right: -11px; top: -11px; z-index: 6; width: 22px; height: 22px; [^\n]*transform: scale\(var\(--wbz, 1\)\); transform-origin: 50% 50%;/.test(css) && /\n\s*\.wb-item > \.wb-pin::before \{ content: '\\1F4D1'; \}/.test(css) && !/innerHTML/.test(wbS));
+        && /\n\s*\.wb-item > \.wb-pin \{ position: absolute; right: -11px; top: -11px; z-index: 6; width: 22px; height: 22px; [^\n]*transform: scale\(var\(--wbz, 1\)\); transform-origin: 50% 50%;/.test(css) && /\n\s*\.wb-item > \.wb-pin::before \{ content: ''; [^\n]*mask: var\(--wi\)/.test(css) && !/innerHTML/.test(wbS));
 }
 {
     // Properties (inspector.js): the row and its setter
@@ -913,7 +913,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     const field = { cur: 'p"2', choices: [{ id: 'p1', title: '<script>alert(1)</script>', kind: 'planner' }, { id: 'p"2', title: 'Bar & "grill"', kind: 'planner' }, { id: 'd1', title: "Rules' page", kind: 'doc' }] };
     const html = mk({ field }).api.html({ id: 'w' });
     check('the Opens page row in Properties lists None, then the planners and the handbook pages in two groups, the page the piece opens picked; a page\'s name and its id are escaped, so a name from a campaign file is text and an id cannot leave its attribute',
-        html === '<div class="field"><label for="wbPagePin" title="A click on the mark this piece then wears opens that page over the map. The link is yours alone: players never get it.">&#128209; Opens page</label><select id="wbPagePin"><option value="">None</option>'
+        html === '<div class="field"><label for="wbPagePin" title="A click on the mark this piece then wears opens that page over the map. The link is yours alone: players never get it."><i class="wib wi-page"><\/i> Opens page</label><select id="wbPagePin"><option value="">None</option>'
             + '<optgroup label="Planners"><option value="p1">&lt;script&gt;alert(1)&lt;/script&gt;</option><option value="p&quot;2" selected>Bar &amp; &quot;grill&quot;</option></optgroup><optgroup label="Handbook"><option value="d1">Rules&#39; page</option></optgroup></select></div>', html);
     const noPl = mk({ field: { cur: '', choices: [{ id: 'd1', title: 'Rules', kind: 'doc' }] } }).api.html({}), empty = mk({ field: { cur: '', choices: [] } }).api.html({});
     check('a campaign with no planner shows no empty group, one with no page at all still offers None; where the module says there is nothing to show, or is not there, the row is not drawn',
@@ -968,8 +968,8 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     const pins = { a: { id: 'p_bar', title: 'Bar', at: 'sec_a', sec: HOST }, b: { id: 'd_rules', title: 'Rules' } }, A = mk(pins);
     const row = A.api.row([{ id: 'a' }]), rowB = A.api.row([{ id: 'b' }]);
     check('a pin that names a part: its menu row says the page and the part, the part\'s name escaped, and carries the part for its press; a pin with none has the row it had and carries none',
-        row.id === 'p_bar' && row.at === 'sec_a' && row.html === '<div class="menu-item cm-open-page" title="A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.">&#128209; Open page: Bar \u203a &lt;img src=x onerror=alert(1)&gt; &amp; &quot;q&quot;</div>'
-        && !('at' in rowB) && rowB.html === '<div class="menu-item cm-open-page" title="A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.">&#128209; Open page: Rules</div>', J([row, rowB]));
+        row.id === 'p_bar' && row.at === 'sec_a' && row.html === '<div class="menu-item cm-open-page" title="A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself."><i class="wib wi-page"><\/i> Open page: Bar \u203a &lt;img src=x onerror=alert(1)&gt; &amp; &quot;q&quot;</div>'
+        && !('at' in rowB) && rowB.html === '<div class="menu-item cm-open-page" title="A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself."><i class="wib wi-page"><\/i> Open page: Rules</div>', J([row, rowB]));
     const h = A.host(); A.api.sync(h, { id: 'a' }, false); const m = h.kids[0]; A.dom.fire(m, 'click'); A.dom.fire(m, 'click', { ctrlKey: true }); A.dom.fire(m, 'click', { altKey: true });
     const hb = A.host(); A.api.sync(hb, { id: 'b' }, false); const mb = hb.kids[0]; A.dom.fire(mb, 'click');
     check('its mark carries the part and names it in its tooltip and label as plain text; a click opens the page at the part by the one rule with the keys held, as a landing at a block; a mark with no part opens the page alone, asked exactly as before',
@@ -1119,7 +1119,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         !/document\.addEventListener\('keydown'/.test(ps) && !/sceneKey/.test(ps) && count(ps, "\nwindow.wpPageShelf.scenePageField = scenePageField; window.wpPageShelf.scenePageSet = scenePageSet; window.wpPageShelf.sceneOpen = sceneOpen; window.wpPageShelf.scenePage = scenePageNow;\n") === 1
         && count(cmS, "}).concat([CMD_LAST, CMD_SCENE], CMD_WINDOWS.map(") === 1
         && count(wb, "        var scnPg = window.wpPageShelf && typeof window.wpPageShelf.scenePage === 'function' ? window.wpPageShelf.scenePage() : null;") === 1
-        && count(wb, "        if (scnPg) html += '<div class=\"menu-item cm-session\" data-act=\"scene\" data-id=\"' + esc(scnPg.id) + '\" title=\"This map\\'s scene page. Shift+P opens it too. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.\">&#127917; Scene page: ' + esc(scnPg.title) + '</div>';") === 1
+        && count(wb, "        if (scnPg) html += '<div class=\"menu-item cm-session\" data-act=\"scene\" data-id=\"' + esc(scnPg.id) + '\" title=\"This map\\'s scene page. Shift+P opens it too. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.\"><i class=\"wib wi-mask\"><\/i> Scene page: ' + esc(scnPg.title) + '</div>';") === 1
         && count(wb, "                else if (act === 'scene') { if (window.wpPageShelf) window.wpPageShelf.open(it.dataset.id, window.wpPageShelf.wayNow(ce)); }") === 1);
 }
 {
@@ -1132,7 +1132,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     const field = { cur: 'p"2', choices: [{ id: 'p1', title: '<script>alert(1)</script>', kind: 'planner' }, { id: 'p"2', title: 'Bar & "grill"', kind: 'planner' }, { id: 'd1', title: "Rules' page", kind: 'doc' }] };
     const html = mk({ field }).api.html({ type: 'map' });
     check('the Scene page row of a map\'s Properties lists None, then the planners and the handbook pages in two groups, the map\'s scene page picked, and says P opens it; a page\'s name and its id are escaped',
-        html === '<div class="divider"></div><div class="field"><label for="mapScenePage" title="The page for this map: press Shift+P on the play map and it opens over the map. Yours alone: players never get it.">&#127917; Scene page</label><select id="mapScenePage"><option value="">None</option>'
+        html === '<div class="divider"></div><div class="field"><label for="mapScenePage" title="The page for this map: press Shift+P on the play map and it opens over the map. Yours alone: players never get it."><i class="wib wi-mask"><\/i> Scene page</label><select id="mapScenePage"><option value="">None</option>'
             + '<optgroup label="Planners"><option value="p1">&lt;script&gt;alert(1)&lt;/script&gt;</option><option value="p&quot;2" selected>Bar &amp; &quot;grill&quot;</option></optgroup><optgroup label="Handbook"><option value="d1">Rules&#39; page</option></optgroup></select><div class="muted scene-page-hint">Press <kbd>Shift</kbd>+<kbd>P</kbd> on this map to open it over the map.</div></div>', html);
     check('where the module says there is nothing to show, or is not there, the row is not drawn',
         mk({ field: null }).api.html({}) === '' && mk({ none: true }).api.html({}) === '' && /<option value="">None<\/option><\/select>/.test(mk({ field: { cur: '', choices: [] } }).api.html({})));
@@ -1147,7 +1147,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     const wn = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, '\n'));
     const plan = ix.slice(ix.indexOf('<div class="help-pane" data-pane="planners"'), ix.indexOf('<div class="help-pane" data-pane="handbook"')), keys = ix.slice(ix.indexOf('<div class="help-pane" data-pane="keys"'), ix.indexOf('<h4 id="helpDevMode">'));
     check('Help says it, in the Planners part beside map pins (where to pick it, Shift+P and Settings, Keys, the map\'s menu, the shelf, yours alone) and among the keys; both release notes of 1.6.0 say it',
-        plan.includes('<li>A map can have a <b>scene page</b>: the planner or handbook page you want at hand on that map. Select nothing, open Properties at the right edge of the play map and pick the page under <b>&#127917; Scene page</b>.\n')
+        plan.includes('<li>A map can have a <b>scene page</b>: the planner or handbook page you want at hand on that map. Select nothing, open Properties at the right edge of the play map and pick the page under <b><i class="wib wi-mask"><\/i> Scene page</b>.\n')
         && plan.includes('<li>Press <kbd>Shift</kbd>+<kbd>P</kbd> on the play map and the map&rsquo;s scene page opens over the map. Change the key in Settings, under Keys. The quick jump finds it as <b>Scene page</b> too.</li>') && plan.includes('<li>The map&rsquo;s right-click menu has <b>Scene page</b> too.') && plan.includes('<li>The scene page is yours alone. Players never get it.</li>')
         && keys.includes('<li><kbd>Shift + P</kbd> &nbsp; On the play map, open the map&rsquo;s scene page over the map. You pick it in the map&rsquo;s Properties.</li>')
         && wn.every(t => count(t.slice(0, t.indexOf('WAYPOINT 1.5.9')), "Pages on the map\n- A map can have a scene page: the planner or handbook page you want at\n  hand there. Select nothing, open Properties at the right edge of the\n  play map and pick it under Scene page. Press Shift+P on the play map\n  and it opens over the map.") === 1));
@@ -1350,7 +1350,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         return { shown: shown.map(en => en.label), html: list.innerHTML }; };
     const e0 = rowsC(''), e1 = rowsC('meas'), e2 = rowsC('pe');
     check('quick-jump lists the commands after the maps and pages with nothing typed and Settings\' options only once a word is typed; a command is found by its name or its other words (the Ruler by measure); a row shows its own picture and its key where it has one',
-        J(e0.shown) === J(['Docks', 'Ruler', 'Pen']) && J(e1.shown) === J(['Measurement system', 'Ruler']) && J(e2.shown) === J(['Pen']) && e2.html.includes('<span>T</span><span>Pen</span>') && e2.html.includes('<kbd class="cmdk-key">P</kbd>') && !e1.html.includes('cmdk-key'), J([e0, e1, e2]));
+        J(e0.shown) === J(['Docks', 'Ruler', 'Pen']) && J(e1.shown) === J(['Measurement system', 'Ruler']) && J(e2.shown) === J(['Pen']) && e2.html.includes('<span><i class="wib wi-T"></i></span><span>Pen</span>') && e2.html.includes('<kbd class="cmdk-key">P</kbd>') && !e1.html.includes('cmdk-key'), J([e0, e1, e2]));
     const hS = sliceOf(mainS, 'cmdkway'), hint = (en, cmds) => new Function('window', 'state', hS + '\nreturn cmdkHint;')(cmds === false ? {} : { wpCommands: { act: e => 'act:' + e.label } }, { appState: { activeCampaignId: 'c1' } })(en);
     const gS = sliceOf(mainS, 'cmdkgo'), went = [], goC = new Function('window', 'state', 'cmdkClose', hS + '\n' + gS + '\nreturn cmdkGo;')({ wpCommands: { go: en => { went.push(en.label); } }, wpConfirmCampaignSwitch: () => { went.push('asked'); } }, { appState: { activeCampaignId: 'c1', campaigns: {} } }, () => { went.push('close'); });
     goC({ kind: 'cmd', label: 'Pen', cmdId: 'tool.pen' }, null); goC({ kind: 'set', label: 'Grid opacity', setAt: 1 }, { ctrlKey: true });

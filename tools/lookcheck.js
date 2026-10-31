@@ -157,7 +157,7 @@ const DOTS = '<path d="M12 5h.01M12 12h.01M12 19h.01"/>', TICK = '<path d="M5 12
         + '                      </div>\n'
         + '                      ' + GREY + 'The height of the last shape or blast placed. It starts at the height of the token in its cell, else the ground.</div>\n'
         + '                  </div>\n'
-        + '                  <div class="draw-menu-row" id="blastFlatNote" style="font-size:11px; color:var(--dim);">Token elevation is off for this campaign (&#9881; Settings &#9656; VTT features): flat hex distance.</div>\n'
+        + '                  <div class="draw-menu-row" id="blastFlatNote" style="font-size:11px; color:var(--dim);">Token elevation is off for this campaign (<i class="wib wi-cog"></i> Settings &#9656; VTT features): flat hex distance.</div>\n'
         + '                  <div class="draw-menu-row" id="blastWhich" style="font-size:11px; color:var(--dim);"></div>\n'
         + '                  <div class="draw-menu-row">\n'
         + '                      <button class="draw-style-btn" id="blastClearBtn" title="Removes the circles, rings and cones you placed. The GM&rsquo;s press also removes thrown blasts, for everyone.">Clear shapes</button>\n'
@@ -321,7 +321,7 @@ const hdr = id => { const at = ix.indexOf(' id="' + id + '"'); if (at < 0) retur
     [ix, css].concat(fs.readdirSync(path.join(app, 'scripts')).filter(f => /\.js$/.test(f)).map(f => read('scripts/' + f))).forEach(s => { s.replace(/\\/g, '').replace(/ d=["']([^"']+)["']/g, (m, d) => { ds.push(d); return m; }); });
     const back = ds.filter(d => GONE.indexOf(crypto.createHash('sha256').update(d).digest('hex')) >= 0);
     check('none of the drawings they replaced is left anywhere: every path the page writes, Help with it, every path a script writes and every path in the style sheet is held against the twenty that went, which the suite knows by their hashes alone; the paths are found at all, the cog and Help\'s copies among them',
-        ds.length > 150 && back.length === 0 && GONE.length === 20 && new Set(GONE).size === 20 && ds.indexOf(cogD) >= 0 && ds.filter(d => d === OWN.sound.slice(9, -3)).length === 7, J([ds.length, back.length]));   // the speaker: its two controls, its row of More, and Help's copies
+        ds.length > 150 && back.length === 0 && GONE.length === 20 && new Set(GONE).size === 20 && ds.indexOf(cogD) >= 0 && ds.filter(d => d === OWN.sound.slice(9, -3)).length === 8, J([ds.length, back.length]));   // the speaker: its two controls, its row of More, Help's copies, and its rule in the style sheet
 }
 
 /* ---------- the top row: one quiet row on every view ---------- */
@@ -352,7 +352,7 @@ const hdr = id => { const at = ix.indexOf(' id="' + id + '"'); if (at < 0) retur
         && count(header, 'class="hdr-group" data-label="') === 4 && ['Table', 'Journal', 'Notices', 'App'].every(l => count(header, 'class="hdr-group" data-label="' + l + '"') === 1));
     const said = [ix, read('scripts/sheets.js'), read('scripts/sound.js'), tourSrc, read('scripts/tips.js')];
     check('no word still names the boxes that are gone: Help, Settings, the tour, the tips and the sheet\'s own refusals say the top row, where they said the Table pill, the Table bar and the Campaign pill',
-        said.every(s => !/Table pill|Campaign pill|top <b>Table<\/b> bar|Journal pill|App pill|sheet icon beside Rename/.test(s)) && count(ix.replace(/<svg class="ico"[^>]*>[\s\S]*?<\/svg>/g, '{ico}'), '<li>Use the <b>&#9208;&#65039;</b> button in the top row, the <b>{ico}</b> panel,') === 1);
+        said.every(s => !/Table pill|Campaign pill|top <b>Table<\/b> bar|Journal pill|App pill|sheet icon beside Rename/.test(s)) && count(ix.replace(/<svg class="ico"[^>]*>[\s\S]*?<\/svg>/g, '{ico}'), '<li>Use the <b><i class="wib wi-pause"></i></b> button in the top row, the <b>{ico}</b> panel,') === 1);
 }
 
 /* ---------- gold for what is in hand and what is on ---------- */
@@ -920,20 +920,20 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         help.length > 100000 && lost.length === 0 && badH.length === 0 && HELP_AT.length === 43 && drawn(help) === 89 && HELP_AT.reduce((n, t) => n + (t.match(/\{[a-zA-Z]+\}/g) || []).length, 0) === 47
         && strip(of('id="musicInd"')) === strip(K.music) && of('id="soundInd"') === K.sound && /^<svg class="ico ico-note"/.test(K.music), J([lost, badH, drawn(help)]));
     // 131 (b): the top row's controls in Help (the owner, by prompt: "Show the new drawings (Recommended)")
-    const ROW_HELP = [['id="settingsBtn"', 26, 9881, 0], ['id="netBtn"', 8, 127760, 1], ['id="journalBtn"', 1, 128214, 1], ['id="chatBtn"', 2, 128172, 0], ['id="aboutBtn"', 1, 9432, 0], ['id="handoutsBtn"', 1, 128220, 0], ['id="notesBtn"', 1, 128276, 0], ['id="voiceInd"', 2, 127908, 0]];
+    const ROW_HELP = [['id="settingsBtn"', 26, 9881, 0], ['id="netBtn"', 8, 127760, 0], ['id="journalBtn"', 1, 128214, 0], ['id="chatBtn"', 2, 128172, 0], ['id="aboutBtn"', 1, 9432, 0], ['id="handoutsBtn"', 1, 128220, 0], ['id="notesBtn"', 1, 128276, 0], ['id="voiceInd"', 2, 127908, 0]];
     const rowBad = ROW_HELP.filter(r => { const d = of(r[0]); return d === '?' || count(help, d) !== r[1] || glyph(help, r[2]) !== r[3]; }).map(r => r[0] + ' x' + count(help, of(r[0])) + ' glyph x' + glyph(help, r[2]));
     check('Help names a control of the top row with the control\'s own drawing (131 b; the owner, by prompt: "Show the new drawings (Recommended)"): Settings\' cog in its twenty-six places (the token face is chosen in Your profile since 1.6.0, moved on purpose), Multiplayer\'s globe in eight, the Journal\'s book, the chat\'s speech box in two, About\'s i, the two sheets of Handouts, the bell of 1.5.5 and voice chat\'s microphone of 1.5.9 in two, forty-two drawings in all, each the very drawing its control wears, read from the control; the old pictures of those six are gone from Help\'s text, and the two that are left are Help\'s own part buttons, Multiplayer: Hosting and Handbook, which are controls of Help and no mention of the row; the pause button still wears its sign in the row, so Help still names it by that',
-        rowBad.length === 0 && ROW_HELP.reduce((n, r) => n + r[1], 0) === 42 && count(help, '<button data-help="mp-gm">&#127760; Multiplayer: Hosting</button>') === 1 && count(help, '<button data-help="handbook">&#128214; Handbook</button>') === 1
-        && count(help, '<li>Use the <b>&#9208;&#65039;</b> button in the top row,') === 1 && /id="sessionPauseBtn"[^>]*>&#9208;&#65039;<\/button>/.test(page), J(rowBad));
+        rowBad.length === 0 && ROW_HELP.reduce((n, r) => n + r[1], 0) === 42 && count(help, '<button data-help="mp-gm"><i class="wib wi-globe"></i> Multiplayer: Hosting</button>') === 1 && count(help, '<button data-help="handbook"><i class="wib wi-book"></i> Handbook</button>') === 1
+        && count(help, '<li>Use the <b><i class="wib wi-pause"></i></b> button in the top row,') === 1 && /id="sessionPauseBtn"[^>]*><i class="wib wi-pause"><\/i><\/button>/.test(page), J(rowBad));
     check('no old picture of those tools is left in Help, and a glyph another control still wears is still there: the pictures of the pen, the eraser, fill, the trigger zone, the picture, the library, the character import, the ruler, Scene, Sound, Music, the effects, the speaker, the magnet, the centre mark and the Clear brush are gone from Help; the fog\'s is left once, on the right-click menu\'s Under fog row, the eye four times (Visible to players, Always revealed, a token\'s sight outline, Players can read) and the film once, on the header\'s chip; the planner\'s undo and redo, the selection toolbar\'s Fit to grid and play area, and the sheet\'s Throw keep theirs; the data map\'s Select, Pan, Link Mode, Add Room and Clear the board lost theirs when its toolbar took the line icons, so the two-way arrow is left once, on the badge that matches a size, and the bin once, on the Video panel\'s delete',
         [127916, 128207, 9999, 129533, 129699, 9889, 129333, 128444, 128452, 10024, 127925, 127926, 128266, 129522, 127919, 10005].every(c => glyph(help, c) === 0)
-        && glyph(help, 127787) === 1 && count(help, '<b>&#127787; Under fog</b>') === 1 && glyph(help, 128065) === 4 && glyph(help, 127902) === 0
+        && glyph(help, 127787) === 0 && count(help, '<b><i class="wib wi-fog"></i> Under fog</b>') === 1 && glyph(help, 128065) === 0 && glyph(help, 127902) === 0
         && count(help, 'The <b>&#8617; &#8618;</b> buttons in the planner toolbar') === 1 && [10138, 9995, 10133].every(c => glyph(help, c) === 0) && glyph(help, 8596) === 1 && count(help, 'with a <b>&#8596; / &#8597;</b> badge') === 1
-        && glyph(help, 128465) === 1 && count(help, '<b>&#128465;</b> deletes it with its file') === 1 && count(help, '<b>&#8862; Fit to grid</b>') === 1 && count(help, 'with the <b>&#9635;</b> button on the selection toolbar') === 1 && count(help, '<b>&#128165; Throw</b> button') === 1,
+        && glyph(help, 128465) === 0 && count(help, '<b><i class="wib wi-bin"></i></b> deletes it with its file') === 1 && count(help, '<b>&#8862; Fit to grid</b>') === 1 && count(help, 'with the <b>&#9635;</b> button on the selection toolbar') === 1 && count(help, '<b><i class="wib wi-burst"></i> Throw</b> button') === 1,
         J([127916, 128207, 9999, 129533, 129699, 9889, 129333, 128444, 128452, 10024, 127925, 127926, 128266, 129522, 127919, 10005, 127787, 128065, 127902].map(c => glyph(help, c))));
     check('the tour names those tools with the same drawings: each of its ' + TOUR_AT.length + ' places holds the drawing its control wears, the steps hold 9 drawings and no other, no step writes the old picture of Scene, of the effects, of the fog or of Link Mode, and a step still writes the glyph of a control that wears one (Throw, Fit to grid, the planner\'s undo and redo); in Help and on a tour card a drawing takes the size of the words around it, by the style sheet',
         steps.length > 5000 && badT.length === 0 && TOUR_AT.length === 8 && drawn(steps) === 9 && [127916, 10024, 127787, 8596].every(c => glyph(steps, c) === 0)
-        && count(steps, '&#128165; <b>Throw</b>') === 2 && count(steps, '<b>&#8862; Fit to grid</b>') === 1 && count(steps, 'The <b>&#8617; &#8618;</b> buttons') === 1
+        && count(steps, '<i class="wib wi-burst"></i> <b>Throw</b>') === 2 && count(steps, '<b>&#8862; Fit to grid</b>') === 1 && count(steps, 'The <b>&#8617; &#8618;</b> buttons') === 1
         && css.includes('\n  #helpModal .help-pane .ico, #tourCard .ico { width: 1.15em; height: 1.15em; vertical-align: -0.2em; }'), J([badT, drawn(steps)]));
 }
 
@@ -1380,7 +1380,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         ['netPauseBtn', 'While the table is paused, players cannot move tokens or travel. Chat stays open.'], ['netJoinPassInput', 'Your GM sends you the room code. Type or paste it with or without the hyphen.']];
     const ticks = [...netHtml.matchAll(/<input type="checkbox" id="([A-Za-z]+)"> <span class="set-name"><span>([^<]+)<\/span><small>([^<]+)<\/small><\/span><\/label>/g)].map(m => [m[1], m[2], m[3]]);
     // a line tells of the control it stands under: the last id before it, with nothing between the two but that control's own choices and its end
-    const OWN_END = /^(?:option value="[a-z]*">[^<]*|\/option>\s*|\/select>\s*|\/button>\s*)$/;
+    const OWN_END = /^(?:option value="[a-z]*">[^<]*|\/option>\s*|\/select>\s*|\/button>\s*|i class="wib wi-[a-z0-9-]+">|\/i>[^<]*)$/;
     const under = [...netHtml.matchAll(/<div class="set-line">([^<]+)<\/div>/g)].map(m => { const before = netHtml.slice(0, m.index), ids = before.match(/ id="[A-Za-z]+"/g) || [], id = ids.length ? ids[ids.length - 1] : ' id="?"', gap = before.slice(before.lastIndexOf(id) + id.length);
         const tags = gap.split('<').slice(1), ended = tags.length ? /^\/(?:select|button)>\s*$/.test(tags[tags.length - 1]) : /^[^>]*>\s*$/.test(gap);   // after the control's own end, never inside it; a box has no end of its own
         return [id.slice(5, -1), m[1], ended && tags.every(t => OWN_END.test(t))]; });
@@ -1397,9 +1397,9 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && count(tips, "    netCodeInput: 'The room code your GM gave you: ten characters, shown as XXXXX-XXXXX. Type or paste it with or without the hyphen.',") === 1 && count(tips, "    netJoinPassInput: 'Only needed if the GM set a session password.',") === 1,
         J([ticks.filter((t, i) => J(t) !== J(TICKS[i])).slice(0, 2), under.filter((u, i) => J(u.slice(0, 2)) !== J(UNDER[i]) || u[2] !== true).slice(0, 2), rough, long, count(netHtml, ' title="')]));
     check('Pause and Lock Travel keep their lines whatever they read: net.js rewrites the words of each button and nothing beside it, so each line stands after its button, begins with the state it tells of, and is true while the button says Resume or Allow as well',
-        count(netJs, "    if (btn) { btn.innerHTML = net.paused ? '&#9654;&#65039; Resume the Table' : '&#9208;&#65039; Pause the Table'; btn.classList.toggle('paused', net.paused); }") === 1
-        && count(netJs, "    if (btn) { btn.innerHTML = net.travelLocked ? '&#128275; Allow Travel Between Maps' : '&#128274; Lock Travel Between Maps'; btn.classList.toggle('paused', net.travelLocked); }") === 1
-        && count(netHtml, '&#9208;&#65039; Pause the Table</button>\n                <div class="set-line">While the table is paused, ') === 1 && count(netHtml, '&#128274; Lock Travel Between Maps</button>\n                <div class="set-line">While travel is locked, ') === 1);
+        count(netJs, "    if (btn) { btn.innerHTML = net.paused ? '<i class=\"wib wi-play\"></i> Resume the Table' : '<i class=\"wib wi-pause\"></i> Pause the Table'; btn.classList.toggle('paused', net.paused); }") === 1
+        && count(netJs, "    if (btn) { btn.innerHTML = net.travelLocked ? '<i class=\"wib wi-unlock\"></i> Allow Travel Between Maps' : '<i class=\"wib wi-lock\"></i> Lock Travel Between Maps'; btn.classList.toggle('paused', net.travelLocked); }") === 1
+        && count(netHtml, '<i class="wib wi-pause"></i> Pause the Table</button>\n                <div class="set-line">While the table is paused, ') === 1 && count(netHtml, '<i class="wib wi-lock"></i> Lock Travel Between Maps</button>\n                <div class="set-line">While travel is locked, ') === 1);
 }
 
 /* ---------- options that say what they do: the System editor's Combat card ---------- */
@@ -1964,7 +1964,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     check('126c Help\'s Coming up, read against what is built: the part says first that the system builder is built and points to Character sheets and to Handbook in Help, where it spoke of the builder as a plan; then what is built of the item library, as before; then, under a heading of its own, that the map builder is built, in one entry of plain words that names Build, Walls around selection, a picture as a fill, a secret door, Generate a dungeon, Generate a city, Generate a world and Save Map as Picture and points to the part Play Map in Help, where Build, Walls around selection, the three generators and Save Map as Picture each have an entry, in that order (the builder moved here from under Coming because its last part, world maps, is built, as the system builder moved before it); then, under Coming, the three things left of the four the owner ticked and no other, in their order: text style in more places, friends and direct invites, the website and cloud saves, each in plain words, and nothing under Coming names the map builder any more; nothing in the part names a date or says Still to come; both release notes carry the line they had for the part',
         road.length > 1500 && J(heads) === J(['Where Waypoint is heading', 'Your own game system is built', 'Blasts thrown from the sheet', 'The map builder is built', 'Coming', 'Campaign content'])
         && count(road, '<li><b>The system builder is built.</b> You write your game&rsquo;s rules, lay out its character sheets and fill its library inside Waypoint, with no code. See <b>Character sheets</b> in Help.</li>') === 1
-        && count(road, 'See <b>Handbook</b> in Help.</li>') === 1 && count(ix, '<button data-help="sheets">&#128203; Character sheets</button>') === 1 && count(ix, '<button data-help="handbook">&#128214; Handbook</button>') === 1
+        && count(road, 'See <b>Handbook</b> in Help.</li>') === 1 && count(ix, '<button data-help="sheets"><i class="wib wi-clip"></i> Character sheets</button>') === 1 && count(ix, '<button data-help="handbook"><i class="wib wi-book"></i> Handbook</button>') === 1
         && count(road, BLOCK) === 1 && count(ix, BUILT) === 1 && count(road, 'The map builder is built') === 2 && (road.match(/map builder/gi) || []).length === 2 && plain(BUILT) && passed.length === 0 && inOrder
         && J(names) === J(['Text style in more places.', 'Friends and direct invites.', 'The website and cloud saves.']) && (coming.match(/<li>/g) || []).length === 3 && left.length === 3 && left.every(plain) && !/map builder/i.test(coming)
         && count(road, '<li>That much is built: see System &#9656; Items.</li>') === 1 && !/Still to come|planned or partly in place|not the final shape|20\d\d|next (week|month|year|release)|soon/i.test(road)
@@ -3340,9 +3340,27 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     check('the dice roller and the combat roster wear the drawings (the page and whiteboard.js, pinned): the roller\'s button by the message box and its heading the d6, each quick button its own die before its name, Roll all and a row\'s initiative roll the d6, and none of them the old glyph; the pips\' rule in the style sheet; dieicons.js loaded by the sheet and the dice modules',
         ix.includes('id="diceBtn" title="Roll dice &mdash; or type /roll 2d6 + 3 in the box" aria-label="Roll dice">' + d6 + '</button>') && ix.includes('<span class="notepad-title">' + d6 + ' Roll</span>')
         && ix.includes('<div class="dice-quick">' + quick + '<button data-op="+">') && ix.includes('(one rolled or given a number keeps it)">' + d6 + ' Roll all</button>')
-        && wbSrc.includes("aria-label=\"Roll initiative\">' + (window.wpDieIcons && typeof window.wpDieIcons.dieSvg === 'function' ? window.wpDieIcons.dieSvg('d6') : '&#127922;') + '</button>'")
+        && wbSrc.includes("aria-label=\"Roll initiative\">' + (window.wpDieIcons && typeof window.wpDieIcons.dieSvg === 'function' ? window.wpDieIcons.dieSvg('d6') : '<i class=\"wib wi-die\"></i>') + '</button>'")
         && !/id="diceBtn"[^>]*>&#127922;|&#127922; Roll/.test(ix) && css.includes('  .ico.ico-die .ico-pip { stroke-width: 2.6; }')
         && read('scripts/sheets.js').includes("import { dieNode, DIE_LABELS } from './dieicons.js';") && read('scripts/dice.js').includes("import { dieNode } from './dieicons.js';"));
+}
+
+{
+    // 1.6.0 (the owner, 2026-10-31, on the sheets they passed: the drawings that took the place of the interface's emoji; "when in game it will also be hard to see line drawings of icons on the map, so we need a solution there", the dark plate, and "keep c if we do a light mode": the gold plate in the light theme)
+    const WI_HASH = 'a4dd5375f5d9b42aca65c538eeb552279fae78a0575737beb55b149c3337dc81';   // moves only after a new drawing was shown to the owner on a sheet
+    const wiSet = css.split('\n').filter(l => /^  \.wi-[a-z0-9-]+ \{ --wi: url|^  :root \{ --mk-|^  html\[data-theme="light"\] \{ --mk-/.test(l)).sort().join('\n');
+    const wiSrc = [ix].concat(fs.readdirSync(path.join(app, 'scripts')).filter(f => /\.js$/.test(f)).map(f => read('scripts/' + f)));
+    const wiUsed = new Set(); wiSrc.forEach(s => { s.replace(/\bwi-([a-z][a-z0-9-]*)\b(?!')/g, (m, n) => { wiUsed.add(n); return m; }); });
+    const wiGone = [...wiUsed].filter(n => n !== 'T' && !css.includes('\n  .wi-' + n + ' { --wi: url'));
+    const MARKS = ['door', 'door-open', 'wall', 'barrier', 'lock', 'eye', 'warn', 'bulb', 'stairs-up', 'stairs-down', 'gate', 'cave', 'tower', 'camp'];
+    const rootM = (css.match(/\n  :root \{ --mk-[^\n]*/) || [''])[0], lightM = (css.match(/\n  html\[data-theme="light"\] \{ --mk-[^\n]*/) || [''])[0];
+    check('the drawings that took the place of the emoji (the owner passed them on the sheets of 2026-10-31): one rule a drawing in the style sheet, the set pinned by a hash that moves only after a new drawing was shown to the owner; every drawing a page or a script names has its rule, and the rule draws before an element\'s own words, an empty <i> never taking a press from the row it stands in',
+        crypto.createHash('sha256').update(wiSet).digest('hex') === WI_HASH && wiUsed.size > 60 && wiGone.length === 0
+        && css.includes("  .wib::before { content: ''; display: inline-block;") && css.includes('  i.wib { font-style: normal; pointer-events: none; }'), J([wiGone, crypto.createHash('sha256').update(wiSet).digest('hex')]));
+    check('a mark that stands on the map wears a plate, since a line alone is lost on map art: every mark dark in the normal theme and gold in the light theme, by one name each, and the portal marks, a door, a wall, a barrier, a hidden piece, a trap and a light asking those names and no emoji',
+        MARKS.every(n => rootM.includes('--mk-' + n + ': url') && lightM.includes('--mk-' + n + ': url')) && rootM.includes("fill='%23101018'") && lightM.includes("fill='%23e0b354'")
+        && !/wb-[a-z-]+::(?:after|before) \{ content: '\\1F/.test(css) && ['wb-hidden-gm::before', 'wb-blocks-sight::after', 'wb-door::after', 'wb-barrier::after'].every(s => new RegExp('\\.' + s + " \\{ content: ''; [^\\n]*var\\(--mk-").test(css))
+        && ['door', 'stairs-up', 'stairs-down', 'gate', 'cave', 'tower', 'camp'].every(n => css.includes('  .wb-item[data-portal-icon="' + n + '"] { --pi: var(--mk-' + n + '); }')) && css.includes('  .wb-item.wb-light .wb-light-glyph { display: inline-block; width: 24px; height: 24px; background: var(--mk-bulb)'));
 }
 
 {

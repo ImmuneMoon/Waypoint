@@ -481,7 +481,7 @@ function ceilingChanged(prev, campId) {
         : 'The GM changed this table\'s VTT features — ' + diff.map(function(f) { return labelOf(f.id) + (G[f.id] ? ' on' : ' off'); }).join(', ');
     if (seeded.length) {
         var one = seeded.length === 1;
-        text += ' — ' + (one && diff.length === 1 ? '' : seeded.map(labelOf).join(', ') + ' ') + 'off for you (your default has ' + (one ? 'it' : 'them') + ' off; ⚙ Settings ▸ VTT features to turn ' + (one ? 'it' : 'them') + ' on).';
+        text += ' — ' + (one && diff.length === 1 ? '' : seeded.map(labelOf).join(', ') + ' ') + 'off for you (your default has ' + (one ? 'it' : 'them') + ' off; Settings ▸ VTT features to turn ' + (one ? 'it' : 'them') + ' on).';
     } else text += '.';
     toast(text);
     if (seeded.length || anyModalUp()) e.pending = s; else { e.seen = s; e.pending = ''; }

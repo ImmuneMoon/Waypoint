@@ -701,7 +701,7 @@ function renderRoster() {
                 var it = camp && p.location && own(camp.items, p.location) ? camp.items[p.location] : null;
                 var locTitle = it && it.meta && it.meta.title ? it.meta.title : (p.location || '');
                 var sub = net.role === 'host' && p.location
-                    ? '<span class="roster-loc">' + (p.detached ? '🧭 ' : '👣 ') + escTextRoster(locTitle) + '</span>'
+                    ? '<span class="roster-loc">' + '<i class="wib wi-' + (p.detached ? 'compass' : 'marker') + '"></i> ' + escTextRoster(locTitle) + '</span>'
                     : '';
                 var jump = net.role === 'host' && p.location ? ' data-jump="' + escTextRoster(p.location) + '" title="Click to view this player\'s map"' : '';
                 var avOk = safeAvatar(p.avatar);   // the whole data URL checked, and escaped anyway
@@ -710,10 +710,10 @@ function renderRoster() {
                     : '<img class="roster-avatar" src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color || ('hsl(' + playerHue(p.id) + ',55%,60%)')) : '') + '" alt="">';   // no photo → the color-tinted silhouette default
                 var peerKey = Object.keys(net.roster).find(function(k) { return net.roster[k] === p; });
                 var kick = net.role === 'host'
-                    ? '<button class="roster-summon" data-summon="' + escTextRoster(peerKey) + '" title="Summon this player to the map you are on">&#128227;</button>' +
+                    ? '<button class="roster-summon" data-summon="' + escTextRoster(peerKey) + '" title="Summon this player to the map you are on"><i class="wib wi-summon"></i></button>' +
                       '<button class="roster-kick" data-kick="' + escTextRoster(peerKey) + '" title="Remove this player (they stay out for the rest of the session)">&times;</button>'
                     : '';
-                var staleMark = p.stale ? '<span class="roster-stale-mark" title="Not responding — will be dropped if silence continues">&#9203;</span>' : '';
+                var staleMark = p.stale ? '<span class="roster-stale-mark" title="Not responding — will be dropped if silence continues"><i class="wib wi-hourglass"></i></span>' : '';
                 return '<span class="roster-chip' + (p.stale ? ' roster-stale' : '') + '"' + jump + '>' + face +
                     '<span>' + name + '</span>' + staleMark + sub + kick + '</span>';
             }).join('');
@@ -2321,15 +2321,15 @@ function refreshPauseUi() {
     if (banner) {
         banner.style.display = frozenMe ? 'block' : 'none';
         if (frozenMe) banner.textContent = net.paused
-            ? '⏸️ The GM paused the table — chat is still open.'
-            : '⏸️ The GM paused you — chat is still open.';
+            ? 'The GM paused the table — chat is still open.'
+            : 'The GM paused you — chat is still open.';
     }
     if (banner && frozenMe && !net.paused && !net.selfPaused && net.selfHeld) banner.textContent = heldBanner();   // 1.6.0 (backlog 190): held for a new sheet
     document.body.classList.toggle('net-paused', !!((net.paused || ((net.selfPaused || net.selfHeld) && isClient)) && net.active));   // always a true or a false: toggle with undefined flips the class (found live, 2026-10-30: the map dimmed with no pause)
     var btn = ui('netPauseBtn');
-    if (btn) { btn.innerHTML = net.paused ? '&#9654;&#65039; Resume the Table' : '&#9208;&#65039; Pause the Table'; btn.classList.toggle('paused', net.paused); }
+    if (btn) { btn.innerHTML = net.paused ? '<i class="wib wi-play"></i> Resume the Table' : '<i class="wib wi-pause"></i> Pause the Table'; btn.classList.toggle('paused', net.paused); }
     var sb = ui('sessionPauseBtn');
-    if (sb) { sb.innerHTML = net.paused ? '&#9654;&#65039;' : '&#9208;&#65039;'; sb.title = net.paused ? 'Resume the table' : 'Pause the table (freeze everyone)'; sb.classList.toggle('paused', net.paused); }
+    if (sb) { sb.innerHTML = net.paused ? '<i class="wib wi-play"></i>' : '<i class="wib wi-pause"></i>'; sb.title = net.paused ? 'Resume the table' : 'Pause the table (freeze everyone)'; sb.classList.toggle('paused', net.paused); }
     if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync();   // the top row's Paused pill (pills.js)
 }
 function setPausedLocal(on) {
@@ -3123,7 +3123,7 @@ function itemNotice(ch, name, what, by) {   // by (1.5.4 One at a time): the row
         : what === 'eq-held-try' ? who + ' tried to switch on ' + (by || 'an item') + ' — ' + nm + ' is bound and stays on, so it stays off.'   // 1.5.4 One at a time
         : what === 'eq-move-try' ? who + ' tried to change ' + nm + ' — it is bound and stays on, and another row of that group is on.'
         : what === 'eq-curse-off' ? who + ' switched off ' + nm + ' — it stays on, out of their sight, until you switch it off.'
-        : what === 'pick-over' ? who + ' changed ' + nm + ' — their pick replaced the hidden choice you set (set it again with \u270e if you want it back).'
+        : what === 'pick-over' ? who + ' changed ' + nm + ' — their pick replaced the hidden choice you set (set it again on the row if you want it back).'
         : who + ' dropped ' + nm + ' — kept on their sheet, out of their sight, until you remove it.';
     if (more) t += ' (' + more + ' more ' + (more === 1 ? 'try' : 'tries') + ' since the last notice)';
     toast(t); logEvent('items', t);
@@ -3829,7 +3829,7 @@ net.travelLocked = false;
 function setTravelLockLocal(on) {
     net.travelLocked = !!on;
     var btn = ui('netTravelLockBtn');
-    if (btn) { btn.innerHTML = net.travelLocked ? '&#128275; Allow Travel Between Maps' : '&#128274; Lock Travel Between Maps'; btn.classList.toggle('paused', net.travelLocked); }
+    if (btn) { btn.innerHTML = net.travelLocked ? '<i class="wib wi-unlock"></i> Allow Travel Between Maps' : '<i class="wib wi-lock"></i> Lock Travel Between Maps'; btn.classList.toggle('paused', net.travelLocked); }
     var hint = ui('travelLockBanner');
     if (hint) hint.style.display = (net.travelLocked && net.role === 'client' && net.active) ? 'block' : 'none';
 }

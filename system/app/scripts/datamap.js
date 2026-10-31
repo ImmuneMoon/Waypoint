@@ -132,9 +132,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       if (r.icon) {
 
-          var em = {'Stairs Up':'🪜↑', 'Stairs Down':'🪜↓', 'Door':'🚪', 'Gate':'⛩️', 'Cave':'🦇', 'Tower':'🗼', 'Camp':'⛺'}[r.icon] || String(r.icon).substring(0,2);
+          var em = {'Stairs Up':'stairs-up', 'Stairs Down':'stairs-down', 'Door':'door', 'Gate':'gate', 'Cave':'cave', 'Tower':'tower', 'Camp':'camp'}[r.icon];
 
-          badges.innerHTML += '<div class="badge-char" style="background:var(--blue); font-size:12px; margin-right:4px;" title="'+escA(r.icon)+'">'+escA(em)+'</div>';
+          badges.innerHTML += '<div class="badge-char" style="background:var(--blue); font-size:12px; margin-right:4px;" title="'+escA(r.icon)+'">'+(em ? '<i class="wib wi-'+em+'"></i>' : escA(String(r.icon).substring(0,2)))+'</div>';
 
       }
 

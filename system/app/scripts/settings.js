@@ -423,7 +423,7 @@ var VTT_SAID = {   // the toast after a campaign row moves: [on, off]
     dice: ['Dice on.', 'Dice off for this campaign \u2014 nobody rolls at the table.'],
     sheets: ['Character sheets on.', 'Character sheets off for this campaign \u2014 the system stays, nothing shows at the table.'],
     fx: ['Visual effects on.', 'Visual effects off for this campaign \u2014 no flashes, weather or bursts at the table.'],
-    fog: ['Fog of war on \u2014 the \u{1F32B} fog tool is on the play map.', 'Fog of war off for this campaign \u2014 the whole map shows.'],
+    fog: ['Fog of war on \u2014 the Fog tool is on the play map.', 'Fog of war off for this campaign \u2014 the whole map shows.'],
     lighting: ['Lighting on \u2014 a fogged map is lit until you place a light source, so every token sees what is in its line of sight.', 'Lighting off for this campaign \u2014 a token sees only as far as its sight, as before.'],
     turning: ['Token facing on \u2014 the turn arrow is back and a facing cone aims itself.', 'Token facing off for this campaign \u2014 no turn arrow; a facing-cone map falls back to all-around.'],
     turns: ['Turn-based combat on \u2014 during a combat, the player whose token has the turn ends it.', 'Turn-based combat off for this campaign \u2014 only your Next turn moves the order on.'],
@@ -853,7 +853,7 @@ function coreNudge(firstTime) {
     var i = _upd.info;
     if (i && i.newer) return;   // a newer app comes first; the core nudge returns after it lands
     var b = ui('updateBtn');
-    if (b) { b.textContent = '\u2B06\uFE0F Core update'; b.title = "Waypoint's core is older than this app — it needs the installer once. Click to see the steps; nothing downloads until you say so."; b.style.display = 'inline-block'; }
+    if (b) { b.textContent = 'Core update'; b.title = "Waypoint's core is older than this app — it needs the installer once. Click to see the steps; nothing downloads until you say so."; b.style.display = 'inline-block'; }
     var bar = ui('updateBanner'), txt = ui('updateBannerText'), go = ui('updateBannerGo');
     if (bar && txt) {
         txt.textContent = "Waypoint's app files are current, but its core needs the installer once — Get Installer shows the steps first.";
@@ -1047,7 +1047,7 @@ var _bannerSeen = null;   // version the notice has already been shown for, this
 function showUpdateButton(i) {
     var b = ui('updateBtn'); if (!b) return;
     if (!i || !i.newer) { b.style.display = 'none'; return; }
-    b.textContent = '⬆️ Update to ' + i.latest;
+    b.textContent = 'Update to ' + i.latest;
     b.title = 'Waypoint Alpha ' + i.latest + ' is available' + (i.canHotUpdate ? ' — click to update in place (a few seconds, saves and settings kept)' : selfCan(i) ? " — click to update: this one updates Waypoint's core too (it downloads, Waypoint closes, updates itself and opens again; saves and settings kept)" : ' — this one comes as an installer; click to see the steps (nothing downloads until you say so)');
     b.style.display = 'inline-block';
 }

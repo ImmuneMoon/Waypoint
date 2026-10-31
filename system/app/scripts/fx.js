@@ -365,7 +365,7 @@ function syncButtons() {   // the panel's buttons say what is armed and what run
 
 function renderPanel() {
     var body = ui('fxBody'); if (!body) return;
-    if (!featureOn()) { body.innerHTML = '<div class="snd-none">Visual effects are off for this campaign — switch them on in &#9881; Settings &#9656; VTT features.</div>'; return; }
+    if (!featureOn()) { body.innerHTML = '<div class="snd-none">Visual effects are off for this campaign — switch them on in <i class="wib wi-cog"></i> Settings &#9656; VTT features.</div>'; return; }
     var chip = function(cls, look, label, extra) { return '<button class="journal-from ' + cls + '" data-look="' + esc(look) + '"' + (extra || '') + '>' + esc(label) + '</button>'; };
     var byRow = function(row) { return PRESETS.filter(function(p) { return p.row === row; }); };
     var here = playersHere();

@@ -41,11 +41,11 @@ function rowsHtml(list, activeId) {
             + '<button class="tool ghost vid-show" title="Watch it here">&#9654;</button>'
             + '<input class="vid-name" value="' + esc(v.name) + '" maxlength="60" aria-label="Name" title="Rename it: players see this name when it plays">'
             + '<span class="vid-meta">' + esc(metaOf(v)) + '</span>'
-            + '<button class="tool ghost vid-del" title="Delete the video (and its file from your saves folder)">&#128465;</button></div>';
+            + '<button class="tool ghost vid-del" title="Delete the video (and its file from your saves folder)"><i class="wib wi-bin"></i></button></div>';
     }).join('');
 }
 function bodyHtml(on, list, activeId, up) {
-    if (!on) return '<div class="snd-none">Video is off for this campaign — switch it on in &#9881; Settings &#9656; VTT features.</div>';
+    if (!on) return '<div class="snd-none">Video is off for this campaign — switch it on in <i class="wib wi-cog"></i> Settings &#9656; VTT features.</div>';
     return '<div class="vid-top"><button class="tool vid-add" title="Add video files from your computer: MP4 (H.264) or WebM play everywhere; M4V, OGV and MOV when this app can play them. A file stays in your saves folder, whatever its size">&#8853; Add videos&hellip;</button>'
         + '<span class="vid-up" aria-live="polite">' + (up ? esc('Adding ' + up.name + ' — ' + up.pct + '%') : '') + '</span></div>'
         + (list.length ? '<div class="vid-rows">' + rowsHtml(list, activeId) + '</div><div class="vid-foot">' + esc(sumLine(list)) + '</div>' : '<div class="snd-none">No videos in this campaign yet.</div>');
@@ -82,11 +82,11 @@ function liveWords(all, names, waiting) {
 // The stage's table row, as markup — who the video is shown to, and the buttons: every name through esc, every id a data attribute through esc
 function tableHtml(m) {   // m: { host, live, loop, all, players: [{ id, name, on }], words }
     var loopTick = '<label class="vid-tick" title="Play it round and round until you stop it (a mood clip). Without it, a video that reaches its end closes on the players&rsquo; screens by itself"><input type="checkbox" class="vid-loop"' + (m.loop ? ' checked' : '') + '> Loop</label>';
-    if (!m.host) return '<div class="vid-table"><span class="vid-note">Host a table (&#127760;) to show this video to your players.</span>' + loopTick + '</div>';
+    if (!m.host) return '<div class="vid-table"><span class="vid-note">Host a table (<i class="wib wi-globe"></i>) to show this video to your players.</span>' + loopTick + '</div>';
     if (m.live) return '<div class="vid-table"><button class="tool vid-stop" title="Stop showing it: it closes on the players&rsquo; screens">&#9632; Stop showing</button><span class="vid-live-line" role="status">&#9679; ' + esc(m.words) + '</span>' + loopTick + '</div>';
     var ticks = '<label class="vid-tick"><input type="checkbox" class="vid-all"' + (m.all ? ' checked' : '') + '> Everyone</label>'
         + m.players.map(function(p) { return '<label class="vid-tick"><input type="checkbox" class="vid-who" data-pid="' + esc(p.id) + '"' + (m.all ? ' disabled checked' : p.on ? ' checked' : '') + '> ' + esc(p.name) + '</label>'; }).join('');
-    return '<div class="vid-table"><button class="tool vid-go" title="Show this video live to the players ticked here: they see and hear what plays in your panel — you play, pause and seek for everyone">&#128225; Show to players</button><span class="vid-aud" role="group" aria-label="Show to">' + ticks + '</span>' + loopTick + '</div>';
+    return '<div class="vid-table"><button class="tool vid-go" title="Show this video live to the players ticked here: they see and hear what plays in your panel — you play, pause and seek for everyone"><i class="wib wi-cast"></i> Show to players</button><span class="vid-aud" role="group" aria-label="Show to">' + ticks + '</span>' + loopTick + '</div>';
 }
 // [sinkcheck:videotable-end]
 
@@ -297,7 +297,7 @@ function renderWatch() {
     if (stage) stage.style.display = '';
     ui('videoCaption').textContent = watch.lost ? 'The picture stopped coming — waiting for the GM’s video…' : watch.name;
     var quiet = mutedNow() || watch.forced, mb = ui('videoMuteBtn'), vr = ui('videoVol'), note = ui('videoWatchNote'), full = ui('videoFullBtn');
-    if (mb) { mb.textContent = quiet ? '🔇' : '🔊'; mb.setAttribute('aria-pressed', quiet ? 'true' : 'false'); mb.title = quiet ? 'Its sound is off on this screen: press to hear it' : 'Its sound is on: press to mute it on this screen'; }
+    if (mb) { mb.classList.toggle('wi-muted', !!quiet); mb.classList.toggle('wi-sound', !quiet); mb.setAttribute('aria-pressed', quiet ? 'true' : 'false'); mb.title = quiet ? 'Its sound is off on this screen: press to hear it' : 'Its sound is on: press to mute it on this screen'; }
     if (vr && document.activeElement !== vr) vr.value = String(volNow());
     if (note) note.textContent = watch.lost ? 'The picture stopped coming — waiting for the GM’s video…' : watch.forced ? 'Its sound is off until you press the speaker.' : '';   // the bar shows in full screen too, where the caption does not
     if (full) full.disabled = !watch.open;

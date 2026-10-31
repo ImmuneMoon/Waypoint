@@ -274,7 +274,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     t = JSON.parse(localStorage.getItem('wp_vtt_local')).tables['t:T__u_gm2'];
     check('GM newly on + own default off: seeded into off, pending = sig, seen unchanged, feature off for me',
         j(t.off) === '["elevation","posture"]' && t.pending === V.sig(gmB.stance) && t.seen === seenBefore && seenBefore !== t.pending && V.on('posture') === false, j(t));
-    check('the toast says it is off for you', toasts[toasts.length - 1] === 'The GM turned Token posture on for this table — off for you (your default has it off; ⚙ Settings ▸ VTT features to turn it on).', toasts[toasts.length - 1]);
+    check('the toast says it is off for you', toasts[toasts.length - 1] === 'The GM turned Token posture on for this table — off for you (your default has it off; Settings ▸ VTT features to turn it on).', toasts[toasts.length - 1]);
     V.joined();
     t = JSON.parse(localStorage.getItem('wp_vtt_local')).tables['t:T__u_gm2'];
     check('the next join queues the notice for that signature and shows it with posture in "off for you"', t.pending === V.sig(gmB.stance) && V.showNotice('t:T__u_gm2', V.sig(gmB.stance)) === true && el('vttNoticeOffForYou').style.display === '');
@@ -300,7 +300,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     t = JSON.parse(localStorage.getItem('wp_vtt_local')).tables['t:T__u_gm5'];
     check('two newly on: both seeded, pending kept for the next join, toast lists both',
         j(t.off) === '["elevation","posture"]' && t.pending === V.sig(gmE.stance) && t.seen !== t.pending
-        && toasts[toasts.length - 1] === 'The GM changed this table\'s VTT features — Token elevation on, Token posture on — Token elevation, Token posture off for you (your default has them off; ⚙ Settings ▸ VTT features to turn them on).', toasts[toasts.length - 1]);
+        && toasts[toasts.length - 1] === 'The GM changed this table\'s VTT features — Token elevation on, Token posture on — Token elevation, Token posture off for you (your default has them off; Settings ▸ VTT features to turn them on).', toasts[toasts.length - 1]);
     // matching settings: silent, seen recorded
     localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true } }));
     const gmC = net({ active: true, role: 'client', foreign: true, gmId: 'u_gm3', stance: { elevation: true, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true, music: true, calendar: true, video: true } });

@@ -1449,12 +1449,12 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         }
         _cmdkShown = shown.slice(0, 50);
         _cmdkIdx = 0;
-        var icons = { map: '🗺️', planner: '📑', doc: '📖', room: '📍', cmd: '🛠️', set: '⚙️' };
+        var icons = { map: 'map', planner: 'page', doc: 'book', room: 'marker', cmd: 'wrench', set: 'cog' };
         var list = document.getElementById('cmdkList');
         list.innerHTML = _cmdkShown.length
             ? _cmdkShown.map(function(en, i) {
                 return '<div class="cmdk-row' + (i === 0 ? ' active' : '') + '" data-i="' + i + '">' +
-                    '<span>' + (en.icon ? esc(en.icon) : (icons[en.kind] || '•')) + '</span><span>' + esc(en.label) + '</span>' +
+                    '<span><i class="wib wi-' + esc(en.icon || icons[en.kind] || 'page') + '"></i></span><span>' + esc(en.label) + '</span>' +
                     '<span class="cmdk-sub">' + (en.snippet ? en.snippet : esc(en.sub)) + '</span>' + (en.key ? '<kbd class="cmdk-key">' + esc(en.key) + '</kbd>' : '') + '</div>';
               }).join('')
             : '<div class="cmdk-empty">No matches.</div>';

@@ -334,9 +334,9 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
 
                  ' style="position:relative; padding-left:' + (10 + depth * 14) + 'px;">' +
 
-                 guides + caret + (item.type === 'planner' && /^(next|played|skipped)$/.test(item.meta.status) ? '<span class="si-status si-' + item.meta.status + '" title="' + (item.meta.status === 'next' ? 'Next scene' : item.meta.status === 'played' ? 'Played' : 'Skipped') + '">' + (item.meta.status === 'next' ? '▶' : item.meta.status === 'played' ? '✅' : '⏭') + '</span>' : '') +
-                 (item.type === 'map' && item.meta.playerLock ? '<span class="si-status si-lock" title="Locked for players — closed both ways until you unlock it: no player travels here, and no player who is here leaves through a portal (your summon and Bring still move them). A player who is not here holds only its name, nothing of what is on it">&#128274;</span>' : '') +
-                 (item.type === 'doc' && item.meta.players === false ? '<span class="si-status si-lock" title="GM only — players cannot read this page">&#128274;</span>' : (item.type === 'doc' && window.wpDocRender && window.wpDocRender.pageHid && window.wpDocRender.pageHid(camp.items, item.id)) ? '<span class="si-status si-lock si-lock-under" title="GM only, because a page it is under is GM only — players cannot read this page">&#128274;</span>' : '') +
+                 guides + caret + (item.type === 'planner' && /^(next|played|skipped)$/.test(item.meta.status) ? '<span class="si-status si-' + item.meta.status + '" title="' + (item.meta.status === 'next' ? 'Next scene' : item.meta.status === 'played' ? 'Played' : 'Skipped') + '">' + (item.meta.status === 'next' ? '▶' : item.meta.status === 'played' ? '<i class="wib wi-check"></i>' : '<i class="wib wi-next"></i>') + '</span>' : '') +
+                 (item.type === 'map' && item.meta.playerLock ? '<span class="si-status si-lock" title="Locked for players — closed both ways until you unlock it: no player travels here, and no player who is here leaves through a portal (your summon and Bring still move them). A player who is not here holds only its name, nothing of what is on it"><i class="wib wi-lock"></i></span>' : '') +
+                 (item.type === 'doc' && item.meta.players === false ? '<span class="si-status si-lock" title="GM only — players cannot read this page"><i class="wib wi-lock"></i></span>' : (item.type === 'doc' && window.wpDocRender && window.wpDocRender.pageHid && window.wpDocRender.pageHid(camp.items, item.id)) ? '<span class="si-status si-lock si-lock-under" title="GM only, because a page it is under is GM only — players cannot read this page"><i class="wib wi-lock"></i></span>' : '') +
                  '<span class="si-title">' + esc(item.meta.title || 'Unnamed') + '</span>' +
                  (item.type === 'map' ? mapPresenceHtml(item.id) : '') +
 
@@ -413,15 +413,15 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
                 menu.querySelectorAll('.ctx-planner-only').forEach(function(x) { x.style.display = isPlCtx ? 'block' : 'none'; });
                 menu.querySelectorAll('.ctx-status').forEach(function(x) { x.classList.toggle('on', x.dataset.status === stCtx && !!stCtx); if (x.dataset.status === '') x.style.display = isPlCtx && stCtx ? 'block' : 'none'; });
                 var lockOne = document.getElementById('ctxLockItem'), lockNest = document.getElementById('ctxLockNest'), unlockNest = document.getElementById('ctxUnlockNest');
-                if (lockOne) lockOne.innerHTML = lockedCtx ? '&#128275; Unlock for players' : '&#128274; Lock for players';
+                if (lockOne) lockOne.innerHTML = lockedCtx ? '<i class="wib wi-unlock"></i> Unlock for players' : '<i class="wib wi-lock"></i> Lock for players';
                 if (isMapCtx && lockNest && unlockNest) {
                     // the nest entries follow the whole nest: offer Lock while any map under it is open, Unlock while any is locked
                     var nestIds = mapNest(activeC, it.id), nLocked = nestIds.filter(function(id) { var m = activeC.items[id]; return m && m.meta && m.meta.playerLock; }).length;
                     var hasKids = nestIds.length > 1;
                     lockNest.style.display = hasKids && nLocked < nestIds.length ? 'block' : 'none';
                     unlockNest.style.display = hasKids && nLocked > 0 ? 'block' : 'none';
-                    lockNest.innerHTML = '&#128274; Lock this and every map under it' + (nLocked && nLocked < nestIds.length ? ' <span style="color:var(--dim); font-size:11px;">(' + (nestIds.length - nLocked) + ' still open)</span>' : '');
-                    unlockNest.innerHTML = '&#128275; Unlock this and every map under it' + (nLocked && nLocked < nestIds.length ? ' <span style="color:var(--dim); font-size:11px;">(' + nLocked + ' locked)</span>' : '');
+                    lockNest.innerHTML = '<i class="wib wi-lock"></i> Lock this and every map under it' + (nLocked && nLocked < nestIds.length ? ' <span style="color:var(--dim); font-size:11px;">(' + (nestIds.length - nLocked) + ' still open)</span>' : '');
+                    unlockNest.innerHTML = '<i class="wib wi-unlock"></i> Unlock this and every map under it' + (nLocked && nLocked < nestIds.length ? ' <span style="color:var(--dim); font-size:11px;">(' + nLocked + ' locked)</span>' : '');
                 }
                 var childBtn = document.getElementById('ctxNewChildItem');
                 if (childBtn) {
@@ -450,7 +450,7 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
                 menu.querySelectorAll('.ctx-doc-only').forEach(function(x) { x.style.display = isDocCtx ? 'block' : 'none'; });
                 menu.querySelectorAll('.ctx-docwin-only').forEach(function(x) { x.style.display = (isPlCtx || isDocCtx) ? 'block' : 'none'; }); var pinRowS = document.getElementById('ctxPinPage'); if (pinRowS && it && window.wpPageShelf && window.wpPageShelf.pinLabel) pinRowS.textContent = window.wpPageShelf.pinLabel(it.id);   // Open in new window — planners + handbook pages
                 var plBtn = document.getElementById('ctxDocPlayers');
-                if (plBtn && isDocCtx) plBtn.innerHTML = (it.meta && it.meta.players === false) ? '&#128065; Show to players' : '&#128274; Hide from players';
+                if (plBtn && isDocCtx) plBtn.innerHTML = (it.meta && it.meta.players === false) ? '<i class="wib wi-eye"></i> Show to players' : '<i class="wib wi-lock"></i> Hide from players';
                 window.wpClampMenu(menu, e.clientX, e.clientY);   // placed once its rows are the item's own: above the pointer when the bottom is near
             });
             el.addEventListener('click', function(e) {

@@ -183,11 +183,11 @@ function shelfRow(r, marked) {   // marked: the planner marked Next wears its ma
     if (typeof r.at === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(r.at)) row.dataset.at = r.at;   // the node the row opens at: a block id, and nothing else, reaches the attribute
     var open = shelfEl('button', 'ps-open'); open.type = 'button';
     open.title = 'Open over the map. Ctrl+click opens a new window. Alt+click opens the page itself.';
-    open.appendChild(shelfEl('span', 'ps-ico', r.kind === 'doc' ? '📖' : '📑'));
+    open.appendChild(shelfEl('span', 'ps-ico wib wi-' + (r.kind === 'doc' ? 'book' : 'page')));
     open.appendChild(shelfEl('span', 'ps-name', (r.next && marked ? '▶ ' : '') + r.title));
     if (r.sub) open.appendChild(shelfEl('span', 'ps-sub', r.sub));
-    var win = shelfEl('button', 'ps-win', '⧉'); win.type = 'button'; win.title = 'Open in a window of its own';
-    var pin = shelfEl('button', 'ps-pin' + (r.pinned ? ' on' : ''), '📌'); pin.type = 'button';
+    var win = shelfEl('button', 'ps-win wib wi-dup'); win.type = 'button'; win.title = 'Open in a window of its own';
+    var pin = shelfEl('button', 'ps-pin wib wi-pin' + (r.pinned ? ' on' : '')); pin.type = 'button';
     pin.title = r.pinned ? 'Pinned for the session. Press to unpin.' : 'Pin for the session'; pin.setAttribute('aria-pressed', r.pinned ? 'true' : 'false');
     row.appendChild(open); row.appendChild(win); row.appendChild(pin);
     return row;
@@ -346,7 +346,7 @@ function peekLines(it, at, names) {
 /* ---------- pins ---------- */
 // [shelfcheck:pins-start]
 function isPinned(id) { var camp = getActiveCampaign(); return !!camp && pinnedOf(camp).indexOf(id) >= 0; }
-function pinLabel(id) { return isPinned(id) ? '📌 Unpin from the session' : '📌 Pin for the session'; }
+function pinLabel(id) { return isPinned(id) ? 'Unpin from the session' : 'Pin for the session'; }
 // The pin on the page panel's head follows the page in the panel
 function panelSync() {
     var b = document.getElementById('docPanelPin'), dp = window.wpDocPanel, id = dp && dp.openId ? dp.openId() : '';

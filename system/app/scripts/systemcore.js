@@ -70,6 +70,7 @@ var LIMITS = Object.freeze({
     labels: 32,                              // Stage 6: names for a number's values (a dropdown) or a formula's (shown instead of the number); 10 before 1.6.0, now a list's stat may name one value per damage type
     effects: 200, effectRows: 30, effectMods: 12, effectAmount: 1e6, effectDur: 40,  // Stage 5h: the library, a character's list, changes per effect, a change's size, a duration note
     uploadChanges: 600,                      // Stage 6 U1: the changes one upload may propose
+    upWords: 400,                            // 1.6.0: the words a line of the Review keeps of a value, each side, which it shows whole
     uploadBytes: 1048576, uploads: 20,       // Stage 6 U2: a sheet file on the wire (as JSON, its portrait dropped); uploads the GM's queue keeps
     threats: 6,                              // Stage 5h Fold 3: threat marks on a token (world bearings; the first is the active one)
     postures: 12, postureTag: 4, postureNotes: 200,  // conditions C3: the system's own postures, a chip's tag (code points), a posture's notes
@@ -9293,8 +9294,8 @@ function cleanUploads(v) {
         var ch = [], cs = map();
         (Array.isArray(u.changes) ? u.changes : []).slice(0, LIMITS.uploadChanges).forEach(function(c) {
             if (!isObj(c) || typeof c.id !== 'string' || !/^u_[a-z0-9]{1,8}$/.test(c.id) || cs[c.id] || UP_KINDS[c.kind] !== 1 || (c.kind !== 'note' && (typeof c.f !== 'string' || !FIELD_ID.test(c.f)))) return; cs[c.id] = 1;
-            if (c.kind === 'note') { var nt = cutText(c.label, 120); if (!nt) return; var on = { id: c.id, kind: 'note', label: nt, from: cutText(c.from, 80), to: cutText(c.to, 80) }; if (typeof c.f === 'string' && FIELD_ID.test(c.f)) on.f = c.f; ch.push(on); return; }
-            var o = { id: c.id, kind: c.kind, f: c.f, label: cutText(c.label, 120) || 'A change', from: cutText(c.from, 80), to: cutText(c.to, 80), accept: c.accept === true, held: c.held === true };
+            if (c.kind === 'note') { var nt = cutText(c.label, 120); if (!nt) return; var on = { id: c.id, kind: 'note', label: nt, from: cutText(c.from, LIMITS.upWords), to: cutText(c.to, LIMITS.upWords) }; if (typeof c.f === 'string' && FIELD_ID.test(c.f)) on.f = c.f; ch.push(on); return; }
+            var o = { id: c.id, kind: c.kind, f: c.f, label: cutText(c.label, 120) || 'A change', from: cutText(c.from, LIMITS.upWords), to: cutText(c.to, LIMITS.upWords), accept: c.accept === true, held: c.held === true };
             if (typeof c.row === 'string' && ROW_ID.test(c.row)) o.row = c.row;
             if (c.kind === 'value' && c.value !== undefined) o.value = c.value;
             if (c.kind === 'add' && Array.isArray(c.ops)) o.ops = c.ops.slice(0, 16).filter(isObj);
@@ -9522,11 +9523,23 @@ function revRows(nv, ov, idm) {
     });
 }
 function revRowWord(sys, x) { var d = isObj(x) ? rowDef(sys, x) : null, n = revRowName(x) || (d && d.def && typeof d.def.name === 'string' ? d.def.name : 'A row'), q = isObj(x) && fin(x.qty) && x.qty !== 1 ? ' ×' + x.qty : '', l = isObj(x) && fin(x.lvl) ? ' level ' + x.lvl : ''; return n + l + q; }
-function revRowWords(sys, ov, nv) {   // what differs in a list, by the rows' names
+// What differs between two rows that are the same row, beyond its name, level and quantity: its switch, note, counters and own stats, each named
+// as the list names it. Two rows that differ in nothing the words can say are told apart by whose they are, never left reading the same
+function revRowDiff(f, y, x, same) {
+    var sp = isObj(f) && isObj(f.list) ? f.list : {}, a = [], b = [], lab = function(list, k) { var e = (Array.isArray(list) ? list : []).filter(function(t) { return isObj(t) && t.key === k; })[0]; return e && e.label ? e.label : k; };
+    if (isObj(sp.on)) { var dOn = sp.on.def === true, onY = hasOwn(y, 'on') ? y.on === true : dOn, onX = hasOwn(x, 'on') ? x.on === true : dOn; if (onY !== onX) { a.push(onY ? 'on' : 'off'); b.push(onX ? 'on' : 'off'); } }
+    var nY = typeof y.note === 'string' ? y.note : '', nX = typeof x.note === 'string' ? x.note : '';
+    if (nY !== nX) { a.push(nY ? 'note: ' + cutText(nY, 40) : 'no note'); b.push(nX ? 'note: ' + cutText(nX, 40) : 'no note'); }
+    var pairs = function(o, w, list) { var p = isObj(o) ? o : {}, q = isObj(w) ? w : {}; Object.keys(p).concat(Object.keys(q).filter(function(k) { return !hasOwn(p, k); })).forEach(function(k) { if (JSON.stringify(p[k]) === JSON.stringify(q[k])) return; var l = lab(list, k), sh = function(v) { return v === undefined ? 'none' : typeof v === 'object' ? 'changed' : String(v); }; a.push(l + ' ' + sh(p[k])); b.push(l + ' ' + sh(q[k])); }); };
+    pairs(y.ct, x.ct, sp.counters); pairs(isObj(y.ov) ? y.ov.stats : null, isObj(x.ov) ? x.ov.stats : null, sp.stats);
+    if (!a.length && same) { a.push('as the sheet has it'); b.push('as the file has it'); }
+    return { a: a.length ? ' (' + a.join(', ') + ')' : '', b: b.length ? ' (' + b.join(', ') + ')' : '' };
+}
+function revRowWords(sys, ov, nv, f) {   // what differs in a list, by the rows' names
     var byId = map(), from = [], to = []; (Array.isArray(ov) ? ov : []).forEach(function(y) { if (isObj(y) && y.hid !== 1) byId[rowIdOf(y)] = y; });
-    (Array.isArray(nv) ? nv : []).forEach(function(x) { if (!isObj(x) || x.hid === 1) return; var k = rowIdOf(x), y = byId[k]; delete byId[k]; if (!y) to.push('New: ' + revRowWord(sys, x)); else if (JSON.stringify(y) !== JSON.stringify(x)) { from.push(revRowWord(sys, y)); to.push(revRowWord(sys, x)); } });
+    (Array.isArray(nv) ? nv : []).forEach(function(x) { if (!isObj(x) || x.hid === 1) return; var k = rowIdOf(x), y = byId[k]; delete byId[k]; if (!y) to.push('New: ' + revRowWord(sys, x)); else if (JSON.stringify(y) !== JSON.stringify(x)) { var wY = revRowWord(sys, y), wX = revRowWord(sys, x), dR = revRowDiff(f, y, x, wY === wX); from.push(wY + dR.a); to.push(wX + dR.b); } });
     Object.keys(byId).forEach(function(k) { from.push(revRowWord(sys, byId[k])); to.push('Gone: ' + revRowWord(sys, byId[k])); });
-    return { from: cutText(from.join(', ') || '—', 120), to: cutText(to.join(', ') || '—', 120) };
+    return { from: cutText(from.join(', ') || '—', LIMITS.upWords), to: cutText(to.join(', ') || '—', LIMITS.upWords) };
 }
 function revProposal(sys, char, fill, F, opts) {
     if (!isObj(sys) || !Array.isArray(sys.fields) || !isObj(char) || !isObj(fill)) return null;
@@ -9547,7 +9560,7 @@ function revProposal(sys, char, fill, F, opts) {
         }
         if (JSON.stringify(nv) === JSON.stringify(ov)) return;
         if (f.kind === 'item-list' && Array.isArray(nv) && Array.isArray(ov)) { var noId = function(a) { return JSON.stringify(a.map(function(x) { if (!isObj(x)) return x; var o = Object.assign({}, x); delete o.id; if (o.on === (isObj(f.list) && isObj(f.list.on) && f.list.on.def === true)) delete o.on; return o; })); }; if (noId(nv) === noId(ov)) return; }   // a switch at the list's own default reads as none   // the same rows under the new ids a file gives them: no change
-        var wrd = f.kind === 'item-list' && Array.isArray(nv) ? revRowWords(sys, ov, nv) : null;
+        var wrd = f.kind === 'item-list' && Array.isArray(nv) ? revRowWords(sys, ov, nv, f) : null;
         ch.push({ id: 'u_' + (n++).toString(36), kind: 'value', f: f.id, label: cutText((f.label || f.key) + (lost ? ' (the file has rows it could not place: check before applying)' : ''), 120), from: wrd ? wrd.from : revBrief(f, ov), to: wrd ? wrd.to : revBrief(f, nv), value: nv, accept: !lost });
     });
     ch.forEach(function(c) { if (Array.isArray(c.value)) c.value.forEach(function(x) { if (isObj(x)) ['in', 'gr', 'gb'].forEach(function(k) { if (typeof x[k] === 'string' && hasOwn(idm, x[k])) x[k] = idm[x[k]]; }); }); });   // a new row that hangs on a row the sheet kept
@@ -9839,4 +9852,5 @@ export { hitRounds, hitsSecret, HITS_MAX, burstList, cleanBu, hitShots, burstBar
 export { majorWords, dmgOnSelf, dmgMajorOf, dmgPart2Of, dmgPartOf, DMG_MORE };   // 1.6.0: A Major Wound where; B3: a blow's second part
 export { upkeepLines, upkeepWords };   // 205 follow-up (3): an upkeep's payments said
 export { cleanLvlOnly, lvlOnlyRead, lvlOnlyText, lvlOnlyOn, lvlOnlyHas, lvlOnlyMiss, lvlOnlyList, lvlOnlyHit, lvlOnlySays, lvlStart, lvlNear, modTiersRead, cleanModTiers, modTiersText, modAt };   // 1.6.0: Levels it may be, and a change's figures By level
+export { revRowWords };   // 1.6.0: what a Review line says of a list
 export { cleanTables, tableKeyOk, tableParts, tableRead, tableFam, tableRowOf, TABLE_KEY, TABLE_ROW_KEY, nameFold };   // 1.6.0: a system's tables

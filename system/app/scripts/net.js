@@ -460,6 +460,21 @@ function camLand(map, me, party) {
     meta.lastWbX = tok.x + (num(tok.w) && tok.w > 0 ? tok.w : 60) / 2; meta.lastWbY = tok.y + (num(tok.h) && tok.h > 0 ? tok.h : 52) / 2;
     return { x: meta.lastWbX, y: meta.lastWbY };
 }
+// 1.6.0 (found by the test of a table): a character token handed to a player on the map on screen, where they held none before, is where their
+// view goes: a Give or a release may seat it far from where they were looking, and nothing points at it. was: the ids camMine gave before the
+// map changed; a player who already holds a token there keeps their view
+function camMine(map, me) {
+    if (!map || typeof map !== 'object' || map.type !== 'map' || !Array.isArray(map.whiteboard) || typeof me !== 'string' || me === '') return [];
+    return map.whiteboard.filter(function(w) { return !!w && typeof w === 'object' && !w.hidden && w.isChar && w.ownerId === me && typeof w.id === 'string'; }).map(function(w) { return w.id; });
+}
+function camGiven(map, me, was) {
+    if (!Array.isArray(was) || was.length) return null;
+    var num = function(v) { return typeof v === 'number' && isFinite(v); }, id = camMine(map, me)[0], tok = id === undefined ? null : map.whiteboard.filter(function(w) { return !!w && w.id === id; })[0];
+    if (!tok || !num(tok.x) || !num(tok.y)) return null;
+    if (!map.meta || typeof map.meta !== 'object') map.meta = {};
+    map.meta.lastWbX = tok.x + (num(tok.w) && tok.w > 0 ? tok.w : 60) / 2; map.meta.lastWbY = tok.y + (num(tok.h) && tok.h > 0 ? tok.h : 52) / 2;
+    return { x: map.meta.lastWbX, y: map.meta.lastWbY };
+}
 function cleanHostMap(m) {
     if (!m || typeof m !== 'object') return m;
     if (Array.isArray(m.whiteboard)) m.whiteboard = m.whiteboard.slice(0, 6000).map(cleanHostWbItem).filter(Boolean); else m.whiteboard = [];
@@ -1754,13 +1769,14 @@ function applyItem(msg) {
     if (!incoming || typeof incoming !== 'object') return;
     if (incoming.type !== 'map' && incoming.type !== 'doc') return;   // security (2026-10-01): a player's copy holds maps and pages, nothing else a host names (a planner never ships; an unknown kind used to be stored as sent)
     var camWas = incoming.type === 'map' && typeof camOf === 'function' && Object.prototype.hasOwnProperty.call(camp.items, msg.itemId) ? camOf(camp.items[msg.itemId]) : null;   // the camera this app had for the map (none a host names)
+    var mineWas = camWas && typeof camMine === 'function' ? camMine(camp.items[msg.itemId], net.myId) : null;
     if (incoming.type === 'map') incoming = cleanHostMap(incoming);   // text items rebuilt, colors checked, bounded
     if (camWas && typeof camHold === 'function') camHold(incoming, camWas);
     if (incoming.type === 'map' && typeof actOver === 'function') actOver(msg.itemId, incoming, ackIn(msg.ack));   // 14c: what this copy lacks of their own actions, written back
     net.applyingRemote = true;
     camp.items[msg.itemId] = incoming;
     var myActive = getActiveCampaign();
-    if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId && incoming.type === 'map') render();
+    if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId && incoming.type === 'map') { var gaveI = mineWas && typeof camGiven === 'function' ? camGiven(incoming, net.myId, mineWas) : null; render(); if (gaveI && window.appRestoreCamera) window.appRestoreCamera(); }
     updateSidebarNav();
     if (incoming.type === 'doc') { try { if (window.wpDocReaderRefresh) window.wpDocReaderRefresh(msg.campId, msg.itemId); } catch (e) {} try { if (window.wpSheets && window.wpSheets.sheetRefsChanged && window.wpSheets.sheetRefsChanged()) window.wpSheets.renderSheet(); } catch (e) {} }   // never let the reader wedge applyingRemote; a sheet's handbook chips/links follow their page (Stage 5f) — only when what they show changes
     if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }   // a received map may change sight-blockers (doors/walls) — recompute occlusion
@@ -2077,6 +2093,7 @@ function applyItemDelta(msg) {
     var it = own(camp.items, msg.itemId) ? camp.items[msg.itemId] : null;
     if (!it || it.stub === true) { broadcast({ type: 'needItem', campId: msg.campId, itemId: msg.itemId }, null); return; }   // never had it, or holds only its stub (possession): ask for the whole thing
     var camWas = it.type === 'map' && typeof camOf === 'function' ? camOf(it) : null;   // the camera this app had for the map: a delta's meta names none, and cleanHostMap takes any off
+    var mineWas = camWas && typeof camMine === 'function' ? camMine(it, net.myId) : null;
     net.applyingRemote = true;
     (it.type === 'doc' ? ['blocks'] : ['whiteboard', 'rooms']).forEach(function(key) {   // a page has blocks, a map has the rest — a delta never adds the other kind
         var ch = msg[key]; if (!ch || typeof ch !== 'object') return;
@@ -2100,7 +2117,7 @@ function applyItemDelta(msg) {
         try { if (window.wpSheets && window.wpSheets.sheetRefsChanged && window.wpSheets.sheetRefsChanged()) window.wpSheets.renderSheet(); } catch (e) {}   // a renamed page's chips/links follow (Stage 5f)
     }
     var myActive = getActiveCampaign();
-    if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId && it.type === 'map') render();
+    if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId && it.type === 'map') { var gaveD = mineWas && typeof camGiven === 'function' ? camGiven(it, net.myId, mineWas) : null; render(); if (gaveD && window.appRestoreCamera) window.appRestoreCamera(); }
     updateSidebarNav();
     if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }   // a delta may change sight-blockers (doors/walls) — recompute occlusion
     net.applyingRemote = false;

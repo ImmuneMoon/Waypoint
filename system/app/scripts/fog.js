@@ -276,7 +276,7 @@ function viewersFor(map, camp, ownerId, withH) {   // withH (item 19b): each vie
         if (ownerId && ownerId !== '*' && w.ownerId !== ownerId && !(ownerId === PARTY && playerTok(w))) return;   // R2 #14: the party sees by every player's token
         var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0), ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*'), arc = eyesArc(map, ts), n0 = out.length;
         out.push(ts.blind ? { x: x, y: y, front: front, range: 0, arc: arc, blind: true } : { x: x, y: y, front: front, range: ts.sight, arc: arc });   // world facing = rot + front, so the arc follows the token's rotation; senses S3: blind eyes, their own cell
-        if (ts.full.length) senseViewers(ts, arc).forEach(function(s) { var v = { x: x, y: y, front: front, range: s.range, arc: s.arc, sense: true }; if (s.pass) v.pass = true; if (s.dim) v.dim = true; if (s.side) { v.side = s.side; if (typeof s.near === 'number') v.near = s.near; } if (s.veil) v.veil = true; if (s.ow) v.ow = true; out.push(v); });   // senses S2a: a viewer per full sense, after its token's eyes
+        if (ts.full.length) senseViewers(ts, arc).forEach(function(s) { var v = { x: x, y: y, front: front, range: s.range, arc: s.arc, sense: true }; if (s.pass) v.pass = true; if (s.dim) v.dim = true; if (s.side) { v.side = s.side; v.tok = w.id; if (typeof s.near === 'number') v.near = s.near; } if (s.veil) v.veil = true; if (s.ow) v.ow = true; out.push(v); });   // senses S2a: a viewer per full sense, after its token's eyes
         if (withH === true) { var hh = tokHeight(w, map, forPlayers(ownerId)); for (var hi = n0; hi < out.length; hi++) out[hi].h = hh; }   // for a player or the party: from the pieces players hold only
     });
     return out;
@@ -882,7 +882,7 @@ function revealedTiers(map, camp, ownerId) {
     var C = core(), grid = gridForMap(map); if (!grid) return { list: [], keys: Object.create(null) };
     var mf = mapFog(map);
     if (mf.mode === 'reveal') return null;
-    var keys = Object.create(null), list = [], plain = Object.create(null), passed = null, band = null, more = Object.create(null);   // band: the cells a band of side vision sees, with its senses; more: those something else sees too
+    var keys = Object.create(null), list = [], plain = Object.create(null), passed = null, band = null, bandBy = null, more = Object.create(null);   // band: the cells a band of side vision sees, with its senses; more: those something else sees too
     var put = function(key, cell, t) { var o = keys[key]; if (o === undefined) { keys[key] = t; list.push({ key: key, cell: cell }); } else if (t > o) keys[key] = t; };
     if (mf.mode !== 'cover') {
         _viewPass++;   // a pass of its own: the vision memo never lets go of what it sweeps here while it sweeps
@@ -891,7 +891,7 @@ function revealedTiers(map, camp, ownerId) {
         var lc = lvl === null || over ? null : litFor(map, grid, blk);   // lighting off: no light sources either
         viewersFor(map, camp, ownerId).forEach(function(v) {
             var s = viewSeen(map, grid, blk, lvl, v, lc), by = v.pass ? (passed || (passed = Object.create(null))) : plain;
-            for (var i = 0; i < s.length; i++) { put(s[i].key, s[i].cell, s[i].tier); by[s[i].key] = 1; if (v.side) { band = band || Object.create(null); band[s[i].key] = (band[s[i].key] || []).concat(v.side); } else more[s[i].key] = 1; }
+            for (var i = 0; i < s.length; i++) { put(s[i].key, s[i].cell, s[i].tier); by[s[i].key] = 1; if (v.side) { band = band || Object.create(null); bandBy = bandBy || Object.create(null); band[s[i].key] = (band[s[i].key] || []).concat(v.side); (bandBy[s[i].key] || (bandBy[s[i].key] = [])).push({ t: v.tok, ids: v.side }); } else more[s[i].key] = 1; }
         });
     }
     (mf.manual.adds || []).forEach(function(c) { var k = C.cellKey(c, grid); put(k, c, 2); plain[k] = 1; more[k] = 1; });
@@ -903,7 +903,7 @@ function revealedTiers(map, camp, ownerId) {
         if (ph.hides) list = list.filter(function(o) { if (ph.under(o.key, o.cell)) { delete keys[o.key]; return false; } return true; });
     }
     var out = { list: list, keys: keys };
-    if (band) { var sdo = null; if (ph) ph.shows.forEach(function(o) { more[o.key] = 1; }); list.forEach(function(o) { if (band[o.key] && !more[o.key]) (sdo || (sdo = Object.create(null)))[o.key] = band[o.key]; }); if (sdo) out.side = sdo; }
+    if (band) { var sdo = null; if (ph) ph.shows.forEach(function(o) { more[o.key] = 1; }); list.forEach(function(o) { if (band[o.key] && !more[o.key]) { (sdo || (sdo = Object.create(null)))[o.key] = band[o.key]; (out.sideBy || (out.sideBy = Object.create(null)))[o.key] = bandBy[o.key]; } }); if (sdo) out.side = sdo; }
     if (passed) { var th = null; list.forEach(function(o) { if (passed[o.key] && !plain[o.key]) (th || (th = Object.create(null)))[o.key] = 1; }); if (th) out.through = th; }
     return out;
 }
@@ -932,6 +932,20 @@ function wallEdged(tiers, map, grid) {
 // 1.6.0: a token stands unnoticed in a band of side vision where every sense of that band is ticked for it (item.unsensed, the GM's): nothing of it is sent
 function sideMissed(C, w, ids) { var un = C.cleanUnsensed(w.unsensed); return un === true || (!!un && !!ids && ids.every(function(id) { return un.indexOf(id) >= 0; })); }
 function sideOnly(map, camp, ownerId) { var t = revealedTiers(map, camp, ownerId); return (t && t.side) || null; }
+// 1.6.0: a band that notices by a roll (notice.js, the host's alone): this pass's judge for one player, or null with none (the tick alone, as before)
+function sideJudge(map, camp, ownerId, C) {
+    var N = typeof window !== 'undefined' ? window.wpNotice : null; if (!N || !N.on(camp)) return null;
+    var t = revealedTiers(map, camp, ownerId), grid = gridForMap(map); if (!grid) return null;
+    return N.pass(map, camp, ownerId, (t && t.sideBy) || null, function(w) { return C.cellKey(C.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, grid), grid); }, function(w) { return w.unsensed ? C.cleanUnsensed(w.unsensed) : null; }, ownerId !== PARTY && ownerId !== '*');
+}
+// ... and what a check reads of where the creature stands: the light on its cell (0 dark, 1 dim, 2 clear) and the cover between them (0 none, 1 some, 2 no line)
+function noticeFacts(map, camp, from, to) {
+    var C = core(), grid = gridForMap(map), out = { light: 2, cover: 0 }; if (!C || !grid) return out;
+    var cell = function(t) { return C.cellOf(t.x + (t.w || 60) / 2, t.y + (t.h || 52) / 2, grid); }, b = cell(to), bk = C.cellKey(b, grid), lvl = mapLevel(map);
+    if (lvl !== null) { var blk = blockersFor(map, grid), over = !!_blockerOver[map.id], lc = over ? null : litFor(map, grid, blk); out.light = over ? 0 : Math.max(lvl, (lc && lc.lit && lc.lit[bk]) || 0); }
+    if (coverOn(camp && camp.system)) { var cs = coverSetsFor(map, grid); if (cs) { var cov = C.coverBetween(cell(from), b, grid, cs.hard, cs.soft, cs.all); out.cover = !cov.lineOfEffect ? 2 : cov.coverage > 0 ? 1 : 0; } }
+    return out;
+}
 function revealedCellList(map, camp, ownerId) {
     if (!gridForMap(map)) return [];
     var t = revealedTiers(map, camp, ownerId);
@@ -1146,7 +1160,7 @@ function fogDropIds(recipientId, camp, map) {
     var list = revealedCellList(map, camp, recipientId);
     if (list === null) return null;                                     // reveal-all: nothing hidden
     var C = core(), keys = Object.create(null); list.forEach(function(c) { keys[C.cellKey(c, grid)] = 1; });
-    var drop = Object.create(null), any = false, sdSeen;
+    var drop = Object.create(null), any = false, sdSeen, nj = typeof sideJudge === 'function' ? sideJudge(map, camp, recipientId, C) : null;
     var hj = typeof heightJudge === 'function' ? heightJudge(map, camp, recipientId, grid, mask, keys) : null;   // item 19b: the creatures a piece with a height hides, or shows over a low wall (null: none, as before)
     (map.whiteboard || []).forEach(function(w) {
         if (!w || w.type === 'light' || !(w.isChar || w.waiting)) return;   // a light source is never a creature; Onboarding F1a: another player's waiting token hides in fog like a character's
@@ -1154,7 +1168,7 @@ function fogDropIds(recipientId, camp, map) {
         var tk = C.cellKey(C.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, grid), grid);
         if (!inMask(mask, tk)) return;   // hidden only inside a fog area a viewer can't see; a token OUT of every fog area is always visible
         var seen = !!keys[tk];
-        if (seen && w.unsensed) { if (sdSeen === undefined) sdSeen = sideOnly(map, camp, recipientId); if (sdSeen && sdSeen[tk] && sideMissed(C, w, sdSeen[tk])) seen = false; }   // 1.6.0: stands only in a band of side vision that does not notice it
+        if (seen && (w.unsensed || nj)) { if (sdSeen === undefined) sdSeen = sideOnly(map, camp, recipientId); if (sdSeen && sdSeen[tk] && ((w.unsensed && sideMissed(C, w, sdSeen[tk])) || (nj && nj.missed(w, tk)))) seen = false; }   // 1.6.0: stands only in a band of side vision that does not notice it, by the GM's tick or by its roll
         if (hj && typeof w.id === 'string') { if (seen) { if (hj.hide[w.id] === 1) seen = false; } else if (hj.show[w.id]) seen = true; }
         if (!seen) { drop[w.id] = 1; any = true; }
     });
@@ -1338,6 +1352,7 @@ function canSeePoint(recipientId, camp, map, x, y, w) {   // w (item 19b): the p
     var pk = core().cellKey(core().cellOf(x, y, grid), grid);
     if (!inMask(mask, pk)) return true;                                 // outside every fog area → always visible
     if (w && typeof w === 'object' && w.unsensed && (w.isChar || w.waiting) && w.type !== 'light') { if (ce.sd === undefined) ce.sd = sideOnly(map, camp, recipientId); if (ce.sd && ce.sd[pk] && sideMissed(core(), w, ce.sd[pk])) return false; }   // 1.6.0: as its drop is judged
+    if (w && typeof w === 'object' && (w.isChar || w.waiting) && w.type !== 'light' && typeof window !== 'undefined' && window.wpNotice) { if (ce.nj === undefined) ce.nj = sideJudge(map, camp, recipientId, core()); if (ce.nj && !ce.nj.moved(w, pk)) return false; }   // ... a sneak stays as unnoticed as its roll left it
     if (w && typeof w === 'object' && (w.isChar || w.waiting) && w.type !== 'light' && typeof heightCtx === 'function') {
         if (ce.hc === undefined) ce.hc = heightCtx(map, camp, recipientId, grid);   // kept with the set: both are emptied together
         var hc = ce.hc;
@@ -2233,7 +2248,7 @@ window.wpFogRedraw = redraw;
 setTimeout(sync, 0);
 window.wpFog = {
     // host enforcement (net.js)
-    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     PARTY: PARTY, fogPartyCells: fogPartyCells,   // R2 #14: the stream window's standpoint (the players' tokens together) and the cells it draws by, for its copy (net.js fogPartyCopy)
     // GM tools
     handNote: handNote,   // 1.5.4: what to say when a piece's fog mark cannot show yet (inspector.js, whiteboard.js)

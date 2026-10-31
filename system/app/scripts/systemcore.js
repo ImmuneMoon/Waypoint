@@ -720,6 +720,7 @@ function cleanRollDef(r, gmView) {
     fightRuleInto(out, r, gmView);   // backlog 152: and in a fight, and whether its runs wait for the GM's word
     if (gmView) { var crO = cleanCross(r.cross); if (crO) out.cross = crO; }   // 1.5.9 (book es/et plan 4a): it also runs when a value crosses a step; the GM's view alone, since only the machine that owns the campaign runs it
     if (r.to === 'near' && out.init !== true) out.to = 'near';   // 1.5.9 (book es/et plan, section 3): Applies to the user or an adjacent character; the initiative roll is always its own character's
+    if (r.named === true) out.named = true;   // 1.6.0: it names itself as it is rolled, so the host can tell a sneak's roll; true only, and it says nothing of why
     if (r.resist === true && out.init !== true) out.resist = true;   // 1.6.0 (the SotMW v2 sort, B2): Resists an attempt, so it reads AttemptMargin
     resistByInto(out, r, gmView);   // 1.6.0 (B2): and Resisted by, the roll its target resists it with
     return out;
@@ -1079,7 +1080,17 @@ function senseField(v, kinds, fieldIds, secretIds) {   // { field }: its id; '' 
     if (!isObj(secretIds) || hasOwn(secretIds, v.field)) return null;
     return isObj(fieldIds) && hasOwn(fieldIds, v.field) && hasOwn(kinds, fieldIds[v.field]) ? v.field : '';
 }
-function cleanSenses(s, fieldIds, secretIds) {
+// 1.6.0 (the core's Noticing, kept general at the owner's word): a band of side vision that notices by a roll, the GM's view alone (only the host rolls it).
+// { check: the check on the viewer's sheet, which may read TargetSize, TargetDistance, RangeMod, TargetLight, TargetCover and AttemptMargin; sneak: a
+// formula on the watched creature's own sheet, true while it is sneaking; stealth: the roll a sneak makes, named as a roll switch names one (rollSwitches) }
+function cleanNotice(v, kinds, F) {
+    if (!isObj(v)) return null;
+    var ck = cleanFormulaText(v.check), p = ck && F && typeof F.parse === 'function' ? F.parse(ck) : null; if (!p || !p.ok) return null;
+    var o = { check: ck }, sk = needRule(v.sneak, F);
+    if (sk) { o.sneak = sk; var st = cleanRollSw([{ name: 'x', v: 1, to: [v.stealth] }], kinds); if (st) o.stealth = st[0].to[0]; }
+    return o;
+}
+function cleanSenses(s, fieldIds, secretIds, gm, F) {
     if (!isObj(s)) return null;
     var out = {}, list = [], seen = map();
     if (s.blind !== undefined) { var bf = senseField(s.blind, SENSE_SWITCH_KINDS, fieldIds, secretIds); if (bf) out.blind = { field: bf }; }
@@ -1103,6 +1114,7 @@ function cleanSenses(s, fieldIds, secretIds) {
         if (x.eyes === true) o.eyes = true;
         if (x.off !== undefined) { var of = senseField(x.off, SENSE_SWITCH_KINDS, fieldIds, secretIds); if (of === null) return; if (of) o.off = { field: of }; }
         if (x.grade === 'full' && (x.shows === 'dim' || x.shows === 'side')) o.shows = x.shows;   // 1.6.0: side: a band of side vision, its ground dimmed and what it notices dimmed
+        if (o.shows === 'side' && gm === true) { var ntc = cleanNotice(x.notice, fieldIds, F); if (ntc) o.notice = ntc; }   // 1.6.0: it notices by a roll
         if (x.grade === 'mark' && typeof x.glyph === 'string' && hasOwn(SENSE_GLYPHS, x.glyph)) o.glyph = x.glyph;
         if (x.veil === true) o.veil = true;
         seen[x.id] = 1; list.push(o);
@@ -2525,7 +2537,7 @@ function cleanCombat(c, resIds, fieldIds, secretIds, F, viewKinds, pl, fl) {   /
     else if (c.checks === 'fixed') { out.checks = 'fixed'; critRangeInto(out, c); }   // 1.6.0 (the v2 sort's B1): criticals at fixed rolls, at or under critAt and at or over fumbleAt, each a formula with no dice (absent: 3 and 18)
     var tr = cleanTier(c.tier); if (tr) out.tier = tr;   // 1.6.0: a success at or past a margin is named on its card
     var lt = cleanLightRules(c.light); if (lt) out.light = lt;   // lighting L4: the system's light rules (absent: none)
-    var sn = cleanSenses(c.senses, fieldIds, secretIds); if (sn) out.senses = sn;   // senses S1: the system's senses (absent: none)
+    var sn = cleanSenses(c.senses, fieldIds, secretIds, pl !== true, F); if (sn) out.senses = sn;   // senses S1: the system's senses (absent: none)
     var rg = cleanRangeRules(c.range, F); if (rg) out.range = rg;   // range penalties R1: the system's range rule (absent: none)
     if (c.targetSize !== undefined) { var tsz = senseField({ field: c.targetSize }, SENSE_RANGE_KINDS, fieldIds, secretIds); if (tsz) out.targetSize = tsz; }   // 1.6.0 (the v2 combat module): the field of a target's sheet TargetSize reads, a number its viewer can read truthfully, the same in both views
     if (typeof c.targetHit === 'string' && FIELD_ID.test(c.targetHit) && isObj(fieldIds) && hasOwn(fieldIds, c.targetHit) && fieldIds[c.targetHit] === 'item-list') out.targetHit = c.targetHit;   // 1.6.0 (B5): the item list of a target's sheet whose rows are its hit locations, read as Target.Hit.<name>, the same in both views
@@ -3744,6 +3756,7 @@ function cleanSystem(sys, opts) {
     out.items.concat(core).forEach(function(it) { var ar = it && it.area; if (!ar || !Array.isArray(ar.aff)) return; ar.aff = ar.aff.filter(function(a) { return seenFx[a.fx] === 1; }); if (!ar.aff.length) delete ar.aff; });   // 1.5.9 (es): an affliction whose effect this view does not hold goes (the GM's view alone holds any)
     var gmF = isObj(sys.combat) && (sys.combat.senses !== undefined || sys.combat.targetSize !== undefined || sys.combat.targetHit !== undefined) ? gmViewFields(sys, F) : null, gmKinds = map(), secret = null;   // senses S1: judged on the fields as the GM's view has them, in both views (1.6.0: TargetSize's field too)
     if (gmF) { gmF.forEach(function(f) { gmKinds[f.id] = f.kind; }); secret = secretFieldIds({ fields: gmF, items: sys.items, core: sys.core, tables: sys.tables }, F); }
+    (isObj(sys.combat) && isObj(sys.combat.senses) && Array.isArray(sys.combat.senses.list) ? sys.combat.senses.list : []).forEach(function(s) { var t = isObj(s) && isObj(s.notice) && isObj(s.notice.stealth) ? s.notice.stealth.r : null; if (typeof t === 'string') out.rolls.forEach(function(r) { if (r.id === t) r.named = true; }); });   // 1.6.0
     out.combat = cleanCombat(sys.combat, resIds, gmKinds, secret, F, fieldIds, !gmView, function(id) { var hitF = null; out.fields.forEach(function(x) { if (!hitF && x.id === id) hitF = x; }); return hitF; });
     if (!gmView && typeof mentions === 'function') ['critAt', 'fumbleAt'].forEach(function(k) { if (out.combat[k] && mentions(out.combat[k])) delete out.combat[k]; });   // 1.6.0: the Combat card's critical range naming a GM-only value goes from the players' view (their rolls then read 3 and 18)
     if (out.combat.initiative && Array.isArray(out.combat.initiative.ties)) {   // initiative O2: a step that reads a GM-only value goes (the order is public: a player would learn which is higher), judged over the GM's view, in both views alike
@@ -6928,7 +6941,7 @@ function linksDrop(chars, id) {
 var DATE_NAMES = Object.freeze(['Date.year', 'Date.day', 'Date.days', 'Date.hour', 'Date.minute']), _dateSrc = null;
 function setDateSource(fn) { _dateSrc = typeof fn === 'function' ? fn : null; return !!_dateSrc; }
 function dateReads(sys) { var s = ''; try { s = JSON.stringify(sys) || ''; } catch (e) { s = ''; } return /\bdate\.(year|days?|hour|minute)\b/i.test(s); }   // whether a system's formulas name the date at all
-var TOKEN_NAMES = Object.freeze(FACING_NAMES.concat(['Posture', 'Elevation', 'CombatRound', 'RangeMod', 'TargetDistance', 'HeightMod', 'HeightDiff', 'TargetSize']));   // item 19 H2: HeightMod and HeightDiff   // range penalties R2: RangeMod and TargetDistance, the range to the roller's target (withRange)   // HUD frame (HF5b): CombatRound, the round of the combat on the token's map (round is the rounding function)
+var TOKEN_NAMES = Object.freeze(FACING_NAMES.concat(['Posture', 'Elevation', 'CombatRound', 'RangeMod', 'TargetDistance', 'HeightMod', 'HeightDiff', 'TargetSize', 'TargetLight', 'TargetCover']));   // item 19 H2: HeightMod and HeightDiff   // range penalties R2: RangeMod and TargetDistance, the range to the roller's target (withRange)   // HUD frame (HF5b): CombatRound, the round of the combat on the token's map (round is the rounding function)
 function postureIndex(v) {   // how a posture written before 1.6.0 reads: the old ids, the 1.4.6 ids, the long names
     if (typeof v !== 'string') return 0;
     var s = v.toLowerCase().replace(/[^a-z]+/g, ' ').trim();
@@ -7243,7 +7256,7 @@ function readsTargetHit(sys, ch, F, expr, row, tctx) {
 function withRange(tctx, rc) {   // R3: the target's id and map ride along (tid, mapId: text), for the host's privacy check
     if (!isObj(tctx) || !isObj(rc) || !fin(rc.mod) || !fin(rc.dist)) return tctx;
     var rg = { mod: rc.mod, dist: rc.dist }; ['tid', 'mapId'].forEach(function(k) { if (typeof rc[k] === 'string' && rc[k].length <= 200) rg[k] = rc[k]; });
-    ['hmod', 'hdiff', 'size'].forEach(function(k) { if (fin(rc[k])) rg[k] = rc[k]; });   // item 19 H2: HeightMod and HeightDiff ride with the range; 1.6.0: and TargetSize
+    ['hmod', 'hdiff', 'size', 'light', 'cover'].forEach(function(k) { if (fin(rc[k])) rg[k] = rc[k]; });   // item 19 H2: HeightMod and HeightDiff ride with the range; 1.6.0: and TargetSize
     return Object.assign({}, tctx, { range: rg });
 }
 // 1.6.0 (docs/BOOK_ES_ET_PLAN.md 4a): the names a crossing's run reads, laid on the token context it is worked out in: CrossStep, the number of the
@@ -8085,7 +8098,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (fam === 'target' && l.slice(0, 11) === 'target.hit.' && l.length > 11) { rangeRead = true; var thR = ropts && typeof ropts.thit === 'function' ? ropts.thit : null, thv = 0; if (thR) { try { thv = thR('row.' + l.slice(11)); } catch (e) { thv = 0; } } return typeof thv === 'number' && isFinite(thv) ? thv : 0; }   // 1.6.0 (B5): a stat or a column of the location row the roller picked on its target's sheet (withTargetHit); 0 with none. Read with the range, so the host's privacy rule counts it too (a field, link or crew group keyed Target keeps the family, above)
         if ((fam === 'posture' || fam === 'type' || fam === 'kind' || fam === 'place' || fam === 'value') && l.length > fam.length + 1) return placeName(sys, l);   // 1.6.0: Posture.<posture>, Type.<key>, Kind.<key>, Place.<stat>.<value>, Value.<key>.<value>, a thing's place by its name (a field, link or crew group keyed so keeps them, above)
         // 1.6.0: TargetSize reads with the range, so the host's privacy rule counts it too
-        if (l === 'rangemod' || l === 'targetdistance' || l === 'heightmod' || l === 'heightdiff' || l === 'targetsize') { rangeRead = true; var rgc = ropts && isObj(ropts.range) ? ropts.range : null, rgv = rgc ? (l === 'rangemod' ? rgc.mod : l === 'targetdistance' ? rgc.dist : l === 'heightmod' ? rgc.hmod : l === 'targetsize' ? rgc.size : rgc.hdiff) : 0; return typeof rgv === 'number' && isFinite(rgv) ? rgv : 0; }   // item 19 H2: HeightMod and HeightDiff read with the range, so the host's privacy rule counts them too   // range penalties R2: to the roller's target; 0 with none (a field of the system's own of that name keeps it)
+        if (l === 'rangemod' || l === 'targetdistance' || l === 'heightmod' || l === 'heightdiff' || l === 'targetsize' || l === 'targetlight' || l === 'targetcover') { rangeRead = true; var rgc = ropts && isObj(ropts.range) ? ropts.range : null, rgv = rgc ? (l === 'rangemod' ? rgc.mod : l === 'targetdistance' ? rgc.dist : l === 'heightmod' ? rgc.hmod : l === 'targetsize' ? rgc.size : l === 'targetlight' ? rgc.light : l === 'targetcover' ? rgc.cover : rgc.hdiff) : 0; return typeof rgv === 'number' && isFinite(rgv) ? rgv : 0; }   // item 19 H2: HeightMod and HeightDiff read with the range, so the host's privacy rule counts them too   // range penalties R2: to the roller's target; 0 with none (a field of the system's own of that name keeps it)
         if (l === 'attemptmargin') { var atR = ropts && isObj(ropts.att) ? ropts.att.m : 0; return fin(atR) ? atR : 0; }   // 1.6.0 (B2): the margin of the attempt a resist roll answers (withAttempt); 0 for any other roll
         if ((fam === 'blow' && BLOW_NAMES[l.slice(5)] === 1) || (fam === 'hit' && l.length > 4)) {   // 1.6.0 (the core's gaps 6 and 7): the blow a posted roll answers (withBlow); 0 for any other press (a field keyed Blow or Hit keeps its names, above)
             var bwR = ropts && isObj(ropts.blow) ? ropts.blow : null; if (fam === 'blow') return bwR && fin(bwR[l.slice(5)]) ? bwR[l.slice(5)] : 0;
@@ -8636,6 +8649,7 @@ function validateSystem(sys, F) {
     function isRollProp(p) { return p === 'roll' || p === 'rollFormula' || (typeof p === 'string' && p.indexOf('list.roll.') === 0); }   // F5b: a list's roll is a roll
     function rolledWarn(id, prop, c) { if (!isObj(c) || c.roll !== true || typeof c.formula !== 'string' || !c.formula) return; var rp = F.parse(c.formula); if (rp.ok && !hasDice(rp.ast.body)) warnings.push({ id: id, prop: prop, message: 'Rolled, but this amount rolls no dice, so nothing is rolled.' }); }   // 1.5.9 (book es/et plan, section 0)
     var resistV = false;   // 1.6.0 (B2): the roll being read Resists an attempt, so AttemptMargin is known in it
+    var noticeV = false;   // 1.6.0: a side vision check is being read, so TargetLight and TargetCover are known in it
     var blowV = false, blowRolls = map(), dmgV = isObj(sys.combat) && isObj(sys.combat.damage) ? sys.combat.damage : null, hitF = dmgV && isObj(dmgV.locs) ? fieldById(sys, dmgV.locs.list) : null;   // 1.6.0 (the core's gaps 6 and 7): the system rolls the damage step posts read Blow.<name> and Hit.<name>
     if (dmgV) { (Array.isArray(dmgV.onMajor) ? dmgV.onMajor : [dmgV.onMajor]).forEach(function(w) { if (isObj(w) && typeof w.roll === 'string') blowRolls[w.roll] = 1; });   // 1.6.0: each of onMajor's rows
         (Array.isArray(dmgV.onWound) ? dmgV.onWound : []).forEach(function(w) { if (isObj(w) && typeof w.roll === 'string') blowRolls[w.roll] = 1; }); }
@@ -8655,6 +8669,7 @@ function validateSystem(sys, F) {
             if (!target && l === 'rollmargin' && /(^|\.)then\./.test(prop)) target = { id: '', key: 'RollMargin', kind: 'number', vis: 'all', noEdge: true };   // 1.5.8: and how far it beat its target
             if (!target && l === 'rollbig' && /(^|\.)then\./.test(prop)) target = { id: '', key: 'RollBig', kind: 'number', vis: 'all', noEdge: true };   // 1.6.0: and whether it lands as a Big Hit
             if (!target && l === 'onself' && nearV) target = { id: '', key: 'OnSelf', kind: 'number', vis: 'all', noEdge: true };   // 1.5.9: a roll or an action that Applies to an adjacent character reads whom it is used on
+            if (!noticeV && (l === 'targetlight' || l === 'targetcover') && !ix[l]) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only in a side vision check.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
             if (!target && l === 'attemptmargin') { if (!resistV) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only in a roll ticked Resists an attempt.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = { id: '', key: 'AttemptMargin', kind: 'number', vis: 'all', noEdge: true }; }   // 1.6.0 (B2)
             if (!target && !ix.blow && l.indexOf('blow.') === 0 && BLOW_NAMES[l.slice(5)] === 1) { if (!blowV && !/^list\.col\./.test(prop) && !(prop === 'formula' && owner.kind === 'formula')) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only in a roll the damage step posts (a Major Wound\u2019s or a wound\u2019s), a list\u2019s column or a formula field: DR read for a blow reads it there, and anywhere else on the sheet it reads 0.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = { id: '', key: n, kind: 'number', vis: 'all', noEdge: true }; }   // 1.6.0 (the core's gaps 6 and 7)
             if (!target && !ix.hit && l.indexOf('hit.') === 0 && l.length > 4) { if (!blowV || !hitF) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only in a roll the damage step posts, with hit locations set.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } var hT = wordTarget(hitF, l.slice(4), false); if (!hT || hT.ctrTotal || hT.pickTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '": ' + (hitF.label || hitF.key) + ' has no stat or column ' + n.slice(4) + '.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = Object.assign({}, hT, { noEdge: true }); }
@@ -9007,6 +9022,11 @@ function validateSystem(sys, F) {
     // is the editor's to say (refreshErrors); with vis 'gm' nothing is said here of a GM-only name
     (Array.isArray(sys.env) ? sys.env : []).forEach(function(e) { if (!isObj(e) || typeof e.key !== 'string') return; ENV_BANDS.forEach(function(k) { if (typeof e[k] === 'string' && e[k]) checkFormula({ id: 'env', key: 'env#' + e.key }, 'env.' + e.key + '.' + k, e[k], false, 'all'); }); });   // 1.6.0: an environment reading's bands, the sheet's names
     (Array.isArray(sys.links) ? sys.links : []).forEach(function(k) { if (isObj(k) && Array.isArray(k.figs)) k.figs.forEach(function(x) { if (isObj(x) && typeof x.formula === 'string') { figK = k; try { checkFormula({ id: k.id, key: 'link#' + k.id }, 'link.figs.' + x.key, x.formula, false, 'all'); } finally { figK = null; } figVehWarn(k, x); } }); });   // the core handbook session's ask 6: a group's figure, worked out with the system's own names on each sheet
+    (isObj(sys.combat) && isObj(sys.combat.senses) && Array.isArray(sys.combat.senses.list) ? sys.combat.senses.list : []).forEach(function(s) {   // 1.6.0: a band that notices by a roll
+        var nt = isObj(s) && isObj(s.notice) ? s.notice : null; if (!nt) return; var own = { id: 'senses', key: 'sense#' + s.id };
+        var wasR = resistV; resistV = true; noticeV = true; if (typeof nt.check === 'string' && nt.check) checkFormula(own, 'notice.check', nt.check, true, 'gm'); resistV = wasR; noticeV = false;
+        if (typeof nt.sneak === 'string' && nt.sneak) checkFormula(own, 'notice.sneak', nt.sneak, false, 'gm');
+    });
     (Array.isArray(sys.budgets) ? sys.budgets : []).forEach(function(b) { if (!isObj(b) || typeof b.id !== 'string') return; var own = { id: b.id, key: 'budget#' + b.id }; checkFormula(own, 'has', typeof b.has === 'string' ? b.has : '', false, 'gm'); checkFormula(own, 'spent', typeof b.spent === 'string' ? b.spent : '', false, 'gm'); });
     function listNode(k) { if (k.slice(0, 2) !== 'l#') return null; var rest = k.slice(2), d = rest.indexOf('.'), lf = lsts[d > 0 ? rest.slice(0, d) : rest]; if (!lf) return null; var ck = d > 0 ? rest.slice(d + 1) : '', col = null, pick = null; ((lf.list && lf.list.cols) || []).forEach(function(c) { if (!col && lower(c.key) === ck) col = c; }); if (!col && ck) ((lf.list && lf.list.stats) || []).forEach(function(x) { if (!pick && isObj(x) && x.kind === 'pick' && lower(x.key) === ck) pick = x; }); return { f: lf, col: col, pick: pick }; }
     function nodeName(x) { if (ix[x]) return ix[x].key; var ln = listNode(x); return ln ? (ln.pick ? ln.f.key + '.' + ln.pick.key + ' (choice)' : ln.f.key + '.' + (ln.col ? ln.col.key : '') + ' (column)') : x; }

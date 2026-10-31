@@ -72,6 +72,7 @@
 <script type="module" src="scripts/notices.js"></script>
 <script type="module" src="scripts/timepanel.js"></script>
 <script type="module" src="scripts/record.js"></script>
+<script type="module" src="scripts/notice.js"></script>
 <script type="module" src="scripts/trackcore.js"></script>
 <script type="module" src="scripts/trackers.js"></script>
 <script type="module" src="scripts/trade.js"></script>
@@ -2467,6 +2468,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li><b>As far as the eyes reach</b> gives a sense the eyes&rsquo; range on that map, and it is off while they are blind.</li>
                                   <li><b>+ Side vision</b> makes both. Type its degrees, wider than the eyes&rsquo; arc. The extra on each side opens on the map with its ground dimmed, and what is behind stays dark.</li>
                                   <li>A creature in that band shows dimmed. In a token&rsquo;s Properties, <b>Not noticed by</b> keeps it from that band, and it is not drawn there. A cell the eyes also see reads as the eyes see it.</li>
+                                  <li><b>Noticed by</b> gives a band a check of your own. A creature moving there is noticed with no roll. One standing still is checked in secret when it comes into the band or stops there.</li>
+                                  <li>The check is a formula on the viewer&rsquo;s sheet. It can read <code>TargetSize</code>, <code>TargetDistance</code>, <code>RangeMod</code>, <code>TargetLight</code>, <code>TargetCover</code> and <code>AttemptMargin</code>.</li>
+                                  <li>A result stands until the light or the cover changes, or the viewer turns away. A failure also ends when the creature moves. A creature counts as moving until the end of its next turn in a fight, and for a few seconds after a move out of one.</li>
+                                  <li><b>Sneaking where</b> is a formula on the creature&rsquo;s own sheet, and the roll beside it is the one its player makes. A failure is noticed. A success takes its margin off each viewer&rsquo;s check, through <code>AttemptMargin</code>.</li>
+                                  <li>Nobody is told of a check, and the Game Record names it. <b>Not noticed by</b> wins over any roll, and a system with no check works by that tick alone.</li>
                                   <li>The list under its name picks what a sense shows, so a band can show a nameless mark in place of its ground and creatures.</li>
                                   <li>Each row ends in a sentence saying what it does, and a sense reaches 60 cells at most.</li>
                                   <li><b>Sees without light</b> starts a darkvision. <b>Sight</b> in the fog menu stays the eyes&rsquo; own range in the dark, and a token sees by the longer of the two. The fog menu names your system&rsquo;s senses under Sight, with a way here.</li>

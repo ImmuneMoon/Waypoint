@@ -96,6 +96,9 @@ jobs:
       - name: recordcheck — the game record, its store and its wiring
         if: ${{ !cancelled() }}
         run: node tools/recordcheck.js
+      - name: noticecheck — a band of side vision that notices by a roll
+        if: ${{ !cancelled() }}
+        run: node tools/noticecheck.js
       - name: profilecheck — a profile carried to another computer, its file, its code and what opening it writes
         if: ${{ !cancelled() }}
         run: node tools/profilecheck.js

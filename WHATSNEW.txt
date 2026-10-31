@@ -245,6 +245,15 @@ Systems, more
   of as far as the eyes reach. + Side vision opens a wider arc than the eyes':
   the sides show their ground dimmed and the creatures there dimmed, a token can
   be ticked as not noticed, and what is behind stays dark.
+- A band of side vision can notice by a roll. In the System editor's Senses box
+  a band has Noticed by, a check on the viewer's sheet. A creature moving there
+  is noticed with no roll. One standing still is checked in secret when it comes
+  into the band or stops there, and the result stands until the light or its
+  cover changes, it moves after a failure, or the viewer turns away.
+- Sneaking where marks a creature as sneaking, and its player's roll is taken off
+  each viewer's check. Nobody is told of a check, and the Game Record names it.
+  Not noticed by wins over any roll, and a system with no check works by that
+  tick alone. Results are kept for the session, so a reload rolls them again.
 - A system can set the Vision of a map that has none of its own. A Vision set
   on the map, or one the campaign keeps for new maps, wins.
 - A sheet reader of your own can name a Reader mark, and then answers only on

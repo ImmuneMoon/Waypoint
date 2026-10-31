@@ -4638,7 +4638,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
         if (r.to === 'near' && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evN = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evN.currentTarget || b, c, function(on) { evN.wpAlly = on || ''; goN(evN); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first, where someone stands next to it
         var lb = label, vv = vars;
         if (sys && typeof vars === 'function' && r.label && r.label.indexOf('{') >= 0 && F()) { try { var campN = getActiveCampaign(), cN = charById(c.id, campN) || c; vv = resolveAll(sys, cN, F(), tokenCtxFor(c.id, campN)).vars; lb = rollLabel(r, sys, cN, vv); } catch (err) { lb = label; vv = vars; } }   // HF5 review: the values as they are at the click, as the roll reads them (a redraw may still wait on a focused box)
-        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); var oR = why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined; if (r.needs) { oR = oR || {}; oR.act = r.id; } if (r.to === 'near') { oR = oR || {}; oR.act = r.id; if (e && typeof e.wpAlly === 'string' && e.wpAlly) oR.on = e.wpAlly; } if (r.resist === true || r.resisted === true || typeof r.resistBy === 'string') { oR = oR || {}; oR.act = r.id; } if ((Array.isArray(r.then) && r.then.length) || r.malf || r.cost || r.dmg || r.init === true) { oR = oR || {}; oR.act = r.id; } sheetRoll(e, c.id, r.formula, lb, oR, { r: r.id });   // R1: a roll with consequences names itself (initiative O1: the initiative roll too, so the host can trust its number into the fight)   // a GM-only roll stays the GM's
+        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); var oR = why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined; if (r.needs || r.named) { oR = oR || {}; oR.act = r.id; } if (r.to === 'near') { oR = oR || {}; oR.act = r.id; if (e && typeof e.wpAlly === 'string' && e.wpAlly) oR.on = e.wpAlly; } if (r.resist === true || r.resisted === true || typeof r.resistBy === 'string') { oR = oR || {}; oR.act = r.id; } if ((Array.isArray(r.then) && r.then.length) || r.malf || r.cost || r.dmg || r.init === true) { oR = oR || {}; oR.act = r.id; } sheetRoll(e, c.id, r.formula, lb, oR, { r: r.id });   // R1: a roll with consequences names itself (initiative O1: the initiative roll too, so the host can trust its number into the fight)   // a GM-only roll stays the GM's
     };
     b.addEventListener('click', goN);
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b);
@@ -9973,7 +9973,7 @@ function senseSentence(s, fieldsR, secret) {
     if (sw) out.push('Off while ' + swName + ' is ticked or above 0.' + (sw.edit === 'owner' && sw.kind !== 'formula' ? ' Its owner can change that on their sheet.' : ''));
     else if (s.off !== undefined) out.push('Its switch is no longer here: Save keeps the sense, never switched off.');
     if (s.arc === 0) out.push('Type its degrees. With none it looks through the eyes’ arc.');
-    if (s.shows === 'side' && !mark) out.push('Its ground shows dimmed, whatever the light. A creature there shows dimmed too, unless its token is ticked as not noticed, and then it is not drawn. A cell the eyes also see reads as the eyes see it.');
+    if (s.shows === 'side' && !mark) out.push('Its ground shows dimmed, whatever the light. A creature there shows dimmed too, unless its token is ticked as not noticed, and then it is not drawn. A cell the eyes also see reads as the eyes see it.' + noticeSays(s));
     else if (mark) out.push('A creature it finds that the eyes do not see shows to its player as a nameless mark in its cell, never as itself: ' + SENSE_GLYPH_SAY[senseGlyphOf(s)] + '.');
     else out.push(s.shows === 'dim' ? 'What it sees in the dark it sees as dim.' : 'Seen clearly, light or none: no dim or dark name shows inside its range.');
     return out.join(' ');
@@ -10027,6 +10027,7 @@ function sensesBox(box, cm) {
         [['up', '▲', 'Move up'], ['down', '▼', 'Move down'], ['del', '×', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'sn' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
         wrap.appendChild(rw);
         wrap.appendChild(el('div', 'sys-note sys-sense-says', senseSentence(s, fieldsR, secret)));
+        if (s.shows === 'side' && !mark) wrap.appendChild(noticeRow(s, i));   // 1.6.0: it may notice by a roll
     });
     var full = arr.length >= LIMITS.senses, adds = el('div', 'sys-flags');
     [['side', '+ Side vision', 'A wider view beside the eyes’ arc, its ground and what it notices dimmed, as far as the eyes reach, stopped by walls. Type how many degrees it covers, wider than the eyes’ arc'], ['dark', '+ Sees without light', 'A sense that sees in the dark, as dim: darkvision'], ['noeyes', '+ Sees without eyes', 'A sense that works blind, all round: blindsight, a sense of the Ether'], ['hears', '+ Hears', 'A nameless mark for a sound, through walls, all round; off while the system’s Deafened toggle is ticked, if it has one'], ['feels', '+ Feels through the ground', 'A nameless mark for a tremor, through walls, all round: tremorsense'], ['near', '+ Senses what is near', 'A nameless mark for a presence, through walls, all round'], ['creature', '+ A creature’s sense (set per token)', 'A nameless mark with a range of 0: no one has it until a token is given a range of its own in its Properties (a beast’s vibration sense)'], ['custom', '+ Custom sense', 'A sense of your own']].forEach(function(g) { var b = el('button', 'tool ghost sys-btn sys-light-add', g[1]); b.dataset.act = 'snadd'; b.dataset.tpl = g[0]; b.disabled = full; b.title = full ? 'At most ' + LIMITS.senses : g[2]; adds.appendChild(b); });
@@ -10048,10 +10049,39 @@ function sensesBox(box, cm) {
     var err = errorCell('senses'); err.dataset.errFor = 'senses'; wrap.appendChild(err);
     box.appendChild(wrap);
 }
+// 1.6.0: a band that notices by a roll: its check on the viewer's sheet, and how a creature sneaks past it. Blank: the GM's tick alone
+function noticeRow(s, i) {
+    var n = s.notice && typeof s.notice === 'object' ? s.notice : {}, rw = el('div', 'sys-flags sys-light-row sys-sense-row sys-sense-nrow'), has = typeof n.check === 'string' && !!n.check.trim(), sk = typeof n.sneak === 'string' && !!n.sneak.trim(); rw.dataset.si = String(i);
+    rw.appendChild(el('span', 'sys-num-cap', 'Noticed by'));
+    var ck = input('sys-sense-nkcheck field', typeof n.check === 'string' ? n.check : '', 'A check on the viewer\u2019s sheet, rolled in secret by the GM\u2019s machine. It may read TargetSize, TargetDistance, RangeMod, TargetLight (0 dark, 1 dim, 2 clear), TargetCover (0 none, 1 some, 2 no clear line) and AttemptMargin. Blank: a creature in the band is noticed unless you tick it in its Properties', 'A check on the viewer\u2019s sheet'); ck.maxLength = LIMITS.formula; rw.appendChild(ck);
+    if (!has) return rw;
+    rw.appendChild(el('span', 'sys-num-cap', 'Sneaking where'));
+    var sn = input('sys-sense-nksneak field', typeof n.sneak === 'string' ? n.sneak : '', 'A formula on the creature\u2019s own sheet, true while it is sneaking: a toggle, or anything else that says so. No dice. Blank: nothing sneaks past this band', 'A formula on its own sheet'); sn.maxLength = LIMITS.formula; rw.appendChild(sn);
+    if (!sk) return rw;
+    var st = n.stealth && typeof n.stealth === 'object' ? n.stealth : {}, cur = typeof st.r === 'string' ? 'r:' + st.r : typeof st.l === 'string' ? 'l:' + st.l : '';
+    var opts = [['', '\u2014 pick a sneak roll \u2014']].concat((Array.isArray(draft.rolls) ? draft.rolls : []).filter(function(r) { return r && !r.apply; }).map(function(r) { return ['r:' + r.id, 'Sneak roll: ' + (r.label || r.id)]; }), (Array.isArray(draft.fields) ? draft.fields : []).filter(function(f) { return f && f.kind === 'item-list'; }).map(function(f) { return ['l:' + f.id, 'Sneak roll: a roll of ' + (f.label || f.key)]; }));
+    if (cur && !opts.some(function(o) { return o[0] === cur; })) opts.push([cur, 'A roll no longer here']);
+    rw.appendChild(select('sys-sense-nkroll', opts, cur, 'The roll a sneak\u2019s player makes. A failure is noticed. A success takes its margin off each viewer\u2019s check, which reads it as AttemptMargin'));
+    if (typeof st.l === 'string') { var ky = input('sys-sense-nkkey field', typeof st.key === 'string' ? st.key : '', 'Which entry of the list is the sneak roll, by its key', 'Entry key'); ky.maxLength = LIMITS.label; rw.appendChild(ky); }
+    return rw;
+}
+function noticeSays(s) {
+    var n = s.notice && typeof s.notice === 'object' ? s.notice : null; if (!n || typeof n.check !== 'string' || !n.check.trim()) return '';
+    return ' A creature moving there is noticed with no roll. One standing still is checked in secret when it comes into the band or stops there, and the result stands until the light or its cover changes, it moves after a failure, or the viewer turns away.';
+}
 function senseAt(t) { var rw = t.closest('.sys-sense-row'), i = rw ? +rw.dataset.si : -1, sn = sensesDraft(), arr = Array.isArray(sn.list) ? sn.list : []; return i >= 0 && arr[i] && typeof arr[i] === 'object' ? { s: arr[i], rw: rw } : null; }
 function senseSays(at) { var say = at.rw.nextSibling; if (say && say.classList && say.classList.contains('sys-sense-says')) say.textContent = senseSentence(at.s, senseRangeFields(), senseSecrets()); }
 function onSensesInput(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-sense-') < 0) return false;
+    if (c.indexOf('sys-sense-nk') >= 0) {   // 1.6.0: a band's check, a sneak's mark and its roll's entry
+        if (c.indexOf('sys-sense-nkroll') >= 0) return true;
+        var atN = senseAt(t); if (!atN) return true;
+        var nk = atN.s.notice && typeof atN.s.notice === 'object' ? atN.s.notice : (atN.s.notice = {}), tv = t.value;
+        if (c.indexOf('sys-sense-nkcheck') >= 0) { if (tv.trim()) nk.check = tv; else delete atN.s.notice; }
+        else if (c.indexOf('sys-sense-nksneak') >= 0) { if (tv.trim()) nk.sneak = tv; else { delete nk.sneak; delete nk.stealth; } }
+        else if (nk.stealth && typeof nk.stealth === 'object') { if (tv.trim()) nk.stealth.key = tv.trim(); else delete nk.stealth.key; }
+        markDirty(); patchErrors(); return true;
+    }
     if (c.indexOf('sys-sense-viewarc') >= 0) { var snv = sensesDraft(), vn = Number(t.value); if (snv.view && snv.view.mode === 'arc') { if (t.value.trim() && isFinite(vn)) snv.view.arc = vn; else delete snv.view.arc; markDirty(); patchErrors(); } return true; }   // 1.6.0: the Vision of a map with none of its own
     if (c.indexOf('sys-sense-name') < 0 && c.indexOf('sys-sense-n') < 0 && c.indexOf('sys-sense-arcn') < 0) return true;   // the selects' and the ticks' change events do the work
     var at = senseAt(t); if (!at) return true;
@@ -10062,6 +10092,9 @@ function onSensesInput(t) {
 }
 function onSensesChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-sense-') < 0) return false;
+    if (c.indexOf('sys-sense-nkroll') >= 0) { var atR = senseAt(t); if (!atR || !atR.s.notice) return true; var rv = t.value; var wasL = !!(atR.s.notice.stealth && atR.s.notice.stealth.l), isL = rv.slice(0, 2) === 'l:', siR = atR.rw.dataset.si; if (rv.slice(0, 2) === 'r:') atR.s.notice.stealth = { r: rv.slice(2) }; else if (isL) atR.s.notice.stealth = { l: rv.slice(2) }; else delete atR.s.notice.stealth; markDirty(); if (wasL === isL) return true; renderAll(); var nrR = document.querySelector('.sys-sense-nrow[data-si="' + siR + '"] .sys-sense-nkroll'); if (nrR) nrR.focus(); return true; }   // the list keeps the keys: only the key box comes or goes
+    if (c.indexOf('sys-sense-nkcheck') >= 0 || c.indexOf('sys-sense-nksneak') >= 0) { var atB = senseAt(t), siB = atB ? atB.rw.dataset.si : '', isCk = c.indexOf('sys-sense-nkcheck') >= 0, nextC = isCk ? 'sys-sense-nksneak' : 'sys-sense-nkroll', rowB = atB ? atB.rw : null, had = !!(rowB && rowB.querySelector('.' + nextC)), goes = !!t.value.trim(); markDirty(); if (had === goes) return true; renderAll(); if (goes && siB) { var nrB = document.querySelector('.sys-sense-nrow[data-si="' + siB + '"] .' + nextC); if (nrB) nrB.focus(); } return true; }   // the box after it comes or goes, and the keys stay in the row
+    if (c.indexOf('sys-sense-nkkey') >= 0) return true;
     if (c.indexOf('sys-sense-from') < 0 && c.indexOf('sys-sense-unit') < 0 && c.indexOf('sys-sense-tick') < 0 && c.indexOf('sys-sense-off') < 0 && c.indexOf('sys-sense-blind') < 0 && c.indexOf('sys-sense-eyearc') < 0 && c.indexOf('sys-sense-grade') < 0 && c.indexOf('sys-sense-glyph') < 0 && c.indexOf('sys-sense-arcfrom') < 0 && c.indexOf('sys-sense-view') < 0) return true;   // the boxes' change events (their input events did the work)
     if (c.indexOf('sys-sense-viewarc') >= 0) return true;
     if (c.indexOf('sys-sense-view') >= 0) { var snw = sensesDraft(); if (t.value === 'all') snw.view = { mode: 'all' }; else if (t.value === 'arc') snw.view = { mode: 'arc', arc: 180 }; else delete snw.view; markDirty(); renderAll(); return true; }   // 1.6.0: the Vision of a map with none of its own

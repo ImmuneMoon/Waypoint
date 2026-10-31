@@ -1339,7 +1339,7 @@ function hidForgetMap(mapId) { Object.keys(_hidPend).forEach(function(p) { delet
 function fogForgetConn(peer) { if (typeof peer === 'string') { delete _fogHeld[peer]; delete _acks[peer]; delete _hidPend[peer]; } if (typeof mapForgetConn === 'function') mapForgetConn(peer); if (typeof combatsSentForget === 'function') combatsSentForget(peer); }   // 14c: and how far its copies go; hidden pieces: and the drawings of theirs the GM hid
 function fogForgetMap(mapId) { Object.keys(_fogHeld).forEach(function(p) { delete _fogHeld[p][mapId]; }); }
 function fogForgetOne(peer, mapId) { if (typeof peer !== 'string' || typeof mapId !== 'string') return; if (own(_fogHeld, peer)) delete _fogHeld[peer][mapId]; if (own(_hidPend, peer)) delete _hidPend[peer][mapId]; }   // possession (the take-back): one connection's copy of one map is gone — what it held (fold M5) and the drawings of theirs the GM hid on it (the whole copy they get on their return notes those afresh)
-function fogForgetAll() { _fogHeld = Object.create(null); _acks = Object.create(null); _hidPend = Object.create(null); if (typeof mapForgetAll === 'function') mapForgetAll(); Object.keys(_fogPend).forEach(function(k) { clearTimeout(_fogPend[k]); }); _fogPend = Object.create(null); _fogCost = Object.create(null); if (typeof combatForget === 'function') combatForget(); }   // a new table: no fight's rows seen
+function fogForgetAll() { if (typeof window !== 'undefined' && window.wpNotice) window.wpNotice.forget(); _fogHeld = Object.create(null); _acks = Object.create(null); _hidPend = Object.create(null); if (typeof mapForgetAll === 'function') mapForgetAll(); Object.keys(_fogPend).forEach(function(k) { clearTimeout(_fogPend[k]); }); _fogPend = Object.create(null); _fogCost = Object.create(null); if (typeof combatForget === 'function') combatForget(); }   // a new table: no fight's rows seen
 // Fold M7: the landing. A player's move that lands in another cell, facing or stance (their drop, or a map copy their app saves) arms a short
 // timer on that map; when it fires, every admitted connection's copy of the map is caught up in place: the creatures that player now sees
 // or no longer sees, the lit cells a light they cannot see gives them, the light cap ('fogDiff', the player's side is applyFogDiff), judged
@@ -1354,6 +1354,7 @@ function fogKey(map, w, at) {   // where a token sees and lights from, and its s
     var k = F && typeof F.seenKeyOf === 'function' ? F.seenKeyOf(map, t) : null;
     return k === null ? null : k + '|' + (t.posture || 'standing') + '|' + (Number(t.elevation) || 0);
 }
+net.noticeArm = function(mapId) { fogArm(mapId); };   // 1.6.0: a side vision check changed what a player holds
 function fogArm(mapId) {
     if (!net.active || net.role !== 'host' || typeof mapId !== 'string') return;
     var camp = getActiveCampaign(), m = camp && camp.items && own(camp.items, mapId) ? camp.items[mapId] : null;
@@ -5017,6 +5018,7 @@ function fightReachTurnEnd(c, round, row, at) {
 function turnEnded(mapId, c, row, round, at) {
     if (!fightReachTurnEnd(c, round, row, at)) return;
     if (typeof recLine === 'function') recLine('fight', String(row && row.name || ''), 'Turn ends', 'Round ' + round + ' on ' + mapTitleOf(mapId));
+    if (typeof window !== 'undefined' && window.wpNotice && row && typeof row.tokId === 'string') window.wpNotice.turnEnd(mapId, row.tokId);   // 1.6.0: a creature stops moving by its own turns
     try { if (window.wpSheets && window.wpSheets.turnEndHook) window.wpSheets.turnEndHook(mapId, Object.assign({}, c, { round: round, turn: 0, rows: [row] })); } catch (e) { console.error(e); }
     try { if (typeof turnFxEnd === 'function') turnFxEnd(mapId, c, row, round); } catch (e) { console.error(e); }   // after the hook: what is rolled at a turn's end still reads what wears off there
 }
@@ -8611,6 +8613,7 @@ function handleMessage(msg, conn) {
         else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
         var ruleQ = Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '');   // Stage 6 F8: the system's roll outcomes (1.6.0: or the record's own critical range)
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars, rule: ruleQ }), { w: recQ.as || (recQ.from && recQ.from.name) || '', h: !!recQ.priv });
+        if (chQ && window.wpNotice) window.wpNotice.stealth(campQ, q.charId, q.act ? { r: q.act } : q.fr ? { f: q.fr } : q.row ? { l: q.row.f, row: q.row.r, i: q.row.i } : null, Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ);   // 1.6.0: a sneak's roll, which viewers are checked against
         if (actQ && actQ.resisted === true && chQ && typeof attemptMake === 'function') attemptMake(campQ, attemptEntry(campQ.system, q, actQ), Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, tcQ && tcQ.range, chQ, !!recQ.priv);   // 1.6.0 (B2): a success against their target that it resists
         if (blowRecQ && typeof blowCrip === 'function') blowCripWrite(blowCrip(campQ, blowRecQ, Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, Dq.naturalOf(resQ)), saveRemoteSoon);   // 1.6.0 (the core's gap 7): a failed roll of a blow cripples the location struck
         if (actQ && actQ.init === true && typeof initIntoFight === 'function') initIntoFight(campQ, locQ, q.charId, pidQ, resQ.value);   // initiative O1: their own initiative roll into the fight on their map, once
@@ -10070,6 +10073,7 @@ net.diceRoll = function(expr, o) {
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
     var ruleR = D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '');   // Stage 6 F8 (1.6.0: or the record's own critical range)
     logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName, rule: ruleR }), { w: rec.as || (rec.from && rec.from.name) || 'You', h: !!rec.priv });
+    if (chR && window.wpNotice) window.wpNotice.stealth(campR, chR.id, o.act && !o.row ? { r: String(o.act) } : o.fr ? { f: String(o.fr) } : o.row ? { l: String(o.row.f), row: String(o.row.r), i: o.row.i } : null, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR);   // 1.6.0: a sneak's roll
     if (entR && typeof entR.resistBy === 'string' && chR && typeof attemptMake === 'function') attemptMake(campR, entR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, tcR && tcR.range, chR, !!rec.priv || !!rec.to);   // 1.6.0 (B2): a success against its target that it resists
     if (blowRecR && typeof blowCrip === 'function') blowCripWrite(blowCrip(campR, blowRecR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, D.naturalOf(res)), function() { save(true); });   // 1.6.0 (the core's gap 7): a failed roll of a blow cripples the location struck
     if (entR && entR.then && chR && SR && campR && campR.system) {   // Stage 6 HUD R1/R2b: the GM's own roll's consequences, here (a player's are the host's); a list's roll may move its row's counters

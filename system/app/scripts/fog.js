@@ -422,7 +422,7 @@ function inMask(mask, key) { return mask.mode === 'all' ? true : (mask.mode === 
 // grid, reuse the same sight-blocker set fog uses, and map the system-neutral result to this campaign-system's cover
 // tier. Returns { name, block } or null (no grid / same cell / no cover / cover off). Local + advisory: reads state,
 // mutates nothing, sends nothing on the wire; host and client both run the identical fogcore + coverTier.
-function coverBetween(x1, y1, x2, y2, hA, hB, onMap, onCamp) {   // item 19 H1: hA, hB — the heights at the two ends (yards; the first end looks at the second), read by the system's height rule. 1.6.0: onMap, onCamp, a judgement for a roll on a map that may not be on screen (targetCover)
+function coverBetween(x1, y1, x2, y2, hA, hB, onMap, onCamp) {   // item 19 H1: hA, hB — the heights at the two ends (yards; the first end looks at the second), read by the system's height rule. 1.6.0: onMap, onCamp, a judgement for a roll on a map that may not be on screen (coverGrade)
     var map = onMap || activeMap(), camp = onCamp || activeCamp(), C = core(); if (!map || !C) return null;
     if (!coverOn(camp && camp.system)) return null;                     // cover off (the default): nothing to work out
     var grid = gridForMap(map); if (!grid) return null;                 // gridless with no assigned cell → can't measure cover
@@ -942,19 +942,19 @@ function sideJudge(map, camp, ownerId, C) {
 }
 // 1.6.0: whether a piece gives cover here only as a placed object (Properties says so)
 function coverObject(w) { var C = core(), map = activeMap(), camp = activeCamp(), grid = map ? gridForMap(map) : null; return !!(C && grid && w && C.objectOn && w.cover !== 'no' && !w.hidden && !w.isChar && !w.blocksSight && w.cover !== 'yes' && C.objectOn(w, C.coverMost(camp && camp.system, grid))); }
-// 1.6.0: what TargetCover reads from one token to another on a map: 0 none, 1 some, 2 no clear line, by the system's own grades and the ruler's own reading, heights and all. shown: a judgement for a player, which reads no ground piece the GM hid. 0 with cover off or no grid
-function targetCover(map, camp, from, to, shown) {
+// 1.6.0: what TargetCoverGrade reads from one token to another on a map, by the system's own grades and the ruler's own reading, heights and all: 0 none, 1 half (or a system's one grade of cover), 2 three-quarters, 3 total. TargetCover is the same reading in three steps (fogcore coverOfGrade). shown: a judgement for a player, which reads no ground piece the GM hid. 0 with cover off or no grid
+function coverGrade(map, camp, from, to, shown) {
     if (!map || !from || !to || !coverOn(camp && camp.system)) return 0;
     var at = function(t) { return { x: t.x + (t.w || 60) / 2, y: t.y + (t.h || 52) / 2 }; }, a = at(from), b = at(to);
     var tier = coverBetween(a.x, a.y, b.x, b.y, tokHeight(from, map, shown === true), tokHeight(to, map, shown === true), map, camp);
-    return !tier ? 0 : tier.block ? 2 : 1;
+    return !tier ? 0 : tier.block ? 3 : tier.name === 'Three-quarters cover' ? 2 : 1;
 }
-// ... and what a check reads of where the creature stands: the light on its cell (0 dark, 1 dim, 2 clear) and the cover between them (TargetCover's own reading)
+// ... and what a check reads of where the creature stands: the light on its cell (0 dark, 1 dim, 2 clear) and the cover between them (coverGrade's own reading)
 function noticeFacts(map, camp, from, to) {
     var C = core(), grid = gridForMap(map), out = { light: 2, cover: 0 }; if (!C || !grid) return out;
     var cell = function(t) { return C.cellOf(t.x + (t.w || 60) / 2, t.y + (t.h || 52) / 2, grid); }, b = cell(to), bk = C.cellKey(b, grid), lvl = mapLevel(map);
     if (lvl !== null) { var blk = blockersFor(map, grid), over = !!_blockerOver[map.id], lc = over ? null : litFor(map, grid, blk); out.light = over ? 0 : Math.max(lvl, (lc && lc.lit && lc.lit[bk]) || 0); }
-    out.cover = targetCover(map, camp, from, to, true);
+    out.grade = coverGrade(map, camp, from, to, true); out.cover = C.coverOfGrade(out.grade);
     return out;
 }
 function revealedCellList(map, camp, ownerId) {
@@ -2259,7 +2259,7 @@ window.wpFogRedraw = redraw;
 setTimeout(sync, 0);
 window.wpFog = {
     // host enforcement (net.js)
-    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, targetCover: targetCover, coverObject: coverObject, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, coverGrade: coverGrade, coverObject: coverObject, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     PARTY: PARTY, fogPartyCells: fogPartyCells,   // R2 #14: the stream window's standpoint (the players' tokens together) and the cells it draws by, for its copy (net.js fogPartyCopy)
     // GM tools
     handNote: handNote,   // 1.5.4: what to say when a piece's fog mark cannot show yet (inspector.js, whiteboard.js)

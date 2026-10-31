@@ -37,7 +37,7 @@ function make(D) {
         if (!S || !F || !Dc) return true;
         var rc = null, cOf = function(t) { return charOf(camp, t); };
         try { rc = S.rangeCtx(sys, map, vt, w, { F: F, elev: D.elev(), groundOf: function(t) { return D.ground(t, map); }, charOf: cOf }); } catch (e) { rc = null; }
-        rc = rc || { mod: 0, dist: 0 }; rc.light = f.light; rc.cover = f.cover; rc.tid = w.id; rc.mapId = map.id;
+        rc = rc || { mod: 0, dist: 0 }; rc.light = f.light; rc.cover = f.cover; rc.cgrade = f.grade; rc.tid = w.id; rc.mapId = map.id;
         var tc = S.withAttempt(S.withRange(D.ctxFor(vCh.id, camp) || {}, rc), m), res = null, ck = null;
         try { res = F.evaluate(rule.check, { vars: S.makeResolver(sys, vCh, F, tc) }); ck = Dc.checkOf(res, Dc.ruleOf(null, sys.combat && sys.combat.checks)); } catch (e) { res = null; }
         if (!res || !res.ok) { D.log('check failed'); return true; }   // a check that cannot be worked out hides nothing

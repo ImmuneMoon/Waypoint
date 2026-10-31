@@ -632,6 +632,8 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                       if (sheetLines.length) { var ttSheet = document.createElement('div'); ttSheet.className = 'rc'; ttSheet.style.cssText = 'color:var(--ink); font-size:11px;'; ttSheet.textContent = sheetLines.join(' · '); ttRoot.appendChild(ttSheet); }
                       if (stanceBits.length) { var ttStance = document.createElement('div'); ttStance.className = 'rc'; ttStance.style.cssText = 'color:var(--gold); font-size:11px;'; ttStance.textContent = stanceBits.join(' · '); ttRoot.appendChild(ttStance); }
                       if (postureRanged(wItem)) { var ttRanged = document.createElement('div'); ttRanged.className = 'rc'; ttRanged.style.cssText = 'color:var(--dim); font-size:11px; text-transform:none; letter-spacing:0;'; ttRanged.textContent = postureRangedLine(tokenPostureAt(wItem).p); ttRoot.appendChild(ttRanged); }   // posture: its ranged note (display only)
+                      var ttSays = badgeLines(el, wItem);   // 1.6.0: its marks in words
+                      if (ttSays.length) { var ttMarks = document.createElement('div'); ttMarks.className = 'rc tt-marks'; ttMarks.textContent = ttSays.join(String.fromCharCode(10)); ttRoot.appendChild(ttMarks); }
                       tt.textContent = ''; tt.appendChild(ttRoot);
 
                       tt.style.display = 'block';
@@ -1171,6 +1173,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                   var size = n <= 3 ? Math.round(side * 0.34) : n <= 8 ? Math.round(side * 0.26) : n <= 15 ? Math.round(side * 0.2) : Math.round(side * 0.15);
                   marksEl.style.setProperty('--mark', size + 'px');
                   marksEl.title = 'Targeted by ' + tgs.map(function(t) { return t.name; }).join(', ');
+                  marksEl._says = tgs.map(function(t, ti) { return markSays(t.name, tcov[ti], trng[ti], tlit[ti], thgt[ti]); });   // 1.6.0: the hover card's words for them (badgeLines)
                   marksEl.innerHTML = tgs.map(function(t, ti) {
                       var mine = targeterToken(t.id), cv = tcov[ti], tip = esc(t.name + (cv ? ' \u2014 ' + cv.name : ''));
                       var cvHtml = cv ? '<span class="target-cover" title="' + esc(cv.name) + '">' + (TARGET_COVER_GLYPH[cv.name] || '\u25d0') + '</span>' : '';
@@ -3546,6 +3549,29 @@ window.wpFitToGrid = fitToGrid;
       return on;
   }
   // [lookcheck:cardaside-end]
+  // [lookcheck:badgesay-start]
+  // 1.6.0 (the owner, 2026-10-31: "hovering over the tokens that have badges should tell you what the badges do as well"): a target mark, its tags
+  // and a status mark take no pointer, so their own tooltips never show. The token's hover card says them in words, as text. A new mark on a
+  // token that takes no pointer says itself here
+  function markSays(name, cv, rg, lt, hg) {   // one target mark: who, and what each tag on it shows
+      var parts = [];
+      if (cv) parts.push((TARGET_COVER_GLYPH[cv.name] || '\u25d0') + ' ' + cv.name);
+      if (rg && (rg.mod !== 0 || (rangeNamesOn() && typeof rg.band === 'string' && rg.band))) parts.push(rangeTitle(rg));
+      if (lt) parts.push(TARGET_LIGHT_GLYPH[lt.lv === 0 ? 0 : 1] + ' ' + lt.name);
+      if (hg && typeof hg.mod === 'number' && isFinite(hg.mod) && hg.mod !== 0) parts.push(heightTitle(hg));
+      return 'Targeted by ' + name + (parts.length ? ': ' + parts.join(', ') : '');
+  }
+  function badgeLines(el, item) {   // the card's lines, one a mark, from what this screen drew; at most eight target marks and then how many more
+      var out = [], marks = el.querySelector(':scope > .target-marks'), says = marks && Array.isArray(marks._says) ? marks._says : [];
+      out = says.slice(0, 8); if (says.length > 8) out.push((says.length - 8) + ' more target it');
+      if (item.status === 'down') out.push('Down'); else if (item.status === 'dead') out.push('Dead');
+      var fx = window.wpSheets && window.wpSheets.tokenFx ? window.wpSheets.tokenFx(item) : null, names = Array.isArray(fx) ? fx.slice(0, 8).map(function(e) { return e && typeof e.n === 'string' ? e.n : ''; }).filter(Boolean) : [];
+      if (names.length) out.push('Effects: ' + names.join(', '));
+      var env = window.wpSheets && window.wpSheets.tokenEnv ? window.wpSheets.tokenEnv(item) : null;
+      if (env && typeof env.text === 'string' && env.text) out.push(env.text);
+      return out;
+  }
+  // [lookcheck:badgesay-end]
   // [sinkcheck:tokenbars-start]
   // Backlog 28 (the owner, 2026-10-29, by prompt: "A ring around it", the numbers on hover, each bar its own colour): a token's bars as a thin ring
   // just outside its edge, Bar 1 filling the left half from the bottom up and over, Bar 2 the right half from the top down, each its own colour

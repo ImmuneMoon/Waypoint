@@ -156,6 +156,11 @@ function world(opts) {
     const atk = JSON.parse(J(gmV)); atk.rolls[0].formula = '3d6 <= 10 - TargetCover';
     const m2b = (SC.validateSystem(atk, F).errors || []).map(e => e.message).join(' | ');
     check('TargetCover is known in any roll, as RangeMod is', m2b.indexOf('TargetCover') < 0, m2b);
+    atk.rolls[0].formula = '3d6 <= 10 - TargetCoverGrade * 2';
+    const m2c = (SC.validateSystem(atk, F).errors || []).map(e => e.message).join(' | ');
+    check('and so is TargetCoverGrade', m2c.indexOf('TargetCoverGrade') < 0, m2c);
+    const gRd = SC.makeResolver(gmV, { id: 'c1', values: {} }, F, SC.withRange({}, { mod: 0, dist: 3, cover: 1, cgrade: 2 })), gNone = SC.makeResolver(gmV, { id: 'c1', values: {} }, F, {});
+    check('a roll reads the two names from its target, 0 with none, and reading either counts as reading the range', gRd('targetcovergrade') === 2 && gRd('targetcover') === 1 && gRd.rangeRead() === true && gNone('targetcovergrade') === 0);
     const keyed = JSON.parse(J(sys)); keyed.fields.push({ id: 'f_tl', key: 'TargetLight', kind: 'number', label: 'L' }); keyed.rolls[0].formula = '3d6 <= TargetLight';
     const m3 = (SC.validateSystem(SC.cleanSystem(keyed, { F, gmView: true }), F).errors || []).map(e => e.message).join(' | ');
     check('a field of that name keeps its name', !/side vision check/.test(m3), m3);
@@ -170,7 +175,7 @@ function world(opts) {
     check('a creature stops moving by its turn, a new table starts clean, and a result that changes what is held is sent', /window\.wpNotice\.turnEnd\(mapId, row\.tokId\)/.test(net) && /function fogForgetAll\(\) \{ if \(typeof window !== 'undefined' && window\.wpNotice\) window\.wpNotice\.forget\(\);/.test(net) && /net\.noticeArm = function\(mapId\) \{ fogArm\(mapId\); \};/.test(net));
     check('the sheet names such a roll as it is pressed', sh.indexOf('if (r.needs || r.named) { oR = oR || {}; oR.act = r.id; }') >= 0);
     const nt = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'latin1');
-    check('a player\'s roll and the sheet read TargetCover by the fog, as the ruler does', nt.indexOf('Fgc.targetCover(map, camp, tok, w, true)') > 0 && sh.indexOf('window.wpFog.targetCover(map, camp, tok, w, pc)') > 0);
+    check('a player\'s roll and the sheet read TargetCover by the fog, as the ruler does', nt.indexOf('Fgc.coverGrade(map, camp, tok, w, true)') > 0 && sh.indexOf('window.wpFog.coverGrade(map, camp, tok, w, pc)') > 0);
     check('the module is in the page', page.indexOf('<script type="module" src="scripts/notice.js"></script>') > 0);
     check('the System editor offers it on a band alone', /if \(s\.shows === 'side' && !mark\) wrap\.appendChild\(noticeRow\(s, i\)\);/.test(sh));
     check('Help says it', /<b>Noticed by<\/b> gives a band a check of your own/.test(page) && /<b>Sneaking where<\/b>/.test(page));

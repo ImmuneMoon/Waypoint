@@ -3440,6 +3440,18 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
 }
 
 {
+    // 1.6.0, the owner (2026-10-31): "hovering over the tokens that have badges should tell you what the badges do as well". A target mark takes no pointer, so the hover card says it (whiteboard.js markSays and badgeLines, sliced and run on stand-ins)
+    const win = { wpSheets: { tokenFx: () => [{ n: 'Rage' }, { n: '<b>x</b>' }, null], tokenEnv: () => ({ text: 'Cold: warn' }) } };
+    const fns = new Function('window', 'TARGET_COVER_GLYPH', 'TARGET_LIGHT_GLYPH', 'rangeNamesOn', 'rangeTitle', 'heightTitle', sliceOf(wbSrc, 'badgesay') + '\nreturn { markSays, badgeLines };')(win, { 'Half cover': 'H', 'Three-quarters cover': 'Q' }, ['D', 'L'], () => false, r => 'Range ' + r.mod, h => 'Height ' + h.mod);
+    const bare = fns.markSays('Ava', null, null, null, null), full = fns.markSays('Ava', { name: 'Three-quarters cover' }, { mod: -2 }, { lv: 1, name: 'Dim' }, { mod: 1 }), quiet = fns.markSays('Ava', { name: 'Odd' }, { mod: 0, dist: 3 }, { lv: 0, name: 'Dark' }, { mod: 0 });
+    const elOf = says => ({ querySelector: () => says ? { _says: says } : null });
+    const one = fns.badgeLines(elOf(['Targeted by Ava']), { status: 'down' }), none = (win.wpSheets = {}, fns.badgeLines(elOf(null), { status: 'x' })), many = fns.badgeLines(elOf(Array.from({ length: 10 }, (_, i) => 'm' + i)), { status: 'dead' });
+    check('a token\'s hover card says its marks: a target mark by who and what each tag on it shows, tags the mark does not show left out, Down or Dead, effects by name, an environment word, nothing with no mark, eight target marks at most and how many more; written as text with its own style', bare === 'Targeted by Ava' && full === 'Targeted by Ava: Q Three-quarters cover, Range -2, L Dim, Height 1' && quiet === 'Targeted by Ava: \u25d0 Odd, D Dark'
+        && J(one) === J(['Targeted by Ava', 'Down', 'Effects: Rage, <b>x</b>', 'Cold: warn']) && J(none) === '[]' && many.length === 10 && many[8] === '2 more target it' && many[9] === 'Dead'
+        && count(wbSrc, 'ttMarks.textContent = ttSays.join(String.fromCharCode(10));') === 1 && count(wbSrc, 'marksEl._says = tgs.map(function(t, ti) { return markSays(t.name, tcov[ti], trng[ti], tlit[ti], thgt[ti]); });') === 1 && css.includes('  #wbTooltip .tt-marks {'), J([bare, full, quiet, one, none, many]));
+}
+
+{
     // 1.6.0, backlog 34 (the Image Library's tags): its new controls are the app's own. The Match switch is the segmented control the view
     // switch wears (.seg-control, .seg-btn), sized for the chip row; the Saved row's chips and its tools are the row's own chips (.journal-from)
     const tagC = read('scripts/imgtagcore.js');

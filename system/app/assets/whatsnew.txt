@@ -251,7 +251,10 @@ Systems, more
   to No cover in its Properties. A small piece that covers no cell's centre then
   counts in the cell its own middle stands in.
 - A roll can read cover as TargetCover: 0 with none, 1 with some, 2 with no clear
-  line, as the ruler reads it to the character's target.
+  line, as the ruler reads it to the character's target. TargetCoverGrade reads
+  it by grade: 0 none, 1 half, 2 three-quarters, 3 total.
+- A token's hover card says its marks in words: who targets it, what each tag on a
+  target mark means, Down or Dead, its effects and any environment warning.
 - A band of side vision can notice by a roll. In the System editor's Senses box
   a band has Noticed by, a check on the viewer's sheet. A creature moving there
   is noticed with no roll. One standing still is checked in secret when it comes

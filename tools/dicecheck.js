@@ -185,6 +185,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && [{ n: 'A', fx: 2 }, { n: 'A', fx: true }, { n: 'A', fx: 1, d: 1 }, { n: 'A', fx: 0, v: 0 }, { n: 'A', fx: 1, s: 1 }].every(l => D.cleanApply(Object.assign({}, ap, { lines: [l] })) === null), JSON.stringify(ca));
         }
         const cd = D.cleanDue(due0);
+        const dC = o => D.cleanDue(Object.assign({}, due0, { why: 'called' }, o));
+        check('1.6.0 a card one roll called for (cleanDue): why called, the id of the host\'s record and the name of what called it as text; a record that is no id, or a figure of a resist card, refused',
+            !!dC({}) && dC({ att: 'b_abcd1234', by: 'Land a fall' }).att === 'b_abcd1234' && dC({ att: 'b_abcd1234', by: 'Land a fall' }).by === 'Land a fall' && dC({ att: 'x' }) === null && dC({ m: 3 }) === null && dC({ or: [] }) === null);
         const dM = o => D.cleanDue(Object.assign({}, due0, { why: 'major' }, o));
         check('1.6.0 a due card says the system\'s own word for a Major Wound: mw kept only on a major card and only as a label, the default as before, an article brought down, and nothing where the roll\'s own name says it already, in any case and with or without the word\'s article; the card then says it is due and no more',
             dM({ mw: 'Big Hit' }).mw === 'Big Hit' && !('mw' in D.cleanDue(Object.assign({}, due0, { mw: 'Big Hit' }))) && D.cleanDue(Object.assign({}, due0, { why: 'wound', mw: 'x' })).mw === undefined && dM({ mw: 7 }) === null

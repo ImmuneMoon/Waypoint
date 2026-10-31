@@ -158,7 +158,7 @@ function renderDue(m) {
     if (rec.as) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'for ' + rec.as)); }
     wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
     wrap.appendChild(el('br'));
-    var whD = rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? (typeof resistWhy === 'function' ? resistWhy(rec) : 'resisting an attempt') : rec.why === 'major' ? (typeof dueMajor === 'function' ? dueMajor(rec) : 'a Major Wound') : rec.why === 'wound' ? 'a wound' : rec.why === 'blast' ? 'a blast' : 'round ' + rec.round;
+    var whD = rec.why === 'called' ? (rec.by ? 'called for by ' + rec.by : 'called for') : rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? (typeof resistWhy === 'function' ? resistWhy(rec) : 'resisting an attempt') : rec.why === 'major' ? (typeof dueMajor === 'function' ? dueMajor(rec) : 'a Major Wound') : rec.why === 'wound' ? 'a wound' : rec.why === 'blast' ? 'a blast' : 'round ' + rec.round;
     wrap.appendChild(el('div', 'roll-expr chat-due-what', (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + (whD ? ' \u2014 ' + whD : '')));   // 1.6.0 (B2): an attempt to resist   // 1.6.0 (the core's gap 6): or a wound
     if (rec.theirs) wrap.appendChild(el('div', 'chat-due-note', 'Its player presses it.'));
     else if (m.done) wrap.appendChild(el('div', 'chat-due-note', 'Pressed.'));

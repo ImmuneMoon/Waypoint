@@ -214,6 +214,19 @@ Systems, more
 - A player's target comes back with a fight kept over a reload.
 - A roll made for an NPC shows only to players who can see that NPC. Others
   get no card. A throw or a Defend card leaves that NPC's name off for them.
+- Every roll in a section of a sheet now stands at one height.
+- In the System editor's Layout tab, the GM button puts a part on the GM's sheet
+  alone. A card that asks a player for that roll still reaches them.
+- As player, in the head of a sheet a player plays, shows the GM that sheet as
+  they see it. It only reads.
+- A resist card now offers a list's roll, such as Parry with a row's weapon. It
+  never did in the app, though the editor let you pick one.
+- A press on the System editor's Layout tab no longer holds the page on a large
+  system.
+- A roll or an action can be Hidden until it can be used, in place of greyed out.
+- A roll or an action can call for another roll as a card to press: whatever
+  comes of it, on a success, on a failure, or when it is resisted, when the card
+  goes to the target.
 - Table Chat moves by its header.
 - A player's selection box takes only their own tokens.
 - The left panel's right-click menu works when the panel is opened from

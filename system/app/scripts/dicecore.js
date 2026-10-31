@@ -341,7 +341,7 @@ function cleanDue(rec) {
     if (!rec || typeof rec !== 'object' || typeof rec.id !== 'string' || !ID_RE.test(rec.id)) return null;
     var from = cleanFrom(rec.from); if (!from) return null;
     if (typeof rec.charId !== 'string' || !/^c_[A-Za-z0-9_]{1,24}$/.test(rec.charId) || (rec.why === 'blast' ? rec.act !== undefined : (typeof rec.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(rec.act)))) return null;   // 1.6.0 (the core's gap 8): a blast's card names no roll of the system
-    if (rec.why !== 'round' && rec.why !== 'turn' && rec.why !== 'turnEnd' && rec.why !== 'cross' && rec.why !== 'major' && rec.why !== 'wound' && rec.why !== 'resist' && rec.why !== 'blast') return null;   // 1.6.0 (the core's gap 8): or a blast's share to roll   // 1.6.0 (the core's gap 6): or a wound   // 1.6.0 (B2): or an attempt to resist   // 1.6.0 (B3): or a Major Wound   // 1.6.0: or the end of its turn   // 1.5.9: or a value crossing a step
+    if (rec.why !== 'round' && rec.why !== 'turn' && rec.why !== 'turnEnd' && rec.why !== 'cross' && rec.why !== 'major' && rec.why !== 'wound' && rec.why !== 'resist' && rec.why !== 'blast' && rec.why !== 'called') return null;   // 1.6.0 (the core's gap 8): or a blast's share to roll   // 1.6.0 (the core's gap 6): or a wound   // 1.6.0 (B2): or an attempt to resist   // 1.6.0 (B3): or a Major Wound   // 1.6.0: or the end of its turn   // 1.5.9: or a value crossing a step
     if (!isInt(rec.round) || rec.round < 1 || rec.round > 9999) return null;
     var out = { id: rec.id, from: from, charId: rec.charId, act: rec.act, why: rec.why, round: rec.round, ts: typeof rec.ts === 'number' && isFinite(rec.ts) ? rec.ts : 0 }; if (rec.why === 'blast') delete out.act;
     var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
@@ -366,6 +366,9 @@ function cleanDue(rec) {
         }
     } else if (rec.why === 'blast') {   // 1.6.0 (the core's gap 8): the share it rolls, by the id of the host's record, which holds the dice
         if (out.roll !== 1 || typeof rec.att !== 'string' || !ATT_RE.test(rec.att) || rec.by !== undefined || rec.m !== undefined || rec.or !== undefined) return null; out.att = rec.att;
+    } else if (rec.why === 'called') {   // 1.6.0: a roll another called for (systemcore cleanCalls), by the id of the host's record and the name of what called it
+        if (rec.m !== undefined || rec.or !== undefined) return null; if (rec.att !== undefined) { if (typeof rec.att !== 'string' || !ATT_RE.test(rec.att)) return null; out.att = rec.att; }
+        var byC = cleanLabel(rec.by); if (byC === null) return null; if (byC) out.by = byC;
     } else if ((rec.why === 'major' || rec.why === 'wound') && rec.att !== undefined) {   // 1.6.0 (the core's gaps 6 and 7): the blow a roll the damage step posted answers, by the id of the host's record
         if (out.roll !== 1 || typeof rec.att !== 'string' || !ATT_RE.test(rec.att) || rec.by !== undefined || rec.m !== undefined || rec.or !== undefined) return null; out.att = rec.att;
     } else if (rec.att !== undefined || rec.by !== undefined || rec.m !== undefined || rec.or !== undefined) return null;

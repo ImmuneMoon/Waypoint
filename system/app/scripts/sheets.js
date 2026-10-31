@@ -1027,7 +1027,7 @@ function openSheet(charId) {
     p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p);   // 1.5.4 (floats.js): asked for here, so it shows on this view
     placeSheet(); raisePanel(p); renderSheet();
 }
-function closeSheet() { closeDownloadMenu(); sheetOpen = null; _sheetEdit = null; var p = ui('sheetPanel'); if (p) p.style.display = 'none'; if (typeof sbxFlush === 'function') sbxFlush(); if (typeof closeLoadMenu === 'function') closeLoadMenu(); }   // (item 35: what was being typed in it is stored, and the run of typing ends)
+function closeSheet() { closeDownloadMenu(); sheetOpen = null; _sheetEdit = null; if (typeof _asPlayer !== 'undefined') _asPlayer = null; var p = ui('sheetPanel'); if (p) p.style.display = 'none'; if (typeof sbxFlush === 'function') sbxFlush(); if (typeof closeLoadMenu === 'function') closeLoadMenu(); }   // (item 35: what was being typed in it is stored, and the run of typing ends)
 function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_sheetPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; } if (pos && isFinite(pos.w) && isFinite(pos.h)) sizePanel(p, pos.w, pos.h); } catch (e) {} }
 // Fold B: the panel's own size (its corner grip), clamped to the window; the saved record keeps the position and the size together
 function sizePanel(p, w, h) { var r = p.getBoundingClientRect(); w = Math.max(360, Math.min(window.innerWidth - Math.max(0, r.left) - 8, Math.round(w))); h = Math.max(240, Math.min(window.innerHeight - Math.max(0, r.top) - 8, Math.round(h))); p.style.width = w + 'px'; p.style.height = h + 'px'; p.classList.add('sheet-sized'); }   // clamped to the room left of/below where the panel is, so the grip and the last rows stay on screen
@@ -1041,12 +1041,49 @@ function subGive(e) {   // the sheet's own line, as the Characters section's row
 }
 var _subEl = typeof document !== 'undefined' && document.getElementById ? document.getElementById('sheetSub') : null;
 if (_subEl && _subEl.addEventListener) { _subEl.addEventListener('click', subGive); _subEl.addEventListener('keydown', subGive); }
+// [systemcheck:asplayer-start] 1.6.0 (the owner, 2026-10-31: "if the GM sheet differs from the player character sheets, we should have a toggle that
+// allows the GM to see the sheet how the players see their sheet"): As player, in the sheet's head, for a character a player plays. The sheet is drawn
+// from what this table sends that player, the players' view of the system and the owner's copy of the character (net.charViewFor), never from the GM's
+// own with parts left out, so it shows what they get. It only reads: tabs, folds and a row's arrow work, and every other press and key inside it does
+// nothing (asPlayerGuard). The GM's own sheet is one press away, and another character or closing the sheet ends it
+var _asPlayer = null, _asSaid = 0;
+function asPlayerFits(c, gm) { return !!(gm && c && c.ownerId && !c.npc && !c.partial); }
+function asPlayerView(c, camp, gm) {
+    if (_asPlayer && (!c || _asPlayer !== c.id)) _asPlayer = null;
+    if (!_asPlayer || !asPlayerFits(c, gm)) return null;
+    var n = net(), v = typeof playerSystem === 'function' ? playerSystem(camp) : null, cv = v && n && typeof n.charViewFor === 'function' ? n.charViewFor(c.id, c.ownerId) : null;
+    return v && cv ? { sys: v, char: cv } : null;
+}
+function asPlayerHead(c, gm, seeP, sub, edB, camp) {
+    var b = ui('sheetAsPlayer'); if (!b) return;
+    var fits = asPlayerFits(c, gm), who = fits ? ownerName(c, camp) : ''; b.style.display = fits ? '' : 'none'; b.classList.toggle('on', !!seeP); b.setAttribute('aria-pressed', seeP ? 'true' : 'false');
+    b.title = seeP ? 'Back to your own sheet' : 'See this sheet as ' + (who || 'its player') + ' does. It only reads, so nothing changes';
+    if (seeP) { if (sub) sub.textContent += ' \u00b7 as they see it'; if (edB) edB.style.display = 'none'; }
+}
+function asPlayerFree(t) { return !!(t && t.closest && t.closest('summary, .sheet-tab, .sheet-item-opener')); }
+function asPlayerGuard(e) {
+    if (!_asPlayer || asPlayerFree(e.target)) return;
+    if (e.type === 'keydown') { var tg = e.target && e.target.tagName, nav = e.key === 'Tab' || e.key === 'Escape' || e.key === 'PageUp' || e.key === 'PageDown' || e.key === 'Home' || e.key === 'End'; if (nav || (e.key !== 'Enter' && e.key !== ' ' && tg !== 'INPUT' && tg !== 'SELECT' && tg !== 'TEXTAREA' && !(e.target && e.target.isContentEditable))) return; }
+    e.preventDefault(); e.stopPropagation();
+    if ((e.type === 'click' || e.type === 'keydown') && Date.now() - _asSaid > 4000) { _asSaid = Date.now(); toast('This is how the player sees it. Press As player for your own sheet.'); }
+}
+function asPlayerWire(body) {
+    if (!body.addEventListener || body.dataset.asWired) return; body.dataset.asWired = '1';
+    ['click', 'dblclick', 'contextmenu', 'mousedown', 'beforeinput', 'paste', 'drop', 'dragstart', 'keydown'].forEach(function(t) { body.addEventListener(t, asPlayerGuard, true); });
+}
+function asPlayerPress() {
+    if (!sheetOpen) return; var camp = getActiveCampaign(), c = charById(sheetOpen, camp); if (!asPlayerFits(c, !isClient())) return;
+    if (_asPlayer === c.id) _asPlayer = null; else { if (typeof sbxFlush === 'function') sbxFlush(); _sheetEdit = null; _asPlayer = c.id; }
+    renderSheet();
+}
+// [systemcheck:asplayer-end]
 function renderSheet() {
     var p = ui('sheetPanel'); if (!p || p.style.display === 'none') return;
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(sheetOpen, camp);
     var body = ui('sheetBody'), head = ui('sheetTitle'), sub = ui('sheetSub'), fk = focusKeyOf(body), st0 = body ? body.scrollTop : 0;
     if (!c || !sys || !F()) { closeSheet(); return; }
     var gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId()), lockedS = viewLocked(c, { view: 'sheet' });   // the sheet's lock, as buildSections will read it
+    var seeP = typeof asPlayerView === 'function' ? asPlayerView(c, camp, gm) : null, sysD = seeP ? seeP.sys : sys, cD = seeP ? seeP.char : c;   // 1.6.0: As player, the system and the copy its owner is sent
     head.textContent = c.name;
     sub.textContent = (c.npc ? 'NPC' : c.ownerId ? ownerName(c, camp) : 'unassigned') + (c.partial ? ' · hover fields only' : '') + (c.making === 1 ? ' · making' : c.unlocked === 1 ? (gm ? ' · open to its player' : ' · yours to fill in') : '') + (gm && c.review === 1 ? ' · new' : '');
     var giveS = gm && !c.partial && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && !window.wpStream && !!window.wpCharList; if (sub.classList) sub.classList.toggle('sheet-sub-give', giveS); if (sub.setAttribute) { if (giveS) { sub.setAttribute('role', 'button'); sub.tabIndex = 0; sub.title = 'Press to give this character to a player'; } else { sub.removeAttribute('role'); sub.removeAttribute('tabindex'); sub.removeAttribute('title'); } }   // 1.6.0: who has it is said here, so it is changed here
@@ -1064,18 +1101,21 @@ function renderSheet() {
     var edB = ui('sheetEdit'); if (edB) { var edOn = !c.partial && c.making !== 1 && (gm ? canWrite() : own); edB.style.display = edOn ? '' : 'none'; if (edOn) { edB.textContent = lockedS ? 'Edit sheet' : 'Lock sheet'; edB.classList.toggle('on', !lockedS); edB.title = lockedS ? 'This sheet is locked. Rolls, pools, switches, effects and what you carry still work. Edit sheet lets you change its stats, levels, lists and notes' : 'Lock the sheet again, so that a slip while you play changes none of its stats'; } }
     p.classList.toggle('sheet-editing', !lockedS);
     // [systemcheck:sheetedit-end]
+    if (typeof asPlayerHead === 'function') asPlayerHead(c, gm, seeP, sub, edB, camp);   // 1.6.0: As player
     var dlX = ui('sheetDelete'); if (dlX) { var mineX = isClient() && own && !c.partial && charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }).length > 1; dlX.style.display = (gm && canWrite()) || mineX ? '' : 'none'; dlX.title = gm ? 'Delete this sheet: its values are gone; its tokens keep their name and lose the link' : 'Delete this sheet of yours: one you are still making, or one you do not play (your GM is told)'; }
     renderReviewBar(c, camp, gm);
     var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';   // 126: the point budgets, under the head
     var lkB = ui('sheetLinks'); if (lkB) lkB.style.display = linkBar(lkB, sys, c, camp, lockedS) ? '' : 'none';   // 1.6.0: the linked sheets, under the budgets
     if (typeof renderStaleBar === 'function') renderStaleBar(c, camp, gm, own);   // 1.6.0 (backlog 190): an out-of-date sheet says so
+    if (seeP) { if (bdB) bdB.style.display = !cD.partial && budgetBar(bdB, sysD, cD) ? '' : 'none'; if (lkB) lkB.style.display = linkBar(lkB, sysD, cD, camp, true) ? '' : 'none'; }   // 1.6.0: As player, what its owner reads
     var rvB = ui('sheetReview'), rvN = gm ? uploadsOf(camp, c.id) : []; if (rvB) { rvB.style.display = rvN.length ? '' : 'none'; if (rvN.length) { var rvC = rvN[0].changes.filter(function(x) { return !x || x.kind !== 'note'; }).length; rvB.textContent = rvC ? 'Review (' + rvC + ')' : 'Review'; } }   // U3: the GM's review of it
     var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + (sys.sheet.hud.title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
     p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
-    var all = resolveAll(sys, c, F(), tokenCtxFor(c.id, camp));   // 5h Fold 3 / Stage 6: the token names read this character's token
+    var all = resolveAll(sysD, cD, F(), tokenCtxFor(c.id, camp));   // 5h Fold 3 / Stage 6: the token names read this character's token
     _dialSig = dialSigOf(c, camp); _dialStale = false; _dialOn = JSON.stringify(tokenFlags()); _roundSig = roundSigOf(c, camp); _rangeSig = rangeSigOf(c, camp);
     _sheetRefSig = refSig(sys);
-    buildSections(body, sys, c, all, gm, own, renderSheet, { campId: camp.id, view: 'sheet', preview: false });
+    buildSections(body, sysD, cD, all, seeP ? false : gm, seeP ? true : own, renderSheet, { campId: camp.id, view: 'sheet', preview: false });
+    if (body.classList) body.classList.toggle('sheet-as-player', !!seeP); if (seeP && typeof asPlayerWire === 'function') asPlayerWire(body);   // 1.6.0: As player reads and changes nothing
     applyPaletteTo(p, sys.sheet && sys.sheet.look);   // Stage 6 look fold: the palette also dresses the panel's own head, border and grip
     try { syncEndTurn(); } catch (e) {}   // turn-based combat T2: a sheet opened on its turn
     p.classList.toggle('sheet-has-table', !!body.querySelector('.sheet-itemtable'));   // Stage 4: a rich item table gets a wider, responsive panel so its columns fit
@@ -1944,6 +1984,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
         var grid = el('div', 'sheet-grid'); grid.style.gridTemplateColumns = 'repeat(' + Math.max(1, Math.min(4, sec.cols || 1)) + ', minmax(0, 1fr))';
         (sec.fields || []).forEach(function(pl, pli) {
             var plOff = !!pl.showIf && !showsIf(pl.showIf, all.vars, F());   // C8: a placement's own show-if
+            if (!plOff && pl.roll && rollById[pl.roll] && typeof rollHidden === 'function' && rollHidden(rollById[pl.roll], all.vars)) plOff = true;   // 1.6.0: Hidden until it can be used
             if (plOff && !previewV) return;
             var node = null;
             if (pl.id && byId[pl.id]) node = fieldNode(byId[pl.id], c, all[pl.id], gm, own, sys, all.vars, pl);   // pl (F4b): an item list's "only switched on"
@@ -1987,6 +2028,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     applyLook(body, look, vctx);   // Stage 6 look fold
     syncFramePad(body);
     if (tabs ? !tabN : !secN) { var emT = tabs ? 'Nothing on this tab yet.' : hudV ? (((sheet.band && sheet.band.length) || (sheet.ledger && sheet.ledger.length)) ? '' : 'Nothing in this view yet.') : (sys.fields.length ? 'Nothing placed on the sheet yet.' : 'The system has no fields yet. Open the System editor.'); if (emT) body.appendChild(el('div', 'sys-empty', emT)); }   // HF1: a band-only HUD shows no empty text under its chips
+    if (typeof rollEven === 'function') rollEven(body);   // 1.6.0: its rolls take one height, a section at a time
     if (typeof sbxFill === 'function') sbxFill(body, c);   // item 35: this view's text boxes are filled now that they stand on the page
 }
 /* ---------- the Layout tab (SB4): sections, columns, placements, a live preview ---------- */
@@ -1998,13 +2040,23 @@ function layoutSections() { var r = layoutRoot(); if (!Array.isArray(r.sections)
 function layoutTabs() { var r = layoutRoot(); if (!Array.isArray(r.tabs)) r.tabs = []; return r.tabs; }
 function sheetList(key) { return (draft && draft.sheet && Array.isArray(draft.sheet[key])) ? draft.sheet[key].slice() : []; }   // a copy of one of the sheet's id lists (identity / ledger / band), [] when absent
 // Stage 6 HUD C8: the validator's own words for one show-if, over the draft as Save reads it (the Layout tab shows them under the box)
+// [systemcheck:ifnotes-start] 1.6.0 (found by hand, 2026-10-31: one press on the Layout tab of a large system held the page 67 seconds): what the
+// validator says of the show-ifs of the Layout tab is worked out once a draw, for all of them together, never once for each
+var _ifNotes = null;
+function ifNotesOf() {
+    var notes = Object.create(null), texts = [], add = function(t) { var v = typeof t === 'string' ? t.trim() : ''; if (v && !(v in notes)) { notes[v] = ''; texts.push(v); } };
+    layoutSections().forEach(function(s) { add(s.showIf); (s.fields || []).forEach(function(p) { if (p) add(p.showIf); }); });
+    var clean = texts.length ? cleanSystem(draft, { F: F(), gmView: true }) : null; if (!clean) return notes;
+    clean.sheet = { sections: texts.map(function(t, i) { return { id: 's_probe' + i, cols: 1, fields: [], showIf: t }; }) };
+    validateSystem(clean, F()).warnings.forEach(function(x) { var m = x.prop === 'showIf' ? /^s_probe(\d+)$/.exec(String(x.id)) : null; if (!m) return; var t = texts[+m[1]]; notes[t] += (notes[t] ? ' ' : '') + x.message; });
+    return notes;
+}
 function showIfNote(text) {
     if (typeof text !== 'string' || !text.trim() || !F()) return '';
-    var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) return '';
-    clean.sheet = { sections: [{ id: 's_probe', cols: 1, fields: [], showIf: text.trim() }] };
-    var w = validateSystem(clean, F()).warnings.filter(function(x) { return x.id === 's_probe' && x.prop === 'showIf'; });
-    return w.map(function(x) { return x.message; }).join(' ');
+    if (!_ifNotes) _ifNotes = ifNotesOf();
+    return _ifNotes[text.trim()] || '';
 }
+// [systemcheck:ifnotes-end]
 function placementLabel(pl, byId, rollById) {
     if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
     if (pl.roll) { var r = rollById[pl.roll]; return r ? rollPick(r) : null; }
@@ -2144,6 +2196,7 @@ function placeCatRefocus(root, sid, pi, cat) {
 // [systemcheck:placecatsui-end]
 function renderLayout() {
     var root = ui('sysLayoutSecs'); if (!root || !draft) return;
+    _ifNotes = null;   // 1.6.0: this draw's show-ifs, worked out once
     if (typeof placeCatErrs === 'function') placeCatErrs();   // 1.5.5: what Save does with a list's places, as the tab now stands
     var secs = layoutSections(), byId = {}, rollById = {}, placed = {}, onSheet = {}, hudOn = layoutView === 'hud';
     draft.fields.forEach(function(f) { byId[f.id] = f; }); draft.rolls.forEach(function(r) { rollById[r.id] = r; });
@@ -2437,6 +2490,7 @@ function renderLayout() {
             }
             var hasIf = typeof pl.showIf === 'string', ifb = el('button', 'tool ghost sys-btn sys-pl-if' + (hasIf ? ' on' : ''), 'if'); ifb.dataset.act = 'plif'; ifb.title = hasIf ? 'Always show it again' : 'Show it only while a formula is true'; pr.appendChild(ifb);   // Stage 6 HUD C8
             if (hasIf) { pr.appendChild(input('sys-pl-showif field', pl.showIf, 'Shown only while this is true (a number other than 0, or yes); no dice', 'e.g. Stun > 0')); var pifN = showIfNote(pl.showIf); if (pifN) pr.appendChild(el('span', 'sys-warn-line', pifN)); }
+            var gmb = el('button', 'tool ghost sys-btn sys-pl-gm' + (pl.gm === true ? ' on' : ''), 'GM'); gmb.dataset.act = 'plgm'; gmb.title = pl.gm === true ? 'Shown on the GM\u2019s sheet alone. Press to show it to players too' : 'Show this on the GM\u2019s sheet alone. A card that asks a player for this roll still reaches them'; pr.appendChild(gmb);   // 1.6.0: the GM's alone
             var wb = el('button', 'tool ghost sys-btn sys-pl-w', pl.w === 'row' ? 'Full row' : '1 column'); wb.dataset.act = 'plw'; wb.title = 'Width: one column of the section, or the full row'; pr.appendChild(wb);
             var plf = pl.id ? (draft.fields || []).find(function(x) { return x.id === pl.id; }) : null, plOn = plf && plf.kind === 'item-list' && plf.list && plf.list.on && typeof plf.list.on === 'object' ? plf.list.on : null;
             if (plOn || (pl.on && plf && plf.kind === 'item-list')) { var ob = el('button', 'tool ghost sys-btn sys-pl-on', pl.on ? 'Only ' + (plOn ? String(plOn.label || 'on').toLowerCase() : 'switched on') : 'All rows'); ob.dataset.act = 'plon'; ob.title = plOn ? 'Every row of the list, or only the rows switched on (' + (plOn.label || 'On') + '), e.g. the HUD\u2019s readied weapons' : 'Its list has no switch now, so every row shows: click to clear it'; pr.appendChild(ob); }   // F4b (review: kept while set, so it can be cleared)
@@ -2592,6 +2646,7 @@ function onLayoutClick(b) {
         if (act === 'plcats' && typeof placeCatRefocus === 'function') { if (_plCatOpen) { if (_plCatOpen.has(pl)) _plCatOpen.delete(pl); else _plCatOpen.add(pl); } renderLayout(); placeCatRefocus(ui('sysLayoutSecs'), sec.id, pi); return true; }   // 1.5.5: By category opens or closes the ticks (the draft is unchanged)
         if (act === 'plw') pl.w = pl.w === 'row' ? 1 : 'row';
         else if (act === 'plif') { if (typeof pl.showIf === 'string') delete pl.showIf; else pl.showIf = ''; }   // Stage 6 HUD C8: a show-if box for this placement
+        else if (act === 'plgm') { if (pl.gm === true) delete pl.gm; else pl.gm = true; }   // 1.6.0: on the GM's sheet alone
         else if (act === 'plon') { if (pl.on) delete pl.on; else pl.on = true; }   // F4b: only the rows switched on
         else if (act === 'plcount') { if (pl.count === true) delete pl.count; else pl.count = true; }   // 1.6.0, backlog 180 R9: its rows counted in its section's title
         else if (act === 'plup' && pi > 0) { list.splice(pi, 1); list.splice(pi - 1, 0, pl); }
@@ -3408,7 +3463,7 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
             if (applyOk === null) applyOk = canApply(c);
             if (!applyOk || !r.apply.length) return;
             var al = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Apply', ab = el('button', 'tool ghost sheet-item-roll sheet-item-apply', al); ab.type = 'button'; ab.title = nm + ' \u00b7 ' + al + ': ' + applyTitle(r, systemOf(getActiveCampaign())); ab.insertBefore(iconNode(typeof r.icon === 'string' && r.icon ? r.icon : 'icon:bolt', 'sheet-item-rollico'), ab.firstChild);   // 1.6.0: its icon, as a roll wears its die
-            var nOkA = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false; if (!nOkA) { ab.disabled = true; ab.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }   // the core handbook session's ask (b): its needs for this row, as a list roll's
+            var nOkA = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false; if (!nOkA && r.hideOff === true) return; if (!nOkA) { ab.disabled = true; ab.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }   // the core handbook session's ask (b): its needs for this row, as a list roll's
             var cbA = typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbA) { ab.disabled = true; ab.title = cbA + ' \u2014 ' + ab.title; }   // turn-based combat T4
             ab.addEventListener('click', function() { var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return; if (r.to === 'near' && typeof allyPick === 'function') { allyPick(ab, cN, function(on) { applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }, on || undefined); }); return; } applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }); });   // 1.5.9: whom it is for first, where it Applies to an adjacent character
             host.appendChild(ab); return;
@@ -3419,6 +3474,8 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         if (r.to === 'near') withE = true;   // 1.5.9 (book es/et plan, section 3): one that Applies to an adjacent character names its index too, so the host finds whom it may reach
         if (r.resisted === true || typeof r.resistBy === 'string') withE = true;   // 1.6.0 (B2): one its target may resist names its index, so the host finds the whole entry
         if (r.burst) withE = true;   // 1.6.0 A burst: its host keeps the record, so it finds the whole entry
+        if (r.named === true) withE = true;   // 1.6.0: one that calls for another names its index, so the host finds its calls
+        if (!nOk && r.hideOff === true) return;   // 1.6.0: Hidden until it can be used
         if (!nOk) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }
         var cbL = typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbL) { b.disabled = true; b.title = cbL + ' \u2014 ' + nm + ' \u00b7 ' + lb; }   // turn-based combat T4
         var goL = function(e) {
@@ -4634,6 +4691,39 @@ function labelSecret(sys, vars, text) {
     var ns = labelNames(Fm, text, vars), hit = labelGmNames(sys, Fm, text).concat(gmDerivedNames(sys, Fm, ns), gmEffectNames(vars, ns)), low = hit.map(function(x) { return String(x).toLowerCase(); });
     hit = hit.filter(function(x, i) { return low.indexOf(low[i]) === i; }); return hit.length ? hit.join(', ') : '';
 }
+// [systemcheck:rollhide-start] 1.6.0 (the owner, 2026-10-31, by prompt: "Hide until it applies"): whether a roll ticked Hidden until it can be used
+// stands aside now: its needs do not hold. Needs that read the one it is used on (On.) are not judged here, as its greyed button does not judge them
+function rollHidden(r, vars) {
+    if (!r || r.hideOff !== true || !r.needs || typeof rollNeedsOk !== 'function' || typeof vars !== 'function') return false;
+    var near = r.to === 'near';
+    if (near && typeof readsOn === 'function' && readsOn(r.needs, F())) return false;
+    return !rollNeedsOk(r, near && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F());
+}
+// [systemcheck:rollhide-end]
+// [systemcheck:rolleven-start] 1.6.0 (the owner, 2026-10-31: "these buttons all being different sizes and not aligned well is bad design", by
+// prompt: "Same height in a section"): every roll of one section's grid stands at the height of its tallest, for any system's sheet. A grid is
+// measured when it is drawn and again when its width changes or it comes into sight (one observer a view), and a section that folds open
+// measures anew. A grid out of sight is left alone until then
+function evenGrid(g) {
+    var rolls = Array.prototype.filter.call(g.children || [], function(x) { return x && x.classList && x.classList.contains('sheet-kind-roll'); });
+    if (rolls.length < 2) return; rolls.forEach(function(x) { x.style.minHeight = ''; });
+    var most = 0; rolls.forEach(function(x) { var h = typeof x.getBoundingClientRect === 'function' ? x.getBoundingClientRect().height : 0; if (h > most) most = h; });
+    if (most > 0) rolls.forEach(function(x) { x.style.minHeight = Math.ceil(most) + 'px'; });
+}
+var _evenObs = typeof WeakMap === 'function' ? new WeakMap() : null;
+function rollEven(body) {
+    if (!body || typeof body.querySelectorAll !== 'function') return;
+    var grids = Array.prototype.slice.call(body.querySelectorAll('.sheet-grid')); grids.forEach(evenGrid);
+    if (!_evenObs || typeof ResizeObserver !== 'function') return;
+    var seen = _evenObs.get(body);
+    if (!seen) {
+        seen = { w: new WeakMap() }; seen.ro = new ResizeObserver(function(list) { list.forEach(function(en) { var w = Math.round(en.contentRect.width); if (seen.w.get(en.target) === w) return; seen.w.set(en.target, w); evenGrid(en.target); }); });
+        _evenObs.set(body, seen);
+        if (typeof body.addEventListener === 'function') body.addEventListener('toggle', function(e) { var tg = e.target; if (tg && tg.querySelectorAll) Array.prototype.forEach.call(tg.querySelectorAll('.sheet-grid'), evenGrid); }, true);
+    }
+    seen.ro.disconnect(); grids.forEach(function(g) { if (g.querySelector && g.querySelector(':scope > .sheet-kind-roll')) { seen.w.set(g, Math.round(g.getBoundingClientRect().width)); seen.ro.observe(g); } });
+}
+// [systemcheck:rolleven-end]
 function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the render's resolver, for the label (HF5a)
     if (Array.isArray(r.apply)) return applyNode(r, c, sys, vars);   // Stage 6 HUD H7: an apply action draws as a roll's button
     var label = rollLabel(r, sys, c, vars), b = el('button', 'tool sheet-roll' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label); var can = canRoll(c);
@@ -4721,6 +4811,7 @@ function applyAction(r, c, label, row, on, cx) {   // cx (1.6.0): a crossing's r
     else if (hit.length && pub) toast('Kept private: that amount uses a GM-only value (' + hit.join(', ') + ').');
     if (n && n.postApplyCard && res.lines.length) n.postApplyCard(c, label, res.lines, scope);
     if (res.gone) goneLocal(c.id, res.gone);   // 1.6.0: a row it used up, with its Undo
+    if (n && typeof n.callsAfter === 'function') n.callsAfter(camp, act, null, vv, onT ? onT.ch : c, scope === 'gm');   // 1.6.0: Calls for
     if (onT && onIds.length && n && typeof n.allyCard === 'function') n.allyCard(c, onT.ch, onT.tok.charName || onT.tok.name || onT.ch.name, label, res.onLines, applyScope(sys, onT.ch, act, hit.length > 0 || gmRow || keptRow, F()));   // 1.5.9: the card of what moved on the one it was used on
 }
 // Stage 6 HUD G10: the host's round hook — on every new round of a combat (net.js combatStep / combatSet), each Each round action on every
@@ -6454,6 +6545,45 @@ function altBox(obj, tip) {
     return box;
 }
 // [systemcheck:altbox-end]
+// [systemcheck:callsbox-start] 1.6.0: a roll's or an action's Calls for, edited in place on the draft object it is handed, with listeners of its own
+// and class names no handler of the Rolls or Lists tab reads. Every label is an option's text or a value
+function callsBox(obj, sys, isApply) {
+    var box = el('div', 'sys-alt sys-calls'), max = LIMITS.rollCalls;
+    var said = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var rollsOf = function() { return sys && Array.isArray(sys.rolls) ? sys.rolls.filter(function(x) { return x && typeof x.id === 'string'; }) : []; };
+    var nameOf = function(id) {
+        var hit = rollsOf().filter(function(x) { return x.id === id; })[0]; if (hit) return hit.label || 'Roll';
+        var m = /^(f_[A-Za-z0-9_]+)#(\d+)$/.exec(String(id)), lf = m && sys && Array.isArray(sys.fields) ? sys.fields.filter(function(x) { return x && x.id === m[1]; })[0] : null, lr = lf && lf.list && Array.isArray(lf.list.rolls) ? lf.list.rolls[+m[2]] : null;
+        return lr ? (lf.label || lf.key || 'List') + ': ' + (lr.label || 'Roll') : 'a roll that is gone';
+    };
+    var draw = function() {
+        box.textContent = ''; var list = Array.isArray(obj.calls) ? obj.calls : [], rolls = rollsOf();
+        list.forEach(function(c, j) {
+            var rw = el('span', 'sys-alt-row sys-call-row'), opts = rolls.map(function(x) { return [x.id, 'Calls for: ' + (x.label || 'Roll')]; }); if (!rolls.some(function(x) { return x.id === c.roll; })) opts.push([c.roll, 'Calls for: a roll that is gone']);
+            var rs = select('sys-call-roll', opts, c.roll, 'The roll posted as a card to press. It comes only while that roll\u2019s own needs hold');
+            rs.addEventListener('change', function(e) { e.stopPropagation(); c.roll = rs.value; said(); }); rw.appendChild(rs);
+            if (!isApply) {
+                var whs = [['', 'Whatever comes of it'], ['hit', 'On a success'], ['miss', 'On a failure']]; if (typeof obj.resistBy === 'string' || c.when === 'resisted') whs.push(['resisted', 'When it is resisted']);
+                var ws = select('sys-call-when', whs, c.when || '', 'When the card comes. When it is resisted: as the target\u2019s roll succeeds, and the card goes to the target');
+                ws.addEventListener('change', function(e) { e.stopPropagation(); if (ws.value) c.when = ws.value; else delete c.when; if (c.when !== 'resisted') delete c.by; said(); draw(); var nw = box.children[j] && box.children[j].children[1]; if (nw && nw.focus) nw.focus(); }); rw.appendChild(ws);   // the box is drawn anew, so the keys stay on the list
+                if (c.when === 'resisted') {
+                    var bys = [['', 'By any roll']]; [obj.resistBy].concat(Array.isArray(obj.resistOr) ? obj.resistOr : []).forEach(function(id) { if (typeof id === 'string' && id) bys.push([id, 'By ' + nameOf(id)]); }); if (c.by && !bys.some(function(x) { return x[0] === c.by; })) bys.push([c.by, 'By a roll that does not resist it']);
+                    var bs = select('sys-call-by', bys, c.by || '', 'Which of the rolls that may resist it brings the card');
+                    bs.addEventListener('change', function(e) { e.stopPropagation(); if (bs.value) c.by = bs.value; else delete c.by; said(); }); rw.appendChild(bs);
+                }
+            }
+            var fi = input('sys-call-if field', typeof c.if === 'string' ? c.if : '', 'Only while this is true, read with the roller\u2019s names. On a list Row.<name> reads its row. No dice', 'Only where (optional)'); fi.maxLength = LIMITS.formula;
+            fi.addEventListener('input', function() { if (fi.value.trim()) c.if = fi.value.slice(0, LIMITS.formula); else delete c.if; said(); }); rw.appendChild(fi);
+            var x = el('button', 'tool ghost sys-btn sys-call-del', '\u00d7'); x.type = 'button'; x.title = 'Stop calling for this roll';
+            x.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(obj.calls)) return; obj.calls.splice(j, 1); if (!obj.calls.length) delete obj.calls; said(); draw(); }); rw.appendChild(x);
+            box.appendChild(rw);
+        });
+        if (list.length < max && rolls.length) { var ad = el('button', 'tool ghost sys-btn sys-call-add', '+ Calls for a roll'); ad.type = 'button'; ad.title = 'Post another roll of the system as a card to press after this one'; ad.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(obj.calls)) obj.calls = []; if (obj.calls.length >= max) return; obj.calls.push({ roll: rollsOf()[0].id }); said(); draw(); }); box.appendChild(ad); }
+    };
+    draw();
+    return box;
+}
+// [systemcheck:callsbox-end]
 // [systemcheck:rowswitchbox-start] 1.6.0 R6 and R7: the Lists tab's Word while off and Icon beside the switch, and a list roll's Icon and Shows
 // figure, each edited in place on the draft object it is handed, with listeners of its own and class names no handler of the Lists tab reads
 function swWordsBox(row, sw) {
@@ -7552,12 +7682,14 @@ function rollRow(r) {
     var ndR = el('div', 'sys-flags sys-roll-needsrow');   // 1.5.4: what it needs before it may be used, as a list roll's
     var ndI = input('sys-roll-needs field', typeof r.needs === 'string' ? r.needs : '', (isApply ? 'Pressed' : 'Rolled') + ' only while this formula is true for the character, such as Bleeding > 0. It may not hold dice. Leave it empty to ' + (isApply ? 'press' : 'roll') + ' at any time. By the clock and in a fight it is passed over while it is not met.', 'Needs, such as Bleeding > 0'); ndI.maxLength = LIMITS.formula; ndR.appendChild(ndI);
     var ndT = input('sys-roll-needstext field', typeof r.needsText === 'string' ? r.needsText : '', 'What the greyed button says when it cannot be used', 'Not while stunned'); ndT.maxLength = LIMITS.needsWords; ndR.appendChild(ndT);
+    if (typeof checkLabel === 'function') ndR.appendChild(checkLabel('sys-roll-hideoff', r.hideOff === true, 'Hidden until it can be used', 'The button stands on the sheet only while its needs hold. Off: it stays there, greyed out. Only beside needs'));   // 1.6.0
     row.appendChild(ndR);
     row.appendChild(everyRow(r));   // item 20 K5: by the campaign's clock
     row.appendChild(fightRow(r));   // backlog 152, fold 5: in a fight
     row.appendChild(askRow(r));   // and whether its runs wait for your word
     if (r.every || r.inFight || r.notes) row.appendChild(noteRow(r));   // 1.6.0, backlog 173: where its runs are said, for a time rule
     if (typeof crossRow === 'function') row.appendChild(crossRow(r));   // 1.5.9 (book es/et plan 4a): when a value crosses a step
+    if (typeof callsBox === 'function') row.appendChild(callsBox(r, typeof draft !== 'undefined' ? draft : null, isApply));   // 1.6.0: Calls for
     row.appendChild(applyEditor(r, isApply ? 'apply' : 'then'));   // R1: a roll's consequences under it
     var err = errorCell(r.id); err.dataset.errFor = r.id; row.appendChild(err);
     return row;
@@ -8178,7 +8310,7 @@ function ctKeySays(sp, F0) {
         var rsI = input('sys-list-rollshow field', typeof rr.showIf === 'string' ? rr.showIf : '', 'Its button shows only on rows where this is true, such as Row.Kind = 2. Row names are read. No dice. Empty: on every row', 'Shown where (optional)'); rsI.maxLength = LIMITS.formula; rw.appendChild(rsI);   // 1.6.0
         if (typeof altBox === 'function') rw.appendChild(altBox(rr, 'Its button reads this name on rows where the formula holds, such as Fix malfunction where Row.Kind = 2. The first that holds wins.'));   // 1.6.0: its other names
         if (typeof rollExtras === 'function') rollExtras(rw, rr, sp, rApply);   // 1.6.0: its icon, and R7 the figure it shows
-        if (rApply) { cb2.appendChild(rw); var ndA = el('div', 'sys-flags sys-list-needsrow'); ndA.dataset.ri = String(ri); var ndAI = input('sys-list-needs field', typeof rr.needs === 'string' ? rr.needs : '', 'Pressed only while this is true for the row (no dice): Row.Charges >= 1, Row.Hits > 0; empty: always', 'Needs (e.g. Row.Charges >= 1)'); ndAI.maxLength = LIMITS.formula; ndA.appendChild(ndAI); var ndAT = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the greyed button says when it cannot be pressed', 'Out of charges'); ndAT.maxLength = LIMITS.needsWords; ndA.appendChild(ndAT); cb2.appendChild(ndA); var lxA = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxA) cb2.appendChild(lxA); listApplyEditor(cb2, rr, ri, 'apply', sp, targets); return; }   // 1.6.0: when a row's counter crosses a step
+        if (rApply) { cb2.appendChild(rw); var ndA = el('div', 'sys-flags sys-list-needsrow'); ndA.dataset.ri = String(ri); var ndAI = input('sys-list-needs field', typeof rr.needs === 'string' ? rr.needs : '', 'Pressed only while this is true for the row (no dice): Row.Charges >= 1, Row.Hits > 0; empty: always', 'Needs (e.g. Row.Charges >= 1)'); ndAI.maxLength = LIMITS.formula; ndA.appendChild(ndAI); var ndAT = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the greyed button says when it cannot be pressed', 'Out of charges'); ndAT.maxLength = LIMITS.needsWords; ndA.appendChild(ndAT); ndA.appendChild(checkLabel('sys-list-hideoff', rr.hideOff === true, 'Hidden until it can be used', 'The button stands on the row only while its needs hold. Off: it stays there, greyed out. Only beside needs')); cb2.appendChild(ndA); var lxA = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxA) cb2.appendChild(lxA); if (typeof callsBox === 'function') cb2.appendChild(callsBox(rr, typeof draft !== 'undefined' ? draft : null, true)); listApplyEditor(cb2, rr, ri, 'apply', sp, targets); return; }   // 1.6.0: when a row's counter crosses a step
         if (rr.dmg !== true) { var bsl = el('select', 'sys-list-burst'); bsl.title = 'A burst: Opens a burst is the attack, whose Then fires the shots. A burst\u2019s extra dice is the roll that counts the extra hits, such as 3d6cs>=4, and it rolls once after an attack that hit. Row.bursthits reads the hits landed'; [['', 'No burst'], ['attack', 'Opens a burst'], ['extra', 'A burst\u2019s extra dice']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; bsl.appendChild(op); }); bsl.value = rr.burst === 'attack' || rr.burst === 'extra' ? rr.burst : ''; rw.appendChild(bsl); }   // 1.6.0 A burst
         var rf = input('sys-list-rollformula field', typeof rr.formula === 'string' ? rr.formula : '', 'Rolled for the row: dice allowed; Row.lvl, Row.<stat>, Row.<column> read the row, any other name the character (3d6 <= Row.Skill, d20 + Row.Hit)', 'Formula (d20 + Row.Hit)'); rf.maxLength = LIMITS.formula; rw.appendChild(rf);
         rw.appendChild(checkLabel('sys-list-dmg', rr.dmg === true, 'Damage', 'A damage roll: its card in Table Chat takes the damage colour, a larger total and a damage tag'));   // chat cards (owner 2026-09-27)
@@ -8195,11 +8327,13 @@ function ctKeySays(sp, F0) {
         var ndRow = el('div', 'sys-flags sys-list-needsrow'); ndRow.dataset.ri = String(ri);   // Stage 6 HUD R2b: what it needs, then its consequences
         var ndIn = input('sys-list-needs field', typeof rr.needs === 'string' ? rr.needs : '', 'Rolled only while this is true for the row (no dice): Row.Charges >= 1, Row.Hits > 0; empty: always', 'Needs (e.g. Row.Charges >= 1)'); ndIn.maxLength = LIMITS.formula; ndRow.appendChild(ndIn);
         var ndTx = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the greyed button says when it cannot roll', 'Out of charges'); ndTx.maxLength = LIMITS.needsWords; ndRow.appendChild(ndTx);
+        ndRow.appendChild(checkLabel('sys-list-hideoff', rr.hideOff === true, 'Hidden until it can be used', 'The button stands on the row only while its needs hold. Off: it stays there, greyed out. Only beside needs'));   // 1.6.0
         var mfL = input('sys-list-malf field', typeof rr.malf === 'string' ? rr.malf : '', 'Malf: a natural total (the dice alone) at or past this malfunctions \u2014 a failure, and its On malfunction changes (no dice; Row.Malf reads the row)', 'Malf (Row.Malf)'); mfL.maxLength = LIMITS.formula; ndRow.appendChild(mfL);   // Stage 6 HUD R3
         if ((typeof draft !== 'undefined' && draft && draft.combat && draft.combat.checks === 'fixed') || rr.critAt || rr.fumbleAt) [['sys-list-critat', 'critAt', 'Critical at: this roll\u2019s own critical success range, the dice alone at or under it (no dice; Row.* reads the row; empty: the Combat card\u2019s)', 'Critical at'], ['sys-list-fumbleat', 'fumbleAt', 'Critical failure at: this roll\u2019s own, the dice alone at or over it (no dice; Row.* reads the row; empty: the Combat card\u2019s)', 'Critical failure at']].forEach(function(g) { var ci = input(g[0] + ' field', typeof rr[g[1]] === 'string' ? rr[g[1]] : '', g[2], g[3]); ci.maxLength = LIMITS.formula; ndRow.appendChild(ci); });   // 1.6.0 (the v2 sort's B1): a technique that widens the range
         var bgL = input('sys-list-bigat field', typeof rr.bigAt === 'string' ? rr.bigAt : '', 'Lands as a Big Hit: a success whose natural roll, the dice alone, is at or under this is marked a Big Hit. It is no critical. Its Then reads RollBig (no dice; Row.* reads the row; empty: never)', 'Big Hit at'); bgL.maxLength = LIMITS.formula; ndRow.appendChild(bgL);   // 1.6.0 (the book's ruling of 2026-10-29)
         cb2.appendChild(ndRow);
         var lxR = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxR) cb2.appendChild(lxR);   // 1.6.0
+        if (typeof callsBox === 'function') cb2.appendChild(callsBox(rr, typeof draft !== 'undefined' ? draft : null, false));   // 1.6.0: Calls for
         listApplyEditor(cb2, rr, ri, 'then', sp, targets);
     });
     var radd = el('button', 'tool ghost sys-btn sys-list-rolladd', '+ Roll'); radd.dataset.act = 'rolladd'; radd.disabled = rls.length >= LIMITS.rowRolls; radd.title = radd.disabled ? 'At most ' + LIMITS.rowRolls + ' rolls a list' : 'A button on each row that rolls this formula with the row\u2019s names (a weapon\u2019s Attack, a skill\u2019s Check)'; cb2.appendChild(radd);
@@ -10855,6 +10989,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-xs') >= 0) { var xr2 = t.closest('.sys-list-xsrow'), xD2 = xr2 && Array.isArray(lsc.rolls) ? lsc.rolls[+xr2.dataset.ri] : null; if (!xD2 || typeof xD2 !== 'object') return; listCrossEdit(xD2, c, t); }   // 1.6.0: a row's counter crossing
         else if (c.indexOf('sys-list-burst') >= 0) { var rbu = t.closest('.sys-list-roll'), rbD = rbu && Array.isArray(lsc.rolls) ? lsc.rolls[+rbu.dataset.ri] : null; if (!rbD || typeof rbD !== 'object') return; if (t.value === 'attack' || t.value === 'extra') rbD.burst = t.value; else delete rbD.burst; }   // 1.6.0 A burst
         else if (c.indexOf('sys-list-mjdmg') >= 0) { var rmj = t.closest('.sys-list-roll'), rmD = rmj && Array.isArray(lsc.rolls) ? lsc.rolls[+rmj.dataset.ri] : null; if (!rmD || typeof rmD !== 'object') return; if (t.checked) rmD.dmgMajor = true; else delete rmD.dmgMajor; }   // 1.6.0: Always a Major Wound
+        else if (c.indexOf('sys-list-hideoff') >= 0) { var hrw = t.closest('.sys-list-needsrow'), hR = hrw && Array.isArray(lsc.rolls) ? lsc.rolls[+hrw.dataset.ri] : null; if (!hR || typeof hR !== 'object') return; if (t.checked) hR.hideOff = true; else delete hR.hideOff; }   // 1.6.0: Hidden until it can be used
         else if (c.indexOf('sys-list-rsnocrit') >= 0) { var rnc = t.closest('.sys-list-roll'), rnD = rnc && Array.isArray(lsc.rolls) ? lsc.rolls[+rnc.dataset.ri] : null; if (!rnD || typeof rnD !== 'object') return; if (t.checked) rnD.noResistOnCrit = true; else delete rnD.noResistOnCrit; }   // 1.6.0: Not resisted on a critical
         else if (c.indexOf('sys-list-anytime') >= 0) { var atr = t.closest('.sys-list-roll'), atD = atr && Array.isArray(lsc.rolls) ? lsc.rolls[+atr.dataset.ri] : null; if (!atD || typeof atD !== 'object') return; if (t.checked) atD.free = true; else delete atD.free; }   // 1.6.0 Any time
         else if (c.indexOf('sys-list-rsist') >= 0) { var rsr = t.closest('.sys-list-roll'), rsD = rsr && Array.isArray(lsc.rolls) ? lsc.rolls[+rsr.dataset.ri] : null; if (!rsD || typeof rsD !== 'object') return; if (t.checked) rsD.resist = true; else delete rsD.resist; markDirty(); renderAll(); return; }   // 1.6.0: a list's roll that Resists an attempt (the Or resisted by lists follow)
@@ -10952,6 +11087,7 @@ function onChange(e) {
         else if (c.indexOf('sys-roll-rsist') >= 0) { if (t.checked) r.resist = true; else delete r.resist; markDirty(); renderAll(); return; }   // 1.6.0 (B2): the Resisted by lists follow
         else if (c.indexOf('sys-roll-rsby') >= 0) { if (t.value) { r.resistBy = t.value; if (Array.isArray(r.resistOr)) { r.resistOr = r.resistOr.filter(function(x) { return x !== t.value; }); if (!r.resistOr.length) delete r.resistOr; } } else { delete r.resistBy; delete r.resistOr; } markDirty(); renderAll(); return; }   // 1.6.0 (B2)   // 1.6.0 (the core's gap 5): Or resisted by follows it
         else if (c.indexOf('sys-roll-rsor') >= 0) resistOrTick(r, t);   // 1.6.0 (the core's gap 5)
+        else if (c.indexOf('sys-roll-hideoff') >= 0) { if (t.checked) r.hideOff = true; else delete r.hideOff; }   // 1.6.0: Hidden until it can be used
         else if (c.indexOf('sys-roll-rsnocrit') >= 0) { if (t.checked) r.noResistOnCrit = true; else delete r.noResistOnCrit; }   // 1.6.0: Not resisted on a critical
         else if (c.indexOf('sys-init-chk') >= 0) { r.init = t.checked; if (t.checked) draft.rolls.forEach(function(o) { if (o !== r) delete o.init; }); markDirty(); renderAll(); return; }
         else return;
@@ -11190,6 +11326,7 @@ function importFile(file) {
     var dnBt = ui('sheetDone'); if (dnBt) dnBt.addEventListener('click', doneMaking);   // Onboarding F3
     var nmBt = ui('sheetName'); if (nmBt) nmBt.addEventListener('click', renameMaking);
     var ulBt = ui('sheetUnlock'); if (ulBt) ulBt.addEventListener('click', function() { if (sheetOpen) unlockChar(sheetOpen); });
+    var apBt = ui('sheetAsPlayer'); if (apBt) apBt.addEventListener('click', asPlayerPress);   // 1.6.0: As player
     var edBt = ui('sheetEdit'); if (edBt) edBt.addEventListener('click', function() { if (!sheetOpen) return; _sheetEdit = _sheetEdit === sheetOpen ? null : sheetOpen; renderSheet(); });   // the sheet's lock: this viewer's own switch, for the sheet that is open
     var delBt = ui('sheetDelete'); if (delBt) delBt.addEventListener('click', function() { if (sheetOpen) askDeleteSheet(sheetOpen); });
     var cfI = ui('sysCharFilter'); if (cfI) cfI.addEventListener('input', charFilter);

@@ -2761,6 +2761,7 @@
   .sys-alt { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; flex-basis: 100%; }
   .sys-alt-row { display: inline-flex; gap: 4px; align-items: center; }
   .sys-alt-row .sys-alt-label { width: 130px; } .sys-alt-row .sys-alt-if { width: 170px; }
+  .sys-call-row { flex-wrap: wrap; } .sys-call-row select { max-width: 220px; } .sys-call-row .sys-call-if { width: 170px; }
   .chat-trun { display: flex; gap: 8px; align-items: center; margin-bottom: 7px; padding: 5px 7px; border-left: 3px solid var(--gold); border-radius: 4px; background: rgba(0,0,0,0.12); }
   .chat-trun .ico { width: 15px; height: 15px; flex: none; }
   .chat-trun-txt { flex: 1; } .chat-trun-txt small { display: block; color: var(--dim); font-size: 11px; }
@@ -3494,6 +3495,8 @@
   .sheet-roll-mod:not(:disabled):hover { color: var(--sheet-accent, var(--gold)); border-color: var(--sheet-accent, var(--gold)); }
   .sheet-kind-roll.sheet-roll-pair { flex-direction: row; align-items: stretch; gap: 4px; }
   .sheet-grid > .sheet-kind-roll { align-self: start; }   /* 1.6.0 (the owner, 2026-10-31: "this button is huge"): a roll keeps its own height, never the tallest field's in its row */
+  #sheetAsPlayer.on { color: var(--gold-ink, #1a1a1a); }   /* 1.6.0: As player while it is on, as Lock sheet is */
+  .sheet-grid > .sheet-kind-roll > .sheet-roll { flex: 1 1 auto; }   /* every roll of a section one height (sheets.js rollEven): the button fills the height it is given */
   .sheet-roll-pair > .sheet-roll { flex: 1 1 auto; min-width: 0; width: auto; }
   .sheet-roll-pair > .sheet-roll-mod { padding: 0 7px; }
   .sheet-field-roll + .sheet-roll-mod { padding: 0 4px; font-size: 11px; margin-left: 2px; vertical-align: middle; }

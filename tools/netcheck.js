@@ -18587,6 +18587,43 @@ pendingChecks.push((async () => {
     check('backlog 206 on the wire (source): the host\'s char-item branch sends a look\'s and a work line\'s refusal with its words, logs each step by its structure alone, and never names a look in any other branch',
         flat.includes("qi.op === 'look' || qi.op === 'work' || resI.cap === true || ((qi.op === 'add' || qi.op === 'custom') && qi.in !== undefined)) && resI.msg)") /* 205 (5) beside it (moved on purpose) */ && flat.includes("window.wpStepLog('rowlook v1', 'host', { op: qi.op, fee: !!(qi.work && qi.work.fee > 0) });") && (flat.match(/rowlook v1/g) || []).length === 1);
 })());
+pendingChecks.push((async () => {
+    const j = JSON.stringify;
+    {   // found by hand, 2026-10-31: a name asked of a core through typeof fails in silence, and a suite that imports the module cannot see it missing from what the page is given
+        const scr = f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8').replace(/\r\n/g, '\n');
+        const pub = (f, win) => { const t = scr(f), i = t.indexOf('var API = '), e = t.indexOf('window.' + win + ' = API'); return new Set([...t.slice(i, e).matchAll(/(?:^|[,{]\s*)([A-Za-z_$][\w$]*)\s*:/gm)].map(m => m[1])); };
+        const sys = pub('systemcore.js', 'wpSystemCore'), dic = pub('dicecore.js', 'wpDiceCore'), netT = scr('net.js');
+        const asked = (getter, win) => { const vars = new Set(); for (const m of netT.matchAll(new RegExp('\\b([A-Za-z_$][\\w$]*)\\s*=\\s*(?:' + getter + '\\(\\)|window\\.' + win + '\\b)(?!\\.)', 'g'))) vars.add(m[1]); return vars; };
+        const NOT_CORE = new Set(['St.tokenElevation', 'St.tokenGround', 'D.waits', 'DL.label', 'cmd.expr', 'cmd.cmd']);   // the same letters, in other functions, naming the stance module, the dice roller, the limits and a parsed command
+        const missing = (vars, keys) => { const out = new Set(); vars.forEach(v => { for (const m of netT.matchAll(new RegExp('(?<![\\w$.])' + v.replace(/\$/g, '\\$') + '\\.([A-Za-z_$][\\w$]*)', 'g'))) if (!keys.has(m[1]) && !NOT_CORE.has(v + '.' + m[1])) out.add(v + '.' + m[1]); }); return [...out]; };
+        const noS = missing(asked('SC', 'wpSystemCore'), sys), noD = missing(asked('DC', 'wpDiceCore'), dic);
+        check('every name net.js asks of the system core and the dice core is one the core publishes on the window (listRollRef and rowKeptFrom were not, so a resist card never offered a list\'s roll)', sys.has('listRollRef') && sys.has('rowKeptFrom') && asked('SC', 'wpSystemCore').size > 3 && !noS.length && !noD.length, j([noS, noD]));
+    }
+    /* ---- 1.6.0 (the owner, 2026-10-31, by prompt: "A card to press"): Calls for on the host: the slice run for real with the real core and a recording card ---- */
+    {
+        const Sc = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js')).split(String.fromCharCode(92)).join('/')), Fc = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'formula.js')).split(String.fromCharCode(92)).join('/'));
+        const src = between('// [netcheck:rollcalls-start]', '// [netcheck:rollcalls-end]', 'rollcalls'), posted = [], blown = [], nC = { blowMake: (ch, act, blow, a, b, c, soft) => { blown.push([ch.id, act, j(blow), soft]); return 'b_abcd1234'; }, postDue: (ch, rr, kind, n, toO, more) => posted.push([ch.id, rr.id, kind, toO, more.att, more.by]) };
+        const run = new Function('net', 'SC', 'window', src + '\nreturn { callsAfter, callEntry, callPost, attemptCalled, callName };')(nC, () => Sc, { wpFormula: Fc });
+        const sys = Sc.cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_hp', key: 'HP', kind: 'number', label: 'HP', vis: 'all', edit: 'owner', def: 5 }], rolls: [{ id: 'r_burn', label: 'Burn', formula: '1d6', dmg: true, needs: 'HP > 3' }, { id: 'r_quiet', label: 'Quiet', formula: '1d6', vis: 'gm' }, { id: 'r_act', label: 'Act', apply: [{ f: 'f_hp', formula: '1' }] }, { id: 'r_go', label: 'Go {HP}', formula: '3d6 <= 10', calls: [{ roll: 'r_burn', when: 'miss' }, { roll: 'r_quiet' }, { roll: 'r_act', when: 'hit' }, { roll: 'r_burn', when: 'hit', if: 'HP > 9' }] }] }, { F: Fc });
+        const pc = { id: 'c_p', name: 'Kael', ownerId: 'u1', values: { f_hp: 5 } }, npc = { id: 'c_n', name: 'Guard', npc: true, values: { f_hp: 5 } }, low = { id: 'c_l', name: 'Sela', ownerId: 'u1', values: { f_hp: 1 } }, camp = { system: sys }, go = sys.rolls.filter(r => r.id === 'r_go')[0], names = n => (String(n).toLowerCase() === 'hp' ? 5 : undefined);
+        const pv = Sc.cleanSystem(sys, { F: Fc, gmView: false }), goP = pv.rolls.filter(r => r.id === 'r_go')[0];
+        run.callsAfter(camp, go, false, names, pc, false);
+        const a1 = j(posted); posted.length = 0;
+        run.callsAfter(camp, run.callEntry(sys, { act: 'r_go' }, goP), true, names, npc, false); const a2 = j(posted); posted.length = 0;
+        run.callsAfter(camp, go, false, names, low, false); const a3 = j(posted); posted.length = 0;
+        run.callsAfter(camp, go, null, names, pc, true); const a4 = j(posted); posted.length = 0;
+        check('1.6.0 Calls for on the host (callsAfter, callPost, run for real): a card to the player of a character of theirs with a soft record, the roll\'s name with no formula, a GM-only roll\'s to the GM alone; for an NPC or a private roll the GM\'s; an action with no record; a called roll whose own needs fail makes no card; Only where read with the roller\'s names',
+            a1 === j([['c_p', 'r_burn', 'called', true, 'b_abcd1234', 'Go'], ['c_p', 'r_quiet', 'called', false, 'b_abcd1234', 'Go']]) && a2 === j([['c_n', 'r_quiet', 'called', false, 'b_abcd1234', 'Go'], ['c_n', 'r_act', 'called', false, '', 'Go']]) && a3 === j([['c_l', 'r_quiet', 'called', false, 'b_abcd1234', 'Go']]) && a4 === j([['c_p', 'r_quiet', 'called', false, 'b_abcd1234', 'Go']]) && blown.every(b => b[2] === '{}' && b[3] === true), [a1, a2, a3, a4].join(' || '));
+        const rec = { calls: [{ roll: 'r_burn', by: 'r_duck' }, { roll: 'r_quiet', by: 'f_w#3' }, { roll: 'r_act', by: '' }], callBy: 'Attack' };
+        run.attemptCalled(camp, rec, 'r_duck', undefined, true, pc, false); const b1 = j(posted.map(p => p[1])); posted.length = 0;
+        run.attemptCalled(camp, rec, undefined, { f: 'f_w', r: 'w_a', i: 3 }, true, pc, false); const b2 = j(posted.map(p => p[1])); posted.length = 0;
+        run.attemptCalled(camp, rec, 'r_duck', undefined, false, pc, false); run.attemptCalled(camp, null, 'r_duck', undefined, true, pc, false); run.attemptCalled(camp, { calls: 7 }, 'r_duck', undefined, true, pc, false); const b3 = posted.length;
+        check('1.6.0 a call that waits for the target (attemptCalled, run for real): as their roll succeeds, by the roll or the list roll it names and by any where it names none; a roll that fails, no record and no calls say nothing', b1 === j(['r_burn', 'r_act']) && b2 === j(['r_quiet', 'r_act']) && b3 === 0, [b1, b2, b3].join(' | '));
+        const full = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('1.6.0 every path asks: a player\'s roll and the GM\'s own with their Then landed, a player\'s action, attemptMake keeping the calls that wait, and the GM\'s action (sheets.js applyAction)',
+            full.indexOf('callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ,') > full.indexOf('var taQ = thQ.length') && full.indexOf('callsAfter(campR, entR, pcR, varsR,') > full.indexOf('var taR = thR.length') && full.includes('callsAfter(campA, callEntry(campA.system, qa.row ? { row: qa.row } : { act: qa.act }, actA), null, varsA, onA ? onA.ch : chA, false);') && full.includes("S.callsDue(entry, 'resisted', vars, window.wpFormula)") && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').includes("n.callsAfter(camp, act, null, vv, onT ? onT.ch : c, scope === 'gm');"));
+    }
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */
     {

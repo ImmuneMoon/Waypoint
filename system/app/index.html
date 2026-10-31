@@ -1363,7 +1363,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>Or pick a specific map to pin the table there. That is handy for a staging area while you prep elsewhere.</li>
                               </ul>
                           </li>
-                          <li>The <b>Welcome</b> screen&rsquo;s <b>Host a game</b> opens this window at Host a table.</li>
+                          <li>The <b>Welcome</b> screen&rsquo;s <b>Host a game</b> asks which campaign to host. It opens that campaign, starts the table and shows this window with your room code.</li>
                           <li>Press <b>Start Hosting This Campaign</b>. A <b>room code</b> appears. Send it to your players however you like, then <b>close the window</b>. The session keeps running while you work, and the <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 3.5c-4.4 4.8-4.4 12.2 0 17M12 3.5c4.4 4.8 4.4 12.2 0 17M4.6 9h14.8M4.6 15h14.8"/></svg> button reopens the window whenever you need the roster, pause or summon.</li>
                           <li>Players who join appear in the roster and see the arrival map. On <b>Follow me</b>, changing maps brings them along. Otherwise they stay where they are until they travel or you <b>Summon</b> them, which moves them once. Your planners, room notes and character dossiers are <b>never sent</b> to them. <b>Handbook</b> pages you leave open to players are sent.</li>
                       </ol>
@@ -3838,6 +3838,16 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       <p class="wc-promise" id="wcPromise">No account is needed and there are no ads. The app collects nothing about how you use it. Your campaigns are files on your own computer.</p>
     </div>
     <!-- JOIN view: set your profile + room code, then connect (its own screen; stays up showing status until the GM's campaign arrives) -->
+    <div id="wcHostView" style="display:none;">
+      <div class="wc-join-head">Host a game</div>
+      <div class="wc-join-sub">Pick a campaign. It opens, your table starts and you get a room code for your players.</div>
+      <div id="wcHostList" class="wc-host-list"></div>
+      <div id="wcHostNone" class="wc-host-none" hidden></div>
+      <div class="wc-join-actions">
+        <button class="tool ghost" id="wcHostBack">&larr; Back</button>
+        <button class="tool" id="wcHostNew" hidden>Start a campaign</button>
+      </div>
+    </div>
     <div id="wcJoinView" style="display:none;">
       <div class="wc-join-head">Join a game</div>
       <div class="wc-join-sub">Set how players see you, then enter the room code the GM shared.</div>

@@ -1076,6 +1076,47 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       return Object.values(c.items || {}).every(function(it) { return !!it && it.type === 'map' && !(it.rooms || []).length && !(it.whiteboard || []).length; });
   }
   // [tutorialcheck:wcseed-end]
+  // [tutorialcheck:wchost-start]
+  // Host a game (the owner, 2026-10-31: "instead of the host a game going straight into waypoint, it should let you select which campaign you want to host,
+  // then open that one and start the multiplayer game"). The list is this computer's own campaigns, the one last open first; a name reaches it as a text
+  // node alone. A pick opens the campaign through the guard every switch goes through, and presses Start Hosting in the Multiplayer window, so the room code
+  // stands in front of the GM. A table of that campaign already open is only shown
+  function wcHostLog(step, facts) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('host v1', step, facts || {}); } catch (e) {} }
+  function wcHostRows(camps, activeId, seedOnly) {
+      var rows = Object.keys(camps && typeof camps === 'object' ? camps : {}).filter(function(id) { var c = camps[id]; return !!c && typeof c === 'object' && !c._foreign && !seedOnly(c); }).map(function(id) {
+          var c = camps[id], maps = Object.values(c.items || {}).filter(function(it) { return !!it && it.type === 'map'; }).length;
+          return { id: id, name: typeof c.name === 'string' && c.name ? c.name : 'Campaign', maps: maps, last: id === activeId };
+      });
+      return rows.filter(function(r) { return r.last; }).concat(rows.filter(function(r) { return !r.last; }));
+  }
+  function wcHostWords(r) { return (r.maps === 1 ? '1 map' : r.maps + ' maps') + (r.last ? ' \u00b7 Open last' : ''); }
+  function wcHostDraw(doc, rows, away, pick) {
+      var list = doc.getElementById('wcHostList'), none = doc.getElementById('wcHostNone'), make = doc.getElementById('wcHostNew');
+      if (!list) return; list.textContent = '';
+      rows.forEach(function(r) {
+          var b = doc.createElement('button'), n = doc.createElement('b'), s = doc.createElement('small');
+          b.type = 'button'; b.className = 'wc-host-item' + (r.last ? ' active' : ''); n.textContent = r.name; s.textContent = wcHostWords(r);
+          b.appendChild(n); b.appendChild(s); b.addEventListener('click', function() { pick(r.id); }); list.appendChild(b);
+      });
+      if (none) { none.hidden = rows.length > 0; none.textContent = away ? 'You are at someone else\u2019s table. Leave it first, then host a campaign of your own.' : 'You have no campaign yet. Start one, then host it.'; }
+      if (make) make.hidden = rows.length > 0 || away;
+  }
+  function wcHostOpen(doc, start) {   // the Multiplayer window at Host a table, and Start Hosting pressed where a table is to start
+      var nb = doc.getElementById('netBtn'), hp = doc.getElementById('netPaneHostBtn'), go = doc.getElementById('netHostBtn');
+      if (nb) nb.click(); if (hp && hp.getAttribute('aria-expanded') !== 'true') hp.click();
+      if (start && go) go.click();
+  }
+  // A table is played on the Play Map: a campaign just opened stands on its Data Map
+  function wcHostLand(doc) { var b = doc.querySelector ? doc.querySelector('#viewModeSelect [data-mode="visual"]') : null; if (b && !b.classList.contains('active')) b.click(); }
+  function wcHostPick(id, doc, leave) {
+      var n = window.wpNet, here = state.appState.activeCampaignId === id, live = !!(n && n.active && n.role === 'host');
+      wcHostLog('pick', { here: here ? 1 : 0, live: live ? 1 : 0 });
+      if (live && here) { leave(); wcHostOpen(doc, false); wcHostLog('shown', {}); return; }
+      if (typeof window.wpOpenCampaign !== 'function') { wcHostLog('failed', { at: 'no-opener' }); return; }
+      var sel = doc.getElementById('campaignSelect'); if (sel) sel.value = id;
+      window.wpOpenCampaign(id, function() { if (window.wpTopRow && window.wpTopRow.sync) window.wpTopRow.sync(); leave(); wcHostLand(doc); wcHostOpen(doc, true); wcHostLog('started', {}); });
+  }
+  // [tutorialcheck:wchost-end]
   function renderWcContinue() {
       var box = document.getElementById('wcContinue'), list = document.getElementById('wcContinueList');
       if (!box || !list) return;
@@ -1127,7 +1168,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var w = document.getElementById('welcomeScreen'); if (!w) return;
       if (wcJoinOnly() && wcAtTable()) return;   // 1.5.5: on a website whose plan joins tables alone, never over a table (it has no way back to one)
       var mainV = document.getElementById('wcMain'); if (mainV) mainV.style.display = 'flex';   // always open on the main view (not a stale Join sub-screen)
-      var joinV = document.getElementById('wcJoinView'); if (joinV) joinV.style.display = 'none';
+      var joinV = document.getElementById('wcJoinView'); if (joinV) joinV.style.display = 'none'; var hostV = document.getElementById('wcHostView'); if (hostV) hostV.style.display = 'none';
       if (window.wpNet) window.wpNet.fromWelcome = false;   // clean slate: the Join sub-screen sets this when it drives a join
       var prof = wcProfile();
       var nm = document.getElementById('wcNameInput'); if (nm) nm.value = prof.name || '';
@@ -1169,17 +1210,24 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
           var go = document.getElementById('wcJoinGo'); if (go) go.disabled = false;
           setTimeout(function() { try { var nmEl2 = document.getElementById('wcNameInput'); (nmEl2 && (nmEl2.value || '').trim() ? document.getElementById('wcJoinCode') : nmEl2).focus(); } catch (e) {} }, 60);
       }
+      function showHostView() {
+          var mv = document.getElementById('wcMain'), hv = document.getElementById('wcHostView'), away = !!((window.wpNet && window.wpNet.foreign) || (state.appState && state.appState._foreign));
+          var rows = away ? [] : wcHostRows((state.appState && state.appState.campaigns) || {}, state.appState && state.appState.activeCampaignId, wcSeedOnly);
+          wcHostDraw(document, rows, away, function(id) { wcHostPick(id, document, function() { saveWcProfile(); hideWelcome(); }); });
+          if (mv) mv.style.display = 'none'; if (hv) hv.style.display = 'flex';
+          wcHostLog('open', { rows: rows.length, away: away ? 1 : 0 });
+          setTimeout(function() { try { var first = document.querySelector('#wcHostList .wc-host-item'); if (first) first.focus(); } catch (e) {} }, 60);
+      }
       function showMainView() {
-          var mv = document.getElementById('wcMain'), jv = document.getElementById('wcJoinView');
-          if (jv) jv.style.display = 'none'; if (mv) mv.style.display = 'flex';
+          var mv = document.getElementById('wcMain'), jv = document.getElementById('wcJoinView'), hv = document.getElementById('wcHostView');
+          if (jv) jv.style.display = 'none'; if (hv) hv.style.display = 'none'; if (mv) mv.style.display = 'flex';
           if (window.wpNet) window.wpNet.fromWelcome = false;
       }
       var joinBtn = document.getElementById('wcJoinBtn'); if (joinBtn) joinBtn.addEventListener('click', showJoinView);
-      // Host a game → the Multiplayer window at Host a table (the live test, 2026-10-30: a GM went Enter Waypoint, Play Map, Multiplayer, Host a table). A tour still owed goes first
-      var hostBtn = document.getElementById('wcHostBtn'); if (hostBtn) hostBtn.addEventListener('click', function() {
-          saveWcProfile(); hideWelcome(); if (window.wpTutorial && window.wpTutorial.pending && window.wpTutorial.pending()) return;
-          var nb = document.getElementById('netBtn'), hp = document.getElementById('netPaneHostBtn'); if (nb) nb.click(); if (hp && hp.getAttribute('aria-expanded') !== 'true') hp.click();
-      });
+      // Host a game → which campaign, then that campaign's table (wcHostPick)
+      var hostBtn = document.getElementById('wcHostBtn'); if (hostBtn) hostBtn.addEventListener('click', showHostView);
+      var hostBack = document.getElementById('wcHostBack'); if (hostBack) hostBack.addEventListener('click', showMainView);
+      var hostNew = document.getElementById('wcHostNew'); if (hostNew) hostNew.addEventListener('click', function() { showMainView(); var sb = document.getElementById('wcStartBtn'); if (sb) sb.click(); });
       var joinBack = document.getElementById('wcJoinBack'); if (joinBack) joinBack.addEventListener('click', function() { if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpNet.leaveSession) window.wpNet.leaveSession(true); showMainView(); });   // Back abandons any in-progress join
       var joinGo = document.getElementById('wcJoinGo');
       if (joinGo) joinGo.addEventListener('click', function() {

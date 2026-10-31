@@ -482,6 +482,44 @@ const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'system', 'res
     else if (ahead(tv, pv)) { bad++; console.log('FAIL      the tour\'s version ' + ver + ' is ahead of the app\'s ' + pkg + ' — Help would say "Tour version ' + ver + '" inside Waypoint ' + pkg + ': set TUTORIAL_VERSION in scripts/tutorial.js to ' + pkg + ' (the number this change goes out under)'); }
     else console.log('ok        the tour\'s version (' + ver + ') is a version and not ahead of the app\'s (' + pkg + '), compared by number');
 }
+// Host a game (the owner, 2026-10-31: pick the campaign, open it, start the table): main.js sliced by its wchost markers and run for real on a page of plain objects
+{
+    const mainFile = fs.readFileSync(path.join(app, 'scripts', 'main.js'), 'utf8').replace(/\r\n/g, '\n'), A = mainFile.indexOf('// [tutorialcheck:wchost-start]'), Z = mainFile.indexOf('// [tutorialcheck:wchost-end]');
+    const elOf = id => { const e = { id, children: [], hidden: false, attrs: {}, clicks: 0, on: {}, _t: '', value: '', set textContent(v) { this._t = v; this.children = []; }, get textContent() { return this._t; }, appendChild(c) { this.children.push(c); return c; }, addEventListener(k, f) { this.on[k] = f; }, getAttribute(k) { return this.attrs[k] === undefined ? null : this.attrs[k]; }, click() { this.clicks++; if (this.onPress) this.onPress(); }, set innerHTML(v) { throw new Error('no markup'); } }; return e; };
+    const world = o => {
+        const els = {}, get = id => els[id] || (els[id] = elOf(id)), order = [], logs = [], win = { wpNet: o.net, wpStepLog: (a, s) => logs.push(a + ' ' + s), wpOpenCampaign: o.noOpen ? undefined : (id, done) => { order.push('open ' + id); if (!o.refuse) done(); } };
+        const doc = { getElementById: get, createElement: t => elOf(t) };
+        ['netBtn', 'netPaneHostBtn', 'netHostBtn'].forEach(id => { get(id).onPress = () => order.push(id); });
+        get('netPaneHostBtn').attrs['aria-expanded'] = o.paneOpen ? 'true' : 'false';
+        const api = new Function('window', 'state', mainFile.slice(A, Z) + '\nreturn { wcHostRows, wcHostWords, wcHostDraw, wcHostOpen, wcHostPick };')(win, { appState: { activeCampaignId: o.active || 'a' } });
+        return { api, doc, els, order, logs, leave: () => order.push('leave') };
+    };
+    const W0 = world({}), HOST = '<img src=x onerror=alert(1)>', seed = c => !!c.seed;
+    const camps = { b: { name: 'Second', items: { m1: { type: 'map' }, p: { type: 'planner' } } }, a: { name: HOST, items: { m1: { type: 'map' }, m2: { type: 'map' } } }, s: { name: 'Seed', seed: true }, f: { name: 'Theirs', _foreign: true }, n: null, x: 'junk', u: {} };
+    const rows = W0.api.wcHostRows(camps, 'a', seed), J = JSON.stringify;
+    const oldRows = W0.api.wcHostRows(null, 'a', seed).length === 0 && W0.api.wcHostRows({}, 'a', seed).length === 0;
+    let picked = ''; W0.api.wcHostDraw(W0.doc, rows, false, id => { picked = id; });
+    const list = W0.els.wcHostList, rowOk = list.children.length === 3 && list.children[0].className === 'wc-host-item active' && list.children[0].children[0].textContent === HOST && list.children[0].children[1].textContent === '2 maps \u00b7 Open last' && list.children[1].children[1].textContent === '1 map' && list.children[2].children[0].textContent === 'Campaign' && list.children[2].children[1].textContent === '0 maps';
+    list.children[1].on.click(); const pressOk = picked === 'b' && W0.els.wcHostNone.hidden === true && W0.els.wcHostNew.hidden === true;
+    const E = world({}); E.api.wcHostDraw(E.doc, [], false, () => {}); const emptyOk = E.els.wcHostList.children.length === 0 && E.els.wcHostNone.hidden === false && /no campaign yet/.test(E.els.wcHostNone.textContent) && E.els.wcHostNew.hidden === false;
+    const Aw = world({}); Aw.api.wcHostDraw(Aw.doc, [], true, () => {}); const awayOk = /someone else/.test(Aw.els.wcHostNone.textContent) && Aw.els.wcHostNew.hidden === true;
+    const go = world({ active: 'a' }); go.api.wcHostPick('b', go.doc, go.leave);
+    const stay = world({ active: 'a', refuse: true }); stay.api.wcHostPick('b', stay.doc, stay.leave);
+    const live = world({ active: 'a', net: { active: true, role: 'host' } }); live.api.wcHostPick('a', live.doc, live.leave);
+    const swap = world({ active: 'a', net: { active: true, role: 'host' } }); swap.api.wcHostPick('b', swap.doc, swap.leave);
+    const open = world({ active: 'a', paneOpen: true }); open.api.wcHostPick('a', open.doc, open.leave);
+    const none = world({ noOpen: true }); none.api.wcHostPick('b', none.doc, none.leave);
+    const flowOk = J(go.order) === J(['open b', 'leave', 'netBtn', 'netPaneHostBtn', 'netHostBtn']) && go.els.campaignSelect.value === 'b' && J(go.logs) === J(['host v1 pick', 'host v1 started'])
+        && J(stay.order) === J(['open b']) && J(live.order) === J(['leave', 'netBtn', 'netPaneHostBtn']) && J(swap.order) === J(['open b', 'leave', 'netBtn', 'netPaneHostBtn', 'netHostBtn'])
+        && J(open.order) === J(['open a', 'leave', 'netBtn', 'netHostBtn']) && J(none.order) === J([]) && none.logs.includes('host v1 failed');
+    const dg = fs.readFileSync(path.join(app, 'scripts', 'dialogs.js'), 'utf8').replace(/\r\n/g, '\n');
+    const wired = mainFile.includes("if (hostBtn) hostBtn.addEventListener('click', showHostView);") && html.includes('id="wcHostView"') && html.includes('id="wcHostList"') && html.includes('id="wcHostBack"') && html.includes('asks which campaign to host') && dg.includes("campaignSelect.addEventListener('change', function() { openCampaign(this.value); });") && dg.includes('window.wpOpenCampaign = openCampaign;') && /function openCampaign[\s\S]{0,200}guardSwitch\(function\(\)/.test(dg);
+    const whatsnew = ['WHATSNEW.txt', path.join('system', 'app', 'assets', 'whatsnew.txt')].every(p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8').includes('Host a game on the welcome screen now asks which campaign to host'));
+    const allOk = oldRows && rowOk && pressOk && emptyOk && awayOk && flowOk && wired && whatsnew;
+    if (!allOk) { bad++; console.log('FAIL      Host a game: ' + J({ oldRows, rowOk, pressOk, emptyOk, awayOk, flowOk, wired, whatsnew, order: go.order, stay: stay.order, live: live.order, open: open.order })); }
+    else console.log('ok        Host a game asks which campaign: this computer\'s own, the one last open first, names as text; a pick opens it through the guard and starts the table with the window up, a refused switch starts nothing, and a table of that campaign already open is only shown');
+    if (!mainFile.includes("var hostV = document.getElementById('wcHostView'); if (hostV) hostV.style.display = 'none';") || !mainFile.includes('window.wpTopRow.sync(); leave(); wcHostLand(doc); wcHostOpen(doc, true)')) { bad++; console.log('FAIL      the welcome comes up on its main view with the host view put away, and a campaign opened for a table names itself on the row, on the Play Map'); }
+}
 if (ver !== pkg) console.log('note      tutorial version ' + ver + ' vs app ' + pkg + ' — bump TUTORIAL_VERSION if the tour or demo changed this release');
 if (bad) { console.log('\n' + bad + ' tutorial target(s) missing.'); process.exit(1); }
 console.log('\nTutorial targets all present (' + targets.length + ' steps checked).');

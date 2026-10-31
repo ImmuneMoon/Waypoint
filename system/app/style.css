@@ -2588,6 +2588,16 @@
   .wc-join-status { min-height: 18px; font-size: 12.5px; color: var(--dim); }
   .wc-join-status.err { color: #ff8a8a; }
   .wc-join-status.ok { color: var(--gold); }
+  #wcHostView { flex-direction: column; gap: 20px; }
+  .wc-host-list { display: flex; flex-direction: column; gap: 8px; max-height: min(46vh, 360px); overflow-y: auto; }
+  .wc-host-list:empty { display: none; }
+  .wc-host-item { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--edge); background: var(--panel); color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+  .wc-host-item b { font-size: 14px; overflow-wrap: anywhere; }
+  .wc-host-item small { color: var(--dim); font-size: 11px; }
+  .wc-host-item:hover, .wc-host-item:focus-visible { border-color: var(--gold); outline: none; }
+  .wc-host-item.active { border-color: var(--gold); }
+  .wc-host-none { color: var(--ink); font-size: 13px; }
+  .wc-host-none[hidden], #wcHostNew[hidden] { display: none; }
   .wc-join-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .wc-join-actions .tool { font-size: 14px; padding: 8px 18px; }
   /* 1.5.5: Waypoint on a website whose plan joins tables and nothing else (webmode.js puts web-join on the body; the owner, 2026-10-23: "jut the

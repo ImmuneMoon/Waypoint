@@ -22,10 +22,14 @@ function make(D) {
     function moves(mapId) { return R.mv[mapId] || (R.mv[mapId] = Object.create(null)); }
     function held(mapId, vId) { var m = R.res[mapId] || (R.res[mapId] = Object.create(null)); return m[vId] || (m[vId] = Object.create(null)); }
 
+    // A check or a sneak's formula is worked out with its character's context, and a context reads what its target is seen as, which is this very judgement.
+    // While one is being worked out a judgement asked for rolls nothing and answers from what is held
+    function quiet(fn) { R.busy = (R.busy || 0) + 1; try { return fn(); } finally { R.busy--; } }
+
     // Whether a creature is sneaking: the formula on its own sheet. Its Stealth roll goes with the mark
     function sneakRoll(camp, map, w, rule) {
         var ch = charOf(camp, w), F = D.F(), S = D.S(); if (!ch || !rule.sneak || !F || !S) return null;
-        var on1 = false; try { var res = F.evaluate(rule.sneak, { vars: S.makeResolver(camp.system, ch, F, D.ctxFor(ch.id, camp)) }); on1 = !!(res && res.ok && res.value); } catch (e) { on1 = false; }
+        var on1 = false; try { var res = quiet(function() { return F.evaluate(rule.sneak, { vars: S.makeResolver(camp.system, ch, F, D.ctxFor(ch.id, camp)) }); }); on1 = !!(res && res.ok && res.value); } catch (e) { on1 = false; }
         if (!on1) { if (R.was[ch.id]) { delete R.was[ch.id]; delete R.sn[ch.id]; } return null; }
         R.was[ch.id] = 1;
         return own(R.sn, ch.id) ? R.sn[ch.id] : null;
@@ -38,8 +42,8 @@ function make(D) {
         var rc = null, cOf = function(t) { return charOf(camp, t); };
         try { rc = S.rangeCtx(sys, map, vt, w, { F: F, elev: D.elev(), groundOf: function(t) { return D.ground(t, map); }, charOf: cOf }); } catch (e) { rc = null; }
         rc = rc || { mod: 0, dist: 0 }; rc.light = f.light; rc.cover = f.cover; rc.cgrade = f.grade; rc.tid = w.id; rc.mapId = map.id;
-        var tc = S.withAttempt(S.withRange(D.ctxFor(vCh.id, camp) || {}, rc), m), res = null, ck = null;
-        try { res = F.evaluate(rule.check, { vars: S.makeResolver(sys, vCh, F, tc) }); ck = Dc.checkOf(res, Dc.ruleOf(null, sys.combat && sys.combat.checks)); } catch (e) { res = null; }
+        var res = null, ck = null;
+        try { quiet(function() { var tc = S.withAttempt(S.withRange(D.ctxFor(vCh.id, camp) || {}, rc), m); res = F.evaluate(rule.check, { vars: S.makeResolver(sys, vCh, F, tc) }); ck = Dc.checkOf(res, Dc.ruleOf(null, sys.combat && sys.combat.checks)); }); } catch (e) { res = null; }
         if (!res || !res.ok) { D.log('check failed'); return true; }   // a check that cannot be worked out hides nothing
         var ok = ck ? ck.pass === true : !!res.value;
         D.rec(String(vCh.name || 'A character'), (ok ? 'Noticed ' : 'Did not notice ') + String(w.name || (charOf(camp, w) || {}).name || 'a token'), checkWords(ck, res));
@@ -48,7 +52,8 @@ function make(D) {
 
     function judge(camp, map, vt, w, id, rule) {
         var vCh = charOf(camp, vt); if (!vCh) return true;   // a viewer with no sheet has nothing to roll: the band notices, as it does by the tick alone
-        var box = held(map.id, vt.id), k = w.id + '|' + id, e = box[k], f = D.fog().noticeFacts(map, camp, vt, w), sig = f.light + '|' + f.cover;
+        var box = held(map.id, vt.id), k = w.id + '|' + id, e = box[k]; if (R.busy) return e ? !!e.ok : true;
+        var f = D.fog().noticeFacts(map, camp, vt, w), sig = f.light + '|' + f.cover;
         var rc = moves(map.id)[w.id], d = decide(e, { moving: moving(rc, D.now(), !!D.fightOf(map.id, w.id)), sneak: sneakRoll(camp, map, w, rule), sig: sig });
         if (d.roll) { var en = { ok: roll(camp, map, vt, vCh, w, rule, d.m, f), by: 'roll', sig: sig }; if (d.sn !== undefined) en.sn = d.sn; box[k] = en; return en.ok; }
         box[k] = d.e; return d.e.ok;

@@ -361,27 +361,19 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // session on yes (net.js guardCampaignSwitch). Before net.js has loaded there is no session to guard.
   function guardSwitch(fn, onCancel) { if (window.wpConfirmCampaignSwitch) window.wpConfirmCampaignSwitch(fn, onCancel); else fn(); }
 
-  campaignSelect.addEventListener('change', function() {
-
-      var pick = this.value;
-
-      if (pick === state.appState.activeCampaignId) return;
-
+  // One way to open a campaign, guarded as a pick of the list is. done runs once it is the one on screen, and not at all where the GM says no
+  function openCampaign(pick, done) {
+      if (pick === state.appState.activeCampaignId) { if (done) done(); return; }
       guardSwitch(function() {
-
           state.appState.activeCampaignId = pick;
-
           state.selId = null; state.selWbId = null; state.linkStart = null;
-
           updateSidebarNav(); render(); save(true);
-
           setTimeout(function(){ if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
-
+          if (done) done();
       }, updateCampaignSelect);   // cancelled: the picker shows the hosted campaign again
-
-  });
-
-
+  }
+  window.wpOpenCampaign = openCampaign;
+  campaignSelect.addEventListener('change', function() { openCampaign(this.value); });
 
   var _el_newCampBtn = document.getElementById('newCampBtn');
 

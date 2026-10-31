@@ -25,7 +25,7 @@ var WORDS = { maps: ['map', 'maps'], pages: ['page', 'pages'], chars: ['characte
     music: ['song', 'songs'], videos: ['video', 'videos'], players: ['player', 'players'] };
 var FILE_KINDS = ['pictures', 'sounds', 'music', 'videos'];
 var LIMITS = Object.freeze({ title: 120, author: 80, version: 24, desc: 1000, descLines: 20, card: 64 * 1024, cover: 16 * 1024 * 1024, coverName: 300, count: 1e7, bytes: 1e15 });
-// What the Players tick takes: the registry with each player's name and history, the ban list, the Session Log, who was handed what and who
+// What the Players tick takes: the registry with each player's name and history, the ban list, the Game Record, who was handed what and who
 // saw it, and the sheet uploads waiting for review. A handout keeps its pages and loses only the players it waits for (giveTo)
 var PLAYER_KEYS = ['players', 'bannedPlayers', 'handoutReveals', 'handoutLog', 'sessionLog', 'uploads'];
 

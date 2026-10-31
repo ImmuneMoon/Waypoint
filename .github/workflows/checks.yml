@@ -93,6 +93,9 @@ jobs:
       - name: campsafecheck — restore points, a trial run and a test copy, the pure core and the flows on stand-ins
         if: ${{ !cancelled() }}
         run: node tools/campsafecheck.js
+      - name: recordcheck — the game record, its store and its wiring
+        if: ${{ !cancelled() }}
+        run: node tools/recordcheck.js
       - name: profilecheck — a profile carried to another computer, its file, its code and what opening it writes
         if: ${{ !cancelled() }}
         run: node tools/profilecheck.js

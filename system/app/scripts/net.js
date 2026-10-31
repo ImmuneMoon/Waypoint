@@ -1412,7 +1412,10 @@ function fogCatchUp(c, camp, m, pid, memo) {
     if (msg.capped !== undefined) rec.cap = capNow;
     if (msg.marks !== undefined) rec.mk = mkHash;
     if (msg.off !== undefined) rec.of = ofHash;
-    if (moved) fogRoster(c, pid, m.id);
+    if (moved) {
+        fogRoster(c, pid, m.id);
+        if (typeof recLine === 'function') { var seer = (net.roster[c.peer] || {}).name || 'A player', wbS = Array.isArray(m.whiteboard) ? m.whiteboard : [], nmS = function(id) { var f = wbS.find(function(x) { return x && x.id === id; }); return String(f && (f.charName || f.name) || 'a token'); }; add.forEach(function(a) { recLine('bg', seer, 'Now sees ' + nmS(a.item.id), 'Worked out by the fog, on ' + String(m.meta && m.meta.title || 'a map'), 1); }); drop.forEach(function(id) { recLine('bg', seer, 'No longer sees ' + nmS(id), 'Worked out by the fog, on ' + String(m.meta && m.meta.title || 'a map'), 1); }); }   // 1.6.0: the game record
+    }
     return moved;
 }
 // the turn order and the pointers to that connection, where that map has a fight or a pointer, judged with every open drag at its start
@@ -2247,6 +2250,7 @@ net.onLocalSave = function() {
     if (net.role === 'client' && (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer)) return;
     var patch = activeItemPatch();
     if (net.role === 'host') {
+        if (typeof window !== 'undefined' && window.wpRecord) { try { window.wpRecord.board(getActiveCampaign(), getActiveMap()); } catch (e) { console.error(e); } }   // 1.6.0: the game record: what the GM's own hand did to the map
         net.syncStance();   // before the item: a changed ceiling reaches players ahead of the map it applies to
         net.syncSounds();   // the sound index changed with this save? the list follows the same way
         net.syncMusic();    // and the music library, the same way
@@ -3149,6 +3153,7 @@ net.syncChars = function() {   // every character, per peer (after the system ch
     if (!net.active || net.role !== 'host') return;
     if (net.sensesMoved) net.sensesMoved(null);
     if (typeof fxbMoved === 'function') fxbMoved(null);   // conditions C1: the effects on the tokens
+    if (typeof window !== 'undefined' && window.wpRecord) { try { var campR = getActiveCampaign(); Object.keys(campR && campR.chars || {}).forEach(function(k) { window.wpRecord.sheet(campR, k); }); } catch (e) { console.error(e); } }
     var camp = getActiveCampaign(); if (!camp) return;
     net.conns.forEach(function(c) {
         if (!c.open || !net.roster[c.peer]) return;
@@ -3161,6 +3166,7 @@ net.syncChar = function(id) {   // one character whole (renamed, reassigned, por
     if (!net.active || net.role !== 'host') return;
     if (net.sensesMoved) net.sensesMoved(id);
     if (typeof fxbMoved === 'function') fxbMoved(id);   // conditions C1
+    if (typeof window !== 'undefined' && window.wpRecord) { try { window.wpRecord.sheet(getActiveCampaign(), id); } catch (e) { console.error(e); } }   // 1.6.0: the game record reads every change of a character here
     if (typeof linkTell === 'function') linkTell(id);   // 1.6.0: the figures of the sheets that link it
     var camp = getActiveCampaign(); if (!camp) return;
     var srcM = (camp && camp.chars && typeof id === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, id) ? camp.chars[id] : null), mkM = !!(srcM && srcM.making === 1);   // Onboarding F3: a character in the making: its owner hears of it, nobody else (not even that it is gone)
@@ -3176,6 +3182,7 @@ net.syncCharDelta = function(id, values) {   // changed values, filtered to what
     if (net.sensesMoved) net.sensesMoved(id);   // before anything turns this away: a change that sends its owner nothing (a kept curse) moves their sight all the same
     if (typeof fxbMoved === 'function') fxbMoved(id);   // conditions C1: the effects on their tokens
     if (typeof tradeMoved === 'function') tradeMoved(id);   // 1.6.0: a trade with a row of theirs on offer
+    if (typeof window !== 'undefined' && window.wpRecord) { try { window.wpRecord.sheet(getActiveCampaign(), id); } catch (e) { console.error(e); } }   // 1.6.0: the game record reads every change of a character here
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !(camp && camp.chars && typeof id === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, id) ? camp.chars[id] : null) || !window.wpSheets) return;
     var view = window.wpSheets.playerSystem(camp); if (!view) return;
     var src = camp.chars[id], probe = { id: id, name: src.name, ownerId: src.ownerId, npc: src.npc, making: src.making, values: {} };   // making (Onboarding F3): charFor itself refuses it to anyone but its owner
@@ -3566,7 +3573,7 @@ function tradeDo(actor, msg) {
     }
     return { error: 'That is not a step of a trade.' };
 }
-// what a trade did: a private line to each side's player at the table and the GM (the damageCard pattern), and the Session Log
+// what a trade did: a private line to each side's player at the table and the GM (the damageCard pattern), and the Game Record
 function tradeCard(chars, text) {
     var t = String(text).slice(0, 1500), m = { type: 'chat', scope: 'whisper', from: { id: net.myId || 'gm', name: 'GM', gm: true }, text: t, ts: Date.now() }, to = Object.create(null);
     chars.forEach(function(ch) { if (ch && ch.ownerId && !ch.npc) to[ch.ownerId] = 1; });
@@ -3805,12 +3812,15 @@ window.wpConfirmCampaignSwitch = net.guardCampaignSwitch;
 
 // Travel lock: no map crossings for players while it is on; everything else stays live
 // Session log: what happened at the table, on the campaign (GM data). Saved with the next save.
-function logEvent(kind, text) {
+function recLine(k, w, x, d, h) { try { if (typeof window !== 'undefined' && window.wpRecord && net.active && net.role === 'host') window.wpRecord.add(k, w, x, d, h); } catch (e) { console.error(e); } }   // 1.6.0: a line of the game record, the GM's alone
+function playsOf(id) { var camp = getActiveCampaign(), C = typeof window !== 'undefined' ? window.wpRecCore : null; if (!camp || !C) return ''; return C.plays(Object.keys(camp.chars || {}).map(function(k) { return camp.chars[k]; }).filter(function(c) { return c && c.ownerId === id && !c.making; }).map(function(c) { return String(c.name || ''); })); }
+function logEvent(kind, text, how) {
     if (net.role === 'client') return;
     var camp = getActiveCampaign(); if (!camp) return;
     camp.sessionLog = camp.sessionLog || [];
     camp.sessionLog.push({ at: Date.now(), kind: kind, text: String(text || '').slice(0, 400) });
     if (camp.sessionLog.length > 3000) camp.sessionLog.splice(0, camp.sessionLog.length - 3000);
+    if (kind !== 'session' && typeof recLine === 'function') { var RC = typeof window !== 'undefined' ? window.wpRecCore : null, ho = how || {}; recLine(ho.k || (/^Combat /.test(String(text)) ? 'fight' : RC && RC.OLD_KIND[kind] || 'table'), ho.w || '', ho.x || String(text || ''), ho.d || '', ho.h); }
 }
 // [netcheck:snapsync-start]
 // The snap rule (the owner, 2026-09-29): the GM's Snap decides where a player's drop lands (datamap.js wpSeatDrop, on their app and on the
@@ -4271,6 +4281,7 @@ function handlePos(msg, conn) {
             if (typeof marksOwnMoved === 'function') marksOwnMoved(msg.itemId, [w], pr.id);   // senses S4b: their own drop on its turn takes their marks afresh
             if (typeof fogArm === 'function' && skN !== null && frW.sk !== skN) fogArm(msg.itemId);   // fold M7: it landed somewhere it sees from differently than where the drag began: catch the copies up
             net.tokenDropped(w, map);   // landed on a portal? the player travels
+            if (!stillW && typeof window !== 'undefined' && window.wpRecord) window.wpRecord.moved(map, w, frW, pr && pr.name);   // 1.6.0: the game record
         }
         } finally { if (typeof ackTook === 'function') ackTook(conn, aIn); }
     } else {
@@ -4969,8 +4980,8 @@ function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRe
 // Stage 6 HUD G10: a combat's round just changed (its start, or a step past either end) — the sheets' round hook runs the Each round actions;
 // a fault in it never stops the turn
 // Item 20 K2 moved the clock by a fight's rounds here; 152 fold 4 gives each fight its own time, and the orders slice's coordinator (ordersMoved) moves the clock
-function roundChanged(mapId, c) { if (fightReachRound(c)) { try { if (window.wpSheets && window.wpSheets.roundHook) window.wpSheets.roundHook(mapId, c); } catch (e) { console.error(e); } } if (typeof marksRound === 'function') { try { marksRound(mapId, c); } catch (e) { console.error(e); } } }   // senses S4b: marks held to the round; fold 3: the round hook only for a round the fight reaches for the first time
-function turnStarted(mapId, c) { var first = fightReachTurn(c); if (first) { try { if (window.wpSheets && window.wpSheets.turnHook) window.wpSheets.turnHook(mapId, c); } catch (e) { console.error(e); } } try { turnMoveStart(mapId, c); } catch (e) { console.error(e); } try { turnActsStart(mapId, c); } catch (e) { console.error(e); } if (first) { try { turnFxStart(mapId, c); } catch (e) { console.error(e); } } if (typeof marksTurn === 'function') { try { marksTurn(mapId, c); } catch (e) { console.error(e); } } if (first && typeof window !== 'undefined' && typeof window.wpFuseTick === 'function') { try { window.wpFuseTick(mapId); } catch (e) { console.error(e); } } }   // turn-based combat T2b: a character's turn just began; T3b: its move; senses S4b: its player's marks; fold 3: the turn hook and its timed effects only for a turn first reached in that round, its move and its actions at every start, a step back's too
+function roundChanged(mapId, c) { if (fightReachRound(c)) { if (typeof recLine === 'function') recLine('fight', '', 'Round ' + c.round + ' begins', 'On ' + mapTitleOf(mapId)); try { if (window.wpSheets && window.wpSheets.roundHook) window.wpSheets.roundHook(mapId, c); } catch (e) { console.error(e); } } if (typeof marksRound === 'function') { try { marksRound(mapId, c); } catch (e) { console.error(e); } } }   // senses S4b: marks held to the round; fold 3: the round hook only for a round the fight reaches for the first time
+function turnStarted(mapId, c) { var first = fightReachTurn(c); if (first) { if (typeof recLine === 'function') recLine('fight', String(c.rows && c.rows[c.turn] && c.rows[c.turn].name || ''), 'Turn starts', 'Round ' + c.round + ' on ' + mapTitleOf(mapId)); try { if (window.wpSheets && window.wpSheets.turnHook) window.wpSheets.turnHook(mapId, c); } catch (e) { console.error(e); } } try { turnMoveStart(mapId, c); } catch (e) { console.error(e); } try { turnActsStart(mapId, c); } catch (e) { console.error(e); } if (first) { try { turnFxStart(mapId, c); } catch (e) { console.error(e); } } if (typeof marksTurn === 'function') { try { marksTurn(mapId, c); } catch (e) { console.error(e); } } if (first && typeof window !== 'undefined' && typeof window.wpFuseTick === 'function') { try { window.wpFuseTick(mapId); } catch (e) { console.error(e); } } }   // turn-based combat T2b: a character's turn just began; T3b: its move; senses S4b: its player's marks; fold 3: the turn hook and its timed effects only for a turn first reached in that round, its move and its actions at every start, a step back's too
 // Fold 3 (backlog 152, docs/FIGHT_CLOCK_DESIGN.md sections 2 and 6, settled 18): a step back is a correction, so nothing is lived twice in a fight. Each
 // fight keeps how far it has gone, the host's own and never sent (combatsFor names what it sends, and cleanFightBody writes none of it): rh, the highest
 // round reached; th, { rowId: 1 }, the rows whose turn the fight reached in round rh (begun again whenever rh rises); turned, { charId: round }, the round
@@ -5005,6 +5016,7 @@ function fightReachTurnEnd(c, round, row, at) {
 // 1.6.0: the sheets' turn-end hook for the row whose turn just ended, as the fight stood in that round; a fault in it never stops the turn
 function turnEnded(mapId, c, row, round, at) {
     if (!fightReachTurnEnd(c, round, row, at)) return;
+    if (typeof recLine === 'function') recLine('fight', String(row && row.name || ''), 'Turn ends', 'Round ' + round + ' on ' + mapTitleOf(mapId));
     try { if (window.wpSheets && window.wpSheets.turnEndHook) window.wpSheets.turnEndHook(mapId, Object.assign({}, c, { round: round, turn: 0, rows: [row] })); } catch (e) { console.error(e); }
     try { if (typeof turnFxEnd === 'function') turnFxEnd(mapId, c, row, round); } catch (e) { console.error(e); }   // after the hook: what is rolled at a turn's end still reads what wears off there
 }
@@ -5132,14 +5144,14 @@ function fxEnded(ch, name) {   // "Bless ran out on Pat." — a private line for
 }
 // [netcheck:timecard-start]
 // Item 20 K5: a time rules summary (sheets.js runTimeRules) — a private line for the GM, and one for the character's player at the table unless it
-// is the GM's alone (an NPC, or a rule that moves or reads what the player cannot see); and the Session Log's Time
+// is the GM's alone (an NPC, or a rule that moves or reads what the player cannot see); and the Game Record's Time
 net.timeCard = function(ch, text, gmOnly, opts) {   // opts (backlog 173): player, what its player is told (a rule set Panel only, players never told, left out; empty: nothing); gmChat false, the GM's chat gets the run's one line instead
     if (net.role === 'client' || net.stream || !ch || typeof ch !== 'object') return;
     var t = String(text || '').slice(0, 1500), m = { type: 'chat', scope: 'whisper', from: { id: net.myId || 'gm', name: 'GM', gm: true }, text: t, ts: Date.now(), kind: 'time' };   // 1.5.6: kind time, so a player's app shows it as they chose (timeNote)
     var po = opts && typeof opts === 'object' && typeof opts.player === 'string' ? opts.player.slice(0, 1500) : t, mP = po === t ? m : Object.assign({}, m, { text: po });
     if (!gmOnly && po && net.active && net.role === 'host' && ch.ownerId && !ch.npc) net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(mP); } catch (e) { sendFailed(e); } } });
     if (!(opts && typeof opts === 'object' && opts.gmChat === false)) if (typeof timeNote === 'function') timeNote(m); else pushChat(m);   // 1.5.6: the GM's own chat by the GM's own Time rule notes choice
-    logEvent('time', t);   // the Session Log keeps every line whatever the chat shows
+    logEvent('time', t);   // the Game Record keeps every line whatever the chat shows
 };
 // [netcheck:timecard-end]
 // [netcheck:timenote-start]
@@ -5613,7 +5625,7 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     if (c.round !== r0) roundChanged(mapId, c);   // G10
     var tg = c.round !== r0 && a0 ? fightTurned(campS, c, a0, r0) : null;   // fold 4: its own time moves by the round's length (a step back, back)
     toast((c.rows[t].name || 'Someone') + "'s turn" + ((S5 ? c.round > r0 : t === 0 && dir > 0) ? ' — round ' + c.round : '') + '.');
-    if (S5 && typeof pick === 'string') logEvent('table', (by === 'player' ? (pkFrom && pkFrom.name) || 'Someone' : 'The GM') + ' picked ' + (c.rows[t].name || 'someone') + ' to go ' + (c.round > r0 ? 'first in round ' + c.round : 'next') + ' on ' + mapTitleOf(mapId));   // initiative O5: a pick, in the Session Log
+    if (S5 && typeof pick === 'string') logEvent('table', (by === 'player' ? (pkFrom && pkFrom.name) || 'Someone' : 'The GM') + ' picked ' + (c.rows[t].name || 'someone') + ' to go ' + (c.round > r0 ? 'first in round ' + c.round : 'next') + ' on ' + mapTitleOf(mapId));   // initiative O5: a pick, in the Game Record
     broadcastCombats(); combatRefresh();
     if (c.round !== r0 || c.turn !== t0) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing), after the broadcast
     if (tg) ordersMoved('step', tg);   // fold 4: the round it closed counted, and the clock moved once the fight furthest behind moves on
@@ -6139,7 +6151,7 @@ net.whereIs = function(pid) {
 // [systemcheck:whereis-end]
 
 // A host-side heal: a player whose record names no character they still own has the one they play written down (their only one, or a
-// guess that goes in the Session Log) — the same rule syncOwners heals with (systemcore migrateBindings, binding only)
+// guess that goes in the Game Record) — the same rule syncOwners heals with (systemcore migrateBindings, binding only)
 function healBindings(camp) {
     var S = SC(); if (!S || !S.migrateBindings || !camp) return;
     var r = S.migrateBindings(camp, { link: false });
@@ -6499,7 +6511,7 @@ function admitPlayer(conn, prof, provenKey) {
     net.roster[conn.peer] = prof;
     renderRoster();
     toast((prof.name || 'A player') + ' joined.');
-    logEvent('player', (prof.name || 'A player') + ' joined');
+    logEvent('player', (prof.name || 'A player') + ' joined', { w: prof.name || 'A player', x: 'Joined the table', d: typeof playsOf === 'function' ? playsOf(prof.id) : '' });
     // remember this player on the campaign so token ownership can outlive the session
     setTimeout(function() { sendMissedHandouts(conn, prof); }, 2500);
     setTimeout(function() {   // the table's recent conversation, so a latecomer is not lost
@@ -6568,7 +6580,7 @@ function queueJoin(conn, prof, why) {
 // [netcheck:queue-end]
 // [netcheck:unbound-start]
 // (host) A returning player's key was right, but proven over another connection than the one that reached this app (the owner's ruling of
-// 2026-10-01: refuse and tell me). The gate refuses the join; the GM is told here — a toast and a Session Log line naming the player, never a
+// 2026-10-01: refuse and tell me). The gate refuses the join; the GM is told here — a toast and a Game Record line naming the player, never a
 // dialog — at most once a minute per player id, the tries in between counted into the next notice (as a bound item's refused tries are). The
 // records are few (UNBOUND_IDS_MAX ids, the oldest forgotten) and go with the session.
 var _unboundSaid = Object.create(null), UNBOUND_QUIET_MS = 60000, UNBOUND_IDS_MAX = 200;
@@ -6730,7 +6742,7 @@ function mergeRecords(camp, oldId, keptId, sel) {
     camp.players[keptId] = nr;
     return mv;
 }
-// 1.6.0: what a hand-over moved, in words: the toast's counts, and the Session Log's names of each character moved
+// 1.6.0: what a hand-over moved, in words: the toast's counts, and the Game Record's names of each character moved
 function nOf(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
 function bothOf(c, t) { return c && t ? nOf(c, 'character') + ' and ' + nOf(t, 'token') : c ? nOf(c, 'character') : nOf(t, 'token'); }
 function movedSay(mv, fromName) {
@@ -8063,6 +8075,7 @@ function handleMessage(msg, conn) {
         });
         if (!adjacentR) { denyDR('far'); return; }
         doorEl.doorOpen = !doorEl.doorOpen;
+        if (typeof window !== 'undefined' && window.wpRecord) { window.wpRecord.add('table', profDR.name || 'A player', (doorEl.doorOpen ? 'Opened' : 'Closed') + ' a door', 'On ' + String(amDR.meta && amDR.meta.title || 'a map')); window.wpRecord.touched(amDR, doorEl); }
         var onDR = getActiveMap(), hereDR = !!onDR && onDR.id === amDR.id;
         save(true);                                                                   // host save -> onLocalSave: invalidateVision + resend the map on screen fog-filtered per recipient
         if (!hereDR && net.sendItem) {                                                // 1.5.9: a map the GM is not viewing goes to its holders as a change to that map does (per recipient, possession-held; save(true) has judged vision afresh, as for the map on screen)
@@ -8245,7 +8258,7 @@ function handleMessage(msg, conn) {
         // [netcheck:chardone-start]
         // Onboarding F3: the owner says their character is finished — one in the making goes LIVE at once (in play, unless the GM gave them one to
         // play meanwhile: owner, 2026-09-27), its token on their waiting token's spot, their face copied when it has none; an unlocked one locks
-        // again. Not a step of the GM's undo. The GM is told (a toast, the Session Log, the chip's badge and the sheet's review bar until Keep it)
+        // again. Not a step of the GM's undo. The GM is told (a toast, the Game Record, the chip's badge and the sheet's review bar until Keep it)
         var ridD = typeof msg.rid === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(msg.rid) ? msg.rid : null; if (!ridD) return;
         var ansD = function(o) { o.type = 'char-done-ans'; o.rid = ridD; try { conn.send(o); } catch (e) { sendFailed(e); } };
         var prD = own(net.roster, conn.peer) ? net.roster[conn.peer] : null; if (!prD) return;
@@ -8597,7 +8610,7 @@ function handleMessage(msg, conn) {
         if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) { sendFailed(e); } pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }
         else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
         var ruleQ = Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '');   // Stage 6 F8: the system's roll outcomes (1.6.0: or the record's own critical range)
-        logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars, rule: ruleQ }));
+        logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars, rule: ruleQ }), { w: recQ.as || (recQ.from && recQ.from.name) || '', h: !!recQ.priv });
         if (actQ && actQ.resisted === true && chQ && typeof attemptMake === 'function') attemptMake(campQ, attemptEntry(campQ.system, q, actQ), Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, tcQ && tcQ.range, chQ, !!recQ.priv);   // 1.6.0 (B2): a success against their target that it resists
         if (blowRecQ && typeof blowCrip === 'function') blowCripWrite(blowCrip(campQ, blowRecQ, Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, Dq.naturalOf(resQ)), saveRemoteSoon);   // 1.6.0 (the core's gap 7): a failed roll of a blow cripples the location struck
         if (actQ && actQ.init === true && typeof initIntoFight === 'function') initIntoFight(campQ, locQ, q.charId, pidQ, resQ.value);   // initiative O1: their own initiative roll into the fight on their map, once
@@ -8721,7 +8734,7 @@ function handleMessage(msg, conn) {
             if (pc.color) msg.from.color = pc.color;
             pushChat(msg);
             broadcast(msg, conn);
-            logEvent('chat', (msg.from.name || 'Player') + ': ' + String(msg.text || '').slice(0, 300));
+            logEvent('chat', (msg.from.name || 'Player') + ': ' + String(msg.text || '').slice(0, 300), { w: msg.from.name || 'Player', x: 'Said in chat', d: String(msg.text || '').slice(0, 300) });
         } else {
             // from the synced host only, in the shape a chat line has, text capped (a hostile host's megabytes never reach the DOM or the pop-out relay)
             if (conn.peer !== net.syncedPeer || typeof msg.text !== 'string' || !msg.from || typeof msg.from !== 'object') return;
@@ -8956,7 +8969,7 @@ function wireConn(conn) {
         renderRoster();
         if (net.role === 'host') {
             if (p) toast((p.name || 'A player') + ' left' + (p.location ? ' — their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
-            if (p) logEvent('player', (p.name || 'A player') + ' left' + (p.location ? ' (on ' + ((((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title || p.location) + ')' : ''));
+            if (p) logEvent('player', (p.name || 'A player') + ' left' + (p.location ? ' (on ' + ((((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title || p.location) + ')' : ''), { w: p.name || 'A player', x: 'Left the table', d: typeof playsOf === 'function' ? playsOf(p.id).replace(/^Plays/, 'Played') : '' });
             if (p) startWaitGrace(p.id);   // Onboarding F1a: their waiting token goes if they are not back in three minutes
             if (p && net.targets[p.id]) { delete net.targets[p.id]; render(); broadcastTargets(); }   // fold M0: each player the pointers they may see (a fogged table), never all of them
             if (!p) return;   // security (2026-10-01): a connection never admitted (a stranger's the gate closed, a waiting peer that gave up) was on no roster and changed nothing: its close saves nothing, tells the table nothing and redraws nothing
@@ -9236,6 +9249,7 @@ function startHosting(forceFresh) {
         syncSessionButtons();
         renderRoster();
         toast(resumed ? 'Hosting resumed with the same room code — players can rejoin as before.' : 'Hosting started. Share the room code.');
+        if (typeof window !== 'undefined' && window.wpRecord) window.wpRecord.start(getActiveCampaign(), showCode(code), !!resumed);   // 1.6.0: the game record opens with the table
         logEvent('session', (resumed ? 'Session resumed' : 'Session started') + ' — room ' + showCode(code));
         var campH = getActiveCampaign(), Sh = SC(); if (campH && campH.system && Sh && Sh.stampRows) Sh.stampRows(campH.system, campH.chars || {});   // Stage 6: a legacy row of a GM-only item gets its own id before anything is sent
         net.applyingRemote = true; save(true); net.applyingRemote = false;
@@ -9444,7 +9458,7 @@ function leaveSession(silent) {
         net.stageMode = null; net.stageFallback = null; net.stagePicked = {};   // the next session starts from the defaults again
         setStatus('Not in a session.');
         toast(wasClient ? (typeof webJoinOnly === 'function' && webJoinOnly() ? 'You left the session.' : 'Left the session — restoring your own campaign.') : wasHost ? 'Session ended for everyone — the room code is retired.' + (fightsOver ? (fightsOver === 1 ? ' The fight ended too.' : ' The ' + fightsOver + ' fights ended too.') : '') : 'Left the session.');
-        if (wasHost) { logEvent('session', 'Session ended'); net.applyingRemote = true; save(true); net.applyingRemote = false; }
+        if (wasHost) { if (typeof window !== 'undefined' && window.wpRecord) window.wpRecord.end(); logEvent('session', 'Session ended'); net.applyingRemote = true; save(true); net.applyingRemote = false; }
         if ((wasClient || net.foreign) && !window.wpStream) load();   // foreign without a live link (a failed re-join) still leaves this way
     }
     if (!window.wpStream && !net.stream && typeof hostId === 'function') net.myId = hostId();   // 1.6.0: off someone else's table this screen is its GM's own again
@@ -9709,7 +9723,7 @@ function postApply(rec, scope, ch, conn) {
         else net.conns.forEach(function(c) { if (!c.open || !net.roster[c.peer]) return; if (c === conn || (scope === 'owner' && ch && ch.ownerId && peerProfileId(c) === ch.ownerId)) { try { c.send(rec); } catch (e) { sendFailed(e); } } });
     }
     pushChat({ from: rec.from, text: '', scope: scope === 'table' ? 'global' : 'whisper', ts: rec.ts, apply: rec });
-    logEvent('char', applyLine(rec));
+    logEvent('char', applyLine(rec), { w: rec.as || (rec.from && rec.from.name) || '', k: 'bg' });
     if (ch && typeof ch.id === 'string' && typeof bellOut === 'function') bellOut(ch.id, { apply: rec });   // the character's bell here
 }
 // [netcheck:rowgone-start]
@@ -10055,7 +10069,7 @@ net.diceRoll = function(expr, o) {
     if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rec, chR); else sendTable(rec, null); }
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
     var ruleR = D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '');   // Stage 6 F8 (1.6.0: or the record's own critical range)
-    logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName, rule: ruleR }));
+    logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName, rule: ruleR }), { w: rec.as || (rec.from && rec.from.name) || 'You', h: !!rec.priv });
     if (entR && typeof entR.resistBy === 'string' && chR && typeof attemptMake === 'function') attemptMake(campR, entR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, tcR && tcR.range, chR, !!rec.priv || !!rec.to);   // 1.6.0 (B2): a success against its target that it resists
     if (blowRecR && typeof blowCrip === 'function') blowCripWrite(blowCrip(campR, blowRecR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, D.naturalOf(res)), function() { save(true); });   // 1.6.0 (the core's gap 7): a failed roll of a blow cripples the location struck
     if (entR && entR.then && chR && SR && campR && campR.system) {   // Stage 6 HUD R1/R2b: the GM's own roll's consequences, here (a player's are the host's); a list's roll may move its row's counters
@@ -10300,7 +10314,7 @@ function sendChat() {
         broadcast(msg, null); // client's only conn is the host, which relays
     }
     pushChat(msg);
-    if (net.role === 'host' && msg.scope !== 'whisper') logEvent('chat', 'GM: ' + String(msg.text || '').slice(0, 300));
+    if (net.role === 'host' && msg.scope !== 'whisper') logEvent('chat', 'GM: ' + String(msg.text || '').slice(0, 300), { w: 'You', x: 'Said in chat', d: String(msg.text || '').slice(0, 300) });
 }
 
 // [netcheck:chatdrag-start]
@@ -10544,7 +10558,7 @@ function offTurnOf(camp, charId) {   // the system's word where this character i
     if (mine(c.rows[c.turn]) || c.rows.some(function(r) { return mine(r) && r.held === 1; })) return '';
     return md;
 }
-function offTurnTell(name, text) {   // to the GM, once in a while for one character, and always in the Session Log
+function offTurnTell(name, text) {   // to the GM, once in a while for one character, and always in the Game Record
     var k = String(name), now = Date.now(); logEvent('table', text); if (_offSaid[k] && now - _offSaid[k] < 3000) return; _offSaid[k] = now; toast(text);
 }
 function offTurnBar(camp, ch, act, row, label) {   // a player's press under Refuse: '' when it may go ahead, else the refusal's words
@@ -10815,55 +10829,8 @@ net.syncSessionButtons = syncSessionButtons;
         if (window.wpOpenCombat) window.wpOpenCombat(am.id, {});
     });
 })();
-// Session Log window
-var _logKinds = { session: 'Session', player: 'Players', handout: 'Handouts', travel: 'Travel', share: 'Shares', chat: 'Chat', dice: 'Dice', table: 'Table', items: 'Items', char: 'Characters', time: 'Time' };
-function fmtLogTime(ts) { var d = new Date(ts); return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
-net.openSessionLog = function() {
-    var m = ui('sessionLogModal'), list = ui('sessionLogList'), sel = ui('sessionLogKind'); if (!m || !list) return;
-    var camp = getActiveCampaign(); if (!camp) return;
-    var kind = sel ? sel.value : '';
-    var log = (camp.sessionLog || []).filter(function(e) { return !kind || e.kind === kind || e.kind === 'session'; });
-    if (!log.length) { list.innerHTML = '<div style="color:var(--dim); padding:12px; line-height:1.5;">Nothing logged yet. Host a session and the table\'s events — joins, handouts, crossings, chat, shares — are written here as they happen.</div>'; }
-    else {
-        // grouped by session, newest session first; inside a session the newest line is at the top
-        var groups = [], cur = null;
-        log.forEach(function(e) {
-            if (e.kind === 'session' && /started|resumed/.test(e.text)) { cur = { head: e, rows: [] }; groups.push(cur); return; }
-            if (!cur) { cur = { head: null, rows: [] }; groups.push(cur); }
-            cur.rows.push(e);
-        });
-        function hm(ts) { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
-        var html = '';
-        groups.slice().reverse().forEach(function(g) {
-            var ended = g.rows.filter(function(e) { return e.kind === 'session'; }).pop();
-            var when = g.head ? new Date(g.head.at).toLocaleDateString() + ' ' + hm(g.head.at) : (g.rows[0] ? new Date(g.rows[0].at).toLocaleDateString() : '');
-            html += '<div class="log-session">' + escText(when) + ' · ' + escText(g.head ? g.head.text : 'Between sessions') + (ended ? ' <span class="log-ended">→ ended ' + escText(hm(ended.at)) + '</span>' : '') + '</div>';
-            g.rows.slice().reverse().forEach(function(e) {
-                if (e.kind === 'session') return;
-                html += '<div class="log-row"><span class="log-time">' + escText(hm(e.at)) + '</span><span class="log-kind k-' + (Object.prototype.hasOwnProperty.call(_logKinds, e.kind) ? e.kind : 'other') + '">' + escText(_logKinds[e.kind] || e.kind) + '</span><span class="log-text">' + escText(e.text) + '</span></div>';
-            });
-        });
-        list.innerHTML = html;
-    }
-    m.style.display = 'flex';
-};
-(function() {
-    var sel = ui('sessionLogKind'); if (sel) sel.addEventListener('change', function() { net.openSessionLog(); });
-    var close = ui('sessionLogClose'); if (close) close.addEventListener('click', function() { ui('sessionLogModal').style.display = 'none'; });
-    var open = ui('netLogBtn'); if (open) open.addEventListener('click', function() { net.openSessionLog(); });
-    var saveB = ui('sessionLogSave'); if (saveB) saveB.addEventListener('click', function() {
-        var camp = getActiveCampaign(); if (!camp) return;
-        var lines = (camp.sessionLog || []).map(function(e) { return fmtLogTime(e.at) + '  [' + (_logKinds[e.kind] || e.kind) + ']  ' + e.text; });
-        var blob = new Blob([(camp.name || 'Campaign') + ' — session log\n\n' + lines.join('\n') + '\n'], { type: 'text/plain' });
-        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (camp.name || 'campaign').replace(/[^A-Za-z0-9]+/g, '-').toLowerCase() + '-session-log.txt';
-        document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500);
-        toast('Session log saved as text.');
-    });
-    var clearB = ui('sessionLogClear'); if (clearB) clearB.addEventListener('click', function() {
-        var camp = getActiveCampaign(); if (!camp || !(camp.sessionLog || []).length) return;
-        (function() { showConfirm('Clear the session log for ' + (camp.name || 'this campaign') + '? ' + camp.sessionLog.length + ' lines go. Save it as text first if you want to keep it.', function(yes) { if (!yes) return; camp.sessionLog = []; save(true); net.openSessionLog(); }); })();
-    });
-})();
+// Game Record window
+net.openSessionLog = function() { if (window.wpRecord) window.wpRecord.open(); };
 net.togglePause = function() { var b = ui('netPauseBtn'); if (b) b.click(); };
 net.toggleTravelLock = function() { var b = ui('netTravelLockBtn'); if (b) b.click(); };
 net.endSession = function() { var b = ui('netEndBtn'); if (b) b.click(); };   // asks first, like the panel

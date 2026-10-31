@@ -71,6 +71,7 @@
 <script type="module" src="scripts/charlist.js"></script>
 <script type="module" src="scripts/notices.js"></script>
 <script type="module" src="scripts/timepanel.js"></script>
+<script type="module" src="scripts/record.js"></script>
 <script type="module" src="scripts/trackcore.js"></script>
 <script type="module" src="scripts/trackers.js"></script>
 <script type="module" src="scripts/trade.js"></script>
@@ -401,9 +402,9 @@
                           <li><b>The Time rules panel</b> holds this session&rsquo;s runs of the time rules, the newest first. Your chat gets one line a run, with how many characters changed. Its <b>Open</b> button brings the panel up.
                               <ul>
                                   <li>Players come first, then NPCs by the map they stand on. Press a character to see each rule and what it moved. Find, and the All, Players, NPCs and Rolls chips, narrow the list.</li>
-                                  <li><b>Mute</b> beside a rule leaves it off the chat line on this computer. It keeps running and stays in the panel and the Session Log.</li>
+                                  <li><b>Mute</b> beside a rule leaves it off the chat line on this computer. It keeps running and stays in the panel and the Game Record.</li>
                                   <li>A rule&rsquo;s <b>Notes</b> in the Rolls tab says where its runs go. <b>In chat</b> counts it on the line. <b>Panel only</b> keeps it in the panel. <b>Panel only, players never told</b> also leaves it out of its player&rsquo;s summary.</li>
-                                  <li>Off in your own Time rule notes posts no line. The panel keeps runs only while Waypoint is open. The Session Log keeps every line.</li>
+                                  <li>Off in your own Time rule notes posts no line. The panel keeps runs only while Waypoint is open. The Game Record keeps every line.</li>
                               </ul>
                           </li>
                       </ul>
@@ -997,9 +998,9 @@
                                   <li>Choose whether <b>time passes as</b> <b>Active</b> or <b>Rest</b> before you move it on. With Rest picked, the steps say of rest. Rest counts for every rule. Activity counts only for the rules that run any time, and it starts a rest-only rule&rsquo;s count again, as a missed night does. While a fight runs, time passes as Active, and Rest cannot be picked.</li>
                                   <li>With <b>Ask me</b>, when a move makes rules due, the window lists each character with what is due. <b>Apply</b> and <b>Skip</b> stand at its top. Players&rsquo; characters and NPCs are listed apart, by the map each stands on. Players&rsquo; characters are ticked and NPCs are offered.</li>
                                   <li>The steps, Move and Set work while no fight is on. While a fight is on they move nothing, and a press says why. Time you move on while a list waits is counted once you apply or skip it.</li>
-                                  <li><b>Apply</b> runs the ticked ones. The rolls are made for them, each player gets a summary in chat, and the Session Log gets a line. The summary is yours alone for an NPC, or for a rule that moves or reads what the player cannot see.</li>
-                                  <li>A rule&rsquo;s run that moves nothing and rolls no dice posts no summary and no Session Log line, such as one that fills a pool already full.</li>
-                                  <li>A player chooses in their own Settings how these summaries reach them: <b>Time rule notes</b> every time, gathered every 10 minutes or every hour, or off. The rules run either way. The Session Log keeps every line.</li>
+                                  <li><b>Apply</b> runs the ticked ones. The rolls are made for them, each player gets a summary in chat, and the Game Record gets a line. The summary is yours alone for an NPC, or for a rule that moves or reads what the player cannot see.</li>
+                                  <li>A rule&rsquo;s run that moves nothing and rolls no dice posts no summary and no Game Record line, such as one that fills a pool already full.</li>
+                                  <li>A player chooses in their own Settings how these summaries reach them: <b>Time rule notes</b> every time, gathered every 10 minutes or every hour, or off. The rules run either way. The Game Record keeps every line.</li>
                                   <li>Your own chat gets one line a run, with an <b>Open</b> button that brings up the Time rules panel.</li>
                                   <li><b>Skip</b> lets the time pass with no rules run.</li>
                                   <li>A <b>Set</b> forward always asks, so a jump of the story runs nothing unless you say so. Moving the clock back and on again counts nothing twice. After you move the clock back, nothing counts again until it passes the latest time it reached. Until then no timed effect runs out and no time rule counts.</li>
@@ -1014,12 +1015,12 @@
                           <li><b>Notes on dates</b>: pick a day and write a note on it, such as a deadline, a festival or an event. Tick <b>Players see it</b> for one your players may read.
                               <ul>
                                   <li>A day with a note is marked in the grid. The day lists its notes, where you switch one for players or remove it with &times;. <b>Coming up</b> lists the next five.</li>
-                                  <li>When the clock reaches a note&rsquo;s day you get a reminder, and the Session Log gets a line under Time. The clock reaches it by a step, a set, an amount or the rounds of a fight. Moving the clock back and on again reminds you again.</li>
+                                  <li>When the clock reaches a note&rsquo;s day you get a reminder, and the Game Record gets a line. The clock reaches it by a step, a set, an amount or the rounds of a fight. Moving the clock back and on again reminds you again.</li>
                                   <li>Players see only the notes you let them, and never get the reminder.</li>
                               </ul>
                           </li>
                       </ul>
-                      <p>Each fight keeps its own time. Each round adds the round&rsquo;s length, set in the Combat card&rsquo;s Turns box, or 6 seconds when it has none. While fights run, the clock shows the fight furthest behind, so two fights move it once for each second. The round a fight ends in counts. With rounds of 1 second, a fight begun at 12:00:00 and ended in round 3 lets the clock go on from 12:00:03. A step back in a fight is a correction, and nothing counts twice. Every move of yours goes in the <b>Session Log</b> under <b>Time</b>. The clock is not a step of Undo: set it back with <b>Set the clock</b> or a negative amount. At a table, players see the chip and the calendar without its controls. <b>Hide the clock for me</b> takes it out of their header, and Settings &#9656; VTT features brings it back.</p>
+                      <p>Each fight keeps its own time. Each round adds the round&rsquo;s length, set in the Combat card&rsquo;s Turns box, or 6 seconds when it has none. While fights run, the clock shows the fight furthest behind, so two fights move it once for each second. The round a fight ends in counts. With rounds of 1 second, a fight begun at 12:00:00 and ended in round 3 lets the clock go on from 12:00:03. A step back in a fight is a correction, and nothing counts twice. Every move of yours goes in the <b>Game Record</b> under <b>Time</b>. The clock is not a step of Undo: set it back with <b>Set the clock</b> or a negative amount. At a table, players see the chip and the calendar without its controls. <b>Hide the clock for me</b> takes it out of their header, and Settings &#9656; VTT features brings it back.</p>
                       <h4 id="helpVtt">VTT settings</h4>
                       <ul>
                           <li><b>Per campaign.</b> The features are switched in <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 5.1L10.7 2.8L13.3 2.8L13.8 5.1A7.1 7.1 0 0 1 15.6 5.9L17.6 4.6L19.4 6.4L18.1 8.5A7.1 7.1 0 0 1 18.9 10.2L21.2 10.7L21.2 13.3L18.9 13.8A7.1 7.1 0 0 1 18.1 15.6L19.4 17.6L17.6 19.4L15.6 18.1A7.1 7.1 0 0 1 13.8 18.9L13.3 21.2L10.7 21.2L10.2 18.9A7.1 7.1 0 0 1 8.5 18.1L6.4 19.4L4.6 17.6L5.9 15.6A7.1 7.1 0 0 1 5.1 13.8L2.8 13.3L2.8 10.7L5.1 10.2A7.1 7.1 0 0 1 5.9 8.5L4.6 6.4L6.4 4.6L8.4 5.9A7.1 7.1 0 0 1 10.2 5.1zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z"/></svg> Settings &#9656; VTT features</b> for the campaign on screen. They are token elevation, token posture, token facing, the minimap, sound, music, dice and character sheets. Then come visual effects, fog of war, lighting, turn-based combat, the calendar, video and table trackers. Every one is on for a new campaign until you switch it off.
@@ -1456,6 +1457,16 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>Where the map holds two fights or more, <b>Add to the fight</b> asks which one: the fight the strip shows or the next one. Click your answer: Enter does not answer it. Switch the strip to reach another fight. <b>Remove from the fight</b> takes each token out of the fight it is in. <b>Start another fight&hellip;</b> opens a new roster with the tokens that are in no fight ticked.</li>
                               </ul>
                           </li>
+                                  <li><b><i class="wib wi-scroll"></i> Game Record</b> is your full record of the game, session by session. Open it from the Multiplayer window or the right-click menu of the play map. Nothing shows on screen during play.
+                                      <ul>
+                                          <li>A session begins when you host the campaign. It ends when you press End Session, or at the moment Waypoint closed. A reload stays in the same session.</li>
+                                          <li>Each line says when it happened by your computer&rsquo;s clock and by the game&rsquo;s clock, who it was for and what happened.</li>
+                                          <li>It holds every roll, and who joins and leaves with their character. It holds moves, changes to sheets, turns, rounds and time rules. It holds chat and your own changes to the map.</li>
+                                          <li>A gold edge marks a line your players never saw, such as a hidden roll or who now sees whom.</li>
+                                          <li>Pick a chip to see one kind, or search for a name. <b>Save as text</b> keeps a copy of a session. <b>Delete session</b> asks first.</li>
+                                          <li>It is kept on your computer, a file a session in the saves folder, and is never sent to players.</li>
+                                      </ul>
+                                  </li>
                           <li><b>Combat:</b> <b><i class="wib wi-fight"></i> Start Combat</b> opens the roster for the map you are on. It is in this window and on the play map&rsquo;s right-click menu. Tick who is in. Give each an initiative, where higher goes first, or roll it from its sheet with the die beside its row. <b>Roll all</b> rolls your system&rsquo;s initiative roll for every ticked character that has no number yet.
                               <ul>
                                   <li>Once the fight runs, a player who rolls their character&rsquo;s initiative from their sheet takes that number into the order, once, if their row has none yet. The order re-sorts and whoever&rsquo;s turn it is keeps it. Players see the order, never the numbers.</li>
@@ -1517,7 +1528,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li><b>Same person as&hellip;</b> is for a player you know who joins from another app or browser, such as a website account. Pick them from the list of players not at the table, the most recent first. The list opens on the one with the joiner&rsquo;s name. With no such name it opens on <i>Pick a player&hellip;</i>, and <b>Yes, the same</b> waits until you pick one.</li>
                                   <li>Under the list are that player&rsquo;s characters and tokens, each ticked. Untick any that should stay. Only the ticked ones move, and a character&rsquo;s tokens go with it. <b>Yes, the same</b> also gives them that player&rsquo;s place. If something stays, the old record stays too and keeps it.</li>
                                   <li>In Player History, <b>Merge into&hellip;</b> folds two records of one person into one, such as the app&rsquo;s and a website account&rsquo;s. Pick the record to keep from the list. It keeps its name and table key and takes the other&rsquo;s ticked characters and tokens. Once nothing is left, it takes the other&rsquo;s history too and the other record goes.</li>
-                                  <li>A note says how many moved and how many stayed, and the Session Log names each character that moved. To give one back, pick its player in <b>System &#9656; Characters</b>, or right-click their chip on the party strip &#9656; <b>Give a character&hellip;</b>. Each step is written to <b>saves/error.log</b>.</li>
+                                  <li>A note says how many moved and how many stayed, and the Game Record names each character that moved. To give one back, pick its player in <b>System &#9656; Characters</b>, or right-click their chip on the party strip &#9656; <b>Give a character&hellip;</b>. Each step is written to <b>saves/error.log</b>.</li>
                               </ul>
                           </li>
                           <li>Optional <b>session password</b>: set one in the Host panel and the code alone isn't enough.</li>
@@ -2577,7 +2588,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>A new character made from a player&rsquo;s token while they already play one starts out kept.</li>
                                   <li>Switch with <b>In play</b> in the Characters tab, or <b>Give a character&hellip;</b> on their party-strip chip.</li>
                                   <li>Setting a token&rsquo;s <b>Player Owner</b> gives its character, though a player never owns an NPC&rsquo;s token. <b>GM controlled</b> takes it back. Deleting a character leaves its player the tokens, by name.</li>
-                                  <li>The Players panel shows <i>plays Brakka &middot; also Wolf</i>, and the Session Log&rsquo;s <b>Characters</b> entries record each change.</li>
+                                  <li>The Players panel shows <i>plays Brakka &middot; also Wolf</i>, and the Game Record&rsquo;s <b>Characters</b> entries record each change.</li>
                                   <li>An NPC has no player and never reaches players. An unassigned character is yours alone until you pick a player.</li>
                               </ul>
                           </li>
@@ -3674,7 +3685,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <button class="tool ghost" id="netCombatBtn" style="margin-top:8px; width:100%;" title="Start combat on the map you are on: pick who is in, give initiative, run the turns. Also on the play-map right-click menu."><i class="wib wi-fight"></i> Start Combat</button>
                 <button class="tool ghost" id="netNotepadBtn" style="margin-top:8px; width:100%;" title="A disposable notepad the whole table sees as you type. Gone when you put it away or the session ends; anyone can save it to their Journal."><i class="wib wi-note"></i> Table Notepad</button>
                 <div class="set-line">A throwaway notepad the whole table sees as you type.</div>
-                <button class="tool ghost" id="netLogBtn" style="margin-top:8px; width:100%;" title="Everything that happened at the table — joins, handouts, crossings, chat, shares — by session"><i class="wib wi-scroll"></i> Session Log</button>
+                <button class="tool ghost" id="netLogBtn" style="margin-top:8px; width:100%;" title="Everything that happened at the table, session by session: every roll, what the game ran in the background, moves, sheets, joins and chat"><i class="wib wi-scroll"></i> Game Record</button>
                 <button class="tool ghost" id="netTravelLockBtn" style="margin-top:8px; width:100%;" title="Keep players on the maps they are on: portals, warps and room links stop working for them until you allow travel again. Tokens still move, chat stays open, nothing is paused."><i class="wib wi-lock"></i> Lock Travel Between Maps</button>
                 <div class="set-line">While travel is locked, portals and room links do not work for players. Tokens still move.</div>
                 <button class="tool ghost" id="netPauseBtn" style="margin-top:8px; width:100%;" title="Freeze the table: players can't move tokens or travel until you resume. Chat stays open."><i class="wib wi-pause"></i> Pause the Table</button>
@@ -4014,7 +4025,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dim); margin:-2px 0 8px; cursor:pointer;" title="Skip screen shake and shorten flashes on this machine (photosensitivity or a slow GPU). Your setting only."><input type="checkbox" id="setFxReduced"> <span class="set-name"><span>Reduce motion (this machine)</span><small>Skips screen shake and shortens flashes.</small></span></label>
             <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dim); margin:-2px 0 8px;" title="The line the fog draws above a token that is blind by its sheet (Blind, then the senses that still work), and where a sense fails. Always: as ever. On hover or selected: only above the token under your pointer or one you selected. Never: not drawn. Your setting only: nobody else&rsquo;s screen changes."><span class="set-name"><span>Sense captions over tokens (this machine)</span><small>The line above a token that is blind, or where a sense fails.</small></span> <select id="setSenseCaps" class="field" style="width:auto; font-size:10.5px; padding:1px 4px;"><option value="always">Always</option><option value="hover">On hover or selected</option><option value="never">Never</option></select></label>
             <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dim); margin:-2px 0 8px;" title="How a piece you hid from players looks on your own map. Faded: see-through, with a dashed edge and an eye, as ever. Invisible: not drawn on your screen until you show it to players again. Players never see a hidden piece either way. Your setting only: nobody else&rsquo;s screen changes."><span class="set-name"><span>Hidden pieces on my map (this machine)</span><small>Faded shows them see-through. Invisible leaves them out until shown.</small></span> <select id="setHiddenLook" class="field" style="width:auto; font-size:10.5px; padding:1px 4px;"><option value="fade">Faded</option><option value="none">Invisible</option></select></label>
-            <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dim); margin:-2px 0 8px;" title="At someone else&rsquo;s table, the private notes the GM&rsquo;s app sends you when your character&rsquo;s time rules run, such as a pool that fills by the hour. Every time: as ever. Gathered: one note with all of them every 10 minutes or every hour. Off: none in your chat. The rules still run. As GM, your own summaries follow it too, and the Session Log keeps every line. Your setting only."><span class="set-name"><span>Time rule notes (this machine)</span><small>How often notes of your character&rsquo;s time rules reach your chat.</small></span> <select id="setTimeNotes" class="field" style="width:auto; font-size:10.5px; padding:1px 4px;"><option value="all">Every time</option><option value="10m">Gathered every 10 minutes</option><option value="1h">Gathered every hour</option><option value="off">Off</option></select></label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dim); margin:-2px 0 8px;" title="At someone else&rsquo;s table, the private notes the GM&rsquo;s app sends you when your character&rsquo;s time rules run, such as a pool that fills by the hour. Every time: as ever. Gathered: one note with all of them every 10 minutes or every hour. Off: none in your chat. The rules still run. As GM, your own summaries follow it too, and the Game Record keeps every line. Your setting only."><span class="set-name"><span>Time rule notes (this machine)</span><small>How often notes of your character&rsquo;s time rules reach your chat.</small></span> <select id="setTimeNotes" class="field" style="width:auto; font-size:10.5px; padding:1px 4px;"><option value="all">Every time</option><option value="10m">Gathered every 10 minutes</option><option value="1h">Gathered every hour</option><option value="off">Off</option></select></label>
             <div class="set-vtt-row" data-vtt="fog" style="margin-bottom:8px;">
                 <div class="set-field-label" style="display:flex; justify-content:space-between;">Fog of war <span id="setFogState" style="color:var(--dim);"></span></div>
                 <button class="tool ghost" id="setFogBtn" style="width:100%;">Toggle Fog of War</button>
@@ -4328,15 +4339,17 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 <div id="sessionLogModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
-    <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:640px; max-width:94vw; height:80vh; display:flex; flex-direction:column;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Session Log <button id="sessionLogClose" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
-        <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
-            <select id="sessionLogKind" class="field" style="flex:1;"><option value="">Everything</option><option value="session">Sessions</option><option value="player">Players</option><option value="handout">Handouts</option><option value="travel">Travel</option><option value="time">Time</option><option value="chat">Chat</option><option value="dice">Dice</option><option value="share">Shares</option><option value="items">Items (bound, cursed)</option><option value="char">Characters (who plays what)</option><option value="table">Table (pause, travel lock)</option></select>
-            <button class="tool ghost" id="sessionLogSave" title="Save the whole log as a text file">Save as text</button>
-            <button class="tool ghost danger" id="sessionLogClear" title="Empty the log (asks first)">Clear</button>
+    <div class="rec-win">
+        <div class="rec-head"><h3>Game Record</h3><button class="tool ghost" id="sessionLogSave" title="Save the session on screen as a text file">Save as text</button><button class="tool ghost danger" id="sessionLogClear" title="Delete the session on screen (asks first)">Delete session</button><button id="sessionLogClose" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div>
+        <div class="rec-body">
+            <aside id="recSessions" class="rec-side"></aside>
+            <div class="rec-main">
+                <div id="recChips" class="rec-chips"></div>
+                <input id="recSearch" class="field rec-search" type="search" placeholder="Search names and words" aria-label="Search this session">
+                <div id="sessionLogList" class="rec-list"></div>
+            </div>
         </div>
-        <div id="sessionLogList" style="overflow-y:auto; flex:1; font-size:12.5px;"></div>
-        <div style="color:var(--dim); font-size:10.5px; margin-top:8px; line-height:1.5;">Written by the host as things happen; part of the campaign save, never sent to players. Newest first.</div>
+        <div class="rec-foot">For you alone, kept on this computer and never sent to players. A gold edge marks what your players never saw.</div>
     </div>
 </div>
 <!-- Table notepad (everyone; the GM writes) -->
@@ -4596,7 +4609,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <label class="gen-tick share-kind" title="The Sound list and its uploaded files"><input type="checkbox" id="shareKeep_sounds" checked><span class="share-kname">Sounds</span><span class="share-kn" id="shareN_sounds"></span><span class="share-kb" id="shareB_sounds"></span></label>
                 <label class="gen-tick share-kind" title="The Music library: its songs and playlists"><input type="checkbox" id="shareKeep_music" checked><span class="share-kname">Music</span><span class="share-kn" id="shareN_music"></span><span class="share-kb" id="shareB_music"></span></label>
                 <label class="gen-tick share-kind" title="The Video library and its files"><input type="checkbox" id="shareKeep_videos" checked><span class="share-kname">Videos</span><span class="share-kn" id="shareN_videos"></span><span class="share-kb" id="shareB_videos"></span></label>
-                <label class="gen-tick share-kind" title="Your players: their names, their history, the Session Log and who was handed what. Their table keys never go in any file."><input type="checkbox" id="shareKeep_players" checked><span class="share-kname">Players</span><span class="share-kn" id="shareN_players"></span><span class="share-kb" id="shareB_players"></span></label>
+                <label class="gen-tick share-kind" title="Your players: their names, their history, the Game Record and who was handed what. Their table keys never go in any file."><input type="checkbox" id="shareKeep_players" checked><span class="share-kname">Players</span><span class="share-kn" id="shareN_players"></span><span class="share-kb" id="shareB_players"></span></label>
         </div>
         <div class="gen-line" id="shareAllLine" hidden></div>
         <div class="gen-line" id="shareTotal" aria-live="polite"></div>

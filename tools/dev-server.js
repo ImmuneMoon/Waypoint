@@ -24,6 +24,7 @@ const dataFile = path.join(savesDir, 'data.json');
 // changes nothing: Update and Restore answer 409 and the tree it runs from stays as it is (the check itself still answers).
 const updater = require('../system/resources/app/updater');
 const account = require('../system/resources/app/account');   // 1.6.0: the shell's own website account link (WAYPOINT_SITE names a local site to test against)
+const recstore = require('../system/resources/app/recstore');   // 1.6.0: the shell's own game record store
 const libstore = require('../system/resources/app/libstore');   // Stage 6 library L1b: the shell's own pack store
 const servefile = require('../system/resources/app/servefile');   // item 21 V1: the shell's own file serving (media types, byte ranges)
 const reqguard = require('../system/resources/app/reqguard');   // the shell's own rules for what the server takes and refuses (names, sizes, bodies, backups, the launch secret)
@@ -162,6 +163,7 @@ const server = http.createServer((req, res) => {
         });
         return;
     }
+    if (url.pathname === '/api/record') { recstore.handle(req, res, url, savesDir); return; }
     if (url.pathname === '/api/library') { libstore.handle(req, res, url, savesDir); return; }   // Stage 6 library L1b: pack files beside the save (libstore.js)
     if (url.pathname === '/api/data') {
         if (req.method === 'GET') {

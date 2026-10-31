@@ -1,6 +1,22 @@
 WAYPOINT 1.6.0 — What's New
 ============================
 
+Game Record
+- The Session Log is now the Game Record: your full record of the game, one
+  session at a time. Open it from the Multiplayer window or the right-click
+  menu of the play map. Nothing shows on screen during play.
+- A session begins when you host the campaign, and ends when you press End
+  Session or at the moment Waypoint closed. A reload stays in the same session.
+- Each line says when it happened by your computer's clock and by the game's
+  clock, who it was for and what happened. It holds every roll, joins and leaves
+  with each player and their character, moves, changes to sheets, turns and
+  rounds, time rules, who now sees whom, chat and your own changes to the map.
+- A gold edge marks what your players never saw. Pick a chip to see one kind,
+  or search for a name. Sessions from the old log are still listed.
+- Each session is a file of its own in the saves folder, kept for good and
+  never sent to players. The core changed for this, so this update comes as an
+  installer.
+
 Drawings in place of emoji
 - Menus, buttons, Help and the sheet now wear Waypoint's own drawings where
   they wore emoji. They look the same on every computer, in the app's colours.
@@ -871,7 +887,7 @@ Same person as... and Merge into...
   Untick any that should stay. Only the ticked ones move, and a
   character's tokens go with it.
 - If something stays, the old record stays too and keeps it.
-- A note says how many moved and how many stayed, and the Session Log
+- A note says how many moved and how many stayed, and the Game Record
   names each character that moved. To give one back, pick its player in
   System ▸ Characters.
 
@@ -1234,7 +1250,7 @@ Multiplayer
   notes of their character's time rules reach their chat, such as a
   pool that fills by the hour. Every time, gathered into one note every
   10 minutes or every hour, or off. The rules run either way. The GM's
-  own choice there works for the GM's chat too, and the Session Log
+  own choice there works for the GM's chat too, and the Game Record
   keeps every line.
 
 The app
@@ -1398,7 +1414,7 @@ Calendar
   wants to say which run. A campaign set to Ask me before 1.5.5 now
   runs at once. Pick Ask me again in Settings to keep it.
 - A time rule's run that moved nothing and rolled no dice now posts
-  nothing: no summary in chat and no Session Log line. So a rule that
+  nothing: no summary in chat and no Game Record line. So a rule that
   fills a pool says nothing while the pool is full, and many NPCs at
   their most no longer fill the chat every game hour.
 - A game hour of time rules on a large campaign no longer stalls your
@@ -2642,7 +2658,7 @@ Players and their characters
   token on the map they are on; their others are kept (sheets and rolls
   still theirs, switched from the picker at the top of the sheet) while you
   move those tokens. The Players panel reads "plays Brakka · also Wolf", and
-  the Session Log records each change.
+  the Game Record records each change.
 - A player who joins with no character gets a waiting token: their face in a
   dashed gold outline that they can move about the map they are on, until
   you give them a character and their real token takes its place. It follows
@@ -4227,7 +4243,7 @@ Fixes
   exists. If it is not sure about a campaign, it asks you by name. Your
   Journal is untouched. Files you exported yourself are outside Waypoint's
   reach — delete those by hand if they came from someone else's game.
-- Cancel (or Esc) on End Session, Leave Session and Clear Session Log now
+- Cancel (or Esc) on End Session, Leave Session and Clear Game Record now
   really cancels; before, the action went ahead anyway. And a player's copy
   of the roster can no longer replace the host's.
 

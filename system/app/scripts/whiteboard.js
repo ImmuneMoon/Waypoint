@@ -9546,7 +9546,7 @@ function tableMenuParts(e, role) {
         if (scnPg) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(scnPg.id) + '" title="This map\'s scene page. Shift+P opens it too. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself."><i class="wib wi-mask"></i> Scene page: ' + esc(scnPg.title) + '</div>';
         var amPin = getActiveMap(), isPinned = !!(camp && amPin && Array.isArray(camp.pinnedMaps) && camp.pinnedMaps.indexOf(amPin.id) >= 0);
         if (amPin && amPin.type === 'map') html += '<div class="menu-item cm-session" data-act="pin" title="Pinned maps sit at the top of the Maps list"><i class="wib wi-pin"></i> ' + (isPinned ? 'Unpin this map' : 'Pin this map') + '</div>';
-        if (role !== 'host') html += '<div class="menu-item cm-session" data-act="log"><i class="wib wi-scroll"></i> Session Log\u2026</div>';
+        if (role !== 'host') html += '<div class="menu-item cm-session" data-act="log"><i class="wib wi-scroll"></i> Game Record\u2026</div>';
         html += '<div class="menu-divider"></div>';
         html += castMenuHtml(camp);
         if (role === 'host') {
@@ -9565,7 +9565,7 @@ function tableMenuParts(e, role) {
             html += '<div class="menu-item cm-session" data-act="summon"><i class="wib wi-summon"></i> Summon Everyone Here</div>';
             html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '<i class="wib wi-unlock"></i> Allow Travel Between Maps' : '<i class="wib wi-lock"></i> Lock Travel Between Maps') + '</div>';
             html += '<div class="menu-item cm-session" data-act="pause">' + (n.paused ? '<i class="wib wi-play"></i> Resume the Table' : '<i class="wib wi-pause"></i> Pause the Table') + '</div>';
-            html += '<div class="menu-item cm-session" data-act="log"><i class="wib wi-scroll"></i> Session Log\u2026</div>';
+            html += '<div class="menu-item cm-session" data-act="log"><i class="wib wi-scroll"></i> Game Record\u2026</div>';
             html += '<div class="menu-item cm-session" data-act="end" style="color:var(--danger)">End Session for Everyone</div>';
         }
     }

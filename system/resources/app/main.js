@@ -8,6 +8,7 @@ const { app, BrowserWindow, shell } = require('electron');
 const UPDATE_REPO = 'ImmuneMoon/Waypoint';   // <owner>/<repo> — change here and nowhere else
 const updater = require('./updater');
 const account = require('./account');   // 1.6.0: the link between this install and a Waypoint website account (only this server talks to the site)
+const recstore = require('./recstore');   // 1.6.0: the game record, a file a session beside the save, shared with tools/dev-server.js
 const libstore = require('./libstore');   // Stage 6 library L1b: a campaign's pack files, shared with tools/dev-server.js
 const servefile = require('./servefile');   // item 21 V1: a media file's type and byte ranges, shared with tools/dev-server.js
 const reqguard = require('./reqguard');   // what the local server takes and refuses (the launch secret, names, sizes, bodies, backups), shared with tools/dev-server.js
@@ -229,6 +230,7 @@ const server = http.createServer((req, res) => {
         });
         return;
     }
+    if (url.pathname === '/api/record') { recstore.handle(req, res, url, savesDir); return; }
     if (url.pathname === '/api/library') { libstore.handle(req, res, url, savesDir); return; }   // Stage 6 library L1b: pack files beside the save (libstore.js)
     if (url.pathname === '/api/data') {
         if (req.method === 'GET') {

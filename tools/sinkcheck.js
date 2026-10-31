@@ -2230,7 +2230,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /\n        var tL = \(prL\.name \|\| 'A player'\) \+ \(newL\.off \? ' put out the light of their token \(' : newL\.name \? ' lit ' \+ newL\.name \+ ' on their token \(' : ' lit the light of their token \('\) \+ \(wL\.charName \|\| 'their token'\) \+ '\)';\n        toast\(tL \+ '\.'\); logEvent\('char', tL\);\n/.test(netO)
             && (tlS.match(/\btoast\(/g) || []).length === 1 && (tlS.match(/\blogEvent\(/g) || []).length === 1
             && /\nimport \{ save, toast, load \} from '\.\/io\.js';/.test(netO) && /export function toast\(msg\) \{[\s\S]{0,120}document\.getElementById\('toastMsg'\)\.textContent = msg;/.test(ioO)
-            && /camp\.sessionLog\.push\(\{ at: Date\.now\(\), kind: kind, text: String\(text \|\| ''\)\.slice\(0, 400\) \}\);/.test(netO) && /<span class="log-text">' \+ escText\(e\.text\) \+ '<\/span>/.test(netO));
+            && /camp\.sessionLog\.push\(\{ at: Date\.now\(\), kind: kind, text: String\(text \|\| ''\)\.slice\(0, 400\) \}\);/.test(netO) && !/innerHTML/.test(fs.readFileSync(path.join(dir, 'record.js'), 'utf8')));
         const whyLine = /\nvar LIGHT_WHY = (\{[^\n]*\});[^\n]*\n/.exec(netO), WHY = whyLine ? new Function('return ' + whyLine[1] + ';')() : null;
         check('tok-light: the words a player reads for a refusal are the app\'s own fixed sentences, one for each reason the host gives, holding no markup',
             !!WHY && ['paused', 'slow', 'missing', 'tokowner', 'locked', 'lightlock', 'preset', 'nolight', 'cap', 'off'].every(k => Object.prototype.hasOwnProperty.call(WHY, k) && typeof WHY[k] === 'string' && WHY[k].length > 0 && !/[<>"&]/.test(WHY[k]))

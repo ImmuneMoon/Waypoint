@@ -297,7 +297,7 @@ function ownerName(c, camp) {
 // write-through: a character's owner holds its tokens (moves, arrival and the party strip keep reading the token) — through ONE rule
 // (systemcore ownedTokenPlan) that the loader and every arrival path share: one token per map, and only for the character IN PLAY (the
 // others are kept: their tokens pass to the GM, still linked). First the binding is healed: a player whose record names no character they
-// still own has the one they play written down (their only one, or a guess, which goes in the Session Log). keep: the token that wins a give.
+// still own has the one they play written down (their only one, or a guess, which goes in the Game Record). keep: the token that wins a give.
 function syncOwners(camp, keep) {
     camp = camp || getActiveCampaign(); if (!camp) return 0;
     var heal = migrateBindings(camp, { link: false }), n = net();
@@ -4752,7 +4752,7 @@ function upkeepCards(c, said, n) {
 }
 // [sinkcheck:timerules-start]
 // The flood fix (the owner, 2026-10-22, by prompt: "Nothing at all (Recommended)"): a time rule's run that moved nothing and rolled no dice posts no
-// summary and no Session Log line, so a hundred NPCs at their most send the GM nothing each hour. A roll whose formula holds no dice is worked out, never
+// summary and no Game Record line, so a hundred NPCs at their most send the GM nothing each hour. A roll whose formula holds no dice is worked out, never
 // rolled, so its run counts as rolled only where its formula holds dice (ruleDice; with no way to tell, a roll made counts). What moved is judged by what the sheet reads of each
 // value the run wrote, before it is stored and after (ruleReads, through the resolver, in the fight's round where the run had one): a pool its current
 // value, a number its total and its stored value. A value written in another form moved nothing (a full pool stored as full, a pool held to its most, a
@@ -4789,7 +4789,7 @@ function ruleDice(rule) {   // whether a time rule's roll rolls dice: its own fo
 // Item 20 K5: the time rules a stretch of the campaign's clock fired (calendar.js: after the GM's Apply, or at once when Automatic) — each fire
 // { c: charId, r: ruleId, n } run n times with the GM's full view and no token (systemcore timeRuleRun: the host makes every roll), stored, one
 // delta per character, its views redrawn; then one summary per character (net.timeCard: its player and the GM, or the GM alone for an NPC or a
-// rule that moves or reads what its player cannot see) and the Session Log's line. words: the stretch ("8 hours of rest"; a fight's round, "Round 3
+// rule that moves or reads what its player cannot see) and the Game Record's line. words: the stretch ("8 hours of rest"; a fight's round, "Round 3
 // on Docks"). Backlog 152: a rule may run By the clock, In a fight or both, and a fire In a fight (x) runs in its fight's round, so CombatRound reads
 // it: its own rd, else at ({ round }). A run that moved nothing and rolled no dice adds nothing to the summary, and a character with nothing left gets
 // none (the flood fix, above). Whom a summary goes to is decided by every rule that fired, before it runs, whether it then moved, stayed quiet or was
@@ -10207,7 +10207,7 @@ function askRow(r) {   // Ask me first: its runs wait for the GM's word
     return row;
 }
 function noteRow(r) {   // 1.6.0, backlog 173: where its runs are said
-    var row = el('div', 'sys-flags sys-roll-noterow'), nl = el('label', 'sys-hover'), ns = el('select', 'field sys-roll-tnote'); ns.title = 'Where its runs are said. In chat counts it on the run\u2019s one chat line. Panel only keeps it in the Time rules panel and the Session Log. Players never told: its player is not told of it either.'; [['', 'In chat'], ['panel', 'Panel only'], ['quiet', 'Panel only, players never told']].forEach(function(o) { var op = el('option', '', o[1]); op.value = o[0]; if ((r.notes || '') === o[0]) op.selected = true; ns.appendChild(op); }); nl.appendChild(document.createTextNode('Notes ')); nl.appendChild(ns); row.appendChild(nl);
+    var row = el('div', 'sys-flags sys-roll-noterow'), nl = el('label', 'sys-hover'), ns = el('select', 'field sys-roll-tnote'); ns.title = 'Where its runs are said. In chat counts it on the run\u2019s one chat line. Panel only keeps it in the Time rules panel and the Game Record. Players never told: its player is not told of it either.'; [['', 'In chat'], ['panel', 'Panel only'], ['quiet', 'Panel only, players never told']].forEach(function(o) { var op = el('option', '', o[1]); op.value = o[0]; if ((r.notes || '') === o[0]) op.selected = true; ns.appendChild(op); }); nl.appendChild(document.createTextNode('Notes ')); nl.appendChild(ns); row.appendChild(nl);
     return row;
 }
 function everyBare(r, k, u) { var o = r[k]; if (o && typeof o === 'object' && !Array.isArray(o) && o.u === u && Object.keys(o).length === 1) delete r[k]; }   // a tick taken off a rule that holds nothing but the shown unit takes the rule away, so no line stays under it

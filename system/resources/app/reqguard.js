@@ -166,6 +166,7 @@ function pruneRemoved(bkDir, lib) {
 function savesHidden(pathname) {
     if (typeof pathname !== 'string') return false;
     const segs = pathname.split('/').filter(s => s && s !== '.');
+    if (segs.length >= 2 && segs[0] === 'saves' && /^record[. ]*$/i.test(segs[1])) return true;   // 1.6.0: the game record is read through its own route alone
     return segs.length === 2 && segs[0] === 'saves' && /^(data\.json|preferences\.json|error\.log(\.1)?)(\.tmp)?[. ]*$/i.test(segs[1]);
 }
 

@@ -791,7 +791,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
           state.appState = cleanR;
 
           Object.values(state.appState.campaigns || {}).forEach(function(c) { if (c && c.library) takeImportedLibrary(c, c, null); });   // Stage 6 library L1c2: each library in a fresh folder, with its files
-          var nbR = bindsR.filter(function(b) { return b && b.camp && b.r; }); if (nbR.length && window.wpNoteBindings) window.wpNoteBindings(nbR);   // the one-time notice of who was bound to which character, its Session Log lines saved with the file just below
+          var nbR = bindsR.filter(function(b) { return b && b.camp && b.r; }); if (nbR.length && window.wpNoteBindings) window.wpNoteBindings(nbR);   // the one-time notice of who was bound to which character, its Game Record lines saved with the file just below
           finishImport('Imported (replaced all data).');
 
       });

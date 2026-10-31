@@ -237,7 +237,7 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
   };
 
   // Onboarding F0: players now follow their characters by id. Once per campaign (the binding is written, so the next load finds nothing): a
-  // toast, and in each campaign's Session Log a line for each guess and each player who owns several characters (one in play, the others kept)
+  // toast, and in each campaign's Game Record a line for each guess and each player who owns several characters (one in play, the others kept)
   function noteBindings(list) {
       var bound = 0, linked = 0;
       list.forEach(function(n) {
@@ -249,7 +249,7 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
           r.several.forEach(function(s) { c.sessionLog.push({ at: Date.now(), kind: 'char', text: (nm(s.pid) + ' plays ' + cn(s.id) + (r.guesses.some(function(g) { return g.pid === s.pid; }) ? ' (a guess)' : '') + '; ' + s.kept.map(cn).join(', ') + (s.kept.length === 1 ? ' is' : ' are') + ' kept \u2014 change it in System \u25B8 Characters').slice(0, 400) }); });
           if (c.sessionLog.length > 3000) c.sessionLog.splice(0, c.sessionLog.length - 3000);
       });
-      setTimeout(function() { toast('Players now follow their characters by id: ' + bound + ' bound' + (linked ? ', ' + linked + ' token' + (linked === 1 ? '' : 's') + ' linked by name' : '') + '. The Session Log lists anyone with more than one character.'); }, 1200);
+      setTimeout(function() { toast('Players now follow their characters by id: ' + bound + ' bound' + (linked ? ', ' + linked + ' token' + (linked === 1 ? '' : 's') + ' linked by name' : '') + '. The Game Record lists anyone with more than one character.'); }, 1200);
   }
 
   // 1.6.0 (the owner, 2026-10-28, of a section cut at the limit with no word: "count dropped sections and placements, sheet and HUD, with what is

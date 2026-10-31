@@ -486,7 +486,7 @@ function rulesRun(id) {
     var k = cleanClock({ t: 0, rulesOff: [id] }); if (!k || !Array.isArray(k.rulesOff) || k.rulesOff[0] !== id) return null;
     return !offOf(camp)(id);
 }
-function setRulesRun(id, on) {   // true where it changed: saved, said in the Session Log under Time and in a notice, and each tick of it in the window set again
+function setRulesRun(id, on) {   // true where it changed: saved, said in the Game Record under Time and in a notice, and each tick of it in the window set again
     var was = rulesRun(id); if (was === null || was === (on === true)) return false;
     var camp = getActiveCampaign(), ck = clockOf(camp) || { t: 0 }, nc = Object.assign({}, ck), list = (Array.isArray(ck.rulesOff) ? ck.rulesOff : []).filter(function(c) { return c !== id; });
     if (on !== true) list.push(id);
@@ -862,5 +862,6 @@ function dateNow() {
 }
 function dateNamesOf(camp, t) { var CCx = window.wpCalendarCore; return CCx && CCx.dateNames ? CCx.dateNames(camp.system && camp.system.calendar ? camp.system.calendar : null, t) : null; }
 setDateSource(dateNow);
-window.wpCalendar = { refresh: refresh, ownTime: ownTime, second: second, fightBegan: fightBegan, open: openWin, close: closeWin, moveTo: moveTo, rulesRun: rulesRun, setRulesRun: setRulesRun };
+function words() { var camp = getActiveCampaign(), ck = clockOf(camp); if (!ck || (window.wpVtt && !window.wpVtt.on('calendar'))) return ''; return fmtWhen(sysCal(), ck.t); }   // 1.6.0: the game's time in words, for the game record
+window.wpCalendar = { words: words, refresh: refresh, ownTime: ownTime, second: second, fightBegan: fightBegan, open: openWin, close: closeWin, moveTo: moveTo, rulesRun: rulesRun, setRulesRun: setRulesRun };
 export { refresh, ownTime, second, fightBegan, openWin, closeWin, moveTo, rulesRun, setRulesRun };

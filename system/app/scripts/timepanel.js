@@ -1,5 +1,5 @@
 // Backlog 173 (1.6.0; the owner, 2026-10-27, by prompt from the mock-up: "A Time rules panel (Recommended)", and of a rule's Notes, "Add
-// Players never told"): every run of the time rules is kept here, for the GM's machine alone and in memory alone (the Session Log keeps every
+// Players never told"): every run of the time rules is kept here, for the GM's machine alone and in memory alone (the Game Record keeps every
 // line), and chat gets ONE line a run with an Open button that brings up the Time rules panel: the newest run first, players then NPCs by the
 // map they stand on, each folding open to what changed, a search, a filter and a Mute per rule. A rule set Panel only, or muted here, counts
 // for nothing on the chat line; its lines stay in the panel. Mute is this computer's own, per campaign (wp_timeMute)
@@ -80,6 +80,7 @@ function add(camp, sys, words, chars) {
     if (!camp || typeof camp.id !== 'string') return null;
     var n = window.wpNet; if (n && (n.role === 'client' || n.stream)) return null;
     var run = tpRun('tr' + (++_tp.seq), words, chars, namesOf(camp), mapOfFn(camp), camp.id); if (!run.chars.length) return null;
+    if (window.wpRecord) window.wpRecord.add('bg', '', 'Time rules ran', String(words || ''));   // 1.6.0: the game record; what each moved, it says from the sheets
     run.at = Date.now();
     var CC = window.wpCalendarCore; try { run.when = CC && typeof CC.fmtWhen === 'function' ? tpText(CC.fmtWhen(sys && sys.calendar ? sys.calendar : null, camp.clock && typeof camp.clock.t === 'number' ? camp.clock.t : 0), 60) : ''; } catch (e) { run.when = ''; }   // the game date it ran at, so two runs of one hour are told apart
     var list = _tp.runs[camp.id] || (_tp.runs[camp.id] = []); list.push(run); if (list.length > TP_RUNS) list.splice(0, list.length - TP_RUNS);
@@ -104,7 +105,7 @@ function draw() {
     var body = document.getElementById('timeBody'); if (!body) return;
     var list = runsNow(), run = list.filter(function(r) { return r.id === _tp.pick; })[0] || list[list.length - 1] || null, camp = campNow();
     body.textContent = '';
-    if (!run) { body.appendChild(el('div', 'tp-empty', 'No time rules have run yet this session. The Session Log keeps every line.')); return; }
+    if (!run) { body.appendChild(el('div', 'tp-empty', 'No time rules have run yet this session. The Game Record keeps every line.')); return; }
     var runs = el('div', 'tp-runs');
     list.slice().reverse().slice(0, TP_SEEN).forEach(function(r) { var b = el('button', 'tp-chip' + (r.id === run.id ? ' on' : ''), chipWords(r)); b.type = 'button'; b.dataset.tprun = r.id; b.title = tpLine(r).sub; runs.appendChild(b); });
     if (list.length > TP_SEEN) { var s = el('select', 'field tp-older'); s.title = 'An earlier run of this session'; s.appendChild(el('option', '', 'Earlier…')); list.slice().reverse().slice(TP_SEEN).forEach(function(r) { var o = el('option', '', chipWords(r)); o.value = r.id; if (r.id === run.id) o.selected = true; s.appendChild(o); }); runs.appendChild(s); }
@@ -127,7 +128,7 @@ function draw() {
                 x.lines.forEach(function(l) {
                     var row = el('div', 'tp-line'); row.appendChild(el('span', 'tp-r', l.head)); row.appendChild(el('span', 'tp-v', l.body || 'No change'));
                     if (l.notes) row.appendChild(el('small', 'tp-tag', l.notes === 'quiet' ? 'Panel only, players not told' : 'Panel only'));
-                    var mu = camp && tpMuted(camp.id, l.r), mb = el('button', 'tp-mute' + (mu ? ' on' : ''), mu ? 'Unmute' : 'Mute'); mb.type = 'button'; mb.dataset.tpmute = l.r; mb.title = mu ? 'Count this rule on the chat line again' : 'Leave this rule off the chat line. It keeps running and stays here and in the Session Log.'; row.appendChild(mb);
+                    var mu = camp && tpMuted(camp.id, l.r), mb = el('button', 'tp-mute' + (mu ? ' on' : ''), mu ? 'Unmute' : 'Mute'); mb.type = 'button'; mb.dataset.tpmute = l.r; mb.title = mu ? 'Count this rule on the chat line again' : 'Leave this rule off the chat line. It keeps running and stays here and in the Game Record.'; row.appendChild(mb);
                     chg.appendChild(row);
                 });
                 ch.appendChild(chg);
@@ -139,7 +140,7 @@ function draw() {
     var foot = el('div', 'tp-foot'), all = camp ? tpMuteAll()[camp.id] : null, names = Object.create(null);
     list.forEach(function(r) { r.chars.forEach(function(x) { x.lines.forEach(function(l) { names[l.r] = l.head.replace(/ ×\d+.*$/, ''); }); }); });
     if (Array.isArray(all) && all.length) { foot.appendChild(document.createTextNode('Muted: ')); all.forEach(function(rid, i) { if (i) foot.appendChild(document.createTextNode(', ')); var u = el('button', 'tp-unmute', (names[rid] || 'a rule') + ' (unmute)'); u.type = 'button'; u.dataset.tpmute = rid; foot.appendChild(u); }); foot.appendChild(document.createTextNode('. ')); }
-    foot.appendChild(document.createTextNode('The Session Log keeps every line.')); body.appendChild(foot);
+    foot.appendChild(document.createTextNode('The Game Record keeps every line.')); body.appendChild(foot);
 }
 // The chat line (net.js renderChat hands a run's record here): the clock, the run's words, how much, and Open
 function renderLine(m) {

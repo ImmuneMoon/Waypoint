@@ -255,6 +255,8 @@ Systems, more
   it by grade: 0 none, 1 half, 2 three-quarters, 3 total.
 - A token's hover card says its marks in words: who targets it, what each tag on a
   target mark means, Down or Dead, its effects and any environment warning.
+- A selection, the hidden mark and every other outline on a picture or a hexagon
+  token now follows what you can see of it, not its box.
 - A band of side vision can notice by a roll. In the System editor's Senses box
   a band has Noticed by, a check on the viewer's sheet. A creature moving there
   is noticed with no roll. One standing still is checked in secret when it comes

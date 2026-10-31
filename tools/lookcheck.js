@@ -3440,6 +3440,20 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
 }
 
 {
+    // 1.6.0, the owner (2026-10-31): "making sure all outlines always fit to the visible part of an image". Each mark that outlines a piece, read from the style sheet: on a picture and a hexagon token no box, a colour of its own, and the line drawn round the picture's own pixels or on the ring
+    const MK = '.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .size-match', marks = MK.split(', ');
+    const named = marks.every(m => new RegExp('\\n  \\.wb-item' + m.replace('.', '\\.') + '[. {:]').test(css) || m === '.size-match') && css.includes('  .wb-item.size-match {');
+    const edged = marks.every(m => { const re = new RegExp('\\n  \\.wb-item:is\\(\\.image, \\.wb-hextok\\)[^{]*' + m.replace('.', '\\.') + '[^{]*\\{ --edge:'); return re.test(css); });
+    const noOther = !/\n  \.wb-item\.[a-z-]+(?:\.[a-z-]+)*\s*\{[^}]*outline: \d/.test(css.replace(new RegExp('\\n  \\.wb-item(' + marks.map(m => m.replace('.', '\\.')).join('|') + ')[^\\n]*', 'g'), '').replace(/\n  \.wb-item\.(?:path|text|wb-door\.|wb-barrier\.)[^\n]*/g, ''));
+    check('every mark that outlines a piece fits the visible part of a picture or a hexagon token: each of the ten has a colour (--edge), none draws a box there, a picture draws it round its own pixels and a dead token keeps its look, a picture cut to a hexagon and a hexagon token on their ring, the same colour; no other mark outlines a piece', named && edged && noOther
+        && css.includes('  .wb-item:is(.image, .wb-hextok):is(' + MK + ') { outline: none !important; }')
+        && css.includes('  .wb-item.image:not(.tok-pic-hexagon):is(' + MK + ') > img { filter: var(--imgf,) drop-shadow(2px 0 0 var(--edge))')
+        && css.includes('  .wb-item.tok-dead > img { --imgf: saturate(0.45); filter: saturate(0.45); }')
+        && css.includes('  .wb-item:is(.image, .wb-hextok):is(' + MK + ') > .tok-selring { display: block; }')
+        && css.includes('  .tok-selring polygon { fill: none; stroke: var(--edge, var(--gold)); stroke-width: 2;'), J([named, edged, noOther]));
+}
+
+{
     // 1.6.0, the owner (2026-10-31): "hovering over the tokens that have badges should tell you what the badges do as well". A target mark takes no pointer, so the hover card says it (whiteboard.js markSays and badgeLines, sliced and run on stand-ins)
     const win = { wpSheets: { tokenFx: () => [{ n: 'Rage' }, { n: '<b>x</b>' }, null], tokenEnv: () => ({ text: 'Cold: warn' }) } };
     const fns = new Function('window', 'TARGET_COVER_GLYPH', 'TARGET_LIGHT_GLYPH', 'rangeNamesOn', 'rangeTitle', 'heightTitle', sliceOf(wbSrc, 'badgesay') + '\nreturn { markSays, badgeLines };')(win, { 'Half cover': 'H', 'Three-quarters cover': 'Q' }, ['D', 'L'], () => false, r => 'Range ' + r.mod, h => 'Height ' + h.mod);

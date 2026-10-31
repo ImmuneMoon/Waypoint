@@ -995,7 +995,7 @@
   body.net-client #whiteboard .wb-item.targeted-by-me { filter: drop-shadow(0 0 4px rgba(255,255,255,0.5)); }
   .token-status svg { width: 74%; height: 74%; filter: drop-shadow(0 0 2px #000); }
   .wb-item.tok-dead::after { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.45); z-index: 1; pointer-events: none; }
-  .wb-item.tok-dead > img { filter: saturate(0.45); }
+  .wb-item.tok-dead > img { --imgf: saturate(0.45); filter: saturate(0.45); }
   /* Stance chips: elevation (gold, red-tinted below ground) and posture (blue) in a row at the
      bottom of the token, inside its cell. Fixed dark plate so they read over any art or theme. */
   .token-stance { position: absolute; left: 0; right: 0; bottom: 2px; display: flex; justify-content: center; gap: 2px; pointer-events: none; z-index: 4; transform: scale(var(--wbz, 1)); transform-origin: 50% 100%; }
@@ -1863,12 +1863,11 @@
   .wb-hextok > .tok-plate polygon { pointer-events: visiblePainted; }
   body.placing #whiteboard .wb-hextok > .tok-plate polygon { pointer-events: none; }   /* placing a shape passes through tokens, as for every item */
   .wb-hextok > .tok-ring { z-index: 1; }
-  .wb-item.wb-hextok.sel:not(.blast-hit):not(.circle-hit), .wb-item.image.tok-pic-hexagon.sel:not(.blast-hit):not(.circle-hit) { outline: none; }   /* 1.6.0: the ring follows the hexagon in place of the box */
   .wb-item.wb-hextok.sel { overflow: visible; }   /* a waiting token clips what stands outside it */
   .wb-item > .tok-selring { display: none; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 1; }
   .wb-item.sel > .tok-selring, .wb-item.wb-turn > .tok-selring { display: block; }
-  .tok-selring polygon { fill: none; stroke: var(--gold); stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
-  .wb-item.sel.locked > .tok-selring polygon { stroke: var(--dim); stroke-dasharray: none; }
+  .tok-selring polygon { fill: none; stroke: var(--edge, var(--gold)); stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+  .wb-item.sel.locked > .tok-selring polygon { stroke-dasharray: none; }
   .wb-item.wb-hextok.wb-turn, .wb-item.image.tok-pic-hexagon.wb-turn { outline: none; box-shadow: none !important; }   /* whose turn it is follows the hexagon too: solid and glowing, and dashed as well while it is selected */
   .wb-item.wb-hextok.wb-turn { overflow: visible; }
   .wb-item.wb-turn > .tok-selring { filter: drop-shadow(0 0 5px rgba(224,165,79,0.8)); }
@@ -1881,6 +1880,22 @@
   .wb-item.image.tok-pic-hexagon > img { clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
   .wb-item.image.tok-pic-rect > img { border-radius: 4px; }
   .wb-item.image.tok-pic-circle > img { border-radius: 50%; }
+  /* 1.6.0 (the owner, 2026-10-31: "making sure all outlines always fit to the visible part of an image"): a mark round a picture or a hexagon token follows what can be seen, never the box. Each mark names its colour once (--edge). A picture draws it round its own pixels, so a clear corner or the bars beside a picture that does not fill its box stay out. A picture cut to a hexagon and a hexagon token draw it on their ring, since a filter on a clipped picture is clipped with it */
+  .wb-item:is(.image, .wb-hextok):is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .size-match) { outline: none !important; }
+  .wb-item:is(.image, .wb-hextok):is(.wb-turn, .size-match) { box-shadow: none !important; }
+  .wb-item.wb-hextok:is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .size-match) { overflow: visible; }
+  .wb-item:is(.image, .wb-hextok).wb-hidden-gm { --edge: var(--steel); }
+  .wb-item:is(.image, .wb-hextok).wb-trap { --edge: rgba(255,107,107,0.8); }
+  .wb-item:is(.image, .wb-hextok):is(.wb-blocks-sight, .wb-door) { --edge: var(--gold); }
+  .wb-item:is(.image, .wb-hextok).wb-barrier { --edge: #4dd0e1; }
+  .wb-item:is(.image, .wb-hextok).wb-door.wb-door-open { --edge: #4caf7d; }
+  .wb-item:is(.image, .wb-hextok):is(.sel, .circle-hit, .wb-turn, .size-match) { --edge: var(--gold); }
+  .wb-item:is(.image, .wb-hextok).sel.locked { --edge: var(--dim); }
+  .wb-item:is(.image, .wb-hextok).blast-hit { --edge: var(--red); }
+  .wb-item.image:not(.tok-pic-hexagon):is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .size-match) > img { filter: var(--imgf,) drop-shadow(2px 0 0 var(--edge)) drop-shadow(-2px 0 0 var(--edge)) drop-shadow(0 2px 0 var(--edge)) drop-shadow(0 -2px 0 var(--edge)); }
+  .wb-item.image.wb-turn:not(.tok-pic-hexagon) > img { filter: var(--imgf,) drop-shadow(3px 0 0 var(--edge)) drop-shadow(-3px 0 0 var(--edge)) drop-shadow(0 3px 0 var(--edge)) drop-shadow(0 -3px 0 var(--edge)) drop-shadow(0 0 7px rgba(224,165,79,0.8)); }
+  .wb-item:is(.image, .wb-hextok):is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .size-match) > .tok-selring { display: block; }
+  .wb-item:is(.blast-hit, .circle-hit) > .tok-selring polygon { stroke-dasharray: none; }
   /* The token creator (owner, 2026-09-27): a picture framed to a square — drag, zoom, the grid's outline previewed over it */
   body.net-client #sheetPop { display: none; }   /* the sheet pop-out reads this machine's save: not at someone else's table */
   .frame-modal { position: fixed; inset: 0; z-index: 100006; background: var(--overlay); display: flex; align-items: center; justify-content: center; }

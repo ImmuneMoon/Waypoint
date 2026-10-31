@@ -6,6 +6,7 @@
    or a stub) is passed in as F, so tools/systemcheck.js runs this under Node. Published as window.wpSystemCore.
    Design of record: docs/SHEET_BUILDER_PLAN.md. */
 'use strict';
+import { cleanObjects } from './objcore.js';   // 1.6.0: a system's own set of map objects (pure; objcheck runs it)
 import { cleanCalendar } from './calendarcore.js';   // item 20 K1: the system's calendar (a pure module of its own: calendarcheck runs it)
 import { cleanRec, makeRec, textSig, RULES as LOOK_RULES } from './lookcore.js';   // item 35: the look of a text outside a planner, a record that names its text (pure; textcheck runs it)
 
@@ -3780,6 +3781,7 @@ function cleanSystem(sys, opts) {
     var envR = cleanEnv(sys.env, fieldIds, F);   // 1.6.0: the environment readings, against this view's fields (a reading whose field players do not hold is not theirs)
     if (envR && !gmView && typeof showMention === 'function') envR.forEach(function(e) { ENV_BANDS.forEach(function(k) { if (e[k] && showMention(e[k])) delete e[k]; }); });   // a band that reads a GM-only value goes from the players' view: where it showed would tell the value
     if (envR) out.env = envR;
+    if (gmView) { var objS = cleanObjects(sys.objects); if (objS.length) out.objects = objS; }   // 1.6.0: a system's own map objects, the GM's to place: never in the players' view
     var pages = null;   // Stage 5f: the host passes the ids of the pages players may read, so a chip or link to any other page never travels
     if (opts.pages !== undefined) { pages = map(); (Array.isArray(opts.pages) ? opts.pages : []).forEach(function(id) { if (validPageId(id)) pages[id] = 1; }); }
     out.sheet = cleanSheet(sys.sheet, fieldIds, rollIds, pages, gmView);

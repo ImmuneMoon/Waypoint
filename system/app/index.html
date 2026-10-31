@@ -75,6 +75,7 @@
 <script type="module" src="scripts/notice.js"></script>
 <script type="module" src="scripts/trackcore.js"></script>
 <script type="module" src="scripts/trackers.js"></script>
+<script type="module" src="scripts/mapobjects.js"></script>
 <script type="module" src="scripts/trade.js"></script>
 <script type="module" src="scripts/keycore.js"></script>
 <script type="module" src="scripts/commands.js"></script>
@@ -666,6 +667,7 @@
                                   <li><b>Sound with it</b> plays one of your cues along with the effect you fire.</li>
                                   <li>Right-click a token for a <b>Pulse</b>. On the GM&rsquo;s screen, a circle of the Radius tool or a thrown blast gains a <b>Boom</b>.</li>
                                   <li>The players on that map see an effect, and so does the stream window. A burst has a place, so a player on another map does not see it.</li>
+                                  <li><b>Rulers and shapes over the fog:</b> a ruler, a circle and a blast are drawn over the fog on every screen, with their words. Fog never hides them.</li>
                                   <li><b>Ping:</b> <kbd>Alt</kbd>+click on the play map rings that cell for a moment, over the fog, for everyone on the map. The panel&rsquo;s <b>Ping</b> button and then a click on the map does the same. The Ping row&rsquo;s list sends pings to one player on the map instead, and not to the stream window. Alt+click follows that choice until the player leaves the map. A ping is never saved, and a player&rsquo;s screen draws at most eight at once.</li>
                                   <li><b>Reduce motion</b> is in Settings and is each machine&rsquo;s own. It skips shake, shortens flashes and keeps a ping&rsquo;s ring still. A hard flash guard prevents strobing.</li>
                               </ul>
@@ -797,6 +799,15 @@
                                   <li>Cover changes dice only where a formula reads it, and damage only where your system says so. On the Combat card, with cover on, each grade can make a <b>Full auto</b> blast do full, half or no damage behind it.</li>
                                   <li>With <b>Token elevation</b> on, your system&rsquo;s <b>Height and cover</b> rule can make height count. The rule is on the Combat card, with cover on. Looked at from higher than a see-over piece, the piece gives no cover. Looked at from below the target, it hides them, which is total cover. Walls block at any height.</li>
                                   <li>A piece&rsquo;s <b>Height</b> is in its Properties, in your own units. A see-over piece with none is 1 yard tall.</li>
+                              </ul>
+                          </li>
+                          <li><b>Map objects:</b> Add on the map&rsquo;s toolbar has a Map objects row, the GM&rsquo;s alone. It lists what you can place, such as a chair, a crate or a table.
+                              <ul>
+                                  <li>Press <b>Place</b>, then click the map. Players can then take cover behind it. Build&rsquo;s options list your objects too.</li>
+                                  <li>An object gives the cover it says whenever a line to a target passes through it, whatever its size. The height of a token makes no difference.</li>
+                                  <li>Press <b>Edit</b> to change its name, picture, cover or size. A piece already placed keeps what it had.</li>
+                                  <li><b>From a picture</b> makes one from your Image Library. Objects you make stay in this campaign. <b>From another campaign</b> copies one in.</li>
+                                  <li><b>Move to the system</b> puts one in the system&rsquo;s own set, so that a system file carries it.</li>
                               </ul>
                           </li>
                           <li><b>Height in the fog:</b> with <b>Token elevation</b> on and your system&rsquo;s <b>Height and cover</b> rule set to <b>Height clears low cover</b>, the fog hides what that rule hides.
@@ -2764,6 +2775,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><kbd>Shift + 1</kbd> &nbsp; Fit to content: frame the selection if there is one, else the whole map.</li>
                           <li><kbd>Q</kbd> &nbsp; Back to the map you were on last. Press it again to go back the other way.</li>
                           <li><b>Tool keys</b>: <kbd>S</kbd> Select, <kbd>H</kbd> Pan, <kbd>P</kbd> Pen, <kbd>E</kbd> Eraser, <kbd>M</kbd> Ruler and <kbd>R</kbd> Radius. A key takes the tool, and a second press puts it away.</li>
+                          <li><b>Select and Pan</b> share one place on the toolbar. The small arrow beside it switches between them.</li>
                           <li><b>Your own keys</b> are set in Settings, under Keys. Press a key box, then the key you want. <kbd>Esc</kbd> cancels.
                               <ul>
                                   <li>A key the app or another command already uses is refused, and the line under the list says what has it.</li>
@@ -2870,8 +2882,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <button class="wb-tool-btn" id="wbUndoBtn" title="Undo (this map)" style="opacity:0.5; pointer-events:none;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L4 9l5 5M4 9h10.5a5.5 5.5 0 0 1 0 11H9"/></svg></button>
             <button class="wb-tool-btn" id="wbRedoBtn" title="Redo (this map)" style="opacity:0.5; pointer-events:none;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4l5 5-5 5M20 9H9.5a5.5 5.5 0 0 0 0 11H15"/></svg></button>
             <div class="wb-tool-sep"></div>
-            <button class="wb-tool-btn active" id="moveModeBtn" title="Select / Move"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v16l4.2-3.8L12 21.2l2.6-1.2-2.8-5.8h5.7L5 3z"/></svg></button>
-          <button class="wb-tool-btn" id="panModeBtn" title="Pan"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 15V5.5a1.5 1.5 0 0 1 3 0V11M12 10.5v-6a1.5 1.5 0 0 1 3 0v6M15 11V6a1.5 1.5 0 0 1 3 0v8c0 4-2.6 7-6.6 7-2.5 0-4.2-1.2-5.5-3.4L3.6 13.4a1.5 1.5 0 0 1 2.5-1.7L9 15"/></svg></button>
+            <div class="sel-swap" id="selSwap">
+                <button class="wb-tool-btn active" id="moveModeBtn" title="Select / Move"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v16l4.2-3.8L12 21.2l2.6-1.2-2.8-5.8h5.7L5 3z"/></svg></button>
+              <button class="wb-tool-btn" id="panModeBtn" title="Pan"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 15V5.5a1.5 1.5 0 0 1 3 0V11M12 10.5v-6a1.5 1.5 0 0 1 3 0v6M15 11V6a1.5 1.5 0 0 1 3 0v8c0 4-2.6 7-6.6 7-2.5 0-4.2-1.2-5.5-3.4L3.6 13.4a1.5 1.5 0 0 1 2.5-1.7L9 15"/></svg></button>
+                <button class="wb-tool-btn sel-chev" id="selSwapBtn" title="Switch between Select and Pan" aria-label="Switch between Select and Pan"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
+            </div>
             <div class="wb-tool-sep"></div>
           <div class="tool-pair" style="position:relative;">
               <button class="wb-tool-btn draw-tool-btn" id="drawModeBtn" title="Pen. Press again to put it away."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4l4 4-8.5 8.5-4.5 1 1-4.5L14 4zM4 21c2-1.6 3.6 1.2 5.6 0s3.2-1.4 5 0 3.4.6 5.4-.4"/></svg><span class="draw-color-indicator" id="drawColorIndicator"></span></button><button class="wb-tool-btn tool-chev" id="drawOptBtn" title="Pen options" aria-haspopup="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
@@ -2989,6 +3004,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <button class="wb-tool-btn menu-row" id="shapeTextBtn" title="Text &mdash; click to place a text box (drag to size it), or click an existing text box to edit it"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7V5h14v2M12 5v14M9.5 19h5"/></svg></span><span class="mr-txt">Text box<small>Click to place it. Drag to size it.</small></span></button>
                   <button class="wb-tool-btn menu-row" id="addImageBtn" title="Add Image"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3zM7.5 8.5a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zM3.5 17l5-5 3.5 3.5 3-3 5.5 5.5"/></svg></span><span class="mr-txt">Image<small>A picture from this computer.</small></span></button>
                   <button class="wb-tool-btn menu-row" id="imgLibBtn" title="Image Library &mdash; this campaign's pictures, the shared ones, and every campaign's"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h15v11H3zM6 8V5h15v11h-3M3.5 17l4-4 3 3 2.5-2.5 4.5 4.5"/></svg></span><span class="mr-txt">Image Library<small>This campaign&rsquo;s pictures and the shared ones.</small></span></button>
+                  <button class="wb-tool-btn menu-row" id="addObjectsBtn" title="Map objects &mdash; chairs, tables, crates and the like, each with its own cover"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5.5h9v7h-9zM3 12.5h9v7H3zM12 12.5h9v7h-9z"/></svg></span><span class="mr-txt">Map objects<small>Place what gives cover, by what it is.</small></span></button>
                   <button class="wb-tool-btn menu-row" id="importCharBtn" title="Import Character &mdash; a sheet file as a ready token" hidden><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM2.5 20v-1.5A4.5 4.5 0 0 1 7 14h4a4.5 4.5 0 0 1 4.5 4.5V20M19 5v8M15.8 9.8L19 13l3.2-3.2"/></svg></span><span class="mr-txt">Import Character<small>A character file as a ready token.</small></span></button>
               </div>
           </div>
@@ -3039,6 +3055,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       </div>
                       <div class="build-line" id="buildCorridorLine" hidden>With walls lays a wall line along each side. The ends stay open.</div>
                   </div>
+                  <div class="menu-rule"></div>
+                  <div class="draw-menu-label">Map objects</div>
+                  <div class="menu-list" id="buildObjRows"></div>
+                  <button class="wb-tool-btn menu-row" id="buildObjBtn" title="All your map objects: make one, change one or import one"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5.5h9v7h-9zM3 12.5h9v7H3zM12 12.5h9v7h-9z"/></svg></span><span class="mr-txt">All map objects<small>Make, change or import one.</small></span></button>
                   <div class="menu-rule"></div>
                   <button class="wb-tool-btn menu-row" id="buildGenBtn" title="Lays a whole dungeon of ordinary pieces: rooms and corridors as floors, wall lines around them and doors on the lines. You choose where it is built, its size and its seed first. One Undo takes it back."><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5.5h9v7h-9zM3 12.5h9v7H3zM12 12.5h9v7h-9z"/></svg></span><span class="mr-txt">Generate a dungeon&hellip;<small>Rooms, corridors, walls and doors, made for you.</small></span></button>
                   <button class="wb-tool-btn menu-row" id="buildCityBtn" title="Lays a village, a town or a city of ordinary pieces: streets, buildings under their roofs, a city wall, water and fields. You choose where it is built, its size and its seed first. One Undo takes it back."><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 19.5V8H7v3h3.25V8h3.5v3H17V8h3.5v11.5M9.75 19.5v-3.75a2.25 2.25 0 0 1 4.5 0v3.75M2.5 19.5h19"/></svg></span><span class="mr-txt">Generate a city&hellip;<small>A village, a town or a city, made for you.</small></span></button>
@@ -4598,6 +4618,21 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 
+<!-- Map objects (1.6.0): the GM's list of what can be placed (mapobjects.js) -->
+<div id="objModal" class="gen-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="objTitle">
+    <div class="gen-box obj-box">
+        <h3 id="objTitle">Map objects</h3>
+        <div id="objList"></div>
+        <div class="gen-rule"></div>
+        <div class="obj-formbar">
+            <button type="button" class="tool ghost" id="objFromPic" title="Make an object from one of your pictures">From a picture</button>
+            <button type="button" class="tool ghost" id="objPlain" title="Make a plain block with a name and a grade of cover">A plain block</button>
+            <button type="button" class="tool ghost" id="objFromOther" title="Copy an object from another of your campaigns">From another campaign</button>
+        </div>
+        <div id="objFromList" hidden></div>
+        <div class="obj-formbar obj-end"><button type="button" class="tool" id="objClose" title="Close">Close</button></div>
+    </div>
+</div>
 <div id="shareModal" class="gen-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
     <div class="gen-box share-box">
         <h3 id="shareTitle">Export this campaign</h3>

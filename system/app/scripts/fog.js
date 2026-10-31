@@ -429,12 +429,15 @@ function coverBetween(x1, y1, x2, y2, hA, hB, onMap, onCamp) {   // item 19 H1: 
     var a = C.cellOf(x1, y1, grid), b = C.cellOf(x2, y2, grid);
     if (C.cellKey(a, grid) === C.cellKey(b, grid)) return null;         // same cell → no cover
     var sys = camp && camp.system; if (!window.wpSystemCore) return null;
-    var cs = coverSetsFor(map, grid), h3 = typeof heightSightOf === 'function' ? heightSightOf(sys) : null;
+    var cs = coverSetsFor(map, grid), gr = cs && cs.gr, h3 = typeof heightSightOf === 'function' ? heightSightOf(sys) : null;   // gr: the placed objects that say their own grade (1.6.0), read apart below
     if (h3 && h3.mode === '3d') { var pa = C.cellCenter(a, grid), pb = C.cellCenter(b, grid); cs = cover3d(cs, grid, pa.x, pa.y, hNum(hA) + h3.eye, pb.x, pb.y, hNum(hB)); }   // item 19b H4: the true 3D line, from the first end's eye
     else if (heightRuleOf(sys) === 'clears') cs = heightCover(cs, hA, hB, grid);   // item 19 H1: height clears low cover (from above; from below it hides)
     var cov = C.coverBetween(a, b, grid, cs && cs.hard, cs && cs.soft, cs && cs.all);   // cover follow-ups: the cover pieces (a see-over one too, never a token)
-    return window.wpSystemCore.coverTier(sys, cov.coverage, cov.lineOfEffect);
+    var tier = window.wpSystemCore.coverTier(sys, cov.coverage, cov.lineOfEffect), g = gr && C.gradeOnLine ? C.gradeOnLine(a, b, grid, gr) : '';
+    if (g) { var byObj = window.wpSystemCore.coverTier(sys, g === 'half' ? 0.25 : 0.75, g !== 'total'); if (tierRank(byObj) > tierRank(tier)) tier = byObj; }   // a placed object gives the grade it says, or what else stands on the line where that is more
+    return tier;
 }
+function tierRank(t) { return !t ? 0 : t.block ? 3 : t.name === 'Three-quarters cover' ? 2 : 1; }
 // Cover follow-ups (owner 2026-09-28): the cells that give cover on a map — hard (a sight-blocker) and soft (see-over: a crate, a low wall), by
 // fogcore coverRole (never a token, a hidden piece or an open door; a piece set to no cover gives none). Memoised like blockersFor (map.id +
 // its saved stamp); none, or the walls over the cells cap: null (no cover: fail open, as blockersFor)
@@ -444,7 +447,7 @@ var _coverCache = Object.create(null), _coverStamp = Object.create(null);
 function coverSetsFor(map, grid, blast) {
     if (!map || !grid) return null;
     var C = core(), wb = map.whiteboard || [];
-    if (blast === true) { var anyB = false; for (var bi = 0; bi < wb.length && !anyB; bi++) anyB = !!(C && C.blastStopOn && C.blastStopOn(wb[bi])); if (!anyB) return coverSetsFor(map, grid); }
+    if (blast === true) { var anyB = false; for (var bi = 0; bi < wb.length && !anyB; bi++) anyB = !!(C && C.blastStopOn && C.blastStopOn(wb[bi])) || !!(C && C.cleanCoverAs && C.cleanCoverAs(wb[bi] && wb[bi].coverAs)); if (!anyB) return coverSetsFor(map, grid); }   // a blast reads a placed object by what it covers, so its sets are the attack's only where neither is on the map
     var cCamp = typeof activeCamp === 'function' ? activeCamp() : null, most = C && C.coverMost ? C.coverMost(cCamp && cCamp.system, grid) : 0;   // 1.6.0: the largest placed object that gives cover by itself, 0 with none set
     var stamp = (map.meta && map.meta.updated) || 0, ck = (blast === true ? map.id + '\u0000blast' : map.id) + (most ? '\u0000' + most : '');
     if (_coverCache[ck] !== undefined && _coverStamp[ck] === stamp) return _coverCache[ck];
@@ -455,7 +458,7 @@ function coverSetsFor(map, grid, blast) {
     // asked first, and a see-over one then stopped no blast). It is taken AFTER every other piece and only where it fits under the caps, so
     // that no wall loses its cover to one: a ticked barrier too large for what is left is passed over alone, and the GM is told once for
     // each count (one large barrier switched off all blast cover on its map, walls included, and nothing said so)
-    var later = [], putPiece = function(w, role, own) {   // own: a ticked barrier. false: it did not fit
+    var gr = null, later = [], putPiece = function(w, role, own) {   // own: a ticked barrier. false: it did not fit
         var hW = C.cleanHeight(w.height) || 1, hR = role === 'hard' ? C.cleanHeight(w.height) || Infinity : 0, k, j;
         if (!own && role === 'hard' && hR < Infinity) lowW = true;
         if (w.type === 'path') {   // item 18 W2: a pen line's cover is its line
@@ -477,7 +480,12 @@ function coverSetsFor(map, grid, blast) {
     };
     for (var i = 0; i < wb.length && !over; i++) {
         if (blast === true && C.blastStopOn(wb[i])) { later.push(wb[i]); continue; }   // a barrier ticked Stops blasts: a wall to a blast, taken last
-        var role = C.coverRole(wb[i], most); if (role) putPiece(wb[i], role, false);
+        var role = C.coverRole(wb[i], most), asG = blast !== true && role === 'soft' && C.coverAsOf ? C.coverAsOf(wb[i], most) : '';
+        if (asG) {   // 1.6.0: a placed object that says its grade stands apart from the see-over cells, in the cell of its own middle where it covers no cell's centre
+            var gc = footprintCells(wb[i], grid, C); if (gc.over) continue;
+            if (!gc.length) gc = [C.cellOf(wb[i].x + (wb[i].w || 0) / 2, wb[i].y + (wb[i].h || 0) / 2, grid)];
+            gr = gr || Object.create(null); var gs = gr[asG] || (gr[asG] = Object.create(null)); for (var gi = 0; gi < gc.length; gi++) gs[C.cellKey(gc[gi], grid)] = 1;
+        } else if (role) putPiece(wb[i], role, false);
     }
     var bigB = 0; if (!over) later.forEach(function(w) { if (!putPiece(w, 'hard', true)) bigB++; });
     if (blast === true) {
@@ -492,7 +500,8 @@ function coverSetsFor(map, grid, blast) {
     if (hasS && all === hard) { all = Object.create(null); for (var hk2 in hard) all[hk2] = 1; }
     if (hasH) C.withWalls(hard, hs, grid); if (hasS) { C.withWalls(soft, ss, grid); if (all !== hard) C.withWalls(all, hs.concat(ss), grid); }
     if (!over && hardLines.some(function(g) { return g.h < Infinity; })) { var fsg = []; hardLines.forEach(function(g) { if (!(g.h < Infinity)) g.segs.forEach(function(s) { fsg.push(s); }); }); fullW = C.withWalls(Object.create(null), fsg, grid); }
-    var result = over || !(hasH || hasS) ? null : { hard: hasH ? hard : null, soft: hasS ? soft : null, all: all, softH: softH, softLines: softLines, hardH: hardH, hardLines: hardLines, fullW: fullW, lowW: lowW };
+    var result = over || !(hasH || hasS || gr) ? null : { hard: hasH ? hard : null, soft: hasS ? soft : null, all: all, softH: softH, softLines: softLines, hardH: hardH, hardLines: hardLines, fullW: fullW, lowW: lowW };
+    if (result && gr) result.gr = gr;
     _coverStamp[ck] = stamp; _coverCache[ck] = result;
     return result;
 }
@@ -1573,7 +1582,7 @@ function draw() {
     drawCaptions(ctx, s);
     drawSenseCaptions(ctx, s, blindCaptionsFor(map, camp, drawOwner()));   // senses S3: why a blind token's screen is dark
     if (typeof drawWhyDark === 'function') drawWhyDark(ctx, s, map, grid, mask, tiers, Date.now());   // 1.5.4: why the cell under a resting pointer is dark (the GM's screen)
-    if (typeof measureCaps === 'function') measureCaps(ctx, s);    // 1.5.4: the ruler's and a blast's distance words, over an opaque fog
+    if (typeof measureCaps === 'function') measureCaps(ctx, s);    // the rulers and shapes, over the fog on every screen
 }
 // Lighting L4 (owner answer 7): the name of the light a targeted token stands in, under the token. Drawn here, over the fog: the board's own
 // layers lie under it, and on a player's screen the cells beneath a token are often dark. whiteboard.js marks the token with the words it
@@ -1597,24 +1606,43 @@ function drawCaptions(ctx, s) {
 }
 
 // [fogcheck:rulercaps-start]
-// The ruler's and a blast's distance words over the fog (the owner, 2026-10-17: "Ruler now, rest after"). The board's measure layer lies under
-// this canvas, and on an opaque fog (a player's screen, the stream window) a ruler measured into the dark showed no length. whiteboard.js marks
-// the distance words of each ruler, circle and blast with the class fog-cap. While this overlay draws them the body wears fog-caps, the style
-// sheet keeps the marked words out of sight on the board, and they are drawn here as canvas text, at their own place and size, in their own
-// colour. Those words alone: what else a ruler or a blast says (cover, light, range, a move's cost, a height, a posture, a name) stays on the
-// board, under the fog where the cell is dark. Every draw takes the body's word back first and a cleared canvas does too, so the words are
-// never out of sight on both
-var MCAPS_MOST = 60, _capsOn = false;
+// Rulers and shapes over the fog (the owner, 2026-10-17: "Ruler now, rest after", and 2026-10-31: "the tools like rulers should not be blocked by
+// vision cover or anything else"). The board's measure layer lies under this canvas, so a ruler measured into the dark went out of sight. While this
+// overlay draws, on any screen, it draws the whole layer on its own canvas: each line, circle and path where the board has it, in its own colour and
+// width, then each word. The body wears fog-caps meanwhile and the style sheet makes the board's own layer invisible, so nothing is drawn twice and it
+// still takes its presses. A frame comes every 60 ms, so what moves follows. Every draw takes the body's word back first and a cleared canvas does too,
+// so the layer is never out of sight on both
+var MCAPS_MOST = 60, MSHAPES_MOST = 400, _capsOn = false;
 function capsShow(on) {
     on = on === true; if (on === _capsOn) return;
     _capsOn = on; var b = typeof document !== 'undefined' && document ? document.body : null;
     if (b && b.classList) b.classList.toggle('fog-caps', on);
 }
 function capsColour(v, d) { return typeof v === 'string' && /^rgba?\([0-9., ]+\)$/.test(v) ? v : d; }   // a colour as the style sheet worked it out, else the fallback
+function capsPaint(v) { return typeof v === 'string' && /^rgba?\([0-9., ]+\)$/.test(v) && !/,\s*0(\.0+)?\)$/.test(v) ? v : ''; }   // a paint that shows: never none or a transparent one, as a ruler's fat hit line is
+// The shapes of the layer, each by the very place the board gives it (getScreenCTM)
+function measureShapes(ctx, sr) {
+    if (!ctx.transform || !ctx.stroke || !ctx.fill || !ctx.beginPath) return 0;
+    var els = document.querySelectorAll('#measureLayer line, #measureLayer circle, #measureLayer path'), n = 0;
+    for (var i = 0; i < els.length && n < MSHAPES_MOST; i++) {
+        var el = els[i], m = typeof el.getScreenCTM === 'function' ? el.getScreenCTM() : null, cs = typeof getComputedStyle === 'function' ? getComputedStyle(el) : null; if (!m || !cs) continue;
+        var tag = String(el.tagName || '').toLowerCase(), num = function(k) { var v = parseFloat(el.getAttribute(k)); return isFinite(v) ? v : 0; };
+        var fill = tag === 'line' ? '' : capsPaint(cs.fill), ink = capsPaint(cs.stroke), w = parseFloat(cs.strokeWidth); if (!(w > 0)) ink = ''; if (!fill && !ink) continue;
+        var path = tag === 'path' && typeof Path2D === 'function' ? new Path2D(String(el.getAttribute('d') || '')) : null; if (tag === 'path' && !path) continue;
+        ctx.save(); ctx.translate(-sr.left, -sr.top); ctx.transform(m.a, m.b, m.c, m.d, m.e, m.f);
+        if (!path) { ctx.beginPath(); if (tag === 'line') { ctx.moveTo(num('x1'), num('y1')); ctx.lineTo(num('x2'), num('y2')); } else ctx.arc(num('cx'), num('cy'), Math.max(0, num('r')), 0, Math.PI * 2); }
+        if (fill) { ctx.fillStyle = fill; if (path) ctx.fill(path); else ctx.fill(); }
+        if (ink) { ctx.strokeStyle = ink; ctx.lineWidth = w; ctx.lineCap = cs.strokeLinecap === 'round' ? 'round' : 'butt'; ctx.lineJoin = cs.strokeLinejoin === 'round' ? 'round' : 'miter'; if (ctx.setLineDash) ctx.setLineDash(String(cs.strokeDasharray || '').split(/[ ,]+/).map(parseFloat).filter(function(d) { return d > 0; })); if (path) ctx.stroke(path); else ctx.stroke(); }
+        ctx.restore(); n++;
+    }
+    return n;
+}
 function measureCaps(ctx, s) {
-    if (!(isClientView() || isStreamView()) || !ctx || !ctx.fillText) return 0;
-    var els = document.querySelectorAll('#measureLayer .fog-cap'), sr = s.getBoundingClientRect(), z = state.zoomLevel || 1, n = 0;
+    if (!ctx || !ctx.fillText) return 0;
+    var sr = s.getBoundingClientRect(), z = state.zoomLevel || 1, n = 0;
     capsShow(true);
+    measureShapes(ctx, sr);
+    var els = document.querySelectorAll('#measureLayer text');
     ctx.save(); ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
     for (var i = 0; i < els.length && n < MCAPS_MOST; i++) {
         var t = String(els[i].textContent || '').slice(0, 200); if (!t) continue;

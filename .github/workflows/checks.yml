@@ -105,6 +105,9 @@ jobs:
       - name: accountcheck — this install linked to a Waypoint website account, the shell's routes and the order of linking
         if: ${{ !cancelled() }}
         run: node tools/accountcheck.js
+      - name: objcheck — map objects, the pure core, the GM's window, the wire and the words
+        if: ${{ !cancelled() }}
+        run: node tools/objcheck.js
       - name: scenecheck — a picture shown big to the table, the GM box, the player window, the wire and the pill
         if: ${{ !cancelled() }}
         run: node tools/scenecheck.js

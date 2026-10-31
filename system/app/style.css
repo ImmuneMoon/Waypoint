@@ -379,7 +379,7 @@
   /* GM's view of a token whose owner is elsewhere in the world */
   .wb-item.wb-absent { opacity: 0.3 !important; filter: grayscale(0.8); }
   body.net-client .gm-only { display: none !important; }
-  body.net-client #imgLibBtn, body.net-client #importCharBtn { display: none !important; }   /* the picture library and sheet import are the GM's own (a client's save is not this table's) */
+  body.net-client #imgLibBtn, body.net-client #addObjectsBtn, body.net-client #importCharBtn { display: none !important; }   /* the picture library and sheet import are the GM's own (a client's save is not this table's) */
   #importCharBtn[hidden] { display: none; }   /* shown only where an outside sheet reader is at hand (a menu row would show through its hidden mark) */
   /* Image Library scope row (1.5.0): which campaign's pictures; shared categories carry a mark */
   #imgLibCats .img-scope-break { flex-basis: 100%; height: 0; }
@@ -1135,7 +1135,7 @@
   #measureLayer line { stroke: var(--gold); stroke-width: 2; stroke-dasharray: 8 5; }
   #measureLayer circle { fill: var(--gold); }
   #measureLayer text { fill: var(--gold); font: bold 14px monospace; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; }
-  body.fog-caps #measureLayer .fog-cap { visibility: hidden; }   /* a distance the fog's own canvas draws over the fog (fog.js measureCaps): kept out of sight on the board while it does */
+  body.fog-caps #measureLayer { opacity: 0; }   /* the fog's own canvas draws the rulers and shapes over the fog (fog.js measureCaps): out of sight on the board while it does, and still pressed there */
   /* Placed rulers are clickable (click removes); the fat transparent line is the hit area */
   #measureLayer g.measure { pointer-events: auto; cursor: pointer; }
   #measureLayer g.measure.live { pointer-events: none; }
@@ -1687,6 +1687,27 @@
   .gen-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100005; align-items: center; justify-content: center; }
   .gen-box { background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 18px 20px; width: 410px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow-y: auto; box-sizing: border-box; }
   .gen-box h3 { margin: 0 0 12px; color: var(--gold); }
+  .sel-swap { display: inline-flex; align-items: center; gap: 0; }
+  #selSwap:not(.on-pan) #panModeBtn, #selSwap.on-pan #moveModeBtn { display: none; }   /* Select and Pan share one place; the small arrow switches them */
+  .wb-tool-btn.sel-chev { width: 13px; min-width: 13px; margin-left: -3px; padding: 0; border-radius: 0 8px 8px 0; background: none; color: var(--dim); }
+  .wb-tool-btn.sel-chev:hover { background: transparent; color: var(--gold); }
+  .wb-tool-btn.sel-chev svg { width: 10px; height: 10px; stroke-width: 2.6; }
+  .floating-toolbar.tb-tight > div > .wb-tool-btn.sel-chev { width: 12px; min-width: 12px; }
+  .mr-ico .obj-thumb { flex: none; width: 20px; height: 20px; }
+  .gen-box.obj-box { width: 520px; }
+  #objModal { z-index: 99990; }   /* under the Image Library, which a picture is picked from */
+  .obj-head { margin: 10px 0 4px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+  .obj-none { padding: 4px 0; font-size: 12px; color: var(--dim); }
+  .obj-row { padding: 6px 0; border-top: 1px solid var(--edge); }
+  .obj-top { display: flex; align-items: center; gap: 8px; }
+  .obj-thumb { flex: 0 0 34px; width: 34px; height: 34px; border-radius: 4px; overflow: hidden; display: block; background: var(--panel); }
+  .obj-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .obj-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+  .obj-name { color: var(--ink); overflow-wrap: anywhere; }
+  .obj-txt small { color: var(--dim); font-size: 11px; }
+  .obj-form { margin: 8px 0 2px 42px; display: flex; flex-direction: column; gap: 6px; }
+  .obj-formbar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .obj-end { justify-content: flex-end; }
   .gen-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; color: var(--ink); }
   .gen-row[hidden] { display: none; }
   .gen-name { flex: 0 0 78px; color: var(--dim); font-size: 12px; }

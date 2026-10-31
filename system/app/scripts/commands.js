@@ -45,7 +45,8 @@ function toolCan(t) {
     var b = document.getElementById(t[2]);
     if (!b) return t[1] + ' is not in this window.';
     if (!cmdPlayMap()) return t[1] + ' works on the play map.';
-    if (b.disabled === true || !cmdShown(b)) return t[1] + ' is not on your toolbar here.';
+    var seat = b.parentElement && b.parentElement.id === 'selSwap' ? b.parentElement : b;   // Select and Pan share one place: the one not showing is still on the toolbar
+    if (b.disabled === true || !cmdShown(seat)) return t[1] + ' is not on your toolbar here.';
     return true;
 }
 function toolAct(t) {

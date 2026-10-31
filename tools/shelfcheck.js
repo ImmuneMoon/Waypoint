@@ -1291,7 +1291,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     const mkCmds = o => {
         o = o || {};
         const R = { clicks: [], log: [] }, btn = id => ({ id, disabled: !!(o.off || {})[id], cls: new Set((o.held || []).indexOf(id) >= 0 ? ['active'] : []), get classList() { const s = this.cls; return { contains: c => s.has(c) }; },
-            getClientRects: () => ((o.hid || []).indexOf(id) >= 0 ? [] : [{ width: 30, height: 30 }]), click() { if (o.boom === id) throw new Error('boom'); R.clicks.push(id); } });
+            getClientRects: () => ((o.hid || []).indexOf(id) >= 0 ? [] : [{ width: 30, height: 30 }]), click() { if (o.boom === id) throw new Error('boom'); R.clicks.push(id); }, parentElement: (o.slot && /^(move|pan)ModeBtn$/.test(id)) ? { id: 'selSwap', getClientRects: () => (o.slot === 'gone' ? [] : [{ width: 48, height: 38 }]) } : undefined });
         const ids = ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'fillModeBtn', 'buildModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'envModeBtn', 'settingsBtn', 'helpBtn'].filter(id => (o.gone || []).indexOf(id) < 0), els = {};
         ids.forEach(id => { els[id] = btn(id); });
         const st = { viewMode: o.view || 'visual' }, map = o.map === undefined ? { type: 'map' } : o.map;
@@ -1318,6 +1318,8 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     const A = mkCmds({ held: ['drawModeBtn', 'moveModeBtn'] }), act = id => A.byId(id).act(), can = X => X.list.filter(c => c.can() === true).map(c => c.id);
     check('what Enter does is said for the row in front: a tool not in hand is taken, a tool in hand is put away as a second press of its icon puts it, Select stays in hand, the fog tool opens its menu, a window opens',
         act('tool.pen') === 'Enter puts Pen away.' && act('tool.ruler') === 'Enter takes Ruler.' && act('tool.select') === 'Select is in your hand.' && mkCmds().byId('tool.select').act() === 'Enter takes Select.' && act('tool.fog') === 'Enter opens the fog menu.' && act('open.settings') === 'Enter opens Settings.' && act('open.help') === 'Enter opens Help.');
+    const SW = mkCmds({ hid: ['panModeBtn'], slot: true }), SG = mkCmds({ hid: ['moveModeBtn', 'panModeBtn'], slot: 'gone' });
+    check('Select and Pan share one place: the one not showing still runs by its key and is still offered, since the box they stand in is on the toolbar; with that box put away neither is', SW.byId('tool.pan').can() === true && SW.run('tool.pan', 'key') === true && J(SW.R.clicks) === J(['panModeBtn']) && SG.byId('tool.pan').can() === 'Pan is not on your toolbar here.' && SG.byId('tool.select').can() === 'Select is not on your toolbar here.', J([SW.R, SG.byId('tool.pan').can()]));
     check('only what can run now is offered: on the play map every tool and both windows, on the data map or a page the two windows alone, a hidden tool left out',
         can(C).length === 12 && J(can(D)) === J(['open.settings', 'open.help']) && J(can(P)) === J(['open.settings', 'open.help']) && can(H).indexOf('tool.fill') < 0 && can(H).length === 11, J([can(D), can(H)]));
     // Settings' options, on the test page

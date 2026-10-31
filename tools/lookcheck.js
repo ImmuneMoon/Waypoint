@@ -34,13 +34,13 @@ const sliceOf = (src, name) => { const A = '// [lookcheck:' + name + '-start]', 
 // The toolbar and its menus, then what stands around the map (the rulers, the party and turn strips, the join card, the zoom box, the
 // panes' grips, the minimap). A new control is added to this list when it is built; none is ever taken off it without the owner's word.
 const INVENTORY = ['wbFloatingToolbar', 'wbCenterBtn', 'wbCenterMenu', 'wbCenterCanvasBtn', 'wbCenterItemsBtn', 'wbCenterCharBtn', 'wbFitBtn', 'wbUndoBtn', 'wbRedoBtn', 'wbGridBtn', 'gridMenu', 'gridOffBtn', 'gridSqBtn', 'gridHexBtn',
-    'gridOpacityBtn', 'wbSnapBtn', 'snapMenu', 'snapOffBtn', 'moveModeBtn', 'panModeBtn', 'drawModeBtn', 'drawColorIndicator', 'drawMenu', 'drawStyleRow', 'drawTipRow', 'drawColorRow', 'drawColorInput', 'drawSizeRow', 'drawOpacityVal',
-    'drawOpacity', 'eraserModeBtn', 'eraserMenu', 'eraserSizeVal', 'eraserSize', 'fillModeBtn', 'fillColorIndicator', 'fillMenu', 'fillColorRow', 'fillColorInput', 'fillFloodChk', 'fillTerrainChk', 'fillTerrainCost', 'fillTexture', 'fillTileRow', 'buildModeBtn', 'buildMenu', 'buildMatRows', 'buildShapeRow', 'buildShapeLine', 'buildTexture', 'buildTileRow', 'buildColorRow', 'buildColorInput', 'buildTerrainRow', 'buildTerrainChk', 'buildTerrainCost', 'buildCorridorRow', 'buildCorridorW', 'buildCorridorWalls', 'buildGenBtn', 'buildCityBtn', 'buildWorldBtn', 'buildHint', 'measureModeBtn',
+    'gridOpacityBtn', 'wbSnapBtn', 'snapMenu', 'snapOffBtn', 'selSwap', 'selSwapBtn', 'moveModeBtn', 'panModeBtn', 'drawModeBtn', 'drawColorIndicator', 'drawMenu', 'drawStyleRow', 'drawTipRow', 'drawColorRow', 'drawColorInput', 'drawSizeRow', 'drawOpacityVal',
+    'drawOpacity', 'eraserModeBtn', 'eraserMenu', 'eraserSizeVal', 'eraserSize', 'fillModeBtn', 'fillColorIndicator', 'fillMenu', 'fillColorRow', 'fillColorInput', 'fillFloodChk', 'fillTerrainChk', 'fillTerrainCost', 'fillTexture', 'fillTileRow', 'buildModeBtn', 'buildMenu', 'buildMatRows', 'buildShapeRow', 'buildShapeLine', 'buildTexture', 'buildTileRow', 'buildObjRows', 'buildObjBtn', 'buildColorRow', 'buildColorInput', 'buildTerrainRow', 'buildTerrainChk', 'buildTerrainCost', 'buildCorridorRow', 'buildCorridorW', 'buildCorridorWalls', 'buildGenBtn', 'buildCityBtn', 'buildWorldBtn', 'buildHint', 'measureModeBtn',
     'measureMenu', 'measureUnitRow', 'measureCellValue', 'measureCellUnit', 'rangeShowRow', 'measureClearBtn', 'blastModeBtn', 'blastMenu', 'blastFt', 'blastElevRow', 'blastElevUnit', 'blastElev', 'blastFlatNote', 'blastWhich', 'blastClearBtn',
     'blastUndoThrow', 'fogModeBtn', 'fogMenu', 'fogOn', 'fogHideMine', 'fogOnAllMaps', 'fogOnDefault', 'fogEmptyScope', 'fogLightRow', 'fogLight', 'fogLightPlace', 'fogGridlessRow', 'fogCellLen', 'fogSightFieldRow', 'fogSightField',
     'fogSightSecret', 'fogSight', 'fogSightUnit', 'fogSensesRow', 'fogSensesText', 'fogSensesEdit', 'fogMarksRow', 'fogMarksMode', 'fogVision', 'fogVisionArcRow', 'fogVisionArc', 'fogVisionDefault', 'fogRemember', 'fogStrokeRow',
     'fogPaintNote', 'fogRevealAll', 'fogCoverAll', 'fogPreview', 'fogNote', 'sceneFxBtn', 'sceneFxMenu', 'soundBtn', 'musicBtn', 'fxBtn', 'videoBtn', 'pagesBtn', 'pagesMenu', 'shapeMenuBtn', 'shapeMenu', 'shapeRectBtn', 'shapeCircBtn',
-    'shapeDiaBtn', 'shapeHexBtn', 'shapeTriggerBtn', 'shapeHexTriggerBtn', 'shapeOpacityVal', 'shapeOpacity', 'addMenuBtn', 'addMenu', 'shapeTextBtn', 'addImageBtn', 'imgLibBtn', 'importCharBtn', 'clearWbBtn', 'rulerTop', 'rulerLeft',
+    'shapeDiaBtn', 'shapeHexBtn', 'shapeTriggerBtn', 'shapeHexTriggerBtn', 'shapeOpacityVal', 'shapeOpacity', 'addMenuBtn', 'addMenu', 'shapeTextBtn', 'addImageBtn', 'imgLibBtn', 'addObjectsBtn', 'importCharBtn', 'clearWbBtn', 'rulerTop', 'rulerLeft',
     'rulerCursorX', 'rulerCursorY', 'fxScreen', 'fogScreen', 'partyStrip', 'combatStrip', 'partyMenu', 'joinCard', 'joinCardStatus', 'joinCardMake', 'joinCardFile', 'joinCardToken', 'joinCardOpen', 'joinCardFaceBtn', 'joinCardClose',
     'wbStubNote', 'zoomBox', 'cursorPos', 'zoomOutBtn', 'zoomLbl', 'zoomInBtn', 'toggleLeftBtn', 'toggleRightBtn', 'minimap', 'minimapCanvas', 'minimapToggle',
     // built with the layout (2026-10-06): the column at the map's right edge, More and its menu, and the View menu's three ticks
@@ -77,7 +77,7 @@ const board = (() => { const a = ix.indexOf('<div id="wbFloatingToolbar"'), z = 
     const idN = id => count(ix, ' id="' + id + '"'), ALL = INVENTORY.concat(HEADER, SETTINGS);
     const gone = ALL.filter(id => idN(id) !== 1).map(id => id + ' x' + idN(id)), out = INVENTORY.filter(id => count(board, ' id="' + id + '"') !== 1);
     check('nothing is removed (the owner: "lets not remove functionality with these updates, that critical."): each of the ' + INVENTORY.length + ' controls of the play map\'s toolbar, its menus and what stands around the map is in the page exactly once and still around the map, and so is each of the ' + HEADER.length + ' of the top bar with Import and every kind of Export, and each of the ' + SETTINGS.length + ' of the three switches in Settings',
-        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 211 && HEADER.length === 57 && SETTINGS.length === 6 && new Set(ALL).size === 274, J([gone, out]));   // 1.6.0: your picture in the top row joins the header's list (moved on purpose); Share This Campaign joins Export As (backlog 34, moved on purpose)   // 1.6.0, backlog 30: Range shows (rangeShowRow) joins (moved on purpose)
+        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 216 && HEADER.length === 57 && SETTINGS.length === 6 && new Set(ALL).size === 279, J([gone, out]));   // 1.6.0: your picture in the top row joins the header's list (moved on purpose); Share This Campaign joins Export As (backlog 34, moved on purpose)   // 1.6.0, backlog 30: Range shows (rangeShowRow) joins (moved on purpose)
     const rowsBad = Object.keys(ROWS).filter(k => J((board.match(new RegExp('<button[^>]* data-' + k + '="([^"]*)"', 'g')) || []).map(m => m.slice(m.lastIndexOf('="') + 2, -1))) !== J(ROWS[k]));
     const sw = (board.match(/<button class="draw-swatch" data-color="(#[0-9a-f]{6})"/g) || []).map(m => m.slice(-8, -1));
     check('nothing is removed, the choices inside the menus: Snap\'s three modes, the pen\'s two styles, three tips and five sizes, the eraser\'s two modes, the two measuring systems, the fog\'s two gridless grids, three brushes and five strokes, the two shape sizes, the Radius tool\'s three shapes and a circle\'s two readings, each in its order, and the seven colours of the pen and of the fill with a custom colour for each',
@@ -391,7 +391,7 @@ const barKids = kidsOf(ix, BAR_OPEN) || [], edgeKids = kidsOf(ix, EDGE_OPEN) || 
 {
     const SEP = '<div class="wb-tool-sep">', seq = barKids.map(k => k.open === SEP ? '|' : (k.ids[0] || '?'));
     check('the bar is laid out as the owner passed it ("As drawn"): undo and redo, then select and pan, then pen, eraser and fill, then shapes, Add and Build (the owner, of where Build stands: "With Shapes and Add"), then measure and radius, then fog, Scene and Pages, then More, with a separator between the groups and none at either end',
-        J(seq) === J(['wbUndoBtn', 'wbRedoBtn', '|', 'moveModeBtn', 'panModeBtn', '|', 'drawModeBtn', 'eraserModeBtn', 'fillModeBtn', '|', 'shapeMenuBtn', 'addMenuBtn', 'buildModeBtn', '|', 'measureModeBtn', 'blastModeBtn', '|', 'fogModeBtn', 'envModeBtn', 'sceneFxBtn', 'pagesBtn', '|',
+        J(seq) === J(['wbUndoBtn', 'wbRedoBtn', '|', 'selSwap', '|', 'drawModeBtn', 'eraserModeBtn', 'fillModeBtn', '|', 'shapeMenuBtn', 'addMenuBtn', 'buildModeBtn', '|', 'measureModeBtn', 'blastModeBtn', '|', 'fogModeBtn', 'envModeBtn', 'sceneFxBtn', 'pagesBtn', '|',
             'wbMoreBtn']), J(seq));   // 1.6.0: the Environment tool beside the fog's (moved on purpose)
     const col = edgeKids.map(k => k.ids.filter(id => !/OptBtn$/.test(id)).slice(0, 2)), at = (a, b) => ix.indexOf(a) >= 0 && ix.indexOf(a) < ix.indexOf(b);   // the button and its menu (its small arrow is held with the presses)
     const render = mainSrc.slice(mainSrc.indexOf('export function render() {'), mainSrc.indexOf('// Breadcrumb trail for nested maps'));
@@ -437,7 +437,7 @@ El.prototype.querySelector = function(sel) { return this.querySelectorAll(sel)[0
 const ARROW = { drawModeBtn: 'drawOptBtn', eraserModeBtn: 'eraserOptBtn', fillModeBtn: 'fillOptBtn', measureModeBtn: 'measureOptBtn', blastModeBtn: 'blastOptBtn', wbSnapBtn: 'snapOptBtn', shapeMenuBtn: 'shapeOptBtn', addMenuBtn: 'addOptBtn',
     fogModeBtn: 'fogOptBtn', sceneFxBtn: 'sceneOptBtn', wbCenterBtn: 'viewOptBtn', wbGridBtn: 'gridOptBtn' };
 const MENU_ONLY = { shapeMenuBtn: 1, addMenuBtn: 1, fogModeBtn: 1, sceneFxBtn: 1, wbCenterBtn: 1, wbGridBtn: 1 };   // a button that only opens a menu: its arrow presses it
-const LAY =['wbUndoBtn', 'wbRedoBtn', '|', 'moveModeBtn', 'panModeBtn', '|', 'drawModeBtn+drawMenu', 'eraserModeBtn+eraserMenu', 'fillModeBtn+fillMenu', '|', 'shapeMenuBtn+shapeMenu', 'addMenuBtn+addMenu', '|', 'measureModeBtn+measureMenu',
+const LAY =['wbUndoBtn', 'wbRedoBtn', '|', 'selSwap', '|', 'drawModeBtn+drawMenu', 'eraserModeBtn+eraserMenu', 'fillModeBtn+fillMenu', '|', 'shapeMenuBtn+shapeMenu', 'addMenuBtn+addMenu', '|', 'measureModeBtn+measureMenu',
     'blastModeBtn+blastMenu', '|', 'fogModeBtn+fogMenu', 'sceneFxBtn+sceneFxMenu', 'pagesBtn+pagesMenu', '|', 'wbMoreBtn+wbMoreMenu'];
 const GM_HAS = { wbUndoBtn: 1, wbRedoBtn: 1, fillModeBtn: 1, shapeMenuBtn: 1, addMenuBtn: 1, fogModeBtn: 1, sceneFxBtn: 1, pagesBtn: 1, wbMoreBtn: 1 };   // what a player's bar does not show (and no separator)
 function toolbarPage(player) {
@@ -457,11 +457,12 @@ function toolbarPage(player) {
     let x = 4;
     LAY.forEach(name => {
         if (name === '|') { const s = mk('div', '', 'wb-tool-sep', bar); if (player) return; s.w = 1; s.x = x + 2; x = s.x + 1 + 2 + 2; return; }
+        if (name === 'selSwap') { const s = mk('div', 'selSwap', 'sel-swap', bar); mk('button', 'moveModeBtn', 'wb-tool-btn', s); mk('button', 'panModeBtn', 'wb-tool-btn', s); mk('button', 'selSwapBtn', 'wb-tool-btn sel-chev', s); s.w = 41; s.x = x; x += 41 + 2; return; }
         const ids = name.split('+'), shown = !(player && GM_HAS[ids[0]]), top = ids[1] ? wrap(bar, ids[0], ids[1]) : mk('button', ids[0], 'wb-tool-btn', bar), w = ARROW[ids[0]] ? 41 : 32;
         if (shown) { top.w = w; top.x = x; x += w + 2; }
     });
     const tight = x - 2 + 4 + 2;
-    bar.w = () => bar.cls.has('tb-wrap') ? -1 : bar.cls.has('tb-tight') ? tight : (player ? 312 : 848);
+    bar.w = () => bar.cls.has('tb-wrap') ? -1 : bar.cls.has('tb-tight') ? tight : (player ? 287 : 823);
     [['wbCenterBtn', 'wbCenterMenu'], ['wbGridBtn', 'gridMenu'], ['wbSnapBtn', 'snapMenu']].forEach(p => wrap(edge, p[0], p[1]));
     const vm = byId.wbCenterMenu; ['wbRulersBtn', 'wbZoomCtlBtn', 'wbPointerPosBtn'].forEach(id => mk('button', id, 'wb-tool-btn view-tick on', vm));
     return { doc, byId, main, bar, edge, click, tight, open: () => main.all().filter(n => n.is('.shape-menu.show')).map(n => n.id).sort() };
@@ -514,7 +515,7 @@ function runPress(P, win) {
     const bad = TOOLS.map(t => [t, '']).concat(MENUS.map(t => [t, t[0]])).filter(p => { const t = p[0], k = pairOf(t[0]);
         return !k || J(k.ids.filter(id => !/Indicator$/.test(id)).slice(0, 3)) !== J([t[0], t[1], t[2]]) || !/^<div (class="tool-pair" style="position:relative;[^"]*"|style="position:relative;[^"]*" class="tool-pair gm-only")>$/.test(k.open)
             || count(k.text, '</button>' + arrow(t[1], t[3], p[1]) + '\n') !== 1; }).map(p => p[0][0]);
-    const plain = ['wbUndoBtn', 'wbRedoBtn', 'moveModeBtn', 'panModeBtn', 'pagesBtn', 'wbMoreBtn'].filter(id => { const k = pairOf(id); return !k || /tool-pair|tool-chev/.test(k.text); });
+    const plain = ['wbUndoBtn', 'wbRedoBtn', 'selSwap', 'pagesBtn', 'wbMoreBtn'].filter(id => { const k = pairOf(id); return !k || /tool-pair|tool-chev/.test(k.text); });
     check('a tool that has options is a pair (the owner: "Chevron opens them"): the pen, the eraser, fill, measure, radius and Snap each stand in a pair with a small arrow right after the icon, the arrow the passed sheet drew for "a tool has options", named for the options it opens; a button that only opens a menu is the same pair, and its arrow names the button it presses; undo, redo, select, pan, Pages and More have no arrow, having nothing to open beside themselves',
         bad.length === 0 && plain.length === 0 && count(ix, 'class="wb-tool-btn tool-chev"') === 14 && MENUS.every(m => count(ix, ' id="' + m[1] + '" data-for="' + m[0] + '"') === 1)
         && TOOLS.every(t => !new RegExp(' id="' + t[1] + '" data-for=').test(ix)), J([bad, plain]));
@@ -594,6 +595,7 @@ function runPress(P, win) {
             ['shapeHexTriggerBtn', 'Hex trigger', 'A trigger zone the shape of a hex cell.', 'Hex Trigger &mdash; a hex-shaped trigger zone'], '-', 'block', 'block']],
         ['<div class="shape-menu menu-list" id="addMenu"' + ST + '190px' + C, [['shapeTextBtn', 'Text box', 'Click to place it. Drag to size it.', 'Text &mdash; click to place a text box (drag to size it), or click an existing text box to edit it'],
             ['addImageBtn', 'Image', 'A picture from this computer.', 'Add Image'], ['imgLibBtn', 'Image Library', 'This campaign&rsquo;s pictures and the shared ones.', 'Image Library &mdash; this campaign\'s pictures, the shared ones, and every campaign\'s'],
+            ['addObjectsBtn', 'Map objects', 'Place what gives cover, by what it is.', 'Map objects &mdash; chairs, tables, crates and the like, each with its own cover'],
             ['importCharBtn', 'Import Character', 'A character file as a ready token.', 'Import Character &mdash; a sheet file as a ready token']]],
         ['<div class="shape-menu menu-list" id="sceneFxMenu"' + ST + '200px' + C, [
             ['soundBtn', 'Sound', 'Loops and one-shot cues the table hears.', 'Sound &mdash; ambient loops and one-shot cues for the scene, heard by every player at the table (a VTT feature, per campaign)'],
@@ -607,7 +609,7 @@ function runPress(P, win) {
     const off = MENUS_BY_NAME.filter(m => J(read(m[0])) !== J(m[1])).map(m => [/id="([A-Za-z]+)"/.exec(m[0])[1], read(m[0])]);
     const noIcon = MENUS_BY_NAME.reduce((a, m) => a.concat((kidsOf(ix, m[0]) || []).filter(k => ROW.test(k.text) && !ROW.exec(k.text)[3] && ROW.exec(k.text)[1] !== 'gridOffBtn').map(k => k.ids[0])), []);
     check('a toolbar menu lists each choice by its name (the owner: "the options need to be more obvious for what something does"): Grid, Shapes, Add, Scene and More each read as a list of rows in their order, a row its icon, its name, and a grey line where the name is not enough; every row keeps its id and the tooltip it had; Shapes keeps New shape size and New item opacity under its rows; with the four line types of the data map\'s Link menu and the three rows that generate a dungeon, a city and a world in Build\'s options the page holds twenty-six such rows; the Grid menu has Cell labels after the grids, with Label opacity under it, then Grid opacity, so twenty-seven',
-        off.length === 0 && noIcon.length === 0 && count(ix, 'class="wb-tool-btn menu-row') === 31   /* 1.6.0: the Environment tool's four ways (moved on purpose) */, J([off, noIcon]));
+        off.length === 0 && noIcon.length === 0 && count(ix, 'class="wb-tool-btn menu-row') === 33   /* 1.6.0: the Environment tool's four ways, and Map objects in Add and in Build (moved on purpose) */, J([off, noIcon]));
     // 2026-10-18: Import Character is an outside sheet reader's own row (none ships with the app): in the page, hidden there, and shown by the reader's own code
     check('Import Character is in the page, its row hidden, the only hidden row of a toolbar menu; the style sheet puts a hidden one away (a menu row would show through its mark), and no public script shows it or wires it; the two scripts that once loaded a sheet reader (whiteboard.js, inspector.js) load no module but a script of the app folder: every import they write (a from, a bare import or an import()) names a file of scripts/ by a plain quoted ./ path, and an import() of anything else fails',
         count(ix, ' hidden><span class="mr-ico">') === 1 && /id="importCharBtn" title="Import Character &mdash; a sheet file as a ready token" hidden><span class="mr-ico">/.test(ix) && /\n  #importCharBtn\[hidden\] \{ display: none; \}/.test(css)
@@ -624,7 +626,7 @@ function runPress(P, win) {
     const bKids = kidsOf(ix, '<div class="shape-menu menu-list" id="buildMenu">') || [], bPair = barKids.filter(k => k.ids[0] === 'buildModeBtn')[0] || { open: '', ids: [] };
     const bSeq = bKids.map(k => { const m = ROW.exec(k.text), lab = /^<div class="draw-menu-label">([^<]+)<\/div>$/.exec(k.text);
         return m ? [m[1], m[4], m[5] || '', m[2], m[3]] : k.text === '<div class="menu-rule"></div>' ? '-' : /^<div class="menu-block">/.test(k.text) ? 'block ' + k.ids[0] : lab ? lab[1] : k.ids.length === 1 ? k.ids[0] : '?' + k.text.slice(0, 60); });
-    const BUILD_SEQ = ['Material', 'buildMatRows', '-', 'block buildShapeRow', '-', 'block buildTexture', '-'].concat(GEN_ROWS, ['-', 'buildHint']);
+    const BUILD_SEQ = ['Material', 'buildMatRows', '-', 'block buildShapeRow', '-', 'block buildTexture', '-', 'Map objects', 'buildObjRows', bSeq.find(x => Array.isArray(x) && x[0] === 'buildObjBtn'), '-'].concat(GEN_ROWS, ['-', 'buildHint']);
     check('Build\'s options end in the three rows that lay a whole map, each a row as every menu row is: its icon slot holds the app\'s own <svg class="ico"> on the 24 by 24 grid and nothing else, then come its name and one grey line of plain words, and it keeps a tooltip; Generate a dungeon, then Generate a city, then Generate a world right after the city\'s row, between two rules, after the material, the shape and the texture and before the hint, in the GM\'s own pair; the dungeon\'s row wears the drawing Build wears on the bar, the city\'s the wall and gate, and the world\'s the peaks the owner picked by prompt on the world sheet ("A. Peaks (Recommended)"); the three differ, and no other control of the page wears the wall and gate or the peaks',
         J(bSeq) === J(BUILD_SEQ) && bPair.open === '<div style="position:relative;" class="tool-pair gm-only">' && J(bPair.ids.filter(id => /^build(Gen|City|World)Btn$|^buildHint$/.test(id))) === J(['buildGenBtn', 'buildCityBtn', 'buildWorldBtn', 'buildHint'])
         && draw('buildModeBtn') === BLOCKS && new Set([BLOCKS, GATE, PEAKS]).size === 3 && count(ix, GATE) === 1 && count(ix, PEAKS) === 1 && count(board, PEAKS) === 1
@@ -662,10 +664,10 @@ function runPress(P, win) {
     const state = () => [[...P.bar.cls].filter(c => c !== 'floating-toolbar').sort().join(' '), P.bar.style.width || '', seps.map((s, i) => s.cls.has('tb-brk') ? i : -1).filter(i => i >= 0)];
     const at = w => { P.main.clientWidth = w; fit(); return state(); }, got = [];
     const g = A.barGroups ? A.barGroups((P.bar.classList.add('tb-tight'), P.bar)) : null; P.bar.classList.remove('tb-tight');
-    got.push(at(1000), at(872), at(871), at(665), at(664), at(550), at(379), at(378), at(310), at(1000));
+    got.push(at(1000), at(847), at(846), at(640), at(639), at(550), at(379), at(378), at(310), at(1000));
     P.bar.style.display = 'none'; got.push(at(310)); P.bar.style.display = 'inline-flex'; got.push(at(0), at(24), at(NaN));
-    check('the bar is fitted to the room the map has (fitBar and barGroups, run for real on a bar measured as the tight bar is: 641 wide, seven groups, 9 between two, 10 of skin): 12 kept clear each side; as it is from 872, tight down to 665, then two even rows of whole groups 357 wide, then three rows 264 wide; a wider map takes every mark back; a bar that is not shown and a map with no width are left alone',
-        P.tight === 641 && J(g && [g.widths, g.gap, g.chrome, g.seps.length]) === J([[66, 66, 127, 84, 84, 118, 32], 9, 10, 6])
+    check('the bar is fitted to the room the map has (fitBar and barGroups, run for real on a bar measured as the tight bar is: 616 wide, seven groups, 9 between two, 10 of skin): 12 kept clear each side; as it is from 847, tight down to 640, then two even rows of whole groups 357 wide, then three rows 264 wide; a wider map takes every mark back; a bar that is not shown and a map with no width are left alone',
+        P.tight === 616 && J(g && [g.widths, g.gap, g.chrome, g.seps.length]) === J([[66, 41, 127, 84, 84, 118, 32], 9, 10, 6])
         && J(got) === J([['', '', []], ['', '', []], ['tb-tight', '', []], ['tb-tight', '', []], ['tb-tight tb-wrap', '357px', [2]], ['tb-tight tb-wrap', '357px', [2]], ['tb-tight tb-wrap', '357px', [2]], ['tb-tight tb-wrap', '264px', [1, 3]],
             ['tb-tight tb-wrap', '264px', [1, 3]], ['', '', []], ['', '', []], ['', '', []], ['', '', []], ['', '', []]]), R.err || J([g && [g.widths, g.gap, g.chrome], got]));
     // only what shows is a group, and only a separator between two groups parts them: with Undo and Redo not shown the first separator leads
@@ -675,13 +677,13 @@ function runPress(P, win) {
     H.byId.measureModeBtn.parentElement.w = 0; H.byId.blastModeBtn.parentElement.w = 0; const g2 = BG(H.bar);
     H.bar.children.forEach(k => { k.w = 0; }); const g3 = BG(H.bar);
     check('a group is what shows between two separators (barGroups, run for real): a separator that leads the bar parts nothing, nor does one that follows another, so a row of a wrapped bar always ends at the separator after its last group; a bar that shows nothing has no groups',
-        !!g1 && J(g1.widths) === J([66, 127, 84, 84, 118, 32]) && g1.seps.length === 5 && g1.seps.every((s, i) => s === hs[i + 1])
-        && !!g2 && J(g2.widths) === J([66, 127, 84, 118, 32]) && J(g2.seps.map(s => hs.indexOf(s))) === J([1, 2, 3, 5]) && g3 === null, J([g1 && g1.widths, g2 && [g2.widths, g2.seps.map(s => hs.indexOf(s))], g3]));
+        !!g1 && J(g1.widths) === J([41, 127, 84, 84, 118, 32]) && g1.seps.length === 5 && g1.seps.every((s, i) => s === hs[i + 1])
+        && !!g2 && J(g2.widths) === J([41, 127, 84, 118, 32]) && J(g2.seps.map(s => hs.indexOf(s))) === J([1, 2, 3, 5]) && g3 === null, J([g1 && g1.widths, g2 && [g2.widths, g2.seps.map(s => hs.indexOf(s))], g3]));
     const Q = toolbarPage(true), S = runBar(Q, {}), fitQ = (S.api || {}).fitBar || (() => {}), qs =() => [[...Q.bar.cls].filter(c => c !== 'floating-toolbar').sort().join(' '), Q.bar.style.width || '', Q.bar.children.filter(k => k.cls.has('tb-brk')).length];
     const gq = S.api ? S.api.barGroups((Q.bar.classList.add('tb-tight'), Q.bar)) : null; Q.bar.classList.remove('tb-tight');
-    const qat = w => { Q.main.clientWidth = w; fitQ(); return qs(); }, gotQ = [qat(400), qat(335), qat(272), qat(271), qat(120)];
+    const qat = w => { Q.main.clientWidth = w; fitQ(); return qs(); }, gotQ = [qat(400), qat(310), qat(247), qat(246), qat(120)];
     check('a player\'s bar is fitted too: it has fewer buttons, the Radius tool among them, and no separator, so it is one group, counted by what shows alone; it tightens like the GM\'s, and where even the tight bar is too wide it wraps wherever it must, with no row marked and no width set',
-        Q.tight === 248 && J(gq && [gq.widths, gq.gap, gq.chrome, gq.seps.length]) === J([[238], 0, 10, 0]) && J(gotQ) === J([['', '', 0], ['tb-tight', '', 0], ['tb-tight', '', 0], ['tb-tight tb-wrap', '', 0], ['tb-tight tb-wrap', '', 0]]), S.err || J([gq, gotQ]));
+        Q.tight === 223 && J(gq && [gq.widths, gq.gap, gq.chrome, gq.seps.length]) === J([[213], 0, 10, 0]) && J(gotQ) === J([['', '', 0], ['tb-tight', '', 0], ['tb-tight', '', 0], ['tb-tight tb-wrap', '', 0], ['tb-tight tb-wrap', '', 0]]), S.err || J([gq, gotQ]));
     const render = mainSrc.slice(mainSrc.indexOf('export function render() {'), mainSrc.indexOf('// Breadcrumb trail for nested maps')), iT = render.indexOf("document.getElementById('toggleRightBtn').style.display"), iF = render.indexOf('if (window.wpFitBar) window.wpFitBar();');
     check('the bar is fitted whenever the map\'s room changes: by render() once the panes are switched, so it measures the room the map has, and by an observer of the map\'s own box, the bar\'s parent; the style sheet tightens only the bar\'s own buttons, breaks a wrapped bar at the separators fitBar marks, and lifts the column above a wrapped bar',
         R.RO.made.length === 1 && R.RO.made[0].el === P.main && typeof R.RO.made[0].cb === 'function' && count(render, 'window.wpFitBar()') === 1 && iT > 0 && iF > iT && iF < render.indexOf('if (window.wpFloats) window.wpFloats.sync();')

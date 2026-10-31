@@ -253,6 +253,14 @@ Systems, more
 - A roll can read cover as TargetCover: 0 with none, 1 with some, 2 with no clear
   line, as the ruler reads it to the character's target. TargetCoverGrade reads
   it by grade: 0 none, 1 half, 2 three-quarters, 3 total.
+- Rulers, circles and blasts are drawn over the fog on every screen, line and words
+  alike, so measuring into the dark shows all of it.
+- Select and Pan share one place on the toolbar, to make the bar smaller. The small
+  arrow beside it switches between them, and Build's options list your map objects.
+- Map objects: Add on the toolbar now lists things the GM can place, such as a chair
+  or a table. Each gives the cover it says, whatever its size. A system can ship a
+  set, and a GM can make one from a picture or import one from another campaign.
+- Select and Pan now share one place on the toolbar. The small arrow switches them.
 - A token's hover card says its marks in words: who targets it, what each tag on a
   target mark means, Down or Dead, its effects and any environment warning.
 - A selection, the hidden mark and every other outline on a picture or a hexagon

@@ -2353,6 +2353,7 @@ window.wpFitToGrid = fitToGrid;
       if (el) el.classList.add('active');
       // The hand tool pans no matter what it grabs — items are untouchable while it's active
       window.isPanMode = (activeId === 'panModeBtn');
+      var swp = document.getElementById('selSwap'); if (swp && (activeId === 'panModeBtn' || activeId === 'moveModeBtn')) swp.classList.toggle('on-pan', activeId === 'panModeBtn');   // 1.6.0: Select and Pan share one place, and it shows the one last taken, whatever took it
       window.isFogMode = (activeId === 'fogModeBtn');   // fog paints on the board; other modes clear it
       window.isFillMode = (activeId === 'fillModeBtn');   // fill paints cells; other modes clear it
       window.isBuildMode = (activeId === 'buildModeBtn');   // Build lays pieces; other modes clear it
@@ -2397,6 +2398,8 @@ window.wpFitToGrid = fitToGrid;
       document.querySelectorAll('#drawTipRow .draw-style-btn').forEach(function(btn) { btn.classList.toggle('active', btn.dataset.nib === (state.drawTip || 'round')); });
   }
 
+  var _el_selSwapBtn = document.getElementById('selSwapBtn');
+  if(_el_selSwapBtn) _el_selSwapBtn.addEventListener('click', function(e) { e.stopPropagation(); var sw = document.getElementById('selSwap'), to = document.getElementById(sw && sw.classList.contains('on-pan') ? 'moveModeBtn' : 'panModeBtn'); if (to) to.click(); });   // 1.6.0 (the owner: "we can put the pan and arrow in a switchable selection together"): the small arrow takes the other one
   if(_el_moveModeBtn) _el_moveModeBtn.addEventListener('click', function() {
       window.isDrawingMode = false;
       window.isEraserMode = false;
@@ -3759,7 +3762,7 @@ window.wpFitToGrid = fitToGrid;
               if (cv && cv.name) labCov = 'Cover: ' + cv.name;
           }
           var prR = tB && tB !== tA ? postureRanged(tB) : '';   // posture: its ranged note against the token the ruler ends on, after the distance (display only)
-          html += '<text x="' + (mx + 8) + '" y="' + (my - 8) + '"><tspan class="fog-cap">' + measureLabel(dist, diagCells(m)) + '</tspan>' + (prR ? ' \u00b7 ' + esc(prR) : '') + '</text>';   // the length alone is drawn over the fog on a player's screen (fog.js measureCaps)
+          html += '<text x="' + (mx + 8) + '" y="' + (my - 8) + '">' + measureLabel(dist, diagCells(m)) + (prR ? ' \u00b7 ' + esc(prR) : '') + '</text>';
           var _covY = my + 11;
           if (lab3) { html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + lab3 + '</text>'; _covY += 19; }
           if (labCov) html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + labCov + '</text>';
@@ -3818,7 +3821,7 @@ window.wpFitToGrid = fitToGrid;
               var tkP = rulerToken(e.clientX, e.clientY);
               if (tkP) { _rulerPass = true; e.stopPropagation(); e.preventDefault(); tkP.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, buttons: 1, pointerId: e.pointerId, pointerType: e.pointerType, isPrimary: e.isPrimary, clientX: e.clientX, clientY: e.clientY, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey })); return; }
           }
-          if (gmP || gbd) e.stopPropagation();
+          if ((gmP && !(window.isMeasureMode && window.wpMeasureKind === 'ruler')) || gbd) e.stopPropagation();   // with the ruler in hand a placed ruler is in no one's way: a new one starts on it
       });
       // Right-click a blast to remove it
       layer.addEventListener('contextmenu', function(e) {
@@ -4230,7 +4233,7 @@ window.wpFitToGrid = fitToGrid;
           else html += '<circle class="area" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle>' + GRAB + DOT;
           if (b.thrown) html += standInSvg('grenade', b.x, b.y, b.icon);   // 1.5.8 explosives: its icon at the centre of the blast, the item's own or the stand-in
           var lblName = blastName(b) ? esc(blastName(b)) + ' \u00b7 ' : '', lblSize = esc(blastSize(b, ru, ri));   // a shape of the tool's own and a thrown blast alike in the ruler's unit (1.5.4), the words blastWords says
-          var lbl = lblName + '<tspan class="fog-cap">' + lblSize + '</tspan>' + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' ' + lenUnit() : '');   // item 19 H1: a height in the viewer's unit. Its size alone is drawn over the fog on a player's screen (fog.js measureCaps): a name and a height stay on the board
+          var lbl = lblName + lblSize + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' ' + lenUnit() : '');   // item 19 H1: a height in the viewer's unit.
           html += '<text x="' + (b.x + 8) + '" y="' + (kind === 'cone' ? b.y - 12 : b.y - rPx - 8) + '">' + lbl + '</text>';   // a cone's words stand at its point: it has no top
           if (!playerScreen() && kind !== 'cone' && kind !== 'ring') html += '<text class="blast-boom" data-i="' + i + '" x="' + (b.x + 8) + '" y="' + (b.y - rPx - 26) + '">Boom</text>';   // fires a burst everyone sees (1.5.0)
           blastDistances(b, map).forEach(function(r) {
@@ -7599,6 +7602,7 @@ function textStandInPick(el, doc, win) {
 // [lookcheck:textstandin-end]
 // The text tool on an existing text box edits it in place (datamap.js hit-tests the click)
 window.wpPlaceDisarm = disarmPlacement;
+window.wpArmPlacement = armPlacement;   // 1.6.0: a map object takes the map's next click as a shape does (mapobjects.js)
 window.wpEditTextBox = function(id) {
     if (!state.wbEls[id]) return false;
     state.selWbId = id; state.selWbIds = [id]; render();
@@ -7617,7 +7621,7 @@ window.wpPlaceCommit = function(px, py, pw, ph, sx, sy) {
     var dragged = pw > 12 && ph > 12;
     var type = P.type;
     var isHexItem = (type === 'hexagon' || props.shape === 'hexagon');
-    var cell = shapeSizeMode() === 'cell' && type !== 'text';
+    var cell = shapeSizeMode() === 'cell' && type !== 'text' && !P.sized;   // 1.6.0: a map object says its own size
     var hexGrid = state.gridType === 'hex';
     if (cell) { props.w = hexGrid ? 60 : 50; props.h = hexGrid ? 52 : 50; }
     else if (dragged) { props.w = Math.round(pw); props.h = Math.round(ph); }

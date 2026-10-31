@@ -338,6 +338,7 @@ function giveCharacter(pid, charId, o) {
     if (prev !== pid) { delete c.making; delete c.unlocked; delete c.review; delete c.made; }   // Onboarding F3: a new owner gets a finished, locked character of their own (no one else's unfinished one)
     var nearNew = pid && o.nearTok ? spotOnPlayersMap(camp, pid, o.nearTok) : pid && was && was !== c.id ? tokenSpotOf(camp, pid, was) : null, nearPrev = prev && prev !== pid ? tokenSpotOf(camp, prev, c.id) : null;
     c.ownerId = pid; if (pid) c.npc = false;
+    if (pid && !prev) { var srG = window.wpSystemCore && typeof window.wpSystemCore.sheetRevOf === 'function' ? window.wpSystemCore.sheetRevOf(camp.system) : 0; if (srG) c.sheetRev = srG; }   // 1.6.0 (backlog 190): a sheet nobody played is never out of date, so its first player starts current and is not held
     if (pid && o.play !== false) setInPlay(camp, c);
     if (pid && o.play !== false) Object.keys(charsOf(camp)).forEach(function(k) { var x = charsOf(camp)[k]; if (x && x.id !== c.id && x.ownerId === pid && x.invited === 1) { delete x.invited; var nI = net(); if (nI && nI.active && nI.role === 'host' && nI.syncChar) nI.syncChar(x.id); } });   // Onboarding F3b: the GM's newer word — one they were asked to make is then kept on Done
     syncOwners(camp, o.keep);
@@ -4492,6 +4493,21 @@ function sheetRoll(e, charId, expr, label, opts, swRef) {   // swRef (1.6.0): wh
     if ((e.shiftKey || e.altKey) && window.wpDice.rollWithMod) { if (swRef) window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget, swRef); else window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget); }
     else if (window.wpDice.rollFor) window.wpDice.rollFor(charId, expr, label, opts);
 }
+// [systemcheck:greypress-start]
+// 1.6.0 (the by-hand test: a player's press on a roll that could not be made did nothing they could see): a greyed roll or action takes no click, and
+// what held it back stood in its tooltip alone. A press on one says it, the rest of the tooltip, the GM's formula among it, staying in the tooltip
+var GREY_BTN = '.sheet-roll, .sheet-roll-mod, .sheet-item-roll';
+function greyWords(b) {
+    var t = b ? String(b.title || (b.dataset && b.dataset.tip) || '').trim() : ''; if (!t) return '';
+    if (/\(dice are off here, or this is not your character\)$/.test(t)) return 'Dice are off here, or this is not your character.';
+    return t.split(' \u2014 ')[0].trim();
+}
+function greyPress(e) {
+    var t = e && e.target, b = t && typeof t.closest === 'function' ? t.closest(GREY_BTN) : null; if (!b || !b.disabled || (e.button !== undefined && e.button !== 0)) return;
+    var w = greyWords(b); if (w) toast(w);
+}
+if (typeof document !== 'undefined' && document && typeof document.addEventListener === 'function') document.addEventListener('pointerdown', greyPress, true);
+// [systemcheck:greypress-end]
 // [sinkcheck:allymenu-start]
 // 1.5.9 (docs/BOOK_ES_ET_PLAN.md section 3; the book: an item used "to oneself or an adjacent ally"; the owner: a menu of you and the characters
 // next to you, your Target first): pressed, a roll or an action that Applies to an adjacent character asks whom it is for, only where someone
@@ -11243,7 +11259,8 @@ function majorFollow(c, info, vals) {
         var r = dmgObj(f) ? (Array.isArray(sys.rolls) ? sys.rolls : []).find(function(x) { return dmgObj(x) && x.id === f.roll; }) : null; if (!r) return;
         var nm = typeof F === 'function' && F() && typeof r.formula === 'string' ? F().names(r.formula) : [], reads = nm.some(function(x) { return /^(blow|hit)\./i.test(x); });   // a roll that reads neither and cripples nothing needs the record only for the sheet as the blow left it: a soft one, which it may do without
         var att = snap && typeof n.blowMake === 'function' ? n.blowMake(c, r.id, info.blow, f.crip, f.cripBy, snap, !reads && typeof f.crip !== 'string') : '';
-        n.postDue(c, r, f.why === 'wound' ? 'wound' : 'major', 1, !c.npc && !!c.ownerId && r.vis !== 'gm', att ? { att: att } : undefined); did = true;
+        var mrD = att ? { att: att } : {}, drD = sys.combat && sys.combat.damage; if (f.why !== 'wound' && drD && typeof drD.majorWord === 'string' && drD.majorWord.trim()) mrD.mw = drD.majorWord.trim();   // 1.6.0: the card says the system's own word for it
+        n.postDue(c, r, f.why === 'wound' ? 'wound' : 'major', 1, !c.npc && !!c.ownerId && r.vis !== 'gm', mrD.att || mrD.mw ? mrD : undefined); did = true;
     });
     return did;
 }

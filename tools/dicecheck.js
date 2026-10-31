@@ -185,6 +185,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && [{ n: 'A', fx: 2 }, { n: 'A', fx: true }, { n: 'A', fx: 1, d: 1 }, { n: 'A', fx: 0, v: 0 }, { n: 'A', fx: 1, s: 1 }].every(l => D.cleanApply(Object.assign({}, ap, { lines: [l] })) === null), JSON.stringify(ca));
         }
         const cd = D.cleanDue(due0);
+        const dM = o => D.cleanDue(Object.assign({}, due0, { why: 'major' }, o));
+        check('1.6.0 a due card says the system\'s own word for a Major Wound: mw kept only on a major card and only as a label, the default as before, an article brought down, and nothing where the roll\'s own name says it already, in any case and with or without the word\'s article; the card then says it is due and no more',
+            dM({ mw: 'Big Hit' }).mw === 'Big Hit' && !('mw' in D.cleanDue(Object.assign({}, due0, { mw: 'Big Hit' }))) && D.cleanDue(Object.assign({}, due0, { why: 'wound', mw: 'x' })).mw === undefined && dM({ mw: 7 }) === null
+            && D.dueMajor({ label: 'Vitality' }) === 'a Major Wound' && D.dueMajor({ label: 'Vitality', mw: 'A Big Hit' }) === 'a Big Hit' && D.dueMajor({ label: 'Vitality', mw: 'Big Hit' }) === 'Big Hit'
+            && D.dueMajor({ label: 'Big Hit (Vitality)', mw: 'Big Hit' }) === '' && D.dueMajor({ label: 'big hit (Vitality)', mw: 'A Big Hit' }) === '' && D.dueMajor({ label: 'Major Wound check' }) === ''
+            && D.dueText(dM({ label: 'Big Hit (Vitality)', as: 'Kael', mw: 'Big Hit' })) === 'Big Hit (Vitality) for Kael is due' && D.dueText(dM({ label: 'Vitality', as: 'Kael' })) === 'Vitality for Kael is due (a Major Wound)' && D.dueText(dM({ label: 'Vitality', as: 'Kael', mw: 'A Big Hit' })) === 'Vitality for Kael is due (a Big Hit)',
+            JSON.stringify([D.dueText(dM({ label: 'Big Hit (Vitality)', as: 'Kael', mw: 'Big Hit' })), D.dueMajor({ label: 'Vitality', mw: 'A Big Hit' })]));
         check('T2b cleanDue keeps ids and text only (a char and a roll id, turn or round, a whole round 1..9999, a label and a name, theirs as 1) and refuses anything malformed; dueText says what is due, for whom and when',
             J(cd) === J({ id: 'r_d1', from: { id: 'u_gm', name: 'GM', gm: true }, charId: 'c_a', act: 'r_re', why: 'turn', round: 2, ts: 5, label: 'Reaction back', as: 'Ana' })
             && [{ charId: 'x' }, { act: 'f_hp' }, { why: 'now' }, { round: 0 }, { round: 1.5 }, { round: 10000 }, { label: 'a' + String.fromCharCode(7) }, { theirs: true }, { id: 'bad id' }, { from: null }].every(p => D.cleanDue(Object.assign({}, due0, p)) === null)

@@ -5717,7 +5717,8 @@ net.setTargetAs = function(from, itemId, mapId, itemName) {
     var key = 'tk:' + from.id, cur = Object.prototype.hasOwnProperty.call(net.targets, key) ? net.targets[key] : null, who = String(from.charName || from.name || 'Your character').slice(0, 40);
     var next = cur && cur.id === itemId && cur.mapId === mapId ? null : { id: itemId, mapId: mapId, from: from.id };
     applyTarget(key, who, next); broadcastTargets();
-    toast(next ? who + ' is targeting ' + (itemName || 'that token') + '. Do it again to clear it.' : who + '\u2019s target is cleared.');
+    var outA = !!next && typeof fightsOn === 'function' && typeof fightOfTok === 'function' && fightsOn(mapId).length > 0 && !fightOfTok(mapId, itemId);   // 1.6.0: a token outside the fight is said, as a pointer of the GM's own says it
+    toast(next ? who + ' is targeting ' + (itemName || 'that token') + (outA ? ', who is not in the fight' : '') + '. Do it again to clear it.' : who + '\u2019s target is cleared.');
     return true;
 };
 // 1.5.9 (the owner's game of 2026-10-25, by prompt: "Both places"): the GM takes a pointer off, a player's (keyed by their profile id) or one of the
@@ -9746,6 +9747,7 @@ net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, 
     if (!ch || typeof ch.id !== 'string' || !act || typeof act.id !== 'string') return;
     var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : kind === 'turnEnd' ? 'turnEnd' : kind === 'cross' ? 'cross' : kind === 'major' ? 'major' : kind === 'wound' ? 'wound' : kind === 'resist' && more && typeof more.att === 'string' ? 'resist' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
     if (ch.name) rec.as = String(ch.name).slice(0, 60);
+    if (rec.why === 'major' && more && typeof more.mw === 'string' && more.mw) rec.mw = more.mw.slice(0, 60);   // 1.6.0: the system's own word for a Major Wound
     if ((rec.why === 'major' || rec.why === 'wound') && more && typeof more.att === 'string') rec.att = more.att;   // 1.6.0 (the core's gaps 6 and 7): the blow it answers, by the id of the host's record
     if (rec.why === 'resist') { rec.att = more.att; if (more.by) rec.by = String(more.by).slice(0, 60); if (typeof more.m === 'number' && isFinite(more.m)) rec.m = Math.max(-9999, Math.min(9999, more.m)); if (Array.isArray(more.or) && more.or.length) rec.or = more.or.slice(0, 3).map(function(r) { return { act: r.id, label: String(r.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll' }; }); }   // 1.6.0 (B2)   // 1.6.0 (the core's gap 5): a button for each
     if (rec.why === 'resist' && Array.isArray(more.rows) && more.rows.length) rec.or = (rec.or || []).concat(more.rows.slice(0, 8).map(function(x) { return { row: { f: x.f, r: x.r, i: x.i }, label: String(x.label || 'Roll').slice(0, 60) }; }));   // 1.6.0: a list's roll, a button for each row the target holds

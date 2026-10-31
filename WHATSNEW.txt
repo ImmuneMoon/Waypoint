@@ -204,6 +204,13 @@ Systems, more
 - A player who reloads while the GM's table cannot be found keeps trying, as
   a dropped connection does, and is not told to set up a relay server.
 - A hexagon token's selection and turn mark follow the hexagon, not a box.
+- A press on a greyed roll or action says what holds it back. Before, it did
+  nothing you could see.
+- A character given to a player for the first time starts current, so the
+  player is not held until you mark it.
+- A due card says your system's own word for a Major Wound, or nothing where
+  the roll's name says it already.
+- Target as says when the token you target is outside the fight.
 - The welcome screen's choices wear Waypoint's own drawings, the same on every
   computer.
 - A weapon list says what a blow must beat, the Dur left or the listed Dur, and

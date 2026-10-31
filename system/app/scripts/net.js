@@ -6560,7 +6560,7 @@ function admitPlayer(conn, prof, provenKey) {
     // remember this player on the campaign so token ownership can outlive the session
     setTimeout(function() { sendMissedHandouts(conn, prof); }, 2500);
     setTimeout(function() {   // the table's recent conversation, so a latecomer is not lost
-        var recent = chatHistoryOf(chatLog); if (typeof historyBare === 'function') recent = historyBare(recent);
+        var recent = chatHistoryOf(chatLog); if (typeof historySeen === 'function') recent = historySeen(recent);
         if (recent.length && conn.open) { try { conn.send({ type: 'chat-history', log: recent }); } catch (e) { sendFailed(e); } }
     }, 1200);
     var camp = getActiveCampaign();
@@ -9759,8 +9759,8 @@ function handleAssetArrival(msg) {
 var diceLimit = null, _dicePending = null, _diceSlowSaid = {};
 function DC() { return window.wpDiceCore || null; }
 // [netcheck:npcseen-start]
-// 1.6.0 (the by-hand test of 2026-10-30): an NPC a player cannot see goes unnamed on the table's cards. A player's character is no secret; an NPC's
-// name stands on a card only for a player who sees one of its tokens on the map they are on. Host-side: the record a player gets has no `as`
+// 1.6.0 (the owner, 2026-10-31, by prompt: "Players who see the NPC (Recommended)"): a card made as an NPC goes only to a player who can see it. A player's character is no secret; an NPC's
+// card reaches only a player who sees one of its tokens on the map they are on. A card with no name would still say that something unseen just acted
 var _npcCards = typeof WeakMap === 'function' ? new WeakMap() : null;
 function npcShown(camp, ch, p) {
     if (!ch || (ch.npc !== true && ch.ownerId)) return true;
@@ -9769,18 +9769,21 @@ function npcShown(camp, ch, p) {
     var judge = function() { var drop = fogDrop(camp, map, p.id); return map.whiteboard.some(function(w) { return !!w && w.isChar && !w.hidden && w.charId === ch.id && !(drop && drop[w.id]); }); };
     return typeof fogLanded === 'function' ? !!fogLanded(mapId, judge) : judge();
 }
+function npcByOf(camp, ch, pid) {   // the name a card may give a player of one who acted on them: none, where they cannot see that NPC
+    var p = null; Object.keys(net.roster).forEach(function(k) { if (net.roster[k] && net.roster[k].id === pid) p = net.roster[k]; });
+    return ch && ch.name && npcShown(camp, ch, p) ? ch.name : '';
+}
 function sendTableAs(rec, ch) {   // the table's copy of a card made as a character
     if (_npcCards && ch && (ch.npc === true || !ch.ownerId)) _npcCards.set(rec, 1);
-    var camp = getActiveCampaign(), bare = null;
+    var camp = getActiveCampaign();
     net.conns.forEach(function(c) {
-        var p = c.open ? net.roster[c.peer] : null; if (!p) return;
-        var m = rec; if (rec.as && !npcShown(camp, ch, p)) { if (!bare) { bare = Object.assign({}, rec); delete bare.as; } m = bare; }
-        try { c.send(m); } catch (e) { sendFailed(e); }
+        var p = c.open ? net.roster[c.peer] : null; if (!p || (rec.as && !npcShown(camp, ch, p))) return;
+        try { c.send(rec); } catch (e) { sendFailed(e); }
     });
 }
-function historyBare(list) {   // a latecomer's history: such a card's name goes, since they saw none of it
+function historySeen(list) {   // a latecomer's history: such a card goes, since they saw none of it
     if (!_npcCards) return list;
-    return list.map(function(m) { var r = m && (m.roll || m.apply); if (!r || !_npcCards.has(r) || !r.as) return m; var c = Object.assign({}, r); delete c.as; return Object.assign({}, m, m.roll ? { roll: c } : { apply: c }); });
+    return list.filter(function(m) { var r = m && (m.roll || m.apply); return !(r && _npcCards.has(r) && r.as); });
 }
 // [netcheck:npcseen-end]
 function sendTable(msg, exceptConn) {   // admitted peers only: broadcast() would reach a peer still waiting for the GM's Allow
@@ -9928,7 +9931,7 @@ function attemptMake(camp, entry, vd, malf, range, fromCh, priv) {
     (Array.isArray(entry.resistOr) ? entry.resistOr : []).forEach(function(oid) { if (typeof oid === 'string' && oid.indexOf('#') > 0) { attRowAlts(camp, tch, oid, toO, rowsA, { map: map, tok: tok, mapId: range.mapId }); return; }   // 1.6.0: a list's roll, a button a row
         (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === oid && r.id !== rr.id && r.resist === true && typeof r.formula === 'string' && !r.apply && !(toO && r.vis === 'gm') && alts.indexOf(r) < 0 && alts.length < 3) alts.push(r); }); });
     _attempts[id] = { charId: tch.id, act: rr.id, m: m }; if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); if (rowsA.length) _attempts[id].rows = rowsA.map(function(x) { return x.f + '#' + x.i + '#' + x.r; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
-    if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, toO, { att: id, by: fromCh && fromCh.name ? fromCh.name : '', m: m, or: alts, rows: rowsA });
+    if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, toO, { att: id, by: fromCh && fromCh.name ? (toO && typeof npcByOf === 'function' ? npcByOf(camp, fromCh, tch.ownerId) : fromCh.name) : '', m: m, or: alts, rows: rowsA });
     return id;
 }
 net.attemptsKept = function() { return _attIds.length; };

@@ -212,7 +212,8 @@ Systems, more
 - A ruler left on the map no longer takes the press meant for a token under it.
 - A thrown blast's circle goes when the map's last fight ends, on every screen.
 - A player's target comes back with a fight kept over a reload.
-- An NPC a player cannot see goes unnamed on the table's cards and throws.
+- A roll made for an NPC shows only to players who can see that NPC. Others
+  get no card. A throw or a Defend card leaves that NPC's name off for them.
 - Table Chat moves by its header.
 - A player's selection box takes only their own tokens.
 - The left panel's right-click menu works when the panel is opened from

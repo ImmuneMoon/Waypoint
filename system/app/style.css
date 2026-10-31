@@ -3493,6 +3493,7 @@
   .sheet-roll-mod { flex: 0 0 auto; min-width: 0; width: auto; padding: 0 5px; font-size: 12px; font-weight: 700; line-height: 1.2; color: var(--dim); }
   .sheet-roll-mod:not(:disabled):hover { color: var(--sheet-accent, var(--gold)); border-color: var(--sheet-accent, var(--gold)); }
   .sheet-kind-roll.sheet-roll-pair { flex-direction: row; align-items: stretch; gap: 4px; }
+  .sheet-grid > .sheet-kind-roll { align-self: start; }   /* 1.6.0 (the owner, 2026-10-31: "this button is huge"): a roll keeps its own height, never the tallest field's in its row */
   .sheet-roll-pair > .sheet-roll { flex: 1 1 auto; min-width: 0; width: auto; }
   .sheet-roll-pair > .sheet-roll-mod { padding: 0 7px; }
   .sheet-field-roll + .sheet-roll-mod { padding: 0 4px; font-size: 11px; margin-left: 2px; vertical-align: middle; }

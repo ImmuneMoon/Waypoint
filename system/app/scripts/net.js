@@ -2002,6 +2002,7 @@ function applySnapshot(msg) {
     if (typeof rowTextKnows === 'function') rowTextKnows(msg.rowText);   // 155: a host that keeps a row of its own's long text says so here; an older one would drop it unanswered
     if (typeof hitsKnow === 'function') hitsKnow(msg.hits);   // 1.6.0 (B5): a host that answers which locations a target has says so here
     _sheetFilesOk = msg.sheetFiles === true;   // 2026-10-18: a host that reads a sheet file made elsewhere says so here, true only
+    if (typeof sheetOutsKnow === 'function') sheetOutsKnow(msg.sheetOut);   // 1.6.0: and a file a reader there writes for a player's own character
     net.stanceCamps = cleanStanceCamps(msg.stanceCamps);   // null from an older host: msg.stance governs every campaign
     net.targets = cleanTargets(msg.targets);
     if (typeof fightsKnow === 'function') fightsKnow(msg.fights);   // fold 2: a host whose fights have ids of their own says so here (fights: true); an older one keys them by the map
@@ -3746,6 +3747,28 @@ net.charEffect = function(charId, fieldId, q) {
 var _uploadPending = {}, _sheetFilesOk = false;
 function sheetFilesHere() { var S = SC(), cR = getActiveCampaign(); return !!(S && typeof S.readers === 'function' && S.readers(cR && cR.system).length > 0); }
 net.sheetFilesOk = function() { return net.role === 'client' ? !!net.active && _sheetFilesOk === true : sheetFilesHere(); };
+// [netcheck:sheetoutask-start]
+// 1.6.0: the other way: an outside reader on the host writes a file for a player's own character, from the players' view of the system and that
+// player's own copy, and nothing else (ui.playerFile on the reader: { label, sub, write(ctx) }, ctx { char, system, F, campId }, answering
+// { name, text } or a promise of one; none ships with the app). The snapshot names what is offered, and a player's Download menu shows it. One
+// question at a time, a newer one dropping the older unanswered
+var _sheetOuts = [], _outAsk = null, OUT_WAIT_MS = 30000, OUT_PART = 300000, OUT_PARTS = 20;
+function sheetOutsHere() {
+    var S = SC(), cR = getActiveCampaign(); if (!S || typeof S.readers !== 'function' || typeof S.cleanSheetOuts !== 'function') return [];
+    return S.cleanSheetOuts(S.readers(cR && cR.system).map(function(r) { var o = r && r.ui && r.ui.playerFile; return o && typeof o.write === 'function' ? { id: r.id, label: o.label, sub: o.sub } : null; }));
+}
+function sheetOutsKnow(v) { var S = SC(); _sheetOuts = S && typeof S.cleanSheetOuts === 'function' ? S.cleanSheetOuts(v) : []; }
+net.sheetOuts = function() { return net.role === 'client' && net.active ? _sheetOuts.slice() : []; };
+net.sheetOut = function(readerId, charId, cb) {
+    if (typeof cb !== 'function') return false;
+    if (!(net.active && net.role === 'client') || !net.foreign || !net.conns || !net.conns[0] || !net.conns[0].open) { cb(null, 'wait'); return false; }
+    if (_outAsk) { clearTimeout(_outAsk.timer); _outAsk = null; }
+    var rid = 'q' + Math.random().toString(36).slice(2, 10);
+    _outAsk = { rid: rid, cb: cb, timer: setTimeout(function() { if (_outAsk && _outAsk.rid === rid) { var c0 = _outAsk.cb; _outAsk = null; try { c0(null, 'wait'); } catch (e) {} } }, OUT_WAIT_MS) };
+    try { net.conns[0].send({ type: 'sheet-out', rid: rid, id: readerId, charId: charId }); } catch (e) { clearTimeout(_outAsk.timer); _outAsk = null; cb(null, 'wait'); return false; }
+    return true;
+};
+// [netcheck:sheetoutask-end]
 net.charUpload = function(charId, sheet, done) {
     var S = SC(), camp = getActiveCampaign();
     if (!S || !camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
@@ -6564,7 +6587,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
     var snapOk = false;
     try {
-        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, hits: true, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
+        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, hits: true, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; var soSnap = typeof sheetOutsHere === 'function' ? sheetOutsHere() : []; if (soSnap.length) snap.sheetOut = soSnap; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
         if (typeof fogLanded === 'function') fogLanded(null, mkSnap); else mkSnap();   // fold M4: judged with every open drag at its start
         conn.send(snap); snapOk = true;
     } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + ' \u2014 something in it cannot be sent (the console has the details).'); if (typeof mapForgetConn === 'function') mapForgetConn(conn.peer); }
@@ -8666,6 +8689,34 @@ function handleMessage(msg, conn) {
         var rowsH = []; (Array.isArray(msg.rows) ? msg.rows : []).slice(0, 40).forEach(function(r) { if (!r || typeof r !== 'object' || typeof r.id !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(r.id) || typeof r.name !== 'string' || rowsH.some(function(x) { return x.id === r.id; })) return; var nmH = r.name.slice(0, 60).replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, ' ').trim(); rowsH.push({ id: r.id, name: nmH || 'A location' }); });
         var cbH = _hitAsk.cb; clearTimeout(_hitAsk.timer); _hitAsk = null; try { cbH(rowsH); } catch (e) {}
         // [netcheck:hitrows-end]
+    } else if (msg.type === 'sheet-out' && net.role === 'host') {
+        // [netcheck:sheetout-start]
+        // 1.6.0: a player asks the reader here for a file of their own character. Their own, whole, by the owner's copy and the players' view of the
+        // system alone, so a GM-only value is not there to write; a file every ten seconds a player, a dozen a minute for the table. The answer: the
+        // file in parts small enough for the wire, or a reason
+        var Sx = SC(), qx = Sx && typeof Sx.cleanSheetOutReq === 'function' ? Sx.cleanSheetOutReq(msg) : null; if (!qx) return;
+        var ansX = function(o) { o.type = 'sheet-out-ans'; o.rid = qx.rid; try { conn.send(o); } catch (e) { sendFailed(e); } }, stepX = function(w, o) { if (window.wpStepLog) window.wpStepLog('sheetout v1', w, o || {}); };
+        if (window.wpVtt && !window.wpVtt.on('sheets')) { ansX({ reason: 'off' }); return; }
+        if (!allow('sheetout', { perMs: 10000, burst: 2, windowMs: 60000, table: 12 }, conn.peer)) { ansX({ reason: 'slow' }); return; }
+        var campX = getActiveCampaign(), pidX = peerProfileId(conn), chX = campX && campX.chars && own(campX.chars, qx.charId) ? campX.chars[qx.charId] : null;
+        if (!campX || !campX.system || !chX || !pidX || chX.npc || chX.ownerId !== pidX) { ansX({ reason: 'owner' }); return; }
+        var rdX = (typeof Sx.readers === 'function' ? Array.prototype.slice.call(Sx.readers(campX.system)) : []).filter(function(r) { return !!r && r.id === qx.id; })[0], outX = rdX && rdX.ui && rdX.ui.playerFile, viewX = window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(campX) : null, copyX = viewX ? charViewFor(qx.charId, pidX) : null;
+        if (!outX || typeof outX.write !== 'function' || !viewX || !copyX || copyX.partial) { ansX({ reason: 'none' }); return; }
+        stepX('asked', { reader: qx.id });
+        Promise.resolve().then(function() { return outX.write({ char: copyX, system: viewX, F: window.wpFormula, campId: campX.id }); }).then(function(fX) {
+            var cleanX = Sx.cleanSheetFile(fX); if (!cleanX) { stepX('failed', { at: 'file' }); ansX({ reason: 'unread' }); return; }
+            var parts = []; for (var ix = 0; ix < cleanX.text.length && parts.length < OUT_PARTS; ix += OUT_PART) parts.push(cleanX.text.slice(ix, ix + OUT_PART));
+            stepX('sent', { size: cleanX.text.length, parts: parts.length }); ansX({ name: cleanX.name, parts: parts });
+        }, function() { stepX('failed', { at: 'write' }); ansX({ reason: 'unread' }); });
+        // [netcheck:sheetout-end]
+    } else if (msg.type === 'sheet-out-ans' && net.role === 'client') {
+        // [netcheck:sheetoutans-start]
+        // 1.6.0: the host's answer to our sheet-out, from the synced host only, for the question still open, cleaned here again: a file name and a size
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !_outAsk || msg.rid !== _outAsk.rid) return;
+        var cbO = _outAsk.cb, SO = SC(), ptO = Array.isArray(msg.parts) && msg.parts.length <= OUT_PARTS && msg.parts.every(function(p) { return typeof p === 'string'; }) ? msg.parts : null, szO = ptO ? ptO.reduce(function(n, p) { return n + p.length; }, 0) : 0;
+        var fileO = SO && typeof SO.cleanSheetFile === 'function' && ptO && szO <= SO.LIMITS.sheetOut ? SO.cleanSheetFile({ name: msg.name, text: ptO.join('') }) : null;
+        clearTimeout(_outAsk.timer); _outAsk = null; try { cbO(fileO, fileO ? '' : typeof msg.reason === 'string' ? msg.reason.slice(0, 20) : 'unread'); } catch (e) {}
+        // [netcheck:sheetoutans-end]
     } else if (msg.type === 'apply' && net.role === 'client') {
         // [netcheck:applyin-start]
         // Stage 6 HUD H7: an apply action's card, from the synced host only — text and numbers, cleaned like a roll's record

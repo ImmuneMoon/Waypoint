@@ -6066,6 +6066,15 @@ var _dlPop = null, _dlGm = false;   // _dlGm: the GM's "Include GM-only fields",
 function closeDownloadMenu() { if (_dlPop) { _dlPop.remove(); _dlPop = null; document.removeEventListener('mousedown', dlOutside, true); document.removeEventListener('keydown', dlKey, true); } }
 function dlOutside(e) { if (_dlPop && !_dlPop.contains(e.target) && !(_dlPop._anchor && _dlPop._anchor.contains(e.target))) closeDownloadMenu(); }
 function dlKey(e) { if (_dlPop && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); var a = _dlPop._anchor; closeDownloadMenu(); try { if (a) a.focus(); } catch (er) {} } }
+// [netcheck:sheetoutgo-start]
+// 1.6.0: a file the host's reader writes for a player's own character (net.sheetOuts): a press asks the host, and what comes back is saved as any export is
+var OUT_SAYS = { off: 'Character sheets are switched off at this table.', slow: 'Wait a few seconds, then ask again.', owner: 'That file is only for your own character.', none: 'This table no longer offers that file.', unread: 'The GM\u2019s Waypoint could not write that file.', wait: 'No answer from the GM\u2019s Waypoint. Try again.' };
+function outFile(id, cid) {
+    var n = net(); if (!n || typeof n.sheetOut !== 'function') return;
+    toast('Asking the GM\u2019s Waypoint for your sheet\u2026');
+    n.sheetOut(id, cid, function(file, why) { if (file) { saveTextFile(file.name, file.text, 'application/json'); toast('Saved ' + file.name + '.'); return; } toast(Object.prototype.hasOwnProperty.call(OUT_SAYS, why) ? OUT_SAYS[why] : OUT_SAYS.unread); });
+}
+// [netcheck:sheetoutgo-end]
 function openDownloadMenu(anchor) {
     if (_dlPop) { closeDownloadMenu(); return; }   // its button toggles it
     var c = sheetOpen ? charById(sheetOpen) : null; if (!c || c.partial || !canOpen(c.id)) return;
@@ -6075,6 +6084,7 @@ function openDownloadMenu(anchor) {
     item('Readable page (.md)', 'The sheet as text \u2014 it imports as a handbook page', 'md');
     item('Print or save as PDF\u2026', 'Exactly as it shows, every tab in turn', 'print');
     sheetReaders().forEach(function(rd) { var rows = []; try { rows = rd.ui && typeof rd.ui.downloadRows === 'function' ? rd.ui.downloadRows(cid) : []; } catch (e) { rows = []; } (Array.isArray(rows) ? rows : []).forEach(function(rw) { if (rw && typeof rw.label === 'string' && typeof rw.run === 'function') item(rw.label, typeof rw.sub === 'string' ? rw.sub : '', rw.run); }); });   // an outside reader's own rows (its way back to where the file came from)
+    if (!gm && c.ownerId === myId()) { var nO = net(); if (nO && typeof nO.sheetOuts === 'function') nO.sheetOuts().forEach(function(rw) { item(rw.label, rw.sub, function() { outFile(rw.id, cid); }); }); }   // 1.6.0: what the host's reader writes for this player, its words as text
     if (gm) { var lb = el('label', 'sheet-dl-gm'), cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = _dlGm; cb.addEventListener('change', function() { _dlGm = cb.checked; }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' Include GM-only fields')); lb.title = 'Off: the sheet as its player sees it. On: your own copy, with every GM-only field and row (the file is named \u2026-gm)'; pop.appendChild(lb); }
     else pop.appendChild(el('div', 'sheet-dl-note', 'Your sheet as you see it.'));
     pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });

@@ -254,6 +254,7 @@ Systems, more
   line, as the ruler reads it to the character's target. TargetCoverGrade reads
   it by grade: 0 none, 1 half, 2 three-quarters, 3 total.
 - A character given to a player brings their view to its token, where they held none on that map.
+- A character file read back into its own sheet offers no changes, and the figures the GM set stay set.
 - The Review shows a value whole, and says what differs between two rows that read alike.
 - Host a game on the welcome screen now asks which campaign to host, then opens it
   and starts the table, with the room code in front of you.

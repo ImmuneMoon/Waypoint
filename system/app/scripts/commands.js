@@ -36,7 +36,8 @@ var CMD_TOOLS = [
 // A window the top row opens: its id, its name, its button, what it is, other words that find it
 var CMD_WINDOWS = [
     ['open.settings', 'Settings', 'settingsBtn', 'Your profile, the look and every option.', ['options', 'preferences']],
-    ['open.help', 'Help', 'helpBtn', 'How every part of Waypoint works.', ['guide', 'manual']]
+    ['open.help', 'Help', 'helpBtn', 'How every part of Waypoint works.', ['guide', 'manual']],
+    ['open.library', 'Library', 'libraryCampBtn', 'The campaign’s packs of entries, to read, edit and import.', ['packs', 'items', 'entries', 'import'], true]
 ];
 function cmdLog(step, facts) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('commands v1', step, facts); } catch (e) {} }
 function cmdShown(el) { return !!el && typeof el.getClientRects === 'function' && el.getClientRects().length > 0; }
@@ -94,7 +95,11 @@ function sceneCan() {
 function sceneAct() { var PS = window.wpPageShelf, s = PS && typeof PS.scenePage === 'function' ? PS.scenePage() : null, t = s && typeof s.title === 'string' ? s.title.slice(0, 60) : ''; return t ? 'Enter opens ' + t + ' over the map.' : 'Enter opens the scene page over the map.'; }
 var CMD_SCENE = { id: 'page.scene', name: 'Scene page', does: 'Open this map’s scene page over the map.', also: ['scene', 'map page', 'planner'], icon: 'mask', key: 'Shift+KeyP',
     can: sceneCan, run: function() { var r = window.wpPageShelf.sceneOpen({}); if (r !== 'panel' && r !== 'window' && r !== 'go') throw new Error('not opened'); }, act: sceneAct };
-function winCan(w) { var b = document.getElementById(w[2]); return b && b.disabled !== true ? true : w[1] + ' is not in this window.'; }
+function winCan(w) {
+    var b = document.getElementById(w[2]), n = window.wpNet;
+    if (w[5] && n && (n.foreign || (n.active && n.role === 'client'))) return 'The ' + w[1].toLowerCase() + ' is the GM’s.';
+    return b && b.disabled !== true ? true : w[1] + ' is not in this window.';
+}
 var COMMANDS = CMD_TOOLS.map(function(t) {
     return { id: t[0], name: t[1], does: t[3], also: t[4], icon: 'wrench', key: t[6] || '', can: function() { return toolCan(t); },
         run: function() { document.getElementById(t[2]).click(); }, act: function() { return toolAct(t); } };   // the tool's own press, as the toolbar's

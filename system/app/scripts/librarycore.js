@@ -245,6 +245,7 @@ export function readPackImport(text, ctx) {
     var cp = cleanPack({ format: 'waypoint-pack', id: 'p_import', rev: 0, entries: j.entries }, ctx);
     var out = { name: line(j.name, LIB.packName) || 'Imported pack', vis: j.vis === 'gm' ? 'gm' : 'all', entries: cp.pack.entries, dropped: cp.dropped, reasons: cp.reasons };
     var ic = cleanIcon(j.icon); if (ic) out.icon = ic;
+    if (typeof j.id === 'string' && PACK_RE.test(j.id)) out.id = j.id;   // 1.6.0: only to say which pack it was: Into starts on the pack of that id
     var ls = lostStats(j.entries, cp.pack.entries); if (ls.length) out.lostStats = ls;   // Stage 6 F3: never left out silently
     return out;
 }

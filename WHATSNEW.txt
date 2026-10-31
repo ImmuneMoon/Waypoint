@@ -935,6 +935,10 @@ Turn strip and sheets
 - A sheet's own character file read back now offers no change: a row the
   character made itself stays its own row, however its name reads, and its
   changes keep their per-level figures and any change on a worked-out value.
+- A token's Effects menu now fits a short window. It keeps its own scroll and
+  its last row can be reached, and a right-click menu always opens at its top.
+- The Library has a row on the campaign menu, and a command in the quick jump.
+  Import's Into starts on the pack the file names, by its id or its name.
 
 Turn order
 - The System editor's Initiative box has Next is chosen, a third way to

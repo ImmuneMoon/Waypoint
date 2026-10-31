@@ -80,7 +80,7 @@ function open() {
     m.style.display = 'flex'; state(''); renderAll();
     if (s) try { s.focus({ preventScroll: true }); } catch (e) {}
 }
-async function close() { if (!st.open) return; await flush(); st.open = false; st.work = map(); st.imp = null; var m = ui('libraryModal'); if (m) m.style.display = 'none'; var b = ui('sysOpenLibrary'); if (b) try { b.focus({ preventScroll: true }); } catch (e) {} }   // back to the System editor, whose keys (Esc) then work
+async function close() { if (!st.open) return; await flush(); st.open = false; st.work = map(); st.imp = null; var m = ui('libraryModal'); if (m) m.style.display = 'none'; var b = ui('sysOpenLibrary'); if (b && !b.offsetParent) b = ui('campMenuBtn'); if (b) try { b.focus({ preventScroll: true }); } catch (e) {} }   // back to the System editor, whose keys (Esc) then work
 function renderAll() { renderPacks(); renderPackBar(); renderList(); renderForm(); }
 // the library finished reading (library.js): what was loading can be shown now; an entry being edited stays as typed
 function refresh() { if (!st.open) return; renderPacks(); renderPackBar(); renderList(); if (!current()) renderForm(); }
@@ -144,11 +144,19 @@ function importPick() {
         f.text().then(function(text) {
             if (!st.open) return;
             var d = readPackImport(text, gmCtx()); if (d.error) { toast(d.error); return; }
-            st.imp = { file: String(f.name || '').slice(0, 80), data: d, mode: 'new', target: st.packId }; st.sel = map(); st.entryId = null; st.draftNew = null; drawRows(); renderForm();
+            st.imp = { file: String(f.name || '').slice(0, 80), data: d, mode: 'new', target: importInto(d) }; st.sel = map(); st.entryId = null; st.draftNew = null; drawRows(); renderForm();
         }).catch(function() { toast('That file could not be read.'); });
     });
     fi.click();
 }
+// [librarycheck:importinto-start]
+// 1.6.0: the pack a file names starts in Into, by its id and else by its name, so a preview of a pack is never of it against another; else the pack open in the window
+function importInto(d) {
+    var low = function(s) { return String(s || '').trim().toLowerCase(); }, ps = packs();
+    var hit = ps.filter(function(p) { return p.id === d.id; })[0] || ps.filter(function(p) { return low(p.name) === low(d.name); })[0];
+    return hit ? hit.id : st.packId;
+}
+// [librarycheck:importinto-end]
 function planFor(im) { return packImportPlan(packs().map(function(p) { return { id: p.id, name: p.name, entries: workOf(p.id) }; }), im.target, im.data, im.mode, undefined, im.mode === 'replace' ? usedRows() : undefined); }
 // 1.6.0 (backlog 196): how many characters' rows use each entry, by its id (a row's defId), for Import, replacing a pack
 function usedRows() { var c = camp(), out = map(); Object.keys(c && c.chars ? c.chars : {}).forEach(function(cid) { var ch = c.chars[cid]; if (!ch || typeof ch !== 'object' || !ch.values || typeof ch.values !== 'object') return; Object.keys(ch.values).forEach(function(fid) { var v = ch.values[fid]; if (Array.isArray(v)) v.forEach(function(r) { if (r && typeof r.defId === 'string') out[r.defId] = (out[r.defId] || 0) + 1; }); }); }); return out; }
@@ -652,7 +660,7 @@ function delMany() {
     var ne = ui('libNewEntry'); if (ne) ne.addEventListener('click', newEntry);
     var s = ui('libSearch'); if (s) s.addEventListener('input', function() { st.q = s.value.slice(0, 120); var b = ui('libList'); if (b) b.scrollTop = 0; renderList(); if (!st.imp && !st.draftNew && Object.keys(st.sel).length > 1) afterPick(); });   // the bulk panel counts what shows; an entry's form, being typed in, stays
     var lst = ui('libList'); if (lst) { lst.addEventListener('scroll', drawRows, { passive: true }); lst.addEventListener('keydown', function(e) { if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); pickAll(); } }); }
-    var ob = ui('sysOpenLibrary'); if (ob) ob.addEventListener('click', open);
+    ['sysOpenLibrary', 'libraryCampBtn'].forEach(function(id) { var ob = ui(id); if (ob) ob.addEventListener('click', open); });
     // its keys stay its own (as the System editor's), and Esc closes it, unless a question above it is open: that one answers first
     m.addEventListener('keydown', function(e) { var q = ui('customConfirm'), p = ui('customPrompt'); if ((q && q.style.display === 'flex') || (p && p.style.display === 'flex')) return; e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); close(); } });
 })();

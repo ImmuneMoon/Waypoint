@@ -196,7 +196,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             zOf('libraryModal') > zOf('systemModal') && zOf('libraryModal') < zOf('customConfirm') && zOf('libraryModal') < zOf('customPrompt')
             && hmS.indexOf('scripts/librarywin.js') > hmS.indexOf('scripts/library.js') && hmS.indexOf('scripts/library.js') > 0
             && /<div id="sysItems"[\s\S]*?id="sysOpenLibrary"[\s\S]*?<div id="sysItemRows"/.test(hmS)
-            && /<div id="helpModal"[\s\S]*<li><b><i class="wib wi-lib"><\/i> Library&hellip;<\/b>, on the Items tab, opens the campaign&rsquo;s <b>library<\/b>\./.test(hmS), j([zOf('libraryModal'), zOf('systemModal'), zOf('customConfirm')]));
+            && /<div id="helpModal"[\s\S]*<li><b><i class="wib wi-lib"><\/i> Library&hellip;<\/b>, on the Items tab or the campaign menu, opens the campaign&rsquo;s <b>library<\/b>\./.test(hmS) && /<button class="rm-row" id="libraryCampBtn"/.test(hmS), j([zOf('libraryModal'), zOf('systemModal'), zOf('customConfirm')]));
     }
 
     /* ---- L2a2: a pack as a file, the import's dry run, bulk changes ---- */
@@ -216,6 +216,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && bad.name.length === LIB.packName && j(bad.entries.map(e => e.id)) === j(['i_ok']) && bad.dropped === 3 && bad.reasons.length === 3 && bad.vis === 'all'
             && !!readPackImport('{', gmC).error && !!readPackImport('[]', gmC).error && !!readPackImport(JSON.stringify({ format: 'waypoint-system', entries: [] }), gmC).error && !!readPackImport(JSON.stringify({ name: 'x' }), gmC).error
             && /too large/.test(readPackImport(JSON.stringify({ entries: [], pad: 'x'.repeat(LIB.fileBytes) }), gmC).error || '') && !!readPackImport(null, gmC).error && !readPackImport(JSON.stringify({ entries: [] }), gmC).error, j([rt, bad]));
+        const idOf = v => readPackImport(JSON.stringify({ id: v, entries: [] }), gmC).id;
+        const intoS = require('fs').readFileSync(require('path').join(app, 'scripts', 'librarywin.js'), 'utf8').split('[librarycheck:importinto-start]')[1].split('// [librarycheck:importinto-end]')[0].replace(/^[^\n]*\n/, '');
+        const intoOf = (ps, d) => new Function('packs', 'st', intoS + '\nreturn importInto;')(() => ps, { packId: 'p_open' })(d);
+        const PS = [{ id: 'p_a', name: 'Skills' }, { id: 'p_b', name: 'Advantages' }, { id: 'p_c', name: 'Quirks' }];
+        check('1.6.0: a pack file says which pack it was, only as a pack id reads, and Import\'s Into starts on that pack by its id, else by its name in any case, else on the pack open in the window, so a preview never reads one pack against another',
+            idOf('p_b') === 'p_b' && idOf('bad id') === undefined && idOf(7) === undefined
+            && intoOf(PS, { id: 'p_b', name: 'Other' }) === 'p_b' && intoOf(PS, { id: 'p_gone', name: ' advantages ' }) === 'p_b' && intoOf(PS, { name: 'Quirks' }) === 'p_c' && intoOf(PS, { id: 'p_gone', name: 'Nothing here' }) === 'p_open' && intoOf(PS, { id: 'p_c', name: 'Skills' }) === 'p_c',
+            JSON.stringify([idOf('p_b'), intoOf(PS, { name: 'Quirks' })]));
         const lostF = readPackImport(JSON.stringify({ entries: [{ id: 'i_1', name: 'A', stats: { wt: 2, Attr: 1, Diff: 0 } }, { id: 'i_2', name: 'B', stats: { Attr: 3, __proto__x: 1 } }, { id: 'i_1', name: 'Dup', stats: { Other: 1 } }, { id: 'i_3', name: 'C', stats: { Wt: 'heavy' } }, { id: 'i_4', name: 'D' }] }), gmC);
         const lostMany = readPackImport(JSON.stringify({ entries: [{ id: 'i_m', name: 'M', stats: Object.fromEntries(Array.from({ length: 12 }, (_, i) => ['s' + i, 1])) }] }), gmC);
         check('F3 readPackImport names the stats an import leaves out (a stat no list of the system has, or a value it cannot hold), each entry once as the first of its id, the most common first (then by key), spelled as the file has them, eight at most — never silently; a file with nothing left out carries none',

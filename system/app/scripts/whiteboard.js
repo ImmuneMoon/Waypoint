@@ -3645,15 +3645,17 @@ window.wpFitToGrid = fitToGrid;
       var cl = FC && FC.cleanTokFx ? FC.cleanTokFx(rows) : null; if (cl) tok.fx = cl; else delete tok.fx;
       save(); render();
   }
-  function showTokenFxMenu(tok) {
+  function showTokenFxMenu(tok, keep) {
       var cMenu = document.getElementById('contextMenu'), S = window.wpSheets; if (!cMenu || !S || !S.tokenFxModel) return;
       var m = S.tokenFxModel(tok); if (!m) { cMenu.style.display = 'none'; return; }
+      var fxTop = keep === true ? cMenu.scrollTop : 0;   // an effect pressed leaves the list where it stands; drawn again it would go back to its top
       cMenu.onclick = null;   // its lines answer for themselves: the item menu's handler never sees them
       cMenu.innerHTML = tokenFxMenuHtml(tok, m);
       cMenu.style.display = 'flex';
       placeMenu(cMenu);   // its rows changed while it was up: fitted again where it stands
-      var fxR = cMenu.getBoundingClientRect(), fxS = window.wpFloats && window.wpFloats.spot ? window.wpFloats.spot({ l: fxR.left, t: fxR.top, w: fxR.width, h: fxR.height }, true) : null; if (fxS) { cMenu.style.left = fxS.l + 'px'; cMenu.style.top = fxS.t + 'px'; }   // and clear of the bars, as near as it can (floats.js)
-      var again = function() { setTimeout(function() { if (cMenu.style.display !== 'none') showTokenFxMenu(tok); }, 0); };
+      var fxR = cMenu.getBoundingClientRect(), fxS = window.wpFloats && window.wpFloats.spot ? window.wpFloats.spot({ l: fxR.left, t: fxR.top, w: fxR.width, h: fxR.height }, true) : null; if (fxS) { cMenu.style.left = fxS.l + 'px'; cMenu.style.top = fxS.t + 'px'; if (fxS.h < fxR.height) { cMenu.classList.add('tall'); cMenu.style.maxHeight = fxS.h + 'px'; } }   // and clear of the bars, as near as it can (floats.js), held to the room it has there: moved down at its full height, its foot ran off a short window
+      cMenu.scrollTop = fxTop;
+      var again = function() { setTimeout(function() { if (cMenu.style.display !== 'none') showTokenFxMenu(tok, true); }, 0); };
       cMenu.querySelectorAll('.cm-fx').forEach(function(line) {
           line.addEventListener('click', function(ce) { ce.stopPropagation(); var r = m.rows[Number(line.dataset.fi)]; if (!r) return; tokenFxOp(tok, m, r.rowId ? { op: 'remove', rowId: r.rowId } : { op: 'add', ref: r.ref }); again(); });
       });
@@ -9568,6 +9570,7 @@ function placeMenu(cMenu, e) {
     var r = cMenu.getBoundingClientRect();
     if (r.right > window.innerWidth - 6) cMenu.style.left = Math.max(6, x - (r.right - window.innerWidth + 6)) + 'px';
     if (r.bottom > window.innerHeight - 6) cMenu.style.top = Math.max(6, y - (r.bottom - window.innerHeight + 6)) + 'px';
+    if (e) cMenu.scrollTop = 0;   // a menu that comes up starts at its top: the browser hands one element's scroll on from the last menu it held, which put Sheet… above the menu's top
 }
 // [systemcheck:placemenu-end]
 // The table menu: Campaign Cast, Players ("Bring here"), Session actions. Returns the html and a

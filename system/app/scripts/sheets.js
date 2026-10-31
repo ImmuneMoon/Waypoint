@@ -3831,7 +3831,7 @@ function rowForm(entry, rd, c, f, spec, sysI, mode) {
         var cs = el('select', 'field sheet-rf-sel'); cs.appendChild(opt('', lib + (base.category || '(none)'), ov.category === undefined)); cats.forEach(function(x) { cs.appendChild(opt(x, x, ov.category === x)); });
         cs.addEventListener('change', function() { one('category', cs.value || null); });
         add('Category', cs, 'category', ov.category !== undefined, function() { one('category', null); });
-        text('notes', 'Notes', LIMITS.text, base.notes || '');
+        text('notes', 'Notes', LIMITS.noteText, base.notes || '');
     }
     (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) {
         if (!s || typeof s.key !== 'string' || !SK_RE.test(s.key)) return;
@@ -3901,7 +3901,7 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
     if (curC && cats.indexOf(curC) < 0) cats.push(curC);   // its own (a spelling the list does not have) stays chosen
     var cs = el('select', 'field sheet-rf-sel'); cs.appendChild(opt('', '(none)', !curC)); cats.forEach(function(x) { cs.appendChild(opt(x, x, x === curC)); });
     cs.addEventListener('change', function() { one('category', cs.value || null); }); add('Category', cs, 'category');
-    text('notes', 'Notes', LIMITS.text, d.notes || '');
+    text('notes', 'Notes', LIMITS.noteText, d.notes || '');
     text('key', 'Key', 40, d.key || '', 'A short fixed name your formulas read this row by (List.Key.lvl): a letter, then letters, digits and _ (up to 40); no other row or item of this list may have it. A GM-only row is read by its key only on a GM-only list', true);
     var longOk = !(typeof isClient === 'function' && isClient()) || !!(typeof net === 'function' && net() && typeof net().rowTextOk === 'function' && net().rowTextOk());   // 1.5.5 (155): a row of its own's long text, where the host keeps it (an older GM's Waypoint would drop it with no word)
     if (longOk) {
@@ -6543,7 +6543,7 @@ function badgeBox(sp) {
             var tt = badgeTick('sys-badge-tint', b.tint, 'Tints its row', 'The row takes the badge\u2019s colour as a tint with an edge while it shows. The first badge that tints wins'); tt.cb.addEventListener('change', function(e) { e.stopPropagation(); set('tint', tt.cb.checked); });
             var pt = badgeTick('sys-badge-pulse', b.pulse, 'Pulses', 'The badge pulses slowly, for a state that needs attention now. It stays still where the computer is set to reduce motion'); pt.cb.addEventListener('change', function(e) { e.stopPropagation(); set('pulse', pt.cb.checked); });
             var pI = input('sys-badge-tip field', typeof b.tip === 'string' ? b.tip : '', 'Words shown when the pointer rests on the badge', 'Tip (optional)'); pI.maxLength = LIMITS.text;
-            pI.addEventListener('input', function() { set('tip', pI.value.slice(0, LIMITS.text)); });
+            pI.addEventListener('input', function() { set('tip', pI.value.slice(0, LIMITS.noteText)); });
             var x = el('button', 'tool ghost sys-btn sys-badge-del', '\u00d7'); x.type = 'button'; x.title = 'Remove this badge';
             x.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(sp.badges)) return; sp.badges.splice(j, 1); if (!sp.badges.length) delete sp.badges; ch(); draw(); });
             [wI, iI, tS, kS, tt.lb, pt.lb, pI, x].forEach(function(n) { rw.appendChild(n); }); box.appendChild(rw);
@@ -7481,7 +7481,7 @@ function rollRow(r) {
     row.appendChild(top);
     var ndR = el('div', 'sys-flags sys-roll-needsrow');   // 1.5.4: what it needs before it may be used, as a list roll's
     var ndI = input('sys-roll-needs field', typeof r.needs === 'string' ? r.needs : '', (isApply ? 'Pressed' : 'Rolled') + ' only while this formula is true for the character, such as Bleeding > 0. It may not hold dice. Leave it empty to ' + (isApply ? 'press' : 'roll') + ' at any time. By the clock and in a fight it is passed over while it is not met.', 'Needs, such as Bleeding > 0'); ndI.maxLength = LIMITS.formula; ndR.appendChild(ndI);
-    var ndT = input('sys-roll-needstext field', typeof r.needsText === 'string' ? r.needsText : '', 'What the greyed button says when it cannot be used', 'Not while stunned'); ndT.maxLength = LIMITS.label; ndR.appendChild(ndT);
+    var ndT = input('sys-roll-needstext field', typeof r.needsText === 'string' ? r.needsText : '', 'What the greyed button says when it cannot be used', 'Not while stunned'); ndT.maxLength = LIMITS.needsWords; ndR.appendChild(ndT);
     row.appendChild(ndR);
     row.appendChild(everyRow(r));   // item 20 K5: by the campaign's clock
     row.appendChild(fightRow(r));   // backlog 152, fold 5: in a fight
@@ -8108,7 +8108,7 @@ function ctKeySays(sp, F0) {
         var rsI = input('sys-list-rollshow field', typeof rr.showIf === 'string' ? rr.showIf : '', 'Its button shows only on rows where this is true, such as Row.Kind = 2. Row names are read. No dice. Empty: on every row', 'Shown where (optional)'); rsI.maxLength = LIMITS.formula; rw.appendChild(rsI);   // 1.6.0
         if (typeof altBox === 'function') rw.appendChild(altBox(rr, 'Its button reads this name on rows where the formula holds, such as Fix malfunction where Row.Kind = 2. The first that holds wins.'));   // 1.6.0: its other names
         if (typeof rollExtras === 'function') rollExtras(rw, rr, sp, rApply);   // 1.6.0: its icon, and R7 the figure it shows
-        if (rApply) { cb2.appendChild(rw); var ndA = el('div', 'sys-flags sys-list-needsrow'); ndA.dataset.ri = String(ri); var ndAI = input('sys-list-needs field', typeof rr.needs === 'string' ? rr.needs : '', 'Pressed only while this is true for the row (no dice): Row.Charges >= 1, Row.Hits > 0; empty: always', 'Needs (e.g. Row.Charges >= 1)'); ndAI.maxLength = LIMITS.formula; ndA.appendChild(ndAI); var ndAT = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the greyed button says when it cannot be pressed', 'Out of charges'); ndAT.maxLength = LIMITS.label; ndA.appendChild(ndAT); cb2.appendChild(ndA); var lxA = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxA) cb2.appendChild(lxA); listApplyEditor(cb2, rr, ri, 'apply', sp, targets); return; }   // 1.6.0: when a row's counter crosses a step
+        if (rApply) { cb2.appendChild(rw); var ndA = el('div', 'sys-flags sys-list-needsrow'); ndA.dataset.ri = String(ri); var ndAI = input('sys-list-needs field', typeof rr.needs === 'string' ? rr.needs : '', 'Pressed only while this is true for the row (no dice): Row.Charges >= 1, Row.Hits > 0; empty: always', 'Needs (e.g. Row.Charges >= 1)'); ndAI.maxLength = LIMITS.formula; ndA.appendChild(ndAI); var ndAT = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the greyed button says when it cannot be pressed', 'Out of charges'); ndAT.maxLength = LIMITS.needsWords; ndA.appendChild(ndAT); cb2.appendChild(ndA); var lxA = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxA) cb2.appendChild(lxA); listApplyEditor(cb2, rr, ri, 'apply', sp, targets); return; }   // 1.6.0: when a row's counter crosses a step
         if (rr.dmg !== true) { var bsl = el('select', 'sys-list-burst'); bsl.title = 'A burst: Opens a burst is the attack, whose Then fires the shots. A burst\u2019s extra dice is the roll that counts the extra hits, such as 3d6cs>=4, and it rolls once after an attack that hit. Row.bursthits reads the hits landed'; [['', 'No burst'], ['attack', 'Opens a burst'], ['extra', 'A burst\u2019s extra dice']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; bsl.appendChild(op); }); bsl.value = rr.burst === 'attack' || rr.burst === 'extra' ? rr.burst : ''; rw.appendChild(bsl); }   // 1.6.0 A burst
         var rf = input('sys-list-rollformula field', typeof rr.formula === 'string' ? rr.formula : '', 'Rolled for the row: dice allowed; Row.lvl, Row.<stat>, Row.<column> read the row, any other name the character (3d6 <= Row.Skill, d20 + Row.Hit)', 'Formula (d20 + Row.Hit)'); rf.maxLength = LIMITS.formula; rw.appendChild(rf);
         rw.appendChild(checkLabel('sys-list-dmg', rr.dmg === true, 'Damage', 'A damage roll: its card in Table Chat takes the damage colour, a larger total and a damage tag'));   // chat cards (owner 2026-09-27)
@@ -8124,7 +8124,7 @@ function ctKeySays(sp, F0) {
         cb2.appendChild(rw);
         var ndRow = el('div', 'sys-flags sys-list-needsrow'); ndRow.dataset.ri = String(ri);   // Stage 6 HUD R2b: what it needs, then its consequences
         var ndIn = input('sys-list-needs field', typeof rr.needs === 'string' ? rr.needs : '', 'Rolled only while this is true for the row (no dice): Row.Charges >= 1, Row.Hits > 0; empty: always', 'Needs (e.g. Row.Charges >= 1)'); ndIn.maxLength = LIMITS.formula; ndRow.appendChild(ndIn);
-        var ndTx = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the greyed button says when it cannot roll', 'Out of charges'); ndTx.maxLength = LIMITS.label; ndRow.appendChild(ndTx);
+        var ndTx = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the greyed button says when it cannot roll', 'Out of charges'); ndTx.maxLength = LIMITS.needsWords; ndRow.appendChild(ndTx);
         var mfL = input('sys-list-malf field', typeof rr.malf === 'string' ? rr.malf : '', 'Malf: a natural total (the dice alone) at or past this malfunctions \u2014 a failure, and its On malfunction changes (no dice; Row.Malf reads the row)', 'Malf (Row.Malf)'); mfL.maxLength = LIMITS.formula; ndRow.appendChild(mfL);   // Stage 6 HUD R3
         if ((typeof draft !== 'undefined' && draft && draft.combat && draft.combat.checks === 'fixed') || rr.critAt || rr.fumbleAt) [['sys-list-critat', 'critAt', 'Critical at: this roll\u2019s own critical success range, the dice alone at or under it (no dice; Row.* reads the row; empty: the Combat card\u2019s)', 'Critical at'], ['sys-list-fumbleat', 'fumbleAt', 'Critical failure at: this roll\u2019s own, the dice alone at or over it (no dice; Row.* reads the row; empty: the Combat card\u2019s)', 'Critical failure at']].forEach(function(g) { var ci = input(g[0] + ' field', typeof rr[g[1]] === 'string' ? rr[g[1]] : '', g[2], g[3]); ci.maxLength = LIMITS.formula; ndRow.appendChild(ci); });   // 1.6.0 (the v2 sort's B1): a technique that widens the range
         var bgL = input('sys-list-bigat field', typeof rr.bigAt === 'string' ? rr.bigAt : '', 'Lands as a Big Hit: a success whose natural roll, the dice alone, is at or under this is marked a Big Hit. It is no critical. Its Then reads RollBig (no dice; Row.* reads the row; empty: never)', 'Big Hit at'); bgL.maxLength = LIMITS.formula; ndRow.appendChild(bgL);   // 1.6.0 (the book's ruling of 2026-10-29)
@@ -10375,7 +10375,7 @@ function onInput(e) {
         if (fc.indexOf('sys-fx-name') >= 0) fxd.name = t.value.slice(0, LIMITS.name);
         else if (fc.indexOf('sys-fx-icon') >= 0) fxd.icon = t.value.slice(0, 32);
         else if (fc.indexOf('sys-fx-dur') >= 0) fxd.dur = t.value.slice(0, 200);
-        else if (fc.indexOf('sys-fx-notes') >= 0) fxd.notes = t.value.slice(0, LIMITS.text);
+        else if (fc.indexOf('sys-fx-notes') >= 0) fxd.notes = t.value.slice(0, LIMITS.noteText);
         else if (fc.indexOf('sys-fx-auto') >= 0) { var auV = t.value.slice(0, LIMITS.formula); if (auV.trim()) fxd.auto = auV; else delete fxd.auto; }   // conditions C4: the automatic formula (emptied: the key goes)
         else if (fc.indexOf('sys-fx-amtf') >= 0) { var mlnF = t.closest('.sys-fx-mod'), mmF = mlnF ? (fxd.mods || [])[+mlnF.dataset.mi] : null; if (mmF) { var vfV = t.value.slice(0, LIMITS.formula); if (vfV.trim()) { mmF.vf = vfV; mmF.v = 0; } else delete mmF.vf; var amN = mlnF.querySelector('.sys-fx-amt'); if (amN) amN.disabled = !!vfV.trim(); } }   // 1.6.0 (CORE gap 12): the amount by a formula (emptied: the number again)
         else if (fc.indexOf('sys-fx-amt') >= 0) { var mln = t.closest('.sys-fx-mod'), mm = mln ? (fxd.mods || [])[+mln.dataset.mi] : null; if (mm) mm.v = t.value === '' ? 0 : Number(t.value); }
@@ -10402,7 +10402,7 @@ function onInput(e) {
         else if (ic.indexOf('sys-item-cost') >= 0) it.cost = t.value;
         else if (ic.indexOf('sys-item-throw') >= 0) it.throwSkill = t.value.trim();
         else if (ic.indexOf('sys-item-icon') >= 0) it.icon = t.value.slice(0, 32);   // Save keeps an emoji's first 8 code points, or a bundled icon's name
-        else if (ic.indexOf('sys-item-notes') >= 0) it.notes = t.value.slice(0, LIMITS.text);
+        else if (ic.indexOf('sys-item-notes') >= 0) it.notes = t.value.slice(0, LIMITS.noteText);
         else if (ic.indexOf('sys-item-rmtext') >= 0) it.rmMsg = t.value.slice(0, LIMITS.rmMsg);   // Stage 6
         else if (ic.indexOf('sys-item-eqtext') >= 0) it.eqMsg = t.value.slice(0, LIMITS.rmMsg);   // F4b
         else if (ic.indexOf('sys-item-key') >= 0) { var ikv = t.value.trim().slice(0, 40); if (ikv) it.key = ikv; else delete it.key; }
@@ -10431,7 +10431,7 @@ function onInput(e) {
         else if (lcc.indexOf('sys-list-unheldlvl') >= 0 && lvD) lsp.unheld = t.value.slice(0, LIMITS.formula);   // 1.6.0 Rolls unheld entries: the Unheld level (Save cleans it)
         else if (lcc.indexOf('sys-list-swshow') >= 0 && lsp.on && typeof lsp.on === 'object') { if (t.value.trim()) lsp.on.showIf = t.value.slice(0, LIMITS.formula); else delete lsp.on.showIf; }   // 1.6.0: where a row's switch is shown (Save cleans it)
         else if (lcc.indexOf('sys-list-swneeds') >= 0 && lsp.on && typeof lsp.on === 'object') { if (t.value.trim()) lsp.on.needs = t.value.slice(0, LIMITS.formula); else delete lsp.on.needs; }   // 1.5.8: a switch's needs (Save cleans them)
-        else if (lcc.indexOf('sys-list-swwords') >= 0 && lsp.on && typeof lsp.on === 'object') { if (t.value.trim()) lsp.on.needsText = t.value.slice(0, LIMITS.label); else delete lsp.on.needsText; }
+        else if (lcc.indexOf('sys-list-swwords') >= 0 && lsp.on && typeof lsp.on === 'object') { if (t.value.trim()) lsp.on.needsText = t.value.slice(0, LIMITS.needsWords); else delete lsp.on.needsText; }
         else if (lcc.indexOf('sys-list-malf') >= 0) {   // Stage 6 HUD R3: a list roll's Malf (Save cleans it)
             var mrw = t.closest('.sys-list-needsrow'), mL = Array.isArray(lsp.rolls) ? lsp.rolls : null, mR = mrw && mL ? mL[+mrw.dataset.ri] : null; if (!mR || typeof mR !== 'object') return;
             if (t.value.trim()) mR.malf = t.value.slice(0, LIMITS.formula); else delete mR.malf;
@@ -10442,7 +10442,7 @@ function onInput(e) {
         }
         else if (lcc.indexOf('sys-list-needs') >= 0) {   // Stage 6 HUD R2b: a list roll's needs (Save cleans them)
             var nrw = t.closest('.sys-list-needsrow'), nL = Array.isArray(lsp.rolls) ? lsp.rolls : null, nR = nrw && nL ? nL[+nrw.dataset.ri] : null; if (!nR || typeof nR !== 'object') return;
-            if (lcc.indexOf('sys-list-needstext') >= 0) { if (t.value.trim()) nR.needsText = t.value.slice(0, LIMITS.label); else delete nR.needsText; }
+            if (lcc.indexOf('sys-list-needstext') >= 0) { if (t.value.trim()) nR.needsText = t.value.slice(0, LIMITS.needsWords); else delete nR.needsText; }
             else { if (t.value.trim()) nR.needs = t.value.slice(0, LIMITS.formula); else delete nR.needs; }
         }
         else if (lcc.indexOf('sys-list-chamberreach') >= 0) { if (!lsp.chamber || typeof lsp.chamber !== 'object') return; if (t.value.trim()) lsp.chamber.reach = t.value.slice(0, LIMITS.formula); else delete lsp.chamber.reach; }   // 1.5.9 (es) Flies at most (Save cleans it)
@@ -10570,7 +10570,7 @@ function onInput(e) {
         else if (c.indexOf('sys-roll-p2t') >= 0) { if (t.value.trim()) r.dtype2 = t.value.slice(0, LIMITS.formula); else delete r.dtype2; }   // and its type
         else if (c.indexOf('sys-roll-p2k') >= 0) { if (t.value.trim()) r.dkind2 = t.value.slice(0, LIMITS.formula); else delete r.dkind2; }   // and its own kind
         else if (/sys-roll-p[345][ftk]/.test(c)) { var pkr = /sys-roll-p([345])([ftk])/.exec(c), pkrk = (pkr[2] === 'f' ? 'dmg' : pkr[2] === 'k' ? 'dkind' : 'dtype') + pkr[1]; if (t.value.trim()) r[pkrk] = t.value.slice(0, LIMITS.formula); else delete r[pkrk]; }   // 1.6.0: a third and a fourth part, and its type
-        else if (c.indexOf('sys-roll-needstext') >= 0) { if (t.value.trim()) r.needsText = t.value.slice(0, LIMITS.label); else delete r.needsText; }   // 1.5.4: what it needs (Save cleans it)
+        else if (c.indexOf('sys-roll-needstext') >= 0) { if (t.value.trim()) r.needsText = t.value.slice(0, LIMITS.needsWords); else delete r.needsText; }   // 1.5.4: what it needs (Save cleans it)
         else if (c.indexOf('sys-roll-needs') >= 0) { if (t.value.trim()) r.needs = t.value.slice(0, LIMITS.formula); else delete r.needs; }
         else if (c.indexOf('sys-roll-xs') >= 0) { if (crossEdit(r, c, t) === 'all') { markDirty(); renderAll(); return; } }   // 1.5.9 (book es/et plan 4a): When a value crosses
         else if (c.indexOf('sys-roll-evn') >= 0 || c.indexOf('sys-roll-ifn') >= 0) everyEdit(r, c, t);   // item 20 K5; backlog 152, fold 5: In a fight's number

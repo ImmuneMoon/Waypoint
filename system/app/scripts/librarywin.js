@@ -280,7 +280,7 @@ function renderForm() {
     field(form, 'lvl', 'Starts at level', typeof e.lvl === 'number' ? e.lvl : '', { max: 4, title: 'A new row of it starts at this level (else the list’s)' });
     field(form, 'lvlOnly', 'Levels it may be', typeof lvlOnlyText === 'function' ? lvlOnlyText(e.lvlOnly) : '', { max: 200, ph: 'Any level. Or 2, 4 or 3 to 5', title: 'The levels it exists at, such as 2, 4 or 3 to 5. A list with named levels takes the names too. A new row starts at the first of them, and a player is refused any other. Blank: any level' });   // 1.6.0
     var sd = statDefs(); if (sd.length) { form.appendChild(el('div', 'lib-fsub', 'Stats')); sd.forEach(function(s) { var inp = field(form, 'st_' + s.key.toLowerCase(), s.label, e.stats && e.stats[s.key] !== undefined ? e.stats[s.key] : '', s.opts ? { choices: s.opts } : { max: 40 }); inp.dataset.stat = s.key; if (s.set) placeTicks(form, inp, s.set); }); }
-    field(form, 'notes', 'Notes', e.notes, { area: true, rows: 2, max: 200, title: 'Shown with the row on the sheet (copied onto characters)' });
+    field(form, 'notes', 'Notes', e.notes, { area: true, rows: 2, max: 1000, title: 'Shown with the row on the sheet (copied onto characters)' });
     field(form, 'desc', 'Description', e.desc, { area: true, rows: 5, max: LIB.desc, title: 'What it does, in full. Read in the library and in a row’s details on the sheet. A GM-only entry’s stays with you' });
     field(form, 'lvls', 'By level', lvlsToText(e.lvls), { area: true, rows: 4, max: 13000, ph: '1: what the first level gives', title: 'What each level gives, one level a line, as 2: text. A few words in brackets after the number are shown beside it, as 2 (Adept): text. A row’s details show it as a small table' });
     field(form, 'tags', 'Tags', (e.tags || []).join(', '), { max: 220, ph: 'comma, separated', title: 'Words the search finds it by' });
@@ -300,7 +300,7 @@ function renderForm() {
     form.appendChild(el('div', 'lib-fsub', 'Locks (yours alone)'));
     field(form, 'again', 'Held again', e.again === 'name' ? 'name' : '', { pairs: [['', 'Held once'], ['name', 'Held again under another name']], title: 'On a list that holds each entry once, a character may hold this one again as another row. Each copy is asked for a name of its own' });   // 1.6.0
     field(form, 'rm', 'When removed', e.rm === 'bound' || e.rm === 'curse' ? e.rm : '', { pairs: [['', 'A player may remove it'], ['bound', 'Bound: only the GM removes it'], ['curse', 'Curse on contact: you keep it']], title: 'When a player removes it from their character. Bound: it stays, with your message. Curse on contact: it leaves their sheet but you keep it on the character, out of their sight' });
-    field(form, 'rmMsg', 'Message', e.rmMsg, { max: 200, ph: 'Shown to the player (optional)' });
+    field(form, 'rmMsg', 'Message', e.rmMsg, { max: 400, ph: 'Shown to the player (optional)' });
     if (itemLists().some(function(f) { return f.list && f.list.on; })) {   // only once a list has a switch (Readied, Equipped…)
         field(form, 'eq', 'When switched off', e.eq === 'bound' || e.eq === 'curse' ? e.eq : '', { pairs: [['', 'A player may switch it off'], ['bound', 'Bound: it stays on'], ['curse', 'Curse on contact: you keep it on']], title: 'When a player switches it off. Bound: it stays on, with your message. Curse on contact: it looks off to them and stays on' });
         field(form, 'eqMsg', 'Message', e.eqMsg, { max: 200, ph: 'Shown to the player (optional)' });

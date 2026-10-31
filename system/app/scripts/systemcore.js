@@ -40,7 +40,7 @@ var LIMITS = Object.freeze({
     makingMax: 12,   // Onboarding F3: characters in the making at one table at once (each a player's own, on the GM's disk)
     core: 1000, coreBytes: 256 * 1024,       // Stage 6 library L1d: library entries a formula addresses by key, copied into the system
     items: 200, carried: 150, category: 40, maxBlastFt: 3000, maxQty: 99,   // item library (Stage 5); Stage 6: 150 rows a list (a big sheet's skills)
-    rmMsg: 200, undoMs: 10000, undoGraceMs: 15000,   // Stage 6: a bound or cursed item's message; a pickup's Undo (the host allows a little longer: the round trip)
+    rmMsg: 400, noteText: 1000, needsWords: 200, undoMs: 10000, undoGraceMs: 15000,   // Stage 6: a bound or cursed item's message; a pickup's Undo (the host allows a little longer: the round trip)
     listCats: 20, rowNote: 200, lvlAbs: 1e6, lvlCaps: 4, lvlOnly: 24, modTiers: 16,     // Stage 6 F4b: a list's categories, a row's note, the size of a row level; 1.6.0: a level's caps (At most at a level), an entry's Levels it may be and a change's figures By level
     placeCats: 8,                            // 1.5.5: the categories one placement of an item list shows (a list placed once a category)
     rollSw: 4, swTo: 8,                      // 1.6.0: the roll switches one item or effect offers (a bonus ticked in a roll's ± window), and the rolls one names
@@ -64,10 +64,10 @@ var LIMITS = Object.freeze({
     band: 12, bandGroups: 6,                 // Stage 5c: placements on the pinned band (one row under the name); Stage 6: named groups of them, each pinned by its viewer
     identity: 12, ledger: 8,                 // Stage 5d: the header block — identity rows and ledger figures (read-only)
     icon: 8, unit: 8,                        // Stage 5g: a tab's or a section's icon (code points: an emoji or a glyph or two), a number's unit ("pts")
-    caption: 200, captionExprs: 8,           // Stage 5g Fold B: a field's caption line and the {formula} values in it
+    caption: 400, captionExprs: 8,           // Stage 5g Fold B: a field's caption line and the {formula} values in it
     ruleText: 2000,                          // Stage 6 HUD H11: a rules-text placement (plain text, its line breaks kept)
     labels: 32,                              // Stage 6: names for a number's values (a dropdown) or a formula's (shown instead of the number); 10 before 1.6.0, now a list's stat may name one value per damage type
-    effects: 100, effectRows: 30, effectMods: 12, effectAmount: 1e6, effectDur: 40,  // Stage 5h: the library, a character's list, changes per effect, a change's size, a duration note
+    effects: 200, effectRows: 30, effectMods: 12, effectAmount: 1e6, effectDur: 40,  // Stage 5h: the library, a character's list, changes per effect, a change's size, a duration note
     uploadChanges: 600,                      // Stage 6 U1: the changes one upload may propose
     uploadBytes: 1048576, uploads: 20,       // Stage 6 U2: a sheet file on the wire (as JSON, its portrait dropped); uploads the GM's queue keeps
     threats: 6,                              // Stage 5h Fold 3: threat marks on a token (world bearings; the first is the active one)
@@ -139,7 +139,7 @@ var DENY = Object.freeze({ money: 1, change: 1, max: 1, off: 1, slow: 1, owner: 
 function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 function str(v, cap) { return typeof v === 'string' ? v.slice(0, cap) : ''; }
 // Stage 5g: a short label cut by code points — control characters become rep, a lone surrogate is dropped (never half an emoji)
-function cutPoints(v, cap, rep) { if (typeof v !== 'string') return ''; return Array.from(v.slice(0, 256).replace(CTRL_RE_G, rep).trim()).filter(function(ch) { return !/^[\uD800-\uDFFF]$/.test(ch); }).slice(0, cap).join('').trim(); }
+function cutPoints(v, cap, rep) { if (typeof v !== 'string') return ''; return Array.from(v.slice(0, Math.max(256, cap * 2)).replace(CTRL_RE_G, rep).trim()).filter(function(ch) { return !/^[\uD800-\uDFFF]$/.test(ch); }).slice(0, cap).join('').trim(); }
 // Stage 6 look fold (L2): the bundled icons — the name after "icon:" → its file under assets/icons/fa/ (no extension). The ONLY names a sheet
 // may carry and the ONLY paths the renderer builds (a prototype-free table: "constructor" and "__proto__" never match). A fixed, licensed
 // list: a new one needs its file, an entry here and the bundled-files test.
@@ -593,7 +593,7 @@ function cleanApplyChanges(list, withWhen, withCounters) {   // withWhen (R1): a
 // 1.5.4 (SITE_EQUIVALENT_PLAN fold 2): what a system roll or apply action needs before it may be used, as a list roll's needs: a formula with
 // no dice that must be true for the character, and the words its greyed button says. Kept as a list roll's are, the same in both views (the
 // players' view drops one that names a GM-only value, as a list roll's: their presses are then not held back by it)
-function rollNeedsInto(out, r) { var nd = cleanFormulaText(r.needs); if (!nd) return; out.needs = nd; var nt = cutText(r.needsText, LIMITS.label); if (nt) out.needsText = nt; }
+function rollNeedsInto(out, r) { var nd = cleanFormulaText(r.needs); if (!nd) return; out.needs = nd; var nt = cutText(r.needsText, LIMITS.needsWords); if (nt) out.needsText = nt; }
 // The one reading of those needs: true when the entry needs nothing; else whether its formula, worked out with the character's names (vars), is
 // true, a number other than 0 or yes. No dice are rolled, and a formula that cannot be worked out holds it back, as a list roll's does. 1.5.5: more,
 // where it is handed in, is asked for a second resolver only where the formula could not be worked out with vars, handed the reading that failed
@@ -871,7 +871,7 @@ function cleanItemDef(it, F, gmView, keys, picks, kinds) {   // kinds (F6): the 
         name: str(it.name, LIMITS.itemName).replace(CTRL_RE_G, ' ').trim() || 'Item',   // Stage 6: every control character (the non-global pattern replaced only the first)
         category: str(it.category, LIMITS.category).replace(CTRL_RE_G, ' ').trim(),
         icon: cleanIcon(it.icon),                                                    // Stage 6: cut by code points (never half an emoji)
-        notes: str(it.notes, LIMITS.text).replace(CTRL_RE_G, ' '),
+        notes: str(it.notes, LIMITS.noteText).replace(CTRL_RE_G, ' '),
         vis: vis, area: null, damage: '', cost: '', throwSkill: ''
     };
     if (gmView && RM_MODES[it.rm] === 1) { out.rm = it.rm; var rmm = cutText(it.rmMsg, LIMITS.rmMsg); if (rmm) out.rmMsg = rmm; }   // Stage 6: a player's removal (bound / curse on contact) and its message — the GM's secret, never in the players' view
@@ -2727,7 +2727,7 @@ var ALT_MAX = 4;
 // the row (line), tinting its row in its tone (tint) or pulsing (pulse), with a tip in words. BADGE_MAX at most; the same in both views but where
 // the players' view drops one that reads a GM-only name
 var BADGE_MAX = 12;   // 1.6.0, backlog 195: twelve (eight before)
-function cleanBadges(v, F) { if (!Array.isArray(v)) return null; var out = []; for (var i = 0; i < v.length && i < BADGE_MAX * 4 && out.length < BADGE_MAX; i++) { var b = v[i]; if (!isObj(b)) continue; var w = cutText(b.words, LIMITS.text), fi = budgetFormula(b.if, F); if (!w || !fi) continue; var o = { words: w, if: fi }; if (typeof b.tone === 'string' && Object.prototype.hasOwnProperty.call(TONES, b.tone)) o.tone = b.tone; if (b.line === true) o.line = true; if (b.tint === true) o.tint = true; if (b.pulse === true) o.pulse = true; var tp = cutText(b.tip, LIMITS.text); if (tp) o.tip = tp; out.push(o); } return out.length ? out : null; }
+function cleanBadges(v, F) { if (!Array.isArray(v)) return null; var out = []; for (var i = 0; i < v.length && i < BADGE_MAX * 4 && out.length < BADGE_MAX; i++) { var b = v[i]; if (!isObj(b)) continue; var w = cutText(b.words, LIMITS.text), fi = budgetFormula(b.if, F); if (!w || !fi) continue; var o = { words: w, if: fi }; if (typeof b.tone === 'string' && Object.prototype.hasOwnProperty.call(TONES, b.tone)) o.tone = b.tone; if (b.line === true) o.line = true; if (b.tint === true) o.tint = true; if (b.pulse === true) o.pulse = true; var tp = cutText(b.tip, LIMITS.noteText); if (tp) o.tip = tp; out.push(o); } return out.length ? out : null; }
 // 1.6.0 R7 (backlog 180; the owner, by prompt: "B. In a small box at the end", "A. Its target or its dice"): what a list roll's button shows after
 // its name: '@fig', its own figure, or a column of the list by its key; anything else none
 function rollShowOf(v, cols) { if (v === '@fig') return '@fig'; if (typeof v !== 'string' || !v || !Array.isArray(cols)) return ''; var lv = lower(v); for (var i = 0; i < cols.length; i++) if (isObj(cols[i]) && typeof cols[i].key === 'string' && lower(cols[i].key) === lv) return cols[i].key; return ''; }
@@ -2922,7 +2922,7 @@ function cleanEffectCore(d, fieldKinds) {
     var mods = [];
     (Array.isArray(d.mods) ? d.mods : []).forEach(function(m) { if (mods.length >= LIMITS.effectMods) return; var c = cleanMod(m, fieldKinds, true); if (c) mods.push(c); });   // 1.6.0: a change by a formula too
     return { name: str(d.name, LIMITS.name).replace(CTRL_RE_G, ' ').trim() || 'Effect', icon: cleanIcon(d.icon), tone: d.tone === 'buff' || d.tone === 'debuff' ? d.tone : '',
-             dur: cutPoints(d.dur, LIMITS.effectDur, ' '), notes: str(d.notes, LIMITS.text).replace(CTRL_RE_G, ' ').trim(), mods: mods };
+             dur: cutPoints(d.dur, LIMITS.effectDur, ' '), notes: str(d.notes, LIMITS.noteText).replace(CTRL_RE_G, ' ').trim(), mods: mods };
 }
 // 5h: a library effect (camp.system.effects). A GM-only one never reaches the players' library (it can still reach its owner inline, once
 // applied: see charFor).
@@ -3170,7 +3170,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     if (gmView && out.on && isObj(v.upkeep)) { var upk = cleanUpkeep(v.upkeep, F); if (upk && typeof v.upkeep.ct === 'string') { var upC = (out.counters || []).filter(function(t) { return lower(t.key) === lower(v.upkeep.ct.trim()); })[0]; if (upC) upk.ct = upC.key; } if (upk && typeof v.upkeep.eachBy === 'string') { var upE = (out.stats || []).filter(function(s) { return lower(s.key) === lower(v.upkeep.eachBy.trim()) && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length > 0 : Array.isArray(s.labels) && s.labels.length > 0); })[0]; if (upE) upk.eachBy = upE.key; else if (upk.each !== 'clock') delete upk.per; } if (upk) out.upkeep = upk; }   // the core handbook session's ask 5: and the choice stat whose value says when a row pays (its spelling; none: as before)   // 1.6.0 (CORE gap 13): ... and the counter of the list each payment adds 1 to (its spelling; none of the list: none)   // 1.6.0 (CORE gap 13): what a row switched on keeps paying, the GM's view alone
     if (Array.isArray(v.rolls)) {   // F5b: its rolls — a button on each row, the formula worked out with the row's names (Row.*; dice allowed), LIMITS.rowRolls at most
         var rls = [];
-        v.rolls.forEach(function(rv) { if (rls.length >= LIMITS.rowRolls || !isObj(rv)) return; if (Array.isArray(rv.apply)) { var lap = { label: cutText(rv.label, LIMITS.label) || 'Apply', apply: cleanApplyChanges(rv.apply, false, true) }, lac = costKey(rv.cost); if (lac) lap.cost = lac; rollNeedsInto(lap, rv); if (rv.to === 'near') lap.to = 'near'; if (rv.gm === true) lap.gm = true; if (rv.free === true) lap.free = true; var lsh = cleanFormulaText(rv.showIf); if (lsh) lap.showIf = lsh; var lal = cleanAlt(rv.alt, F); if (lal) lap.alt = lal; var lic = cleanIcon(rv.icon); if (lic) lap.icon = lic; if (gmView) { var lxc = cleanRowCross(rv.cross, out.counters); if (lxc) lap.cross = lxc; } partPlaceIn(lap, rv); rls.push(lap); return; } var rro = { label: cutText(rv.label, LIMITS.label) || 'Roll', formula: cleanFormulaText(rv.formula) || '' }; if (Array.isArray(rv.then)) { var rth = cleanApplyChanges(rv.then, true, true); if (rth.length) rro.then = rth; } var rmf2 = cleanFormulaText(rv.malf); if (rmf2) rro.malf = rmf2; critRangeInto(rro, rv); var rbg2 = cleanFormulaText(rv.bigAt); if (rbg2) rro.bigAt = rbg2; if (rv.dmg === true) { rro.dmg = true; var rdt = cleanFormulaText(rv.dtype); if (rdt) rro.dtype = rdt; var rdk = cleanFormulaText(rv.dkind); if (rdk) rro.dkind = rdk; var rad = cleanFormulaText(rv.ad); if (rad) rro.ad = rad; if (rv.dmgMajor === true) rro.dmgMajor = true; var rmi = cleanFormulaText(rv.dmgMajorIf); if (rmi) rro.dmgMajorIf = rmi; var rht = cleanFormulaText(rv.hits); if (rht) rro.hits = rht; var rp2 = cleanFormulaText(rv.dmg2); if (rp2) { rro.dmg2 = rp2; var rpt = cleanFormulaText(rv.dtype2); if (rpt) rro.dtype2 = rpt; var rpa = cleanFormulaText(rv.ad2); if (rpa) rro.ad2 = rpa; var rpq = cleanFormulaText(rv.dkind2); if (rpq) rro.dkind2 = rpq; } DMG_MORE.forEach(function(k) { var rpk = cleanFormulaText(rv['dmg' + k]); if (rpk) { rro['dmg' + k] = rpk; var rtk = cleanFormulaText(rv['dtype' + k]); if (rtk) rro['dtype' + k] = rtk; var rak = cleanFormulaText(rv['ad' + k]); if (rak) rro['ad' + k] = rak; var rkq = cleanFormulaText(rv['dkind' + k]); if (rkq) rro['dkind' + k] = rkq; } }); } if (rv.dmg !== true && (rv.burst === 'attack' || rv.burst === 'extra')) rro.burst = rv.burst; var rnd = cleanFormulaText(rv.needs); if (rnd) { rro.needs = rnd; var rnt = cutText(rv.needsText, LIMITS.label); if (rnt) rro.needsText = rnt; } var lrc = costKey(rv.cost); if (lrc) rro.cost = lrc; var lrd = cleanDie(rv.die); if (lrd) rro.die = lrd; if (rv.to === 'near') rro.to = 'near'; if (rv.gm === true) rro.gm = true; if (rv.free === true) rro.free = true; var rsh = cleanFormulaText(rv.showIf); if (rsh) rro.showIf = rsh; var ral = cleanAlt(rv.alt, F); if (ral) rro.alt = ral; var rshw = rollShowOf(rv.show, out.cols); if (rshw) rro.show = rshw; var ric = cleanIcon(rv.icon); if (ric) rro.icon = ric; if (rv.askLvl === true && out.lvl) rro.askLvl = true; if (gmView) { var rxc = cleanRowCross(rv.cross, out.counters); if (rxc) rro.cross = rxc; } if (rv.resist === true) rro.resist = true; resistByInto(rro, rv, gmView); partPlaceIn(rro, rv); rls.push(rro); });   // cross (1.6.0): it also runs on a row whose counter crosses a step   // showIf (1.6.0): Shown where, a formula of the row's names; its button only on rows where it holds   // 1.6.0: gm, only the GM presses it (the players' view drops it: applyTargets)   // R2b: a list roll's consequences (a counter too) and what it needs   // HUD H7b: or an apply action on each row (its amounts read the row as Row.*)
+        v.rolls.forEach(function(rv) { if (rls.length >= LIMITS.rowRolls || !isObj(rv)) return; if (Array.isArray(rv.apply)) { var lap = { label: cutText(rv.label, LIMITS.label) || 'Apply', apply: cleanApplyChanges(rv.apply, false, true) }, lac = costKey(rv.cost); if (lac) lap.cost = lac; rollNeedsInto(lap, rv); if (rv.to === 'near') lap.to = 'near'; if (rv.gm === true) lap.gm = true; if (rv.free === true) lap.free = true; var lsh = cleanFormulaText(rv.showIf); if (lsh) lap.showIf = lsh; var lal = cleanAlt(rv.alt, F); if (lal) lap.alt = lal; var lic = cleanIcon(rv.icon); if (lic) lap.icon = lic; if (gmView) { var lxc = cleanRowCross(rv.cross, out.counters); if (lxc) lap.cross = lxc; } partPlaceIn(lap, rv); rls.push(lap); return; } var rro = { label: cutText(rv.label, LIMITS.label) || 'Roll', formula: cleanFormulaText(rv.formula) || '' }; if (Array.isArray(rv.then)) { var rth = cleanApplyChanges(rv.then, true, true); if (rth.length) rro.then = rth; } var rmf2 = cleanFormulaText(rv.malf); if (rmf2) rro.malf = rmf2; critRangeInto(rro, rv); var rbg2 = cleanFormulaText(rv.bigAt); if (rbg2) rro.bigAt = rbg2; if (rv.dmg === true) { rro.dmg = true; var rdt = cleanFormulaText(rv.dtype); if (rdt) rro.dtype = rdt; var rdk = cleanFormulaText(rv.dkind); if (rdk) rro.dkind = rdk; var rad = cleanFormulaText(rv.ad); if (rad) rro.ad = rad; if (rv.dmgMajor === true) rro.dmgMajor = true; var rmi = cleanFormulaText(rv.dmgMajorIf); if (rmi) rro.dmgMajorIf = rmi; var rht = cleanFormulaText(rv.hits); if (rht) rro.hits = rht; var rp2 = cleanFormulaText(rv.dmg2); if (rp2) { rro.dmg2 = rp2; var rpt = cleanFormulaText(rv.dtype2); if (rpt) rro.dtype2 = rpt; var rpa = cleanFormulaText(rv.ad2); if (rpa) rro.ad2 = rpa; var rpq = cleanFormulaText(rv.dkind2); if (rpq) rro.dkind2 = rpq; } DMG_MORE.forEach(function(k) { var rpk = cleanFormulaText(rv['dmg' + k]); if (rpk) { rro['dmg' + k] = rpk; var rtk = cleanFormulaText(rv['dtype' + k]); if (rtk) rro['dtype' + k] = rtk; var rak = cleanFormulaText(rv['ad' + k]); if (rak) rro['ad' + k] = rak; var rkq = cleanFormulaText(rv['dkind' + k]); if (rkq) rro['dkind' + k] = rkq; } }); } if (rv.dmg !== true && (rv.burst === 'attack' || rv.burst === 'extra')) rro.burst = rv.burst; var rnd = cleanFormulaText(rv.needs); if (rnd) { rro.needs = rnd; var rnt = cutText(rv.needsText, LIMITS.needsWords); if (rnt) rro.needsText = rnt; } var lrc = costKey(rv.cost); if (lrc) rro.cost = lrc; var lrd = cleanDie(rv.die); if (lrd) rro.die = lrd; if (rv.to === 'near') rro.to = 'near'; if (rv.gm === true) rro.gm = true; if (rv.free === true) rro.free = true; var rsh = cleanFormulaText(rv.showIf); if (rsh) rro.showIf = rsh; var ral = cleanAlt(rv.alt, F); if (ral) rro.alt = ral; var rshw = rollShowOf(rv.show, out.cols); if (rshw) rro.show = rshw; var ric = cleanIcon(rv.icon); if (ric) rro.icon = ric; if (rv.askLvl === true && out.lvl) rro.askLvl = true; if (gmView) { var rxc = cleanRowCross(rv.cross, out.counters); if (rxc) rro.cross = rxc; } if (rv.resist === true) rro.resist = true; resistByInto(rro, rv, gmView); partPlaceIn(rro, rv); rls.push(rro); });   // cross (1.6.0): it also runs on a row whose counter crosses a step   // showIf (1.6.0): Shown where, a formula of the row's names; its button only on rows where it holds   // 1.6.0: gm, only the GM presses it (the players' view drops it: applyTargets)   // R2b: a list roll's consequences (a counter too) and what it needs   // HUD H7b: or an apply action on each row (its amounts read the row as Row.*)
         if (rls.length) out.rolls = rls;
     }
     if (isObj(v.at)) {   // 1.6.0 (asked by the campaign build's session, for an implant that reads the location it sits at): Stands at, a row of another item list (from, a field id; cleanSystem keeps it only where that list is in the view and is not this one) named by a choice stat of this list (by: a pick, or a number with value names, spelled as the list spells it; never parts, round or fired, Row.'s own words with a dot). The same in both views (atIndex, atVal)
@@ -3777,6 +3777,20 @@ function cleanSystem(sys, opts) {
 }
 // Stage 6 library L0: what a system file had that cleaning left out — past a limit, or not valid — per kind, for the import's notice
 // (only kinds that lost something; a file's own count, never more than the file had)
+// 1.6.0: how many texts of a file the cleaner kept only the start of, found by walking the two side by side (a list of things with ids by the id). A text it rewrote otherwise (a comma out of a value name) is no cut
+function textsCut(a, b, deep) {
+    if (typeof a === 'string') return typeof b === 'string' && b.length > 0 && b.length < a.trim().length && a.indexOf(b) === 0 ? 1 : 0;
+    if (deep > 12 || !a || !b || typeof a !== 'object' || typeof b !== 'object') return 0;
+    var n = 0;
+    if (Array.isArray(a)) {
+        if (!Array.isArray(b)) return 0;
+        var ids = map(); b.forEach(function(x) { if (isObj(x) && typeof x.id === 'string') ids[x.id] = x; });
+        a.forEach(function(x, i) { n += textsCut(x, isObj(x) && typeof x.id === 'string' ? ids[x.id] : b[i], deep + 1); });
+        return n;
+    }
+    Object.keys(a).forEach(function(k) { if (k !== '__proto__' && Object.prototype.hasOwnProperty.call(b, k)) n += textsCut(a[k], b[k], deep + 1); });
+    return n;
+}
 function droppedCounts(raw, clean) {
     var out = {}; if (!isObj(raw) || !isObj(clean)) return out;
     ['fields', 'rolls', 'items', 'effects', 'tables'].forEach(function(k) { var n = Array.isArray(raw[k]) ? raw[k].length : 0, m = Array.isArray(clean[k]) ? clean[k].length : 0; if (n > m) out[k] = n - m; });
@@ -3790,6 +3804,7 @@ function droppedCounts(raw, clean) {
     };
     var rsh = isObj(raw.sheet) ? raw.sheet : null, csh = isObj(clean.sheet) ? clean.sheet : null;
     lay(rsh, csh, ''); lay(rsh && rsh.hud, csh && csh.hud, 'HUD ');
+    var cutN = textsCut(raw, clean, 0); if (cutN) out.texts = cutN;
     return out;
 }
 // 1.6.0: what a cleaned system holds at its limit, so that one more would be left out: fields, rolls, and for the sheet and its HUD sections and
@@ -3797,13 +3812,13 @@ function droppedCounts(raw, clean) {
 function capsAt(sys) {
     var out = []; if (!isObj(sys)) return out;
     var at = function(what, n, max) { if (n >= max) out.push({ what: what, n: n, max: max }); };
-    at('fields', Array.isArray(sys.fields) ? sys.fields.length : 0, LIMITS.fields); at('rolls', Array.isArray(sys.rolls) ? sys.rolls.length : 0, LIMITS.rolls); at('tables', Array.isArray(sys.tables) ? sys.tables.length : 0, LIMITS.tables);
+    at('fields', Array.isArray(sys.fields) ? sys.fields.length : 0, LIMITS.fields); at('rolls', Array.isArray(sys.rolls) ? sys.rolls.length : 0, LIMITS.rolls); at('effects', Array.isArray(sys.effects) ? sys.effects.length : 0, LIMITS.effects); at('tables', Array.isArray(sys.tables) ? sys.tables.length : 0, LIMITS.tables);
     var lay = function(l, pre) { var ss = isObj(l) && Array.isArray(l.sections) ? l.sections : [], p = 0; ss.forEach(function(s) { p += isObj(s) && Array.isArray(s.fields) ? s.fields.length : 0; }); at(pre + 'sections', ss.length, LIMITS.sections); at(pre + 'placements', p, LIMITS.placements); };
     var sh = isObj(sys.sheet) ? sys.sheet : null; lay(sh, ''); lay(sh && sh.hud, 'HUD ');
     return out;
 }
 // The words for what was left out (droppedCounts' answer): "1 section, 3 HUD placements"; '' for none
-function droppedWords(dr) { return Object.keys(isObj(dr) ? dr : {}).filter(function(k) { return typeof dr[k] === 'number' && dr[k] > 0; }).map(function(k) { return dr[k] + ' ' + (dr[k] === 1 ? k.slice(0, -1) : k); }).join(', '); }
+function droppedWords(dr) { return Object.keys(isObj(dr) ? dr : {}).filter(function(k) { return typeof dr[k] === 'number' && dr[k] > 0; }).map(function(k) { return k === 'texts' ? dr[k] + (dr[k] === 1 ? ' text' : ' texts') + ' cut short' : dr[k] + ' ' + (dr[k] === 1 ? k.slice(0, -1) : k); }).join(', '); }
 // The sheet's own look (doc theming, 1.5.0): the fields a page's look has, kept as plain bounded values here —
 // docrender's cleanDocStyle validates them strictly at render, on every machine. Absent = the campaign default.
 function cleanSheetStyle(v) {
@@ -4680,12 +4695,12 @@ function cleanFacts(v) {
 // mode (none lifts the library's), a blast null or { ft, name? }, stats null or up to LIMITS.entryStats keys (a stat key, never a prototype name in either case),
 // each null or a number within 1e9. held never comes from the wire (the host keeps it); other keys are dropped; a wrong type refuses the whole
 // message. A plain object; null when it is malformed or nothing is left
-var OV_KEYS = ['name', 'icon', 'category', 'notes', 'stats', 'area', 'damage', 'cost', 'rm', 'rmMsg', 'eq', 'eqMsg'], OV_CAP = Object.freeze({ name: 240, icon: 256, category: 160, notes: 800, damage: 1200, cost: 1200, rmMsg: 800, eqMsg: 800 });
+var OV_KEYS = ['name', 'icon', 'category', 'notes', 'stats', 'area', 'damage', 'cost', 'rm', 'rmMsg', 'eq', 'eqMsg'], OV_CAP = Object.freeze({ name: 240, icon: 256, category: 160, notes: 4000, damage: 1200, cost: 1200, rmMsg: 1600, eqMsg: 1600 });
 function cleanOvMsg(v) { var out = patchOf(v, OV_KEYS, OV_CAP); return out && Object.keys(out).length ? out : null; }
 // Stage 6 F4c3: a custom op's definition patch, by the same shape rules (key: a string within 160, vis within 8; applyRowOp judges who may send
 // what — the GM's keys are kept, so that a player sending one hears "field"). A plain object, {} allowed (a new blank row); null when it is not
 // an object or a key has the wrong type
-var DEF_KEYS = ['name', 'icon', 'category', 'notes', 'key', 'stats', 'vis', 'area', 'damage', 'cost', 'rm', 'rmMsg', 'eq', 'eqMsg', 'mods', 'modsOn', 'desc', 'lvls'], DEF_CAP = Object.freeze({ name: 240, icon: 256, category: 160, notes: 800, key: 160, vis: 8, damage: 1200, cost: 1200, rmMsg: 800, eqMsg: 800, desc: 16000 });   // 155: desc and lvls, a row of its own's long text
+var DEF_KEYS = ['name', 'icon', 'category', 'notes', 'key', 'stats', 'vis', 'area', 'damage', 'cost', 'rm', 'rmMsg', 'eq', 'eqMsg', 'mods', 'modsOn', 'desc', 'lvls'], DEF_CAP = Object.freeze({ name: 240, icon: 256, category: 160, notes: 4000, key: 160, vis: 8, damage: 1200, cost: 1200, rmMsg: 1600, eqMsg: 1600, desc: 16000 });   // 155: desc and lvls, a row of its own's long text
 function cleanDefPatch(v) { return patchOf(v, DEF_KEYS, DEF_CAP); }
 function patchOf(v, keys, cap) {   // the keys it knows, each null or of its type (a text within its cap); {} when none; null when malformed
     if (!isObj(v)) return null;
@@ -4732,7 +4747,7 @@ function cutText(v, n) { return str(v, n).replace(CTRL_RE_G, ' ').trim(); }
 function cleanRowDef(d, gmView) {   // an item's definition carried on a row, by the item rules; a GM-only one keeps no area (it is never thrown by a player)
     if (!isObj(d)) return null;
     var vis = d.vis === 'gm' ? 'gm' : 'all';
-    var out = { name: cutText(d.name, LIMITS.itemName) || 'Item', category: cutText(d.category, LIMITS.category), icon: cleanIcon(d.icon), notes: str(d.notes, LIMITS.text).replace(CTRL_RE_G, ' '), vis: vis };
+    var out = { name: cutText(d.name, LIMITS.itemName) || 'Item', category: cutText(d.category, LIMITS.category), icon: cleanIcon(d.icon), notes: str(d.notes, LIMITS.noteText).replace(CTRL_RE_G, ' '), vis: vis };
     if (isObj(d.area) && (gmView || vis === 'all')) { var ft = cleanNum(d.area.ft, 0) | 0; if (ft > 0) out.area = areaExtra({ ft: clampNum(ft, 1, LIMITS.maxBlastFt), shape: SHAPES[d.area.shape] ? d.area.shape : 'circle', name: cutText(d.area.name, LIMITS.label) }, d.area, gmView); }
     if (gmView && RM_MODES[d.rm] === 1) { out.rm = d.rm; var rmm = cutText(d.rmMsg, LIMITS.rmMsg); if (rmm) out.rmMsg = rmm; }   // Stage 6: secret, the GM's copy only
     if (gmView && RM_MODES[d.eq] === 1) { out.eq = d.eq; var eqm = cutText(d.eqMsg, LIMITS.rmMsg); if (eqm) out.eqMsg = eqm; }   // F4b: the equip lock, as secret
@@ -4854,7 +4869,7 @@ function cleanOv(v, spec) {
     if (nm) o.name = nm;
     if (ic) o.icon = ic;
     if (ca) o.category = ca;
-    if (typeof v.notes === 'string') { var nt = str(v.notes, LIMITS.text).replace(CTRL_RE_G, ' '); if (nt.trim()) o.notes = nt; }
+    if (typeof v.notes === 'string') { var nt = str(v.notes, LIMITS.noteText).replace(CTRL_RE_G, ' '); if (nt.trim()) o.notes = nt; }
     var st = spec === true ? cleanEntryStats(v.stats, null, 'labels') : rowStats(v.stats, spec); if (st) o.stats = st;
     if (st && Array.isArray(v.held)) { var hs = map(), hl = []; v.held.slice(0, LIMITS.entryStats * 4).forEach(function(h) { if (typeof h === 'string') hs[lower(h)] = 1; }); Object.keys(st).forEach(function(k) { if (hs[lower(k)] === 1) hl.push(k); }); if (hl.length) o.held = hl; }
     if (isObj(v.area)) { var ft = cleanNum(v.area.ft, 0) | 0; if (ft > 0) o.area = { ft: clampNum(ft, 1, LIMITS.maxBlastFt), shape: 'circle', name: cutText(v.area.name, LIMITS.label) }; }
@@ -5858,7 +5873,7 @@ function applyOv(rw, base, pq, spec, F, player, aspec, note) {   // aspec (F5a2)
                 if (k === 'eqMsg' && !blank(v) && !(spec && isObj(spec.on))) return bad;
                 if (blank(v)) { delete cur[k]; continue; }
                 if (typeof v !== 'string') return bad;
-                var t = k === 'icon' ? cleanIcon(v) : k === 'notes' ? str(v, LIMITS.text).replace(CTRL_RE_G, ' ') : cutText(v, k === 'name' ? LIMITS.itemName : k === 'category' ? LIMITS.category : LIMITS.rmMsg);
+                var t = k === 'icon' ? cleanIcon(v) : k === 'notes' ? str(v, LIMITS.noteText).replace(CTRL_RE_G, ' ') : cutText(v, k === 'name' ? LIMITS.itemName : k === 'category' ? LIMITS.category : LIMITS.rmMsg);
                 if (!t || !t.trim()) return bad;   // text that cleans to nothing (an icon that is not bundled)
                 if (t === (typeof base[k] === 'string' ? base[k] : '')) delete cur[k]; else cur[k] = t;
             } else if (k === 'damage' || k === 'cost') {
@@ -6283,7 +6298,7 @@ function applyCustom(sys, list, q, spec, F, opts, extra, aspec, fill) {   // asp
             if (k === 'eqMsg' && !blank(v) && !isObj(spec.on)) return bad;
             if (blank(v)) { if (k === 'rmMsg' || k === 'eqMsg') delete d[k]; else if (k !== 'name') d[k] = ''; continue; }
             if (typeof v !== 'string') return bad;
-            var t = k === 'icon' ? cleanIcon(v) : k === 'notes' ? str(v, LIMITS.text).replace(CTRL_RE_G, ' ') : cutText(v, k === 'name' ? LIMITS.itemName : k === 'category' ? LIMITS.category : LIMITS.rmMsg);
+            var t = k === 'icon' ? cleanIcon(v) : k === 'notes' ? str(v, LIMITS.noteText).replace(CTRL_RE_G, ' ') : cutText(v, k === 'name' ? LIMITS.itemName : k === 'category' ? LIMITS.category : LIMITS.rmMsg);
             if (!t || !t.trim()) return bad;   // text that cleans to nothing (an icon that is not bundled)
             d[k] = t;
         } else if (k === 'key') {

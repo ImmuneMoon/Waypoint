@@ -203,6 +203,9 @@ Systems, more
   list to add from keeps its place as a row goes on the table.
 - A player who reloads while the GM's table cannot be found keeps trying, as
   a dropped connection does, and is not told to set up a relay server.
+- A system holds 200 effects, and an effect's or an entry's notes hold 1,000
+  characters, a caption 400, a greyed button's words 200 and a badge's tip 1,000.
+  A text a limit cuts short is said when the system loads or is imported.
 - The desktop app keeps its pace while its window is minimised or covered, so
   a GM who looks at something else no longer loses the table.
 - A token taken out of a fight and added back keeps its initiative and stands

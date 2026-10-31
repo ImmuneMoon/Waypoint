@@ -1091,20 +1091,24 @@ function cleanSenses(s, fieldIds, secretIds) {
         var r = x.range, range = null;
         if (isObj(r) && r.by === 'field') { var rf = senseField(r, SENSE_RANGE_KINDS, fieldIds, secretIds); if (!rf) return; range = { by: 'field', field: rf }; }
         else if (isObj(r) && r.by === 'n' && fin(r.n)) range = { by: 'n', n: clampNum(r.n, 0, 100000) };   // fin: a number (never text), finite
+        else if (isObj(r) && r.by === 'eyes') range = { by: 'eyes' };   // 1.6.0: as far as the eyes reach on the map it stands on, whatever Sight is
         else return;
         var o = { id: x.id, name: name, range: range };
-        if (typeof x.unit === 'string' && hasOwn(LIGHT_UNITS, x.unit)) o.unit = x.unit;
+        if (range.by !== 'eyes' && typeof x.unit === 'string' && hasOwn(LIGHT_UNITS, x.unit)) o.unit = x.unit;
         o.grade = x.grade;
         if (x.walls === 'pass') o.walls = 'pass';
         if (x.arc === 'all') o.arc = 'all';
+        else if (fin(x.arc)) { var sa = Math.round(x.arc); if (sa >= 360) o.arc = 'all'; else if (sa >= 1) o.arc = sa; }   // 1.6.0: an arc of its own, in degrees centred on the facing
+        else if (isObj(x.arc)) { var sf = senseField(x.arc, SENSE_ARC_KINDS, fieldIds, secretIds); if (sf) o.arc = { field: sf }; }   // or a field its player can read; one that reads a secret takes the eyes' arc again, in both views
         if (x.eyes === true) o.eyes = true;
         if (x.off !== undefined) { var of = senseField(x.off, SENSE_SWITCH_KINDS, fieldIds, secretIds); if (of === null) return; if (of) o.off = { field: of }; }
-        if (x.grade === 'full' && x.shows === 'dim') o.shows = 'dim';
+        if (x.grade === 'full' && (x.shows === 'dim' || x.shows === 'side')) o.shows = x.shows;   // 1.6.0: side: a band of side vision, its ground dimmed and what it notices dimmed
         if (x.grade === 'mark' && typeof x.glyph === 'string' && hasOwn(SENSE_GLYPHS, x.glyph)) o.glyph = x.glyph;
         if (x.veil === true) o.veil = true;
         seen[x.id] = 1; list.push(o);
     });
     if (list.length) out.list = list;
+    if (isObj(s.view)) { var vw = s.view.mode === 'all' ? { mode: 'all' } : s.view.mode === 'arc' && fin(s.view.arc) && Math.round(s.view.arc) >= 1 ? (Math.round(s.view.arc) >= 360 ? { mode: 'all' } : { mode: 'arc', arc: Math.round(s.view.arc) }) : null; if (vw) out.view = vw; }   // 1.6.0: the Vision of a map with none of its own (fog.js visionOf), the same in both views
     return Object.keys(out).length ? out : null;
 }
 // Turn-based combat T1 (owner, 2026-09-26): the system's turn rules, absent when none. move: how far a character moves in one turn (a formula,
@@ -3606,6 +3610,7 @@ function cleanSystem(sys, opts) {
     var out = emptySystem();
     out.name = str(sys.name, LIMITS.name).replace(CTRL_RE_G, ' ').trim();
     out.preset = /^[a-z0-9_-]{1,20}$/.test(String(sys.preset || '')) ? String(sys.preset) : '';
+    if (gmView && typeof sys.mark === 'string' && READER_MARK.test(sys.mark)) out.mark = sys.mark;   // 1.6.0: a plain word a GM's own sheet reader knows this system by; the GM's, and never code
     out.updated = fin(Number(sys.updated)) && Number(sys.updated) >= 0 ? Number(sys.updated) : 0;
     var seenId = map(), seenKey = map(), dropped = [], gmFields = [], droppedList = map();   // droppedList (F5a1): the GM-only item lists' keys   // gmFields: the GM-only fields as the GM has them (the players' view only), for gmPools
     (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
@@ -9325,7 +9330,7 @@ function statAsk(sys, char, fieldId, rowId, stats, F, opts) {
 // fieldId, q, F, opts), writeBack?, facing?, ui? }: claims says whether a file is one it reads; fill makes a fill for fillMaking (a character in
 // the making); propose makes the proposed changes the GM reviews (an upload); rowOp is the row op its fills and proposals go through. ui is
 // the reader's own page code, which the sheet and the map ask through typeof. readerKit hands a reader the internals it reads by
-var READER_ID = /^[a-z]{1,12}$/, READER_FNS = ['claims', 'fill', 'propose', 'rowOp'], _readers = [];
+var READER_ID = /^[a-z]{1,12}$/, READER_MARK = /^[a-z0-9_-]{1,40}$/, READER_FNS = ['claims', 'fill', 'propose', 'rowOp'], _readers = [];
 function readerKit() {
     return Object.freeze({ LIMITS: LIMITS, STORED: STORED, NUMERIC: NUMERIC, ITEM_ID: ITEM_ID, isObj: isObj, fin: fin, map: map, lower: lower, hasOwn: hasOwn, cutText: cutText, fmtNum: fmtNum,
         cleanFieldUnit: cleanFieldUnit, readMeasure: readMeasure, measureInches: measureInches, lvlClamp: lvlClamp, cleanItemKey: cleanItemKey, fieldById: fieldById, keyIndex: keyIndex,
@@ -9337,19 +9342,21 @@ function readerKit() {
 function registerReader(r) {
     if (!isObj(r) || typeof r.id !== 'string' || !READER_ID.test(r.id) || typeof r.name !== 'string' || !r.name.trim() || r.name.trim().length > 40) return false;
     if (READER_FNS.some(function(k) { return typeof r[k] !== 'function'; })) return false;
-    var o = { id: r.id, name: r.name.trim() };
+    var o = { id: r.id, name: r.name.trim() }; if (typeof r.mark === 'string' && READER_MARK.test(r.mark)) o.mark = r.mark;   // 1.6.0: the system it belongs to, by a plain word
     READER_FNS.concat(['writeBack', 'facing']).forEach(function(k) { if (typeof r[k] === 'function') o[k] = r[k]; });
     if (isObj(r.ui)) o.ui = r.ui;
     _readers = _readers.filter(function(x) { return x.id !== o.id; }).concat([Object.freeze(o)]);
     return true;
 }
 function dropReader(id) { var n = _readers.length; _readers = _readers.filter(function(x) { return x.id !== id; }); return _readers.length !== n; }
-function readers() { return Object.freeze(_readers.slice()); }
+// 1.6.0: a reader that names a mark answers only on a campaign whose system carries that very mark; asked with no system, every reader answers
+function readerFits(r, sys) { return !r.mark || (isObj(sys) && sys.mark === r.mark); }
+function readers(sys) { return Object.freeze(arguments.length ? _readers.filter(function(r) { return readerFits(r, sys); }) : _readers.slice()); }
 function readerById(id) { var out = null; if (typeof id === 'string') _readers.forEach(function(x) { if (!out && x.id === id) out = x; }); return out; }
 // The first reader that claims a file (one whose claims throws claims nothing); never for a Waypoint character file
-function readerFor(json) {
+function readerFor(json, sys) {
     if (!isObj(json) || json.format === 'waypoint-character') return null;
-    for (var i = 0; i < _readers.length; i++) { var ok = false; try { ok = _readers[i].claims(json) === true; } catch (e) { ok = false; } if (ok) return _readers[i]; }
+    for (var i = 0; i < _readers.length; i++) { if (arguments.length > 1 && !readerFits(_readers[i], sys)) continue; var ok = false; try { ok = _readers[i].claims(json) === true; } catch (e) { ok = false; } if (ok) return _readers[i]; }
     return null;
 }
 // U1: the accepted changes of a proposal (a player's upload, or the GM's own file) applied to a copy of the character, each through its own
@@ -9474,11 +9481,35 @@ function revBrief(f, v) {
     if (typeof v === 'string') return cutText(v.replace(CTRL_RE_G, ' '), 60);
     return f && f.kind === 'resource' && isObj(v) && typeof v.cur === 'number' ? fmtNum(v.cur) : 'set';
 }
+// 1.6.0 (found by hand): a file's row that the sheet also holds stays the sheet's own row, with its id and what no file carries (a round fired, a burst's marks,
+// what was paid, a part's host, a grant's mark). Only what a file says is taken from it, so a row nothing changed offers nothing
+function revRowKey(x) { return !isObj(x) ? '' : typeof x.defId === 'string' ? 'd:' + x.defId : isObj(x.def) && typeof x.def.name === 'string' ? 'n:' + x.def.name : ''; }
+function revRowName(x) { return isObj(x) && isObj(x.ov) && typeof x.ov.name === 'string' ? x.ov.name : ''; }
+function revRows(nv, ov, idm) {
+    var old = Array.isArray(ov) ? ov : [], used = map();
+    var take = function(x, same) { for (var i = 0; i < old.length; i++) { var y = old[i]; if (used[i] || !isObj(y) || y.hid === 1 || revRowKey(y) !== revRowKey(x) || (same && revRowName(y) !== revRowName(x))) continue; used[i] = 1; return y; } return null; };
+    return nv.map(function(x) {
+        if (!isObj(x) || x.hid === 1 || x.keptOn === 1 || !revRowKey(x)) return x;
+        var y = take(x, true) || take(x, false); if (!y) return x;
+        var o = JSON.parse(JSON.stringify(y)); ['qty', 'lvl', 'ct', 'ov'].forEach(function(k) { if (hasOwn(x, k)) o[k] = x[k]; });
+        ['on', 'note'].forEach(function(k) { if (hasOwn(x, k)) o[k] = x[k]; else delete o[k]; });
+        if (hasOwn(x, 'def')) o.def = x.def;
+        if (typeof x.id === 'string' && typeof y.id === 'string') idm[x.id] = y.id;
+        return o;
+    });
+}
+function revRowWord(sys, x) { var d = isObj(x) ? rowDef(sys, x) : null, n = revRowName(x) || (d && d.def && typeof d.def.name === 'string' ? d.def.name : 'A row'), q = isObj(x) && fin(x.qty) && x.qty !== 1 ? ' ×' + x.qty : '', l = isObj(x) && fin(x.lvl) ? ' level ' + x.lvl : ''; return n + l + q; }
+function revRowWords(sys, ov, nv) {   // what differs in a list, by the rows' names
+    var byId = map(), from = [], to = []; (Array.isArray(ov) ? ov : []).forEach(function(y) { if (isObj(y) && y.hid !== 1) byId[rowIdOf(y)] = y; });
+    (Array.isArray(nv) ? nv : []).forEach(function(x) { if (!isObj(x) || x.hid === 1) return; var k = rowIdOf(x), y = byId[k]; delete byId[k]; if (!y) to.push('New: ' + revRowWord(sys, x)); else if (JSON.stringify(y) !== JSON.stringify(x)) { from.push(revRowWord(sys, y)); to.push(revRowWord(sys, x)); } });
+    Object.keys(byId).forEach(function(k) { from.push(revRowWord(sys, byId[k])); to.push('Gone: ' + revRowWord(sys, byId[k])); });
+    return { from: cutText(from.join(', ') || '—', 120), to: cutText(to.join(', ') || '—', 120) };
+}
 function revProposal(sys, char, fill, F, opts) {
     if (!isObj(sys) || !Array.isArray(sys.fields) || !isObj(char) || !isObj(fill)) return null;
     var cp = JSON.parse(JSON.stringify(char)); cp.making = 1; delete cp.unlocked; delete cp.invited;
     var r = fillMaking(sys, cp, fill, F, opts); if (!r || !r.ok) return null;
-    var vals = isObj(char.values) ? char.values : {}, ch = [], n = 0;
+    var vals = isObj(char.values) ? char.values : {}, ch = [], n = 0, idm = map();
     sys.fields.forEach(function(f) {
         if (!f || !STORED[f.kind] || f.kind === 'effects' || f.vis !== 'all' || !hasOwn(r.values, f.id) || ch.length >= LIMITS.uploadChanges) return;
         var nv = r.values[f.id], ov = vals[f.id], lost = false;
@@ -9487,13 +9518,16 @@ function revProposal(sys, char, fill, F, opts) {
             lost = nv.filter(function(x) { return isObj(x) && x.hid !== 1; }).length < Object.keys(named).length;   // the file named rows this list could not place: offered unticked, said so   // the rows its player does not hold stay: a kept curse (fillMaking keeps it) and a GM-only row
             var mkOld = map(); (Array.isArray(ov) ? ov : []).forEach(function(x) { if (isObj(x) && x.mk === 1 && typeof x.defId === 'string') mkOld[x.defId] = 1; });   // 1.6.0 (v2, B5): the fill stands in for the making, so a row is marked made only where the character's own row of that entry was
             nv.forEach(function(x) { if (isObj(x) && x.mk === 1 && !(typeof x.defId === 'string' && mkOld[x.defId] === 1)) delete x.mk; });
+            nv = revRows(nv, ov, idm);
             var have = map(); nv.forEach(function(x) { if (isObj(x)) have[rowIdOf(x)] = 1; });
             (Array.isArray(ov) ? ov : []).forEach(function(x) { if (!isObj(x) || have[rowIdOf(x)]) return; var d = rowDef(sys, x); if (x.hid === 1 || !d || !d.def || d.def.vis === 'gm') nv.push(x); });
         }
         if (JSON.stringify(nv) === JSON.stringify(ov)) return;
         if (f.kind === 'item-list' && Array.isArray(nv) && Array.isArray(ov)) { var noId = function(a) { return JSON.stringify(a.map(function(x) { if (!isObj(x)) return x; var o = Object.assign({}, x); delete o.id; if (o.on === (isObj(f.list) && isObj(f.list.on) && f.list.on.def === true)) delete o.on; return o; })); }; if (noId(nv) === noId(ov)) return; }   // a switch at the list's own default reads as none   // the same rows under the new ids a file gives them: no change
-        ch.push({ id: 'u_' + (n++).toString(36), kind: 'value', f: f.id, label: cutText((f.label || f.key) + (lost ? ' (the file has rows it could not place: check before applying)' : ''), 120), from: revBrief(f, ov), to: revBrief(f, nv), value: nv, accept: !lost });
+        var wrd = f.kind === 'item-list' && Array.isArray(nv) ? revRowWords(sys, ov, nv) : null;
+        ch.push({ id: 'u_' + (n++).toString(36), kind: 'value', f: f.id, label: cutText((f.label || f.key) + (lost ? ' (the file has rows it could not place: check before applying)' : ''), 120), from: wrd ? wrd.from : revBrief(f, ov), to: wrd ? wrd.to : revBrief(f, nv), value: nv, accept: !lost });
     });
+    ch.forEach(function(c) { if (Array.isArray(c.value)) c.value.forEach(function(x) { if (isObj(x)) ['in', 'gr', 'gb'].forEach(function(k) { if (typeof x[k] === 'string' && hasOwn(idm, x[k])) x[k] = idm[x[k]]; }); }); });   // a new row that hangs on a row the sheet kept
     return { changes: ch, left: r.left | 0 };
 }
 // 1.6.0 (found live, 2026-10-30): how many lines of a Review entry can be applied: a note is read, and is no change in any count. An entry a new

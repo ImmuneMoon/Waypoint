@@ -3717,7 +3717,7 @@ net.charEffect = function(charId, fieldId, q) {
 // A sheet file made elsewhere is read only by an outside reader (systemcore registerReader: a module of the GM's own, none ships with the app):
 // a host with one says so in its snapshot (sheetFiles), which a player's app keeps (_sheetFilesOk). Without one a file is answered unread
 var _uploadPending = {}, _sheetFilesOk = false;
-function sheetFilesHere() { var S = SC(); return !!(S && typeof S.readers === 'function' && S.readers().length > 0); }
+function sheetFilesHere() { var S = SC(), cR = getActiveCampaign(); return !!(S && typeof S.readers === 'function' && S.readers(cR && cR.system).length > 0); }
 net.sheetFilesOk = function() { return net.role === 'client' ? !!net.active && _sheetFilesOk === true : sheetFilesHere(); };
 net.charUpload = function(charId, sheet, done) {
     var S = SC(), camp = getActiveCampaign();
@@ -7791,7 +7791,7 @@ function handleMessage(msg, conn) {
         var qu = Su.cleanCharUpload(msg); if (!qu) return;
         var ansU = function(o) { o.type = 'char-upload-ans'; o.rid = qu.rid; try { conn.send(o); } catch (e) { sendFailed(e); } };
         var isFileU = !!(qu.sheet && typeof qu.sheet === 'object' && qu.sheet.format === 'waypoint-character');   // Onboarding F2a: a character file (never read as a dossier)
-        var rdU = isFileU || typeof Su.readerFor !== 'function' ? null : Su.readerFor(qu.sheet);   // 2026-10-18: any other file is read by the outside reader that claims it, where one is registered
+        var camR = getActiveCampaign(), rdU = isFileU || typeof Su.readerFor !== 'function' ? null : Su.readerFor(qu.sheet, camR && camR.system);   // 2026-10-18: any other file is read by the outside reader that claims it, where one is registered
         if (net.paused || (typeof peerGmPaused === 'function' ? peerGmPaused(conn.peer) : peerPaused(conn.peer))) { ansU({ reason: 'paused' }); return; }   // 1.6.0 (backlog 190): a new sheet is what a player held for one may still send
         if (window.wpVtt && !window.wpVtt.on('sheets')) { ansU({ reason: 'off' }); return; }
         var nowU = Date.now(); if (_uploadAt[conn.peer] && nowU - _uploadAt[conn.peer] < UPLOAD_GAP_MS) { ansU({ reason: 'slow' }); return; }
@@ -7826,7 +7826,6 @@ function handleMessage(msg, conn) {
         }
         // [netcheck:charfill-end]
         var staleU = !!(typeof Su.charStale === 'function' && Su.charStale(campU.system, chU));   // 1.6.0 (backlog 190): out of date: its player's new sheet, for the GM's review
-        if (isFileU && !staleU) { ansU({ reason: 'file' }); return; }   // a character file fills only a character in the making (owner, 2026-09-27: in play, Import stays as it was)
         _uploadAt[conn.peer] = nowU;
         if (!rdU && !isFileU) { ansU({ reason: 'unread' }); return; }   // no reader here takes that file
         var findU = window.wpSheets && window.wpSheets.gmFinder ? window.wpSheets.gmFinder(campU, campU.system) : null;

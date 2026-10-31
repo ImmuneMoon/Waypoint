@@ -1307,9 +1307,10 @@ function cleanFogMarks(v, ownKeys) {
 // light or none: clear (tier 2); one that sees the dark as dim (dim) shows a cell at its own light raised to dim at least (a wall's own cell
 // at the map's level). With lighting off every cell it reaches is clear. No lit cell beyond its range
 function senseCells(viewer, grid, blockers, lvl, lit) {
-    var cells = visibleCells(viewer, grid, viewer.pass ? null : blockers), out = [];
+    var cells = visibleCells(viewer, grid, viewer.pass ? null : blockers), out = [], here = viewer.side && lvl === 0 && fin(viewer.near) && fin(viewer.x) && fin(viewer.y) ? cellOf(viewer.x, viewer.y, grid) : null;   // 1.6.0: a side band in the dark: what is lit, and the eyes' own Sight
     for (var i = 0; i < cells.length; i++) {
-        var o = cells[i], t = 2;
+        var o = cells[i], t = viewer.side ? 1 : 2;
+        if (here && !(lit && lit[o.key] > 0) && !(cellDist(here, o.cell, grid) <= viewer.near + 1e-9)) continue;
         if (viewer.dim && lvl !== null) { var lv = blockers && blockers[o.key] ? lvl : Math.max(lvl, (lit && lit[o.key]) || 0); t = lv >= 2 ? 2 : 1; }
         out.push({ key: o.key, cell: o.cell, tier: t });
     }

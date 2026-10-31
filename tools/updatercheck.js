@@ -349,6 +349,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         }
         {   // the installer leaves the folder alone when it updates in place: it removes nothing under system\app, and only a clean install wipes the program files
             const iss = read('installer.iss');
+            check('1.6.0 a clean install keeps a reader in system\\app\\private unless the data goes too', /CompareText\(FindRec\.Name, 'private'\) = 0/.test(iss));
             check('the installer\'s update in place deletes nothing under system\\app (no InstallDelete section, no Excludes naming private), so an installer run keeps the reader too; only a clean install wipes the program files',
                 !/^\[InstallDelete\]/m.test(iss) && !/private/i.test((/Excludes: "([^"]*)"/.exec(iss) || [])[1] || 'private') && /InstallMode\(\) = 1\) then\s*\n\s*WipeProgramFiles/.test(iss));
             const help = read('system/app/index.html'), notesA = read('WHATSNEW.txt'), notesB = read('system/app/assets/whatsnew.txt');

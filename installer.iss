@@ -219,6 +219,15 @@ begin
               { inside system\, keep userdata unless the data goes too }
               WipeProgramFiles(P, AlsoData);
             end
+            else if CompareText(FindRec.Name, 'app') = 0 then
+            begin
+              { inside system\app, a GM's own sheet reader (private) stays unless the data goes too }
+              WipeProgramFiles(P, AlsoData);
+            end
+            else if CompareText(FindRec.Name, 'private') = 0 then
+            begin
+              if AlsoData then DelTree(P, True, True, True);
+            end
             else if CompareText(FindRec.Name, 'userdata') = 0 then
             begin
               if AlsoData then DelTree(P, True, True, True);

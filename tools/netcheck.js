@@ -175,7 +175,7 @@ pendingChecks.push((async () => {
     // the wiring: every pause gate composes the hold; the upload asks the GM's pause alone; a Waypoint file for an out-of-date character goes for review
     const wiredOk = src.includes("function peerPaused(peer) { var p = net.roster[peer]; return !!(p && (pausedById(p.id) || (typeof heldById === 'function' && heldById(p.id)))); }")
         && src.includes("if (net.paused || (typeof peerGmPaused === 'function' ? peerGmPaused(conn.peer) : peerPaused(conn.peer))) { ansU({ reason: 'paused' }); return; }")
-        && src.includes("var staleU = !!(typeof Su.charStale === 'function' && Su.charStale(campU.system, chU));") && src.includes("if (isFileU && !staleU) { ansU({ reason: 'file' }); return; }")
+        && src.includes("var staleU = !!(typeof Su.charStale === 'function' && Su.charStale(campU.system, chU));") && !src.includes("if (isFileU && !staleU)") /* 1.6.0: a character file goes for review on a character in play too (moved on purpose) */
         && src.includes("Su.revProposal(campU.system, chU, fillR, Fu, { view: viewR, lib: pfR.lib, now: nowU })") && src.includes("if (rdU) entU.reader = rdU.id; if (staleU) entU.rev = true;")
         && src.includes("if (msg.id && typeof peerHeld === 'function' && peerHeld(conn.peer)) return;") && src.includes("var frozenMe = (net.paused || net.selfPaused || net.selfHeld) && isClient;")
         && (src.match(/if \(typeof heldSync === 'function'\) heldSync\(\)/g) || []).length === 5 && src.includes("if (srD) chD.sheetRev = srD;");
@@ -7585,8 +7585,8 @@ pendingChecks.push((async () => {
         denied(mate, 'owner') && denied(npc, 'owner') && denied(slow, 'slow') && denied(paused, 'paused') && denied(off, 'off') && denied(gone, 'missing') && denied(nobody, 'unread') && denied(unclaimed, 'unread') && later.answer[0].n === 2 && mate.at.pB === undefined && own.at.pA > 0,
         j([mate.answer, npc.answer, slow.answer, paused.answer, off.answer, gone.answer]));
     const wpcU = host({ msg: { sheet: { format: 'waypoint-character', v: 1, name: 'Ana', values: {} } } });
-    check('F2a on the wire (host): a character file sent as a sheet update is refused and answered so — never read as an outside sheet file; nothing kept, saved or said. The player shows only a reason of ours',
-        denied(wpcU, 'file') && /\{ error: Object\.prototype\.hasOwnProperty\.call\(UP_WHY, msg\.reason\) \? UP_WHY\[msg\.reason\] : 'The GM could not read it\.' \}/.test(src.replace(/\r\n/g, '\n')) && /file: 'A character file only fills a character you are still making\.'/.test(src), j(wpcU.answer));
+    check('F2a on the wire (host), moved on purpose in 1.6.0: a character file sent for a character in play is never read as an outside sheet file and is judged as a new sheet is, for the GM\'s review; a reason of ours is all a refusal shows, and an older host\'s word is still said',
+        wpcU.answer.length === 1 && wpcU.answer[0].reason !== 'file' && wpcU.answer[0].type === 'char-upload-ans' && /\{ error: Object\.prototype\.hasOwnProperty\.call\(UP_WHY, msg\.reason\) \? UP_WHY\[msg\.reason\] : 'The GM could not read it\.' \}/.test(src.replace(/\r\n/g, '\n')) && /file: 'A character file only fills a character you are still making\.'/.test(src), j(wpcU.answer));
     const sameB = host({ rules: { uploadFacts: true }, msg: { sheet: { name: 'Ana', attributes: { strength: { value: 12 } }, skills: [{ name: 'Climbing', level: '12', relativeLevel: 'DX/Average' }] } } });
     check('U2 on the wire (host): an oversize file or a malformed request is dropped unanswered; a file matching the sheet answers 0, keeps nothing and (cluster J #8, 2026-10-01) saves nothing — under setting B too, where nothing applied and nothing waits',
         big.answer.length === 0 && !big.camp.uploads && badRid.answer.length === 0 && j(same.answer) === j([{ n: 0, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && !same.camp.uploads && same.toasts.length === 0 && same.saves === 0 && j(sameB.answer) === j([{ n: 0, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && sameB.saves === 0 && sameB.deltas.length === 0, j([same.saves, sameB.answer, sameB.saves]));
@@ -7621,7 +7621,7 @@ pendingChecks.push((async () => {
     const sfWays = [sfOk('host', true, false, false), sfOk('host', true, false, true), sfOk(null, false, true, true), sfOk('client', true, true, false), sfOk('client', true, false, true), sfOk('client', true, 'true', false), sfOk('client', false, true, false)];
     check('sheet files on the wire (net.sheetFilesOk run for real): the GM\'s machine reads a sheet file made elsewhere only while an outside reader is registered; a player\'s app takes the host\'s word from its snapshot, true only, and only while it is at the table; the host says it in the snapshot only while a reader is registered, beside looks, and a player\'s app keeps the word as true only',
         j(sfWays) === j([false, true, true, true, false, false, false]) && /notepad: notepadMsg\(\) \}; if \(sheetFilesHere\(\)\) snap\.sheetFiles = true; gmSignSnap\(snap, conn\); \};/.test(cs) && /\n    _sheetFilesOk = msg\.sheetFiles === true;/.test(cs)
-        && /function sheetFilesHere\(\) \{ var S = SC\(\); return !!\(S && typeof S\.readers === 'function' && S\.readers\(\)\.length > 0\); \}/.test(cs), j(sfWays));
+        && /function sheetFilesHere\(\) \{ var S = SC\(\), cR = getActiveCampaign\(\); return !!\(S && typeof S\.readers === 'function' && S\.readers\(cR && cR\.system\)\.length > 0\); \}/.test(cs), j(sfWays));
 })());
 // Onboarding F1a: the waiting token — the client's cleaner, and the host's section run for real with the real systemcore (one per player per
 // campaign, moved not copied, gone once they have a token, the GM's Remove, the grace after a leave, the end of the session), the rules'
@@ -8251,9 +8251,9 @@ pendingChecks.push((async () => {
     const pv = Sx.charForView({ id: 'c_s', name: 'Pax', ownerId: 'u_a', npc: false, values: { f_st: 15, f_sk: [{ id: 'w_a', defId: 'i_climb', qty: 1, lvl: 7 }] } }, viewOf({ system: sysF(false) }));
     const cfile = SXp.charToJson(viewOf({ system: sysF(false) }), pv, null, { exported: 'x', picture: 'data:image/png;base64,' + 'A'.repeat(50) });
     const R3 = run({ msg: { sheet: cfile } });
-    check('Onboarding F4 (host): a character file (the player\'s own download) fills a character in the making the same way (its picture is never on the wire); on a character in play it is refused (file); a sheet file no reader here takes is answered unread',
+    check('Onboarding F4 (host): a character file (the player\'s own download) fills a character in the making the same way (its picture is never on the wire); on a character in play it goes for the GM\'s review (moved on purpose in 1.6.0); a sheet file no reader here takes is answered unread',
         j(R3.answer) === j([{ n: 0, auto: 2, left: 0, type: 'char-upload-ans', rid: 'e1' }]) && R3.ch.values.f_st === 15 && (R3.ch.values.f_sk || []).length === 1 && R3.ch.values.f_sk[0].lvl === 7
-        && j(run({ ch: { making: undefined, unlocked: 1 }, msg: { sheet: cfile } }).answer) === j([{ reason: 'file', type: 'char-upload-ans', rid: 'e1' }]) && j(run({ ch: { making: undefined, unlocked: 1 } }).answer) === j([{ reason: 'unread', type: 'char-upload-ans', rid: 'e1' }]), j(R3.answer));
+        && (run({ ch: { making: undefined, unlocked: 1 }, msg: { sheet: cfile } }).answer[0] || {}).reason === undefined && j(run({ ch: { making: undefined, unlocked: 1 } }).answer) === j([{ reason: 'unread', type: 'char-upload-ans', rid: 'e1' }]), j(R3.answer));
     // item 35, fold 1c: a character file with looks fills a character in the making, and the host stores the looks with the values
     const LKf = await import(url('lookcore.js'));
     const sysT = Sx.cleanSystem({ v: 1, name: 'T', rolls: [], fields: [{ id: 'f_name', key: 'Name', label: 'Name', kind: 'text' }, { id: 'f_bio', key: 'Bio', label: 'Bio', kind: 'notes' }, { id: 'f_secret', key: 'Secret', label: 'Secret', kind: 'text', vis: 'gm' }] }, { F: Fx, gmView: true }), plT = viewOf({ system: sysT });

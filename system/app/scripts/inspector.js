@@ -1802,8 +1802,9 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
           + '<div class="field check-row"><input type="checkbox" id="wbBlindTick" ' + (w.blind === true ? 'checked' : '') + '> <label for="wbBlindTick" title="Its eyes see only its own cell, whatever the light; a sense that does not use the eyes still works. Only its player receives this.">Blind</label></div>'
           + (ts.blind && w.blind !== true ? '<div class="muted" style="margin:-4px 0 6px; font-size:10.5px;">Blind by its character&rsquo;s sheet.</div>' : '');
       var un = C.cleanUnsensed(w.unsensed);   // senses S4: the mark senses that never mark this token (the GM's)
-      var unHtml = marksL.length ? '<div class="field"><label>Never shown as a mark by</label>' + marksL.map(function(s, i) { var on = un === true || (Array.isArray(un) && un.indexOf(s.id) >= 0); return '<div class="field check-row" style="margin-bottom:4px;"><input type="checkbox" class="wb-unsensed" id="wbUnsensed' + i + '" data-mi="' + i + '" ' + (on ? 'checked' : '') + '> <label for="wbUnsensed' + i + '">' + esc(s.name) + '</label></div>'; }).join('')
-          + '<div class="muted" style="margin:0 0 4px; font-size:10.5px;">A sense that shows everything in range still shows this token; hide the token to keep it from those.</div></div>' : '';
+      var noticeL = F.campNoticeSenses ? F.campNoticeSenses(camp) : marksL, sideL = noticeL.length > marksL.length;   // 1.6.0: a band of side vision is ticked as a mark sense is
+      var unHtml = noticeL.length ? '<div class="field"><label>' + (sideL ? 'Not noticed by' : 'Never shown as a mark by') + '</label>' + noticeL.map(function(s, i) { var on = un === true || (Array.isArray(un) && un.indexOf(s.id) >= 0); return '<div class="field check-row" style="margin-bottom:4px;"><input type="checkbox" class="wb-unsensed" id="wbUnsensed' + i + '" data-mi="' + i + '" ' + (on ? 'checked' : '') + '> <label for="wbUnsensed' + i + '">' + esc(s.name) + '</label></div>'; }).join('')
+          + '<div class="muted" style="margin:0 0 4px; font-size:10.5px;">' + (sideL ? 'Ticked, it is not drawn while it stands only in that side vision. ' : '') + 'A sense that shows everything in range still shows this token; hide the token to keep it from those.</div></div>' : '';
       if (!list.length) return tick;
       var word = function(u) { return u === 'ft' ? 'ft' : u === 'm' ? 'm' : u === 'cells' ? 'cells' : 'yd'; };
       var note = w.ownerId && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, w.charId) && ts.sheet === false ? '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Read from the token only: its player does not hold this character.</div>' : '';
@@ -1868,7 +1869,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // senses, digits alone; the rest of the ticks kept (true, every sense, becomes their ids); none left, no key
   function setTokenUnsensed(w, mi, on) {
       var F = window.wpFog, C = window.wpFogCore, camp = getActiveCampaign(); if (!F || !C || !camp) return;
-      var mk = F.campMarkSenses(camp), s = typeof mi === 'string' && /^[0-7]$/.test(mi) ? mk[Number(mi)] : null; if (!s) { renderInspector(); return; }
+      var mk = F.campNoticeSenses ? F.campNoticeSenses(camp) : F.campMarkSenses(camp), s = typeof mi === 'string' && /^[0-7]$/.test(mi) ? mk[Number(mi)] : null; if (!s) { renderInspector(); return; }
       var un = C.cleanUnsensed(w.unsensed), ids = (un === true ? mk.map(function(x) { return x.id; }) : un || []).filter(function(id) { return id !== s.id; });
       if (on === true) ids.push(s.id);
       if (ids.length) w.unsensed = ids; else delete w.unsensed;

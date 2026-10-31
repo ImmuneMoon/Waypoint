@@ -211,6 +211,19 @@ Systems, more
 - A due card says your system's own word for a Major Wound, or nothing where
   the roll's name says it already.
 - Target as says when the token you target is outside the fight.
+- A sheet's Download menu opens beside its button, not in the window's corner.
+- Upload is always in a sheet's head: for the GM on any character, for a player
+  on their own. It takes a Waypoint character file, and on a character in play
+  what the file changes waits in the Review until the GM applies it.
+- A sense can have an arc of its own, in degrees or from a field, and a range
+  of as far as the eyes reach. + Side vision opens a wider arc than the eyes':
+  the sides show their ground dimmed and the creatures there dimmed, a token can
+  be ticked as not noticed, and what is behind stays dark.
+- A system can set the Vision of a map that has none of its own. A Vision set
+  on the map, or one the campaign keeps for new maps, wins.
+- A sheet reader of your own can name a Reader mark, and then answers only on
+  the system that carries it. A clean install keeps a reader unless you also
+  remove your data.
 - The welcome screen's choices wear Waypoint's own drawings, the same on every
   computer.
 - A weapon list says what a blow must beat, the Dur left or the listed Dur, and

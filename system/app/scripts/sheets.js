@@ -1047,7 +1047,7 @@ function renderSheet() {
     var revert = ui('sheetRevert'); if (revert) revert.style.display = gm && lastChange && lastChange.charId === c.id ? '' : 'none';
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; var pickL = gm ? charList(camp) : charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }); if (gm || pickL.length > 1) { pickL.forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : '') + (x.making === 1 ? ' (being made)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
-    var upB = ui('sheetUpload'); if (upB) { var rdG = gm && canWrite() ? gmReader() : null, outF = !gm && sheetFilesOk(); upB.style.display = !lockedS && (rdG || (isClient() && own && !c.partial && (c.making === 1 ? fillOk() : outF))) ? '' : 'none'; upB.title = rdG ? 'Import: fill or update this sheet from a ' + rdG.name + ' file. You review what changes before anything is applied' : c.making === 1 ? 'Fill this character from a file: your own sheet download (.wpchar.json)' + (outF ? ', or a sheet file your GM\u2019s Waypoint reads' : '') : 'Import: send your sheet file to the GM, who approves what changes'; }   // Stage 6 U3: the owner's Import (to the GM, as proposed changes) where the GM's Waypoint reads such a file; the GM's own where a reader is at hand here; Onboarding F4: while making, a file fills it
+    var upB = ui('sheetUpload'); if (upB) { var upOn = gm ? canWrite() && !c.partial : isClient() && own && !c.partial && (c.making !== 1 || fillOk()), rdG = upOn && gm ? gmReader() : null, outF = !gm && sheetFilesOk(); upB.style.display = upOn ? '' : 'none'; upB.title = gm ? 'Upload: pick a Waypoint character file (.wpchar.json)' + (rdG ? ' or a ' + rdG.name + ' file' : '') + '. You review what changes before anything is applied' : c.making === 1 ? 'Upload: fill this character from a file, your own sheet download (.wpchar.json)' + (outF ? ', or a sheet file your GM\u2019s Waypoint reads' : '') : 'Upload: send a Waypoint character file (.wpchar.json)' + (outF ? ', or a sheet file your GM\u2019s Waypoint reads,' : '') + ' to your GM, who approves what changes'; }   // 1.6.0: always on the sheet, for the GM on any character and for a player on their own; while making, where the table lets a file fill it
     var picB = ui('sheetPic'); if (picB) picB.style.display = !lockedS && isClient() && own && !c.partial ? '' : 'none';   // Onboarding F1c: the owner's own picture for it
     var dlB = ui('sheetDownload'); if (dlB) dlB.style.display = canOpen(c.id) && !c.partial ? '' : 'none';   // Onboarding F2a: whoever may open it takes it away
     var dnB = ui('sheetDone'); if (dnB) { var dnOn = isClient() && own && !c.partial && (c.making === 1 || c.unlocked === 1); dnB.style.display = dnOn ? '' : 'none'; }   // Onboarding F3: the owner's Done
@@ -6091,10 +6091,10 @@ function openDownloadMenu(anchor) {
 // An outside sheet file (2026-10-18) is read only where a reader is at hand: on the GM's own machine one that a module of the GM's registered
 // (systemcore registerReader: none ships with the app), at someone's table the host's, which its snapshot says (net.sheetFilesOk). A
 // Waypoint character file needs none
-function sheetReaders() { var S = window.wpSystemCore; return S && typeof S.readers === 'function' ? S.readers() : []; }
-function gmReader() { var out = null; sheetReaders().forEach(function(r) { if (!out && r.ui && typeof r.ui.gmImport === 'function') out = r; }); return out; }
+function sheetReaders() { var S = window.wpSystemCore; return S && typeof S.readers === 'function' ? S.readers(systemOf()) : []; }   // 1.6.0: a reader with a mark only on its own system
+function gmReader() { var out = null; sheetReaders().forEach(function(r) { if (!out && r.ui && typeof r.ui.gmFile === 'function') out = r; }); return out; }
 function sheetFilesOk() { if (!isClient()) return sheetReaders().length > 0; var n = net(); return !!(n && typeof n.sheetFilesOk === 'function' && n.sheetFilesOk() === true); }
-function readerUiFor(j) { var S = window.wpSystemCore, r = S && typeof S.readerFor === 'function' ? S.readerFor(j) : null; return r && r.ui ? r.ui : null; }
+function readerUiFor(j) { var S = window.wpSystemCore, r = S && typeof S.readerFor === 'function' ? S.readerFor(j, systemOf()) : null; return r && r.ui ? r.ui : null; }
 function keepFile(campId, charId, j, txt, name) { var u = readerUiFor(j); if (u && typeof u.keep === 'function' && campId) { try { u.keep(campId, charId, txt, name); } catch (e) {} } }   // a reader may remember the file it read here (in memory only)
 function readersChanged() { renderViews(null); renderReviewChip(); }   // a reader registered after the sheet was drawn
 function uploadsOf(camp, charId) { var sysU = systemOf(camp); return cleanUploads(camp && camp.uploads).filter(function(u) { return (!charId || u.charId === charId) && !revIdle(sysU, charById(u.charId, camp), u); }); }   // an entry that asks nothing waits for nobody
@@ -6162,9 +6162,43 @@ function startFromFile() {
     });
     inp.click();
 }
+// [systemcheck:gmupload-start]
+// 1.6.0 (the owner: "i dont see a way to upload"): the GM's own Upload, on any character: a Waypoint character file is read as a player's is, on the
+// players' view, so nothing GM-only is matched or written, and what it would change opens in the Review on this machine, where nothing changes
+// until Apply. Any other file goes to a reader of this system that claims it (its ui.gmFile(c, j, text, name): { error } or { up })
+function ownFileUp(c, j) {
+    var camp = getActiveCampaign(), sys = systemOf(camp), S = window.wpSystemCore, view = playerSystem(camp), pf = view ? playerFinder(camp, view) : null;
+    var fill = pf ? charFromJson(view, j, pf.find, pf.findKey) : null, now = Date.now(), pr = fill && S && S.revProposal ? S.revProposal(sys, c, fill, F(), { view: view, lib: pf.lib, now: now }) : null;
+    if (!pr || !Array.isArray(pr.changes)) return { error: 'That character file could not be read here.' };
+    var stale = typeof S.charStale === 'function' && S.charStale(sys, c);
+    if (!pr.changes.length && !stale) return { error: 'Nothing to change: the sheet already matches that file.' };
+    var up = { id: 'up_gm' + now.toString(36), charId: c.id, from: '', name: 'Your file', at: now, changes: pr.changes, own: true }; if (stale) up.rev = true;   // an out-of-date character: applying it makes it current
+    return { up: up };
+}
+function gmUploadRead(c, j, txt, name) {
+    if (isCharFile(j)) return ownFileUp(c, j);
+    var S = window.wpSystemCore, r = S && typeof S.readerFor === 'function' ? S.readerFor(j, systemOf()) : null;
+    if (r && r.ui && typeof r.ui.gmFile === 'function') { var a = r.ui.gmFile(c, j, txt, name); return a && typeof a === 'object' ? a : { error: 'That file could not be read here.' }; }
+    return { error: 'That is not a Waypoint character file (.wpchar.json).' };
+}
+function gmUpload(id) {
+    var inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+    inp.addEventListener('change', function() {
+        var file = inp.files && inp.files[0]; if (!file) return;
+        if (file.size > 8 * 1024 * 1024) { toast('That file is too large.'); return; }
+        file.text().then(function(txt) {
+            var j = null; try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
+            var cNow = charById(id), r = cNow ? gmUploadRead(cNow, j, txt, file.name) : { error: 'That character is no longer here.' };
+            if (r.error) { toast(r.error); return; }
+            openReview(id, r.up);
+        });
+    });
+    inp.click();
+}
+// [systemcheck:gmupload-end]
 function importJson() {   // the owner sends their sheet file to the GM (the GM approves what changes); Onboarding F4: while they are making it, the file fills it at once
     var c = sheetOpen ? charById(sheetOpen) : null; if (!c) return;
-    if (!isClient()) { var rdI = canWrite() ? gmReader() : null; if (rdI) rdI.ui.gmImport(c); return; }   // the GM's own Import: the reader's own, read and reviewed on this machine
+    if (!isClient()) { if (canWrite()) gmUpload(c.id); return; }   // the GM's own Upload, read and reviewed on this machine
     if (c.partial || c.ownerId !== myId()) return;
     var making = c.making === 1, id = c.id, nm = c.name;
     if (making && !fillOk()) { toast('Starting a character from a file is not open at this table.'); return; }
@@ -6175,8 +6209,6 @@ function importJson() {   // the owner sends their sheet file to the GM (the GM 
         file.text().then(function(txt) {
             var j = null; try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
             var isFile = isCharFile(j);
-            var staleJ = !!(window.wpSystemCore && typeof window.wpSystemCore.charStale === 'function' && window.wpSystemCore.charStale(systemOf(), c));   // 1.6.0 (backlog 190): out of date, its new sheet goes for review
-            if (isFile && !making && !staleJ) { toast('A character file only fills a character you are still making.'); return; }   // Onboarding F2a: never sent as a dossier (owner, 2026-09-27: in play, Import stays as it was)
             if (!isFile && (!sheetFilesOk() || !j || typeof j !== 'object' || Array.isArray(j))) { toast(making ? 'That is not a character file this table reads.' : 'That is not a sheet file your GM\u2019s Waypoint reads.'); return; }
             var n = net(); if (!n || !n.charUpload) return;
             if (!isFile && typeof keepFile === 'function') { var campI = getActiveCampaign(); if (campI) keepFile(campI.id, id, j, txt, file.name); }   // a reader may remember the file read here
@@ -6374,6 +6406,7 @@ function open(which) {
     var m = ui('systemModal'); if (!m) return;
     ui('sysCampName').textContent = camp.name || 'Campaign';
     ui('sysName').value = draft.name || '';
+    if (ui('sysMark')) ui('sysMark').value = typeof draft.mark === 'string' ? draft.mark : '';
     m.style.display = 'flex';
     renderAll();
 }
@@ -6623,6 +6656,7 @@ function saveDraft() {
     if (!draft || !canWrite()) return;
     var camp = getActiveCampaign(); if (!camp) return;
     draft.name = (ui('sysName').value || '').trim().slice(0, LIMITS.name);
+    if (ui('sysMark')) { var mkD = ui('sysMark').value.trim(); if (mkD) draft.mark = mkD; else delete draft.mark; }   // 1.6.0: a word only; the cleaner keeps it or drops it
     var snD = draft.combat && draft.combat.senses && typeof draft.combat.senses === 'object' && Array.isArray(draft.combat.senses.list) ? draft.combat.senses : null, pendS = snD ? snD.list.filter(function(s) { return !!s && s.unit === '?'; }) : [], src = draft;   // senses S2a: a sense still waiting for its unit is left out (never a silent yards), and stays in the editor
     if (pendS.length) src = Object.assign({}, draft, { combat: Object.assign({}, draft.combat, { senses: Object.assign({}, snD, { list: snD.list.filter(function(s) { return !(s && s.unit === '?'); }) }) }) });
     var clean = cleanSystem(src, { F: F(), gmView: true });
@@ -7105,7 +7139,7 @@ function refreshErrors() {
             else if (!named) sErr.push({ message: nm + ' needs a name: Save drops it.' });
             else if (r.by === 'field' && !rangeF[r.field]) sErr.push({ message: nm + ' (' + s.name.trim() + '): pick where its range comes from, Save drops it.' });
             else if (r.by === 'field' && (!secS || secS[r.field])) sErr.push({ message: nm + ' (' + s.name.trim() + ') reads ' + (rangeF[r.field].label || rangeF[r.field].key) + ', which its owner cannot read (a GM-only value, or one worked out from one): Save drops it.' });
-            else if (r.by !== 'field' && !(typeof r.n === 'number' && isFinite(r.n))) sErr.push({ message: nm + ' (' + s.name.trim() + ') needs its range: Save drops it.' });
+            else if (r.by !== 'field' && r.by !== 'eyes' && !(typeof r.n === 'number' && isFinite(r.n))) sErr.push({ message: nm + ' (' + s.name.trim() + ') needs its range: Save drops it.' });
             else if (s.off !== undefined && swIds[s.off && s.off.field] && (!secS || secS[s.off.field])) sErr.push({ message: nm + ' (' + s.name.trim() + ') is switched off by ' + (swIds[s.off.field].label || swIds[s.off.field].key) + ', which its owner cannot read (a GM-only value, or one worked out from one): Save drops it.' });
             else if (sKept >= LIMITS.senses) sErr.push({ message: nm + ': at most ' + LIMITS.senses + ', so Save drops it.' });
             else { sKept++; if (r.by !== 'field' && (r.n < 0 || r.n > 100000)) sErr.push({ message: nm + ' (' + s.name.trim() + '): a range is 0 to 100000, so Save keeps the nearest.' }); if (s.off !== undefined && !swIds[s.off && s.off.field]) sErr.push({ message: nm + ' (' + s.name.trim() + '): its switch is no longer here, so Save keeps it never switched off.' }); }
@@ -7121,6 +7155,8 @@ function refreshErrors() {
         if (!arcF) sErr.push({ message: 'The sight arc names no number or formula field here: Save leaves it out.' });
         else if (!secS || secS[arcF.id]) sErr.push({ message: 'The sight arc reads ' + (arcF.label || arcF.key) + ', which its owner cannot read (a GM-only value, or one worked out from one): Save drops it.' });
     }
+    if (snO && snO.view && typeof snO.view === 'object' && snO.view.mode === 'arc' && !(typeof snO.view.arc === 'number' && isFinite(snO.view.arc) && Math.round(snO.view.arc) >= 1)) sErr.push({ message: 'A map with no Vision: an arc needs its degrees, 1 to 360. Save leaves it out.' });   // 1.6.0: as the cleaner reads it
+    if (snE) snE.forEach(function(s, i) { if (s && typeof s === 'object' && typeof s.arc === 'number' && !(Math.round(s.arc) >= 1)) sErr.push({ message: 'Sense ' + (i + 1) + ': an arc is 1 to 360 degrees. Save gives it the eyes’ arc.' }); else if (s && s.arc && typeof s.arc === 'object') { var af = senseArcOf(s.arc); if (!af) sErr.push({ message: 'Sense ' + (i + 1) + ': its arc names no number or formula field here. Save gives it the eyes’ arc.' }); else if (!secS || secS[af.id]) sErr.push({ message: 'Sense ' + (i + 1) + ': its arc reads ' + (af.label || af.key) + ', which its owner cannot read. Save gives it the eyes’ arc.' }); } });   // 1.6.0: its own arc, as the cleaner reads it
     if (sErr.length) errorsById.senses = sErr;
     // conditions C4: what Save drops of an automatic effect's formula, under the effect's row — read as the cleaner reads it (systemcore
     // cleanEffectDef and the public rule: the owner's "Only public ones"); a token's name read there is 0, a warning
@@ -9911,7 +9947,7 @@ function senseSecrets() { try { return secretFieldIds({ fields: gmViewFields(dra
 function senseSwitchFields() { var fs = (draft.fields || []).filter(function(f) { return !!f && (f.kind === 'toggle' || f.kind === 'number' || f.kind === 'formula'); }); return fs.filter(function(f) { return f.kind === 'toggle'; }).concat(fs.filter(function(f) { return f.kind !== 'toggle'; })); }
 function senseSwitchOf(v) { var id = v && typeof v === 'object' && typeof v.field === 'string' ? v.field : '', out = null; if (id) senseSwitchFields().forEach(function(f) { if (f.id === id) out = f; }); return out; }
 function senseSentence(s, fieldsR, secret) {
-    var r = s.range && typeof s.range === 'object' ? s.range : {}, how = (s.walls === 'pass' ? ', through walls' : '') + (s.arc === 'all' ? ', all round' : ''), word = SENSE_WORDS[Object.prototype.hasOwnProperty.call(LIGHT_UNITS, s.unit) ? s.unit : 'yd'];
+    var arF0 = senseArcOf(s.arc), r = s.range && typeof s.range === 'object' ? s.range : {}, how = (s.walls === 'pass' ? ', through walls' : '') + (s.arc === 'all' ? ', all round' : typeof s.arc === 'number' && s.arc >= 1 ? ', through an arc of ' + s.arc + ' degrees on its facing' : arF0 ? ', through an arc of the character’s ' + (arF0.label || arF0.key) + ' in degrees' : ''), word = SENSE_WORDS[Object.prototype.hasOwnProperty.call(LIGHT_UNITS, s.unit) ? s.unit : 'yd'];
     var mark = s.grade === 'mark', verb = mark ? 'Marks every creature within ' : 'Sees everything within ';   // senses S4
     if (s.unit === '?') return 'Pick what its range counts in: Save leaves this sense out until you do.';
     var out = [], sw = s.off !== undefined ? senseSwitchOf(s.off) : null, swName = sw ? sw.label || sw.key : '';
@@ -9923,17 +9959,22 @@ function senseSentence(s, fieldsR, secret) {
         if (!secret || secret[f.id]) return 'Save drops this sense: its owner cannot read ' + nm + ' (a GM-only value, or one worked out from one). Make that value visible to its owner, or give the range as a number.';
         out.push(verb + 'the character’s ' + nm + ' (in ' + word + ')' + how + '.'); out.push('A value of 0 or less: that character does not have it.');
         if (f.edit === 'owner' && f.kind !== 'formula') out.push('Its owner can change this on their sheet.');
+    } else if (r.by === 'eyes') {
+        out.push((mark ? 'Marks every creature' : 'Sees everything') + ' as far as the eyes reach' + how + '.'); out.push('Every character has this sense, and it is off while they are blind. On a dark map that is their Sight' + (s.shows === 'side' ? ' and what is lit.' : '.'));
     } else {
         var n = typeof r.n === 'number' && isFinite(r.n) ? r.n : 0;
         if (!(n > 0)) return 'A range of 0: no one has it unless a token is given a range of its own in its Properties.';
         out.push(verb + n + ' ' + word + how + '.'); out.push('Every character has this sense.');
         if (s.unit === 'cells' && n > 60) out.push('60 cells is the most a sense reaches.');
     }
-    if (s.eyes === true) out.push('A sense of the eyes: off while the character is blind.');
+    if (s.eyes === true && r.by !== 'eyes') out.push('A sense of the eyes: off while the character is blind.');
+    if (arF0 && (!secret || secret[arF0.id])) out.push('Save takes its arc off: its owner cannot read ' + (arF0.label || arF0.key) + '. It then looks through the eyes’ arc.');
     if (s.veil === true) out.push('It sees through smoke.');   // senses S7b
     if (sw) out.push('Off while ' + swName + ' is ticked or above 0.' + (sw.edit === 'owner' && sw.kind !== 'formula' ? ' Its owner can change that on their sheet.' : ''));
     else if (s.off !== undefined) out.push('Its switch is no longer here: Save keeps the sense, never switched off.');
-    if (mark) out.push('A creature it finds that the eyes do not see shows to its player as a nameless mark in its cell, never as itself: ' + SENSE_GLYPH_SAY[senseGlyphOf(s)] + '.');
+    if (s.arc === 0) out.push('Type its degrees. With none it looks through the eyes’ arc.');
+    if (s.shows === 'side' && !mark) out.push('Its ground shows dimmed, whatever the light. A creature there shows dimmed too, unless its token is ticked as not noticed, and then it is not drawn. A cell the eyes also see reads as the eyes see it.');
+    else if (mark) out.push('A creature it finds that the eyes do not see shows to its player as a nameless mark in its cell, never as itself: ' + SENSE_GLYPH_SAY[senseGlyphOf(s)] + '.');
     else out.push(s.shows === 'dim' ? 'What it sees in the dark it sees as dim.' : 'Seen clearly, light or none: no dim or dark name shows inside its range.');
     return out.join(' ');
 }
@@ -9964,16 +10005,22 @@ function sensesBox(box, cm) {
         var s = s0 && typeof s0 === 'object' ? s0 : {}, r = s.range && typeof s.range === 'object' ? s.range : {}, byField = r.by === 'field', rw = el('div', 'sys-flags sys-light-row sys-sense-row'); rw.dataset.si = String(i);
         var n = input('sys-sense-name field', typeof s.name === 'string' ? s.name : '', 'Its name: Darkvision, Blindsight, Ether Sight', 'Name'); n.maxLength = LIMITS.label; rw.appendChild(n);
         var mark = s.grade === 'mark';   // senses S4: what it shows, and a mark's own mark
-        rw.appendChild(select('sys-sense-grade', [['full', 'Shows everything in range'], ['mark', 'A nameless mark']], mark ? 'mark' : 'full', 'Everything in range: its cells are seen and the creatures there appear as themselves. A nameless mark: a creature it finds that the eyes do not see shows to its player as a mark in its cell, never as itself'));
+        rw.appendChild(select('sys-sense-grade', [['full', 'Shows everything in range'], ['side', 'Side vision: dimmed'], ['mark', 'A nameless mark']], mark ? 'mark' : s.shows === 'side' ? 'side' : 'full', 'Everything in range: its cells are seen and the creatures there appear as themselves. Side vision: its ground and what it notices show dimmed, and a token ticked as not noticed is not drawn. A nameless mark: a creature it finds that the eyes do not see shows to its player as a mark in its cell, never as itself'));
         if (mark) rw.appendChild(select('sys-sense-glyph', [['sound', 'Mark: a sound'], ['tremor', 'Mark: a tremor'], ['presence', 'Mark: a presence'], ['heat', 'Mark: heat']], senseGlyphOf(s), 'The mark its player sees, told apart by its shape: three arcs for a sound, a zigzag for a tremor, a ring for a presence, a teardrop for heat'));
-        var ropts = [['#n', 'A number (every character)']].concat(fieldsR.map(function(f) { return [f.id, 'From ' + (f.label || f.key)]; }));
+        var byEyes = r.by === 'eyes', ropts = [['#n', 'A number (every character)'], ['#e', 'As far as the eyes reach']].concat(fieldsR.map(function(f) { return [f.id, 'From ' + (f.label || f.key)]; }));
         if (byField && typeof r.field === 'string' && !fieldsR.some(function(f) { return f.id === r.field; })) ropts.push([r.field, 'From a field no longer here']);
-        rw.appendChild(select('sys-sense-from', ropts, byField ? r.field : '#n', 'Where its range comes from: a field of the character (worked out for each character, effects and all) or one number every character has'));
-        if (!byField) { var nl = el('label', 'sys-num'); nl.appendChild(el('span', 'sys-num-cap', 'Range')); var ni = el('input', 'field sys-sense-n'); ni.type = 'number'; ni.min = '0'; ni.max = '100000'; ni.step = 'any'; ni.value = typeof r.n === 'number' ? String(r.n) : ''; ni.title = 'How far it reaches, for every character (0: no one has it)'; nl.appendChild(ni); rw.appendChild(nl); }
-        rw.appendChild(select('sys-sense-unit', (s.unit === '?' ? [['?', '— pick a unit —']] : []).concat([['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['cells', 'grid cells']]), s.unit === '?' ? '?' : (typeof s.unit === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, s.unit) ? s.unit : 'yd'), 'What its range counts in: each map’s scale converts it (60 ft on 5 ft squares is 12 squares)'));
-        [['walls', 'Walls stop it', s.walls !== 'pass', 'Ticked: whatever blocks sight stops it, as it stops the eyes. Unticked: it passes walls'], ['arc', 'All round (ignores facing)', s.arc === 'all', 'Ticked: it sees in every direction, whatever arc its token’s eyes see through'], ['dim', 'What it sees in the dark it sees as dim', s.shows === 'dim', 'Ticked: in the dark it shows cells dim (the dim name shows on the ruler and at a target mark), in light as the light is. Unticked: clear'], ['eyes', 'Uses the eyes (off while blind)', s.eyes === true, 'Ticked: a sense of the eyes, off while the character is blind (darkvision, truesight). Unticked: it works blind (blindsight, a sense of the Ether)'], ['veil', 'Sees through smoke', s.veil === true, 'Ticked: smoke hides nothing from it. Unticked: it does not see into or through smoke (a sense that passes walls always does)']].filter(function(g) { return !(mark && g[0] === 'dim'); }).forEach(function(g) {   // a mark sees no cells: no dim
+        rw.appendChild(select('sys-sense-from', ropts, byField ? r.field : byEyes ? '#e' : '#n', 'Where its range comes from: a field of the character (worked out for each character, effects and all), one number every character has, or as far as the eyes reach on that map, for a sense that widens what the eyes see'));
+        if (!byField && !byEyes) { var nl = el('label', 'sys-num'); nl.appendChild(el('span', 'sys-num-cap', 'Range')); var ni = el('input', 'field sys-sense-n'); ni.type = 'number'; ni.min = '0'; ni.max = '100000'; ni.step = 'any'; ni.value = typeof r.n === 'number' ? String(r.n) : ''; ni.title = 'How far it reaches, for every character (0: no one has it)'; nl.appendChild(ni); rw.appendChild(nl); }
+        if (!byEyes) rw.appendChild(select('sys-sense-unit', (s.unit === '?' ? [['?', '— pick a unit —']] : []).concat([['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['cells', 'grid cells']]), s.unit === '?' ? '?' : (typeof s.unit === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, s.unit) ? s.unit : 'yd'), 'What its range counts in: each map’s scale converts it (60 ft on 5 ft squares is 12 squares)'));
+        [['walls', 'Walls stop it', s.walls !== 'pass', 'Ticked: whatever blocks sight stops it, as it stops the eyes. Unticked: it passes walls'], ['arc', 'All round (ignores facing)', s.arc === 'all', 'Ticked: it sees in every direction, whatever arc its token’s eyes see through'], ['dim', 'What it sees in the dark it sees as dim', s.shows === 'dim', 'Ticked: in the dark it shows cells dim (the dim name shows on the ruler and at a target mark), in light as the light is. Unticked: clear'], ['eyes', 'Uses the eyes (off while blind)', s.eyes === true, 'Ticked: a sense of the eyes, off while the character is blind (darkvision, truesight). Unticked: it works blind (blindsight, a sense of the Ether)'], ['veil', 'Sees through smoke', s.veil === true, 'Ticked: smoke hides nothing from it. Unticked: it does not see into or through smoke (a sense that passes walls always does)']].filter(function(g) { return !((mark || s.shows === 'side') && g[0] === 'dim'); }).forEach(function(g) {   // a mark sees no cells: no dim
             var tl = el('label', 'sys-hover'), tc = el('input', 'sys-sense-tick'); tc.type = 'checkbox'; tc.checked = g[2]; tc.dataset.tick = g[0]; tl.appendChild(tc); tl.appendChild(document.createTextNode(' ' + g[1])); tl.title = g[3]; rw.appendChild(tl);
         });
+        if (s.arc !== 'all') {   // 1.6.0: an arc of its own, wider than the eyes' for side vision
+            var saF = senseArcOf(s.arc), saId = s.arc && typeof s.arc === 'object' && typeof s.arc.field === 'string' ? s.arc.field : '', sopts = [['', 'The eyes’ arc'], ['#n', 'An arc of its own']].concat(senseArcFields().map(function(f) { return [f.id, 'Arc from ' + (f.label || f.key)]; }));
+            if (saId && !saF) sopts.push([saId, 'Arc from a field no longer here']);
+            rw.appendChild(select('sys-sense-arcfrom', sopts, saId || (typeof s.arc === 'number' ? '#n' : ''), 'The arc it looks through, centred on the facing: the eyes’ arc, a number of degrees every character has, or a number or formula field of the character, so a trait can widen it. 360 is all round'));
+            if (typeof s.arc === 'number') { var sal = el('label', 'sys-num'); sal.appendChild(el('span', 'sys-num-cap', 'Degrees')); var sai = el('input', 'field sys-sense-arcn'); sai.type = 'number'; sai.min = '1'; sai.max = '360'; sai.step = '1'; sai.value = s.arc ? String(s.arc) : ''; sai.placeholder = 'Degrees'; sai.title = 'The whole arc in degrees, centred on the facing: half of it each side'; sal.appendChild(sai); rw.appendChild(sal); }
+        }
         var offId = s.off && typeof s.off === 'object' && typeof s.off.field === 'string' ? s.off.field : '', oopts = [['', 'Never switched off']].concat(swF.map(function(f) { return [f.id, 'Off while ' + (f.label || f.key)]; }));   // senses S3
         if (offId && !swF.some(function(f) { return f.id === offId; })) oopts.push([offId, 'Off by a field no longer here']);
         rw.appendChild(select('sys-sense-off', oopts, offId, 'A field of the character that switches this sense off while it is ticked or above 0 (Deafened for hearing): toggles first'));
@@ -9982,9 +10029,14 @@ function sensesBox(box, cm) {
         wrap.appendChild(el('div', 'sys-note sys-sense-says', senseSentence(s, fieldsR, secret)));
     });
     var full = arr.length >= LIMITS.senses, adds = el('div', 'sys-flags');
-    [['dark', '+ Sees without light', 'A sense that sees in the dark, as dim: darkvision'], ['noeyes', '+ Sees without eyes', 'A sense that works blind, all round: blindsight, a sense of the Ether'], ['hears', '+ Hears', 'A nameless mark for a sound, through walls, all round; off while the system’s Deafened toggle is ticked, if it has one'], ['feels', '+ Feels through the ground', 'A nameless mark for a tremor, through walls, all round: tremorsense'], ['near', '+ Senses what is near', 'A nameless mark for a presence, through walls, all round'], ['creature', '+ A creature’s sense (set per token)', 'A nameless mark with a range of 0: no one has it until a token is given a range of its own in its Properties (a beast’s vibration sense)'], ['custom', '+ Custom sense', 'A sense of your own']].forEach(function(g) { var b = el('button', 'tool ghost sys-btn sys-light-add', g[1]); b.dataset.act = 'snadd'; b.dataset.tpl = g[0]; b.disabled = full; b.title = full ? 'At most ' + LIMITS.senses : g[2]; adds.appendChild(b); });
+    [['side', '+ Side vision', 'A wider view beside the eyes’ arc, its ground and what it notices dimmed, as far as the eyes reach, stopped by walls. Type how many degrees it covers, wider than the eyes’ arc'], ['dark', '+ Sees without light', 'A sense that sees in the dark, as dim: darkvision'], ['noeyes', '+ Sees without eyes', 'A sense that works blind, all round: blindsight, a sense of the Ether'], ['hears', '+ Hears', 'A nameless mark for a sound, through walls, all round; off while the system’s Deafened toggle is ticked, if it has one'], ['feels', '+ Feels through the ground', 'A nameless mark for a tremor, through walls, all round: tremorsense'], ['near', '+ Senses what is near', 'A nameless mark for a presence, through walls, all round'], ['creature', '+ A creature’s sense (set per token)', 'A nameless mark with a range of 0: no one has it until a token is given a range of its own in its Properties (a beast’s vibration sense)'], ['custom', '+ Custom sense', 'A sense of your own']].forEach(function(g) { var b = el('button', 'tool ghost sys-btn sys-light-add', g[1]); b.dataset.act = 'snadd'; b.dataset.tpl = g[0]; b.disabled = full; b.title = full ? 'At most ' + LIMITS.senses : g[2]; adds.appendChild(b); });
     wrap.appendChild(adds);
     wrap.appendChild(el('div', 'sys-note', 'Sight is the eyes’ own range in the dark. A sense that sees without light adds to it; the longer of the two is what the token sees.'));
+    var vw = sn.view && typeof sn.view === 'object' ? sn.view : null, vwV = vw && vw.mode === 'arc' ? 'arc' : vw && vw.mode === 'all' ? 'all' : '', vrow = el('div', 'sys-flags');   // 1.6.0: the Vision of a map with none of its own
+    vrow.appendChild(el('span', 'sys-num-cap', 'A map with no Vision sees'));
+    vrow.appendChild(select('sys-sense-view', [['', 'As its grid does'], ['all', 'All round'], ['arc', 'Through a facing arc']], vwV, 'What a map that has no Vision of its own sees by. As its grid does: all round on squares, a front cone on hexes. A Vision set on the map, or one the campaign keeps for new maps, wins'));
+    if (vwV === 'arc') { var val = el('label', 'sys-num'); val.appendChild(el('span', 'sys-num-cap', 'Degrees')); var vai = el('input', 'field sys-sense-viewarc'); vai.type = 'number'; vai.min = '1'; vai.max = '360'; vai.step = '1'; vai.value = typeof vw.arc === 'number' ? String(vw.arc) : ''; vai.title = 'The whole arc in degrees, centred on the facing'; val.appendChild(vai); vrow.appendChild(val); }
+    wrap.appendChild(vrow);
     var blId = sn.blind && typeof sn.blind === 'object' && typeof sn.blind.field === 'string' ? sn.blind.field : '', bopts = [['', 'No blind switch']].concat(swF.map(function(f) { return [f.id, 'Blind while ' + (f.label || f.key)]; }));   // senses S3: the system's blind switch
     if (blId && !swF.some(function(f) { return f.id === blId; })) bopts.push([blId, 'Blind by a field no longer here']);
     var brow = el('div', 'sys-flags'); brow.appendChild(el('span', 'sys-num-cap', 'Blind when')); brow.appendChild(select('sys-sense-blind', bopts, blId, 'A field of the character that makes it blind while it is ticked or above 0 (Blinded): its eyes see only its own cell, and a sense of the eyes is off; toggles first')); wrap.appendChild(brow);
@@ -10000,32 +10052,37 @@ function senseAt(t) { var rw = t.closest('.sys-sense-row'), i = rw ? +rw.dataset
 function senseSays(at) { var say = at.rw.nextSibling; if (say && say.classList && say.classList.contains('sys-sense-says')) say.textContent = senseSentence(at.s, senseRangeFields(), senseSecrets()); }
 function onSensesInput(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-sense-') < 0) return false;
-    if (c.indexOf('sys-sense-name') < 0 && c.indexOf('sys-sense-n') < 0) return true;   // the selects' and the ticks' change events do the work
+    if (c.indexOf('sys-sense-viewarc') >= 0) { var snv = sensesDraft(), vn = Number(t.value); if (snv.view && snv.view.mode === 'arc') { if (t.value.trim() && isFinite(vn)) snv.view.arc = vn; else delete snv.view.arc; markDirty(); patchErrors(); } return true; }   // 1.6.0: the Vision of a map with none of its own
+    if (c.indexOf('sys-sense-name') < 0 && c.indexOf('sys-sense-n') < 0 && c.indexOf('sys-sense-arcn') < 0) return true;   // the selects' and the ticks' change events do the work
     var at = senseAt(t); if (!at) return true;
+    if (c.indexOf('sys-sense-arcn') >= 0) { var an = Number(t.value); if (!t.value.trim()) at.s.arc = 0; else if (isFinite(an)) at.s.arc = an; senseSays(at); markDirty(); patchErrors(); return true; }   // 1.6.0: its own arc
     if (c.indexOf('sys-sense-name') >= 0) at.s.name = t.value.slice(0, LIMITS.label);
     else { var r = at.s.range && typeof at.s.range === 'object' ? at.s.range : (at.s.range = { by: 'n' }), nv = Number(t.value); if (t.value.trim() && isFinite(nv)) r.n = nv; else delete r.n; }
     senseSays(at); markDirty(); patchErrors(); return true;
 }
 function onSensesChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-sense-') < 0) return false;
-    if (c.indexOf('sys-sense-from') < 0 && c.indexOf('sys-sense-unit') < 0 && c.indexOf('sys-sense-tick') < 0 && c.indexOf('sys-sense-off') < 0 && c.indexOf('sys-sense-blind') < 0 && c.indexOf('sys-sense-eyearc') < 0 && c.indexOf('sys-sense-grade') < 0 && c.indexOf('sys-sense-glyph') < 0) return true;   // the boxes' change events (their input events did the work)
+    if (c.indexOf('sys-sense-from') < 0 && c.indexOf('sys-sense-unit') < 0 && c.indexOf('sys-sense-tick') < 0 && c.indexOf('sys-sense-off') < 0 && c.indexOf('sys-sense-blind') < 0 && c.indexOf('sys-sense-eyearc') < 0 && c.indexOf('sys-sense-grade') < 0 && c.indexOf('sys-sense-glyph') < 0 && c.indexOf('sys-sense-arcfrom') < 0 && c.indexOf('sys-sense-view') < 0) return true;   // the boxes' change events (their input events did the work)
+    if (c.indexOf('sys-sense-viewarc') >= 0) return true;
+    if (c.indexOf('sys-sense-view') >= 0) { var snw = sensesDraft(); if (t.value === 'all') snw.view = { mode: 'all' }; else if (t.value === 'arc') snw.view = { mode: 'arc', arc: 180 }; else delete snw.view; markDirty(); renderAll(); return true; }   // 1.6.0: the Vision of a map with none of its own
     if (c.indexOf('sys-sense-eyearc') >= 0) { var sna = sensesDraft(); if (t.value && typeof t.value === 'string') sna.arc = { field: t.value }; else delete sna.arc; markDirty(); renderAll(); return true; }   // the eyes' arc: the field it comes from, or the map's arc (its sentence redrawn)
     if (c.indexOf('sys-sense-blind') >= 0) { var snd = sensesDraft(); if (t.value) snd.blind = { field: t.value }; else delete snd.blind; markDirty(); renderAll(); return true; }   // senses S3: the blind switch (its sentence redrawn)
     var at = senseAt(t); if (!at) return true;
     var s = at.s;
     if (c.indexOf('sys-sense-off') >= 0) { if (t.value) s.off = { field: t.value }; else delete s.off; senseSays(at); markDirty(); patchErrors(); return true; }
+    if (c.indexOf('sys-sense-arcfrom') >= 0) { if (t.value === '#n') s.arc = 0; else if (t.value) s.arc = { field: t.value }; else delete s.arc; markDirty(); renderAll(); return true; }   // 1.6.0: the degrees box comes or goes
     if (c.indexOf('sys-sense-grade') >= 0) {   // senses S4: everything in range or a mark (the glyph list and the dim tick come or go)
-        if (t.value === 'mark') { s.grade = 'mark'; delete s.shows; s.glyph = senseGlyphOf(s); } else if (t.value === 'full') { s.grade = 'full'; delete s.glyph; } else return true;
+        if (t.value === 'mark') { s.grade = 'mark'; delete s.shows; s.glyph = senseGlyphOf(s); } else if (t.value === 'side') { s.grade = 'full'; s.shows = 'side'; delete s.glyph; } else if (t.value === 'full') { s.grade = 'full'; delete s.glyph; if (s.shows === 'side') delete s.shows; } else return true;
         markDirty(); renderAll(); return true;
     }
     if (c.indexOf('sys-sense-glyph') >= 0) { if (s.grade !== 'mark' || typeof t.value !== 'string' || !Object.prototype.hasOwnProperty.call(SENSE_GLYPH_SAY, t.value)) return true; s.glyph = t.value; senseSays(at); markDirty(); patchErrors(); return true; }
     if (c.indexOf('sys-sense-from') >= 0) {
-        s.range = t.value === '#n' ? { by: 'n', n: 0 } : { by: 'field', field: t.value };
+        s.range = t.value === '#n' ? { by: 'n', n: 0 } : t.value === '#e' ? { by: 'eyes' } : { by: 'field', field: t.value }; if (t.value === '#e') delete s.unit;
         markDirty(); renderAll(); return true;   // the number box comes or goes
     }
     if (c.indexOf('sys-sense-unit') >= 0) { if (t.value === 'yd') { delete s.unit; _senseUnit = 'yd'; } else if (typeof t.value === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, t.value)) { s.unit = t.value; _senseUnit = t.value; } }
     else if (t.dataset.tick === 'walls') { if (t.checked) delete s.walls; else s.walls = 'pass'; }
-    else if (t.dataset.tick === 'arc') { if (t.checked) s.arc = 'all'; else delete s.arc; }
+    else if (t.dataset.tick === 'arc') { if (t.checked) s.arc = 'all'; else delete s.arc; markDirty(); renderAll(); return true; }   // 1.6.0: its own arc comes or goes
     else if (t.dataset.tick === 'dim') { if (t.checked) s.shows = 'dim'; else delete s.shows; }
     else if (t.dataset.tick === 'eyes') { if (t.checked) s.eyes = true; else delete s.eyes; }
     else if (t.dataset.tick === 'veil') { if (t.checked) s.veil = true; else delete s.veil; }   // senses S7b
@@ -10044,8 +10101,8 @@ function sensesClick(b) {
         if (arr.length >= LIMITS.senses) { toast('At most ' + LIMITS.senses + '.'); return true; }
         var id = ''; for (var k = 0; k < 20 && !(/^sn_[a-z0-9]{8}$/.test(id) && !arr.some(function(x) { return x && x.id === id; })); k++) id = uid('sn_');
         var tpl = b.dataset.tpl, mk = { hears: ['Hearing', 'sound'], feels: ['Tremorsense', 'tremor'], near: ['Presence', 'presence'], creature: ['A creature’s sense', 'tremor'] }, mt = Object.prototype.hasOwnProperty.call(mk, tpl) ? mk[tpl] : null;
-        var u = senseUnitFor(), row = { id: id, name: tpl === 'dark' ? 'Sees in the dark' : tpl === 'noeyes' ? 'Sees without eyes' : mt ? mt[0] : '', range: { by: 'n', n: 0 }, grade: mt ? 'mark' : 'full' };
-        if (u !== 'yd') row.unit = u;
+        var u = senseUnitFor(), row = { id: id, name: tpl === 'dark' ? 'Sees in the dark' : tpl === 'noeyes' ? 'Sees without eyes' : tpl === 'side' ? 'Side vision' : mt ? mt[0] : '', range: tpl === 'side' ? { by: 'eyes' } : { by: 'n', n: 0 }, grade: mt ? 'mark' : 'full' };
+        if (tpl === 'side') { row.arc = 0; row.shows = 'side'; } else if (u !== 'yd') row.unit = u;
         if (tpl === 'dark') { row.shows = 'dim'; row.eyes = true; }   // senses S3: darkvision is a sense of the eyes
         if (tpl === 'noeyes') row.arc = 'all';
         if (mt) { row.walls = 'pass'; row.arc = 'all'; row.glyph = mt[1]; }   // senses S4: the marks' templates pass walls and hear all round
@@ -11080,7 +11137,7 @@ function importFile(file) {
     var nmBt = ui('sheetName'); if (nmBt) nmBt.addEventListener('click', renameMaking);
     var ulBt = ui('sheetUnlock'); if (ulBt) ulBt.addEventListener('click', function() { if (sheetOpen) unlockChar(sheetOpen); });
     var edBt = ui('sheetEdit'); if (edBt) edBt.addEventListener('click', function() { if (!sheetOpen) return; _sheetEdit = _sheetEdit === sheetOpen ? null : sheetOpen; renderSheet(); });   // the sheet's lock: this viewer's own switch, for the sheet that is open
-    var dlBt = ui('sheetDelete'); if (dlBt) dlBt.addEventListener('click', function() { if (sheetOpen) askDeleteSheet(sheetOpen); });
+    var delBt = ui('sheetDelete'); if (delBt) delBt.addEventListener('click', function() { if (sheetOpen) askDeleteSheet(sheetOpen); });
     var cfI = ui('sysCharFilter'); if (cfI) cfI.addEventListener('input', charFilter);
     var nsB = ui('sysNewSheets'); if (nsB) nsB.addEventListener('click', askNewSheets);   // 1.6.0 (backlog 190)
     var acB = ui('sysSheetsCurrent'); if (acB) acB.addEventListener('click', allSheetsCurrent);

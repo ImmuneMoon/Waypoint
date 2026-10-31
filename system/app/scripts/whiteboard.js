@@ -9163,6 +9163,16 @@ function castMenuHtml(camp) {
 /* ---------- combat: roster panel (GM) and the turn strip (everyone) ---------- */
 var combatDraft = null;   // { mapId, fid, rows:[{id,name,tokId,init,src,on,busy}], running }: fid, the fight it edits (fold 2), null for a new one
 function fightsHere(mapId) { var n = window.wpNet; return n && typeof n.fightsOn === 'function' ? n.fightsOn(mapId) : []; }   // fold 2: the fights on a map, in the order begun
+// [lookcheck:rowname-start]
+// The name a fight's row shows: the token's own, which a GM may have chosen for one sheet used many ways. Where another character's token on the map reads
+// the same, the character's own name tells them apart, as the table's cards say it
+function rowNameOf(w, map, camp) {
+    var mine = w.charName || w.name || 'Unnamed', c = camp === undefined && typeof getActiveCampaign === 'function' ? getActiveCampaign() : camp, chs = c && c.chars;
+    var ch = chs && typeof w.charId === 'string' && Object.prototype.hasOwnProperty.call(chs, w.charId) ? chs[w.charId] : null, own = ch && typeof ch.name === 'string' ? ch.name.trim() : '';
+    if (!own || own === mine || !map || !Array.isArray(map.whiteboard)) return mine;
+    return map.whiteboard.some(function(o) { return o && o !== w && o.isChar && o.charId !== w.charId && (o.charName || o.name) === mine; }) ? own : mine;
+}
+// [lookcheck:rowname-end]
 // [lookcheck:onturn-start]
 // Fold 2's review: the board's ring on a token whose turn it is, in any fight on that map, while a table is up
 function onTurnHere(n, mapId, tokId) {
@@ -9186,7 +9196,7 @@ function combatRowsFor(mapId, opts) {
     var rows = (map.whiteboard || []).filter(function(w) { return w.isChar && !w.hidden; }).map(function(w) {
         var was = byTok[w.id], busy = !was && elsewhere[w.id] === 1;
         var on = !busy && (!!was || !!pair[w.id] || picked[w.id] === 1);   // only a running combat's rows and the tokens in a target pair start ticked; never a token in another fight (fold 2)
-        return { id: was ? was.id : 'r' + w.id, name: w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, rolled: !!(was && was.rolled === 1), tb: was && Array.isArray(was.tb) ? was.tb.slice() : undefined, src: w.src || null, on: on, busy: busy, party: !!w.ownerId, targeted: pair[w.id] || '', charId: w.charId || null };
+        return { id: was ? was.id : 'r' + w.id, name: typeof rowNameOf === 'function' ? rowNameOf(w, map) : w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, rolled: !!(was && was.rolled === 1), tb: was && Array.isArray(was.tb) ? was.tb.slice() : undefined, src: w.src || null, on: on, busy: busy, party: !!w.ownerId, targeted: pair[w.id] || '', charId: w.charId || null };
     });
     // custom rows of a running combat (no token) stay
     (running ? running.rows : []).forEach(function(r) { if (!r.tokId) rows.push({ id: r.id, name: r.name, tokId: null, init: r.init, rolled: r.rolled === 1, tb: Array.isArray(r.tb) ? r.tb.slice() : undefined, src: null, on: true, custom: true }); });
@@ -9377,6 +9387,8 @@ function renderCombatStrip() {
         if (pkOpen) pickH += '<span class="combat-strip-picks">' + pkL.at.map(function(i) { var pr = c.rows[i] || {}, prN = esc(String(pr.name || 'Someone')); return '<button class="combat-strip-btn combat-strip-pick' + (nxC && nxC.at === i ? ' is-next' : '') + '" data-act="pick" data-row="' + esc(String(pr.id || '')) + '" title="' + prN + (pkL.round ? ' opens round ' + (c.round + 1) : ' goes next') + '">' + prN + '</button>'; }).join('') + '</span>';
     }
     strip.style.display = 'flex';
+    var nameRoom = c.rows.reduce(function(m, r) { return Math.max(m, String((r && r.name) || '').length); }, 0);
+    if (strip.style.setProperty) strip.style.setProperty('--strip-name', Math.min(nameRoom, 28) + 'ch');   // room for the longest name of the fight, so the arrow after the names stays under the pointer
     var who = findWho(n, !!window.wpStream), nameOf = function(r) { return findName(r.name || '', r.tokId, !!findOf(am.id, r.tokId, who, am, state.viewMode)); };   // backlog 26: a name that finds its token on this screen is a button
     var myTokIds = {}; if (!host && am && Array.isArray(am.whiteboard)) am.whiteboard.forEach(function(w) { if (w && w.isChar && w.ownerId && w.ownerId === n.myId && typeof w.id === 'string') myTokIds[w.id] = 1; });   // initiative O3: whose held rows a player may act from
     var campH = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, holdStay = !!(campH && campH.system && campH.system.combat && campH.system.combat.turn && campH.system.combat.turn.holdAct === 'stay');   // 1.6.0: a system that keeps its order
@@ -9742,7 +9754,7 @@ function gmFightDo(map, m, act) {
 function gmFightPut(n, map, fid, add, out) {   // that fight with the tokens added at the end of its order (one coming back by its number), or those out taken out (its last row taken out ends it, asked first)
     var c = n.combats[fid]; if (!c || !Array.isArray(c.rows)) return false;
     var rows = c.rows.map(function(r) { var o = { id: r.id, name: r.name, tokId: r.tokId, init: r.init, src: r.src }; if (r.rolled === 1) o.rolled = 1; if (Array.isArray(r.tb)) o.tb = r.tb; if (r.held === 1) o.held = 1; return o; }), curId = (c.rows[c.turn] || {}).id;
-    if (add) add.forEach(function(w) { var was = typeof n.fightWas === 'function' ? n.fightWas(fid, w.id) : null, o = { id: 'r' + w.id, name: w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, src: w.src || null }; if (was && was.rolled) o.rolled = 1; var low = was ? rows.findIndex(function(r) { return !(Number(r.init) >= o.init); }) : -1; if (low >= 0) rows.splice(low, 0, o); else rows.push(o); });   // one coming back stands where its number puts it, the row on turn kept below
+    if (add) add.forEach(function(w) { var was = typeof n.fightWas === 'function' ? n.fightWas(fid, w.id) : null, o = { id: 'r' + w.id, name: typeof rowNameOf === 'function' ? rowNameOf(w, map) : w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, src: w.src || null }; if (was && was.rolled) o.rolled = 1; var low = was ? rows.findIndex(function(r) { return !(Number(r.init) >= o.init); }) : -1; if (low >= 0) rows.splice(low, 0, o); else rows.push(o); });   // one coming back stands where its number puts it, the row on turn kept below
     if (out) { rows = rows.filter(function(r) { return !(typeof r.tokId === 'string' && out[r.tokId] === 1); }); if (!rows.length) { n.fightEnd(fid); return true; } }
     var at = rows.findIndex(function(r) { return r.id === curId; });
     n.fightSet(fid, { mapId: map.id, round: c.round, turn: at >= 0 ? at : Math.min(c.turn, rows.length - 1), rows: rows });

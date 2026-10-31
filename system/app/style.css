@@ -2688,9 +2688,9 @@
   .wb-item.wb-turn { outline: 3px solid var(--gold); outline-offset: 3px; box-shadow: 0 0 0 7px rgba(224,165,79,0.28), 0 0 18px rgba(224,165,79,0.55) !important; z-index: 40 !important; }
   #combatStrip { position: absolute; top: 62px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 52px); box-sizing: border-box; flex-wrap: wrap; justify-content: center; z-index: 8990; display: flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--gold); border-radius: 18px; background: var(--panel2); box-shadow: var(--shadow); font-size: 12.5px; white-space: nowrap; pointer-events: auto; }
   .combat-strip-round { color: var(--gold); font-weight: 700; letter-spacing: .04em; }
-  .combat-strip-cur { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink); }
+  .combat-strip-cur { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink); min-width: calc(var(--strip-name, 0ch) + 28px); }
   .combat-strip-cur img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold); }
-  .combat-strip-next { color: var(--dim); font-size: 11px; }
+  .combat-strip-next { color: var(--dim); font-size: 11px; min-width: calc(var(--strip-name, 0ch) + 5ch); }
   .combat-strip-held { color: var(--gold); font-size: 11px; font-style: italic; }   /* initiative O3: a row holding its turn */
   .combat-strip-side { color: var(--dim); font-size: 11px; font-weight: 600; }   /* initiative O4: the side going first this round */
   .combat-strip-btn { font: inherit; background: transparent; border: 1px solid var(--edge); color: var(--ink); border-radius: 10px; padding: 1px 8px; cursor: pointer; font-size: 11px; }

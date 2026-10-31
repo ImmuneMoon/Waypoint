@@ -856,11 +856,17 @@ function redrawForFacing(v) {   // v: a HUD's record (HUD frame HF2a), each with
     }, 150);
     if (v) v.redraw = tmr; else _dialRedraw = tmr;
 }
+// A player's kept character: its token stands there, and the GM holds it while they play another
+function noTokWords(c) {
+    var camp = getActiveCampaign(), am = camp && camp.items && camp.activeItemId && Object.prototype.hasOwnProperty.call(camp.items, camp.activeItemId) ? camp.items[camp.activeItemId] : null;
+    var kept = !!(c && isClient() && c.ownerId === myId() && am && Array.isArray(am.whiteboard) && am.whiteboard.some(function(w) { return w && w.charId === c.id && !w.waiting; }));
+    return kept ? 'Kept: the GM holds this token while you play another.' : 'No token on this map.';
+}
 function facingNode(c, gm) {
     var wrap = el('div', 'sheet-dial'), on = turningOn();
     if (!on) { if (!gm) { wrap.hidden = true; return wrap; } wrap.appendChild(el('div', 'sheet-dial-note', 'Token facing is off (Settings \u25b8 VTT features).')); return wrap; }
     var t = facingTarget(c, getActiveCampaign()), fc = t ? facingNow(t.map, t.tok, true) : null;
-    if (!fc) { wrap.appendChild(el('div', 'sheet-dial-note', t ? 'This token\u2019s facing cannot be read.' : 'No token on this map.')); return wrap; }
+    if (!fc) { wrap.appendChild(el('div', 'sheet-dial-note', t ? 'This token\u2019s facing cannot be read.' : typeof noTokWords === 'function' ? noTokWords(c) : 'No token on this map.')); return wrap; }
     var n = net(), live = _fxLive && (gm || (t.tok.ownerId === myId() && !t.tok.locked && !(n && (n.paused || n.selfPaused || n.selfHeld))));   // a token the GM locked is frozen for its player
     if (live) wrap.classList.add('sheet-dial-live');
     var N = fc.sides, step = 360 / N, half = step / 2, C0 = 66, ARC = ['front', 'side', 'rear'];
@@ -918,7 +924,7 @@ function stanceNode(c, gm) {
     var wrap = el('div', 'sheet-stance'), pOn = vttOn('posture') && postureList(systemOf()).length > 0, eOn = vttOn('elevation');   // 1.6.0: posture only where the system lists its own wrap.dataset.sig = stanceSigOf(c, getActiveCampaign());
     if (!pOn && !eOn) { if (!gm) { wrap.hidden = true; return wrap; } wrap.appendChild(el('div', 'sheet-dial-note', 'Token posture and elevation are off (Settings \u25b8 VTT features).')); return wrap; }
     var t = facingTarget(c, getActiveCampaign()), st = t ? stanceCtx(t.tok, tokenFlags()) : null;   // the values are the table's (a hidden row is only a display choice)
-    if (!st) { wrap.appendChild(el('div', 'sheet-dial-note', 'No token on this map.')); return wrap; }
+    if (!st) { wrap.appendChild(el('div', 'sheet-dial-note', typeof noTokWords === 'function' ? noTokWords(c) : 'No token on this map.')); return wrap; }
     var n = net(), live = _fxLive && (gm || (t.tok.ownerId === myId() && !t.tok.locked && !(n && (n.paused || n.selfPaused || n.selfHeld))));   // a token the GM locked is frozen for its player
     var setSt = function(v) { if (window.wpSetTokenStance) window.wpSetTokenStance(t.mapId, t.tok.id, v); };
     if (pOn) {

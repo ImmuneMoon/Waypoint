@@ -149,6 +149,8 @@ function canAsk(tok, map, sel) {   // { from, to, label } or null
     var n = twNet(); if (!n || window.wpStream || !tok || !tok.isChar || !tok.charId || tok.hidden || tok.waiting) return null;
     if (n.active && n.role === 'client') {
         if (tok.ownerId === n.myId) return null; var me = mineOn(map, sel); if (!me || me.charId === tok.charId) return null;
+        var chT = window.wpSheets && window.wpSheets.charById ? window.wpSheets.charById(tok.charId) : null; if (chT && chT.ownerId === n.myId) return null;   // a character of their own they keep is no one to trade with
+        if (!tok.ownerId && map && n.combatOfTok && n.combatOfTok(map.id, tok.id)) return null;   // nor is an NPC in a fight: a merchant stands outside one, and the GM can still open a trade
         return { from: me.charId, to: tok.charId, label: 'Trade with ' + (tok.charName || tok.name || 'them') + '…' };
     }
     if (!sel || sel === tok || !sel.isChar || !sel.charId || sel.charId === tok.charId || sel.waiting) return null;

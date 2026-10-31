@@ -925,13 +925,18 @@ Same person as... and Merge into...
   names each character that moved. To give one back, pick its player in
   System ▸ Characters.
 
-Turn order
+Turn strip and sheets
 - Where two characters' tokens on a map read alike, the turn strip shows each
   character's own name, as the chat does, so two guards are told apart. Any
   other token keeps the name you gave it. The strip keeps room for the longest
   name in the fight, so the next-turn arrow stays put.
 - A player is no longer offered a trade with an NPC in a fight, or with a
   character of their own that they keep. Its sheet says the GM holds its token.
+- A sheet's own character file read back now offers no change: a row the
+  character made itself stays its own row, however its name reads, and its
+  changes keep their per-level figures and any change on a worked-out value.
+
+Turn order
 - The System editor's Initiative box has Next is chosen, a third way to
   order turns. The order stands as initiative made it and repeats each
   round. When a turn ends, the one who acted may pick who goes next from

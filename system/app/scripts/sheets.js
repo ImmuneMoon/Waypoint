@@ -6078,7 +6078,7 @@ var OUT_SAYS = { off: 'Character sheets are switched off at this table.', slow: 
 function outFile(id, cid) {
     var n = net(); if (!n || typeof n.sheetOut !== 'function') return;
     toast('Asking the GM\u2019s Waypoint for your sheet\u2026');
-    n.sheetOut(id, cid, function(file, why) { if (file) { saveTextFile(file.name, file.text, 'application/json'); toast('Saved ' + file.name + '.'); return; } toast(Object.prototype.hasOwnProperty.call(OUT_SAYS, why) ? OUT_SAYS[why] : OUT_SAYS.unread); });
+    n.sheetOut(id, cid, function(file, why) { if (file) { saveTextFile(file.name, file.text, 'application/json'); toast('Saved ' + file.name + '.' + (file.note ? ' ' + file.note : '')); return; } toast(Object.prototype.hasOwnProperty.call(OUT_SAYS, why) ? OUT_SAYS[why] : OUT_SAYS.unread); });
 }
 // [netcheck:sheetoutgo-end]
 function openDownloadMenu(anchor) {

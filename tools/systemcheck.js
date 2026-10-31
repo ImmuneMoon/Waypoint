@@ -20560,6 +20560,36 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('a map reached in the Play view and never switched comes back in it after a reload (io.js applyRememberedView, run for real): it notes the view it is shown in, a map that remembers one goes to it, a player\'s app notes nothing, and a view that is no map\'s notes nothing',
             j(views) === j([['visual', 'visual'], ['data', 'data'], ['visual', null], ['planner', null]]), j(views));
     }
+    {   // 1.6.0: a sheet's own file read back is no change (a player's whole character, written and read as the Review reads it, run for real)
+        const X = await import(url('sheetexport.js'));
+        const raw = { v: 1, name: 'Read back', fields: [
+            { id: 'f_pow', key: 'Pow', label: 'Pow', kind: 'number', vis: 'all', edit: 'owner' },
+            { id: 'f_spd', key: 'Spd', label: 'Spd', kind: 'formula', vis: 'all', formula: 'Pow / 4' },
+            { id: 'f_tr', key: 'Traits', label: 'Traits', kind: 'item-list', vis: 'all', edit: 'owner', list: { on: { label: 'On', def: false }, lvl: { label: 'Level', min: 0, max: 20, step: 1, def: 0 }, counters: [{ key: 'chg', label: 'Charges' }, { key: 'use', label: 'Uses' }], stats: [{ key: 'wt', label: 'Weight' }, { key: 'tier', label: 'Class', labels: ['None', 'Light'], hide: true }] } },
+        ], items: [
+            { id: 'i_hardy', key: 'Hardy', name: 'Hardy', list: 'f_tr', stats: { wt: 1 } },
+            { id: 'i_blade', key: 'Blade', name: 'Blade', list: 'f_tr', stats: { wt: 2 } },
+            { id: 'i_coif', key: 'Coif', name: 'Coif', list: 'f_tr', stats: { wt: 2, tier: 1 } },
+            { id: 'i_cloak', key: 'Cloak', name: 'Cloak', list: 'f_tr', stats: { wt: 1 } },
+        ] };
+        const sG = cleanSystem(raw, { F, gmView: true }), sP = cleanSystem(raw, { F, gmView: false }), itemsOf = {}; (sG.items || []).forEach(i => { itemsOf[i.id] = i; });
+        const own = { id: 'w_own', qty: 1, lvl: 3, def: { name: 'Hardy', key: 'Hardy', stats: { wt: 4 }, mods: [{ f: 'f_spd', op: 'add', v: 0.5 }, { f: 'f_pow', op: 'add', v: 1, lvl: true }] } };
+        const cRaw = { id: 'c_rb', name: 'Pebbles', ownerId: 'u_p', npc: false, values: { f_pow: 8, f_tr: [own,
+            { id: 'w_a', defId: 'i_blade', qty: 1 },
+            { id: 'w_b', defId: 'i_cloak', qty: 1, on: true, ct: { use: 1, chg: 2 } },
+            { id: 'w_c', defId: 'i_coif', qty: 1, ov: { stats: { wt: 1, tier: 1 }, held: ['wt', 'tier'] } },
+            { id: 'w_d', defId: 'i_gone', qty: 1, lvl: 2, ov: { name: 'Old sword (worn)' }, snap: { name: 'Old sword', vis: 'all', key: 'OldSword', stats: { wt: 3 } } },
+        ] } };
+        const c = cleanChar(cRaw, sG, { state: 'host' }), view = S.charForView(c, sP, { items: itemsOf, full: sG }), all = resolveAll(sP, view, F, null);
+        const find = n => (sP.items || []).filter(i => i.name.toLowerCase() === String(n).trim().toLowerCase()), findKey = k => (sP.items || []).filter(i => i.key.toLowerCase() === String(k).trim().toLowerCase());
+        const file = () => JSON.parse(JSON.stringify(X.charToJson(sP, view, all, { exported: '' })));
+        const fill = X.charFromJson(sP, file(), find, findKey), pr = S.revProposal(sG, c, fill, F, { view: sP }), ownOp = fill.ops.filter(o => o.q.rowId === fill.ops[0].q.rowId)[0].q;
+        const j2 = file(); j2.values.f_tr[1].lvl = 7; const pr2 = S.revProposal(sG, c, X.charFromJson(sP, j2, find, findKey), F, { view: sP });
+        const j3 = file(); j3.system.sig = 'another'; const named = X.charFromJson(sP, j3, find, findKey).ops[0].q;
+        check('1.6.0 a sheet\'s own file read back offers no change (charToJson, charFromJson and revProposal, run for real on a player\'s whole character): a row of its own named as an entry stays its own on this very system, with a change on a worked-out field and one per level kept; a level and a switch left blank read as their defaults; counters in another order; a stat the player\'s file does not name at the entry\'s own figure; and a row whose entry has left the library, known by its name. A real change is still offered, and on another system a row of its own is still matched by its name',
+            !!pr && j(pr.changes) === '[]' && ownOp.op === 'custom' && j(ownOp.def.mods) === j([{ f: 'f_spd', op: 'add', v: 0.5 }, { f: 'f_pow', op: 'add', v: 1, lvl: true }]) && !!pr2 && pr2.changes.length === 1 && pr2.changes[0].to.includes('level 7') && named.op === 'add' && named.defId === 'i_hardy',
+            j([pr && pr.changes, ownOp, pr2 && pr2.changes, named]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

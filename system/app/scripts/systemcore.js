@@ -9289,7 +9289,9 @@ function cleanSheetOutReq(msg) { return isObj(msg) && typeof msg.rid === 'string
 function cleanSheetFile(v) {
     if (!isObj(v) || typeof v.name !== 'string' || typeof v.text !== 'string' || !v.text || v.text.length > LIMITS.sheetOut) return null;
     var nm = v.name.replace(/[^A-Za-z0-9 ._()-]+/g, '').replace(/^[. ]+/, '').trim().slice(-100).replace(/^[. ]+/, '');
-    return /[A-Za-z0-9)_-]\.json$/i.test(nm) ? { name: nm, text: v.text } : null;
+    if (!/[A-Za-z0-9)_-]\.json$/i.test(nm)) return null;
+    var o = { name: nm, text: v.text }, nt = typeof v.note === 'string' ? cutText(v.note.replace(/\s+/g, ' ').trim(), 200) : ''; if (nt) o.note = nt;   // a reader's own word to the player, as text
+    return o;
 }
 function cleanCharUpload(msg) {
     if (!isObj(msg) || typeof msg.rid !== 'string' || !RID_RE.test(msg.rid) || typeof msg.charId !== 'string' || !CHAR_ID.test(msg.charId) || !isObj(msg.sheet)) return null;
@@ -9529,17 +9531,47 @@ function revHeld(xo, yo) {
     var hl = yo.held.filter(function(h) { return typeof h === 'string' && Object.keys(xo.stats).some(function(k) { return lower(k) === lower(h); }); }); if (!hl.length) return xo;
     var out = {}; Object.keys(xo).forEach(function(k) { out[k] = xo[k]; if (k === 'stats') out.held = hl; }); return out;
 }
-function revRows(nv, ov, idm) {
-    var old = Array.isArray(ov) ? ov : [], used = map();
+// Two values alike whatever order their keys stand in, as a sheet reads them
+function revSort(v) { if (Array.isArray(v)) return v.map(revSort); if (!isObj(v)) return v; var o = {}; Object.keys(v).sort().forEach(function(k) { o[k] = revSort(v[k]); }); return o; }
+function revEq(a, b) { return JSON.stringify(revSort(a)) === JSON.stringify(revSort(b)); }
+// A stat a file does not name stays as the sheet has it where its player's view leaves it out, or where the sheet's own figure is the entry's own, which a file
+// has no need to name
+function revUnseen(xo, yo, vs, sp, base) {
+    if (!isObj(xo) || !isObj(yo) || !isObj(yo.stats)) return xo;
+    var seen = map(), named = map(), xs = isObj(xo.stats) ? xo.stats : {}, out = null; (isObj(vs) && Array.isArray(vs.stats) ? vs.stats : []).forEach(function(t) { if (isObj(t) && typeof t.key === 'string') seen[lower(t.key)] = 1; });
+    Object.keys(xs).forEach(function(q) { named[lower(q)] = 1; });
+    Object.keys(yo.stats).forEach(function(k) { if (named[lower(k)] || (seen[lower(k)] && !(base && rowStat(sp, base, k) === yo.stats[k]))) return; out = out || Object.assign({}, xs); out[k] = yo.stats[k]; });
+    return out ? Object.assign({}, xo, { stats: out }) : xo;
+}
+// ctx: { sys, f (the field), vs (the list as the player's view has it) }, for a file read against a sheet: a row is compared by what it reads as, so a level or a
+// switch left at its default and counters in another order are no change, and a row of the file's own that names a row whose entry has left the library is that row
+function revRows(nv, ov, idm, ctx) {
+    var old = Array.isArray(ov) ? ov : [], used = map(), c = isObj(ctx) ? ctx : null, sp = c && isObj(c.f) && isObj(c.f.list) ? c.f.list : {}, done = [];
     var take = function(x, same) { for (var i = 0; i < old.length; i++) { var y = old[i]; if (used[i] || !isObj(y) || y.hid === 1 || revRowKey(y) !== revRowKey(x) || (same && revRowName(y) !== revRowName(x))) continue; used[i] = 1; return y; } return null; };
-    return nv.map(function(x) {
-        if (!isObj(x) || x.hid === 1 || x.keptOn === 1 || !revRowKey(x)) return x;
-        var y = take(x, true) || take(x, false); if (!y) return x;
-        var o = JSON.parse(JSON.stringify(y)); ['qty', 'lvl', 'ct', 'ov'].forEach(function(k) { if (hasOwn(x, k)) o[k] = k === 'ov' ? revHeld(x.ov, y.ov) : x[k]; });
+    var defOf = function(y) { var d = c && c.sys ? rowDef(c.sys, y) : null; return d && d.def ? d.def : null; };
+    var baseOf = function(y) { var d = c && c.sys ? rowDef(c.sys, y) : null; return d ? d.base : null; };   // the entry with none of the row's own values
+    var byName = function(x) { for (var i = 0; i < old.length; i++) { var y = old[i]; if (used[i] || !isObj(y) || y.hid === 1 || typeof y.defId !== 'string' || (revRowName(y) || (defOf(y) || {}).name) !== x.def.name) continue; used[i] = 1; return y; } return null; };
+    var merge = function(x, y, named) {
+        var o = JSON.parse(JSON.stringify(y)); ['qty', 'lvl', 'ct', 'ov'].forEach(function(k) { if (hasOwn(x, k)) o[k] = k === 'ov' ? revHeld(c ? revUnseen(x.ov, y.ov, c.vs, sp, baseOf(y)) : x.ov, y.ov) : x[k]; });
         ['on', 'note'].forEach(function(k) { if (hasOwn(x, k)) o[k] = x[k]; else delete o[k]; });
-        if (hasOwn(x, 'def')) o.def = x.def;
+        if (hasOwn(x, 'def') && !named) o.def = x.def;
+        if (c) {
+            if (!hasOwn(y, 'lvl') && hasOwn(o, 'lvl') && o.lvl === rowLvl(sp, y, defOf(y))) delete o.lvl;
+            if (rowOn(sp, x) === rowOn(sp, y)) { if (hasOwn(y, 'on')) o.on = y.on; else delete o.on; }
+            if (isObj(o.def) && isObj(y.def) && typeof y.def.key === 'string' && !hasOwn(o.def, 'key')) o.def.key = y.def.key;   // a fill makes a row of its own with no key: the sheet's stands
+            ['ct', 'ov', 'def'].forEach(function(k) { if (hasOwn(y, k) && hasOwn(o, k) && revEq(o[k], y[k])) o[k] = JSON.parse(JSON.stringify(y[k])); });
+        }
         if (typeof x.id === 'string' && typeof y.id === 'string') idm[x.id] = y.id;
         return o;
+    };
+    var out = nv.map(function(x, i) {
+        if (!isObj(x) || x.hid === 1 || x.keptOn === 1 || !revRowKey(x)) return x;
+        var y = take(x, true) || take(x, false); if (!y) return x;
+        done[i] = 1; return merge(x, y, false);
+    });
+    return !c ? out : out.map(function(x, i) {
+        if (done[i] || !isObj(x) || x.hid === 1 || x.keptOn === 1 || typeof x.defId === 'string' || !isObj(x.def) || typeof x.def.name !== 'string') return x;
+        var y = byName(x); return y ? merge(x, y, true) : x;
     });
 }
 function revRowWord(sys, x) { var d = isObj(x) ? rowDef(sys, x) : null, n = revRowName(x) || (d && d.def && typeof d.def.name === 'string' ? d.def.name : 'A row'), q = isObj(x) && fin(x.qty) && x.qty !== 1 ? ' ×' + x.qty : '', l = isObj(x) && fin(x.lvl) ? ' level ' + x.lvl : ''; return n + l + q; }
@@ -9574,7 +9606,8 @@ function revProposal(sys, char, fill, F, opts) {
             lost = nv.filter(function(x) { return isObj(x) && x.hid !== 1; }).length < Object.keys(named).length;   // the file named rows this list could not place: offered unticked, said so   // the rows its player does not hold stay: a kept curse (fillMaking keeps it) and a GM-only row
             var mkOld = map(); (Array.isArray(ov) ? ov : []).forEach(function(x) { if (isObj(x) && x.mk === 1 && typeof x.defId === 'string') mkOld[x.defId] = 1; });   // 1.6.0 (v2, B5): the fill stands in for the making, so a row is marked made only where the character's own row of that entry was
             nv.forEach(function(x) { if (isObj(x) && x.mk === 1 && !(typeof x.defId === 'string' && mkOld[x.defId] === 1)) delete x.mk; });
-            nv = revRows(nv, ov, idm);
+            var vsF = isObj(opts) && isObj(opts.view) && Array.isArray(opts.view.fields) ? opts.view.fields.filter(function(g) { return isObj(g) && g.id === f.id; })[0] : null;
+            nv = revRows(nv, ov, idm, { sys: sys, f: f, vs: vsF && isObj(vsF.list) ? vsF.list : null });
             var have = map(); nv.forEach(function(x) { if (isObj(x)) have[rowIdOf(x)] = 1; });
             (Array.isArray(ov) ? ov : []).forEach(function(x) { if (!isObj(x) || have[rowIdOf(x)]) return; var d = rowDef(sys, x); if (x.hid === 1 || !d || !d.def || d.def.vis === 'gm') nv.push(x); });
         }

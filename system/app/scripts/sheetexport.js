@@ -92,12 +92,13 @@ function charFromJson(view, j, find, findKey) {
     view.fields.forEach(function(f) { if (!isObj(f) || typeof f.id !== 'string' || !STORED[f.kind] || f.vis === 'gm') return; byId[f.id] = f; if (typeof f.key === 'string' && f.key) byKey[f.key.toLowerCase() + '|' + f.kind] = f; });
     (Array.isArray(view.items) ? view.items : []).forEach(function(it) { if (isObj(it) && typeof it.id === 'string' && it.vis !== 'gm') items[it.id] = it; });
     (Array.isArray(view.effects) ? view.effects : []).forEach(function(d) { if (isObj(d) && typeof d.id === 'string' && d.vis !== 'gm') effs[d.id] = d; });
+    var anyF = Object.create(null); view.fields.forEach(function(f) { if (isObj(f) && typeof f.id === 'string' && f.vis !== 'gm') anyF[f.id] = f; });   // what a change may name on this very system: a worked-out field too, which a file does not list
     var target = function(fid) {   // the view's field for one of the file's
         var ff = own(fileF, fid) ? fileF[fid] : null; if (!isObj(ff) || typeof ff.kind !== 'string') return null;
         var kid = own(byId, fid) && byId[fid].kind === ff.kind ? byId[fid] : null, kk = typeof ff.key === 'string' && ff.key ? byKey[ff.key.toLowerCase() + '|' + ff.kind] || null : null;
         return same ? (kid || kk) : (kk || kid);
     };
-    var mods = function(ms) { return (Array.isArray(ms) ? ms.slice(0, 12) : []).map(function(m) { if (!isObj(m) || typeof m.f !== 'string') return null; var t = target(m.f); if (!t) return null; var o = { f: t.id, op: m.op }; if (m.v !== undefined) o.v = m.v; if (m.part) o.part = m.part; if (Array.isArray(m.tiers)) o.tiers = m.tiers; return o; }).filter(Boolean); };
+    var mods = function(ms) { return (Array.isArray(ms) ? ms.slice(0, 12) : []).map(function(m) { if (!isObj(m) || typeof m.f !== 'string') return null; var t = target(m.f) || (same && anyF[m.f]) || null; if (!t) return null; var o = { f: t.id, op: m.op }; if (m.v !== undefined) o.v = m.v; if (m.part) o.part = m.part; if (m.lvl === true) o.lvl = true; if (Array.isArray(m.tiers)) o.tiers = m.tiers; if (typeof m.key === 'string') o.key = m.key; if (typeof m.col === 'string') o.col = m.col; return o; }).filter(Boolean); };
     var n = 0, pfx = Math.random().toString(36).slice(2, 6), rid = function(p) { n++; return p + 'f' + pfx + n.toString(36); };
     var idMap = Object.create(null), grQ = [];   // 1.6.0 (v2, B4): each file row's new id, and the adds of rows another row granted, which then name that row by its new id
     var label = function(fid) { var ff = own(fileF, fid) ? fileF[fid] : null; return isObj(ff) ? String(ff.label || ff.key || 'A field').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 60) : 'A field'; };
@@ -116,7 +117,7 @@ function charFromJson(view, j, find, findKey) {
             var id = rid('w_'), qty = typeof r.qty === 'number' && isFinite(r.qty) ? Math.max(1, Math.min(99, Math.round(r.qty))) : 1, def = isObj(r.def) ? r.def : null;
             if (typeof r.id === 'string' && !own(idMap, r.id)) idMap[r.id] = id;
             var nm = def && typeof def.name === 'string' ? def.name : typeof r.name === 'string' ? r.name : '', key = def && typeof def.key === 'string' ? def.key : typeof r.key === 'string' ? r.key : '';
-            var e = typeof r.defId === 'string' && own(items, r.defId) ? items[r.defId] : named(nm, key);
+            var e = typeof r.defId === 'string' && own(items, r.defId) ? items[r.defId] : same && def && r.lnk !== 1 ? null : named(nm, key);   // on this very system a row of the character's own stays its own, whatever its name reads as in the library
             if (!e && r.lnk === 1 && key && typeof findKey === 'function') (findKey(key) || []).forEach(function(x) { if (!e && isObj(x) && typeof x.id === 'string' && x.vis !== 'gm' && (!cats || catOk(cats, x.category))) e = x; });   // a library copy with its own name ("Guns (Pistol)" over Guns): by its key
             if (e) {
                 var qA = { op: 'add', defId: e.id, rowId: id, qty: qty }; out.ops.push({ f: f.id, q: qA }); if (typeof r.gr === 'string') grQ.push({ q: qA, gr: r.gr, gp: r.gp === 1 }); else if (typeof r.gb === 'string') grQ.push({ q: qA, gb: r.gb, gl: r.gl });   // 1.6.0 (a builder audit): a row a grant backs keeps its mark too

@@ -8706,7 +8706,7 @@ function handleMessage(msg, conn) {
         Promise.resolve().then(function() { return outX.write({ char: copyX, system: viewX, F: window.wpFormula, campId: campX.id }); }).then(function(fX) {
             var cleanX = Sx.cleanSheetFile(fX); if (!cleanX) { stepX('failed', { at: 'file' }); ansX({ reason: 'unread' }); return; }
             var parts = []; for (var ix = 0; ix < cleanX.text.length && parts.length < OUT_PARTS; ix += OUT_PART) parts.push(cleanX.text.slice(ix, ix + OUT_PART));
-            stepX('sent', { size: cleanX.text.length, parts: parts.length }); ansX({ name: cleanX.name, parts: parts });
+            stepX('sent', { size: cleanX.text.length, parts: parts.length }); var outO = { name: cleanX.name, parts: parts }; if (cleanX.note) outO.note = cleanX.note; ansX(outO);
         }, function() { stepX('failed', { at: 'write' }); ansX({ reason: 'unread' }); });
         // [netcheck:sheetout-end]
     } else if (msg.type === 'sheet-out-ans' && net.role === 'client') {
@@ -8714,7 +8714,7 @@ function handleMessage(msg, conn) {
         // 1.6.0: the host's answer to our sheet-out, from the synced host only, for the question still open, cleaned here again: a file name and a size
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !_outAsk || msg.rid !== _outAsk.rid) return;
         var cbO = _outAsk.cb, SO = SC(), ptO = Array.isArray(msg.parts) && msg.parts.length <= OUT_PARTS && msg.parts.every(function(p) { return typeof p === 'string'; }) ? msg.parts : null, szO = ptO ? ptO.reduce(function(n, p) { return n + p.length; }, 0) : 0;
-        var fileO = SO && typeof SO.cleanSheetFile === 'function' && ptO && szO <= SO.LIMITS.sheetOut ? SO.cleanSheetFile({ name: msg.name, text: ptO.join('') }) : null;
+        var fileO = SO && typeof SO.cleanSheetFile === 'function' && ptO && szO <= SO.LIMITS.sheetOut ? SO.cleanSheetFile({ name: msg.name, text: ptO.join(''), note: msg.note }) : null;
         clearTimeout(_outAsk.timer); _outAsk = null; try { cbO(fileO, fileO ? '' : typeof msg.reason === 'string' ? msg.reason.slice(0, 20) : 'unread'); } catch (e) {}
         // [netcheck:sheetoutans-end]
     } else if (msg.type === 'apply' && net.role === 'client') {

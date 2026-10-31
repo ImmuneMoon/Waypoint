@@ -1608,7 +1608,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
         var wps = []; (Array.isArray(d.weapons) ? d.weapons : []).forEach(function(l) {
             if (wps.length >= DMG_LIM.weapons || !isObj(l) || !isList(l.list)) return;
             var du = cleanFormulaText(l.dur), w = dmgStatOk(fl, l.list, l.wear), c = dmgStatOk(fl, l.list, l.cond); if (!du || !w || !c) return;
-            wps.push({ list: l.list, dur: du, wear: w, cond: c });
+            var wo = { list: l.list, dur: du, wear: w, cond: c }; if (l.test === 'listed') wo.test = 'listed'; if (l.heavy === 'zero') wo.heavy = 'zero'; wps.push(wo);   // 1.6.0 (asked by a campaign build's session): how a blow is judged, each absent as before
         }); if (wps.length) out.weapons = wps;
     } else {   // the window offers the weapons the blow may test; the host reads their Dur
         var wpl = []; (Array.isArray(d.weapons) ? d.weapons : []).forEach(function(l) { if (wpl.length < DMG_LIM.weapons && isObj(l) && isList(l.list)) wpl.push({ list: l.list }); }); if (wpl.length) out.weapons = wpl;
@@ -1867,10 +1867,11 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
         if (!hit) return { ok: false, reason: 'missing' };
         var wl = values[hit.f.id] || JSON.parse(JSON.stringify(hit.src)), wrow = null; wl.forEach(function(r) { if (!wrow && rowIdOf(r) === inp.weapon) wrow = r; });
         var wv = R.row(hit.f.id, inp.weapon), ld = wv ? Math.floor(num(ev(hit.wp.dur, wv))) : 0, wear = num(R.stat(hit.f, wrow, hit.wp.wear)), cond = clampNum(Math.floor(num(R.stat(hit.f, wrow, hit.wp.cond))), 0, 3);
-        var over = bAmt - (ld - wear), nc = cond, nw2 = wear, wrd = rowDef(sys, wrow), wn = wrd && wrd.def && wrd.def.name ? wrd.def.name : 'The weapon';
+        var over = bAmt - (hit.wp.test === 'listed' ? ld : ld - wear), nc = cond, nw2 = wear, wrd = rowDef(sys, wrow), wn = wrd && wrd.def && wrd.def.name ? wrd.def.name : 'The weapon';
         if (ld > 0 && over >= 1 && cond < 3) {
             if (over <= 10) { nw2 = Math.min(ld * 2, wear + 1); nc = Math.max(cond, 1); }
             else if (over >= 20 && bCuts) nc = 3;
+            else if (hit.wp.heavy === 'zero') { nw2 = wear < ld ? ld : Math.min(ld * 2, wear + 1); nc = Math.max(cond, 2); }   // takes what is left to 0, then 1 a blow down to minus its listed value
             else nc = cond >= 2 ? 3 : 2;
             if (ld - nw2 <= -ld) nc = 3; else if (ld - nw2 <= 0) nc = Math.max(nc, 2);
         }

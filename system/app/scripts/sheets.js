@@ -9217,6 +9217,9 @@ function damageBox(box, cm) {
         var du = input('sys-dmgr-wdur field', dbxStr(w.dur), 'The weapon’s listed Dur. It reads the row as Row', 'Dur, e.g. Row.dur'); du.maxLength = LIMITS.formula; rw.appendChild(du);
         dbxCap(rw, 'Worn in'); rw.appendChild(select('sys-dmgr-wwear', dbxOpts(['', 'Pick a stat'], nk, w.wear), dbxStr(w.wear), 'The number stat that holds the Dur worn off'));
         dbxCap(rw, 'Condition in'); rw.appendChild(select('sys-dmgr-wcond', dbxOpts(['', 'Pick a stat'], nk, w.cond), dbxStr(w.cond), 'The number stat that holds its condition: 0 Fine, 1 Damaged, 2 Broken, 3 Destroyed'));
+        var wt = el('span', 'sys-dmgr-wpair'), wh = el('span', 'sys-dmgr-wpair');   // a caption and its list wrap together
+        dbxCap(wt, 'A blow tests'); wt.appendChild(select('sys-dmgr-wtest', [['', 'The Dur left'], ['listed', 'Its listed Dur']], w.test === 'listed' ? 'listed' : '', 'What a blow must beat: the Dur left after wear, or the weapon\u2019s listed Dur, worn or not')); rw.appendChild(wt);
+        dbxCap(wh, 'A heavy blow'); wh.appendChild(select('sys-dmgr-wheavy', [['', 'A condition down'], ['zero', 'Down to 0 left']], w.heavy === 'zero' ? 'zero' : '', 'A blow 11 or more over: a condition down, or the Dur left taken to 0, then 1 a blow down to minus its listed Dur')); rw.appendChild(wh);
         rw.appendChild(dbxBtn('dmgrwdel', '×', 'Remove this'));
         wrap.appendChild(rw);
     });
@@ -9290,9 +9293,9 @@ function onDamageChange(t) {
         var curW = (Array.isArray(lW.wears) ? lW.wears : []).map(function(x) { return String(x).toLowerCase(); });
         var wantW = dbxKeys(lW.list, true).map(function(kv) { return kv[0]; }).filter(function(x) { return x.toLowerCase() === kW ? on : curW.indexOf(x.toLowerCase()) >= 0; });
         if (wantW.length) lW.wears = wantW; else delete lW.wears;
-    } else if (dbxHas(c, 'sys-dmgr-wlist') || dbxHas(c, 'sys-dmgr-wwear') || dbxHas(c, 'sys-dmgr-wcond')) {
+    } else if (dbxHas(c, 'sys-dmgr-wlist') || dbxHas(c, 'sys-dmgr-wwear') || dbxHas(c, 'sys-dmgr-wcond') || dbxHas(c, 'sys-dmgr-wtest') || dbxHas(c, 'sys-dmgr-wheavy')) {
         var w = dbxRow(t, 'sys-dmgr-weapon', 'wi', 'weapons'); if (!w) return true;
-        if (dbxHas(c, 'sys-dmgr-wlist')) { if (w.list !== v) { delete w.wear; delete w.cond; } dbxSet(w, 'list', v); redraw = true; } else dbxSet(w, dbxHas(c, 'sys-dmgr-wwear') ? 'wear' : 'cond', v);
+        if (dbxHas(c, 'sys-dmgr-wlist')) { if (w.list !== v) { delete w.wear; delete w.cond; } dbxSet(w, 'list', v); redraw = true; } else dbxSet(w, dbxHas(c, 'sys-dmgr-wwear') ? 'wear' : dbxHas(c, 'sys-dmgr-wtest') ? 'test' : dbxHas(c, 'sys-dmgr-wheavy') ? 'heavy' : 'cond', v);
     } else return true;   // a text box: its input event did the work
     markDirty(); if (redraw) renderAll(); else patchErrors(); return true;
 }

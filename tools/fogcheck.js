@@ -587,11 +587,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const ixF = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').replace(/\r\n/g, NL);
         const js = JSON.stringify, lj = JSON.stringify, lineOf = a => { const i = fogSrc.indexOf(a), k = fogSrc.indexOf(NL, i); if (i < 0 || k < 0) throw new Error('fogcheck: ' + a + ' not found'); return fogSrc.slice(i, k + 1); };
         let campCv = { system: { combat: { cover: { on: true } } } }, mapNow = null;
-        const cvToasts = []; let cvClient = false;
+        const cvToasts = []; let cvClient = false; const cvWin = { wpSystemCore: { coverTier: (sys, coverage, lineOfEffect) => ({ coverage: coverage, lineOfEffect: lineOfEffect }) } };
         const CV = new Function('core', 'activeCamp', 'activeMap', 'gridForMap', 'window', 'toast', 'isClientView', "'use strict'; var _viewCache, _coverCache = Object.create(null), _coverStamp = Object.create(null), _keyCache, _blockerCache, _blockerStamp, _maskCache, _maskStamp;" + NL
-            + lineOf('function invalidateVision()') + lineOf('function coverOn(') + cut('function footprintCells(') + lineOf('var _smokeCache = Object.create(null)') + cut('function smokeFor(') + cut('function smokeUnion(') + cut('function coverBetween(x1') + cut('function coverSetsFor(') + lineOf('function heightRuleOf(') + cut('function heightCover(') + cut('function coverAt(') + cut('function blastSeat(') + cut('function flightWall(')
-            + NL + 'return { coverSetsFor: coverSetsFor, coverAt: coverAt, coverBetween: coverBetween, blastSeat: blastSeat, flightWall: flightWall, invalidateVision: invalidateVision, heightCoverOf: function(cs, a, b) { return heightCover(cs, a, b, gridForMap()); } };')(
-            () => FC, () => campCv, () => mapNow, () => grid, { wpSystemCore: { coverTier: (sys, coverage, lineOfEffect) => ({ coverage: coverage, lineOfEffect: lineOfEffect }) } }, t => cvToasts.push(t), () => cvClient);
+            + lineOf('function invalidateVision()') + lineOf('function coverOn(') + cut('function footprintCells(') + lineOf('var _smokeCache = Object.create(null)') + cut('function smokeFor(') + cut('function smokeUnion(') + cut('function coverBetween(x1') + cut('function coverSetsFor(') + cut('function tokHeight(') + cut('function targetCover(') + cut('function coverObject(') + lineOf('function heightRuleOf(') + cut('function heightCover(') + cut('function coverAt(') + cut('function blastSeat(') + cut('function flightWall(')
+            + NL + 'function hNum(v) { return typeof v === "number" && isFinite(v) ? v : 0; }' + NL + 'return { targetCover: targetCover, coverObject: coverObject, coverSetsFor: coverSetsFor, coverAt: coverAt, coverBetween: coverBetween, blastSeat: blastSeat, flightWall: flightWall, invalidateVision: invalidateVision, heightCoverOf: function(cs, a, b) { return heightCover(cs, a, b, gridForMap()); } };')(
+            () => FC, () => campCv, () => mapNow, () => grid, cvWin, t => cvToasts.push(t), () => cvClient);
         const keysOf = cells => cells.map(c => FC.cellKey(c, grid)).sort();
         const wall = { id: 'wall', type: 'rect', x: 100, y: 0, w: 50, h: 50, blocksSight: true }, crate = { id: 'crate', type: 'circle', x: 100, y: 100, w: 50, h: 50, cover: 'yes' };
         const tokC = { id: 'tok', type: 'circle', isChar: true, blocksSight: true, x: 100, y: 200, w: 50, h: 50 }, gone = { id: 'gone', type: 'rect', x: 100, y: 300, w: 50, h: 50, blocksSight: true, hidden: true };
@@ -603,6 +603,30 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('Cover: a map\'s cover pieces (fog.js coverSetsFor, run strict) — a sight-blocker is hard cover, a see-over piece soft, never a token or a hidden piece; all is their union; the same saved stamp reads the cache until invalidateVision, a new stamp recomputes (a piece set to no cover drops out)',
             js(hardK) === js(keysOf(FC.cellsUnderRect(100, 0, 50, 50, grid))) && js(softK) === js(keysOf(FC.cellsUnderCircle(100, 100, 50, 50, grid))) && hardK.length > 0 && softK.length > 0 && cs2 === cs1
             && js(allK) === js(hardK.concat(softK).sort()) && cs2b === cs1 && !!cs3 && !cs3.soft && js(Object.keys(cs3.hard).sort()) === js(hardK) && cs3.all === cs3.hard && cs4 === cs3 && !!cs5 && !!cs5.soft, js([hardK, softK, allK, cs3]));
+        {   // 1.6.0: a placed object gives cover by itself up to the size a system names, and TargetCover reads what the ruler reads
+            const RO = (o, m) => FC.coverRole(Object.assign({ id: 'o', type: 'image', x: 0, y: 0, w: 50, h: 50 }, o), m);
+            check('placed objects: a picture or a plain shape no larger than the size gives see-over cover, none with no size, and a larger one none, so a whole-map picture stays the map',
+                RO({}) === null && RO({}, 0) === null && RO({}, 100) === 'soft' && RO({ w: 101 }, 100) === null && RO({ h: 101 }, 100) === null && ['rect', 'hexagon', 'circle', 'diamond'].every(t => RO({ type: t }, 100) === 'soft') && RO({ type: 'text' }, 100) === null && RO({ type: 'path' }, 100) === null && RO({ w: 0 }, 100) === null);
+            check('placed objects: Properties\' No cover turns one off, a wall stays hard cover, and a token, a hidden piece and every piece with a purpose of its own stay as they are',
+                RO({ cover: 'no' }, 100) === null && RO({ blocksSight: true }, 100) === 'hard' && RO({ isChar: true }, 100) === null && RO({ hidden: true }, 100) === null
+                && [{ fill: true }, { texture: 'planks' }, { texSrc: '/saves/images/a.png' }, { terrain: 2 }, { ground: 1 }, { smoke: true }, { fogged: true }, { nulls: ['x'] }, { targetMapId: 'm' }, { nodeId: 'n' }, { trap: true }, { barrier: true }, { gmNoteFor: 'r' }].every(o => RO(o, 100) === null));
+            check('placed objects: the size is the system\'s, in cells across, only with cover on', FC.coverMost({ combat: { cover: { on: true, objects: 3 } } }, grid) === 3 * grid.size && FC.coverMost({ combat: { cover: { on: false, objects: 3 } } }, grid) === 0 && FC.coverMost({ combat: { cover: { on: true } } }, grid) === 0 && FC.coverMost(null, grid) === 0 && FC.coverMost({ combat: { cover: { on: true, objects: 2 } } }, null) === 0);
+            const small = { id: 'sm', type: 'rect', x: 140, y: 140, w: 20, h: 20 }, rug = { id: 'rug', type: 'rect', x: 200, y: 200, w: 50, h: 50, cover: 'no' }, big = { id: 'big', type: 'image', src: 'x', x: 0, y: 0, w: 4000, h: 4000 };
+            const mapO = { id: 'mo', meta: { updated: 1 }, whiteboard: [small, rug, big] };
+            const none = CV.coverSetsFor(mapO, grid);
+            const campKeep = campCv; campCv = { system: { combat: { cover: { on: true, objects: 2 } } } };
+            const some = CV.coverSetsFor(mapO, grid), softO = Object.keys((some && some.soft) || {});
+            check('placed objects on a map: a small piece that covers no cell\'s centre counts in the cell of its own middle, a rug set to No cover and a picture past the size do not, and a map with none set reads as before',
+                none === null && softO.length === 1 && softO[0] === FC.cellKey(FC.cellOf(150, 150, grid), grid), js([none, softO]));
+            const askW = cvWin.wpSystemCore.coverTier, sysO = campCv.system, A = { x: 0, y: 100, w: 50, h: 50 }, B = { x: 300, y: 100, w: 50, h: 50 };
+            cvWin.wpSystemCore.coverTier = (s, coverage, line) => !line ? { block: true } : coverage > 0 ? { block: false } : null;
+            const crateO = { id: 'c', type: 'rect', x: 150, y: 100, w: 50, h: 50 }, wallO = { id: 'w', type: 'rect', x: 150, y: 0, w: 50, h: 400, blocksSight: true }, mapT = { id: 'mt', meta: { updated: 1 }, whiteboard: [] }, read = () => CV.targetCover(mapT, { system: sysO }, A, B, true);
+            const t0 = read(); mapT.whiteboard = [crateO]; mapT.meta.updated = 2; CV.invalidateVision(); const t1 = read(); mapT.whiteboard = [wallO]; mapT.meta.updated = 3; CV.invalidateVision(); const t2 = read();
+            const tOff = CV.targetCover(mapT, { system: { combat: { cover: { on: false } } } }, A, B, true), tNone = CV.targetCover(null, { system: sysO }, A, B, true);
+            mapNow = mapT; const isObjO = CV.coverObject({ id: 'p', type: 'image', x: 0, y: 0, w: 50, h: 50 }), notOff = CV.coverObject({ id: 'p', type: 'image', x: 0, y: 0, w: 50, h: 50, cover: 'no' }), notYes = CV.coverObject({ id: 'p', type: 'image', x: 0, y: 0, w: 50, h: 50, cover: 'yes' }); mapNow = null;
+            cvWin.wpSystemCore.coverTier = askW; campCv = campKeep;
+            check('TargetCover (fog.js targetCover, run strict): 0 with no cover, 1 with some, 2 with no clear line, read for any map a roll names, 0 with cover off or no map; Properties asks whether a piece counts as an object', t0 === 0 && t1 === 1 && t2 === 2 && tOff === 0 && tNone === 0 && isObjO === true && notOff === false && notYes === false, js([t0, t1, t2, tOff, tNone, isObjO, notOff, notYes]));
+        }
         // a barrier's Stops blasts tick (the owner, 2026-10-03: "A tick per barrier"): the sets a BLAST reads — coverSetsFor asked with blast true,
         // by coverAt and blastSeat alone — hold a closed barrier that is ticked as a wall; the map's own sets, which every other reader asks, never do
         {

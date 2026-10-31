@@ -245,6 +245,13 @@ Systems, more
   of as far as the eyes reach. + Side vision opens a wider arc than the eyes':
   the sides show their ground dimmed and the creatures there dimmed, a token can
   be ticked as not noticed, and what is behind stays dark.
+- A system can let placed objects give cover by themselves. On the Combat card,
+  with cover on, Placed objects give cover names the largest size that counts, in
+  cells across, so a whole-map picture stays the map. A rug or a marking is set
+  to No cover in its Properties. A small piece that covers no cell's centre then
+  counts in the cell its own middle stands in.
+- A roll can read cover as TargetCover: 0 with none, 1 with some, 2 with no clear
+  line, as the ruler reads it to the character's target.
 - A band of side vision can notice by a roll. In the System editor's Senses box
   a band has Noticed by, a check on the viewer's sheet. A creature moving there
   is noticed with no roll. One standing still is checked in secret when it comes

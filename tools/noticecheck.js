@@ -153,6 +153,9 @@ function world(opts) {
     const elsewhere = JSON.parse(J(gmV)); elsewhere.rolls[0].formula = '3d6 <= TargetLight';
     const m2 = (SC.validateSystem(elsewhere, F).errors || []).map(e => e.message).join(' | ');
     check('and nowhere else', /known only in a side vision check/.test(m2), m2);
+    const atk = JSON.parse(J(gmV)); atk.rolls[0].formula = '3d6 <= 10 - TargetCover';
+    const m2b = (SC.validateSystem(atk, F).errors || []).map(e => e.message).join(' | ');
+    check('TargetCover is known in any roll, as RangeMod is', m2b.indexOf('TargetCover') < 0, m2b);
     const keyed = JSON.parse(J(sys)); keyed.fields.push({ id: 'f_tl', key: 'TargetLight', kind: 'number', label: 'L' }); keyed.rolls[0].formula = '3d6 <= TargetLight';
     const m3 = (SC.validateSystem(SC.cleanSystem(keyed, { F, gmView: true }), F).errors || []).map(e => e.message).join(' | ');
     check('a field of that name keeps its name', !/side vision check/.test(m3), m3);
@@ -166,6 +169,8 @@ function world(opts) {
     check('the host hears a sneak\'s roll from a player and from its own', net.split('window.wpNotice.stealth(').length === 3);
     check('a creature stops moving by its turn, a new table starts clean, and a result that changes what is held is sent', /window\.wpNotice\.turnEnd\(mapId, row\.tokId\)/.test(net) && /function fogForgetAll\(\) \{ if \(typeof window !== 'undefined' && window\.wpNotice\) window\.wpNotice\.forget\(\);/.test(net) && /net\.noticeArm = function\(mapId\) \{ fogArm\(mapId\); \};/.test(net));
     check('the sheet names such a roll as it is pressed', sh.indexOf('if (r.needs || r.named) { oR = oR || {}; oR.act = r.id; }') >= 0);
+    const nt = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'latin1');
+    check('a player\'s roll and the sheet read TargetCover by the fog, as the ruler does', nt.indexOf('Fgc.targetCover(map, camp, tok, w, true)') > 0 && sh.indexOf('window.wpFog.targetCover(map, camp, tok, w, pc)') > 0);
     check('the module is in the page', page.indexOf('<script type="module" src="scripts/notice.js"></script>') > 0);
     check('the System editor offers it on a band alone', /if \(s\.shows === 'side' && !mark\) wrap\.appendChild\(noticeRow\(s, i\)\);/.test(sh));
     check('Help says it', /<b>Noticed by<\/b> gives a band a check of your own/.test(page) && /<b>Sneaking where<\/b>/.test(page));

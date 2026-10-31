@@ -5861,6 +5861,7 @@ function rangeTo(camp, map, mapId, tok, pid) {
         var gOf = function(t) { var St = window.wpStance; return St && St.tokenGround ? St.tokenGround(t, map, true) : 0; };   // item 19b H5: each on the ground it stands on, as the player's copy reads it (never a piece the GM hid)
         var cOf = function(t) { return t && typeof t.charId === 'string' && camp.chars && own(camp.chars, t.charId) ? camp.chars[t.charId] : null; };   // 1.6.0: TargetSize, from the target's own character
         var rc = S.rangeCtx(camp.system, map, tok, w, { F: window.wpFormula, elev: !!el, groundOf: gOf, charOf: cOf }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target
+        var Fgc = window.wpFog; if (rc && Fgc && typeof Fgc.targetCover === 'function') { var cvN = Fgc.targetCover(map, camp, tok, w, true); if (cvN) rc.cover = cvN; }   // 1.6.0: TargetCover, as the ruler reads it
         return rc;
     };
     return typeof fogLanded === 'function' ? fogLanded(mapId, judge) : judge();

@@ -3350,6 +3350,7 @@
   /* Items tab (Stage 5): the campaign item library + the combat/blast settings */
   #sysCombatBox, #sysListRules { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; padding: 8px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }
   .sys-combat-item { display: inline-flex; flex-direction: column; gap: 3px; }
+  .sys-holds > .sys-combat-item { margin: 0 14px 6px 0; vertical-align: top; }   /* captions that would run together */
   /* 107, options that say what they do: a grey line under a captioned list of the Combat card. It takes the width of its list and never widens it */
   .sys-combat-item > .sys-line { width: 0; min-width: 100%; font-size: 10.5px; line-height: 1.4; color: var(--dim); }
   .sys-combat-item.sys-combat-wide > .sys-line { width: 300px; min-width: 0; }   /* words longer than their list */

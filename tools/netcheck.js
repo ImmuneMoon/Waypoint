@@ -4246,6 +4246,11 @@ pendingChecks.push((async () => {
         && ((qS.table.find(m => m.type === 'roll') || {}).names || []).some(n => n.name === 'OnSelf' && n.value === 1) && j(qS.v('c_a').f_hp) === j({ cur: 11 })
         && qF.table.length === 0 && (qF.sent[0] || {}).type === 'roll-deny' && qF.sent[0].message === 'They must stand next to you.' && qF.deltas.length === 0 && qK.table.length === 0 && (qK.sent[0] || {}).message === 'That cannot be used on someone else.',
         j([qRoll.names, qB.v('c_b'), qB.deltas, qCard, qS.v('c_a'), qF.sent, qK.sent]));
+    // Found by hand: every harness here hands net.js a facingTarget of its own, and the app published none, so a line and a roll used on someone next to you did nothing on the GM's own press. Every name any script asks of window.wpSheets is one sheets.js publishes
+    { const dirS = path.join(__dirname, '..', 'system', 'app', 'scripts'), shS = fs.readFileSync(path.join(dirS, 'sheets.js'), 'utf8'), pubS = shS.slice(shS.indexOf('window.wpSheets = {'), shS.indexOf('// An outside sheet reader (2026-10-18)')), names = new Set();
+      fs.readdirSync(dirS).filter(f => f.endsWith('.js')).forEach(f => { for (const m of fs.readFileSync(path.join(dirS, f), 'latin1').matchAll(/\bwpSheets\.([A-Za-z_$][\w$]*)/g)) names.add(m[1]); });
+      const missS = [...names].filter(n => !new RegExp('(^|[\\s,{])' + n + '\\s*:').test(pubS) && !new RegExp('\\bwpSheets\\.' + n + '\\s*=[^=]').test(shS));
+      check('1.6.0 every name a script asks of window.wpSheets is published (found by hand, a line on the GM\'s own press: facingTarget stood only in the reader\'s kit, and every stand-in here has one of its own)', pubS.length > 1000 && names.size > 40 && names.has('facingTarget') && missS.length === 0, j(missS)); }
     // the GM's own roll: net.diceRoll with this machine's own word, the token, judged on the map the character's token is on (wpSheets.facingTarget)
     const runG = (expr, o) => { const out = { deltas: [], saves: 0, cards: [], chat: [] }, camp = mkCamp(), m1 = camp.items.m1, tokA = m1.whiteboard[0];
         const net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]), postApplyCard: (ch, label, lines) => out.cards.push([ch.id, label, lines]) };

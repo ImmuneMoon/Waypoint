@@ -1165,6 +1165,16 @@ For system builders, more
   does under a ruler. Before, a drag meant for the token moved the blast.
 - A file that fills a character in the making now names it too. Before, the
   sheet's title kept the player's name.
+- A line that hits someone a player cannot see now tells that player nothing.
+  Before, they got a card with no name on it. The GM still sees every hit.
+- A grab or a pin that waits for a player's roll now gives the GM a card with
+  Apply now, which lands the hold if that roll never comes.
+- A right-click on a token under a blast now opens the token's menu. Before, it
+  removed the blast.
+- A blast the GM drags now moves on the players' screens too.
+- Under Full auto, a blast that waits for Defense rolls now says so on its card.
+  Before, the card said Applied too soon.
+- A hold taken while All holds end where is true now ends at once.
 - In the System editor, a press on a list's card or on the Combat card keeps your
   place, so the arrow keys step a menu and Space takes a tick back off.
 - A blast's Defense roll now counts when it is a plain roll with no Needs or

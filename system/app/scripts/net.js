@@ -5563,14 +5563,26 @@ function rowOnGm(S, camp, view, row) {   // a player's press names a list's roll
     if (!row || typeof row.i !== 'number' || !view || !S || typeof S.rollPlace !== 'function') return row;
     var i = S.rollPlace(view, camp && camp.system, row.f, row.i); return i < 0 || i === row.i ? row : Object.assign({}, row, { i: i });
 }
-function holdLand(camp, ht) { var pw = holdPut(camp, ht.m, holdTokOf(camp, ht.m, ht.c), ht.on, ht.pin); if (pw) holdTell(camp, ht.c, pw); }
+function holdLand(camp, ht) { var pw = holdPut(camp, ht.m, holdTokOf(camp, ht.m, ht.c), ht.on, ht.pin); if (pw) holdTell(camp, ht.c, pw); else if (typeof holdsWatch === 'function') holdsWatch(ht.c); return pw; }   // a hold taken while All holds end where is true ends at once: nothing else would ask until the character next changed
+// a hold waits for a player's roll, which may never come: the GM's card, Apply now, lands it without one (the owner, 2026-11-01, by prompt: "Apply now on the card (Recommended)")
+function holdAsk(camp, att, rec, ent, ht) {
+    var tc = rec && camp && camp.chars && own(camp.chars, rec.charId) ? camp.chars[rec.charId] : null; if (!tc || tc.npc || !tc.ownerId || typeof net.postBlastDue !== 'function') return;
+    var w = holdTok(camp.items && own(camp.items, ht.m) ? camp.items[ht.m] : null, ht.on), nm = String((ent && ent.label) || 'A hold').split('{')[0].trim() + ' on ' + ((w && (w.charName || w.name)) || tc.name || 'them');
+    net.postBlastDue(tc, att, nm, false, 'hold');
+}
+net.holdGo = function(att) {
+    var rec = typeof attemptRec === 'function' ? attemptRec(att) : null, camp = getActiveCampaign(); if (net.role === 'client' || !camp) return false;
+    if (!rec || !rec.ht) { if (typeof toast === 'function') toast('Their roll is in already, so there is nothing to apply.'); return false; }
+    var pw = holdLand(camp, rec.ht); if (pw) { if (typeof toast === 'function') toast(pw); return false; }
+    if (typeof net.dueOver === 'function') net.dueOver(att); if (typeof attemptDrop === 'function') attemptDrop(att); holdLog('applied-now', {}); return true;
+};
 function holdsRolled(camp, ch, ent, ref, pass, tc, was, made) {
     var r = holdsRules(camp); if (!r || !ch) return;
     if (was && was.hf && pass === false) { var cW = orderById(was.hf.f), goneW = holdsOf(cW).filter(function(x) { return x.by === was.hf.by && x.on === was.hf.on; }); if (goneW.length) holdEnd(camp, cW, goneW, 'free'); }   // the holder failed to resist: free
     if (was && was.ht && pass === false) holdLand(camp, was.ht);   // the target failed to resist: held
     if (typeof ref !== 'string' || !ref) return;
     var rng = tc && tc.range && typeof tc.range.tid === 'string' && typeof tc.range.mapId === 'string' ? tc.range : null, ok = pass !== false;
-    if ((ref === r.take || ref === r.pin) && ok && rng) { var htW = { m: rng.mapId, c: ch.id, on: rng.tid, pin: ref === r.pin && ref !== r.take }, arW = typeof made === 'string' && made && typeof attemptRec === 'function' ? attemptRec(made) : null; if (arW) arW.ht = htW; else holdLand(camp, htW); }   // its target resists: the hold waits for that roll, as a break free does
+    if ((ref === r.take || ref === r.pin) && ok && rng) { var htW = { m: rng.mapId, c: ch.id, on: rng.tid, pin: ref === r.pin && ref !== r.take }, arW = typeof made === 'string' && made && typeof attemptRec === 'function' ? attemptRec(made) : null; if (arW) { arW.ht = htW; holdAsk(camp, made, arW, ent, htW); } else holdLand(camp, htW); }   // its target resists: the hold waits for that roll, as a break free does
     var mine = holdsAll(function(x) { return x.bc === ch.id; });
     if (mine.length && ((ref === r.keep && ok) || ref === r.squeeze || (rng && Array.isArray(r.also) && r.also.indexOf(ref) >= 0 && mine.some(function(x) { return x.rec.on === rng.tid; })))) { mine.forEach(function(x) { x.rec.k = x.c.round; }); holdLog('kept', { n: mine.length }); if (typeof fightsKeepSoon === 'function') fightsKeepSoon(); }
     if (ref !== r.free || !ok) return;
@@ -10194,17 +10206,17 @@ function npcByOf(camp, ch, pid) {   // the name a card may give a player of one 
     var p = null; Object.keys(net.roster).forEach(function(k) { if (net.roster[k] && net.roster[k].id === pid) p = net.roster[k]; });
     return ch && ch.name && npcShown(camp, ch, p) ? ch.name : '';
 }
-function sendTableAs(rec, ch, on) {   // the table's copy of a card made as a character. on (1.6.0): { ch, name }, whom the card landed on: named to a player who can see them, and to no other
+function sendTableAs(rec, ch, on) {   // the table's copy of a card made as a character. on (1.6.0): { ch, name }, whom the card landed on: it reaches a player who can see them, named, and no other, since a card with no name still says something unseen was hit (the owner, 2026-11-01)
     if (_npcCards && ch && (ch.npc === true || !ch.ownerId)) _npcCards.set(rec, 1);
     var camp = getActiveCampaign();
     net.conns.forEach(function(c) {
-        var p = c.open ? net.roster[c.peer] : null; if (!p || (rec.as && !npcShown(camp, ch, p))) return;
-        try { c.send(on && on.name && npcShown(camp, on.ch, p) ? Object.assign({}, rec, { onName: on.name }) : rec); } catch (e) { sendFailed(e); }
+        var p = c.open ? net.roster[c.peer] : null; if (!p || (rec.as && !npcShown(camp, ch, p)) || (on && on.ch && !npcShown(camp, on.ch, p))) return;
+        try { c.send(on && on.name ? Object.assign({}, rec, { onName: on.name }) : rec); } catch (e) { sendFailed(e); }
     });
 }
 function historySeen(list) {   // a latecomer's history: such a card goes, since they saw none of it
     if (!_npcCards) return list;
-    return list.filter(function(m) { var r = m && (m.roll || m.apply); return !(r && _npcCards.has(r) && r.as); }).map(function(m) { if (!m || !m.roll || !m.roll.onName) return m; var rs = Object.assign({}, m.roll); delete rs.onName; return Object.assign({}, m, { roll: rs }); });   // ... and whom a card landed on is the GM's word: this reader may not see them
+    return list.filter(function(m) { var r = m && (m.roll || m.apply); return !(r && (r.onName || (_npcCards.has(r) && r.as))); });   // ... and so does one that landed on someone: this reader may not see them
 }
 // [netcheck:npcseen-end]
 function sendTable(msg, exceptConn) {   // admitted peers only: broadcast() would reach a peer still waiting for the GM's Allow
@@ -10269,10 +10281,10 @@ net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, 
 };
 // 1.6.0 (the core's gap 8): a blast's share a character rolls of its own (the Combat card's eachBy 'victim'): its card, the record's id and
 // words alone (whiteboard.js keeps the dice), to the character's player where toOwner, else the GM's
-net.postBlastDue = function(ch, att, label, toOwner, go) {   // go (1.6.0): the GM's card that lets a blast's Defense rolls go, this machine's own
+net.postBlastDue = function(ch, att, label, toOwner, go) {   // go (1.6.0): the GM's card that lets a blast's Defense rolls go, this machine's own; 'hold': the same for a hold that waits for its target's roll
     if (!ch || typeof ch.id !== 'string' || typeof att !== 'string') return;
     var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, label: String(label || 'A blast').slice(0, 60), why: 'blast', round: 1, roll: 1, att: att, ts: Date.now() };
-    if (go === true) rec.go = 1; else if (ch.name) rec.as = String(ch.name).slice(0, 60);
+    if (go === true || go === 'hold') { rec.go = 1; if (go === 'hold') rec.hold = 1; } else if (ch.name) rec.as = String(ch.name).slice(0, 60);
     postDue(rec, ch, !!toOwner);
 };
 // ... and a player's press of that card, sent to the host, which rolls it (whiteboard.js wpBlastOwedRoll)
@@ -10713,7 +10725,7 @@ net.diceRoll = function(expr, o) {
     var cvR = rec.dmg === 1 && chR && !rec.dmgOn && typeof o.blast !== 'string' && o.used !== true && typeof coverHitIn === 'function' ? coverHitIn(campR, chR.id, tcR && tcR.range, thR ? o.hit : '') : null; if (cvR) rec.cvh = SR.coverHitCard(cvR);   // 1.6.0: where a hit behind cover lands, and the die
     if (rec.dmg !== 1 && chR && typeof coverAimNote === 'function') coverAimNote(campR, chR.id, tcR && tcR.range, thR ? o.hit : '', function() { return SR.readsTargetHit(campR.system, chR, F, expr, o.row, tcR); });   // ... and an attack's pick, for its damage
     if (rec.dmg === 1 && typeof o.blast === 'string' && /^b_[a-z0-9]{1,16}$/.test(o.blast)) rec.blast = o.blast;   // 1.5.8 explosives: the blast this damage is for (this machine's own word): the card's Apply to all in the blast
-    if (rec.dmg === 1 && o.used === true) rec.dmgUsed = 1;   // 1.5.9 (es): this machine's own word, a damage roll already applied as it is rolled (a blast's fragmentation): its card says Applied (the cleaner of a player's app keeps no such key)
+    if (rec.dmg === 1 && o.used === true) { rec.dmgUsed = 1; if (o.usedWait === true) rec.dmgWait = 1; }   // 1.5.9 (es): this machine's own word, a damage roll already applied as it is rolled (a blast's fragmentation): its card says Applied (the cleaner of a player's app keeps no such key)
     if (res.breakdown && res.breakdown.names && res.breakdown.names.length) { var nmR = D.cleanNames(res.breakdown.names); if (!nmR) return { error: 'That roll could not be recorded.' }; if (nmR.length) rec.names = nmR; }
     if (rec.names && SR && typeof SR.rollMods === 'function' && typeof varsR === 'function') { var mdR = SR.rollMods(varsR, rec.names); if (mdR) rec.mods = mdR; }
     if (rec.names && SR && typeof SR.rollRefs === 'function' && typeof varsR === 'function') { var rfR = SR.rollRefs(varsR, rec.names); if (rfR) rec.refs = rfR; }   // 1.6.0 Specialties: the case each reference used (a GM-only row is never named)

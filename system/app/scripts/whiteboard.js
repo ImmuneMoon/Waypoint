@@ -3858,6 +3858,8 @@ window.wpFitToGrid = fitToGrid;
       layer.addEventListener('contextmenu', function(e) {
           var gbc = e.target.closest && e.target.closest('g.blast'); if (!gbc) return;
           e.preventDefault(); e.stopPropagation();
+          var tkC = !window.isMeasureMode ? rulerToken(e.clientX, e.clientY) : null;   // a token under a blast keeps its menu, as it takes the left press: found by hand, a right-click meant for the token removed the blast
+          if (tkC) { tkC.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, buttons: 2, clientX: e.clientX, clientY: e.clientY, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey })); return; }
           var bic = parseInt(gbc.dataset.i, 10);
           if (bic >= 0 && bic < blasts.length) { var goneB = blasts.splice(bic, 1)[0]; if (ownCircle(goneB)) circleRekept(); renderMeasures(); syncBlastMenu(); toast(!ownCircle(goneB) ? 'Blast removed.' : goneB.as === 'ring' ? 'Ring removed.' : goneB.as === 'cone' ? 'Cone removed.' : 'Circle removed.'); }
       });
@@ -3876,7 +3878,7 @@ window.wpFitToGrid = fitToGrid;
           if (!blastDrag) return;
           var bu = blasts[blastDrag.i], movedU = blastDrag.moved; blastDrag = null;
           if (!bu || !movedU) return;
-          seatBlast(bu); renderMeasures(); syncBlastMenu();
+          seatBlast(bu); renderMeasures(); syncBlastMenu(); blastMoved(bu);
       });
       layer.addEventListener('click', function(e) {
           if (e.target.closest && e.target.closest('g.blast')) { e.stopPropagation(); return; }   // blasts: drag moves, right-click removes
@@ -3889,6 +3891,11 @@ window.wpFitToGrid = fitToGrid;
       });
   })();
 
+  function blastMoved(b) {   // a blast the table was told of, moved by the GM: the map's blasts told again, since a copy has no id to move it by
+      var n = window.wpNet; if (!b || !b.wire || !n || !n.active || n.role !== 'host' || !n.broadcastBlast || !n.broadcastBlastClear) return;
+      b.wire.x = b.x; b.wire.y = b.y; if (typeof b.elev === 'number') b.wire.elev = b.elev;
+      n.broadcastBlastClear(b.wireMap); blasts.forEach(function(x) { if (x.wire && x.wireMap === b.wireMap) n.broadcastBlast(x.wire, x.wireMap, x.wireChar); });
+  }
   function clearMeasures() { measures = []; activeMeasure = null; renderMeasures(); }
 
   window.appClearMeasures = clearMeasures;
@@ -4403,7 +4410,7 @@ window.wpFitToGrid = fitToGrid;
       if (window.wpVtt && !window.wpVtt.on('dice')) { if (fgN) toast('Dice are off, so the fragmentation of ' + fgN + ' was not rolled.'); if (afN) toast('Dice are off, so the afflictions of ' + afN + ' were not rolled.'); return; }
       if (!window.wpDice || !window.wpDice.rollFor) return;
       var rlE = typeof blastRules === 'function' ? blastRules(sys) : null; if (auto === 'full' && rlE && rlE.each && b && b.dmgExpr) { applyBlastDamage(b, 0, combat.hpResource, mapIn); return; }   // 1.6.0 (the core's gap 8): each rolls its own dice, so none is rolled for all
-      var dr = window.wpDice.rollFor(opts.charId, opts.damage, (opts.name || 'Blast') + ' damage', { gmOnly: !!opts.gmOnly, dmg: true, blast: b && b.bid, used: auto === 'full' });   // a GM-only item's damage stays the GM's; chat cards: a damage card (an item's damage is damage by nature, as on his reference sheets)
+      var drO = { gmOnly: !!opts.gmOnly, dmg: true, blast: b && b.bid, used: auto === 'full' }; if (auto === 'full' && rlE && rlE.defend && typeof rlE.defend === 'object' && b && b.noDrop !== true) drO.usedWait = true; var dr = window.wpDice.rollFor(opts.charId, opts.damage, (opts.name || 'Blast') + ' damage', drO);   // a GM-only item's damage stays the GM's; chat cards: a damage card (an item's damage is damage by nature, as on his reference sheets)
       var total = dr && dr.ok && typeof dr.value === 'number' ? dr.value : null;
       if (auto !== 'full' || total === null) { if (fgN && auto === 'roll' && total !== null) toast('The fragmentation of ' + fgN + ' is rolled when you press Apply to all in the blast.'); if (afN && auto === 'roll' && total !== null) toast('The afflictions of ' + afN + ' are rolled when you press Apply to all in the blast.'); return; }
       applyBlastDamage(b, total, combat.hpResource, mapIn);

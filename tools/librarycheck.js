@@ -879,6 +879,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 a GM-only stat in the library: the copy of an entry players get holds none of it, made from the system as the GM holds it or from the view players get, with the stats they may read; the index and the sum of a pack make nothing of it; the copy the GM holds keeps it',
             !/flaw/i.test(j(one)) && !/flaw/i.test(j(two)) && one.stats.Skill === 3 && own.stats.Flaw === 2 && !/flaw/i.test(j(L.playerIndex([ent], fromGm))) && !/flaw/i.test(j(L.packMeta([ent], fromGm, 10))), j([one, two, own]));
     }
+    {   // found by the round test: typing right after the picker opened went to the list that opened it
+        const pkF = require('fs').readFileSync(path.join(app, 'scripts', 'libpicker.js'), 'utf8').replace(/\r\n/g, '\n'), fA = pkF.indexOf('function focusSoon('), fZ = pkF.indexOf('\n', fA);
+        const runF = (inside, closed) => { const log = [], timers = [], search = { focus: o => log.push(o) }, holder = { st: { pop: { contains: () => inside } } };
+            const api = fA < 0 ? null : new Function('holder', 'document', 'setTimeout', 'var st = holder.st;\n' + pkF.slice(fA, fZ) + '\nreturn { go: focusSoon, shut: function() { st = null; } };')(holder, { activeElement: {} }, fn => timers.push(fn));
+            if (!api) return null; api.go(search); const before = log.length; if (closed) api.shut(); timers.forEach(fn => fn()); return [before, timers.length, log.length]; };
+        const away = runF(false, false), held = runF(true, false), shut = runF(false, true);
+        check('1.6.0 the picker opens with the focus in its search box (libpicker.js focusSoon, run for real; found by the round test): asked at once, and asked again once the list that opened it has had its say; left alone where the focus is in the picker already, or the picker has closed; open() asks',
+            j(away) === j([0, 1, 1]) && j(held) === j([0, 1, 0]) && j(shut) === j([0, 1, 0]) && pkF.includes("    try { search.focus({ preventScroll: true }); } catch (e) {}\n    focusSoon(search);\n}"), j([away, held, shut]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

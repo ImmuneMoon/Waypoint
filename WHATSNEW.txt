@@ -1186,6 +1186,10 @@ For system builders, more
   where the counter has a most of its own.
 - In the System editor, the words about thrown blasts now stand at the top of the
   Combat card. Before, they popped up wherever the pointer rested on the card.
+- On a sheet, an arrow key or a typed letter on + Add item, a part's list or
+  + Add effect now opens the list, where Return chooses. Before, the key itself
+  added the first entry or opened the library, and the same Return then took
+  the library's first entry.
 - In the System editor, a press on a list's card or on the Combat card keeps your
   place, so the arrow keys step a menu and Space takes a tick back off.
 - A blast's Defense roll now counts when it is a plain roll with no Needs or

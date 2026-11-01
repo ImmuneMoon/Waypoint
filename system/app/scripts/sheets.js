@@ -3389,7 +3389,7 @@ function partPills(wrap, c, f, spec, sysI, entry, chg, dep) {
     if (!parts.length && !chg) return null;
     if (chg) {
         var fit = Object.assign({}, pspec, { cats: Array.isArray(spec.parts.cats) && spec.parts.cats.length ? spec.parts.cats : pspec.cats }), word = spec.parts.label || 'Part';
-        var add = el('select', 'field sheet-part-add'); add.appendChild(opt('', '+ ' + word + '\u2026', true)); add.title = 'Add a ' + word.toLowerCase() + ' to ' + ((rowDef(sysI, entry) || {}).def || {}).name;
+        var add = el('select', 'field sheet-part-add'); add.appendChild(opt('', '+ ' + word + '\u2026', true)); add.title = 'Add a ' + word.toLowerCase() + ' to ' + ((rowDef(sysI, entry) || {}).def || {}).name; if (window.wpTexList) window.wpTexList.keys(add);   // a key step chooses nothing here: it opens the list, as a Texture list's does
         var fitOf = isClient() && typeof partFitEntry === 'function' ? function(it) { return partFitEntry(sysI, c, pf.id, hid, it, typeof F === 'function' ? F() : null, true); } : null;   // 1.6.0 Fits where (ask 18): a part a player's host would refuse is greyed out and says why, as cantTake does; the GM's own hand passes and is told
         var nP = typeof pickerInto === 'function' ? pickerInto(add, (sysI && sysI.items) || [], fit, parts, fitOf) : 0;
         var gmL = !isClient() && !!(window.wpLibPicker && window.wpLibrary && window.wpLibrary.size && window.wpLibrary.size() > 0), plL = false;
@@ -4311,7 +4311,7 @@ function effectsInto(wrap, f, c, rows, sys, editable, edit) {   // edit (the she
     if (!editable) return;
     var bar = el('div', 'sheet-fx-add-row'), defs = (sys && sys.effects) || [];
     if (defs.length) {
-        var add = el('select', 'field sheet-fx-add'); add.appendChild(opt('', '+ Add effect\u2026', true));
+        var add = el('select', 'field sheet-fx-add'); add.appendChild(opt('', '+ Add effect\u2026', true)); if (window.wpTexList) window.wpTexList.keys(add);
         defs.forEach(function(d2) { add.appendChild(opt(d2.id, (iconText(d2.icon) ? iconText(d2.icon) + ' ' : '') + d2.name + (d2.tone ? ' (' + d2.tone + ')' : ''))); });
         add.addEventListener('change', function() { if (add.value) commitEffect(c, f, { op: 'add', rowId: uid('x_'), ref: add.value }); });
         bar.appendChild(add);
@@ -4566,7 +4566,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var libOK = gm && !!window.wpLibPicker && !!(window.wpLibrary && window.wpLibrary.size && window.wpLibrary.size() > 0);   // Stage 6 library L2c: the GM's machine offers the campaign's library too
         if (!gm && window.wpLibPicker && window.wpNet && window.wpNet.libManifest) { var lmP = window.wpNet.libManifest(); libOK = !!lmP && lmP.packs.some(function(p) { return p.count > 0; }); }   // L3b: a player, the packs the host lets them see
         if (editOk && _fxLive && sysI && ((sysI.items && sysI.items.length) || custOK || libOK) && !onOnly) {
-            var add = el('select', 'field sheet-item-add'), nPick = -1, vwP = _fxView; add.appendChild(opt('', '+ Add item…', true));
+            var add = el('select', 'field sheet-item-add'), nPick = -1, vwP = _fxView; add.appendChild(opt('', '+ Add item…', true)); if (window.wpTexList) window.wpTexList.keys(add);   // a key step chooses nothing here: it opens the list, as a Texture list's does
             var cantI = !gm && typeof cantTake === 'function' ? function(it) { return cantTake(sysI, c, it); } : null;   // 126b: an item this character may not take yet is greyed out for its player and says why; the GM is never stopped
             if (specI) nPick = pickerInto(add, sysI.items || [], specI, carried, cantI);   // F4b: the list's categories, grouped
             else sysI.items.forEach(function(it) { var oI = opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name + (it.category ? ' — ' + it.category : '')), whyI = cantI ? cantI(it) : ''; if (whyI) { oI.disabled = true; oI.title = whyI; } add.appendChild(oI); });

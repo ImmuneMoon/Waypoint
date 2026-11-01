@@ -61,7 +61,10 @@ function open(opts) {
         Promise.resolve(opts.source.load(function() { if (st !== mine) return; var x = st.hi >= 0 ? st.rows[st.hi] : null; buildAll(); chipsDraw(); filter(x && !x.hdr ? x.e.id : null); status(); })).then(function() { if (st === mine) status(); }, function() { if (st === mine) status(); });
     }
     try { search.focus({ preventScroll: true }); } catch (e) {}
+    focusSoon(search);
 }
+// The search box holds the focus once the picker is up. A native list that is closing can take the focus back after its change, so it is asked again once that has run
+function focusSoon(search) { var mine = st; setTimeout(function() { if (st !== mine || st.pop.contains(document.activeElement)) return; try { search.focus({ preventScroll: true }); } catch (e) {} }, 0); }
 function buildAll() {
     var all = [], cats = st.cats, src = st.opts.source;
     (src.packs() || []).forEach(function(p) { (src.entries(p.id) || []).forEach(function(e) { if (!e || typeof e.id !== 'string') return; if (cats && cats.indexOf(lc(e.category)) < 0) return; all.push({ e: e, p: p, hay: entryHay(e) }); }); });

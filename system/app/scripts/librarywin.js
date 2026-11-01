@@ -484,7 +484,7 @@ function modsBox(form, e) {
     };
     draw();
 }
-// 1.6.0 (v2, B4; the SotMW session's v2 sort, 2026-10-29: a trait tier's fixed kit, a species' free package rows, an implant's mandatory flaws):
+// 1.6.0 (v2, B4; a build session's sort, 2026-10-29: a trait tier's fixed kit, a species' free package rows, an implant's mandatory flaws):
 // what a row of this entry grants. When a row of it is added, or its level reaches a From level, each entry listed here is added to the list
 // beside it, as many as the number says, at Paid 0 and marked as granted. They go when the row goes or its level falls below. A working copy
 // while the form is open (Save entry keeps it). Names and lists land as text nodes and option values only

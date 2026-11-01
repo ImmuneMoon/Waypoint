@@ -4583,7 +4583,7 @@ pendingChecks.push((async () => {
         && J(fOwn.answer) === J(fBig.answer) && fOwn.rows === fBig.rows && fOwn.saves === 0
         && J(fGm.answer) === J([{ type: 'char-ack', rid: 'f1' }]) && fGm.rows === J(['w_s:1:w_c', 'w_h:1:w_c']) && fGm.saves === 1
         && /S\.partFitEntry\(camp\.system, c, fieldId, q\.in, /.test(src), J([fBig, fWords, fOk, fOwn, fGm]));
-    // 1.6.0 (v2, B4; the SotMW session's v2 sort, 2026-10-29): an entry grants rows of another list. A player's add on the host grants them, the
+    // 1.6.0 (v2, B4; a build session's sort, 2026-10-29): an entry grants rows of another list. A player's add on the host grants them, the
     // GM-only one too, and the owner's copy holds them; removing the granting row takes them, and its Undo brings them back from the host's record
     const sysG = Sx.cleanSystem({ v: 1, name: 'G', rolls: [], fields: [{ id: 'f_tr', key: 'Traits', label: 'Traits', kind: 'item-list', edit: 'owner', vis: 'all' }, { id: 'f_ge', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all' }],
         items: [{ id: 'i_wd', name: 'Warden', grants: [{ list: 'f_ge', entry: 'i_lm', qty: 2 }, { list: 'f_ge', entry: 'i_se' }] }, { id: 'i_lm', name: 'Lamp' }, { id: 'i_se', name: 'Sealed note', vis: 'gm' }] }, { F: Fx, gmView: true });
@@ -5120,7 +5120,7 @@ pendingChecks.push((async () => {
         j([q5A.table[0], q5G.table[0], q5X.table[0], q5GA.recs[0], q5GG.recs[0], q5GG.toasts]));
 })());
 
-// 1.6.0 (the SotMW v2 sort, B2: "resist at minus the attempt's margin"): a roll Resisted by a system roll that succeeds against the roller's
+// 1.6.0 (a build's sort, B2: "resist at minus the attempt's margin"): a roll Resisted by a system roll that succeeds against the roller's
 // target makes an attempt on the host (net.js's attempt slice), posts the resist roll to the target's character as a reminder, and that roll,
 // made with the attempt's id, reads AttemptMargin from the host's own record, once (invented data: Kael, Sela, Pebbles)
 pendingChecks.push((async () => {
@@ -8123,22 +8123,22 @@ pendingChecks.push((async () => {
             }
             {   // 1.6.0 a card made as an NPC reaches only a player who can see it (the npcseen slice run for real)
                 const nsA = src.indexOf('// [netcheck:npcseen-start]'), nsB = src.indexOf('// [netcheck:npcseen-end]'), sends = [], mkC = p => ({ open: true, peer: p, send: m => sends.push([p, m]) });
-                const campN = { chars: { c_npc: { id: 'c_npc', name: 'Hanharr', npc: true }, c_pl: { id: 'c_pl', name: 'Ava', ownerId: 'p_a' } }, items: { m1: { whiteboard: [{ id: 't_n', isChar: true, charId: 'c_npc' }] }, m2: { whiteboard: [{ id: 't_h', isChar: true, charId: 'c_npc', hidden: true }] }, m3: { whiteboard: [{ id: 't_f', isChar: true, charId: 'c_npc' }] } } };
+                const campN = { chars: { c_npc: { id: 'c_npc', name: 'Brannoch', npc: true }, c_pl: { id: 'c_pl', name: 'Ava', ownerId: 'p_a' } }, items: { m1: { whiteboard: [{ id: 't_n', isChar: true, charId: 'c_npc' }] }, m2: { whiteboard: [{ id: 't_h', isChar: true, charId: 'c_npc', hidden: true }] }, m3: { whiteboard: [{ id: 't_f', isChar: true, charId: 'c_npc' }] } } };
                 const netN = { conns: [mkC('a'), mkC('b'), mkC('c'), mkC('d')], roster: { a: { id: 'p_a', location: 'm1' }, b: { id: 'p_b', location: 'm2' }, c: { id: 'p_c', location: 'm3' }, d: { id: 'p_d', location: 'm_none' } } };
                 const fnN = new Function('net', 'own', 'fogDrop', 'getActiveCampaign', 'sendFailed', src.slice(nsA, nsB) + '\nreturn { npcShown, npcByOf, sendTableAs, historySeen };')(netN, (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k), (c, m, pid) => pid === 'p_c' ? { t_f: true } : null, () => campN, () => {});
-                const rec = { type: 'roll', id: 'r1', as: 'Hanharr', from: { name: 'GM' } }; fnN.sendTableAs(rec, campN.chars.c_npc);
+                const rec = { type: 'roll', id: 'r1', as: 'Brannoch', from: { name: 'GM' } }; fnN.sendTableAs(rec, campN.chars.c_npc);
                 const asOf = p => sends.filter(s => s[0] === p).map(s => s[1].as), recP = { type: 'roll', as: 'Ava' }; sends.length = 0; fnN.sendTableAs(rec, campN.chars.c_npc); const npcAs = ['a', 'b', 'c', 'd'].map(asOf); sends.length = 0; fnN.sendTableAs(recP, campN.chars.c_pl); const plAs = ['a', 'b', 'c', 'd'].map(asOf);
                 const hist = fnN.historySeen([{ roll: rec }, { roll: recP }, { text: 'hello' }]), byN = ['p_a', 'p_b', 'p_c', 'p_d', 'p_gone'].map(p => fnN.npcByOf(campN, campN.chars.c_npc, p)), byP = fnN.npcByOf(campN, campN.chars.c_pl, 'p_b');
                 check('1.6.0 a card made as an NPC reaches only a player who sees one of its tokens on the map they are on (never a hidden token, one their fog drops or another map), a player\'s character reaches all, a card of theirs keeps its name, a Defend card names such an NPC only to a player who can see it, and a latecomer\'s history drops the card',
-                    j(npcAs) === j([['Hanharr'], [], [], []]) && j(plAs) === j([['Ava'], ['Ava'], ['Ava'], ['Ava']]) && rec.as === 'Hanharr' && hist.length === 2 && hist[0].roll === recP && hist[1].text === 'hello' && j(byN) === j(['Hanharr', '', '', '', '']) && byP === 'Ava', j([npcAs, plAs, byN, byP]));
-                sends.length = 0; const recL = { type: 'roll', id: 'r2', label: 'Beam damage', from: { name: 'GM' } }; fnN.sendTableAs(recL, campN.chars.c_pl, { ch: campN.chars.c_npc, name: 'Hanharr' }); const seenL = ['a', 'b', 'c', 'd'].map(p => sends.filter(s => s[0] === p).map(s => s[1].onName)), histL = fnN.historySeen([{ roll: Object.assign({}, recL, { onName: 'Hanharr' }) }]);
+                    j(npcAs) === j([['Brannoch'], [], [], []]) && j(plAs) === j([['Ava'], ['Ava'], ['Ava'], ['Ava']]) && rec.as === 'Brannoch' && hist.length === 2 && hist[0].roll === recP && hist[1].text === 'hello' && j(byN) === j(['Brannoch', '', '', '', '']) && byP === 'Ava', j([npcAs, plAs, byN, byP]));
+                sends.length = 0; const recL = { type: 'roll', id: 'r2', label: 'Beam damage', from: { name: 'GM' } }; fnN.sendTableAs(recL, campN.chars.c_pl, { ch: campN.chars.c_npc, name: 'Brannoch' }); const seenL = ['a', 'b', 'c', 'd'].map(p => sends.filter(s => s[0] === p).map(s => s[1].onName)), histL = fnN.historySeen([{ roll: Object.assign({}, recL, { onName: 'Brannoch' }) }]);
                 check('1.6.0 ... a hit on someone a player cannot see tells that player nothing (the owner, 2026-11-01: "A hidden target should stay fully hidden"; moved on purpose from a card with no name): the card reaches only a player who can see them, named, the record itself stays nameless, and a latecomer\'s history holds no such card',
-                    j(seenL) === '[["Hanharr"],[],[],[]]' && !('onName' in recL) && histL.length === 0, j([seenL, histL]));
+                    j(seenL) === '[["Brannoch"],[],[],[]]' && !('onName' in recL) && histL.length === 0, j([seenL, histL]));
                 const bbS = src.slice(src.indexOf('net.broadcastBlast = function(blast, mapId, charId, only)'), src.indexOf('// [netcheck:blast-end]')), sentB = [], connsB = [{ open: true, peer: 'a', send: m => sentB.push(['a', m.blast.by]) }, { open: true, peer: 'b', send: m => sentB.push(['b', m.blast.by]) }];
                 const netB = { active: true, role: 'host', conns: connsB, roster: { a: { id: 'p_a', location: 'm1' }, b: { id: 'p_b', location: 'm1' } } };
                 new Function('net', 'getActiveCampaign', 'sendFailed', 'npcShown', bbS)(netB, () => ({ id: 'k', chars: campN.chars }), () => {}, (c, ch, p) => p.id === 'p_a');
-                netB.broadcastBlast({ x: 1, y: 2, ft: 9, by: 'Hanharr' }, 'm1', 'c_npc');
-                check('1.6.0 a thrown blast names its thrower only to a player who can see them, and the blast itself still reaches both', j(sentB) === j([['a', 'Hanharr'], ['b', '']]), j(sentB));
+                netB.broadcastBlast({ x: 1, y: 2, ft: 9, by: 'Brannoch' }, 'm1', 'c_npc');
+                check('1.6.0 a thrown blast names its thrower only to a player who can see them, and the blast itself still reaches both', j(sentB) === j([['a', 'Brannoch'], ['b', '']]), j(sentB));
                 const wbB = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8');
                 check('1.6.0 a thrown blast\'s circle goes with the map\'s last fight (source): combatOver asks the board only once no fight is left on a map that still stands, the board keeps the Radius tool\'s own and one that waits on its fuse and tells the table for that map, a player\'s app takes the word for the map on screen alone, and a table taken afresh holds no circle of the table before it',
                     src.includes("if (had && !gone && !fightsOn(mapId).length && typeof window !== 'undefined' && window.wpFightBlastsGo)") && wbB.includes('return ownCircle(b) || fz.some(function(f) { return f.b === b; });') && wbB.includes('window.wpNet.broadcastBlastClear(mapId);') && src.includes("if (typeof msg.mapId === 'string' && amC && amC.id !== msg.mapId) return;") && src.includes("window.wpClearSharedBlasts();   // 1.6.0: a table taken afresh"), '');

@@ -1,3 +1,11 @@
+WAYPOINT 1.6.1 — What's New
+============================
+
+For the website
+- This release changes nothing you will see in the app. It tidies words in the
+  code that kept the website from serving 1.6.0, so that players who join from
+  a browser can reach a table run on this version.
+
 WAYPOINT 1.6.0 — What's New
 ============================
 

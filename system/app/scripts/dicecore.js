@@ -214,7 +214,7 @@ function cleanRollReq(msg) {
         if (!(out.act || (out.row && out.row.i !== undefined)) || typeof msg.on !== 'string' || msg.on.length < 1 || msg.on.length > 80 || CTRL_RE.test(msg.on)) return null;
         out.on = msg.on;
     }
-    if (msg.att !== undefined) {   // 1.6.0 (the SotMW v2 sort, B2): the attempt a resist roll answers, by the id the host gave it (the host holds its margin)
+    if (msg.att !== undefined) {   // 1.6.0 (a build's sort, B2): the attempt a resist roll answers, by the id the host gave it (the host holds its margin)
         if (!(out.act || (out.row && out.row.i !== undefined && out.row.r !== undefined)) || typeof msg.att !== 'string' || !ATT_RE.test(msg.att)) return null;   // 1.6.0: or a list's roll on one row, offered on a resist card
         out.att = msg.att;
     }

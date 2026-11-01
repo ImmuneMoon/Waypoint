@@ -3590,7 +3590,7 @@ check('the roster numbers rows of one name, and the sheet that says it is out of
     check('the live test, 2026-10-30: maptabs.js says how much of the map\'s own name shows, the path having given way first, and asks the row to be measured again when another name comes to the front',
         mtS.includes('function tabsName() {') && mtS.includes('    tabsFit();\n    var cs = getComputedStyle(c), rg = document.createRange(); rg.selectNodeContents(c);') && mtS.includes("if (nameNow !== _tabName) { _tabName = nameNow; if (window.wpTopRow && window.wpTopRow.fit) window.wpTopRow.fit(); }") && mtS.includes('window.wpMapTabs = { sync: tabsSync, name: tabsName };') && /var TABS_ROOM = 96, NAME_ROOM = 100;/.test(trS));
     check('the live test, 2026-10-30: at phone width a HUD is held inside the window under the top row, as every other box', rootRead('system/app/scripts/sheets.js').includes("    if (window.wpFloats && typeof window.wpFloats.fit === 'function') window.wpFloats.fit(p);"));
-    {   // 1.6.0: small things the SotMW table test found on the turn strip and the Trade row
+    {   // 1.6.0: small things a table test found on the turn strip and the Trade row
         const wbT = rootRead('system/app/scripts/whiteboard.js'), trT = rootRead('system/app/scripts/trade.js'), cssT = rootRead('system/app/style.css');
         const rn = new Function(wbT.slice(wbT.indexOf('// [lookcheck:rowname-start]'), wbT.indexOf('// [lookcheck:rowname-end]')) + '; return rowNameOf;')();
         const camp = { chars: { c1: { name: 'Pebble guard 2' }, c3: { name: 'Pebble guard 3' }, c2: { name: '   ' }, c4: { name: 'Town folk (generic)' } } };

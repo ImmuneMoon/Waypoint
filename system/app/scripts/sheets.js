@@ -5120,7 +5120,7 @@ function turnHook(mapId, combat) { return timedHook(mapId, combat, 'turn'); }
 function turnEndHook(mapId, combat) { return timedHook(mapId, combat, 'turnEnd'); }   // 1.6.0: combat holds the row whose turn just ended as its turn, in the round it ended
 // Turn-based combat T2b: a reminder's Run — this character's saved action as this viewer's system has it, pressed as its button is (the
 // GM's own press, or the player's through the host). false when it is not there to press
-// 1.6.0 (the SotMW v2 sort, B2): a roll's Resisted by list, the system's rolls ticked Resists an attempt (sys: the draft). A roll it names that is
+// 1.6.0 (a build's sort, B2): a roll's Resisted by list, the system's rolls ticked Resists an attempt (sys: the draft). A roll it names that is
 // no longer ticked stays in the list, said so, until another is picked
 // 1.6.0 An attempt's kind: the number stat of a list's row that says what kind of attack it makes, beside Resisted by. The stat it names that is gone stays, said so, until another is picked
 function kindSel(rr, sp) {
@@ -10340,7 +10340,7 @@ function rangeBox(box, cm) {
         });
         var ad = el('button', 'tool ghost sys-btn sys-range-add', '+ Step'); ad.dataset.act = 'rgadd'; ad.disabled = st.length >= LIMITS.rangeSteps; ad.title = ad.disabled ? 'At most ' + LIMITS.rangeSteps : 'A distance and its modifier; Save puts the steps in order'; wrap.appendChild(ad);
     }
-    {   // 1.6.0 (the SotMW v2 combat module): the field of a target's sheet an attack reads as TargetSize, beside TargetDistance
+    {   // 1.6.0 (a build's combat module): the field of a target's sheet an attack reads as TargetSize, beside TargetDistance
         var szs = (draft.fields || []).filter(function(f) { return f && typeof f.id === 'string' && (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource'); }).map(function(f) { return [f.id, f.label || f.key || f.id]; });
         var cur = typeof cm.targetSize === 'string' ? cm.targetSize : '', ro = [['', 'None']].concat(szs); if (cur && !szs.some(function(o) { return o[0] === cur; })) ro.push([cur, 'One that is gone']);
         var rz = el('div', 'sys-flags sys-range-sizerow'); rz.appendChild(labeledSelect('sys-range-size', 'Target size reads', ro, cur, 'A number of the target\u2019s sheet. A roll reads it as TargetSize, as it reads TargetDistance. A field players cannot read Save drops.'));
@@ -11195,7 +11195,7 @@ function rowFocusBack(was) {
 }
 // [systemcheck:rowfocus-end]
 function fieldOfRow(target) { var row = target.closest('.sys-row'); if (!row || row.dataset.cid || row.dataset.iid || row.dataset.eid) return null; return { row: row, f: draft.fields.find(function(x) { return x.id === row.dataset.id; }), r: draft.rolls.find(function(x) { return x.id === row.dataset.id; }) }; }
-// 1.6.0 (v2, B4; the SotMW session's v2 sort, 2026-10-29: a trait tier's fixed kit, a species' free package rows, an implant's mandatory flaws):
+// 1.6.0 (v2, B4; a build session's sort, 2026-10-29: a trait tier's fixed kit, a species' free package rows, an implant's mandatory flaws):
 // the rows a row of an item grants, each a line: the entry granted (an item of the system or a library entry), the list it is added to, how
 // many, and the level of this item from which it is granted. What Save does with each is said under the item (refreshErrors). Values and text
 // nodes only

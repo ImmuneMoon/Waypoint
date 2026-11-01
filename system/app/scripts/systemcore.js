@@ -49,7 +49,7 @@ var LIMITS = Object.freeze({
     areaAffs: 2,                             // 1.5.9 (the book's (es)): the afflictions one explosive carries (Affliction (HT-2) and a second one)
     desc: 4000, lvls: 20, lvlText: 600, lvlTag: 40, rowsText: 400000,   // 1.5.4: an entry's description, the levels it describes, a level's text and the words beside it; the long text one list's rows carry to their owner in all
     ownText: 200000,                         // 1.5.5 (155): the long text the character's own rows of one list may hold in all, as rowText counts it (stored and sent)
-    listStats: 64, entryStats: 64, statAbs: 1e9,   // Stage 6 F4c1: a list's stats (12 since range penalties: a weapons list with Half and MaxRange; 24 since 1.5.4: a whole weapon line; 32 since 1.6.0, the SotMW build: a full list and a figure an outside reader fills; 48 since the v2 combat module: a weapons and an armour list; 64 since the core handbook session's ask beside ask 19), the stats an item carries (32 since 1.5.4, 48 with a list's in 1.6.0, 64 with it again: a copy's own values hold every stat of its list), the size of a stat (a price, a weight: 99,999,999 fits)
+    listStats: 64, entryStats: 64, statAbs: 1e9,   // Stage 6 F4c1: a list's stats (12 since range penalties: a weapons list with Half and MaxRange; 24 since 1.5.4: a whole weapon line; 32 since 1.6.0, a campaign build: a full list and a figure an outside reader fills; 48 since the v2 combat module: a weapons and an armour list; 64 since the core handbook session's ask beside ask 19), the stats an item carries (32 since 1.5.4, 48 with a list's in 1.6.0, 64 with it again: a copy's own values hold every stat of its list), the size of a stat (a price, a weight: 99,999,999 fits)
     listCols: 48,                            // Stage 6 F5a1: a list's columns (a formula per row; 6 before 1.5.4, 12 before 1.6.0; the core handbook session's ask 19: 24 before it; 32 before a build that filled three lists)
     colPlus: 8,                              // 1.5.4 With: the stats a column names as adding to it in a case of their own (a DR of 15 that is 35 against energy)
     pickOpts: 48,                            // Stage 6 F5a2: a choice stat's options
@@ -783,13 +783,13 @@ function cleanRollDef(r, gmView) {
     if (gmView) { var crO = cleanCross(r.cross); if (crO) out.cross = crO; }   // 1.5.9 (book es/et plan 4a): it also runs when a value crosses a step; the GM's view alone, since only the machine that owns the campaign runs it
     if (r.to === 'near' && out.init !== true) out.to = 'near';   // 1.5.9 (book es/et plan, section 3): Applies to the user or an adjacent character; the initiative roll is always its own character's
     if (r.named === true || hasRange(out)) out.named = true;   // 1.6.0: it names itself as it is rolled, so the host can tell a sneak's roll; true only, and it says nothing of why
-    if (r.resist === true && out.init !== true) out.resist = true;   // 1.6.0 (the SotMW v2 sort, B2): Resists an attempt, so it reads AttemptMargin
+    if (r.resist === true && out.init !== true) out.resist = true;   // 1.6.0 (a build's sort, B2): Resists an attempt, so it reads AttemptMargin
     resistByInto(out, r, gmView);   // 1.6.0 (B2): and Resisted by, the roll its target resists it with
     rollAreaInto(out, r, gmView, false);   // 1.6.0: and a line it hits
     callsInto(out, r, gmView, true);   // 1.6.0: and Calls for, the rolls it posts as cards
     return out;
 }
-// 1.6.0 (the SotMW v2 sort, B2: "resist at minus the attempt's margin"): a roll's Resisted by names a system roll ticked Resists an attempt. Where
+// 1.6.0 (a build's sort, B2: "resist at minus the attempt's margin"): a roll's Resisted by names a system roll ticked Resists an attempt. Where
 // such a roll succeeds against the roller's target, the host posts that roll to the target's character as a reminder, and it reads the
 // attempt's margin as AttemptMargin. The GM's view keeps the roll's id; a players' view says only that it is resisted (resisted: true), so
 // their sheet names the entry and no id of a roll they may not see travels. 1.6.0 (the core's gap 5, the defender chooses the Defense; the
@@ -1624,7 +1624,7 @@ function rowTimers(sys, char, secs, perOf, F) {   // F (1.6.0): the formula engi
 // 1.5.6, the damage step (the owner, 2026-10-24: "taking damage and running down HP and running through anything that provides DR first, DR
 // degradation and DUR degradation. all of this generalized for waypoint"): camp.system.combat.damage, absent when a system takes no damage by it.
 //   pool    the resource a wound comes off (the Combat card's hpResource where none is named)
-//   major   a formula: a wound at or above it, in one blow, is a Major Wound ('' none). 1.6.0 (the SotMW v2 sort, B3): it reads the hit location's
+//   major   a formula: a wound at or above it, in one blow, is a Major Wound ('' none). 1.6.0 (a build's sort, B3): it reads the hit location's
 //           own names as Hit.<name> beside the character's (0 where no location was struck), so a threshold may be a third on the head
 //   onMajor { fx, roll }, only beside major and in the GM's view alone: what a Major Wound does. fx, a library effect switched on (as an apply
 //           action switches one: once per character, its timer); roll, a system roll whose reminder is posted to the wounded character's
@@ -5663,13 +5663,13 @@ function coreOf(sys, lookup, more) {
 // has none: their rows carry the host's copies). Rows that point at a library entry keep their copy (snap), so they survive any load order
 var _libFind = null;
 function setLibraryFind(fn) { _libFind = typeof fn === 'function' ? fn : null; }
-// 1.6.0 (v2, B4; the SotMW session's v2 sort, 2026-10-29: a trait tier's fixed kit, a species' free package rows, an implant's mandatory flaws):
+// 1.6.0 (v2, B4; a build session's sort, 2026-10-29: a trait tier's fixed kit, a species' free package rows, an implant's mandatory flaws):
 // what a row of an entry grants. At most GRANT_MAX of { list: an item list's field id, entry: an item or a library entry by id, qty: how many,
 // from: the level of THIS entry from which it grants (none: from the start) }, each list, entry and level once, never the entry itself. kinds:
 // the view's fields by id (fieldKinds), so a grant on a list the view lacks goes; none: the key rule alone. None: undefined. 1.6.0 (CORE gap 15,
 // an implant's mandatory flaws, once a character with the first implant): once: true, the entry is granted only where the character holds no
 // row of it on that list. Whatever the tick, a granted row passes to another row that grants it rather than going with its granter (grantHeirs).
-// 1.6.0 (a grant's own terms, asked by the SotMW session: one drawback free from a package and paying back from an implant): pay: true, Pays
+// 1.6.0 (a grant's own terms, asked by a build session: one drawback free from a package and paying back from an implant): pay: true, Pays
 // back, marks the row it makes gp (Row.paysback 1 on it); lvl: the level the row it makes starts at, in place of the entry's own, held to its
 // list's level rules (lvlClamp). Each is kept as the grant's last keys, only as written
 var GRANT_MAX = 8, GRANT_DEPTH = 3;
@@ -5764,7 +5764,7 @@ function grantCut(sys, W, seed, withSeed, keptTo) {
         if (did) { L.length = 0; keep.forEach(function(r) { L.push(r); }); W.touched[fid] = 1; }
     });
 }
-// 1.6.0 (CORE gap 15; the core's ruling of 2026-10-29, implant flaws leave with the last implant, asked for generally by the SotMW session):
+// 1.6.0 (CORE gap 15; the core's ruling of 2026-10-29, implant flaws leave with the last implant, asked for generally by a build session):
 // before the rows a cut takes go, each granted row passes to the first row, in list order, whose entry grants that entry on that list at its
 // level now, that is neither going nor kept hidden, and that holds no row of it granted by itself (its grant left unfilled, as a list that
 // holds each entry once or a grant ticked once leaves it). Its gr then names that row and its quantity is that row's grant, so it stays with
@@ -6602,7 +6602,7 @@ function atIndex(spec, d, defs) {
     return -1;
 }
 function partsSrc(sys, spec) { var p = isObj(spec) && isObj(spec.parts) ? spec.parts : null, sf = p && isObj(sys) && Array.isArray(sys.fields) ? fieldById(sys, p.from) : null; return sf && sf.kind === 'item-list' ? sf : null; }
-// 198 (the SotMW session, 2026-10-28): which rows of a list may hold parts. A list's parts.hosts names the categories a host may be; none
+// 198 (a build session, 2026-10-28): which rows of a list may hold parts. A list's parts.hosts names the categories a host may be; none
 // named, every row that is no part itself. The sheet's add control and the host's judge (partHost) both ask it
 // 205 (4): where the list says deep (Parts hold parts), a part may hold parts too; partHost stops a tree at PART_DEPTH levels under its top row
 function partHostOk(sys, hspec, row) {
@@ -6640,7 +6640,7 @@ function partsTree(rows, hostId, spec, fid) {
     }
     return ids;
 }
-// 1.6.0 (v2, B6; the SotMW session's v2 sort, 2026-10-29: a limb's upgrade slots): where a list's parts say capBy, a host row holds as many parts
+// 1.6.0 (v2, B6; a build session's sort, 2026-10-29: a limb's upgrade slots): where a list's parts say capBy, a host row holds as many parts
 // (their quantities added) as its own figure in that number stat reads, 0 or more; none where the list says no capBy or the figure is no number.
 // The add and the custom op ask it (the GM's hand and a player's alike, as a full launcher refuses a round), and the sheet's add control
 function partsRoom(sys, hspec, hostRow, list, hostId) {
@@ -7813,7 +7813,7 @@ function rangeCtx(sys, mp, from, to, opts) {
     if (opts.posture && isObj(sys) && isObj(sys.combat) && sys.combat.postureOnAttack === true) { var pA = postureAt(sys, to.posture), pR = pA.p && pA.i > 0 ? postureRangedOf(pA.p) : 0; if (pA.p && pA.i > 0 && (pR || pA.p.aimed === true)) { out.pn = pA.p.name; if (pR) out.pr = pR; if (pA.p.aimed === true) out.aim = 1; } }   // 1.6.0: the target's posture on an attack, by its name, its note and whether hits land as aimed; a posture that says neither, or the first, is none
     return out;
 }
-// 1.6.0 (the SotMW v2 combat module: "Size adds to attack rolls against the target"): what TargetSize reads, the target's own value of the field the
+// 1.6.0 (a build's combat module: "Size adds to attack rolls against the target"): what TargetSize reads, the target's own value of the field the
 // Combat card names (combat.targetSize), worked out on the target's character as its sheet works it out; 0 with no such field, no character
 // behind the token (opts.charOf, the caller's own lookup: the host holds every character, a player's app only its own), or a value that is no
 // number. Held to within 1000 either way

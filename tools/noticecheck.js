@@ -1,5 +1,5 @@
 /* Offline check of a band of side vision that notices by a roll (1.6.0). The owner, 2026-10-31: "if the checks for peripheral vision arent a part of
-   the sotmw system yet, they need to be"; the rule came from the game system's own session and is kept general here: a system sets it on a sense, off
+   the game system yet, they need to be"; the rule came from the game system's own session and is kept general here: a system sets it on a sense, off
    unless it does. noticecore.js and notice.js are run for real on stand-ins of the page, and systemcore.js for what a system keeps; the wiring is pinned. */
 'use strict';
 const fs = require('fs'), path = require('path'), os = require('os');

@@ -14095,7 +14095,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         kS({ attemptKey: 'Gone' }, { stats: [{ key: 'Kind', label: 'Shot kind' }, { key: 'Grip', kind: 'pick' }, { key: 'Slots', set: true }] });
         check('1.6.0 the Lists card offers a list\'s number stats by their labels as text, and one that is gone stays, said so', kOpts[0][0] === 'sys-list-rsak' && j(kOpts[0][1]) === j([['', 'No kind of attempt'], ['Kind', 'Kind: Shot kind'], ['Gone', 'Kind: no such number stat']]) && kOpts[0][2] === 'Gone' && /Attempt\.kind/.test(kOpts[0][3]), j(kOpts));
     }
-        /* 1.6.0 (the SotMW v2 sort, B2): a roll Resisted by a roll ticked Resists an attempt, which reads AttemptMargin */
+        /* 1.6.0 (a build's sort, B2): a roll Resisted by a roll ticked Resists an attempt, which reads AttemptMargin */
         const mkR = (by, lby, rs) => ({ v: 1, name: 'R', fields: [{ id: 'f_wl', key: 'Will', label: 'Will', kind: 'number', vis: 'all', edit: 'owner', def: 12 }, { id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { rolls: [{ label: 'Push', formula: '3d6 <= Will', resistBy: lby }] } }],
             rolls: [{ id: 'r_tr', label: 'Trick', formula: '3d6 <= 13', vis: 'all', resistBy: by }, { id: 'r_rs', label: 'Resist', formula: '3d6 <= Will - AttemptMargin', vis: 'all', resist: rs }, { id: 'r_in', label: 'Init', formula: '3d6', vis: 'all', init: true, resist: true }] });
         const rG = cleanSystem(mkR('r_rs', 'r_rs', true), { F, gmView: true }), rP = cleanSystem(mkR('r_rs', 'r_rs', true), { F, gmView: false }), rP2 = cleanSystem(rP, { F, gmView: false });
@@ -14126,7 +14126,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && shO.includes("top.appendChild(resistOrBox('sys-roll-rsor', r.resistBy, r.resistOr,") && shO.includes("rw.appendChild(resistOrBox('sys-list-rsor', rr.resistBy, rr.resistOr,") && shO.includes("else { delete r.resistBy; delete r.resistOr; } markDirty(); renderAll(); return; }") && shO.includes("else if (c.indexOf('sys-roll-rsor') >= 0) resistOrTick(r, t);")
                 && ixO.includes('<b>Or resisted by</b>') && notesO.every(t => { const i6 = t.indexOf('WAYPOINT 1.6.0'), i5 = t.indexOf('WAYPOINT 1.5.9'), k = t.indexOf('A roll can be Or resisted by up to three more resist rolls'); return k > i6 && k < i5; }), j([oG.rolls[0], oG.fields[1].list.rolls[0], oW.warnings]));
         }
-        /* 1.6.0 (the SotMW v2 combat module): TargetSize, the target's own Size read in an attack beside TargetDistance */
+        /* 1.6.0 (a build's combat module): TargetSize, the target's own Size read in an attack beside TargetDistance */
         const mkZ = (ts, sm) => ({ v: 1, name: 'Z', rolls: [{ id: 'r_hit', label: 'Hit', formula: '3d6 + TargetSize', vis: 'all' }], fields: [
             { id: 'f_sm', key: sm || 'SM', label: 'Size', kind: 'number', vis: 'all', edit: 'owner' }, { id: 'f_sec', key: 'Sec', label: 'Secret', kind: 'number', vis: 'gm', edit: 'gm' },
             { id: 'f_name', key: 'Nm', label: 'Name', kind: 'text', vis: 'all', edit: 'owner' }], combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: '', targetSize: ts } });
@@ -14193,7 +14193,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && ixH.includes('<li><b>Called shots read</b> in the Range box names the list of hit locations on a sheet.') && ixH.includes('A player never aims at a location kept from players.')
                 && nwH.every(t => { const i6 = t.indexOf('WAYPOINT 1.6.0'), i5 = t.indexOf('WAYPOINT 1.5.9'), k = t.indexOf('- A called shot can read the target\'s own location.'); return k > i6 && k < i5; }) && giH.includes('Where "combat" names "targetHit"'), '');
         }
-        /* 1.6.0 (the SotMW v2 sort, B3): a Major Wound's threshold reads the hit location as Hit.<name>, and what a Major Wound does (onMajor) */
+        /* 1.6.0 (a build's sort, B3): a Major Wound's threshold reads the hit location as Hit.<name>, and what a Major Wound does (onMajor) */
         const mkM = (om, major) => { const s = mkD(); s.fields.push({ id: 'f_fx', key: 'Fx', label: 'Effects', kind: 'effects', vis: 'all', edit: 'owner' });
             s.effects = [{ id: 'e_shock', name: 'Shock', vis: 'all', mods: [] }]; s.rolls = [{ id: 'r_vit', label: 'Stay up', formula: '3d6', vis: 'all' }];
             s.combat.damage.major = major === undefined ? 'if(Hit.loc = 1, HP.max / 3, HP.max / 2)' : major; if (om !== undefined) s.combat.damage.onMajor = om; return s; };
@@ -17144,7 +17144,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && lbO.includes("var ol = el('label', 'lib-mod-lvl lib-grant-once'), oc = el('input'); oc.type = 'checkbox'; oc.checked = g.once === true;") && lbO.includes("ol.appendChild(el('span', null, ' Once a character'))") && lbO.indexOf("var ol = el('label', 'lib-mod-lvl lib-grant-once')") > lbO.indexOf("x.title = 'It no longer grants this'") && lbO.includes("oc.addEventListener('change', function() { if (oc.checked) g.once = true; else delete g.once; }); ln.appendChild(ol);")
             && ixO.includes('<li>Tick <b>Once a character</b> on a grant') && ntO.every(t => t.indexOf("- A grant can come once a character") > 0 && t.indexOf("- A grant can come once a character") < t.indexOf('WAYPOINT 1.5.')));
     }
-    {   // 1.6.0 (a grant's own terms, asked by the SotMW session: one drawback granted free by a package and paying back from an implant): a grant's
+    {   // 1.6.0 (a grant's own terms, asked by a build session: one drawback granted free by a package and paying back from an implant): a grant's
         // Pays back (pay: true, the row marked gp, Row.paysback) and the level it grants at (lvl, held to the list's level rules), on invented data
         const J = JSON.stringify;
         const rawP = { v: 1, name: 'P', rolls: [], items: [
@@ -18167,7 +18167,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J(gn(pls)) === J(['Players:<b>Hostile</b>/1,Kael/2']) && J(gn(rolls)) === J(['Players:<b>Hostile</b>/1,Kael/1']) && J(gn(found)) === J(['NPCs \u00b7 Docks:Aba/1']) && J(gn(byName)) === J(['Players:Kael/2'])
             && muteOk && srcOk, J([coreOk, order, chatOf, run.changes, run.rolls, run.chat, line, gn(all), gn(rolls), gn(found), muteOk, srcOk]));
     }
-    {   // 1.6.0: a list roll's, an action's and a counter's other names, row by row (alt: the SotMW session's round 112 ask)
+    {   // 1.6.0: a list roll's, an action's and a counter's other names, row by row (alt: a build session's round 112 ask)
         const J = JSON.stringify;
         const rawN = { v: 1, name: 'N', items: [{ id: 'i_a', name: 'Blaster', stats: { Kind: 1 } }, { id: 'i_b', name: 'Saber', stats: { Kind: 2 } }], sheet: { sections: [] }, fields: [{ id: 'f_w', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', list: {
             stats: [{ key: 'Kind', label: 'Kind', type: 'number' }], counters: [{ key: 'Jam', label: 'Jammed', alt: [{ if: 'Row.Kind = 2', label: 'Broken' }, { if: '1d6', label: 'Dice' }, { if: 'Row.Kind = 2', label: '' }] }],
@@ -18528,7 +18528,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             + 'the HUD has the pills and no lines; the editor\'s Badges box and Colours row (badgeBox, toneRow, run for real) edit the draft in place; the readable page says the badges after the name',
             cleanOk && resOk && valOk && drawOk && hudOk && tableOk && pureOk && editOk && toneOk && mdOk && wiredOk, J([cleanOk, resOk, valOk, drawOk, hudOk, tableOk, pureOk, editOk, toneOk, mdOk, wiredOk, resG.bd, pillsOf(rf), rf.className, condOf(rf), afterE, t1, t2, t3, vB.errors.map(x => x.prop).slice(0, 4)]));
     }
-    {   // 1.6.0, backlog 194 (the SotMW session, 2026-10-28): an item's and a library entry's name 240, as a row's own name; every other name and a character's stay 60
+    {   // 1.6.0, backlog 194 (a build session, 2026-10-28): an item's and a library entry's name 240, as a row's own name; every other name and a character's stay 60
         const long = 'Long name ' + 'x'.repeat(300), J = JSON.stringify;
         const itN = S.cleanItemDef({ id: 'i_long', name: long }, F, true), ovN = S.cleanOv({ name: long }, true);
         const sysN = S.cleanSystem({ v: 1, name: long, fields: [], rolls: [], items: [{ id: 'i_long', name: long }], sheet: { sections: [] } }, { F, gmView: true });
@@ -18989,7 +18989,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 R14 a removed host\'s Undo brings its parts back (partsKept: the parts as they stood, by their places, kept ones too; the restore puts each back at its place, in the same list or another through also, never one of another host, one already there or into another list; with none named the host alone); an action that uses a host up takes its parts with it and keeps them for its Undo; the GM\'s sheet and the host\'s own record for a player keep them, and the host hands its own to the restore',
             keptOk && otherOk && sameOk && guardOk && actOk && actUndoOk && wireOk, J([keptOk, otherOk, sameOk, guardOk, actOk, actUndoOk, wireOk, kept, goneA, goneB, uE.gone, uS.gone]));
     }
-    {   // 198 (the SotMW session, 2026-10-28): which rows hold parts (parts.hosts), and a row of the character's own as a part (the custom op's in)
+    {   // 198 (a build session, 2026-10-28): which rows hold parts (parts.hosts), and a row of the character's own as a part (the custom op's in)
         const J = JSON.stringify;
         const rawH = { v: 1, name: 'H', rolls: [], items: [{ id: 'i_arm', name: 'Arm', category: 'Limb' }, { id: 'i_eye', name: 'Eye', category: 'Implant' }, { id: 'i_up', name: 'Grip', category: 'Upgrade' }],
             fields: [{ id: 'f_c', key: 'Cyber', label: 'Cyber', kind: 'item-list', vis: 'all', edit: 'owner', list: { custom: true, parts: { from: 'f_c', cats: ['Upgrade'], hosts: ['Limb', 'limb', '', 7] } } }], sheet: { sections: [] } };
@@ -19015,7 +19015,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('198 which rows hold parts: a list\'s parts.hosts (the categories, each once, the same in both views) judged by partHostOk, a row of another category or a part itself holding none and the host refusing an add to it; a row of the character\'s own made as a part through the custom op\'s in, judged as add\'s (a host that may hold parts, the parts\' categories, never itself), its in kept through later changes and never moved; the wire keeps it; the sheet\'s add control only on a host and the Lists tab\'s Held by',
             cleanOk && okRows && addOk && custOk && wireOk && sheetOk, J([cleanOk, okRows, addOk, custOk, wireOk, sheetOk, spH.parts, a2, c2, c3, c4, c5, e2]));
     }
-    {   // 1.6.0 (v2, B5 and B6; the SotMW session's v2 sort, 2026-10-29): Row.made, and a host row's room for parts (parts.capBy)
+    {   // 1.6.0 (v2, B5 and B6; a build session's sort, 2026-10-29): Row.made, and a host row's room for parts (parts.capBy)
         const J = JSON.stringify;
         const rawM = { v: 1, name: 'M', rolls: [], items: [{ id: 'i_arm', name: 'Arm', category: 'Limb', stats: { Slots: 2 } }, { id: 'i_hand', name: 'Hand', category: 'Limb', stats: { Slots: 1 } }, { id: 'i_eye', name: 'Eye', category: 'Limb' }, { id: 'i_up', name: 'Grip', category: 'Upgrade' }],
             fields: [{ id: 'f_c', key: 'Cyber', label: 'Cyber', kind: 'item-list', vis: 'all', edit: 'owner', list: { custom: true, stats: [{ key: 'Slots', label: 'Slots' }], parts: { from: 'f_c', cats: ['Upgrade'], capBy: 'slots' }, cols: [{ key: 'Bought', label: 'Bought', formula: 'Row.made' }] } }], sheet: { sections: [] } };
@@ -19137,7 +19137,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 Row.startlvl: a column reads where a row started, (Row.startlvl - Row.lvl) * 5 prices a drawback bought down from 3 to 1 as 10, on the host and on the owner\'s copy (projFacts carries sl); unticked it reads the level now; a list that keys a stat StartLvl reads its stat (a soft row word, as Row.made); the validator knows it only on a list with a level; the wire never carries sl; the Lists tab\'s tick, its warning, Help and both release notes',
             resOk && softOk && edOk, J([resOk, softOk, edOk, rv.f_dr.cells, rvOff.f_dr.cells, rvP.f_dr && rvP.f_dr.cells, rvK.f_dr.cells]));
     }
-    {   // 1.6.0 (v2, B4; the SotMW session's v2 sort, 2026-10-29): an entry, or one level of it, grants rows of another list
+    {   // 1.6.0 (v2, B4; a build session's sort, 2026-10-29): an entry, or one level of it, grants rows of another list
         const J = JSON.stringify;
         const rawG = { v: 1, name: 'G', rolls: [], items: [
             { id: 'i_ward', name: 'Warden', category: 'Calling', grants: [{ list: 'f_ge', entry: 'i_lamp', qty: 2 }, { list: 'f_ge', entry: 'i_rope', from: 2 }, { list: 'f_tr', entry: 'i_scar', from: 3 }, { list: 'f_ge', entry: 'i_lamp', qty: 1, from: 3 },
@@ -19228,7 +19228,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 (v2, B4) the Items tab\'s Grants box (grantBox, run for real): a line per grant with the entry\'s name as text (a library entry\'s too), the list it lands on, how many, From level and a remove button; a list that is gone and none picked said as options; + Grants offers the system\'s items and the library\'s, never the item itself, and a new grant starts on the list whose categories take it; what Save drops or changes said under the item by refreshErrors (grantSays); wired to the handlers, the GM\'s Undo and the host\'s record',
             boxOk && wireOk, J([boxOk, wireOk, saysG, lnG.map(l => l.kids.map(k => k.textContent || k.value))]));
     }
-    {   // 193 (the SotMW session, 2026-10-28): row states as Row names: Row.again anywhere, Row.needsMet in a badge alone
+    {   // 193 (a build session, 2026-10-28): row states as Row names: Row.again anywhere, Row.needsMet in a badge alone
         const J = JSON.stringify;
         const rawA = { v: 1, name: 'A', rolls: [], items: [{ id: 'i_a', name: 'Charm', again: 'name' }, { id: 'i_b', name: 'Ward', needs: [{ id: 'i_a' }] }],
             fields: [{ id: 'f_k', key: 'Kit', label: 'Kit', kind: 'item-list', vis: 'all', edit: 'owner', list: { badges: [{ words: 'Again', if: 'Row.again = 1' }, { words: 'Unmet', if: 'Row.needsMet = 0' }], cols: [{ key: 'G', label: 'G', formula: 'Row.again' }] } }], sheet: { sections: [] } };
@@ -19247,7 +19247,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('193 Row.again (a copy held again under its own name; an owner\'s inline copy says so as ag, kept only there) read anywhere, and Row.needsMet (its entry\'s needs met at the row\'s level, by the definition this machine holds) read in a badge alone: the resolver answers it only for a badge, the validator knows it only in a badge\'s Shown where',
             resOk && gateOk && vOk && vBad && copyOk, J([resOk, gateOk, vOk, vBad, copyOk, rA.bd, rB.bd, rowsAg]));
     }
-    {   // 191 (the SotMW session, 2026-10-27): a place's own words with no row, and a place by category that waits while the GM's library is not read
+    {   // 191 (a build session, 2026-10-27): a place's own words with no row, and a place by category that waits while the GM's library is not read
         const J = JSON.stringify;
         const rawW = { v: 1, name: 'W', rolls: [], items: [{ id: 'i_s', name: 'Sword', category: 'Weapon' }],
             fields: [{ id: 'f_k', key: 'Kit', label: 'Kit', kind: 'item-list', vis: 'all', edit: 'owner', list: {} }, { id: 'f_n', key: 'Note', label: 'Note', kind: 'text', vis: 'all' }],
@@ -19727,7 +19727,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('backlog 28 is said: Help\'s System editor pane has Token bars after Postures (the ring, Add token bars, who sees a bar, the numbers on hover, a GM-only pool never sent, a token\'s own in Properties), the player\'s page says what they see, and both release notes of 1.6.0 have a Token bars section',
             ixTB.includes('<li><b>Token bars</b>, on the Combat card after the blast settings, show up to two pools of the sheet, such as HP, as a thin ring around every character token.') && ixTB.indexOf('<li><b>Token bars</b>, on the Combat card') > ixTB.indexOf('<li><b>Postures</b>, at the foot of the Combat card')
             && ixTB.includes('A GM-only pool, or one whose most reads a GM-only value, is only ever shown to you.') && ixTB.includes('<li><b>Token bars:</b> a thin ring around a token can show how full its pools are, such as HP.')
-            && notesTB.every(t => { const i = t.indexOf(NL + 'Token bars' + NL + '- Show up to two pools of the sheet'), v = t.indexOf('WAYPOINT 1.6.0'); return v === 0 && i > 0 && i < t.indexOf(NL + 'WAYPOINT 1.5.'); }));
+            && notesTB.every(t => { const i = t.indexOf(NL + 'Token bars' + NL + '- Show up to two pools of the sheet'), v = t.indexOf('WAYPOINT 1.6.0'); return v >= 0 && i > 0 && i < t.indexOf(NL + 'WAYPOINT 1.5.'); }));
     }
     {   // 1.6.0, backlog 206: a row's look and its work log (the site's F8, one shape on both sides; systemcore's rowlook slice, run for real)
         const j = JSON.stringify, gmS = (gm, extra) => S.cleanSystem({ v: 1, name: 'L', rolls: [], fields: [
@@ -19831,7 +19831,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('backlog 206 is said: Help\'s Lists part names Rows carry a look, Main part, Shade by, Shades and Rows keep a work log, who may change a look and that a look never changes a figure; the player\'s page says what they see and do; the Lists key has each tick; both release notes of 1.6.0 have Looks and the work log; the integration guide gives the shape and its limits',
             ixL.includes('<li>Tick <b>Rows carry a look</b> and each row may have up to four colours') && ixL.includes('A look never changes a figure: no formula reads it.') && ixL.includes('<b>Shade by</b> names a stat of the list') && ixL.includes('Only you take a line off, and that gives no money back. The 50 newest lines are kept.')
             && ixL.includes('<li><b>Looks and work:</b> where the GM lets a list carry looks') && ['Rows carry a look', 'Main part', 'Shade by', 'Rows keep a work log'].every(w => ixL.includes('<b>' + w + '</b><small>'))
-            && notesL.every(n => { const i = n.indexOf(NL + 'Looks and the work log' + NL + '- A list can let its rows carry a look'); return n.indexOf('WAYPOINT 1.6.0') === 0 && i > 0 && i < n.indexOf(NL + 'WAYPOINT 1.5.'); })
+            && notesL.every(n => { const i = n.indexOf(NL + 'Looks and the work log' + NL + '- A list can let its rows carry a look'); return n.indexOf('WAYPOINT 1.6.0') >= 0 && i > 0 && i < n.indexOf(NL + 'WAYPOINT 1.5.'); })
             && guideL.includes('look?: { overall?: Finish, parts?: [{ part, finish: Finish }] }') && guideL.includes('workLog?: [{ kind: repair | fit | restyle | build, by: self | hired, fee, note? }]'));
     }
     {   // 205 (1) (the core handbook session's parts brief, 2026-10-29): Row.parts.max.<w> and Row.parts.min.<w>, the highest and the lowest one part gives

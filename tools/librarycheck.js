@@ -710,7 +710,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && rw.typed === JSON.stringify([{ f: 'f_sk', op: 'add', v: -2, key: 'Climb', col: 'Half' }]) && rw.back === JSON.stringify([{ f: 'f_st', op: 'add', v: -2 }]) && rw.fresh === JSON.stringify([{ f: 'f_sk', op: 'add', v: -2, key: '', col: 'Target' }])
             && saveS.includes("toast('A change on one entry needs that entry\u2019s key, such as Disguise. Pick it in the key box or remove the change.'); return; }") && saveS.indexOf('A change on one entry') < saveS.indexOf('cleanLibEntry(raw'),
             rwErr || JSON.stringify(rw));
-        // 1.6.0 (v2, B4; the SotMW session's v2 sort, 2026-10-29): an entry grants rows of another list. The library's cleaner in both views, and the
+        // 1.6.0 (v2, B4; a build session's sort, 2026-10-29): an entry grants rows of another list. The library's cleaner in both views, and the
         // form's Grants box (librarywin.js grantsBox, sliced and run for real on a page of plain objects) with what Save entry keeps
         let gq = null, gqErr = '';
         try {
@@ -853,7 +853,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && rowLvl.length === 8 && j(rowLvl[7]) === j([{ id: 'i_a' }, { id: 'i_b', lvl: 2, from: 3 }]) && rowPlain.length === 9 && rowPlain[8] === 'ST >= 3' && rowOnlyRule.length === 7
             && j(cleanIndexRow(JSON.parse(j(rowLvl)), F)[7]) === j([{ id: 'i_a' }, { id: 'i_b', lvl: 2, from: 3 }]), j([keys(gV), keys(pHid), rowLvl.length, rowPlain.length, rowOnlyRule.length, f1, f5]));
     }
-    {   // 1.6.0, backlog 196 (the SotMW session, for the owner's builds: a merge by id never removes an entry): Import, replacing a pack
+    {   // 1.6.0, backlog 196 (a build session, for the owner's builds: a merge by id never removes an entry): Import, replacing a pack
         const libR = [{ id: 'p_t', name: 'Target', entries: [{ id: 'i_1', name: 'One', key: 'One' }, { id: 'i_2', name: 'Two', key: 'Two', notes: 'old' }, { id: 'i_4', name: 'Four' }, { id: 'i_5', name: 'Five' }] }, { id: 'p_o', name: 'Other', entries: [{ id: 'i_9', name: 'Nine' }] }];
         const incR = { entries: [{ id: 'i_2', name: 'Two', key: 'Two', notes: 'new' }, { id: 'i_1', name: 'One', key: 'One' }, { id: 'i_9', name: 'Stolen' }, { id: 'i_3', name: 'Three' }, { id: 'i_3', name: 'Three again' }], dropped: 1, reasons: [] };
         const before = j(libR), pR = L.packImportPlan(libR, 'p_t', incR, 'replace', () => 0.5, { i_4: 2, i_9: 7, i_1: 3 });

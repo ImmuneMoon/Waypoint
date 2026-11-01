@@ -10316,7 +10316,7 @@ net.dueOver = function(att) {
 net.dueRolled = function(att) { var any = false; chatLog.forEach(function(m) { if (m && m.due && m.due.att === att && m.due.hold === 1 && !m.over) { m.over = 1; m.rolled = 1; any = true; } }); if (any) renderChatSoon(); return any; };   // the GM's Apply now once the roll it stood in for is made
 // [netcheck:postdue-end]
 // [netcheck:attempt-start]
-// 1.6.0 (the SotMW v2 sort, B2: "resist at minus the attempt's margin"): a roll whose entry names Resisted by (a system roll ticked Resists an
+// 1.6.0 (a build's sort, B2: "resist at minus the attempt's margin"): a roll whose entry names Resisted by (a system roll ticked Resists an
 // attempt) and that succeeds against the roller's target makes an attempt here, on the host alone: the target's character, the roll that
 // resists it and how far it succeeded. The resist roll is posted to the target's character as a reminder card (to its player where it is a
 // player's and the attempt was rolled in the open, else to the GM), and when that card's roll is made it reads the margin as AttemptMargin,

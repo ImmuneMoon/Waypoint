@@ -889,7 +889,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             // halves (no character, or one that is no line break), or two or three characters that are neither a letter, a digit nor a
             // line break. Every file is read as UTF-8 and again byte for byte, and its path is read too. A new term joins TERMS by its
             // hash, never by its name.
-            const TERMS = [{ head: 'shadow', tail: 4, pin: 'ed9d02bbb2b13ee09bf52ab20c35784f17c8b1e8c84babbb552de3aa911d0fa0' }];
+            const TERMS = [{ head: 'shadow', tail: 4, pin: 'ed9d02bbb2b13ee09bf52ab20c35784f17c8b1e8c84babbb552de3aa911d0fa0' }, { head: 'sot', tail: 2, pin: 'abe9f2488d8fc5604c52e2eb36c7f150268d05145b7663df92a415b576090de1' }];   // the second since 2026-11-01: a release's comments held the owner's campaign's short name, and the website refused it
             const GAP = /^[^\p{L}\p{N}\n]{2,3}$/u;
             // the lines (from 1) where a term stands in a text
             const termHits = (text, t) => {

@@ -9383,6 +9383,7 @@ function damageBox(box, cm) {
     dbxCap(r2, 'Hit locations'); r2.appendChild(select('sys-dmgr-loclist', dbxOpts(['', 'None'], lists, lc.list), dbxStr(lc.list), 'The item list whose rows are the places a hit can land'));
     if (lc.list) {
         dbxCap(r2, 'DR'); r2.appendChild(select('sys-dmgr-locdr', dbxOpts(['', 'No DR'], lkeys, lc.dr), dbxStr(lc.dr), 'The stat or column of that list that is the DR at a location. A column may read the part of the blow it is judged for, as Blow.kind and Blow.type'));
+        dbxCap(r2, 'Side'); r2.appendChild(select('sys-dmgr-locside', dbxOpts(['', 'No sides'], dbxKeys(lc.list, true), lc.side), dbxStr(lc.side), 'A number stat of that list naming each row’s side: 0 none, 1 left, 2 right. Formulas then read Hit.side, and the name of the list then Left or Right, then a stat or column, for that side’s rows added up. The window names the side beside the location'));   // 1.6.0
         dbxCap(r2, 'Cripple above'); r2.appendChild(select('sys-dmgr-loccrip', dbxOpts(['', 'Never'], lkeys, lc.crip), dbxStr(lc.crip), 'The stat or column whose figure a wound must pass to cripple the location. 0 or unset never cripples'));
         dbxCap(r2, 'Vital where'); var vt = input('sys-dmgr-locvital field', dbxStr(lc.vital), 'True at a vital location. It reads the location row as Row', 'e.g. Row.loc = 8'); vt.maxLength = LIMITS.formula; r2.appendChild(vt);
         dbxCap(r2, 'Times there'); var lmx = input('sys-dmgr-locmult field', dbxStr(lc.mult), 'The location\u2019s own multiplier for a wound to the main pool, whatever the type. 0 for none. It reads the location row as Row and the character\u2019s own names', 'e.g. if(Row.loc = 1, 4, 0)'); lmx.maxLength = LIMITS.formula; r2.appendChild(lmx);   // 1.5.6: the skull's x4
@@ -9533,7 +9534,7 @@ function onDamageChange(t) {
         var d = dbxDraft(), was = dbxObj(d.locs) ? d.locs : {};
         if (!v) delete d.locs; else if (was.list !== v) { d.locs = { list: v }; if (was.vital) d.locs.vital = was.vital; (Array.isArray(d.types) ? d.types : []).forEach(function(y) { if (dbxObj(y)) delete y.plus; }); }
         dbxTidy(); redraw = true;
-    } else if (dbxHas(c, 'sys-dmgr-locdr') || dbxHas(c, 'sys-dmgr-loccrip')) { var dl = dbxDraft(); if (!dbxObj(dl.locs)) return true; dbxSet(dl.locs, dbxHas(c, 'sys-dmgr-locdr') ? 'dr' : 'crip', v); }
+    } else if (dbxHas(c, 'sys-dmgr-locdr') || dbxHas(c, 'sys-dmgr-loccrip') || dbxHas(c, 'sys-dmgr-locside')) { var dl = dbxDraft(); if (!dbxObj(dl.locs)) return true; dbxSet(dl.locs, dbxHas(c, 'sys-dmgr-locdr') ? 'dr' : dbxHas(c, 'sys-dmgr-locside') ? 'side' : 'crip', v); }
     else if (dbxHas(c, 'sys-dmgr-ypool') || dbxHas(c, 'sys-dmgr-ynodr') || dbxHas(c, 'sys-dmgr-ynowear') || dbxHas(c, 'sys-dmgr-ycuts') || dbxHas(c, 'sys-dmgr-yplus') || dbxHas(c, 'sys-dmgr-apool') || dbxHas(c, 'sys-dmgr-anowear')) {
         var y = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!y) return true;
         if (dbxHas(c, 'sys-dmgr-ypool')) dbxSet(y, 'pool', v);
@@ -9639,6 +9640,7 @@ function damageSays(d, sys, Fx) {
         else {
             if (typeof d.locs.dr === 'string' && d.locs.dr && !lk.dr) say('Hit locations: the DR is no stat or column of the list, so Save drops it.');
             if (typeof d.locs.crip === 'string' && d.locs.crip && !lk.crip) say('Hit locations: Cripple above is no stat or column of the list, so Save drops it.');
+            if (typeof d.locs.side === 'string' && d.locs.side && !lk.side) say('Hit locations: Side is no number stat of the list, so Save drops it.');   // 1.6.0
             if (typeof d.locs.vital === 'string' && d.locs.vital.trim()) { if (!lk.vital) say('Hit locations: the vital formula is too long or not on one line, so Save drops it.'); else reads(d.locs.vital, 'Vital where'); }
             if (typeof d.locs.mult === 'string' && d.locs.mult.trim()) { if (!lk.mult) say('Hit locations: the Times there formula is too long or not on one line, so Save drops it.'); else reads(d.locs.mult, 'Times there'); }
             if (typeof d.locs.die === 'string' && d.locs.die.trim()) { if (!lk.die) say('Hit locations: the A die there adds formula is too long or not on one line, so Save drops it.'); else reads(d.locs.die, 'A die there adds'); }   // 1.6.0
@@ -11484,7 +11486,7 @@ function canDamage(charId) {
 function dmgRowsOf(sys, c, listId) {   // [{ id, name }]: a list's rows the window offers
     var SCd = window.wpSystemCore, f = listId ? fieldById(sys, listId) : null, src = f && c.values && Array.isArray(c.values[f.id]) ? c.values[f.id] : [], out = [];
     if (!SCd) return out;
-    src.forEach(function(r) { if (!dmgObj(r) || r.hid === 1) return; var id = SCd.rowIdOf(r), d = SCd.rowDef(sys, r); if (id) out.push({ id: id, name: d && d.def && typeof d.def.name === 'string' && d.def.name ? d.def.name : 'Unnamed' }); });
+    src.forEach(function(r) { if (!dmgObj(r) || r.hid === 1) return; var id = SCd.rowIdOf(r), d = SCd.rowDef(sys, r); var nm = d && d.def && typeof d.def.name === 'string' && d.def.name ? d.def.name : 'Unnamed'; if (id) out.push({ id: id, name: d && d.def && typeof SCd.locNamed === 'function' ? SCd.locNamed(sys, f, d.def, nm) : nm }); });   // 1.6.0: a location's side beside its name
     return out;
 }
 function dmgWhy(r) { return !r ? 'It cannot be worked out here.' : r.reason === 'error' ? (r.message || 'A figure could not be worked out.') : r.reason === 'missing' ? 'That location or weapon is not on the character now.' : r.reason === 'value' ? 'Check the damage and its type.' : 'This character cannot take damage that way.'; }

@@ -677,6 +677,11 @@ Systems
   stat of the row that names the type by its place, and adds is a formula.
   Each part of a blow is judged by its own type. The figure never wears, and
   it stops once the row is broken there.
+- Hit locations can name a side. Side picks a number stat of the list, 0 none,
+  1 left, 2 right. Formulas then read Hit.side, and Locations.Left.Strike or
+  Locations.Right.Strike for that side's rows added up, with .max and .min for
+  the highest and lowest, 0 with none. The window names the side beside the
+  location, so one arm is told from the other.
 - The Review can show a note beside a file's changes. A note has no tick
   and counts as no change.
 - An effect's change can be sized by a formula, such as -max(0, -MP)

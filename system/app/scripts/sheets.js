@@ -9462,6 +9462,12 @@ function damageBox(box, cm) {
             if ((draft.fields || []).some(function(f) { return f && f.id === l.list && dbxObj(f.list) && dbxObj(f.list.on); })) ww.appendChild(dbxTick('sys-dmgr-lany', l.anyRow === true, 'Every row', 'Ticked: this layer wears every row of its list, switched on or not. Off: only the rows switched on, as a worn piece of armour is. For a list whose switch means something else, as a location the GM marks by hand.'));   // 1.6.0
             wrap.appendChild(ww);
         }
+        if (l.list && nkL.length) {   // 1.6.0: what a row adds against one damage type (systemcore typedAdd)
+            var tyL = dbxObj(l.typed) ? l.typed : {}, tw = el('div', 'sys-flags sys-dmgr-layer sys-dmgr-ltyped'); tw.dataset.li = String(i);
+            dbxCap(tw, 'Type named by'); tw.appendChild(select('sys-dmgr-ltstat', dbxOpts(['', 'No type'], nkL, tyL.stat), dbxStr(tyL.stat), 'A number stat of the row that names a damage type by its place in your list, 1 the first and 0 none. For a part of that type the row adds to the DR at the location'));
+            dbxCap(tw, 'adds'); var tp = input('sys-dmgr-ltplus field', dbxStr(tyL.plus), 'What the row adds to the DR at the location for a part of that type. It never wears, and it stops once the row is broken there. It reads Row, Hit, Listed, Worn, the blow and the character', 'e.g. 1'); tp.maxLength = LIMITS.formula; tw.appendChild(tp);
+            wrap.appendChild(tw);
+        }
     });
     wrap.appendChild(dbxBtn('dmgrladd', '+ Layer', lys.length >= DBX_LIM.layers ? 'At most ' + DBX_LIM.layers : 'Armour or clothing that wears where a hit gets through', lys.length >= DBX_LIM.layers));
     var wps = Array.isArray(d.weapons) ? d.weapons : [];
@@ -9503,6 +9509,7 @@ function onDamageInput(t) {
     else if (DBX_DIE.some(function(g) { return dbxHas(c, g[0]); })) { var yD = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!yD) return true; DBX_DIE.forEach(function(g) { if (dbxHas(c, g[0])) dbxSet(yD, g[1], dbxNumOf(t)); }); }   // 1.6.0: a figure a die
     else if (dbxHas(c, 'sys-dmgr-kkey') || dbxHas(c, 'sys-dmgr-klabel')) { var kR = dbxRow(t, 'sys-dmgr-kind', 'ki', 'kinds'); if (!kR) return true; if (dbxHas(c, 'sys-dmgr-kkey')) kR.key = txt.slice(0, 24); else dbxSet(kR, 'label', txt.slice(0, LIMITS.label)); }   // 1.6.0: a kind of blow
     else if (dbxHas(c, 'sys-dmgr-lpick')) { var lP = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lP) return true; dbxSet(lP, 'pick', txt.trim() ? txt : ''); }   // 1.6.0
+    else if (dbxHas(c, 'sys-dmgr-ltplus')) { var lY = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lY) return true; var tyI = dbxObj(lY.typed) ? lY.typed : (lY.typed = {}); dbxSet(tyI, 'plus', txt.trim() ? txt : ''); if (!Object.keys(tyI).length) delete lY.typed; }   // 1.6.0: Type named by
     else if (dbxHas(c, 'sys-dmgr-lmajw') || dbxHas(c, 'sys-dmgr-lbrkw') || dbxHas(c, 'sys-dmgr-lbrkm') || dbxHas(c, 'sys-dmgr-lwcap') || dbxHas(c, 'sys-dmgr-lhitw')) { var lQ = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lQ) return true; dbxSet(lQ, dbxHas(c, 'sys-dmgr-lhitw') ? 'hitWear' : dbxHas(c, 'sys-dmgr-lmajw') ? 'majorWear' : dbxHas(c, 'sys-dmgr-lbrkw') ? 'brokenWear' : dbxHas(c, 'sys-dmgr-lwcap') ? 'wearCap' : 'brokenMajorWear', txt.trim() ? txt : ''); }   // 1.6.0: what a hit wears
     else if (dbxHas(c, 'sys-dmgr-ykey') || dbxHas(c, 'sys-dmgr-ylabel') || dbxHas(c, 'sys-dmgr-ymult') || dbxHas(c, 'sys-dmgr-yvital') || dbxHas(c, 'sys-dmgr-aif') || dbxHas(c, 'sys-dmgr-amult')) {
         var y = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!y) return true;
@@ -9540,7 +9547,9 @@ function onDamageChange(t) {
         } else { var al = dbxObj(y.alt) ? y.alt : (y.alt = {}); if (dbxHas(c, 'sys-dmgr-apool')) dbxSet(al, 'pool', v); else dbxSet(al, 'noWear', on); if (!Object.keys(al).length) delete y.alt; }
     } else if (dbxHas(c, 'sys-dmgr-llist') || dbxHas(c, 'sys-dmgr-lwear')) {
         var l = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!l) return true;
-        if (dbxHas(c, 'sys-dmgr-llist')) { if (l.list !== v) { delete l.wear; delete l.wears; } dbxSet(l, 'list', v); redraw = true; } else dbxSet(l, 'wear', v);
+        if (dbxHas(c, 'sys-dmgr-llist')) { if (l.list !== v) { delete l.wear; delete l.wears; delete l.typed; } dbxSet(l, 'list', v); redraw = true; } else dbxSet(l, 'wear', v);
+    } else if (dbxHas(c, 'sys-dmgr-ltstat')) {   // 1.6.0: Type named by
+        var lY = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lY) return true; var tyC = dbxObj(lY.typed) ? lY.typed : (lY.typed = {}); dbxSet(tyC, 'stat', v); if (!Object.keys(tyC).length) delete lY.typed;
     } else if (dbxHas(c, 'sys-dmgr-lwhole')) {   // 1.6.0: Every location: one stat, so what wears by location goes
         var lO = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lO) return true; if (on) { lO.whole = true; delete lO.wears; delete lO.pick; } else delete lO.whole; redraw = true;
     } else if (dbxHas(c, 'sys-dmgr-lany')) {   // 1.6.0: Every row
@@ -9695,6 +9704,10 @@ function damageSays(d, sys, Fx) {
     });
     (Array.isArray(d.layers) ? d.layers : []).forEach(function(l, i) {   // 1.6.0: what a hit wears, by formula, as the cleaner reads it
         if (!dbxObj(l)) return; var cl = (piece({ layers: [l] }).layers || [])[0]; if (!cl) return;
+        if (dbxObj(l.typed) && (l.typed.stat || (typeof l.typed.plus === 'string' && l.typed.plus.trim()))) {   // 1.6.0: Type named by, both or neither, as the cleaner keeps it
+            if (!cl.typed) say('Layer ' + (i + 1) + ': Type named by needs a number stat of its list and a formula, so Save drops it.');
+            else { reads(cl.typed.plus, 'Layer ' + (i + 1) + ', Type named by'); if (!(Array.isArray(d.types) && d.types.length)) warn('Layer ' + (i + 1) + ': Type named by names a damage type, and this system has none, so it adds nothing.'); }
+        }
         if (cl.whole === true && /(^|[^A-Za-z0-9_.])hit\./i.test(cl.at)) warn('Layer ' + (i + 1) + ': Every location is one figure, and with no location its figure reads Hit. names as 0.');   // 1.6.0
         [['hitWear', 'Wears on a hit'], ['majorWear', 'Wears on a Major Wound'], ['brokenWear', 'Once broken, a hit'], ['brokenMajorWear', 'Once broken, a Major Wound'], ['wearCap', 'Wears at most']].forEach(function(g) {
             if (typeof l[g[0]] !== 'string' || !l[g[0]].trim()) return;

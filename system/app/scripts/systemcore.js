@@ -1584,6 +1584,10 @@ function rowTimers(sys, char, secs, perOf, F) {   // F (1.6.0): the formula engi
 // things differ. It wears where a part it stands against took the main pool, never by comparing the damage rolled with its figure, so an armour
 // divisor or a type that ignores DR cannot let a hit through unworn; a blow with no location wears it too (Hit. names read 0); and with no wearCap
 // it stops at its figure, where it is down (layerWord), wear never going past it nor being put back. wears and pick are dropped beside it: one stat
+// typed (1.6.0, Type named by): { stat, plus }, what a row adds to the DR at the location against one damage type. stat, a number stat of the row
+// naming the type by its place in the Combat card's list, 1 the first, 0 none; plus, a formula read as the wear formulas are. It is worked out for
+// each part of a blow by that part's own type, added before the armour divisor, and stored nowhere, so it never wears. A row counts where it wears
+// (on, or anyRow) and where its at gives that part a figure, and it stops once the row is broken there. Several rows add up
 var LAYER_WEAR = ['majorWear', 'brokenWear', 'brokenMajorWear', 'wearCap', 'hitWear'];
 function layerVars(listed, worn, blow, both, cap) {
     var bw = blow && typeof blow === 'object' ? blow : {}, bn = function(v) { return typeof v === 'number' && isFinite(v) ? v : 0; };
@@ -1686,6 +1690,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
             (Array.isArray(l.wears) ? l.wears : []).forEach(function(k) { var n = dmgStatOk(fl, l.list, k); if (n && ws.indexOf(n) < 0 && ws.length < DMG_LIM.wears) ws.push(n); });
             if (ws.length && pk && l.whole !== true) { lo.wears = ws; lo.pick = pk; }
             LAYER_WEAR.forEach(function(k) { var wt = cleanFormulaText(l[k]); if (wt) lo[k] = wt; });   // 1.6.0: what a hit wears, by formula (layerStep)
+            if (isObj(l.typed)) { var tyS = dmgStatOk(fl, l.list, l.typed.stat), tyP = cleanFormulaText(l.typed.plus); if (tyS && tyP) lo.typed = { stat: tyS, plus: tyP }; }   // 1.6.0: Type named by, both or neither
             if (l.anyRow === true) lo.anyRow = true;   // 1.6.0: Every row, switched on or not (a location's switch may be the GM's own)
             if (l.whole === true) lo.whole = true;   // 1.6.0: Every location, one figure and one wear stat (layerCap)
             lys.push(lo);
@@ -1853,12 +1858,29 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
     var blowKinds = function(o) { if (kd) o.kind = kindAt(kd); twos.forEach(function(t) { if (t.kd) o['kind' + t.k] = kindAt(t.kd); }); return o; };   // no key for a blow of no kind, so info.blow is what it always was
     var partR = function(P, o) { var b = Object.assign({}, o, { type: typeAt(P.ty) }); if (P.kd) b.kind = kindAt(P.kd); if (lrow) b.hit = { f: lf.id, r: inp.loc }; return makeResolver(sys, char, F, withBlow(ropts, b)); };
     var blow0 = blowKinds({ dmg: bAmt, cuts: bCuts }); twos.forEach(function(t) { blow0['type' + t.k] = typeAt(t.ty); });
+    var wearKey = function(ly, both) { var wk = ly.wear; if (Array.isArray(ly.wears) && ly.pick) { var pi = Math.round(num(ev(ly.pick, both))); if (pi >= 1 && pi <= ly.wears.length) wk = ly.wears[pi - 1]; } return wk; };   // 1.6.0: the stat worn where it struck
+    var typedAdd = function(P, Rp, pv) {   // 1.6.0: what the layers' rows add to the DR at the location against this part's type (Type named by)
+        var place = typeAt(P.ty), add = 0; if (!place) return 0;
+        (rules.layers || []).forEach(function(ly) {
+            if (!isObj(ly.typed)) return;
+            var f = fieldById(sys, ly.list), src = f && f.list && char.values && Array.isArray(char.values[f.id]) ? char.values[f.id] : null; if (!src) return;
+            var hasOn = isObj(f.list.on) && ly.anyRow !== true, bw = Object.assign({}, blow0, { type: place }); if (P.kd) bw.kind = kindAt(P.kd);
+            src.forEach(function(row) {
+                if (!isObj(row) || row.hid === 1 || (hasOn && row.on !== true)) return;
+                var rid = rowIdOf(row), rv = rid ? Rp.row(f.id, rid) : null; if (!rv || Math.round(num(R.stat(f, row, ly.typed.stat))) !== place) return;
+                var both = function(l, text) { if (/^hit\./.test(l)) return pv(l.replace(/^hit\./, 'row.'), text); return rv(l, text); }, listed = Math.floor(num(ev(ly.at, both))); if (listed <= 0) return;
+                var w = num(R.stat(f, row, wearKey(ly, both))); if (listed - w <= 0) return;   // broken there
+                add += num(ev(ly.typed.plus, layerVars(listed, w, bw, both, layerCap(ly, listed, w, ev, both, bw))));
+            });
+        });
+        return add;
+    };
     if (!inp.only) {
         var mainP = rules.pool || sys.combat.hpResource;
         var partStep = function(P) {   // 1.6.0 (B3): one part of the blow, through its own type's DR and figures, taken off separately: { eff, through, wound, dieAdd, line } or { fail }
             var ty = P.ty, dice = P.dice, amt = P.amt, pf = P.pf, mult = P.mult, dr = 0;
             var Rp = lrow ? partR(P, blow0) : null, pv = Rp ? Rp.row(lf.id, inp.loc) : null, gp = Rp ? getBy(Rp) : get;   // 1.6.0: this part's own reading of the location
-            if (lrow && !(ty && ty.noDr)) { if (rules.locs.dr) dr = gp(lf, lrow, rules.locs.dr); (ty && ty.plus ? ty.plus : []).forEach(function(k) { dr += gp(lf, lrow, k); }); if (dice && ty && ty.dieDr) dr += dice * ty.dieDr; }   // 1.6.0: and its DR a die, for this blow
+            if (lrow && !(ty && ty.noDr)) { if (rules.locs.dr) dr = gp(lf, lrow, rules.locs.dr); (ty && ty.plus ? ty.plus : []).forEach(function(k) { dr += gp(lf, lrow, k); }); if (dice && ty && ty.dieDr) dr += dice * ty.dieDr; dr += typedAdd(P, Rp, pv); }   // 1.6.0: and its DR a die, for this blow   // 1.6.0: and what the layers add against its type
             if (err) return { fail: { ok: false, reason: 'error', message: 'The DR there could not be worked out: ' + err } };
             dr = Math.max(0, dr); var eff = Math.floor(dr / P.ad), through = Math.max(0, amt - eff);
             var lmv = lrow && P.pool === mainP && rules.locs.mult && pv ? num(ev(rules.locs.mult, pv)) : 0;
@@ -1936,7 +1958,7 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
                 if (!each.length) return;
                 var top = each[0], wkW = 0, wkA = 0, wkD = 0; each.forEach(function(e) { if (e.ls > top.ls) top = e; wkW += e.P.wound; wkA += e.P.amt; wkD += e.P.dW; });
                 var listed = top.ls, both = top.both;
-                var wk = ly.wear; if (Array.isArray(ly.wears) && ly.pick) { var pi = Math.round(num(ev(ly.pick, both))); if (pi >= 1 && pi <= ly.wears.length) wk = ly.wears[pi - 1]; }   // 1.6.0: the stat worn where it struck
+                var wk = wearKey(ly, both);   // 1.6.0: the stat worn where it struck
                 var whole = ly.whole === true, w = num(R.stat(f, row, wk)), beats = whole ? each.some(function(e) { return e.P.mp && e.P.wound > 0; }) : wkW > 0 && wkA > Math.max(0, listed - w); if (!beats && !wkD) return;   // the blow is more than it as it stands   // 1.6.0: Every location wears where a part it stands against took the main pool
                 var capW = layerCap(ly, listed, w, ev, both, blowW); if (whole && w >= capW) return;   // 1.6.0: down, and its wear left as it stands
                 var step = (beats ? layerStep(ly, info.major, listed, w, ev, both, blowW, capW) : 0) + wkD, nw = Math.min(capW, w + step); if (nw === w) return;   // 1.6.0: the layer's own wear cap where it has one   // 1.6.0: by the layer's own formulas where it has them

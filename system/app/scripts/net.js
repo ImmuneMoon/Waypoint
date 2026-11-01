@@ -5523,16 +5523,27 @@ function holdEnd(camp, c, recs, why) {   // those records gone, the effects with
     recs.forEach(function(x) { holdTell(camp, x.bc, 'You let go.'); holdTell(camp, x.oc, 'You are no longer held.'); if (typeof recLine === 'function') recLine('fight', (camp.chars && own(camp.chars, x.bc) ? camp.chars[x.bc].name : '') || 'Someone', 'Lets go', HOLD_WHY[why] || ''); });
     holdLog('ended', { n: recs.length, why: why }); if (typeof fightsKeepSoon === 'function') fightsKeepSoon();
 }
-function holdDraw(camp, map, mapId, by, on, c) {   // 1.6.2: a grab from a distance draws its target in (combat.holds.drawIn, off unless a system sets it): to a free spot beside the holder, on the side they came from, one the holder could walk to. With none, or while someone else holds them, they stay and the GM moves the token
-    var r = holdsRules(camp); if (!r || r.drawIn !== true || typeof freeSpotNear !== 'function' || !map || allyNear(map, by, on, false)) return false;
+function holdDraw(camp, map, mapId, by, on, c) {   // 1.6.2: a grab from a distance draws its target in (combat.holds.drawIn, off unless a system sets it): to a free cell beside the holder, as near the side they came from as there is one, that the holder could walk to. With none, or while someone else holds them, they stay and the GM moves the token
+    var r = holdsRules(camp); if (!r || r.drawIn !== true || !map || allyNear(map, by, on, false)) return false;
     if (holdsOf(c).some(function(x) { return x.on === on.id && x.by !== by.id; })) return false;
-    var w = on.w || 60, h = on.h || 52, bw = by.w || 60, bh = by.h || 52, cx = by.x + bw / 2, cy = by.y + bh / 2, dx = on.x + w / 2 - cx, dy = on.y + h / 2 - cy, len = Math.hypot(dx, dy), gd = !!(map.meta && map.meta.gridType), d = (Math.max(bw, bh) + Math.max(w, h)) / 2 * (gd ? 0.8 : 1) + (gd ? 0 : 4);
-    if (!len) { dx = 1; dy = 0; len = 1; }
-    var fits = function(p) { return !!p && !(map.whiteboard || []).some(function(o) { return !!o && o.id !== on.id && (o.isChar || o.waiting) && p.x < o.x + (o.w || 0) && p.x + w > o.x && p.y < o.y + (o.h || 0) && p.y + h > o.y; }) && allyNear(map, by, Object.assign({}, on, { x: p.x, y: p.y }), false); };   // freeSpotNear hands back a place it could not clear when nothing else passes
-    var from = { x: cx, y: cy }, p = freeSpotNear(map, cx + dx / len * d, cy + dy / len * d, w, h, on.id, null, from);
-    if (!fits(p)) { p = freeSpotNear(map, cx, cy, w, h, on.id, null, from); if (!fits(p)) return false; }
+    var w = on.w || 60, h = on.h || 52, bw = by.w || 60, bh = by.h || 52, cx = by.x + bw / 2, cy = by.y + bh / 2, gd = !!(map.meta && map.meta.gridType), d = (Math.max(bw, bh) + Math.max(w, h)) / 2 * (gd ? 0.8 : 1) + (gd ? 0 : 4);
+    var at = Math.atan2(on.y + h / 2 - cy, on.x + w / 2 - cx), F = window.wpFog && typeof window.wpFog.arrivalOk === 'function' ? window.wpFog : null, spot = null;
+    var taken = function(p) {   // on a grid by the cell: a hex map's boxes overlap their neighbours'
+        return (map.whiteboard || []).some(function(o) {
+            if (!o || o.id === on.id || !(o.isChar || o.waiting)) return false;
+            var ow = o.w || 0, oh = o.h || 0;
+            return gd ? Math.hypot(p.x + w / 2 - o.x - ow / 2, p.y + h / 2 - o.y - oh / 2) < 0.7 * Math.min(w, h) : p.x < o.x + ow && p.x + w > o.x && p.y < o.y + oh && p.y + h > o.y;
+        });
+    };
+    var walks = function(p) { if (!F) return true; try { return F.arrivalOk(map, on, cx - w / 2, cy - h / 2, p.x, p.y) !== false; } catch (e) { return true; } };   // the one judge of walls, barriers and the play area
+    for (var k = 0; k < 12 && !spot; k++) {   // 0, then 30 degrees either way, on round to behind the holder
+        var ang = at + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * Math.PI / 6, t = Object.assign({}, on, { x: cx + Math.cos(ang) * d - w / 2, y: cy + Math.sin(ang) * d - h / 2 });
+        if (window.wpSeatCell) window.wpSeatCell(t, map);
+        if (!taken(t) && allyNear(map, by, t, false) && walks(t)) spot = { x: t.x, y: t.y };
+    }
+    if (!spot) return false;
     var was = { x: on.x, y: on.y };
-    snapBack(camp, map, on, { campId: camp.id, itemId: mapId, wbId: on.id }, { x: p.x, y: p.y }, null);
+    snapBack(camp, map, on, { campId: camp.id, itemId: mapId, wbId: on.id }, spot, null);
     holdsMoved(camp, map, mapId, on, was);   // those they hold themselves come along or are let go, as when they walk
     holdLog('drawn', {}); if (typeof save === 'function') save(true);
     return true;

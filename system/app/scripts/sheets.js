@@ -5115,7 +5115,7 @@ function linkBar(box, sys, c, camp, locked) {
         var crL = cur && own && isClient() && !c.partial && c.cr && Array.isArray(c.cr[k.id]) ? c.cr[k.id] : null;   // 1.6.0 Its crew may press this sheet's rolls: the host's list, each press judged there
         if (crL && crL.length) {
             var crB = el('div', 'sheet-lk-rolls');
-            crL.forEach(function(e0) { var bR = el('button', 'tool ghost sheet-roll sheet-lk-roll', e0.label); bR.title = 'Roll ' + e0.label + ' on ' + tName + ' as ' + (c.name || 'this character'); bR.addEventListener('click', function() { if (window.wpDice) window.wpDice.rollFor(cur, e0.expr, e0.label, { by: c.id, act: e0.act || undefined, row: e0.f ? { f: e0.f, r: e0.r, i: e0.i } : undefined, source: 'sheet' }); }); crB.appendChild(bR); });
+            crL.forEach(function(e0) { var bR = el('button', 'tool ghost sheet-lk-roll', e0.label); bR.title = 'Roll ' + e0.label + ' on ' + tName + ' as ' + (c.name || 'this character'); bR.addEventListener('click', function() { if (window.wpDice) window.wpDice.rollFor(cur, e0.expr, e0.label, { by: c.id, act: e0.act || undefined, row: e0.f ? { f: e0.f, r: e0.r, i: e0.i } : undefined, source: 'sheet' }); }); crB.appendChild(bR); });
             box.appendChild(crB);
         }
     });

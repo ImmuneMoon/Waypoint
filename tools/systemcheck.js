@@ -21497,6 +21497,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 Who holds whom, absent and said: a system with none cleans with no key; the Combat card has its box, off until pressed, with what Save drops; the GM\'s menu has its rows; Help, the guide and both notes say it',
             noneA.combat.holds === undefined && !j(noneA).includes('holds') && shH.includes("function holdsBox(box, cm) {") && shH.includes("ad.dataset.act = 'holdadd'") && shH.includes("hdE('Who holds whom needs an effect the held wear. Save drops it.')") && shH.includes("hdE('All holds end where is no formula Save can keep, so Save drops it.')") && shH.includes('if (typeof holdsBox === \'function\') holdsBox(box, cm);')
             && wbH.includes('data-fight="holdtake"') && wbH.includes('data-fight="holdall"') && /<b>Who holds whom<\/b>/.test(htH) && w1H.includes('The Combat card can keep who holds whom') && w2H.includes('The Combat card can keep who holds whom') && guH.includes('**Who holds whom (1.6.0):**'));
+    }
     {   // 1.6.0 An attack on a line: who stands in it (blastcore lineTargets), its keys in both views, the sheet's aim and the editor
         const BCl = await import(url('blastcore.js')), j3 = JSON.stringify, o = { unit: 50, width: 1, reach: 20 }, f0 = { x: 0, y: 0 }, a0 = { x: 100, y: 0 }, at = (id, yd, off, half) => ({ id, x: yd * 50, y: (off || 0) * 50, half: half || 0 });
         const tk = [at('t15', 15), at('t5', 5), at('t25', 25), at('t9', 9), at('tOff', 6, 2), at('tBack', -3), at('tEdge', 20, 0.5)];

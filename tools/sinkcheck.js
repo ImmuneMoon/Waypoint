@@ -5976,6 +5976,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const SC = new Function('el', 'opt', 'commitItem', 'rowIdOf', shS.slice(a, b) + '\nreturn subjectCtl;')(node, (v, x, s) => { const o = node('option', '', x); o.value = v; o.selected = !!s; return o; }, () => {}, r => r.id);
         const m = SC({ id: 'w_a', sj: 1 }, {}, { id: 'f_x' }, { subject: [X] }, true), c = SC({ id: 'w_a', sj: 1 }, {}, { id: 'f_x' }, { subject: [X] }, false);
         check('1.6.0 Subjects: a hostile word reaches the row\'s menu and its chip as an option\'s text and a text node, its value only a place', m.children[1].textContent === X && m.children[1].value === '1' && c.textContent === X && c.tag === 'span', '');
+    }
     {   // 1.6.0 An attack on a line: a player's aim is two numbers, and a roll's or an effect's name reaches a card as damageCard's text
         const nt = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'latin1'), DCl = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dicecore.js')).split(String.fromCharCode(92)).join('/')), rq = DCl.cleanRollReq({ rid: 'q1', expr: '3d6', charId: 'c_a', act: 'r_a', aim: { x: 1, y: 2, html: '<b>' } });
         check('1.6.0 a line\'s aim from a player is two numbers and nothing of it is text; a GM-only roll or effect is named in fixed words on its card',

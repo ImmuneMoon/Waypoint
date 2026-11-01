@@ -618,6 +618,11 @@ Systems, more
   cover takes, and Target.CoverOrPosture reads the harsher of the two, never
   both. The card says which counted. A posture can be ticked Hits land as
   aimed, and Target.Aimed then reads 1 while it counts.
+- A blast's item can fill its area. Pick a number stat in the Blasts and throws
+  part of the Combat card, and a falloff reads its yards as BlastFills, 0 for
+  an item that has none, so everyone in reach can take the whole roll. Only
+  total cover can be set to stop such an item. A second stat reads as
+  BlastNoDrop.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

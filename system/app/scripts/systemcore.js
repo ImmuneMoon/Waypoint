@@ -2721,10 +2721,14 @@ function cleanCombat(c, resIds, fieldIds, secretIds, F, viewKinds, pl, fl) {   /
 //            diceAt), and none where it reads below 1; a falloff reads each one's own roll as BlastDamage. absent: one roll for all, as before
 //   eachAdd  true, only beside each (the core's rule: "that die's add goes with it"): the formula's plain adds are scaled with its dice, so
 //            4d6+4 at 3 dice is 3d6+3 (blastcore diceAt's third argument); absent, the adds stay whole
+//   fills    1.6.0: a number stat of a blast's list: the yards the item fills, read by the falloff as BlastFills, 0 for none. With it the falloff may
+//            give the whole roll to everyone in reach. The blast's own radius still says who is in it
+//   fillCover 'total', only beside fills: an item that fills is stopped by total cover alone; absent, the cover outcomes, as any blast
+//   noDrop   1.6.0: a number stat of a blast's list that says no drop to the ground answers this item, read by the falloff as BlastNoDrop, 1 for a stat that is not 0
 //   eachBy   'victim', only beside each (the owner, by prompt: "the gm or the victim can roll, controlled by a setting"): each character's
 //            player gets a card whose Roll asks the host to roll it, an NPC's card the GM's; absent: the host rolls each at once
 var FRAG_NAMES = Object.freeze({ fragdice: 1, blastdice: 1 });   // 1.6.0: and BlastDice, the dice the blast's own damage rolls
-var BLAST_FALL =Object.freeze({ blastdamage: 1, blastdistance: 1, blastdice: 1, direct: 1, centre: 1 });   // Centre: 1 for a token in the blast's own cell
+var BLAST_FALL =Object.freeze({ blastdamage: 1, blastdistance: 1, blastdice: 1, direct: 1, centre: 1, blastfills: 1, blastnodrop: 1 });   // Centre: 1 for a token in the blast's own cell; 1.6.0: BlastFills and BlastNoDrop, what the two stats below read
 var BLAST_EACH = Object.freeze({ blastdistance: 1, blastdice: 1, direct: 1, centre: 1 });   // 1.6.0 (the core's gap 8): what the dice each victim rolls may read
 function blastFormula(text, F, names, dice) {
     var t = cleanFormulaText(text); if (!t) return '';
@@ -2747,6 +2751,7 @@ function cleanBlastRules(v, F) {
     }
     var rsv = blastFormula(v.resist, F, null, true); if (rsv) out.resist = rsv;   // 1.5.9 (es): an affliction's resist roll, Resist standing for its target
     if (v.hurt === 'share') out.hurt = 'share';   // H7: those it hurt are those any share reached (absent: those it wounded, after DR)
+    var flK = statKey(typeof v.fills === 'string' ? v.fills.trim() : '', F), ndK = statKey(typeof v.noDrop === 'string' ? v.noDrop.trim() : '', F); if (flK) { out.fills = flK; if (v.fillCover === 'total') out.fillCover = 'total'; } if (ndK) out.noDrop = ndK;   // 1.6.0: the stats a blast's item fills and refuses a drop by
     if (typeof v.kind === 'string' && STAT_KEY.test(v.kind)) out.kind = v.kind;   // 1.6.0: the kind of blow its shares and fragmentation carry, a key of the damage rules' kinds (whiteboard.js blastKind hands on one that is there)
     var eaB = blastFormula(v.each, F, BLAST_EACH, false); if (eaB) { out.each = eaB; if (v.eachAdd === true) out.eachAdd = true; if (v.eachBy === 'victim') out.eachBy = 'victim'; }   // 1.6.0 (the core's gap 8): each victim's own dice, and who rolls them
     return Object.keys(out).length ? out : null;

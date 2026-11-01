@@ -8552,7 +8552,7 @@ function listApplyEditor(box, rr, ri, key, sp, targets) {   // key (R2b): 'apply
 // 1.5.8 explosives: the Combat card's blast formulas (systemcore cleanBlastRules), each a box with one line under it saying what Save does with
 // it, the cleaner's own reading. Values and text nodes only
 var BLAST_BOXES = [
-    ['fall', 'Blast falloff', 'Each token\u2019s share of a blast. Names: BlastDamage, BlastDistance in yards, BlastDice, Direct and Centre, the blast\u2019s own cell. With none, every token takes the whole roll.', 'if(or(Direct, Centre), BlastDamage, if(BlastDistance > 2 * BlastDice, 0, floor(BlastDamage / (3 * BlastDistance))))'],
+    ['fall', 'Blast falloff', 'Each token\u2019s share of a blast. Names: BlastDamage, BlastDistance in yards, BlastDice, Direct and Centre, the blast\u2019s own cell, and BlastFills and BlastNoDrop, the two stats named below. With none, every token takes the whole roll.', 'if(or(Direct, Centre), BlastDamage, if(BlastDistance > 2 * BlastDice, 0, floor(BlastDamage / (3 * BlastDistance))))'],
     ['each', 'Each victim\u2019s dice', 'The dice each character in a blast rolls of its own. Names: BlastDice, the blast\u2019s own dice, BlastDistance in yards, Direct and Centre. Below 1 it rolls none. With none, one roll for all.', 'BlastDice - floor(BlastDistance)'],
     ['roll', 'Throw roll', 'The check a throw rolls first. ThrowSkill stands for the item\u2019s throw skill. RangeMod reads the distance to the aim. Row. reads the thrown item\u2019s row, and ThrowDistance the yards to the aim. With none, a throw lands where it is aimed.', '3d6 <= ThrowSkill + RangeMod'],
     ['scatter', 'Scatter on a miss', 'How many yards a miss lands from its aim. Names: Margin and ThrowDistance. With none, a yard a point missed, never more than half the distance thrown.', 'min(Margin, ThrowDistance / 2)'],
@@ -8576,7 +8576,7 @@ function fragSays(v) {   // what Save does with Fragmentation reaches: '' where 
 function blastSays(k, v) {   // what Save does with one formula: '' where it keeps it
     var SCb = window.wpSystemCore; if (!v || !SCb || typeof SCb.cleanBlastRules !== 'function') return '';
     var o = {}; o[k] = v; var c = SCb.cleanBlastRules(o, F());
-    return c && c[k] ? '' : k === 'each' ? 'Save drops it: it may read only BlastDice, BlastDistance, Direct and Centre, with no dice.' : k === 'fall' ? 'Save drops it: it may read only BlastDamage, BlastDistance, BlastDice, Direct and Centre, with no dice.' : k === 'scatter' ? 'Save drops it: it may read only Margin and ThrowDistance.' : k === 'hand' ? 'Save drops it: it may read only Natural, with no dice.' : k === 'roll' ? 'Save drops it: it does not read as a formula.' : 'Save drops it: it does not read as a formula with no dice.';
+    return c && c[k] ? '' : k === 'each' ? 'Save drops it: it may read only BlastDice, BlastDistance, Direct and Centre, with no dice.' : k === 'fall' ? 'Save drops it: it may read only BlastDamage, BlastDistance, BlastDice, Direct, Centre, BlastFills and BlastNoDrop, with no dice.' : k === 'scatter' ? 'Save drops it: it may read only Margin and ThrowDistance.' : k === 'hand' ? 'Save drops it: it may read only Natural, with no dice.' : k === 'roll' ? 'Save drops it: it does not read as a formula.' : 'Save drops it: it does not read as a formula with no dice.';
 }
 function blastBox(box, cm) {
     var bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : {};
@@ -8587,6 +8587,13 @@ function blastBox(box, cm) {
         lineUnder(box, d[2]);
         var er = el('div', 'sys-blast-err'); er.dataset.bk = d[0]; er.textContent = blastSays(d[0], bl[d[0]]); box.appendChild(er);
     });
+    {   // 1.6.0: an item that fills its area, and one no drop answers: a number stat of its list, read by the falloff
+        var stB = {}, stA = [['', 'None']]; (draft.fields || []).forEach(function(f) { if (f && f.kind === 'item-list' && f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(s) { if (s && s.kind !== 'pick' && typeof s.key === 'string' && s.key && !stB[s.key.toLowerCase()]) { stB[s.key.toLowerCase()] = 1; stA.push([s.key, s.label || s.key]); } }); });
+        var stO = function(k) { var cur = typeof bl[k] === 'string' ? bl[k] : ''; return cur && !stB[cur.toLowerCase()] ? stA.concat([[cur, cur + ' (no list has this stat)']]) : stA; };
+        box.appendChild(labeledSelect('sys-combat-bfills', 'An item fills its area by', stO('fills'), typeof bl.fills === 'string' ? bl.fills : '', FILLS_LINE)); lineUnder(box, FILLS_LINE);
+        if (bl.fills) { box.appendChild(labeledSelect('sys-combat-bfillcover', 'Cover against an item that fills', [['', 'As any blast'], ['total', 'Only total cover stops it']], bl.fillCover === 'total' ? 'total' : '', FILL_COVER_LINE)); lineUnder(box, FILL_COVER_LINE); }
+        box.appendChild(labeledSelect('sys-combat-bnodrop', 'An item no drop answers by', stO('noDrop'), typeof bl.noDrop === 'string' ? bl.noDrop : '', NO_DROP_LINE)); lineUnder(box, NO_DROP_LINE);
+    }
     { box.appendChild(labeledSelect('sys-combat-beachadd', 'A die each victim loses', [['', 'Leaves the adds whole'], ['go', 'Takes its add with it']], bl.eachAdd === true ? 'go' : '', EACH_ADD_LINE)); lineUnder(box, EACH_ADD_LINE); }   // 1.6.0 (the core's rule on gap 8)
     { box.appendChild(labeledSelect('sys-combat-beachby', 'Each victim\u2019s dice rolled by', [['', 'The GM, each at once'], ['victim', 'The victim, from a card']], bl.eachBy === 'victim' ? 'victim' : '', EACH_BY_LINE)); lineUnder(box, EACH_BY_LINE); }   // 1.6.0 (the core's gap 8)
     box.appendChild(labeledSelect('sys-combat-bways', 'Ways a miss goes', [['6', 'Six, a d6 (the sides of a hex)'], ['8', 'Eight']], bl.ways === 8 ? '8' : '6', 'How many ways a miss may scatter from its aim, rolled as a die'));
@@ -8619,6 +8626,9 @@ function blastBox(box, cm) {
     box.appendChild(labeledSelect('sys-combat-affhurt', 'Those an affliction hurts', [['', 'Took a wound, after DR'], ['share', 'Took any share of the blast']], bl.hurt === 'share' ? 'share' : '', HURT_LINE)); lineUnder(box, HURT_LINE);
 }
 var STRAY_LINE = 'For a burst\u2019s round that failed, past the first, whose item scatters on a miss. A dice formula, such as 1d6, gives the yards it lands from the first round. You say which way from the bell, and it waits for the fuse. With none, you place it with Launch.';   // 1.6.0
+var FILLS_LINE = 'A number stat of an item\u2019s list: the yards it fills. A falloff reads it as BlastFills, 0 for an item that has none. Give the item a blast radius that reaches as far.';   // 1.6.0
+var FILL_COVER_LINE = 'With a stat picked above. Only total cover stops it: a token partly behind cover takes it all.';   // 1.6.0
+var NO_DROP_LINE = 'A number stat of an item\u2019s list that is not 0 where dropping to the ground does not answer it. A falloff reads it as BlastNoDrop, 1 or 0.';   // 1.6.0
 var EACH_ADD_LINE = 'With Each victim\u2019s dice set. Takes its add with it: 4d6+4 at 3 dice rolls 3d6+3. Leaves the adds whole: it rolls 3d6+4.';   // 1.6.0
 var EACH_BY_LINE = 'With Each victim\u2019s dice set. The GM: each one is rolled as the blast goes off. The victim: each player gets a card with a Roll button, and an NPC\u2019s card is yours.';   // 1.6.0 (the core's gap 8)
 var RESIST_LINE = 'The check a character rolls against an affliction. Resist stands for what the item says it is resisted against. With none, you are told who must resist.';
@@ -8634,8 +8644,9 @@ function resistSays(v) {   // what Save does with the Resist roll: '' where it k
 var FRAG_TYPE_LINE = 'The damage type of fragmentation whose item names none. With none, the blast\u2019s own type.';
 var BLAST_KIND_LINE = 'The kind of blow a blast\u2019s shares and its fragmentation carry, read as Blow.kind. With none, they carry no kind.';   // 1.6.0
 function onBlastChange(t) {   // the lists of the Blasts and throws part
-    var c = t && t.className || '', lk = /(^| )sys-combat-bl(fuse|fumble|stop|glance)( |$)/.exec(c), fk = /(^| )sys-combat-fg(type|cover|each|direct|ad)( |$)/.exec(c), hk = /(^| )sys-combat-affhurt( |$)/.test(c), ek = /(^| )sys-combat-beachby( |$)/.test(c), ak = /(^| )sys-combat-beachadd( |$)/.test(c), kk = /(^| )sys-combat-bkind( |$)/.test(c); if (c.indexOf('sys-combat-bways') < 0 && c.indexOf('sys-combat-bfuse') < 0 && !lk && !fk && !hk && !ek && !ak && !kk) return false;
+    var c = t && t.className || '', lk = /(^| )sys-combat-bl(fuse|fumble|stop|glance)( |$)/.exec(c), fk = /(^| )sys-combat-fg(type|cover|each|direct|ad)( |$)/.exec(c), hk = /(^| )sys-combat-affhurt( |$)/.test(c), ek = /(^| )sys-combat-beachby( |$)/.test(c), ak = /(^| )sys-combat-beachadd( |$)/.test(c), kk = /(^| )sys-combat-bkind( |$)/.test(c), sk = /(^| )sys-combat-b(fills|fillcover|nodrop)( |$)/.exec(c); if (c.indexOf('sys-combat-bways') < 0 && c.indexOf('sys-combat-bfuse') < 0 && !lk && !fk && !hk && !ek && !ak && !kk && !sk) return false;
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : (cm.blast = {});
+    if (sk) { var skK = sk[2] === 'fills' ? 'fills' : sk[2] === 'nodrop' ? 'noDrop' : 'fillCover'; if (t.value) bl[skK] = String(t.value).slice(0, 24); else delete bl[skK]; if (skK === 'fills' && !bl.fills) delete bl.fillCover; if (!Object.keys(bl).length) delete cm.blast; markDirty(); patchErrors(); if (skK === 'fills') renderCombat(); return true; }   // 1.6.0: the stats an item fills and refuses a drop by
     if (kk) { if (t.value) bl.kind = String(t.value).slice(0, 24); else delete bl.kind; }   // 1.6.0: the kind of blow it carries
     else if (ak) { if (t.value === 'go') bl.eachAdd = true; else delete bl.eachAdd; }   // 1.6.0 (the core's rule on gap 8): a lost die's add
     else if (ek) { if (t.value === 'victim') bl.eachBy = 'victim'; else delete bl.eachBy; }   // 1.6.0 (the core's gap 8): who rolls each victim's dice

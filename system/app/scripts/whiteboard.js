@@ -4349,6 +4349,13 @@ window.wpFitToGrid = fitToGrid;
   // A blast thrown from a character sheet: placed on the host, shown to everyone on the map (never the personal quick-tool). opts: x, y (the
   // point clicked), ft, name, by, charId, fieldId, rowId (the row it is thrown from), damage, gmOnly; and from this machine alone: goOff (a mine
   // going off: no roll, no aim), direct (the token struck directly), dtype, notes, icon. mapIn: the map it goes off on (the map on screen else)
+  // 1.6.0: what an item's list says of its blast, by the Combat card's two stats: BlastFills, the yards it fills, and BlastNoDrop. f, the list its row stands on; def, its entry
+  function blastStats(sys, f, def) {
+      var rl = typeof blastRules === 'function' ? blastRules(sys) : null, S = window.wpSystemCore, out = {}; if (!rl || !S || typeof S.rowStat !== 'function' || !f || !f.list || !def) return out;
+      if (rl.fills) { var fv = S.rowStat(f.list, def, rl.fills); if (typeof fv === 'number' && isFinite(fv) && fv > 0) out.fills = Math.min(10000, fv); }
+      if (rl.noDrop) { var nv = S.rowStat(f.list, def, rl.noDrop); if (typeof nv === 'number' && isFinite(nv) && nv !== 0) out.noDrop = true; }
+      return out;
+  }
   function placeThrownBlast(opts, mapIn) {
       var map = mapIn || getActiveMap(); if (!map || !opts) return null;
       var pre = typeof throwPrep === 'function' ? throwPrep(opts, map) : null;   // 1.5.8 explosives: its row, its aim, its roll and its scatter (a suite runs this function alone)
@@ -4366,6 +4373,7 @@ window.wpFitToGrid = fitToGrid;
           var adB = opts.goOff ? opts.ad : pre.area && pre.area.ad; if (typeof adB === 'number' && isFinite(adB) && adB > 0) b.ad = adB;
           var fgB = opts.goOff ? opts.frag : pre.area && pre.area.frag; if (typeof fgB === 'string' && fgB) { b.frag = { expr: fgB.slice(0, 1200), by: typeof opts.charId === 'string' ? opts.charId : '', gm: !!opts.gmOnly }; var fgT = opts.goOff ? opts.fragType : pre.area && pre.area.fragType; if (typeof fgT === 'string' && fgT) b.frag.type = fgT; }   // 1.5.9 (es): its fragmentation, rolled as it goes off (the host's memory alone: broadcastBlast names none of it)
           var afB = opts.goOff ? opts.aff : pre.area && pre.area.aff, BCa = window.wpBlastCore, afC = Array.isArray(afB) && BCa && typeof BCa.cleanAffs === 'function' ? BCa.cleanAffs(afB) : null; if (afC) b.aff = afC;   // 1.5.9 (es): its afflictions, rolled by those it reaches as it goes off (the host's memory alone, as its fragmentation)
+          var fsB = opts.goOff ? opts : pre.tr && typeof blastStats === 'function' ? blastStats(getActiveCampaign().system, pre.tr.f, pre.def) : null; if (fsB) { if (typeof fsB.fills === 'number' && fsB.fills > 0) b.fills = fsB.fills; if (fsB.noDrop === true) b.noDrop = true; }   // 1.6.0: what its list says of it (the host's memory alone, as its fragmentation)
       }
       if (onScreen) seatBlast(b);
       var thrB = opts.charId ? (map.whiteboard || []).filter(function(w) { return w.charId === opts.charId; }).sort(function(p, q) { return (q.isChar ? 1 : 0) - (p.isChar ? 1 : 0); })[0] : null;   // cover follow-ups (owner, answer 5): the thrower's token on this map
@@ -4636,6 +4644,7 @@ window.wpFitToGrid = fitToGrid;
       var typeOk = !!(b.dtype && types.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === String(b.dtype).toLowerCase(); }));
       var eEx = rules && rules.each && BC && typeof BC.diceAt === 'function' ? (b.dmgExpr || b.eachExpr || '') : '', eDice = eEx ? BC.diceCount(eEx) : 0, eVic = !!(eEx && eDice && rules.eachBy === 'victim'), owed = 0, eachN = 0;   // 1.6.0 (the core's gap 8): each victim's own dice
       if (!eDice) eEx = '';
+      var fillTotal = !!(rules && rules.fillCover === 'total' && b && b.fills > 0);   // 1.6.0: an item that fills its area is stopped by total cover alone
       var hurt = { w: [], s: [] }, mark = function(cid, w, sh) { if (w && hurt.w.indexOf(cid) < 0) hurt.w.push(cid); if (sh && hurt.s.indexOf(cid) < 0) hurt.s.push(cid); };   // 1.5.9 (es): whom the blast and its fragmentation wounded, and whom a share reached, in that order
       var write = blastWriter(byChar, hits);   // one entry a character for the Undo (1.5.9: its fragmentation and its afflictions write too)
       blastDistances(b, map).forEach(function(r) {
@@ -4648,14 +4657,14 @@ window.wpFitToGrid = fitToGrid;
               var exE = typeof nE === 'number' && nE >= 1 ? BC.diceAt(eEx, Math.min(100, Math.floor(nE)), rules.eachAdd === true) : ''; if (!exE) { spared++; return; }   // and its adds with its dice, where the card says so
               if (eVic) {
                   var tierV = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, stanceOn('elevation') ? (b.elev || 0) : 0, stanceOn('elevation') ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null;
-                  if (S.coverOutcome && S.coverOutcome(sys, tierV) === 'none') { shielded++; return; }
+                  if (fillTotal ? !!(tierV && tierV.block) : S.coverOutcome && S.coverOutcome(sys, tierV) === 'none') { shielded++; return; }
                   if (blastOwe(b, r, ch, map, exE, Math.min(100, Math.floor(nE)), dirE, cenE, tierV)) owed++; return;
               }
               var rE = window.wpDice && typeof window.wpDice.rollFor === 'function' ? window.wpDice.rollFor(b.rollBy || '', exE, (b.gm === true ? 'Blast' : (b.name || 'Blast')) + ' damage, ' + (r.tok.charName || r.tok.name || ch.name || 'a character'), { gmOnly: b.gm === true, dmg: true, used: true }) : null;
               if (!rE || !rE.ok || typeof rE.value !== 'number' || !isFinite(rE.value)) return; share = Math.max(0, Math.floor(rE.value)); eachN++;
           }
-          if (fall) { share = BC.fallShare(F, fall, { dmg: share, dist: r.d, dice: dice, direct: !!b.direct && r.tok.id === b.direct, centre: typeof sameCellOn === 'function' && sameCellOn(map, b, tokenCentre(r.tok)) }); if (share === null) return; }   // 1.5.8: the token's share by the card's falloff (1.6.0: of its own roll, where each rolls its own)
-          var tierC = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, stanceOn('elevation') ? (b.elev || 0) : 0, stanceOn('elevation') ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null, ocC = S.coverOutcome ? S.coverOutcome(sys, tierC) : 'full', dmgC = S.coverDamage ? S.coverDamage(sys, tierC, share) : share;   // cover follow-ups (owner 2026-09-28): the system's outcome for the cover this token has from the blast (the host's own board)
+          if (fall) { share = BC.fallShare(F, fall, { dmg: share, dist: r.d, dice: dice, direct: !!b.direct && r.tok.id === b.direct, centre: typeof sameCellOn === 'function' && sameCellOn(map, b, tokenCentre(r.tok)), fills: b.fills, noDrop: b.noDrop }); if (share === null) return; }   // 1.5.8: the token's share by the card's falloff (1.6.0: of its own roll, where each rolls its own)
+          var tierC = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, stanceOn('elevation') ? (b.elev || 0) : 0, stanceOn('elevation') ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null, ocC = fillTotal ? (tierC && tierC.block ? 'none' : 'full') : S.coverOutcome ? S.coverOutcome(sys, tierC) : 'full', dmgC = fillTotal ? (tierC && tierC.block ? 0 : share) : S.coverDamage ? S.coverDamage(sys, tierC, share) : share;   // cover follow-ups (owner 2026-09-28): the system's outcome for the cover this token has from the blast (the host's own board)
           if (ocC === 'none' && share > 0) { shielded++; return; }   // shielded: the system's outcome for this grade is none (a half that rounds to 0 took less)
           if (fall && !(dmgC > 0)) { spared++; return; }   // past the falloff's reach: nothing to apply
           var vals = null, lines = null;
@@ -4705,8 +4714,8 @@ window.wpFitToGrid = fitToGrid;
       var rE = window.wpDice.rollFor(ch.id, o.expr, (o.b.gm === true ? 'Blast' : (o.b.name || 'Blast')) + ' damage', { gmOnly: o.b.gm === true, dmg: true, used: true });
       if (!rE || !rE.ok || typeof rE.value !== 'number' || !isFinite(rE.value)) return { error: 'That blast roll could not be made.' };
       var rules = blastRules(sys), fall = rules && rules.fall ? rules.fall : '', share = Math.max(0, Math.floor(rE.value)), hpId = sys.combat ? sys.combat.hpResource : '', step = !!(fall && sys.combat && sys.combat.damage && typeof S.damageStep === 'function');
-      if (fall) { share = BC.fallShare(F, fall, { dmg: share, dist: o.d, dice: BC.diceCount(o.b.dmgExpr || ''), direct: o.dir, centre: o.cen }); if (share === null) return { error: 'Its falloff could not be worked out.' }; }
-      var dmgC = S.coverDamage ? S.coverDamage(sys, o.tier, share) : share; if (!(dmgC > 0)) return { ok: true, amt: 0 };
+      if (fall) { share = BC.fallShare(F, fall, { dmg: share, dist: o.d, dice: BC.diceCount(o.b.dmgExpr || ''), direct: o.dir, centre: o.cen, fills: o.b.fills, noDrop: o.b.noDrop }); if (share === null) return { error: 'Its falloff could not be worked out.' }; }
+      var dmgC = rules && rules.fillCover === 'total' && o.b.fills > 0 ? (o.tier && o.tier.block ? 0 : share) : S.coverDamage ? S.coverDamage(sys, o.tier, share) : share; if (!(dmgC > 0)) return { ok: true, amt: 0 };
       var vals = null, lines = null, st = null;
       if (step) {   // as the blast pass's own shares: DR at the default location, the blast's damage type, its armour divisor
           var types = Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch) : ''; if (loc) q.loc = loc;
@@ -4766,11 +4775,11 @@ window.wpFitToGrid = fitToGrid;
           if (pck && !pck.pass && pck.crit === 'fumble') {   // the book: a critical failure sets it off in the planter's cell
               var plT = throwerOf(map, opts.charId), plC = plT ? tokenCentre(plT) : { x: opts.x, y: opts.y };
               if (area.use === true) useOneUp(camp, tr);
-              return placeThrownBlast({ goOff: true, x: plC.x, y: plC.y, ft: area.ft, name: opts.name || def.name, by: opts.by || '', charId: opts.charId, damage: def.damage || '', gmOnly: !!opts.gmOnly, dtype: area.type, ad: area.ad, notes: opts.gmOnly ? '' : def.notes, icon: def.icon, frag: area.frag, fragType: area.fragType, aff: area.aff }, map);
+              return placeThrownBlast(Object.assign({ goOff: true, x: plC.x, y: plC.y, ft: area.ft, name: opts.name || def.name, by: opts.by || '', charId: opts.charId, damage: def.damage || '', gmOnly: !!opts.gmOnly, dtype: area.type, ad: area.ad, notes: opts.gmOnly ? '' : def.notes, icon: def.icon, frag: area.frag, fragType: area.fragType, aff: area.aff }, typeof blastStats === 'function' ? blastStats(sys, tr.f, def) : null), map);
           }
           var unarmed = !!(pck && !pck.pass);   // the book: a failure leaves it unarmed, and the planter knows
       }
-      var mine = BC.cleanMine({ ft: area.ft, name: opts.name || def.name, damage: def.damage || '', type: area.type, ad: area.ad, trig: area.trig, charId: opts.charId, fieldId: opts.fieldId, rowId: opts.rowId, by: opts.by, gmOnly: !!opts.gmOnly, notes: opts.gmOnly ? '' : def.notes, unarmed: typeof unarmed === 'boolean' ? unarmed : false, frag: area.frag, fragType: area.fragType, aff: area.aff });   // 1.5.9 (es): and its fragmentation and afflictions
+      var mine = BC.cleanMine(Object.assign({ ft: area.ft, name: opts.name || def.name, damage: def.damage || '', type: area.type, ad: area.ad, trig: area.trig, charId: opts.charId, fieldId: opts.fieldId, rowId: opts.rowId, by: opts.by, gmOnly: !!opts.gmOnly, notes: opts.gmOnly ? '' : def.notes, unarmed: typeof unarmed === 'boolean' ? unarmed : false, frag: area.frag, fragType: area.fragType, aff: area.aff }, typeof blastStats === 'function' ? blastStats(sys, tr.f, def) : null));   // 1.5.9 (es): and its fragmentation and afflictions
       if (!mine) return null;
       var amM = getActiveMap(), pxYd = amM && amM.id === map.id ? mapMeasureConfig().cellPx / cellYards() : 50, r = Math.max(10, mine.trig * pxYd);
       var z = { id: 'wb' + uid() + Math.random().toString(36).slice(2, 5), type: 'trigger', shape: 'circle', x: Math.round(opts.x - r), y: Math.round(opts.y - r), w: Math.round(r * 2), h: Math.round(r * 2), color: 'transparent', eventMessage: '', hidden: true, name: (mine.name || 'Mine') + ' (mine)', mine: mine };
@@ -4787,7 +4796,7 @@ window.wpFitToGrid = fitToGrid;
       var at = map.whiteboard.indexOf(zone); if (at < 0) return null;
       var m = zone.mine, cx = (Number(zone.x) || 0) + (Number(zone.w) || 0) / 2, cy = (Number(zone.y) || 0) + (Number(zone.h) || 0) / 2;
       map.whiteboard.splice(at, 1); save(); render();
-      return placeThrownBlast({ goOff: true, x: cx, y: cy, ft: m.ft, name: m.name || 'Mine', by: m.by || '', charId: m.charId, damage: m.damage || '', gmOnly: !!m.gmOnly, direct: direct || null, dtype: m.type, ad: m.ad, notes: m.notes, icon: zone.mineIcon, frag: m.frag, fragType: m.fragType, aff: m.aff }, map);
+      return placeThrownBlast({ goOff: true, x: cx, y: cy, ft: m.ft, name: m.name || 'Mine', by: m.by || '', charId: m.charId, damage: m.damage || '', gmOnly: !!m.gmOnly, direct: direct || null, dtype: m.type, ad: m.ad, notes: m.notes, icon: zone.mineIcon, frag: m.frag, fragType: m.fragType, aff: m.aff, fills: m.fills, noDrop: m.noDrop }, map);
   }
   // A character token that stepped in (the host's own map: the GM's drag, a player's drop): every mine whose trigger it stands in now and did
   // not stand in where the gesture began goes off, the token struck directly. Never on a player's app or in the stream window
@@ -4872,6 +4881,7 @@ window.wpFitToGrid = fitToGrid;
       var lr = launchRowOf(camp, opts); if (!lr) { toast('Nothing to put down there: no round fired or chambered on that row has a blast.'); return null; }
       var hasD = Object.prototype.hasOwnProperty.call(opts, 'direct'), aimT = hasD ? null : tokenAtPoint(map, x, y, true), aim = aimT ? tokenCentre(aimT) : { x: x, y: y }, d = lr.def, a = lr.area, gm = d.vis === 'gm' || lr.f.vis === 'gm';   // the character token clicked, else the point; 1.5.9 (es): a miss names its own point and whom it strikes
       var dir = hasD ? (typeof opts.direct === 'string' ? opts.direct : null) : aimT ? aimT.id : null, po = { goOff: true, launched: true, x: aim.x, y: aim.y, ft: a.ft, name: a.name || d.name || '', by: lr.ch.name || '', charId: opts.charId, fieldId: lr.f.id, rowId: opts.rowId, damage: d.damage || '', gmOnly: gm, direct: dir, dtype: a.type, ad: a.ad, notes: gm ? '' : d.notes, icon: d.icon, frag: a.frag, fragType: a.fragType, aff: a.aff };   // 1.5.9 (es): the round's own fragmentation and afflictions
+      var lsS = window.wpSystemCore, lsF = lsS && typeof lsS.fieldById === 'function' && lr.f.list.chamber && typeof blastStats === 'function' ? lsS.fieldById(camp.system, lr.f.list.chamber.from) : null; if (lsF) Object.assign(po, blastStats(camp.system, lsF, d));   // 1.6.0: by the list its round comes from
       if (typeof opts.said === 'string' && opts.said) po.said = opts.said; if (opts.fuse === true) po.fuseOk = true;
       return placeThrownBlast(po, map);
   }

@@ -54,7 +54,7 @@ function diceAt(expr, n, withAdds) {
 // Centre: 1 for a token in the blast's own cell. No dice are ever rolled. A whole number, 0 or more, at most what was rolled; null where the formula cannot be worked out
 function fallShare(F, formula, o) {
     if (!F || typeof F.evaluate !== 'function' || typeof formula !== 'string' || !formula || !isObj(o)) return null;
-    var nm = { blastdamage: fin(o.dmg) ? o.dmg : 0, blastdistance: fin(o.dist) ? Math.max(0, o.dist) : 0, blastdice: fin(o.dice) ? o.dice : 0, direct: o.direct ? 1 : 0, centre: o.centre ? 1 : 0 };
+    var nm = { blastdamage: fin(o.dmg) ? o.dmg : 0, blastdistance: fin(o.dist) ? Math.max(0, o.dist) : 0, blastdice: fin(o.dice) ? o.dice : 0, direct: o.direct ? 1 : 0, centre: o.centre ? 1 : 0, blastfills: fin(o.fills) ? Math.max(0, o.fills) : 0, blastnodrop: o.noDrop === true ? 1 : 0 };   // 1.6.0: BlastFills, the yards an item fills, 0 for none; BlastNoDrop, 1 where its stat says so
     var r = F.evaluate(formula, { vars: function(n) { var l = String(n).toLowerCase(); return hasOwn(nm, l) ? nm[l] : undefined; }, random: function() { return NaN; } });   // a die fails at the die (as systemcore's noDice): the cleaner keeps none
     if (!r || !r.ok) return null;
     var v = typeof r.value === 'boolean' ? (r.value ? 1 : 0) : r.value; if (!fin(v)) return null;
@@ -154,6 +154,7 @@ function cleanMine(m) {   // 1.5.9 (es): and its fragmentation (frag, a formula'
     var nt = text(m.notes, 800); if (nt) out.notes = nt;
     var fg = text(m.frag, 1200); if (fg) { out.frag = fg; if (typeof m.fragType === 'string' && MINE_TYPE.test(m.fragType)) out.fragType = m.fragType; }   // 1.5.9 (es): its fragmentation, rolled when it goes off
     var af = cleanAffs(m.aff); if (af) out.aff = af;   // 1.5.9 (es): and its afflictions
+    if (fin(m.fills) && m.fills > 0) out.fills = Math.min(10000, m.fills); if (m.noDrop === true) out.noDrop = true;   // 1.6.0: BlastFills and BlastNoDrop, read from its row as it is placed
     return out;
 }
 // 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 2, its affliction half): a blast's afflictions as a mine and a blast carry them, the

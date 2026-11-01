@@ -3528,6 +3528,7 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         if (!nOk && r.hideOff === true) return;   // 1.6.0: Hidden until it can be used
         if (!nOk) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }
         var fsW = res && res.fs && res.fs[rid] ? res.fs[rid][ri] : ''; if (fsW) { b.disabled = true; b.title = fsW; }   // 1.6.0 Feeds: any feed at 0 stops the shot
+        var mpW = res && res.rp && res.rp[rid] ? res.rp[rid][ri] : null, mpC = typeof isClient === 'function' && isClient(); if (mpW && mpW.no && mpC && !b.disabled) { b.disabled = true; b.title = mpW.no + ' \u2014 ' + nm + ' \u00b7 ' + lb; }   // 1.6.0: a Then that cannot be paid whatever the dice say, on a player's app; the GM's own press goes through
         var cbL = typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbL) { b.disabled = true; b.title = cbL + ' \u2014 ' + nm + ' \u00b7 ' + lb; }   // turn-based combat T4
         var goL = function(e) {
             if (r.to === 'near' && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evL = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evL.currentTarget || b, c, function(on) { evL.wpAlly = on || ''; goL(evL); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first
@@ -3536,7 +3537,9 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
             sheetRoll(e, c.id, r.formula, nm + ' \u00b7 ' + lb, oL, { l: f.id, row: rid, i: ri });
         };
         b.addEventListener('click', goL);
-        host.appendChild(b); var pmL = typeof rollModBtn === 'function' ? rollModBtn(b, goL, typeof swCount === 'function' ? swCount(c, { l: f.id, row: rid }) : 0) : null; if (pmL) host.appendChild(pmL);   // 1.5.9: its ±
+        var mpS = null, mpH = host; if (mpW && mpW.may && !b.disabled) { mpS = el('span', 'sheet-item-moneywarn', mpW.may); mpS.title = mpC ? 'If the roll asks for more than you hold, nothing of it lands.' : (mpW.no ? mpW.no + ' ' : '') + 'Your press goes through and takes what is held.'; mpH = el('span', 'sheet-item-moneyroll'); host.appendChild(mpH); }   // 1.6.0: said in sight before the press, a roll the GM may press past as much as one that hangs on the dice; in one group with its button, so that a row that wraps never leaves the words beside the next roll
+        mpH.appendChild(b); var pmL = typeof rollModBtn === 'function' ? rollModBtn(b, goL, typeof swCount === 'function' ? swCount(c, { l: f.id, row: rid }) : 0) : null; if (pmL) mpH.appendChild(pmL);   // 1.5.9: its ±
+        if (mpS) mpH.appendChild(mpS);
     });
 }
 // 1.6.0 Counts by the game clock: a timed counter's words for its chip's title, "counts down one every 2 days" (a unit of the system's by its label)

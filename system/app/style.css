@@ -3713,6 +3713,8 @@
   .sys-list-names { margin-top: 4px; }
   /* Stage 6 F5b: a row's roll buttons; the Lists card's Rolls */
   .sheet-item-roll { padding: 0 8px; height: 24px; font-size: 11px; flex: 0 0 auto; }
+  .sheet-item-moneyroll { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; }   /* 1.6.0: a roll that may not be paid for, its button and its words wrapping as one */
+  .sheet-item-moneywarn { flex: 0 1 auto; color: var(--sheet-warn, var(--gold)); font-size: 11px; line-height: 1.25; }
   /* 1.6.0 R6 and R7: the switch as a button with two words (filled while on, by .tool.on), the icons before a row's buttons, and a roll's figure in a box at its end */
   .sheet-item-onb { padding: 0 8px; height: 24px; font-size: 11px; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; }
   .sheet-item-onb.sheet-item-onno { opacity: .55; }
@@ -4529,6 +4531,7 @@
       #sheetPrint .sheet-frame { position: static !important; }
       #sheetPrint .sheet-section, #sheetPrint .sheet-item, #sheetPrint tr, #sheetPrint .sheet-field { break-inside: avoid; }
       #sheetPrint button:not(.sheet-roll):not(.sheet-item-roll) { display: none !important; }
+      #sheetPrint .sheet-item-moneywarn { display: none !important; }   /* said before a press: paper presses nothing */
       #sheetPrint .sheet-steppers-inside .sheet-kind-resource .sheet-cur { margin-right: 0; border-radius: 4px; }   /* a pool's arrows and fill button are not printed: the room they stood in is given back */
       #sheetPrint .sheet-steppers-inside .sheet-kind-resource .sheet-total { margin-right: 0; }
   }

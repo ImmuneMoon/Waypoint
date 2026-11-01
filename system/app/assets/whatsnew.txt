@@ -630,6 +630,11 @@ Systems, more
   that may read the row and how the roll went. Above 0 is paid in, below 0 is
   paid out, and the card says so. With too little held a player's roll lands
   none of its Then. Your own roll takes what is held and tells you.
+- A roll that costs money whatever the dice say no longer rolls for a player
+  who cannot pay. Its button greys out and says why, and nothing is spent.
+  Where the cost hangs on the dice, the row says "You may not be able to pay
+  this" before the press. Your own press always goes through and takes what is
+  held, and your sheet shows the same words beside the roll.
 - A list roll can be a job of several turns, counted on one of the row's
   counters. Each press adds one, and the row shows 2/5. The roll is made and its
   Then runs at the last press. Keeps progress lets a job be left and picked up.

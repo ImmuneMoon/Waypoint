@@ -4367,6 +4367,7 @@ window.wpFitToGrid = fitToGrid;
       if (pre) {   // 1.5.8: the blast's own id (its card's Apply to all), the damage it rolls, its type, the token struck directly, its notes and its icon
           b.bid = 'b_' + Math.random().toString(36).slice(2, 12); b.dmgExpr = typeof opts.damage === 'string' ? opts.damage : ''; if (pre.direct) b.direct = pre.direct; if (opts.gmOnly) b.gm = true;
           if (typeof opts.charId === 'string' && opts.charId) b.rollBy = opts.charId;   // 1.6.0 (the core's gap 8): whose roll each victim's own dice are, under the GM's rolling
+          if (typeof opts.atkM === 'number') b.atkM = opts.atkM; if (typeof opts.defKey === 'string') b.defKey = opts.defKey;   // 1.6.0: a blast's own Defense roll (the host's memory alone)
           var dty = opts.goOff ? opts.dtype : pre.area && pre.area.type; if (typeof dty === 'string' && dty) b.dtype = dty;
           var nts = opts.goOff ? opts.notes : pre.def && !opts.gmOnly ? pre.def.notes : ''; if (typeof nts === 'string' && nts.trim()) b.notes = nts.trim().slice(0, 800);
           var ico = opts.goOff ? opts.icon : pre.def ? pre.def.icon : ''; if (typeof ico === 'string' && ico) b.icon = ico;
@@ -4525,7 +4526,8 @@ window.wpFitToGrid = fitToGrid;
       var reach = typeof rch === 'number' && isFinite(rch) ? Math.max(rad, Math.min(10000, rch)) : rad;
       var dr = blastDistances(b, map).filter(function(r) { return r && r.tok && typeof r.tok.charId === 'string' && !(typeof b.spare === 'string' && r.tok.id === b.spare); }), byId = Object.create(null);
       dr.forEach(function(r) { if (!byId[r.tok.id]) byId[r.tok.id] = r; });
-      var who = BC.fragTargets(dr.map(function(r) { return { id: r.tok.id, d: r.d }; }), reach, { direct: typeof b.direct === 'string' ? b.direct : null, own: fr.direct === true, each: fr.each === true });
+      var dfF = b.defended || null; if (dfF) dr = dr.filter(function(r) { return !(dfF[r.tok.id] && dfF[r.tok.id].nf === true); });   // 1.6.0: a Defense that succeeded
+      var who = BC.fragTargets(dr.map(function(r) { return { id: r.tok.id, d: r.d + (dfF && dfF[r.tok.id] && dfF[r.tok.id].d > 0 ? dfF[r.tok.id].d : 0) }; }), reach, { direct: typeof b.direct === 'string' ? b.direct : null, own: fr.direct === true, each: fr.each === true });
       var dstep = !!(sys.combat && sys.combat.damage && typeof S.damageStep === 'function'), types = dstep && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [];
       var ty = [fg.type, fr.type, b.dtype].filter(function(t) { return typeof t === 'string' && t; })[0] || '', tyOk = !!(ty && types.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === ty.toLowerCase(); }));
       var label = (b.name || 'Blast') + ' fragmentation', shared, rollOne = function() { var r = window.wpDice.rollFor(fg.by, fg.expr, label, { gmOnly: fg.gm === true, dmg: true, used: true }); return r && r.ok && typeof r.value === 'number' && isFinite(r.value) ? r.value : null; };
@@ -4639,8 +4641,9 @@ window.wpFitToGrid = fitToGrid;
       var camp = getActiveCampaign(), sys = camp && camp.system, S = window.wpSystemCore, F = window.wpFormula, map = mapIn || getActiveMap();
       if (!sys || !S || !F || !map) return;
       var rules = typeof blastRules === 'function' ? blastRules(sys) : null, BC = window.wpBlastCore, fall = rules && rules.fall && BC ? rules.fall : '', step = !!(fall && sys.combat && sys.combat.damage && typeof S.damageStep === 'function');
+      if (typeof defendAsk === 'function' && defendAsk(b, total, hpId, map)) return;   // 1.6.0: a blast's own Defense roll: its share waits for the cards
       var noRes = !hpId && !step; if (noRes) { toast('Full auto is on, but no damage resource is set (System editor ▸ Items ▸ Damage subtracts from).'); if (!(b && b.frag && sys.combat && sys.combat.damage) && !(b && Array.isArray(b.aff) && b.aff.length)) return; }   // 1.5.9 (es): an affliction that reaches everyone in the blast goes on all the same   // the review of fold 3: the GM is told whether or not a fragmentation goes on through the damage step
-      var byChar = Object.create(null), hits = [], applied = 0, halved = 0, shielded = 0, spared = 0, dice = fall ? BC.diceCount(b.dmgExpr || '') : 0, types = step && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [];
+      var dfTx = b.defTx || null, byChar = dfTx ? dfTx.by : Object.create(null), hits = dfTx ? dfTx.hits : [], applied = 0, halved = 0, shielded = 0, spared = 0, dice = fall ? BC.diceCount(b.dmgExpr || '') : 0, types = step && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [];
       var typeOk = !!(b.dtype && types.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === String(b.dtype).toLowerCase(); }));
       var eEx = rules && rules.each && BC && typeof BC.diceAt === 'function' ? (b.dmgExpr || b.eachExpr || '') : '', eDice = eEx ? BC.diceCount(eEx) : 0, eVic = !!(eEx && eDice && rules.eachBy === 'victim'), owed = 0, eachN = 0;   // 1.6.0 (the core's gap 8): each victim's own dice
       if (!eDice) eEx = '';
@@ -4649,6 +4652,7 @@ window.wpFitToGrid = fitToGrid;
       var write = blastWriter(byChar, hits);   // one entry a character for the Undo (1.5.9: its fragmentation and its afflictions write too)
       blastDistances(b, map).forEach(function(r) {
           if (!shapeHolds(b, r) || !r.tok.charId) return;   // what a blast holds is asked in one place: its radius, a ring's inner distance, a cone's angle, and the token an explosion spares
+          var dfT = b.defended ? b.defended[r.tok.id] : null; if (dfT && dfT.d > 0) { r = Object.assign({}, r, { d: r.d + dfT.d }); if (!fall && !shapeHolds(b, r)) { spared++; return; } }   // 1.6.0: a Defense that succeeded takes it as from further off, which may be past its reach
           var ch = camp.chars && typeof r.tok.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, r.tok.charId) ? camp.chars[r.tok.charId] : null; if (!ch || noRes) return;   // own ids only: a token from a file naming '__proto__' writes no damage onto a prototype
           var share = total;
           if (eEx) {   // 1.6.0 (the core's gap 8): this victim's own dice, by the card's formula; rolled now, or owed to its player's card
@@ -4706,6 +4710,7 @@ window.wpFitToGrid = fitToGrid;
   }
   function blastOwedRoll(att, pid) {   // pid: the profile id of the player who pressed it; null for the GM's own press
       var o = typeof att === 'string' && Object.prototype.hasOwnProperty.call(_owed, att) ? _owed[att] : null; if (!o) return { error: 'That blast roll was made already, or is not there now.' };
+      if (typeof o.go === 'string') { if (pid !== null) return { error: 'That blast roll is not yours to make.' }; return defendGo(o.go) ? { ok: true, amt: 1 } : { error: 'That blast has gone off already.' }; }   // 1.6.0: the GM's Apply now on a blast waiting for its Defense rolls
       var camp = getActiveCampaign(), sys = camp && camp.system, S = window.wpSystemCore, F = window.wpFormula, BC = window.wpBlastCore; if (!sys || !S || !F || !BC) return { error: 'That blast roll cannot be made now.' };
       var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, o.charId) ? camp.chars[o.charId] : null; if (!ch) return { error: 'That character is not there now.' };
       if (pid !== null && (ch.npc || !ch.ownerId || ch.ownerId !== pid || o.b.gm === true)) return { error: 'That blast roll is not yours to make.' };
@@ -4731,6 +4736,59 @@ window.wpFitToGrid = fitToGrid;
       _lastThrowTx = { hits: hits }; save(); syncBlastMenu();
       if (lines && window.wpNet && typeof window.wpNet.damageCard === 'function') window.wpNet.damageCard(ch, (o.b.name && o.b.gm !== true ? [o.b.name + ':'] : []).concat(lines));
       return { ok: true, amt: dmgC };
+  }
+  // 1.6.0 A blast's own Defense roll (combat.blast.defend): before its shares a blast asks each character token in its reach for the roll, as a card (net.js
+  // defendPost), and waits. A roll's answer takes 1 onto the count, pass or fail, and a success notes its distance and fragmentation and sets the posture. Once
+  // every card is answered the pass runs with b.defended, by token id. The GM's card, Apply now, lets it go with no more answers. Who rolled no Defense takes
+  // it whole. An item its list says no drop answers (b.noDrop) asks nothing. A launched burst's rounds share one key, so one roll holds for every blast of the
+  // burst, those that land later too (_defKept, until the row's next attack). What waits is the host's memory alone, and the count's change is on the pass's
+  // own Undo. _defWait: by key, { key, d, want: { token id: attempt id }, res, by, hits, waits: [{ b, total, hpId, map }], go }
+  var _defWait = Object.create(null), _defKept = Object.create(null), DEF_MAX = 32;
+  function defendKeptGo(key) { delete _defKept[key]; }
+  function defendAsk(b, total, hpId, map) {
+      var camp = getActiveCampaign(), sys = camp && camp.system, rules = blastRules(sys), d = rules && rules.defend && typeof rules.defend === 'object' ? rules.defend : null, n = window.wpNet;
+      if (!d || b.defGo === true || b.noDrop === true || !b.bid || !n || typeof n.defendPost !== 'function') return false;
+      var key = typeof b.defKey === 'string' ? b.defKey : b.bid, w = _defWait[key] || null, kept = _defKept[key] || null, rec = w || { key: key, d: d, want: Object.create(null), res: Object.create(null), by: Object.create(null), hits: [], waits: [], go: '' }, posted = 0, first = null;
+      blastDistances(b, map).forEach(function(r) {
+          if (!shapeHolds(b, r) || !r.tok.charId || rec.want[r.tok.id] || (kept && kept[r.tok.id])) return;
+          var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, r.tok.charId) ? camp.chars[r.tok.charId] : null; if (!ch) return;
+          var S = window.wpSystemCore, vt = window.wpVtt, rl = function(k) { return !vt || (vt.rulesOn ? vt.rulesOn(k) : vt.on(k)); }, tc = S && typeof S.tokenCtx === 'function' ? S.tokenCtx(map, r.tok, { turning: rl('turning'), posture: rl('posture'), elevation: rl('elevation') }) : null;
+          var at = n.defendPost(camp, d.roll, ch, b.gm === true || !b.name ? 'a blast' : b.name, b.direct === r.tok.id && typeof b.atkM === 'number' ? b.atkM : 0, { key: key, tok: r.tok.id, map: map.id }, b.gm === true, tc);
+          if (at) { rec.want[r.tok.id] = at; posted++; first = first || ch; }
+      });
+      if (!posted && !w) { if (kept) b.defended = kept; return false; }
+      rec.waits.push({ b: b, total: total, hpId: hpId, map: map });
+      if (!w) {
+          var ks = Object.keys(_defWait); if (ks.length >= DEF_MAX) defendGo(ks[0]);
+          _defWait[key] = rec;
+          if (typeof n.postBlastDue === 'function' && first) { var idG = ''; while (!idG || Object.prototype.hasOwnProperty.call(_owed, idG)) { idG = 'a_'; while (idG.length < 10) idG += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36)); } _owed[idG] = { go: key }; _owedIds.push(idG); while (_owedIds.length > OWED_MAX) delete _owed[_owedIds.shift()]; rec.go = idG; n.postBlastDue(first, idG, (b.gm === true ? 'A blast' : (b.name || 'A blast')) + ' waits for its Defense rolls', false, true); }
+      }
+      if (posted) toast((b.gm === true ? 'The blast' : (b.name || 'The blast')) + ' waits for ' + posted + ' Defense roll' + (posted === 1 ? '' : 's') + '. Apply now on your card lets it go.');
+      if (window.wpStepLog) window.wpStepLog('blastdefend v1', 'asked', { cards: posted, burst: typeof b.defKey === 'string' });
+      return true;
+  }
+  window.wpBlastDefended = function(def, pass) {   // net.js on the host, as the roll a card asked for is made. def: the attempt's own record
+      var w = def && typeof def.key === 'string' ? _defWait[def.key] : null; if (!w || typeof def.tok !== 'string' || !w.want[def.tok]) return false;
+      var camp = getActiveCampaign(), sys = camp && camp.system, S = window.wpSystemCore, F = window.wpFormula, d = w.d, map = camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, def.map) ? camp.items[def.map] : null, tok = map && Array.isArray(map.whiteboard) ? map.whiteboard.filter(function(t) { return t && t.id === def.tok; })[0] : null, ch = tok && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, tok.charId) ? camp.chars[tok.charId] : null;
+      delete w.want[def.tok]; w.res[def.tok] = pass === true ? { d: typeof d.yards === 'number' ? d.yards : 0, nf: d.noFrag === true } : {};
+      if (ch && S && F && typeof d.count === 'string' && d.count) {
+          var cf = S.fieldById(sys, d.count), all = cf ? S.resolveAll(sys, ch, F) : null, e = all ? all[d.count] : null, stored = ch.values ? ch.values[d.count] : undefined, cur = cf && cf.kind === 'number' && typeof stored === 'number' ? stored : e && typeof e.value === 'number' ? e.value : 0, res = cf ? S.applyEdit(sys, ch, d.count, cf.kind === 'resource' ? { cur: cur + 1 } : cur + 1, F, {}) : null;
+          if (res && res.ok) { var vals = {}; vals[d.count] = res.value; blastWriter(w.by, w.hits)(ch, ch.id, vals); save(); }
+      }
+      if (pass === true && tok && typeof d.posture === 'string' && d.posture && typeof window.wpSetTokenStance === 'function') window.wpSetTokenStance(def.map, def.tok, { posture: d.posture });
+      if (window.wpStepLog) window.wpStepLog('blastdefend v1', 'answered', { pass: pass === true, left: Object.keys(w.want).length });
+      if (!Object.keys(w.want).length) defendGo(w.key);
+      return true;
+  };
+  function defendGo(key) {
+      var w = _defWait[key]; if (!w) return false; delete _defWait[key];
+      var n = window.wpNet; Object.keys(w.want).forEach(function(t) { if (n && typeof n.attemptDrop === 'function') n.attemptDrop(w.want[t]); });
+      if (w.go && Object.prototype.hasOwnProperty.call(_owed, w.go)) { delete _owed[w.go]; _owedIds = _owedIds.filter(function(x) { return x !== w.go; }); }
+      var was = _defKept[key] || null, all = Object.create(null); if (was) Object.keys(was).forEach(function(t) { all[t] = was[t]; }); Object.keys(w.res).forEach(function(t) { all[t] = w.res[t]; });
+      if (w.waits.some(function(e) { return typeof e.b.defKey === 'string'; })) { var ks = Object.keys(_defKept); if (ks.length >= DEF_MAX) delete _defKept[ks[0]]; _defKept[key] = all; }
+      if (window.wpStepLog) window.wpStepLog('blastdefend v1', 'went', { blasts: w.waits.length, unanswered: Object.keys(w.want).length });
+      w.waits.forEach(function(e, i) { e.b.defGo = true; e.b.defended = all; if (i === 0) e.b.defTx = { by: w.by, hits: w.hits }; applyBlastDamage(e.b, e.total, e.hpId, e.map); delete e.b.defTx; });
+      return true;
   }
   window.wpBlastOwedRoll = function(att, pid) { return blastOwedRoll(att, typeof pid === 'string' ? pid : null); };   // net.js: a player's press, by their profile id
   window.wpBlastOwedPress = function(att) {   // a blast card's Roll on this machine: a player's goes to the host, the GM's is rolled here
@@ -4883,6 +4941,7 @@ window.wpFitToGrid = fitToGrid;
       var dir = hasD ? (typeof opts.direct === 'string' ? opts.direct : null) : aimT ? aimT.id : null, po = { goOff: true, launched: true, x: aim.x, y: aim.y, ft: a.ft, name: a.name || d.name || '', by: lr.ch.name || '', charId: opts.charId, fieldId: lr.f.id, rowId: opts.rowId, damage: d.damage || '', gmOnly: gm, direct: dir, dtype: a.type, ad: a.ad, notes: gm ? '' : d.notes, icon: d.icon, frag: a.frag, fragType: a.fragType, aff: a.aff };   // 1.5.9 (es): the round's own fragmentation and afflictions
       var lsS = window.wpSystemCore, lsF = lsS && typeof lsS.fieldById === 'function' && lr.f.list.chamber && typeof blastStats === 'function' ? lsS.fieldById(camp.system, lr.f.list.chamber.from) : null; if (lsF) Object.assign(po, blastStats(camp.system, lsF, d));   // 1.6.0: by the list its round comes from
       if (typeof opts.said === 'string' && opts.said) po.said = opts.said; if (opts.fuse === true) po.fuseOk = true;
+      if (typeof opts.margin === 'number' && isFinite(opts.margin)) po.atkM = opts.margin; if (opts.shot) po.defKey = burstKey(opts);   // 1.6.0: a blast's own Defense roll: the attack's margin, read by its direct target, and the burst whose rounds take one roll
       return placeThrownBlast(po, map);
   }
   window.wpLaunchAt = launchAt;
@@ -4912,7 +4971,7 @@ window.wpFitToGrid = fitToGrid;
   // net.js burstAfter, on the host, as an attack lands: o.shot names its first round and b is that round's blast, where it made one. With no shot the row's last burst is forgotten
   window.wpBurstFirst = function(o, b) {
       var camp = getActiveCampaign(); if (!camp || !o || (window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) return;
-      delete _burstAt[burstKey(o)]; if (!o.shot) return;
+      delete _burstAt[burstKey(o)]; if (!o.shot) { if (typeof defendKeptGo === 'function') defendKeptGo(burstKey(o)); return; }
       var e = shotEnds(camp, o); if (!e.t || !e.sh) return;
       var ks = Object.keys(_burstAt); if (ks.length >= BURST_MAX) delete _burstAt[ks[0]];
       _burstAt[burstKey(o)] = { camp: camp.id, mapId: e.map.id, aim: e.aim, from: e.from, land: b && isFinite(Number(b.x)) && isFinite(Number(b.y)) ? { x: Number(b.x), y: Number(b.y) } : null };   // no landing: it made no blast, so the rest of the burst lands from the aim
@@ -4983,8 +5042,8 @@ window.wpFitToGrid = fitToGrid;
           return launchAt({ charId: o.charId, fieldId: o.fieldId, rowId: o.rowId, x: (hd.land || hd.aim).x, y: (hd.land || hd.aim).y, shot: o.shot, direct: null, said: ' Its target is gone, so it goes off where the first round was aimed.' }, mH);
       }
       if (!t) return null;
-      if (o.shot) { if (!launchRowOf(camp, o)) return null; var cS = tokenCentre(t); return launchAt({ charId: o.charId, fieldId: o.fieldId, rowId: o.rowId, x: cS.x, y: cS.y, shot: o.shot }, map); }   // 1.6.0 A burst: the very round, and one with no blast of its own puts nothing down
-      var c = tokenCentre(t); return launchAt({ charId: o.charId, fieldId: o.fieldId, rowId: o.rowId, x: c.x, y: c.y }, map);
+      if (o.shot) { if (!launchRowOf(camp, o)) return null; var cS = tokenCentre(t); return launchAt({ charId: o.charId, fieldId: o.fieldId, rowId: o.rowId, x: cS.x, y: cS.y, shot: o.shot, margin: o.margin }, map); }   // 1.6.0 A burst: the very round, and one with no blast of its own puts nothing down
+      var c = tokenCentre(t); return launchAt({ charId: o.charId, fieldId: o.fieldId, rowId: o.rowId, x: c.x, y: c.y, margin: o.margin }, map);
   };
   var LAUNCH_BOARD = 30000;   // the board's own size, in board pixels (the style sheet's #whiteboard)
   // net.js on the host: a launched round that missed (o: charId, fieldId, rowId, tid and mapId, the roller's target, margin, the verdict's, and crit,

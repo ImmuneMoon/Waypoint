@@ -5952,6 +5952,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const SC = new Function('el', 'opt', 'commitItem', 'rowIdOf', shS.slice(a, b) + '\nreturn subjectCtl;')(node, (v, x, s) => { const o = node('option', '', x); o.value = v; o.selected = !!s; return o; }, () => {}, r => r.id);
         const m = SC({ id: 'w_a', sj: 1 }, {}, { id: 'f_x' }, { subject: [X] }, true), c = SC({ id: 'w_a', sj: 1 }, {}, { id: 'f_x' }, { subject: [X] }, false);
         check('1.6.0 Subjects: a hostile word reaches the row\'s menu and its chip as an option\'s text and a text node, its value only a place', m.children[1].textContent === X && m.children[1].value === '1' && c.textContent === X && c.tag === 'span', '');
+    {   // 1.6.0 A blast's own Defense roll: an item's name comes from a file. It reaches the card as a called roll's by, which the wire cleans and dice.js draws as text
+        const DCd = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dicecore.js')).split(String.fromCharCode(92)).join('/')), djD = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dice.js'), 'utf8'), wbD = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8');
+        const dd = DCd.cleanDue({ type: 'due', id: 'r_abcdefgh', from: { id: 'u_gm', name: 'GM', gm: true }, charId: 'c_b', act: 'r_dd', label: 'Dodge', why: 'called', round: 1, roll: 1, att: 'a_abcd1234', by: '<img src=x onerror=alert(1)>', ts: 1 });
+        check('1.6.0 a blast named on a Defense card is plain text: the card keeps it as the text of a called roll, the card draws it through el, and a GM-only blast names none',
+            !!dd && dd.by === '<img src=x onerror=alert(1)>' && djD.includes("(rec.by ? 'called for by ' + rec.by : 'called for')") && wbD.includes("b.gm === true || !b.name ? 'a blast' : b.name"));
+    }
     {   // 1.6.0 Where a hit behind cover lands: a location's name comes from a file. It reaches the card only through cleanCovHit, and dice.js draws it as a text node
         const DCv = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dicecore.js')).split(String.fromCharCode(92)).join('/')), djC = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dice.js'), 'utf8');
         const hC = DCv.cleanCovHit({ n: '<img src=x onerror=alert(1)>', d: 1, of: 6, html: '<b>' });

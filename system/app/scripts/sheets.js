@@ -7573,6 +7573,7 @@ function refreshErrors() {
     var lkS = typeof linkSays === 'function' ? linkSays(draft.links, draft.fields, F()) : { errs: [], warns: [] }; if (lkS.errs.length) errorsById.links = lkS.errs; if (lkS.warns.length) warningsById.links = lkS.warns;   // 1.6.0: what Save drops of the linked sheets, as the cleaner reads them
     if (typeof envSays === 'function' && F()) { var eSy = null, eS = envSays(draft.env, draft.fields, F(), function(ns) { eSy = eSy || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }; return gmDerivedNames(eSy, F(), ns); }); if (eS.errs.length) errorsById.env = (errorsById.env || []).concat(eS.errs); if (eS.warns.length) warningsById.env = (warningsById.env || []).concat(eS.warns); }   // 1.6.0: what Save does with the environment readings
     if (typeof tableSays === 'function') { var tbSy = tableSays(draft.tables); if (tbSy.errs.length) errorsById.tables = tbSy.errs; }   // 1.6.0: what Save drops of the tables, as the cleaner reads them
+    if (typeof defendSays === 'function') { var dfS = defendSays(draft.combat && draft.combat.blast && draft.combat.blast.defend, draft.rolls, draft.combat, draft.fields); if (dfS.errs.length) errorsById.blastdefend = dfS.errs; if (dfS.warns.length) warningsById.blastdefend = dfS.warns; }   // 1.6.0: what Save drops of a blast's own Defense roll, as the cleaner reads it
     if (typeof coverHitSays === 'function') { var cvS = coverHitSays(draft.combat && draft.combat.cover, draft.combat, F()); if (cvS.errs.length) errorsById.coverhit = cvS.errs; if (cvS.warns.length) warningsById.coverhit = cvS.warns; }   // 1.6.0: what Save drops of where a hit behind cover lands, as the cleaner reads it
     if (typeof damageSays === 'function') { var dmS = damageSays(draft.combat && draft.combat.damage, clean, F()); if (dmS.errs.length) errorsById.damage = dmS.errs; if (dmS.warns.length) warningsById.damage = dmS.warns; }   // 1.5.6: what Save drops of the damage rules, as the cleaner reads them
 }
@@ -8767,6 +8768,40 @@ function blastBox(box, cm) {
     var re = el('div', 'sys-blast-err'); re.dataset.rk = 'resist'; re.textContent = resistSays(rsV); box.appendChild(re);
     box.appendChild(labeledSelect('sys-combat-affhurt', 'Those an affliction hurts', [['', 'Took a wound, after DR'], ['share', 'Took any share of the blast']], bl.hurt === 'share' ? 'share' : '', HURT_LINE)); lineUnder(box, HURT_LINE);
 }
+// 1.6.0 A blast's own Defense roll: the Blasts and throws part's rows for combat.blast.defend. Save cleans it (systemcore cleanBlastDefend); defendSays says what it drops, under errorCell('blastdefend')
+var DEFEND_LINE = 'Each character in reach gets a card of this roll before its share. A success counts it as further off. The blast waits for the cards, and Apply now on the GM\u2019s card lets it go. Who rolled nothing takes it whole. The roll\u2019s Needs may hold it back. A launched burst takes one roll.';
+function defendOpts(rows, cur, none) { var o = [['', none]].concat(rows); if (typeof cur === 'string' && cur && !o.some(function(x) { return x[0] === cur; })) o.push([cur, cur]); return o; }   // a stored id the card no longer lists stays as it is
+function defendBox(box, bl, cm) {
+    var df = bl.defend && typeof bl.defend === 'object' && !Array.isArray(bl.defend) ? bl.defend : {}, rolls = (draft.rolls || []).filter(function(r) { return r && typeof r.id === 'string' && !Array.isArray(r.apply); }).map(function(r) { return [r.id, String(r.label || r.id).split('{')[0].trim() || r.id]; });
+    box.appendChild(labeledSelect('sys-combat-dfroll', 'A blast\u2019s Defense roll', defendOpts(rolls, df.roll, 'None'), typeof df.roll === 'string' ? df.roll : '', DEFEND_LINE)); lineUnder(box, DEFEND_LINE);
+    if (typeof df.roll === 'string' && df.roll) {
+        var posts = (Array.isArray(cm.postures) ? cm.postures : []).filter(function(p) { return p && typeof p.id === 'string'; }).map(function(p) { return [p.id, p.name || p.id]; }), counts = (draft.fields || []).filter(function(f) { return f && (f.kind === 'number' || f.kind === 'resource'); }).map(function(f) { return [f.id, f.label || f.key || f.id]; });
+        box.appendChild(labeledNum('sys-combat-dfyards', 'A success counts as further off, yards', typeof df.yards === 'number' ? df.yards : '', 'Added to BlastDistance for a character whose roll succeeded. Empty: none'));
+        box.appendChild(labeledSelect('sys-combat-dfnofrag', 'A success and fragmentation', [['', 'Takes it all the same'], ['no', 'Takes none']], df.noFrag === true ? 'no' : '', 'Whether a character whose roll succeeded takes the blast\u2019s fragmentation'));
+        box.appendChild(labeledSelect('sys-combat-dfposture', 'A success leaves its token', defendOpts(posts, df.posture, 'As it stands'), typeof df.posture === 'string' ? df.posture : '', 'The posture a success puts its token in'));
+        box.appendChild(labeledSelect('sys-combat-dfcount', 'Defenses are counted in', defendOpts(counts, df.count, 'Nothing'), typeof df.count === 'string' ? df.count : '', 'A number or a pool that takes 1 for the roll, pass or fail. The roll itself may read it'));
+    }
+    if (typeof errorCell === 'function') { var err = errorCell('blastdefend'); err.dataset.errFor = 'blastdefend'; box.appendChild(err); }
+}
+function onDefendChange(t) {
+    var m = /(^| )sys-combat-df(roll|yards|nofrag|posture|count)( |$)/.exec(t && t.className || ''); if (!m) return false;
+    var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : (cm.blast = {}), df = bl.defend && typeof bl.defend === 'object' && !Array.isArray(bl.defend) ? bl.defend : (bl.defend = {}), v = String(t.value || '');
+    if (m[2] === 'roll') { if (v) df.roll = v; else delete bl.defend; }
+    else if (m[2] === 'yards') { var n = Number(v); if (v !== '' && isFinite(n)) df.yards = n; else delete df.yards; }
+    else if (m[2] === 'nofrag') { if (v === 'no') df.noFrag = true; else delete df.noFrag; }
+    else if (v) df[m[2]] = v; else delete df[m[2]];
+    if (bl.defend && !Object.keys(bl.defend).length) delete bl.defend; if (!Object.keys(bl).length) delete cm.blast;
+    markDirty(); patchErrors(); if (m[2] === 'roll') renderCombat(); return true;
+}
+function defendSays(df, rolls, cm, fields) {
+    var errs = [], warns = [], SCd = window.wpSystemCore; if (!df || typeof df !== 'object' || Array.isArray(df) || !SCd || typeof SCd.cleanBlastDefend !== 'function') return { errs: errs, warns: warns };
+    var c = SCd.cleanBlastDefend(df); if (!c) { if (Object.keys(df).length) errs.push({ message: 'A blast\u2019s Defense roll: it names no roll, so Save drops it.' }); return { errs: errs, warns: warns }; }
+    if (df.yards !== undefined && c.yards === undefined) errs.push({ message: 'A success counts as further off: it must be more than 0, so Save drops it.' }); else if (typeof df.yards === 'number' && c.yards !== df.yards) warns.push({ message: 'A success counts as further off: Save keeps ' + c.yards + '.' });
+    if (!(Array.isArray(rolls) ? rolls : []).some(function(r) { return r && r.id === c.roll && !Array.isArray(r.apply); })) warns.push({ message: 'A blast\u2019s Defense roll: that roll is gone, so no card goes out.' });
+    if (c.posture && !(cm && Array.isArray(cm.postures) ? cm.postures : []).some(function(p) { return p && p.id === c.posture; })) warns.push({ message: 'A success leaves its token: that posture is gone, so it stays as it stands.' });
+    if (c.count && !(Array.isArray(fields) ? fields : []).some(function(f) { return f && f.id === c.count && (f.kind === 'number' || f.kind === 'resource'); })) warns.push({ message: 'Defenses are counted in: that field is gone, so nothing counts them.' });
+    return { errs: errs, warns: warns };
+}
 var STRAY_LINE = 'For a burst\u2019s round that failed, past the first, whose item scatters on a miss. A dice formula, such as 1d6, gives the yards it lands from the first round. You say which way from the bell, and it waits for the fuse. With none, you place it with Launch.';   // 1.6.0
 var FILLS_LINE = 'A number stat of an item\u2019s list: the yards it fills. A falloff reads it as BlastFills, 0 for an item that has none. Give the item a blast radius that reaches as far.';   // 1.6.0
 var FILL_COVER_LINE = 'With a stat picked above. Only total cover stops it: a token partly behind cover takes it all.';   // 1.6.0
@@ -8921,6 +8956,7 @@ function renderCombat() {
     lineUnder(box, 'How a check against a target reads its dice.');
     if (typeof checksBox === 'function') checksBox(box, cm);   // 1.6.0 (the v2 sort's B1): the critical range, and a named success
     if (typeof blastBox === 'function') blastBox(box, cm);   // 1.5.8 explosives: the falloff, the throw's roll, the scatter, the hand, how far and how near, the ways and the fuse
+    if (typeof defendBox === 'function') defendBox(box, cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : {}, cm);   // 1.6.0: a blast's own Defense roll
     if (typeof barsBox === 'function') barsBox(box, cm);   // backlog 28: the token bars, under the blast's
     if (typeof holdsBox === 'function') holdsBox(box, cm);   // 1.6.0 Who holds whom
     rangeBox(box, cm);   // range penalties R1: the system's range rule, under cover
@@ -11316,6 +11352,7 @@ function onChange(e) {
     if (c.indexOf('sys-combat-roller') >= 0) { draft.combat.blastRoller = t.value; markDirty(); patchErrors(); return; }
     if (typeof onHoldChange === 'function' && onHoldChange(t)) return;   // 1.6.0 Who holds whom
     if (typeof onBlastChange === 'function' && onBlastChange(t)) return;   // 1.5.8 explosives
+    if (typeof onDefendChange === 'function' && onDefendChange(t)) return;   // 1.6.0: a blast's own Defense roll
     if (c.indexOf('sys-combat-checks') >= 0) { if (t.value === 'under3d6' || t.value === 'fixed') draft.combat.checks = t.value; else delete draft.combat.checks; markDirty(); patchErrors(); renderCombat(); return; }   // Stage 6 F8 (1.6.0: or criticals at fixed rolls, whose two boxes it shows)
     if (c.indexOf('sys-combat-hp') >= 0) { draft.combat.hpResource = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-cover-on') >= 0) { if (!draft.combat.cover) draft.combat.cover = { on: false, style: 'graded' }; draft.combat.cover.on = t.value === 'on'; markDirty(); patchErrors(); renderCombat(); return; }

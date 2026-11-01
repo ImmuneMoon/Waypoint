@@ -174,8 +174,8 @@ function renderDue(m) {
         var spentD = window.wpSheets && window.wpSheets.dueBlock ? window.wpSheets.dueBlock(rec.charId, rec.act) : '';   // 1.6.0 (the live test, 2026-10-30): it looked ready with none left. Greyed and said, never disabled: a card is not drawn again when a new turn gives them back, and the host judges the press
         if (spentD) { wrap.className += ' chat-due-spent'; wrap.appendChild(el('div', 'chat-due-note', spentD + '.')); }
         if (rec.why === 'blast') {   // 1.6.0 (the core's gap 8): its own dice of a blast, rolled by the host on the press (whiteboard.js wpBlastOwedPress)
-            var bb = el('button', 'tool chat-due-run', 'Roll'); bb.type = 'button'; bb.title = 'Roll your own dice of this blast; the GM\u2019s machine rolls them and applies what gets through';
-            bb.addEventListener('click', function() { if (m.done) return; m.done = true; bb.disabled = true; bb.textContent = 'Pressed'; var ok = typeof window.wpBlastOwedPress === 'function' ? window.wpBlastOwedPress(rec.att) : false; if (!ok) { m.done = false; bb.disabled = false; bb.textContent = 'Roll'; } });
+            var bbW = rec.go === 1 ? 'Apply now' : 'Roll', bb = el('button', 'tool chat-due-run', bbW); bb.type = 'button'; bb.title = rec.go === 1 ? 'Let the blast go off now. Anyone who has not rolled takes it with no Defense' : 'Roll your own dice of this blast; the GM\u2019s machine rolls them and applies what gets through';   // 1.6.0: go, the GM's card that stops waiting for a blast's Defense rolls
+            bb.addEventListener('click', function() { if (m.done) return; m.done = true; bb.disabled = true; bb.textContent = 'Pressed'; var ok = typeof window.wpBlastOwedPress === 'function' ? window.wpBlastOwedPress(rec.att) : false; if (!ok) { m.done = false; bb.disabled = false; bb.textContent = bbW; } });
             wrap.appendChild(bb); return wrap;
         }
         if (rec.why === 'resist' && Array.isArray(rec.or) && rec.or.length) {   // 1.6.0 (the core's gap 5; the owner: "A button each"): a button for each roll it may be resisted with; one press uses the card up

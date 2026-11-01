@@ -3818,7 +3818,7 @@ pendingChecks.push((async () => {
         && !qD2.err && qD2.c.miss.length === 1 && qD2.c.miss[0].crit === '' && qD2.c.miss[0].margin === -8,
         j([qD1, qD2]));
     check('1.5.9 (es) a launched round lands by the roll\'s verdict on the host (the roll-req branch, run for real with the real core and dice core): a hit that fires a chambered round calls the board\'s wpLaunchHit with the roller\'s target, and never wpLaunchMiss; a miss that fires calls wpLaunchMiss with the round fired, the roller\'s target and map and the verdict\'s own margin (15 against 10: -5), and never wpLaunchHit; a critical failure says fumble; a miss with no target pointed at still calls it, with no target, so the board says to place it; a Then that fires on a hit alone fires nothing on a miss and calls neither',
-        !qHit.err && qHit.c.hit.length === 1 && qHit.c.miss.length === 0 && j(qHit.c.hit[0]) === j({ charId: 'c_a', fieldId: 'f_gear', rowId: 'w_t', tid: 't_foe', mapId: 'm1' })
+        !qHit.err && qHit.c.hit.length === 1 && qHit.c.miss.length === 0 && j(qHit.c.hit[0]) === j({ charId: 'c_a', fieldId: 'f_gear', rowId: 'w_t', tid: 't_foe', mapId: 'm1', margin: qHit.c.hit[0].margin }) && typeof qHit.c.hit[0].margin === 'number'
         && !qMiss.err && qMiss.c.hit.length === 0 && j(qMiss.c.miss) === j([{ charId: 'c_a', fieldId: 'f_gear', rowId: 'w_t', tid: 't_foe', mapId: 'm1', margin: -5, crit: '' }]) && qMiss.fd === 1
         && qFum.c.hit.length === 0 && qFum.c.miss.length === 1 && qFum.c.miss[0].crit === 'fumble' && qFum.c.miss[0].margin === -8
         && qNoAim.c.hit.length === 0 && j(qNoAim.c.miss) === j([{ charId: 'c_a', fieldId: 'f_gear', rowId: 'w_t', tid: '', mapId: '', margin: -5, crit: '' }])
@@ -5024,6 +5024,35 @@ pendingChecks.push((async () => {
         && Dx.cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6', charId: 'c_b', att: 'a_abcd1234' }) === null && Dx.cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6', charId: 'c_b', act: 'r_rs', att: 'a_ABCD1234' }) === null, j([cdR, Dx.dueText(cdR)]));
 })());
 
+// 1.6.0 A blast's own Defense roll: its card (net.defendPost) and the roll that answers it, on a player's roll and the GM's own, run for real with the attempt slice
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx0 = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const src4 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const line = k => { const i = src4.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src4.slice(i, src4.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll'), atSrc = between('// [netcheck:attempt-start]', '// [netcheck:attempt-end]', 'attempt');
+    let dq = []; const Fx = Object.assign({}, Fx0, { evaluate: (e, o) => Fx0.evaluate(e, Object.assign({ random: () => { if (!dq.length) throw new Error('netcheck: no die left'); return dq.shift(); } }, o)) });
+    const sys = Sx.cleanSystem({ v: 1, name: 'D', combat: { checks: 'under3d6' }, fields: [{ id: 'f_st', key: 'Awake', label: 'Awake', kind: 'number', vis: 'all', edit: 'owner', def: 1 }], rolls: [{ id: 'r_dd', label: 'Dodge', formula: '3d6 <= 10 + AttemptMargin', vis: 'all', resist: true }, { id: 'r_gm', label: 'Quiet', formula: '3d6 <= 10', vis: 'gm' }, { id: 'r_nd', label: 'Awake', formula: '3d6 <= 10', vis: 'all', needs: 'Awake > 5' }, { id: 'r_ap', label: 'Act', apply: [] }] }, { F: Fx, gmView: true });
+    const out = { due: [], ans: [], table: [] };
+    const camp = { id: 'k', activeItemId: 'm1', system: sys, chars: { c_b: { id: 'c_b', name: 'Sela', ownerId: 'u_b', npc: false, values: {} }, c_n: { id: 'c_n', name: 'Pebbles', npc: true, values: {} } }, items: { m1: { type: 'map', whiteboard: [] } } };
+    const net = { role: 'host', active: true, stream: false, paused: false, conns: [], roster: { pB: { id: 'u_b', name: 'Bo', location: 'm1' } }, combats: {}, syncCharDelta() {}, postDue: (ch, rr, kind, r, toO, more) => out.due.push({ ch: ch.id, roll: rr.id, kind, toO, att: more.att, by: more.by }) };
+    const cB = { peer: 'pB', send(m) { packCheck(m); out.table.push(JSON.parse(JSON.stringify(m))); } };
+    const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {}, tokenCtxFor: () => null }, wpVtt: { on: () => true, rulesOn: () => true }, wpBlastDefended: (def, pass) => out.ans.push([def, pass]) };
+    const W = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'rangeTo', 'getProfile', 'toast', 'ui', 'save',
+        'var diceLimit = null, _diceSlowSaid = {}, _dicePending = null;\n' + helpers + atSrc + '\n' + drSrc + '\nreturn { rq: function(msg, conn) {\ndiceLimit = null; _diceSlowSaid = {};\n' + rqSrc + '\n}, dr: net.diceRoll };')(
+        net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {}, () => {}, () => null, () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, () => {});
+    const chB = camp.chars.c_b, chN = camp.chars.c_n, K = { key: 'b_1', tok: 't_1', map: 'm1' };
+    const a1 = net.defendPost(camp, 'r_dd', chB, 'Frag', 3, K, false, null), a2 = net.defendPost(camp, 'r_dd', chN, 'Frag', 0, K, false, null), a3 = net.defendPost(camp, 'r_gm', chB, 'Frag', 0, K, false, null), a4 = net.defendPost(camp, 'r_dd', chB, 'a blast', 0, K, true, null), n1 = net.defendPost(camp, 'r_nd', chB, 'Frag', 0, K, false, null), n2 = net.defendPost(camp, 'r_ap', chB, 'Frag', 0, K, false, null), n3 = net.defendPost(camp, 'r_none', chB, 'Frag', 0, K, false, null);
+    check('1.6.0 a blast\'s Defense card (net.defendPost, run for real): a card called for by the blast, to its player, the GM\'s for an NPC, a GM-only roll or a GM-only item; none where the roll\'s Needs hold it back, for an action, or for a roll that is gone',
+        [a1, a2, a3, a4].every(a => /^a_[a-z0-9]{8}$/.test(a)) && j(out.due.map(d => [d.ch, d.roll, d.kind, d.toO, d.by])) === j([['c_b', 'r_dd', 'called', true, 'Frag'], ['c_n', 'r_dd', 'called', false, 'Frag'], ['c_b', 'r_gm', 'called', false, 'Frag'], ['c_b', 'r_dd', 'called', false, 'a blast']]) && n1 === '' && n2 === '' && n3 === '', j(out.due));
+    dq = [2, 3, 4]; W.rq({ type: 'roll-req', rid: 'q1', charId: 'c_b', act: 'r_dd', expr: '3d6 <= 10 + AttemptMargin', att: a1 }, cB);
+    const rec1 = out.table.filter(m => m.type === 'roll')[0], ans1 = out.ans.slice(); dq = [6, 6, 6]; const r2 = W.dr('3d6 <= 10 + AttemptMargin', { charId: 'c_b', act: 'r_dd', att: a4 }), again = (out.table.length = 0, W.rq({ type: 'roll-req', rid: 'q2', charId: 'c_b', act: 'r_dd', expr: '3d6 <= 10 + AttemptMargin', att: a1 }, cB), out.table.slice());
+    check('1.6.0 ... a player\'s roll answers it with the margin of the host\'s own record, the board told of its success with what it asked, once; the GM\'s own roll answers its card, a failure told as one; a second press finds nothing',
+        !!rec1 && (rec1.names || []).some(n => n.name === 'AttemptMargin' && n.value === 3) && j(ans1) === j([[K, true]]) && r2.ok === true && j(out.ans[1]) === j([K, false]) && out.ans.length === 2 && again.some(m => m.type === 'roll-deny'), j([rec1, out.ans, again]));
+    check('1.6.0 ... the Defense card\'s plumbing: a roll that came on a Defense\'s record tells the board through typeof in both roll paths, a hit hands the launched round the attack\'s margin, and the card names only its record\'s id',
+        src4.includes("if (blowRecQ && blowRecQ.defend && typeof window.wpBlastDefended === 'function')") && src4.includes("if (blowRecR && blowRecR.defend && typeof window.wpBlastDefended === 'function')") && src4.includes("gotB = window.wpLaunchHit(Object.assign({}, atB, { margin: vd ? vd.margin : 0 }));"));
+})());
 // 1.6.0 (the core's gaps 6 and 7): a roll the damage step posts answers the blow that called it, by a record of the host's own (net.blowMake):
 // rolled with that record's id it reads Blow.<name> and Hit.<name>, once, and where it fails it cripples the location struck by how far it failed
 pendingChecks.push((async () => {
@@ -5113,7 +5142,7 @@ pendingChecks.push((async () => {
         cdB && !('act' in cdB) && cdB.att === 'a_abcd1234' && /Frag: 4 dice at 0 yd is due \(a blast\)/.test(Dx.dueText(cdB)) && Dx.cleanDue(Object.assign({}, dueB, { act: 'r_x' })) === null && Dx.cleanDue(Object.assign({}, dueB, { att: undefined })) === null
         && Dx.cleanDue(Object.assign({}, dueB, { att: 'a_X' })) === null && Dx.cleanDue(Object.assign({}, dueB, { by: 'K' })) === null && Dx.cleanDue(Object.assign({}, dueB, { roll: undefined })) === null && Dx.cleanDue(Object.assign({}, dueB, { why: 'turn' })) === null
         && JSON.stringify(Dx.cleanBlastRoll({ type: 'blast-roll', att: 'a_abcd1234' })) === JSON.stringify({ type: 'blast-roll', att: 'a_abcd1234' }) && Dx.cleanBlastRoll({ type: 'roll-req', att: 'a_abcd1234' }) === null
-        && src4.includes("} else if (msg.type === 'blast-deny' && net.role === 'client') {") && src4.includes("net.postBlastDue = function(ch, att, label, toOwner) {") && src4.includes("try { net.conns[0].send({ type: 'blast-roll', att: att }); return true; }"), JSON.stringify(cdB));
+        && src4.includes("} else if (msg.type === 'blast-deny' && net.role === 'client') {") && src4.includes("net.postBlastDue = function(ch, att, label, toOwner, go) {") && src4.includes("try { net.conns[0].send({ type: 'blast-roll', att: att }); return true; }"), JSON.stringify(cdB));
 })());
 
 // 1.6.0 (the core's gap 5, the defender chooses the Defense; the owner: "A button each"): Or resisted by — the attempt's card offers each other
@@ -15168,8 +15197,8 @@ pendingChecks.push((async () => {
             j([n1, n2.answer, n3.answer, gN3, q1, q2, sentN]));
         const rq = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'), dr = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
         check('1.5.9 Chambers from, a launched round (net.js, pinned): after a roll\'s Then is applied, a round it fired on a hit, not a jam, goes off at the roller\'s target through the board\'s wpLaunchHit, asked through typeof, in the host\'s roll branch and the GM\'s own roll; a miss goes to the board\'s wpLaunchMiss instead (1.5.9 (es), moved on purpose: before, a miss placed nothing)',
-            rq.includes("if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === true && tcQ && tcQ.range && typeof tcQ.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ.range.tid, mapId: tcQ.range.mapId });")
-            && dr.includes("if (taR && taR.ok && taR.fired && !mfHitR && vdR && vdR.kind === 'check' && vdR.pass === true && tcR && tcR.range && typeof tcR.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: chR.id, fieldId: taR.fired.f, rowId: taR.fired.r, tid: tcR.range.tid, mapId: tcR.range.mapId });"));
+            rq.includes("if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === true && tcQ && tcQ.range && typeof tcQ.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ.range.tid, mapId: tcQ.range.mapId, margin: vdQ.margin });")
+            && dr.includes("if (taR && taR.ok && taR.fired && !mfHitR && vdR && vdR.kind === 'check' && vdR.pass === true && tcR && tcR.range && typeof tcR.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: chR.id, fieldId: taR.fired.f, rowId: taR.fired.r, tid: tcR.range.tid, mapId: tcR.range.mapId, margin: vdR.margin });"));
     }
 })());
 pendingChecks.push((async () => {

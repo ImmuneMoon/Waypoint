@@ -723,6 +723,11 @@ Systems
   on the target falls to the next, and two locations under one row take a second
   die. The GM can change it in the Take damage window. A called shot at a
   location the rows name stands.
+- A system can name a blast's own Defense roll. Each character in reach gets a
+  card of it before its share, and the blast waits for the cards. Apply now on
+  the GM's card lets it go. A success counts as further off, can take no
+  fragmentation and can set a posture, and the roll counts 1 in a field you
+  pick, pass or fail. A launched burst takes one roll.
 - The Review can show a note beside a file's changes. A note has no tick
   and counts as no change.
 - An effect's change can be sized by a formula, such as -max(0, -MP)

@@ -5906,6 +5906,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const cdK = DKn.cleanDue(Object.assign({}, baseK, { kn: X })), noK = DKn.cleanDue(Object.assign({}, baseK, { kn: { toString: 'x' } })), whyK = DKn.resistWhy(cdK);
         check('1.6.0 an attempt\'s kind on a card: a hostile value name stays one line of text, a word that is no text is no card, and renderDue hands the line to a text node',
             cdK && cdK.kn === X && noK === null && whyK === 'resisting an attempt, ' + X && /wrap\.appendChild\(el\('div', 'roll-expr chat-due-what', \(rec\.label/.test(srcDice) && /function el\(tag, cls, text\) \{[^\n]*textContent/.test(srcDice), JSON.stringify([cdK, whyK]));
+    }
     {   // 1.6.0 Subjects: a list's words from a hostile system file reach the sheet's menu and its chip as text alone
         const shS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8'), a = shS.indexOf('// [systemcheck:subject-start]'), b = shS.indexOf('// [systemcheck:subject-end]');
         const X = '<img src=x onerror=alert(1)>', node = (t, c, x) => { const n = { tag: t, className: c || '', textContent: x === undefined ? '' : x, children: [], dataset: {}, appendChild(k) { this.children.push(k); return k; }, addEventListener() {} }; Object.defineProperty(n, 'innerHTML', { set() { throw new Error('markup written'); } }); return n; };

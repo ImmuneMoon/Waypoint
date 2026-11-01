@@ -151,7 +151,7 @@ function show() {
     close(); pillsSync();
 }
 function again() { var n = now(); if (!n) return; n.shut = []; net.revealHandout(n.hid, n.pids, { scene: true, hold: n.hold, keep: n.keep }); log('again', {}); close(); pillsSync(); }
-function end() { var n = now(); if (!n) return; var told = net.sceneClose(n.hid, n.pids); _now = null; stagePost(); toast('Closed "' + (n.title || 'the scene') + '" for ' + (told === 1 ? '1 player.' : told + ' players.')); close(); pillsSync(); }
+function end() { var n = now(); if (!n) return; var told = net.sceneClose(n.hid, n.pids); _now = null; stagePost(); toast('Closed "' + (n.title || 'the scene') + '" for ' + (told === 1 ? '1 player.' : told + ' players.')); close(); pillsSync(); if (window.wpDrawShow) window.wpDrawShow.sceneOver(); }   // 1.6.2: the drawings to show that stay until the scene ends, on the map on screen
 // [scenecheck:readpic-start]
 // A picture where a planner or a page is read on the GM's own screen (the planner's own view, the page panel over the map): a right-click
 // offers Show as a scene... in a one-row menu. Only a picture of the campaign's own, by the path it was drawn from; never in a window of its

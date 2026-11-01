@@ -698,6 +698,13 @@
         color: var(--dim); text-align: left; padding: 0 2px;
     }
     .draw-menu-row { display: flex; gap: 5px; align-items: center; }
+    #drawShowBox { display: flex; flex-direction: column; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--edge); }   /* the pen's first choice: On the map or To show */
+    #drawShowBox[hidden], #drawShowPart[hidden] { display: none; }
+    #drawShowPart { display: flex; flex-direction: column; gap: 5px; }
+    #drawShowRow > .draw-style-btn { flex: 1 1 40%; }
+    #drawShowFor { flex-direction: column; align-items: stretch; }
+    #drawShowFor > .draw-style-btn, #drawShowBox > .draw-style-btn { flex: 0 0 auto; text-align: left; }
+    .draw-show-line { font-size: 10.5px; color: var(--dim); max-width: 190px; line-height: 1.4; }
     .draw-swatch {
         width: 22px; height: 22px; border-radius: 50%; cursor: pointer; padding: 0;
         border: 2px solid transparent;
@@ -1135,6 +1142,7 @@
   #measureLayer line { stroke: var(--gold); stroke-width: 2; stroke-dasharray: 8 5; }
   #measureLayer circle { fill: var(--gold); }
   #measureLayer text { fill: var(--gold); font: bold 14px monospace; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; }
+  body.fog-caps .wb-item.wb-toshow > svg { opacity: 0; }   /* a drawing to show: the fog's own canvas draws it over the fog (fog.js showShapes), so it is not drawn twice, and it still takes its presses */
   body.fog-caps #measureLayer { opacity: 0; }   /* the fog's own canvas draws the rulers and shapes over the fog (fog.js measureCaps): out of sight on the board while it does, and still pressed there */
   /* Placed rulers are clickable (click removes); the fat transparent line is the hit area */
   #measureLayer g.measure { pointer-events: auto; cursor: pointer; }

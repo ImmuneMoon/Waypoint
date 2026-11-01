@@ -1064,6 +1064,13 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
               if (el.dataset.tip !== lgT) el.dataset.tip = lgT;
           } else if(item.type === 'path') {
 
+              // [drawshowcheck:board-start]
+              var _toShow = item.toShow === true && !!window.wpFogCore && typeof window.wpFogCore.showOn === 'function' && window.wpFogCore.showOn(item);   // 1.6.2: a drawing to show: the fog's canvas draws it over the fog (fog.js showShapes)
+              el.classList.toggle('wb-toshow', _toShow); el.classList.toggle('wb-fade', _toShow && item.showFor === 'fade');
+              if (_toShow && item.showFor && window.wpDrawShow) window.wpDrawShow.touch();   // one that goes by itself is watched wherever it came from: a paste, an undo, a file
+              if (_toShow && item.showFor === 'fade' && window.wpDrawShow) el.style.opacity = String(Number(el.style.opacity) * window.wpDrawShow.fadeOf(item));   // and one that fades on its own, as far as it has
+              // [drawshowcheck:board-end]
+
               if(!el.querySelector('svg')) {
 
                   el.innerHTML = '<svg width="100%" height="100%" preserveAspectRatio="none" style="overflow:visible;"><path /></svg>';
@@ -2396,6 +2403,7 @@ window.wpFitToGrid = fitToGrid;
           btn.classList.toggle('active', (btn.dataset.straight === 'true') === !!state.drawStraight);
       });
       document.querySelectorAll('#drawTipRow .draw-style-btn').forEach(function(btn) { btn.classList.toggle('active', btn.dataset.nib === (state.drawTip || 'round')); });
+      if (window.wpDrawShow) window.wpDrawShow.sync();   // 1.6.2: On the map or To show, and how long it stays
   }
 
   var _el_selSwapBtn = document.getElementById('selSwapBtn');
@@ -3138,6 +3146,36 @@ window.wpFitToGrid = fitToGrid;
       return off ? 'off' : which;
   }
   // [sinkcheck:foghandrow-end]
+  // [sinkcheck:showrow-start]
+  // A drawing to show, on the GM's menu (1.6.2; the owner, by prompt: a pick on the pen "AND a tick on each drawing to change it later"): ticked while every
+  // drawing of the selection that may be one is one. Only a pen drawing fogcore showOk takes, and never a hidden one. Unticked, a player's drawing is a map
+  // drawing and the GM's, as a yes to their ask makes it. The GM's alone: never a player's app, its link up or down, never the stream window. Fixed words only
+  function showRow(items) {
+      var n = window.wpNet, FC = window.wpFogCore;
+      if (window.wpStream || (n && (n.foreign || (n.active && n.role === 'client'))) || !FC || typeof FC.showOk !== 'function') return null;
+      var ps = (Array.isArray(items) ? items : []).filter(function(w) { return FC.showOk(w) && !w.hidden; });
+      if (!ps.length) return null;
+      var on = ps.every(function(w) { return w.toShow === true; });
+      return { on: on, items: ps, html: '<div class="menu-item cm-toshow" title="' + (on ? 'It goes on the map, under the fog as the ground is. A player&rsquo;s drawing becomes yours.' : 'Everyone on this map sees it over the fog, and the ground under it stays hidden.') + '">' + (on ? '&#10003; ' : '') + '<i class="wib wi-eye"></i> To show, over the fog</div>' };
+  }
+  function showRowDo(items, am) {
+      var row = showRow(items); if (!row || !window.wpDrawShow) return '';
+      window.wpDrawShow.setShow(row.items, !row.on, am);
+      return row.on ? 'map' : 'show';
+  }
+  // A player's right-click near a drawing of their own to show, whose line takes no press on their screen: one row, Ask to put it on the map. true: the menu is up
+  function showMineMenu(e) {
+      var DS = window.wpDrawShow, cMenu = document.getElementById('contextMenu'), wrap = document.getElementById('whiteboardWrap'); if (!DS || !cMenu || !wrap) return false;
+      var box = wrap.getBoundingClientRect(), z = state.zoomLevel || 1, w = DS.mineAt((e.clientX - box.left + wrap.scrollLeft) / z, (e.clientY - box.top + wrap.scrollTop) / z); if (!w) return false;
+      e.preventDefault();
+      cMenu.onclick = null;   // as showStanceMenu: a machine that hosted earlier in this run still holds the GM's item menu's handler
+      cMenu.innerHTML = '<div class="menu-item cm-show-ask" title="Asks your GM to put this drawing on the map itself. On a yes it becomes the GM&rsquo;s."><i class="wib wi-eye"></i> Ask to put it on the map</div>';
+      cMenu.style.display = 'flex';
+      placeMenu(cMenu, e);
+      var row = cMenu.querySelector('.cm-show-ask'); if (row) row.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; DS.ask([w.id]); });
+      return true;
+  }
+  // [sinkcheck:showrow-end]
   /* ---- click-away deselect ----
      Clicking anywhere that isn't the board, the Properties/Elements sidebar,
      the selection toolbar, a menu, or a dialog drops the selection, so the
@@ -9988,6 +10026,8 @@ document.addEventListener('contextmenu', function(e) {
         // same permission line as moving it); empty play-map space offers Leave Session
         if (state.viewMode === 'visual' && e.target.closest('#whiteboardWrap')) {
             var ownEl = e.target.closest('.wb-item');
+            var ownW = ownEl && getActiveMap() ? (getActiveMap().whiteboard || []).find(function(x) { return x.id === ownEl.dataset.id; }) : null;
+            if (!(ownW && (ownW.isChar || ownW.waiting)) && showMineMenu(e)) return;   // 1.6.2: a token comes first; else a drawing of their own to show
             if (ownEl) {
                 var amO = getActiveMap(), tokO = amO && (amO.whiteboard || []).find(function(x) { return x.id === ownEl.dataset.id; });
                 if (tokO && tokO.waiting && tokO.ownerId === window.wpNet.myId) { e.preventDefault(); if (window.wpJoinCard) window.wpJoinCard.show(); }   // Onboarding F1a: their waiting token: where they stand
@@ -10116,6 +10156,8 @@ document.addEventListener('contextmenu', function(e) {
                     return it && !it.aboveGrid;
                 });
                 html += '<div class="menu-item cm-grid">' + (anyUnderGrid ? '&#9650; Show Above Grid' : '&#9660; Put Under Grid') + '</div>';
+                var swRow = showRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.6.2: a drawing to show, only where the selection holds a pen drawing
+                if (swRow) html += swRow.html;
                 var mnRow = mineRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.5.8 explosives: a placed mine set off by hand
                 if (mnRow) html += mnRow.html;
                 var ppRow = pagePinRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.5.4: a pin's row, where the one piece selected opens a page
@@ -10354,6 +10396,9 @@ document.addEventListener('contextmenu', function(e) {
                 } else if (action.includes('cm-fog-hide') || action.includes('cm-fog-show')) {   // a piece's fog mark (saved and drawn again below, so the table gets it at once)
                     var wentFH = fogHandSet(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), action.includes('cm-fog-hide') ? 'hide' : 'show');
                     if (wentFH) { if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } var noteFH = wentFH !== 'off' && window.wpFog && typeof window.wpFog.handNote === 'function' ? window.wpFog.handNote(am) : ''; toast((wentFH === 'hide' ? 'Under fog: players see nothing under it.' : wentFH === 'show' ? 'Always revealed: players always see what is under it.' : 'Fog mark taken off.') + (noteFH ? ' ' + noteFH : '')); }
+                } else if (action.includes('cm-toshow')) {   // 1.6.2: a drawing to show, ticked or unticked (saved and drawn again below, so the table gets it at once)
+                    var wentSw = showRowDo(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am);
+                    if (wentSw) toast(wentSw === 'show' ? 'Everyone on this map sees it over the fog now.' : 'It is on the map now, under the fog.');
                 } else if (action.includes('cm-door-open') || action.includes('cm-door-lock')) {   // a door's own rows (saved and drawn again below): an open door lets sight through, so the fog works its vision out again
                     var wentD = doorRowsDo(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), action.includes('cm-door-open') ? 'open' : 'lock');
                     if (wentD) { if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } toast(wentD === 'opened' ? 'Door opened.' : wentD === 'closed' ? 'Door closed.' : wentD === 'locked' ? 'Door locked for players.' : 'Door unlocked for players.'); }

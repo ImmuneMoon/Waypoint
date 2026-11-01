@@ -1360,6 +1360,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         && ['hidden', 'gmNoteFor', 'isChar', 'waiting'].every(k => KINDS_IN.concat('text').every(t => S.shows(pc({ type: t, [k]: true }), true) === false) && S.shows(pc({ type: 'rect', [k]: 'x' }), true) === false && S.shows(pc({ type: 'rect', [k]: 0 }), true) === true)
         && [{ x: NaN }, { y: Infinity }, { w: '30' }, { h: null }, { w: -1 }, { h: -0.5 }, { x: undefined }].every(b => S.shows(pc(Object.assign({ type: 'rect' }, b)), true) === false) && S.shows(pc({ type: 'rect', w: 0, h: 0 }), true) === true && S.shows(pc({ type: 'rect', x: -40, y: -1 }), true) === true
         && [null, undefined, 0, 'rect', [], true].every(v => S.shows(v, true) === false)
+        && S.shows(pc({ type: 'path', toShow: true }), true) === false && S.shows(pc({ type: 'path', toShow: 'yes' }), true) === true && S.shows(pc({ type: 'path' }), true) === true   // 1.6.2: a drawing to show demonstrates something at the table and is no part of the map
         && [{ blocksSight: true, sightType: 'door' }, { blocksSight: true, sightType: 'door', doorOpen: true, doorLock: true }, { blocksSight: true }, { barrier: true, blastStop: true }, { targetMapId: 'm2', portalLock: true, portalIcon: 'Door' }, { fogHand: 'hide' }, { locked: true }, { fogged: true }, { smoke: true }].every(b => S.shows(pc(Object.assign({ type: 'rect' }, b)), false) === true));
 
     /* -- the order -- */

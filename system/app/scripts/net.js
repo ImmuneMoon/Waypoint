@@ -414,7 +414,7 @@ function sanitizeRichText(html) {
 }
 net.sanitizeRichText = sanitizeRichText;
 // A play map as a client keeps it: text items rebuilt, category colors that are colors, collections bounded.
-function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); delete w.nullFx; for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.font !== undefined) { var TFf = window.wpTextFmt, fn = TFf && TFf.cleanFont ? TFf.cleanFont(w.font) : undefined; if (fn) w.font = fn; else delete w.font; } if (w.coverAs !== undefined) { var FCha = window.wpFogCore, cHa = FCha && FCha.cleanCoverAs ? FCha.cleanCoverAs(w.coverAs) : ''; if (cHa) w.coverAs = cHa; else delete w.coverAs; } if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.tbr !== undefined || w.bars !== undefined) cleanHostBars(w); if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined || w.seenWidth !== undefined || w.seenOpacity !== undefined || w.seenTip !== undefined) { delete w.secret; delete w.seenColor; delete w.seenTexture; delete w.seenWidth; delete w.seenOpacity; delete w.seenTip; } if (w.mine !== undefined) delete w.mine; if (w.pageAt !== undefined) delete w.pageAt; if (w.page !== undefined) delete w.page; if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand; if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier; if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } if (w.texSrc !== undefined || w.texTile !== undefined) { var FCq = window.wpFogCore, tsi = FCq && typeof FCq.cleanTexSrc === 'function' ? FCq.cleanTexSrc(w.texSrc) : null, tti = tsi && typeof FCq.cleanTexTile === 'function' ? FCq.cleanTexTile(w.texTile) : null; if (tsi) w.texSrc = tsi; else delete w.texSrc; if (tti) w.texTile = tti; else delete w.texTile; } if (w.texture !== undefined) { var FCx = window.wpFogCore, tx = FCx && FCx.cleanTexture ? FCx.cleanTexture(w.texture) : null; if (tx) w.texture = tx; else delete w.texture; } if (w.ground !== undefined) { var FCg = window.wpFogCore, gr = FCg && FCg.cleanGround ? FCg.cleanGround(w.ground) : null; if (gr) w.ground = gr; else delete w.ground; } return w; }   // senses S7b: smoke only as true; see-through barriers (1.5.1): barrier only as true; a portal's own lock: portalLock only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards; item 19b H5: a piece's ground height, yards (a pit below 0); map builder B1: a piece's texture only as a name of the app's own list (fogcore cleanTexture), none without the cleaner
+function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); delete w.nullFx; for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.font !== undefined) { var TFf = window.wpTextFmt, fn = TFf && TFf.cleanFont ? TFf.cleanFont(w.font) : undefined; if (fn) w.font = fn; else delete w.font; } if (w.coverAs !== undefined) { var FCha = window.wpFogCore, cHa = FCha && FCha.cleanCoverAs ? FCha.cleanCoverAs(w.coverAs) : ''; if (cHa) w.coverAs = cHa; else delete w.coverAs; } if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.tbr !== undefined || w.bars !== undefined) cleanHostBars(w); if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined || w.seenWidth !== undefined || w.seenOpacity !== undefined || w.seenTip !== undefined) { delete w.secret; delete w.seenColor; delete w.seenTexture; delete w.seenWidth; delete w.seenOpacity; delete w.seenTip; } if (w.mine !== undefined) delete w.mine; if (w.pageAt !== undefined) delete w.pageAt; if (w.page !== undefined) delete w.page; if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand; if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier; if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } if (w.toShow !== undefined || w.showFor !== undefined) { var FCsh = window.wpFogCore; if (FCsh && typeof FCsh.keepShow === 'function') FCsh.keepShow(w); else { delete w.toShow; delete w.showFor; } } if (w.texSrc !== undefined || w.texTile !== undefined) { var FCq = window.wpFogCore, tsi = FCq && typeof FCq.cleanTexSrc === 'function' ? FCq.cleanTexSrc(w.texSrc) : null, tti = tsi && typeof FCq.cleanTexTile === 'function' ? FCq.cleanTexTile(w.texTile) : null; if (tsi) w.texSrc = tsi; else delete w.texSrc; if (tti) w.texTile = tti; else delete w.texTile; } if (w.texture !== undefined) { var FCx = window.wpFogCore, tx = FCx && FCx.cleanTexture ? FCx.cleanTexture(w.texture) : null; if (tx) w.texture = tx; else delete w.texture; } if (w.ground !== undefined) { var FCg = window.wpFogCore, gr = FCg && FCg.cleanGround ? FCg.cleanGround(w.ground) : null; if (gr) w.ground = gr; else delete w.ground; } return w; }   // senses S7b: smoke only as true; see-through barriers (1.5.1): barrier only as true; a portal's own lock: portalLock only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards; item 19b H5: a piece's ground height, yards (a pit below 0); map builder B1: a piece's texture only as a name of the app's own list (fogcore cleanTexture), none without the cleaner
 // Senses S2b: a token's own ranges, kept on a token of this player's alone (the host sends no other), cleaned again; none from a hostile host
 // on anyone else's token, and none with no cleaner on hand. S3: the GM's Blind tick likewise, and only as true
 function cleanHostTokSenses(w) { var FCs = window.wpFogCore, mine = !!w.ownerId && w.ownerId === net.myId, ts = FCs && FCs.cleanTokSenses && mine ? FCs.cleanTokSenses(w.senses) : null; if (ts) w.senses = ts; else delete w.senses; if (!(mine && w.blind === true)) delete w.blind; }
@@ -887,6 +887,7 @@ function wireWbItem(w, cloned) {
     // off, a link to a room taken away), a player's app reads such a key as it reads none, and a changed piece replaces the old one whole
     if (w.blocksSight || w.barrier === true) { var wo = {}, wk = Object.keys(w).sort(); for (var wi = 0; wi < wk.length; wi++) if (wk[wi] !== '__proto__' && w[wk[wi]] !== false && w[wk[wi]] !== null) wo[wk[wi]] = w[wk[wi]]; w = wo; }
     if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand;   // 1.5.4: a piece's fog mark travels with a shown piece (a hidden one is not sent at all), only as its two words: the player's own overlay reads what the host judges by
+    if (w.toShow !== undefined || w.showFor !== undefined) { var FCsw = typeof window === 'object' && window ? window.wpFogCore : null; if (FCsw && typeof FCsw.keepShow === 'function') FCsw.keepShow(w); else { delete w.toShow; delete w.showFor; } }   // 1.6.2: a drawing to show travels with a shown drawing, only as its cleaner keeps it, so every screen draws it over the fog
     return w;
 }
 // Conditions C1 (docs/CONDITIONS_PLAN.md): the effects the table sees on a token, the host's list ([{ n, i, t }], never a GM-only effect) or
@@ -1839,9 +1840,11 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
         sentIds[w.id] = true;
         var lw = liveById[w.id];
         if (!lw) {
+            if (w.ownerId === profile.id && typeof showGoneHas === 'function' && showGoneHas(msg.itemId, w.id)) { if (out) out.whole = true; return; }   // 1.6.2: a drawing to show that was taken away a moment ago: a copy made before that reached them adds nothing, and the whole map puts their screen right
             // New item: only a drawing signed with this player's id, in a sane shape
             var stroke = playerStroke(w, profile.id);
             if (!stroke || ownStrokes >= STROKE_CAP || ownPts + stroke.pts.length > STROKE_PTS_CAP) return;   // past either cap the drawing is not taken (their own copy keeps it until the next copy of the map, as ever)
+            if (typeof strokeShow === 'function') strokeShow(stroke, w, msg.itemId);   // 1.6.2: a player's new drawing is one to show, by the host's rule and whatever their copy says
             ownStrokes++; ownPts += stroke.pts.length; liveItem.whiteboard.push(stroke); liveById[stroke.id] = stroke; changed = true; if (out) out.strokes = true;   // noted under its id: the same new id again in this copy redraws it instead of adding a second
             if (typeof strokeNote === 'function') strokeNote(msg.campId, msg.itemId, 'added', stroke.id);   // 127: the host's count of what players did to their own drawings (the GM's undo reads it)
             return;
@@ -1917,6 +1920,39 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
 }
 // [netcheck:patch-end]
 
+// [netcheck:drawshow-start]
+// Drawings to show (1.6.2; the owner, by prompt: "To show, map by ask (Recommended)": a player draws To show, over the fog for everyone on that map, with the
+// ground under it still hidden, and asks to put it on the map). A player's NEW drawing is one to show whatever their copy says, so no patched app draws
+// on the map without the GM's word, and only its new drawing is stamped: playerStroke's keys are what a player may hand the host again and again, and a
+// redraw never changes the mark. With no core at hand it is a plain drawing, as before. fogcore holds the rule, drawshow.js the rest. A host that knows the
+// mark says so in its join snapshot (drawShow: true, read as true only): an older one would stay silent, so a player's app offers neither To show nor the
+// ask there. What the host takes away of them is noted for a few seconds (showGoneHas), since a copy of a player's made before that reached them still
+// names the drawing, which would read as a new one
+var SHOW_ASK_MOST = 60, SHOW_GONE_MS = 10000, SHOW_GONE_MOST = 400, _showGone = new Map(), _showKnown = false;
+function showKnows(v) { _showKnown = v === true; }
+net.showKnown = function() { return net.role === 'client' ? _showKnown : true; };
+function strokeShow(stroke, w, mapId) {
+    var FCn = typeof window === 'object' && window ? window.wpFogCore : null; if (!FCn || typeof FCn.cleanShowFor !== 'function') return stroke;
+    stroke.toShow = true; var sf = FCn.cleanShowFor(w.showFor); if (sf) stroke.showFor = sf;
+    if (window.wpDrawShow && typeof window.wpDrawShow.touch === 'function') window.wpDrawShow.touch(mapId);
+    return stroke;
+}
+function showGoneHas(mapId, id) {
+    var k = mapId + '|' + id, at = _showGone.get(k); if (at === undefined) return false;
+    if (Date.now() - at > SHOW_GONE_MS) { _showGone.delete(k); return false; }
+    return true;
+}
+net.showDropped = function(mapId, ids) {
+    (Array.isArray(ids) ? ids : []).forEach(function(id) { if (typeof id !== 'string') return; var k = mapId + '|' + id; _showGone.delete(k); _showGone.set(k, Date.now()); if (_showGone.size > SHOW_GONE_MOST) _showGone.delete(_showGone.keys().next().value); });
+};
+// A player's app: asks the host to put drawings of their own on the map. The host's branch judges every id
+net.showAsk = function(mapId, ids) {
+    var c = net.conns && net.conns[0], camp = getActiveCampaign();
+    if (!net.active || net.role !== 'client' || !net.foreign || !_showKnown || !c || !c.open || !camp || typeof mapId !== 'string' || !Array.isArray(ids) || !ids.length) return false;
+    try { c.send({ type: 'show-ask', campId: camp.id, itemId: mapId, ids: ids.slice(0, SHOW_ASK_MOST) }); return true; } catch (e) { return false; }
+};
+net.showTell = function(pid, words) { if (net.active && net.role === 'host' && typeof noteOwner === 'function') noteOwner(pid, words); };   // the GM's answer, to its player
+// [netcheck:drawshow-end]
 // A drawing a player may hand the host: a freehand path signed with their id, whitelisted fields only.
 function playerStroke(w, pid) {
     if (!w || w.type !== 'path' || w.ownerId !== pid || !Array.isArray(w.pts)) return null;
@@ -2003,6 +2039,7 @@ function applySnapshot(msg) {
     if (typeof styleHostKnows === 'function') styleHostKnows(msg.looks);   // item 35: a host that knows text looks says so here; an older one says nothing
     if (typeof rowTextKnows === 'function') rowTextKnows(msg.rowText);   // 155: a host that keeps a row of its own's long text says so here; an older one would drop it unanswered
     if (typeof hitsKnow === 'function') hitsKnow(msg.hits);   // 1.6.0 (B5): a host that answers which locations a target has says so here
+    if (typeof showKnows === 'function') showKnows(msg.drawShow);   // 1.6.2: a host that knows a drawing to show says so here
     _sheetFilesOk = msg.sheetFiles === true;   // 2026-10-18: a host that reads a sheet file made elsewhere says so here, true only
     if (typeof sheetOutsKnow === 'function') sheetOutsKnow(msg.sheetOut);   // 1.6.0: and a file a reader there writes for a player's own character
     net.stanceCamps = cleanStanceCamps(msg.stanceCamps);   // null from an older host: msg.stance governs every campaign
@@ -5465,6 +5502,7 @@ function combatOver(fid, had, quiet, title) {   // fold 2: by the fight's own id
     if (had && typeof marksEnd === 'function' && !fightsOn(mapId).length) { try { marksEnd(mapId); } catch (e) { console.error(e); } }   // senses S4b: the marks follow every move again, once the map's last fight is over (fold 2)
     if (typeof fid === 'string' && typeof combatForget === 'function') combatForget(fid);   // the fight over: nothing of it seen
     if (had && !gone && !fightsOn(mapId).length && typeof window !== 'undefined' && window.wpFightBlastsGo) { try { window.wpFightBlastsGo(mapId); } catch (e) { console.error(e); } }   // 1.6.0: the circles of what was thrown there go with the map's last fight
+    if (had && !gone && !fightsOn(mapId).length && typeof window !== 'undefined' && window.wpDrawShow) { try { window.wpDrawShow.sceneOver(mapId); } catch (e) { console.error(e); } }   // 1.6.2: and the drawings to show that stay until then
     var leftO = fightIds().length;
     if (had && !leftO) { try { fxCombatEdge(mapId, had, 'resume'); } catch (e) { console.error(e); } }   // T5a: their effects' clocks run again, once no fight is left
     if (gone) { try { combatFreed(campO); } catch (e) { console.error(e); } }
@@ -7002,7 +7040,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
     var snapOk = false;
     try {
-        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, hits: true, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; var soSnap = typeof sheetOutsHere === 'function' ? sheetOutsHere() : []; if (soSnap.length) snap.sheetOut = soSnap; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
+        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, hits: true, paused: net.paused, drawShow: true, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; var soSnap = typeof sheetOutsHere === 'function' ? sheetOutsHere() : []; if (soSnap.length) snap.sheetOut = soSnap; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
         if (typeof fogLanded === 'function') fogLanded(null, mkSnap); else mkSnap();   // fold M4: judged with every open drag at its start
         conn.send(snap); snapOk = true;
     } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + ' \u2014 something in it cannot be sent (the console has the details).'); if (typeof mapForgetConn === 'function') mapForgetConn(conn.peer); }
@@ -7864,6 +7902,19 @@ function handleMessage(msg, conn) {
         if (!allow('sceneshut', { perMs: 1000, burst: 4, windowMs: 60000, table: 300 }, String(spS.id))) return;
         if (window.wpScene && typeof window.wpScene.seen === 'function') window.wpScene.seen(spS.id, String(spS.name || 'A player'), msg.id);
         // [netcheck:sceneclosed-end]
+    } else if (msg.type === 'show-ask' && net.role === 'host') {
+        // [netcheck:showask-start]
+        // 1.6.2: an admitted player asks to put drawings of their own to show on the map they are on. Only such drawings are named to the GM, as one item of the
+        // bell a player and map (drawshow.js asked, which waits there alone); a few a minute; nothing is stored, sent or saved until the GM says yes
+        var prS = net.roster[conn.peer], camS = getActiveCampaign(), FCsk = window.wpFogCore;
+        if (!prS || typeof prS.id !== 'string' || !camS || msg.campId !== camS.id || typeof msg.itemId !== 'string' || !Array.isArray(msg.ids) || !msg.ids.length || msg.ids.length > SHOW_ASK_MOST || !FCsk || typeof FCsk.showOn !== 'function') return;
+        if (net.paused || peerPaused(conn.peer)) return;
+        if (!allow('showask', { perMs: 2000, burst: 4, windowMs: 60000, table: 300 }, String(prS.id))) return;
+        if (msg.itemId !== prS.location || !own(camS.items, msg.itemId)) return;
+        var mapS = camS.items[msg.itemId]; if (!mapS || mapS.type !== 'map' || !Array.isArray(mapS.whiteboard)) return;
+        var idsS = mapS.whiteboard.filter(function(w) { return !!w && msg.ids.indexOf(w.id) >= 0 && w.ownerId === prS.id && w.byPlayer === true && FCsk.showOn(w); }).map(function(w) { return w.id; });
+        if (idsS.length && window.wpDrawShow && typeof window.wpDrawShow.asked === 'function') window.wpDrawShow.asked({ pid: prS.id, name: String(prS.name || 'A player'), mapId: msg.itemId, ids: idsS });
+        // [netcheck:showask-end]
     } else if (msg.type === 'share' && net.role === 'host') {
         relayShare(msg, conn);
     } else if (msg.type === 'handout' && net.role === 'client') {

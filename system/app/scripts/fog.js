@@ -1621,14 +1621,35 @@ function drawCaptions(ctx, s) {
 // width, then each word. The body wears fog-caps meanwhile and the style sheet makes the board's own layer invisible, so nothing is drawn twice and it
 // still takes its presses. A frame comes every 60 ms, so what moves follows. Every draw takes the body's word back first and a cleared canvas does too,
 // so the layer is never out of sight on both
-var MCAPS_MOST = 60, MSHAPES_MOST = 400, _capsOn = false;
+var MCAPS_MOST = 60, MSHAPES_MOST = 400, SHOWS_MOST = 600, _capsOn = false, _showD = typeof WeakMap === 'function' ? new WeakMap() : null;
 function capsShow(on) {
     on = on === true; if (on === _capsOn) return;
     _capsOn = on; var b = typeof document !== 'undefined' && document ? document.body : null;
     if (b && b.classList) b.classList.toggle('fog-caps', on);
 }
 function capsColour(v, d) { return typeof v === 'string' && /^rgba?\([0-9., ]+\)$/.test(v) ? v : d; }   // a colour as the style sheet worked it out, else the fallback
-function capsPaint(v) { return typeof v === 'string' && /^rgba?\([0-9., ]+\)$/.test(v) && !/,\s*0(\.0+)?\)$/.test(v) ? v : ''; }   // a paint that shows: never none or a transparent one, as a ruler's fat hit line is
+function capsPaint(v) { return typeof v === 'string' && /^rgba?\([0-9., ]+\)$/.test(v) && !/^rgba\([^)]*,\s*0(\.0+)?\)$/.test(v) ? v : ''; }   // a paint that shows: never none or a transparent one, as a ruler's fat hit line is (a 0 at the end of rgb() is its blue, not its alpha)
+// Drawings to show (1.6.2): a pen drawing marked to show stands over the fog as the rulers do, and the ground under it stays hidden. The board keeps its
+// element and its presses, and under the same body word the style sheet takes the element's svg out of sight while this canvas draws it. Each by the place
+// the board gives it, in the board's own stroke or fill, at the opacity of its piece (a drawing fading on its own among them). A long line's path is kept
+// for its element while its text stands, since a frame comes many times a second. A pattern is never drawn here: fogcore showOk leaves such a region out
+function showShapes(ctx, sr) {
+    if (!ctx.transform || !ctx.stroke || !ctx.fill || typeof Path2D !== 'function') return 0;
+    var els = document.querySelectorAll('#whiteboardWrap .wb-item.wb-toshow svg > path'), n = 0;
+    for (var i = 0; i < els.length && n < SHOWS_MOST; i++) {
+        var el = els[i], m = typeof el.getScreenCTM === 'function' ? el.getScreenCTM() : null, cs = typeof getComputedStyle === 'function' ? getComputedStyle(el) : null; if (!m || !cs) continue;
+        var fill = capsPaint(cs.fill), ink = capsPaint(cs.stroke), w = parseFloat(cs.strokeWidth); if (!(w > 0)) ink = ''; if (!fill && !ink) continue;
+        var d = String(el.getAttribute('d') || ''), kept = _showD ? _showD.get(el) : null, path = kept && kept.d === d ? kept.p : null;
+        if (!path) { path = new Path2D(d); if (_showD) _showD.set(el, { d: d, p: path }); }
+        var box = typeof el.closest === 'function' ? el.closest('.wb-item') : null, bs = box ? getComputedStyle(box) : null, op = bs ? parseFloat(bs.opacity) : 1;
+        ctx.save(); ctx.translate(-sr.left, -sr.top); ctx.transform(m.a, m.b, m.c, m.d, m.e, m.f);
+        if (op >= 0 && op < 1) ctx.globalAlpha = op;
+        if (fill) { ctx.fillStyle = fill; if (cs.fillRule === 'evenodd') ctx.fill(path, 'evenodd'); else ctx.fill(path); }
+        if (ink) { ctx.strokeStyle = ink; ctx.lineWidth = w; ctx.lineCap = cs.strokeLinecap === 'round' || cs.strokeLinecap === 'square' ? cs.strokeLinecap : 'butt'; ctx.lineJoin = cs.strokeLinejoin === 'round' ? 'round' : 'miter'; ctx.stroke(path); }
+        ctx.restore(); n++;
+    }
+    return n;
+}
 // The shapes of the layer, each by the very place the board gives it (getScreenCTM)
 function measureShapes(ctx, sr) {
     if (!ctx.transform || !ctx.stroke || !ctx.fill || !ctx.beginPath) return 0;
@@ -1650,6 +1671,7 @@ function measureCaps(ctx, s) {
     if (!ctx || !ctx.fillText) return 0;
     var sr = s.getBoundingClientRect(), z = state.zoomLevel || 1, n = 0;
     capsShow(true);
+    showShapes(ctx, sr);
     measureShapes(ctx, sr);
     var els = document.querySelectorAll('#measureLayer text');
     ctx.save(); ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';

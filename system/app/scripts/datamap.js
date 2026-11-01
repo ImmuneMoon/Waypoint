@@ -1382,6 +1382,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               currentDrawItem.style.zIndex = 40;
 
+              if (window.wpDrawShow && window.wpDrawShow.penOn()) currentDrawItem.classList.add('wb-toshow');   // 1.6.2: a drawing to show is drawn over the fog as it is being drawn too
+
               wb.appendChild(currentDrawItem);
 
               e.preventDefault();
@@ -1640,6 +1642,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               // [buildcheck:penpreset-end]
               if (PPw && item.sightType === 'door' && item.blocksSight === true && !item.byPlayer && typeof window.wpDoorCut === 'function') window.wpDoorCut(getActiveMap(), item);   // the map builder: a door drawn along a wall line cuts its doorway, in this stroke's own save
               getActiveMap().whiteboard.push(item);
+              if (window.wpDrawShow) window.wpDrawShow.stamp(item, getActiveMap());   // 1.6.2: On the map or To show, as the pen says; never a Wall line of the Build tool, which stamp asks itself (a player's stroke is judged again by the host)
 
               currentDrawItem.remove();
 

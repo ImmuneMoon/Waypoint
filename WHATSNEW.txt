@@ -16,6 +16,20 @@ At the table
 - A station nobody holds reads 0, as a skill of 0 does. The roll's card now says
   nobody is there.
 
+Drawings to show
+- The pen now makes two kinds of drawing. On the map is what it always
+  made, and fog covers it. To show stands over the fog for everyone on that
+  map, and the ground under it stays hidden, so you can point something out
+  with the fog left on.
+- Right-click a drawing to change which kind it is.
+- A drawing to show stays until it is erased, fades on its own, or stays
+  until the fight or scene ends. You pick in the pen's options, and Clear
+  drawings to show is there too.
+- What a player draws is now a drawing to show. A player can ask to put it
+  on the map, and you answer in the bell. On a yes it is part of the map
+  and yours.
+- Save Map as Picture leaves drawings to show out.
+
 System editor
 - Rename a choice's option and press Save, and what holds it follows: items,
   rows, characters and library entries. Before, they fell back to the default.

@@ -96,6 +96,9 @@ jobs:
       - name: recordcheck — the game record, its store and its wiring
         if: ${{ !cancelled() }}
         run: node tools/recordcheck.js
+      - name: drawshowcheck — drawings to show over the fog, their stay, the ask and the bell
+        if: ${{ !cancelled() }}
+        run: node tools/drawshowcheck.js
       - name: noticecheck — a band of side vision that notices by a roll
         if: ${{ !cancelled() }}
         run: node tools/noticecheck.js

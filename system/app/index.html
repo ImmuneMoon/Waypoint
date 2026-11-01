@@ -59,6 +59,7 @@
 <script type="module" src="scripts/calendar.js"></script>
 <script type="module" src="scripts/fog.js"></script>
 <script type="module" src="scripts/envtool.js"></script>
+<script type="module" src="scripts/drawshow.js"></script>
 <script type="module" src="scripts/linkgate.js"></script>
 <script type="module" src="scripts/handouts.js"></script>
 <script type="module" src="scripts/scene.js"></script>
@@ -678,6 +679,16 @@
                           <li>The <b>New item opacity</b> slider in the Shapes and Pen menus sets the transparency new items are created with.</li>
                           <li>Click to select. Drag the corner handle to resize. Hold <kbd>Shift</kbd>, or turn on <b>Lock proportions</b> in the selection toolbar, to keep the width and height in ratio. Resizing one member of a <b>group</b> scales the whole group. Drag the blue dot to rotate. Arrow keys nudge the selection, and <kbd>Shift</kbd> makes the steps bigger. As the GM, a press near the line of a wall or a door picks that line, even where a floor lies over it. A right-click and a double-click there are the wall&rsquo;s too, so <kbd>Delete</kbd> removes it.</li>
                           <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4l4 4-8.5 8.5-4.5 1 1-4.5L14 4zM4 21c2-1.6 3.6 1.2 5.6 0s3.2-1.4 5 0 3.4.6 5.4-.4"/></svg> Draw</b> sketches freehand. Click it again for color, stroke size, <b>pen tip</b>, straight-line mode and opacity. The tip is round, square, or a flat calligraphy nib whose width varies with direction. You pick a line up by its stroke. A filled area, or a line drawn with the flat tip, takes a click anywhere inside it. A token on top still takes its own click.</li>
+                          <li><b>Drawings to show:</b> the pen makes two kinds of drawing, picked at the top of its options.
+                              <ul>
+                                  <li><b>On the map</b> is part of the map, and fog covers it as it covers the ground.</li>
+                                  <li><b>To show</b> stands over the fog for everyone on that map, and the ground under it stays hidden. Use it to point something out with the fog left on.</li>
+                                  <li>You pick how long it stays. <b>Until erased</b> stays until it is erased or you press <b>Clear drawings to show</b>. <b>Fades on its own</b> goes after about a minute.</li>
+                                  <li><b>Until the fight or scene ends</b> goes with the last fight on that map, when you close a scene for everyone, or once nobody is on that map.</li>
+                                  <li>Right-click a drawing and press <b>To show, over the fog</b> to change which kind it is.</li>
+                                  <li>Save Map as Picture leaves drawings to show out.</li>
+                              </ul>
+                          </li>
                           <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4.5l5 5a1.5 1.5 0 0 1 0 2.1L12 19H7.5l-3.6-3.6a1.5 1.5 0 0 1 0-2.1l8.5-8.8a1.5 1.5 0 0 1 2.1 0zM8.5 9.5l6 6M12 19h8"/></svg> Eraser</b> rubs out only what its circle passes over, and the rest of the stroke stays. Click the eraser again for its size and mode: <b>Precise</b> trims strokes exactly to the circle, <b>Segments</b> removes whole point-to-point pieces. The GM&rsquo;s eraser takes a wall or a door laid as a block whole, a square, a hexagon, a diamond or a pillar, when its circle touches it. A locked one stays. A wall drawn as a line is cut as any line is.</li>
                           <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3l9 9-6.5 6.5a2.1 2.1 0 0 1-3 0L4.5 13.5a2.1 2.1 0 0 1 0-3L10 5M4.2 12h14.6M20.5 16s1.5 2 1.5 3.2a1.5 1.5 0 0 1-3 0c0-1.2 1.5-3.2 1.5-3.2z"/></svg> Fill</b> is the GM&rsquo;s tool for coloring grid cells. Click or drag cells to lay a cell-sized colored shape beneath the tokens: a hexagon on hex maps, a square on square maps. Right-click a cell to clear it, and painting a filled cell recolors it. Each fill is an ordinary board item: move it, restyle it, change its opacity or delete it like any shape.
                               <ul>
@@ -1468,6 +1479,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                               <ul>
                                   <li>Tick <b>Blocks sight</b> or <b>Stops movement only</b> on a player&rsquo;s line and it is yours from then on: its player can no longer erase or redraw it. Untick it to hand the line back.</li>
                                   <li>Your <b>Undo</b> takes back what you did to a player&rsquo;s line, such as a tick, a move or a delete. It never erases or moves what the player did themselves.</li>
+                                  <li>A player&rsquo;s new drawing is a drawing to show: it stands over the fog for everyone on that map. A line from before stays on the map.</li>
+                                  <li>A player may ask to put a drawing on the map. The bell says so. <b>Put on the map</b> makes it part of the map and yours, and <b>No</b> leaves it as it is.</li>
                               </ul>
                           </li>
                           <li><b>Chat:</b> click <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-7.5L7 20.5v-4H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM7.5 9h9M7.5 12.5h5.5"/></svg></b> to message everyone, or pick one player to send a private whisper.</li>
@@ -1617,6 +1630,14 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li>Pan with <kbd>Middle Click + Drag</kbd>, zoom with the <kbd>Mouse Wheel</kbd>, and use the <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 16.5l13-13 4 4-13 13-4-4zM7.5 12.5l1.8 1.8M10.5 9.5l1.8 1.8M13.5 6.5l1.8 1.8"/></svg> Measure</b> tool freely. Your camera is your own.</li>
                           <li><b>Your token:</b> if the GM assigned you one, just drag it. It lands in a cell while your GM has Snap on, and exactly where you drop it otherwise. You can't move anyone else's.</li>
                           <li><b>Your drawings:</b> you have the pen and the eraser too. You can erase only your own marks. A line of yours that your GM made a wall or a barrier stays: you can no longer erase it, until they hand it back.</li>
+                          <li><b>Drawings to show:</b> what you draw stands over the fog for everyone on your map, and the ground under it stays hidden.
+                              <ul>
+                                  <li>The top of the pen&rsquo;s options says how long it stays: <b>Until erased</b>, <b>Fades on its own</b> or <b>Until the fight or scene ends</b>.</li>
+                                  <li><b>Clear drawings to show</b> takes yours away.</li>
+                                  <li>To keep a drawing, right-click it and press <b>Ask to put it on the map</b>. <b>Ask to put them on the map</b> in the pen&rsquo;s options asks for all of yours.</li>
+                                  <li>Your GM answers. On a yes it is part of the map and your GM&rsquo;s, so you can no longer erase it.</li>
+                              </ul>
+                          </li>
                           <li><b>No character yet?</b> You get a <b>waiting token</b>, your face in a dashed outline, to move about until your GM gives you a character. Right-click it and a card says where you stand.
                               <ul>
                                   <li>Its face is yours to choose: your picture, the plain default, one of the bundled token pictures or an emoji.</li>
@@ -2954,6 +2975,24 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
           <div class="tool-pair" style="position:relative;">
               <button class="wb-tool-btn draw-tool-btn" id="drawModeBtn" title="Pen. Press again to put it away."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4l4 4-8.5 8.5-4.5 1 1-4.5L14 4zM4 21c2-1.6 3.6 1.2 5.6 0s3.2-1.4 5 0 3.4.6 5.4-.4"/></svg><span class="draw-color-indicator" id="drawColorIndicator"></span></button><button class="wb-tool-btn tool-chev" id="drawOptBtn" title="Pen options" aria-haspopup="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
               <div class="shape-menu draw-menu" id="drawMenu">
+                  <div id="drawShowBox">
+                      <div class="draw-menu-label">This drawing is</div>
+                      <div class="draw-menu-row" id="drawShowRow">
+                          <button class="draw-style-btn active gm-only" id="drawOnMapBtn" data-show="map" title="Part of the map. Fog covers it as it covers the ground.">On the map</button>
+                          <button class="draw-style-btn" id="drawToShowBtn" data-show="show" title="To show something at the table. Everyone on this map sees it over the fog, and the ground under it stays hidden.">To show</button>
+                      </div>
+                      <div class="draw-show-line" id="drawShowLine"></div>
+                      <div id="drawShowPart" hidden>
+                          <div class="draw-menu-label">It stays</div>
+                          <div class="draw-menu-row" id="drawShowFor">
+                              <button class="draw-style-btn active" data-showfor="erased" title="It stays until it is erased or you press Clear drawings to show.">Until erased</button>
+                              <button class="draw-style-btn" data-showfor="fade" title="It fades away by itself about a minute after it is drawn.">Fades on its own</button>
+                              <button class="draw-style-btn" data-showfor="scene" title="It goes when the last fight on this map ends, when you close a scene for everyone, or once nobody is on this map any more.">Until the fight or scene ends</button>
+                          </div>
+                      </div>
+                      <button class="draw-style-btn" id="drawShowClear" title="Takes away the drawings to show on this map. A player clears their own, and the GM clears them all.">Clear drawings to show</button>
+                      <button class="draw-style-btn" id="drawShowAsk" title="Asks your GM to put your drawings to show on this map on the map itself. On a yes they become the GM&rsquo;s." hidden>Ask to put them on the map</button>
+                  </div>
                   <div class="draw-menu-label">Pen Style</div>
                   <div class="draw-menu-row" id="drawStyleRow">
                       <button class="draw-style-btn active" data-straight="false" title="Freehand sketching"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 15c3-8 6 6 9-1s5-6 9 0"/></svg> Freehand</button>

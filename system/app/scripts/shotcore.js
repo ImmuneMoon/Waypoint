@@ -84,7 +84,7 @@ function plateInk(bg) {
 // A piece belongs in the picture when players see it as part of the map. Never a token, a waiting token, a hidden piece, a GM note card, a
 // light's marker or a trigger zone, and a label only where labels are asked for. A piece with no place or no size is none
 function shows(item, labels) {
-    if (!item || typeof item !== 'object' || item.hidden || item.gmNoteFor || item.isChar || item.waiting) return false;
+    if (!item || typeof item !== 'object' || item.hidden || item.gmNoteFor || item.isChar || item.waiting || item.toShow === true) return false;   // 1.6.2: a drawing to show demonstrates something at the table and is no part of the map
     if (!fin(item.x) || !fin(item.y) || !fin(item.w) || !fin(item.h) || item.w < 0 || item.h < 0) return false;
     var t = item.type;
     if (t === 'text') return labels === true;

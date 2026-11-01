@@ -960,6 +960,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
             if (w.type === 'trigger') {
                 html += '<div class="field"><label for="wbEventMsg">Event Message</label><textarea id="wbEventMsg" placeholder="Message when character drops here...">'+esc(w.eventMessage||'')+'</textarea></div>';
+                html += soundOnRow(w);   // 1.6.2
             } else if (w.type !== 'light') {   // a light source is never a character
                 html += '<div class="field check-row"><input type="checkbox" id="wbIsChar" '+(w.isChar?'checked':'')+'> <label for="wbIsChar">Is Character</label></div>';
                 if(w.isChar) {
@@ -1083,6 +1084,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? terrainFieldHtml(w) : '')+   // difficult terrain T1
               (textureFieldOk(w) ? textureFieldHtml(w) : '')+   // the map builder: a piece's texture, a name of the app's own list
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.hidden && w.blocksSight ? '<div class="field"><label for="wbSightType">Type</label><select id="wbSightType"><option value="wall"'+(w.sightType!=='door'?' selected':'')+'>Wall / pillar (always blocks)</option><option value="door"'+(w.sightType==='door'?' selected':'')+'>Door (can open)</option></select></div>' : '')+
+              (w.blocksSight && w.sightType==='door' && !w.hidden ? soundOnRow(w) : '') +
               (w.blocksSight && w.sightType==='door' && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbDoorOpen" '+(w.doorOpen?'checked':'')+'> <label for="wbDoorOpen">Door is open (sight passes through)</label></div><div class="field check-row"><input type="checkbox" id="wbDoorLock" '+(w.doorLock?'checked':'')+'> <label for="wbDoorLock">GM-locked (players can&rsquo;t open it)</label></div>' : '')+
               (w.blocksSight ? secretFieldHtml(w) : '')+   // the map builder: a door may be secret (the players see wall there until it is found)
               // [sinkcheck:heightbox-start]
@@ -1389,11 +1391,15 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 save(); render(); renderInspector();
                 if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
             });
+            var _el_wbSoundOn = document.getElementById('wbSoundOnBtn');
+            if (_el_wbSoundOn) _el_wbSoundOn.addEventListener('click', function() { if (window.wpSoundOn && typeof soundOnEv === 'function') window.wpSoundOn.ask(this, soundOnEv(w)); });
             var _el_wbDoorOpen = document.getElementById('wbDoorOpen');
             if(_el_wbDoorOpen) _el_wbDoorOpen.addEventListener('change', function() {
+                var wasSd = !!(window.wpFogCore && typeof window.wpFogCore.secretOn === 'function' && window.wpFogCore.secretOn(w));
                 if (this.checked) w.doorOpen = true; else delete w.doorOpen;
                 var foundDo = this.checked && typeof secretFound === 'function' && secretFound(w);   // a secret door that is opened is found: an open door cannot be secret
                 save(); render();
+                if (window.wpSoundOn) window.wpSoundOn.door(null, w, wasSd);   // 1.6.2: a sound on a door
                 if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
                 if (foundDo) { renderInspector(); toast(w.hidden ? 'Secret door opened. It is no longer secret, and it is still hidden from your players.' : 'Secret door opened. Your players see it as a door now.'); }
             });
@@ -1966,6 +1972,19 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       delete w.texSrc; delete w.texTile;   // fold B3: a pattern or Plain color takes a picture off
       save(); render(); renderInspector();
   }
+  // 1.6.2 Sounds on actions: the small button on a door, a trigger zone or a mine, which adds to the list under the Sound panel. Fixed words only
+  // [soundoncheck:row-start]
+  function soundOnRow(w) {
+      if (!window.wpSoundOn || !w) return '';
+      var word = w.type === 'trigger' ? (w.mine ? 'A sound on a mine' : 'A sound on this zone') : 'A sound on this door';
+      return '<div class="field"><button type="button" class="tool ghost" id="wbSoundOnBtn" title="Adds a line to the list under the Sound panel. Those on this map hear it, and you always do."><i class="wib wi-sound"></i> ' + word + '</button></div>';
+  }
+  function soundOnEv(w) {
+      var am = getActiveMap(); if (!am || !w) return null;
+      if (w.type === 'trigger') return w.mine ? { k: 'mine' } : { k: 'zone', map: am.id, pc: w.id };
+      return { k: 'door', map: am.id, pc: w.id };
+  }
+  // [soundoncheck:row-end]
   function setItemTexTile(w, v) {   // the Tile size list: only for a piece that wears a picture, and only as one of the four repeats
       var TL = window.wpTexList; if (!TL || typeof TL.tileOf !== 'function' || !texFieldPic(w)) return;
       w.texTile = TL.tileOf(v); save(); render(); renderInspector();
@@ -2006,6 +2025,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       return '<div class="field check-row"><input type="checkbox" id="wbBarrier" ' + (on ? 'checked' : '') + '> <label for="wbBarrier">' + (line ? 'Stops movement only (a see-through barrier along the line)' : 'Stops movement only (a see-through barrier)') + '</label></div>'
           + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">A force field, bars, a window, a railing: players&rsquo; tokens cannot land in or cross ' + (line ? 'the line' : 'the cells its outline covers') + ', while sight, light and senses pass through. Your own moves are never stopped; it follows the Walls stop player tokens setting and needs no fog on the map.</div>'
           + (on ? '<div class="field"><label for="wbSightType">Type</label><select id="wbSightType"><option value="wall"' + (door ? '' : ' selected') + '>Barrier (always stops)</option><option value="door"' + (door ? ' selected' : '') + '>Door or gate (can open)</option></select></div>' : '')
+          + (door && typeof soundOnRow === 'function' ? soundOnRow(w) : '')
           + (door ? '<div class="field check-row"><input type="checkbox" id="wbDoorOpen" ' + (w.doorOpen ? 'checked' : '') + '> <label for="wbDoorOpen">Open (tokens pass through)</label></div><div class="field check-row"><input type="checkbox" id="wbDoorLock" ' + (w.doorLock ? 'checked' : '') + '> <label for="wbDoorLock">GM-locked (players can&rsquo;t open it)</label></div>' : '')
           + (on ? '<div class="field check-row"><input type="checkbox" id="wbBlastStop" ' + (w.blastStop === true ? 'checked' : '') + '> <label for="wbBlastStop">Stops blasts</label></div>'
               + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">On for a force field or a window, off for bars or a railing. A thrown blast then never goes off inside it, and it shields what is behind it as a wall does (where your system has cover switched on). An open door stops no blast.</div>' : '');

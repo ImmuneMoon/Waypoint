@@ -226,7 +226,16 @@ function cleanRollReq(msg) {
         if (!(out.act || out.fr || (out.row && out.row.i !== undefined && out.row.r !== undefined)) || typeof msg.hit !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(msg.hit)) return null;
         out.hit = msg.hit;
     }
+    if (msg.src !== undefined && out.charId) { var srcC = cleanSrc(msg.src); if (srcC) out.src = srcC; }   // 1.6.2: which button it came from
     return out;
+}
+// 1.6.2: which button a press came from: a system roll by its id, a list's roll by its field, its row and its place. It names no rule and the host
+// judges nothing by it, since a plain roll sends its formula alone and naming it would put it under Off a character's turn. A sound on that roll
+// reads it and nothing else. One that does not read is left out, and the roll goes on
+function cleanSrc(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+    if (typeof v.r === 'string') return /^r_[A-Za-z0-9_]{1,24}$/.test(v.r) ? { r: v.r } : null;
+    return typeof v.l === 'string' && /^[A-Za-z0-9_]{1,64}$/.test(v.l) && typeof v.row === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(v.row) && isInt(v.i) && v.i >= 0 && v.i < LIMITS.rowRolls ? { l: v.l, row: v.row, i: v.i } : null;
 }
 function cleanAtt(v) { return typeof v === 'string' && ATT_RE.test(v) ? v : ''; }
 var ATT_RE = /^[ab]_[a-z0-9]{8}$/;   // 1.6.0 (B2): an attempt's id, made by the host (b_: a blow's soft record, which a roll may do without)

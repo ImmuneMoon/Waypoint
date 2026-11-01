@@ -717,7 +717,7 @@ function toggleDoorAt(boardX, boardY) {
         if (!w || !C.isDoor(w) || w.hidden) continue;   // a wall's door or a see-through barrier's (fogcore isDoor)
         var cells = w.type === 'path' ? C.pathCells(w, grid) : footprintCells(w, grid, C);   // item 18 W2: a line door is found on the cells its line passes
         for (var j = 0; j < cells.length; j++) {
-            if (C.cellKey(cells[j], grid) === key) { w.doorOpen = !w.doorOpen; var foundS = !!(w.doorOpen && typeof C.secretReveal === 'function' && C.secretReveal(w)); save(); if (window.appRender) window.appRender(); invalidateVision(); redraw(); toast(foundS ? 'Secret door opened. Your players see it as a door now.' : w.doorOpen ? 'Door opened.' : 'Door closed.'); return true; }
+            if (C.cellKey(cells[j], grid) === key) { var wasS = !!(typeof C.secretOn === 'function' && C.secretOn(w)); w.doorOpen = !w.doorOpen; var foundS = !!(w.doorOpen && typeof C.secretReveal === 'function' && C.secretReveal(w)); save(); if (window.wpSoundOn) window.wpSoundOn.door(map, w, wasS); if (window.appRender) window.appRender(); invalidateVision(); redraw(); toast(foundS ? 'Secret door opened. Your players see it as a door now.' : w.doorOpen ? 'Door opened.' : 'Door closed.'); return true; }
         }
     }
     return false;

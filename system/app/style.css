@@ -2840,6 +2840,22 @@
   .snd-cue { border-radius: 4px; }
   .snd-stop { padding: 1px 7px; }
   .snd-foot { border-top: 1px solid var(--edge); padding-top: 6px; font-size: 11px; color: var(--dim); }
+  .snd-on { display: flex; flex-direction: column; gap: 4px; }   /* 1.6.2 Sounds on actions: the list under the panel, and the small button where a thing is */
+  .snd-on-row, .snd-on-form { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px 0; border-top: 1px solid var(--edge); font-size: 11.5px; }
+  .snd-on-what { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; color: var(--text); }
+  .snd-on-gone { display: block; color: var(--gold); font-size: 10.5px; }
+  .snd-on-sel { flex: 1 1 120px; min-width: 0; font-size: 11px; padding: 2px 4px; background: var(--panel); color: var(--text); border: 1px solid var(--edge); border-radius: 4px; }
+  .snd-on-what-sel { flex-basis: 100%; }
+  .snd-on-icon { padding: 1px 6px; font-size: 11px; }
+  .snd-on-foot { display: flex; gap: 4px; flex-basis: 100%; }
+  .snd-on-add { align-self: flex-start; }
+  .snd-on-btn { padding: 1px 6px; font-size: 12px; }
+  .snd-on-btn.on { color: var(--gold); border-color: var(--gold); }
+  .snd-on-pop { position: fixed; z-index: 100003; width: 240px; max-height: 320px; overflow: auto; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: 0 10px 28px rgba(0,0,0,0.5); box-sizing: border-box; font-size: 12px; }
+  .snd-on-pophead { color: var(--gold); font-weight: 700; padding: 2px 4px 4px; overflow-wrap: anywhere; }
+  .snd-on-poprow { display: block; width: 100%; text-align: left; padding: 3px 6px; background: none; border: 0; border-radius: 4px; color: var(--text); font: inherit; cursor: pointer; }
+  .snd-on-poprow:hover, .snd-on-poprow:focus { background: var(--panel); outline: none; }
+  .snd-on-poprow.on { color: var(--gold); font-weight: 700; }
   .snd-foot label { display: inline-flex; align-items: center; gap: 4px; }
   .snd-foot input[type=range] { width: 90px; }
   .snd-players { flex: 1; text-align: right; white-space: nowrap; }

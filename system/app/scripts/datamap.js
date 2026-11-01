@@ -1211,6 +1211,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   }
               }
               if (window.wpMineCheck) { var mdM = multiDrag.filter(function(m) { return m.item === item; })[0]; try { window.wpMineCheck(am, item, mdM ? { x: mdM.ox, y: mdM.oy } : null); } catch (e) { console.error(e); } }   // 1.5.8 explosives: a mine the token stepped into goes off (the GM's own drag; never a player's app)
+              if (window.wpSoundOn) { var mdZ = multiDrag.filter(function(m) { return m.item === item; })[0]; try { window.wpSoundOn.zoneDrop(am, item, mdZ ? { x: mdZ.ox, y: mdZ.oy } : null); } catch (e) { console.error(e); } }   // 1.6.2: a sound on a zone the GM's own drag carried a token into
               if (window.wpNet && window.wpNet.holdsMoved && item.isChar) { var mdH = multiDrag.filter(function(m) { return m.item === item; })[0]; try { if (mdH) window.wpNet.holdsMoved(am, item, { x: mdH.ox, y: mdH.oy }); } catch (e) { console.error(e); } }   // 1.6.0 Who holds whom: the GM's own drop drags, or lets go
               // A portal under the token? Travel first, so the room note below only fires when the token actually stays put.
               var traveled = !!(window.wpNet && window.wpNet.tokenDropped && window.wpNet.tokenDropped(item, am, true));   // true: this machine's own hand — on the host, the GM's (a portal locked for players does not stop it); a player's app travels nobody from here

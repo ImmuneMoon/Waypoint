@@ -6029,6 +6029,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 a location named on a hit behind cover is plain text: cleanCovHit keeps its own keys alone and refuses a control character, and the card draws its words through el, never as markup',
             !!hC && Object.keys(hC).join() === 'n,d,of' && DCv.cleanCovHit({ n: 'a\u0000b' }) === null && djC.includes("wrap.appendChild(el('div', 'roll-aim', coverHitWords(rec.cvh)));"));
     }
+    {   // 1.6.2 sounds on actions: the list under the Sound panel draws what a campaign file names as text alone (soundon.js, sliced by its soundoncheck markers, on a page that refuses markup)
+        const CSo = await import(modUrl('soundoncore.js')), soSrc = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'soundon.js'), 'utf8').replace(/\r\n/g, '\n');
+        const cutSo = t => soSrc.slice(soSrc.indexOf('\n', soSrc.indexOf('// [' + t + '-start]')) + 1, soSrc.indexOf('// [' + t + '-end]'));
+        const made = [], EV = 'x"><img src=x onerror=go()>';
+        const mk = tag => { const e = { tagName: tag.toUpperCase(), className: '', children: [], style: {}, attrs: {}, on: {}, _t: '', value: '', title: '', parentNode: null,
+            get textContent() { return e._t + e.children.map(c => c.textContent).join(''); }, set textContent(v) { e._t = String(v); e.children = []; },
+            set innerHTML(v) { throw new Error('markup: ' + v); }, get innerHTML() { throw new Error('markup read'); },
+            appendChild(c) { c.parentNode = e; e.children.push(c); return c; }, insertBefore(c, b) { c.parentNode = e; e.children.unshift(c); return c; }, setAttribute(k, v) { if (/^on/i.test(k)) throw new Error('handler: ' + k); e.attrs[k] = v; }, addEventListener(t, f) { e.on[t] = f; }, querySelector: () => null }; made.push(e); return e; };
+        const camp = { name: EV, system: { rolls: [{ id: 'r_a', label: EV + '{x}' }], fields: [{ id: 'f_g', kind: 'item-list', label: EV, list: { cats: [EV], rolls: [{ label: EV }] } }] }, items: { m: { meta: { title: EV }, whiteboard: [{ id: 'd', name: EV }] } }, chars: { c: { values: { f_g: [{ def: { name: EV, key: 'k', category: EV } }] } } },
+            soundOn: [{ ev: { k: 'roll', r: 'r_a' }, snd: 's_gone', sn: EV }, { ev: { k: 'roll', r: 'r_gone' }, snd: 's_a', n: EV }, { ev: { k: 'list', f: 'f_g', i: 0, l: EV, key: 'k', kn: EV }, snd: 's_a' }, { ev: { k: 'door', map: 'm', pc: 'd' }, snd: 's_a' }] };
+        const box = mk('div'), body = mk('div'); body.querySelector = () => null;
+        const win = { wpSound: { cues: () => [{ id: 's_a', name: EV }] }, wpCanPersistLocal: () => true, wpSystemCore: { rowDef: (s, r) => ({ def: r.def }) } };
+        const fns = new Function('window', 'document', 'C', 'getActiveCampaign', 'getActiveMap', 'save', 'toast', 'log', 'ui', 'el', "'use strict';\n" + cutSo('soundoncheck:fire') + cutSo('soundoncheck:list') + cutSo('soundoncheck:ask') + '\nreturn { fill };')(
+            win, { createElement: mk, body: mk('body'), addEventListener() {}, removeEventListener() {} }, CSo, () => camp, () => camp.items.m, () => {}, () => {}, () => {}, id => (id === 'soundOnBox' ? box : null), (t, c, x) => { const e = mk(t); if (c) e.className = c; if (x !== undefined && x !== null) e.textContent = String(x); return e; });
+        fns.fill();
+        const onAttrs = made.filter(e => Object.keys(e.attrs).some(k => /^on/i.test(k)));
+        check('1.6.2 sounds on actions: a name from a campaign file (a roll, a list, a category, an entry, a map, a door, a sound and what a gone line kept) reaches the list under the Sound panel as text alone, on a page that refuses markup, and every element is made by name', box.textContent.includes(EV) && box.textContent.split(EV).length > 5 && onAttrs.length === 0 && made.every(e => /^(DIV|SPAN|SMALL|SELECT|OPTION|OPTGROUP|BUTTON|BODY)$/.test(e.tagName)), box.textContent.slice(0, 300));
+        check('1.6.2 the module writes no markup of its own', !/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(soSrc));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -710,6 +710,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
               ic.sounds.list.forEach(function(sn) { if (!sn || typeof sn !== 'object' || typeof sn.id !== 'string') return; var k = -1; es.list.forEach(function(o, i) { if (o && o.id === sn.id) k = i; }); if (k >= 0) es.list[k] = sn; else es.list.push(sn); });
           }
           // the video library merges by id too (item 21): an imported entry replaces the same id, new ones are added, the whole cleaned
+          if (ic.soundOn !== undefined && window.wpSoundOnCore) { var soM = window.wpSoundOnCore.mergeLines(existing.soundOn, ic.soundOn); if (soM.length) existing.soundOn = soM; else delete existing.soundOn; }   // 1.6.2: the sounds on actions, line by line, as the library above
           if (Array.isArray(ic.videos) && window.wpVideoCore && window.wpVideoCore.mergeVideos) { var vdM = window.wpVideoCore.mergeVideos(existing.videos, ic.videos); if (vdM.length) existing.videos = vdM; else delete existing.videos; }
           // the music library merges by id too: a song or a playlist of the file that this campaign holds is updated, a new one is added
           // (a song whose file is already listed here is that song), and the merged maps' remembered music is pointed at wherever its

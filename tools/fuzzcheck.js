@@ -649,7 +649,7 @@ function mkCampaign(SC, F) {
     const sys = SC.cleanSystem(fx, { F, gmView: true, libCats: {} });
     const tok = (id, o) => Object.assign({ id, type: 'circle', isChar: true, w: 50, h: 50, layer: 'middle' }, o);
     const camp = {
-        id: 'c1', name: 'Fuzz Campaign', activeItemId: 'm_open', system: sys,
+        id: 'c1', name: 'Fuzz Campaign', activeItemId: 'm_open', system: sys, soundOn: [{ ev: { k: 'door' }, snd: 's_gong', n: 'the hidden gong' }],
         players: { u_p1: { name: 'Ayla', key: K1 }, u_p2: { name: 'Bram', key: K2 }, u_p3: { name: 'Cato', key: K3 } }, bannedPlayers: {}, sessionLog: [], turnRules: {},
         chars: {
             c_p1: { id: 'c_p1', name: 'Ayla', ownerId: 'u_p1', npc: false, values: { f_str: 14, f_dex: 12, f_gmfig: 7, f_hp: { cur: 10, max: 12 }, f_inv: [], f_class: 'Ranger', f_gmword: 'the secret word', f_gmtxt: 'a title the GM gave' }, updated: 1 },
@@ -1019,7 +1019,7 @@ function mutations(tpl) {
             'video-up': { type: 'video-up', act: 'ask', id: '0123456789abcdef', sdp: 'v=0\r\n', cand: { candidate: 'candidate:1 1 udp 1 1.2.3.4 5 typ host', sdpMid: '0', sdpMLineIndex: 0 } },
             'voice-up': { type: 'voice-up', act: 'join', id: '0123456789abcdef', sdp: 'v=0\r\n', cand: { candidate: 'candidate:1 1 udp 1 1.2.3.4 5 typ host', sdpMid: '0', sdpMLineIndex: 0 } },   // voice chat (1.5.9): a player's word about their voice link
             'roll-req': { type: 'roll-req', rid: 'r16', expr: '1d20 + 3', label: 'Attack' },
-            'roll-req-char': { type: 'roll-req', rid: 'r17', expr: 'd20 + STRmod + Prof', charId: 'c_p1', act: 'r_atk', mod: 0 },
+            'roll-req-char': { type: 'roll-req', rid: 'r17', expr: 'd20 + STRmod + Prof', charId: 'c_p1', act: 'r_atk', mod: 0, src: { r: 'r_atk' } },
             'asset-req': { type: 'asset-req', path: '/saves/images/pic.png' },
             'asset-req-audio': { type: 'asset-req', path: '/saves/images/audio/song.mp3' },
             'chat': { type: 'chat', text: 'hello table', from: { id: 'u_gm', name: 'GM', gm: true }, scope: 'whisper' },
@@ -1463,6 +1463,7 @@ function mutations(tpl) {
         const camp = stubs.getActiveCampaign(), out = sentLog.slice(sb);
         check('host: the GM-only field is neither rolled by name, nor edited, nor is another\'s character or the NPC', camp.chars.c_p1.values.f_gmfig === 7 && camp.chars.c_p2.values.f_str === 9 && camp.chars.c_npc.values.f_str === 16 && !out.some(s => s.m.type === 'roll' && /GMFig/.test(JSON.stringify(s.m.names || ''))) && out.filter(s => s.m.type === 'char-deny').length >= 3, { gmfig: camp.chars.c_p1.values.f_gmfig, p2: camp.chars.c_p2.values.f_str, npc: camp.chars.c_npc.values.f_str, out: out.map(s => s.m.type + (s.m.reason ? ':' + s.m.reason : '')) });
         check('host: nothing sent to any player carries the GM-only value, the hidden token or the GM note', !out.some(s => /"f_gmfig":(7|3|99)|tok_hidden|the orc lies|secret plan/.test(JSON.stringify(s.m))));
+        check('host: nothing of the sounds the GM ties to actions is in any send (1.6.2)', !sentLog.some(s => /soundOn|the hidden gong/.test(JSON.stringify(s.m))));
         const sbL = sentLog.length, sigL = t => win.wpLook.textSig(t), lookL = t => ({ fmt: { b: true }, sig: sigL(t) }), clockL = clockOff; clockOff += 20000;
         const seedL = { f_gmtxt: lookL('a title the GM gave') }; stubs.getActiveCampaign().chars.c_p1.looks = JSON.parse(JSON.stringify(seedL));   // a look of the GM's own on a text the player sees and may not edit
         const styles = [['a text the player sees and only the GM edits', { charId: 'c_p1', fieldId: 'f_gmtxt', look: { fmt: { i: true }, sig: sigL('a title the GM gave') } }], ['taking off the GM\'s look there', { charId: 'c_p1', fieldId: 'f_gmtxt', look: null }], ['the GM-only text', { charId: 'c_p1', fieldId: 'f_gmword', look: lookL('the secret word') }], ['another player\'s character', { charId: 'c_p2', fieldId: 'f_class', look: lookL('Bard') }], ['the NPC', { charId: 'c_npc', fieldId: 'f_class', look: lookL('Brute') }], ['a number', { charId: 'c_p1', fieldId: 'f_str', look: lookL('14') }], ['other words', { charId: 'c_p1', fieldId: 'f_class', look: lookL('Wizard') }]];

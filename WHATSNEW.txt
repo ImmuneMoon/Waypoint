@@ -51,6 +51,20 @@ System editor
 - Counted once: Given free can name a column now, as Full price can, so a row
   another row granted can say what it gives free.
 
+Sounds on actions
+- You can now tie a cue to something that happens, so a shot, a sword swing or an
+  explosion plays by itself. Open the Sound panel and press + Add a sound on an
+  action. Pick a roll, an action, a blast, a mine, a door or a trigger zone.
+- A line on a list's roll can name one category or one entry, so one kind of
+  weapon has its own sound.
+- A small speaker adds to the same list where the thing is: on a roll in the
+  System editor, on a door or a zone in Properties, and in the Radius tool's
+  options.
+- Those on the map where it happens hear it, and you always do.
+- A hidden act stays silent for players. A private roll, a hidden token and a
+  secret door play for you alone, and so does anything a player cannot see.
+- A line whose roll or sound has gone stays in the list and says so.
+
 WAYPOINT 1.6.1 — What's New
 ============================
 

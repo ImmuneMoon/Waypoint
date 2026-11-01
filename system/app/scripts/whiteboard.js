@@ -3078,7 +3078,7 @@ window.wpFitToGrid = fitToGrid;
   }
   function doorRowsDo(items, act) {
       var row = doorRows(items); if (!row) return '';
-      if (act === 'open') { row.items.forEach(function(w) { if (row.open) w.doorOpen = true; else delete w.doorOpen; }); return row.open ? 'opened' : 'closed'; }
+      if (act === 'open') { row.items.forEach(function(w) { if (row.open) w.doorOpen = true; else delete w.doorOpen; if (window.wpSoundOn) window.wpSoundOn.door(null, w, !!(window.wpFogCore && typeof window.wpFogCore.secretOn === 'function' && window.wpFogCore.secretOn(w))); }); return row.open ? 'opened' : 'closed'; }
       if (act === 'lock') { row.items.forEach(function(w) { if (row.lock) w.doorLock = true; else delete w.doorLock; }); return row.lock ? 'locked' : 'unlocked'; }
       return '';
   }
@@ -4439,6 +4439,7 @@ window.wpFitToGrid = fitToGrid;
       toast((opts.goOff ? (b.name || 'A mine') + (pre && pre.fuse ? ' lands' : ' goes off') : (b.by ? b.by + ' throws ' : 'Thrown: ') + (b.name || 'a blast')) + ', ' + rw.charAt(0).toLowerCase() + rw.slice(1) + '. ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.' + (pre ? pre.said : '') + (seatB ? ' It went off in front of the wall or door it hit.' : '') + (onScreen ? '' : (pre && pre.fuse ? ' It is on ' : ' It went off on ') + ((map.meta && map.meta.title) || map.title || 'another map') + '.'));
       if (pre && pre.area && pre.area.use === true && pre.tr && typeof useOneUp === 'function') useOneUp(getActiveCampaign(), pre.tr);
       if (pre && pre.fuse && typeof fuseSet === 'function') { fuseSet(map, b, opts, n); return b; }   // 1.5.8: it goes off at the start of the next turn
+      if (window.wpSoundOn) window.wpSoundOn.fire({ k: opts.mine === true ? 'mine' : 'blast' }, { map: map.id });   // 1.6.2: a blast is shown to all on its map, so its sound is theirs too
       resolveThrow(b, opts, n, map);
       return b;
   }
@@ -4885,7 +4886,7 @@ window.wpFitToGrid = fitToGrid;
           if (pck && !pck.pass && pck.crit === 'fumble') {   // the book: a critical failure sets it off in the planter's cell
               var plT = throwerOf(map, opts.charId), plC = plT ? tokenCentre(plT) : { x: opts.x, y: opts.y };
               if (area.use === true) useOneUp(camp, tr);
-              return placeThrownBlast(Object.assign({ goOff: true, x: plC.x, y: plC.y, ft: area.ft, name: opts.name || def.name, by: opts.by || '', charId: opts.charId, damage: def.damage || '', gmOnly: !!opts.gmOnly, dtype: area.type, ad: area.ad, notes: opts.gmOnly ? '' : def.notes, icon: def.icon, frag: area.frag, fragType: area.fragType, aff: area.aff }, typeof blastStats === 'function' ? blastStats(sys, tr.f, def) : null), map);
+              return placeThrownBlast(Object.assign({ goOff: true, mine: true, x: plC.x, y: plC.y, ft: area.ft, name: opts.name || def.name, by: opts.by || '', charId: opts.charId, damage: def.damage || '', gmOnly: !!opts.gmOnly, dtype: area.type, ad: area.ad, notes: opts.gmOnly ? '' : def.notes, icon: def.icon, frag: area.frag, fragType: area.fragType, aff: area.aff }, typeof blastStats === 'function' ? blastStats(sys, tr.f, def) : null), map);
           }
           var unarmed = !!(pck && !pck.pass);   // the book: a failure leaves it unarmed, and the planter knows
       }
@@ -4906,7 +4907,7 @@ window.wpFitToGrid = fitToGrid;
       var at = map.whiteboard.indexOf(zone); if (at < 0) return null;
       var m = zone.mine, cx = (Number(zone.x) || 0) + (Number(zone.w) || 0) / 2, cy = (Number(zone.y) || 0) + (Number(zone.h) || 0) / 2;
       map.whiteboard.splice(at, 1); save(); render();
-      return placeThrownBlast({ goOff: true, x: cx, y: cy, ft: m.ft, name: m.name || 'Mine', by: m.by || '', charId: m.charId, damage: m.damage || '', gmOnly: !!m.gmOnly, direct: direct || null, dtype: m.type, ad: m.ad, notes: m.notes, icon: zone.mineIcon, frag: m.frag, fragType: m.fragType, aff: m.aff, fills: m.fills, noDrop: m.noDrop }, map);
+      return placeThrownBlast({ goOff: true, mine: true, x: cx, y: cy, ft: m.ft, name: m.name || 'Mine', by: m.by || '', charId: m.charId, damage: m.damage || '', gmOnly: !!m.gmOnly, direct: direct || null, dtype: m.type, ad: m.ad, notes: m.notes, icon: zone.mineIcon, frag: m.frag, fragType: m.fragType, aff: m.aff, fills: m.fills, noDrop: m.noDrop }, map);
   }
   // A character token that stepped in (the host's own map: the GM's drag, a player's drop): every mine whose trigger it stands in now and did
   // not stand in where the gesture began goes off, the token struck directly. Never on a player's app or in the stream window
@@ -4934,7 +4935,7 @@ window.wpFitToGrid = fitToGrid;
       var camp = getActiveCampaign(), map = camp && camp.items && typeof mapId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, mapId) ? camp.items[mapId] : null; if (!map) return 0;
       var due = _fused.filter(function(f) { return f.mapId === mapId; }); if (!due.length) return 0;
       _fused = _fused.filter(function(f) { return f.mapId !== mapId; });
-      due.forEach(function(f) { f.b.fused = false; toast((f.b.name || 'A blast') + ' goes off.'); resolveThrow(f.b, f.opts, f.n, map); });
+      due.forEach(function(f) { f.b.fused = false; toast((f.b.name || 'A blast') + ' goes off.'); if (window.wpSoundOn) window.wpSoundOn.fire({ k: 'blast' }, { map: mapId }); resolveThrow(f.b, f.opts, f.n, map); });
       renderMeasures(); return due.length;
   };
   // Whether a point stands in the blast's own cell: the same square or hex on a map with a grid, within half a cell on one with none
@@ -5213,6 +5214,7 @@ window.wpFitToGrid = fitToGrid;
       if (typeof circleRekept === 'function') circleRekept();
       renderMeasures(); syncBlastMenu();
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) { b.wire = sent; b.wireMap = map.id; window.wpNet.broadcastBlast(sent, map.id); }
+      if (window.wpSoundOn) window.wpSoundOn.fire({ k: 'blast' }, { map: map.id });   // 1.6.2
       var n = blastDistances(b, map).filter(function(r) { return shapeHolds(b, r); }).length, said = 'Explosion, ' + q.type + '. ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.';
       if (!rolled) { toast(said + (auto === 'measure' ? ' Nothing was rolled. This system\u2019s blasts only measure.' : ' Nothing was rolled. Dice are off.')); return true; }
       if (auto !== 'full') { toast(said); return true; }

@@ -1137,6 +1137,11 @@ pendingChecks.push((async () => {
     check('a session is one campaign: the join snapshot and the stream window carry the hosted campaign alone — never the GM\'s other games, their names, maps or planners; an active campaign that is no campaign of theirs (a prototype\'s name, one gone) carries none; the GM\'s own state is left as it was',
         JSON.stringify(Object.keys(forP.campaigns)) === '["k1"]' && forP.campaigns.k1.items.m1.whiteboard.length === 1 && JSON.stringify(Object.keys(forStream.campaigns)) === '["k1"]' && !/Secret game|orc_m2|p2/.test(JSON.stringify(forP)) && forP._schema === 2
         && JSON.stringify(odd.campaigns) === '{}' && JSON.stringify(none.campaigns) === '{}' && JSON.stringify(Object.keys(kept.campaigns)) === '["k1","k2"]', JSON.stringify([Object.keys(forP.campaigns), Object.keys(forStream.campaigns), odd.campaigns, none.campaigns]));
+    {   // 1.6.2 sounds on actions: the list is the GM's alone
+        const lineS = gm(); lineS.campaigns.k1.soundOn = [{ ev: { k: 'roll', r: 'r_shot' }, snd: 's_bang', n: 'Attack', sn: 'Bang' }];
+        const forS = SA(lineS, 'u_p'), forSt = SA(lineS);
+        check('1.6.2 sounds on actions: nothing of the list is in the join snapshot or the stream window (the real sanitizeAppState), for the GM\'s own campaign it stays', !/soundOn|r_shot|s_bang|Bang/.test(JSON.stringify(forS)) && !/soundOn|r_shot|s_bang/.test(JSON.stringify(forSt)) && lineS.campaigns.k1.soundOn.length === 1);
+    }
     // 1.6.0 backlog 34: the Image Library's tags are the GM's own. The shared store and the hosted campaign's (its tags, the pictures they are on,
     // a shelf and its saved filters) are in no join snapshot and no stream window's copy, and the GM's own state keeps them
     const tg = () => { const s = gm(); s.imageCats = { list: ['SharedTagQ'], by: { '/saves/images/m1/a.png': ['SharedTagQ'] }, shelf: { SharedTagQ: true } };
@@ -11926,7 +11931,7 @@ pendingChecks.push((async () => {
     check('item 19b H4 (the player\'s own screen, the real fog.js over their copy): the option reaches a player with the system (the same in both views), and their overlay — which fogs the ground behind the low wall as ever — shows the cell of the creature the host sent them over it, that one cell and no other; where the host sent none, or the creature stands in a cell they already see, their overlay is what it was',
         pgWall.system === J({ line3d: true, eye: 2 }) && pgWall.had === undefined && pgWall.now === 2 && pgWall.n === 1 && pgTall.had === undefined && pgTall.now === undefined && pgTall.n === 0 && pgEye.had === 2 && pgEye.now === 2 && pgEye.n === 0, J([pgWall, pgTall, pgEye]));
     check('item 19b (pinned): the live relay hands the fog the piece it moves, so a creature\'s place is judged at its height as its drop is — the one call, in the bpos slice',
-        (src.match(/wpFog\.canSeePoint\(/g) || []).length === 1 && /window\.wpFog\.canSeePoint\(pr\.id, camp, map, cx, cy, w\)/.test(between('// [netcheck:bpos-start]', '// [netcheck:bpos-end]', 'bpos')));
+        (src.match(/wpFog\.canSeePoint\(/g) || []).length === 2 && (between('// [netcheck:soundhear-start]', '// [netcheck:soundhear-end]', 'soundhear').match(/wpFog\.canSeePoint\(/g) || []).length === 1 && /window\.wpFog\.canSeePoint\(pr\.id, camp, map, cx, cy, w\)/.test(between('// [netcheck:bpos-start]', '// [netcheck:bpos-end]', 'bpos')));   // the other: a door under a player's fog, a place with no piece to judge by (1.6.2, moved on purpose)
 
     // the connection library is a file of the app: where it is missing the file did not load, and the app says that — never that the internet is needed
     {
@@ -19308,6 +19313,58 @@ pendingChecks.push((async () => {
         v1 === 1 && vA1 === 1 && vB1 === 0 && v2 === 1 && v.sent.b[0].list.length === 3 && v3 === 2 && v.sent.a[1].list.length === 0 && v.sent.b[1].list.length === 0 && v4 === 0 && v5 === 2 && v.sent.a[2].list.length === 3
         && v6 === 1 && lastA.list.length === 0 && lastB.list.length === 3 && !/u_a|u_b|trkHide/.test(JSON.stringify(v.sent)), j([v1, v2, v3, v4, v5, v6, v.sent]));
     check('backlog 29 the join snapshot never names who the trackers are kept from (sanitizeAppState deletes camp.trkHide)', /delete camp\.trackers;[^\n]*\n\s*delete camp\.trkHide;/.test(src));
+})());
+// 1.6.2 sounds on actions: who hears one. net.js's soundhear slice run for real on a table of plain objects, then the real roll-req branch with the
+// real core behind it, a press from the button naming only which button it was. Those on the map hear it and the GM always does; a hidden act is
+// silent for players; nothing of the list goes with the cue, and no message is new
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js')), Cs = await import(url('soundoncore.js'));
+    const hear = between('// [netcheck:soundhear-start]', '// [netcheck:soundhear-end]', 'soundhear'), J = JSON.stringify, ownS = (o, k) => !!o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k) && o[k] != null;
+    const mk = o => {
+        o = o || {};
+        const sent = { a: [], b: [], c: [], w: [], x: [] }, drop = o.drop || {}, conn = (peer, k, open) => ({ peer, open: open !== false, send: m => { packCheck(m); sent[k].push(JSON.parse(JSON.stringify(m))); } });
+        const net = { active: o.active !== false, role: o.role || 'host', conns: [conn('pA', 'a'), conn('pB', 'b'), conn('pC', 'c'), conn('pW', 'w'), conn('pX', 'x', false)], roster: { pA: { id: 'u_a', location: 'mA' }, pB: { id: 'u_b', location: 'mA' }, pC: { id: 'u_c', location: 'mB' }, pX: { id: 'u_x', location: 'mA' } } };
+        const camp = { id: 'k', activeItemId: 'mA', items: { mA: { id: 'mA', whiteboard: [{ id: 't_npc', isChar: true, charId: 'c_n' }, { id: 't_pc', isChar: true, charId: 'c_p' }, { id: 't_hid', isChar: true, charId: 'c_h', hidden: true }, { id: 't_ph', isChar: true, charId: 'c_ph', hidden: true }] }, mB: { id: 'mB', whiteboard: [] } } };
+        const win = { wpFog: { canSeePoint: (pid, c, m, x, y) => (o.seen || {})[pid] !== false } };
+        new Function('net', 'own', 'fogDrop', 'fogLanded', 'getActiveCampaign', 'sendFailed', 'window', 'SC', hear)(net, ownS, (c, m, pid) => drop[pid] || null, (id, fn) => fn(), () => camp, e => { throw e; }, win, () => Sx);
+        const fn = new Function('net', 'own', 'fogDrop', 'fogLanded', 'getActiveCampaign', 'sendFailed', 'window', 'SC', hear + '\nreturn soundHears;')(net, ownS, (c, m, pid) => drop[pid] || null, (id, fn2) => fn2(), () => camp, e => { throw e; }, win, () => Sx);
+        return { net, camp, sent, win, hears: fn };
+    };
+    const npc = { id: 'c_n', npc: true }, pc = { id: 'c_p', ownerId: 'u_a' }, cue = { act: 'cue', id: 's_bang', gain: 1 }, who = (h, w) => { const n = h.net.soundCueFor(cue, w); return [n, h.sent.a.length, h.sent.b.length, h.sent.c.length, h.sent.w.length, h.sent.x.length]; };
+    const a = mk(), wa = who(a, { map: 'mA', ch: pc, secret: false });
+    check('1.6.2 sounds on actions: a shown act reaches those on its map, an admitted open connection each; a player on another map, one not yet admitted and a closed one hear nothing (net.soundCueFor, the soundhear slice run for real)', J(wa) === J([2, 1, 1, 0, 0, 0]), wa);
+    check('1.6.2 what a player gets is the Sound panel\'s own cue and nothing else: no event, no line, no name, no new kind of message', J(a.sent.a[0]) === J({ type: 'sound', act: 'cue', id: 's_bang', gain: 1 }));
+    const b = [mk(), mk(), mk(), mk()], wb = [who(b[0], { map: 'mA', ch: pc, secret: true }), who(b[1], { map: 'mA', secret: true }), who(b[2], { map: 'mA', ch: { id: 'c_h', npc: true } }), who(b[3], { map: 'mA', ch: { id: 'c_ph', ownerId: 'u_a' } })];
+    check('1.6.2 a hidden act is the GM\'s alone: a private roll, a secret door or a hidden piece, a hidden NPC\'s token, and a hidden token of a player\'s own character too: no player is sent anything', wb.every(x => x[0] === 0 && x[1] + x[2] + x[3] === 0), wb);
+    const c = mk({ drop: { u_b: { t_npc: 1 } } }), wc = who(c, { map: 'mA', ch: npc }), d = mk({ drop: { u_b: { t_pc: 1 } } }), wd = who(d, { map: 'mA', ch: pc }), e = mk({ drop: { u_b: { t_npc: 1 } } }), we = who(e, { map: 'mA', tok: 't_npc' });
+    check('1.6.2 a player who cannot see the token that acted hears nothing, by what their own copy drops: an NPC, another player\'s character and a token named alone; the one who can see it hears it', J(wc) === J([1, 1, 0, 0, 0, 0]) && J(wd) === J([1, 1, 0, 0, 0, 0]) && J(we) === J([1, 1, 0, 0, 0, 0]), [wc, wd, we]);
+    const f = mk(), wf = who(f, { map: 'mA', ch: { id: 'c_none', npc: true } }), g = mk(), wg = who(g, { map: 'mA', ch: { id: 'c_none', ownerId: 'u_a' } }), h = mk(), wh = who(h, { map: 'mA', tok: 'gone' });
+    check('1.6.2 with no token on that map an NPC is as hidden as npcShown has it and a player\'s character is no secret; a token that is gone hides what it did', wf[0] === 0 && wg[0] === 2 && wh[0] === 0, [wf, wg, wh]);
+    const i = mk({ seen: { u_b: false } }), wi = who(i, { map: 'mA', at: { x: 5, y: 5 }, by: 'u_c' }), k = mk({ seen: { u_a: false } }), wk = who(k, { map: 'mA', at: { x: 5, y: 5 }, by: 'u_a' });
+    check('1.6.2 a door under a player\'s fog is not heard by them, and whoever moved it hears it whatever their fog says', J(wi) === J([1, 1, 0, 0, 0, 0]) && J(wk) === J([2, 1, 1, 0, 0, 0]), [wi, wk]);
+    const l = mk(), wl = who(l, { map: 'mA', ch: pc, only: 'u_a' });
+    check('1.6.2 an action whose card goes to its owner alone reaches its owner alone', J(wl) === J([1, 1, 0, 0, 0, 0]), wl);
+    const m = [mk({ role: 'client' }), mk({ active: false })], wm = m.map(x => x.net.soundCueFor(cue, { map: 'mA', ch: pc })), n2 = mk(), bad = [null, 'x', {}, { map: 5 }, { map: 'nope' }, { map: '__proto__' }].map(w => n2.net.soundCueFor(cue, w)), n3 = mk().net.soundCueFor({ act: 'ambient', id: 's' }, { map: 'mA' });
+    check('1.6.2 only a host sends one, a cue alone goes this way, and a who that does not read reaches nobody', wm.join() === '0,0' && bad.every(x => x === 0) && n3 === 0, [wm, bad, n3]);
+    // the real roll-req branch: a plain press names only which button it was
+    const gmSys = Sx.cleanSystem(JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'hud-d20.json'), 'utf8')), { F: Fx, gmView: true }); gmSys.rolls.push({ id: 'r_keptgm', label: 'Kept', formula: '1d20', vis: 'gm' });
+    const rollId = gmSys.rolls.filter(r => r && r.vis !== 'gm' && typeof r.formula === 'string')[0].id;
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'));
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(k => { const i2 = src.indexOf(k); if (i2 < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i2, src.indexOf('\n', i2)); }).join('\n') + '\n';
+    const press = o => {
+        o = o || {}; const fired = [], tok = { id: 't1', isChar: true, charId: 'c_a', ownerId: 'u_a', x: 0, y: 0 };
+        const camp = { id: 'k', activeItemId: 'm1', system: gmSys, soundOn: [{ ev: { k: 'roll', r: rollId }, snd: 's_bang' }, { ev: { k: 'roll', r: 'r_keptgm' }, snd: 's_bang' }], chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_str: 14, f_level: 5 } } }, items: { m1: { type: 'map', whiteboard: [tok] } } };
+        const net = { active: true, role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, conns: [] }, conn = { peer: 'pA', send() {} };
+        const win = { wpFormula: Fx, wpSoundOnCore: Cs, wpSoundOn: { on: () => o.off !== true, fire: (w, h2) => fired.push([w, h2.map, h2.secret, h2.ch && h2.ch.id]) }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) }, wpVtt: { on: () => true, rulesOn: () => true } };
+        const msg = Object.assign({ type: 'roll-req', rid: 'q1', expr: 'd20', charId: 'c_a', label: 'Attack' }, o.msg || {});
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'fogDrop', 'fogLanded', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + hear + '\n' + rqSrc)(
+            msg, conn, net, () => Dx, () => Sx, win, () => camp, () => false, e2 => { throw e2; }, () => {}, () => {}, () => {}, () => null, (id, fn) => fn());
+        return fired;
+    };
+    const p1 = press({ msg: { src: { r: rollId } } }), p2 = press({ msg: { src: { r: rollId }, priv: 'gm' } }), p3 = press(), p4 = press({ msg: { src: { r: rollId } }, off: true }), p5 = press({ msg: { src: { r: 'r_keptgm' } } });
+    check('1.6.2 a player\'s plain press (the real roll-req branch): the button\'s word finds the roll though it names no entry, on the map they stand on; a private one is marked so for the GM\'s ears alone; a press with no word and a campaign with no line ask nothing; a roll their view does not hold is no press of theirs',
+        J(p1) === J([[{ k: 'roll', r: rollId }, 'm1', false, 'c_a']]) && J(p2) === J([[{ k: 'roll', r: rollId }, 'm1', true, 'c_a']]) && p3.length === 0 && p4.length === 0 && p5.length === 0, [p1, p2, p3, p4, p5]);
 })());
 // 1.6.0, backlog 206: a row's look and a work line on the wire. A player's own app sends both and waits (the real net.charItem); the host's real
 // char-item branch cleans them through the one cleaner, stores them, pays a fee from the character's money and tells the owner alone

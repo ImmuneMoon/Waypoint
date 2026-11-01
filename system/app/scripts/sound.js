@@ -222,6 +222,7 @@ function renderPanel() {
     html += '<div class="snd-row"><span class="snd-label">Cues</span>' + (cs.length ? cs.map(function(e) { return '<button class="journal-from snd-cue" data-id="' + esc(e.id) + '" title="' + esc(e.name) + ' · ' + fmtDur(e.dur) + (e.def ? ' · bundled' : '') + '">' + esc(e.name) + '</button>'; }).join('') : '<span class="snd-none">No cues yet.</span>') + '</div>';
     html += '<div class="snd-row snd-foot"><label title="The GM\'s master: what players hear, and your own speakers">Master <input type="range" id="soundMaster" min="0" max="100" value="' + Math.round(master * 100) + '"></label><label class="snd-mute" title="Silence your own speakers only; players still hear the table"><input type="checkbox" id="soundHostMute"' + (muted ? ' checked' : '') + '> Mute mine</label><span class="snd-players" title="Whether the campaign\'s Sound feature is on for the table (Settings ▸ VTT features)">Players: ' + (isHost() ? 'hear this table' : 'no session') + '</span><button class="tool ghost snd-btn" data-act="lib">Library…</button></div>';
     ui('soundBody').innerHTML = html;
+    if (window.wpSoundOn) window.wpSoundOn.draw(ui('soundBody'));   // 1.6.2: On actions, the sounds tied to what happens
 }
 // the chips and the stop button follow the engine without rebuilding the body (a rebuild mid-drag would drop the master slider)
 function syncPanelState() { var body = ui('soundBody'); if (!body || !panelOpen) return; var id = ambient ? ambient.entry.id : null; body.querySelectorAll('.snd-loop').forEach(function(b) { b.classList.toggle('active', b.dataset.id === id); }); var st = body.querySelector('.snd-stop'); if (st) st.disabled = !ambient; }
@@ -458,6 +459,15 @@ function localCue(id) {
         return playCue({ id: id, def: true, name: d.name, path: 'assets/sounds/' + d.file, kind: 'cue', gain: 1, size: 0, dur: d.dur }, 1, true).then(function() { return true; });
     }).catch(function() { return false; });
 }
+// Sounds on actions (1.6.2, soundon.js): played here whatever else, since the GM always hears it, and sent only to those net.js lets hear it. A cue
+// of the panel's own goes on through hostCue. The autoplay gate is not raised for it: it comes with no press of the GM's
+function actionCue(id, who) {
+    if (!featureOn()) return false;
+    var e = entryById(id); if (!e) return false;
+    playCue(e, undefined, true);
+    var n = net(), to = n && n.soundCueFor ? n.soundCueFor({ act: 'cue', id: e.id, gain: effGainHost(e) }, who) : 0;
+    return { to: to };
+}
 window.wpSound = {
     play: function(idOrEntry, opts) { var e = typeof idOrEntry === 'string' ? entryById(idOrEntry) : idOrEntry; if (!e) return false; if (e.kind === 'loop') (isHost() ? hostPlayAmbient : playAmbient)(e); else (isHost() ? hostCue : playCue)(e); return true; },
     stop: function(what, fade) { if (what === 'ambient' || what === undefined) { if (isHost()) hostStopAmbient(); else stopAmbient(fade); } else stopAll(fade); },
@@ -466,5 +476,8 @@ window.wpSound = {
     listMessage: listMessage, onList: onList, onCue: onCue, onSnapshot: onSnapshot, tableLeft: tableLeft, sessionEnded: sessionEnded, foreign: foreign,
     openPanel: openPanel, closePanel: closePanel, openLib: openLib, defaults: function() { return defaults; }, LIMITS: LIMITS,
     addFiles: uploadFiles,  // the library's upload path, for the sandbox harness (a FileList or an array of File)
-    local: localCue
+    local: localCue,
+    action: actionCue,
+    cues: function() { return playable().filter(function(e) { return e.kind === 'cue'; }).map(function(e) { return { id: e.id, name: e.name }; }); },
+    hear: function(id) { var e = entryById(id); if (!e) return false; var a = ac(); if (a && a.state === 'suspended' && a.resume) a.resume(); playCue(e, undefined, true); return true; }   // on this machine alone
 };

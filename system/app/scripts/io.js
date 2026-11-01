@@ -31,6 +31,7 @@ import { state, dom, CATS } from './state.js';
 import './objcore.js';   // 1.6.0: the map objects' cleaner (window.wpObjCore), there before the first load
 import './trackcore.js';   // 1.6.0 backlog 29: the trackers' cleaner (window.wpTrackCore), there before the first load
 import './imgtagcore.js';   // 1.6.0 backlog 34: the Image Library tags' cleaner (window.wpImgTagCore), there before the first load
+import './soundoncore.js';   // 1.6.2: the cleaner of the sounds on actions (window.wpSoundOnCore), there before the first load
 import * as Share from './sharecore.js';   // 1.6.0 backlog 34: the share sheet's pure half (what an export leaves out, and its card)
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap } from './models.js';
@@ -205,6 +206,7 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
         if (c.music !== undefined && window.wpMusicCore && window.wpMusicCore.musicView) { var muL = window.wpMusicCore.musicView(c.music); if (muL.tracks.length || muL.playlists.length) c.music = muL; else delete c.music; }   // the campaign's music library, cleaned on load as the app reads it (a list, a hostile track, a playlist naming a track that is not there); none when nothing cleans; without the cleaner left as it is
         if (c.trackers !== undefined) { var TKl = window.wpTrackCore, tkM = Object.create(null); Object.keys(c.items && typeof c.items === 'object' ? c.items : {}).forEach(function(id) { if (c.items[id] && c.items[id].type === 'map') tkM[id] = 1; }); var tkL = TKl && TKl.cleanTrackers ? TKl.cleanTrackers(c.trackers, { maps: tkM }) : []; if (tkL.length) c.trackers = tkL; else delete c.trackers; }   // 1.6.0 backlog 29: the table trackers, cleaned on load and import (trackcore cleanTrackers; a tracker of a map that is gone goes with it; none without the cleaner)
         if (c.objects !== undefined) { var OCl = window.wpObjCore, ocL = OCl && OCl.cleanObjects ? OCl.cleanObjects(c.objects) : []; if (ocL.length) c.objects = ocL; else delete c.objects; }   // 1.6.0: the GM's own map objects
+        if (c.soundOn !== undefined) { var soL = window.wpSoundOnCore && window.wpSoundOnCore.cleanSoundOn ? window.wpSoundOnCore.cleanSoundOn(c.soundOn) : []; if (soL.length) c.soundOn = soL; else delete c.soundOn; }   // 1.6.2: the sounds the GM ties to actions (a line whose roll or sound is gone stays: the list says so; none without the cleaner)
         if (c.trkHide !== undefined) { var tkH = window.wpTrackCore && window.wpTrackCore.cleanHide ? window.wpTrackCore.cleanHide(c.trkHide) : []; if (tkH.length) c.trkHide = tkH; else delete c.trkHide; }   // the players the GM keeps them from (profile ids; none without the cleaner)
         if (c.clock !== undefined) { var ckL = window.wpCalendarCore && window.wpCalendarCore.cleanClock ? window.wpCalendarCore.cleanClock(c.clock) : null; if (ckL) c.clock = ckL; else delete c.clock; }   // item 20 K2: the campaign's clock, cleaned on load (none without the cleaner)   // fog of war (1.5.0): campaign sight-field mapping + default, cleaned on load
     });

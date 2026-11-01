@@ -166,6 +166,7 @@ const DOTS = '<path d="M12 5h.01M12 12h.01M12 19h.01"/>', TICK = '<path d="M5 12
         + '                  <div class="draw-menu-row gm-only">\n'
         + '                      <button class="draw-style-btn" id="blastExplodeBtn" title="Sets off the last shape you placed as an explosion, shown to everyone on the map. You type the damage and its type each time.">' + SVG + BURST + '</svg> Explode&hellip;</button>\n'
         + '                      <button class="draw-style-btn" id="blastUndoThrow" title="Takes back the damage of the last thrown blast or explosion, for every token it hit.">' + SVG + UNDO + '</svg> Undo last throw</button>\n'
+        + '                      <button class="draw-style-btn" id="blastSoundBtn" title="A sound that plays whenever a blast goes off. Those on that map hear it. It adds a line to the list under the Sound panel."><i class="wib wi-sound"></i> Sound on a blast</button>\n'
         + '                  </div>\n'
         + '                  <div class="gm-only" id="blastExplodeForm" style="display:none;">\n'
         + '                      <div class="draw-menu-row"><span ' + WORD + '>Damage</span><input type="text" id="blastDmg" autocomplete="off" spellcheck="false" maxlength="1000" aria-label="Damage, a number or a roll" ' + TXT + '></div>\n'

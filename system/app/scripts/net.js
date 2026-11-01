@@ -1189,6 +1189,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         delete camp.videos;   // item 21: the video library is the GM's alone (a video reaches players as a live stream, never as a file or a list)
         delete camp.trackers; // backlog 29: the table trackers go to each player as the list they may see ('trackers', trkSendTo), never raw in the snapshot
         delete camp.trkHide;  // backlog 29: the players the GM keeps the trackers from are the GM's to know
+        delete camp.soundOn;  // 1.6.2: the sounds the GM ties to actions (soundon.js) are the GM's alone: a player gets the cue and nothing of the list
         delete camp.objects;  // 1.6.0: the GM's own map objects (objcore.js): the GM's to place, as the system's set is left out of the players' view
         if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colors) so a player's Handbook matches; the client re-validates at render too
         var libFx = fxLib(camp.system), libIt = itemLib(camp.system), fullSys = camp.system;   // 5h / Stage 6: the full libraries (and F6: the full system), before the players' view replaces the system (a GM-only effect or item reaches its owner inline)
@@ -2599,6 +2600,45 @@ net.sendSound = function(cue) {
     if (cue.fade !== undefined) msg.fade = cue.fade;
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
+// [netcheck:soundhear-start]
+// Sounds on actions (1.6.2; the owner, 2026-11-01): who hears one is decided here and nowhere else. who: { map, ch, tok, at, by, only, secret }: the
+// map it happened on, the character or the token that acted, the place of a door, the player who did it and, for a card only its owner gets, that
+// player. Those standing on that map hear it (the roster's location). A secret act is the GM's alone: a private roll, a hidden piece, a secret door.
+// A player who cannot see the token that acted hears nothing, by what their own copy of the map drops, and a place under their fog is judged as
+// they see it: a sound must never give away what the app keeps from them. There is no tick to say otherwise (the owner: "If that case keeps coming
+// up in play, the tick is easy to add later."). A character with no token here: a player's is no secret, an NPC's is, as npcShown has it
+function soundHears(camp, who, p) {
+    if (!who || typeof who !== 'object' || who.secret === true || !camp || !p || typeof who.map !== 'string' || p.location !== who.map) return false;
+    if (typeof who.only === 'string' && p.id !== who.only) return false;
+    var map = camp.items && own(camp.items, who.map) ? camp.items[who.map] : null; if (!map || !Array.isArray(map.whiteboard)) return false;
+    var judge = function() {
+        var drop = fogDrop(camp, map, p.id), shown = function(w) { return !!w && !w.hidden && !(drop && drop[w.id]); };
+        if (typeof who.tok === 'string') return shown(map.whiteboard.filter(function(w) { return !!w && w.id === who.tok; })[0]);
+        if (who.ch && typeof who.ch === 'object') {
+            var toks = map.whiteboard.filter(function(w) { return !!w && w.isChar && w.charId === who.ch.id; });
+            return toks.length ? toks.some(shown) : who.ch.npc !== true && !!who.ch.ownerId;
+        }
+        if (who.at && typeof who.at === 'object' && who.by !== p.id && window.wpFog && typeof window.wpFog.canSeePoint === 'function') return window.wpFog.canSeePoint(p.id, camp, map, who.at.x, who.at.y) !== false;
+        return true;
+    };
+    return typeof fogLanded === 'function' ? !!fogLanded(who.map, judge) : judge();
+}
+// The cue, to each connection soundHears lets through, by the same message the Sound panel sends: nothing of why it played travels with it
+net.soundCueFor = function(cue, who) {
+    if (!net.active || net.role !== 'host' || !cue || cue.act !== 'cue') return 0;
+    var camp = getActiveCampaign(), msg = { type: 'sound', act: 'cue', id: cue.id, gain: cue.gain }, n = 0; if (!camp) return 0;
+    net.conns.forEach(function(c) { var p = c.open ? net.roster[c.peer] : null; if (!p || !soundHears(camp, who, p)) return; try { c.send(msg); n++; } catch (e) { sendFailed(e); } });
+    return n;
+};
+// A roll or an action was made: what it was, read from the host's own system, and whom it may reach. press: { src, act, row, view } (soundoncore
+// pressOf); mapId: where, else where the character stands on the GM's screen. It changes no rule of the roll
+net.soundAfter = function(camp, press, ch, mapId, secret, only) {
+    var onSnd = window.wpSoundOn, snd = window.wpSoundOnCore; if (!onSnd || !snd || !ch || typeof onSnd.on !== 'function' || !onSnd.on(camp)) return false;
+    var what = snd.pressOf(camp.system, press, ch, SC(), press && press.view); if (!what) return false;
+    var at = typeof mapId === 'string' && mapId ? mapId : ''; if (!at && window.wpSheets && typeof window.wpSheets.facingTarget === 'function') { var ft = window.wpSheets.facingTarget(ch, camp); if (ft && typeof ft.mapId === 'string') at = ft.mapId; }
+    return onSnd.fire(what, { map: at || camp.activeItemId, ch: ch, secret: secret === true, only: typeof only === 'string' ? only : undefined });
+};
+// [netcheck:soundhear-end]
 // Music (1.5.0): its own library list travels like sounds (to one peer at admit, to admitted peers on a change),
 // and a "take control" override (music-ctl) lets the GM drive every client's music in sync. camp.music is stripped
 // from the snapshot (sanitizeAppState) so the library only ever arrives as this validated message. The signature
@@ -4413,6 +4453,7 @@ function handlePos(msg, conn) {
         if (msg.final) {
             if (typeof triggerFire === 'function') triggerFire(conn, map, w, frW);   // secrets (R2): a trigger zone's message, to the dropper alone (their copy holds none), as the gesture carries the token in
             if (w.isChar && typeof window !== 'undefined' && typeof window.wpMineCheck === 'function') { try { window.wpMineCheck(map, w, frW); } catch (e) { console.error(e); } }   // 1.5.8 explosives: a mine a token steps into goes off (the host's own map: a player's drop names none)
+            if (window.wpSoundOn) window.wpSoundOn.zoneDrop(map, w, frW);   // 1.6.2: a sound on a zone it carried the token into
             if (w.isChar && typeof holdsMoved === 'function') { try { holdsMoved(camp, map, msg.itemId, w, frW); } catch (e) { console.error(e); } }   // 1.6.0 Who holds whom: a drag, a hold left behind
             var sameW = function(o) { return w.x === o.x && w.y === o.y && (w.rot || 0) === o.rot && (w.front || 0) === o.front; };
             var stillW = sameW(wasW) && (loneW || sameW(frW));   // security (2026-10-01): a final that leaves the token as it stood before it and, a drag open, as it stood when the drag began (a drop sent twice, a turn to its own facing, a drag that never moved it) changes nothing on disk and is not saved; a drag that moved it, even back to its start, is (its moves were never saved)
@@ -8218,6 +8259,7 @@ function handleMessage(msg, conn) {
             postApply(recA, Sa.applyScope(campA.system, chA, actA, rowGmA, Fa), chA, conn);
         }
         if (onA && typeof allyCard === 'function' && Array.isArray(resA.onLines) && resA.onLines.length) allyCard(chA, onA.ch, onA.tok.charName || onA.tok.name || onA.ch.name, labelA, resA.onLines, Sa.applyScope(campA.system, onA.ch, actA, rowGmA, Fa), diceFrom(profA, false), conn, profA.id);   // 1.5.9: the card of what moved on the one it was used on
+        var scSo = Sa.applyScope(campA.system, chA, actA, rowGmA, Fa); if (typeof net.soundAfter === 'function') net.soundAfter(campA, { act: qa.act, row: qa.row, view: viewA }, chA, locA, scSo === 'gm', scSo === 'owner' ? profA.id : undefined);   // 1.6.2: a sound on this action, for whoever its card goes to
         if (typeof callsAfter === 'function') callsAfter(campA, callEntry(campA.system, qa.row ? { row: qa.row } : { act: qa.act }, actA), null, varsA, onA ? onA.ch : chA, false);   // 1.6.0: Calls for
         if (typeof holdsRolled === 'function' && typeof Sa.holdRefOf === 'function') holdsRolled(campA, chA, actA, holdRefQ(campA, qa, actA), null, tcA, null, '');   // 1.6.0 Who holds whom
         // [netcheck:charapply-end]
@@ -8595,6 +8637,7 @@ function handleMessage(msg, conn) {
         });
         if (!adjacentR) { denyDR('far'); return; }
         doorEl.doorOpen = !doorEl.doorOpen;
+        if (window.wpSoundOn) window.wpSoundOn.door(amDR, doorEl, false, profDR.id);   // 1.6.2: a sound on a door
         if (typeof window !== 'undefined' && window.wpRecord) { window.wpRecord.add('table', profDR.name || 'A player', (doorEl.doorOpen ? 'Opened' : 'Closed') + ' a door', 'On ' + String(amDR.meta && amDR.meta.title || 'a map')); window.wpRecord.touched(amDR, doorEl); }
         var onDR = getActiveMap(), hereDR = !!onDR && onDR.id === amDR.id;
         save(true);                                                                   // host save -> onLocalSave: invalidateVision + resend the map on screen fog-filtered per recipient
@@ -9156,6 +9199,7 @@ function handleMessage(msg, conn) {
         if (hsQ) hsQ.forEach(function(rxQ) { if (q.priv) { rxQ.priv = 'gm'; try { conn.send(rxQ); } catch (e) { sendFailed(e); } pushRoll(rxQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); } else { sendTable(rxQ, null); pushRoll(rxQ, resQ, 'global', { cid: chQ ? q.charId : '' }); } });
         var ruleQ = Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '');   // Stage 6 F8: the system's roll outcomes (1.6.0: or the record's own critical range)
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars, rule: ruleQ }), { w: recQ.as || (recQ.from && recQ.from.name) || '', h: !!recQ.priv });
+        if (chQ && typeof net.soundAfter === 'function') net.soundAfter(campQ, { src: q.src, act: q.act, row: q.row, view: viewQ }, chQ, locQ, !!recQ.priv);   // 1.6.2: a sound on this roll, those on their map, the GM's alone where the roll is private
         if (chQ && window.wpNotice) window.wpNotice.stealth(campQ, q.charId, q.act ? { r: q.act } : q.fr ? { f: q.fr } : rowGQ ? { l: rowGQ.f, row: rowGQ.r, i: rowGQ.i } : null, Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ);   // 1.6.0: a sneak's roll, which viewers are checked against
         var atQ = ''; if (actQ && !actQ.area && actQ.resisted === true && chQ && typeof attemptMake === 'function') atQ = attemptMake(campQ, attemptEntry(campQ.system, q, actQ), Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, tcQ && tcQ.range, chQ, !!recQ.priv, varsQ, q.row);   // 1.6.0 (B2): a success against their target that it resists
         if (actQ && actQ.area && chQ && typeof areaAfter === 'function') areaAfter(campQ, areaEntry(campQ.system, q, actQ), Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, q.aim, chQ, !!recQ.priv, varsQ, q.row, mapQ, mapQ ? SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ) : null, recQ.from);   // 1.6.0: a line
@@ -10731,6 +10775,7 @@ net.diceRoll = function(expr, o) {
         if (o.charId) req.charId = o.charId;
         if (o.by && o.charId) req.by = String(o.by);   // 1.6.0: the crew sheet that pressed it
         if (o.label) req.label = String(o.label).slice(0, D.LIMITS.label);
+        if (o.src && o.charId) req.src = o.src;   // 1.6.2: which button it came from, for a sound on it
         if (o.row && o.charId) { req.row = { f: String(o.row.f), r: String(o.row.r) }; if (typeof o.row.k === 'string') req.row = { f: String(o.row.f), k: o.row.k }; if (typeof o.row.i === 'number') req.row.i = o.row.i; if (typeof o.row.i === 'number' && typeof o.row.lv === 'number') req.row.lv = o.row.lv; }   // R2b: a list's roll with consequences or needs names its index
         if (o.charId && ((o.act && !o.row) || (o.fr && !o.act && !o.row) || (o.row && typeof o.row.i === 'number'))) { if (o.act && !o.row) req.act = String(o.act); if (o.fr && !o.act && !o.row) req.fr = String(o.fr); if (Array.isArray(o.sw) && o.sw.length) req.sw = o.sw.slice(0, D.LIMITS.swPicks).map(function(x) { return { s: String(x && x.s), i: x && x.i }; }); if (o.mod) req.mod = o.mod; if (o.adv) req.adv = o.adv; if (typeof o.on === 'string' && o.on) req.on = o.on.slice(0, 80); }   // 1.5.9: on, the token of the adjacent character it is used on (the host judges it)   // Stage 6 HUD R1: the entry, its modifier and advantage (the host rebuilds the formula)   // Stage 6 F5b: a roll on a row
         if (typeof o.att === 'string' && o.charId && ((o.act && !o.row) || (o.row && !o.act && typeof o.row.i === 'number' && typeof o.row.r === 'string'))) req.att = o.att;   // 1.6.0: or beside a list's roll on one row   // 1.6.0 (B2): the attempt a resist roll answers
@@ -10852,6 +10897,7 @@ net.diceRoll = function(expr, o) {
     if (hsR) hsR.forEach(function(rxR) { if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rxR, chR); else sendTable(rxR, null); } pushRoll(rxR, res, scope, { toName: toName, cid: chR ? chR.id : '' }); });
     var ruleR = D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '');   // Stage 6 F8 (1.6.0: or the record's own critical range)
     logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName, rule: ruleR }), { w: rec.as || (rec.from && rec.from.name) || 'You', h: !!rec.priv });
+    if (chR && typeof net.soundAfter === 'function') net.soundAfter(campR, { src: o.src, act: o.act, row: o.row }, chR, '', !!rec.priv || !!rec.to);   // 1.6.2: a sound on this roll, those on its map, the GM's alone where it is private or whispered
     if (chR && window.wpNotice) window.wpNotice.stealth(campR, chR.id, o.act && !o.row ? { r: String(o.act) } : o.fr ? { f: String(o.fr) } : o.row ? { l: String(o.row.f), row: String(o.row.r), i: o.row.i } : null, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR);   // 1.6.0: a sneak's roll
     var atR = ''; if (entR && !entR.area && typeof entR.resistBy === 'string' && chR && typeof attemptMake === 'function') atR = attemptMake(campR, entR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, tcR && tcR.range, chR, !!rec.priv || !!rec.to, varsR, o.row);   // 1.6.0 (B2): a success against its target that it resists
     if (entR && entR.area && chR && typeof areaAfter === 'function') { var ftA = window.wpSheets && window.wpSheets.facingTarget ? window.wpSheets.facingTarget(chR, campR) : null; areaAfter(campR, entR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, o.aim, chR, !!rec.priv || !!rec.to, varsR, o.row, ftA && ftA.map, ftA && ftA.tok); }   // 1.6.0: a line

@@ -831,6 +831,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 d: { id: 'd', type: 'doc', meta: { title: 'D' }, blocks: [{ id: 'db', type: 'h3', title: 'T' }] } } } } });
             const wf = run(() => loadNorm(wellFormed()));
             check('load: a save that was already well formed comes through byte for byte, not marked changed (no "Save upgraded" note)', !wf.err && !!wf.v && wf.v.changed === false && jl(wf.v.data) === jl(wellFormed()), wf.err || jl(wf.v));
+            // 1.6.2 sounds on actions: a file's list is cleaned on every way in, by the load's own normaliser with the real core (a Replace runs it on the
+            // file first, and a Merge takes it line by line): a line whose roll or sound is gone stays, what is no line goes, no list leaves no key
+            {
+                const SOm = await import(surl('soundoncore.js'));
+                const soWin = Object.assign({}, loadWin, { wpSoundOnCore: SOm });
+                const soNorm = new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', '"use strict";\n' + ioSrc.slice(mi, mk) + '\nreturn migrateAppState;')(
+                    soWin, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} }));
+                const soFile = v => { const w = wellFormed(); w.campaigns.c.soundOn = v; return w; };
+                const good = { ev: { k: 'roll', r: 'r_gone' }, snd: 's_gone', n: 'Old <b>roll</b>' }, hostile = [{ ev: { k: 'roll', r: '__proto__' }, snd: 's' }, { ev: { k: 'nope' }, snd: 's' }, { ev: { k: 'door' }, snd: '<img src=x>' }, 7, null, { ev: { k: 'door', on: 'ajar', map: 'constructor', pc: 'x', x: 1 }, snd: 's_a', junk: 1 }];
+                const sl = run(() => soNorm(soFile([good].concat(hostile, [good])))), slc = sl.v && sl.v.data && sl.v.data.campaigns.c.soundOn;
+                const sr = run(() => cleanImport(soFile([good].concat(hostile)), { migrate: d => soNorm(d).data, DR: DOC, sanitize, FC: FCj })), src2 = sr.v && sr.v.campaigns && sr.v.campaigns.c.soundOn;
+                const se = run(() => soNorm(soFile('junk'))), sn = new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', '"use strict";\n' + ioSrc.slice(mi, mk) + '\nreturn migrateAppState;')(loadWin, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} })), snv = run(() => sn(soFile([good])));
+                check('1.6.2 sounds on actions on the way in (the real migrateAppState with the real core, on a load and on a Replace): a line whose roll or sound is gone stays with the words it had, one an event, what is no line goes and a key that says nothing is left out; no list and no cleaner leave no key',
+                    !sl.err && jl(slc) === jl([good, { ev: { k: 'door' }, snd: 's_a' }]) && !sr.err && jl(src2) === jl(slc) && !se.err && !('soundOn' in se.v.data.campaigns.c) && !snv.err && !('soundOn' in snv.v.data.campaigns.c), sl.err || jl(slc));
+            }
             // 1.6.0 backlog 34: the Image Library's tags are cleaned on every way in, by the load's own normaliser with the real imgtagcore (a
             // Replace runs it on the file first): a name from a file is text, the chip row's own words are no tag, a key is a path, an empty
             // shared store stays (the classifier reads one as a mark), and a store that is already clean comes through as it was

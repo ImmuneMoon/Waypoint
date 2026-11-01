@@ -5559,12 +5559,14 @@ function holdRefQ(camp, q, act) {   // what a player's press names, as a hold na
     if (f) for (var i = q.row.i; i < f.list.rolls.length; i++) { var r = f.list.rolls[i]; if (r && r.label === act.label && (r.formula || '') === (act.formula || '')) return q.row.f + '#' + i; }
     return ref;
 }
+function holdLand(camp, ht) { var pw = holdPut(camp, ht.m, holdTokOf(camp, ht.m, ht.c), ht.on, ht.pin); if (pw) holdTell(camp, ht.c, pw); }
 function holdsRolled(camp, ch, ent, ref, pass, tc, was, made) {
     var r = holdsRules(camp); if (!r || !ch) return;
     if (was && was.hf && pass === false) { var cW = orderById(was.hf.f), goneW = holdsOf(cW).filter(function(x) { return x.by === was.hf.by && x.on === was.hf.on; }); if (goneW.length) holdEnd(camp, cW, goneW, 'free'); }   // the holder failed to resist: free
+    if (was && was.ht && pass === false) holdLand(camp, was.ht);   // the target failed to resist: held
     if (typeof ref !== 'string' || !ref) return;
     var rng = tc && tc.range && typeof tc.range.tid === 'string' && typeof tc.range.mapId === 'string' ? tc.range : null, ok = pass !== false;
-    if ((ref === r.take || ref === r.pin) && ok && rng) { var pw = holdPut(camp, rng.mapId, holdTokOf(camp, rng.mapId, ch.id), rng.tid, ref === r.pin && ref !== r.take); if (pw) holdTell(camp, ch.id, pw); }
+    if ((ref === r.take || ref === r.pin) && ok && rng) { var htW = { m: rng.mapId, c: ch.id, on: rng.tid, pin: ref === r.pin && ref !== r.take }, arW = typeof made === 'string' && made && typeof attemptRec === 'function' ? attemptRec(made) : null; if (arW) arW.ht = htW; else holdLand(camp, htW); }   // its target resists: the hold waits for that roll, as a break free does
     var mine = holdsAll(function(x) { return x.bc === ch.id; });
     if (mine.length && ((ref === r.keep && ok) || ref === r.squeeze || (rng && Array.isArray(r.also) && r.also.indexOf(ref) >= 0 && mine.some(function(x) { return x.rec.on === rng.tid; })))) { mine.forEach(function(x) { x.rec.k = x.c.round; }); holdLog('kept', { n: mine.length }); if (typeof fightsKeepSoon === 'function') fightsKeepSoon(); }
     if (ref !== r.free || !ok) return;

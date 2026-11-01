@@ -2570,8 +2570,8 @@
   .wc-continue { background: var(--panel); border: 1px solid var(--edge); border-radius: 12px; padding: 12px 14px; }
   .wc-continue-head { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
   .wc-continue-list { display: flex; flex-wrap: wrap; gap: 8px; }
-  .wc-continue-item { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--edge); background: var(--panel2); color: var(--ink); cursor: pointer; font-size: 12.5px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .wc-continue-item:hover { border-color: var(--gold); }
+  .wc-continue-item { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--edge); background: var(--panel2); color: var(--ink); cursor: pointer; font-size: 12.5px; max-width: 100%; text-align: left; overflow-wrap: anywhere; transition: border-color .12s, transform .12s, background .12s; }   /* 1.6.0: a campaign's whole name, and a hover that shows on the gold of the one open */
+  .wc-continue-item:hover, .wc-continue-item:focus-visible { border-color: var(--gold); transform: translateY(-2px); background: var(--edge); outline: none; }
   .wc-continue-item.active { border-color: var(--gold); color: var(--gold); }
   .wc-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .wc-promise { margin: 14px 0 0; font-size: 12px; color: var(--muted); text-align: center; }   /* backlog 25: the plain-words promise, about the app alone */
@@ -2592,10 +2592,10 @@
   #wcHostView { flex-direction: column; gap: 20px; }
   .wc-host-list { display: flex; flex-direction: column; gap: 8px; max-height: min(46vh, 360px); overflow-y: auto; }
   .wc-host-list:empty { display: none; }
-  .wc-host-item { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--edge); background: var(--panel); color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+  .wc-host-item { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--edge); background: var(--panel); color: var(--ink); text-align: left; cursor: pointer; font: inherit; transition: border-color .12s, transform .12s, background .12s; }
   .wc-host-item b { font-size: 14px; overflow-wrap: anywhere; }
   .wc-host-item small { color: var(--dim); font-size: 11px; }
-  .wc-host-item:hover, .wc-host-item:focus-visible { border-color: var(--gold); outline: none; }
+  .wc-host-item:hover, .wc-host-item:focus-visible { border-color: var(--gold); transform: translateY(-2px); background: var(--panel2); outline: none; }
   .wc-host-item.active { border-color: var(--gold); }
   .wc-host-none { color: var(--ink); font-size: 13px; }
   .wc-host-none[hidden], #wcHostNew[hidden] { display: none; }

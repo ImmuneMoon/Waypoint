@@ -1349,6 +1349,11 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
             && css.includes('body.web-join #wcLoadBtn, body.web-join #wcProfileBtn, body.web-join #wcContinue,') && css.includes('body.web-join #profileModal .set-acct,') && !css.includes('#settingsModal .set-acct'),
             J([idsOf(pw), idsOf(grp), plines, count(pw, ' title="'), fold, idsOf(acts)]).slice(0, 900));
     }
+    {   // 1.6.0: the welcome's two lists of campaigns show a hover on the gold of the one open, and a campaign's whole name
+        const rule = s => (css.split(s + ' {')[1] || '').split('}')[0], item = rule('.wc-continue-item'), hov = rule('.wc-continue-item:hover, .wc-continue-item:focus-visible'), host = rule('.wc-host-item:hover, .wc-host-item:focus-visible');
+        check('a campaign on the welcome screen lifts under the pointer as the welcome\'s cards do, the open one too, and its name is never cut',
+            /translateY\(-2px\)/.test(hov) && /background:/.test(hov) && /translateY\(-2px\)/.test(host) && /background:/.test(host) && /transition:/.test(item) && !/text-overflow|nowrap/.test(item) && /max-width: 100%/.test(item), J([item, hov, host]).slice(0, 500));
+    }
     check('the lines\' own rules in the style sheet: a name and its line stand one above the other, the line small and grey, and a line under a list or in a column of buttons hugs the control it tells of',
         css.includes('\n  .set-name { display: flex; flex-direction: column; gap: 1px; min-width: 0; }\n  .set-name > small, .set-line { font-size: 10.5px; color: var(--dim); line-height: 1.4; font-weight: 400; }\n  .set-name > span { font-size: 12px; color: var(--ink); }\n  .set-line { margin-top: 3px; }\n')
         && css.includes('\n  .set-line.tight { margin-top: -5px; }') && css.includes('\n  .field + .set-line { margin-top: -9px; margin-bottom: 9px; }'));

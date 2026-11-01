@@ -612,7 +612,10 @@ Systems, more
 - Subjects. A list can name up to eight short words in the Lists tab, such as
   Heat and Cold. A row picks one from a menu on the sheet. Row.subject reads
   its place, 1 for the first and 0 for none, and
-  Traits.Subject.Heat.sum.Degrees adds the rows that hold that word.
+  Traits.Subject.Heat.sum.Degrees adds the rows that hold that word. Use
+  .max or .min in place of .sum for the highest or the lowest one row gives.
+  Subject only where is a formula of the row. Only a row where it holds shows
+  the menu, and any other reads 0.
 - An attack can read its target's posture. Tick it in the Postures box.
   Target.PostureRanged reads the posture's ranged note. Say what each grade of
   cover takes, and Target.CoverOrPosture reads the harsher of the two, never

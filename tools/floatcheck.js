@@ -931,7 +931,7 @@ const dice = read('scripts/dice.js');
             last(P => { show(P, 'chatPanel'); show(P, 'docPanel'); }, 'chatPanel'),   // chat used last: it goes, the page panel stays
             last(P => { show(P, 'chatPanel'); show(P, 'docPanel'); }, 'docPanel'),    // the page panel used last: it goes before the chat
             last(P => { show(P, 'chatPanel'); show(P, 'dicePanel'); }, 'chatPanel'),  // the chat used last goes before the roller on top of it
-            last(P => { show(P, 'chatPanel'); show(P, 'docPanel'); show(P, 'sheetPanel'); }, 'sheetPanel'),   // a sheet used last: as before, the page panel and never the chat
+            last(P => { show(P, 'chatPanel'); show(P, 'docPanel'); show(P, 'sheetPanel'); }, 'sheetPanel'),   // a sheet used last: it goes (1.6.0, moved on purpose: nothing closed it once the focus had gone back to the page)
             last(P => { show(P, 'chatPanel'); }, null),                                 // the chat not the last used: the key is free, the chat stays
             last(P => { show(P, 'chatPanel'); }, 'sheetPanel'),                         // the box last used is not one Escape closes: free
             last(P => { show(P, 'notepadPanel'); }, 'notepadPanel'),                    // the notepad, put away on this screen
@@ -947,8 +947,10 @@ const dice = read('scripts/dice.js');
             last(P => { show(P, 'musicPanel'); delete P.win.wpMusic; P.mk('musicFind2', { tag: 'input', type: 'search', in: P.ids.musicPanel }); }, null, 'musicFind2'),   // and its fields keep their keys
             last(P => { show(P, 'chatPanel'); show(P, 'helpModal'); }, 'chatPanel')];   // a window goes first
         const hid = (() => { const P = page(); show(P, 'chatPanel'); show(P, 'docPanel'); P.ids.chatPanel.style.display = 'none'; P.win.wpFloats.used = P.ids.chatPanel; P.press(); return P.said.slice(); })();   // a chat already closed is not the box last used
+        const shEsc = busy => { const P = page(); show(P, 'sheetPanel'); if (busy) busy(P); P.press(); return P.ids.sheetPanel.style.display !== 'none'; };
+        check('1.6.0 a sheet closes on Escape from outside it, and comes after the map\'s own use of the key: a placement waiting keeps it up', shEsc(null) === false && shEsc(P => { P.win.wpPlace = {}; }) === true, J([shEsc(null), shEsc(P => { P.win.wpPlace = {}; })]));
         check('Table Chat, the table notepad, Sound and Music close on Escape as a window does while one of them is the window last used (esckey.js run for real with floats.js last; the owner, 2026-10-17, by prompt: "Yes, when on top (Recommended)"): from outside, the box last used goes where it is one of those Escape closes, the dice roller and the page panel among them, before the box on top; where it is a sheet or no box the rule is as before and the four stay; Chat by its own close button, the notepad on this screen alone, Sound and Music by their modules; with the focus in one of them it is in use and closes, after a text bar\'s own Escape; a field outside keeps its own Escape first; a box with no module to close it is left alone, its fields keeping their keys; a window goes first',
-            J(g) === J([[true, false, false, ['chat']], [true, false, false, ['page']], [true, false, false, ['chat']], [true, false, false, ['page']], [false, true, true, []], [false, true, true, []],
+            J(g) === J([[true, false, false, ['chat']], [true, false, false, ['page']], [true, false, false, ['chat']], [true, false, false, []], [false, true, true, []], [false, true, true, []],
                 [true, false, false, ['pad']], [true, false, false, ['sound']], [true, false, false, ['music']], [false, false, false, ['chat']], [false, false, false, []], [true, false, false, ['sound']], [true, false, false, ['pad']],
                 [true, false, false, []], [true, false, false, ['pad']], [false, true, true, []], [false, false, false, []], [true, false, false, []]]) && J(hid) === J(['page']), J([g, hid]));
     }

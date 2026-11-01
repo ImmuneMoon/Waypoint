@@ -148,6 +148,27 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('cleanCombat carries a cleaned cover (in key order after hpResource)', (() => {
         const o = S.cleanCombat({ cover: { on: true, style: 'binary' } }, {});
         return o.cover.on === true && o.cover.style === 'binary' && j(Object.keys(o)) === j(['blastAuto', 'blastRoller', 'hpResource', 'cover']); })());
+    {   // 1.6.0: the System editor on a large system: a tab draws its own rows, a long list fills when it is used, and the focus stays on a list that redraws its row
+        const shF = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const lzS = shF.slice(shF.indexOf('function lazySelect('), shF.indexOf('function select(cls, options, value, title)')), mkS = () => ({ kids: [], on: {}, set textContent(v) { this.kids = []; }, appendChild(o) { this.kids.push(o); }, addEventListener(k, f) { this.on[k] = f; } });
+        const lazy = new Function('select', 'opt', lzS + '\nreturn lazySelect;')((c, os, v, t) => { const s = mkS(); s.plain = true; os.forEach(o => s.appendChild(o)); return s; }, (v, t, sel) => ({ v, t, sel }));
+        const opts41 = Array.from({ length: 41 }, (_, i) => ['v' + i, 'Name ' + i]), ls = lazy('c', opts41, 'v7', 't'), one = ls.kids.length === 1 && ls.kids[0][0] === 'v7'; ls.on.pointerdown(); const whole = ls.kids.length === 41 && ls.kids.filter(o => o.sel).length === 1 && ls.kids[7].sel; ls.on.focus();
+        const lf = lazy('c', opts41, 'gone', 't'), lf1 = lf.kids[0][0] === 'v0'; lf.on.focus(); const short = lazy('c', opts41.slice(0, 40), 'v1', 't');
+        check('1.6.0 a list of more than 40 choices holds its own choice until it is pressed or reached by the keyboard, then all of them with the same one picked, once; a value it does not hold shows its first; a list of 40 is a plain list',
+            one && whole && ls.kids.length === 41 && lf1 && lf.kids.length === 41 && short.plain === true && !short.on.focus);
+        const rfS = shF.slice(shF.indexOf('// [systemcheck:rowfocus-start]'), shF.indexOf('// [systemcheck:rowfocus-end]')), box = { focused: 0, focus() { this.focused++; } };
+        const rows = [{ dataset: { id: 'f_a' }, querySelector: () => null }, { dataset: { id: 'f"]b' }, querySelector: s => (s === '.sys-kind' ? box : null) }];
+        const rf = new Function('document', rfS + '\nreturn { rowFocusOf, rowFocusBack };')({ querySelectorAll: () => rows }), inRow = { className: 'sys-kind field', closest: () => rows[1] };
+        const was = rf.rowFocusOf(inRow); rf.rowFocusBack(was); rf.rowFocusBack(null); rf.rowFocusBack({ id: 'gone', cls: 'sys-kind' });
+        check('1.6.0 a list stepped by the keyboard keeps the focus when its row is drawn again, found by the row\'s id without that id in a selector; nothing that is not a row\'s control is followed',
+            JSON.stringify(was) === JSON.stringify({ id: 'f"]b', cls: 'sys-kind' }) && box.focused === 1 && rf.rowFocusOf(null) === null && rf.rowFocusOf({ className: 'x', closest: () => null }) === null, JSON.stringify(was));
+        const raS = shF.slice(shF.indexOf('function renderAll() {'), shF.indexOf('// [systemcheck:rowfocus-start]'));
+        check('1.6.0 each of the five tabs draws its rows only while it is the tab in view, and a press of a tab runs no check of the draft',
+            ['Effect', 'Field', 'Roll', 'Item', 'Char'].every(k => raS.includes("rowsFor('sys" + k + "Rows', '")) && raS.includes('if (!_tabPress) refreshErrors();') && raS.includes('if (!_tabPress) patchErrors();') && shF.includes('_tabPress = true; try { renderAll(); } finally { _tabPress = false; }') && !/\bfr\.textContent = ''/.test(raS));
+        check('1.6.0 a called shot\'s menu put away by a press elsewhere says the roll was called off, and no other menu of that pop says it',
+            shF.includes("var hitP = _ldPop._hit === true; closeLoadMenu(); if (hitP) toast('Roll called off: no location was picked.')") && shF.split('pop._hit = true').length === 2 && shF.includes("pop.setAttribute('aria-label', 'Where it is aimed'); pop._anchor = anchor; pop._hit = true;"));
+    }
+    check('1.6.0 coverWord: a grade of TargetCoverGrade in the system\'s own words, as coverTier names it; none with cover off or at grade 0', (() => { const g = { combat: { cover: { on: true, style: 'graded' } } }, b = { combat: { cover: { on: true, style: 'binary' } } }; return S.coverWord(g, 1) === 'Half cover' && S.coverWord(g, 2) === 'Three-quarters cover' && S.coverWord(g, 3) === 'Total cover' && S.coverWord(b, 1) === 'Cover' && S.coverWord(b, 3) === 'Total cover' && S.coverWord(g, 0) === '' && S.coverWord({ combat: { cover: { on: false } } }, 2) === '' && S.coverWord(null, 2) === ''; })());
     check('coverTier: off -> null; graded maps coverage to half/three-quarters; no line of effect -> Total(block); binary -> Cover/none', (() => {
         const off = { combat: { cover: { on: false, style: 'graded' } } };
         const gr = { combat: { cover: { on: true, style: 'graded' } } };
@@ -9781,7 +9802,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('the party\'s chips and both readers (run for real): a player\'s chip is the token on the map they are on, their place asked once per player however many tokens they have; with no place given the chip is the token on the map on screen and the readers answer exactly as before; a chip whose connected player is on a map with no token of theirs names that map, one whose player left is left as found; every caller in the play map reads through the one rule, the stream window too; both release notes say it',
             j(jList) === j([[['tS2', 'm2', 'Docks <b>']], [['tS1', 'm1', 'Taverna']], [['tS3', 'm3', 'Hangar']], [['tS1', 'm1', 'Taverna']]]) && asked === 1 && j(jChip) === j([['tS1', 'm4', 'Vault']]) && j(jChipAway) === j([['tS1', 'm1', 'Taverna']])
             && j(jOld) === j(['m1/tS1', 'm3/tS3', 'm2/tP2', 'm1/tS1', 'm3/tS3', 'm1/tS1', 'm1/tS1', 'm1/tS1', 'm2/tS2', 'm2/tP2'])
-            && wbS2.split('locateCharacter(').length === 3 && wbS2.split('charNow(').length === 8
+            && wbS2.split('locateCharacter(').length === 3 && wbS2.split('charNow(').length === 9
             && wbS2.includes("var list = characterList(camp, true, am.id, function(pid) { return playerNow(camp, pid); }).map(function(c) { return chipPlace(camp, c); });")
             && wbS2.includes("var amC = getActiveMap(), nowC = charNow(camp, key), locC = nowC.loc || waitingLoc(camp, key);") && wbS2.includes("var nowG = wlG ? null : charNow(camp, key), loc = wlG || nowG.loc;") && wbS2.includes("if (!loc && nowG && nowG.sure) {")
             && wbS2.includes("var nowM = isPlayerOnly ? null : charNow(camp, key), loc = nowM ? nowM.loc || nowM.left : null;") && wbS2.includes("var here = !!(atM && am && atM.id === am.id);") && wbS2.includes("var camp = getActiveCampaign(); var loc = charNow(camp, key).loc;")

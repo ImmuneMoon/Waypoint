@@ -7236,6 +7236,8 @@ pendingChecks.push((async () => {
     const R = mkCli('retry'), rPic = R.all();
     check('R2 E: between a reconnect\'s attempts (the host\'s campaign still on screen, this connection not yet admitted again) nothing goes out either; a picture not yet cached shows the placeholder and is not marked as asked, so the first draw after the snapshot asks for it',
         R.sent.length === 0 && rPic === R.net.ASSET_PLACEHOLDER && R.api.pending().length === 0 && R.api.hashes().length === 0 && R.targeted.length === 0, j([R.sent, rPic, R.api.pending(), R.targeted]));
+    const Dn = mkCli('retry'); Dn.net.active = false; const dnPic = Dn.net.assetSrc(PIC);
+    check('1.6.0 a table\'s copy stays the table\'s while the link is down: a picture of the host\'s shows the placeholder, and this machine\'s own server is never asked for it', dnPic === Dn.net.ASSET_PLACEHOLDER && Dn.sent.length === 0 && Dn.api.pending().length === 0, j([dnPic, Dn.sent]));
     const O = mkCli('other'), oPic = O.all();
     check('R2 E: an open connection that is not the synced host\'s gets nothing of these either, and no picture is asked of it', O.sent.length === 0 && oPic === O.net.ASSET_PLACEHOLDER && O.api.pending().length === 0 && O.targeted.length === 0, j([O.sent, oPic, O.targeted]));
     const S = mkCli('seated'), sPic = S.all(); S.net.onLocalSave(); S.tok.x = 30; S.net.onLocalSave(); const sPic2 = S.net.assetSrc(PIC);

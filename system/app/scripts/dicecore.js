@@ -293,6 +293,7 @@ function cleanRoll(rec) {
     if (rec.refs !== undefined) { var rfc = cleanRefs(rec.refs); if (rfc) out.refs = rfc; }   // 1.6.0 Specialties: the case each reference used
     if (rec.dmg !== undefined) { if (rec.dmg !== 1) return null; out.dmg = 1; }
     if (rec.dmgOn !== undefined && out.dmg === 1 && typeof rec.dmgOn === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(rec.dmgOn)) out.dmgOn = rec.dmgOn;   // 1.6.0: the character this damage lands on, the host's from its entry (one that does not clean is left off, the roll kept)
+    if (rec.cov === 'Half cover' || rec.cov === 'Three-quarters cover' || rec.cov === 'Total cover' || rec.cov === 'Cover') out.cov = rec.cov;   // 1.6.0: the cover a roll read, by the four words coverTier gives
     if (rec.aim !== undefined) { var amc = cleanAim(rec.aim); if (amc) out.aim = amc; }   // 1.6.0 (B5): where a called shot was aimed (one that does not clean is left off, the roll kept)
     if (rec.dtype !== undefined && out.dmg === 1 && typeof rec.dtype === 'string' && DMG2_TYPE.test(rec.dtype)) out.dtype = rec.dtype;   // 1.6.0 (the live test, 2026-10-30): the damage type, for a player's card as for the GM's: a burst's Hit 1 lost it here
     if (out.dmg === 1) roundInto(out, rec);   // ... and which round its first hit was

@@ -2698,6 +2698,13 @@ window.wpFitToGrid = fitToGrid;
   }
   window.wpPlayerNow = playerNow; window.wpCharNow = charNow;
   // [systemcheck:charnow-end]
+  // 1.6.0 (the owner, by prompt: "Ask first"): the map a press on a party portrait would take the GM to, by focusCharacter's own reading
+  function focusMapOf(camp, key) {
+      var wl = waitingLoc(camp, key);
+      if (key.charAt(0) === 'p' && !wl) { var pl = Object.values((window.wpNet && window.wpNet.roster) || {}).find(function(p) { return p && p.id === key.slice(2); }); return pl && pl.location ? pl.location : ''; }
+      var now = wl ? null : charNow(camp, key), loc = wl || now.loc;
+      return loc ? loc.map.id : now && now.sure ? now.at : '';
+  }
   function focusCharacter(key) {
       var camp = getActiveCampaign(); if (!camp) return;
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && !window.wpStream) {
@@ -2760,7 +2767,9 @@ window.wpFitToGrid = fitToGrid;
           if (strip.dataset.justDragged) return;   // that was a drag onto the map, not a click
           e.stopPropagation();
           if (window.wpStream && window.wpStreamFocusChar) { window.wpStreamFocusChar(tok.dataset.key); return; }
-          focusCharacter(tok.dataset.key);
+          var campF = getActiveCampaign(), keyF = tok.dataset.key, toF = campF && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client') ? focusMapOf(campF, keyF) : '';
+          if (toF && toF !== campF.activeItemId && campF.items[toF]) { showConfirm('Go to ' + ((campF.items[toF].meta || {}).title || 'that map') + '? That is where this character is.', function(yes) { if (yes) focusCharacter(keyF); }); return; }
+          focusCharacter(keyF);
       });
       strip.addEventListener('pointerdown', function(e) { e.stopPropagation(); });   // never starts a pan or a selection box
       // Right-click: the character's actions
@@ -2903,7 +2912,7 @@ window.wpFitToGrid = fitToGrid;
               var campT = getActiveCampaign(), pidT = key.slice(2), cidT = b.dataset.cid, chT = campT && campT.chars && Object.prototype.hasOwnProperty.call(campT.chars, cidT) ? campT.chars[cidT] : null;
               if (!chT || !window.wpSheets) return;
               var doGive = function() { if (window.wpSheets.giveCharacter(pidT, cidT, { pic: _givePic })) toast(chT.name + ' given.'); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); };
-              if (chT.ownerId && chT.ownerId !== pidT) showConfirm('Give ' + chT.name + ' to this player? Their current player loses it: its sheet closes for them, and its tokens go to the new player.', function(yes) { if (yes) doGive(); });
+              if (chT.ownerId && chT.ownerId !== pidT) showConfirm('Give ' + chT.name + ' to ' + ((campT.players && Object.prototype.hasOwnProperty.call(campT.players, pidT) && campT.players[pidT] && campT.players[pidT].name) || 'this player') + '? Their current player loses it: its sheet closes for them, and its tokens go to the new player.', function(yes) { if (yes) doGive(); });
               else doGive();
               return;
           }
@@ -3625,9 +3634,11 @@ window.wpFitToGrid = fitToGrid;
       if (p) return '<i class="wp-glyph" style="-webkit-mask-image:url(&quot;' + FX_GLYPH_BASE + esc(p) + '.svg&quot;);mask-image:url(&quot;' + FX_GLYPH_BASE + esc(p) + '.svg&quot;)"></i>';
       return typeof i === 'string' && i ? esc(i) : '';
   }
+  var _fxFind = '';
   function tokenFxMenuHtml(tok, m) {
       var h = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">Effects &mdash; ' + esc(tok.charName || tok.name || 'Token') + '</div>';
       if (!m.rows.length && m.char) h += '<div class="menu-item" style="color:var(--dim); cursor:default;">No effects in the system&rsquo;s library.</div>';
+      if (m.rows.length > 12) h += '<div class="menu-item cm-fx-find"><input class="field cm-fx-q" type="text" placeholder="Find an effect&hellip;" aria-label="Find an effect" maxlength="60"></div><div class="menu-item cm-fx-none" style="display:none; color:var(--dim); cursor:default;">No effect of that name.</div>';   // 1.6.0: a long list has a search at its top
       m.rows.forEach(function(r, k) {
           var inert = r.auto === true && !r.rowId;   // conditions C4: on by its own formula, with no row to end: nothing to click
           h += '<div class="menu-item cm-fx' + (r.on ? ' on' : '') + (inert ? ' auto' : '') + '"' + (inert ? '' : ' data-fi="' + k + '"') + '>' + (r.on ? '&#9745; ' : '&#9744; ') + fxIconHtml(r.icon) + ' ' + esc(r.name) + (r.gm ? ' <span class="cm-fx-tag gm">GM</span>' : '') + (r.auto === true ? ' <span class="cm-fx-tag">auto</span>' : '') + (r.rowId && !r.on ? ' <span class="cm-fx-tag">off</span>' : '') + '</div>';
@@ -3655,6 +3666,22 @@ window.wpFitToGrid = fitToGrid;
       placeMenu(cMenu);   // its rows changed while it was up: fitted again where it stands
       var fxR = cMenu.getBoundingClientRect(), fxS = window.wpFloats && window.wpFloats.spot ? window.wpFloats.spot({ l: fxR.left, t: fxR.top, w: fxR.width, h: fxR.height }, true) : null; if (fxS) { cMenu.style.left = fxS.l + 'px'; cMenu.style.top = fxS.t + 'px'; if (fxS.h < fxR.height) { cMenu.classList.add('tall'); cMenu.style.maxHeight = fxS.h + 'px'; } }   // and clear of the bars, as near as it can (floats.js), held to the room it has there: moved down at its full height, its foot ran off a short window
       cMenu.scrollTop = fxTop;
+      var qBox = cMenu.querySelector('.cm-fx-q'), findFx = function() {   // the words typed stay across a press, which draws the list again
+          _fxFind = qBox ? qBox.value : ''; var w = _fxFind.trim().toLowerCase(), any = false;
+          cMenu.querySelectorAll('.cm-fx').forEach(function(line) { var on = !w || line.textContent.toLowerCase().indexOf(w) >= 0; line.style.display = on ? '' : 'none'; if (on) any = true; });
+          var noneE = cMenu.querySelector('.cm-fx-none'); if (noneE) noneE.style.display = any ? 'none' : '';
+      };
+      if (qBox) {
+          qBox.value = keep === true ? _fxFind : ''; findFx();
+          qBox.addEventListener('click', function(ce) { ce.stopPropagation(); });
+          qBox.addEventListener('input', findFx);
+          qBox.addEventListener('keydown', function(ke) {
+              if (ke.key === 'Escape') return;   // the router's: it closes the menu
+              ke.stopPropagation();
+              if (ke.key === 'Enter') { var firstL = [].slice.call(cMenu.querySelectorAll('.cm-fx')).filter(function(x) { return x.style.display !== 'none'; })[0]; if (firstL) firstL.click(); }
+          });
+          qBox.focus({ preventScroll: true });
+      }
       var again = function() { setTimeout(function() { if (cMenu.style.display !== 'none') showTokenFxMenu(tok, true); }, 0); };
       cMenu.querySelectorAll('.cm-fx').forEach(function(line) {
           line.addEventListener('click', function(ce) { ce.stopPropagation(); var r = m.rows[Number(line.dataset.fi)]; if (!r) return; tokenFxOp(tok, m, r.rowId ? { op: 'remove', rowId: r.rowId } : { op: 'add', ref: r.ref }); again(); });
@@ -9248,6 +9275,7 @@ function openCombatModal(mapId, opts) {   // opts.fid: that fight's roster; opts
 window.wpOpenCombat = openCombatModal;
 (function wireCombatModal() {
     var m = document.getElementById('combatModal'), list = document.getElementById('combatRows'); if (!m || !list) return;
+    if (typeof findLitWire === 'function') findLitWire(list);
     function rowOf(e) { var r = e.target.closest && e.target.closest('.combat-row'); return r ? +r.dataset.i : -1; }
     var hold = typeof pressHold === 'function' ? pressHold(list, window) : null, sortLater = function() { if (!combatDraft || !combatDraft.sortDue) return; combatDraft.sortDue = false; combatDraft.rows = combatSortByInit(combatDraft.rows); renderCombatModal(); };   // 1.6.0, found by hand: numbers typed down the list move no row until the list is left, so a row never moves under the next press and no box loses its focus
     list.addEventListener('change', function(e) {
@@ -9434,8 +9462,21 @@ function stripGap() {
 }
 // [lookcheck:stripgap-end]
 window.wpRenderCombatStrip = renderCombatStrip;
+// 1.6.0 (the owner, by prompt: "Light it on hover"): the pointer or the keyboard's focus on a name lights its token on this screen, so that tokens of one name can be told apart. Nothing is stored or sent
+var _litEl = null;
+function findLit(tokId) {
+    if (_litEl) { _litEl.classList.remove('wb-find-lit'); _litEl = null; }
+    if (typeof tokId !== 'string' || !tokId) return;
+    var all = document.querySelectorAll('.wb-item'); for (var i = 0; i < all.length; i++) if (all[i].dataset.id === tokId) { _litEl = all[i]; _litEl.classList.add('wb-find-lit'); return; }
+}
+function findLitWire(box) {
+    var lit = function(e) { var b = e.target.closest && e.target.closest('.combat-find'); findLit(b ? String(b.dataset.tok || '') : ''); };
+    box.addEventListener('pointerover', lit); box.addEventListener('focusin', lit);
+    box.addEventListener('pointerleave', function() { findLit(''); }); box.addEventListener('focusout', function() { findLit(''); });
+}
 (function wireCombatStrip() {
     var strip = document.getElementById('combatStrip'); if (!strip) return;
+    if (typeof findLitWire === 'function') findLitWire(strip);
     if (typeof ResizeObserver === 'function') { var gapRo = new ResizeObserver(stripGap); ['main', 'partyStrip'].forEach(function(id) { var e = document.getElementById(id); if (e) gapRo.observe(e); }); }   // the map's room changed, or the party's
     strip.addEventListener('pointerdown', function(e) { e.stopPropagation(); });
     strip.addEventListener('click', function(e) {

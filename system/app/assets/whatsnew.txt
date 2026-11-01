@@ -990,6 +990,27 @@ Small fixes from a long test by hand
   cuts the name short.
 - At phone width the page no longer scrolls sideways, and the sheet and a
   HUD fit inside the window, under the top row.
+- Removing a player in the Multiplayer window now asks first, by their name.
+- A called shot's menu put away by a press elsewhere says the roll was called
+  off, so it no longer just goes.
+- A roll that read its target's cover says so on its card, as Target in half
+  cover. A damage card says the add its formula put on the dice, a value from
+  the sheet included.
+- The Effects menu has a search box once it runs past 12 rows.
+- Rest the pointer on a name in the turn strip or the roster and its token
+  lights up with a gold ring.
+- A press on a portrait in the party strip asks before it takes the GM to
+  another map.
+- Esc closes a sheet even when the focus has left it, unless a tool is in
+  your hand or something is being placed.
+- The Multiplayer window's close stays in sight as you scroll it.
+- The Give question names the player. The grey line under A trade in a fight
+  no longer wraps to five lines.
+- The System editor on a large system: a tab draws only its own rows, so a
+  press of a tab takes a second or two where it took ten. Long lists fill
+  when you use them. A list stepped by the keyboard keeps the focus.
+- A player whose link drops no longer asks their own computer for the GM's
+  pictures.
 
 WAYPOINT 1.5.9 — What's New
 ============================

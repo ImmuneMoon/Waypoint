@@ -1887,13 +1887,14 @@
   .wb-hextok > .tok-ring { z-index: 1; }
   .wb-item.wb-hextok.sel { overflow: visible; }   /* a waiting token clips what stands outside it */
   .wb-item > .tok-selring { display: none; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 1; }
-  .wb-item.sel > .tok-selring, .wb-item.wb-turn > .tok-selring { display: block; }
+  .wb-item.sel > .tok-selring, .wb-item.wb-turn > .tok-selring, .wb-item.wb-find-lit > .tok-selring { display: block; }
   .tok-selring polygon { fill: none; stroke: var(--edge, var(--gold)); stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
   .wb-item.sel.locked > .tok-selring polygon { stroke-dasharray: none; }
   .wb-item.wb-hextok.wb-turn, .wb-item.image.tok-pic-hexagon.wb-turn { outline: none; box-shadow: none !important; }   /* whose turn it is follows the hexagon too: solid and glowing, and dashed as well while it is selected */
   .wb-item.wb-hextok.wb-turn { overflow: visible; }
-  .wb-item.wb-turn > .tok-selring { filter: drop-shadow(0 0 5px rgba(224,165,79,0.8)); }
+  .wb-item.wb-turn > .tok-selring, .wb-item.wb-find-lit > .tok-selring { filter: drop-shadow(0 0 5px rgba(224,165,79,0.8)); }
   .wb-item.wb-turn > .tok-selring polygon { stroke-width: 3; stroke-dasharray: none; }
+  .wb-item.wb-find-lit > .tok-selring polygon { stroke-width: 3; stroke-dasharray: none; }
   .wb-item.wb-turn.sel > .tok-selring polygon { stroke-dasharray: 6 4; }
   .wb-hextok > .tok-ring polygon { fill: none; stroke: var(--gold); stroke-width: 2; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; }
   .wb-hextok > .token-face-img, .wb-hextok.wb-waiting > .wait-face, .wb-hextok.tok-dead::after { border-radius: 0; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
@@ -1903,20 +1904,20 @@
   .wb-item.image.tok-pic-rect > img { border-radius: 4px; }
   .wb-item.image.tok-pic-circle > img { border-radius: 50%; }
   /* 1.6.0 (the owner, 2026-10-31: "making sure all outlines always fit to the visible part of an image"): a mark round a picture or a hexagon token follows what can be seen, never the box. Each mark names its colour once (--edge). A picture draws it round its own pixels, so a clear corner or the bars beside a picture that does not fill its box stay out. A picture cut to a hexagon and a hexagon token draw it on their ring, since a filter on a clipped picture is clipped with it */
-  .wb-item:is(.image, .wb-hextok):is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .size-match) { outline: none !important; }
-  .wb-item:is(.image, .wb-hextok):is(.wb-turn, .size-match) { box-shadow: none !important; }
-  .wb-item.wb-hextok:is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .size-match) { overflow: visible; }
+  .wb-item:is(.image, .wb-hextok):is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .wb-find-lit, .size-match) { outline: none !important; }
+  .wb-item:is(.image, .wb-hextok):is(.wb-turn, .wb-find-lit, .size-match) { box-shadow: none !important; }
+  .wb-item.wb-hextok:is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .wb-find-lit, .size-match) { overflow: visible; }
   .wb-item:is(.image, .wb-hextok).wb-hidden-gm { --edge: var(--steel); }
   .wb-item:is(.image, .wb-hextok).wb-trap { --edge: rgba(255,107,107,0.8); }
   .wb-item:is(.image, .wb-hextok):is(.wb-blocks-sight, .wb-door) { --edge: var(--gold); }
   .wb-item:is(.image, .wb-hextok).wb-barrier { --edge: #4dd0e1; }
   .wb-item:is(.image, .wb-hextok).wb-door.wb-door-open { --edge: #4caf7d; }
-  .wb-item:is(.image, .wb-hextok):is(.sel, .circle-hit, .wb-turn, .size-match) { --edge: var(--gold); }
+  .wb-item:is(.image, .wb-hextok):is(.sel, .circle-hit, .wb-turn, .wb-find-lit, .size-match) { --edge: var(--gold); }
   .wb-item:is(.image, .wb-hextok).sel.locked { --edge: var(--dim); }
   .wb-item:is(.image, .wb-hextok).blast-hit { --edge: var(--red); }
-  .wb-item.image:not(.tok-pic-hexagon):is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .size-match) > img { filter: var(--imgf,) drop-shadow(2px 0 0 var(--edge)) drop-shadow(-2px 0 0 var(--edge)) drop-shadow(0 2px 0 var(--edge)) drop-shadow(0 -2px 0 var(--edge)); }
+  .wb-item.image:not(.tok-pic-hexagon):is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .wb-find-lit, .size-match) > img { filter: var(--imgf,) drop-shadow(2px 0 0 var(--edge)) drop-shadow(-2px 0 0 var(--edge)) drop-shadow(0 2px 0 var(--edge)) drop-shadow(0 -2px 0 var(--edge)); }
   .wb-item.image.wb-turn:not(.tok-pic-hexagon) > img { filter: var(--imgf,) drop-shadow(3px 0 0 var(--edge)) drop-shadow(-3px 0 0 var(--edge)) drop-shadow(0 3px 0 var(--edge)) drop-shadow(0 -3px 0 var(--edge)) drop-shadow(0 0 7px rgba(224,165,79,0.8)); }
-  .wb-item:is(.image, .wb-hextok):is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .size-match) > .tok-selring { display: block; }
+  .wb-item:is(.image, .wb-hextok):is(.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .wb-find-lit, .size-match) > .tok-selring { display: block; }
   .wb-item:is(.blast-hit, .circle-hit) > .tok-selring polygon { stroke-dasharray: none; }
   /* The token creator (owner, 2026-09-27): a picture framed to a square — drag, zoom, the grid's outline previewed over it */
   body.net-client #sheetPop { display: none; }   /* the sheet pop-out reads this machine's save: not at someone else's table */
@@ -2567,6 +2568,8 @@
   .wc-card small { color: var(--dim); font-size: 11px; }
   .wc-card .wc-me { display: block; width: 26px; height: 26px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 1px var(--edge); }   /* 1.6.0: Your profile wears your own picture */
   .wc-card .wc-me img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .cm-fx-find { position: sticky; top: 0; z-index: 1; background: var(--panel); cursor: default; }
+  .cm-fx-find .cm-fx-q { width: 100%; box-sizing: border-box; }
   .wc-continue { background: var(--panel); border: 1px solid var(--edge); border-radius: 12px; padding: 12px 14px; }
   .wc-continue-head { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
   .wc-continue-list { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -2686,6 +2689,7 @@
   html[data-theme="light"] .hdr-group { background: rgba(0,0,0,0.04); }
 
   /* Combat: the ring, the turn strip, the roster panel */
+  .wb-item.wb-find-lit { outline: 2px solid var(--gold); outline-offset: 3px; z-index: 40 !important; }   /* 1.6.0: a name in the turn strip or the roster under the pointer: its token */
   .wb-item.wb-turn { outline: 3px solid var(--gold); outline-offset: 3px; box-shadow: 0 0 0 7px rgba(224,165,79,0.28), 0 0 18px rgba(224,165,79,0.55) !important; z-index: 40 !important; }
   #combatStrip { position: absolute; top: 62px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 52px); box-sizing: border-box; flex-wrap: wrap; justify-content: center; z-index: 8990; display: flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--gold); border-radius: 18px; background: var(--panel2); box-shadow: var(--shadow); font-size: 12.5px; white-space: nowrap; pointer-events: auto; }
   .combat-strip-round { color: var(--gold); font-weight: 700; letter-spacing: .04em; }
@@ -3345,6 +3349,7 @@
   .sys-combat-item { display: inline-flex; flex-direction: column; gap: 3px; }
   /* 107, options that say what they do: a grey line under a captioned list of the Combat card. It takes the width of its list and never widens it */
   .sys-combat-item > .sys-line { width: 0; min-width: 100%; font-size: 10.5px; line-height: 1.4; color: var(--dim); }
+  .sys-combat-item.sys-combat-wide > .sys-line { width: 300px; min-width: 0; }   /* words longer than their list */
   #sysCombatBox { align-items: flex-start; }   /* a line makes some lists taller than others: they stand in their row by their tops */
   .sys-item-area { display: inline-flex; gap: 5px; align-items: flex-end; }
   .sys-item-notes-row { margin-top: 5px; }

@@ -144,7 +144,7 @@ function menuAway() { if (_menu) _menu.style.display = 'none'; }
 function giveTo(cid, pid) {   // the same step and the same question as the party chip's Give a character
     var S = sheets(), camp = getActiveCampaign(), c = camp && S ? S.charById(cid, camp) : null; if (!c || !S.giveCharacter) return;
     var name = charText(c.name, CHAR_NAME) || 'Unnamed', go = function() { if (S.giveCharacter(pid, cid)) toast(pid ? name + ' given.' : name + ' has no player now.'); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); };
-    if (c.ownerId && c.ownerId !== pid) showConfirm('Give ' + name + (pid ? ' to this player? ' : ' up? ') + 'Their current player loses it: its sheet closes for them' + (pid ? ', and its tokens go to the new player.' : '.'), function(yes) { if (yes) go(); });
+    if (c.ownerId && c.ownerId !== pid) showConfirm('Give ' + name + (pid ? ' to ' + (namesOf(camp)[pid] || 'this player') + '? ' : ' up? ') + 'Their current player loses it: its sheet closes for them' + (pid ? ', and its tokens go to the new player.' : '.'), function(yes) { if (yes) go(); });
     else go();
 }
 function giveMenu(id, x, y) {   // the players this campaign knows, by name: a row for each, and one to take it from the player who has it

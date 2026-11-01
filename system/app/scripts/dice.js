@@ -37,6 +37,10 @@ function readableInto(brk, res, parts, expr) {
         brk.appendChild(el('span', 'roll-die', p.text));
         brk.appendChild(document.createTextNode(']'));
     });
+    if (!top && groups.length && typeof res.value === 'number' && isFinite(res.value) && !/[*\/%(]/.test(String(expr || ''))) {   // 1.6.0: dice and adds, a sheet's value among them: the add said, or the sum after it reads as a slip. A formula that does more than add says its total alone
+        var diceSum = groups.reduce(function(n, p) { return n + (p.die && typeof p.die.total === 'number' ? p.die.total : NaN); }, 0), addN = res.value - diceSum;
+        if (isFinite(addN) && addN !== 0) brk.appendChild(document.createTextNode((addN > 0 ? ' + ' : ' \u2212 ') + fmtNum(Math.abs(addN))));
+    }
     if (top && typeof top.left === 'number' && typeof top.right === 'number' && isFinite(top.left) && isFinite(top.right)) {
         var w = top.op === '<=' ? ' or less' : top.op === '>=' ? ' or more' : top.op === '<' ? ', under it' : top.op === '>' ? ', over it' : '';
         brk.appendChild(document.createTextNode((groups.length ? ' = ' : '') + fmtNum(top.left) + ' \u00b7 needs ' + fmtNum(top.right) + w));
@@ -116,6 +120,7 @@ function renderCard(m) {
     var tierC = sy && sy.combat && sy.combat.tier && typeof sy.combat.tier === 'object' ? sy.combat.tier : null;   // 1.6.0: a success at or past the Combat card's margin wears its name
     if (!mf && tierC && typeof tierC.name === 'string' && tierC.name && typeof tierC.at === 'number' && v && v.kind === 'check' && v.pass === true && typeof v.margin === 'number' && v.margin >= tierC.at) total.appendChild(el('span', 'roll-tier', tierC.name));
     wrap.appendChild(total);
+    if (typeof rec.cov === 'string' && rec.cov) wrap.appendChild(el('div', 'roll-aim', 'Target in ' + rec.cov.toLowerCase()));   // 1.6.0: the number alone did not say why
     var amR = rec.aim && typeof rec.aim === 'object' && typeof rec.aim.n === 'string' && rec.aim.n ? rec.aim : null;   // 1.6.0 (B5): where a called shot was aimed, and what its location gave
     if (amR) { var amF = Array.isArray(amR.f) ? amR.f.filter(function(x) { return x && typeof x.v === 'number' && isFinite(x.v); }) : [], amS = function(n) { return n < 0 ? '\u2212' + (-n) : n > 0 ? '+' + n : '0'; }; wrap.appendChild(el('div', 'roll-aim', 'at ' + amR.n + (amF.length === 1 ? ' (' + amS(amF[0].v) + ')' : amF.length ? ' (' + amF.map(function(x) { return x.k + ' ' + amS(x.v); }).join(', ') + ')' : ''))); }
     var p2c = rec.dmg === 1 && rec.dmg2 && typeof rec.dmg2 === 'object' && typeof rec.dmg2.t === 'number' && isFinite(rec.dmg2.t) ? rec.dmg2 : null;   // 1.6.0 (B3): the blow's second part, of another type, rolled by the host

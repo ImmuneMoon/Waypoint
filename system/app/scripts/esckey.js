@@ -135,9 +135,16 @@ function escInBox(doc, t) {
     escEach(doc.querySelectorAll('#hudLayer .hud-panel'), function(b) { if (escShown(b) && escHas(b, t)) hit = true; });
     return hit;
 }
-// The floating boxes Escape closes from outside them: the dice roller, the page panel, the left panel opened from its rail
+// 1.6.0: a tool in hand or something armed is the map's own use of the key, and comes before the sheet beside it
+var ESC_MAP_TOOLS = ['drawModeBtn', 'eraserModeBtn', 'fillModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'panModeBtn', 'envModeBtn', 'buildModeBtn'];
+function escMapBusy(doc, win) {
+    if (win.wpPlace || (doc.body && doc.body.classList && doc.body.classList.contains('placing'))) return true;
+    return ESC_MAP_TOOLS.some(function(id) { var b = doc.getElementById(id); return !!(b && b.classList && b.classList.contains('active')); });
+}
+// The floating boxes Escape closes from outside them: the dice roller, the page panel, the left panel opened from its rail, the sheet
 function escPanels(doc, win) {
     var out = [];
+    var sh = doc.getElementById('sheetPanel'); if (escShown(sh) && !escMapBusy(doc, win)) out.push({ el: sh, close: function() { if (!escPress(doc, 'sheetClose')) sh.style.display = 'none'; } });   // 1.6.0: found by hand: once the focus had gone back to the page, nothing closed it
     var dp = doc.getElementById('dicePanel'); if (escShown(dp) && win.wpDice && typeof win.wpDice.closePanel === 'function') out.push({ el: dp, close: function() { win.wpDice.closePanel(); } });
     var pp = doc.getElementById('docPanel'), D = win.wpDocPanel;
     if (escShown(pp) && D && typeof D.close === 'function' && typeof D.openId === 'function' && D.openId()) out.push({ el: pp, close: function() { D.close(); } });

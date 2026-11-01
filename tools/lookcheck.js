@@ -3449,11 +3449,11 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
 
 {
     // 1.6.0, the owner (2026-10-31): "making sure all outlines always fit to the visible part of an image". Each mark that outlines a piece, read from the style sheet: on a picture and a hexagon token no box, a colour of its own, and the line drawn round the picture's own pixels or on the ring
-    const MK = '.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .size-match', marks = MK.split(', ');
+    const MK = '.sel, .wb-hidden-gm, .wb-trap, .wb-blocks-sight, .wb-door, .wb-barrier, .blast-hit, .circle-hit, .wb-turn, .wb-find-lit, .size-match', marks = MK.split(', ');
     const named = marks.every(m => new RegExp('\\n  \\.wb-item' + m.replace('.', '\\.') + '[. {:]').test(css) || m === '.size-match') && css.includes('  .wb-item.size-match {');
     const edged = marks.every(m => { const re = new RegExp('\\n  \\.wb-item:is\\(\\.image, \\.wb-hextok\\)[^{]*' + m.replace('.', '\\.') + '[^{]*\\{ --edge:'); return re.test(css); });
     const noOther = !/\n  \.wb-item\.[a-z-]+(?:\.[a-z-]+)*\s*\{[^}]*outline: \d/.test(css.replace(new RegExp('\\n  \\.wb-item(' + marks.map(m => m.replace('.', '\\.')).join('|') + ')[^\\n]*', 'g'), '').replace(/\n  \.wb-item\.(?:path|text|wb-door\.|wb-barrier\.)[^\n]*/g, ''));
-    check('every mark that outlines a piece fits the visible part of a picture or a hexagon token: each of the ten has a colour (--edge), none draws a box there, a picture draws it round its own pixels and a dead token keeps its look, a picture cut to a hexagon and a hexagon token on their ring, the same colour; no other mark outlines a piece', named && edged && noOther
+    check('every mark that outlines a piece fits the visible part of a picture or a hexagon token: each of the eleven has a colour (--edge), none draws a box there, a picture draws it round its own pixels and a dead token keeps its look, a picture cut to a hexagon and a hexagon token on their ring, the same colour; no other mark outlines a piece', named && edged && noOther
         && css.includes('  .wb-item:is(.image, .wb-hextok):is(' + MK + ') { outline: none !important; }')
         && css.includes('  .wb-item.image:not(.tok-pic-hexagon):is(' + MK + ') > img { filter: var(--imgf,) drop-shadow(2px 0 0 var(--edge))')
         && css.includes('  .wb-item.tok-dead > img { --imgf: saturate(0.45); filter: saturate(0.45); }')
@@ -3602,6 +3602,16 @@ check('the roster numbers rows of one name, and the sheet that says it is out of
             && (wbT.match(/typeof rowNameOf === 'function' \? rowNameOf\(w, map\)/g) || []).length === 2 && wbT.includes("strip.style.setProperty('--strip-name'") && /\.combat-strip-cur \{[^}]*min-width: calc\(var\(--strip-name/.test(cssT) && /\.combat-strip-next \{[^}]*min-width: calc\(var\(--strip-name/.test(cssT)
             && lab(peace(npc, tm, null)) === 'Trade with Guard\u2026' && war(npc, tm, null) === null && peace(kept, tm, null) === null && lab(war(mate, tm, null)) === 'Trade with Sela\u2026'
             && rootRead('system/app/scripts/sheets.js').includes("'Kept: the GM holds this token while you play another.'"), [named, lab(peace(npc, tm, null)), lab(war(mate, tm, null))]);
+    }
+    {   // 1.6.0: small comforts of the table
+        const wbC = rootRead('system/app/scripts/whiteboard.js').replace(/\r\n/g, '\n'), netC = rootRead('system/app/scripts/net.js'), a = wbC.indexOf('function focusMapOf('), b = wbC.indexOf('function focusCharacter(', a);
+        const fmo = (wl, now, roster) => new Function('waitingLoc', 'charNow', 'window', wbC.slice(a, b) + '\nreturn focusMapOf;')(() => wl, () => now, { wpNet: { roster } });
+        check('1.6.0 where a portrait of the party leads: the map a waiting token, a token or a sure place names, a player by the map the roster says, nothing where none is known',
+            fmo({ map: { id: 'm2' } }, null)({}, 'c:x') === 'm2' && fmo(null, { loc: { map: { id: 'm3' } } })({}, 'c:x') === 'm3' && fmo(null, { loc: null, sure: true, at: 'm4' })({}, 'c:x') === 'm4' && fmo(null, { loc: null })({}, 'c:x') === '' && fmo(null, null, { a: { id: 'u1', location: 'm5' } })({}, 'p:u1') === 'm5' && fmo(null, null, {})({}, 'p:u1') === '');
+        check('1.6.0 a press on a portrait asks before it takes the GM to another map, and Remove asks by the player\'s name with Enter answering nothing',
+            wbC.includes('? focusMapOf(campF, keyF) :') && wbC.includes('That is where this character is.') && netC.includes("' from the table? They stay out for the rest of the session.', function(yes) { if (yes) net.kickPlayer(kickKey); }, { noEnter: true });"));
+        check('1.6.0 a long Effects menu has its own search, past 12 rows: the words stay across a press, Enter presses the first row left, Escape stays the router\'s',
+            wbC.includes("if (m.rows.length > 12) h += '<div class=\"menu-item cm-fx-find\">") && wbC.includes("if (ke.key === 'Escape') return;   // the router's: it closes the menu") && wbC.includes("if (ke.key === 'Enter') { var firstL =") && wbC.includes('qBox.value = keep === true ? _fxFind : \'\'; findFx();'));
     }
     {   // 1.6.0: the welcome row wears the app's own drawings (the owner, by the system session: custom drawings, never emoji)
         const wcP = rootRead('system/app/index.html'), wcA = wcP.indexOf('<div class="wc-actions">'), wcB = wcP.indexOf('id="wcProfileBtn"', wcA), wcRow = wcP.slice(wcA, wcB), wcCss = rootRead('system/app/style.css');

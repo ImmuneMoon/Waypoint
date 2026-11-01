@@ -750,7 +750,8 @@ if (_rosterEl) _rosterEl.addEventListener('click', function(e) {
     var kickBtn = e.target.closest('[data-kick]');
     if (kickBtn && net.role === 'host') {
         e.stopPropagation();
-        net.kickPlayer(kickBtn.dataset.kick);
+        var kickKey = kickBtn.dataset.kick, kickP = own(net.roster, kickKey) ? net.roster[kickKey] : null;   // 1.6.0, found by pressing it by mistake: it asks first, by name, and Enter does not answer
+        showConfirm('Remove ' + (kickP && kickP.name ? kickP.name : 'this player') + ' from the table? They stay out for the rest of the session.', function(yes) { if (yes) net.kickPlayer(kickKey); }, { noEnter: true });
         return;
     }
     var summonBtn = e.target.closest('[data-summon]');
@@ -5974,12 +5975,12 @@ function rangeTo(camp, map, mapId, tok, pid) {
 // every name the formula reads (a branch not taken counts: the card shows the text); rangeUnseen: another admitted, connected player on that
 // map whose copy would not hold the target (one the GM hid, one gone, one their fogged copy drops), judged with every open drag at its start.
 // rc: the token context's range ({ mod, dist, tid, mapId }); rollerPid: the roller's own profile ('' for the GM's own roll)
-function rangeReadBy(S, sys, ch, F, tc, expr, row) {
+function rangeReadBy(S, sys, ch, F, tc, expr, row, ask) {   // ask: another flag the same resolver keeps (coverRead)
     if (!S || typeof S.makeResolver !== 'function' || !sys || !ch || !F || typeof F.names !== 'function' || typeof expr !== 'string') return false;
     var base = S.makeResolver(sys, ch, F, tc); if (!base || typeof base.rangeRead !== 'function') return false;
     var v = row ? base.row(row.f, row.r) : base; if (!v) return false;
     (F.names(expr) || []).forEach(function(n) { var nm = typeof n === 'string' ? n : (n && typeof n.name === 'string' ? n.name : ''); if (nm) { try { v(nm); } catch (e) {} } });
-    return base.rangeRead() === true;
+    return ask && typeof base[ask] === 'function' ? base[ask]() === true : base.rangeRead() === true;
 }
 function rangeUnseen(camp, rc, rollerPid) {
     if (!camp || !rc || typeof rc.tid !== 'string' || typeof rc.mapId !== 'string' || !camp.items || !own(camp.items, rc.mapId)) return false;
@@ -8703,6 +8704,7 @@ function handleMessage(msg, conn) {
         if (recQ.dmg === 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgPart2Of === 'function' && campQ && campQ.system) { var p2Q = SQ.dmgPart2Of(campQ.system, actQ, varsQ, Fq); if (p2Q) recQ.dmg2 = p2Q; if (typeof SQ.dmgPartOf === 'function') [3, 4, 5].forEach(function(k) { var pkQ = SQ.dmgPartOf(campQ.system, actQ, varsQ, Fq, undefined, k); if (pkQ) recQ['dmg' + k] = pkQ; }); }   // 1.6.0 (B3): a second part of the blow, of another type, rolled here from the entry through the roller's view (their view drops one read from a GM-only value); never from the roller's word
         if (recQ.dmg === 1 && moQ && moQ.list) recQ.more = moQ.list;   // 1.6.0 A burst: one record, one card
         if (recQ.dmg === 1 && rnQ && rnQ[0]) { recQ.rno = rnQ[0].rno; if (rnQ[0].rnd) recQ.rnd = rnQ[0].rnd; }   // ... which says which round each hit was
+        if (tcQ && tcQ.range && tcQ.range.cgrade > 0 && typeof SQ.coverWord === 'function' && rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? q.row : null, 'coverRead')) { var cwQ = SQ.coverWord(viewQ, tcQ.range.cgrade); if (cwQ) recQ.cov = cwQ; }   // 1.6.0: a roll that reads cover says so on its card, by the system's own word
         if (q.hit && thQ0 && typeof thQ0.aim === 'function') { var amQ = thQ0.aim(); if (amQ) recQ.aim = amQ; }   // 1.6.0 (B5): where it was aimed and what it read there, for its card
         if (recQ.dmg === 1 && q.hit) recQ.hit = q.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target (a player's app keeps no such key)
         if (resQ.breakdown && resQ.breakdown.names && resQ.breakdown.names.length) { var nmQ = Dq.cleanNames(resQ.breakdown.names); if (!nmQ) { denyQ('error'); return; } if (nmQ.length) recQ.names = nmQ; }
@@ -9669,8 +9671,8 @@ function assetMime(path) {
 // Client in a session: cached blob URL, requesting it from the host if new.
 // [netcheck:assetsrc-start]
 net.assetSrc = function(path) {
-    if (!path || !net.active || net.role !== 'client' || net.stream) return path;   // the stream window reads images straight from the local server
-    if (!net.foreign) return path;   // R2 security: no snapshot yet (a join waiting for the GM's Allow) — the campaign on screen is this machine's own, its pictures come from its own server, and none of their paths is asked of a host
+    if (!path || net.stream) return path;   // the stream window reads images straight from the local server
+    if (!net.foreign) return path;   // R2 security: no snapshot yet (a join waiting for the GM's Allow) — the campaign on screen is this machine's own, its pictures come from its own server, and none of their paths is asked of a host. 1.6.0: this alone says so, since a table's copy stays on screen while its link is down, and its paths name no file here
     if (/^(data:|blob:)/.test(path)) return path;   // already self-contained
     if (/^[a-zA-Z][a-zA-Z0-9+.-]*:|^\/\//.test(path)) return ASSET_PLACEHOLDER;   // an absolute URL from a host would make this machine call out to it (an IP beacon, a LAN probe): never
     if (!/^\/?saves\//.test(path)) return /^\/?assets\//.test(path) ? path : ASSET_PLACEHOLDER;     // shipped with the app (assets/): every install has it. 1.6.0: anything else names no file here, and a page would ask for it at every redraw
@@ -10214,6 +10216,7 @@ net.diceRoll = function(expr, o) {
     if (rec.dmg === 1 && entR && SR && typeof SR.dmgPart2Of === 'function' && campR && campR.system) { var p2R = SR.dmgPart2Of(campR.system, entR, varsR, F); if (p2R) rec.dmg2 = p2R; if (typeof SR.dmgPartOf === 'function') [3, 4, 5].forEach(function(k) { var pkR = SR.dmgPartOf(campR.system, entR, varsR, F, undefined, k); if (pkR) rec['dmg' + k] = pkR; }); }   // 1.6.0 (B3): a second part of the blow, of another type, rolled from the entry (its card says its amount, so a GM-only one keeps the roll private, below)
     if (rec.dmg === 1 && moR && moR.list) rec.more = moR.list;   // 1.6.0 A burst: one record, one card
     if (rec.dmg === 1 && rnR && rnR[0]) { rec.rno = rnR[0].rno; if (rnR[0].rnd) rec.rnd = rnR[0].rnd; }   // ... which says which round each hit was
+    if (tcR && tcR.range && tcR.range.cgrade > 0 && typeof SR.coverWord === 'function' && rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row || null, 'coverRead')) { var cwR = SR.coverWord(campR.system, tcR.range.cgrade); if (cwR) rec.cov = cwR; }   // 1.6.0: as a player's roll
     if (thR && typeof thR.aim === 'function') { var amR = thR.aim(); if (amR) rec.aim = amR; }   // 1.6.0 (B5): where it was aimed and what it read there, for its card
     if (rec.dmg === 1 && thR) rec.hit = o.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target
     if (rec.dmg === 1 && typeof o.blast === 'string' && /^b_[a-z0-9]{1,16}$/.test(o.blast)) rec.blast = o.blast;   // 1.5.8 explosives: the blast this damage is for (this machine's own word): the card's Apply to all in the blast

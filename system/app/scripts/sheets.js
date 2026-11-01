@@ -2425,7 +2425,7 @@ function renderLayout() {
         top.appendChild(secCollapSel(sec));   // 1.5.5: Fixed, Collapsible or Starts closed
         top.appendChild(select('sys-sec-inline', [['', 'Stacked fields'], ['1', 'Inline rows']], sec.inline ? '1' : '', 'Each field on one line: label and value on the left, its Roll on the right (numbers, formulas, skills, toggles, selects, text); their stat tiles draw as rows here (a pool and a slider keep their own look)'));   // HUD frame (HF4a)
         top.appendChild(select('sys-sec-pinned', [['', 'On its tab'], ['1', 'Above the tabs']], sec.pinned ? '1' : '', 'A dashboard section: stays above the tab strip on every tab (and comes first on a stacked sheet)'));
-        top.appendChild(select('sys-sec-meta', [['', 'No count']].concat(draft.fields.map(function(f) { return [f.id, f.label || f.key || '(field)']; })), sec.meta || '', 'A field whose value shows in the section header (e.g. a running total)'));
+        top.appendChild(lazySelect('sys-sec-meta', [['', 'No count']].concat(draft.fields.map(function(f) { return [f.id, f.label || f.key || '(field)']; })), sec.meta || '', 'A field whose value shows in the section header (e.g. a running total)'));
         top.appendChild(select('sys-sec-parent', [['', 'Top level']].concat(secs.filter(function(o) { return o.id !== sec.id && !o.parent; }).map(function(o) { return [o.id, 'Under: ' + (o.title || '(untitled)')]; })), sec.parent || '', 'Nest this section under another one (one level)'));
         var secFs = secFirstSel(sec, secs); if (secFs) top.appendChild(secFs);   // 1.5.5: After or Before its fields, only while nested
         top.appendChild(btnRow([['secup', 'Move this section up', '&#9650;'], ['secdown', 'Move this section down', '&#9660;'], ['secdel', 'Remove this section (its fields go back to the list)', '&times;']]));
@@ -2511,7 +2511,7 @@ function renderLayout() {
         grpList.forEach(function(g) { opts.push(['p:' + g.id, 'Pin button: ' + (g.label || 'Group')]); });   // Stage 6: a band group's Pin, beside its figures
         if (pageOptions('', null).length) opts.push(['k:link', 'Handbook link'], ['k:search', 'Handbook search']);   // Stage 5f: only when the campaign has pages; H12: a search over them
         if (!hudOn && draftHasHud()) opts.push(['k:hud', 'HUD button']);   // HUD frame (HF2b): on the sheet, once there is a HUD to open
-        addRow.appendChild(select('sys-pl-add', opts, '', 'A field not yet on the sheet, a roll button, a heading, a divider, the portrait, a facing dial, a stance control or a handbook link'));
+        addRow.appendChild(lazySelect('sys-pl-add', opts, '', 'A field not yet on the sheet, a roll button, a heading, a divider, the portrait, a facing dial, a stance control or a handbook link'));
         row.appendChild(addRow);
         root.appendChild(row);
     });
@@ -3536,7 +3536,7 @@ function loadCtl(host, entry, c, f, spec, editable, sysI, okL) {
 // the rows the load takes, by name and what each holds, then Unload. On the page, as the Download menu is (its class, its Escape)
 var _ldPop = null;
 function closeLoadMenu() { if (_ldPop) { _ldPop.remove(); _ldPop = null; document.removeEventListener('mousedown', ldOutside, true); document.removeEventListener('keydown', ldKey, true); } }
-function ldOutside(e) { if (_ldPop && !_ldPop.contains(e.target) && !(_ldPop._anchor && _ldPop._anchor.contains(e.target))) closeLoadMenu(); }
+function ldOutside(e) { if (_ldPop && !_ldPop.contains(e.target) && !(_ldPop._anchor && _ldPop._anchor.contains(e.target))) { var hitP = _ldPop._hit === true; closeLoadMenu(); if (hitP) toast('Roll called off: no location was picked.'); } }   // 1.6.0: a called shot's menu gone with no word read as a roll that did not happen
 function ldKey(e) { if (_ldPop && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); var a = _ldPop._anchor; closeLoadMenu(); try { if (a) a.focus(); } catch (er) {} } }
 function loadChoices(sys, c, sf, spec, host) {   // the source rows a load may take: live, not loaded, of a category it takes
     var sl = sf.list, ld = spec.load, out = [];
@@ -4637,7 +4637,7 @@ function hitPick(anchor, need, go) {
         if (!Array.isArray(rows)) { toast('No answer from the GM about where to aim. Try again.'); return; }
         if (!rows.length) { go(null); return; }
         if (_ldPop) closeLoadMenu();
-        var pop = el('div', 'sheet-dl-pop sheet-hit-pop'); pop.setAttribute('role', 'menu'); pop.setAttribute('aria-label', 'Where it is aimed'); pop._anchor = anchor;
+        var pop = el('div', 'sheet-dl-pop sheet-hit-pop'); pop.setAttribute('role', 'menu'); pop.setAttribute('aria-label', 'Where it is aimed'); pop._anchor = anchor; pop._hit = true;
         var item = function(label, sub, id) { var b = el('button', 'sheet-dl-item'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.appendChild(el('span', 'sheet-dl-t', label)); b.appendChild(el('span', 'sheet-dl-s', sub)); b.addEventListener('click', function(e) { e.preventDefault(); closeLoadMenu(); go(id); }); pop.appendChild(b); };
         item('No called shot', 'Aim at no one location', null);
         rows.forEach(function(r) { if (r && typeof r.id === 'string' && typeof r.name === 'string') item(r.name, 'A location of your target', r.id); });
@@ -7451,11 +7451,19 @@ function formulaTextFor(id, prop) {
     var it = (draft.items || []).find(function(x) { return x.id === id; });
     return it ? (prop === 'cost' ? it.cost || '' : it.damage || '') : '';
 }
+// 1.6.0: on a large system a check of the whole system takes a key step's time, so one that took long waits for the keys to stop
+var _peSlow = 0, _peT = null;
 function patchErrors() {
+    if (_peSlow > 60) { if (_peT) clearTimeout(_peT); _peT = setTimeout(function() { _peT = null; if (draft) patchErrorsNow(); }, 180); return; }
+    patchErrorsNow();
+}
+function patchErrorsNow() {
+    var peAt = Date.now();
     refreshErrors();
     document.querySelectorAll('#systemModal [data-err-for]').forEach(function(old) { var id = old.dataset.errFor; var fresh = errorCell(id); fresh.dataset.errFor = id; old.parentNode.replaceChild(fresh, old); });
     var total = Object.keys(errorsById).reduce(function(n, k) { return n + errorsById[k].length; }, 0), warns = Object.keys(warningsById).reduce(function(n, k) { return n + warningsById[k].length; }, 0);
     var foot = ui('sysFoot'); if (foot) foot.textContent = draft.fields.length + ' field' + (draft.fields.length === 1 ? '' : 's') + ' · ' + draft.rolls.length + ' roll' + (draft.rolls.length === 1 ? '' : 's') + (total ? ' · ' + total + ' error' + (total === 1 ? '' : 's') : ' · no errors') + (warns ? ' · ' + warns + ' warning' + (warns === 1 ? '' : 's') : '') + (dirty ? ' · unsaved changes' : '');
+    _peSlow = Date.now() - peAt;
 }
 function input(cls, value, title, placeholder) { var i = el('input', cls); i.type = 'text'; i.value = value === undefined || value === null ? '' : String(value); if (title) i.title = title; if (placeholder) i.placeholder = placeholder; i.spellcheck = false; i.autocomplete = 'off'; return i; }
 function numInput(cls, value, title, step) { var i = el('input', cls); i.type = 'number'; i.value = value === undefined || value === null ? '' : String(value); i.title = title || ''; if (step) i.step = step; return i; }   // step (F4c1): 'any' for a stat (0.0001, -0.5)
@@ -7492,6 +7500,14 @@ function spillCtl(flags, f) {
     var at = sp.at === 'neg' || sp.at === 'f' ? sp.at : '';
     flags.appendChild(select('sys-spill-at', [['', 'below its least value'], ['neg', 'below minus its full value'], ['f', 'below a formula']], at, 'Where it starts to spill. The pool itself still stops at its least value'));
     if (at === 'f') { var bi = input('sys-spill-below field', typeof sp.below === 'string' ? sp.below : '', 'It spills below this figure, a formula of the character with no dice, such as -' + (f.key || 'Key') + '.max / 2', '-' + (f.key || 'Key') + '.max / 2'); bi.maxLength = LIMITS.formula; flags.appendChild(capInline(bi, 'Below: ')); }
+}
+// 1.6.0, found on a large system: a list on every section of the Layout tab held every field, 255,000 options in all. A long one holds its own choice until it is used
+function lazySelect(cls, options, value, title) {
+    if (options.length <= 40) return select(cls, options, value, title);
+    var cur = options.filter(function(o) { return o[0] === value; })[0] || options[0], s = select(cls, [cur], value, title), full = options;
+    var fill = function() { if (!full) return; var o = full; full = null; s.textContent = ''; o.forEach(function(x) { s.appendChild(opt(x[0], x[1], x[0] === value)); }); };
+    s.addEventListener('pointerdown', fill); s.addEventListener('focus', fill);
+    return s;
 }
 function select(cls, options, value, title) { var s = el('select', cls); options.forEach(function(o) { s.appendChild(opt(o[0], o[1], o[0] === value)); }); if (title) s.title = title; return s; }
 function btnRow(list) { var btns = el('span', 'sys-btns'); list.forEach(function(b) { var x = el('button', 'tool ghost sys-btn'); x.dataset.act = b[0]; x.title = b[1]; x.innerHTML = b[2]; btns.appendChild(x); }); return btns; }
@@ -7629,7 +7645,7 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
         var fxT = []; (Array.isArray(draft.effects) ? draft.effects : []).forEach(function(d) { if (d && typeof d.id === 'string') fxT.push(['fx+:' + d.id, 'Switch on: ' + (d.name || d.id)], ['fx-:' + d.id, 'Switch off: ' + (d.name || d.id)]); });   // 1.6.0: an effect switched on or off
         var allT = allRowTargets(), allV = typeof ch.list === 'string' ? allRowValue(ch, allT) : '';   // 1.6.0: one number stat on every row of a list
         var opts = [['', 'Pick a pool, number or effect\u2026']].concat(targets, fxT, allT); if (allV && !allT.some(function(o) { return o[0] === allV; })) opts.push([allV, 'A list or stat that is gone']); if (typeof ch.fx === 'string' && !fxT.some(function(o) { return o[0].slice(4) === ch.fx; })) opts.push([(ch.on === false ? 'fx-:' : 'fx+:') + ch.fx, 'An effect that is gone']); if (ch.f && !targets.some(function(o) { return o[0] === ch.f; })) opts.push([ch.f, 'A field that is gone']);
-        rw.appendChild(select('sys-apply-target', opts, allV ? allV : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or an effect it switches on or off (on the character it is used on). Every row of a list sets one of its number stats on each of the list\u2019s rows'));
+        rw.appendChild((typeof lazySelect === 'function' ? lazySelect : select)('sys-apply-target', opts, allV ? allV : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or an effect it switches on or off (on the character it is used on). Every row of a list sets one of its number stats on each of the list\u2019s rows'));
         if (typeof ch.fx !== 'string') {   // 1.6.0: an effect switched has no amount
         rw.appendChild(select('sys-apply-op', [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']], ch.set ? 'set' : ch.add ? 'add' : 'sub', 'Subtract (a cost, a wound), add (rest, healing) or set it to the amount (back to 0); never past the field\u2019s min and max'));
         var fm = input('sys-apply-formula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount, worked out when pressed: no dice unless Rolled is ticked (3, FPCost, max(0, Incoming - DR)); below 0 counts as 0', 'Amount'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
@@ -7738,7 +7754,7 @@ function effectRow(d) {
         var ln = el('div', 'sys-fx-mod'); ln.dataset.mi = String(mi);
         var val = modVal(m), opts = targets.slice();
         if (!opts.some(function(o) { return o[0] === val; })) opts.unshift([val, '(a field that is gone or changed kind)']);
-        ln.appendChild(select('sys-fx-target', opts, val, 'What this change affects'));
+        ln.appendChild((typeof lazySelect === 'function' ? lazySelect : select)('sys-fx-target', opts, val, 'What this change affects'));
         if (val.slice(-4) === '|row') rowAimInto(ln, draft, m, 'sys-fx-', mi);   // 1.5.8
         if (m.op !== 'on') { ln.appendChild(modHowSel('sys-fx-how', m.op)); var am = numInput('sys-fx-amt', m.v, 'How much it adds (negative to take away), or the figure it holds the value at'); am.step = 'any'; ln.appendChild(am);
             var amF = input('sys-fx-amtf field', typeof m.vf === 'string' ? m.vf : '', 'By a formula, in place of the number: the amount it adds or holds the value at, worked out for each character, such as -max(0, -MP) for 1 off each MP below 0. It reads the sheet with no effect applied, rolls no dice, and may not read a GM-only value', 'or by a formula'); amF.maxLength = LIMITS.formula; ln.appendChild(amF); if (typeof m.vf === 'string' && m.vf.trim()) am.disabled = true; }   // 1.6.0: Adds, At least or At most; CORE gap 12: by a formula
@@ -10473,6 +10489,7 @@ function turnBox(box, cm) {
     });
     wrap.appendChild(labeledSelect('sys-turn-trade', 'A trade in a fight', turnTradeOpts(tn), typeof tn.trade === 'string' ? tn.trade : '', 'What giving something in a trade spends in a fight, from the actions above. Who only takes spends nothing. It also keeps Trade with on an NPC in a fight'));
     lineUnder(wrap, 'Whoever gives spends this as the trade completes. One who only takes spends nothing.');
+    if (wrap.lastChild && wrap.lastChild.classList) wrap.lastChild.classList.add('sys-combat-wide');   // 1.6.0: its words are longer than its list
     var err = errorCell('combat'); err.dataset.errFor = 'combat'; wrap.appendChild(err);
     box.appendChild(wrap);
 }
@@ -10532,10 +10549,14 @@ function capNoteSync() {
     box.style.display = lines.length ? '' : 'none';
 }
 // [systemcheck:capnote-end]
+var _tabPress = false;   // 1.6.0: a press of a tab changes nothing Save would say
 function renderAll() {
     closeGlyphPicker();   // Stage 6: the rows it was opened from are being redrawn
     if (!draft) return;
-    refreshErrors();
+    if (!_tabPress) refreshErrors();
+    // 1.6.0: a tab's rows are drawn for the tab in view alone. Every tab's rows at every press of a tab held a large system's editor ten seconds
+    var rowsFor = function(id, which, draw) { var box = ui(id); if (!box) return; box.textContent = ''; if (tab === which) draw(box); };
+    var was = rowFocusOf(document.activeElement);   // 1.6.0: a list stepped by the keyboard redraws its row: the next press stays on that list
     if (typeof capNoteSync === 'function') capNoteSync();   // 1.6.0: what is at its limit, and what a load left out
     document.querySelectorAll('#systemModal .sys-tabs button').forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tab); });
     ui('sysFields').style.display = tab === 'fields' ? '' : 'none';
@@ -10548,21 +10569,35 @@ function renderAll() {
     if (tab === 'lists') renderEnv();   // 1.6.0: the Environment readings box, under the budgets
     if (tab === 'lists') renderTables();   // 1.6.0: the Tables box
     if (tab === 'lists') renderLinks();   // 1.6.0: the Linked sheets box, under the readings
-    var efr = ui('sysEffectRows'); if (efr) { efr.textContent = ''; if (!draft.effects || !draft.effects.length) efr.appendChild(el('div', 'sys-empty', 'No status effects yet. Add Rage, Prone, Blessed\u2026 each with the numbers it changes, then put a Status effects field on the sheet.')); (draft.effects || []).forEach(function(d) { efr.appendChild(effectRow(d)); }); }
+    rowsFor('sysEffectRows', 'effects', function(efr) { if (!draft.effects || !draft.effects.length) efr.appendChild(el('div', 'sys-empty', 'No status effects yet. Add Rage, Prone, Blessed\u2026 each with the numbers it changes, then put a Status effects field on the sheet.')); (draft.effects || []).forEach(function(d) { efr.appendChild(effectRow(d)); }); });
     var sl = ui('sysLayout'); if (sl) { sl.style.display = tab === 'layout' ? '' : 'none'; if (tab === 'layout') renderLayout(); }
     var scal = ui('sysCalendar'); if (scal) { scal.style.display = tab === 'calendar' ? '' : 'none'; if (tab === 'calendar') renderCalendar(); }   // item 20 K1: the calendar
-    var fr = ui('sysFieldRows'); fr.textContent = '';
-    if (!draft.fields.length) fr.appendChild(el('div', 'sys-empty', 'No fields yet. Add one, or Start from a preset.'));
-    draft.fields.forEach(function(f) { fr.appendChild(fieldRow(f)); });
-    var rr = ui('sysRollRows'); rr.textContent = '';
-    if (!draft.rolls.length) rr.appendChild(el('div', 'sys-empty', 'No rolls yet. A roll is a formula with dice, as a button on the sheet: d20 + STRmod. Set its Kind to Apply for a button that moves pools or numbers instead (Apply costs, Apply wounds).'));
-    draft.rolls.forEach(function(r) { rr.appendChild(rollRow(r)); });
+    rowsFor('sysFieldRows', 'fields', function(fr) { if (!draft.fields.length) fr.appendChild(el('div', 'sys-empty', 'No fields yet. Add one, or Start from a preset.'));
+    draft.fields.forEach(function(f) { fr.appendChild(fieldRow(f)); }); });
+    rowsFor('sysRollRows', 'rolls', function(rr) { if (!draft.rolls.length) rr.appendChild(el('div', 'sys-empty', 'No rolls yet. A roll is a formula with dice, as a button on the sheet: d20 + STRmod. Set its Kind to Apply for a button that moves pools or numbers instead (Apply costs, Apply wounds).'));
+    draft.rolls.forEach(function(r) { rr.appendChild(rollRow(r)); }); });
     var rAdd = ui('sysAddRoll'); if (rAdd) { rAdd.disabled = draft.rolls.length >= LIMITS.rolls; rAdd.title = rAdd.disabled ? 'A system holds ' + LIMITS.rolls + ' rolls at most. Remove one to add another.' : 'Add a roll'; }   // 1.6.0: one past the cap was dropped at Save with nothing said
-    var itr = ui('sysItemRows'); if (itr) { itr.textContent = ''; if (!draft.items || !draft.items.length) itr.appendChild(el('div', 'sys-empty', 'No items yet. Add weapons, gear or explosives your characters can carry — an item with a blast area can be thrown from the sheet.')); (draft.items || []).forEach(function(it) { itr.appendChild(itemRow(it)); }); renderCombat(); }
-    var cr = ui('sysCharRows'); if (cr) { cr.textContent = ''; var camp = getActiveCampaign(), list = charList(camp); if (!list.length) cr.appendChild(el('div', 'sys-empty', 'No characters yet. New character here, or "New character from this token" in a token\'s Properties.')); list.forEach(function(c) { cr.appendChild(charRow(c, camp)); }); charFilter(); }
+    rowsFor('sysItemRows', 'items', function(itr) { if (!draft.items || !draft.items.length) itr.appendChild(el('div', 'sys-empty', 'No items yet. Add weapons, gear or explosives your characters can carry — an item with a blast area can be thrown from the sheet.')); (draft.items || []).forEach(function(it) { itr.appendChild(itemRow(it)); }); renderCombat(); });
+    rowsFor('sysCharRows', 'chars', function(cr) { var camp = getActiveCampaign(), list = charList(camp); if (!list.length) cr.appendChild(el('div', 'sys-empty', 'No characters yet. New character here, or "New character from this token" in a token\'s Properties.')); list.forEach(function(c) { cr.appendChild(charRow(c, camp)); }); charFilter(); });
     var note = ui('sysFeatureNote'); if (note) note.style.display = featureOn() ? 'none' : '';
-    patchErrors();
+    if (!_tabPress) patchErrors();
+    rowFocusBack(was);
 }
+// [systemcheck:rowfocus-start]
+// 1.6.0: what holds the focus in a row of the editor, by the row's own id and the list's or the box's own class, and the same control found in
+// the rows drawn since. Found by comparing, so no id of a system file is ever put in a selector
+function rowFocusOf(a) {
+    var row = a && a.closest ? a.closest('#systemModal .sys-row') : null, cls = a && typeof a.className === 'string' ? a.className.split(' ').filter(function(c) { return c.indexOf('sys-') === 0; })[0] : '';
+    return row && row.dataset && row.dataset.id && cls ? { id: row.dataset.id, cls: cls } : null;
+}
+function rowFocusBack(was) {
+    if (!was) return;
+    var rows = document.querySelectorAll('#systemModal .sys-row'), row = null, i;
+    for (i = 0; i < rows.length && !row; i++) if (rows[i].dataset.id === was.id) row = rows[i];
+    var box = row ? row.querySelector('.' + was.cls) : null;
+    if (box && box.focus) box.focus();
+}
+// [systemcheck:rowfocus-end]
 function fieldOfRow(target) { var row = target.closest('.sys-row'); if (!row || row.dataset.cid || row.dataset.iid || row.dataset.eid) return null; return { row: row, f: draft.fields.find(function(x) { return x.id === row.dataset.id; }), r: draft.rolls.find(function(x) { return x.id === row.dataset.id; }) }; }
 // 1.6.0 (v2, B4; the SotMW session's v2 sort, 2026-10-29: a trait tier's fixed kit, a species' free package rows, an implant's mandatory flaws):
 // the rows a row of an item grants, each a line: the entry granted (an item of the system or a library entry), the list it is added to, how
@@ -11128,7 +11163,7 @@ function onClick(e) {
     if (b.id === 'sysAddChar') { showPrompt('Name the character', 'New character', function(name) { if (name === null) return; var c = newCharacter({ name: String(name || '').trim() || 'New character' }); afterCharChange(c, true); renderAll(); }); return; }
     if (b.id === 'sysAddItem') { if (!Array.isArray(draft.items)) draft.items = []; if (draft.items.length >= LIMITS.items) { toast('At most ' + LIMITS.items + ' items.'); return; } draft.items.push({ id: uid('i_'), name: '', category: '', icon: '', notes: '', vis: 'all', area: null, damage: '', cost: '', throwSkill: '' }); markDirty(); renderAll(); var li = ui('sysItemRows').lastElementChild; if (li) { var n = li.querySelector('.sys-item-name'); if (n) n.focus(); li.scrollIntoView({ block: 'nearest' }); } return; }
     if (b.id === 'sysAddEffect') { if (!Array.isArray(draft.effects)) draft.effects = []; if (draft.effects.length >= LIMITS.effects) { toast('At most ' + LIMITS.effects + ' effects.'); return; } draft.effects.push({ id: uid('e_'), name: '', icon: '', tone: '', dur: '', notes: '', vis: 'all', mods: [] }); markDirty(); renderAll(); var lastE = ui('sysEffectRows') && ui('sysEffectRows').lastElementChild; if (lastE) { var ni = lastE.querySelector('.sys-fx-name'); if (ni) ni.focus(); } return; }   // 5h
-    if (b.dataset.tab) { tab = b.dataset.tab; renderAll(); return; }
+    if (b.dataset.tab) { tab = b.dataset.tab; _tabPress = true; try { renderAll(); } finally { _tabPress = false; } return; }
     if (onLayoutClick(b)) return;
     if (!b.dataset.act) return;
     if (turnClick(b)) return;   // turn-based combat T1: the Combat card's actions and time units

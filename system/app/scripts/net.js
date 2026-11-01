@@ -4463,7 +4463,7 @@ function turnLimitCheck(camp, map, w, frW, msg, conn) {
     var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '';
     var mvO = {}, d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, frW.x, frW.y, msg.x, msg.y, dg, mvO) : 0, over = st.moved + d > st.allow + 0.05;
     if (over && d > 0 && mm === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW, conn); turnNote(conn, thatIsText(d, mvO.len, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.', w.charId); return 'stop'; }
-    if (msg.final && d > 0) { st.moved += d; if (typeof mvTold === 'function') mvTold(); var lf = st.allow - st.moved; turnNote(conn, over ? 'That went ' + cellsText(-lf, map) + ' past your move.' : movedText(d, mvO.len, map) + '; ' + cellsText(Math.max(0, lf), map) + ' left.', w.charId); if (over) { toast((w.charName || 'A token') + ' moved ' + cellsText(-lf, map) + ' past their move.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved ' + cellsText(-lf, map) + ' past the move.' }); } }
+    if (msg.final && d > 0) { st.moved += d; var rnL = typeof runMark === 'function' ? runMark(camp, st) : ''; if (typeof mvTold === 'function') mvTold(); var lf = st.allow - st.moved; turnNote(conn, over ? 'That went ' + cellsText(-lf, map) + ' past your move.' : movedText(d, mvO.len, map) + '; ' + cellsText(Math.max(0, lf), map) + ' left.' + (rnL ? ' That spent your ' + rnL + '.' : ''), w.charId); if (over) { toast((w.charName || 'A token') + ' moved ' + cellsText(-lf, map) + ' past their move.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved ' + cellsText(-lf, map) + ' past the move.' }); } }
     return '';
 }
 // T3: the note of the Refuse rule that stops a player's move of this token from (fx, fy) to (tx, ty) — a wall in the way, out of its turn, past
@@ -4482,7 +4482,7 @@ function moveCounted(camp, map, mapId, w, fx, fy, tx, ty) {
     var cur = cb.rows[cb.turn], st = own(net.turnMove, cb.id) ? net.turnMove[cb.id] : null; if (!cur || cur.tokId !== w.id || !st || st.tokId !== w.id || st.rowId !== cur.id || typeof st.allow !== 'number') return '';
     var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '', mvC = {}, d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, fx, fy, tx, ty, dg, mvC) : 0;
     if (!(d > 0)) return '';   // nothing moved (a turn in place, a shuffle inside its own cell): nothing to count, nothing to say
-    st.moved += d; if (typeof mvTold === 'function') mvTold();
+    st.moved += d; if (typeof runMark === 'function') runMark(camp, st); if (typeof mvTold === 'function') mvTold();
     return moveMode(camp, 'move') === 'off' ? '' : movedText(d, mvC.len, map) + '; ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.';
 }
 // Difficult terrain T2: a turn note's words for a move that cost d, its own length len (from the fog, when it can tell): the cost and "with
@@ -4880,7 +4880,7 @@ function cleanFightBody(k, mapId) {   // one fight's order, cleaned: { mapId, ro
     if (!rows.length) return null;
     var f = { mapId: mapId, round: Math.max(1, Math.min(9999, Number(k.round) || 1)), turn: Math.max(0, Math.min(rows.length - 1, Number(k.turn) || 0)), rows: rows };
     if (k.side === 'pc' || k.side === 'rest') f.side = k.side;   // initiative O4: the side going first this round (shown to the table)
-    if (k.mv && typeof k.mv === 'object' && typeof k.mv.m === 'number' && typeof k.mv.a === 'number' && isFinite(k.mv.m) && isFinite(k.mv.a)) f.mv = { m: Math.max(0, Math.min(1e6, k.mv.m)), a: Math.max(0, Math.min(1e6, k.mv.a)) };   // 1.5.7: the turn's move, this player's own
+    if (k.mv && typeof k.mv === 'object' && typeof k.mv.m === 'number' && typeof k.mv.a === 'number' && isFinite(k.mv.m) && isFinite(k.mv.a)) { f.mv = { m: Math.max(0, Math.min(1e6, k.mv.m)), a: Math.max(0, Math.min(1e6, k.mv.a)) }; if (typeof k.mv.w === 'number' && isFinite(k.mv.w)) f.mv.w = Math.max(0, Math.min(1e6, k.mv.w)); }   // 1.5.7: the turn's move, this player's own; 1.6.0: w, how far it goes before it spends the action
     return f;
 }
 // [netcheck:notepad-start]
@@ -4932,7 +4932,7 @@ function combatsFor(recipientId, mapId) {
         }) };
         if (cmb.side === 'pc' || cmb.side === 'rest') out[fid].side = cmb.side;   // initiative O4: which side goes first this round (never its rolls: those are their cards)
         var stMv = net.turnMove && Object.prototype.hasOwnProperty.call(net.turnMove, fid) ? net.turnMove[fid] : null, curMv = cmb.rows[cmb.turn];   // 1.5.7: the turn's move, to the token's own player alone
-        if (stMv && typeof stMv.allow === 'number' && net.turnMoveOwn && net.turnMoveOwn[fid] === recipientId && curMv && curMv.id === stMv.rowId) out[fid].mv = { m: Math.round(stMv.moved * 100) / 100, a: Math.round(stMv.allow * 100) / 100 };
+        if (stMv && typeof stMv.allow === 'number' && net.turnMoveOwn && net.turnMoveOwn[fid] === recipientId && curMv && curMv.id === stMv.rowId) { out[fid].mv = { m: Math.round(stMv.moved * 100) / 100, a: Math.round(stMv.allow * 100) / 100 }; if (typeof stMv.run === 'number' && stMv.ran !== true && stMv.allow > stMv.walk) out[fid].mv.w = Math.round(stMv.walk * 100) / 100; }
     });
     return out;
 }
@@ -5153,8 +5153,8 @@ function turnMoveStart(mapId, c) {
     var vt = window.wpVtt, rl = function(k) { return !vt || (vt.rulesOn ? vt.rulesOn(k) : vt.on(k)); };
     var tc = S.withRound(S.tokenCtx(map, w, { turning: rl('turning'), posture: rl('posture'), elevation: rl('elevation'), viewer: typeof w.ownerId === 'string' ? w.ownerId : undefined }), c);
     var r = F.evaluate(t.move, { vars: S.makeResolver(view, chv, F, tc) }); if (!r.ok || typeof r.value !== 'number' || !isFinite(r.value)) return;
-    st.allow = S.moveAllowCells(Math.max(0, r.value), t.unit, S.mapCellScale(map));
-    noteOwner(w.ownerId, 'Your turn: ' + cellsText(st.allow, map) + ' to move.', w.charId);
+    st.allow = S.moveAllowCells(Math.max(0, r.value), t.unit, S.mapCellScale(map)); var walkT = st.allow, rnW = t.run && t.runCost && typeof runStart === 'function' ? runStart(st, t, S, F, S.makeResolver(view, chv, F, tc), camp, ch, map, w, c) : '';   // 1.6.0 A move by giving up an action
+    noteOwner(w.ownerId, 'Your turn: ' + cellsText(walkT, map) + ' to move' + (rnW ? ', or ' + cellsText(st.allow, map) + ' if you give up your ' + rnW : '') + '.', w.charId);
     mvTold();   // 1.5.7: the strip and the player's copy say it
 }
 // 1.5.7: the turn's move changed (a turn began, a move landed): each player's copy of the fights again (only a copy that changed goes), and this strip
@@ -5192,7 +5192,7 @@ function actsTell(camp, charId, cleared) {   // what is left, to each connection
     var ch = camp && camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; if (!ch || !ch.ownerId || ch.npc) return;
     if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();   // 1.6.0: the strip says what is left
     var left = cleared ? null : actsLeftOf(camp, charId), md = moveMode(camp, 'acts');
-    var m = { type: 'acts-left', charId: charId, left: left, mode: md === 'warn' || md === 'off' ? md : 'refuse' };
+    var m = { type: 'acts-left', charId: charId, left: left, mode: md === 'warn' || md === 'off' ? md : 'refuse' }, rnT = left ? runOf(charId) : null; if (rnT && rnT.ran === true && moveMode(camp, 'move') !== 'refuse') m.rn = rnT.act;   // 1.6.0: an action gone to a move meets the Move limit, so its button is not greyed by the Actions rule
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(m); } catch (e) { sendFailed(e); } } });
 }
 function actsSendTo(c) {   // 1.6.0: one who comes to the table mid-turn hears what their character has left, as one there hears it when the turn begins
@@ -5209,7 +5209,39 @@ net.actsNow = function(charId) {
     var md = moveMode(camp, 'acts'); return md === 'off' ? null : { left: actsLeftOf(camp, charId), mode: md };
 };
 // '' when the press may go ahead (its cost spent, or nothing to spend); else the refusal's text
+// 1.6.0 A move by giving up an action (combat.turn.run and runCost, in a system's Turns). A turn then has two allowances: run while that action is free, the
+// move once it is spent. Moving past the move spends it, once (st.ran), and the turn keeps run. A press that costs that action after that meets the fight's
+// Move limit, not its Actions rule. Where the turn's count gives none of that action, the move alone. What the host works out on its own record, of a
+// player's token on turn: st, the turn's move, holds walk, run, act and charId only where a run is in play, and none of it travels but what a strip says
+function runAct(camp, st) { var a = null; actsOf(camp).forEach(function(x) { if (!a && x && x.key === st.act) a = x; }); return a; }
+function runLeft(camp, st) { var a = runAct(camp, st), sp = net.turnSpent[st.charId] || {}; return a ? Math.max(0, actMax(st.charId, a) - (sp[a.key] || 0)) : 0; }
+function runOf(charId, act) { var hit = null; Object.keys(net.turnMove || {}).forEach(function(fid) { var s = net.turnMove[fid]; if (!hit && s && s.charId === charId && typeof s.run === 'number' && (!act || s.act === act)) hit = s; }); return hit; }
+function runSyncOf(camp, charId) { var s = runOf(charId); if (!s) return; var a = s.ran === true || runLeft(camp, s) > 0 ? s.run : s.walk; if (a !== s.allow) { s.allow = a; if (typeof mvTold === 'function') mvTold(); } }
+function runStart(st, t, S, F, R, camp, ch, map, w, c) {   // at a turn's start: the words for that action where a run is on offer, else ''
+    var noD = function() { throw new Error('dice'); }, r; try { r = F.evaluate(t.run, { vars: R, random: noD }); } catch (e) { r = null; } if (!r || !r.ok || typeof r.value !== 'number' || !isFinite(r.value)) return '';
+    var rA = S.moveAllowCells(Math.max(0, r.value), t.unit, S.mapCellScale(map)); if (!(rA > st.allow)) return '';   // no further than the move: nothing to give up
+    st.walk = st.allow; st.run = rA; st.act = t.runCost; st.charId = w.charId;
+    var a = runAct(camp, st), mx = a ? actsMaxOf(camp, ch, map, w, c) : null; if (!a || !(mx[a.key] > 0)) return '';   // its count gives none this turn: the move alone
+    st.allow = rA; return String(a.label || a.key);
+}
+function runMark(camp, st) {   // a move landed: past the move, while the action is free, it is spent; its words, else ''
+    if (!st || typeof st.run !== 'number' || st.ran === true || st.moved <= st.walk + 0.05 || moveMode(camp, 'move') === 'off' || runLeft(camp, st) <= 0) return '';
+    var a = runAct(camp, st), sp = net.turnSpent[st.charId] || (net.turnSpent[st.charId] = {}); st.ran = true; sp[a.key] = (sp[a.key] || 0) + 1; actsTell(camp, st.charId); runSyncOf(camp, st.charId);
+    return String(a.label || a.key);
+}
+function runGate(camp, charId, cost, conn, who, look, pr) {   // a press that costs the action of a turn with a run: null where this says nothing, else what actSpend answers
+    var st = runOf(charId, cost), a = st ? runAct(camp, st) : null; if (!a || !actsCombat(camp, charId, pr)) return null;
+    var sp = net.turnSpent[charId] || (net.turnSpent[charId] = {}), used = sp[a.key] || 0, lbl = a.label || a.key;
+    if (st.ran === true && used >= actMax(charId, a)) {   // it went to the move: the Move limit says what becomes of the press
+        var mm = moveMode(camp, 'move'); if (mm === 'refuse') return 'You gave up your ' + lbl + ' to move further.'; if (look === true) return '';
+        if (mm === 'warn') { turnNote(conn, lbl + ': used after giving it up to move further.', charId); toast((who || 'A character') + ' used a ' + lbl + ' after giving it up to move further.'); if (typeof bellOut === 'function') bellOut(charId, { title: 'Turn', text: 'Used a ' + lbl + ' after giving it up to move further.' }); }
+        sp[a.key] = 1 + used; actsTell(camp, charId); return '';
+    }
+    if (moveMode(camp, 'acts') === 'off') { if (look !== true) { sp[a.key] = used + 1; runSyncOf(camp, charId); } return ''; }   // actions not counted: this turn's move still reads what it spent
+    return null;
+}
 function actSpend(camp, charId, pr, cost, conn, who, look) {   // look, only as true: says what would be refused and spends nothing
+    var rg = cost ? runGate(camp, charId, cost, conn, who, look, pr) : null; if (rg !== null) return rg;   // 1.6.0 A move by giving up an action
     if (!cost || moveMode(camp, 'acts') === 'off') return '';
     var a = null; actsOf(camp).forEach(function(x) { if (!a && x && x.key === cost) a = x; }); if (!a || !actsCombat(camp, charId, pr)) return '';
     var cbS = actsCombat(camp, charId, pr);
@@ -5220,7 +5252,7 @@ function actSpend(camp, charId, pr, cost, conn, who, look) {   // look, only as 
         if (moveMode(camp, 'acts') === 'refuse') return 'No ' + lbl + ' left this turn.';
         turnNote(conn, lbl + ': used past what a turn allows.', charId); toast((who || 'A character') + ' used a ' + lbl + ' past what a turn allows.'); if (typeof bellOut === 'function') bellOut(charId, { title: 'Turn', text: 'Used a ' + lbl + ' past what a turn allows.' });
     } else turnNote(conn, lbl + ': ' + (n - used - 1) + ' of ' + n + ' left this turn.', charId);
-    sp[a.key] = used + 1; actsTell(camp, charId);
+    sp[a.key] = used + 1; actsTell(camp, charId); if (typeof runSyncOf === 'function') runSyncOf(camp, charId);   // 1.6.0: the turn's allowance follows
     return '';
 }
 function turnActsStart(mapId, c) {   // the character whose turn begins has its actions back
@@ -8820,7 +8852,7 @@ function handleMessage(msg, conn) {
         if (msg.left === null) delete net.actsLeft[msg.charId];
         else if (msg.left && typeof msg.left === 'object' && !Array.isArray(msg.left)) {
             var alv = Object.create(null), aln = 0; Object.keys(msg.left).forEach(function(k) { var v = msg.left[k]; if (aln < 6 && /^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(k) && typeof v === 'number' && Math.floor(v) === v && v >= 0 && v <= 99) { alv[k] = v; aln++; } });
-            net.actsLeft[msg.charId] = { left: alv, mode: msg.mode === 'warn' || msg.mode === 'off' ? msg.mode : 'refuse' };
+            net.actsLeft[msg.charId] = { left: alv, mode: msg.mode === 'warn' || msg.mode === 'off' ? msg.mode : 'refuse' }; if (typeof msg.rn === 'string' && Object.prototype.hasOwnProperty.call(alv, msg.rn)) net.actsLeft[msg.charId].rn = msg.rn;
         } else return;
         if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(msg.charId);
         if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();   // 1.6.0: the strip says what is left

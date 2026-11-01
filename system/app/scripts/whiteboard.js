@@ -9371,13 +9371,13 @@ window.wpStripFight = function(mapId) { var n = window.wpNet, f = typeof mapId =
 // for their own token on turn; nothing where the turn has no limit
 function turnMoveOf(n, fid, c, tokId) {
     if (!n || !c) return null; var cur = c.rows && c.rows[c.turn]; if (!cur || (tokId && cur.tokId !== tokId)) return null;
-    if (n.role === 'host') { var st = n.turnMove && Object.prototype.hasOwnProperty.call(n.turnMove, fid) ? n.turnMove[fid] : null; return st && typeof st.allow === 'number' && st.rowId === cur.id ? { m: st.moved, a: st.allow } : null; }
-    return c.mv && typeof c.mv.m === 'number' && typeof c.mv.a === 'number' ? { m: c.mv.m, a: c.mv.a } : null;
+    if (n.role === 'host') { var st = n.turnMove && Object.prototype.hasOwnProperty.call(n.turnMove, fid) ? n.turnMove[fid] : null; if (!st || typeof st.allow !== 'number' || st.rowId !== cur.id) return null; var oM = { m: st.moved, a: st.allow }; if (typeof st.run === 'number' && st.ran !== true && st.allow > st.walk) oM.w = st.walk; return oM; }
+    if (!c.mv || typeof c.mv.m !== 'number' || typeof c.mv.a !== 'number') return null; var oC = { m: c.mv.m, a: c.mv.a }; if (typeof c.mv.w === 'number') oC.w = c.mv.w; return oC;
 }
 function stripMoveHtml(n, fid, c, map) {
     var mv = turnMoveOf(n, fid, c, null); if (!mv || !n.cellsText) return '';
     var over = mv.m > mv.a + 0.05, r = Math.round(mv.m * 10) / 10;
-    return '<span class="combat-strip-move' + (over ? ' over' : '') + '" data-tip="How far the token on turn has moved, of its move this turn">Moved ' + esc(String(r)) + ' of ' + esc(n.cellsText(mv.a, map)) + '</span>';
+    return '<span class="combat-strip-move' + (over ? ' over' : '') + '" data-tip="How far the token on turn has moved, of its move this turn' + (typeof mv.w === 'number' ? '. Past ' + esc(n.cellsText(mv.w, map)) + ' it spends the action' : '') + '">Moved ' + esc(String(r)) + ' of ' + esc(n.cellsText(mv.a, map)) + '</span>';
 }
 // [lookcheck:stripacts-start]
 // 1.6.0: what the character on turn has left of each action, as the strip says it. net.js actsNow says whether there is anything to say: a player's character, where actions are counted

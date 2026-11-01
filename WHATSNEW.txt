@@ -223,6 +223,11 @@ Systems, more
   trade spends. Whoever gives spends it as the trade completes, and one who only
   takes spends nothing. Trade with is then offered on an NPC in a fight too.
 - The turn strip says what the character on turn has left of each action.
+- Move by giving up an action, in the Turns box of the System editor, is a second
+  formula for how far a turn may move. While the action you name is free the map
+  allows it. Moving past Move per turn spends that action, and once it is spent
+  the map allows Move per turn alone. A roll that costs it after that meets the
+  Move limit.
 - A resist card now offers a list's roll, such as Parry with a row's weapon. It
   never did in the app, though the editor let you pick one.
 - A press on the System editor's Layout tab no longer holds the page on a large

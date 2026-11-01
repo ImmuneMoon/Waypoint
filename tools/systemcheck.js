@@ -13945,6 +13945,31 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
 
 
 
+    {   // 1.6.0 A move by giving up an action (combat.turn.run and runCost): the cleaner in both views, the validator, and the Turns box's handlers run for real
+        const F5 = F;
+        const ts = (t, f) => S.cleanSystem(Object.assign({ v: 1, name: 'R', rolls: [], sheet: { sections: [] }, fields: [{ id: 'f_sp', key: 'Speed', kind: 'number', vis: 'all', def: 5 }, { id: 'f_gm', key: 'Secret', kind: 'number', vis: 'gm', def: 5 }], combat: { turn: t } }, f || {}), { F: F5, gmView: true });
+        const acts = [{ key: 'Action', label: 'Action', n: 1 }];
+        const g = ts({ move: 'Speed', run: 'Speed * 2', runCost: 'action', acts }), p = S.cleanSystem(g, { F: F5, gmView: false }), gm = ts({ move: 'Speed', run: 'Secret', runCost: 'Action', acts }), pg = S.cleanSystem(gm, { F: F5, gmView: false });
+        const noMove = ts({ run: 'Speed', runCost: 'Action', acts }).combat.turn, noAct = ts({ move: 'Speed', run: 'Speed', acts }).combat.turn, badAct = ts({ move: 'Speed', run: 'Speed', runCost: 'Nope', acts }).combat.turn, noRun = ts({ move: 'Speed', runCost: 'Action', acts }).combat.turn;
+        const gmMv = S.cleanSystem(ts({ move: 'Secret', run: 'Speed', runCost: 'Action', acts }), { F: F5, gmView: false }).combat.turn;
+        check('1.6.0 run: kept beside a move and the action it spends, spelled as the list spells it and the same in both views; dropped with no move, no action, an action not on the list; a formula that reads a GM-only value goes from the players\' view, and it goes with its move',
+            g.combat.turn.run === 'Speed * 2' && g.combat.turn.runCost === 'Action' && p.combat.turn.run === 'Speed * 2' && p.combat.turn.runCost === 'Action' && gm.combat.turn.run === 'Secret' && !('run' in pg.combat.turn) && !('runCost' in pg.combat.turn) && pg.combat.turn.move === 'Speed'
+            && !('run' in noMove) && !('runCost' in noMove) && !('run' in noAct) && !('run' in badAct) && !('runCost' in noRun) && !('run' in gmMv) && !('runCost' in gmMv), j([g.combat.turn, pg.combat.turn, noMove, noAct, badAct, noRun, gmMv]));
+        const none = ts({ move: 'Speed', acts }), v0 = S.validateSystem(none, F5), vD = S.validateSystem(ts({ move: 'Speed', run: '1d6', runCost: 'Action', acts }), F5), vG = S.validateSystem(gm, F5);
+        check('1.6.0 run: a turn with none cleans as it did; the validator reads it as Move per turn is read: no dice, and a GM-only value warned of',
+            j(none.combat.turn) === j({ move: 'Speed', unit: 'cells', acts: [{ key: 'Action', n: 1, label: 'Action' }] }) && !v0.errors.length && vD.errors.some(e => e.prop === 'turn.run' && /Dice are not allowed/.test(e.message)) && vG.warnings.some(w => w.prop === 'turn.run' && /players have the one move/.test(w.message)), j([none.combat.turn, vD.errors, vG.warnings]));
+        const shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), trS = shR.slice(shR.indexOf('function turnActs() {'), shR.indexOf('function renderAll() {'));
+        const dR = { combat: {} }, edR = new Function('draft', 'LIMITS', 'markDirty', 'renderAll', 'patchErrors', 'toast', 'TURN_UNITS', 'el', 'input', 'select', 'labeledSelect', 'errorCell', trS + NL + 'return { onTurnInput: onTurnInput, onTurnChange: onTurnChange, turnClick: turnClick, turnRunOpts: turnRunOpts, turnRunSays: turnRunSays, turnTradeFollow: turnTradeFollow };')(dR, S.LIMITS, () => {}, () => {}, () => {}, () => {}, S.TURN_UNITS, null, null, null, null, null);
+        const tgR = (cls, value) => ({ className: cls, value: value, closest: () => null });
+        const saysFor = t => edR.turnRunSays(t, S.cleanTurn(t) || {});
+        edR.onTurnInput(tgR('sys-turn-runf field', ' Speed * 2 ')); const s1 = saysFor(dR.combat.turn); edR.onTurnChange(tgR('sys-turn-runact', 'Action')); const s2 = saysFor(dR.combat.turn);
+        dR.combat.turn.move = 'Speed'; dR.combat.turn.acts = [{ key: 'Action', n: 1 }]; const s3 = saysFor(dR.combat.turn), o3 = edR.turnRunOpts(dR.combat.turn);
+        edR.turnTradeFollow(dR.combat.turn, 'Action', 'Deed'); const rn = dR.combat.turn.runCost; edR.turnTradeFollow(dR.combat.turn, 'Deed', ''); const gone = dR.combat.turn.runCost, s4 = saysFor(dR.combat.turn);
+        check('1.6.0 run: the Turns box sets the pair, its action following a rename and going with the action, and what Save does with it is said as the cleaner reads it',
+            /Move per turn/.test(s1[0]) && /Move per turn/.test(s2[0]) && !s3.length && j(o3) === j([['', 'Pick the action'], ['Action', 'Spends Action']]) && rn === 'Deed' && gone === undefined && /action it spends/.test(s4[0]) && edR.onTurnInput(tgR('sys-turn-runact', 'x')) === false, j([s1, s2, s3, o3, rn, gone, s4]));
+        const pc = saysFor({ runCost: 'Action' });
+        check('1.6.0 run: an action named with no formula is said too', /drops the action it spends/.test(pc[0]), j(pc));
+    }
         /* 1.6.0 (the SotMW v2 sort, B2): a roll Resisted by a roll ticked Resists an attempt, which reads AttemptMargin */
         const mkR = (by, lby, rs) => ({ v: 1, name: 'R', fields: [{ id: 'f_wl', key: 'Will', label: 'Will', kind: 'number', vis: 'all', edit: 'owner', def: 12 }, { id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { rolls: [{ label: 'Push', formula: '3d6 <= Will', resistBy: lby }] } }],
             rolls: [{ id: 'r_tr', label: 'Trick', formula: '3d6 <= 13', vis: 'all', resistBy: by }, { id: 'r_rs', label: 'Resist', formula: '3d6 <= Will - AttemptMargin', vis: 'all', resist: rs }, { id: 'r_in', label: 'Init', formula: '3d6', vis: 'all', init: true, resist: true }] });

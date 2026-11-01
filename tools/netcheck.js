@@ -3374,7 +3374,7 @@ pendingChecks.push((async () => {
         hostDue.length === 1 && hostDue[0][0] === 'c_p' && hostDue[0][1].due.label === 'Regenerate' && cliDue.length === 1 && cliDue[0][0] === 'c_p' && cliDue[0][1].due.why === 'turn', j([hostDue, cliDue]));
     check('The bell (source): bellOut hands sheets.js the note (a failure never breaks the message path); the feeds are guarded so a harness without it runs as before',
         /function bellOut\(cid, note, as\) \{ try \{ if \(window\.wpSheets && window\.wpSheets\.bellNote\) window\.wpSheets\.bellNote\(cid, note, as\); \} catch \(e\) \{ console\.error\(e\); \} \}/.test(src)
-        && (src.match(/typeof bellOut === 'function'/g) || []).length === 9);
+        && (src.match(/typeof bellOut === 'function'/g) || []).length === 10);
 })());
 
 // Stage 6 library L1c: the item library's manifest never goes in the players' snapshot, and the host's projections read the library through
@@ -5986,6 +5986,60 @@ pendingChecks.push((async () => {
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js'));
+    {   // 1.6.0 A move by giving up an action (combat.turn.run and runCost): the host's gates, run for real (invented data: Pat, Speed, Dash)
+        const Fx5 = await import(url('formula.js'));
+        const line5 = k => { const i = src.indexOf(k); return src.slice(i, src.indexOf('\n', i)); };
+        const pos5 = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), pat5 = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), tm5 = between('// [netcheck:turnmove-start]', '// [netcheck:turnmove-end]', 'turnmove'), ta5 = between('// [netcheck:turnacts-start]', '// [netcheck:turnacts-end]', 'turnacts');
+        const cl5 = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
+        const help5 = ['function peerProfileId(', 'function fxLib(', 'function itemLib('].map(line5).join('\n') + '\n';
+        const sys5 = (o) => Sx.cleanSystem(Object.assign({ v: 1, name: 'R', rolls: [], sheet: { sections: [] }, fields: [{ id: 'f_sp', key: 'Speed', kind: 'number', vis: 'all', def: 5 }, { id: 'f_ds', key: 'Dash', kind: 'number', vis: 'all', def: 10 }, { id: 'f_dz', key: 'Dazed', kind: 'number', vis: 'all', def: 0 }, { id: 'f_gm', key: 'Secret', kind: 'number', vis: 'gm', def: 20 }],
+            combat: { turn: Object.assign({ move: 'Speed', unit: 'cells', run: 'Dash', runCost: 'action', acts: [{ key: 'Action', n: 1, nf: '1 - Dazed' }, { key: 'Bonus', n: 1 }] }, o || {}) } }), { F: Fx5, gmView: true });
+        const mk5 = o => {
+            o = o || {};
+            const pat = { id: 't_p', isChar: true, charId: 'c_p', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }, map = { type: 'map', meta: { gridType: 'square' }, whiteboard: [pat] };
+            const camp = { id: 'c1', items: { m1: map }, system: o.system || sys5(), turnRules: o.rules || {}, chars: { c_p: { id: 'c_p', name: 'Pat', ownerId: 'u_a', values: o.values || {} } } };
+            const out = { sent: [], toasts: [], bells: [] }, conn = { peer: 'pA', open: true, send: m => out.sent.push(m) }, fight = { id: 'f_keep0001', mapId: 'm1', round: 1, turn: 0, rows: [{ id: 'r_p', tokId: 't_p' }] };
+            const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', location: 'm1' } }, conns: [conn], tokenDropped() {}, combats: { f_keep0001: fight } };
+            const win = { wpVtt: { on: () => true, campaignOn: () => true }, wpFog: { moveBlocked: () => false, moveCells: (mp, w, fx, fy, tx, ty) => Math.max(Math.abs(tx - fx), Math.abs(ty - fy)) / 50 }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx5, gmView: false }) }, wpFormula: Fx5 };
+            const api = new Function('state', 'net', 'window', 'peerPaused', 'allow', 'checkRoomHandouts', 'applyPosToDom', 'broadcastPos', 'toast', 'saveRemoteSoon', 'sendFailed', 'setTimeout', 'playerStroke', 'SC', 'getActiveCampaign', 'bellOut',
+                cl5 + ownKeySrc + help5 + pos5 + '\n' + pat5 + '\n' + tm5 + '\n' + ta5 + '\n' + ordersSrc + '\nreturn { pos: function(m, c) { return handlePos(m, c); }, patch: function(m) { return applyClientItemFiltered(m, { id: "u_a" }); }, start: function(c) { turnMoveStart("m1", c); turnActsStart("m1", c); }, spend: actSpend };')(
+                { appState: { campaigns: { c1: camp } } }, net, win, () => false, () => true, () => {}, () => {}, () => {}, t => out.toasts.push(t), () => {}, e => { throw e; }, f => f(), () => null, () => Sx, () => camp, (cid, note) => out.bells.push([cid, note.text]));
+            api.start(fight);
+            const st = () => net.turnMove.f_keep0001, go = (x, fin) => api.pos({ type: 'pos', campId: 'c1', itemId: 'm1', wbId: 't_p', x, y: 0, final: fin !== false }, conn), press = (k, look) => api.spend(camp, 'c_p', net.roster.pA, k, conn, 'Pat', look);
+            const C = x => { const copy = JSON.parse(JSON.stringify(map.whiteboard)); copy[0].x = x; api.patch({ type: 'item', campId: 'c1', itemId: 'm1', item: { type: 'map', whiteboard: copy } }); };
+            out.notes = () => out.sent.filter(m => m.type === 'turn-note').map(m => m.text);
+            return { out, net, camp, pat, st, go, press, C };
+        };
+        const a5 = mk5(); const aStart = a5.st().allow, aNote = a5.out.notes()[0]; a5.go(350); const aRan = a5.st().ran, aSpent = a5.net.turnSpent.c_p.Action, aAllow = a5.st().allow, aNote2 = a5.out.notes()[1];
+        a5.go(500); const aAt = a5.pat.x; a5.go(550); const aPast = a5.pat.x, aRefused = a5.press('Action'), aOther = a5.press('Bonus');
+        check('1.6.0 run: a free action gives the turn the run (10): moving 7 spends it, the turn keeps the 10, 11 goes back, and a roll that costs that action is then refused by the Move limit while another action stands',
+            aStart === 10 && aNote === 'Your turn: 5 squares (25 ft) to move, or 10 squares (50 ft) if you give up your Action.' && aRan === true && aSpent === 1 && aAllow === 10 && /That spent your Action\.$/.test(aNote2) && aAt === 500 && aPast === 500 && aRefused === 'You gave up your Action to move further.' && aOther === '' && a5.net.turnSpent.c_p.Action === 1 && a5.net.turnSpent.c_p.Bonus === 1, j([aStart, aNote, aRan, aSpent, aAllow, aNote2, aAt, aPast, aRefused, aOther, a5.net.turnSpent]));
+        const b5 = mk5(); const bPress = b5.press('Action'), bAllow = b5.st().allow; b5.go(300); const bRefused = b5.pat.x; b5.go(250); const bAt = b5.pat.x, bRan = b5.st().ran === undefined;
+        const c5 = mk5(); c5.go(150); const cPress = c5.press('Action'), cAllow = c5.st().allow, cLeftNote = c5.out.notes().length; c5.go(300); const cAt = c5.pat.x; c5.go(250); const cDone = c5.pat.x;
+        check('1.6.0 run: the action spent first leaves the move alone, 5 in all, before and after the attack',
+            bPress === '' && bAllow === 5 && bRefused === 0 && bAt === 250 && bRan && cPress === '' && cAllow === 5 && cLeftNote >= 2 && cAt === 150 && cDone === 250, j([bPress, bAllow, bRefused, bAt, cPress, cAllow, cAt, cDone]));
+        const d5 = mk5({ values: { f_dz: 1 } }), dNote = d5.out.notes()[0], dAllow = d5.st().allow; d5.go(300); const dAt = d5.pat.x;
+        const e5 = mk5({ values: { f_ds: 5 } }), eKeys = Object.keys(e5.st()).sort().join(), eNote = e5.out.notes()[0];
+        check('1.6.0 run: a turn whose count gives none of that action has the move alone, and a run no further than the move offers nothing',
+            dAllow === 5 && dNote === 'Your turn: 5 squares (25 ft) to move.' && dAt === 0 && e5.st().allow === 5 && eNote === 'Your turn: 5 squares (25 ft) to move.' && e5.st().ran === undefined, j([dAllow, dNote, dAt, eKeys, eNote]));
+        const w5 = mk5({ rules: { move: 'warn' } }); w5.go(350); const wPress = w5.press('Action'), wRn = w5.out.sent.filter(m => m.type === 'acts-left').pop();
+        const wA = mk5({ rules: { move: 'refuse', acts: 'warn' } }); wA.go(350); const waPress = wA.press('Action');
+        const o5 = mk5({ rules: { move: 'off' } }); o5.go(350); const oRan = o5.st().ran, oPress = o5.press('Action');
+        check('1.6.0 run: Warn lets the roll through with a note to them and the GM, and tells their app so that its button is not greyed by the Actions rule; the Move limit, not the Actions rule, says; Off counts no move and no run',
+            wPress === '' && w5.out.notes().pop() === 'Action: used after giving it up to move further.' && w5.out.toasts.length === 1 && w5.net.turnSpent.c_p.Action === 2 && wRn.rn === 'Action' && !/used after/.test(wA.out.notes().join()) && waPress === 'You gave up your Action to move further.' && oRan === undefined && oPress === '' && o5.pat.x === 350, j([wPress, w5.out.notes(), wRn, waPress, oRan, oPress]));
+        const f5 = mk5({ rules: { acts: 'off' } }); const fPress = f5.press('Action'), fAllow = f5.st().allow, fRan = f5.st().ran; f5.go(300); const fAt = f5.pat.x;
+        const g5 = mk5({ rules: { acts: 'off' } }); g5.go(350); const gPress = g5.press('Action');
+        check('1.6.0 run: with actions not counted the turn still reads what its action went to: a press takes it down to the move, a run past the move still meets the Move limit',
+            fPress === '' && fAllow === 5 && fRan === undefined && fAt === 0 && gPress === 'You gave up your Action to move further.', j([fPress, fAllow, fAt, gPress]));
+        const h5 = mk5(); h5.go(50); h5.C(350); const hSt = h5.st(), hAt = h5.pat.x;
+        check('1.6.0 run: a move that lands through a map copy counts as a move does, past the move it spends the action', hAt === 350 && hSt.ran === true && hSt.moved === 7 && h5.net.turnSpent.c_p.Action === 1, j([hAt, hSt, h5.net.turnSpent]));
+        const i5 = mk5({ system: sys5({ run: 'Secret' }) }), j5 = mk5({ system: sys5({ run: undefined, runCost: undefined }) }), k5 = mk5({ system: sys5({ run: '1d6' }) });
+        check('1.6.0 run: one read from a GM-only value leaves players the one move, a turn with none keeps the four keys it always had and its note, and a formula that rolls dice offers nothing',
+            i5.st().allow === 5 && i5.st().run === undefined && j(Object.keys(j5.st()).sort()) === j(['allow', 'moved', 'rowId', 'tokId']) && j5.out.notes()[0] === 'Your turn: 5 squares (25 ft) to move.' && k5.st().allow === 5 && k5.st().run === undefined, j([i5.st(), j5.st(), k5.st()]));
+        const cf5 = new Function(fnSrc('function cleanFightBody(', '\n// [netcheck:notepad-start]', 'cleanFightBody') + '\nreturn cleanFightBody;')();
+        const kept = cf5({ round: 1, turn: 0, rows: [{ id: 'r', name: 'A' }], mv: { m: 1, a: 10, w: 5 } }, 'm1'), plain = cf5({ round: 1, turn: 0, rows: [{ id: 'r', name: 'A' }], mv: { m: 1, a: 10, w: 'x' } }, 'm1');
+        check('1.6.0 run: a player\'s app keeps how far the move goes before it spends the action only as a number', kept.mv.w === 5 && !('w' in plain.mv), j([kept.mv, plain.mv]));
+    }
     const posA = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), taA = between('// [netcheck:turnacts-start]', '// [netcheck:turnacts-end]', 'turnacts'), aiA = between('// [netcheck:actsin-start]', '// [netcheck:actsin-end]', 'actsin');
     const pidA = ['function peerProfileId('].map(k => { const i = src.indexOf(k); return src.slice(i, src.indexOf('\n', i)); }).join('\n') + '\n';
     const mkA = o => {

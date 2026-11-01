@@ -12,6 +12,7 @@ import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, partsSrc, par
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
 import { callDrops } from './systemcore.js';   // 1.6.0: a call's Read on the one who resisted, as Save reads it (refreshErrors)
+import { cleanTurn } from './systemcore.js';   // 1.6.0: a move by giving up an action, as Save reads it (refreshErrors)
 import { groupRolls, groupWeakest } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
 import { partsTree } from './systemcore.js';   // 205 follow-up (2): the removal question counts a deep list's whole tree of parts
 import { upChanges, revIdle } from './systemcore.js';   // 1.6.0: what a Review entry can apply, and when it asks nothing
@@ -4747,7 +4748,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
 // Turn-based combat T4: why a button that costs an action cannot be pressed now — none of it left this turn, as the host last told this player
 // ('' when it can; a warn table never greys, the note says so). The host judges every press; this only spares the player a refusal
 function costBlock(c, cost) {
-    var n = net(), al = cost && c && n && n.actsLeft ? n.actsLeft[c.id] : null; if (!al || al.mode !== 'refuse' || typeof al.left[cost] !== 'number' || al.left[cost] > 0) return '';
+    var n = net(), al = cost && c && n && n.actsLeft ? n.actsLeft[c.id] : null; if (!al || al.mode !== 'refuse' || typeof al.left[cost] !== 'number' || al.left[cost] > 0 || al.rn === cost) return '';
     var actN = typeof systemOf === 'function' && typeof getActiveCampaign === 'function' ? (((systemOf(getActiveCampaign()) || {}).combat || {}).turn || {}).acts : null, actL = Array.isArray(actN) ? actN.filter(function(a) { return a && a.key === cost; })[0] : null;   // its name, as the host's own refusal says it
     return 'No ' + ((actL && actL.label) || cost) + ' left this turn';
 }
@@ -6852,6 +6853,7 @@ function refreshErrors() {
         if (!KINDS[f.kind]) errs.push({ prop: 'kind', message: 'Pick a kind.' });
         if (errs.length) errorsById[f.id] = errs;
     });
+    var tnW = draft.combat && draft.combat.turn; if (tnW && typeof tnW === 'object' && typeof cleanTurn === 'function' && typeof turnRunSays === 'function') turnRunSays(tnW, cleanTurn(tnW)).forEach(function(w) { (warningsById.combat = warningsById.combat || []).push({ prop: 'turn.run', message: w }); });   // 1.6.0: what Save does with a move by giving up an action
     if (typeof cleanFieldUnit === 'function') draft.fields.forEach(function(f) {   // 1.5.4: a field's unit as Save reads it: a text field's unit that is not height goes, and a measure spelled so that it is not one stays as words
         var uw = f && typeof f.unit === 'string' ? f.unit.trim() : ''; if (!uw) return;
         if (f.kind === 'text') { if (!cleanFieldUnit(f.unit, 'text')) (errorsById[f.id] = errorsById[f.id] || []).push({ prop: 'unit', message: 'A text field takes the unit height or weight alone, so Save drops \u201c' + uw + '\u201d.' }); return; }
@@ -7435,9 +7437,10 @@ function errorCell(id) {
     if (!cell.childNodes.length) cell.style.display = 'none';
     return cell;
 }
-function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (/^(?:list\.)?byIf(\.|$)/.test(p || '')) return 'Read on the one who resisted: '; if (p === 'hits' || /^list\.hits\./.test(p || '')) return 'Hits it rolls for: '; if (p === 'dmgMajorIf' || /^list\.mjif\./.test(p || '')) return 'A Major Wound where: '; if (p === 'dmg2' || /^list\.dmg2\./.test(p || '')) return 'Second part: '; var pk3 = /^(?:list\.)?(dmg|ad)([345])(\.|$)/.exec(p || ''); if (pk3) return (pk3[2] === '3' ? 'Third' : pk3[2] === '4' ? 'Fourth' : 'Fifth') + ' part' + (pk3[1] === 'ad' ? ' armour divisor' : '') + ': '; if (p === 'ad2' || /^list\.ad2\./.test(p || '')) return 'Second part armour divisor: '; var pkK = /^(?:list\.)?dkind([2345]?)(\.|$)/.exec(p || ''); if (pkK) return (pkK[1] === '' ? 'Kind' : pkK[1] === '2' ? 'Second part kind' : pkK[1] === '3' ? 'Third part kind' : pkK[1] === '4' ? 'Fourth part kind' : 'Fifth part kind') + ': '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; if (p === 'bigAt') return 'Lands as a Big Hit at: '; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
+function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'turn.run') return 'Move by giving up an action: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (/^(?:list\.)?byIf(\.|$)/.test(p || '')) return 'Read on the one who resisted: '; if (p === 'hits' || /^list\.hits\./.test(p || '')) return 'Hits it rolls for: '; if (p === 'dmgMajorIf' || /^list\.mjif\./.test(p || '')) return 'A Major Wound where: '; if (p === 'dmg2' || /^list\.dmg2\./.test(p || '')) return 'Second part: '; var pk3 = /^(?:list\.)?(dmg|ad)([345])(\.|$)/.exec(p || ''); if (pk3) return (pk3[2] === '3' ? 'Third' : pk3[2] === '4' ? 'Fourth' : 'Fifth') + ' part' + (pk3[1] === 'ad' ? ' armour divisor' : '') + ': '; if (p === 'ad2' || /^list\.ad2\./.test(p || '')) return 'Second part armour divisor: '; var pkK = /^(?:list\.)?dkind([2345]?)(\.|$)/.exec(p || ''); if (pkK) return (pkK[1] === '' ? 'Kind' : pkK[1] === '2' ? 'Second part kind' : pkK[1] === '3' ? 'Third part kind' : pkK[1] === '4' ? 'Fourth part kind' : 'Fifth part kind') + ': '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; if (p === 'bigAt') return 'Lands as a Big Hit at: '; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
 function formulaTextFor(id, prop) {
     if (id === 'combat' && prop === 'turn.move') return (draft.combat && draft.combat.turn && draft.combat.turn.move) || '';   // turn-based combat T1
+    if (id === 'combat' && prop === 'turn.run') return (draft.combat && draft.combat.turn && draft.combat.turn.run) || '';   // 1.6.0
     if (id === 'checks') return draft.combat && (prop === 'critAt' || prop === 'fumbleAt') && typeof draft.combat[prop] === 'string' ? draft.combat[prop] : '';   // 1.6.0: the Combat card's critical range
     if (id === 'range') return prop === 'formula' && draft.combat && draft.combat.range && typeof draft.combat.range.formula === 'string' ? draft.combat.range.formula.trim() : '';   // range penalties R1: as refreshErrors read it
     if (/^b_/.test(id)) { var bdF = (draft.budgets || []).find(function(x) { return x && x.id === id; }); return bdF && (prop === 'has' || prop === 'spent') && typeof bdF[prop] === 'string' ? bdF[prop] : ''; }   // 126: a budget's formula, as the validator read it
@@ -10495,7 +10498,20 @@ function turnTradeOpts(tn) {
     (Array.isArray(tn.acts) ? tn.acts : []).forEach(function(a) { if (a && typeof a === 'object' && typeof a.key === 'string' && a.key.trim()) out.push([a.key, 'Spends ' + (typeof a.label === 'string' && a.label ? a.label : a.key)]); });
     return out;
 }
-function turnTradeFollow(tn, was, now) { if (was && tn.trade === was) { if (now) tn.trade = now; else delete tn.trade; } }
+function turnTradeFollow(tn, was, now) { if (was && tn.trade === was) { if (now) tn.trade = now; else delete tn.trade; } if (was && tn.runCost === was) { if (now) tn.runCost = now; else delete tn.runCost; } }
+// 1.6.0 A move by giving up an action: the actions it may spend, a pick of none first, and what Save does with the pair, as the cleaner reads it
+function turnRunOpts(tn) {
+    var out = [['', 'Pick the action']];
+    (Array.isArray(tn.acts) ? tn.acts : []).forEach(function(a) { if (a && typeof a === 'object' && typeof a.key === 'string' && a.key.trim()) out.push([a.key, 'Spends ' + (typeof a.label === 'string' && a.label ? a.label : a.key)]); });
+    return out;
+}
+function turnRunSays(tn, kept) {
+    var out = [], has = typeof tn.run === 'string' && !!tn.run.trim(); if (kept && kept.run) return out;
+    if (has && !(kept && kept.move)) out.push('It needs a Move per turn, so Save drops it.');
+    else if (has) out.push('It needs the action it spends, from the actions below, so Save drops it.');
+    else if (typeof tn.runCost === 'string' && tn.runCost) out.push('It names no formula, so Save drops the action it spends.');
+    return out;
+}
 // [systemcheck:turntrade-end]
 function turnBox(box, cm) {
     var tn = cm.turn && typeof cm.turn === 'object' && !Array.isArray(cm.turn) ? cm.turn : {}, wrap = el('div', 'sys-turn');
@@ -10505,6 +10521,9 @@ function turnBox(box, cm) {
     var mv = input('sys-turn-mvf field', typeof tn.move === 'string' ? tn.move : '', 'How far a character moves in one turn, worked out for each character (no dice): BasicMove, Speed, floor(DX / 2); empty: no limit', 'Move per turn (e.g. Speed)'); mv.maxLength = LIMITS.formula; r1.appendChild(mv);
     r1.appendChild(select('sys-turn-mvu', [['cells', 'grid cells'], ['ft', 'feet'], ['yd', 'yards'], ['m', 'metres']], typeof tn.unit === 'string' && TURN_UNITS[tn.unit] === 1 ? tn.unit : 'cells', 'The unit the move counts in: each map\u2019s scale converts it (30 ft on 5 ft squares is 6 squares; 5 yd on 1 yd hexes is 5 hexes)'));
     wrap.appendChild(r1);
+    var r1r = el('div', 'sys-flags sys-turn-row'), rnB = input('sys-turn-runf field', typeof tn.run === 'string' ? tn.run : '', 'The most a turn may move by giving up the action named beside it, worked out for each character (no dice). While that action is free the map allows this. Moving past Move per turn spends it. Once it is spent the map allows Move per turn alone. Empty: one allowance', 'Move by giving up an action (e.g. Speed * 2)'); rnB.maxLength = LIMITS.formula; r1r.appendChild(rnB);
+    r1r.appendChild(select('sys-turn-runact', turnRunOpts(tn), typeof tn.runCost === 'string' ? tn.runCost : '', 'The action that moving further spends, from the actions below. A roll that costs it after that meets the Move limit in Settings'));
+    wrap.appendChild(r1r);   // 1.6.0
     wrap.appendChild(labeledSelect('sys-turn-diag', 'Diagonals on squares', [['line', 'Straight line'], ['one', 'Every diagonal 1 square'], ['alt', 'Alternating 1\u20132 (5-10-5)']], tn.diag === 'one' || tn.diag === 'alt' ? tn.diag : 'line', 'How a diagonal step counts on a square grid, for the move and for the ruler; hexes are not affected'));
     wrap.appendChild(labeledSelect('sys-turn-off', 'Off a character\u2019s turn', [['', 'Any roll or action'], ['refuse', 'What is called for: a player is refused'], ['warn', 'What is called for: a player is warned']], tn.off === 'refuse' || tn.off === 'warn' ? tn.off : '', 'What a fight allows off a character\u2019s turn. What is called for is a roll from a card, one ticked Resists an attempt or Any time, one due at a turn or a round, and initiative. A stat\u2019s own roll, a typed roll and a row holding its turn are never held back, and you are told of what is'));   // 1.6.0
     wrap.appendChild(labeledSelect('sys-turn-hold', 'A hold lasts', [['', 'Until the round\u2019s end'], ['next', 'Until its next turn']], tn.hold === 'next' ? 'next' : '', 'How long a character may hold its turn. Until its next turn, a hold made on the round\u2019s last turn is not lost, and it ends as that character\u2019s turn comes round'));
@@ -10535,9 +10554,10 @@ function turnBox(box, cm) {
     box.appendChild(wrap);
 }
 function onTurnInput(t) {
-    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-turn-') < 0 || c.indexOf('sys-turn-mvu') >= 0 || c.indexOf('sys-turn-diag') >= 0 || c.indexOf('sys-turn-off') >= 0 || c.indexOf('sys-turn-hold') >= 0) return false;
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-turn-') < 0 || c.indexOf('sys-turn-mvu') >= 0 || c.indexOf('sys-turn-diag') >= 0 || c.indexOf('sys-turn-off') >= 0 || c.indexOf('sys-turn-hold') >= 0 || c.indexOf('sys-turn-runact') >= 0) return false;
     var tn = turnDraft(), rw = t.closest('.sys-turn-act, .sys-turn-tu'), i = rw ? +rw.dataset.ti : -1;
     if (c.indexOf('sys-turn-mvf') >= 0) { if (t.value.trim()) tn.move = t.value.slice(0, LIMITS.formula); else delete tn.move; }
+    else if (c.indexOf('sys-turn-runf') >= 0) { if (t.value.trim()) tn.run = t.value.slice(0, LIMITS.formula); else delete tn.run; }   // 1.6.0
     else if (c.indexOf('sys-turn-secs') >= 0) { var sv = Number(t.value); if (t.value.trim() && isFinite(sv)) tn.secs = sv; else delete tn.secs; }
     else if (rw) {
         var g = rw.classList.contains('sys-turn-act') ? 'act' : 'tu', arr = tn[g === 'act' ? 'acts' : 'units'], x = Array.isArray(arr) && arr[i] && typeof arr[i] === 'object' ? arr[i] : null; if (!x) return true;
@@ -10547,6 +10567,8 @@ function onTurnInput(t) {
         else return true;
         var tsT = g === 'act' && rw.parentNode ? rw.parentNode.querySelector('.sys-turn-trade') : null;   // the list of actions a trade may spend follows what is typed
         if (tsT) { var keepT = typeof tn.trade === 'string' ? tn.trade : ''; while (tsT.firstChild) tsT.removeChild(tsT.firstChild); turnTradeOpts(tn).forEach(function(o) { tsT.appendChild(opt(o[0], o[1], o[0] === keepT)); }); }
+        var trT = g === 'act' && rw.parentNode ? rw.parentNode.querySelector('.sys-turn-runact') : null;   // ... and so does the list of what a move may spend
+        if (trT) { var keepR = typeof tn.runCost === 'string' ? tn.runCost : ''; while (trT.firstChild) trT.removeChild(trT.firstChild); turnRunOpts(tn).forEach(function(o) { trT.appendChild(opt(o[0], o[1], o[0] === keepR)); }); }
     } else return false;
     markDirty(); patchErrors(); return true;
 }
@@ -10555,6 +10577,7 @@ function onTurnChange(t) {
     if (c.indexOf('sys-turn-mvu') >= 0) turnDraft().unit = t.value;
     else if (c.indexOf('sys-turn-diag') >= 0) { var tn = turnDraft(); if (t.value === 'one' || t.value === 'alt') tn.diag = t.value; else delete tn.diag; }
     else if (c.indexOf('sys-turn-trade') >= 0) { var tnT = turnDraft(); if (t.value) tnT.trade = t.value; else delete tnT.trade; }   // 1.6.0
+    else if (c.indexOf('sys-turn-runact') >= 0) { var tnR = turnDraft(); if (t.value) tnR.runCost = t.value; else delete tnR.runCost; }   // 1.6.0
     else if (c.indexOf('sys-turn-off') >= 0) { var tnO = turnDraft(); if (t.value === 'refuse' || t.value === 'warn') tnO.off = t.value; else delete tnO.off; }   // 1.6.0
     else if (c.indexOf('sys-turn-holdend') >= 0) { var tnE = turnDraft(); if (t.value === 'end') tnE.holdEnd = 'end'; else delete tnE.holdEnd; }   // 1.6.0
     else if (c.indexOf('sys-turn-holdact') >= 0) { var tnA = turnDraft(); if (t.value === 'stay') tnA.holdAct = 'stay'; else delete tnA.holdAct; }   // 1.6.0

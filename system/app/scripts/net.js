@@ -9012,6 +9012,7 @@ function handleMessage(msg, conn) {
         var blowRecQ = q.att && typeof attemptRec === 'function' ? attemptRec(q.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
         if (q.att && typeof attemptDrop === 'function') attemptDrop(q.att);   // 1.6.0 (B2): an attempt is resisted once
         var mfQ = null; if (actQ && actQ.malf && varsQ) { var mqQ = Fq.evaluate(actQ.malf, { vars: varsQ }); if (mqQ.ok && typeof mqQ.value === 'number' && isFinite(mqQ.value)) mfQ = Math.max(1, Math.min(1000000, Math.round(mqQ.value))); }   // Stage 6 HUD R3: its Malf, through their view
+        if (mfQ === null && chQ && typeof malfFromGm === 'function') mfQ = malfFromGm(SQ, campQ, chQ, q.act, q.row, Dq.naturalOf(resQ), Fq, tcQ);   // 1.6.0: a Malf that reads a GM-only stat, from the GM's view of that one figure
         if (mfQ !== null) recQ.malf = mfQ;
         var crgQ = SQ && typeof SQ.critRange === 'function' ? SQ.critRange(viewQ ? viewQ : (getActiveCampaign() || {}).system, actQ, varsQ, Fq) : null;
         if (crgQ && chQ && typeof critFromGm === 'function') crgQ = critFromGm(SQ, campQ, chQ, q.act, q.row, crgQ, Dq.naturalOf(resQ), Fq, tcQ);   // 1.6.0: a range that reads a GM-only stat, from the GM's view of that one figure
@@ -10514,6 +10515,15 @@ function critFromGm(S, camp, ch, act, row, pub, nat, F, tctx) {
         return real ? S.critMask(real, pub, nat) : pub;
     } catch (e) { return pub; }
 }
+// 1.6.0: a player's roll whose Malf reads a GM-only stat: their view has lost it, so the host works it out as critFromGm does. A card carries only that this
+// very roll jammed (malfMask). Anything that cannot be worked out leaves no malfunction, as their view holds none
+function malfFromGm(S, camp, ch, act, row, nat, F, tctx) {
+    try {
+        var sys = camp && camp.system, ent = sys ? S.rollEntryOf(sys, act, row) : null; if (!ent || !ent.malf || !S.malfSecret || !S.malfSecret(sys, ent, F, row)) return null;
+        var R = S.makeResolver(sys, ch, F, tctx || undefined), vars = row && typeof row.r === 'string' ? R.row(row.f, row.r) : R; if (typeof vars !== 'function') return null;
+        var q = F.evaluate(ent.malf, { vars: vars }); return q.ok && typeof q.value === 'number' && isFinite(q.value) ? S.malfMask(Math.max(1, Math.min(1000000, Math.round(q.value))), nat) : null;
+    } catch (e) { return null; }
+}
 function diceFrom(prof, gm) { return { id: String((prof && prof.id) || 'x').slice(0, 60), name: String((prof && prof.name) || (gm ? 'GM' : 'Player')).slice(0, 60), gm: !!gm }; }
 // [netcheck:rolltag-start]
 // A HUD's roll history (Stage 6 HUD frame, HF3): every roll this machine saw, tagged HERE with the character it was made as (the host knows
@@ -10646,6 +10656,7 @@ net.diceRoll = function(expr, o) {
     var blowRecR = typeof o.att === 'string' && typeof attemptRec === 'function' ? attemptRec(o.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
     if (typeof o.att === 'string' && typeof attemptDrop === 'function') attemptDrop(o.att);   // 1.6.0 (B2): an attempt is resisted once
     if (mfR !== null) rec.malf = mfR;
+    var mfSec = !!(mfR !== null && SR && SR.malfSecret && campR && campR.system && SR.malfSecret(campR.system, entR, F, o.row)); if (mfSec) { var mfM = SR.malfMask(mfR, D.naturalOf(res)); if (mfM === null) delete rec.malf; else rec.malf = mfM; }   // 1.6.0: the table is shown that a Malf reading a GM-only stat jammed, never the figure
     var crgR = SR && typeof SR.critRange === 'function' && campR && campR.system ? SR.critRange(campR.system, entR, varsR, F) : null;
     if (crgR && chR && SR.critSecret && SR.critSecret(campR.system, entR, F, o.row)) { var pvR = window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(campR) : null, puR = pvR ? SR.critRange(pvR, SR.rollEntryOf(pvR, o.act, o.row), varsR, F) : null; if (puR) crgR = SR.critMask(crgR, puR, D.naturalOf(res)); }   // 1.6.0: the table is shown the outcome of a range that reads a GM-only stat, never the range
     if (crgR) rec.crit = crgR;
@@ -10677,7 +10688,7 @@ net.diceRoll = function(expr, o) {
     var hosting = net.active && net.role === 'host', toName = '', gmR = [];
     if (hosting && !o.priv && SR && campR && campR.system) SR.gmOnlyNames(campR.system, F.names(expr).map(function(n) { return { name: n }; })).concat(rec.names ? SR.gmDerivedNames(campR.system, F, rec.names) : []).forEach(function(n) { if (!gmR.some(function(m) { return m.toLowerCase() === n.toLowerCase(); })) gmR.push(n); });   // a GM-only name the formula writes (a branch not taken too: the card shows the text), and a value it read that is GM-only or worked out from one
     if (rowP && hosting && !o.priv) { var extraR = SR.gmOnlyNames(campR.system, rowP.names).concat(SR.gmDerivedNames(campR.system, F, rowP.names)); extraR.forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // F5b: through a column or a choice
-    if (mfR !== null && hosting && !o.priv && SR && campR && campR.system) { var mfN = F.names(entR.malf); SR.gmOnlyNames(campR.system, mfN.map(function(n) { return { name: n }; })).concat(SR.gmDerivedNames(campR.system, F, mfN)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // R3: the card shows the Malf, so a GM-only one keeps it private
+    if (mfR !== null && !mfSec && hosting && !o.priv && SR && campR && campR.system) { var mfN = F.names(entR.malf); SR.gmOnlyNames(campR.system, mfN.map(function(n) { return { name: n }; })).concat(SR.gmDerivedNames(campR.system, F, mfN)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // R3: the card shows the Malf, so a GM-only one keeps it private
     if (rec.more && hosting && !o.priv && entR && typeof SR.hitsSecret === 'function') SR.hitsSecret(campR.system, entR, F, o.row && chR ? { row: o.row, ch: chR, uDef: uDefR } : null).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); });   // 1.6.0 A burst: the card says each hit's figures, so one read from a GM-only value keeps it private, as a Malf does
     if ((rec.dmg2 || rec.dmg3 || rec.dmg4 || rec.dmg5) && hosting && !o.priv && entR) { var p2N = [2, 3, 4, 5].filter(function(k) { return !!rec['dmg' + k]; }).reduce(function(a, k) { return a.concat([entR['dmg' + k], entR['dtype' + k], entR['ad' + k], entR['dkind' + k]]); }, []).reduce(function(a, t) { return typeof t === 'string' && t ? a.concat(F.names(t)) : a; }, []), p2L = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, p2N, F, uDefR || undefined).names : p2N.map(function(n) { return { name: n }; }); SR.gmOnlyNames(campR.system, p2L).concat(SR.gmDerivedNames(campR.system, F, p2L)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // 1.6.0 (B3): the card says the second part's amount, so one read from a GM-only value keeps it private, as a Malf does
     if ((crgR || rec.big === true) && hosting && !o.priv) { var crN = [entR && entR.critAt, entR && entR.fumbleAt, entR && entR.bigAt, campR.system.combat.critAt, campR.system.combat.fumbleAt].reduce(function(a, t) { return typeof t === 'string' && t ? a.concat(F.names(t)) : a; }, []); SR.gmOnlyNames(campR.system, crN.map(function(n) { return { name: n }; })).concat(SR.gmDerivedNames(campR.system, F, crN)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // 1.6.0: the record carries its critical range, so one read from a GM-only value keeps it private, as a Malf does

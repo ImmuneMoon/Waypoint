@@ -646,8 +646,8 @@ Fog, smoke and difficult terrain
 Systems
 - A list's stat can be GM only. Set it on a row, and the row's players never get
   it: not on their sheet, a card, a file or a trade. A formula that reads it stays
-  on your side, and a roll's critical range that names it is worked out on your
-  machine. The player sees the outcome, never the reason.
+  on your side, and a roll's critical range or Malf that names it is worked out
+  on your machine. The player sees the outcome, never the reason.
 - An Any wound row can read what stands where a blow lands. Pick a list and a
   formula that is true for a row at the struck location. Held.count then says how
   many there are, and the row can write a number stat on each of them.
@@ -933,7 +933,7 @@ System editor
 - A list's change can set the row's own quantity, or one of its own number
   stats, such as a medkit's wear. Used up to 0, the row goes, and its
   notice offers Undo for a few seconds, as the sheet's minus does.
-- A list can carry up to 64 stats, up from 24, 32 columns, up from 12,
+- A list can carry up to 64 stats, up from 24, 48 columns, up from 12,
   and up to 16 rolls, up from 8. A field or a stat can name up to 32 of its values, up from 10.
 - A change of an effect or an item can hold a value at least or at most
   a figure. Two effects that each say Stun at least 1 now read 1, not 2.

@@ -5553,6 +5553,12 @@ function holdsSqueeze(camp, ch, ref, rec, D) {
 }
 // what a roll or an action named by combat.holds did, once it has landed. pass: its verdict, null for one that tests nothing; tc: its token context; was: the
 // attempt it resisted; made: the attempt it made
+function holdRefQ(camp, q, act) {   // what a player's press names, as a hold names it. Their view drops a roll that reads a GM-only value, so a list's roll may stand lower there than on the GM's list, which is where a hold counts it
+    var S = SC(), ref = S && typeof S.holdRefOf === 'function' ? S.holdRefOf(q.act, q.row) : ''; if (!ref || !act || !q.row) return ref;
+    var fs = camp && camp.system && Array.isArray(camp.system.fields) ? camp.system.fields : [], f = fs.filter(function(x) { return x && x.id === q.row.f && x.kind === 'item-list' && x.list && Array.isArray(x.list.rolls); })[0];
+    if (f) for (var i = q.row.i; i < f.list.rolls.length; i++) { var r = f.list.rolls[i]; if (r && r.label === act.label && (r.formula || '') === (act.formula || '')) return q.row.f + '#' + i; }
+    return ref;
+}
 function holdsRolled(camp, ch, ent, ref, pass, tc, was, made) {
     var r = holdsRules(camp); if (!r || !ch) return;
     if (was && was.hf && pass === false) { var cW = orderById(was.hf.f), goneW = holdsOf(cW).filter(function(x) { return x.by === was.hf.by && x.on === was.hf.on; }); if (goneW.length) holdEnd(camp, cW, goneW, 'free'); }   // the holder failed to resist: free
@@ -8115,7 +8121,7 @@ function handleMessage(msg, conn) {
         }
         if (onA && typeof allyCard === 'function' && Array.isArray(resA.onLines) && resA.onLines.length) allyCard(chA, onA.ch, onA.tok.charName || onA.tok.name || onA.ch.name, labelA, resA.onLines, Sa.applyScope(campA.system, onA.ch, actA, rowGmA, Fa), diceFrom(profA, false), conn, profA.id);   // 1.5.9: the card of what moved on the one it was used on
         if (typeof callsAfter === 'function') callsAfter(campA, callEntry(campA.system, qa.row ? { row: qa.row } : { act: qa.act }, actA), null, varsA, onA ? onA.ch : chA, false);   // 1.6.0: Calls for
-        if (typeof holdsRolled === 'function' && typeof Sa.holdRefOf === 'function') holdsRolled(campA, chA, actA, Sa.holdRefOf(qa.act, qa.row), null, tcA, null, '');   // 1.6.0 Who holds whom
+        if (typeof holdsRolled === 'function' && typeof Sa.holdRefOf === 'function') holdsRolled(campA, chA, actA, holdRefQ(campA, qa, actA), null, tcA, null, '');   // 1.6.0 Who holds whom
         // [netcheck:charapply-end]
     } else if (msg.type === 'blast-roll' && net.role === 'host') {
         // [netcheck:blastroll-start]
@@ -8982,7 +8988,7 @@ function handleMessage(msg, conn) {
                 if (!cmQ || !cmQ.ok || cmQ.expr !== q.expr) { denyQ('error', { error: { message: 'That roll does not match its button now.', pos: 0, len: 0 } }); return; }
                 if (pressQ && (actQ.init === true || actQ.resist === true || actQ.to === 'near' || actQ.askLvl === true)) { denyQ('error', { error: { message: 'That roll is not one a crew member presses.', pos: 0, len: 0 } }); return; }
                 if (pressQ && !SQ.rollStationOk(actQ, pressQ.stns, pressQ.link.pressNamed === true)) { denyQ('error', { error: { message: 'That roll is pressed from another station.', pos: 0, len: 0 } }); return; }
-                var hbQ = typeof holdsBar === 'function' && typeof SQ.holdRefOf === 'function' ? holdsBar(campQ, chQ, SQ.holdRefOf(q.act, q.row)) : ''; if (hbQ) { denyQ('error', { error: { message: hbQ, pos: 0, len: 0 } }); return; }   // 1.6.0 Who holds whom
+                var hbQ = typeof holdsBar === 'function' && typeof SQ.holdRefOf === 'function' ? holdsBar(campQ, chQ, holdRefQ(campQ, q, actQ)) : ''; if (hbQ) { denyQ('error', { error: { message: hbQ, pos: 0, len: 0 } }); return; }   // 1.6.0 Who holds whom
                 if (actQ.area && !q.aim) { denyQ('error', { error: { message: typeof AREA_AIM === 'string' ? AREA_AIM : 'Pick where it is aimed.', pos: 0, len: 0 } }); return; }   // 1.6.0: a line takes an aim
                 if (q.att && actQ.resist !== true && !(typeof attemptRec === 'function' && attemptRec(q.att) && attemptRec(q.att).blow)) { denyQ('error', { error: { message: 'That roll does not resist an attempt.', pos: 0, len: 0 } }); return; }   // 1.6.0 (B2)
                 if (q.on && actQ.to !== 'near') { denyQ('error', { error: { message: 'That cannot be used on someone else.', pos: 0, len: 0 } }); return; }   // 1.5.9 (book es/et plan, section 3)
@@ -9043,7 +9049,7 @@ function handleMessage(msg, conn) {
         if (!q.priv && tcQ && tcQ.range && typeof rangeUnseen === 'function' && typeof rangeReadBy === 'function' && rangeUnseen(campQ, tcQ.range, pidQ) && rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? null : q.row)) {   // range R3: its card would tell another player how far a target they cannot see is
             q.priv = 'gm'; if (typeof turnNote === 'function') turnNote(conn, 'Rolled privately: a player on that map cannot see your target.', q.charId);
         }
-        var hsQ = typeof holdsSqueeze === 'function' && chQ && typeof SQ.holdRefOf === 'function' ? holdsSqueeze(campQ, chQ, SQ.holdRefOf(q.act, q.row), recQ, Dq) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
+        var hsQ = typeof holdsSqueeze === 'function' && chQ && typeof SQ.holdRefOf === 'function' ? holdsSqueeze(campQ, chQ, holdRefQ(campQ, q, actQ), recQ, Dq) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
         if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) { sendFailed(e); } if (cvQ) recQ.hit = cvQ.row; pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }   // cvQ: the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
         else { sendTable(recQ, null); if (cvQ) recQ.hit = cvQ.row; pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
         if (hsQ) hsQ.forEach(function(rxQ) { if (q.priv) { rxQ.priv = 'gm'; try { conn.send(rxQ); } catch (e) { sendFailed(e); } pushRoll(rxQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); } else { sendTable(rxQ, null); pushRoll(rxQ, resQ, 'global', { cid: chQ ? q.charId : '' }); } });
@@ -9067,7 +9073,7 @@ function handleMessage(msg, conn) {
             if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === true && tcQ && tcQ.range && typeof tcQ.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ.range.tid, mapId: tcQ.range.mapId, margin: vdQ.margin });   // 1.5.9 Chambers from: a hit puts the round it fired on the roller's target
             else if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === false && typeof window.wpLaunchMiss === 'function') window.wpLaunchMiss({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ && tcQ.range && typeof tcQ.range.tid === 'string' ? tcQ.range.tid : '', mapId: tcQ && tcQ.range && typeof tcQ.range.mapId === 'string' ? tcQ.range.mapId : '', margin: vdQ.margin, crit: ((typeof Dq.checkOf === 'function' ? Dq.checkOf(resQ, ruleQ) : null) || vdQ).crit === 'fumble' ? 'fumble' : '' });   // 1.5.9 (es): a miss lands as its round says, by the verdict's margin (a round that says nothing: the GM places it); its critical failure read as a throw's is, by every system's own (the review of fold 2: a d20's natural 1 too)
         }
-        if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv); attemptCalled(campQ, blowRecQ, q.act, q.row, pcQ, chQ, !!recQ.priv, tcQ); if (typeof holdsRolled === 'function' && typeof SQ.holdRefOf === 'function') holdsRolled(campQ, chQ, actQ, SQ.holdRefOf(q.act, q.row), pcQ, tcQ, blowRecQ, atQ); }   // 1.6.0: Calls for, with its Then landed; Who holds whom
+        if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv); attemptCalled(campQ, blowRecQ, q.act, q.row, pcQ, chQ, !!recQ.priv, tcQ); if (typeof holdsRolled === 'function' && typeof SQ.holdRefOf === 'function') holdsRolled(campQ, chQ, actQ, holdRefQ(campQ, q, actQ), pcQ, tcQ, blowRecQ, atQ); }   // 1.6.0: Calls for, with its Then landed; Who holds whom
         if (actQ && actQ.burst && q.row && typeof burstAfter === 'function') burstAfter(campQ, chQ, actQ, q.row, resQ, ruleQ, mfQ !== null && Dq.naturalOf(resQ) >= mfQ, typeof taQ !== 'undefined' ? taQ : null, tcQ, saveRemoteSoon);   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
         // [netcheck:rollreq-end]
     } else if (msg.type === 'hit-ask' && net.role === 'host') {

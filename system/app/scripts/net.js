@@ -8732,7 +8732,7 @@ function handleMessage(msg, conn) {
             if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === true && tcQ && tcQ.range && typeof tcQ.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ.range.tid, mapId: tcQ.range.mapId });   // 1.5.9 Chambers from: a hit puts the round it fired on the roller's target
             else if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === false && typeof window.wpLaunchMiss === 'function') window.wpLaunchMiss({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ && tcQ.range && typeof tcQ.range.tid === 'string' ? tcQ.range.tid : '', mapId: tcQ && tcQ.range && typeof tcQ.range.mapId === 'string' ? tcQ.range.mapId : '', margin: vdQ.margin, crit: ((typeof Dq.checkOf === 'function' ? Dq.checkOf(resQ, ruleQ) : null) || vdQ).crit === 'fumble' ? 'fumble' : '' });   // 1.5.9 (es): a miss lands as its round says, by the verdict's margin (a round that says nothing: the GM places it); its critical failure read as a throw's is, by every system's own (the review of fold 2: a d20's natural 1 too)
         }
-        if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv); attemptCalled(campQ, blowRecQ, q.act, q.row, pcQ, chQ, !!recQ.priv); }   // 1.6.0: Calls for, with its Then landed
+        if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv); attemptCalled(campQ, blowRecQ, q.act, q.row, pcQ, chQ, !!recQ.priv, tcQ); }   // 1.6.0: Calls for, with its Then landed
         if (actQ && actQ.burst && q.row && typeof burstAfter === 'function') burstAfter(campQ, chQ, actQ, q.row, resQ, ruleQ, mfQ !== null && Dq.naturalOf(resQ) >= mfQ, typeof taQ !== 'undefined' ? taQ : null, tcQ, saveRemoteSoon);   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
         // [netcheck:rollreq-end]
     } else if (msg.type === 'hit-ask' && net.role === 'host') {
@@ -9996,7 +9996,7 @@ function attemptMake(camp, entry, vd, malf, range, fromCh, priv, vars) {   // va
     (Array.isArray(entry.resistOr) ? entry.resistOr : []).forEach(function(oid) { if (typeof oid === 'string' && oid.indexOf('#') > 0) { attRowAlts(camp, tch, oid, toO, rowsA, { map: map, tok: tok, mapId: range.mapId }); return; }   // 1.6.0: a list's roll, a button a row
         (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === oid && r.id !== rr.id && r.resist === true && typeof r.formula === 'string' && !r.apply && !(toO && r.vis === 'gm') && alts.indexOf(r) < 0 && alts.length < 3) alts.push(r); }); });
     _attempts[id] = { charId: tch.id, act: rr.id, m: m }; if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); if (rowsA.length) _attempts[id].rows = rowsA.map(function(x) { return x.f + '#' + x.i + '#' + x.r; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
-    var csA = vars && typeof S.callsDue === 'function' ? S.callsDue(entry, 'resisted', vars, window.wpFormula) : []; if (csA.length) { _attempts[id].calls = csA.map(function(c) { return { roll: c.roll, by: c.by || '' }; }); _attempts[id].callBy = callName(entry); }   // 1.6.0: Calls for, waiting for the target's roll
+    var csA = vars && typeof S.callsDue === 'function' ? S.callsDue(entry, 'resisted', vars, window.wpFormula) : []; if (csA.length) { _attempts[id].calls = csA.map(function(c) { var cK = { roll: c.roll, by: c.by || '' }; if (c.byIf) cK.byIf = c.byIf; return cK; }); _attempts[id].callBy = callName(entry); }   // 1.6.0: Calls for, waiting for the target's roll
     if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, toO, { att: id, by: fromCh && fromCh.name ? (toO && typeof npcByOf === 'function' ? npcByOf(camp, fromCh, tch.ownerId) : fromCh.name) : '', m: m, or: alts, rows: rowsA });
     return id;
 }
@@ -10005,7 +10005,8 @@ function attemptMake(camp, entry, vd, malf, range, fromCh, priv, vars) {   // va
 // system or a list posts another roll of the system as a card (systemcore callsDue picks which, cleanCalls says what each holds): to the character's
 // player, or the GM for an NPC, a private roll or a GM-only roll, and only while that roll's own needs hold, read on the sheet as it now stands. Each
 // card carries a soft record of its own, so a damage roll lands on the character the card is for (systemcore dmgOnSelf). A call that waits for the
-// attempt to be resisted is kept on the attempt and read as the target's roll succeeds (attemptCalled)
+// attempt to be resisted is kept on the attempt and read as the target's roll succeeds (attemptCalled). Its byIf is read then, on the one who resisted,
+// through the system the host holds and with that roll's token context, a list's roll with its row's names: what cannot be worked out does not hold
 function callName(entry) { return String(entry && entry.label || '').split('{')[0].trim().slice(0, 60); }
 function callEntry(sys, q, act) {   // the whole entry behind what a player's view holds
     if (!act || !sys) return null; var pool = [];
@@ -10026,10 +10027,15 @@ function callsAfter(camp, entry, pass, vars, ch, priv) {   // pass: the roll's v
     S.callsDue(entry, pass === true ? 'hit' : pass === false ? 'miss' : '', vars, window.wpFormula).forEach(function(c) { callPost(camp, c.roll, ch, callName(entry), priv); });
 }
 net.callsAfter = callsAfter;
-function attemptCalled(camp, rec, act, row, pass, ch, priv) {   // the target's roll against an attempt came in
+function attemptByIf(camp, text, row, ch, tc) {
+    var S = SC(), Fc = window.wpFormula, v = null; if (!S || !Fc || !camp || !camp.system) return false;
+    try { v = S.makeResolver(camp.system, ch, Fc, tc || null); if (row && typeof row.f === 'string' && typeof row.r === 'string') v = v.row(row.f, row.r, typeof row.lv === 'number' ? row.lv : undefined); } catch (e) { v = null; }
+    return typeof v === 'function' && S.rollNeedsOk({ needs: text }, v, Fc);
+}
+function attemptCalled(camp, rec, act, row, pass, ch, priv, tc) {   // the target's roll against an attempt came in; tc: that roll's token context
     if (!rec || pass !== true || !Array.isArray(rec.calls) || !ch) return;
     var ref = row && typeof row.f === 'string' && typeof row.i === 'number' ? row.f + '#' + row.i : act;
-    rec.calls.forEach(function(c) { if (!c.by || c.by === ref) callPost(camp, c.roll, ch, rec.callBy, priv); });
+    rec.calls.forEach(function(c) { if ((!c.by || c.by === ref) && (!c.byIf || attemptByIf(camp, c.byIf, row, ch, tc))) callPost(camp, c.roll, ch, rec.callBy, priv); });
 }
 // [netcheck:rollcalls-end]
 net.attemptsKept = function() { return _attIds.length; };
@@ -10272,7 +10278,7 @@ net.diceRoll = function(expr, o) {
         if (taR && taR.ok && taR.fired && !mfHitR && vdR && vdR.kind === 'check' && vdR.pass === true && tcR && tcR.range && typeof tcR.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: chR.id, fieldId: taR.fired.f, rowId: taR.fired.r, tid: tcR.range.tid, mapId: tcR.range.mapId });   // 1.5.9 Chambers from: a hit puts the round it fired on the target
         else if (taR && taR.ok && taR.fired && !mfHitR && vdR && vdR.kind === 'check' && vdR.pass === false && typeof window.wpLaunchMiss === 'function') window.wpLaunchMiss({ charId: chR.id, fieldId: taR.fired.f, rowId: taR.fired.r, tid: tcR && tcR.range && typeof tcR.range.tid === 'string' ? tcR.range.tid : '', mapId: tcR && tcR.range && typeof tcR.range.mapId === 'string' ? tcR.range.mapId : '', margin: vdR.margin, crit: ((typeof D.checkOf === 'function' ? D.checkOf(res, ruleR) : null) || vdR).crit === 'fumble' ? 'fumble' : '' });   // 1.5.9 (es): a miss lands as its round says; its critical failure read as a throw's is
     }
-    if (chR && (entR || blowRecR) && typeof callsAfter === 'function') { var vcR = D.verdictOf(res, ruleR), pcR = mfR !== null && D.naturalOf(res) >= mfR ? false : vcR && vcR.kind === 'check' ? vcR.pass === true : null; if (entR) callsAfter(campR, entR, pcR, varsR, typeof onR !== 'undefined' && onR ? onR.ch : chR, !!rec.priv || !!rec.to); attemptCalled(campR, blowRecR, o.act, o.row, pcR, chR, !!rec.priv || !!rec.to); }   // 1.6.0: Calls for, with its Then landed
+    if (chR && (entR || blowRecR) && typeof callsAfter === 'function') { var vcR = D.verdictOf(res, ruleR), pcR = mfR !== null && D.naturalOf(res) >= mfR ? false : vcR && vcR.kind === 'check' ? vcR.pass === true : null; if (entR) callsAfter(campR, entR, pcR, varsR, typeof onR !== 'undefined' && onR ? onR.ch : chR, !!rec.priv || !!rec.to); attemptCalled(campR, blowRecR, o.act, o.row, pcR, chR, !!rec.priv || !!rec.to, tcR); }   // 1.6.0: Calls for, with its Then landed
     if (entR && entR.burst && o.row && typeof burstAfter === 'function') burstAfter(campR, chR, entR, o.row, res, ruleR, mfR !== null && D.naturalOf(res) >= mfR, typeof taR !== 'undefined' ? taR : null, tcR, function() { save(true); });   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
     net.rollCheck = D.checkOf ? D.checkOf(res, ruleR) : null;   // 1.5.8 explosives: this roll's pass, critical and margin, read by a throw right after it (this machine's own)
     return { ok: true, value: res.value, priv: !!rec.priv };

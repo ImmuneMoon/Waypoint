@@ -231,6 +231,8 @@ Systems, more
 - A roll or an action can call for another roll as a card to press: whatever
   comes of it, on a success, on a failure, or when it is resisted, when the card
   goes to the target.
+- A call that waits for a roll to be resisted can ask about the one who resisted,
+  such as which row of a list they used, so only some parries bring the card.
 - Table Chat moves by its header.
 - A player's selection box takes only their own tokens.
 - The left panel's right-click menu works when the panel is opened from

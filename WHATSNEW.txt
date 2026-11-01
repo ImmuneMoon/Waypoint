@@ -1011,6 +1011,8 @@ Small fixes from a long test by hand
   when you use them. A list stepped by the keyboard keeps the focus.
 - A player whose link drops no longer asks their own computer for the GM's
   pictures.
+- Effects can share an end. Give them the same word in Shares an end and a Rank:
+  when one comes on, a heavier effect that would end sooner takes the later end.
 
 WAYPOINT 1.5.9 — What's New
 ============================

@@ -3013,6 +3013,7 @@ function cleanEffectDef(d, fieldKinds, gmView, F) {   // conditions C4: F, for a
     var esw = cleanRollSw(d.rollSw, fieldKinds); if (esw) o.rollSw = esw;   // 1.6.0: the bonuses it offers a roll while it is on
     if (FX_AGAIN[d.again] === 1) o.again = d.again;   // 1.6.0 (a builder audit): When added again, Keep the longer or Add the times (absent: Replace, as ever)
     if (d.ends === 'turnEnd') o.ends = 'turnEnd';   // 1.6.0 Counts at its turn's end (fxTick), the same in both views (absent: at its turn's start, as ever)
+    if (typeof d.endGroup === 'string' && FX_END_GROUP.test(d.endGroup)) { o.endGroup = d.endGroup; if (typeof d.endRank === 'number' && fin(d.endRank) && Math.round(d.endRank) >= 1 && Math.round(d.endRank) <= 99) o.endRank = Math.round(d.endRank); }   // 1.6.0 Shares an end (fxShareEnd), the same in both views
     return o;
 }
 // Conditions C4: an automatic effect's formula — one that reads, rolls no dice (whether it names a GM-only value is judged over the whole system)
@@ -9216,6 +9217,26 @@ function applyStyle(sys, char, fieldId, rec, F, opts) {
 // what was left). 'longer' keeps whichever has more time left, no timer being the longest; 'add' adds what was left and the new time (no timer
 // on either: none). cur: the row's timer, nu: the new one (null: none), now: the host's clock. { t: the timer kept (null: none), said: words }
 var FX_AGAIN = Object.freeze({ longer: 1, add: 1 });
+// 1.6.0 Shares an end (the session that keeps a campaign's build: two effects of one kind, the heavier of which holds until the later end). Library effects
+// of one endGroup, each with its endRank (absent 1; higher is heavier). When a row of the group comes on, a timed row that is on and would end sooner than
+// a row of a lower rank takes a copy of the latest such end: only its timer changes, and it never moves earlier. No timer is the latest end, as fxAgain has
+// it, and a paused timer is left alone on either side. A row marked by its turn's start (t.e) ends a round sooner than one of the same left that is not
+var FX_END_GROUP = /^[A-Za-z0-9_-]{1,24}$/;
+function fxEndKey(t, now, rs) { return isObj(t) ? fxLeftNow(t, now) - (t.e === 1 ? rs : 0) : Infinity; }
+function fxShareEnd(sys, list, group, now) {
+    var defs = map(), rs = roundSecs(sys); (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (isObj(d) && typeof d.id === 'string') defs[d.id] = d; });
+    var rows = list.filter(function(r) { return isObj(r) && r.on !== false && typeof r.ref === 'string' && !!defs[r.ref] && defs[r.ref].endGroup === group; });
+    var rank = function(r) { return typeof defs[r.ref].endRank === 'number' ? defs[r.ref].endRank : 1; }, moved = 0;
+    rows.forEach(function(r) {
+        if (!isObj(r.t) || r.t.p === 1) return;
+        var mine = fxEndKey(r.t, now, rs), best = mine, from = null;
+        rows.forEach(function(o) { if (o === r || rank(o) >= rank(r) || (isObj(o.t) && o.t.p === 1)) return; var k = fxEndKey(o.t, now, rs); if (k > best) { best = k; from = o; } });
+        if (!from) return;
+        if (isObj(from.t)) r.t = Object.assign({}, from.t); else delete r.t;
+        moved++;
+    });
+    return moved;
+}
 function fxSecsWords(s) { if (!fin(s)) return 'no end'; s = Math.max(0, s); return s < 60 ? fmtNum(Math.round(s * 10) / 10) + ' s' : s < 3600 ? fmtNum(Math.round(s / 6) / 10) + ' min' : s < 86400 ? fmtNum(Math.round(s / 360) / 10) + ' h' : fmtNum(Math.round(s / 8640) / 10) + ' days'; }
 function fxAgain(rule, cur, nu, now, inCombat) {
     var cl = isObj(cur) ? fxLeftNow(cur, now) : Infinity, nl = isObj(nu) ? nu.left : Infinity;
@@ -9255,6 +9276,7 @@ function applyEffectOp(sys, char, fieldId, q, F, opts) {
         else if (idx >= 0) return { ok: false, reason: 'value' };
         else if (list.length >= LIMITS.effectRows) return { ok: false, reason: 'field' };
         else { var nA = { id: rowId, ref: q.ref, on: true }; if (tA) nA.t = tA; list.push(nA); }
+        if (typeof def.endGroup === 'string') fxShareEnd(sys, list, def.endGroup, opts.now);   // 1.6.0 Shares an end
     } else if (q.op === 'adhoc') {
         if (idx >= 0 && list[idx].ref !== undefined) return { ok: false, reason: 'value' };
         var fk = vo.fields;

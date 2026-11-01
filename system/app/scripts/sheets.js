@@ -7153,7 +7153,7 @@ function refreshErrors() {
         if (sp.once && typeof sp.once === 'object' && typeof cleanListSpec === 'function') {   // 1.5.8 Counted once, as the cleaner reads it
             var onceK = (cleanListSpec(sp, true, F()) || {}).once;
             if (!onceK) errs.push({ message: 'Counted once needs a group stat and what makes a row the higher, each a number stat of this list or its level. Save drops it.' });
-            else { if (sp.once.cost && !onceK.cost) errs.push({ message: 'Counted once: its full price names no number stat or column of this list, so Save drops it.' }); if (sp.once.free && !onceK.free) errs.push({ message: 'Counted once: what was given free names no number stat of this list, so Save drops it.' }); if (sp.once.across === true && !onceK.across) errs.push({ message: 'Counted once: Across specialties needs a list with Specialties, so Save drops it.' }); }
+            else { if (sp.once.cost && !onceK.cost) errs.push({ message: 'Counted once: its full price names no number stat or column of this list, so Save drops it.' }); if (sp.once.free && !onceK.free) errs.push({ message: 'Counted once: what was given free names no number stat or column of this list, so Save drops it.' }); if (sp.once.across === true && !onceK.across) errs.push({ message: 'Counted once: Across specialties needs a list with Specialties, so Save drops it.' }); }
         }
         (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(cc) {   // 1.5.4: a column's Metric list and its decimals, as the cleaner reads them
             if (!cc || typeof cc !== 'object') return;
@@ -8735,7 +8735,7 @@ function onceBox(box, sp) {
     rw.appendChild(sel('sys-list-onceby', 'Group', o.by, [['', 'Not counted once']].concat(nums), 'Rows whose figure here is the same, and not 0, are one thing held two ways. Only one of them applies'));
     rw.appendChild(sel('sys-list-oncerank', 'Higher by', o.rank, (sp.lvl && typeof sp.lvl === 'object' ? [['lvl', 'Its ' + (typeof sp.lvl.label === 'string' && sp.lvl.label ? sp.lvl.label : 'level')]] : []).concat(nums), 'Of a group, the row with the higher figure here applies. A tie goes to the row with less given free, then the later row'));
     rw.appendChild(sel('sys-list-oncecost', 'Full price', o.cost, [['', 'None']].concat(nums, cols), 'Row.oncecost reads the highest figure here in the row\u2019s group'));
-    rw.appendChild(sel('sys-list-oncefree', 'Given free', o.free, [['', 'None']].concat(nums), 'Row.oncefree reads the largest figure here in the row\u2019s group'));
+    rw.appendChild(sel('sys-list-oncefree', 'Given free', o.free, [['', 'None']].concat(nums, cols), 'Row.oncefree reads the largest figure here in the row\u2019s group. A column can say what a granted row gives free. A tie between rows goes by a stat, so with a column it goes to the later row'));
     if (sp.specs && typeof sp.specs === 'object') {   // 1.6.0: Across specialties, shown only on a list with Specialties
         var acL = el('label', 'sys-check'), acI = el('input', 'sys-list-onceacross'); acI.type = 'checkbox'; acI.checked = o.across === true; acL.title = 'Rows of one group count once whatever specialty each row names. Without this, each specialty counts on its own'; acL.appendChild(acI); acL.appendChild(el('span', null, 'Across specialties')); rw.appendChild(acL);
     }

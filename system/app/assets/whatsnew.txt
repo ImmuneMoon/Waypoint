@@ -44,6 +44,8 @@ System editor
 - Change an entry's key or delete the entry, and the Library says what still
   names the old key.
 - A table read by a choice says which options have no row of the table.
+- Counted once: Given free can name a column now, as Full price can, so a row
+  another row granted can say what it gives free.
 
 WAYPOINT 1.6.1 — What's New
 ============================

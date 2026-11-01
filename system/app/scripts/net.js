@@ -6343,8 +6343,8 @@ net.hitRows = function(charId, cb) {
 };
 // 1.6.0 Where a hit behind cover lands: a damage roll at a target behind cover asks here, on the host, after its entry's own aim is read. A damage roll is
 // the hit: nothing rolls it for a blow that missed. The pick an attack roll made is kept for its damage, which may read no location itself (coverAims, by
-// character, the host's memory alone and gone with the table). The answer is systemcore coverHitFor's. A posture that sets the die aside is the range's
-// own aimed, 1 (Target.Aimed, read as a plain field so that nothing changes until a posture sets it). null: nothing to say
+// character, the host's memory alone and gone with the table). The answer is systemcore coverHitFor's. A posture sets the die aside as Target.Aimed reads it:
+// systemcore coverPosture, the harsher of it and cover, so a posture cover outdoes sets nothing aside. null: nothing to say
 var coverAims = Object.create(null);
 function coverAimForget() { coverAims = Object.create(null); }
 function coverAimNote(camp, chId, rc, rowId, reads) {   // an attack roll: its pick, or none where it read the location and picked none
@@ -6357,7 +6357,7 @@ function coverHitIn(camp, chId, rc, rowId) {
     if (!rc || typeof rc.tid !== 'string' || typeof rc.mapId !== 'string' || !camp.items || !own(camp.items, rc.mapId)) return null;
     var map = camp.items[rc.mapId], w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === rc.tid; }) : null, tc = w && w.isChar && typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null;
     if (!tc) return null;
-    var cv = S.coverHitFor(camp.system, tc, rc.cgrade, F, { aim: rowId || (kept && kept.tid === rc.tid ? kept.row : ''), aimed: rc.aimed === 1, die: function(n) { var q = F.evaluate('1d' + n); return q && q.ok && typeof q.value === 'number' ? q.value : 1; } });
+    var cv = S.coverHitFor(camp.system, tc, rc.cgrade, F, { aim: rowId || (kept && kept.tid === rc.tid ? kept.row : ''), aimed: typeof S.coverPosture === 'function' && S.coverPosture(camp.system, rc).aimed === 1, die: function(n) { var q = F.evaluate('1d' + n); return q && q.ok && typeof q.value === 'number' ? q.value : 1; } });
     if (cv && window.wpStepLog) window.wpStepLog('coverhit v1', 'landed', { grade: rc.cgrade, stood: cv.stood === true, die: typeof cv.d === 'number', second: typeof cv.e === 'number' });
     return cv;
 }

@@ -1768,7 +1768,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const sayO = ORB.onRemoveSays(sp, [{ id: bad, kind: 'number' }], {});
             const fGs = { key: 'A', list: { stats: [{ key: bad, vis: 'gm', split: true }] } }, sayS = ORB.gmStatSays(fGs, [fGs, { key: 'B', label: bad, list: { stats: [{ key: bad }] } }]);
             check('1.6.0 a GM-only stat from a hostile system file: what Save says of it is words a line holds as its text, a hostile key and a hostile label quoted and never markup (gmStatSays, run for real)',
-                sayS.errs.length === 1 && sayS.warns.length === 1 && typeof sayS.errs[0] === 'string' && sayS.errs[0].includes(bad) && typeof sayS.warns[0] === 'string', j(sayS));
+                sayS.errs.length === 1 && sayS.warns.length === 1 && typeof sayS.errs[0] === 'string' && sayS.errs[0].includes(bad) && typeof sayS.warns[0] === 'string' && ORB.gmStatSays({ key: 'A', list: { price: bad, stats: [{ key: bad, vis: 'gm' }] } }, [{ key: 'A', list: { stats: [{ key: bad, vis: 'gm' }] } }]).warns.every(w => typeof w === 'string'), j(sayS));
             check('1.6.0 When a row is taken off from a hostile file (sheets.js onRemoveBox and onRemoveSays, run for real on a page that takes no markup): a hostile field, a hostile label and a hostile formula reach the box as an option\'s text and value and an input\'s value alone; what Save says quotes nothing of them',
                 vals.includes(bad) && texts.includes(bad) && sayO.length === 1 && sayO[0].indexOf(bad) < 0, j([texts, vals, sayO]));
         }

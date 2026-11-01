@@ -4942,6 +4942,7 @@ window.wpFitToGrid = fitToGrid;
       var dir = hasD ? (typeof opts.direct === 'string' ? opts.direct : null) : aimT ? aimT.id : null, po = { goOff: true, launched: true, x: aim.x, y: aim.y, ft: a.ft, name: a.name || d.name || '', by: lr.ch.name || '', charId: opts.charId, fieldId: lr.f.id, rowId: opts.rowId, damage: d.damage || '', gmOnly: gm, direct: dir, dtype: a.type, ad: a.ad, notes: gm ? '' : d.notes, icon: d.icon, frag: a.frag, fragType: a.fragType, aff: a.aff };   // 1.5.9 (es): the round's own fragmentation and afflictions
       var lsS = window.wpSystemCore, lsF = lsS && typeof lsS.fieldById === 'function' && lr.f.list.chamber && typeof blastStats === 'function' ? lsS.fieldById(camp.system, lr.f.list.chamber.from) : null; if (lsF) Object.assign(po, blastStats(camp.system, lsF, d));   // 1.6.0: by the list its round comes from
       if (typeof opts.said === 'string' && opts.said) po.said = opts.said; if (opts.fuse === true) po.fuseOk = true;
+      var fsL = typeof blastStats === 'function' ? blastStats(camp.system, lr.f, d) : null; if (fsL) { if (typeof fsL.fills === 'number' && fsL.fills > 0) po.fills = fsL.fills; if (fsL.noDrop === true) po.noDrop = true; }   // 1.6.0: what its list says of it, as a throw's row is read
       if (typeof opts.margin === 'number' && isFinite(opts.margin)) po.atkM = opts.margin; if (opts.shot) po.defKey = burstKey(opts);   // 1.6.0: a blast's own Defense roll: the attack's margin, read by its direct target, and the burst whose rounds take one roll
       return placeThrownBlast(po, map);
   }

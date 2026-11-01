@@ -9567,6 +9567,18 @@ function gmStatSays(f, fields) {
         if (s.split === true) errs.push('Stat \u201c' + k + '\u201d: GM only keeps it out of trades, so Save drops Split in trades.');
         (fields || []).forEach(function(x) { if (!x || x === f || !x.list || !Array.isArray(x.list.stats)) return; if (x.list.stats.some(function(t) { return t && typeof t === 'object' && t.vis !== 'gm' && typeof t.key === 'string' && low(t.key) === low(k); })) warns.push('Stat \u201c' + k + '\u201d is GM only here, so players get it on no list, ' + (x.label || x.key || 'that list') + ' among them.'); });
     });
+    // what the players' view loses because it names such a stat of any list: the GM keeps it, and a player's copy of the system does not have it
+    var gk = {}; (fields || []).forEach(function(x) { if (x && x.list && Array.isArray(x.list.stats)) x.list.stats.forEach(function(s) { if (s && typeof s === 'object' && s.vis === 'gm' && typeof s.key === 'string') gk[low(s.key)] = s.key; }); });
+    if (!Object.keys(gk).length || !f || !f.list) return { errs: errs, warns: warns };
+    var sp = f.list, obj = function(o) { return o && typeof o === 'object' ? o : {}; }, seen = {}, says = function(what, k) { var n = gk[low(k)]; if (typeof k !== 'string' || !Object.prototype.hasOwnProperty.call(gk, low(k)) || seen[what + '|' + n]) return; seen[what + '|' + n] = 1; warns.push(what + ' names \u201c' + n + '\u201d, a GM only stat, so players do not get it on this list.'); };
+    [['Price', sp.price], ['Places split by', sp.placeBy], ['Sets by', sp.sets], ['Money', sp.money], ['One at a time', obj(sp.on).per], ['Where rows meet', obj(sp.on).over], ['Rows carry a look', obj(sp.look).by], ['Stands at a row of', obj(sp.at).by]].forEach(function(p) { says(p[0], p[1]); });
+    ['by', 'rank', 'cost', 'free'].forEach(function(k) { says('Counted once', obj(sp.once)[k]); }); ['of', 'by', 'fall', 'dflt', 'cover'].forEach(function(k) { says('Specialties', obj(sp.specs)[k]); });
+    ['by', 'to'].forEach(function(k) { says('Loads from', obj(sp.load)[k]); says('Chambers from', obj(sp.chamber)[k]); }); says('Chambers from', obj(sp.chamber).capBy);
+    (Array.isArray(sp.feeds) ? sp.feeds : []).forEach(function(d) { says('A feed', obj(d).by); says('A feed', obj(d).to); });
+    says('Parts', obj(sp.parts).capBy); (Array.isArray(obj(sp.parts).caps) ? sp.parts.caps : []).forEach(function(c) { says('Holds by kind', obj(c).by); says('Holds by kind', obj(c).slot); });
+    (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(c) { (Array.isArray(obj(c).plus) ? c.plus : []).forEach(function(k) { says('With stats', k); }); });
+    var skip = { stats: 1, label: 1, name: 1, tip: 1, needsText: 1, fumbleAt: 1, critAt: 1, offLabel: 1, category: 1 }, reads = function(t) { (String(t).match(/\b(?:row|host)(?:\.[a-z_][a-z0-9_]*)+/gi) || []).forEach(function(n) { n.split('.').slice(1).forEach(function(k) { if (Object.prototype.hasOwnProperty.call(gk, low(k))) says('A formula', k); }); }); }, walk = function(o, d) { if (d > 8) return; if (typeof o === 'string') { reads(o); return; } if (Array.isArray(o)) { o.forEach(function(x) { walk(x, d + 1); }); return; } if (o && typeof o === 'object') Object.keys(o).forEach(function(k) { if (skip[k] !== 1) walk(o[k], d + 1); }); };
+    walk(sp, 0);
     return { errs: errs, warns: warns };
 }
 // [sinkcheck:onremovebox-end]

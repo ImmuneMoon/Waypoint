@@ -4028,6 +4028,7 @@ function cleanSystem(sys, opts) {
     var ormF = map(); out.fields.forEach(function(f) { if (APPLY_KINDS[f.kind] === 1) ormF[f.id] = 1; }); out.fields.forEach(function(f) { if (f.kind !== 'item-list' || !isObj(f.list) || !Array.isArray(f.list.onRemove)) return; var ormL = f.list.onRemove.filter(function(c) { return ormF[c.f] === 1; }); if (ormL.length) f.list.onRemove = ormL; else delete f.list.onRemove; });   // 1.6.0: a change moves a pool, a number or a toggle of this view
     var upRs = map(); out.fields.forEach(function(f) { if (f.kind === 'resource') upRs[f.id] = 1; }); out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.upkeep) && upRs[f.list.upkeep.pool] !== 1) delete f.list.upkeep; });   // 1.6.0 (CORE gap 13): an upkeep comes off a pool of this view   // 1.6.0 R14: parts from an item list of this view, this very list too
     if (gmView) oneSpelling(out.fields);   // Stage 6 F4c1 (critic 2): one spelling per stat key, the first list's in field order
+    if (gmStK) out.fields.forEach(function(f) { if (!isObj(f.list)) return; [f.list.load, f.list.chamber].concat(Array.isArray(f.list.feeds) ? f.list.feeds : []).forEach(function(x) { if (isObj(x) && typeof x.to === 'string' && gmStK[lower(x.to)] === 1) { delete x.by; delete x.to; } }); });   // 1.6.0: a match to a GM-only stat of the list it loads from
     var seenR = map();
     (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (out.rolls.length >= LIMITS.rolls) return; var c = cleanRollDef(r, gmView); if (!c || seenR[c.id]) return; seenR[c.id] = 1; out.rolls.push(c); });
     var gmKeys = gmView ? map() : gmEntryKeys(sys, out.fields), hasGmKeys = Object.keys(gmKeys).length > 0;   // F5a1: per visible list, the keys of the GM-only entries in its scope
@@ -10454,9 +10455,13 @@ function gmStatKeys(sys) {
     return out;
 }
 function gmStatRead(keys, ix, l) {
-    if (!keys) return false; var sg = String(l).split('.'), a = sg[0]; if (sg.length < 2 || !(a === 'row' || a === 'host' || (ix && ix[a] && ix[a].kind === 'item-list'))) return false;
+    if (!keys) return false; var sg = String(l).split('.'), a = sg[0]; if (sg.length < 2 || !(a === 'row' || a === 'host' || a === 'hit' || a === 'table' || (a === 'target' && sg[1] === 'hit') || (ix && ix[a] && ix[a].kind === 'item-list'))) return false;
     for (var i = 1; i < sg.length; i++) if (keys[sg[i]] === 1) return true;
     return false;
+}
+function gmEdgeSrc(sys, spec, l) {
+    var fd = /^row\.feed\.([^.]+)\./.exec(l); if (fd) { var d = feedOf(spec, fd[1]); return d ? loadSrc(sys, feedSpec(spec, d)) : null; }
+    return /^row\.(?:round|fired)\./.test(l) && isObj(spec) && isObj(spec.chamber) ? chamberSrc(sys, spec) : null;
 }
 function gmStatsOut(f, keys) { if (!keys || !isObj(f) || !isObj(f.list) || !Array.isArray(f.list.stats)) return f; return Object.assign({}, f, { list: Object.assign({}, f.list, { stats: f.list.stats.filter(function(s) { return !(isObj(s) && typeof s.key === 'string' && keys[lower(s.key)] === 1); }) }) }); }
 // A roll by what it names: a system roll by its id, a list's roll by its place. The entry as this system holds it, or null
@@ -10528,7 +10533,7 @@ function gmDerivedNames(sys, F, names) {
             var atG = isObj(f.list.at) && !ix.row ? atSrc(sys, f.list) : null, atP = atG ? 'row.' + lower(f.list.at.by) + '.' : '';   // 1.6.0 Stands at: Row.<by>.<w> is worked out from that list's names
             var hsG = ix.host ? [] : sys.fields.filter(function(hf) { return isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === f.id; });   // 205 (3): a part's Host.<w> is worked out from its hosts' lists
             var node = 'l#' + lower(f.key), one = function(r) { if (!r) return; if (r.f.vis === 'gm') { if (!hot[node]) { hot[node] = 1; queue.push(node); } } else if (r.def) (readBy[r.f.id] = readBy[r.f.id] || []).push(node); };
-            var edge = function(nm) { var ln = lower(nm), tbE = tbD ? tableRead(sys, ln) : null; if (tbE) { if (tbE.gm) { one({ f: { id: '#gm', vis: 'gm' }, def: false }); return; } if (!tbE.by) return; nm = tbE.by; ln = nm; } if (hsG.length && ln.indexOf('host.') === 0) { hsG.forEach(function(hf) { one({ f: { id: 'l#' + lower(hf.key), vis: hf.vis === 'gm' ? 'gm' : 'all' }, def: true }); }); return; } one(ptG && ln.indexOf('row.parts.') === 0 ? { f: { id: 'l#' + lower(ptG.key), vis: ptG.vis === 'gm' ? 'gm' : 'all' }, def: true } : atG && ln.indexOf(atP) === 0 ? { f: { id: 'l#' + lower(atG.key), vis: atG.vis === 'gm' ? 'gm' : 'all' }, def: true } : reads(nm)); };
+            var edge = function(nm) { var ln = lower(nm), srS = gmStD ? gmEdgeSrc(sys, f.list, ln) : null, tbE = tbD ? tableRead(sys, ln) : null; if (srS) { one({ f: { id: 'l#' + lower(srS.key), vis: srS.vis === 'gm' ? 'gm' : 'all' }, def: true }); return; } if (tbE) { if (tbE.gm) { one({ f: { id: '#gm', vis: 'gm' }, def: false }); return; } if (!tbE.by) return; nm = tbE.by; ln = nm; } if (hsG.length && ln.indexOf('host.') === 0) { hsG.forEach(function(hf) { one({ f: { id: 'l#' + lower(hf.key), vis: hf.vis === 'gm' ? 'gm' : 'all' }, def: true }); }); return; } one(ptG && ln.indexOf('row.parts.') === 0 ? { f: { id: 'l#' + lower(ptG.key), vis: ptG.vis === 'gm' ? 'gm' : 'all' }, def: true } : atG && ln.indexOf(atP) === 0 ? { f: { id: 'l#' + lower(atG.key), vis: atG.vis === 'gm' ? 'gm' : 'all' }, def: true } : reads(nm)); };
             (Array.isArray(f.list.stats) ? f.list.stats : []).forEach(function(st) { if (isObj(st) && st.kind === 'pick') (Array.isArray(st.opts) ? st.opts : []).forEach(function(o) { if (isObj(o) && typeof o.name === 'string' && o.name) edge(o.name); }); });
             (Array.isArray(f.list.cols) ? f.list.cols : []).forEach(function(c) { if (!isObj(c) || typeof c.formula !== 'string' || !c.formula) return; figExpand(sys, F.names(c.formula) || []).forEach(function(n) { edge(nameOf(n)); }); });
         });

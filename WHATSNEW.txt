@@ -1,7 +1,15 @@
 WAYPOINT 1.6.2 — What's New
 ============================
 
-Fixes
+At the table
+- Explode on the Radius tool now asks for a Defense roll where your system gives
+  its blasts one. A system with no such roll goes off at once, as before.
+- A player who joins late now sees past cards about those they can see. Cards
+  about anyone they cannot see stay out of their history.
+- A damage roll is no longer kept private because a critical range reads a
+  GM-only value, since a damage roll has no check to read.
+- A player who reloads keeps what they were pointing at.
+- The Take damage window's preview names the rolls the blow will ask for.
 - Small fixes from the hand tests of 1.6.0.
 
 WAYPOINT 1.6.1 — What's New

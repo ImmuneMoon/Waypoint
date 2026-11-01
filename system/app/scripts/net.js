@@ -6950,7 +6950,7 @@ function admitPlayer(conn, prof, provenKey) {
     // remember this player on the campaign so token ownership can outlive the session
     setTimeout(function() { sendMissedHandouts(conn, prof); }, 2500);
     setTimeout(function() {   // the table's recent conversation, so a latecomer is not lost
-        var recent = chatHistoryOf(chatLog); if (typeof historySeen === 'function') recent = historySeen(recent);
+        var recent = chatHistoryOf(chatLog); if (typeof historySeen === 'function') recent = historySeen(recent, prof);
         if (recent.length && conn.open) { try { conn.send({ type: 'chat-history', log: recent }); } catch (e) { sendFailed(e); } }
     }, 1200);
     var camp = getActiveCampaign();
@@ -7649,6 +7649,7 @@ function handleMessage(msg, conn) {
         var backS = conn.wpRetry === true && !conn.wpBackSaid; conn.wpBackSaid = true;
         toast(backS ? 'Reconnected ✓' : webJ ? 'Campaign synced from host.' : 'Campaign synced from host. Your own campaigns come back when you leave.');   // security (2026-10-01): a reconnect is said when the table is taken — once per connection, in place of the synced notice (the app shows one notice at a time) — never for a connection that merely opened (whoever answers at the code could raise it at every dial)
         if (window.wpVtt) window.wpVtt.joined();   // seed this table's off-list and queue the join notice
+        if (net._pointBack) { var pbS = net._pointBack; net._pointBack = null; setTimeout(function() { if (net.active && net.role === 'client' && !net.selfHeld && !(net.targets && net.targets[net.myId])) net.setTarget(pbS.id, pbS.mapId); }, 300); }   // 1.6.2: a reload keeps what they pointed at. The host judges it as any pointer
         if (conn.wpRetry !== true) { var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'none'; }   // 1.6.0, found by hand: a join you began is done: the window stood open over the table
         net.videoWake();   // item 21 V2: a video the GM is showing, offered before this snapshot, is asked for now
         if (window.wpVoice) { try { window.wpVoice.tableReady(); } catch (e) {} }   // voice chat: a player who was in voice before a reconnect is back in it
@@ -9482,7 +9483,7 @@ function wireConn(conn) {
             if (p) toast((p.name || 'A player') + ' left' + (p.location ? ' — their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
             if (p) logEvent('player', (p.name || 'A player') + ' left' + (p.location ? ' (on ' + ((((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title || p.location) + ')' : ''), { w: p.name || 'A player', x: 'Left the table', d: typeof playsOf === 'function' ? playsOf(p.id).replace(/^Plays/, 'Played') : '' });
             if (p) startWaitGrace(p.id);   // Onboarding F1a: their waiting token goes if they are not back in three minutes
-            if (p && net.targets[p.id]) { delete net.targets[p.id]; render(); broadcastTargets(); }   // fold M0: each player the pointers they may see (a fogged table), never all of them
+            if (p && net.targets[p.id] && !net.conns.some(function(c2) { return c2.peer !== conn.peer && c2.open && net.roster[c2.peer] && net.roster[c2.peer].id === p.id; })) { delete net.targets[p.id]; render(); broadcastTargets(); }   // 1.6.2: a reload's new connection may land before the old one is seen to close, and then the pointer is the new one's. fold M0: each player the pointers they may see (a fogged table), never all of them
             if (!p) return;   // security (2026-10-01): a connection never admitted (a stranger's the gate closed, a waiting peer that gave up) was on no roster and changed nothing: its close saves nothing, tells the table nothing and redraws nothing
             net.applyingRemote = true; save(true); net.applyingRemote = false;   // lastMap persists
             broadcastRoster();
@@ -10211,16 +10212,20 @@ function npcByOf(camp, ch, pid) {   // the name a card may give a player of one 
     return ch && ch.name && npcShown(camp, ch, p) ? ch.name : '';
 }
 function sendTableAs(rec, ch, on) {   // the table's copy of a card made as a character. on (1.6.0): { ch, name }, whom the card landed on: it reaches a player who can see them, named, and no other, since a card with no name still says something unseen was hit (the owner, 2026-11-01)
-    if (_npcCards && ch && (ch.npc === true || !ch.ownerId)) _npcCards.set(rec, 1);
+    var npcR = !!(ch && (ch.npc === true || !ch.ownerId)); if (_npcCards && (npcR || (on && on.ch))) _npcCards.set(rec, { as: npcR ? ch : null, on: on && on.ch ? on.ch : null });   // who it was made as and whom it landed on, for a latecomer's history (historySeen)
     var camp = getActiveCampaign();
     net.conns.forEach(function(c) {
         var p = c.open ? net.roster[c.peer] : null; if (!p || (rec.as && !npcShown(camp, ch, p)) || (on && on.ch && !npcShown(camp, on.ch, p))) return;
         try { c.send(on && on.name ? Object.assign({}, rec, { onName: on.name }) : rec); } catch (e) { sendFailed(e); }
     });
 }
-function historySeen(list) {   // a latecomer's history: such a card goes, since they saw none of it
+function historySeen(list, p) {   // a latecomer's history (p: who reads it): such a card stays only where they can see those it names, by the rule the table's copy goes by. One that cannot be judged goes
     if (!_npcCards) return list;
-    return list.filter(function(m) { var r = m && (m.roll || m.apply); return !(r && (r.onName || (_npcCards.has(r) && r.as))); });   // ... and so does one that landed on someone: this reader may not see them
+    var camp = getActiveCampaign();
+    return list.filter(function(m) {
+        var r = m && (m.roll || m.apply), k = r ? _npcCards.get(r) : null; if (!r || !(r.onName || (k && (k.on || r.as)))) return true;
+        return !!(k && p) && !(k.as && !npcShown(camp, k.as, p)) && !(k.on && !npcShown(camp, k.on, p));
+    });
 }
 // [netcheck:npcseen-end]
 function sendTable(msg, exceptConn) {   // admitted peers only: broadcast() would reach a peer still waiting for the GM's Allow
@@ -10739,12 +10744,13 @@ net.diceRoll = function(expr, o) {
     if (o.label) rec.label = String(o.label).slice(0, D.LIMITS.label);
     if (chR) rec.as = String(chR.name || '').slice(0, D.LIMITS.label);
     var hosting = net.active && net.role === 'host', toName = '', gmR = [];
+    var noChkR = rec.dmg === 1 && typeof D.checkOf === 'function' && !D.checkOf(res, D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '')); if (noChkR) delete rec.crit;   // 1.6.2: a damage roll with no check has no critical to read, so its range is no part of its card and keeps nothing private
     if (hosting && !o.priv && SR && campR && campR.system) SR.gmOnlyNames(campR.system, F.names(expr).map(function(n) { return { name: n }; })).concat(rec.names ? SR.gmDerivedNames(campR.system, F, rec.names) : []).forEach(function(n) { if (!gmR.some(function(m) { return m.toLowerCase() === n.toLowerCase(); })) gmR.push(n); });   // a GM-only name the formula writes (a branch not taken too: the card shows the text), and a value it read that is GM-only or worked out from one
     if (rowP && hosting && !o.priv) { var extraR = SR.gmOnlyNames(campR.system, rowP.names).concat(SR.gmDerivedNames(campR.system, F, rowP.names)); extraR.forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // F5b: through a column or a choice
-    if (mfR !== null && !mfSec && hosting && !o.priv && SR && campR && campR.system) { var mfN = F.names(entR.malf); SR.gmOnlyNames(campR.system, mfN.map(function(n) { return { name: n }; })).concat(SR.gmDerivedNames(campR.system, F, mfN)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // R3: the card shows the Malf, so a GM-only one keeps it private
+    if (mfR !== null && !mfSec && hosting && !o.priv && SR && campR && campR.system) { var mfN = F.names(entR.malf), mfG = SR.gmOnlyNames(campR.system, mfN.map(function(n) { return { name: n }; })).concat(SR.gmDerivedNames(campR.system, F, mfN)); if (noChkR && mfG.length && typeof SR.malfMask === 'function') { var mfQ = SR.malfMask(mfR, D.naturalOf(res)); if (mfQ === null) delete rec.malf; else { rec.malf = mfQ; rec.malfHid = 1; } } else mfG.forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // R3: the card shows the Malf, so a GM-only one keeps it private
     if (rec.more && hosting && !o.priv && entR && typeof SR.hitsSecret === 'function') SR.hitsSecret(campR.system, entR, F, o.row && chR ? { row: o.row, ch: chR, uDef: uDefR } : null).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); });   // 1.6.0 A burst: the card says each hit's figures, so one read from a GM-only value keeps it private, as a Malf does
     if ((rec.dmg2 || rec.dmg3 || rec.dmg4 || rec.dmg5) && hosting && !o.priv && entR) { var p2N = [2, 3, 4, 5].filter(function(k) { return !!rec['dmg' + k]; }).reduce(function(a, k) { return a.concat([entR['dmg' + k], entR['dtype' + k], entR['ad' + k], entR['dkind' + k]]); }, []).reduce(function(a, t) { return typeof t === 'string' && t ? a.concat(F.names(t)) : a; }, []), p2L = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, p2N, F, uDefR || undefined).names : p2N.map(function(n) { return { name: n }; }); SR.gmOnlyNames(campR.system, p2L).concat(SR.gmDerivedNames(campR.system, F, p2L)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // 1.6.0 (B3): the card says the second part's amount, so one read from a GM-only value keeps it private, as a Malf does
-    if ((crgR || rec.big === true) && hosting && !o.priv) { var crN = [entR && entR.critAt, entR && entR.fumbleAt, entR && entR.bigAt, campR.system.combat.critAt, campR.system.combat.fumbleAt].reduce(function(a, t) { return typeof t === 'string' && t ? a.concat(F.names(t)) : a; }, []); SR.gmOnlyNames(campR.system, crN.map(function(n) { return { name: n }; })).concat(SR.gmDerivedNames(campR.system, F, crN)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // 1.6.0: the record carries its critical range, so one read from a GM-only value keeps it private, as a Malf does
+    if ((crgR || rec.big === true) && !noChkR && hosting && !o.priv) { var crN = [entR && entR.critAt, entR && entR.fumbleAt, entR && entR.bigAt, campR.system.combat.critAt, campR.system.combat.fumbleAt].reduce(function(a, t) { return typeof t === 'string' && t ? a.concat(F.names(t)) : a; }, []); SR.gmOnlyNames(campR.system, crN.map(function(n) { return { name: n }; })).concat(SR.gmDerivedNames(campR.system, F, crN)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // 1.6.0: the record carries its critical range, so one read from a GM-only value keeps it private, as a Malf does
     if (o.priv) rec.priv = 'gm';
     else if (hosting && rowP && rowP.gm) { rec.priv = 'gm'; toast((rowP.stat === true ? 'Kept private: that roll reads a GM-only stat' : 'Kept private: that roll is on a GM-only item or list') + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // F5b: a GM-only row's roll stays the GM's
     else if (hosting && rowP && rowP.kept) { rec.priv = 'gm'; toast('Kept private: its owner sees that item switched off' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // owed review F5b#2: a curse the GM keeps on
@@ -11359,7 +11365,11 @@ function fightsBack() {   // as the host's table opens: the fights its campaign 
 /* ---------- Refresh: reload without losing the session ---------- */
 function refreshMark() {   // what a reload needs in order to come straight back: the app's Refresh, and the browser's own key, which reaches only the page going away (found live, 2026-10-30: F5 left a player at the welcome screen)
     try {
-        if (net.active && net.role === 'client') sessionStorage.setItem('wp_rejoin', JSON.stringify({ code: net.code, name: getProfile().name || '', pass: (ui('netJoinPassInput') || {}).value || '' }));
+        if (net.active && net.role === 'client') {
+            var rjM = { code: net.code, name: getProfile().name || '', pass: (ui('netJoinPassInput') || {}).value || '' }, ptM = net.targets && Object.prototype.hasOwnProperty.call(net.targets, net.myId) ? net.targets[net.myId] : null;
+            if (ptM && typeof ptM.id === 'string' && typeof ptM.mapId === 'string') rjM.point = { id: ptM.id, mapId: ptM.mapId };   // 1.6.2: what this player points at comes back with them
+            sessionStorage.setItem('wp_rejoin', JSON.stringify(rjM));
+        }
         else if (net.active && net.role === 'host') sessionStorage.setItem('wp_rehost', '1');
     } catch (e) {}
 }
@@ -11388,6 +11398,7 @@ setTimeout(function() {
                 toast('Refreshed — rejoining the table…');
                 if (typeof webJoinOnly === 'function' && webJoinOnly()) net.fromWelcome = true;   // 1.5.5: on a website whose plan joins tables alone the welcome's Join a game is up, and what the rejoin says goes to its line
                 joinSession(j.code, j.name);
+                if (j.point && typeof j.point.id === 'string' && typeof j.point.mapId === 'string') net._pointBack = { id: j.point.id, mapId: j.point.mapId };
                 if (typeof rejoinArm === 'function') rejoinArm(j.code, j.name);
             }
         } catch (e) {}

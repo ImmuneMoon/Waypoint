@@ -5154,16 +5154,19 @@ window.wpFitToGrid = fitToGrid;
       var auto = !sys ? 'roll' : combat.blastAuto === 'roll' || combat.blastAuto === 'measure' ? combat.blastAuto : 'full';   // with no character system there is nothing to apply the damage to
       var diceOn = !window.wpVtt || window.wpVtt.on('dice'), rolled = false, total = null;
       var rlX = typeof blastRules === 'function' ? blastRules(sys) : null, eachX = auto === 'full' && !!(rlX && rlX.each);   // 1.6.0 (the core's gap 8): each rolls its own dice, so none is rolled for all
+      var defX = auto === 'full' && !!(combat.blast && typeof combat.blast === 'object' && combat.blast.defend && typeof combat.blast.defend === 'object');   // 1.6.2 (the owner: a system's rules apply however the event starts): a system that gives its blasts a Defense roll gets it here too; with none, as ever
       if (auto !== 'measure' && diceOn && eachX) { rolled = true; total = 0; }
       else if (auto !== 'measure' && diceOn) {   // the roll first: a damage that cannot be rolled sets nothing off
           if (!window.wpDice || !window.wpDice.rollFor) { toast('Dice are not available.'); return false; }
-          var dr = window.wpDice.rollFor('', q.expr, 'Explosion, ' + q.type + ' damage', auto === 'full' ? { dmg: true, used: true } : { dmg: true });   // the type is named on the card: it changes no number
+          var drX = auto === 'full' ? { dmg: true, used: true } : { dmg: true }; if (defX) drX.usedWait = true;
+          var dr = window.wpDice.rollFor('', q.expr, 'Explosion, ' + q.type + ' damage', drX);   // the type is named on the card: it changes no number
           if (!dr || dr.error || !dr.ok) return false;   // the roll said why
           rolled = true; total = typeof dr.value === 'number' && isFinite(dr.value) ? dr.value : null;
       }
       var c = q.c, at = blasts.indexOf(c); if (at < 0) return false;   // the circle went while the roll was made: nothing goes off, and no other shape's place is taken
       var b = { x: c.x, y: c.y, ft: q.ft, name: 'Explosion', elev: typeof c.elev === 'number' && isFinite(c.elev) ? c.elev : 0, autoElev: false, thrown: true, by: '' };
       if (rlX && rlX.each && typeof q.expr === 'string' && q.expr) b.eachExpr = q.expr;   // 1.6.0 (the core's gap 8): what each victim rolls at its own dice
+      if (defX) b.bid = 'b_' + Math.random().toString(36).slice(2, 12);   // what waits for its Defense rolls goes by the blast's id (defendAsk), the host's alone: it is no part of what the table is shown
       if (typeof c.tok === 'string' && hitFor !== c) b.spare = c.tok;   // the token the circle sat on was not inside it: the explosion does not hit it, unless the GM ticked that it does, for this very circle
       var sent = { x: b.x, y: b.y, ft: b.ft, name: b.name, elev: b.elev, by: '' };   // shown to the table as a thrown blast is: its place, its size, its height and the fixed word
       if (shapeOf(c.as) === 'ring' && c.inn > 0 && c.inn < c.yd) { b.shape = sent.shape = 'ring'; b.inFt = sent.inFt = c.inn * 3; }   // a ring with no hole is the whole disc

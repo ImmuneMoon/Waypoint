@@ -4985,11 +4985,15 @@ pendingChecks.push((async () => {
                 j(inView) === j(['Use']) && !!m16.table[0] && m16.table[0].malfHid === 1 && /malfunction$/.test(m16.log) && m15.table[0].malf === undefined && !/malfunction/.test(m15.log) && !/flaw/i.test(j([m16.table, m16.sent])), j([inView, m16.table[0], m16.log, m15.log]));
             check('1.6.0 ... and a critical range that reads a GM-only stat, the same press: a natural at the range is a critical failure, one under it plain', /critical failure/.test(f15.log) && !/critical failure/.test(f14.log), j([f15.log, f14.log]));
             check('1.6.0 ... and what else the host judges from the GM\'s view reads the same roll: Off a character\'s turn before and after the roll, and a sneak\'s roll by its place on the GM\'s list', m16.off[0] && m16.off[0].i === 1 && m16.warn[0] && m16.warn[0].i === 1 && m16.ref[0] && m16.ref[0].i === 1 && m16.ref[0].l === 'f_gr', j([m16.off, m16.warn, m16.ref]));
-            const pressG = (sys, dice) => { const out = { recs: [], pushed: [], toasts: [] }; dq = dice.slice();
+            const pressG = (sys, dice, ex, oo) => { const out = { recs: [], pushed: [], toasts: [] }; dq = dice.slice();
                 const camp = { id: 'k', system: sys, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(valsS)) } } }, net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta() {} };
                 const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
                     net, () => Dx, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null, charChanged() {}, playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) } }, () => camp, () => ({ id: 'u_gm', name: 'GM' }), t => out.toasts.push(t), () => null, e => { throw e; }, () => {}, (rec, res, scope) => { out.pushed.push(scope); out.recs.push(JSON.parse(JSON.stringify(rec))); }, (k, t) => { out.log = t; }, () => {});
-                out.ret = dr('3d6 <= Row.Skill', { charId: 'c_a', row: { f: 'f_gr', r: 'w_p', i: 1 } }); return out; };
+                out.ret = dr(ex || '3d6 <= Row.Skill', oo || { charId: 'c_a', row: { f: 'f_gr', r: 'w_p', i: 1 } }); return out; };
+            const sysSec = Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [listOf({}), { id: 'f_sec', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm' }], items: [{ id: 'i_p', name: 'Pebbles', stats: { Skill: 19 } }], combat: { checks: 'fixed', critAt: 'Secret + 3' } }, { F: Fx, gmView: true });
+            const secD = pressG(sysSec, [1, 1, 2], '3d6', { charId: 'c_a', dmg: true }), secC = pressG(sysSec, [1, 1, 2], '3d6 <= 14', { charId: 'c_a' });
+            check('1.6.2 a damage roll with no check has no critical to read: a range that reads a GM-only value is no part of its card and keeps it public, while a roll with a check is kept private as before (net.diceRoll, run for real)',
+                secD.recs[0] && secD.recs[0].dmg === 1 && secD.recs[0].crit === undefined && secD.recs[0].priv === undefined && secC.recs[0] && secC.recs[0].priv === 'gm', j([secD.recs[0], secC.recs[0], secC.toasts]));
             const gmC = pressG(sysOf({ critAt: '5', fumbleAt: '17 - Row.Flaw' }, { checks: 'fixed' }), [1, 1, 2]);
             check('1.6.0 ... and the GM\'s own card measures a masked range against that roll in the players\' view, by its place there', j(gmC.recs[0] && gmC.recs[0].crit) === j([5, 18]), j(gmC.recs[0]));
             const altS = fnSrc('function attRowAlts(', '\n}\n', 'attRowAlts') + '\n}\n';
@@ -8033,6 +8037,9 @@ pendingChecks.push((async () => {
             return log;
         };
         const RJ = () => ({ wp_rejoin: JSON.stringify({ code: 'ABCDEFGHJK', name: 'Kael', pass: '' }) });
+        check('1.6.2 a player\'s own pointer comes back with a reload: the mark names it, the rejoin keeps it, the table\'s word sends it again where nothing stands there, and the host keeps a pointer while another connection of that player is open',
+            (() => { const a = src.indexOf('function refreshMark() {'), b = src.indexOf('\n}\n', a), st = {}; new Function('net', 'sessionStorage', 'getProfile', 'ui', src.slice(a, b + 2) + '\nrefreshMark();')({ active: true, role: 'client', code: 'C', myId: 'u_a', targets: { u_a: { id: 't_1', mapId: 'm_1' }, u_b: { id: 't_2', mapId: 'm_1' } } }, { setItem: (k, v) => { st[k] = v; } }, () => ({ name: 'Kael' }), () => ({ value: '' })); return JSON.stringify(JSON.parse(st.wp_rejoin).point) === '{"id":"t_1","mapId":"m_1"}'; })()
+            && src.includes("net._pointBack = { id: j.point.id, mapId: j.point.mapId };") && src.includes("net.setTarget(pbS.id, pbS.mapId);") && src.includes("!net.conns.some(function(c2) { return c2.peer !== conn.peer && c2.open && net.roster[c2.peer] && net.roster[c2.peer].id === p.id; })"), '');
         let openR = null; const gateR = new Promise(r => { openR = r; });
         const rfPend = await runRefresh(RJ(), true, gateR), rfBefore = rfPend.join();
         const rf = { webJoin: (await runRefresh(RJ(), true, Promise.resolve({ mode: 'join-only' }))).join(), desk: (await runRefresh(RJ(), false, Promise.resolve({ mode: 'full' }))).join(), noMod: (await runRefresh(RJ(), false, undefined)).join(), rehost: (await runRefresh({ wp_rehost: '1' }, false, undefined)).join() };
@@ -8134,6 +8141,10 @@ pendingChecks.push((async () => {
                 sends.length = 0; const recL = { type: 'roll', id: 'r2', label: 'Beam damage', from: { name: 'GM' } }; fnN.sendTableAs(recL, campN.chars.c_pl, { ch: campN.chars.c_npc, name: 'Brannoch' }); const seenL = ['a', 'b', 'c', 'd'].map(p => sends.filter(s => s[0] === p).map(s => s[1].onName)), histL = fnN.historySeen([{ roll: Object.assign({}, recL, { onName: 'Brannoch' }) }]);
                 check('1.6.0 ... a hit on someone a player cannot see tells that player nothing (the owner, 2026-11-01: "A hidden target should stay fully hidden"; moved on purpose from a card with no name): the card reaches only a player who can see them, named, the record itself stays nameless, and a latecomer\'s history holds no such card',
                     j(seenL) === '[["Brannoch"],[],[],[]]' && !('onName' in recL) && histL.length === 0, j([seenL, histL]));
+                const recS = { type: 'roll', id: 'r3', label: 'Beam damage', from: { name: 'GM' } }; fnN.sendTableAs(recS, campN.chars.c_pl, { ch: campN.chars.c_npc, name: 'Brannoch' }); recS.onName = 'Brannoch';
+                const histOn = ['a', 'b', 'c', 'd'].map(p => fnN.historySeen([{ roll: recS }], netN.roster[p]).length), histAs = ['a', 'b', 'c', 'd'].map(p => fnN.historySeen([{ roll: rec }], netN.roster[p]).length);
+                check('1.6.2 a latecomer\'s history keeps a card that landed on someone they can see, and one made as an NPC they can see, by the very rule the table\'s copy goes by; for one who cannot see them it goes, and a card it cannot judge goes (historySeen, run for real)',
+                    j(histOn) === '[1,0,0,0]' && j(histAs) === '[1,0,0,0]' && fnN.historySeen([{ roll: recS }]).length === 0, j([histOn, histAs]));
                 const bbS = src.slice(src.indexOf('net.broadcastBlast = function(blast, mapId, charId, only)'), src.indexOf('// [netcheck:blast-end]')), sentB = [], connsB = [{ open: true, peer: 'a', send: m => sentB.push(['a', m.blast.by]) }, { open: true, peer: 'b', send: m => sentB.push(['b', m.blast.by]) }];
                 const netB = { active: true, role: 'host', conns: connsB, roster: { a: { id: 'p_a', location: 'm1' }, b: { id: 'p_b', location: 'm1' } } };
                 new Function('net', 'getActiveCampaign', 'sendFailed', 'npcShown', bbS)(netB, () => ({ id: 'k', chars: campN.chars }), () => {}, (c, ch, p) => p.id === 'p_a');
@@ -10332,10 +10343,10 @@ pendingChecks.push((async () => {
     // Run for real: the close handler's statement (sliced by a pattern, as the S0 close case slices its own), broadcastTargets and targetsFor (the
     // combats slice), broadcastPos (the bpos slice) and net.streamPos sliced whole, over the real fog.js
     {
-        const tgLine = (src.match(/\n {12}(if \(p && net\.targets\[p\.id\]\) \{[^\n]*\})[^\n]*\n/) || [])[1] || '';
+        const tgLine = (src.match(/\n {12}(if \(p && net\.targets\[p\.id\] && [^\n]*\})[^\n]*\n/) || [])[1] || '';
         const deliver = W2 => (m, ex) => { packCheck(m); W2.bc.push(JSON.parse(j(m))); W2.net.conns.forEach(c => { if (c !== ex && c.open && W2.net.roster[c.peer]) c.send(m); }); };   // as the real broadcast does on a host: admitted, open peers only
         const closeTg = (W2, conn) => { let renders = 0; W2.net.conns = W2.net.conns.filter(c => c !== conn); const p = W2.net.roster[conn.peer]; delete W2.net.roster[conn.peer];
-            new Function('net', 'p', 'render', 'broadcastTargets', 'broadcast', tgLine)(W2.net, p, () => { renders++; }, W2.api.targets || (() => { W2.bc.push('no broadcastTargets in the combats slice'); }), deliver(W2)); return renders; };
+            new Function('net', 'p', 'conn', 'render', 'broadcastTargets', 'broadcast', tgLine)(W2.net, p, conn, () => { renders++; }, W2.api.targets || (() => { W2.bc.push('no broadcastTargets in the combats slice'); }), deliver(W2)); return renders; };
         const ptr = { u_a: { mapId: 'mA', id: 'wolf', x: 1, y: 2 }, u_b: { mapId: 'mA', id: 'tB', x: 3, y: 4 }, u_c: { mapId: 'mA', id: 'tA', x: 5, y: 6 } };
         // u_a points at a wolf 10 cells from her token (in her sight of 12), which Bo's token, 48 rows off, cannot see; Bo points at his own token,
         // which hers cannot see; Cy points at Ana's token, which Ana sees, and his connection closes
@@ -10343,6 +10354,7 @@ pendingChecks.push((async () => {
             W.net.targets = JSON.parse(j(ptr)); W.c1.open = true; W.clear(); W.bc.length = 0; W.shared.length = 0; return W; };
         const tgOf = c => c.sent.filter(m => m.type === 'targets').map(m => m.targets);
         const F = tgWorld(true), fR = closeTg(F, F.c1), fOut = { a1: tgOf(F.a1), a2: tgOf(F.a2), b1: tgOf(F.b1), w1: F.w1.sent.length, c1: F.c1.sent.length, bc: F.bc.length, left: Object.keys(F.net.targets).sort(), renders: fR };
+        const P2 = tgWorld(true); closeTg(P2, P2.a1); check('1.6.2 a connection that closes while another of that player is open takes no pointer with it (a reload\'s new connection may land first)', !!P2.net.targets.u_a, j(P2.net.targets));
         const G = tgWorld(true); delete G.net.targets.u_c; const gR = closeTg(G, G.c1), gOut = [G.net.conns.map(c => c.sent.length).join(''), G.bc.length, gR, Object.keys(G.net.targets).sort()];
         const U = tgWorld(false), uR = closeTg(U, U.c1), uOut = { bc: U.bc, direct: U.net.conns.map(c => c.sent.filter(m => m.type === 'targets').length).join(''), renders: uR };
         check('fold M0: when a connection holding a target pointer closes on a fogged table (the close handler\'s statement, run for real with the real broadcastTargets and targetsFor), its pointer is gone and each admitted player gets the pointers they may see — Bo\'s holds neither Ana\'s pointer at the wolf he cannot see nor its id, Ana\'s holds her own and not Bo\'s at a token she cannot see, and nothing is broadcast to all; a waiting peer gets nothing; a closing peer who held no pointer sends nothing',

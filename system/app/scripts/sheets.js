@@ -12088,6 +12088,14 @@ function dmgRowsOf(sys, c, listId) {   // [{ id, name }]: a list's rows the wind
 function dmgWhy(r) { return !r ? 'It cannot be worked out here.' : r.reason === 'error' ? (r.message || 'A figure could not be worked out.') : r.reason === 'missing' ? 'That location or weapon is not on the character now.' : r.reason === 'value' ? 'Check the damage and its type.' : 'This character cannot take damage that way.'; }
 var _dmgWin = null;
 function dmgClose() { if (_dmgWin && _dmgWin.parentNode) _dmgWin.parentNode.removeChild(_dmgWin); _dmgWin = null; }
+// [systemcheck:dmgfollow-start]
+function dmgFollowWords(sys, info) {   // 1.6.2: the rolls a blow will ask for, in the Take damage window's preview, each once by its own name
+    var rolls = sys && Array.isArray(sys.rolls) ? sys.rolls : [], names = [];
+    var add = function(i) { (i && Array.isArray(i.follows) ? i.follows : []).forEach(function(w) { var r = rolls.filter(function(x) { return x && w && x.id === w.roll; })[0], n = r ? String(r.label || r.id).split('{')[0].trim() : ''; if (n && names.indexOf(n) < 0) names.push(n); }); };
+    add(info); (info && Array.isArray(info.each) ? info.each : []).forEach(function(e) { add(e && e.info); });
+    return names.length ? 'Then asks for: ' + names.join(', ') + '.' : '';
+}
+// [systemcheck:dmgfollow-end]
 function takeDamage(charId, pre) {
     pre = dmgObj(pre) ? pre : {};
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp), rules = dmgRules(sys), SCd = window.wpSystemCore;
@@ -12149,6 +12157,7 @@ function takeDamage(charId, pre) {
         var cN = charById(charId, getActiveCampaign()), r = cN ? (q.hits ? SCd.damageBurst : SCd.damageStep)(sys, cN, q, F(), tokenCtxFor(charId), dmgFxo(cN)) : null;
         if (!r || !r.ok) { prev.appendChild(el('div', 'dmg-hint', dmgWhy(r))); return; }
         r.lines.forEach(function(l) { prev.appendChild(el('div', 'dmg-pl', l)); });
+        var flW = typeof dmgFollowWords === 'function' ? dmgFollowWords(sys, r.info) : ''; if (flW) prev.appendChild(el('div', 'dmg-pl', flW));
     };
     [amt, tsel, ksel, lsel, ad, dce, wsel, only, mjt].forEach(function(x) { x.addEventListener('input', show); x.addEventListener('change', show); });
     [p2amt, p2sel, p2ad, p2kd].forEach(function(x) { x.addEventListener('input', show); x.addEventListener('change', show); });   // 1.6.0 (B3)

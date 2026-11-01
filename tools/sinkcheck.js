@@ -5884,6 +5884,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 A burst, a stray in the bell (notices.js draw, run for real on a page that refuses markup): its words, each way and the kind\'s tip are text, a hostile round\'s name and a hostile way among them; each way a button of its own, the list kept up, Click on the map its go, no x since it waits nowhere else; a press names the way by its place',
             pk.length === 2 && pk[0].textContent === X && pk[0].title === X && pk[1].textContent === 'Long' && pk.every(b => b.tag === 'button' && b.type === 'button' && b.className === 'tool ghost notes-pick' && b.attrs['data-keep'] === '') && go.length === 1 && go[0].textContent === 'Click on the map' && xs.length === 0 && /notes-wrap/.test(walkN(reg.notesList, k => /notes-wait/.test(k.className), [])[0].className) && reg.notesList.textContent.indexOf(X + ' strays') > 0 && j(asked) === j([['pick', 's1', 1]]), j([pk.map(b => b.textContent), asked]));
     }
+    {   // 1.6.0 An attempt's kind: its word is a stat's value name, which a system file writes, and it reaches a card as cleaned text alone
+        const DKn = await import(modUrl('dicecore.js')), srcDice = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dice.js'), 'utf8');
+        const X = '<img src=x onerror=go()>', baseK = { id: 'r_abcdefgh', from: { id: 'u_gm', name: 'GM', gm: true }, charId: 'c_b', act: 'r_dg', label: 'Duck', why: 'resist', round: 1, roll: 1, att: 'a_abcd1234', ts: 1 };
+        const cdK = DKn.cleanDue(Object.assign({}, baseK, { kn: X })), noK = DKn.cleanDue(Object.assign({}, baseK, { kn: { toString: 'x' } })), whyK = DKn.resistWhy(cdK);
+        check('1.6.0 an attempt\'s kind on a card: a hostile value name stays one line of text, a word that is no text is no card, and renderDue hands the line to a text node',
+            cdK && cdK.kn === X && noK === null && whyK === 'resisting an attempt, ' + X && /wrap\.appendChild\(el\('div', 'roll-expr chat-due-what', \(rec\.label/.test(srcDice) && /function el\(tag, cls, text\) \{[^\n]*textContent/.test(srcDice), JSON.stringify([cdK, whyK]));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

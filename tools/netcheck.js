@@ -5066,6 +5066,76 @@ pendingChecks.push((async () => {
         && src4.includes("if (Array.isArray(more.or) && more.or.length) rec.or = more.or.slice(0, 3).map(function(r) { return { act: r.id, label: String(r.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll' }; }); }"), j(cdO));
 })());
 
+// 1.6.0 An attempt's kind (attemptKey on an attack, Attempt.kind on a resist roll): the host reads the attacker's row stat off its own copy, a defence whose needs fail for it is
+// not offered, the press reads the kind from the host's record, and a GM-only attack's kind is named on no card (invented data: Kael, Sela, Bolter, Slugger)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx0 = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const src4 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const line = k => { const i = src4.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src4.slice(i, src4.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll'), atSrc = between('// [netcheck:attempt-start]', '// [netcheck:attempt-end]', 'attempt');
+    let dq = []; const Fx = Object.assign({}, Fx0, { evaluate: (e, o) => Fx0.evaluate(e, Object.assign({ random: () => { if (!dq.length) throw new Error('netcheck: no die left'); return dq.shift(); } }, o)) });
+    const PARRY = '3d6 <= 11 - if(Attempt.kind >= 2, 4, 0) - AttemptMargin', WARD = '3d6 <= Row.Def - Attempt.kind';
+    let shotN = 0; const shoot = (by, or, key) => ({ label: 'Shoot ' + (shotN++), formula: '3d6 <= 13', resistBy: by, resistOr: or, attemptKey: key === undefined ? 'kind' : key });
+    const mkSys = () => Sx.cleanSystem({ v: 1, name: 'K', combat: { checks: 'under3d6' }, fields: [{ id: 'f_wl', key: 'Will', label: 'Will', kind: 'number', vis: 'all', edit: 'owner', def: 12 }, { id: 'f_dr', key: 'Drill', label: 'Drill', kind: 'number', vis: 'all', edit: 'owner', def: 0 },
+        { id: 'f_gn', key: 'Guns', label: 'Guns', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Kind', labels: ['none', 'a bolt', 'a quarrel', 'a slug'] }, { key: 'Grip', kind: 'pick', opts: [{ label: 'One' }] }], rolls: [shoot('r_dg', ['r_pa']), shoot('r_pa', ['r_dg']), shoot('r_pa', ['f_wp#0']), shoot('r_pa', []), shoot('r_pa', ['r_dg'], ''), shoot('r_dg', [], 'Grip'), shoot('r_dg', [], 'Gone')] } },
+        { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Def' }], rolls: [{ label: 'Ward', formula: WARD, resist: true, needs: 'Row.Def > Attempt.kind' }] } }],
+        items: [{ id: 'i_bo', name: 'Bolter', stats: { Kind: 1 } }, { id: 'i_sl', name: 'Slugger', stats: { Kind: 3 } }, { id: 'i_bl', name: 'Blade', stats: { Def: 11 } }, { id: 'i_lo', name: 'Lath', stats: { Def: 2 } }],
+        rolls: [{ id: 'r_dg', label: 'Duck', formula: '3d6 <= Will - AttemptMargin', vis: 'all', resist: true }, { id: 'r_pa', label: 'Parry', formula: PARRY, vis: 'all', resist: true, needs: 'if(Attempt.kind = 3, Drill, 1)' }] }, { F: Fx, gmView: true });
+    const sys = mkSys(), sysP = Sx.cleanSystem(sys, { F: Fx, gmView: false }), gunRolls = sys.fields[2].list.rolls;
+    const out = { table: [], sent: { pA: [], pB: [] }, dues: [], toasts: [] }, aim = { u_a: 't_b', u_b: 't_a', gm: 't_b' };
+    const camp = { id: 'k', activeItemId: 'm1', system: sys, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: { f_gn: [{ id: 'w_bo', defId: 'i_bo', qty: 1 }, { id: 'w_sl', defId: 'i_sl', qty: 1 }] } },
+        c_b: { id: 'c_b', name: 'Sela', ownerId: 'u_b', npc: false, values: { f_wp: [{ id: 'w_bl', defId: 'i_bl', qty: 1 }, { id: 'w_lo', defId: 'i_lo', qty: 1 }] } } },
+        items: { m1: { type: 'map', whiteboard: [{ id: 't_a', charId: 'c_a', ownerId: 'u_a', isChar: true, x: 0, y: 0 }, { id: 't_b', charId: 'c_b', ownerId: 'u_b', isChar: true, x: 50, y: 0 }] } } };
+    const net = { role: 'host', active: true, stream: false, paused: false, conns: [], roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' }, pB: { id: 'u_b', name: 'Bo', location: 'm1' } }, combats: {}, syncCharDelta() {},
+        postDue: (ch, act, kind, round, toOwner, more) => out.dues.push({ ch: ch.id, act: act.id, toOwner: toOwner, or: more && Array.isArray(more.or) ? more.or.map(r => r.id) : null, rows: more && Array.isArray(more.rows) ? more.rows.map(x => x.label) : null, att: more && more.att, m: more && more.m, kn: more && more.kn, nm: more && more.nm }) };
+    const conn = p => ({ peer: p, send(m) { packCheck(m); out.sent[p].push(JSON.parse(JSON.stringify(m))); } }), cA = conn('pA'), cB = conn('pB');
+    const rng = t => t ? { mod: 0, dist: 2, tid: t, mapId: 'm1' } : null;
+    const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {}, tokenCtxFor: () => aim.gm ? { range: rng(aim.gm) } : null }, wpVtt: { on: () => true, rulesOn: () => true } };
+    const W = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'rangeTo', 'getProfile', 'toast', 'ui', 'save',
+        'var diceLimit = null, _diceSlowSaid = {}, _dicePending = null;\n' + helpers + atSrc + '\n' + drSrc + '\nreturn { rq: function(msg, conn) {\ndiceLimit = null; _diceSlowSaid = {};\n' + rqSrc + '\n}, dr: net.diceRoll, rec: function(id) { return _attempts[id]; } };')(
+        net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {}, () => {},
+        (c, m, l, tok, pid) => rng(aim[pid]), () => ({ id: 'u_gm', name: 'GM' }), t => out.toasts.push(t), () => null, () => {});
+    const roll = (cn, charId, extra, expr, dice) => { dq = dice.slice(); W.rq(Object.assign({ type: 'roll-req', rid: 'q' + Math.random().toString(36).slice(2, 7), charId: charId, expr: expr }, extra), cn); };
+    const fire = (i, r, extra) => { const n = out.dues.length; roll(cA, 'c_a', Object.assign({ row: { f: 'f_gn', r: r, i: i } }, extra || {}), '3d6 <= 13', [2, 3, 4]); return out.dues.length > n ? out.dues[out.dues.length - 1] : null; };
+    const lastTo = p => out.sent[p][out.sent[p].length - 1];
+    check('1.6.0 an attempt\'s kind, the cleaner: attemptKey is kept in the GM\'s view alone, beside Resisted by, on a number stat spelled as the list spells it, never a choice, a stat that is not there or none, and it names no field a player holds',
+        gunRolls[0].attemptKey === 'Kind' && !('attemptKey' in sysP.fields[2].list.rolls[0]) && sysP.fields[2].list.rolls[0].resisted === true && !('attemptKey' in gunRolls[4]) && !('attemptKey' in gunRolls[5]) && !('attemptKey' in gunRolls[6]), j(gunRolls.map(r => r.attemptKey)));
+    const bolt = fire(0, 'w_bo'), recB = W.rec(bolt.att), slug = fire(0, 'w_sl'), recS = W.rec(slug.att);
+    check('1.6.0 an attempt\'s kind: the host reads it off the attacker\'s row on its own copy and keeps it on its record: a bolt offers Duck and Parry, with the kind said by its value name; a slug, where Parry needs Drill, offers Duck alone',
+        recB.k === 1 && recS.k === 3 && bolt.act === 'r_dg' && j(bolt.or) === j(['r_pa']) && bolt.kn === 'a bolt' && slug.act === 'r_dg' && j(slug.or) === j([]) && slug.kn === 'a slug' && bolt.m === 4, j([bolt, recB, slug, recS]));
+    const lied = fire(0, 'w_bo', { kind: 3, attemptKind: 3, k: 3 }), recL = W.rec(lied.att);
+    check('1.6.0 an attempt\'s kind: a word in the attacker\'s message changes nothing, and it is no key the wire keeps', recL.k === 1 && j(lied.or) === j(['r_pa']), j([lied, recL]));
+    roll(cB, 'c_b', { act: 'r_pa', att: bolt.att }, PARRY, [1, 1, 2]); const pressB = out.table[out.table.length - 1], namesB = (pressB && pressB.names || []).filter(n => n.name === 'Attempt.kind');
+    check('1.6.0 an attempt\'s kind: the press reads it from the host\'s record, so its target carries the kind and its card the figure, once', pressB && pressB.expr === PARRY && namesB.length === 1 && namesB[0].value === 1 && !W.rec(bolt.att), j([pressB]));
+    roll(cB, 'c_b', { act: 'r_pa', att: slug.att }, PARRY, [1, 1, 1]); const refused = lastTo('pB');
+    check('1.6.0 an attempt\'s kind: a defence not offered is refused at the press, with the attempt kept', refused.type === 'roll-deny' && !!W.rec(slug.att), j(refused));
+    const promote = fire(1, 'w_sl'), recP = W.rec(promote.att), withDrill = (camp.chars.c_b.values.f_dr = 1, fire(1, 'w_sl')); delete camp.chars.c_b.values.f_dr;
+    check('1.6.0 an attempt\'s kind: where the roll it names first fails its needs, the next that holds stands first, and with Drill it stands as before', promote.act === 'r_dg' && j(promote.or) === j([]) && recP.act === 'r_dg' && withDrill.act === 'r_pa' && j(withDrill.or) === j(['r_dg']), j([promote, recP, withDrill]));
+    const rows = fire(2, 'w_sl'), recR = W.rec(rows.att);
+    check('1.6.0 an attempt\'s kind: a list\'s roll is offered only on the rows whose needs hold for it, Blade and not Lath; where only rows hold, the card offers them alone and the roll it names first answers nothing',
+        rows.nm === true && j(rows.rows) === j(['Ward with Blade']) && recR.act === '' && j(recR.rows) === j(['f_wp#0#w_bl']), j([rows, recR]));
+    roll(cB, 'c_b', { act: 'r_pa', att: rows.att }, PARRY, [1, 1, 1]); const noMain = lastTo('pB'), stillR = !!W.rec(rows.att);
+    roll(cB, 'c_b', { row: { f: 'f_wp', r: 'w_bl', i: 0 }, att: rows.att }, WARD, [1, 1, 2]); const wardP = out.table[out.table.length - 1];
+    check('1.6.0 an attempt\'s kind: such a card\'s own roll is refused, and a row it offered reads the kind on that row', noMain.type === 'roll-deny' && stillR && wardP.expr === WARD && (wardP.names || []).some(n => n.name === 'Attempt.kind' && n.value === 3) && !W.rec(rows.att), j([noMain, wardP]));
+    const n0 = out.dues.length, kept0 = net.attemptsKept(), none = fire(3, 'w_sl');
+    check('1.6.0 an attempt\'s kind: a target with no defence to offer gets no card, and no attempt is kept', none === null && out.dues.length === n0 && net.attemptsKept() === kept0, j([none, out.dues.length]));
+    const plainA = fire(4, 'w_sl'), recPl = W.rec(plainA.att);
+    check('1.6.0 an attempt\'s kind: an attack that names none judges no needs and keeps no kind, as ever: Parry stands first though it could not be made, and Attempt.kind reads 0', plainA.act === 'r_pa' && j(plainA.or) === j(['r_dg']) && !('k' in recPl) && !('kp' in recPl) && !plainA.kn, j([plainA, recPl]));
+    const priv = fire(0, 'w_sl', { priv: 'gm' }), recG = W.rec(priv.att), tb0 = out.table.length;
+    net._attNext = { att: priv.att, charId: 'c_b', act: 'r_dg' }; dq = [1, 1, 1]; const gD = W.dr('3d6 <= Will - AttemptMargin', { charId: 'c_b', act: 'r_dg' }); net._attNext = null; const pubDuck = out.table.length === tb0 + 1 ? out.table[tb0] : null, tb1 = out.table.length;
+    const priv2 = fire(0, 'w_bo', { priv: 'gm' }); out.toasts.length = 0; net._attNext = { att: priv2.att, charId: 'c_b', act: 'r_pa' }; dq = [1, 1, 1]; const gP = W.dr(PARRY, { charId: 'c_b', act: 'r_pa' }); net._attNext = null;
+    check('1.6.0 an attempt\'s kind: a GM-only attack\'s card goes to the GM and names no kind, a press that reads the kind is kept the GM\'s, since a record\'s names travel, and one that does not read it stays public',
+        priv.toOwner === false && recG.kp === true && !priv.kn && gD && !gD.error && pubDuck && !pubDuck.priv && gP && !gP.error && out.table.length === tb1 + 1 - 1 && out.toasts.some(t => /GM-only attack/.test(t)), j([priv, recG, pubDuck, gP, out.table.length, tb1, out.toasts]));
+    const pd = fnSrc('net.postDue = function', '\n// 1.6.0 (the core\'s gap 8): a blast', 'postDue'), posted = [], nP = { };
+    new Function('net', 'getProfile', 'diceFrom', 'postDue', pd)(nP, () => ({}), () => ({ id: 'u_gm', name: 'GM', gm: true }), r => posted.push(r));
+    nP.postDue({ id: 'c_b', name: 'Sela' }, { id: 'r_pa', label: 'Parry', formula: 'x' }, 'resist', 1, true, { att: 'a_abcd1234', m: 2, kn: 'a slug', nm: true, rows: [{ f: 'f_wp', r: 'w_bl', i: 0, label: 'Ward with Blade' }] });
+    nP.postDue({ id: 'c_b', name: 'Sela' }, { id: 'r_pa', label: 'Parry', formula: 'x' }, 'resist', 1, true, { att: 'a_abcd1234', m: 2 });
+    const cd = Dx.cleanDue(posted[0]), cd2 = Dx.cleanDue(posted[1]), badK = Dx.cleanDue(Object.assign({}, posted[0], { kn: { x: 1 } })), badN = Dx.cleanDue(Object.assign({}, posted[1], { nm: 1 }));
+    check('1.6.0 an attempt\'s kind, the card: its word and a card of rows alone are carried and cleaned as text, a card with neither keeps the keys it had, and a word that is no text or a mark with no rows is no card',
+        cd && cd.kn === 'a slug' && cd.nm === 1 && cd.label === 'Ward with Blade' && Dx.resistWhy(cd) === 'resisting an attempt, made by 2, a slug' && cd2 && !('kn' in cd2) && !('nm' in cd2) && Dx.resistWhy(cd2) === 'resisting an attempt, made by 2' && badK === null && badN === null, j([cd, cd2, badK, badN]));
+})());
 // 1.6.0 (asked by a system build): Or resisted by naming a list's roll — the card offers that roll once for each row of that list the target
 // holds, a player's card never a row kept from them (a curse the GM keeps on or out of sight, a GM-only entry), and the host takes the attempt
 // from a row it offered alone, once (invented data: Kael, Sela, Pebbles)

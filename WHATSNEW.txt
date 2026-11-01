@@ -214,6 +214,9 @@ Systems, more
 - A player's target comes back with a fight kept over a reload.
 - A roll made for an NPC shows only to players who can see that NPC. Others
   get no card. A throw or a Defend card leaves that NPC's name off for them.
+- An attack from a list can name a Kind, one number stat of its row. A roll that
+  resists it reads that figure as Attempt.kind, and a defence whose Needs fail for
+  that kind is not offered on the card.
 - Every roll in a section of a sheet now stands at one height.
 - In the System editor's Layout tab, the GM button puts a part on the GM's sheet
   alone. A card that asks a player for that roll still reaches them.

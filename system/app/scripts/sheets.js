@@ -13,6 +13,7 @@ import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: ho
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
 import { callDrops } from './systemcore.js';   // 1.6.0: a call's Read on the one who resisted, as Save reads it (refreshErrors)
 import { cleanTurn } from './systemcore.js';   // 1.6.0: a move by giving up an action, as Save reads it (refreshErrors)
+import { readsAttempt } from './systemcore.js';   // 1.6.0: needs that read Attempt.kind, which only the host can judge
 import { groupRolls, groupWeakest } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
 import { partsTree } from './systemcore.js';   // 205 follow-up (2): the removal question counts a deep list's whole tree of parts
 import { upChanges, revIdle } from './systemcore.js';   // 1.6.0: what a Review entry can apply, and when it asks nothing
@@ -4699,6 +4700,7 @@ function rollHidden(r, vars) {
     if (!r || r.hideOff !== true || !r.needs || typeof rollNeedsOk !== 'function' || typeof vars !== 'function') return false;
     var near = r.to === 'near';
     if (near && typeof readsOn === 'function' && readsOn(r.needs, F())) return false;
+    if (typeof readsAttempt === 'function' && readsAttempt(r.needs, F())) return false;   // 1.6.0: only the host holds the attempt's kind
     return !rollNeedsOk(r, near && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F());
 }
 // [systemcheck:rollhide-end]
@@ -4732,7 +4734,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild); if (typeof dieFor === 'function') b.insertBefore(dieFor(r.die, r.formula, 'sheet-roll-die'), b.firstChild);   // 1.5.8: its die (the GM's pick, else its formula's); 1.6.0 (the owner, 2026-10-27: "small dice icons on, or before the dice rolling buttons ... without removing any of the current settings"): before an icon of its own too, which stays
     b.title = r.formula + (can ? ' · shift-click to add a modifier' : ' (dice are off here, or this is not your character)'); b.disabled = !can;
     var cbR = can && typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbR) { b.disabled = true; b.title = cbR + ' \u2014 ' + r.formula; }   // turn-based combat T4
-    if (can && r.needs && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, r.to === 'near' && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F()) && !(r.to === 'near' && typeof readsOn === 'function' && readsOn(r.needs, F()))) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }   // 1.5.4: what it needs, as a list roll's button (the host judges a player's roll); 1.5.9: read as on its user, OnSelf 1
+    if (can && r.needs && !(typeof readsAttempt === 'function' && readsAttempt(r.needs, F())) && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, r.to === 'near' && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F()) && !(r.to === 'near' && typeof readsOn === 'function' && readsOn(r.needs, F()))) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }   // 1.5.4: what it needs, as a list roll's button (the host judges a player's roll); 1.5.9: read as on its user, OnSelf 1
     var goN = function(e) {   // 1.5.9: named, so its ± runs the very same click
         if (r.to === 'near' && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evN = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evN.currentTarget || b, c, function(on) { evN.wpAlly = on || ''; goN(evN); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first, where someone stands next to it
         var lb = label, vv = vars;
@@ -4768,7 +4770,7 @@ function applyNode(r, c, sys, vars) {
     var label = rollLabel(r, sys, c, vars), can = (_fxLive || window.wpPrintCopy === true) && canApply(c), b = el('button', 'tool sheet-roll sheet-apply' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label);
     b.insertBefore(iconNode(r.icon || 'icon:bolt', 'sheet-roll-icon'), b.firstChild);   // 1.6.0 (the owner: "lets add icons before other buttons too"): the bolt where it names none
     b.title = applyTitle(r, sys) + (r.each ? ' \u2014 also ' + (r.by ? 'due' : 'by itself') + (r.each === 'turn' ? ' at the start of its character\u2019s turn' : r.each === 'turnEnd' ? ' at the end of its character\u2019s turn' : ' on every new round of a combat') + (r.by ? ' (a reminder for ' + (r.by === 'gm' ? 'the GM' : 'its player') + ' to press)' : '') : '') + (can ? '' : ' (not here: this is a preview or a pop-out, or not your character)'); b.disabled = !can;
-    if (can && r.needs && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, r.to === 'near' && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F()) && !(r.to === 'near' && typeof readsOn === 'function' && readsOn(r.needs, F()))) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }   // 1.5.4: what it needs (the host judges a player's press, applyAct the GM's); 1.5.9: read as on its user, OnSelf 1
+    if (can && r.needs && !(typeof readsAttempt === 'function' && readsAttempt(r.needs, F())) && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, r.to === 'near' && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F()) && !(r.to === 'near' && typeof readsOn === 'function' && readsOn(r.needs, F()))) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }   // 1.5.4: what it needs (the host judges a player's press, applyAct the GM's); 1.5.9: read as on its user, OnSelf 1
     b.addEventListener('click', function() {
         var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return;
         var lb = label; if (sys && r.label && r.label.indexOf('{') >= 0) { try { lb = rollLabel(r, sys, cN, resolveAll(sys, cN, F(), tokenCtxFor(cN.id, campN)).vars); } catch (err) { lb = label; } }   // the label as it reads at the press
@@ -4992,6 +4994,12 @@ function turnEndHook(mapId, combat) { return timedHook(mapId, combat, 'turnEnd')
 // GM's own press, or the player's through the host). false when it is not there to press
 // 1.6.0 (the SotMW v2 sort, B2): a roll's Resisted by list, the system's rolls ticked Resists an attempt (sys: the draft). A roll it names that is
 // no longer ticked stays in the list, said so, until another is picked
+// 1.6.0 An attempt's kind: the number stat of a list's row that says what kind of attack it makes, beside Resisted by. The stat it names that is gone stays, said so, until another is picked
+function kindSel(rr, sp) {
+    var st = (sp && Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s.key === 'string' && s.key && s.kind !== 'pick' && s.set !== true; }), o = [['', 'No kind of attempt']].concat(st.map(function(s) { return [s.key, 'Kind: ' + (s.label || s.key)]; })), cur = typeof rr.attemptKey === 'string' ? rr.attemptKey : '';
+    if (cur && !st.some(function(s) { return s.key.toLowerCase() === cur.toLowerCase(); })) o.push([cur, 'Kind: no such number stat']);
+    return select('sys-list-rsak', o, cur, 'The number stat of this row that says what kind of attack it is. Rolls that resist it read that figure as Attempt.kind, 0 with none, in their formula and their Needs. A defence whose Needs fail for it is not offered');
+}
 function resistBySel(cls, cur, sys) {
     var rs = (sys && Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(x) { return x && typeof x.id === 'string' && x.resist === true && !Array.isArray(x.apply); }).map(function(x) { return [x.id, 'Resisted by: ' + (x.label || 'Roll')]; });
     var o = [['', 'Not resisted']].concat(rs); if (typeof cur === 'string' && cur && !rs.some(function(x) { return x[0] === cur; })) o.push([cur, 'Resisted by: a roll no longer ticked Resists an attempt']);
@@ -7086,6 +7094,11 @@ function refreshErrors() {
             });
         });
     });
+    draft.fields.forEach(function(f) {   // 1.6.0: a list roll's kind of attempt, alike
+        var cfK = f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls) ? (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0] : null, crK = cfK && cfK.list && Array.isArray(cfK.list.rolls) ? cfK.list.rolls : null;
+        if (!crK || crK.length !== f.list.rolls.length) return;
+        f.list.rolls.forEach(function(r, i) { if (!r || typeof r !== 'object' || typeof r.attemptKey !== 'string' || !r.attemptKey || !crK[i] || crK[i].attemptKey) return; (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Roll \u201c' + (r.label || 'Roll') + '\u201d: a kind of attempt needs Resisted by and a number stat of this list, so Save drops it.' }); });
+    });
     draft.fields.forEach(function(f) {   // 1.6.0: a list roll's A Major Wound where, alike
         var cf = f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls) ? (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0] : null, cr = cf && cf.list && Array.isArray(cf.list.rolls) ? cf.list.rolls : null;
         if (!cr || cr.length !== f.list.rolls.length) return;
@@ -8347,6 +8360,7 @@ function ctKeySays(sp, F0) {
         if (!rApply && typeof resistBySel === 'function') rw.appendChild(resistBySel('sys-list-rsby', rr.resistBy, typeof draft !== 'undefined' ? draft : null));   // 1.6.0 (B2)
         if (!rApply && rr.resistBy && typeof resistOrBox === 'function') rw.appendChild(resistOrBox('sys-list-rsor', rr.resistBy, rr.resistOr, typeof draft !== 'undefined' ? draft : null));   // 1.6.0 (the core's gap 5)
         if (!rApply && rr.resistBy) rw.appendChild(checkLabel('sys-list-rsnocrit', rr.noResistOnCrit === true, 'Not resisted on a critical', 'A critical success sends its target nothing to resist. Leave it off where a critical is resisted as any success is'));   // 1.6.0
+        if (!rApply && rr.resistBy && typeof kindSel === 'function') rw.appendChild(kindSel(rr, sp));   // 1.6.0 An attempt's kind
         rw.appendChild(checkLabel('sys-list-gmonly', rr.gm === true, 'GM only', 'Only you press it. Players never see its button, and the table refuses theirs'));   // 1.6.0
         var rsI = input('sys-list-rollshow field', typeof rr.showIf === 'string' ? rr.showIf : '', 'Its button shows only on rows where this is true, such as Row.Kind = 2. Row names are read. No dice. Empty: on every row', 'Shown where (optional)'); rsI.maxLength = LIMITS.formula; rw.appendChild(rsI);   // 1.6.0
         if (typeof altBox === 'function') rw.appendChild(altBox(rr, 'Its button reads this name on rows where the formula holds, such as Fix malfunction where Row.Kind = 2. The first that holds wins.'));   // 1.6.0: its other names
@@ -11116,6 +11130,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-burst') >= 0) { var rbu = t.closest('.sys-list-roll'), rbD = rbu && Array.isArray(lsc.rolls) ? lsc.rolls[+rbu.dataset.ri] : null; if (!rbD || typeof rbD !== 'object') return; if (t.value === 'attack' || t.value === 'extra') rbD.burst = t.value; else delete rbD.burst; }   // 1.6.0 A burst
         else if (c.indexOf('sys-list-mjdmg') >= 0) { var rmj = t.closest('.sys-list-roll'), rmD = rmj && Array.isArray(lsc.rolls) ? lsc.rolls[+rmj.dataset.ri] : null; if (!rmD || typeof rmD !== 'object') return; if (t.checked) rmD.dmgMajor = true; else delete rmD.dmgMajor; }   // 1.6.0: Always a Major Wound
         else if (c.indexOf('sys-list-hideoff') >= 0) { var hrw = t.closest('.sys-list-needsrow'), hR = hrw && Array.isArray(lsc.rolls) ? lsc.rolls[+hrw.dataset.ri] : null; if (!hR || typeof hR !== 'object') return; if (t.checked) hR.hideOff = true; else delete hR.hideOff; }   // 1.6.0: Hidden until it can be used
+        else if (c.indexOf('sys-list-rsak') >= 0) { var rak = t.closest('.sys-list-roll'), rakD = rak && Array.isArray(lsc.rolls) ? lsc.rolls[+rak.dataset.ri] : null; if (!rakD || typeof rakD !== 'object') return; if (t.value) rakD.attemptKey = t.value; else delete rakD.attemptKey; }   // 1.6.0 An attempt's kind
         else if (c.indexOf('sys-list-rsnocrit') >= 0) { var rnc = t.closest('.sys-list-roll'), rnD = rnc && Array.isArray(lsc.rolls) ? lsc.rolls[+rnc.dataset.ri] : null; if (!rnD || typeof rnD !== 'object') return; if (t.checked) rnD.noResistOnCrit = true; else delete rnD.noResistOnCrit; }   // 1.6.0: Not resisted on a critical
         else if (c.indexOf('sys-list-anytime') >= 0) { var atr = t.closest('.sys-list-roll'), atD = atr && Array.isArray(lsc.rolls) ? lsc.rolls[+atr.dataset.ri] : null; if (!atD || typeof atD !== 'object') return; if (t.checked) atD.free = true; else delete atD.free; }   // 1.6.0 Any time
         else if (c.indexOf('sys-list-rsist') >= 0) { var rsr = t.closest('.sys-list-roll'), rsD = rsr && Array.isArray(lsc.rolls) ? lsc.rolls[+rsr.dataset.ri] : null; if (!rsD || typeof rsD !== 'object') return; if (t.checked) rsD.resist = true; else delete rsD.resist; markDirty(); renderAll(); return; }   // 1.6.0: a list's roll that Resists an attempt (the Or resisted by lists follow)

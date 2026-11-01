@@ -358,6 +358,8 @@ function cleanDue(rec) {
         if (out.roll !== 1 || typeof rec.att !== 'string' || !ATT_RE.test(rec.att)) return null; out.att = rec.att;
         var byA = cleanLabel(rec.by); if (byA === null) return null; if (byA) out.by = byA;
         if (rec.m !== undefined) { if (typeof rec.m !== 'number' || !isFinite(rec.m) || Math.abs(rec.m) > 9999) return null; out.m = rec.m; }
+        if (rec.kn !== undefined) { var knA = cleanLabel(rec.kn); if (knA === null) return null; if (knA) out.kn = knA; }   // 1.6.0: the word for the attempt's kind, never a GM-only attack's
+        if (rec.nm !== undefined) { if (rec.nm !== 1 || !Array.isArray(rec.or) || !rec.or.length) return null; out.nm = 1; }   // 1.6.0: only the rows it offers, its own roll's needs failing against this kind
         if (rec.or !== undefined) {   // 1.6.0 (the core's gap 5): the other rolls the target may resist it with, each a button of its own: at most 3, each an id once and never act's, with its label
             if (!Array.isArray(rec.or) || !rec.or.length || rec.or.length > 3 + RESIST_ROWS) return null; var ors = [], nOr = 0, nRw = 0;
             for (var oi = 0; oi < rec.or.length; oi++) { var o = rec.or[oi];
@@ -380,7 +382,7 @@ function cleanDue(rec) {
     return out;
 }
 // 1.6.0 (B2): why a resist roll is due, in words: whose attempt, and by how much it succeeded
-function resistWhy(rec) { return !rec ? '' : 'resisting ' + (rec.by ? rec.by + '\u2019s attempt' : 'an attempt') + (typeof rec.m === 'number' ? ', made by ' + fmtNum(rec.m) : ''); }
+function resistWhy(rec) { return !rec ? '' : 'resisting ' + (rec.by ? rec.by + '\u2019s attempt' : 'an attempt') + (typeof rec.m === 'number' ? ', made by ' + fmtNum(rec.m) : '') + (typeof rec.kn === 'string' && rec.kn ? ', ' + rec.kn : ''); }
 // 1.6.0 (the by-hand test: a card that read Big Hit (Vitality), a Major Wound): what a due card says of a Major Wound, in the system's own word, and nothing where the roll's own name says it already
 function dueMajor(rec) {
     var w = rec && typeof rec.mw === 'string' && rec.mw ? rec.mw : 'a Major Wound', bare = w.replace(/^an? /i, '').toLowerCase();

@@ -1119,6 +1119,15 @@ Small fixes from a long test by hand
   name a station leaves out the rest. Formulas read the sheet that pressed as
   Presser.<name>.
 
+For system builders, more
+- Any wound holds six rows.
+- A roll that resists an attempt can read the attacker's sheet, as
+  Attempter.<key>, for the fields a roll reads of its target.
+- Who holds whom can name an effect for the holder too, so that a roll's Needs
+  can tell that they are holding.
+- A feed can have an Only where. On a row where it does not hold, that feed has
+  no chip, a shot takes nothing from it and an empty one stops nothing.
+
 WAYPOINT 1.5.9 — What's New
 ============================
 

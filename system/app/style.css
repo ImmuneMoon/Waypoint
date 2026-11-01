@@ -3293,7 +3293,7 @@
   .lib-pick .lib-pick-rollsel { width: auto; max-width: 160px; }
   .lib-pick-hint { color: var(--dim); font-size: 11px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   @media (max-width: 640px) { .lib-pick-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 0.8fr); } .lib-pick-hint { display: none; } }
-  .sys-box { width: 1080px; max-width: 96vw; max-height: 90vh; display: flex; flex-direction: column; padding: 14px 18px 12px; gap: 8px; }
+  .sys-box { width: 1080px; max-width: 96vw; height: 90vh; max-height: 90vh; display: flex; flex-direction: column; padding: 14px 18px 12px; gap: 8px; }
   .sys-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .sys-head .sys-name { width: 220px; padding: 4px 8px; font-size: 12.5px; }   /* beats the base input.field, or the box took a whole line of the head */
   .sys-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--edge); }

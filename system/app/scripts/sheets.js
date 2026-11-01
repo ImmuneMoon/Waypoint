@@ -3454,7 +3454,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         if (typeof onceBits === 'function') onceBits(line, sysI, c, f, carried, entry);   // 1.5.8 Counted once
         var noteLn = null;
         var smR = spec && typeof statMenuMode === 'function' ? statMenuMode(entry, rd, spec, gm, sysI, chg && !hudRow) : ''; _rowMenu = smR ? function(s, sv) { return statMenu(s, sv, entry, rd, c, f, spec, smR); } : null;   // 1.6.0 R10
-        if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null, res && res.cfx ? res.cfx[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); if (typeof loadCtl === 'function') loadCtl(line, entry, c, f, spec, editable, sysI, res && res.ldOk ? res.ldOk[rid] : undefined); if (typeof feedCtl === 'function') feedCtl(line, entry, c, f, spec, editable, sysI, res && res.cts ? res.cts[rid] : null, res && res.fdT ? res.fdT[rid] : null); if (typeof chamberCtl === 'function') chamberCtl(line, entry, c, f, spec, editable, sysI, gm, canThrow, res && res.chOk ? res.chOk[rid] : undefined); var lc = partHere(spec.lvl, _placeWant, hudRow) ? lvlCtl(entry, def, c, f, spec, chg && !opnR) : null; if (lc) line.appendChild(lc); var oc = partHere(spec.on, _placeWant, hudRow) ? onCtl(entry, c, f, spec, editable, true, res && res.onOk ? res.onOk[rid] : undefined, res && res.onShow ? res.onShow[rid] : undefined) : null; if (oc) line.appendChild(oc); var pcL = partHere({ place: spec.paidPlace }, _placeWant, hudRow) ? paidCtl(entry, def, c, f, spec, chg, gm, true) : null; if (pcL) line.appendChild(pcL); noteLn = hudRow ? null : noteBits(entry, def, c, f, chg, ovc, sysI, gm, !!lookOk && _fxLive); }   // F4c1: the stats shown On the row, what one cost
+        if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null, res && res.cfx ? res.cfx[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); if (typeof loadCtl === 'function') loadCtl(line, entry, c, f, spec, editable, sysI, res && res.ldOk ? res.ldOk[rid] : undefined); if (typeof feedCtl === 'function') feedCtl(line, entry, c, f, spec, editable, sysI, res && res.cts ? res.cts[rid] : null, res && res.fdT ? res.fdT[rid] : null, res && res.fdU ? res.fdU[rid] : null); if (typeof chamberCtl === 'function') chamberCtl(line, entry, c, f, spec, editable, sysI, gm, canThrow, res && res.chOk ? res.chOk[rid] : undefined); var lc = partHere(spec.lvl, _placeWant, hudRow) ? lvlCtl(entry, def, c, f, spec, chg && !opnR) : null; if (lc) line.appendChild(lc); var oc = partHere(spec.on, _placeWant, hudRow) ? onCtl(entry, c, f, spec, editable, true, res && res.onOk ? res.onOk[rid] : undefined, res && res.onShow ? res.onShow[rid] : undefined) : null; if (oc) line.appendChild(oc); var pcL = partHere({ place: spec.paidPlace }, _placeWant, hudRow) ? paidCtl(entry, def, c, f, spec, chg, gm, true) : null; if (pcL) line.appendChild(pcL); noteLn = hudRow ? null : noteBits(entry, def, c, f, chg, ovc, sysI, gm, !!lookOk && _fxLive); }   // F4c1: the stats shown On the row, what one cost
         _rowMenu = null;
         var sjC = typeof subjectCtl === 'function' ? subjectCtl(entry, c, f, spec, chg && !hudRow && !opnR, res && res.sjOk ? res.sjOk[rid] : undefined) : null; if (sjC) line.appendChild(sjC);   // 1.6.0 Subjects
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
@@ -3621,12 +3621,12 @@ function openLoadMenu(anchor, c, f, entry, sf, spec, sys) {
 // 1.6.0 Feeds (the core's ruling: mixed loads fire in the order stacked, noted on loading): a chip for each feed of a row, saying what it holds in that
 // order and how much of each is left, with Load or Swap, which change the whole of that feed, and Add, which stacks more behind what is there. The
 // other feed never moves. A play control, as Load is. Every name from a campaign as text
-function feedCtl(host, entry, c, f, spec, editable, sysI, cells, turnsOf) {
+function feedCtl(host, entry, c, f, spec, editable, sysI, cells, turnsOf, ups) {
     if (!spec || !Array.isArray(spec.feeds) || !entry || entry.hid === 1) return;
     var sys = sysI || systemOf(getActiveCampaign()), byKey = {}; if (!sys) return;
     (Array.isArray(cells) ? cells : []).forEach(function(x) { if (x && typeof x.key === 'string') byKey[x.key] = x; });
     spec.feeds.forEach(function(fd) {
-        var sf = fieldById(sys, fd.from), t = feedCt(spec, fd); if (!sf || sf.kind !== 'item-list' || !sf.list || !t) return;
+        var sf = fieldById(sys, fd.from), t = feedCt(spec, fd); if (!sf || sf.kind !== 'item-list' || !sf.list || !t || (ups && ups[fd.key] === false)) return;   // 1.6.0 Only where: no chip on a row it does not stand on
         var left = feedCount(spec, entry, fd), st = feedLive(feedStack(entry, fd), left), cell = byKey[t.key], mx = cell && typeof cell.max === 'number' ? cell.max : null, lab = t.label || t.key, ln = sf.label || sf.key || 'its list', tn = turnsOf && typeof turnsOf[fd.key] === 'number' ? turnsOf[fd.key] : 0;
         var parts = st.map(function(p) { var d = rowDef(sys, p.c); return ((d && d.def && d.def.name) || 'Loaded') + ' ' + fmtNum(p.n); }), said = parts.join(', then ');
         var w = el('span', 'sheet-chip sheet-item-load sheet-item-feed' + (st.length ? '' : ' sheet-item-load-none')); w.title = st.length ? lab + ' fires in this order: ' + said : 'Nothing loaded from ' + ln;
@@ -3838,7 +3838,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
             }
             _placeWant = hudRow ? null : 'row'; ctCtl(actTd, entry, c, f, spec, editable, res && res.cts ? res.cts[rowIdOf(entry)] : null);   // Stage 6 HUD R2: its counters (1.6.0 R2: those on the row)
             if (typeof loadCtl === 'function') loadCtl(actTd, entry, c, f, spec, editable, sysI, res && res.ldOk ? res.ldOk[rid] : undefined);   // 1.5.8 Loads from, and Loads only where (1.5.9: in a table too)
-            if (typeof feedCtl === 'function') feedCtl(actTd, entry, c, f, spec, editable, sysI, res && res.cts ? res.cts[rid] : null, res && res.fdT ? res.fdT[rid] : null);   // 1.6.0 Feeds
+            if (typeof feedCtl === 'function') feedCtl(actTd, entry, c, f, spec, editable, sysI, res && res.cts ? res.cts[rid] : null, res && res.fdT ? res.fdT[rid] : null, res && res.fdU ? res.fdU[rid] : null);   // 1.6.0 Feeds
             if (typeof chamberCtl === 'function') chamberCtl(actTd, entry, c, f, spec, editable, sysI, gm, canThrow, res && res.chOk ? res.chOk[rid] : undefined);   // 1.5.9 Chambers from, and Chambers only where
             rowRollBtns(actTd, spec, entry, def, c, f, res); _placeWant = null;   // F5b: the list's rolls (1.6.0 R2: those on the row)
             if (rrT) actTd.appendChild(editBtn(entry, c, f, rrT, rd.src === 'custom'));   // F4c2: ✎
@@ -8530,6 +8530,7 @@ function ctKeySays(sp, F0) {
             ctsL.forEach(function(x) { if (!x || typeof x.key !== 'string' || !x.key) return; var o = el('option', null, (x.label || x.key) + ' (' + x.key + ')'); o.value = x.key; if (fdS.ct === x.key) o.selected = true; fct.appendChild(o); });
             frw.appendChild(fct);
             frw.appendChild(input('sys-list-feedturns field', typeof fdS.turns === 'string' ? fdS.turns : '', 'The turns a change of this feed takes, from the row\u2019s own names, no dice. The Load menu says it, and Row.Feed.<key>.turns reads it. Blank: says nothing', 'Turns to change (blank: none said)'));
+            frw.appendChild(input('sys-list-feedif field', typeof fdS['if'] === 'string' ? fdS['if'] : '', 'A formula of the row\u2019s own names, no dice. On a row where it does not hold there is no chip, a shot takes nothing from this feed, and an empty one stops nothing. What was loaded still comes out. Blank: every row', 'Only where (blank: every row)'));
             frw.appendChild(input('sys-list-feedcats field', Array.isArray(fdS.cats) ? fdS.cats.join(', ') : '', 'The categories of that list this feed takes, separated by commas. Blank: any of its rows', 'Categories it takes (blank: any)'));
             frw.appendChild(input('sys-list-feedby field', typeof fdS.by === 'string' ? fdS.by : '', 'A stat of this list. A row loads only what reads the same figure in the stat below. Blank: anything the categories take', 'Matched by: this list\u2019s stat'));
             frw.appendChild(input('sys-list-feedto field', typeof fdS.to === 'string' ? fdS.to : '', 'The stat of the list it loads from that must read the same figure', 'and that list\u2019s stat'));
@@ -9696,6 +9697,7 @@ function holdsBox(box, cm) {
     var sel = function(k, cap, o, cur, title) { var l = labeledSelect('sys-hold-pick', cap, o, typeof cur === 'string' ? cur : '', title); l.querySelector('select').dataset.k = k; wrap.appendChild(l); };
     sel('held', 'The held wear', fxO('', h.held), h.held, 'The effect a held character wears, once however many hold them');
     sel('pinned', 'The pinned wear', fxO('None', h.pinned), h.pinned, 'The effect a pinned character wears as well');
+    sel('holder', 'The holder wears', fxO('None', h.holder), h.holder, 'The effect a character wears while they hold anyone, so a needs formula can tell that they are holding');
     [['take', 'A roll that takes hold', 'A success takes hold of the roller\u2019s target'], ['pin', 'A roll that pins', 'A success pins someone the roller holds'], ['keep', 'The keep', 'One press at the holder\u2019s turn keeps every hold they have. With none, their holds end at its end. None named: holds need no keeping'], ['squeeze', 'A squeeze', 'A damage roll: its blow lands on each one held, with no attack and no resist, and it keeps the holds'], ['free', 'A roll that breaks free', 'The held roll it at the one who holds them. A success ends that hold. One that is resisted ends it once the holder fails']].forEach(function(x) { sel(x[0], x[1], holdRollOpts(h[x[0]]), h[x[0]], x[2]); });
     var alsoW = el('div', 'sys-flags'); alsoW.appendChild(el('span', 'sys-num-cap', 'Attacks that keep too')); holdRollOpts('').slice(1).forEach(function(o) { var l = checkLabel('sys-hold-also', Array.isArray(h.also) && h.also.indexOf(o[0]) >= 0, o[1], 'Aimed at someone held, this roll keeps every hold'); l.querySelector('input').dataset.ref = o[0]; alsoW.appendChild(l); }); wrap.appendChild(alsoW);
     wrap.appendChild(labeledNum('sys-hold-drag', 'Drags, in cells a turn', typeof h.drag === 'number' ? h.drag : '', 'A holder who moves this far or less takes those held along. Further, or blank, and walking off lets go'));
@@ -9789,7 +9791,7 @@ function postureClick(b) {
 // the weapons a blow tests. Every name reaches the box as a value or a text node. Save cleans it (systemcore cleanDamageRules); damageSays says
 // under the box what Save drops, judged a part at a time by the cleaner itself
 // [sinkcheck:dmgbox-start]
-var DBX_LIM = { types: 32, kinds: 8, layers: 8, weapons: 4, wears: 8, onWound: 4, onMajor: 4 };
+var DBX_LIM = { types: 32, kinds: 8, layers: 8, weapons: 4, wears: 8, onWound: 6, onMajor: 4 };
 var CRIP_BY_LINE = 'What the failure writes, instead of how far it failed. It reads Margin, how far it failed, Natural, the roll\u2019s bare total, and the blow as Blow. and a name. 0 or below writes nothing';   // 1.6.0 (the core's ruling on gap 7)   // systemcore's DMG_LIM: what the cleaner keeps
 // 1.6.0: a damage type's figures a die: its control, its key, its caption, its line, its least and its words
 var DBX_DIE = [
@@ -11359,6 +11361,7 @@ function onInput(e) {
             var frwI = t.closest('.sys-list-feed'), fdI = frwI && Array.isArray(lsp.feeds) ? lsp.feeds[+frwI.dataset.fi] : null; if (!fdI || typeof fdI !== 'object') return;
             if (lcc.indexOf('sys-list-feedkey') >= 0) fdI.key = t.value.slice(0, 24);
             else if (lcc.indexOf('sys-list-feedturns') >= 0) { var ftv = t.value.slice(0, LIMITS.formula).trim(); if (ftv) fdI.turns = ftv; else delete fdI.turns; }
+            else if (lcc.indexOf('sys-list-feedif') >= 0) { var fiv = t.value.slice(0, LIMITS.formula).trim(); if (fiv) fdI['if'] = fiv; else delete fdI['if']; }
             else if (lcc.indexOf('sys-list-feedcats') >= 0) { var fcv = t.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (fcv.length) fdI.cats = fcv; else delete fdI.cats; }
             else if (lcc.indexOf('sys-list-feedby') >= 0) { if (t.value.trim()) fdI.by = t.value.trim(); else delete fdI.by; }
             else if (lcc.indexOf('sys-list-feedto') >= 0) { if (t.value.trim()) fdI.to = t.value.trim(); else delete fdI.to; }

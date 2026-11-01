@@ -5506,7 +5506,7 @@ function holdFx(camp, ch, id, on) {   // an effect on or off through the effects
     if (typeof saveRemoteSoon === 'function') saveRemoteSoon(); if (net.syncCharDelta) net.syncCharDelta(ch.id, r.values);
     if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(ch.id);
 }
-function holdsSync(camp, ids) {   // each character's effects as the records now stand: on once however many hold it, off with the last
+function holdsSync(camp, ids, by) {   // each character's effects as the records now stand: on once however many hold it, off with the last; by: those who held, for the effect a holder wears (asked apart, so a holder's own Held is left alone)
     var r = holdsRules(camp); if (!r) return; _holdBusy = true;
     try {
         ids.forEach(function(id, i) {
@@ -5514,11 +5514,12 @@ function holdsSync(camp, ids) {   // each character's effects as the records now
             var on = holdsAll(function(x) { return x.oc === id; });
             holdFx(camp, ch, r.held, on.length > 0); if (r.pinned) holdFx(camp, ch, r.pinned, on.some(function(x) { return x.rec.pin === 1; }));
         });
+        if (r.holder) (Array.isArray(by) ? by : []).forEach(function(id, i) { var ch = camp.chars && own(camp.chars, id) ? camp.chars[id] : null; if (ch && by.indexOf(id) === i) holdFx(camp, ch, r.holder, holdsAll(function(x) { return x.bc === id; }).length > 0); });
     } finally { _holdBusy = false; }
 }
 function holdEnd(camp, c, recs, why) {   // those records gone, the effects with them, and each side told in words that name nobody
     var left = holdsOf(c).filter(function(x) { return recs.indexOf(x) < 0; }); if (left.length) c.hl = left; else delete c.hl;
-    holdsSync(camp, recs.map(function(x) { return x.oc; }));
+    holdsSync(camp, recs.map(function(x) { return x.oc; }), recs.map(function(x) { return x.bc; }));
     recs.forEach(function(x) { holdTell(camp, x.bc, 'You let go.'); holdTell(camp, x.oc, 'You are no longer held.'); if (typeof recLine === 'function') recLine('fight', (camp.chars && own(camp.chars, x.bc) ? camp.chars[x.bc].name : '') || 'Someone', 'Lets go', HOLD_WHY[why] || ''); });
     holdLog('ended', { n: recs.length, why: why }); if (typeof fightsKeepSoon === 'function') fightsKeepSoon();
 }
@@ -5529,7 +5530,7 @@ function holdPut(camp, mapId, by, onId, pin) {   // a hold of the token by on th
     var had = holdsOf(c).filter(function(x) { return x.by === by.id && x.on === onId; })[0];
     if (!had) { if (pin) return 'Hold them first.'; if (holdsOf(c).length >= HOLDS_MAX) return 'That fight holds as many holds as it may.'; c.hl = holdsOf(c).concat([{ by: by.id, on: onId, bc: by.charId, oc: on.charId, k: c.round }]); holdTell(camp, on.charId, 'You are held.'); }
     else if (pin) { had.pin = 1; had.k = c.round; holdTell(camp, on.charId, 'You are pinned.'); }
-    holdsSync(camp, [on.charId]); holdLog(pin ? 'pinned' : 'taken', { n: holdsOf(c).length }); if (typeof fightsKeepSoon === 'function') fightsKeepSoon();
+    holdsSync(camp, [on.charId], [by.charId]); holdLog(pin ? 'pinned' : 'taken', { n: holdsOf(c).length }); if (typeof fightsKeepSoon === 'function') fightsKeepSoon();
     return '';
 }
 function holdsBar(camp, ch, ref) {   // why a roll named by combat.holds cannot be made now: words, or ''
@@ -5570,7 +5571,7 @@ function holdsPrune(camp, c) {   // a token gone from the map or the fight takes
     var l = holdsOf(c); if (!l.length) return; var map = holdMap(camp, c), inF = Object.create(null); c.rows.forEach(function(r) { if (r && typeof r.tokId === 'string') inF[r.tokId] = 1; });
     var gone = l.filter(function(x) { return inF[x.by] !== 1 || inF[x.on] !== 1 || !holdTok(map, x.by) || !holdTok(map, x.on); }); if (gone.length) holdEnd(camp, c, gone, 'gone');
 }
-function holdsGone(camp, c) { var l = holdsOf(c); if (!l.length) return; delete c.hl; holdsSync(camp, l.map(function(x) { return x.oc; })); holdLog('ended', { n: l.length, why: 'fight' }); }   // the fight over: every hold in it, quietly
+function holdsGone(camp, c) { var l = holdsOf(c); if (!l.length) return; delete c.hl; holdsSync(camp, l.map(function(x) { return x.oc; }), l.map(function(x) { return x.bc; })); holdLog('ended', { n: l.length, why: 'fight' }); }   // the fight over: every hold in it, quietly
 function holdsWatch(id) {   // a holder who has lost their action or gone down lets go of all at once, whatever moved them there
     if (_holdBusy || !fightIds().length) return;
     var camp = getActiveCampaign(), r = holdsRules(camp), S = SC(), F = window.wpFormula; if (!r || !r.ends || !S || !F || !camp.chars || !own(camp.chars, id)) return;
@@ -8957,7 +8958,7 @@ function handleMessage(msg, conn) {
             chQ = srcQ; varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ);
             if (q.hit) { var thQ0 = typeof targetHitIn === 'function' && typeof SQ.withTargetHit === 'function' ? targetHitIn(campQ, tcQ && tcQ.range, q.hit, pidQ) : null; if (!thQ0) { denyQ('error', { error: { message: 'That location is not on your target now.', pos: 0, len: 0 } }); return; } tcQ = SQ.withTargetHit(tcQ, thQ0); varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ); }   // 1.6.0 (B5): the location row they picked on their target, judged here and read through their view
             if (q.att && typeof attSoftGone === 'function' && attSoftGone(q.att)) delete q.att;
-            if (q.att) { var atQ = typeof attemptPeek === 'function' ? attemptPeek(q.att, q.charId, q.act, q.row) : null; if (atQ === null || !SQ.withAttempt) { denyQ('error', { error: { message: typeof ATT_GONE === 'string' ? ATT_GONE : 'That attempt is not there now.', pos: 0, len: 0 } }); return; } tcQ = SQ.withAttempt(tcQ, atQ); var abQ = typeof attemptRec === 'function' ? attemptRec(q.att) : null; if (abQ && abQ.blow && SQ.withBlow) tcQ = SQ.withBlow(tcQ, abQ.blow); var cvB = abQ && abQ.blow && abQ.vals ? SQ.charFor(Object.assign({}, srcQ, { values: abQ.vals }), viewQ, pidQ, { lib: fxLib(campQ.system), items: itemLib(campQ.system), full: campQ.system }) : null; if (abQ && typeof abQ.k === 'number') tcQ = SQ.withAttempt(tcQ, atQ, abQ.k); varsQ = SQ.makeResolver(viewQ, cvB || chvQ, Fq, tcQ); }   // 1.6.0 (B2): the attempt it resists, from the host's own record   // 1.6.0 (the core's gaps 6 and 7): or the blow it answers
+            if (q.att) { var atQ = typeof attemptPeek === 'function' ? attemptPeek(q.att, q.charId, q.act, q.row) : null; if (atQ === null || !SQ.withAttempt) { denyQ('error', { error: { message: typeof ATT_GONE === 'string' ? ATT_GONE : 'That attempt is not there now.', pos: 0, len: 0 } }); return; } tcQ = SQ.withAttempt(tcQ, atQ); var abQ = typeof attemptRec === 'function' ? attemptRec(q.att) : null; if (abQ && abQ.blow && SQ.withBlow) tcQ = SQ.withBlow(tcQ, abQ.blow); var cvB = abQ && abQ.blow && abQ.vals ? SQ.charFor(Object.assign({}, srcQ, { values: abQ.vals }), viewQ, pidQ, { lib: fxLib(campQ.system), items: itemLib(campQ.system), full: campQ.system }) : null; if (abQ && (typeof abQ.k === 'number' || abQ.rd)) tcQ = SQ.withAttempt(tcQ, atQ, abQ.k, abQ.rd); varsQ = SQ.makeResolver(viewQ, cvB || chvQ, Fq, tcQ); }   // 1.6.0 (B2): the attempt it resists, from the host's own record   // 1.6.0 (the core's gaps 6 and 7): or the blow it answers
             if (q.row && q.row.k) {   // 1.6.0 Rolls unheld entries: the entry as their view has it (a system item they see, else an entry of a pack players may see: never a GM-only one), judged by the one judge against the host's own copy, its level worked out here
                 var ueQ = null; (Array.isArray(viewQ.items) ? viewQ.items : []).forEach(function(it) { if (!ueQ && it && it.id === q.row.k) ueQ = it; }); if (!ueQ && window.wpLibrary && typeof window.wpLibrary.playerEntry === 'function') ueQ = window.wpLibrary.playerEntry(q.row.k) || null;
                 var ujQ = typeof SQ.unheldJudge === 'function' ? SQ.unheldJudge(viewQ, srcQ, q.row.f, ueQ) : { ok: false, msg: 'That list does not roll entries nobody holds.' }; if (!ujQ.ok) { denyQ('error', { error: { message: ujQ.msg, pos: 0, len: 0 } }); return; }
@@ -8991,7 +8992,7 @@ function handleMessage(msg, conn) {
                 }
                 if (q.row && typeof actQ.showIf === 'string' && actQ.showIf && !SQ.rollNeedsOk({ needs: actQ.showIf }, varsQ, Fq)) { denyQ('error', { error: { message: 'That roll is not offered on this row.', pos: 0, len: 0 } }); return; }   // 1.6.0: Shown where, through their view
                 if (actQ.needs && !SQ.rollNeedsOk(actQ, varsQ, Fq)) { denyQ('error', { error: { message: SQ.rollNeedsSays(actQ), pos: 0, len: 0 } }); return; }   // R2b: what it needs, through their view (the row's names); the one reading (1.5.4: no die in it is rolled)
-                var fsQ = q.row && typeof SQ.feedShortOf === 'function' ? SQ.feedShortOf(viewQ, chvQ, q.row, actQ) : ''; if (fsQ) { if (window.wpStepLog) window.wpStepLog('feed v1', 'stopped', { by: 'player' }); denyQ('error', { error: { message: fsQ, pos: 0, len: 0 } }); return; }   // 1.6.0 Feeds: any feed at 0 stops the shot, from the host's own copy of the row
+                var fsQ = q.row && typeof SQ.feedShortOf === 'function' ? SQ.feedShortOf(viewQ, chvQ, q.row, actQ, Fq, tcQ) : ''; if (fsQ) { if (window.wpStepLog) window.wpStepLog('feed v1', 'stopped', { by: 'player' }); denyQ('error', { error: { message: fsQ, pos: 0, len: 0 } }); return; }   // 1.6.0 Feeds: any feed at 0 stops the shot, from the host's own copy of the row
             }
         }
         if (Fq.names(q.expr).length && !varsQ) { denyQ('names'); return; }
@@ -10311,10 +10312,10 @@ function attKindWord(camp, entry, fromCh, rowRef) { var S = SC(), kr = attKindRo
 function attOffers(camp, tch, toO, r, at) {   // a system roll that resists: whether its needs hold for this attempt
     var S = SC(), Fs = window.wpFormula; if (!r.needs) return true; if (!Fs) return false;
     try {
-        if (!toO) return S.rollNeedsOk(r, S.makeResolver(camp.system, tch, Fs, S.withAttempt(attTokCtx(tch, false, at), at.m, at.k)), Fs);
+        if (!toO) return S.rollNeedsOk(r, S.makeResolver(camp.system, tch, Fs, S.withAttempt(attTokCtx(tch, false, at), at.m, at.k, at.r)), Fs);
         var view = window.wpSheets.playerSystem(camp), vr = null; (view && Array.isArray(view.rolls) ? view.rolls : []).forEach(function(x) { if (x && x.id === r.id) vr = x; }); if (!vr) return false;
         var chv = S.charFor(tch, view, tch.ownerId, { lib: fxLib(camp.system), items: itemLib(camp.system), full: camp.system }); if (!chv) return false;
-        return S.rollNeedsOk(vr, S.makeResolver(view, chv, Fs, S.withAttempt(attTokCtx(tch, true, at), at.m, at.k)), Fs);
+        return S.rollNeedsOk(vr, S.makeResolver(view, chv, Fs, S.withAttempt(attTokCtx(tch, true, at), at.m, at.k, at.r)), Fs);
     } catch (e) { return false; }
 }
 function attRowAlts(camp, tch, ref, toO, out, at) {
@@ -10333,7 +10334,7 @@ function attRowAlts(camp, tch, ref, toO, out, at) {
     var shw = toO ? vr.showIf : lr.showIf, Fs = window.wpFormula, rvs = null;   // 1.6.0: Shown where, as the host judges the press (none: every row, as before)
     var ndA = at && typeof at.k === 'number' ? (toO ? vr.needs : lr.needs) : ''; if (typeof ndA !== 'string') ndA = '';   // 1.6.0 An attempt's kind: its needs, only where the attack names a kind
     if ((typeof shw === 'string' && shw) || ndA) { if (!Fs) return; var cxA = attTokCtx(tch, toO, at);
-        if (ndA) cxA = S.withAttempt(cxA, at.m, at.k);
+        if (ndA) cxA = S.withAttempt(cxA, at.m, at.k, at.r);
         try { rvs = S.makeResolver(toO ? view : camp.system, toO ? chv : tch, Fs, cxA); } catch (e) { return; } if (!rvs || typeof rvs.row !== 'function') return; }
     (tch.values && Array.isArray(tch.values[lr0.f]) ? tch.values[lr0.f] : []).forEach(function(row) {
         if (out.length >= ATT_ROWS) return; var rid = S.rowIdOf(row); if (typeof rid !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(rid) || out.some(function(x) { return x.f === lr0.f && x.r === rid && x.i === lr0.i; })) return;
@@ -10353,12 +10354,13 @@ function attemptMake(camp, entry, vd, malf, range, fromCh, priv, vars, rowRef) {
     var tch = camp.chars[tok.charId]; if (!tch || typeof tch.id !== 'string' || (fromCh && tch.id === fromCh.id)) return null;
     var m = typeof S.thenMargin === 'function' ? S.thenMargin(vd, false) : (typeof vd.margin === 'number' ? vd.margin : 0), id = '';
     while (!id || Object.prototype.hasOwnProperty.call(_attempts, id)) { id = 'a_'; while (id.length < 10) id += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36)); }
-    var toO = !priv && !tch.npc && !!tch.ownerId && rr.vis !== 'gm', alts = [], rowsA = [], kindOn = typeof entry.attemptKey === 'string' && !!entry.attemptKey, kindA = kindOn ? { k: attKindOf(camp, entry, fromCh, rowRef), m: m } : null;   // 1.6.0 (the core's gap 5): the other rolls the target may pick, each a resist roll of the system, none GM-only on a player's card; 1.6.0: the attack's kind, only where it names one
+    var toO = !priv && !tch.npc && !!tch.ownerId && rr.vis !== 'gm', alts = [], rowsA = [], kindOn = typeof entry.attemptKey === 'string' && !!entry.attemptKey, rdA = null, kindA = kindOn ? { k: attKindOf(camp, entry, fromCh, rowRef), m: m } : null;   // 1.6.0 (the core's gap 5): the other rolls the target may pick, each a resist roll of the system, none GM-only on a player's card; 1.6.0: the attack's kind, only where it names one
+    if (fromCh && typeof S.targetReadsOf === 'function') { try { rdA = S.targetReadsOf(camp.system, fromCh.id, { charOf: function() { return fromCh; }, F: window.wpFormula }); } catch (e) { rdA = null; } if (rdA && kindA) kindA.r = rdA; }   // 1.6.0: what a resist roll reads of the attacker as Attempter.<key>, the fields combat.targetReads names, on the host's record alone
     (Array.isArray(entry.resistOr) ? entry.resistOr : []).forEach(function(oid) { if (typeof oid === 'string' && oid.indexOf('#') > 0) { attRowAlts(camp, tch, oid, toO, rowsA, Object.assign({ map: map, tok: tok, mapId: range.mapId }, kindA)); return; }   // 1.6.0: a list's roll, a button a row
         (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === oid && r.id !== rr.id && r.resist === true && typeof r.formula === 'string' && !r.apply && !(toO && r.vis === 'gm') && alts.indexOf(r) < 0 && alts.length < 3) alts.push(r); }); });
     var noMain = false, atK = kindOn ? Object.assign({ map: map, tok: tok, mapId: range.mapId }, kindA) : null;   // 1.6.0 An attempt's kind: a defence whose needs fail is not offered, the next that holds standing first
     if (kindOn) { alts = alts.filter(function(r) { return attOffers(camp, tch, toO, r, atK); }); if (!attOffers(camp, tch, toO, rr, atK)) { if (alts.length) rr = alts.shift(); else if (rowsA.length) noMain = true; else { if (window.wpStepLog) window.wpStepLog('attempt v1', 'none offered', { rows: 0 }); return null; } } }
-    _attempts[id] = { charId: tch.id, act: noMain ? '' : rr.id, m: m }; if (range.area) _attempts[id].area = range.area; if (kindOn) { _attempts[id].k = kindA.k; if (priv) _attempts[id].kp = true; } if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); if (rowsA.length) _attempts[id].rows = rowsA.map(function(x) { return x.f + '#' + x.i + '#' + x.r; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
+    _attempts[id] = { charId: tch.id, act: noMain ? '' : rr.id, m: m }; if (range.area) _attempts[id].area = range.area; if (kindOn) { _attempts[id].k = kindA.k; if (priv) _attempts[id].kp = true; } if (rdA) { _attempts[id].rd = rdA; if (priv) _attempts[id].kp = true; } if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); if (rowsA.length) _attempts[id].rows = rowsA.map(function(x) { return x.f + '#' + x.i + '#' + x.r; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
     var csA = vars && typeof S.callsDue === 'function' ? S.callsDue(entry, 'resisted', vars, window.wpFormula) : []; if (csA.length) { _attempts[id].calls = csA.map(function(c) { var cK = { roll: c.roll, by: c.by || '' }; if (c.byIf) cK.byIf = c.byIf; return cK; }); _attempts[id].callBy = callName(entry); }   // 1.6.0: Calls for, waiting for the target's roll
     if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, toO, { att: id, by: fromCh && fromCh.name ? (toO && typeof npcByOf === 'function' ? npcByOf(camp, fromCh, tch.ownerId) : fromCh.name) : '', m: m, or: alts, rows: rowsA, nm: noMain, kn: kindOn && !priv ? attKindWord(camp, entry, fromCh, rowRef) : '' });
     return id;
@@ -10613,7 +10615,7 @@ net.diceRoll = function(expr, o) {
     if (chR && o.cross && typeof o.cross === 'object' && SR && typeof SR.withCross === 'function') { tcR = SR.withCross(tcR, o.cross); varsR = SR.makeResolver(campR.system, chR, F, tcR); }   // 1.6.0: a crossing's run reads CrossStep and Crossed (this machine's own word, never over the wire)   // 1.5.8 explosives: a throw's range to the point it aims at (this machine's own word, never over the wire)
     var thR = null; if (chR && typeof o.hit === 'string') { thR = typeof targetHitIn === 'function' && SR && typeof SR.withTargetHit === 'function' ? targetHitIn(campR, tcR && tcR.range, o.hit, '') : null; if (!thR) return { error: 'That location is not on the target now.' }; tcR = SR.withTargetHit(tcR, thR); varsR = SR.makeResolver(campR.system, chR, F, tcR); }   // 1.6.0 (B5): the location row picked on its target, this machine's own word
     if (chR && typeof o.att === 'string' && typeof attSoftGone === 'function' && attSoftGone(o.att)) o = Object.assign({}, o, { att: undefined });
-    if (chR && typeof o.att === 'string') { var atR = typeof attemptPeek === 'function' ? attemptPeek(o.att, chR.id, o.act, o.row) : null; if (atR === null || !SR.withAttempt) return { error: typeof ATT_GONE === 'string' ? ATT_GONE : 'That attempt is not there now.' }; tcR = SR.withAttempt(tcR, atR); var abR = typeof attemptRec === 'function' ? attemptRec(o.att) : null; if (abR && abR.blow && SR.withBlow) tcR = SR.withBlow(tcR, abR.blow); if (abR && typeof abR.k === 'number') tcR = SR.withAttempt(tcR, atR, abR.k); varsR = SR.makeResolver(campR.system, abR && abR.blow && abR.vals ? Object.assign({}, chR, { values: abR.vals }) : chR, F, tcR); }   // 1.6.0 (B2): the attempt it resists, from this machine's own record   // 1.6.0 (the core's gaps 6 and 7): or the blow it answers
+    if (chR && typeof o.att === 'string') { var atR = typeof attemptPeek === 'function' ? attemptPeek(o.att, chR.id, o.act, o.row) : null; if (atR === null || !SR.withAttempt) return { error: typeof ATT_GONE === 'string' ? ATT_GONE : 'That attempt is not there now.' }; tcR = SR.withAttempt(tcR, atR); var abR = typeof attemptRec === 'function' ? attemptRec(o.att) : null; if (abR && abR.blow && SR.withBlow) tcR = SR.withBlow(tcR, abR.blow); if (abR && (typeof abR.k === 'number' || abR.rd)) tcR = SR.withAttempt(tcR, atR, abR.k, abR.rd); varsR = SR.makeResolver(campR.system, abR && abR.blow && abR.vals ? Object.assign({}, chR, { values: abR.vals }) : chR, F, tcR); }   // 1.6.0 (B2): the attempt it resists, from this machine's own record   // 1.6.0 (the core's gaps 6 and 7): or the blow it answers
     var rowP = null;
     var uDefR = null;   // 1.6.0 Rolls unheld entries: the entry from this machine's own system and library, judged by the one judge, its level worked out here
     if (o.row && typeof o.row.k === 'string' && varsR) {
@@ -10639,7 +10641,7 @@ net.diceRoll = function(expr, o) {
     if (entR && entR.needs && entR.needsGm !== true && varsR && !SR.rollNeedsOk(entR, varsR, F)) return { error: SR.rollNeedsSays(entR) };
     if (entR && entR.area && !(o.aim && typeof o.aim === 'object')) return { error: AREA_AIM };   // 1.6.0: a line takes an aim
     var hbR = chR && typeof holdsBar === 'function' && typeof SR.holdRefOf === 'function' ? holdsBar(campR, chR, SR.holdRefOf(o.act, o.row)) : ''; if (hbR) return { error: hbR };   // 1.6.0 Who holds whom
-    var fsR = entR && o.row && campR && campR.system && typeof SR.feedShortOf === 'function' ? SR.feedShortOf(campR.system, chR, o.row, entR) : ''; if (fsR) { if (window.wpStepLog) window.wpStepLog('feed v1', 'stopped', { by: 'gm' }); return { error: fsR }; }   // 1.6.0 Feeds: any feed at 0 stops the shot
+    var fsR = entR && o.row && campR && campR.system && typeof SR.feedShortOf === 'function' ? SR.feedShortOf(campR.system, chR, o.row, entR, F, tcR) : ''; if (fsR) { if (window.wpStepLog) window.wpStepLog('feed v1', 'stopped', { by: 'gm' }); return { error: fsR }; }   // 1.6.0 Feeds: any feed at 0 stops the shot
     var swR = null; if (Array.isArray(o.sw) && o.sw.length) { var refSw = o.act && !o.row ? { r: String(o.act) } : o.fr ? { f: String(o.fr) } : o.row ? { l: String(o.row.f), row: String(o.row.r), i: typeof o.row.i === 'number' ? o.row.i : undefined } : null; swR = chR && SR && campR && campR.system && refSw && typeof SR.swJudge === 'function' ? SR.swJudge(campR.system, chR, refSw, o.sw) : { ok: false }; if (!swR.ok) return { error: 'That bonus is not this character\u2019s to add to this roll now.' }; }   // 1.6.0: the roll switches ticked, judged as a player's are (the formula already holds them)   // R2b: its needs (before anything is rolled)   // Stage 6 F5b: a roll on one row — its Row.* names
     if (entR && entR.burst === 'extra' && o.row && SR && typeof SR.burstBar === 'function') { var bbR = SR.burstBar(campR.system, chR, o.row.f, o.row.r); if (bbR) return { error: bbR }; }   // 1.6.0 A burst: its extra dice, once, after an attack that hit
     var hvR = null, rnR = null; if (entR && entR.dmg === true && entR.hits && varsR && SR && typeof SR.hitCount === 'function') { var hnR = SR.hitCount(entR, varsR, F); if (hnR === null) return { error: 'How many hits it rolls for could not be worked out.' }; if (hnR < 1) return { error: 'There are no hits to roll for.' }; hvR = SR.hitVars(varsR, hnR); rnR = SR.hitRounds(campR.system, varsR, hnR); varsR = hvR[0]; }   // 1.6.0 A burst: how many times it rolls, from the entry; the first hit reads its own round

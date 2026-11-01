@@ -9374,6 +9374,29 @@ function turnMoveOf(n, fid, c, tokId) {
     if (n.role === 'host') { var st = n.turnMove && Object.prototype.hasOwnProperty.call(n.turnMove, fid) ? n.turnMove[fid] : null; if (!st || typeof st.allow !== 'number' || st.rowId !== cur.id) return null; var oM = { m: st.moved, a: st.allow }; if (typeof st.run === 'number' && st.ran !== true && st.allow > st.walk) oM.w = st.walk; return oM; }
     if (!c.mv || typeof c.mv.m !== 'number' || typeof c.mv.a !== 'number') return null; var oC = { m: c.mv.m, a: c.mv.a }; if (typeof c.mv.w === 'number') oC.w = c.mv.w; return oC;
 }
+// [sinkcheck:holdask-start]
+// 1.6.0 A hold names what sets it off (combat.turn.holdNames): the strip's Hold asks for a short line and, if the player likes, a roll of the sheet's system by its id.
+// A box of elements and text nodes, away from the strip, which is drawn again whenever a turn moves. The host cleans what comes of it (systemcore cleanHoldFor)
+function holdRolls(sys) { return (sys && Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return !!r && typeof r.id === 'string' && r.init !== true; }).map(function(r) { return { id: r.id, label: String(r.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll' }; }); }
+function holdClose() { var b = document.getElementById('holdAsk'); if (b && b.parentNode) b.parentNode.removeChild(b); }
+function holdAsk(anchor, sys, done) {
+    holdClose(); var box = document.createElement('div'); box.id = 'holdAsk'; box.className = 'hold-ask';
+    var cap = document.createElement('label'); cap.className = 'hold-ask-cap'; cap.textContent = 'What sets it off?'; box.appendChild(cap);
+    var inp = document.createElement('input'); inp.type = 'text'; inp.className = 'field'; inp.maxLength = 120; inp.placeholder = 'Say what you wait for'; cap.appendChild(inp);
+    var sel = document.createElement('select'), rolls = holdRolls(sys); sel.className = 'field'; sel.title = 'What the character does when it comes. Set off then sends this roll as a card';
+    var mk = function(v, t) { var o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); }; mk('', 'No roll named'); rolls.forEach(function(r) { mk(r.id, r.label); }); if (rolls.length) box.appendChild(sel);
+    var go = function() { var t = inp.value.trim(); if (!t) { inp.focus(); return; } var hf = { text: t }; if (sel.value) hf.roll = sel.value; holdClose(); done(hf); };
+    var btn = function(t, f) { var b = document.createElement('button'); b.type = 'button'; b.className = 'tool ghost'; b.textContent = t; b.addEventListener('click', f); box.appendChild(b); }; btn('Hold', go); btn('Cancel', holdClose);
+    box.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); go(); } else if (e.key === 'Escape') { e.preventDefault(); holdClose(); } });
+    document.body.appendChild(box);
+    var ra = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : null; if (ra) { box.style.left = Math.max(8, Math.min(window.innerWidth - box.offsetWidth - 8, ra.left)) + 'px'; box.style.top = Math.min(window.innerHeight - box.offsetHeight - 8, ra.bottom + 6) + 'px'; }
+    inp.focus(); return box;
+}
+function stripHeldNamed(r, host, nameH) {   // a held row under holdNames: its words for the GM and its holder, in esc; the GM's Set off
+    var said = host ? (r.holdFor && r.holdFor.text) || '' : typeof r.hf === 'string' ? r.hf : '';
+    return '<span class="combat-strip-held" data-tip="' + esc(said ? 'Holding for: ' + said : 'Holding their turn until something sets it off') + '">held ' + nameH + (said ? ': ' + esc(said) : '') + '</span>' + (host ? '<button class="combat-strip-btn" data-act="setoff" data-row="' + esc(String(r.id)) + '" title="Set off: this hold\u2019s action comes now, before the turn goes on">Set off</button>' : '');
+}
+// [sinkcheck:holdask-end]
 function stripMoveHtml(n, fid, c, map) {
     var mv = turnMoveOf(n, fid, c, null); if (!mv || !n.cellsText) return '';
     var over = mv.m > mv.a + 0.05, r = Math.round(mv.m * 10) / 10;
@@ -9431,8 +9454,8 @@ function renderCombatStrip() {
     if (strip.style.setProperty) strip.style.setProperty('--strip-name', Math.min(nameRoom, 28) + 'ch');   // room for the longest name of the fight, so the arrow after the names stays under the pointer
     var who = findWho(n, !!window.wpStream), nameOf = function(r) { return findName(r.name || '', r.tokId, !!findOf(am.id, r.tokId, who, am, state.viewMode)); };   // backlog 26: a name that finds its token on this screen is a button
     var myTokIds = {}; if (!host && am && Array.isArray(am.whiteboard)) am.whiteboard.forEach(function(w) { if (w && w.isChar && w.ownerId && w.ownerId === n.myId && typeof w.id === 'string') myTokIds[w.id] = 1; });   // initiative O3: whose held rows a player may act from
-    var campH = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, holdStay = !!(campH && campH.system && campH.system.combat && campH.system.combat.turn && campH.system.combat.turn.holdAct === 'stay');   // 1.6.0: a system that keeps its order
-    var heldH = c.rows.map(function(r, i) { return r && r.held === 1 && i !== c.turn ? '<span class="combat-strip-held" data-tip="' + (holdStay ? 'Holding their turn: they may act now, and Done ends the hold' : 'Holding their turn: Act puts them right after whoever is acting') + '">held ' + nameOf(r) + '</span>' + (host || (typeof r.tokId === 'string' && myTokIds[r.tokId] === 1) ? '<button class="combat-strip-btn" data-act="act" data-row="' + esc(r.id) + '" title="' + (holdStay ? 'Done: the hold ends and the order stays as it is' : 'Act now: right after whoever is acting') + '">' + (holdStay ? 'Done' : 'Act') + '</button>' : '') : ''; }).join('');
+    var campH = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, holdStay = !!(campH && campH.system && campH.system.combat && campH.system.combat.turn && campH.system.combat.turn.holdAct === 'stay'), holdNm = !!(campH && campH.system && campH.system.combat && campH.system.combat.turn && campH.system.combat.turn.holdNames === true);   // 1.6.0: a system that keeps its order, and one whose holds name what sets them off
+    var heldH = c.rows.map(function(r, i) { if (r && r.sf === 1) return '<span class="combat-strip-held" data-tip="Their hold was set off: they act before the turn goes on">acts now ' + nameOf(r) + '</span>'; if (holdNm && typeof stripHeldNamed === 'function') return r && r.held === 1 && i !== c.turn ? stripHeldNamed(r, host, nameOf(r)) : ''; return r && r.held === 1 && i !== c.turn ? '<span class="combat-strip-held" data-tip="' + (holdStay ? 'Holding their turn: they may act now, and Done ends the hold' : 'Holding their turn: Act puts them right after whoever is acting') + '">held ' + nameOf(r) + '</span>' + (host || (typeof r.tokId === 'string' && myTokIds[r.tokId] === 1) ? '<button class="combat-strip-btn" data-act="act" data-row="' + esc(r.id) + '" title="' + (holdStay ? 'Done: the hold ends and the order stays as it is' : 'Act now: right after whoever is acting') + '">' + (holdStay ? 'Done' : 'Act') + '</button>' : '') : ''; }).join('');
     // drawn again only when it changed (found live, 2026-10-17): a redraw between a press and its click took the button pressed off the page, so
     // the press did nothing. What was written last is kept on the strip, since a hover moves each title into data-tip and the page's markup changes
     var html = (idsS.length > 1 ? '<button class="combat-strip-btn combat-strip-switch" data-act="switch" title="' + idsS.length + ' fights run on this map: show the next one. This changes nothing for anyone else">' + (atS + 1) + ' of ' + idsS.length + '</button>' : '')
@@ -9445,7 +9468,7 @@ function renderCombatStrip() {
         + '<span class="combat-strip-next" data-tip="' + (chS ? 'Up next: the next in the order who has not gone this round' : 'Up next') + '">next ' + nameOf(nxt) + (nxC && nxC.round ? ', opening round ' + (c.round + 1) : '') + '</span>'
         + (mine ? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn" title="End your turn: play moves on to the next in the order' + (chS ? ' who has not gone. Pick next chooses another' : '') + '">End turn</button>' : '')
         + pickH
-        + (chS ? '' : (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="Hold this turn: play moves on, and Act later this round puts them right after whoever is acting (a hold not used by the round&rsquo;s end is lost)">Hold</button>' : '') + heldH)
+        + (chS ? '' : (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="' + (holdNm ? 'Hold this turn and say what sets it off: play moves on, and it lasts to this character&rsquo;s next turn' : 'Hold this turn: play moves on, and Act later this round puts them right after whoever is acting (a hold not used by the round&rsquo;s end is lost)') + '">Hold</button>' : '') + heldH)
         + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn">&#9654;</button><button class="combat-strip-btn" data-act="edit" title="Combat roster"><i class="wib wi-pen"></i></button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
     if (strip.wpDrawn !== html) { strip.innerHTML = html; strip.wpDrawn = html; }
     if (typeof stripGap === 'function') stripGap();
@@ -9493,6 +9516,10 @@ function findLitWire(box) {
             else { var rp = n && n.turnEnd ? n.turnEnd(rowP) : null; if (rp && rp.error) toast(rp.error); }
             renderCombatStrip(); return;
         }
+        if (b.dataset.act === 'hold' && n && typeof holdAsk === 'function') {   // 1.6.0: a named hold asks first
+            var cpH = getActiveCampaign(), syH = cpH && cpH.system, tnH = syH && syH.combat && syH.combat.turn;
+            if (tnH && tnH.holdNames === true) { var fidN = am ? stripFightId(am.id) : null; holdAsk(b, syH, function(hf) { if (n.role === 'host') { if (fidN && !n.fightHold(fidN, undefined, hf)) toast('That hold could not be made.'); } else { var rH = n.turnHold ? n.turnHold(hf) : null; if (rH && rH.error) toast(rH.error); } }); return; }
+        }
         if (b.dataset.act === 'endturn') { var rt = n && n.turnEnd ? n.turnEnd() : null; if (rt && rt.error) toast(rt.error); return; }   // turn-based combat T2
         if (n && n.role !== 'host' && (b.dataset.act === 'hold' || b.dataset.act === 'act')) { var rh = b.dataset.act === 'hold' ? (n.turnHold ? n.turnHold() : null) : (n.turnAct ? n.turnAct(String(b.dataset.row || '')) : null); if (rh && rh.error) toast(rh.error); return; }   // initiative O3: a player's own hold or act
         if (!(n && n.role === 'host' && am)) return;
@@ -9503,6 +9530,7 @@ function findLitWire(box) {
         else if (b.dataset.act === 'end') n.fightEnd(fidB);
         else if (b.dataset.act === 'hold') n.fightHold(fidB);   // initiative O3
         else if (b.dataset.act === 'act') n.fightAct(fidB, String(b.dataset.row || ''));
+        else if (b.dataset.act === 'setoff') n.fightSetOff(fidB, String(b.dataset.row || ''));   // 1.6.0: a named hold's action, before the turn goes on
     });
 })();
 // [lookcheck:combatfind-start]

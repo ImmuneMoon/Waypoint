@@ -3730,10 +3730,11 @@ net.turnEnd = function(pick) {   // initiative O5: pick, the row they choose to 
     return { ok: true };
 };
 // Initiative O3: the player holds their own turn, or acts from their own hold (the host checks the row is theirs and still on turn or held)
-net.turnHold = function() {
+net.turnHold = function(hf) {   // hf (1.6.0): what a named hold names
     var t = net.myTurnTok(); if (!t) return { error: 'It is not your turn.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
-    try { net.conns[0].send({ type: 'turn-hold', mapId: t.mapId, row: t.rowId }); } catch (e) { return { error: 'Could not reach the GM.' }; }
+    var mH = { type: 'turn-hold', mapId: t.mapId, row: t.rowId }; if (hf && typeof hf === 'object') { if (typeof hf.text === 'string') mH.text = hf.text.slice(0, 200); if (typeof hf.roll === 'string') mH.roll = hf.roll.slice(0, 40); }
+    try { net.conns[0].send(mH); } catch (e) { return { error: 'Could not reach the GM.' }; }
     return { ok: true };
 };
 net.turnAct = function(rowId) {
@@ -4873,6 +4874,8 @@ function cleanFightBody(k, mapId) {   // one fight's order, cleaned: { mapId, ro
             var o = { id: String(r.id || '').slice(0, 40), name: String(r.name || '').slice(0, 60), tokId: r.tokId ? String(r.tokId).slice(0, 80) : null, init: Math.max(-1e6, Math.min(1e6, Number(r.init) || 0)), src: typeof r.src === 'string' && r.src.length <= 400 ? r.src : null };
             if (r.rolled === 1 || r.rolled === true) o.rolled = 1;   // initiative O1: the row has its number (rolled or given); the host's own, never sent to a player (combatRowOut)
             if (r.held === 1 || r.held === true) o.held = 1;   // initiative O3: holding its turn this round (shown to the table)
+            if (r.sf === 1) o.sf = 1;   // 1.6.0: its hold was set off, and it acts before the turn goes on
+            if (typeof r.hf === 'string' && r.hf) o.hf = r.hf.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').slice(0, 120);   // 1.6.0: what sets its hold off, for the holder alone; text, drawn through esc
             if (r.dn === 1 || r.dn === true) o.dn = 1;   // initiative O5: Next is chosen, it had its turn this round (shown to the table)
             if (Array.isArray(r.tb)) { var tb = r.tb.slice(0, 3).map(function(v) { return Array.isArray(v) ? v.slice(0, 8).filter(function(n) { return typeof n === 'number' && isFinite(n); }).map(function(n) { return Math.max(-1e6, Math.min(1e6, n)); }) : null; }); if (tb.some(function(v) { return v && v.length; })) o.tb = tb; }   // initiative O2: its tie rolls, each step's in order, kept so a later sort never shuffles; the host's own
             return o;
@@ -4928,6 +4931,8 @@ function combatsFor(recipientId, mapId) {
             if (unseen && combatSeen(fid, recipientId, r.tokId)) unseen = false;   // seen in this fight already: the name stays
             if (!unseen && r.tokId) combatSaw(fid, recipientId, r.tokId);
             var oD = combatRowOut(r, i, unseen); if (r.dn === 1) oD.dn = 1;   // initiative O5: whether it had its turn this round, which the strip showed as it went
+            if (r.sf === 1 && !unseen) oD.sf = 1;   // 1.6.0: its hold was set off
+            if (r.holdFor && !unseen && typeof holdOwner === 'function' && holdOwner(camp, mapId, r) === recipientId) oD.hf = r.holdFor.text;   // 1.6.0: what sets its hold off, to the holder's own player alone
             return oD;
         }) };
         if (cmb.side === 'pc' || cmb.side === 'rest') out[fid].side = cmb.side;   // initiative O4: which side goes first this round (never its rolls: those are their cards)
@@ -5129,6 +5134,7 @@ function fightReachKept(had, f) {   // a roster edit: how far the fight has gone
     if (had.th && typeof had.th === 'object') f.th = had.th;
     if (had.turned && typeof had.turned === 'object') f.turned = had.turned;
     if (had.fxEnded && typeof had.fxEnded === 'object') f.fxEnded = had.fxEnded;   // 1.6.0: and whose end-of-turn effects it has counted
+    if (Array.isArray(had.rows) && Array.isArray(f.rows)) had.rows.forEach(function(r) { if (!r || (!r.holdFor && r.sf !== 1 && r.hk !== 1)) return; var n = f.rows.filter(function(x) { return !!x && x.id === r.id; })[0]; if (!n) return; if (r.holdFor && n.held === 1) n.holdFor = r.holdFor; if (r.sf === 1) n.sf = 1; if (r.hk === 1) n.hk = 1; });   // 1.6.0: a named hold, its word and what it kept
     if (Array.isArray(had.ps)) f.ps = had.ps.slice();   // initiative O5: who had their turn this round, in the order they had it
     if (Array.isArray(had.pp)) f.pp = had.pp;   // ...and in the rounds before (a step back's way)
 }
@@ -5177,6 +5183,7 @@ function actsMaxOf(camp, ch, map, w, c) {   // 192: an action's count for one ch
     var vtt = window.wpVtt, rl = function(k) { return !vtt || (vtt.rulesOn ? vtt.rulesOn(k) : vtt.on(k)); }, tc = map && w ? S.withRound(S.tokenCtx(map, w, { turning: rl('turning'), posture: rl('posture'), elevation: rl('elevation'), viewer: ch.ownerId }), c) : null;
     var R = S.makeResolver(view, chv, F, tc), noD = function() { throw new Error('dice'); };
     va.forEach(function(a) { if (!a || !a.nf || !Object.prototype.hasOwnProperty.call(out, a.key)) return; var r; try { r = F.evaluate(a.nf, { vars: R, random: noD }); } catch (e) { r = null; } if (r && r.ok && typeof r.value === 'number' && isFinite(r.value)) out[a.key] = Math.max(0, Math.min(99, Math.floor(r.value))); });
+    if (c && Array.isArray(c.rows) && w && c.rows.some(function(r) { return !!r && r.tokId === w.id && r.hk === 1; })) actsOf(camp).forEach(function(a) { if (a && out[a.key] < (a.n || 1)) out[a.key] = a.n || 1; });   // 1.6.0: a hold went in place of a lost action, so this turn keeps its own
     return out;
 }
 function actMax(charId, a) { var m = net.turnMax[charId]; return m && typeof m[a.key] === 'number' ? m[a.key] : (a.n || 1); }
@@ -5226,7 +5233,7 @@ function runStart(st, t, S, F, R, camp, ch, map, w, c) {   // at a turn's start:
 }
 function runMark(camp, st) {   // a move landed: past the move, while the action is free, it is spent; its words, else ''
     if (!st || typeof st.run !== 'number' || st.ran === true || st.moved <= st.walk + 0.05 || moveMode(camp, 'move') === 'off' || runLeft(camp, st) <= 0) return '';
-    var a = runAct(camp, st), sp = net.turnSpent[st.charId] || (net.turnSpent[st.charId] = {}); st.ran = true; sp[a.key] = (sp[a.key] || 0) + 1; actsTell(camp, st.charId); runSyncOf(camp, st.charId);
+    var a = runAct(camp, st), sp = net.turnSpent[st.charId] || (net.turnSpent[st.charId] = {}); st.ran = true; sp[a.key] = (sp[a.key] || 0) + 1; actsTell(camp, st.charId); runSyncOf(camp, st.charId); if (window.wpStepLog) window.wpStepLog('turn v1', 'ran', { moved: st.moved });
     return String(a.label || a.key);
 }
 function runGate(camp, charId, cost, conn, who, look, pr) {   // a press that costs the action of a turn with a run: null where this says nothing, else what actSpend answers
@@ -5766,7 +5773,8 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     else if (t >= c.rows.length) { t = 0; c.round += 1; }
     else if (t < 0) { if (c.round > 1) { c.round -= 1; t = c.rows.length - 1; } else t = 0; }
     c.turn = t;
-    if (c.round !== r0 && holdRule('hold') !== 'next') c.rows.forEach(function(r) { if (r) delete r.held; });   // initiative O3 (the owner's answer): a hold not used by the round's end is lost (1.6.0: unless the system's hold lasts to the row's next turn, which the next line ends)
+    if (c.round !== r0 && holdRule('hold') !== 'next' && holdRule('holdNames') !== true) c.rows.forEach(function(r) { if (r) delete r.held; });   // initiative O3 (the owner's answer): a hold not used by the round's end is lost (1.6.0: unless the system's hold lasts to the row's next turn, which the next line ends)
+    if (holdRule('holdNames') === true) holdTurn(c, t, dir, t0);   // 1.6.0: a named hold lasts to its row's next turn, a row set off has had its moment, and a lost action takes a hold
     if (c.rows[t]) delete c.rows[t].held;   // ...and a row whose turn it is holds nothing
     if (endRow && typeof turnEnded === 'function') turnEnded(mapId, c, endRow, r0, t0);   // 1.6.0: its end first, before the new round and the next turn
     if (c.round > r0 && typeof combatNewRound === 'function') { combatNewRound(mapId, c); t = c.turn; }
@@ -5782,10 +5790,48 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
 // Initiative O3 (the owner's answer, "After the current turn"): the character whose turn it is holds it — play moves on as with Next turn and its row
 // waits, held; later in the round, when its owner or the GM presses Act, the held row goes right after whoever is acting and keeps that place (it
 // acts next). A hold not used by the round's end is lost (fightStep), and the character acts in its usual place
-function fightHold(fid, by) {   // by 'player': a player's own hold (fold 4: it makes no fight the one played)
+// 1.6.0 A hold names what sets it off (combat.turn.holdNames). The hold keeps row.holdFor, the host's own record of a line and an optional roll, whose words reach the
+// GM and the holder's player and no one else, and it lasts to that row's next turn. The GM's Set off gives the row its action before the turn on hand goes on: the
+// order does not change, so a row's turns stay where they were, the roll it named comes as a card, and sf lets it act off its turn until a turn moves. At its next
+// turn a hold still standing clears and a card says the action was lost. Where the system's holdLost says an action is lost while a hold stands, the hold goes in
+// its place and hk keeps that row's next turn at its plain count of actions. Watched at each step of the fight, and only as it comes true: a formula true as the
+// row held (was) took nothing. A step back clears a hold with no card, as it runs nothing
+function holdWho(camp, c, r) { var mp = camp && camp.items && own(camp.items, c.mapId) ? camp.items[c.mapId] : null, w = mp && Array.isArray(mp.whiteboard) && typeof r.tokId === 'string' ? mp.whiteboard.filter(function(x) { return !!x && x.id === r.tokId; })[0] : null, ch = w && typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null; return w ? { w: w, ch: ch, map: mp } : null; }
+function holdOwner(camp, mapId, r) { var hw = holdWho(camp, { mapId: mapId }, r); return hw && hw.w.ownerId ? hw.w.ownerId : ''; }
+function holdLostNow(camp, c, r) {
+    var text = holdRule('holdLost'), S = typeof SC === 'function' ? SC() : null, Fh = window.wpFormula, hw = typeof text === 'string' && text ? holdWho(camp, c, r) : null; if (!hw || !hw.ch || !S || !Fh || !camp.system) return false;
+    var vt = window.wpVtt, rl = function(k) { return !vt || (vt.rulesOn ? vt.rulesOn(k) : vt.on(k)); }, tc = null; try { tc = S.withRound(S.tokenCtx(hw.map, hw.w, { turning: rl('turning'), posture: rl('posture'), elevation: rl('elevation') }), c); } catch (e) { tc = null; }
+    try { return S.rollNeedsOk({ needs: text }, S.makeResolver(camp.system, hw.ch, Fh, tc), Fh) === true; } catch (e) { return false; }
+}
+function holdLostOn(camp, c, r) { var now = holdLostNow(camp, c, r); if (r.holdFor && r.holdFor.was === 1) { if (!now) delete r.holdFor.was; return false; } return now; }
+function holdSay(camp, c, r, line, step) { var hw = holdWho(camp, c, r); if (hw && hw.ch && typeof net.damageCard === 'function') net.damageCard(hw.ch, [line]); else toast((r.name || 'Someone') + ': ' + line); if (window.wpStepLog) window.wpStepLog('hold v1', step, { round: c.round }); }
+function holdGoes(camp, c, r) { delete r.held; delete r.holdFor; r.hk = 1; holdSay(camp, c, r, 'The hold went in place of a lost action. The next action stays.', 'lost'); }
+function holdTurn(c, t, dir, t0) {   // the turn moved to t
+    var camp = campNow();
+    c.rows.forEach(function(r, i) {
+        if (!r) return; delete r.sf; if (i === t0 && i !== t) delete r.hk; if (!r.holdFor) return;
+        if (i === t && dir < 0) { delete r.holdFor; return; }   // a correction: nothing was lost
+        if (dir > 0 && holdLostOn(camp, c, r)) { holdGoes(camp, c, r); return; }
+        if (i === t) { delete r.holdFor; holdSay(camp, c, r, 'Nothing set off the hold, so that action was lost.', 'lapsed'); }
+    });
+}
+function fightSetOff(fid, rowId) {   // the GM's press
+    if (net.role !== 'host' || holdRule('holdNames') !== true) return false;
+    var c = orderById(fid), row = c && typeof rowId === 'string' ? c.rows.filter(function(r) { return !!r && r.id === rowId; })[0] : null; if (!row || row.held !== 1 || !row.holdFor || c.rows[c.turn] === row) return false;
+    var camp = campNow(), hf = row.holdFor; if (holdLostOn(camp, c, row)) { holdGoes(camp, c, row); broadcastCombats(); combatRefresh(); return true; }
+    delete row.held; delete row.holdFor; row.sf = 1; var hw = holdWho(camp, c, row), posted = !!(hf.roll && hw && hw.ch && typeof callPost === 'function' && callPost(camp, hf.roll, hw.ch, 'its hold', false));
+    if (!posted) holdSay(camp, c, row, 'The hold was set off: act now, before the turn goes on.', 'set off'); else if (window.wpStepLog) window.wpStepLog('hold v1', 'set off', { round: c.round });
+    toast((row.name || 'Someone') + ' acts before the turn goes on.'); logEvent('table', (row.name || 'Someone') + ' was set off from a hold on ' + mapTitleOf(c.mapId));
+    broadcastCombats(); combatRefresh(); return true;
+}
+function fightHold(fid, by, hf) {   // by 'player': a player's own hold (fold 4: it makes no fight the one played); hf (1.6.0): what a named hold names
     if (net.role !== 'host') return false;
     var c = orderById(fid), row = c ? c.rows[c.turn] : null; if (!row) return false;
     if (chosenRule()) return false;   // initiative O5: with Next is chosen there is no hold, a pick does it
+    if (holdRule('holdNames') === true) {   // 1.6.0: a named hold names something, cleaned here against the rolls its holder may see
+        var campH = campNow(), SH = typeof SC === 'function' ? SC() : null, hc = SH && typeof SH.cleanHoldFor === 'function' ? SH.cleanHoldFor(by === 'player' && window.wpSheets ? window.wpSheets.playerSystem(campH) : campH && campH.system, hf) : null; if (!hc) return false;
+        row.holdFor = hc; if (holdLostNow(campH, c, row)) row.holdFor.was = 1; if (window.wpStepLog) window.wpStepLog('hold v1', 'named', { roll: !!hc.roll });
+    }
     row.held = 1; toast((row.name || 'Someone') + ' holds their turn.'); logEvent('table', (row.name || 'Someone') + ' held their turn on ' + mapTitleOf(c.mapId));
     fightStep(fid, 1, by);   // play moves on (it broadcasts); a hold on the round's last turn is lost at once, as fightStep clears holds at a new round
     return true;
@@ -5794,6 +5840,7 @@ function fightAct(fid, rowId) {
     if (net.role !== 'host') return false;
     var c = orderById(fid); if (!c || typeof rowId !== 'string') return false;
     if (chosenRule()) return false;   // initiative O5: no act from a hold, which would move the standing order
+    if (holdRule('holdNames') === true) return false;   // 1.6.0: a named hold fires by the GM's Set off
     var i = c.rows.findIndex(function(r) { return r && r.id === rowId; }); if (i < 0 || i === c.turn || c.rows[i].held !== 1) return false;
     if (holdRule('holdAct') === 'stay') { var rowS = c.rows[i]; delete rowS.held; toast((rowS.name || 'Someone') + ' has acted from a hold.'); logEvent('table', (rowS.name || 'Someone') + ' acted from a hold on ' + mapTitleOf(c.mapId)); broadcastCombats(); combatRefresh(); return true; }   // 1.6.0: a system that keeps its order: the hold ends, and nothing moves
     var row = c.rows.splice(i, 1)[0], t = c.turn - (i < c.turn ? 1 : 0); delete row.held;
@@ -5812,7 +5859,7 @@ function fightPlay(fid) {   // host: that fight is the one played (the fight tra
     if (net.fightOn !== fid) { net.fightOn = fid; combatRefresh(); }
     return true;
 }
-net.fightSet = fightSet; net.fightStep = fightStep; net.fightHold = fightHold; net.fightAct = fightAct; net.fightEnd = fightEnd; net.fightPlay = fightPlay;
+net.fightSet = fightSet; net.fightStep = fightStep; net.fightHold = fightHold; net.fightAct = fightAct; net.fightSetOff = fightSetOff; net.fightEnd = fightEnd; net.fightPlay = fightPlay;
 // A player's app: the toasts of a new copy of the fights follow the fight that holds a token of theirs on the map on screen, else the first fight
 // there. A turn or a round that moved in it is said, and "Combat is over." when the fight they followed is gone
 function fightMineKey(cs, camp, mid) {
@@ -7924,7 +7971,7 @@ function handleMessage(msg, conn) {
         var campH = getActiveCampaign(), mapH = campH && campH.items && own(campH.items, msg.mapId) ? campH.items[msg.mapId] : null;
         var tokH = mapH && mapH.type === 'map' && Array.isArray(mapH.whiteboard) ? mapH.whiteboard.find(function(w) { return w && w.id === rowH.tokId; }) : null;
         if (!tokH || !tokH.isChar || !tokH.ownerId || tokH.ownerId !== prH.id) return;
-        if (msg.type === 'turn-hold') { if (cbH.rows[cbH.turn] === rowH) fightHold(fidH, 'player'); }   // 152 fold 4: a player's hold makes no fight the one played
+        if (msg.type === 'turn-hold') { if (cbH.rows[cbH.turn] === rowH) fightHold(fidH, 'player', { text: msg.text, roll: msg.roll }); }   // 152 fold 4: a player's hold makes no fight the one played; 1.6.0: what it names, cleaned there
         else fightAct(fidH, rowH.id);
         // [netcheck:turnholdmsg-end]
     } else if (msg.type === 'turn-end' && net.role === 'host') {
@@ -10824,7 +10871,7 @@ function offTurnOf(camp, charId) {   // the system's word where this character i
     if (window.wpVtt && !window.wpVtt.on('turns')) return '';
     var fid = orderOfIn(camp, charId), c = fid ? net.combats[fid] : null, mp = c && own(camp.items, c.mapId) ? camp.items[c.mapId] : null; if (!c || !mp) return '';
     var mine = function(r) { return !!r && typeof r.tokId === 'string' && mp.whiteboard.some(function(w) { return !!w && w.id === r.tokId && !!w.isChar && w.charId === charId; }); };
-    if (mine(c.rows[c.turn]) || c.rows.some(function(r) { return mine(r) && r.held === 1; })) return '';
+    if (mine(c.rows[c.turn]) || c.rows.some(function(r) { return mine(r) && (r.held === 1 || r.sf === 1); })) return '';   // 1.6.0: or one set off from a hold, until the turn moves
     return md;
 }
 function offTurnTell(name, text) {   // to the GM, once in a while for one character, and always in the Game Record
@@ -10879,6 +10926,7 @@ function fightsRead(raw, camp) {   // what the save holds, as data: { list, on }
         var has = Object.create(null); map.whiteboard.forEach(function(w) { if (w && typeof w.id === 'string') has[w.id] = 1; });
         var onTurn = f.rows[f.turn], rows = f.rows.filter(function(r) { return !(typeof r.tokId === 'string' && has[r.tokId] !== 1); }); if (!rows.length) return;
         f.turn = Math.max(0, rows.indexOf(onTurn)); f.rows = rows; delete f.mv;
+        rows.forEach(function(r) { delete r.hf; delete r.sf; var raw = r.held === 1 ? k.rows.filter(function(x) { return !!x && typeof x === 'object' && x.id === r.id; })[0] : null, SF = raw && raw.holdFor && typeof SC === 'function' ? SC() : null, hc = SF && typeof SF.cleanHoldFor === 'function' ? SF.cleanHoldFor(camp.system, raw.holdFor) : null; if (hc) { r.holdFor = hc; if (raw.holdFor.was === 1) hc.was = 1; } });   // 1.6.0: a named hold comes back with its fight
         ['n', 'rr', 'rh', 'eh'].forEach(function(key) { if (fightNum(k[key])) f[key] = k[key]; });
         ['et', 'th', 'turned', 'fxEnded'].forEach(function(key) { if (k[key] && typeof k[key] === 'object') f[key] = fightMarks(k[key]); });
         if (Array.isArray(k.ps)) f.ps = fightIdsIn(k.ps);

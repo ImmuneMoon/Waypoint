@@ -2697,6 +2697,9 @@
   .combat-strip-cur img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold); }
   .combat-strip-next { color: var(--dim); font-size: 11px; min-width: calc(var(--strip-name, 0ch) + 5ch); }
   .combat-strip-held { color: var(--gold); font-size: 11px; font-style: italic; }   /* initiative O3: a row holding its turn */
+  .hold-ask { position: fixed; z-index: 90020; display: flex; flex-direction: column; gap: 6px; width: 260px; max-width: calc(100vw - 16px); padding: 10px; border: 1px solid var(--edge); border-radius: 8px; background: var(--panel); box-shadow: 0 6px 24px rgba(0, 0, 0, .45); }   /* 1.6.0: what a named hold names */
+  .hold-ask-cap { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dim); }
+  .hold-ask .field { width: 100%; box-sizing: border-box; }
   .combat-strip-side { color: var(--dim); font-size: 11px; font-weight: 600; }   /* initiative O4: the side going first this round */
   .combat-strip-btn { font: inherit; background: transparent; border: 1px solid var(--edge); color: var(--ink); border-radius: 10px; padding: 1px 8px; cursor: pointer; font-size: 11px; }
   .combat-strip-btn:hover { border-color: var(--gold); color: var(--gold); }

@@ -8414,8 +8414,8 @@ function renamesOnChars(chars, rn) {
 }
 function renamesSay(rn) {
     var out = []; if (!isObj(rn)) return out;
-    (rn.picks || []).forEach(function(p) { out.push(p.word + ': \u201c' + p.from + '\u201d is now \u201c' + p.to + '\u201d. Items, rows and library entries that hold it follow.'); });
-    (rn.selects || []).forEach(function(p) { out.push(p.word + ': \u201c' + p.from + '\u201d is now \u201c' + p.to + '\u201d. Characters who hold it follow.'); });
+    (rn.picks || []).forEach(function(p) { out.push(p.word + ': \u201c' + p.from + '\u201d is now \u201c' + p.to + '\u201d. Items, rows and library entries that hold it follow. To hide what it was, delete it and add a new one.'); });   // the owner, 2026-11-01: an old label travels with the option, so the safe way out is said where it is needed
+    (rn.selects || []).forEach(function(p) { out.push(p.word + ': \u201c' + p.from + '\u201d is now \u201c' + p.to + '\u201d. Characters who hold it follow. To hide what it was, delete it and add a new one.'); });
     (rn.stations || []).forEach(function(p) { out.push(p.word + ': the station \u201c' + p.from + '\u201d is now \u201c' + p.to + '\u201d. Those at it and the rolls that name it follow. A formula that names it is said under it.'); });
     (rn.rolls || []).forEach(function(p) { out.push(p.word + ': the roll \u201c' + p.from + '\u201d is now \u201c' + p.to + '\u201d. Roll bonuses aimed at it follow.'); });
     return out;

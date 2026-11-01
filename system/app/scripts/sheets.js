@@ -9,6 +9,7 @@ import { save, toast, toastAction } from './io.js';
 import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { cleanCover } from './systemcore.js';   // 1.6.0: what cover takes off an attack, as Save reads it (refreshErrors)
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
@@ -6966,6 +6967,7 @@ function gmFacing(sys) {
 function saveDraft() {
     if (!draft || !canWrite()) return;
     var camp = getActiveCampaign(); if (!camp) return;
+    var rnS = typeof renamesCarry === 'function' ? renamesCarry(camp.system, draft) : null;   // 1.6.2 (backlog 208): an option, a station or a list's roll renamed: what names it follows
     draft.name = (ui('sysName').value || '').trim().slice(0, LIMITS.name);
     if (ui('sysMark')) { var mkD = ui('sysMark').value.trim(); if (mkD) draft.mark = mkD; else delete draft.mark; }   // 1.6.0: a word only; the cleaner keeps it or drops it
     var snD = draft.combat && draft.combat.senses && typeof draft.combat.senses === 'object' && Array.isArray(draft.combat.senses.list) ? draft.combat.senses : null, pendS = snD ? snD.list.filter(function(s) { return !!s && s.unit === '?'; }) : [], src = draft;   // senses S2a: a sense still waiting for its unit is left out (never a silent yards), and stays in the editor
@@ -6975,6 +6977,7 @@ function saveDraft() {
     var dropped = draft.fields.length - clean.fields.length;
     clean.updated = Date.now();
     var prevSys = camp.system, orphaned = orphanRows(prevSys, clean, camp.chars || {});   // Stage 6 F4a: a copy of a deleted entry keeps it (before the re-check drops unknown rows)
+    if (rnS) renamesOnChars(camp.chars || {}, rnS);   // 1.6.2: before the re-check, which would drop a list field's old option and a station's old name
     camp.system = clean;
     reCleanChars(camp, clean);   // Stage 6: before the save and the sync (syncSystem re-sends every character after the system)
     stampRows(clean, camp.chars || {});   // Stage 6: a legacy row of a GM-only item gets its own id (its derived one would name the item)
@@ -6986,11 +6989,75 @@ function saveDraft() {
     var n = net(); if (n && n.syncSystem) n.syncSystem();
     if (n && n.active && n.role === 'host' && n.sensesMoved) n.sensesMoved(null);   // Senses S0: a formula or a default only the GM sees may feed Sight, and moves neither view of the system
     if (n && n.active && n.role === 'host' && n.syncChars && gmFacing(prevSys) !== gmFacing(clean)) n.syncChars();   // Stage 6 F4a: an edit to a GM-only item or effect changes what its owner holds inline (the players' view alone would not resend it)
-    var v = validateSystem(clean, F());
+    var rnW = rnS ? renamesSay(rnS) : []; if (nR && nR.logEvent) rnW.forEach(function(l) { nR.logEvent('items', l); });
+    var v = validateSystem(clean, F()), goneS = typeof goneRefs === 'function' ? goneRefs(clean, typeof refKeys === 'function' ? refKeys(clean) : null) : [];   // 1.6.2 (backlog 208): what still names something that is gone is said at Save too
     toast((reach.text ? reach.text + ' ' : '') + (orphaned ? orphaned + ' carried cop' + (orphaned === 1 ? 'y' : 'ies') + ' of deleted items kept. ' : '') + 'System saved: ' + clean.fields.length + ' field' + (clean.fields.length === 1 ? '' : 's') + ', ' + clean.rolls.length + ' roll' + (clean.rolls.length === 1 ? '' : 's') + (dropped ? '; ' + dropped + ' with a bad key or kind dropped' : '') + (v.ok ? '.' : '; ' + v.errors.length + ' error' + (v.errors.length === 1 ? '' : 's') + ' to fix.'));
+    keysGone(prevSys, clean, typeof refKeys === 'function' ? refKeys(clean) : null).forEach(function(g) { var t = keyUseSays(g.key, keyUses(clean, g.key)); if (t) rnW.push(t); });   // an item's key changed or the item went
+    rnW.concat(goneS.slice(0, 3).map(function(g) { return g.message; }), goneS.length > 3 ? [(goneS.length - 3) + ' more name something that is gone, each said under its own box.'] : []).forEach(function(l) { toast(l); });   // each a line in the bell, so none is cut, the last on screen
     renderAll(); renderViews(null);
     if (window.appRender) window.appRender();   // the board and the Properties panel read the system too (a light's presets, the light names): drawn afresh from what was saved
 }
+// [systemcheck:refwarn-start]
+// 1.6.2 (backlog 208, the tracing audit): what the draft leaves that nothing else would say, under the box it belongs to. A rename follows at Save;
+// what cannot follow is said. refKeys: the keys an aim at one entry may name, null while the library is not read, since nothing can then be judged
+function refKeys(sys) {
+    var LBk = window.wpLibrary, c = getActiveCampaign(), packs = c && c.library && Array.isArray(c.library.packs) ? c.library.packs : [], m = Object.create(null), put = function(e) { if (e && typeof e.key === 'string' && e.key) m[e.key.toLowerCase()] = 1; };
+    if (packs.length && !(LBk && typeof LBk.whole === 'function' && LBk.whole())) return null;
+    ((sys && sys.items) || []).concat((sys && sys.core) || []).forEach(put);
+    packs.forEach(function(p) { if (p && LBk && typeof LBk.entriesOf === 'function') LBk.entriesOf(p.id).forEach(put); });
+    return m;
+}
+function refCats(sys) {   // the categories in hand, lower case; null while the library cannot say, or while nothing has one yet
+    var LBk = window.wpLibrary, c = getActiveCampaign(), packs = c && c.library && Array.isArray(c.library.packs) ? c.library.packs : [], m = Object.create(null), n = 0;
+    if (packs.length && !(LBk && typeof LBk.whole === 'function' && LBk.whole())) return null;
+    (typeof catChoices === 'function' ? catChoices(sys) : []).forEach(function(x) { if (typeof x === 'string' && x.trim()) { m[x.trim().toLowerCase()] = 1; n++; } });
+    return n ? m : null;
+}
+function refWarns(saved, clean, camp0) {
+    var warn = function(k, m) { (warningsById[k] = warningsById[k] || []).push({ message: m }); }, low = function(x) { return typeof x === 'string' ? x.trim().toLowerCase() : ''; };
+    var rn = renamesOf(saved, draft), said = function(k, l, w) { l.forEach(function(p) { var o = {}; o[w] = [p]; warn(k(p), renamesSay(o)[0]); }); }, chars = (camp0 && camp0.chars) || {};
+    said(function(p) { return 'list:' + p.f; }, rn.picks, 'picks'); said(function(p) { return 'list:' + p.f; }, rn.rolls, 'rolls'); said(function(p) { return p.f; }, rn.selects, 'selects'); said(function() { return 'links'; }, rn.stations, 'stations');
+    var fromIn = function(l, f, x) { return l.some(function(p) { return p.f === f && low(p.from) === low(x); }); };
+    ((saved && saved.fields) || []).forEach(function(sf) {
+        var df = sf ? (draft.fields || []).filter(function(x) { return x && x.id === sf.id; })[0] : null; if (!df || df.kind !== sf.kind) return;
+        if (sf.kind === 'select') (Array.isArray(sf.options) ? sf.options : []).forEach(function(o) {   // a character's value of a list field that goes
+            if ((Array.isArray(df.options) ? df.options : []).some(function(x) { return low(x) === low(o); }) || fromIn(rn.selects, sf.id, o)) return;
+            var n = 0; Object.keys(chars).forEach(function(id) { var c = chars[id]; if (c && c.values && c.values[sf.id] === o) n++; });
+            if (n) warn(sf.id, 'Save takes \u201c' + o + '\u201d off ' + n + (n === 1 ? ' character' : ' characters') + ': that option is gone. They read the default.');
+        });
+        if (sf.kind !== 'item-list' || !sf.list) return;
+        var LBk = window.wpLibrary, packs = camp0 && camp0.library && Array.isArray(camp0.library.packs) ? camp0.library.packs : [];
+        (Array.isArray(sf.list.stats) ? sf.list.stats : []).forEach(function(s) {   // an entry of the library that holds an option that goes: it can only be told, since a pack is not rewritten at Save
+            if (!s || s.kind !== 'pick' || !LBk || typeof LBk.entriesOf !== 'function') return;
+            var ds = (df.list && Array.isArray(df.list.stats) ? df.list.stats : []).filter(function(x) { return x && x.kind === 'pick' && low(x.key) === low(s.key); })[0]; if (!ds) return;
+            var opt = function(o) { return (Array.isArray(ds.opts) ? ds.opts : []).some(function(x) { return x && low(x.label) === low(o.label); }); }, goes = (Array.isArray(s.opts) ? s.opts : []).filter(function(o) { return o && typeof o.label === 'string' && !opt(o) && !fromIn(rn.picks, sf.id, o.label); }); if (!goes.length) return;
+            var n = 0; packs.forEach(function(p) { if (p) LBk.entriesOf(p.id).forEach(function(e) { var v = e && e.stats ? e.stats[s.key] : undefined; if (typeof v === 'string' && goes.some(function(o) { return low(o.label) === low(v); })) n++; }); });
+            if (n) warn('list:' + sf.id, n + (n === 1 ? ' library entry holds' : ' library entries hold') + ' an option of ' + (s.label || s.key) + ' that is gone, and ' + (n === 1 ? 'it reads' : 'they read') + ' the default.');
+        });
+    });
+    ((saved && saved.links) || []).forEach(function(sk) {   // a station that goes with no new name
+        var dk = sk && sk.kind === 'crew' ? (draft.links || []).filter(function(x) { return x && x.id === sk.id && x.kind === 'crew'; })[0] : null; if (!dk) return;
+        (Array.isArray(sk.stations) ? sk.stations : []).forEach(function(st) {
+            if ((Array.isArray(dk.stations) ? dk.stations : []).some(function(x) { return low(x) === low(st); }) || fromIn(rn.stations, sk.id, st)) return;
+            var n = 0; Object.keys(chars).forEach(function(id) { var c = chars[id], v = c && c.stn ? c.stn[sk.id] : null; if ((Array.isArray(v) ? v : [v]).some(function(x) { return low(x) === low(st); })) n++; });
+            if (n) warn('links', (dk.label || dk.key) + ': the station \u201c' + st + '\u201d goes, so ' + n + (n === 1 ? ' character stands' : ' characters stand') + ' at no station.');
+        });
+    });
+    var ky = typeof refKeys === 'function' ? refKeys(clean) : null;
+    goneRefs(clean, ky).forEach(function(g) { if (g.k === 'key') warn(g.id, g.message); });   // an effect's and an item's roll bonuses say the rest on their own lines, and the Taking damage box says a wound's
+    keysGone(saved, clean, ky).forEach(function(g) { var t = keyUseSays(g.key, keyUses(clean, g.key)); if (t) warn(g.id, t); });   // an item's key changed: what still names the old one
+    var cats = typeof refCats === 'function' ? refCats(draft) : null; if (!cats) return;
+    (draft.fields || []).forEach(function(f) { if (f && f.kind === 'item-list' && f.list) catsGone(f.list, cats).forEach(function(x) { warn('list:' + f.id, 'No item or library entry has the category \u201c' + x + '\u201d now, so this list finds none of it.'); }); });
+    (draft.items || []).forEach(function(it) { var nr = it && it.category ? catNear(draft, it.category) : ''; if (nr) warn(it.id, 'Its category \u201c' + it.category + '\u201d is not quite \u201c' + nr + '\u201d, the one a list takes, so that list does not take it.'); });
+    [['sheet', draft.sheet], ['hud', draft.sheet && draft.sheet.hud]].forEach(function(lv) {   // a place that names what no row can be now
+        ((lv[1] && lv[1].sections) || []).forEach(function(s) { ((s && s.fields) || []).forEach(function(pl, pi) {
+            var f = pl && Array.isArray(pl.cats) && pl.cats.length ? (draft.fields || []).filter(function(x) { return x && x.id === pl.id && x.kind === 'item-list'; })[0] : null; if (!f) return;
+            var by = f.list && typeof f.list.placeBy === 'string' && f.list.placeBy, names = by ? placeCatNames(f, draft).map(low) : null;
+            pl.cats.forEach(function(x) { if (typeof x !== 'string' || !x.trim() || (names ? names.indexOf(low(x)) >= 0 || fromIn(rn.picks, f.id, x) : cats[low(x)])) return; warn('plc:' + lv[0] + ':' + s.id + ':' + pi, (by ? 'No row can be \u201c' : 'No item or library entry has the category \u201c') + x.trim() + (by ? '\u201d now, so this place shows none of it.' : '\u201d now, so this place shows none of it.')); });
+        }); });
+    });
+}
+// [systemcheck:refwarn-end]
 function refreshErrors() {
     errorsById = {}; warningsById = {};
     if (!draft || !F()) return;
@@ -7165,7 +7232,8 @@ function refreshErrors() {
     });
     var camp0 = getActiveCampaign(), saved = systemOf(camp0), toldI = Object.create(null), hasKey = function(m, l) { return !!m && typeof m === 'object' && !Array.isArray(m) && Object.keys(m).some(function(k) { return k.toLowerCase() === l; }); };
     var valOf = function(m, l) { var out; if (m && typeof m === 'object' && !Array.isArray(m)) Object.keys(m).forEach(function(k) { if (k.toLowerCase() === l) out = m[k]; }); return out; };
-    var misfits = function(ds, v) { return v !== undefined && v !== null && (ds.kind === 'pick' ? !(typeof v === 'string' && (Array.isArray(ds.opts) ? ds.opts : []).some(function(o) { return o && typeof o.label === 'string' && o.label.toLowerCase() === v.trim().toLowerCase(); })) : typeof v !== 'number'); };
+    var rnP = typeof renamesOf === 'function' ? renamesOf(saved, draft).picks : [];   // 1.6.2: a label renamed: what holds it follows at Save, and Save drops nothing
+    var misfits = function(ds, v) { return v !== undefined && v !== null && (ds.kind === 'pick' ? !(typeof v === 'string' && ((Array.isArray(ds.opts) ? ds.opts : []).some(function(o) { return o && typeof o.label === 'string' && o.label.toLowerCase() === v.trim().toLowerCase(); }) || rnP.some(function(p) { return p.key.toLowerCase() === String(ds.key).toLowerCase() && p.from.toLowerCase() === v.trim().toLowerCase(); }))) : typeof v !== 'number'); };
     var stillOn = function(sf, s, l) {   // a saved stat still on the card: characters' own values its kind or its options no longer take (the items' are said on their rows)
         var df = null, ds = null; (draft.fields || []).forEach(function(x) { if (x && x.id === sf.id) df = x; });
         (df && df.list && Array.isArray(df.list.stats) ? df.list.stats : []).forEach(function(x) { if (!ds && x && typeof x.key === 'string' && x.key.toLowerCase() === l) ds = x; });
@@ -7640,6 +7708,7 @@ function refreshErrors() {
     if (typeof defendSays === 'function') { var dfS = defendSays(draft.combat && draft.combat.blast && draft.combat.blast.defend, draft.rolls, draft.combat, draft.fields); if (dfS.errs.length) errorsById.blastdefend = dfS.errs; if (dfS.warns.length) warningsById.blastdefend = dfS.warns; }   // 1.6.0: what Save drops of a blast's own Defense roll, as the cleaner reads it
     if (typeof coverHitSays === 'function') { var cvS = coverHitSays(draft.combat && draft.combat.cover, draft.combat, F()); if (cvS.errs.length) errorsById.coverhit = cvS.errs; if (cvS.warns.length) warningsById.coverhit = cvS.warns; }   // 1.6.0: what Save drops of where a hit behind cover lands, as the cleaner reads it
     if (typeof damageSays === 'function') { var dmS = damageSays(draft.combat && draft.combat.damage, clean, F()); if (dmS.errs.length) errorsById.damage = dmS.errs; if (dmS.warns.length) warningsById.damage = dmS.warns; }   // 1.5.6: what Save drops of the damage rules, as the cleaner reads them
+    if (typeof refWarns === 'function') refWarns(saved, clean, camp0);   // 1.6.2 (backlog 208)
 }
 function errorCell(id) {
     var cell = el('div', 'sys-err');
@@ -8052,7 +8121,7 @@ function swBox(h) {
 function swRollOpts(lid, cur) {
     var f = (draft.fields || []).filter(function(x) { return x && x.id === lid; })[0], rs = f && f.list && Array.isArray(f.list.rolls) ? f.list.rolls : [], o = [['', 'Any roll']], v = '';
     rs.forEach(function(r) { if (r && !Array.isArray(r.apply) && typeof r.label === 'string' && r.label.trim() && !o.some(function(x) { return x[0].toLowerCase() === r.label.trim().toLowerCase(); })) o.push([r.label.trim(), r.label.trim()]); });
-    if (typeof cur === 'string' && cur.trim()) { var hit = o.filter(function(x) { return x[0] && x[0].toLowerCase() === cur.trim().toLowerCase(); })[0]; if (hit) v = hit[0]; else { o.push([cur, cur + ' (no roll of that name now)']); v = cur; } }
+    if (typeof cur === 'string' && cur.trim()) { var hit = o.filter(function(x) { return x[0] && x[0].toLowerCase() === cur.trim().toLowerCase(); })[0], wasR = hit ? null : rs.filter(function(r) { return r && !Array.isArray(r.apply) && typeof r.label === 'string' && Array.isArray(r.was) && r.was.some(function(x) { return typeof x === 'string' && x.toLowerCase() === cur.trim().toLowerCase(); }); })[0]; if (hit) v = hit[0]; else if (wasR) v = wasR.label.trim(); else { o.push([cur, cur + ' (no roll of that name now)']); v = cur; } }   // 1.6.2: a roll that had that label is that roll
     return { o: o, v: v };
 }
 function swSays(s) {   // what Save does with one roll bonus: '' where it keeps it whole
@@ -8062,6 +8131,7 @@ function swSays(s) {   // what Save does with one roll bonus: '' where it keeps 
     if (!cleanRollSw([s])) return 'Save drops it: it needs a roll it offers itself to.';
     var gone = (Array.isArray(s.to) ? s.to : []).filter(function(t) { return t && typeof t.l === 'string' && typeof t.roll === 'string' && t.roll.trim() && swRollOpts(t.l, t.roll).o.some(function(x) { return / \(no roll of that name now\)$/.test(x[1]); }); })[0];   // 1.6.0
     if (gone) return 'It is kept, but no roll of that list is named ' + gone.roll.trim() + ' now, so it offers itself to none there.';
+    var sgn = typeof swGone === 'function' ? swGone(draft, s) : []; if (sgn.length) return 'It is kept, but ' + sgn[0] + '.';   // 1.6.2 (backlog 208, point 10)
     return '';
 }
 function swHolder(t) { return fxOfRow(t) || itemOfRow(t); }
@@ -8417,7 +8487,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         var kS = el('select', 'sys-list-statkind'); kS.title = 'Number: each item holds a number. Choice: each item picks one of named options (Strength = ST), and formulas read that option\u2019s value';   // Stage 6 F5a2
         [['', 'Number'], ['pick', 'Choice']].forEach(function(o) { var ko = el('option', null, o[1]); ko.value = o[0]; if ((s.kind === 'pick' ? 'pick' : '') === o[0]) ko.selected = true; kS.appendChild(ko); }); sr.appendChild(kS);
         if (s.kind === 'pick') {
-            sr.appendChild(input('sys-list-statopts field', (Array.isArray(s.opts) ? s.opts : []).map(function(o) { return o && o.label === o.name ? o.label : (o ? o.label + ' = ' + o.name : ''); }).join(', '), 'The options, separated by commas: a label = the number it reads (Strength = ST, Dexterity = DX); a label alone reads the field of that key. An item stores the label, never the name', 'Options (Strength = ST, Dexterity = DX)'));
+            sr.appendChild(input('sys-list-statopts field', (Array.isArray(s.opts) ? s.opts : []).map(function(o) { return o && o.label === o.name ? o.label : (o ? o.label + ' = ' + o.name : ''); }).join(', '), 'The options, separated by commas: a label = the number it reads (Strength = ST, Dexterity = DX); a label alone reads the field of that key. An item stores the label, never the name. Rename a label here and Save, and what holds it follows', 'Options (Strength = ST, Dexterity = DX)'));
             var pdS = el('select', 'sys-list-statpdef'); pdS.title = 'What an item without its own choice reads'; var pd0 = el('option', null, 'No default'); pd0.value = ''; pdS.appendChild(pd0);
             (Array.isArray(s.opts) ? s.opts : []).forEach(function(o) { if (!o || typeof o.label !== 'string' || !o.label) return; var po = el('option', null, o.label); po.value = o.label; if (typeof s.def === 'string' && s.def.toLowerCase() === o.label.toLowerCase()) po.selected = true; pdS.appendChild(po); }); sr.appendChild(pdS);
         } else {

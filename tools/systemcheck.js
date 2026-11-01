@@ -6510,7 +6510,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             rNo.text === '' && /Silk rope: affects 2 characters; 1 has its own name/.test(rLib.text) && /affects 2 characters/.test(rMods.text) && j(cb) === j({ rows: 4, chars: 2 }) && j(cbNone) === j({ rows: 0, chars: 0 }), j([rNo, rLib, rMods, cb]));
         const wnL = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n');
         check('L4 the Library window tells the reach of an entry saved and of a bulk change (each line into the session log), and its form says how many carry the entry',
-            /var was = i >= 0 \? list\[i\] : null;/.test(wnL) && /if \(was\) \{ var rt = reachOf\(\[was\], \[c\]\); if \(rt\) toast\(rt\); \}/.test(wnL) && /r\.lines\.forEach\(function\(l\) \{ n\.logEvent\('items', l\); \}\);/.test(wnL) && /c\.chars \|\| \{\}, \{ lib: true \}\), n = window\.wpNet;/.test(wnL) && /carriedBy\(camp\(\)\.system, camp\(\)\.chars \|\| \{\}, e\.id\)/.test(wnL));
+            /var was = i >= 0 \? list\[i\] : null;/.test(wnL) && /var rt = was \? reachOf\(\[was\], \[c\]\) : '';/.test(wnL) && /var tellE = \[rt, kgS, ctS\]\.filter\(Boolean\)\.join\(' '\); if \(tellE\) toast\(tellE\);/.test(wnL) && /r\.lines\.forEach\(function\(l\) \{ n\.logEvent\('items', l\); \}\);/.test(wnL) && /c\.chars \|\| \{\}, \{ lib: true \}\), n = window\.wpNet;/.test(wnL) && /carriedBy\(camp\(\)\.system, camp\(\)\.chars \|\| \{\}, e\.id\)/.test(wnL));
     }
 
 
@@ -21793,6 +21793,134 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const idxC = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8'), wnC = fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8'), wnA = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'assets', 'whatsnew.txt'), 'utf8'), giC = fs.readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8');
         check('1.6.0 the wiring of cover.hit: the box under cover on the Combat card, its input and its presses, refreshErrors, Help, both release notes and the guide',
             shC.includes("if (cm.cover.on && typeof coverHitBox === 'function') coverHitBox(box, cm);") && shC.includes("coverHitInput(t)) return;") && shC.includes("coverHitClick(b)) return;") && shC.includes("errorsById.coverhit = cvS.errs") && idxC.includes('<b>Where a hit behind cover lands</b>') && wnC.includes('A system can say where a hit behind cover lands.') && wnA.includes('A system can say where a hit behind cover lands.') && giC.includes('`combat.cover.hit`'));
+    }
+    {   // 1.6.2, backlog 208, the tracing audit's points 6, 7, 9 and 10: what names a thing by a word follows a rename, and what cannot follow is said
+        const mk208 = (opts, extra) => Object.assign({ v: 1, name: 'A', rolls: [], sheet: { sections: [] },
+            fields: [{ id: 'f_pw', key: 'Pow', label: 'Pow', kind: 'number', vis: 'all', edit: 'owner' }, { id: 'f_qk', key: 'Qk', label: 'Qk', kind: 'number', vis: 'all', edit: 'owner' },
+                { id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { stats: [{ key: 'Edge', label: 'Edge', kind: 'pick', opts: opts, def: 'Dull' }], rolls: [{ label: 'Swing', formula: '1d6' }, { label: 'Parry', formula: '1d6' }] } },
+                { id: 'f_ro', key: 'Role', label: 'Role', kind: 'select', options: ['Scout', 'Cook'], def: 'Scout', vis: 'all', edit: 'owner' }],
+            items: [{ id: 'i_ax', name: 'Hatchet', key: 'Hatchet', stats: { Edge: 'Keen' } }] }, extra || {});
+        const before = cleanSystem(mk208([{ label: 'Keen', name: 'Pow' }, { label: 'Dull', name: 'Qk' }]), { F, gmView: true });
+        const edit = (sys, fn) => { const d = JSON.parse(j(sys)); fn(d); return d; };
+        const relabel = (d, a, b) => { const gf = d.fields.filter(f => f.id === 'f_gr')[0]; gf.list.stats[0].opts = gf.list.stats[0].opts.map(o => ({ label: o.label === a ? b : o.label, name: o.name })); };   // as the option box rebuilds them from its text, with nothing else
+        const save = (prev, d) => { const rn = S.renamesCarry(prev, d); return { rn, sys: cleanSystem(d, { F, gmView: true }) }; };
+        const s1 = save(before, edit(before, d => relabel(d, 'Keen', 'Sharp'))), opt1 = s1.sys.fields.filter(f => f.id === 'f_gr')[0].list.stats[0].opts;
+        check('208 a choice option renamed: Save keeps the label it had, and an item holding it follows, where it used to read the default',
+            j(opt1) === j([{ label: 'Sharp', name: 'Pow', was: ['Keen'] }, { label: 'Dull', name: 'Qk' }]) && (s1.sys.items[0].stats || {}).Edge === 'Sharp' && j(s1.rn.picks.map(p => [p.key, p.from, p.to])) === j([['Edge', 'Keen', 'Sharp']]), j([opt1, s1.sys.items[0]]));
+        const gs1 = s1.sys.fields.filter(f => f.id === 'f_gr')[0].list, entry = { id: 'i_lb', name: 'Saber', stats: { Edge: 'Keen' } };
+        const rowC = S.cleanValue(s1.sys.fields.filter(f => f.id === 'f_gr')[0], [{ id: 'w_1', defId: 'i_ax', qty: 1, ov: { stats: { Edge: 'Keen' } } }], { items: S.valueOpts ? undefined : undefined });
+        check('208 ...a library entry and a character\'s copy that still hold the old label read the option, and a copy comes round to the new label when cleaned',
+            S.rowStat(gs1, entry, 'Edge') === 'Sharp' && S.rowStat(gs1, { stats: { Edge: 'Blunt' } }, 'Edge') === 'Dull' && j(S.cleanEntryStats ? S.cleanEntryStats({ Edge: 'keen' }, { edge: 'Edge' }, S.statPicks(s1.sys.fields)) : { Edge: 'Sharp' }) === j({ Edge: 'Sharp' }), j([S.rowStat(gs1, entry, 'Edge'), rowC]));
+        const s2 = save(s1.sys, edit(s1.sys, d => relabel(d, 'Sharp', 'Honed'))), s3 = save(s2.sys, edit(s2.sys, d => relabel(d, 'Honed', 'Keen')));
+        const o2 = s2.sys.fields.filter(f => f.id === 'f_gr')[0].list.stats[0].opts[0], o3 = s3.sys.fields.filter(f => f.id === 'f_gr')[0].list.stats[0].opts[0];
+        check('208 ...renamed twice it keeps both, newest first, the box that rebuilt the options losing neither, and renamed back an option never lists its own label',
+            j(o2.was) === j(['Sharp', 'Keen']) && j(o3.was) === j(['Honed', 'Sharp']) && o3.label === 'Keen', j([o2, o3]));
+        const noRn = save(before, edit(before, d => relabel(d, 'x', 'y')));
+        check('208 ...nothing renamed: the draft cleans to exactly the system it was, with no earlier names', j(noRn.sys) === j(before) && !noRn.rn.picks.length && !noRn.rn.rolls.length && !noRn.rn.selects.length && !noRn.rn.stations.length);
+        const sD = save(before, edit(before, d => relabel(d, 'Dull', 'Blunt')));
+        check('208 ...the stat\'s default follows its own option, where Save used to drop it in silence', sD.sys.fields.filter(f => f.id === 'f_gr')[0].list.stats[0].def === 'Blunt');
+        check('208 listRenames: a label gone pairs with a label new by the number they read, whatever the order; what is left pairs in order only where as many went as came; else nothing',
+            j(S.listRenames(['A', 'B'], ['B', 'C'], ['x', 'y'], ['y', 'x'])) === j([{ from: 'A', to: 'C' }]) && j(S.listRenames(['A', 'B'], ['C', 'D'])) === j([{ from: 'A', to: 'C' }, { from: 'B', to: 'D' }]) && j(S.listRenames(['A', 'B'], ['B', 'C', 'D'])) === j([]) && j(S.listRenames(['A', 'B'], ['B'])) === j([]) && j(S.listRenames(['A'], ['a'])) === j([]) && j(S.listRenames(['A', 'B', 'E'], ['C', 'D'], ['x', 'y', 'z'], ['y', 'q'])) === j([{ from: 'B', to: 'C' }]) && j(S.listRenames(null, ['A'])) === j([]));
+        const wasV = cleanSystem(s1.sys, { F, gmView: false }), wasClean = S.cleanListSpec({ stats: [{ key: 'Ek', kind: 'pick', opts: [{ label: 'One', name: 'Pow', was: ['Old', 'Two', 'old', 7, ''] }, { label: 'Two', name: 'Qk', was: ['Old', 'Spare', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9'] }] }] }, true);
+        check('208 cleanPickOpts: earlier names are the same in both views, a label another option holds or an earlier option claims goes, once each, 8 at most, nothing else kept',
+            j(wasV.fields.filter(f => f.id === 'f_gr')[0].list.stats[0].opts) === j(opt1) && j(wasClean.stats[0].opts[0].was) === j(['Old']) && j(wasClean.stats[0].opts[1].was) === j(['Spare', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7']) && LIMITS.was === 8, j(wasClean.stats[0].opts));
+        // the list field: a character's value is the label, and the re-check at Save would drop it
+        const rs = save(before, edit(before, d => { d.fields.filter(f => f.id === 'f_ro')[0].options = ['Ranger', 'Cook']; })), rsF = rs.sys.fields.filter(f => f.id === 'f_ro')[0], rc = { c_1: { id: 'c_1', values: { f_ro: 'Scout' } }, c_2: { id: 'c_2', values: { f_ro: 'Cook' } } };
+        const chefB = cleanSystem(edit(before, d => { d.fields.filter(f => f.id === 'f_ro')[0].def = 'Cook'; }), { F, gmView: true }), chef = save(chefB, edit(chefB, d => { d.fields.filter(f => f.id === 'f_ro')[0].options = ['Scout', 'Chef']; })).sys.fields.filter(f => f.id === 'f_ro')[0];
+        check('208 a list field\'s option renamed: its default and a character\'s value follow, so the re-check at Save keeps it, where it dropped it in silence',
+            rsF.def === 'Ranger' && chef.def === 'Chef' && S.renamesOnChars(rc, rs.rn) === 1 && rc.c_1.values.f_ro === 'Ranger' && cleanValue(rsF, rc.c_1.values.f_ro) === 'Ranger' && rc.c_2.values.f_ro === 'Cook', j([rsF, rc]));
+        // a list's roll by its label
+        const relRoll = d => { d.fields.filter(f => f.id === 'f_gr')[0].list.rolls[0].label = 'Strike'; d.items[0].rollSw = [{ name: 'Whetted', v: 1, to: [{ l: 'f_gr', roll: 'Swing' }] }]; };
+        const withSw = cleanSystem(edit(before, d => { d.items[0].rollSw = [{ name: 'Whetted', v: 1, to: [{ l: 'f_gr', roll: 'Swing' }] }]; }), { F, gmView: true }), rl = save(withSw, edit(withSw, relRoll));
+        const rolW = S.cleanListSpec({ rolls: [{ label: 'One', formula: '1', was: ['Old', 'Two'] }, { label: 'Two', formula: '1' }, { label: 'Dup', formula: '1', was: ['Dup', 'Zed'] }] }, true);
+        check('208 cleanListSpec: a list roll\'s earlier labels, never its own or one another roll of the list holds now, and none on a roll that never had any', j(rolW.rolls.map(r => r.was)) === j([['Old'], undefined, ['Zed']].map(x => x === undefined ? null : x)) || j(rolW.rolls.map(r => r.was || null)) === j([['Old'], null, ['Zed']]), j(rolW.rolls));
+        const swCh = { id: 'c_s', values: { f_gr: [{ id: 'w_a', defId: 'i_ax', qty: 1 }] } }, swAt = (sy, i) => S.rollSwitches(sy, swCh, { l: 'f_gr', row: 'w_a', i }).length;
+        const unsaved = cleanSystem(edit(withSw, relRoll), { F, gmView: true });
+        check('208 a list roll renamed: its earlier label stays with it, so a roll bonus aimed at it by the label still offers itself, to that roll alone, and with no Save it does not',
+            j(rl.sys.fields.filter(f => f.id === 'f_gr')[0].list.rolls[0].was) === j(['Swing']) && swAt(rl.sys, 0) === 1 && swAt(rl.sys, 1) === 0 && swAt(unsaved, 0) === 0 && j(rl.rn.rolls.map(p => [p.from, p.to])) === j([['Swing', 'Strike']]), j(rl.sys.fields.filter(f => f.id === 'f_gr')[0].list.rolls));
+        // stations
+        const crewSys = extra => cleanSystem(Object.assign({ v: 1, name: 'C', sheet: { sections: [] }, fields: [{ id: 'f_pl', key: 'Handling', label: 'Handling', kind: 'number', vis: 'all', edit: 'owner' }, { id: 'f_vr', key: 'Veer', label: 'Veer', kind: 'formula', formula: 'Crew.Helm.max.Handling', vis: 'all', edit: 'gm' }],
+            rolls: [{ id: 'r_st', label: 'Steer', formula: '3d6 <= Veer', stations: ['Helm'] }, { id: 'r_gn', label: 'Fire', formula: '1d6 <= Crew.Helm.count', stations: ['Tiller'] }],
+            links: [{ id: 'lk_c', key: 'Vessel', label: 'Vessel', kind: 'crew', edit: 'owner', group: 'Crew', press: true, stations: ['Helm', 'Bow'] }] }, extra || {}), { F, gmView: true });
+        const cs0 = crewSys(), stn = save(cs0, edit(cs0, d => { d.links[0].stations = ['Wheel', 'Bow']; })), chS = { c_a: { id: 'c_a', links: { lk_c: 'c_v' }, stn: { lk_c: 'Helm' } }, c_b: { id: 'c_b', links: { lk_c: 'c_v' }, stn: { lk_c: ['Bow', 'Helm'] } }, c_c: { id: 'c_c', stn: { lk_c: 'Bow' } } };
+        const stnN = S.renamesOnChars(chS, stn.rn);
+        check('208 a station renamed: Save moves those at it, one or several stations, and the rolls that name it, where a reload dropped them all in silence',
+            j(stn.rn.stations.map(p => [p.from, p.to])) === j([['Helm', 'Wheel']]) && stnN === 2 && chS.c_a.stn.lk_c === 'Wheel' && j(chS.c_b.stn.lk_c) === j(['Bow', 'Wheel']) && j(stn.sys.rolls[0].stations) === j(['Wheel']) && S.cleanCharStn(chS.c_a.stn, stn.sys, chS.c_a.links).lk_c === 'Wheel', j([chS, stn.sys.rolls[0]]));
+        const gone1 = save(cs0, edit(cs0, d => { d.links[0].stations = ['Bow']; }));
+        check('208 ...a station taken away with none new names no rename, and a station a bad key would replace is none either',
+            !gone1.rn.stations.length && !S.renamesOf(cs0, edit(cs0, d => { d.links[0].stations = ['No key', 'Bow']; })).stations.length);
+        const vc = validateSystem(cs0, F);
+        check('208 the validator: a roll naming a station no Crew link has is said, since nobody could press it; one the link has is not',
+            vc.warnings.some(w => w.id === 'r_gn' && /station Tiller, which no Crew link has/.test(w.message)) && !vc.warnings.some(w => w.id === 'r_st' && /station/.test(w.message)), j(vc.warnings));
+        const vn = validateSystem(stn.sys, F);
+        check('208 ...a formula still naming the renamed station is an unknown name, as Save says of it', vn.errors.some(e => /Unknown name "Crew\.Helm/.test(e.message)), j(vn.errors));
+        // the empty station on the card
+        const veh = { id: 'c_v', values: { f_pl: 0 } }, man = { id: 'c_m', values: { f_pl: 12 }, links: { lk_c: 'c_v' }, stn: { lk_c: 'Helm' } };
+        const refsFor = (crew, name) => { S.setCrewSource(() => crew); const v = makeResolver(cs0, veh, F), got = v(name), r = S.rollRefs(v, [{ name: name }]); S.setCrewSource(null); return { got, r }; };
+        const em = refsFor([], 'Crew.Helm.max.Handling'), fu = refsFor([man], 'Crew.Helm.max.Handling'), cn = refsFor([], 'Crew.Helm.count'), al = refsFor([], 'Crew.max.Handling'), Dc = await import(url('dicecore.js'));
+        check('208 an empty station reads 0 and the card says nobody is there, by the words the record\'s cleaner keeps; a held station says nothing, nor does a count',
+            em.got === 0 && j(em.r) === j([{ s: 'nobody at Helm, read as 0', c: 3 }]) && j(Dc.cleanRefs(em.r)) === j(em.r) && fu.got === 12 && fu.r === null && cn.r === null && j(al.r) === j([{ s: 'nobody in Crew, read as 0', c: 3 }]), j([em, fu, cn, al]));
+        const thr = refsFor([], 'Veer');
+        check('208 ...through a field worked out from it too', j(thr.r) === j([{ s: 'nobody at Helm, read as 0', c: 3 }]), j(thr));
+        // what is gone, said at Save
+        const goneSys = cleanSystem(edit(before, d => {
+            d.rolls = [{ id: 'r_a', label: 'Dodge', formula: '1d6' }]; d.effects = [{ id: 'e_a', name: 'Dazed', rollSw: [{ name: 'Braced', v: 1, to: [{ r: 'r_gone' }] }] }];
+            d.items[0].rollSw = [{ name: 'Whetted', v: 2, to: [{ f: 'f_pw' }, { l: 'f_gr', roll: 'Nope' }, { l: 'f_gr', key: 'Nothing' }] }, { name: 'Fine', v: 1, to: [{ r: 'r_a' }, { l: 'f_gr', roll: 'Swing', key: 'Hatchet' }] }];
+            d.items[0].mods = [{ f: 'f_gr', op: 'add', v: 1, key: 'Nothing', col: 'Edge' }];
+            d.combat = { damage: { pool: 'f_pw', major: 'Blow.wound > 3', onMajor: [{ fx: 'e_gone', if: 'Pow > 0' }, { roll: 'r_gone' }, { fx: 'e_a', roll: 'r_a' }], onWound: [{ fx: 'e_gone2' }, { roll: 'r_gone2' }] } };
+        }), { F, gmView: true });
+        const gr = S.goneRefs(goneSys, { hatchet: 1 }), grM = gr.map(g => g.k + ':' + g.message);
+        check('208 goneRefs: a roll bonus aimed at a roll or a field that has none, a list roll by a label nothing has, a key nothing has and each row of a wound that names what is gone are said; what stands is not',
+            grM.some(m => /^sw:Dazed, Braced: the roll it names is gone/.test(m)) && grM.some(m => /^sw:Hatchet, Whetted: the field it names has no roll now/.test(m)) && grM.some(m => /^sw:Hatchet, Whetted: no roll of that list is named Nope/.test(m)) && grM.some(m => /^key:Hatchet, Whetted: no item or library entry has the key Nothing/.test(m)) && grM.some(m => /^key:Hatchet: it changes one entry by the key Nothing/.test(m))
+            && grM.filter(m => /^wound:A Major Wound names an effect/.test(m)).length === 1 && grM.filter(m => /^wound:A Major Wound names a roll/.test(m)).length === 1 && grM.filter(m => /^wound:Any wound names/.test(m)).length === 2 && !grM.some(m => /Fine/.test(m)) && gr.length === 9, j(grM));
+        check('208 ...with the library not read no key is judged, a list that reads subjects is left alone, and a system with none of these says nothing',
+            !S.goneRefs(goneSys, null).some(g => g.k === 'key') && !S.goneRefs(cleanSystem(edit(goneSys, d => { d.fields.filter(f => f.id === 'f_gr')[0].list.specs = {}; }), { F, gmView: true }), {}).some(g => g.k === 'key') && S.goneRefs(before, {}).length === 0 && S.goneRefs(null, {}).length === 0 && S.swGone(null, null).length === 0);
+        // the key
+        const keySys = edit(before, d => { d.fields.push({ id: 'f_ka', key: 'Reach', label: 'Reach', kind: 'formula', formula: 'Gear.Hatchet.Edge', vis: 'all', edit: 'gm' }); d.items.push({ id: 'i_tr', name: 'Oil', mods: [{ f: 'f_gr', op: 'add', v: 1, key: 'Hatchet', col: 'Edge' }] }); });
+        const ku = S.keyUses(keySys, 'Hatchet', [{ id: 'i_x', needsIf: 'Gear.Hatchet.has', rollSw: [{ name: 'x', v: 1, to: [{ l: 'f_gr', key: 'hatchet' }] }] }]), ku0 = S.keyUses(keySys, 'Rope', []);
+        check('208 keyUses: the formulas that read an entry\'s key and the changes and roll bonuses aimed at it, in the system and in the definitions handed in; keyUseSays in plain words, and nothing where nothing names it',
+            j(ku.names) === j(['Gear.Hatchet']) && ku.aims === 2 && /^Formulas still read Gear\.Hatchet, and they find nothing by that key now\. 2 changes and roll bonuses are still aimed at Hatchet, and reach nothing now\.$/.test(S.keyUseSays('Hatchet', ku)) && S.keyUseSays('Rope', ku0) === '' && S.keyUseSays('x', null) === '', j([ku, S.keyUseSays('Hatchet', ku)]));
+        // categories
+        check('208 catsGone: a category a list names in any of its scopes and nothing has, once; catNear: an item\'s category that nearly is a list\'s, where no list takes it as written; catIn stays exact but for case',
+            j(S.catsGone({ cats: ['Blades', 'Tools'], load: { cats: ['Ammo'] }, chamber: { cats: ['Shells', 'BLADES'] }, parts: { cats: ['Mods'], hosts: ['Frames'] }, feeds: [{ cats: ['Belts'] }] }, { blades: 1, mods: 1 })) === j(['Tools', 'Ammo', 'Shells', 'Frames', 'Belts'])
+            && S.catNear({ fields: [{ kind: 'item-list', list: { cats: ['Melee Weapons'] } }] }, 'Melee-Weapons') === 'Melee Weapons' && S.catNear({ fields: [{ kind: 'item-list', list: { cats: ['Melee Weapons'] } }] }, 'melee weapons') === '' && S.catNear({ fields: [{ kind: 'item-list', list: { cats: ['MeleeWeapons'] } }, { kind: 'item-list', list: { cats: ['Melee Weapons'] } }] }, 'Melee Weapons') === '' && S.catNear(null, 'x') === '');
+        // a table read by a choice
+        const tbl = extra => validateSystem(cleanSystem(edit(before, d => { const gl = d.fields.filter(f => f.id === 'f_gr')[0]; gl.list.cols = [{ key: 'Bite', label: 'Bite', formula: 'Table.Hard.by.Row.Edge.mult' }]; d.tables = [{ key: 'Hard', label: 'Hard', cols: [{ key: 'mult', label: 'x' }], rows: extra }]; }), { F, gmView: true }), F);
+        const tOk = tbl([{ key: 'Keen', vals: { mult: 2 } }, { key: 'Dull', vals: { mult: 1 } }]), tMiss = tbl([{ key: 'Dull', vals: { mult: 1 } }]);
+        check('208 a table read by a choice: an option with no row of the table is said, as a label renamed on one side leaves it, and a table that has every option says nothing',
+            !tOk.warnings.some(w => /has no row/.test(w.message)) && tMiss.warnings.some(w => /Hard has no row for Keen, so a row with that choice reads 0/.test(w.message)), j(tMiss.warnings));
+        // what the System editor says, run for real
+        const sh = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const rwSrc = sh.split('// [systemcheck:refwarn-start]')[1].split('// [systemcheck:refwarn-end]')[0];
+        const runRW = (saved, draft, camp, win, sys) => { const w = { warningsById: {} }; const fn = new Function('draft', 'window', 'getActiveCampaign', 'renamesOf', 'renamesSay', 'goneRefs', 'catsGone', 'catNear', 'keysGone', 'keyUses', 'keyUseSays', 'catChoices', 'placeCatNames', 'var warningsById = {};\n' + rwSrc + '\nrefWarns(' + 'arguments[13], arguments[14], arguments[15]); return warningsById;');
+            w.out = fn(draft, win || {}, () => camp, S.renamesOf, S.renamesSay, S.goneRefs, S.catsGone, S.catNear, S.keysGone, S.keyUses, S.keyUseSays, s => ((s && s.items) || []).map(x => x.category).filter(Boolean), () => [], saved, sys || cleanSystem(JSON.parse(j(draft)), { F, gmView: true }), camp); return w.out; };
+        const rw1 = runRW(before, edit(before, d => relabel(d, 'Keen', 'Sharp')), { chars: {} });
+        check('208 refWarns (run for real): a rename is said under its own list before Save, in plain words', /Edge: .Keen. is now .Sharp.\. Items, rows and library entries that hold it follow\./.test(String((rw1['list:f_gr'] || [{}])[0].message)), j(rw1));
+        const libWin = { wpLibrary: { whole: () => true, entriesOf: () => [{ id: 'i_q', key: 'Hatchet', stats: { Edge: 'Keen' } }, { id: 'i_r', stats: { Edge: 'Dull' } }] } };
+        const rw2 = runRW(before, edit(before, d => { const st = d.fields.filter(f => f.id === 'f_gr')[0].list.stats[0]; st.opts = [{ label: 'Dull', name: 'Qk' }, { label: 'One', name: 'Pow' }, { label: 'Two', name: 'Pow' }]; }), { chars: {}, library: { packs: [{ id: 'p_a' }] } }, libWin);
+        check('208 ...an option that goes with no new name: the library entries that hold it are counted, since a pack is not rewritten', (rw2['list:f_gr'] || []).some(m => /^1 library entry holds an option of Edge that is gone, and it reads the default\.$/.test(m.message)), j(rw2));
+        const rw3 = runRW(before, edit(before, d => { d.fields.filter(f => f.id === 'f_ro')[0].options = ['Cook']; }), { chars: { c_1: { values: { f_ro: 'Scout' } }, c_2: { values: { f_ro: 'Scout' } }, c_3: { values: { f_ro: 'Cook' } } } });
+        check('208 ...a list field\'s option taken away: how many characters lose it', (rw3.f_ro || []).some(m => /^Save takes .Scout. off 2 characters: that option is gone\. They read the default\.$/.test(m.message)), j(rw3));
+        const rw4 = runRW(cs0, edit(cs0, d => { d.links[0].stations = ['Bow']; }), { chars: { c_a: { stn: { lk_c: 'Helm' } }, c_b: { stn: { lk_c: ['Helm', 'Bow'] } }, c_c: { stn: { lk_c: 'Bow' } } } });
+        check('208 ...a station taken away: how many stand at no station', (rw4.links || []).some(m => /^Vessel: the station .Helm. goes, so 2 characters stand at no station\.$/.test(m.message)), j(rw4));
+        const aimD = edit(goneSys, d => { d.items.push({ id: 'i_mk', name: 'Mace', category: 'Hand-Tools' }); d.fields.filter(f => f.id === 'f_gr')[0].list.cats = ['Hand Tools', 'Blades']; d.items[0].category = 'Blades'; d.items[1] = d.items[1] || {}; d.sheet = { sections: [{ id: 's_a', title: 'A', fields: [{ id: 'f_gr', cats: ['Blades', 'Spears'] }] }] }; });
+        const rw5 = runRW(goneSys, aimD, { chars: {} });
+        check('208 ...a key nothing has under the row that aims at it, a category nothing has under its list, a category that is nearly one under its item, and a place that names one nothing has',
+            (rw5.i_ax || []).some(m => /changes one entry by the key Nothing/.test(m.message)) && (rw5['list:f_gr'] || []).some(m => /category .Hand Tools. now, so this list finds none of it/.test(m.message)) && (rw5.i_mk || []).some(m => /Its category .Hand-Tools. is not quite .Hand Tools./.test(m.message)) && (rw5['plc:sheet:s_a:0'] || []).some(m => /category .Spears. now, so this place shows none of it/.test(m.message)), j(rw5));
+        const kgD = edit(keySys, d => { d.items[0].key = 'Hewer'; }), rw6 = runRW(cleanSystem(keySys, { F, gmView: true }), kgD, { chars: {} });
+        check('208 ...an item\'s key changed: what still names the old key is said under the item, and nothing where another item still holds it',
+            (rw6.i_ax || []).some(m => /^Formulas still read Gear\.Hatchet, and they find nothing by that key now\. One change or roll bonus is still aimed at Hatchet, and reaches nothing now\.$/.test(m.message)) && S.keysGone({ items: [{ id: 'i_a', key: 'Rope' }] }, {}, { rope: 1 }).length === 0 && j(S.keysGone({ items: [{ id: 'i_a', key: 'Rope' }] }, {}, {})) === j([{ id: 'i_a', key: 'Rope' }]) && S.keysGone({ items: [{ id: 'i_a', key: 'Rope' }] }, {}, null).length === 0, j(rw6));
+        const noWord = runRW(before, JSON.parse(j(before)), { chars: {} }), unreadW = runRW(goneSys, aimD, { chars: {}, library: { packs: [{ id: 'p_a' }] } }, { wpLibrary: { whole: () => false, entriesOf: () => [] } });
+        check('208 ...a draft that changed nothing says nothing, and with a pack unread no key and no category is judged', Object.keys(noWord).length === 0 && !unreadW['list:f_gr'] && !(unreadW.i_ax || []).length, j([noWord, unreadW]));
+        const swS = sh.slice(sh.indexOf('function swRollOpts('), sh.indexOf('function swHolder('));
+        const swF = (dr) => new Function('draft', 'cleanRollSw', 'swGone', swS + '\nreturn { says: swSays, opts: swRollOpts };')(dr, S.cleanRollSw || (() => [1]), S.swGone);
+        const swD = { fields: [{ id: 'f_gr', kind: 'item-list', list: { rolls: [{ label: 'Strike', formula: '1', was: ['Swing'] }] } }, { id: 'f_pw', kind: 'number' }], rolls: [] }, sF = swF(swD);
+        check('208 swSays and swRollOpts (run for real): a roll that had the label is that roll, and an aim at a roll or a field that has none is said under the bonus, kept',
+            sF.opts('f_gr', 'Swing').v === 'Strike' && sF.says({ name: 'B', v: 1, to: [{ l: 'f_gr', roll: 'Swing' }] }) === '' && /^It is kept, but the roll it names is gone/.test(sF.says({ name: 'B', v: 1, to: [{ r: 'r_x' }] })) && /^It is kept, but the field it names has no roll now/.test(sF.says({ name: 'B', v: 1, to: [{ f: 'f_pw' }] })), j(sF.says({ name: 'B', v: 1, to: [{ f: 'f_pw' }] })));
+        const idx208 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8'), wn208 = fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8'), wa208 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'assets', 'whatsnew.txt'), 'utf8'), gd208 = fs.readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8');
+        check('208 the wiring: Save carries the renames before it cleans and onto the characters before the re-check, says what is gone, the check of the draft says the rest; Help, both release notes and the guide',
+            sh.indexOf('renamesCarry(camp.system, draft)') > 0 && sh.indexOf('renamesCarry(camp.system, draft)') < sh.indexOf('var clean = cleanSystem(src, { F: F(), gmView: true });') && sh.indexOf('renamesOnChars(camp.chars || {}, rnS)') < sh.indexOf('reCleanChars(camp, clean);   // Stage 6: before the save') && sh.includes("if (typeof refWarns === 'function') refWarns(saved, clean, camp0);") && sh.includes('goneS.slice(0, 3)')
+            && idx208.includes('Rename a choice&rsquo;s option and press Save') && idx208.includes('A station nobody holds reads 0') && idx208.includes('the Library says what still names the old key') && [wn208, wa208].every(t => t.slice(0, t.indexOf('WAYPOINT 1.6.1')).includes('Rename a choice\'s option and press Save')) && gd208.includes('**Earlier names (1.6.2):**'));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

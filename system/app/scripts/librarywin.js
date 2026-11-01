@@ -9,7 +9,7 @@ import { getActiveCampaign } from './models.js';
 import { toast } from './io.js';
 import { showPrompt, showConfirm } from './dialogs.js';
 import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, libCtx, LIB, packFile, readPackImport, packImportPlan, bulkSet, bulkMove, lvlsToText } from './librarycore.js';
-import { itemReach, carriedBy, lvlOnlyRead, lvlOnlyText, modTiersRead, modTiersText } from './systemcore.js';
+import { itemReach, carriedBy, lvlOnlyRead, lvlOnlyText, modTiersRead, modTiersText, keyUses, keyUseSays, catNear } from './systemcore.js';
 
 var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'lvlOnly', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg', 'again', 'rollSw', 'opens', 'grants', 'mods', 'modsOn', 'needs', 'needsIf', 'needsFrom', 'needsMsg'];
 var NEED_MAX = 8, NEED_PICK = 2000;   // 126b: the entries one entry needs, and the longest list its chooser offers
@@ -41,6 +41,12 @@ function reachOf(before, after) {
     var r = itemReach({ fields: c.system.fields, items: before }, { fields: c.system.fields, items: after }, c.chars || {}, { lib: true }), n = window.wpNet;
     if (n && n.logEvent) r.lines.forEach(function(l) { n.logEvent('items', l); });
     return r.text;
+}
+// 1.6.2 (backlog 208, point 7): what still names a key that nothing holds now, in words; '' where another entry or item holds it or nothing names it. gone: the entry going
+function keyGoneSays(oldKey, gone) {
+    var c = camp(), l = typeof oldKey === 'string' ? oldKey.toLowerCase() : ''; if (!l || !c || !c.system) return '';
+    if (allEntries().concat(sysItems()).some(function(x) { return x && x.id !== gone && typeof x.key === 'string' && x.key.toLowerCase() === l; })) return '';
+    return keyUseSays(oldKey, keyUses(c.system, oldKey, allEntries().filter(function(x) { return x && x.id !== gone; })));
 }
 function tagList(v) { return String(v || '').split(',').map(function(t) { return t.trim(); }).filter(Boolean); }
 // the stats an entry can carry: the item lists' stat keys, each once, as the first list spells and labels it (a pick offers its choices)
@@ -432,7 +438,7 @@ function swLibBox(form, e) {
                 if (t && typeof t.l === 'string') { var ky = el('input', 'field lib-mod-key'); ky.type = 'text'; ky.placeholder = 'Entry key (optional)'; ky.value = typeof t.key === 'string' ? t.key : ''; ky.title = 'Only on rows of the entry with this key. Blank: on every row of the list'; ky.addEventListener('input', function() { var k = ky.value.trim(); if (k) t.key = k; else delete t.key; }); ln.appendChild(ky);
                     var lf = itemLists().filter(function(x) { return x.id === t.l; })[0], lrs = lf && lf.list && Array.isArray(lf.list.rolls) ? lf.list.rolls : [], ro = [['', 'Any roll']], rv = '';   // 1.6.0: only this roll of the list
                     lrs.forEach(function(r) { if (r && !Array.isArray(r.apply) && typeof r.label === 'string' && r.label.trim() && !ro.some(function(x) { return x[0].toLowerCase() === r.label.trim().toLowerCase(); })) ro.push([r.label.trim(), r.label.trim()]); });
-                    if (typeof t.roll === 'string' && t.roll.trim()) { var rh = ro.filter(function(x) { return x[0] && x[0].toLowerCase() === t.roll.trim().toLowerCase(); })[0]; if (rh) rv = rh[0]; else { ro.push([t.roll, t.roll + ' (no roll of that name now)']); rv = t.roll; } }
+                    if (typeof t.roll === 'string' && t.roll.trim()) { var rh = ro.filter(function(x) { return x[0] && x[0].toLowerCase() === t.roll.trim().toLowerCase(); })[0], rw = rh ? null : lrs.filter(function(r) { return r && !Array.isArray(r.apply) && typeof r.label === 'string' && Array.isArray(r.was) && r.was.some(function(x) { return typeof x === 'string' && x.toLowerCase() === t.roll.trim().toLowerCase(); }); })[0]; if (rh) rv = rh[0]; else if (rw) rv = rw.label.trim(); else { ro.push([t.roll, t.roll + ' (no roll of that name now)']); rv = t.roll; } }   // 1.6.2: a roll that had that label is that roll
                     var rs = select(ro, rv); rs.title = 'Only this roll of the list, such as its Attack and not its Damage. Any roll: every roll on its rows'; rs.addEventListener('change', function() { if (rs.value) t.roll = rs.value; else delete t.roll; }); ln.appendChild(rs); }
                 var tx = el('button', 'tool ghost', '\u00d7'); tx.type = 'button'; tx.title = 'Take this roll off'; tx.addEventListener('click', function() { s.to.splice(ti, 1); draw(); }); ln.appendChild(tx);
             });
@@ -597,7 +603,10 @@ function saveEntry() {
     var list = workOf(st.packId), i = -1; list.forEach(function(x, k) { if (x.id === c.id) i = k; });
     var was = i >= 0 ? list[i] : null;
     if (i < 0) { if (list.length >= LIB.entries) { toast('A pack holds at most ' + LIB.entries + ' entries.'); return; } list.push(c); } else list[i] = c;
-    if (was) { var rt = reachOf([was], [c]); if (rt) toast(rt); }   // L4
+    var rt = was ? reachOf([was], [c]) : '';   // L4
+    var kgS = was && typeof was.key === 'string' && was.key && was.key.toLowerCase() !== (typeof c.key === 'string' ? c.key : '').toLowerCase() ? keyGoneSays(was.key, '') : '';   // 1.6.2 (backlog 208): a key renamed
+    var nrC = c.category && camp() ? catNear(camp().system, c.category) : '', ctS = nrC ? 'Its category \u201c' + c.category + '\u201d is not quite \u201c' + nrC + '\u201d, the one a list takes, so that list does not take it.' : '';
+    var tellE = [rt, kgS, ctS].filter(Boolean).join(' '); if (tellE) toast(tellE);
     st.draftNew = null; st.entryId = c.id; st.sel = map(); st.sel[c.id] = 1; st.anchor = c.id; schedule(st.packId); renderPacks(); renderList(); renderForm();
 }
 function duplicateEntry() { var e = current(); if (!e || st.draftNew) return; var id = newEntryId(taken()); if (!id) return; var d = clone(e); d.id = id; d.name = (e.name + ' (copy)').slice(0, 60); delete d.key; st.draftNew = d; st.entryId = id; st.sel = map(); drawRows(); renderForm(); }
@@ -605,7 +614,8 @@ function deleteEntry() {
     var e = current(); if (!e) return;
     if (st.draftNew) { st.draftNew = null; st.entryId = null; drawRows(); renderForm(); return; }
     var pid = st.packId;
-    showConfirm('Delete “' + e.name + '” from this pack? Characters keep the copies they carry.', function(yes) { if (!yes || !st.open || !ready(pid)) return; st.work[pid] = workOf(pid).filter(function(x) { return x.id !== e.id; }); delete st.sel[e.id]; if (st.entryId === e.id) st.entryId = null; schedule(pid); renderPacks(); renderList(); renderForm(); });
+    var kgD = typeof e.key === 'string' && e.key ? keyGoneSays(e.key, e.id) : '';   // 1.6.2 (backlog 208)
+    showConfirm('Delete “' + e.name + '” from this pack? Characters keep the copies they carry.' + (kgD ? ' ' + kgD : ''), function(yes) { if (!yes || !st.open || !ready(pid)) return; st.work[pid] = workOf(pid).filter(function(x) { return x.id !== e.id; }); delete st.sel[e.id]; if (st.entryId === e.id) st.entryId = null; schedule(pid); renderPacks(); renderList(); renderForm(); });
 }
 
 /* ---- bulk (L2a2): several chosen entries at once ---- */

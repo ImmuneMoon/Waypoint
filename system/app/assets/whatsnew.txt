@@ -13,7 +13,23 @@ At the table
 - Who holds whom has a new tick, A grab draws its target in. Someone taken from a
   distance comes to a free cell beside the holder, on the side they came from
   where there is one. It is off unless your system sets it.
-- Small fixes from the hand tests of 1.6.0.
+- A station nobody holds reads 0, as a skill of 0 does. The roll's card now says
+  nobody is there.
+
+System editor
+- Rename a choice's option and press Save, and what holds it follows: items,
+  rows, characters and library entries. Before, they fell back to the default.
+- A list field's options follow the same way, and a character keeps their pick.
+- Rename a crew station and press Save, and those at it follow, with the rolls
+  that name it. A station that goes for good is said, with how many stood there.
+- Rename a list's roll and press Save, and a roll bonus aimed at it follows.
+- Save now says when a roll bonus or a wound names something that is gone.
+- The System editor says when a list names a category nothing has, and when an
+  item's category is nearly one a list takes. A change or a roll bonus aimed at
+  a key nothing has is said too.
+- Change an entry's key or delete the entry, and the Library says what still
+  names the old key.
+- A table read by a choice says which options have no row of the table.
 
 WAYPOINT 1.6.1 — What's New
 ============================

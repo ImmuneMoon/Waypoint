@@ -7017,6 +7017,7 @@ function refWarns(saved, clean, camp0) {
     var warn = function(k, m) { (warningsById[k] = warningsById[k] || []).push({ message: m }); }, low = function(x) { return typeof x === 'string' ? x.trim().toLowerCase() : ''; };
     var rn = renamesOf(saved, draft), said = function(k, l, w) { l.forEach(function(p) { var o = {}; o[w] = [p]; warn(k(p), renamesSay(o)[0]); }); }, chars = (camp0 && camp0.chars) || {};
     said(function(p) { return 'list:' + p.f; }, rn.picks, 'picks'); said(function(p) { return 'list:' + p.f; }, rn.rolls, 'rolls'); said(function(p) { return p.f; }, rn.selects, 'selects'); said(function() { return 'links'; }, rn.stations, 'stations');
+    rn.subjects.forEach(function(p) { renamesSay({ subjects: [p] }).forEach(function(m) { warn('list:' + p.f, m); }); });   // 1.6.2: a list's subjects moved: a word only moved says nothing, since its rows follow
     var fromIn = function(l, f, x) { return l.some(function(p) { return p.f === f && low(p.from) === low(x); }); };
     ((saved && saved.fields) || []).forEach(function(sf) {
         var df = sf ? (draft.fields || []).filter(function(x) { return x && x.id === sf.id; })[0] : null; if (!df || df.kind !== sf.kind) return;

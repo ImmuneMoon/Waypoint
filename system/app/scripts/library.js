@@ -36,8 +36,9 @@ function refreshCore(camp, atSave) {
     camp = camp || getActiveCampaign(); if (!camp || !camp.system || !gmHere() || cur.campId !== camp.id || cur.state === 'loading') return false;
     var bare = atSave === true && !(camp.library && Array.isArray(camp.library.packs) && camp.library.packs.length);
     var rules = [];   // 126b: the rules of the library's entries are formulas of the system too: an entry one reads by its key is an addressed entry (the core's own while no pack is there)
-    if (bare) (Array.isArray(camp.system.core) ? camp.system.core : []).forEach(function(e) { if (e && typeof e.needsIf === 'string' && e.needsIf) rules.push(e.needsIf); });
-    else (camp.library && Array.isArray(camp.library.packs) ? camp.library.packs : []).forEach(function(p) { if (p) entriesOf(p.id).forEach(function(e) { if (e && typeof e.needsIf === 'string' && e.needsIf) rules.push(e.needsIf); }); });
+    var entryRules = function(e) { if (e) [e.needsIf, e.damage, e.cost].forEach(function(t) { if (typeof t === 'string' && t) rules.push(t); }); };   // 1.6.2: an entry's damage and cost are formulas of the system too
+    if (bare) (Array.isArray(camp.system.core) ? camp.system.core : []).forEach(entryRules);
+    else (camp.library && Array.isArray(camp.library.packs) ? camp.library.packs : []).forEach(function(p) { if (p) entriesOf(p.id).forEach(entryRules); });
     var idx = bare ? ownCore(camp.system) : byKey(camp), res = coreOf(camp.system, function(k) { return idx[k] || []; }, rules), before = JSON.stringify(camp.system.core || []), nowT = JSON.stringify(res.core);
     if (before === nowT) return false;
     if (res.core.length) camp.system.core = res.core; else delete camp.system.core;

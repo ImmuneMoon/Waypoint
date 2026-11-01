@@ -5663,7 +5663,7 @@ function coreKeys(sys, more) {
     var out = []; if (!isObj(sys)) return out;
     var texts = []; var walk = function(v, d) { if (d > 12) return; if (typeof v === 'string') { if (v.indexOf('.') > 0) texts.push(v); return; } if (Array.isArray(v)) v.forEach(function(x) { walk(x, d + 1); }); else if (isObj(v)) Object.keys(v).forEach(function(k) { walk(v[k], d + 1); }); };
     ['fields', 'rolls', 'sheet', 'combat', 'effects', 'budgets'].forEach(function(k) { walk(sys[k], 0); });
-    (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) { if (isObj(it) && typeof it.needsIf === 'string' && it.needsIf.indexOf('.') > 0) texts.push(it.needsIf); });
+    (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) { if (isObj(it)) [it.needsIf, it.damage, it.cost].forEach(function(t) { if (typeof t === 'string' && t.indexOf('.') > 0) texts.push(t); }); });   // 1.6.2: an item's damage and cost address entries as its rule does, as keyUses reads them
     (Array.isArray(more) ? more : []).forEach(function(t) { if (typeof t === 'string' && t.indexOf('.') > 0) texts.push(t); });
     var all = texts.join('\n');
     (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
@@ -8341,10 +8341,57 @@ function keysGone(prev, next, held) {
     (Array.isArray(prev.items) ? prev.items : []).forEach(function(it) { if (isObj(it) && typeof it.key === 'string' && it.key && !held[lower(it.key)]) out.push({ id: it.id, key: it.key }); });
     return out;
 }
+// 1.6.2 (the tracing audit's last three): a row holds its subject by its place, so a list's words moved, renamed or taken away move every row with them.
+// Where the words went: { map: old place -> new place, 0 for gone, renames, gone }, or null where every place stands
+function subjectMoves(before, after) {
+    if (!Array.isArray(before) || !Array.isArray(after)) return null;
+    var rn = listRenames(before, after), low = function(x) { return typeof x === 'string' ? lower(x.trim()) : ''; }, la = after.map(low), mv = {}, gone = [], moved = false;
+    before.forEach(function(w, i) {
+        var h = rn.filter(function(p) { return low(p.from) === low(w); })[0], at = la.indexOf(low(h ? h.to : w)); mv[i + 1] = at + 1;
+        if (at !== i) moved = true; if (at < 0 && typeof w === 'string') gone.push(w.trim());
+    });
+    return moved ? { map: mv, renames: rn, gone: gone } : null;
+}
+// A list's rolls as they moved from the saved system to the draft: { field id: { old place: new place, -1 for gone } }, only for a list where a place changed.
+// A roll is known by its label and formula, then its label, then its rename, then its formula, so a move, a rename and an edit of a formula are each followed
+function rollMoves(prev, next, rn) {
+    var out = {}, rollsOf = function(f) { return isObj(f) && isObj(f.list) && Array.isArray(f.list.rolls) ? f.list.rolls : []; }, form = function(r) { return isObj(r) && typeof r.formula === 'string' ? r.formula : ''; }, lab = function(r) { return isObj(r) && typeof r.label === 'string' ? lower(r.label.trim()) : ''; };
+    (Array.isArray(prev.fields) ? prev.fields : []).forEach(function(pf) {
+        var nf = isObj(pf) && Array.isArray(next.fields) ? next.fields.filter(function(x) { return isObj(x) && x.id === pf.id; })[0] : null, a = rollsOf(pf), b = rollsOf(nf); if (!nf || !a.length) return;
+        var to = {}, used = {}, renamed = function(r) { var h = (rn.rolls || []).filter(function(p) { return p.f === nf.id && lower(p.from) === lab(r); })[0]; return h ? lower(h.to) : ''; };
+        var pass = function(fits) { a.forEach(function(r, i) { if (to[i] !== undefined || !isObj(r)) return; for (var j = 0; j < b.length; j++) if (!used[j] && isObj(b[j]) && fits(r, b[j])) { to[i] = j; used[j] = 1; return; } }); };
+        pass(function(r, x) { return lab(r) === lab(x) && form(r) === form(x); });
+        pass(function(r, x) { return lab(r) === lab(x); });
+        pass(function(r, x) { var w = renamed(r); return !!w && w === lab(x); });
+        pass(function(r, x) { return !!form(r) && form(r) === form(x); });
+        var moved = false; a.forEach(function(r, i) { if (to[i] === undefined) to[i] = -1; if (to[i] !== i) moved = true; });
+        if (moved) out[nf.id] = to;
+    });
+    return out;
+}
+// ...and what names a list's roll by its place follows it: Or resisted by, Calls for and Who holds whom. One whose roll is gone comes off and is said,
+// since by its place it would name another roll
+function rollRefsFollow(prev, next, rn) {
+    var mv = rollMoves(prev, next, rn), gone = []; if (!Object.keys(mv).length) return gone;
+    var moved = function(ref) { var lr = listRollRef(ref), m = lr ? mv[lr.f] : null; if (!m || m[lr.i] === undefined) return ref; return m[lr.i] < 0 ? null : lr.f + '#' + m[lr.i]; };
+    var onRoll = function(r, name) {
+        if (!isObj(r)) return;
+        if (Array.isArray(r.resistOr)) { var keep = []; r.resistOr.forEach(function(x) { var y = moved(x); if (y === null) gone.push(name + ', Or resisted by'); else keep.push(y); }); if (keep.length) r.resistOr = keep; else delete r.resistOr; }
+        if (Array.isArray(r.calls)) { var kc = []; r.calls.forEach(function(c) { if (!isObj(c) || typeof c.by !== 'string') { kc.push(c); return; } var y = moved(c.by); if (y === null) gone.push(name + ', Calls for'); else { c.by = y; kc.push(c); } }); if (kc.length) r.calls = kc; else delete r.calls; }
+    };
+    (Array.isArray(next.rolls) ? next.rolls : []).forEach(function(r) { onRoll(r, isObj(r) ? r.label || 'A roll' : ''); });
+    (Array.isArray(next.fields) ? next.fields : []).forEach(function(f) { if (isObj(f) && isObj(f.list) && Array.isArray(f.list.rolls)) f.list.rolls.forEach(function(r) { onRoll(r, isObj(r) ? r.label || 'A roll' : ''); }); });
+    var h = isObj(next.combat) && isObj(next.combat.holds) ? next.combat.holds : null;
+    if (h) {
+        HOLD_ROLLS.forEach(function(k) { if (typeof h[k] !== 'string') return; var y = moved(h[k]); if (y === null) { delete h[k]; gone.push('Who holds whom'); } else h[k] = y; });
+        if (Array.isArray(h.also)) { var ka = []; h.also.forEach(function(x) { var y = moved(x); if (y === null) gone.push('Who holds whom'); else ka.push(y); }); if (ka.length) h.also = ka; else delete h.also; }
+    }
+    return gone;
+}
 // 1.6.2 (backlog 208, points 6, 9 and 10): a name renamed in the System editor. What is stored by a name follows it. renamesOf: what became what from
 // the system saved to the draft: { picks, selects, stations, rolls }, each { f (the field or link), word (its name), from, to } and a pick's key
 function renamesOf(prev, next) {
-    var out = { picks: [], selects: [], stations: [], rolls: [] }; if (!isObj(prev) || !isObj(next)) return out;
+    var out = { picks: [], selects: [], stations: [], rolls: [], subjects: [] }; if (!isObj(prev) || !isObj(next)) return out;
     var fieldIn = function(s, id) { return (Array.isArray(s.fields) ? s.fields : []).filter(function(x) { return isObj(x) && x.id === id; })[0] || null; }, word = function(x) { return x.label || x.key || ''; };
     var labels = function(l) { return (Array.isArray(l) ? l : []).map(function(o) { return isObj(o) && typeof o.label === 'string' ? o.label : ''; }); }, names = function(l) { return (Array.isArray(l) ? l : []).map(function(o) { return isObj(o) && typeof o.name === 'string' ? o.name : ''; }); }, rollL = function(sp) { return (isObj(sp) && Array.isArray(sp.rolls) ? sp.rolls : []).filter(function(r) { return isObj(r) && !Array.isArray(r.apply); }).map(function(r) { return typeof r.label === 'string' ? r.label : ''; }); };
     (Array.isArray(prev.fields) ? prev.fields : []).forEach(function(pf) {
@@ -8357,6 +8404,7 @@ function renamesOf(prev, next) {
             listRenames(labels(ps.opts), labels(ns.opts), names(ps.opts), names(ns.opts)).forEach(function(p) { out.picks.push({ f: nf.id, key: ns.key, word: word(ns), from: p.from, to: p.to }); });
         });
         listRenames(rollL(pf.list), rollL(nf.list)).forEach(function(p) { out.rolls.push({ f: nf.id, word: word(nf), from: p.from, to: p.to }); });
+        var sjM = subjectMoves(pf.list.subject, nf.list.subject); if (sjM) out.subjects.push(Object.assign(sjM, { f: nf.id, word: word(nf) }));
     });
     (Array.isArray(prev.links) ? prev.links : []).forEach(function(pk) {
         var nk = isObj(pk) && pk.kind === 'crew' ? (Array.isArray(next.links) ? next.links : []).filter(function(x) { return isObj(x) && x.id === pk.id && x.kind === 'crew'; })[0] : null; if (!nk) return;
@@ -8396,6 +8444,7 @@ function renamesCarry(prev, next) {
         (Array.isArray(next.rolls) ? next.rolls : []).forEach(fix);
         (Array.isArray(next.fields) ? next.fields : []).forEach(function(f) { if (isObj(f) && isObj(f.list) && Array.isArray(f.list.rolls)) f.list.rolls.forEach(fix); });
     }
+    rn.refsGone = rollRefsFollow(prev, next, rn);
     return rn;
 }
 // ...and on the characters, once the system is in: what stands at a renamed station and what a list field holds. Answers how many characters moved
@@ -8408,6 +8457,10 @@ function renamesOnChars(chars, rn) {
             if (JSON.stringify(nv) !== JSON.stringify(v)) { c.stn[p.f] = nv; moved = true; }
         });
         (Array.isArray(rn.selects) ? rn.selects : []).forEach(function(p) { if (isObj(c.values) && hasOwn(c.values, p.f) && c.values[p.f] === p.from) { c.values[p.f] = p.to; moved = true; } });
+        (Array.isArray(rn.subjects) ? rn.subjects : []).forEach(function(p) {
+            var rows = isObj(c.values) && hasOwn(c.values, p.f) ? c.values[p.f] : null; if (!Array.isArray(rows)) return;
+            rows.forEach(function(r) { if (!isObj(r) || typeof r.sj !== 'number' || !hasOwn(p.map, String(r.sj)) || p.map[r.sj] === r.sj) return; if (p.map[r.sj]) r.sj = p.map[r.sj]; else delete r.sj; moved = true; });
+        });
         if (moved) { c.updated = Date.now(); n++; }
     });
     return n;
@@ -8418,6 +8471,11 @@ function renamesSay(rn) {
     (rn.selects || []).forEach(function(p) { out.push(p.word + ': \u201c' + p.from + '\u201d is now \u201c' + p.to + '\u201d. Characters who hold it follow. To hide what it was, delete it and add a new one.'); });
     (rn.stations || []).forEach(function(p) { out.push(p.word + ': the station \u201c' + p.from + '\u201d is now \u201c' + p.to + '\u201d. Those at it and the rolls that name it follow. A formula that names it is said under it.'); });
     (rn.rolls || []).forEach(function(p) { out.push(p.word + ': the roll \u201c' + p.from + '\u201d is now \u201c' + p.to + '\u201d. Roll bonuses aimed at it follow.'); });
+    (rn.subjects || []).forEach(function(p) {
+        (p.renames || []).forEach(function(q) { out.push(p.word + ': the subject \u201c' + q.from + '\u201d is now \u201c' + q.to + '\u201d. Rows that hold it follow.'); });
+        (p.gone || []).forEach(function(w) { out.push(p.word + ': the subject \u201c' + w + '\u201d is gone. Rows that held it hold none now.'); });
+    });
+    (rn.refsGone || []).forEach(function(w) { out.push(w + ' named a list\u2019s roll that is gone, so that is taken off.'); });
     return out;
 }
 // The one judge of what a roller ticked (the host's, on every roll that names its switches): each pick { s, i } a switch that offers itself to

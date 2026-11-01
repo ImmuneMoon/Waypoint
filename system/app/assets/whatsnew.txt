@@ -37,6 +37,10 @@ System editor
 - Rename a crew station and press Save, and those at it follow, with the rolls
   that name it. A station that goes for good is said, with how many stood there.
 - Rename a list's roll and press Save, and a roll bonus aimed at it follows.
+- Move a list's roll up or down, or take one away, and Or resisted by, Calls for
+  and Who holds whom follow it. One whose roll is gone comes off, and Save says so.
+- Change a list's subjects and the rows that hold them follow, whether a word
+  moved, was renamed or went.
 - Save now says when a roll bonus or a wound names something that is gone.
 - The System editor says when a list names a category nothing has, and when an
   item's category is nearly one a list takes. A change or a roll bonus aimed at

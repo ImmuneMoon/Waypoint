@@ -1420,7 +1420,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const LINES = [['sys-combat-auto', 'What happens when a blast is thrown.'], ['sys-combat-roller', 'Who makes a thrown blast’s rolls.'], ['sys-combat-hp', 'The pool that Full auto damage is taken from.'],
         ['sys-combat-cover-on', 'Cover is read from the map’s walls and cover pieces. A roll reads it as TargetCover.'], ['sys-combat-height-rule', 'This needs Token elevation on. A piece’s height is in its Properties.'],
         ['sys-combat-checks', 'How a check against a target reads its dice.']];
-    const rA = sh.indexOf('function renderCombat() {'), rc = rA < 0 ? '' : sh.slice(rA, sh.indexOf('\n}\n', rA));
+    const rA = sh.indexOf('function combatBody() {'), rc = rA < 0 ? '' : sh.slice(rA, sh.indexOf('\n}\n', rA));
     // the statement that builds a list, with the tooltip it always had as its last word, and the line that follows it at once
     const found = [...rc.matchAll(/labeledSelect\('(sys-combat-[a-z-]+)',[^\n]*, '((?:[^'\\\n]|\\.)*)'\)\);[^\n]*\n    (?:if \(cm\.cover\.on\) )?lineUnder\(box, '([^'\n]+)'\);\n/g)].map(m => [m[1], m[3].replace(/\\u2019/g, '’'), m[2].length]);
     const rough = LINES.map(l => l[1]).filter(s => /[()\[\];—–&]| - /.test(s) || !/\.$/.test(s) || s.length > 230 || s.split(/\. /).some(p => p.length > 110));
@@ -1433,7 +1433,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const top = rc.slice(0, rc.indexOf('    rangeBox(box, cm);')), T = Object.fromEntries(LINES);
     const runTop = coverOn => { const kids = [], box = { textContent: 'x', lastChild: null, appendChild(k) { kids.push(k); this.lastChild = k; } };
         const lsel = cls => { const l = elS('label', 'sys-combat-item'); l.sel = cls; l.appendChild({ dataset: {} }); return l; };
-        try { new Function('ui', 'draft', 'labeledSelect', 'lineUnder', 'labeledNum', top + '\n}\nrenderCombat();')(() => box, { fields: [], combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: '', cover: { on: coverOn, style: 'graded' } } }, lsel, LU, lsel); } catch (e) { return [String(e)]; }
+        try { new Function('ui', 'draft', 'labeledSelect', 'lineUnder', 'labeledNum', top + '\n}\ncombatBody();')(() => box, { fields: [], combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: '', cover: { on: coverOn, style: 'graded' } } }, lsel, LU, lsel); } catch (e) { return [String(e)]; }
         return kids.map(k => { const ls = k.kids.filter(x => x.cls === 'sys-line').map(x => x.text); return k.sel + (ls.length ? ':' + ls.join('|') : ''); }); };
     const withLine = c => c + ':' + T[c], OFF = ['sys-combat-auto', 'sys-combat-roller', 'sys-combat-hp', 'sys-combat-cover-on'].map(withLine).concat('sys-combat-cover-style', withLine('sys-combat-checks'));
     const ON = OFF.slice(0, 5).concat('sys-combat-cover-objects:Empty for none. A larger picture stays part of the map.', withLine('sys-combat-height-rule'), 'sys-combat-cover-area', 'sys-combat-cover-area', 'sys-combat-cover-area', withLine('sys-combat-checks'));

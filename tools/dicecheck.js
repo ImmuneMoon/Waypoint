@@ -413,6 +413,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const resN = F.evaluate('3d6 <= Row.Attack + 2', { random: scripted([4, 2, 5]), vars }), cN = rc2({ roll: rec({ expr: '3d6 <= Row.Attack + 2', label: 'Blade · Attack' }), res: resN });
             const brkN = kid(cN, 'roll-break'), exN = kid(cN, 'roll-expr');
             const resP = F.evaluate('2d6 + 3', { random: scripted([4, 5]) }), cP = rc2({ roll: rec({ expr: '2d6 + 3' }), res: resP });
+            window.wpBlastApply = () => true;
+            const cBl = rc2({ roll: rec({ expr: '3d6', label: 'Spike damage', dmg: 1, blast: 'b_1' }), res: F.evaluate('3d6', { random: scripted([4, 2, 5]) }) }), cBu = rc2({ roll: rec({ expr: '3d6', label: 'Spike damage', dmg: 1, blast: 'b_1', dmgUsed: 1 }), res: F.evaluate('3d6', { random: scripted([4, 2, 5]) }) });
+            check('1.6.0 a blast\'s card offers Apply to all in the blast only while the blast is still to apply: under Roll to chat, and never on a card that came already applied, as Full auto\'s does (renderCard, run for real)', !!kid(cBl, 'chat-dmgapply') && !kid(cBu, 'chat-dmgapply') && !!kid(cBu, 'chat-dmgdone') && kid(cBu, 'chat-dmgdone').textContent === 'Applied');
+            delete window.wpBlastApply;
             const rD = rec({ expr: '3d6', label: 'Blade · Damage', dmg: 1, dtype: 'cut' }), cD = rc2({ roll: rD, res: F.evaluate('3d6', { random: scripted([4, 2, 5]) }) });
             const btn = kid(cD, 'chat-dmgapply'); btn.listeners.click(); const after = kid(cD, 'chat-dmgapply'), done = kid(cD, 'chat-dmgdone');
             const cD2 = rc2({ roll: rD, res: F.evaluate('3d6', { random: scripted([4, 2, 5]) }) });

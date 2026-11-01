@@ -4403,7 +4403,7 @@ window.wpFitToGrid = fitToGrid;
       if (window.wpVtt && !window.wpVtt.on('dice')) { if (fgN) toast('Dice are off, so the fragmentation of ' + fgN + ' was not rolled.'); if (afN) toast('Dice are off, so the afflictions of ' + afN + ' were not rolled.'); return; }
       if (!window.wpDice || !window.wpDice.rollFor) return;
       var rlE = typeof blastRules === 'function' ? blastRules(sys) : null; if (auto === 'full' && rlE && rlE.each && b && b.dmgExpr) { applyBlastDamage(b, 0, combat.hpResource, mapIn); return; }   // 1.6.0 (the core's gap 8): each rolls its own dice, so none is rolled for all
-      var dr = window.wpDice.rollFor(opts.charId, opts.damage, (opts.name || 'Blast') + ' damage', { gmOnly: !!opts.gmOnly, dmg: true, blast: b && b.bid });   // a GM-only item's damage stays the GM's; chat cards: a damage card (an item's damage is damage by nature, as on his reference sheets)
+      var dr = window.wpDice.rollFor(opts.charId, opts.damage, (opts.name || 'Blast') + ' damage', { gmOnly: !!opts.gmOnly, dmg: true, blast: b && b.bid, used: auto === 'full' });   // a GM-only item's damage stays the GM's; chat cards: a damage card (an item's damage is damage by nature, as on his reference sheets)
       var total = dr && dr.ok && typeof dr.value === 'number' ? dr.value : null;
       if (auto !== 'full' || total === null) { if (fgN && auto === 'roll' && total !== null) toast('The fragmentation of ' + fgN + ' is rolled when you press Apply to all in the blast.'); if (afN && auto === 'roll' && total !== null) toast('The afflictions of ' + afN + ' are rolled when you press Apply to all in the blast.'); return; }
       applyBlastDamage(b, total, combat.hpResource, mapIn);

@@ -9029,7 +9029,11 @@ function coverHitSays(cv, cm, Fx) {
     if (!cv.on) warns.push({ message: 'Where a hit behind cover lands: with cover off it does nothing.' });
     return { errs: errs, warns: warns };
 }
-function renderCombat() {
+// [systemcheck:combatdraw-start]
+// 1.6.0: a list of this card stepped by the keyboard draws the card again, so the next press stays on that list
+function renderCombat() { var was = rowFocusOf(document.activeElement); combatBody(); rowFocusBack(was); }
+// [systemcheck:combatdraw-end]
+function combatBody() {
     var box = ui('sysCombatBox'); if (!box) return; box.textContent = '';
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
     if (!cm.cover || typeof cm.cover !== 'object') cm.cover = { on: false, style: 'graded' };

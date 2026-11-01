@@ -1172,6 +1172,12 @@ For system builders, more
   now let the blast go, whole.
 - A Malf or a critical range that reads a GM-only stat now counts on a player's
   press. Before, their roll named nothing, and a worn weapon never jammed.
+- A list's roll that stands after one your players cannot see now counts as
+  itself on their press: its Malf, its critical range, Off a character's turn, a
+  sneak's roll and a resist card's button. Before, the host read the roll above
+  it on your list.
+- Under Full auto a blast's damage card says Applied. Before, it still offered
+  Apply to all in the blast, and a press hit everyone a second time.
 
 WAYPOINT 1.5.9 — What's New
 ============================

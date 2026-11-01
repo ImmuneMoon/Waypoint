@@ -3237,9 +3237,9 @@ pendingChecks.push((async () => {
     const blastT = name => [['pA', { type: 'blast', campId: 'k', mapId: 'm1', blast: { x: 120, y: 80, ft: 10, elev: 0, name: name, by: 'Nix' } }]];
     const tG = runT('Orb', ctxT('3d6', true)), tV = runT('Frag', ctxT('2d6', false)), tU = runT('Frag', ctxT('2d6')), tF = runT('Orb', ctxT('3d6', true), { auto: 'full' });
     check('GM-only rolls: a GM-only item thrown from the GM\'s sheet (whiteboard.js arm, place, throw and damage, run for real with the real net.broadcastBlast) reaches the players on that map as an unnamed blast (the thrower\'s name kept, the GM\'s own marker keeps the item\'s) and its damage roll carries gmOnly; a visible item\'s blast keeps its name and its roll is unmarked (as is a throw that says nothing); full auto still applies the total; a player on another map gets nothing; every message packs',
-        j(tG.sent) === j(blastT('')) && tG.placed.length === 1 && tG.placed[0].name === 'Orb' && j(tG.rolls) === j([['c_n', '3d6', 'Orb damage', { gmOnly: true, dmg: true }]]) && tG.applied.length === 0
-        && j(tV.sent) === j(blastT('Frag')) && j(tV.rolls) === j([['c_n', '2d6', 'Frag damage', { gmOnly: false, dmg: true }]]) && j(tU.sent) === j(blastT('Frag')) && j(tU.rolls) === j(tV.rolls)
-        && j(tF.sent) === j(blastT('')) && j(tF.rolls) === j(tG.rolls) && j(tF.applied) === j([[7, 'f_hp']]), j([tG, tV.sent, tV.rolls, tU.rolls, tF.applied]));
+        j(tG.sent) === j(blastT('')) && tG.placed.length === 1 && tG.placed[0].name === 'Orb' && j(tG.rolls) === j([['c_n', '3d6', 'Orb damage', { gmOnly: true, dmg: true, used: false }]]) && tG.applied.length === 0
+        && j(tV.sent) === j(blastT('Frag')) && j(tV.rolls) === j([['c_n', '2d6', 'Frag damage', { gmOnly: false, dmg: true, used: false }]]) && j(tU.sent) === j(blastT('Frag')) && j(tU.rolls) === j(tV.rolls)
+        && j(tF.sent) === j(blastT('')) && j(tF.rolls) === j([['c_n', '3d6', 'Orb damage', { gmOnly: true, dmg: true, used: true }]]) && j(tF.applied) === j([[7, 'f_hp']]), j([tG, tV.sent, tV.rolls, tU.rolls, tF.applied]));
     // 128 (e): an exploded ring or cone is sent with its shape, cleaned (the real net.broadcastBlast)
     const sendB = blast => { const out = [], peer = id => ({ peer: id, open: true, send(m) { packCheck(m); out.push([id, JSON.parse(JSON.stringify(m.blast))]); } });
         const net = { active: true, role: 'host', conns: [peer('pA'), peer('pB')], roster: { pA: { id: 'u_a', location: 'm1' }, pB: { id: 'u_b', location: 'm2' } } };
@@ -3484,12 +3484,19 @@ pendingChecks.push((async () => {
         const win = { wpFormula: Fx, wpVtt: { on: k => o.off !== k }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged: id => out.changed.push(id) }, wpDiceCore: null };
         const sendTable = (m, ex) => net.conns.forEach(c => { if (c !== ex && c.open && net.roster[c.peer]) c.send(m); });
         new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'own', 'diceFrom', 'sendTable', 'pushChat', 'logEvent', 'applyLine',
-            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + paSrc + '\n' + apSrc)(
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + (o.pre || '') + '\n' + dlSrc + '\n' + paSrc + '\n' + apSrc)(
             msg, conn, net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), o.lim || { allow: () => true },
             (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), (p, gm) => ({ id: p.id, name: p.name, gm: !!gm }), sendTable, m => out.chat.push(JSON.parse(JSON.stringify(m))), (k, t) => out.logs.push(k + ': ' + t), r => Dx.applyText(r));
-        out.vals = camp.chars.c_1.values; return out;
+        out.vals = camp.chars.c_1.values; out.off = win._off || []; return out;
     };
     const A = (act, extra) => Object.assign({ type: 'char-apply', rid: 'a1', charId: 'c_1', act: act }, extra || {});
+    {   // 1.6.0 found by hand on a table: a list's action standing after a roll a player's view drops. Their press names its place in their view, and Off a character's turn judges from the GM's list
+        const sysP = Sx.cleanSystem({ v: 1, name: 'P', rolls: [], fields: [{ id: 'f_fp', key: 'FP', kind: 'resource', maxFormula: '6', def: 'max', min: 0, edit: 'owner' }, { id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Flaw', label: 'Flaw', vis: 'gm' }], rolls: [{ label: 'Gnaw', formula: '3d6 <= 10 + Row.Flaw' }, { label: 'Use', apply: [{ f: 'f_fp', formula: '1' }] }] } }], items: [{ id: 'i_p', name: 'Pebbles' }] }, { F: Fx, gmView: true });
+        const preP = fnSrc('function rowOnGm(', '\n}\n', 'rowOnGm') + '\n}\nfunction offTurnBar(c, ch, a, row) { (window._off = window._off || []).push(row); return \'\'; }\nfunction offTurnWarn(c, ch, a, row) { window._off.push(row); }\n';
+        const rP = host({ type: 'char-apply', rid: 'a1', charId: 'c_1', row: { f: 'f_gr', r: 'w_p', i: 0 } }, { sys: sysP, vals: { f_gr: [{ id: 'w_p', defId: 'i_p', qty: 1 }] }, pre: preP });
+        check('1.6.0 a list\'s action after a roll the player\'s view drops: the real char-apply branch finds it by their place, and Off a character\'s turn, before it moves anything and after, reads it by its place on the GM\'s list (found by hand)',
+            rP.owner.filter(m => m.type === 'apply').length === 1 && rP.off.length === 2 && rP.off.every(x => x.i === 1), j([rP.answer, rP.off]));
+    }
     const card = list => list.filter(m => m.type === 'apply'), still = r => j(r.vals) === j(START) && r.owner.length === 0 && r.mate.length === 0 && r.chat.length === 0 && r.saves === 0;
     const denied = (r, reason) => j(r.answer.map(m => m.type + ':' + m.reason)) === j(['char-deny:' + reason]) && still(r);
     const w1 = host(A('r_w', { label: 'Apply wounds' })), cW = card(w1.owner)[0] || {};
@@ -4961,6 +4968,37 @@ pendingChecks.push((async () => {
             out.ret = dr(ex || '3d6 <= Row.Skill', { charId: 'c_a', row: row }); out.check = net.rollCheck; return out; };
         const p16 = runP([6, 5, 5], 2), p15 = runP([6, 5, 4], 2), p16n = runP([6, 5, 5], 0), p18 = runP([6, 6, 6], 0), g16 = runG([6, 5, 5], 2), g15 = runG([6, 5, 4], 2), judge = r => Dx.verdictOf({ ok: true, breakdown: { dice: [{ cs: false, rolls: [] }], checks: [{ top: true, pass: true, op: '<=', margin: 3 }] } }, Dx.ruleOf(r, 'fixed'));
         const noWord = o => !/flaw/i.test(j([o.table, o.sent]));
+        {   // 1.6.0 found by hand on a table: a list's roll before it reads a GM-only stat, so the player's view drops that roll and the press names a lower place than the GM's list has. The real roll-req branch and net.diceRoll, with the button's own message
+            const listOf = extra => ({ id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Skill', label: 'Skill' }, { key: 'Flaw', label: 'Flaw', vis: 'gm' }], rolls: [{ label: 'Gnaw', formula: '3d6 <= Row.Flaw' }, Object.assign({ label: 'Use', formula: '3d6 <= Row.Skill' }, extra)] } });
+            const sysOf = (extra, combat) => Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [listOf(extra)], items: [{ id: 'i_p', name: 'Pebbles', stats: { Skill: 19 } }], combat: combat || {} }, { F: Fx, gmView: true });
+            const valsS = { f_gr: [{ id: 'w_p', defId: 'i_p', qty: 1, ov: { stats: { Flaw: 2 }, held: ['Flaw'] } }] };
+            const press = (sys, dice) => { const out = { table: [], sent: [], off: [], warn: [], ref: [] }; dq = dice.slice();
+                const camp = { id: 'k', activeItemId: 'm1', system: sys, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(valsS)) } }, items: { m1: { type: 'map', whiteboard: [] } } };
+                const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta() {} }, conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
+                const win = { wpFormula: Fx, wpNotice: { stealth: (c, id, ref) => out.ref.push(ref) }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
+                new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'out', 'var diceLimit = null, _diceSlowSaid = {};\nfunction offTurnBar(c, ch, a, r) { out.off.push(r); return \'\'; }\nfunction offTurnWarn(c, ch, a, r) { out.warn.push(r); }\n' + fnSrc('function rowOnGm(', '\n}\n', 'rowOnGm') + '\n}\n' + fnSrc('function critFromGm(', '\n}\n', 'critFromGm') + '\n}\n' + fnSrc('function malfFromGm(', '\n}\n', 'malfFromGm') + '\n}\n' + helpers + rqSrc)(
+                    { type: 'roll-req', rid: 'q1', charId: 'c_a', row: { f: 'f_gr', r: 'w_p', i: 0 }, expr: '3d6 <= Row.Skill' }, conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, (k, t) => { out.log = t; }, () => {}, out);
+                return out; };
+            const sM = sysOf({ malf: '18 - Row.Flaw' }), sF = sysOf({ fumbleAt: '17 - Row.Flaw' }, { checks: 'fixed' }), view = Sx.cleanSystem(sM, { F: Fx, gmView: false }), inView = view.fields[0].list.rolls.map(r => r.label);
+            const m16 = press(sM, [6, 5, 5]), m15 = press(sM, [6, 5, 4]), f15 = press(sF, [6, 5, 4]), f14 = press(sF, [6, 5, 3]);
+            check('1.6.0 a Malf that reads a GM-only stat fires on a player\'s press of a roll standing after one their view drops (found by hand: the host looked at the GM\'s list by the player\'s place and found the roll before): the real roll-req branch with the button\'s own row, the card saying only that it jammed, and a roll under it plain',
+                j(inView) === j(['Use']) && !!m16.table[0] && m16.table[0].malfHid === 1 && /malfunction$/.test(m16.log) && m15.table[0].malf === undefined && !/malfunction/.test(m15.log) && !/flaw/i.test(j([m16.table, m16.sent])), j([inView, m16.table[0], m16.log, m15.log]));
+            check('1.6.0 ... and a critical range that reads a GM-only stat, the same press: a natural at the range is a critical failure, one under it plain', /critical failure/.test(f15.log) && !/critical failure/.test(f14.log), j([f15.log, f14.log]));
+            check('1.6.0 ... and what else the host judges from the GM\'s view reads the same roll: Off a character\'s turn before and after the roll, and a sneak\'s roll by its place on the GM\'s list', m16.off[0] && m16.off[0].i === 1 && m16.warn[0] && m16.warn[0].i === 1 && m16.ref[0] && m16.ref[0].i === 1 && m16.ref[0].l === 'f_gr', j([m16.off, m16.warn, m16.ref]));
+            const pressG = (sys, dice) => { const out = { recs: [], pushed: [], toasts: [] }; dq = dice.slice();
+                const camp = { id: 'k', system: sys, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(valsS)) } } }, net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta() {} };
+                const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
+                    net, () => Dx, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null, charChanged() {}, playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) } }, () => camp, () => ({ id: 'u_gm', name: 'GM' }), t => out.toasts.push(t), () => null, e => { throw e; }, () => {}, (rec, res, scope) => { out.pushed.push(scope); out.recs.push(JSON.parse(JSON.stringify(rec))); }, (k, t) => { out.log = t; }, () => {});
+                out.ret = dr('3d6 <= Row.Skill', { charId: 'c_a', row: { f: 'f_gr', r: 'w_p', i: 1 } }); return out; };
+            const gmC = pressG(sysOf({ critAt: '5', fumbleAt: '17 - Row.Flaw' }, { checks: 'fixed' }), [1, 1, 2]);
+            check('1.6.0 ... and the GM\'s own card measures a masked range against that roll in the players\' view, by its place there', j(gmC.recs[0] && gmC.recs[0].crit) === j([5, 18]), j(gmC.recs[0]));
+            const altS = fnSrc('function attRowAlts(', '\n}\n', 'attRowAlts') + '\n}\n';
+            const sA = Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [{ id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Flaw', label: 'Flaw', vis: 'gm' }], rolls: [{ label: 'Gnaw', formula: '3d6 <= Row.Flaw' }, { label: 'Block', formula: '3d6 <= 11', resist: true }] } }], items: [{ id: 'i_p', name: 'Pebbles', stats: {} }] }, { F: Fx, gmView: true });
+            const alts = toO => { const out = [], tch = { id: 'c_t', name: 'Tess', ownerId: 'u_a', values: { f_gr: [{ id: 'w_p', defId: 'i_p', qty: 1 }] } }; new Function('SC', 'window', 'fxLib', 'itemLib', 'attTokCtx', 'ATT_ROWS', altS + '\nreturn attRowAlts;')(() => Sx, { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) } }, () => undefined, () => undefined, () => null, 8)({ system: sA, items: {} }, tch, 'f_gr#1', toO, out, null); return out; };
+            const aP = alts(true), aG = alts(false);
+            check('1.6.0 a resist card offers a list\'s roll standing after one a player\'s view drops, and names it as that player\'s press will (attRowAlts, run for real): by its place in their view on their card and on the GM\'s list on the GM\'s',
+                aP.length === 1 && aP[0].i === 0 && /^Block with /.test(aP[0].label) && aG.length === 1 && aG[0].i === 1, j([aP, aG]));
+        }
         {   // a Malf that reads the stat, worked out on the host as a critical range is
             sysNow = Sx.cleanSystem({ v: 1, name: 'F', rolls: [], fields: [{ id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Skill', label: 'Skill' }, { key: 'Flaw', label: 'Flaw', vis: 'gm' }], rolls: [{ label: 'Use', formula: '3d6 <= Row.Skill', malf: '18 - Row.Flaw' }] } }], items: [{ id: 'i_p', name: 'Pebbles', stats: { Skill: 19 } }] }, { F: Fx, gmView: true });
             const m16 = runP([6, 5, 5], 2), m15 = runP([6, 5, 4], 2), m16n = runP([6, 5, 5], 0), m18n = runP([6, 6, 6], 0), gm16 = runG([6, 5, 5], 2), gm15 = runG([6, 5, 4], 2); sysNow = sysFl;
@@ -19292,7 +19330,7 @@ pendingChecks.push((async () => {
         pB.length = 0; runB.attemptCalled({ system: null }, un('1 > 0'), 'r_duck', undefined, true, tar, false); const m4 = pB.length;
         check('1.6.0 a byIf that cannot be worked out does not hold, so no card comes: a name no one has, Row.* on a system roll, a formula that does not read, dice in it. It reads that roll\'s token context, AttemptMargin among them, and a row that is no row is passed over, not read',
             u1 === '' && u2 === '' && u3 === '' && u4 === '' && m1 === 'r_ash' && m2 === '' && m3 === 'r_ash' && m4 === 0, j([u1, u2, u3, u4, m1, m2, m3, m4]));
-        check('1.6.0 both paths hand the resist roll its token context (a player\'s roll and the GM\'s own)', full.includes('attemptCalled(campQ, blowRecQ, q.act, q.row, pcQ, chQ, !!recQ.priv, tcQ);') && full.includes('attemptCalled(campR, blowRecR, o.act, o.row, pcR, chR, !!rec.priv || !!rec.to, tcR);'));
+        check('1.6.0 both paths hand the resist roll its token context (a player\'s roll and the GM\'s own)', full.includes('attemptCalled(campQ, blowRecQ, q.act, rowGQ, pcQ, chQ, !!recQ.priv, tcQ);') && full.includes('attemptCalled(campR, blowRecR, o.act, o.row, pcR, chR, !!rec.priv || !!rec.to, tcR);'));
     }
 })());
 { const { pathToFileURL } = require('url'); pendingChecks.push((async () => {

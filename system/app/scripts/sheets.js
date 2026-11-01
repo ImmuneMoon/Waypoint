@@ -3474,6 +3474,7 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         if (!rollOk || !r || typeof r.formula !== 'string' || !r.formula) return;
         var lb = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Roll', b = el('button', 'tool ghost sheet-item-roll', lb); b.type = 'button'; if (typeof dieFor === 'function') b.insertBefore(dieFor(r.die, r.formula), b.firstChild); b.title = nm + ' \u00b7 ' + lb + ': ' + r.formula + ' (shift-click adds a modifier)'; if (typeof r.icon === 'string' && r.icon) b.insertBefore(iconNode(r.icon, 'sheet-item-rollico'), b.lastChild); var figR = typeof rollFigText === 'function' ? rollFigText(r, ri, spec, res, rid) : ''; if (figR) b.appendChild(el('span', 'sheet-item-rollfig', figR));   // 1.6.0: its own icon after its die, and R7 its figure in a box at its end   // 1.5.8: its die (1.5.9: its title back, which this comment had swallowed)
         var nOk = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false, withE = !!(Array.isArray(r.then) && r.then.length) || !!r.needs || !!r.malf || !!r.cost || !!r.dmg || !!r.showIf;   // Stage 6 HUD R2b: its needs for this row; a roll with consequences or needs names its index
+        if (r.needsGm === true && !isClient()) nOk = true;   // 1.6.0 The GM may press past it
         if (r.to === 'near') withE = true;   // 1.5.9 (book es/et plan, section 3): one that Applies to an adjacent character names its index too, so the host finds whom it may reach
         if (r.resisted === true || typeof r.resistBy === 'string') withE = true;   // 1.6.0 (B2): one its target may resist names its index, so the host finds the whole entry
         if (r.burst) withE = true;   // 1.6.0 A burst: its host keeps the record, so it finds the whole entry
@@ -4734,7 +4735,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild); if (typeof dieFor === 'function') b.insertBefore(dieFor(r.die, r.formula, 'sheet-roll-die'), b.firstChild);   // 1.5.8: its die (the GM's pick, else its formula's); 1.6.0 (the owner, 2026-10-27: "small dice icons on, or before the dice rolling buttons ... without removing any of the current settings"): before an icon of its own too, which stays
     b.title = r.formula + (can ? ' · shift-click to add a modifier' : ' (dice are off here, or this is not your character)'); b.disabled = !can;
     var cbR = can && typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbR) { b.disabled = true; b.title = cbR + ' \u2014 ' + r.formula; }   // turn-based combat T4
-    if (can && r.needs && !(typeof readsAttempt === 'function' && readsAttempt(r.needs, F())) && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, r.to === 'near' && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F()) && !(r.to === 'near' && typeof readsOn === 'function' && readsOn(r.needs, F()))) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }   // 1.5.4: what it needs, as a list roll's button (the host judges a player's roll); 1.5.9: read as on its user, OnSelf 1
+    if (can && r.needs && !(r.needsGm === true && !isClient()) && !(typeof readsAttempt === 'function' && readsAttempt(r.needs, F())) && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, r.to === 'near' && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F()) && !(r.to === 'near' && typeof readsOn === 'function' && readsOn(r.needs, F()))) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }   // 1.5.4: what it needs, as a list roll's button (the host judges a player's roll); 1.5.9: read as on its user, OnSelf 1
     var goN = function(e) {   // 1.5.9: named, so its ± runs the very same click
         if (r.to === 'near' && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evN = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evN.currentTarget || b, c, function(on) { evN.wpAlly = on || ''; goN(evN); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first, where someone stands next to it
         var lb = label, vv = vars;
@@ -4770,7 +4771,7 @@ function applyNode(r, c, sys, vars) {
     var label = rollLabel(r, sys, c, vars), can = (_fxLive || window.wpPrintCopy === true) && canApply(c), b = el('button', 'tool sheet-roll sheet-apply' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label);
     b.insertBefore(iconNode(r.icon || 'icon:bolt', 'sheet-roll-icon'), b.firstChild);   // 1.6.0 (the owner: "lets add icons before other buttons too"): the bolt where it names none
     b.title = applyTitle(r, sys) + (r.each ? ' \u2014 also ' + (r.by ? 'due' : 'by itself') + (r.each === 'turn' ? ' at the start of its character\u2019s turn' : r.each === 'turnEnd' ? ' at the end of its character\u2019s turn' : ' on every new round of a combat') + (r.by ? ' (a reminder for ' + (r.by === 'gm' ? 'the GM' : 'its player') + ' to press)' : '') : '') + (can ? '' : ' (not here: this is a preview or a pop-out, or not your character)'); b.disabled = !can;
-    if (can && r.needs && !(typeof readsAttempt === 'function' && readsAttempt(r.needs, F())) && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, r.to === 'near' && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F()) && !(r.to === 'near' && typeof readsOn === 'function' && readsOn(r.needs, F()))) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }   // 1.5.4: what it needs (the host judges a player's press, applyAct the GM's); 1.5.9: read as on its user, OnSelf 1
+    if (can && r.needs && !(r.needsGm === true && !isClient()) && !(typeof readsAttempt === 'function' && readsAttempt(r.needs, F())) && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, r.to === 'near' && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F()) && !(r.to === 'near' && typeof readsOn === 'function' && readsOn(r.needs, F()))) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }   // 1.5.4: what it needs (the host judges a player's press, applyAct the GM's); 1.5.9: read as on its user, OnSelf 1
     b.addEventListener('click', function() {
         var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return;
         var lb = label; if (sys && r.label && r.label.indexOf('{') >= 0) { try { lb = rollLabel(r, sys, cN, resolveAll(sys, cN, F(), tokenCtxFor(cN.id, campN)).vars); } catch (err) { lb = label; } }   // the label as it reads at the press
@@ -6621,6 +6622,7 @@ function rollExtras(row, rr, sp, isApply) {
     ic.addEventListener('input', function() { var v = ic.value.trim().slice(0, 32); if (v) rr.icon = v; else delete rr.icon; ch(); });
     row.appendChild(ic); if (typeof glyphButton === 'function') row.appendChild(glyphButton(ic));
     if (typeof rollStationBox === 'function') { var rsL = rollStationBox(rr); if (rsL) row.appendChild(rsL); }   // 1.6.0
+    if (!isApply && typeof needsGmBox === 'function') row.appendChild(needsGmBox(rr));   // 1.6.0
     if (isApply) return;
     var s = el('select', 'sys-rlfig'); s.title = 'A figure in a small box at the end of its button. Its figure: a check shows what it rolls against, any other roll its dice with the row\u2019s names worked out. A column shows that column on the row';
     var cur = typeof rr.show === 'string' ? rr.show : '', opts = [['', 'Shows no figure'], ['@fig', 'Shows its figure']];
@@ -7193,6 +7195,7 @@ function refreshErrors() {
         });
         if (!rKept) rErr.push({ message: 'Range: add a step, or Save drops the rule.' });
     }
+    (draft.combat && Array.isArray(draft.combat.targetReads) ? draft.combat.targetReads : []).forEach(function(id, i) { var f0 = (draft.fields || []).find(function(f) { return f && f.id === id; }); if (i >= 6) { if (i === 6) rErr.push({ message: 'A roll also reads of its target: six at most, so Save drops the rest.' }); } else if (!f0 || ['number', 'formula', 'skill', 'resource'].indexOf(f0.kind) < 0) rErr.push({ message: 'A roll also reads of its target: "' + String(id).slice(0, 40) + '" is no number field, so Save drops it.' }); });   // 1.6.0
     var tszE = draft.combat && typeof draft.combat.targetSize === 'string' ? draft.combat.targetSize : '';   // 1.6.0: TargetSize's field, judged as the cleaner judges it (a number its viewer can read truthfully)
     if (tszE) {
         var tszF = (draft.fields || []).find(function(f) { return f && f.id === tszE; }), tszSec = null; try { tszSec = typeof secretFieldIds === 'function' ? secretFieldIds({ fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }, F()) : null; } catch (e) { tszSec = null; }
@@ -7737,6 +7740,7 @@ function rollRow(r) {
     if (typeof checkLabel === 'function') ndR.appendChild(checkLabel('sys-roll-hideoff', r.hideOff === true, 'Hidden until it can be used', 'The button stands on the sheet only while its needs hold. Off: it stays there, greyed out. Only beside needs'));   // 1.6.0
     row.appendChild(ndR);
     row.appendChild(everyRow(r));   // item 20 K5: by the campaign's clock
+    if (!isApply && typeof needsGmBox === 'function') ndR.appendChild(needsGmBox(r));   // 1.6.0
     row.appendChild(fightRow(r));   // backlog 152, fold 5: in a fight
     row.appendChild(askRow(r));   // and whether its runs wait for your word
     if (r.every || r.inFight || r.notes) row.appendChild(noteRow(r));   // 1.6.0, backlog 173: where its runs are said, for a time rule
@@ -8449,6 +8453,7 @@ function listNamesText(key, sp, isParts) {
 }
 function lookShadesOf(text) { var out = []; String(text || '').split(/\r?\n/).forEach(function(ln) { var i = ln.lastIndexOf('='); if (i < 1) return; var v = ln.slice(0, i).trim(), c = ln.slice(i + 1).trim().toLowerCase(); if (v && /^#[0-9a-f]{6}$/.test(c)) out.push({ v: v.slice(0, 60), c: c }); }); return out.slice(0, ROW_LOOK.shades); }   // 1.6.0, backlog 206: the Lists card's Shades box
 // 1.6.0 Its crew may press this sheet's rolls: which stations may press a roll, shown where a Crew link lets its crew press and names stations
+function needsGmBox(r) { var l = checkLabel('sys-needsgmtick', r.needsGm === true, 'The GM may press past it', 'What it needs holds players back and not the GM, as a limit the GM can overrule'), cb = l.firstChild; cb.addEventListener('change', function(e) { e.stopPropagation(); if (cb.checked) r.needsGm = true; else delete r.needsGm; markDirty(); patchErrors(); }); return l; }
 function rollStationBox(r) {
     var has = (draft && Array.isArray(draft.links) ? draft.links : []).some(function(k) { return k && k.kind === 'crew' && k.press === true && Array.isArray(k.stations) && k.stations.length; }); if (!has) return null;
     var l = el('label', 'sys-check'), i = input('sys-crewstn field', Array.isArray(r.stations) ? r.stations.join(', ') : '', 'Which stations of a Crew link may press this roll, separated by commas. Empty: any crew member', 'Any station');
@@ -9850,6 +9855,10 @@ function rangeBox(box, cm) {
         var cur = typeof cm.targetSize === 'string' ? cm.targetSize : '', ro = [['', 'None']].concat(szs); if (cur && !szs.some(function(o) { return o[0] === cur; })) ro.push([cur, 'One that is gone']);
         var rz = el('div', 'sys-flags sys-range-sizerow'); rz.appendChild(labeledSelect('sys-range-size', 'Target size reads', ro, cur, 'A number of the target\u2019s sheet. A roll reads it as TargetSize, as it reads TargetDistance. A field players cannot read Save drops.'));
         wrap.appendChild(rz);
+        var rdW = el('div', 'sys-flags sys-range-readsrow'), rdL = el('label', 'sys-combat-item'); rdL.appendChild(el('span', 'sys-num-cap', 'A roll also reads of its target'));
+        var rdI = input('sys-targetreads field', (Array.isArray(cm.targetReads) ? cm.targetReads : []).map(function(id) { var f0 = (draft.fields || []).find(function(f) { return f && f.id === id; }); return f0 ? f0.key : id; }).join(', '), 'The keys of up to 6 number fields of the target\u2019s sheet, separated by commas. A roll reads each as Target.<key>, as it reads TargetSize. A field players cannot read Save drops.', 'Maneuver');
+        if (rdI.addEventListener) rdI.addEventListener('input', function(e) { e.stopPropagation(); var w = rdI.value.split(',').map(function(x) { return x.trim(); }).filter(Boolean).map(function(k) { var f0 = (draft.fields || []).find(function(f) { return f && typeof f.key === 'string' && f.key.toLowerCase() === k.toLowerCase(); }); return f0 ? f0.id : k; }); if (w.length) draft.combat.targetReads = w; else delete draft.combat.targetReads; markDirty(); patchErrors(); });
+        rdL.appendChild(rdI); rdW.appendChild(rdL); wrap.appendChild(rdW);
     }
     {   // 1.6.0 (B5): the list of a target's sheet whose rows are its hit locations; a roll reads the row its roller picks as Target.Hit.<name>
         var hls = (draft.fields || []).filter(function(f) { return f && typeof f.id === 'string' && f.kind === 'item-list'; }).map(function(f) { return [f.id, f.label || f.key || f.id]; });

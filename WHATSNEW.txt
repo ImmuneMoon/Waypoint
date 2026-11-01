@@ -716,6 +716,13 @@ Systems
   Locations.Right.Strike for that side's rows added up, with .max and .min for
   the highest and lowest, 0 with none. The window names the side beside the
   location, so one arm is told from the other.
+- A system can say where a hit behind cover lands. On the Combat card, each
+  grade of cover may hold up to six rows, a run of a die and a formula true on
+  the locations it means. Damage rolled at a target behind that cover rolls the
+  die on the GM's machine and its card says where it landed. A row with nothing
+  on the target falls to the next, and two locations under one row take a second
+  die. The GM can change it in the Take damage window. A called shot at a
+  location the rows name stands.
 - The Review can show a note beside a file's changes. A note has no tick
   and counts as no change.
 - An effect's change can be sized by a formula, such as -max(0, -MP)

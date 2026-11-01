@@ -3,7 +3,7 @@
    feature switch. The wire and the rolling itself live in net.js (net.diceRoll, the roll-req / roll / roll-deny
    handlers); the validators, replay and text in dicecore.js. Design of record: docs/DICE_PLAN.md. */
 import { toast } from './io.js';
-import { LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy, dueMajor, hitFaces, cleanPos, posWords } from './dicecore.js';
+import { coverHitWords, LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy, dueMajor, hitFaces, cleanPos, posWords } from './dicecore.js';
 import { dieNode } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
 
 var ui = function(id) { return document.getElementById(id); };
@@ -125,6 +125,7 @@ function renderCard(m) {
     else if (typeof rec.cov === 'string' && rec.cov) wrap.appendChild(el('div', 'roll-aim', 'Target in ' + rec.cov.toLowerCase()));   // 1.6.0: the number alone did not say why
     var amR = rec.aim && typeof rec.aim === 'object' && typeof rec.aim.n === 'string' && rec.aim.n ? rec.aim : null;   // 1.6.0 (B5): where a called shot was aimed, and what its location gave
     if (amR) { var amF = Array.isArray(amR.f) ? amR.f.filter(function(x) { return x && typeof x.v === 'number' && isFinite(x.v); }) : [], amS = function(n) { return n < 0 ? '\u2212' + (-n) : n > 0 ? '+' + n : '0'; }; wrap.appendChild(el('div', 'roll-aim', 'at ' + amR.n + (amF.length === 1 ? ' (' + amS(amF[0].v) + ')' : amF.length ? ' (' + amF.map(function(x) { return x.k + ' ' + amS(x.v); }).join(', ') + ')' : ''))); }
+    if (rec.cvh && typeof rec.cvh === 'object' && typeof rec.cvh.n === 'string' && typeof coverHitWords === 'function') wrap.appendChild(el('div', 'roll-aim', coverHitWords(rec.cvh)));   // 1.6.0: where a hit behind cover landed, and the die
     var p2c = rec.dmg === 1 && rec.dmg2 && typeof rec.dmg2 === 'object' && typeof rec.dmg2.t === 'number' && isFinite(rec.dmg2.t) ? rec.dmg2 : null;   // 1.6.0 (B3): the blow's second part, of another type, rolled by the host
     if (p2c && !mf) { var p2y = sy && sy.combat && sy.combat.damage && Array.isArray(sy.combat.damage.types) ? sy.combat.damage.types.filter(function(y) { return y && y.key === p2c.dtype; })[0] : null; wrap.appendChild(el('div', 'roll-part2', 'and ' + p2c.t + (p2y ? ' ' + (p2y.label || p2y.key) : typeof p2c.dtype === 'string' ? ' ' + p2c.dtype : '') + ' in the same blow')); }
     var pkc = {}; [3, 4, 5].forEach(function(k) { var pk = rec.dmg === 1 && rec['dmg' + k] && typeof rec['dmg' + k] === 'object' && typeof rec['dmg' + k].t === 'number' && isFinite(rec['dmg' + k].t) ? rec['dmg' + k] : null; if (!pk) return; pkc[k] = pk; if (mf) return; var pky = sy && sy.combat && sy.combat.damage && Array.isArray(sy.combat.damage.types) ? sy.combat.damage.types.filter(function(y) { return y && y.key === pk.dtype; })[0] : null; wrap.appendChild(el('div', 'roll-part2', 'and ' + pk.t + (pky ? ' ' + (pky.label || pky.key) : typeof pk.dtype === 'string' ? ' ' + pk.dtype : '') + ' in the same blow')); });   // 1.6.0: a third and a fourth part, said and handed on as the second

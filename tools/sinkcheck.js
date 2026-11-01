@@ -5952,6 +5952,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const SC = new Function('el', 'opt', 'commitItem', 'rowIdOf', shS.slice(a, b) + '\nreturn subjectCtl;')(node, (v, x, s) => { const o = node('option', '', x); o.value = v; o.selected = !!s; return o; }, () => {}, r => r.id);
         const m = SC({ id: 'w_a', sj: 1 }, {}, { id: 'f_x' }, { subject: [X] }, true), c = SC({ id: 'w_a', sj: 1 }, {}, { id: 'f_x' }, { subject: [X] }, false);
         check('1.6.0 Subjects: a hostile word reaches the row\'s menu and its chip as an option\'s text and a text node, its value only a place', m.children[1].textContent === X && m.children[1].value === '1' && c.textContent === X && c.tag === 'span', '');
+    {   // 1.6.0 Where a hit behind cover lands: a location's name comes from a file. It reaches the card only through cleanCovHit, and dice.js draws it as a text node
+        const DCv = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dicecore.js')).split(String.fromCharCode(92)).join('/')), djC = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dice.js'), 'utf8');
+        const hC = DCv.cleanCovHit({ n: '<img src=x onerror=alert(1)>', d: 1, of: 6, html: '<b>' });
+        check('1.6.0 a location named on a hit behind cover is plain text: cleanCovHit keeps its own keys alone and refuses a control character, and the card draws its words through el, never as markup',
+            !!hC && Object.keys(hC).join() === 'n,d,of' && DCv.cleanCovHit({ n: 'a\u0000b' }) === null && djC.includes("wrap.appendChild(el('div', 'roll-aim', coverHitWords(rec.cvh)));"));
     }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

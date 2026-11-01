@@ -7573,6 +7573,7 @@ function refreshErrors() {
     var lkS = typeof linkSays === 'function' ? linkSays(draft.links, draft.fields, F()) : { errs: [], warns: [] }; if (lkS.errs.length) errorsById.links = lkS.errs; if (lkS.warns.length) warningsById.links = lkS.warns;   // 1.6.0: what Save drops of the linked sheets, as the cleaner reads them
     if (typeof envSays === 'function' && F()) { var eSy = null, eS = envSays(draft.env, draft.fields, F(), function(ns) { eSy = eSy || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }; return gmDerivedNames(eSy, F(), ns); }); if (eS.errs.length) errorsById.env = (errorsById.env || []).concat(eS.errs); if (eS.warns.length) warningsById.env = (warningsById.env || []).concat(eS.warns); }   // 1.6.0: what Save does with the environment readings
     if (typeof tableSays === 'function') { var tbSy = tableSays(draft.tables); if (tbSy.errs.length) errorsById.tables = tbSy.errs; }   // 1.6.0: what Save drops of the tables, as the cleaner reads them
+    if (typeof coverHitSays === 'function') { var cvS = coverHitSays(draft.combat && draft.combat.cover, draft.combat, F()); if (cvS.errs.length) errorsById.coverhit = cvS.errs; if (cvS.warns.length) warningsById.coverhit = cvS.warns; }   // 1.6.0: what Save drops of where a hit behind cover lands, as the cleaner reads it
     if (typeof damageSays === 'function') { var dmS = damageSays(draft.combat && draft.combat.damage, clean, F()); if (dmS.errs.length) errorsById.damage = dmS.errs; if (dmS.warns.length) warningsById.damage = dmS.warns; }   // 1.5.6: what Save drops of the damage rules, as the cleaner reads them
 }
 function errorCell(id) {
@@ -8838,6 +8839,61 @@ function onBlastInput(t) {
     markDirty(); return true;
 }
 // [systemcheck:blastbox-end]
+// 1.6.0 Where a hit behind cover lands: combat.cover.hit, per grade, each row a run of a die and a formula true on the locations it means. Save cleans it
+// (systemcore cleanCover); coverHitSays says what it drops, under errorCell('coverhit')
+var COVER_HIT_LINE = 'After a hit on a target behind this much cover, a die picks where it lands. It has as many sides as the highest To. Location where is true on the rows it means, read as Row. A row with nothing on the target falls to the next. Several rows under one take a second die. A called shot at a location these name stands.';
+var COVER_HIT_MAX = 6;
+function coverHitGrades(cm) { return cm.cover.style === 'binary' ? [['cover', 'Behind cover'], ['total', 'Behind total cover']] : [['half', 'Behind half cover'], ['threeq', 'Behind three-quarters cover'], ['total', 'Behind total cover']]; }
+function coverHitBox(box, cm) {
+    var ht = cm.cover.hit && typeof cm.cover.hit === 'object' && !Array.isArray(cm.cover.hit) ? cm.cover.hit : {};
+    box.appendChild(el('div', 'sys-combat-head', 'Where a hit behind cover lands'));
+    box.appendChild(el('div', 'sys-note', COVER_HIT_LINE));
+    coverHitGrades(cm).forEach(function(g) {
+        var rows = Array.isArray(ht[g[0]]) ? ht[g[0]] : [], wrap = el('div', 'sys-cvh-grade'); wrap.dataset.grade = g[0]; wrap.appendChild(el('span', 'sys-num-cap', g[1]));
+        rows.forEach(function(r0, i) {
+            var r = r0 && typeof r0 === 'object' ? r0 : {}, rw = el('div', 'sys-flags sys-cvh-row'); rw.dataset.ci = String(i);
+            var from = numInput('field sys-cvh-from', typeof r.from === 'number' ? r.from : '', 'The lowest roll of the die for this row'), to = numInput('field sys-cvh-to', typeof r.to === 'number' ? r.to : '', 'The highest roll of the die for this row');
+            dbxCap(rw, 'From'); rw.appendChild(from); dbxCap(rw, 'To'); rw.appendChild(to);
+            dbxCap(rw, 'Location where'); var loc = input('sys-cvh-where field', typeof r.row === 'string' ? r.row : '', 'True on the location rows this means. It reads the row as Row', 'e.g. Row.loc = 8'); loc.maxLength = LIMITS.formula; rw.appendChild(loc);
+            rw.appendChild(dbxBtn('cvhdel', 'Remove', 'Take this row off')); wrap.appendChild(rw);
+        });
+        wrap.appendChild(dbxBtn('cvhadd', '+ Row', rows.length >= COVER_HIT_MAX ? 'At most ' + COVER_HIT_MAX : 'A run of the die and the location it means', rows.length >= COVER_HIT_MAX));
+        box.appendChild(wrap);
+    });
+    var err = errorCell('coverhit'); err.dataset.errFor = 'coverhit'; box.appendChild(err);
+}
+function coverHitDraft() { var cv = draft.combat.cover; if (!cv.hit || typeof cv.hit !== 'object' || Array.isArray(cv.hit)) cv.hit = {}; return cv.hit; }
+function coverHitTidy() { var cv = draft.combat.cover, h = cv.hit; Object.keys(h).forEach(function(k) { if (!Array.isArray(h[k]) || !h[k].length) delete h[k]; }); if (!Object.keys(h).length) delete cv.hit; }
+function coverHitInput(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-cvh-') < 0) return false;
+    var rw = t.closest ? t.closest('.sys-cvh-row') : null, gw = t.closest ? t.closest('.sys-cvh-grade') : null, h = coverHitDraft(), a = gw && Array.isArray(h[gw.dataset.grade]) ? h[gw.dataset.grade] : null, r = a && rw ? a[Number(rw.dataset.ci)] : null; if (!r) return true;
+    if (c.indexOf('sys-cvh-where') >= 0) { var v = String(t.value || ''); if (v.trim()) r.row = v; else delete r.row; }
+    else { var k = c.indexOf('sys-cvh-from') >= 0 ? 'from' : 'to', n = Number(t.value); if (t.value !== '' && isFinite(n)) r[k] = n; else delete r[k]; }
+    markDirty(); patchErrors(); return true;
+}
+function coverHitClick(b) {
+    var act = b.dataset && b.dataset.act || ''; if (act !== 'cvhadd' && act !== 'cvhdel') return false;
+    var gw = b.closest ? b.closest('.sys-cvh-grade') : null, g = gw ? gw.dataset.grade : ''; if (['half', 'threeq', 'cover', 'total'].indexOf(g) < 0) return true;
+    var h = coverHitDraft(), a = Array.isArray(h[g]) ? h[g] : (h[g] = []);
+    if (act === 'cvhadd') { if (a.length >= COVER_HIT_MAX) { toast('At most ' + COVER_HIT_MAX + ' rows.'); coverHitTidy(); return true; } a.push({}); }
+    else { var rw = b.closest('.sys-cvh-row'), i = rw ? Number(rw.dataset.ci) : -1; if (i >= 0 && i < a.length) a.splice(i, 1); }
+    coverHitTidy(); markDirty(); patchErrors(); renderCombat(); return true;
+}
+function coverHitSays(cv, cm, Fx) {
+    var errs = [], warns = [], SCh = window.wpSystemCore, ht = cv && typeof cv === 'object' && cv.hit && typeof cv.hit === 'object' && !Array.isArray(cv.hit) ? cv.hit : null;
+    if (!ht || !SCh || typeof SCh.cleanCoverHit !== 'function') return { errs: errs, warns: warns };
+    var words = { half: 'Behind half cover', threeq: 'Behind three-quarters cover', cover: 'Behind cover', total: 'Behind total cover' };
+    Object.keys(words).forEach(function(g) {
+        var a = Array.isArray(ht[g]) ? ht[g] : []; if (a.length > COVER_HIT_MAX) errs.push({ message: words[g] + ': Save keeps the first ' + COVER_HIT_MAX + ' rows.' });
+        a.slice(0, COVER_HIT_MAX).forEach(function(r, i) {
+            var o = {}; o[g] = [r]; if (!SCh.cleanCoverHit(o)) { errs.push({ message: words[g] + ', row ' + (i + 1) + ': From and To are whole numbers from 1 to 100, From no more than To, with a formula on one line, so Save drops it.' }); return; }
+            var p = Fx && typeof Fx.parse === 'function' ? Fx.parse(String(r.row).trim()) : null; if (p && !p.ok) warns.push({ message: words[g] + ', row ' + (i + 1) + ': Save keeps the formula, but it cannot be read, so it never holds.' });
+        });
+    });
+    if (!(cm && cm.damage && cm.damage.locs && cm.damage.locs.list) && !(cm && cm.targetHit)) warns.push({ message: 'Where a hit behind cover lands: name a list of hit locations, or it does nothing.' });
+    if (!cv.on) warns.push({ message: 'Where a hit behind cover lands: with cover off it does nothing.' });
+    return { errs: errs, warns: warns };
+}
 function renderCombat() {
     var box = ui('sysCombatBox'); if (!box) return; box.textContent = '';
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
@@ -8860,6 +8916,7 @@ function renderCombat() {
         var cgs = cm.cover.style === 'binary' ? [['cover', 'Blast behind cover'], ['total', 'Blast behind total cover']] : [['half', 'Blast behind half cover'], ['threeq', 'Blast behind three-quarters cover'], ['total', 'Blast behind total cover']];
         cgs.forEach(function(g) { var cur = cm.cover.area && typeof cm.cover.area === 'object' && Object.prototype.hasOwnProperty.call(cm.cover.area, g[0]) ? cm.cover.area[g[0]] : 'full'; var ls = labeledSelect('sys-combat-cover-area', g[1], [['full', 'Full damage'], ['half', 'Half damage'], ['none', 'No damage']], cur === 'half' || cur === 'none' ? cur : 'full', 'With Full auto blasts, what the rolled damage does to a token behind this much cover (measured from the blast\u2019s centre).'); ls.lastChild.dataset.grade = g[0]; box.appendChild(ls); });
     }
+    if (cm.cover.on && typeof coverHitBox === 'function') coverHitBox(box, cm);   // 1.6.0: where a hit behind cover lands
     box.appendChild(labeledSelect('sys-combat-checks', 'Roll outcomes', [['', 'Success or failure by the margin'], ['under3d6', '3d6 roll-under criticals'], ['fixed', 'Criticals at fixed rolls']], cm.checks === 'under3d6' || cm.checks === 'fixed' ? cm.checks : '', 'How a check reads. 3d6 roll-under (a roll of exactly 3d6 against a target): 3\u20134 are a critical success, 5 at a target of 15+, 6 at 16+; 17 fails (critically at 15 or less), 18 or failing by 10+ is a critical failure. Criticals at fixed rolls: the dice alone at or under one number are a critical success, at or over another a critical failure, and nothing else is.'));   // Stage 6 F8
     lineUnder(box, 'How a check against a target reads its dice.');
     if (typeof checksBox === 'function') checksBox(box, cm);   // 1.6.0 (the v2 sort's B1): the critical range, and a named success
@@ -11008,6 +11065,7 @@ function onInput(e) {
     if (onCalendarInput(t)) return;   // item 20 K1
     if (onDamageInput(t)) return;   // 1.5.6: the Taking damage box
     if (typeof onBlastInput === 'function' && onBlastInput(t)) return;   // 1.5.8 explosives
+    if (typeof coverHitInput === 'function' && coverHitInput(t)) return;   // 1.6.0: where a hit behind cover lands
     if (onChecksInput(t)) return;   // 1.6.0: the critical range and a named success
     if (typeof onHoldInput === 'function' && onHoldInput(t)) return;   // 1.6.0 Who holds whom
     var fxd = fxOfRow(t);   // 5h: a library effect's text boxes
@@ -11517,6 +11575,7 @@ function onClick(e) {
     if (barsClick(b)) return;   // backlog 28: the Combat card's Token bars
     if (linkClick(b)) return;   // 1.6.0: the Linked sheets
     if (damageClick(b)) return;   // 1.5.6: the Taking damage box
+    if (typeof coverHitClick === 'function' && coverHitClick(b)) return;   // 1.6.0: where a hit behind cover lands
     var crow = b.closest('.sys-char-row');
     if (crow) {
         var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;

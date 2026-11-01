@@ -6340,6 +6340,26 @@ net.hitRows = function(charId, cb) {
     try { net.conns[0].send({ type: 'hit-ask', rid: rid, charId: charId }); } catch (e) { clearTimeout(_hitAsk.timer); _hitAsk = null; cb(null); return false; }
     return true;
 };
+// 1.6.0 Where a hit behind cover lands: a damage roll at a target behind cover asks here, on the host, after its entry's own aim is read. A damage roll is
+// the hit: nothing rolls it for a blow that missed. The pick an attack roll made is kept for its damage, which may read no location itself (coverAims, by
+// character, the host's memory alone and gone with the table). The answer is systemcore coverHitFor's. A posture that sets the die aside is the range's
+// own aimed, 1 (Target.Aimed, read as a plain field so that nothing changes until a posture sets it). null: nothing to say
+var coverAims = Object.create(null);
+function coverAimForget() { coverAims = Object.create(null); }
+function coverAimNote(camp, chId, rc, rowId, reads) {   // an attack roll: its pick, or none where it read the location and picked none
+    var S = SC(); if (!S || typeof S.coverHitOn !== 'function' || !camp || !S.coverHitOn(camp.system)) return;
+    if (rowId && rc && typeof rc.tid === 'string') coverAims[chId] = { tid: rc.tid, row: rowId }; else if (coverAims[chId] && reads()) delete coverAims[chId];
+}
+function coverHitIn(camp, chId, rc, rowId) {
+    var S = SC(), F = window.wpFormula; if (!S || typeof S.coverHitFor !== 'function' || !camp || !camp.system || !F || !S.coverHitOn(camp.system)) return null;
+    var kept = coverAims[chId]; delete coverAims[chId];
+    if (!rc || typeof rc.tid !== 'string' || typeof rc.mapId !== 'string' || !camp.items || !own(camp.items, rc.mapId)) return null;
+    var map = camp.items[rc.mapId], w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === rc.tid; }) : null, tc = w && w.isChar && typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null;
+    if (!tc) return null;
+    var cv = S.coverHitFor(camp.system, tc, rc.cgrade, F, { aim: rowId || (kept && kept.tid === rc.tid ? kept.row : ''), aimed: rc.aimed === 1, die: function(n) { var q = F.evaluate('1d' + n); return q && q.ok && typeof q.value === 'number' ? q.value : 1; } });
+    if (cv && window.wpStepLog) window.wpStepLog('coverhit v1', 'landed', { grade: rc.cgrade, stood: cv.stood === true, die: typeof cv.d === 'number', second: typeof cv.e === 'number' });
+    return cv;
+}
 // [netcheck:targethit-end]
 /* ---------- handouts (host) ----------
    revealHandout(hid, playerIds|null): resize the picture, send it to those players (all connected
@@ -9003,6 +9023,8 @@ function handleMessage(msg, conn) {
         if (tcQ && tcQ.range && tcQ.range.pn && typeof SQ.posRec === 'function' && rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? q.row : null, 'postureRead')) { var prQ = SQ.posRec(viewQ, tcQ.range); if (prQ) recQ.pos = prQ; }   // 1.6.0: a roll that reads the target's posture says which of it and cover counted
         if (q.hit && thQ0 && typeof thQ0.aim === 'function') { var amQ = thQ0.aim(); if (amQ) recQ.aim = amQ; }   // 1.6.0 (B5): where it was aimed and what it read there, for its card
         if (recQ.dmg === 1 && q.hit) recQ.hit = q.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target (a player's app keeps no such key)
+        var cvQ = recQ.dmg === 1 && chQ && !recQ.dmgOn && typeof coverHitIn === 'function' ? coverHitIn(campQ, chQ.id, tcQ && tcQ.range, q.hit || '') : null; if (cvQ) recQ.cvh = SQ.coverHitCard(cvQ);   // 1.6.0: where a hit behind cover lands, and the die
+        if (recQ.dmg !== 1 && chQ && typeof coverAimNote === 'function') coverAimNote(campQ, chQ.id, tcQ && tcQ.range, q.hit || '', function() { return SQ.readsTargetHit(viewQ, chvQ, Fq, q.expr, q.row, tcQ); });   // ... and an attack's pick, for its damage
         if (resQ.breakdown && resQ.breakdown.names && resQ.breakdown.names.length) { var nmQ = Dq.cleanNames(resQ.breakdown.names); if (!nmQ) { denyQ('error'); return; } if (nmQ.length) recQ.names = nmQ; }
         if (recQ.names && typeof SQ !== 'undefined' && SQ && typeof SQ.rollMods === 'function' && typeof varsQ === 'function') { var mdQ = SQ.rollMods(varsQ, recQ.names); if (mdQ) recQ.mods = mdQ; }
         if (recQ.names && typeof SQ !== 'undefined' && SQ && typeof SQ.rollRefs === 'function' && typeof varsQ === 'function') { var rfQ = SQ.rollRefs(varsQ, recQ.names); if (rfQ) recQ.refs = rfQ; }   // 1.6.0 Specialties: the case each reference used, worked out through the player's view
@@ -9013,8 +9035,8 @@ function handleMessage(msg, conn) {
             q.priv = 'gm'; if (typeof turnNote === 'function') turnNote(conn, 'Rolled privately: a player on that map cannot see your target.', q.charId);
         }
         var hsQ = typeof holdsSqueeze === 'function' && chQ && typeof SQ.holdRefOf === 'function' ? holdsSqueeze(campQ, chQ, SQ.holdRefOf(q.act, q.row), recQ, Dq) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
-        if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) { sendFailed(e); } pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }
-        else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
+        if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) { sendFailed(e); } if (cvQ) recQ.hit = cvQ.row; pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }   // cvQ: the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
+        else { sendTable(recQ, null); if (cvQ) recQ.hit = cvQ.row; pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
         if (hsQ) hsQ.forEach(function(rxQ) { if (q.priv) { rxQ.priv = 'gm'; try { conn.send(rxQ); } catch (e) { sendFailed(e); } pushRoll(rxQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); } else { sendTable(rxQ, null); pushRoll(rxQ, resQ, 'global', { cid: chQ ? q.charId : '' }); } });
         var ruleQ = Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '');   // Stage 6 F8: the system's roll outcomes (1.6.0: or the record's own critical range)
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars, rule: ruleQ }), { w: recQ.as || (recQ.from && recQ.from.name) || '', h: !!recQ.priv });
@@ -10460,6 +10482,7 @@ function diceSessionReset(clearChat) {
     if (diceLimit) diceLimit.reset();
     _diceSlowSaid = {};
     if (typeof attemptForget === 'function') attemptForget();   // 1.6.0 (B2): the attempts waiting to be resisted are the table's
+    if (typeof coverAimForget === 'function') coverAimForget();   // 1.6.0: and so are the picks waiting for their damage
     charSessionReset();
     if (clearChat) { chatLog = []; chatUnread = 0; renderChat(); rollRing = []; ringRepaint(); }   // the table that is over keeps its chat and its rolls to itself (the HUDs' history too; ringSeq runs on)
 }
@@ -10552,6 +10575,8 @@ net.diceRoll = function(expr, o) {
     if (tcR && tcR.range && tcR.range.pn && typeof SR.posRec === 'function' && rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row || null, 'postureRead')) { var prR = SR.posRec(campR.system, tcR.range); if (prR) rec.pos = prR; }   // 1.6.0: as a player's roll
     if (thR && typeof thR.aim === 'function') { var amR = thR.aim(); if (amR) rec.aim = amR; }   // 1.6.0 (B5): where it was aimed and what it read there, for its card
     if (rec.dmg === 1 && thR) rec.hit = o.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target
+    var cvR = rec.dmg === 1 && chR && !rec.dmgOn && typeof o.blast !== 'string' && o.used !== true && typeof coverHitIn === 'function' ? coverHitIn(campR, chR.id, tcR && tcR.range, thR ? o.hit : '') : null; if (cvR) rec.cvh = SR.coverHitCard(cvR);   // 1.6.0: where a hit behind cover lands, and the die
+    if (rec.dmg !== 1 && chR && typeof coverAimNote === 'function') coverAimNote(campR, chR.id, tcR && tcR.range, thR ? o.hit : '', function() { return SR.readsTargetHit(campR.system, chR, F, expr, o.row, tcR); });   // ... and an attack's pick, for its damage
     if (rec.dmg === 1 && typeof o.blast === 'string' && /^b_[a-z0-9]{1,16}$/.test(o.blast)) rec.blast = o.blast;   // 1.5.8 explosives: the blast this damage is for (this machine's own word): the card's Apply to all in the blast
     if (rec.dmg === 1 && o.used === true) rec.dmgUsed = 1;   // 1.5.9 (es): this machine's own word, a damage roll already applied as it is rolled (a blast's fragmentation): its card says Applied (the cleaner of a player's app keeps no such key)
     if (res.breakdown && res.breakdown.names && res.breakdown.names.length) { var nmR = D.cleanNames(res.breakdown.names); if (!nmR) return { error: 'That roll could not be recorded.' }; if (nmR.length) rec.names = nmR; }
@@ -10586,6 +10611,7 @@ net.diceRoll = function(expr, o) {
     var scope = rec.priv || rec.to ? 'whisper' : 'global';
     var hsR = typeof holdsSqueeze === 'function' && chR && SR && typeof SR.holdRefOf === 'function' ? holdsSqueeze(campR, chR, SR.holdRefOf(o.act, o.row), rec, D) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
     if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rec, chR); else sendTable(rec, null); }
+    if (cvR) rec.hit = cvR.row;   // the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
     if (hsR) hsR.forEach(function(rxR) { if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rxR, chR); else sendTable(rxR, null); } pushRoll(rxR, res, scope, { toName: toName, cid: chR ? chR.id : '' }); });
     var ruleR = D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '');   // Stage 6 F8 (1.6.0: or the record's own critical range)

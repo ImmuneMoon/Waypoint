@@ -274,6 +274,18 @@ function cleanAim(v) {
     var f = []; for (var i = 0; i < v.f.length; i++) { var x = v.f[i]; if (!x || typeof x !== 'object' || typeof x.k !== 'string' || !x.k.trim() || x.k.length > 24 || CTRL_RE.test(x.k) || typeof x.v !== 'number' || !isFinite(x.v) || Math.abs(x.v) > 1e9) return null; f.push({ k: x.k.trim(), v: x.v }); }
     return { n: v.n.trim(), f: f };
 }
+// 1.6.0 Where a hit behind cover lands, { n, d?, of?, e?, ea?, st? }: the location's name (60 at most), the die d of of sides, the second die e of ea among
+// several rows, st a pick that stood; null when malformed. coverHitWords is its line on the card
+function cleanCovHit(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v) || typeof v.n !== 'string' || !v.n.trim() || v.n.length > 60 || CTRL_RE.test(v.n)) return null;
+    var out = { n: v.n.trim() }, two = function(a, b) { return isInt(v[a]) && isInt(v[b]) && v[b] >= 1 && v[b] <= 1000 && v[a] >= 1 && v[a] <= v[b]; };
+    if (two('d', 'of')) { out.d = v.d; out.of = v.of; } if (two('e', 'ea')) { out.e = v.e; out.ea = v.ea; } if (v.st === 1) out.st = 1;
+    return out;
+}
+function coverHitWords(c) {
+    if (c.st === 1) return 'A called shot at ' + c.n + ' stands';
+    return 'Behind cover, it lands on ' + c.n + (c.d ? ': 1d' + c.of + ' shows ' + c.d : '') + (c.e ? (c.d ? ', then ' : ': ') + c.e + ' of ' + c.ea : '');
+}
 // The host's record: { type: 'roll', id, from, expr, draws, v, ts, priv?, to?, rid? }
 // 1.6.0: a target's posture on an attack, as the host says it (systemcore posRec): { n: its name, by: what counted, c?: the cover's word, a?: 1 where hits land as aimed }
 function cleanPos(p) {
@@ -308,6 +320,7 @@ function cleanRoll(rec) {
     if (rec.dmg !== undefined) { if (rec.dmg !== 1) return null; out.dmg = 1; }
     if (rec.dmgOn !== undefined && out.dmg === 1 && typeof rec.dmgOn === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(rec.dmgOn)) out.dmgOn = rec.dmgOn;   // 1.6.0: the character this damage lands on, the host's from its entry (one that does not clean is left off, the roll kept)
     if (rec.cov === 'Half cover' || rec.cov === 'Three-quarters cover' || rec.cov === 'Total cover' || rec.cov === 'Cover') out.cov = rec.cov;   // 1.6.0: the cover a roll read, by the four words coverTier gives
+    if (rec.cvh !== undefined) { var cvc = cleanCovHit(rec.cvh); if (cvc) out.cvh = cvc; }   // 1.6.0: where a hit behind cover landed (one that does not clean is left off, the roll kept)
     if (rec.aim !== undefined) { var amc = cleanAim(rec.aim); if (amc) out.aim = amc; }   // 1.6.0 (B5): where a called shot was aimed (one that does not clean is left off, the roll kept)
     if (rec.pos !== undefined) { var psc = cleanPos(rec.pos); if (psc) out.pos = psc; }   // 1.6.0: a target's posture on the attack, against its cover (one that does not clean is left off, the roll kept)
     if (rec.dtype !== undefined && out.dmg === 1 && typeof rec.dtype === 'string' && DMG2_TYPE.test(rec.dtype)) out.dtype = rec.dtype;   // 1.6.0 (the live test, 2026-10-30): the damage type, for a player's card as for the GM's: a burst's Hit 1 lost it here
@@ -609,6 +622,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
+var API = { cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };
+export { cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };

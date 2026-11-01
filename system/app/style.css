@@ -3364,6 +3364,7 @@
   .sys-err-line { color: var(--red); }
   .sys-warn-line { color: var(--gold); }
   .sys-note { color: var(--dim); font-size: 11.5px; line-height: 1.4; }
+  .sys-cvh-grade { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; align-items: flex-start; } .sys-cvh-row { width: 100%; } .sys-cvh-row input.sys-cvh-from, .sys-cvh-row input.sys-cvh-to { width: 64px; } .sys-cvh-row input.sys-cvh-where { flex: 1 1 180px; min-width: 0; font-family: ui-monospace, Consolas, monospace; }
   .sys-empty { color: var(--dim); font-size: 12px; padding: 14px; text-align: center; }
   .sys-test { display: flex; flex-direction: column; gap: 4px; }
   .sys-test-out { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; color: var(--ink); max-height: 120px; overflow: auto; display: flex; flex-wrap: wrap; gap: 2px 16px; }

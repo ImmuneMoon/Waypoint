@@ -2956,6 +2956,18 @@ function statMenu(s, sv, entry, rd, c, f, spec, mode) {
     return sel;
 }
 // [systemcheck:statmenu-end]
+// [systemcheck:subject-start] 1.6.0 Subjects: the word a row holds of its list's subjects. A menu for whoever may change the row here, picked by its place
+// and never as text; else the word, and nothing for a row that holds none
+function subjectCtl(entry, c, f, spec, can) {
+    var ws = spec && Array.isArray(spec.subject) ? spec.subject : null; if (!ws || !ws.length || !entry || entry.hid === 1) return null;
+    var at = typeof entry.sj === 'number' && ws[entry.sj - 1] ? entry.sj : 0;
+    if (!can) return at ? el('span', 'sheet-chip', ws[at - 1]) : null;
+    var sel = el('select', 'field sheet-item-statsel'); sel.ariaLabel = 'Subject of this row'; sel.title = 'What this row is for, one of its list\u2019s subjects'; sel.dataset.fid = f.id; sel.dataset.part = 'sj-' + rowIdOf(entry);
+    sel.appendChild(opt('0', 'No subject', !at)); ws.forEach(function(w, i) { sel.appendChild(opt(String(i + 1), w, i + 1 === at)); });
+    sel.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { sj: Number(sel.value) } }); });
+    return sel;
+}
+// [systemcheck:subject-end]
 // The arrow before a row's name (R1): a real button that opens the row's details and says so, kept per row as 📝's line is. none: no details,
 // a blank of its size so the names line up
 function rowOpener(line, entry, c, f, name, none) {
@@ -3413,6 +3425,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         var smR = spec && typeof statMenuMode === 'function' ? statMenuMode(entry, rd, spec, gm, sysI, chg && !hudRow) : ''; _rowMenu = smR ? function(s, sv) { return statMenu(s, sv, entry, rd, c, f, spec, smR); } : null;   // 1.6.0 R10
         if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null, res && res.cfx ? res.cfx[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); if (typeof loadCtl === 'function') loadCtl(line, entry, c, f, spec, editable, sysI, res && res.ldOk ? res.ldOk[rid] : undefined); if (typeof chamberCtl === 'function') chamberCtl(line, entry, c, f, spec, editable, sysI, gm, canThrow, res && res.chOk ? res.chOk[rid] : undefined); var lc = partHere(spec.lvl, _placeWant, hudRow) ? lvlCtl(entry, def, c, f, spec, chg && !opnR) : null; if (lc) line.appendChild(lc); var oc = partHere(spec.on, _placeWant, hudRow) ? onCtl(entry, c, f, spec, editable, true, res && res.onOk ? res.onOk[rid] : undefined, res && res.onShow ? res.onShow[rid] : undefined) : null; if (oc) line.appendChild(oc); var pcL = partHere({ place: spec.paidPlace }, _placeWant, hudRow) ? paidCtl(entry, def, c, f, spec, chg, gm, true) : null; if (pcL) line.appendChild(pcL); noteLn = hudRow ? null : noteBits(entry, def, c, f, chg, ovc, sysI, gm, !!lookOk && _fxLive); }   // F4c1: the stats shown On the row, what one cost
         _rowMenu = null;
+        var sjC = typeof subjectCtl === 'function' ? subjectCtl(entry, c, f, spec, chg && !hudRow && !opnR) : null; if (sjC) line.appendChild(sjC);   // 1.6.0 Subjects
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
         rowRollBtns(line, spec, entry, def, c, f, res);   // F5b: the list's rolls on this row
         if (spec && !hudRow) {   // 1.6.0 R2: the parts placed in the details stand at the top of the row's details
@@ -3693,6 +3706,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         if (tbl.chips && def.category) nameTd.appendChild(el('span', 'sheet-chip', def.category));
         lostBits(nameTd, rd, entry, c, f, gm, chg); needBits(nameTd, sysI, c, entry, rd, gm); gmItemBits(nameTd, def, entry, gm, hasO); if (typeof lvlOnlyBits === 'function') lvlOnlyBits(nameTd, spec, entry, def); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI, c, f);
         if (typeof onceBits === 'function') onceBits(nameTd, sysI, c, f, carried, entry);   // 1.5.8 Counted once
+        var sjT = typeof subjectCtl === 'function' ? subjectCtl(entry, c, f, spec, chg && !hudRow) : null; if (sjT) nameTd.appendChild(sjT);   // 1.6.0 Subjects
         if (typeof badgeBits === 'function') { var bdT = badgeBits(nameTd, spec, res && res.bd ? res.bd[rid] : null, tr, hudRow); if (bdT) nameTd.appendChild(bdT); }   // 1.6.0 R4: in a table the badges go in the name's cell
         if (typeof rowEdge === 'function') rowEdge(tr, spec, res && res.bd ? res.bd[rid] : null, !!(spec && spec.on) && rowOn(spec, entry), !!(spec && spec.on));   // 1.6.0 R16
         tr.appendChild(nameTd);
@@ -6941,6 +6955,7 @@ function refreshErrors() {
             if (capKept.length < capOk) errs.push({ message: 'At most: a level is capped once, and or higher once, ' + LIMITS.lvlCaps + ' caps at most, so Save keeps ' + capKept.length + '.' });
         }
         if (typeof startsSay === 'function') startsSay(f).forEach(function(m) { errs.push({ message: m }); });   // 1.6.0 Starts with, as the cleaner reads it
+        if (Array.isArray(sp.subject) && typeof cleanListSpec === 'function') { var sjKept = ((cleanListSpec({ subject: sp.subject }, true, F()) || {}).subject || []).length; if (sjKept < sp.subject.length) errs.push({ message: 'Subjects: a word needs a letter or a digit, goes once ignoring case and spaces, and ' + LIMITS.subjects + ' is the most, so Save keeps ' + sjKept + ' of ' + sp.subject.length + '.' }); }   // 1.6.0 Subjects, as the cleaner reads it
         if (sp.once && typeof sp.once === 'object' && typeof cleanListSpec === 'function') {   // 1.5.8 Counted once, as the cleaner reads it
             var onceK = (cleanListSpec(sp, true, F()) || {}).once;
             if (!onceK) errs.push({ message: 'Counted once needs a group stat and what makes a row the higher, each a number stat of this list or its level. Save drops it.' });
@@ -8161,6 +8176,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     fl.appendChild(checkLabel('sys-list-worklog', sp.workLog === true, 'Rows keep a work log', 'Each row keeps a log of the work done on it: a repair, a fit, a restyle or a build, its owner\u2019s own or hired. A fee is paid from the character\u2019s money where the sheet keeps money. You alone take a line off'));
     if (sp.on && (pbChoices.length || sp.sets)) { var stW = el('label', 'sys-check'), stS = el('select', 'sys-list-sets'), stO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; stW.appendChild(document.createTextNode('Sets by ')); stS.appendChild(stO('', 'None', !sp.sets)); pbChoices.forEach(function(s) { stS.appendChild(stO(s.key, s.label || s.key, !!sp.sets && String(sp.sets).toLowerCase() === s.key.toLowerCase())); }); stW.title = 'Rows whose stat names the same set are switched on together: the sheet shows each set with All on and All off, and Row.setall reads 1 while the whole set is on'; stW.appendChild(stS); fl.appendChild(stW); }   // 1.6.0, backlog 180 R15
     if (pbChoices.length || sp.placeBy) { var pbW = el('label', 'sys-check'), pbS = el('select', 'sys-list-placeby'), pbO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; pbW.appendChild(document.createTextNode('Places split by ')); pbS.appendChild(pbO('', 'Category', !sp.placeBy)); pbChoices.forEach(function(s) { pbS.appendChild(pbO(s.key, s.label || s.key, !!sp.placeBy && String(sp.placeBy).toLowerCase() === s.key.toLowerCase())); }); pbW.title = 'A list placed in several places shows each place\u2019s rows by their category, or by a choice stat\u2019s value: a body slot, a container'; pbW.appendChild(pbS); fl.appendChild(pbW); }
+    var sjbW = el('label', 'sys-check'), sjbI = el('input', 'field sys-list-subject'); sjbI.type = 'text'; sjbI.value = Array.isArray(sp.subject) ? sp.subject.join(', ') : ''; sjbI.placeholder = 'none'; sjbW.appendChild(document.createTextNode('Subjects ')); sjbW.appendChild(sjbI); sjbW.title = 'Short words a row may hold one of, split by commas, up to ' + LIMITS.subjects + '. A row picks its word on the sheet. Row.subject reads its place, 1 for the first and 0 for none, and List.Subject.Word.sum.Stat adds the rows that hold a word'; fl.appendChild(sjbW);   // 1.6.0 Subjects
     fl.appendChild(checkLabel('sys-list-edge', sp.edge === true, 'Edge follows its state', 'A row\u2019s left edge takes the colour of its strongest badge, or the accent while it is switched on. Its words always stand beside it'));   // 1.6.0 R16
     fl.appendChild(checkLabel('sys-list-menus', sp.menus === true, 'Choices as menus', 'A choice stat on a row, or in its boxes, is a menu for whoever may set that copy\u2019s stats: you, or its owner where players set their copies\u2019 stats. Off: its value name'));   // 1.6.0 R10
     fl.appendChild(checkLabel('sys-list-boxes', sp.boxes === true, 'Figures as boxes', 'A row\u2019s details show its figures as small boxes, each its label above its figure: every stat, the columns placed in the details, and Paid. Off: one line, as Acc 2 \u00b7 Wt 1'));   // 1.6.0 R3
@@ -11107,6 +11123,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-sets') >= 0) { if (t.value) lsc.sets = t.value; else delete lsc.sets; }   // 1.6.0 R15: Sets by
         else if (c.indexOf('sys-list-placeby') >= 0) { if (t.value) lsc.placeBy = t.value; else delete lsc.placeBy; }   // 1.6.0 R13: the places' ticks are then the stat's value names
         else if (c.indexOf('sys-list-menus') >= 0) { if (t.checked) lsc.menus = true; else delete lsc.menus; }   // 1.6.0 R10
+        else if (c.indexOf('sys-list-subject') >= 0) { var sjbL = String(t.value || '').split(',').map(function(w) { return w.trim(); }).filter(Boolean); if (sjbL.length) lsc.subject = sjbL; else delete lsc.subject; }   // 1.6.0 Subjects
         else if (c.indexOf('sys-list-boxes') >= 0) { if (t.checked) lsc.boxes = true; else delete lsc.boxes; }   // 1.6.0 R3   // 1.6.0 R1: Rows open
         else if (c.indexOf('sys-list-trade') >= 0) { if (t.checked) lsc.trade = true; else delete lsc.trade; }   // 1.5.6 Tradable
         else if (c.indexOf('sys-list-specs') >= 0) { if (t.checked) lsc.specs = lsc.specs && typeof lsc.specs === 'object' && !Array.isArray(lsc.specs) ? lsc.specs : {}; else delete lsc.specs; }   // 1.6.0 Specialties

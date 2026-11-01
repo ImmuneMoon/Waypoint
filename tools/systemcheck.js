@@ -21019,6 +21019,57 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             !!nA && nA === one && nB === '' && nC === nA && n0 === '' && once && vN === 2, j([nA, one, nB, vN, cN]));
         check('1.6.0 Help, both release notes and the Rolls and Lists keys say them', /<b>call for<\/b> another roll/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8')) && c3 === 4 && /Hidden until it can be used/.test(fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8')) && /call for another roll as a card/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'assets', 'whatsnew.txt'), 'utf8')));
     }
+    {   // 1.6.0 Subjects: a list's short words, a row holds one by its place (rowSubject, Row.subject, <List>.Subject.<Word>.sum.<w>), run for real
+        const X20 = await import(url('sheetexport.js')), sysF = gm => cleanSystem({ v: 1, name: 'S', rolls: [], fields: [
+            { id: 'f_tr', key: 'Traits', label: 'Traits', kind: 'item-list', edit: 'owner', vis: 'all', list: { multi: true, subject: ['Sun', ' Frost ', 'sun', 'Both Ends', '', 7, '!!!', 'A', 'B', 'C', 'D', 'E', 'F'], stats: [{ key: 'Deg', label: 'Deg' }], cols: [{ key: 'Twice', label: 'Twice', formula: 'Row.Deg * 2' }, { key: 'Sj', label: 'Sj', formula: 'Row.subject' }] } },
+            { id: 'f_ot', key: 'Other', label: 'Other', kind: 'item-list', edit: 'owner', vis: 'all', list: { stats: [{ key: 'Subject', label: 'Subject' }], cols: [{ key: 'Own', label: 'Own', formula: 'Row.Subject + 1' }] } },
+            { id: 'f_gmL', key: 'Hush', label: 'Hush', kind: 'item-list', edit: 'gm', vis: 'gm', list: { subject: ['Sun'], stats: [{ key: 'Deg', label: 'Deg' }] } },
+            { id: 'f_up', key: 'SunDeg', label: 'S', kind: 'formula', formula: 'Traits.Subject.Sun.sum.Deg', vis: 'all' },
+            { id: 'f_bo', key: 'BothDeg', label: 'B', kind: 'formula', formula: 'Traits.Subject.bothends.sum.Twice', vis: 'all' }],
+            items: [{ id: 'i_a', name: 'Pebble Hide', stats: { Deg: 10 } }, { id: 'i_b', name: 'Kael Coat', stats: { Deg: 3 } }] }, { F, gmView: gm });
+        const sG = sysF(true), sP = sysF(false), wrds = sG.fields[0].list.subject;
+        check('Subjects: cleaned to eight short words, each once ignoring case and spaces, a word that folds to nothing and what is no text gone, the same in both views',
+            j(wrds) === j(['Sun', 'Frost', 'Both Ends', 'A', 'B', 'C', 'D', 'E']) && j(sP.fields[0].list.subject) === j(wrds) && S.cleanSubjects('Sun') === null && S.cleanSubjects([]) === null && S.cleanSubjects(['x'.repeat(40)])[0].length === LIMITS.subjectWord && !('subject' in sG.fields[1].list), j(wrds));
+        const none = cleanSystem({ v: 1, name: 'N', rolls: [], fields: [{ id: 'f_l', key: 'Lst', label: 'L', kind: 'item-list', vis: 'all', list: { stats: [{ key: 'Wt', label: 'Wt' }], cols: [{ key: 'K', label: 'K', formula: 'Row.subject' }] } }] }, { F, gmView: true });
+        check('Subjects: a list that names none reads no Row.subject, and a stat keyed Subject keeps its own name (the word is a soft one, so it takes no key from a system)',
+            !validateSystem(none, F).ok && S.ROW_WORDS.subject === 1 && S.statKey('Subject') === 'Subject' && sG.fields[1].list.stats[0].key === 'Subject' && validateSystem(sG, F).ok, j(validateSystem(sG, F).errors.slice(0, 2)));
+        const ch = { id: 'c_a', ownerId: 'u1', name: 'Ava', values: { f_tr: [{ id: 'w_a', defId: 'i_a', qty: 2, sj: 1 }, { id: 'w_b', defId: 'i_b', qty: 1, sj: 3 }, { id: 'w_c', qty: 1, sj: 1, def: { name: 'A knack of her own', stats: { Deg: 5 } } }, { id: 'w_d', defId: 'i_a', qty: 1 }, { id: 'w_e', defId: 'i_a', qty: 1, sj: 9 }, { id: 'w_f', defId: 'i_b', qty: 1, sj: '1' }] } };
+        const cl = cleanChar(ch, sG), rows = cl.values.f_tr, vals = resolveAll(sG, cl, F, null), cells = vals.f_tr && vals.f_tr.cells ? vals.f_tr.cells : {};
+        const sjOf = id => (cells[id] || []).filter(x => x.key === 'Sj').map(x => x.value)[0];
+        check('Subjects: a row keeps its place and never text, one past the list or no number goes, and Row.subject reads it on a library row and on a row of its own alike, 0 for none',
+            rows[0].sj === 1 && rows[1].sj === 3 && rows[2].sj === 1 && !('sj' in rows[3]) && !('sj' in rows[4]) && !('sj' in rows[5]) && sjOf('w_a') === 1 && sjOf('w_b') === 3 && sjOf('w_c') === 1 && sjOf('w_d') === 0, j(rows.map(r => r.sj)));
+        check('Subjects: <List>.Subject.<Word>.sum.<w> totals the rows that hold the word as a total does, a stat times its quantity and a column summed, the word read ignoring case and spaces; a word no row holds reads 0',
+            vals.f_up.value === 25 && vals.f_bo.value === 6 && makeResolver(sG, cl, F)('Traits.Subject.A.sum.Deg') === 0 && makeResolver(sG, cl, F)('Traits.Subject.Nope.sum.Deg') === undefined && makeResolver(sG, cl, F)('Traits.Subject.Sun.count') === undefined, j([vals.f_up, vals.f_bo]));
+        const bad = t => validateSystem(Object.assign({}, sG, { fields: sG.fields.concat([{ id: 'f_x', key: 'X', label: 'X', kind: 'formula', formula: t, vis: 'all' }]) }), F);
+        check('Subjects: the validator knows the name on such a list, a word it does not have and a list with none being unknown names, and a loop through it is a loop to the validator, the resolver and chainsShallow alike',
+            bad('Traits.Subject.Sun.sum.Twice').ok && !bad('Traits.Subject.Nope.sum.Deg').ok && !bad('Other.Subject.Sun.sum.Own').ok
+            && S.chainsShallow(sG, F) === true && (() => { const lp = JSON.parse(j(sG)); lp.fields[0].list.cols[0].formula = 'Traits.Subject.Sun.sum.Twice'; return !validateSystem(lp, F).ok && S.chainsShallow(lp, F) === false; })(), j(bad('Traits.Subject.Sun.sum.Twice').errors.slice(0, 2)));
+        check('Subjects: a GM-only list is GM-only by this name too, and a visible one is not',
+            j(S.gmOnlyNames(sG, [{ name: 'Hush.Subject.Sun.sum.Deg' }, { name: 'Traits.Subject.Sun.sum.Deg' }])) === j(['Hush.Subject.Sun.sum.Deg']) && !S.gmDerivedNames(sG, F, [{ name: 'Traits.Subject.Sun.sum.Twice' }]).length, '');
+        const set = (sj, o) => S.applyRowOp(sG, cl, 'f_tr', { op: 'set', rowId: 'w_d', facts: { sj } }, F, Object.assign({ player: true, view: sP }, o)), okS = set(2), clr = S.applyRowOp(sG, { id: 'c_a', ownerId: 'u1', values: { f_tr: [{ id: 'w_a', defId: 'i_a', qty: 1, sj: 2 }] } }, 'f_tr', { op: 'set', rowId: 'w_a', facts: { sj: 0 } }, F, { player: true, view: sP });
+        const rowOf = (r, id) => (r.value || []).filter(x => x.id === id)[0] || {}, off = S.applyRowOp(sG, { id: 'c_a', ownerId: 'u1', values: { f_ot: [] } }, 'f_ot', { op: 'set', rowId: 'w_z', facts: { sj: 1 } }, F, { player: true, view: sP }), noL = S.applyRowOp(sG, { id: 'c_a', ownerId: 'u1', values: { f_ot: [{ id: 'w_z', qty: 1, def: { name: 'Pebbles' } }] } }, 'f_ot', { op: 'set', rowId: 'w_z', facts: { sj: 1 } }, F, { player: true, view: sP });
+        const wire = v => S.cleanCharItem({ rid: 'r_1', charId: 'c_a', fieldId: 'f_tr', rowId: 'w_d', op: 'set', facts: { sj: v } });
+        check('Subjects: picked by a set op, by its place, 0 taking it off; a place past the list, a list with none and a row not there refused; on the wire a place alone',
+            okS.ok && rowOf(okS, 'w_d').sj === 2 && clr.ok && !('sj' in rowOf(clr, 'w_a')) && !set(9).ok && !noL.ok && !off.ok && wire(3).facts.sj === 3 && wire(0).facts.sj === 0 && wire('Sun') === null && wire(9) === null && wire(1.5) === null && wire(-1) === null, j([okS.ok, clr.ok, noL.ok]));
+        const own = charFor(cl, sP, 'u1'), ownV = own.values.f_tr;
+        check('Subjects: a row\'s place reaches its owner\'s copy on every kind of row, and a copy made custom keeps it',
+            ownV[0].sj === 1 && ownV[2].sj === 1 && !('sj' in ownV[3]) && S.applyRowOp(sG, { id: 'c_a', ownerId: 'u1', values: { f_tr: [{ id: 'w_q', defId: 'i_lost', qty: 1, sj: 2, snap: { name: 'Gone' } }] } }, 'f_tr', { op: 'keep', rowId: 'w_q' }, F, {}).value[0].sj === 2, j(ownV.map(r => r.sj)));
+        const file = X20.charToJson(sP, { name: 'Ava', values: { f_tr: [{ id: 'w_a', defId: 'i_a', qty: 1, sj: 2 }, { id: 'w_b', defId: 'i_b', qty: 1, sj: 11 }] } }, null, {});
+        const fl = X20.charFromJson(sP, file, () => []), sets = (fl.ops || []).filter(o => o.q.op === 'set');
+        const md = X20.sheetToMarkdown(sG, cl, vals, { F, gm: true });
+        check('Subjects: a character file brings a row\'s place back and passes over one this list does not have, and the readable page names the word',
+            sets.length === 1 && sets[0].q.facts.sj === 2 && /Pebble Hide \(Sun\)/.test(md) && /Kael Coat \(Both Ends\)/.test(md), j([fl.ops, md.slice(0, 200)]));
+        const shS = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), cut = (a, b) => shS.slice(shS.indexOf(a), shS.indexOf(b));
+        const mk = (t, c, x) => { const n = { tag: t, className: c || '', text: x, kids: [], dataset: {}, heard: {}, appendChild(k) { this.kids.push(k); return k; }, addEventListener(e, fn) { this.heard[e] = fn; } }; return n; };
+        const sent = [], SC = new Function('el', 'opt', 'commitItem', 'rowIdOf', cut('// [systemcheck:subject-start]', '// [systemcheck:subject-end]') + NL + 'return subjectCtl;')(mk, (v, x, s) => { const o = mk('option', '', x); o.value = v; o.selected = !!s; return o; }, (c, f, q) => sent.push(q), r => r.id);
+        const spJ = { subject: ['Sun', '<b>Frost</b>'] }, s0 = SC({ id: 'w_a', sj: 2 }, {}, { id: 'f_tr' }, spJ, true), s1 = SC({ id: 'w_a' }, {}, { id: 'f_tr' }, spJ, true), s2 = SC({ id: 'w_a', sj: 2 }, {}, { id: 'f_tr' }, spJ, false), s3 = SC({ id: 'w_a' }, {}, { id: 'f_tr' }, spJ, false), s4 = SC({ id: 'w_a', sj: 1 }, {}, { id: 'f_tr' }, {}, true), s5 = SC({ id: 'w_a', sj: 1, hid: 1 }, {}, { id: 'f_tr' }, spJ, true);
+        s1.value = '2'; s1.heard.change();
+        check('Subjects on the sheet (subjectCtl, run for real): a menu of No subject and the words as text, the row\'s own marked; picked by its place; where the row cannot be changed the word alone, and nothing for a row that holds none, a row kept from its player or a list with none',
+            s0.tag === 'select' && s0.kids.length === 3 && s0.kids[2].selected && s0.kids[2].text === '<b>Frost</b>' && s1.kids[0].selected && j(sent) === j([{ op: 'set', rowId: 'w_a', facts: { sj: 2 } }]) && s2.tag === 'span' && s2.text === '<b>Frost</b>' && s3 === null && s4 === null && s5 === null, j(sent));
+        const docs = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), wn = [fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')];
+        check('Subjects: the System editor\'s box and its handler, what Save keeps said in refreshErrors, Help, both release notes and the guide',
+            shS.includes("el('input', 'field sys-list-subject')") && shS.includes("c.indexOf('sys-list-subject') >= 0") && shS.includes("'Subjects: a word needs a letter or a digit") && /<b>Subjects<\/b>/.test(docs) && wn.every(t => /Traits\.Subject\.Heat\.sum\.Degrees/.test(t)) && fs.readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').includes('list.subject'), '');
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

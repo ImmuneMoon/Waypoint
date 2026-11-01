@@ -137,6 +137,7 @@ function charFromJson(view, j, find, findKey) {
             if (isObj(spec.lvl) && typeof r.lvl === 'number' && isFinite(r.lvl)) facts.lvl = r.lvl;
             if (isObj(spec.on) && typeof r.on === 'boolean') facts.on = r.on;
             if (typeof r.note === 'string' && r.note.trim()) facts.note = r.note.slice(0, 200);
+            if (Array.isArray(spec.subject) && typeof r.sj === 'number' && r.sj >= 1 && r.sj <= spec.subject.length && r.sj === Math.floor(r.sj)) facts.sj = r.sj;   // 1.6.0 Subjects: the word it holds, by its place
             if (Array.isArray(spec.counters) && isObj(r.ct)) { var ct = {}; spec.counters.forEach(function(t) { if (!isObj(t) || typeof t.key !== 'string') return; Object.keys(r.ct).forEach(function(k) { if (k.toLowerCase() === t.key.toLowerCase() && typeof r.ct[k] === 'number' && isFinite(r.ct[k])) ct[t.key] = r.ct[k]; }); }); if (Object.keys(ct).length) facts.ct = ct; }   // the list's own counters
             if (Object.keys(facts).length) out.ops.push({ f: f.id, q: { op: 'set', rowId: id, facts: facts } });
             if (isObj(spec.look) && isObj(r.look)) out.ops.push({ f: f.id, q: { op: 'look', rowId: id, look: r.look } });   // 1.6.0, backlog 206: its look and its work log, as the file has them (the one cleaner cleans them where the fill is applied)
@@ -290,7 +291,7 @@ function sheetToMarkdown(sys, view, all, opts) {
         if (!rows.length) { B.push(textBlock('<p><b>' + esc(label) + ':</b> none</p>')); return; }
         var defs = rows.map(function(r) { var d = rowDef(sys, r); return d ? d.def : null; }), cats = {};
         defs.forEach(function(d) { if (d && d.category) cats[d.category] = 1; });
-        var colsA = [{ t: 'Item', g: function(r, d) { return ((d && d.name) || '?') + (d && isObj(d.area) && d.area.ft ? ' ' + d.area.ft + ' ft' : '') + (r.hid === 1 ? ' (hidden from the player)' : '') + bdW(r) + partW(r); } }];
+        var colsA = [{ t: 'Item', g: function(r, d) { return ((d && d.name) || '?') + (d && isObj(d.area) && d.area.ft ? ' ' + d.area.ft + ' ft' : '') + (r.hid === 1 ? ' (hidden from the player)' : '') + (Array.isArray(spec.subject) && typeof r.sj === 'number' && spec.subject[r.sj - 1] ? ' (' + spec.subject[r.sj - 1] + ')' : '') + bdW(r) + partW(r); } }];
         if (tbl) (Array.isArray(tbl.columns) ? tbl.columns : []).forEach(function(k) { if (typeof k !== 'string' || !ITEM_COL_LABEL[k] || (k === 'category' && tbl.chips)) return; colsA.push({ t: ITEM_COL_LABEL[k], g: function(r, d) { return itemCellText(k, d || {}); } }); });   // the table's own columns, as the sheet draws them
         else if (Object.keys(cats).length > 1) colsA.push({ t: 'Category', g: function(r, d) { return (d && d.category) || ''; } });
         (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (isObj(s) && s.show === true) colsA.push({ t: s.label || s.key, g: function(r, d) { return statShown(s, rowStat(spec, d, s.key), opts.metric); } }); });

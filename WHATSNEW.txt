@@ -609,6 +609,10 @@ Systems, more
   and a list put in another order changes nothing. A row or a column that
   is not there reads 0. A table can be kept from your players, and a
   formula that reads it is then GM only too.
+- Subjects. A list can name up to eight short words in the Lists tab, such as
+  Heat and Cold. A row picks one from a menu on the sheet. Row.subject reads
+  its place, 1 for the first and 0 for none, and
+  Traits.Subject.Heat.sum.Degrees adds the rows that hold that word.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

@@ -8348,6 +8348,7 @@ function handleMessage(msg, conn) {
         if (qi.op === 'restore') {   // 1.5.8: a removed row's Undo: only the row this host took out for them, while the list is as that removal left it
             var goI = Object.prototype.hasOwnProperty.call(_rowGrace, gkI + '|gone') ? _rowGrace[gkI + '|gone'] : null;
             if (!goI || goI.until <= nowI || JSON.stringify(befI) !== goI.after) { denyI('stale'); return; }
+            if (goI.rmBack) qi.rmBack = JSON.parse(JSON.stringify(goI.rmBack));   // 1.6.0: When a row is taken off: this host's own record
             qi.row = JSON.parse(JSON.stringify(goI.row)); qi.at = goI.at; if (goI.parts) qi.parts = JSON.parse(JSON.stringify(goI.parts)); if (goI.grants) qi.grants = JSON.parse(JSON.stringify(goI.grants));   // 1.6.0 R14: its parts, from this host's own record
         }
         var resI = Si.applyRowOp(campI.system, chI, qi.fieldId, qi, Fi, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI, onGrace: !!ogI, graceOf: gofI, lib: libI, libPl: window.wpLibrary && window.wpLibrary.playerEntry ? function(id) { return window.wpLibrary.playerEntry(id); } : null });   // libPl (126b): a library entry as players read it, so a rule they may not read is never said
@@ -8368,6 +8369,7 @@ function handleMessage(msg, conn) {
         else if ((qi.op === 'remove' || qi.op === 'setQty' || qi.op === 'undo') && typeof qi.get !== 'number' && !resI.hid && typeof Si.rowIdOf === 'function') {   // 1.5.8: a row their own change took out wholly (never a sale, never a curse kept out of their sight) may come back for a moment
             var ixG = -1; for (var gi = 0; gi < befI.length; gi++) if (Si.rowIdOf(befI[gi]) === qi.rowId) { ixG = gi; break; }
             if (ixG >= 0 && !resI.value.some(function(r) { return Si.rowIdOf(r) === qi.rowId; })) { _rowGrace[gkI + '|gone'] = { until: nowI + Si.LIMITS.undoGraceMs, added: 0, row: JSON.parse(JSON.stringify(befI[ixG])), at: ixG, after: JSON.stringify(resI.value) }; var fdG = Si.fieldById ? Si.fieldById(campI.system, qi.fieldId) : null, pkG = fdG && fdG.list && fdG.list.parts && Si.partsKept ? Si.partsKept(campI.system, fdG.list, befV, qi.rowId) : null; if (pkG) _rowGrace[gkI + '|gone'].parts = pkG; var gkG = Si.grantsKept ? Si.grantsKept(campI.system, befV, qi.rowId) : null; if (gkG) _rowGrace[gkI + '|gone'].grants = gkG; }   // 1.6.0 R14: its parts as they stood
+            if (resI.rmBack && _rowGrace[gkI + '|gone']) _rowGrace[gkI + '|gone'].rmBack = resI.rmBack;   // 1.6.0: and what the removal moved
         }
         if (resI.added > 0 && typeof resI.row === 'string') {   // a pickup (a new row, a merge, a +) opens the row's Undo window, or folds into it and extends it
             var gkA = qi.charId + '|' + qi.fieldId + '|' + resI.row, gA = _rowGrace[gkA];
@@ -8385,6 +8387,7 @@ function handleMessage(msg, conn) {
         if (mvI && (typeof qi.pay === 'number' || typeof qi.get === 'number') && typeof logEvent === 'function') logEvent('char', (chI.name || 'A character') + (qi.op === 'add' ? ' bought ' : ' sold ') + (resI.name || 'an item') + ' for ' + Si.fmtNum(qi.op === 'add' ? qi.pay : qi.get));
         if (qi.op === 'work' && qi.work && qi.work.fee > 0 && typeof logEvent === 'function') logEvent('char', (chI.name || 'A character') + ' paid ' + Si.fmtNum(qi.work.fee) + ' for work on ' + (resI.name || 'an item'));   // 1.6.0, backlog 206: a hired job's fee, as a purchase is told
         if ((qi.op === 'look' || qi.op === 'work') && window.wpStepLog) window.wpStepLog('rowlook v1', 'host', { op: qi.op, fee: !!(qi.work && qi.work.fee > 0) });   // structure only
+        if (resI.rmBack && window.wpStepLog) window.wpStepLog('onremove v1', 'ran', { by: 'player', fields: Object.keys(resI.rmBack).length });   // 1.6.0: When a row is taken off
         if (bwI.warn.length && typeof budgetNotice === 'function') budgetNotice(chI, bwI.warn);   // 126: a budget that only warns: the GM is told
         if (resI.note && resI.added > 0) itemNotice(chI, resI.name, resI.note === 'bound' ? 'bound-pick' : 'curse-pick');
         else if (resI.hid) itemNotice(chI, resI.name, 'curse-drop');

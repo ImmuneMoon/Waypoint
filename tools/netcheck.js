@@ -6903,6 +6903,33 @@ pendingChecks.push((async () => {
         j([r1, r2, kept]));
 })());
 
+// 1.6.0 When a row is taken off, on the wire: the real char-item handler and delta: a player's removal moves the fields with it on the host, tells the
+// owner in one delta and keeps the Undo on the host; a word of the player's own never reaches the Undo; the changes never reach a player's view
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+    const sysR = Sx.cleanSystem({ v: 1, name: 'R', rolls: [], fields: [{ id: 'f_u', key: 'Unspent', label: 'Unspent', kind: 'number', vis: 'all', edit: 'gm' }, { id: 'f_l', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { on: { label: 'On' }, stats: [{ key: 'gave', label: 'Gave' }], onRemove: [{ f: 'f_u', formula: 'Row.gave', add: true }] } }],
+        items: [{ id: 'i_a', name: 'Pebbles', stats: { gave: 10 } }] }, { F: Fx, gmView: true });
+    const camp = { id: 'k', system: sysR, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_u: 25, f_l: [{ id: 'w_a', defId: 'i_a', qty: 1, on: true }] } } } };
+    const out = { answer: [], owner: [] }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); }, connA = { peer: 'pA', send: box(out.answer) };
+    const net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a' } } };
+    const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null, wpStepLog: (a, b, d) => logs.push([a, b, j(d)]) }, logs = [];
+    const H = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+        'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn { handle: function(msg, conn) {\n' + ciSrc + '\n}, grace: function() { return _rowGrace; } };')(
+        net, () => Sx, win, () => false, () => camp, () => {}, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true }, () => {}, () => {});
+    const SEND = (rid, q) => { out.answer.length = 0; out.owner.length = 0; H.handle(Object.assign({ type: 'char-item', rid, charId: 'c_1', fieldId: 'f_l' }, q), connA); return { answer: out.answer.slice(), owner: out.owner.slice() }; };
+    const vals = () => camp.chars.c_1.values;
+    const sw = SEND('q0', { op: 'set', rowId: 'w_a', facts: { on: false } }), swU = vals().f_u, rm = SEND('q1', { op: 'remove', rowId: 'w_a' }), afterU = vals().f_u, gone = !vals().f_l.length, rec = H.grace()['c_1|f_l|w_a|gone'], hasBack = !!(rec && rec.rmBack), lg = j(logs);
+    vals().f_u = 40;
+    const bk = SEND('q2', { op: 'restore', rowId: 'w_a', rmBack: { f_u: { b: 999, a: 40 } } }), backU = vals().f_u, backRow = vals().f_l.length === 1;
+    const pv = win.wpSheets.playerSystem(camp), pvL = Sx.fieldById(pv, 'f_l').list;
+    check('1.6.0 When a row is taken off (the real char-item branch): a player\'s switch-off moves nothing; their removal moves the field they may not edit with it, on the host, told to the owner in one delta, logged by structure alone, with its Undo kept on the host; their Undo comes back by the host\'s own record and never by a word of theirs (Unspent moved to 40 since: 30, not 999); the changes are in no players\' view',
+        swU === 25 && sw.answer.length === 1 && afterU === 35 && gone && rm.owner.length === 1 && rm.owner[0].values && rm.owner[0].values.f_u === 35 && hasBack && /onremove v1/.test(lg) && !/Pebbles/.test(lg)
+        && j(bk.answer) === j([{ type: 'char-ack', rid: 'q2' }]) && backU === 30 && backRow && !('onRemove' in pvL), j([sw, rm, bk, afterU, backU, rec, lg]));
+})());
+
 // Stage 6 F4b follow-up: a refused attempt repeated is one notice per quiet window — the real char-item handler, delta and notice on one host;
 // the player still gets every refusal, the GM one notice, and the next one after the window counts the tries that went unsaid
 pendingChecks.push((async () => {

@@ -641,6 +641,9 @@ Fog, smoke and difficult terrain
   the room. What a player's tokens are sent is unchanged.
 
 Systems
+- A list can move fields when a row is taken off for good. Up to 4 changes run
+  with the removal, each reading the row and the sheet as the one before left
+  it. Switching a row off runs none, and the removal's Undo takes them back too.
 - A null area can put an effect on a character. Pick it under Effect while here,
   beside Senses fail here. It goes on when the token enters and off when it
   leaves, and under two areas it stays until the token is out of both. Players

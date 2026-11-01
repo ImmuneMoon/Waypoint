@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
 import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { cleanDamageRules, areaFxPlan, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanDamageRules, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { cleanCover } from './systemcore.js';   // 1.6.0: what cover takes off an attack, as Save reads it (refreshErrors)
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
@@ -5700,6 +5700,7 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
     var mvG = typeof rowOpMoney === 'function' ? rowOpMoney(sys, c, f.id, q, res) : null;   // 1.5.6: what a purchase paid, or a sale was paid, moves the money with the row
     if (mvG && !mvG.ok) { toast(mvG.msg || 'Not enough money for that.'); return; }
     undoFollow(res);
+    if (res.rmBack) { if (goneB) goneB.rmBack = res.rmBack; if (window.wpStepLog) window.wpStepLog('onremove v1', 'ran', { by: 'gm', fields: Object.keys(res.rmBack).length }); }   // 1.6.0: When a row is taken off: its Undo takes these back too
     if (Array.isArray(res.offRows) && res.offRows.length && window.wpSystemCore && window.wpSystemCore.overSays) toast(res.offRows.slice(0, 4).map(window.wpSystemCore.overSays).join(' '));   // 1.6.0 O1: what came off, and where
     if (typeof res.raised === 'string' && res.raised) toast(res.raised);   // 1.6.0 (a builder audit): a held row a grant raised, "Keen Ears raised to 4 by Amulet."
     if (typeof res.onNeeds === 'string' && res.onNeeds) toast('Switched on all the same. A player would be told: ' + res.onNeeds);   // 1.5.8: the GM's own hand passes a switch's needs, and is told
@@ -5735,7 +5736,7 @@ function goneNote(c, f, g) {
         var camp = getActiveCampaign(), cN = charById(cid, camp); if (!cN) return;
         var cur = cN.values && Array.isArray(cN.values[f.id]) ? cN.values[f.id] : [];
         if (!isClient() && JSON.stringify(cur) !== after) { toast(nm + ' cannot come back: the list changed since.'); return; }
-        var qR = { op: 'restore', rowId: rid, row: g.row, at: g.at }; if (g.parts) qR.parts = g.parts; if (g.grants) qR.grants = g.grants; commitItem(cN, f, qR);   // 1.6.0 R14: its parts come back with it
+        var qR = { op: 'restore', rowId: rid, row: g.row, at: g.at }; if (g.parts) qR.parts = g.parts; if (g.grants) qR.grants = g.grants; if (g.rmBack) qR.rmBack = g.rmBack; commitItem(cN, f, qR);   // 1.6.0 R14: its parts come back with it
     }, LIMITS.undoMs);
 }
 // [systemcheck:gonethen-start]
@@ -7146,6 +7147,7 @@ function refreshErrors() {
             if (Array.isArray(chr.cats) && chr.cats.length > LIMITS.listCats) errs.push({ message: 'Chambers from takes at most ' + LIMITS.listCats + ' categories. Save keeps the first ' + LIMITS.listCats + '.' });
             if (typeof chr.reach === 'string' && chr.reach.trim() && typeof cleanReach === 'function' && !cleanReach(chr.reach, F())) errs.push({ message: 'Flies at most does not read as a formula with no dice. Save drops it.' });   // 1.5.9 (es), as the cleaner reads it
         }
+        if (typeof onRemoveSays === 'function') onRemoveSays(sp, draft.fields, F()).forEach(function(m) { errs.push({ message: m }); });   // 1.6.0: When a row is taken off, as the cleaner reads it
         (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(rr) { var xc = rr && rr.cross && typeof rr.cross === 'object' && typeof rr.cross.ct === 'string' ? rr.cross.ct.toLowerCase() : ''; if (xc && (Array.isArray(rr.apply) ? rr.apply : Array.isArray(rr.then) ? rr.then : []).some(function(ch) { return !!ch && typeof ch === 'object' && typeof ch.c === 'string' && ch.c.toLowerCase() === xc; })) (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ message: 'When a value crosses: its own changes move the value it watches, so a run can set off another, at most 3 in a row.' }); });   // 1.6.0: a row's crossing that moves its own counter
         keptBy[f.id] = mine;
         if (errs.length) errorsById['list:' + f.id] = errs;
@@ -8385,6 +8387,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     }
     card.appendChild(orow);
     if (sw && typeof upkeepBox === 'function') upkeepBox(card, sp);   // 1.6.0 (CORE gap 13) (a suite's slice of the card holds no box)
+    if (typeof onRemoveBox === 'function') onRemoveBox(card, sp);   // 1.6.0: When a row is taken off
     // Stage 6 F4c1: the list's stats — a number every item of it carries (Acc, Wt, Cost), ten at most — and the one that is its price
     var sts = Array.isArray(sp.stats) ? sp.stats : [], sb = el('div', 'sys-list-stats');
     sb.appendChild(el('span', 'sys-num-cap', 'Stats'));
@@ -9517,6 +9520,44 @@ function upkeepBox(card, sp) {
     }
     card.appendChild(rw);
 }
+// [sinkcheck:onremovebox-start]
+// 1.6.0: When a row is taken off, on a list's card: a line a change, a field to move, how, and a formula of the row, and one more empty line while
+// there is room. A field picked makes the line, No change takes it away. Values and text only. Save cleans them (systemcore cleanOnRemove)
+function onRemoveBox(card, sp) {
+    var arr = Array.isArray(sp.onRemove) ? sp.onRemove : [], rw = el('div', 'sys-list-onrm');
+    rw.appendChild(el('div', 'sys-light-head', 'When a row is taken off'));
+    var sl = function(cls, os, cur, title, i) { var s = el('select', cls); os.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0] === cur) op.selected = true; s.appendChild(op); }); s.value = cur; s.title = title; s.dataset.oi = String(i); return s; };
+    var tgts = (draft.fields || []).filter(function(f) { return f && typeof f.id === 'string' && (f.kind === 'resource' || f.kind === 'number' || f.kind === 'toggle'); }).map(function(f) { return [f.id, f.label || f.key || f.id]; });
+    for (var i = 0; i < arr.length + 1 && i < LIMITS.onRemove; i++) {
+        var c = arr[i] && typeof arr[i] === 'object' ? arr[i] : null, cf = c && typeof c.f === 'string' ? c.f : '', ln = el('div', 'sys-flags');
+        var os = [['', 'No change']].concat(tgts); if (cf && !tgts.some(function(o) { return o[0] === cf; })) os.push([cf, '(a field that is gone)']);
+        ln.appendChild(sl('sys-list-ormf', os, cf, 'The field this moves when a row leaves the list for good. A switch-off moves nothing', i));
+        if (c) {
+            ln.appendChild(sl('sys-list-ormh', [['add', 'Add'], ['sub', 'Subtract'], ['set', 'Set to']], c.set === true ? 'set' : c.add === true ? 'add' : 'sub', 'What the figure does to the field', i));
+            var am = input('sys-list-ormamt field', typeof c.formula === 'string' ? c.formula : '', 'A formula of the row, read before it goes, such as Row.xp. No dice. Each line reads the sheet as the line before left it, so a field may be named twice', 'The figure (e.g. Row.xp)'); am.maxLength = LIMITS.formula; am.dataset.oi = String(i); ln.appendChild(am);
+        }
+        rw.appendChild(ln);
+    }
+    card.appendChild(rw);
+}
+function onRemoveChange(lsc, t, c) {
+    var i = +t.dataset.oi, arr = Array.isArray(lsc.onRemove) ? lsc.onRemove : (lsc.onRemove = []);
+    if (c.indexOf('sys-list-ormf') >= 0) { if (t.value) { if (arr[i] && typeof arr[i] === 'object') arr[i].f = String(t.value).slice(0, 64); else arr.push({ f: String(t.value).slice(0, 64), formula: '', add: true }); } else arr.splice(i, 1); }
+    else if (c.indexOf('sys-list-ormh') >= 0 && arr[i] && typeof arr[i] === 'object') { delete arr[i].add; delete arr[i].set; if (t.value === 'add') arr[i].add = true; else if (t.value === 'set') arr[i].set = true; }
+    if (!arr.length) delete lsc.onRemove;
+}
+// What Save does with each line, as the cleaner reads it
+function onRemoveSays(sp, fields, Fe) {
+    var arr = Array.isArray(sp.onRemove) ? sp.onRemove : [], out = [], ok = { resource: 1, number: 1, toggle: 1 }; if (!arr.length || typeof cleanOnRemove !== 'function') return out;
+    arr.forEach(function(c, i) {
+        var f = c && typeof c === 'object' ? (fields || []).filter(function(x) { return x && x.id === c.f; })[0] : null, n = 'When a row is taken off, line ' + (i + 1) + ': ';
+        if (i >= LIMITS.onRemove) out.push(n + 'a list keeps ' + LIMITS.onRemove + ' lines. Save drops the rest.');
+        else if (!f || ok[f.kind] !== 1) out.push(n + 'it names no pool, number or toggle. Save drops it.');
+        else if (!cleanOnRemove([c], Fe)) out.push(n + 'its figure does not read as a formula with no dice. Save drops it.');
+    });
+    return out;
+}
+// [sinkcheck:onremovebox-end]
 function upkeepChange(lsc, t, c) {
     if (c.indexOf('sys-list-upon') >= 0) { if (t.checked) { var p0 = (draft.fields || []).filter(function(f) { return f && f.kind === 'resource' && typeof f.id === 'string'; })[0]; lsc.upkeep = { pool: p0 ? p0.id : '', amt: '1', each: 'turn' }; } else delete lsc.upkeep; return; }
     var up = lsc.upkeep && typeof lsc.upkeep === 'object' && !Array.isArray(lsc.upkeep) ? lsc.upkeep : null; if (!up) return;
@@ -11278,6 +11319,7 @@ function onInput(e) {
             else if (lcc.indexOf('sys-list-feedto') >= 0) { if (t.value.trim()) fdI.to = t.value.trim(); else delete fdI.to; }
         }
         else if (lcc.indexOf('sys-list-loadby') >= 0) { if (!lsp.load || typeof lsp.load !== 'object') return; if (t.value.trim()) lsp.load.by = t.value.trim(); else delete lsp.load.by; }   // 1.5.8 Matched by (Save keeps the pair only where both name a stat)
+        else if (lcc.indexOf('sys-list-ormamt') >= 0) { var ormA = Array.isArray(lsp.onRemove) ? lsp.onRemove[+t.dataset.oi] : null; if (ormA && typeof ormA === 'object') ormA.formula = t.value.slice(0, LIMITS.formula); }   // 1.6.0: When a row is taken off
         else if (lcc.indexOf('sys-list-upamt') >= 0) { if (lsp.upkeep && typeof lsp.upkeep === 'object') lsp.upkeep.amt = t.value.slice(0, LIMITS.formula); }   // 1.6.0 (CORE gap 13): what a row pays
         else if (lcc.indexOf('sys-list-upn') >= 0) { if (!lsp.upkeep || typeof lsp.upkeep !== 'object') return; var upn = Number(t.value); lsp.upkeep.per = Object.assign({ u: 'min' }, lsp.upkeep.per); if (String(t.value).trim() && isFinite(upn)) lsp.upkeep.per.n = Math.round(upn); }
         else if (lcc.indexOf('sys-list-loadto') >= 0) { if (!lsp.load || typeof lsp.load !== 'object') return; if (t.value.trim()) lsp.load.to = t.value.trim(); else delete lsp.load.to; }
@@ -11541,6 +11583,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-haslvl') >= 0) { if (t.checked) lsc.lvl = { label: 'Level', min: 0, step: 1, def: 0 }; else delete lsc.lvl; }
         else if (c.indexOf('sys-list-hason') >= 0) { if (t.checked) lsc.on = { label: 'On' }; else delete lsc.on; }
         else if (c.indexOf('sys-list-ondef') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.def = true; else delete lsc.on.def; } }
+        else if (c.indexOf('sys-list-ormf') >= 0 || c.indexOf('sys-list-ormh') >= 0) onRemoveChange(lsc, t, c);   // 1.6.0: When a row is taken off
         else if (c.indexOf('sys-list-upon') >= 0 || c.indexOf('sys-list-uppool') >= 0 || c.indexOf('sys-list-upeach') >= 0 || c.indexOf('sys-list-upu') >= 0 || c.indexOf('sys-list-upstop') >= 0 || c.indexOf('sys-list-upct') >= 0 || c.indexOf('sys-list-upby') >= 0) upkeepChange(lsc, t, c);   // 1.6.0 (CORE gap 13): Keeps paying
         else if (c.indexOf('sys-list-onone') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.one = true; else { delete lsc.on.one; delete lsc.on.per; delete lsc.on.over; } } }   // 1.5.4 One at a time
         else if (c.indexOf('sys-list-ctroll') >= 0) { var ctr2 = t.closest('.sys-list-ct'), ctD2 = ctr2 && Array.isArray(lsc.counters) ? lsc.counters[+ctr2.dataset.ti] : null; if (!ctD2 || typeof ctD2 !== 'object') return; if (t.checked) ctD2.roll = true; else delete ctD2.roll; }   // 1.5.7: Set by rolls only

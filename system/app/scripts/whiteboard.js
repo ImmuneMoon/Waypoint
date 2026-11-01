@@ -4307,6 +4307,7 @@ window.wpFitToGrid = fitToGrid;
       if (_armedThrow) {   // a throw from a character sheet: one-shot, host-authoritative, shared to the map
           var ctx = _armedThrow; _armedThrow = null; document.body.classList.remove('placing');
           if (ctx.stray) { if (typeof strayClick === 'function') strayClick(ctx.stray, x, y); var mvS = document.getElementById('moveModeBtn'); if (mvS) mvS.click(); return; }   // 1.6.0 A burst: the way a stray round lands
+          if (typeof ctx.aim === 'function') { var mvA = document.getElementById('moveModeBtn'); if (mvA) mvA.click(); ctx.aim({ x: x, y: y }); return; }   // 1.6.0 An attack on a line: where it is aimed
           if (ctx.launch) { if (typeof launchAt === 'function') launchAt({ x: x, y: y, charId: ctx.charId, fieldId: ctx.fieldId, rowId: ctx.rowId }, map); var mvL = document.getElementById('moveModeBtn'); if (mvL) mvL.click(); return; }   // 1.5.9 Chambers from: the GM's Launch, a round's blast with no throw
           if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { if (window.wpNet.throwReq) window.wpNet.throwReq(ctx.charId, ctx.fieldId, ctx.rowId, x, y, map.id); }
           else placeThrownBlast({ x: x, y: y, ft: ctx.ft, name: ctx.name, by: ctx.by, charId: ctx.charId, fieldId: ctx.fieldId, rowId: ctx.rowId, damage: ctx.damage, gmOnly: ctx.gmOnly });   // 1.5.8 explosives: the row it is thrown from
@@ -5024,6 +5025,15 @@ window.wpFitToGrid = fitToGrid;
       return id;
   };
   if (typeof window !== 'undefined') { var nkS = window.wpNoticeKinds = window.wpNoticeKinds || {}; nkS.stray = { label: 'Click on the map', tip: 'The next click on the map gives the way it lands', only: true, still: function(id) { return !!strayOf(id); }, run: strayArm, alt: function(id) { if (!strayOf(id)) return; strayGone(id); if (window.wpStepLog) window.wpStepLog('burst v1', 'stray-skipped', {}); }, altLabel: 'Skip', altTip: 'Let this round go. It lands nowhere', picks: function(id) { var s = strayOf(id), BC = window.wpBlastCore; return !s || !BC ? [] : (s.ways === 8 ? BC.SCATTER_WAYS : BC.SCATTER_WAYS6).map(function(w) { return { label: w, tip: 'It lands this way from ' + s.off + ', along the line it was fired on' }; }); }, pick: strayPick }; }
+  window.wpArmAim = function(name, cb) {   // 1.6.0 An attack on a line: the next click on the map says where a roll is aimed, then it is rolled. Any tool taken puts it down, as a Throw
+      if (typeof cb !== 'function') return false; var nm = typeof name === 'string' ? name.slice(0, 60) : '';
+      _armedThrow = { aim: cb, name: nm };
+      window.isDrawingMode = false; window.isEraserMode = false; window.isFogMode = false;
+      window.isMeasureMode = true; window.wpMeasureKind = 'blast';
+      if (wbWrap) wbWrap.style.cursor = 'crosshair'; document.body.classList.add('placing');
+      toast('Click the map to aim ' + (nm ? nm : 'the line') + '. Esc cancels.');
+      return true;
+  };
   window.wpArmLaunch = function(ctx) {   // the sheet's Launch (the GM's): the next click on the map puts the round's blast there
       if (!ctx || typeof ctx !== 'object') return;
       var nm = typeof ctx.name === 'string' ? ctx.name.slice(0, 60) : '';

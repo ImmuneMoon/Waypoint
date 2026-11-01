@@ -218,6 +218,10 @@ function cleanRollReq(msg) {
         if (!(out.act || (out.row && out.row.i !== undefined && out.row.r !== undefined)) || typeof msg.att !== 'string' || !ATT_RE.test(msg.att)) return null;   // 1.6.0: or a list's roll on one row, offered on a resist card
         out.att = msg.att;
     }
+    if (msg.aim !== undefined) {   // 1.6.0 An attack on a line: the point it is aimed at, beside a named roll only, board numbers (the host works out who stands in it)
+        var am = msg.aim; if (!(out.act || (out.row && out.row.i !== undefined && out.row.r !== undefined)) || !am || typeof am !== 'object' || Array.isArray(am) || typeof am.x !== 'number' || typeof am.y !== 'number' || !isFinite(am.x) || !isFinite(am.y) || Math.abs(am.x) > 1e6 || Math.abs(am.y) > 1e6) return null;
+        out.aim = { x: am.x, y: am.y };
+    }
     if (msg.hit !== undefined) {   // 1.6.0 (B5): the location row the roller picked on its target's sheet, beside a named roll only (the host rebuilds its formula, and judges the row on the target)
         if (!(out.act || out.fr || (out.row && out.row.i !== undefined && out.row.r !== undefined)) || typeof msg.hit !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(msg.hit)) return null;
         out.hit = msg.hit;

@@ -353,6 +353,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 !!rA && JSON.stringify(rA.aim) === JSON.stringify({ n: 'Servo-arm', f: [{ k: 'Aim', v: -5 }] }) && JSON.stringify(rA0.aim) === JSON.stringify({ n: 'Torso', f: [] }) && badA.every(r => r && !('aim' in r)) && D.cleanAim({ n: 'A', f: [], x: 1 }).x === undefined,
                 JSON.stringify([rA, badA]));
         }
+        {   // 1.6.0 An attack on a line: the point it is aimed at, on a player's request: numbers beside a named roll, nothing else of it
+            const base = { rid: 'q1', expr: '3d6', charId: 'c_a' }, aq = o => D.cleanRollReq(Object.assign({}, base, o));
+            check('1.6.0 cleanRollReq keeps an aim as its two numbers beside a system roll or a list\'s roll on a row, and refuses one beside a typed roll, a field\'s roll or anything that is no point',
+                JSON.stringify(aq({ act: 'r_a', aim: { x: 10.5, y: 20, z: 1 } }).aim) === JSON.stringify({ x: 10.5, y: 20 }) && JSON.stringify(aq({ row: { f: 'f_g', r: 'w_1', i: 0 }, aim: { x: 1, y: 2 } }).aim) === JSON.stringify({ x: 1, y: 2 })
+                && aq({ aim: { x: 1, y: 2 } }) === null && aq({ fr: 'f_x', aim: { x: 1, y: 2 } }) === null && [{ x: NaN, y: 1 }, { x: 'a', y: 1 }, { x: 1 }, [1, 2], 'x', null, { x: 1e9, y: 1 }].every(a => aq({ act: 'r_a', aim: a }) === null) && !('aim' in aq({ act: 'r_a' })));
+        }
         {   // 1.6.0: where a hit behind cover landed, on the host's record (cleanCovHit, cleanRoll): a name and whole numbers in their bounds, one that does not clean left off and the roll kept
             const rC = cleanRoll(rec({ cvh: { n: 'Left arm', d: 2, of: 6, e: 1, ea: 2, x: 1 } })), rS = cleanRoll(rec({ cvh: { n: 'Head', st: 1 } })), rP = cleanRoll(rec({ cvh: { n: 'Head', d: 9, of: 6 } }));
             const badC = [{ n: '' }, { n: 'x'.repeat(61) }, { n: 'Arm\u0007' }, { d: 1, of: 6 }, [1], 'x', null].map(b => cleanRoll(rec({ cvh: b })));

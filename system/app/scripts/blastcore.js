@@ -212,6 +212,20 @@ var STAND_INS = Object.freeze({
     grenade: Object.freeze(['M12 9a6 6 0 1 0 0 12 6 6 0 0 0 0-12z', 'M10 9V6h4v3', 'M14 7l4-3', 'M9.5 13.5h5M9.5 16.5h5']),
     mine: Object.freeze(['M4 15c0-2.5 3.6-4 8-4s8 1.5 8 4-3.6 4-8 4-8-1.5-8-4z', 'M12 11V7', 'M7.5 11.5L6 8.5M16.5 11.5L18 8.5', 'M10 7h4'])
 });
-var API = { towardPoint: towardPoint, diceAt: diceAt, VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
+// 1.6.0 An attack on a line: who stands in it, nearest first. from and aim, board points that say its way; toks, [{ id, x, y, half }], each a token's centre and
+// how far it reaches past its own cell; o: unit, board pixels a yard; width and reach, yards; stop, the part of the reach a wall lets it go (absent: all).
+// A token seated in a cell is in the line where that cell's centre is under it, so the test is its centre against half the width. Bodies never stop it
+function lineTargets(from, aim, toks, o) {
+    o = o && typeof o === 'object' ? o : {}; var fin = function(v) { return typeof v === 'number' && isFinite(v); };
+    if (!from || !aim || !fin(from.x) || !fin(from.y) || !fin(aim.x) || !fin(aim.y) || !fin(o.unit) || !(o.unit > 0) || !fin(o.width) || !fin(o.reach) || !(o.reach > 0)) return [];
+    var dx = aim.x - from.x, dy = aim.y - from.y, d = Math.sqrt(dx * dx + dy * dy); if (!(d > 0)) return [];
+    var ux = dx / d, uy = dy / d, far = o.reach * o.unit * (fin(o.stop) ? Math.max(0, Math.min(1, o.stop)) : 1), half = o.width * o.unit / 2, out = [];
+    (Array.isArray(toks) ? toks : []).forEach(function(t) {
+        if (!t || !fin(t.x) || !fin(t.y)) return; var px = t.x - from.x, py = t.y - from.y, along = px * ux + py * uy, off = Math.abs(px * uy - py * ux);
+        if (along > 1e-9 && along <= far + 1e-9 && off <= half + (fin(t.half) ? Math.max(0, t.half) : 0) + 1e-9) out.push({ id: t.id, along: along });
+    });
+    return out.sort(function(a, b) { return a.along - b.along; }).map(function(t) { return t.id; });
+}
+var API = { lineTargets: lineTargets, towardPoint: towardPoint, diceAt: diceAt, VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
 if (typeof window !== 'undefined') window.wpBlastCore = API;
-export { towardPoint, diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanMine, inTrigger, STAND_INS };
+export { lineTargets, towardPoint, diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanMine, inTrigger, STAND_INS };

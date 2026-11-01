@@ -728,6 +728,11 @@ Systems
   the GM's card lets it go. A success counts as further off, can take no
   fragmentation and can set a posture, and the roll counts 1 in a field you
   pick, pass or fail. A launched burst takes one roll.
+- A roll can hit a line. Tick Hits a line and give its width and its reach. A
+  press asks for a click on the map, and one roll goes for the whole line. A
+  wall stops it and a body does not. Each token in it may resist, or is hit.
+  Each hit can roll a damage roll, whose card lands on that token, and can get
+  an effect even where armour stops the damage.
 - The Review can show a note beside a file's changes. A note has no tick
   and counts as no change.
 - An effect's change can be sized by a formula, such as -max(0, -MP)

@@ -3494,6 +3494,7 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         if (r.to === 'near') withE = true;   // 1.5.9 (book es/et plan, section 3): one that Applies to an adjacent character names its index too, so the host finds whom it may reach
         if (r.resisted === true || typeof r.resistBy === 'string') withE = true;   // 1.6.0 (B2): one its target may resist names its index, so the host finds the whole entry
         if (r.burst) withE = true;   // 1.6.0 A burst: its host keeps the record, so it finds the whole entry
+        if (r.area) withE = true;   // 1.6.0: a line: the host finds its whole entry
         if (r.named === true) withE = true;   // 1.6.0: one that calls for another names its index, so the host finds its calls
         if (!nOk && r.hideOff === true) return;   // 1.6.0: Hidden until it can be used
         if (!nOk) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }
@@ -4635,9 +4636,17 @@ function groupRoll(ids, rollId) {
 // [systemcheck:grouproll-end]
 function sheetRoll(e, charId, expr, label, opts, swRef) {   // swRef (1.6.0): which roll this is, for the roll switches its \u00b1 window offers (handed to that window alone)
     if (!window.wpDice) return;
+    if (!(e && e.wpAim !== undefined) && typeof aimNeed === 'function') { var ndA = aimNeed(opts); if (ndA !== null) { var evA = pressOf(e, e && e.currentTarget); if (window.wpArmAim && window.wpArmAim(ndA, function(pt) { evA.wpAim = pt; sheetRoll(evA, charId, expr, label, Object.assign({}, opts, { aim: pt }), swRef); })) return; } }   // 1.6.0 An attack on a line: where it is aimed first
     if (!(e && e.wpHit !== undefined) && typeof hitPick === 'function') { var ndH = hitNeed(charId, expr, opts, swRef); if (ndH) { var evH = pressOf(e, e && e.currentTarget); hitPick(evH.currentTarget, ndH, function(id) { evH.wpHit = id || ''; sheetRoll(evH, charId, expr, label, id ? hitNamed(opts, swRef, id) : opts, swRef); }); return; } }   // 1.6.0 (B5): where it is aimed first, a location of its target's own
     if ((e.shiftKey || e.altKey) && window.wpDice.rollWithMod) { if (swRef) window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget, swRef); else window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget); }
     else if (window.wpDice.rollFor) window.wpDice.rollFor(charId, expr, label, opts);
+}
+// 1.6.0 An attack on a line: the words for the aim of a roll with an area, null for any other
+function aimNeed(opts) {
+    var sys = typeof systemOf === 'function' ? systemOf() : null, o = opts && typeof opts === 'object' ? opts : {}, ent = null; if (!sys) return null;
+    if (typeof o.act === 'string' && !o.row) ent = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return r && r.id === o.act; })[0] || null;
+    else if (o.row && typeof o.row.i === 'number') { var f = (Array.isArray(sys.fields) ? sys.fields : []).filter(function(x) { return x && x.id === o.row.f && x.kind === 'item-list'; })[0]; ent = f && f.list && Array.isArray(f.list.rolls) ? f.list.rolls[o.row.i] || null : null; }
+    return ent && ent.area && typeof ent.area === 'object' ? String(ent.label || '').split('{')[0].trim().slice(0, 60) : null;
 }
 // [systemcheck:greypress-start]
 // 1.6.0 (the by-hand test: a player's press on a roll that could not be made did nothing they could see): a greyed roll or action takes no click, and
@@ -4818,7 +4827,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
         if (r.to === 'near' && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evN = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evN.currentTarget || b, c, function(on) { evN.wpAlly = on || ''; goN(evN); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first, where someone stands next to it
         var lb = label, vv = vars;
         if (sys && typeof vars === 'function' && r.label && r.label.indexOf('{') >= 0 && F()) { try { var campN = getActiveCampaign(), cN = charById(c.id, campN) || c; vv = resolveAll(sys, cN, F(), tokenCtxFor(c.id, campN)).vars; lb = rollLabel(r, sys, cN, vv); } catch (err) { lb = label; vv = vars; } }   // HF5 review: the values as they are at the click, as the roll reads them (a redraw may still wait on a focused box)
-        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); var oR = why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined; if (r.needs || r.named) { oR = oR || {}; oR.act = r.id; } if (r.to === 'near') { oR = oR || {}; oR.act = r.id; if (e && typeof e.wpAlly === 'string' && e.wpAlly) oR.on = e.wpAlly; } if (r.resist === true || r.resisted === true || typeof r.resistBy === 'string') { oR = oR || {}; oR.act = r.id; } if ((Array.isArray(r.then) && r.then.length) || r.malf || r.cost || r.dmg || r.init === true) { oR = oR || {}; oR.act = r.id; } sheetRoll(e, c.id, r.formula, lb, oR, { r: r.id });   // R1: a roll with consequences names itself (initiative O1: the initiative roll too, so the host can trust its number into the fight)   // a GM-only roll stays the GM's
+        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); var oR = why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined; if (r.needs || r.named) { oR = oR || {}; oR.act = r.id; } if (r.to === 'near') { oR = oR || {}; oR.act = r.id; if (e && typeof e.wpAlly === 'string' && e.wpAlly) oR.on = e.wpAlly; } if (r.resist === true || r.resisted === true || typeof r.resistBy === 'string' || r.area) { oR = oR || {}; oR.act = r.id; } if ((Array.isArray(r.then) && r.then.length) || r.malf || r.cost || r.dmg || r.init === true) { oR = oR || {}; oR.act = r.id; } sheetRoll(e, c.id, r.formula, lb, oR, { r: r.id });   // R1: a roll with consequences names itself (initiative O1: the initiative roll too, so the host can trust its number into the fight)   // a GM-only roll stays the GM's
     };
     b.addEventListener('click', goN);
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b);
@@ -7194,11 +7203,17 @@ function refreshErrors() {
             if (has(ak) && cr[dk] && !cr[ak]) push(ak, 'This is no formula Save can keep, so Save drops it.');
         });
     };
-    (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) { var cp2 = r && typeof r === 'object' ? (clean.rolls || []).filter(function(x) { return x && x.id === r.id; })[0] : null; p2Says(r, cp2, function(p, m) { (errorsById[r.id] = errorsById[r.id] || []).push({ prop: p, message: m }); }); });
+    var arSays = function(r, cr, push) {   // 1.6.0: a line Save cannot keep, as the cleaner reads it
+        if (!r || typeof r !== 'object' || !r.area) return;
+        if (!cr || !cr.area) { push('area', 'Hits a line: it needs a width above 0 and a reach, so Save drops it.'); return; }
+        if (r.resistAll === true && !cr.resistAll) push('area', 'Each one resists: it needs a Resisted by, so Save drops it.');
+        var pa = F() && typeof F().parse === 'function' ? F().parse(String(cr.area.reach)) : null; if (pa && !pa.ok) push('area', 'Hits a line: Save keeps the reach, but it cannot be read, so the line goes nowhere.');
+    };
+    (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) { var cp2 = r && typeof r === 'object' ? (clean.rolls || []).filter(function(x) { return x && x.id === r.id; })[0] : null; arSays(r, cp2, function(p, m) { (errorsById[r.id] = errorsById[r.id] || []).push({ prop: p, message: m }); }); p2Says(r, cp2, function(p, m) { (errorsById[r.id] = errorsById[r.id] || []).push({ prop: p, message: m }); }); });
     draft.fields.forEach(function(f) {   // and a list roll's, alike
         var cf2 = f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls) ? (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0] : null, cr2 = cf2 && cf2.list && Array.isArray(cf2.list.rolls) ? cf2.list.rolls : null;
         if (!cr2 || cr2.length !== f.list.rolls.length) return;
-        f.list.rolls.forEach(function(r, i) { p2Says(r, cr2[i], function(p, m) { (errorsById[f.id] = errorsById[f.id] || []).push({ prop: 'list.' + p + '.' + i + '.' + (r.label || 'Roll'), message: m }); }); });
+        f.list.rolls.forEach(function(r, i) { arSays(r, cr2[i], function(p, m) { (errorsById[f.id] = errorsById[f.id] || []).push({ prop: 'list.' + p + '.' + i + '.' + (r.label || 'Roll'), message: m }); }); p2Says(r, cr2[i], function(p, m) { (errorsById[f.id] = errorsById[f.id] || []).push({ prop: 'list.' + p + '.' + i + '.' + (r.label || 'Roll'), message: m }); }); });
         f.list.rolls.forEach(function(r, i) {   // 1.6.0: a fire's How many Save cannot keep
             (r && typeof r === 'object' && Array.isArray(r.then) ? r.then : []).forEach(function(c, k) {
                 if (!c || (c.fire !== true && c.feed !== true) || typeof c.n !== 'string' || !c.n.trim() || !cr2[i] || !Array.isArray(cr2[i].then)) return;
@@ -7860,6 +7875,7 @@ function rollRow(r) {
     if (!isApply && !r.init && typeof checkLabel === 'function') top.appendChild(checkLabel('sys-roll-rsist', r.resist === true, 'Resists an attempt', 'This roll answers an attempt made on its character. Its formula reads AttemptMargin, how far the attempt succeeded, such as 3d6 <= Will - AttemptMargin.'));   // 1.6.0 (B2)
     if (!r.init && typeof checkLabel === 'function') top.appendChild(checkLabel('sys-roll-anytime', r.free === true, 'Any time', 'Called for off a character\u2019s turn, whatever Off a character\u2019s turn says, as a check you ask for. A roll that resists, the initiative roll, a roll due at a turn or a round and a roll from a card need no tick'));   // 1.6.0
     if (!isApply && typeof resistBySel === 'function') top.appendChild(resistBySel('sys-roll-rsby', r.resistBy, typeof draft !== 'undefined' ? draft : null));   // 1.6.0 (B2)
+    if (!isApply && !r.init && typeof areaBox === 'function') top.appendChild(areaBox(r, (draft.rolls || []).filter(function(x) { return x && x.dmg === true && x.id !== r.id; }).map(function(x) { return [x.id, x.label || x.id]; })));   // 1.6.0: a line it hits
     if (!isApply && r.resistBy && typeof resistOrBox === 'function') top.appendChild(resistOrBox('sys-roll-rsor', r.resistBy, r.resistOr, typeof draft !== 'undefined' ? draft : null));   // 1.6.0 (the core's gap 5)
     if (!isApply && r.resistBy && typeof checkLabel === 'function') top.appendChild(checkLabel('sys-roll-rsnocrit', r.noResistOnCrit === true, 'Not resisted on a critical', 'A critical success sends its target nothing to resist. Leave it off where a critical is resisted as any success is'));   // 1.6.0
     if (!isApply) { var dl = el('label', 'sys-hover'); var dc = el('input'); dc.type = 'checkbox'; dc.className = 'sys-dmg-chk'; dc.checked = r.dmg === true; dl.appendChild(dc); dl.appendChild(document.createTextNode(' Damage')); dl.title = 'A damage roll: its card in Table Chat takes the damage colour, a larger total and a damage tag'; top.appendChild(dl); }   // chat cards (owner 2026-09-27)
@@ -8523,6 +8539,7 @@ function ctKeySays(sp, F0) {
         if (!rApply) rw.appendChild(checkLabel('sys-list-rsist', rr.resist === true, 'Resists an attempt', 'This roll answers an attempt made on its character. Another roll\u2019s Or resisted by can name it, and the target\u2019s card then has a button for each row that holds it. Its formula reads AttemptMargin, such as 3d6 <= Row.Def - AttemptMargin'));   // 1.6.0
         rw.appendChild(checkLabel('sys-list-anytime', rr.free === true, 'Any time', 'Called for off a character\u2019s turn, whatever Off a character\u2019s turn says, as a check you ask for. A roll that resists, the initiative roll, a roll due at a turn or a round and a roll from a card need no tick'));   // 1.6.0
         if (!rApply && typeof resistBySel === 'function') rw.appendChild(resistBySel('sys-list-rsby', rr.resistBy, typeof draft !== 'undefined' ? draft : null));   // 1.6.0 (B2)
+        if (!rApply && typeof areaBox === 'function') rw.appendChild(areaBox(rr, (Array.isArray(sp.rolls) ? sp.rolls : []).map(function(x, xi) { return x && x.dmg === true && x !== rr ? [String(xi), x.label || 'Roll'] : null; }).filter(Boolean)));   // 1.6.0: a line it hits
         if (!rApply && rr.resistBy && typeof resistOrBox === 'function') rw.appendChild(resistOrBox('sys-list-rsor', rr.resistBy, rr.resistOr, typeof draft !== 'undefined' ? draft : null));   // 1.6.0 (the core's gap 5)
         if (!rApply && rr.resistBy) rw.appendChild(checkLabel('sys-list-rsnocrit', rr.noResistOnCrit === true, 'Not resisted on a critical', 'A critical success sends its target nothing to resist. Leave it off where a critical is resisted as any success is'));   // 1.6.0
         if (!rApply && rr.resistBy && typeof kindSel === 'function') rw.appendChild(kindSel(rr, sp));   // 1.6.0 An attempt's kind
@@ -8620,6 +8637,36 @@ function rollStationBox(r) {
     l.appendChild(document.createTextNode('Stations: '));
     i.addEventListener('input', function(e) { e.stopPropagation(); var sv = i.value.split(',').map(function(x) { return x.trim(); }).filter(Boolean); if (sv.length) r.stations = sv; else delete r.stations; markDirty(); patchErrors(); });
     l.appendChild(i); return l;
+}
+// 1.6.0 An attack on a line: a roll's Hits a line and what it holds, a system roll's and a list roll's alike. Save cleans it (systemcore rollAreaInto); arSays in refreshErrors says what it drops
+var AREA_LINE = 'One roll for the whole line, aimed by a click on the map. A wall stops it and a body does not. With Each one resists, each token in it gets the Resisted by roll, and a failure is a hit. With none, each is hit.';
+function areaBox(r, dmgs) {
+    var a = r.area && typeof r.area === 'object' && !Array.isArray(r.area) ? r.area : null, wrap = el('span', 'sys-flags sys-area'); wrap.appendChild(checkLabel('sys-area-on', !!a, 'Hits a line', AREA_LINE)); if (!a) return wrap;
+    var w = numInput('field sys-area-width', typeof a.width === 'number' ? a.width : '', 'How wide the line is, in yards'); dbxCap(wrap, 'Width, yards'); wrap.appendChild(w);
+    var re = input('sys-area-reach field', typeof a.reach === 'string' ? a.reach : '', 'How far the line goes, in yards. A formula with no dice of the roller\u2019s names, a list roll\u2019s row\u2019s too', 'Reach, e.g. Row.range'); re.maxLength = LIMITS.formula; dbxCap(wrap, 'Reach, yards'); wrap.appendChild(re);
+    var dOpts = [['', 'No damage roll']].concat(dmgs), cur = a.dmg === undefined ? '' : String(a.dmg); if (cur && !dOpts.some(function(o) { return o[0] === cur; })) dOpts.push([cur, 'A roll no longer ticked Damage']);
+    dbxCap(wrap, 'Each hit rolls'); wrap.appendChild(select('sys-area-dmg', dOpts, cur, 'The damage roll rolled for each token hit. Its card lands on that token'));
+    var fxs = (draft.effects || []).filter(function(f) { return f && typeof f.id === 'string'; }).map(function(f) { return [f.id, f.name || f.id]; }), fCur = typeof a.fx === 'string' ? a.fx : '', fOpts = [['', 'No effect']].concat(fxs); if (fCur && !fOpts.some(function(o) { return o[0] === fCur; })) fOpts.push([fCur, 'An effect no longer there']);
+    dbxCap(wrap, 'Each hit gets'); wrap.appendChild(select('sys-area-fx', fOpts, fCur, 'An effect put on each token hit, even where its armour stops all the damage'));
+    if (r.resistBy) wrap.appendChild(checkLabel('sys-area-all', r.resistAll === true, 'Each one resists', 'Each token in the line gets the Resisted by roll, with no target mark needed'));
+    return wrap;
+}
+function areaEntryAt(t) {
+    var cd = listOfCard(t); if (cd) { var rw = t.closest('.sys-list-roll'), rs = cd.list && Array.isArray(cd.list.rolls) ? cd.list.rolls : []; return { e: rw ? rs[+rw.dataset.ri] : null, list: true }; }
+    var row = t.closest('.sys-row'), id = row ? row.dataset.id : ''; return { e: (draft.rolls || []).filter(function(r) { return r && r.id === id; })[0] || null, list: false };
+}
+function onAreaEdit(t, typed) {
+    var c = t && t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-area-') < 0 || !t.closest) return false;
+    var isText = c.indexOf('sys-area-width') >= 0 || c.indexOf('sys-area-reach') >= 0; if (isText !== (typed === true)) return true;
+    var at = areaEntryAt(t), r = at.e; if (!r || typeof r !== 'object') return true;
+    if (c.indexOf('sys-area-on') >= 0) { if (t.checked) r.area = { shape: 'line' }; else { delete r.area; delete r.resistAll; } markDirty(); renderAll(); return true; }
+    var a = r.area && typeof r.area === 'object' ? r.area : null; if (!a) return true;
+    if (c.indexOf('sys-area-width') >= 0) { var n = Number(t.value); if (t.value !== '' && isFinite(n)) a.width = n; else delete a.width; }
+    else if (c.indexOf('sys-area-reach') >= 0) { var v = String(t.value || ''); if (v.trim()) a.reach = v; else delete a.reach; }
+    else if (c.indexOf('sys-area-dmg') >= 0) { if (t.value === '') delete a.dmg; else a.dmg = at.list ? +t.value : t.value; }
+    else if (c.indexOf('sys-area-fx') >= 0) { if (t.value) a.fx = t.value; else delete a.fx; }
+    else if (c.indexOf('sys-area-all') >= 0) { if (t.checked) r.resistAll = true; else delete r.resistAll; }
+    markDirty(); patchErrors(); return true;
 }
 function checkLabel(cls, on, text, title) { var l = el('label', 'sys-check'), cb = el('input', cls); cb.type = 'checkbox'; cb.checked = !!on; l.appendChild(cb); l.appendChild(document.createTextNode(' ' + text)); if (title) l.title = title; return l; }
 function listOfCard(target) { var cd = target && target.closest ? target.closest('.sys-list-card') : null; if (!cd) return null; return (draft.fields || []).find(function(x) { return x.id === cd.dataset.lid; }) || null; }
@@ -11101,6 +11148,7 @@ function onInput(e) {
     if (onCalendarInput(t)) return;   // item 20 K1
     if (onDamageInput(t)) return;   // 1.5.6: the Taking damage box
     if (typeof onBlastInput === 'function' && onBlastInput(t)) return;   // 1.5.8 explosives
+    if (typeof onAreaEdit === 'function' && onAreaEdit(t, true)) return;   // 1.6.0: a line a roll hits
     if (typeof coverHitInput === 'function' && coverHitInput(t)) return;   // 1.6.0: where a hit behind cover lands
     if (onChecksInput(t)) return;   // 1.6.0: the critical range and a named success
     if (typeof onHoldInput === 'function' && onHoldInput(t)) return;   // 1.6.0 Who holds whom
@@ -11352,6 +11400,7 @@ function onChange(e) {
     if (c.indexOf('sys-combat-roller') >= 0) { draft.combat.blastRoller = t.value; markDirty(); patchErrors(); return; }
     if (typeof onHoldChange === 'function' && onHoldChange(t)) return;   // 1.6.0 Who holds whom
     if (typeof onBlastChange === 'function' && onBlastChange(t)) return;   // 1.5.8 explosives
+    if (typeof onAreaEdit === 'function' && onAreaEdit(t, false)) return;   // 1.6.0: a line a roll hits
     if (typeof onDefendChange === 'function' && onDefendChange(t)) return;   // 1.6.0: a blast's own Defense roll
     if (c.indexOf('sys-combat-checks') >= 0) { if (t.value === 'under3d6' || t.value === 'fixed') draft.combat.checks = t.value; else delete draft.combat.checks; markDirty(); patchErrors(); renderCombat(); return; }   // Stage 6 F8 (1.6.0: or criticals at fixed rolls, whose two boxes it shows)
     if (c.indexOf('sys-combat-hp') >= 0) { draft.combat.hpResource = t.value; markDirty(); patchErrors(); return; }

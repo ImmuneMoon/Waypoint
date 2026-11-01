@@ -10487,6 +10487,7 @@ function areaAfter(camp, entry, vd, malf, aim, ch, priv, vars, row, map, tok, fr
     if (!map || !tok) { if (window.wpStepLog) window.wpStepLog('line v1', 'no-token', {}); return null; }
     var q = null; try { q = F.evaluate(ar.reach, { vars: vars, random: function() { throw new Error('no dice'); } }); } catch (e) { q = null; } var reach = q && q.ok && typeof q.value === 'number' && isFinite(q.value) ? Math.max(0, Math.min(100000, q.value)) : 0;
     var ids = reach > 0 ? areaTokens(camp, map, tok, aim, ar.width, reach) : [], mapId = typeof map.id === 'string' ? map.id : tok.mapId, by = { by: ch.id, dmg: ar.dmg, fx: ar.fx, row: row && typeof row.r === 'string' ? { f: row.f, r: row.r } : null, label: String(entry.label || 'Line').split('{')[0].trim().slice(0, 50), gm: entry.vis === 'gm' }; if (from) by.from = from;   // from: the player who pressed, whose card the damage is
+    if (priv === true) by.priv = true;   // a line rolled in private stays private: its damage cards with it
     ids.forEach(function(tid) {
         var w = map.whiteboard.filter(function(x) { return !!x && x.id === tid; })[0], tc = w && camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null; if (!tc || tc.id === ch.id) return;
         var hit = Object.assign({}, by, { to: tc.id, nm: w.charName || w.name || tc.name });
@@ -10504,7 +10505,7 @@ function areaHit(camp, h) {
         if (res && res.ok) { var vals = {}; vals[fl.id] = res.value; if (res.clamp) Object.keys(res.clamp).forEach(function(k) { vals[k] = res.clamp[k]; }); tc.values = tc.values || {}; Object.keys(vals).forEach(function(k) { tc.values[k] = vals[k]; }); tc.updated = Date.now(); if (net.active && net.role === 'host' && typeof net.syncCharDelta === 'function') net.syncCharDelta(tc.id, vals); if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(tc.id); if (typeof net.damageCard === 'function') net.damageCard(tc, [(h.gm ? 'A line' : h.label) + ':', (def.vis === 'gm' ? 'An effect' : String(def.name || 'An effect').slice(0, 60)) + (onB && !res.again ? ' is on already.' : ' is on.')]); }
     }
     if (!ch || h.dmg === undefined) return;
-    var ent = null, o = { charId: ch.id, label: (h.gm ? 'Line' : h.label) + ' damage', landOn: tc.id, onName: String(h.nm || tc.name || '').slice(0, 60), gmOnly: h.gm === true }; if (h.from) o.from = h.from;
+    var ent = null, o = { charId: ch.id, label: (h.gm ? 'Line' : h.label) + ' damage', landOn: tc.id, onName: String(h.nm || tc.name || '').slice(0, 60), gmOnly: h.gm === true }; if (h.from) o.from = h.from; if (h.priv === true) o.priv = true;
     if (typeof h.dmg === 'number' && h.row) { (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (f && f.id === h.row.f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) ent = f.list.rolls[h.dmg] || null; }); o.row = { f: h.row.f, r: h.row.r, i: h.dmg }; }
     else if (typeof h.dmg === 'string') { (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (r && r.id === h.dmg) ent = r; }); o.act = h.dmg; }
     if (!ent || ent.dmg !== true || typeof ent.formula !== 'string' || !ent.formula || typeof net.diceRoll !== 'function') return;

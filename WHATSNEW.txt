@@ -1175,6 +1175,7 @@ For system builders, more
 - Under Full auto, a blast that waits for Defense rolls now says so on its card.
   Before, the card said Applied too soon.
 - A hold taken while All holds end where is true now ends at once.
+- A line rolled in private now keeps its damage cards private too.
 - A line's damage card from a player's press now reads as that player's card.
   Before, it read as the GM's.
 - An effect that is on already now says so when a roll's Then, a line's hit or

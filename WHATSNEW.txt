@@ -641,6 +641,9 @@ Fog, smoke and difficult terrain
   the room. What a player's tokens are sent is unchanged.
 
 Systems
+- An Any wound row can read what stands where a blow lands. Pick a list and a
+  formula that is true for a row at the struck location. Held.count then says how
+  many there are, and the row can write a number stat on each of them.
 - A list can move fields when a row is taken off for good. Up to 4 changes run
   with the removal, each reading the row and the sheet as the one before left
   it. Switching a row off runs none, and the removal's Undo takes them back too.

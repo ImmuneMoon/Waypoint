@@ -1134,6 +1134,9 @@ For system builders, more
   Before, a plain Grab or Keep rolled and nothing happened.
 - In the System editor, a press on a list's card or on the Combat card keeps your
   place, so the arrow keys step a menu and Space takes a tick back off.
+- A blast's Defense roll now counts when it is a plain roll with no Needs or
+  Then. Before, its card rolled, the blast never heard of it, and only Apply
+  now let the blast go, whole.
 
 WAYPOINT 1.5.9 — What's New
 ============================

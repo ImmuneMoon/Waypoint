@@ -10592,7 +10592,7 @@ function diceSessionReset(clearChat) {
 // [netcheck:diceroll-start]
 net.diceRoll = function(expr, o) {
     o = o || {}; var D = DC(), F = window.wpFormula;
-    var atN = net._attNext; if (atN && !o.att && o.charId === atN.charId && ((o.act === atN.act && !o.row && !atN.row) || (atN.row && o.row && !o.act && o.row.f === atN.row.f && o.row.r === atN.row.r && o.row.i === atN.row.i))) o = Object.assign({}, o, { att: atN.att });   // 1.6.0: or a list's roll on one row   // 1.6.0 (B2): a resist card's press (sheets.js runDue) names the attempt it answers
+    var atN = net._attNext; if (atN && !o.att && o.charId === atN.charId && (((o.act === atN.act || !o.act) && !o.row && !atN.row) || (atN.row && o.row && !o.act && o.row.f === atN.row.f && o.row.r === atN.row.r && o.row.i === atN.row.i))) { o = Object.assign({}, o, atN.act ? { act: atN.act } : null, { att: atN.att }); net._attNext = null; }   // 1.6.0: a plain roll's button names nothing, so the card names it, and the first roll takes it: a blast its answer lets go rolls as itself   // 1.6.0: or a list's roll on one row   // 1.6.0 (B2): a resist card's press (sheets.js runDue) names the attempt it answers
     if (!D || !F) return { error: 'Dice are not available.' };
     if (net.stream) return { error: 'Not from the stream window.' };
     if (window.wpVtt && !window.wpVtt.on('dice')) return { error: D.denyText('off') };

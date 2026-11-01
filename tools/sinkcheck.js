@@ -5959,7 +5959,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     }
     {   // 1.6.0 A blast's own Defense roll: an item's name comes from a file. It reaches the card as a called roll's by, which the wire cleans and dice.js draws as text
         const DCd = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dicecore.js')).split(String.fromCharCode(92)).join('/')), djD = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dice.js'), 'utf8'), wbD = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8');
-        const dd = DCd.cleanDue({ type: 'due', id: 'r_abcdefgh', from: { id: 'u_gm', name: 'GM', gm: true }, charId: 'c_b', act: 'r_dd', label: 'Dodge', why: 'called', round: 1, roll: 1, att: 'a_abcd1234', by: '<img src=x onerror=alert(1)>', ts: 1 });
+        const dd = DCd.cleanDue({ type: 'due', id: 'r_abcdefgh', from: { id: 'u_gm', name: 'GM', gm: true }, charId: 'c_b', act: 'r_dd', label: 'Evade', why: 'called', round: 1, roll: 1, att: 'a_abcd1234', by: '<img src=x onerror=alert(1)>', ts: 1 });
         check('1.6.0 a blast named on a Defense card is plain text: the card keeps it as the text of a called roll, the card draws it through el, and a GM-only blast names none',
             !!dd && dd.by === '<img src=x onerror=alert(1)>' && djD.includes("(rec.by ? 'called for by ' + rec.by : 'called for')") && wbD.includes("b.gm === true || !b.name ? 'a blast' : b.name"));
     }

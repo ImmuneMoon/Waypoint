@@ -3489,6 +3489,7 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         var lb = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Roll', b = el('button', 'tool ghost sheet-item-roll', lb); b.type = 'button'; if (typeof dieFor === 'function') b.insertBefore(dieFor(r.die, r.formula), b.firstChild); b.title = nm + ' \u00b7 ' + lb + ': ' + r.formula + ' (shift-click adds a modifier)'; if (typeof r.icon === 'string' && r.icon) b.insertBefore(iconNode(r.icon, 'sheet-item-rollico'), b.lastChild); var figR = typeof rollFigText === 'function' ? rollFigText(r, ri, spec, res, rid) : ''; if (figR) b.appendChild(el('span', 'sheet-item-rollfig', figR));   // 1.6.0: its own icon after its die, and R7 its figure in a box at its end   // 1.5.8: its die (1.5.9: its title back, which this comment had swallowed)
         var nOk = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false, withE = !!(Array.isArray(r.then) && r.then.length) || !!r.needs || !!r.malf || !!r.cost || !!r.dmg || !!r.showIf;   // Stage 6 HUD R2b: its needs for this row; a roll with consequences or needs names its index
         if (r.needsGm === true && !isClient()) nOk = true;   // 1.6.0 The GM may press past it
+        if (r.job) withE = true;   // 1.6.0: a job names its index, so the host counts it
         if (r.to === 'near') withE = true;   // 1.5.9 (book es/et plan, section 3): one that Applies to an adjacent character names its index too, so the host finds whom it may reach
         if (r.resisted === true || typeof r.resistBy === 'string') withE = true;   // 1.6.0 (B2): one its target may resist names its index, so the host finds the whole entry
         if (r.burst) withE = true;   // 1.6.0 A burst: its host keeps the record, so it finds the whole entry
@@ -3518,7 +3519,7 @@ function ctCtl(host, entry, c, f, spec, editable, cells) {
     var rid = rowIdOf(entry), byKey = {}; (Array.isArray(cells) ? cells : []).forEach(function(x) { if (x && typeof x.key === 'string') byKey[x.key] = x; });
     spec.counters.forEach(function(t) {
         if (!t || typeof t.key !== 'string' || (typeof partHere === 'function' && !partHere(t, _placeWant, _fxView === 'hud'))) return;   // 1.6.0 R2: its place
-        var cell = byKey[t.key], v = cell && typeof cell.value === 'number' ? cell.value : (entry.ct && typeof entry.ct[t.key] === 'number' ? entry.ct[t.key] : (t.def || 0)), mx = cell && typeof cell.max === 'number' ? cell.max : null;
+        var cell = byKey[t.key], v = cell && typeof cell.value === 'number' ? cell.value : (entry.ct && typeof entry.ct[t.key] === 'number' ? entry.ct[t.key] : (t.def || 0)), mx = cell && typeof cell.max === 'number' ? cell.max : null, ofJ = cell && typeof cell.of === 'number' ? cell.of : null;   // 1.6.0: the turns of a job it counts
         if (mx === 0 && !(entry.ct && typeof entry.ct[t.key] === 'number' && entry.ct[t.key] > 0)) return;   // 1.5.8: a counter whose most works out to 0 on this row holds nothing here (a sword's Charges): no chip
         var tLb = (cell && typeof cell.label === 'string' && cell.label) || t.label || t.key, w = el('span', 'sheet-chip sheet-item-ct'); w.title = tLb;   // 1.6.0: this row's other name, where one holds
         w.appendChild(el('span', 'sheet-item-ctl', tLb + ' '));
@@ -3527,7 +3528,7 @@ function ctCtl(host, entry, c, f, spec, editable, cells) {
         if (tmC) w.title = (t.label || t.key) + ': ' + ctClockWords(tmC);
         if (ed) { var mb = el('button', 'tool ghost sheet-item-ctb', '\u2212'); mb.type = 'button'; mb.title = 'One less'; mb.disabled = v <= 0; mb.addEventListener('click', function() { set(v - 1); }); w.appendChild(mb); }
         if (tmC && tmC.end && v <= 0) w.appendChild(el('b', 'sheet-item-ctv sheet-item-ctend', tmC.end));   // 1.6.0: a count down at 0 shows its word (Spoiled)
-        else w.appendChild(el('b', 'sheet-item-ctv', fmtNum(v) + (mx !== null ? '/' + fmtNum(mx) : '')));
+        else w.appendChild(el('b', 'sheet-item-ctv', fmtNum(v) + (mx !== null ? '/' + fmtNum(mx) : ofJ !== null ? '/' + fmtNum(ofJ) : '')));
         if (ed) { var pb = el('button', 'tool ghost sheet-item-ctb', '+'); pb.type = 'button'; pb.title = 'One more'; pb.disabled = mx !== null && v >= mx; pb.addEventListener('click', function() { set(v + 1); }); w.appendChild(pb); }
         host.appendChild(w);
     });
@@ -6646,7 +6647,19 @@ function rollExtras(row, rr, sp, isApply) {
     if (cur && !hit) { var ox = el('option', null, 'Shows ' + cur + ' (not on this list)'); ox.value = cur; ox.selected = true; s.appendChild(ox); }
     s.addEventListener('change', function(e) { e.stopPropagation(); if (s.value) rr.show = s.value; else delete rr.show; ch(); });
     row.appendChild(s);
+    if (typeof rollJobBox === 'function') { var jbB = rollJobBox(rr, sp, ch); if (jbB) row.appendChild(jbB); }   // 1.6.0
     if (sp && sp.lvl && typeof sp.lvl === 'object') { var akL = checkLabel('sys-rlasklvl', rr.askLvl === true, 'Asks the level', 'Pressed, it asks which level to run at, from the list\u2019s lowest to the row\u2019s own, and Row.lvl reads that level. A spell of level 3 cast at level 1'), akC = akL.firstChild; akC.addEventListener('change', function(e) { e.stopPropagation(); if (akC.checked) rr.askLvl = true; else delete rr.askLvl; ch(); }); row.appendChild(akL); }   // 1.6.0, backlog 180 R12
+}
+// 1.6.0: a job counted across turns on a list roll: how many turns, the counter it counts on, and whether a stop keeps its progress. Only where the list has a counter
+function rollJobBox(rr, sp, ch) {
+    var cts = sp && Array.isArray(sp.counters) ? sp.counters.filter(function(t) { return t && typeof t.key === 'string' && t.key; }) : [], jb = rr.job && typeof rr.job === 'object' ? rr.job : null; if (!cts.length && !jb) return null;
+    var w = el('span', 'sys-rljob'), put = function() { if (!tI.value.trim() && !cS.value) { delete rr.job; return; } var j = rr.job && typeof rr.job === 'object' ? rr.job : (rr.job = {}); j.turns = tI.value.slice(0, LIMITS.formula); j.ct = cS.value; ch(); };
+    var tI = input('sys-rljobturns field', jb && typeof jb.turns === 'string' ? jb.turns : '', 'A job of this many turns, a formula with no dice of the row\u2019s names: each press adds one, and the roll is made at the last press. Empty: rolled at once', 'Job, in turns'); tI.maxLength = LIMITS.formula;
+    var cS = el('select', 'sys-rljobct'); cS.title = 'The counter of this list that keeps the job\u2019s count'; [['', 'Counted on\u2026']].concat(cts.map(function(t) { return [t.key, t.label || t.key]; })).forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (jb && jb.ct === o[0]) op.selected = true; cS.appendChild(op); });
+    var kL = checkLabel('sys-rljobkeep', !!jb && jb.keep === true, 'Keeps progress', 'A stop keeps the count. Off: a turn that ends with no press sets it back to 0, a lost action among them'), kC = kL.firstChild;
+    tI.addEventListener('input', function(e) { e.stopPropagation(); put(); }); cS.addEventListener('change', function(e) { e.stopPropagation(); put(); });
+    if (kC && kC.addEventListener) kC.addEventListener('change', function(e) { e.stopPropagation(); if (rr.job && typeof rr.job === 'object') { if (kC.checked) rr.job.keep = true; else delete rr.job.keep; ch(); } });
+    w.appendChild(tI); w.appendChild(cS); w.appendChild(kL); return w;
 }
 // [systemcheck:rowswitchbox-end]
 // [systemcheck:partcaps-start]
@@ -6956,6 +6969,7 @@ function refreshErrors() {
             if (capKept.length < capOk) errs.push({ message: 'At most: a level is capped once, and or higher once, ' + LIMITS.lvlCaps + ' caps at most, so Save keeps ' + capKept.length + '.' });
         }
         if (typeof startsSay === 'function') startsSay(f).forEach(function(m) { errs.push({ message: m }); });   // 1.6.0 Starts with, as the cleaner reads it
+        if (Array.isArray(sp.rolls) && typeof cleanListSpec === 'function') sp.rolls.forEach(function(rj) { if (!rj || typeof rj !== 'object' || !rj.job || typeof rj.job !== 'object') return; var jk = (cleanListSpec({ counters: sp.counters, rolls: [{ label: 'x', formula: '1', job: rj.job }] }, true, F()) || {}).rolls; if (!(jk && jk[0] && jk[0].job)) errs.push({ message: 'Roll \u201c' + (rj.label || 'Roll') + '\u201d: a job needs its turns and a counter of this list, so Save drops it.' }); });   // 1.6.0, as the cleaner reads it
         if (Array.isArray(sp.subject) && typeof cleanListSpec === 'function') { var sjKept = ((cleanListSpec({ subject: sp.subject }, true, F()) || {}).subject || []).length; if (sjKept < sp.subject.length) errs.push({ message: 'Subjects: a word needs a letter or a digit, goes once ignoring case and spaces, and ' + LIMITS.subjects + ' is the most, so Save keeps ' + sjKept + ' of ' + sp.subject.length + '.' }); }   // 1.6.0 Subjects, as the cleaner reads it
         if (sp.once && typeof sp.once === 'object' && typeof cleanListSpec === 'function') {   // 1.5.8 Counted once, as the cleaner reads it
             var onceK = (cleanListSpec(sp, true, F()) || {}).once;

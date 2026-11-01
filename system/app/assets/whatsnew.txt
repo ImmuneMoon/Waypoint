@@ -627,6 +627,10 @@ Systems, more
   that may read the row and how the roll went. Above 0 is paid in, below 0 is
   paid out, and the card says so. With too little held a player's roll lands
   none of its Then. Your own roll takes what is held and tells you.
+- A list roll can be a job of several turns, counted on one of the row's
+  counters. Each press adds one, and the row shows 2/5. The roll is made and its
+  Then runs at the last press. Keeps progress lets a job be left and picked up.
+  Without it, a turn that ends with no press sets the count back to 0.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

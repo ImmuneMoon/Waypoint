@@ -8245,6 +8245,7 @@ function handleMessage(msg, conn) {
             var rF = fillF ? Su.fillMaking(campU.system, chU, fillF, Fu, { view: viewF, lib: pfF.lib, now: nowU, rowOp: rdU ? rdU.rowOp : null }) : null;
             if (!rF || !rF.ok) { ansU({ reason: 'unread' }); return; }
             var leftF = rF.left + (typeof fillF.lost === 'number' && isFinite(fillF.lost) ? Math.max(0, fillF.lost | 0) : 0);   // rows the file named and nothing here could place (read on the players' view: no oracle)
+            var nmF = fillF && net.cleanCharName ? net.cleanCharName(fillF.name) : ''; if (nmF) chU.name = nmF;   // a file names the character it fills, as the player may while making
             chU.values = rF.values; chU.updated = nowU;
             if (rF.looks) chU.looks = rF.looks; else delete chU.looks;   // item 35: the looks after the fill, cleaned against the values as kept (a text the fill changed has lost its old look)
             if (net.sendCharTo) net.sendCharTo(profU.id, qu.charId);   // theirs alone while it is made

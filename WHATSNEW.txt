@@ -1163,6 +1163,8 @@ For system builders, more
   dodged grab held all the same.
 - A press on a thrown blast with a token under it now goes to the token, as it
   does under a ruler. Before, a drag meant for the token moved the blast.
+- A file that fills a character in the making now names it too. Before, the
+  sheet's title kept the player's name.
 - In the System editor, a press on a list's card or on the Combat card keeps your
   place, so the arrow keys step a menu and Space takes a tick back off.
 - A blast's Defense roll now counts when it is a plain roll with no Needs or

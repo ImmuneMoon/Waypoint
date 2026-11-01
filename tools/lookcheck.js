@@ -1383,7 +1383,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         'netCodeInput', 'netJoinBtn', 'netJoinPassInput', 'netRoster', 'netVttLine', 'netPlayersBtn', 'netEndBtn', 'netLeaveBtn'];
     const TICKS = [['netWaitingSight', 'Waiting tokens see around them under fog', 'Off, they see only what you have revealed.'], ['netMakeFile', '&hellip;may start it from a file', 'With Import on the new sheet. You review it when they press Done.']];
     const UNDER = [['netStageSelect', 'Follow me moves the whole table with you. A map keeps it on that map.'], ['netStageFallbackSelect', 'Follow me puts them on your map once. After that they stay put.'],
-        ['netWaitingSelect', 'A waiting token is their picture in a dashed outline. They can move it.'], ['netMakeSelect', 'To ask one player, press their chip, then Let them make a character.'],
+        ['netWaitingSelect', 'A waiting token is their picture in a dashed outline. They can move it.'], ['netMakeSelect', 'Right-click their chip for Let them make a character.'],
         ['netNotepadBtn', 'A throwaway notepad the whole table sees as you type.'], ['netTravelLockBtn', 'While travel is locked, portals and room links do not work for players. Tokens still move.'],
         ['netPauseBtn', 'While the table is paused, players cannot move tokens or travel. Chat stays open.'], ['netJoinPassInput', 'Your GM sends you the room code. Type or paste it with or without the hyphen.']];
     const ticks = [...netHtml.matchAll(/<input type="checkbox" id="([A-Za-z]+)"> <span class="set-name"><span>([^<]+)<\/span><small>([^<]+)<\/small><\/span><\/label>/g)].map(m => [m[1], m[2], m[3]]);

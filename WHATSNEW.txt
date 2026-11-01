@@ -1137,7 +1137,8 @@ Small fixes from a long test by hand
 - After Apply now, a Defense card nobody answered says it is over, and its
   Roll button is gone.
 - A token linked to another sheet takes that sheet's name in its Character
-  Name box.
+  Name box, and the map shows the new name at once.
+- An action that switches an effect says so on its button.
 - Sound effects stay muted through a reload, as Music does.
 - A roll kept private for a GM-only stat now says so, and no longer says it
   is on a GM-only item.

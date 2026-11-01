@@ -696,7 +696,7 @@ function wireCharSelect(w, rerender) {
     sel.addEventListener('change', function() {
         var v = sel.value;
         if (v === '__new') { newFromToken(w); toast('Character created from ' + (w.charName || 'this token') + '.'); }
-        else { linkToken(w, v); toast(v ? 'Token linked to ' + (charById(v) || {}).name + '.' : 'Token unlinked from its character.'); }
+        else { linkToken(w, v); toast(v ? 'Token linked to ' + (charById(v) || {}).name + '.' : 'Token unlinked from its character.'); if (window.appRender) window.appRender(); }   // the board draws its name
         if (rerender) rerender();
     });
     var ob = ui('wbCharOpen'); if (ob) ob.addEventListener('click', function() { openSheet(w.charId); });
@@ -4889,7 +4889,7 @@ function canRoll(c) { if (!c || !window.wpDice || !window.wpDice.rollFor) return
 // Stage 6 HUD H7: a viewer who may press an apply action on this character — the GM (who may write here), a player on their own character; the
 // sheets feature on (an apply moves the sheet, no dice)
 function canApply(c) { if (!c || !F()) return false; if (window.wpVtt && !window.wpVtt.on('sheets')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc && c.making !== 1); return canWrite(); }
-function applyTitle(r, sys) { return (Array.isArray(r.apply) ? r.apply : []).map(function(ch) { var f = sys && ch && ch.f ? fieldById(sys, ch.f) : null; return (ch && ch.c ? ch.c : f ? (f.label || f.key) : 'a value') + (ch && ch.set ? ' = ' : ch && ch.add ? ' + ' : ' \u2212 ') + ((ch && ch.formula) || '?'); }).join('; '); }
+function applyTitle(r, sys) { return (Array.isArray(r.apply) ? r.apply : []).map(function(ch) { if (ch && typeof ch.fx === 'string') { var dF = (sys && Array.isArray(sys.effects) ? sys.effects : []).filter(function(d) { return d && d.id === ch.fx; })[0]; return ((dF && dF.name) || 'An effect') + (ch.on === false ? ' off' : ' on'); } var f = sys && ch && ch.f ? fieldById(sys, ch.f) : null; return (ch && ch.c ? ch.c : f ? (f.label || f.key) : 'a value') + (ch && ch.set ? ' = ' : ch && ch.add ? ' + ' : ' \u2212 ') + ((ch && ch.formula) || '?'); }).join('; '); }
 function rollPick(r) { return Array.isArray(r.apply) ? 'Apply: ' + (r.label || 'Apply') : 'Roll: ' + (r.label || r.formula); }   // Stage 6 HUD H7: the Layout tab's name for a roll entry
 // Stage 6 HUD H7: an apply action's button — its label and look as a roll's; pressed, it moves its pools or numbers (applyAction). Inert in the
 // Layout preview and a pop-out, and for a viewer who may not change this character

@@ -8,7 +8,7 @@
 ![Multiplayer: peer-to-peer WebRTC](https://img.shields.io/badge/Multiplayer-peer--to--peer%20%28WebRTC%29-333333?logo=webrtc&logoColor=white)
 [![License: Terms of Use](https://img.shields.io/badge/License-Terms%20of%20Use-lightgrey)](license.txt)
 
-Current release: **Waypoint Alpha 1.5.9** — see [Releases](https://github.com/ImmuneMoon/Waypoint/releases) for downloads and notes.
+Current release: **Waypoint Alpha 1.6.0** — see [Releases](https://github.com/ImmuneMoon/Waypoint/releases) for downloads and notes.
 
 A portable desktop companion for tabletop RPG campaigns: linked data maps for the GM, hex-grid play maps with tokens and scene art for the table, planners for notes, and peer-to-peer multiplayer so a GM can host a session and players can join with a room code. Built on Electron. Every campaign lives in a plain `saves` folder beside the app, so backups and hand-offs are file copies.
 

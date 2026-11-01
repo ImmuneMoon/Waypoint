@@ -1727,9 +1727,9 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
             (Array.isArray(l.wears) ? l.wears : []).forEach(function(k) { var n = dmgStatOk(fl, l.list, k); if (n && ws.indexOf(n) < 0 && ws.length < DMG_LIM.wears) ws.push(n); });
             if (ws.length && pk && l.whole !== true) { lo.wears = ws; lo.pick = pk; }
             LAYER_WEAR.forEach(function(k) { var wt = cleanFormulaText(l[k]); if (wt) lo[k] = wt; });   // 1.6.0: what a hit wears, by formula (layerStep)
-            if (isObj(l.typed)) { var tyS = dmgStatOk(fl, l.list, l.typed.stat), tyP = cleanFormulaText(l.typed.plus); if (tyS && tyP) lo.typed = { stat: tyS, plus: tyP }; }   // 1.6.0: Type named by, both or neither
+            if (isObj(l.typed)) { var tyS = dmgStatOk(fl, l.list, l.typed.stat), tyP = cleanFormulaText(l.typed.plus), tyN = l.typed.stat === undefined || l.typed.stat === ''; if (tyP && (tyS || tyN)) lo.typed = tyS ? { stat: tyS, plus: tyP } : { plus: tyP }; }   // 1.6.0: Type named by, a stat and a formula; or the formula alone, which reads Blow.type for each part, so one row can stand against a family of types
             if (l.anyRow === true) lo.anyRow = true;   // 1.6.0: Every row, switched on or not (a location's switch may be the GM's own)
-            if (l.whole === true) lo.whole = true;   // 1.6.0: Every location, one figure and one wear stat (layerCap)
+            if (l.whole === true) { lo.whole = true; if (l.anyPool === true) lo.anyPool = true; }   // 1.6.0: Every location, one figure and one wear stat (layerCap), and Any pool: a part wears it whichever pool it took
             lys.push(lo);
         }); if (lys.length) out.layers = lys;
         var wps = []; (Array.isArray(d.weapons) ? d.weapons : []).forEach(function(l) {
@@ -1904,7 +1904,7 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
             var hasOn = isObj(f.list.on) && ly.anyRow !== true, bw = Object.assign({}, blow0, { type: place }); if (P.kd) bw.kind = kindAt(P.kd);
             src.forEach(function(row) {
                 if (!isObj(row) || row.hid === 1 || (hasOn && row.on !== true)) return;
-                var rid = rowIdOf(row), rv = rid ? Rp.row(f.id, rid) : null; if (!rv || Math.round(num(R.stat(f, row, ly.typed.stat))) !== place) return;
+                var rid = rowIdOf(row), rv = rid ? Rp.row(f.id, rid) : null; if (!rv || (ly.typed.stat && Math.round(num(R.stat(f, row, ly.typed.stat))) !== place)) return;
                 var both = function(l, text) { if (/^hit\./.test(l)) return pv(l.replace(/^hit\./, 'row.'), text); return rv(l, text); }, listed = Math.floor(num(ev(ly.at, both))); if (listed <= 0) return;
                 var w = num(R.stat(f, row, wearKey(ly, both))); if (listed - w <= 0) return;   // broken there
                 add += num(ev(ly.typed.plus, layerVars(listed, w, bw, both, layerCap(ly, listed, w, ev, both, bw))));
@@ -1996,7 +1996,7 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
                 var top = each[0], wkW = 0, wkA = 0, wkD = 0; each.forEach(function(e) { if (e.ls > top.ls) top = e; wkW += e.P.wound; wkA += e.P.amt; wkD += e.P.dW; });
                 var listed = top.ls, both = top.both;
                 var wk = wearKey(ly, both);   // 1.6.0: the stat worn where it struck
-                var whole = ly.whole === true, w = num(R.stat(f, row, wk)), beats = whole ? each.some(function(e) { return e.P.mp && e.P.wound > 0; }) : wkW > 0 && wkA > Math.max(0, listed - w); if (!beats && !wkD) return;   // the blow is more than it as it stands   // 1.6.0: Every location wears where a part it stands against took the main pool
+                var whole = ly.whole === true, w = num(R.stat(f, row, wk)), beats = whole ? each.some(function(e) { return (e.P.mp || ly.anyPool === true) && e.P.wound > 0; }) : wkW > 0 && wkA > Math.max(0, listed - w); if (!beats && !wkD) return;   // the blow is more than it as it stands   // 1.6.0: Every location wears where a part it stands against took the main pool
                 var capW = layerCap(ly, listed, w, ev, both, blowW); if (whole && w >= capW) return;   // 1.6.0: down, and its wear left as it stands
                 var step = (beats ? layerStep(ly, info.major, listed, w, ev, both, blowW, capW) : 0) + wkD, nw = Math.min(capW, w + step); if (nw === w) return;   // 1.6.0: the layer's own wear cap where it has one   // 1.6.0: by the layer's own formulas where it has them
                 dmgRowPut(row, wk, nw); changed = true;
@@ -6863,7 +6863,7 @@ function cleanLinks(raw, F) {
             if (Array.isArray(k.stations)) { var stS = [], stM = map(); k.stations.slice(0, 32).forEach(function(s) { var t = typeof s === 'string' ? s.trim() : ''; if (stS.length >= LINK_STATIONS || !STATION_KEY.test(t) || CREW_WORDS[lower(t)] || stM[lower(t)]) return; stM[lower(t)] = 1; stS.push(t); }); if (stS.length) lo.stations = stS; }
             if (lo.stations && typeof k.most === 'number' && fin(k.most)) { var moS = Math.min(STATION_MOST, lo.stations.length, Math.floor(k.most)); if (moS >= 2) lo.most = moS; }   // 1.6.0 (the core's ruling: one hand may cover a second station): how many stations one crew sheet may hold at once (absent: one)
         }
-        if (k.kind === 'crew' && k.press === true) lo.press = true;   // 1.6.0 Its crew may press this sheet's rolls (crewPressOf)
+        if (k.kind === 'crew' && k.press === true) { lo.press = true; if (k.pressNamed === true) lo.pressNamed = true; }   // 1.6.0 Its crew may press this sheet's rolls (crewPressOf), and only those that name a station (found on a real build: every sheet shares a system's rolls, so 40 of a character's own filled the list before any row of the vehicle's)
         if (lo.group && Array.isArray(k.figs)) {   // the core handbook session's ask 6 (2026-10-29): figures each sheet of the group works out, each { key, formula }: a formula of the system's own names, no dice, worked out on each crew sheet (a rider's), read as <group>.max|min|sum.<key>
             var fgO = [], fgM = map(); k.figs.slice(0, 16).forEach(function(x) {
                 if (fgO.length >= LINK_FIGS || !isObj(x) || typeof x.key !== 'string') return;
@@ -6961,7 +6961,7 @@ function cleanCharStn(raw, sys, links) {
 // in the making, linked to vehId by a Crew link ticked so: { char, link, stns } or null. A roll's stations says which stations may press it (rollStationOk)
 var CREW_ROLLS = 40;
 function rollStations(raw) { if (!Array.isArray(raw)) return null; var out = [], seen = map(); raw.slice(0, 32).forEach(function(s) { var t = typeof s === 'string' ? s.trim() : ''; if (out.length < LINK_STATIONS && STATION_KEY.test(t) && !seen[lower(t)]) { seen[lower(t)] = 1; out.push(t); } }); return out.length ? out : null; }
-function rollStationOk(r, stns) { var w = isObj(r) && Array.isArray(r.stations) ? r.stations : null; if (!w || !w.length) return true; var have = (Array.isArray(stns) ? stns : []).map(lower); return w.some(function(s) { return have.indexOf(lower(s)) >= 0; }); }
+function rollStationOk(r, stns, named) { var w = isObj(r) && Array.isArray(r.stations) ? r.stations : null; if (!w || !w.length) return named !== true; var have = (Array.isArray(stns) ? stns : []).map(lower); return w.some(function(s) { return have.indexOf(lower(s)) >= 0; }); }
 function crewPressOf(sys, chars, vehId, byId, pid) {
     if (!sys || !Array.isArray(sys.links) || !isObj(chars) || typeof byId !== 'string' || typeof vehId !== 'string' || byId === vehId || !pid || !hasOwn(chars, byId) || !hasOwn(chars, vehId)) return null;
     var c = chars[byId], hit = null; if (!isObj(c) || c.npc || c.ownerId !== pid || c.making === 1 || !isObj(c.links)) return null;
@@ -6970,9 +6970,9 @@ function crewPressOf(sys, chars, vehId, byId, pid) {
 }
 // What one crew member may press on a vehicle, from its copy in the players' view: a system roll, and a list's roll on each row its Shown where lets stand. A
 // roll that answers something (Resists an attempt), one used on someone next to you, the initiative roll and one that asks a level are not on offer
-function crewRollsOf(view, veh, stns, F) {
+function crewRollsOf(view, veh, stns, F, named) {
     var out = [], vars = null; if (!isObj(view) || !isObj(veh)) return out;
-    var offered = function(r) { return isObj(r) && typeof r.formula === 'string' && r.formula && !r.apply && r.init !== true && r.resist !== true && r.to !== 'near' && r.askLvl !== true && rollStationOk(r, stns); };
+    var offered = function(r) { return isObj(r) && typeof r.formula === 'string' && r.formula && !r.apply && r.init !== true && r.resist !== true && r.to !== 'near' && r.askLvl !== true && rollStationOk(r, stns, named); };
     var nameOf = function(r) { var t = typeof r.label === 'string' ? r.label.trim() : ''; return t && t.indexOf('{') < 0 ? t : 'Roll'; };
     (Array.isArray(view.rolls) ? view.rolls : []).forEach(function(r) { if (out.length < CREW_ROLLS && offered(r)) out.push({ act: r.id, expr: r.formula, label: nameOf(r) }); });
     (Array.isArray(view.fields) ? view.fields : []).forEach(function(f) {

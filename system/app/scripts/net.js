@@ -3378,7 +3378,7 @@ function crewRollsFor(v, view) {
     view.links.forEach(function(k) {
         if (!k || k.kind !== 'crew' || k.press !== true || typeof v.links[k.id] !== 'string') return;
         var veh = own(camp.chars, v.links[k.id]) ? camp.chars[v.links[k.id]] : null; if (!veh || veh.making === 1) return;
-        var copy = S.charForView(veh, view, { lib: fxLib(camp.system), items: itemLib(camp.system), full: camp.system }), l = copy ? S.crewRollsOf(view, copy, v.stn ? S.stationsIn(k, v.stn[k.id]) : [], F) : [];
+        var copy = S.charForView(veh, view, { lib: fxLib(camp.system), items: itemLib(camp.system), full: camp.system }), l = copy ? S.crewRollsOf(view, copy, v.stn ? S.stationsIn(k, v.stn[k.id]) : [], F, k.pressNamed === true) : [];
         if (l.length) (out = out || {})[k.id] = l;
     });
     return out;
@@ -8765,7 +8765,7 @@ function handleMessage(msg, conn) {
                 var cmQ = wantQ ? Dq.composeModifier(wantQ, (q.mod || 0) + (swQ ? swQ.v : 0), Fq.parse) : null;
                 if (!cmQ || !cmQ.ok || cmQ.expr !== q.expr) { denyQ('error', { error: { message: 'That roll does not match its button now.', pos: 0, len: 0 } }); return; }
                 if (pressQ && (actQ.init === true || actQ.resist === true || actQ.to === 'near' || actQ.askLvl === true)) { denyQ('error', { error: { message: 'That roll is not one a crew member presses.', pos: 0, len: 0 } }); return; }
-                if (pressQ && !SQ.rollStationOk(actQ, pressQ.stns)) { denyQ('error', { error: { message: 'That roll is pressed from another station.', pos: 0, len: 0 } }); return; }
+                if (pressQ && !SQ.rollStationOk(actQ, pressQ.stns, pressQ.link.pressNamed === true)) { denyQ('error', { error: { message: 'That roll is pressed from another station.', pos: 0, len: 0 } }); return; }
                 if (q.att && actQ.resist !== true && !(typeof attemptRec === 'function' && attemptRec(q.att) && attemptRec(q.att).blow)) { denyQ('error', { error: { message: 'That roll does not resist an attempt.', pos: 0, len: 0 } }); return; }   // 1.6.0 (B2)
                 if (q.on && actQ.to !== 'near') { denyQ('error', { error: { message: 'That cannot be used on someone else.', pos: 0, len: 0 } }); return; }   // 1.5.9 (book es/et plan, section 3)
                 if (actQ.to === 'near') {   // judged on the host's own map before anything is rolled; OnSelf in its formula, its needs and its Then, 1 on themselves and 0 on another

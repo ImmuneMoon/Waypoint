@@ -1041,8 +1041,9 @@ Small fixes from a long test by hand
   when one comes on, a heavier effect that would end sooner takes the later end.
 - A Crew link can let its crew press a vehicle's rolls. The rolls stand under the
   link on their own sheet. A press spends their own action and lands on the
-  vehicle. A roll can name the stations that may press it, and formulas read the
-  sheet that pressed as Presser.<name>.
+  vehicle. A roll can name the stations that may press it, and Only rolls that
+  name a station leaves out the rest. Formulas read the sheet that pressed as
+  Presser.<name>.
 
 WAYPOINT 1.5.9 — What's New
 ============================

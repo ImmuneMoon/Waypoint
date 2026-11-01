@@ -9040,6 +9040,7 @@ function renderLinks() {
             var gl = el('label', 'sys-combat-item'); gl.appendChild(el('span', 'sys-num-cap', 'Vehicle reads crew as')); var gi = input('sys-link-group field', typeof k.group === 'string' ? k.group : '', 'The key the vehicle\u2019s formulas read its crew by: Crew reads Crew.count, Crew.max.Piloting, and Crew.Pilot.max.Piloting for those at the Pilot station. Blank: the vehicle reads no crew', 'Crew'); gi.maxLength = LIMITS.key; gl.appendChild(gi); rw.appendChild(gl);
             var ml = el('label', 'sys-combat-item'); ml.appendChild(el('span', 'sys-num-cap', 'One holds')); var mi = el('input', 'field sys-link-most'); mi.type = 'number'; mi.min = '1'; mi.max = '4'; mi.step = '1'; mi.value = typeof k.most === 'number' ? String(k.most) : '1'; mi.title = 'How many stations one crew member may hold at once, 1 to 4, as one hand covering a second station. Their sheet reads ' + (k.key || 'Vehicle') + '.stations as how many they hold, so a formula can take a penalty'; ml.appendChild(mi); rw.appendChild(ml);
             rw.appendChild(checkLabel('sys-link-press', k.press === true, 'Its crew may press this sheet\u2019s rolls', 'A crew member gets the vehicle\u2019s rolls on their own sheet, under this link. A press spends their own action, and the roll lands on the vehicle. A roll can name its stations in the Rolls tab'));
+            if (k.press === true) rw.appendChild(checkLabel('sys-link-pressnamed', k.pressNamed === true, 'Only rolls that name a station', 'Every sheet shares the system\u2019s rolls. Ticked, a crew member gets only the rolls that name a station in the Rolls tab, and no other roll can be pressed'));
             var sl = el('label', 'sys-combat-item'); sl.appendChild(el('span', 'sys-num-cap', 'Stations')); var si = input('sys-link-stations field', Array.isArray(k.stations) ? k.stations.join(', ') : '', 'Where a crew member may sit, separated by commas, each a key: Pilot, Gunner, Engineer. A crew sheet picks one beside its vehicle, and a skill counts at a station only for those there. At most 8 (systemcore LINK_STATIONS)', 'Pilot, Gunner'); si.maxLength = 240; sl.appendChild(si); rw.appendChild(sl);
         }
         if ((k.kind === 'crew' || k.kind === 'mount') && typeof k.group === 'string' && k.group.trim()) {   // the core handbook session's ask 6 (2026-10-29): figures each sheet of the group works out, read as <group>.max|min|sum.<key>
@@ -9074,7 +9075,8 @@ function onLinkInput(t) {
 }
 function onLinkChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-link-') < 0) return false;
-    if (c.indexOf('sys-link-press') >= 0) { var rwP = t.closest('.sys-link-row'), arrP = linkDraft(), kP = rwP && arrP[+rwP.dataset.ki] && typeof arrP[+rwP.dataset.ki] === 'object' ? arrP[+rwP.dataset.ki] : null; if (kP) { if (t.checked) kP.press = true; else delete kP.press; markDirty(); patchErrors(); } return true; }   // 1.6.0
+    if (c.indexOf('sys-link-press') >= 0 && c.indexOf('sys-link-pressnamed') < 0) { var rwP = t.closest('.sys-link-row'), arrP = linkDraft(), kP = rwP && arrP[+rwP.dataset.ki] && typeof arrP[+rwP.dataset.ki] === 'object' ? arrP[+rwP.dataset.ki] : null; if (kP) { if (t.checked) kP.press = true; else { delete kP.press; delete kP.pressNamed; } markDirty(); renderLinks(); patchErrors(); } return true; }   // 1.6.0
+    if (c.indexOf('sys-link-pressnamed') >= 0) { var rwN = t.closest('.sys-link-row'), arrN = linkDraft(), kN = rwN && arrN[+rwN.dataset.ki] && typeof arrN[+rwN.dataset.ki] === 'object' ? arrN[+rwN.dataset.ki] : null; if (kN) { if (t.checked) kN.pressNamed = true; else delete kN.pressNamed; markDirty(); patchErrors(); } return true; }
     if (c.indexOf('sys-link-kind') < 0 && c.indexOf('sys-link-edit') < 0) return true;   // the boxes' change events (their input events did the work)
     var rw = t.closest('.sys-link-row'), i = rw ? +rw.dataset.ki : -1, arr = linkDraft(), k = arr[i] && typeof arr[i] === 'object' ? arr[i] : null; if (!k) return true;
     if (c.indexOf('sys-link-kind') >= 0) { k.kind = t.value === 'crew' ? 'crew' : 'mount'; markDirty(); renderLinks(); patchErrors(); return true; }   // 1.6.0 (CORE gap 16): a Crew link's own boxes follow
@@ -9478,12 +9480,13 @@ function damageBox(box, cm) {
             dbxCap(ww, 'Wears at most'); var wc = input('sys-dmgr-lwcap field', dbxStr(l.wearCap), 'The most wear this layer may hold there, where it is destroyed. Empty: twice its figure, so it wears to minus its figure. It reads what the boxes beside it read', 'e.g. Listed + 2 * Row.Dur'); wc.maxLength = LIMITS.formula; ww.appendChild(wc);
             dbxCap(ww, 'and a Major Wound'); var bm = input('sys-dmgr-lbrkm field', dbxStr(l.brokenMajorWear), 'What a Major Wound wears once this layer is broken there. Empty: as on a Major Wound above', 'e.g. ceil(Row.Dur / 4)'); bm.maxLength = LIMITS.formula; ww.appendChild(bm);
             ww.appendChild(dbxTick('sys-dmgr-lwhole', l.whole === true, 'Every location', 'Ticked: one figure and one wear stat wherever a blow lands, as a worn field. It wears when a part it stands against takes the main pool, whether or not the damage beat its figure, and a blow with no location wears it too. At its figure it is down, unless Wears at most says otherwise'));   // 1.6.0
+            if (l.whole === true) ww.appendChild(dbxTick('sys-dmgr-lpoolany', l.anyPool === true, 'Any pool', 'A part it stands against wears it whichever pool that part took, not only the main pool. A type ticked as wearing nothing still wears nothing'));   // 1.6.0
             if ((draft.fields || []).some(function(f) { return f && f.id === l.list && dbxObj(f.list) && dbxObj(f.list.on); })) ww.appendChild(dbxTick('sys-dmgr-lany', l.anyRow === true, 'Every row', 'Ticked: this layer wears every row of its list, switched on or not. Off: only the rows switched on, as a worn piece of armour is. For a list whose switch means something else, as a location the GM marks by hand.'));   // 1.6.0
             wrap.appendChild(ww);
         }
         if (l.list && nkL.length) {   // 1.6.0: what a row adds against one damage type (systemcore typedAdd)
             var tyL = dbxObj(l.typed) ? l.typed : {}, tw = el('div', 'sys-flags sys-dmgr-layer sys-dmgr-ltyped'); tw.dataset.li = String(i);
-            dbxCap(tw, 'Type named by'); tw.appendChild(select('sys-dmgr-ltstat', dbxOpts(['', 'No type'], nkL, tyL.stat), dbxStr(tyL.stat), 'A number stat of the row that names a damage type by its place in your list, 1 the first and 0 none. For a part of that type the row adds to the DR at the location'));
+            dbxCap(tw, 'Type named by'); tw.appendChild(select('sys-dmgr-ltstat', dbxOpts(['', 'Any type'], nkL, tyL.stat), dbxStr(tyL.stat), 'A number stat of the row that names a damage type by its place in your list, 1 the first and 0 none. For a part of that type the row adds to the DR at the location. On Any type, the formula decides for each part: it reads Blow.type'));
             dbxCap(tw, 'adds'); var tp = input('sys-dmgr-ltplus field', dbxStr(tyL.plus), 'What the row adds to the DR at the location for a part of that type. It never wears, and it stops once the row is broken there. It reads Row, Hit, Listed, Worn, the blow and the character', 'e.g. 1'); tp.maxLength = LIMITS.formula; tw.appendChild(tp);
             wrap.appendChild(tw);
         }
@@ -9570,7 +9573,9 @@ function onDamageChange(t) {
     } else if (dbxHas(c, 'sys-dmgr-ltstat')) {   // 1.6.0: Type named by
         var lY = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lY) return true; var tyC = dbxObj(lY.typed) ? lY.typed : (lY.typed = {}); dbxSet(tyC, 'stat', v); if (!Object.keys(tyC).length) delete lY.typed;
     } else if (dbxHas(c, 'sys-dmgr-lwhole')) {   // 1.6.0: Every location: one stat, so what wears by location goes
-        var lO = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lO) return true; if (on) { lO.whole = true; delete lO.wears; delete lO.pick; } else delete lO.whole; redraw = true;
+        var lO = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lO) return true; if (on) { lO.whole = true; delete lO.wears; delete lO.pick; } else { delete lO.whole; delete lO.anyPool; } redraw = true;
+    } else if (dbxHas(c, 'sys-dmgr-lpoolany')) {   // 1.6.0: Any pool
+        var lPa = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lPa) return true; if (on) lPa.anyPool = true; else delete lPa.anyPool;
     } else if (dbxHas(c, 'sys-dmgr-lany')) {   // 1.6.0: Every row
         var lA = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lA) return true; if (on) lA.anyRow = true; else delete lA.anyRow;
     } else if (dbxHas(c, 'sys-dmgr-lwears')) {   // 1.6.0: the stats it may wear, kept in the list's own order
@@ -9725,7 +9730,7 @@ function damageSays(d, sys, Fx) {
     (Array.isArray(d.layers) ? d.layers : []).forEach(function(l, i) {   // 1.6.0: what a hit wears, by formula, as the cleaner reads it
         if (!dbxObj(l)) return; var cl = (piece({ layers: [l] }).layers || [])[0]; if (!cl) return;
         if (dbxObj(l.typed) && (l.typed.stat || (typeof l.typed.plus === 'string' && l.typed.plus.trim()))) {   // 1.6.0: Type named by, both or neither, as the cleaner keeps it
-            if (!cl.typed) say('Layer ' + (i + 1) + ': Type named by needs a number stat of its list and a formula, so Save drops it.');
+            if (!cl.typed) say('Layer ' + (i + 1) + ': Type named by needs a formula, and any stat a number stat of its list, so Save drops it.');
             else { reads(cl.typed.plus, 'Layer ' + (i + 1) + ', Type named by'); if (!(Array.isArray(d.types) && d.types.length)) warn('Layer ' + (i + 1) + ': Type named by names a damage type, and this system has none, so it adds nothing.'); }
         }
         if (cl.whole === true && /(^|[^A-Za-z0-9_.])hit\./i.test(cl.at)) warn('Layer ' + (i + 1) + ': Every location is one figure, and with no location its figure reads Hit. names as 0.');   // 1.6.0

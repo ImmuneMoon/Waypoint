@@ -3368,9 +3368,21 @@ net.charLink = function(charId, linkId, toId, stn) {   // stn (1.6.0, CORE gap 1
 };
 // [netcheck:linktell-start]
 // 1.6.0 linked sheets: an owner's whole copy (never a teammate's) with the figures of the sheets it links, worked out through view (systemcore linkFigs)
-function withLinkFigs(v, view) { var S = SC(); if (!v || v.partial || !S || !window.wpFormula) return v; if (v.links && S.linkFigs) { var lk = S.linkFigs(view, v, window.wpFormula); if (lk) v.lk = lk; } if (S.crewFigs) { var ck = S.crewFigs(view, v, window.wpFormula); if (ck) v.ck = ck; } return v; }   // 1.6.0 (CORE gap 16): and a vehicle's crew figures
+function withLinkFigs(v, view) { var S = SC(); if (!v || v.partial || !S || !window.wpFormula) return v; if (v.links && S.linkFigs) { var lk = S.linkFigs(view, v, window.wpFormula); if (lk) v.lk = lk; } if (S.crewFigs) { var ck = S.crewFigs(view, v, window.wpFormula); if (ck) v.ck = ck; } if (typeof crewRollsFor === 'function') { var cr = crewRollsFor(v, view); if (cr) v.cr = cr; } return v; }   // 1.6.0 (CORE gap 16): and a vehicle's crew figures
 // 1.6.0 linked sheets ("Only the figures read"): a character's change reaches the figures of every sheet that links it. That sheet's owner gets
 // their copy again, whole, where the figures it carries moved since the host last sent them
+// 1.6.0 Its crew may press this sheet's rolls: what the crew member this copy is for may press, by link, each vehicle read through the players' view
+function crewRollsFor(v, view) {
+    if (!v.links || !view || !Array.isArray(view.links) || !view.links.some(function(k) { return k && k.press === true; })) return null;
+    var S = SC(), camp = getActiveCampaign(), F = window.wpFormula, out = null; if (!S || !S.crewRollsOf || !camp || !camp.chars) return null;
+    view.links.forEach(function(k) {
+        if (!k || k.kind !== 'crew' || k.press !== true || typeof v.links[k.id] !== 'string') return;
+        var veh = own(camp.chars, v.links[k.id]) ? camp.chars[v.links[k.id]] : null; if (!veh || veh.making === 1) return;
+        var copy = S.charForView(veh, view, { lib: fxLib(camp.system), items: itemLib(camp.system), full: camp.system }), l = copy ? S.crewRollsOf(view, copy, v.stn ? S.stationsIn(k, v.stn[k.id]) : [], F) : [];
+        if (l.length) (out = out || {})[k.id] = l;
+    });
+    return out;
+}
 var _lkSent = Object.create(null), _ckSent = Object.create(null);   // 1.6.0 (CORE gap 16): the crew figures last sent, by peer and vehicle
 function linkTell(id) {
     if (!net.active || net.role !== 'host') return;
@@ -3382,7 +3394,7 @@ function linkTell(id) {
         net.conns.forEach(function(c) {
             if (!c.open || !net.roster[c.peer] || peerProfileId(c) !== r.ownerId) return;
             var v = charViewFor(rid, r.ownerId); if (!v || v.partial) return;
-            var sig = JSON.stringify(v.lk || null), key = c.peer + '|' + rid; if (_lkSent[key] === sig) return; _lkSent[key] = sig;
+            var sig = JSON.stringify(v.cr ? [v.lk || null, v.cr] : v.lk || null), key = c.peer + '|' + rid; if (_lkSent[key] === sig) return; _lkSent[key] = sig;
             try { c.send({ type: 'char', campId: camp.id, char: v }); n++; } catch (e) { sendFailed(e); }
         });
     });
@@ -8635,14 +8647,19 @@ function handleMessage(msg, conn) {
         var chQ = null, varsQ = null, SQ = SC(), actQ = null, tcQ = null, onQ = null;   // onQ (1.5.9): the adjacent character a roll that Applies to one is used on
         if (q.charId) {   // the player's own character, resolved through the view they hold: a GM-only name is unknown there, a nulled formula an error, as on their sheet
             var campQ = getActiveCampaign(), pidQ = peerProfileId(conn), srcQ = (campQ && campQ.chars && typeof q.charId === 'string' && Object.prototype.hasOwnProperty.call(campQ.chars, q.charId) ? campQ.chars[q.charId] : null);
-            if (!srcQ || srcQ.npc || !srcQ.ownerId || !pidQ || srcQ.ownerId !== pidQ || srcQ.making === 1 || !SQ || !campQ.system) { denyQ('char'); return; }   // making (Onboarding F3): not at the table yet
-            var viewQ = window.wpSheets ? window.wpSheets.playerSystem(campQ) : null, chvQ = viewQ ? SQ.charFor(srcQ, viewQ, pidQ, { lib: fxLib(campQ.system), items: itemLib(campQ.system), full: campQ.system }) : null;
+            var pressQ = q.by && srcQ && SQ && campQ.system && srcQ.making !== 1 && typeof SQ.crewPressOf === 'function' ? SQ.crewPressOf(campQ.system, campQ.chars, srcQ.id, q.by, pidQ) : null;   // 1.6.0 Its crew may press this sheet's rolls: by the host's own copy, never the player's word
+            if (q.by && !pressQ) { denyQ('error', { error: { message: 'That sheet is not one your character crews.', pos: 0, len: 0 } }); return; }
+            if (!srcQ || (!pressQ && (srcQ.npc || !srcQ.ownerId || !pidQ || srcQ.ownerId !== pidQ)) || srcQ.making === 1 || !SQ || !campQ.system) { denyQ('char'); return; }   // making (Onboarding F3): not at the table yet
+            var viewQ = window.wpSheets ? window.wpSheets.playerSystem(campQ) : null, chvQ = viewQ ? SQ.charFor(srcQ, viewQ, pidQ, { lib: fxLib(campQ.system), items: itemLib(campQ.system), full: campQ.system }) : null; if (pressQ && viewQ) chvQ = SQ.charForView(srcQ, viewQ, { lib: fxLib(campQ.system), items: itemLib(campQ.system), full: campQ.system });
             if (!viewQ || !chvQ) { denyQ('char'); return; }
+            var tokOwnQ = pressQ ? '' : pidQ, tokOptQ = pressQ ? {} : { strict: true };   // the vehicle's own token
             var locQ = net.roster[conn.peer] && net.roster[conn.peer].location, mapQ = (typeof locQ === 'string' && campQ.items && own(campQ.items, locQ)) ? campQ.items[locQ] : null;   // 5h Fold 3: the facing names read the player's token on the map they are on
             var vtQ = window.wpVtt, ruleQ = function(k) { return !vtQ || (vtQ.rulesOn ? vtQ.rulesOn(k) : vtQ.on(k)); };
-            tcQ = SQ.tokenCtx(mapQ, SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }), { turning: ruleQ('turning'), posture: ruleQ('posture'), elevation: ruleQ('elevation'), viewer: pidQ });   // facing and stance from the player's own token, on the table's settings (as their sheet reads them)
-            tcQ = SQ.withRound(tcQ, mapQ ? net.combatRoundOf(locQ, (SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }) || {}).id) : null);   // fold 2: the fight that holds their token, else the first begun on that map, as their own sheet reads it (net.combatRoundOf)
-            if (typeof rangeTo === 'function' && SQ.withRange) tcQ = SQ.withRange(tcQ, rangeTo(campQ, mapQ, locQ, SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }), pidQ));   // range R2: RangeMod and TargetDistance, to their own target as their copy holds it   // HUD frame (HF5b): CombatRound reads the combat on the map they are on (the token context stays null without a token)
+            tcQ = SQ.tokenCtx(mapQ, SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ), { turning: ruleQ('turning'), posture: ruleQ('posture'), elevation: ruleQ('elevation'), viewer: pidQ });   // facing and stance from the player's own token, on the table's settings (as their sheet reads them)
+            tcQ = SQ.withRound(tcQ, mapQ ? net.combatRoundOf(locQ, (SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ) || {}).id) : null);   // fold 2: the fight that holds their token, else the first begun on that map, as their own sheet reads it (net.combatRoundOf)
+            if (typeof rangeTo === 'function' && SQ.withRange) tcQ = SQ.withRange(tcQ, rangeTo(campQ, mapQ, locQ, SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ), pidQ));   // range R2: RangeMod and TargetDistance, to their own target as their copy holds it   // HUD frame (HF5b): CombatRound reads the combat on the map they are on (the token context stays null without a token)
+            if (pressQ && q.att) delete q.att;
+            if (pressQ && SQ.withPresser) tcQ = SQ.withPresser(tcQ, pressQ.link.id, q.by);
             chQ = srcQ; varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ);
             if (q.hit) { var thQ0 = typeof targetHitIn === 'function' && typeof SQ.withTargetHit === 'function' ? targetHitIn(campQ, tcQ && tcQ.range, q.hit, pidQ) : null; if (!thQ0) { denyQ('error', { error: { message: 'That location is not on your target now.', pos: 0, len: 0 } }); return; } tcQ = SQ.withTargetHit(tcQ, thQ0); varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ); }   // 1.6.0 (B5): the location row they picked on their target, judged here and read through their view
             if (q.att && typeof attSoftGone === 'function' && attSoftGone(q.att)) delete q.att;
@@ -8668,10 +8685,12 @@ function handleMessage(msg, conn) {
                 if (swQ && !swQ.ok) { denyQ('error', { error: { message: 'That bonus is not yours to add to this roll now.', pos: 0, len: 0 } }); return; }
                 var cmQ = wantQ ? Dq.composeModifier(wantQ, (q.mod || 0) + (swQ ? swQ.v : 0), Fq.parse) : null;
                 if (!cmQ || !cmQ.ok || cmQ.expr !== q.expr) { denyQ('error', { error: { message: 'That roll does not match its button now.', pos: 0, len: 0 } }); return; }
+                if (pressQ && (actQ.init === true || actQ.resist === true || actQ.to === 'near' || actQ.askLvl === true)) { denyQ('error', { error: { message: 'That roll is not one a crew member presses.', pos: 0, len: 0 } }); return; }
+                if (pressQ && !SQ.rollStationOk(actQ, pressQ.stns)) { denyQ('error', { error: { message: 'That roll is pressed from another station.', pos: 0, len: 0 } }); return; }
                 if (q.att && actQ.resist !== true && !(typeof attemptRec === 'function' && attemptRec(q.att) && attemptRec(q.att).blow)) { denyQ('error', { error: { message: 'That roll does not resist an attempt.', pos: 0, len: 0 } }); return; }   // 1.6.0 (B2)
                 if (q.on && actQ.to !== 'near') { denyQ('error', { error: { message: 'That cannot be used on someone else.', pos: 0, len: 0 } }); return; }   // 1.5.9 (book es/et plan, section 3)
                 if (actQ.to === 'near') {   // judged on the host's own map before anything is rolled; OnSelf in its formula, its needs and its Then, 1 on themselves and 0 on another
-                    if (q.on) { onQ = typeof allyOn === 'function' ? allyOn(campQ, mapQ, mapQ ? SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }) : null, q.on, pidQ) : { error: 'missing', message: 'That character is not there.' }; if (onQ.error) { denyQ('error', { error: { message: onQ.message, pos: 0, len: 0 } }); return; } }
+                    if (q.on) { onQ = typeof allyOn === 'function' ? allyOn(campQ, mapQ, mapQ ? SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ) : null, q.on, pidQ) : { error: 'missing', message: 'That character is not there.' }; if (onQ.error) { denyQ('error', { error: { message: onQ.message, pos: 0, len: 0 } }); return; } }
                     if (typeof SQ.withOnSelf === 'function') varsQ = SQ.withOnSelf(varsQ, !onQ, onQ && viewQ ? SQ.makeResolver(viewQ, onQ.ch, Fq, typeof allyCtx === 'function' ? allyCtx(mapQ, onQ.tok) : null) : null);   // 1.6.0: On.<name>, through their view
                 }
                 if (q.row && typeof actQ.showIf === 'string' && actQ.showIf && !SQ.rollNeedsOk({ needs: actQ.showIf }, varsQ, Fq)) { denyQ('error', { error: { message: 'That roll is not offered on this row.', pos: 0, len: 0 } }); return; }   // 1.6.0: Shown where, through their view
@@ -8679,15 +8698,16 @@ function handleMessage(msg, conn) {
             }
         }
         if (Fq.names(q.expr).length && !varsQ) { denyQ('names'); return; }
-        if (chQ && !q.att && typeof offTurnBar === 'function') { var offQ = offTurnBar(campQ, chQ, q.act, q.row, q.label || (actQ && actQ.label)); if (offQ) { denyQ('error', { error: { message: offQ, pos: 0, len: 0 } }); return; } }   // 1.6.0: off their turn, by the system's rule; a card's press answers the host's own record
+        var turnChQ = typeof pressQ !== 'undefined' && pressQ ? pressQ.char : chQ;   // 1.6.0: a crew member's press is judged by their own turn and spends their own action
+        if (chQ && !q.att && typeof offTurnBar === 'function') { var offQ = offTurnBar(campQ, turnChQ, q.act, q.row, q.label || (actQ && actQ.label)); if (offQ) { denyQ('error', { error: { message: offQ, pos: 0, len: 0 } }); return; } }   // 1.6.0: off their turn, by the system's rule; a card's press answers the host's own record
         if (actQ && actQ.burst === 'extra' && q.row && typeof SQ.burstBar === 'function') { var bbQ = SQ.burstBar(campQ.system, chQ, q.row.f, q.row.r); if (bbQ) { denyQ('error', { error: { message: bbQ, pos: 0, len: 0 } }); return; } }   // 1.6.0 A burst: its extra dice, once, after an attack that hit
         var hvQ = null, rnQ = null; if (actQ && actQ.dmg === true && actQ.hits && varsQ && typeof SQ.hitCount === 'function') { var hnQ = SQ.hitCount(actQ, varsQ, Fq); if (hnQ === null) { denyQ('error', { error: { message: 'How many hits it rolls for could not be worked out.', pos: 0, len: 0 } }); return; } if (hnQ < 1) { denyQ('error', { error: { message: 'There are no hits to roll for.', pos: 0, len: 0 } }); return; } hvQ = SQ.hitVars(varsQ, hnQ); rnQ = SQ.hitRounds(viewQ || campQ.system, varsQ, hnQ); varsQ = hvQ[0]; }   // 1.6.0 A burst: how many times it rolls, from the entry through their view; the first hit reads its own round
         var resQ = Fq.evaluate(q.expr, varsQ ? { vars: varsQ } : {});
         if (!resQ.ok) { denyQ('error', resQ); return; }
         var moQ = hvQ && hvQ.length > 1 ? SQ.hitRolls(campQ.system, actQ, q.expr, hvQ.slice(1), Fq, Dq, { rounds: rnQ.slice(1) }) : null; if (moQ && moQ.error) { denyQ('error', { error: { message: moQ.error, pos: 0, len: 0 } }); return; }   // ... and each hit after it, rolled here, before what it costs is spent
         var whyQ = Dq.checkTableRoll(resQ); if (whyQ) { denyQ(whyQ); return; }
-        if (actQ && actQ.cost && chQ && typeof actSpend === 'function') { var costQ = actSpend(campQ, q.charId, net.roster[conn.peer], actQ.cost, conn, chQ.name); if (costQ) { denyQ('error', { error: { message: costQ, pos: 0, len: 0 } }); return; } }   // turn-based combat T4: what it costs
-        if (chQ && !q.att && typeof offTurnWarn === 'function') offTurnWarn(campQ, chQ, q.act, q.row, q.label || (actQ && actQ.label), conn);   // 1.6.0: nothing refused it, so a warning is said
+        if (actQ && actQ.cost && chQ && typeof actSpend === 'function') { var costQ = actSpend(campQ, turnChQ.id, net.roster[conn.peer], actQ.cost, conn, turnChQ.name); if (costQ) { denyQ('error', { error: { message: costQ, pos: 0, len: 0 } }); return; } }   // turn-based combat T4: what it costs
+        if (chQ && !q.att && typeof offTurnWarn === 'function') offTurnWarn(campQ, turnChQ, q.act, q.row, q.label || (actQ && actQ.label), conn);   // 1.6.0: nothing refused it, so a warning is said
         var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid };
         var blowRecQ = q.att && typeof attemptRec === 'function' ? attemptRec(q.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
         if (q.att && typeof attemptDrop === 'function') attemptDrop(q.att);   // 1.6.0 (B2): an attempt is resisted once
@@ -8712,7 +8732,7 @@ function handleMessage(msg, conn) {
         if (recQ.names && typeof SQ !== 'undefined' && SQ && typeof SQ.rollRefs === 'function' && typeof varsQ === 'function') { var rfQ = SQ.rollRefs(varsQ, recQ.names); if (rfQ) recQ.refs = rfQ; }   // 1.6.0 Specialties: the case each reference used, worked out through the player's view
         if (typeof swQ !== 'undefined' && swQ && swQ.ok && swQ.names.length) recQ.sw = swQ.names.map(function(x) { return { n: x.n, v: x.v }; });   // 1.6.0: the roll switches it was rolled with, by name (their view holds no GM-only one)   // 1.5.8 (handoff 90 Part B): what changed the values it reads
         if (q.label) recQ.label = q.label;
-        if (chQ) recQ.as = String(chQ.name || '').slice(0, Dq.LIMITS.label);
+        if (chQ) recQ.as = String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label);
         if (!q.priv && tcQ && tcQ.range && typeof rangeUnseen === 'function' && typeof rangeReadBy === 'function' && rangeUnseen(campQ, tcQ.range, pidQ) && rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? null : q.row)) {   // range R3: its card would tell another player how far a target they cannot see is
             q.priv = 'gm'; if (typeof turnNote === 'function') turnNote(conn, 'Rolled privately: a player on that map cannot see your target.', q.charId);
         }
@@ -8728,7 +8748,7 @@ function handleMessage(msg, conn) {
             var mfHitQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ, vdQ = Dq.verdictOf(resQ, ruleQ), crQ = typeof SQ.thenCrit === 'function' ? SQ.thenCrit(vdQ, mfHitQ) : '', thQ = SQ.thenChanges(actQ, mfHitQ ? false : (vdQ && vdQ.kind === 'check' ? vdQ.pass : null), mfHitQ, crQ);   // R3: a malfunction is a failure, with its own changes; 1.5.8: and a critical, with its own
             var taQ = thQ.length ? SQ.applyAct(campQ.system, chQ, { apply: thQ }, typeof SQ.withRollCrit === 'function' ? SQ.withRollCrit(varsQ, crQ, typeof SQ.thenMargin === 'function' ? SQ.thenMargin(vdQ, mfHitQ) : 0, recQ.big === true) : varsQ, Fq, tcQ, q.row && q.row.r ? (actQ.burst === 'attack' ? { f: q.row.f, r: q.row.r, burst: true } : { f: q.row.f, r: q.row.r }) : null, undefined, Dq, onQ ? { char: onQ.ch, tctx: typeof allyCtx === 'function' ? allyCtx(mapQ, onQ.tok) : null } : null, typeof fxNow === 'function' ? fxNow(q.charId, onQ) : null) : null;   // 1.5.8: its amounts read RollCrit   // R2b: a list roll may move its row's counters   // 1.5.9: the host's dice roll a Rolled amount, and its field changes land on the one it is used on
             if (taQ && Array.isArray(taQ.fitSays) && taQ.fitSays.length && typeof toast === 'function') toast('A part no longer fits. ' + taQ.fitSays[0]);   // 1.6.0 Fits where, judged again: the GM is told
-            if (taQ && taQ.ok && (!onQ || Object.keys(taQ.values).length)) { chQ.values = chQ.values || {}; Object.keys(taQ.values).forEach(function(k) { chQ.values[k] = taQ.values[k]; }); chQ.updated = Date.now(); saveRemoteSoon(); if (taQ.gone && typeof rowGoneTell === 'function') rowGoneTell(q.charId, chQ, taQ.gone, conn); net.syncCharDelta(q.charId, taQ.values); if (window.wpSheets) window.wpSheets.charChanged(q.charId); }
+            if (taQ && taQ.ok && (!onQ || Object.keys(taQ.values).length)) { chQ.values = chQ.values || {}; Object.keys(taQ.values).forEach(function(k) { chQ.values[k] = taQ.values[k]; }); chQ.updated = Date.now(); saveRemoteSoon(); if (taQ.gone && !(typeof pressQ !== 'undefined' && pressQ) && typeof rowGoneTell === 'function') rowGoneTell(q.charId, chQ, taQ.gone, conn); net.syncCharDelta(q.charId, taQ.values); if (window.wpSheets) window.wpSheets.charChanged(q.charId); }
             if (taQ && taQ.ok && onQ && typeof allyWrite === 'function' && allyWrite(onQ.ch, taQ.onValues)) { saveRemoteSoon(); if (typeof allyCard === 'function') allyCard(chQ, onQ.ch, onQ.tok.charName || onQ.tok.name || onQ.ch.name, String(recQ.label || (typeof actQ.label === 'string' && actQ.label && actQ.label.indexOf('{') < 0 ? actQ.label : 'Then')).slice(0, 60), taQ.onLines, recQ.priv ? 'gm' : SQ.applyScope(campQ.system, onQ.ch, { apply: thQ, vis: actQ.vis }, false, Fq), diceFrom(net.roster[conn.peer], false), conn, pidQ); }   // 1.5.9: what moved on the one it was used on, and its card
             if (taQ && taQ.ok && (taQ.burst || (taQ.drew && taQ.lines.some(function(l) { return !!l.roll; }))) && typeof postApply === 'function' && typeof applyLines === 'function') { var raQ = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(net.roster[conn.peer], false), label: String(recQ.label || (typeof actQ.label === 'string' && actQ.label && actQ.label.indexOf('{') < 0 ? actQ.label : 'Then')).slice(0, 60), lines: applyLines(taQ.lines), ts: Date.now() }; if (chQ.name) raQ.as = String(chQ.name).slice(0, 60); postApply(raQ, recQ.priv ? 'gm' : SQ.applyScope(campQ.system, chQ, { apply: thQ, vis: actQ.vis }, false, Fq), chQ, conn); }   // 1.5.9: a Then whose Rolled amount drew dice says them on a card of its own, kept as private as the roll
             if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === true && tcQ && tcQ.range && typeof tcQ.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ.range.tid, mapId: tcQ.range.mapId });   // 1.5.9 Chambers from: a hit puts the round it fired on the roller's target
@@ -10151,6 +10171,7 @@ net.diceRoll = function(expr, o) {
         var rid = 'q' + Math.random().toString(36).slice(2, 10), req = { type: 'roll-req', rid: rid, expr: expr };
         if (o.priv) req.priv = 'gm';
         if (o.charId) req.charId = o.charId;
+        if (o.by && o.charId) req.by = String(o.by);   // 1.6.0: the crew sheet that pressed it
         if (o.label) req.label = String(o.label).slice(0, D.LIMITS.label);
         if (o.row && o.charId) { req.row = { f: String(o.row.f), r: String(o.row.r) }; if (typeof o.row.k === 'string') req.row = { f: String(o.row.f), k: o.row.k }; if (typeof o.row.i === 'number') req.row.i = o.row.i; if (typeof o.row.i === 'number' && typeof o.row.lv === 'number') req.row.lv = o.row.lv; }   // R2b: a list's roll with consequences or needs names its index
         if (o.charId && ((o.act && !o.row) || (o.fr && !o.act && !o.row) || (o.row && typeof o.row.i === 'number'))) { if (o.act && !o.row) req.act = String(o.act); if (o.fr && !o.act && !o.row) req.fr = String(o.fr); if (Array.isArray(o.sw) && o.sw.length) req.sw = o.sw.slice(0, D.LIMITS.swPicks).map(function(x) { return { s: String(x && x.s), i: x && x.i }; }); if (o.mod) req.mod = o.mod; if (o.adv) req.adv = o.adv; if (typeof o.on === 'string' && o.on) req.on = o.on.slice(0, 80); }   // 1.5.9: on, the token of the adjacent character it is used on (the host judges it)   // Stage 6 HUD R1: the entry, its modifier and advantage (the host rebuilds the formula)   // Stage 6 F5b: a roll on a row

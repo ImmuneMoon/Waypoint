@@ -2618,6 +2618,50 @@ pendingChecks.push((async () => {
         j([a, b.table, c.table, d.table, f.table, e.sent, g.sent]));
 })());
 
+// 1.6.0 Its crew may press this sheet's rolls: the real roll-req branch with the real dicecore, formula engine and systemcore. The host judges the press by its own
+// copy: a crew member of that vehicle, at a station the roll names, spends their own action, the roll lands on the vehicle, and Presser reads the sheet that pressed
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'));
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); }).join('\n') + '\n';
+    const raw = { fields: [{ id: 'f_aim', key: 'Aim', label: 'Aim', kind: 'number', vis: 'all', edit: 'owner' }, { id: 'f_ammo', key: 'Ammo', label: 'Ammo', kind: 'number', vis: 'all', edit: 'gm' }],
+        rolls: [{ id: 'r_gun', label: 'Gun', formula: '3d6 <= Presser.Aim + 20', vis: 'all', then: [{ f: 'f_ammo', formula: '1', add: true }] }, { id: 'r_eng', label: 'Engine', formula: '3d6 <= 30', vis: 'all', stations: ['Engineer', 'Bad station!', 'Engineer'] }, { id: 'r_ini', label: 'Start', formula: '3d6', vis: 'all', init: true }],
+        links: [{ id: 'lk_c', key: 'Ship', label: 'Ship', kind: 'crew', group: 'Crew', press: true, stations: ['Gunner', 'Engineer'], edit: 'gm' }, { id: 'lk_off', key: 'Boat', label: 'Boat', kind: 'crew', edit: 'gm' }] };
+    const gmSys = Sx.cleanSystem(raw, { F: Fx, gmView: true });
+    const chars = () => ({ c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, links: { lk_c: 'c_v' }, stn: { lk_c: 'Gunner' }, values: { f_aim: 13 } }, c_b: { id: 'c_b', name: 'Pebbles', ownerId: 'u_a', npc: false, values: { f_aim: 9 } }, c_o: { id: 'c_o', name: 'Rook', ownerId: 'u_o', npc: false, links: { lk_c: 'c_v' }, values: { f_aim: 15 } }, c_q: { id: 'c_q', name: 'Tam', ownerId: 'u_a', npc: false, links: { lk_off: 'c_v' }, values: {} }, c_v: { id: 'c_v', name: 'Swift', ownerId: '', npc: true, values: { f_ammo: 5 } } });
+    const run = msg0 => {
+        const camp = { id: 'k', activeItemId: 'm1', system: gmSys, chars: chars(), items: { m1: { type: 'map', whiteboard: [] } } };
+        const net = { active: true, role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta() {} };
+        const out = { table: [], sent: [], camp };
+        const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
+        Sx.setCrewSource((vid, lid) => Object.values(camp.chars).filter(c => c.links && c.links[lid] === vid));
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
+            Object.assign({ type: 'roll-req', rid: 'q1' }, msg0), conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {}, () => {});
+        Sx.setCrewSource(null);
+        return out;
+    };
+    const gun = { expr: '3d6 <= Presser.Aim + 20', charId: 'c_v', act: 'r_gun', label: 'Gun' };
+    const ok = run(Object.assign({ by: 'c_a' }, gun)), noBy = run(gun), other = run(Object.assign({ by: 'c_b' }, gun)), theirs = run(Object.assign({ by: 'c_o' }, gun)), off = run(Object.assign({ by: 'c_q' }, gun));
+    const eng = run({ expr: '3d6 <= 30', charId: 'c_v', act: 'r_eng', label: 'Engine', by: 'c_a' }), ini = run({ expr: '3d6', charId: 'c_v', act: 'r_ini', label: 'Start', by: 'c_a' }), loose = run({ expr: '3d6 <= 99', charId: 'c_v', act: 'r_gun', label: 'Gun', by: 'c_a' });
+    const nm = (rec, n) => ((rec && rec.names) || []).filter(x => x.name === n).map(x => x.value)[0], deny = o => o.sent.length === 1 && o.sent[0].type === 'roll-deny' && o.table.length === 0;
+    check('1.6.0 a crew member presses a vehicle\'s roll (roll-req, run for real): judged by the host\'s own copy, the card says who on what, Presser reads the sheet that pressed alone, and its Then lands on the vehicle',
+        ok.table.length === 1 && ok.table[0].as === 'Kael on Swift' && nm(ok.table[0], 'Presser.Aim') === 13 && ok.camp.chars.c_v.values.f_ammo === 6 && ok.sent.length === 0, j([ok.table, ok.sent, ok.camp.chars.c_v.values]));
+    check('1.6.0 no press without the link: no sheet named, a sheet of theirs that is not linked, a sheet of another player\'s and a Crew link not ticked are each refused with nothing rolled and nothing moved; the wrong station, the initiative roll and a formula that is not the button\'s too',
+        deny(noBy) && noBy.sent[0].reason === 'char' && deny(other) && /not one your character crews/.test(other.sent[0].message) && deny(theirs) && deny(off) && deny(eng) && /another station/.test(eng.sent[0].message) && deny(ini) && deny(loose) && [noBy, other, theirs, off, eng, ini, loose].every(o => o.camp.chars.c_v.values.f_ammo === 5), j([noBy.sent, other.sent, theirs.sent, off.sent, eng.sent, ini.sent, loose.sent]));
+    const view = Sx.cleanSystem(raw, { F: Fx, gmView: false }), gnr = Sx.crewRollsOf(view, { values: {} }, ['Gunner'], Fx), egr = Sx.crewRollsOf(view, { values: {} }, ['Engineer'], Fx);
+    check('1.6.0 what a crew member is offered: the system\'s rolls their station may press, never the initiative roll; a roll keeps only sound station words, each once, in both views',
+        j(gmSys.rolls[1].stations) === '["Engineer"]' && j(view.rolls[1].stations) === '["Engineer"]' && j(gnr.map(e => e.act)) === '["r_gun"]' && j(egr.map(e => e.act)) === '["r_gun","r_eng"]' && gmSys.links[0].press === true && gmSys.links[1].press === undefined && view.links[0].press === true, j([gnr, egr, gmSys.links]));
+    const hostile = { lk_c: [{ act: 'r_gun', expr: '3d6', label: 'Gun\u0007' }, { act: '__proto__', expr: '3d6' }, { f: 'f_x', r: 'w_a1', i: 1, expr: '1d6', label: '<b>x</b>' }, { f: 'f_x', r: 'w_a1', i: 99, expr: '1d6' }, { act: 'r_x', expr: 7 }, 'junk'], lk_off: [{ act: 'r_gun', expr: '3d6' }], __proto__x: 1 };
+    const cr = Sx.cleanCr(hostile, gmSys);
+    check('1.6.0 a player\'s app takes the list as data: a sound entry alone, a label as plain text, nothing for a link that lets no one press, none from what is no list',
+        cr && cr.lk_c.length === 2 && cr.lk_c[0].label === 'Gun' && cr.lk_c[1].label === '<b>x</b>' && !cr.lk_off && Sx.cleanCr('x', gmSys) === null && Sx.cleanCr({}, gmSys) === null, j(cr));
+    const vr = Sx.validateSystem(Object.assign({}, raw, { links: [{ id: 'lk_c', key: 'Ship', label: 'Ship', kind: 'crew', edit: 'gm' }] }), Fx);
+    check('1.6.0 Presser is known only where a Crew link lets its crew press and reads them as a group', Sx.validateSystem(gmSys, Fx).errors.every(e => !/Presser/.test(e.message)) && vr.errors.some(e => /Presser/.test(e.message)), j(vr.errors));
+    check('1.6.0 a press names a roll and is a press of another sheet: cleanRollReq keeps by only beside a named roll of a character, never the same sheet', Dx.cleanRollReq({ rid: 'q1', expr: '3d6', charId: 'c_v', act: 'r_a', by: 'c_a' }).by === 'c_a' && Dx.cleanRollReq({ rid: 'q1', expr: '3d6', charId: 'c_v', by: 'c_a' }) === null && Dx.cleanRollReq({ rid: 'q1', expr: '3d6', charId: 'c_v', act: 'r_a', by: 'c_v' }) === null && Dx.cleanRollReq({ rid: 'q1', expr: '3d6', charId: 'c_v', act: 'r_a', by: 'x y' }) === null);
+})());
+
 // 1.6.0 roll switches (the owner, by prompt: "In the ± window"): a player's roll with bonuses ticked in its ± window — the real roll-req branch
 // with the real dicecore, formula engine and systemcore: the host judges each one through the player's own view (systemcore swJudge), composes it
 // with the modifier from the field's own formula (fr), names what was added on the card, and refuses a bonus the character does not have for that
@@ -2816,7 +2860,7 @@ pendingChecks.push((async () => {
     check('range R2 char-apply (host, run for real): an apply action\'s amount reads RangeMod as a roll does (Range hit: HP 10 - 4 = 6); with no target, or a hidden one, it reads 0, so the action changes nothing and is refused as any such action is (none): nothing stored, nothing saved',
         j(apA.hp) === j({ cur: 6 }) && j(apA.answer) === j(['char-ack']) && apA.saves === 1 && [apN, apH].every(r => r.hp === undefined && j(r.answer) === j(['char-deny:none']) && r.saves === 0), j([apA, apN, apH]));
     check('range R2 (source): the host\'s roll and apply action merge the range after the round, through rangeTo with the player\'s own token on the map they are on and their own id, guarded where a handler runs alone; the GM\'s own roll reads the sheet\'s token context (tokenCtxFor, which carries it)',
-        /if \(typeof rangeTo === 'function' && SQ\.withRange\) tcQ = SQ\.withRange\(tcQ, rangeTo\(campQ, mapQ, locQ, SQ\.charTokenOn\(mapQ, q\.charId, pidQ, \{ strict: true \}\), pidQ\)\);/.test(src)
+        /if \(typeof rangeTo === 'function' && SQ\.withRange\) tcQ = SQ\.withRange\(tcQ, rangeTo\(campQ, mapQ, locQ, SQ\.charTokenOn\(mapQ, q\.charId, tokOwnQ, tokOptQ\), pidQ\)\);/.test(src) && /var tokOwnQ = pressQ \? '' : pidQ, tokOptQ = pressQ \? \{\} : \{ strict: true \};/.test(src)
         && /if \(typeof rangeTo === 'function' && Sa\.withRange\) tcA = Sa\.withRange\(tcA, rangeTo\(campA, mapA, locA, Sa\.charTokenOn\(mapA, qa\.charId, profA\.id, \{ strict: true \}\), profA\.id\)\);/.test(src)
         && /tcR = window\.wpSheets && window\.wpSheets\.tokenCtxFor \? window\.wpSheets\.tokenCtxFor\(chR\.id, campR\) : null; varsR = SR\.makeResolver\(campR\.system, chR, F, tcR\);/.test(src)
         && /return typeof fogLanded === 'function' \? fogLanded\(mapId, judge\) : judge\(\);/.test(rtSrc));
@@ -6006,7 +6050,7 @@ pendingChecks.push((async () => {
         && [runAI({ charId: 'c_p', left: {} }, { peer: 'o' }), runAI({ charId: 'x', left: {} }), runAI({ charId: 'c_p', left: [1] })].every(r => !r.seen.length), j([ai1, ai2]));
     const T = src.replace(/\r\n/g, '\n');
     check('T4 the presses on the host (source): a player\'s roll with a cost spends it once it is a valid roll, before it is recorded (refused: a roll-deny with why); a player\'s apply action once its change is worked out, before it lands; turnStarted refills, the combat\'s end clears',
-        /var whyQ = Dq\.checkTableRoll\(resQ\); if \(whyQ\) \{ denyQ\(whyQ\); return; \}\n\s*if \(actQ && actQ\.cost && chQ && typeof actSpend === 'function'\) \{ var costQ = actSpend\(campQ, q\.charId, net\.roster\[conn\.peer\], actQ\.cost, conn, chQ\.name\); if \(costQ\) \{ denyQ\('error', \{ error: \{ message: costQ, pos: 0, len: 0 \} \}\); return; \} \}/.test(T)
+        /var whyQ = Dq\.checkTableRoll\(resQ\); if \(whyQ\) \{ denyQ\(whyQ\); return; \}\n\s*if \(actQ && actQ\.cost && chQ && typeof actSpend === 'function'\) \{ var costQ = actSpend\(campQ, turnChQ\.id, net\.roster\[conn\.peer\], actQ\.cost, conn, turnChQ\.name\); if \(costQ\) \{ denyQ\('error', \{ error: \{ message: costQ, pos: 0, len: 0 \} \}\); return; \} \}/.test(T)
         && /if \(!resA\.ok\) \{ denyA\(resA\.reason, resA\.message\); return; \}\n\s*var costA = typeof actSpend === 'function' \? actSpend\(campA, qa\.charId, profA, actA\.cost, conn, chA\.name\) : ''; if \(costA\) \{ denyA\('error', costA\); return; \}/.test(T)
         && /try \{ turnActsStart\(mapId, c\); \} catch \(e\)/.test(T) && /if \(had\) \{ try \{ turnActsEnd\(mapId, had\); \} catch \(e\)/.test(T));
 })());
@@ -8070,7 +8114,7 @@ pendingChecks.push((async () => {
     const apS = (ordersSrc + '\n' + between('// [netcheck:charapply-start]', '// [netcheck:charapply-end]', 'charapply')), rqS = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), thI = src.indexOf("} else if (msg.type === 'throw-req' && net.role === 'host') {"), thS = src.slice(thI, src.indexOf('\n    } else if', thI + 10));
     check('F3a a character in the making is not at the table yet: an apply (making), a roll from it (char) and a throw from it are refused on the host; the deny word survives the client\'s cleaner',
         /if \(chA\.making === 1\) \{ denyA\('making'\); return; \}/.test(apS)
-        && /srcQ\.ownerId !== pidQ \|\| srcQ\.making === 1 \|\| !SQ \|\| !campQ\.system\) \{ denyQ\('char'\); return; \}/.test(rqS) && thI > 0 && /chT\.ownerId !== profT\.id \|\| chT\.making === 1\) return;/.test(thS) && Sx.cleanDenyReason('making') === 'making');
+        && /srcQ\.ownerId !== pidQ\)\) \|\| srcQ\.making === 1 \|\| !SQ \|\| !campQ\.system\) \{ denyQ\('char'\); return; \}/.test(rqS) && thI > 0 && /chT\.ownerId !== profT\.id \|\| chT\.making === 1\) return;/.test(thS) && Sx.cleanDenyReason('making') === 'making');
     check('F3a the player keeps their own copy\'s marks (the snapshot, the chars list and a char message re-clean with the owner\'s state), and a delta\'s probe carries the making mark (charFor refuses it to anyone but the owner)',
         (src.match(/cleanChar\([^)]*, \{ state: 'owner' \}\)/g) || []).length === 3 && /probe = \{ id: id, name: src\.name, ownerId: src\.ownerId, npc: src\.npc, making: src\.making, values: \{\} \};/.test(src)
         && Sx.charFor({ id: 'c_m', name: 'V', ownerId: 'u_a', npc: false, making: 1, values: { f_st: 0 } }, Sx.cleanSystem(sysK, { F: Fx, gmView: false }), 'u_b', { probe: true }) === null);
@@ -18848,7 +18892,7 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
         const flatR = src;
         check('1.6.0 the wiring of a used-up row\'s Undo (source): char-apply tells the presser after its ack and before its delta; a player\'s roll whose Then used a row up the same, before its delta; the GM\'s own roll hands it to the sheet once stored; the three hand applyAct the clock an effect starts by; a player\'s app takes row-gone from the synced host only, cleaned, and hands each row to the sheet; an apply card\'s line may say an effect on or off, here and on the bare copy',
             /try \{ conn\.send\(\{ type: 'char-ack', rid: qa\.rid \}\); \} catch \(e\) \{ sendFailed\(e\); \}\n        if \(resA\.gone && typeof rowGoneTell === 'function'\) rowGoneTell\(qa\.charId, chA, resA\.gone, conn\);[^\n]*\n        if \(ownA\) \{ net\.syncCharDelta/.test(flatR)
-            && flatR.includes("saveRemoteSoon(); if (taQ.gone && typeof rowGoneTell === 'function') rowGoneTell(q.charId, chQ, taQ.gone, conn); net.syncCharDelta(q.charId, taQ.values);")
+            && flatR.includes("saveRemoteSoon(); if (taQ.gone && !(typeof pressQ !== 'undefined' && pressQ) && typeof rowGoneTell === 'function') rowGoneTell(q.charId, chQ, taQ.gone, conn); net.syncCharDelta(q.charId, taQ.values);")
             && flatR.includes("window.wpSheets.goneLocal(chR.id, taR.gone); }, 0);") && (flatR.match(/typeof fxNow === 'function' \? fxNow\(/g) || []).length === 3
             && flatR.includes("if (msg.type === 'row-gone') { var rgC = typeof SC2.cleanRowGone === 'function' ? SC2.cleanRowGone(msg) : null; if (!rgC) return;") && /msg\.type === 'char-deny' \|\| msg\.type === 'row-gone'\) && net\.role === 'client'\) \{\n        \/\/ \[netcheck:charin-start\]\n[^\n]*\n        if \(!net\.foreign \|\| conn\.peer !== net\.syncedPeer/.test(flatR)
             && flatR.includes("if (l.fx === 1 || l.fx === 0) { var oF = { n: String(l.n).slice(0, 60), fx: l.fx }; if (typeof l.roll === 'string' && l.roll) oF.roll = l.roll.slice(0, 60); return oF; }") /* 1.6.0 (a builder audit): an effect's line keeps the words of which time was kept (moved on purpose) */ && flatR.includes("lines: rec.lines.map(function(l, i) { if (l.fx === 1 || l.fx === 0) return { n: l.n, fx: l.fx };"));

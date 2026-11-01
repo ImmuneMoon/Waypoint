@@ -192,6 +192,10 @@ function cleanRollReq(msg) {
         if (!out.charId || out.row || typeof msg.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(msg.act)) return null;
         out.act = msg.act;
     }
+    if (msg.by !== undefined) {   // 1.6.0 Its crew may press this sheet's rolls: the crew sheet that pressed a named roll of another sheet (the host judges it)
+        if (!out.charId || !(out.act || (out.row && typeof out.row.i === 'number' && out.row.r)) || typeof msg.by !== 'string' || !CHAR_RE.test(msg.by) || msg.by === out.charId) return null;
+        out.by = msg.by;
+    }
     if (msg.fr !== undefined) {   // 1.6.0: a field's own roll with roll switches ticked names its field (the host rebuilds the formula from it)
         if (!out.charId || out.row || out.act || typeof msg.fr !== 'string' || !/^f_[A-Za-z0-9_]{1,24}$/.test(msg.fr)) return null;
         out.fr = msg.fr;

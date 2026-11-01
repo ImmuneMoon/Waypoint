@@ -1013,6 +1013,10 @@ Small fixes from a long test by hand
   pictures.
 - Effects can share an end. Give them the same word in Shares an end and a Rank:
   when one comes on, a heavier effect that would end sooner takes the later end.
+- A Crew link can let its crew press a vehicle's rolls. The rolls stand under the
+  link on their own sheet. A press spends their own action and lands on the
+  vehicle. A roll can name the stations that may press it, and formulas read the
+  sheet that pressed as Presser.<name>.
 
 WAYPOINT 1.5.9 — What's New
 ============================

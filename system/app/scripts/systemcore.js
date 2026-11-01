@@ -1351,6 +1351,7 @@ function cleanTurn(t) {
     });
     if (us.length) out.units = us;
     if (as.length) out.acts = as;
+    if (typeof t.trade === 'string') { var trK = lower(t.trade); as.forEach(function(a) { if (lower(a.key) === trK) out.trade = a.key; }); }   // 1.6.0 A trade in a fight: the action it spends, spelled as the list spells it (absent: a trade costs nothing, as ever; net.js tradePayers)
     return Object.keys(out).length ? out : null;
 }
 // T1 (D8): how far a straight move goes on a square grid by the system's rule, dx and dy in cells — line (or none): the straight distance; one:

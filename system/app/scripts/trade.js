@@ -81,6 +81,7 @@ function twDraw(doc, root, v, off, act) {
         cols.appendChild(col);
     });
     root.appendChild(cols);
+    if (v.cost && v.status === 'open') root.appendChild(twEl(doc, 'div', 'trade-cost', v.cost));
     var line = v.status === 'asking' ? (mine.indexOf('a') >= 0 ? 'Waiting for ' + v.b.name + ' to answer.' : v.a.name + ' asks to trade.') : (v.msg || 'Both sides confirm, and everything moves at once.');
     root.appendChild(twEl(doc, 'div', 'trade-msg', line));
 }
@@ -150,7 +151,7 @@ function canAsk(tok, map, sel) {   // { from, to, label } or null
     if (n.active && n.role === 'client') {
         if (tok.ownerId === n.myId) return null; var me = mineOn(map, sel); if (!me || me.charId === tok.charId) return null;
         var chT = window.wpSheets && window.wpSheets.charById ? window.wpSheets.charById(tok.charId) : null; if (chT && chT.ownerId === n.myId) return null;   // a character of their own they keep is no one to trade with
-        if (!tok.ownerId && map && n.combatOfTok && n.combatOfTok(map.id, tok.id)) return null;   // nor is an NPC in a fight: a merchant stands outside one, and the GM can still open a trade
+        if (!tok.ownerId && map && n.combatOfTok && n.combatOfTok(map.id, tok.id) && !(n.tradeFights && n.tradeFights())) return null;   // nor is an NPC in a fight: a merchant stands outside one, and the GM can still open a trade. A system that names what a trade spends in a fight keeps the row (net.js tradeFights)
         return { from: me.charId, to: tok.charId, label: 'Trade with ' + (tok.charName || tok.name || 'them') + '…' };
     }
     if (!sel || sel === tok || !sel.isChar || !sel.charId || sel.charId === tok.charId || sel.waiting) return null;

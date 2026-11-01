@@ -219,6 +219,9 @@ Systems, more
   alone. A card that asks a player for that roll still reaches them.
 - As player, in the head of a sheet a player plays, shows the GM that sheet as
   they see it. It only reads.
+- A trade in a fight, in the Turns box of the System editor, names the action a
+  trade spends. Whoever gives spends it as the trade completes, and one who only
+  takes spends nothing. Trade with is then offered on an NPC in a fight too.
 - A resist card now offers a list's roll, such as Parry with a row's weapon. It
   never did in the app, though the editor let you pick one.
 - A press on the System editor's Layout tab no longer holds the page on a large

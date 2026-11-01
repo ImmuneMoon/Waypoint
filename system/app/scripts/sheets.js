@@ -10420,6 +10420,15 @@ function costOptions(cost, acts) {   // a roll's Costs menu: nothing, each actio
     if (cost && !acts.some(function(a) { return a.key.toLowerCase() === String(cost).toLowerCase(); })) o.push([cost, 'Costs: ' + cost + ' (no such action)']);
     return o;
 }
+// [systemcheck:turntrade-start]
+// 1.6.0 A trade in a fight: the actions of the Turns box a trade may spend, and the pick following its action's key
+function turnTradeOpts(tn) {
+    var out = [['', 'Costs nothing']];
+    (Array.isArray(tn.acts) ? tn.acts : []).forEach(function(a) { if (a && typeof a === 'object' && typeof a.key === 'string' && a.key.trim()) out.push([a.key, 'Spends ' + (typeof a.label === 'string' && a.label ? a.label : a.key)]); });
+    return out;
+}
+function turnTradeFollow(tn, was, now) { if (was && tn.trade === was) { if (now) tn.trade = now; else delete tn.trade; } }
+// [systemcheck:turntrade-end]
 function turnBox(box, cm) {
     var tn = cm.turn && typeof cm.turn === 'object' && !Array.isArray(cm.turn) ? cm.turn : {}, wrap = el('div', 'sys-turn');
     wrap.appendChild(el('div', 'sys-turn-head', 'Turns'));
@@ -10451,6 +10460,7 @@ function turnBox(box, cm) {
         });
         var ad = el('button', 'tool ghost sys-btn sys-turn-add', g[0] === 'act' ? '+ Action' : '+ Time unit'); ad.dataset.act = 't' + g[0] + 'add'; ad.disabled = arr.length >= g[3]; ad.title = ad.disabled ? 'At most ' + g[3] : g[0] === 'act' ? 'Something one turn allows (an Action, a Bonus action, a Maneuver)' : 'A time unit of your game, by its length in seconds'; wrap.appendChild(ad);
     });
+    wrap.appendChild(labeledSelect('sys-turn-trade', 'A trade in a fight', turnTradeOpts(tn), typeof tn.trade === 'string' ? tn.trade : '', 'What giving something in a trade spends in a fight, from the actions above. Who only takes spends nothing. It also keeps Trade with on an NPC in a fight'));
     var err = errorCell('combat'); err.dataset.errFor = 'combat'; wrap.appendChild(err);
     box.appendChild(wrap);
 }
@@ -10461,10 +10471,12 @@ function onTurnInput(t) {
     else if (c.indexOf('sys-turn-secs') >= 0) { var sv = Number(t.value); if (t.value.trim() && isFinite(sv)) tn.secs = sv; else delete tn.secs; }
     else if (rw) {
         var g = rw.classList.contains('sys-turn-act') ? 'act' : 'tu', arr = tn[g === 'act' ? 'acts' : 'units'], x = Array.isArray(arr) && arr[i] && typeof arr[i] === 'object' ? arr[i] : null; if (!x) return true;
-        if (c.indexOf('sys-turn-' + g + 'key') >= 0) x.key = t.value.slice(0, 24);
+        if (c.indexOf('sys-turn-' + g + 'key') >= 0) { var wasK = x.key; x.key = t.value.slice(0, 24); if (g === 'act') turnTradeFollow(tn, wasK, x.key); }
         else if (c.indexOf('sys-turn-' + g + 'label') >= 0) { if (t.value.trim()) x.label = t.value.slice(0, LIMITS.label); else delete x.label; }
         else if (c.indexOf('sys-turn-' + g + 'n') >= 0) { var nv = Number(t.value); if (g === 'act') { var nt = String(t.value || '').trim(); if (/^[0-9]+$/.test(nt)) { x.n = nv; delete x.nf; } else if (nt) { x.nf = nt.slice(0, LIMITS.formula); if (typeof x.n !== 'number') x.n = 1; } else { x.n = 1; delete x.nf; } } else if (t.value.trim() && isFinite(nv)) x.secs = nv; else delete x.secs; }   // 192: a whole number, or a formula
         else return true;
+        var tsT = g === 'act' && rw.parentNode ? rw.parentNode.querySelector('.sys-turn-trade') : null;   // the list of actions a trade may spend follows what is typed
+        if (tsT) { var keepT = typeof tn.trade === 'string' ? tn.trade : ''; while (tsT.firstChild) tsT.removeChild(tsT.firstChild); turnTradeOpts(tn).forEach(function(o) { tsT.appendChild(opt(o[0], o[1], o[0] === keepT)); }); }
     } else return false;
     markDirty(); patchErrors(); return true;
 }
@@ -10472,6 +10484,7 @@ function onTurnChange(t) {
     var c = t.className || ''; if (typeof c !== 'string') return false;
     if (c.indexOf('sys-turn-mvu') >= 0) turnDraft().unit = t.value;
     else if (c.indexOf('sys-turn-diag') >= 0) { var tn = turnDraft(); if (t.value === 'one' || t.value === 'alt') tn.diag = t.value; else delete tn.diag; }
+    else if (c.indexOf('sys-turn-trade') >= 0) { var tnT = turnDraft(); if (t.value) tnT.trade = t.value; else delete tnT.trade; }   // 1.6.0
     else if (c.indexOf('sys-turn-off') >= 0) { var tnO = turnDraft(); if (t.value === 'refuse' || t.value === 'warn') tnO.off = t.value; else delete tnO.off; }   // 1.6.0
     else if (c.indexOf('sys-turn-holdend') >= 0) { var tnE = turnDraft(); if (t.value === 'end') tnE.holdEnd = 'end'; else delete tnE.holdEnd; }   // 1.6.0
     else if (c.indexOf('sys-turn-holdact') >= 0) { var tnA = turnDraft(); if (t.value === 'stay') tnA.holdAct = 'stay'; else delete tnA.holdAct; }   // 1.6.0
@@ -10487,7 +10500,7 @@ function turnClick(b) {
     else if (!(i >= 0 && i < arr.length)) return true;
     else if (m[2] === 'up') { if (i > 0) arr.splice(i - 1, 0, arr.splice(i, 1)[0]); }
     else if (m[2] === 'down') { if (i < arr.length - 1) arr.splice(i + 1, 0, arr.splice(i, 1)[0]); }
-    else arr.splice(i, 1);
+    else { var goneT = arr.splice(i, 1)[0]; if (m[1] === 'act' && goneT) turnTradeFollow(tn, goneT.key, ''); }
     markDirty(); renderAll(); return true;
 }
 // [systemcheck:capnote-start]

@@ -3579,6 +3579,10 @@ check('the roster numbers rows of one name, and the sheet that says it is out of
         const sheets = { charById: id => (id === 'cK' ? { ownerId: 'p1' } : id === 'cT' ? { ownerId: 'p2' } : { ownerId: '' }) };
         const peace = askFn(mkN({}), sheets), war = askFn(mkN({ 'm1|g1': { id: 'f1' }, 'm1|t2': { id: 'f1' } }), sheets);
         const lab = q => (q ? q.label : null);
+        {   // 1.6.0 A trade in a fight: a system that names what a trade spends keeps the row on an NPC in a fight
+            const warT = askFn(Object.assign(mkN({ 'm1|g1': { id: 'f1' } }), { tradeFights: () => true }), sheets), warN = askFn(Object.assign(mkN({ 'm1|g1': { id: 'f1' } }), { tradeFights: () => false }), sheets);
+            check('1.6.0 A trade in a fight: Trade with stands on an NPC in a fight only where the system names what a trade spends, and is left out otherwise', !!warT(npc, tm, null) && warN(npc, tm, null) === null, '');
+        }
         check('1.6.0 the table test\'s small things: a fight\'s row shows its token\'s own name, a name a GM may have chosen for one sheet used many ways, and the character\'s own only where another character\'s token on the map reads the same, never for two tokens of one character (rowNameOf, run for real; a blank name and a name only a prototype holds passed over), both places that make a row asking it with their map; the strip keeps room for the longest name so its arrow stays put; a player is offered a trade with a merchant, not with an NPC in a fight nor a character they keep, and with a teammate in a fight as ever (trade.js canAsk, run for real); a sheet says the GM holds a kept token',
             J(named) === J(['Pebble guard 2', 'Pebble guard 3', 'Dockhand', 'Pebble guard', 'Pebble guard', 'Sela', 'Crate', 'Odd', 'Unnamed'])
             && (wbT.match(/typeof rowNameOf === 'function' \? rowNameOf\(w, map\)/g) || []).length === 2 && wbT.includes("strip.style.setProperty('--strip-name'") && /\.combat-strip-cur \{[^}]*min-width: calc\(var\(--strip-name/.test(cssT) && /\.combat-strip-next \{[^}]*min-width: calc\(var\(--strip-name/.test(cssT)

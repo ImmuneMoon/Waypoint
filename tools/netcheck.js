@@ -18037,7 +18037,7 @@ pendingChecks.push((async () => {
             items: [{ id: 'i_lamp', name: 'Lamp', stats: { cr: 20 } }, { id: 'i_chip', name: 'Glimmer chip' }, { id: 'i_gm', name: 'Cursed', vis: 'gm' }] }, { F: Fx, gmView: true });
         const mkW = (o) => {
             o = o || {};
-            const camp = { id: 'k', system: sysT, items: {}, chars: {
+            const camp = { id: 'k', system: o.sys || sysT, items: o.items || {}, chars: {
                 c_1: { id: 'c_1', name: 'Kael', ownerId: 'u_a', npc: false, values: { f_chips: [{ id: 'w_k1', defId: 'i_chip', qty: 1, lvl: 500 }], f_gear: [] } },
                 c_2: { id: 'c_2', name: 'Pebbles', ownerId: 'u_b', npc: false, values: {} },
                 c_3: { id: 'c_3', name: 'Grunt', npc: true, values: { f_gear: [{ id: 'w_g1', defId: 'i_lamp', qty: 5 }, { id: 'w_g2', defId: 'i_gm', qty: 1 }], f_chips: [{ id: 'w_g9', defId: 'i_chip', qty: 1, lvl: 10 }] } },
@@ -18047,16 +18047,55 @@ pendingChecks.push((async () => {
             const conns = [{ peer: 'pA', open: true, send: box(out.a) }, { peer: 'pB', open: true, send: box(out.b) }];
             const net = { active: true, role: o.role || 'host', paused: !!o.paused, conns, myId: 'gm', roster: { pA: { id: 'u_a', name: 'Kael P' }, pB: { id: 'u_b', name: 'Bo P' } }, foreign: true, syncedPeer: 'H', stream: false };
             net.syncCharDelta = (id, v) => out.deltas.push([id, Object.keys(v).sort()]);
+            if (o.loc) { net.roster.pA.location = o.loc; net.roster.pB.location = o.loc; } net.turnSpent = {}; net.turnMax = {}; net.combats = o.combats || {};
             const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { charChanged(id) { out.changed.push(id); } }, wpNotices: { wait: (k) => { out.waits.push(k); return true; }, done: (k) => { out.dones.push(k); } }, dispatchEvent: e => out.gm.push(e.detail) };
             function CustomEvent(type, init) { this.type = type; this.detail = init.detail; }
-            const api = new Function('net', 'SC', 'window', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'logEvent', 'pushChat', 'CustomEvent', 'allow', 'peerPaused', 'toast',
-                apiT + '\nreturn { tradeMoved: tradeMoved, tradeLost: tradeLost, tradeDo: tradeDo, tradeConnGone: tradeConnGone, trades: function() { return _trades; }, cleanTradeView: cleanTradeView, tradeKeep: tradeKeep,\n' +
+            const api = new Function('net', 'SC', 'window', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'logEvent', 'pushChat', 'CustomEvent', 'allow', 'peerPaused', 'toast', 'OPT',
+                (o.pre || '') + apiT + '\nreturn { tradeMoved: tradeMoved, tradeLost: tradeLost, tradeDo: tradeDo, tradeConnGone: tradeConnGone, trades: function() { return _trades; }, cleanTradeView: cleanTradeView, tradeKeep: tradeKeep,\n' +
                 ' branch: function(msg, conn) { if (msg.type === "trade" && net.role === "host") {\n' + brT + '\n} },\n client: function(msg, conn) { if (msg.type === "tradeState" && net.role === "client") {\n' + stT + '\n} } };')(
                 net, () => Sx, win, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), (k, tx) => out.logs.push([k, tx]), m => out.chat.push(JSON.parse(JSON.stringify(m))), CustomEvent,
-                (name, cfg, peer) => o.limit !== true, () => false, m => out.toasts = (out.toasts || []).concat([m]));
+                (name, cfg, peer) => o.limit !== true, () => false, m => out.toasts = (out.toasts || []).concat([m]), o);
             return { camp, out, net, api, conns };
         };
         const st = l => l.filter(m => m.type === 'tradeState').map(m => m.view ? m.view.status + ':' + m.view.you : 'refused:' + m.refused);
+        {   // 1.6.0 A trade in a fight (combat.turn.trade): the host spends the action, with the real actSpend and the real Off a character's turn, and a player's message names none of it
+            const acT = cutT('function actsMaxOf(camp, ch, map, w, c)', 'function turnActsStart(mapId, c)'), offT = cutT('// [netcheck:offturn-start]', '// [netcheck:offturn-end]');
+            const pre = acT + offT + '\nfunction own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }\nfunction moveMode() { return OPT.mode || "refuse"; }\nfunction fightOfTok(m, t) { return OPT.fight && OPT.fight.rows.some(function(r) { return r.tokId === t; }) ? "f1" : null; }\nfunction orderOfIn(camp, charId) { var mp = camp.items.m1; return OPT.fight && OPT.fight.rows.some(function(r) { return mp.whiteboard.some(function(w) { return w.id === r.tokId && w.charId === charId; }); }) ? "f1" : ""; }\nfunction turnNote(conn, text) { OPT.notes.push(text); }\n';
+            const sysC = t => { const s = JSON.parse(JSON.stringify(sysT)); s.combat = Object.assign({}, s.combat, { turn: t }); return s; }, ACT = { acts: [{ key: 'Action', n: 1, label: 'Action' }], trade: 'Action' };
+            const mkF = (o2, turn) => { const fight = o2 && o2.noFight ? null : { id: 'f1', mapId: 'm1', turn: turn || 0, rows: [{ tokId: 't1' }, { tokId: 't2' }, { tokId: 't3' }] };
+                return mkW(Object.assign({ sys: sysC(ACT), loc: 'm1', pre, notes: [], fight, combats: fight ? { f1: fight } : {}, items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 't1', isChar: true, charId: 'c_1', ownerId: 'u_a' }, { id: 't2', isChar: true, charId: 'c_2', ownerId: 'u_b' }, { id: 't3', isChar: true, charId: 'c_3' }] } } }, o2)); };
+            const pass = (M, from, to, offA, offB, other) => { const B = M.api, c0 = M.conns[0], by2 = other ? m => B.branch(Object.assign({ type: 'trade' }, m), other) : m => B.tradeDo({}, m);
+                B.branch({ type: 'trade', op: 'ask', from, to }, c0); const tid = Object.keys(B.trades())[0]; by2({ op: 'answer', tid, yes: true }); if (offA) B.branch({ type: 'trade', op: 'put', tid, offer: offA }, c0); if (offB) by2({ op: 'put', tid, offer: offB });
+                B.branch({ type: 'trade', op: 'confirm', tid, on: true }, c0); by2({ op: 'confirm', tid, on: true }); return tid; };
+            const CHIP = [{ fid: 'f_chips', rowId: 'w_k1', key: '@lvl', amt: 40 }], LAMP = [{ fid: 'f_gear', rowId: 'w_g1', qty: 1 }], OWN = [{ fid: 'f_gear', rowId: 'w_p1', qty: 1 }], lvlOf = M => M.camp.chars.c_1.values.f_chips[0].lvl, spent = (M, id) => (M.net.turnSpent[id] || {}).Action || 0;
+            const open = M => M.out.a.filter(m => m.view && m.view.status === 'open').slice(-1)[0].view, said = M => open(M).msg;
+
+            const A = mkF(); pass(A, 'c_1', 'c_3', CHIP); const leftA = A.out.a.filter(m => m.type === 'acts-left').slice(-1)[0];
+            check('1.6.0 A trade in a fight: a player\'s side that gives spends the action the system names as the trade completes, on the host, told what is left; the GM\'s side spends nothing',
+                spent(A, 'c_1') === 1 && spent(A, 'c_3') === 0 && !Object.keys(A.api.trades()).length && lvlOf(A) === 460 && !!leftA && leftA.left.Action === 0 && A.out.saves >= 1, JSON.stringify([A.net.turnSpent, leftA, lvlOf(A)]));
+            const savesA = A.out.saves; const t2 = pass(A, 'c_1', 'c_3', CHIP), refA = said(A), heldA = A.api.trades()[t2];
+            check('1.6.0 A trade in a fight: with no action left it is refused before anything moves, both confirms cleared and both sides told who is short',
+                refA === 'Kael: No Action left this turn.' && lvlOf(A) === 460 && spent(A, 'c_1') === 1 && A.out.saves === savesA && !!heldA && heldA.okA === false && heldA.okB === false && heldA.status === 'open', j([refA, lvlOf(A), A.out.saves, savesA]));
+            const T = mkF(); pass(T, 'c_1', 'c_3', null, LAMP);
+            check('1.6.0 A trade in a fight: one who only takes spends nothing', spent(T, 'c_1') === 0 && T.camp.chars.c_1.values.f_gear.length === 1 && !Object.keys(T.api.trades()).length, j(T.net.turnSpent));
+            const mkSwap = o2 => { const M = mkF(o2); M.camp.chars.c_2.values.f_gear = [{ id: 'w_p1', defId: 'i_lamp', qty: 2 }]; return M; };
+            const S1 = mkSwap(); pass(S1, 'c_1', 'c_2', CHIP, OWN, S1.conns[1]);
+            const S2 = mkSwap(); S2.net.turnSpent.c_2 = { Action: 1 }; pass(S2, 'c_1', 'c_2', CHIP, OWN, S2.conns[1]);
+            check('1.6.0 A trade in a fight: a swap is two hand-overs, so both sides pay, and one side short of its action costs the other nothing and moves nothing',
+                spent(S1, 'c_1') === 1 && spent(S1, 'c_2') === 1 && lvlOf(S1) === 460 && spent(S2, 'c_1') === 0 && spent(S2, 'c_2') === 1 && lvlOf(S2) === 500 && said(S2) === 'Pebbles: No Action left this turn.', j([S1.net.turnSpent, S2.net.turnSpent, said(S2)]));
+            const W = mkF({ mode: 'warn' }); W.net.turnSpent.c_1 = { Action: 1 }; pass(W, 'c_1', 'c_3', CHIP); const Of = mkF({ mode: 'off' }); pass(Of, 'c_1', 'c_3', CHIP);
+            check('1.6.0 A trade in a fight: the table\'s Warn lets it through past what a turn allows and tells the GM, and Off counts nothing', lvlOf(W) === 460 && spent(W, 'c_1') === 2 && (W.out.toasts || []).some(m => /past what a turn allows/.test(m)) && lvlOf(Of) === 460 && spent(Of, 'c_1') === 0, j([lvlOf(W), W.out.toasts, Of.net.turnSpent]));
+            const N1 = mkF({ sys: sysC({ acts: ACT.acts }) }); pass(N1, 'c_1', 'c_3', CHIP); const nV = N1.out.a.filter(m => m.view).map(m => m.view); const N2 = mkF({ noFight: true }); pass(N2, 'c_1', 'c_3', CHIP); const nV2 = N2.out.a.filter(m => m.view).map(m => m.view);
+            check('1.6.0 A trade in a fight: a system that names no action costs nothing and says nothing, and out of a fight nothing changes', lvlOf(N1) === 460 && spent(N1, 'c_1') === 0 && !nV.some(v => 'cost' in v) && N1.net.tradeFights() === false && lvlOf(N2) === 460 && spent(N2, 'c_1') === 0 && !nV2.some(v => 'cost' in v), j([N1.net.turnSpent, N2.net.turnSpent]));
+            const costM = mkF(); costM.api.branch({ type: 'trade', op: 'ask', from: 'c_1', to: 'c_3' }, costM.conns[0]); const tC0 = Object.keys(costM.api.trades())[0]; costM.api.tradeDo({}, { op: 'answer', tid: tC0, yes: true }); const vC = open(costM);
+            const cl = costM.api.cleanTradeView(Object.assign({}, vC, { cost: 'x'.repeat(200) })), cl2 = costM.api.cleanTradeView(Object.assign({}, vC, { cost: { a: 1 } }));
+            check('1.6.0 A trade in a fight: the window says what giving spends, and a player\'s app keeps that word only as short text', vC.cost === 'In this fight, whoever gives spends their Action.' && cl.cost.length === 120 && !('cost' in cl2) && costM.net.tradeFights() === true, j([vC.cost, cl.cost.length, cl2.cost]));
+            const Bar = mkF({ sys: sysC(Object.assign({ off: 'refuse' }, ACT)) }, 1); pass(Bar, 'c_1', 'c_3', CHIP); const Hold = mkF({ sys: sysC(Object.assign({ off: 'refuse' }, ACT)) }, 1); Hold.net.combats.f1.rows[0].held = 1; pass(Hold, 'c_1', 'c_3', CHIP);
+            const notesW = [], Wn = mkF({ sys: sysC(Object.assign({ off: 'warn' }, ACT)), notes: notesW }, 1); pass(Wn, 'c_1', 'c_3', CHIP); const Free = mkF({ sys: sysC(Object.assign({ off: 'refuse' }, ACT)) }, 1); pass(Free, 'c_1', 'c_3', null, LAMP);
+            check('1.6.0 A trade in a fight: Off a character\'s turn judges the side that gives: refused off their turn with the GM told, through for a held turn, with a word under Warn, and one who only takes is not judged',
+                said(Bar) === 'It is not Kael\u2019s turn.' && lvlOf(Bar) === 500 && spent(Bar, 'c_1') === 0 && (Bar.out.toasts || []).some(m => /tried a trade out of turn/.test(m)) && lvlOf(Hold) === 460 && spent(Hold, 'c_1') === 1
+                && lvlOf(Wn) === 460 && spent(Wn, 'c_1') === 1 && (Wn.out.toasts || []).some(m => /traded out of turn/.test(m)) && notesW.includes('It is not your turn. The GM is told.') && Free.camp.chars.c_1.values.f_gear.length === 1, j([said(Bar), Bar.out.toasts, lvlOf(Bar), lvlOf(Hold), lvlOf(Wn), Wn.out.toasts, notesW, st(Free.out.a).slice(-1)]));
+        }
         {   // 1.6.0, found by hand: the GM took away a row on offer and the window went on showing it until a Confirm was refused
             const M = mkW(), B = M.api; M.net.syncCharDelta = id => B.tradeMoved(id);
             B.branch({ type: 'trade', op: 'ask', from: 'c_1', to: 'c_3' }, M.conns[0]); const tidM = Object.keys(B.trades())[0]; B.tradeDo({}, { op: 'answer', tid: tidM, yes: true });

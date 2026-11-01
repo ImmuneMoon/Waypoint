@@ -3484,6 +3484,44 @@ function tradeLines(S, sys, ch, off, who) {
         return o;
     }).filter(Boolean);
 }
+// 1.6.0 A trade in a fight (combat.turn.trade, in a system's Turns; the owner: "should be available in general for waypoint as something that can be applied"). It names an action of
+// the system's, and a side that gives spends it as the trade completes. Who only takes spends nothing, so a swap costs both sides. Only a player's side at the table is counted: the GM's
+// hand spends nothing here, as a GM's press does not. Everything is judged before anything moves, so one side short of its action costs the other nothing. Absent, as ever
+function tradeAct(camp) {
+    if (typeof actsOf !== 'function') return null;
+    var tn = camp && camp.system && camp.system.combat ? camp.system.combat.turn : null, k = tn ? tn.trade : '', a = null;
+    if (typeof k === 'string' && k) actsOf(camp).forEach(function(x) { if (!a && x && x.key === k) a = x; });
+    return a;
+}
+function tradeFight(camp, sd) {   // this side's player and connection, while its character is in a fight
+    if (!sd.by) return null; var hit = null;
+    net.conns.forEach(function(c) { var p = c.open ? net.roster[c.peer] : null; if (!hit && p && p.id === sd.by && actsCombat(camp, sd.charId, p)) hit = { conn: c, pr: p }; });
+    return hit;
+}
+function tradePayers(camp, tr) {
+    var a = tradeAct(camp), out = []; if (!a) return out;
+    [[tr.a, tr.offA], [tr.b, tr.offB]].forEach(function(q) {
+        if (!q[1] || !q[1].length) return; var f = tradeFight(camp, q[0]), ch = tradeChar(camp, q[0].charId);
+        if (f && ch) out.push({ ch: ch, conn: f.conn, pr: f.pr, key: a.key, nm: String(ch.name || 'A character').slice(0, 60) });
+    });
+    return out;
+}
+function tradeBar(camp, pays) {   // '' where every side that gives may; else the words both sides see
+    var out = '';
+    pays.forEach(function(p) {
+        if (out) return;
+        if (offTurnOf(camp, p.ch.id) === 'refuse') { offTurnTell(p.nm, p.nm + ' tried a trade out of turn.'); out = 'It is not ' + p.nm + '\u2019s turn.'; return; }
+        var w = actSpend(camp, p.ch.id, p.pr, p.key, p.conn, p.nm, true); if (w) out = p.nm + ': ' + w;
+    });
+    return out;
+}
+function tradeSpend(camp, pays) {
+    pays.forEach(function(p) {
+        actSpend(camp, p.ch.id, p.pr, p.key, p.conn, p.nm);
+        if (offTurnOf(camp, p.ch.id) === 'warn') { offTurnTell(p.nm, p.nm + ' traded out of turn.'); turnNote(p.conn, 'It is not your turn. The GM is told.', p.ch.id); }
+    });
+}
+net.tradeFights = function() { return !!tradeAct(getActiveCampaign()); };   // the system lets a trade happen in a fight: its row stands on an NPC there (trade.js canAsk)
 function tradeView(tr, you, status, msg) {
     var S = SC(), camp = getActiveCampaign(), ca = tradeChar(camp, tr.a.charId), cb = tradeChar(camp, tr.b.charId), sys = camp && camp.system;
     var side = function(sd, ch, off, ok) { return { charId: sd.charId, name: String((ch && ch.name) || 'A character').slice(0, 60), ok: !!ok, lines: S && sys && ch ? tradeLines(S, sys, ch, off, sd.by ? 'player' : 'gm') : [] }; };
@@ -3501,6 +3539,7 @@ function tradeView(tr, you, status, msg) {
         if (gets.length) v[q[0]].gets = gets;
     });
     if (msg) v.msg = String(msg).slice(0, 200);
+    var acV = tradeAct(camp); if (acV && (tradeFight(camp, tr.a) || tradeFight(camp, tr.b))) v.cost = 'In this fight, whoever gives spends their ' + String(acV.label || acV.key).slice(0, 40) + '.';
     return v;
 }
 function tradeKeep(v) {   // a view on this screen: kept while it is open, said through the window event either way
@@ -3583,11 +3622,13 @@ function tradeDo(actor, msg) {
         if (!(tr2.okA && tr2.okB)) { tradeTell(tr2); return { ok: true }; }
         var res = S.tradeApply(camp.system, ca, cb, tr2.offA, tr2.offB, who(tr2.a), who(tr2.b), { a: tr2.intoA, b: tr2.intoB });
         if (!res.ok) { tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, res.msg); return { error: res.msg }; }
+        var paysT = tradePayers(camp, tr2), barT = paysT.length ? tradeBar(camp, paysT) : ''; if (barT) { tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, barT); return { error: barT }; }
         tr2.closing = true; var now = Date.now(); ca.values = ca.values || {}; cb.values = cb.values || {};
         Object.keys(res.valuesA).forEach(function(k) { ca.values[k] = res.valuesA[k]; }); Object.keys(res.valuesB).forEach(function(k) { cb.values[k] = res.valuesB[k]; }); ca.updated = now; cb.updated = now;
         saveRemoteSoon();
         if (Object.keys(res.valuesA).length) net.syncCharDelta(tr2.a.charId, res.valuesA); if (Object.keys(res.valuesB).length) net.syncCharDelta(tr2.b.charId, res.valuesB);
         if (window.wpSheets) { window.wpSheets.charChanged(tr2.a.charId); window.wpSheets.charChanged(tr2.b.charId); }
+        if (paysT.length) tradeSpend(camp, paysT);
         var said = (ca.name || 'A character') + ' gave ' + (res.linesA.join(', ') || 'nothing') + '. ' + (cb.name || 'A character') + ' gave ' + (res.linesB.join(', ') || 'nothing') + '.';
         tradeCard([ca, cb], 'Trade done. ' + said);
         tradeEnd(tr2, 'done', 'Trade done. ' + said);
@@ -3650,7 +3691,7 @@ function cleanTradeView(v) {
         return out;
     };
     var a = side(v.a), b = side(v.b); if (!a || !b) return null;
-    var o = { tid: v.tid, status: st, you: you, a: a, b: b }; var m = txt(v.msg, 200); if (m) o.msg = m; return o;
+    var o = { tid: v.tid, status: st, you: you, a: a, b: b }; var m = txt(v.msg, 200); if (m) o.msg = m; var cs = txt(v.cost, 120); if (cs) o.cost = cs; return o;
 }
 // [netcheck:trade-end]
 // Turn-based combat T2 (owner, 2026-09-26): the token whose turn it is on the map in view, when it is this player's own — { mapId, rowId, tok }
@@ -5138,12 +5179,13 @@ function actsTell(camp, charId, cleared) {   // what is left, to each connection
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(m); } catch (e) { sendFailed(e); } } });
 }
 // '' when the press may go ahead (its cost spent, or nothing to spend); else the refusal's text
-function actSpend(camp, charId, pr, cost, conn, who) {
+function actSpend(camp, charId, pr, cost, conn, who, look) {   // look, only as true: says what would be refused and spends nothing
     if (!cost || moveMode(camp, 'acts') === 'off') return '';
     var a = null; actsOf(camp).forEach(function(x) { if (!a && x && x.key === cost) a = x; }); if (!a || !actsCombat(camp, charId, pr)) return '';
     var cbS = actsCombat(camp, charId, pr);
     if (!net.turnMax[charId]) { var mpS = camp.items && own(camp.items, pr.location) ? camp.items[pr.location] : null, SS = SC(), twS = SS && mpS ? SS.charTokenOn(mpS, charId, pr.id, { strict: true }) : null, chS = camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; net.turnMax[charId] = actsMaxOf(camp, chS, mpS, twS, cbS); }   // 192: a press before its first turn: its counts worked out now
     var sp = net.turnSpent[charId] || (net.turnSpent[charId] = {}), used = sp[a.key] || 0, lbl = a.label || a.key, n = actMax(charId, a);
+    if (look === true) return used >= n && moveMode(camp, 'acts') === 'refuse' ? 'No ' + lbl + ' left this turn.' : '';
     if (used >= n) {
         if (moveMode(camp, 'acts') === 'refuse') return 'No ' + lbl + ' left this turn.';
         turnNote(conn, lbl + ': used past what a turn allows.', charId); toast((who || 'A character') + ' used a ' + lbl + ' past what a turn allows.'); if (typeof bellOut === 'function') bellOut(charId, { title: 'Turn', text: 'Used a ' + lbl + ' past what a turn allows.' });

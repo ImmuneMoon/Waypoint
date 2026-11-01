@@ -1171,7 +1171,8 @@ For system builders, more
   Apply now, which lands the hold if that roll never comes.
 - A right-click on a token under a blast now opens the token's menu. Before, it
   removed the blast.
-- A blast the GM drags now moves on the players' screens too.
+- A blast the GM drags now moves on the players' screens too, and one the GM
+  right-clicks away goes from them.
 - Under Full auto, a blast that waits for Defense rolls now says so on its card.
   Before, the card said Applied too soon.
 - A hold taken while All holds end where is true now ends at once.

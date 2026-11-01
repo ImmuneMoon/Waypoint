@@ -3861,7 +3861,7 @@ window.wpFitToGrid = fitToGrid;
           var tkC = !window.isMeasureMode ? rulerToken(e.clientX, e.clientY) : null;   // a token under a blast keeps its menu, as it takes the left press: found by hand, a right-click meant for the token removed the blast
           if (tkC) { tkC.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, buttons: 2, clientX: e.clientX, clientY: e.clientY, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey })); return; }
           var bic = parseInt(gbc.dataset.i, 10);
-          if (bic >= 0 && bic < blasts.length) { var goneB = blasts.splice(bic, 1)[0]; if (ownCircle(goneB)) circleRekept(); renderMeasures(); syncBlastMenu(); toast(!ownCircle(goneB) ? 'Blast removed.' : goneB.as === 'ring' ? 'Ring removed.' : goneB.as === 'cone' ? 'Cone removed.' : 'Circle removed.'); }
+          if (bic >= 0 && bic < blasts.length) { var goneB = blasts.splice(bic, 1)[0]; if (ownCircle(goneB)) circleRekept(); blastGone(goneB); renderMeasures(); syncBlastMenu(); toast(!ownCircle(goneB) ? 'Blast removed.' : goneB.as === 'ring' ? 'Ring removed.' : goneB.as === 'cone' ? 'Cone removed.' : 'Circle removed.'); }
       });
       document.addEventListener('pointermove', function(e) {
           if (coneAim) { coneTurn(e); return; }
@@ -3894,6 +3894,10 @@ window.wpFitToGrid = fitToGrid;
   function blastMoved(b) {   // a blast the table was told of, moved by the GM: the map's blasts told again, since a copy has no id to move it by
       var n = window.wpNet; if (!b || !b.wire || !n || !n.active || n.role !== 'host' || !n.broadcastBlast || !n.broadcastBlastClear) return;
       b.wire.x = b.x; b.wire.y = b.y; if (typeof b.elev === 'number') b.wire.elev = b.elev;
+      n.broadcastBlastClear(b.wireMap); blasts.forEach(function(x) { if (x.wire && x.wireMap === b.wireMap) n.broadcastBlast(x.wire, x.wireMap, x.wireChar); });
+  }
+  function blastGone(b) {   // a blast the table was told of, taken away by the GM: found by hand, it stayed on a player's screen. The map's blasts told again, without it
+      var n = window.wpNet; if (!b || !b.wire || !n || !n.active || n.role !== 'host' || !n.broadcastBlast || !n.broadcastBlastClear) return;
       n.broadcastBlastClear(b.wireMap); blasts.forEach(function(x) { if (x.wire && x.wireMap === b.wireMap) n.broadcastBlast(x.wire, x.wireMap, x.wireChar); });
   }
   function clearMeasures() { measures = []; activeMeasure = null; renderMeasures(); }

@@ -3534,6 +3534,13 @@ check('the roster numbers rows of one name, and the sheet that says it is out of
         const bmS = wbR.slice(wbR.indexOf('function blastMoved(b)'), wbR.indexOf('function clearMeasures()')), said = [], n = { active: true, role: 'host', broadcastBlastClear: m => said.push(['clear', m]), broadcastBlast: (w, m, c) => said.push([w.x, w.y, w.elev, m, c]) };
         const bA = { x: 40, y: 50, elev: 2, wire: { x: 1, y: 1, ft: 9 }, wireMap: 'm1', wireChar: 'c1' }, bB = { x: 7, y: 7, wire: { x: 7, y: 7, ft: 9 }, wireMap: 'm1' }, bC = { x: 3, y: 3, wire: { x: 3, y: 3 }, wireMap: 'm2' }, bO = { x: 5, y: 5 }, moved = new Function('window', 'blasts', bmS + '\nreturn blastMoved;')({ wpNet: n }, [bA, bB, bC, bO]);
         moved(bA); const toldA = JSON.stringify(said); said.length = 0; moved(bO); const toldO = said.length; n.role = 'client'; moved(bA); const toldC = said.length;
+        {   // found by hand: a blast the GM right-clicked away stayed on a player's screen
+            const left = [bB, bC, bO], gone = new Function('window', 'blasts', bmS + '\nreturn blastGone;')({ wpNet: n }, left); n.role = 'host'; said.length = 0;
+            gone(bA); const goneA = JSON.stringify(said); said.length = 0; gone(bO); const goneO = said.length; n.role = 'client'; gone(bA); const goneC = said.length; n.role = 'host';
+            check('1.6.0 a blast the GM right-clicks away goes for the table: the map\'s blasts cleared and the rest of that map told again, nothing for a shape of the tool\'s own or on a player\'s app, and the right press asks it once the blast is off the list',
+                goneA === JSON.stringify([['clear', 'm1'], [7, 7, null, 'm1', null]]) && goneO === 0 && goneC === 0 && wbR.includes('var goneB = blasts.splice(bic, 1)[0]; if (ownCircle(goneB)) circleRekept(); blastGone(goneB);'), JSON.stringify([goneA, goneO, goneC]));
+        }
+        said.length = 0; n.role = 'client';
         check('1.6.0 a blast the GM moved moves for the table: the map\'s blasts cleared and told again, this one where it now is and another of that map beside it, never one of another map, nothing for a shape of the tool\'s own or on a player\'s app; and a right press on a token under a blast is the token\'s, with neither tool in hand',
             toldA === JSON.stringify([['clear', 'm1'], [40, 50, 2, 'm1', 'c1'], [7, 7, null, 'm1', null]]) && toldO === 0 && toldC === 0 && wbR.includes('seatBlast(bu); renderMeasures(); syncBlastMenu(); blastMoved(bu);') && wbR.includes("var tkC = !window.isMeasureMode ? rulerToken(e.clientX, e.clientY) : null;") && wbR.indexOf('var tkC = ') < wbR.indexOf('var bic = parseInt(gbc.dataset.i, 10);'), JSON.stringify([toldA, toldO, toldC]));
     }

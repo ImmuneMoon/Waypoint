@@ -8510,7 +8510,7 @@ function ctKeySays(sp, F0) {
         lrw.appendChild(el('span', 'sys-num-cap', 'Loads from'));
         lsel.title = 'A row of this list loads one unit of a row of another list, as a blaster loads a power pack. What the unit holds, its level, goes into a counter of this list. A swap or an unload puts it back with what is left';
         var lo0 = el('option', null, 'Nothing'); lo0.value = ''; lsel.appendChild(lo0);
-        (typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : []).forEach(function(x) { if (!x || x.kind !== 'item-list' || x.id === f.id) return; var o = el('option', null, x.label || x.key || x.id); o.value = x.id; if (ldS && ldS.from === x.id) o.selected = true; lsel.appendChild(o); });
+        (typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : []).forEach(function(x) { if (!x || x.kind !== 'item-list' || x.id === f.id) return; var o = el('option', null, (x.label || x.key || x.id) + (x.list && x.list.lvl ? '' : ' (its rows have no level)')); o.value = x.id; if (ldS && ldS.from === x.id) o.selected = true; lsel.appendChild(o); });
         lrw.appendChild(lsel);
         if (ldS) {
             var csel = el('select', 'sys-list-loadct'); csel.title = 'The counter that holds what the loaded row has left. Its most may read Row.loadmax, the loaded row\u2019s full level';
@@ -8533,7 +8533,7 @@ function ctKeySays(sp, F0) {
             var fkI = input('sys-list-feedkey field', typeof fdS.key === 'string' ? fdS.key : '', 'A short key of letters and digits. Formulas read what this feed holds as Row.Feed.<key>.<stat>, and what the last shot took as Row.Feed.<key>.fired.<stat>', 'Key'); fkI.maxLength = 24; frw.appendChild(fkI);
             fsel.title = 'The list it loads from. What a unit holds, its level, goes into the counter beside. Changing this feed moves nothing of another';
             var fo0 = el('option', null, 'Loads from\u2026'); fo0.value = ''; fsel.appendChild(fo0);
-            (typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : []).forEach(function(x) { if (!x || x.kind !== 'item-list' || x.id === f.id) return; var o = el('option', null, x.label || x.key || x.id); o.value = x.id; if (fdS.from === x.id) o.selected = true; fsel.appendChild(o); });
+            (typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : []).forEach(function(x) { if (!x || x.kind !== 'item-list' || x.id === f.id) return; var o = el('option', null, (x.label || x.key || x.id) + (x.list && x.list.lvl ? '' : ' (its rows have no level)')); o.value = x.id; if (fdS.from === x.id) o.selected = true; fsel.appendChild(o); });   // 1.6.2: said here, beside the feed, as well as in the card's line
             frw.appendChild(fsel);
             fct.title = 'The counter that holds what this feed has left, one of its own. Its most is how much the feed holds, so Add knows the room';
             var fc0 = el('option', null, 'Pick a counter'); fc0.value = ''; fct.appendChild(fc0);

@@ -9351,6 +9351,16 @@ function stripMoveHtml(n, fid, c, map) {
     var over = mv.m > mv.a + 0.05, r = Math.round(mv.m * 10) / 10;
     return '<span class="combat-strip-move' + (over ? ' over' : '') + '" data-tip="How far the token on turn has moved, of its move this turn">Moved ' + esc(String(r)) + ' of ' + esc(n.cellsText(mv.a, map)) + '</span>';
 }
+// [lookcheck:stripacts-start]
+// 1.6.0: what the character on turn has left of each action, as the strip says it. net.js actsNow says whether there is anything to say: a player's character, where actions are counted
+function stripActsHtml(n, c, map) {
+    var cur = c && c.rows ? c.rows[c.turn] : null, tok = cur && cur.tokId && map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(w) { return w && w.id === cur.tokId; }) : null;
+    var al = tok && typeof tok.charId === 'string' && n && typeof n.actsNow === 'function' ? n.actsNow(tok.charId) : null; if (!al || !al.left) return '';
+    var cp = getActiveCampaign(), tn = cp && cp.system && cp.system.combat ? cp.system.combat.turn : null, acts = tn && Array.isArray(tn.acts) ? tn.acts : [], out = true;
+    var bits = acts.filter(function(a) { return a && typeof al.left[a.key] === 'number'; }).map(function(a) { var k = al.left[a.key]; if (k > 0) out = false; return esc(a.label || a.key) + ': ' + (k > 0 ? esc(String(k)) + ' left' : 'none left'); });
+    return bits.length ? '<span class="combat-strip-acts' + (out ? ' out' : '') + '" data-tip="What the character on turn has left of each action this turn">' + bits.join(', ') + '</span>' : '';
+}
+// [lookcheck:stripacts-end]
 // 1.5.7: a player's drag of their token on turn says live how far it goes and what would be left, beside the pointer (the GM's own drags count against no move, so the GM has the strip alone); nothing for any other drag
 var _moveTipEl = null;
 window.wpMoveTip = function(item, mapId, ox, oy, cx, cy) {
@@ -9403,6 +9413,7 @@ function renderCombatStrip() {
         + (host ? '<button class="combat-strip-btn" data-act="prev" title="Previous turn">&#9664;</button>' : '')
         + '<span class="combat-strip-cur" data-tip="Whose turn it is">' + (cur.src ? '<img src="' + esc(resolveImg(cur.src)) + '" alt="">' : '') + nameOf(cur) + '</span>'
         + (typeof stripMoveHtml === 'function' ? stripMoveHtml(n, fidS, c, am) : '')   // 1.5.7: the turn's move, asked through typeof for the suites that slice the strip alone
+        + (typeof stripActsHtml === 'function' ? stripActsHtml(n, c, am) : '')   // 1.6.0: its actions, the same way
         + '<span class="combat-strip-next" data-tip="' + (chS ? 'Up next: the next in the order who has not gone this round' : 'Up next') + '">next ' + nameOf(nxt) + (nxC && nxC.round ? ', opening round ' + (c.round + 1) : '') + '</span>'
         + (mine ? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn" title="End your turn: play moves on to the next in the order' + (chS ? ' who has not gone. Pick next chooses another' : '') + '">End turn</button>' : '')
         + pickH

@@ -3539,7 +3539,8 @@ function tradeView(tr, you, status, msg) {
         if (gets.length) v[q[0]].gets = gets;
     });
     if (msg) v.msg = String(msg).slice(0, 200);
-    var acV = tradeAct(camp); if (acV && (tradeFight(camp, tr.a) || tradeFight(camp, tr.b))) v.cost = 'In this fight, whoever gives spends their ' + String(acV.label || acV.key).slice(0, 40) + '.';
+    var acV = tradeAct(camp), payV = acV ? [['a', tr.a], ['b', tr.b]].filter(function(q) { return tradeFight(camp, q[1]); }).map(function(q) { return v[q[0]].name; }) : [];   // only the sides that will pay are named
+    if (payV.length) v.cost = 'Giving in this fight costs ' + payV.join(' and ') + ' one ' + String(acV.label || acV.key).slice(0, 40) + (payV.length > 1 ? ' each' : '') + '.';
     return v;
 }
 function tradeKeep(v) {   // a view on this screen: kept while it is open, said through the window event either way
@@ -3691,7 +3692,7 @@ function cleanTradeView(v) {
         return out;
     };
     var a = side(v.a), b = side(v.b); if (!a || !b) return null;
-    var o = { tid: v.tid, status: st, you: you, a: a, b: b }; var m = txt(v.msg, 200); if (m) o.msg = m; var cs = txt(v.cost, 120); if (cs) o.cost = cs; return o;
+    var o = { tid: v.tid, status: st, you: you, a: a, b: b }; var m = txt(v.msg, 200); if (m) o.msg = m; var cs = txt(v.cost, 200); if (cs) o.cost = cs; return o;
 }
 // [netcheck:trade-end]
 // Turn-based combat T2 (owner, 2026-09-26): the token whose turn it is on the map in view, when it is this player's own — { mapId, rowId, tok }
@@ -4955,6 +4956,7 @@ function blastsSendTo(c, mapId) {   // 1.6.0: what stands on the map a player co
 function combatsSendTo(c, was) {
     var pr = c && c.open && typeof c.peer === 'string' && net.roster && Object.prototype.hasOwnProperty.call(net.roster, c.peer) ? net.roster[c.peer] : null, loc = connMap(c); if (!pr) return;
     if (typeof blastsSendTo === 'function') blastsSendTo(c, loc);
+    if (typeof actsSendTo === 'function') actsSendTo(c);
     if (typeof fightFar === 'function') fightFar(c, pr, was, loc);
     if (!fightsOn(loc).length && !(typeof was === 'string' && was !== loc && fightsOn(was).length)) return;
     var go = function() { try { combatsTo(c, combatsFor(pr.id, loc)); } catch (e) { sendFailed(e); } };
@@ -5172,12 +5174,27 @@ function actsCombat(camp, charId, pr) {
     var tok = S && map ? S.charTokenOn(map, charId, pr.id, { strict: true }) : null, fidA = tok ? fightOfTok(pr.location, tok.id) : null;   // fold 2: the fight that holds that token
     return fidA ? net.combats[fidA] : null;
 }
+function actsLeftOf(camp, charId) { var left = {}, sp = net.turnSpent[charId] || {}; actsOf(camp).forEach(function(a) { if (a && typeof a.key === 'string') left[a.key] = Math.max(0, actMax(charId, a) - (sp[a.key] || 0)); }); return left; }
 function actsTell(camp, charId, cleared) {   // what is left, to each connection of the character's player
     var ch = camp && camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; if (!ch || !ch.ownerId || ch.npc) return;
-    var left = null; if (!cleared) { left = {}; var sp = net.turnSpent[charId] || {}; actsOf(camp).forEach(function(a) { if (a && typeof a.key === 'string') left[a.key] = Math.max(0, actMax(charId, a) - (sp[a.key] || 0)); }); }
-    var m = { type: 'acts-left', charId: charId, left: left, mode: moveMode(camp, 'acts') === 'warn' ? 'warn' : 'refuse' };
+    if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();   // 1.6.0: the strip says what is left
+    var left = cleared ? null : actsLeftOf(camp, charId), md = moveMode(camp, 'acts');
+    var m = { type: 'acts-left', charId: charId, left: left, mode: md === 'warn' || md === 'off' ? md : 'refuse' };
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(m); } catch (e) { sendFailed(e); } } });
 }
+function actsSendTo(c) {   // 1.6.0: one who comes to the table mid-turn hears what their character has left, as one there hears it when the turn begins
+    var pr = c && c.open && typeof c.peer === 'string' && net.roster && Object.prototype.hasOwnProperty.call(net.roster, c.peer) ? net.roster[c.peer] : null, camp = getActiveCampaign();
+    if (!pr || !camp || !camp.chars || !window.wpVtt || !window.wpVtt.on('turns') || !actsOf(camp).length) return;
+    var md = moveMode(camp, 'acts');
+    Object.keys(camp.chars).forEach(function(id) { var ch = camp.chars[id]; if (ch && ch.ownerId === pr.id && !ch.npc && actsCombat(camp, id, pr)) { try { c.send({ type: 'acts-left', charId: id, left: actsLeftOf(camp, id), mode: md === 'warn' || md === 'off' ? md : 'refuse' }); } catch (e) { sendFailed(e); } } });
+}
+// 1.6.0: what the turn strip says of a character's actions: the host's own count of a player's character, a player's app what the host last told it of its own. Nothing for an
+// NPC, whose actions the GM counts, nor where actions are not counted
+net.actsNow = function(charId) {
+    if (net.role !== 'host') { var hd = net.actsLeft ? net.actsLeft[charId] : null; return hd && hd.mode !== 'off' ? hd : null; }
+    var camp = getActiveCampaign(), ch = camp && camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; if (!ch || !ch.ownerId || ch.npc || !window.wpVtt || !window.wpVtt.on('turns')) return null;
+    var md = moveMode(camp, 'acts'); return md === 'off' ? null : { left: actsLeftOf(camp, charId), mode: md };
+};
 // '' when the press may go ahead (its cost spent, or nothing to spend); else the refusal's text
 function actSpend(camp, charId, pr, cost, conn, who, look) {   // look, only as true: says what would be refused and spends nothing
     if (!cost || moveMode(camp, 'acts') === 'off') return '';
@@ -6640,6 +6657,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
     var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) { sendFailed(e); } net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
     if (snapOk && typeof blastsSendTo === 'function') blastsSendTo(conn, connMap(conn));
+    if (snapOk && typeof actsSendTo === 'function') actsSendTo(conn);
     if (snapOk && typeof net.trackersForget === 'function') { net.trackersForget(conn.peer); trkSendTo(conn, Date.now()); }   // backlog 29: the table trackers this player may see, after their snapshot
     var mm = net.musicMessage(); if (mm) { try { conn.send(mm); } catch (e) { sendFailed(e); } net._lastMusicSig = musicSig(mm); }   // the hosted campaign's music library, to this peer only (before any control so its refs validate)
     var mc = window.wpMusic && window.wpMusic.controlSnapshot ? window.wpMusic.controlSnapshot() : null; if (mc) { mc.type = 'music-ctl'; try { conn.send(mc); } catch (e) { sendFailed(e); } }   // if the GM is driving the table's music now, catch this joiner up (fresh position)
@@ -8780,9 +8798,10 @@ function handleMessage(msg, conn) {
         if (msg.left === null) delete net.actsLeft[msg.charId];
         else if (msg.left && typeof msg.left === 'object' && !Array.isArray(msg.left)) {
             var alv = Object.create(null), aln = 0; Object.keys(msg.left).forEach(function(k) { var v = msg.left[k]; if (aln < 6 && /^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(k) && typeof v === 'number' && Math.floor(v) === v && v >= 0 && v <= 99) { alv[k] = v; aln++; } });
-            net.actsLeft[msg.charId] = { left: alv, mode: msg.mode === 'warn' ? 'warn' : 'refuse' };
+            net.actsLeft[msg.charId] = { left: alv, mode: msg.mode === 'warn' || msg.mode === 'off' ? msg.mode : 'refuse' };
         } else return;
         if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(msg.charId);
+        if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();   // 1.6.0: the strip says what is left
         // [netcheck:actsin-end]
     } else if (msg.type === 'tradeState' && net.role === 'client') {
         // [netcheck:tradestate-start]

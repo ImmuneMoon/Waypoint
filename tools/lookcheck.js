@@ -3579,6 +3579,15 @@ check('the roster numbers rows of one name, and the sheet that says it is out of
         const sheets = { charById: id => (id === 'cK' ? { ownerId: 'p1' } : id === 'cT' ? { ownerId: 'p2' } : { ownerId: '' }) };
         const peace = askFn(mkN({}), sheets), war = askFn(mkN({ 'm1|g1': { id: 'f1' }, 'm1|t2': { id: 'f1' } }), sheets);
         const lab = q => (q ? q.label : null);
+        {   // 1.6.0 the turn strip says what the character on turn has left of each action (whiteboard.js stripActsHtml, run for real, net.js actsNow standing in)
+            const acSl = sliceOf(read('scripts/whiteboard.js'), 'stripacts'), H = '<img src=x onerror=1>', campA = { system: { combat: { turn: { acts: [{ key: 'Act', label: H, n: 1 }, { key: 'Bonus', n: 1 }] } } } };
+            const saH = new Function('esc', 'getActiveCampaign', acSl + '\nreturn stripActsHtml;')(s => String(s).replace(/</g, '&lt;'), () => campA);
+            const mapA = { whiteboard: [{ id: 't1', charId: 'c_1' }, { id: 't2' }] }, cA = { turn: 0, rows: [{ tokId: 't1' }, { tokId: 't2' }] }, nA = l => ({ actsNow: id => id === 'c_1' ? l : null });
+            const some = saH(nA({ left: { Act: 0, Bonus: 2 } }), cA, mapA), none = saH(nA({ left: { Act: 0, Bonus: 0 } }), cA, mapA), noRow = saH(nA({ left: { Act: 1 } }), { turn: 1, rows: cA.rows }, mapA), noAns = saH(nA(null), cA, mapA), noFn = saH({}, cA, mapA);
+            check('1.6.0 the turn strip says what the character on turn has left of each action, by the system\'s own label as text, marks the moment none is left, and says nothing for a row with no character, nor where net.js has nothing to say',
+                some === '<span class="combat-strip-acts" data-tip="What the character on turn has left of each action this turn">&lt;img src=x onerror=1>: none left, Bonus: 2 left</span>' && /combat-strip-acts out"/.test(none) && noRow === '' && noAns === '' && noFn === ''
+                && read('scripts/whiteboard.js').includes("(typeof stripActsHtml === 'function' ? stripActsHtml(n, c, am) : '')") && /\.combat-strip-acts\.out \{/.test(read('style.css')), JSON.stringify([some, none, noRow]));
+        }
         {   // 1.6.0 A trade in a fight: a system that names what a trade spends keeps the row on an NPC in a fight
             const warT = askFn(Object.assign(mkN({ 'm1|g1': { id: 'f1' } }), { tradeFights: () => true }), sheets), warN = askFn(Object.assign(mkN({ 'm1|g1': { id: 'f1' } }), { tradeFights: () => false }), sheets);
             check('1.6.0 A trade in a fight: Trade with stands on an NPC in a fight only where the system names what a trade spends, and is left out otherwise', !!warT(npc, tm, null) && warN(npc, tm, null) === null, '');

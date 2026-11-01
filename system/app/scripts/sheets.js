@@ -10461,6 +10461,7 @@ function turnBox(box, cm) {
         var ad = el('button', 'tool ghost sys-btn sys-turn-add', g[0] === 'act' ? '+ Action' : '+ Time unit'); ad.dataset.act = 't' + g[0] + 'add'; ad.disabled = arr.length >= g[3]; ad.title = ad.disabled ? 'At most ' + g[3] : g[0] === 'act' ? 'Something one turn allows (an Action, a Bonus action, a Maneuver)' : 'A time unit of your game, by its length in seconds'; wrap.appendChild(ad);
     });
     wrap.appendChild(labeledSelect('sys-turn-trade', 'A trade in a fight', turnTradeOpts(tn), typeof tn.trade === 'string' ? tn.trade : '', 'What giving something in a trade spends in a fight, from the actions above. Who only takes spends nothing. It also keeps Trade with on an NPC in a fight'));
+    lineUnder(wrap, 'Whoever gives spends this as the trade completes. One who only takes spends nothing.');
     var err = errorCell('combat'); err.dataset.errFor = 'combat'; wrap.appendChild(err);
     box.appendChild(wrap);
 }

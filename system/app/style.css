@@ -3742,6 +3742,7 @@
   /* Stage 6 HUD H7: an apply action's changes in the Rolls tab; its card in Table Chat */
   .sys-apply { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 2px; }
   .sheet-item-load { display: inline-flex; align-items: center; gap: 4px; } .sheet-item-load .sheet-item-ctb { padding: 0 6px; height: 18px; font-size: 11px; line-height: 1; } .sheet-item-load-none .sheet-item-ctl { opacity: 0.7; font-style: italic; }   /* 1.5.8 Loads from: what a row has loaded, and its Load */
+  .sheet-item-feed .sheet-item-ctb + .sheet-item-ctb { margin-left: 2px; }   /* 1.6.0 Feeds */
   .sheet-item-chamber .sheet-item-ctl { white-space: nowrap; } .sheet-item-chamber .sheet-item-ctb + .sheet-item-ctb { margin-left: 2px; } .sheet-item-launch { white-space: nowrap; }   /* 1.5.9 Chambers from: a row's chamber, its Chamber and Unchamber, and the GM's Launch */
   .sys-list-card .sys-flags.sys-list-chamber { flex-wrap: wrap; } .sys-list-card .sys-flags.sys-list-chamber select.sys-list-chambercap { flex: 0 0 auto; } .sys-list-card .sys-flags.sys-list-chamber input.sys-list-chamberby, .sys-list-card .sys-flags.sys-list-chamber input.sys-list-chamberto { flex: 0 1 150px; font-family: ui-monospace, Consolas, monospace; }   /* 1.5.9: the Lists tab's Chambers from box */
   .sheet-item-ct { display: inline-flex; align-items: center; gap: 2px; } .sheet-item-ct .sheet-item-ctb { padding: 0 5px; height: 24px; min-width: 24px; font-size: 11px; line-height: 1; } .sheet-item-ct .sheet-item-ctv { min-width: 1.5em; text-align: center; }   /* R2: a row's counters */

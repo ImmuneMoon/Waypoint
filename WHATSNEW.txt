@@ -784,6 +784,11 @@ Systems
   sheet or its HUD holds 800 placements, up from 400. The System
   editor's + Roll now greys out at the limit and says why, where before
   a roll past it was dropped at Save.
+- A list may have two feeds: things a row loads apart, each with a counter of
+  its own, as a weapon takes a cell and a clip. A roll's Then can take a shot
+  from every feed, any feed at 0 stops the shot, and changing one feed leaves
+  the other alone. A feed may hold mixed loads, which fire in the order stacked,
+  and formulas read what is loaded, so a blow can take its dice from it.
 
 Postures
 - Postures are now your system's own. A system with no list of its own

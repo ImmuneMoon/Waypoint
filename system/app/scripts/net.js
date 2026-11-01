@@ -3761,7 +3761,7 @@ net.charItem = function(charId, fieldId, q) {
         _charPending[ridM] = { charId: charId, fieldId: fieldId, batch: [], kind: 'item', timer: setTimeout(function() { charPendingDone(ridM, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
         if (q.op === 'restore') _charPending[ridM].q = { op: 'restore', rowId: q.rowId };   // 1.5.8: its words, if refused, are the Undo's
         var mM = { type: 'char-item', rid: ridM, charId: charId, fieldId: fieldId, op: q.op };
-        ['defId', 'rowId', 'qty', 'pay', 'get', 'from', 'back', 'fill', 'in', 'name', 'look', 'work', 'drop'].forEach(function(k) { if (q[k] !== undefined) mM[k] = q[k]; });   // 1.6.0, backlog 206: a look, a work line, a line's place   // 1.6.0 R14: in, a part's host   // 1.5.8: a load's from (null: unload) and back
+        ['defId', 'rowId', 'qty', 'pay', 'get', 'from', 'back', 'fill', 'in', 'name', 'look', 'work', 'drop', 'feed', 'more'].forEach(function(k) { if (q[k] !== undefined) mM[k] = q[k]; });   // 1.6.0, backlog 206: a look, a work line, a line's place   // 1.6.0 R14: in, a part's host   // 1.5.8: a load's from (null: unload) and back
         try { net.conns[0].send(mM); } catch (e) { charPendingDone(ridM, false, 'value'); return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
     }
@@ -8169,6 +8169,7 @@ function handleMessage(msg, conn) {
             if ((qi.op === 'chamber' || qi.op === 'unchamber' || qi.op === 'load' || qi.op === 'setQty' || qi.op === 'look' || qi.op === 'work' || resI.cap === true || ((qi.op === 'add' || qi.op === 'custom') && qi.in !== undefined)) && resI.msg) { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: Si.cleanDenyReason(resI.reason), msg: String(resI.msg).slice(0, 200) }); } catch (e) { sendFailed(e); } return; }   // 1.5.9: what does not fit, a chamber that is full, in words; 205 (5): a host with no room for a part, by Holds or a cap per kind
             denyI(resI.reason); return;
         }
+        if (qi.op === 'load' && qi.feed !== undefined && window.wpStepLog) window.wpStepLog('feed v1', 'changed', { how: qi.from === null ? 'unload' : qi.more ? 'stack' : 'swap', by: 'player' });   // 1.6.0 Feeds
         var mvI = Si.rowOpMoney ? Si.rowOpMoney(campI.system, chI, qi.fieldId, qi, resI) : null;   // 1.5.6: what a purchase paid, or a sale was paid, moves the money with the row, all or nothing
         if (mvI && !mvI.ok) { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: Si.cleanDenyReason(mvI.reason), msg: String(mvI.msg || '').slice(0, 200) }); } catch (e) { sendFailed(e); } return; }
         var bcI = Object.assign({}, mvI && mvI.values ? mvI.values : {}); if (!bcI[qi.fieldId]) bcI[qi.fieldId] = resI.value; var bwI = Si.budgetWatch(campI.system, chI, bcI, Fi);   // 126: a point budget is judged before anything is stored (a row picked up, a level raised, a quantity, a row of their own)
@@ -8797,6 +8798,7 @@ function handleMessage(msg, conn) {
                 }
                 if (q.row && typeof actQ.showIf === 'string' && actQ.showIf && !SQ.rollNeedsOk({ needs: actQ.showIf }, varsQ, Fq)) { denyQ('error', { error: { message: 'That roll is not offered on this row.', pos: 0, len: 0 } }); return; }   // 1.6.0: Shown where, through their view
                 if (actQ.needs && !SQ.rollNeedsOk(actQ, varsQ, Fq)) { denyQ('error', { error: { message: SQ.rollNeedsSays(actQ), pos: 0, len: 0 } }); return; }   // R2b: what it needs, through their view (the row's names); the one reading (1.5.4: no die in it is rolled)
+                var fsQ = q.row && typeof SQ.feedShortOf === 'function' ? SQ.feedShortOf(viewQ, chvQ, q.row, actQ) : ''; if (fsQ) { if (window.wpStepLog) window.wpStepLog('feed v1', 'stopped', { by: 'player' }); denyQ('error', { error: { message: fsQ, pos: 0, len: 0 } }); return; }   // 1.6.0 Feeds: any feed at 0 stops the shot, from the host's own copy of the row
             }
         }
         if (Fq.names(q.expr).length && !varsQ) { denyQ('names'); return; }
@@ -10347,6 +10349,7 @@ net.diceRoll = function(expr, o) {
     if (typeof o.att === 'string' && !(entR && entR.resist === true) && !(typeof attemptRec === 'function' && attemptRec(o.att) && attemptRec(o.att).blow)) return { error: 'That roll does not resist an attempt.' };   // 1.6.0 (B2)   // 1.6.0 (the core's gaps 6 and 7): or it answers a blow
     if (o.row && entR && typeof entR.showIf === 'string' && entR.showIf && varsR && !SR.rollNeedsOk({ needs: entR.showIf }, varsR, F)) return { error: 'That roll is not offered on this row.' };   // 1.6.0: Shown where
     if (entR && entR.needs && entR.needsGm !== true && varsR && !SR.rollNeedsOk(entR, varsR, F)) return { error: SR.rollNeedsSays(entR) };
+    var fsR = entR && o.row && campR && campR.system && typeof SR.feedShortOf === 'function' ? SR.feedShortOf(campR.system, chR, o.row, entR) : ''; if (fsR) { if (window.wpStepLog) window.wpStepLog('feed v1', 'stopped', { by: 'gm' }); return { error: fsR }; }   // 1.6.0 Feeds: any feed at 0 stops the shot
     var swR = null; if (Array.isArray(o.sw) && o.sw.length) { var refSw = o.act && !o.row ? { r: String(o.act) } : o.fr ? { f: String(o.fr) } : o.row ? { l: String(o.row.f), row: String(o.row.r), i: typeof o.row.i === 'number' ? o.row.i : undefined } : null; swR = chR && SR && campR && campR.system && refSw && typeof SR.swJudge === 'function' ? SR.swJudge(campR.system, chR, refSw, o.sw) : { ok: false }; if (!swR.ok) return { error: 'That bonus is not this character\u2019s to add to this roll now.' }; }   // 1.6.0: the roll switches ticked, judged as a player's are (the formula already holds them)   // R2b: its needs (before anything is rolled)   // Stage 6 F5b: a roll on one row — its Row.* names
     if (entR && entR.burst === 'extra' && o.row && SR && typeof SR.burstBar === 'function') { var bbR = SR.burstBar(campR.system, chR, o.row.f, o.row.r); if (bbR) return { error: bbR }; }   // 1.6.0 A burst: its extra dice, once, after an attack that hit
     var hvR = null, rnR = null; if (entR && entR.dmg === true && entR.hits && varsR && SR && typeof SR.hitCount === 'function') { var hnR = SR.hitCount(entR, varsR, F); if (hnR === null) return { error: 'How many hits it rolls for could not be worked out.' }; if (hnR < 1) return { error: 'There are no hits to roll for.' }; hvR = SR.hitVars(varsR, hnR); rnR = SR.hitRounds(campR.system, varsR, hnR); varsR = hvR[0]; }   // 1.6.0 A burst: how many times it rolls, from the entry; the first hit reads its own round

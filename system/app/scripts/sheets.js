@@ -27,6 +27,7 @@ import { fitIfOk, partFitEntry } from './systemcore.js';   // 1.6.0 Fits where (
 import { targetHitList, targetHitRows, readsTargetHit } from './systemcore.js';   // 1.6.0 (B5): a called shot by the target's own location
 import { tableKeyOk, TABLE_KEY, TABLE_ROW_KEY, nameFold } from './systemcore.js';   // 1.6.0: a system's tables, as Save reads them (tableSays)
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
+import { FEEDS_MAX, feedOf, feedSpec, feedCt, feedCount, feedStack, feedLive } from './systemcore.js';   // 1.6.0 Feeds
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
 import { cleanCalendar, fmtWhen, fmtDate, timeOf, calPreset, CAL_LIMITS } from './calendarcore.js';
@@ -2712,7 +2713,7 @@ function itemQtyCell(entry, c, f) {   // Stage 6 F4a: by row id. Every item has 
     qc.appendChild(mn); qc.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
     var pl = el('button', 'tool ghost sheet-pm', '+'); pl.title = 'One more'; pl.addEventListener('click', function() { commitItem(c, f, { op: 'setQty', rowId: rowIdOf(entry), qty: entry.qty + 1 }); });
     qc.appendChild(pl);
-    if ((entry.qty | 0) > 1 && !(entry.ld && typeof entry.ld === 'object') && typeof splitAsk === 'function') { var spB = el('button', 'tool ghost sheet-pm sheet-split', 'Split'); spB.title = 'Split some of these into a row of their own'; spB.ariaLabel = spB.title; spB.addEventListener('click', function() { splitAsk(entry, c, f); }); qc.appendChild(spB); }   // 1.6.0, backlog 180 R11
+    if ((entry.qty | 0) > 1 && !(entry.ld && typeof entry.ld === 'object') && !(entry.fl && typeof entry.fl === 'object') && typeof splitAsk === 'function') { var spB = el('button', 'tool ghost sheet-pm sheet-split', 'Split'); spB.title = 'Split some of these into a row of their own'; spB.ariaLabel = spB.title; spB.addEventListener('click', function() { splitAsk(entry, c, f); }); qc.appendChild(spB); }   // 1.6.0, backlog 180 R11
     return qc;
 }
 // [systemcheck:split-start] 1.6.0, backlog 180 R11: how many to split off, asked, then one split op (the host judges it)
@@ -3424,7 +3425,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         if (typeof onceBits === 'function') onceBits(line, sysI, c, f, carried, entry);   // 1.5.8 Counted once
         var noteLn = null;
         var smR = spec && typeof statMenuMode === 'function' ? statMenuMode(entry, rd, spec, gm, sysI, chg && !hudRow) : ''; _rowMenu = smR ? function(s, sv) { return statMenu(s, sv, entry, rd, c, f, spec, smR); } : null;   // 1.6.0 R10
-        if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null, res && res.cfx ? res.cfx[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); if (typeof loadCtl === 'function') loadCtl(line, entry, c, f, spec, editable, sysI, res && res.ldOk ? res.ldOk[rid] : undefined); if (typeof chamberCtl === 'function') chamberCtl(line, entry, c, f, spec, editable, sysI, gm, canThrow, res && res.chOk ? res.chOk[rid] : undefined); var lc = partHere(spec.lvl, _placeWant, hudRow) ? lvlCtl(entry, def, c, f, spec, chg && !opnR) : null; if (lc) line.appendChild(lc); var oc = partHere(spec.on, _placeWant, hudRow) ? onCtl(entry, c, f, spec, editable, true, res && res.onOk ? res.onOk[rid] : undefined, res && res.onShow ? res.onShow[rid] : undefined) : null; if (oc) line.appendChild(oc); var pcL = partHere({ place: spec.paidPlace }, _placeWant, hudRow) ? paidCtl(entry, def, c, f, spec, chg, gm, true) : null; if (pcL) line.appendChild(pcL); noteLn = hudRow ? null : noteBits(entry, def, c, f, chg, ovc, sysI, gm, !!lookOk && _fxLive); }   // F4c1: the stats shown On the row, what one cost
+        if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null, res && res.cfx ? res.cfx[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); if (typeof loadCtl === 'function') loadCtl(line, entry, c, f, spec, editable, sysI, res && res.ldOk ? res.ldOk[rid] : undefined); if (typeof feedCtl === 'function') feedCtl(line, entry, c, f, spec, editable, sysI, res && res.cts ? res.cts[rid] : null, res && res.fdT ? res.fdT[rid] : null); if (typeof chamberCtl === 'function') chamberCtl(line, entry, c, f, spec, editable, sysI, gm, canThrow, res && res.chOk ? res.chOk[rid] : undefined); var lc = partHere(spec.lvl, _placeWant, hudRow) ? lvlCtl(entry, def, c, f, spec, chg && !opnR) : null; if (lc) line.appendChild(lc); var oc = partHere(spec.on, _placeWant, hudRow) ? onCtl(entry, c, f, spec, editable, true, res && res.onOk ? res.onOk[rid] : undefined, res && res.onShow ? res.onShow[rid] : undefined) : null; if (oc) line.appendChild(oc); var pcL = partHere({ place: spec.paidPlace }, _placeWant, hudRow) ? paidCtl(entry, def, c, f, spec, chg, gm, true) : null; if (pcL) line.appendChild(pcL); noteLn = hudRow ? null : noteBits(entry, def, c, f, chg, ovc, sysI, gm, !!lookOk && _fxLive); }   // F4c1: the stats shown On the row, what one cost
         _rowMenu = null;
         var sjC = typeof subjectCtl === 'function' ? subjectCtl(entry, c, f, spec, chg && !hudRow && !opnR) : null; if (sjC) line.appendChild(sjC);   // 1.6.0 Subjects
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
@@ -3496,6 +3497,7 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         if (r.named === true) withE = true;   // 1.6.0: one that calls for another names its index, so the host finds its calls
         if (!nOk && r.hideOff === true) return;   // 1.6.0: Hidden until it can be used
         if (!nOk) { b.disabled = true; b.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }
+        var fsW = res && res.fs && res.fs[rid] ? res.fs[rid][ri] : ''; if (fsW) { b.disabled = true; b.title = fsW; }   // 1.6.0 Feeds: any feed at 0 stops the shot
         var cbL = typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbL) { b.disabled = true; b.title = cbL + ' \u2014 ' + nm + ' \u00b7 ' + lb; }   // turn-based combat T4
         var goL = function(e) {
             if (r.to === 'near' && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evL = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evL.currentTarget || b, c, function(on) { evL.wpAlly = on || ''; goL(evL); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first
@@ -3559,7 +3561,7 @@ function ldKey(e) { if (_ldPop && e.key === 'Escape') { e.preventDefault(); e.st
 function loadChoices(sys, c, sf, spec, host) {   // the source rows a load may take: live, not loaded, of a category it takes
     var sl = sf.list, ld = spec.load, out = [];
     (c && c.values && Array.isArray(c.values[sf.id]) ? c.values[sf.id] : []).forEach(function(s) {
-        if (!s || typeof s !== 'object' || s.hid === 1 || typeof s.opn === 'string' || s.keptOn === 1 || (s.ld && typeof s.ld === 'object')) return;
+        if (!s || typeof s !== 'object' || s.hid === 1 || typeof s.opn === 'string' || s.keptOn === 1 || (s.ld && typeof s.ld === 'object') || (s.fl && typeof s.fl === 'object')) return;
         var sd = rowDef(sys, s), d = sd ? sd.def : null; if (!d) return;
         if (Array.isArray(ld.cats) && !ld.cats.some(function(x) { return String(x).toLowerCase() === String(d.category || '').trim().toLowerCase(); })) return;
         if (host && typeof loadFits === 'function' && !loadFits(sys, spec, host, sl, s)) return;   // Matched by: only what fits this row
@@ -3576,6 +3578,65 @@ function openLoadMenu(anchor, c, f, entry, sf, spec, sys) {
     ch.forEach(function(x) { item(x.name + (x.qty > 1 ? ' \u00d7' + x.qty : ''), lvL + ' ' + fmtNum(x.lvl), x.id); });
     if (entry.ld && typeof entry.ld === 'object') item('Unload', 'Back to ' + (sf.label || sf.key || 'its list') + ' with what it has left', null);
     if (!pop.children.length) pop.appendChild(el('div', 'sheet-dl-note', 'Nothing in ' + (sf.label || sf.key || 'that list') + ' to load.'));
+    pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+    pop.addEventListener('keydown', function(e) {
+        e.stopPropagation(); if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+        e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {}
+    });
+    document.body.appendChild(pop); _ldPop = pop;
+    var r = anchor.getBoundingClientRect(), n = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (24 + 52 * n), r.bottom + 6)) + 'px';
+    document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
+    var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
+}
+// 1.6.0 Feeds (the core's ruling: mixed loads fire in the order stacked, noted on loading): a chip for each feed of a row, saying what it holds in that
+// order and how much of each is left, with Load or Swap, which change the whole of that feed, and Add, which stacks more behind what is there. The
+// other feed never moves. A play control, as Load is. Every name from a campaign as text
+function feedCtl(host, entry, c, f, spec, editable, sysI, cells, turnsOf) {
+    if (!spec || !Array.isArray(spec.feeds) || !entry || entry.hid === 1) return;
+    var sys = sysI || systemOf(getActiveCampaign()), byKey = {}; if (!sys) return;
+    (Array.isArray(cells) ? cells : []).forEach(function(x) { if (x && typeof x.key === 'string') byKey[x.key] = x; });
+    spec.feeds.forEach(function(fd) {
+        var sf = fieldById(sys, fd.from), t = feedCt(spec, fd); if (!sf || sf.kind !== 'item-list' || !sf.list || !t) return;
+        var left = feedCount(spec, entry, fd), st = feedLive(feedStack(entry, fd), left), cell = byKey[t.key], mx = cell && typeof cell.max === 'number' ? cell.max : null, lab = t.label || t.key, ln = sf.label || sf.key || 'its list', tn = turnsOf && typeof turnsOf[fd.key] === 'number' ? turnsOf[fd.key] : 0;
+        var parts = st.map(function(p) { var d = rowDef(sys, p.c); return ((d && d.def && d.def.name) || 'Loaded') + ' ' + fmtNum(p.n); }), said = parts.join(', then ');
+        var w = el('span', 'sheet-chip sheet-item-load sheet-item-feed' + (st.length ? '' : ' sheet-item-load-none')); w.title = st.length ? lab + ' fires in this order: ' + said : 'Nothing loaded from ' + ln;
+        w.appendChild(el('span', 'sheet-item-ctl', lab + ': ' + (st.length ? said : 'Empty')));
+        if (editable && (entry.qty | 0) === 1) {
+            var b = el('button', 'tool ghost sheet-item-ctb sheet-item-loadb', st.length ? 'Swap' : 'Load'); b.type = 'button';
+            b.title = (st.length ? 'Swap or unload ' : 'Load ') + lab + ' from ' + ln + (tn > 0 ? '. A change takes ' + fmtNum(tn) + (tn === 1 ? ' turn' : ' turns') : '') + '. What comes out goes back with what it has left';
+            b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); openFeedMenu(b, c, f, entry, sf, spec, sys, fd, false, tn, mx === null ? null : mx - left); });
+            w.appendChild(b);
+            var full = mx !== null && left >= mx, a = el('button', 'tool ghost sheet-item-ctb sheet-item-fillb', 'Add'); a.type = 'button'; a.disabled = !st.length || full;
+            a.title = !st.length ? 'Nothing to add to: load it first' : full ? 'It is full' : 'Stack more from ' + ln + ' behind what is there. It fires after it';
+            a.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); openFeedMenu(a, c, f, entry, sf, spec, sys, fd, true, tn, mx === null ? null : mx - left); });
+            w.appendChild(a);
+        }
+        host.appendChild(w);
+    });
+}
+function feedSend(c, f, q) { if (window.wpStepLog) window.wpStepLog('feed v1', 'pressed', { how: q.from === null ? 'unload' : q.more ? 'stack' : 'swap' }); commitItem(c, f, q); }
+// how many units to stack, asked only where there is a choice: the row's stack, as far as the room goes (room null: the counter names no most)
+function feedAsk(c, f, rid, fd, x, room) {
+    var most = room === null ? x.qty : Math.min(x.qty, Math.floor(room / Math.max(1, x.lvl))), q = { op: 'load', rowId: rid, feed: fd.key, from: x.id, more: 1 };
+    if (most < 1) { toast('It has no room for that.'); return; }
+    if (most === 1) { feedSend(c, f, q); return; }
+    showPrompt('How many of ' + x.name + '? From 1 to ' + most + '.', String(most), function(v) {
+        if (v === null || v === undefined) return; var n = Number(String(v).trim());
+        if (!(n >= 1) || n !== Math.floor(n) || n > most) { toast('Add a whole number from 1 to ' + most + '.'); return; }
+        var cN = typeof charById === 'function' ? charById(c.id) : c; if (!cN) return;   // the character as it is now: the sheet may be drawn again while the question is up
+        q.more = n; feedSend(cN, f, q);
+    });
+}
+function openFeedMenu(anchor, c, f, entry, sf, spec, sys, fd, add, turns, room) {   // on the page, as the Load menu is (its class, its Escape, its arrow keys)
+    if (_ldPop) { closeLoadMenu(); return; }
+    var rid = rowIdOf(entry), lvL = (sf.list.lvl && sf.list.lvl.label) || 'Level', pop = el('div', 'sheet-dl-pop sheet-load-pop'); pop.setAttribute('role', 'menu'); pop._anchor = anchor;
+    var item = function(label, sub, go) { var b = el('button', 'sheet-dl-item'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.appendChild(el('span', 'sheet-dl-t', label)); b.appendChild(el('span', 'sheet-dl-s', sub)); b.addEventListener('click', function(e) { e.preventDefault(); closeLoadMenu(); go(); }); pop.appendChild(b); };
+    loadChoices(sys, c, sf, feedSpec(spec, fd), entry).forEach(function(x) {
+        item(x.name + (x.qty > 1 ? ' \u00d7' + x.qty : ''), lvL + ' ' + fmtNum(x.lvl) + (add ? ', stacked behind what is there' : ''), function() { if (add) feedAsk(c, f, rid, fd, x, room); else feedSend(c, f, { op: 'load', rowId: rid, feed: fd.key, from: x.id }); });
+    });
+    if (!add && feedStack(entry, fd).length) item('Unload', 'Back to ' + (sf.label || sf.key || 'its list') + ' with what it has left', function() { feedSend(c, f, { op: 'load', rowId: rid, feed: fd.key, from: null }); });
+    if (!pop.children.length) pop.appendChild(el('div', 'sheet-dl-note', 'Nothing in ' + (sf.label || sf.key || 'that list') + ' fits it.'));
+    if (turns > 0) pop.appendChild(el('div', 'sheet-dl-note', 'A change takes ' + fmtNum(turns) + (turns === 1 ? ' turn.' : ' turns.')));
     pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
     pop.addEventListener('keydown', function(e) {
         e.stopPropagation(); if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
@@ -3747,6 +3808,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
             }
             _placeWant = hudRow ? null : 'row'; ctCtl(actTd, entry, c, f, spec, editable, res && res.cts ? res.cts[rowIdOf(entry)] : null);   // Stage 6 HUD R2: its counters (1.6.0 R2: those on the row)
             if (typeof loadCtl === 'function') loadCtl(actTd, entry, c, f, spec, editable, sysI, res && res.ldOk ? res.ldOk[rid] : undefined);   // 1.5.8 Loads from, and Loads only where (1.5.9: in a table too)
+            if (typeof feedCtl === 'function') feedCtl(actTd, entry, c, f, spec, editable, sysI, res && res.cts ? res.cts[rid] : null, res && res.fdT ? res.fdT[rid] : null);   // 1.6.0 Feeds
             if (typeof chamberCtl === 'function') chamberCtl(actTd, entry, c, f, spec, editable, sysI, gm, canThrow, res && res.chOk ? res.chOk[rid] : undefined);   // 1.5.9 Chambers from, and Chambers only where
             rowRollBtns(actTd, spec, entry, def, c, f, res); _placeWant = null;   // F5b: the list's rolls (1.6.0 R2: those on the row)
             if (rrT) actTd.appendChild(editBtn(entry, c, f, rrT, rd.src === 'custom'));   // F4c2: ✎
@@ -7014,6 +7076,24 @@ function refreshErrors() {
             else if (ldSrc.vis === 'gm' && f.vis !== 'gm') (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ message: 'Loads from a GM-only list: players see no Load on their sheet.' });
             if (Array.isArray(ldr.cats) && ldr.cats.length > LIMITS.listCats) errs.push({ message: 'Loads from takes at most ' + LIMITS.listCats + ' categories. Save keeps the first ' + LIMITS.listCats + '.' });
         }
+        if (Array.isArray(sp.feeds) && sp.feeds.length) {   // 1.6.0 Feeds, as the cleaner reads them
+            var fdCts = Array.isArray(sp.counters) ? sp.counters : [], fdKs = {}, fdUsed = {}; if (sp.load && typeof sp.load === 'object' && typeof sp.load.ct === 'string') fdUsed[sp.load.ct.trim().toLowerCase()] = 1;
+            if (sp.feeds.length > FEEDS_MAX) errs.push({ message: 'A list has at most ' + FEEDS_MAX + ' feeds. Save keeps the first ' + FEEDS_MAX + '.' });
+            sp.feeds.slice(0, FEEDS_MAX).forEach(function(fd, fi) {
+                var who = 'Feed ' + (fi + 1), kk = fd && typeof fd.key === 'string' ? fd.key.trim() : '', ctk = fd && typeof fd.ct === 'string' ? fd.ct.trim().toLowerCase() : '', fsrc = null;
+                if (!fd || typeof fd !== 'object') return;
+                draft.fields.forEach(function(x) { if (!fsrc && x && x.id === fd.from) fsrc = x; });
+                if (!/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(kk) || kk in Object.prototype) { errs.push({ message: who + ' needs a key of letters, digits and _, starting with a letter. Save drops it.' }); return; }
+                if (fdKs[kk.toLowerCase()]) { errs.push({ message: who + ' repeats the key ' + kk + '. Save drops it.' }); return; }
+                if (!fsrc || fsrc.kind !== 'item-list' || fsrc.id === f.id) { errs.push({ message: who + ' loads from no other item list. Save drops it.' }); return; }
+                if (!(fsrc.list && typeof fsrc.list === 'object' && fsrc.list.lvl && typeof fsrc.list.lvl === 'object')) { errs.push({ message: who + ' loads from ' + (fsrc.label || fsrc.key || 'that list') + ', whose rows have no level to hold what they carry. Tick Rows have a level there, or Save drops it.' }); return; }
+                if (!ctk || !fdCts.some(function(x) { return x && typeof x.key === 'string' && x.key.toLowerCase() === ctk; })) { errs.push({ message: who + ' needs one of this list\u2019s counters to hold what is loaded. Save drops it.' }); return; }
+                if (fdUsed[ctk]) { errs.push({ message: who + ' needs a counter of its own: a load or another feed holds that one. Save drops it.' }); return; }
+                fdKs[kk.toLowerCase()] = 1; fdUsed[ctk] = 1;
+                if (fsrc.vis === 'gm' && f.vis !== 'gm') (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ message: who + ' loads from a GM-only list: players see no feed on their sheet.' });
+                if (Array.isArray(fd.cats) && fd.cats.length > LIMITS.listCats) errs.push({ message: who + ' takes at most ' + LIMITS.listCats + ' categories. Save keeps the first ' + LIMITS.listCats + '.' });
+            });
+        }
         if (sp.chamber && typeof sp.chamber === 'object') {   // 1.5.9 Chambers from, as the cleaner reads it
             var chr = sp.chamber, chSrc = null, stsC = Array.isArray(sp.stats) ? sp.stats : [];
             draft.fields.forEach(function(x) { if (!chSrc && x && x.id === chr.from) chSrc = x; });
@@ -7120,8 +7200,8 @@ function refreshErrors() {
         f.list.rolls.forEach(function(r, i) { p2Says(r, cr2[i], function(p, m) { (errorsById[f.id] = errorsById[f.id] || []).push({ prop: 'list.' + p + '.' + i + '.' + (r.label || 'Roll'), message: m }); }); });
         f.list.rolls.forEach(function(r, i) {   // 1.6.0: a fire's How many Save cannot keep
             (r && typeof r === 'object' && Array.isArray(r.then) ? r.then : []).forEach(function(c, k) {
-                if (!c || c.fire !== true || typeof c.n !== 'string' || !c.n.trim() || !cr2[i] || !Array.isArray(cr2[i].then)) return;
-                var kf = cr2[i].then.filter(function(x) { return x && x.fire === true && (x.when || '') === (c.when || ''); })[0];
+                if (!c || (c.fire !== true && c.feed !== true) || typeof c.n !== 'string' || !c.n.trim() || !cr2[i] || !Array.isArray(cr2[i].then)) return;
+                var kf = cr2[i].then.filter(function(x) { return x && (c.feed === true ? x.feed === true : x.fire === true) && (x.when || '') === (c.when || ''); })[0];
                 if (kf && kf.n !== c.n.trim()) (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Roll \u201c' + (r.label || 'Roll') + '\u201d, then ' + (k + 1) + ': How many is no formula Save can keep, so Save drops it and the row fires one.' });
             });
         });
@@ -7130,6 +7210,15 @@ function refreshErrors() {
         var cfK = f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls) ? (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0] : null, crK = cfK && cfK.list && Array.isArray(cfK.list.rolls) ? cfK.list.rolls : null;
         if (!crK || crK.length !== f.list.rolls.length) return;
         f.list.rolls.forEach(function(r, i) { if (!r || typeof r !== 'object' || typeof r.attemptKey !== 'string' || !r.attemptKey || !crK[i] || crK[i].attemptKey) return; (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Roll \u201c' + (r.label || 'Roll') + '\u201d: a kind of attempt needs Resisted by and a number stat of this list, so Save drops it.' }); });
+    });
+    draft.fields.forEach(function(f) {   // 1.6.0 Feeds: a Turns to change Save cannot keep
+        if (!f || f.kind !== 'item-list' || !f.list || !Array.isArray(f.list.feeds)) return;
+        var cfF = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0], keptF = cfF && cfF.list && Array.isArray(cfF.list.feeds) ? cfF.list.feeds : [];
+        f.list.feeds.forEach(function(fd, i) {
+            if (!fd || typeof fd !== 'object' || typeof fd.turns !== 'string' || !fd.turns.trim()) return;
+            var kf = keptF.filter(function(x) { return x && typeof fd.key === 'string' && x.key === fd.key.trim(); })[0];
+            if (kf && kf.turns !== fd.turns.trim()) (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Feed ' + (i + 1) + ': Turns to change is no formula Save can keep, so Save drops it.' });
+        });
     });
     draft.fields.forEach(function(f) {   // 1.6.0: a list roll's A Major Wound where, alike
         var cf = f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls) ? (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0] : null, cr = cf && cf.list && Array.isArray(cf.list.rolls) ? cf.list.rolls : null;
@@ -7723,17 +7812,18 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
 function allRowTargets() { var o = []; (typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : []).forEach(function(lf) { if (!lf || lf.kind !== 'item-list' || !lf.list || !Array.isArray(lf.list.stats)) return; lf.list.stats.forEach(function(t) { if (t && t.kind !== 'pick' && typeof t.key === 'string' && t.key) o.push(['all:' + lf.id + ':' + t.key, 'Every row of ' + (lf.label || lf.key || lf.id) + ': ' + (t.label || t.key)]); }); }); return o; }
 function allRowValue(ch, allT) { var v = 'all:' + ch.list + ':' + String(ch.s || ''), lv = v.toLowerCase(), hit = (allT || []).filter(function(o) { return o[0].toLowerCase() === lv; })[0]; return hit ? hit[0] : v; }
 function setChangeTarget(ch, v) {
-    v = String(v || ''); ['f', 'c', 'fire', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money'].forEach(function(k) { delete ch[k]; });
+    v = String(v || ''); ['f', 'c', 'fire', 'feed', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money'].forEach(function(k) { delete ch[k]; });
     if (v === 'money') { ch.money = ''; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0: the sheet's money, a figure of its own
     else if (v === 'off') { ch.off = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0 (CORE gap 13): this row switched off, no amount
     else if (v === 'fire') ch.fire = true;
+    else if (v === 'feed') { ch.feed = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0 Feeds: a shot from every feed, no amount
     else if (v.indexOf('fx+:') === 0 || v.indexOf('fx-:') === 0) { ch.fx = v.slice(4); ch.on = v.charAt(2) === '+'; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }
     else if (v === 'q') ch.q = true;
     else if (v.indexOf('all:') === 0) { var aP = v.slice(4), aC = aP.indexOf(':'); ch.list = aC > 0 ? aP.slice(0, aC) : aP; ch.s = aC > 0 ? aP.slice(aC + 1) : ''; }   // 1.6.0: every row of a list
     else if (v.indexOf('s:') === 0) ch.s = v.slice(2);
     else if (v.indexOf('c:') === 0) ch.c = v.slice(2);
     else ch.f = v;
-    if (typeof ch.fx !== 'string' && typeof ch.formula !== 'string' && ch.fire !== true && ch.off !== true && typeof ch.money !== 'string') ch.formula = '';
+    if (typeof ch.fx !== 'string' && typeof ch.formula !== 'string' && ch.fire !== true && ch.feed !== true && ch.off !== true && typeof ch.money !== 'string') ch.formula = '';
 }
 function applyChangeOf(t, r) { var rw = t.closest('.sys-apply-row'), i = rw ? +rw.dataset.ai : -1, k = rw && rw.dataset.k === 'then' ? 'then' : 'apply'; return r && Array.isArray(r[k]) && i >= 0 && i < r[k].length && r[k][i] && typeof r[k][i] === 'object' ? r[k][i] : null; }
 function rollRow(r) {
@@ -8355,6 +8445,29 @@ function ctKeySays(sp, F0) {
         }
         cb2.appendChild(lrw);
     }
+    {   // 1.6.0 Feeds: up to FEEDS_MAX things a row loads apart, each with a counter of its own, that a roll's Then spends together
+        var fdsL = Array.isArray(sp.feeds) ? sp.feeds : [], fdsM = typeof FEEDS_MAX === 'number' ? FEEDS_MAX : 2;
+        fdsL.forEach(function(fd0, fi) {
+            var fdS = fd0 && typeof fd0 === 'object' ? fd0 : {}, frw = el('div', 'sys-flags sys-list-feed'), fsel = el('select', 'sys-list-feedfrom'), fct = el('select', 'sys-list-feedct'); frw.dataset.fi = String(fi);
+            frw.appendChild(el('span', 'sys-num-cap', 'Feed ' + (fi + 1)));
+            var fkI = input('sys-list-feedkey field', typeof fdS.key === 'string' ? fdS.key : '', 'A short key of letters and digits. Formulas read what this feed holds as Row.Feed.<key>.<stat>, and what the last shot took as Row.Feed.<key>.fired.<stat>', 'Key'); fkI.maxLength = 24; frw.appendChild(fkI);
+            fsel.title = 'The list it loads from. What a unit holds, its level, goes into the counter beside. Changing this feed moves nothing of another';
+            var fo0 = el('option', null, 'Loads from\u2026'); fo0.value = ''; fsel.appendChild(fo0);
+            (typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : []).forEach(function(x) { if (!x || x.kind !== 'item-list' || x.id === f.id) return; var o = el('option', null, x.label || x.key || x.id); o.value = x.id; if (fdS.from === x.id) o.selected = true; fsel.appendChild(o); });
+            frw.appendChild(fsel);
+            fct.title = 'The counter that holds what this feed has left, one of its own. Its most is how much the feed holds, so Add knows the room';
+            var fc0 = el('option', null, 'Pick a counter'); fc0.value = ''; fct.appendChild(fc0);
+            ctsL.forEach(function(x) { if (!x || typeof x.key !== 'string' || !x.key) return; var o = el('option', null, (x.label || x.key) + ' (' + x.key + ')'); o.value = x.key; if (fdS.ct === x.key) o.selected = true; fct.appendChild(o); });
+            frw.appendChild(fct);
+            frw.appendChild(input('sys-list-feedturns field', typeof fdS.turns === 'string' ? fdS.turns : '', 'The turns a change of this feed takes, from the row\u2019s own names, no dice. The Load menu says it, and Row.Feed.<key>.turns reads it. Blank: says nothing', 'Turns to change (blank: none said)'));
+            frw.appendChild(input('sys-list-feedcats field', Array.isArray(fdS.cats) ? fdS.cats.join(', ') : '', 'The categories of that list this feed takes, separated by commas. Blank: any of its rows', 'Categories it takes (blank: any)'));
+            frw.appendChild(input('sys-list-feedby field', typeof fdS.by === 'string' ? fdS.by : '', 'A stat of this list. A row loads only what reads the same figure in the stat below. Blank: anything the categories take', 'Matched by: this list\u2019s stat'));
+            frw.appendChild(input('sys-list-feedto field', typeof fdS.to === 'string' ? fdS.to : '', 'The stat of the list it loads from that must read the same figure', 'and that list\u2019s stat'));
+            var fdB = el('button', 'tool ghost sys-btn', '\u00d7'); fdB.dataset.act = 'feeddel'; fdB.title = 'Remove this feed'; frw.appendChild(fdB);
+            cb2.appendChild(frw);
+        });
+        var fdA = el('button', 'tool ghost sys-btn sys-list-feedadd', '+ Feed'); fdA.dataset.act = 'feedadd'; fdA.disabled = fdsL.length >= fdsM; fdA.title = fdA.disabled ? 'At most ' + fdsM + ' feeds a list' : 'Something a row loads apart from its other load, with a counter of its own, as a weapon takes a cell and a clip. A roll\u2019s Then can take a shot from every feed, and any feed at 0 stops the shot'; cb2.appendChild(fdA);
+    }
     {   // 1.5.9 Chambers from: a row of this list holds rounds in a chamber, one unit at a time, from an item list (this one too); a roll's Then fires them
         var chS = sp.chamber && typeof sp.chamber === 'object' ? sp.chamber : null, crw = el('div', 'sys-flags sys-list-chamber'), csl = el('select', 'sys-list-chamberfrom');
         crw.appendChild(el('span', 'sys-num-cap', 'Chambers from'));
@@ -8551,11 +8664,12 @@ function listApplyEditor(box, rr, ri, key, sp, targets) {   // key (R2b): 'apply
         if (typeof ch.fx === 'string' && !opts.some(function(o) { return o[0].slice(4) === ch.fx && o[0].indexOf('fx') === 0; })) opts.push([(ch.on === false ? 'fx-:' : 'fx+:') + ch.fx, 'An effect that is gone']); if (typeof ch.s === 'string' && !opts.some(function(o) { return o[0] === 's:' + ch.s; })) opts.push(['s:' + ch.s, 'A stat that is gone']);
         if ((sp && sp.on && typeof sp.on === 'object') || ch.off === true) opts.push(['off', sp && sp.on ? 'Switch this row off' : 'Switch off, but this list has no switch']);   // 1.6.0 (CORE gap 13)
         if (key === 'then' && ((sp && sp.chamber && typeof sp.chamber === 'object') || ch.fire === true)) opts.push(['fire', sp && sp.chamber ? 'Fire the next chambered round' : 'Fire, but this list has no Chambers from']);   // 1.5.9 Chambers from
+        if (key === 'then' && ((sp && Array.isArray(sp.feeds) && sp.feeds.length) || ch.feed === true)) opts.push(['feed', sp && Array.isArray(sp.feeds) && sp.feeds.length ? 'A shot from every feed' : 'A shot, but this list has no feeds']);   // 1.6.0 Feeds
         if (key === 'then') opts.push(['money', 'The sheet\u2019s money']);   // 1.6.0
-        rw.appendChild(sel('sys-list-applytarget', opts, typeof ch.money === 'string' ? 'money' : ch.off === true ? 'off' : ch.fire === true ? 'fire' : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : ch.q === true ? 'q' : typeof ch.s === 'string' ? 's:' + ch.s : ch.c ? 'c:' + ch.c : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or one of the row\u2019s counters. Fire takes the next chambered round out, as the round last fired. A shot that jams fires nothing'));
-        if (ch.fire === true) { var fnI = input('sys-list-applyfiren field', typeof ch.n === 'string' ? ch.n : '', 'How many rounds this spends at one press: a number or a formula of the row\u2019s names, no dice, such as Row.Rate. Empty: one. They go in order, and it stops when the chamber is empty', 'How many (one)'); fnI.maxLength = LIMITS.formula; rw.appendChild(fnI); }   // 1.6.0: How many
+        rw.appendChild(sel('sys-list-applytarget', opts, typeof ch.money === 'string' ? 'money' : ch.off === true ? 'off' : ch.feed === true ? 'feed' : ch.fire === true ? 'fire' : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : ch.q === true ? 'q' : typeof ch.s === 'string' ? 's:' + ch.s : ch.c ? 'c:' + ch.c : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or one of the row\u2019s counters. Fire takes the next chambered round out, as the round last fired. A shot that jams fires nothing'));
+        if (ch.fire === true || ch.feed === true) { var fnI = input('sys-list-applyfiren field', typeof ch.n === 'string' ? ch.n : '', ch.feed === true ? 'How many shots this spends at one press: a number or a formula of the row\u2019s names, no dice, such as Row.Rate. Empty: one. Each feed gives that many, and it stops where the emptiest feed runs out' : 'How many rounds this spends at one press: a number or a formula of the row\u2019s names, no dice, such as Row.Rate. Empty: one. They go in order, and it stops when the chamber is empty', 'How many (one)'); fnI.maxLength = LIMITS.formula; rw.appendChild(fnI); }   // 1.6.0: How many
         if (typeof ch.money === 'string') { var moI = input('sys-list-applymoney field', ch.money, 'How much money moves: a formula with no dice, reading the row as Row.Cost and how the roll went as RollMargin. Above 0 is paid in, below 0 is paid out. With too little held a player\u2019s roll lands none of its Then, and your own takes what is held', 'Figure (0 - Row.Cost)'); moI.maxLength = LIMITS.formula; rw.appendChild(moI); }   // 1.6.0
-        if (ch.fire !== true && ch.off !== true && typeof ch.fx !== 'string' && typeof ch.money !== 'string') {
+        if (ch.fire !== true && ch.feed !== true && ch.off !== true && typeof ch.fx !== 'string' && typeof ch.money !== 'string') {
         rw.appendChild(sel('sys-list-applyop', [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']], ch.set ? 'set' : ch.add ? 'add' : 'sub', 'Subtract (a cost) or add; never past the field\u2019s min and max'));
         var fm = input('sys-list-applyformula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount for the row: no dice unless Rolled is ticked; Row.lvl, Row.<stat>, Row.<column> read the row (Row.FPCost)', 'Amount (Row.FPCost)'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
         var lrlL = el('label', 'sys-hover'), lrlC = el('input'); lrlC.type = 'checkbox'; lrlC.className = 'sys-list-applyrolled'; lrlC.checked = ch.roll === true; lrlL.appendChild(lrlC); lrlL.appendChild(el('span', null, ' Rolled')); lrlL.title = 'Rolled: the amount may roll dice, such as 1d6. The host rolls it each time, and the card shows the dice'; rw.appendChild(lrlL);   // 1.5.9 (book es/et plan, section 0)
@@ -10926,6 +11040,14 @@ function onInput(e) {
         else if (lcc.indexOf('sys-list-chamberneeds') >= 0) { if (!lsp.chamber || typeof lsp.chamber !== 'object') return; if (t.value.trim()) lsp.chamber.needs = t.value; else delete lsp.chamber.needs; }   // 1.5.9 Chambers only where (Save cleans it as a list roll's needs)
         else if (lcc.indexOf('sys-list-chambercats') >= 0) { if (!lsp.chamber || typeof lsp.chamber !== 'object') return; var ccv = t.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (ccv.length) lsp.chamber.cats = ccv; else delete lsp.chamber.cats; }   // 1.5.9 Chambers from (Save cleans them)
         else if (lcc.indexOf('sys-list-chamberby') >= 0 || lcc.indexOf('sys-list-chamberto') >= 0 || lcc.indexOf('sys-list-chamberlabel') >= 0) { if (!lsp.chamber || typeof lsp.chamber !== 'object') return; var cKy = lcc.indexOf('sys-list-chamberby') >= 0 ? 'by' : lcc.indexOf('sys-list-chamberto') >= 0 ? 'to' : 'label'; if (t.value.trim()) lsp.chamber[cKy] = cKy === 'label' ? t.value.slice(0, LIMITS.label) : t.value.trim(); else delete lsp.chamber[cKy]; }
+        else if (lcc.indexOf('sys-list-feed') >= 0) {   // 1.6.0 Feeds: a feed's boxes (Save cleans them)
+            var frwI = t.closest('.sys-list-feed'), fdI = frwI && Array.isArray(lsp.feeds) ? lsp.feeds[+frwI.dataset.fi] : null; if (!fdI || typeof fdI !== 'object') return;
+            if (lcc.indexOf('sys-list-feedkey') >= 0) fdI.key = t.value.slice(0, 24);
+            else if (lcc.indexOf('sys-list-feedturns') >= 0) { var ftv = t.value.slice(0, LIMITS.formula).trim(); if (ftv) fdI.turns = ftv; else delete fdI.turns; }
+            else if (lcc.indexOf('sys-list-feedcats') >= 0) { var fcv = t.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (fcv.length) fdI.cats = fcv; else delete fdI.cats; }
+            else if (lcc.indexOf('sys-list-feedby') >= 0) { if (t.value.trim()) fdI.by = t.value.trim(); else delete fdI.by; }
+            else if (lcc.indexOf('sys-list-feedto') >= 0) { if (t.value.trim()) fdI.to = t.value.trim(); else delete fdI.to; }
+        }
         else if (lcc.indexOf('sys-list-loadby') >= 0) { if (!lsp.load || typeof lsp.load !== 'object') return; if (t.value.trim()) lsp.load.by = t.value.trim(); else delete lsp.load.by; }   // 1.5.8 Matched by (Save keeps the pair only where both name a stat)
         else if (lcc.indexOf('sys-list-upamt') >= 0) { if (lsp.upkeep && typeof lsp.upkeep === 'object') lsp.upkeep.amt = t.value.slice(0, LIMITS.formula); }   // 1.6.0 (CORE gap 13): what a row pays
         else if (lcc.indexOf('sys-list-upn') >= 0) { if (!lsp.upkeep || typeof lsp.upkeep !== 'object') return; var upn = Number(t.value); lsp.upkeep.per = Object.assign({ u: 'min' }, lsp.upkeep.per); if (String(t.value).trim() && isFinite(upn)) lsp.upkeep.per.n = Math.round(upn); }
@@ -11229,6 +11351,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-chamberfrom') >= 0) { if (t.value) { var ch0 = lsc.chamber && typeof lsc.chamber === 'object' ? lsc.chamber : {}; lsc.chamber = Object.assign({}, ch0, { from: t.value }); if (typeof lsc.chamber.cap !== 'number') lsc.chamber.cap = 1; } else delete lsc.chamber; }   // 1.5.9 Chambers from
         else if (c.indexOf('sys-list-chambercap') >= 0) { if (lsc.chamber && typeof lsc.chamber === 'object') lsc.chamber.cap = Math.max(1, Math.min(CHAMBER_CAP || 32, parseInt(t.value, 10) || 1)); }
         else if (c.indexOf('sys-list-chamberholdsby') >= 0) { if (lsc.chamber && typeof lsc.chamber === 'object') { if (t.value) lsc.chamber.capBy = t.value; else delete lsc.chamber.capBy; } }   // the review of fold 2: Holds as the row's stat reads (Save keeps it only as a number stat of this list)
+        else if (c.indexOf('sys-list-feedfrom') >= 0 || c.indexOf('sys-list-feedct') >= 0) { var fcr = t.closest('.sys-list-feed'), fdC = fcr && Array.isArray(lsc.feeds) ? lsc.feeds[+fcr.dataset.fi] : null; if (!fdC || typeof fdC !== 'object') return; var fcK = c.indexOf('sys-list-feedfrom') >= 0 ? 'from' : 'ct'; if (t.value) fdC[fcK] = t.value; else delete fdC[fcK]; }   // 1.6.0 Feeds
         else if (c.indexOf('sys-list-loadct') >= 0) { if (lsc.load && typeof lsc.load === 'object') { if (t.value) lsc.load.ct = t.value; else delete lsc.load.ct; } }
         else if (c.indexOf('sys-list-onceacross') >= 0) { if (lsc.once && typeof lsc.once === 'object') { if (t.checked) lsc.once.across = true; else delete lsc.once.across; } }   // 1.6.0 Across specialties
         else if (c.indexOf('sys-list-once') >= 0) {   // 1.5.8 Counted once (Save keeps it only with a group stat and a Higher by, each of this list)
@@ -11413,6 +11536,13 @@ function onClick(e) {
         if (b.dataset.act === 'lvlcapadd') { if (cArr.length >= LIMITS.lvlCaps) { toast('At most ' + LIMITS.lvlCaps + ' caps a list.'); return; } cArr.push({ at: typeof lvC.def === 'number' ? lvC.def : typeof lvC.min === 'number' ? lvC.min : 0, n: 1 }); lvC.caps = cArr; }
         else { var cRw = b.closest('.sys-list-lcap'), cI = cRw ? +cRw.dataset.ci : -1; if (!(cI >= 0 && cI < cArr.length)) return; cArr.splice(cI, 1); }
         if (!cArr.length) delete lvC.caps;
+        markDirty(); renderAll(); return;
+    }
+    if (lcb && /^feed(add|del)$/.test(b.dataset.act || '')) {   // 1.6.0 Feeds: a Lists card's feed buttons
+        var lsf = lcb.list || (lcb.list = {}), fArr = Array.isArray(lsf.feeds) ? lsf.feeds : [];
+        if (b.dataset.act === 'feedadd') { if (fArr.length >= FEEDS_MAX) { toast('At most ' + FEEDS_MAX + ' feeds a list.'); return; } fArr.push({ key: '' }); lsf.feeds = fArr; }
+        else { var fRow = b.closest('.sys-list-feed'), fI = fRow ? +fRow.dataset.fi : -1; if (!(fI >= 0 && fI < fArr.length)) return; fArr.splice(fI, 1); }
+        if (!fArr.length) delete lsf.feeds;
         markDirty(); renderAll(); return;
     }
     if (lcb && /^roll(add|up|down|del)$/.test(b.dataset.act || '')) {   // Stage 6 F5b: a Lists card's roll buttons (add, move, remove)

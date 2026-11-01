@@ -110,6 +110,7 @@ var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1,
 // Stage 6 F4a: a carried row's id (w_…; a legacy {defId, qty} row's is derived from its item) and the row ops a change may carry
 var ROW_ID = /^w_[A-Za-z0-9_]{1,24}$/, ROW_OPS = Object.freeze({ add: 1, remove: 1, setQty: 1, keep: 1, undo: 1, set: 1, ov: 1, custom: 1, load: 1, restore: 1, chamber: 1, unchamber: 1, split: 1, look: 1, work: 1 });   // 1.6.0, backlog 206: look, a row's look; work, a line of its work log (rowLookOp)   // 1.5.9 Chambers from: chamber, one unit of a round into a row's chamber; unchamber, the last one in back to its list   // restore (1.5.8): a removed row put back whole at its place (its Undo)   // undo (Stage 6): a pickup taken back; set (F4b): a row's facts; ov (F4c2): a copy's own values; custom (F4c3): a character's own row, made or changed
 var CHAMBER_CAP = 32;   // 1.5.9 Chambers from: the most rounds a chamber holds (8 before 1.6.0)
+var FEEDS_MAX = 2, FEED_STACK = 8;   // 1.6.0 Feeds: a list's feeds, and the kinds one feed holds stacked at once
 // Stage 6 F4b: an item's key in formulas (F5a: Skills.<Key>.lvl) — never a row word, which a row's own names use
 var ITEM_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/, ROW_WORDS = Object.freeze({ count: 1, qty: 1, on: 1, has: 1, lvl: 1, paid: 1, row: 1, opened: 1, loaded: 1, loadmax: 1, once: 1, oncecost: 1, oncefree: 1, chambered: 1, setall: 1, parts: 1, again: 1, needsmet: 1, made: 1, startlvl: 1, bursthits: 1, side: 1, subject: 1 });   // 1.6.0 (v2, B5): made, 1 for a row added while its character was in the making
 // 1.6.0 (the owner, 2026-10-29: "this is additive functionality, we arent removing usable features that other campaign systems can utilize"): a row word
@@ -570,6 +571,7 @@ function cleanApplyChanges(list, withWhen, withCounters) {   // withWhen (R1): a
     (Array.isArray(list) ? list : []).forEach(function(c) {
         if (out.length >= LIMITS.applyChanges || !isObj(c)) return;
         if (c.fire === true && withWhen && withCounters) { var fw = c.when === 'hit' || c.when === 'miss' || c.when === 'malf' || c.when === 'crit' || c.when === 'fumble' ? c.when : '', fk = 'fire|' + fw; if (seen[fk]) return; seen[fk] = 1; var fo = { fire: true }; if (fw) fo.when = fw; var fnc = cleanFormulaText(c.n); if (fnc) fo.n = fnc; out.push(fo); return; }   // 1.5.9 Chambers from: a list roll's Then may fire the first chambered round (once per when); 1.6.0: n, How many, a formula of the row's names with no dice: that many go at one press, absent one
+        if (c.feed === true && withWhen && withCounters) { var fdw = c.when === 'hit' || c.when === 'miss' || c.when === 'malf' || c.when === 'crit' || c.when === 'fumble' ? c.when : '', fdk = 'feed|' + fdw; if (seen[fdk]) return; seen[fdk] = 1; var fdc = { feed: true }; if (fdw) fdc.when = fdw; var fdn = cleanFormulaText(c.n); if (fdn) fdc.n = fdn; out.push(fdc); return; }   // 1.6.0 Feeds: a list roll's Then may spend a shot from every feed of its row (once per when); n, How many, as Fire's
         var whX = withWhen && (c.when === 'hit' || c.when === 'miss' || c.when === 'malf' || c.when === 'crit' || c.when === 'fumble') ? c.when : '';
         if (typeof c.money === 'string') { if (!withWhen || !withCounters) return; var mk0 = 'money|' + whX; if (seen[mk0]) return; seen[mk0] = 1; var mo0 = { money: cleanFormulaText(c.money) || '' }; if (whX) mo0.when = whX; out.push(mo0); return; }   // 1.6.0: a list roll's Then may move the sheet's money by a figure of the row's names, no dice: above 0 paid in, below 0 paid out (moneyMove, in applyAct); once per when
         if (c.off === true) { if (!withCounters) return; var ok0 = 'off|' + whX; if (seen[ok0]) return; seen[ok0] = 1; var oo0 = { off: true }; if (whX) oo0.when = whX; out.push(oo0); return; }   // 1.6.0 (CORE gap 13, a power that ends when its upkeep's roll fails): a list's action or Then may switch its own row off (once per when; no amount)
@@ -741,7 +743,7 @@ function applyTargets(out, fieldIds, gmView, fxSeen) {   // fxSeen (1.6.0): the 
         var allSt = function(c) { var lf = null, t = null; (Array.isArray(out.fields) ? out.fields : []).forEach(function(x) { if (!lf && isObj(x) && x.id === c.list && x.kind === 'item-list') lf = x; }); (lf && isObj(lf.list) && Array.isArray(lf.list.stats) ? lf.list.stats : []).forEach(function(s) { if (!t && isObj(s) && s.kind !== 'pick' && typeof s.key === 'string' && lower(s.key) === lower(c.s)) t = s; }); return t; };   // 1.6.0: every row of a list, a list and a number stat of this view
         var fix = function(c) { if (typeof c.list === 'string') { var tL = allSt(c); if (tL) { c.s = tL.key; return c; } var oL = { f: '', formula: c.formula }; if (c.set) oL.set = true; else if (c.add) oL.add = true; if (c.when) oL.when = c.when; return oL; } var tC = null; if (c.c && spec && Array.isArray(spec.counters)) spec.counters.forEach(function(t) { if (!tC && isObj(t) && lower(t.key) === lower(c.c)) tC = t; }); if (tC) c.c = tC.key; var ok = c.c ? !!tC : (!c.f || APPLY_KINDS[fieldIds[c.f]] === 1); if (ok) return c; var o = { f: '', formula: c.formula }; if (c.set) o.set = true; else if (c.add) o.add = true; if (c.when) o.when = c.when; return o; };
         var stOk = function(k) { return !!spec && Array.isArray(spec.stats) && spec.stats.some(function(t) { return isObj(t) && t.kind !== 'pick' && typeof t.key === 'string' && lower(t.key) === lower(k); }); };   // 1.6.0: a row's own number stat
-        var dn = function(c) { return c.fire === true || c.off === true || (typeof c.fx === 'string' && (gmView || (!!fxSeen && fxSeen[c.fx] === 1))) || ((!!c.f || !!c.c || c.q === true || typeof c.list === 'string' || (typeof c.s === 'string' && stOk(c.s))) && !!c.formula) || (typeof c.money === 'string' && !!c.money); };   // 1.5.9: fire has no amount; 1.6.0: nor a switched effect; money reads its own formula
+        var dn = function(c) { return c.fire === true || c.feed === true || c.off === true || (typeof c.fx === 'string' && (gmView || (!!fxSeen && fxSeen[c.fx] === 1))) || ((!!c.f || !!c.c || c.q === true || typeof c.list === 'string' || (typeof c.s === 'string' && stOk(c.s))) && !!c.formula) || (typeof c.money === 'string' && !!c.money); };   // 1.5.9: fire has no amount; 1.6.0: nor a switched effect; money reads its own formula
         if (r.then) { r.then = r.then.map(fix); if (!gmView && !r.then.every(dn)) delete r.then; }   // R1: a roll's consequences, the same rules (players' view: all of them or none)
         if (!r.apply) return true;
         r.apply = r.apply.map(fix);
@@ -2339,9 +2341,9 @@ function tradeApply(sys, a, b, offA, offB, whoA, whoB, into) {   // into { a: { 
             if (err) return; var f = fieldById(sys, m.fid), spec = isObj(f && f.list) ? f.list : {}, list = listOf(s[1], s[2], m.fid), live = function(r) { return isObj(r) && r.hid !== 1 && r.keptOn !== 1; };
             if (m.row) {
                 var mv = m.row, j = -1;
-                if (typeof mv.defId === 'string' && !isObj(mv.ov) && !m.kids.length) for (var k = 0; k < list.length; k++) { var r = list[k]; if (live(r) && r.defId === mv.defId && !isObj(r.ov) && !(isObj(spec.on) && rowOn(spec, r)) && (r.lvl === mv.lvl) && !isObj(r.ct) && !isObj(r.ld) && !Array.isArray(r.rd) && !isObj(r.fd)) { j = k; break; } }   // 1.5.8: never onto a row that holds a loaded copy
+                if (typeof mv.defId === 'string' && !isObj(mv.ov) && !m.kids.length) for (var k = 0; k < list.length; k++) { var r = list[k]; if (live(r) && r.defId === mv.defId && !isObj(r.ov) && !(isObj(spec.on) && rowOn(spec, r)) && (r.lvl === mv.lvl) && !isObj(r.ct) && !isObj(r.ld) && !isObj(r.fl) && !Array.isArray(r.rd) && !isObj(r.fd)) { j = k; break; } }   // 1.5.8: never onto a row that holds a loaded copy
                 if (j >= 0 && spec.noQty) { err = 'one'; return; }
-                if (j >= 0 && !isObj(mv.ct) && !isObj(mv.ld) && !Array.isArray(mv.rd) && !isObj(mv.fd)) { list[j].qty = clampNum((list[j].qty | 0) + mv.qty, 1, LIMITS.maxQty); return; }
+                if (j >= 0 && !isObj(mv.ct) && !isObj(mv.ld) && !isObj(mv.fl) && !Array.isArray(mv.rd) && !isObj(mv.fd)) { list[j].qty = clampNum((list[j].qty | 0) + mv.qty, 1, LIMITS.maxQty); return; }
                 if (spec.noQty && list.some(function(r) { return live(r) && tradeEntry(r, mv); })) { err = 'one'; return; }
                 if (list.filter(live).length >= LIMITS.carried) { err = 'full'; return; }
                 if (!mv.id || at(list, mv.id) >= 0) { var nid = tradeNewId(list); if (!nid) { err = 'full'; return; } mv.id = nid; }
@@ -2373,7 +2375,7 @@ function tradeApply(sys, a, b, offA, offB, whoA, whoB, into) {   // into { a: { 
                 if (want !== '+') { pick(function(r) { return tradeEntry(r, m.like) && !rowOn(spec, r); }); pick(function(r) { return tradeEntry(r, m.like); }); if (isL) pick(function(r) { return !rowOn(spec, r); }); }   // a level (a chip's money) may land on another chip of the list; a stat only on the same entry, else a row of its own
                 if (tgt < 0) {
                     if (list.filter(live).length >= LIMITS.carried) { err = 'full'; return; }
-                    var nr = JSON.parse(JSON.stringify(m.like)); delete nr.keptOn; delete nr.hid; delete nr.ct; delete nr.ld; delete nr.rd; delete nr.fd; delete nr.bu; delete nr.note; nr.qty = 1; nr.id = tradeNewId(list); if (!nr.id) { err = 'full'; return; } if (isObj(spec.on)) nr.on = false;
+                    var nr = JSON.parse(JSON.stringify(m.like)); delete nr.keptOn; delete nr.hid; delete nr.ct; delete nr.ld; delete nr.fl; delete nr.rd; delete nr.fd; delete nr.bu; delete nr.note; nr.qty = 1; nr.id = tradeNewId(list); if (!nr.id) { err = 'full'; return; } if (isObj(spec.on)) nr.on = false;
                     if (isL) nr.lvl = 0; else if (typeof nr.defId === 'string') { nr.ov = isObj(nr.ov) ? nr.ov : {}; nr.ov.stats = isObj(nr.ov.stats) ? nr.ov.stats : {}; nr.ov.stats[m.key] = 0; } else { nr.def.stats = isObj(nr.def.stats) ? nr.def.stats : {}; nr.def.stats[m.key] = 0; }
                     list.push(nr); tgt = list.length - 1;
                 }
@@ -3340,6 +3342,22 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
             out.load = ldo;
         }
     }
+    if (Array.isArray(v.feeds) && out.counters) {   // 1.6.0 Feeds: up to FEEDS_MAX feeds a row loads apart, each { key, from, ct, turns?, cats?, by?, to? }: key, how formulas name it (Row.Feed.<key>.<stat>); from, another item list with a level (cleanSystem keeps it only where that is one); ct, a counter of this list of its own, no load's and no other feed's; turns, the turns a change takes, a formula of the row's names with no dice; cats, by and to as a load's. The same in both views
+        var fdL = [], fdK = map(), fdC = map(); if (out.load) fdC[lower(out.load.ct)] = 1;
+        v.feeds.forEach(function(fv) {
+            if (fdL.length >= FEEDS_MAX || !isObj(fv)) return;
+            var fk = typeof fv.key === 'string' ? fv.key.trim() : '', ff = typeof fv.from === 'string' && FIELD_ID.test(fv.from) ? fv.from : '', fc = typeof fv.ct === 'string' ? lower(fv.ct.trim()) : '', ft = '';
+            if (!STAT_KEY.test(fk) || (fk in Object.prototype) || (lower(fk) in Object.prototype) || fdK[lower(fk)] || !ff) return;
+            out.counters.forEach(function(x) { if (!ft && lower(x.key) === fc) ft = x.key; }); if (!ft || fdC[lower(ft)]) return;
+            var fo = { key: fk, from: ff, ct: ft }, ftn = cleanFormulaText(fv.turns); if (ftn) fo.turns = ftn;
+            var fBy = typeof fv.by === 'string' ? statKey(fv.by.trim(), F) : '', fTo = typeof fv.to === 'string' ? statKey(fv.to.trim(), F) : '', fByS = '';
+            (out.stats || []).forEach(function(s) { if (!fByS && fBy && lower(s.key) === lower(fBy)) fByS = s.key; });
+            if (fByS && fTo) { fo.by = fByS; fo.to = fTo; }
+            if (Array.isArray(fv.cats)) { var fcs = [], fSeen = map(); fv.cats.forEach(function(c) { var lt = cutText(c, LIMITS.category); if (!lt || fSeen[lower(lt)] || fcs.length >= LIMITS.listCats) return; fSeen[lower(lt)] = 1; fcs.push(lt); }); if (fcs.length || (!gmView && fv.cats.length === 0)) fo.cats = fcs; }
+            fdK[lower(fk)] = 1; fdC[lower(ft)] = 1; fdL.push(fo);
+        });
+        if (fdL.length) out.feeds = fdL;
+    }
     if (isObj(v.parts)) {   // 1.6.0, backlog 180 R14 (the owner, by prompt: "A. A row of a list", "A. Pills under the row", "A. Count and totals"): this list's rows hold parts, rows of an item list (from, a field id: another list or this one; cleanSystem keeps it only where that list is in the view); cats, the categories a part may be; label, the word on its add button. The same in both views
         var ptF = typeof v.parts.from === 'string' && FIELD_ID.test(v.parts.from) ? v.parts.from : '';
         if (ptF) {
@@ -3847,6 +3865,7 @@ function cleanSystem(sys, opts) {
     }
     var ldLv = map(); out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.lvl)) ldLv[f.id] = 1; });   // 1.5.8 Loads from: another item list of this view, with a level (the players' view: a GM-only list is not there, so its load goes)
     out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.load) && (f.list.load.from === f.id || ldLv[f.list.load.from] !== 1)) delete f.list.load; });
+    out.fields.forEach(function(f) { if (f.kind !== 'item-list' || !isObj(f.list) || !Array.isArray(f.list.feeds)) return; f.list.feeds = f.list.feeds.filter(function(x) { return x.from !== f.id && ldLv[x.from] === 1; }); if (!f.list.feeds.length) delete f.list.feeds; });   // 1.6.0 Feeds: each loads from another list of this view with a level, as a load does
     var chIl = map(); out.fields.forEach(function(f) { if (f.kind === 'item-list') chIl[f.id] = 1; });   // 1.5.9 Chambers from: an item list of this view, this very list too (the players' view: a GM-only list is not there, so its chamber goes)
     out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.chamber) && chIl[f.list.chamber.from] !== 1) delete f.list.chamber; });
     out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.parts) && chIl[f.list.parts.from] !== 1) delete f.list.parts; });
@@ -3888,6 +3907,7 @@ function cleanSystem(sys, opts) {
         out.fields.forEach(function(f) { if (f.list && typeof f.list.unheld === 'string' && mentions(f.list.unheld)) delete f.list.unheld; });   // 1.6.0 Rolls unheld entries: an Unheld level read from a GM-only value goes, and players then roll no entry unheld there
         out.fields.forEach(function(f) { if (f.list && isObj(f.list.chamber) && f.list.chamber.needs && mentions(f.list.chamber.needs)) { delete f.list.chamber.needs; delete f.list.chamber.needsText; } });   // 1.5.9 Chambers only where, as Loads only where
         out.fields.forEach(function(f) { if (f.list && isObj(f.list.chamber) && f.list.chamber.reach && mentions(f.list.chamber.reach)) delete f.list.chamber.reach; });   // 1.5.9 (es) Flies at most, alike: only the host flies a round
+        out.fields.forEach(function(f) { if (f.list && Array.isArray(f.list.feeds)) f.list.feeds.forEach(function(x) { if (x.turns && mentions(x.turns)) delete x.turns; }); });   // 1.6.0 Feeds: the turns a change takes, alike
         out.fields.forEach(function(f) { if (f.list && isObj(f.list.load) && f.list.load.needs && mentions(f.list.load.needs)) { delete f.list.load.needs; delete f.list.load.needsText; } });   // 1.5.8 Loads only where, alike   // 1.5.8: a switch's needs naming a GM-only value go, as a list roll's (players' switches are then not held back by them)   // R2b: a list roll's consequences, or its needs, naming a GM-only value go (players' rolls then change nothing / are not held back)
         out.rolls = out.rolls.filter(function(r) { return r.apply ? !r.apply.some(function(c) { return mentions(c.formula); }) : !mentions(r.formula); });   // H7: an apply action naming a GM-only value goes whole
         out.rolls.forEach(function(r) { if (r.then && r.then.some(function(c) { return mentions(c.formula); })) delete r.then; if (r.malf && mentions(r.malf)) delete r.malf; if (r.needs && mentions(r.needs)) { delete r.needs; delete r.needsText; delete r.hideOff; if (r.every) delete r.every.whileNeeds; if (r.inFight) delete r.inFight.whileNeeds; } });   // 1.5.4: its needs naming one go, as a list roll's (players' presses are then not held back by them); 1.5.5: and Only while its needs hold with them   // R3: a Malf naming one too   // R1: a consequence naming a GM-only value takes them all (players' rolls then change nothing)
@@ -3933,7 +3953,7 @@ function cleanSystem(sys, opts) {
             (Array.isArray(sys.items) ? sys.items : []).concat(Array.isArray(sys.core) ? sys.core : []).forEach(function(it) { if (isObj(it) && it.vis === 'gm') catL([it.category], gmCat); });
         }
         placeCatOk = function(c) { return visCat[lower(c)] === 1 || (gmCat !== null && gmCat[lower(c)] !== 1); };
-        out.fields.forEach(function(f) { if (f.list && Array.isArray(f.list.cats)) f.list.cats = f.list.cats.filter(placeCatOk); if (f.list && isObj(f.list.load) && Array.isArray(f.list.load.cats)) f.list.load.cats = f.list.load.cats.filter(placeCatOk); if (f.list && isObj(f.list.chamber) && Array.isArray(f.list.chamber.cats)) f.list.chamber.cats = f.list.chamber.cats.filter(placeCatOk); });   // 1.5.9: a chamber's alike   // 1.5.8: a load's categories too (one left with none takes none)
+        out.fields.forEach(function(f) { if (f.list && Array.isArray(f.list.cats)) f.list.cats = f.list.cats.filter(placeCatOk); if (f.list && isObj(f.list.load) && Array.isArray(f.list.load.cats)) f.list.load.cats = f.list.load.cats.filter(placeCatOk); if (f.list && isObj(f.list.chamber) && Array.isArray(f.list.chamber.cats)) f.list.chamber.cats = f.list.chamber.cats.filter(placeCatOk); if (f.list && Array.isArray(f.list.feeds)) f.list.feeds.forEach(function(x) { if (Array.isArray(x.cats)) x.cats = x.cats.filter(placeCatOk); }); });   // 1.5.9: a chamber's alike   // 1.5.8: a load's categories too (one left with none takes none)
     }
     var seenFx = map(), effs = [];   // 5h: the status-effect library, after the fields (its changes are checked against them); absent when empty
     (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (effs.length >= LIMITS.effects) return; var c = cleanEffectDef(d, fieldIds, gmView, F); if (!c || seenFx[c.id]) return; seenFx[c.id] = 1; effs.push(c); });
@@ -4113,7 +4133,7 @@ function cleanValue(field, v, opts) {
         if (!Array.isArray(v)) return undefined;
         var items = (opts && opts.items) || map(), seenD = map(), seenR = map(), list = [], nVis = 0, nHid = 0;
         for (var i = 0; i < v.length && i < LIMITS.carried * 4 && (nVis < LIMITS.carried || nHid < LIMITS.carried); i++) {   // Stage 6: visible rows and kept curses counted apart (a kept row never pushes out, or blocks, a visible one)
-            var rw = cleanRow(v[i], items, field.list, isObj(field.list) && isObj(field.list.load) && opts && opts.specs ? opts.specs[field.list.load.from] : undefined, isObj(field.list) && isObj(field.list.chamber) && opts && opts.specs ? opts.specs[field.list.chamber.from] : undefined); if (!rw) continue;   // 1.5.9: and the chamber's list, for its rounds   // 1.5.8: the source list's options, for a loaded copy
+            var rw = cleanRow(v[i], items, field.list, isObj(field.list) && isObj(field.list.load) && opts && opts.specs ? opts.specs[field.list.load.from] : undefined, isObj(field.list) && isObj(field.list.chamber) && opts && opts.specs ? opts.specs[field.list.chamber.from] : undefined, opts && opts.specs ? opts.specs : undefined); if (!rw) continue;   // 1.5.9: and the chamber's list, for its rounds   // 1.5.8: the source list's options, for a loaded copy
             var rk = rowIdOf(rw); if (!rk || seenR[rk] || (!rw.id && rw.defId && seenD[rw.defId])) continue;
             if (rw.hid === 1 ? nHid >= LIMITS.carried : nVis >= LIMITS.carried) continue;
             seenR[rk] = 1; if (rw.defId && rw.hid !== 1) seenD[rw.defId] = 1; if (rw.hid === 1) nHid++; else nVis++; list.push(rw);
@@ -4286,8 +4306,8 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
             ((moR.breakdown && Array.isArray(moR.breakdown.names)) ? moR.breakdown.names : []).forEach(function(n) { if (n && typeof n.name === 'string' && !seenN[lower(n.name)]) { seenN[lower(n.name)] = 1; names.push(n); } });
             amts.push({ money: true, amt: moneyR(moV) }); continue;
         }
-        if (isObj(c) && c.fire === true) {
-            var fiA = { fire: true, lf: rowCtx && typeof rowCtx.f === 'string' ? fieldById(sys, rowCtx.f) : null };
+        if (isObj(c) && (c.fire === true || c.feed === true)) {
+            var fiA = { lf: rowCtx && typeof rowCtx.f === 'string' ? fieldById(sys, rowCtx.f) : null }; fiA[c.fire === true ? 'fire' : 'feed'] = true;   // 1.6.0 Feeds: a shot from every feed reads How many as Fire does
             if (typeof c.n === 'string' && c.n) {   // 1.6.0 (asked by the session that builds a game system): How many, the shots fired: read with the row's names as an amount is, all or nothing, no dice, whole shots only; under 1 fires none
                 var fiP = F.parse(c.n); if (!fiP.ok) return { ok: false, reason: 'error', message: fiP.error.message };
                 if (hasDice(fiP.ast.body)) return { ok: false, reason: 'error', message: 'An amount cannot roll dice.' };
@@ -4331,7 +4351,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
         if (ctr || rq === 'q' || (f && f.kind === 'resource')) v = Math.round(v);
         amts.push({ f: f, ctr: ctr, rq: rq, all: !!lfA, st: stQ || stA, lf: lfC || lfQ || lfA, amt: c.set === true ? v : (v > 0 ? v : 0), add: c.add === true, set: c.set === true, roll: rolled && res.diceRolled > 0 ? rollWords(res) : '' });   // R1: Set to takes the amount as it is; 1.5.9: what a Rolled amount drew
     }
-    if (!amts.some(function(a) { return a.fire || a.off || a.fx || a.set || a.amt > 0 || (a.money && a.amt !== 0) || (!!a.per && Object.keys(a.per).some(function(k) { return a.per[k].amt > 0; })); })) return { ok: false, reason: 'none' };
+    if (!amts.some(function(a) { return a.fire || a.feed || a.off || a.fx || a.set || a.amt > 0 || (a.money && a.amt !== 0) || (!!a.per && Object.keys(a.per).some(function(k) { return a.per[k].amt > 0; })); })) return { ok: false, reason: 'none' };
     var work = Object.assign({}, char, { values: JSON.parse(JSON.stringify(char.values || {})) }), out = {}, lines = [], asIs = same === true, fired = null, burst = false, shotsA = null;   // asIs: work still as char stands; burst: a fire with How many went, so its card says how many
     var onW = isObj(on) && isObj(on.char) ? Object.assign({}, on.char, { values: JSON.parse(JSON.stringify(on.char.values || {})) }) : null, onTc = onW ? (on.tctx || null) : null, onOut = {}, onLines = [], gone = [], paidM = false, shortM = null;   // gone (1.6.0): the rows a quantity used up took out, each as it was   // 1.5.9 (book es/et plan, section 3): the character it is used on, on a working copy of its own
     for (var j = 0; j < amts.length; j++) {
@@ -4343,7 +4363,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
             var moBox = moneyBoxes(sys)[0]; if (moD !== 0) lines.push({ f: moBox ? moBox.f.id : '', n: 'Money', d: moD, v: moneyHeld(sys, work) });
             continue;
         }
-        if (!a.fire && !a.off && !a.fx && !a.set && !a.per && !(a.amt > 0)) continue;
+        if (!a.fire && !a.feed && !a.off && !a.fx && !a.set && !a.per && !(a.amt > 0)) continue;
         if (a.off) {   // 1.6.0 (CORE gap 13): the row switches itself off, on a list with a switch; one off already moves nothing
             if (!a.lf || !isObj(a.lf.list) || !isObj(a.lf.list.on) || !rowCtx || typeof rowCtx.r !== 'string') continue;
             var rowsO = JSON.parse(JSON.stringify(Array.isArray(work.values[a.lf.id]) ? work.values[a.lf.id] : [])), ixO = -1; rowsO.forEach(function(r, i) { if (ixO < 0 && isObj(r) && rowIdOf(r) === rowCtx.r) ixO = i; }); if (ixO < 0 || rowsO[ixO].hid === 1) return { ok: false, reason: 'missing' };
@@ -4417,6 +4437,16 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
             fired = { f: a.lf.id, r: rowCtx.r, name: shN }; if (rowCtx.burst === true) shotsA = shots;   // 1.6.0 A burst: the roll opens one, so its host keeps the rounds in firing order
             var shMix = shots.some(function(x) { var xd = rowDef(sys, x); return ((xd && xd.def && xd.def.name) || 'A round') !== shN; });
             lines.push({ f: a.lf.id, n: (shMix ? 'Rounds' : shN) + ' fired, chambered', d: -shotN, v: left }); if (typeof a.n === 'number') burst = true;
+            continue;
+        }
+        if (a.feed) {   // 1.6.0 Feeds: a shot takes 1 from every feed, and How many (a.n) that many, as far as the emptiest feed goes. A feed at 0 fires nothing. Only the counters move: what fired is read back from them (feedAt)
+            if (!a.lf || !isObj(a.lf.list) || !Array.isArray(a.lf.list.feeds) || !rowCtx || typeof rowCtx.r !== 'string') continue;
+            var rowsG = JSON.parse(JSON.stringify(Array.isArray(work.values[a.lf.id]) ? work.values[a.lf.id] : [])), rwG = null;
+            rowsG.forEach(function(r) { if (!rwG && isObj(r) && rowIdOf(r) === rowCtx.r) rwG = r; }); if (!rwG || rwG.hid === 1) return { ok: false, reason: 'missing' };
+            var shotG = Math.min(typeof a.n === 'number' ? a.n : 1, feedRoom(a.lf.list, rwG)); if (shotG < 1) continue;
+            rwG.ct = isObj(rwG.ct) ? rwG.ct : {};
+            a.lf.list.feeds.forEach(function(fd) { var t = feedCt(a.lf.list, fd); if (!t) return; var was = rowCt(rwG, t), nm = feedShotName(sys, rwG, fd, was, shotG); rwG.ct[t.key] = was - shotG; lines.push({ f: a.lf.id, n: nm + ' fired, ' + (t.label || t.key), d: -shotG, v: was - shotG }); });
+            work.values[a.lf.id] = rowsG; out[a.lf.id] = rowsG; asIs = false; if (typeof a.n === 'number') burst = true;
             continue;
         }
         if (a.ctr) {   // Stage 6 HUD R2b: one of the row's counters — from 0 to the row's own most, on the working copy of its list
@@ -4642,7 +4672,8 @@ function chainsWalk(sys, F) {
         var chs = spec && isObj(spec.chamber) ? chamberSrc(sys, spec) : null;   // 1.5.9: the list its chambered rounds come from (Row.round.*, Row.fired.*)
         var pts = spec && isObj(spec.parts) ? partsSrc(sys, spec) : null;   // 1.6.0 R14: the list its parts come from (Row.parts.*)
         var ats = spec && isObj(spec.at) ? atSrc(sys, spec) : null;   // 1.6.0 Stands at: the list the row its stat names is in (Row.<by>.*)
-        return (lists[lk] = { sp: spec && isObj(spec.specs) ? spec.specs : null, k: lk, fid: f.id, st: st, cl: cl, ct: ct, chs: chs, pts: pts, ats: ats && ats.id !== f.id ? ats : null, atb: ats ? lower(spec.at.by) : '' });
+        var fds = map(); (spec && Array.isArray(spec.feeds) ? spec.feeds : []).forEach(function(fd) { var s = isObj(fd) ? loadSrc(sys, feedSpec(spec, fd)) : null; if (s) fds[lower(fd.key)] = s; });   // 1.6.0 Feeds: the list each feed loads from (Row.Feed.<key>.*)
+        return (lists[lk] = { sp: spec && isObj(spec.specs) ? spec.specs : null, k: lk, fid: f.id, st: st, cl: cl, ct: ct, chs: chs, fds: fds, pts: pts, ats: ats && ats.id !== f.id ? ats : null, atb: ats ? lower(spec.at.by) : '' });
     };
     var defNode = function(f, sfx) {   // a field's name: its definition worked out (a formula, a skill's base, a pool's most), '' for one read as stored
         if (f.kind === 'number' && isObj(f.override)) return sfx && sfx !== 'base' ? '' : node('f|' + lower(f.key), [f.override.when, f.override.value].filter(function(x) { return typeof x === 'string' && x; }), null, [], []);   // 205 (6): a number's override (its .base too)
@@ -4678,7 +4709,7 @@ function chainsWalk(sys, F) {
     var nodeOf = function(name, L) {   // the resolver's own lookup (fn, and a column's rowVars): the node a name is worked out under, or ''
         var l = lower(name);
         if (L && l.slice(0, 5) === 'host.' && !ix.host && !lkC.host) { var hw = l.slice(5), hn = []; if (hw.indexOf('.') < 0) sys.fields.forEach(function(hf) { if (isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === L.fid) { var hd = rowNode(listOf(hf), hw); if (hd) hn.push(hd); } }); if (hn.length) return hn.length === 1 ? hn[0] : node('h|' + L.k + '|' + hw, [], null, [], hn); }   // 205 (3): a part's Host.<w>, on each list its host may be in
-        if (L && l.slice(0, 4) === 'row.') { var w = l.slice(4), cw = w.split('.'); return w.indexOf('.') < 0 ? rowNode(L, w) : cw.length === 2 && (cw[0] === 'round' || cw[0] === 'fired') && L.chs ? rowNode(listOf(L.chs), cw[1]) : cw.length === 2 && L.ats && cw[0] === L.atb ? rowNode(listOf(L.ats), cw[1]) : cw[0] === 'parts' && L.pts && (cw.length === 2 || (cw.length === 3 && (cw[1] === 'max' || cw[1] === 'min' || cw[1] === 'all'))) ? rowNode(listOf(L.pts), cw[cw.length - 1]) : ''; }   // 1.5.9: a round's stat or column, on its own list; 1.6.0 R14: a part's (205 (1): its highest or lowest too)
+        if (L && l.slice(0, 4) === 'row.') { var w = l.slice(4), cw = w.split('.'); return w.indexOf('.') < 0 ? rowNode(L, w) : cw[0] === 'feed' && cw.length >= 3 && cw.length <= 4 && (cw.length === 3 || cw[2] === 'fired') && L.fds[cw[1]] ? rowNode(listOf(L.fds[cw[1]]), cw[cw.length - 1]) : cw.length === 2 && (cw[0] === 'round' || cw[0] === 'fired') && L.chs ? rowNode(listOf(L.chs), cw[1]) : cw.length === 2 && L.ats && cw[0] === L.atb ? rowNode(listOf(L.ats), cw[1]) : cw[0] === 'parts' && L.pts && (cw.length === 2 || (cw.length === 3 && (cw[1] === 'max' || cw[1] === 'min' || cw[1] === 'all'))) ? rowNode(listOf(L.pts), cw[cw.length - 1]) : ''; }   // 1.5.9: a round's stat or column, on its own list; 1.6.0 R14: a part's (205 (1): its highest or lowest too)
         if (ix[l]) return defNode(ix[l], '');
         if (tbW) { var tbN = tableRead(sys, l); if (tbN) return tbN.by ? nodeOf(tbN.by, L) : ''; }   // 1.6.0: a table read by a name is worked out as that name is; a fixed row is a figure
         if (l.indexOf('.') > 0) { var ln = listNode(l); if (ln !== undefined) return ln; }
@@ -4709,7 +4740,7 @@ function chainsWalk(sys, F) {
 }
 function applyScope(sys, char, act, gm, F) {
     if (gm || !sys || !Array.isArray(sys.fields) || !isObj(act) || act.vis === 'gm' || !char || char.npc || !char.ownerId || !Array.isArray(act.apply) || !act.apply.length) return 'gm';
-    var rowOwn = function(c) { return isObj(c) && (typeof c.c === 'string' || c.q === true || typeof c.s === 'string' || typeof c.fx === 'string' || typeof c.list === 'string' || typeof c.money === 'string' || (c.fire === true && typeof c.n === 'string')); };   // 1.6.0: a row's quantity or stat is its owner's, as a counter is, and so is a switched effect
+    var rowOwn = function(c) { return isObj(c) && (typeof c.c === 'string' || c.q === true || typeof c.s === 'string' || typeof c.fx === 'string' || typeof c.list === 'string' || c.feed === true || typeof c.money === 'string' || (c.fire === true && typeof c.n === 'string')); };   // 1.6.0: a row's quantity or stat is its owner's, as a counter is, and so is a switched effect
     if (act.apply.some(function(c) { if (!isObj(c) || typeof c.list !== 'string') return false; var lf = fieldById(sys, c.list); return !lf || lf.kind !== 'item-list' || lf.vis === 'gm'; })) return 'gm';   // 1.6.0: every row of a list hidden from its owner
     if (F && act.apply.some(function(c) { return isObj(c) && typeof c.list === 'string' && readsRow(c.formula, F); })) { var sysAr = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables }; if (act.apply.some(function(c) { return isObj(c) && typeof c.list === 'string' && readsRow(c.formula, F) && !allRowOk(sysAr, F, fieldById(sysAr, c.list), c.formula); })) return 'gm'; }   // 1.6.0: and one worked out row by row whose row names read a GM-only value (allRowOk)
     if (act.apply.some(function(c) { if (!isObj(c) || typeof c.fx !== 'string') return false; var d = null; (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(x) { if (!d && isObj(x) && x.id === c.fx) d = x; }); return !d || d.vis === 'gm'; })) return 'gm';   // 1.6.0: a GM-only effect's card is the GM's
@@ -4788,7 +4819,7 @@ function dmgPartOf(sys, ent, vars, F, o, k) {
 // every failure, criticals included. A crit of anything else, or none, is no critical, so a system with no criticals reads exactly as before.
 // 1.5.9 (the handbook's ruling, Charges Per Shot: a shot that jams is not fired and spends nothing): a fire never comes of a malfunction, whatever its
 // When says, so a jam keeps its round chambered; every other change of a Then is as before. Every caller (the host's roll, the GM's own, a time rule) comes here
-function thenChanges(entry, pass, malf, crit) { return (isObj(entry) && Array.isArray(entry.then) ? entry.then : []).filter(function(c) { return isObj(c) && !(malf === true && c.fire === true) && (!c.when || (pass === true && c.when === 'hit') || (pass === false && c.when === 'miss') || (malf === true && c.when === 'malf') || (pass === true && crit === 'crit' && c.when === 'crit') || (pass === false && crit === 'fumble' && c.when === 'fumble')); }); }   // R3: malf — the roll malfunctioned (it is then a failure too)
+function thenChanges(entry, pass, malf, crit) { return (isObj(entry) && Array.isArray(entry.then) ? entry.then : []).filter(function(c) { return isObj(c) && !(malf === true && (c.fire === true || c.feed === true)) && (!c.when || (pass === true && c.when === 'hit') || (pass === false && c.when === 'miss') || (malf === true && c.when === 'malf') || (pass === true && crit === 'crit' && c.when === 'crit') || (pass === false && crit === 'fumble' && c.when === 'fumble')); }); }   // R3: malf — the roll malfunctioned (it is then a failure too)
 // 1.6.0 (the v2 sort's B1): the critical range one roll is judged by under criticals at fixed rolls (combat.checks 'fixed'), [at, fumble]: each the
 // roll's own formula (entry.critAt, entry.fumbleAt: a system roll's or a list roll's), else the Combat card's, else 3 and 18, worked out with the
 // roller's names (vars: a list roll's are its row's), no dice rolled, rounded; a formula that cannot be worked out gives way to the next. null
@@ -4918,7 +4949,7 @@ function cleanCharItem(msg) {
     if (msg.op === 'ov') { if (msg.ov === null) out.ov = null; else { var ovm = cleanOvMsg(msg.ov); if (!ovm) return null; out.ov = ovm; } }   // F4c2: back to the library only when the wire says null; a patch malformed, or holding nothing, refuses the message
     if (msg.op === 'add' && msg.pay !== undefined) { if (typeof msg.pay !== 'number' || !fin(msg.pay) || msg.pay < 0 || msg.pay > LIMITS.statAbs) return null; out.pay = moneyR(msg.pay); }   // 1.5.6: what a purchase paid, in total
     if ((msg.op === 'remove' || msg.op === 'setQty') && msg.get !== undefined) { if (typeof msg.get !== 'number' || !fin(msg.get) || msg.get < 0 || msg.get > LIMITS.statAbs) return null; out.get = moneyR(msg.get); }   // ... and what a sale is paid
-    if (msg.op === 'load') { if (msg.from === null || msg.from === undefined) out.from = null; else if (typeof msg.from === 'string' && ROW_ID.test(msg.from)) out.from = msg.from; else return null; if (msg.back !== undefined) { if (typeof msg.back !== 'string' || !ROW_ID.test(msg.back)) return null; out.back = msg.back; } }   // 1.5.8 Loads from: the source row (null: unload), and a fresh id for a copy coming out as a row of its own
+    if (msg.op === 'load') { if (msg.from === null || msg.from === undefined) out.from = null; else if (typeof msg.from === 'string' && ROW_ID.test(msg.from)) out.from = msg.from; else return null; if (msg.back !== undefined) { if (typeof msg.back !== 'string' || !ROW_ID.test(msg.back)) return null; out.back = msg.back; } if (msg.feed !== undefined) { if (typeof msg.feed !== 'string' || !STAT_KEY.test(msg.feed)) return null; out.feed = msg.feed; if (msg.more !== undefined) { if (typeof msg.more !== 'number' || Math.floor(msg.more) !== msg.more || msg.more < 1 || msg.more > LIMITS.maxQty) return null; out.more = msg.more; } } }   // 1.5.8 Loads from: the source row (null: unload), and a fresh id for a copy coming out as a row of its own; 1.6.0 Feeds: the feed it goes to, and more, how many units to stack on what is there (none: a swap)
     if (msg.op === 'chamber') { if (typeof msg.from !== 'string' || !ROW_ID.test(msg.from)) return null; out.from = msg.from; if (msg.fill !== undefined) { if (msg.fill !== 1) return null; out.fill = 1; } }   // 1.5.9 Chambers from: the source row a round comes off; 1.6.0: fill, as many as it holds and that row has, one message
     if (msg.op === 'split') { var spn = cleanNum(msg.qty, NaN); if (!(spn >= 1) || spn !== Math.floor(spn) || spn > LIMITS.maxQty) return null; out.qty = spn; if (typeof msg.back !== 'string' || !ROW_ID.test(msg.back)) return null; out.back = msg.back; }   // 1.6.0, backlog 180 R11: how many come off the stack, and the new row's id
     if (msg.op === 'unchamber' && msg.back !== undefined) { if (typeof msg.back !== 'string' || !ROW_ID.test(msg.back)) return null; out.back = msg.back; }   // ... and a fresh id for a round coming back as a row of its own
@@ -5015,7 +5046,7 @@ function cleanRowDef(d, gmView) {   // an item's definition carried on a row, by
 // 1.5.8 Loads from: a loaded copy — one unit of a source row as it was taken, as a row of that list with no id, quantity, level, switch or counters
 // (what it holds is the host row's counter). Cleaned on the source list's terms (srcSpec) with a stand-in id. Only on a row of quantity 1 of a
 // list with a load, never on a kept curse
-var LD_DROP = Object.freeze({ id: 1, qty: 1, lvl: 1, on: 1, ct: 1, hid: 1, keptOn: 1, opn: 1, ld: 1, rd: 1, fd: 1, in: 1, bu: 1 });   // 1.5.9: nor a chamber
+var LD_DROP = Object.freeze({ id: 1, qty: 1, lvl: 1, on: 1, ct: 1, hid: 1, keptOn: 1, opn: 1, ld: 1, rd: 1, fd: 1, in: 1, bu: 1, fl: 1 });   // 1.5.9: nor a chamber
 function cleanLd(e, items, srcSpec) {
     if (!isObj(e)) return null;
     var x = {}; Object.keys(e).forEach(function(k) { if (LD_DROP[k] !== 1 && !(k in Object.prototype)) x[k] = e[k]; }); x.id = 'w_ld'; x.qty = 1;
@@ -5023,10 +5054,23 @@ function cleanLd(e, items, srcSpec) {
     delete r.id; delete r.qty; delete r.lvl; delete r.on; delete r.ct; delete r.hid; delete r.keptOn; return r;
 }
 function withLd(o, e, items, spec, srcSpec) { if (!isObj(spec) || !isObj(spec.load) || !isObj(e.ld) || o.qty !== 1 || o.hid === 1) return o; var ld = cleanLd(e.ld, items, srcSpec); if (ld) o.ld = ld; return o; }
+// 1.6.0 Feeds: what a row's feeds hold, fl: { <feed key>: pieces in the order they were stacked, FEED_STACK at most }. A piece is { c, n, u }: c a
+// copy of the unit as cleanLd keeps one, n how much it held when it went in, u the level of one unit of it. What is left is the feed's counter
+// alone (feedAt reads the place from it). Only on a row of a list with that feed, never on a stack, never on a kept curse. specs: the lists by id
+function withFl(o, e, items, spec, specs) {
+    if (!isObj(spec) || !Array.isArray(spec.feeds) || !isObj(e.fl) || o.qty !== 1 || o.hid === 1) return o;
+    var fl = {}, any = false, whole = function(v) { return typeof v === 'number' && fin(v) ? Math.max(0, Math.min(1e6, Math.round(v))) : 0; };
+    spec.feeds.forEach(function(fd) {
+        if (!isObj(fd) || !Object.prototype.hasOwnProperty.call(e.fl, fd.key) || !Array.isArray(e.fl[fd.key])) return;
+        var st = []; e.fl[fd.key].slice(0, FEED_STACK).forEach(function(p) { var c = isObj(p) ? cleanLd(p.c, items, isObj(specs) ? specs[fd.from] : undefined) : null, n = isObj(p) ? whole(p.n) : 0; if (c && n >= 1) st.push({ c: c, n: n, u: Math.max(1, whole(p.u)) }); });
+        if (st.length) { fl[fd.key] = st; any = true; }
+    });
+    if (any) o.fl = fl; return o;
+}
 // 1.5.9 Chambers from: a chambered round, and the round last fired — one unit of a source row as it was taken, as a row of that list with no id,
 // quantity, switch or counters (its level kept: what it holds). Cleaned on the source list's terms (chSpec) with a stand-in id. Only on a row of
 // quantity 1 of a list with a chamber, never on a kept curse; at most its cap of chambered rounds, in the order they go in (the first fires first)
-var RD_DROP = Object.freeze({ id: 1, qty: 1, on: 1, ct: 1, hid: 1, keptOn: 1, opn: 1, ld: 1, rd: 1, fd: 1, in: 1, bu: 1 });
+var RD_DROP = Object.freeze({ id: 1, qty: 1, on: 1, ct: 1, hid: 1, keptOn: 1, opn: 1, ld: 1, rd: 1, fd: 1, in: 1, bu: 1, fl: 1 });
 function cleanRd(e, items, chSpec) {
     if (!isObj(e)) return null;
     var x = {}; Object.keys(e).forEach(function(k) { if (RD_DROP[k] !== 1 && !(k in Object.prototype)) x[k] = e[k]; }); x.id = 'w_rd'; x.qty = 1;
@@ -5050,19 +5094,19 @@ function withRd(o, e, items, spec, chSpec) {
     if (isObj(o.bu) && isObj(e.bu) && Array.isArray(e.bu.s)) { var buS = e.bu.s.slice(0, CHAMBER_CAP).map(function(x) { return isObj(x) ? cleanRd(x, items, chSpec) : null; }); if (buS.some(function(x) { return !!x; })) o.bu.s = buS; }   // 1.6.0: the rounds of its last burst, in firing order, each at its place (null: one its owner's copy may not hold)
     return o;
 }
-function cleanRow(e, items, spec, srcSpec, chSpec) {   // spec (F4b): the list's options (f.list), for the level; srcSpec (1.5.8): the list a loaded copy came from; chSpec (1.5.9): the list a chambered round came from
+function cleanRow(e, items, spec, srcSpec, chSpec, fdSpecs) {   // spec (F4b): the list's options (f.list), for the level; srcSpec (1.5.8): the list a loaded copy came from; chSpec (1.5.9): the list a chambered round came from; fdSpecs (1.6.0): the lists by id, for what its feeds hold
     if (!isObj(e)) return null;
     var id = typeof e.id === 'string' && ROW_ID.test(e.id) ? e.id : null, qty = clampNum(cleanNum(e.qty, 1) | 0, 1, LIMITS.maxQty);
     if (typeof e.defId === 'string' && ITEM_ID.test(e.defId)) {
         var known = items[e.defId] === 1, snap = !known && isObj(e.snap) ? cleanRowDef(e.snap, true) : null;   // a copy of a deleted entry keeps its snapshot; once the entry is back the row reads the library again
         if (!known && !snap) return null;   // an unknown item with no copy is dropped (the rule before Stage 6)
-        var o = {}; if (id) o.id = id; o.defId = e.defId; o.qty = qty; rowFacts(o, e, spec); var ov = cleanOv(e.ov, spec); if (ov) o.ov = ov; if (snap) o.snap = snap; if (id && e.hid === 1) o.hid = 1; if (e.keptOn === 1 && o.on === true) o.keptOn = 1; return withRd(withLd(o, e, items, spec, srcSpec), e, items, spec, chSpec);   // F4c2: its own values (a custom row never has any: its definition is its own)
+        var o = {}; if (id) o.id = id; o.defId = e.defId; o.qty = qty; rowFacts(o, e, spec); var ov = cleanOv(e.ov, spec); if (ov) o.ov = ov; if (snap) o.snap = snap; if (id && e.hid === 1) o.hid = 1; if (e.keptOn === 1 && o.on === true) o.keptOn = 1; return withFl(withRd(withLd(o, e, items, spec, srcSpec), e, items, spec, chSpec), e, items, spec, fdSpecs);   // F4c2: its own values (a custom row never has any: its definition is its own)
     }
     if (!id || !isObj(e.def)) return null;
     var d = cleanRowDef(e.def, e.lnk !== 1); if (!d) return null; if (e.lnk !== 1) delete d.lvlOnly;   // 1.6.0: Levels it may be is an entry's, so a row of the character's own holds none (Make custom ends it)
     var cs = rowStats(e.def.stats, spec); if (cs) d.stats = cs; else delete d.stats;   // F4c1: a custom or inline copy carries its list's stats only
     if (e.lnk === 1) rowText(d, e.def); else ownLong(d, e.def);   // 1.5.4: an owner's inline copy keeps the entry's long text, cleaned again (the host sends it for an entry players may see); 1.5.5 (155): a row of the character's own keeps its own
-    var c = { id: id, qty: qty }; rowFacts(c, e, spec); c.def = d; if (e.lnk === 1) { c.lnk = 1; if (typeof e.src === 'string' && ITEM_ID.test(e.src)) { c.src = e.src; var cnR = cleanNeeds(e.needs, true); if (cnR) c.needs = cnR; var crR = cleanFormulaText(e.needsIf); if (crR) { c.needsIf = crR; var cfR = typeof e.needsFrom === 'number' ? lvlNum(e.needsFrom) : undefined; if (cfR !== undefined) c.needsFrom = cfR; } } } else { if (e.own === 1) c.own = 1; if (e.hid === 1) c.hid = 1; if (e.keptOn === 1 && c.on === true) c.keptOn = 1; } return withRd(withLd(c, e, items, spec, srcSpec), e, items, spec, chSpec);   // F4c3: own (a row its owner made), never on an inline copy
+    var c = { id: id, qty: qty }; rowFacts(c, e, spec); c.def = d; if (e.lnk === 1) { c.lnk = 1; if (typeof e.src === 'string' && ITEM_ID.test(e.src)) { c.src = e.src; var cnR = cleanNeeds(e.needs, true); if (cnR) c.needs = cnR; var crR = cleanFormulaText(e.needsIf); if (crR) { c.needsIf = crR; var cfR = typeof e.needsFrom === 'number' ? lvlNum(e.needsFrom) : undefined; if (cfR !== undefined) c.needsFrom = cfR; } } } else { if (e.own === 1) c.own = 1; if (e.hid === 1) c.hid = 1; if (e.keptOn === 1 && c.on === true) c.keptOn = 1; } return withFl(withRd(withLd(c, e, items, spec, srcSpec), e, items, spec, chSpec), e, items, spec, fdSpecs);   // F4c3: own (a row its owner made), never on an inline copy
 }
 // Stage 6 F4b: a row's facts, after its quantity — the level on the list's terms (as stored while the list has none), the switch, the note.
 // keptOn (after them, the GM's machine only): the owner switched a curse-on-contact item off and the GM keeps it on
@@ -5764,7 +5808,8 @@ function projectRows(rows, view, lib, spec, ruleShown) {   // ruleShown (126b): 
     var chSf = isObj(spec) && isObj(spec.chamber) && isObj(view) ? chamberSrc(view, spec) : null, chSp = chSf && isObj(chSf.list) ? chSf.list : null;   // the rounds' own list: a round from the library comes inline, and with no list it would hold no stats, so a player's Row.round and Row.fired read 0 where the GM's read the figure (found live, 2026-10-30)
     var chP1 = function(x) { var pl = projectRows([Object.assign({}, x, { id: 'w_rd', qty: 1 })], view, lib, chSp, ruleShown); if (!pl || !pl.length) return null; var y = pl[0]; delete y.id; delete y.qty; if (isObj(y.def)) { var rdL = longSize(y.def); if (rdL > rdRoom) { delete y.def.desc; delete y.def.lvls; } else rdRoom -= rdL; } return y; };   // 1.5.9 Chambers from: a chambered round and the round last fired, as a row of their own list goes
     var chP = function(o, r) { if (!isObj(spec) || !isObj(spec.chamber)) return; var rr = (Array.isArray(r.rd) ? r.rd : []).map(chP1).filter(Boolean); if (rr.length) o.rd = rr; var ff = isObj(r.fd) ? chP1(r.fd) : null; if (ff) o.fd = ff; if (isObj(o.bu) && isObj(r.bu) && Array.isArray(r.bu.s)) o.bu.s = r.bu.s.slice(0, CHAMBER_CAP).map(function(x) { return isObj(x) ? chP1(x) : null; }); };
-    var ldP = function(o, r) { chP(o, r); if (!isObj(spec) || !isObj(spec.load) || !isObj(r.ld)) return o; var ldSf = isObj(view) ? loadSrc(view, spec) : null, pl = projectRows([Object.assign({}, r.ld, { id: 'w_ld', qty: 1 })], view, lib, ldSf ? ldSf.list : null, ruleShown); if (pl && pl.length) { var x = pl[0]; delete x.id; delete x.qty; o.ld = x; } return o; };   // 1.5.8 Loads from: a loaded copy, as a row of its own list goes (a GM-only entry's inline, its players' fields only)
+    var ldP1 = function(o, r) { chP(o, r); if (!isObj(spec) || !isObj(spec.load) || !isObj(r.ld)) return o; var ldSf = isObj(view) ? loadSrc(view, spec) : null, pl = projectRows([Object.assign({}, r.ld, { id: 'w_ld', qty: 1 })], view, lib, ldSf ? ldSf.list : null, ruleShown); if (pl && pl.length) { var x = pl[0]; delete x.id; delete x.qty; o.ld = x; } return o; };   // 1.5.8 Loads from: a loaded copy, as a row of its own list goes (a GM-only entry's inline, its players' fields only)
+    var ldP = function(o, r) { ldP1(o, r); if (!isObj(spec) || !Array.isArray(spec.feeds) || !isObj(r.fl)) return o; var fl = {}, any = false; spec.feeds.forEach(function(fd) { var src = isObj(fd) && Object.prototype.hasOwnProperty.call(r.fl, fd.key) && Array.isArray(r.fl[fd.key]) ? r.fl[fd.key] : null, sf = src && isObj(view) ? loadSrc(view, feedSpec(spec, fd)) : null; if (!sf) return; var st = []; src.slice(0, FEED_STACK).forEach(function(p) { if (!isObj(p)) return; var pl = projectRows([Object.assign({}, p.c, { id: 'w_ld', qty: 1 })], view, lib, sf.list, ruleShown); if (!pl || !pl.length) return; var y = pl[0]; delete y.id; delete y.qty; if (isObj(y.def)) { var fdL = longSize(y.def); if (fdL > rdRoom) { delete y.def.desc; delete y.def.lvls; } else rdRoom -= fdL; } st.push({ c: y, n: p.n, u: p.u }); }); if (st.length) { fl[fd.key] = st; any = true; } }); if (any) o.fl = fl; return o; };   // 1.6.0 Feeds: what each holds, as a loaded copy goes, in the room the chambered rounds share
     var vis = map(); (view && Array.isArray(view.items) ? view.items : []).forEach(function(it) { if (isObj(it) && typeof it.id === 'string') vis[it.id] = 1; });
     var out = [], room = LIMITS.rowsText, ownRoom = LIMITS.ownText, rdRoom = LIMITS.rowsText;   // 1.5.4: the long text this list's rows may carry in all (rows past it go without); 1.5.5 (155): the rows of the character's own, a room of their own; 1.6.0: and its chambered rounds, up to 32 a row, a room of theirs
     rows.forEach(function(r) {
@@ -5839,7 +5884,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         var n = spec && spec.noQty ? 1 : clampNum((q.qty | 0) || 1, 1, LIMITS.maxQty), have = -1;
         if (partIn && phA) { var roomA = partsRoom(sys, phA.f.list, phA.row, list, partIn); if (roomA && roomA.used + n > roomA.cap) return { ok: false, reason: 'value', msg: partsFullSays(roomA) }; var kcA = partsCapSays(sys, phA.f.list, phA.row, list, partIn, ent.category, n, 0, ent); if (kcA) return { ok: false, reason: 'value', msg: kcA }; }   // 1.6.0 (v2, B6); 205 (5): a cap per kind
         if (partIn && phA && !fl) { var ftA = partFitSays(sys, char, phA, f, fitRow(spec, ent, n, partIn), F, opts); if (ftA) { if (opts.player) return { ok: false, reason: 'value', msg: ftA, fit: true }; extra.fitSays = ftA; } }   // 1.6.0 Fits where (ask 18): a player refused in its words, the GM told
-        if (!agN && !(spec && spec.multi && q.rowId !== undefined) && !(fl && q.gr !== undefined)) for (var j = 0; j < list.length; j++) if (isObj(list[j]) && list[j].defId === q.defId && (fromLib || !list[j].snap) && list[j].hid !== 1 && typeof list[j].gr !== 'string' && (typeof list[j].in === 'string' ? list[j].in : '') === partIn && typeof list[j].opn !== 'string' && !isObj(list[j].ld) && !Array.isArray(list[j].rd) && !isObj(list[j].fd)) { have = j; break; }   // never into a kept curse; F4b: a list that takes the same item more than once makes a new row
+        if (!agN && !(spec && spec.multi && q.rowId !== undefined) && !(fl && q.gr !== undefined)) for (var j = 0; j < list.length; j++) if (isObj(list[j]) && list[j].defId === q.defId && (fromLib || !list[j].snap) && list[j].hid !== 1 && typeof list[j].gr !== 'string' && (typeof list[j].in === 'string' ? list[j].in : '') === partIn && typeof list[j].opn !== 'string' && !isObj(list[j].ld) && !isObj(list[j].fl) && !Array.isArray(list[j].rd) && !isObj(list[j].fd)) { have = j; break; }   // never into a kept curse; F4b: a list that takes the same item more than once makes a new row
         if (have < 0 && !agN && spec && spec.noQty && !spec.multi && list.some(function(r) { return isObj(r) && r.defId === q.defId && typeof r.gr === 'string' && r.hid !== 1 && (typeof r.in === 'string' ? r.in : '') === partIn; })) return { ok: false, reason: 'value' };   // 1.6.0 (v2, B4): held once, a granted row of it counts
         if (have >= 0 && spec && spec.noQty) return { ok: false, reason: 'value' };   // F4b: no quantity — once each
         if (have >= 0) { extra.base = list[have].qty | 0; list[have].qty = clampNum(extra.base + n, 1, LIMITS.maxQty); extra.row = rowIdOf(list[have]); extra.qty = list[have].qty; extra.added = extra.qty - extra.base; }   // the same item again raises its quantity
@@ -5888,7 +5933,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         if (!(nS >= 1) || nS !== Math.floor(nS) || nS >= curS) return { ok: false, reason: 'value', msg: 'Split off from 1 to ' + Math.max(1, curS - 1) + '.' };
         if (typeof q.back !== 'string' || !ROW_ID.test(q.back) || at(q.back) >= 0) return { ok: false, reason: 'value' };
         if (rwS.keptOn === 1 || typeof rwS.opn === 'string') return { ok: false, reason: 'field' };
-        if (isObj(rwS.ld)) return { ok: false, reason: 'value', msg: 'Unload it first: what it holds stays with one row.' };
+        if (isObj(rwS.ld) || isObj(rwS.fl)) return { ok: false, reason: 'value', msg: 'Unload it first: what it holds stays with one row.' };
         if (list.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return { ok: false, reason: 'field' };
         var cpS = JSON.parse(JSON.stringify(rwS)); cpS.id = q.back; cpS.qty = nS; delete cpS.tt; if (spec && isObj(spec.on) && cpS.on === true) cpS.on = false;   // the part split off starts off: a row on stays the one in use
         rwS.qty = curS - nS; list.splice(ixS + 1, 0, cpS); extra.row = q.back; extra.qty = nS; extra.split = true;
@@ -6181,7 +6226,7 @@ function applyOv(rw, base, pq, spec, F, player, aspec, note) {   // aspec (F5a2)
 // null unloads. A player needs the right to change both lists. Answers the host list as value and the source list in also
 var LD_SAME = ['defId', 'def', 'lnk', 'src', 'snap', 'ov', 'note', 'paid', 'own'];
 function loadSame(sys, sl, a, b) {
-    if (!isObj(a) || a.hid === 1 || typeof a.opn === 'string' || a.keptOn === 1 || isObj(a.ld) || Array.isArray(a.rd) || isObj(a.fd) || isObj(a.bu)) return false;   // 1.5.9: never a row that holds a chamber
+    if (!isObj(a) || a.hid === 1 || typeof a.opn === 'string' || a.keptOn === 1 || isObj(a.ld) || isObj(a.fl) || Array.isArray(a.rd) || isObj(a.fd) || isObj(a.bu)) return false;   // 1.5.9: never a row that holds a chamber
     for (var i = 0; i < LD_SAME.length; i++) if (JSON.stringify(a[LD_SAME[i]]) !== JSON.stringify(b[LD_SAME[i]])) return false;
     var da = rowDef(sys, a), db = rowDef(sys, b);
     return rowLvl(sl, a, da && da.def) === rowLvl(sl, b, db && db.def) && rowOn(sl, a) === rowOn(sl, b);
@@ -6208,7 +6253,96 @@ function fitsBy(hs, hd, hk, ss, sd, sk) {
     }
     var hn = lower(statName(hs, hd, hk)).trim(); return !!hn && hn === sn;
 }
+// 1.6.0 Feeds (the core's ruling: mixed loads are allowed and fire in the order stacked, noted on loading, for magazines and clips alike). A list's
+// feeds are loads a row changes apart. Each is read as a load (feedSpec), so loadSrc and loadFits judge it as they judge one. A row's fl holds what
+// each feed took, in the order stacked; the feed's counter says how much is left, and it alone: whatever moves a counter moves the feed, and
+// feedAt reads the place from it, the first piece stacked going first. Nothing keeps a fired copy: the piece the last shot took is the one before
+// the place. feedLive is the stack with what has gone taken off, so it adds up to the counter
+function feedOf(spec, key) { var w = typeof key === 'string' ? lower(key) : '', hit = null; (isObj(spec) && Array.isArray(spec.feeds) ? spec.feeds : []).forEach(function(fd) { if (!hit && isObj(fd) && typeof fd.key === 'string' && lower(fd.key) === w) hit = fd; }); return hit; }
+function feedSpec(spec, fd) { return Object.assign({}, spec, { load: fd }); }
+function feedCt(spec, fd) { var hit = null; (isObj(spec) && Array.isArray(spec.counters) ? spec.counters : []).forEach(function(t) { if (!hit && isObj(t) && isObj(fd) && t.key === fd.ct) hit = t; }); return hit; }
+function feedCount(spec, row, fd) { var t = feedCt(spec, fd); return t ? rowCt(row, t) : 0; }
+function feedStack(row, fd) { return isObj(row) && isObj(row.fl) && isObj(fd) && Object.prototype.hasOwnProperty.call(row.fl, fd.key) && Array.isArray(row.fl[fd.key]) ? row.fl[fd.key] : []; }
+function feedRoom(spec, row) { var most = null; (isObj(spec) && Array.isArray(spec.feeds) ? spec.feeds : []).forEach(function(fd) { var t = feedCt(spec, fd), n = t ? rowCt(row, t) : 0; if (most === null || n < most) most = n; }); return most === null ? 0 : most; }   // the shots the emptiest feed has left
+function feedAt(st, left, last) {   // the piece the next shot takes, or with last the piece the shot before it took (none gone yet: the next); null with none
+    var tot = 0; st.forEach(function(p) { tot += p.n; });
+    var gone = Math.max(0, tot - left); if (last) gone = Math.max(0, gone - 1); else if (left <= 0) return null;
+    for (var i = 0; i < st.length; i++) { if (gone < st[i].n) return st[i]; gone -= st[i].n; }
+    return null;
+}
+function feedLive(st, left) {
+    var tot = 0; st.forEach(function(p) { tot += p.n; }); var gone = Math.max(0, tot - left), out = [];
+    st.forEach(function(p) { var off = Math.min(gone, p.n); gone -= off; if (p.n > off) out.push({ c: p.c, n: p.n - off, u: p.u }); });
+    if (left > tot && out.length) out[out.length - 1].n += left - tot;   // a counter raised by hand past what went in: the last piece holds it
+    return out;
+}
+function feedShotName(sys, row, fd, was, shots) {   // the card's word for the shots a feed gives from a count of was: the piece's name, or Rounds where they cross pieces; a GM-only piece as a round
+    var name = function(p) { var d = p ? rowDef(sys, p.c) : null; return (d && d.def && d.def.name) || 'A round'; }, st = feedStack(row, fd), nm = name(feedAt(st, was, false));
+    for (var k = 1; k < shots; k++) if (name(feedAt(st, was - k, false)) !== nm) return 'Rounds';
+    return nm;
+}
+// why a roll may not go on this row: words, or ''. Any feed at 0 stops a shot, on the host, on the GM's own press and on the sheet's button alike
+function feedShort(spec, entry, row) {
+    if (!isObj(entry) || !Array.isArray(entry.then) || !entry.then.some(function(c) { return isObj(c) && c.feed === true; }) || !isObj(spec) || !Array.isArray(spec.feeds)) return '';
+    var dry = ''; spec.feeds.forEach(function(fd) { var t = feedCt(spec, fd); if (!dry && t && rowCt(row, t) <= 0) dry = t.label || t.key; });
+    return dry ? dry + ' is empty.' : '';
+}
+function feedShortOf(sys, char, ref, entry) { var f = isObj(ref) && typeof ref.f === 'string' ? fieldById(sys, ref.f) : null, row = null; if (!f || f.kind !== 'item-list' || !isObj(char) || !isObj(char.values)) return ''; (Array.isArray(char.values[f.id]) ? char.values[f.id] : []).forEach(function(r) { if (!row && isObj(r) && rowIdOf(r) === ref.r) row = r; }); return row ? feedShort(f.list, entry, row) : ''; }
+// what comes out of a feed: whole units at the unit's level, each onto a stack only where it is the same thing in the same state (loadSame), then
+// what a part unit has left as one row. Refused only where a new row has no room
+function feedBack(sys, sl, sList, p, vo, known) {
+    var put = function(qty, lvl) {
+        var bk = JSON.parse(JSON.stringify(p.c)); bk.qty = qty; bk.lvl = lvlClamp(sl.lvl, lvl); if (isObj(sl.on)) bk.on = sl.on.def === true; else delete bk.on;
+        for (var j = 0; j < sList.length; j++) if (loadSame(sys, sl, sList[j], bk)) { sList[j].qty = clampNum((sList[j].qty | 0 || 1) + qty, 1, LIMITS.maxQty); return true; }
+        if (sList.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return false;
+        var nid = uid('w_'); while (!rowIdFree(sList, nid, known)) nid = uid('w_');
+        var nr = { id: nid }; Object.keys(bk).forEach(function(k) { if (!(k in Object.prototype)) nr[k] = bk[k]; }); var cr = cleanRow(nr, vo.items, sl); if (!cr) return false; sList.push(cr); return true;
+    };
+    var whole = Math.floor(p.n / p.u), rest = p.n - whole * p.u;
+    return (whole < 1 || put(whole, p.u)) && (rest < 1 || put(1, rest));
+}
+function rowFeed(sys, char, f, list, spec, q, opts, at, vo, F) {
+    var fd = feedOf(spec, q.feed), fs = fd ? feedSpec(spec, fd) : null, sf = fs ? loadSrc(sys, fs) : null, sl = sf ? sf.list : null;
+    if (!sf || sf.id === f.id) return { ok: false, reason: 'field' };
+    if (opts.player && ((sf.edit !== 'owner' && !openChar(char)) || sf.vis !== 'all')) return { ok: false, reason: 'field' };
+    if (typeof q.rowId !== 'string' || !ROW_ID.test(q.rowId)) return { ok: false, reason: 'value' };
+    var hi = at(q.rowId); if (hi < 0 || list[hi].hid === 1) return { ok: false, reason: 'missing' };
+    var h = list[hi], t = feedCt(spec, fd); if (!t) return { ok: false, reason: 'field' };
+    if ((h.qty | 0) !== 1) return { ok: false, reason: 'value' };
+    var from = typeof q.from === 'string' ? q.from : null, more = typeof q.more === 'number' ? q.more : 0, left = rowCt(h, t), st = feedLive(feedStack(h, fd), left);
+    if (from === null && !feedStack(h, fd).length) return { ok: false, reason: 'value' };
+    var sList = JSON.parse(JSON.stringify(isObj(char) && isObj(char.values) && Array.isArray(char.values[sf.id]) ? char.values[sf.id] : [])), known = knownItems(sys, opts), name = '';
+    if (from === null || !more) {   // a swap or an unload: all of it comes out, the feed's other side untouched
+        for (var i = 0; i < st.length; i++) if (!feedBack(sys, sl, sList, st[i], vo, known)) return { ok: false, reason: 'field' };
+        st = []; left = 0;
+    }
+    if (from !== null) {
+        var si = -1; for (var k = 0; k < sList.length; k++) if (rowIdOf(sList[k]) === from) { si = k; break; }
+        var s = si >= 0 ? sList[si] : null, sd = s ? rowDef(sys, s) : null;
+        if (!s || !sd || !isObj(sd.def) || s.hid === 1 || typeof s.opn === 'string' || s.keptOn === 1 || isObj(s.ld) || isObj(s.fl)) return { ok: false, reason: 'missing' };
+        if (Array.isArray(fd.cats) && !catIn(fd.cats, sd.def.category)) return { ok: false, reason: 'missing' };
+        if (!loadFits(sys, fs, h, sl, s)) return { ok: false, reason: 'value', msg: 'That does not fit it.' };
+        var cp = cleanLd(s, vo.items, sl); if (!cp) return { ok: false, reason: 'value' };
+        var u = Math.max(0, Math.min(1e6, Math.round(fin(rowLvl(sl, s, sd.def)) ? rowLvl(sl, s, sd.def) : 0))); if (u < 1) return { ok: false, reason: 'value', msg: 'That holds nothing.' };
+        var units = 1;
+        if (more) {   // stacked on what is there, as far as the feed's counter has room
+            var mx = null; try { mx = makeResolver(sys, char, F, null).ctMax(f, h, t.key); } catch (e) { mx = null; }
+            units = Math.min(more, s.qty | 0 || 1); if (typeof mx === 'number') units = Math.min(units, Math.floor((mx - left) / u));
+            if (units < 1) return { ok: false, reason: 'value', msg: 'It has no room for that.' };
+        }
+        if ((s.qty | 0) > units) s.qty = (s.qty | 0) - units; else sList.splice(si, 1);
+        var top = st.length ? st[st.length - 1] : null;
+        if (top && top.u === u && JSON.stringify(top.c) === JSON.stringify(cp)) top.n += units * u;
+        else { if (st.length >= FEED_STACK) return { ok: false, reason: 'value', msg: 'It holds ' + FEED_STACK + ' kinds at most.' }; st.push({ c: cp, n: units * u, u: u }); }
+        left += units * u; name = sd.def.name || 'Item';
+    }
+    h.ct = isObj(h.ct) ? h.ct : {}; h.ct[t.key] = Math.max(0, Math.min(1e6, left));
+    h.fl = isObj(h.fl) ? h.fl : {}; if (st.length) h.fl[fd.key] = st; else delete h.fl[fd.key]; if (!Object.keys(h.fl).length) delete h.fl;
+    var also = {}; also[sf.id] = sList;
+    return { ok: true, value: list, also: also, row: q.rowId, qty: 1, name: name, from: sf.id };
+}
 function rowLoad(sys, char, f, list, spec, q, opts, at, vo, F) {
+    if (q.feed !== undefined) return rowFeed(sys, char, f, list, spec, q, opts, at, vo, F);
     var ld = isObj(spec) && isObj(spec.load) ? spec.load : null, sf = loadSrc(sys, spec), sl = sf ? sf.list : null;
     if (!ld || !sf || sf.id === f.id) return { ok: false, reason: 'field' };
     if (opts.player && ((sf.edit !== 'owner' && !openChar(char)) || sf.vis !== 'all')) return { ok: false, reason: 'field' };
@@ -6235,7 +6369,7 @@ function rowLoad(sys, char, f, list, spec, q, opts, at, vo, F) {
     if (from !== null) {   // then one unit of the row picked
         var si = -1; for (var k2 = 0; k2 < sList.length; k2++) if (rowIdOf(sList[k2]) === from) { si = k2; break; }
         var s = si >= 0 ? sList[si] : null, sd = s ? rowDef(sys, s) : null;
-        if (!s || !sd || !isObj(sd.def) || s.hid === 1 || typeof s.opn === 'string' || s.keptOn === 1 || isObj(s.ld)) return { ok: false, reason: 'missing' };
+        if (!s || !sd || !isObj(sd.def) || s.hid === 1 || typeof s.opn === 'string' || s.keptOn === 1 || isObj(s.ld) || isObj(s.fl)) return { ok: false, reason: 'missing' };
         if (Array.isArray(ld.cats) && !catIn(ld.cats, sd.def.category)) return { ok: false, reason: 'missing' };
         if (!loadFits(sys, spec, h, sl, s)) return { ok: false, reason: 'value', msg: 'That does not fit it.' };   // Matched by: the two stats read the same figure   // outside the categories it takes (the players' view left with none: none)
         var cp = cleanLd(s, vo.items, sl); if (!cp) return { ok: false, reason: 'value' };
@@ -6433,7 +6567,7 @@ function chamberFits(sys, spec, h, sl, s) { var ch = isObj(spec) && isObj(spec.c
 // a row the chamber may take a unit of: live, no launcher itself (it holds no chamber, no fired round, nothing loaded), of a category it takes, a match
 function chamberTakes(sys, spec, h, sl, s) {
     var ch = isObj(spec) && isObj(spec.chamber) ? spec.chamber : null; if (!ch || !isObj(s) || s === h) return false;
-    if (s.hid === 1 || typeof s.opn === 'string' || s.keptOn === 1 || isObj(s.ld) || Array.isArray(s.rd) || isObj(s.fd)) return false;
+    if (s.hid === 1 || typeof s.opn === 'string' || s.keptOn === 1 || isObj(s.ld) || isObj(s.fl) || Array.isArray(s.rd) || isObj(s.fd)) return false;
     var sd = rowDef(sys, s); if (!sd || !isObj(sd.def)) return false;
     if (Array.isArray(ch.cats) && !catIn(ch.cats, sd.def.category)) return false;
     return chamberFits(sys, spec, h, sl, s);
@@ -8198,6 +8332,24 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (!isObj(cp)) return 0;
         var cd = rowDef(sys, cp); return rowVal(SL, { r: Object.assign({}, cp, { qty: 1 }), d: cd ? cd.def : null, id: (x.id || '') + '~' + sg[0] }, sg[1]);
     }
+    // 1.6.0 Feeds: Row.Feed.<key>.<w>, a stat, a choice or a column of what the feed's next shot takes, and Row.Feed.<key>.fired.<w>, of what the last shot
+    // took, else the next, so a blow pressed after its shot reads the piece that shot was; 0 with none. Worked out on the source list, the piece a row
+    // of that list at one unit's level. Row.Feed.<key>.turns, the turns a change takes, where that list holds no such word
+    function feedVal(L, x, w) {
+        var sg = w.split('.'); if ((sg.length !== 3 && sg.length !== 4) || sg[0] !== 'feed' || !L.spec || (sg.length === 4 && sg[2] !== 'fired')) return undefined;
+        var fd = feedOf(L.spec, sg[1]), sf = fd ? loadSrc(sys, feedSpec(L.spec, fd)) : null, t = fd ? feedCt(L.spec, fd) : null; if (!sf || !t) return undefined;
+        var SL = listCtx(sf), lw = sg[sg.length - 1], last = sg.length === 4;
+        if (!SL.st[lw] && !SL.cl[lw]) return !last && lw === 'turns' ? feedTurns(L, x, fd) : undefined;
+        var p = x.virt || !isObj(x.r) ? null : feedAt(feedStack(x.r, fd), rowCt(x.r, t), last); if (!isObj(p)) return 0;
+        var cd = rowDef(sys, p.c); return rowVal(SL, { r: Object.assign({}, p.c, { qty: 1, lvl: p.u }), d: cd ? cd.def : null, id: (x.id || '') + '~' + lower(fd.key) + (last ? '~f' : '') }, lw);
+    }
+    var fdBusy = map();
+    function feedTurns(L, x, fd) {
+        if (typeof fd.turns !== 'string' || !fd.turns) return 0;
+        var pk = L.f.id + '.' + lower(fd.key); if (fdBusy[pk]) return 0;   // no chain of its own: turns that read their own turns read 0
+        fdBusy[pk] = 1; var v = null; try { v = F.evaluate(fd.turns, { vars: rowVars(L, x), random: noDice }); } finally { fdBusy[pk] = 0; }
+        return v && v.ok && typeof v.value === 'number' && fin(v.value) ? Math.max(0, Math.floor(v.value)) : 0;
+    }
     // 1.6.0 R14: Row.parts, how many parts a host holds (their quantities), and Row.parts.<w>, a stat or a column of the parts' list summed over them, each times its quantity.
     // 205 (1): Row.parts.max.<w> and Row.parts.min.<w>, the highest or the lowest figure one part gives (never times its quantity, true reading 1), 0 with none.
     // 205 (2): Row.parts.<choice>, the value of the first part (in the list's order) whose choice names one of its options, read as that part's own Row.<choice>; 0 with none
@@ -8239,7 +8391,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         return { known: known, hit: hit };
     }
     function rowVars(L, x) {   // a column's names: Row.* reads this row, every other name the resolver (one cache)
-        var v = function(name, nt) { var l = lower(name); if (tbOn && l.slice(0, 6) === 'table.' && !ix[l]) { var tb0 = tableVal(l, L, x); if (tb0 !== undefined) return tb0; } if (l.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hv = hostVal(L, x, l.slice(5)); if (hv !== undefined) return hv; } if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); if (w.indexOf('.') < 0) return rowVal(L, x, w); var av = atVal(L, x, w); return av !== undefined ? av : roundVal(L, x, w); } return fn(name, nt); };
+        var v = function(name, nt) { var l = lower(name); if (tbOn && l.slice(0, 6) === 'table.' && !ix[l]) { var tb0 = tableVal(l, L, x); if (tb0 !== undefined) return tb0; } if (l.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hv = hostVal(L, x, l.slice(5)); if (hv !== undefined) return hv; } if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); if (w.indexOf('.') < 0) return rowVal(L, x, w); var av = atVal(L, x, w); if (av === undefined) av = roundVal(L, x, w); return av !== undefined ? av : feedVal(L, x, w); } return fn(name, nt); };
         v.refs = function(names) { return refsOut(refUp(names, L, x)); };   // 1.6.0 Specialties: the cases a roll's names used, for its card
         v.detail = function(name) { var l = lower(name); if (l.slice(0, 4) === 'row.' && l.indexOf('.', 4) < 0) return detail[lower(L.f.key) + '#' + x.id + '.' + l.slice(4)] || null; return detail[l] || null; };   // 1.5.8: a row's own column under its own key
         v.burst = function() { return !x.virt && isObj(x.r) && isObj(x.r.bu) ? x.r.bu : null; };   // 1.6.0: its last burst (hitVars)
@@ -8487,6 +8639,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     fn.needsOk = function(f, row, text, self, badge) { var L = f ? listCtx(f) : null; if (!L || !isObj(row) || typeof text !== 'string' || !text) return true; if (self === true && readsOn(text, F)) return true; if (readsAttempt(text, F)) return true; var rd = rowDef(sys, row), xR = { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }; if (badge === true) xR.badge = true; var rv0 = rowVars(L, xR), v = F.evaluate(text, { vars: self === true ? withOnSelf(rv0, true) : rv0, random: noDice }); return !!(v.ok && (v.value === true || (typeof v.value === 'number' && v.value !== 0))); };   // Stage 6 HUD R2b: a list roll's needs on one row (an error holds it back)
     fn.cellDetail = function(f, row, colKey) { var id = rowIdOf(row); return f && id ? detail[lower(f.key) + '#' + id + '.' + lower(colKey)] || null : null; };   // 1.6.0 R3: what changed one row's column (the effects aimed at it, and those on the names it reads)
     fn.rollFig = function(f, row, text) { var L = f ? listCtx(f) : null; if (!L || !isObj(row) || typeof text !== 'string' || !text) return ''; var rd = rowDef(sys, row); return rollFigOf(text, rowVars(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }), F); };   // 1.6.0 R7: a roll's own figure on one row
+    fn.feedTurns = function(f, row, key) { var L = f ? listCtx(f) : null, fd = L && L.spec ? feedOf(L.spec, key) : null; if (!fd || !fd.turns || !isObj(row)) return null; var rd = rowDef(sys, row); return feedTurns(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }, fd); };   // 1.6.0 Feeds: the turns a change of it takes on this row (none named: null)
     fn.ctMax = function(f, row, key) { var L = f ? listCtx(f) : null, t = L && L.ct ? L.ct[lower(key)] : null; if (!t || !t.max || !isObj(row)) return null; var rd = rowDef(sys, row), v = F.evaluate(t.max, { vars: rowVars(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }), random: noDice }); return v.ok && typeof v.value === 'number' && fin(v.value) ? Math.max(0, Math.floor(v.value)) : null; };   // Stage 6 HUD R2: a counter's most for this row (none: null)
     fn.cell = function(f, row, colKey) { var L = listCtx(f), c = L.cl[lower(colKey)]; if (!c || !isObj(row)) return undefined; var rd = rowDef(sys, row); return colVal(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }, c); };   // F5a1: one row's column (the sheet's cells)
     fn.stat = function(f, row, key) { var L = listCtx(f), s = L.st[lower(key)]; if (!s || s.kind === 'pick' || !isObj(row)) return undefined; var rd = rowDef(sys, row); return rowStat(L.spec, rd ? rd.def : null, s.key); };   // 1.5.4 With: one row's number stat, as its columns read it (Row.<stat>)
@@ -8572,7 +8725,7 @@ function resolveAll(sys, char, F, tctx, ropts) {   // tctx: tokenCtx(...) = { fa
         var e = { value: undefined, text: '', error: null };
         var k = f.kind;
         if (k === 'text' || k === 'select' || k === 'notes') { e.value = storedOf(f, char); e.text = String(e.value); }
-        else if (k === 'item-list') { e.value = storedOf(f, char); e.text = ''; if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.cols) && f.list.cols.length) listCells(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.counters) && f.list.counters.length) listCts(f, e, r, F); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(x) { return isObj(x) && x.needs; })) listNeeds(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(x) { return isObj(x) && x.showIf; })) listRollShow(f, e, r); if (!(ropts && ropts.noRows) && f.list && [].concat(Array.isArray(f.list.rolls) ? f.list.rolls : [], Array.isArray(f.list.counters) ? f.list.counters : []).some(function(x) { return isObj(x) && Array.isArray(x.alt); })) listAltNames(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.badges) && f.list.badges.length) listBadges(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(x) { return isObj(x) && x.show === '@fig'; })) listRollFigs(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.on) && typeof f.list.on.needs === 'string' && f.list.on.needs) listOnNeeds(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.on) && typeof f.list.on.showIf === 'string' && f.list.on.showIf) listOnShow(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.load) && typeof f.list.load.needs === 'string' && f.list.load.needs) listLdNeeds(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.chamber) && typeof f.list.chamber.needs === 'string' && f.list.chamber.needs) listChNeeds(f, e, r); }   // a carried list; sheets.js renders it, not a number. F5a1: its columns' cells and totals
+        else if (k === 'item-list') { e.value = storedOf(f, char); e.text = ''; if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.cols) && f.list.cols.length) listCells(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.counters) && f.list.counters.length) listCts(f, e, r, F); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.feeds) && f.list.feeds.length) listFeeds(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(x) { return isObj(x) && x.needs; })) listNeeds(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(x) { return isObj(x) && x.showIf; })) listRollShow(f, e, r); if (!(ropts && ropts.noRows) && f.list && [].concat(Array.isArray(f.list.rolls) ? f.list.rolls : [], Array.isArray(f.list.counters) ? f.list.counters : []).some(function(x) { return isObj(x) && Array.isArray(x.alt); })) listAltNames(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.badges) && f.list.badges.length) listBadges(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(x) { return isObj(x) && x.show === '@fig'; })) listRollFigs(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.on) && typeof f.list.on.needs === 'string' && f.list.on.needs) listOnNeeds(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.on) && typeof f.list.on.showIf === 'string' && f.list.on.showIf) listOnShow(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.load) && typeof f.list.load.needs === 'string' && f.list.load.needs) listLdNeeds(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.chamber) && typeof f.list.chamber.needs === 'string' && f.list.chamber.needs) listChNeeds(f, e, r); }   // a carried list; sheets.js renders it, not a number. F5a1: its columns' cells and totals
         else if (k === 'effects') { e.value = storedOf(f, char); e.text = ''; e.active = activeEffects(sys, e.value); }   // 5h: the rows; e.active names the ones switched on
         else if (k === 'number' && f.override !== undefined) { var ov = r(f.key); if (ov && typeof ov === 'object' && ov.error) { e.error = ov.error.message; e.text = '\u2014'; e.value = storedOf(f, char); } else { e.value = typeof ov === 'number' ? ov : storedOf(f, char); e.text = figText(f, e.value); } if (r.overOn(f.key)) e.over = true; }   // 205 (6): e.over while it reads its override (the sheet closes it)
         else if (k === 'toggle' || k === 'number') { var tv = r(f.key); e.value = (tv === undefined || (tv && typeof tv === 'object')) ? storedOf(f, char) : tv; e.text = k === 'number' ? figText(f, e.value) : fmtNum(e.value); }   // 5h: through the resolver, so an effect shows; 1.5.4: a number by its decimals and grouping
@@ -8635,6 +8788,7 @@ function listCells(f, e, r) {
 }
 // Stage 6 HUD R2b: each row's answer to its list rolls' needs — e.rn: rowId -> [true | false per roll] (a roll that needs nothing: true)
 function listLdNeeds(f, e, r) { var ok = map(); (Array.isArray(e.value) ? e.value : []).forEach(function(row) { var id = rowIdOf(row); if (!id) return; try { ok[id] = r.needsOk(f, row, f.list.load.needs); } catch (x) { ok[id] = false; } }); e.ldOk = ok; }   // 1.5.8 Loads only where, by row
+function listFeeds(f, e, r) { var ft = map(), fs = map(), rolls = Array.isArray(f.list.rolls) ? f.list.rolls : []; (Array.isArray(e.value) ? e.value : []).forEach(function(row) { var id = rowIdOf(row); if (!id) return; var o = map(); f.list.feeds.forEach(function(fd) { var n = null; try { n = r.feedTurns(f, row, fd.key); } catch (x) { n = null; } if (typeof n === 'number') o[fd.key] = n; }); ft[id] = o; fs[id] = rolls.map(function(x) { return feedShort(f.list, x, row); }); }); e.fdT = ft; e.fs = fs; }   // 1.6.0 Feeds: the turns each change takes on a row, and the words that stop each of its rolls
 function listChNeeds(f, e, r) { var ok = map(); (Array.isArray(e.value) ? e.value : []).forEach(function(row) { var id = rowIdOf(row); if (!id) return; try { ok[id] = r.needsOk(f, row, f.list.chamber.needs); } catch (x) { ok[id] = false; } }); e.chOk = ok; }   // 1.5.9 Chambers only where, by row
 // 1.6.0 (the campaign build: a Going without switch only on rows of one kind): where a list's switch is shown, row by row (e.onShow: rowId -> true
 // or false), read as its needs are; a formula that cannot be worked out shows it
@@ -8894,6 +9048,12 @@ function validateSystem(sys, F) {
         if (sg[0] === 'row' && sg.length === 3 && !ix.row && rowList && isObj(rowList.list) && isObj(rowList.list.at) && typeof rowList.list.at.by === 'string' && sg[1] === lower(rowList.list.at.by)) {   // 1.6.0 Stands at: Row.<by>.<w>, a stat, a choice or a column of the list the row its stat names is in
             var atV = atSrc(sys, rowList.list); if (!atV || atV.id === rowList.id) return null;
             var awV = listWords(atV)[sg[2]]; return awV === 'stat' || awV === 'col' || awV === 'pick' ? { id: '', key: 'l#' + lower(atV.key), kind: 'number', vis: atV.vis, noEdge: true } : null;
+        }
+        if (sg[0] === 'row' && sg[1] === 'feed' && (sg.length === 4 || (sg.length === 5 && sg[3] === 'fired')) && !ix.row) {   // 1.6.0 Feeds: Row.Feed.<key>.<w> and Row.Feed.<key>.fired.<w>, a stat, a choice or a column of the feed's list; Row.Feed.<key>.turns
+            if (!rowList) return { rowOutside: true };
+            var fdV = isObj(rowList.list) ? feedOf(rowList.list, sg[2]) : null, fsV = fdV ? loadSrc(sys, feedSpec(rowList.list, fdV)) : null; if (!fsV) return null;
+            var fwV = listWords(fsV)[sg[sg.length - 1]]; if (fwV === 'stat' || fwV === 'col' || fwV === 'pick') return { id: '', key: 'l#' + lower(fsV.key), kind: 'number', vis: fsV.vis, noEdge: true };
+            return sg.length === 4 && sg[3] === 'turns' ? { id: '', key: 'l#' + lower(rowList.key), kind: 'number', vis: rowList.vis, noEdge: true } : null;
         }
         if (sg[0] === 'row' && sg.length === 3 && (sg[1] === 'round' || sg[1] === 'fired') && !ix.row) {   // 1.5.9 Chambers from: Row.round.<w>, Row.fired.<w> — a stat or a column of the chamber's list, on a list with a chamber
             if (!rowList) return { rowOutside: true };
@@ -9161,6 +9321,7 @@ function validateSystem(sys, F) {
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && typeof f.list.modsIf === 'string' && f.list.modsIf) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#modsif' }, 'list.modsif', f.list.modsIf, false, f.vis, f); });   // 1.6.0 Changes apply where: no dice, the holder's names and Row.* known
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.parts) && typeof f.list.parts.fitIf === 'string' && f.list.parts.fitIf) { var pfV = partsSrc(sys, f.list); if (pfV) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#fitif' }, 'list.fitif', f.list.parts.fitIf, false, f.vis, pfV); } });   // 1.6.0 Fits where (ask 18): no dice, the part's own names (Row.*) and its host's (Host.*) known
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && typeof f.list.unheld === 'string' && f.list.unheld) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#unheld' }, 'list.unheld', f.list.unheld, false, f.vis, f); });   // 1.6.0 Rolls unheld entries: the Unheld level (no dice, Row.* known)
+    sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.feeds)) f.list.feeds.forEach(function(fd) { if (isObj(fd) && typeof fd.turns === 'string' && fd.turns) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#feed' }, 'list.feedturns', fd.turns, false, f.vis, f); }); });   // 1.6.0 Feeds: the turns a change takes (no dice, Row.* known)
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.chamber) && typeof f.list.chamber.needs === 'string' && f.list.chamber.needs) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#chneeds' }, 'list.chneeds', f.list.chamber.needs, false, f.vis, f); });   // 1.5.9 Chambers only where: what a row must meet to chamber (no dice, Row.* known)
     sys.fields.forEach(function(f) {   // F5b: a list's rolls — dice allowed, Row.* known
         if (f.kind !== 'item-list' || !isObj(f.list) || !Array.isArray(f.list.rolls)) return;
@@ -9200,6 +9361,7 @@ function validateSystem(sys, F) {
                         if (typeof c.money === 'string') { if (!moneyBoxes(sys).length) errors.push({ id: f.id, prop: tp2, message: 'Money needs a list with a Money box on the Lists tab, and this system has none.' }); if (c.when && !tests2 && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: f.id, prop: tp2, message: 'This roll tests nothing (no comparison, like 3d6 <= Row.Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#then' }, tp2, c.money, false, f.vis, f); return; }   // 1.6.0: the sheet's money, by a figure with no dice, Row.* known
                         if (c.q === true || typeof c.s === 'string') { rowSays(f, tp2, c); if (c.when && !tests2 && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: f.id, prop: tp2, message: 'This roll tests nothing (no comparison, like 3d6 <= Row.Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#then' }, tp2, c.formula, c.roll === true, f.vis, f); rolledWarn(f.id, tp2, c); return; }
                         if (c.off === true) { if (!isObj(f.list.on)) errors.push({ id: f.id, prop: tp2, message: 'Switch this row off needs a switch, but this list has none.' }); else if (c.when && c.when !== 'malf' && !tests2 && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: f.id, prop: tp2, message: 'This roll tests nothing (no comparison, like 3d6 <= Row.Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); return; }   // 1.6.0: switch its own row off, no amount (applyAct runs it)
+                        if (c.feed === true) { if (c.when === 'malf') warnings.push({ id: f.id, prop: tp2, message: 'A shot from the feeds never happens on a malfunction: a shot that jams spends nothing.' }); if (!Array.isArray(f.list.feeds) || !f.list.feeds.length) errors.push({ id: f.id, prop: tp2, message: 'A shot takes 1 from every feed, but this list has no feeds.' }); else if (c.when && c.when !== 'malf' && !tests2 && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: f.id, prop: tp2, message: 'This roll tests nothing (no comparison, like 3d6 <= Row.Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); if (typeof c.n === 'string' && c.n) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#then' }, tp2, c.n, false, f.vis, f); return; }   // 1.6.0 Feeds
                         if (c.fire === true) { if (c.when === 'malf') warnings.push({ id: f.id, prop: tp2, message: 'Fire never happens on a malfunction: a shot that jams is not fired and spends nothing.' }); if (!isObj(f.list.chamber)) errors.push({ id: f.id, prop: tp2, message: 'Fire takes a round out of the chamber, but this list has no Chambers from.' }); else if (c.when && c.when !== 'malf' && !tests2 && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: f.id, prop: tp2, message: 'This roll tests nothing (no comparison, like 3d6 <= Row.Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); if (typeof c.n === 'string' && c.n) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#then' }, tp2, c.n, false, f.vis, f); return; }   // 1.5.9: fire has no amount; 1.6.0: its How many, read as an amount is
                         if (!c.c && (!tf2 || APPLY_KINDS[tf2.kind] !== 1)) errors.push({ id: f.id, prop: tp2, message: 'Pick the pool, number or counter this changes.' });
                         else if (tf2 && f.vis === 'all' && (tf2.vis === 'gm' || gmP[tf2.id] === 1)) warnings.push({ id: f.id, prop: tp2, message: '"' + tf2.key + '" is GM only: players\u2019 rolls will not change it.' });
@@ -9393,7 +9555,7 @@ function validateSystem(sys, F) {
     lowerKeys.forEach(function(k) { if (!state[k]) visit(k); });
     Object.keys(edges).forEach(function(k) { if (!state[k]) visit(k); });   // F5a1: the list columns' own nodes
     [errors, warnings].forEach(function(a) { a.forEach(function(e) { if (e.prop === 'list.upamt') { e.message = 'Keeps paying: ' + e.message; e.prop = 'list'; } }); });   // 1.6.0 (CORE gap 13)
-    [errors, warnings].forEach(function(a) { a.forEach(function(e) { if (e.prop === 'list.modsif') { e.message = 'Changes apply where: ' + e.message; e.prop = 'list'; } else if (e.prop === 'list.onneeds') { e.message = 'Needs to switch on: ' + e.message; e.prop = 'list'; } else if (e.prop === 'list.chneeds') { e.message = 'Chambers only where: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.col.') === 0) { e.message = 'Column \u201c' + e.prop.slice(9) + '\u201d: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && (e.prop.indexOf('list.then.') === 0 || e.prop.indexOf('list.needs.') === 0 || e.prop.indexOf('list.malf.') === 0 || e.prop.indexOf('list.cost.') === 0 || e.prop.indexOf('list.critAt.') === 0 || e.prop.indexOf('list.fumbleAt.') === 0 || e.prop.indexOf('list.bigAt.') === 0 || e.prop.indexOf('list.job.') === 0)) { var thq = e.prop.split('.'), isN = thq[1] === 'needs' || thq[1] === 'malf' || thq[1] === 'cost' || thq[1] === 'critAt' || thq[1] === 'fumbleAt' || thq[1] === 'bigAt' || thq[1] === 'job'; e.message = 'Roll \u201c' + thq.slice(isN ? 3 : 4).join('.') + '\u201d, ' + (isN ? (thq[1] === 'job' ? 'job' : thq[1] === 'malf' ? 'Malf' : thq[1] === 'cost' ? 'costs' : thq[1] === 'critAt' ? 'critical at' : thq[1] === 'fumbleAt' ? 'critical failure at' : thq[1] === 'bigAt' ? 'lands as a Big Hit at' : 'needs') : 'then ' + (+thq[3] + 1)) + ': ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.ctr.') === 0) { e.message = 'Counter \u201c' + e.prop.slice(9) + '\u201d, its most: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.apply.') === 0) { var apq = e.prop.slice(11).split('.'); e.message = 'Apply \u201c' + apq.slice(2).join('.') + '\u201d' + (apq[1] === 'x' ? '' : ', change ' + (+apq[1] + 1)) + ': ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.roll.') === 0) { var rp = e.prop.slice(10), rd2 = rp.indexOf('.'); e.message = 'Roll \u201c' + (rd2 >= 0 ? rp.slice(rd2 + 1) : rp) + '\u201d: ' + e.message; e.prop = 'list'; } }); });   // F5b: a list roll's too   // F5a1: a column's messages under its list's card
+    [errors, warnings].forEach(function(a) { a.forEach(function(e) { if (e.prop === 'list.modsif') { e.message = 'Changes apply where: ' + e.message; e.prop = 'list'; } else if (e.prop === 'list.onneeds') { e.message = 'Needs to switch on: ' + e.message; e.prop = 'list'; } else if (e.prop === 'list.chneeds') { e.message = 'Chambers only where: ' + e.message; e.prop = 'list'; } else if (e.prop === 'list.feedturns') { e.message = 'A feed\u2019s Turns to change: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.col.') === 0) { e.message = 'Column \u201c' + e.prop.slice(9) + '\u201d: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && (e.prop.indexOf('list.then.') === 0 || e.prop.indexOf('list.needs.') === 0 || e.prop.indexOf('list.malf.') === 0 || e.prop.indexOf('list.cost.') === 0 || e.prop.indexOf('list.critAt.') === 0 || e.prop.indexOf('list.fumbleAt.') === 0 || e.prop.indexOf('list.bigAt.') === 0 || e.prop.indexOf('list.job.') === 0)) { var thq = e.prop.split('.'), isN = thq[1] === 'needs' || thq[1] === 'malf' || thq[1] === 'cost' || thq[1] === 'critAt' || thq[1] === 'fumbleAt' || thq[1] === 'bigAt' || thq[1] === 'job'; e.message = 'Roll \u201c' + thq.slice(isN ? 3 : 4).join('.') + '\u201d, ' + (isN ? (thq[1] === 'job' ? 'job' : thq[1] === 'malf' ? 'Malf' : thq[1] === 'cost' ? 'costs' : thq[1] === 'critAt' ? 'critical at' : thq[1] === 'fumbleAt' ? 'critical failure at' : thq[1] === 'bigAt' ? 'lands as a Big Hit at' : 'needs') : 'then ' + (+thq[3] + 1)) + ': ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.ctr.') === 0) { e.message = 'Counter \u201c' + e.prop.slice(9) + '\u201d, its most: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.apply.') === 0) { var apq = e.prop.slice(11).split('.'); e.message = 'Apply \u201c' + apq.slice(2).join('.') + '\u201d' + (apq[1] === 'x' ? '' : ', change ' + (+apq[1] + 1)) + ': ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.roll.') === 0) { var rp = e.prop.slice(10), rd2 = rp.indexOf('.'); e.message = 'Roll \u201c' + (rd2 >= 0 ? rp.slice(rd2 + 1) : rp) + '\u201d: ' + e.message; e.prop = 'list'; } }); });   // F5b: a list roll's too   // F5a1: a column's messages under its list's card
     return { ok: errors.length === 0, errors: errors, warnings: warnings };
 }
 
@@ -10020,6 +10182,13 @@ function rowRollNames(sys, char, fieldId, rowId, names, F, uDef) {   // uDef (1.
             var nm = typeof n === 'string' ? n : (n && n.name); if (typeof nm !== 'string') return;
             var l = lower(nm); if (l.slice(0, 4) !== 'row.') { push(nm); return; }
             var w = l.slice(4), c = null, st = null;
+            if (/^feed\.[^.]+\.(fired\.)?[^.]+$/.test(w)) {   // 1.6.0 Feeds: what a feed holds: a piece only the GM may see, or a source list only the GM sees, keeps the roll the GM's, as a round does
+                var fdN = feedOf(spec, w.split('.')[1]), fsN = fdN ? loadSrc(sys, feedSpec(spec, fdN)) : null;
+                if (w.split('.').length === 3 && w.split('.')[2] === 'turns' && fdN && fsN && !listKeyed(fsN.list, 'turns')) { if (typeof fdN.turns === 'string' && fdN.turns && F && F.names && !done['feed#' + lower(fdN.key)]) { done['feed#' + lower(fdN.key)] = 1; expand(F.names(fdN.turns)); } return; }
+                if (!fsN || fsN.vis === 'gm') gm = true;
+                feedStack(row, fdN).forEach(function(p) { var pdN = isObj(p) ? rowDef(sys, p.c) : null; if (pdN && pdN.def && pdN.def.vis === 'gm') gm = true; });
+                return;
+            }
             if (/^(round|fired)\.[^.]+$/.test(w)) {   // 1.5.9 Chambers from: a round's names — a GM-only round, or a round list only the GM sees, keeps the roll the GM's
                 var chS = isObj(spec.chamber) ? chamberSrc(sys, spec) : null, rdN = row && Array.isArray(row.rd) ? row.rd : [], cpN = w.indexOf('fired.') === 0 && row && isObj(row.fd) ? row.fd : rdN[0], cdN = cpN ? rowDef(sys, cpN) : null;
                 if (!chS || chS.vis === 'gm' || (cdN && cdN.def && cdN.def.vis === 'gm')) gm = true;
@@ -10276,11 +10445,13 @@ Object.assign(API, { listRollRef: listRollRef, rowKeptFrom: rowKeptFrom });   //
 Object.assign(API, { upkeepLines: upkeepLines, upkeepWords: upkeepWords });   // 205 follow-up (3): an upkeep's payments said
 Object.assign(API, { cleanLvlOnly: cleanLvlOnly, lvlOnlyRead: lvlOnlyRead, lvlOnlyText: lvlOnlyText, lvlOnlyOn: lvlOnlyOn, lvlOnlyHas: lvlOnlyHas, lvlOnlyMiss: lvlOnlyMiss, lvlOnlyList: lvlOnlyList, lvlOnlyHit: lvlOnlyHit, lvlOnlySays: lvlOnlySays, lvlStart: lvlStart, lvlNear: lvlNear, modTiersRead: modTiersRead, cleanModTiers: cleanModTiers, modTiersText: modTiersText, modAt: modAt });   // 1.6.0: Levels it may be, and a change's figures By level
 Object.assign(API, { cleanTables: cleanTables, tableKeyOk: tableKeyOk, tableParts: tableParts, tableRead: tableRead, tableFam: tableFam, tableRowOf: tableRowOf, TABLE_KEY: TABLE_KEY, TABLE_ROW_KEY: TABLE_ROW_KEY, nameFold: nameFold });   // 1.6.0: a system's tables
+Object.assign(API, { FEEDS_MAX: FEEDS_MAX, FEED_STACK: FEED_STACK, feedOf: feedOf, feedSpec: feedSpec, feedCt: feedCt, feedStack: feedStack, feedAt: feedAt, feedLive: feedLive, feedRoom: feedRoom, feedShort: feedShort, feedShortOf: feedShortOf, feedCount: feedCount });   // 1.6.0 Feeds
 if (typeof window !== 'undefined') window.wpSystemCore = API;
 export { cleanJob, cleanJr, jobTurns, jobBar, jobStep, jobsEnd, coverPosture, posRec, cleanSubjects, rowSubject, cleanHoldFor, HOLD_TEXT, attemptKeyOf, readsAttempt, locSideKey, locSideRead, locNamed, cleanCalls, callDrops, callsDue, cleanSheetOuts, cleanSheetOutReq, cleanSheetFile, targetHitList, targetHitRows, targetHitFor, withTargetHit, readsTargetHit, HIT_ROWS, setGateEngine, fxGate, modsIfOk, rowAsks, readsRow, allRowOk, blowCripN, BLAST_EACH, withBlow, blowCripOf, BLOW_NAMES, RESIST_OR, unheldJudge, GROUP_MAX, rollTargetOf, groupRolls, groupWeakest, dmgAdOf, dmgDiceRead, turnCounters, cleanCharLink, LINK_KINDS, LINK_NOT, cleanLinks, linkByKey, linkBare, setLinkSource, cleanCharLinks, linkNamesIn, linkFigs, cleanLk, linkSet, linkedFrom, linksDrop, withAttempt, bigOf, critRange, cleanTier, grantWaits, grantRaises, cleanGrants, hideGrants, grantWant, grantsKept, GRANT_MAX, rangeBandOf, partsRoom, partsCapSays, fitIfOk, partFitSays, partFitEntry, upkeepEach, PART_CAPS, PART_DEPTH, partDepth, partsTree, partHostOk, partsKept, partsPut, partsSrc, partHost, partsOf, capsAt, droppedWords, setOf, setsOf, statName, placeVal, rollFigOf, rollShowOf, cleanBadges, BADGE_MAX, cleanSheetRev, sheetRevOf, charStale, staleOf, revProposal, upChanges, revIdle, cleanAlt, ALT_MAX, againFold, cleanEnv, ENV_BANDS, envBands, envWorst, cleanRollSw, rollSwitchesAll, rollSwitches, swJudge, DATE_NAMES, setDateSource, dateReads, VERSION, overSays, overNames, overSet, onClash, rowTimers, cleanRowTimer, readsOn, cleanRowGone, cleanCross, crossings, crossSteps, postureFx, withOnSelf, tokOnOk, mapYardPx, loadFits, DIE_NAMES, cleanDie, dieOf, rollDie, tradeOfferable, tradeInto, moneyBoxes, moneyHeld, moneyMove, rowOpMoney, ROW_LOOK, WORK_KINDS, WORK_BY, cleanRowLook, rowLookShown, rowLookShade, finishWords, workWords, cleanTradeOffer, tradeApply, TRADE_LINES, cleanDamageRules, damageStep, cleanCharDamage, DMG_CONDS, cleanPlaceCats, catSplits, catHome, catPlace, cleanFieldUnit, metricOf, unitTail, readMeasure, heightWords, MEASURES, measureWords, unitWords, unitHead, listFig, listWords, unitOf, figText, figFmt, weightWords, textWords, measureStore, rollNeedsOk, rollNeedsSays, onGroup, onlyOne, onHeld, cleanNeeds, hideNeeds, needsMet, needsSays, needRule, ruleTrue, setRuleJudge, cleanBudgets, budgetsOf, budgetWatch, budgetSays, cleanDesc, cleanLvls, EVERY_UNITS, cleanEvery, FIGHT_UNITS, cleanInFight, timeRuleRun, ruleRunCtx, needsHeld, chainsShallow, cleanFace, charForView, mapGridOf, tokenCell, shapeStandIn, cleanFrame, openChar, newCharRules, charClash, coreOf, setLibraryFind, statKeys, statPicks, cleanIcon, droppedCounts, parseLasts, lastsSecs, roundSecs, fxLeftNow, fxTick, mapCellScale, moveAllowCells, dueActs, gridCells, cleanTurn, TURN_UNITS, TIME_WORDS, roundActs, combatChars, applyRound, thenChanges, thenCrit, withRollCrit, THEN_WHEN, dmgTypeOf, dmgKindOf, rollMods, openSync, cleanOpens, showsIf, rowRollNames, applyAct, applyScope, cleanCharApply, APPLY_KINDS, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, cleanNewPlayers, newPlayerRules, waitingTokensOf, waitingNeed, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, plusText, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, libSnaps, carriedBy, cleanItemMods, fieldKinds, unseenMods, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, tokenEffects, autoEffectsOn, tokenOwnEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, postureRangedOf, cleanPostures, postureList, ownPostures, postureAt, postureSeven, stanceCtx, tokenCtx, setAimSource, bearingTo, aimsOf, facingNow, withRound, withCross, rangeCtx, withRange, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, ROUNDS, ROUND_TO, roundBy, roundSays, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, cleanLightRules, lightName, lightPresets, LIGHT_UNITS, cleanRangeRules, rangeModOf, rangeDist, rangeOf, RANGE_UNITS, cleanSenses, secretFieldIds, gmViewFields, coverWord, coverTier, coverOutcome, coverDamage, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, orderByInit, cleanInitRules, cleanHeightRules, heightModOf, heightOf, HEIGHT_UNITS, initTie, sideFirst, orderBySide, validateSystem, charFor, applyEdit, autoLayout, cleanCharUpload, cleanUploads, fillMaking, applyProposal, statAsk, readerKit, registerReader, dropReader, readers, readerById, readerFor, fmtNum, suggest, lookRule, cleanLooks, applyStyle, cleanCharStyle, lookOf, lookFor, loadSame, loadMax, cleanLd, chamberTakes, chamberFits, chamberCap, chamberHolds, chamberSays, cleanRd, CHAMBER_CAP, thenMargin, onceOf, offTurnFree, cleanBlastRules, BLAST_FALL, cleanReach, cleanAffs, affLastsSecs, AFF_UNITS, chosenPicks, chosenNext, BAR_COLORS, BAR_SHOW_WORDS, cleanBars, cleanTokBars, tokenBarSpec, tokenBarFigs, cleanBarFigs, barFill, barTip, START_MAX, cleanStarts, startRows };
 export { targetReadsOf, TARGET_READS, rollStations, rollStationOk, crewPressOf, crewRollsOf, cleanCr, withPresser, figVeh, linkFig, figRead, figExpand, LINK_FIGS, stationsIn, setCrewSource, crewFigs, cleanCk, cleanCharStn, groupByKey, stationOf, crewParts, LINK_STATIONS, crewStation, groupLink, poolLeast, majPick, listRollRef, resistOrOk, rowKeptFrom };   // 1.6.0 (CORE gap 16)
 export { specWords, specContains, specCoversRow, fitBroke, fitAgain, specBase, specMeans, grantSpecOf, specSquash, specNameParts, specInfo, refSays, rollRefs, SPEC_REFS };   // 1.6.0 Specialties
 export { hitRounds, hitsSecret, HITS_MAX, burstList, cleanBu, hitShots, burstBar, burstOpen, burstDice, burstExtra, hitCount, hitVars, hitRolls, damageBurst, cleanCharHit };   // 1.6.0 A burst
+export { FEEDS_MAX, FEED_STACK, feedOf, feedSpec, feedCt, feedStack, feedAt, feedLive, feedRoom, feedShort, feedShortOf, feedCount };
 export { majorWords, dmgOnSelf, dmgMajorOf, dmgPart2Of, dmgPartOf, DMG_MORE };   // 1.6.0: A Major Wound where; B3: a blow's second part
 export { upkeepLines, upkeepWords };   // 205 follow-up (3): an upkeep's payments said
 export { cleanLvlOnly, lvlOnlyRead, lvlOnlyText, lvlOnlyOn, lvlOnlyHas, lvlOnlyMiss, lvlOnlyList, lvlOnlyHit, lvlOnlySays, lvlStart, lvlNear, modTiersRead, cleanModTiers, modTiersText, modAt };   // 1.6.0: Levels it may be, and a change's figures By level

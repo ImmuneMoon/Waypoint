@@ -3773,6 +3773,20 @@ pendingChecks.push((async () => {
             { type: 'roll-req', rid: 'q1', charId: 'c_a', expr: exprX || '3d6 <= 10', row: { f: 'f_gear', r: 'w_t', i: ri } }, conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, () => {}, () => {}, () => {}, () => {}, m => chats.push(JSON.parse(JSON.stringify(m))), r => Dx.applyText(r),
             aimed ? () => ({ mod: 0, dist: 6, tid: 't_foe', mapId: 'm1' }) : () => null); } catch (e) { err = String(e && e.stack || e).slice(0, 400); }
         return { err, c, fd: camp.chars.c_a.values.f_gear[0].fd ? 1 : 0, rd: camp.chars.c_a.values.f_gear[0].rd, sent, chats }; };
+    {   // 1.6.0 Feeds: the host's roll branch and the GM's own net.diceRoll, run for real: any feed at 0 stops the shot in words before a die is rolled, from the host's own copy of the row, and a shot that goes takes 1 from every feed
+        const sysF = Sx.cleanSystem({ v: 1, name: 'F', combat: { checks: 'under3d6' }, rolls: [], fields: [
+            { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { counters: [{ key: 'cell', label: 'Cell' }, { key: 'clip', label: 'Clip' }], feeds: [{ key: 'power', from: 'f_cells', ct: 'cell' }, { key: 'clip', from: 'f_cells', ct: 'clip' }], rolls: [{ label: 'Shoot', formula: '3d6 <= 10', then: [{ feed: true }] }] } },
+            { id: 'f_cells', key: 'Cells', label: 'Cells', kind: 'item-list', vis: 'all', edit: 'owner', list: { lvl: { label: 'Juice', min: 0, max: 100, def: 0 } } }],
+            items: [{ id: 'i_tube', name: 'Spark Tube', category: 'Tool', vis: 'all' }], sheet: { sections: [] } }, { F: Fx, gmView: true });
+        const rowsF = ct => [{ id: 'w_t', defId: 'i_tube', qty: 1, ct }];
+        const fq = ct => { const rows = rowsF(ct), r = runQ(0, 3, false, sysF, '3d6 <= 10', rows); return { r, ct: rows[0].ct }; }, dryQ = fq({ cell: 5, clip: 0 }), goQ = fq({ cell: 5, clip: 2 });
+        const dryAns = dryQ.r.sent.filter(m => m.type === 'roll-deny')[0];
+        check('1.6.0 Feeds, the host\'s roll branch: a shot with a feed at 0 is refused in words naming that feed and moves nothing; with every feed holding it rolls, and the changes the Then makes go through the host',
+            !dryQ.r.err && !!dryAns && /Clip is empty\./.test(JSON.stringify(dryAns)) && j(dryQ.ct) === j({ cell: 5, clip: 0 }) && !goQ.r.err && !goQ.r.sent.some(m => m.type === 'roll-deny'), j([dryQ.r.err, dryQ.r.sent, goQ.r.err, goQ.r.sent.map(m => m.type)]));
+        const srcN = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8');
+        check('1.6.0 Feeds, the GM\'s own roll and the wire: net.diceRoll asks the same judge after a roll\'s needs, a player\'s load sends feed and more and waits for the host, whose answer in words reaches them, and each step is logged by structure alone',
+            /var fsR = entR && o\.row && campR && campR\.system && typeof SR\.feedShortOf === 'function' \? SR\.feedShortOf\(campR\.system, chR, o\.row, entR\) : ''; if \(fsR\)/.test(srcN) && srcN.includes("'drop', 'feed', 'more'].forEach(function(k)") && srcN.includes("window.wpStepLog('feed v1', 'changed', { how: qi.from === null ? 'unload' : qi.more ? 'stack' : 'swap', by: 'player' })") && srcN.includes("if (ptW || q.op === 'load' ||"));
+    }
     const qHit = runQ(0, 3, true), qMiss = runQ(0, 5, true), qFum = runQ(0, 6, true), qNoAim = runQ(0, 5, false), qHitOnly = runQ(1, 5, true);
     const qD1 = runQ(0, 1, true, sysD, '1d20 + 5 >= 15'), qD2 = runQ(0, 2, true, sysD, '1d20 + 5 >= 15');
     check('1.5.9 (es), the review of fold 2: a launched round\'s critical failure is read as a throw\'s is, by the system\'s own criticals (dicecore checkOf), so a d20 system\'s natural 1 on the roll-req branch, run for real, says fumble to wpLaunchMiss, and a 2 that misses says none; the 3d6 system\'s as before',

@@ -641,6 +641,10 @@ Fog, smoke and difficult terrain
   the room. What a player's tokens are sent is unchanged.
 
 Systems
+- A null area can put an effect on a character. Pick it under Effect while here,
+  beside Senses fail here. It goes on when the token enters and off when it
+  leaves, and under two areas it stays until the token is out of both. Players
+  never get the setting, and a hidden area works the same.
 - A row can hold parts, such as purchases on a power or upgrades in a limb. They show as pills under it, and its formulas can add up their costs. Undo after removing a row brings its parts back too. A list can name which rows may hold parts, and a character file can bring a row of its own as a part.
 - A list's place can say its own words when it holds no row. A place by category waits for your library on a player's sheet, where it once showed every row in its first place.
 - Time rules that run at once now run in the order they came due,

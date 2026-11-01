@@ -8878,6 +8878,9 @@ pendingChecks.push((async () => {
     const noCore = [CN, CO].map(C => items().map(w => C.cleanHostWbItem(w)).map(w => (ownK(w, 'light') ? w.light : 'none')));
     check('Lighting: with no light cleaner on hand a client takes no light at all from its host — a good one, a hostile one and a light source\'s alike are removed, never kept as they came',
         j(noCore) === j([Array(11).fill('none'), Array(11).fill('none')]), j(noCore));
+    const nfCl = [CL, CN, CO].map(C => ownK(C.cleanHostWbItem({ id: 'nf', type: 'rect', nullFx: 'e_void', nulls: ['sn_a'] }), 'nullFx')), nfCm = CL.cleanHostMap({ id: 'm1', type: 'map', whiteboard: [{ id: 'nf', type: 'rect', nullFx: 'e_void' }] });
+    check('a null area\'s effect (1.6.0): a player\'s app takes the key from no host, with or without a cleaner at hand, on a piece and in a whole map',
+        j(nfCl) === j([false, false, false]) && !/nullFx/.test(j(nfCm)), j([nfCl, nfCm]));
     const htGot = [2, 2.345, 1e9, '3', -1, { v: 1 }, null].map((h, i) => CL.cleanHostWbItem({ id: 'hh' + i, type: 'rect', height: h })).map(w => (ownK(w, 'height') ? w.height : 'none')), htNo = CN.cleanHostWbItem({ id: 'hq', type: 'rect', height: 2 });
     check('item 19 H1: a client cleans a piece\'s height its host sends again (run for real) — yards above 0 to the hundredth, at most 10,000; text, a number not above 0, an object or nothing none; with no cleaner on hand none',
         j(htGot) === j([2, 2.35, 10000, 'none', 'none', 'none', 'none']) && !ownK(htNo, 'height'), j(htGot));
@@ -11175,6 +11178,12 @@ pendingChecks.push((async () => {
         check('senses S7a (host): a null area the GM hid never reaches a player — no item, id or box (not even junk nulls); a visible one travels as its shape without its nulls; the owner of a token standing in one is told which of its senses fail there (only senses it holds; its marks by that sense gone), on their own copy only, never the shared clone; walking out sends them an empty word, walking back the word again',
             J(nGot.aOff) === J({ tA: ['sn_hear0001'] }) && nGot.aMarks === false && nGot.bOff === false && /"id":"zoneV"/.test(nGot.zoneV) && !/nulls/.test(nGot.zoneV) && nGot.hidIds === false && nGot.nulls === false && nGot.clone === false
             && J(outD) === J([J({})]) && J(backD) === J([J({ tA: ['sn_hear0001'] })]), J([nGot, outD, backD]));
+        const nfW = S7({ system: sysNl }), nfM = nfW.camp.items.mA, nfT = nfW.tok('tA');
+        nfM.whiteboard.push({ id: 'zoneF', type: 'rect', x: nfT.x - 50, y: nfT.y - 50, w: 150, h: 150, nulls: ['sn_hear0001'], nullFx: 'e_voidarea' }, { id: 'zoneG', type: 'rect', hidden: true, x: 5000, y: 5000, w: 100, h: 100, nulls: ['sn_hear0001'], nullFx: 'e_voidarea' }, Object.assign({ id: 'zoneT', type: 'rect', x: 7000, y: 7000, w: 10, h: 10, nullFx: 'e_voidarea' }));
+        nfM.meta = Object.assign({}, nfM.meta, { updated: (nfM.meta && nfM.meta.updated || 0) + 1 }); nfW.clearSent(); nfW.net.sendItem('k', 'mA');
+        const nfSent = J(nfW.a1.sent.concat(nfW.a2.sent, nfW.b1.sent)), nfClone = J(nfW.api.clean(nfM)), nfOwn = nfW.camp.items.mA.whiteboard.filter(w => w.nullFx !== undefined).length;
+        check('a null area\'s effect (1.6.0, host): the key reaches no player on any copy of a map, nor the shared clone, a hidden area leaves whole as before, a piece with the key and no senses loses it too, and the GM\'s own map keeps it',
+            !/nullFx|e_voidarea/.test(nfSent) && !/nullFx|e_voidarea/.test(nfClone) && /zoneF/.test(nfSent) && !/zoneG/.test(nfSent) && nfOwn === 3, J([nfSent.length, nfOwn]));
         check('senses S7a (source): a hidden null area is left out of a player\'s copy whole and its live moves reach no one; the whole copy, the catch-up and the player\'s app carry and clean fogOff',
             /if \(w\.gmNoteFor \|\| w\.hidden\) return null;/.test(src) && /if \(w && \(w\.gmNoteFor \|\| w\.hidden\)\) return;/.test(src) && /delete w\.unsensed; delete w\.nulls; \}/.test(src)
             && /if \(off\) out\.fogOff = off;/.test(src) && /if \(ofHash !== rec\.of\) msg\.off = ofNow;/.test(src) && /FCo\.cleanFogOff\(msg\.off, ownTokIdsOf\(map\)\)/.test(src) && /window\.wpFogCore\.cleanFogOff\(m\.fogOff, ownTokIdsOf\(m\)\)/.test(src));

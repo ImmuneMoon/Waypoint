@@ -181,7 +181,7 @@ function nullAreas(map, grid) {   // [{ keys: { cellKey: 1 }, ids }], kept on th
         if (!w || w.isChar || w.waiting || w.type === 'light' || w.gmNoteFor || w.nulls === undefined) return;
         var ids = C.cleanNulls(w.nulls); if (!ids) return;
         var keys = Object.create(null), fcN = footprintCells(w, grid, C); fcN.forEach(function(c) { keys[C.cellKey(c, grid)] = 1; });
-        var areaN = { keys: keys, ids: ids };
+        var areaN = { keys: keys, ids: ids }, fxN = C.cleanNullFx ? C.cleanNullFx(w.nullFx) : null; if (fxN) areaN.fx = fxN;   // 1.6.0: the effect it puts on (nullFxAt)
         if (fcN.over) areaN.big = { x: w.x, y: w.y, w: w.w, h: w.h, rot: w.rot, type: w.type === 'hexagon' || w.type === 'circle' || w.type === 'diamond' ? w.type : 'rect' };   // too large to list (the owed review, 2026-10-09): its outline is asked for the one cell a token stands in, as its cells would answer
         areas.push(areaN);
     });
@@ -194,6 +194,15 @@ function nullsAt(map, token) {   // { senseId: 1 } switched off where the token 
     if (areas.length) { var cellN = C.cellOf(token.x + (token.w || 60) / 2, token.y + (token.h || 52) / 2, grid), k = C.cellKey(cellN, grid), pcN = null; areas.forEach(function(a) { if (a.keys[k] === 1 || (a.big && C.itemCovers(a.big, (pcN = pcN || C.cellCenter(cellN, grid)).x, pcN.y, grid))) a.ids.forEach(function(id) { out[id] = 1; }); }); }
     var fo = isClientView() ? map.fogOff : null;   // a player's copy: what the host told them of their own token (the host's own map never holds one it reads)
     if (fo && typeof fo === 'object' && typeof token.id === 'string' && Object.prototype.hasOwnProperty.call(fo, token.id) && Array.isArray(fo[token.id])) fo[token.id].forEach(function(id) { if (typeof id === 'string') out[id] = 1; });
+    return out;
+}
+// 1.6.0: the effects the null areas over a token's cell put on its character, { effectId: 1 }: read on the machine that owns the campaign alone, from
+// the same areas and by the same cell as nullsAt, so a hidden area counts and two areas over one cell ask for one effect (sheets.js areaFxFollow)
+function nullFxAt(map, token) {
+    var out = Object.create(null), C = core(), grid = map && token ? gridForMap(map) : null; if (!C || !grid) return out;
+    var areas = nullAreas(map, grid); if (!areas.length) return out;
+    var cellF = C.cellOf(token.x + (token.w || 60) / 2, token.y + (token.h || 52) / 2, grid), k = C.cellKey(cellF, grid), pcF = null;
+    areas.forEach(function(a) { if (a.fx && (a.keys[k] === 1 || (a.big && C.itemCovers(a.big, (pcF = pcF || C.cellCenter(cellF, grid)).x, pcF.y, grid)))) out[a.fx] = 1; });
     return out;
 }
 // the host's word to one player (fogCopyFor): each of their own visible character tokens with a sense it holds that a null area switches off
@@ -2302,6 +2311,7 @@ window.wpFog = {
     eyesArc: eyesArc,   // the eyes' arc: the arc a token sees through on a map (its Properties say when it is its own)
     fogMarksFor: fogMarksFor, campMarkSenses: campMarkSenses, campNoticeSenses: campNoticeSenses,   // senses S4: a player's marks (the host's, for their copy)
     marksHold: marksHold, marksForget: marksForget, marksStrictOn: marksStrictOn,   // senses S4b: a refresh of what is held, forgetting it, and whether a map plays it
+    nullFxAt: nullFxAt,   // 1.6.0: the effects the null areas over a token put on its character (sheets.js areaFxFollow)
     fogOffFor: fogOffFor, nullsAt: nullsAt,   // senses S7a: a player's word of their own tokens' senses a null area switches off, and what is off where a token stands
     seenKind: seenKind, memSeenSig: memSeenSig, memTrace: memTrace, rememberOff: function() { return !rememberOn(activeCamp()); },   // 1.6.0: what a portal's picture of a map may hold on a player's screen (mapshot.js)
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }

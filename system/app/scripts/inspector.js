@@ -1369,6 +1369,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_wbBM = document.getElementById('wbBarsMode');
             if (_el_wbBM) _el_wbBM.addEventListener('change', function() { setTokenBarsMode(w, this.value === 'own'); });   // backlog 28: the system's bars or the token's own
             inspector.querySelectorAll('.wb-tokbar').forEach(function(row) { row.querySelectorAll('select, input').forEach(function(el) { el.addEventListener('change', function() { var pt = /\bwb-tokbar-(pool|name|cur|max|show|color)\b/.exec(this.className || ''); var nm = row.querySelector('.wb-tokbar-name'); if (pt) setTokenBar(w, row.dataset.bi, pt[1], this.value, nm ? nm.value : ''); }); }); });   // backlog 28: one bar's parts (a bar made by its numbers takes the name already typed)
+            var nfEl = inspector.querySelector('#wbNullFx'); if (nfEl) nfEl.addEventListener('change', function() { setItemNullFx(w, this.value); });   // 1.6.0: the effect the area puts on
             inspector.querySelectorAll('.wb-null').forEach(function(el) { el.addEventListener('change', function() { setItemNulls(w, this.dataset.ni, this.checked); }); });   // senses S7a: the senses that fail in this area
             var _el_wbBT = document.getElementById('wbBlindTick');
             if (_el_wbBT) _el_wbBT.addEventListener('change', function() { setTokenBlind(w, this.checked); });   // senses S3: the GM's Blind tick
@@ -1895,15 +1896,25 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       var camp = getActiveCampaign(), F = window.wpFog, C = window.wpFogCore; if (!camp || !F || !C || !F.campSenses) return '';
       var list = F.campSenses(camp).concat(F.campMarkSenses(camp)); if (!list.length) return '';
       var on = C.cleanNulls(w.nulls) || [];
+      var fxL = on.length && camp.system && Array.isArray(camp.system.effects) ? camp.system.effects : [], fxC = C.cleanNullFx ? C.cleanNullFx(w.nullFx) : null;
+      var fxH = fxL.length ? '<div class="field"><label for="wbNullFx">Effect while here</label><select id="wbNullFx" title="This effect goes on a character when its token enters, and off when it leaves"><option value="">None</option>' + fxL.map(function(d, i) { return '<option value="' + i + '"' + (d.id === fxC ? ' selected' : '') + '>' + esc(d.name) + '</option>'; }).join('') + '</select></div>' : '';
       return '<div class="field"><label>Senses fail here</label>' + list.map(function(s, i) { return '<div class="field check-row" style="margin-bottom:4px;"><input type="checkbox" class="wb-null" id="wbNull' + i + '" data-ni="' + i + '" ' + (on.indexOf(s.id) >= 0 ? 'checked' : '') + '> <label for="wbNull' + i + '">' + esc(s.name) + '</label></div>'; }).join('')
-          + '<div class="muted" style="margin:0 0 4px; font-size:10.5px;">A token whose cell this covers loses the ticked senses (a place where the Ether is silent). It works hidden too: players never get it, and a hidden one leaves nothing on their map.</div></div>';
+          + '<div class="muted" style="margin:0 0 4px; font-size:10.5px;">A token whose cell this covers loses the ticked senses (a place where the Ether is silent). It works hidden too: players never get it, and a hidden one leaves nothing on their map.</div>' + fxH + '</div>';
+  }
+  // 1.6.0: the effect a null area puts on a character whose token stands under it, picked by its place in the system's list, digits alone. Only beside
+  // ticked senses; the GM's, and never on the wire
+  function setItemNullFx(w, ni) {
+      var C = window.wpFogCore, camp = getActiveCampaign(); if (!C || !camp) return;
+      var list = camp.system && Array.isArray(camp.system.effects) ? camp.system.effects : [], d = typeof ni === 'string' && /^\d{1,3}$/.test(ni) ? list[Number(ni)] : null, id = d && C.cleanNullFx ? C.cleanNullFx(d.id) : null;
+      if (id && C.cleanNulls(w.nulls)) w.nullFx = id; else delete w.nullFx;
+      save(); render(); renderInspector();
   }
   function setItemNulls(w, ni, on) {
       var F = window.wpFog, C = window.wpFogCore, camp = getActiveCampaign(); if (!F || !C || !camp) return;
       var list = F.campSenses(camp).concat(F.campMarkSenses(camp)), s = typeof ni === 'string' && /^[0-7]$/.test(ni) ? list[Number(ni)] : null; if (!s) { renderInspector(); return; }
       var ids = (C.cleanNulls(w.nulls) || []).filter(function(id) { return id !== s.id; });
       if (on === true) ids.push(s.id);
-      if (ids.length) w.nulls = ids; else delete w.nulls;
+      if (ids.length) w.nulls = ids; else { delete w.nulls; delete w.nullFx; }
       save(); render(); renderInspector(); F.invalidateVision(); F.redraw();
   }
   // [sinkcheck:sensesfield-end]

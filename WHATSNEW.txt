@@ -668,6 +668,11 @@ Systems
   hit that takes the body below 0, and only worn by 1 otherwise.
 - A layer ticked Every row wears every row of its list, switched on or
   not, for a list whose switch means something else.
+- A layer ticked Every location is one figure and one wear stat wherever a
+  blow lands, as a worn field is. It wears when a part it stands against
+  takes the main pool, even if the damage did not beat its figure, and a
+  blow with no location wears it too. At its figure it is down.
+- Two layers on one list now both wear a row a blow reaches.
 - The Review can show a note beside a file's changes. A note has no tick
   and counts as no change.
 - An effect's change can be sized by a formula, such as -max(0, -MP)

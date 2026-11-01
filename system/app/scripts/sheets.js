@@ -9444,7 +9444,7 @@ function damageBox(box, cm) {
         rw.appendChild(dbxBtn('dmgrldel', '×', 'Remove this'));
         wrap.appendChild(rw);
         var nkL = dbxKeys(l.list, true);
-        if (l.list && nkL.length) {   // 1.6.0: the stat it wears picked by where the blow lands
+        if (l.list && nkL.length && l.whole !== true) {   // 1.6.0: the stat it wears picked by where the blow lands (one stat where it is Every location)
             var wh = el('div', 'sys-flags sys-dmgr-layer sys-dmgr-lwhere'), wl = (Array.isArray(l.wears) ? l.wears : []).map(function(x) { return String(x).toLowerCase(); }); wh.dataset.li = String(i);
             dbxCap(wh, 'Or by location');
             var pk = input('sys-dmgr-lpick field', dbxStr(l.pick), 'Which ticked stat wears where the blow lands: 1 for the first ticked, in the list\u2019s order. It reads the row as Row and the location as Hit. Any other figure wears Worn in', 'e.g. Hit.loc'); pk.maxLength = LIMITS.formula; wh.appendChild(pk);
@@ -9458,6 +9458,7 @@ function damageBox(box, cm) {
             dbxCap(ww, 'Once broken, a hit'); var bw = input('sys-dmgr-lbrkw field', dbxStr(l.brokenWear), 'What an injuring hit wears once this layer is broken there (its figure used up). Empty: 1. ToDestroy destroys the piece', 'e.g. 1'); bw.maxLength = LIMITS.formula; ww.appendChild(bw);
             dbxCap(ww, 'Wears at most'); var wc = input('sys-dmgr-lwcap field', dbxStr(l.wearCap), 'The most wear this layer may hold there, where it is destroyed. Empty: twice its figure, so it wears to minus its figure. It reads what the boxes beside it read', 'e.g. Listed + 2 * Row.Dur'); wc.maxLength = LIMITS.formula; ww.appendChild(wc);
             dbxCap(ww, 'and a Major Wound'); var bm = input('sys-dmgr-lbrkm field', dbxStr(l.brokenMajorWear), 'What a Major Wound wears once this layer is broken there. Empty: as on a Major Wound above', 'e.g. ceil(Row.Dur / 4)'); bm.maxLength = LIMITS.formula; ww.appendChild(bm);
+            ww.appendChild(dbxTick('sys-dmgr-lwhole', l.whole === true, 'Every location', 'Ticked: one figure and one wear stat wherever a blow lands, as a worn field. It wears when a part it stands against takes the main pool, whether or not the damage beat its figure, and a blow with no location wears it too. At its figure it is down, unless Wears at most says otherwise'));   // 1.6.0
             if ((draft.fields || []).some(function(f) { return f && f.id === l.list && dbxObj(f.list) && dbxObj(f.list.on); })) ww.appendChild(dbxTick('sys-dmgr-lany', l.anyRow === true, 'Every row', 'Ticked: this layer wears every row of its list, switched on or not. Off: only the rows switched on, as a worn piece of armour is. For a list whose switch means something else, as a location the GM marks by hand.'));   // 1.6.0
             wrap.appendChild(ww);
         }
@@ -9540,6 +9541,8 @@ function onDamageChange(t) {
     } else if (dbxHas(c, 'sys-dmgr-llist') || dbxHas(c, 'sys-dmgr-lwear')) {
         var l = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!l) return true;
         if (dbxHas(c, 'sys-dmgr-llist')) { if (l.list !== v) { delete l.wear; delete l.wears; } dbxSet(l, 'list', v); redraw = true; } else dbxSet(l, 'wear', v);
+    } else if (dbxHas(c, 'sys-dmgr-lwhole')) {   // 1.6.0: Every location: one stat, so what wears by location goes
+        var lO = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lO) return true; if (on) { lO.whole = true; delete lO.wears; delete lO.pick; } else delete lO.whole; redraw = true;
     } else if (dbxHas(c, 'sys-dmgr-lany')) {   // 1.6.0: Every row
         var lA = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lA) return true; if (on) lA.anyRow = true; else delete lA.anyRow;
     } else if (dbxHas(c, 'sys-dmgr-lwears')) {   // 1.6.0: the stats it may wear, kept in the list's own order
@@ -9686,11 +9689,13 @@ function damageSays(d, sys, Fx) {
         if (!dbxObj(l) || !((Array.isArray(l.wears) && l.wears.length) || (typeof l.pick === 'string' && l.pick.trim()))) return;
         var cl = (piece({ layers: [l] }).layers || [])[0]; if (!cl) return;   // the layer itself is said above
         var nm = 'Layer ' + (i + 1);
-        if (!cl.wears) say(nm + ': Or by location needs a formula and a ticked number stat of its list, so Save drops it.');
+        if (l.whole === true) say(nm + ': Every location wears one stat, so Save drops Or by location.');   // 1.6.0
+        else if (!cl.wears) say(nm + ': Or by location needs a formula and a ticked number stat of its list, so Save drops it.');
         else { reads(l.pick, nm + ', Or by location'); if (cl.wears.length < l.wears.length) say(nm + ': Or by location takes number stats of its list, ' + DBX_LIM.wears + ' at most, so Save drops the others.'); }
     });
     (Array.isArray(d.layers) ? d.layers : []).forEach(function(l, i) {   // 1.6.0: what a hit wears, by formula, as the cleaner reads it
         if (!dbxObj(l)) return; var cl = (piece({ layers: [l] }).layers || [])[0]; if (!cl) return;
+        if (cl.whole === true && /(^|[^A-Za-z0-9_.])hit\./i.test(cl.at)) warn('Layer ' + (i + 1) + ': Every location is one figure, and with no location its figure reads Hit. names as 0.');   // 1.6.0
         [['hitWear', 'Wears on a hit'], ['majorWear', 'Wears on a Major Wound'], ['brokenWear', 'Once broken, a hit'], ['brokenMajorWear', 'Once broken, a Major Wound'], ['wearCap', 'Wears at most']].forEach(function(g) {
             if (typeof l[g[0]] !== 'string' || !l[g[0]].trim()) return;
             if (!cl[g[0]]) say('Layer ' + (i + 1) + ': ' + g[1] + ' is too long or not on one line, so Save drops it.'); else reads(l[g[0]], 'Layer ' + (i + 1) + ', ' + g[1]);

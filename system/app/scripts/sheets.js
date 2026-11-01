@@ -9715,6 +9715,7 @@ function holdsBox(box, cm) {
     [['take', 'A roll that takes hold', 'A success takes hold of the roller\u2019s target'], ['pin', 'A roll that pins', 'A success pins someone the roller holds'], ['keep', 'The keep', 'One press at the holder\u2019s turn keeps every hold they have. With none, their holds end at its end. None named: holds need no keeping'], ['squeeze', 'A squeeze', 'A damage roll: its blow lands on each one held, with no attack and no resist, and it keeps the holds'], ['free', 'A roll that breaks free', 'The held roll it at the one who holds them. A success ends that hold. One that is resisted ends it once the holder fails']].forEach(function(x) { sel(x[0], x[1], holdRollOpts(h[x[0]]), h[x[0]], x[2]); });
     var alsoW = el('div', 'sys-flags'); alsoW.appendChild(el('span', 'sys-num-cap', 'Attacks that keep too')); holdRollOpts('').slice(1).forEach(function(o) { var l = checkLabel('sys-hold-also', Array.isArray(h.also) && h.also.indexOf(o[0]) >= 0, o[1], 'Aimed at someone held, this roll keeps every hold'); l.querySelector('input').dataset.ref = o[0]; alsoW.appendChild(l); }); wrap.appendChild(alsoW);
     wrap.appendChild(labeledNum('sys-hold-drag', 'Drags, in cells a turn', typeof h.drag === 'number' ? h.drag : '', 'A holder who moves this far or less takes those held along. Further, or blank, and walking off lets go'));
+    var drW = el('div', 'sys-flags'); drW.appendChild(checkLabel('sys-hold-drawin', h.drawIn === true, 'A grab draws its target in', 'A hold taken from a distance brings them to a free spot beside the holder. With none, or while someone else holds them, they stay where they are')); wrap.appendChild(drW);
     var eL = el('label', 'sys-combat-item'); eL.appendChild(el('span', 'sys-num-cap', 'All holds end where')); eL.appendChild(input('sys-hold-ends field', typeof h.ends === 'string' ? h.ends : '', 'A formula of the holder\u2019s names, no dice, true while they have lost their action or are down. Then every hold of theirs ends at once', 'Blank: nothing ends them')); wrap.appendChild(eL);
     var dl = el('button', 'tool ghost sys-btn', 'Stop keeping who holds whom'); dl.dataset.act = 'holddel'; wrap.appendChild(dl);
     var err = errorCell('holds'); err.dataset.errFor = 'holds'; wrap.appendChild(err);
@@ -9724,6 +9725,7 @@ function onHoldChange(t) {
     var c = t.className || '', h = draft.combat && draft.combat.holds; if (typeof c !== 'string' || c.indexOf('sys-hold-') < 0 || !h) return false;
     if (c.indexOf('sys-hold-pick') >= 0) { if (t.value) h[t.dataset.k] = t.value; else delete h[t.dataset.k]; }
     else if (c.indexOf('sys-hold-also') >= 0) { var al = Array.isArray(h.also) ? h.also.slice() : [], at = al.indexOf(t.dataset.ref); if (t.checked && at < 0) al.push(t.dataset.ref); if (!t.checked && at >= 0) al.splice(at, 1); if (al.length) h.also = al; else delete h.also; }
+    else if (c.indexOf('sys-hold-drawin') >= 0) { if (t.checked) h.drawIn = true; else delete h.drawIn; }
     else return false;
     markDirty(); patchErrors(); return true;
 }

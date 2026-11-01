@@ -10,6 +10,9 @@ At the table
   GM-only value, since a damage roll has no check to read.
 - A player who reloads keeps what they were pointing at.
 - The Take damage window's preview names the rolls the blow will ask for.
+- Who holds whom has a new tick, A grab draws its target in. Someone taken from a
+  distance comes to a free spot beside the holder. It is off unless your system
+  sets it.
 - Small fixes from the hand tests of 1.6.0.
 
 WAYPOINT 1.6.1 — What's New

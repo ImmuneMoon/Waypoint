@@ -2797,6 +2797,7 @@ function cleanHolds(v) {
     if (Array.isArray(v.also)) { var al = []; v.also.forEach(function(x) { if (holdRefOk(x) && al.indexOf(x) < 0 && al.length < HOLD_ALSO) al.push(x); }); if (al.length) o.also = al; }
     if (typeof v.drag === 'number' && fin(v.drag) && v.drag > 0) o.drag = Math.min(1000, Math.round(v.drag * 100) / 100);
     var e = cleanFormulaText(v.ends); if (e) o.ends = e;
+    if (v.drawIn === true) o.drawIn = true;   // 1.6.2: a grab from a distance brings its target to the holder
     return o;
 }
 function cleanCombat(c, resIds, fieldIds, secretIds, F, viewKinds, pl, fl) {   // 1.5.6: pl, the players' view; fl, a field of this view by id (the damage step)   // senses S1: fieldIds (id -> kind, the GM's view) and secretIds (secretFieldIds) for the senses; range R1: F for the range formula; conditions C3: viewKinds (id -> kind, this view's fields) for a posture's changes

@@ -5523,12 +5523,26 @@ function holdEnd(camp, c, recs, why) {   // those records gone, the effects with
     recs.forEach(function(x) { holdTell(camp, x.bc, 'You let go.'); holdTell(camp, x.oc, 'You are no longer held.'); if (typeof recLine === 'function') recLine('fight', (camp.chars && own(camp.chars, x.bc) ? camp.chars[x.bc].name : '') || 'Someone', 'Lets go', HOLD_WHY[why] || ''); });
     holdLog('ended', { n: recs.length, why: why }); if (typeof fightsKeepSoon === 'function') fightsKeepSoon();
 }
+function holdDraw(camp, map, mapId, by, on, c) {   // 1.6.2: a grab from a distance draws its target in (combat.holds.drawIn, off unless a system sets it): to a free spot beside the holder, on the side they came from, one the holder could walk to. With none, or while someone else holds them, they stay and the GM moves the token
+    var r = holdsRules(camp); if (!r || r.drawIn !== true || typeof freeSpotNear !== 'function' || !map || allyNear(map, by, on, false)) return false;
+    if (holdsOf(c).some(function(x) { return x.on === on.id && x.by !== by.id; })) return false;
+    var w = on.w || 60, h = on.h || 52, bw = by.w || 60, bh = by.h || 52, cx = by.x + bw / 2, cy = by.y + bh / 2, dx = on.x + w / 2 - cx, dy = on.y + h / 2 - cy, len = Math.hypot(dx, dy), gd = !!(map.meta && map.meta.gridType), d = (Math.max(bw, bh) + Math.max(w, h)) / 2 * (gd ? 0.8 : 1) + (gd ? 0 : 4);
+    if (!len) { dx = 1; dy = 0; len = 1; }
+    var fits = function(p) { return !!p && !(map.whiteboard || []).some(function(o) { return !!o && o.id !== on.id && (o.isChar || o.waiting) && p.x < o.x + (o.w || 0) && p.x + w > o.x && p.y < o.y + (o.h || 0) && p.y + h > o.y; }) && allyNear(map, by, Object.assign({}, on, { x: p.x, y: p.y }), false); };   // freeSpotNear hands back a place it could not clear when nothing else passes
+    var from = { x: cx, y: cy }, p = freeSpotNear(map, cx + dx / len * d, cy + dy / len * d, w, h, on.id, null, from);
+    if (!fits(p)) { p = freeSpotNear(map, cx, cy, w, h, on.id, null, from); if (!fits(p)) return false; }
+    var was = { x: on.x, y: on.y };
+    snapBack(camp, map, on, { campId: camp.id, itemId: mapId, wbId: on.id }, { x: p.x, y: p.y }, null);
+    holdsMoved(camp, map, mapId, on, was);   // those they hold themselves come along or are let go, as when they walk
+    holdLog('drawn', {}); if (typeof save === 'function') save(true);
+    return true;
+}
 function holdPut(camp, mapId, by, onId, pin) {   // a hold of the token by on the token onId, or pinned; words where there can be none
     var fid = by ? fightOfTok(mapId, by.id) : null, c = fid ? net.combats[fid] : null, map = holdMap(camp, c), on = holdTok(map, onId);
     if (!c || !on || fightOfTok(mapId, onId) !== fid) return 'Both must be in the same fight.';
     if (!on.isChar || !by.isChar || typeof on.charId !== 'string' || typeof by.charId !== 'string' || on.charId === by.charId || !own(camp.chars, on.charId) || !own(camp.chars, by.charId)) return 'Only characters hold one another.';
     var had = holdsOf(c).filter(function(x) { return x.by === by.id && x.on === onId; })[0];
-    if (!had) { if (pin) return 'Hold them first.'; if (holdsOf(c).length >= HOLDS_MAX) return 'That fight holds as many holds as it may.'; c.hl = holdsOf(c).concat([{ by: by.id, on: onId, bc: by.charId, oc: on.charId, k: c.round }]); holdTell(camp, on.charId, 'You are held.'); }
+    if (!had) { if (pin) return 'Hold them first.'; if (holdsOf(c).length >= HOLDS_MAX) return 'That fight holds as many holds as it may.'; c.hl = holdsOf(c).concat([{ by: by.id, on: onId, bc: by.charId, oc: on.charId, k: c.round }]); holdTell(camp, on.charId, holdDraw(camp, map, mapId, by, on, c) ? 'You are held, and drawn in.' : 'You are held.'); }
     else if (pin) { had.pin = 1; had.k = c.round; holdTell(camp, on.charId, 'You are pinned.'); }
     holdsSync(camp, [on.charId], [by.charId]); holdLog(pin ? 'pinned' : 'taken', { n: holdsOf(c).length }); if (typeof fightsKeepSoon === 'function') fightsKeepSoon();
     return '';

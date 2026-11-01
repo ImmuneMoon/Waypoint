@@ -56,6 +56,9 @@ for (const t of targets) {
     pr.els.customPrompt.style.display = 'none'; pr.els.importChoiceModal.style.display = 'flex'; pr.tick(5); const prWaited2 = !tourStarted(pr);
     pr.els.importChoiceModal.style.display = 'none'; pr.env.window.wpWelcomeImporting = true; pr.tick(5); const prWaited3 = !tourStarted(pr);
     pr.env.window.wpWelcomeImporting = false; pr.env.state.appState.campaigns.c2 = { items: {} }; pr.tick(1); const prThen = tourStarted(pr);
+    // a reload at a table: the rejoin has not answered yet, net.active is still false, and the page says it is on its way back
+    const back = scenario({}); back.env.window.wpNet.backAt = true; const backPending = back.api.pending(); back.tick(3); const backOk = backPending === false && !tourStarted(back) && !('wp_tourSeen' in back.store) && back.timers.every(h => !h.on);
+    if (backOk) console.log('ok        a reload at a table (run for real): the tour never opens over the table, though net.active is false until the rejoin, and it is not marked seen'); else { bad++; console.log('FAIL      a reload at a table (run for real): the tour never opens over the table', JSON.stringify([backPending, back.started, back.store])); }
     // a join from the welcome: at a table, never — and the mark not set, so the next launch alone may offer it
     const joined = scenario({ welcome: true }); joined.tick(2); joined.env.window.wpNet.active = true; const joinedPending = joined.api.pending(); joined.els.welcomeScreen.style.display = 'none'; joined.tick(3);
     // an existing table (a campaign with a room, or a planner), judged when the welcome closes: never, and marked seen; one imported while the welcome was up alike

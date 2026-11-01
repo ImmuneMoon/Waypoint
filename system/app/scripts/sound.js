@@ -50,7 +50,7 @@ function entryById(id) { return playable().find(function(e) { return e.id === id
 
 /* ---------- the engine ---------- */
 var ctx = null, ambient = null, cues = [], cache = {}, bytes = {}, cacheSec = 0, listeners = [];
-var local = Number(pref('wp_soundVolume', '80')) / 100, master = Number(pref('wp_soundMaster', '80')) / 100, muted = false, hostMaster = 1;
+var local = Number(pref('wp_soundVolume', '80')) / 100, master = Number(pref('wp_soundMaster', '80')) / 100, muted = pref('wp_soundMuted', 'no') === 'yes', hostMaster = 1;
 var pendingGate = null, gateShown = false, queue = [], queueBusy = false, queueBytes = 0, atTable = false;
 function ac() { if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; } } return ctx; }
 function running() { return !!(ctx && ctx.state === 'running'); }
@@ -121,7 +121,7 @@ function playCue(entry, gainOverride, quiet) {
 function stopAll(fadeMs) { stopAmbient(fadeMs); cues.forEach(function(c) { try { c.src.stop(); } catch (e) {} }); cues = []; pendingGate = null; hideGate(); emit(); }
 function reapplyGains() { if (ambient) ramp(ambient.gain, Math.max(0.0001, ambient.hostGain !== undefined && isClient() ? ambient.hostGain * (muted ? 0 : local) : effGain(ambient.entry)), 0.1); cues.forEach(function(c) { ramp(c.gain, Math.max(0.0001, effGain(c.entry)), 0.1); }); emit(); }
 function setLocalVolume(v) { local = Math.max(0, Math.min(1, v)); setPref('wp_soundVolume', Math.round(local * 100)); reapplyGains(); }
-function setMute(on) { muted = !!on; reapplyGains(); }
+function setMute(on) { muted = !!on; setPref('wp_soundMuted', muted ? 'yes' : 'no'); reapplyGains(); }
 function setMaster(v) { master = Math.max(0, Math.min(1, v)); setPref('wp_soundMaster', Math.round(master * 100)); reapplyGains(); var n = net(); if (n && n.sendSound) n.sendSound({ act: 'volume', gain: master }); }
 // the feature switched (vtt.js fan-out, a stance from the host, a snapshot): stop what may not play
 function refresh() {

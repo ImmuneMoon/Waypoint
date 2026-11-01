@@ -62,6 +62,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('window.wpSoundCore published', !!(global.window.wpSoundCore && global.window.wpSoundCore.cleanSoundList && global.window.wpSoundCore.VERSION === S2.VERSION));
     delete global.window;
 
+    {   // Sound's mute survives a reload, as Music's does (found by hand on a table): the setter and the first read, sliced and run on a store of plain strings
+        const sndM = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sound.js'), 'utf8').replace(/\r\n/g, '\n'), setS = /function setMute\(on\) \{[^\n]*\n/.exec(sndM)[0], readS = /muted = pref\('wp_soundMuted', 'no'\) === 'yes'/.exec(sndM);
+        const store = {}, setPref = (k, v) => { store[k] = String(v); }, pref = (k, d) => (k in store ? store[k] : d);
+        const boot = () => new Function('pref', 'setPref', 'reapplyGains', 'var ' + (readS ? readS[0] : 'muted = false') + ';\n' + setS + '\nreturn { set: setMute, now: function() { return muted; } };')(pref, setPref, () => {});
+        const a1 = boot(), wasOff = a1.now(); a1.set(true); const after = boot().now(); boot().set(false); const backOff = boot().now();
+        check('Sound: muted stays muted through a reload, and a mute taken off stays off; none stored reads as not muted, as before', wasOff === false && after === true && backOff === false, JSON.stringify(store));
+    }
     /* ---- Sound's Delete keeps a file another campaign uses (sound.js fileIsOnlyOurs, sliced by its ours markers and run on a state of plain objects) ---- */
     {
         const fs = require('fs');

@@ -643,7 +643,7 @@ function callDrops(r) {   // what Save drops of an editor's Read on the one who 
     });
     return out.filter(function(m, i) { return out.indexOf(m) === i; });
 }
-function callsInto(out, r, gmView, name) { var cs = cleanCalls(r.calls); if (gmView && cs) out.calls = cs; if (name && (cs || (!gmView && r.named === true))) out.named = true; }
+function callsInto(out, r, gmView, name) { var cs = cleanCalls(r.calls); if (gmView && cs) out.calls = cs; if (name && (cs || hasRange(out) || (!gmView && r.named === true))) out.named = true; }
 // The calls of an entry that are due: w 'hit' or 'miss', a roll's verdict; '' an action or a roll with no check; 'resisted' those that wait for the
 // target's roll. No dice are rolled, and a formula that cannot be worked out calls for nothing
 function callsDue(entry, w, vars, F) {
@@ -782,7 +782,7 @@ function cleanRollDef(r, gmView) {
     fightRuleInto(out, r, gmView);   // backlog 152: and in a fight, and whether its runs wait for the GM's word
     if (gmView) { var crO = cleanCross(r.cross); if (crO) out.cross = crO; }   // 1.5.9 (book es/et plan 4a): it also runs when a value crosses a step; the GM's view alone, since only the machine that owns the campaign runs it
     if (r.to === 'near' && out.init !== true) out.to = 'near';   // 1.5.9 (book es/et plan, section 3): Applies to the user or an adjacent character; the initiative roll is always its own character's
-    if (r.named === true) out.named = true;   // 1.6.0: it names itself as it is rolled, so the host can tell a sneak's roll; true only, and it says nothing of why
+    if (r.named === true || hasRange(out)) out.named = true;   // 1.6.0: it names itself as it is rolled, so the host can tell a sneak's roll; true only, and it says nothing of why
     if (r.resist === true && out.init !== true) out.resist = true;   // 1.6.0 (the SotMW v2 sort, B2): Resists an attempt, so it reads AttemptMargin
     resistByInto(out, r, gmView);   // 1.6.0 (B2): and Resisted by, the roll its target resists it with
     rollAreaInto(out, r, gmView, false);   // 1.6.0: and a line it hits
@@ -2763,6 +2763,7 @@ function rowLookOp(sys, char, f, q, opts) {
 // 1.6.0 (the v2 sort's B1): a critical range, kept on the Combat card under criticals at fixed rolls and on a system roll or a list roll of any
 // system (a technique that widens it): critAt and fumbleAt, each a formula of the roller's names with no dice, each absent where it does not clean
 function critRangeInto(out, r) { var a = cleanFormulaText(r.critAt), b = cleanFormulaText(r.fumbleAt); if (a) out.critAt = a; if (b) out.fumbleAt = b; }
+function hasRange(r) { return !!(r.critAt || r.fumbleAt || r.bigAt); }   // a roll with a range of its own names itself as it is rolled, or its press sends the formula alone and the host reads the Combat card's. The name stays in the players' view, whatever the view drops
 // 1.6.0 (the book's ruling of 2026-10-29: only a natural 3 or 18 is a critical; a technique's widened range lands as a Big Hit instead): a system
 // roll or a list roll may carry bigAt, what lands as a Big Hit, a formula of the roller's names (a list roll's row's too) with no dice, under any
 // rule. Its cleaner and the players' view treat it as critAt. bigOf is its one reading
@@ -4515,7 +4516,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
     }
     if (!amts.some(function(a) { return a.fire || a.feed || a.off || a.fx || a.set || a.amt > 0 || (a.money && a.amt !== 0) || (!!a.per && Object.keys(a.per).some(function(k) { return a.per[k].amt > 0; })); })) return { ok: false, reason: 'none' };
     var work = Object.assign({}, char, { values: JSON.parse(JSON.stringify(char.values || {})) }), out = {}, lines = [], asIs = same === true, fired = null, burst = false, shotsA = null;   // asIs: work still as char stands; burst: a fire with How many went, so its card says how many
-    var onW = isObj(on) && isObj(on.char) ? Object.assign({}, on.char, { values: JSON.parse(JSON.stringify(on.char.values || {})) }) : null, onTc = onW ? (on.tctx || null) : null, onOut = {}, onLines = [], gone = [], paidM = false, shortM = null;   // gone (1.6.0): the rows a quantity used up took out, each as it was   // 1.5.9 (book es/et plan, section 3): the character it is used on, on a working copy of its own
+    var onW = isObj(on) && isObj(on.char) ? Object.assign({}, on.char, { values: JSON.parse(JSON.stringify(on.char.values || {})) }) : null, onTc = onW ? (on.tctx || null) : null, onOut = {}, onLines = [], sameFx = '', gone = [], paidM = false, shortM = null;   // gone (1.6.0): the rows a quantity used up took out, each as it was   // 1.5.9 (book es/et plan, section 3): the character it is used on, on a working copy of its own
     for (var j = 0; j < amts.length; j++) {
         var a = amts[j]; if (a.money) {   // 1.6.0: too little money refuses the whole change for a player; the GM's hand (fxo.gmHand) takes what is held and is told
             if (a.amt === 0) continue; var moG = moneyMove(sys, work, a.amt), moD = a.amt, moS = null;
@@ -4538,7 +4539,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
             var twX = onW || work, fxF = null, fxRow = null, fxs = sys.fields.filter(function(x) { return isObj(x) && x.kind === 'effects' && typeof x.id === 'string'; });
             fxs.forEach(function(x) { var rs = isObj(twX.values) && Array.isArray(twX.values[x.id]) ? twX.values[x.id] : []; rs.forEach(function(r0) { if (!fxRow && isObj(r0) && r0.ref === a.fx.id) { fxRow = r0; fxF = x; } }); });
             if (!fxF) fxF = fxs[0] || null; if (!fxF) return { ok: false, reason: 'field' };
-            var isOn = !!fxRow && fxRow.on !== false; if (isOn === a.on && !(a.on && FX_AGAIN[a.fx.again] === 1)) continue;   // already as asked: nothing moves, nothing is said (1.6.0, a builder audit: unless it is on and When added again keeps the longer time or adds the times)
+            var isOn = !!fxRow && fxRow.on !== false; if (isOn === a.on && !(a.on && FX_AGAIN[a.fx.again] === 1)) { if (!sameFx) sameFx = (a.fx.vis === 'gm' ? 'That effect' : a.fx.name || 'That effect') + (a.on ? ' is on already.' : ' is off already.'); continue; }   // already as asked: nothing moves; a press with nothing else to do is told so (1.6.0, a builder audit: unless it is on and When added again keeps the longer time or adds the times)
             var rowsX = isObj(twX.values) && Array.isArray(twX.values[fxF.id]) ? twX.values[fxF.id] : [], ridX = fxRow && typeof fxRow.id === 'string' ? fxRow.id : '';
             if (!ridX) { var bse = ('x_' + a.fx.id.slice(2)).slice(0, 20), nX = 0; ridX = bse; while (rowsX.some(function(r0) { return isObj(r0) && r0.id === ridX; })) ridX = bse + '_' + (++nX); }
             var fxOpt = { now: isObj(fxo) && typeof fxo.now === 'number' ? fxo.now : 0, inCombat: !!(isObj(fxo) && (onW ? fxo.onInCombat : fxo.inCombat)) };
@@ -4636,7 +4637,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
             spA.steps.forEach(function(s) { if (onW) onOut[s.f] = s.value; else out[s.f] = s.value; (onW ? onLines : lines).push({ f: s.f, n: s.label, d: -s.amt, v: s.v }); });
         }   // a Set's line says what it moved; 1.5.9: and what a Rolled amount drew; a Set on another says so, for the card its user's player gets with no figure
     }
-    if (!lines.length && !onLines.length) return { ok: false, reason: 'none' };   // 1.5.9: a Then that only fires, with nothing chambered
+    if (!lines.length && !onLines.length) return sameFx ? { ok: false, reason: 'none', message: sameFx } : { ok: false, reason: 'none' };   // 1.5.9: a Then that only fires, with nothing chambered
     var doneA = { ok: true, values: out, lines: lines, names: names }; if (paidM) doneA.paid = true; if (shortM) doneA.short = shortM; if (fired && !shotsA) doneA.fired = fired; if (burst) doneA.burst = true; if (shotsA) doneA.shots = shotsA; if (gone.length) doneA.gone = gone;   // 1.6.0: the rows used up, for their Undo   // 1.5.9: the round it fired, for the blast it places
     if (onW) { doneA.onValues = onOut; doneA.onLines = onLines; }   // 1.5.9: what moved on the character it was used on, all or none with the rest
     var fsA = fitBroke(sys, char, out, F).concat(onW && isObj(on) && isObj(on.char) ? fitBroke(sys, on.char, onOut, F) : []); if (fsA.length) doneA.fitSays = fsA.slice(0, 4);   // 1.6.0 Fits where, judged again after the host's own act: the change stands, the GM is told
@@ -9614,6 +9615,7 @@ function validateSystem(sys, F) {
         if (hdV.ends) checkFormula({ id: 'holds', key: '#holds' }, 'ends', hdV.ends, false, 'gm');
         [hdV.held, hdV.pinned, hdV.holder].forEach(function(id) { if (typeof id === 'string' && !(Array.isArray(sys.effects) ? sys.effects : []).some(function(d) { return isObj(d) && d.id === id; })) warnings.push({ id: 'holds', prop: 'holds', message: 'That effect is gone from the library, so nobody wears it.' }); });
         HOLD_ROLLS.concat(['also']).forEach(function(k) { (k === 'also' ? (Array.isArray(hdV.also) ? hdV.also : []) : hdV[k] ? [hdV[k]] : []).forEach(function(ref) { if (!hdRoll(ref)) warnings.push({ id: 'holds', prop: 'holds', message: 'It names a roll that is gone, so that roll does nothing here.' }); }); });
+        if (hdRoll(hdV.squeeze) && rollEntryOf(sys, hdV.squeeze.indexOf('#') < 0 ? hdV.squeeze : undefined, hdV.squeeze.indexOf('#') < 0 ? undefined : { f: hdV.squeeze.split('#')[0], i: +hdV.squeeze.split('#')[1] }).dmg !== true) warnings.push({ id: 'holds', prop: 'holds', message: 'A squeeze posts a blow, and that roll has no Damage tick, so it only rolls.' });
     }
     (trn && Array.isArray(trn.acts) ? trn.acts : []).forEach(function(a) { if (isObj(a) && typeof a.nf === 'string' && a.nf) checkFormula({ id: 'combat', key: '#turn' }, 'turn.act.' + a.key, a.nf, false, 'all'); });   // 192: an action's count
     (trn && Array.isArray(trn.acts) ? trn.acts : []).forEach(function(a) { if (isObj(a) && typeof a.key === 'string') actK[lower(a.key)] = 1; });
@@ -10451,18 +10453,19 @@ function revIdle(sys, c, u) { return isObj(u) && u.rev === true && !upChanges(u)
 // names read — a column as the list's name for it (gmDerivedNames sees its formula through the list) and the names its formula reads (gmEffectNames),
 // a choice as its option's name — beside the roll's other names. Never throws; an unknown field or row reads gm (fail closed)
 function rowRollNames(sys, char, fieldId, rowId, names, F, uDef) {   // uDef (1.6.0 Rolls unheld entries): an entry nobody holds, read as that definition
-    var out = [], gm = false, kept = false, seen = map(), done = map(), push = function(n) { if (typeof n === 'string' && n && !seen[lower(n)]) { seen[lower(n)] = 1; out.push({ name: n }); } };
+    var out = [], gm = false, onGm = false, gmSt = false, kept = false, seen = map(), done = map(), push = function(n) { if (typeof n === 'string' && n && !seen[lower(n)]) { seen[lower(n)] = 1; out.push({ name: n }); } };
     try {
         var f = sys ? fieldById(sys, fieldId) : null; if (!f || f.kind !== 'item-list') return { gm: true, names: out };
         if (f.vis === 'gm') gm = true;
         var rows = storedOf(f, char), row = null; (Array.isArray(rows) ? rows : []).forEach(function(r) { if (!row && rowIdOf(r) === rowId) row = r; });
         if (isObj(uDef) && typeof uDef.id === 'string') row = { defId: uDef.id, qty: 0 };
         var rd = isObj(uDef) && row ? { def: uDef } : row ? rowDef(sys, row) : null; if (!rd || !rd.def || rd.def.vis === 'gm' || row.hid === 1) gm = true;
+        onGm = gm;
         kept = !!(row && row.keptOn === 1 && row.on === true);   // owed review F5b#2: its owner sees it off (never folded into gm: the owner's own roll must not turn private)
         var spec = isObj(f.list) ? f.list : {};
         var expand = function(ns) { (Array.isArray(ns) ? ns : []).forEach(function(n) {
             var nm = typeof n === 'string' ? n : (n && n.name); if (typeof nm !== 'string') return;
-            var l = lower(nm); if (gmStatRead(gmStatKeys(sys), null, l)) gm = true; if (l.slice(0, 4) !== 'row.') { push(nm); return; }   // 1.6.0: a GM-only stat keeps the roll the GM's
+            var l = lower(nm); if (gmStatRead(gmStatKeys(sys), null, l)) gm = gmSt = true; if (l.slice(0, 4) !== 'row.') { push(nm); return; }   // 1.6.0: a GM-only stat keeps the roll the GM's
             var w = l.slice(4), c = null, st = null;
             if (/^feed\.[^.]+\.(fired\.)?[^.]+$/.test(w)) {   // 1.6.0 Feeds: what a feed holds: a piece only the GM may see, or a source list only the GM sees, keeps the roll the GM's, as a round does
                 var fdN = feedOf(spec, w.split('.')[1]), fsN = fdN ? loadSrc(sys, feedSpec(spec, fdN)) : null;
@@ -10484,7 +10487,7 @@ function rowRollNames(sys, char, fieldId, rowId, names, F, uDef) {   // uDef (1.
         }); };
         expand(names);
     } catch (e) { return { gm: true, kept: false, names: out }; }
-    return { gm: gm, kept: kept, names: out };
+    var rrOut = { gm: gm, kept: kept, names: out }; if (gmSt && !onGm) rrOut.stat = true; return rrOut;   // stat: it is the GM's for a GM-only stat it reads, and the row itself is one a player may see
 }
 // The names a roll used (the engine's breakdown.names) that belong to a GM-only field, by key or by a reserved suffix: a GM's public roll must not carry them
 var _inFig = 0;   // the core handbook session's ask 6: while a group figure's own formula is judged, its figures are read no deeper

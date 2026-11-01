@@ -212,6 +212,15 @@ function world(opts) {
     const nt = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'latin1');
     check('a player\'s roll and the sheet read TargetCover by the fog, as the ruler does', nt.indexOf('Fgc.coverGrade(map, camp, tok, w, true)') > 0 && sh.indexOf('window.wpFog.coverGrade(map, camp, tok, w, pc)') > 0);
     check('the module is in the page', page.indexOf('<script type="module" src="scripts/notice.js"></script>') > 0);
+    {   // Loud by's menu (noticeRow, run for real): it offers no GM-only stat
+        const nrSrc = sh.slice(sh.indexOf('function noticeRow(s, i) {'), sh.indexOf('function noticeSays(s)')), mkEl = (t, c, x) => ({ tag: t, className: c || '', textContent: x || '', dataset: {}, children: [], appendChild(n) { this.children.push(n); return n; } });
+        const menus = {}, draftL = { fields: [{ kind: 'item-list', key: 'Gear', label: 'Gear', list: { stats: [{ key: 'Bang', label: 'Bang' }, { key: 'Hush', label: 'Hush', vis: 'gm' }] } }] };
+        const nr = new Function('el', 'input', 'select', 'draft', 'LIMITS', nrSrc + '\nreturn noticeRow;')(mkEl, c => mkEl('input', c), (c, o, v) => { menus[c] = { o, v }; return mkEl('select', c); }, draftL, { formula: 200 });
+        nr({ notice: { check: 'TargetLoud > 0' } }, 0); const fresh = menus['sys-sense-nknoise'].o.map(x => x[0]);
+        nr({ notice: { check: 'TargetLoud > 0', noise: 'Hush' } }, 0); const kept = menus['sys-sense-nknoise'].o.map(x => x[1]);
+        check('1.6.0 Loud by offers no GM-only stat (found by hand on a table); one picked before it said so stays named as it is, since it still works, and is not called gone',
+            J(fresh) === J(['', 'Bang']) && kept.includes('Hush (Gear)') && !kept.includes('A stat no longer here'), J([fresh, kept]));
+    }
     check('the System editor offers it on a band alone', /if \(s\.shows === 'side' && !mark\) wrap\.appendChild\(noticeRow\(s, i\)\);/.test(sh));
     check('Help says it', /<b>Noticed by<\/b> gives a band a check of your own/.test(page) && /<b>Sneaking where<\/b>/.test(page));
     check('1.6.0 a loud roll is wired: the band\'s Loud by and its handler, the host\'s turn start, Help', sh.includes("select('sys-sense-nknoise'") && sh.includes("atZ.s.notice.noise = t.value") && /window\.wpNotice\.turnStart\(mapId, c\.rows\[c\.turn\]\.tokId\)/.test(net) && /<b>Loud by<\/b>/.test(page));

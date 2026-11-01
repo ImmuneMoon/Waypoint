@@ -3,7 +3,7 @@
    feature switch. The wire and the rolling itself live in net.js (net.diceRoll, the roll-req / roll / roll-deny
    handlers); the validators, replay and text in dicecore.js. Design of record: docs/DICE_PLAN.md. */
 import { toast } from './io.js';
-import { coverHitWords, LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy, dueMajor, hitFaces, cleanPos, posWords } from './dicecore.js';
+import { malfWords, coverHitWords, LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy, dueMajor, hitFaces, cleanPos, posWords } from './dicecore.js';
 import { dieNode } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
 
 var ui = function(id) { return document.getElementById(id); };
@@ -93,7 +93,7 @@ function renderCard(m) {
     if (rec.as && rec.as !== rec.from.name) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'as ' + rec.as)); }   // the character the roll was made as (1.5.0)
     wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
     wrap.appendChild(el('br'));
-    if (rec.label) wrap.appendChild(el('div', 'roll-title', rec.label));   // chat cards: the roll's name as the card's title (his reference cards); the formula on its own line
+    if (rec.label) wrap.appendChild(el('div', 'roll-title', rec.label + (typeof rec.onName === 'string' && rec.onName ? ': ' + rec.onName : '')));   // chat cards: the roll's name as the card's title (his reference cards); the formula on its own line
     if (!res || !res.ok || !Fm) {
         wrap.appendChild(el('div', 'roll-bad', 'a roll that could not be read' + (m.rollBad === 'version' ? ' (a different dice engine)' : '')));
         if (rec.dmg === 1) wrap.className += ' card-dmg';   // a damage roll needs no dice to be one
@@ -115,7 +115,7 @@ function renderCard(m) {
     if (typeof refsInto === 'function') refsInto(wrap, rec.refs);   // 1.6.0 Specialties: which row a reference read
     if (typeof swInto === 'function') swInto(wrap, rec.sw);   // 1.6.0: the roll switches it was rolled with   // 1.5.8: what changed the values it read (asked through typeof for a suite that slices the card alone)
     wrap.className += mf ? ' card-malf' : v && v.kind === 'check' ? (v.pass ? ' card-ok' : ' card-fail') : rec.dmg === 1 ? ' card-dmg' : '';   // chat cards: the left stripe — a malfunction, the check's outcome, else a damage roll, else plain
-    var total = el('div', 'roll-total' + (mf ? ' roll-fail roll-malf' : v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : rec.dmg === 1 ? ' roll-dmg' : ''), mf ? 'malfunction (Malf ' + rec.malf + ')' : v ? (v.kind === 'check' ? v.text : hmC.length ? (hmC.length + 1) + ' hits' : '= ' + v.text) : '');
+    var total = el('div', 'roll-total' + (mf ? ' roll-fail roll-malf' : v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : rec.dmg === 1 ? ' roll-dmg' : ''), mf ? malfWords(rec) : v ? (v.kind === 'check' ? v.text : hmC.length ? (hmC.length + 1) + ' hits' : '= ' + v.text) : '');
     if (crit) total.appendChild(el('span', 'roll-' + crit, v && v.crit ? (crit === 'crit' ? 'critical success' : 'critical failure') : crit === 'crit' ? 'natural 20' : 'natural 1'));
     var tierC = sy && sy.combat && sy.combat.tier && typeof sy.combat.tier === 'object' ? sy.combat.tier : null;   // 1.6.0: a success at or past the Combat card's margin wears its name
     if (!mf && tierC && typeof tierC.name === 'string' && tierC.name && typeof tierC.at === 'number' && v && v.kind === 'check' && v.pass === true && typeof v.margin === 'number' && v.margin >= tierC.at) total.appendChild(el('span', 'roll-tier', tierC.name));
@@ -168,7 +168,8 @@ function renderDue(m) {
     wrap.appendChild(el('br'));
     var whD = rec.why === 'called' ? (rec.by ? 'called for by ' + rec.by : 'called for') : rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? (typeof resistWhy === 'function' ? resistWhy(rec) : 'resisting an attempt') : rec.why === 'major' ? (typeof dueMajor === 'function' ? dueMajor(rec) : 'a Major Wound') : rec.why === 'wound' ? 'a wound' : rec.why === 'blast' ? 'a blast' : 'round ' + rec.round;
     wrap.appendChild(el('div', 'roll-expr chat-due-what', (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + (whD ? ' \u2014 ' + whD : '')));   // 1.6.0 (B2): an attempt to resist   // 1.6.0 (the core's gap 6): or a wound
-    if (rec.theirs) wrap.appendChild(el('div', 'chat-due-note', 'Its player presses it.'));
+    if (m.over) wrap.appendChild(el('div', 'chat-due-note', 'The blast went off, so this roll is over.'));
+    else if (rec.theirs) wrap.appendChild(el('div', 'chat-due-note', 'Its player presses it.'));
     else if (m.done) wrap.appendChild(el('div', 'chat-due-note', 'Pressed.'));
     else if (!window.wpPopout) {
         var spentD = window.wpSheets && window.wpSheets.dueBlock ? window.wpSheets.dueBlock(rec.charId, rec.act) : '';   // 1.6.0 (the live test, 2026-10-30): it looked ready with none left. Greyed and said, never disabled: a card is not drawn again when a new turn gives them back, and the host judges the press
@@ -196,7 +197,7 @@ function renderDue(m) {
 // 1.6.0 (the live test, 2026-10-30): whether a card still asks for a press on this machine: an Apply no one has pressed, or a Due card that is theirs. Table Chat raised by a roll stays up for it (net.js chatWaits)
 function waits(m) {
     if (!m) return false;
-    if (m.due) return !m.done && !m.due.theirs && !window.wpPopout;
+    if (m.due) return !m.done && !m.over && !m.due.theirs && !window.wpPopout;
     var rec = m.roll, dS = window.wpSheets; if (!rec || rec.dmg !== 1 || rec.dmgUsed === 1 || !m.res || !m.res.ok) return false;
     return !malfOf(rec, m.res) && !!(dS && typeof dS.damageOn === 'function' && dS.damageOn());
 }

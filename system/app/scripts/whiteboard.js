@@ -4689,7 +4689,7 @@ window.wpFitToGrid = fitToGrid;
           applied++;
       });
       var fp = typeof fragPass === 'function' ? fragPass(b, map, camp, sys, hpId, write, mark) : null, ap = typeof affPass === 'function' ? affPass(b, map, camp, sys, write, hurt) : null, fragNote = fp ? (fp.hit ? ' · fragmentation hit ' + fp.hit + ' token' + (fp.hit === 1 ? '' : 's') : '') + (fp.shielded ? ' · ' + fp.shielded + ' shielded from fragmentation' : '') : '';   // 1.5.9 (es)
-      var coverNote = (halved ? ' · ' + halved + ' behind cover took less' : '') + (shielded ? ' · ' + shielded + ' shielded by cover' : '') + (spared ? ' · ' + spared + ' too far to be hurt' : '') + fragNote + (ap ? affNote(ap) : '') + (owed ? ' · ' + owed + ' to roll their own dice' : '');   // counts only: never a name (a hidden token counts too)   // 1.6.0 (the core's gap 8): and those whose card waits
+      var coverNote = (halved ? ' · ' + halved + ' behind cover took less' : '') + (shielded ? ' · ' + shielded + ' shielded by cover' : '') + (spared ? ' · ' + spared + ' took nothing' : '') + fragNote + (ap ? affNote(ap) : '') + (owed ? ' · ' + owed + ' to roll their own dice' : '');   // counts only: never a name (a hidden token counts too)   // 1.6.0 (the core's gap 8): and those whose card waits
       if (applied || (fp && fp.hit) || (ap && ap.on)) { _lastThrowTx = { hits: hits }; save(); syncBlastMenu(); if (b.notes) toast((b.name || 'The blast') + ': ' + b.notes); toast((!applied ? 'No blast damage' : eachN ? 'Blast damage applied to ' + applied + ' token' + (applied === 1 ? '' : 's') + ', each by its own dice' : fall ? 'Blast damage applied to ' + applied + ' token' + (applied === 1 ? '' : 's') + ' by distance' : '−' + total + ' to ' + applied + ' token' + (applied === 1 ? '' : 's')) + coverNote + '. Undo last throw is in the Radius options.'); }
       else if (owed) { if (b.notes) toast((b.name || 'The blast') + ': ' + b.notes); toast('Blast damage waits:' + coverNote.replace(/^ ·/, '') + '.'); }   // 1.6.0 (the core's gap 8)
       else if (shielded && !spared) toast('No damage: ' + shielded + ' token' + (shielded === 1 ? '' : 's') + ' shielded by cover.');
@@ -4783,7 +4783,7 @@ window.wpFitToGrid = fitToGrid;
   };
   function defendGo(key) {
       var w = _defWait[key]; if (!w) return false; delete _defWait[key];
-      var n = window.wpNet; Object.keys(w.want).forEach(function(t) { if (n && typeof n.attemptDrop === 'function') n.attemptDrop(w.want[t]); });
+      var n = window.wpNet; Object.keys(w.want).forEach(function(t) { if (n && typeof n.attemptDrop === 'function') n.attemptDrop(w.want[t]); if (n && typeof n.dueOver === 'function') n.dueOver(w.want[t]); });
       if (w.go && Object.prototype.hasOwnProperty.call(_owed, w.go)) { delete _owed[w.go]; _owedIds = _owedIds.filter(function(x) { return x !== w.go; }); }
       var was = _defKept[key] || null, all = Object.create(null); if (was) Object.keys(was).forEach(function(t) { all[t] = was[t]; }); Object.keys(w.res).forEach(function(t) { all[t] = w.res[t]; });
       if (w.waits.some(function(e) { return typeof e.b.defKey === 'string'; })) { var ks = Object.keys(_defKept); if (ks.length >= DEF_MAX) delete _defKept[ks[0]]; _defKept[key] = all; }

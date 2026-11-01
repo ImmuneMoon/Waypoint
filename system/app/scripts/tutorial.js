@@ -1268,7 +1268,8 @@ function dialogUp() { return window.wpWelcomeImporting === true || ['customPromp
 // reload or close would cut it off with the tour marked seen
 function updateRuns() { var b = document.getElementById('updateBtn'); return !!(b && b.disabled === true); }
 // the tour is still owed to this save: not seen, nothing in the save yet, not at a table (the welcome's Start a campaign asks before it names one)
-function tourPending() { var seen = false; try { seen = localStorage.getItem('wp_tourSeen') === '1'; } catch (e) {} return !seen && !(window.wpNet && window.wpNet.active) && Object.keys(state.appState.campaigns || {}).length > 0 && saveIsFresh(); }
+function atTable() { var n = window.wpNet; return !!(n && (n.active || n.backAt)); }   // ... or on the way back to one, after a reload
+function tourPending() { var seen = false; try { seen = localStorage.getItem('wp_tourSeen') === '1'; } catch (e) {} return !seen && !atTable() && Object.keys(state.appState.campaigns || {}).length > 0 && saveIsFresh(); }
 (function autoStart() {
     if (/[?&]stream=1/.test(location.search)) return;
     var seen = false; try { seen = localStorage.getItem('wp_tourSeen') === '1'; } catch (e) {}
@@ -1279,14 +1280,14 @@ function tourPending() { var seen = false; try { seen = localStorage.getItem('wp
         tries++;
         var loaded = Object.keys(state.appState.campaigns || {}).length > 0;
         if (!loaded) { if (tries >= 40) clearInterval(t); return; }   // wait for load() (up to ~12 s), then give up quietly
-        if (window.wpNet && window.wpNet.active) { clearInterval(t); return; }   // at a table (a join from the welcome): never
+        if (atTable()) { clearInterval(t); return; }   // at a table (a join from the welcome): never
         if (welcomeUp() || dialogUp() || updateRuns()) return;   // in Waypoint proper: once the welcome is closed, nothing is asked and no update runs — keep waiting
         clearInterval(t);
         if (!saveIsFresh()) { try { localStorage.setItem('wp_tourSeen', '1'); } catch (e) {} return; }   // an existing table (or one just imported): never pop up, Help → Tutorial has it
         // looked at once more as it would start: the strip's Update asks its question a moment after the welcome steps aside (the update imports
         // dialogs.js first), so the tour goes back to waiting if a question, an update or a table came up meanwhile, and is marked seen only as it starts
         setTimeout(function() {
-            if (welcomeUp() || dialogUp() || updateRuns() || (window.wpNet && window.wpNet.active)) { autoStart(); return; }
+            if (welcomeUp() || dialogUp() || updateRuns() || atTable()) { autoStart(); return; }
             try { localStorage.setItem('wp_tourSeen', '1'); } catch (e) {}
             startTour();
         }, 600);

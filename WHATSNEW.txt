@@ -1123,6 +1123,27 @@ Small fixes from a long test by hand
   vehicle. A roll can name the stations that may press it, and Only rolls that
   name a station leaves out the rest. Formulas read the sheet that pressed as
   Presser.<name>.
+- A roll with its own critical, fumble or Big Hit range now keeps to it on a
+  plain press. Before, a roll with no Then or Needs read the Combat card's.
+- A blast's notice says how many took nothing. It used to say they were too
+  far, even for a token close by whose share came to 0.
+- A card for a Malf that reads a GM-only stat says just malfunction, with no
+  figure, on every copy.
+- Loud by no longer offers a GM-only stat.
+- The editor warns when A squeeze names a roll with no Damage tick.
+- Pressing an action whose effect is already on says so.
+- A line's damage card names who was hit, for the GM and for any player who
+  can see them.
+- After Apply now, a Defense card nobody answered says it is over, and its
+  Roll button is gone.
+- A token linked to another sheet takes that sheet's name in its Character
+  Name box.
+- Sound effects stay muted through a reload, as Music does.
+- A roll kept private for a GM-only stat now says so, and no longer says it
+  is on a GM-only item.
+- A feed's counter leaves a row where its Only where fails. The feed's chip
+  still shows what is in it.
+- The tour no longer opens over the table when you reload at one.
 
 For system builders, more
 - Any wound holds six rows.

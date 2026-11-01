@@ -9022,7 +9022,7 @@ function handleMessage(msg, conn) {
         var blowRecQ = q.att && typeof attemptRec === 'function' ? attemptRec(q.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
         if (q.att && typeof attemptDrop === 'function') attemptDrop(q.att);   // 1.6.0 (B2): an attempt is resisted once
         var mfQ = null; if (actQ && actQ.malf && varsQ) { var mqQ = Fq.evaluate(actQ.malf, { vars: varsQ }); if (mqQ.ok && typeof mqQ.value === 'number' && isFinite(mqQ.value)) mfQ = Math.max(1, Math.min(1000000, Math.round(mqQ.value))); }   // Stage 6 HUD R3: its Malf, through their view
-        if (mfQ === null && chQ && typeof malfFromGm === 'function') mfQ = malfFromGm(SQ, campQ, chQ, q.act, q.row, Dq.naturalOf(resQ), Fq, tcQ);   // 1.6.0: a Malf that reads a GM-only stat, from the GM's view of that one figure
+        if (mfQ === null && chQ && typeof malfFromGm === 'function') { mfQ = malfFromGm(SQ, campQ, chQ, q.act, q.row, Dq.naturalOf(resQ), Fq, tcQ); if (mfQ !== null) recQ.malfHid = 1; }   // 1.6.0: a Malf that reads a GM-only stat, from the GM's view of that one figure
         if (mfQ !== null) recQ.malf = mfQ;
         var crgQ = SQ && typeof SQ.critRange === 'function' ? SQ.critRange(viewQ ? viewQ : (getActiveCampaign() || {}).system, actQ, varsQ, Fq) : null;
         if (crgQ && chQ && typeof critFromGm === 'function') crgQ = critFromGm(SQ, campQ, chQ, q.act, q.row, crgQ, Dq.naturalOf(resQ), Fq, tcQ);   // 1.6.0: a range that reads a GM-only stat, from the GM's view of that one figure
@@ -9181,6 +9181,13 @@ function handleMessage(msg, conn) {
         pushChat({ from: du.from, text: '', scope: 'whisper', ts: du.ts, due: du });
         if (typeof bellOut === 'function') bellOut(du.charId, { due: du });
         // [netcheck:duein-end]
+    } else if (msg.type === 'due-over' && net.role === 'client') {
+        // [netcheck:dueover-start]
+        // 1.6.0: the host's word that a card's blast went off: only a card of this very attempt, from the synced host
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        var Dv = DC(); if (!Dv || !Dv.cleanAtt || !Dv.cleanAtt(msg.att)) return;
+        var overV = false; chatLog.forEach(function(m) { if (m && m.due && m.due.att === msg.att && !m.over) { m.over = 1; overV = true; } }); if (overV) renderChatSoon();
+        // [netcheck:dueover-end]
     } else if ((msg.type === 'roll' || msg.type === 'roll-deny') && net.role === 'client') {
         // a record or a refusal from the synced host only, after the snapshot; a host never takes a 'roll' from a client (no host branch)
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
@@ -10181,17 +10188,17 @@ function npcByOf(camp, ch, pid) {   // the name a card may give a player of one 
     var p = null; Object.keys(net.roster).forEach(function(k) { if (net.roster[k] && net.roster[k].id === pid) p = net.roster[k]; });
     return ch && ch.name && npcShown(camp, ch, p) ? ch.name : '';
 }
-function sendTableAs(rec, ch) {   // the table's copy of a card made as a character
+function sendTableAs(rec, ch, on) {   // the table's copy of a card made as a character. on (1.6.0): { ch, name }, whom the card landed on: named to a player who can see them, and to no other
     if (_npcCards && ch && (ch.npc === true || !ch.ownerId)) _npcCards.set(rec, 1);
     var camp = getActiveCampaign();
     net.conns.forEach(function(c) {
         var p = c.open ? net.roster[c.peer] : null; if (!p || (rec.as && !npcShown(camp, ch, p))) return;
-        try { c.send(rec); } catch (e) { sendFailed(e); }
+        try { c.send(on && on.name && npcShown(camp, on.ch, p) ? Object.assign({}, rec, { onName: on.name }) : rec); } catch (e) { sendFailed(e); }
     });
 }
 function historySeen(list) {   // a latecomer's history: such a card goes, since they saw none of it
     if (!_npcCards) return list;
-    return list.filter(function(m) { var r = m && (m.roll || m.apply); return !(r && _npcCards.has(r) && r.as); });
+    return list.filter(function(m) { var r = m && (m.roll || m.apply); return !(r && _npcCards.has(r) && r.as); }).map(function(m) { if (!m || !m.roll || !m.roll.onName) return m; var rs = Object.assign({}, m.roll); delete rs.onName; return Object.assign({}, m, { roll: rs }); });   // ... and whom a card landed on is the GM's word: this reader may not see them
 }
 // [netcheck:npcseen-end]
 function sendTable(msg, exceptConn) {   // admitted peers only: broadcast() would reach a peer still waiting for the GM's Allow
@@ -10274,6 +10281,16 @@ function postDue(rec, ch, toOwner) {
     pushChat({ from: rec.from, text: '', scope: 'whisper', ts: rec.ts, due: sent ? Object.assign({}, rec, { theirs: 1 }) : rec });
     if (ch && typeof ch.id === 'string' && typeof bellOut === 'function') bellOut(ch.id, { due: rec });
 }
+// 1.6.0: a Defense card its blast no longer waits for: it says so here and on its player's app, with no button left. att: the attempt's id, which that card already holds
+net.dueOver = function(att) {
+    if (typeof att !== 'string' || !att) return false; var camp = getActiveCampaign(), any = false;
+    chatLog.forEach(function(m) {
+        if (!m || !m.due || m.due.att !== att || m.over) return; m.over = 1; any = true;
+        var ch = m.due.theirs === 1 && camp && camp.chars && own(camp.chars, m.due.charId) ? camp.chars[m.due.charId] : null; if (!ch || !net.active || net.role !== 'host') return;
+        net.conns.forEach(function(c) { if (!c.open || !net.roster[c.peer] || peerProfileId(c) !== ch.ownerId) return; try { c.send({ type: 'due-over', att: att }); } catch (e) { sendFailed(e); } });
+    });
+    if (any) renderChatSoon(); return any;
+};
 // [netcheck:postdue-end]
 // [netcheck:attempt-start]
 // 1.6.0 (the SotMW v2 sort, B2: "resist at minus the attempt's margin"): a roll whose entry names Resisted by (a system roll ticked Resists an
@@ -10453,7 +10470,7 @@ function areaAfter(camp, entry, vd, malf, aim, ch, priv, vars, row, map, tok) {
     var ids = reach > 0 ? areaTokens(camp, map, tok, aim, ar.width, reach) : [], mapId = typeof map.id === 'string' ? map.id : tok.mapId, by = { by: ch.id, dmg: ar.dmg, fx: ar.fx, row: row && typeof row.r === 'string' ? { f: row.f, r: row.r } : null, label: String(entry.label || 'Line').split('{')[0].trim().slice(0, 50), gm: entry.vis === 'gm' };
     ids.forEach(function(tid) {
         var w = map.whiteboard.filter(function(x) { return !!x && x.id === tid; })[0], tc = w && camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null; if (!tc || tc.id === ch.id) return;
-        var hit = Object.assign({}, by, { to: tc.id });
+        var hit = Object.assign({}, by, { to: tc.id, nm: w.charName || w.name || tc.name });
         if (entry.resistAll === true && typeof entry.resistBy === 'string') attemptMake(camp, entry, vd, malf, { tid: tid, mapId: mapId, area: hit }, ch, priv, vars); else areaHit(camp, hit);
     });
     if (window.wpStepLog) window.wpStepLog('line v1', 'found', { tokens: ids.length, resisted: entry.resistAll === true });
@@ -10468,7 +10485,7 @@ function areaHit(camp, h) {
         if (res && res.ok) { var vals = {}; vals[fl.id] = res.value; if (res.clamp) Object.keys(res.clamp).forEach(function(k) { vals[k] = res.clamp[k]; }); tc.values = tc.values || {}; Object.keys(vals).forEach(function(k) { tc.values[k] = vals[k]; }); tc.updated = Date.now(); if (net.active && net.role === 'host' && typeof net.syncCharDelta === 'function') net.syncCharDelta(tc.id, vals); if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(tc.id); if (typeof net.damageCard === 'function') net.damageCard(tc, [(h.gm ? 'A line' : h.label) + ':', (def.vis === 'gm' ? 'An effect' : String(def.name || 'An effect').slice(0, 60)) + ' is on.']); }
     }
     if (!ch || h.dmg === undefined) return;
-    var ent = null, o = { charId: ch.id, label: (h.gm ? 'Line' : h.label) + ' damage', landOn: tc.id, gmOnly: h.gm === true };
+    var ent = null, o = { charId: ch.id, label: (h.gm ? 'Line' : h.label) + ' damage', landOn: tc.id, onName: String(h.nm || tc.name || '').slice(0, 60), gmOnly: h.gm === true };
     if (typeof h.dmg === 'number' && h.row) { (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (f && f.id === h.row.f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) ent = f.list.rolls[h.dmg] || null; }); o.row = { f: h.row.f, r: h.row.r, i: h.dmg }; }
     else if (typeof h.dmg === 'string') { (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (r && r.id === h.dmg) ent = r; }); o.act = h.dmg; }
     if (!ent || ent.dmg !== true || typeof ent.formula !== 'string' || !ent.formula || typeof net.diceRoll !== 'function') return;
@@ -10667,7 +10684,7 @@ net.diceRoll = function(expr, o) {
     var blowRecR = typeof o.att === 'string' && typeof attemptRec === 'function' ? attemptRec(o.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
     if (typeof o.att === 'string' && typeof attemptDrop === 'function') attemptDrop(o.att);   // 1.6.0 (B2): an attempt is resisted once
     if (mfR !== null) rec.malf = mfR;
-    var mfSec = !!(mfR !== null && SR && SR.malfSecret && campR && campR.system && SR.malfSecret(campR.system, entR, F, o.row)); if (mfSec) { var mfM = SR.malfMask(mfR, D.naturalOf(res)); if (mfM === null) delete rec.malf; else rec.malf = mfM; }   // 1.6.0: the table is shown that a Malf reading a GM-only stat jammed, never the figure
+    var mfSec = !!(mfR !== null && SR && SR.malfSecret && campR && campR.system && SR.malfSecret(campR.system, entR, F, o.row)); if (mfSec) { var mfM = SR.malfMask(mfR, D.naturalOf(res)); if (mfM === null) delete rec.malf; else { rec.malf = mfM; rec.malfHid = 1; } }   // 1.6.0: the table is shown that a Malf reading a GM-only stat jammed, never the figure
     var crgR = SR && typeof SR.critRange === 'function' && campR && campR.system ? SR.critRange(campR.system, entR, varsR, F) : null;
     if (crgR && chR && SR.critSecret && SR.critSecret(campR.system, entR, F, o.row)) { var pvR = window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(campR) : null, puR = pvR ? SR.critRange(pvR, SR.rollEntryOf(pvR, o.act, o.row), varsR, F) : null; if (puR) crgR = SR.critMask(crgR, puR, D.naturalOf(res)); }   // 1.6.0: the table is shown the outcome of a range that reads a GM-only stat, never the range
     if (crgR) rec.crit = crgR;
@@ -10675,6 +10692,7 @@ net.diceRoll = function(expr, o) {
     if ((entR && entR.dmg === true) || o.dmg === true) rec.dmg = 1;   // chat cards: a damage roll (its entry; or this machine's own word, a thrown item's damage — never over the wire)
     if (rec.dmg === 1 && entR && SR && typeof SR.dmgTypeOf === 'function' && campR && campR.system) { var dtR = SR.dmgTypeOf(campR.system, entR, varsR, F); if (dtR) rec.dtype = dtR; } if (rec.dmg === 1 && entR && entR.dmgMajor === true) rec.major = 1;   // 1.5.7: the damage type the roll names, for Apply to target; 1.6.0: and Always a Major Wound, from the entry
     if (rec.dmg === 1 && entR && o.charId && SC() && SC().dmgOnSelf && SC().dmgOnSelf(entR, o.att)) rec.dmgOn = o.charId;   // 1.6.0: burning and the like: it lands on its own character
+    var landR = rec.dmg === 1 && typeof o.landOn === 'string' && campR && campR.chars && own(campR.chars, o.landOn) ? campR.chars[o.landOn] : null;   // who a line hit: the table's copy names them to whoever can see them (sendTableAs)
     if (rec.dmg === 1 && typeof o.landOn === 'string') rec.dmgOn = o.landOn;   // 1.6.0: a token a line hit (this machine's own word)
     if (rec.dmg === 1 && entR && SR && typeof SR.dmgKindOf === 'function' && campR && campR.system && typeof entR.dkind === 'string' && entR.dkind) { var dkN = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, F.names(entR.dkind), F, uDefR || undefined) : { names: F.names(entR.dkind).map(function(n) { return { name: n }; }) }, dkR = dkN.gm || SR.gmOnlyNames(campR.system, dkN.names).concat(SR.gmDerivedNames(campR.system, F, dkN.names)).length ? '' : SR.dmgKindOf(campR.system, entR, varsR, F); if (dkR) rec.dkind = dkR; }   // 1.6.0: the blow's kind, for Apply to target; never one read from a GM-only value, as the armour divisor, since the record travels to the table
     if (rec.dmg === 1 && entR && SR && typeof SR.dmgAdOf === 'function' && typeof entR.ad === 'string' && entR.ad) { var adN = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, F.names(entR.ad), F, uDefR || undefined) : { names: F.names(entR.ad).map(function(n) { return { name: n }; }) }, adR = adN.gm || SR.gmOnlyNames(campR.system, adN.names).concat(SR.gmDerivedNames(campR.system, F, adN.names)).length ? 0 : SR.dmgAdOf(entR, varsR, F); if (adR) rec.ad = adR; }   // 1.6.0: the armour divisor its row names, for Apply to target; never one read from a GM-only value, as the record travels to the table
@@ -10704,7 +10722,7 @@ net.diceRoll = function(expr, o) {
     if ((rec.dmg2 || rec.dmg3 || rec.dmg4 || rec.dmg5) && hosting && !o.priv && entR) { var p2N = [2, 3, 4, 5].filter(function(k) { return !!rec['dmg' + k]; }).reduce(function(a, k) { return a.concat([entR['dmg' + k], entR['dtype' + k], entR['ad' + k], entR['dkind' + k]]); }, []).reduce(function(a, t) { return typeof t === 'string' && t ? a.concat(F.names(t)) : a; }, []), p2L = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, p2N, F, uDefR || undefined).names : p2N.map(function(n) { return { name: n }; }); SR.gmOnlyNames(campR.system, p2L).concat(SR.gmDerivedNames(campR.system, F, p2L)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // 1.6.0 (B3): the card says the second part's amount, so one read from a GM-only value keeps it private, as a Malf does
     if ((crgR || rec.big === true) && hosting && !o.priv) { var crN = [entR && entR.critAt, entR && entR.fumbleAt, entR && entR.bigAt, campR.system.combat.critAt, campR.system.combat.fumbleAt].reduce(function(a, t) { return typeof t === 'string' && t ? a.concat(F.names(t)) : a; }, []); SR.gmOnlyNames(campR.system, crN.map(function(n) { return { name: n }; })).concat(SR.gmDerivedNames(campR.system, F, crN)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // 1.6.0: the record carries its critical range, so one read from a GM-only value keeps it private, as a Malf does
     if (o.priv) rec.priv = 'gm';
-    else if (hosting && rowP && rowP.gm) { rec.priv = 'gm'; toast('Kept private: that roll is on a GM-only item or list' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // F5b: a GM-only row's roll stays the GM's
+    else if (hosting && rowP && rowP.gm) { rec.priv = 'gm'; toast((rowP.stat === true ? 'Kept private: that roll reads a GM-only stat' : 'Kept private: that roll is on a GM-only item or list') + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // F5b: a GM-only row's roll stays the GM's
     else if (hosting && rowP && rowP.kept) { rec.priv = 'gm'; toast('Kept private: its owner sees that item switched off' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // owed review F5b#2: a curse the GM keeps on
     else if (hosting && swR && swR.names.some(function(x) { return x.gm; })) { rec.priv = 'gm'; toast('Kept private: it adds a GM-only bonus (' + swR.names.filter(function(x) { return x.gm; }).map(function(x) { return x.n; }).join(', ') + ').'); }   // 1.6.0: a roll switch of a GM-only item or effect
     else if (hosting && o.gmOnly) { rec.priv = 'gm'; toast('Kept private: that roll is GM only' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // the caller's word: a GM-only field's own roll, a GM-only roll, a GM-only item's damage — its label and formula are the GM's
@@ -10721,7 +10739,8 @@ net.diceRoll = function(expr, o) {
     }
     var scope = rec.priv || rec.to ? 'whisper' : 'global';
     var hsR = typeof holdsSqueeze === 'function' && chR && SR && typeof SR.holdRefOf === 'function' ? holdsSqueeze(campR, chR, SR.holdRefOf(o.act, o.row), rec, D) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
-    if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rec, chR); else sendTable(rec, null); }
+    if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rec, chR, landR ? { ch: landR, name: o.onName } : null); else sendTable(rec, null); }
+    if (landR && o.onName) rec.onName = o.onName;   // the GM's own copy, past the table's
     if (cvR) rec.hit = cvR.row;   // the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
     if (hsR) hsR.forEach(function(rxR) { if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rxR, chR); else sendTable(rxR, null); } pushRoll(rxR, res, scope, { toName: toName, cid: chR ? chR.id : '' }); });
@@ -11328,6 +11347,7 @@ function refreshGo() {   // a running fight goes in the save first, so that it c
 }
 if (_refreshBtn) _refreshBtn.addEventListener('click', refreshGo);
 if (typeof window.addEventListener === 'function') window.addEventListener('pagehide', refreshMark);
+try { net.backAt = !!(sessionStorage.getItem('wp_rejoin') || sessionStorage.getItem('wp_rehost')); } catch (e) {}   // on the way back to a table: said at once, since the table only answers after the page is up (tutorial.js)
 // after a refresh: straight back to where you were
 setTimeout(function() {
     var rj = null, rh = null;

@@ -3626,12 +3626,17 @@ function feedCtl(host, entry, c, f, spec, editable, sysI, cells, turnsOf, ups) {
     var sys = sysI || systemOf(getActiveCampaign()), byKey = {}; if (!sys) return;
     (Array.isArray(cells) ? cells : []).forEach(function(x) { if (x && typeof x.key === 'string') byKey[x.key] = x; });
     spec.feeds.forEach(function(fd) {
-        var sf = fieldById(sys, fd.from), t = feedCt(spec, fd); if (!sf || sf.kind !== 'item-list' || !sf.list || !t || (ups && ups[fd.key] === false)) return;   // 1.6.0 Only where: no chip on a row it does not stand on
+        var sf = fieldById(sys, fd.from), t = feedCt(spec, fd), off = !!ups && ups[fd.key] === false; if (!sf || sf.kind !== 'item-list' || !sf.list || !t) return;
         var left = feedCount(spec, entry, fd), st = feedLive(feedStack(entry, fd), left), cell = byKey[t.key], mx = cell && typeof cell.max === 'number' ? cell.max : null, lab = t.label || t.key, ln = sf.label || sf.key || 'its list', tn = turnsOf && typeof turnsOf[fd.key] === 'number' ? turnsOf[fd.key] : 0;
+        if (off && !st.length) return;   // 1.6.0 Only where: no chip on a row it does not stand on, but for what is still in it
         var parts = st.map(function(p) { var d = rowDef(sys, p.c); return ((d && d.def && d.def.name) || 'Loaded') + ' ' + fmtNum(p.n); }), said = parts.join(', then ');
         var w = el('span', 'sheet-chip sheet-item-load sheet-item-feed' + (st.length ? '' : ' sheet-item-load-none')); w.title = st.length ? lab + ' fires in this order: ' + said : 'Nothing loaded from ' + ln;
         w.appendChild(el('span', 'sheet-item-ctl', lab + ': ' + (st.length ? said : 'Empty')));
-        if (editable && (entry.qty | 0) === 1) {
+        if (off && editable && (entry.qty | 0) === 1) {   // nothing goes in, and what is in it still comes out
+            var ub = el('button', 'tool ghost sheet-item-ctb sheet-item-loadb', 'Unload'); ub.type = 'button'; ub.title = 'This row takes nothing from ' + ln + ' now. What comes out goes back with what it has left';
+            ub.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); feedSend(c, f, { op: 'load', rowId: rowIdOf(entry), feed: fd.key, from: null }); });
+            w.appendChild(ub);
+        } else if (editable && (entry.qty | 0) === 1) {
             var b = el('button', 'tool ghost sheet-item-ctb sheet-item-loadb', st.length ? 'Swap' : 'Load'); b.type = 'button';
             b.title = (st.length ? 'Swap or unload ' : 'Load ') + lab + ' from ' + ln + (tn > 0 ? '. A change takes ' + fmtNum(tn) + (tn === 1 ? ' turn' : ' turns') : '') + '. What comes out goes back with what it has left';
             b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); openFeedMenu(b, c, f, entry, sf, spec, sys, fd, false, tn, mx === null ? null : mx - left); });
@@ -11164,16 +11169,19 @@ function renderAll() {
 }
 // [systemcheck:rowfocus-start]
 // 1.6.0: what holds the focus in a row of the editor, by the row's own id and the list's or the box's own class, and the same control found in
-// the rows drawn since. Found by comparing, so no id of a system file is ever put in a selector
+// the rows drawn since. Found by comparing, so no id of a system file is ever put in a selector. A list's card or the Combat card repeats its boxes, so there a
+// control goes by its place among those of its class
 function rowFocusOf(a) {
     var row = a && a.closest ? a.closest('#systemModal .sys-row') : null, cls = a && typeof a.className === 'string' ? a.className.split(' ').filter(function(c) { return c.indexOf('sys-') === 0; })[0] : '';
-    return row && row.dataset && row.dataset.id && cls ? { id: row.dataset.id, cls: cls } : null;
+    if (row && row.dataset && row.dataset.id && cls) return { id: row.dataset.id, cls: cls };
+    var card = !row && cls ? a.closest('#systemModal .sys-list-card, #sysCombatBox') : null, nth = card ? Array.prototype.indexOf.call(card.querySelectorAll('.' + cls), a) : -1;
+    return nth >= 0 ? { lid: (card.dataset && card.dataset.lid) || '', cls: cls, nth: nth } : null;
 }
 function rowFocusBack(was) {
     if (!was) return;
-    var rows = document.querySelectorAll('#systemModal .sys-row'), row = null, i;
-    for (i = 0; i < rows.length && !row; i++) if (rows[i].dataset.id === was.id) row = rows[i];
-    var box = row ? row.querySelector('.' + was.cls) : null;
+    var rows = document.querySelectorAll(was.nth === undefined ? '#systemModal .sys-row' : '#systemModal .sys-list-card, #sysCombatBox'), row = null, i;
+    for (i = 0; i < rows.length && !row; i++) if (was.nth === undefined ? rows[i].dataset.id === was.id : (rows[i].dataset.lid || '') === was.lid) row = rows[i];
+    var box = !row ? null : was.nth === undefined ? row.querySelector('.' + was.cls) : row.querySelectorAll('.' + was.cls)[was.nth];
     if (box && box.focus) box.focus();
 }
 // [systemcheck:rowfocus-end]

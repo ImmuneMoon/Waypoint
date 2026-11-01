@@ -1125,10 +1125,15 @@ For system builders, more
   Attempter.<key>, for the fields a roll reads of its target.
 - Who holds whom can name an effect for the holder too, so that a roll's Needs
   can tell that they are holding.
-- A feed can have an Only where. On a row where it does not hold, that feed has
-  no chip, a shot takes nothing from it and an empty one stops nothing.
+- A feed can have an Only where. On a row where it does not hold, a shot takes
+  nothing from it and an empty one stops nothing. Its chip stays only while it
+  has something in it, with an Unload button, so what is in it still comes out.
 - A line attack, and a roll used on someone next to you, now work on the GM's
   own press. Before, the GM's roll went through and nothing landed.
+- The rolls you pick under Who holds whom now work with no Needs of their own.
+  Before, a plain Grab or Keep rolled and nothing happened.
+- In the System editor, a press on a list's card or on the Combat card keeps your
+  place, so the arrow keys step a menu and Space takes a tick back off.
 
 WAYPOINT 1.5.9 — What's New
 ============================

@@ -2782,6 +2782,13 @@ function cleanTier(v) {
 var HOLD_ALSO = 8, HOLD_ROLLS = Object.freeze(['take', 'pin', 'keep', 'squeeze', 'free']), HOLD_REF = /^f_[A-Za-z0-9_]{1,24}#\d{1,2}$/;
 function holdRefOk(v) { return typeof v === 'string' && (ROLL_ID.test(v) || HOLD_REF.test(v)); }
 function holdRefOf(act, row) { return isObj(row) && typeof row.f === 'string' && typeof row.i === 'number' ? row.f + '#' + row.i : typeof act === 'string' ? act : ''; }
+function holdsNamed(h, rolls, fields) {   // a roll a hold follows names itself as it is rolled, as a sneak's does (the sheet sends a plain roll's formula alone, so the host could not tell it), on the GM's view; a players' view keeps the mark, and says nothing of why. An action asks for nothing: it is pressed by name
+    HOLD_ROLLS.map(function(k) { return h[k]; }).concat(Array.isArray(h.also) ? h.also : []).forEach(function(ref) {
+        if (!holdRefOk(ref)) return; var at = ref.indexOf('#');
+        if (at < 0) { rolls.forEach(function(r) { if (r.id === ref) r.named = true; }); return; }
+        var fid = ref.slice(0, at), i = +ref.slice(at + 1); fields.forEach(function(f) { var r = f.id === fid && isObj(f.list) && Array.isArray(f.list.rolls) ? f.list.rolls[i] : null; if (isObj(r)) r.named = true; });
+    });
+}
 function cleanHolds(v) {
     if (!isObj(v) || typeof v.held !== 'string' || !EFFECT_ID.test(v.held)) return null;
     var o = { held: v.held }; if (typeof v.pinned === 'string' && EFFECT_ID.test(v.pinned)) o.pinned = v.pinned; if (typeof v.holder === 'string' && EFFECT_ID.test(v.holder)) o.holder = v.holder;   // holder: the one a character wears while they hold anyone
@@ -4138,6 +4145,7 @@ function cleanSystem(sys, opts) {
     var gmF = isObj(sys.combat) && (sys.combat.senses !== undefined || sys.combat.targetSize !== undefined || sys.combat.targetReads !== undefined || sys.combat.targetHit !== undefined) ? gmViewFields(sys, F) : null, gmKinds = map(), secret = null;   // senses S1: judged on the fields as the GM's view has them, in both views (1.6.0: TargetSize's field too)
     if (gmF) { gmF.forEach(function(f) { gmKinds[f.id] = f.kind; }); secret = secretFieldIds({ fields: gmF, items: sys.items, core: sys.core, tables: sys.tables }, F); }
     (isObj(sys.combat) && isObj(sys.combat.senses) && Array.isArray(sys.combat.senses.list) ? sys.combat.senses.list : []).forEach(function(s) { var t = isObj(s) && isObj(s.notice) && isObj(s.notice.stealth) ? s.notice.stealth.r : null; if (typeof t === 'string') out.rolls.forEach(function(r) { if (r.id === t) r.named = true; }); });   // 1.6.0
+    if (gmView && isObj(sys.combat) && isObj(sys.combat.holds)) holdsNamed(sys.combat.holds, out.rolls, out.fields);   // 1.6.0 Who holds whom
     out.combat = cleanCombat(sys.combat, resIds, gmKinds, secret, F, fieldIds, !gmView, function(id) { var hitF = null; out.fields.forEach(function(x) { if (!hitF && x.id === id) hitF = x; }); return hitF; });
     if (!gmView && typeof mentions === 'function') ['critAt', 'fumbleAt'].forEach(function(k) { if (out.combat[k] && mentions(out.combat[k])) delete out.combat[k]; });   // 1.6.0: the Combat card's critical range naming a GM-only value goes from the players' view (their rolls then read 3 and 18)
     if (out.combat.initiative && Array.isArray(out.combat.initiative.ties)) {   // initiative O2: a step that reads a GM-only value goes (the order is public: a player would learn which is higher), judged over the GM's view, in both views alike

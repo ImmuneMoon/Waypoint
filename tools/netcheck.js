@@ -1322,7 +1322,7 @@ pendingChecks.push((async () => {
             && JC(landOdd) === JC([null, null, null, null]),
             JC([lands, landOdd]));
         const FIX_CAM = "- A player's screen no longer opens where you last looked at a map.\n  A find or a pan of yours stays on your screen, and a map a player\n  arrives on opens on their own token there.\n";
-        const fixUnder = t => { const a = t.indexOf('\nFixes\n'), z = t.indexOf('\nWAYPOINT 1.5.3', a), at = t.indexOf(FIX_CAM); return a > 0 && z > a && at > a && at < z && t.slice(a + 1, at).indexOf('\n\n') < 0 && t.split(FIX_CAM).length === 2; };
+        const fixUnder = t => { const a = t.indexOf('\nFixes\n', t.indexOf('WAYPOINT 1.5.4')), z = t.indexOf('\nWAYPOINT 1.5.3', a), at = t.indexOf(FIX_CAM); return a > 0 && z > a && at > a && at < z && t.slice(a + 1, at).indexOf('\n\n') < 0 && t.split(FIX_CAM).length === 2; };
         check('the camera said: both release notes carry the line under 1.5.4\'s Fixes, and Help still tells the GM that a find moves no one else\'s screen, which is now so',
             ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fixUnder(fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, '\n')))
             && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').includes('Your screen moves to it and marks it for a moment. Nobody else&rsquo;s screen moves.'));

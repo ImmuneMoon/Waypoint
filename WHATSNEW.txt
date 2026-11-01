@@ -1,3 +1,9 @@
+WAYPOINT 1.6.2 — What's New
+============================
+
+Fixes
+- Small fixes from the hand tests of 1.6.0.
+
 WAYPOINT 1.6.1 — What's New
 ============================
 

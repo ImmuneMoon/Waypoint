@@ -1137,6 +1137,8 @@ For system builders, more
 - A blast's Defense roll now counts when it is a plain roll with no Needs or
   Then. Before, its card rolled, the blast never heard of it, and only Apply
   now let the blast go, whole.
+- A Malf or a critical range that reads a GM-only stat now counts on a player's
+  press. Before, their roll named nothing, and a worn weapon never jammed.
 
 WAYPOINT 1.5.9 — What's New
 ============================

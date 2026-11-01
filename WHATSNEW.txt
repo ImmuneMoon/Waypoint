@@ -1175,6 +1175,15 @@ For system builders, more
 - Under Full auto, a blast that waits for Defense rolls now says so on its card.
   Before, the card said Applied too soon.
 - A hold taken while All holds end where is true now ends at once.
+- A line's damage card from a player's press now reads as that player's card.
+  Before, it read as the GM's.
+- An effect that is on already now says so when a roll's Then, a line's hit or
+  a blast's affliction puts it on again. Before, it said the effect was on, or a
+  Then said nothing.
+- A job's counter now shows the job's own turns as its most, such as 1/3, even
+  where the counter has a most of its own.
+- In the System editor, the words about thrown blasts now stand at the top of the
+  Combat card. Before, they popped up wherever the pointer rested on the card.
 - In the System editor, a press on a list's card or on the Combat card keeps your
   place, so the arrow keys step a menu and Space takes a tick back off.
 - A blast's Defense roll now counts when it is a plain roll with no Needs or

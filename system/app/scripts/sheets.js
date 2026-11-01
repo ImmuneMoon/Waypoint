@@ -3565,7 +3565,7 @@ function ctCtl(host, entry, c, f, spec, editable, cells, ups) {   // ups (1.6.0 
         if (tmC) w.title = (t.label || t.key) + ': ' + ctClockWords(tmC);
         if (ed) { var mb = el('button', 'tool ghost sheet-item-ctb', '\u2212'); mb.type = 'button'; mb.title = 'One less'; mb.disabled = v <= 0; mb.addEventListener('click', function() { set(v - 1); }); w.appendChild(mb); }
         if (tmC && tmC.end && v <= 0) w.appendChild(el('b', 'sheet-item-ctv sheet-item-ctend', tmC.end));   // 1.6.0: a count down at 0 shows its word (Spoiled)
-        else w.appendChild(el('b', 'sheet-item-ctv', fmtNum(v) + (mx !== null ? '/' + fmtNum(mx) : ofJ !== null ? '/' + fmtNum(ofJ) : '')));
+        else w.appendChild(el('b', 'sheet-item-ctv', fmtNum(v) + (ofJ !== null ? '/' + fmtNum(ofJ) : mx !== null ? '/' + fmtNum(mx) : '')));
         if (ed) { var pb = el('button', 'tool ghost sheet-item-ctb', '+'); pb.type = 'button'; pb.title = 'One more'; pb.disabled = mx !== null && v >= mx; pb.addEventListener('click', function() { set(v + 1); }); w.appendChild(pb); }
         host.appendChild(w);
     });
@@ -9034,7 +9034,7 @@ function coverHitSays(cv, cm, Fx) {
 function renderCombat() { var was = rowFocusOf(document.activeElement); combatBody(); rowFocusBack(was); }
 // [systemcheck:combatdraw-end]
 function combatBody() {
-    var box = ui('sysCombatBox'); if (!box) return; box.textContent = '';
+    var box = ui('sysCombatBox'); if (!box) return; box.textContent = ''; box.appendChild(el('div', 'sys-note sys-combat-note', 'How thrown blasts behave at this campaign\u2019s table'));
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
     if (!cm.cover || typeof cm.cover !== 'object') cm.cover = { on: false, style: 'graded' };
     box.appendChild(labeledSelect('sys-combat-auto', 'Blast automation', [['full', 'Full auto — roll & apply'], ['roll', 'Roll to chat; apply by hand'], ['measure', 'Measure only']], cm.blastAuto, 'What happens when a blast is thrown: full = roll damage and apply it to tokens in range; roll = post the roll for a human to apply; measure = area only.'));

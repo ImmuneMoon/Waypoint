@@ -9031,7 +9031,7 @@ function listMoney(f, e, r, sys, char, F) {
 function listCts(f, e, r, F) {
     var cts = map();
     (Array.isArray(e.value) ? e.value : []).forEach(function(row) { var id = rowIdOf(row); if (!id) return; cts[id] = f.list.counters.map(function(t) { var o = { key: t.key, label: t.label || t.key, value: rowCt(row, t), max: r.ctMax(f, row, t.key) }; if (isObj(t.timer)) { o.tm = t.timer.dir; if (t.timer.end && o.value <= 0) o.word = t.timer.end; } return o; }); });   // 1.6.0: a timed counter says so, and its end word at 0
-    var jbC = listJobs(f.list); if (jbC.length && F) Object.keys(cts).forEach(function(id) { var rv = r.row(f.id, id); if (rv) cts[id].forEach(function(o) { if (o.max !== null) return; jbC.forEach(function(j) { if (j.job.ct === o.key && o.of === undefined) { var of = jobTurns(j, rv, F); if (of !== null) o.of = of; } }); }); });   // 1.6.0: a job's counter says how far it goes, as 2/5
+    var jbC = listJobs(f.list); if (jbC.length && F) Object.keys(cts).forEach(function(id) { var rv = r.row(f.id, id); if (rv) cts[id].forEach(function(o) { jbC.forEach(function(j) { if (j.job.ct === o.key && o.of === undefined) { var of = jobTurns(j, rv, F); if (of !== null) o.of = of; } }); }); });   // 1.6.0: a job's counter says how far it goes, as 2/5, over a most of its own
     e.cts = cts;
 }
 // 5h: the rows of an effects list that are switched on, as { name, icon, tone } (a library row by its definition; a missing one is skipped)

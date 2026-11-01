@@ -4615,11 +4615,11 @@ window.wpFitToGrid = fitToGrid;
               var secs = 0, lw = '';
               if (a.lasts && typeof a.lasts.n === 'string' && typeof S.affLastsSecs === 'function') { var lr = F.evaluate(a.lasts.n, { vars: vars }), ln = lr && lr.ok && typeof lr.value === 'number' && isFinite(lr.value) ? lr.value : 0; if (ln > 0) { secs = S.affLastsSecs(sys, ln, a.lasts.u); if (secs > 0) lw = lastsWords(sys, ln, a.lasts.u); } }   // rolled as the victim
               var fl = fxLists.filter(function(f) { var l = ch.values ? ch.values[f.id] : null; return Array.isArray(l) && l.some(function(x) { return x && x.ref === a.fx; }); })[0] || fxLists[0]; if (!fl) { odd++; return; }
-              var res = S.applyEffectOp(sys, ch, fl.id, { op: 'add', rowId: 'x_' + Math.random().toString(36).slice(2, 14), ref: a.fx }, F, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(cid)), secs: secs > 0 ? secs : undefined });
+              var onB = !!ch.values && Array.isArray(ch.values[fl.id]) && ch.values[fl.id].some(function(x) { return !!x && x.ref === a.fx && x.on !== false; }), res = S.applyEffectOp(sys, ch, fl.id, { op: 'add', rowId: 'x_' + Math.random().toString(36).slice(2, 14), ref: a.fx }, F, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(cid)), secs: secs > 0 ? secs : undefined });
               if (!res || !res.ok) { odd++; return; }
               var vals = {}; vals[fl.id] = res.value; if (res.clamp) Object.keys(res.clamp).forEach(function(k) { vals[k] = res.clamp[k]; });
               write(ch, cid, vals); out.on++;
-              if (window.wpNet && typeof window.wpNet.damageCard === 'function') window.wpNet.damageCard(ch, [head, 'Failed to resist' + vsW + '.', (def.vis === 'gm' ? 'An effect' : String(def.name || 'An effect').slice(0, 60)) + ' is on' + (lw ? ' for ' + lw : '') + '.']);   // to the GM and the character's player
+              if (window.wpNet && typeof window.wpNet.damageCard === 'function') window.wpNet.damageCard(ch, [head, 'Failed to resist' + vsW + '.', (def.vis === 'gm' ? 'An effect' : String(def.name || 'An effect').slice(0, 60)) + ' is on' + (lw ? ' for ' + lw : onB && !res.again ? ' already' : '') + '.']);   // to the GM and the character's player
           });
       });
       var who = nm || 'The blast';

@@ -13775,6 +13775,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('1.6.0 Every location, the cleaner: kept only as true, wears and pick dropped beside it; another word leaves no key; a layer with none keeps the keys it had; the players view holds no layer, as ever',
                 j(Object.keys(ckW[0])) === j(['list', 'at', 'wear', 'anyRow', 'whole']) && j(Object.keys(ckW[1])) === j(['list', 'at', 'wear']) && j(ckW[1]) === j(ckW[2]) && !('layers' in (ckP.combat.damage || {})), j([ckW, ckP.combat.damage]));
         }
+        {   // 1.6.0 Every location on a parts list: a layer takes any list, so a part fitted to a host wears as a worn piece does. Nothing of the part is special
+            const opS = cleanSystem({ v: 1, name: 'Wp', rolls: [],
+                fields: [
+                    { id: 'f_hp', key: 'HP', label: 'Hit Points', kind: 'resource', maxFormula: '20', min: -99, vis: 'all', edit: 'owner' },
+                    { id: 'f_ep', key: 'EP', label: 'Endurance', kind: 'resource', maxFormula: '10', vis: 'all', edit: 'owner' },
+                    { id: 'f_droid', key: 'Droid', label: 'Droid', kind: 'toggle', vis: 'all', edit: 'owner' },
+                    { id: 'f_locs', key: 'Locs', label: 'Locations', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'nat', label: 'Natural' }], cols: [{ key: 'DR', label: 'DR', formula: 'Row.nat + if(Blow.type = Type.bolt, Mods.Now, 0)' }] } },
+                    { id: 'f_frame', key: 'Frame', label: 'Frame', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_mods', label: 'Fit' }, stats: [], cols: [] } },
+                    { id: 'f_mods', key: 'Mods', label: 'Mods', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'prot', label: 'Ward' }, { key: 'fworn', label: 'Ward worn' }], cols: [{ key: 'Now', label: 'Ward now', formula: 'max(0, Row.prot - Row.fworn)' }] } }
+                ],
+                items: [{ id: 'i_torso', name: 'Torso', stats: { nat: 0 } }, { id: 'i_body', name: 'Body' }, { id: 'i_proj', name: 'Projector', stats: { prot: 20 } }],
+                combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: 'f_hp', damage: { pool: 'f_hp', major: 'HP.max / 2', locs: { list: 'f_locs', dr: 'DR' },
+                    types: [{ key: 'bolt', label: 'Bolt' }, { key: 'cut', label: 'Cut' }, { key: 'ion', label: 'Ion', mult: 0.5, pool: 'f_ep', noWear: true, alt: { if: 'Droid', pool: 'f_hp', mult: 1 } }],
+                    layers: [{ list: 'f_mods', at: 'if(Blow.type = Type.cut, 0, Row.prot)', wear: 'fworn', whole: true }] } } }, { F, gmView: true });
+            const opC = (w, droid) => { const c = { id: 'c_p', name: 'Unit 5', values: { f_hp: { cur: 20 }, f_ep: { cur: 10 }, f_locs: [{ id: 'w_t', defId: 'i_torso', qty: 1 }], f_frame: [{ id: 'w_h', defId: 'i_body', qty: 1 }], f_mods: [{ id: 'w_p', defId: 'i_proj', qty: 1, in: 'w_h' }] } }; if (w) c.values.f_mods[0].ov = { stats: { fworn: w }, held: ['fworn'] }; if (droid) c.values.f_droid = true; return cleanChar(c, opS); };
+            const opH = (inp, c) => DS(opS, c || opC(), Object.assign({ loc: 'w_t' }, inp), F), opW = r => r.values.f_mods ? r.values.f_mods[0].ov.stats.fworn : null;
+            const o1 = opH({ amt: 24, type: 'bolt' }), o2 = opH({ amt: 35, type: 'bolt' }, opC(1)), o3 = opH({ amt: 20, type: 'bolt' }), o4 = opH({ amt: 25, type: 'bolt' }, opC(19)), o5 = opH({ amt: 8, type: 'ion' }, opC(0, true)), o6 = opH({ amt: 8, type: 'ion' });
+            check('1.6.0 Every location on a parts list: a part fitted to its host wears by a hit that injures, 20 to 19; a Big Hit takes a quarter of 20, 19 to 14; a hit stopped wholly nothing; at 0 it is down; ion wears it on a droid and not on the living; the part stays fitted',
+                o1.ok && o1.info.dr === 20 && opW(o1) === 1 && o1.values.f_mods[0].in === 'w_h' && o2.info.major === true && opW(o2) === 6 && o2.lines.includes('Projector: 19 \u2192 14, damaged.') && !('f_mods' in o3.values) && opW(o4) === 20 && o4.lines.includes('Projector: 1 \u2192 0, down.') && opW(o5) === 1 && !('f_mods' in o6.values), j([o1.values, o2.lines, o3.values, o4.lines, o5.values, o6.values]));
+        }
         {   // 1.6.0 (asked by a campaign build's session): how a blow is judged against a weapon, each option absent as before (Blade, Dur 13)
             const wsO = o => { const s = mkD(); Object.assign(s.combat.damage.weapons[0], o); return cleanSystem(s, { F, gmView: true }); }, wsC = (w, c) => { const ch = chD(); ch.values.f_arms[0].ov = { stats: { durw: w, cond: c }, held: ['durw', 'cond'] }; return ch; };
             const wsH = (amt, type, ch, sy) => hitD({ amt: amt, type: type, weapon: 'w_blade', only: true }, ch, sy), wsF = r => r.values.f_arms ? r.values.f_arms[0].ov.stats : null, wsL = wsO({ test: 'listed' }), wsZ = wsO({ heavy: 'zero' }), wsB = wsO({ test: 'listed', heavy: 'zero' });

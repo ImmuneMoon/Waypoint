@@ -789,6 +789,11 @@ Systems
   from every feed, any feed at 0 stops the shot, and changing one feed leaves
   the other alone. A feed may hold mixed loads, which fire in the order stacked,
   and formulas read what is loaded, so a blow can take its dice from it.
+- The Combat card can keep who holds whom in a fight. A held character wears
+  an effect once however many hold them, one keep at the holder's turn keeps
+  all their holds, a squeeze lands on each one held, and a lost action or
+  going down ends them all. The held cannot walk away, the pinned cannot
+  move, and a holder drags them a short way or lets go.
 
 Postures
 - Postures are now your system's own. A system with no list of its own

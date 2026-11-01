@@ -4895,6 +4895,7 @@ function applyAction(r, c, label, row, on, cx) {   // cx (1.6.0): a crossing's r
     if (n && n.postApplyCard && res.lines.length) n.postApplyCard(c, label, res.lines, scope);
     if (res.gone) goneLocal(c.id, res.gone);   // 1.6.0: a row it used up, with its Undo
     if (n && typeof n.callsAfter === 'function') n.callsAfter(camp, act, null, vv, onT ? onT.ch : c, scope === 'gm');   // 1.6.0: Calls for
+    if (n && typeof n.holdsPressed === 'function') n.holdsPressed(camp, c, row ? row.f + '#' + row.i : r.id, tc);   // 1.6.0 Who holds whom
     if (onT && onIds.length && n && typeof n.allyCard === 'function') n.allyCard(c, onT.ch, onT.tok.charName || onT.tok.name || onT.ch.name, label, res.onLines, applyScope(sys, onT.ch, act, hit.length > 0 || gmRow || keptRow, F()));   // 1.5.9: the card of what moved on the one it was used on
 }
 // Stage 6 HUD G10: the host's round hook — on every new round of a combat (net.js combatStep / combatSet), each Each round action on every
@@ -7211,6 +7212,15 @@ function refreshErrors() {
         if (!crK || crK.length !== f.list.rolls.length) return;
         f.list.rolls.forEach(function(r, i) { if (!r || typeof r !== 'object' || typeof r.attemptKey !== 'string' || !r.attemptKey || !crK[i] || crK[i].attemptKey) return; (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Roll \u201c' + (r.label || 'Roll') + '\u201d: a kind of attempt needs Resisted by and a number stat of this list, so Save drops it.' }); });
     });
+    if (draft.combat && draft.combat.holds && typeof draft.combat.holds === 'object') {   // 1.6.0 Who holds whom, as the cleaner reads it
+        var hdD = draft.combat.holds, hdC = clean.combat && clean.combat.holds, hdE = function(m) { (errorsById.holds = errorsById.holds || []).push({ message: m }); };
+        if (!hdC) hdE('Who holds whom needs an effect the held wear. Save drops it.');
+        else {
+            if (typeof hdD.ends === 'string' && hdD.ends.trim() && hdC.ends !== hdD.ends.trim()) hdE('All holds end where is no formula Save can keep, so Save drops it.');
+            if (hdD.drag !== undefined && hdC.drag === undefined) hdE('Drags is no number above 0, so Save drops it.');
+            if (Array.isArray(hdD.also) && hdD.also.length > (hdC.also || []).length) hdE('Attacks that keep too takes ' + (window.wpSystemCore ? window.wpSystemCore.HOLD_ALSO : 8) + ' rolls at most. Save keeps the first ones.');
+        }
+    }
     draft.fields.forEach(function(f) {   // 1.6.0 Feeds: a Turns to change Save cannot keep
         if (!f || f.kind !== 'item-list' || !f.list || !Array.isArray(f.list.feeds)) return;
         var cfF = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0], keptF = cfF && cfF.list && Array.isArray(cfF.list.feeds) ? cfF.list.feeds : [];
@@ -8855,6 +8865,7 @@ function renderCombat() {
     if (typeof checksBox === 'function') checksBox(box, cm);   // 1.6.0 (the v2 sort's B1): the critical range, and a named success
     if (typeof blastBox === 'function') blastBox(box, cm);   // 1.5.8 explosives: the falloff, the throw's roll, the scatter, the hand, how far and how near, the ways and the fuse
     if (typeof barsBox === 'function') barsBox(box, cm);   // backlog 28: the token bars, under the blast's
+    if (typeof holdsBox === 'function') holdsBox(box, cm);   // 1.6.0 Who holds whom
     rangeBox(box, cm);   // range penalties R1: the system's range rule, under cover
     heightBox(box, cm);   // item 19 H2: the system's height modifier, under range
     lightBox(box, cm);   // lighting L4: the system's light rules
@@ -9425,6 +9436,47 @@ function barsBox(box, cm) {
     box.appendChild(wrap);
 }
 // [sinkcheck:barsbox-end]
+// [sinkcheck:holdsbox-start]
+// 1.6.0 Who holds whom: combat.holds, off until Add. Every text lands as a value or a text node; Save cleans it (systemcore cleanHolds); refreshErrors says what it would drop, under errorCell('holds')
+function holdRollOpts(cur) {
+    var o = [['', 'None']], d = typeof draft !== 'undefined' && draft ? draft : {};
+    (Array.isArray(d.rolls) ? d.rolls : []).forEach(function(r) { if (r && typeof r.id === 'string') o.push([r.id, r.label || 'Roll']); });
+    (Array.isArray(d.fields) ? d.fields : []).forEach(function(f) { if (f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) f.list.rolls.forEach(function(r, i) { o.push([f.id + '#' + i, (f.label || f.key || 'List') + ': ' + ((r && r.label) || 'Roll')]); }); });
+    if (typeof cur === 'string' && cur && !o.some(function(x) { return x[0] === cur; })) o.push([cur, 'A roll that is gone']);
+    return o;
+}
+function holdsBox(box, cm) {
+    var wrap = el('div', 'sys-holds'), h = cm.holds && typeof cm.holds === 'object' ? cm.holds : null, fxs = (Array.isArray(draft.effects) ? draft.effects : []).filter(function(e) { return e && typeof e.id === 'string'; });
+    wrap.appendChild(el('div', 'sys-light-head', 'Who holds whom'));
+    wrap.appendChild(el('div', 'sys-note', h ? 'The host keeps who holds whom in a fight. Each roll below may be a roll of the system or of a list.' : 'Off. The GM keeps who holds whom by hand.'));
+    if (!h) { var bar = el('div', 'sys-flags'), ad = el('button', 'tool ghost sys-btn', 'Keep who holds whom'); ad.dataset.act = 'holdadd'; ad.disabled = !fxs.length; ad.title = fxs.length ? 'A hold puts an effect of the library on whoever is held' : 'Add an effect to the library first: a held character wears it'; bar.appendChild(ad); wrap.appendChild(bar); box.appendChild(wrap); return; }
+    var fxO = function(none, cur) { var o = none ? [['', none]] : []; fxs.forEach(function(e) { o.push([e.id, e.name || e.id]); }); if (typeof cur === 'string' && cur && !o.some(function(x) { return x[0] === cur; })) o.push([cur, 'An effect that is gone']); return o; };
+    var sel = function(k, cap, o, cur, title) { var l = labeledSelect('sys-hold-pick', cap, o, typeof cur === 'string' ? cur : '', title); l.querySelector('select').dataset.k = k; wrap.appendChild(l); };
+    sel('held', 'The held wear', fxO('', h.held), h.held, 'The effect a held character wears, once however many hold them');
+    sel('pinned', 'The pinned wear', fxO('None', h.pinned), h.pinned, 'The effect a pinned character wears as well');
+    [['take', 'A roll that takes hold', 'A success takes hold of the roller\u2019s target'], ['pin', 'A roll that pins', 'A success pins someone the roller holds'], ['keep', 'The keep', 'One press at the holder\u2019s turn keeps every hold they have. With none, their holds end at its end. None named: holds need no keeping'], ['squeeze', 'A squeeze', 'A damage roll: its blow lands on each one held, with no attack and no resist, and it keeps the holds'], ['free', 'A roll that breaks free', 'The held roll it at the one who holds them. A success ends that hold. One that is resisted ends it once the holder fails']].forEach(function(x) { sel(x[0], x[1], holdRollOpts(h[x[0]]), h[x[0]], x[2]); });
+    var alsoW = el('div', 'sys-flags'); alsoW.appendChild(el('span', 'sys-num-cap', 'Attacks that keep too')); holdRollOpts('').slice(1).forEach(function(o) { var l = checkLabel('sys-hold-also', Array.isArray(h.also) && h.also.indexOf(o[0]) >= 0, o[1], 'Aimed at someone held, this roll keeps every hold'); l.querySelector('input').dataset.ref = o[0]; alsoW.appendChild(l); }); wrap.appendChild(alsoW);
+    wrap.appendChild(labeledNum('sys-hold-drag', 'Drags, in cells a turn', typeof h.drag === 'number' ? h.drag : '', 'A holder who moves this far or less takes those held along. Further, or blank, and walking off lets go'));
+    var eL = el('label', 'sys-combat-item'); eL.appendChild(el('span', 'sys-num-cap', 'All holds end where')); eL.appendChild(input('sys-hold-ends field', typeof h.ends === 'string' ? h.ends : '', 'A formula of the holder\u2019s names, no dice, true while they have lost their action or are down. Then every hold of theirs ends at once', 'Blank: nothing ends them')); wrap.appendChild(eL);
+    var dl = el('button', 'tool ghost sys-btn', 'Stop keeping who holds whom'); dl.dataset.act = 'holddel'; wrap.appendChild(dl);
+    var err = errorCell('holds'); err.dataset.errFor = 'holds'; wrap.appendChild(err);
+    box.appendChild(wrap);
+}
+function onHoldChange(t) {
+    var c = t.className || '', h = draft.combat && draft.combat.holds; if (typeof c !== 'string' || c.indexOf('sys-hold-') < 0 || !h) return false;
+    if (c.indexOf('sys-hold-pick') >= 0) { if (t.value) h[t.dataset.k] = t.value; else delete h[t.dataset.k]; }
+    else if (c.indexOf('sys-hold-also') >= 0) { var al = Array.isArray(h.also) ? h.also.slice() : [], at = al.indexOf(t.dataset.ref); if (t.checked && at < 0) al.push(t.dataset.ref); if (!t.checked && at >= 0) al.splice(at, 1); if (al.length) h.also = al; else delete h.also; }
+    else return false;
+    markDirty(); patchErrors(); return true;
+}
+function onHoldInput(t) {
+    var c = t.className || '', h = draft.combat && draft.combat.holds; if (typeof c !== 'string' || c.indexOf('sys-hold-') < 0 || !h) return false;
+    if (c.indexOf('sys-hold-ends') >= 0) { var ev = t.value.slice(0, LIMITS.formula).trim(); if (ev) h.ends = ev; else delete h.ends; }
+    else if (c.indexOf('sys-hold-drag') >= 0) { if (String(t.value).trim() === '') delete h.drag; else h.drag = Number(t.value); }
+    else return false;
+    markDirty(); patchErrors(); return true;
+}
+// [sinkcheck:holdsbox-end]
 function onBarsChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-tokbar-') < 0) return false;
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), arr = Array.isArray(cm.bars) ? cm.bars : (cm.bars = [null, null]);
@@ -10957,6 +11009,7 @@ function onInput(e) {
     if (onDamageInput(t)) return;   // 1.5.6: the Taking damage box
     if (typeof onBlastInput === 'function' && onBlastInput(t)) return;   // 1.5.8 explosives
     if (onChecksInput(t)) return;   // 1.6.0: the critical range and a named success
+    if (typeof onHoldInput === 'function' && onHoldInput(t)) return;   // 1.6.0 Who holds whom
     var fxd = fxOfRow(t);   // 5h: a library effect's text boxes
     if (fxd) {
         var fc = t.className || '';
@@ -11203,6 +11256,7 @@ function onChange(e) {
     if (pnx && t.value.trim() && t.parentNode && !t.parentNode.querySelector('.sys-' + pnx[1] + (+pnx[2] + 1) + 'f')) { markDirty(); renderAll(); return; }
     if (c.indexOf('sys-combat-auto') >= 0) { draft.combat.blastAuto = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-roller') >= 0) { draft.combat.blastRoller = t.value; markDirty(); patchErrors(); return; }
+    if (typeof onHoldChange === 'function' && onHoldChange(t)) return;   // 1.6.0 Who holds whom
     if (typeof onBlastChange === 'function' && onBlastChange(t)) return;   // 1.5.8 explosives
     if (c.indexOf('sys-combat-checks') >= 0) { if (t.value === 'under3d6' || t.value === 'fixed') draft.combat.checks = t.value; else delete draft.combat.checks; markDirty(); patchErrors(); renderCombat(); return; }   // Stage 6 F8 (1.6.0: or criticals at fixed rolls, whose two boxes it shows)
     if (c.indexOf('sys-combat-hp') >= 0) { draft.combat.hpResource = t.value; markDirty(); patchErrors(); return; }
@@ -11536,6 +11590,11 @@ function onClick(e) {
         if (b.dataset.act === 'lvlcapadd') { if (cArr.length >= LIMITS.lvlCaps) { toast('At most ' + LIMITS.lvlCaps + ' caps a list.'); return; } cArr.push({ at: typeof lvC.def === 'number' ? lvC.def : typeof lvC.min === 'number' ? lvC.min : 0, n: 1 }); lvC.caps = cArr; }
         else { var cRw = b.closest('.sys-list-lcap'), cI = cRw ? +cRw.dataset.ci : -1; if (!(cI >= 0 && cI < cArr.length)) return; cArr.splice(cI, 1); }
         if (!cArr.length) delete lvC.caps;
+        markDirty(); renderAll(); return;
+    }
+    if (b.dataset.act === 'holdadd' || b.dataset.act === 'holddel') {   // 1.6.0 Who holds whom: on, with the first effect of the library, or off
+        var cmH = draft.combat || (draft.combat = {}), fxH = (Array.isArray(draft.effects) ? draft.effects : []).filter(function(e) { return e && typeof e.id === 'string'; })[0];
+        if (b.dataset.act === 'holddel') delete cmH.holds; else if (fxH) cmH.holds = { held: fxH.id };
         markDirty(); renderAll(); return;
     }
     if (lcb && /^feed(add|del)$/.test(b.dataset.act || '')) {   // 1.6.0 Feeds: a Lists card's feed buttons

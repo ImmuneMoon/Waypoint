@@ -3208,6 +3208,7 @@ net.syncCharDelta = function(id, values) {   // changed values, filtered to what
     if (typeof window !== 'undefined' && window.wpRecord) { try { window.wpRecord.sheet(getActiveCampaign(), id); } catch (e) { console.error(e); } }   // 1.6.0: the game record reads every change of a character here
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !(camp && camp.chars && typeof id === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, id) ? camp.chars[id] : null) || !window.wpSheets) return;
     var view = window.wpSheets.playerSystem(camp); if (!view) return;
+    if (typeof holdsWatch === 'function') { try { holdsWatch(id); } catch (e) { console.error(e); } }   // 1.6.0 Who holds whom: a holder's lost action or Down, whatever moved them there
     var src = camp.chars[id], probe = { id: id, name: src.name, ownerId: src.ownerId, npc: src.npc, making: src.making, values: {} };   // making (Onboarding F3): charFor itself refuses it to anyone but its owner
     Object.keys(values).forEach(function(f) { probe.values[f] = 0; });
     var libD = fxLib(camp.system), itD = itemLib(camp.system), ownSees = S.charFor(probe, view, src.ownerId, { probe: true }), linesMove = !!ownSees && Object.keys(values).some(function(f) { return ownSees.values[f] !== undefined; });   // any input a teammate's host-worked lines may read
@@ -4350,6 +4351,7 @@ function handlePos(msg, conn) {
             }
             if (msg.final) { turnNote(conn, 'That move went through a wall.', w.charId); toast((w.charName || 'A token') + ' moved through a wall.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved through a wall.' }); }
         }
+        if (typeof holdMoveCheck === 'function' && holdMoveCheck(camp, map, w, frW, msg, conn) === 'stop') return;   // 1.6.0 Who holds whom: the held and the pinned, through the fight's move mode
         if (turnLimitCheck(camp, map, w, frW, msg, conn) === 'stop') return;   // T3b: the move limit, while it is their turn
         var wasW = { x: w.x, y: w.y, rot: w.rot || 0, front: w.front || 0 };   // where the token stood before this move (a final that leaves it there, with no drag that moved it, is not saved: below)
         if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's move lands
@@ -4373,6 +4375,7 @@ function handlePos(msg, conn) {
         if (msg.final) {
             if (typeof triggerFire === 'function') triggerFire(conn, map, w, frW);   // secrets (R2): a trigger zone's message, to the dropper alone (their copy holds none), as the gesture carries the token in
             if (w.isChar && typeof window !== 'undefined' && typeof window.wpMineCheck === 'function') { try { window.wpMineCheck(map, w, frW); } catch (e) { console.error(e); } }   // 1.5.8 explosives: a mine a token steps into goes off (the host's own map: a player's drop names none)
+            if (w.isChar && typeof holdsMoved === 'function') { try { holdsMoved(camp, map, msg.itemId, w, frW); } catch (e) { console.error(e); } }   // 1.6.0 Who holds whom: a drag, a hold left behind
             var sameW = function(o) { return w.x === o.x && w.y === o.y && (w.rot || 0) === o.rot && (w.front || 0) === o.front; };
             var stillW = sameW(wasW) && (loneW || sameW(frW));   // security (2026-10-01): a final that leaves the token as it stood before it and, a drag open, as it stood when the drag began (a drop sent twice, a turn to its own facing, a drag that never moved it) changes nothing on disk and is not saved; a drag that moved it, even back to its start, is (its moves were never saved)
             var toRoom = window.wpAutoRoom ? window.wpAutoRoom(w, map) : null;
@@ -4471,6 +4474,7 @@ function turnLimitCheck(camp, map, w, frW, msg, conn) {
 // its move — or ''. The patch path asks it: a map copy a client saves after a drop (whose final pos may have been lost) must never land the move
 function moveRefused(camp, map, mapId, w, fx, fy, tx, ty) {
     if (moveMode(camp, 'walls') === 'refuse' && window.wpFog && window.wpFog.moveBlocked && window.wpFog.moveBlocked(map, w, fx, fy, tx, ty)) return 'A wall is in the way: your token goes back.';
+    if (moveMode(camp, 'move') === 'refuse' && typeof holdMoveWhy === 'function') { var hwR = holdMoveWhy(camp, map, mapId, w, fx, fy, tx, ty); if (hwR) return hwR; }   // 1.6.0 Who holds whom
     var cb = turnCombatOf(camp, mapId, w); if (!cb) return '';
     var cur = cb.rows[cb.turn]; if (!cur || cur.tokId !== w.id) return moveMode(camp, 'order') === 'refuse' ? 'It is not your turn: your token goes back.' : '';
     var st = own(net.turnMove, cb.id) ? net.turnMove[cb.id] : null; if (!st || st.tokId !== w.id || st.rowId !== cur.id || typeof st.allow !== 'number' || moveMode(camp, 'move') !== 'refuse') return '';
@@ -4479,6 +4483,7 @@ function moveRefused(camp, map, mapId, w, fx, fy, tx, ty) {
 }
 // T3b: a move that lands through a map copy (its drag's final pos was lost) still counts against the turn's move; its note, or ''
 function moveCounted(camp, map, mapId, w, fx, fy, tx, ty) {
+    if (typeof holdsMoved === 'function') { try { holdsMoved(camp, map, mapId, Object.assign({}, w, { x: tx, y: ty }), { x: fx, y: fy }); } catch (e) { console.error(e); } }   // 1.6.0 Who holds whom: a move that lands this way drags, or lets go, as a final's does
     var cb = turnCombatOf(camp, mapId, w); if (!cb) return '';
     var cur = cb.rows[cb.turn], st = own(net.turnMove, cb.id) ? net.turnMove[cb.id] : null; if (!cur || cur.tokId !== w.id || !st || st.tokId !== w.id || st.rowId !== cur.id || typeof st.allow !== 'number') return '';
     var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '', mvC = {}, d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, fx, fy, tx, ty, dg, mvC) : 0;
@@ -5126,6 +5131,7 @@ function turnEnded(mapId, c, row, round, at) {
     try { if (window.wpSheets && window.wpSheets.turnEndHook) window.wpSheets.turnEndHook(mapId, Object.assign({}, c, { round: round, turn: 0, rows: [row] })); } catch (e) { console.error(e); }
     try { if (typeof turnFxEnd === 'function') turnFxEnd(mapId, c, row, round); } catch (e) { console.error(e); }   // after the hook: what is rolled at a turn's end still reads what wears off there
     try { if (typeof turnJobEnd === 'function') turnJobEnd(mapId, c, row, round); } catch (e) { console.error(e); }   // 1.6.0: a job with no press this turn starts again
+    try { if (typeof holdsTurnEnd === 'function') holdsTurnEnd(mapId, c, row, round); } catch (e) { console.error(e); }   // 1.6.0 Who holds whom: a holder's turn, lived once
 }
 // [netcheck:turnended-end]
 // [netcheck:job-start]
@@ -5158,6 +5164,7 @@ function fightReachKept(had, f) {   // a roster edit: how far the fight has gone
     if (had.turned && typeof had.turned === 'object') f.turned = had.turned;
     if (had.fxEnded && typeof had.fxEnded === 'object') f.fxEnded = had.fxEnded;   // 1.6.0: and whose end-of-turn effects it has counted
     if (Array.isArray(had.rows) && Array.isArray(f.rows)) had.rows.forEach(function(r) { if (!r || (!r.holdFor && r.sf !== 1 && r.hk !== 1)) return; var n = f.rows.filter(function(x) { return !!x && x.id === r.id; })[0]; if (!n) return; if (r.holdFor && n.held === 1) n.holdFor = r.holdFor; if (r.sf === 1) n.sf = 1; if (r.hk === 1) n.hk = 1; });   // 1.6.0: a named hold, its word and what it kept
+    if (Array.isArray(had.hl)) f.hl = had.hl;   // 1.6.0: and who holds whom
     if (Array.isArray(had.ps)) f.ps = had.ps.slice();   // initiative O5: who had their turn this round, in the order they had it
     if (Array.isArray(had.pp)) f.pp = had.pp;   // ...and in the rounds before (a step back's way)
 }
@@ -5450,6 +5457,7 @@ function combatOver(fid, had, quiet, title) {   // fold 2: by the fight's own id
     var campO = had ? getActiveCampaign() : null, gone = !!had && !(campO && campO.items && Object.prototype.hasOwnProperty.call(campO.items, mapId)), nmO = had ? (gone ? (typeof title === 'string' && title ? title : 'the deleted map') : mapTitleOf(mapId)) : '';
     var endO = had && typeof fightEndTime === 'function' ? fightEndTime(campO, had, nmO) : null;   // 152 fold 4: the round it ends in, lived up to its time and one round's length
     if (had) { try { turnActsEnd(mapId, had); } catch (e) { console.error(e); } }   // T4
+    if (had && typeof holdsGone === 'function') { try { holdsGone(campO, had); } catch (e) { console.error(e); } }   // 1.6.0 Who holds whom: every hold in it ends with the fight, its effects with them
     if (had) { logEvent('table', 'Combat ended on ' + nmO + ' after ' + had.round + ' round' + (had.round === 1 ? '' : 's')); if (!quiet) toast('Combat ended on ' + nmO + '.'); }
     if (typeof fid === 'string') { delete net.combats[fid]; if (net.turnMove) delete net.turnMove[fid]; }   // fold 2: by its id, and its turn's move with it
     if (had && net.fightOn === fid) net.fightOn = typeof fightBehind === 'function' ? fightBehind() : (fightIds()[0] || null);   // fold 4: the Active fight ended: the one furthest behind is played
@@ -5470,6 +5478,163 @@ function combatFreed(camp) {   // a deleted map's fight is over: what the charac
     Object.keys(net.turnSpent || {}).forEach(function(id) { if (!charCombat(camp, id)) { delete net.turnSpent[id]; actsTell(camp, id, true); } });
     fxClockTick();
 }
+// [netcheck:holds-start]
+// 1.6.0 Who holds whom (combat.holds, the host's alone; systemcore cleanHolds). A fight's hl holds one record a pair of tokens, its own as rh and th are: it
+// never travels (combatsFor names what it sends), a roster edit keeps it (fightReachKept), the save keeps it with the fight (fightsRead cleans it), and no
+// reader of a fight needs know of it. { by, on } the holder's and the held token, { bc, oc } their characters, pin 1 where pinned, k the round it was last
+// kept in, dr what the holder has dragged this turn. A player sees the effect, never a record. A turn's end is lived once (turnEnded), so a step back, a
+// correction, ends nothing and asks for no keep again
+var HOLDS_MAX = 32, _holdBusy = false, HOLD_WHY = Object.freeze({ free: 'Broke free', unkept: 'Not kept', lost: 'Lost the action or went down', parted: 'Moved apart', walked: 'Walked off', gone: 'Token gone', gm: 'By the GM' });
+function holdsRules(camp) { var h = camp && camp.system && camp.system.combat ? camp.system.combat.holds : null; return h && typeof h === 'object' ? h : null; }
+function holdsOf(c) { return c && Array.isArray(c.hl) ? c.hl : []; }
+function holdLog(step, facts) { if (typeof window !== 'undefined' && window.wpStepLog) window.wpStepLog('holds v1', step, facts || {}); }
+function holdTok(map, id) { return map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(w) { return !!w && w.id === id; }) || null : null; }
+function holdMap(camp, c) { return c && camp && camp.items && own(camp.items, c.mapId) ? camp.items[c.mapId] : null; }
+function holdsAll(pick) { var out = []; fightIds().forEach(function(fid) { var c = net.combats[fid]; holdsOf(c).forEach(function(x) { if (pick(x)) out.push({ c: c, rec: x }); }); }); return out; }
+function holdTokOf(camp, mapId, charId) {   // the character's token in a fight on that map
+    var map = camp && camp.items && own(camp.items, mapId) ? camp.items[mapId] : null, hit = null;
+    fightsOn(mapId).forEach(function(fid) { net.combats[fid].rows.forEach(function(r) { var w = !hit && r && typeof r.tokId === 'string' ? holdTok(map, r.tokId) : null; if (w && w.charId === charId) hit = w; }); });
+    return hit;
+}
+function holdTell(camp, id, text) { var ch = camp && camp.chars && own(camp.chars, id) ? camp.chars[id] : null; if (ch && ch.ownerId && !ch.npc && typeof noteOwner === 'function') noteOwner(ch.ownerId, text, id); }
+function holdFx(camp, ch, id, on) {   // an effect on or off through the effects' own rules, written and sent as any change of a character; as asked already, nothing moves
+    var S = SC(), F = window.wpFormula; if (!S || !F || !camp.system) return;
+    var r = S.applyAct(camp.system, ch, { apply: [{ fx: id, on: on }] }, S.makeResolver(camp.system, ch, F, null), F, null, null, undefined, null, null, { now: Date.now(), inCombat: true, onInCombat: false });
+    if (!r || !r.ok || !r.values || !Object.keys(r.values).length) { if (r && r.reason && r.reason !== 'none') holdLog('failed', { at: 'effect', reason: r.reason }); return; }
+    ch.values = ch.values || {}; Object.keys(r.values).forEach(function(k) { ch.values[k] = r.values[k]; }); ch.updated = Date.now();
+    if (typeof saveRemoteSoon === 'function') saveRemoteSoon(); if (net.syncCharDelta) net.syncCharDelta(ch.id, r.values);
+    if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(ch.id);
+}
+function holdsSync(camp, ids) {   // each character's effects as the records now stand: on once however many hold it, off with the last
+    var r = holdsRules(camp); if (!r) return; _holdBusy = true;
+    try {
+        ids.forEach(function(id, i) {
+            var ch = camp.chars && own(camp.chars, id) ? camp.chars[id] : null; if (!ch || ids.indexOf(id) !== i) return;
+            var on = holdsAll(function(x) { return x.oc === id; });
+            holdFx(camp, ch, r.held, on.length > 0); if (r.pinned) holdFx(camp, ch, r.pinned, on.some(function(x) { return x.rec.pin === 1; }));
+        });
+    } finally { _holdBusy = false; }
+}
+function holdEnd(camp, c, recs, why) {   // those records gone, the effects with them, and each side told in words that name nobody
+    var left = holdsOf(c).filter(function(x) { return recs.indexOf(x) < 0; }); if (left.length) c.hl = left; else delete c.hl;
+    holdsSync(camp, recs.map(function(x) { return x.oc; }));
+    recs.forEach(function(x) { holdTell(camp, x.bc, 'You let go.'); holdTell(camp, x.oc, 'You are no longer held.'); if (typeof recLine === 'function') recLine('fight', (camp.chars && own(camp.chars, x.bc) ? camp.chars[x.bc].name : '') || 'Someone', 'Lets go', HOLD_WHY[why] || ''); });
+    holdLog('ended', { n: recs.length, why: why }); if (typeof fightsKeepSoon === 'function') fightsKeepSoon();
+}
+function holdPut(camp, mapId, by, onId, pin) {   // a hold of the token by on the token onId, or pinned; words where there can be none
+    var fid = by ? fightOfTok(mapId, by.id) : null, c = fid ? net.combats[fid] : null, map = holdMap(camp, c), on = holdTok(map, onId);
+    if (!c || !on || fightOfTok(mapId, onId) !== fid) return 'Both must be in the same fight.';
+    if (!on.isChar || !by.isChar || typeof on.charId !== 'string' || typeof by.charId !== 'string' || on.charId === by.charId || !own(camp.chars, on.charId) || !own(camp.chars, by.charId)) return 'Only characters hold one another.';
+    var had = holdsOf(c).filter(function(x) { return x.by === by.id && x.on === onId; })[0];
+    if (!had) { if (pin) return 'Hold them first.'; if (holdsOf(c).length >= HOLDS_MAX) return 'That fight holds as many holds as it may.'; c.hl = holdsOf(c).concat([{ by: by.id, on: onId, bc: by.charId, oc: on.charId, k: c.round }]); holdTell(camp, on.charId, 'You are held.'); }
+    else if (pin) { had.pin = 1; had.k = c.round; holdTell(camp, on.charId, 'You are pinned.'); }
+    holdsSync(camp, [on.charId]); holdLog(pin ? 'pinned' : 'taken', { n: holdsOf(c).length }); if (typeof fightsKeepSoon === 'function') fightsKeepSoon();
+    return '';
+}
+function holdsBar(camp, ch, ref) {   // why a roll named by combat.holds cannot be made now: words, or ''
+    var r = holdsRules(camp); if (!r || !ch || typeof ref !== 'string' || !ref) return '';
+    if ((ref === r.squeeze || ref === r.keep) && !holdsAll(function(x) { return x.bc === ch.id; }).length) return 'You hold nobody.';
+    if (ref === r.free && !holdsAll(function(x) { return x.oc === ch.id; }).length) return 'Nobody holds you.';
+    return '';
+}
+// a squeeze: its roll's card lands on the first held character and a copy of it on each of the rest, with no attack and no resist. The copies, to post as the roll is
+function holdsSqueeze(camp, ch, ref, rec, D) {
+    var r = holdsRules(camp); if (!r || !ch || !ref || ref !== r.squeeze || !rec || rec.dmg !== 1) return null;
+    var base = typeof rec.label === 'string' && rec.label ? rec.label : 'Squeeze', out = [], first = true;
+    holdsAll(function(x) { return x.bc === ch.id; }).forEach(function(y) {
+        var oc = camp.chars && own(camp.chars, y.rec.oc) ? camp.chars[y.rec.oc] : null, map = holdMap(camp, y.c), tk = holdTok(map, y.rec.on); if (!oc) return;
+        var said = (base + ': ' + String((tk && !tk.hidden && (tk.charName || tk.name)) || 'someone')).slice(0, 60);
+        if (first) { rec.dmgOn = oc.id; rec.label = said; first = false; return; }
+        var o = Object.assign({}, rec, { id: D.uid(), dmgOn: oc.id, label: said }); delete o.rid; out.push(o);
+    });
+    return out;
+}
+// what a roll or an action named by combat.holds did, once it has landed. pass: its verdict, null for one that tests nothing; tc: its token context; was: the
+// attempt it resisted; made: the attempt it made
+function holdsRolled(camp, ch, ent, ref, pass, tc, was, made) {
+    var r = holdsRules(camp); if (!r || !ch) return;
+    if (was && was.hf && pass === false) { var cW = orderById(was.hf.f), goneW = holdsOf(cW).filter(function(x) { return x.by === was.hf.by && x.on === was.hf.on; }); if (goneW.length) holdEnd(camp, cW, goneW, 'free'); }   // the holder failed to resist: free
+    if (typeof ref !== 'string' || !ref) return;
+    var rng = tc && tc.range && typeof tc.range.tid === 'string' && typeof tc.range.mapId === 'string' ? tc.range : null, ok = pass !== false;
+    if ((ref === r.take || ref === r.pin) && ok && rng) { var pw = holdPut(camp, rng.mapId, holdTokOf(camp, rng.mapId, ch.id), rng.tid, ref === r.pin && ref !== r.take); if (pw) holdTell(camp, ch.id, pw); }
+    var mine = holdsAll(function(x) { return x.bc === ch.id; });
+    if (mine.length && ((ref === r.keep && ok) || ref === r.squeeze || (rng && Array.isArray(r.also) && r.also.indexOf(ref) >= 0 && mine.some(function(x) { return x.rec.on === rng.tid; })))) { mine.forEach(function(x) { x.rec.k = x.c.round; }); holdLog('kept', { n: mine.length }); if (typeof fightsKeepSoon === 'function') fightsKeepSoon(); }
+    if (ref !== r.free || !ok) return;
+    var onMe = holdsAll(function(x) { return x.oc === ch.id; }), hit = rng ? onMe.filter(function(x) { return x.rec.by === rng.tid; }) : [], one = hit[0] || (onMe.length === 1 ? onMe[0] : null);
+    if (!one) { if (onMe.length) holdTell(camp, ch.id, 'Point at the one you break free from.'); return; }
+    if (typeof made === 'string' && made) { var ar = typeof attemptRec === 'function' ? attemptRec(made) : null; if (ar) ar.hf = { f: one.c.id, by: one.rec.by, on: one.rec.on }; return; }   // its target resists: the hold waits for that roll
+    if (!(ent && (ent.resisted === true || typeof ent.resistBy === 'string'))) holdEnd(camp, one.c, [one.rec], 'free');
+}
+function holdsPrune(camp, c) {   // a token gone from the map or the fight takes its records with it
+    var l = holdsOf(c); if (!l.length) return; var map = holdMap(camp, c), inF = Object.create(null); c.rows.forEach(function(r) { if (r && typeof r.tokId === 'string') inF[r.tokId] = 1; });
+    var gone = l.filter(function(x) { return inF[x.by] !== 1 || inF[x.on] !== 1 || !holdTok(map, x.by) || !holdTok(map, x.on); }); if (gone.length) holdEnd(camp, c, gone, 'gone');
+}
+function holdsGone(camp, c) { var l = holdsOf(c); if (!l.length) return; delete c.hl; holdsSync(camp, l.map(function(x) { return x.oc; })); holdLog('ended', { n: l.length, why: 'fight' }); }   // the fight over: every hold in it, quietly
+function holdsWatch(id) {   // a holder who has lost their action or gone down lets go of all at once, whatever moved them there
+    if (_holdBusy || !fightIds().length) return;
+    var camp = getActiveCampaign(), r = holdsRules(camp), S = SC(), F = window.wpFormula; if (!r || !r.ends || !S || !F || !camp.chars || !own(camp.chars, id)) return;
+    var mine = holdsAll(function(x) { return x.bc === id; }); if (!mine.length) return;
+    var v = null; try { v = S.makeResolver(camp.system, camp.chars[id], F, null); } catch (e) { v = null; } if (typeof v !== 'function' || !S.rollNeedsOk({ needs: r.ends }, v, F)) return;
+    var byFight = Object.create(null); mine.forEach(function(x) { (byFight[x.c.id] = byFight[x.c.id] || []).push(x.rec); });
+    Object.keys(byFight).forEach(function(fid) { holdEnd(camp, net.combats[fid], byFight[fid], 'lost'); });
+}
+function holdsTurnEnd(mapId, c, row, round) {   // the holder's turn: one keep holds them all, and with none their holds end
+    var camp = getActiveCampaign(), r = holdsRules(camp); if (!r || !c) return; holdsPrune(camp, c);
+    if (typeof row.tokId !== 'string') return;
+    var map = holdMap(camp, c), w = holdTok(map, row.tokId); if (w && typeof w.charId === 'string') holdsWatch(w.charId);
+    if (!r.keep) return;
+    var gone = holdsOf(c).filter(function(x) { return x.by === row.tokId && x.k !== round; }); if (gone.length) holdEnd(camp, c, gone, 'unkept');
+}
+// the word that stops a held token's own move, or '': a pinned token has no move, and a held one may not leave whoever holds it
+function holdMoveWhy(camp, map, mapId, w, fx, fy, tx, ty) {
+    if (!holdsRules(camp) || !w || !turnCombatOf(camp, mapId, w)) return '';
+    var c = turnCombatOf(camp, mapId, w), recs = holdsOf(c).filter(function(x) { return x.on === w.id; }); if (!recs.length) return '';
+    var sys = camp.system, dg = sys.combat && sys.combat.turn ? sys.combat.turn.diag : '', d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, fx, fy, tx, ty, dg, {}) : 0; if (!(d > 0)) return '';
+    if (recs.some(function(x) { return x.pin === 1; })) return 'You are pinned: your token goes back.';
+    var at = Object.assign({}, w, { x: tx, y: ty });
+    return recs.some(function(x) { var b = holdTok(map, x.by); return b && !allyNear(map, b, at, false); }) ? 'You are held: your token goes back.' : '';
+}
+function holdMoveCheck(camp, map, w, frW, msg, conn) {   // through the fight's move mode, as the move limit
+    var why = holdMoveWhy(camp, map, msg.itemId, w, frW.x, frW.y, msg.x, msg.y); if (!why) return '';
+    var mm = moveMode(camp, 'move'); if (mm === 'off') return '';
+    if (mm === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW, conn); turnNote(conn, why, w.charId); return 'stop'; }
+    if (msg.final) { turnNote(conn, 'You moved while held.', w.charId); toast((w.charName || 'A token') + ' moved while held.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved while held.' }); }
+    return '';
+}
+// a token that has moved, by any hand: a held one that left its holder is free, a holder drags what it holds within its drag, and one that walks further lets go
+function holdsMoved(camp, map, mapId, w, from) {
+    var r = holdsRules(camp), fid = r && w && from ? fightOfTok(mapId, w.id) : null, c = fid ? net.combats[fid] : null; if (!holdsOf(c).length) return;
+    var dx = w.x - from.x, dy = w.y - from.y; if (!dx && !dy) return;
+    var left = holdsOf(c).filter(function(x) { var b = x.on === w.id ? holdTok(map, x.by) : null; return b && !allyNear(map, b, w, false); }); if (left.length) holdEnd(camp, c, left, 'parted');
+    var mine = holdsOf(c).filter(function(x) { return x.by === w.id; }); if (!mine.length) return;
+    var dg = camp.system.combat && camp.system.combat.turn ? camp.system.combat.turn.diag : '', d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, from.x, from.y, w.x, w.y, dg, {}) : 0, key = c.round + ':' + c.turn, used = mine[0].dr && mine[0].dr.t === key ? mine[0].dr.n : 0;
+    if (typeof r.drag === 'number' && used + d <= r.drag + 0.05) {
+        mine.forEach(function(x) { x.dr = { t: key, n: used + d }; var t = holdTok(map, x.on); if (t && !(window.wpFog && window.wpFog.arrivalOk && !window.wpFog.arrivalOk(map, t, t.x, t.y, t.x + dx, t.y + dy))) snapBack(camp, map, t, { campId: camp.id, itemId: mapId, wbId: t.id }, { x: t.x + dx, y: t.y + dy }, null); });   // the held token goes with its holder, for everyone, where it could walk; else the holder has left it
+        if (typeof fightsKeepSoon === 'function') fightsKeepSoon();
+    }
+    var off = holdsOf(c).filter(function(x) { var t = x.by === w.id ? holdTok(map, x.on) : null; return t && !allyNear(map, w, t, false); }); if (off.length) holdEnd(camp, c, off, 'walked');
+}
+function holdsRead(list, rows) {   // a fight's holds from the save, as data: only between tokens still in its order
+    var inF = Object.create(null), out = [], tok = /^[A-Za-z0-9_-]{1,80}$/, chr = /^c_[A-Za-z0-9_]{1,24}$/; rows.forEach(function(r) { if (r && typeof r.tokId === 'string') inF[r.tokId] = 1; });
+    (Array.isArray(list) ? list : []).slice(0, HOLDS_MAX).forEach(function(x) { if (!x || typeof x !== 'object' || typeof x.by !== 'string' || typeof x.on !== 'string' || !tok.test(x.by) || !tok.test(x.on) || inF[x.by] !== 1 || inF[x.on] !== 1 || typeof x.bc !== 'string' || typeof x.oc !== 'string' || !chr.test(x.bc) || !chr.test(x.oc) || !fightNum(x.k)) return; var o = { by: x.by, on: x.on, bc: x.bc, oc: x.oc, k: x.k }; if (x.pin === 1) o.pin = 1; out.push(o); });
+    return out;
+}
+net.holdsMoved = function(map, tok, from) { var camp = getActiveCampaign(); if (net.role === 'host' && map && typeof map.id === 'string' && tok && from) holdsMoved(camp, map, map.id, tok, from); };   // the GM's own drop
+net.holdsPressed = function(camp, ch, ref, tc) { if (net.role === 'host') holdsRolled(camp, ch, null, ref, null, tc, null, ''); };   // the GM's own press of an action
+net.holdsAt = function(mapId, byTok, tok) {   // what the GM's menu may offer on a token: null with no rule or no fight
+    var camp = getActiveCampaign(); if (net.role !== 'host' || !holdsRules(camp) || !tok) return null;
+    var fid = fightOfTok(mapId, tok.id), c = fid ? net.combats[fid] : null; if (!c) return null;
+    var pair = byTok ? holdsOf(c).filter(function(x) { return x.by === byTok.id && x.on === tok.id; })[0] : null;
+    return { can: !!byTok && !pair && fightOfTok(mapId, byTok.id) === fid, has: !!pair, pin: !!(pair && pair.pin === 1), any: holdsOf(c).filter(function(x) { return x.by === tok.id || x.on === tok.id; }).length };
+};
+net.holdSet = function(mapId, byTok, tok, what) {   // the GM's own hand: take, pin, free (that pair) or all (everything on or by the token)
+    var camp = getActiveCampaign(); if (net.role !== 'host' || !holdsRules(camp) || !tok) return false;
+    var fid = fightOfTok(mapId, tok.id), c = fid ? net.combats[fid] : null; if (!c) return false;
+    if (what === 'take' || what === 'pin') { var w = holdPut(camp, mapId, byTok, tok.id, what === 'pin'); if (w && typeof toast === 'function') toast(w); return !w; }
+    var gone = holdsOf(c).filter(function(x) { return what === 'all' ? x.by === tok.id || x.on === tok.id : !!byTok && x.by === byTok.id && x.on === tok.id; });
+    if (gone.length) holdEnd(camp, c, gone, 'gm'); return gone.length > 0;
+};
+// [netcheck:holds-end]
 function combatsOverAll() {   // the session's end: every fight ends as End ends it, quietly; how many ended. Fold 4: the furthest ahead first, so the clock stays with the one behind and those ahead keep their own time
     var n = 0, CCa = typeof timeCore === 'function' ? timeCore() : null, campA = getActiveCampaign(), idsA = fightIds();
     if (CCa) idsA = idsA.map(function(k, i) { return { k: k, i: i, a: fightAtOf(net.combats[k], campA) }; }).sort(function(x, y) { return CCa.tCmp(y.a, x.a) || (x.i - y.i); }).map(function(x) { return x.k; });
@@ -5738,6 +5903,7 @@ function fightSet(fid, combat) {
         if (had && (had.side === 'pc' || had.side === 'rest')) f.side = had.side;
         if (typeof combatSides === 'function') combatSides(mapId, f, !had);   // ...and each side together (a new fight rolls the sides first)
         if (had && typeof fightReachKept === 'function') fightReachKept(had, f);   // fold 3: a roster edit keeps how far the fight has gone (rh, th, turned), put back after cleaning as rr and side are; a new fight starts with none
+        if (had && typeof holdsPrune === 'function') holdsPrune(getActiveCampaign(), f);   // 1.6.0: a row taken out of the order ends what it held and what held it
         if (had && chosenRule()) chosenMark(f);   // initiative O5: each row's mark of having gone, by its id, the row on turn none
         if (!had || had.round !== f.round) roundChanged(mapId, f);   // G10: the first round (a roster edit keeps its round)
         if (!had) { net.fightOn = fid; logEvent('table', 'Combat started on ' + mapTitleOf(mapId) + ': ' + f.rows.map(function(r) { return r.name; }).join(', ')); }   // a new fight is the one played
@@ -7927,6 +8093,7 @@ function handleMessage(msg, conn) {
         }
         if (onA && typeof allyCard === 'function' && Array.isArray(resA.onLines) && resA.onLines.length) allyCard(chA, onA.ch, onA.tok.charName || onA.tok.name || onA.ch.name, labelA, resA.onLines, Sa.applyScope(campA.system, onA.ch, actA, rowGmA, Fa), diceFrom(profA, false), conn, profA.id);   // 1.5.9: the card of what moved on the one it was used on
         if (typeof callsAfter === 'function') callsAfter(campA, callEntry(campA.system, qa.row ? { row: qa.row } : { act: qa.act }, actA), null, varsA, onA ? onA.ch : chA, false);   // 1.6.0: Calls for
+        if (typeof holdsRolled === 'function' && typeof Sa.holdRefOf === 'function') holdsRolled(campA, chA, actA, Sa.holdRefOf(qa.act, qa.row), null, tcA, null, '');   // 1.6.0 Who holds whom
         // [netcheck:charapply-end]
     } else if (msg.type === 'blast-roll' && net.role === 'host') {
         // [netcheck:blastroll-start]
@@ -8790,6 +8957,7 @@ function handleMessage(msg, conn) {
                 if (!cmQ || !cmQ.ok || cmQ.expr !== q.expr) { denyQ('error', { error: { message: 'That roll does not match its button now.', pos: 0, len: 0 } }); return; }
                 if (pressQ && (actQ.init === true || actQ.resist === true || actQ.to === 'near' || actQ.askLvl === true)) { denyQ('error', { error: { message: 'That roll is not one a crew member presses.', pos: 0, len: 0 } }); return; }
                 if (pressQ && !SQ.rollStationOk(actQ, pressQ.stns, pressQ.link.pressNamed === true)) { denyQ('error', { error: { message: 'That roll is pressed from another station.', pos: 0, len: 0 } }); return; }
+                var hbQ = typeof holdsBar === 'function' && typeof SQ.holdRefOf === 'function' ? holdsBar(campQ, chQ, SQ.holdRefOf(q.act, q.row)) : ''; if (hbQ) { denyQ('error', { error: { message: hbQ, pos: 0, len: 0 } }); return; }   // 1.6.0 Who holds whom
                 if (q.att && actQ.resist !== true && !(typeof attemptRec === 'function' && attemptRec(q.att) && attemptRec(q.att).blow)) { denyQ('error', { error: { message: 'That roll does not resist an attempt.', pos: 0, len: 0 } }); return; }   // 1.6.0 (B2)
                 if (q.on && actQ.to !== 'near') { denyQ('error', { error: { message: 'That cannot be used on someone else.', pos: 0, len: 0 } }); return; }   // 1.5.9 (book es/et plan, section 3)
                 if (actQ.to === 'near') {   // judged on the host's own map before anything is rolled; OnSelf in its formula, its needs and its Then, 1 on themselves and 0 on another
@@ -8844,12 +9012,14 @@ function handleMessage(msg, conn) {
         if (!q.priv && tcQ && tcQ.range && typeof rangeUnseen === 'function' && typeof rangeReadBy === 'function' && rangeUnseen(campQ, tcQ.range, pidQ) && rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? null : q.row)) {   // range R3: its card would tell another player how far a target they cannot see is
             q.priv = 'gm'; if (typeof turnNote === 'function') turnNote(conn, 'Rolled privately: a player on that map cannot see your target.', q.charId);
         }
+        var hsQ = typeof holdsSqueeze === 'function' && chQ && typeof SQ.holdRefOf === 'function' ? holdsSqueeze(campQ, chQ, SQ.holdRefOf(q.act, q.row), recQ, Dq) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
         if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) { sendFailed(e); } pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }
         else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
+        if (hsQ) hsQ.forEach(function(rxQ) { if (q.priv) { rxQ.priv = 'gm'; try { conn.send(rxQ); } catch (e) { sendFailed(e); } pushRoll(rxQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); } else { sendTable(rxQ, null); pushRoll(rxQ, resQ, 'global', { cid: chQ ? q.charId : '' }); } });
         var ruleQ = Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '');   // Stage 6 F8: the system's roll outcomes (1.6.0: or the record's own critical range)
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars, rule: ruleQ }), { w: recQ.as || (recQ.from && recQ.from.name) || '', h: !!recQ.priv });
         if (chQ && window.wpNotice) window.wpNotice.stealth(campQ, q.charId, q.act ? { r: q.act } : q.fr ? { f: q.fr } : q.row ? { l: q.row.f, row: q.row.r, i: q.row.i } : null, Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ);   // 1.6.0: a sneak's roll, which viewers are checked against
-        if (actQ && actQ.resisted === true && chQ && typeof attemptMake === 'function') attemptMake(campQ, attemptEntry(campQ.system, q, actQ), Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, tcQ && tcQ.range, chQ, !!recQ.priv, varsQ, q.row);   // 1.6.0 (B2): a success against their target that it resists
+        var atQ = ''; if (actQ && actQ.resisted === true && chQ && typeof attemptMake === 'function') atQ = attemptMake(campQ, attemptEntry(campQ.system, q, actQ), Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, tcQ && tcQ.range, chQ, !!recQ.priv, varsQ, q.row);   // 1.6.0 (B2): a success against their target that it resists
         if (blowRecQ && typeof blowCrip === 'function') blowCripWrite(blowCrip(campQ, blowRecQ, Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, Dq.naturalOf(resQ)), saveRemoteSoon);   // 1.6.0 (the core's gap 7): a failed roll of a blow cripples the location struck
         if (actQ && actQ.init === true && typeof initIntoFight === 'function') initIntoFight(campQ, locQ, q.charId, pidQ, resQ.value);   // initiative O1: their own initiative roll into the fight on their map, once
         if (actQ && actQ.then) {   // Stage 6 HUD R1: its consequences on the host's copy, through the roller's view, all or nothing (nothing to apply is quiet)
@@ -8863,7 +9033,7 @@ function handleMessage(msg, conn) {
             if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === true && tcQ && tcQ.range && typeof tcQ.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ.range.tid, mapId: tcQ.range.mapId });   // 1.5.9 Chambers from: a hit puts the round it fired on the roller's target
             else if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === false && typeof window.wpLaunchMiss === 'function') window.wpLaunchMiss({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ && tcQ.range && typeof tcQ.range.tid === 'string' ? tcQ.range.tid : '', mapId: tcQ && tcQ.range && typeof tcQ.range.mapId === 'string' ? tcQ.range.mapId : '', margin: vdQ.margin, crit: ((typeof Dq.checkOf === 'function' ? Dq.checkOf(resQ, ruleQ) : null) || vdQ).crit === 'fumble' ? 'fumble' : '' });   // 1.5.9 (es): a miss lands as its round says, by the verdict's margin (a round that says nothing: the GM places it); its critical failure read as a throw's is, by every system's own (the review of fold 2: a d20's natural 1 too)
         }
-        if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv); attemptCalled(campQ, blowRecQ, q.act, q.row, pcQ, chQ, !!recQ.priv, tcQ); }   // 1.6.0: Calls for, with its Then landed
+        if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv); attemptCalled(campQ, blowRecQ, q.act, q.row, pcQ, chQ, !!recQ.priv, tcQ); if (typeof holdsRolled === 'function' && typeof SQ.holdRefOf === 'function') holdsRolled(campQ, chQ, actQ, SQ.holdRefOf(q.act, q.row), pcQ, tcQ, blowRecQ, atQ); }   // 1.6.0: Calls for, with its Then landed; Who holds whom
         if (actQ && actQ.burst && q.row && typeof burstAfter === 'function') burstAfter(campQ, chQ, actQ, q.row, resQ, ruleQ, mfQ !== null && Dq.naturalOf(resQ) >= mfQ, typeof taQ !== 'undefined' ? taQ : null, tcQ, saveRemoteSoon);   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
         // [netcheck:rollreq-end]
     } else if (msg.type === 'hit-ask' && net.role === 'host') {
@@ -10349,6 +10519,7 @@ net.diceRoll = function(expr, o) {
     if (typeof o.att === 'string' && !(entR && entR.resist === true) && !(typeof attemptRec === 'function' && attemptRec(o.att) && attemptRec(o.att).blow)) return { error: 'That roll does not resist an attempt.' };   // 1.6.0 (B2)   // 1.6.0 (the core's gaps 6 and 7): or it answers a blow
     if (o.row && entR && typeof entR.showIf === 'string' && entR.showIf && varsR && !SR.rollNeedsOk({ needs: entR.showIf }, varsR, F)) return { error: 'That roll is not offered on this row.' };   // 1.6.0: Shown where
     if (entR && entR.needs && entR.needsGm !== true && varsR && !SR.rollNeedsOk(entR, varsR, F)) return { error: SR.rollNeedsSays(entR) };
+    var hbR = chR && typeof holdsBar === 'function' && typeof SR.holdRefOf === 'function' ? holdsBar(campR, chR, SR.holdRefOf(o.act, o.row)) : ''; if (hbR) return { error: hbR };   // 1.6.0 Who holds whom
     var fsR = entR && o.row && campR && campR.system && typeof SR.feedShortOf === 'function' ? SR.feedShortOf(campR.system, chR, o.row, entR) : ''; if (fsR) { if (window.wpStepLog) window.wpStepLog('feed v1', 'stopped', { by: 'gm' }); return { error: fsR }; }   // 1.6.0 Feeds: any feed at 0 stops the shot
     var swR = null; if (Array.isArray(o.sw) && o.sw.length) { var refSw = o.act && !o.row ? { r: String(o.act) } : o.fr ? { f: String(o.fr) } : o.row ? { l: String(o.row.f), row: String(o.row.r), i: typeof o.row.i === 'number' ? o.row.i : undefined } : null; swR = chR && SR && campR && campR.system && refSw && typeof SR.swJudge === 'function' ? SR.swJudge(campR.system, chR, refSw, o.sw) : { ok: false }; if (!swR.ok) return { error: 'That bonus is not this character\u2019s to add to this roll now.' }; }   // 1.6.0: the roll switches ticked, judged as a player's are (the formula already holds them)   // R2b: its needs (before anything is rolled)   // Stage 6 F5b: a roll on one row — its Row.* names
     if (entR && entR.burst === 'extra' && o.row && SR && typeof SR.burstBar === 'function') { var bbR = SR.burstBar(campR.system, chR, o.row.f, o.row.r); if (bbR) return { error: bbR }; }   // 1.6.0 A burst: its extra dice, once, after an attack that hit
@@ -10413,12 +10584,14 @@ net.diceRoll = function(expr, o) {
         if (target && target.open && net.roster[toKey]) { rec.to = toKey; toName = net.roster[toKey].name || 'a player'; try { target.send(rec); } catch (e) { sendFailed(e); } }
     }
     var scope = rec.priv || rec.to ? 'whisper' : 'global';
+    var hsR = typeof holdsSqueeze === 'function' && chR && SR && typeof SR.holdRefOf === 'function' ? holdsSqueeze(campR, chR, SR.holdRefOf(o.act, o.row), rec, D) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
     if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rec, chR); else sendTable(rec, null); }
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
+    if (hsR) hsR.forEach(function(rxR) { if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rxR, chR); else sendTable(rxR, null); } pushRoll(rxR, res, scope, { toName: toName, cid: chR ? chR.id : '' }); });
     var ruleR = D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '');   // Stage 6 F8 (1.6.0: or the record's own critical range)
     logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName, rule: ruleR }), { w: rec.as || (rec.from && rec.from.name) || 'You', h: !!rec.priv });
     if (chR && window.wpNotice) window.wpNotice.stealth(campR, chR.id, o.act && !o.row ? { r: String(o.act) } : o.fr ? { f: String(o.fr) } : o.row ? { l: String(o.row.f), row: String(o.row.r), i: o.row.i } : null, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR);   // 1.6.0: a sneak's roll
-    if (entR && typeof entR.resistBy === 'string' && chR && typeof attemptMake === 'function') attemptMake(campR, entR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, tcR && tcR.range, chR, !!rec.priv || !!rec.to, varsR, o.row);   // 1.6.0 (B2): a success against its target that it resists
+    var atR = ''; if (entR && typeof entR.resistBy === 'string' && chR && typeof attemptMake === 'function') atR = attemptMake(campR, entR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, tcR && tcR.range, chR, !!rec.priv || !!rec.to, varsR, o.row);   // 1.6.0 (B2): a success against its target that it resists
     if (blowRecR && typeof blowCrip === 'function') blowCripWrite(blowCrip(campR, blowRecR, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, D.naturalOf(res)), function() { save(true); });   // 1.6.0 (the core's gap 7): a failed roll of a blow cripples the location struck
     if (entR && entR.then && chR && SR && campR && campR.system) {   // Stage 6 HUD R1/R2b: the GM's own roll's consequences, here (a player's are the host's); a list's roll may move its row's counters
         var mfHitR = mfR !== null && D.naturalOf(res) >= mfR, vdR = D.verdictOf(res, ruleR), crR = typeof SR.thenCrit === 'function' ? SR.thenCrit(vdR, mfHitR) : '', thR = SR.thenChanges(entR, mfHitR ? false : (vdR && vdR.kind === 'check' ? vdR.pass : null), mfHitR, crR);   // R3; 1.5.8: and its critical
@@ -10448,6 +10621,7 @@ net.diceRoll = function(expr, o) {
         else if (taR && taR.ok && taR.fired && !mfHitR && vdR && vdR.kind === 'check' && vdR.pass === false && typeof window.wpLaunchMiss === 'function') window.wpLaunchMiss({ charId: chR.id, fieldId: taR.fired.f, rowId: taR.fired.r, tid: tcR && tcR.range && typeof tcR.range.tid === 'string' ? tcR.range.tid : '', mapId: tcR && tcR.range && typeof tcR.range.mapId === 'string' ? tcR.range.mapId : '', margin: vdR.margin, crit: ((typeof D.checkOf === 'function' ? D.checkOf(res, ruleR) : null) || vdR).crit === 'fumble' ? 'fumble' : '' });   // 1.5.9 (es): a miss lands as its round says; its critical failure read as a throw's is
     }
     if (chR && (entR || blowRecR) && typeof callsAfter === 'function') { var vcR = D.verdictOf(res, ruleR), pcR = mfR !== null && D.naturalOf(res) >= mfR ? false : vcR && vcR.kind === 'check' ? vcR.pass === true : null; if (entR) callsAfter(campR, entR, pcR, varsR, typeof onR !== 'undefined' && onR ? onR.ch : chR, !!rec.priv || !!rec.to); attemptCalled(campR, blowRecR, o.act, o.row, pcR, chR, !!rec.priv || !!rec.to, tcR); }   // 1.6.0: Calls for, with its Then landed
+    if (chR && typeof holdsRolled === 'function' && SR && typeof SR.holdRefOf === 'function') { var vhR = D.verdictOf(res, ruleR); holdsRolled(campR, chR, entR, SR.holdRefOf(o.act, o.row), mfR !== null && D.naturalOf(res) >= mfR ? false : vhR && vhR.kind === 'check' ? vhR.pass === true : null, tcR, typeof blowRecR !== 'undefined' ? blowRecR : null, atR); }   // 1.6.0 Who holds whom
     if (entR && entR.burst && o.row && typeof burstAfter === 'function') burstAfter(campR, chR, entR, o.row, res, ruleR, mfR !== null && D.naturalOf(res) >= mfR, typeof taR !== 'undefined' ? taR : null, tcR, function() { save(true); });   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
     net.rollCheck = D.checkOf ? D.checkOf(res, ruleR) : null;   // 1.5.8 explosives: this roll's pass, critical and margin, read by a throw right after it (this machine's own)
     return { ok: true, value: res.value, priv: !!rec.priv };
@@ -10965,6 +11139,7 @@ function fightsRead(raw, camp) {   // what the save holds, as data: { list, on }
         rows.forEach(function(r) { delete r.hf; delete r.sf; var raw = r.held === 1 ? k.rows.filter(function(x) { return !!x && typeof x === 'object' && x.id === r.id; })[0] : null, SF = raw && raw.holdFor && typeof SC === 'function' ? SC() : null, hc = SF && typeof SF.cleanHoldFor === 'function' ? SF.cleanHoldFor(camp.system, raw.holdFor) : null; if (hc) { r.holdFor = hc; if (raw.holdFor.was === 1) hc.was = 1; } });   // 1.6.0: a named hold comes back with its fight
         ['n', 'rr', 'rh', 'eh'].forEach(function(key) { if (fightNum(k[key])) f[key] = k[key]; });
         ['et', 'th', 'turned', 'fxEnded'].forEach(function(key) { if (k[key] && typeof k[key] === 'object') f[key] = fightMarks(k[key]); });
+        if (Array.isArray(k.hl)) { var hlK = holdsRead(k.hl, rows); if (hlK.length) f.hl = hlK; }   // 1.6.0 Who holds whom
         if (Array.isArray(k.ps)) f.ps = fightIdsIn(k.ps);
         if (Array.isArray(k.pp)) f.pp = k.pp.slice(-10).map(fightIdsIn);
         var at = CC && k.at ? CC.cleanTime(k.at) : null; if (at) f.at = at;

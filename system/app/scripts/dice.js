@@ -3,7 +3,7 @@
    feature switch. The wire and the rolling itself live in net.js (net.diceRoll, the roll-req / roll / roll-deny
    handlers); the validators, replay and text in dicecore.js. Design of record: docs/DICE_PLAN.md. */
 import { toast } from './io.js';
-import { LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy, dueMajor, hitFaces } from './dicecore.js';
+import { LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy, dueMajor, hitFaces, cleanPos, posWords } from './dicecore.js';
 import { dieNode } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
 
 var ui = function(id) { return document.getElementById(id); };
@@ -120,7 +120,9 @@ function renderCard(m) {
     var tierC = sy && sy.combat && sy.combat.tier && typeof sy.combat.tier === 'object' ? sy.combat.tier : null;   // 1.6.0: a success at or past the Combat card's margin wears its name
     if (!mf && tierC && typeof tierC.name === 'string' && tierC.name && typeof tierC.at === 'number' && v && v.kind === 'check' && v.pass === true && typeof v.margin === 'number' && v.margin >= tierC.at) total.appendChild(el('span', 'roll-tier', tierC.name));
     wrap.appendChild(total);
-    if (typeof rec.cov === 'string' && rec.cov) wrap.appendChild(el('div', 'roll-aim', 'Target in ' + rec.cov.toLowerCase()));   // 1.6.0: the number alone did not say why
+    var posC = typeof cleanPos === 'function' ? cleanPos(rec.pos) : null;   // 1.6.0: a target's posture on the attack, and which of it and cover counted
+    if (posC) wrap.appendChild(el('div', 'roll-aim', posWords(posC)));
+    else if (typeof rec.cov === 'string' && rec.cov) wrap.appendChild(el('div', 'roll-aim', 'Target in ' + rec.cov.toLowerCase()));   // 1.6.0: the number alone did not say why
     var amR = rec.aim && typeof rec.aim === 'object' && typeof rec.aim.n === 'string' && rec.aim.n ? rec.aim : null;   // 1.6.0 (B5): where a called shot was aimed, and what its location gave
     if (amR) { var amF = Array.isArray(amR.f) ? amR.f.filter(function(x) { return x && typeof x.v === 'number' && isFinite(x.v); }) : [], amS = function(n) { return n < 0 ? '\u2212' + (-n) : n > 0 ? '+' + n : '0'; }; wrap.appendChild(el('div', 'roll-aim', 'at ' + amR.n + (amF.length === 1 ? ' (' + amS(amF[0].v) + ')' : amF.length ? ' (' + amF.map(function(x) { return x.k + ' ' + amS(x.v); }).join(', ') + ')' : ''))); }
     var p2c = rec.dmg === 1 && rec.dmg2 && typeof rec.dmg2 === 'object' && typeof rec.dmg2.t === 'number' && isFinite(rec.dmg2.t) ? rec.dmg2 : null;   // 1.6.0 (B3): the blow's second part, of another type, rolled by the host

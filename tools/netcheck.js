@@ -2942,13 +2942,17 @@ pendingChecks.push((async () => {
         return { camp, net, win, asked, landed, fogLanded };
     };
     const roll = (expr, o) => {
-        o = o || {}; const W = world(o), out = { table: [], sent: [], notes: [] }, conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
+        o = o || {}; const W = world(o), out = { table: [], sent: [], notes: [] }, conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } }; if (o.sys) W.camp.system = o.sys;
         const msg = Object.assign({ type: 'roll-req', rid: 'q1', expr: expr, charId: 'c_a', label: 'Shot' }, o.msg || {});
         new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'fogLanded', 'turnNote', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rtSrc + '\n' + rqSrc)(
             msg, conn, W.net, () => Dx, () => Sx, W.win, () => W.camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {}, W.fogLanded, (c, text, cid) => out.notes.push([c === conn, text, cid]));
-        return { pub: out.table.length === 1 && out.sent.length === 0 && !out.table[0].priv, priv: out.table.length === 0 && out.sent.length === 1 && out.sent[0].priv === 'gm' && out.sent[0].type === 'roll', notes: out.notes, asked: W.asked, landed: W.landed };
+        return { pub: out.table.length === 1 && out.sent.length === 0 && !out.table[0].priv, priv: out.table.length === 0 && out.sent.length === 1 && out.sent[0].priv === 'gm' && out.sent[0].type === 'roll', notes: out.notes, asked: W.asked, landed: W.landed, rec: out.table[0] || out.sent[0] };
     };
     const NOTE = [[true, 'Rolled privately: a player on that map cannot see your target.', 'c_a']];
+    const sysPa = Sx.cleanSystem({ v: 1, name: 'Pa', rolls: [], fields: [{ id: 'f_a', key: 'A', kind: 'number', def: 4, vis: 'all' }], combat: { postureOnAttack: true, cover: { on: true, mods: { half: -2 } }, postures: [{ id: 'standing', name: 'Standing' }, { id: 'p_flat', name: 'Flat', ranged: -4, aimed: true }] } }, { F: Fx, gmView: true });
+    const pa1 = roll('d20 + Target.CoverOrPosture', { sys: sysPa, orc: { posture: 'p_flat' } }), pa2 = roll('d20 + A', { sys: sysPa, orc: { posture: 'p_flat' } }), pa3 = roll('d20 + Target.PostureRanged', { sys: sysPa, orc: { posture: 'p_flat' }, unseenBy: ['u_b'] }), pa4 = roll('d20 + Target.CoverOrPosture', { sys: sysPa, orc: {} });
+    check('1.6.0 an attack reads its target\'s posture (roll-req, run for real): worked out on the host from the target\'s own token, with nothing named in the message; the card says which counted; a roll that reads none of the names says nothing; a player who cannot see the target keeps it private, as the range does; a target standing as a posture says nothing',
+        pa1.pub && JSON.stringify(pa1.rec.pos) === JSON.stringify({ n: 'Flat', by: 'posture', a: 1 }) && pa2.pub && !('pos' in pa2.rec) && pa3.priv && JSON.stringify(pa3.notes) === JSON.stringify(NOTE) && pa4.pub && !('pos' in pa4.rec), JSON.stringify([pa1.rec, pa2.rec, pa3.priv, pa4.rec]));
     const hid = roll('d20 + RangeMod', { unseenBy: ['u_b'] }), seen = roll('d20 + RangeMod'), elsewhere = roll('d20 + RangeMod', { unseenBy: ['u_b'], boAt: 'm2' }), closed = roll('d20 + RangeMod', { unseenBy: ['u_b'], boOpen: false }), alone = roll('d20 + RangeMod', { unseenBy: ['u_b'], bo: false });
     const plain = roll('d20 + A', { unseenBy: ['u_b'] }), derived = roll('d20 + Atk', { unseenBy: ['u_b'] }), dist = roll('d20 + TargetDistance', { unseenBy: ['u_b'] }), branch = roll('if(0, RangeMod, 1) + d20', { unseenBy: ['u_b'] });
     const noTarget = roll('d20 + RangeMod', { unseenBy: ['u_b'], targets: {} }), already = roll('d20 + RangeMod', { unseenBy: ['u_b'], msg: { priv: 'gm' } }), selfUnseen = roll('d20 + RangeMod', { unseenBy: ['u_a'] });

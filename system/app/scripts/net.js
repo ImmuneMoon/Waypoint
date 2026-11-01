@@ -6054,7 +6054,7 @@ function rangeTo(camp, map, mapId, tok, pid) {
         var vt = window.wpVtt, el = !vt || (vt.rulesOn ? vt.rulesOn('elevation') : vt.on('elevation'));
         var gOf = function(t) { var St = window.wpStance; return St && St.tokenGround ? St.tokenGround(t, map, true) : 0; };   // item 19b H5: each on the ground it stands on, as the player's copy reads it (never a piece the GM hid)
         var cOf = function(t) { return t && typeof t.charId === 'string' && camp.chars && own(camp.chars, t.charId) ? camp.chars[t.charId] : null; };   // 1.6.0: TargetSize, from the target's own character
-        var rc = S.rangeCtx(camp.system, map, tok, w, { F: window.wpFormula, elev: !!el, groundOf: gOf, charOf: cOf }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target
+        var rc = S.rangeCtx(camp.system, map, tok, w, { F: window.wpFormula, elev: !!el, posture: !vt || !!(vt.rulesOn ? vt.rulesOn('posture') : vt.on('posture')), groundOf: gOf, charOf: cOf }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target
         var Fgc = window.wpFog; if (rc && Fgc && typeof Fgc.coverGrade === 'function') { var cvN = Fgc.coverGrade(map, camp, tok, w, true); if (cvN) { rc.cgrade = cvN; rc.cover = cvN === 3 ? 2 : 1; } }   // 1.6.0: TargetCover and TargetCoverGrade, as the ruler reads it
         return rc;
     };
@@ -8804,6 +8804,7 @@ function handleMessage(msg, conn) {
         if (recQ.dmg === 1 && moQ && moQ.list) recQ.more = moQ.list;   // 1.6.0 A burst: one record, one card
         if (recQ.dmg === 1 && rnQ && rnQ[0]) { recQ.rno = rnQ[0].rno; if (rnQ[0].rnd) recQ.rnd = rnQ[0].rnd; }   // ... which says which round each hit was
         if (tcQ && tcQ.range && tcQ.range.cgrade > 0 && typeof SQ.coverWord === 'function' && rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? q.row : null, 'coverRead')) { var cwQ = SQ.coverWord(viewQ, tcQ.range.cgrade); if (cwQ) recQ.cov = cwQ; }   // 1.6.0: a roll that reads cover says so on its card, by the system's own word
+        if (tcQ && tcQ.range && tcQ.range.pn && typeof SQ.posRec === 'function' && rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? q.row : null, 'postureRead')) { var prQ = SQ.posRec(viewQ, tcQ.range); if (prQ) recQ.pos = prQ; }   // 1.6.0: a roll that reads the target's posture says which of it and cover counted
         if (q.hit && thQ0 && typeof thQ0.aim === 'function') { var amQ = thQ0.aim(); if (amQ) recQ.aim = amQ; }   // 1.6.0 (B5): where it was aimed and what it read there, for its card
         if (recQ.dmg === 1 && q.hit) recQ.hit = q.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target (a player's app keeps no such key)
         if (resQ.breakdown && resQ.breakdown.names && resQ.breakdown.names.length) { var nmQ = Dq.cleanNames(resQ.breakdown.names); if (!nmQ) { denyQ('error'); return; } if (nmQ.length) recQ.names = nmQ; }
@@ -10346,6 +10347,7 @@ net.diceRoll = function(expr, o) {
     if (rec.dmg === 1 && moR && moR.list) rec.more = moR.list;   // 1.6.0 A burst: one record, one card
     if (rec.dmg === 1 && rnR && rnR[0]) { rec.rno = rnR[0].rno; if (rnR[0].rnd) rec.rnd = rnR[0].rnd; }   // ... which says which round each hit was
     if (tcR && tcR.range && tcR.range.cgrade > 0 && typeof SR.coverWord === 'function' && rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row || null, 'coverRead')) { var cwR = SR.coverWord(campR.system, tcR.range.cgrade); if (cwR) rec.cov = cwR; }   // 1.6.0: as a player's roll
+    if (tcR && tcR.range && tcR.range.pn && typeof SR.posRec === 'function' && rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row || null, 'postureRead')) { var prR = SR.posRec(campR.system, tcR.range); if (prR) rec.pos = prR; }   // 1.6.0: as a player's roll
     if (thR && typeof thR.aim === 'function') { var amR = thR.aim(); if (amR) rec.aim = amR; }   // 1.6.0 (B5): where it was aimed and what it read there, for its card
     if (rec.dmg === 1 && thR) rec.hit = o.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target
     if (rec.dmg === 1 && typeof o.blast === 'string' && /^b_[a-z0-9]{1,16}$/.test(o.blast)) rec.blast = o.blast;   // 1.5.8 explosives: the blast this damage is for (this machine's own word): the card's Apply to all in the blast

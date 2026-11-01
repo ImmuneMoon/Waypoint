@@ -613,6 +613,11 @@ Systems, more
   Heat and Cold. A row picks one from a menu on the sheet. Row.subject reads
   its place, 1 for the first and 0 for none, and
   Traits.Subject.Heat.sum.Degrees adds the rows that hold that word.
+- An attack can read its target's posture. Tick it in the Postures box.
+  Target.PostureRanged reads the posture's ranged note. Say what each grade of
+  cover takes, and Target.CoverOrPosture reads the harsher of the two, never
+  both. The card says which counted. A posture can be ticked Hits land as
+  aimed, and Target.Aimed then reads 1 while it counts.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

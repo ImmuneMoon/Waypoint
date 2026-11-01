@@ -573,7 +573,7 @@ function renderPanel() {
                 tl.appendChild(trow);
             });
             if (m.tracks.length) {
-                var addSel = el('select', 'music-addtrack'); addSel.appendChild(new Option('+ Add a track…', ''));
+                var addSel = el('select', 'music-addtrack'); addSel.appendChild(new Option('+ Add a track…', '')); if (window.wpTexList) window.wpTexList.keys(addSel);   // a key step chooses nothing here: it opens the list, as a Texture list's does
                 m.tracks.forEach(function(tr) { addSel.appendChild(new Option(tr.name, tr.id)); });
                 addSel.addEventListener('change', function() { if (addSel.value && pl.tracks.length < LIMITS.tracks) { pl.tracks.push(addSel.value); save(true); renderPanel(); } });
                 tl.appendChild(addSel);

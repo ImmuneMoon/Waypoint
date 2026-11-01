@@ -1177,6 +1177,7 @@ For system builders, more
   Before, the card said Applied too soon.
 - A hold taken while All holds end where is true now ends at once.
 - A line rolled in private now keeps its damage cards private too.
+- Music: a key step on Add a track no longer adds a track.
 - A line's damage card from a player's press now reads as that player's card.
   Before, it read as the GM's.
 - An effect that is on already now says so when a roll's Then, a line's hit or

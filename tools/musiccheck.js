@@ -443,6 +443,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             j(one2off) === j([50, 50, false, false, 'function']) && j(one2list) === j([50, 50, false, false, 'function']) && off2one[0] === 30 && off2one[1] === 30 && off2one[2] === true && off2one[3] === true, j([one2off, one2list, off2one]));
         check('1.6.0 a player following the GM keeps their place as the loop changes (onControl asks loopTo, source)', mu.includes("        loopTo(mc.loop === 'one');   // 1.6.0: its place kept as the loop changes\n        if (Math.abs((mc.pos || 0) - position()) > 2.5) seek(mc.pos || 0);"));
     }
+    check('1.6.0 a key step on Add a track adds no track, found on the sheet Add lists: Down on a closed list fires its change at once, so it asks the key rule of the Texture lists', fs.readFileSync(path.join(__dirname, '..', 'system/app/scripts/music.js'), 'utf8').includes('if (window.wpTexList) window.wpTexList.keys(addSel);'));
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

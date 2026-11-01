@@ -5567,6 +5567,8 @@ function holdLand(camp, ht) { var pw = holdPut(camp, ht.m, holdTokOf(camp, ht.m,
 // a hold waits for a player's roll, which may never come: the GM's card, Apply now, lands it without one (the owner, 2026-11-01, by prompt: "Apply now on the card (Recommended)")
 function holdAsk(camp, att, rec, ent, ht) {
     var tc = rec && camp && camp.chars && own(camp.chars, rec.charId) ? camp.chars[rec.charId] : null; if (!tc || tc.npc || !tc.ownerId || typeof net.postBlastDue !== 'function') return;
+    if (ht.pin) { var hb = holdTokOf(camp, ht.m, ht.c); if (!hb || !holdsAll(function(x) { return x.by === hb.id && x.on === ht.on; }).length) return; }   // a pin with nobody held has nothing to land
+    rec.htAtt = att;
     var w = holdTok(camp.items && own(camp.items, ht.m) ? camp.items[ht.m] : null, ht.on), nm = String((ent && ent.label) || 'A hold').split('{')[0].trim() + ' on ' + ((w && (w.charName || w.name)) || tc.name || 'them');
     net.postBlastDue(tc, att, nm, false, 'hold');
 }
@@ -5580,6 +5582,7 @@ function holdsRolled(camp, ch, ent, ref, pass, tc, was, made) {
     var r = holdsRules(camp); if (!r || !ch) return;
     if (was && was.hf && pass === false) { var cW = orderById(was.hf.f), goneW = holdsOf(cW).filter(function(x) { return x.by === was.hf.by && x.on === was.hf.on; }); if (goneW.length) holdEnd(camp, cW, goneW, 'free'); }   // the holder failed to resist: free
     if (was && was.ht && pass === false) holdLand(camp, was.ht);   // the target failed to resist: held
+    if (was && was.ht && was.htAtt && typeof net.dueRolled === 'function') net.dueRolled(was.htAtt);   // their roll is in: the GM's Apply now has nothing left to do
     if (typeof ref !== 'string' || !ref) return;
     var rng = tc && tc.range && typeof tc.range.tid === 'string' && typeof tc.range.mapId === 'string' ? tc.range : null, ok = pass !== false;
     if ((ref === r.take || ref === r.pin) && ok && rng) { var htW = { m: rng.mapId, c: ch.id, on: rng.tid, pin: ref === r.pin && ref !== r.take }, arW = typeof made === 'string' && made && typeof attemptRec === 'function' ? attemptRec(made) : null; if (arW) { arW.ht = htW; holdAsk(camp, made, arW, ent, htW); } else holdLand(camp, htW); }   // its target resists: the hold waits for that roll, as a break free does
@@ -10310,6 +10313,7 @@ net.dueOver = function(att) {
     });
     if (any) renderChatSoon(); return any;
 };
+net.dueRolled = function(att) { var any = false; chatLog.forEach(function(m) { if (m && m.due && m.due.att === att && m.due.hold === 1 && !m.over) { m.over = 1; m.rolled = 1; any = true; } }); if (any) renderChatSoon(); return any; };   // the GM's Apply now once the roll it stood in for is made
 // [netcheck:postdue-end]
 // [netcheck:attempt-start]
 // 1.6.0 (the SotMW v2 sort, B2: "resist at minus the attempt's margin"): a roll whose entry names Resisted by (a system roll ticked Resists an

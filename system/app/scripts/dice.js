@@ -168,7 +168,7 @@ function renderDue(m) {
     wrap.appendChild(el('br'));
     var whD = rec.why === 'called' ? (rec.by ? 'called for by ' + rec.by : 'called for') : rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? (typeof resistWhy === 'function' ? resistWhy(rec) : 'resisting an attempt') : rec.why === 'major' ? (typeof dueMajor === 'function' ? dueMajor(rec) : 'a Major Wound') : rec.why === 'wound' ? 'a wound' : rec.hold === 1 ? 'waiting for their roll' : rec.why === 'blast' ? 'a blast' : 'round ' + rec.round;
     wrap.appendChild(el('div', 'roll-expr chat-due-what', (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + (whD ? ' \u2014 ' + whD : '')));   // 1.6.0 (B2): an attempt to resist   // 1.6.0 (the core's gap 6): or a wound
-    if (m.over) wrap.appendChild(el('div', 'chat-due-note', rec.hold === 1 ? 'Applied.' : rec.why === 'resist' ? 'The GM applied it, so this roll is over.' : 'The blast went off, so this roll is over.'));
+    if (m.over) wrap.appendChild(el('div', 'chat-due-note', rec.hold === 1 ? (m.rolled ? 'Their roll is in.' : 'Applied.') : rec.why === 'resist' ? 'The GM applied it, so this roll is over.' : 'The blast went off, so this roll is over.'));
     else if (rec.theirs) wrap.appendChild(el('div', 'chat-due-note', 'Its player presses it.'));
     else if (m.done) wrap.appendChild(el('div', 'chat-due-note', 'Pressed.'));
     else if (!window.wpPopout) {

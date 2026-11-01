@@ -10,6 +10,9 @@ function moving(rec, now, inFight) {
     return inFight ? !(rec.turns >= STILL_TURNS) : now - rec.at < STILL_MS;
 }
 
+// 1.6.0: whether a token a loud roll marked is loud still: in a fight until its next turn starts, which takes the mark off, else STILL_MS after the roll
+function loudNow(rec, now, inFight) { return !!rec && (inFight || now - rec.at < STILL_MS); }
+
 // What to do for one viewer and one creature. e: the result it holds, or none, { ok, by: 'roll' | 'move' | 'sneak', sig, sn? }. f: { moving, sneak: the
 // Stealth roll a sneak holds { n, ok, m } or null, sig: what the result stands on, the light and the cover }. Answers { e } to keep, or { roll, m, sn }.
 // A result sticks until the light or the cover changes. Moving ends a failure at once, since something moving is noticed, and a success stands.
@@ -35,6 +38,6 @@ function checkWords(ck, res) {
     return res && res.ok ? 'Side vision check: ' + String(res.value) : 'Side vision check';
 }
 
-var API = Object.freeze({ VERSION: VERSION, STILL_MS: STILL_MS, STILL_TURNS: STILL_TURNS, moving: moving, decide: decide, moveSeen: moveSeen, checkWords: checkWords });
+var API = Object.freeze({ VERSION: VERSION, STILL_MS: STILL_MS, STILL_TURNS: STILL_TURNS, moving: moving, loudNow: loudNow, decide: decide, moveSeen: moveSeen, checkWords: checkWords });
 if (typeof window !== 'undefined') window.wpNoticeCore = API;
-export { VERSION, STILL_MS, STILL_TURNS, moving, decide, moveSeen, checkWords };
+export { VERSION, STILL_MS, STILL_TURNS, moving, loudNow, decide, moveSeen, checkWords };

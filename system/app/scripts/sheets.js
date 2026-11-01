@@ -10666,8 +10666,12 @@ function sensesBox(box, cm) {
 function noticeRow(s, i) {
     var n = s.notice && typeof s.notice === 'object' ? s.notice : {}, rw = el('div', 'sys-flags sys-light-row sys-sense-row sys-sense-nrow'), has = typeof n.check === 'string' && !!n.check.trim(), sk = typeof n.sneak === 'string' && !!n.sneak.trim(); rw.dataset.si = String(i);
     rw.appendChild(el('span', 'sys-num-cap', 'Noticed by'));
-    var ck = input('sys-sense-nkcheck field', typeof n.check === 'string' ? n.check : '', 'A check on the viewer\u2019s sheet, rolled in secret by the GM\u2019s machine. It may read TargetSize, TargetDistance, RangeMod, TargetLight (0 dark, 1 dim, 2 clear), TargetCover (0 none, 1 some, 2 no clear line) and AttemptMargin. Blank: a creature in the band is noticed unless you tick it in its Properties', 'A check on the viewer\u2019s sheet'); ck.maxLength = LIMITS.formula; rw.appendChild(ck);
+    var ck = input('sys-sense-nkcheck field', typeof n.check === 'string' ? n.check : '', 'A check on the viewer\u2019s sheet, rolled in secret by the GM\u2019s machine. It may read TargetSize, TargetDistance, RangeMod, TargetLight (0 dark, 1 dim, 2 clear), TargetLoud (with Loud by), TargetCover (0 none, 1 some, 2 no clear line) and AttemptMargin. Blank: a creature in the band is noticed unless you tick it in its Properties', 'A check on the viewer\u2019s sheet'); ck.maxLength = LIMITS.formula; rw.appendChild(ck);
     if (!has) return rw;
+    rw.appendChild(el('span', 'sys-num-cap', 'Loud by'));   // 1.6.0: a roll of a row with this stat marks its token loud
+    var nzs = [], nzSeen = Object.create(null); (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(f) { if (f && f.kind === 'item-list' && f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(x) { var k = x && typeof x.key === 'string' ? x.key : '', lk = k.toLowerCase(); if (k && x.kind !== 'pick' && !nzSeen[lk]) { nzSeen[lk] = 1; nzs.push([k, (x.label || k) + ' (' + (f.label || f.key || 'a list') + ')']); } }); });
+    var nzC = typeof n.noise === 'string' ? n.noise : '', nzO = [['', 'No roll is loud']].concat(nzs); if (nzC && !nzO.some(function(o) { return o[0] === nzC; })) nzO.push([nzC, 'A stat no longer here']);
+    rw.appendChild(select('sys-sense-nknoise', nzO, nzC, 'A stat of a list. A roll of a row with this stat not 0 marks its token loud by that figure, until its next turn in a fight and for a few seconds out of one. The check reads it as TargetLoud'));
     rw.appendChild(el('span', 'sys-num-cap', 'Sneaking where'));
     var sn = input('sys-sense-nksneak field', typeof n.sneak === 'string' ? n.sneak : '', 'A formula on the creature\u2019s own sheet, true while it is sneaking: a toggle, or anything else that says so. No dice. Blank: nothing sneaks past this band', 'A formula on its own sheet'); sn.maxLength = LIMITS.formula; rw.appendChild(sn);
     if (!sk) return rw;
@@ -10687,7 +10691,7 @@ function senseSays(at) { var say = at.rw.nextSibling; if (say && say.classList &
 function onSensesInput(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-sense-') < 0) return false;
     if (c.indexOf('sys-sense-nk') >= 0) {   // 1.6.0: a band's check, a sneak's mark and its roll's entry
-        if (c.indexOf('sys-sense-nkroll') >= 0) return true;
+        if (c.indexOf('sys-sense-nkroll') >= 0 || c.indexOf('sys-sense-nknoise') >= 0) return true;
         var atN = senseAt(t); if (!atN) return true;
         var nk = atN.s.notice && typeof atN.s.notice === 'object' ? atN.s.notice : (atN.s.notice = {}), tv = t.value;
         if (c.indexOf('sys-sense-nkcheck') >= 0) { if (tv.trim()) nk.check = tv; else delete atN.s.notice; }
@@ -10708,6 +10712,7 @@ function onSensesChange(t) {
     if (c.indexOf('sys-sense-nkroll') >= 0) { var atR = senseAt(t); if (!atR || !atR.s.notice) return true; var rv = t.value; var wasL = !!(atR.s.notice.stealth && atR.s.notice.stealth.l), isL = rv.slice(0, 2) === 'l:', siR = atR.rw.dataset.si; if (rv.slice(0, 2) === 'r:') atR.s.notice.stealth = { r: rv.slice(2) }; else if (isL) atR.s.notice.stealth = { l: rv.slice(2) }; else delete atR.s.notice.stealth; markDirty(); if (wasL === isL) return true; renderAll(); var nrR = document.querySelector('.sys-sense-nrow[data-si="' + siR + '"] .sys-sense-nkroll'); if (nrR) nrR.focus(); return true; }   // the list keeps the keys: only the key box comes or goes
     if (c.indexOf('sys-sense-nkcheck') >= 0 || c.indexOf('sys-sense-nksneak') >= 0) { var atB = senseAt(t), siB = atB ? atB.rw.dataset.si : '', isCk = c.indexOf('sys-sense-nkcheck') >= 0, nextC = isCk ? 'sys-sense-nksneak' : 'sys-sense-nkroll', rowB = atB ? atB.rw : null, had = !!(rowB && rowB.querySelector('.' + nextC)), goes = !!t.value.trim(); markDirty(); if (had === goes) return true; renderAll(); if (goes && siB) { var nrB = document.querySelector('.sys-sense-nrow[data-si="' + siB + '"] .' + nextC); if (nrB) nrB.focus(); } return true; }   // the box after it comes or goes, and the keys stay in the row
     if (c.indexOf('sys-sense-nkkey') >= 0) return true;
+    if (c.indexOf('sys-sense-nknoise') >= 0) { var atZ = senseAt(t); if (atZ && atZ.s.notice) { if (t.value) atZ.s.notice.noise = t.value; else delete atZ.s.notice.noise; markDirty(); patchErrors(); } return true; }   // 1.6.0
     if (c.indexOf('sys-sense-from') < 0 && c.indexOf('sys-sense-unit') < 0 && c.indexOf('sys-sense-tick') < 0 && c.indexOf('sys-sense-off') < 0 && c.indexOf('sys-sense-blind') < 0 && c.indexOf('sys-sense-eyearc') < 0 && c.indexOf('sys-sense-grade') < 0 && c.indexOf('sys-sense-glyph') < 0 && c.indexOf('sys-sense-arcfrom') < 0 && c.indexOf('sys-sense-view') < 0) return true;   // the boxes' change events (their input events did the work)
     if (c.indexOf('sys-sense-viewarc') >= 0) return true;
     if (c.indexOf('sys-sense-view') >= 0) { var snw = sensesDraft(); if (t.value === 'all') snw.view = { mode: 'all' }; else if (t.value === 'arc') snw.view = { mode: 'arc', arc: 180 }; else delete snw.view; markDirty(); renderAll(); return true; }   // 1.6.0: the Vision of a map with none of its own

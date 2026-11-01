@@ -1,6 +1,6 @@
 // A band of side vision that notices by a roll (1.6.0), the host's half: each viewer's result for each creature in its band, kept in this machine's
 // memory for the session, rolled in secret and never sent. fog.js asks it as it judges what a player is sent. The rule is noticecore.js
-import { moving, decide, moveSeen, checkWords } from './noticecore.js';
+import { moving, loudNow, decide, moveSeen, checkWords } from './noticecore.js';
 import { stepLine } from './steplog.js';
 
 function own(o, k) { return !!o && Object.prototype.hasOwnProperty.call(o, k); }
@@ -8,7 +8,7 @@ function tokenLike(w) { return !!w && w.type !== 'light' && !w.hidden && !w.gmNo
 
 // D: { host(), S(), F(), dice(), fog(), fightOf(mapId, tokId), ctxFor(charId, camp), ground(tok, map), elev(), rec(who, what, detail), arm(mapId), now(), every(fn, ms), stop(t), log(line) }
 function make(D) {
-    var R = { res: Object.create(null), mv: Object.create(null), sn: Object.create(null), was: Object.create(null), seq: 0, t: 0, memo: null, memoSys: null };
+    var R = { res: Object.create(null), mv: Object.create(null), sn: Object.create(null), was: Object.create(null), loud: Object.create(null), seq: 0, t: 0, memo: null, memoSys: null };
 
     function rulesOf(sys) {
         if (R.memoSys === sys && R.memo !== null) return R.memo;
@@ -41,7 +41,7 @@ function make(D) {
         if (!S || !F || !Dc) return true;
         var rc = null, cOf = function(t) { return charOf(camp, t); };
         try { rc = S.rangeCtx(sys, map, vt, w, { F: F, elev: D.elev(), groundOf: function(t) { return D.ground(t, map); }, charOf: cOf }); } catch (e) { rc = null; }
-        rc = rc || { mod: 0, dist: 0 }; rc.light = f.light; rc.cover = f.cover; rc.cgrade = f.grade; rc.tid = w.id; rc.mapId = map.id;
+        rc = rc || { mod: 0, dist: 0 }; rc.light = f.light; rc.cover = f.cover; rc.cgrade = f.grade; rc.tid = w.id; rc.mapId = map.id; if (f.loud) rc.loud = f.loud;
         var res = null, ck = null;
         try { quiet(function() { var tc = S.withAttempt(S.withRange(D.ctxFor(vCh.id, camp) || {}, rc), m); res = F.evaluate(rule.check, { vars: S.makeResolver(sys, vCh, F, tc) }); ck = Dc.checkOf(res, Dc.ruleOf(null, sys.combat && sys.combat.checks)); }); } catch (e) { res = null; }
         if (!res || !res.ok) { D.log('check failed'); return true; }   // a check that cannot be worked out hides nothing
@@ -53,12 +53,29 @@ function make(D) {
     function judge(camp, map, vt, w, id, rule) {
         var vCh = charOf(camp, vt); if (!vCh) return true;   // a viewer with no sheet has nothing to roll: the band notices, as it does by the tick alone
         var box = held(map.id, vt.id), k = w.id + '|' + id, e = box[k]; if (R.busy) return e ? !!e.ok : true;
-        var f = D.fog().noticeFacts(map, camp, vt, w), sig = f.light + '|' + f.cover;
+        var f = D.fog().noticeFacts(map, camp, vt, w), ln = loudOf(map, w, rule), sig = f.light + '|' + f.cover + (ln ? '|' + ln : ''); if (ln) f = Object.assign({}, f, { loud: ln });
         var rc = moves(map.id)[w.id], d = decide(e, { moving: moving(rc, D.now(), !!D.fightOf(map.id, w.id)), sneak: sneakRoll(camp, map, w, rule), sig: sig });
         if (d.roll) { var en = { ok: roll(camp, map, vt, vCh, w, rule, d.m, f), by: 'roll', sig: sig }; if (d.sn !== undefined) en.sn = d.sn; box[k] = en; return en.ok; }
         box[k] = d.e; return d.e.ok;
     }
     function ticking() { if (!R.t) R.t = D.every(tick, 1000); }
+
+    // 1.6.0 A loud roll: what a check reads of a token a roll marked, by the stat its band names, 0 with none
+    function loudOf(map, w, rule) { var r = rule.noise && R.loud[map.id] ? R.loud[map.id][w.id] : null; return r && loudNow(r, D.now(), !!D.fightOf(map.id, w.id)) ? r.n[rule.noise] || 0 : 0; }
+    // ... a list's roll on a row with a stat a band names as its noise, not 0, marks its character's tokens, and what the players hold is put right. A new roll marks afresh
+    function noise(camp, charId, ref, rules) {
+        var keys = Object.keys(rules).map(function(id) { return rules[id].noise; }).filter(function(k) { return typeof k === 'string' && k; }), S = D.S(), F = D.F(), ch = camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; if (!keys.length || !ref || typeof ref.l !== 'string' || typeof ref.row !== 'string' || !S || !F || !ch) return;
+        var rv = null; try { rv = quiet(function() { return S.makeResolver(camp.system, ch, F, D.ctxFor(ch.id, camp)).row(ref.l, ref.row); }); } catch (e) { rv = null; } if (typeof rv !== 'function') return;
+        var n = Object.create(null), any = false; keys.forEach(function(k) { var v = 0; try { v = quiet(function() { return rv('row.' + k); }); } catch (e) { v = 0; } if (typeof v === 'number' && isFinite(v) && v !== 0) { n[k] = v; any = true; } }); if (!any) return;
+        ticking();
+        Object.keys(camp.items || {}).forEach(function(id) {
+            var m = camp.items[id]; if (!m || m.type !== 'map' || !Array.isArray(m.whiteboard)) return; var hit = false;
+            m.whiteboard.forEach(function(w) { if (w && w.charId === charId && typeof w.id === 'string') { (R.loud[id] || (R.loud[id] = Object.create(null)))[w.id] = { n: n, at: D.now() }; hit = true; } });
+            if (hit) D.arm(id);
+        });
+    }
+    // ... which ends with its next turn in a fight, and by the clock out of one (tick)
+    function turnStart(mapId, tokId) { if (R.loud[mapId] && R.loud[mapId][tokId]) { delete R.loud[mapId][tokId]; D.arm(mapId); } }
 
     // A pass of fog.js's judgement for one player on one map: by, each cell only a band sees and who sees it there, [{ t: the viewer's token, ids: its senses }].
     // tick(w): the senses the GM ticked for this token, true for all. Notes who moved, and lets go of what a viewer no longer has in its band
@@ -97,6 +114,7 @@ function make(D) {
     function stealth(camp, charId, ref, vd, malf) {
         if (!D.host() || !camp || !camp.system || !ref) return;
         var rules = rulesOf(camp.system), S = D.S(), ch = camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; if (!rules || !ch || !S) return;
+        noise(camp, charId, ref, rules);   // 1.6.0: and a loud one marks its token
         var hit = Object.keys(rules).some(function(id) { var t = rules[id].stealth; try { return !!t && S.rollSwitches(camp.system, ch, ref, [{ to: [t] }]).length > 0; } catch (e) { return false; } });
         if (!hit) return;
         var pass1 = !!vd && vd.kind === 'check' && vd.pass === true && malf !== true;
@@ -112,10 +130,15 @@ function make(D) {
             Object.keys(mv).forEach(function(id) { var r = mv[id]; if (r.live && !moving(r, D.now(), !!D.fightOf(mapId, id))) { r.live = false; go = true; } });
             if (go) D.arm(mapId);
         });
+        Object.keys(R.loud).forEach(function(mapId) {
+            var lo = R.loud[mapId], go = false;
+            Object.keys(lo).forEach(function(id) { if (!loudNow(lo[id], D.now(), !!D.fightOf(mapId, id))) { delete lo[id]; go = true; } });
+            if (go) D.arm(mapId);
+        });
     }
-    function forget() { if (R.t) D.stop(R.t); R.t = 0; R.res = Object.create(null); R.mv = Object.create(null); R.sn = Object.create(null); R.was = Object.create(null); R.memo = null; R.memoSys = null; }
+    function forget() { if (R.t) D.stop(R.t); R.t = 0; R.res = Object.create(null); R.mv = Object.create(null); R.sn = Object.create(null); R.was = Object.create(null); R.loud = Object.create(null); R.memo = null; R.memoSys = null; }
 
-    return { on: on, pass: pass, stealth: stealth, turnEnd: turnEnd, tick: tick, forget: forget, state: R };
+    return { on: on, pass: pass, stealth: stealth, turnEnd: turnEnd, turnStart: turnStart, tick: tick, forget: forget, state: R };
 }
 
 // [noticecheck:page-start]

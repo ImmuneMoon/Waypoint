@@ -130,6 +130,31 @@ function world(opts) {
     W.notice.forget();
     check('a new table holds nothing of the last', Object.keys(W.notice.state.res).length === 0 && Object.keys(W.notice.state.sn).length === 0);
 
+    /* ---------- a loud roll (1.6.0) ---------- */
+    {
+        const L = world(), sn = L.camp.system.combat.senses.list[0].notice; sn.noise = 'loud';
+        L.camp.items.m1.whiteboard[1].charId = 'c2';
+        const rowVals = { w_gun: 4, w_knife: 0 }, SL = L.D.S(); SL.makeResolver = (s, ch, F, tc) => ({ tc, ch, row: (l, r) => (rowVals[r] === undefined ? null : n => (n === 'row.loud' ? rowVals[r] : 0)) });
+        L.notice = N.make(L.D);
+        L.judge(); const n0 = L.rolled.length; L.judge(); const n1 = L.rolled.length;
+        const armsA = L.arms.length; L.notice.stealth(L.camp, 'c2', { l: 'f_gear', row: 'w_knife', i: 0 }, { kind: 'check', pass: true, margin: 0 }, false); const quietRow = L.arms.length === armsA && !Object.keys(L.notice.state.loud).length;
+        L.notice.stealth(L.camp, 'c2', { r: 'r_x' }, null, false); const noRow = !Object.keys(L.notice.state.loud).length;
+        L.notice.stealth(L.camp, 'c2', { l: 'f_gear', row: 'w_gun', i: 0 }, { kind: 'check', pass: true, margin: 0 }, false); const marked = L.notice.state.loud.m1 && L.notice.state.loud.m1.T && L.notice.state.loud.m1.T.n.loud === 4, armed = L.arms.length === armsA + 1;
+        L.judge(); const n2 = L.rolled.length, rc2 = L.rolled[L.rolled.length - 1], loudRead = rc2 && rc2.range ? rc2.range.loud : undefined; L.judge(); const n3 = L.rolled.length;
+        check('1.6.0 a loud roll: a roll of a row with the stat marks its token and puts right what players hold; a row with the stat at 0 and a roll on no row do not; the check is judged again and reads it as TargetLoud; it stands while the mark does',
+            n0 === 1 && n1 === 1 && quietRow && noRow && marked && armed && n2 === n1 + 1 && loudRead === 4 && n3 === n2, J([n0, n1, n2, n3, loudRead, L.notice.state.loud]));
+        const armsB = L.arms.length; L.clock += C.STILL_MS - 1; L.notice.tick(); const still = !!L.notice.state.loud.m1.T; L.clock += 2; L.notice.tick(); const gone = !L.notice.state.loud.m1.T && L.arms.length === armsB + 1;
+        L.judge(); const n4 = L.rolled.length, rc4 = L.rolled[L.rolled.length - 1];
+        check('1.6.0 ... out of a fight it ends by the clock, what players hold is put right, and the check is judged again with nothing to read', still && gone && n4 === n3 + 1 && rc4.range.loud === undefined, J([still, gone, n4, n3]));
+        L.fight = true; L.notice.stealth(L.camp, 'c2', { l: 'f_gear', row: 'w_gun', i: 0 }, { kind: 'check', pass: true, margin: 0 }, false); L.clock += 999999; L.notice.tick(); const held = !!L.notice.state.loud.m1.T, armsC = L.arms.length; L.notice.turnStart('m1', 'other'); const other = !!L.notice.state.loud.m1.T; L.notice.turnStart('m1', 'T'); const over = !L.notice.state.loud.m1.T && L.arms.length === armsC + 1;
+        check('1.6.0 ... in a fight it holds until its token\'s next turn starts, whatever the clock and whoever else\'s turn it is', held && other && over, J([held, other, over]));
+        L.notice.stealth(L.camp, 'c2', { l: 'f_gear', row: 'w_gun', i: 0 }, null, false); L.notice.forget();
+        check('1.6.0 ... a new table holds no mark', !Object.keys(L.notice.state.loud).length);
+        const P = world(); P.notice = N.make(P.D); P.notice.stealth(P.camp, 'c2', { l: 'f_gear', row: 'w_gun', i: 0 }, null, false); P.judge(); const sigP = P.notice.state.res.m1.V['T|sn_b'].sig;
+        check('1.6.0 ... a band with no noise marks nothing and its result stands on the light and the cover alone, as before', !Object.keys(P.notice.state.loud).length && sigP === '2|0', sigP);
+        check('1.6.0 ... loudNow: in a fight while it stands, else the seconds after the roll', C.loudNow({ at: 100 }, 9e9, true) === true && C.loudNow({ at: 100 }, 100 + C.STILL_MS - 1, false) === true && C.loudNow({ at: 100 }, 100 + C.STILL_MS, false) === false && C.loudNow(null, 1, true) === false);
+    }
+
     /* ---------- what a system keeps ---------- */
     const copy = () => { const t = fs.mkdtempSync(path.join(os.tmpdir(), 'wp-notsys-')), all = {}; fs.readdirSync(scripts).filter(f => f.endsWith('.js')).forEach(f => { all[f] = 1; fs.writeFileSync(path.join(t, f.replace(/\.js$/, '.mjs')), read(f).replace(/from '\.\/([a-z0-9]+)\.js'/g, "from './$1.mjs'"), 'utf8'); }); return t; };
     const t = copy(), SC = await import('file://' + path.join(t, 'systemcore.mjs').replace(/\\/g, '/')), FM = await import('file://' + path.join(t, 'formula.mjs').replace(/\\/g, '/'));
@@ -162,6 +187,13 @@ function world(opts) {
     atk.rolls[0].formula = '3d6 <= 10 - TargetCoverGrade * 2';
     const m2c = (SC.validateSystem(atk, F).errors || []).map(e => e.message).join(' | ');
     check('and so is TargetCoverGrade', m2c.indexOf('TargetCoverGrade') < 0, m2c);
+    const nzK = v => { const s = JSON.parse(J(sys)); s.combat.senses.list[0].notice.noise = v; return SC.cleanSystem(s, { F, gmView: true }).combat.senses.list[0].notice.noise; };
+    check('1.6.0 noise is a stat\'s key, in the GM\'s view alone; anything else is none', nzK('loud') === 'loud' && nzK('<x>') === undefined && nzK(7) === undefined && nzK('') === undefined);
+    const nzS = JSON.parse(J(sys)); nzS.combat.senses.list[0].notice.noise = 'nothere'; nzS.combat.senses.list[0].notice.check = '3d6 <= Spot + TargetLoud'; const mzV = SC.validateSystem(SC.cleanSystem(nzS, { F, gmView: true }), F), mzT = (mzV.errors || []).concat(mzV.warnings || []).map(e => e.message).join(' | ');
+    const nzE = JSON.parse(J(gmV)); nzE.rolls[0].formula = '3d6 <= TargetLoud'; const mzE = (SC.validateSystem(SC.cleanSystem(nzE, { F, gmView: true }), F).errors || []).map(e => e.message).join(' | ');
+    const nzF = JSON.parse(J(sys)); nzF.fields.push({ id: 'f_tl', key: 'TargetLoud', kind: 'number', label: 'L' }); nzF.rolls[0].formula = '3d6 <= TargetLoud'; const mzF = (SC.validateSystem(SC.cleanSystem(nzF, { F, gmView: true }), F).errors || []).map(e => e.message).join(' | ');
+    const rsL = SC.makeResolver(gmV, { id: 'c', values: {} }, F, SC.withRange({}, { mod: 0, dist: 1, loud: 4 })), rsN = SC.makeResolver(gmV, { id: 'c', values: {} }, F, {});
+    check('1.6.0 TargetLoud: known in a side vision check alone, a field of that name keeps it, the check reads what the host laid on it, 0 with none; Loud by naming no stat of a list is warned of', !/known only/.test(mzT.replace(/Loud by.*/, '')) && /Loud by names no stat/.test(mzT) && /known only in a side vision check/.test(mzE) && !/side vision check/.test(mzF) && rsL('targetloud') === 4 && rsN('targetloud') === 0, J([mzT, mzE, mzF]));
     const gRd = SC.makeResolver(gmV, { id: 'c1', values: {} }, F, SC.withRange({}, { mod: 0, dist: 3, cover: 1, cgrade: 2 })), gNone = SC.makeResolver(gmV, { id: 'c1', values: {} }, F, {});
     check('a roll reads the two names from its target, 0 with none, and reading either counts as reading the range', gRd('targetcovergrade') === 2 && gRd('targetcover') === 1 && gRd.rangeRead() === true && gNone('targetcovergrade') === 0);
     const keyed = JSON.parse(J(sys)); keyed.fields.push({ id: 'f_tl', key: 'TargetLight', kind: 'number', label: 'L' }); keyed.rolls[0].formula = '3d6 <= TargetLight';
@@ -182,6 +214,7 @@ function world(opts) {
     check('the module is in the page', page.indexOf('<script type="module" src="scripts/notice.js"></script>') > 0);
     check('the System editor offers it on a band alone', /if \(s\.shows === 'side' && !mark\) wrap\.appendChild\(noticeRow\(s, i\)\);/.test(sh));
     check('Help says it', /<b>Noticed by<\/b> gives a band a check of your own/.test(page) && /<b>Sneaking where<\/b>/.test(page));
+    check('1.6.0 a loud roll is wired: the band\'s Loud by and its handler, the host\'s turn start, Help', sh.includes("select('sys-sense-nknoise'") && sh.includes("atZ.s.notice.noise = t.value") && /window\.wpNotice\.turnStart\(mapId, c\.rows\[c\.turn\]\.tokId\)/.test(net) && /<b>Loud by<\/b>/.test(page));
     const g = rd('CAMPAIGN_INTEGRATION.md');
     check('the guide says it', !!g && /"notice"/.test(g) && /TargetLight/.test(g));
     ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].forEach(f => check(f + ' says it', /Noticed by/.test(rd(f) || '')));

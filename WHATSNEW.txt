@@ -623,6 +623,10 @@ Systems, more
   an item that has none, so everyone in reach can take the whole roll. Only
   total cover can be set to stop such an item. A second stat reads as
   BlastNoDrop.
+- A list roll's Then can move the sheet's money, by a formula with no dice
+  that may read the row and how the roll went. Above 0 is paid in, below 0 is
+  paid out, and the card says so. With too little held a player's roll lands
+  none of its Then. Your own roll takes what is held and tells you.
 
 Fog, smoke and difficult terrain
 - A turned rectangle, hexagon or diamond ticked Smoke or Difficult terrain

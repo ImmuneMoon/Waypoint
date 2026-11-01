@@ -7709,8 +7709,9 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
 function allRowTargets() { var o = []; (typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : []).forEach(function(lf) { if (!lf || lf.kind !== 'item-list' || !lf.list || !Array.isArray(lf.list.stats)) return; lf.list.stats.forEach(function(t) { if (t && t.kind !== 'pick' && typeof t.key === 'string' && t.key) o.push(['all:' + lf.id + ':' + t.key, 'Every row of ' + (lf.label || lf.key || lf.id) + ': ' + (t.label || t.key)]); }); }); return o; }
 function allRowValue(ch, allT) { var v = 'all:' + ch.list + ':' + String(ch.s || ''), lv = v.toLowerCase(), hit = (allT || []).filter(function(o) { return o[0].toLowerCase() === lv; })[0]; return hit ? hit[0] : v; }
 function setChangeTarget(ch, v) {
-    v = String(v || ''); ['f', 'c', 'fire', 'n', 'off', 'fx', 'on', 'q', 's', 'list'].forEach(function(k) { delete ch[k]; });
-    if (v === 'off') { ch.off = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0 (CORE gap 13): this row switched off, no amount
+    v = String(v || ''); ['f', 'c', 'fire', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money'].forEach(function(k) { delete ch[k]; });
+    if (v === 'money') { ch.money = ''; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0: the sheet's money, a figure of its own
+    else if (v === 'off') { ch.off = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0 (CORE gap 13): this row switched off, no amount
     else if (v === 'fire') ch.fire = true;
     else if (v.indexOf('fx+:') === 0 || v.indexOf('fx-:') === 0) { ch.fx = v.slice(4); ch.on = v.charAt(2) === '+'; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }
     else if (v === 'q') ch.q = true;
@@ -7718,7 +7719,7 @@ function setChangeTarget(ch, v) {
     else if (v.indexOf('s:') === 0) ch.s = v.slice(2);
     else if (v.indexOf('c:') === 0) ch.c = v.slice(2);
     else ch.f = v;
-    if (typeof ch.fx !== 'string' && typeof ch.formula !== 'string' && ch.fire !== true && ch.off !== true) ch.formula = '';
+    if (typeof ch.fx !== 'string' && typeof ch.formula !== 'string' && ch.fire !== true && ch.off !== true && typeof ch.money !== 'string') ch.formula = '';
 }
 function applyChangeOf(t, r) { var rw = t.closest('.sys-apply-row'), i = rw ? +rw.dataset.ai : -1, k = rw && rw.dataset.k === 'then' ? 'then' : 'apply'; return r && Array.isArray(r[k]) && i >= 0 && i < r[k].length && r[k][i] && typeof r[k][i] === 'object' ? r[k][i] : null; }
 function rollRow(r) {
@@ -8536,9 +8537,11 @@ function listApplyEditor(box, rr, ri, key, sp, targets) {   // key (R2b): 'apply
         if (typeof ch.fx === 'string' && !opts.some(function(o) { return o[0].slice(4) === ch.fx && o[0].indexOf('fx') === 0; })) opts.push([(ch.on === false ? 'fx-:' : 'fx+:') + ch.fx, 'An effect that is gone']); if (typeof ch.s === 'string' && !opts.some(function(o) { return o[0] === 's:' + ch.s; })) opts.push(['s:' + ch.s, 'A stat that is gone']);
         if ((sp && sp.on && typeof sp.on === 'object') || ch.off === true) opts.push(['off', sp && sp.on ? 'Switch this row off' : 'Switch off, but this list has no switch']);   // 1.6.0 (CORE gap 13)
         if (key === 'then' && ((sp && sp.chamber && typeof sp.chamber === 'object') || ch.fire === true)) opts.push(['fire', sp && sp.chamber ? 'Fire the next chambered round' : 'Fire, but this list has no Chambers from']);   // 1.5.9 Chambers from
-        rw.appendChild(sel('sys-list-applytarget', opts, ch.off === true ? 'off' : ch.fire === true ? 'fire' : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : ch.q === true ? 'q' : typeof ch.s === 'string' ? 's:' + ch.s : ch.c ? 'c:' + ch.c : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or one of the row\u2019s counters. Fire takes the next chambered round out, as the round last fired. A shot that jams fires nothing'));
+        if (key === 'then') opts.push(['money', 'The sheet\u2019s money']);   // 1.6.0
+        rw.appendChild(sel('sys-list-applytarget', opts, typeof ch.money === 'string' ? 'money' : ch.off === true ? 'off' : ch.fire === true ? 'fire' : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : ch.q === true ? 'q' : typeof ch.s === 'string' ? 's:' + ch.s : ch.c ? 'c:' + ch.c : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or one of the row\u2019s counters. Fire takes the next chambered round out, as the round last fired. A shot that jams fires nothing'));
         if (ch.fire === true) { var fnI = input('sys-list-applyfiren field', typeof ch.n === 'string' ? ch.n : '', 'How many rounds this spends at one press: a number or a formula of the row\u2019s names, no dice, such as Row.Rate. Empty: one. They go in order, and it stops when the chamber is empty', 'How many (one)'); fnI.maxLength = LIMITS.formula; rw.appendChild(fnI); }   // 1.6.0: How many
-        if (ch.fire !== true && ch.off !== true && typeof ch.fx !== 'string') {
+        if (typeof ch.money === 'string') { var moI = input('sys-list-applymoney field', ch.money, 'How much money moves: a formula with no dice, reading the row as Row.Cost and how the roll went as RollMargin. Above 0 is paid in, below 0 is paid out. With too little held a player\u2019s roll lands none of its Then, and your own takes what is held', 'Figure (0 - Row.Cost)'); moI.maxLength = LIMITS.formula; rw.appendChild(moI); }   // 1.6.0
+        if (ch.fire !== true && ch.off !== true && typeof ch.fx !== 'string' && typeof ch.money !== 'string') {
         rw.appendChild(sel('sys-list-applyop', [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']], ch.set ? 'set' : ch.add ? 'add' : 'sub', 'Subtract (a cost) or add; never past the field\u2019s min and max'));
         var fm = input('sys-list-applyformula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount for the row: no dice unless Rolled is ticked; Row.lvl, Row.<stat>, Row.<column> read the row (Row.FPCost)', 'Amount (Row.FPCost)'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
         var lrlL = el('label', 'sys-hover'), lrlC = el('input'); lrlC.type = 'checkbox'; lrlC.className = 'sys-list-applyrolled'; lrlC.checked = ch.roll === true; lrlL.appendChild(lrlC); lrlL.appendChild(el('span', null, ' Rolled')); lrlL.title = 'Rolled: the amount may roll dice, such as 1d6. The host rolls it each time, and the card shows the dice'; rw.appendChild(lrlL);   // 1.5.9 (book es/et plan, section 0)
@@ -10928,6 +10931,10 @@ function onInput(e) {
             else return;
         }
         else if (lcc.indexOf('sys-list-xs') >= 0) { var xr = t.closest('.sys-list-xsrow'), xL = Array.isArray(lsp.rolls) ? lsp.rolls : null, xD = xr && xL ? xL[+xr.dataset.ri] : null; if (!xD || typeof xD !== 'object') return; if (listCrossEdit(xD, lcc, t) === 'all') { markDirty(); renderAll(); return; } }   // 1.6.0
+        else if (lcc.indexOf('sys-list-applymoney') >= 0) {   // 1.6.0: the sheet's money, a figure (Save cleans it)
+            var mrw = t.closest('.sys-list-applyrow'), mRl = mrw && Array.isArray(lsp.rolls) ? lsp.rolls[+mrw.dataset.ri] : null, mC = mRl && Array.isArray(mRl.then) ? mRl.then[+mrw.dataset.ai] : null;
+            if (!mC || typeof mC !== 'object') return; mC.money = t.value.slice(0, LIMITS.formula);
+        }
         else if (lcc.indexOf('sys-list-applyfiren') >= 0) {   // 1.6.0: a fire's How many (Save cleans it)
             var frw = t.closest('.sys-list-applyrow'), fRl = frw && Array.isArray(lsp.rolls) ? lsp.rolls[+frw.dataset.ri] : null, fC = fRl && Array.isArray(fRl.then) ? fRl.then[+frw.dataset.ai] : null;
             if (!fC || typeof fC !== 'object') return; var fnv = t.value.slice(0, LIMITS.formula).trim(); if (fnv) fC.n = fnv; else delete fC.n;

@@ -86,6 +86,7 @@ function whichSel(camp, ev, done) {   // the second list of a list's line: every
     var s = el('select', 'tool snd-on-sel snd-on-which'), rows = whichRows(camp, ev), cur = whichOf(ev); s.title = 'Every row of the list, or only one kind of thing on it';
     rows.forEach(function(r) { option(s, r.value, r.words, r.value === cur); });
     if (libOpen()) option(s, '@lib', 'From the library…', false);
+    if (window.wpTexList && window.wpTexList.keys) window.wpTexList.keys(s);   // its last row opens a window, so a key step never reaches it
     s.addEventListener('change', function(e) {
         e.stopPropagation();
         if (s.value === '@lib') { s.value = cur; libPick(s, camp, function(key, name) { done(narrowed(ev, 'k:' + key, name)); }); return; }
@@ -128,15 +129,25 @@ function addForm(camp, box) {
     no.addEventListener('click', function(e) { e.stopPropagation(); _add = null; fill(); });
     foot.appendChild(go); foot.appendChild(no); form.appendChild(foot); box.appendChild(form);
 }
+// The control that held the focus, by its place among the box's controls, so that drawing the box again leaves it there
+function focusAt(box) {
+    var act = typeof document !== 'undefined' ? document.activeElement : null; if (!act || typeof box.querySelectorAll !== 'function' || typeof box.contains !== 'function' || !box.contains(act)) return -1;
+    return Array.prototype.indexOf.call(box.querySelectorAll('select, button'), act);
+}
+function focusBack(box, at) {
+    if (at < 0 || typeof box.querySelectorAll !== 'function') return;
+    var all = box.querySelectorAll('select, button'), to = all[Math.min(at, all.length - 1)]; if (to && typeof to.focus === 'function') to.focus();
+}
 function fill() {
     var box = ui('soundOnBox'), camp = getActiveCampaign(); if (!box || !camp) return;
+    var fat = focusAt(box);   // found by hand: a list stepped by its arrow keys draws this box again, and the rest of the keys went to the map
     box.textContent = '';
     box.appendChild(el('span', 'snd-label', 'On actions'));
     var list = linesOf(camp); list.forEach(function(ln) { box.appendChild(lineRow(camp, ln)); });
-    if (_add) { addForm(camp, box); return; }
+    if (_add) { addForm(camp, box); focusBack(box, fat); return; }
     var add = el('button', 'tool ghost snd-btn snd-on-add', '+ Add a sound on an action'); add.type = 'button'; add.title = 'A sound that plays when a roll is made, a blast goes off, a door moves or a token enters a zone. Those on that map hear it, and you always do';
     add.addEventListener('click', function(e) { e.stopPropagation(); _add = { at: '', which: '', name: '', snd: '' }; fill(); });
-    box.appendChild(add);
+    box.appendChild(add); focusBack(box, fat);
 }
 function redraw() { fill(); }
 // sound.js renderPanel: the list, above the panel's foot

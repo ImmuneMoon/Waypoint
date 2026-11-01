@@ -43,7 +43,7 @@ function mkPage() {
         all(test, out) { out = out || []; this.children.forEach(c => { if (test(c)) out.push(c); c.all(test, out); }); return out; }
         byClass(k) { return this.all(c => String(c.className).split(' ').indexOf(k) >= 0); }
         querySelector(q) { return (q.indexOf('.') >= 0 ? this.byClass(q.split('.').pop()) : this.all(c => c.tagName === q.toUpperCase()))[0] || null; }
-        querySelectorAll(q) { return this.all(c => c.tagName === q.toUpperCase()); }
+        querySelectorAll(q) { const qs = q.toUpperCase().split(', '); return this.all(c => qs.indexOf(c.tagName) >= 0); }
         getBoundingClientRect() { return { left: 10, top: 10, right: 40, bottom: 30 }; }
         focus() { doc.activeElement = this; }
     }
@@ -186,6 +186,8 @@ const engine = () => ({ played: [], heard: [], list: [{ id: 's_shot', name: 'Gun
     check('a line of a list changes its kind in place', l2.cmp.soundOn[0].ev.cat === 'Beam' && !l2.cmp.soundOn[0].ev.key && l2.cmp.soundOn[0].n === 'Gear: Fire for Beam', l2.cmp.soundOn);
     const lfull = mkList({ camp: { soundOn: many.map(x => Object.assign({}, x, { snd: 's_shot' })) } }); const refused = lfull.fns.setLine(lfull.cmp, { k: 'blast' }, 's_shot');
     check('a full list refuses in words and loses nothing', refused === false && lfull.cmp.soundOn.length === 300 && lfull.toasts.length === 1 && !/[()[\];]/.test(lfull.toasts[0]));
+    const lfc = mkList(); lfc.draw(); lfc.body.byClass('snd-on-add')[0].fire('click'); const wf0 = lfc.body.byClass('snd-on-what-sel')[0]; wf0.focus(); wf0.value = '2'; wf0.fire('change'); const wf1 = lfc.body.byClass('snd-on-what-sel')[0], doF = wf1.ownerDoc || null;
+    check('a list stepped by its arrow keys keeps the focus though the form is drawn again (found by hand: the next keys went to the map)', wf1 !== wf0 && lfc.pg.doc.activeElement === wf1, String(doF));
     const lnc = mkList(); lnc.snd.list = []; lnc.draw(); lnc.body.byClass('snd-on-add')[0].fire('click');
     check('with no cues the form says so and Add is off', lnc.body.byClass('snd-on-go')[0].disabled === true && /No cues yet/.test(lnc.body.textContent));
 

@@ -3841,6 +3841,8 @@ window.wpFitToGrid = fitToGrid;
           }
           var gbd = e.target.closest('g.blast');
           if (gbd && e.button === 0) {   // drag a blast to move it (a plain click does nothing)
+              var tkB = !window.isMeasureMode ? rulerToken(e.clientX, e.clientY) : null;   // a token under a blast takes the press, as under a ruler: found by hand, a drag meant for a token moved the blast
+              if (tkB) { _rulerPass = true; e.stopPropagation(); e.preventDefault(); tkB.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, buttons: 1, pointerId: e.pointerId, pointerType: e.pointerType, isPrimary: e.isPrimary, clientX: e.clientX, clientY: e.clientY, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey })); return; }
               var bi0 = parseInt(gbd.dataset.i, 10);
               if (bi0 >= 0 && bi0 < blasts.length && typeof blasts[bi0].tok !== 'string') { blastDrag = { i: bi0, sx: e.clientX, sy: e.clientY, ox: blasts[bi0].x, oy: blasts[bi0].y, moved: false }; e.preventDefault(); }   // a circle on a token is not dragged: it goes where its token goes
               e.stopPropagation(); return;

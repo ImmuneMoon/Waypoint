@@ -1161,6 +1161,8 @@ For system builders, more
   Before, a plain Grab or Keep rolled and nothing happened.
 - A grab or a pin the target may resist now waits for their roll. Before, a
   dodged grab held all the same.
+- A press on a thrown blast with a token under it now goes to the token, as it
+  does under a ruler. Before, a drag meant for the token moved the blast.
 - In the System editor, a press on a list's card or on the Combat card keeps your
   place, so the arrow keys step a menu and Space takes a tick back off.
 - A blast's Defense roll now counts when it is a plain roll with no Needs or

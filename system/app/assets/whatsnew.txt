@@ -15,6 +15,10 @@ At the table
   where there is one. It is off unless your system sets it.
 - A station nobody holds reads 0, as a skill of 0 does. The roll's card now says
   nobody is there.
+- A roll that resists can keep its figure from the table. Tick Hide what a defence
+  needs on the Combat card, or press Hide figures on an NPC's sheet. Where the roll
+  reads its attacker, a player's card shows the dice and Success or Failure, and
+  your card shows it all. An attack by your own character goes the same way.
 
 Drawings to show
 - The pen now makes two kinds of drawing. On the map is what it always

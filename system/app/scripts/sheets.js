@@ -1096,6 +1096,21 @@ function asPlayerHead(c, gm, seeP, sub, edB, camp) {
     b.title = seeP ? 'Back to your own sheet' : 'See this sheet as ' + (who || 'its player') + ' does. It only reads, so nothing changes';
     if (seeP) { if (sub) sub.textContent += ' \u00b7 as they see it'; if (edB) edB.style.display = 'none'; }
 }
+// [systemcheck:hidefig-start]
+// 1.6.2 (the owner, 2026-11-01: "a GM setting that hides the number for a chosen NPC, such as a disguised boss"): a button of the head, on an NPC's sheet and for
+// the GM alone. It writes one key of the character, hideFig, true or none, which net.js reads through systemcore hideFigOn
+function hideFigFits(c, gm) { return !!(gm && c && !c.partial && c.making !== 1 && (c.npc === true || !c.ownerId)) && canWrite(); }
+function hideFigHead(c, gm) {
+    var b = ui('sheetHideFig'); if (!b) return; var fits = hideFigFits(c, gm), on = fits && c.hideFig === true;
+    b.style.display = fits ? '' : 'none'; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.title = on ? 'Players see the dice and Success or Failure when they resist this NPC. Press to show them the figure again' : 'Keep the figure a player needs to resist this NPC off their cards. They see the dice and Success or Failure, and you see it all';
+}
+function hideFigPress() {
+    var camp = getActiveCampaign(), c = charById(sheetOpen, camp); if (!hideFigFits(c, !isClient())) return false;
+    if (c.hideFig === true) delete c.hideFig; else c.hideFig = true;
+    afterCharChange(c, true); if (window.wpStepLog) window.wpStepLog('hidefig v1', 'tick', { on: c.hideFig === true }); return true;
+}
+// [systemcheck:hidefig-end]
 function asPlayerFree(t) { return !!(t && t.closest && t.closest('summary, .sheet-tab, .sheet-item-opener')); }
 function asPlayerGuard(e) {
     if (!_asPlayer || asPlayerFree(e.target)) return;
@@ -1138,6 +1153,7 @@ function renderSheet() {
     p.classList.toggle('sheet-editing', !lockedS);
     // [systemcheck:sheetedit-end]
     if (typeof asPlayerHead === 'function') asPlayerHead(c, gm, seeP, sub, edB, camp);   // 1.6.0: As player
+    if (typeof hideFigHead === 'function') hideFigHead(c, gm);   // 1.6.2: Hide figures
     var dlX = ui('sheetDelete'); if (dlX) { var mineX = isClient() && own && !c.partial && charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }).length > 1; dlX.style.display = (gm && canWrite()) || mineX ? '' : 'none'; dlX.title = gm ? 'Delete this sheet: its values are gone; its tokens keep their name and lose the link' : 'Delete this sheet of yours: one you are still making, or one you do not play (your GM is told)'; }
     renderReviewBar(c, camp, gm);
     var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';   // 126: the point budgets, under the head
@@ -10433,6 +10449,7 @@ function rangeBox(box, cm) {
         var rh = el('div', 'sys-flags sys-range-aimrow'); rh.appendChild(labeledSelect('sys-range-hit', 'Called shots read', roH, curH, 'A list of the target\u2019s sheet whose rows are its hit locations. The roller picks one of the target\u2019s own rows, and a roll reads its stat or column as Target.Hit.<name>, as Target.Hit.pen.'));
         wrap.appendChild(rh);
     }
+    if (typeof checkLabel === 'function') wrap.appendChild(checkLabel('sys-combat-hideresist', cm.hideResist === true, 'Hide what a defence needs', 'A roll that reads its attacker through AttemptMargin, Attempter.<key> or Attempt.kind goes to the table as its dice and Success or Failure. The figure it needed stays yours. An attack by one of your characters goes the same way, since its margin would give that figure away. Any other roll is as it was. For one NPC, use Hide figures on its sheet'));   // 1.6.2
     var err = errorCell('range'); err.dataset.errFor = 'range'; wrap.appendChild(err);
     box.appendChild(wrap);
 }
@@ -11624,6 +11641,7 @@ function onChange(e) {
     if (c.indexOf('sys-combat-hp') >= 0) { draft.combat.hpResource = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-cover-on') >= 0) { if (!draft.combat.cover) draft.combat.cover = { on: false, style: 'graded' }; draft.combat.cover.on = t.value === 'on'; markDirty(); patchErrors(); renderCombat(); return; }
     if (c.indexOf('sys-combat-height-rule') >= 0) { var hrD = draft.combat.height && typeof draft.combat.height === 'object' && !Array.isArray(draft.combat.height) ? draft.combat.height : null; if (t.value === 'clears') draft.combat.height = Object.assign({}, hrD || {}, { rule: 'clears' }); else if (hrD) { delete hrD.rule; if (!Object.keys(hrD).length) delete draft.combat.height; } markDirty(); patchErrors(); return; }   // item 19 H1
+    if (c.indexOf('sys-combat-hideresist') >= 0) { if (t.checked) draft.combat.hideResist = true; else delete draft.combat.hideResist; markDirty(); patchErrors(); return; }   // 1.6.2
     if (c.indexOf('sys-combat-postatk') >= 0) { if (t.checked) draft.combat.postureOnAttack = true; else delete draft.combat.postureOnAttack; markDirty(); patchErrors(); renderCombat(); return; }   // 1.6.0
     if (c.indexOf('sys-combat-covmod') >= 0) { if (!draft.combat.cover) draft.combat.cover = { on: false, style: 'graded' }; var cmG = t.dataset.grade, cmT = draft.combat.cover.mods && typeof draft.combat.cover.mods === 'object' ? draft.combat.cover.mods : {}, cmV = Number(t.value); if (['half', 'threeq', 'cover', 'total'].indexOf(cmG) < 0) return; if (t.value !== '' && isFinite(cmV)) cmT[cmG] = cmV; else delete cmT[cmG]; if (Object.keys(cmT).length) draft.combat.cover.mods = cmT; else delete draft.combat.cover.mods; markDirty(); patchErrors(); return; }   // 1.6.0: what a grade of cover takes off an attack, kept as typed for what Save says of it
     if (c.indexOf('sys-combat-cover-objects') >= 0) { if (!draft.combat.cover) draft.combat.cover = { on: false, style: 'graded' }; var cvO = Math.floor(Number(t.value)); if (t.value !== '' && cvO >= 1) draft.combat.cover.objects = Math.min(100, cvO); else delete draft.combat.cover.objects; markDirty(); patchErrors(); return; }
@@ -12103,6 +12121,7 @@ function importFile(file) {
     var nmBt = ui('sheetName'); if (nmBt) nmBt.addEventListener('click', renameMaking);
     var ulBt = ui('sheetUnlock'); if (ulBt) ulBt.addEventListener('click', function() { if (sheetOpen) unlockChar(sheetOpen); });
     var apBt = ui('sheetAsPlayer'); if (apBt) apBt.addEventListener('click', asPlayerPress);   // 1.6.0: As player
+    var hfBt = ui('sheetHideFig'); if (hfBt) hfBt.addEventListener('click', hideFigPress);   // 1.6.2: Hide figures
     var edBt = ui('sheetEdit'); if (edBt) edBt.addEventListener('click', function() { if (!sheetOpen) return; _sheetEdit = _sheetEdit === sheetOpen ? null : sheetOpen; renderSheet(); });   // the sheet's lock: this viewer's own switch, for the sheet that is open
     var delBt = ui('sheetDelete'); if (delBt) delBt.addEventListener('click', function() { if (sheetOpen) askDeleteSheet(sheetOpen); });
     var cfI = ui('sysCharFilter'); if (cfI) cfI.addEventListener('input', charFilter);

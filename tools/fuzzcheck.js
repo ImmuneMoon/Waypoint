@@ -654,7 +654,7 @@ function mkCampaign(SC, F) {
         chars: {
             c_p1: { id: 'c_p1', name: 'Ayla', ownerId: 'u_p1', npc: false, values: { f_str: 14, f_dex: 12, f_gmfig: 7, f_hp: { cur: 10, max: 12 }, f_inv: [], f_class: 'Ranger', f_gmword: 'the secret word', f_gmtxt: 'a title the GM gave' }, updated: 1 },
             c_p2: { id: 'c_p2', name: 'Bram', ownerId: 'u_p2', npc: false, values: { f_str: 9, f_gmfig: 3, f_class: 'Bard' }, updated: 1 },
-            c_npc: { id: 'c_npc', name: 'Orc', npc: true, values: { f_str: 16, f_gmfig: 99, f_class: 'Brute' }, updated: 1 }
+            c_npc: { id: 'c_npc', name: 'Orc', npc: true, hideFig: true, values: { f_str: 16, f_gmfig: 99, f_class: 'Brute' }, updated: 1 }
         },
         items: {
             m_open: { id: 'm_open', type: 'map', meta: { title: 'Open Field', gridType: 'square' }, fog: { cell: 50 }, rooms: [], links: [], whiteboard: [
@@ -1462,6 +1462,7 @@ function mutations(tpl) {
         await fireHost('p1', 'char-edit npc', 'the NPC', { type: 'char-edit', rid: 'g4', charId: 'c_npc', fieldId: 'f_str', value: 1 });
         const camp = stubs.getActiveCampaign(), out = sentLog.slice(sb);
         check('host: the GM-only field is neither rolled by name, nor edited, nor is another\'s character or the NPC', camp.chars.c_p1.values.f_gmfig === 7 && camp.chars.c_p2.values.f_str === 9 && camp.chars.c_npc.values.f_str === 16 && !out.some(s => s.m.type === 'roll' && /GMFig/.test(JSON.stringify(s.m.names || ''))) && out.filter(s => s.m.type === 'char-deny').length >= 3, { gmfig: camp.chars.c_p1.values.f_gmfig, p2: camp.chars.c_p2.values.f_str, npc: camp.chars.c_npc.values.f_str, out: out.map(s => s.m.type + (s.m.reason ? ':' + s.m.reason : '')) });
+        check('host: the tick that hides an NPC\'s figure is in no send, and no message of a player\'s takes it off', camp.chars.c_npc.hideFig === true && !out.some(s => /hideFig/.test(JSON.stringify(s))));
         check('host: nothing sent to any player carries the GM-only value, the hidden token or the GM note', !out.some(s => /"f_gmfig":(7|3|99)|tok_hidden|the orc lies|secret plan/.test(JSON.stringify(s.m))));
         check('host: nothing of the sounds the GM ties to actions is in any send (1.6.2)', !sentLog.some(s => /soundOn|the hidden gong/.test(JSON.stringify(s.m))));
         const sbL = sentLog.length, sigL = t => win.wpLook.textSig(t), lookL = t => ({ fmt: { b: true }, sig: sigL(t) }), clockL = clockOff; clockOff += 20000;
@@ -2837,7 +2838,7 @@ function mutations(tpl) {
         'acts-left': { type: 'acts-left', charId: 'c_p1', left: { attack: 1 }, mode: 'warn' },
         'turn-note': { type: 'turn-note', text: 'Your turn.', charId: 'c_p1' },
         'due': { type: 'due', id: 'd_1', charId: 'c_p1', from: { id: 'u_gm', name: 'GM', gm: true }, label: 'Regen', ts: 1 },
-        'roll': { type: 'roll', id: 'r_abc', from: { id: 'u_p2', name: 'Bram' }, expr: '1d20 + 3', draws: [[17]], v: F.VERSION, ts: 1, label: 'Attack' },
+        'roll': { type: 'roll', id: 'r_abc', from: { id: 'u_p2', name: 'Bram' }, expr: '1d20 + 3', draws: [[17]], v: F.VERSION, ts: 1, label: 'Attack', hid: 'pass', hidc: 'crit' },   // 1.6.2: the host's word for a hidden figure, its mutations reaching the cleaner
         'roll-deny': { type: 'roll-deny', rid: 'zz', reason: 'slow' },
         'asset-part': { type: 'asset-part', path: '/saves/images/audio/s.mp3', i: 0, n: 1, data: new Uint8Array([1]).buffer },
         'asset': { type: 'asset', path: '/saves/images/pic.png', mime: 'text/html', data: new Uint8Array([60, 115]).buffer },

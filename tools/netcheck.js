@@ -5471,6 +5471,106 @@ pendingChecks.push((async () => {
     const reach = new Function(fnSrc('function fightReachKept(had, f) {', '\n}\n', 'fightReachKept') + '\n}\nreturn fightReachKept;')(); reach(had2, rows2);
     check('1.6.0 a roster edit keeps a named hold with its row, and what a set off and a lost action left', j(rows2.rows) === j([{ id: 'r_a', held: 1, holdFor: { text: 't' } }, { id: 'r_b', sf: 1, hk: 1 }]), j(rows2));
 })());
+// 1.6.2 a hidden figure (the owner, 2026-11-01): the host's real roll-req branch and net.diceRoll with the real sends, the real cleaners and a latecomer's history: a roll that reads
+// its attacker reaches a player as dice and the host's word, the whole record stays on the GM's machine, and with no setting nothing changes (invented data: Kael, Sela, Brannoch, Pebbles)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx0 = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const src4 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const line = k => { const i = src4.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src4.slice(i, src4.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom(', 'function applyLines(', 'function chatHistoryOf('].map(line).join('\n') + '\n';
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll'), atSrc = between('// [netcheck:attempt-start]', '// [netcheck:attempt-end]', 'attempt');
+    const hfSrc = between('// [netcheck:hidefig-start]', '// [netcheck:hidefig-end]', 'hidefig'), nsSrc = between('// [netcheck:npcseen-start]', '// [netcheck:npcseen-end]', 'npcseen'), paSrc = between('// [netcheck:postapply-start]', '// [netcheck:postapply-end]', 'postapply'), stSrc = fnSrc('function sendTable(msg, exceptConn) {', '\n}\n', 'sendTable') + '\n}\n', pcSrc = line('net.postApplyCard = function(') + '\n' + src4.slice(src4.indexOf('net.postApplyCard = function(') + line('net.postApplyCard = function(').length, src4.indexOf('\n};\n', src4.indexOf('net.postApplyCard = function(')) + 4);
+    const DUCK = '3d6 <= Will - AttemptMargin', GRIT = '3d6 <= 5 + Attempter.Drill', PLAIN = '3d6 <= Will', WARD = '3d6 <= Row.Def - AttemptMargin', JAM = '3d6 <= Will - AttemptMargin + 20';
+    const mk = o => {
+        o = o || {}; let dq = []; const Fx = Object.assign({}, Fx0, { evaluate: (e, op) => Fx0.evaluate(e, Object.assign({ random: () => { if (!dq.length) throw new Error('netcheck: no die left'); return dq.shift(); } }, op)) });
+        const sys = Sx.cleanSystem({ v: 1, name: 'K', combat: Object.assign({ checks: 'under3d6', targetReads: ['f_dr'] }, o.hide ? { hideResist: true } : {}), fields: [{ id: 'f_wl', key: 'Will', label: 'Will', kind: 'number', vis: 'all', edit: 'owner', def: 12 }, { id: 'f_dr', key: 'Drill', label: 'Drill', kind: 'number', vis: 'all', edit: 'owner', def: 7 }, { id: 'f_mk', key: 'Marks', label: 'Marks', kind: 'number', vis: 'all', edit: 'owner', def: 0 },
+            { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Def' }], rolls: [{ label: 'Ward', formula: WARD, resist: true }] } }],
+            items: [{ id: 'i_bl', name: 'Blade', stats: { Def: 11 } }],
+            rolls: [{ id: 'r_st', label: 'Strike {Drill}', formula: '3d6 <= 13', vis: 'all', resistBy: 'r_dg', resistOr: ['r_gr', 'f_wp#0'] }, { id: 'r_sp', label: 'Spar', formula: '3d6 <= 13', vis: 'all', resistBy: 'r_pl' }, { id: 'r_jm', label: 'Jab', formula: '3d6 <= 13', vis: 'all', resistBy: 'r_jd' }, { id: 'r_bh', label: 'Bash', formula: '2d6 + 1', vis: 'all', dmg: true, resistBy: 'r_dg' },
+                { id: 'r_dg', label: 'Duck', formula: DUCK, vis: 'all', resist: true, then: [{ f: 'f_mk', formula: '1d6 + RollMargin', add: true, roll: true, when: 'hit' }] }, { id: 'r_gr', label: 'Grit', formula: GRIT, vis: 'all', resist: true }, { id: 'r_pl', label: 'Plain', formula: PLAIN, vis: 'all', resist: true }, { id: 'r_jd', label: 'Jam', formula: JAM, vis: 'all', resist: true, malf: '17' }] }, { F: Fx, gmView: true });
+        const out = { sent: { pA: [], pB: [] }, dues: [], log: [], chat: [], toasts: [] }, aim = { u_a: 't_b', u_b: 't_a', gm: 't_a' }, wide = { to: '' };
+        const camp = { id: 'k', activeItemId: 'm1', system: sys, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: { f_wp: [{ id: 'w_bl', defId: 'i_bl', qty: 1 }] } }, c_b: { id: 'c_b', name: 'Sela', ownerId: 'u_b', npc: false, values: {} }, c_n: Object.assign({ id: 'c_n', name: 'Brannoch', ownerId: '', npc: true, values: {} }, o.tick ? { hideFig: true } : {}), c_m: { id: 'c_m', name: 'Pebbles', ownerId: '', npc: true, values: {} } },
+            items: { m1: { type: 'map', whiteboard: [{ id: 't_a', charId: 'c_a', ownerId: 'u_a', isChar: true, x: 0, y: 0 }, { id: 't_b', charId: 'c_b', ownerId: 'u_b', isChar: true, x: 50, y: 0 }, { id: 't_n', charId: 'c_n', isChar: true, x: 100, y: 0 }, { id: 't_m', charId: 'c_m', isChar: true, x: 150, y: 0 }] } } };
+        const conn = p => ({ peer: p, open: true, send(m) { packCheck(m); out.sent[p].push(JSON.parse(JSON.stringify(m))); } }), cA = conn('pA'), cB = conn('pB');
+        const net = { role: 'host', active: true, stream: false, paused: false, conns: [cA, cB], roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' }, pB: { id: 'u_b', name: 'Bo', location: 'm1' } }, combats: {}, syncCharDelta() {}, postDue: (ch, act, kind, round, toOwner, more) => out.dues.push({ ch: ch.id, act: act.id, toOwner: toOwner, att: more && more.att, m: more && more.m, hasM: !!more && more.m !== undefined }) };
+        const rng = t => t ? { mod: 0, dist: 2, tid: t, mapId: 'm1' } : null;
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {}, tokenCtxFor: () => aim.gm ? { range: rng(aim.gm) } : null }, wpVtt: { on: () => true, rulesOn: () => true } };
+        const W = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'pushRoll', 'pushChat', 'logEvent', 'saveRemoteSoon', 'rangeTo', 'getProfile', 'toast', 'ui', 'save', 'fogDrop', 'applyLine',
+            'var diceLimit = null, _diceSlowSaid = {}, _dicePending = null;\n' + helpers + nsSrc + '\n' + stSrc + hfSrc + '\n' + paSrc + '\n' + pcSrc + '\n' + atSrc + '\n' + drSrc + '\nreturn { rq: function(msg, conn) {\ndiceLimit = null; _diceSlowSaid = {};\n' + rqSrc + '\n}, dr: net.diceRoll, rec: function(id) { return _attempts[id]; }, hist: chatHistoryOf, seen: historySeen };')(
+            net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, (rec, res, scope) => { out.log.push({ from: rec.from, text: '', scope: scope, ts: rec.ts, roll: rec, res: res }); }, m => { out.chat.push(m); out.log.push(m); }, () => {}, () => {},
+            (c, m, l, tok, pid) => rng(aim[pid]), () => ({ id: 'u_gm', name: 'GM' }), t => out.toasts.push(t), id => id === 'chatTo' && wide.to ? { value: wide.to } : null, () => {}, () => null, () => '');
+        const roll = (cn, charId, extra, expr, dice) => { dq = dice.slice(); W.rq(Object.assign({ type: 'roll-req', rid: 'q' + Math.random().toString(36).slice(2, 7), charId: charId, expr: expr }, extra), cn); };
+        const gm = (expr, op, dice) => { dq = dice.slice(); return W.dr(expr, op); };
+        const strike = (ch, act) => { const n = out.dues.length, was = aim.gm; gm('3d6 <= 13', { charId: ch || 'c_n', act: act || 'r_st', label: 'Strike ' + 7 }, [2, 3, 4]); aim.gm = was; return out.dues.length > n ? out.dues[out.dues.length - 1] : null; };
+        const rolls = p => out.sent[p].filter(m => m.type === 'roll'), lastRoll = p => { const r = rolls(p); return r[r.length - 1]; }, whole = () => { const r = out.log.filter(m => m.roll); return r[r.length - 1].roll; };
+        return { W, net, camp, out, aim, wide, cA, cB, roll, gm, strike, rolls, lastRoll, whole, Fx };
+    };
+    const FIG = ['names', 'mods', 'refs', 'crit', 'big', 'aim', 'cov', 'pos', 'dmg', 'margin', 'target', 'm', 'rd', 'k'];
+    const clean = m => !!m && m.hid !== undefined && FIG.every(k => !(k in m)) && !/[<>=]|AttemptMargin|Attempter|Attempt\.|Will|Row\.|Drill/.test(m.expr) && !/AttemptMargin|Attempter|Attempt\.kind/.test(j(m));
+    const readsOn = m => { const c = Dx.cleanRoll(m), r = c ? Dx.replay(c, Fx0, Fx0.VERSION) : null; return !!r && r.ok; };
+
+    // no setting: as it was
+    const W0 = mk(); const d0 = W0.strike(), at0 = W0.W.rec(d0.att); const atkT0 = W0.lastRoll('pA'), atkG0 = W0.whole();
+    W0.roll(W0.cA, 'c_a', { act: 'r_dg', att: d0.att, label: 'Duck' }, DUCK, [1, 2, 3, 4]); const ans0 = W0.lastRoll('pA'), ansG0 = W0.whole();
+    check('1.6.2 a hidden figure, with no setting: the attack and the answer are sent as the whole record, byte for byte what the GM\'s card holds, the card names the margin, and the attempt holds no mark',
+        at0.hide === undefined && d0.hasM && d0.m === 4 && ans0.expr === DUCK && ans0.hid === undefined && ans0.names.some(n => n.name === 'AttemptMargin' && n.value === 4) && j(ans0) === j(ansG0) && j(atkT0) === j(atkG0) && atkT0.expr === '3d6 <= 13' && W0.rolls('pB').length === 2, j([ans0, ansG0, d0]));
+
+    // the system option
+    const W1 = mk({ hide: true }); const d1 = W1.strike(), at1 = W1.W.rec(d1.att), atkT1 = W1.lastRoll('pA'), atkG1 = W1.whole();
+    W1.roll(W1.cA, 'c_a', { act: 'r_dg', att: d1.att, label: 'Duck' }, DUCK, [1, 2, 3, 4]); const ansA = W1.lastRoll('pA'), ansB = W1.lastRoll('pB'), ansG = W1.whole();
+    check('1.6.2 a hidden figure, the system option: the attempt is marked on the host\'s own record alone, its card to a player names no margin, and the mark is on nothing sent',
+        at1.hide === true && !d1.hasM && !W1.out.sent.pA.concat(W1.out.sent.pB).some(m => /"hide"|"hideFig"|"rd"/.test(j(m))), j([at1, d1]));
+    check('1.6.2 a hidden figure: what every player is sent of the answer is the dice and the host\'s word, nothing it read, no formula and no target; it passes a player\'s cleaner and replays there',
+        clean(ansA) && clean(ansB) && ansA.expr === '3d6' && j(ansA.draws) === j([1, 2, 3]) && ansA.hid === 'pass' && ansA.label === 'Duck' && ansA.as === 'Kael' && j(ansA) === j(ansB) && readsOn(ansA), j(ansA));
+    check('1.6.2 a hidden figure: the GM\'s own card keeps the whole record, its formula and every figure, and its verdict is the very word the table was sent',
+        ansG.expr === DUCK && ansG.names.some(n => n.name === 'AttemptMargin' && n.value === 4) && ansG.names.some(n => n.name === 'Will' && n.value === 12) && ansG.hid === undefined && Dx.verdictOf(W1.out.log.filter(m => m.roll).pop().res, Dx.ruleOf(ansG, 'under3d6')).pass === true, j(ansG));
+    const pickA = W1.camp.chars.c_a.values.f_mk, thenS = W1.out.sent.pA.filter(m => m.type === 'apply').concat(W1.out.sent.pB.filter(m => m.type === 'apply')), thenG = W1.out.chat.filter(m => m.apply).map(m => m.apply);
+    const W0T = W0.out.sent.pA.filter(m => m.type === 'apply');
+    check('1.6.2 a hidden figure: its Then lands on the host as ever, and the card of what it drew says what moved with no figure, no dice and no new value, the GM\'s own card keeping them',
+        pickA > 0 && thenS.length > 0 && thenS.every(m => m.lines.every(l => l.s === 1 && l.d === undefined && l.v === undefined && l.roll === undefined) && !!Dx.cleanApply(m)) && thenG.length === 1 && thenG[0].lines[0].d === pickA && thenG[0].lines[0].roll !== undefined && W0T.length > 0 && W0T[0].lines[0].d !== undefined, j([pickA, thenS, thenG]));
+    const nAp = W1.out.sent.pB.length; W1.net.postApplyCard(W1.camp.chars.c_a, 'Then', [{ n: 'Marks', d: 5, v: 5, roll: '1d6: 4' }], 'table', true); const wireAp = W1.out.sent.pB.slice(nAp), gmAp = W1.out.chat[W1.out.chat.length - 1].apply;
+    const hisA = W1.W.seen(W1.W.hist(W1.out.log), W1.net.roster.pA), hisRolls = hisA.filter(m => m.roll).map(m => m.roll), hisApply = hisA.filter(m => m.apply).map(m => m.apply);
+    W1.net.roster.pB.location = 'm_other'; const hisB = W1.W.seen(W1.W.hist(W1.out.log), W1.net.roster.pB).filter(m => m.roll); W1.net.roster.pB.location = 'm1';
+    check('1.6.2 a hidden figure: a latecomer\'s history holds the table\'s copies, of the roll and of its Then, the whole record never, and an NPC\'s card still stays from one who cannot see it',
+        hisRolls.length === 2 && hisRolls.every(clean) && hisApply.length === 1 && hisApply[0].lines.every(l => l.s === 1 && l.d === undefined) && wireAp.length === 1 && wireAp[0].lines[0].d === undefined && gmAp.lines[0].d === 5 && !hisB.some(m => m.roll.as === 'Brannoch') && hisB.length === 1, j([hisRolls, hisApply, hisB, wireAp]));
+    check('1.6.2 a hidden figure: an NPC\'s attack goes the same way, or its margin on the table\'s card would give that figure away: dice and Success, the words of a label cut before what the sheet worked out; the GM\'s card whole; and the one attempt it made goes on',
+        clean(atkT1) && atkT1.hid === 'pass' && atkT1.label === 'Strike' && atkT1.as === 'Brannoch' && atkG1.expr === '3d6 <= 13' && atkG1.label === 'Strike 7' && atkG1.hid === undefined, j([atkT1, atkG1]));
+
+    // the GM's tick on one NPC
+    const W2 = mk({ tick: true }); const d2 = W2.strike(), at2 = W2.W.rec(d2.att), atkT2 = W2.lastRoll('pA'); W2.roll(W2.cA, 'c_a', { act: 'r_dg', att: d2.att }, DUCK, [1, 2, 3, 4]); const ans2 = W2.lastRoll('pA');
+    const d2m = W2.strike('c_m'), at2m = W2.W.rec(d2m.att), atkM = W2.lastRoll('pA'); W2.roll(W2.cA, 'c_a', { act: 'r_dg', att: d2m.att }, DUCK, [1, 2, 3, 4]); const ansM = W2.lastRoll('pA');
+    check('1.6.2 a hidden figure, the GM\'s tick: an attack by the NPC that wears it is hidden and so is the answer; another NPC at the same table is as it was', at2.hide === true && clean(atkT2) && clean(ans2) && !d2.hasM && at2m.hide === undefined && d2m.m === 4 && atkM.hid === undefined && atkM.expr === '3d6 <= 13' && ansM.hid === undefined && ansM.expr === DUCK, j([at2, ans2, ansM]));
+    const W2p = mk({ tick: true }); W2p.camp.chars.c_a.hideFig = true; W2p.roll(W2p.cB, 'c_b', {}, '3d6', [1, 1, 1]); const nP = W2p.out.dues.length; W2p.roll(W2p.cA, 'c_a', { act: 'r_st', label: 'Strike' }, '3d6 <= 13', [2, 3, 4]); const dP = W2p.out.dues[nP], atP = W2p.W.rec(dP.att);
+    check('1.6.2 a hidden figure: the tick counts on an NPC alone, so one left on a sheet a player now holds hides nothing', atP.hide === undefined && dP.m === 4, j([atP, dP]));
+
+    // what reads nothing of the attacker
+    const W3 = mk({ hide: true }); const d3 = W3.strike('c_n', 'r_sp'), atk3 = W3.lastRoll('pA'); W3.roll(W3.cA, 'c_a', { act: 'r_pl', att: d3.att }, PLAIN, [1, 2, 3]); const ans3 = W3.lastRoll('pA');
+    check('1.6.2 a hidden figure: a roll that reads nothing of the attacker is its roller\'s own, whatever the setting says, and so is an attack that only such a roll answers', ans3.hid === undefined && ans3.expr === PLAIN && ans3.names.length === 1 && atk3.hid === undefined && atk3.expr === '3d6 <= 13', j([ans3, atk3]));
+    const W3g = mk({ hide: true }); W3g.camp.chars.c_a.values.f_dr = 9; const n3 = W3g.out.dues.length; W3g.strike(); const d3g = W3g.out.dues[n3]; W3g.roll(W3g.cA, 'c_a', { act: 'r_gr', att: d3g.att }, GRIT, [1, 2, 3]); const ans3g = W3g.lastRoll('pA');
+    W3g.strike(); const d3w = W3g.out.dues[W3g.out.dues.length - 1]; W3g.camp.chars.c_a.values.f_wp = [{ id: 'w_bl', defId: 'i_bl', qty: 1 }]; W3g.roll(W3g.cA, 'c_a', { row: { f: 'f_wp', r: 'w_bl', i: 0 }, att: d3w.att }, WARD, [1, 2, 3]); const ans3w = W3g.lastRoll('pA');
+    check('1.6.2 a hidden figure: Attempter.<key> and a list\'s roll on a row are hidden alike', clean(ans3g) && ans3g.expr === '3d6' && clean(ans3w) && ans3w.hid === 'pass', j([ans3g, ans3w]));
+
+    // private, a whisper, a jam
+    const W4 = mk({ hide: true }); const d4 = W4.strike(); W4.roll(W4.cA, 'c_a', { act: 'r_dg', att: d4.att, priv: 'gm' }, DUCK, [1, 2, 3, 4]); const ans4 = W4.lastRoll('pA'), nB4 = W4.rolls('pB').length;
+    check('1.6.2 a hidden figure: a private answer goes to its roller alone as the copy, marked private', clean(ans4) && ans4.priv === 'gm' && W4.lastRoll('pB').label !== 'Duck' && nB4 === 1 && W4.whole().priv === 'gm' && W4.whole().expr === DUCK, j(ans4));
+    const W5 = mk({ hide: true }); W5.wide.to = 'pB'; const nA5 = W5.rolls('pA').length; W5.strike(); const wh5 = W5.lastRoll('pB');
+    check('1.6.2 a hidden figure: a GM\'s roll whispered to one player goes as the copy, addressed to them', clean(wh5) && wh5.to === 'pB' && W5.rolls('pA').length === nA5 && W5.whole().expr === '3d6 <= 13', j(wh5));
+    const W6 = mk({ hide: true }); const d6 = W6.strike('c_n', 'r_jm'); W6.roll(W6.cA, 'c_a', { act: 'r_jd', att: d6.att }, JAM, [6, 6, 5]); const ans6 = W6.lastRoll('pA'); const d6b = W6.strike('c_n', 'r_jm'); W6.roll(W6.cA, 'c_a', { act: 'r_jd', att: d6b.att }, JAM, [1, 2, 3]); const ans6b = W6.lastRoll('pA');
+    check('1.6.2 a hidden figure: a jam is said as a jam and a failure, by the roll\'s own total, and a roll that did not jam carries no Malf at all', clean(ans6) && ans6.hid === 'fail' && ans6.malf === 17 && ans6.malfHid === 1 && Dx.malfOf(Dx.cleanRoll(ans6), Dx.replay(Dx.cleanRoll(ans6), Fx0, Fx0.VERSION).result) && clean(ans6b) && !('malf' in ans6b), j([ans6, ans6b]));
+
+    // the GM answering for an NPC, a player's attack, the option on
+    const W7 = mk({ hide: true }); const n7 = W7.out.dues.length; W7.aim.u_a = 't_n'; W7.roll(W7.cA, 'c_a', { act: 'r_st', label: 'Strike' }, '3d6 <= 13', [2, 3, 4]); const atk7 = W7.lastRoll('pB'), d7 = W7.out.dues[n7];
+    W7.net._attNext = { att: d7.att, charId: 'c_n', act: 'r_dg' }; W7.gm(DUCK, { charId: 'c_n', act: 'r_dg', label: 'Duck' }, [1, 2, 3]); W7.net._attNext = null; const ans7 = W7.lastRoll('pA'), ansG7 = W7.whole();
+    check('1.6.2 a hidden figure: the GM\'s own answer for an NPC, against a player\'s attack: the table is sent the copy, the GM keeps the whole record, and the card, the GM\'s, keeps the margin; the player\'s attack stays theirs',
+        clean(ans7) && ans7.hid === 'pass' && ansG7.expr === DUCK && ansG7.hid === undefined && d7.hasM && d7.toOwner === false && atk7.expr === '3d6 <= 13' && atk7.hid === undefined, j([ans7, ansG7, d7]));
+    const W8 = mk({ tick: true }); const n8 = W8.out.dues.length; W8.aim.u_a = 't_n'; W8.roll(W8.cA, 'c_a', { act: 'r_st', label: 'Strike' }, '3d6 <= 13', [2, 3, 4]); const d8 = W8.out.dues[n8]; W8.net._attNext = { att: d8.att, charId: 'c_n', act: 'r_dg' }; W8.gm(DUCK, { charId: 'c_n', act: 'r_dg' }, [1, 2, 3]); W8.net._attNext = null;
+    check('1.6.2 a hidden figure: the tick is on the attacker\'s sheet: a player attacking the NPC that wears it hides nothing', W8.lastRoll('pA').expr === DUCK && W8.lastRoll('pA').hid === undefined, j(W8.lastRoll('pA')));
+    const W9 = mk({ hide: true }); W9.aim.gm = 't_b'; W9.strike('c_a'); const atk9 = W9.lastRoll('pB'); W9.aim.gm = 't_a'; W9.gm('2d6 + 1', { charId: 'c_n', act: 'r_bh', label: 'Bash' }, [2, 3]); const dmg9 = W9.lastRoll('pB');
+    check('1.6.2 a hidden figure: only a GM\'s character\'s attack goes the same way: the GM pressing a player\'s character\'s attack sends it whole, and a damage roll, which has no check and makes no attempt, keeps its figure and its mark', atk9.expr === '3d6 <= 13' && atk9.hid === undefined && dmg9.expr === '2d6 + 1' && dmg9.dmg === 1 && dmg9.hid === undefined, j([atk9, dmg9]));
+    const solo = mk({ hide: true }); solo.net.active = false; const atkS = (solo.gm('3d6 <= 13', { charId: 'c_n', act: 'r_st', label: 'Strike 7' }, [2, 3, 4]), solo.whole());
+    check('1.6.2 a hidden figure: nobody at the table, nothing masked and nothing sent', atkS.expr === '3d6 <= 13' && solo.rolls('pA').length === 0, j(atkS));
+})());
 // 1.6.0 An attempt's kind (attemptKey on an attack, Attempt.kind on a resist roll): the host reads the attacker's row stat off its own copy, a defence whose needs fail for it is
 // not offered, the press reads the kind from the host's record, and a GM-only attack's kind is named on no card (invented data: Kael, Sela, Bolter, Slugger)
 pendingChecks.push((async () => {

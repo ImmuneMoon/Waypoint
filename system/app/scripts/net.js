@@ -6329,16 +6329,17 @@ function allyWrite(ch, values) {
 // its card: to whoever may see that character's figures (scope, applyScope of the target: the table, its player and the GM, or the GM alone),
 // as the presser's card says the presser's. The presser's own player, where they are not among those (conn, pid), gets the same lines with no
 // figure after each and a value set said as set, so they learn what moved and never a value they could not read
-function allyCard(user, target, onName, label, lines, scope, from, conn, pid) {
+function allyCard(user, target, onName, label, lines, scope, from, conn, pid, hid) {   // hid (1.6.2): a roll whose figure is hidden: its card says what moved and no figure
     var rec = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: from, lines: applyLines(lines), ts: Date.now() };
     if (!rec.lines.length || !target) return null;
     if (label) rec.label = String(label).slice(0, 60);
     if (user && user.name) rec.as = String(user.name).slice(0, 60);
     rec.on = String(onName || target.name || 'A character').slice(0, 60);
+    if (hid === true && typeof figApply === 'function') figApply(rec);
     postApply(rec, scope, target, null);
     var sees = scope === 'table' || (scope === 'owner' && !!target.ownerId && !target.npc && target.ownerId === pid);
     if (conn && !sees && net.active && net.role === 'host') {
-        var bare = Object.assign({}, rec, { priv: 'gm', lines: rec.lines.map(function(l, i) { if (l.fx === 1 || l.fx === 0) return { n: l.n, fx: l.fx }; var o = lines[i] && lines[i].set === true ? { n: l.n, s: 1 } : { n: l.n, d: l.d }; if (l.roll) o.roll = l.roll; return o; }) });
+        var bare = Object.assign({}, rec, { priv: 'gm', lines: rec.lines.map(function(l, i) { if (l.fx === 1 || l.fx === 0) return { n: l.n, fx: l.fx }; var o = hid === true || (lines[i] && lines[i].set === true) ? { n: l.n, s: 1 } : { n: l.n, d: l.d }; if (l.roll && hid !== true) o.roll = l.roll; return o; }) });
         try { conn.send(bare); } catch (e) { sendFailed(e); }
     }
     return rec;
@@ -9194,8 +9195,9 @@ function handleMessage(msg, conn) {
             q.priv = 'gm'; if (typeof turnNote === 'function') turnNote(conn, 'Rolled privately: a player on that map cannot see your target.', q.charId);
         }
         var hsQ = typeof holdsSqueeze === 'function' && chQ && typeof SQ.holdRefOf === 'function' ? holdsSqueeze(campQ, chQ, holdRefQ(campQ, q, actQ), recQ, Dq) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
-        if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) { sendFailed(e); } if (cvQ) recQ.hit = cvQ.row; pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }   // cvQ: the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
-        else { sendTable(recQ, null); if (cvQ) recQ.hit = cvQ.row; pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
+        var hdQ = !!(blowRecQ && typeof figAnswers === 'function' && figAnswers(blowRecQ, q.expr, Fq)); if (hdQ) figMark(recQ, resQ, Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : ''), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, Dq, Fq);   // 1.6.2: a roll answering an attempt whose figure is hidden: what leaves here is its copy
+        if (q.priv) { recQ.priv = 'gm'; try { conn.send(hdQ ? figOf(recQ) : recQ); } catch (e) { sendFailed(e); } if (cvQ) recQ.hit = cvQ.row; pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }   // cvQ: the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
+        else { sendTable(hdQ ? figOf(recQ) : recQ, null); if (cvQ) recQ.hit = cvQ.row; pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
         if (hsQ) hsQ.forEach(function(rxQ) { if (q.priv) { rxQ.priv = 'gm'; try { conn.send(rxQ); } catch (e) { sendFailed(e); } pushRoll(rxQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); } else { sendTable(rxQ, null); pushRoll(rxQ, resQ, 'global', { cid: chQ ? q.charId : '' }); } });
         var ruleQ = Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '');   // Stage 6 F8: the system's roll outcomes (1.6.0: or the record's own critical range)
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars, rule: ruleQ }), { w: recQ.as || (recQ.from && recQ.from.name) || '', h: !!recQ.priv });
@@ -9214,8 +9216,8 @@ function handleMessage(msg, conn) {
             if (taQ && !taQ.ok && taQ.reason === 'money' && typeof turnNote === 'function') { if (window.wpStepLog) window.wpStepLog('money v1', 'refused', { by: 'player' }); turnNote(conn, 'Nothing of it landed. ' + (taQ.message || 'Not enough money.'), q.charId); if (typeof toast === 'function') toast((chQ.name || 'A character') + ' had too little money, so nothing of it landed. ' + (taQ.message || '')); }   // 1.6.0: too little money refuses the whole Then, in words, and the GM is told
             if (taQ && !taQ.ok && taQ.reason === 'none' && taQ.message && typeof turnNote === 'function') turnNote(conn, taQ.message, q.charId);   // 1.6.0: a Then with nothing to do but an effect already as asked says so, as an action's press does
             if (taQ && taQ.ok && (!onQ || Object.keys(taQ.values).length)) { chQ.values = chQ.values || {}; Object.keys(taQ.values).forEach(function(k) { chQ.values[k] = taQ.values[k]; }); chQ.updated = Date.now(); saveRemoteSoon(); if (taQ.gone && !(typeof pressQ !== 'undefined' && pressQ) && typeof rowGoneTell === 'function') rowGoneTell(q.charId, chQ, taQ.gone, conn); net.syncCharDelta(q.charId, taQ.values); if (window.wpSheets) window.wpSheets.charChanged(q.charId); }
-            if (taQ && taQ.ok && onQ && typeof allyWrite === 'function' && allyWrite(onQ.ch, taQ.onValues)) { saveRemoteSoon(); if (typeof allyCard === 'function') allyCard(chQ, onQ.ch, onQ.tok.charName || onQ.tok.name || onQ.ch.name, String(recQ.label || (typeof actQ.label === 'string' && actQ.label && actQ.label.indexOf('{') < 0 ? actQ.label : 'Then')).slice(0, 60), taQ.onLines, recQ.priv ? 'gm' : SQ.applyScope(campQ.system, onQ.ch, { apply: thQ, vis: actQ.vis }, false, Fq), diceFrom(net.roster[conn.peer], false), conn, pidQ); }   // 1.5.9: what moved on the one it was used on, and its card
-            if (taQ && taQ.ok && (taQ.burst || taQ.paid || (taQ.drew && taQ.lines.some(function(l) { return !!l.roll; }))) && typeof postApply === 'function' && typeof applyLines === 'function') { var raQ = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(net.roster[conn.peer], false), label: String(recQ.label || (typeof actQ.label === 'string' && actQ.label && actQ.label.indexOf('{') < 0 ? actQ.label : 'Then')).slice(0, 60), lines: applyLines(taQ.lines), ts: Date.now() }; if (chQ.name) raQ.as = String(chQ.name).slice(0, 60); postApply(raQ, recQ.priv ? 'gm' : SQ.applyScope(campQ.system, chQ, { apply: thQ, vis: actQ.vis }, false, Fq), chQ, conn); }   // 1.5.9: a Then whose Rolled amount drew dice says them on a card of its own, kept as private as the roll
+            if (taQ && taQ.ok && onQ && typeof allyWrite === 'function' && allyWrite(onQ.ch, taQ.onValues)) { saveRemoteSoon(); if (typeof allyCard === 'function') allyCard(chQ, onQ.ch, onQ.tok.charName || onQ.tok.name || onQ.ch.name, String(recQ.label || (typeof actQ.label === 'string' && actQ.label && actQ.label.indexOf('{') < 0 ? actQ.label : 'Then')).slice(0, 60), taQ.onLines, recQ.priv ? 'gm' : SQ.applyScope(campQ.system, onQ.ch, { apply: thQ, vis: actQ.vis }, false, Fq), diceFrom(net.roster[conn.peer], false), conn, pidQ, hdQ); }   // 1.5.9: what moved on the one it was used on, and its card
+            if (taQ && taQ.ok && (taQ.burst || taQ.paid || (taQ.drew && taQ.lines.some(function(l) { return !!l.roll; }))) && typeof postApply === 'function' && typeof applyLines === 'function') { var raQ = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(net.roster[conn.peer], false), label: String(recQ.label || (typeof actQ.label === 'string' && actQ.label && actQ.label.indexOf('{') < 0 ? actQ.label : 'Then')).slice(0, 60), lines: applyLines(taQ.lines), ts: Date.now() }; if (chQ.name) raQ.as = String(chQ.name).slice(0, 60); if (hdQ) figApply(raQ); postApply(raQ, recQ.priv ? 'gm' : SQ.applyScope(campQ.system, chQ, { apply: thQ, vis: actQ.vis }, false, Fq), chQ, conn); }   // 1.5.9: a Then whose Rolled amount drew dice says them on a card of its own, kept as private as the roll
             if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === true && tcQ && tcQ.range && typeof tcQ.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ.range.tid, mapId: tcQ.range.mapId, margin: vdQ.margin });   // 1.5.9 Chambers from: a hit puts the round it fired on the roller's target
             else if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === false && typeof window.wpLaunchMiss === 'function') window.wpLaunchMiss({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ && tcQ.range && typeof tcQ.range.tid === 'string' ? tcQ.range.tid : '', mapId: tcQ && tcQ.range && typeof tcQ.range.mapId === 'string' ? tcQ.range.mapId : '', margin: vdQ.margin, crit: ((typeof Dq.checkOf === 'function' ? Dq.checkOf(resQ, ruleQ) : null) || vdQ).crit === 'fumble' ? 'fumble' : '' });   // 1.5.9 (es): a miss lands as its round says, by the verdict's margin (a round that says nothing: the GM places it); its critical failure read as a throw's is, by every system's own (the review of fold 2: a d20's natural 1 too)
         }
@@ -10333,10 +10335,11 @@ function npcByOf(camp, ch, pid) {   // the name a card may give a player of one 
 }
 function sendTableAs(rec, ch, on) {   // the table's copy of a card made as a character. on (1.6.0): { ch, name }, whom the card landed on: it reaches a player who can see them, named, and no other, since a card with no name still says something unseen was hit (the owner, 2026-11-01)
     var npcR = !!(ch && (ch.npc === true || !ch.ownerId)); if (_npcCards && (npcR || (on && on.ch))) _npcCards.set(rec, { as: npcR ? ch : null, on: on && on.ch ? on.ch : null });   // who it was made as and whom it landed on, for a latecomer's history (historySeen)
+    var wr = typeof figOf === 'function' ? figOf(rec) : rec; if (wr !== rec && _npcCards && _npcCards.get(rec)) _npcCards.set(wr, _npcCards.get(rec));   // 1.6.2: a hidden figure's copy is what the table gets, and what that history reads
     var camp = getActiveCampaign();
     net.conns.forEach(function(c) {
         var p = c.open ? net.roster[c.peer] : null; if (!p || (rec.as && !npcShown(camp, ch, p)) || (on && on.ch && !npcShown(camp, on.ch, p))) return;
-        try { c.send(on && on.name ? Object.assign({}, rec, { onName: on.name }) : rec); } catch (e) { sendFailed(e); }
+        try { c.send(on && on.name ? Object.assign({}, wr, { onName: on.name }) : wr); } catch (e) { sendFailed(e); }
     });
 }
 function historySeen(list, p) {   // a latecomer's history (p: who reads it): such a card stays only where they can see those it names, by the rule the table's copy goes by. One that cannot be judged goes
@@ -10351,6 +10354,21 @@ function historySeen(list, p) {   // a latecomer's history (p: who reads it): su
 function sendTable(msg, exceptConn) {   // admitted peers only: broadcast() would reach a peer still waiting for the GM's Allow
     net.conns.forEach(function(c) { if (c !== exceptConn && c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 }
+// [netcheck:hidefig-start]
+// 1.6.2 (the owner, 2026-11-01: a card keeps showing a figure that reads the attacker's stat, and "a GM setting that hides the number for a chosen NPC, such as
+// a disguised boss, and a system option to hide it where those stats are secret"): where systemcore hideFigOn says so, a roll that reads the attacker goes to
+// the table as dice and the host's verdict (dicecore hidRoll). The host judges it as ever, on the whole record, and its Then lands as ever. The whole record
+// stays here, for the GM's card and the Game Record; a player is sent its copy, and every send of a roll or an apply card, the join's history among them,
+// asks figOf. An NPC's attack is sent the same way: it is the GM's roll, and the margin on its card would give the hidden figure away. A player's attack is
+// theirs and stays whole. A Then's card says what moved and no figure, since an amount may read the margin
+var _figCards = new WeakMap();
+function figOf(r) { var h = r && typeof r === 'object' ? _figCards.get(r) : null; if (!h) return r; if (r.priv) h.priv = r.priv; if (r.to) h.to = r.to; return h; }
+function figMark(rec, res, rule, malf, D, F, label) { var h = D.hidRoll(rec, res, F, { rule: rule, malf: malf, label: label }); _figCards.set(rec, h); if (window.wpStepLog) window.wpStepLog('hidefig v1', h.expr === '0' && rec.draws.length ? 'no-dice' : 'masked', { word: h.hid }); return true; }
+function figApply(rec) { _figCards.set(rec, Object.assign({}, rec, { lines: rec.lines.map(function(l) { return l.fx === 1 || l.fx === 0 ? { n: l.n, fx: l.fx } : { n: l.n, s: 1 }; }) })); return rec; }
+function figAnswers(att, expr, F) { var S = SC(); return !!(att && att.hide === true && S && typeof S.readsAttacker === 'function' && S.readsAttacker(expr, F)); }   // att: the attempt it answers, off the host's own record
+function figAttack(camp, ch, entry, F) { var S = SC(); return !!(S && camp && camp.system && ch && (ch.npc === true || !ch.ownerId) && typeof S.hideFigOn === 'function' && S.hideFigOn(camp.system, ch) && S.resistReadsAttacker(camp.system, entry, F)); }
+function figLabel(entry) { return entry && typeof entry.label === 'string' && entry.label.indexOf('{') >= 0 ? entry.label.split('{')[0].trim() : undefined; }   // a label worked out on the sheet may say a figure
+// [netcheck:hidefig-end]
 // Stage 6 HUD H7: an apply action's card, delivered to whoever may see it (systemcore applyScope): 'table' — every admitted player; 'owner'
 // — the character's player (each of their connections) and the GM; 'gm' — the GM, and the player who pressed it (conn), if one did. Shown
 // here too (the host's chat, or a solo GM's), and in the session log
@@ -10358,8 +10376,9 @@ function sendTable(msg, exceptConn) {   // admitted peers only: broadcast() woul
 function postApply(rec, scope, ch, conn) {
     if (scope !== 'table') rec.priv = 'gm';
     if (net.active && net.role === 'host') {
-        if (scope === 'table') { if (ch && typeof sendTableAs === 'function') sendTableAs(rec, ch); else sendTable(rec, null); }
-        else net.conns.forEach(function(c) { if (!c.open || !net.roster[c.peer]) return; if (c === conn || (scope === 'owner' && ch && ch.ownerId && peerProfileId(c) === ch.ownerId)) { try { c.send(rec); } catch (e) { sendFailed(e); } } });
+        var wrA = typeof figOf === 'function' ? figOf(rec) : rec;   // 1.6.2
+        if (scope === 'table') { if (ch && typeof sendTableAs === 'function') sendTableAs(rec, ch); else sendTable(wrA, null); }
+        else net.conns.forEach(function(c) { if (!c.open || !net.roster[c.peer]) return; if (c === conn || (scope === 'owner' && ch && ch.ownerId && peerProfileId(c) === ch.ownerId)) { try { c.send(wrA); } catch (e) { sendFailed(e); } } });
     }
     pushChat({ from: rec.from, text: '', scope: scope === 'table' ? 'global' : 'whisper', ts: rec.ts, apply: rec });
     logEvent('char', applyLine(rec), { w: rec.as || (rec.from && rec.from.name) || '', k: 'bg' });
@@ -10534,9 +10553,10 @@ function attemptMake(camp, entry, vd, malf, range, fromCh, priv, vars, rowRef) {
         (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === oid && r.id !== rr.id && r.resist === true && typeof r.formula === 'string' && !r.apply && !(toO && r.vis === 'gm') && alts.indexOf(r) < 0 && alts.length < 3) alts.push(r); }); });
     var noMain = false, atK = kindOn ? Object.assign({ map: map, tok: tok, mapId: range.mapId }, kindA) : null;   // 1.6.0 An attempt's kind: a defence whose needs fail is not offered, the next that holds standing first
     if (kindOn) { alts = alts.filter(function(r) { return attOffers(camp, tch, toO, r, atK); }); if (!attOffers(camp, tch, toO, rr, atK)) { if (alts.length) rr = alts.shift(); else if (rowsA.length) noMain = true; else { if (window.wpStepLog) window.wpStepLog('attempt v1', 'none offered', { rows: 0 }); return null; } } }
-    _attempts[id] = { charId: tch.id, act: noMain ? '' : rr.id, m: m }; if (range.area) _attempts[id].area = range.area; if (kindOn) { _attempts[id].k = kindA.k; if (priv) _attempts[id].kp = true; } if (rdA) { _attempts[id].rd = rdA; if (priv) _attempts[id].kp = true; } if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); if (rowsA.length) _attempts[id].rows = rowsA.map(function(x) { return x.f + '#' + x.i + '#' + x.r; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
+    var hdA = typeof S.hideFigOn === 'function' && S.hideFigOn(camp.system, fromCh);   // 1.6.2: its figure is hidden, on the host's own record
+    _attempts[id] = { charId: tch.id, act: noMain ? '' : rr.id, m: m }; if (hdA) _attempts[id].hide = true; if (range.area) _attempts[id].area = range.area; if (kindOn) { _attempts[id].k = kindA.k; if (priv) _attempts[id].kp = true; } if (rdA) { _attempts[id].rd = rdA; if (priv) _attempts[id].kp = true; } if (alts.length) _attempts[id].alts = alts.map(function(r) { return r.id; }); if (rowsA.length) _attempts[id].rows = rowsA.map(function(x) { return x.f + '#' + x.i + '#' + x.r; }); _attIds.push(id); while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
     var csA = vars && typeof S.callsDue === 'function' ? S.callsDue(entry, 'resisted', vars, window.wpFormula) : []; if (csA.length) { _attempts[id].calls = csA.map(function(c) { var cK = { roll: c.roll, by: c.by || '' }; if (c.byIf) cK.byIf = c.byIf; return cK; }); _attempts[id].callBy = callName(entry); }   // 1.6.0: Calls for, waiting for the target's roll
-    if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, toO, { att: id, by: fromCh && fromCh.name ? (toO && typeof npcByOf === 'function' ? npcByOf(camp, fromCh, tch.ownerId) : fromCh.name) : '', m: m, or: alts, rows: rowsA, nm: noMain, kn: kindOn && !priv ? attKindWord(camp, entry, fromCh, rowRef) : '' });
+    if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, toO, { att: id, by: fromCh && fromCh.name ? (toO && typeof npcByOf === 'function' ? npcByOf(camp, fromCh, tch.ownerId) : fromCh.name) : '', m: hdA && toO ? undefined : m, or: alts, rows: rowsA, nm: noMain, kn: kindOn && !priv ? attKindWord(camp, entry, fromCh, rowRef) : '' });
     return id;
 }
 // [netcheck:rollcalls-start]
@@ -10675,11 +10695,12 @@ function blowCripWrite(bc, persist) {   // its changes onto the character, sent 
 }
 // [netcheck:attempt-end]
 // Stage 6 HUD H7: the GM's own press (sheets.js has worked it out and stored it): the card, as the GM's
-net.postApplyCard = function(ch, label, lines, scope) {
+net.postApplyCard = function(ch, label, lines, scope, hid) {   // hid (1.6.2): a roll whose figure is hidden: its card says what moved and no figure
     var rec = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), lines: applyLines(lines), ts: Date.now() };
     if (label) rec.label = String(label).slice(0, 60);
     if (ch && ch.name) rec.as = String(ch.name).slice(0, 60);
     if (!rec.lines.length) return;
+    if (hid === true && typeof figApply === 'function') figApply(rec);
     postApply(rec, scope, ch, null);
 };
 // 1.6.0: a player's roll whose critical range reads a GM-only stat: their view has lost that range, so the host works it out from the GM's view of that
@@ -10742,7 +10763,7 @@ net.rollsFor = function(charId, name, sinceSeq, max) {   // newest first: tagged
         if (e.cid ? e.cid === charId : !!(name && e.m.roll.as === name && e.m.from && (e.m.from.gm === true || e.m.from.id === net.myId))) out.push({ from: e.m.from, scope: e.m.scope, ts: e.m.ts, seq: e.seq, fresh: !e.replay, roll: e.m.roll, res: e.m.res, rollBad: e.m.rollBad, toName: e.m.toName }); }
     return out;
 };
-function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper'; }).slice(-60).map(function(m) { return m.roll ? { from: m.from, text: '', scope: m.scope, ts: m.ts, roll: m.roll } : m.apply ? { from: m.from, text: '', scope: m.scope, ts: m.ts, apply: m.apply } : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)
+function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper'; }).slice(-60).map(function(m) { var wr = m.roll || m.apply; if (typeof figOf === 'function') wr = figOf(wr); return m.roll ? { from: m.from, text: '', scope: m.scope, ts: m.ts, roll: wr } : m.apply ? { from: m.from, text: '', scope: m.scope, ts: m.ts, apply: wr } : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)
 // [netcheck:rolltag-end]
 function pushRoll(rec, res, scope, opts) {
     var m = { from: rec.from, text: '', scope: scope, ts: rec.ts, roll: rec, res: res, rollBad: res ? null : ((opts && opts.bad) || 'error'), toName: opts && opts.toName ? opts.toName : '' };
@@ -10872,6 +10893,7 @@ net.diceRoll = function(expr, o) {
     if (rec.more && hosting && !o.priv && entR && typeof SR.hitsSecret === 'function') SR.hitsSecret(campR.system, entR, F, o.row && chR ? { row: o.row, ch: chR, uDef: uDefR } : null).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); });   // 1.6.0 A burst: the card says each hit's figures, so one read from a GM-only value keeps it private, as a Malf does
     if ((rec.dmg2 || rec.dmg3 || rec.dmg4 || rec.dmg5) && hosting && !o.priv && entR) { var p2N = [2, 3, 4, 5].filter(function(k) { return !!rec['dmg' + k]; }).reduce(function(a, k) { return a.concat([entR['dmg' + k], entR['dtype' + k], entR['ad' + k], entR['dkind' + k]]); }, []).reduce(function(a, t) { return typeof t === 'string' && t ? a.concat(F.names(t)) : a; }, []), p2L = o.row && chR && typeof SR.rowRollNames === 'function' ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, p2N, F, uDefR || undefined).names : p2N.map(function(n) { return { name: n }; }); SR.gmOnlyNames(campR.system, p2L).concat(SR.gmDerivedNames(campR.system, F, p2L)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // 1.6.0 (B3): the card says the second part's amount, so one read from a GM-only value keeps it private, as a Malf does
     if ((crgR || rec.big === true) && !noChkR && hosting && !o.priv) { var crN = [entR && entR.critAt, entR && entR.fumbleAt, entR && entR.bigAt, campR.system.combat.critAt, campR.system.combat.fumbleAt].reduce(function(a, t) { return typeof t === 'string' && t ? a.concat(F.names(t)) : a; }, []); SR.gmOnlyNames(campR.system, crN.map(function(n) { return { name: n }; })).concat(SR.gmDerivedNames(campR.system, F, crN)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // 1.6.0: the record carries its critical range, so one read from a GM-only value keeps it private, as a Malf does
+    var hdR = !!(hosting && chR && ((typeof blowRecR !== 'undefined' && blowRecR && typeof figAnswers === 'function' && figAnswers(blowRecR, expr, F)) || (entR && !blowRecR && rec.dmg !== 1 && typeof figAttack === 'function' && figAttack(campR, chR, entR, F)))); if (hdR) figMark(rec, res, D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : ''), mfR !== null && D.naturalOf(res) >= mfR, D, F, figLabel(entR));   // 1.6.2: the GM's card stays whole; what goes to the table is its copy
     if (o.priv) rec.priv = 'gm';
     else if (hosting && rowP && rowP.gm) { rec.priv = 'gm'; toast((rowP.stat === true ? 'Kept private: that roll reads a GM-only stat' : 'Kept private: that roll is on a GM-only item or list') + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // F5b: a GM-only row's roll stays the GM's
     else if (hosting && rowP && rowP.kept) { rec.priv = 'gm'; toast('Kept private: its owner sees that item switched off' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // owed review F5b#2: a curse the GM keeps on
@@ -10886,11 +10908,11 @@ net.diceRoll = function(expr, o) {
     else if (hosting) {
         var toKey = ui('chatTo') ? ui('chatTo').value : '';   // a whisper target makes the roll private to that player
         var target = toKey ? net.conns.find(function(c) { return c.peer === toKey; }) : null;
-        if (target && target.open && net.roster[toKey]) { rec.to = toKey; toName = net.roster[toKey].name || 'a player'; try { target.send(rec); } catch (e) { sendFailed(e); } }
+        if (target && target.open && net.roster[toKey]) { rec.to = toKey; toName = net.roster[toKey].name || 'a player'; try { target.send(hdR ? figOf(rec) : rec); } catch (e) { sendFailed(e); } }
     }
     var scope = rec.priv || rec.to ? 'whisper' : 'global';
     var hsR = typeof holdsSqueeze === 'function' && chR && SR && typeof SR.holdRefOf === 'function' ? holdsSqueeze(campR, chR, SR.holdRefOf(o.act, o.row), rec, D) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
-    if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rec, chR, landR ? { ch: landR, name: o.onName } : null); else sendTable(rec, null); }
+    if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rec, chR, landR ? { ch: landR, name: o.onName } : null); else sendTable(hdR ? figOf(rec) : rec, null); }
     if (landR && o.onName) rec.onName = o.onName;   // the GM's own copy, past the table's
     if (cvR) rec.hit = cvR.row;   // the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
@@ -10917,7 +10939,7 @@ net.diceRoll = function(expr, o) {
             var nm = taR.names, rp = o.row ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, nm, F, uDefR || undefined) : null; if (rp) { if (rp.gm || rp.kept) return true; nm = rp.names; }
             return SR.gmOnlyNames(campR.system, nm).concat(SR.gmDerivedNames(campR.system, F, nm), SR.gmEffectNames(varsR, nm)).length > 0;
         };
-        if (taR && taR.ok && onR && typeof allyWrite === 'function' && allyWrite(onR.ch, taR.onValues)) { save(true); if (typeof allyCard === 'function') allyCard(chR, onR.ch, onR.tok.charName || onR.tok.name || onR.ch.name, String(o.label || (typeof entR.label === 'string' && entR.label && entR.label.indexOf('{') < 0 ? entR.label : 'Then')).slice(0, 60), taR.onLines, rec.priv || rec.to ? 'gm' : SR.applyScope(campR.system, onR.ch, { apply: thR, vis: entR.vis }, gmR.length > 0 || thenGmR(), F), diceFrom(getProfile(), true), null, ''); }   // 1.5.9: what moved on the one it was used on, and its card (1.6.0, the review of 96e39ae6: an amount that reads a GM-only value keeps it the GM's)
+        if (taR && taR.ok && onR && typeof allyWrite === 'function' && allyWrite(onR.ch, taR.onValues)) { save(true); if (typeof allyCard === 'function') allyCard(chR, onR.ch, onR.tok.charName || onR.tok.name || onR.ch.name, String(o.label || (typeof entR.label === 'string' && entR.label && entR.label.indexOf('{') < 0 ? entR.label : 'Then')).slice(0, 60), taR.onLines, rec.priv || rec.to ? 'gm' : SR.applyScope(campR.system, onR.ch, { apply: thR, vis: entR.vis }, gmR.length > 0 || thenGmR(), F), diceFrom(getProfile(), true), null, '', hdR); }   // 1.5.9: what moved on the one it was used on, and its card (1.6.0, the review of 96e39ae6: an amount that reads a GM-only value keeps it the GM's)
         if (taR && taR.ok && taR.gone && window.wpSheets && typeof window.wpSheets.goneLocal === 'function') setTimeout(function() { window.wpSheets.goneLocal(chR.id, taR.gone); }, 0);   // 1.6.0: a row it used up, with its Undo, once the change is stored
         if (taR && taR.ok && (!onR || Object.keys(taR.values).length)) { chR.values = chR.values || {}; Object.keys(taR.values).forEach(function(k) { chR.values[k] = taR.values[k]; }); chR.updated = Date.now(); save(true); if (hosting && net.syncCharDelta) net.syncCharDelta(chR.id, taR.values); if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(chR.id); }
         if (taR && taR.ok && (taR.burst || taR.paid || (taR.drew && taR.lines.some(function(l) { return !!l.roll; }))) && typeof net.postApplyCard === 'function') {   // 1.5.9: a Then whose Rolled amount drew dice says them on a card of its own, kept as private as the roll
@@ -10927,7 +10949,7 @@ net.diceRoll = function(expr, o) {
                 SR.gmOnlyNames(campR.system, nmT).concat(SR.gmDerivedNames(campR.system, F, nmT), SR.gmEffectNames(varsR, nmT)).forEach(function(n) { if (hitT.indexOf(n) < 0) hitT.push(n); });
                 if (hitT.length && scT !== 'gm') { scT = 'gm'; toast('Kept private: that amount uses a GM-only value (' + hitT.join(', ') + ').'); }
             }
-            net.postApplyCard(chR, String(o.label || (typeof entR.label === 'string' && entR.label && entR.label.indexOf('{') < 0 ? entR.label : 'Then')).slice(0, 60), taR.lines, scT);
+            net.postApplyCard(chR, String(o.label || (typeof entR.label === 'string' && entR.label && entR.label.indexOf('{') < 0 ? entR.label : 'Then')).slice(0, 60), taR.lines, scT, hdR);
         }
         if (taR && taR.ok && taR.fired && !mfHitR && vdR && vdR.kind === 'check' && vdR.pass === true && tcR && tcR.range && typeof tcR.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: chR.id, fieldId: taR.fired.f, rowId: taR.fired.r, tid: tcR.range.tid, mapId: tcR.range.mapId, margin: vdR.margin });   // 1.5.9 Chambers from: a hit puts the round it fired on the target
         else if (taR && taR.ok && taR.fired && !mfHitR && vdR && vdR.kind === 'check' && vdR.pass === false && typeof window.wpLaunchMiss === 'function') window.wpLaunchMiss({ charId: chR.id, fieldId: taR.fired.f, rowId: taR.fired.r, tid: tcR && tcR.range && typeof tcR.range.tid === 'string' ? tcR.range.tid : '', mapId: tcR && tcR.range && typeof tcR.range.mapId === 'string' ? tcR.range.mapId : '', margin: vdR.margin, crit: ((typeof D.checkOf === 'function' ? D.checkOf(res, ruleR) : null) || vdR).crit === 'fumble' ? 'fumble' : '' });   // 1.5.9 (es): a miss lands as its round says; its critical failure read as a throw's is

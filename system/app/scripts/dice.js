@@ -99,11 +99,12 @@ function renderCard(m) {
         if (rec.dmg === 1) wrap.className += ' card-dmg';   // a damage roll needs no dice to be one
         return wrap;
     }
-    var named = false; try { named = typeof Fm.names === 'function' && Fm.names(rec.expr).length > 0; } catch (e) { named = false; }   // 1.5.7 (the owner: the formula "is showing as the roll information instead of being readable by everyone")
+    var named = !!rec.hid; try { named = named || (typeof Fm.names === 'function' && Fm.names(rec.expr).length > 0); } catch (e) { named = false; }   // 1.5.7 (the owner: the formula "is showing as the roll information instead of being readable by everyone")
     var exprLine = el('div', 'roll-expr', rec.expr); exprLine.title = rec.expr; if (!named) wrap.appendChild(exprLine);
     var brk = el('div', 'roll-break');
     var sy = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null, rule = typeof ruleOf === 'function' ? ruleOf(rec, sy && sy.combat ? sy.combat.checks : '') : sy && sy.combat && sy.combat.checks === 'under3d6' ? 'under3d6' : '';   // Stage 6 F8: the campaign's roll outcomes (1.6.0: or the critical range the host put on the record, asked through typeof for a suite that slices the card)
     var v = verdictOf(res, rule), crit = critOf(res, rule), mf = malfOf(rec, res);   // R3: a malfunction is a failure, whatever the test said
+    if (rec.hid) { v = rec.hid === 'rolled' ? null : { kind: 'check', pass: rec.hid === 'pass', text: rec.hid === 'pass' ? 'success' : 'failure', crit: rec.hidc || '' }; crit = rec.hidc || null; }   // 1.6.2: a figure kept from this table: the dice and the host's word, and nothing worked out here
     var parts = typeof Fm.parts === 'function' ? Fm.parts(res, 40) : [Fm.describe(res, { maxChars: LIMITS.cardChars })];
     if (v && v.crit !== undefined && parts.length && typeof parts[parts.length - 1] === 'string') parts[parts.length - 1] = parts[parts.length - 1].replace(/:\s*(success|failure)( by [^:]*)?$/, '');   // F8: the rule's verdict is the line below (never the arithmetic's)
     if (named) readableInto(brk, res, parts, rec.expr);

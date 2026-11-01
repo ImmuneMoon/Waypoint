@@ -327,6 +327,7 @@ function cleanRoll(rec) {
     if (rec.names !== undefined) { var nm = cleanNames(rec.names); if (!nm) return null; if (nm.length) out.names = nm; }
     if (rec.malf !== undefined) { if (!isInt(rec.malf) || rec.malf < 1 || rec.malf > 1000000) return null; out.malf = rec.malf; if (rec.malfHid === 1) out.malfHid = 1; }   // malfHid (1.6.0): the figure is the roll's own, standing in for a Malf that reads a GM-only stat, so a card names none
     if (rec.crit !== undefined) { var crc = cleanCrit(rec.crit); if (!crc) return null; out.crit = [crc.at, crc.fumble]; }   // 1.6.0: criticals at fixed rolls, the two numbers the host judged this roll by
+    if (rec.hid === 'pass' || rec.hid === 'fail' || rec.hid === 'rolled') { out.hid = rec.hid; if ((rec.hidc === 'crit' || rec.hidc === 'fumble') && rec.hid !== 'rolled') out.hidc = rec.hidc; }   // 1.6.2: the host's own word for a roll whose figure is hidden (hidRoll): only these words
     if (rec.big === true) out.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): the host's mark of a success that lands as a Big Hit, no critical; anything else is left off
     if (rec.mods !== undefined) { var md = cleanMods(rec.mods); if (md) out.mods = md; }
     if (rec.sw !== undefined) { var swc = cleanSwNames(rec.sw); if (swc) out.sw = swc; }   // 1.6.0: the roll switches it was rolled with, by name (a list that does not clean is left off, the roll kept)   // 1.5.8: what changed the values it reads (a list that does not clean is left off, the roll kept)
@@ -579,6 +580,34 @@ function tagOf(rec, opts) {
     if (rec.to) return ' (to ' + (opts && opts.toName ? opts.toName : 'one player') + ')';
     return '';
 }
+// 1.6.2: what the table is sent of a roll whose figure is hidden. A card is rebuilt on each machine from its expression, its draws and its names, so a line left
+// off a card hides nothing from a changed app: the copy holds the dice alone (hidExpr, each group by what it rolled, modifiers glued to it being plain
+// numbers) and the host's verdict as a word, hid: 'pass', 'fail', or 'rolled' for a roll that is no check. It is written key by key, so nothing else of the record
+// rides along: no names, target, margin, range, Big Hit or what a value was worked out from. A Malf is said only where this roll jammed (the roll's own natural
+// total, as malfMask gives it). o: { rule, malf (true where it jammed), label (a word in place of the record's, '' for none) }. hidc: a critical
+// that stands on the dice alone (hidCrit): 5, 6, 17 and failing by 10 under 3d6 turn on the target, so they are not said. An expression that does not
+// replay is no dice at all, so a card always stands
+function hidExpr(res) {
+    var out = []; (res && res.ok && res.breakdown && Array.isArray(res.breakdown.dice) ? res.breakdown.dice : []).forEach(function(d) {
+        if (!d || !isInt(d.count)) return; var m = /^(?:\d+|\([^]*\))?d(?:\d+|%|\([^]*\)|f)/i.exec(String(d.text || ''));
+        out.push(d.count + 'd' + d.faces + (m ? String(d.text).slice(m[0].length) : ''));
+    });
+    return out.length ? out.join(' + ') : '0';
+}
+function hidCrit(res, rule) {
+    var u = rule === 'under3d6' ? under3d6(res) : null; if (u) return u.total <= 4 ? 'crit' : u.total === 18 ? 'fumble' : '';
+    var fx = fixedCrit(res, rule); return fx && fx.crit ? fx.crit : '';
+}
+function hidRoll(rec, res, F, o) {
+    o = o || {}; var expr = hidExpr(res), draws = Array.isArray(rec.draws) ? rec.draws : [], rp = cleanExpr(expr) ? replay({ expr: expr, draws: draws, v: rec.v }, F, rec.v) : null;
+    if (!rp || !rp.ok) { expr = '0'; draws = []; rp = null; }
+    var v = verdictOf(res, o.rule), chk = !!(v && v.kind === 'check'), jam = o.malf === true, out = { type: rec.type, id: rec.id, from: rec.from, expr: expr, draws: draws, v: rec.v, ts: rec.ts, hid: jam ? 'fail' : chk ? (v.pass ? 'pass' : 'fail') : 'rolled' };
+    ['priv', 'to', 'rid', 'sw', 'as'].forEach(function(k) { if (rec[k] !== undefined) out[k] = rec[k]; });
+    var lb = typeof o.label === 'string' ? o.label : rec.label; if (lb) out.label = lb;
+    var hc = jam || !chk ? '' : hidCrit(res, o.rule); if (hc) out.hidc = hc;
+    if (jam && rp) { out.malf = Math.max(1, naturalOf(res)); out.malfHid = 1; }
+    return out;
+}
 function cardText(rec, res, F, opts) {
     var who = rec && rec.from ? (rec.from.gm ? 'GM' : rec.from.name) : 'Someone';
     var body = res && res.ok && F && F.describe ? F.describe(res, { maxChars: opts && opts.maxChars > 0 ? opts.maxChars : LIMITS.cardChars }) : (rec ? 'a roll that could not be read' : '');
@@ -587,6 +616,7 @@ function cardText(rec, res, F, opts) {
     if (u) { var by = u.pass ? u.target - u.total : u.total - u.target; body = body.replace(/:\s*(success|failure)( by [^:]*)?$/, '') + ': ' + (u.crit ? 'critical ' : '') + (u.pass ? 'success' : 'failure') + (by > 0 ? ' by ' + fmtNum(by) : ''); }
     var fxc = !u && opts ? fixedCrit(res, opts.rule) : null;   // 1.6.0: criticals at fixed rolls, alike
     if (fxc) body = body.replace(/:\s*(success|failure)( by [^:]*)?$/, '') + ': ' + (fxc.crit ? 'critical ' : '') + (fxc.pass ? 'success' : 'failure') + (fxc.by > 0 ? ' by ' + fmtNum(fxc.by) : '');
+    if (rec && (rec.hid === 'pass' || rec.hid === 'fail')) body += ': ' + (rec.hidc ? 'critical ' : '') + (rec.hid === 'pass' ? 'success' : 'failure');   // 1.6.2: the host's word, the copy holding no check
     return who + tagOf(rec, opts) + as + ' rolled ' + (rec && rec.label ? rec.label + ': ' : '') + body + (malfOf(rec, res) ? ' \u2014 ' + malfWords(rec) : '');   // R3
 }
 // Stage 6 HUD R3: a roll's natural total — the dice alone, every term's kept total (3d6 <= Skill: the three dice; d20 + Hit: the d20) — and
@@ -638,6 +668,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { cleanAtt: cleanAtt, malfWords: malfWords, cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
+var API = { hidExpr: hidExpr, hidCrit: hidCrit, hidRoll: hidRoll, cleanAtt: cleanAtt, malfWords: malfWords, cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { cleanAtt, malfWords, cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };
+export { hidExpr, hidCrit, hidRoll, cleanAtt, malfWords, cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };

@@ -873,6 +873,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             + 'the window: its mode, the rows counted by defId, a Removed count and the names, the tick that removes entries characters use, Import off until ticked and refused in words, a question naming what goes and answered only by its buttons, and its steps logged',
             planOk && edgeOk && wiredOk, j([planOk, edgeOk, wiredOk, pR, bigR.skip]));
     }
+    {   // 1.6.0 a GM-only stat: every players' copy of an entry made from the GM's own system
+        const gmG = S.cleanSystem({ v: 1, name: 'G', sheet: { sections: [] }, rolls: [], fields: [{ id: 'f_l', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', list: { stats: [{ key: 'Skill', label: 'Skill' }, { key: 'Flaw', label: 'Flaw', vis: 'gm' }] } }] }, { F, gmView: true }), ent = { id: 'i_f', name: 'Pebbles', key: 'Pebbles', stats: { Skill: 3, Flaw: 2 } };
+        const fromGm = libCtx(gmG, F, false, () => true, () => true), fromView = libCtx(S.cleanSystem(gmG, { F, gmView: false }), F, false, () => true, () => true), one = cleanLibEntry(ent, fromGm), two = cleanLibEntry(ent, fromView), own = cleanLibEntry(ent, libCtx(gmG, F, true));
+        check('1.6.0 a GM-only stat in the library: the copy of an entry players get holds none of it, made from the system as the GM holds it or from the view players get, with the stats they may read; the index and the sum of a pack make nothing of it; the copy the GM holds keeps it',
+            !/flaw/i.test(j(one)) && !/flaw/i.test(j(two)) && one.stats.Skill === 3 && own.stats.Flaw === 2 && !/flaw/i.test(j(L.playerIndex([ent], fromGm))) && !/flaw/i.test(j(L.packMeta([ent], fromGm, 10))), j([one, two, own]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

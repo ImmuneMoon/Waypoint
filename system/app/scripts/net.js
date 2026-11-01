@@ -9013,7 +9013,9 @@ function handleMessage(msg, conn) {
         if (q.att && typeof attemptDrop === 'function') attemptDrop(q.att);   // 1.6.0 (B2): an attempt is resisted once
         var mfQ = null; if (actQ && actQ.malf && varsQ) { var mqQ = Fq.evaluate(actQ.malf, { vars: varsQ }); if (mqQ.ok && typeof mqQ.value === 'number' && isFinite(mqQ.value)) mfQ = Math.max(1, Math.min(1000000, Math.round(mqQ.value))); }   // Stage 6 HUD R3: its Malf, through their view
         if (mfQ !== null) recQ.malf = mfQ;
-        var crgQ = SQ && typeof SQ.critRange === 'function' ? SQ.critRange(viewQ ? viewQ : (getActiveCampaign() || {}).system, actQ, varsQ, Fq) : null; if (crgQ) recQ.crit = crgQ;
+        var crgQ = SQ && typeof SQ.critRange === 'function' ? SQ.critRange(viewQ ? viewQ : (getActiveCampaign() || {}).system, actQ, varsQ, Fq) : null;
+        if (crgQ && chQ && typeof critFromGm === 'function') crgQ = critFromGm(SQ, campQ, chQ, q.act, q.row, crgQ, Dq.naturalOf(resQ), Fq, tcQ);   // 1.6.0: a range that reads a GM-only stat, from the GM's view of that one figure
+        if (crgQ) recQ.crit = crgQ;
         if (actQ && actQ.bigAt && typeof SQ.bigOf === 'function' && SQ.bigOf(actQ, varsQ, Fq, Dq, resQ, Dq.verdictOf(resQ, Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '')), mfQ !== null && Dq.naturalOf(resQ) >= mfQ)) recQ.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): a success that lands as a Big Hit, through the roller's view, marked on the record (no critical)   // 1.6.0 (the v2 sort's B1): criticals at fixed rolls, this roll's range through the roller's view (its own formula, else the Combat card's), on the record every card reads
         if (actQ && actQ.dmg === true) recQ.dmg = 1;   // chat cards: a damage roll, from the entry its formula matched (never the player's word)
         if (recQ.dmg === 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgTypeOf === 'function' && campQ && campQ.system) { var dtQ = SQ.dmgTypeOf(campQ.system, actQ, varsQ, Fq); if (dtQ) recQ.dtype = dtQ; } if (recQ.dmg === 1 && actQ && actQ.dmgMajor === true) recQ.major = 1;   // 1.5.7: the damage type the entry names, worked out on the host; 1.6.0: and Always a Major Wound, from the entry
@@ -10485,12 +10487,13 @@ function blowCrip(camp, rec, vd, malf, nat) {   // nat: the roll's natural total
     var by = vd && typeof vd.margin === 'number' && isFinite(vd.margin) && vd.margin < 0 ? -vd.margin : 1;
     if (typeof rec.cripBy === 'string' && typeof S.blowCripN === 'function') { var cbN = S.blowCripN(rec.cripBy, by, typeof nat === 'number' ? nat : 0, rec.blow, window.wpFormula, camp.system); if (cbN === null) return null; if (!(cbN > 0)) return null; by = cbN; }   // its own formula, where the system names one; 0 or below cripples nothing
     var cp = S.blowCripOf(camp.system, ch, rec.blow, rec.crip, by); if (!cp) return null;
-    return { charId: ch.id, ch: ch, values: cp.values, line: cp.name + ' is crippled: the roll failed by ' + cp.n + '.' };
+    var gmCp = S.gmStatKeys ? S.gmStatKeys(camp.system) : null;   // 1.6.0: a GM-only stat is written and said to the GM alone
+    return { charId: ch.id, ch: ch, values: cp.values, gm: !!(gmCp && gmCp[String(rec.crip).toLowerCase()] === 1), line: cp.name + ' is crippled: the roll failed by ' + cp.n + '.' };
 }
 function blowCripWrite(bc, persist) {   // its changes onto the character, sent to the table and told to the sheet, and its card
     if (!bc) return; var ch = bc.ch; ch.values = ch.values || {}; Object.keys(bc.values).forEach(function(k) { ch.values[k] = bc.values[k]; }); ch.updated = Date.now();
     if (typeof persist === 'function') persist(); if (net.syncCharDelta && (net.role === 'host' || !net.active)) net.syncCharDelta(bc.charId, bc.values);
-    if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(bc.charId); if (typeof net.damageCard === 'function') net.damageCard(ch, [bc.line]);
+    if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(bc.charId); if (bc.gm === true) { if (typeof toast === 'function') toast(bc.line); } else if (typeof net.damageCard === 'function') net.damageCard(ch, [bc.line]);
 }
 // [netcheck:attempt-end]
 // Stage 6 HUD H7: the GM's own press (sheets.js has worked it out and stored it): the card, as the GM's
@@ -10501,6 +10504,16 @@ net.postApplyCard = function(ch, label, lines, scope) {
     if (!rec.lines.length) return;
     postApply(rec, scope, ch, null);
 };
+// 1.6.0: a player's roll whose critical range reads a GM-only stat: their view has lost that range, so the host works it out from the GM's view of that
+// one figure, on the host's own copy of the character and the row, and gives the card a range that shows the outcome and not the range. pub: the range
+// through their view. Anything that cannot be worked out leaves pub as it was
+function critFromGm(S, camp, ch, act, row, pub, nat, F, tctx) {
+    try {
+        var sys = camp && camp.system, ent = sys ? S.rollEntryOf(sys, act, row) : null; if (!ent || !S.critSecret(sys, ent, F, row)) return pub;
+        var R = S.makeResolver(sys, ch, F, tctx || undefined), vars = row && typeof row.r === 'string' ? R.row(row.f, row.r) : R, real = typeof vars === 'function' ? S.critRange(sys, ent, vars, F) : null;
+        return real ? S.critMask(real, pub, nat) : pub;
+    } catch (e) { return pub; }
+}
 function diceFrom(prof, gm) { return { id: String((prof && prof.id) || 'x').slice(0, 60), name: String((prof && prof.name) || (gm ? 'GM' : 'Player')).slice(0, 60), gm: !!gm }; }
 // [netcheck:rolltag-start]
 // A HUD's roll history (Stage 6 HUD frame, HF3): every roll this machine saw, tagged HERE with the character it was made as (the host knows
@@ -10633,7 +10646,9 @@ net.diceRoll = function(expr, o) {
     var blowRecR = typeof o.att === 'string' && typeof attemptRec === 'function' ? attemptRec(o.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
     if (typeof o.att === 'string' && typeof attemptDrop === 'function') attemptDrop(o.att);   // 1.6.0 (B2): an attempt is resisted once
     if (mfR !== null) rec.malf = mfR;
-    var crgR = SR && typeof SR.critRange === 'function' && campR && campR.system ? SR.critRange(campR.system, entR, varsR, F) : null; if (crgR) rec.crit = crgR;
+    var crgR = SR && typeof SR.critRange === 'function' && campR && campR.system ? SR.critRange(campR.system, entR, varsR, F) : null;
+    if (crgR && chR && SR.critSecret && SR.critSecret(campR.system, entR, F, o.row)) { var pvR = window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(campR) : null, puR = pvR ? SR.critRange(pvR, SR.rollEntryOf(pvR, o.act, o.row), varsR, F) : null; if (puR) crgR = SR.critMask(crgR, puR, D.naturalOf(res)); }   // 1.6.0: the table is shown the outcome of a range that reads a GM-only stat, never the range
+    if (crgR) rec.crit = crgR;
     if (entR && entR.bigAt && SR && typeof SR.bigOf === 'function' && SR.bigOf(entR, varsR, F, D, res, D.verdictOf(res, D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '')), mfR !== null && D.naturalOf(res) >= mfR)) rec.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): a success that lands as a Big Hit (no critical)   // 1.6.0 (the v2 sort's B1): criticals at fixed rolls, this roll's range (its own formula, else the Combat card's)
     if ((entR && entR.dmg === true) || o.dmg === true) rec.dmg = 1;   // chat cards: a damage roll (its entry; or this machine's own word, a thrown item's damage — never over the wire)
     if (rec.dmg === 1 && entR && SR && typeof SR.dmgTypeOf === 'function' && campR && campR.system) { var dtR = SR.dmgTypeOf(campR.system, entR, varsR, F); if (dtR) rec.dtype = dtR; } if (rec.dmg === 1 && entR && entR.dmgMajor === true) rec.major = 1;   // 1.5.7: the damage type the roll names, for Apply to target; 1.6.0: and Always a Major Wound, from the entry

@@ -641,6 +641,10 @@ Fog, smoke and difficult terrain
   the room. What a player's tokens are sent is unchanged.
 
 Systems
+- A list's stat can be GM only. Set it on a row, and the row's players never get
+  it: not on their sheet, a card, a file or a trade. A formula that reads it stays
+  on your side, and a roll's critical range that names it is worked out on your
+  machine. The player sees the outcome, never the reason.
 - An Any wound row can read what stands where a blow lands. Pick a list and a
   formula that is true for a row at the struck location. Held.count then says how
   many there are, and the row can write a number stat on each of them.

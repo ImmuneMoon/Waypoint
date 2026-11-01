@@ -7148,6 +7148,7 @@ function refreshErrors() {
             if (typeof chr.reach === 'string' && chr.reach.trim() && typeof cleanReach === 'function' && !cleanReach(chr.reach, F())) errs.push({ message: 'Flies at most does not read as a formula with no dice. Save drops it.' });   // 1.5.9 (es), as the cleaner reads it
         }
         if (typeof onRemoveSays === 'function') onRemoveSays(sp, draft.fields, F()).forEach(function(m) { errs.push({ message: m }); });   // 1.6.0: When a row is taken off, as the cleaner reads it
+        if (typeof gmStatSays === 'function') { var gsS = gmStatSays(f, draft.fields); gsS.errs.forEach(function(m) { errs.push({ message: m }); }); gsS.warns.forEach(function(m) { (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ message: m }); }); }   // 1.6.0: a GM-only stat
         (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(rr) { var xc = rr && rr.cross && typeof rr.cross === 'object' && typeof rr.cross.ct === 'string' ? rr.cross.ct.toLowerCase() : ''; if (xc && (Array.isArray(rr.apply) ? rr.apply : Array.isArray(rr.then) ? rr.then : []).some(function(ch) { return !!ch && typeof ch === 'object' && typeof ch.c === 'string' && ch.c.toLowerCase() === xc; })) (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ message: 'When a value crosses: its own changes move the value it watches, so a run can set off another, at most 3 in a row.' }); });   // 1.6.0: a row's crossing that moves its own counter
         keptBy[f.id] = mine;
         if (errs.length) errorsById['list:' + f.id] = errs;
@@ -8407,9 +8408,10 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             var suI = input('sys-list-statunit field', typeof s.unit === 'string' ? s.unit : '', 'A unit after the figure (lb, yd). yd, ft, in, lb, mi and yd/s are measures: under Metric the figure shows in metric', 'Unit'); suI.maxLength = LIMITS.unit; if (typeof unitWordsOn === 'function') unitWordsOn(suI); sr.appendChild(suI);   // 1.5.4
             if (typeof metricSel === 'function') { sr.appendChild(metricSel('sys-list-statmetric', s.unitShow)); sr.appendChild(numField('sys-list-statdec', typeof s.decMax === 'number' ? s.decMax : '', 'The most decimals a measure shows, 0 to 5, its zeros taken off. Blank: four under Instead or Bare, and as before Beside. An implant\u2019s 0.11438 lbs needs five', 'decimals', '1')); }   // 1.5.4: how a measure reads under Metric, and its most decimals
         }
-        if (s.kind !== 'pick') sr.appendChild(checkLabel('sys-list-statsplit', s.split === true, 'Split in trades', 'A trade may give part of this figure, as money from a chip. A row of quantity 1 only'));   // 1.5.6 trading
+        if (s.kind !== 'pick' && s.vis !== 'gm') sr.appendChild(checkLabel('sys-list-statsplit', s.split === true, 'Split in trades', 'A trade may give part of this figure, as money from a chip. A row of quantity 1 only'));   // 1.5.6 trading
         sr.appendChild(checkLabel('sys-list-statshow', s.show === true && s.hide !== true, 'On the row', 'Shown beside the name on each row (a column in a rich table); every stat that is not Hidden reads in the row’s details'));
         if (s.kind !== 'pick' && typeof toneRow === 'function') { var stR = toneRow(s); if (stR) sr.appendChild(stR); }   // 1.6.0 R5: a tone per value name
+        sr.appendChild(checkLabel('sys-list-statgm', s.vis === 'gm', 'GM only', 'You set it on a row, and that row\u2019s players never get it. A formula that reads it stays on your side, and a critical range that names it is worked out on your machine'));   // 1.6.0
         sr.appendChild(checkLabel('sys-list-stathide', s.hide === true, 'Hidden', 'A figure the row only works with, such as a cost per level. It is never shown on a row or in its details. Formulas still read it, and the row\u2019s pencil still shows it. It is no secret: use a GM-only list for that'));
         [['statup', '▲', 'Move up'], ['statdown', '▼', 'Move down'], ['statdel', '×', 'Remove this stat (Save drops its values)']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; sr.appendChild(bb); });
         sb.appendChild(sr);
@@ -9556,6 +9558,16 @@ function onRemoveSays(sp, fields, Fe) {
         else if (!cleanOnRemove([c], Fe)) out.push(n + 'its figure does not read as a formula with no dice. Save drops it.');
     });
     return out;
+}
+// What Save does with a GM-only stat, as the cleaner reads it: { errs, warns } of lines
+function gmStatSays(f, fields) {
+    var errs = [], warns = [], sts = f && f.list && Array.isArray(f.list.stats) ? f.list.stats : [], low = function(k) { return String(k).toLowerCase(); };
+    sts.forEach(function(s) {
+        if (!s || typeof s !== 'object' || s.vis !== 'gm') return; var k = typeof s.key === 'string' ? s.key : '';
+        if (s.split === true) errs.push('Stat \u201c' + k + '\u201d: GM only keeps it out of trades, so Save drops Split in trades.');
+        (fields || []).forEach(function(x) { if (!x || x === f || !x.list || !Array.isArray(x.list.stats)) return; if (x.list.stats.some(function(t) { return t && typeof t === 'object' && t.vis !== 'gm' && typeof t.key === 'string' && low(t.key) === low(k); })) warns.push('Stat \u201c' + k + '\u201d is GM only here, so players get it on no list, ' + (x.label || x.key || 'that list') + ' among them.'); });
+    });
+    return { errs: errs, warns: warns };
 }
 // [sinkcheck:onremovebox-end]
 function upkeepChange(lsc, t, c) {
@@ -11615,6 +11627,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-colhide') >= 0 || c.indexOf('sys-list-colfoot') >= 0) { var chr = t.closest('.sys-list-col'), chD = chr && Array.isArray(lsc.cols) ? lsc.cols[+chr.dataset.ci] : null; if (!chD || typeof chD !== 'object') return; var chK = c.indexOf('sys-list-colhide') >= 0 ? 'hide' : 'foot'; if (t.checked) chD[chK] = true; else delete chD[chK]; }   // Stage 6 F5a1
         else if (c.indexOf('sys-list-statkind') >= 0) { var skr = t.closest('.sys-list-stat'), skD = skr && Array.isArray(lsc.stats) ? lsc.stats[+skr.dataset.si] : null; if (!skD || typeof skD !== 'object') return; delete skD.def; delete skD.labels; if (t.value === 'pick') { skD.kind = 'pick'; skD.opts = Array.isArray(skD.opts) ? skD.opts : []; if (typeof lsc.price === 'string' && skD.key && lsc.price.toLowerCase() === String(skD.key).toLowerCase()) delete lsc.price; } else { delete skD.kind; delete skD.opts; } markDirty(); renderAll(); return; }   // Stage 6 F5a2: a number or a choice (a choice is never the price)
         else if (c.indexOf('sys-list-statpdef') >= 0) { var spr = t.closest('.sys-list-stat'), spD = spr && Array.isArray(lsc.stats) ? lsc.stats[+spr.dataset.si] : null; if (!spD || typeof spD !== 'object') return; if (t.value) spD.def = t.value; else delete spD.def; }   // Stage 6 F5a2: a choice's default
+        else if (c.indexOf('sys-list-statgm') >= 0) { var sgr = t.closest('.sys-list-stat'), sgD = sgr && Array.isArray(lsc.stats) ? lsc.stats[+sgr.dataset.si] : null; if (!sgD || typeof sgD !== 'object') return; if (t.checked) { sgD.vis = 'gm'; delete sgD.split; } else delete sgD.vis; }   // 1.6.0: a GM-only stat
         else if (c.indexOf('sys-list-statshow') >= 0 || c.indexOf('sys-list-stathide') >= 0) { var ssr = t.closest('.sys-list-stat'), ssD = ssr && Array.isArray(lsc.stats) ? lsc.stats[+ssr.dataset.si] : null; if (!ssD || typeof ssD !== 'object') return; statTick(ssD, c.indexOf('sys-list-stathide') >= 0 ? 'hide' : 'show', t.checked, ssr); }   // Stage 6 F4c1; 1.5.4: Hidden
         else if (c.indexOf('sys-list-xs') >= 0) { var xr2 = t.closest('.sys-list-xsrow'), xD2 = xr2 && Array.isArray(lsc.rolls) ? lsc.rolls[+xr2.dataset.ri] : null; if (!xD2 || typeof xD2 !== 'object') return; listCrossEdit(xD2, c, t); }   // 1.6.0: a row's counter crossing
         else if (c.indexOf('sys-list-burst') >= 0) { var rbu = t.closest('.sys-list-roll'), rbD = rbu && Array.isArray(lsc.rolls) ? lsc.rolls[+rbu.dataset.ri] : null; if (!rbD || typeof rbD !== 'object') return; if (t.value === 'attack' || t.value === 'extra') rbD.burst = t.value; else delete rbD.burst; }   // 1.6.0 A burst

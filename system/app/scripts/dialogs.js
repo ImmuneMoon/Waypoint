@@ -384,19 +384,29 @@ if(_el_newCampBtn) _el_newCampBtn.addEventListener('click', function() {
 
       promptForCampaignName(initial, "Enter new campaign name:", null, function(title) {
 
-          guardSwitch(function() {   // the new campaign becomes the active one: a switch while hosting
+          var makeIt = function(pick) { guardSwitch(function() {   // the new campaign becomes the active one: a switch while hosting
 
               var newCamp = createNewCampaign(title);
 
-              state.appState.campaigns[newCamp.id] = newCamp;
+              var open = function() {
 
-              state.appState.activeCampaignId = newCamp.id;
+                  state.appState.campaigns[newCamp.id] = newCamp;
 
-              state.selId = null; state.selWbId = null; state.linkStart = null;
+                  state.appState.activeCampaignId = newCamp.id;
 
-              updateCampaignSelect(); updateSidebarNav(); render(); save(true);
+                  state.selId = null; state.selWbId = null; state.linkStart = null;
 
-          });
+                  updateCampaignSelect(); updateSidebarNav(); render(); save(true);
+
+                  if (newCamp.library && window.wpLibrary && window.wpLibrary.load) window.wpLibrary.load(newCamp);
+
+              };
+
+              if (pick) window.wpCampSafe.fillFrom(newCamp, pick).then(open, open); else open();   // 1.6.2: a copy of another campaign's system, filled in before it is listed
+
+          }); };
+
+          if (window.wpCampSafe && window.wpCampSafe.pickSystem) window.wpCampSafe.pickSystem(makeIt); else makeIt(null);
 
       });
 

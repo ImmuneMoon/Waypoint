@@ -106,6 +106,18 @@ function csFlows(D) {
             D.toast('Trial run ended. The campaign is back as it was when the trial began.');
         }, { yes: 'Put it back', alt: 'Keep the changes' });
     }
+    // A campaign's packs copied at the revisions it pins. The place of the one that failed, its half-made folder taken away, or -1
+    async function copyPacks(ups) {
+        for (var i = 0; i < ups.length; i++) {
+            var u = ups[i], ok = false;
+            try {
+                var g = await D.fetch('/api/library?dir=' + u.fromDir + '&pack=' + u.pack + '&rev=' + u.rev);
+                if (g && g.ok) { var w = await D.fetch('/api/library?dir=' + u.toDir + '&pack=' + u.pack + '&rev=' + u.rev, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: await g.text() }); ok = !!w && w.ok; }
+            } catch (e) { ok = false; }
+            if (!ok) { try { var dl = D.fetch('/api/library?dir=' + u.toDir, { method: 'DELETE' }); if (dl && dl.catch) dl.catch(function() {}); } catch (e) {} return i; }
+        }
+        return -1;
+    }
     // A test copy: the campaign whole, as "Name (test)", its library packs copied into a folder of its own. Opened once it is made
     async function makeTestCopy() {
         var c = D.camp(); if (!c || !usable()) return;
@@ -113,21 +125,36 @@ function csFlows(D) {
         var plan = C.testCopy(c, id, nm, c.library ? D.newDir() : '');
         if (!plan) { log('copy-fail', { at: 'plan' }); D.toast('The copy could not be made.'); return; }
         log('copy-start', { packs: plan.uploads.length });
-        for (var i = 0; i < plan.uploads.length; i++) {
-            var u = plan.uploads[i], ok = false;
-            try {
-                var g = await D.fetch('/api/library?dir=' + u.fromDir + '&pack=' + u.pack + '&rev=' + u.rev);
-                if (g && g.ok) { var w = await D.fetch('/api/library?dir=' + u.toDir + '&pack=' + u.pack + '&rev=' + u.rev, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: await g.text() }); ok = !!w && w.ok; }
-            } catch (e) { ok = false; }
-            if (!ok) {
-                log('copy-fail', { at: 'library', n: i });
-                try { var dl = D.fetch('/api/library?dir=' + u.toDir, { method: 'DELETE' }); if (dl && dl.catch) dl.catch(function() {}); } catch (e) {}
-                D.toast('The copy was not made: a library pack could not be copied. Your campaign is untouched.'); return;
-            }
-        }
+        var bad = await copyPacks(plan.uploads);
+        if (bad >= 0) { log('copy-fail', { at: 'library', n: bad }); D.toast('The copy was not made: a library pack could not be copied. Your campaign is untouched.'); return; }
         app().campaigns[id] = plan.camp; D.save(); D.list();
         log('copy-done', { packs: plan.uploads.length });
         D.switchTo(id, function() { D.toast('Made ' + nm + ' and opened it. ' + name(c) + ' is untouched.'); }, function() { D.toast('Made ' + nm + '. It is in your campaign list.'); });
+    }
+    // New campaign's second question: nothing, or a copy of the system of one of your campaigns. done(null), or done({ from, pages }). Cancel makes no campaign
+    function pickSystem(done) {
+        var rows = C.systemRows(app().campaigns, app().activeCampaignId); if (!rows.length) { done(null); return; }
+        var box = ui.createElement('div'), lead = ui.createElement('div'), sel = ui.createElement('select'), tick = ui.createElement('label'), cb = ui.createElement('input'), words = ui.createElement('span');
+        box.className = 'cs-list cs-sys-box'; lead.className = 'cs-lead'; lead.textContent = 'Start with no system, or with a copy of one of yours. After that the two change apart. Maps, planners and characters stay behind.'; box.appendChild(lead);
+        sel.className = 'tool cs-sys'; sel.title = 'The campaign whose system this one starts with';
+        var add = function(v, t) { var o = ui.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
+        add('', 'No system yet'); rows.forEach(function(r) { add(r.id, r.name); }); box.appendChild(sel);
+        tick.className = 'cs-tick'; cb.type = 'checkbox'; cb.checked = true; tick.appendChild(cb); tick.appendChild(words); box.appendChild(tick);
+        var sync = function() { var r = rows.filter(function(x) { return x.id === sel.value; })[0]; tick.hidden = !r || !r.pages; words.textContent = r ? ' Bring its handbook pages (' + r.pages + ')' : ''; };
+        sel.addEventListener('change', sync); sync();
+        D.confirm('Use the system of', function(ans) { if (ans !== true) return; done(sel.value ? { from: sel.value, pages: cb.checked === true } : null); }, { yes: 'Create', body: box });
+    }
+    // Fills a new campaign from the pick, before it is listed. A pack that cannot be copied leaves it with no system, and says so
+    async function fillFrom(into, pick) {
+        var src = pick && app().campaigns[pick.from] || null, plan = src ? C.systemCopy(src, src.library ? D.newDir() : '', pick.pages === true) : null;
+        if (!plan) { log('system-fail', { at: 'plan' }); D.toast('That system could not be copied. The campaign has no system yet.'); return false; }
+        log('system-start', { packs: plan.uploads.length, pages: Object.keys(plan.items).length });
+        var bad = await copyPacks(plan.uploads);
+        if (bad >= 0) { log('system-fail', { at: 'library', n: bad }); D.toast('A library pack could not be copied, so the campaign has no system yet. ' + name(src) + ' is untouched.'); return false; }
+        into.system = plan.system; if (plan.library) into.library = plan.library; if (plan.fog) into.fog = plan.fog;
+        into.items = into.items || {}; Object.keys(plan.items).forEach(function(id) { into.items[id] = plan.items[id]; });
+        log('system-done', { packs: plan.uploads.length, pages: Object.keys(plan.items).length });
+        return true;
     }
     // The Restore points window: Make a restore point, and every snapshot with its Roll back, newest first, all as text
     async function openPoints() {
@@ -159,7 +186,7 @@ function csFlows(D) {
             var f = await makePoint(c.id, 'point'); D.toast(f ? 'Restore point made. It stays until you delete it in Settings.' : 'The restore point could not be made.');
         }, { yes: 'Make a restore point', body: box });
     }
-    return { makePoint: makePoint, rollBack: rollBack, trialOn: trialOn, startTrial: startTrial, endTrial: endTrial, makeTestCopy: makeTestCopy, openPoints: openPoints, log: log };
+    return { makePoint: makePoint, rollBack: rollBack, trialOn: trialOn, startTrial: startTrial, endTrial: endTrial, makeTestCopy: makeTestCopy, openPoints: openPoints, pickSystem: pickSystem, fillFrom: fillFrom, log: log };
 }
 // [campsafecheck:flows-end]
 

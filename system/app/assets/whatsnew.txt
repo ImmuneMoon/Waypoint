@@ -77,6 +77,12 @@ System editor
 - Counted once: Given free can name a column now, as Full price can, so a row
   another row granted can say what it gives free.
 
+Reusing a system
+- New campaign now asks whether to start with a copy of the system of one of your
+  campaigns. Its library packs come with it, and its handbook pages unless you
+  untick them. Maps, planners and characters stay behind, and after that the two
+  campaigns change apart.
+
 Sounds on actions
 - You can now tie a cue to something that happens, so a shot, a sword swing or an
   explosion plays by itself. Open the Sound panel and press + Add a sound on an

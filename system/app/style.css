@@ -1127,6 +1127,11 @@
   /* 1.6.0: the Restore points window's list (campsafe.js), inside the app's question */
   .cs-list { display: flex; flex-direction: column; gap: 4px; max-height: 50vh; overflow-y: auto; margin: 0 0 12px; }
   .cs-lead, .cs-none { font-size: 11px; color: var(--dim); line-height: 1.5; margin-bottom: 4px; }
+  .cs-sys-box { gap: 8px; overflow: visible; }
+  .cs-sys { width: 100%; }
+  .cs-tick { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+  .cs-tick[hidden] { display: none; }
+  .cs-tick input { accent-color: var(--gold); margin: 0; }
   .cs-row { display: flex; align-items: center; gap: 8px; font-size: 11.5px; padding: 3px 0; border-top: 1px solid var(--edge); }
   .cs-row .cs-when { flex: 1 1 auto; min-width: 0; }
   .cs-row .cs-kind { color: var(--dim); white-space: nowrap; }

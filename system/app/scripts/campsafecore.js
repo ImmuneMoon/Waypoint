@@ -83,10 +83,36 @@ function testCopy(camp, newId, newName, newDir) {
     return { camp: c, uploads: uploads };
 }
 
+// A new campaign that starts with another's system (1.6.2; the owner: "Use the system of", and of its handbook, a tick on by default): the system, its library
+// at the revisions it pins and its fog settings, which name the system's fields, and with pages its handbook pages under the same ids, so that a sheet's
+// links stay good. Never a map, a planner or a character. A page under something that does not come stands at the top
+function systemCopy(src, newDir, pages) {
+    if (!isObj(src) || !isObj(src.system)) return null;
+    var c = JSON.parse(JSON.stringify(src)), out = { system: c.system, items: {}, uploads: [] };
+    if (isObj(c.library) && typeof c.library.dir === 'string' && Array.isArray(c.library.packs) && typeof newDir === 'string' && newDir) {
+        var from = c.library.dir; c.library.dir = newDir; out.library = c.library;
+        c.library.packs.forEach(function(p) { if (isObj(p) && typeof p.id === 'string' && typeof p.rev === 'number' && p.rev > 0) out.uploads.push({ pack: p.id, rev: p.rev, fromDir: from, toDir: newDir }); });
+    }
+    if (isObj(c.fog)) out.fog = c.fog;
+    if (pages === true && isObj(c.items)) {
+        Object.keys(c.items).forEach(function(id) { var it = c.items[id]; if (isObj(it) && it.type === 'doc') out.items[id] = it; });
+        Object.keys(out.items).forEach(function(id) { var m = out.items[id].meta; if (isObj(m) && m.parentId && !out.items[m.parentId]) delete m.parentId; });
+    }
+    return out;
+}
+// The GM's own campaigns that hold a system, the one on screen first: never a copy of someone else's table
+function systemRows(camps, activeId) {
+    var rows = Object.keys(isObj(camps) ? camps : {}).filter(function(id) { var c = camps[id]; return isObj(c) && !c._foreign && isObj(c.system) && Array.isArray(c.system.fields) && c.system.fields.length > 0; }).map(function(id) {
+        var c = camps[id], its = isObj(c.items) ? c.items : {};
+        return { id: id, name: typeof c.name === 'string' && c.name ? c.name : 'Campaign', pages: Object.keys(its).filter(function(k) { return isObj(its[k]) && its[k].type === 'doc'; }).length, here: id === activeId };
+    });
+    return rows.filter(function(r) { return r.here; }).concat(rows.filter(function(r) { return !r.here; }));
+}
+
 // The words a step of the safety net writes to the app's log (saves/error.log), one line a step: the step's name and the facts that say
 // where it stood (snapshot names, counts, an HTTP status), never a campaign's name or anything of its content; the shared step log's words
 function logLine(step, facts) { return stepLine('campsafe v' + VERSION, step, facts); }
 
-var API = { VERSION: VERSION, BACKUP_FILE: BACKUP_FILE, LIMITS: LIMITS, cleanNotes: cleanNotes, cleanTrials: cleanTrials, pointLabel: pointLabel, pointRows: pointRows, libRepair: libRepair, testCopy: testCopy, logLine: logLine };
+var API = { VERSION: VERSION, BACKUP_FILE: BACKUP_FILE, LIMITS: LIMITS, cleanNotes: cleanNotes, cleanTrials: cleanTrials, pointLabel: pointLabel, pointRows: pointRows, libRepair: libRepair, testCopy: testCopy, systemCopy: systemCopy, systemRows: systemRows, logLine: logLine };
 if (typeof window !== 'undefined') window.wpCampSafeCore = API;
-export { VERSION, BACKUP_FILE, LIMITS, cleanNotes, cleanTrials, pointLabel, pointRows, libRepair, testCopy, logLine };
+export { VERSION, BACKUP_FILE, LIMITS, cleanNotes, cleanTrials, pointLabel, pointRows, libRepair, testCopy, systemCopy, systemRows, logLine };

@@ -3261,6 +3261,7 @@
   .fb-add { background: transparent; border: 0; color: var(--gold); cursor: pointer; font: inherit; font-size: 12px; padding: 4px 0; }
   .fb-sub { flex: 1 1 100%; border-left: 2px solid var(--gold); margin-left: 4px; padding-left: 10px; }
   .fb-dice { flex: 1 1 100%; }
+  .sheet-item-group { font-size: 11.5px; font-weight: 600; color: var(--dim); margin: 8px 0 2px; padding-bottom: 2px; border-bottom: 1px solid var(--edge); }
   .fb-words { flex: 1 1 200px; min-width: 0; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; font: inherit; font-size: 12.5px; min-height: 26px; padding: 1px 6px; }
   .fb-tick { display: inline-flex; align-items: center; gap: 4px; color: var(--dim); font-size: 12px; }
   .fb-addfig { white-space: nowrap; }
@@ -3675,7 +3676,9 @@
   .sheet-item.sheet-edge-danger, tr.sheet-edge-danger > td:first-child { box-shadow: inset 3px 0 0 var(--red); }
   .sheet-item.sheet-edge-accent, tr.sheet-edge-accent > td:first-child { box-shadow: inset 3px 0 0 var(--sheet-accent, var(--gold)); }
   .sheet-item.sheet-edge-primary, tr.sheet-edge-primary > td:first-child { box-shadow: inset 3px 0 0 var(--sheet-primary, var(--sheet-accent, var(--gold))); }
-  .sheet-item-statsel { font-size: 11px; padding: 1px 4px; min-height: 0; height: auto; max-width: 160px; }   /* 1.6.0, backlog 180 R10: a choice stat as a menu on its row */
+  .sheet-chip.sheet-item-statpick { flex: none; }   /* its menu keeps to its chip, clear of the next one */
+  select.field.sheet-item-statsel { width: auto; }
+  .sheet-item-statsel { font-size: 11px; padding: 1px 4px; min-height: 0; height: auto; max-width: 160px; width: auto; }   /* 1.6.0, backlog 180 R10: a choice stat as a menu on its row */
   .sheet-split { font-size: 11px; padding: 0 6px; }   /* 1.6.0, backlog 180 R11 */
   .sheet-parts { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 2px 0 6px 18px; }   /* 1.6.0 R14: a row's parts, as pills under it */
   .sheet-part { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--edge); background: var(--panel2); border-radius: 12px; padding: 1px 4px 1px 9px; }

@@ -166,7 +166,7 @@ var GROUPS = {
         ['blast', 'Blast', 0, ['sys-item-area', 'sys-item-affs']]] },
     lists: { split: ['sys-flags', 'sys-list-cols'], head: ['sys-list-title'], list: [
         ['holds', 'What it holds', 1, ['sys-list-cats', 'sys-starts']],
-        ['rows', 'How its rows behave', 1, ['sys-list-multi', 'sys-list-noqty', 'sys-list-graise', 'sys-list-custom', 'sys-list-open', 'sys-list-trade', 'sys-list-edge', 'sys-list-menus', 'sys-list-boxes']],
+        ['rows', 'How its rows behave', 1, ['sys-list-multi', 'sys-list-noqty', 'sys-list-graise', 'sys-list-custom', 'sys-list-open', 'sys-list-trade', 'sys-list-edge', 'sys-list-groupby', 'sys-list-menus', 'sys-list-boxes']],
         ['level', 'Level', 1, ['sys-list-lvl', 'sys-list-lcaps']],
         ['on', 'Switch', 1, ['sys-list-on', 'sys-list-upkeep']],
         ['stats', 'Stats', 1, ['sys-list-stats']],

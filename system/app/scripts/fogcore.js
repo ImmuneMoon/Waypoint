@@ -18,12 +18,12 @@ var LIMITS = Object.freeze({
     lights: 200,        // lighting (L2): light sources counted per map — over this the map reads dark (never more light than there is)
     lightVisits: 120000, // lighting (L2): cells all of a map's light sources may walk — over this the map reads dark
     lightName: 60,      // lighting (L4): the name a light keeps of the preset it came from
-    senses: 8,          // senses S2b: the ranges a token gives its own senses (the system holds at most eight)
+    senses: 80,         // senses S2b: the ranges a token gives its own senses (as many as a system holds: systemcore LIMITS.senses)
     marks: 60,          // senses S4: the marks one player's copy of a map holds (past this, the nearest)
     markTests: 4000,    // senses S4: the lines of sight one player's marks may test on one map (past this, the far creatures go untested)
     arcDeg: 180,        // front arc
     len: [10, 4000],    // a gridless cell length in board px
-    envKeys: 8,         // 1.6.0: the environment readings one map or one cell sets (a system names at most eight)
+    envKeys: 80,        // 1.6.0: the environment readings one map or one cell sets (as many as a system names: systemcore LIMITS.env)
     envCells: 12000     // 1.6.0: the painted environment cells a map keeps
 });
 var RULESETS = { radius: 1, arc: 1 };
@@ -1155,7 +1155,7 @@ function cleanTokSenses(v) {
     for (var i = 0; i < v.length && out.length < LIMITS.senses; i++) { var e = v[i]; if (!isObj(e) || typeof e.id !== 'string' || !SENSE_ID_RE.test(e.id) || seen[e.id] || !fin(e.n)) continue; seen[e.id] = 1; out.push({ id: e.id, n: clamp(e.n, 0, 100000) }); }
     return out.length ? out : null;
 }
-// Senses S4: which senses never mark a token (item.unsensed, the GM's) — true (none marks it), or at most eight sense ids; null for none
+// Senses S4: which senses never mark a token (item.unsensed, the GM's) — true (none marks it), or at most LIMITS.senses sense ids; null for none
 function cleanUnsensed(v) {
     if (v === true) return true;
     if (!Array.isArray(v)) return null;

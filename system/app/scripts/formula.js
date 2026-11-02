@@ -743,6 +743,7 @@ function evaluateAst(ast, options) {
         if (depth > LIMITS.maxDepth) fail('Formulas refer to each other too deeply (over ' + LIMITS.maxDepth + ' levels).', 0, 0);
         var c = new Ctx(ast, options), value = ev(ast.body, c);
         if (typeof c.random.remaining === 'function' && c.random.remaining() > 0) fail('The stored roll does not match this formula.', 0, 0);
+        if (options.bare === true) return { ok: true, value: value, type: typeof value === 'boolean' ? 'boolean' : 'number', diceRolled: c.pool, draws: c.draws, breakdown: { dice: [], checks: c.checks, names: c.names, template: [], text: '', summary: '' } };   // 1.6.2: a sheet's own figures want the value and the names it read, thousands of times a redraw, and no words
         var top = null;
         for (var k = 0; k < c.checks.length; k++) if (c.checks[k].top) top = c.checks[k];
         var parts = [];

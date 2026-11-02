@@ -2612,9 +2612,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             }
             // (9c) senses S2b: a token's own ranges (item.senses) — fogcore cleanTokSenses, and tokenSenses reading them before the sheet's
             const TSj = JSON.parse('[{"id":"sn_ether001","n":1e9},{"id":"sn_ether001","n":5},{"id":"sn_UPPER001","n":3},{"id":"sn_short","n":3},{"id":"sn_minus001","n":-4},{"id":"sn_text0001","n":"6"},{"id":"sn_nan00001","n":null},{"id":["sn_array001"],"n":2},{"id":"xsn_ether0011","n":2},null,7,{"id":"__proto__","n":1},{"id":"sn_a0000001","n":1},{"id":"sn_a0000002","n":2},{"id":"sn_a0000003","n":3},{"id":"sn_a0000004","n":4},{"id":"sn_a0000005","n":5},{"id":"sn_a0000006","n":6},{"id":"sn_a0000007","n":7}]');
-            check('S2b fogcore cleanTokSenses: a token\'s own ranges — an id of the sense pattern, each once (the first kept), a range finite and within 0 to 100000, at most eight; nothing else is a list of them',
-                lj(FC.cleanTokSenses(TSj)) === lj([{ id: 'sn_ether001', n: 100000 }, { id: 'sn_minus001', n: 0 }, { id: 'sn_a0000001', n: 1 }, { id: 'sn_a0000002', n: 2 }, { id: 'sn_a0000003', n: 3 }, { id: 'sn_a0000004', n: 4 }, { id: 'sn_a0000005', n: 5 }, { id: 'sn_a0000006', n: 6 }])
-                && [undefined, null, 5, 'x', {}, [], [null], [{ id: 'sn_ether001' }], { 0: { id: 'sn_ether001', n: 1 } }].every(v => FC.cleanTokSenses(v) === null) && FC.LIMITS.senses === 8, lj(FC.cleanTokSenses(TSj)));
+            const TSmany = Array.from({ length: 90 }, (_, i) => ({ id: 'sn_b' + String(10000000 + i).slice(1), n: i }));
+            check('S2b fogcore cleanTokSenses: a token\'s own ranges — an id of the sense pattern, each once (the first kept), a range finite and within 0 to 100000, at most 80 (eight before 1.6.2); nothing else is a list of them',
+                lj(FC.cleanTokSenses(TSj).slice(0, 8)) === lj([{ id: 'sn_ether001', n: 100000 }, { id: 'sn_minus001', n: 0 }, { id: 'sn_a0000001', n: 1 }, { id: 'sn_a0000002', n: 2 }, { id: 'sn_a0000003', n: 3 }, { id: 'sn_a0000004', n: 4 }, { id: 'sn_a0000005', n: 5 }, { id: 'sn_a0000006', n: 6 }])
+                && FC.cleanTokSenses(TSmany).length === 80
+                && [undefined, null, 5, 'x', {}, [], [null], [{ id: 'sn_ether001' }], { 0: { id: 'sn_ether001', n: 1 } }].every(v => FC.cleanTokSenses(v) === null) && FC.LIMITS.senses === 80, lj(FC.cleanTokSenses(TSj)));
             const fcT = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fogcore.js'), 'utf8');
             const apiKeys = ((fcT.match(/\nvar API = \{([^}]*)\};/) || [])[1] || '').split(',').map(s => s.trim().split(':')[0].trim()).filter(Boolean).sort(), expNames = ((fcT.match(/\nexport \{([^}]*)\};/) || [])[1] || '').split(',').map(s => s.trim()).filter(Boolean).sort();
             check('S2b fogcore gives the app (window.wpFogCore) exactly what it exports to the suites, cleanTokSenses among them', apiKeys.length > 30 && lj(apiKeys) === lj(expNames) && apiKeys.includes('cleanTokSenses') && lj(apiKeys) === lj(Object.keys(FC).filter(k => k !== 'default').sort()), lj([apiKeys.filter(k => !expNames.includes(k)), expNames.filter(k => !apiKeys.includes(k))]));
@@ -2786,8 +2788,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const cfmMany = FC.cleanFogMarks(Array.from({ length: 70 }, (_, i) => ({ c: i, r: 0, k: 1 })));
             check('S4a fogcore cleanFogMarks: a player\'s app keeps a whole cell and a glyph number 1-4 and nothing else (no id, no name), the first mark of a cell, none on a cell of its own tokens, at most 60; nothing that is no list of them',
                 lj(cfm) === lj([{ c: 1, r: 2, k: 1 }, { c: 1, r: 3, k: 2 }, { q: 4, r: 5, k: 4 }, { c: 9, r: 9, k: 1 }]) && cfmMany.length === 60 && [null, undefined, 'x', {}, [], [null], [{ c: 1, r: 1 }]].every(v => FC.cleanFogMarks(v) === null) && FC.LIMITS.marks === 60 && FC.LIMITS.markTests === 4000, lj([cfm, cfmMany.length]));
-            check('S4a fogcore cleanUnsensed: true, or at most 8 sense ids by pattern each once; nothing else',
-                FC.cleanUnsensed(true) === true && lj(FC.cleanUnsensed(['sn_aaaaaaaa', 'sn_aaaaaaaa', 'bad', 5, 'sn_bbbbbbbb'])) === lj(['sn_aaaaaaaa', 'sn_bbbbbbbb']) && FC.cleanUnsensed(Array.from({ length: 12 }, (_, i) => 'sn_x000000' + String.fromCharCode(97 + i))).length === 8 && [false, 'yes', 1, [], ['x'], null, {}].every(v => FC.cleanUnsensed(v) === null));
+            check('S4a fogcore cleanUnsensed: true, or at most 80 sense ids by pattern each once (8 before 1.6.2); nothing else',
+                FC.cleanUnsensed(true) === true && lj(FC.cleanUnsensed(['sn_aaaaaaaa', 'sn_aaaaaaaa', 'bad', 5, 'sn_bbbbbbbb'])) === lj(['sn_aaaaaaaa', 'sn_bbbbbbbb']) && FC.cleanUnsensed(Array.from({ length: 90 }, (_, i) => 'sn_x' + String(10000000 + i).slice(1))).length === 80 && [false, 'yes', 1, [], ['x'], null, {}].every(v => FC.cleanUnsensed(v) === null));
             // fogMarksFor on the host's judgement (strict, with the real resolver): a dark map, Ana's Sight 4, a Hearing of 10 cells passing walls all round
             const hear = (o) => sn('hear0001', Object.assign({ name: 'Hearing', grade: 'mark', glyph: 'sound', walls: 'pass', arc: 'all', range: { by: 'n', n: 10 } }, o || {}));
             const mkMap = extra => s0map({}, [meA(), nearT(), farT()].concat(extra || []));
@@ -2935,10 +2937,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                     lj([w8.drop, w8.marks, w8.keys['309,295'], w8.keys['309,298'], n8.keys['309,298'], w8.keys['305,298'], n8.keys['305,298'], w8.keys['307,300']]));
             }
             {   // (9f3) senses S7a: null areas — fogcore cleanNulls / cleanFogOff, fog.js nullsAt, tokenSenses, fogOffFor and the caption, run strict
-                const ncl = [FC.cleanNulls(['sn_hear0001', 'sn_hear0001', 'bad', 7, 'sn_forc0001']), FC.cleanNulls([]), FC.cleanNulls('sn_hear0001'), FC.cleanNulls(true), FC.cleanNulls(Array.from({ length: 12 }, (_, i) => 'sn_x000000' + String.fromCharCode(97 + i))).length];
+                const ncl = [FC.cleanNulls(['sn_hear0001', 'sn_hear0001', 'bad', 7, 'sn_forc0001']), FC.cleanNulls([]), FC.cleanNulls('sn_hear0001'), FC.cleanNulls(true), FC.cleanNulls(Array.from({ length: 90 }, (_, i) => 'sn_x' + String(10000000 + i).slice(1))).length];
                 const nfo = [FC.cleanFogOff({ me: ['sn_hear0001', 'x'], bo: ['sn_hear0001'], me2: [] }, { me: 1, me2: 1 }), FC.cleanFogOff({ me: ['sn_hear0001'] }, null), FC.cleanFogOff([], { me: 1 }), FC.cleanFogOff('x', { me: 1 }), FC.cleanFogOff({ constructor: ['sn_hear0001'] }, { me: 1 })];
-                check('S7a fogcore cleanNulls: at most eight sense ids by pattern, each once (never true, never text alone); cleanFogOff: a list for each of the player\'s own tokens only, nothing for any other key',
-                    lj(ncl) === lj([['sn_hear0001', 'sn_forc0001'], null, null, null, 8]) && lj(nfo) === lj([{ me: ['sn_hear0001'] }, null, null, null, null]), lj([ncl, nfo]));
+                check('S7a fogcore cleanNulls: at most 80 sense ids by pattern (eight before 1.6.2), each once (never true, never text alone); cleanFogOff: a list for each of the player\'s own tokens only, nothing for any other key',
+                    lj(ncl) === lj([['sn_hear0001', 'sn_forc0001'], null, null, null, 80]) && lj(nfo) === lj([{ me: ['sn_hear0001'] }, null, null, null, null]), lj([ncl, nfo]));
                 const zone = (o) => Object.assign({ id: 'zone', type: 'rect', x: 50, y: 50, w: 150, h: 150, nulls: ['sn_hear0001'] }, o || {});
                 const nCamp = snCamp([hear(), sn('ether001', { range: { by: 'n', n: 5 } })]);
                 const nat = (items, t) => Object.keys(S0.nullsAt(s0map({}, items), t || meA())).sort();

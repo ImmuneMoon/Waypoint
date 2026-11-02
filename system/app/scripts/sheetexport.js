@@ -6,7 +6,7 @@
      page), the sheet walked as it is laid out: the header, the dashboard, the band as one line, every tab, every section.
    fileBase(name): a character's name as a file name. isCharFile(j): a character file. The caller (sheets.js) picks the view, works out
    `all` (resolveAll) on that same view and saves the file. */
-import { STORED, fmtNum, headerEntry, autoLayout, catPlace, placeVal, setsOf, partsOf, partsSrc, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, postureAt, ownPostures, lookOf, unitWords, textWords, listWords, rowLookShown, finishWords, workWords } from './systemcore.js';
+import { LIMITS as SYS_LIMITS, STORED, fmtNum, headerEntry, autoLayout, catPlace, placeVal, setsOf, partsOf, partsSrc, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, postureAt, ownPostures, lookOf, unitWords, textWords, listWords, rowLookShown, finishWords, workWords } from './systemcore.js';
 import { docToMarkdown, mdEscapeText, fmtFromInline } from './docmd.js';
 import { cleanFmt, runsOf, SIZE_EM } from './textfmt.js';
 import { LIMITS as DOC_LIMITS } from './docrender.js';
@@ -82,7 +82,7 @@ function charToJson(sys, view, all, opts) {
 // by id, else its own changes, each on a field of the view). A GM's copy (gm), the numbers worked out (computed) and the system's name are never
 // read. { values, lists, ops, fxLists, fx, unmatched (the file's own labels, as text), lost (rows it could not place), name, face } or null;
 // and looks, only when the file gives a kept text one: by its shape alone here, cleaned against the value AS KEPT where the fill is applied
-var ROWS_MAX = 150, FX_MAX = 30;
+var ROWS_MAX = SYS_LIMITS.carried, FX_MAX = SYS_LIMITS.effectRows;
 function charFromJson(view, j, find, findKey) {
     if (!isCharFile(j) || j.v !== VERSION || !isObj(view) || !Array.isArray(view.fields)) return null;
     var out = { values: {}, lists: [], ops: [], fxLists: [], fx: [], unmatched: [], lost: 0, name: typeof j.name === 'string' ? j.name.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 60) : '', face: typeof j.face === 'string' ? j.face.slice(0, 40) : '' };

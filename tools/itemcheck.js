@@ -74,7 +74,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         return Array.isArray(v) && v.length === 2 && v[0].defId === 'i_frag' && v[0].qty === LIMITS.maxQty && v[1].defId === 'i_secret' && v[1].qty === 1 && cleanValue({ kind: 'item-list' }, 'x', { items }) === undefined;
     })());
     check('cleanValue item-list: caps at LIMITS.carried', (() => {
-        const big = Object.create(null); const raw = []; for (let i = 0; i < 200; i++) { big['i_x' + i] = 1; raw.push({ defId: 'i_x' + i, qty: 1 }); }
+        const big = Object.create(null); const raw = []; for (let i = 0; i < LIMITS.carried + 50; i++) { big['i_x' + i] = 1; raw.push({ defId: 'i_x' + i, qty: 1 }); }
         const v = cleanValue({ kind: 'item-list' }, raw, { items: big });
         return v.length === LIMITS.carried;
     })());

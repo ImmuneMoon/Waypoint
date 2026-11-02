@@ -11,6 +11,7 @@ import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
+import { DMG_LIM, COVER_HIT_ROWS } from './systemcore.js';   // 1.6.2: what the Combat tab's boxes hold
 import { cleanCover } from './systemcore.js';   // 1.6.0: what cover takes off an attack, as Save reads it (refreshErrors)
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
 import { callDrops } from './systemcore.js';   // 1.6.0: a call's Read on the one who resisted, as Save reads it (refreshErrors)
@@ -2466,6 +2467,7 @@ function renderLayout() {
         hintEmpty: 'No band \u2014 pin a few numbers, resources, toggles or rolls and they stay under the name on every tab, above the tab strip.',
         addLabel: 'Pin to the band\u2026', addTitle: 'A number, formula, skill, resource, toggle or roll to keep in view on every tab', delTitle: 'Take off the band (it stays wherever else it is on the sheet)', clearTitle: 'Take everything off the band', capMsg: 'The band holds at most ' + LIMITS.band + ' items.' });
     if (!secs.length) root.appendChild(el('div', 'sys-empty', hudOn ? 'No HUD yet \u2014 add a section, a band figure or a ledger figure.' : 'No layout of your own yet: the sheet shows the automatic layout (one section per kind, then the rolls). Start from it, or add a section.'));
+    var metaOpts = [['', 'No count']].concat(draft.fields.map(function(f) { return [f.id, f.label || f.key || '(field)']; })), topSecs = secs.filter(function(o) { return !o.parent; }), addOpts = layoutAddOpts(placed, hudOn, onSheet, grpList);   // 1.6.2: once for the tab, not once a section
     secs.forEach(function(sec) {
         var row = el('div', 'sys-row sys-sec'); row.dataset.sid = sec.id;
         var top = el('div', 'sys-row-main');
@@ -2476,8 +2478,8 @@ function renderLayout() {
         top.appendChild(secCollapSel(sec));   // 1.5.5: Fixed, Collapsible or Starts closed
         top.appendChild(select('sys-sec-inline', [['', 'Stacked fields'], ['1', 'Inline rows']], sec.inline ? '1' : '', 'Each field on one line: label and value on the left, its Roll on the right (numbers, formulas, skills, toggles, selects, text); their stat tiles draw as rows here (a pool and a slider keep their own look)'));   // HUD frame (HF4a)
         top.appendChild(select('sys-sec-pinned', [['', 'On its tab'], ['1', 'Above the tabs']], sec.pinned ? '1' : '', 'A dashboard section: stays above the tab strip on every tab (and comes first on a stacked sheet)'));
-        top.appendChild(lazySelect('sys-sec-meta', [['', 'No count']].concat(draft.fields.map(function(f) { return [f.id, f.label || f.key || '(field)']; })), sec.meta || '', 'A field whose value shows in the section header (e.g. a running total)'));
-        top.appendChild(select('sys-sec-parent', [['', 'Top level']].concat(secs.filter(function(o) { return o.id !== sec.id && !o.parent; }).map(function(o) { return [o.id, 'Under: ' + (o.title || '(untitled)')]; })), sec.parent || '', 'Nest this section under another one (one level)'));
+        top.appendChild(lazySelect('sys-sec-meta', metaOpts, sec.meta || '', 'A field whose value shows in the section header (e.g. a running total)'));
+        top.appendChild(lazySelect('sys-sec-parent', [['', 'Top level']].concat(topSecs.filter(function(o) { return o.id !== sec.id; }).map(function(o) { return [o.id, 'Under: ' + (o.title || '(untitled)')]; })), sec.parent || '', 'Nest this section under another one (one level)'));
         var secFs = secFirstSel(sec, secs); if (secFs) top.appendChild(secFs);   // 1.5.5: After or Before its fields, only while nested
         top.appendChild(btnRow([['secup', 'Move this section up', '&#9650;'], ['secdown', 'Move this section down', '&#9660;'], ['secdel', 'Remove this section (its fields go back to the list)', '&times;']]));
         row.appendChild(top);
@@ -2544,7 +2546,7 @@ function renderLayout() {
             if (hasIf) { pr.appendChild(input('sys-pl-showif field', pl.showIf, 'Shown only while this is true (a number other than 0, or yes); no dice', 'e.g. Stun > 0')); var pifN = showIfNote(pl.showIf); if (pifN) pr.appendChild(el('span', 'sys-warn-line', pifN)); }
             var gmb = el('button', 'tool ghost sys-btn sys-pl-gm' + (pl.gm === true ? ' on' : ''), 'GM'); gmb.dataset.act = 'plgm'; gmb.title = pl.gm === true ? 'Shown on the GM\u2019s sheet alone. Press to show it to players too' : 'Show this on the GM\u2019s sheet alone. A card that asks a player for this roll still reaches them'; pr.appendChild(gmb);   // 1.6.0: the GM's alone
             var wb = el('button', 'tool ghost sys-btn sys-pl-w', pl.w === 'row' ? 'Full row' : '1 column'); wb.dataset.act = 'plw'; wb.title = 'Width: one column of the section, or the full row'; pr.appendChild(wb);
-            var plf = pl.id ? (draft.fields || []).find(function(x) { return x.id === pl.id; }) : null, plOn = plf && plf.kind === 'item-list' && plf.list && plf.list.on && typeof plf.list.on === 'object' ? plf.list.on : null;
+            var plf = pl.id && Object.prototype.hasOwnProperty.call(byId, pl.id) ? byId[pl.id] : null, plOn = plf && plf.kind === 'item-list' && plf.list && plf.list.on && typeof plf.list.on === 'object' ? plf.list.on : null;
             if (plOn || (pl.on && plf && plf.kind === 'item-list')) { var ob = el('button', 'tool ghost sys-btn sys-pl-on', pl.on ? 'Only ' + (plOn ? String(plOn.label || 'on').toLowerCase() : 'switched on') : 'All rows'); ob.dataset.act = 'plon'; ob.title = plOn ? 'Every row of the list, or only the rows switched on (' + (plOn.label || 'On') + '), e.g. the HUD\u2019s readied weapons' : 'Its list has no switch now, so every row shows: click to clear it'; pr.appendChild(ob); }   // F4b (review: kept while set, so it can be cleared)
             if (plf && plf.kind === 'item-list' && typeof placeCatBtn === 'function') { var pbL = plf.list && plf.list.placeBy ? ((plf.list.stats || []).filter(function(s) { return s && typeof s.key === 'string' && s.key.toLowerCase() === String(plf.list.placeBy).toLowerCase(); }).map(function(s) { return s.label || s.key; })[0] || '') : '', pcB = placeCatBtn(pl, pbL); if (pcB) pr.appendChild(pcB); }   // 1.5.5: By category (1.6.0 R13: or by the list's choice stat)
             if (plf && plf.kind === 'item-list') { var cnB = el('button', 'tool ghost sys-btn sys-pl-count' + (pl.count === true ? ' on' : ''), pl.count === true ? 'Rows counted' : 'Count rows'); cnB.dataset.act = 'plcount'; cnB.title = pl.count === true ? 'Its section\u2019s title shows how many rows this place shows. Press to stop counting' : 'Show in its section\u2019s title how many rows this place shows, such as Melee Technique (3)'; pr.appendChild(cnB); }   // 1.6.0, backlog 180 R9
@@ -2554,19 +2556,24 @@ function renderLayout() {
             if (plf && plf.kind === 'item-list' && typeof placeCatPart === 'function') placeCatPart(list, pl, sec, pi, plf, secs);   // 1.5.5: its categories, and what Save does with it
         });
         row.appendChild(list);
-        var addRow = el('div', 'sys-row-main sys-pl-addrow'), opts = [['', 'Add to this section\u2026']], inHdr = headerEdits(draft, hudOn ? (draft.sheet && draft.sheet.hud) || null : undefined);
-        draft.fields.forEach(function(f) { if (placed[f.id] && f.kind === 'item-list') opts.push(['f:' + f.id, (f.label || f.key || '(field)') + ' again, for other categories']); });   // 1.5.5: a list placed once a category
-        draft.fields.forEach(function(f) { if (!placed[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '') + (inHdr[f.id] === 1 ? ' (in the header)' : '') + (hudOn && onSheet[f.id] ? ' (on the sheet)' : '')]); });   // Stage 6: the GM is told a field is already edited in the header
-        draft.rolls.forEach(function(r) { opts.push(['r:' + r.id, rollPick(r)]); });
-        opts.push(['k:heading', 'Heading'], ['k:text', 'Rules text'], ['k:roller', 'Custom roller'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait'], ['k:facing', 'Facing dial'], ['k:stance', 'Stance (posture & elevation)']);
-        grpList.forEach(function(g) { opts.push(['p:' + g.id, 'Pin button: ' + (g.label || 'Group')]); });   // Stage 6: a band group's Pin, beside its figures
-        if (pageOptions('', null).length) opts.push(['k:link', 'Handbook link'], ['k:search', 'Handbook search']);   // Stage 5f: only when the campaign has pages; H12: a search over them
-        if (!hudOn && draftHasHud()) opts.push(['k:hud', 'HUD button']);   // HUD frame (HF2b): on the sheet, once there is a HUD to open
-        addRow.appendChild(lazySelect('sys-pl-add', opts, '', 'A field not yet on the sheet, a roll button, a heading, a divider, the portrait, a facing dial, a stance control or a handbook link'));
+        var addRow = el('div', 'sys-row-main sys-pl-addrow');
+        addRow.appendChild(lazySelect('sys-pl-add', addOpts, '', 'A field not yet on the sheet, a roll button, a heading, a divider, the portrait, a facing dial, a stance control or a handbook link'));
         row.appendChild(addRow);
         root.appendChild(row);
     });
     renderPreview();
+}
+// what a section's Add list offers, one list for the tab
+function layoutAddOpts(placed, hudOn, onSheet, grpList) {
+    var opts = [['', 'Add to this section\u2026']], inHdr = headerEdits(draft, hudOn ? (draft.sheet && draft.sheet.hud) || null : undefined);
+    draft.fields.forEach(function(f) { if (placed[f.id] && f.kind === 'item-list') opts.push(['f:' + f.id, (f.label || f.key || '(field)') + ' again, for other categories']); });   // 1.5.5: a list placed once a category
+    draft.fields.forEach(function(f) { if (!placed[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '') + (inHdr[f.id] === 1 ? ' (in the header)' : '') + (hudOn && onSheet[f.id] ? ' (on the sheet)' : '')]); });   // Stage 6: the GM is told a field is already edited in the header
+    draft.rolls.forEach(function(r) { opts.push(['r:' + r.id, rollPick(r)]); });
+    opts.push(['k:heading', 'Heading'], ['k:text', 'Rules text'], ['k:roller', 'Custom roller'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait'], ['k:facing', 'Facing dial'], ['k:stance', 'Stance (posture & elevation)']);
+    grpList.forEach(function(g) { opts.push(['p:' + g.id, 'Pin button: ' + (g.label || 'Group')]); });   // Stage 6: a band group's Pin, beside its figures
+    if (pageOptions('', null).length) opts.push(['k:link', 'Handbook link'], ['k:search', 'Handbook search']);   // Stage 5f: only when the campaign has pages; H12: a search over them
+    if (!hudOn && draftHasHud()) opts.push(['k:hud', 'HUD button']);   // HUD frame (HF2b): on the sheet, once there is a HUD to open
+    return opts;
 }
 function renderPreview() {
     var box = ui('sysLayoutPreview'), pick = ui('sysPreviewChar'); if (!box || !draft || !F()) return;
@@ -2891,7 +2898,7 @@ function askRollLvl(anchor, entry, def, spec, go) {
     var L = spec && spec.lvl && typeof spec.lvl === 'object' ? spec.lvl : null; if (!L) return false;
     var own = rowLvl(spec, entry, def), lo = typeof L.min === 'number' ? L.min : 1; if (typeof own !== 'number' || own <= lo) return false;
     var byE = typeof entryLvls === 'function' ? entryLvls(def).filter(function(r) { return r.lvl >= lo && r.lvl <= own && r.lvl === Math.floor(r.lvl); }) : [], lvs = byE;
-    if (!lvs.length) { lvs = []; for (var n = lo; n <= own && lvs.length < 40; n++) lvs.push({ lvl: n }); }
+    if (!lvs.length) { lvs = []; for (var n = lo; n <= own && lvs.length < 400; n++) lvs.push({ lvl: n }); }
     if (typeof lvlOnlyHas === 'function') { var lvsO = lvs.filter(function(r) { return lvlOnlyHas(spec, def, r.lvl); }); if (lvsO.length) lvs = lvsO; }   // 1.6.0 Levels it may be
     if (lvs.length < 2) return false;
     openLvlMenu(anchor, lvs, L, own, go, true); return true;
@@ -3457,7 +3464,9 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
     if (spec) carried.forEach(function(r) { var d0 = rowDef(sysI, r), cc = d0 && d0.def && d0.def.category ? String(d0.def.category).toLowerCase() : ''; if (cc && !seenCat[cc]) { seenCat[cc] = 1; nCat++; } });
     var chips = nCat > 1, opens = !!(spec && spec.open === true) && !hudRow, openers = [];   // 1.6.0 R1: rows that open (never on the HUD, which has no details)
     if (opens && carried.length > 1) wrap.appendChild(openAllBar(openers));
-    carried.forEach(function(entry) {
+    var nDraw = typeof rowsDrawn === 'function' ? rowsDrawn(c, f, carried.length) : carried.length;   // 1.6.2: a very long list draws its first rows
+    carried.forEach(function(entry, ei) {
+        if (ei >= nDraw) return;
         var rd = rowDef(sysI, entry), def = rd ? rd.def : null; if (!def) return;
         var rid = rowIdOf(entry);
         var line = el('div', 'sheet-item' + (entry.hid === 1 ? ' sheet-item-hid' : '') + (opens ? ' sheet-item-opens' : ''));
@@ -3506,11 +3515,26 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         if (noteLn) wrap.appendChild(noteLn);
         if (rr && rfOpen(c, f, rid)) wrap.appendChild(rowForm(entry, rd, c, f, spec, sysI, rr));   // F4c2: its form, under the row (one at a time, in the view it was opened in)
     });
+    if (nDraw < carried.length) wrap.appendChild(rowsMore(c, f, carried.length));
     if (carried.length && spec && res && res.foot) totalsLine(wrap, spec, res.foot);   // F5a1: the list's totals under its rows
     if (!carried.length) wrap.appendChild(el('div', 'sheet-empty-note', empty || 'No items.'));
 }
+// 1.6.2: a sheet draws thousands of elements for a list of a thousand rows, each time anything on it changes. So a list past ROWS_LEAST rows draws as many
+// as ROWS_NODES elements hold by what one row wears, at most ROWS_MOST, and a button draws the rest on this screen. Paper and a window of its own draw
+// every row, and no list of ROWS_LEAST rows or fewer changes at all
+var ROWS_LEAST = 150, ROWS_MOST = 300, ROWS_NODES = 30000, _rowsAll = Object.create(null);
 // 1.5.8 (book handoff 90, after the website's "<name> (Apprentice, opened by <Form>)"): what an opened row says after its name, its level by the
 // list's own word for it and the name of the row that opens it, as text for a text node
+function rowsDrawn(c, f, n) {
+    if (n <= ROWS_LEAST || !_fxLive || window.wpPrintCopy === true || _rowsAll[String(c && c.id) + '|' + f.id] === 1) return n;
+    var sp = f.list || {}, one = 12 + (Array.isArray(sp.rolls) ? sp.rolls.length * 6 : 0) + (Array.isArray(sp.counters) ? sp.counters.length * 6 : 0) + (Array.isArray(sp.cols) ? sp.cols.length : 0);
+    return Math.min(n, Math.max(ROWS_LEAST, Math.min(ROWS_MOST, Math.floor(ROWS_NODES / one))));
+}
+function rowsMore(c, f, n) {
+    var b = el('button', 'tool ghost sys-btn sheet-rows-more', 'Show all ' + n + ' rows'); b.type = 'button'; b.title = 'This list is long, so the sheet draws its first rows and stays quick. This draws the rest on this screen';
+    b.addEventListener('click', function() { _rowsAll[String(c && c.id) + '|' + f.id] = 1; renderViews(null); });
+    return b;
+}
 function openedWords(entry, c, sysI, spec) {
     var lv = typeof entry.lvl === 'number' ? entry.lvl : 1, lb = spec && spec.lvl && Array.isArray(spec.lvl.labels) ? spec.lvl.labels[lv - (typeof spec.lvl.min === 'number' ? spec.lvl.min : 1)] : null;
     var by = '';
@@ -3865,10 +3889,12 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
     if (hasAct) htr.appendChild(el('th', 'sheet-itcol-act', ''));
     thead.appendChild(htr); table.appendChild(thead);
     var tbody = el('tbody'), shown = 0, totalQty = 0, opensT = !!(spec && spec.open === true) && !hudRow, openersT = [];   // 1.6.0 R1
-    carried.forEach(function(entry) {
+    var nDrawT = typeof rowsDrawn === 'function' ? rowsDrawn(c, f, carried.length) : carried.length;   // 1.6.2: a very long list draws its first rows; its footer still counts every row
+    carried.forEach(function(entry, ei) {
         var rd = rowDef(sysI, entry), def = rd ? rd.def : null; if (!def) return;
         var rid = rowIdOf(entry);
         shown++; totalQty += entry.qty;
+        if (ei >= nDrawT) return;
         var tr = el('tr', entry.hid === 1 ? 'sheet-item-hid' : null), nameTd = el('td', 'sheet-itcol-name'), opSlotT = opensT ? el('span', 'sheet-item-opslot') : null; if (opSlotT) nameTd.appendChild(opSlotT);
         if (typeof rowLibHook === 'function') rowLibHook(tr, entry, rd, c, f, spec, gm);   // 1.6.2: Add to the library
         if (def.icon) nameTd.appendChild(iconNode(def.icon, 'sheet-item-icon'));
@@ -3948,6 +3974,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         tfoot.appendChild(ftr); table.appendChild(tfoot);
     }
     wrap.appendChild(table);
+    if (nDrawT < carried.length) wrap.appendChild(rowsMore(c, f, carried.length));
 }
 // Stage 6 F4c2: a copy's own values (ov). ✎ on a row of a list shaped in the Lists tab (a plain list draws as before) opens its form under the
 // row: the GM changes a linked copy (the library's, or a deleted one's copy); its owner changes its stats while the system lets players (the
@@ -5050,7 +5077,7 @@ function timedHook(mapId, combat, kind) {
 // them and the GM, the rest on one for the GM alone (systemcore upkeepLines judges which); LIMITS.applyChanges lines a card. The number of cards
 function upkeepCards(c, said, n) {
     if (!c || !n || typeof n.postApplyCard !== 'function' || typeof upkeepLines !== 'function') return 0;
-    var mx = typeof LIMITS === 'object' && LIMITS && LIMITS.applyChanges > 0 ? LIMITS.applyChanges : 12, k = 0;
+    var mx = typeof LIMITS === 'object' && LIMITS && LIMITS.applyChanges > 0 ? LIMITS.applyChanges : 120, k = 0;
     [[upkeepLines(said, true), 'owner'], [upkeepLines(said, false), 'gm']].forEach(function(p) { for (var i = 0; i < p[0].length; i += mx) { n.postApplyCard(c, 'Upkeep', p[0].slice(i, i + mx), p[1]); k++; } });
     return k;
 }
@@ -5212,7 +5239,7 @@ function resistBySel(cls, cur, sys) {
 // stays, said so, until it is unticked
 function resistOrBox(cls, by, cur, sys) {
     var box = el('span', 'sys-flags sys-rsor'); if (typeof by !== 'string' || !by) return box;
-    var on = Array.isArray(cur) ? cur.filter(function(x) { return typeof x === 'string' && x !== by; }) : [], max = window.wpSystemCore && window.wpSystemCore.RESIST_OR || 3;
+    var on = Array.isArray(cur) ? cur.filter(function(x) { return typeof x === 'string' && x !== by; }) : [], max = window.wpSystemCore && window.wpSystemCore.RESIST_OR || 30;
     var rs = (sys && Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(x) { return x && typeof x.id === 'string' && x.id !== by && x.resist === true && !Array.isArray(x.apply); }).map(function(x) { return [x.id, x.label || 'Roll']; });
     (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (!f || f.kind !== 'item-list' || typeof f.id !== 'string' || !f.list || !Array.isArray(f.list.rolls)) return; f.list.rolls.forEach(function(lr, li) { if (lr && lr.resist === true && !Array.isArray(lr.apply)) rs.push([f.id + '#' + li, (f.label || f.key || 'A list') + ': ' + (lr.label || 'Roll') + ', a button a row']); }); });   // 1.6.0: a list's roll ticked Resists an attempt
     on.forEach(function(id) { if (!rs.some(function(x) { return x[0] === id; })) rs.push([id, 'a roll no longer ticked Resists an attempt']); });
@@ -6748,7 +6775,7 @@ function close(force) {
 // 1.6.0: other names for a list roll, an action or a counter (alt: [{ if, label }]), edited in place on the draft object it is handed: a name and a
 // formula a pair, + Other name and \u00d7, ALT_MAX at most. Its own listeners, and class names no handler of the Lists tab reads (sys-alt-*)
 function altBox(obj, tip) {
-    var box = el('div', 'sys-alt'), max = typeof ALT_MAX === 'number' ? ALT_MAX : 4;
+    var box = el('div', 'sys-alt'), max = typeof ALT_MAX === 'number' ? ALT_MAX : 40;
     var draw = function() {
         box.textContent = ''; var list = Array.isArray(obj.alt) ? obj.alt : [];
         list.forEach(function(a, j) {
@@ -6831,8 +6858,9 @@ function rollExtras(row, rr, sp, isApply) {
     var s = el('select', 'sys-rlfig'); s.title = 'A figure in a small box at the end of its button. Its figure: a check shows what it rolls against, any other roll its dice with the row\u2019s names worked out. A column shows that column on the row';
     var cur = typeof rr.show === 'string' ? rr.show : '', opts = [['', 'Shows no figure'], ['@fig', 'Shows its figure']];
     (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(cc) { if (cc && typeof cc.key === 'string' && cc.key) opts.push([cc.key, 'Shows ' + (cc.label || cc.key)]); });
-    var hit = false; opts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (!hit && o[0].toLowerCase() === cur.toLowerCase()) { op.selected = true; hit = true; } s.appendChild(op); });
-    if (cur && !hit) { var ox = el('option', null, 'Shows ' + cur + ' (not on this list)'); ox.value = cur; ox.selected = true; s.appendChild(ox); }
+    var figAll = function() { var hit = false; s.textContent = ''; opts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (!hit && o[0].toLowerCase() === cur.toLowerCase()) { op.selected = true; hit = true; } s.appendChild(op); }); if (cur && !hit) { var ox = el('option', null, 'Shows ' + cur + ' (not on this list)'); ox.value = cur; ox.selected = true; s.appendChild(ox); } };
+    if (opts.length <= 40) figAll();
+    else { var figO = el('option', null, cur || 'Shows no figure'); figO.value = cur; figO.selected = true; s.appendChild(figO); var figOn = function() { if (!figAll) return; var fa = figAll; figAll = null; fa(); }; s.addEventListener('pointerdown', figOn); s.addEventListener('focus', figOn); }   // 1.6.2: a long list holds its choices until it is pressed
     s.addEventListener('change', function(e) { e.stopPropagation(); if (s.value) rr.show = s.value; else delete rr.show; ch(); });
     row.appendChild(s);
     if (typeof rollJobBox === 'function') { var jbB = rollJobBox(rr, sp, ch); if (jbB) row.appendChild(jbB); }   // 1.6.0
@@ -6857,7 +6885,7 @@ function rollJobBox(rr, sp, ch) {
 // handbook session's ask 4 (2026-10-29): where the parts' list has a choice stat (a pick, or a number with value names), a line may count by it
 // in place of categories (Counts: the parts whose slot reads one value), its value picked from the stat's own
 function partCapsBox(sp) {
-    var box = el('div', 'sys-badges sys-pcaps'), max = typeof PART_CAPS === 'number' ? PART_CAPS : 24, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var box = el('div', 'sys-badges sys-pcaps'), max = typeof PART_CAPS === 'number' ? PART_CAPS : 240, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
     var nums = function() { return (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.kind !== 'pick' && s.set !== true; }); };
     var vals = function(s) { return s.kind === 'pick' ? (Array.isArray(s.opts) ? s.opts.map(function(o) { return o && typeof o === 'object' ? o.label : ''; }) : []).filter(function(x) { return typeof x === 'string' && x; }) : (Array.isArray(s.labels) ? s.labels : []).filter(function(x) { return typeof x === 'string' && x; }); };
     var slots = function() { var fs0 = typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : [], src = sp.parts && typeof sp.parts.from === 'string' ? fs0.filter(function(f) { return f && f.id === sp.parts.from && f.kind === 'item-list'; })[0] : null, st = src && src.list && Array.isArray(src.list.stats) ? src.list.stats : [];
@@ -6887,7 +6915,7 @@ function partCapsBox(sp) {
                     iS.addEventListener('change', function(e) { e.stopPropagation(); if (!sp.parts || !Array.isArray(sp.parts.caps) || !sp.parts.caps[j]) return; var nl = isOf(sp.parts.caps[j].is), was = nl.length; if (iS.value || nl.length === 1) nl[ii] = iS.value; else nl.splice(ii, 1); set('is', nl.length > 1 ? nl : nl[0]); if (nl.length !== was) draw(); });
                     if (!ii) cI = iS; else isMore.push(iS);
                 });
-                if (isL.length < 24) { var isO = el('button', 'tool ghost sys-btn sys-pcap-or', '+ Or'); isO.type = 'button'; isO.title = 'Count parts of another value on this line too, such as one integrated, overlay or underlay part'; isO.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts || !Array.isArray(sp.parts.caps) || !sp.parts.caps[j]) return; var nw = isOf(sp.parts.caps[j].is); if (!nw[nw.length - 1]) return; sp.parts.caps[j].is = nw.concat(['']); ch(); draw(); }); isMore.push(isO); }
+                if (isL.length < (typeof PART_IS === 'number' ? PART_IS : 240)) { var isO = el('button', 'tool ghost sys-btn sys-pcap-or', '+ Or'); isO.type = 'button'; isO.title = 'Count parts of another value on this line too, such as one integrated, overlay or underlay part'; isO.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts || !Array.isArray(sp.parts.caps) || !sp.parts.caps[j]) return; var nw = isOf(sp.parts.caps[j].is); if (!nw[nw.length - 1]) return; sp.parts.caps[j].is = nw.concat(['']); ch(); draw(); }); isMore.push(isO); }
             } else {
             cI = input('sys-pcap-cats field', Array.isArray(k.cats) ? k.cats.join(', ') : '', 'The categories of parts this line counts, with commas between them, such as Arm', 'Arm, Leg'); cI.maxLength = LIMITS.text;
             cI.addEventListener('input', function(e) { e.stopPropagation(); set('cats', String(cI.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean)); });
@@ -6913,7 +6941,7 @@ function partCapsBox(sp) {
 }
 // 1.6.2: further rules of Fits where, each with its own words, so that one sentence need not cover three refusals. A part must meet them all, and the first that fails speaks
 function partFitsBox(sp) {
-    var box = el('div', 'sys-badges sys-pfits'), max = 24, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var box = el('div', 'sys-badges sys-pfits'), max = typeof PART_FITS === 'number' ? PART_FITS : 240, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
     var draw = function() {
         box.textContent = ''; var list = sp.parts && Array.isArray(sp.parts.fitMore) ? sp.parts.fitMore : [];
         list.forEach(function(r0, j) {
@@ -6993,7 +7021,7 @@ var BADGE_TONES = [['', 'Plain'], ['good', 'Good (green)'], ['warn', 'Warning (a
 function badgeSel(cls, opts, cur, tip) { var s = el('select', cls); s.title = tip; opts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0] === (cur || '')) op.selected = true; s.appendChild(op); }); return s; }
 function badgeTick(cls, on, words, tip) { var lb = el('label', 'sys-flag'), cb = el('input', cls); cb.type = 'checkbox'; cb.checked = on === true; lb.title = tip; lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + words)); return { lb: lb, cb: cb }; }
 function badgeBox(sp) {
-    var box = el('div', 'sys-badges'), max = typeof BADGE_MAX === 'number' ? BADGE_MAX : 12, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var box = el('div', 'sys-badges'), max = typeof BADGE_MAX === 'number' ? BADGE_MAX : 120, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
     var draw = function() {
         box.textContent = ''; box.appendChild(el('span', 'sys-num-cap', 'Badges'));
         var list = Array.isArray(sp.badges) ? sp.badges : [];
@@ -7474,7 +7502,7 @@ function refreshErrors() {
         else {
             if (typeof hdD.ends === 'string' && hdD.ends.trim() && hdC.ends !== hdD.ends.trim()) hdE('All holds end where is no formula Save can keep, so Save drops it.');
             if (hdD.drag !== undefined && hdC.drag === undefined) hdE('Drags is no number above 0, so Save drops it.');
-            if (Array.isArray(hdD.also) && hdD.also.length > (hdC.also || []).length) hdE('Attacks that keep too takes ' + (window.wpSystemCore ? window.wpSystemCore.HOLD_ALSO : 8) + ' rolls at most. Save keeps the first ones.');
+            if (Array.isArray(hdD.also) && hdD.also.length > (hdC.also || []).length) hdE('Attacks that keep too takes ' + (window.wpSystemCore ? window.wpSystemCore.HOLD_ALSO : 80) + ' rolls at most. Save keeps the first ones.');
         }
     }
     draft.fields.forEach(function(f) {   // 1.6.0 Feeds: a Turns to change Save cannot keep
@@ -7923,7 +7951,7 @@ function spillCtl(flags, f) {
 // 1.6.0, found on a large system: a list on every section of the Layout tab held every field, 255,000 options in all. A long one holds its own choice until it is used
 function lazySelect(cls, options, value, title) {
     if (options.length <= 40) return select(cls, options, value, title);
-    var cur = options.filter(function(o) { return o[0] === value; })[0] || options[0], s = select(cls, [cur], value, title), full = options;
+    var cur = options.find(function(o) { return o[0] === value; }) || options[0], s = select(cls, [cur], value, title), full = options;
     var fill = function() { if (!full) return; var o = full; full = null; s.textContent = ''; o.forEach(function(x) { s.appendChild(opt(x[0], x[1], x[0] === value)); }); };
     s.addEventListener('pointerdown', fill); s.addEventListener('focus', fill);
     return s;
@@ -8725,7 +8753,7 @@ function ctKeySays(sp, F0) {
         cb2.appendChild(lrw);
     }
     {   // 1.6.0 Feeds: up to FEEDS_MAX things a row loads apart, each with a counter of its own, that a roll's Then spends together
-        var fdsL = Array.isArray(sp.feeds) ? sp.feeds : [], fdsM = typeof FEEDS_MAX === 'number' ? FEEDS_MAX : 2;
+        var fdsL = Array.isArray(sp.feeds) ? sp.feeds : [], fdsM = typeof FEEDS_MAX === 'number' ? FEEDS_MAX : 20;
         fdsL.forEach(function(fd0, fi) {
             var fdS = fd0 && typeof fd0 === 'object' ? fd0 : {}, frw = el('div', 'sys-flags sys-list-feed'), fsel = el('select', 'sys-list-feedfrom'), fct = el('select', 'sys-list-feedct'); frw.dataset.fi = String(fi);
             frw.appendChild(el('span', 'sys-num-cap', 'Feed ' + (fi + 1)));
@@ -8757,11 +8785,11 @@ function ctKeySays(sp, F0) {
         crw.appendChild(csl);
         if (chS) {
             var hsl = el('select', 'sys-list-chambercap'); hsl.title = 'How many rounds a row holds at once';
-            var capC = typeof chS.cap === 'number' && isFinite(chS.cap) ? Math.max(1, Math.min(CHAMBER_CAP || 32, Math.round(chS.cap))) : 1;
-            for (var hc = 1; hc <= (CHAMBER_CAP || 32); hc++) { var ho = el('option', null, 'Holds ' + hc); ho.value = String(hc); if (capC === hc) ho.selected = true; hsl.appendChild(ho); }
+            var capC = typeof chS.cap === 'number' && isFinite(chS.cap) ? Math.max(1, Math.min(CHAMBER_CAP || 320, Math.round(chS.cap))) : 1;
+            for (var hc = 1; hc <= (CHAMBER_CAP || 320); hc++) { var ho = el('option', null, 'Holds ' + hc); ho.value = String(hc); if (capC === hc) ho.selected = true; hsl.appendChild(ho); }
             crw.appendChild(hsl);
             var hbs = el('select', 'sys-list-chamberholdsby'), hbN = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.kind !== 'pick'; }), hbC = typeof chS.capBy === 'string' ? chS.capBy.toLowerCase() : '', hbHit = false;   // the review of fold 2: a row may hold as many as one of its stats reads
-            hbs.title = 'Where the row\u2019s figure in this stat is 1 or more, the row holds that many, ' + (CHAMBER_CAP || 32) + ' at most, as a mortar holds four. Else it holds as set';
+            hbs.title = 'Where the row\u2019s figure in this stat is 1 or more, the row holds that many, ' + (CHAMBER_CAP || 320) + ' at most, as a mortar holds four. Else it holds as set';
             var hbo = el('option', null, 'Every row holds as set'); hbo.value = ''; hbs.appendChild(hbo);
             hbN.forEach(function(s) { var o = el('option', null, 'Or as many as the row\u2019s ' + (s.label || s.key)); o.value = s.key; if (!hbHit && hbC && s.key.toLowerCase() === hbC) { o.selected = true; hbHit = true; } hbs.appendChild(o); });
             if (hbC && !hbHit) { var hbx = el('option', null, chS.capBy + ' (not a number stat of this list)'); hbx.value = chS.capBy; hbx.selected = true; hbs.appendChild(hbx); }
@@ -9177,7 +9205,7 @@ function onBlastInput(t) {
 // 1.6.0 Where a hit behind cover lands: combat.cover.hit, per grade, each row a run of a die and a formula true on the locations it means. Save cleans it
 // (systemcore cleanCover); coverHitSays says what it drops, under errorCell('coverhit')
 var COVER_HIT_LINE = 'After a hit on a target behind this much cover, a die picks where it lands. It has as many sides as the highest To. Location where is true on the rows it means, read as Row. A row with nothing on the target falls to the next. Several rows under one take a second die. A called shot at a location these name stands.';
-var COVER_HIT_MAX = 6;
+var COVER_HIT_MAX = typeof COVER_HIT_ROWS === 'number' ? COVER_HIT_ROWS : 60;
 function coverHitGrades(cm) { return cm.cover.style === 'binary' ? [['cover', 'Behind cover'], ['total', 'Behind total cover']] : [['half', 'Behind half cover'], ['threeq', 'Behind three-quarters cover'], ['total', 'Behind total cover']]; }
 function coverHitBox(box, cm) {
     var ht = cm.cover.hit && typeof cm.cover.hit === 'object' && !Array.isArray(cm.cover.hit) ? cm.cover.hit : {};
@@ -10014,7 +10042,7 @@ function postureClick(b) {
 // the weapons a blow tests. Every name reaches the box as a value or a text node. Save cleans it (systemcore cleanDamageRules); damageSays says
 // under the box what Save drops, judged a part at a time by the cleaner itself
 // [sinkcheck:dmgbox-start]
-var DBX_LIM = { types: 32, kinds: 8, layers: 8, weapons: 4, wears: 8, onWound: 6, onMajor: 4 };
+var DBX_LIM = typeof DMG_LIM === 'object' ? DMG_LIM : { types: 320, kinds: 80, layers: 80, weapons: 40, wears: 80, onWound: 60, onMajor: 40 };
 var CRIP_BY_LINE = 'What the failure writes, instead of how far it failed. It reads Margin, how far it failed, Natural, the roll\u2019s bare total, and the blow as Blow. and a name. 0 or below writes nothing';   // 1.6.0 (the core's ruling on gap 7)   // systemcore's DMG_LIM: what the cleaner keeps
 // 1.6.0: a damage type's figures a die: its control, its key, its caption, its line, its least and its words
 var DBX_DIE = [
@@ -11693,7 +11721,7 @@ function onInput(e) {
             else if (lcc.indexOf('sys-list-colunit') >= 0) { if (t.value.trim()) cD.unit = t.value.slice(0, LIMITS.unit); else delete cD.unit; }
             else if (lcc.indexOf('sys-list-coldec') >= 0) { if (String(t.value).trim() === '' || !isFinite(Number(t.value))) delete cD.decMax; else cD.decMax = Number(t.value); }   // 1.5.4 (Save keeps a whole number 0 to 5)
             else if (lcc.indexOf('sys-list-colnames') >= 0) { var cln = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (cln.length && !cln[cln.length - 1]) cln.pop(); if (cln.some(Boolean)) cD.labels = cln; else delete cD.labels; }
-            else if (lcc.indexOf('sys-list-colplus') >= 0) { var cpl = t.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean).slice(0, 64); if (cpl.length) cD.plus = cpl; else delete cD.plus; }   // 1.5.4 With: stat keys as typed, which Save reads by the list's own stats
+            else if (lcc.indexOf('sys-list-colplus') >= 0) { var cpl = t.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean).slice(0, 640); if (cpl.length) cD.plus = cpl; else delete cD.plus; }   // 1.5.4 With: stat keys as typed, which Save reads by the list's own stats
             else return;
             var nCard = t.closest('.sys-list-card'), nLine = nCard ? nCard.querySelector('.sys-list-names') : null; if (nLine) nLine.textContent = listNamesText(lcd.key, lsp, partsHostIn(lcd.id));   // the names line follows a key as it is typed
         }
@@ -11943,7 +11971,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-colmetric') >= 0 || c.indexOf('sys-list-statmetric') >= 0) { var mcol = c.indexOf('sys-list-colmetric') >= 0, mrw = t.closest(mcol ? '.sys-list-col' : '.sys-list-stat'), mLs = mcol ? lsc.cols : lsc.stats, mD = mrw && Array.isArray(mLs) ? mLs[+(mcol ? mrw.dataset.ci : mrw.dataset.si)] : null; if (!mD || typeof mD !== 'object') return; if (t.value === 'swap' || t.value === 'bare') mD.unitShow = t.value; else delete mD.unitShow; }   // 1.5.4: how a measure reads under Metric
         else if (c.indexOf('sys-list-loadfrom') >= 0) { if (t.value) { var ld0 = lsc.load && typeof lsc.load === 'object' ? lsc.load : {}, ct0 = Array.isArray(lsc.counters) && lsc.counters[0] && typeof lsc.counters[0].key === 'string' ? lsc.counters[0].key : ''; lsc.load = { from: t.value, ct: typeof ld0.ct === 'string' && ld0.ct ? ld0.ct : ct0 }; if (Array.isArray(ld0.cats)) lsc.load.cats = ld0.cats; } else delete lsc.load; }   // 1.5.8 Loads from
         else if (c.indexOf('sys-list-chamberfrom') >= 0) { if (t.value) { var ch0 = lsc.chamber && typeof lsc.chamber === 'object' ? lsc.chamber : {}; lsc.chamber = Object.assign({}, ch0, { from: t.value }); if (typeof lsc.chamber.cap !== 'number') lsc.chamber.cap = 1; } else delete lsc.chamber; }   // 1.5.9 Chambers from
-        else if (c.indexOf('sys-list-chambercap') >= 0) { if (lsc.chamber && typeof lsc.chamber === 'object') lsc.chamber.cap = Math.max(1, Math.min(CHAMBER_CAP || 32, parseInt(t.value, 10) || 1)); }
+        else if (c.indexOf('sys-list-chambercap') >= 0) { if (lsc.chamber && typeof lsc.chamber === 'object') lsc.chamber.cap = Math.max(1, Math.min(CHAMBER_CAP || 320, parseInt(t.value, 10) || 1)); }
         else if (c.indexOf('sys-list-chamberholdsby') >= 0) { if (lsc.chamber && typeof lsc.chamber === 'object') { if (t.value) lsc.chamber.capBy = t.value; else delete lsc.chamber.capBy; } }   // the review of fold 2: Holds as the row's stat reads (Save keeps it only as a number stat of this list)
         else if (c.indexOf('sys-list-feedfrom') >= 0 || c.indexOf('sys-list-feedct') >= 0) { var fcr = t.closest('.sys-list-feed'), fdC = fcr && Array.isArray(lsc.feeds) ? lsc.feeds[+fcr.dataset.fi] : null; if (!fdC || typeof fdC !== 'object') return; var fcK = c.indexOf('sys-list-feedfrom') >= 0 ? 'from' : 'ct'; if (t.value) fdC[fcK] = t.value; else delete fdC[fcK]; }   // 1.6.0 Feeds
         else if (c.indexOf('sys-list-loadct') >= 0) { if (lsc.load && typeof lsc.load === 'object') { if (t.value) lsc.load.ct = t.value; else delete lsc.load.ct; } }

@@ -2562,12 +2562,12 @@ pendingChecks.push((async () => {
     const E = (n, extra) => Array.from({ length: n }, (_, i) => Object.assign({ fieldId: 'f_' + i, value: i }, extra || {}));
     const okC = Sx.cleanCharEdits({ rid: 'e1', charId: 'c_1', values: [{ fieldId: 'f_a', value: 3, junk: 1 }, { fieldId: 'f_b', value: { cur: '4', junk: 1 } }, { fieldId: 'f_c', value: true }], extra: 1 });
     const badC = [
-        { rid: 'e1', charId: 'c_1', values: [] }, { rid: 'e1', charId: 'c_1', values: E(11) }, { rid: 'e1', charId: 'c_1', values: [{ fieldId: 'f_a', value: 1 }, { fieldId: 'f_a', value: 2 }] },
+        { rid: 'e1', charId: 'c_1', values: [] }, { rid: 'e1', charId: 'c_1', values: E(101) }, { rid: 'e1', charId: 'c_1', values: [{ fieldId: 'f_a', value: 1 }, { fieldId: 'f_a', value: 2 }] },
         { rid: 'bad rid!', charId: 'c_1', values: E(1) }, { rid: 'e1', charId: 'x', values: E(1) }, { rid: 'e1', charId: 'c_1', values: 'f_a' }, { rid: 'e1', charId: 'c_1', values: [{ fieldId: 'f_a', value: [1] }] },
         { rid: 'e1', charId: 'c_1', values: [null] }, { rid: 'e1', charId: 'c_1', values: [{ fieldId: '__proto__', value: 1 }] }, { rid: 'e1', charId: 'c_1', values: [{ fieldId: 'f_a', value: NaN }] }, null
     ].map(m => Sx.cleanCharEdits(m));
-    check('HF4b cleanCharEdits: one to ten values of one character, each field once, each value by char-edit\'s own shape rules (only the keys it knows); anything else is dropped',
-        j(okC) === j({ rid: 'e1', charId: 'c_1', values: [{ fieldId: 'f_a', value: 3 }, { fieldId: 'f_b', value: { cur: 4 } }, { fieldId: 'f_c', value: true }] }) && Sx.cleanCharEdits({ rid: 'e1', charId: 'c_1', values: E(10) }).values.length === 10 && badC.every(x => x === null), j([okC, badC]));
+    check('HF4b cleanCharEdits: one to a hundred values of one character, each field once, each value by char-edit\'s own shape rules (only the keys it knows); anything else is dropped',
+        j(okC) === j({ rid: 'e1', charId: 'c_1', values: [{ fieldId: 'f_a', value: 3 }, { fieldId: 'f_b', value: { cur: 4 } }, { fieldId: 'f_c', value: true }] }) && Sx.cleanCharEdits({ rid: 'e1', charId: 'c_1', values: E(100) }).values.length === 100 && badC.every(x => x === null), j([okC, badC]));
     // the host's handler, sliced from net.js and run against the real systemcore
     const chSrc = between('// [netcheck:charedits-start]', '// [netcheck:charedits-end]', 'charedits');
     const sys = Sx.cleanSystem({ v: 1, name: 'T', rolls: [], fields: [
@@ -2595,7 +2595,7 @@ pendingChecks.push((async () => {
         untouched(oneBad) && j(oneBad.sent) === j([{ type: 'char-deny', rid: 'e1', reason: 'field' }]) && untouched(badVal) && j(badVal.sent) === j([{ type: 'char-deny', rid: 'e1', reason: 'value' }]) && untouched(noField) && noField.sent.length === 1 && noField.sent[0].type === 'char-deny', j([oneBad.sent, badVal.sent, noField.sent]));
     const two = [{ fieldId: 'f_hp', value: { cur: 10 } }, { fieldId: 'f_ds', value: 0 }];
     const gates = [['paused', o => { o.paused = true; }], ['paused', o => { o.peerPaused = true; }], ['slow', o => { o.limited = true; }], ['off', o => { o.on = false; }], ['missing', o => { o.char = false; }], ['owner', o => { o.owner = 'u_b'; }]].map(([why, tw]) => [why, run(M(two), tw)]);
-    const junk = run({ type: 'char-edits', rid: 'e1', charId: 'c_1', values: E(11) });
+    const junk = run({ type: 'char-edits', rid: 'e1', charId: 'c_1', values: E(101) });
     check('HF4b char-edits (host): the same gates as one char-edit, in its order — a paused table or player, the rate (one "slow" answer), the sheets feature, a character that is gone, one that is not theirs — each refused with ONE deny and nothing stored; a malformed batch is dropped unanswered',
         gates.every(([why, r]) => j(r.sent) === j([{ type: 'char-deny', rid: 'e1', reason: why }]) && r.deltas.length === 0 && r.saves === 0) && gates[0][1].tokens === 0 && gates[2][1].tokens === 1 && junk.sent.length === 0 && junk.tokens === 0,
         j(gates.map(([w, r]) => [w, r.sent, r.tokens])));
@@ -2675,7 +2675,7 @@ pendingChecks.push((async () => {
         j(nmd.map(e => e.act)) === '["r_eng"]' && nmG.length === 0 && Sx.rollStationOk({}, ['Gunner'], true) === false && Sx.rollStationOk({}, ['Gunner']) === true && Sx.rollStationOk({ stations: ['Gunner'] }, ['Gunner'], true) === true && cln.links[0].pressNamed === true && cln.links[1].pressNamed === undefined, j([nmd, nmG, cln.links]));
     check('1.6.0 what a crew member is offered: the system\'s rolls their station may press, never the initiative roll; a roll keeps only sound station words, each once, in both views',
         j(gmSys.rolls[1].stations) === '["Engineer"]' && j(view.rolls[1].stations) === '["Engineer"]' && j(gnr.map(e => e.act)) === '["r_gun"]' && j(egr.map(e => e.act)) === '["r_gun","r_eng"]' && gmSys.links[0].press === true && gmSys.links[1].press === undefined && view.links[0].press === true, j([gnr, egr, gmSys.links]));
-    const hostile = { lk_c: [{ act: 'r_gun', expr: '3d6', label: 'Gun\u0007' }, { act: '__proto__', expr: '3d6' }, { f: 'f_x', r: 'w_a1', i: 1, expr: '1d6', label: '<b>x</b>' }, { f: 'f_x', r: 'w_a1', i: 99, expr: '1d6' }, { act: 'r_x', expr: 7 }, 'junk'], lk_off: [{ act: 'r_gun', expr: '3d6' }], __proto__x: 1 };
+    const hostile = { lk_c: [{ act: 'r_gun', expr: '3d6', label: 'Gun\u0007' }, { act: '__proto__', expr: '3d6' }, { f: 'f_x', r: 'w_a1', i: 1, expr: '1d6', label: '<b>x</b>' }, { f: 'f_x', r: 'w_a1', i: 999, expr: '1d6' }, { act: 'r_x', expr: 7 }, 'junk'], lk_off: [{ act: 'r_gun', expr: '3d6' }], __proto__x: 1 };
     const cr = Sx.cleanCr(hostile, gmSys);
     check('1.6.0 a player\'s app takes the list as data: a sound entry alone, a label as plain text, nothing for a link that lets no one press, none from what is no list',
         cr && cr.lk_c.length === 2 && cr.lk_c[0].label === 'Gun' && cr.lk_c[1].label === '<b>x</b>' && !cr.lk_off && Sx.cleanCr('x', gmSys) === null && Sx.cleanCr({}, gmSys) === null, j(cr));
@@ -4037,7 +4037,7 @@ pendingChecks.push((async () => {
             msg, conns[0], net, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { charChanged() {}, playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) }, wpDiceCore: null }, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => net.roster[c.peer].id, { allow: () => true }, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), m => out.chat.push(JSON.parse(JSON.stringify(m))), () => {});
         out.ch = camp.chars.c_1; return out; };
     const hpOf = c => Sx.makeResolver(sysD, c, Fx)('hp'), wearOf = c => { const r = c.values.f_kit[0]; return r.ov && r.ov.stats ? r.ov.stats.wear : undefined; }, msgD = hits => ({ type: 'char-damage', rid: 'dp', charId: 'c_1', amt: 8, dtype: 'cut', loc: 'w_body', hits: hits });
-    const dOk = runD(msgD([{ amt: 3, type: 'cut' }, { amt: 9, type: 'cut' }])), dBad = runD(msgD([{ amt: 3, type: 'cut' }, { amt: -9 }])), dLong = runD(msgD(new Array(32).fill({ amt: 1 }))), dType = runD(msgD([{ amt: 3, type: 'nope' }])), dLoc = runD(msgD([{ amt: 9, type: 'cut', loc: 'w_other', major: true }]));
+    const dOk = runD(msgD([{ amt: 3, type: 'cut' }, { amt: 9, type: 'cut' }])), dBad = runD(msgD([{ amt: 3, type: 'cut' }, { amt: -9 }])), dLong = runD(msgD(new Array(321).fill({ amt: 1 }))), dType = runD(msgD([{ amt: 3, type: 'nope' }])), dLoc = runD(msgD([{ amt: 9, type: 'cut', loc: 'w_other', major: true }]));
     const sentP = [], campP = { system: sysD, chars: { c_1: { id: 'c_1', ownerId: 'u_a' } } }, netP = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'H', myId: 'u_a', conns: [{ peer: 'H', open: true, send: m => sentP.push(JSON.parse(JSON.stringify(m))) }] };
     const sendR = new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', sendD + '\nreturn net.charDamage;')(netP, () => Sx, () => campP, {}, {}, () => {}, () => 0), sR = sendR('c_1', { amt: 8, type: 'cut', loc: 'w_body', hits: [{ amt: 3, type: 'cut' }] });
     const netP2 = Object.assign({}, netP, { conns: [{ peer: 'H', open: true, send: m => sentP.push(m) }] }), sendB = new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', sendD + '\nreturn net.charDamage;')(netP2, () => Sx, () => campP, {}, {}, () => {}, () => 0), sB2 = sendB('c_1', { amt: 8, type: 'cut', hits: [{ amt: -1 }] });
@@ -4094,7 +4094,7 @@ pendingChecks.push((async () => {
     check('1.6.0 Rolls unheld entries, the wire (dicecore cleanRollReq): a roll names the list, the entry by its id and the roll by its index, never with a row id, a level or no index; a row\'s roll as before',
         j(CQ({ row: { f: 'f_sk', k: 'i_climb', i: 0 } }).row) === j({ f: 'f_sk', k: 'i_climb', i: 0 }) && CQ({ row: { f: 'f_sk', k: 'i_climb', i: 0 }, mod: 2 }).mod === 2
         && CQ({ row: { f: 'f_sk', k: 'i_climb' } }) === null && CQ({ row: { f: 'f_sk', k: 'i_climb', i: 0, r: 'w_s' } }) === null && CQ({ row: { f: 'f_sk', k: 'i_climb', i: 0, lv: 1 } }) === null
-        && CQ({ row: { f: 'f_sk', k: 'w_climb', i: 0 } }) === null && CQ({ row: { f: 'f_sk', k: 'i_climb', i: 99 } }) === null && CQ({ row: { f: 'f_sk', k: 7, i: 0 } }) === null
+        && CQ({ row: { f: 'f_sk', k: 'w_climb', i: 0 } }) === null && CQ({ row: { f: 'f_sk', k: 'i_climb', i: 160 } }) === null && CQ({ row: { f: 'f_sk', k: 7, i: 0 } }) === null
         && j(CQ({ row: { f: 'f_sk', r: 'w_s', i: 0, lv: 1 } }).row) === j({ f: 'f_sk', r: 'w_s', i: 0, lv: 1 }) && j(CQ({ row: { f: 'f_sk', r: 'w_s' } }).row) === j({ f: 'f_sk', r: 'w_s' }),
         j([CQ({ row: { f: 'f_sk', k: 'i_climb', i: 0 } })]));
     const runG = (row, sw) => {
@@ -4358,15 +4358,15 @@ pendingChecks.push((async () => {
         && wDmg.table.length === 1 && j(wDmg.ct) === j({ Charges: 2, Hits: 0 }) && refusedW(wNoHit, 'No hit pending') && refusedW(wFake, 'That roll does not match its button now.')
         && wMod.table.length === 1 && j(wMod.ct) === j({ Charges: 1, Hits: 1 }) && wPlain.table.length === 1 && wPlain.deltas.length === 0 && j(wPlain.ct) === j({ Charges: 2 }),
         j([wFire.ct, wEmpty.sent, wDmg.ct, wNoHit.sent, wFake.sent, wMod.ct, wPlain.ct]));
-    // the review of the fold of 409: a list holds sixteen rolls (eight since 1.5.4, ten since 1.6.0, sixteen since the raise the session that builds a game system asked for: moved on purpose), so a player's sixteenth (index 15) with a Then reaches the host's real branch, and one past them does not
+    // the review of the fold of 409: a list holds 160 rolls (eight since 1.5.4, ten since 1.6.0, sixteen since the raise the session that builds a game system asked for, 160 since 1.6.2: moved on purpose), so a player's 160th (index 159) with a Then reaches the host's real branch, and one past them does not
     const sysW8 = Sx.cleanSystem({ v: 1, name: 'W8', rolls: [], fields: [
         { id: 'f_wp', key: 'Weapons', kind: 'item-list', edit: 'owner', list: { stats: [{ key: 'Shots' }], counters: [{ key: 'Charges', def: 3, max: 'Row.Shots' }, { key: 'Hits' }],
-            rolls: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map(i => ({ label: 'R' + i, formula: 'd' + (i + 4) })).concat([{ label: 'Burst', formula: '3d6 <= 30', needs: 'Row.Charges >= 1', needsText: 'Out of charges', then: [{ c: 'Charges', formula: '1' }, { c: 'Hits', formula: '1', add: true, when: 'hit' }] }]) } }],
+            rolls: Array.from({ length: 159 }, (_, i) => i).map(i => ({ label: 'R' + i, formula: 'd' + (i + 4) })).concat([{ label: 'Burst', formula: '3d6 <= 30', needs: 'Row.Charges >= 1', needsText: 'Out of charges', then: [{ c: 'Charges', formula: '1' }, { c: 'Hits', formula: '1', add: true, when: 'hit' }] }]) } }],
         items: [{ id: 'i_bl', name: 'Blaster', stats: { Shots: 5 } }] }, { F: Fx, gmView: true });
-    const w8 = runW({ expr: '3d6 <= 30', row: { f: 'f_wp', r: 'w_1', i: 15 } }, { Charges: 2 }, sysW8), w8e = runW({ expr: '3d6 <= 30', row: { f: 'f_wp', r: 'w_1', i: 15 } }, { Charges: 0 }, sysW8);
-    const w8n = runW({ expr: '3d6 <= 30', row: { f: 'f_wp', r: 'w_1', i: 16 } }, { Charges: 2 }, sysW8), w8m = runW({ expr: Dx.composeModifier('3d6 <= 30', 2, Fx.parse).expr, row: { f: 'f_wp', r: 'w_1', i: 15 }, mod: 2 }, { Charges: 2 }, sysW8);
-    check('409 a player\'s sixteenth list roll (index 15: a list holds sixteen, ten before the raise the session that builds a game system asked for, eight since 1.5.4; moved on purpose) with a Then and needs, through the host\'s real roll-req branch: rolled with its charge spent and its hit scored on the host\'s copy (one delta), with a modifier beside it too; refused "Out of charges" with none; an index past the list\'s sixteen refused as a roll that could not be read',
-        sysW8.fields[0].list.rolls.length === 16 && w8.table.length === 1 && j(w8.ct) === j({ Charges: 1, Hits: 1 }) && w8.deltas.length === 1 && w8m.table.length === 1 && j(w8m.ct) === j({ Charges: 1, Hits: 1 })
+    const w8 = runW({ expr: '3d6 <= 30', row: { f: 'f_wp', r: 'w_1', i: 159 } }, { Charges: 2 }, sysW8), w8e = runW({ expr: '3d6 <= 30', row: { f: 'f_wp', r: 'w_1', i: 159 } }, { Charges: 0 }, sysW8);
+    const w8n = runW({ expr: '3d6 <= 30', row: { f: 'f_wp', r: 'w_1', i: 160 } }, { Charges: 2 }, sysW8), w8m = runW({ expr: Dx.composeModifier('3d6 <= 30', 2, Fx.parse).expr, row: { f: 'f_wp', r: 'w_1', i: 159 }, mod: 2 }, { Charges: 2 }, sysW8);
+    check('409 a player\'s 160th list roll (index 159: a list holds 160 since 1.6.2, sixteen before it, ten before the raise the session that builds a game system asked for, eight since 1.5.4; moved on purpose) with a Then and needs, through the host\'s real roll-req branch: rolled with its charge spent and its hit scored on the host\'s copy (one delta), with a modifier beside it too; refused "Out of charges" with none; an index past the list\'s 160 refused as a roll that could not be read',
+        sysW8.fields[0].list.rolls.length === 160 && w8.table.length === 1 && j(w8.ct) === j({ Charges: 1, Hits: 1 }) && w8.deltas.length === 1 && w8m.table.length === 1 && j(w8m.ct) === j({ Charges: 1, Hits: 1 })
         && refusedW(w8e, 'Out of charges') && j(w8e.ct) === j({ Charges: 0 }) && refusedW(w8n, 'That roll could not be read.') && j(w8n.ct) === j({ Charges: 2 }), j([w8.sent, w8.ct, w8m.sent, w8e.sent, w8n.sent]));
     // the GM's own: net.diceRoll with the row's index — its needs before anything is rolled, its consequences here
     const runGW = (expr, o, ct) => { const out = { deltas: [], saves: 0 };
@@ -5684,21 +5684,21 @@ pendingChecks.push((async () => {
     roll(cA, 'c_a', { act: 'r_tr', priv: 'gm' }, '3d6 <= 13', [2, 3, 4]); const dP = out.dues[out.dues.length - 1];
     net._attNext = { att: dP.att, charId: 'c_b', row: { f: 'f_wp', r: 'w_gm', i: 0 } }; dq = [1, 1, 1]; const gR = W.dr(PARRY, { charId: 'c_b', row: { f: 'f_wp', r: 'w_gm', i: 0 } }); net._attNext = null; const keptG = net.attemptsKept();
     const vS = Sx.validateSystem(sys, Fx), warnS = vS.warnings.filter(w => w.id === 'r_tr' && w.prop === 'resistOr').map(w => w.message);
-    check('1.6.0 Or resisted by names a list\'s roll: the GM\'s view keeps it as <field id>#<place> (each once, three at most, a place past the list\'s rolls never), a players\' view none and the list\'s roll still ticked Resists an attempt in both; Sela\'s card offers Parry once for each Weapons row she holds that is not kept from her (Blade and Staff, never the curse kept on, the GM-only hook or the hidden row, never Swing, not ticked); a row it did not offer is refused with the attempt kept; Parry with Staff reads the margin 4 and uses the attempt up; the GM\'s private card offers every row, and the GM\'s own press of one (net._attNext) reads it; the validator says a name that is no roll ticked Resists an attempt',
-        j(sys.rolls[0].resistOr) === j(['f_wp#0', 'f_wp#1', 'f_zz#0']) && !('resistOr' in sysP.rolls[0]) && sys.fields[2].list.rolls[0].resist === true && sysP.fields[2].list.rolls[0].resist === true && !('resist' in sys.fields[2].list.rolls[1])
+    check('1.6.0 Or resisted by names a list\'s roll: the GM\'s view keeps it as <field id>#<place> (each once, thirty at most, a place past what a list can hold never), a players\' view none and the list\'s roll still ticked Resists an attempt in both; Sela\'s card offers Parry once for each Weapons row she holds that is not kept from her (Blade and Staff, never the curse kept on, the GM-only hook or the hidden row, never Swing, not ticked); a row it did not offer is refused with the attempt kept; Parry with Staff reads the margin 4 and uses the attempt up; the GM\'s private card offers every row, and the GM\'s own press of one (net._attNext) reads it; the validator says a name that is no roll ticked Resists an attempt',
+        j(sys.rolls[0].resistOr) === j(['f_wp#0', 'f_wp#1', 'f_zz#0', 'f_wp#77']) && !('resistOr' in sysP.rolls[0]) && sys.fields[2].list.rolls[0].resist === true && sysP.fields[2].list.rolls[0].resist === true && !('resist' in sys.fields[2].list.rolls[1])
         && d1 && d1.toOwner === true && j(d1.or) === j([]) && j(d1.rows) === j([{ f: 'f_wp', r: 'w_sw', i: 0, label: 'Parry with Blade' }, { f: 'f_wp', r: 'w_s2', i: 0, label: 'Parry with Staff' }]) && d1.m === 4
         && gmRow.type === 'roll-deny' && keptRow.type === 'roll-deny' && seenB === 4 && kept === 0 && again.type === 'roll-deny' && /resisted already/.test(again.message)
         && dP && dP.toOwner === false && j(dP.rows.map(x => x.r)) === j(['w_sw', 'w_st', 'w_gm', 'w_hd', 'w_s2']) && gR && gR.ok === true && keptG === 0 && camp.chars.c_b.values.f_sn === 4
-        && warnS.length === 1 && Sx.resistOrOk(sys, 'f_wp#0') === true && Sx.resistOrOk(sys, 'f_wp#1') === false && Sx.resistOrOk(sys, 'f_zz#0') === false && Sx.listRollRef('f_wp#16') === null && !!Sx.listRollRef('f_wp#15') /* a list's sixteen rolls since the raise the session that builds a game system asked for (#10 before: moved on purpose) */ && Sx.rowKeptFrom(sys, { defId: 'i_gm' }) === true && Sx.rowKeptFrom(sys, { defId: 'i_sw' }) === false,
+        && warnS.length === 1 && Sx.resistOrOk(sys, 'f_wp#0') === true && Sx.resistOrOk(sys, 'f_wp#1') === false && Sx.resistOrOk(sys, 'f_zz#0') === false && Sx.listRollRef('f_wp#160') === null && !!Sx.listRollRef('f_wp#159') /* a list's 160 rolls since 1.6.2 (#15 before, #10 before that: moved on purpose) */ && Sx.rowKeptFrom(sys, { defId: 'i_gm' }) === true && Sx.rowKeptFrom(sys, { defId: 'i_sw' }) === false,
         j([sys.rolls[0].resistOr, d1, gmRow, keptRow, seenB, kept, again, dP, gR, warnS]));
     const dueR = { type: 'due', id: 'r_abcdefgh', from: { id: 'u_gm', name: 'GM', gm: true }, charId: 'c_b', act: 'r_dg', label: 'Duck', why: 'resist', round: 1, roll: 1, att: 'a_abcd1234', by: 'Kael', m: 4, ts: 1, or: [{ act: 'r_pa' }, { row: { f: 'f_wp', r: 'w_sw', i: 0 }, label: 'Parry with Blade' }] };
-    const rw = (f, r, i) => ({ row: { f, r, i } }), cdR = Dx.cleanDue(dueR), nine = Array.from({ length: 9 }, (_, k) => rw('f_wp', 'w_' + k, 0));
+    const rw = (f, r, i) => ({ row: { f, r, i } }), cdR = Dx.cleanDue(dueR), nine = Array.from({ length: 81 }, (_, k) => rw('f_wp', 'w_' + k, 0));
     const reqs = [Dx.cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6', charId: 'c_b', row: { f: 'f_wp', r: 'w_sw', i: 0 }, att: 'a_abcd1234' }), Dx.cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6', charId: 'c_b', row: { f: 'f_wp', r: 'w_sw' }, att: 'a_abcd1234' }), Dx.cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6', charId: 'c_b', row: { f: 'f_wp', k: 'i_sw', i: 0 }, att: 'a_abcd1234' })];
-    check('1.6.0 the wire: a resist card keeps a row\'s button as { row: { f, r, i } } with its label beside the other rolls, eight rows at most, each once; a row with an act, a bad id, a place past the list\'s rolls, a repeat or a ninth is no card; a roll request names an attempt beside a list\'s roll on one row, never one with no row or on an entry nobody holds; the card hands the row to runDue, and postDue sends each row the attempt offers',
-        cdR && j(cdR.or) === j([{ act: 'r_pa' }, { row: { f: 'f_wp', r: 'w_sw', i: 0 }, label: 'Parry with Blade' }]) && Dx.cleanDue(Object.assign({}, dueR, { or: nine.slice(0, 8) })) !== null && Dx.cleanDue(Object.assign({}, dueR, { or: nine })) === null
-        && [[{ act: 'r_pa', row: { f: 'f_wp', r: 'w_sw', i: 0 } }], [rw('x', 'w_sw', 0)], [rw('f_wp', 'x', 0)], [rw('f_wp', 'w_sw', 16)] /* past a list's sixteen rolls (10 before the raise: moved on purpose) */, [rw('f_wp', 'w_sw', 0), rw('f_wp', 'w_sw', 0)], [{ act: 'r_a' }, { act: 'r_b' }, { act: 'r_c' }, { act: 'r_d' }, rw('f_wp', 'w_sw', 0)]].every(or => Dx.cleanDue(Object.assign({}, dueR, { or })) === null)
+    check('1.6.0 the wire: a resist card keeps a row\'s button as { row: { f, r, i } } with its label beside the other rolls, eighty rows at most, each once; a row with an act, a bad id, a place past the list\'s rolls, a repeat or an 81st is no card; a roll request names an attempt beside a list\'s roll on one row, never one with no row or on an entry nobody holds; the card hands the row to runDue, and postDue sends each row the attempt offers',
+        cdR && j(cdR.or) === j([{ act: 'r_pa' }, { row: { f: 'f_wp', r: 'w_sw', i: 0 }, label: 'Parry with Blade' }]) && Dx.cleanDue(Object.assign({}, dueR, { or: nine.slice(0, 80) })) !== null && Dx.cleanDue(Object.assign({}, dueR, { or: nine })) === null
+        && [[{ act: 'r_pa', row: { f: 'f_wp', r: 'w_sw', i: 0 } }], [rw('x', 'w_sw', 0)], [rw('f_wp', 'x', 0)], [rw('f_wp', 'w_sw', 160)] /* past a list's 160 rolls (16 before 1.6.2, 10 before that: moved on purpose) */, [rw('f_wp', 'w_sw', 0), rw('f_wp', 'w_sw', 0)], Array.from({ length: 31 }, (_, k) => ({ act: 'r_a' + k })).concat([rw('f_wp', 'w_sw', 0)])].every(or => Dx.cleanDue(Object.assign({}, dueR, { or })) === null)
         && reqs[0] && reqs[0].att === 'a_abcd1234' && reqs[1] === null && reqs[2] === null
-        && src4.includes("if (rec.why === 'resist' && Array.isArray(more.rows) && more.rows.length) rec.or = (rec.or || []).concat(more.rows.slice(0, 8).map(function(x) { return { row: { f: x.f, r: x.r, i: x.i }, label: String(x.label || 'Roll').slice(0, 60) }; }));"),
+        && src4.includes("if (rec.why === 'resist' && Array.isArray(more.rows) && more.rows.length) rec.or = (rec.or || []).concat(more.rows.slice(0, 80).map(function(x) { return { row: { f: x.f, r: x.r, i: x.i }, label: String(x.label || 'Roll').slice(0, 60) }; }));"),
         j([cdR, reqs]));
     // 1.6.0: Not resisted on a critical (noResistOnCrit): a critical success of the roll makes no attempt; without the tick it is resisted as any success
     const n0 = out.dues.length; roll(cA, 'c_a', { act: 'r_tr' }, '3d6 <= 13', [1, 1, 1]); const critPlain = out.dues.length - n0;
@@ -7334,14 +7334,14 @@ pendingChecks.push((async () => {
         J(s1.answer) === J([{ type: 'char-deny', rid: 'q2', reason: 'field' }]) && s1.owner.length === 0 && s1.saves === 0 && [m1, m2, m3].every(r => r.answer.length === 0 && r.owner.length === 0 && r.saves === 0) && J(row('w_n1')) === afterAdd, J([s1, m1, m3, row('w_n1')]));
     const stats10 = Array.from({ length: Sx.LIMITS.listStats }, (_, i) => ({ key: 'S' + i, label: 'Stat number ' + i, show: i < 3 })), vals10 = v => { const o = {}; stats10.forEach((s, i) => { o[s.key] = v * (i + 1) + 0.25; }); return o; };
     const big = Sx.cleanSystem({ v: 1, name: 'B', rolls: [], fields: [{ id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', edit: 'owner', vis: 'all', list: { multi: true, price: 'S0', stats: stats10 } }],
-        items: [{ id: 'i_pub', name: 'A public item with a long name', notes: 'n'.repeat(200), stats: vals10(99) }, { id: 'i_gm', name: 'A GM-only item with a long name', vis: 'gm', notes: 'g'.repeat(200), stats: vals10(-9999999) }] }, { F: Fx, gmView: true });
+        items: [{ id: 'i_pub', name: 'A public item with a long name', notes: 'n'.repeat(200), stats: vals10(99) }, { id: 'i_gm', name: 'A GM-only item with a long name', vis: 'gm', notes: 'g'.repeat(200), stats: vals10(-999999) }] }, { F: Fx, gmView: true });
     const rowsB = []; for (let i = 0; i < 150; i++) rowsB.push(i % 2 ? { id: 'w_p' + i, defId: 'i_pub', qty: 99, paid: 99999999.25, note: 'x'.repeat(200) } : { id: 'w_g' + i, defId: 'i_gm', qty: 99, paid: 123456.789, note: 'y'.repeat(200) });
     const viewB = Sx.cleanSystem(big, { F: Fx, gmView: false }), libB = {}; big.items.forEach(i => { libB[i.id] = i; });
     const projB = Sx.charFor({ id: 'c_b', name: 'B', ownerId: 'u_b', npc: false, values: { f_wp: rowsB } }, viewB, 'u_b', { items: libB }), msgB = { type: 'char', campId: 'k', char: projB };
     let packedB = true; try { packCheck(msgB); } catch (e) { packedB = e.message; }
     const sizeB = J(msgB).length, inlB = projB.values.f_wp.filter(r => r.lnk === 1);
-    check('F4c1 on the wire: 150 rows at their largest (pointers with what was paid, GM-only items inline with every stat a list may carry (' + Sx.LIMITS.listStats + '), 200-character notes) project, pack and stay within 200,000 bytes (' + sizeB + ' bytes)',
-        packedB === true && sizeB < 200000 && projB.values.f_wp.length === 150 && inlB.length === 75 && Object.keys(inlB[0].def.stats).length === Sx.LIMITS.listStats && Sx.LIMITS.listStats >= 24 && projB.values.f_wp.every(r => typeof r.paid === 'number'), String(packedB) + ' ' + sizeB);
+    check('F4c1 on the wire: 150 rows at their largest (pointers with what was paid, GM-only items inline with every stat a list may carry (' + Sx.LIMITS.listStats + '), 200-character notes) project, pack and stay within 1,400,000 bytes (' + sizeB + ' bytes)',
+        packedB === true && sizeB < 1400000 && projB.values.f_wp.length === 150 && inlB.length === 75 && Object.keys(inlB[0].def.stats).length === Sx.LIMITS.listStats && Sx.LIMITS.listStats >= 24 && projB.values.f_wp.every(r => typeof r.paid === 'number'), String(packedB) + ' ' + sizeB);
 })());
 
 // Stage 6 F4c3: custom rows on the wire — the real char-item handler (with the real delta and the GM's notice, sliced from net.js) on one host:
@@ -7427,32 +7427,32 @@ pendingChecks.push((async () => {
     const a2 = A.SEND('q2', { rowId: 'w_p1', def: { desc: '   ', lvls: null } }), p2 = J(A.row('w_p1').def), p2s = A.sent(a2.owner, 'w_p1');
     const a3 = A.SEND('q3', { rowId: 'w_p1', def: { desc: 'Back again', lvls: [{ lvl: 2, text: 'Two' }] } }), p3 = J(A.row('w_p1').def);
     const a4 = A.SEND('q4', { rowId: 'w_p1', def: { desc: null, lvls: [] } }), p4 = J(A.row('w_p1').def), p4s = A.sent(a4.owner, 'w_p1');
-    const a5 = A.SEND('q5', { rowId: 'w_p1', def: { desc: 'p'.repeat(6000), lvls: Array.from({ length: 80 }, (_, i) => ({ lvl: 80 - i, text: 'L' + (80 - i) })) } }), p5 = A.row('w_p1').def, p5s = A.sent(a5.owner, 'w_p1');
-    check('155 on the wire: a player clears their own row\'s text (a blank description and no levels, then null and an empty list), each acked with neither kept nor sent; sets it again; and a description past the core\'s length is cut to it, 80 levels kept as the first 20 in level order',
+    const a5 = A.SEND('q5', { rowId: 'w_p1', def: { desc: 'p'.repeat(6000), lvls: Array.from({ length: 800 }, (_, i) => ({ lvl: 800 - i, text: 'L' + (800 - i) })) } }), p5 = A.row('w_p1').def, p5s = A.sent(a5.owner, 'w_p1');
+    check('155 on the wire: a player clears their own row\'s text (a blank description and no levels, then null and an empty list), each acked with neither kept nor sent; sets it again; and a description past the core\'s length is cut to it, 800 levels kept as the first 200 in level order',
         J(a2.answer) === ack('q2') && !/"desc"|"lvls"/.test(p2) && !!p2s && !('desc' in p2s.def) && !('lvls' in p2s.def) && J(a3.answer) === ack('q3') && JSON.parse(p3).desc === 'Back again' && J(JSON.parse(p3).lvls) === J([{ lvl: 2, text: 'Two' }])
         && J(a4.answer) === ack('q4') && !/"desc"|"lvls"/.test(p4) && !!p4s && !('desc' in p4s.def) && !('lvls' in p4s.def)
-        && J(a5.answer) === ack('q5') && p5.desc === 'p'.repeat(4000) && J(p5.lvls.map(l => l.lvl)) === J(Array.from({ length: 20 }, (_, i) => 61 + i)) && !!p5s && p5s.def.desc.length === 4000 && p5s.def.lvls.length === 20,
+        && J(a5.answer) === ack('q5') && p5.desc === 'p'.repeat(4000) && J(p5.lvls.map(l => l.lvl)) === J(Array.from({ length: 200 }, (_, i) => 601 + i)) && !!p5s && p5s.def.desc.length === 4000 && p5s.def.lvls.length === 200,
         J([a2.answer, p2, a3.answer, p3, a4.answer, p4, a5.answer, p5 && p5.lvls && p5.lvls.map(l => l.lvl)]));
-    const bad = [{ desc: 7 }, { desc: 'q'.repeat(16001) }, { lvls: 'x' }, { lvls: {} }, { lvls: Array.from({ length: 81 }, (_, i) => ({ lvl: i, text: 'x' })) }, { lvls: [{ lvl: '1', text: 'x' }] }, { lvls: [{ lvl: NaN, text: 'x' }] },
+    const bad = [{ desc: 7 }, { desc: 'q'.repeat(16001) }, { lvls: 'x' }, { lvls: {} }, { lvls: Array.from({ length: 801 }, (_, i) => ({ lvl: i, text: 'x' })) }, { lvls: [{ lvl: '1', text: 'x' }] }, { lvls: [{ lvl: NaN, text: 'x' }] },
         { lvls: [{ lvl: 1, text: 7 }] }, { lvls: [{ lvl: 1, text: 'x'.repeat(2401) }] }, { lvls: [{ lvl: 1, text: 'x', tag: 5 }] }, { lvls: [{ lvl: 1, text: 'x', tag: 'g'.repeat(161) }] }, { lvls: ['x'] }].map((d, i) => A.SEND('m' + i, { rowId: 'w_p1', def: d }));
     const edge = [A.SEND('e1', { rowId: 'w_p1', def: { desc: 'q'.repeat(16000) } }), A.SEND('e2', { rowId: 'w_p1', def: { lvls: [{ lvl: 1, text: 'x'.repeat(2400), tag: 'g'.repeat(160) }] } })];
     const a6 = A.SEND('q6', { rowId: 'w_gm', def: { desc: 'Mine now' } }), a7 = A.SEND('q7', { rowId: 'w_gv', def: { lvls: [{ lvl: 1, text: 'Mine now' }] } });
-    check('155 on the wire: a malformed text is dropped unanswered and changes nothing (a description that is no text or past 16,000 characters; levels that are no list, more than 80, a level that is no number, a text that is no text or past 2,400, a tag that is no text or past 160, an entry that is no object), one at each bound is taken; the GM\'s rows, a GM-only one and one players see, are refused ("field") with their text as it was',
+    check('155 on the wire: a malformed text is dropped unanswered and changes nothing (a description that is no text or past 16,000 characters; levels that are no list, more than 800, a level that is no number, a text that is no text or past 2,400, a tag that is no text or past 160, an entry that is no object), one at each bound is taken; the GM\'s rows, a GM-only one and one players see, are refused ("field") with their text as it was',
         bad.every(r => r.answer.length === 0 && r.owner.length === 0 && r.saves === 0 && r.same) && edge.every((r, i) => J(r.answer) === ack('e' + (i + 1)))
         && J(a6.answer) === deny('q6', 'field') && a6.same && J(a7.answer) === deny('q7', 'field') && a7.same && A.row('w_gm').def.desc === 'The sealed truth' && A.row('w_gv').def.desc === 'Open lore',
         J([bad.map(r => r.answer), edge.map(r => r.answer), a6.answer, a7.answer]));
 
-    // (b) the list's room: its own rows hold 200,000 characters of long text in all (a kept curse's copy not counted)
-    const B = mk(Array.from({ length: 11 }, (_, i) => ownR('w_f' + i, FULL())).concat([gmR('w_hc', Object.assign({ name: 'Clinging', rm: 'curse' }, FULL()), { hid: 1 })]));   // 11 x 16,960 = 186,560
+    // (b) the list's room: its own rows hold 2,000,000 characters of long text in all (a kept curse's copy not counted)
+    const B = mk(Array.from({ length: 117 }, (_, i) => ownR('w_f' + i, FULL())).concat([gmR('w_hc', Object.assign({ name: 'Clinging', rm: 'curse' }, FULL()), { hid: 1 })]));   // 117 x 16,960 = 1,984,320
     const b1 = B.SEND('b1', { rowId: 'w_n1', def: FULL() }), b1row = B.row('w_n1');
-    const b2 = B.SEND('b2', { rowId: 'w_n2', def: { name: 'Short', desc: 'x'.repeat(4000) } });   // 190,560
+    const b2 = B.SEND('b2', { rowId: 'w_n2', def: { name: 'Short', desc: 'x'.repeat(4000) } });   // 1,988,320
     const copyB = JSON.parse(J(B.view('c_1', 'u_a')));   // the owner's whole copy at this point: their own app's starting point below
     const b3 = B.SEND('b3', { rowId: 'w_n2', def: { lvls: FULL().lvls } });
     check('155 on the wire: a player\'s change that would take the list\'s own rows past ' + Sx.LIMITS.ownText + ' characters of long text is refused ("long") with nothing stored, sent or saved (a new row whole, and levels added to a row of theirs); one that fits is acked and stored; a kept curse\'s copy counts for nothing',
-        Sx.LIMITS.ownText === 200000 && J(b1.answer) === deny('b1', 'long') && b1.same && b1.saves === 0 && b1.owner.length === 0 && b1.mate.length === 0 && b1row === null
+        Sx.LIMITS.ownText === 2000000 && J(b1.answer) === deny('b1', 'long') && b1.same && b1.saves === 0 && b1.owner.length === 0 && b1.mate.length === 0 && b1row === null
         && J(b2.answer) === ack('b2') && B.row('w_n2').def.desc.length === 4000 && J(b3.answer) === deny('b3', 'long') && b3.same && b3.saves === 0 && b3.owner.length === 0 && !('lvls' in B.row('w_n2').def),
         J([b1.answer, b1.saves, b2.answer, b3.answer]));
-    B.camp.chars.c_1.values.f_kn.push(gmR('w_g1', FULL()), gmR('w_g2', FULL()));   // the GM's own rows take it over the room: 224,480
+    B.camp.chars.c_1.values.f_kn.push(gmR('w_g1', FULL()), gmR('w_g2', FULL()));   // the GM's own rows take it over the room: 2,022,240
     const b5 = B.SEND('b5', { rowId: 'w_f0', def: { name: 'Renamed' } }), b6 = B.SEND('b6', { rowId: 'w_f1', def: { desc: 'Cut short' } });
     const shown = ((((b6.owner[0] || {}).values || {}).f_kn) || []).filter(r => r.lnk !== 1), shownN = shown.reduce((n, r) => n + longOf(r.def), 0);
     const b7 = B.SEND('b7', { rowId: 'w_f1', def: { desc: 'y'.repeat(4000) } }), b8 = B.SEND('b8', { rowId: 'w_f2', def: { desc: 'z'.repeat(4000) } });
@@ -7461,11 +7461,11 @@ pendingChecks.push((async () => {
         && J(b7.answer) === deny('b7', 'long') && b7.same && b7.saves === 0 && B.row('w_f1').def.desc === 'Cut short' && J(b8.answer) === ack('b8') && B.row('w_f2').def.desc === 'z'.repeat(4000),
         J([b5.answer, b6.answer, b7.answer, b8.answer]));
     check('155 on the wire: an owner\'s delta carries at most ' + Sx.LIMITS.ownText + ' characters of their character\'s own rows\' long text, in the list\'s order (rows past the room go without, the GM\'s copy keeps theirs), a room apart from the library rows\'',
-        shownN === 186569 && shownN <= Sx.LIMITS.ownText && shown.find(r => r.id === 'w_f0').def.desc.length === 4000 && shown.find(r => r.id === 'w_n2').def.desc.length === 4000
+        shownN === 1984329 && shownN <= Sx.LIMITS.ownText && shown.find(r => r.id === 'w_f0').def.desc.length === 4000 && shown.find(r => r.id === 'w_n2').def.desc.length === 4000
         && ['w_g1', 'w_g2'].every(id => { const r = shown.find(x => x.id === id); return !!r && !('desc' in r.def) && !('lvls' in r.def) && B.row(id).def.desc.length === 4000; }) && !shown.some(r => r.id === 'w_hc'),
         J([shownN, shown.map(r => [r.id, longOf(r.def)])]));
 
-    // (c) their own app: the real net.charItem over the owner's copy the host sent (190,560 of long text)
+    // (c) their own app: the real net.charItem over the owner's copy the host sent (1,988,320 of long text)
     const cA = src.indexOf('net.charItem = function('), cZ = src.indexOf('\n};\n', cA) + 3, viewR = Sx.cleanSystem(sysR, { F: Fx, gmView: false }), sentC = [];
     const campC = { id: 'k', system: viewR, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_kn: JSON.parse(J(copyB.values.f_kn)) } } } };
     const netC = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', myId: 'u_a', libEntry: null, conns: [{ peer: 'h', open: true, send: m => { packCheck(m); sentC.push(JSON.parse(J(m))); } }] };
@@ -7473,7 +7473,7 @@ pendingChecks.push((async () => {
     const c0 = J(campC.chars.c_1.values.f_kn), cl1 = netC.charItem('c_1', 'f_kn', { op: 'custom', rowId: 'w_n9', def: FULL() }), cl1same = J(campC.chars.c_1.values.f_kn) === c0, cl1sent = sentC.length;
     const cl2 = netC.charItem('c_1', 'f_kn', { op: 'custom', rowId: 'w_n2', def: { lvls: [{ lvl: 1, text: 'One gift' }] } });
     check('155 their own app (the real net.charItem): a change past the room is refused at once in its own words ("This list’s own rows hold all the long text they may.") with nothing sent or kept; one that fits goes to the host as it was asked and lands on their copy',
-        longOf({ desc: '' }) === 0 && copyB.values.f_kn.filter(r => r.lnk !== 1).reduce((n, r) => n + longOf(r.def), 0) === 190560
+        longOf({ desc: '' }) === 0 && copyB.values.f_kn.filter(r => r.lnk !== 1).reduce((n, r) => n + longOf(r.def), 0) === 1988320
         && J(cl1) === J({ error: 'This list’s own rows hold all the long text they may.' }) && cl1same && cl1sent === 0
         && cl2.ok === true && sentC.length === 1 && sentC[0].type === 'char-item' && sentC[0].op === 'custom' && J(sentC[0].def) === J({ lvls: [{ lvl: 1, text: 'One gift' }] })
         && J(campC.chars.c_1.values.f_kn.find(r => r.id === 'w_n2').def.lvls) === J([{ lvl: 1, text: 'One gift' }]), J([cl1, cl1same, cl1sent, cl2, sentC]));
@@ -7602,8 +7602,8 @@ pendingChecks.push((async () => {
     const stored = Sx.cleanValue(big.fields[0], rowsB, Sx.valueOpts(big)), projB = Sx.charFor({ id: 'c_b', name: 'B', ownerId: 'u_b', npc: false, values: { f_wp: stored } }, viewB, 'u_b', { items: libB }), msgB = { type: 'char', campId: 'k', char: projB };
     let packedB = true; try { packCheck(msgB); } catch (e) { packedB = e.message; }
     const sizeB = J(msgB).length, p0 = projB.values.f_wp[0];
-    check('F4c2 on the wire: 150 rows each with every value of its own at its largest (every stat a list may carry, all held, a blast, 200-character notes) project, pack and stay within 460,000 bytes (' + sizeB + ' bytes; 200,000 while a list carried twelve stats, 250,000 while it carried thirty-two, 350,000 while it carried forty-eight: the core handbook session\'s ask beside ask 19, moved on purpose), with no formula or lock in them',
-        packedB === true && sizeB < 460000 && projB.values.f_wp.length === 150 && Object.keys(p0.ov.stats).length === Sx.LIMITS.listStats && p0.ov.held.length === Sx.LIMITS.listStats && Sx.LIMITS.listStats >= 24 && !/9d6|curse|bound|rrrr|eeee/.test(J(msgB)), String(packedB) + ' ' + sizeB);
+    check('F4c2 on the wire: 150 rows each with every value of its own at its largest (every stat a list may carry, all held, a blast, 200-character notes) project, pack and stay within 3,200,000 bytes (' + sizeB + ' bytes; 200,000 while a list carried twelve stats, 250,000 while it carried thirty-two, 350,000 while it carried forty-eight: the core handbook session\'s ask beside ask 19, moved on purpose), with no formula or lock in them',
+        packedB === true && sizeB < 3200000 && projB.values.f_wp.length === 150 && Object.keys(p0.ov.stats).length === Sx.LIMITS.listStats && p0.ov.held.length === Sx.LIMITS.listStats && Sx.LIMITS.listStats >= 24 && !/9d6|curse|bound|rrrr|eeee/.test(J(msgB)), String(packedB) + ' ' + sizeB);
 })());
 {   // the joined player's top bar (1.5.0): "<campaign> › <map>" from the host's strings — the real whereName / tableWhere / paintWhere, sliced from net.js
     const whereSrc = between('// [netcheck:where-start]', '// [netcheck:where-end]', 'where');
@@ -8375,7 +8375,7 @@ pendingChecks.push((async () => {
     };
     const kinds = r => (r.camp.uploads || []).map(u => [u.charId, u.from, u.name, u.changes.map(c => c.kind + ':' + c.label).join('|')]);
     const own = host(), mate = host({ from: 'pB' }), slow = host({ at: { pA: Date.now() - 2000 } }), later = host({ at: { pA: Date.now() - 11000 } }), npc = host({ npc: true });
-    const big = host({ msg: { sheet: { name: 'Ana', notes: 'a'.repeat(1048577) } } }), badRid = host({ msg: { rid: 'e 1' } }), paused = host({ paused: true }), off = host({ off: true }), gone = host({ msg: { charId: 'c_9' } });
+    const big = host({ msg: { sheet: { name: 'Ana', notes: 'a'.repeat(10485761) } } }), badRid = host({ msg: { rid: 'e 1' } }), paused = host({ paused: true }), off = host({ off: true }), gone = host({ msg: { charId: 'c_9' } });
     const same = host({ msg: { sheet: { name: 'Ana', attributes: { strength: { value: 12 } }, skills: [{ name: 'Climbing', level: '12', relativeLevel: 'DX/Average' }] } } });
     const nobody = host({ noReader: true }), unclaimed = host({ msg: { sheet: { format: 'elsewhere', name: 'Ana' } } });
     const untouched = r => r.ch.values.f_st === 12 && r.ch.values.f_sk[0].lvl === 12 && r.deltas.length === 0;
@@ -8410,7 +8410,7 @@ pendingChecks.push((async () => {
         new Function('net', 'SC', 'getActiveCampaign', 'window', 'setTimeout', 'clearTimeout', cs.slice(cA, cB))(net, () => Sx, () => camp, { wpVtt: { on: () => !o.off } }, () => 0, () => {});
         return { r: net.charUpload(charId, sheet, a => answered.push(a)), sent };
     };
-    const cOk = client('c_1', { name: 'Ana', portrait: 'data:image/png;base64,AAAA', skills: [] }), cMate = client('c_2', { name: 'Bo' }), cPart = client('c_p', { name: 'P' }), cBig = client('c_1', { name: 'A', notes: 'a'.repeat(1048577) }), cGm = client('c_1', {}, { role: 'host' }), cOff = client('c_1', {}, { off: true });
+    const cOk = client('c_1', { name: 'Ana', portrait: 'data:image/png;base64,AAAA', skills: [] }), cMate = client('c_2', { name: 'Bo' }), cPart = client('c_p', { name: 'P' }), cBig = client('c_1', { name: 'A', notes: 'a'.repeat(10485761) }), cGm = client('c_1', {}, { role: 'host' }), cOff = client('c_1', {}, { off: true });
     const told = []; const hostNet = { active: true, role: 'host', roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } }, conns: [{ peer: 'pA', open: true, send: m => told.push(['pA', m]) }, { peer: 'pB', open: true, send: m => told.push(['pB', m]) }, { peer: 'pC', open: false, send: m => told.push(['pC', m]) }] };
     new Function('net', 'getActiveCampaign', 'sendFailed', cs.slice(cB, dB))(hostNet, () => ({ chars: { c_1: { id: 'c_1', ownerId: 'u_a' } } }), () => {});
     hostNet.uploadDone('c_1', 3, 5); hostNet.uploadDone('c_9', 1, 1);
@@ -9269,10 +9269,10 @@ pendingChecks.push((async () => {
     const viewH = Sx.cleanSystem(sysL, { F: Fx, gmView: false }); let packedL = true; try { packCheck(viewH); } catch (e) { packedL = e.message; }
     const viewC = Sx.cleanSystem(JSON.parse(j(viewH)), { F: Fx, gmView: false, libCats: {} });
     const bareV = Sx.cleanSystem(base(), { F: Fx, gmView: false }), junkV = ['<img>', [], 7, null, { names: { dim: '' }, presets: [{ name: 'x' }] }, { names: 'x', presets: 'y' }].map(l => { const s = base(); s.combat = { light: l }; const v = Sx.cleanSystem(s, { F: Fx, gmView: false }); return !!v && !!v.combat && !ownK(v.combat, 'light'); });
-    const manyS = base(); manyS.combat = { light: { presets: Array.from({ length: 40 }, (x, i) => ({ name: 'P' + i, bright: 1, dim: 2 })) } }; const manyV = Sx.cleanSystem(manyS, { F: Fx, gmView: false });
-    check('Lighting: the system\'s light rules reach players in the players\' view (the real cleaner) — the names of dim light and darkness and the presets as short plain text with control characters made spaces, radii clamped, dim at least bright, a unit only of feet, metres or cells, the pick mark only when true, at most 24 presets, last in the combat rules; they pack for the wire and a client cleaning them again gets exactly what the host sent; a system with none, or with nonsense, carries none',
+    const manyS = base(); manyS.combat = { light: { presets: Array.from({ length: 260 }, (x, i) => ({ name: 'P' + i, bright: 1, dim: 2 })) } }; const manyV = Sx.cleanSystem(manyS, { F: Fx, gmView: false });
+    check('Lighting: the system\'s light rules reach players in the players\' view (the real cleaner) — the names of dim light and darkness and the presets as short plain text with control characters made spaces, radii clamped, dim at least bright, a unit only of feet, metres or cells, the pick mark only when true, at most 240 presets, last in the combat rules; they pack for the wire and a client cleaning them again gets exactly what the host sent; a system with none, or with nonsense, carries none',
         !!viewH && j(viewH.combat.light) === j(wantL) && longClean.length === 60 && packedL === true && j(viewC) === j(viewH) && j(viewC.combat.light) === j(wantL) && Object.keys(viewH.combat).pop() === 'light'
-        && !!bareV && !ownK(bareV.combat, 'light') && junkV.every(Boolean) && manyV.combat.light.presets.length === 24 && manyV.combat.light.presets[23].name === 'P23' && j(Sx.cleanSystem(JSON.parse(j(manyV)), { F: Fx, gmView: false, libCats: {} })) === j(manyV)
+        && !!bareV && !ownK(bareV.combat, 'light') && junkV.every(Boolean) && manyV.combat.light.presets.length === 240 && manyV.combat.light.presets[239].name === 'P239' && j(Sx.cleanSystem(JSON.parse(j(manyV)), { F: Fx, gmView: false, libCats: {} })) === j(manyV)
         && Sx.lightName(viewC, 1) === 'Dim light <b>x</b>' && Sx.lightName(viewC, 0) === longClean && Sx.lightName(viewC, 2) === '' && j(Sx.lightPresets(viewC)) === j(wantL.presets), j([viewH && viewH.combat, packedL, junkV]));
 
     // (d) a player's copy of a lit map

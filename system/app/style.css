@@ -3850,6 +3850,7 @@
   /* Stage 6 F5b: a row's roll buttons; the Lists card's Rolls */
   .sheet-item-roll { padding: 0 8px; height: 24px; font-size: 11px; flex: 0 0 auto; }
   .sheet-item-moneyroll { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; }   /* 1.6.0: a roll that may not be paid for, its button and its words wrapping as one */
+  .sheet-rows-more { display: block; width: 100%; margin-top: 8px; padding: 6px 10px; font-size: 12px; }   /* 1.6.2: the rest of a very long list */
   .sheet-item-moneywarn { flex: 0 1 auto; color: var(--sheet-warn, var(--gold)); font-size: 11px; line-height: 1.25; }
   /* 1.6.0 R6 and R7: the switch as a button with two words (filled while on, by .tool.on), the icons before a row's buttons, and a roll's figure in a box at its end */
   .sheet-item-onb { padding: 0 8px; height: 24px; font-size: 11px; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; }

@@ -16,7 +16,7 @@
    No DOM, no state: tools/soundoncheck.js runs it under Node. Published as window.wpSoundOnCore. */
 'use strict';
 
-var LIMITS = Object.freeze({ lines: 200, id: 160, words: 120, cat: 40, rolls: 64 });
+var LIMITS = Object.freeze({ lines: 200, id: 160, words: 120, cat: 40, rolls: 160 });
 var KINDS = ['roll', 'list', 'blast', 'mine', 'door', 'zone'];
 var SND_RE = /^[A-Za-z0-9_-]{1,40}$/;   // soundcore's own id
 var CTRL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;

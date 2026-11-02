@@ -11,7 +11,7 @@
    joins cleanObj and objProps, and an object from before it reads as having none. */
 import { cleanTexSrc } from './fogcore.js';
 
-export var OBJ_MAX = 200;
+export var OBJ_MAX = 2000;
 var NAME_MAX = 60, CELLS_MAX = 12, ID_RE = /^[A-Za-z0-9_-]{1,40}$/, HEX_RE = /^#[0-9a-fA-F]{6}$/;
 export var OBJ_GRADES = ['half', 'threeq', 'total'];
 var GRADE_WORDS = { half: 'Half cover', threeq: 'Three-quarters cover', total: 'Total cover' };

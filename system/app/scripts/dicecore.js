@@ -22,11 +22,12 @@ var LIMITS = Object.freeze({
     nameChars: 64,
     label: 60,          // a roll's label, the character's name on a card
     cardChars: 240,     // describe() cap in a toast / plain-text card
-    swPicks: 8,         // 1.6.0: the roll switches one roll may name (systemcore LIMITS.rollSw a holder)
-    applyLines: 12,     // an apply card's lines: one a change an action or a roll's Then makes (systemcore LIMITS.applyChanges; 8 before 1.6.0, 4 before 1.5.4)
-    hits: 32,           // the hits one damage roll rolls for (systemcore HITS_MAX)
+    swPicks: 80,        // 1.6.0: the roll switches one roll may name (systemcore LIMITS.rollSw a holder)
+    applyLines: 120,     // an apply card's lines: one a change an action or a roll's Then makes (systemcore LIMITS.applyChanges; 8 before 1.6.0, 4 before 1.5.4)
+    hits: 320,          // the hits one damage roll rolls for (systemcore HITS_MAX)
     hitFaces: 40,       // the dice a hit's card line shows (systemcore HIT_FACES)
-    rowRolls: 16        // a list's rolls, so a row roll's index is 0 to 15 (systemcore LIMITS.rowRolls; 4 before 1.5.4, 8 before 1.6.0, 10 before the raise the session that builds a game system asked for)
+    rowRolls: 160,      // a list's rolls, so a row roll's index is below this (systemcore LIMITS.rowRolls; 4 before 1.5.4, 8 before 1.6.0, 10 before the raise the session that builds a game system asked for)
+    resistOr: 30        // the rolls besides the first a resist card offers (systemcore RESIST_OR)
 });
 var ID_RE = /^r_[A-Za-z0-9]{1,16}$/;
 var RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
@@ -239,7 +240,7 @@ function cleanSrc(v) {
 }
 function cleanAtt(v) { return typeof v === 'string' && ATT_RE.test(v) ? v : ''; }
 var ATT_RE = /^[ab]_[a-z0-9]{8}$/;   // 1.6.0 (B2): an attempt's id, made by the host (b_: a blow's soft record, which a roll may do without)
-var RESIST_ROWS = 8;   // 1.6.0: a resist card's buttons for a list's roll, one a row the target holds, at most
+var RESIST_ROWS = 80;   // 1.6.0: a resist card's buttons for a list's roll, one a row the target holds, at most
 // 1.6.0 (B3): a damage roll's second part as the host rolled it, { t, n?, dtype?, ad?, dkind? }: its total (a whole number, 0 to a million), the dice it
 // rolled (1 to 100), the damage type's key, its armour divisor (0.1 to 100, never 1) and its own kind of blow's key; null when anything is malformed
 var DMG2_TYPE = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
@@ -401,7 +402,7 @@ function cleanDue(rec) {
         if (rec.kn !== undefined) { var knA = cleanLabel(rec.kn); if (knA === null) return null; if (knA) out.kn = knA; }   // 1.6.0: the word for the attempt's kind, never a GM-only attack's
         if (rec.nm !== undefined) { if (rec.nm !== 1 || !Array.isArray(rec.or) || !rec.or.length) return null; out.nm = 1; }   // 1.6.0: only the rows it offers, its own roll's needs failing against this kind
         if (rec.or !== undefined) {   // 1.6.0 (the core's gap 5): the other rolls the target may resist it with, each a button of its own: at most 3, each an id once and never act's, with its label
-            if (!Array.isArray(rec.or) || !rec.or.length || rec.or.length > 3 + RESIST_ROWS) return null; var ors = [], nOr = 0, nRw = 0;
+            if (!Array.isArray(rec.or) || !rec.or.length || rec.or.length > LIMITS.resistOr + RESIST_ROWS) return null; var ors = [], nOr = 0, nRw = 0;
             for (var oi = 0; oi < rec.or.length; oi++) { var o = rec.or[oi];
                 if (o && typeof o === 'object' && o.row !== undefined) {   // 1.6.0: a list's roll on one row the target holds ({ f, r, i }), RESIST_ROWS at most, each once
                     var ow = o.row; if (o.act !== undefined || !ow || typeof ow !== 'object' || Array.isArray(ow) || typeof ow.f !== 'string' || !/^f_[A-Za-z0-9_]{1,24}$/.test(ow.f) || typeof ow.r !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(ow.r) || !isInt(ow.i) || ow.i < 0 || ow.i >= LIMITS.rowRolls || ++nRw > RESIST_ROWS || ors.some(function(x) { return x.row && x.row.f === ow.f && x.row.r === ow.r && x.row.i === ow.i; })) return null;

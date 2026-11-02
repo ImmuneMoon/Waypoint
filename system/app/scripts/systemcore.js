@@ -34,57 +34,62 @@ function dieOf(text) {
 }
 // The die a roll entry is drawn with: the GM's pick (its die, or a field's rollDie), else its formula's
 function rollDie(pick, formula) { return cleanDie(pick) || dieOf(formula); }
+// 1.6.2 (the owner, by prompt: "Safety ceilings only"; before it: "my question stands, why have caps? what if someone wants to create a bigger system
+// than mine?"): what a system can hold stands about ten times past any real game, so that nobody meets a limit by building. The limits are there only
+// to stop a broken or hostile file from freezing the app: a player is sent a system by a host, and a campaign file can come from a stranger. So every
+// count here still bounds what is read, a cut before the work. tools/ceilingcheck.js measures a system at these figures. Text lengths, a figure's size,
+// rates and timers are no part of that and stay
 var LIMITS = Object.freeze({
-    onRemove: 4,   // 1.6.0: a list's changes when a row is taken off for good
-    fields: 600, rolls: 160, sections: 100, tabs: 12, placements: 800, options: 50, optionChars: 60,   // Stage 6: room for a big sheet (one section per section of a large VTT sheet); 1.5.4: 400 fields, 60 sections and 400 placements (a website's whole sheet: 300, 40 and 300 before); 1.6.0: 100 sections (a sheet folded by body slot, asked by the campaign build's session), then 600 fields, 160 rolls and 800 placements (a big system's build stood at 392 fields and 75 rolls, asked by the campaign build's session)
+    onRemove: 40,   // 1.6.0: a list's changes when a row is taken off for good
+    fields: 6000, rolls: 1600, sections: 1000, tabs: 120, placements: 8000, options: 500, optionChars: 60,   // Stage 6: room for a big sheet (one section per section of a large VTT sheet); 1.5.4: 400 fields, 60 sections and 400 placements (a website's whole sheet: 300, 40 and 300 before); 1.6.0: 100 sections (a sheet folded by body slot, asked by the campaign build's session), then 600 fields, 160 rolls and 800 placements (a big system's build stood at 392 fields and 75 rolls, asked by the campaign build's session)
     key: 64, label: 60, formula: 1000,      // 1000 = the dice path's expression cap, so a sheet roll never dies there (300 before 1.6.0, backlog 200)
     text: 200, notes: 20000, name: 60, itemName: 240, charName: 60, names: 200,   // 1.6.0, backlog 194: an item's and a library entry's name 240 (60 before), as a row's own name; every other name and a character's stay 60
     makingMax: 12,   // Onboarding F3: characters in the making at one table at once (each a player's own, on the GM's disk)
-    core: 1000, coreBytes: 256 * 1024,       // Stage 6 library L1d: library entries a formula addresses by key, copied into the system
-    items: 200, carried: 150, category: 40, maxBlastFt: 3000, maxQty: 99,   // item library (Stage 5); Stage 6: 150 rows a list (a big sheet's skills)
+    core: 10000, coreBytes: 2560 * 1024,       // Stage 6 library L1d: library entries a formula addresses by key, copied into the system
+    items: 2000, carried: 1500, charRows: 30000, category: 40, maxBlastFt: 3000, maxQty: 999,   // item library (Stage 5); Stage 6: 150 rows a list (a big sheet's skills)
     rmMsg: 400, noteText: 1000, needsWords: 200, undoMs: 10000, undoGraceMs: 15000,   // Stage 6: a bound or cursed item's message; a pickup's Undo (the host allows a little longer: the round trip)
-    listCats: 20, rowNote: 200, lvlAbs: 1e6, lvlCaps: 4, lvlOnly: 24, modTiers: 16,     // Stage 6 F4b: a list's categories, a row's note, the size of a row level; 1.6.0: a level's caps (At most at a level), an entry's Levels it may be and a change's figures By level
-    placeCats: 8,                            // 1.5.5: the categories one placement of an item list shows (a list placed once a category)
-    rollSw: 4, swTo: 8,                      // 1.6.0: the roll switches one item or effect offers (a bonus ticked in a roll's ± window), and the rolls one names
-    areaAffs: 2,                             // 1.5.9 (the book's (es)): the afflictions one explosive carries (Affliction (HT-2) and a second one)
-    desc: 4000, lvls: 20, lvlText: 600, lvlTag: 40, rowsText: 400000,   // 1.5.4: an entry's description, the levels it describes, a level's text and the words beside it; the long text one list's rows carry to their owner in all
-    ownText: 200000,                         // 1.5.5 (155): the long text the character's own rows of one list may hold in all, as rowText counts it (stored and sent)
-    listStats: 64, entryStats: 64, statAbs: 1e9,   // Stage 6 F4c1: a list's stats (12 since range penalties: a weapons list with Half and MaxRange; 24 since 1.5.4: a whole weapon line; 32 since 1.6.0, a campaign build: a full list and a figure an outside reader fills; 48 since the v2 combat module: a weapons and an armour list; 64 since the core handbook session's ask beside ask 19), the stats an item carries (32 since 1.5.4, 48 with a list's in 1.6.0, 64 with it again: a copy's own values hold every stat of its list), the size of a stat (a price, a weight: 99,999,999 fits)
-    listCols: 48,                            // Stage 6 F5a1: a list's columns (a formula per row; 6 before 1.5.4, 12 before 1.6.0; the core handbook session's ask 19: 24 before it; 32 before a build that filled three lists)
-    colPlus: 8,                              // 1.5.4 With: the stats a column names as adding to it in a case of their own (a DR of 15 that is 35 against energy)
-    pickOpts: 48,                            // Stage 6 F5a2: a choice stat's options
+    listCats: 200, rowNote: 200, lvlAbs: 1e6, lvlCaps: 40, lvlOnly: 240, modTiers: 160,     // Stage 6 F4b: a list's categories, a row's note, the size of a row level; 1.6.0: a level's caps (At most at a level), an entry's Levels it may be and a change's figures By level
+    placeCats: 80,                           // 1.5.5: the categories one placement of an item list shows (a list placed once a category)
+    rollSw: 40, swTo: 80,                    // 1.6.0: the roll switches one item or effect offers (a bonus ticked in a roll's ± window), and the rolls one names
+    areaAffs: 20,                            // 1.5.9 (the book's (es)): the afflictions one explosive carries (Affliction (HT-2) and a second one)
+    desc: 4000, lvls: 200, lvlText: 600, lvlTag: 40, rowsText: 4000000,   // 1.5.4: an entry's description, the levels it describes, a level's text and the words beside it; the long text one list's rows carry to their owner in all
+    ownText: 2000000,                        // 1.5.5 (155): the long text the character's own rows of one list may hold in all, as rowText counts it (stored and sent)
+    listStats: 640, entryStats: 640, statAbs: 1e9,   // Stage 6 F4c1: a list's stats (12 since range penalties: a weapons list with Half and MaxRange; 24 since 1.5.4: a whole weapon line; 32 since 1.6.0, a campaign build: a full list and a figure an outside reader fills; 48 since the v2 combat module: a weapons and an armour list; 64 since the core handbook session's ask beside ask 19), the stats an item carries (32 since 1.5.4, 48 with a list's in 1.6.0, 64 with it again: a copy's own values hold every stat of its list), the size of a stat (a price, a weight: 99,999,999 fits)
+    listCols: 200,                           // Stage 6 F5a1: a list's columns (a formula per row; 6 before 1.5.4, 12 before 1.6.0; the core handbook session's ask 19: 24 before it; 32 before a build that filled three lists)
+    colPlus: 80,                             // 1.5.4 With: the stats a column names as adding to it in a case of their own (a DR of 15 that is 35 against energy)
+    pickOpts: 480,                           // Stage 6 F5a2: a choice stat's options
     was: 8,                                  // 1.6.2: the earlier labels an option or a list's roll keeps, so what names it follows a rename
-    rollCalls: 4,                            // 1.6.0: the rolls one roll or action may call for
-    subjects: 8, subjectWord: 24,            // 1.6.0: a list's subjects (short words a row may hold one of), and the characters of one
-    rowRolls: 16,                            // Stage 6 F5b: a list's rolls (a button on each row; 4 before 1.5.4, 8 before 1.6.0, 10 before the raise the session that builds a game system asked for)
-    applyChanges: 12,                        // Stage 6 HUD H7: an apply action's changes (a pool or a number each), and a roll's consequences (8 before 1.6.0, 4 before 1.5.4)
-    rowCounters: 12,                         // Stage 6 HUD R2: a list's counters (a number each row keeps: Charges, Hits; 4 before 1.5.4, 8 before 1.6.0)
-    turnActs: 6,                             // turn-based combat T1: what one turn allows (Action, Bonus action, Maneuver)
-    turnUnits: 6,                            // turn-based combat T1: the system's own time units (a segment, a watch)
-    lightPresets: 24,                        // lighting L4: the system's light presets (a torch, a lantern)
-    rangeSteps: 40,                          // range penalties R1: the range table's steps (a Size and Speed/Range table from 2 to 1,000,000 yards is 38)
-    heightSteps: 40,                         // item 19 H2: the height table's steps
-    senses: 8,                               // senses S1: the system's senses besides the eyes (Tremorsense, Ether Sight)
-    cols: 4, editsPerWindow: 20, editWindowMs: 5000, editTimeoutMs: 5000, valueChars: 20000, editBatch: 10,   // HUD frame (HF4b): values in one batched edit (a section's Reset all)
-    band: 12, bandGroups: 6,                 // Stage 5c: placements on the pinned band (one row under the name); Stage 6: named groups of them, each pinned by its viewer
-    identity: 12, ledger: 8,                 // Stage 5d: the header block — identity rows and ledger figures (read-only)
+    rollCalls: 40,                           // 1.6.0: the rolls one roll or action may call for
+    subjects: 80, subjectWord: 24,            // 1.6.0: a list's subjects (short words a row may hold one of), and the characters of one
+    rowRolls: 160,                           // Stage 6 F5b: a list's rolls (a button on each row; 4 before 1.5.4, 8 before 1.6.0, 10 before the raise the session that builds a game system asked for)
+    applyChanges: 120,                       // Stage 6 HUD H7: an apply action's changes (a pool or a number each), and a roll's consequences (8 before 1.6.0, 4 before 1.5.4)
+    rowCounters: 120,                        // Stage 6 HUD R2: a list's counters (a number each row keeps: Charges, Hits; 4 before 1.5.4, 8 before 1.6.0)
+    turnActs: 60,                            // turn-based combat T1: what one turn allows (Action, Bonus action, Maneuver)
+    turnUnits: 60,                           // turn-based combat T1: the system's own time units (a segment, a watch)
+    lightPresets: 240,                       // lighting L4: the system's light presets (a torch, a lantern)
+    rangeSteps: 400,                         // range penalties R1: the range table's steps (a Size and Speed/Range table from 2 to 1,000,000 yards is 38)
+    heightSteps: 400,                        // item 19 H2: the height table's steps
+    senses: 80,                              // senses S1: the system's senses besides the eyes (Tremorsense, Ether Sight)
+    cols: 4, editsPerWindow: 20, editWindowMs: 5000, editTimeoutMs: 5000, valueChars: 20000, editBatch: 100,   // HUD frame (HF4b): values in one batched edit (a section's Reset all)
+    band: 120, bandGroups: 60,               // Stage 5c: placements on the pinned band (one row under the name); Stage 6: named groups of them, each pinned by its viewer
+    identity: 120, ledger: 80,               // Stage 5d: the header block — identity rows and ledger figures (read-only)
     icon: 8, unit: 8,                        // Stage 5g: a tab's or a section's icon (code points: an emoji or a glyph or two), a number's unit ("pts")
-    caption: 400, captionExprs: 8,           // Stage 5g Fold B: a field's caption line and the {formula} values in it
+    caption: 400, captionExprs: 80,          // Stage 5g Fold B: a field's caption line and the {formula} values in it
     ruleText: 2000,                          // Stage 6 HUD H11: a rules-text placement (plain text, its line breaks kept)
-    labels: 64,                              // Stage 6: names for a number's values (a dropdown) or a formula's (shown instead of the number); 10 before 1.6.0, 32 before 1.6.2, now a list's stat may name one value per damage type
-    effects: 200, effectRows: 30, effectMods: 12, effectAmount: 1e6, effectDur: 40,  // Stage 5h: the library, a character's list, changes per effect, a change's size, a duration note
-    uploadChanges: 600,                      // Stage 6 U1: the changes one upload may propose
+    labels: 640,                             // Stage 6: names for a number's values (a dropdown) or a formula's (shown instead of the number); 10 before 1.6.0, 32 before 1.6.2, now a list's stat may name one value per damage type
+    effects: 2000, effectRows: 300, effectMods: 120, effectAmount: 1e6, effectDur: 40,  // Stage 5h: the library, a character's list, changes per effect, a change's size, a duration note
+    uploadChanges: 6000,                     // Stage 6 U1: the changes one upload may propose
     upWords: 400,                            // 1.6.0: the words a line of the Review keeps of a value, each side, which it shows whole
     sheetOut: 4194304,                       // 1.6.0: the characters of a file a reader on the host writes for a player's own character
-    uploadBytes: 1048576, uploads: 20,       // Stage 6 U2: a sheet file on the wire (as JSON, its portrait dropped); uploads the GM's queue keeps
+    uploadBytes: 10485760, uploads: 20,       // Stage 6 U2: a sheet file on the wire (as JSON, its portrait dropped); uploads the GM's queue keeps
     threats: 6,                              // Stage 5h Fold 3: threat marks on a token (world bearings; the first is the active one)
-    postures: 12, postureTag: 4, postureNotes: 200,  // conditions C3: the system's own postures, a chip's tag (code points), a posture's notes
+    postures: 120, postureTag: 4, postureNotes: 200,  // conditions C3: the system's own postures, a chip's tag (code points), a posture's notes
     initTies: 3,                             // initiative O2: the steps that break a tie of initiative (a value or a roll each)
-    budgets: 8,                              // 126: the system's point budgets (a name and two formulas each)
-    links: 8, linkNames: 64,                 // 1.6.0: a system's linked sheets, and the figures under one link a player's copy carries
-    env: 8,                                  // 1.6.0: the environment readings a system names (a temperature, a gravity)
-    tables: 24, tableCols: 16, tableRows: 64,   // 1.6.0: a system's tables (figures a formula reads by name), the columns and the rows of one
-    needs: 8                                 // 126b: the entries one entry needs
+    budgets: 80,                             // 126: the system's point budgets (a name and two formulas each)
+    links: 80, linkNames: 640,                // 1.6.0: a system's linked sheets, and the figures under one link a player's copy carries
+    env: 80,                                 // 1.6.0: the environment readings a system names (a temperature, a gravity)
+    tables: 240, tableCols: 160, tableRows: 640, tableCells: 120000,   // 1.6.0: a system's tables (figures a formula reads by name), the columns and the rows of one
+    needs: 80                                // 126b: the entries one entry needs
 });
 // item-list is a STORED, non-numeric list kind (a character's carried items); never in NUMERIC/DEF_PROP.
 var KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1, effects: 1 });
@@ -111,8 +116,8 @@ var FIELD_ID = /^f_[A-Za-z0-9_]{1,24}$/, ROLL_ID = /^r_[A-Za-z0-9_]{1,24}$/, SEC
 var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1, roll: 1, measure: 1 });
 // Stage 6 F4a: a carried row's id (w_…; a legacy {defId, qty} row's is derived from its item) and the row ops a change may carry
 var ROW_ID = /^w_[A-Za-z0-9_]{1,24}$/, ROW_OPS = Object.freeze({ add: 1, remove: 1, setQty: 1, keep: 1, undo: 1, set: 1, ov: 1, custom: 1, load: 1, restore: 1, chamber: 1, unchamber: 1, split: 1, look: 1, work: 1 });   // 1.6.0, backlog 206: look, a row's look; work, a line of its work log (rowLookOp)   // 1.5.9 Chambers from: chamber, one unit of a round into a row's chamber; unchamber, the last one in back to its list   // restore (1.5.8): a removed row put back whole at its place (its Undo)   // undo (Stage 6): a pickup taken back; set (F4b): a row's facts; ov (F4c2): a copy's own values; custom (F4c3): a character's own row, made or changed
-var CHAMBER_CAP = 32;   // 1.5.9 Chambers from: the most rounds a chamber holds (8 before 1.6.0)
-var FEEDS_MAX = 2, FEED_STACK = 8;   // 1.6.0 Feeds: a list's feeds, and the kinds one feed holds stacked at once
+var CHAMBER_CAP = 320;   // 1.5.9 Chambers from: the most rounds a chamber holds (8 before 1.6.0, 32 before 1.6.2)
+var FEEDS_MAX = 20, FEED_STACK = 80;   // 1.6.0 Feeds: a list's feeds, and the kinds one feed holds stacked at once
 // Stage 6 F4b: an item's key in formulas (F5a: Skills.<Key>.lvl) — never a row word, which a row's own names use
 var ITEM_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/, ROW_WORDS = Object.freeze({ count: 1, qty: 1, on: 1, has: 1, lvl: 1, paid: 1, row: 1, opened: 1, loaded: 1, loadmax: 1, once: 1, oncecost: 1, oncefree: 1, chambered: 1, setall: 1, parts: 1, again: 1, needsmet: 1, made: 1, startlvl: 1, bursthits: 1, side: 1, subject: 1, fitted: 1 });   // 1.6.0 (v2, B5): made, 1 for a row added while its character was in the making
 // 1.6.0 (the owner, 2026-10-29: "this is additive functionality, we arent removing usable features that other campaign systems can utilize"): a row word
@@ -798,7 +803,7 @@ function cleanRollDef(r, gmView) {
 // never resistBy's; the target's card offers each beside resistBy's as a button of its own, and the one pressed resists the attempt. 1.6.0
 // (asked by a system build): one may be a list's roll ticked Resists an attempt, named <its list's field id>#<its place among the list's
 // rolls> (LIST_ROLL_REF), and the card then offers it once for each row of that list the target holds (net.js attemptMake judges which)
-var RESIST_OR = 3, LIST_ROLL_REF = /^(f_[A-Za-z0-9_]{1,24})#(\d{1,2})$/;
+var RESIST_OR = 30, LIST_ROLL_REF = /^(f_[A-Za-z0-9_]{1,24})#(\d{1,3})$/;
 function listRollRef(id) { var m = typeof id === 'string' ? LIST_ROLL_REF.exec(id) : null; return m && +m[2] < LIMITS.rowRolls ? { f: m[1], i: +m[2] } : null; }
 // whether a name of Or resisted by stands for a roll ticked Resists an attempt in this system: a system roll by its id, a list's roll by its ref
 function resistOrOk(sys, id) {
@@ -953,11 +958,12 @@ function needsSays(def, missing, nameOf) {
 // 1.5.8 (book handoff 90, a Form opens techniques; the owner: follow the website, where an opened technique "shows by itself in the Combat
 // Techniques section" while the Form holds and is gone when it does not): what an entry opens — at most 8 of { f: the list's field id, id: the
 // entry it opens there, from: the level of THIS entry from which it opens (1 if none) }, each entry once. None: undefined
+var OPENS_MAX = 80;
 function cleanOpens(v) {
     if (!Array.isArray(v)) return undefined;
     var out = [], seen = map();
-    v.slice(0, 32).forEach(function(o) {
-        if (out.length >= 8 || !isObj(o) || typeof o.f !== 'string' || !/^[A-Za-z0-9_]{1,64}$/.test(o.f) || typeof o.id !== 'string' || !ITEM_ID.test(o.id)) return;
+    v.slice(0, OPENS_MAX * 4).forEach(function(o) {
+        if (out.length >= OPENS_MAX || !isObj(o) || typeof o.f !== 'string' || !/^[A-Za-z0-9_]{1,64}$/.test(o.f) || typeof o.id !== 'string' || !ITEM_ID.test(o.id)) return;
         var k = o.f + '|' + o.id; if (seen[k]) return; seen[k] = 1;
         var fr = typeof o.from === 'number' && fin(o.from) ? Math.max(1, Math.min(99, Math.round(o.from))) : 1;
         out.push({ f: o.f, id: o.id, from: fr });
@@ -1022,7 +1028,7 @@ var COVER_GRADES = ['half', 'threeq', 'cover', 'total'];
 // where is. Absent, nothing is rolled and a damage roll says no location. coverHitFor is the one judge, on the host: a pick that lands on a row the
 // grade's rows mean stands with no die, a target with one row of the grade to land on takes it with no die, a row with nothing on the target falls to
 // the next, and several locations under one row (two arms) take a second die, which the GM may overrule in the Take damage window
-var COVER_HIT_ROWS = 6, COVER_HIT_DIE = 100;
+var COVER_HIT_ROWS = 60, COVER_HIT_DIE = 100;
 function cleanCoverHit(h) {
     if (!isObj(h)) return null; var out = {};
     COVER_GRADES.forEach(function(g) {
@@ -1740,7 +1746,7 @@ function locNamed(sys, f, def, name) {   // a location's name with its side, for
     var k = locSideKey(sys, f), v = k && isObj(f.list) && isObj(def) ? rowStat(f.list, def, k) : 0, w = v === 1 || v === 2 ? statName(f.list, def, k) || (v === 1 ? 'left' : 'right') : '';
     return w ? name + ' (' + w + ')' : name;
 }
-var DMG_LIM = Object.freeze({ types: 32, kinds: 8, layers: 8, weapons: 4, plus: 8, mult: 10, amt: 1000000, wears: 8, dice: 100, onWound: 6, onMajor: 4 });   // onWound (1.6.0, the core's gap 6); onMajor's rows (1.6.0)
+var DMG_LIM = Object.freeze({ types: 320, kinds: 80, layers: 80, weapons: 40, plus: 80, mult: 10, amt: 1000000, wears: 80, dice: 100, onWound: 60, onMajor: 40 });   // onWound (1.6.0, the core's gap 6); onMajor's rows (1.6.0)
 function dmgStatOk(fl, listId, key) {   // a number stat of that list, value names or not (a stat its rows may hold as their own), never a pick
     var f = fl ? fl(listId) : null, sp = f && isObj(f.list) ? f.list : null; if (!sp || typeof key !== 'string' || !STAT_KEY.test(key)) return '';
     var hit = ''; (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(s) { if (!hit && isObj(s) && lower(s.key) === lower(key) && s.kind !== 'pick') hit = s.key; });
@@ -2347,7 +2353,7 @@ function cleanCharDamage(msg) {
 // all or none, on copies (tradeApply). A row moves by its quantity, or a part of a figure ticked Split in trades (a list's level or a number stat)
 // moves as an amount. Only what players may see is ever offered: a list players see and a row whose definition is not GM-only, on both sides,
 // since the other side holds it afterwards. who 'player': only a list its owner may change (edit owner)
-var TRADE_LINES = 40;
+var TRADE_LINES = 400;
 function tradeEntry(a, b) { if (!isObj(a) || !isObj(b)) return false; if (typeof a.defId === 'string') return a.defId === b.defId; return typeof b.defId !== 'string' && isObj(a.def) && isObj(b.def) && lower(a.def.name || '') === lower(b.def.name || ''); }
 function tradeFields(sys, who) { return (isObj(sys) && Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return isObj(f) && f.kind === 'item-list' && isObj(f.list) && f.list.trade === true && f.vis === 'all' && (who !== 'player' || f.edit === 'owner'); }); }   // only a list ticked Tradable
 function tradeOfferable(sys, char, who) {
@@ -2797,7 +2803,7 @@ function cleanTier(v) {
 // rolls that keep them too, aimed at someone held), squeeze (a blow posted to each held character) and free (a success breaks one hold, the roller
 // held; one resisted, once its target fails); drag, the cells a holder may drag at each turn (none: a holder who walks off lets go); ends, a formula of
 // the holder's names, true while they have lost their action or are down, when all their holds end at once
-var HOLD_ALSO = 8, HOLD_ROLLS = Object.freeze(['take', 'pin', 'keep', 'squeeze', 'free']), HOLD_REF = /^f_[A-Za-z0-9_]{1,24}#\d{1,2}$/;
+var HOLD_ALSO = 80, HOLD_ROLLS = Object.freeze(['take', 'pin', 'keep', 'squeeze', 'free']), HOLD_REF = /^f_[A-Za-z0-9_]{1,24}#\d{1,3}$/;
 function holdRefOk(v) { return typeof v === 'string' && (ROLL_ID.test(v) || HOLD_REF.test(v)); }
 function holdRefOf(act, row) { return isObj(row) && typeof row.f === 'string' && typeof row.i === 'number' ? row.f + '#' + row.i : typeof act === 'string' ? act : ''; }
 function holdsNamed(h, rolls, fields) {   // a roll a hold follows names itself as it is rolled, as a sneak's does (the sheet sends a plain roll's formula alone, so the host could not tell it), on the GM's view; a players' view keeps the mark, and says nothing of why. An action asks for nothing: it is pressed by name
@@ -2829,7 +2835,7 @@ function cleanCombat(c, resIds, fieldIds, secretIds, F, viewKinds, pl, fl) {   /
     var sn = cleanSenses(c.senses, fieldIds, secretIds, pl !== true, F); if (sn) out.senses = sn;   // senses S1: the system's senses (absent: none)
     var rg = cleanRangeRules(c.range, F); if (rg) out.range = rg;   // range penalties R1: the system's range rule (absent: none)
     if (c.targetSize !== undefined) { var tsz = senseField({ field: c.targetSize }, SENSE_RANGE_KINDS, fieldIds, secretIds); if (tsz) out.targetSize = tsz; }   // 1.6.0 (the v2 combat module): the field of a target's sheet TargetSize reads, a number its viewer can read truthfully, the same in both views
-    if (Array.isArray(c.targetReads)) { var trd = []; c.targetReads.slice(0, 32).forEach(function(x) { if (trd.length >= TARGET_READS) return; var t1 = senseField({ field: x }, SENSE_RANGE_KINDS, fieldIds, secretIds); if (t1 && trd.indexOf(t1) < 0) trd.push(t1); }); if (trd.length) out.targetReads = trd; }   // 1.6.0: and the others a roll reads as Target.<key>, each judged the same way
+    if (Array.isArray(c.targetReads)) { var trd = []; c.targetReads.slice(0, TARGET_READS * 4).forEach(function(x) { if (trd.length >= TARGET_READS) return; var t1 = senseField({ field: x }, SENSE_RANGE_KINDS, fieldIds, secretIds); if (t1 && trd.indexOf(t1) < 0) trd.push(t1); }); if (trd.length) out.targetReads = trd; }   // 1.6.0: and the others a roll reads as Target.<key>, each judged the same way
     if (typeof c.targetHit === 'string' && FIELD_ID.test(c.targetHit) && isObj(fieldIds) && hasOwn(fieldIds, c.targetHit) && fieldIds[c.targetHit] === 'item-list') out.targetHit = c.targetHit;   // 1.6.0 (B5): the item list of a target's sheet whose rows are its hit locations, read as Target.Hit.<name>, the same in both views
     if (c.hideResist === true) out.hideResist = true;   // 1.6.2: Hide what a defence needs, true only, the same in both views
     var ps = cleanPostures(c.postures, viewKinds); if (ps) out.postures = ps;   // conditions C3: the system's own postures (absent: the seven)
@@ -2958,7 +2964,7 @@ function affUnit(u) { return typeof u === 'string' && (Object.prototype.hasOwnPr
 function cleanAffs(v) {
     if (!Array.isArray(v)) return null;
     var out = [];
-    for (var i = 0; i < v.length && i < 40 && out.length < LIMITS.areaAffs; i++) {
+    for (var i = 0; i < v.length && i < LIMITS.areaAffs * 20 && out.length < LIMITS.areaAffs; i++) {
         var a = v[i]; if (!isObj(a)) continue;
         var vs = cleanFormulaText(a.vs), fx = typeof a.fx === 'string' && EFFECT_ID.test(a.fx) ? a.fx : ''; if (!vs || !fx) continue;
         var o = { vs: vs, fx: fx }; if (a.who === 'all') o.who = 'all';
@@ -3047,12 +3053,12 @@ function heightOf(sys, from, to, opts) {
 function againFold(s) { return String(typeof s === 'string' ? s : '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }
 // 1.6.0: a list roll's, an action's or a counter's other names, each shown on the rows where its formula holds (the first that holds wins; none:
 // its own label). A name and a formula with no dice each, ALT_MAX at most
-var ALT_MAX = 4;
+var ALT_MAX = 40;
 // 1.6.0 R4 (backlog 180; the owner, by prompt: "A. After the name", "A. Tint and an edge", "A. The badge itself"): a list's row badges, each
 // words shown on a row only while a formula of the row holds (no dice), in a tone of TONES or plain, as a pill after the name or as a line under
 // the row (line), tinting its row in its tone (tint) or pulsing (pulse), with a tip in words. BADGE_MAX at most; the same in both views but where
 // the players' view drops one that reads a GM-only name
-var BADGE_MAX = 12;   // 1.6.0, backlog 195: twelve (eight before)
+var BADGE_MAX = 120;   // 1.6.0, backlog 195: twelve (eight before); 1.6.2: ten times that
 function cleanBadges(v, F) { if (!Array.isArray(v)) return null; var out = []; for (var i = 0; i < v.length && i < BADGE_MAX * 4 && out.length < BADGE_MAX; i++) { var b = v[i]; if (!isObj(b)) continue; var w = cutText(b.words, LIMITS.text), fi = budgetFormula(b.if, F); if (!w || !fi) continue; var o = { words: w, if: fi }; if (typeof b.tone === 'string' && Object.prototype.hasOwnProperty.call(TONES, b.tone)) o.tone = b.tone; if (b.line === true) o.line = true; if (b.tint === true) o.tint = true; if (b.pulse === true) o.pulse = true; var tp = cutText(b.tip, LIMITS.noteText); if (tp) o.tip = tp; out.push(o); } return out.length ? out : null; }
 // 1.6.0 R7 (backlog 180; the owner, by prompt: "B. In a small box at the end", "A. Its target or its dice"): what a list roll's button shows after
 // its name: '@fig', its own figure, or a column of the list by its key; anything else none
@@ -3455,7 +3461,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
             if (cv.foot === true) co.foot = true;   // its total under the list
             if (Array.isArray(cv.plus)) {   // 1.5.4 With: number stats of this list that add to the column in a case of their own, by the list's own spelling, each once, LIMITS.colPlus at most. The same in both views: a stat is no secret
                 var cps = [], seenW = map();
-                for (var wi = 0; wi < cv.plus.length && wi < 64 && cps.length < LIMITS.colPlus; wi++) {
+                for (var wi = 0; wi < cv.plus.length && wi < LIMITS.colPlus * 8 && cps.length < LIMITS.colPlus; wi++) {
                     var wk = typeof cv.plus[wi] === 'string' ? lower(cv.plus[wi].trim()) : '', ws = null;
                     for (var wj = 0; wk && out.stats && wj < out.stats.length; wj++) if (out.stats[wj].kind !== 'pick' && lower(out.stats[wj].key) === wk) { ws = out.stats[wj]; break; }
                     if (ws && !seenW[wk]) { seenW[wk] = 1; cps.push(ws.key); }
@@ -3615,7 +3621,7 @@ function cleanPickOpts(v) {
 // aimed at one by its label (swRollIs). Nothing here is shown. The same in both views, so a player's app cleans a row as the host does.
 function cleanWas(v) {
     if (!Array.isArray(v)) return null; var out = [], seen = map();
-    v.slice(0, 32).forEach(function(x) { var t = cutText(x, LIMITS.label), l = lower(t); if (!t || seen[l] || out.length >= LIMITS.was) return; seen[l] = 1; out.push(t); });
+    v.slice(0, LIMITS.was * 4).forEach(function(x) { var t = cutText(x, LIMITS.label), l = lower(t); if (!t || seen[l] || out.length >= LIMITS.was) return; seen[l] = 1; out.push(t); });
     return out.length ? out : null;
 }
 function wasHas(o, l) { return isObj(o) && Array.isArray(o.was) && o.was.some(function(x) { return typeof x === 'string' && lower(x) === l; }); }
@@ -3721,7 +3727,7 @@ function cleanLvlSpec(v) {
     if (v.entry === true) out.entry = true;   // 1.6.0 R8 (the owner, by prompt: "A list ticks it"): Levels from the entry, a row's level a menu of its entry's own By level rows
     if (Array.isArray(v.caps)) {   // 1.6.0 At most at a level: { at, n, up }, a level on the list's own terms, a whole number of rows 0 to LIMITS.carried, and or higher; each level and up once, LIMITS.lvlCaps at most. The same in both views
         var cps = [], seenCp = map();
-        v.caps.slice(0, 64).forEach(function(c) {
+        v.caps.slice(0, LIMITS.lvlCaps * 4).forEach(function(c) {
             if (cps.length >= LIMITS.lvlCaps || !isObj(c)) return; var ca = lvlNum(c.at), cn = typeof c.n === 'number' && fin(c.n) ? Math.round(c.n) : NaN; if (ca === undefined || !(cn >= 0)) return;
             var co = { at: lvlClamp(out, ca), n: Math.min(LIMITS.carried, cn) }; if (c.up === true) co.up = true;
             var ck = co.at + '|' + (co.up ? 1 : 0); if (seenCp[ck]) return; seenCp[ck] = 1; cps.push(co);
@@ -3844,7 +3850,7 @@ function idList(list, kinds, cap, fieldIds) {
 function cleanPlaceCats(v) {
     if (!Array.isArray(v)) return null;
     var out = [], seen = map();
-    for (var i = 0; i < v.length && i < 200 && out.length < LIMITS.placeCats; i++) { var t = cutText(v[i], LIMITS.category), l = lower(t); if (!t || seen[l]) continue; seen[l] = 1; out.push(t); }
+    for (var i = 0; i < v.length && i < LIMITS.placeCats * 25 && out.length < LIMITS.placeCats; i++) { var t = cutText(v[i], LIMITS.category), l = lower(t); if (!t || seen[l]) continue; seen[l] = 1; out.push(t); }
     return out.length ? out : null;
 }
 function catKey(c) { return typeof c === 'string' ? lower(cutText(c, LIMITS.category)) : ''; }
@@ -4421,8 +4427,8 @@ function cleanChar(c, sys, opts) {
     if (typeof c.portrait === 'string' && PATH_RE.test(c.portrait) && c.portrait.indexOf('..') < 0 && !CTRL_RE.test(c.portrait)) out.portrait = c.portrait;
     var faceC = cleanFace(c.face); if (faceC && faceC !== 'photo' && !out.portrait) out.face = faceC;   // Onboarding F1c: its own face while it has no portrait (never 'photo': a photo is saved as its portrait)
     if (opts && opts.state === 'host') { var frC = cleanFrame(c.frame); if (frC) out.frame = frC; }   // the token creator: the GM's kept original (the GM loading or importing keeps it; nobody else)
-    var vals = isObj(c.values) ? c.values : {}, vo = valueOpts(sys);
-    Object.keys(vals).forEach(function(fid) { var f = fieldById(sys, fid); if (!f || !STORED[f.kind]) return; var v = cleanValue(f, vals[fid], vo); if (v !== undefined) out.values[fid] = v; });
+    var vals = isObj(c.values) ? c.values : {}, vo = valueOpts(sys), rowsLeft = LIMITS.charRows;   // 1.6.2: a list holds LIMITS.carried rows, and a character LIMITS.charRows in all, so lists times rows stays a bound
+    Object.keys(vals).forEach(function(fid) { var f = fieldById(sys, fid); if (!f || !STORED[f.kind]) return; if (f.kind === 'item-list' && rowsLeft <= 0) return; var v = cleanValue(f, vals[fid], vo); if (f.kind === 'item-list' && Array.isArray(v)) { if (v.length > rowsLeft) v = v.slice(0, rowsLeft); rowsLeft -= v.length; } if (v !== undefined) out.values[fid] = v; });
     var lkC = cleanLooks(c.looks, out.values, sys); if (lkC) out.looks = lkC;   // item 35: the look of a text value, beside it (never an empty key)
     var lkL = c.partial !== true ? cleanCharLinks(c.links, sys, out.id) : null; if (lkL) out.links = lkL;   // 1.6.0: the sheets it links (absent: none)
     var stL = lkL ? cleanCharStn(c.stn, sys, lkL) : null; if (stL) out.stn = stL;   // 1.6.0 (CORE gap 16): its stations
@@ -5435,15 +5441,32 @@ function rowOn(spec, row) { if (isObj(row) && typeof row.on === 'boolean') retur
 // F4c1: a row's stat as read (the sheet; F5a's formulas) — the definition the row draws from (rowDef: the library entry, a deleted one's copy, its
 // own), else the stat's default, else 0; the key as the list spells it. What one cost: as recorded when added (the GM may correct it), else the
 // list price (never below 0), else 0
+// 1.6.2: a list's stat by its key in any case, the first of that key, from a table kept for the list's own array: a sheet asks for a stat on every row of
+// every list, and a list may hold hundreds. A key changed in place is no hit, and what is not in the table is looked for as before
+var _statIx = new WeakMap(), _spellIx = new WeakMap(), _optIx = new WeakMap();
+function spelledIn(ds, lk) { var m = _spellIx.get(ds); if (!m) { m = map(); Object.keys(ds).forEach(function(k) { var l = lower(k); if (!m[l]) m[l] = k; }); _spellIx.set(ds, m); } return m[lk]; }   // the first key of that spelling
+function optOf(opts, low) {   // the first option of that label, in any case
+    var e = _optIx.get(opts); if (!e || e.n !== opts.length) { e = { n: opts.length, m: map() }; opts.forEach(function(o) { if (isObj(o) && typeof o.label === 'string') { var l = lower(o.label); if (!e.m[l]) e.m[l] = o; } }); _optIx.set(opts, e); }
+    var hit = e.m[low]; if (hit && lower(hit.label) === low) return hit;
+    for (var i = 0; i < opts.length; i++) { var o = opts[i]; if (isObj(o) && lower(o.label) === low) return o; } return null;
+}
+function statOf(spec, k) {
+    var a = isObj(spec) && Array.isArray(spec.stats) ? spec.stats : null; if (!a) return null;
+    var e = _statIx.get(a), l = lower(k);
+    if (!e || e.n !== a.length) { e = { n: a.length, m: map() }; for (var i = 0; i < a.length; i++) { var s0 = a[i]; if (isObj(s0) && typeof s0.key === 'string') { var k0 = lower(s0.key); if (!e.m[k0]) e.m[k0] = s0; } } _statIx.set(a, e); }
+    var hit = e.m[l]; if (hit && typeof hit.key === 'string' && lower(hit.key) === l) return hit;
+    for (var j = 0; j < a.length; j++) { var s1 = a[j]; if (isObj(s1) && typeof s1.key === 'string' && lower(s1.key) === l) return s1; }
+    return null;
+}
 function rowStat(spec, def, key) {
     var k = typeof key === 'string' ? key : '', st = null; if (!k) return 0;
-    (isObj(spec) && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (!st && isObj(s) && typeof s.key === 'string' && lower(s.key) === lower(k)) st = s; });
+    st = statOf(spec, k);
     if (st) k = st.key;
     var v, ds = isObj(def) && isObj(def.stats) ? def.stats : null;
-    if (st && st.kind === 'pick') { var pv = ds && typeof ds[k] === 'string' ? ds[k] : ''; if (!pv && ds) Object.keys(ds).forEach(function(dk) { if (!pv && lower(dk) === lower(k) && typeof ds[dk] === 'string') pv = ds[dk]; }); var pm = null; (st.opts || []).forEach(function(o) { if (!pm && lower(o.label) === lower(pv)) pm = o.label; }); if (!pm && pv) (st.opts || []).forEach(function(o) { if (!pm && wasHas(o, lower(pv))) pm = o.label; }); return pm || (typeof st.def === 'string' ? st.def : '');   // F5a2: a choice reads its option's label, a label the option had before reading it too (1.6.2) (else the default, else none)
+    if (st && st.kind === 'pick') { var pv = ds && typeof ds[k] === 'string' ? ds[k] : ''; if (!pv && ds) Object.keys(ds).forEach(function(dk) { if (!pv && lower(dk) === lower(k) && typeof ds[dk] === 'string') pv = ds[dk]; }); var pm = null, pm0 = Array.isArray(st.opts) ? optOf(st.opts, lower(pv)) : null; if (pm0) pm = pm0.label; if (!pm && pv) (st.opts || []).forEach(function(o) { if (!pm && wasHas(o, lower(pv))) pm = o.label; }); return pm || (typeof st.def === 'string' ? st.def : '');   // F5a2: a choice reads its option's label, a label the option had before reading it too (1.6.2) (else the default, else none)
     }
     if (ds && Object.prototype.hasOwnProperty.call(ds, k)) v = ds[k];
-    else if (ds) { var lk = lower(k), dk = Object.keys(ds); for (var i = 0; i < dk.length; i++) if (lower(dk[i]) === lk) { v = ds[dk[i]]; break; } }   // another spelling of the key (one per system since critic 2; a file from before reads the same)
+    else if (ds) { var sp0 = spelledIn(ds, lower(k)); if (sp0 !== undefined) v = ds[sp0]; }   // another spelling of the key (one per system since critic 2; a file from before reads the same)
     if (typeof v === 'number' && fin(v)) return v;
     return st && typeof st.def === 'number' && fin(st.def) ? st.def : 0;
 }
@@ -5570,7 +5593,7 @@ function lvlOnlyRead(v) {
         if (out.length >= LIMITS.lvlOnly) { bad.push(was); return; }
         seen[k] = 1; out.push(t);
     };
-    if (typeof v === 'string') v.slice(0, 400).split(/[,;\n]+/).forEach(function(p) {
+    if (typeof v === 'string') v.slice(0, LIMITS.lvlOnly * 20).split(/[,;\n]+/).forEach(function(p) {
         p = p.trim(); if (!p) return;
         var m = /^(.+?)\s+to\s+(.+)$/i.exec(p) || /^(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)$/.exec(p);
         put(lvlTok(m ? m[1] : p), lvlTok(m ? m[2] : p), p);
@@ -5649,7 +5672,7 @@ function modTiersRead(v) {
         if (out.length >= LIMITS.modTiers) { bad.push(was); return; }
         seen[k] = 1; out.push({ at: at, v: n });
     };
-    if (typeof v === 'string') v.slice(0, 400).split(/[,;\n]+/).forEach(function(p) { p = p.trim(); if (!p) return; var m = /^(.+?)\s*[:=]\s*([+\-\u2212]?\d+(?:\.\d+)?)$/.exec(p); put(m ? lvlTok(m[1]) : undefined, m ? Number(m[2].replace('\u2212', '-')) : NaN, p); });
+    if (typeof v === 'string') v.slice(0, LIMITS.modTiers * 20).split(/[,;\n]+/).forEach(function(p) { p = p.trim(); if (!p) return; var m = /^(.+?)\s*[:=]\s*([+\-\u2212]?\d+(?:\.\d+)?)$/.exec(p); put(m ? lvlTok(m[1]) : undefined, m ? Number(m[2].replace('\u2212', '-')) : NaN, p); });
     else if (Array.isArray(v)) v.slice(0, LIMITS.modTiers * 4).forEach(function(t) { if (isObj(t)) put(lvlTok(t.at), t.v, 'a level'); else bad.push('?'); });
     return { tiers: out.length ? out : null, bad: bad };
 }
@@ -5730,11 +5753,11 @@ function setLibraryFind(fn) { _libFind = typeof fn === 'function' ? fn : null; }
 // 1.6.0 (a grant's own terms, asked by a build session: one drawback free from a package and paying back from an implant): pay: true, Pays
 // back, marks the row it makes gp (Row.paysback 1 on it); lvl: the level the row it makes starts at, in place of the entry's own, held to its
 // list's level rules (lvlClamp). Each is kept as the grant's last keys, only as written
-var GRANT_MAX = 8, GRANT_DEPTH = 3;
+var GRANT_MAX = 80, GRANT_DEPTH = 3;
 function cleanGrants(v, kinds, self) {
     if (!Array.isArray(v)) return undefined;
     var out = [], seen = map();
-    v.slice(0, 32).forEach(function(g) {
+    v.slice(0, GRANT_MAX * 4).forEach(function(g) {
         if (out.length >= GRANT_MAX || !isObj(g) || typeof g.list !== 'string' || !FIELD_ID.test(g.list) || typeof g.entry !== 'string' || !ITEM_ID.test(g.entry) || g.entry === self) return;
         if (isObj(kinds) && kinds[g.list] !== 'item-list') return;
         var o = { list: g.list, entry: g.entry, qty: clampNum(Math.round(cleanNum(g.qty, 1)) || 1, 1, LIMITS.maxQty) }, fr = typeof g.from === 'number' ? lvlNum(g.from) : undefined; if (fr !== undefined) o.from = fr; if (g.once === true) o.once = true;
@@ -6354,7 +6377,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
 // entries of a list a new character begins holding. At most START_MAX of { entry: an item or a library entry by id, qty: how many }, each entry
 // once (the first). None: undefined, so a list that uses none has no key. The same in both views; a GM-only entry goes from the players' view
 // (cleanSystem, as a grant's). An entry that is gone gives nothing until it is back (a cleaner knows no library)
-var START_MAX = 64;
+var START_MAX = 640;
 function cleanStarts(v) {
     if (!Array.isArray(v)) return undefined;
     var out = [], seen = map();
@@ -6718,8 +6741,8 @@ function partsRoom(sys, hspec, hostRow, list, hostId) {
 // reads it by (none: a line by a choice stat counts nothing for it)
 // 1.6.2: a line's figure may be a formula (f) of the host row's own names (Row.*, Row.parts.max.<w> among them) and the character's, in place of
 // a stat (by), so a row whose slots come from one of its parts can say so; read, what capRead makes, works it out. No number holds no limit, as a stat's
-var PART_CAPS = 24;   // the core handbook session's ask (2026-10-29): a system build used all twelve, so twenty-four
-var PART_IS = 24, PART_FITS = 24;   // 1.6.2: the values one line may count, and the further rules of Fits where
+var PART_CAPS = 240;   // the core handbook session's ask (2026-10-29): a system build used all twelve, so twenty-four; 1.6.2: ten times that
+var PART_IS = 240, PART_FITS = 240;   // 1.6.2: the values one line may count, and the further rules of Fits where
 function partsCapSays(sys, hspec, hostRow, list, hostId, cat, n, less, pd, read) {
     var p = isObj(hspec) && isObj(hspec.parts) ? hspec.parts : null; if (!p || !Array.isArray(p.caps) || !p.caps.length || !isObj(hostRow)) return '';
     var d = rowDef(sys, hostRow), nm = d && d.def && d.def.name ? String(d.def.name) : 'That row', out = '', psC = partsSrc(sys, hspec), pspC = psC && isObj(psC.list) ? psC.list : null;
@@ -7394,12 +7417,12 @@ function cleanLinks(raw, F) {
             if (gk && gk.indexOf('.') < 0 && !LINK_NOT[lower(gk)] && !ks[lower(gk)] && validKey(gk, F)) { ks[lower(gk)] = 1; lo.group = gk; }
         }
         if (k.kind === 'crew') {
-            if (Array.isArray(k.stations)) { var stS = [], stM = map(); k.stations.slice(0, 32).forEach(function(s) { var t = typeof s === 'string' ? s.trim() : ''; if (stS.length >= LINK_STATIONS || !STATION_KEY.test(t) || CREW_WORDS[lower(t)] || stM[lower(t)]) return; stM[lower(t)] = 1; stS.push(t); }); if (stS.length) lo.stations = stS; }
+            if (Array.isArray(k.stations)) { var stS = [], stM = map(); k.stations.slice(0, LINK_STATIONS * 4).forEach(function(s) { var t = typeof s === 'string' ? s.trim() : ''; if (stS.length >= LINK_STATIONS || !STATION_KEY.test(t) || CREW_WORDS[lower(t)] || stM[lower(t)]) return; stM[lower(t)] = 1; stS.push(t); }); if (stS.length) lo.stations = stS; }
             if (lo.stations && typeof k.most === 'number' && fin(k.most)) { var moS = Math.min(STATION_MOST, lo.stations.length, Math.floor(k.most)); if (moS >= 2) lo.most = moS; }   // 1.6.0 (the core's ruling: one hand may cover a second station): how many stations one crew sheet may hold at once (absent: one)
         }
         if (k.kind === 'crew' && k.press === true) { lo.press = true; if (k.pressNamed === true) lo.pressNamed = true; }   // 1.6.0 Its crew may press this sheet's rolls (crewPressOf), and only those that name a station (found on a real build: every sheet shares a system's rolls, so 40 of a character's own filled the list before any row of the vehicle's)
         if (lo.group && Array.isArray(k.figs)) {   // the core handbook session's ask 6 (2026-10-29): figures each sheet of the group works out, each { key, formula }: a formula of the system's own names, no dice, worked out on each crew sheet (a rider's), read as <group>.max|min|sum.<key>
-            var fgO = [], fgM = map(); k.figs.slice(0, 16).forEach(function(x) {
+            var fgO = [], fgM = map(); k.figs.slice(0, LINK_FIGS * 4).forEach(function(x) {
                 if (fgO.length >= LINK_FIGS || !isObj(x) || typeof x.key !== 'string') return;
                 var fk = x.key.trim(); if (!STATION_KEY.test(fk) || CREW_WORDS[lower(fk)] || fgM[lower(fk)] || !validKey(fk, F)) return;
                 var ff = cleanFormulaText(x.formula), fp = ff && F && typeof F.parse === 'function' ? F.parse(ff) : null; if (!fp || !fp.ok || !fp.ast || hasDice(fp.ast.body)) return;
@@ -7418,13 +7441,13 @@ function linkByKey(sys) { var m = map(); (sys && Array.isArray(sys.links) ? sys.
 // <group>.max.<name>, .min.<name> and .sum.<name> read a name over them; <group>.<Station>.count and <group>.<Station>.max.<name> (min, sum)
 // over those at that station alone. Each crew sheet is read with the very system the vehicle is read with (crewSource: the players' view on
 // the host reads each as its owner holds it, so a GM-only figure never counts for a player), one level deep. None of a number: 0
-var LINK_STATIONS = 8, LINK_FIGS = 4, STATION_KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/, CREW_WORDS = Object.freeze({ count: 1, max: 1, min: 1, sum: 1, has: 1 }), _crewSrc = null;
+var LINK_STATIONS = 80, LINK_FIGS = 40, STATION_KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/, CREW_WORDS = Object.freeze({ count: 1, max: 1, min: 1, sum: 1, has: 1 }), _crewSrc = null;
 function groupLink(k) { return isObj(k) && (k.kind === 'crew' || k.kind === 'mount'); }   // 1.6.0: a link whose linked sheet reads those who link it as a group (a vehicle its crew, a mount its riders)
 function groupByKey(sys) { var m = map(); (sys && Array.isArray(sys.links) ? sys.links : []).forEach(function(k) { if (groupLink(k) && typeof k.id === 'string' && typeof k.group === 'string' && k.group && k.group.indexOf('.') < 0 && !m[lower(k.group)]) m[lower(k.group)] = k; }); return m; }
 // A crew sheet's stations on a link, as a list: each a station of the link in its own spelling, once, at most the link's most (one where none);
 // v a station or a list of them
 function stationsIn(k, v) { var out = []; (Array.isArray(v) ? v.slice(0, STATION_MOST) : [v]).forEach(function(x) { var s = typeof x === 'string' ? stationOf(k, x) : ''; if (s && out.indexOf(s) < 0 && out.length < (isObj(k) && typeof k.most === 'number' ? k.most : 1)) out.push(s); }); return out; }
-var STATION_MOST = 4;
+var STATION_MOST = 40;
 // 1.6.0: a crew sheet's read of one station it may hold, <Key>.station.<Station>: the station in the link's own spelling where rest (the
 // name after the link's key, lower case) is station.<a station of a Crew link>, else ''. It reads so whatever fields the system has, but
 // where a field keyed station reads that third part itself: an ending of a field's part (NAME_SUFFIX: Station.max), or, for a list keyed
@@ -7493,8 +7516,8 @@ function cleanCharStn(raw, sys, links) {
 // sheet, and a crew member's app holds no whole copy of it, so the host lists what they may press on their OWN copy (cr, by link: crewRollsOf through the
 // players' view) and a press names the sheet that made it (by). crewPressOf is the one judge, on the host's own copy: byId a character of pid's, not one
 // in the making, linked to vehId by a Crew link ticked so: { char, link, stns } or null. A roll's stations says which stations may press it (rollStationOk)
-var CREW_ROLLS = 40;
-function rollStations(raw) { if (!Array.isArray(raw)) return null; var out = [], seen = map(); raw.slice(0, 32).forEach(function(s) { var t = typeof s === 'string' ? s.trim() : ''; if (out.length < LINK_STATIONS && STATION_KEY.test(t) && !seen[lower(t)]) { seen[lower(t)] = 1; out.push(t); } }); return out.length ? out : null; }
+var CREW_ROLLS = 400;
+function rollStations(raw) { if (!Array.isArray(raw)) return null; var out = [], seen = map(); raw.slice(0, LINK_STATIONS * 4).forEach(function(s) { var t = typeof s === 'string' ? s.trim() : ''; if (out.length < LINK_STATIONS && STATION_KEY.test(t) && !seen[lower(t)]) { seen[lower(t)] = 1; out.push(t); } }); return out.length ? out : null; }
 function rollStationOk(r, stns, named) { var w = isObj(r) && Array.isArray(r.stations) ? r.stations : null; if (!w || !w.length) return named !== true; var have = (Array.isArray(stns) ? stns : []).map(lower); return w.some(function(s) { return have.indexOf(lower(s)) >= 0; }); }
 function crewPressOf(sys, chars, vehId, byId, pid) {
     if (!sys || !Array.isArray(sys.links) || !isObj(chars) || typeof byId !== 'string' || typeof vehId !== 'string' || byId === vehId || !pid || !hasOwn(chars, byId) || !hasOwn(chars, vehId)) return null;
@@ -7829,7 +7852,7 @@ function placeName(sys, l) {   // the resolver's reading of one of the four (l: 
 var TABLE_KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/, TABLE_ROW_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 function tableKeyOk(k, re) { var t = typeof k === 'string' ? k.trim() : '', l = lower(t); if (!re.test(t) || (t in Object.prototype) || (l in Object.prototype) || l === 'bytes_per_element') return ''; return t; }
 function cleanTables(v, gmView) {
-    var out = [], seen = map();
+    var out = [], seen = map(), cells = 0;   // 1.6.2: a table whose cells would pass LIMITS.tableCells in all is left out: the editor draws a box for every cell
     (Array.isArray(v) ? v : []).forEach(function(t) {
         if (out.length >= LIMITS.tables || !isObj(t)) return;
         var key = tableKeyOk(t.key, TABLE_KEY); if (!key || seen[lower(key)]) return;
@@ -7842,7 +7865,8 @@ function cleanTables(v, gmView) {
             cols.forEach(function(c) { var nv = hasOwn(src, c.key) ? statNum(src[c.key]) : undefined; if (nv !== undefined) vals[c.key] = nv; });
             ro.vals = vals; rows.push(ro);
         });
-        if (!rows.length) return;
+        if (!rows.length || cells + cols.length * rows.length > LIMITS.tableCells) return;
+        cells += cols.length * rows.length;
         seen[lower(key)] = 1;
         var o = { key: key, label: cutText(t.label, LIMITS.label) || key }; if (t.vis === 'gm') o.vis = 'gm'; o.cols = cols; o.rows = rows; out.push(o);
     });
@@ -7933,7 +7957,7 @@ function targetSizeOf(sys, to, opts) {
 // 1.6.0 Target.<key> (asked by the core handbook session, for a target's own modifier on a roll): up to TARGET_READS more fields of the target's sheet, named by the
 // Combat tab (combat.targetReads) and read as TargetSize is, each a number its viewer can read truthfully. Reading one counts as reading the range for the host's
 // privacy rule, and it reads 0 with no target. targetReadsOf answers { lower key: figure } or null
-var TARGET_READS = 6;
+var TARGET_READS = 60;
 function targetReadKey(sys, k) { var ids = sys && isObj(sys.combat) && Array.isArray(sys.combat.targetReads) ? sys.combat.targetReads : null; return !!ids && ids.some(function(id) { var f = fieldById(sys, id); return !!f && lower(f.key) === k; }); }
 function targetReadsOf(sys, to, opts) {
     var ids = sys && isObj(sys.combat) && Array.isArray(sys.combat.targetReads) ? sys.combat.targetReads : null; if (!ids || !ids.length || !isObj(opts) || typeof opts.charOf !== 'function' || !opts.F) return null;
@@ -7945,7 +7969,7 @@ function targetReadsOf(sys, to, opts) {
 // 1.6.0 (B5, a called shot by the target's own location; the owner's handbook: "A limb out of scale changes its penalty by its own Size", and
 // "A body has only the locations its parts give it"): the item list of a target's sheet whose rows are its hit locations (combat.targetHit), read
 // as Target.Hit.<name>, a stat or a column of the row the roller picked on the TARGET's sheet. null with none, or a field that is no item list
-var HIT_ROWS = 40;
+var HIT_ROWS = 400;
 function targetHitList(sys) { var fid = sys && isObj(sys.combat) && typeof sys.combat.targetHit === 'string' ? sys.combat.targetHit : ''; var f = fid ? fieldById(sys, fid) : null; return f && f.kind === 'item-list' ? f : null; }
 // ... the rows a roller may pick on a target's character tc: [{ id, name }], in the list's order, HIT_ROWS at most, a name as text. player: a
 // player's pick, never a row kept from players (rowKeptFrom: a GM-only entry or row, a curse the GM keeps on, one out of their sight) nor a row
@@ -8672,6 +8696,8 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     if (ropts && ropts.reuse === true && autoL && !autoL.length && first.r && !ropts.facing && !ropts.stance && !ropts.combat && !ropts.range && !ropts.cross) return first.r;   // 1.5.5 (a time rule's run, in a system chainsShallow passes): with no automatic effect on and no token's context, that first pass answers every name as this resolver would, so it is this resolver
     var ix = keyIndexOf(sys), cache = map(), chain = [], fx = (ropts && ropts.noFx) ? null : fxIndex(sys, char, ropts ? ropts.stance : null, autoL, fxVf(sys, char, F, ropts), fxGate(sys, char, F)), detail = map();
     var unr = map();   // clarity package: a value as it worked out before its rounding, kept only where the rounding changed it (the sheet says so)
+    var rowXs = new WeakMap(), listIds = null;   // 1.6.2: rowX, and the item lists by their ids (listOfId)
+    function listOfId(id) { if (!listIds) { listIds = map(); sys.fields.forEach(function(x) { if (x.kind === 'item-list' && !listIds[x.id]) listIds[x.id] = x; }); } return listIds[id] || null; }
     var lctx = map(), asts = map(), pretty = map();   // Stage 6 F5a1: each list's rows (once a render), each column formula parsed once, readable names for a loop's message
     var coverRead = false;   // 1.6.0: whether anything worked out read TargetCover or TargetCoverGrade (fn.coverRead)
     var postureRead = false;   // 1.6.0: whether anything worked out read the target's posture (fn.postureRead)
@@ -8772,8 +8798,9 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         try { if (!vehR) vehR = makeResolver(sys, char, F, Object.assign({}, isObj(ropts) ? ropts : {}, { reuse: false })); return vehR(rs); } catch (e) { return undefined; } finally { _inVeh--; }
     }
     // 5h: where a derived value's effects came from — the sources recorded on the names its formula read (theirs and their own "via")
+    function none(o) { for (var q in o) return false; return true; }   // 1.6.2: an empty table, which a long list asks at every cell
     function viaOf(names) {
-        if (!fx || !Array.isArray(names)) return null;
+        if (!fx || !Array.isArray(names) || none(detail)) return null;
         var out = [], seen = map();
         names.forEach(function(n) {
             var nm = n && typeof n.name === 'string' ? n.name : null, d = nm ? detail[lower(nm)] : null; if (!d) return;
@@ -8820,17 +8847,21 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var ok = false; sjGate = true; try { ok = fn.needsOk(L.f, row, L.spec.subjectIf) === true; } catch (e) { ok = false; } sjGate = false;
         return ok ? p : 0;
     }
+    // 1.6.2: one record a row for the life of this resolver, so a list of many rows and many columns reads its entry and works out its names once a
+    // row, not once a cell. cv: the row's columns worked out; rv: its names (rowVars). A row's record is what the resolver knows of the row, as its cache is
+    function rowX(row) { var x = rowXs.get(row); if (x) return x; var rd = rowDef(sys, row); x = { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '', cv: new Map(), rv: null }; rowXs.set(row, x); return x; }
     function listCtx(f) {
         var lk = lower(f.key); if (lctx[lk]) return lctx[lk];
         var spec = isObj(f.list) ? f.list : null, stored = storedOf(f, char), rows = [], st = map(), cl = map();
-        (Array.isArray(stored) ? stored : []).forEach(function(r) { if (!isObj(r) || r.hid === 1) return; var rd = rowDef(sys, r); rows.push({ r: r, d: rd ? rd.def : null, id: rowIdOf(r) || '' }); });
+        (Array.isArray(stored) ? stored : []).forEach(function(r) { if (!isObj(r) || r.hid === 1) return; rows.push(rowX(r)); });
         (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') st[lower(x.key)] = x; });
         (spec && Array.isArray(spec.cols) ? spec.cols : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') cl[lower(x.key)] = x; });
         var ctm = map(); (spec && Array.isArray(spec.counters) ? spec.counters : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') ctm[lower(x.key)] = x; });   // R2: its counters
-        return (lctx[lk] = { f: f, spec: spec, rows: rows, st: st, cl: cl, ct: ctm });
+        return (lctx[lk] = { f: f, spec: spec, rows: rows, st: st, cl: cl, ct: ctm, kl: lk });
     }
     function astOf(text) { return asts[text] || (asts[text] = F.parse(text)); }
     function rowVal(L, x, w) {   // a row's own name: lvl, qty, on, has, paid, a stat, a column (x.virt: an addressed row not carried — has false, qty 0)
+        if (ROW_WORDS[w] !== 1) { var st0 = L.st[w]; if (st0) { if (st0.kind !== 'pick') return rowStat(L.spec, x.d, st0.key); } else if (L.cl[w]) return colVal(L, x, L.cl[w]); }   // 1.6.2: the usual names first, at every cell of a long list
         if (w === 'lvl') return rowLvl(L.spec, x.r, x.d);
         if (w === 'qty') return x.virt ? 0 : (L.spec && L.spec.noQty ? 1 : (x.r.qty | 0));
         if (w === 'on') return x.virt ? false : (x.r.keptOn === 1 ? false : rowOn(L.spec, x.r));   // a curse kept on reads as its owner holds it: off (owed review F5a1#2)
@@ -8942,34 +8973,39 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         return { known: known, hit: hit };
     }
     function rowVars(L, x) {   // a column's names: Row.* reads this row, every other name the resolver (one cache)
+        if (x.rv) return x.rv;
         var v = function(name, nt) { var l = lower(name); if (tbOn && l.slice(0, 6) === 'table.' && !ix[l]) { var tb0 = tableVal(l, L, x); if (tb0 !== undefined) return tb0; } if (l.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hv = hostVal(L, x, l.slice(5)); if (hv !== undefined) return hv; } if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); if (w.indexOf('.') < 0) return rowVal(L, x, w); var av = atVal(L, x, w); if (av === undefined) av = roundVal(L, x, w); return av !== undefined ? av : feedVal(L, x, w); } return fn(name, nt); };
         v.refs = function(names) { return refsOut(refUp(names, L, x)); };   // 1.6.0 Specialties: the cases a roll's names used, for its card
         v.detail = function(name) { var l = lower(name); if (l.slice(0, 4) === 'row.' && l.indexOf('.', 4) < 0) return detail[lower(L.f.key) + '#' + x.id + '.' + l.slice(4)] || null; return detail[l] || null; };   // 1.5.8: a row's own column under its own key
         v.burst = function() { return !x.virt && isObj(x.r) && isObj(x.r.bu) ? x.r.bu : null; };   // 1.6.0: its last burst (hitVars)
         v.shot = function(s, k) { return rowVars(L, { r: Object.assign({}, x.r, { fd: s }), d: x.d, id: x.id + '^' + k, pid: typeof x.pid === 'string' ? x.pid : x.id }); };   // 1.6.0: this row's names with s as the round fired, its columns worked out apart (hitVars)
+        if (x.cv) x.rv = v;
         return v;
     }
     function colVal(L, x, c) {   // a column worked out for one row, under its own name on the chain (a loop reads as one); errors are never cached
-        var canon = lower(L.f.key) + '#' + x.id + '.' + lower(c.key);
-        if (canon in cache) return cache[canon];
+        if (x.cv && x.cv.has(c)) return x.cv.get(c);
+        var canon = L.kl + '#' + x.id + '.' + lower(c.key);
+        if (!x.cv && canon in cache) return cache[canon];
         if (chain.indexOf(canon) >= 0) return loopError(canon);
         if (c.formula === null) return { error: { message: 'GM only', pos: 0, len: 0 } };
         if (!c.formula) return { error: { message: 'Missing formula', pos: 0, len: 0 } };
         var p = astOf(c.formula); if (!p.ok) return { error: p.error };
         pretty[canon] = L.f.key + '[' + ((x.d && typeof x.d.name === 'string' && x.d.name) || x.id) + '].' + c.key;
         chain.push(canon);
-        var res = F.evaluateAst(p.ast, { vars: rowVars(L, x), random: noDice, depth: chain.length, stack: chain.map(function(n) { return pretty[n] || n; }) });   // the engine's own loop message reads Skills[Karate].Cost, never a row id
-        chain.pop();
+        var res = F.evaluateAst(p.ast, { vars: rowVars(L, x), random: noDice, depth: chain.length, bare: true, stack: chain.map(function(n) { return pretty[n] || n; }) });   // the engine's own loop message reads Skills[Karate].Cost, never a row id
+        chain.pop(); delete pretty[canon];   // read only while it stands on the chain, and a long list leaves no table of them
         if (!res.ok) return { error: res.error };
         var vv = viaOf(res.breakdown && res.breakdown.names), out = res.value;
         var rfC = refUp(res.breakdown && res.breakdown.names, L, x); if (rfC) refRec[canon] = rfC;   // 1.6.0 Specialties: the references it read, for a roll's card
-        var rk = x.d && typeof x.d.key === 'string' && ITEM_KEY.test(x.d.key) ? x.d.key : x.virt && typeof x.id === 'string' && x.id.slice(0, 2) === 'k:' ? x.id.slice(2) : '';   // a row not carried: the key it was asked by
+        if (fx && L.aimed === undefined) { var aimPre = L.kl + '#k:'; L.aimed = Object.keys(fx).some(function(k) { return k.indexOf(aimPre) === 0; }); }   // 1.6.2: whether any change is aimed at one row of this list
+        var rk = !fx || !L.aimed ? '' : x.d && typeof x.d.key === 'string' && ITEM_KEY.test(x.d.key) ? x.d.key : x.virt && typeof x.id === 'string' && x.id.slice(0, 2) === 'k:' ? x.id.slice(2) : '';   // a row not carried: the key it was asked by
         var rs = fx && rk ? fx[rowModSlot(L.f.key, rk, c.key)] : null;   // 1.5.8: the changes aimed at this row's entry by its key
         if (rs && typeof out === 'number') out = limFx(out + rs.add, rs);
-        var rsX = fx && !x.virt && isObj(L.spec) && isObj(L.spec.specs) ? specSlots(L, x, c.key, rk) : null, rsM = rs ? rs.src : [];   // 1.6.0 Specialties: the changes aimed at a key this row means (its specialty, its name)
+        var rsX = fx && L.aimed && !x.virt && isObj(L.spec) && isObj(L.spec.specs) ? specSlots(L, x, c.key, rk) : null, rsM = rs ? rs.src : [];   // 1.6.0 Specialties: the changes aimed at a key this row means (its specialty, its name)
         if (rsX) rsX.forEach(function(s2) { if (typeof out === 'number') out = limFx(out + s2.add, s2); rsM = rsM.concat(s2.src); });
-        if (rs || rsX || vv) detail[canon] = { base: res.value, mods: rsM, via: vv || [] };   // owed review F5a1#4: gmEffectNames sees a GM-only effect through a column
-        cache[canon] = out; return out;
+        if (rs || rsX || vv) { detail[canon] = { base: res.value, mods: rsM, via: vv || [] }; L.det = true; }   // owed review F5a1#4: gmEffectNames sees a GM-only effect through a column
+        if (x.cv) x.cv.set(c, out); else cache[canon] = out;
+        return out;
     }
     function totalOf(L, l, w, onlyOn, only) {   // only (1.6.0): a test of the rows that count   // L.count | L.qty | L.paid | L.<stat> | L.<col> (L.on.* over the rows switched on): a stat and paid per unit × qty, a column summed (true counts 1); the first row error wins
         if (l in cache) return cache[l];
@@ -9110,7 +9146,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     }
     // ... and the references the names a formula read went through, each once, SPEC_REFS at most (L and x: a row's own names, under its key)
     function refUp(names, L, x) {
-        if (!Array.isArray(names)) return null; var out = [], seen = map();
+        if (!Array.isArray(names) || none(refRec)) return null; var out = [], seen = map();
         names.forEach(function(n) {
             var nm = typeof n === 'string' ? n : isObj(n) && typeof n.name === 'string' ? n.name : '', l = lower(nm); if (!nm) return;
             var k = L && x && l.slice(0, 4) === 'row.' && l.indexOf('.', 4) < 0 ? lower(L.f.key) + '#' + x.id + '.' + l.slice(4) : l;
@@ -9182,20 +9218,20 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     }
     function roundKept(l, v, field) { var rv = roundBy(v, field.round, field.roundTo, field.roundAt); if (rv !== v) unr[l] = v; else delete unr[l]; return rv; }   // clarity package
     fn.unrounded = function(name) { var l = lower(name); return Object.prototype.hasOwnProperty.call(unr, l) ? unr[l] : undefined; };   // ... the figure before its rounding, where the rounding changed it
-    fn.reset = function() { linkC = map(); cache = map(); chain = []; detail = map(); unr = map(); lctx = map(); pretty = map(); rangeRead = false; coverRead = false; postureRead = false; refRec = map(); };
+    fn.reset = function() { rowXs = new WeakMap(); linkC = map(); cache = map(); chain = []; detail = map(); unr = map(); lctx = map(); pretty = map(); rangeRead = false; coverRead = false; postureRead = false; refRec = map(); };
     fn.coverRead = function() { return coverRead; };
     fn.rowNum = function(f, row, text) { var L = f ? listCtx(f) : null; if (!L || !isObj(row) || typeof text !== 'string' || !text) return null; var rd = rowDef(sys, row), v = F.evaluate(text, { vars: rowVars(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }), random: noDice }); var x = v.ok && typeof v.value === 'boolean' ? (v.value ? 1 : 0) : v.ok ? v.value : null; return typeof x === 'number' && fin(x) ? x : null; };   // 1.6.2: a formula of one row's own names, no dice (a line of Holds by kind)
     fn.postureRead = function() { return postureRead; };   // 1.6.0: for a roll's card
     fn.rangeRead = function() { return rangeRead; };   // range R3: a fresh resolver asked for a roll's names says whether its value reads the range
-    fn.row = function(fieldId, rowId, lv) { var f = null; sys.fields.forEach(function(x) { if (!f && x.id === fieldId && x.kind === 'item-list') f = x; }); if (!f) return null; var L = listCtx(f); for (var i = 0; i < L.rows.length; i++) if (L.rows[i].id === rowId) { if (lv === undefined) return rowVars(L, L.rows[i]); var lsp = isObj(f.list) ? f.list : null, x0 = L.rows[i], own = lsp && lsp.lvl ? rowLvl(lsp, x0.r, x0.d) : null, lmin = lsp && lsp.lvl && typeof lsp.lvl.min === 'number' ? lsp.lvl.min : 1; if (typeof lv !== 'number' || lv !== Math.floor(lv) || typeof own !== 'number' || lv < lmin || lv > own) return null; return rowVars(L, { r: Object.assign({}, x0.r, { lvl: lv }), d: x0.d, id: x0.id + '@' + lv, pid: x0.id }); } return null; };   // 1.6.0 R12: lv, a level to read Row.lvl at (a list roll that asks the level), from the list's lowest to the row's own; its columns worked out apart   // F5b: a row's own names for a roll on it (a kept curse has none)
-    fn.unheld = function(fieldId, def) { var f = null; sys.fields.forEach(function(x) { if (!f && x.id === fieldId && x.kind === 'item-list') f = x; }); var sp = f && isObj(f.list) ? f.list : null; if (!sp || typeof sp.unheld !== 'string' || !sp.unheld || !isObj(sp.lvl) || !isObj(def) || typeof def.id !== 'string') return null; var L = listCtx(f), lv = F.evaluate(sp.unheld, { vars: rowVars(L, { r: { defId: def.id, qty: 0 }, d: def, id: 'u:' + def.id, virt: true }), random: noDice }); if (!lv.ok || typeof lv.value !== 'number' || !fin(lv.value)) return null; var n = Math.max(-LIMITS.lvlAbs, Math.min(LIMITS.lvlAbs, lv.value)); return rowVars(L, { r: { defId: def.id, qty: 0, lvl: n }, d: def, id: 'u:' + def.id + '@' + n, virt: true }); };   // 1.6.0 Rolls unheld entries: an entry nobody holds, its names with Row.lvl at the list's Unheld level (worked out first with its names at its own level) and Row.has 0; null where the list rolls none or the level cannot be worked out
-    fn.needsOk = function(f, row, text, self, badge) { var L = f ? listCtx(f) : null; if (!L || !isObj(row) || typeof text !== 'string' || !text) return true; if (self === true && readsOn(text, F)) return true; if (readsAttempt(text, F)) return true; var rd = rowDef(sys, row), xR = { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }; if (badge === true) xR.badge = true; var rv0 = rowVars(L, xR), v = F.evaluate(text, { vars: self === true ? withOnSelf(rv0, true) : rv0, random: noDice }); return !!(v.ok && (v.value === true || (typeof v.value === 'number' && v.value !== 0))); };   // Stage 6 HUD R2b: a list roll's needs on one row (an error holds it back)
-    fn.cellDetail = function(f, row, colKey) { var id = rowIdOf(row); return f && id ? detail[lower(f.key) + '#' + id + '.' + lower(colKey)] || null : null; };   // 1.6.0 R3: what changed one row's column (the effects aimed at it, and those on the names it reads)
-    fn.rollFig = function(f, row, text) { var L = f ? listCtx(f) : null; if (!L || !isObj(row) || typeof text !== 'string' || !text) return ''; var rd = rowDef(sys, row); return rollFigOf(text, rowVars(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }), F); };   // 1.6.0 R7: a roll's own figure on one row
-    fn.feedTurns = function(f, row, key) { var L = f ? listCtx(f) : null, fd = L && L.spec ? feedOf(L.spec, key) : null; if (!fd || !fd.turns || !isObj(row)) return null; var rd = rowDef(sys, row); return feedTurns(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }, fd); };   // 1.6.0 Feeds: the turns a change of it takes on this row (none named: null)
-    fn.ctMax = function(f, row, key) { var L = f ? listCtx(f) : null, t = L && L.ct ? L.ct[lower(key)] : null; if (!t || !t.max || !isObj(row)) return null; var rd = rowDef(sys, row), v = F.evaluate(t.max, { vars: rowVars(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }), random: noDice }); return v.ok && typeof v.value === 'number' && fin(v.value) ? Math.max(0, Math.floor(v.value)) : null; };   // Stage 6 HUD R2: a counter's most for this row (none: null)
-    fn.cell = function(f, row, colKey) { var L = listCtx(f), c = L.cl[lower(colKey)]; if (!c || !isObj(row)) return undefined; var rd = rowDef(sys, row); return colVal(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }, c); };   // F5a1: one row's column (the sheet's cells)
-    fn.stat = function(f, row, key) { var L = listCtx(f), s = L.st[lower(key)]; if (!s || s.kind === 'pick' || !isObj(row)) return undefined; var rd = rowDef(sys, row); return rowStat(L.spec, rd ? rd.def : null, s.key); };   // 1.5.4 With: one row's number stat, as its columns read it (Row.<stat>)
+    fn.row = function(fieldId, rowId, lv) { var f = listOfId(fieldId); if (!f) return null; var L = listCtx(f); if (!L.ids) { L.ids = map(); for (var j = L.rows.length - 1; j >= 0; j--) L.ids[L.rows[j].id] = j; } var i = L.ids[rowId]; if (typeof i === 'number') { if (lv === undefined) return rowVars(L, L.rows[i]); var lsp = isObj(f.list) ? f.list : null, x0 = L.rows[i], own = lsp && lsp.lvl ? rowLvl(lsp, x0.r, x0.d) : null, lmin = lsp && lsp.lvl && typeof lsp.lvl.min === 'number' ? lsp.lvl.min : 1; if (typeof lv !== 'number' || lv !== Math.floor(lv) || typeof own !== 'number' || lv < lmin || lv > own) return null; return rowVars(L, { r: Object.assign({}, x0.r, { lvl: lv }), d: x0.d, id: x0.id + '@' + lv, pid: x0.id }); } return null; };   // 1.6.0 R12: lv, a level to read Row.lvl at (a list roll that asks the level), from the list's lowest to the row's own; its columns worked out apart   // F5b: a row's own names for a roll on it (a kept curse has none)
+    fn.unheld = function(fieldId, def) { var f = listOfId(fieldId); var sp = f && isObj(f.list) ? f.list : null; if (!sp || typeof sp.unheld !== 'string' || !sp.unheld || !isObj(sp.lvl) || !isObj(def) || typeof def.id !== 'string') return null; var L = listCtx(f), lv = F.evaluate(sp.unheld, { vars: rowVars(L, { r: { defId: def.id, qty: 0 }, d: def, id: 'u:' + def.id, virt: true }), random: noDice }); if (!lv.ok || typeof lv.value !== 'number' || !fin(lv.value)) return null; var n = Math.max(-LIMITS.lvlAbs, Math.min(LIMITS.lvlAbs, lv.value)); return rowVars(L, { r: { defId: def.id, qty: 0, lvl: n }, d: def, id: 'u:' + def.id + '@' + n, virt: true }); };   // 1.6.0 Rolls unheld entries: an entry nobody holds, its names with Row.lvl at the list's Unheld level (worked out first with its names at its own level) and Row.has 0; null where the list rolls none or the level cannot be worked out
+    fn.needsOk = function(f, row, text, self, badge) { var L = f ? listCtx(f) : null; if (!L || !isObj(row) || typeof text !== 'string' || !text) return true; if (self === true && readsOn(text, F)) return true; if (readsAttempt(text, F)) return true; var xR = rowX(row); if (badge === true) xR = Object.assign({}, xR, { badge: true, rv: null }); var rv0 = rowVars(L, xR), p = astOf(text), v = p.ok ? F.evaluateAst(p.ast, { vars: self === true ? withOnSelf(rv0, true) : rv0, random: noDice, bare: true }) : p; return !!(v.ok && (v.value === true || (typeof v.value === 'number' && v.value !== 0))); };   // Stage 6 HUD R2b: a list roll's needs on one row (an error holds it back)
+    fn.cellDetail = function(f, row, colKey) { var id = rowIdOf(row), L = f ? lctx[lower(f.key)] : null; if (L && !L.det) return null; return f && id ? detail[lower(f.key) + '#' + id + '.' + lower(colKey)] || null : null; };   // 1.6.0 R3: what changed one row's column (the effects aimed at it, and those on the names it reads)
+    fn.rollFig = function(f, row, text) { var L = f ? listCtx(f) : null; if (!L || !isObj(row) || typeof text !== 'string' || !text) return ''; return rollFigOf(text, rowVars(L, rowX(row)), F); };   // 1.6.0 R7: a roll's own figure on one row
+    fn.feedTurns = function(f, row, key) { var L = f ? listCtx(f) : null, fd = L && L.spec ? feedOf(L.spec, key) : null; if (!fd || !fd.turns || !isObj(row)) return null; return feedTurns(L, rowX(row), fd); };   // 1.6.0 Feeds: the turns a change of it takes on this row (none named: null)
+    fn.ctMax = function(f, row, key) { var L = f ? listCtx(f) : null, t = L && L.ct ? L.ct[lower(key)] : null; if (!t || !t.max || !isObj(row)) return null; var p = astOf(t.max), v = p.ok ? F.evaluateAst(p.ast, { vars: rowVars(L, rowX(row)), random: noDice, bare: true }) : p; return v.ok && typeof v.value === 'number' && fin(v.value) ? Math.max(0, Math.floor(v.value)) : null; };   // Stage 6 HUD R2: a counter's most for this row (none: null)
+    fn.cell = function(f, row, colKey) { var L = listCtx(f), c = L.cl[lower(colKey)]; if (!c || !isObj(row)) return undefined; return colVal(L, rowX(row), c); };   // F5a1: one row's column (the sheet's cells)
+    fn.stat = function(f, row, key) { var L = listCtx(f), s = L.st[lower(key)]; if (!s || s.kind === 'pick' || !isObj(row)) return undefined; return rowStat(L.spec, rowX(row).d, s.key); };   // 1.5.4 With: one row's number stat, as its columns read it (Row.<stat>)
     fn.chain = function() { return chain.slice(); };
     fn.overOn = function(key) { return overOn[lower(key)] === 1; };   // 205 (6): whether a number field's override held when it was worked out
     fn.refs = function(names) { return refsOut(refUp(names, null, null)); };   // 1.6.0 Specialties: [{ s, c }] for a roll's card, a GM-only row never named; null with none
@@ -10425,7 +10461,15 @@ function cleanCharEffect(msg) {
     return q;
 }
 // The item def a token/character would throw, by id (host reads area.ft from here, never from the wire). Null if absent.
-function itemDef(sys, defId) { var a = Array.isArray(sys && sys.items) ? sys.items : []; for (var i = 0; i < a.length; i++) if (a[i].id === defId) return a[i]; return null; }
+// 1.6.2: an item by its id, its place kept in a table of the system's own array; a place that no longer holds it, or an id the table lacks, is looked for as before
+var _itemIx = new WeakMap();
+function itemDef(sys, defId) {
+    var a = Array.isArray(sys && sys.items) ? sys.items : []; if (!a.length) return null;
+    var e = _itemIx.get(a); if (!e || e.n !== a.length) { e = { n: a.length, m: map() }; for (var j = a.length - 1; j >= 0; j--) if (a[j] && typeof a[j].id === 'string') e.m[a[j].id] = j; _itemIx.set(a, e); }
+    var at = typeof defId === 'string' ? e.m[defId] : undefined; if (typeof at === 'number' && a[at] && a[at].id === defId) return a[at];
+    for (var i = 0; i < a.length; i++) if (a[i].id === defId) return a[i];
+    return null;
+}
 
 /* ---------- the auto layout (SB2): one section per kind group, then the rolls ---------- */
 // Stage 6 look fold (L3): the fields the header block edits in place — identity rows that are text, a select, a number or a toggle, and
@@ -11155,7 +11199,7 @@ export { fitRows, capRead, capFOk, partsCapLines, keysGone, listRenames, renames
 export { targetReadsOf, TARGET_READS, rollStations, rollStationOk, crewPressOf, crewRollsOf, cleanCr, withPresser, figVeh, linkFig, figRead, figExpand, LINK_FIGS, stationsIn, setCrewSource, crewFigs, cleanCk, cleanCharStn, groupByKey, stationOf, crewParts, LINK_STATIONS, crewStation, groupLink, poolLeast, majPick, listRollRef, resistOrOk, rowKeptFrom };   // 1.6.0 (CORE gap 16)
 export { specWords, specContains, specCoversRow, fitBroke, fitAgain, specBase, specMeans, grantSpecOf, specSquash, specNameParts, specInfo, refSays, rollRefs, SPEC_REFS };   // 1.6.0 Specialties
 export { hitRounds, hitsSecret, HITS_MAX, burstList, cleanBu, hitShots, burstBar, burstOpen, burstDice, burstExtra, hitCount, hitVars, hitRolls, damageBurst, cleanCharHit };   // 1.6.0 A burst
-export { HOLD_ALSO, HOLD_ROLLS, cleanHolds, holdRefOf };
+export { HOLD_ALSO, HOLD_ROLLS, cleanHolds, holdRefOf, DMG_LIM, COVER_HIT_ROWS, OPENS_MAX };   // 1.6.2: DMG_LIM and COVER_HIT_ROWS, so the editor reads the one figure
 export { FEEDS_MAX, FEED_STACK, feedOf, feedSpec, feedCt, feedStack, feedAt, feedLive, feedRoom, feedShort, feedShortOf, feedCount };
 export { majorWords, dmgOnSelf, dmgMajorOf, dmgPart2Of, dmgPartOf, DMG_MORE };   // 1.6.0: A Major Wound where; B3: a blow's second part
 export { upkeepLines, upkeepWords };   // 205 follow-up (3): an upkeep's payments said

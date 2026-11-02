@@ -8,7 +8,7 @@
 import { LIB, ITEM_RE, cleanLibEntry, hashText, lvlsFromText } from './librarycore.js';
 import { LIMITS, cleanItemKey } from './systemcore.js';
 
-export var CSV = Object.freeze({ bytes: LIB.fileBytes, rows: LIB.entries, cols: 80, cell: 16000, head: 60, sample: 48, sniff: 64 * 1024, sniffLines: 20, show: 8, showStats: 6 });
+export var CSV = Object.freeze({ bytes: LIB.fileBytes, rows: LIB.entries, cols: 800, cell: 16000, head: 60, sample: 48, sniff: 64 * 1024, sniffLines: 20, show: 8, showStats: 6 });
 var SEPS = [',', ';', '\t'], CTRL_LINE = /[\u0000-\u001f\u007f]/g;
 
 function map() { return Object.create(null); }

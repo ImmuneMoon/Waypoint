@@ -9,8 +9,8 @@
 
 var VERSION = '1.5.0';
 var LIMITS = Object.freeze({
-    periods: 60, periodDays: 1000,      // a year's periods (months, festival weeks, holidays) and the days one holds
-    week: 20, name: 40, era: 24,        // weekday names, a period's or a weekday's name, the label after the year (code points)
+    periods: 600, periodDays: 1000,     // a year's periods (months, festival weeks, holidays) and the days one holds
+    week: 200, name: 40, era: 24,       // weekday names, a period's or a weekday's name, the label after the year (code points)
     year: 1e7,                          // the year day 1 falls in, and a leap rule's year, either way
     hours: 100, minutes: 1000, seconds: 1000,   // a day's hours, an hour's minutes, a minute's seconds
     leapEvery: 1000, leapDays: 100,     // a leap rule: every 2 to 1000 years, 1 to 100 days more

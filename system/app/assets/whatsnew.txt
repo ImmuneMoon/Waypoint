@@ -12,6 +12,9 @@ The System editor
   you can drag a line to move it. A dot marks one with an error or a warning.
 - What a line holds stands in named groups. Those you seldom need start
   folded, and say in use where they hold something.
+- A system can hold far more of everything now, about ten times what it could.
+  The limits are there only to stop a broken file from freezing the app. A very
+  long list on a sheet draws its first rows, and Show all draws the rest.
 - The foot of the editor counts your errors and warnings. Press the count
   to list them, and press one to go to the box it names.
 - A tab's long note folds away with Got it, and About this tab brings it
@@ -71,7 +74,7 @@ System editor
 - A table read by a choice says which options have no row of the table.
 - The Calendar's Coming up list reads more easily: each date on its own line, and
   a long note held to two lines with the rest on its tooltip.
-- A dropdown can hold 64 names. Move a name to another place and the editor says
+- A dropdown can hold 640 names. Move a name to another place and the editor says
   so before Save, since what holds a number keeps it and reads the name now there.
 - A weapon's Dur formula can read the blow that hit it, as a layer's wear can.
 - Counted once: Given free can name a column now, as Full price can, so a row

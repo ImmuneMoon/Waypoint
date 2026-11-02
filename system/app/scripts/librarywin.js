@@ -14,7 +14,7 @@ import { CSV, readCsv, headsOf, headLooks, csvStats, csvTargets, guessMap, setTa
 import { itemReach, carriedBy, lvlOnlyRead, lvlOnlyText, modTiersRead, modTiersText, keyUses, keyUseSays, catNear } from './systemcore.js';
 
 var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'lvlOnly', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg', 'again', 'rollSw', 'opens', 'grants', 'mods', 'modsOn', 'needs', 'needsIf', 'needsFrom', 'needsMsg'];
-var NEED_MAX = 8, NEED_PICK = 2000;   // 126b: the entries one entry needs, and the longest list its chooser offers
+var NEED_MAX = 80, NEED_PICK = 2000;   // 126b: the entries one entry needs, and the longest list its chooser offers
 var VIS = [['all', 'Players can see it'], ['gm', 'GM only']];
 var st = { open: false, campId: null, packId: null, entryId: null, q: '', shown: [], work: map(), dirty: map(), timer: null, draftNew: null, sel: map(), anchor: null, imp: null, fm: null, fmFor: null, fn: null, fnFor: null };   // fm (F6): the open entry's changes being edited
 var byName = typeof Intl !== 'undefined' && Intl.Collator ? new Intl.Collator(undefined, { sensitivity: 'base', numeric: true }).compare : function(a, b) { return String(a).localeCompare(String(b)); };
@@ -567,7 +567,7 @@ function modsBox(form, e) {
 // what a row of this entry grants. When a row of it is added, or its level reaches a From level, each entry listed here is added to the list
 // beside it, as many as the number says, at Paid 0 and marked as granted. They go when the row goes or its level falls below. A working copy
 // while the form is open (Save entry keeps it). Names and lists land as text nodes and option values only
-var GRANT_LINES = 8;
+var GRANT_LINES = 80;
 function grantsBox(form, e) {
     if (st.fgFor !== e.id || !st.fg) { st.fg = clone(Array.isArray(e.grants) ? e.grants : []); st.fgFor = e.id; }
     var c = camp(), lists = ((c && c.system && c.system.fields) || []).filter(function(f) { return f && f.kind === 'item-list' && typeof f.id === 'string'; }); if (!lists.length && !st.fg.length) return;

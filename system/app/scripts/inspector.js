@@ -1878,7 +1878,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // senses, digits alone; the rest of the ticks kept (true, every sense, becomes their ids); none left, no key
   function setTokenUnsensed(w, mi, on) {
       var F = window.wpFog, C = window.wpFogCore, camp = getActiveCampaign(); if (!F || !C || !camp) return;
-      var mk = F.campNoticeSenses ? F.campNoticeSenses(camp) : F.campMarkSenses(camp), s = typeof mi === 'string' && /^[0-7]$/.test(mi) ? mk[Number(mi)] : null; if (!s) { renderInspector(); return; }
+      var mk = F.campNoticeSenses ? F.campNoticeSenses(camp) : F.campMarkSenses(camp), s = typeof mi === 'string' && /^(0|[1-9][0-9]?)$/.test(mi) ? mk[Number(mi)] : null; if (!s) { renderInspector(); return; }
       var un = C.cleanUnsensed(w.unsensed), ids = (un === true ? mk.map(function(x) { return x.id; }) : un || []).filter(function(id) { return id !== s.id; });
       if (on === true) ids.push(s.id);
       if (ids.length) w.unsensed = ids; else delete w.unsensed;
@@ -1890,7 +1890,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // The sense is named by its place in the system's list, digits alone; a place the list no longer holds changes nothing
   function setTokenSense(w, si, value) {
       var F = window.wpFog, C = window.wpFogCore, camp = getActiveCampaign(); if (!F || !C || !camp) return;
-      var s = typeof si === 'string' && /^[0-7]$/.test(si) ? F.campSenses(camp).concat(F.campMarkSenses(camp))[Number(si)] : null; if (!s) { renderInspector(); return; }   // senses S4: a mark sense's place after the full ones (eight in all at most)
+      var s = typeof si === 'string' && /^(0|[1-9][0-9]?)$/.test(si) ? F.campSenses(camp).concat(F.campMarkSenses(camp))[Number(si)] : null; if (!s) { renderInspector(); return; }   // senses S4: a mark sense's place after the full ones
       var cur = (C.cleanTokSenses(w.senses) || []).filter(function(e) { return e.id !== s.id; }), v = typeof value === 'string' ? value.trim() : '', n = Number(v);
       if (v !== '' && isFinite(n)) cur.push({ id: s.id, n: Math.max(0, Math.min(100000, n)) });
       if (cur.length) w.senses = cur; else delete w.senses;
@@ -1917,7 +1917,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   }
   function setItemNulls(w, ni, on) {
       var F = window.wpFog, C = window.wpFogCore, camp = getActiveCampaign(); if (!F || !C || !camp) return;
-      var list = F.campSenses(camp).concat(F.campMarkSenses(camp)), s = typeof ni === 'string' && /^[0-7]$/.test(ni) ? list[Number(ni)] : null; if (!s) { renderInspector(); return; }
+      var list = F.campSenses(camp).concat(F.campMarkSenses(camp)), s = typeof ni === 'string' && /^(0|[1-9][0-9]?)$/.test(ni) ? list[Number(ni)] : null; if (!s) { renderInspector(); return; }
       var ids = (C.cleanNulls(w.nulls) || []).filter(function(id) { return id !== s.id; });
       if (on === true) ids.push(s.id);
       if (ids.length) w.nulls = ids; else { delete w.nulls; delete w.nullFx; }

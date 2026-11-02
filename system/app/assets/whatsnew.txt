@@ -42,6 +42,13 @@ The System editor
 - A list's rows can stand at rows of another list, as armour on the parts of a
   body. A formula reads the place a row stands, and a row of that list reads
   what stands there. Fits where, Reaches and Counts where set the rules.
+- A list can say what a trade does to a row: a stat is cleared, set or moved to
+  another, which may be GM-only. It can also call for a roll, made for the GM alone
+  once both sides confirm. A column can show on some rows only.
+- A list with Custom rows can say what each row a player makes adds to a roll. It
+  shows under the row's own name, at the figure and cost the GM sets.
+- An item or an effect can now offer more than four roll bonuses that can be
+  ticked. Those past the fourth were refused before.
 - A roll can give points to spend on its card. Each thing on offer takes some, and
   one can run an action of the system once the roll has landed.
 - A roll bonus can cost something. Pick one of the system's actions, and it runs

@@ -3718,6 +3718,7 @@ function tradeDo(actor, msg) {
         var res = S.tradeApply(camp.system, ca, cb, tr2.offA, tr2.offB, who(tr2.a), who(tr2.b), { a: tr2.intoA, b: tr2.intoB });
         if (!res.ok) { tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, res.msg); return { error: res.msg }; }
         var paysT = tradePayers(camp, tr2), barT = paysT.length ? tradeBar(camp, paysT) : ''; if (barT) { tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, barT); return { error: barT }; }
+        if (typeof S.tradeRolls === 'function' && window.wpDice && typeof window.wpDice.rollFor === 'function' && window.wpFormula) S.tradeRolls(camp.system, ca, tr2.offA, window.wpFormula).concat(S.tradeRolls(camp.system, cb, tr2.offB, window.wpFormula)).forEach(function(q) { window.wpDice.rollFor(q.charId, q.formula, q.label, { row: { f: q.f, r: q.r, i: q.i }, gmOnly: true }); });   // 1.6.2: on the sheets as they stand, so that the row is still there to roll on; the GM's to see
         tr2.closing = true; var now = Date.now(); ca.values = ca.values || {}; cb.values = cb.values || {};
         Object.keys(res.valuesA).forEach(function(k) { ca.values[k] = res.valuesA[k]; }); Object.keys(res.valuesB).forEach(function(k) { cb.values[k] = res.valuesB[k]; }); ca.updated = now; cb.updated = now;
         saveRemoteSoon();

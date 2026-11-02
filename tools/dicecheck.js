@@ -206,7 +206,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     {
         let SC = null; try { SC = await import(url('systemcore.js')); } catch (e) { SC = null; }
         check('409 dicecore\'s caps are the character system\'s: a row roll\'s index under LIMITS.rowRolls (160 since 1.6.2, 16 before it: moved on purpose), an apply card\'s lines under LIMITS.applyChanges (120 since 1.6.2, 12 before), a roll\'s picked switches past a holder\'s, a burst\'s hits and a resist card\'s other rolls, each the same figure in systemcore.js',
-            !!SC && LIMITS.rowRolls === 160 && LIMITS.rowRolls === SC.LIMITS.rowRolls && LIMITS.applyLines === SC.LIMITS.applyChanges && LIMITS.swPicks >= SC.LIMITS.rollSw && LIMITS.hits === SC.HITS_MAX && LIMITS.resistOr === SC.RESIST_OR, SC ? JSON.stringify([LIMITS.rowRolls, SC.LIMITS.rowRolls, LIMITS.applyLines, SC.LIMITS.applyChanges]) : 'no systemcore');
+            !!SC && LIMITS.rowRolls === 160 && LIMITS.rowRolls === SC.LIMITS.rowRolls && LIMITS.applyLines === SC.LIMITS.applyChanges && LIMITS.swPicks >= SC.LIMITS.rollSw && LIMITS.rollSw === SC.LIMITS.rollSw && LIMITS.hits === SC.HITS_MAX && LIMITS.resistOr === SC.RESIST_OR, SC ? JSON.stringify([LIMITS.rowRolls, SC.LIMITS.rowRolls, LIMITS.applyLines, SC.LIMITS.applyChanges]) : 'no systemcore');
     }
 
     /* ---- Stage 6 HUD R3: a record's malfunction threshold; the natural total; the card's words ---- */

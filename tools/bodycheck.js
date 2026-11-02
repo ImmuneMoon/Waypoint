@@ -287,6 +287,25 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         check('a list view, a print and the HUD draw the state as a chip in words, once in a drawer, whose head says it', rd.split("tileStateChip(spec, res, rowIdOf(entry))").length === 3 && /\.body-drawer-row \.sheet-item-state \{ display: none; \}/.test(css) && rd.includes("head.appendChild(el('span', 'body-drawer-state', stO.label))"));
         check('a row with no place and a list with no states add nothing', !X.sheetToMarkdown(sy, { id: 'c', name: 'C', values: { f_b: [{ id: 'w_x', defId: 'i_p', qty: 1 }], f_k: [] } }, S.resolveAll(sy, { id: 'c', name: 'C', values: { f_b: [{ id: 'w_x', defId: 'i_p', qty: 1 }], f_k: [] } }, F), {}).toString().includes('Limb ('));
     }
+    /* ---- what a trade does, and a column on some rows (the SotMW session's asks) ---- */
+    {
+        const RW = { v: 1, name: 'Tr', fields: [{ id: 'f_m', key: 'Money', kind: 'item-list', label: 'Money', list: { multi: true, trade: true, stats: [{ key: 'Fake', label: 'Fake' }, { key: 'Seen', label: 'Seen', vis: 'gm' }, { key: 'Tag', label: 'Tag' }, { key: 'Pk', kind: 'pick', label: 'Pk', opts: [{ label: 'A' }] }],
+            cols: [{ key: 'Worth', label: 'Worth', formula: 'Row.Fake + 1', showIf: 'Row.Fake > 0' }, { key: 'Bad', label: 'Bad', formula: '1', showIf: '1d6 > 3' }, { key: 'Hd', label: 'Hd', formula: '1', showIf: 'Row.Seen > 0' }],
+            rolls: [{ label: 'Spot', formula: '1d20 + Row.Fake' }], tradeRoll: { i: 0, 'if': 'Row.Fake > 0' },
+            onTrade: [{ s: 'Fake', to: 'Seen' }, { s: 'Tag', v: 7 }, { s: 'Nope' }, { s: 'Pk' }, { s: 'Fake', to: 'Fake' }] } }], items: [{ id: 'i_c', name: 'Coin', stats: { Fake: 1, Tag: 0 } }, { id: 'i_d', name: 'Good', stats: { Fake: 0 } }] };
+        const sy = S.cleanSystem(RW, { F, gmView: true }), pv = S.cleanSystem(sy, { F, gmView: false }), ls = sy.fields[0].list, lp = pv.fields[0].list;
+        check('a trade’s rules are the GM’s view alone, and only number stats of the list', J(ls.onTrade) === J([{ s: 'Fake', to: 'Seen' }, { s: 'Tag', v: 7 }]) && J(ls.tradeRoll) === J({ i: 0, 'if': 'Row.Fake > 0' }) && !('onTrade' in lp) && !('tradeRoll' in lp), J(ls.onTrade));
+        const mk = () => ({ a: { id: 'c_a', name: 'A', ownerId: 'u_a', values: { f_m: [{ id: 'w_1', defId: 'i_c', qty: 1 }, { id: 'w_2', defId: 'i_d', qty: 1 }] } }, b: { id: 'c_b', name: 'B', ownerId: 'u_b', values: { f_m: [] } } }), w = mk(), of = [{ fid: 'f_m', rowId: 'w_1', qty: 1 }, { fid: 'f_m', rowId: 'w_2', qty: 1 }];
+        const clOf = S.cleanTradeOffer ? S.cleanTradeOffer(sy, w.a, of, { gm: true }) : of, res = S.tradeApply(sy, w.a, w.b, clOf, [], { gm: true }, { gm: true }, {}), got = res.ok ? res.valuesB.f_m : [];
+        check('a mark moves to the next holder’s GM-only stat and a stat is set, on the row that goes; a row with nothing to move keeps none', res.ok === true && got[0].ov.stats.Fake === 0 && got[0].ov.stats.Seen === 1 && got[0].ov.stats.Tag === 7 && got[1].ov.stats.Tag === 7 && !('Seen' in got[1].ov.stats), J(res));
+        check('the giver’s sheet is not marked', !('ov' in w.a.values.f_m[0]));
+        const rs = S.tradeRolls(sy, w.a, clOf, F);
+        check('a row that meets the rule calls for its roll on the sheet as it stands, a row that does not, none', rs.length === 1 && rs[0].r === 'w_1' && rs[0].i === 0 && rs[0].formula.includes('1d20') && rs[0].label === 'Spot' && S.tradeRolls(sy, w.a, [{ fid: 'f_m', rowId: 'w_1', key: 'Tag', amt: 1 }], F).length === 0, J(rs));
+        const cq = S.resolveAll(sy, w.a, F).f_m.cells, cl = sy.fields[0].list.cols.map(c => c.key + ':' + (c.showIf || ''));
+        check('a column shows on the rows it says, and goes where its rule cannot be read or reads what players may not', cq.w_1[0] && cq.w_1[0].value === 2 && cq.w_2[0] === null && J(cl) === J(['Worth:Row.Fake > 0', 'Bad:', 'Hd:']), J([cq, cl]));
+        const sCs = S.resolveAll(sy, w.a, F).vars.row('f_m', 'w_2');
+        check('formulas read it on every row all the same', sCs('Row.Worth') === 1);
+    }
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never finished'); process.exitCode = 1; } });

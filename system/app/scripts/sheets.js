@@ -7388,6 +7388,32 @@ function standThenBox(sd, tf, sp) {
     };
     draw(); return box;
 }
+// 1.6.2 (G6): the terms on which a row of the character's own offers a roll a bonus under its own name. Its own listeners, and classes no handler of the Lists tab reads
+function ownSwBox(sp) {
+    var box = el('div', 'sys-flags sys-ownsw'), n = numInput('sys-ownsw-v', sp.ownSw && typeof sp.ownSw.v === 'number' ? sp.ownSw.v : '', 'What each row a player made adds to any roll, ticked in the roll\u2019s \u00b1 window under the row\u2019s own name. Empty: none. Whole, 1 to 99 either way', ''), ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var pays = [['', 'It costs nothing']].concat((Array.isArray(draft.rolls) ? draft.rolls : []).filter(function(r) { return !!r && Array.isArray(r.apply) && typeof r.id === 'string'; }).map(function(r) { return [r.id, 'Costs: ' + (r.label || 'Apply')]; })), p = select('sys-ownsw-pay', pays, sp.ownSw && sp.ownSw.pay || '', 'What ticking it spends: one of the system\u2019s actions, run as the roll is made');
+    var keep = function() { var v = Math.round(parseFloat(n.value)); if (!isFinite(v) || !v) { delete sp.ownSw; ch(); return; } sp.ownSw = { v: v }; if (p.value) sp.ownSw.pay = p.value; ch(); };
+    n.addEventListener('input', keep); p.addEventListener('change', keep); var cap = el('label', 'sys-check'); cap.appendChild(document.createTextNode('Rows of their own add ')); cap.appendChild(n); box.appendChild(cap); box.appendChild(p); return box;
+}
+// 1.6.2: what a trade does to a row of this list, and the roll it calls for. Its own listeners, and classes no handler of the Lists tab reads
+function tradeRulesBox(sp) {
+    var box = el('div', 'sys-badges sys-traderules'), ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); }, nums = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return !!s && typeof s.key === 'string' && s.key && s.kind !== 'pick' && s.set !== true; }).map(function(s) { return [s.key, s.label || s.key]; });
+    var draw = function() {
+        box.textContent = ''; box.appendChild(el('span', 'sys-num-cap', 'When traded')); var list = Array.isArray(sp.onTrade) ? sp.onTrade : [];
+        list.forEach(function(t, j) {
+            var rw = el('div', 'sys-flags sys-tradeline'), how = typeof t.to === 'string' ? 'to' : typeof t.v === 'number' ? 'v' : 'clear', s = select('sys-trade-s', nums, t.s, 'The stat of the row'), h = select('sys-trade-how', [['clear', 'is cleared'], ['v', 'is set to'], ['to', 'moves to']], how, 'What becomes of it as the row changes hands');
+            s.addEventListener('change', function() { t.s = s.value; ch(); }); h.addEventListener('change', function() { delete t.to; delete t.v; if (h.value === 'to') t.to = (nums.filter(function(n) { return n[0] !== t.s; })[0] || [''])[0]; if (h.value === 'v') t.v = 0; ch(); draw(); }); rw.appendChild(s); rw.appendChild(h);
+            if (how === 'v') { var nb = numInput('sys-trade-v', t.v, 'What it is set to', '0'); nb.addEventListener('input', function() { var n = Number(nb.value); t.v = isFinite(n) ? n : 0; ch(); }); rw.appendChild(nb); }
+            if (how === 'to') { var d = select('sys-trade-to', nums, t.to, 'The stat its figure moves to. A GM-only stat leaves the next holder unaware of it'); d.addEventListener('change', function() { t.to = d.value; ch(); }); rw.appendChild(d); }
+            var x = el('button', 'tool ghost sys-btn', '\u00d7'); x.type = 'button'; x.title = 'Take this off'; x.addEventListener('click', function() { list.splice(j, 1); if (!list.length) delete sp.onTrade; ch(); draw(); }); rw.appendChild(x); box.appendChild(rw);
+        });
+        if (nums.length) { var ad = el('button', 'tool ghost sys-btn', '+ When traded'); ad.type = 'button'; ad.title = 'What becomes of a stat of a row as it changes hands'; ad.disabled = list.length >= 4; ad.addEventListener('click', function() { sp.onTrade = Array.isArray(sp.onTrade) ? sp.onTrade : []; sp.onTrade.push({ s: nums[0][0] }); ch(); draw(); }); box.appendChild(ad); }
+        var rolls = [['', 'No roll']]; (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(r, i) { if (r && !Array.isArray(r.apply)) rolls.push([String(i), r.label || 'A roll']); }); if (rolls.length < 2) return;
+        var tr = sp.tradeRoll && typeof sp.tradeRoll === 'object' ? sp.tradeRoll : null, rs = select('sys-trade-roll', rolls, tr ? String(tr.i) : '', 'A roll of this list made for you alone when a row of it changes hands, once both sides confirm. It changes nothing of the trade'); rs.addEventListener('change', function() { if (rs.value === '') delete sp.tradeRoll; else sp.tradeRoll = Object.assign({}, sp.tradeRoll || {}, { i: Number(rs.value) }); ch(); draw(); }); box.appendChild(rs);
+        if (tr) { var ti = input('sys-trade-if field', typeof tr['if'] === 'string' ? tr['if'] : '', 'Which rows call for it', 'Every row'); ti.addEventListener('input', function() { var v = ti.value.trim(); if (v) tr['if'] = v.slice(0, LIMITS.formula); else delete tr['if']; ch(); }); box.appendChild(ti); }
+    };
+    draw(); return box;
+}
 function partCapsBox(sp) {
     var box = el('div', 'sys-badges sys-pcaps'), max = typeof PART_CAPS === 'number' ? PART_CAPS : 240, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
     var nums = function() { return (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.kind !== 'pick' && s.set !== true; }); };
@@ -9028,8 +9054,10 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     fl.appendChild(checkLabel('sys-list-noqty', sp.noQty === true, 'No quantity', 'Rows have no quantity (skills, powers): the \u2212/+ and \u00d7n go, and an item is on the list once unless the same item may be there more than once. Quantities already stored come back if you untick it'));
     fl.appendChild(checkLabel('sys-list-hang', sp.hang === true, 'Rows hang from a row', 'A row may stand under another row of this list, as a hand under its arm. You set it on the row, or a grant does, and a formula of the row can read the row it hangs from'));   // 1.6.2 (body fold 1)
     fl.appendChild(checkLabel('sys-list-graise', sp.grantRaise === true, 'A grant raises a held row', 'A grant of an entry this list already holds raises that row to the grant\u2019s level and adds none. When the row that granted it goes, the held row falls back to its own level. A list with no quantity always does this'));   // 1.6.0 (a builder audit)
+    if (sp.custom === true && typeof ownSwBox === 'function') fl.appendChild(ownSwBox(sp));
     fl.appendChild(checkLabel('sys-list-custom', sp.custom === true, 'Custom rows', 'Players may add rows of their own with + Custom\u2026 on their sheet (a name, an icon, a category, notes, a key and stats) and change the ones they made; you can add them on any shaped list'));   // Stage 6 F4c3
     fl.appendChild(checkLabel('sys-list-open', sp.open === true, 'Rows open', 'Each row gets an arrow before its name that opens its details: what each part set to Shows In the details holds, its description and its note. Open all and Close all stand over the list.'));   // 1.6.0 R1
+    if (sp.trade === true && typeof tradeRulesBox === 'function') fl.appendChild(tradeRulesBox(sp));
     fl.appendChild(checkLabel('sys-list-trade', sp.trade === true, 'Tradable', 'Rows of this list can be put on the table in a trade between two characters: gear and money, never skills'));   // 1.5.6 trading
     var miW = el('label', 'sys-check'), miI = el('input', 'field sys-list-modsif'); miI.type = 'text'; miI.value = typeof sp.modsIf === 'string' ? sp.modsIf : ''; miI.placeholder = 'always'; miI.spellcheck = false; miI.autocomplete = 'off'; miW.appendChild(document.createTextNode('Changes apply where ')); miW.appendChild(miI);   // 1.6.0 Changes apply where (the campaign build's ask)
     miW.title = 'A formula read with the character\u2019s own names and each row\u2019s own, such as not Droid or Row.over > 0. A row where it does not hold gives none of its changes. It reads the sheet before any item or effect changes it. Blank: always'; fl.appendChild(miW);
@@ -9228,6 +9256,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         if (typeof metricSel === 'function') { cr.appendChild(metricSel('sys-list-colmetric', cc.unitShow)); cr.appendChild(numField('sys-list-coldec', typeof cc.decMax === 'number' ? cc.decMax : '', 'The most decimals a measure shows, 0 to 5, its zeros taken off. Blank: four under Instead or Bare, and as before Beside', 'decimals', '1')); }   // 1.5.4: how a measure reads under Metric, and its most decimals
         cr.appendChild(input('sys-list-colnames field', Array.isArray(cc.labels) ? cc.labels.join(', ') : '', 'Names for the values 0, 1, 2\u2026 separated by commas: the row shows the name, formulas read the number', 'Value names (optional)'));
         var cpI = input('sys-list-colplus field', Array.isArray(cc.plus) ? cc.plus.join(', ') : '', 'Number stats of this list that add to this column in a case of their own, by their keys, separated by commas. Where such a stat is not 0 the row shows the two added, with the stat\u2019s label: DR 15 (35 vs. energy)', 'With stats (optional)'); cpI.maxLength = 240; cr.appendChild(cpI);   // 1.5.4 With
+        cr.appendChild(input('sys-list-colshow field', typeof cc.showIf === 'string' ? cc.showIf : '', 'On which rows it shows. Formulas read it on every row', 'Every row'));
         if (typeof placeSel === 'function') cr.appendChild(placeSel('col:' + ci, cc.hide === true ? 'hide' : cc.place));   // 1.6.0 R2: on the row, in the details, or Hidden (worked out for totals and other columns, not shown)
         cr.appendChild(checkLabel('sys-list-colfoot', cc.foot === true, 'Total', 'Its total shows under the list'));
         if (typeof toneRow === 'function') { var ctR = toneRow(cc); if (ctR) cr.appendChild(ctR); }   // 1.6.0 R5
@@ -12322,6 +12351,7 @@ function onInput(e) {
             else if (lcc.indexOf('sys-list-colunit') >= 0) { if (t.value.trim()) cD.unit = t.value.slice(0, LIMITS.unit); else delete cD.unit; }
             else if (lcc.indexOf('sys-list-coldec') >= 0) { if (String(t.value).trim() === '' || !isFinite(Number(t.value))) delete cD.decMax; else cD.decMax = Number(t.value); }   // 1.5.4 (Save keeps a whole number 0 to 5)
             else if (lcc.indexOf('sys-list-colnames') >= 0) { var cln = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (cln.length && !cln[cln.length - 1]) cln.pop(); if (cln.some(Boolean)) cD.labels = cln; else delete cD.labels; }
+            else if (lcc.indexOf('sys-list-colshow') >= 0) { if (t.value.trim()) cD.showIf = t.value.slice(0, LIMITS.formula); else delete cD.showIf; }   // 1.6.2
             else if (lcc.indexOf('sys-list-colplus') >= 0) { var cpl = t.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean).slice(0, 640); if (cpl.length) cD.plus = cpl; else delete cD.plus; }   // 1.5.4 With: stat keys as typed, which Save reads by the list's own stats
             else return;
             var nCard = t.closest('.sys-list-card'), nLine = nCard ? nCard.querySelector('.sys-list-names') : null; if (nLine) nLine.textContent = listNamesText(lcd.key, lsp, partsHostIn(lcd.id));   // the names line follows a key as it is typed

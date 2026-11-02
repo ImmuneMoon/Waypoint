@@ -23,6 +23,7 @@ var LIMITS = Object.freeze({
     label: 60,          // a roll's label, the character's name on a card
     cardChars: 240,     // describe() cap in a toast / plain-text card
     swPicks: 80,        // 1.6.0: the roll switches one roll may name (systemcore LIMITS.rollSw a holder)
+    rollSw: 40,         // a holder's bonuses, so a tick's place is below this (systemcore LIMITS.rollSw)
     applyLines: 120,     // an apply card's lines: one a change an action or a roll's Then makes (systemcore LIMITS.applyChanges; 8 before 1.6.0, 4 before 1.5.4)
     hits: 320,          // the hits one damage roll rolls for (systemcore HITS_MAX)
     hitFaces: 40,       // the dice a hit's card line shows (systemcore HIT_FACES)
@@ -253,7 +254,7 @@ function cleanRollReq(msg) {
     if (msg.sw !== undefined) {   // 1.6.0: the roll switches ticked in its ± window, each by its holder and its place there (the host judges them: systemcore swJudge)
         if (!(out.act || out.fr || (out.row && out.row.i !== undefined)) || !Array.isArray(msg.sw) || !msg.sw.length || msg.sw.length > LIMITS.swPicks) return null;
         var swO = [], swK = {};
-        for (var si = 0; si < msg.sw.length; si++) { var p = msg.sw[si]; if (!p || typeof p !== 'object' || Array.isArray(p) || typeof p.s !== 'string' || !SW_RE.test(p.s) || !isInt(p.i) || p.i < 0 || p.i > 3 || Object.prototype.hasOwnProperty.call(swK, p.s + '#' + p.i)) return null; swK[p.s + '#' + p.i] = 1; swO.push({ s: p.s, i: p.i }); }
+        for (var si = 0; si < msg.sw.length; si++) { var p = msg.sw[si]; if (!p || typeof p !== 'object' || Array.isArray(p) || typeof p.s !== 'string' || !SW_RE.test(p.s) || !isInt(p.i) || p.i < 0 || p.i >= LIMITS.rollSw || Object.prototype.hasOwnProperty.call(swK, p.s + '#' + p.i)) return null; swK[p.s + '#' + p.i] = 1; swO.push({ s: p.s, i: p.i }); }
         out.sw = swO;
     }
     if (msg.on !== undefined) {   // 1.5.9 (book es/et plan, section 3): the token of the adjacent character a named entry is used on (the host judges it)

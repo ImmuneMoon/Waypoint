@@ -17697,7 +17697,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const rq = m => DCw.cleanRollReq(Object.assign({ rid: 'q1', expr: '3d6', charId: 'c_1' }, m));
         const wireOk = J(rq({ fr: 'f_st', mod: 2, sw: [{ s: 'f_gear|w_a', i: 0 }] })) === J({ rid: 'q1', expr: '3d6', charId: 'c_1', fr: 'f_st', mod: 2, sw: [{ s: 'f_gear|w_a', i: 0 }] })
             && rq({ sw: [{ s: 'f_gear|w_a', i: 0 }] }) === null && rq({ fr: 'f_st', act: 'r_dodge' }) === null && rq({ fr: 'bad' }) === null && rq({ fr: 'f_st', sw: [{ s: 'f_gear|w_a', i: 0 }, { s: 'f_gear|w_a', i: 0 }] }) === null
-            && rq({ fr: 'f_st', sw: [{ s: 'f_gear|<b>', i: 0 }] }) === null && rq({ fr: 'f_st', sw: [{ s: 'f_gear|w_a', i: 4 }] }) === null && rq({ act: 'r_dodge', sw: [] }) === null
+            && rq({ fr: 'f_st', sw: [{ s: 'f_gear|<b>', i: 0 }] }) === null && rq({ fr: 'f_st', sw: [{ s: 'f_gear|w_a', i: 40 }] }) === null && rq({ act: 'r_dodge', sw: [] }) === null
             && J(rq({ row: { f: 'f_gear', r: 'w_a', i: 0 }, sw: [{ s: 'f_fx|e_aim', i: 0 }] }).sw) === J([{ s: 'f_fx|e_aim', i: 0 }]) && DCw.cleanRollReq({ rid: 'q1', expr: '3d6', fr: 'f_st' }) === null;
         const cardOk = J(DCw.cleanSwNames([{ n: 'Aim', v: 1 }, { n: 'Hex', v: -3 }])) === J([{ n: 'Aim', v: 1 }, { n: 'Hex', v: -3 }]) && DCw.cleanSwNames([{ n: 'A', v: 0 }]) === null && DCw.cleanSwNames([{ n: '', v: 1 }]) === null && DCw.cleanSwNames('x') === null;
         const netS = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), diceS = fs.readFileSync(path.join(app, 'scripts', 'dice.js'), 'utf8').replace(/\r\n/g, '\n'), shS = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');

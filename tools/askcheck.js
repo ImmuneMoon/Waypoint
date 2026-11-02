@@ -125,6 +125,23 @@ const slice = (s, t) => { const a = s.indexOf('// [' + t + '-start]'), b = s.ind
         const ds = read('scripts/dice.js'), sh = read('scripts/sheets.js');
         check('the roll’s window says the cost beside its tick, and the host judges it before it spends anything else', ds.includes("b.appendChild(el('span', 'dice-swbtn-c', w.cost))") && sh.includes("o.cost = (pa && pa.label) || 'A cost';") && nt.indexOf('var swpQ = swQ') < nt.indexOf('var costQ = actSpend') && nt.indexOf('if (swpQ) swPayDo(chQ, swpQ);') > nt.indexOf('var costQ = actSpend'));
     }
+    /* ---- a row of the character's own offers a roll a bonus (G6) ---- */
+    {
+        const RW = { v: 1, name: 'Ow', fields: [{ id: 'f_ep', key: 'EP', kind: 'number', def: 3 }, { id: 'f_ab', key: 'Ab', kind: 'number', def: 10, roll: '1d20' }, { id: 'f_t', key: 'Traits', kind: 'item-list', list: { multi: true, noQty: true, custom: true, ownSw: { v: 2, pay: 'r_pay' } } }, { id: 'f_u', key: 'Bare', kind: 'item-list', list: { multi: true, ownSw: { v: 2 } } }],
+            rolls: [{ id: 'r_pay', label: 'Spend', apply: [{ f: 'f_ep', formula: '1', set: true }] }, { id: 'r_go', label: 'Go', formula: '1d6' }], items: [{ id: 'i_a', name: 'Entry', stats: {} }] };
+        const sy = S.cleanSystem(RW, { F, gmView: true }), pv = S.cleanSystem(sy, { F, gmView: false }), cl = sy.fields.filter(f => f.id === 'f_t')[0].list;
+        check('G6: a list keeps what its own rows offer, in both views and only beside Custom rows', J(cl.ownSw) === J({ v: 2, pay: 'r_pay' }) && J(pv.fields.filter(f => f.id === 'f_t')[0].list.ownSw) === J({ v: 2, pay: 'r_pay' }) && !('ownSw' in sy.fields.filter(f => f.id === 'f_u')[0].list), J(cl));
+        const bad = v => S.cleanSystem({ v: 1, name: 'X', fields: [{ id: 'f_t', key: 'T', kind: 'item-list', list: { multi: true, custom: true, ownSw: { v } } }] }, { F, gmView: true }).fields[0].list.ownSw;
+        check('a figure that is none, 0 or past 99 is none', bad(0) === undefined && bad(120) === undefined && bad('2') === undefined && bad(-3).v === -3);
+        const ch = { id: 'c', name: 'C', values: { f_ep: 3, f_ab: 10, f_t: [{ id: 'w_own', qty: 1, def: { name: 'Quick hands', stats: {} } }, { id: 'w_lib', defId: 'i_a', qty: 1 }, { id: 'w_hid', qty: 1, hid: 1, def: { name: 'Hidden', stats: {} } }] } }, av = S.rollSwitches(sy, ch, { f: 'f_ab' }), avR = S.rollSwitches(sy, ch, { r: 'r_go' });
+        check('a row the character made offers any roll under its own name, with the list’s figure and cost; an entry of the library and a row kept from them do not', av.length === 1 && av[0].name === 'Quick hands' && av[0].v === 2 && av[0].pay === 'r_pay' && avR.length === 1, J(av));
+        const j = S.swJudge(sy, ch, { r: 'r_go' }, [{ s: av[0].s, i: 0 }]);
+        check('the host judges it as any bonus, so its cost is paid', j.ok === true && j.v === 2 && J(j.pays) === J(['r_pay']) && j.names[0].n === 'Quick hands', J(j));
+        const c0 = { id: 'c', name: 'C', values: { f_t: [{ id: 'w_own', qty: 1, def: { name: 'Q', stats: {} } }] } }, n0 = S.cleanSystem({ v: 1, name: 'N', fields: [{ id: 'f_t', key: 'T', kind: 'item-list', list: { multi: true, custom: true } }] }, { F, gmView: true });
+        check('a list that sets none offers nothing', S.rollSwitches(n0, c0, { r: 'r_x' }).length === 0);
+        const sw5 = { type: 'roll-req', rid: 'q1abcdef', charId: 'c_a', act: 'r_a', expr: '1d20', sw: [{ s: 'f_abc|w_abc', i: 39 }] }, sw40 = { type: 'roll-req', rid: 'q1abcdef', charId: 'c_a', act: 'r_a', expr: '1d20', sw: [{ s: 'f_abc|w_abc', i: 40 }] };
+        check('a tick’s place on the wire runs as far as a holder may hold, since a fifth bonus could not be ticked', !!D.cleanRollReq(sw5) && !D.cleanRollReq(sw40), J(D.cleanRollReq(sw5)));
+    }
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite did not finish'); process.exitCode = 1; } });

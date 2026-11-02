@@ -531,10 +531,14 @@ function rollDice(node, c) {
         if (faces === 1) fail('d1 cannot explode (every roll is its highest face).', node.explode.pos, node.explode.len);
     }
     if (node.reroll && node.reroll.sub === 'rr' && alwaysTrue(node.reroll.op, node.reroll.n, lo, hi)) fail(node.reroll.text + ' would reroll a ' + facesText + ' forever.', node.reroll.pos, node.reroll.len);
+    var keepN = 0;
     if (node.keep) {
-        var kn = node.keep.n, sub = node.keep.sub;
+        var kn = node.keep.n, sub = node.keep.sub, shrinks = !!node.count && node.count.t !== 'num';   // 1.6.2: a pool the sheet sets may shrink in play, and it still rolls: keep what it has
+        if (shrinks && (sub === 'kh' || sub === 'kl') && kn > count) kn = count;
+        if (shrinks && sub !== 'kh' && sub !== 'kl' && kn > count - 1) kn = count - 1;
         if (sub === 'kh' || sub === 'kl') { if (kn < 1 || kn > count) fail('Cannot keep ' + kn + ' dice of ' + count + '.', node.keep.pos, node.keep.len); }
-        else if (kn < 1 || kn > count - 1) fail('Cannot drop ' + kn + ' dice of ' + count + (kn >= count ? ' (nothing would be left).' : '.'), node.keep.pos, node.keep.len);
+        else if (shrinks ? kn < 0 : (kn < 1 || kn > count - 1)) fail('Cannot drop ' + kn + ' dice of ' + count + (kn >= count ? ' (nothing would be left).' : '.'), node.keep.pos, node.keep.len);
+        keepN = kn;
     }
     for (i = 0; i < count; i++) {
         var v = c.draw(faces, fudge, node), hist = [v], chain, k, capped = false;
@@ -560,7 +564,7 @@ function rollDice(node, c) {
     }
     if (node.keep) {
         var order = rec.dice.map(function(d, j) { return j; }).sort(function(a, b) { return rec.dice[b].value - rec.dice[a].value || a - b; });   // highest first, ties by position
-        var s = node.keep.sub, n2 = node.keep.n, drop = {};
+        var s = node.keep.sub, n2 = keepN, drop = {};
         if (s === 'kh') order.slice(n2).forEach(function(j) { drop[j] = true; });
         else if (s === 'kl') order.slice(0, count - n2).forEach(function(j) { drop[j] = true; });
         else if (s === 'dh') order.slice(0, n2).forEach(function(j) { drop[j] = true; });

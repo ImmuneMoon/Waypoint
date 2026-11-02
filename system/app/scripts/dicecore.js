@@ -76,6 +76,23 @@ function composeModifier(expr, mod, parse) {
 // better ('adv' → kh1) or worse ('dis' → kl1). We rewrite exactly that dice term's source span (its count is 1 and
 // it has no keep yet and numeric faces) and re-parse to be safe. mode: 'adv' | 'dis'. Returns { ok:true, expr } or
 // { ok:false } (not a lone plain die — the caller then hides the buttons). Compose with composeModifier for a flat mod too.
+// 1.6.2: better means better for the check. Where a lower die makes the top comparison likelier (lowGood), adv keeps the lower die and dis the higher
+function dieSign(n, die) {   // +1 where the die adds to this side, -1 where it takes away, 0 where it is not there
+    if (!n || typeof n !== 'object') return 0;
+    if (n === die) return 1;
+    if (n.t === 'neg') return -dieSign(n.a, die);
+    if (n.items) for (var i = 0; i < n.items.length; i++) { var s = dieSign(n.items[i].node || n.items[i], die); if (s) return n.items[i].op === '-' ? -s : s; }
+    if (n.args) for (var a = 0; a < n.args.length; a++) { var g = dieSign(n.args[a], die); if (g) return g; }
+    if (n.a) return dieSign(n.a, die);
+    if (n.l) return dieSign(n.l, die) || dieSign(n.r, die);
+    return 0;
+}
+function lowGood(body, die) {
+    if (!body || body.t !== 'cmp') return false;
+    var under = body.op === '<' || body.op === '<=', over = body.op === '>' || body.op === '>='; if (!under && !over) return false;
+    var l = dieSign(body.l, die), r = l ? 0 : dieSign(body.r, die), s = l || -r;   // on the right of the comparison the die pulls the other way
+    return s ? (under ? s > 0 : s < 0) : false;
+}
 function withAdvantage(expr, mode, parse) {
     if (typeof parse !== 'function' || (mode !== 'adv' && mode !== 'dis')) return { ok: false };
     var clean = cleanExpr(expr); if (!clean) return { ok: false };
@@ -94,7 +111,8 @@ function withAdvantage(expr, mode, parse) {
     if (dice.length !== 1) return { ok: false };
     var d = dice[0], countOne = d.count === null || (d.count && d.count.t === 'num' && d.count.v === 1);
     if (!countOne || d.keep || !d.faces || d.faces === 'F' || d.faces.t !== 'num' || !isInt(d.pos) || !isInt(d.len)) return { ok: false };
-    var out = clean.slice(0, d.pos) + '2d' + d.faces.text + (mode === 'adv' ? 'kh1' : 'kl1') + clean.slice(d.pos + d.len);
+    var low = lowGood(p.ast.body, d);
+    var out = clean.slice(0, d.pos) + '2d' + d.faces.text + ((mode === 'adv') !== low ? 'kh1' : 'kl1') + clean.slice(d.pos + d.len);
     var cc = cleanExpr(out); if (!cc) return { ok: false };
     var q = null; try { q = parse(cc); } catch (e2) { q = null; }
     if (!q || !q.ok) return { ok: false };

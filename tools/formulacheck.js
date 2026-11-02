@@ -191,6 +191,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     E('keep too many', '3d6kh5', 'Cannot keep 5 dice of 3.', 3, 3);
     E('keep zero', '3d6kh0', 'Cannot keep 0 dice of 3.', 3, 3);
     E('drop everything', '3d6dh3', 'Cannot drop 3 dice of 3 (nothing would be left).', 3, 3);
+    const poolRun = f => ev(f, { random: seeded(4) });
+    check('a pool the sheet sets keeps what it has when it shrinks past its keep count', (() => { const r = poolRun('(2 - 0)d6kh3'); return r.ok && r.breakdown.dice[0].dice.every(d => d.kept); })());
+    check('a pool the sheet sets drops all but one rather than stop rolling', (() => { const r = poolRun('(1 + 0)d6dl2'), s = poolRun('(2 + 0)d6dl1'); return r.ok && r.breakdown.dice[0].dice.filter(d => d.kept).length === 1 && s.ok && s.breakdown.dice[0].dice.filter(d => d.kept).length === 1; })());
+    check('a computed pool of the right size keeps as it was asked', (() => { const r = poolRun('(2 + 3)d6kh3'); return r.ok && r.breakdown.dice[0].dice.filter(d => d.kept).length === 3; })());
+    E('keep zero of a computed pool', '(2 + 1)d6kh0', 'Cannot keep 0 dice of 3.', 9, 3);
     E('d1 cannot explode', 'd1!', 'd1 cannot explode (every roll is its highest face).', 2, 1);
     E('fudge dice cannot explode', '4dF!', 'Fudge dice cannot explode.', 3, 1);
     E('rr forever on d6', 'd6rr<=6', 'rr<=6 would reroll a d6 forever.', 2, 5);

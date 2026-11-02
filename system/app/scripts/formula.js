@@ -518,7 +518,7 @@ function Ctx(ast, options) {
     this.stack = Array.isArray(options.stack) ? options.stack.map(function(s) { return String(s).toLowerCase(); }) : [];
     this.draws = []; this.dice = []; this.checks = []; this.names = []; this.pool = 0;
     this.recs = new Map();
-    this.top = topOf(ast.body); this.aside = 0;
+    this.top = topOf(ast.body); this.aside = 0; this.reads = [];
     this.groups = typeof options.vars === 'function' && Array.isArray(options.vars.diceGroups) ? options.vars.diceGroups : [];   // the roll's own, where a band or a change of it reads them
 }
 Ctx.prototype.draw = function(faces, fudge, node) {
@@ -745,6 +745,10 @@ function readGroup(node, c) {
         case 'total': n = typeof g.rec.total === 'number' ? g.rec.total : 0; break;
     }
     c.recs.set(node, { read: true, value: n });
+    var said = { fn: name, value: n };   // ... and what a card says of it, in words of its own (dice.js readWords)
+    if (name === 'count' && a[0].t === 'cmp') { said.op = a[0].op; said.at = num(ev(a[0].r, c)); }
+    if (name === 'nth' || name === 'best' || name === 'worst') said.at = num(ev(a[1], c));
+    if (c.reads.length < 12) c.reads.push(said);
     return n;
 }
 function callFn(node, c) {
@@ -884,7 +888,7 @@ function evaluateAst(ast, options) {
         });
         var summary = top ? fmt(top.left) + ' ' + top.op + ' ' + fmt(top.right) + ': ' + verdict(top) : '= ' + fmt(value);
         return { ok: true, value: value, type: typeof value === 'boolean' ? 'boolean' : 'number', diceRolled: c.pool, draws: c.draws,
-                 breakdown: { dice: dice, checks: c.checks, names: c.names, template: template, text: expand(template, dice, 40), summary: summary } };
+                 breakdown: { dice: dice, checks: c.checks, names: c.names, reads: c.reads, template: template, text: expand(template, dice, 40), summary: summary } };
     } catch (e) {
         if (e instanceof FormulaError) return { ok: false, error: { message: e.message, pos: e.pos, len: e.len } };
         return { ok: false, error: { message: 'The formula could not be evaluated.', pos: 0, len: 0 } };
@@ -896,6 +900,12 @@ function evaluate(text, options) {
     return evaluateAst(p.ast, options);
 }
 function names(text) { var p = parse(text); return p.ok ? p.names : []; }
+// 1.6.2: a formula anyone at a table reads as it stands: dice, numbers and arithmetic, with no function and nothing named with @. Anything else is said in words on its card
+function plainDice(text) {
+    var p = parse(text); if (!p.ok) return false;
+    function has(n) { if (!n || typeof n !== 'object') return false; if (Array.isArray(n)) return n.some(has); if (n.t === 'call' || (n.t === 'dice' && n.as)) return true; return ['a', 'l', 'r', 'body', 'expr'].some(function(k) { return has(n[k]); }) || (Array.isArray(n.items) && n.items.some(function(x) { return has(x && x.node ? x.node : x); })); }
+    return !has(p.ast);
+}
 // The breakdown as tokens for a renderer: strings, and { die: <dice record>, text } for each dice group (cap = dice shown per group)
 function parts(result, cap) {
     if (!result || !result.ok || !result.breakdown) return [];
@@ -912,7 +922,7 @@ function describe(result, opts) {
     return b.summary;
 }
 
-var API = { parse: parse, evaluate: evaluate, evaluateAst: evaluateAst, names: names, describe: describe, parts: parts, fromDraws: fromDraws, LIMITS: LIMITS, VERSION: VERSION };
+var API = { parse: parse, evaluate: evaluate, evaluateAst: evaluateAst, names: names, plainDice: plainDice, describe: describe, parts: parts, fromDraws: fromDraws, LIMITS: LIMITS, VERSION: VERSION };
 if (typeof window !== 'undefined') window.wpFormula = API;
 
-export { parse, evaluate, evaluateAst, names, describe, parts, fromDraws, LIMITS, VERSION };
+export { parse, evaluate, evaluateAst, names, plainDice, describe, parts, fromDraws, LIMITS, VERSION };

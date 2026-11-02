@@ -27,6 +27,23 @@ function dieInto(host, rec) {
 /* ---------- the card (a chat entry with m.roll = the record and m.res = the replayed result) ---------- */
 // 1.5.7: a roll worked out from a sheet, said in plain figures: each dice group with its dice, then what a check came to and what it needed.
 // The formula and its whole working stay on the line's hover. Text nodes only.
+// 1.6.2 (the owner, 2026-11-02: "we shouldnt be using code expressions on the user side"): what a formula read of its dice, in words
+function readWords(r) {
+    if (!r || typeof r !== 'object' || typeof r.value !== 'number') return ''; var v = fmtNum(r.value), at = typeof r.at === 'number' ? fmtNum(r.at) : '', nth = at === '1' ? '1st' : at === '2' ? '2nd' : at === '3' ? '3rd' : at + 'th';
+    switch (r.fn) {
+        case 'count': return !r.op ? v + (r.value === 1 ? ' die' : ' dice') : r.op === '>=' ? v + ' at ' + at + ' or more' : r.op === '<=' ? v + ' at ' + at + ' or less' : r.op === '>' ? v + ' over ' + at : r.op === '<' ? v + ' under ' + at : r.op === '=' ? v + ' showing ' + at : v + ' not showing ' + at;
+        case 'high': return 'highest ' + v;
+        case 'low': return 'lowest ' + v;
+        case 'nth': return nth + ' highest ' + v;
+        case 'best': return 'best ' + at + ' make ' + v;
+        case 'worst': return 'worst ' + at + ' make ' + v;
+        case 'sets': return v + ' matching';
+        case 'setface': return 'most match on ' + v;
+        case 'pairs': return v + (r.value === 1 ? ' pair' : ' pairs');
+        case 'total': return 'total ' + v;
+    }
+    return '';
+}
 function readableInto(brk, res, parts, expr) {
     var groups = parts.filter(function(p) { return p && typeof p === 'object' && p.die; }), b = res.breakdown || {}, top = null;
     (Array.isArray(b.checks) ? b.checks : []).forEach(function(c) { if (c && c.top) top = c; });
@@ -38,6 +55,7 @@ function readableInto(brk, res, parts, expr) {
         brk.appendChild(el('span', 'roll-die', p.text));
         brk.appendChild(document.createTextNode(']'));
     });
+    (Array.isArray(b.reads) ? b.reads : []).forEach(function(r) { var w = readWords(r); if (w) brk.appendChild(document.createTextNode(' \u00b7 ' + w)); });
     if (!top && groups.length && typeof res.value === 'number' && isFinite(res.value) && !/[*\/%(]/.test(String(expr || ''))) {   // 1.6.0: dice and adds, a sheet's value among them: the add said, or the sum after it reads as a slip. A formula that does more than add says its total alone
         var diceSum = groups.reduce(function(n, p) { return n + (p.die && typeof p.die.total === 'number' ? p.die.total : NaN); }, 0), addN = res.value - diceSum;
         if (isFinite(addN) && addN !== 0) brk.appendChild(document.createTextNode((addN > 0 ? ' + ' : ' \u2212 ') + fmtNum(Math.abs(addN))));
@@ -100,7 +118,8 @@ function renderCard(m) {
         if (rec.dmg === 1) wrap.className += ' card-dmg';   // a damage roll needs no dice to be one
         return wrap;
     }
-    var named = !!rec.hid; try { named = named || (typeof Fm.names === 'function' && Fm.names(rec.expr).length > 0); } catch (e) { named = false; }   // 1.5.7 (the owner: the formula "is showing as the roll information instead of being readable by everyone")
+    var coin = rec.expr === '1d2' && rec.label === 'Coin flip';   // 1.6.2: the Coin button's roll says heads or tails, with no dice line
+    var named = !!rec.hid || coin; try { named = named || (typeof Fm.names === 'function' && Fm.names(rec.expr).length > 0) || (typeof Fm.plainDice === 'function' && !Fm.plainDice(rec.expr)); } catch (e) { named = false; }   // 1.5.7 (the owner: the formula "is showing as the roll information instead of being readable by everyone")
     var exprLine = el('div', 'roll-expr', rec.expr); exprLine.title = rec.expr; if (!named) wrap.appendChild(exprLine);
     var brk = el('div', 'roll-break');
     var sy = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null, rule = typeof ruleOf === 'function' ? ruleOf(rec, sy && sy.combat ? sy.combat.checks : '') : sy && sy.combat && sy.combat.checks === 'under3d6' ? 'under3d6' : '';   // Stage 6 F8: the campaign's roll outcomes (1.6.0: or the critical range the host put on the record, asked through typeof for a suite that slices the card)
@@ -112,12 +131,13 @@ function renderCard(m) {
     else parts.forEach(function(p) { if (typeof p === 'string') brk.appendChild(document.createTextNode(p)); else brk.appendChild(el('span', 'roll-die', p.text)); });
     if (typeof dieInto === 'function') dieInto(brk, rec);   // 1.5.8: the die its formula rolls, first on the dice line
     var hmC = rec.dmg === 1 && Array.isArray(rec.more) ? rec.more : [];   // 1.6.0 A burst: each hit after the first, its total on a line of its own, as text
-    if (!hmC.length || mf) wrap.appendChild(brk);   // the live test, 2026-10-30: several hits show their dice on their own lines, and this line was only the first's
+    if ((!hmC.length || mf) && !coin) wrap.appendChild(brk);   // the live test, 2026-10-30: several hits show their dice on their own lines, and this line was only the first's
     if (typeof modsInto === 'function') modsInto(wrap, rec.mods);
     if (typeof refsInto === 'function') refsInto(wrap, rec.refs);   // 1.6.0 Specialties: which row a reference read
     if (typeof swInto === 'function') swInto(wrap, rec.sw);   // 1.6.0: the roll switches it was rolled with   // 1.5.8: what changed the values it read (asked through typeof for a suite that slices the card alone)
     wrap.className += mf ? ' card-malf' : v && v.kind === 'check' ? (v.pass ? ' card-ok' : ' card-fail') : rec.dmg === 1 ? ' card-dmg' : '';   // chat cards: the left stripe — a malfunction, the check's outcome, else a damage roll, else plain
     var total = el('div', 'roll-total' + (mf ? ' roll-fail roll-malf' : v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : rec.dmg === 1 ? ' roll-dmg' : ''), mf ? malfWords(rec) : v ? (v.kind === 'check' ? v.text : hmC.length ? (hmC.length + 1) + ' hits' : '= ' + v.text) : '');
+    if (coin) total.textContent = res.value === 1 ? 'Heads' : 'Tails';
     if (crit) total.appendChild(el('span', 'roll-' + crit, v && v.crit ? (crit === 'crit' ? 'critical success' : 'critical failure') : crit === 'crit' ? 'natural 20' : 'natural 1'));
     var tierC = sy && sy.combat && sy.combat.tier && typeof sy.combat.tier === 'object' ? sy.combat.tier : null;   // 1.6.0: a success at or past the Combat tab's margin wears its name
     if (!mf && tierC && typeof tierC.name === 'string' && tierC.name && typeof tierC.at === 'number' && v && v.kind === 'check' && v.pass === true && typeof v.margin === 'number' && v.margin >= tierC.at) total.appendChild(el('span', 'roll-tier', tierC.name));
@@ -379,8 +399,13 @@ function roll(expr, opts) {
     var clean = cleanExpr(expr);
     if (!clean) return { error: 'Type a formula, for example 2d6 + 3 (up to ' + LIMITS.expr + ' characters).' };
     var r = n.diceRoll(clean, { aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: opts.by || undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, charId: opts.charId || undefined, label: opts.label || undefined, src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, range: more ? more.range : undefined, blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined, usedWait: more && more.usedWait === true ? true : undefined, cross: more && more.cross ? more.cross : undefined });   // dmg: this machine's own word (a thrown item's damage); the wire never carries it
-    if (!r.error && !opts.row) remember(clean);   // Stage 6 F5b: a row roll is not remembered (its Row.* names need its row)
+    if (!r.error && !opts.row && !opts.coin) remember(clean);   // Stage 6 F5b: a row roll is not remembered (its Row.* names need its row)
     return r;
+}
+// 1.6.2: the Coin button, as the roller's own character and Private tick say
+function coinFromPanel() {
+    var r = roll('1d2', { label: 'Coin flip', coin: true, priv: !!(ui('dicePriv') && ui('dicePriv').checked), source: 'panel', charId: ui('diceChar') && ui('diceChar').value || undefined });
+    clearErr(); if (r.error) showErr(r.error, '', 0, 0);
 }
 function rollFromPanel() {
     var f = ui('diceExpr'); if (!f) return;
@@ -419,6 +444,7 @@ function sync() {
         else if (e.key === 'ArrowDown') { e.preventDefault(); histAt = Math.max(-1, histAt - 1); f.value = histAt < 0 ? '' : history[histAt]; }
     });
     p.addEventListener('click', function(e) {
+        if (e.target.closest && e.target.closest('button[data-coin]')) { coinFromPanel(); return; }
         var q = e.target.closest && e.target.closest('button[data-die], button[data-op]'); if (!q || !f) return;
         var cur = f.value.trim();
         if (q.dataset.die) f.value = cur ? cur + ' + ' + q.dataset.die : q.dataset.die;

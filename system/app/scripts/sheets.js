@@ -29,7 +29,8 @@ import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, se
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
 import { fitIfOk, partFitEntry, modsIfOk } from './systemcore.js';
-import { tileLayout, tileStep, tileSide } from './tilecore.js';   // 1.6.2 (body fold 3)   // 1.6.0 Fits where (the core handbook session's ask 18)
+import { tileLayout, tileStep, tileSide } from './tilecore.js';   // 1.6.2 (body fold 3)
+import { standFitSays } from './systemcore.js';   // 1.6.2 (body fold 5)   // 1.6.0 Fits where (the core handbook session's ask 18)
 import { targetHitList, targetHitRows, readsTargetHit } from './systemcore.js';   // 1.6.0 (B5): a called shot by the target's own location
 import { tableKeyOk, TABLE_KEY, TABLE_ROW_KEY, nameFold } from './systemcore.js';   // 1.6.0: a system's tables, as Save reads them (tableSays)
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
@@ -1943,6 +1944,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     var previewV = !!(vctx && vctx.preview);   // Stage 6 HUD C8: the Layout preview draws a part whose show-if is false, dimmed (the sheet leaves it out)
     var hudV = !!(vctx && vctx.view === 'hud'); _fxView = hudV ? 'hud' : 'sheet';   // Stage 6 HUD frame (HF1): which view this draws (sys is then hudView's projection)
     _lockNow = viewLocked(c, vctx);   // the sheet's lock: the HUD always, the sheet until Edit sheet
+    _tileHere = { all: all, gm: gm, own: own };   // 1.6.2 (body fold 4): what a tile's drawer draws its lists from
     var arrV = previewV && vctx.arrange === true;   // 1.6.2, backlog 171 (b): the preview under Arrange: every section open, and marks for the grips
     var printV = !!(vctx && vctx.print);   // Onboarding F2b: printed — every tab in turn, every section open, nothing that only works on screen
     var sheet = (hudV || (sys.sheet && sys.sheet.sections && sys.sheet.sections.length)) ? sys.sheet : autoLayout(sys);   // the HUD has no automatic layout of its own
@@ -3088,6 +3090,7 @@ function standCtl(entry, c, f, spec, can, sysI, res) {
         var sel = el('select', 'field sheet-item-statsel'); sel.ariaLabel = 'Where this row stands'; sel.title = 'Where this row stands'; sel.dataset.fid = f.id; sel.dataset.part = 'pl-' + rid;
         sel.appendChild(opt('', auto && cur ? 'Not placed: ' + nameOf(cur) : 'Not placed', auto || !cur));
         tiles.forEach(function(r) { sel.appendChild(opt(rowIdOf(r), nameOf(r), !auto && r === cur)); });
+        var tfB = (Array.isArray(sysI.fields) ? sysI.fields : []).filter(function(x) { return x && x.id === sp.from; })[0], sbB = tfB && tfB.list && tfB.list.tiles && Array.isArray(tfB.list.tiles.boxes) ? tfB.list.tiles.boxes.filter(function(b) { return b.strip === true; }) : []; sbB.forEach(function(b) { sel.appendChild(opt('b_' + b.key, b.label, !!st && st.r === 'b_' + b.key)); });   // 1.6.2 (body fold 4)
         sel.addEventListener('change', function() { commitItem(c, f, { op: 'place', rowId: rid, at: sel.value || null, back: uid('w_') }); });
         box.appendChild(sel);
     } else if (cur) { var ch = el('span', 'sheet-chip', 'At ' + nameOf(cur)); if (auto) ch.title = 'Not placed yet. It stands at the first place it fits.'; box.appendChild(ch); }
@@ -3096,7 +3099,32 @@ function standCtl(entry, c, f, spec, can, sysI, res) {
 }
 // [bodycheck:tileview-start]
 // 1.6.2 (body fold 3): a list drawn as tiles. Nothing of a row is drawn but through the sheet's own list: pressing a tile opens a drawer that holds that row as the list draws it, so every control, right and refusal is the list's. tileView answers null for the plain list, or { into, rows }: where the list draws, and the one row it draws
-var _tileOpen = Object.create(null), TILE_SHOW = 'wp_bodyShow';
+var _tileOpen = Object.create(null), TILE_SHOW = 'wp_bodyShow', _tileHere = null;
+// 1.6.2 (body fold 4): what stands at or reaches a tile, each list drawn by its own field with no add of its own, so its controls, parts and rights are the list's. A placed row that does not count is shown too, saying so
+// 1.6.2 (body fold 5): + Put here: the rows of every list that stands at these tiles and does not stand here yet, by list, each saying where it stands now. One Fits where refuses is greyed for a player and only marked for the GM, whose hand passes and is told
+function tilePut(dr, f, c, sysI, tile, boxed) {
+    if (_lockNow || !_fxLive || !_tileHere || !(_tileHere.gm || _tileHere.own)) return; var gm = !!_tileHere.gm, Fm = typeof F === 'function' ? F() : null, sel = el('select', 'field sheet-item-add body-put'), n = 0, tiles = c.values && Array.isArray(c.values[f.id]) ? c.values[f.id] : [], tRow = tiles.filter(function(r) { return rowIdOf(r) === tile; })[0];
+    sel.ariaLabel = 'Put something here'; sel.title = 'Put a row of yours here'; sel.dataset.fid = f.id; sel.dataset.part = 'tput-' + tile; sel.appendChild(opt('', '+ Put here\u2026', true)); if (window.wpTexList) window.wpTexList.keys(sel);
+    (Array.isArray(sysI.fields) ? sysI.fields : []).forEach(function(f2) {
+        if (!f2 || f2.kind !== 'item-list' || !f2.list || !f2.list.stand || f2.list.stand.from !== f.id) return; if (boxed !== (typeof f2.list.stand.box === 'string' ? f2.list.stand.box : '') && boxed !== '*') return;
+        var grp = el('optgroup'); grp.label = f2.label || f2.key || 'A list'; (c.values && Array.isArray(c.values[f2.id]) ? c.values[f2.id] : []).forEach(function(r) {
+            if (!r || r.hid === 1 || typeof r.in === 'string' || r.pl === tile) return; var d = rowDef(sysI, r), id = rowIdOf(r), no = ''; if (!id) return;
+            if (tRow && Fm) { try { var sy = standFitSays(sysI, c, f2, r, f, tRow, Fm, {}); no = sy && sy.tell ? sy.tell : ''; } catch (e) { no = ''; } }
+            var o = opt(f2.id + '|' + id, ((d && d.def && d.def.name) || 'A row') + (no ? ' (does not fit)' : ''), false); if (no && !gm) { o.disabled = true; o.title = no; } grp.appendChild(o); n++;
+        }); if (grp.childNodes && grp.childNodes.length) sel.appendChild(grp);
+    });
+    if (!n) return; sel.addEventListener('change', function() { var v = String(sel.value || ''), at = v.indexOf('|'); if (at < 0) return; var f3 = (sysI.fields || []).filter(function(x) { return x && x.id === v.slice(0, at); })[0]; if (f3) commitItem(c, f3, { op: 'place', rowId: v.slice(at + 1), at: tile, back: uid('w_') }); }); dr.appendChild(sel);
+}
+function tileStands(dr, f, c, sysI, tile, res) {
+    var H = _tileHere, n = 0; if (!H || !H.all) return 0;
+    (Array.isArray(sysI.fields) ? sysI.fields : []).forEach(function(f2) {
+        if (!f2 || f2.kind !== 'item-list' || !f2.list || !f2.list.stand || f2.list.stand.from !== f.id) return; var e2 = H.all[f2.id], only = Object.create(null), m = 0;
+        (res && res.tn && res.tn[tile] ? res.tn[tile] : []).forEach(function(x) { if (x.f === f2.id) { only[x.r] = 1; m++; } });
+        if (e2 && e2.sd) Object.keys(e2.sd).forEach(function(id) { if (e2.sd[id].r === tile && !only[id]) { only[id] = 1; m++; } });
+        if (!m || !e2) return; n += m; dr.appendChild(fieldNodeBody(f2, c, e2, H.gm, H.own, sysI, { id: f2.id, only: only }));
+    });
+    return n;
+}
 function tileKept(key) { try { var o = JSON.parse(localStorage.getItem(TILE_SHOW) || '{}'); return o && typeof o === 'object' && (o[key] === 'tiles' || o[key] === 'list') ? o[key] : ''; } catch (e) { return ''; } }
 function tileKeep(key, v) { try { var o = JSON.parse(localStorage.getItem(TILE_SHOW) || '{}'); if (!o || typeof o !== 'object' || Array.isArray(o)) o = {}; o[key] = v; var ks = Object.keys(o); if (ks.length > 200) delete o[ks[0]]; localStorage.setItem(TILE_SHOW, JSON.stringify(o)); } catch (e) {} }
 function tileSwitch(wrap, key, now, f, c) {
@@ -3112,20 +3140,26 @@ function tileView(wrap, f, c, rows, sysI, plc, res) {
     var spec = f.list || {}, tsp = spec.tiles && typeof spec.tiles === 'object' ? spec.tiles : {}, camp = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, key = (camp ? camp.id : '') + '|' + f.id, both = how !== 'tiles', now = both ? (tileKept(key) || (how === 'list+' ? 'list' : 'tiles')) : 'tiles';
     if (both) tileSwitch(wrap, key, now, f, c);
     if (now !== 'tiles') return null;
+    var boxOf = Object.create(null), tbs = Array.isArray(tsp.boxes) ? tsp.boxes : []; (Array.isArray(sysI.fields) ? sysI.fields : []).forEach(function(f2) { if (f2 && f2.kind === 'item-list' && f2.list && f2.list.stand && f2.list.stand.from === f.id && typeof f2.list.stand.box === 'string') boxOf[f2.id] = f2.list.stand.box; });   // 1.6.2 (body fold 4): the lists that stand in a box, not on the tile's face
     var cells = rows.filter(function(r) { return r && r.hid !== 1; }).map(function(r) { var d = rowDef(sysI, r), st = tsp.side && d ? rowStat(spec, d.def, tsp.side) : undefined; return { id: rowIdOf(r), up: r.up, side: tsp.side ? tileSide(typeof st === 'string' ? st : statLabelOf(spec, tsp.side, st), st) : 0, row: r, name: (d && d.def && d.def.name) || 'A row' }; }), lay = tileLayout(cells), byId = Object.create(null), openKey = c.id + '|' + f.id, open = _tileOpen[openKey] || '', flat = lay.tiles.slice(), holder = el('div', 'body-tiles');
     cells.forEach(function(x) { byId[x.id] = x; }); lay.strip.forEach(function(id, i) { flat.push({ id: id, c: i, r: lay.rows + 1 }); });
-    if (open && !byId[open]) open = '';
+    var openBox = open ? tbs.filter(function(b) { return b.strip === true && 'b_' + b.key === open; })[0] : null; if (open && !byId[open] && !openBox) open = '';
     var focusTo = open || (flat[0] ? flat[0].id : ''), put = function(t, into, inGrid) {
-        var x = byId[t.id], on = res && res.tn ? res.tn[t.id] : null, holds = (on || []).filter(function(e) { return !e.reach; }).length, reach = (on || []).filter(function(e) { return e.reach; }).length, b = el('button', 'body-tile' + (holds ? ' full' : reach ? ' cover' : '') + (t.id === open ? ' sel' : '')); b.type = 'button'; b.dataset.fid = f.id; b.dataset.part = 'tile-' + t.id; b.dataset.tile = t.id; b.tabIndex = t.id === focusTo ? 0 : -1; b.ariaExpanded = t.id === open ? 'true' : 'false';
-        if (inGrid) { b.style.gridColumn = String(t.c + 1); b.style.gridRow = String(t.r + 1); }
+        var x = byId[t.id], on = res && res.tn ? res.tn[t.id] : null, holds = (on || []).filter(function(e) { return !e.reach && !boxOf[e.f]; }).length, reach = (on || []).filter(function(e) { return e.reach && !boxOf[e.f]; }).length, cellB = inGrid ? el('div', 'body-cell') : null, b = el('button', 'body-tile' + (holds ? ' full' : reach ? ' cover' : '') + (t.id === open ? ' sel' : '')); b.type = 'button'; b.dataset.fid = f.id; b.dataset.part = 'tile-' + t.id; b.dataset.tile = t.id; b.tabIndex = t.id === focusTo ? 0 : -1; b.ariaExpanded = t.id === open ? 'true' : 'false';
+        if (inGrid) { cellB.style.gridColumn = String(t.c + 1); cellB.style.gridRow = String(t.r + 1); }
         b.title = x.name + ': ' + tileWords(rows, sysI, c, on); b.ariaLabel = x.name + '. ' + (holds ? holds + (holds === 1 ? ' thing here.' : ' things here.') : reach ? 'Covered.' : 'Empty.');
         b.appendChild(el('span', 'body-tile-name', x.name)); if (tsp.top) { var cix = (Array.isArray(spec.cols) ? spec.cols : []).map(function(q) { return q && q.key; }).indexOf(tsp.top), cl = cix >= 0 && res && res.cells && res.cells[t.id] ? res.cells[t.id][cix] : null, tv = cl ? (cl.error ? '' : cl.text !== undefined ? cl.text : cl.value) : (rowDef(sysI, x.row) ? rowStat(spec, rowDef(sysI, x.row).def, tsp.top) : ''); if (tv !== '' && tv !== undefined && tv !== null && typeof tv !== 'object') b.appendChild(el('span', 'body-tile-top', String(tv))); }
         if (holds) b.appendChild(el('span', 'body-tile-n', String(holds)));
         b.addEventListener('click', function() { if (_tileOpen[openKey] === t.id) delete _tileOpen[openKey]; else _tileOpen[openKey] = t.id; renderViews(c.id); });
-        into.appendChild(b);
+        if (!inGrid) { into.appendChild(b); return; } cellB.appendChild(b);
+        tbs.forEach(function(bx) {
+            var st = res && res.tb && res.tb[t.id] ? res.tb[t.id][bx.key] : 0; if (!st) return; var hd = (on || []).filter(function(e) { return boxOf[e.f] === bx.key; }), nm = hd.length ? tileWords(rows, sysI, c, [hd[0]]) : '', d = el('button', 'body-box' + (st === 2 ? ' taken' : hd.length ? ' full' : ''), st === 2 ? (bx.takenSays || 'Taken') : nm ? nm + (hd.length > 1 ? ' +' + (hd.length - 1) : '') : bx.label); d.type = 'button'; d.dataset.fid = f.id; d.dataset.part = 'tbox-' + t.id + '-' + bx.key; d.dataset.tile = 'x' + t.id + '|' + bx.key; d.tabIndex = -1; d.title = bx.label + ': ' + (st === 2 ? (bx.takenSays || 'Taken') : tileWords(rows, sysI, c, hd));
+            d.addEventListener('click', function() { _tileOpen[openKey] = t.id; renderViews(c.id); }); cellB.appendChild(d); flat.push({ id: 'x' + t.id + '|' + bx.key, c: t.c, r: t.r + 0.5 });
+        });
+        into.appendChild(cellB);
     };
     if (lay.tiles.length) { var stage = el('div', 'body-stage'); stage.style.setProperty('--tile-cols', String(Math.max(1, lay.cols))); lay.tiles.forEach(function(t) { put(t, stage, true); }); holder.appendChild(stage); }
-    if (lay.strip.length) { var sp2 = el('div', 'body-strip'); lay.strip.forEach(function(id) { put({ id: id }, sp2, false); }); holder.appendChild(sp2); }
+    var sbs = tbs.filter(function(b) { return b.strip === true; }); if (lay.strip.length || sbs.length) { var sp2 = el('div', 'body-strip'); lay.strip.forEach(function(id) { put({ id: id }, sp2, false); }); sbs.forEach(function(bx, i) { var id = 'b_' + bx.key, on = res && res.tn ? res.tn[id] : null, n = (on || []).length, b = el('button', 'body-tile body-tile-box' + (n ? ' full' : '') + (id === open ? ' sel' : '')); b.type = 'button'; b.dataset.fid = f.id; b.dataset.part = 'tile-' + id; b.dataset.tile = id; b.tabIndex = id === focusTo ? 0 : -1; b.ariaExpanded = id === open ? 'true' : 'false'; b.title = bx.label + ': ' + tileWords(rows, sysI, c, on); b.appendChild(el('span', 'body-tile-name', bx.label)); if (n) b.appendChild(el('span', 'body-tile-n', String(n))); b.addEventListener('click', function() { if (_tileOpen[openKey] === id) delete _tileOpen[openKey]; else _tileOpen[openKey] = id; renderViews(c.id); }); flat.push({ id: id, c: lay.strip.length + i, r: lay.rows + 1 }); sp2.appendChild(b); }); holder.appendChild(sp2); }
     holder.addEventListener('keydown', function(ev) {
         if (ev.key === 'Escape' && _tileOpen[openKey]) { ev.preventDefault(); ev.stopPropagation(); delete _tileOpen[openKey]; renderViews(c.id); return; }
         var dir = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[ev.key], t = ev.target; if (!dir || !t || !t.dataset || !t.dataset.tile) return;
@@ -3134,8 +3168,11 @@ function tileView(wrap, f, c, rows, sysI, plc, res) {
     wrap.appendChild(holder);
     if (!open) { holder.classList.remove('has-open'); return { into: null, rows: [] }; }
     holder.classList.add('has-open'); var dr = el('div', 'body-drawer'), head = el('div', 'body-drawer-head'), shut = el('button', 'tool ghost sys-btn', '\u00d7'); shut.type = 'button'; shut.title = 'Close this'; shut.ariaLabel = 'Close this'; shut.dataset.fid = f.id; shut.dataset.part = 'tile-shut';
-    shut.addEventListener('click', function() { delete _tileOpen[openKey]; renderViews(c.id); }); head.appendChild(el('span', 'body-drawer-name', byId[open].name)); head.appendChild(shut); dr.appendChild(head); holder.appendChild(dr);
-    return { into: dr, rows: [byId[open].row] };
+    shut.addEventListener('click', function() { delete _tileOpen[openKey]; renderViews(c.id); }); head.appendChild(el('span', 'body-drawer-name', openBox ? openBox.label : byId[open].name)); head.appendChild(shut); dr.appendChild(head); holder.appendChild(dr);
+    var rowBox = el('div', 'body-drawer-row'); dr.appendChild(rowBox);
+    if (!tileStands(dr, f, c, sysI, open, res)) dr.appendChild(el('div', 'sheet-empty-note', 'Nothing stands here.'));
+    tilePut(dr, f, c, sysI, open, '*');
+    return { into: openBox ? null : rowBox, rows: openBox ? [] : [byId[open].row] };
 }
 function statLabelOf(spec, key, n) { var s = (Array.isArray(spec.stats) ? spec.stats : []).filter(function(x) { return x && typeof x.key === 'string' && x.key.toLowerCase() === String(key).toLowerCase(); })[0]; return s && Array.isArray(s.labels) && typeof n === 'number' && typeof s.labels[n] === 'string' ? s.labels[n] : ''; }
 // [bodycheck:tileview-end]
@@ -4807,6 +4844,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var canThrow = (gm || (own && !gmThrows && !!facingTarget(c))) && !c.partial;   // who-rolls='gm' means only the GM throws; a player throws from the character whose token they hold here (never a kept one)
         var wrap = el('div', 'sheet-items' + (f.table ? ' sheet-items-table' : ''));
         var phI = typeof partHostIds === 'function' ? partHostIds(sysI, c, f.id) : null; if (phI) rowsI = rowsI.filter(function(r) { return !(r && typeof r.in === 'string' && phI[r.in]); });   // 1.6.0 R14: a part stands under its host
+        if (plc && plc.only) { rowsI = rowsI.filter(function(r) { return plc.only[rowIdOf(r)] === 1; }); onOnly = true; }   // 1.6.2 (body fold 4): the rows a tile's drawer shows
         if (typeof setStrip === 'function' && !onOnly && (!catT || catT.home)) setStrip(wrap, c, f, specI, sysI, carried, playOk, e);   // 1.6.0 R15: the list's sets, once, over its home placement
         var lookOk = !!(gm || (own && f.vis === 'all'));   // 1.6.0, backlog 206: a row's look and its work log are its owner's and the GM's, whoever else may change the list
         var tvI = typeof tileView === 'function' ? tileView(wrap, f, c, rowsI, sysI, plc, resI) : null;   // 1.6.2 (body fold 3): tiles, and the row a tile opens, through the list's own drawing
@@ -7235,6 +7273,21 @@ function rollJobBox(rr, sp, ch) {
 // them, and the number stat of this list whose figure caps them; PART_CAPS lines at most. Save keeps a line only once both are set. The core
 // handbook session's ask 4 (2026-10-29): where the parts' list has a choice stat (a pick, or a number with value names), a line may count by it
 // in place of categories (Counts: the parts whose slot reads one value), its value picked from the stat's own
+// 1.6.2 (body fold 4): the boxes a list's tiles offer, each a line. Its key is made once and never shown, so that a name may change
+function tileBoxesBox(sp) {
+    var box = el('div', 'sys-badges sys-tboxes'), ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var draw = function() {
+        box.textContent = ''; box.appendChild(el('span', 'sys-num-cap', 'Boxes on a tile')); var list = sp.tiles && Array.isArray(sp.tiles.boxes) ? sp.tiles.boxes : [];
+        list.forEach(function(b0, j) {
+            var b = b0 && typeof b0 === 'object' ? b0 : {}, rw = el('div', 'sys-flags sys-tbox-row'), txt = function(cls, ph, k, tip) { var i = el('input', 'field ' + cls); i.type = 'text'; i.value = typeof b[k] === 'string' ? b[k] : ''; i.placeholder = ph; i.title = tip; i.spellcheck = false; i.autocomplete = 'off'; i.addEventListener('input', function() { var v = i.value.trim(); if (v) list[j][k] = v; else delete list[j][k]; ch(); }); rw.appendChild(i); };
+            txt('sys-tbox-label', 'Its name', 'label', 'What the box is called, such as Held'); txt('sys-tbox-if', 'always', 'if', 'When a tile shows this box. A lost hand shows none'); txt('sys-tbox-taken', 'never', 'taken', 'When the box is tied up with no row in it, as a hand holding someone in a grapple'); if (b.taken) txt('sys-tbox-says', 'Taken', 'takenSays', 'What a box that is tied up says');
+            var st = el('label', 'sys-check'), sc = el('input'); sc.type = 'checkbox'; sc.checked = b.strip === true; sc.addEventListener('change', function() { if (sc.checked) list[j].strip = true; else delete list[j].strip; ch(); }); st.appendChild(sc); st.appendChild(document.createTextNode(' In the strip')); st.title = 'A box of its own under the figure that is no part of the body, so nothing there can be hit, such as Stowed'; rw.appendChild(st);
+            var x = el('button', 'tool ghost sys-btn', '\u00d7'); x.type = 'button'; x.title = 'Remove this box'; x.addEventListener('click', function() { list.splice(j, 1); if (!list.length && sp.tiles) { delete sp.tiles.boxes; if (!Object.keys(sp.tiles).length) delete sp.tiles; } ch(); draw(); }); rw.appendChild(x); box.appendChild(rw);
+        });
+        var add = el('button', 'tool ghost sys-btn', '+ Box'); add.type = 'button'; add.title = 'A place a tile offers beyond its own face'; add.disabled = list.length >= 8; add.addEventListener('click', function() { sp.tiles = sp.tiles && typeof sp.tiles === 'object' ? sp.tiles : {}; sp.tiles.boxes = Array.isArray(sp.tiles.boxes) ? sp.tiles.boxes : []; var n = 1; while (sp.tiles.boxes.some(function(b) { return b && b.key === 'box' + n; })) n++; sp.tiles.boxes.push({ key: 'box' + n, label: 'Box ' + n }); ch(); draw(); }); box.appendChild(add);
+    };
+    draw(); return box;
+}
 function partCapsBox(sp) {
     var box = el('div', 'sys-badges sys-pcaps'), max = typeof PART_CAPS === 'number' ? PART_CAPS : 240, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
     var nums = function() { return (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.kind !== 'pick' && s.set !== true; }); };
@@ -8963,6 +9016,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     var tlPick = function(cls, cap, val, tip, words) { var w = el('label', 'sys-check'), s = el('select', cls), o0 = el('option', null, 'Nothing'); o0.value = ''; if (!val) o0.selected = true; s.appendChild(o0); (Array.isArray(words) ? words : []).forEach(function(x) { var o = el('option', null, x[1]); o.value = x[0]; if (val === x[0]) o.selected = true; s.appendChild(o); }); w.appendChild(document.createTextNode(cap + ' ')); w.appendChild(s); w.title = tip; fl.appendChild(w); }, tlSt = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s.key === 'string' && s.key; }).map(function(s) { return [s.key, s.label || s.key]; }), tlCl = (Array.isArray(sp.cols) ? sp.cols : []).filter(function(s) { return s && typeof s.key === 'string' && s.key; }).map(function(s) { return [s.key, s.label || s.key]; }), tlSp = sp.tiles && typeof sp.tiles === 'object' ? sp.tiles : {};   // 1.6.2 (body fold 3)
     tlPick('sys-list-tileside', 'Tile side from', tlSp.side || '', 'The stat that says a tile is on the left or the right, in its words or as 1 and 2', tlSt);
     tlPick('sys-list-tiletop', 'Tile figure', tlSp.top || '', 'A figure each tile shows, such as its aim penalty', tlSt.concat(tlCl));
+    if (typeof tileBoxesBox === 'function') fl.appendChild(tileBoxesBox(sp));
     var sdL = (typeof draft !== 'undefined' && draft && draft.fields || []).filter(function(x) { return x && x.kind === 'item-list' && x.id !== f.id; }), sdS = sp.stand && typeof sp.stand === 'object' ? sp.stand : null;   // 1.6.2 (body fold 2)
     if (sdL.length || sdS) {
         var sdW = el('label', 'sys-check'), sdF = el('select', 'sys-list-standfrom'), sdO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; sdW.appendChild(document.createTextNode('Rows stand at a row of ')); sdF.appendChild(sdO('', 'No other list', !sdS));
@@ -8975,6 +9029,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             sdT('sys-list-standreach', 'Reaches', 'only where it stands', sdS.reach, 'Other places a row covers from where it stands, as one pair of boots covers both feet');
             sdT('sys-list-standcounts', 'Counts where', 'always', sdS.counts, 'A placed row counts as worn only while this holds. It stays placed, and fills no place, when it does not');
             if (sdS.counts) sdT('sys-list-standoff', 'Otherwise it says', 'nothing', sdS.offWord, 'What a placed row says while it does not count');
+            var sdF2 = (typeof draft !== 'undefined' && draft && draft.fields || []).filter(function(x) { return x && x.id === sdS.from; })[0], sdB = sdF2 && sdF2.list && sdF2.list.tiles && Array.isArray(sdF2.list.tiles.boxes) ? sdF2.list.tiles.boxes.filter(function(b) { return b && !b.strip && typeof b.key === 'string'; }) : []; if (sdB.length || sdS.box) tlPick('sys-list-standbox', 'Stands in', sdS.box || '', 'A box of the tile rather than its face, as a held weapon stands under a hand', sdB.map(function(b) { return [b.key, b.label || b.key]; }));
             fl.appendChild(checkLabel('sys-list-standpieces', sdS.pieces === true, 'Each row is one piece', 'Placing one of a stack splits it off first, so one boot or one glove stands alone'));
         }
     }
@@ -12345,6 +12400,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-tileside') >= 0 || c.indexOf('sys-list-tiletop') >= 0) { var tlK = c.indexOf('sys-list-tileside') >= 0 ? 'side' : 'top', tlO2 = Object.assign({}, lsc.tiles || {}); if (t.value) tlO2[tlK] = t.value; else delete tlO2[tlK]; if (Object.keys(tlO2).length) lsc.tiles = tlO2; else delete lsc.tiles; }   // 1.6.2 (body fold 3)
         else if (c.indexOf('sys-list-standfrom') >= 0) { if (t.value) lsc.stand = Object.assign({}, lsc.stand || {}, { from: t.value }); else delete lsc.stand; }   // 1.6.2 (body fold 2)
         else if (c.indexOf('sys-list-standpieces') >= 0) { if (lsc.stand) { if (t.checked) lsc.stand.pieces = true; else delete lsc.stand.pieces; } }
+        else if (c.indexOf('sys-list-standbox') >= 0) { if (lsc.stand) { if (t.value) lsc.stand.box = t.value; else delete lsc.stand.box; } }
         else if (/sys-list-stand(fits|says|reach|counts|off)/.test(c)) { if (lsc.stand) { var sdK = /standfits/.test(c) ? 'fits' : /standsays/.test(c) ? 'fitSays' : /standreach/.test(c) ? 'reach' : /standcounts/.test(c) ? 'counts' : 'offWord', sdV = String(t.value || '').trim(); if (sdV) lsc.stand[sdK] = sdV.slice(0, sdK === 'offWord' ? LIMITS.label : sdK === 'fitSays' ? LIMITS.needsWords : LIMITS.formula); else delete lsc.stand[sdK]; } }
         else if (c.indexOf('sys-list-partsfrom') >= 0) { if (t.value) lsc.parts = Object.assign({}, lsc.parts || {}, { from: t.value }); else delete lsc.parts; }   // 1.6.0 R14: Parts from
         else if (c.indexOf('sys-list-partscats') >= 0) { if (lsc.parts) { var pcs = String(t.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (pcs.length) lsc.parts.cats = pcs; else delete lsc.parts.cats; } }

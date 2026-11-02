@@ -4067,6 +4067,11 @@
   .body-switch { display: flex; gap: 4px; margin-bottom: 8px; }
   .body-tiles { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
   .body-stage { display: grid; grid-template-columns: repeat(var(--tile-cols, 3), minmax(0, 92px)); grid-auto-rows: minmax(64px, auto); gap: 8px; justify-content: center; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg2); }
+  .body-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .body-cell > .body-tile { min-height: 64px; }
+  .body-box { padding: 2px 4px; border: 1px dashed var(--border); border-radius: 6px; background: transparent; color: var(--dim); font: inherit; font-size: 11px; line-height: 1.2; overflow-wrap: anywhere; cursor: pointer; }
+  .body-box.full { border-style: solid; border-color: var(--gold); color: var(--text); }
+  .body-box.taken { border-style: solid; color: var(--text); font-style: italic; }
   .body-strip { display: flex; flex-wrap: wrap; gap: 8px; }
   .body-strip .body-tile { flex: 0 1 92px; min-height: 56px; }
   .body-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; padding: 6px 4px; border: 1.5px dashed var(--border); border-radius: 10px; background: transparent; color: var(--dim); font: inherit; font-size: 12px; cursor: pointer; }
@@ -4077,6 +4082,8 @@
   .body-tile-top { font-size: 11px; opacity: 0.8; }
   .body-tile-n { position: absolute; top: 3px; right: 5px; font-size: 10px; font-weight: 700; color: var(--gold); }
   .body-drawer { padding: 8px 10px; border: 1px solid var(--gold); border-radius: 10px; }
+  .body-drawer .sheet-field { margin-top: 8px; }
+  .body-drawer .body-put { margin-top: 8px; }
   .body-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-weight: 700; }
   .sheet-item-stand { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
   .sys-grant-sline, .lib-grant-sline { display: inline-flex; align-items: center; gap: 4px; }

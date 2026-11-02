@@ -43,7 +43,9 @@ The System editor
   body. A formula reads the place a row stands, and a row of that list reads
   what stands there. Fits where, Reaches and Counts where set the rules.
 - A list's place can show as tiles, set out by what hangs from what, or as both
-  with a switch. Pressing a tile opens its row in a drawer with all its controls.
+  with a switch. Pressing a tile opens its row in a drawer with all its controls,
+  and what stands there. A tile can offer boxes, such as Held under a hand, and
+  the strip can hold a box such as Stowed.
 
 At the table
 - Result bands name a roll by how it went, as a strong hit, a weak hit or a

@@ -3575,7 +3575,7 @@ pendingChecks.push((async () => {
         { id: 'f_sec', key: 'Sec', label: 'Secrets', kind: 'item-list', vis: 'gm', list: { stats: [{ key: 'Mark', label: 'Mark' }] } }],
         items: [{ id: 'i_arm', name: 'Arm', stats: { Cripd: 2 } }],
         rolls: [{ id: 'r_m', label: 'Mend all', apply: [{ list: 'f_loc', s: 'Cripd', formula: '0', set: true }] }, { id: 'r_w', label: 'Worsen', apply: [{ list: 'f_loc', s: 'Cripd', formula: '1', add: true }, { f: 'f_hp', formula: '1' }] },
-            { id: 'r_g', label: 'Mark', apply: [{ list: 'f_sec', s: 'Mark', formula: '1', add: true }] }, { id: 'r_f', label: 'Sneak', apply: [{ list: 'f_loc', s: 'Cripd', formula: 'GmFig', add: true }] }] }, { F: Fx, gmView: true });
+            { id: 'r_g', label: 'Mark', apply: [{ list: 'f_sec', s: 'Mark', formula: '1', add: true }] }, { id: 'r_f', label: 'Sneak', apply: [{ list: 'f_loc', s: 'Cripd', formula: 'GmFig', add: true }] }, { id: 'r_q', label: 'Spend', apply: [{ f: 'f_hp', formula: 'Ask.Q1' }], asks: [{ key: 'Q1', label: 'How many?', opts: [{ label: 'One', v: 1 }, { label: 'Three', v: 3 }] }] }] }, { F: Fx, gmView: true });
     const START = { f_loc: [{ id: 'w_a', defId: 'i_arm', qty: 1 }, { id: 'w_o', qty: 1, def: { name: 'Tail', stats: { Cripd: 1 } } }, { id: 'w_h', defId: 'i_arm', qty: 1, hid: 1 }] };
     const host = (msg, o) => {
         o = o || {};
@@ -3600,6 +3600,9 @@ pendingChecks.push((async () => {
     const w1 = host(A('r_w')), cW = card(w1.owner)[0] || {};
     check('1.6.0 every row of a list, char-apply: Add 1 on every row beside a field\'s change, in one press: each row moved by the amount, the card saying the amount on each row and then the field as ever',
         j(w1.vals.f_loc.map(r => r.def ? r.def.stats.Cripd : r.ov ? r.ov.stats.Cripd : null)) === j([3, 2, null]) && j(w1.vals.f_hp) === j({ cur: 11 }) && j(cW.lines) === j([{ n: 'Locations: Crippled (2 rows)', d: 1 }, { n: 'HP', d: -1, v: 11 }]) && Dx.cleanApply(cW) !== null, j([w1.vals, cW]));
+    const q1 = host(Object.assign(A('r_q'), { ask: { Q1: 1 } })), q0 = host(A('r_q')), qX = host(Object.assign(A('r_q'), { ask: { Q1: 7 } })), qP = host(Object.assign(A('r_m'), { ask: { Q1: 1 } })), cQ = card(q1.owner)[0] || {};
+    check('1.6.2 an action that asks, char-apply (the host, run for real): what it changes reads the answer they picked, and the card says it; a press that names none takes the first; an answer not offered and an answer to an action that asks nothing are refused with nothing moved',
+        j(q1.vals.f_hp) === j({ cur: 9 }) && j(cQ.asked) === j([{ l: 'How many?', w: 'Three' }]) && !!Dx.cleanApply(cQ) && j(Dx.cleanApply(cQ).asked) === j(cQ.asked) && j(q0.vals.f_hp) === j({ cur: 11 }) && qX.answer[0].type === 'char-deny' && !qX.vals.f_hp && qP.answer[0].type === 'char-deny', j([q1.vals, cQ, q0.vals, qX.answer, qP.answer]));
     const dG = host(A('r_g')), dF = host(A('r_f')), dN = host(A('r_m'), { vals: { f_loc: [{ id: 'w_a', defId: 'i_arm', qty: 1, ov: { stats: { Cripd: 0 } } }, { id: 'w_h', defId: 'i_arm', qty: 1, hid: 1 }] } });
     const quiet = r => r.owner.length === 0 && r.mate.length === 0 && r.chat.length === 0 && r.saves === 0;
     check('1.6.0 every row of a list, char-apply: an action on a GM-only list and one whose amount reads a GM-only value are not in the player\'s view ("field"); one whose rows are all at the figure already, the hidden row aside, is "none"; nothing stored, sent or saved',
@@ -3731,7 +3734,7 @@ pendingChecks.push((async () => {
     const sysNd = Sx.cleanSystem(rawNd, { F: Fx, gmView: true }), nZap = host(R('w_1', 4), sysNd), nCalm = host(R('w_1', 5), sysNd);
     check('the core handbook session\'s ask (b): a player\'s press of a list\'s apply action on a row that does not meet its needs is refused in its words ("error", Out of charges), nothing moved, nothing saved; one whose needs hold is applied (EP 6 - 1)',
         j(typ(nZap.owner)) === j(['char-deny:error']) && nZap.owner[0].msg === 'Out of charges' && quietL(nZap) && j(nCalm.vals.f_ep) === j({ cur: 5 }) && nCalm.owner.some(m => m.type === 'char-ack'), j([nZap.owner, typ(nCalm.owner), nCalm.vals]));
-    const nsrcL = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), caAt = nsrcL.indexOf('net.charApply = function(charId, actId, label, row, on) {'), caSrc = nsrcL.slice(caAt, nsrcL.indexOf('\n};', caAt) + 3);
+    const nsrcL = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), caAt = nsrcL.indexOf('net.charApply = function(charId, actId, label, row, on, ask) {'), caSrc = nsrcL.slice(caAt, nsrcL.indexOf('\n};', caAt) + 3);
     const clientReq = (calls, o) => { o = o || {}; const sent = [], pend = {}, camp = { system: sysL, chars: { c_1: { id: 'c_1', ownerId: 'u_a' }, c_2: { id: 'c_2', ownerId: 'u_b' } } }, conn = { peer: 'H', open: true, send: m => sent.push(JSON.parse(JSON.stringify(m))) };
         const netC = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'H', myId: 'u_a', conns: [conn] };
         const run = new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', caSrc + '\nreturn net.charApply;')(netC, () => Sx, () => camp, { wpVtt: { on: () => true } }, pend, () => {}, () => 0);
@@ -4309,7 +4312,7 @@ pendingChecks.push((async () => {
         && gPc.apply && gPc.apply.on === 'Bo' && !('priv' in gPc.apply) && gPc.scope === 'global',
         j([gS.v('c_b'), gSc, gPc]));
     // the client's word: net.charApply and net.diceRoll name the token, and dicecore cleanRollReq and systemcore cleanCharApply keep it only by the rule a target keeps
-    const caAt = srcR.indexOf('net.charApply = function(charId, actId, label, row, on) {'), caSrc = srcR.slice(caAt, srcR.indexOf('\n};', caAt) + 3), sentC = [];
+    const caAt = srcR.indexOf('net.charApply = function(charId, actId, label, row, on, ask) {'), caSrc = srcR.slice(caAt, srcR.indexOf('\n};', caAt) + 3), sentC = [];
     const netC = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'H', myId: 'u_a', conns: [{ peer: 'H', open: true, send: m => sentC.push(JSON.parse(JSON.stringify(m))) }] };
     const runC = new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', caSrc + '\nreturn net.charApply;')(netC, () => Sx, () => ({ system: sysN, chars: { c_a: { id: 'c_a', ownerId: 'u_a' } } }), { wpVtt: { on: () => true } }, {}, () => {}, () => 0);
     runC('c_a', 'r_aid', 'Aid', undefined, 'tk_b');

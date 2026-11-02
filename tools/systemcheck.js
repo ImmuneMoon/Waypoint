@@ -2554,7 +2554,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const gBA = drawBA(true, true, true), paysBA = find5(gBA, 'sheet-item-apply'); if (paysBA[0]) paysBA[0].on.click({});
             const noDiceBA = drawBA(true, false, true), noEditBA = drawBA(true, true, false), inertBA = drawBA(false, true, true);
             check('H7b the sheet: a list\'s apply action is a button on each row it may move (three: the kept curse has none), pressed with the row and "Blaster · Pay"; its gate is the sheet\'s own (dice off keeps it, a viewer who may not change the character loses it only), and the Layout preview or a pop-out draws none',
-                paysBA.length === 3 && paysBA[0].textContent === 'Pay' && j(appliedBA.map(a => a.slice(2))) === j([['Blaster · Pay', { f: 'f_wp', r: 'w_b', i: 1 }]]) && appliedBA[0][1] === chB
+                paysBA.length === 3 && paysBA[0].textContent === 'Pay' && j(appliedBA.map(a => a.slice(2, 4))) === j([['Blaster · Pay', { f: 'f_wp', r: 'w_b', i: 1 }]]) && appliedBA[0][1] === chB
                 && find5(noDiceBA, 'sheet-item-apply').length === 3 && find5(noDiceBA, 'sheet-item-roll').length === 3 && find5(noEditBA, 'sheet-item-apply').length === 0 && find5(noEditBA, 'sheet-item-roll').length === 3 && find5(inertBA, 'sheet-item-roll').length === 0,
                 j([paysBA.map(b => b.textContent), appliedBA.map(a => a.slice(2)), find5(noDiceBA, 'sheet-item-roll').length, find5(noEditBA, 'sheet-item-roll').length]));
             // HUD R2a: a row's counters draw as chips (Charges 13/30) with minus and plus for whoever may change the row, each click one set op

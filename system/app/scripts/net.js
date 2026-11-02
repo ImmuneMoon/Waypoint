@@ -3519,7 +3519,7 @@ net.charEdits = function(charId, list) {
 };
 // Stage 6 HUD H7: a player's press of an apply action on their own character — the host works it out and answers; nothing changes here
 // meanwhile (the new values arrive as the host's delta, the card as its record). One at a time per character. { ok, pending } or { error }
-net.charApply = function(charId, actId, label, row, on) {   // row (H7b): { f, r, i } — a list's action on one row, in place of an action id; on (1.5.9): the token of the adjacent character it is used on
+net.charApply = function(charId, actId, label, row, on, ask) {   // row (H7b): { f, r, i } — a list's action on one row, in place of an action id; on (1.5.9): the token of the adjacent character it is used on
     var S = SC(), camp = getActiveCampaign();
     if (!S || !camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
@@ -3529,6 +3529,7 @@ net.charApply = function(charId, actId, label, row, on) {   // row (H7b): { f, r
     var rid = 'a' + Math.random().toString(36).slice(2, 10), req = { type: 'char-apply', rid: rid, charId: charId }; if (row) req.row = { f: String(row.f), r: String(row.r), i: Number(row.i) }; else req.act = String(actId);
     if (label) req.label = String(label).slice(0, S.LIMITS.label);
     if (typeof on === 'string' && on) req.on = on.slice(0, 80);   // 1.5.9: the host judges it (allyOn) and works everything else out
+    if (ask && typeof ask === 'object') req.ask = ask;   // 1.6.2: what they answered, which the host judges
     _charPending[rid] = { charId: charId, apply: true, batch: [], timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };   // batch []: nothing to undo on a refusal
     try { net.conns[0].send(req); } catch (e) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true };
@@ -8242,6 +8243,8 @@ function handleMessage(msg, conn) {
             if (qa.on) { onA = typeof allyOn === 'function' ? allyOn(campA, mapA, tkA, qa.on, profA.id) : { error: 'missing', message: 'That character is not there.' }; if (onA.error) { denyA('error', onA.message); return; } }
             if (typeof Sa.withOnSelf === 'function') varsA = Sa.withOnSelf(varsA, !onA, onA ? Sa.makeResolver(viewA, onA.ch, Fa, typeof allyCtx === 'function' ? allyCtx(mapA, onA.tok) : null) : null);   // 1.6.0: On.<name> reads the one it is used on, through their view   // OnSelf: 1 on themselves, 0 on another
         }
+        if (qa.ask && !Array.isArray(actA.asks)) { denyA('error', 'That asks nothing.'); return; }
+        var askedA = null; if (Array.isArray(actA.asks)) { var ajA = Sa.askJudge(viewA, actA, qa.ask, varsA, Fa); if (ajA.error) { denyA('error', ajA.error); return; } varsA = Sa.withAsk(varsA, ajA); askedA = ajA.said; }   // 1.6.2: what they answered, read as Ask.<key>
         var rowGA = typeof rowOnGm === 'function' ? rowOnGm(Sa, campA, viewA, qa.row) : qa.row, offA = typeof offTurnBar === 'function' ? offTurnBar(campA, chA, qa.act, rowGA, actA.label) : ''; if (offA) { denyA('error', offA); return; }   // 1.6.0: off their turn, by the system's rule
         var resA = Sa.applyAct(campA.system, chA, actA, varsA, Fa, tcA, qa.row ? { f: qa.row.f, r: qa.row.r } : null, undefined, window.wpDiceCore || null, onA ? { char: onA.ch, tctx: typeof allyCtx === 'function' ? allyCtx(mapA, onA.tok) : null } : null, typeof fxNow === 'function' ? fxNow(qa.charId, onA) : null);   // R2b: a list's action may move its row's counters; 1.5.9: the host's dice roll a Rolled amount (never the player's word); and its changes land on the one it is used on
         if (!resA.ok) { denyA(resA.reason, resA.message); return; }
@@ -8259,6 +8262,7 @@ function handleMessage(msg, conn) {
         if (!onA || resA.lines.length) {
             var recA = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(profA, false), label: labelA, lines: applyLines(resA.lines), ts: Date.now() };
             if (chA.name) recA.as = String(chA.name).slice(0, 60);
+            if (askedA && askedA.length) recA.asked = askedA;   // 1.6.2
             postApply(recA, Sa.applyScope(campA.system, chA, actA, rowGmA, Fa), chA, conn);
         }
         if (onA && typeof allyCard === 'function' && Array.isArray(resA.onLines) && resA.onLines.length) allyCard(chA, onA.ch, onA.tok.charName || onA.tok.name || onA.ch.name, labelA, resA.onLines, Sa.applyScope(campA.system, onA.ch, actA, rowGmA, Fa), diceFrom(profA, false), conn, profA.id);   // 1.5.9: the card of what moved on the one it was used on
@@ -9141,6 +9145,8 @@ function handleMessage(msg, conn) {
                     if (q.on) { onQ = typeof allyOn === 'function' ? allyOn(campQ, mapQ, mapQ ? SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ) : null, q.on, pidQ) : { error: 'missing', message: 'That character is not there.' }; if (onQ.error) { denyQ('error', { error: { message: onQ.message, pos: 0, len: 0 } }); return; } }
                     if (typeof SQ.withOnSelf === 'function') varsQ = SQ.withOnSelf(varsQ, !onQ, onQ && viewQ ? SQ.makeResolver(viewQ, onQ.ch, Fq, typeof allyCtx === 'function' ? allyCtx(mapQ, onQ.tok) : null) : null);   // 1.6.0: On.<name>, through their view
                 }
+                var askedQ = null; if (q.ask && !Array.isArray(actQ.asks)) { denyQ('error', { error: { message: 'That roll asks nothing.', pos: 0, len: 0 } }); return; }
+                if (Array.isArray(actQ.asks) && typeof SQ.askJudge === 'function') { var ajQ = SQ.askJudge(viewQ, actQ, q.ask, varsQ, Fq); if (ajQ.error) { denyQ('error', { error: { message: ajQ.error, pos: 0, len: 0 } }); return; } varsQ = SQ.withAsk(varsQ, ajQ); askedQ = ajQ.said; }   // 1.6.2: what they answered, judged here and read as Ask.<key>
                 if (q.row && typeof actQ.showIf === 'string' && actQ.showIf && !SQ.rollNeedsOk({ needs: actQ.showIf }, varsQ, Fq)) { denyQ('error', { error: { message: 'That roll is not offered on this row.', pos: 0, len: 0 } }); return; }   // 1.6.0: Shown where, through their view
                 if (actQ.needs && !SQ.rollNeedsOk(actQ, varsQ, Fq)) { denyQ('error', { error: { message: SQ.rollNeedsSays(actQ), pos: 0, len: 0 } }); return; }   // R2b: what it needs, through their view (the row's names); the one reading (1.5.4: no die in it is rolled)
                 var fsQ = q.row && typeof SQ.feedShortOf === 'function' ? SQ.feedShortOf(viewQ, chvQ, q.row, actQ, Fq, tcQ) : ''; if (fsQ) { if (window.wpStepLog) window.wpStepLog('feed v1', 'stopped', { by: 'player' }); denyQ('error', { error: { message: fsQ, pos: 0, len: 0 } }); return; }   // 1.6.0 Feeds: any feed at 0 stops the shot, from the host's own copy of the row
@@ -9184,6 +9190,7 @@ function handleMessage(msg, conn) {
         if (recQ.dmg === 1 && rnQ && rnQ[0]) { recQ.rno = rnQ[0].rno; if (rnQ[0].rnd) recQ.rnd = rnQ[0].rnd; }   // ... which says which round each hit was
         if (tcQ && tcQ.range && tcQ.range.cgrade > 0 && typeof SQ.coverWord === 'function' && rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? q.row : null, 'coverRead')) { var cwQ = SQ.coverWord(viewQ, tcQ.range.cgrade); if (cwQ) recQ.cov = cwQ; }   // 1.6.0: a roll that reads cover says so on its card, by the system's own word
         if (tcQ && tcQ.range && tcQ.range.pn && typeof SQ.posRec === 'function' && rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? q.row : null, 'postureRead')) { var prQ = SQ.posRec(viewQ, tcQ.range); if (prQ) recQ.pos = prQ; }   // 1.6.0: a roll that reads the target's posture says which of it and cover counted
+        if (typeof askedQ !== 'undefined' && askedQ && askedQ.length) recQ.asked = askedQ;   // 1.6.2
         if (q.hit && thQ0 && typeof thQ0.aim === 'function') { var amQ = thQ0.aim(); if (amQ) recQ.aim = amQ; }   // 1.6.0 (B5): where it was aimed and what it read there, for its card
         if (recQ.dmg === 1 && q.hit) recQ.hit = q.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target (a player's app keeps no such key)
         var cvQ = recQ.dmg === 1 && chQ && !recQ.dmgOn && typeof coverHitIn === 'function' ? coverHitIn(campQ, chQ.id, tcQ && tcQ.range, q.hit || '') : null; if (cvQ) recQ.cvh = SQ.coverHitCard(cvQ);   // 1.6.0: where a hit behind cover lands, and the die
@@ -10698,11 +10705,12 @@ function blowCripWrite(bc, persist) {   // its changes onto the character, sent 
 }
 // [netcheck:attempt-end]
 // Stage 6 HUD H7: the GM's own press (sheets.js has worked it out and stored it): the card, as the GM's
-net.postApplyCard = function(ch, label, lines, scope, hid) {   // hid (1.6.2): a roll whose figure is hidden: its card says what moved and no figure
+net.postApplyCard = function(ch, label, lines, scope, hid, asked) {   // hid (1.6.2): a roll whose figure is hidden: its card says what moved and no figure
     var rec = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), lines: applyLines(lines), ts: Date.now() };
     if (label) rec.label = String(label).slice(0, 60);
     if (ch && ch.name) rec.as = String(ch.name).slice(0, 60);
     if (!rec.lines.length) return;
+    if (Array.isArray(asked) && asked.length) rec.asked = asked;   // 1.6.2: what was answered
     if (hid === true && typeof figApply === 'function') figApply(rec);
     postApply(rec, scope, ch, null);
 };
@@ -10803,6 +10811,7 @@ net.diceRoll = function(expr, o) {
         if (o.row && o.charId) { req.row = { f: String(o.row.f), r: String(o.row.r) }; if (typeof o.row.k === 'string') req.row = { f: String(o.row.f), k: o.row.k }; if (typeof o.row.i === 'number') req.row.i = o.row.i; if (typeof o.row.i === 'number' && typeof o.row.lv === 'number') req.row.lv = o.row.lv; }   // R2b: a list's roll with consequences or needs names its index
         if (o.charId && ((o.act && !o.row) || (o.fr && !o.act && !o.row) || (o.row && typeof o.row.i === 'number'))) { if (o.act && !o.row) req.act = String(o.act); if (o.fr && !o.act && !o.row) req.fr = String(o.fr); if (Array.isArray(o.sw) && o.sw.length) req.sw = o.sw.slice(0, D.LIMITS.swPicks).map(function(x) { return { s: String(x && x.s), i: x && x.i }; }); if (o.mod) req.mod = o.mod; if (o.adv) req.adv = o.adv; if (typeof o.on === 'string' && o.on) req.on = o.on.slice(0, 80); }   // 1.5.9: on, the token of the adjacent character it is used on (the host judges it)   // Stage 6 HUD R1: the entry, its modifier and advantage (the host rebuilds the formula)   // Stage 6 F5b: a roll on a row
         if (typeof o.att === 'string' && o.charId && ((o.act && !o.row) || (o.row && !o.act && typeof o.row.i === 'number' && typeof o.row.r === 'string'))) req.att = o.att;   // 1.6.0: or beside a list's roll on one row   // 1.6.0 (B2): the attempt a resist roll answers
+        if (o.ask && typeof o.ask === 'object' && o.charId && (req.act || (req.row && typeof req.row.i === 'number'))) req.ask = o.ask;   // 1.6.2: what they answered (the host judges it)
         if (typeof o.hit === 'string' && o.charId && (req.act || req.fr || (req.row && typeof req.row.i === 'number' && typeof req.row.r === 'string'))) req.hit = o.hit;   // 1.6.0 (B5): the location row picked on their target, beside a named roll (the host judges it)
         if (o.aim && typeof o.aim === 'object' && o.charId && (req.act || (req.row && typeof req.row.i === 'number' && typeof req.row.r === 'string'))) req.aim = { x: Number(o.aim.x), y: Number(o.aim.y) };   // 1.6.0: the point a line is aimed at (the host finds who stands in it)
         _dicePending = { rid: rid, expr: expr, charId: o.charId || '', timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); }, D.LIMITS.timeoutMs) };
@@ -10835,6 +10844,8 @@ net.diceRoll = function(expr, o) {
         if (typeof o.on === 'string' && o.on) { ftR = window.wpSheets && window.wpSheets.facingTarget ? window.wpSheets.facingTarget(chR, campR) : null; onR = typeof allyOn === 'function' ? allyOn(campR, ftR && ftR.map, ftR && ftR.tok, o.on, '') : { error: 'missing', message: 'That character is not there.' }; if (onR.error) return { error: onR.message }; }
         if (typeof SR.withOnSelf === 'function') varsR = SR.withOnSelf(varsR, !onR, onR ? SR.makeResolver(campR.system, onR.ch, F, typeof allyCtx === 'function' && ftR ? allyCtx(ftR.map, onR.tok) : null) : null);   // 1.6.0: On.<name>   // OnSelf in its formula, its needs and its Then
     }
+    var askedR = null; if (o.ask && !(entR && Array.isArray(entR.asks))) return { error: 'That roll asks nothing.' };
+    if (entR && Array.isArray(entR.asks) && varsR && SR && typeof SR.askJudge === 'function') { var ajR = SR.askJudge(campR.system, entR, o.ask, varsR, F); if (ajR.error) return { error: ajR.error }; varsR = SR.withAsk(varsR, ajR); askedR = ajR.said; }   // 1.6.2: what was answered, read as Ask.<key>
     if (o.row && typeof o.row.lv === 'number' && !(entR && entR.askLvl === true)) return { error: D.denyText('char') };   // 1.6.0 R12: a level only for a roll that asks it
     if (typeof o.att === 'string' && !(entR && entR.resist === true) && !(typeof attemptRec === 'function' && attemptRec(o.att) && attemptRec(o.att).blow)) return { error: 'That roll does not resist an attempt.' };   // 1.6.0 (B2)   // 1.6.0 (the core's gaps 6 and 7): or it answers a blow
     if (o.row && entR && typeof entR.showIf === 'string' && entR.showIf && varsR && !SR.rollNeedsOk({ needs: entR.showIf }, varsR, F)) return { error: 'That roll is not offered on this row.' };   // 1.6.0: Shown where
@@ -10855,6 +10866,7 @@ net.diceRoll = function(expr, o) {
     if (chR && !o.att && typeof net.offTurnSay === 'function') net.offTurnSay(chR, o.act, o.row, o.label);   // 1.6.0: off its turn, the GM is told, once nothing has refused it
     var rec = { type: 'roll', id: D.uid(), from: o.from || diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() };   // o.from: this machine's own word, the player whose press this roll follows (a line's damage)
     var mfR = null; if (entR && entR.malf && varsR) { var mqR = F.evaluate(entR.malf, { vars: varsR }); if (mqR.ok && typeof mqR.value === 'number' && isFinite(mqR.value)) mfR = Math.max(1, Math.min(1000000, Math.round(mqR.value))); }   // Stage 6 HUD R3: its Malf
+    if (askedR && askedR.length) rec.asked = askedR;   // 1.6.2
     var blowRecR = typeof o.att === 'string' && typeof attemptRec === 'function' ? attemptRec(o.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
     if (typeof o.att === 'string' && typeof attemptDrop === 'function') attemptDrop(o.att);   // 1.6.0 (B2): an attempt is resisted once
     if (mfR !== null) rec.malf = mfR;

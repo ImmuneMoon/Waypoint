@@ -3678,6 +3678,19 @@
   .sheet-item.sheet-edge-primary, tr.sheet-edge-primary > td:first-child { box-shadow: inset 3px 0 0 var(--sheet-primary, var(--sheet-accent, var(--gold))); }
   .sheet-chip.sheet-item-statpick { flex: none; }   /* its menu keeps to its chip, clear of the next one */
   select.field.sheet-item-statsel { width: auto; }
+  .sheet-ask-pop { padding: 10px; width: 272px; display: flex; flex-direction: column; gap: 8px; }   /* 1.6.2: what a roll asks as it is pressed */
+  .sheet-ask-q { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+  .sheet-ask-l { color: var(--ink); }
+  .sheet-ask-go { align-self: flex-end; }
+  .sys-asks { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+  .sys-ask { display: flex; flex-direction: column; gap: 6px; border-left: 2px solid var(--edge); padding-left: 8px; }
+  .sys-ask-top, .sys-ask-ends, .sys-ask-opt, .sys-ask-fields { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .sys-ask-opts { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+  .sys-ask-end { display: flex; gap: 6px; align-items: center; color: var(--dim); font-size: 12px; }
+  input.field.sys-ask-label, input.field.sys-ask-opt-l { flex: 1 1 180px; width: auto; min-width: 0; }
+  input.field.sys-ask-opt-v { flex: none; width: 80px; }
+  .sys-ask-note { color: var(--gold); font-size: 12px; }
+  .sys-ask-note:empty { display: none; }
   .sheet-item-statsel { font-size: 11px; padding: 1px 4px; min-height: 0; height: auto; max-width: 160px; width: auto; }   /* 1.6.0, backlog 180 R10: a choice stat as a menu on its row */
   .sheet-split { font-size: 11px; padding: 0 6px; }   /* 1.6.0, backlog 180 R11 */
   .sheet-parts { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 2px 0 6px 18px; }   /* 1.6.0 R14: a row's parts, as pills under it */

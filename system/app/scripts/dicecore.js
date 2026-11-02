@@ -193,6 +193,18 @@ function cleanSwNames(v) {
     for (var i = 0; i < v.length; i++) { var x = v[i]; if (!x || typeof x !== 'object') return null; var n = cleanLabel(x.n); if (!n || !isInt(x.v) || !x.v || x.v < -99 || x.v > 99) return null; o.push({ n: n, v: x.v }); }
     return o;
 }
+// 1.6.2: what a press answered, as data the host judges (systemcore cleanAskWire, kept to the same shape), and the words a card says of it
+function cleanAsk(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+    var ks = Object.keys(v); if (!ks.length || ks.length > 3) return null;
+    var out = {}; for (var i = 0; i < ks.length; i++) { var k = ks[i], x = v[k]; if (!/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(k)) return null; if (typeof x === 'number' ? !(isFinite(x) && Math.abs(x) <= 1e6) : !(typeof x === 'string' && /^[A-Za-z0-9_]{1,64}$/.test(x))) return null; out[k] = x; }
+    return out;
+}
+function cleanAsked(v) {
+    if (!Array.isArray(v)) return null;
+    var out = []; v.slice(0, 3).forEach(function(a) { if (a && typeof a === 'object' && typeof a.l === 'string' && typeof a.w === 'string' && a.l && a.w) out.push({ l: a.l.slice(0, 120), w: a.w.slice(0, 120) }); });
+    return out.length ? out : null;
+}
 function cleanRollReq(msg) {
     if (!msg || typeof msg !== 'object') return null;
     var expr = cleanExpr(msg.expr); if (!expr) return null;
@@ -215,6 +227,7 @@ function cleanRollReq(msg) {
         if (!out.charId || out.row || typeof msg.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(msg.act)) return null;
         out.act = msg.act;
     }
+    if (msg.ask !== undefined) { var akQ = cleanAsk(msg.ask); if (!akQ || !out.charId || !(out.act || (out.row && typeof out.row.i === 'number'))) return null; out.ask = akQ; }   // 1.6.2: beside a named roll, which the host judges against
     if (msg.by !== undefined) {   // 1.6.0 Its crew may press this sheet's rolls: the crew sheet that pressed a named roll of another sheet (the host judges it)
         if (!out.charId || !(out.act || (out.row && typeof out.row.i === 'number' && out.row.r)) || typeof msg.by !== 'string' || !CHAR_RE.test(msg.by) || msg.by === out.charId) return null;
         out.by = msg.by;
@@ -360,6 +373,7 @@ function cleanRoll(rec) {
     if (rec.dmgOn !== undefined && out.dmg === 1 && typeof rec.dmgOn === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(rec.dmgOn)) out.dmgOn = rec.dmgOn;   // 1.6.0: the character this damage lands on, the host's from its entry (one that does not clean is left off, the roll kept)
     if (rec.cov === 'Half cover' || rec.cov === 'Three-quarters cover' || rec.cov === 'Total cover' || rec.cov === 'Cover') out.cov = rec.cov;   // 1.6.0: the cover a roll read, by the four words coverTier gives
     if (rec.cvh !== undefined) { var cvc = cleanCovHit(rec.cvh); if (cvc) out.cvh = cvc; }   // 1.6.0: where a hit behind cover landed (one that does not clean is left off, the roll kept)
+    if (rec.asked !== undefined) { var akc = cleanAsked(rec.asked); if (akc) out.asked = akc; }   // 1.6.2: what its roller answered
     if (rec.aim !== undefined) { var amc = cleanAim(rec.aim); if (amc) out.aim = amc; }   // 1.6.0 (B5): where a called shot was aimed (one that does not clean is left off, the roll kept)
     if (rec.pos !== undefined) { var psc = cleanPos(rec.pos); if (psc) out.pos = psc; }   // 1.6.0: a target's posture on the attack, against its cover (one that does not clean is left off, the roll kept)
     if (rec.dtype !== undefined && out.dmg === 1 && typeof rec.dtype === 'string' && DMG2_TYPE.test(rec.dtype)) out.dtype = rec.dtype;   // 1.6.0 (the live test, 2026-10-30): the damage type, for a player's card as for the GM's: a burst's Hit 1 lost it here
@@ -398,6 +412,7 @@ function cleanApply(rec) {
         lines.push(ln);
     }
     var out = { id: rec.id, from: from, lines: lines, ts: typeof rec.ts === 'number' && isFinite(rec.ts) ? rec.ts : 0 };
+    if (rec.asked !== undefined) { var akA = cleanAsked(rec.asked); if (akA) out.asked = akA; }   // 1.6.2: what its presser answered
     if (rec.priv !== undefined) { if (rec.priv !== 'gm') return null; out.priv = 'gm'; }
     var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
     var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;

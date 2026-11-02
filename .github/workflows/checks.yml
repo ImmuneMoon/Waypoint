@@ -117,6 +117,9 @@ jobs:
       - name: accountcheck — this install linked to a Waypoint website account, the shell's routes and the order of linking
         if: ${{ !cancelled() }}
         run: node tools/accountcheck.js
+      - name: askcheck — what a roll or an action asks as it is pressed
+        if: ${{ !cancelled() }}
+        run: node tools/askcheck.js
       - name: objcheck — map objects, the pure core, the GM's window, the wire and the words
         if: ${{ !cancelled() }}
         run: node tools/objcheck.js

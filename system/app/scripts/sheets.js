@@ -10,6 +10,7 @@ import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
+import { cleanAsks, askEnds, askJudge, withAsk, ASKS_MAX, ASK_OPTS } from './systemcore.js';   // 1.6.2: a roll's questions
 import { nameWord, nameAsks, readsOf, plainMessage } from './systemcore.js';   // 1.6.2: a name in words, and what a box may offer
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { DMG_LIM, COVER_HIT_ROWS } from './systemcore.js';   // 1.6.2: what the Combat tab's boxes hold
@@ -3627,7 +3628,7 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
             var al = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Apply', ab = el('button', 'tool ghost sheet-item-roll sheet-item-apply', al); ab.type = 'button'; ab.title = nm + ' \u00b7 ' + al + ': ' + applyTitle(r, systemOf(getActiveCampaign())); ab.insertBefore(iconNode(typeof r.icon === 'string' && r.icon ? r.icon : 'icon:bolt', 'sheet-item-rollico'), ab.firstChild);   // 1.6.0: its icon, as a roll wears its die
             var nOkA = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false; if (!nOkA && r.hideOff === true) return; if (!nOkA) { ab.disabled = true; ab.title = (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \u2014 it needs ' + r.needs); }   // the core handbook session's ask (b): its needs for this row, as a list roll's
             var cbA = typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbA) { ab.disabled = true; ab.title = cbA + ' \u2014 ' + ab.title; }   // turn-based combat T4
-            ab.addEventListener('click', function() { var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return; if (r.to === 'near' && typeof allyPick === 'function') { allyPick(ab, cN, function(on) { applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }, on || undefined); }); return; } applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }); });   // 1.5.9: whom it is for first, where it Applies to an adjacent character
+            ab.addEventListener('click', function() { var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return; var goL = function(ans) { if (r.to === 'near' && typeof allyPick === 'function') { allyPick(ab, cN, function(on) { applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }, on || undefined, undefined, ans); }); return; } applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }, undefined, undefined, ans); }; if (Array.isArray(r.asks) && r.asks.length) askThen(r, cN, ab, { row: { f: f.id, r: rid, i: ri } }, null, goL); else goL(); });   // 1.5.9: whom it is for first, where it Applies to an adjacent character
             host.appendChild(ab); return;
         }
         if (!rollOk || !r || typeof r.formula !== 'string' || !r.formula) return;
@@ -4846,6 +4847,8 @@ function groupRoll(ids, rollId) {
 function sheetRoll(e, charId, expr, label, opts, swRef) {   // swRef (1.6.0): which roll this is, for the roll switches its \u00b1 window offers (handed to that window alone)
     if (!window.wpDice) return;
     if (swRef && (swRef.r || swRef.l) && !(opts && opts.src)) opts = Object.assign({}, opts, { src: swRef });   // 1.6.2: and for a sound on it: this names no rule (dicecore cleanSrc)
+    if (typeof _askNext !== 'undefined' && _askNext) { opts = askNamed(opts, swRef, _askNext); _askNext = null; if (e) e.wpAsk = true; }   // a card's press, answered before it pressed the button
+    if (!(e && e.wpAsk !== undefined) && typeof askEntry === 'function') { var enA = askEntry(opts, swRef); if (enA) { var evK = pressOf(e, e && e.currentTarget), chA = charById(charId, getActiveCampaign()); askThen(enA, chA, evK.currentTarget, opts, swRef, function(ans) { evK.wpAsk = true; sheetRoll(evK, charId, expr, label, askNamed(opts, swRef, ans), swRef); }); return; } }   // 1.6.2: what it asks first
     if (!(e && e.wpAim !== undefined) && typeof aimNeed === 'function') { var ndA = aimNeed(opts); if (ndA !== null) { var evA = pressOf(e, e && e.currentTarget); if (window.wpArmAim && window.wpArmAim(ndA, function(pt) { evA.wpAim = pt; sheetRoll(evA, charId, expr, label, Object.assign({}, opts, { aim: pt }), swRef); })) return; } }   // 1.6.0 An attack on a line: where it is aimed first
     if (!(e && e.wpHit !== undefined) && typeof hitPick === 'function') { var ndH = hitNeed(charId, expr, opts, swRef); if (ndH) { var evH = pressOf(e, e && e.currentTarget); hitPick(evH.currentTarget, ndH, function(id) { evH.wpHit = id || ''; sheetRoll(evH, charId, expr, label, id ? hitNamed(opts, swRef, id) : opts, swRef); }); return; } }   // 1.6.0 (B5): where it is aimed first, a location of its target's own
     if ((e.shiftKey || e.altKey) && window.wpDice.rollWithMod) { if (swRef) window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget, swRef); else window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget); }
@@ -4906,6 +4909,92 @@ function allyPick(anchor, c, go) {
     var r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 8, bottom: 8 }, nI = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (24 + 52 * nI), r.bottom + 6)) + 'px';
     document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
     var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
+}
+// [sinkcheck:askbox-start]
+// 1.6.2 (backlog 210 b, G6): pressed, a roll or an action that asks something opens a small box beside its button: one control a question, every word as
+// text, and Roll or Use. Each control starts on the first answer, so Enter is a press with nothing to read. Answers go by their place or a field's id,
+// which the host judges against the entry it rebuilds the roll from. Escape or a press elsewhere calls it off with nothing rolled
+var _askNext = null;
+function askEntry(opts, swRef) {
+    var sys = typeof systemOf === 'function' ? systemOf() : null, o = opts && typeof opts === 'object' ? opts : {}, sr = swRef && typeof swRef === 'object' ? swRef : {}, ent = null; if (!sys) return null;
+    var act = typeof o.act === 'string' && !o.row ? o.act : typeof sr.r === 'string' ? sr.r : '';
+    if (act) ent = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return r && r.id === act; })[0] || null;
+    else { var fid = o.row && typeof o.row.i === 'number' ? o.row.f : typeof sr.l === 'string' && typeof sr.i === 'number' ? sr.l : '', ix = o.row && typeof o.row.i === 'number' ? o.row.i : sr.i, f = fid ? (Array.isArray(sys.fields) ? sys.fields : []).filter(function(x) { return x && x.id === fid && x.kind === 'item-list'; })[0] : null; ent = f && f.list && Array.isArray(f.list.rolls) ? f.list.rolls[ix] || null : null; }
+    return ent && Array.isArray(ent.asks) && ent.asks.length ? ent : null;
+}
+function askNamed(opts, swRef, ans) {
+    var o = Object.assign({}, opts || {}), sr = swRef && typeof swRef === 'object' ? swRef : {};
+    if (!(o.act || (o.row && typeof o.row.i === 'number'))) { if (typeof sr.r === 'string') o.act = sr.r; else if (typeof sr.l === 'string' && typeof sr.row === 'string' && typeof sr.i === 'number') o.row = { f: sr.l, r: sr.row, i: sr.i }; }
+    if (ans) o.ask = ans; return o;
+}
+function askThen(ent, c, anchor, opts, swRef, go) {
+    if (_ldPop) closeLoadMenu();
+    var camp = getActiveCampaign(), sys = systemOf(camp), vv = null; if (c && sys && F()) { try { vv = resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)).vars; } catch (er) { vv = null; } }
+    var rowN = opts && opts.row && typeof opts.row.r === 'string' ? opts.row : swRef && typeof swRef.row === 'string' ? { f: swRef.l, r: swRef.row } : null; if (vv && rowN && typeof vv.row === 'function') vv = vv.row(rowN.f, rowN.r) || vv;
+    var pop = el('div', 'sheet-dl-pop sheet-ask-pop'); pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', String(ent.label || 'Roll').split('{')[0].trim() || 'Roll'); pop._anchor = anchor;
+    var read = [], first = null;
+    ent.asks.forEach(function(a) {
+        var row = el('label', 'sheet-ask-q'); row.appendChild(el('span', 'sheet-ask-l', a.label)); var ct = null;
+        if (a.kind === 'num') { var en = vv && F() ? askEnds(a, vv, F()) : null; ct = el('input', 'field'); ct.type = 'number'; ct.step = '1'; if (en) { ct.min = String(en.lo); ct.max = String(en.hi); ct.value = String(en.lo); } read.push(function(o) { var n = Number(ct.value); if (ct.value !== '' && isFinite(n)) o[a.key] = Math.floor(n); }); }
+        else {
+            ct = el('select', 'field');
+            if (a.kind === 'field') a.fields.forEach(function(id) { var fd = fieldById(sys, id); if (fd) ct.appendChild(opt(id, fd.label || fd.key, false)); });
+            else a.opts.forEach(function(p, i) { ct.appendChild(opt(String(i), p.label, i === 0)); });
+            read.push(function(o) { if (ct.value !== '') o[a.key] = a.kind === 'field' ? ct.value : Number(ct.value); });
+        }
+        row.appendChild(ct); pop.appendChild(row); first = first || ct;
+    });
+    var goB = el('button', 'tool sheet-ask-go', Array.isArray(ent.apply) ? 'Use' : 'Roll'); goB.type = 'button';
+    var done = function() { var o = {}; read.forEach(function(fn) { fn(o); }); closeLoadMenu(); go(o); };
+    goB.addEventListener('click', function(e) { e.preventDefault(); done(); }); pop.appendChild(goB);
+    pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+    pop.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Enter' && !e.repeat) { e.preventDefault(); done(); } });
+    document.body.appendChild(pop); _ldPop = pop;
+    var r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 8, bottom: 8 }, hE = pop.getBoundingClientRect ? pop.getBoundingClientRect().height : 120;
+    pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - hE - 8, r.bottom + 6)) + 'px';
+    document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
+    try { if (first) first.focus(); } catch (er) {}
+}
+// [sinkcheck:askbox-end]
+// 1.6.2: What it asks when pressed, in the Rolls tab and on a list's roll. A box of its own listeners, as altBox is. A question is words and what kind of
+// answer it takes; its key is the builder's own and never shown, and stays with the question when its words change, so what reads it goes on reading it
+function asksBox(obj) {
+    var box = el('div', 'sys-asks'), mx = ASKS_MAX, sys = typeof draft !== 'undefined' ? draft : null;
+    var ch = function(redraw) { markDirty(); if (redraw) draw(); if (typeof patchErrors === 'function') patchErrors(); };
+    var keyOf = function() { var used = {}; (obj.asks || []).forEach(function(a) { used[String(a.key).toLowerCase()] = 1; }); for (var i = 1; i < 100; i++) if (!used['q' + i]) return 'Q' + i; return 'Q99'; };
+    var drop = function(j) { obj.asks.splice(j, 1); if (!obj.asks.length) delete obj.asks; ch(true); };
+    var draw = function() {
+        box.textContent = '';
+        (Array.isArray(obj.asks) ? obj.asks : []).forEach(function(a, j) {
+            var q = el('div', 'sys-ask'), top = el('div', 'sys-ask-top'), lab = input('sys-ask-label field', a.label || '', 'What the box asks as it is pressed', 'How many points?'); lab.maxLength = LIMITS.label;
+            lab.addEventListener('input', function() { a.label = lab.value.slice(0, LIMITS.label); ch(); note(); });
+            var kind = select('sys-ask-kind', [['pick', 'Pick from a list'], ['field', 'Pick one of the sheet\u2019s values'], ['num', 'A number']], a.kind || 'pick', 'What kind of answer it takes');
+            kind.addEventListener('change', function() { a.kind = kind.value; ch(true); });
+            var x = el('button', 'tool ghost sys-btn sys-ask-del', '\u00d7'); x.type = 'button'; x.title = 'Take this question off'; x.addEventListener('click', function(e) { e.stopPropagation(); drop(j); });
+            top.appendChild(lab); top.appendChild(kind); top.appendChild(x); q.appendChild(top);
+            if (a.kind === 'num') {
+                var ns = el('div', 'sys-ask-ends');
+                [['min', 'sys-ask-min', 'From'], ['max', 'sys-ask-max', 'To']].forEach(function(p) { var w = el('label', 'sys-ask-end'); w.appendChild(document.createTextNode(p[2] + ' ')); var i = input(p[1] + ' field', a[p[0]] || '', p[0] === 'min' ? 'The lowest answer' : 'The highest answer', p[2]); i.addEventListener('input', function() { a[p[0]] = i.value.slice(0, LIMITS.formula); ch(); note(); }); w.appendChild(i); ns.appendChild(w); });
+                q.appendChild(ns);
+            } else if (a.kind === 'field') {
+                var pick = (Array.isArray(a.fields) ? a.fields : []).slice(), fs = (sys && Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return f && f.id && (f.kind === 'number' || f.kind === 'skill' || f.kind === 'formula' || f.kind === 'resource'); }), lst = el('div', 'sys-ask-fields');
+                pick.forEach(function(id, k) { var fd = fs.filter(function(f) { return f.id === id; })[0], chip = el('span', 'sheet-chip sys-ask-chip', fd ? fd.label || fd.key : 'A value that is gone'), rm = el('button', 'tool ghost sys-btn', '\u00d7'); rm.type = 'button'; rm.title = 'Take this value off'; rm.addEventListener('click', function(e) { e.stopPropagation(); a.fields.splice(k, 1); ch(true); }); chip.appendChild(rm); lst.appendChild(chip); });
+                if (pick.length < ASK_OPTS) { var add = el('select', 'sys-ask-addf'); add.appendChild(opt('', '+ Add a value', true)); fs.forEach(function(f) { if (pick.indexOf(f.id) < 0) add.appendChild(opt(f.id, f.label || f.key, false)); }); add.title = 'A value of the sheet this question offers'; add.addEventListener('change', function() { if (!add.value) return; if (!Array.isArray(a.fields)) a.fields = []; a.fields.push(add.value); ch(true); }); lst.appendChild(add); }
+                q.appendChild(lst);
+            } else {
+                var ol = el('div', 'sys-ask-opts'); if (!Array.isArray(a.opts)) a.opts = [];
+                a.opts.forEach(function(p, k) { var ow = el('div', 'sys-ask-opt'), nm = input('sys-ask-opt-l field', p.label || '', 'One answer', 'An answer'); nm.maxLength = LIMITS.label; nm.addEventListener('input', function() { p.label = nm.value.slice(0, LIMITS.label); ch(); note(); }); var vl = input('sys-ask-opt-v field', p.v === undefined ? '' : String(p.v), 'The figure this answer gives', 'Figure'); vl.addEventListener('input', function() { var n = Number(vl.value); if (vl.value.trim() === '' || !isFinite(n)) delete p.v; else p.v = n; ch(); }); var rx = el('button', 'tool ghost sys-btn', '\u00d7'); rx.type = 'button'; rx.title = 'Take this answer off'; rx.addEventListener('click', function(e) { e.stopPropagation(); a.opts.splice(k, 1); ch(true); }); ow.appendChild(nm); ow.appendChild(vl); ow.appendChild(rx); ol.appendChild(ow); });
+                if (a.opts.length < ASK_OPTS) { var oa = el('button', 'tool ghost sys-btn sys-ask-optadd', '+ Answer'); oa.type = 'button'; oa.addEventListener('click', function(e) { e.stopPropagation(); a.opts.push({ label: '' }); ch(true); }); ol.appendChild(oa); }
+                q.appendChild(ol);
+            }
+            var nt = el('div', 'sys-ask-note'); q.appendChild(nt);
+            var note = function() { nt.textContent = cleanAsks([a]) ? '' : 'Save leaves this question out until it has words and something to answer.'; }; note();
+            box.appendChild(q);
+        });
+        if (!Array.isArray(obj.asks) || obj.asks.length < mx) { var ad = el('button', 'tool ghost sys-btn sys-ask-add', '+ Question'); ad.type = 'button'; ad.title = 'Ask something as it is pressed, such as how many points to spend. What they answer can be used in its roll and in what it changes'; ad.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(obj.asks)) obj.asks = []; obj.asks.push({ key: keyOf(), label: '', kind: 'pick', opts: [{ label: '' }] }); ch(true); var ins = box.querySelectorAll('.sys-ask-label'); if (ins.length) ins[ins.length - 1].focus(); }); box.appendChild(ad); }
+    };
+    draw();
+    return box;
 }
 // [sinkcheck:hitmenu-start]
 // 1.6.0 (B5, a called shot by the target's own location; the owner's handbook: "A limb out of scale changes its penalty by its own Size", and "A
@@ -5072,17 +5161,17 @@ function applyNode(r, c, sys, vars) {
     b.addEventListener('click', function() {
         var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return;
         var lb = label; if (sys && r.label && r.label.indexOf('{') >= 0) { try { lb = rollLabel(r, sys, cN, resolveAll(sys, cN, F(), tokenCtxFor(cN.id, campN)).vars); } catch (err) { lb = label; } }   // the label as it reads at the press
-        if (r.to === 'near' && typeof allyPick === 'function') { allyPick(b, cN, function(on) { applyAction(r, cN, lb, undefined, on || undefined); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first, where someone stands next to it
-        applyAction(r, cN, lb);
+        var goA = function(ans) { if (r.to === 'near' && typeof allyPick === 'function') { allyPick(b, cN, function(on) { applyAction(r, cN, lb, undefined, on || undefined, undefined, ans); }); return; } applyAction(r, cN, lb, undefined, undefined, undefined, ans); };   // 1.5.9 (book es/et plan, section 3): whom it is for first, where someone stands next to it
+        if (Array.isArray(r.asks) && r.asks.length) askThen(r, cN, b, null, null, goA); else goA();   // 1.6.2: what it asks first
     });
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b); return box;
 }
 // Stage 6 HUD H7: an apply action pressed — a player asks the host (the new values come back as its delta, the card as its record); the GM
 // works it out here with the saved system (the sheet's own resolver, token and round included), stores it as ONE change (one Revert brings
 // every value back) and posts the card to whoever may see it (applyScope); a card that would carry a GM-only value is kept private, with a toast
-function applyAction(r, c, label, row, on, cx) {   // cx (1.6.0): a crossing's run, { step, n }, read as CrossStep and Crossed   // row (H7b): { f, r, i } — a list's action on one of the character's rows; on (1.5.9): the token of the adjacent character it is used on
+function applyAction(r, c, label, row, on, cx, ask) {   // cx (1.6.0): a crossing's run, { step, n }, read as CrossStep and Crossed   // row (H7b): { f, r, i } — a list's action on one of the character's rows; on (1.5.9): the token of the adjacent character it is used on
     var n = net(), camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys || !F()) return;
-    if (isClient()) { if (!n || !n.charApply) return; var q = row ? (on ? n.charApply(c.id, null, label, row, on) : n.charApply(c.id, null, label, row)) : on ? n.charApply(c.id, r.id, label, undefined, on) : n.charApply(c.id, r.id, label); if (q && q.error) toast(q.error); return; }
+    if (isClient()) { if (!n || !n.charApply) return; var q = ask ? n.charApply(c.id, row ? null : r.id, label, row, on, ask) : row ? (on ? n.charApply(c.id, null, label, row, on) : n.charApply(c.id, null, label, row)) : on ? n.charApply(c.id, r.id, label, undefined, on) : n.charApply(c.id, r.id, label); if (q && q.error) toast(q.error); return; }
     if (!canWrite()) return;
     var act = null;
     if (row) { var lfR = fieldById(sys, row.f), lrR = lfR && lfR.kind === 'item-list' && lfR.list && Array.isArray(lfR.list.rolls) ? lfR.list.rolls[row.i] : null; if (lrR && Array.isArray(lrR.apply)) act = lrR; }   // H7b: the saved list's action
@@ -5095,6 +5184,7 @@ function applyAction(r, c, label, row, on, cx) {   // cx (1.6.0): a crossing's r
     var vv = resolveAll(sys, c, F(), tc).vars;
     if (row) { vv = vv && typeof vv.row === 'function' ? vv.row(row.f, row.r) : null; if (!vv) { toast('That row cannot be used now.'); return; } }   // H7b: the row's own names (Row.*)
     if (act.to === 'near' && typeof withOnSelf === 'function') vv = withOnSelf(vv, !onT, onT ? makeResolver(sys, onT.ch, F(), n && typeof n.allyCtx === 'function' ? n.allyCtx(ftT.map, onT.tok) : null) : null);   // 1.6.0: and On.<name>, the one it is used on   // 1.5.9: OnSelf, 1 on its user and 0 on another
+    var askedS = null; if (Array.isArray(act.asks)) { var ajS = askJudge(sys, act, ask, vv, F()); if (ajS.error) { toast(ajS.error); return; } vv = withAsk(vv, ajS); askedS = ajS.said; }   // 1.6.2: what was answered, read as Ask.<key>
     var res = applyAct(sys, c, act, vv, F(), tc, row ? { f: row.f, r: row.r } : null, undefined, window.wpDiceCore || null, onT ? { char: onT.ch, tctx: n && typeof n.allyCtx === 'function' ? n.allyCtx(ftT.map, onT.tok) : null } : null, { now: Date.now(), inCombat: !!(n && n.charInCombat && n.charInCombat(c.id)), onInCombat: !!(onT && n && n.charInCombat && n.charInCombat(onT.ch.id)) });   // R2b: a list's action may move its row's counters; 1.5.9: this machine's dice roll a Rolled amount, and a field's change lands on the one it is used on
     if (!res.ok) { toast(res.reason === 'none' ? (res.message || 'Nothing to apply.') : res.reason === 'error' ? (res.message || 'That amount could not be worked out.') : 'That action cannot change those values now.'); return; }
     if (n && typeof n.offTurnSay === 'function' && !cx) n.offTurnSay(c, row ? undefined : r.id, row, label);   // 1.6.0: off its turn, the GM is told, once nothing has refused it
@@ -5111,7 +5201,7 @@ function applyAction(r, c, label, row, on, cx) {   // cx (1.6.0): a crossing's r
     if (gmRow && pub) toast(rowP.stat === true ? 'Kept private: that reads a GM-only stat.' : 'Kept private: that is on a GM-only item or list.');
     else if (keptRow && pub) toast('Kept private: its owner sees that item switched off.');
     else if (hit.length && pub) toast('Kept private: that amount uses a GM-only value (' + hit.join(', ') + ').');
-    if (n && n.postApplyCard && res.lines.length) n.postApplyCard(c, label, res.lines, scope);
+    if (n && n.postApplyCard && res.lines.length) n.postApplyCard(c, label, res.lines, scope, undefined, askedS);
     if (n && typeof n.soundAfter === 'function') n.soundAfter(camp, row ? { row: row } : { act: r.id }, c, '', scope === 'gm', scope === 'owner' ? c.ownerId : undefined);   // 1.6.2: a sound on this action, for whoever its card goes to
     if (res.gone) goneLocal(c.id, res.gone);   // 1.6.0: a row it used up, with its Undo
     if (n && typeof n.callsAfter === 'function') n.callsAfter(camp, act, null, vv, onT ? onT.ch : c, scope === 'gm');   // 1.6.0: Calls for
@@ -5320,7 +5410,8 @@ function resistOrBox(cls, by, cur, sys) {
     return box;
 }
 function resistOrTick(d, t) { var l = Array.isArray(d.resistOr) ? d.resistOr.filter(function(x) { return typeof x === 'string' && x !== t.dataset.rid; }) : []; if (t.checked && t.dataset.rid) l.push(t.dataset.rid); if (l.length) d.resistOr = l; else delete d.resistOr; }   // 1.6.0 (the core's gap 5)
-function runDue(charId, actId, att, row) {   // att (1.6.0, B2): the attempt a resist card answers, handed to the roll its button makes; row (1.6.0): a list's roll on one row, { f, r, i }
+function runDue(charId, actId, att, row, ask) {   // ask (1.6.2): what the card's press answered   // att (1.6.0, B2): the attempt a resist card answers, handed to the roll its button makes; row (1.6.0): a list's roll on one row, { f, r, i }
+    if (ask === undefined && typeof askEntry === 'function') { var enD = askEntry(row ? { row: row } : { act: actId }, null), cD = enD ? charById(charId, getActiveCampaign()) : null; if (enD && cD) { askThen(enD, cD, document.activeElement, row ? { row: row } : { act: actId }, null, function(ans) { runDue(charId, actId, att, row, ans); }); return true; } }   // 1.6.2: what it asks first
     if (row && typeof row === 'object') {   // a resist card's button for one row the target holds: its list's roll, made as that row's button makes it, which the host judges
         var campW = getActiveCampaign(), sysW = systemOf(campW), cW = charById(charId, campW), lfW = null;
         (sysW && Array.isArray(sysW.fields) ? sysW.fields : []).forEach(function(x) { if (x && x.id === row.f && x.kind === 'item-list' && x.list && Array.isArray(x.list.rolls)) lfW = x; });
@@ -5329,7 +5420,7 @@ function runDue(charId, actId, att, row) {   // att (1.6.0, B2): the attempt a r
         if (!canRoll(cW)) { toast('That character is not yours to roll for here.'); return false; }
         if (!window.wpDice || !window.wpDice.rollFor) return false;
         var nW = typeof att === 'string' ? net() : null; if (nW) nW._attNext = { att: att, charId: cW.id, row: { f: row.f, r: row.r, i: row.i } };
-        try { window.wpDice.rollFor(cW.id, lrW.formula, String(lrW.label || 'Roll').split('{')[0].trim() || 'Roll', { row: { f: row.f, r: row.r, i: row.i } }); } finally { if (nW) nW._attNext = null; }
+        try { window.wpDice.rollFor(cW.id, lrW.formula, String(lrW.label || 'Roll').split('{')[0].trim() || 'Roll', { row: { f: row.f, r: row.r, i: row.i }, ask: ask || undefined }); } finally { if (nW) nW._attNext = null; }
         return true;
     }
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp), r = null, rl = null;
@@ -5339,12 +5430,12 @@ function runDue(charId, actId, att, row) {   // att (1.6.0, B2): the attempt a r
         var nodeR = rollNode(rl, c, sys, null), btR = nodeR && nodeR.querySelector ? nodeR.querySelector('button.sheet-roll') : null;
         if (!btR || btR.disabled) { toast(btR && btR.title ? btR.title : 'That roll cannot be made now.'); return false; }
         var nD = typeof att === 'string' ? net() : null; if (nD) nD._attNext = { att: att, charId: c.id, act: rl.id };   // 1.6.0 (B2): net.diceRoll takes it for this very roll, and only while the button is pressed
-        try { btR.click(); } finally { if (nD) nD._attNext = null; }
+        if (ask && typeof _askNext !== 'undefined') _askNext = ask; try { btR.click(); } finally { if (typeof _askNext !== 'undefined') _askNext = null; if (nD) nD._attNext = null; }
         return true;
     }
     if (!c || !r) { toast('That action is not on the sheet any more.'); return false; }
     if (!canApply(c)) { toast('That character is not yours to change here.'); return false; }
-    applyAction(r, c, r.label.indexOf('{') < 0 ? r.label : 'Apply');
+    applyAction(r, c, r.label.indexOf('{') < 0 ? r.label : 'Apply', undefined, undefined, undefined, ask);
     return true;
 }
 // The combat roster (whiteboard.js): initiative from the system's init roll, made at the table like any roll
@@ -5424,7 +5515,7 @@ function linkBar(box, sys, c, camp, locked) {
         var crL = cur && own && isClient() && !c.partial && c.cr && Array.isArray(c.cr[k.id]) ? c.cr[k.id] : null;   // 1.6.0 Its crew may press this sheet's rolls: the host's list, each press judged there
         if (crL && crL.length) {
             var crB = el('div', 'sheet-lk-rolls');
-            crL.forEach(function(e0) { var bR = el('button', 'tool ghost sheet-lk-roll', e0.label); bR.title = 'Roll ' + e0.label + ' on ' + tName + ' as ' + (c.name || 'this character'); bR.addEventListener('click', function() { if (window.wpDice) window.wpDice.rollFor(cur, e0.expr, e0.label, { by: c.id, act: e0.act || undefined, row: e0.f ? { f: e0.f, r: e0.r, i: e0.i } : undefined, source: 'sheet' }); }); crB.appendChild(bR); });
+            crL.forEach(function(e0) { var bR = el('button', 'tool ghost sheet-lk-roll', e0.label); bR.title = 'Roll ' + e0.label + ' on ' + tName + ' as ' + (c.name || 'this character'); bR.addEventListener('click', function() { var oC = { by: c.id, act: e0.act || undefined, row: e0.f ? { f: e0.f, r: e0.r, i: e0.i } : undefined, source: 'sheet' }, goC = function(ans) { if (window.wpDice) window.wpDice.rollFor(cur, e0.expr, e0.label, ans ? Object.assign({}, oC, { ask: ans }) : oC); }, enC = typeof askEntry === 'function' ? askEntry(oC, null) : null; if (enC) askThen(enC, c, bR, oC, null, goC); else goC(); }); crB.appendChild(bR); });   // 1.6.2: what it asks first
             box.appendChild(crB);
         }
     });
@@ -6997,6 +7088,7 @@ function swWordsBox(row, sw) {
     row.appendChild(off); row.appendChild(ic); if (typeof glyphButton === 'function') row.appendChild(glyphButton(ic));
 }
 function rollExtras(row, rr, sp, isApply) {
+    if (typeof asksBox === 'function') row.appendChild(asksBox(rr));
     var ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
     var ic = input('sys-rlicon field', typeof rr.icon === 'string' ? rr.icon : '', isApply ? 'An icon on its button, a bundled icon or an emoji. Empty: a bolt' : 'An icon on its button after its die, a bundled icon or an emoji (optional)', 'Icon');
     ic.addEventListener('input', function() { var v = ic.value.trim().slice(0, 32); if (v) rr.icon = v; else delete rr.icon; ch(); });
@@ -8327,6 +8419,7 @@ function rollRow(r) {
     row.appendChild(askRow(r));   // and whether its runs wait for your word
     if (r.every || r.inFight || r.notes) row.appendChild(noteRow(r));   // 1.6.0, backlog 173: where its runs are said, for a time rule
     if (typeof crossRow === 'function') row.appendChild(crossRow(r));   // 1.5.9 (book es/et plan 4a): when a value crosses a step
+    if (typeof asksBox === 'function') row.appendChild(asksBox(r));   // 1.6.2: what it asks when pressed
     if (typeof callsBox === 'function') row.appendChild(callsBox(r, typeof draft !== 'undefined' ? draft : null, isApply));   // 1.6.0: Calls for
     if (!isApply && typeof bandBox === 'function') row.appendChild(bandBox(function() { return r.bands; }, function(l) { if (l) r.bands = l; else delete r.bands; }, true, function() { renderAll(); }));   // 1.6.2: result bands
     row.appendChild(applyEditor(r, isApply ? 'apply' : 'then'));   // R1: a roll's consequences under it

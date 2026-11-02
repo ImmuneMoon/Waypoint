@@ -152,6 +152,7 @@ var GROUPS = {
         ['resist', 'Resisting it', 0, ['sys-roll-rsist', 'sys-roll-rsby', 'sys-rsor', 'sys-roll-rsnocrit']],
         ['clock', 'By the clock and in a fight', 0, ['sys-roll-everyrow', 'sys-roll-fightrow', 'sys-roll-askrow', 'sys-roll-noterow']],
         ['cross', 'When a value crosses a step', 0, ['sys-roll-xsrow']],
+        ['asks', 'What it asks when pressed', 0, ['sys-asks']],
         ['calls', 'Calls for', 0, ['sys-calls']],
         ['bands', 'Result bands', 0, ['sys-bands']],
         ['then', 'What it changes', 1, ['sys-apply']]] },

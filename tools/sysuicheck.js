@@ -350,7 +350,7 @@ const kids = n => n.childNodes.slice();
     const sysP = ix.slice(ix.indexOf('<div id="systemModal"'), ix.indexOf('<!-- Combat roster (GM) -->'));
     const gone = BEFORE.filter(id => sysP.split(' id="' + id + '"').length !== 2);
     check('every id of the editor\'s page stands once, as before this work', BEFORE.length > 40 && gone.length === 0, J(gone));
-    check('and every tooltip of its page, with the two new tabs\' own', (sysP.match(/ title="/g) || []).length === 38 + 2, (sysP.match(/ title="/g) || []).length);
+    check('and every tooltip of its page, with the two new tabs\' own', (sysP.match(/ title="/g) || []).length === 38 + 2 + 2 /* Arrange and its Undo (moved on purpose) */, (sysP.match(/ title="/g) || []).length);
 }
 
 const words = ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].map(root);

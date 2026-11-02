@@ -1150,6 +1150,7 @@ function renderSheet() {
     var nmB = ui('sheetName'); if (nmB) nmB.style.display = isClient() && own && !c.partial && c.making === 1 ? '' : 'none';   // renamed only while in the making (owner)
     var ulB = ui('sheetUnlock'); if (ulB) { var ulOn = gm && !!c.ownerId && !c.npc && c.making !== 1 && c.review !== 1; ulB.style.display = ulOn ? '' : 'none'; if (ulOn) { ulB.textContent = c.unlocked === 1 ? 'Lock for player' : 'Unlock for player'; ulB.title = c.unlocked === 1 ? 'Lock it again: its player keeps only the fields they may always change' : 'Let its player fill in every field they can see (they press Done when finished)'; } }
     // [systemcheck:sheetedit-start]
+    var arrH = ui('sheetArrange'); if (arrH) arrH.style.display = gm && canWrite() && !c.partial ? '' : 'none';   // 1.6.2
     var edB = ui('sheetEdit'); if (edB) { var edOn = !c.partial && c.making !== 1 && (gm ? canWrite() : own); edB.style.display = edOn ? '' : 'none'; if (edOn) { edB.textContent = lockedS ? 'Edit sheet' : 'Lock sheet'; edB.classList.toggle('on', !lockedS); edB.title = lockedS ? 'This sheet is locked. Rolls, pools, switches, effects and what you carry still work. Edit sheet lets you change its stats, levels, lists and notes' : 'Lock the sheet again, so that a slip while you play changes none of its stats'; } }
     p.classList.toggle('sheet-editing', !lockedS);
     // [systemcheck:sheetedit-end]
@@ -1938,6 +1939,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     var previewV = !!(vctx && vctx.preview);   // Stage 6 HUD C8: the Layout preview draws a part whose show-if is false, dimmed (the sheet leaves it out)
     var hudV = !!(vctx && vctx.view === 'hud'); _fxView = hudV ? 'hud' : 'sheet';   // Stage 6 HUD frame (HF1): which view this draws (sys is then hudView's projection)
     _lockNow = viewLocked(c, vctx);   // the sheet's lock: the HUD always, the sheet until Edit sheet
+    var arrV = previewV && vctx.arrange === true;   // 1.6.2, backlog 171 (b): the preview under Arrange: every section open, and marks for the grips
     var printV = !!(vctx && vctx.print);   // Onboarding F2b: printed — every tab in turn, every section open, nothing that only works on screen
     var sheet = (hudV || (sys.sheet && sys.sheet.sections && sys.sheet.sections.length)) ? sys.sheet : autoLayout(sys);   // the HUD has no automatic layout of its own
     var layout = sheet.sections || [];
@@ -1980,6 +1982,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             var tb = el('button', 'sheet-tab' + (t.id === active ? ' active' : '')); if (look.tabs === 'filled' || look.tabs === 'angular') tb.title = t.label || 'Tab';   // a filled or angular tab can ellipsise a long label
             if (t.icon) tb.appendChild(iconNode(t.icon, 'sheet-tab-icon'));   // Stage 5g (Stage 6: or a bundled glyph)
             tb.appendChild(el('span', 'sheet-tab-label', t.label || 'Tab'));
+            if (arrV) tb.dataset.arrTab = t.id;
             tb.addEventListener('click', function() {
                 if (body.dataset.wpTab === t.id) return;
                 var wasStuck = body.scrollTop > frameFlowTop(body);   // the frame was stuck at the top: the new tab should start at its own top, under the strip
@@ -1992,18 +1995,29 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     }
     var secN = 0, tabN = 0;
     var byIdSec = {}; layout.forEach(function(x) { byIdSec[x.id] = x; });
+    var sideLast = null;   // 1.6.2, backlog 171 (b): the section drawn last in this run; one set Beside the one before joins its row, which wraps where the window is narrow
+    function sideAdd(into, secEl, sec) {
+        if (sec.beside === true && sideLast && sideLast.parentNode) {
+            var rowE = sideLast.parentNode.classList && sideLast.parentNode.classList.contains('sheet-siderow') ? sideLast.parentNode : null;
+            if (!rowE) { rowE = el('div', 'sheet-siderow'); sideLast.parentNode.insertBefore(rowE, sideLast); rowE.appendChild(sideLast); }
+            rowE.appendChild(secEl);
+        } else into.appendChild(secEl);
+        sideLast = secEl;
+    }
     // one level of nesting: a section is a sub-section only when its parent exists AND is itself top-level (so a grandchild never vanishes — it falls back to top-level)
     function childParent(sec) { return (sec.parent && byIdSec[sec.parent] && !byIdSec[sec.parent].parent) ? sec.parent : null; }
     var children = {}; layout.forEach(function(sec) { var p = childParent(sec); if (p) (children[p] = children[p] || []).push(sec); });
     // Stage 5d: dashboard sections — flagged "above the tabs" — render before the strip, so they stay on every tab (and come first on a stacked sheet)
-    layout.forEach(function(sec) { if (!sec.pinned || childParent(sec)) return; var de = renderOneSection(sec, false); if (de) { de.classList.add('sheet-dash'); body.appendChild(de); secN++; } });
+    layout.forEach(function(sec) { if (!sec.pinned || childParent(sec)) return; var de = renderOneSection(sec, false); if (de) { de.classList.add('sheet-dash'); sideAdd(body, de, sec); secN++; } });
+    sideLast = null;
     if (stripEl) frame.appendChild(stripEl);
     if (frame.childNodes.length) body.appendChild(frame);   // the band and the strip: the sticky frame, after the dashboard sections
     function renderOneSection(sec, isChild) {
         var secOff = !!sec.showIf && !showsIf(sec.showIf, all.vars, F());   // Stage 6 HUD C8: its show-if is false for this character
         if (secOff && !previewV) return null;
-        var collap = !!sec.collapsible && !printV;   // printed: open (and never written back to the live sheet's memory)
+        var collap = !!sec.collapsible && !printV && !arrV;   // printed: open (and never written back to the live sheet's memory)
         var s = el(collap ? 'details' : 'div', 'sheet-section' + (collap ? ' sheet-collap' : '') + (isChild ? ' sheet-subsection' : '') + (sec.inline === true ? ' sheet-inline' : ''));
+        if (arrV) s.dataset.arrSid = sec.id;
         var secKey = (hudV ? 'h:' : '') + sec.id;   // HF1: remembered per view (sheet keys unchanged)
         if (collap) { var secDrawn = (secKey in _secOpen) ? _secOpen[secKey] : (sec.open !== false), secOwn = secDrawn === true; s.open = secDrawn; s.addEventListener('toggle', function () { if (secOwn) { secOwn = false; if (s.open === secDrawn) return; } _secOpen[secKey] = s.open; }); }   // 1.5.5 (the release trace, F4): the toggle the browser fires for the code's own open is not kept, so only the reader's own fold is remembered
         var stripe = !!(sec.style && sec.style.accent && sec.style.stripe !== false);   // Stage 5g: an accent can colour the title alone
@@ -2057,25 +2071,26 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             if (sec.inline === true && pl.id && byId[pl.id]) inlineRow(node, byId[pl.id]);   // HUD frame (HF4a, H2)
             if (pl.w === 'row') node.classList.add('sheet-row');
             if (plOff) node.classList.add('sheet-showif-off');
+            if (arrV) node.dataset.arrPi = String(pli);
             grid.appendChild(node);
         });
         var kids = 0, subs = !isChild && children[sec.id] ? children[sec.id] : [];
         subs.forEach(function(ch) { if (ch.first !== true) return; var cf = renderOneSection(ch, true); if (cf) { s.appendChild(cf); kids++; } });   // 1.5.5: a sub-section set Before its fields stands before the parent's own fields, in the order the sub-sections have
         var hasOwn = Array.prototype.some.call(grid.childNodes, function(n) { return !n.hidden; });   // 5h: a player's dial with facing off is a hidden placeholder
-        if (hasOwn) s.appendChild(grid);
+        if (hasOwn) s.appendChild(grid); else if (arrV) s.appendChild(el('div', 'sheet-empty-note', 'Drop a field here'));
         subs.forEach(function(ch) { if (ch.first === true) return; var ce = renderOneSection(ch, true); if (ce) { s.appendChild(ce); kids++; } });   // sub-sections after the parent's own fields
         if (secOff) s.classList.add('sheet-showif-off');
-        return (hasOwn || kids) ? s : null;
+        return (hasOwn || kids || arrV) ? s : null;
     }
     (printV && tabs ? tabs : [null]).forEach(function(pt) {   // Onboarding F2b: printed, each tab in turn under its own heading (a tab with nothing drawn has none)
-        var tabHead = null, had = 0;
+        var tabHead = null, had = 0; sideLast = null;
         if (pt) { tabHead = el('div', 'sheet-print-tab'); if (pt.icon) tabHead.appendChild(iconNode(pt.icon, 'sheet-tab-icon')); tabHead.appendChild(el('span', 'sheet-tab-label', pt.label || 'Tab')); }
         var want = pt ? pt.id : active;
     layout.forEach(function(sec) {
         if (sec.pinned || childParent(sec)) return;   // a dashboard section (already above the strip) or a sub-section (rendered under its parent)
         if (tabs) { var stab = (sec.tab && tabIds.indexOf(sec.tab) >= 0) ? sec.tab : tabIds[0]; if (stab !== want) return; }   // untabbed/unknown → first tab
         var secEl = renderOneSection(sec, false);
-        if (secEl) { if (tabHead && !had) body.appendChild(tabHead); body.appendChild(secEl); secN++; tabN++; had++; }
+        if (secEl) { if (tabHead && !had) body.appendChild(tabHead); sideAdd(body, secEl, sec); secN++; tabN++; had++; }
     });
     });
     applyLook(body, look, vctx);   // Stage 6 look fold
@@ -2478,6 +2493,7 @@ function renderLayout() {
         top.appendChild(secCollapSel(sec));   // 1.5.5: Fixed, Collapsible or Starts closed
         top.appendChild(select('sys-sec-inline', [['', 'Stacked fields'], ['1', 'Inline rows']], sec.inline ? '1' : '', 'Each field on one line: label and value on the left, its Roll on the right (numbers, formulas, skills, toggles, selects, text); their stat tiles draw as rows here (a pool and a slider keep their own look)'));   // HUD frame (HF4a)
         top.appendChild(select('sys-sec-pinned', [['', 'On its tab'], ['1', 'Above the tabs']], sec.pinned ? '1' : '', 'A dashboard section: stays above the tab strip on every tab (and comes first on a stacked sheet)'));
+        if (!sec.parent) top.appendChild(select('sys-sec-beside', [['', 'On its own row'], ['1', 'Beside the one before']], sec.beside === true ? '1' : '', 'Stand this section on one row with the section before it. Where the window is too narrow, the two stack again'));   // 1.6.2, backlog 171 (b)
         top.appendChild(lazySelect('sys-sec-meta', metaOpts, sec.meta || '', 'A field whose value shows in the section header (e.g. a running total)'));
         top.appendChild(lazySelect('sys-sec-parent', [['', 'Top level']].concat(topSecs.filter(function(o) { return o.id !== sec.id; }).map(function(o) { return [o.id, 'Under: ' + (o.title || '(untitled)')]; })), sec.parent || '', 'Nest this section under another one (one level)'));
         var secFs = secFirstSel(sec, secs); if (secFs) top.appendChild(secFs);   // 1.5.5: After or Before its fields, only while nested
@@ -2575,10 +2591,11 @@ function layoutAddOpts(placed, hudOn, onSheet, grpList) {
     if (!hudOn && draftHasHud()) opts.push(['k:hud', 'HUD button']);   // HUD frame (HF2b): on the sheet, once there is a HUD to open
     return opts;
 }
+var _arrChar = null;   // 1.6.2: the character Arrange was opened from, for the preview's list
 function renderPreview() {
     var box = ui('sysLayoutPreview'), pick = ui('sysPreviewChar'); if (!box || !draft || !F()) return;
     var camp = getActiveCampaign();
-    if (pick) { var was = pick.value; pick.textContent = ''; pick.appendChild(opt('', 'Defaults')); charList(camp).forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''))); }); pick.value = Array.prototype.some.call(pick.options, function(o) { return o.value === was; }) ? was : ''; }
+    if (pick) { var was = _arrChar || pick.value; _arrChar = null; pick.textContent = ''; pick.appendChild(opt('', 'Defaults')); charList(camp).forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''))); }); pick.value = Array.prototype.some.call(pick.options, function(o) { return o.value === was; }) ? was : ''; }
     var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) { box.textContent = ''; return; }
     var c = pick && pick.value ? charById(pick.value, camp) : null;
     var pc = c || { id: 'c_preview', name: 'Preview', ownerId: '', npc: false, values: {}, portrait: '' };
@@ -2586,10 +2603,11 @@ function renderPreview() {
     var pv = layoutView === 'hud' ? hudView(clean) : clean;   // Stage 6 HUD frame (HF1): the HUD's own layout, in the shared look
     box.classList.toggle('sys-layout-preview-hud', layoutView === 'hud');
     if (!pv) { box.textContent = ''; box.appendChild(el('div', 'sys-empty', 'No HUD yet: add a section, a band figure or a ledger figure on the left.')); return; }
-    _fxLive = false; try { buildSections(box, pv, pc, resolveAll(pv, pc, F(), pc && pc.id ? tokenCtxFor(pc.id, camp) : null), true, false, renderPreview, { campId: camp && camp.id, view: layoutView, preview: true, targets: pinTargetsAll(clean.sheet) }); } finally { _fxLive = true; }   // 5h: the preview's effect controls would act on the saved system, not the draft
+    _fxLive = false; try { buildSections(box, pv, pc, resolveAll(pv, pc, F(), pc && pc.id ? tokenCtxFor(pc.id, camp) : null), true, false, renderPreview, { campId: camp && camp.id, view: layoutView, preview: true, arrange: !!(window.wpArrange && window.wpArrange.on()), targets: pinTargetsAll(clean.sheet) }); } finally { _fxLive = true; }   // 5h: the preview's effect controls would act on the saved system, not the draft
     applySheetLookTo(box, sheetLook(camp, clean));   // the preview wears the sheet's look too
     syncFramePad(box);
     Array.prototype.forEach.call(box.children, function(ch) { ch.inert = true; });   // Stage 6: the preview draws a real character's values as the GM — no keyboard edit may reach it (the box itself stays the scroller)
+    if (window.wpArrange) window.wpArrange.sync(box, pv);   // 1.6.2: Arrange's grips, on a layer of their own
 }
 function onLayoutInput(t) {
     var c = t.className || '';
@@ -2626,6 +2644,7 @@ function onLayoutChange(t) {
     if (t.classList.contains('sys-pl-hudtab')) { var plh = t.closest('.sys-pl'), plx = plh ? (sec.fields || [])[+plh.dataset.pi] : null; if (plx && plx.kind === 'hud') { if (/^t_[A-Za-z0-9_]{1,24}$/.test(t.value)) plx.tab = t.value; else delete plx.tab; markDirty(); renderPreview(); } return true; }   // HF2b: a HUD button's tab
     if (c.indexOf('sys-pl-page') >= 0) { var plp = t.closest('.sys-pl'), plk = plp ? (sec.fields || [])[+plp.dataset.pi] : null; if (plk && plk.kind === 'link') { plk.page = t.value; markDirty(); renderLayout(); } return true; }   // Stage 5f: a link's page
     if (t.classList.contains('sys-sec-pinned')) { if (t.value) sec.pinned = true; else delete sec.pinned; markDirty(); renderPreview(); return true; }
+    if (t.classList.contains('sys-sec-beside')) { if (t.value) sec.beside = true; else delete sec.beside; markDirty(); renderPreview(); return true; }   // 1.6.2
     if (t.classList.contains('sys-sec-meta')) { if (t.value) sec.meta = t.value; else delete sec.meta; markDirty(); renderPreview(); return true; }
     if (t.classList.contains('sys-sec-parent')) { var hadF = typeof document !== 'undefined' && !!document && document.activeElement === t; if (t.value) sec.parent = t.value; else { delete sec.parent; delete sec.first; } markDirty(); renderLayout(); if (hadF) secRefocus(ui('sysLayoutSecs'), sec.id, 'sys-sec-parent'); return true; }   // 1.5.5: back at the top level a section holds no first. The tab is drawn again, so After or Before its fields comes and goes and every Under list offers what is top level now, and the Under list takes the focus back, so its arrow keys go on stepping through it
     if (t.classList.contains('sys-sec-first')) { if (t.value && sec.parent) sec.first = true; else delete sec.first; markDirty(); renderPreview(); return true; }   // 1.5.5: Before its fields
@@ -2715,6 +2734,27 @@ function onLayoutClick(b) {
     } else return true;
     markDirty(); renderLayout(); return true;
 }
+// [systemcheck:arrhost-start] 1.6.2, backlog 171 (b): what Arrange reads of the draft and how it is told to draw
+function arrHost() {
+    var nameOfPl = function(pl) { var t = pl ? placementLabel(pl, Object.fromEntries(draft.fields.map(function(f) { return [f.id, f]; })), Object.fromEntries(draft.rolls.map(function(r) { return [r.id, r]; }))) : null; return t || 'this'; };
+    var placedNow = function() { var m = {}; layoutSections().forEach(function(s) { (s.fields || []).forEach(function(p) { if (p && p.id) m['f:' + p.id] = 1; if (p && p.roll) m['r:' + p.roll] = 1; }); }); return m; };
+    return {
+        sections: layoutSections, tabs: layoutTabs, plName: nameOfPl,
+        restore: function(list) { layoutRoot().sections = list; markDirty(); renderPreview(); },
+        changed: function() { markDirty(); renderPreview(); },
+        full: function() { var n = 0; layoutSections().forEach(function(s) { n += (s.fields || []).length; }); return n >= LIMITS.placements; },
+        say: function(words) { toast(words); },
+        pl: function(v) { return v.slice(0, 2) === 'f:' ? { id: v.slice(2), w: 1 } : v.slice(0, 2) === 'r:' ? { roll: v.slice(2), w: 1 } : null; },
+        unplaced: function() { var m = placedNow(), out = []; draft.fields.forEach(function(f) { if (!m['f:' + f.id]) out.push({ v: 'f:' + f.id, name: f.label || f.key || '(field)' }); }); draft.rolls.forEach(function(r) { if (!m['r:' + r.id]) out.push({ v: 'r:' + r.id, name: 'Roll: ' + (r.label || '(roll)') }); }); return out; },
+        showTab: function(id) { var box = ui('sysLayoutPreview'); if (box && box.dataset.wpTab !== id) { box.dataset.wpTab = id; renderPreview(); } }
+    };
+}
+function arrSet(on) {
+    if (!window.wpArrange) return;
+    if (on && !layoutSections().length && layoutView === 'sheet') { var au = ui('sysLayoutAuto'); if (au) au.click(); }   // the automatic layout is no list to arrange: it becomes yours first
+    window.wpArrange.set(on); if (!on) renderLayout(); else renderPreview();
+}
+// [systemcheck:arrhost-end]
 function wireLayoutDrag(ls) {   // HTML5 drag between and within sections (the combat roster's pattern)
     var dragPl = null;
     function clearMarks() { ls.querySelectorAll('.drop-before, .drop-end').forEach(function(x) { x.classList.remove('drop-before'); x.classList.remove('drop-end'); }); }
@@ -6769,6 +6809,7 @@ function open(which, topic) {
 function close(force) {
     var m = ui('systemModal'); if (!m || m.style.display === 'none') return;
     if (dirty && !force) { showConfirm('Close the System editor without saving? Your changes to the fields, rolls and layout since the last Save are lost (characters are saved as you go).', function(yes) { if (yes) { dirty = false; close(true); } }); return; }
+    if (window.wpArrange && window.wpArrange.on()) window.wpArrange.set(false);
     m.style.display = 'none'; draft = null;
 }
 // [systemcheck:altbox-start]
@@ -12289,6 +12330,7 @@ function importFile(file) {
     var m = ui('systemModal'); if (!m) return;
     var b = ui('systemBtn'); if (b) b.addEventListener('click', function() { open(); });
     var c = ui('sysClose'); if (c) c.addEventListener('click', function() { close(false); });
+    if (window.wpArrange) { window.wpArrange.host(arrHost()); var arB = ui('sysArrange'); if (arB) arB.addEventListener('click', function() { arrSet(!window.wpArrange.on()); }); var arU = ui('sysArrUndo'); if (arU) arU.addEventListener('click', function() { window.wpArrange.undo(); }); }   // 1.6.2
     var s = ui('sysSaveBtn'); if (s) s.addEventListener('click', saveDraft);
     var nm = ui('sysName'); if (nm) nm.addEventListener('input', function() { markDirty(); patchErrors(); });
     m.addEventListener('input', onInput);
@@ -12316,6 +12358,7 @@ function importFile(file) {
     var nmBt = ui('sheetName'); if (nmBt) nmBt.addEventListener('click', renameMaking);
     var ulBt = ui('sheetUnlock'); if (ulBt) ulBt.addEventListener('click', function() { if (sheetOpen) unlockChar(sheetOpen); });
     var apBt = ui('sheetAsPlayer'); if (apBt) apBt.addEventListener('click', asPlayerPress);   // 1.6.0: As player
+    var arrBt = ui('sheetArrange'); if (arrBt) arrBt.addEventListener('click', function() { if (!sheetOpen) return; _arrChar = sheetOpen; open('layout'); arrSet(true); });   // 1.6.2: the System editor, Arrange on, with this character's figures
     var hfBt = ui('sheetHideFig'); if (hfBt) hfBt.addEventListener('click', hideFigPress);   // 1.6.2: Hide figures
     var edBt = ui('sheetEdit'); if (edBt) edBt.addEventListener('click', function() { if (!sheetOpen) return; _sheetEdit = _sheetEdit === sheetOpen ? null : sheetOpen; renderSheet(); });   // the sheet's lock: this viewer's own switch, for the sheet that is open
     var delBt = ui('sheetDelete'); if (delBt) delBt.addEventListener('click', function() { if (sheetOpen) askDeleteSheet(sheetOpen); });

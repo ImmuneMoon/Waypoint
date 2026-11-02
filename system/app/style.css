@@ -3512,6 +3512,45 @@
   .sys-layout-preview-box { width: 380px; flex: none; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
   .sys-layout-preview-box select { max-width: 200px; padding: 2px 6px; font-size: 11.5px; }
   .sys-layout-preview { overflow: auto; max-height: 52vh; border: 1px solid var(--edge); border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 10px; background: rgba(0,0,0,0.08); }
+  /* 1.6.2, backlog 171 (b): sections on one row, and Arrange. A row wraps where the window is too narrow, so nothing is cut */
+  .sheet-siderow { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: stretch; min-width: 0; }
+  .sheet-siderow > .sheet-section { flex: 1 1 190px; min-width: 0; }
+  #sysLayout > .sys-toolbar { align-items: flex-start; }   /* the buttons stay put when Arrange puts the note away */
+  #sysArrHelp { margin: 0 0 6px; }
+  #sysLayout.sys-arranging > .sys-toolbar > .sys-note, #sysLayout.sys-arranging > .sys-toolbar > .sys-note-btn { display: none; }   /* Arrange has words of its own */
+  #sysArrList { display: none; }
+  .sys-layout-wrap.sys-arrange #sysLayoutSecs { display: none; }
+  .sys-layout-wrap.sys-arrange #sysArrList { display: block; flex: 0 0 170px; min-width: 0; overflow: auto; }
+  .sys-layout-wrap.sys-arrange .sys-layout-preview-box { flex: 1 1 auto; width: auto; min-width: 0; }
+  .sys-layout-wrap.sys-arrange .sys-layout-preview { position: relative; flex: 1 1 auto; max-height: none; min-height: 0; }
+  .sys-layout-wrap.sys-arrange .sys-layout-preview .sheet-frame { z-index: 4; }
+  .sys-layout-wrap.sys-arrange .sys-layout-preview .sheet-tabs, .sys-layout-wrap.sys-arrange .sys-layout-preview .sheet-tabs * { pointer-events: auto; }
+  .sys-layout-wrap.sys-arrange .sys-layout-preview .sheet-sec-title { padding-left: 18px; }
+  .arr-layer { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 3; }
+  .sys-layout-preview .arr-sec { position: absolute; border: 1px dashed var(--edge); border-radius: 6px; }
+  .sys-layout-preview .arr-sec.arr-kid { border-style: dotted; }
+  .sys-layout-preview .arr-bar { position: absolute; left: 0; right: 0; top: 0; min-height: 20px; display: flex; align-items: center; justify-content: space-between; gap: 6px; pointer-events: auto; cursor: grab; touch-action: none; }
+  .sys-layout-preview .arr-f { position: absolute; border-radius: 4px; pointer-events: auto; cursor: grab; touch-action: none; }
+  .sys-layout-preview .arr-f:hover, .sys-layout-preview .arr-f:focus-within { outline: 1px solid var(--gold); }
+  .sys-layout-preview .arr-grip { pointer-events: auto; width: 16px; height: 20px; padding: 0; border: 0; border-radius: 3px; background: none; color: var(--gold); font-size: 15px; line-height: 1; cursor: grab; touch-action: none; }
+  .sys-layout-preview .arr-grip-f { position: absolute; left: 0; top: 0; color: var(--dim); opacity: 0; }
+  .sys-layout-preview .arr-f:hover .arr-grip-f, .sys-layout-preview .arr-grip-f:focus-visible { opacity: 1; color: var(--gold); }
+  .sys-layout-preview .arr-grip:focus-visible, .sys-layout-preview .arr-chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+  .sys-layout-preview .arr-chip { pointer-events: auto; padding: 0 6px; height: 17px; border: 1px solid var(--edge); border-radius: 9px; background: var(--panel); color: var(--dim); font-size: 10px; line-height: 1; cursor: pointer; }
+  .sys-layout-preview .arr-chip:hover { color: var(--ink); border-color: var(--gold); }
+  .sys-layout-preview .arr-chip.on { background: var(--gold); border-color: var(--gold); color: var(--gold-ink, #1a1a1a); }
+  .sys-layout-preview .arr-wide { position: absolute; right: 0; top: 0; opacity: 0; }
+  .sys-layout-preview .arr-f:hover .arr-wide, .sys-layout-preview .arr-wide:focus-visible, .sys-layout-preview .arr-wide.on { opacity: 1; }
+  .arr-mark { position: absolute; background: var(--gold); border-radius: 2px; box-shadow: 0 0 6px var(--gold); pointer-events: none; z-index: 2; }
+  .sheet-tab.arr-tabon { outline: 2px solid var(--gold); outline-offset: 1px; }
+  #arrGhost { position: fixed; z-index: 96000; padding: 3px 9px; border: 1px solid var(--gold); border-radius: 5px; background: var(--panel); color: var(--ink); font-size: 12px; pointer-events: none; box-shadow: 0 6px 18px rgba(0,0,0,.5); }
+  body.arr-drag, body.arr-drag * { cursor: grabbing !important; user-select: none; }
+  #sysArrList .sys-tabmgr-head { margin: 0 0 4px; }
+  #sysArrList .arr-rest { margin-top: 12px; }
+  #sysArrList .arr-row { display: block; width: 100%; margin: 0 0 2px; padding: 3px 6px; border: 1px solid transparent; border-radius: 4px; background: var(--panel2); color: var(--ink); font-size: 12px; text-align: left; white-space: normal; overflow-wrap: anywhere; cursor: pointer; }
+  #sysArrList .arr-row:hover, #sysArrList .arr-row:focus-visible { border-color: var(--gold); }
+  #sysArrList .arr-row-kid { margin-left: 10px; width: calc(100% - 10px); }
+  #sysArrList .arr-new { cursor: grab; touch-action: none; color: var(--dim); }
   .sys-layout-preview * { pointer-events: none; }   /* the preview is read-only, but the box itself must still scroll (pointer-events:none on the container ate the wheel) */
   .sys-sec-title { width: 200px; }
   .sys-pl-list { display: flex; flex-direction: column; gap: 3px; min-height: 18px; padding: 2px; border-radius: 4px; }
@@ -3533,7 +3572,7 @@
      list of characters, then the HUD, a window of its own and close at the right end. Row two is what is done to the sheet, and Download ends
      it. A button stands in the same place whoever looks. Nothing is covered and nothing is pushed off the panel: a long name is cut with an
      ellipsis, and a row wraps where a narrow sheet has more than fits. A row with nothing in it takes no room */
-  #sheetHead { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
+  #sheetHead { display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #sheetHead::after { content: ''; order: 1; flex: 0 0 100%; height: 0; }
   #sheetHead > .notepad-btn { order: 2; margin-top: 5px; }
   #sheetHead > #sheetHud, #sheetHead > #sheetPop, #sheetHead > #sheetClose { order: 0; margin-top: 0; }

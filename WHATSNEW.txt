@@ -2,6 +2,15 @@ WAYPOINT 1.6.2 — What's New
 ============================
 
 The System editor
+- Arrange, on the Layout tab, makes the preview large so that you can drag the
+  sheet itself. Drag a section by its grip, or a field from anywhere on it.
+  Drop a field in another section to move it there, and a section on a tab to
+  send it there. It works for the sheet and for the HUD, and a button on the
+  GM's sheet opens it with that character's figures. Nothing changes for anyone
+  until you press Save.
+- Sections can stand side by side. Drop one on another's left or right edge, or
+  pick Beside the one before in the section list. In a narrow window they stack
+  again. Any system can use this, and a sheet that does not is drawn as before.
 - Combat and Rules are tabs of their own now. Everything the Combat card held
   is on the Combat tab, and the budgets, readings, linked sheets and tables
   that stood on the Lists tab are on the Rules tab. Each has its topics down

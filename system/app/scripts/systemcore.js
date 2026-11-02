@@ -3980,6 +3980,7 @@ function cleanSections(list, ctx) {
         if (typeof s.pin === 'string' && groupIds[s.pin] === 1) sec.pin = s.pin;   // Stage 6 look fold: a band group's Pin in the header
         var sif = cleanFormulaText(s.showIf); if (sif) sec.showIf = sif;   // Stage 6 HUD C8: shown only while this formula is true
         if (s.inline === true) sec.inline = true;   // HUD frame (HF4a, H2): each field on one line (label and value, its Roll on the right)
+        if (s.beside === true) sec.beside = true;   // 1.6.2, backlog 171 (b): stands on the row of the section drawn before it (true only)
         if (s.resetAll === true) { sec.resetAll = true; var rtx = cutText(s.resetText, LIMITS.label); if (rtx) sec.resetText = rtx; }   // HUD frame (HF4b, H13): a Reset all button in the header (its own words, e.g. Long rest)
         (Array.isArray(s.fields) ? s.fields : []).forEach(function(p) {
             if (!isObj(p) || total >= LIMITS.placements) return;

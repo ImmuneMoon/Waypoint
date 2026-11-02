@@ -66,6 +66,9 @@ jobs:
       - name: fogcheck — fog of war
         if: ${{ !cancelled() }}
         run: node tools/fogcheck.js
+      - name: arrangecheck — arranging a sheet by dragging
+        if: ${{ !cancelled() }}
+        run: node tools/arrangecheck.js
       - name: soundcheck — sound library
         if: ${{ !cancelled() }}
         run: node tools/soundcheck.js

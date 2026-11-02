@@ -49,6 +49,7 @@ function cleanTracker(t, o) {
     if (!o.wire) {
         var m = mapKey(t.map); if (m) { if (isObj(o.maps) && !own(o.maps, m)) return null; out.map = m; }   // a tracker of a map that is gone goes with it
         if (t.vis === 'all') out.vis = 'all';
+        if (kind !== 'timer' && typeof t.val === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(t.val)) out.val = t.val;   // 1.6.2 (G8): the shared value it shows, the GM's own word, never on the wire
     }
     if (kind === 'count') {
         var lo = whole(t.min, -LIMITS.count, LIMITS.count), hi = whole(t.max, -LIMITS.count, LIMITS.count);
@@ -127,6 +128,9 @@ function step(t, d) {
     if (t.kind === 'clock') { n.fill = clampInt(t.fill + Math.round(d), 0, t.parts, t.fill); return n.fill === t.fill ? null : n; }
     return null;
 }
+// 1.6.2 (G8): a tracker that shows a shared value takes its figure, within its own range. Answers the tracker itself where nothing moved
+function figIn(t, n) { if (!t || typeof n !== 'number' || !isFinite(n)) return t; var o = Object.assign({}, t); if (t.kind === 'count') { var lo = typeof t.min === 'number' ? t.min : -LIMITS.count, hi = typeof t.max === 'number' ? t.max : LIMITS.count; o.v = clampInt(n, lo, hi, t.v); return o.v === t.v ? t : o; } if (t.kind === 'clock') { o.fill = clampInt(n, 0, t.parts, t.fill); return o.fill === t.fill ? t : o; } return t; }
+function figOf(t) { return t && t.kind === 'count' ? t.v : t && t.kind === 'clock' ? t.fill : null; }
 function start(t, now, clockT) {
     if (!t || t.kind !== 'timer' || t.run === true) return null;
     var l = t.left > 0 ? t.left : t.total, n = Object.assign({}, t, { run: true, left: l });
@@ -216,4 +220,4 @@ var API = { LIMITS: LIMITS, COLORS: COLORS, COLOR_KEYS: COLOR_KEYS, KINDS: KINDS
     wireFor: wireFor, wireSig: wireSig, step: step, start: start, pause: pause, reset: reset, settle: settle, fmtReal: fmtReal, fmtGame: fmtGame, fmtLeft: fmtLeft, face: face,
     endLine: endLine, clockParts: clockParts, fresh: fresh, cleanHide: cleanHide, hiddenFrom: hiddenFrom, hideSet: hideSet };
 if (typeof window !== 'undefined') window.wpTrackCore = API;
-export { LIMITS, COLORS, COLOR_KEYS, KINDS, cleanTracker, cleanTrackers, leftNow, doneOf, onMap, wireFor, wireSig, step, start, pause, reset, settle, fmtReal, fmtGame, fmtLeft, face, endLine, clockParts, fresh, cleanHide, hiddenFrom, hideSet };
+export { figIn, figOf, LIMITS, COLORS, COLOR_KEYS, KINDS, cleanTracker, cleanTrackers, leftNow, doneOf, onMap, wireFor, wireSig, step, start, pause, reset, settle, fmtReal, fmtGame, fmtLeft, face, endLine, clockParts, fresh, cleanHide, hiddenFrom, hideSet };

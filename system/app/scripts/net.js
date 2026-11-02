@@ -1178,6 +1178,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         delete camp.handoutLog;
         delete camp.cast;
         delete camp.pinnedMaps;
+        if (camp.shared) { var shS = window.wpSystemCore && window.wpSystemCore.cleanShared ? window.wpSystemCore.cleanShared(camp.shared, camp.system, false) : null; if (shS) camp.shared = shS; else delete camp.shared; }   // 1.6.2 (G8): a GM-only value never leaves the host
         delete camp.pinnedPages;   // 1.5.4 (pageshelf.js): the pages pinned for the session name planners, which never leave this machine
         delete camp.buildPins;   // 1.6.2: the GM's own palette in Build
         delete camp.fights;   // 1.6.0: a running fight as the host keeps it, numbers, rolls and all (fightsKeep)
@@ -3054,6 +3055,16 @@ net.syncTrackers = function(now) {
 };
 net.trackersForget = function(peer) { if (typeof peer === 'string') delete _trkSig[peer]; else _trkSig = Object.create(null); };
 // [netcheck:trksync-end]
+// 1.6.2 (G8): a shared value, written on the host and told to the table, a GM-only one kept off the wire. A player's app holds what it was told and writes nothing; a tracker that shows a value follows it
+net.valuesTell = function(camp) {
+    var S = SC(); if (!camp || !camp.system || !S || !net.active || net.role !== 'host') return; var vals = S.cleanShared(camp.shared, camp.system, false) || {};
+    net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send({ type: 'shared', campId: camp.id, vals: vals }); } catch (e) { sendFailed(e, 'shared'); } } });
+};
+net.valuesSet = function(moves) {
+    var camp = getActiveCampaign(), S = SC(); if (!camp || !camp.system || !S || net.role === 'client') return; camp.shared = Object.assign({}, camp.shared || {}, moves); saveRemoteSoon(); net.valuesTell(camp);
+    if (window.wpTrackers && typeof window.wpTrackers.valuesMoved === 'function') window.wpTrackers.valuesMoved(camp, moves); if (window.wpSheets && typeof window.wpSheets.valuesMoved === 'function') window.wpSheets.valuesMoved();
+    if (typeof window.wpStepLog === 'function') window.wpStepLog('shared v1', 'moved', { n: Object.keys(moves).length });
+};
 // Onboarding F1a: the campaign's rules for players without a character (a waiting token or none; its sight under fog) — in the snapshot
 // with the campaign (camp.newPlayers, stored only when not the default), and on a change mid-session once, admitted peers only; the host
 // then settles every player's waiting token. A host has NO branch for 'newPlayers': a client never sets the table's rules.
@@ -8702,6 +8713,13 @@ function handleMessage(msg, conn) {
         var fgIn = !ckIn && CCk.cleanDateFig ? CCk.cleanDateFig(msg.date) : null; if (fgIn) campCk.dateFig = fgIn; else delete campCk.dateFig;   // 1.6.0: the date's numbers alone, while no clock is sent
         if (window.wpCalendar) window.wpCalendar.refresh();
         // [netcheck:clockmsg-end]
+    } else if (msg.type === 'shared' && net.role === 'client') {
+        // 1.6.2 (G8): the shared values this player may read, from the synced host only, for the campaign on screen, cleaned again against their view
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
+        var campSh = campOf(msg.campId), SSh = SC(); if (!campSh || !SSh || !SSh.cleanShared) return;
+        var shIn = SSh.cleanShared(msg.vals, campSh.system, false); if (shIn) campSh.shared = shIn; else delete campSh.shared;
+        if (window.wpSheets && typeof window.wpSheets.valuesMoved === 'function') window.wpSheets.valuesMoved();
     } else if (msg.type === 'trackers' && net.role === 'client') {
         // [netcheck:trkmsg-start]
         // backlog 29: the table trackers this player may see, from the synced host only, for the campaign on screen, never in the stream window;

@@ -57,7 +57,7 @@ function newlyDone(list, seen, now, clockT) {
 function fromForm(d, mapId, unitSecs) {
     var T = TK(), num = function(v) { var n = typeof v === 'string' ? (v.trim() === '' ? NaN : Number(v)) : Number(v); return isFinite(n) ? n : null; };
     var t = { id: d.id, kind: d.kind, name: d.name, color: d.color };
-    if (d.here === true && mapId) t.map = mapId; if (d.table === true) t.vis = 'all';
+    if (d.here === true && mapId) t.map = mapId; if (d.table === true) t.vis = 'all'; if (d.kind !== 'timer' && d.val) t.val = d.val;
     if (d.kind === 'count') { t.v = num(d.v); var lo = num(d.min), hi = num(d.max), st = num(d.start); if (lo !== null) t.min = Math.round(lo); if (hi !== null) t.max = Math.round(hi); if (st !== null) t.start = Math.round(st); if (t.v === null) t.v = 0; }
     else if (d.kind === 'clock') { t.parts = num(d.parts); t.fill = num(d.fill) || 0; }
     else {
@@ -151,9 +151,23 @@ function commit(fn, step, facts) {
     return true;
 }
 function replaceOne(id, fn) { return function(list) { var hit = false, out = list.map(function(t) { if (t.id !== id) return t; var n = fn(t); if (n) { hit = true; return n; } return t; }); return hit ? out : null; }; }
+// 1.6.2 (G8): a tracker that shows a shared value. A press on it moves the value, and a value that moves carries every tracker that shows it, one figure for the table
+function valsOf(camp) { return camp && camp.system && Array.isArray(camp.system.values) ? camp.system.values.filter(function(v) { return !!v && typeof v.key === 'string'; }) : []; }
+function valFrom(id) {
+    var camp = campNow(), T = TK(), n = net(), t = ownList(camp).filter(function(x) { return x.id === id; })[0]; if (!t || !t.val || !n || typeof n.valuesSet !== 'function' || !valsOf(camp).some(function(v) { return v.key === t.val; })) return;
+    var mv = {}; mv[t.val] = T.figOf(t); n.valuesSet(mv);
+}
+function valuesMoved(camp, moves) {
+    var T = TK(); if (!T || !camp || !Array.isArray(camp.trackers) || !gmHand(net(), window)) return; var list = ownList(camp), moved = false, defs = valsOf(camp);
+    var outL = list.map(function(t) {
+        if (!t.val || !Object.prototype.hasOwnProperty.call(moves, t.val)) return t; var d = defs.filter(function(v) { return v.key === t.val; })[0], o = T.figIn(t, moves[t.val]); if (d && d.vis === 'gm' && o.vis) { o = Object.assign({}, o); delete o.vis; }
+        if (o !== t) moved = true; return o;
+    });
+    if (!moved) return; camp.trackers = T.cleanTrackers(outL, { maps: mapsOf(camp) }); var n = net(); if (n && typeof n.syncTrackers === 'function') n.syncTrackers(); log('value', { n: Object.keys(moves).length }); draw(true);
+}
 function stepBy(id, d) {
     var camp = campNow(), T = TK(), before = ownList(camp).filter(function(t) { return t.id === id; })[0]; if (!before) return;
-    if (commit(replaceOne(id, function(t) { return T.step(t, d); }), 'step', { kind: before.kind, by: d })) seeNow();
+    if (commit(replaceOne(id, function(t) { return T.step(t, d); }), 'step', { kind: before.kind, by: d })) { seeNow(); valFrom(id); }
 }
 function startStop(id) {
     var camp = campNow(), T = TK(), now = Date.now(), ck = clockT(camp), t0 = ownList(camp).filter(function(t) { return t.id === id; })[0]; if (!t0) return;
@@ -307,7 +321,7 @@ function openWho(anchor) { if (!gmHand(net(), window) || !featOn()) return; _who
 var UNITS = [['s', 'Seconds', 1], ['m', 'Minutes', 60], ['h', 'Hours', 3600], ['d', 'Days', 0]];
 function unitSecs(u, camp) { var x = UNITS.filter(function(k) { return k[0] === u; })[0]; return x ? (x[2] || dayLen(camp)) : 60; }
 function draftOf(t, camp) {
-    var d = { id: t.id, kind: t.kind, name: t.name, color: t.color, here: !!t.map, table: t.vis === 'all', v: t.v, min: t.min, max: t.max, start: t.start, parts: t.parts || 4, fill: t.fill || 0, base: t.base === 'game' ? 'game' : 'real', unit: 'm', amount: 10 };
+    var d = { id: t.id, kind: t.kind, name: t.name, color: t.color, here: !!t.map, table: t.vis === 'all', val: t.val || '', v: t.v, min: t.min, max: t.max, start: t.start, parts: t.parts || 4, fill: t.fill || 0, base: t.base === 'game' ? 'game' : 'real', unit: 'm', amount: 10 };
     if (t.kind === 'timer') {
         var secs = t.base === 'game' ? t.total : t.total / 1000, D = dayLen(camp);
         d.unit = secs % D === 0 && t.base === 'game' ? 'd' : secs % 3600 === 0 ? 'h' : secs % 60 === 0 ? 'm' : 's';
@@ -342,6 +356,10 @@ function drawForm() {
     var title = document.getElementById('trkTitle'); if (title) title.textContent = _form.isNew ? 'New tracker' : 'Tracker';
     var nm = el('input', 'field'); nm.id = 'trkName'; nm.maxLength = T.LIMITS.name; nm.value = d.name || ''; nm.setAttribute('autocomplete', 'off'); body.appendChild(field('Name', nm));
     body.appendChild(field('Kind', chips('kind', [['count', 'Counter', 'A number with − and +'], ['timer', 'Countdown', 'Time left, with start and pause'], ['clock', 'Clock', 'A circle you fill one part at a time']], d.kind)));
+    var valL = valsOf(camp); if (d.kind !== 'timer' && valL.length) {   // 1.6.2 (G8)
+        var vs = el('select', 'field'); vs.id = 'trkVal'; var v0 = el('option', '', 'Its own number'); v0.value = ''; vs.appendChild(v0); valL.forEach(function(v) { var o = el('option', '', (v.label || 'A value') + (v.vis === 'gm' ? ' (you alone)' : '')); o.value = v.key; vs.appendChild(o); }); vs.value = valL.some(function(v) { return v.key === d.val; }) ? d.val : '';
+        vs.addEventListener('change', function() { readForm(); drawForm(); }); body.appendChild(field('Shows', vs, 'A shared value of the system. Rolls that move it move this, and a press here moves it. One for you alone stays off the table.'));
+    }
     if (d.kind === 'count') {
         var row = el('div', 'trk-row');
         row.appendChild(field('Value', numIn('trkV', d.v, -T.LIMITS.count, T.LIMITS.count)));
@@ -374,7 +392,7 @@ function drawForm() {
 }
 function readForm() {
     if (!_form) return; var d = _form.d, g = function(id) { var e = document.getElementById(id); return e ? e.value : undefined; };
-    var nm = g('trkName'); if (nm !== undefined) d.name = nm;
+    var nm = g('trkName'); if (nm !== undefined) d.name = nm; var vk = g('trkVal'); if (vk !== undefined) d.val = vk;
     if (d.kind === 'count') { d.v = g('trkV'); d.min = g('trkMin'); d.max = g('trkMax'); d.start = g('trkStart'); }
     else if (d.kind === 'clock') { d.parts = g('trkParts'); d.fill = g('trkFill'); }
     else { d.amount = g('trkAmount'); d.unit = g('trkUnit') || d.unit; var k = document.getElementById('trkSame'); d.sameTime = !!k && k.checked; }
@@ -384,6 +402,7 @@ function saveForm() {
     var camp = campNow(), d = _form.d, T = TK();
     if (d.kind === 'timer' && d.sameTime === true) { var probe = fromForm(Object.assign({}, d, { sameTime: false }), mapNow(), unitSecs(d.unit, camp)); if (!probe || probe.total !== d.total || (d.base === 'game') !== (probe.base === 'game')) d.sameTime = false; }   // a new time or a new clock starts afresh
     var t = fromForm(d, mapNow(), unitSecs(d.unit, camp));
+    if (t && t.val) { var vdS = valsOf(camp).filter(function(v) { return v.key === t.val; })[0]; if (!vdS) delete t.val; else { t = T.figIn(t, window.wpSystemCore && window.wpSystemCore.valueNow ? window.wpSystemCore.valueNow(camp.system, t.val) : 0); if (vdS.vis === 'gm' && t.vis) { t = Object.assign({}, t); delete t.vis; } } }   // 1.6.2 (G8): it stands at the value's figure from the start, and a GM-only one stays off the table
     if (!t) { toast('That tracker could not be saved. Give it a time of at least one second.'); log('fail', { where: 'form' }); return; }
     var isNew = _form.isNew;
     var ok = commit(function(list) { if (isNew) { if (list.length >= T.LIMITS.list) return null; return list.concat([t]); } return list.map(function(x) { return x.id === t.id ? t : x; }); }, isNew ? 'add' : 'edit', { kind: t.kind, table: t.vis === 'all', every: !t.map });
@@ -458,5 +477,5 @@ function receive(list, at) {
     setInterval(tick, 1000);
     setTimeout(function() { draw(true); }, 0);
 })();
-window.wpTrackers = { draw: draw, receive: receive, renderLine: renderLine, open: openForm, close: closeForm, closeMenu: closeMenu, list: shownList, place: place, on: featOn, players: playersOf, hidden: hiddenNow, setHidden: setHidden };
+window.wpTrackers = { valuesMoved: valuesMoved, draw: draw, receive: receive, renderLine: renderLine, open: openForm, close: closeForm, closeMenu: closeMenu, list: shownList, place: place, on: featOn, players: playersOf, hidden: hiddenNow, setHidden: setHidden };
 export { atTable, gmHand, mapsOf, localCopy, newlyDone, fromForm, playersOf, placeOf };

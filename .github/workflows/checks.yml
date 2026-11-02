@@ -117,6 +117,9 @@ jobs:
       - name: accountcheck — this install linked to a Waypoint website account, the shell's routes and the order of linking
         if: ${{ !cancelled() }}
         run: node tools/accountcheck.js
+      - name: valuecheck — numbers the whole table shares
+        if: ${{ !cancelled() }}
+        run: node tools/valuecheck.js
       - name: resultcheck — result tables
         if: ${{ !cancelled() }}
         run: node tools/resultcheck.js

@@ -1180,7 +1180,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         delete camp.pinnedMaps;
         delete camp.pinnedPages;   // 1.5.4 (pageshelf.js): the pages pinned for the session name planners, which never leave this machine
         delete camp.buildPins;   // 1.6.2: the GM's own palette in Build
-        camp.pileN = decksFor(camp); delete camp.piles; if (Array.isArray(camp.decks)) camp.decks = camp.decks.filter(function(d) { return !!d && d.vis !== 'gm'; });   // 1.6.2 (G9): never the order of a pile
+        if (camp.piles || Array.isArray(camp.decks) || (camp.system && Array.isArray(camp.system.decks))) camp.pileN = typeof decksFor === 'function' ? decksFor(camp) : {}; delete camp.piles; if (Array.isArray(camp.decks)) camp.decks = camp.decks.filter(function(d) { return !!d && d.vis !== 'gm'; });   // 1.6.2 (G9): never the order of a pile
         if (camp.shared) { var shS = window.wpSystemCore && window.wpSystemCore.cleanShared ? window.wpSystemCore.cleanShared(camp.shared, camp.system, false) : null; if (shS) camp.shared = shS; else delete camp.shared; }   // 1.6.2 (G8): a GM-only value never leaves the host
         delete camp.fights;   // 1.6.0: a running fight as the host keeps it, numbers, rolls and all (fightsKeep)
         delete camp.sessionLog;
@@ -8726,8 +8726,8 @@ function handleMessage(msg, conn) {
         // 1.6.2 (G9): how many are left, from the synced host only, for the campaign on screen, each cleaned against the deck as this app holds it
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
-        var campDk = campOf(msg.campId), DCk = window.wpDeckCore; if (!campDk || !campDk.system || !DCk || !msg.counts || typeof msg.counts !== 'object') return; var keptK = Object.create(null);
-        (Array.isArray(campDk.system.decks) ? campDk.system.decks : []).concat(Array.isArray(campDk.decks) ? campDk.decks : []).forEach(function(d) { if (d && own(msg.counts, d.key)) { var cK = DCk.cleanCounts(msg.counts[d.key], d); if (cK) keptK[d.key] = cK; } });
+        var campDk = campOf(msg.campId), dkCore = window.wpDeckCore; if (!campDk || !campDk.system || !dkCore || !msg.counts || typeof msg.counts !== 'object') return; var keptK = Object.create(null);
+        (Array.isArray(campDk.system.decks) ? campDk.system.decks : []).concat(Array.isArray(campDk.decks) ? campDk.decks : []).forEach(function(d) { if (d && own(msg.counts, d.key)) { var cK = dkCore.cleanCounts(msg.counts[d.key], d); if (cK) keptK[d.key] = cK; } });
         campDk.pileN = keptK; if (window.wpSheets && typeof window.wpSheets.valuesMoved === 'function') window.wpSheets.valuesMoved();
     } else if (msg.type === 'shared' && net.role === 'client') {
         // 1.6.2 (G8): the shared values this player may read, from the synced host only, for the campaign on screen, cleaned again against their view

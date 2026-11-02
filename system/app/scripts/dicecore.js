@@ -413,7 +413,8 @@ function cleanApply(rec) {
         var l = rec.lines[i]; if (!l || typeof l !== 'object') return null;
         var n = cleanLabel(l.n); if (!n) return null;
         var ln;
-        if (l.fx !== undefined) { if ((l.fx !== 1 && l.fx !== 0) || l.d !== undefined || l.v !== undefined || l.s !== undefined) return null; ln = { n: n, fx: l.fx }; }   // 1.6.0: an effect switched on (1) or off (0), with no figure
+        if (l.say !== undefined) { if (typeof l.say !== 'string' || !l.say.trim()) return null; ln = { n: n, say: l.say.replace(new RegExp(CTRL_RE.source, 'g'), ' ').trim().slice(0, 1000) }; }   // 1.6.2 (G7): a result table's words
+        else if (l.fx !== undefined) { if ((l.fx !== 1 && l.fx !== 0) || l.d !== undefined || l.v !== undefined || l.s !== undefined) return null; ln = { n: n, fx: l.fx }; }   // 1.6.0: an effect switched on (1) or off (0), with no figure
         else if (l.s !== undefined) { if (l.s !== 1 || l.d !== undefined) return null; ln = { n: n, s: 1 }; if (l.mv !== undefined) { if (l.mv !== 1 || l.v !== undefined) return null; ln.mv = 1; }   /* 1.6.0: an Add or Subtract on every row whose figure differs by row, said as moved row by row */ if (l.v !== undefined) { if (typeof l.v !== 'number' || !isFinite(l.v) || Math.abs(l.v) > 1e15) return null; ln.v = l.v; } }   // 1.6.0: and a figure where every row of a list was set to it   // 1.5.9 (book es/et plan, section 3): a value set on another character, said with no figure (its user's player's copy)
         else {
             if (typeof l.d !== 'number' || !isFinite(l.d) || Math.abs(l.d) > 1e15) return null;
@@ -490,7 +491,7 @@ function applyText(rec) {
     return who + (rec.priv === 'gm' ? ' (private)' : '') + as + ' applied ' + (rec.label || 'an action') + (rec.on ? ' on ' + rec.on : '') + ': ' + applyChanges(rec);   // 1.5.9: and on whom
 }
 // the changes alone, "HP \u22123 \u2192 7, FP +2 \u2192 5" (the HUD's bell)
-function applyChanges(rec) { return !rec || !Array.isArray(rec.lines) ? '' : rec.lines.map(function(l) { return l.n + (l.fx === 1 ? ' on' : l.fx === 0 ? ' off' : l.s === 1 ? (l.mv === 1 ? ' moved row by row' : ' set') + (typeof l.v === 'number' ? ' \u2192 ' + fmtNum(l.v) : '') : ' ' + (l.d < 0 ? '\u2212' : '+') + fmtNum(Math.abs(l.d)) + (typeof l.v === 'number' ? ' \u2192 ' + fmtNum(l.v) : '')) + (typeof l.roll === 'string' && l.roll ? ' (' + l.roll + ')' : ''); }).join(', '); }   // 1.5.9: a line with no figure, or a value set with none, as a change on another reaches its user's player   // 1.5.9: a Rolled amount's dice after it
+function applyChanges(rec) { return !rec || !Array.isArray(rec.lines) ? '' : rec.lines.map(function(l) { return l.n + (typeof l.say === 'string' ? ': ' + l.say : l.fx === 1 ? ' on' : l.fx === 0 ? ' off' : l.s === 1 ? (l.mv === 1 ? ' moved row by row' : ' set') + (typeof l.v === 'number' ? ' \u2192 ' + fmtNum(l.v) : '') : ' ' + (l.d < 0 ? '\u2212' : '+') + fmtNum(Math.abs(l.d)) + (typeof l.v === 'number' ? ' \u2192 ' + fmtNum(l.v) : '')) + (typeof l.roll === 'string' && l.roll ? ' (' + l.roll + ')' : ''); }).join(', '); }   // 1.5.9: a line with no figure, or a value set with none, as a change on another reaches its user's player   // 1.5.9: a Rolled amount's dice after it
 // The host's refusal: { type: 'roll-deny', rid, reason, message?, pos?, len? } — pos/len clamped to the expr the client sent
 function cleanDeny(msg, exprLen) {
     if (!msg || typeof msg !== 'object') return null;

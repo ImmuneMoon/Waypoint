@@ -4817,6 +4817,7 @@
   .sys-budgets .sys-bud-add { align-self: flex-start; }
   /* ... and the Tables box: a table a block, its figures a grid that scrolls inside the block */
   #sysTables { padding: 8px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }
+  .apply-say { color: var(--ink); }
   #sysTables input, #sysTables select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 7px; font-size: 12px; box-sizing: border-box; }
   #sysTables input:focus, #sysTables select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.22); }
   .sys-tbl { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--edge); border-radius: 8px; }

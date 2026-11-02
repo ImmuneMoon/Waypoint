@@ -3076,6 +3076,21 @@ function statMenu(s, sv, entry, rd, c, f, spec, mode) {
 // [systemcheck:statmenu-end]
 // [systemcheck:subject-start] 1.6.0 Subjects: the word a row holds of its list's subjects. A menu for whoever may change the row here, picked by its place
 // and never as text; else the word, and nothing for a row that holds none
+// 1.6.2 (body fold 2): where a row stands: a list of the tiles for whoever may change the row, else words. One that names no place shows where it stands for now, and what Counts where says no to shows its word
+function standCtl(entry, c, f, spec, can, sysI, res) {
+    var sp = spec && spec.stand && typeof spec.stand === 'object' ? spec.stand : null; if (!sp || !entry || entry.hid === 1) return null;
+    var rid = rowIdOf(entry), st = res && res.sd ? res.sd[rid] : null, tiles = (c.values && Array.isArray(c.values[sp.from]) ? c.values[sp.from] : []).filter(function(r) { return r && r.hid !== 1 && typeof r.in !== 'string' && !!rowIdOf(r); });
+    var nameOf = function(r) { var d = rowDef(sysI, r); return (d && d.def && d.def.name) || 'A row'; }, cur = st && st.r ? tiles.filter(function(r) { return rowIdOf(r) === st.r; })[0] : null, auto = !!(st && st.auto), box = el('span', 'sheet-item-stand');
+    if (can) {
+        var sel = el('select', 'field sheet-item-statsel'); sel.ariaLabel = 'Where this row stands'; sel.title = 'Where this row stands'; sel.dataset.fid = f.id; sel.dataset.part = 'pl-' + rid;
+        sel.appendChild(opt('', auto && cur ? 'Not placed: ' + nameOf(cur) : 'Not placed', auto || !cur));
+        tiles.forEach(function(r) { sel.appendChild(opt(rowIdOf(r), nameOf(r), !auto && r === cur)); });
+        sel.addEventListener('change', function() { commitItem(c, f, { op: 'place', rowId: rid, at: sel.value || null, back: uid('w_') }); });
+        box.appendChild(sel);
+    } else if (cur) { var ch = el('span', 'sheet-chip', 'At ' + nameOf(cur)); if (auto) ch.title = 'Not placed yet. It stands at the first place it fits.'; box.appendChild(ch); }
+    if (st && st.off && sp.offWord) box.appendChild(el('span', 'sheet-chip', sp.offWord));
+    return box.firstChild ? box : null;
+}
 function subjectCtl(entry, c, f, spec, can, ok) {   // ok: false where Subject only where does not hold for this row (resolveAll's sjOk), which then shows nothing and reads subject 0
     var ws = spec && Array.isArray(spec.subject) ? spec.subject : null; if (!ws || !ws.length || !entry || entry.hid === 1 || ok === false) return null;
     var at = typeof entry.sj === 'number' && ws[entry.sj - 1] ? entry.sj : 0;
@@ -3559,6 +3574,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null, res && res.cfx ? res.cfx[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null, res && res.fdU ? res.fdU[rid] : null); if (typeof loadCtl === 'function') loadCtl(line, entry, c, f, spec, editable, sysI, res && res.ldOk ? res.ldOk[rid] : undefined); if (typeof feedCtl === 'function') feedCtl(line, entry, c, f, spec, editable, sysI, res && res.cts ? res.cts[rid] : null, res && res.fdT ? res.fdT[rid] : null, res && res.fdU ? res.fdU[rid] : null); if (typeof chamberCtl === 'function') chamberCtl(line, entry, c, f, spec, editable, sysI, gm, canThrow, res && res.chOk ? res.chOk[rid] : undefined); var lc = partHere(spec.lvl, _placeWant, hudRow) ? lvlCtl(entry, def, c, f, spec, chg && !opnR) : null; if (lc) line.appendChild(lc); var oc = partHere(spec.on, _placeWant, hudRow) ? onCtl(entry, c, f, spec, editable, true, res && res.onOk ? res.onOk[rid] : undefined, res && res.onShow ? res.onShow[rid] : undefined) : null; if (oc) line.appendChild(oc); var pcL = partHere({ place: spec.paidPlace }, _placeWant, hudRow) ? paidCtl(entry, def, c, f, spec, chg, gm, true) : null; if (pcL) line.appendChild(pcL); noteLn = hudRow ? null : noteBits(entry, def, c, f, chg, ovc, sysI, gm, !!lookOk && _fxLive); }   // F4c1: the stats shown On the row, what one cost
         _rowMenu = null;
         var sjC = typeof subjectCtl === 'function' ? subjectCtl(entry, c, f, spec, chg && !hudRow && !opnR, res && res.sjOk ? res.sjOk[rid] : undefined) : null; if (sjC) line.appendChild(sjC);   // 1.6.0 Subjects
+        var sdC = typeof standCtl === 'function' ? standCtl(entry, c, f, spec, chg && !hudRow && !opnR, sysI, res) : null; if (sdC) line.appendChild(sdC);   // 1.6.2 (body fold 2)
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
         rowRollBtns(line, spec, entry, def, c, f, res);   // F5b: the list's rolls on this row
         if (spec && !hudRow) {   // 1.6.0 R2: the parts placed in the details stand at the top of the row's details
@@ -3977,6 +3993,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         lostBits(nameTd, rd, entry, c, f, gm, chg); needBits(nameTd, sysI, c, entry, rd, gm); gmItemBits(nameTd, def, entry, gm, hasO); if (typeof lvlOnlyBits === 'function') lvlOnlyBits(nameTd, spec, entry, def); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI, c, f);
         if (typeof onceBits === 'function') onceBits(nameTd, sysI, c, f, carried, entry);   // 1.5.8 Counted once
         var sjT = typeof subjectCtl === 'function' ? subjectCtl(entry, c, f, spec, chg && !hudRow, res && res.sjOk ? res.sjOk[rid] : undefined) : null; if (sjT) nameTd.appendChild(sjT);   // 1.6.0 Subjects
+        var sdT = typeof standCtl === 'function' ? standCtl(entry, c, f, spec, chg && !hudRow, sysI, res) : null; if (sdT) nameTd.appendChild(sdT);   // 1.6.2 (body fold 2)
         if (typeof badgeBits === 'function') { var bdT = badgeBits(nameTd, spec, res && res.bd ? res.bd[rid] : null, tr, hudRow); if (bdT) nameTd.appendChild(bdT); }   // 1.6.0 R4: in a table the badges go in the name's cell
         if (typeof rowEdge === 'function') rowEdge(tr, spec, res && res.bd ? res.bd[rid] : null, !!(spec && spec.on) && rowOn(spec, entry), !!(spec && spec.on));   // 1.6.0 R16
         tr.appendChild(nameTd);
@@ -6001,7 +6018,7 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
     if (q.priced) { q = Object.assign({}, q); delete q.priced; }
     var goneB = typeof goneOf === 'function' ? goneOf(c, f, q) : null;   // 1.5.8: the row as it stood, for the Undo its removal offers
     var before = q.rowId ? rowQty(c, f, q.rowId) : 0;
-    var undoFollow = function(r) { if (!r || !r.ok || q.op === 'split') return; if (r.added > 0) noteUndo(c, f, r); else if (q.rowId && q.op !== 'undo' && before > (r.qty | 0)) takeBack(c, f, q.rowId, before - (r.qty | 0)); };   // Stage 6: a pickup opens the Undo; a drop takes it down
+    var undoFollow = function(r) { if (!r || !r.ok || q.op === 'split') return; if (q.op === 'place') { if (typeof r.standTell === 'string' && r.standTell) toast(r.standTell + ' It stands there all the same, since you moved it.'); return; } if (r.added > 0) noteUndo(c, f, r); else if (q.rowId && q.op !== 'undo' && before > (r.qty | 0)) takeBack(c, f, q.rowId, before - (r.qty | 0)); };   // Stage 6: a pickup opens the Undo; a drop takes it down
     if (isClient()) {
         var n = net(); if (!n || !n.charItem) return;
         var r = n.charItem(c.id, f.id, q);
@@ -6978,7 +6995,7 @@ function formCtx(inp) {
     if (lid) {   // a box of a list: its row's figures, and the roll it belongs to where it belongs to one
         var lf = null; (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(x) { if (x && x.id === lid) lf = x; });
         var sp = lf && lf.list ? lf.list : null, re = inp.closest('.sys-list-roll'), rr = re && sp && Array.isArray(sp.rolls) ? sp.rolls[Number(re.dataset.ri)] : null;
-        return { list: sp || undefined, subject: rr ? rr.label || '' : '', roll: rr || undefined, then: !!rr && !Array.isArray(rr.apply) && !!cs && (cs.contains('sys-list-applyformula') || cs.contains('sys-list-applyif')) };
+        return { list: sp || undefined, subject: rr ? rr.label || '' : '', roll: rr || undefined, reach: !!cs && cs.contains('sys-list-standreach'), then: !!rr && !Array.isArray(rr.apply) && !!cs && (cs.contains('sys-list-applyformula') || cs.contains('sys-list-applyif')) };
     }
     if (typeof id === 'string' && /^r_/.test(id)) (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(x) { if (x && x.id === id) r = x; });
     if (r) return { roll: r, subject: r.label, then: !Array.isArray(r.apply) && !!cs && (cs.contains('sys-apply-formula') || cs.contains('sys-apply-if') || cs.contains('sys-card-n') || cs.contains('sys-card-needs')) };
@@ -8889,6 +8906,21 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     if (pbChoices.length || sp.groupBy) { var gbW = el('label', 'sys-check'), gbL = el('select', 'sys-list-groupby'), gbO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; gbW.appendChild(document.createTextNode('Rows gather by ')); gbL.appendChild(gbO('', 'Nothing', !sp.groupBy)); pbChoices.forEach(function(s) { gbL.appendChild(gbO(s.key, s.label || s.key, !!sp.groupBy && String(sp.groupBy).toLowerCase() === s.key.toLowerCase())); }); gbW.title = 'Rows stand under a heading for each value of this stat, in its own order'; gbW.appendChild(gbL); fl.appendChild(gbW); }
     var sjbW = el('label', 'sys-check'), sjbI = el('input', 'field sys-list-subject'); sjbI.type = 'text'; sjbI.value = Array.isArray(sp.subject) ? sp.subject.join(', ') : ''; sjbI.placeholder = 'none'; sjbW.appendChild(document.createTextNode('Subjects ')); sjbW.appendChild(sjbI); sjbW.title = 'Short words a row may hold one of, split by commas, up to ' + LIMITS.subjects + '. A row picks its word on the sheet. Row.subject reads its place, 1 for the first and 0 for none, and List.Subject.Word.sum.Stat adds the rows that hold a word, with .max and .min for the highest and the lowest'; fl.appendChild(sjbW);   // 1.6.0 Subjects
     if (Array.isArray(sp.subject) && sp.subject.length) { var sjiW = el('label', 'sys-check'), sjiI = el('input', 'field sys-list-sjif'); sjiI.type = 'text'; sjiI.value = typeof sp.subjectIf === 'string' ? sp.subjectIf : ''; sjiI.placeholder = 'every row'; sjiI.spellcheck = false; sjiI.autocomplete = 'off'; sjiW.appendChild(document.createTextNode('Subject only where ')); sjiW.appendChild(sjiI); sjiW.title = 'A formula of the row with no dice, such as Row.Takes > 0. Only a row where it holds shows the menu, and any other reads subject 0. Empty: every row'; fl.appendChild(sjiW); }   // 1.6.0 Subject only where
+    var sdL = (typeof draft !== 'undefined' && draft && draft.fields || []).filter(function(x) { return x && x.kind === 'item-list' && x.id !== f.id; }), sdS = sp.stand && typeof sp.stand === 'object' ? sp.stand : null;   // 1.6.2 (body fold 2)
+    if (sdL.length || sdS) {
+        var sdW = el('label', 'sys-check'), sdF = el('select', 'sys-list-standfrom'), sdO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; sdW.appendChild(document.createTextNode('Rows stand at a row of ')); sdF.appendChild(sdO('', 'No other list', !sdS));
+        sdL.forEach(function(x) { sdF.appendChild(sdO(x.id, x.label || x.key || 'A list', !!sdS && sdS.from === x.id)); }); if (sdS && !sdL.some(function(x) { return x.id === sdS.from; })) sdF.appendChild(sdO(sdS.from, 'A list that is gone', true));
+        sdW.title = 'Each row of this list stands at a row of that one, as armour stands on a part of the body. Formulas read the place it stands, and a row of that list reads what stands there'; sdW.appendChild(sdF); fl.appendChild(sdW);
+        if (sdS) {
+            var sdT = function(cls, cap, ph, val, tip) { var w = el('label', 'sys-check'), i = el('input', 'field ' + cls); i.type = 'text'; i.value = typeof val === 'string' ? val : ''; i.placeholder = ph; i.spellcheck = false; i.autocomplete = 'off'; w.appendChild(document.createTextNode(cap + ' ')); w.appendChild(i); w.title = tip; fl.appendChild(w); };
+            sdT('sys-list-standfits', 'Fits where', 'it fits anywhere', sdS.fits, 'A row may go only where this holds. A player is refused where it does not, and you are told when you move one there yourself. A row with no place stands at the first place this allows');
+            if (sdS.fits) sdT('sys-list-standsays', 'Refused with', 'It does not fit there.', sdS.fitSays, 'The words a player reads when it does not fit');
+            sdT('sys-list-standreach', 'Reaches', 'only where it stands', sdS.reach, 'Other places a row covers from where it stands, as one pair of boots covers both feet');
+            sdT('sys-list-standcounts', 'Counts where', 'always', sdS.counts, 'A placed row counts as worn only while this holds. It stays placed, and fills no place, when it does not');
+            if (sdS.counts) sdT('sys-list-standoff', 'Otherwise it says', 'nothing', sdS.offWord, 'What a placed row says while it does not count');
+            fl.appendChild(checkLabel('sys-list-standpieces', sdS.pieces === true, 'Each row is one piece', 'Placing one of a stack splits it off first, so one boot or one glove stands alone'));
+        }
+    }
     fl.appendChild(checkLabel('sys-list-edge', sp.edge === true, 'Edge follows its state', 'A row\u2019s left edge takes the colour of its strongest badge, or the accent while it is switched on. Its words always stand beside it'));   // 1.6.0 R16
     fl.appendChild(checkLabel('sys-list-menus', sp.menus === true, 'Choices as menus', 'A choice stat on a row, or in its boxes, is a menu for whoever may set that copy\u2019s stats: you, or its owner where players set their copies\u2019 stats. Off: its value name'));   // 1.6.0 R10
     fl.appendChild(checkLabel('sys-list-boxes', sp.boxes === true, 'Figures as boxes', 'A row\u2019s details show its figures as small boxes, each its label above its figure: every stat, the columns placed in the details, and Paid. Off: one line, as Acc 2 \u00b7 Wt 1'));   // 1.6.0 R3
@@ -12239,6 +12271,9 @@ function onChange(e) {
         else if (c.indexOf('sys-list-edge') >= 0) { if (t.checked) lsc.edge = true; else delete lsc.edge; }   // 1.6.0 R16
         else if (c.indexOf('sys-list-atfrom') >= 0) { if (t.value) { var atC = (Array.isArray(lsc.stats) ? lsc.stats : []).filter(function(s) { return s && typeof s.key === 'string' && s.key && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length : Array.isArray(s.labels) && s.labels.length); })[0]; lsc.at = { from: t.value, by: (lsc.at && lsc.at.by) || (atC ? atC.key : '') }; } else delete lsc.at; }   // 1.6.0 Stands at
         else if (c.indexOf('sys-list-atby') >= 0) { if (lsc.at) lsc.at.by = t.value; }
+        else if (c.indexOf('sys-list-standfrom') >= 0) { if (t.value) lsc.stand = Object.assign({}, lsc.stand || {}, { from: t.value }); else delete lsc.stand; }   // 1.6.2 (body fold 2)
+        else if (c.indexOf('sys-list-standpieces') >= 0) { if (lsc.stand) { if (t.checked) lsc.stand.pieces = true; else delete lsc.stand.pieces; } }
+        else if (/sys-list-stand(fits|says|reach|counts|off)/.test(c)) { if (lsc.stand) { var sdK = /standfits/.test(c) ? 'fits' : /standsays/.test(c) ? 'fitSays' : /standreach/.test(c) ? 'reach' : /standcounts/.test(c) ? 'counts' : 'offWord', sdV = String(t.value || '').trim(); if (sdV) lsc.stand[sdK] = sdV.slice(0, sdK === 'offWord' ? LIMITS.label : sdK === 'fitSays' ? LIMITS.needsWords : LIMITS.formula); else delete lsc.stand[sdK]; } }
         else if (c.indexOf('sys-list-partsfrom') >= 0) { if (t.value) lsc.parts = Object.assign({}, lsc.parts || {}, { from: t.value }); else delete lsc.parts; }   // 1.6.0 R14: Parts from
         else if (c.indexOf('sys-list-partscats') >= 0) { if (lsc.parts) { var pcs = String(t.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (pcs.length) lsc.parts.cats = pcs; else delete lsc.parts.cats; } }
         else if (c.indexOf('sys-list-partshosts') >= 0) { if (lsc.parts) { var phs = String(t.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (phs.length) lsc.parts.hosts = phs; else delete lsc.parts.hosts; } }   // 198: Held by

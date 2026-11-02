@@ -39,6 +39,9 @@ The System editor
   the row, and a formula of the row can read the row it hangs from.
 - A grant can name the row it makes, set its stats and hang it from another
   grant's row, so one entry can lay a whole body down.
+- A list's rows can stand at rows of another list, as armour on the parts of a
+  body. A formula reads the place a row stands, and a row of that list reads
+  what stands there. Fits where, Reaches and Counts where set the rules.
 
 At the table
 - Result bands name a roll by how it went, as a strong hit, a weak hit or a

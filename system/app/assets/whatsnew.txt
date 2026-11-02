@@ -42,6 +42,8 @@ The System editor
 - A list's rows can stand at rows of another list, as armour on the parts of a
   body. A formula reads the place a row stands, and a row of that list reads
   what stands there. Fits where, Reaches and Counts where set the rules.
+- Shared sheets: the GM ticks which players share a sheet, and any of them can use
+  it. It keeps one player for its tokens and turns.
 - Shared values: a number the whole table shares, named in the system, which rolls
   and actions read and move. Each campaign keeps its own figure.
 - Result tables: a table of ranges and words that a roll's Then or an action can

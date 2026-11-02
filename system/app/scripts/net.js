@@ -3198,6 +3198,7 @@ var _charHost = Object.create(null);    // Stage 6 (client): the last copy of ea
 var _rowGrace = {};    // Stage 6 (host): a pickup's Undo window, 'charId|fieldId|rowId' -> { until, added } (memory only; a bound item may drop by what its pickups added)
 function SC() { return window.wpSystemCore || null; }
 function peerProfileId(c) { var p = net.roster[c.peer]; return p && p.id ? p.id : null; }
+function handsTo(ch, pid) { return !!ch && !!pid && (ch.ownerId === pid || (Array.isArray(ch.shareWith) && ch.shareWith.indexOf(pid) >= 0)); }   // 1.6.2 (G8): whom the host hears a sheet's changes from
 // [netcheck:chardelta-start]
 var _unseenSent = Object.create(null);   // Stage 6 F6: the nameless changes each owner last had, by peer and character
 // 5h: the full status-effect library by id (host-local, never sent): a GM-only effect applied to a PC reaches its owner inline through it
@@ -3483,8 +3484,8 @@ function linkTell(id) {
         var r = camp.chars[rid]; if (!r || rid === id || !r.links || typeof r.links !== 'object' || r.npc || !r.ownerId) return;
         if (!Object.keys(r.links).some(function(k) { return r.links[k] === id; })) return;
         net.conns.forEach(function(c) {
-            if (!c.open || !net.roster[c.peer] || peerProfileId(c) !== r.ownerId) return;
-            var v = charViewFor(rid, r.ownerId); if (!v || v.partial) return;
+            if (!c.open || !net.roster[c.peer] || !(typeof handsTo === 'function' ? handsTo(r, peerProfileId(c)) : peerProfileId(c) === r.ownerId)) return;
+            var v = charViewFor(rid, peerProfileId(c)); if (!v || v.partial) return;
             var sig = JSON.stringify(v.cr ? [v.lk || null, v.cr] : v.lk || null), key = c.peer + '|' + rid; if (_lkSent[key] === sig) return; _lkSent[key] = sig;
             try { c.send({ type: 'char', campId: camp.id, char: v }); n++; } catch (e) { sendFailed(e); }
         });
@@ -3496,8 +3497,8 @@ function linkTell(id) {
         Object.keys(vsK).forEach(function(vid) {
             var vr = own(camp.chars, vid) ? camp.chars[vid] : null; if (!vr || vr.npc || !vr.ownerId) return;
             net.conns.forEach(function(c) {
-                if (!c.open || !net.roster[c.peer] || peerProfileId(c) !== vr.ownerId) return;
-                var v = charViewFor(vid, vr.ownerId); if (!v || v.partial) return;
+                if (!c.open || !net.roster[c.peer] || !(typeof handsTo === 'function' ? handsTo(vr, peerProfileId(c)) : peerProfileId(c) === vr.ownerId)) return;
+                var v = charViewFor(vid, peerProfileId(c)); if (!v || v.partial) return;
                 var sig = JSON.stringify(v.ck || null), key = c.peer + '|' + vid; if (_ckSent[key] === sig) return; _ckSent[key] = sig;
                 try { c.send({ type: 'char', campId: camp.id, char: v }); n++; } catch (e) { sendFailed(e); }
             });
@@ -8129,7 +8130,7 @@ function handleMessage(msg, conn) {
         if (window.wpVtt && !window.wpVtt.on('sheets')) { denyY('off'); return; }
         var campY = getActiveCampaign(), chY = (campY && campY.chars && Object.prototype.hasOwnProperty.call(campY.chars, qy.charId) ? campY.chars[qy.charId] : null);
         if (!campY || !campY.system || !chY) { denyY('missing'); return; }
-        var profY = net.roster[conn.peer]; if (chY.npc || !chY.ownerId || !profY || chY.ownerId !== profY.id) { denyY('owner'); return; }
+        var profY = net.roster[conn.peer]; if (chY.npc || !chY.ownerId || !profY || (chY.ownerId !== profY.id && !(typeof handsTo === 'function' && handsTo(chY, profY.id)))) { denyY('owner'); return; }
         var resY = Sy.applyStyle(campY.system, chY, qy.fieldId, qy.look, Fy, { player: true });
         if (!resY.ok) { denyY(resY.reason); return; }
         if (resY.look) { if (!chY.looks || typeof chY.looks !== 'object') chY.looks = {}; chY.looks[qy.fieldId] = resY.look; }
@@ -8153,7 +8154,7 @@ function handleMessage(msg, conn) {
         if (window.wpVtt && !window.wpVtt.on('sheets')) { denyE('off'); return; }
         var campE = getActiveCampaign(), chE = (campE && campE.chars && typeof q.charId === 'string' && Object.prototype.hasOwnProperty.call(campE.chars, q.charId) ? campE.chars[q.charId] : null);
         if (!campE || !campE.system || !chE) { denyE('missing'); return; }
-        var profE = net.roster[conn.peer]; if (chE.npc || !chE.ownerId || !profE || chE.ownerId !== profE.id) { denyE('owner'); return; }
+        var profE = net.roster[conn.peer]; if (chE.npc || !chE.ownerId || !profE || (chE.ownerId !== profE.id && !(typeof handsTo === 'function' && handsTo(chE, profE.id)))) { denyE('owner'); return; }
         var resE = Se.applyEdit(campE.system, chE, q.fieldId, q.value, Fe, { player: true });
         if (!resE.ok) { denyE(resE.reason); return; }
         var bcE = {}; bcE[q.fieldId] = resE.value; var bwE = Se.budgetWatch(campE.system, chE, bcE, Fe);   // 126: a point budget is judged before anything is stored
@@ -8207,7 +8208,7 @@ function handleMessage(msg, conn) {
         if (window.wpVtt && !window.wpVtt.on('sheets')) { denyM('off'); return; }
         var campM = getActiveCampaign(), chM = (campM && campM.chars && typeof qm.charId === 'string' && Object.prototype.hasOwnProperty.call(campM.chars, qm.charId) ? campM.chars[qm.charId] : null);
         if (!campM || !campM.system || !chM) { denyM('missing'); return; }
-        var profM = net.roster[conn.peer]; if (chM.npc || !chM.ownerId || !profM || chM.ownerId !== profM.id) { denyM('owner'); return; }
+        var profM = net.roster[conn.peer]; if (chM.npc || !chM.ownerId || !profM || (chM.ownerId !== profM.id && !(typeof handsTo === 'function' && handsTo(chM, profM.id)))) { denyM('owner'); return; }
         var workM = Object.assign({}, chM, { values: JSON.parse(JSON.stringify(chM.values || {})) }), dM = {};
         for (var iM = 0; iM < qm.values.length; iM++) {
             var resM = Sm.applyEdit(campM.system, workM, qm.values[iM].fieldId, qm.values[iM].value, Fm, { player: true });
@@ -8240,7 +8241,7 @@ function handleMessage(msg, conn) {
         if (window.wpVtt && !window.wpVtt.on('sheets')) { denyA('off'); return; }
         var campA = getActiveCampaign(), chA = (campA && campA.chars && typeof qa.charId === 'string' && Object.prototype.hasOwnProperty.call(campA.chars, qa.charId) ? campA.chars[qa.charId] : null);
         if (!campA || !campA.system || !chA) { denyA('missing'); return; }
-        var profA = net.roster[conn.peer]; if (chA.npc || !chA.ownerId || !profA || chA.ownerId !== profA.id) { denyA('owner'); return; }
+        var profA = net.roster[conn.peer]; if (chA.npc || !chA.ownerId || !profA || (chA.ownerId !== profA.id && !(typeof handsTo === 'function' && handsTo(chA, profA.id)))) { denyA('owner'); return; }
         if (chA.making === 1) { denyA('making'); return; }   // Onboarding F3: not in play until they press Done
         var viewA = window.wpSheets ? window.wpSheets.playerSystem(campA) : null, chvA = viewA ? Sa.charFor(chA, viewA, profA.id, { lib: fxLib(campA.system), items: itemLib(campA.system), full: campA.system }) : null;
         if (!viewA || !chvA) { denyA('missing'); return; }
@@ -8315,7 +8316,7 @@ function handleMessage(msg, conn) {
         if (window.wpVtt && !window.wpVtt.on('sheets')) { denyD('off'); return; }
         var campD = getActiveCampaign(), chD = (campD && campD.chars && Object.prototype.hasOwnProperty.call(campD.chars, qd.charId) ? campD.chars[qd.charId] : null);
         if (!campD || !campD.system || !chD) { denyD('missing'); return; }
-        var profD = net.roster[conn.peer]; if (chD.npc || !chD.ownerId || !profD || chD.ownerId !== profD.id) { denyD('owner'); return; }
+        var profD = net.roster[conn.peer]; if (chD.npc || !chD.ownerId || !profD || (chD.ownerId !== profD.id && !(typeof handsTo === 'function' && handsTo(chD, profD.id)))) { denyD('owner'); return; }
         if (chD.making === 1) { denyD('making'); return; }
         var rd = Array.isArray(qd.q.hits) ? Sd.damageBurst(campD.system, chD, qd.q, Fd, undefined, { now: Date.now(), inCombat: !!(typeof net.charInCombat === 'function' && net.charInCombat(chD.id)) }) : Sd.damageStep(campD.system, chD, qd.q, Fd, undefined, { now: Date.now(), inCombat: !!(typeof net.charInCombat === 'function' && net.charInCombat(chD.id)) });   // 1.6.0 (B3): the clock a Major Wound's effect starts by
         if (!rd.ok) { denyD(rd.reason === 'error' ? 'error' : rd.reason === 'missing' ? 'missing' : rd.reason === 'field' ? 'field' : 'value', rd.message); return; }
@@ -8468,7 +8469,7 @@ function handleMessage(msg, conn) {
         if (window.wpVtt && !window.wpVtt.on('sheets')) { ansK({ reason: 'off' }); return; }
         var campK = getActiveCampaign(), SK = SC(), FK = window.wpFormula, chK = campK && campK.chars && typeof msg.charId === 'string' && own(campK.chars, msg.charId) ? campK.chars[msg.charId] : null;
         if (!campK || !campK.system || !chK || !SK || !FK || typeof SK.statAsk !== 'function') { ansK({ reason: 'missing' }); return; }
-        if (chK.npc || chK.ownerId !== prK.id) { ansK({ reason: 'owner' }); return; }
+        if (chK.npc || (chK.ownerId !== prK.id && !(typeof handsTo === 'function' && handsTo(chK, prK.id)))) { ansK({ reason: 'owner' }); return; }
         if (!allow('charask', { perMs: 400, burst: 8, windowMs: 30000, table: 60 }, conn.peer)) { ansK({ reason: 'slow' }); return; }
         var fidK = typeof msg.fieldId === 'string' ? msg.fieldId : '', rowK = typeof msg.rowId === 'string' ? msg.rowId : '', stK = askStats(msg.stats); if (!stK) { ansK({ reason: 'value' }); return; }
         var shK = function(id) { return !!(window.wpLibrary && window.wpLibrary.playerEntry && window.wpLibrary.playerEntry(id)); };   // a library entry of a pack players may see
@@ -8510,7 +8511,7 @@ function handleMessage(msg, conn) {
         if (window.wpVtt && !window.wpVtt.on('sheets')) { denyI('off'); return; }
         var campI = getActiveCampaign(), chI = (campI && campI.chars && typeof qi.charId === 'string' && Object.prototype.hasOwnProperty.call(campI.chars, qi.charId) ? campI.chars[qi.charId] : null);
         if (!campI || !campI.system || !chI) { denyI('missing'); return; }
-        var profI = net.roster[conn.peer]; if (chI.npc || !chI.ownerId || !profI || chI.ownerId !== profI.id) { denyI('owner'); return; }
+        var profI = net.roster[conn.peer]; if (chI.npc || !chI.ownerId || !profI || (chI.ownerId !== profI.id && !(typeof handsTo === 'function' && handsTo(chI, profI.id)))) { denyI('owner'); return; }
         var nowI = Date.now(), gkI = qi.charId + '|' + qi.fieldId + '|' + (qi.rowId || ''), grI = qi.op !== 'add' && _rowGrace[gkI] && _rowGrace[gkI].until > nowI ? _rowGrace[gkI] : null;   // Stage 6: inside a pickup's Undo window
         var ogI = !!(_rowGrace[gkI + '|on'] && _rowGrace[gkI + '|on'].until > nowI);   // F4b: a bound item switched on a moment ago may come off (or be dropped: the lock covers that while it is on)
         var libI = window.wpLibrary && window.wpLibrary.playerEntry ? function(id) { return window.wpLibrary.playerEntry(id) ? window.wpLibrary.entry(id) : null; } : null;   // Stage 6 library L3: an entry of a pack players may see (the host's own copy of it: the row keeps it)
@@ -8600,7 +8601,7 @@ function handleMessage(msg, conn) {
         if (window.wpVtt && !window.wpVtt.on('sheets')) { denyX('off'); return; }
         var campX = getActiveCampaign(), chX = (campX && campX.chars && typeof qx.charId === 'string' && Object.prototype.hasOwnProperty.call(campX.chars, qx.charId) ? campX.chars[qx.charId] : null);
         if (!campX || !campX.system || !chX) { denyX('missing'); return; }
-        var profX = net.roster[conn.peer]; if (chX.npc || !chX.ownerId || !profX || chX.ownerId !== profX.id) { denyX('owner'); return; }
+        var profX = net.roster[conn.peer]; if (chX.npc || !chX.ownerId || !profX || (chX.ownerId !== profX.id && !(typeof handsTo === 'function' && handsTo(chX, profX.id)))) { denyX('owner'); return; }
         var resX = Sx.applyEffectOp(campX.system, chX, qx.fieldId, qx, Fx, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campX) : null, now: Date.now(), inCombat: !!(net.charInCombat && net.charInCombat(qx.charId)), timersGm: !!(campX.turnRules && campX.turnRules.timers === 'gm') });   // T5a: a timed effect starts its timer; T5b: its player may pause, reset or dismiss it unless the campaign keeps that the GM's
         if (!resX.ok) { denyX(resX.reason); return; }
         chX.values = chX.values || {}; chX.values[qx.fieldId] = resX.value;
@@ -9124,7 +9125,7 @@ function handleMessage(msg, conn) {
             var campQ = getActiveCampaign(), pidQ = peerProfileId(conn), srcQ = (campQ && campQ.chars && typeof q.charId === 'string' && Object.prototype.hasOwnProperty.call(campQ.chars, q.charId) ? campQ.chars[q.charId] : null);
             var pressQ = q.by && srcQ && SQ && campQ.system && srcQ.making !== 1 && typeof SQ.crewPressOf === 'function' ? SQ.crewPressOf(campQ.system, campQ.chars, srcQ.id, q.by, pidQ) : null;   // 1.6.0 Its crew may press this sheet's rolls: by the host's own copy, never the player's word
             if (q.by && !pressQ) { denyQ('error', { error: { message: 'That sheet is not one your character crews.', pos: 0, len: 0 } }); return; }
-            if (!srcQ || (!pressQ && (srcQ.npc || !srcQ.ownerId || !pidQ || srcQ.ownerId !== pidQ)) || srcQ.making === 1 || !SQ || !campQ.system) { denyQ('char'); return; }   // making (Onboarding F3): not at the table yet
+            if (!srcQ || (!pressQ && (srcQ.npc || !srcQ.ownerId || !pidQ || (srcQ.ownerId !== pidQ && !(typeof handsTo === 'function' && handsTo(srcQ, pidQ))))) || srcQ.making === 1 || !SQ || !campQ.system) { denyQ('char'); return; }   // making (Onboarding F3): not at the table yet
             var viewQ = window.wpSheets ? window.wpSheets.playerSystem(campQ) : null, chvQ = viewQ ? SQ.charFor(srcQ, viewQ, pidQ, { lib: fxLib(campQ.system), items: itemLib(campQ.system), full: campQ.system }) : null; if (pressQ && viewQ) chvQ = SQ.charForView(srcQ, viewQ, { lib: fxLib(campQ.system), items: itemLib(campQ.system), full: campQ.system });
             if (!viewQ || !chvQ) { denyQ('char'); return; }
             var tokOwnQ = pressQ ? '' : pidQ, tokOptQ = pressQ ? {} : { strict: true };   // the vehicle's own token
@@ -9272,7 +9273,7 @@ function handleMessage(msg, conn) {
         var Dh = DC(), ridH = Dh ? Dh.cleanRid(msg) : null; if (!ridH || typeof msg.charId !== 'string' || !/^c_[A-Za-z0-9_]{1,24}$/.test(msg.charId)) return;
         if (!hitLimit) hitLimit = Dh.RateLimit(Dh.LIMITS); if (hitLimit.allow(conn.peer, Date.now()) !== true) return;
         var campH = getActiveCampaign(), pidH = peerProfileId(conn), chH = campH && campH.chars && own(campH.chars, msg.charId) ? campH.chars[msg.charId] : null;
-        var anH = chH && !chH.npc && pidH && chH.ownerId === pidH && chH.making !== 1 && typeof targetHitAsk === 'function' ? targetHitAsk(campH, conn.peer, pidH, msg.charId) : null;
+        var anH = chH && !chH.npc && pidH && (chH.ownerId === pidH || (typeof handsTo === 'function' && handsTo(chH, pidH))) && chH.making !== 1 && typeof targetHitAsk === 'function' ? targetHitAsk(campH, conn.peer, pidH, msg.charId) : null;
         try { conn.send({ type: 'hit-rows', rid: ridH, rows: anH ? anH.rows : [] }); } catch (e) { sendFailed(e); }
         // [netcheck:hitask-end]
     } else if (msg.type === 'hit-rows' && net.role === 'client') {
@@ -9292,7 +9293,7 @@ function handleMessage(msg, conn) {
         if (window.wpVtt && !window.wpVtt.on('sheets')) { ansX({ reason: 'off' }); return; }
         if (!allow('sheetout', { perMs: 10000, burst: 2, windowMs: 60000, table: 12 }, conn.peer)) { ansX({ reason: 'slow' }); return; }
         var campX = getActiveCampaign(), pidX = peerProfileId(conn), chX = campX && campX.chars && own(campX.chars, qx.charId) ? campX.chars[qx.charId] : null;
-        if (!campX || !campX.system || !chX || !pidX || chX.npc || chX.ownerId !== pidX) { ansX({ reason: 'owner' }); return; }
+        if (!campX || !campX.system || !chX || !pidX || chX.npc || (chX.ownerId !== pidX && !(typeof handsTo === 'function' && handsTo(chX, pidX)))) { ansX({ reason: 'owner' }); return; }
         var rdX = (typeof Sx.readers === 'function' ? Array.prototype.slice.call(Sx.readers(campX.system)) : []).filter(function(r) { return !!r && r.id === qx.id; })[0], outX = rdX && rdX.ui && rdX.ui.playerFile, viewX = window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(campX) : null, copyX = viewX ? charViewFor(qx.charId, pidX) : null;
         if (!outX || typeof outX.write !== 'function' || !viewX || !copyX || copyX.partial) { ansX({ reason: 'none' }); return; }
         stepX('asked', { reader: qx.id });

@@ -157,6 +157,11 @@ function giveMenu(id, x, y) {   // the players this campaign knows, by name: a r
         var d = document.createElement('button'); d.type = 'button'; d.setAttribute('role', 'menuitem'); d.dataset.give = pid; d.textContent = charText(names[pid], CHAR_NAME) + (pid === c.ownerId ? ' (has it now)' : ''); d.disabled = pid === c.ownerId; _menu.appendChild(d);
     });
     if (c.ownerId) { var dv = document.createElement('div'); dv.className = 'menu-divider'; _menu.appendChild(dv); var no = document.createElement('button'); no.type = 'button'; no.setAttribute('role', 'menuitem'); no.dataset.give = ''; no.textContent = 'No player'; _menu.appendChild(no); }
+    var others = pids.filter(function(p) { return p !== c.ownerId; });   // 1.6.2 (G8): who else may use this sheet. It keeps its one owner for tokens and turns
+    if (c.ownerId && !c.npc && c.making !== 1 && others.length && S.shareToggle) {
+        var dvS = document.createElement('div'); dvS.className = 'menu-divider'; _menu.appendChild(dvS); var hd = document.createElement('div'); hd.className = 'char-menu-head'; hd.textContent = 'Also shared with'; hd.title = 'They can use this sheet as their own. Its tokens and turns stay with its player'; _menu.appendChild(hd);
+        others.forEach(function(pid) { var on = Array.isArray(c.shareWith) && c.shareWith.indexOf(pid) >= 0, d = document.createElement('button'); d.type = 'button'; d.setAttribute('role', 'menuitemcheckbox'); d.setAttribute('aria-checked', on ? 'true' : 'false'); d.dataset.share = pid; d.textContent = (on ? '\u2713 ' : '') + charText(names[pid], CHAR_NAME); _menu.appendChild(d); });
+    }
     _menu.style.display = 'flex';
     if (window.wpClampMenu) window.wpClampMenu(_menu, x, y); else { _menu.style.left = x + 'px'; _menu.style.top = y + 'px'; }
 }
@@ -173,7 +178,7 @@ function menuFor(id, x, y) {
     while (_menu.firstChild) _menu.removeChild(_menu.firstChild);
     _menu.dataset.char = id;
     // Delete only where the sheet module will take it: a player's own whole sheet while their link is up, the GM's where the campaign can be written
-    var client = foreign(), del = client ? !!(linkUp() && c.ownerId && c.ownerId === window.wpNet.myId && !c.partial) : !!(window.wpCanPersistLocal && window.wpCanPersistLocal());
+    var client = foreign(), del = client ? !!(linkUp() && c.ownerId && c.ownerId === window.wpNet.myId && !c.partial && c.shared !== 1) : !!(window.wpCanPersistLocal && window.wpCanPersistLocal());
     var Cal = window.wpCalendar, rules = !client && Cal && typeof Cal.rulesRun === 'function' ? Cal.rulesRun(id) : null;   // 152 fold 4b: the GM's alone, and only where calendar.js says the character has the switch
     charMenuRows(!!(S.hudFor && S.hudFor(id)), del, rules, !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal())).forEach(function(r) {
         var d = document.createElement(r.rule ? 'div' : 'button');
@@ -184,6 +189,8 @@ function menuFor(id, x, y) {
     if (window.wpClampMenu) window.wpClampMenu(_menu, x, y); else { _menu.style.left = x + 'px'; _menu.style.top = y + 'px'; }
 }
 function menuPress(e) {
+            var sh = e.target && e.target.closest ? e.target.closest('[data-share]') : null;
+            if (sh) { var cidS = _menu.dataset.char, S1 = sheets(), keep = sh.dataset.share; if (S1 && S1.shareToggle) S1.shareToggle(cidS, keep); giveMenu(cidS, _menuAt[0], _menuAt[1]); var bk = _menu.querySelector('[data-share="' + String(keep).replace(/[^A-Za-z0-9_-]/g, '') + '"]'); if (bk) bk.focus(); return; }   // the list stays up, for the next tick
             var gv = e.target && e.target.closest ? e.target.closest('[data-give]') : null;
             if (gv) { var cidG = _menu.dataset.char, pidG = gv.dataset.give; menuAway(); if (cidG) giveTo(cidG, pidG); return; }
             var b = e.target && e.target.closest ? e.target.closest('[data-act]') : null; if (!b) return;
@@ -237,5 +244,5 @@ function wire() {
 }
 // [lookcheck:charwire-end]
 window.wpCharList = { sync: sync };
-window.wpCharList.give = function(id, x, y) { menuMake(); menuAway(); giveMenu(id, x, y); };   // 1.6.0: the sheet's own line asks the same list of players
+window.wpCharList.give = function(id, x, y) { menuMake(); menuAway(); _menuAt = [x, y]; giveMenu(id, x, y); };   // 1.6.0: the sheet's own line asks the same list of players
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();

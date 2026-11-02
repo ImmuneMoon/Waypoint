@@ -6534,7 +6534,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('F3 a choice\'s option may read a list\'s name, as a formula can — a row by key (Skills.Guns.Target: 12 + 1), a total (Skills.count), an entry the library\'s core holds (Lib: 10 + 5) — beside a field (ST); the validator takes them, warns of a GM-only entry\'s row (players do not get that option) and still refuses a row\'s own name or a word the list lacks',
             vC.errors.length === 0 && j(cells) === j(['13', '1', '11', '15']) && vC.warnings.some(w => /option “Secret” reads a GM-only value/.test(w.message))
             && pC.fields.find(f => f.id === 'f_wp').list.stats[0].opts.map(o => o.label).join() === 'Guns,Rows,Strength,Library'
-            && eC2.some(m => /option “Own” reads “Row\.lvl”/.test(m)) && eC2.some(m => /option “Nope” reads “Skills\.Guns\.Nothing”/.test(m)), j([vC.errors, vC.warnings, cells, eC2]));
+            && eC2.some(m => /option “Own” points at “Row\.lvl”/.test(m)) && eC2.some(m => /option “Nope” points at “Skills\.Guns\.Nothing”/.test(m)), j([vC.errors, vC.warnings, cells, eC2]));
         check('F3 the validator: a key only the library\'s core holds is a known row (no "reads as not carried" warning); a key nothing holds still warns',
             !vC.warnings.some(w => /key "Lib"/.test(w.message)) && vC.warnings.some(w => /key "Nope"/.test(w.message)), j(vC.warnings));
         const rawW = { v: 1, name: 'W', rolls: [], fields: [n('a', 'A'), n('b', 'B'),

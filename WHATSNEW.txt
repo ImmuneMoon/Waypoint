@@ -6,6 +6,12 @@ The System editor
   is on the Combat tab, and the budgets, readings, linked sheets and tables
   that stood on the Lists tab are on the Rules tab. Each has its topics down
   the left side, one at a time. Nothing went: only where it sits has changed.
+- Fields, Rolls, Items, Lists and Effects now list what they hold down the
+  left, one line each, with a search at the top. Press a line to open it on
+  the right. The arrow keys go through a list, Enter goes into the line, and
+  you can drag a line to move it. A dot marks one with an error or a warning.
+- What a line holds stands in named groups. Those you seldom need start
+  folded, and say in use where they hold something.
 
 At the table
 - Explode on the Radius tool now asks for a Defense roll where your system gives

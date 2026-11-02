@@ -132,6 +132,133 @@ function rowStep(b, dir) { var n = b ? (dir > 0 ? b.nextSibling : b.previousSibl
 function rowEnd(list, dir) { var n = dir > 0 ? list.firstChild : list.lastChild; while (n && n.hidden) n = dir > 0 ? n.nextSibling : n.previousSibling; return n; }
 // [sysuicheck:pick-end]
 
+// [sysuicheck:groups-start]
+// The open row's controls in named groups. Each builder is as it was: its row is taken apart here, each piece going to the group that names one of
+// its classes, in the order built. A piece no group names goes to More, so a control added later is never lost. A word ending in * is a beginning.
+// A group: its id, its name, whether it starts open, and the classes that send a piece to it. Groups that are rarely used start folded, and open by
+// themselves where the row uses them
+var GROUPS = {
+    fields: { split: ['sys-row-main', 'sys-flags'], pull: ['sys-round', 'sys-roundto', 'sys-roundat'], head: ['sys-key', 'sys-label', 'sys-kind', 'sys-btns'], list: [
+        ['value', 'The number', 1, ['sys-def']],
+        ['who', 'Who sees and changes it', 1, ['sys-edit', 'sys-vis', 'sys-live-sel']],
+        ['sheet', 'On the sheet', 1, ['sys-hover-chk', 'sys-tile-chk', 'sys-slider-chk', 'sys-counter-chk', 'sys-unit', 'sys-unit-text', 'sys-metricshow', 'sys-dec', 'sys-group-chk', 'sys-sign-chk', 'sys-caption', 'sys-res-icon', 'sys-glyph-btn', 'sys-reset-chk', 'sys-res-color', 'act:rescolorclr', 'sys-colorband-chk', 'sys-bar-chk', 'sys-badge-chk', 'sys-tones-row', 'sys-slider-row']],
+        ['rules', 'Rolls and rules', 0, ['sys-roll', 'sys-fielddie', 'sys-vnames', 'sys-ovr-value', 'sys-ovr-when', 'sys-spill-*']],
+        ['round', 'Rounding', 0, ['sys-round', 'sys-roundto', 'sys-roundat']]] },
+    rolls: { split: ['sys-row-main'], head: ['sys-label', 'sys-roll-kind', 'sys-formula', 'sys-btns'], list: [
+        ['how', 'How it rolls', 1, ['sys-roll-malf', 'sys-roll-critat', 'sys-roll-fumbleat', 'sys-roll-bigat', 'sys-init-chk', 'sys-roll-anytime']],
+        ['look', 'Who sees it and how it looks', 1, ['sys-vis', 'sys-roll-tone', 'sys-sound-on', 'sys-roll-die', 'sys-roll-icon', 'sys-glyph-btn']],
+        ['use', 'When it can be used', 1, ['sys-roll-needsrow', 'sys-roll-cost', 'sys-roll-near', 'sys-roll-each', 'sys-roll-by', 'sys-crewstn']],
+        ['damage', 'Damage', 0, ['sys-dmg-chk', 'sys-roll-hits', 'sys-roll-mjif', 'sys-roll-mjdmg', 'sys-roll-dtype', 'sys-roll-dkind', 'sys-roll-p2*', 'sys-roll-p3*', 'sys-roll-p4*', 'sys-roll-p5*', 'sys-area']],
+        ['resist', 'Resisting it', 0, ['sys-roll-rsist', 'sys-roll-rsby', 'sys-rsor', 'sys-roll-rsnocrit']],
+        ['clock', 'By the clock and in a fight', 0, ['sys-roll-everyrow', 'sys-roll-fightrow', 'sys-roll-askrow', 'sys-roll-noterow']],
+        ['cross', 'When a value crosses a step', 0, ['sys-roll-xsrow']],
+        ['calls', 'Calls for', 0, ['sys-calls']],
+        ['then', 'What it changes', 1, ['sys-apply']]] },
+    items: { split: ['sys-row-main', 'sys-flags'], head: ['sys-item-name', 'sys-item-cat', 'sys-btns'], list: [
+        ['what', 'What it is', 1, ['sys-item-damage', 'sys-item-cost', 'sys-item-throw', 'sys-item-key', 'sys-item-lvl', 'sys-item-only', 'sys-item-again', 'sys-item-notes']],
+        ['look', 'Who sees it and how it looks', 1, ['sys-item-vis', 'sys-item-icon', 'sys-glyph-btn']],
+        ['stats', 'Stats', 1, ['sys-item-stats']],
+        ['mods', 'What it changes', 0, ['sys-item-mods']],
+        ['grants', 'Rows it grants', 0, ['sys-grant-box']],
+        ['sw', 'Roll bonuses', 0, ['sys-sw-box']],
+        ['keep', 'Taking it off', 0, ['sys-item-rmmode', 'sys-item-rmtext', 'sys-item-eqmode', 'sys-item-eqtext']],
+        ['blast', 'Blast', 0, ['sys-item-area', 'sys-item-affs']]] },
+    lists: { split: ['sys-flags', 'sys-list-cols'], head: ['sys-list-title'], list: [
+        ['holds', 'What it holds', 1, ['sys-list-cats', 'sys-starts']],
+        ['rows', 'How its rows behave', 1, ['sys-list-multi', 'sys-list-noqty', 'sys-list-graise', 'sys-list-custom', 'sys-list-open', 'sys-list-trade', 'sys-list-edge', 'sys-list-menus', 'sys-list-boxes']],
+        ['level', 'Level', 1, ['sys-list-lvl', 'sys-list-lcaps']],
+        ['on', 'Switch', 1, ['sys-list-on', 'sys-list-upkeep']],
+        ['stats', 'Stats', 1, ['sys-list-stats']],
+        ['cols', 'Columns', 0, ['sys-list-col', 'sys-list-coladd']],
+        ['cts', 'Counters', 0, ['sys-list-ct', 'sys-list-ctadd']],
+        ['rolls', 'Rolls', 1, ['sys-list-roll', 'sys-list-needsrow', 'sys-list-rolladd', 'sys-list-xsrow', 'sys-calls']],
+        ['parts', 'Parts', 0, ['sys-list-partsfrom', 'sys-list-partscats', 'sys-list-partshosts', 'sys-list-partscap', 'sys-pcaps', 'sys-list-partsfitif', 'sys-list-partsfitwords', 'sys-list-partslabel', 'sys-list-partsdeep']],
+        ['badges', 'Badges', 0, ['sys-badges']],
+        ['loads', 'Loads, feeds and chambers', 0, ['sys-list-load', 'sys-list-feed', 'sys-list-feedadd', 'sys-list-chamber']],
+        ['specs', 'Specialties', 0, ['sys-list-specs', 'sys-list-specof', 'sys-list-speccover', 'sys-list-specby', 'sys-list-specfall', 'sys-list-specnever', 'sys-list-specpen', 'sys-list-specsum', 'sys-list-specdflt']],
+        ['once', 'Counted once', 0, ['sys-list-once', 'sys-list-oncenote']],
+        ['look', 'Look and work log', 0, ['sys-list-rowlook', 'sys-list-lkmain', 'sys-list-lkby', 'sys-list-worklog']],
+        ['other', 'Other rules', 0, ['sys-list-modsif', 'sys-list-atfrom', 'sys-list-atby', 'sys-list-subject', 'sys-list-subjectif', 'sys-list-sets', 'sys-list-placeby', 'sys-list-onrm']],
+        ['names', 'What formulas read', 0, ['sys-list-names']]] },
+    effects: { split: ['sys-row-main', 'sys-flags'], head: ['sys-fx-icon', 'sys-glyph-btn', 'sys-fx-name', 'sys-fx-tone', 'sys-btns'], list: [
+        ['changes', 'What it changes', 1, ['sys-fx-target', 'act:fxmodadd']],
+        ['time', 'How long it lasts', 1, ['sys-fx-dur', 'sys-fx-agbox', 'sys-fx-endsbox', 'sys-fx-egbox', 'sys-fx-autorow']],
+        ['who', 'Who sees it', 1, ['sys-fx-vis', 'sys-fx-notes']],
+        ['posture', 'Posture', 0, ['sys-fx-posture', 'sys-fx-postureback', 'sys-fx-keepbox']],
+        ['sw', 'Roll bonuses', 0, ['sys-sw-box']]] }
+};
+var VALUE_TITLE = { toggle: 'The switch', text: 'The text', notes: 'The text', select: 'The options', 'item-list': 'The list', effects: 'The list' };
+// Every class in a piece, and each button's action as act:name
+function classWords(n, out) {
+    out = out || {};
+    if (typeof n.className === 'string') n.className.split(/\s+/).forEach(function(c) { if (c) out[c] = 1; });
+    if (n.dataset && typeof n.dataset.act === 'string') out['act:' + n.dataset.act] = 1;
+    for (var c = n.firstChild; c; c = c.nextSibling) if (c.nodeType === 1) classWords(c, out);
+    return out;
+}
+function wordIn(words, list) {
+    for (var i = 0; i < list.length; i++) {
+        var w = list[i]; if (w.charAt(w.length - 1) !== '*') { if (own(words, w)) return true; continue; }
+        var b = w.slice(0, -1); for (var k in words) if (k.indexOf(b) === 0) return true;
+    }
+    return false;
+}
+function groupOf(spec, words) { for (var i = 0; i < spec.list.length; i++) if (wordIn(words, spec.list[i][3])) return spec.list[i][0]; return 'more'; }
+function hasClass(n, c) { return typeof n.className === 'string' && n.className.split(/\s+/).indexOf(c) >= 0; }
+// Whether a group holds anything set: a tick ticked, a box written in, a list off its first choice
+function usedIn(n) {
+    if (n.tagName === 'INPUT') { var t = n.type; if (t === 'checkbox' || t === 'radio') return n.checked === true; return t !== 'color' && String(n.value || '') !== ''; }
+    if (n.tagName === 'SELECT') return String(n.value || '') !== '' && n.firstChild !== null && n.firstChild.value !== n.value;
+    for (var c = n.firstChild; c; c = c.nextSibling) if (c.nodeType === 1 && usedIn(c)) return true;
+    return false;
+}
+function keptGroups(store) {
+    var out = {}; try { var v = JSON.parse(store.getItem('wp_sysGroups') || '{}'); if (v && typeof v === 'object') Object.keys(v).forEach(function(k) { if (/^[a-z]+:[a-z]+$/.test(k) && (v[k] === 0 || v[k] === 1)) out[k] = v[k]; }); } catch (e) {}
+    return out;
+}
+function groupsKeep(store, kept) { try { store.setItem('wp_sysGroups', JSON.stringify(kept)); return true; } catch (e) { return false; } }
+// The pieces of a row, in the order built: its children, those the table names taken apart into theirs, and what a piece the table pulls out of the value holds
+function piecesOf(row, spec) {
+    var out = [], walk = function(n) { for (var c = n.firstChild; c; c = c.nextSibling) { if (spec.split.indexOf(c.className) >= 0) walk(c); else out.push(c); } };   // a row of its own (sys-flags and a word more) stays whole
+    walk(row);
+    if (spec.pull) out.slice().forEach(function(p) {
+        if (!hasClass(p, 'sys-def')) return; var at = out.indexOf(p), moved = [];
+        for (var c = p.firstChild; c; c = c.nextSibling) if (wordIn(classWords(c), spec.pull)) moved.push(c);
+        moved.forEach(function(m, i) { out.splice(at + 1 + i, 0, m); });
+    });
+    return out;
+}
+// A row built, arranged: the head, what Save says of it, then a group a name. Nothing is made again, so every control keeps its class and its handlers
+function arrange(row, kind, doc, kept) {
+    if (!own(GROUPS, kind)) return row;
+    var spec = GROUPS[kind], pieces = piecesOf(row, spec), head = [], errs = [], by = {}, wait = [], order = [];
+    pieces.forEach(function(p) {
+        if (p.nodeType !== 1) { wait.push(p); return; }
+        var w = classWords(p);
+        if (hasClass(p, 'sys-err') || p.dataset && p.dataset.errFor !== undefined) { errs.push(p); return; }
+        if (wordIn(w, spec.head) && !hasClass(p, 'sys-flags')) { head.push(p); return; }
+        if (hasClass(p, 'sys-num-cap')) { wait.push(p); return; }   // a caption goes where what it heads goes
+        var g = groupOf(spec, w); if (!by[g]) { by[g] = []; order.push(g); }
+        wait.forEach(function(x) { by[g].push(x); }); wait = []; by[g].push(p);
+    });
+    if (wait.length) { if (!by.more) { by.more = []; order.push('more'); } wait.forEach(function(x) { by.more.push(x); }); }
+    while (row.firstChild) row.removeChild(row.firstChild);
+    var top = doc.createElement('div'); top.className = kind === 'lists' ? 'sys-list-head' : 'sys-row-main'; head.forEach(function(p) { top.appendChild(p); }); row.appendChild(top);
+    errs.forEach(function(p) { row.appendChild(p); });
+    var kindBox = row.querySelector ? row.querySelector('.sys-kind') : null;
+    spec.list.concat([['more', 'More', 1, []]]).forEach(function(g) {
+        var ps = by[g[0]]; if (!ps) return;
+        var d = doc.createElement('details'), s = doc.createElement('summary'), b = doc.createElement('div'), key = kind + ':' + g[0], name = g[0] === 'value' && kindBox && own(VALUE_TITLE, kindBox.value) ? VALUE_TITLE[kindBox.value] : g[1];
+        d.className = 'sys-grp'; d.dataset.grp = key; s.className = 'sys-grp-head'; s.appendChild(doc.createTextNode(name)); b.className = 'sys-flags sys-grp-body';
+        ps.forEach(function(p) { b.appendChild(p); });
+        var used = usedIn(b); if (used && !g[2]) { var u = doc.createElement('small'); u.className = 'sys-grp-used'; u.textContent = 'in use'; s.appendChild(u); }
+        d.open = kept && own(kept, key) ? kept[key] === 1 : !!g[2] || used;
+        d.appendChild(s); d.appendChild(b); row.appendChild(d);
+    });
+    return row;
+}
+// [sysuicheck:groups-end]
+
 var store = { getItem: function() { return null; }, setItem: function() {} }; try { if (window.localStorage) store = window.localStorage; } catch (e) {}
 var topicNow = topicsRead(store);
 function byId(id) { return document.getElementById(id); }
@@ -149,7 +276,7 @@ function combatDrawn(box) {
 }
 function rulesDrawn() { var box = byId('sysRulesBox'), nav = byId('sysRulesNav'); topicsNav(nav, 'rules', document); topicsShow(box, nav, topicNow.rules); }
 function marks(errs, warns) { lastErrs = errs; lastWarns = warns; topicMarks(byId('sysCombatNav'), 'combat', errs, warns); topicMarks(byId('sysRulesNav'), 'rules', errs, warns); }
-var picks = {}, lastErrs = null, lastWarns = null, host = null, sawPick = {};
+var picks = {}, lastErrs = null, lastWarns = null, host = null, groupsNow = keptGroups(store);
 function pickState(kind) { return picks[kind] || (picks[kind] = { id: '', at: 0, known: null }); }
 // The list drawn for these rows, and which row is open
 function pickDraw(kind, rows) {
@@ -207,6 +334,13 @@ function onKey(e) {
         if (n && n.dataset && n.dataset.topic) { showTopic(n.dataset.set, n.dataset.topic); n.focus(); }
     }
 }
-function wire() { var m = byId('systemModal'); if (m) m.addEventListener('keydown', onKey); Object.keys(PICK).forEach(pickWire); }
-window.wpSysUi = { topicPress: topicPress, combatDrawn: combatDrawn, rulesDrawn: rulesDrawn, marks: marks, pickDraw: pickDraw, pickSet: pickSet, pickReset: pickReset, moveIn: moveIn, isPick: function(k) { return own(PICK, k); }, paneOf: function(k) { return own(PICK, k) ? PICK[k].pane : ''; }, host: function(h) { host = h; } };
+// A press on a group's name folds or opens it, and this computer keeps which
+function onGroupPress(e) {
+    var s = e.target && e.target.closest ? e.target.closest('.sys-grp-head') : null, d = s ? s.parentNode : null; if (!d || !d.dataset || !d.dataset.grp) return;
+    groupsNow[d.dataset.grp] = d.open ? 0 : 1; groupsKeep(store, groupsNow);   // read before the browser turns it
+}
+function arrangeOne(row, kind) { try { return arrange(row, kind, document, groupsNow); } catch (e) { log('arrange-failed', { kind: kind }); return row; } }
+function arrangeIn(box, kind, cls) { for (var c = box.firstChild; c; c = c.nextSibling) if (hasClass(c, cls)) arrangeOne(c, kind); }
+function wire() { var m = byId('systemModal'); if (m) { m.addEventListener('keydown', onKey); m.addEventListener('click', onGroupPress); } Object.keys(PICK).forEach(pickWire); }
+window.wpSysUi = { topicPress: topicPress, combatDrawn: combatDrawn, rulesDrawn: rulesDrawn, marks: marks, pickDraw: pickDraw, pickSet: pickSet, pickReset: pickReset, moveIn: moveIn, arrange: arrangeOne, arrangeIn: arrangeIn, isPick: function(k) { return own(PICK, k); }, paneOf: function(k) { return own(PICK, k) ? PICK[k].pane : ''; }, host: function(h) { host = h; } };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();

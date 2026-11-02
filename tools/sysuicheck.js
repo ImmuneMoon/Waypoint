@@ -153,7 +153,7 @@ const kids = n => n.childNodes.slice();
     // sheets.js: only the row picked is built
     const rs = sh.slice(sh.indexOf('// [sysuicheck:rows-start]'), sh.indexOf('// [sysuicheck:rows-end]'));
     const built = [], draft = { fields: [{ id: 'a', key: 'A', label: 'One', kind: 'number' }, { id: 'b', key: 'B', label: 'Two', kind: 'resource' }], rolls: [], items: [], effects: [] };
-    const w2 = { wpSysUi: { pickDraw: (k, rows) => { w2.rows = rows; return 'b'; } } };
+    const w2 = { wpSysUi: { pickDraw: (k, rows) => { w2.rows = rows; return 'b'; }, arrange: r => r } };
     const R = new Function('window', 'draft', 'KIND_LABEL', 'ui', 'renderAll', 'markDirty', rs + '\nreturn { pickRows, pickModel, pickOne };')(w2, draft, { number: 'Number', resource: 'Resource' }, () => null, () => {}, () => {});
     const boxR = { kids: [], appendChild(x) { this.kids.push(x); } }; R.pickRows(boxR, 'fields', draft.fields, f => { built.push(f.id); return f.id; });
     check('only the row picked is built, by its own builder', J(built) === J(['b']) && J(boxR.kids) === J(['b']) && J(w2.rows) === J([{ id: 'a', key: 'A', name: 'One', tag: 'Number' }, { id: 'b', key: 'B', name: 'Two', tag: 'Resource' }]));
@@ -166,6 +166,74 @@ const kids = n => n.childNodes.slice();
     ['rolls', 'items', 'effects', 'lists'].forEach(k => R5.pickMove(k, 'x', 'y', true));
     check('a row dragged moves in its own list, a list among the fields it is', d5.rolls.moved === 'x' && d5.items.moved === 'x' && d5.effects.moved === 'x' && d5.fields.moved === 'x');
     ['Field', 'Roll', 'Item', 'List', 'Effect'].forEach(w => check('the ' + w + ' list stands beside its open row in the page, with its search, each once', ix.split('id="sys' + w + 'Find"').length === 2 && ix.split('id="sys' + w + 'List"').length === 2 && ix.split('id="sys' + w + 'Rows"').length === 2 && new RegExp('id="sys' + w + 'List"[^\\n]*id="sys' + w + 'Rows"').test(ix)));
+}
+
+/* ---------- the open row's controls in named groups, the real builders on a page of plain objects ---------- */
+{
+    const d = makeDom(), { document, window } = d;
+    Object.defineProperty(d.El.prototype, 'options', { get() { return this.childNodes; } });
+    const cut = name => { const a = sh.indexOf('\nfunction ' + name + '('); if (a < 0) return ''; if (name === 'listCard') return sh.slice(a + 1, sh.indexOf('    return card;\n}\n', a) + 18); const line = sh.slice(a + 1, sh.indexOf('\n', a + 1)); if (/\}\s*(\/\/.*)?$/.test(line) && (line.match(/\{/g) || []).length === (line.match(/\}/g) || []).length) return line; const m = /\n\}/g; m.lastIndex = a + 1; return sh.slice(a + 1, m.exec(sh).index + 2); };
+    const names = ['el', 'input', 'numInput', 'numField', 'select', 'opt', 'labeledNum', 'labeledSelect', 'capBox', 'capInline', 'checkLabel', 'lazySelect', 'lineUnder', 'fieldRow', 'buildDefCell', 'roundCells', 'spillCtl', 'rollRow', 'effectRow', 'itemRow', 'itemModsBox', 'itemStatsBox', 'grantBox', 'grantEntries', 'grantName', 'swBox', 'swTargets', 'affBox', 'listCard', 'everyRow', 'fightRow', 'askRow', 'noteRow', 'crossRow', 'callsBox', 'applyEditor', 'startsBox', 'badgeBox', 'toneRow', 'altBox', 'needsGmBox', 'areaBox', 'resistBySel', 'resistOrBox', 'rollStationBox', 'dieSel', 'metricSel', 'decBox', 'placeSel', 'lvlCapsBox', 'onceBox', 'upkeepBox', 'onRemoveBox', 'partCapsBox', 'listCrossRow', 'swWordsBox', 'rollExtras', 'glyphButton'];
+    const code = names.map(cut).join('\n');
+    window.wpSoundOn = { btn: () => { const b = document.createElement('button'); b.className = 'sys-sound-on'; return b; } }; window.wpSystemCore = {};
+    const mkSel = c => { const s = document.createElement('select'); s.className = c; return s; };
+    const draft = {
+        fields: [
+            { id: 'f_n', key: 'ST', label: 'Strength', kind: 'number', def: 10, unit: 'yd', roll: '3d6', caption: 'x', hover: true, tile: true, slider: { low: 'a' }, override: { value: '1', when: '2' } },
+            { id: 'f_c', key: 'C', label: 'Calc', kind: 'formula', formula: '1', round: 'from', roundAt: 0.5, badge: true, labels: ['a'], tones: [] },
+            { id: 'f_r', key: 'HP', label: 'Hit Points', kind: 'resource', maxFormula: '10', color: '#112233', spill: { to: 'f_x', at: 'f', below: '1' }, icon: 'x' },
+            { id: 'f_x', key: 'FP', label: 'Fatigue', kind: 'resource', maxFormula: '10' }, { id: 'f_s', key: 'S', label: 'Skill', kind: 'skill', base: 'x' }, { id: 'f_t', key: 'T', label: 'T', kind: 'toggle' }, { id: 'f_u', key: 'U', label: 'U', kind: 'text' }, { id: 'f_o', key: 'O', label: 'O', kind: 'notes' }, { id: 'f_e', key: 'E', label: 'E', kind: 'select', options: ['a'] }, { id: 'f_f', key: 'F', label: 'F', kind: 'effects' },
+            { id: 'f_l', key: 'Gear', label: 'Gear', kind: 'item-list', table: { columns: [] }, list: { cats: ['A'], lvl: { min: 0, max: 5, caps: [{ at: 1, n: 1 }] }, on: { label: 'On', needs: '1', one: true }, stats: [{ key: 'w', label: 'W' }, { key: 'p', label: 'P', kind: 'pick', opts: [] }], cols: [{ key: 'c', label: 'C', formula: '1' }], counters: [{ key: 'ct', label: 'Ct' }], rolls: [{ label: 'R', formula: '1', dmg: true }, { label: 'A', apply: [] }], load: { from: 'f_l2', ct: 'ct' }, chamber: { from: 'f_l2', cap: 1 }, feeds: [{ key: 'a' }], parts: { from: 'f_l2' }, once: { by: 'w' }, specs: { of: 'p' }, upkeep: { pool: 'f_r', amt: '1' }, look: {}, workLog: true, money: 'w', onRemove: [{ f: 'f_r', formula: '1' }], badges: [], at: { from: 'f_l2', by: 'p' } } },
+            { id: 'f_l2', key: 'Ammo', label: 'Ammo', kind: 'item-list', list: {} }],
+        rolls: [{ id: 'r_a', label: 'Attack', formula: '3d6', malf: '17', bigAt: '4', dmg: true, dmg2: '1', dtype: 'x', cost: 'a', every: { n: 1, u: 'hour' }, inFight: { n: 1, u: 'rounds' }, notes: 'panel', cross: { f: 'f_r' }, calls: [{ roll: 'r_b' }], then: [], resistBy: 'r_b', needs: '1', each: 'turn' }, { id: 'r_b', label: 'Heal', apply: [{ f: 'f_r', formula: '1' }], stations: ['Pilot'] }],
+        items: [{ id: 'i_a', name: 'Grenade', category: 'A', key: 'g', area: { shape: 'circle', ft: 10, aff: [{ vs: '1', fx: 'e_a' }] }, mods: [{ f: 'f_n', op: 'add', v: 1 }], grants: [{ entry: 'i_b', list: 'f_l' }], rollSw: [{ name: 'x', v: 1, to: [] }], stats: { w: 1 }, rm: 'bound', eq: 'bound' }, { id: 'i_b', name: 'Rope', category: 'A' }],
+        effects: [{ id: 'e_a', name: 'Rage', mods: [{ f: 'f_n', op: 'add', v: 1 }], posture: 'p_a', auto: '1', endGroup: 'g' }],
+        combat: { turn: { acts: [{ key: 'a', n: 1 }] }, damage: {}, checks: 'fixed', postures: [{ id: 'p_a', name: 'A' }, { id: 'p_b', name: 'B' }] }, sheet: { sections: [] }, links: [{ kind: 'crew', press: true, stations: ['Pilot'] }]
+    };
+    const made = {}, stub = n => { if (!(n in made)) made[n] = () => { const e = document.createElement('div'); e.className = 'stub-' + n; return e; }; return made[n]; };
+    const base = { document, window, console, draft, Object, Array, String, Number, Math, JSON, RegExp, isFinite, parseFloat, parseInt, Date, Set, Map, WeakMap, Boolean, Error, Symbol, undefined, Infinity, NaN,
+        KIND_LABEL: { number: 'Number', formula: 'Formula', resource: 'Resource', skill: 'Skill', toggle: 'Toggle', text: 'Text', notes: 'Notes', select: 'Select', 'item-list': 'Item list', effects: 'Status effects' }, KIND_HELP: {}, STORED: { number: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1, effects: 1 }, ITEM_COL_LABEL: { category: 'C', cost: 'C', damage: 'D', area: 'A', notes: 'N' }, LIMITS: new Proxy({}, { get: () => 99 }), GRANT_MAX: 8, ROUND_WORDS: [['', 'None'], ['near', 'N'], ['from', 'F']],
+        btnRow: l => { const b = document.createElement('span'); b.className = 'sys-btns'; l.forEach(x => { const q = document.createElement('button'); q.className = 'tool ghost sys-btn'; q.dataset.act = x[0]; b.appendChild(q); }); return b; },
+        turnActs: () => [{ key: 'a', n: 1 }], costOptions: () => [['', 'x']], fxTargets: () => [['f_n|add', 'x']], modVal: () => 'f_n|add', modHowSel: mkSel, itemStatDefs: () => [{ key: 'w', label: 'W' }], errorCell: () => { const e = document.createElement('div'); e.className = 'sys-err'; return e; }, listNamesText: () => 'x', PLACES: [['', 'x']], postureList: () => draft.combat.postures, swSays: () => '', affSays: () => '', iconText: () => '', lvlOnlyText: () => '', AFF_WHO: [['', 'x']], AFF_UNITS_ED: [['turns', 't']], draftRowOf: () => null };
+    const env = new Proxy(base, { has: (t, k) => typeof k === 'string', get: (t, k) => (k in t ? t[k] : (k === Symbol.unscopables ? undefined : stub(k))) });
+    const R = new Function('env', 'with (env) {\n' + code + '\nreturn { fieldRow, rollRow, effectRow, itemRow, listCard };\n}')(env);
+    const P4 = (() => { const load = new Function('window', 'document', 'localStorage', src), kept = {}, st = { getItem: k => (k in kept ? kept[k] : null), setItem: (k, v) => { kept[k] = String(v); } }; window.localStorage = st; document.readyState = 'complete'; window.wpStepLog = () => {}; load(window, document, st); return { U: window.wpSysUi, kept }; })(), U = P4.U;
+    const controls = row => row.all().filter(n => /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(n.tagName)).map(n => n.tagName + '.' + n.className + (n.dataset.act ? '#' + n.dataset.act : '') + '|' + n.title).sort();
+    const rows = () => [].concat(draft.fields.filter(f => f.kind !== 'item-list').map(f => ['fields', R.fieldRow(f), f.key]), draft.fields.filter(f => f.kind === 'item-list').map(f => ['fields', R.fieldRow(f), f.key]), draft.rolls.map(r => ['rolls', R.rollRow(r), r.label]), draft.items.map(i => ['items', R.itemRow(i), i.name]), draft.effects.map(x => ['effects', R.effectRow(x), x.name]), [['lists', R.listCard(draft.fields[10], ['A'], [draft.fields[2]], [{ key: 'a' }]), 'Gear']]);
+    const lost = [], more = [], bad = [];
+    rows().forEach(r => {
+        const a = controls(r[1]); U.arrange(r[1], r[0]); const b = controls(r[1]);
+        if (J(a) !== J(b)) lost.push(r[2]);
+        r[1].querySelectorAll('.sys-grp').forEach(g => { if (/:more$/.test(g.dataset.grp)) more.push(r[2] + ': ' + g.textContent.slice(0, 60) + ' / ' + J(controls(g).slice(0, 6))); });
+        if (!r[1].firstChild.textContent && r[0] !== 'lists' && !r[1].firstChild.querySelector('input')) bad.push(r[2]);
+    });
+    check('nothing removed: every control of every kind of row, the real builders\' own, is still in its row after it is arranged, with its class, its action and its tooltip', lost.length === 0, J(lost));
+    check('every control of the real builders has a named group: none falls to More', more.length === 0, J(more.slice(0, 6)));
+    check('the head holds what names the row, and what Save says stands under it', bad.length === 0, J(bad));
+    const rw = R.fieldRow(draft.fields[2]); U.arrange(rw, 'fields');
+    const names2 = rw.querySelectorAll('.sys-grp').map(g => g.firstChild.childNodes[0].textContent + (g.open ? '' : ' (folded)'));
+    check('a pool\'s groups, as the sheet drew them, each in the order of the table; a group the row uses opens by itself and says so', J(names2) === J(['The number', 'Who sees and changes it', 'On the sheet', 'Rolls and rules', 'Rounding (folded)']) && rw.querySelector('.sys-grp[data-grp="fields:rules"] .sys-grp-used').textContent === 'in use' && rw.querySelector('.sys-def .sys-formula') !== null && rw.querySelector('.sys-grp[data-grp="fields:round"] .sys-round') !== null && rw.querySelector('.sys-def .sys-round') === null, J(names2));
+    const plain = R.fieldRow(draft.fields[3]); U.arrange(plain, 'fields');
+    check('a row that uses none of a rare group has it folded', plain.querySelector('.sys-grp[data-grp="fields:rules"]').open === false);
+    const tog = R.fieldRow(draft.fields[5]), sel = R.fieldRow(draft.fields[8]); tog.querySelector('.sys-kind').value = 'toggle'; sel.querySelector('.sys-kind').value = 'select'; U.arrange(tog, 'fields'); U.arrange(sel, 'fields');
+    check('the first group says what the row holds', tog.querySelector('.sys-grp').firstChild.textContent === 'The switch' && sel.querySelector('.sys-grp').firstChild.textContent === 'The options');
+    const modal = d.mk('div', '', null, 'systemModal'); document.body.appendChild(modal); modal.appendChild(plain);
+    const P5 = new Function('window', 'document', 'localStorage', src); P5(window, document, window.localStorage);
+    const grp = plain.querySelector('.sys-grp[data-grp="fields:rules"]'); d.fire(grp.firstChild, 'click', {}); grp.open = true;
+    const plain2 = R.fieldRow(draft.fields[3]); window.wpSysUi.arrange(plain2, 'fields');
+    const shut = plain2.querySelector('.sys-grp[data-grp="fields:who"]'); modal.appendChild(plain2); d.fire(shut.firstChild, 'click', {}); shut.open = false;
+    const plain3 = R.fieldRow(draft.fields[3]); window.wpSysUi.arrange(plain3, 'fields'); const rw3 = R.fieldRow(draft.fields[2]); window.wpSysUi.arrange(rw3, 'fields');
+    check('a group folded or opened stays so for this computer, on every row of the tab', plain2.querySelector('.sys-grp[data-grp="fields:rules"]').open === true && plain3.querySelector('.sys-grp[data-grp="fields:who"]').open === false && rw3.querySelector('.sys-grp[data-grp="fields:who"]').open === false);
+    const stGet = v => ({ getItem: () => v });
+    window.localStorage = stGet('{"fields:rules":1,"fields:who":"x","__proto__":{"a":1},"bad key":1}'); new Function('window', 'document', 'localStorage', src)(window, document, window.localStorage);
+    const fresh = R.fieldRow(draft.fields[3]); window.wpSysUi.arrange(fresh, 'fields');
+    check('what this computer kept is read as data', fresh.querySelector('.sys-grp[data-grp="fields:rules"]').open === true && fresh.querySelector('.sys-grp[data-grp="fields:who"]').open === true);
+    const list = R.listCard(draft.fields[10], ['A'], [draft.fields[2]], [{ key: 'a' }]), box = d.mk('div'); box.appendChild(list); window.wpSysUi.arrangeIn(box, 'lists', 'sys-list-card');
+    const lg = list.querySelectorAll('.sys-grp').map(g => g.dataset.grp.split(':')[1]);
+    check('a list\'s card in its groups: the title first, each part where a new GM would look for it', list.firstChild.textContent.includes('Gear') && J(lg) === J(['holds', 'rows', 'level', 'on', 'stats', 'cols', 'cts', 'rolls', 'parts', 'badges', 'loads', 'specs', 'once', 'look', 'other', 'names']) && list.querySelector('.sys-grp[data-grp="lists:on"] .sys-list-upkeep') !== null && list.querySelector('.sys-grp[data-grp="lists:parts"] .sys-pcaps') !== null && list.querySelector('.sys-grp[data-grp="lists:rolls"] .sys-list-rolladd') !== null, J(lg));
+    const odd = d.mk('div', 'sys-row'), kid = d.mk('input', 'sys-never-heard-of'); odd.appendChild(d.mk('div', 'sys-row-main')); odd.firstChild.appendChild(kid); window.wpSysUi.arrange(odd, 'fields');
+    check('a control the table does not know goes to More, in sight, and is never lost', odd.querySelector('.sys-grp[data-grp="fields:more"] .sys-never-heard-of') === kid && odd.querySelector('.sys-grp[data-grp="fields:more"]').open === true);
+    check('the layer failing leaves the row as its builder made it', (() => { const row = d.mk('div', 'sys-row'); const r = window.wpSysUi.arrange(row, 'nothing'); return r === row; })());
 }
 
 const words = ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].map(root);

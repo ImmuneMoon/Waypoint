@@ -8397,6 +8397,7 @@ function renderLists() {
     (draft.items || []).forEach(function(it) { var cc = String((it && it.category) || '').trim(); if (cc && !seen[cc.toLowerCase()]) { seen[cc.toLowerCase()] = 1; cats.push(cc); } });
     var tgL = draft.fields.filter(function(x) { return x && (x.kind === 'resource' || x.kind === 'number'); });   // R2b: what a list's actions may move (APPLY_KINDS)
     oneL.forEach(function(f) { box.appendChild(listCard(f, cats, tgL, draft.combat && draft.combat.turn && Array.isArray(draft.combat.turn.acts) ? draft.combat.turn.acts.filter(function(a) { return a && typeof a.key === 'string' && a.key; }) : [])); var le = errorCell('list:' + f.id); le.dataset.errFor = 'list:' + f.id; box.appendChild(le); });   // F4c1: the list's stat messages under its card
+    if (typeof window !== 'undefined' && window.wpSysUi) window.wpSysUi.arrangeIn(box, 'lists', 'sys-list-card');   // 1.6.2: in named groups
     if (stL) box.scrollTop = stL;
 }
 // [systemcheck:stattick-start]
@@ -11348,7 +11349,7 @@ function pickModel(kind) {
     return [];
 }
 function pickOne(kind, arr) { var U = window.wpSysUi; if (!U) return arr; var id = U.pickDraw(kind, pickModel(kind)); return arr.filter(function(x) { return x.id === id; }); }
-function pickRows(box, kind, arr, build) { pickOne(kind, arr).forEach(function(x) { box.appendChild(build(x)); }); }
+function pickRows(box, kind, arr, build) { var U = window.wpSysUi; pickOne(kind, arr).forEach(function(x) { var r = build(x); box.appendChild(U ? U.arrange(r, kind) : r); }); }
 function pickOpen(kind, id) { var U = window.wpSysUi, box = ui(U.paneOf(kind)); U.pickSet(kind, id); if (box) box.scrollTop = 0; _tabPress = true; try { renderAll(); } finally { _tabPress = false; } }
 function pickMove(kind, id, toId, after) {
     var arr = kind === 'rolls' ? draft.rolls : kind === 'items' ? draft.items : kind === 'effects' ? draft.effects : draft.fields;

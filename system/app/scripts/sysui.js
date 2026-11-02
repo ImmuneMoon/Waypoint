@@ -70,6 +70,68 @@ function topicMarks(nav, set, errs, warns) {
 }
 // [sysuicheck:topics-end]
 
+// [sysuicheck:pick-start]
+// A list beside one open (the owner, by prompt): what a tab holds stands as a list down the left, one line a row, and the right shows the one picked.
+// A system may hold 600 fields, so a row is built only when it is opened, and the list is made again only when its rows change
+var PICK = { fields: { list: 'sysFieldList', find: 'sysFieldFind', pane: 'sysFieldRows' } };
+// Which row is open once the rows are these: a row that has just come is the one, else the one open, else the row now at its place
+function pickNext(st, ids) {
+    var known = Object.create(null), fresh = [], at = -1, i;
+    for (i = 0; i < ids.length; i++) { known[ids[i]] = 1; if (st.known && !st.known[ids[i]]) fresh.push(ids[i]); if (ids[i] === st.id) at = i; }
+    if (fresh.length === 1) at = ids.indexOf(fresh[0]); else if (at < 0) at = Math.min(st.at || 0, ids.length - 1);
+    return { id: at >= 0 ? ids[at] : '', at: Math.max(at, 0), known: known };
+}
+// One row moved to stand before or after another. Answers whether anything moved
+function moveIn(arr, id, toId, after) {
+    if (!Array.isArray(arr) || id === toId) return false;
+    var of = function(x) { for (var i = 0; i < arr.length; i++) if (arr[i] && arr[i].id === x) return i; return -1; }, from = of(id);
+    if (from < 0 || of(toId) < 0) return false;
+    var it = arr.splice(from, 1)[0], to = of(toId) + (after ? 1 : 0); arr.splice(to, 0, it); return to !== from;
+}
+function pickWords(text) { return String(text || '').toLowerCase().split(/\s+/).filter(Boolean); }
+function rowFinds(hay, words) { for (var i = 0; i < words.length; i++) if (hay.indexOf(words[i]) < 0) return false; return true; }
+// A row of the list: its key, its name and what it is, each a text node. Written again only where the words moved
+function rowWrite(b, r) {
+    var k = b.childNodes[0], n = b.childNodes[1], t = b.childNodes[2], nm = r.name || 'No name yet';
+    if (k.textContent !== (r.key || '')) k.textContent = r.key || '';
+    if (n.textContent !== nm) n.textContent = nm;
+    n.classList.toggle('none', !r.name);
+    if (t.textContent !== (r.tag || '')) t.textContent = r.tag || '';
+    b.wpFind = ((r.key || '') + ' ' + (r.name || '') + ' ' + (r.tag || '')).toLowerCase();
+}
+function rowMake(doc, kind, r) {
+    var b = doc.createElement('button'); b.type = 'button'; b.className = 'sys-pick-row'; b.draggable = true; b.dataset.kind = kind; b.dataset.id = r.id; b.dataset.err = r.err || r.id; b.setAttribute('role', 'option');
+    ['sys-pick-key', 'sys-pick-name', 'sys-pick-tag'].forEach(function(c) { var s = doc.createElement('span'); s.className = c; b.appendChild(s); });
+    rowWrite(b, r); return b;
+}
+// The list as these rows say: made again only where the rows themselves changed, so the focus and the scroll stay
+function listWrite(list, kind, rows, doc) {
+    var els = [], n, i, same = list.childNodes.length === rows.length;
+    for (n = list.firstChild, i = 0; n && same; n = n.nextSibling, i++) { if (n.dataset.id !== rows[i].id) same = false; els.push(n); }
+    if (same) { rows.forEach(function(r, j) { rowWrite(els[j], r); }); return false; }
+    while (list.firstChild) list.removeChild(list.firstChild);
+    rows.forEach(function(r) { list.appendChild(rowMake(doc, kind, r)); });
+    return true;
+}
+function listShow(list, id, errs, warns) {
+    var found = null;
+    for (var b = list.firstChild; b; b = b.nextSibling) {
+        var on = b.dataset.id === id, e = b.dataset.err; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on) found = b;
+        var bad = !!errs && own(errs, e) && errs[e].length > 0; b.classList.toggle('err', bad); b.classList.toggle('warn', !bad && !!warns && own(warns, e) && warns[e].length > 0);
+    }
+    return found;
+}
+// The search: a row stays where every word stands in its key, its name or what it is. The list is never made again for it
+function findApply(list, none, text) {
+    var words = pickWords(text), shown = 0;
+    for (var b = list.firstChild; b; b = b.nextSibling) { var hit = rowFinds(b.wpFind || '', words); b.hidden = !hit; if (hit) shown++; }
+    if (none) none.hidden = shown > 0 || !list.firstChild;
+    return shown;
+}
+function rowStep(b, dir) { var n = b ? (dir > 0 ? b.nextSibling : b.previousSibling) : null; while (n && n.hidden) n = dir > 0 ? n.nextSibling : n.previousSibling; return n; }
+function rowEnd(list, dir) { var n = dir > 0 ? list.firstChild : list.lastChild; while (n && n.hidden) n = dir > 0 ? n.nextSibling : n.previousSibling; return n; }
+// [sysuicheck:pick-end]
+
 var store = { getItem: function() { return null; }, setItem: function() {} }; try { if (window.localStorage) store = window.localStorage; } catch (e) {}
 var topicNow = topicsRead(store);
 function byId(id) { return document.getElementById(id); }
@@ -86,16 +148,65 @@ function combatDrawn(box) {
     var nav = byId('sysCombatNav'); topicsNav(nav, 'combat', document); topicsBuild(box, 'combat', document, 'blasts'); topicsShow(box, nav, topicNow.combat);
 }
 function rulesDrawn() { var box = byId('sysRulesBox'), nav = byId('sysRulesNav'); topicsNav(nav, 'rules', document); topicsShow(box, nav, topicNow.rules); }
-function marks(errs, warns) { topicMarks(byId('sysCombatNav'), 'combat', errs, warns); topicMarks(byId('sysRulesNav'), 'rules', errs, warns); }
+function marks(errs, warns) { lastErrs = errs; lastWarns = warns; topicMarks(byId('sysCombatNav'), 'combat', errs, warns); topicMarks(byId('sysRulesNav'), 'rules', errs, warns); }
+var picks = {}, lastErrs = null, lastWarns = null, host = null, sawPick = {};
+function pickState(kind) { return picks[kind] || (picks[kind] = { id: '', at: 0, known: null }); }
+// The list drawn for these rows, and which row is open
+function pickDraw(kind, rows) {
+    var c = own(PICK, kind) ? PICK[kind] : null; if (!c) return '';
+    var st = pickState(kind), nx = pickNext(st, rows.map(function(r) { return r.id; })), list = byId(c.list), was = st.id; st.id = nx.id; st.at = nx.at; st.known = nx.known;
+    if (!list) return st.id;
+    var made = listWrite(list, kind, rows, document), b = listShow(list, st.id, lastErrs, lastWarns), box = byId(c.find);
+    if (made) findApply(list, list.parentNode.querySelector('.sys-pick-none'), box ? box.value : '');
+    if (b && (made || was !== st.id) && b.scrollIntoView) b.scrollIntoView({ block: 'nearest' });
+    return st.id;
+}
+function pickSet(kind, id) { pickState(kind).id = id; }
+function pickReset() { picks = {}; Object.keys(PICK).forEach(function(k) { var f = byId(PICK[k].find), l = byId(PICK[k].list); if (f) f.value = ''; if (l) findApply(l, l.parentNode.querySelector('.sys-pick-none'), ''); }); }
+function openRow(kind, id) { if (host) host.pick(kind, id); }
+function moveRow(kind, id, toId, after) { if (host) host.move(kind, id, toId, after); }
+// Into the row that is open: its first box
+function paneFocus(kind) {
+    var p = byId(PICK[kind].pane), box = p ? p.querySelector('input, select, textarea, button') : null;
+    if (box && box.focus) box.focus(); return !!box;
+}
+function pickKey(e, b) {
+    var kind = b.dataset.kind, k = e.key, list = b.parentNode, to = k === 'ArrowDown' ? rowStep(b, 1) : k === 'ArrowUp' ? rowStep(b, -1) : k === 'Home' ? rowEnd(list, 1) : k === 'End' ? rowEnd(list, -1) : null;
+    if (k === 'Enter') { e.preventDefault(); e.stopPropagation(); openRow(kind, b.dataset.id); paneFocus(kind); return; }
+    if (k !== 'ArrowDown' && k !== 'ArrowUp' && k !== 'Home' && k !== 'End') return;
+    e.preventDefault(); e.stopPropagation(); if (!to) return;
+    if (e.altKey && (k === 'ArrowDown' || k === 'ArrowUp')) { moveRow(kind, b.dataset.id, to.dataset.id, k === 'ArrowDown'); b = list.querySelector('.on') || b; if (b.focus) b.focus(); return; }
+    openRow(kind, to.dataset.id); if (to.focus) to.focus();
+}
+function dropClear(list) { for (var n = list.firstChild; n; n = n.nextSibling) { n.classList.remove('drop-before'); n.classList.remove('drop-after'); } }
+function pickWire(kind) {
+    var c = PICK[kind], list = byId(c.list), find = byId(c.find), drag = null; if (!list) return;
+    list.addEventListener('click', function(e) { var b = e.target && e.target.closest ? e.target.closest('.sys-pick-row') : null; if (!b) return; e.stopPropagation(); openRow(kind, b.dataset.id); });
+    list.addEventListener('dragstart', function(e) { var b = e.target && e.target.closest ? e.target.closest('.sys-pick-row') : null; if (!b) return; drag = b.dataset.id; if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', ''); } });
+    var at = function(e) { var b = e.target && e.target.closest ? e.target.closest('.sys-pick-row') : null; if (!b || !drag) return null; var r = b.getBoundingClientRect(); return { b: b, after: e.clientY > r.top + r.height / 2 }; };
+    list.addEventListener('dragover', function(e) { var t = at(e); if (!t) return; e.preventDefault(); dropClear(list); t.b.classList.add(t.after ? 'drop-after' : 'drop-before'); });
+    list.addEventListener('dragleave', function(e) { if (e.target === list) dropClear(list); });
+    list.addEventListener('drop', function(e) { var t = at(e), id = drag; drag = null; dropClear(list); if (!t) return; e.preventDefault(); e.stopPropagation(); moveRow(kind, id, t.b.dataset.id, t.after); log('drag', { kind: kind }); });
+    list.addEventListener('dragend', function() { drag = null; dropClear(list); });
+    if (find) {
+        ['input', 'change'].forEach(function(ev) { find.addEventListener(ev, function(e) { e.stopPropagation(); findApply(list, list.parentNode.querySelector('.sys-pick-none'), find.value); }); });
+        find.addEventListener('keydown', function(e) {
+            if (e.key !== 'ArrowDown' && e.key !== 'Enter') return;
+            var b = rowEnd(list, 1); e.preventDefault(); e.stopPropagation(); if (!b) return;
+            openRow(kind, b.dataset.id); if (e.key === 'Enter') paneFocus(kind); else if (b.focus) b.focus();
+        });
+    }
+}
 // The arrow keys go down the side, each press showing its topic
 function onKey(e) {
     var t = e.target; if (!t || !t.classList) return;
+    if (t.classList.contains('sys-pick-row')) { pickKey(e, t); return; }
     if (t.classList.contains('sys-topic')) {
         if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
         var nav = t.parentNode, n = e.key === 'Home' ? nav.firstChild : e.key === 'End' ? nav.lastChild : e.key === 'ArrowDown' ? t.nextSibling : t.previousSibling; e.preventDefault(); e.stopPropagation();
         if (n && n.dataset && n.dataset.topic) { showTopic(n.dataset.set, n.dataset.topic); n.focus(); }
     }
 }
-function wire() { var m = byId('systemModal'); if (m) m.addEventListener('keydown', onKey); }
-window.wpSysUi = { topicPress: topicPress, combatDrawn: combatDrawn, rulesDrawn: rulesDrawn, marks: marks };
+function wire() { var m = byId('systemModal'); if (m) m.addEventListener('keydown', onKey); Object.keys(PICK).forEach(pickWire); }
+window.wpSysUi = { topicPress: topicPress, combatDrawn: combatDrawn, rulesDrawn: rulesDrawn, marks: marks, pickDraw: pickDraw, pickSet: pickSet, pickReset: pickReset, moveIn: moveIn, isPick: function(k) { return own(PICK, k); }, paneOf: function(k) { return own(PICK, k) ? PICK[k].pane : ''; }, host: function(h) { host = h; } };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();

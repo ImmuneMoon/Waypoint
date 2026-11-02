@@ -6732,7 +6732,8 @@ function open(which, topic) {
     ui('sysName').value = draft.name || '';
     if (ui('sysMark')) ui('sysMark').value = typeof draft.mark === 'string' ? draft.mark : '';
     m.style.display = 'flex';
-    if (topic && window.wpSysUi) window.wpSysUi.topicPress(tab, topic);   // 1.6.2: the Combat or Rules tab at one topic
+    if (window.wpSysUi) window.wpSysUi.pickReset();   // 1.6.2: a list opens on its first row
+    if (topic && window.wpSysUi) window.wpSysUi.topicPress(tab, topic);   // the Combat or Rules tab at one topic
     renderAll();
 }
 function close(force) {
@@ -7828,7 +7829,7 @@ function patchErrorsNow() {
     refreshErrors();
     document.querySelectorAll('#systemModal [data-err-for]').forEach(function(old) { var id = old.dataset.errFor; var fresh = errorCell(id); fresh.dataset.errFor = id; old.parentNode.replaceChild(fresh, old); });
     var total = Object.keys(errorsById).reduce(function(n, k) { return n + errorsById[k].length; }, 0), warns = Object.keys(warningsById).reduce(function(n, k) { return n + warningsById[k].length; }, 0);
-    if (window.wpSysUi) window.wpSysUi.marks(errorsById, warningsById);   // 1.6.2: a topic that holds one says so
+    if (window.wpSysUi) { window.wpSysUi.marks(errorsById, warningsById); if (window.wpSysUi.isPick(tab)) window.wpSysUi.pickDraw(tab, pickModel(tab)); }   // 1.6.2: a topic or a row that holds one says so, and a row says what was typed
     var foot = ui('sysFoot'); if (foot) foot.textContent = draft.fields.length + ' field' + (draft.fields.length === 1 ? '' : 's') + ' · ' + draft.rolls.length + ' roll' + (draft.rolls.length === 1 ? '' : 's') + (total ? ' · ' + total + ' error' + (total === 1 ? '' : 's') : ' · no errors') + (warns ? ' · ' + warns + ' warning' + (warns === 1 ? '' : 's') : '') + (dirty ? ' · unsaved changes' : '');
     _peSlow = Date.now() - peAt;
 }
@@ -11303,7 +11304,7 @@ function renderAll() {
     if (!draft) return;
     if (!_tabPress) refreshErrors();
     // 1.6.0: a tab's rows are drawn for the tab in view alone. Every tab's rows at every press of a tab held a large system's editor ten seconds
-    var rowsFor = function(id, which, draw) { var box = ui(id); if (!box) return; box.textContent = ''; if (tab === which) draw(box); };
+    var rowsFor = function(id, which, draw) { var box = ui(id); if (!box) return; var st = box.scrollTop; box.textContent = ''; if (tab === which) { draw(box); if (st) box.scrollTop = st; } };
     var was = rowFocusOf(document.activeElement);   // 1.6.0: a list stepped by the keyboard redraws its row: the next press stays on that list
     if (typeof capNoteSync === 'function') capNoteSync();   // 1.6.0: what is at its limit, and what a load left out
     document.querySelectorAll('#systemModal .sys-tabs button').forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tab); });
@@ -11324,7 +11325,7 @@ function renderAll() {
     var sl = ui('sysLayout'); if (sl) { sl.style.display = tab === 'layout' ? '' : 'none'; if (tab === 'layout') renderLayout(); }
     var scal = ui('sysCalendar'); if (scal) { scal.style.display = tab === 'calendar' ? '' : 'none'; if (tab === 'calendar') renderCalendar(); }   // item 20 K1: the calendar
     rowsFor('sysFieldRows', 'fields', function(fr) { if (!draft.fields.length) fr.appendChild(el('div', 'sys-empty', 'No fields yet. Add one, or Start from a preset.'));
-    draft.fields.forEach(function(f) { fr.appendChild(fieldRow(f)); }); });
+    pickRows(fr, 'fields', draft.fields, fieldRow); });
     rowsFor('sysRollRows', 'rolls', function(rr) { if (!draft.rolls.length) rr.appendChild(el('div', 'sys-empty', 'No rolls yet. A roll is a formula with dice, as a button on the sheet: d20 + STRmod. Set its Kind to Apply for a button that moves pools or numbers instead (Apply costs, Apply wounds).'));
     draft.rolls.forEach(function(r) { rr.appendChild(rollRow(r)); }); });
     var rAdd = ui('sysAddRoll'); if (rAdd) { rAdd.disabled = draft.rolls.length >= LIMITS.rolls; rAdd.title = rAdd.disabled ? 'A system holds ' + LIMITS.rolls + ' rolls at most. Remove one to add another.' : 'Add a roll'; }   // 1.6.0: one past the cap was dropped at Save with nothing said
@@ -11334,21 +11335,35 @@ function renderAll() {
     if (!_tabPress) patchErrors();
     rowFocusBack(was);
 }
+// [sysuicheck:rows-start]
+// 1.6.2, a list beside one open: only the row picked is built. sysui.js keeps the list, and each builder is as it was
+function pickModel(kind) {
+    return kind === 'fields' ? draft.fields.map(function(f) { return { id: f.id, key: f.key || '', name: f.label || '', tag: KIND_LABEL[f.kind] || '' }; }) : [];
+}
+function pickOne(kind, arr) { var U = window.wpSysUi; if (!U) return arr; var id = U.pickDraw(kind, pickModel(kind)); return arr.filter(function(x) { return x.id === id; }); }
+function pickRows(box, kind, arr, build) { pickOne(kind, arr).forEach(function(x) { box.appendChild(build(x)); }); }
+function pickOpen(kind, id) { var U = window.wpSysUi, box = ui(U.paneOf(kind)); U.pickSet(kind, id); if (box) box.scrollTop = 0; _tabPress = true; try { renderAll(); } finally { _tabPress = false; } }
+function pickMove(kind, id, toId, after) {
+    var arr = kind === 'rolls' ? draft.rolls : kind === 'items' ? draft.items : kind === 'effects' ? draft.effects : draft.fields;
+    if (window.wpSysUi.moveIn(arr, id, toId, after)) { markDirty(); renderAll(); }
+}
+// [sysuicheck:rows-end]
 // [systemcheck:rowfocus-start]
 // 1.6.0: what holds the focus in a row of the editor, by the row's own id and the list's or the box's own class, and the same control found in
 // the rows drawn since. Found by comparing, so no id of a system file is ever put in a selector. A list's card or the Combat tab repeats its boxes, so there a
 // control goes by its place among those of its class
 function rowFocusOf(a) {
     var row = a && a.closest ? a.closest('#systemModal .sys-row') : null, cls = a && typeof a.className === 'string' ? a.className.split(' ').filter(function(c) { return c.indexOf('sys-') === 0; })[0] : '';
-    if (row && row.dataset && row.dataset.id && cls) return { id: row.dataset.id, cls: cls };
+    var rid = row && row.dataset ? row.dataset.id || row.dataset.iid || row.dataset.eid : '', nthR = rid && cls ? Array.prototype.indexOf.call(row.querySelectorAll ? row.querySelectorAll('.' + cls) : [], a) : -1;   // 1.6.2: an item's and an effect's row too, and a control by its place among those of its class
+    if (rid && cls) return nthR > 0 ? { id: rid, cls: cls, at: nthR } : { id: rid, cls: cls };
     var card = !row && cls ? a.closest('#systemModal .sys-list-card, #sysCombatBox, #sysRulesBox') : null, nth = card ? Array.prototype.indexOf.call(card.querySelectorAll('.' + cls), a) : -1;
     return nth >= 0 ? { lid: (card.dataset && card.dataset.lid) || '', cls: cls, nth: nth } : null;
 }
 function rowFocusBack(was) {
     if (!was) return;
     var rows = document.querySelectorAll(was.nth === undefined ? '#systemModal .sys-row' : '#systemModal .sys-list-card, #sysCombatBox, #sysRulesBox'), row = null, i;
-    for (i = 0; i < rows.length && !row; i++) if (was.nth === undefined ? rows[i].dataset.id === was.id : (rows[i].dataset.lid || '') === was.lid) row = rows[i];
-    var box = !row ? null : was.nth === undefined ? row.querySelector('.' + was.cls) : row.querySelectorAll('.' + was.cls)[was.nth];
+    for (i = 0; i < rows.length && !row; i++) if (was.nth === undefined ? (rows[i].dataset.id || rows[i].dataset.iid || rows[i].dataset.eid) === was.id : (rows[i].dataset.lid || '') === was.lid) row = rows[i];
+    var box = !row ? null : was.nth === undefined ? (was.at ? row.querySelectorAll('.' + was.cls)[was.at] : row.querySelector('.' + was.cls)) : row.querySelectorAll('.' + was.cls)[was.nth];
     if (box && box.focus) box.focus();
 }
 // [systemcheck:rowfocus-end]
@@ -12165,6 +12180,7 @@ function importFile(file) {
     m.addEventListener('input', onInput);
     m.addEventListener('change', onChange);
     m.addEventListener('click', onClick);
+    if (window.wpSysUi) window.wpSysUi.host({ pick: pickOpen, move: pickMove });   // 1.6.2
     m.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); close(false); } });
     var t = ui('sysTestBtn'); if (t) t.addEventListener('click', runTest);
     var st = ui('sysStartSel'); if (st) st.addEventListener('change', function() { var v = st.value; st.value = ''; if (v) startFrom(v); });

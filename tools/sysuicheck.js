@@ -84,7 +84,82 @@ const kids = n => n.childNodes.slice();
     check('the builder names every topic of the Combat tab, and hands its box on once it is full', ['damage', 'cover', 'outcomes', 'blasts', 'bars', 'holds', 'range', 'height', 'light', 'senses', 'turns', 'initiative', 'postures'].every(t => cb.includes("tp('" + t + "')")) && cb.includes('window.wpSysUi.combatDrawn(box);') && ['labeledSelect(\'sys-combat-auto\'', 'coverHitBox(box, cm)', 'checksBox(box, cm)', 'blastBox(box, cm)', 'defendBox(box', 'barsBox(box, cm)', 'holdsBox(box, cm)', 'rangeBox(box, cm)', 'heightBox(box, cm)', 'lightBox(box, cm)', 'sensesBox(box, cm)', 'damageBox(box, cm)', 'turnBox(box, cm)', 'initBox(box, cm)', 'postureBox(box, cm)'].every(s => cb.includes(s)));
     check('the tour and the fog menu open the Combat tab at Senses, and the focus is kept on a redraw of the Rules tab too', read('scripts/tutorial.js').includes("window.wpSheets.open('combat', 'senses')") && read('scripts/fog.js').includes("window.wpSheets.open('combat', 'senses')") && sh.includes("a.closest('#systemModal .sys-list-card, #sysCombatBox, #sysRulesBox')") && ix.includes('id="sysRulesBox" data-lid="rules"'));
     check('headings stand above what they head: a box head takes the whole row of its pane, and every box of a pane does', /\.sys-topic-pane > \.sys-combat-head[^{]*\{[^}]*flex: 0 0 100%/.test(css) || /\.sys-topic-pane > \.sys-combat-note, \.sys-topic-pane > \.sys-note, \.sys-topic-pane > \.sys-combat-head[^{]*\{[^}]*flex: 0 0 100%/.test(css));
-    check('a window 800 wide: the topics stand above, and wrap', /@media \(max-width: 900px\) \{\n\s*\.sys-split \{ grid-template-columns: minmax\(0, 1fr\);/.test(css) && /\.sys-tabs \{ display: flex; flex-wrap: wrap;/.test(css));
+    check('a window 800 wide: the topics stand above, and wrap', /@media \(max-width: 900px\) \{\n\s*\.sys-split, \.sys-split-topics \{ grid-template-columns: minmax\(0, 1fr\);/.test(css) && /\.sys-tabs \{ display: flex; flex-wrap: wrap;/.test(css));
+}
+
+/* ---------- a list beside one open ---------- */
+{
+    const P2 = page(), { document, window, ui, d } = P2, m = d.mk, modal = P2.modal;
+    const pick = m('div', 'sys-pick'), find = m('input', 'field sys-find', null, 'sysFieldFind'), list = m('div', 'sys-pick-list', null, 'sysFieldList'), none = m('div', 'sys-note sys-pick-none'), pane = m('div', 'sys-rows', null, 'sysFieldRows');
+    none.hidden = true; pick.appendChild(find); pick.appendChild(list); pick.appendChild(none); modal.appendChild(pick); modal.appendChild(pane);
+    // wired again now that its boxes stand on the page, as they do when the app starts
+    const P3 = (() => { const load = new Function('window', 'document', 'localStorage', src); load(window, document, window.localStorage); return window.wpSysUi; })();
+    const U = P3, calls = [], rowsOf = n => Array.from({ length: n }, (x, i) => ({ id: 'f_' + i, key: 'K' + i, name: 'Field ' + i, tag: i % 2 ? 'Number' : 'Resource' }));
+    U.host({ pick: (k, id) => { calls.push(['pick', k, id]); U.pickSet(k, id); U.pickDraw(k, cur); }, move: (k, id, to, after) => { calls.push(['move', k, id, to, after]); if (U.moveIn(cur, id, to, after)) U.pickDraw(k, cur); } });
+    let cur = rowsOf(5); const on = () => kids(list).filter(b => b.classList.contains('on')).map(b => b.dataset.id);
+    const first = U.pickDraw('fields', cur);
+    check('the list has one line a row, each a key, a name and what it is, as text, and the first row is open', first === 'f_0' && kids(list).length === 5 && J(on()) === J(['f_0']) && kids(list)[1].textContent === 'K1Field 1Number' && kids(list).every(b => b.tagName === 'BUTTON' && b.type === 'button' && b.draggable === true));
+    check('one row is the Tab key\'s stop, and says it is the one', kids(list).filter(b => b.tabIndex === 0).length === 1 && kids(list)[0].getAttribute('aria-selected') === 'true' && kids(list)[1].getAttribute('aria-selected') === 'false');
+    const hostile = [{ id: 'f_0', key: '<b>x</b>', name: '<img src=x onerror=alert(1)>', tag: '' }]; cur = hostile; U.pickDraw('fields', cur);
+    check('a name from a file is a text node on a page that refuses markup', list.firstChild.childNodes[1].textContent === '<img src=x onerror=alert(1)>' && list.firstChild.childNodes[1].childNodes.length === 1 && list.firstChild.childNodes[1].childNodes[0].nodeType === 3);
+    cur = rowsOf(5); U.pickDraw('fields', cur);
+    const el0 = kids(list)[2]; cur = cur.map(r => (r.id === 'f_2' ? Object.assign({}, r, { name: 'Typed' }) : r)); U.pickDraw('fields', cur);
+    check('words typed in a row reach its line with the list left standing, so the focus and the scroll stay', kids(list)[2] === el0 && el0.childNodes[1].textContent === 'Typed');
+    cur = cur.concat([{ id: 'f_new', key: '', name: '', tag: 'Number' }]); const got = U.pickDraw('fields', cur);
+    check('a row that has just come is the one open, and a row with no name yet says so', got === 'f_new' && J(on()) === J(['f_new']) && kids(list)[5].childNodes[1].textContent === 'No name yet' && kids(list)[5].childNodes[1].classList.contains('none'));
+    cur = cur.filter(r => r.id !== 'f_new'); const got2 = U.pickDraw('fields', cur);
+    check('a row deleted leaves the row now at its place open, the last when it was the last', got2 === 'f_4');
+    U.pickSet('fields', 'f_1'); U.pickDraw('fields', cur); cur = cur.filter(r => r.id !== 'f_1'); const got3 = U.pickDraw('fields', cur);
+    check('and in the middle, the next', got3 === 'f_2');
+    cur = rowsOf(3).map(r => Object.assign({}, r, { id: 'n' + r.id })); const got4 = U.pickDraw('fields', cur);
+    check('rows all replaced, as by a preset, leave one open and no error', cur.some(r => r.id === got4) && J(on()) === J([got4]));
+    U.pickReset(); cur = rowsOf(5); U.pickDraw('fields', cur);
+    check('the editor opened again starts on the first row', U.pickDraw('fields', cur) === 'f_0');
+    find.value = 'k1 number'; const ev = d.fire(find, 'input', {});
+    check('the search keeps every row whose key, name and kind hold each word, and goes no further than its own box', J(kids(list).filter(b => !b.hidden).map(b => b.dataset.id)) === J(['f_1']) && none.hidden === true && ev.stopped === true);
+    find.value = 'nothing like this'; d.fire(find, 'input', {});
+    check('with nothing found it says so, and the row that was open stays open', kids(list).every(b => b.hidden) && none.hidden === false && J(on()) === J(['f_0']));
+    find.value = 'number'; d.fire(find, 'input', {}); cur = cur.concat([{ id: 'f_9', key: 'Z', name: 'Other', tag: 'Text' }]); U.pickDraw('fields', cur);
+    check('a list made again keeps the search', kids(list).find(b => b.dataset.id === 'f_9').hidden === true && kids(list).find(b => b.dataset.id === 'f_1').hidden === false);
+    find.value = ''; d.fire(find, 'input', {}); cur = rowsOf(5); calls.length = 0; U.pickDraw('fields', cur); U.pickSet('fields', 'f_0'); U.pickDraw('fields', cur);
+    d.fire(kids(list)[3], 'click', {});
+    check('a press on a row opens it, and the press goes no further', J(calls) === J([['pick', 'fields', 'f_3']]) && J(on()) === J(['f_3']));
+    kids(list)[3].focus(); calls.length = 0; const k1 = d.fire(document.activeElement, 'keydown', { key: 'ArrowDown' });
+    check('the arrow keys step through the rows, each opening its row with the focus on it, and the page hears nothing', J(calls) === J([['pick', 'fields', 'f_4']]) && document.activeElement.dataset.id === 'f_4' && k1.defaultPrevented === true && k1.stopped === true);
+    d.fire(document.activeElement, 'keydown', { key: 'ArrowDown' }); d.fire(document.activeElement, 'keydown', { key: 'Home' });
+    check('past the end nothing moves, and Home goes to the first', document.activeElement.dataset.id === 'f_0');
+    find.value = 'number'; d.fire(find, 'input', {}); document.getElementById('sysFieldFind'); kids(list)[1].focus(); d.fire(document.activeElement, 'keydown', { key: 'ArrowDown' });
+    check('the arrow keys pass over the rows the search put away', document.activeElement.dataset.id === 'f_3'); find.value = ''; d.fire(find, 'input', {});
+    pane.textContent = ''; const box1 = m('input', 'sys-key'); pane.appendChild(box1); kids(list)[1].focus(); const k2 = d.fire(document.activeElement, 'keydown', { key: 'Enter' });
+    check('Enter goes into the row that is open', document.activeElement === box1 && k2.defaultPrevented === true);
+    find.focus(); find.value = 'k2'; d.fire(find, 'input', {}); const k3 = d.fire(find, 'keydown', { key: 'Enter' });
+    check('Enter in the search opens the first row found and goes into it', document.activeElement === box1 && J(on()) === J(['f_2']) && k3.stopped === true); find.value = ''; d.fire(find, 'input', {});
+    kids(list)[2].focus(); calls.length = 0; d.fire(document.activeElement, 'keydown', { key: 'ArrowUp', altKey: true });
+    check('Alt and an arrow moves the row, and the focus stays on it', J(calls) === J([['move', 'fields', 'f_2', 'f_1', false]]) && document.activeElement.dataset.id === 'f_2' && J(cur.map(r => r.id)) === J(['f_0', 'f_2', 'f_1', 'f_3', 'f_4']));
+    calls.length = 0; kids(list)[4].rect = { left: 0, right: 100, top: 40, bottom: 60 };
+    d.fire(kids(list)[0], 'dragstart', {}); d.fire(kids(list)[4], 'dragover', { clientY: 55 }); const over = kids(list)[4].classList.contains('drop-after');
+    d.fire(kids(list)[4], 'drop', { clientY: 55 });
+    check('a row can be dragged to reorder, the mark showing where it lands', over && J(calls) === J([['move', 'fields', 'f_0', 'f_4', true]]) && J(cur.map(r => r.id)) === J(['f_2', 'f_1', 'f_3', 'f_4', 'f_0']) && kids(list).every(b => !/drop-/.test(b.className)));
+    check('moveIn: before and after, none onto itself, none for an id that is not there', (() => { const a = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]; const r = [U.moveIn(a, 'c', 'a', false), a.map(x => x.id).join(''), U.moveIn(a, 'c', 'c', true), U.moveIn(a, 'z', 'a'), U.moveIn(a, 'a', 'z'), U.moveIn(null, 'a', 'b')]; return J(r) === J([true, 'cab', false, false, false, false]); })());
+    U.marks({ f_1: [{}] }, { f_3: [{}], f_1: [{}] }); U.pickDraw('fields', cur);
+    check('a row with an error is marked on the left, and one with only a warning', kids(list).find(b => b.dataset.id === 'f_1').classList.contains('err') && kids(list).find(b => b.dataset.id === 'f_3').classList.contains('warn') && !kids(list).find(b => b.dataset.id === 'f_1').classList.contains('warn'));
+    U.marks({}, {}); U.pickDraw('fields', cur);
+    check('and the mark goes when it is put right', kids(list).every(b => !b.classList.contains('err') && !b.classList.contains('warn')));
+    const big = rowsOf(600); U.pickDraw('fields', big); let madeN = 0; const mk0 = document.createElement; document.createElement = t => { madeN++; return mk0(t); };
+    for (let i = 0; i < 40; i++) { U.pickSet('fields', big[i * 3].id); U.pickDraw('fields', big); } U.pickDraw('fields', rowsOf(600).map(r => Object.assign({}, r, { name: r.name + 'x' })));
+    document.createElement = mk0;
+    check('a system of 600 fields: forty presses and a line of typing make no element of the list again, so the list costs nothing to keep', kids(list).length === 600 && madeN === 0, madeN);
+
+    // sheets.js: only the row picked is built
+    const rs = sh.slice(sh.indexOf('// [sysuicheck:rows-start]'), sh.indexOf('// [sysuicheck:rows-end]'));
+    const built = [], draft = { fields: [{ id: 'a', key: 'A', label: 'One', kind: 'number' }, { id: 'b', key: 'B', label: 'Two', kind: 'resource' }], rolls: [], items: [], effects: [] };
+    const w2 = { wpSysUi: { pickDraw: (k, rows) => { w2.rows = rows; return 'b'; } } };
+    const R = new Function('window', 'draft', 'KIND_LABEL', 'ui', 'renderAll', 'markDirty', rs + '\nreturn { pickRows, pickModel, pickOne };')(w2, draft, { number: 'Number', resource: 'Resource' }, () => null, () => {}, () => {});
+    const boxR = { kids: [], appendChild(x) { this.kids.push(x); } }; R.pickRows(boxR, 'fields', draft.fields, f => { built.push(f.id); return f.id; });
+    check('only the row picked is built, by its own builder', J(built) === J(['b']) && J(boxR.kids) === J(['b']) && J(w2.rows) === J([{ id: 'a', key: 'A', name: 'One', tag: 'Number' }, { id: 'b', key: 'B', name: 'Two', tag: 'Resource' }]));
+    const R0 = new Function('window', 'draft', 'KIND_LABEL', 'ui', 'renderAll', 'markDirty', rs + '\nreturn { pickRows };')({}, draft, {}, () => null, () => {}, () => {}), box0 = { kids: [], appendChild(x) { this.kids.push(x); } }; R0.pickRows(box0, 'fields', draft.fields, f => f.id);
+    check('with no layer at hand every row is built, as it was', J(box0.kids) === J(['a', 'b']));
+    check('each tab still draws through its builder, and the editor\'s press, add and focus paths are as they were', sh.includes("pickRows(fr, 'fields', draft.fields, fieldRow);") && sh.includes("var last = ui('sysFieldRows').lastElementChild;") && sh.includes('window.wpSysUi.host({ pick: pickOpen, move: pickMove });'));
 }
 
 const words = ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].map(root);

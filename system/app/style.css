@@ -3381,6 +3381,7 @@
   .sys-pick-row.drop-after { box-shadow: 0 2px 0 var(--gold); }
   .sys-pick-none[hidden] { display: none; }
   .sys-split > .sys-rows { max-height: none; min-height: 0; }
+  #sysListRows > .sys-err { order: -1; }   /* what Save says of a list stands over its card, as under a row's head */
   .sys-grp { border-left: 2px solid var(--edge); padding-left: 9px; }
   .sys-grp[open] { border-left-color: rgba(224,165,79,0.45); }
   .sys-grp-head { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--ink); padding: 2px 0; user-select: none; }

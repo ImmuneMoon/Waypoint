@@ -175,8 +175,8 @@ const kids = n => n.childNodes.slice();
     const d = makeDom(), { document, window } = d;
     Object.defineProperty(d.El.prototype, 'options', { get() { return this.childNodes; } });
     const cut = name => { const a = sh.indexOf('\nfunction ' + name + '('); if (a < 0) return ''; if (name === 'listCard') return sh.slice(a + 1, sh.indexOf('    return card;\n}\n', a) + 18); const line = sh.slice(a + 1, sh.indexOf('\n', a + 1)); if (/\}\s*(\/\/.*)?$/.test(line) && (line.match(/\{/g) || []).length === (line.match(/\}/g) || []).length) return line; const m = /\n\}/g; m.lastIndex = a + 1; return sh.slice(a + 1, m.exec(sh).index + 2); };
-    const names = ['el', 'input', 'numInput', 'numField', 'select', 'opt', 'labeledNum', 'labeledSelect', 'capBox', 'capInline', 'checkLabel', 'lazySelect', 'lineUnder', 'fieldRow', 'buildDefCell', 'roundCells', 'spillCtl', 'rollRow', 'effectRow', 'itemRow', 'itemModsBox', 'itemStatsBox', 'grantBox', 'grantEntries', 'grantName', 'swBox', 'swTargets', 'affBox', 'listCard', 'everyRow', 'fightRow', 'askRow', 'noteRow', 'crossRow', 'callsBox', 'applyEditor', 'startsBox', 'badgeBox', 'toneRow', 'altBox', 'needsGmBox', 'areaBox', 'resistBySel', 'resistOrBox', 'rollStationBox', 'dieSel', 'metricSel', 'decBox', 'placeSel', 'lvlCapsBox', 'onceBox', 'upkeepBox', 'onRemoveBox', 'partCapsBox', 'listCrossRow', 'swWordsBox', 'rollExtras', 'glyphButton', 'damageBox', 'dbxObj', 'dbxField', 'dbxKeys', 'dbxOpts', 'dbxPools', 'dbxLists', 'dbxStr', 'dbxTick', 'dbxCap', 'dbxNum', 'dbxBtn', 'majRowsOf'];
-    const code = names.map(cut).join('\n');
+    const names = ['el', 'input', 'numInput', 'numField', 'select', 'opt', 'labeledNum', 'labeledSelect', 'capBox', 'capInline', 'checkLabel', 'lazySelect', 'lineUnder', 'fieldRow', 'buildDefCell', 'roundCells', 'spillCtl', 'rollRow', 'effectRow', 'itemRow', 'itemModsBox', 'itemStatsBox', 'grantBox', 'grantEntries', 'grantName', 'swBox', 'swTargets', 'affBox', 'listCard', 'everyRow', 'fightRow', 'askRow', 'noteRow', 'crossRow', 'callsBox', 'applyEditor', 'startsBox', 'badgeBox', 'toneRow', 'altBox', 'needsGmBox', 'areaBox', 'resistBySel', 'resistOrBox', 'rollStationBox', 'dieSel', 'metricSel', 'decBox', 'placeSel', 'lvlCapsBox', 'onceBox', 'upkeepBox', 'onRemoveBox', 'partCapsBox', 'listCrossRow', 'swWordsBox', 'rollExtras', 'glyphButton', 'damageBox', 'dbxObj', 'dbxField', 'dbxKeys', 'dbxOpts', 'dbxPools', 'dbxLists', 'dbxStr', 'dbxTick', 'dbxCap', 'dbxNum', 'dbxBtn', 'majRowsOf', 'renderAll', 'renderLists', 'renderCombat', 'combatBody'];
+    const code = names.map(cut).join('\n') + '\n' + sh.slice(sh.indexOf('// [sysuicheck:rows-start]'), sh.indexOf('// [sysuicheck:rows-end]'));
     window.wpSoundOn = { btn: () => { const b = document.createElement('button'); b.className = 'wib wi-sound tool ghost snd-on-btn'; return b; } }; window.wpSystemCore = {};
     const mkSel = c => { const s = document.createElement('select'); s.className = c; return s; };
     const draft = {
@@ -196,9 +196,9 @@ const kids = n => n.childNodes.slice();
     const base = { document, window, console, draft, Object, Array, String, Number, Math, JSON, RegExp, isFinite, parseFloat, parseInt, Date, Set, Map, WeakMap, Boolean, Error, Symbol, undefined, Infinity, NaN,
         KIND_LABEL: { number: 'Number', formula: 'Formula', resource: 'Resource', skill: 'Skill', toggle: 'Toggle', text: 'Text', notes: 'Notes', select: 'Select', 'item-list': 'Item list', effects: 'Status effects' }, KIND_HELP: {}, STORED: { number: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1, effects: 1 }, ITEM_COL_LABEL: { category: 'C', cost: 'C', damage: 'D', area: 'A', notes: 'N' }, LIMITS: new Proxy({}, { get: () => 99 }), GRANT_MAX: 8, ROUND_WORDS: [['', 'None'], ['near', 'N'], ['from', 'F']],
         btnRow: l => { const b = document.createElement('span'); b.className = 'sys-btns'; l.forEach(x => { const q = document.createElement('button'); q.className = 'tool ghost sys-btn'; q.dataset.act = x[0]; b.appendChild(q); }); return b; },
-        turnActs: () => [{ key: 'a', n: 1 }], costOptions: () => [['', 'x']], fxTargets: () => [['f_n|add', 'x']], modVal: () => 'f_n|add', modHowSel: mkSel, itemStatDefs: () => [{ key: 'w', label: 'W' }], errorCell: () => { const e = document.createElement('div'); e.className = 'sys-err'; return e; }, listNamesText: () => 'x', PLACES: [['', 'x']], postureList: () => draft.combat.postures, swSays: () => '', affSays: () => '', iconText: () => '', lvlOnlyText: () => '', AFF_WHO: [['', 'x']], AFF_UNITS_ED: [['turns', 't']], draftRowOf: () => null, DBX_LIM: { types: 32, kinds: 8, layers: 8, weapons: 4, wears: 8, onWound: 6, onMajor: 4 }, DBX_DIE: [] };
+        turnActs: () => [{ key: 'a', n: 1 }], costOptions: () => [['', 'x']], fxTargets: () => [['f_n|add', 'x']], modVal: () => 'f_n|add', modHowSel: mkSel, itemStatDefs: () => [{ key: 'w', label: 'W' }], errorCell: () => { const e = document.createElement('div'); e.className = 'sys-err'; return e; }, listNamesText: () => 'x', PLACES: [['', 'x']], postureList: () => draft.combat.postures, swSays: () => '', affSays: () => '', iconText: () => '', lvlOnlyText: () => '', AFF_WHO: [['', 'x']], AFF_UNITS_ED: [['turns', 't']], draftRowOf: () => null, tab: 'fields', _tabPress: false, errorsById: {}, warningsById: {}, ui: id => document.getElementById(id), rowFocusOf: () => null, rowFocusBack: () => {}, markDirty: () => {}, errPrefix: () => '', DBX_LIM: { types: 32, kinds: 8, layers: 8, weapons: 4, wears: 8, onWound: 6, onMajor: 4 }, DBX_DIE: [] };
     const env = new Proxy(base, { has: (t, k) => typeof k === 'string', get: (t, k) => (k in t ? t[k] : (k === Symbol.unscopables ? undefined : stub(k))) });
-    const R = new Function('env', 'with (env) {\n' + code + '\nreturn { fieldRow, rollRow, effectRow, itemRow, listCard, damageBox };\n}')(env);
+    const R = new Function('env', 'with (env) {\n' + code + '\nreturn { fieldRow, rollRow, effectRow, itemRow, listCard, damageBox, renderAll, pickOpen, pickMove, errGo, setTab: function(t) { tab = t; }, tabNow: function() { return tab; } };\n}')(env);
     const P4 = (() => { const load = new Function('window', 'document', 'localStorage', src), kept = {}, st = { getItem: k => (k in kept ? kept[k] : null), setItem: (k, v) => { kept[k] = String(v); } }; window.localStorage = st; document.readyState = 'complete'; window.wpStepLog = () => {}; load(window, document, st); return { U: window.wpSysUi, kept }; })(), U = P4.U;
     const controls = row => row.all().filter(n => /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(n.tagName)).map(n => n.tagName + '.' + n.className + (n.dataset.act ? '#' + n.dataset.act : '') + '|' + n.title).sort();
     const rows = () => [].concat(draft.fields.filter(f => f.kind !== 'item-list').map(f => ['fields', R.fieldRow(f), f.key]), draft.fields.filter(f => f.kind === 'item-list').map(f => ['fields', R.fieldRow(f), f.key]), draft.rolls.map(r => ['rolls', R.rollRow(r), r.label]), draft.items.map(i => ['items', R.itemRow(i), i.name]), draft.effects.map(x => ['effects', R.effectRow(x), x.name]), [['lists', R.listCard(draft.fields[10], ['A'], [draft.fields[2]], [{ key: 'a' }]), 'Gear']]);
@@ -309,6 +309,37 @@ const kids = n => n.childNodes.slice();
     check('a group worked in stays open when its row is drawn again, though nothing in it is in use', again2.querySelector('.sys-grp[data-grp="fields:round"]').open === true);
     window.wpSysUi.pickReset(); const again3 = R.fieldRow(draft.fields[3]); window.wpSysUi.arrange(again3, 'fields');
     check('and folds again when the editor is opened anew', again3.querySelector('.sys-grp[data-grp="fields:round"]').open === false);
+    /* ---------- the real renderAll, press to pane ---------- */
+    {
+        const m2 = d.mk('div', '', null, 'sysInt'); document.body.appendChild(m2);
+        const put = (id, cls, parent) => { const e = d.mk('div', cls || '', null, id); e.style = {}; (parent || m2).appendChild(e); return e; };
+        ['sysFields', 'sysChars', 'sysItems', 'sysEffects', 'sysLists', 'sysLayout', 'sysCalendar', 'sysCombat', 'sysRules', 'sysListRules', 'sysCharRows', 'sysAddRoll', 'sysFeatureNote', 'sysBudgets', 'sysEnv', 'sysLinks', 'sysTables'].forEach(id => put(id));
+        modal.removeChild(document.getElementById('sysRollRows')); modal.removeChild(document.getElementById('sysRolls')); put('sysRolls');
+        [['Field', 'sysFields'], ['Roll', 'sysRolls'], ['Item', 'sysItems'], ['List', 'sysLists'], ['Effect', 'sysEffects']].forEach(w => { const box = document.getElementById(w[1]), pk = d.mk('div', 'sys-pick'), f = d.mk('input', 'sys-find', null, 'sys' + w[0] + 'Find'), l = d.mk('div', 'sys-pick-list', null, 'sys' + w[0] + 'List'), n = d.mk('div', 'sys-pick-none'); pk.appendChild(f); pk.appendChild(l); pk.appendChild(n); box.appendChild(pk); put('sys' + w[0] + 'Rows', 'sys-rows', box); });
+        const stIn = { getItem: () => null, setItem() {} }; window.localStorage = stIn; new Function('window', 'document', 'localStorage', src)(window, document, stIn);
+        window.wpSysUi.host({ pick: R.pickOpen, move: R.pickMove });
+        R.setTab('fields'); R.renderAll();
+        const paneF = document.getElementById('sysFieldRows'), listF = document.getElementById('sysFieldList');
+        check('renderAll, the real one: the Fields tab draws the list and one row, by its own builder', kids(listF).length === 12 && paneF.querySelectorAll('.sys-row').length === 1 && paneF.querySelector('.sys-key').value === 'ST');
+        d.fire(kids(listF)[2], 'click', {});
+        check('a press on a line opens that row, nothing else moved', paneF.querySelectorAll('.sys-row').length === 1 && paneF.querySelector('.sys-key').value === 'HP' && R.tabNow() === 'fields');
+        draft.fields.push({ id: 'f_new', key: '', label: '', kind: 'number' }); R.renderAll();
+        check('a field added opens by itself', paneF.querySelector('.sys-row').dataset.id === 'f_new'); draft.fields.pop(); R.renderAll();
+        R.setTab('rolls'); R.renderAll();
+        const paneR = document.getElementById('sysRollRows');
+        check('the Rolls tab: one row, and the Fields tab drawn away', paneR.querySelectorAll('.sys-row').length === 1 && paneF.querySelectorAll('.sys-row').length === 0 && kids(document.getElementById('sysRollList')).length === 2);
+        d.fire(kids(document.getElementById('sysRollList'))[1], 'click', {});
+        check('and a press opens the other', paneR.querySelector('.sys-row').dataset.id === 'r_b');
+        R.setTab('items'); R.renderAll(); R.setTab('effects'); R.renderAll();
+        check('the Effects tab draws its row', document.getElementById('sysEffectRows').querySelectorAll('.sys-fx-row').length === 1);
+        R.setTab('lists'); R.renderAll();
+        const paneL = document.getElementById('sysListRows');
+        check('the Lists tab draws one card, in its groups, with its error cell beside it', paneL.querySelectorAll('.sys-list-card').length === 1 && paneL.querySelector('.sys-grp') !== null && kids(document.getElementById('sysListList')).length === 2);
+        d.fire(kids(document.getElementById('sysListList'))[1], 'click', {});
+        check('and a press opens the other list', paneL.querySelector('.sys-list-card').dataset.lid === 'f_l2');
+        R.setTab('combat'); R.renderAll();
+        check('the Combat tab builds its box and shows it', document.getElementById('sysCombat').style.display === '' && document.getElementById('sysFields').style.display === 'none');
+    }
     check('the layer failing leaves the row as its builder made it', (() => { const row = d.mk('div', 'sys-row'); const r = window.wpSysUi.arrange(row, 'nothing'); return r === row; })());
 }
 

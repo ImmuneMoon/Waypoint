@@ -69,6 +69,8 @@ System editor
 - Change an entry's key or delete the entry, and the Library says what still
   names the old key.
 - A table read by a choice says which options have no row of the table.
+- The Calendar's Coming up list reads more easily: each date on its own line, and
+  a long note held to two lines with the rest on its tooltip.
 - Counted once: Given free can name a column now, as Full price can, so a row
   another row granted can say what it gives free.
 

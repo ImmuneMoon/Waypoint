@@ -562,7 +562,12 @@ function pendDone(apply) {
 function comingUp(body, cal, notes, today, gm) {   // the next five notes from today on (a player's app holds only those it may see)
     var next = notes.filter(function(n) { return n.day >= today; }).slice(0, 5); if (!next.length) return;
     var box = cel('div', 'cal-coming'); box.appendChild(cel('div', 'sys-num-cap', 'Coming up'));
-    next.forEach(function(n) { box.appendChild(cel('div', 'cal-coming-row', fmtDate(cal, n.day * dayLength(cal)) + ': ' + n.text + (gm && n.vis !== 'all' ? ' (you only)' : ''))); });
+    next.forEach(function(n) {   // the date on a line of its own, and a long note held to two lines with its whole words on the tooltip (the owner: "the text below the calendar for events needs a better layout")
+        var row = cel('div', 'cal-coming-row'), txt = cel('span', 'cal-coming-txt', n.text); txt.title = n.text;
+        row.appendChild(cel('span', 'cal-coming-date', fmtDate(cal, n.day * dayLength(cal)) + ': ')); row.appendChild(txt);
+        if (gm && n.vis !== 'all') row.appendChild(cel('span', 'cal-coming-only', ' (you only)'));
+        box.appendChild(row);
+    });
     body.appendChild(box);
 }
 function dayNotes(body, cal, notes, day, gm) {   // the picked day's notes: the GM's to add, show to players or remove; a player's to read

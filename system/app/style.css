@@ -3127,7 +3127,10 @@
   .cal-note, .cal-note-add { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .cal-note-txt { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
   .cal-note-add .field.cal-note-new { flex: 1 1 200px; width: auto; }
-  .cal-coming-row { font-size: 12px; color: var(--ink); overflow-wrap: anywhere; }
+  .cal-coming-row { font-size: 12px; color: var(--ink); overflow-wrap: anywhere; padding: 4px 8px; border-left: 2px solid var(--edge); }
+  .cal-coming-date { display: block; color: var(--gold); font-size: 11px; }
+  .cal-coming-txt { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .cal-coming-only { color: var(--dim); font-size: 11px; }
   .sys-cal { display: flex; flex-direction: column; gap: 6px; }   /* item 20 K1: the System editor's Calendar tab */
   #sysCalendar { max-height: 64vh; overflow-y: auto; padding-right: 4px; }   /* the tab's own scroller, as a tab's rows are: the pane, kept across a redraw */
   .sys-cal-sub { font-weight: 600; font-size: 12px; margin-top: 6px; color: var(--dim); }

@@ -65,7 +65,7 @@ function gridOf(cal, v, t, pk, nd) {
     return out;
 }
 // The steps that move time on, by the calendar's own day ({ label, secs }), and what an amount can count in ({ id, name, secs }): the
-// minute, hour, day and week of the calendar, then the system's own time units (Combat card: a watch)
+// minute, hour, day and week of the calendar, then the system's own time units (Combat tab: a watch)
 function stepsOf(cal) {
     var cc = cleanCalendar(cal) || {}, S = cc.seconds || 60, M = cc.minutes || 60, dl = dayLength(cc), wk = cc.week ? cc.week.length : 0;
     var out = [{ label: '+1 minute', secs: S }, { label: '+10 minutes', secs: 10 * S }, { label: '+1 hour', secs: M * S }, { label: '+1 day', secs: dl }];
@@ -638,7 +638,7 @@ function renderWin() {
     body.appendChild(an);
     var hl = cel('label', 'cal-tick'), hc = cel('input', 'cal-hide'); hc.type = 'checkbox'; hc.checked = !ck.hide; hc.title = 'Off: players see no date or time; you still do';
     hl.appendChild(hc); hl.appendChild(document.createTextNode(' Players see the date')); body.appendChild(hl);
-    body.appendChild(cel('div', 'sys-note cal-round', 'Each fight keeps its own time. Each round adds ' + fmtSpan(cal, roundSecs(sys)) + ', the round\u2019s length from the Combat card\u2019s Turns box. While fights run, the clock shows the fight furthest behind.'));
+    body.appendChild(cel('div', 'sys-note cal-round', 'Each fight keeps its own time. Each round adds ' + fmtSpan(cal, roundSecs(sys)) + ', the round\u2019s length from the Combat tab\u2019s Turns box. While fights run, the clock shows the fight furthest behind.'));
 }
 // The running clock (1.5.4; the owner, 2026-10-04: "id like it to run by default", and by prompt: while a session is open, held in a fight —
 // rounds move it — and "both real time and a speed i can set should be available, real time by default"). On the GM's machine, while it

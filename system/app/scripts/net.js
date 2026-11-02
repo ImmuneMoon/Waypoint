@@ -5278,7 +5278,7 @@ net.cellsText = function(n, map) { return cellsText(n, map); };   // 1.5.7: the 
 function noteOwner(pid, text, cid) { net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === pid) turnNote(c, text, cid); }); }
 // [netcheck:turnmove-end]
 // [netcheck:turnacts-start]
-// Turn-based combat T4 (D4, D5): the actions a turn allows (the System's Combat card) — a player's press of a roll or an apply action that costs
+// Turn-based combat T4 (D4, D5): the actions a turn allows (the System's Combat tab) — a player's press of a roll or an apply action that costs
 // one spends it while their character's token is in a combat on the map they are on (turn-based combat on), on or off its turn (a reaction);
 // each character's counts refill when its turn begins. The campaign's mode: refuse (none left: refused, with why), warn (through, a note to
 // them and the GM), off. The GM's own presses are never limited. Their player hears what is left, and their sheet greys what is spent
@@ -6057,7 +6057,7 @@ function fightSet(fid, combat) {
 // kept through a roster edit (fightReachKept). Each row's dn (chosenMark) is ps as the table sees it. A step back takes back the last turn had, into
 // the round before if need be: a correction, the round's time and how far the fight has gone (rh, th, eh, et) as for any step back
 function chosenRule() { var camp = campNow(), sy = camp && camp.system, cm = sy && sy.combat && typeof sy.combat === 'object' ? sy.combat : null, ir = cm && cm.initiative && typeof cm.initiative === 'object' ? cm.initiative : null; return !!(ir && ir.chosen === true); }
-function holdRule(k) { var camp = campNow(), sy = camp && camp.system, cm = sy && sy.combat && typeof sy.combat === 'object' ? sy.combat : null, tn = cm && cm.turn && typeof cm.turn === 'object' ? cm.turn : null; return tn ? tn[k] : undefined; }   // 1.6.0: the Combat card's two hold rules
+function holdRule(k) { var camp = campNow(), sy = camp && camp.system, cm = sy && sy.combat && typeof sy.combat === 'object' ? sy.combat : null, tn = cm && cm.turn && typeof cm.turn === 'object' ? cm.turn : null; return tn ? tn[k] : undefined; }   // 1.6.0: the Combat tab's two hold rules
 function chosenMark(c) {   // each row's dn from ps (rows gone from the fight dropped from it, the row on turn never gone)
     if (!c || !Array.isArray(c.rows)) return;
     var cur = c.rows[c.turn], ids = Object.create(null), gone = Object.create(null); c.rows.forEach(function(r) { if (r && typeof r.id === 'string') ids[r.id] = 1; });
@@ -9169,7 +9169,7 @@ function handleMessage(msg, conn) {
         var crgQ = SQ && typeof SQ.critRange === 'function' ? SQ.critRange(viewQ ? viewQ : (getActiveCampaign() || {}).system, actQ, varsQ, Fq) : null;
         if (crgQ && chQ && typeof critFromGm === 'function') crgQ = critFromGm(SQ, campQ, chQ, q.act, rowGQ, crgQ, Dq.naturalOf(resQ), Fq, tcQ);   // 1.6.0: a range that reads a GM-only stat, from the GM's view of that one figure
         if (crgQ) recQ.crit = crgQ;
-        if (actQ && actQ.bigAt && typeof SQ.bigOf === 'function' && SQ.bigOf(actQ, varsQ, Fq, Dq, resQ, Dq.verdictOf(resQ, Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '')), mfQ !== null && Dq.naturalOf(resQ) >= mfQ)) recQ.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): a success that lands as a Big Hit, through the roller's view, marked on the record (no critical)   // 1.6.0 (the v2 sort's B1): criticals at fixed rolls, this roll's range through the roller's view (its own formula, else the Combat card's), on the record every card reads
+        if (actQ && actQ.bigAt && typeof SQ.bigOf === 'function' && SQ.bigOf(actQ, varsQ, Fq, Dq, resQ, Dq.verdictOf(resQ, Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '')), mfQ !== null && Dq.naturalOf(resQ) >= mfQ)) recQ.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): a success that lands as a Big Hit, through the roller's view, marked on the record (no critical)   // 1.6.0 (the v2 sort's B1): criticals at fixed rolls, this roll's range through the roller's view (its own formula, else the Combat tab's), on the record every card reads
         if (actQ && actQ.dmg === true) recQ.dmg = 1;   // chat cards: a damage roll, from the entry its formula matched (never the player's word)
         if (recQ.dmg === 1 && typeof SQ !== 'undefined' && SQ && typeof SQ.dmgTypeOf === 'function' && campQ && campQ.system) { var dtQ = SQ.dmgTypeOf(campQ.system, actQ, varsQ, Fq); if (dtQ) recQ.dtype = dtQ; } if (recQ.dmg === 1 && actQ && actQ.dmgMajor === true) recQ.major = 1;   // 1.5.7: the damage type the entry names, worked out on the host; 1.6.0: and Always a Major Wound, from the entry
         if (recQ.dmg === 1 && chQ && typeof SQ !== 'undefined' && SQ && SQ.dmgOnSelf) { var fullQ = campQ && campQ.system && Array.isArray(campQ.system.rolls) ? campQ.system.rolls.filter(function(x) { return x && x.id === actQ.id; })[0] : null; if (SQ.dmgOnSelf(fullQ || actQ, q.att)) recQ.dmgOn = chQ.id; }   // 1.6.0: burning and the like: it lands on its own character, not on whoever that character points at
@@ -10427,7 +10427,7 @@ net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, 
     if (!Array.isArray(act.apply)) { rec.roll = 1; if (rec.label === 'Apply') rec.label = String(act.label || 'Roll').split('{')[0].trim().slice(0, 60) || 'Roll'; }   // 1.5.9 (book es/et plan 4b): a roll that is due; its card's button rolls it
     postDue(rec, ch, !!toOwner);
 };
-// 1.6.0 (the core's gap 8): a blast's share a character rolls of its own (the Combat card's eachBy 'victim'): its card, the record's id and
+// 1.6.0 (the core's gap 8): a blast's share a character rolls of its own (the Combat tab's eachBy 'victim'): its card, the record's id and
 // words alone (whiteboard.js keeps the dice), to the character's player where toOwner, else the GM's
 net.postBlastDue = function(ch, att, label, toOwner, go) {   // go (1.6.0): the GM's card that lets a blast's Defense rolls go, this machine's own; 'hold': the same for a hold that waits for its target's roll
     if (!ch || typeof ch.id !== 'string' || typeof att !== 'string') return;
@@ -10859,7 +10859,7 @@ net.diceRoll = function(expr, o) {
     var crgR = SR && typeof SR.critRange === 'function' && campR && campR.system ? SR.critRange(campR.system, entR, varsR, F) : null;
     if (crgR && chR && SR.critSecret && SR.critSecret(campR.system, entR, F, o.row)) { var pvR = window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(campR) : null, rowVR = pvR && o.row && typeof SR.rollPlace === 'function' ? Object.assign({}, o.row, { i: SR.rollPlace(campR.system, pvR, o.row.f, o.row.i) }) : o.row, puR = pvR ? SR.critRange(pvR, SR.rollEntryOf(pvR, o.act, rowVR), varsR, F) : null; if (puR) crgR = SR.critMask(crgR, puR, D.naturalOf(res)); }   // 1.6.0: the table is shown the outcome of a range that reads a GM-only stat, never the range
     if (crgR) rec.crit = crgR;
-    if (entR && entR.bigAt && SR && typeof SR.bigOf === 'function' && SR.bigOf(entR, varsR, F, D, res, D.verdictOf(res, D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '')), mfR !== null && D.naturalOf(res) >= mfR)) rec.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): a success that lands as a Big Hit (no critical)   // 1.6.0 (the v2 sort's B1): criticals at fixed rolls, this roll's range (its own formula, else the Combat card's)
+    if (entR && entR.bigAt && SR && typeof SR.bigOf === 'function' && SR.bigOf(entR, varsR, F, D, res, D.verdictOf(res, D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '')), mfR !== null && D.naturalOf(res) >= mfR)) rec.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): a success that lands as a Big Hit (no critical)   // 1.6.0 (the v2 sort's B1): criticals at fixed rolls, this roll's range (its own formula, else the Combat tab's)
     if ((entR && entR.dmg === true) || o.dmg === true) rec.dmg = 1;   // chat cards: a damage roll (its entry; or this machine's own word, a thrown item's damage — never over the wire)
     if (rec.dmg === 1 && entR && SR && typeof SR.dmgTypeOf === 'function' && campR && campR.system) { var dtR = SR.dmgTypeOf(campR.system, entR, varsR, F); if (dtR) rec.dtype = dtR; } if (rec.dmg === 1 && entR && entR.dmgMajor === true) rec.major = 1;   // 1.5.7: the damage type the roll names, for Apply to target; 1.6.0: and Always a Major Wound, from the entry
     if (rec.dmg === 1 && entR && o.charId && SC() && SC().dmgOnSelf && SC().dmgOnSelf(entR, o.att)) rec.dmgOn = o.charId;   // 1.6.0: burning and the like: it lands on its own character

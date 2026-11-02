@@ -49,7 +49,7 @@ function diceAt(expr, n, withAdds) {
     var out = '', last = 0; terms.forEach(function(t) { out += src.slice(last, t.at) + (t.n > 0 ? t.n + 'd' + t.sides : '0'); last = t.at + t.len; });
     return out + src.slice(last);
 }
-// A token's share of a blast by the Combat card's falloff formula, with its four names: BlastDamage (what was rolled), BlastDistance (yards
+// A token's share of a blast by the Combat tab's falloff formula, with its four names: BlastDamage (what was rolled), BlastDistance (yards
 // from the blast's centre, height counted), BlastDice (how many dice the damage rolled) and Direct (1 for the token struck directly, else 0).
 // Centre: 1 for a token in the blast's own cell. No dice are ever rolled. A whole number, 0 or more, at most what was rolled; null where the formula cannot be worked out
 function fallShare(F, formula, o) {
@@ -87,14 +87,14 @@ function towardPoint(aim, to, dist, pxPer) {
     var d = (fin(dist) ? Math.max(0, dist) : 0) * (fin(pxPer) && pxPer > 0 ? pxPer : 0);
     return { x: Math.round((aim.x + dx / len * d) * 100) / 100, y: Math.round((aim.y + dy / len * d) * 100) / 100 };
 }
-// The scatter where the Combat card names no formula (the book, fix log (eo)): a yard a point missed, never more than half the distance thrown
+// The scatter where the Combat tab names no formula (the book, fix log (eo)): a yard a point missed, never more than half the distance thrown
 function bookScatterYd(margin, thrownYd) {
     var m = fin(margin) ? Math.max(0, Math.min(100, Math.floor(margin))) : 1, half = fin(thrownYd) ? Math.max(0, thrownYd / 2) : m;
     return Math.min(m, half);
 }
 // 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 1): a launched round that misses. missOf: how far a check missed, as a throw's miss reads
 // it, at least 1 and at most 100; null for a verdict that is no failed check (dicecore verdictOf: a miss's margin is 0 or below). A critical
-// failure is read by its margin too: what else it does is the Combat card's to say
+// failure is read by its margin too: what else it does is the Combat tab's to say
 function missOf(vd) {
     if (!isObj(vd) || vd.kind !== 'check' || vd.pass !== false) return null;
     var m = fin(vd.margin) ? Math.floor(Math.abs(vd.margin)) : 1;

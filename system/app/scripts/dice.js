@@ -118,7 +118,7 @@ function renderCard(m) {
     wrap.className += mf ? ' card-malf' : v && v.kind === 'check' ? (v.pass ? ' card-ok' : ' card-fail') : rec.dmg === 1 ? ' card-dmg' : '';   // chat cards: the left stripe — a malfunction, the check's outcome, else a damage roll, else plain
     var total = el('div', 'roll-total' + (mf ? ' roll-fail roll-malf' : v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : rec.dmg === 1 ? ' roll-dmg' : ''), mf ? malfWords(rec) : v ? (v.kind === 'check' ? v.text : hmC.length ? (hmC.length + 1) + ' hits' : '= ' + v.text) : '');
     if (crit) total.appendChild(el('span', 'roll-' + crit, v && v.crit ? (crit === 'crit' ? 'critical success' : 'critical failure') : crit === 'crit' ? 'natural 20' : 'natural 1'));
-    var tierC = sy && sy.combat && sy.combat.tier && typeof sy.combat.tier === 'object' ? sy.combat.tier : null;   // 1.6.0: a success at or past the Combat card's margin wears its name
+    var tierC = sy && sy.combat && sy.combat.tier && typeof sy.combat.tier === 'object' ? sy.combat.tier : null;   // 1.6.0: a success at or past the Combat tab's margin wears its name
     if (!mf && tierC && typeof tierC.name === 'string' && tierC.name && typeof tierC.at === 'number' && v && v.kind === 'check' && v.pass === true && typeof v.margin === 'number' && v.margin >= tierC.at) total.appendChild(el('span', 'roll-tier', tierC.name));
     wrap.appendChild(total);
     var posC = typeof cleanPos === 'function' ? cleanPos(rec.pos) : null;   // 1.6.0: a target's posture on the attack, and which of it and cover counted
@@ -135,7 +135,7 @@ function renderCard(m) {
     var dS = window.wpSheets, dv = res && typeof res.value === 'number' && isFinite(res.value) ? res.value : null;   // 1.5.6, the damage step: the GM takes a damage roll off its target in one press
     if (rec.dmg === 1 && dv !== null && !mf && rec.dmgUsed === 1) wrap.appendChild(el('div', 'chat-dmgdone', rec.dmgWait === 1 ? 'Applied once the Defense rolls are in' : 'Applied'));   // 1.5.7: a hit is applied once
     else if (rec.dmg === 1 && dv !== null && !mf && typeof rec.blast === 'string' && typeof window.wpBlastApply === 'function' && dS && typeof dS.damageOn === 'function' && dS.damageOn()) {   // 1.5.8 explosives: a blast's damage, to everyone in it, once
-        var bb = el('button', 'tool ghost chat-dmgapply', 'Apply to all in the blast'); bb.type = 'button'; bb.title = 'Take this damage off every character in the blast, each by its distance and through its DR, as the Combat card says. Once applied, the button goes.';
+        var bb = el('button', 'tool ghost chat-dmgapply', 'Apply to all in the blast'); bb.type = 'button'; bb.title = 'Take this damage off every character in the blast, each by its distance and through its DR, as the Combat tab says. Once applied, the button goes.';
         bb.addEventListener('click', function() { if (rec.dmgUsed === 1) return; if (window.wpBlastApply(rec.blast, dv)) { rec.dmgUsed = 1; if (bb.parentNode) bb.parentNode.replaceChild(el('div', 'chat-dmgdone', 'Applied'), bb); } });
         wrap.appendChild(bb);
     }

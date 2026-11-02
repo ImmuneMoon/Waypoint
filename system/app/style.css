@@ -1026,7 +1026,7 @@
   .token-fx .tfx.debuff { box-shadow: 0 0 0 1.5px #d9534f; }
   /* 1.6.0: the map environment's badge on a character's token, amber near an extreme and red at one (the owner: "As drawn") */
   .token-env { position: absolute; right: -6px; top: -6px; z-index: 6; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid #111; transform: scale(var(--wbz, 1)); transform-origin: 100% 0; pointer-events: auto; }
-  .sys-tokbars { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); flex: 1 1 100%; }   /* backlog 28: the Combat card's Token bars, a row of its own as the Postures box */
+  .sys-tokbars { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); flex: 1 1 100%; }   /* backlog 28: the Combat tab's Token bars, a row of its own as the Postures box */
   .sys-tokbars > .sys-flags { border-top: none; padding-top: 0; align-items: center; }
   /* Backlog 28: a token's bars, a thin ring just outside its edge (the owner: "A ring around it"); only the arcs take the pointer, for their tooltip */
   .wb-item > svg.token-bars { position: absolute; z-index: 5; overflow: visible; pointer-events: none; transform-origin: 50% 50%; }
@@ -3081,9 +3081,9 @@
   .roll-total.roll-ok { color: var(--card-t-good, var(--green)); } .roll-total.roll-fail { color: var(--card-t-bad, var(--red)); }
   .roll-total.roll-dmg { font-size: 18px; color: var(--card-t-bad, var(--red)); }   /* chat cards: a damage roll's total (the reference sheet: 1.15rem, the destructive colour) */
   .roll-total.roll-malf { font-style: italic; }
-  .sys-turn { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }   /* turn-based combat T1: the Combat card's turn rules */
+  .sys-turn { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }   /* turn-based combat T1: the Combat tab's turn rules */
   .sys-turn-head { font-weight: 600; }
-  .sys-light { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); flex: 1 1 100%; }   /* lighting L4: the Combat card's light rules */
+  .sys-light { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); flex: 1 1 100%; }   /* lighting L4: the Combat tab's light rules */
   .sys-light-head { font-weight: 600; }
   .hdr-clock { display: inline-flex; align-items: center; gap: 6px; max-width: 320px; white-space: nowrap; font-size: 12px; margin-right: 6px; }   /* item 20 K2: the campaign's clock in the header */
   .hdr-clock .clock-txt { overflow: hidden; text-overflow: ellipsis; }
@@ -3139,14 +3139,14 @@
   .sys-light-names input.sys-light-name { width: 280px; max-width: 100%; }
   .sys-light-row input.sys-light-pname { flex: 1 1 140px; min-width: 0; }
   .sys-light-row input[type=number] { width: 76px; }
-  .sys-sense-row input.sys-sense-name { flex: 1 1 140px; min-width: 0; }   /* senses S2a: the Combat card's senses */
-  .sys-postures { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); flex: 1 1 100%; }   /* conditions C3: the Combat card's postures, a row each in one or two lines */
-  .sys-dmgr { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); flex: 1 1 100%; }   /* 1.5.6: the Combat card's Taking damage box */
+  .sys-sense-row input.sys-sense-name { flex: 1 1 140px; min-width: 0; }   /* senses S2a: the Combat tab's senses */
+  .sys-postures { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); flex: 1 1 100%; }   /* conditions C3: the Combat tab's postures, a row each in one or two lines */
+  .sys-dmgr { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); flex: 1 1 100%; }   /* 1.5.6: the Combat tab's Taking damage box */
   .sys-dmgr input[type=number] { width: 64px; }
   .sys-dmgr input.sys-dmgr-major, .sys-dmgr input.sys-dmgr-locvital, .sys-dmgr input.sys-dmgr-locmult, .sys-dmgr input.sys-dmgr-aif, .sys-dmgr input.sys-dmgr-lat, .sys-dmgr input.sys-dmgr-wdur { flex: 1 1 140px; width: auto; min-width: 0; font-family: ui-monospace, Consolas, monospace; }
   .sys-dmgr-type { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; border-bottom: 1px dashed var(--border); }
   .sys-dmgr .sys-btn[data-act$="add"] { align-self: flex-start; }
-  .sys-init { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); flex: 1 1 100%; }   /* initiative O2: the Combat card's tie steps, one line */
+  .sys-init { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); flex: 1 1 100%; }   /* initiative O2: the Combat tab's tie steps, one line */
   .sys-init-ties input.sys-init-tie { flex: 1 1 140px; width: auto; min-width: 0; font-family: ui-monospace, Consolas, monospace; }
   .sys-postures > .sys-flags, .sys-posture-row > .sys-flags:first-child { border-top: none; padding-top: 0; }
   .sys-posture-row input.sys-posture-name { flex: 1 1 160px; width: auto; min-width: 0; }
@@ -3336,13 +3336,42 @@
   .sys-box { width: 1080px; max-width: 96vw; height: 90vh; max-height: 90vh; display: flex; flex-direction: column; padding: 14px 18px 12px; gap: 8px; }
   .sys-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .sys-head .sys-name { width: 220px; padding: 4px 8px; font-size: 12.5px; }   /* beats the base input.field, or the box took a whole line of the head */
-  .sys-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--edge); }
+  .sys-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--edge); }
   .sys-tabs button { background: transparent; color: var(--dim); border: none; border-bottom: 2px solid transparent; padding: 4px 10px; font-size: 12.5px; cursor: pointer; font-family: inherit; }
   .sys-tabs button.active { color: var(--gold); border-bottom-color: var(--gold); }
   .sys-tab { display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1; }
-  #sysItems, #sysLists { overflow-y: auto; }   /* the Combat card (range, light, senses, turns, postures) and the Lists tab's budgets, readings, links and tables can be taller than the editor: the tab scrolls rather than spilling out of it */
+  #sysItems, #sysLists { overflow-y: auto; }   /* a tab can be taller than the editor: it scrolls rather than spilling out of it */
   #sysItems > .sys-rows, #sysLists > .sys-rows { flex: 0 0 auto; max-height: none; overflow: visible; }   /* and its rows keep their whole height: as a box of their own they were squeezed to a slit of 12 px under all that in a window 800 high (found live, 2026-10-30) */
   .sys-toolbar { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--dim); }
+  /* ---- 1.6.2, the System editor's layout (sysui.js): a list or topics down the left, one thing on the right ---- */
+  .sys-split { display: grid; grid-template-columns: 196px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 12px; flex: 1; min-height: 0; }
+  .sys-topics { display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow-y: auto; }
+  .sys-topic { position: relative; text-align: left; background: none; border: none; border-radius: 5px; color: var(--dim); padding: 6px 18px 6px 9px; font: inherit; font-size: 12.5px; cursor: pointer; }
+  .sys-topic:hover { color: var(--ink); background: rgba(255,255,255,0.05); }
+  .sys-topic.on { background: rgba(224,165,79,0.14); color: var(--gold); box-shadow: inset 2px 0 0 var(--gold); }
+  .sys-topic:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+  .sys-topic.err::after, .sys-topic.warn::after { content: ''; position: absolute; right: 7px; top: 50%; width: 7px; height: 7px; margin-top: -3px; border-radius: 50%; background: var(--gold); }
+  .sys-topic.err::after { background: var(--red); }
+  #sysRulesBox { min-height: 0; overflow-y: auto; padding: 2px 2px 12px; }
+  #sysRulesBox input, #sysRulesBox select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 7px; font-size: 12px; box-sizing: border-box; }
+  #sysRulesBox input:focus, #sysRulesBox select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.22); }
+  #sysRulesBox > div { padding: 0; border-bottom: none; margin-bottom: 0; }
+  #sysRulesBox > [hidden], .sys-topic-pane[hidden] { display: none; }
+  #sysRulesBox .sys-light-head { color: var(--gold); font-size: 14px; }
+  .sys-topic-mark { display: none; }
+  .sys-topic-pane { flex: 0 0 100%; min-width: 0; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+  .sys-topic-title { flex: 0 0 100%; color: var(--gold); font-weight: 600; font-size: 14px; }
+  .sys-topic-line { flex: 0 0 100%; margin-top: -11px; }
+  .sys-topic-pane > .sys-combat-note, .sys-topic-pane > .sys-note, .sys-topic-pane > .sys-combat-head, .sys-topic-pane > .sys-turn { flex: 0 0 100%; min-width: 0; }
+  .sys-topic-pane > .sys-combat-head { font-weight: 600; margin-top: 6px; }
+  .sys-topic-pane > .sys-combat-head[hidden] { display: none; }
+  .sys-topic-pane > div:not(.sys-blast-err) { flex: 0 0 100%; min-width: 0; }
+  .sys-topic-pane > .sys-dmgr, .sys-topic-pane > .sys-turn, .sys-topic-pane > .sys-light, .sys-topic-pane > .sys-postures, .sys-topic-pane > .sys-init, .sys-topic-pane > .sys-tokbars { margin-top: 0; padding-top: 0; border-top: none; }
+  @media (max-width: 900px) {
+    .sys-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+    .sys-topics { flex-direction: row; flex-wrap: wrap; overflow: visible; }
+    .sys-topic.on { box-shadow: inset 0 -2px 0 var(--gold); }
+  }
   /* ---- the System editor's keys (syskey.js): a button at the end of a tab's toolbar opens a key that names each tick of the tab's rows ---- */
   .sys-key-btn { margin-left: auto; white-space: nowrap; flex: none; }
   .sys-key { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; padding: 8px 10px; margin: 6px 0; border: 1px solid var(--edge); border-radius: 6px; background: var(--panel); font-size: 11.5px; }
@@ -3391,10 +3420,11 @@
   #sysCombatBox, #sysListRules { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; padding: 8px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }
   .sys-combat-item { display: inline-flex; flex-direction: column; gap: 3px; }
   .sys-holds > .sys-combat-item { margin: 0 14px 6px 0; vertical-align: top; }   /* captions that would run together */
-  /* 107, options that say what they do: a grey line under a captioned list of the Combat card. It takes the width of its list and never widens it */
+  /* 107, options that say what they do: a grey line under a captioned list of the Combat tab. It takes the width of its list and never widens it */
   .sys-combat-item > .sys-line { width: 0; min-width: 100%; font-size: 10.5px; line-height: 1.4; color: var(--dim); }
   .sys-combat-item.sys-combat-wide > .sys-line { width: 300px; min-width: 0; }   /* words longer than their list */
   #sysCombatBox { align-items: flex-start; }   /* a line makes some lists taller than others: they stand in their row by their tops */
+  #sysCombatBox { min-height: 0; overflow-y: auto; align-content: flex-start; border-bottom: none; margin-bottom: 0; padding-top: 2px; }   /* 1.6.2: the right side of the Combat tab scrolls by itself */
   #sysCombatBox > .sys-combat-note { flex: 0 0 100%; }
   .sys-item-area { display: inline-flex; gap: 5px; align-items: flex-end; }
   .sys-item-notes-row { margin-top: 5px; }
@@ -4528,7 +4558,7 @@
   .sheet-lk-to { color: inherit; }
   .sheet-lk-rolls { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; }
   .sheet-lk-open, .sheet-lk-by, .sheet-lk-roll { padding: 1px 8px; font-size: 12px; }
-  /* ... and the Lists tab's Point budgets box in the System editor: a budget a line, its fields boxed as the Combat card's are */
+  /* ... and the Lists tab's Point budgets box in the System editor: a budget a line, its fields boxed as the Combat tab's are */
   #sysBudgets { padding: 2px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }
   .sys-budgets { display: flex; flex-direction: column; gap: 6px; }
   #sysBudgets input, #sysBudgets select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 7px; font-size: 12px; box-sizing: border-box; }

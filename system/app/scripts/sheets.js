@@ -6720,7 +6720,7 @@ function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'none'
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {}, layoutView = 'sheet';   // layoutView (HUD frame HF1): 'sheet' | 'hud'
 var KIND_LABEL = { number: 'Number', formula: 'Formula', resource: 'Resource', skill: 'Skill', toggle: 'Toggle', text: 'Text', notes: 'Notes', select: 'Select', 'item-list': 'Item list', effects: 'Status effects' };
 var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, step. With a min and a max it can show as a slider on a two-colour track.', formula: 'Computed from other fields; never stored, never edited.', resource: 'A current value with a formula for its max (HP): a bar with - and + on the sheet.', skill: 'Stored ranks plus a base formula; its value is ranks + base.', toggle: 'On or off (a condition); true or false in formulas.', text: 'A short text (up to 200 characters); not a number for formulas.', notes: 'A long text; never read by formulas.', select: 'One of a fixed list of options.', 'item-list': 'A list of items the character carries, filled from the Items library on the sheet.', effects: 'The status effects the character carries: added from the Effects library in one click, or made on the spot with their own numbers. Each changes its numbers everywhere they are used.' };
-function open(which) {
+function open(which, topic) {
     if (!canWrite()) { toast('Not while you are at someone else\'s table.'); return; }
     var camp = getActiveCampaign(); if (!camp) return;
     draft = clone(systemOf(camp) || emptySystem());
@@ -6732,6 +6732,7 @@ function open(which) {
     ui('sysName').value = draft.name || '';
     if (ui('sysMark')) ui('sysMark').value = typeof draft.mark === 'string' ? draft.mark : '';
     m.style.display = 'flex';
+    if (topic && window.wpSysUi) window.wpSysUi.topicPress(tab, topic);   // 1.6.2: the Combat or Rules tab at one topic
     renderAll();
 }
 function close(force) {
@@ -7464,7 +7465,7 @@ function refreshErrors() {
     });
     v.errors.forEach(function(e) { var eid = e.prop === 'list' ? 'list:' + e.id : e.id; (errorsById[eid] = errorsById[eid] || []).push(e); });   // F4c1: a list's own messages sit under its card in Lists
     v.warnings.forEach(function(w) { var wid = w.prop === 'list' ? 'list:' + w.id : w.id; (warningsById[wid] = warningsById[wid] || []).push(w); });
-    var tnE = draft.combat && draft.combat.turn && typeof draft.combat.turn === 'object' ? draft.combat.turn : null, tErr = [];   // turn-based combat T1: what Save drops from the turn rules, under the Combat card
+    var tnE = draft.combat && draft.combat.turn && typeof draft.combat.turn === 'object' ? draft.combat.turn : null, tErr = [];   // turn-based combat T1: what Save drops from the turn rules, under the Combat tab
     if (tnE) {
         var KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
         if (tnE.secs !== undefined && !(typeof tnE.secs === 'number' && tnE.secs > 0 && tnE.secs <= 86400)) tErr.push({ message: 'A round is more than 0 and at most 86400 seconds: Save drops it.' });
@@ -7487,7 +7488,7 @@ function refreshErrors() {
     if (ckE && ckE.checks !== 'fixed' && ((typeof ckE.critAt === 'string' && ckE.critAt.trim()) || (typeof ckE.fumbleAt === 'string' && ckE.fumbleAt.trim()))) kErr.push({ message: 'Roll outcomes is not Criticals at fixed rolls, so Save drops the critical range.' });
     if (ckE && ckE.tier && typeof ckE.tier === 'object' && !cleanTier(ckE.tier)) kErr.push({ message: 'A named success needs a name and a margin, a whole number from 1: Save drops it.' });
     if (kErr.length) errorsById.checks = (errorsById.checks || []).concat(kErr);
-    var ltE = draft.combat && draft.combat.light && typeof draft.combat.light === 'object' ? draft.combat.light : null, lErr = [], lKept = 0;   // lighting L4: what Save drops from the light rules, under the Combat card's Light box — read as the cleaner reads (systemcore cleanLightRules): a name is what is left of it without control characters, a number is finite and no larger than the wire takes, the cap counts the presets kept
+    var ltE = draft.combat && draft.combat.light && typeof draft.combat.light === 'object' ? draft.combat.light : null, lErr = [], lKept = 0;   // lighting L4: what Save drops from the light rules, under the Combat tab's Light box — read as the cleaner reads (systemcore cleanLightRules): a name is what is left of it without control characters, a number is finite and no larger than the wire takes, the cap counts the presets kept
     var lCtl = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g'), lNum = function(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e15 ? v : 0; };
     if (ltE) (Array.isArray(ltE.presets) ? ltE.presets : []).forEach(function(p, i) {
         var nm = 'Light preset ' + (i + 1), b = lNum(p && p.bright), d = lNum(p && p.dim);
@@ -7502,7 +7503,7 @@ function refreshErrors() {
         }
     });
     if (lErr.length) errorsById.light = (errorsById.light || []).concat(lErr);
-    // range penalties R1: what Save drops from the range rule, under the Combat card's Range box — read as the cleaner reads (systemcore
+    // range penalties R1: what Save drops from the range rule, under the Combat tab's Range box — read as the cleaner reads (systemcore
     // cleanRangeRules): a formula that reads, rolls no dice and names only Distance; a step whose distance is above 0 and at most 1,000,000, with
     // a modifier, the first of each distance, at most 40 (self-contained: the tests run this function alone)
     var rgE = draft.combat && draft.combat.range && typeof draft.combat.range === 'object' && !Array.isArray(draft.combat.range) ? draft.combat.range : null, rErr = [];
@@ -7595,14 +7596,14 @@ function refreshErrors() {
         }
     }
     if (cErr.length) errorsById.calendar = cErr;
-    // item 20 K5: what Save drops of a roll's clock rule, said under the roll (a unit the Combat card no longer has: it runs by nothing)
+    // item 20 K5: what Save drops of a roll's clock rule, said under the roll (a unit the Combat tab no longer has: it runs by nothing)
     var evUnits = Object.create(null); (draft.combat && draft.combat.turn && Array.isArray(draft.combat.turn.units) ? draft.combat.turn.units : []).forEach(function(u) { if (u && typeof u.key === 'string') evUnits[u.key.toLowerCase()] = 1; });
     (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {
         var ev = r && typeof r === 'object' && r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : null, msg = ''; if (!ev) return;
         if (!(typeof ev.n === 'number' && isFinite(ev.n) && Math.floor(ev.n) === ev.n && ev.n >= 1 && ev.n <= 1000)) msg = 'By the clock: every 1 to 1000 (a whole number), or Save drops it.';
         else if (typeof ev.u !== 'string' || !ev.u) msg = 'By the clock: pick what it counts in, or Save drops it.';
         else if (typeof cleanEvery === 'function' && !cleanEvery(ev)) msg = 'By the clock: ' + ev.u + (ev.u.toLowerCase() === 'round' ? ' is In a fight\u2019s unit, so Save drops it.' : ' is no unit it can count in, so Save drops it.');   // backlog 152: as the cleaner reads it since fold 1, a round being In a fight's alone
-        else if (['min', 'hour', 'day', 'week'].indexOf(ev.u) < 0 && evUnits[ev.u.toLowerCase()] !== 1) msg = 'By the clock: ' + ev.u + ' is no time unit of yours (the Combat card\u2019s Turns box), so it runs by nothing and players never see it.';
+        else if (['min', 'hour', 'day', 'week'].indexOf(ev.u) < 0 && evUnits[ev.u.toLowerCase()] !== 1) msg = 'By the clock: ' + ev.u + ' is no time unit of yours (the Combat tab\u2019s Turns box), so it runs by nothing and players never see it.';
         if (msg) (errorsById[r.id] = Array.isArray(errorsById[r.id]) ? errorsById[r.id] : []).push({ message: msg });
     });
     // backlog 152, fold 5: what Save drops of a rule's Waits in a fight, In a fight and Ask me first, read by the cleaner itself (systemcore
@@ -7624,7 +7625,7 @@ function refreshErrors() {
                 if (!(typeof fiO.n === 'number' && isFinite(fiO.n) && Math.floor(fiO.n) === fiO.n && fiO.n >= 1 && fiO.n <= 1000)) say(errorsById, 'In a fight: every 1 to 1000, a whole number, or Save drops it.');
                 else if (typeof fiO.u !== 'string' || !fiO.u) say(errorsById, 'In a fight: pick what it counts in, or Save drops it.');
                 else say(errorsById, 'In a fight: ' + fiO.u + ' is no unit it can count in, so Save drops it.');
-            } else if (fiK && ['round', 'min', 'hour'].indexOf(fiK.u) < 0 && evUnits[fiK.u.toLowerCase()] !== 1) say(errorsById, 'In a fight: ' + fiK.u + ' is no time unit of yours in the Combat card\u2019s Turns box, so it runs by nothing and players never see it.');
+            } else if (fiK && ['round', 'min', 'hour'].indexOf(fiK.u) < 0 && evUnits[fiK.u.toLowerCase()] !== 1) say(errorsById, 'In a fight: ' + fiK.u + ' is no time unit of yours in the Combat tab\u2019s Turns box, so it runs by nothing and players never see it.');
             if (holds(fi) && !fiK) say(errorsById, 'Only while its needs hold: Save drops the tick with its In a fight.'); else if (holds(fi) && fiK.whileNeeds !== true) say(errorsById, 'Only while its needs hold: the rule has no Needs, so Save drops the tick beside In a fight.');   // after In a fight's own lines
             if (r.ask === true && !evK && !fiK) say(errorsById, 'Ask me first: set By the clock or In a fight, or Save drops the tick.');
             var eaW = Array.isArray(r.apply) ? (r.each === 'round' || r.each === 'turn' || r.each === 'turnEnd' ? r.each : r.round === true ? 'round' : '') : '';
@@ -7639,7 +7640,7 @@ function refreshErrors() {
         if (!r || typeof r !== 'object' || typeof r.id !== 'string' || !r.cross || typeof r.cross !== 'object' || typeof r.cross.f !== 'string' || !r.cross.f) return;
         if ((Array.isArray(r.apply) ? r.apply : Array.isArray(r.then) ? r.then : []).some(function(ch) { return !!ch && typeof ch === 'object' && ch.f === r.cross.f; })) (warningsById[r.id] = Array.isArray(warningsById[r.id]) ? warningsById[r.id] : []).push({ message: 'When a value crosses: its own changes move the value it watches, so a run can set off another, at most 3 in a row.' });
     });
-    // senses S2a: what Save drops or leaves out of the senses, under the Combat card's Senses box — read as the cleaner reads (systemcore
+    // senses S2a: what Save drops or leaves out of the senses, under the Combat tab's Senses box — read as the cleaner reads (systemcore
     // cleanSenses): a name left once control characters go, a range field of a number, formula, skill or pool its owner can read, a finite number
     var snO = draft.combat && draft.combat.senses && typeof draft.combat.senses === 'object' ? draft.combat.senses : null, snE = snO && Array.isArray(snO.list) ? snO.list : null, sErr = [], sKept = 0;
     var secS = snO ? senseSecrets() : null, swIds = Object.create(null); if (snO) senseSwitchFields().forEach(function(f) { swIds[f.id] = f; });   // senses S3: a sense's switch and the blind switch
@@ -7707,7 +7708,7 @@ function refreshErrors() {
             if (mv) errorsById[d.id] = (errorsById[d.id] || []).concat([mv]);
         });
     });
-    // conditions C3: what Save drops or changes of the postures, under the Combat card's Postures box — read as systemcore cleanPostures reads
+    // conditions C3: what Save drops or changes of the postures, under the Combat tab's Postures box — read as systemcore cleanPostures reads
     var psE = draft.combat && Array.isArray(draft.combat.postures) ? draft.combat.postures : null, pErr = [], pKept = 0, pSeen = Object.create(null), kindsP = Object.create(null);
     if (psE && psE.length) {
         (draft.fields || []).forEach(function(f) { if (f && typeof f.id === 'string') kindsP[f.id] = f.kind; });
@@ -7796,7 +7797,7 @@ function formulaTextFor(id, prop) {
     if (id === 'combat' && prop === 'turn.move') return (draft.combat && draft.combat.turn && draft.combat.turn.move) || '';   // turn-based combat T1
     if (id === 'combat' && prop === 'turn.run') return (draft.combat && draft.combat.turn && draft.combat.turn.run) || '';   // 1.6.0
     if (id === 'combat' && prop === 'turn.holdLost') return (draft.combat && draft.combat.turn && draft.combat.turn.holdLost) || '';   // 1.6.0
-    if (id === 'checks') return draft.combat && (prop === 'critAt' || prop === 'fumbleAt') && typeof draft.combat[prop] === 'string' ? draft.combat[prop] : '';   // 1.6.0: the Combat card's critical range
+    if (id === 'checks') return draft.combat && (prop === 'critAt' || prop === 'fumbleAt') && typeof draft.combat[prop] === 'string' ? draft.combat[prop] : '';   // 1.6.0: the Combat tab's critical range
     if (id === 'range') return prop === 'formula' && draft.combat && draft.combat.range && typeof draft.combat.range.formula === 'string' ? draft.combat.range.formula.trim() : '';   // range penalties R1: as refreshErrors read it
     if (/^b_/.test(id)) { var bdF = (draft.budgets || []).find(function(x) { return x && x.id === id; }); return bdF && (prop === 'has' || prop === 'spent') && typeof bdF[prop] === 'string' ? bdF[prop] : ''; }   // 126: a budget's formula, as the validator read it
     if (/^e_/.test(id)) { var dAu = (draft.effects || []).find(function(x) { return x && x.id === id; }); return prop === 'formula' && dAu && typeof dAu.auto === 'string' ? dAu.auto.trim() : ''; }   // conditions C4: an effect's automatic formula, as refreshErrors read it
@@ -7827,6 +7828,7 @@ function patchErrorsNow() {
     refreshErrors();
     document.querySelectorAll('#systemModal [data-err-for]').forEach(function(old) { var id = old.dataset.errFor; var fresh = errorCell(id); fresh.dataset.errFor = id; old.parentNode.replaceChild(fresh, old); });
     var total = Object.keys(errorsById).reduce(function(n, k) { return n + errorsById[k].length; }, 0), warns = Object.keys(warningsById).reduce(function(n, k) { return n + warningsById[k].length; }, 0);
+    if (window.wpSysUi) window.wpSysUi.marks(errorsById, warningsById);   // 1.6.2: a topic that holds one says so
     var foot = ui('sysFoot'); if (foot) foot.textContent = draft.fields.length + ' field' + (draft.fields.length === 1 ? '' : 's') + ' · ' + draft.rolls.length + ' roll' + (draft.rolls.length === 1 ? '' : 's') + (total ? ' · ' + total + ' error' + (total === 1 ? '' : 's') : ' · no errors') + (warns ? ' · ' + warns + ' warning' + (warns === 1 ? '' : 's') : '') + (dirty ? ' · unsaved changes' : '');
     _peSlow = Date.now() - peAt;
 }
@@ -7876,7 +7878,7 @@ function lazySelect(cls, options, value, title) {
 }
 function select(cls, options, value, title) { var s = el('select', cls); options.forEach(function(o) { s.appendChild(opt(o[0], o[1], o[0] === value)); }); if (title) s.title = title; return s; }
 function btnRow(list) { var btns = el('span', 'sys-btns'); list.forEach(function(b) { var x = el('button', 'tool ghost sys-btn'); x.dataset.act = b[0]; x.title = b[1]; x.innerHTML = b[2]; btns.appendChild(x); }); return btns; }
-function labeledNum(cls, cap, value, title) { var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(numInput('field ' + cls, value, title)); return l; }   // 1.6.0: a number on the Combat card, in a list's own frame
+function labeledNum(cls, cap, value, title) { var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(numInput('field ' + cls, value, title)); return l; }   // 1.6.0: a number on the Combat tab, in a list's own frame
 function labeledSelect(cls, cap, options, value, title) { var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(select(cls, options, value, title)); return l; }
 // Clarity package: every box says what it is, filled or not (a placeholder goes as you type, so a filled box read as nothing: a −50 meant for
 // a pool's Min went into its unnamed starting value). capBox captions a text box or a list above it, as numField captions a number;
@@ -8050,13 +8052,13 @@ function rollRow(r) {
     top.appendChild(select('sys-roll-kind', [['roll', 'Roll'], ['apply', 'Apply']], isApply ? 'apply' : 'roll', 'Roll: dice at the table. Apply: a button that moves pools or numbers by an amount (Apply costs, Apply wounds)'));
     if (!isApply) top.appendChild(input('sys-formula field', r.formula, 'The roll: d20 + STRmod, 3d6 <= Skill.Stealth', 'Roll formula'));
     if (!isApply) { var mfIn = input('sys-roll-malf field', r.malf || '', 'Malf: a natural total (the dice alone) at or past this malfunctions \u2014 a failure, and its On malfunction changes (no dice; empty: never)', 'Malf'); mfIn.maxLength = LIMITS.formula; top.appendChild(mfIn); }   // Stage 6 HUD R3
-    if (!isApply && ((typeof draft !== 'undefined' && draft && draft.combat && draft.combat.checks === 'fixed') || r.critAt || r.fumbleAt)) [['sys-roll-critat', 'critAt', 'Critical at: this roll\u2019s own critical success range, the dice alone at or under it (no dice; empty: the Combat card\u2019s)', 'Critical at'], ['sys-roll-fumbleat', 'fumbleAt', 'Critical failure at: this roll\u2019s own, the dice alone at or over it (no dice; empty: the Combat card\u2019s)', 'Critical failure at']].forEach(function(g) { var ci = input(g[0] + ' field', typeof r[g[1]] === 'string' ? r[g[1]] : '', g[2], g[3]); ci.maxLength = LIMITS.formula; top.appendChild(ci); });   // 1.6.0 (the v2 sort's B1): a technique that widens the range
+    if (!isApply && ((typeof draft !== 'undefined' && draft && draft.combat && draft.combat.checks === 'fixed') || r.critAt || r.fumbleAt)) [['sys-roll-critat', 'critAt', 'Critical at: this roll\u2019s own critical success range, the dice alone at or under it (no dice; empty: the Combat tab\u2019s)', 'Critical at'], ['sys-roll-fumbleat', 'fumbleAt', 'Critical failure at: this roll\u2019s own, the dice alone at or over it (no dice; empty: the Combat tab\u2019s)', 'Critical failure at']].forEach(function(g) { var ci = input(g[0] + ' field', typeof r[g[1]] === 'string' ? r[g[1]] : '', g[2], g[3]); ci.maxLength = LIMITS.formula; top.appendChild(ci); });   // 1.6.0 (the v2 sort's B1): a technique that widens the range
     if (!isApply) { var bgIn = input('sys-roll-bigat field', typeof r.bigAt === 'string' ? r.bigAt : '', 'Lands as a Big Hit: a success whose natural roll, the dice alone, is at or under this is marked a Big Hit. It is no critical. Its Then reads RollBig (no dice; empty: never)', 'Big Hit at'); bgIn.maxLength = LIMITS.formula; top.appendChild(bgIn); }   // 1.6.0 (the book's ruling of 2026-10-29)
     top.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], r.vis || 'all', 'GM only: players never see this roll'));
     top.appendChild(select('sys-roll-tone', [['', 'Plain button'], ['primary', 'Filled'], ['danger', 'Red'], ['neutral', 'Grey'], ['outline', 'Outline']], r.tone || '', 'How the button looks on the sheet'));   // Stage 6 look fold
     if (typeof window !== 'undefined' && window.wpSoundOn && r.id) { var snR = window.wpSoundOn.btn({ k: 'roll', r: r.id }, isApply ? 'A sound on this action' : 'A sound on this roll'); if (snR) top.appendChild(snR); }   // 1.6.2: adds to the list under the Sound panel
     if (!isApply && typeof dieSel === 'function') top.appendChild(dieSel('sys-roll-die', r.die, 'The die its button wears on the sheet and the HUD. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20'));   // 1.5.8, backlog 149
-    var actsR = turnActs(); if (actsR.length || r.cost) top.appendChild(select('sys-roll-cost', costOptions(r.cost, actsR), r.cost || '', 'What one press costs in turn-based combat: one of the actions a turn allows (the Combat card, System \u25b8 Items)'));   // turn-based combat T1
+    var actsR = turnActs(); if (actsR.length || r.cost) top.appendChild(select('sys-roll-cost', costOptions(r.cost, actsR), r.cost || '', 'What one press costs in turn-based combat: one of the actions a turn allows (the Combat tab)'));   // turn-based combat T1
     var roIcoIn = input('sys-roll-icon field', r.icon, 'An icon on the button \u2014 an emoji or a bundled icon (optional)', 'Icon'); top.appendChild(roIcoIn); top.appendChild(glyphButton(roIcoIn));
     if (typeof rollStationBox === 'function') { var rsB = rollStationBox(r); if (rsB) top.appendChild(rsB); }   // 1.6.0
     if (isApply) { var ea0 = r.each === 'round' || r.each === 'turn' || r.each === 'turnEnd' ? r.each : r.round === true ? 'round' : ''; top.appendChild(select('sys-roll-each', [['', 'Only when pressed'], ['round', 'Also each round'], ['turn', 'Also at its turn\u2019s start'], ['turnEnd', 'Also at its turn\u2019s end']], ea0, 'Runs during a combat as well: on every new round (every character in it: Turn = CombatRound, Parries = 0), or when its character\u2019s turn begins (a bleed, a reaction back); pressed, it runs now')); if (ea0) top.appendChild(select('sys-roll-by', [['', 'automatically'], ['gm', 'when the GM presses it'], ['owner', 'when its player presses it']], r.by === 'gm' || r.by === 'owner' ? r.by : '', 'Automatically, or as a reminder in chat with a Run button: for you, or for the character\u2019s player (yours when they are not at the table, or the action is GM only)')); }   // Stage 6 HUD G10 + turn-based combat T2b
@@ -8071,7 +8073,7 @@ function rollRow(r) {
     if (!isApply) { var dl = el('label', 'sys-hover'); var dc = el('input'); dc.type = 'checkbox'; dc.className = 'sys-dmg-chk'; dc.checked = r.dmg === true; dl.appendChild(dc); dl.appendChild(document.createTextNode(' Damage')); dl.title = 'A damage roll: its card in Table Chat takes the damage colour, a larger total and a damage tag'; top.appendChild(dl); }   // chat cards (owner 2026-09-27)
     if (!isApply && r.dmg === true && typeof input === 'function') { var htI = input('sys-roll-hits field', typeof r.hits === 'string' ? r.hits : '', 'Hits it rolls for: how many times this damage rolls, on one card with one Apply, such as Row.bursthits. Each hit is its own blow at the same location, and each reads its own round as Row.fired. No dice. Empty: once', 'Hits it rolls for'); htI.maxLength = LIMITS.formula; top.appendChild(htI); }   // 1.6.0 A burst
     if (!isApply && r.dmg === true && typeof input === 'function') { var mjI = input('sys-roll-mjif field', typeof r.dmgMajorIf === 'string' ? r.dmgMajorIf : '', 'A Major Wound where: Apply to target on its card lands the blow as a Major Wound while this formula of the roller\u2019s names is true, such as Edge >= 3. No dice. Always a Major Wound wins', 'A Major Wound where'); mjI.maxLength = LIMITS.formula; top.appendChild(mjI); }   // 1.6.0
-    if (!isApply && r.dmg === true && typeof input === 'function') { var dtI = input('sys-roll-dtype field', typeof r.dtype === 'string' ? r.dtype : '', 'A damage roll\u2019s type, filled in when you press Apply to target on its card: a type\u2019s key from the Combat card (stun), or a formula giving its place in that list, 1 for the first. Kept only on a damage roll', 'Damage type'); dtI.maxLength = LIMITS.formula; top.appendChild(dtI); var dkOn = typeof kindsNamed === 'function' && kindsNamed(); if (dkOn || r.dkind) { var dkI = input('sys-roll-dkind field', typeof r.dkind === 'string' ? r.dkind : '', 'The kind of blow: a kind\u2019s key from the Combat card, or a formula giving its place in that list, 1 for the first. DR at a location and a layer read it as Blow.kind. Kept only on a damage roll', 'Kind'); dkI.maxLength = LIMITS.formula; top.appendChild(dkI); } var p2I = input('sys-roll-p2f field', typeof r.dmg2 === 'string' ? r.dmg2 : '', 'Second part: damage of another type in the same blow, rolled with it, such as 1d6+1. Its own DR is taken off, then both parts are one wound: one Major Wound test, one Any wound and one wear. Empty: none', 'Second part'); p2I.maxLength = LIMITS.formula; top.appendChild(p2I); var p2T = input('sys-roll-p2t field', typeof r.dtype2 === 'string' ? r.dtype2 : '', 'The second part\u2019s type: a type\u2019s key from the Combat card, or a formula giving its place in that list, 1 for the first. Kept only beside a second part', 'Second part type'); p2T.maxLength = LIMITS.formula; top.appendChild(p2T); if (dkOn || r.dkind2) { var p2K = input('sys-roll-p2k field', typeof r.dkind2 === 'string' ? r.dkind2 : '', 'The second part\u2019s kind of blow: a kind\u2019s key from the Combat card, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside a second part', 'Second part kind'); p2K.maxLength = LIMITS.formula; top.appendChild(p2K); } [3, 4, 5].forEach(function(k) { var hasK = function(n) { return typeof r['dmg' + n] === 'string' && !!r['dmg' + n].trim(); }; if (!hasK(k - 1) && !hasK(k)) return; var nmK = k === 3 ? 'Third' : k === 4 ? 'Fourth' : 'Fifth'; var pkI = input('sys-roll-p' + k + 'f field', typeof r['dmg' + k] === 'string' ? r['dmg' + k] : '', nmK + ' part: damage of another type in the same blow, rolled with it. Its own DR is taken off, then every part is one wound. Empty: none', nmK + ' part'); pkI.maxLength = LIMITS.formula; top.appendChild(pkI); var pkT = input('sys-roll-p' + k + 't field', typeof r['dtype' + k] === 'string' ? r['dtype' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s type: a type\u2019s key from the Combat card, or a formula giving its place in that list, 1 for the first. Kept only beside its part', nmK + ' part type'); pkT.maxLength = LIMITS.formula; top.appendChild(pkT); if (dkOn || r['dkind' + k]) { var pkK = input('sys-roll-p' + k + 'k field', typeof r['dkind' + k] === 'string' ? r['dkind' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s kind of blow: a kind\u2019s key from the Combat card, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside its part', nmK + ' part kind'); pkK.maxLength = LIMITS.formula; top.appendChild(pkK); } }); }   // 1.6.0 (B3): a blow of two damage types counts as one blow; and a third and a fourth part, each shown once the part before it has a formula
+    if (!isApply && r.dmg === true && typeof input === 'function') { var dtI = input('sys-roll-dtype field', typeof r.dtype === 'string' ? r.dtype : '', 'A damage roll\u2019s type, filled in when you press Apply to target on its card: a type\u2019s key from the Combat tab (stun), or a formula giving its place in that list, 1 for the first. Kept only on a damage roll', 'Damage type'); dtI.maxLength = LIMITS.formula; top.appendChild(dtI); var dkOn = typeof kindsNamed === 'function' && kindsNamed(); if (dkOn || r.dkind) { var dkI = input('sys-roll-dkind field', typeof r.dkind === 'string' ? r.dkind : '', 'The kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first. DR at a location and a layer read it as Blow.kind. Kept only on a damage roll', 'Kind'); dkI.maxLength = LIMITS.formula; top.appendChild(dkI); } var p2I = input('sys-roll-p2f field', typeof r.dmg2 === 'string' ? r.dmg2 : '', 'Second part: damage of another type in the same blow, rolled with it, such as 1d6+1. Its own DR is taken off, then both parts are one wound: one Major Wound test, one Any wound and one wear. Empty: none', 'Second part'); p2I.maxLength = LIMITS.formula; top.appendChild(p2I); var p2T = input('sys-roll-p2t field', typeof r.dtype2 === 'string' ? r.dtype2 : '', 'The second part\u2019s type: a type\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first. Kept only beside a second part', 'Second part type'); p2T.maxLength = LIMITS.formula; top.appendChild(p2T); if (dkOn || r.dkind2) { var p2K = input('sys-roll-p2k field', typeof r.dkind2 === 'string' ? r.dkind2 : '', 'The second part\u2019s kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside a second part', 'Second part kind'); p2K.maxLength = LIMITS.formula; top.appendChild(p2K); } [3, 4, 5].forEach(function(k) { var hasK = function(n) { return typeof r['dmg' + n] === 'string' && !!r['dmg' + n].trim(); }; if (!hasK(k - 1) && !hasK(k)) return; var nmK = k === 3 ? 'Third' : k === 4 ? 'Fourth' : 'Fifth'; var pkI = input('sys-roll-p' + k + 'f field', typeof r['dmg' + k] === 'string' ? r['dmg' + k] : '', nmK + ' part: damage of another type in the same blow, rolled with it. Its own DR is taken off, then every part is one wound. Empty: none', nmK + ' part'); pkI.maxLength = LIMITS.formula; top.appendChild(pkI); var pkT = input('sys-roll-p' + k + 't field', typeof r['dtype' + k] === 'string' ? r['dtype' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s type: a type\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first. Kept only beside its part', nmK + ' part type'); pkT.maxLength = LIMITS.formula; top.appendChild(pkT); if (dkOn || r['dkind' + k]) { var pkK = input('sys-roll-p' + k + 'k field', typeof r['dkind' + k] === 'string' ? r['dkind' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside its part', nmK + ' part kind'); pkK.maxLength = LIMITS.formula; top.appendChild(pkK); } }); }   // 1.6.0 (B3): a blow of two damage types counts as one blow; and a third and a fourth part, each shown once the part before it has a formula
     if (!isApply && r.dmg === true && typeof checkLabel === 'function') top.appendChild(checkLabel('sys-roll-mjdmg', r.dmgMajor === true, 'Always a Major Wound', 'Apply to target on its card lands the blow as a Major Wound whatever its size, as a strike that always wounds badly'));   // 1.6.0
     top.appendChild(select('sys-roll-near', [['', 'Applies to the user'], ['near', 'Applies to the user or an adjacent character']], r.to === 'near' ? 'near' : '', 'Applies to: whom its changes go on. With an adjacent character, a press asks who it is for when someone stands next to you, your target first. A row\u2019s own counters stay with the user. Its formulas read OnSelf, 1 on yourself and 0 on another'));   // 1.5.9 (book es/et plan, section 3): Applies to
     top.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['del', 'Delete this roll', '&times;']]));
@@ -8250,8 +8252,8 @@ function itemRow(it) {
         area.appendChild(numField('sys-item-aad', it.area.ad || '', 'Its armour divisor: DR is divided by it (2 for a (2) after the damage). Blank for none', 'divisor', '0.5'));
         area.appendChild(checkLabel('sys-item-ause', it.area.use === true, 'Uses one up', 'Going off takes one off the row it was thrown or placed from, and the row goes at none'));
         area.appendChild(checkLabel('sys-item-aplace', it.area.place === true, 'Placed, not thrown', 'A mine: its button places it on the map, hidden from players. It goes off only when a character steps into it, or by your hand'));
-        area.appendChild(input('sys-item-afrag field', typeof it.area.frag === 'string' ? it.area.frag : '', 'Its fragmentation, a dice roll such as 1d6. When the blast goes off the host rolls it for the characters it reaches, as the Combat card says. Blank: none', 'Fragmentation (optional)'));   // 1.5.9 (es)
-        if (dtys.length) area.appendChild(select('sys-item-afragtype', [['', 'Fragmentation type: as the Combat card says']].concat(dtys.filter(function(y) { return y && typeof y.key === 'string'; }).map(function(y) { return [y.key, 'Fragmentation type: ' + (y.label || y.key)]; })), typeof it.area.fragType === 'string' ? it.area.fragType : '', 'The damage type of its fragmentation, as the damage step reads it'));
+        area.appendChild(input('sys-item-afrag field', typeof it.area.frag === 'string' ? it.area.frag : '', 'Its fragmentation, a dice roll such as 1d6. When the blast goes off the host rolls it for the characters it reaches, as the Combat tab says. Blank: none', 'Fragmentation (optional)'));   // 1.5.9 (es)
+        if (dtys.length) area.appendChild(select('sys-item-afragtype', [['', 'Fragmentation type: as the Combat tab says']].concat(dtys.filter(function(y) { return y && typeof y.key === 'string'; }).map(function(y) { return [y.key, 'Fragmentation type: ' + (y.label || y.key)]; })), typeof it.area.fragType === 'string' ? it.area.fragType : '', 'The damage type of its fragmentation, as the damage step reads it'));
         if (it.area.place === true) area.appendChild(numField('sys-item-atrig', it.area.trig || '', 'Trigger radius in yards: a character whose centre comes this near sets it off', 'trigger yd', '0.5'));
         else area.appendChild(select('sys-item-aflight', [['', 'On a miss, launched: you place it'], ['scatter', 'On a miss, launched: it scatters, as a throw'], ['line', 'On a miss, launched: it flies straight']], it.area.flight === 'scatter' || it.area.flight === 'line' ? it.area.flight : '', 'How a round fired from a launcher lands when the roll misses. One that scatters lands as a missed throw does. One that flies straight goes off on the first wall or character in its path, or at its farthest'));   // 1.5.9 (es)
     }
@@ -8291,11 +8293,11 @@ var AFF_WHO = [['', 'Reaches those it hurts'], ['all', 'Reaches everyone in the 
 function affBox(it) {
     var box = el('div', 'sys-fx-mods sys-item-affs'), affs = it.area && Array.isArray(it.area.aff) ? it.area.aff : [], effs = (draft.effects || []).filter(function(d) { return d && typeof d.id === 'string'; });
     var tu = draft.combat && draft.combat.turn && Array.isArray(draft.combat.turn.units) ? draft.combat.turn.units.filter(function(u) { return u && typeof u.key === 'string'; }) : [];
-    box.appendChild(el('span', 'sys-note', 'Afflictions it puts on those it reaches, each resisted with the Combat card’s resist roll:'));
+    box.appendChild(el('span', 'sys-note', 'Afflictions it puts on those it reaches, each resisted with the Combat tab’s resist roll:'));
     affs.forEach(function(a, ai) {
         if (!a || typeof a !== 'object') return;
         var ln = el('div', 'sys-fx-mod sys-item-aff'); ln.dataset.ai = String(ai);
-        ln.appendChild(input('sys-item-affvs field', typeof a.vs === 'string' ? a.vs : '', 'What it is resisted against, read with the character it reaches, such as HT-2. The Combat card’s resist roll reads it as Resist', 'Resist against, e.g. HT-2'));
+        ln.appendChild(input('sys-item-affvs field', typeof a.vs === 'string' ? a.vs : '', 'What it is resisted against, read with the character it reaches, such as HT-2. The Combat tab’s resist roll reads it as Resist', 'Resist against, e.g. HT-2'));
         var fxO = [['', 'On a failure: pick an effect']].concat(effs.map(function(d) { return [d.id, 'On a failure: ' + (d.name || d.id)]; }));
         if (typeof a.fx === 'string' && a.fx && !effs.some(function(d) { return d.id === a.fx; })) fxO.push([a.fx, 'On a failure: an effect that is gone']);
         ln.appendChild(select('sys-item-afffx', fxO, typeof a.fx === 'string' ? a.fx : '', 'The effect put on a character that fails to resist'));
@@ -8638,7 +8640,7 @@ function ctKeySays(sp, F0) {
                 var tpn = el('input', 'field sys-list-cttn'); tpn.type = 'number'; tpn.min = '1'; tpn.max = '1000'; tpn.step = '1'; tpn.placeholder = 'Every'; tpn.value = tmr.per && typeof tmr.per.n === 'number' ? String(tmr.per.n) : ''; tpn.title = 'One step every so many of the unit beside, 1 to 1000'; rw.appendChild(tpn);
                 var tus2 = (typeof draft !== 'undefined' && draft && draft.combat && draft.combat.turn && Array.isArray(draft.combat.turn.units) ? draft.combat.turn.units : []).filter(function(u) { return u && typeof u.key === 'string' && u.key; });
                 var tuo = [['min', 'minutes'], ['hour', 'hours'], ['day', 'days'], ['week', 'weeks']].concat(tus2.map(function(u) { return [u.key, typeof u.label === 'string' && u.label ? u.label : u.key]; })), tuc = tmr.per && typeof tmr.per.u === 'string' && tmr.per.u ? tmr.per.u : 'day'; if (!tuo.some(function(o) { return o[0] === tuc; })) tuo.push([tuc, tuc + ' (no such unit)']);
-                rw.appendChild(tsel('sys-list-cttu', tuo, tuc, 'What it counts in: the calendar\u2019s minutes, hours, days and weeks, or one of your time units (the Combat card\u2019s Turns box)'));
+                rw.appendChild(tsel('sys-list-cttu', tuo, tuc, 'What it counts in: the calendar\u2019s minutes, hours, days and weeks, or one of your time units (the Combat tab\u2019s Turns box)'));
                 if (sp.on && typeof sp.on === 'object') { rw.appendChild(checkLabel('sys-list-ctton', tmr.on === true, 'Only while on', 'It counts only while its row is switched on, and waits while it is off')); if (tmr.on === true) rw.appendChild(checkLabel('sys-list-cttreset', tmr.reset === true, 'Starts again when off', 'A row switched off goes back to where a new row starts')); }
                 if (tmr.dir !== 'up') { var tew = input('sys-list-ctend field', typeof tmr.end === 'string' ? tmr.end : '', 'What the row shows once the count reaches 0, such as Spoiled. The row stays', 'At 0 it shows (e.g. Spoiled)'); tew.maxLength = LIMITS.label; rw.appendChild(tew); }
             }
@@ -8750,10 +8752,10 @@ function ctKeySays(sp, F0) {
         if (rr.dmg === true) { var htL = input('sys-list-rollhits field', typeof rr.hits === 'string' ? rr.hits : '', 'Hits it rolls for: how many times this damage rolls, on one card with one Apply, such as Row.bursthits. Each hit is its own blow at the same location, and each reads its own round as Row.fired. No dice. Empty: once', 'Hits it rolls for'); htL.maxLength = LIMITS.formula; rw.appendChild(htL); }   // 1.6.0 A burst
         if (rr.dmg === true) { var mjL = input('sys-list-rollmjif field', typeof rr.dmgMajorIf === 'string' ? rr.dmgMajorIf : '', 'A Major Wound where: Apply to target on its card lands the blow as a Major Wound while this formula is true, read with the row\u2019s names (Row.Edge >= 3) and the character\u2019s. No dice. Always a Major Wound wins', 'A Major Wound where'); mjL.maxLength = LIMITS.formula; rw.appendChild(mjL); }   // 1.6.0
         if (rr.dmg === true) rw.appendChild(checkLabel('sys-list-mjdmg', rr.dmgMajor === true, 'Always a Major Wound', 'Apply to target on its card lands the blow as a Major Wound whatever its size, as a strike that always wounds badly'));   // 1.6.0
-        var rdt = input('sys-list-rolldtype field', typeof rr.dtype === 'string' ? rr.dtype : '', 'A damage roll\u2019s type, filled in when you press Apply to target on its card: a type\u2019s key from the Combat card (stun), or a formula giving its place in that list, 1 for the first (Row.dt). Kept only on a damage roll', 'Damage type'); rdt.maxLength = LIMITS.formula; rw.appendChild(rdt);   // 1.5.7
-        var dkLOn = typeof kindsNamed === 'function' && kindsNamed(); if (dkLOn || rr.dkind) { var rdk = input('sys-list-rolldkind field', typeof rr.dkind === 'string' ? rr.dkind : '', 'The kind of blow: a kind\u2019s key from the Combat card, or a formula giving its place in that list, 1 for the first. DR at a location and a layer read it as Blow.kind. Kept only on a damage roll', 'Kind'); rdk.maxLength = LIMITS.formula; rw.appendChild(rdk); }   // 1.6.0: its kind of blow
+        var rdt = input('sys-list-rolldtype field', typeof rr.dtype === 'string' ? rr.dtype : '', 'A damage roll\u2019s type, filled in when you press Apply to target on its card: a type\u2019s key from the Combat tab (stun), or a formula giving its place in that list, 1 for the first (Row.dt). Kept only on a damage roll', 'Damage type'); rdt.maxLength = LIMITS.formula; rw.appendChild(rdt);   // 1.5.7
+        var dkLOn = typeof kindsNamed === 'function' && kindsNamed(); if (dkLOn || rr.dkind) { var rdk = input('sys-list-rolldkind field', typeof rr.dkind === 'string' ? rr.dkind : '', 'The kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first. DR at a location and a layer read it as Blow.kind. Kept only on a damage roll', 'Kind'); rdk.maxLength = LIMITS.formula; rw.appendChild(rdk); }   // 1.6.0: its kind of blow
         var rad = input('sys-list-rolldiv field', typeof rr.ad === 'string' ? rr.ad : '', 'A damage roll\u2019s armour divisor, filled in when you press Apply to target on its card: a number, or a formula of the row\u2019s names (Row.ap). 1 or empty for none. Kept only on a damage roll', 'Armour divisor'); rad.maxLength = LIMITS.formula; rw.appendChild(rad);   // 1.6.0
-        if (rr.dmg === true) { var p2L = input('sys-list-rollp2f field', typeof rr.dmg2 === 'string' ? rr.dmg2 : '', 'Second part: damage of another type in the same blow, rolled with it, such as 1d6+1 or Row.burn. Its own DR is taken off, then both parts are one wound: one Major Wound test, one Any wound and one wear. Empty: none', 'Second part'); p2L.maxLength = LIMITS.formula; rw.appendChild(p2L); var p2LT = input('sys-list-rollp2t field', typeof rr.dtype2 === 'string' ? rr.dtype2 : '', 'The second part\u2019s type: a type\u2019s key from the Combat card, or a formula giving its place in that list, 1 for the first (Row.dt2). Kept only beside a second part', 'Second part type'); p2LT.maxLength = LIMITS.formula; rw.appendChild(p2LT); var p2LA = input('sys-list-rollp2d field', typeof rr.ad2 === 'string' ? rr.ad2 : '', 'The second part\u2019s own armour divisor: a number, or a formula of the row\u2019s names. 1 or empty for none. Kept only beside a second part', 'Second part armour divisor'); p2LA.maxLength = LIMITS.formula; rw.appendChild(p2LA); if (dkLOn || rr.dkind2) { var p2LK = input('sys-list-rollp2k field', typeof rr.dkind2 === 'string' ? rr.dkind2 : '', 'The second part\u2019s kind of blow: a kind\u2019s key from the Combat card, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside a second part', 'Second part kind'); p2LK.maxLength = LIMITS.formula; rw.appendChild(p2LK); } [3, 4, 5].forEach(function(k) { var hasK = function(n) { return typeof rr['dmg' + n] === 'string' && !!rr['dmg' + n].trim(); }; if (!hasK(k - 1) && !hasK(k)) return; var nmK = k === 3 ? 'Third' : k === 4 ? 'Fourth' : 'Fifth'; var pkL = input('sys-list-rollp' + k + 'f field', typeof rr['dmg' + k] === 'string' ? rr['dmg' + k] : '', nmK + ' part: damage of another type in the same blow, rolled with it, such as 1d6 or Row.shock. Its own DR is taken off, then every part is one wound. Empty: none', nmK + ' part'); pkL.maxLength = LIMITS.formula; rw.appendChild(pkL); var pkLT = input('sys-list-rollp' + k + 't field', typeof rr['dtype' + k] === 'string' ? rr['dtype' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s type: a type\u2019s key from the Combat card, or a formula giving its place in that list, 1 for the first. Kept only beside its part', nmK + ' part type'); pkLT.maxLength = LIMITS.formula; rw.appendChild(pkLT); var pkLA = input('sys-list-rollp' + k + 'd field', typeof rr['ad' + k] === 'string' ? rr['ad' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s own armour divisor: a number, or a formula of the row\u2019s names. 1 or empty for none. Kept only beside its part', nmK + ' part armour divisor'); pkLA.maxLength = LIMITS.formula; rw.appendChild(pkLA); if (dkLOn || rr['dkind' + k]) { var pkLK = input('sys-list-rollp' + k + 'k field', typeof rr['dkind' + k] === 'string' ? rr['dkind' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s kind of blow: a kind\u2019s key from the Combat card, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside its part', nmK + ' part kind'); pkLK.maxLength = LIMITS.formula; rw.appendChild(pkLK); } }); }   // 1.6.0 (B3): a blow of two damage types counts as one blow; and a third and a fourth part, each shown once the part before it has a formula
+        if (rr.dmg === true) { var p2L = input('sys-list-rollp2f field', typeof rr.dmg2 === 'string' ? rr.dmg2 : '', 'Second part: damage of another type in the same blow, rolled with it, such as 1d6+1 or Row.burn. Its own DR is taken off, then both parts are one wound: one Major Wound test, one Any wound and one wear. Empty: none', 'Second part'); p2L.maxLength = LIMITS.formula; rw.appendChild(p2L); var p2LT = input('sys-list-rollp2t field', typeof rr.dtype2 === 'string' ? rr.dtype2 : '', 'The second part\u2019s type: a type\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first (Row.dt2). Kept only beside a second part', 'Second part type'); p2LT.maxLength = LIMITS.formula; rw.appendChild(p2LT); var p2LA = input('sys-list-rollp2d field', typeof rr.ad2 === 'string' ? rr.ad2 : '', 'The second part\u2019s own armour divisor: a number, or a formula of the row\u2019s names. 1 or empty for none. Kept only beside a second part', 'Second part armour divisor'); p2LA.maxLength = LIMITS.formula; rw.appendChild(p2LA); if (dkLOn || rr.dkind2) { var p2LK = input('sys-list-rollp2k field', typeof rr.dkind2 === 'string' ? rr.dkind2 : '', 'The second part\u2019s kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside a second part', 'Second part kind'); p2LK.maxLength = LIMITS.formula; rw.appendChild(p2LK); } [3, 4, 5].forEach(function(k) { var hasK = function(n) { return typeof rr['dmg' + n] === 'string' && !!rr['dmg' + n].trim(); }; if (!hasK(k - 1) && !hasK(k)) return; var nmK = k === 3 ? 'Third' : k === 4 ? 'Fourth' : 'Fifth'; var pkL = input('sys-list-rollp' + k + 'f field', typeof rr['dmg' + k] === 'string' ? rr['dmg' + k] : '', nmK + ' part: damage of another type in the same blow, rolled with it, such as 1d6 or Row.shock. Its own DR is taken off, then every part is one wound. Empty: none', nmK + ' part'); pkL.maxLength = LIMITS.formula; rw.appendChild(pkL); var pkLT = input('sys-list-rollp' + k + 't field', typeof rr['dtype' + k] === 'string' ? rr['dtype' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s type: a type\u2019s key from the Combat tab, or a formula giving its place in that list, 1 for the first. Kept only beside its part', nmK + ' part type'); pkLT.maxLength = LIMITS.formula; rw.appendChild(pkLT); var pkLA = input('sys-list-rollp' + k + 'd field', typeof rr['ad' + k] === 'string' ? rr['ad' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s own armour divisor: a number, or a formula of the row\u2019s names. 1 or empty for none. Kept only beside its part', nmK + ' part armour divisor'); pkLA.maxLength = LIMITS.formula; rw.appendChild(pkLA); if (dkLOn || rr['dkind' + k]) { var pkLK = input('sys-list-rollp' + k + 'k field', typeof rr['dkind' + k] === 'string' ? rr['dkind' + k] : '', 'The ' + nmK.toLowerCase() + ' part\u2019s kind of blow: a kind\u2019s key from the Combat tab, or a formula giving its place in that list. Empty: the first part\u2019s kind. Kept only beside its part', nmK + ' part kind'); pkLK.maxLength = LIMITS.formula; rw.appendChild(pkLK); } }); }   // 1.6.0 (B3): a blow of two damage types counts as one blow; and a third and a fourth part, each shown once the part before it has a formula
         if (typeof dieSel === 'function') rw.appendChild(dieSel('sys-list-rolldie', rr.die, 'The die its button wears on each row. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20'));   // 1.5.8, backlog 149
         [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this roll']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
         cb2.appendChild(rw);
@@ -8762,7 +8764,7 @@ function ctKeySays(sp, F0) {
         var ndTx = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the greyed button says when it cannot roll', 'Out of charges'); ndTx.maxLength = LIMITS.needsWords; ndRow.appendChild(ndTx);
         ndRow.appendChild(checkLabel('sys-list-hideoff', rr.hideOff === true, 'Hidden until it can be used', 'The button stands on the row only while its needs hold. Off: it stays there, greyed out. Only beside needs'));   // 1.6.0
         var mfL = input('sys-list-malf field', typeof rr.malf === 'string' ? rr.malf : '', 'Malf: a natural total (the dice alone) at or past this malfunctions \u2014 a failure, and its On malfunction changes (no dice; Row.Malf reads the row)', 'Malf (Row.Malf)'); mfL.maxLength = LIMITS.formula; ndRow.appendChild(mfL);   // Stage 6 HUD R3
-        if ((typeof draft !== 'undefined' && draft && draft.combat && draft.combat.checks === 'fixed') || rr.critAt || rr.fumbleAt) [['sys-list-critat', 'critAt', 'Critical at: this roll\u2019s own critical success range, the dice alone at or under it (no dice; Row.* reads the row; empty: the Combat card\u2019s)', 'Critical at'], ['sys-list-fumbleat', 'fumbleAt', 'Critical failure at: this roll\u2019s own, the dice alone at or over it (no dice; Row.* reads the row; empty: the Combat card\u2019s)', 'Critical failure at']].forEach(function(g) { var ci = input(g[0] + ' field', typeof rr[g[1]] === 'string' ? rr[g[1]] : '', g[2], g[3]); ci.maxLength = LIMITS.formula; ndRow.appendChild(ci); });   // 1.6.0 (the v2 sort's B1): a technique that widens the range
+        if ((typeof draft !== 'undefined' && draft && draft.combat && draft.combat.checks === 'fixed') || rr.critAt || rr.fumbleAt) [['sys-list-critat', 'critAt', 'Critical at: this roll\u2019s own critical success range, the dice alone at or under it (no dice; Row.* reads the row; empty: the Combat tab\u2019s)', 'Critical at'], ['sys-list-fumbleat', 'fumbleAt', 'Critical failure at: this roll\u2019s own, the dice alone at or over it (no dice; Row.* reads the row; empty: the Combat tab\u2019s)', 'Critical failure at']].forEach(function(g) { var ci = input(g[0] + ' field', typeof rr[g[1]] === 'string' ? rr[g[1]] : '', g[2], g[3]); ci.maxLength = LIMITS.formula; ndRow.appendChild(ci); });   // 1.6.0 (the v2 sort's B1): a technique that widens the range
         var bgL = input('sys-list-bigat field', typeof rr.bigAt === 'string' ? rr.bigAt : '', 'Lands as a Big Hit: a success whose natural roll, the dice alone, is at or under this is marked a Big Hit. It is no critical. Its Then reads RollBig (no dice; Row.* reads the row; empty: never)', 'Big Hit at'); bgL.maxLength = LIMITS.formula; ndRow.appendChild(bgL);   // 1.6.0 (the book's ruling of 2026-10-29)
         cb2.appendChild(ndRow);
         var lxR = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxR) cb2.appendChild(lxR);   // 1.6.0
@@ -8935,7 +8937,7 @@ function listApplyEditor(box, rr, ri, key, sp, targets) {   // key (R2b): 'apply
     var addB = el('button', 'tool ghost sys-btn sys-list-applyadd', key === 'then' ? '+ Then\u2026' : '+ Change'); addB.dataset.act = 'lapplyadd'; addB.dataset.ri = String(ri); addB.dataset.k = key; addB.disabled = list.length >= LIMITS.applyChanges; addB.title = addB.disabled ? 'At most ' + LIMITS.applyChanges + ' changes an action' : 'Another pool or number this button moves'; box.appendChild(addB);
 }
 // [systemcheck:blastbox-start]
-// 1.5.8 explosives: the Combat card's blast formulas (systemcore cleanBlastRules), each a box with one line under it saying what Save does with
+// 1.5.8 explosives: the Combat tab's blast formulas (systemcore cleanBlastRules), each a box with one line under it saying what Save does with
 // it, the cleaner's own reading. Values and text nodes only
 var BLAST_BOXES = [
     ['fall', 'Blast falloff', 'Each token\u2019s share of a blast. Names: BlastDamage, BlastDistance in yards, BlastDice, Direct and Centre, the blast\u2019s own cell, and BlastFills and BlastNoDrop, the two stats named below. With none, every token takes the whole roll.', 'if(or(Direct, Centre), BlastDamage, if(BlastDistance > 2 * BlastDice, 0, floor(BlastDamage / (3 * BlastDistance))))'],
@@ -9180,13 +9182,16 @@ function combatBody() {
     var box = ui('sysCombatBox'); if (!box) return; box.textContent = ''; box.appendChild(el('div', 'sys-note sys-combat-note', 'How thrown blasts behave at this campaign\u2019s table'));
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
     if (!cm.cover || typeof cm.cover !== 'object') cm.cover = { on: false, style: 'graded' };
+    var tp = function(t) { var m = el('i', 'sys-topic-mark'); if (m.dataset) m.dataset.topic = t; box.appendChild(m); };   // 1.6.2: which topic of the Combat tab what follows stands in
     box.appendChild(labeledSelect('sys-combat-auto', 'Blast automation', [['full', 'Full auto — roll & apply'], ['roll', 'Roll to chat; apply by hand'], ['measure', 'Measure only']], cm.blastAuto, 'What happens when a blast is thrown: full = roll damage and apply it to tokens in range; roll = post the roll for a human to apply; measure = area only.'));
     lineUnder(box, 'What happens when a blast is thrown.');
     box.appendChild(labeledSelect('sys-combat-roller', 'Who rolls', [['owner', 'The character\'s owner'], ['gm', 'Always the GM']], cm.blastRoller, 'Who makes a thrown blast\'s rolls: the owning player, or always the GM.'));
     lineUnder(box, 'Who makes a thrown blast\u2019s rolls.');
     var resFields = (draft.fields || []).filter(function(f) { return f.kind === 'resource'; });
+    if (typeof tp === 'function') tp('damage');
     box.appendChild(labeledSelect('sys-combat-hp', 'Damage subtracts from', [['', resFields.length ? '— none —' : '— add a resource field —']].concat(resFields.map(function(f) { return [f.id, f.label || f.key]; })), cm.hpResource, 'Which resource full-auto damage reduces (the "health" resource).'));
     lineUnder(box, 'The pool that Full auto damage is taken from.');
+    if (typeof tp === 'function') tp('cover');
     box.appendChild(labeledSelect('sys-combat-cover-on', 'Cover from blockers', [['off', 'Off'], ['on', 'On — the ruler, blasts and target marks']], cm.cover.on ? 'on' : 'off', 'When on, the ruler between two character tokens, a blast\'s labels and target marks show cover, read from the map\'s pieces: its sight-blockers (walls, pillars, closed doors, filled cells) and pieces set to give cover you can see over (a crate, a low wall). It changes no roll; with Full auto, the settings below say what a blast does behind each grade of cover, and a blast thrown into a wall or a closed door goes off in front of it.'));
     lineUnder(box, 'Cover is read from the map\u2019s walls and cover pieces. A roll reads it as TargetCover.');
     box.appendChild(labeledSelect('sys-combat-cover-style', 'Cover grades', [['graded', 'Graded — half / three-quarters / total'], ['binary', 'Simple — cover / none']], cm.cover.style === 'binary' ? 'binary' : 'graded', 'Graded uses the corner rule for d20-style tiers; Simple reports only whether there is cover (for systems that treat cover as one flat penalty or DR). The tier names are built in; custom thresholds come later.'));
@@ -9199,24 +9204,28 @@ function combatBody() {
         cgs.forEach(function(g) { var cur = cm.cover.area && typeof cm.cover.area === 'object' && Object.prototype.hasOwnProperty.call(cm.cover.area, g[0]) ? cm.cover.area[g[0]] : 'full'; var ls = labeledSelect('sys-combat-cover-area', g[1], [['full', 'Full damage'], ['half', 'Half damage'], ['none', 'No damage']], cur === 'half' || cur === 'none' ? cur : 'full', 'With Full auto blasts, what the rolled damage does to a token behind this much cover (measured from the blast\u2019s centre).'); ls.lastChild.dataset.grade = g[0]; box.appendChild(ls); });
     }
     if (cm.cover.on && typeof coverHitBox === 'function') coverHitBox(box, cm);   // 1.6.0: where a hit behind cover lands
+    if (typeof tp === 'function') tp('outcomes');
     box.appendChild(labeledSelect('sys-combat-checks', 'Roll outcomes', [['', 'Success or failure by the margin'], ['under3d6', '3d6 roll-under criticals'], ['fixed', 'Criticals at fixed rolls']], cm.checks === 'under3d6' || cm.checks === 'fixed' ? cm.checks : '', 'How a check reads. 3d6 roll-under (a roll of exactly 3d6 against a target): 3\u20134 are a critical success, 5 at a target of 15+, 6 at 16+; 17 fails (critically at 15 or less), 18 or failing by 10+ is a critical failure. Criticals at fixed rolls: the dice alone at or under one number are a critical success, at or over another a critical failure, and nothing else is.'));   // Stage 6 F8
     lineUnder(box, 'How a check against a target reads its dice.');
     if (typeof checksBox === 'function') checksBox(box, cm);   // 1.6.0 (the v2 sort's B1): the critical range, and a named success
+    if (typeof tp === 'function') tp('blasts');
     if (typeof blastBox === 'function') blastBox(box, cm);   // 1.5.8 explosives: the falloff, the throw's roll, the scatter, the hand, how far and how near, the ways and the fuse
     if (typeof defendBox === 'function') defendBox(box, cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : {}, cm);   // 1.6.0: a blast's own Defense roll
-    if (typeof barsBox === 'function') barsBox(box, cm);   // backlog 28: the token bars, under the blast's
-    if (typeof holdsBox === 'function') holdsBox(box, cm);   // 1.6.0 Who holds whom
-    rangeBox(box, cm);   // range penalties R1: the system's range rule, under cover
-    heightBox(box, cm);   // item 19 H2: the system's height modifier, under range
-    lightBox(box, cm);   // lighting L4: the system's light rules
-    sensesBox(box, cm);   // senses S2a: the system's senses
-    damageBox(box, cm);   // 1.5.6: the damage step's rules, before the turns
-    turnBox(box, cm);   // turn-based combat T1: the system's turn rules, under the blast and cover settings
-    initBox(box, cm);   // initiative O2: how ties of initiative break
-    postureBox(box, cm);   // conditions C3: the system's own postures, at the card's foot
+    tp('bars');
+    if (typeof barsBox === 'function') barsBox(box, cm);   // backlog 28: the token bars
+    tp('holds'); if (typeof holdsBox === 'function') holdsBox(box, cm); tp('range');   // 1.6.0 Who holds whom
+    rangeBox(box, cm); tp('height');   // range penalties R1: the system's range rule
+    heightBox(box, cm); tp('light');   // item 19 H2: the system's height modifier
+    lightBox(box, cm); tp('senses');   // lighting L4: the system's light rules
+    sensesBox(box, cm); tp('damage');   // senses S2a: the system's senses
+    damageBox(box, cm); tp('turns');   // 1.5.6: the damage step's rules, before the turns
+    turnBox(box, cm); tp('initiative');   // turn-based combat T1: the system's turn rules
+    initBox(box, cm); tp('postures');   // initiative O2: how ties of initiative break
+    postureBox(box, cm);   // conditions C3: the system's own postures
+    if (window.wpSysUi) window.wpSysUi.combatDrawn(box);   // 1.6.2: into a pane a topic
 }
 // Initiative O2 (docs/TURN_ORDER_PLAN.md; the owner's note: 3d6 systems order by Basic Speed and roll only to settle ties, d20 systems roll and
-// roll again for ties): the Combat card's Initiative box — up to three tie steps, each a formula: with no dice a value (the higher first),
+// roll again for ties): the Combat tab's Initiative box — up to three tie steps, each a formula: with no dice a value (the higher first),
 // with dice a roll made only for the rows still tied. Every text lands as a value or a text node. Save cleans them; refreshErrors says what
 // it would drop
 // [sinkcheck:initbox-start]
@@ -9680,7 +9689,7 @@ function upkeepBox(card, sp) {
             var pn = el('input', 'field sys-list-upn'); pn.type = 'number'; pn.min = '1'; pn.max = '1000'; pn.step = '1'; pn.placeholder = 'Every'; pn.value = up.per && typeof up.per.n === 'number' ? String(up.per.n) : '1'; pn.title = 'It pays once every so many of the unit beside, 1 to 1000'; rw.appendChild(pn);
             var us = (draft.combat && draft.combat.turn && Array.isArray(draft.combat.turn.units) ? draft.combat.turn.units : []).filter(function(u) { return u && typeof u.key === 'string' && u.key; });
             var uo = [['min', 'minutes'], ['hour', 'hours'], ['day', 'days'], ['week', 'weeks']].concat(us.map(function(u) { return [u.key, typeof u.label === 'string' && u.label ? u.label : u.key]; })), uc = up.per && typeof up.per.u === 'string' && up.per.u ? up.per.u : 'min'; if (!uo.some(function(o) { return o[0] === uc; })) uo.push([uc, uc + ' (no such unit)']);
-            rw.appendChild(sl('sys-list-upu', uo, uc, 'What it counts in: the calendar\u2019s minutes, hours, days and weeks, or one of your time units (the Combat card\u2019s Turns box)'));
+            rw.appendChild(sl('sys-list-upu', uo, uc, 'What it counts in: the calendar\u2019s minutes, hours, days and weeks, or one of your time units (the Combat tab\u2019s Turns box)'));
         }
         var cts = (Array.isArray(sp.counters) ? sp.counters : []).filter(function(t) { return t && typeof t.key === 'string' && t.key; }), ctc = typeof up.ct === 'string' ? up.ct : '';
         if (cts.length || ctc) { var cto = [['', 'Counts no payment']].concat(cts.map(function(t) { return [t.key, 'Counts each payment on ' + (t.label || t.key)]; })); if (ctc && !cts.some(function(t) { return t.key === ctc; })) cto.push([ctc, '(a counter that is gone)']); rw.appendChild(sl('sys-list-upct', cto, ctc, 'Each payment adds 1 to this counter of the row. A list roll set to run when that counter crosses a step then follows every payment, such as a Focus roll whose failure switches the row off')); }   // 1.6.0 (CORE gap 13)
@@ -9758,7 +9767,7 @@ function upkeepChange(lsc, t, c) {
     else if (c.indexOf('sys-list-upstop') >= 0) { if (t.checked) up.stop = true; else delete up.stop; }
     else if (c.indexOf('sys-list-upct') >= 0) { if (t.value) up.ct = String(t.value).slice(0, 24); else delete up.ct; }
 }
-// Conditions C3 (docs/CONDITIONS_PLAN.md): the system's own postures on the Combat card — how a token can stand, in order. None: posture is
+// Conditions C3 (docs/CONDITIONS_PLAN.md): the system's own postures on the Combat tab — how a token can stand, in order. None: posture is
 // switched off (1.6.0, backlog 183 (3)). Add postures starts a list of Standing and one more. Each row a name, its chip's tag, a ranged note
 // (a whole number a foe's ranged roll takes, shown only: "A ranged note per posture (Recommended)"), notes and changes as an effect's; the first
 // is how a token stands with none set and takes neither. Every text lands as a value or a text node. Save cleans them; refreshErrors says what it would drop
@@ -9808,7 +9817,7 @@ function postureBox(box, cm) {
     box.appendChild(wrap);
 }
 // [sinkcheck:barsbox-start]
-// Backlog 28 (the owner, 2026-10-29, by prompt: the system's bars, a token may change its own): the Combat card's Token bars box. Bar 1 and Bar 2,
+// Backlog 28 (the owner, 2026-10-29, by prompt: the system's bars, a token may change its own): the Combat tab's Token bars box. Bar 1 and Bar 2,
 // each a pool of the sheet, who is shown it and its colour; every character token takes them unless its Properties give it bars of its own. Add
 // token bars starts Bar 1 on the pool damage subtracts from. Every text lands as a value or a text node; Save cleans them (systemcore cleanBars)
 function barsBox(box, cm) {
@@ -9945,7 +9954,7 @@ function postureClick(b) {
     markDirty(); renderAll(); return true;
 }
 // [sinkcheck:posturebox-end]
-// 1.5.6, the damage step (docs/DAMAGE_STEP_DESIGN.md): the Combat card's Taking damage box. The pool a wound comes off, the Major Wound formula,
+// 1.5.6, the damage step (docs/DAMAGE_STEP_DESIGN.md): the Combat tab's Taking damage box. The pool a wound comes off, the Major Wound formula,
 // the hit locations (a list, the stat or column that is its DR and the one it cripples at, a vital formula), the damage types, what wears and
 // the weapons a blow tests. Every name reaches the box as a value or a text node. Save cleans it (systemcore cleanDamageRules); damageSays says
 // under the box what Save drops, judged a part at a time by the cleaner itself
@@ -10382,7 +10391,7 @@ function damageSays(d, sys, Fx) {
     return { errs: errs, warns: warns };
 }
 // [sinkcheck:dmgbox-end]
-// Lighting L4: the system's light rules on the Combat card — what it calls a dim and a dark place (the ruler and a target mark show the names)
+// Lighting L4: the system's light rules on the Combat tab — what it calls a dim and a dark place (the ruler and a target mark show the names)
 // and its light presets (a light's Properties offer them; ticked, a player may pick one for their own token). Every text lands as a value or
 // a text node. Save cleans them; refreshErrors says what it would drop
 // [sinkcheck:lightbox-start]
@@ -10451,7 +10460,7 @@ function lightClick(b) {
     markDirty(); renderAll(); return true;
 }
 // [sinkcheck:lightbox-end]
-// Range penalties R1 (docs/RANGE_PLAN.md): the system's range rule on the Combat card — none, a table of distance steps and their modifier, or
+// Range penalties R1 (docs/RANGE_PLAN.md): the system's range rule on the Combat tab — none, a table of distance steps and their modifier, or
 // a formula reading Distance — and the unit its distances count in. The ruler and a target mark show the modifier. A formula held as text
 // (even empty) is the formula way, anything else the table; the draft keeps what the other way held (_f, _s) until Save, which keeps neither.
 // Every text lands as a value or a text node. Save cleans it; refreshErrors says what it would drop
@@ -10578,7 +10587,7 @@ function rangeClick(b) {
     markDirty(); renderAll(); return true;
 }
 // [sinkcheck:rangebox-end]
-// Item 19 H2 (the owner's answer, 2026-09-30: a table like the Range box): the Combat card's Height box — a modifier by how much higher the
+// Item 19 H2 (the owner's answer, 2026-09-30: a table like the Range box): the Combat tab's Height box — a modifier by how much higher the
 // roller stands than the target (HeightDiff, negative looking up): a table of signed steps (up to that difference; below the first row its
 // modifier, past the last row its modifier) or a formula reading HeightDiff, in yards, feet or metres. Rolls read HeightMod; the ruler and a
 // target mark show it. It keeps combat.height's rule (H1) whatever is chosen here. Every text lands as a value or a text node
@@ -10818,7 +10827,7 @@ function calendarClick(b) {
     markDirty(); renderAll(); return true;
 }
 // [sinkcheck:calendarbox-end]
-// Senses S2a: the system's senses on the Combat card (docs/SENSES_PLAN.md 4.3) — each a name, where its range comes from (a field of the
+// Senses S2a: the system's senses on the Combat tab (docs/SENSES_PLAN.md 4.3) — each a name, where its range comes from (a field of the
 // character, or a number every character has), what it counts in (never a silent yards: a new row takes the system's first light's unit,
 // else the last picked here, else it waits for one and Save leaves it out), whether walls stop it, whether it sees all round and whether it
 // sees the dark as dim; each row ends in one plain sentence of what it does. Every text lands as a value or a text node. Save cleans them (a
@@ -11044,12 +11053,12 @@ function sensesClick(b) {
     markDirty(); renderAll(); return true;
 }
 // [sinkcheck:sensesbox-end]
-// Turn-based combat T1: the system's turn rules on the Combat card — how far a character moves in one turn (a formula and its unit), how a
+// Turn-based combat T1: the system's turn rules on the Combat tab — how far a character moves in one turn (a formula and its unit), how a
 // square grid counts a diagonal (the ruler follows it), how long a round is, the system's own time units and what one turn allows. Save
 // cleans them; refreshErrors says what it would drop
 // [sinkcheck:everyrow-start]
 // Item 20 K5 (the owner's answers of 2026-09-30): a roll or an apply action may also run by the campaign's clock (the Calendar) — every n minutes,
-// hours, days, weeks or the system's own time units (the Combat card's Turns box), during rest only or any time; the GM moves the clock as Rest
+// hours, days, weeks or the system's own time units (the Combat tab's Turns box), during rest only or any time; the GM moves the clock as Rest
 // or Active and says which characters' rules run. Its boxes land as values; Save cleans them (systemcore cleanEvery).
 // Backlog 152, fold 5 (docs/FIGHT_CLOCK_DESIGN.md 13, the builder's pieces): By the clock's Waits in a fight tick, the In a fight row (every n
 // rounds, minutes, hours or the system's own time units, and Each fight starts again) and Ask me first, so that any system can make the time
@@ -11062,7 +11071,7 @@ function everyRow(r) {
     var tn = draft && draft.combat && draft.combat.turn, tus = tn && typeof tn === 'object' && Array.isArray(tn.units) ? tn.units.filter(function(u) { return u && typeof u.key === 'string' && u.key; }) : [];
     var opts = [['min', 'minutes'], ['hour', 'hours'], ['day', 'days'], ['week', 'weeks']].concat(tus.map(function(u) { return [u.key, typeof u.label === 'string' && u.label ? u.label : u.key]; }));
     var cur = ev && typeof ev.u === 'string' && ev.u ? ev.u : 'day'; if (!opts.some(function(o) { return o[0] === cur; })) opts.push([cur, cur + ' (no such unit)']);
-    row.appendChild(select('sys-roll-evu', opts, cur, 'What it counts in: the calendar\u2019s minutes, hours, days and weeks, or one of your time units (the Combat card\u2019s Turns box)'));
+    row.appendChild(select('sys-roll-evu', opts, cur, 'What it counts in: the calendar\u2019s minutes, hours, days and weeks, or one of your time units (the Combat tab\u2019s Turns box)'));
     var rl = el('label', 'sys-hover'), rc = el('input', 'sys-roll-evrest'); rc.type = 'checkbox'; rc.checked = !!(ev && ev.rest === true); rc.title = 'It counts rest only: time the GM moves on as Rest; activity starts its count again'; rl.appendChild(rc); rl.appendChild(document.createTextNode(' During rest only')); row.appendChild(rl);
     var wl = el('label', 'sys-hover'), wc = el('input', 'sys-roll-evwait'); wc.type = 'checkbox'; wc.checked = !!(ev && ev.wait === true); wc.title = 'Its count waits while its character is in a fight, and goes on after it. A fight still breaks a rest.'; wl.appendChild(wc); wl.appendChild(document.createTextNode(' Waits in a fight')); row.appendChild(wl);
     var hl = el('label', 'sys-hover'), hc = el('input', 'sys-roll-evhold'); hc.type = 'checkbox'; hc.checked = !!(ev && ev.whileNeeds === true); hc.title = 'Its count grows only while this rule\u2019s Needs hold for its character, and stands still the rest of the time. Save keeps the tick only beside Needs.'; hl.appendChild(hc); hl.appendChild(document.createTextNode(' Only while its needs hold')); row.appendChild(hl);   // 1.5.5
@@ -11075,7 +11084,7 @@ function fightRow(r) {   // In a fight: every n rounds, minutes, hours or the sy
     var tn = draft && draft.combat && draft.combat.turn, tus = tn && typeof tn === 'object' && Array.isArray(tn.units) ? tn.units.filter(function(u) { return u && typeof u.key === 'string' && u.key; }) : [];
     var opts = [['round', 'rounds'], ['min', 'minutes'], ['hour', 'hours']].concat(tus.map(function(u) { return [u.key, typeof u.label === 'string' && u.label ? u.label : u.key]; }));
     var cur = fi && typeof fi.u === 'string' && fi.u ? fi.u : 'round'; if (!opts.some(function(o) { return o[0] === cur; })) opts.push([cur, cur + ' (no such unit)']);
-    row.appendChild(select('sys-roll-ifu', opts, cur, 'What it counts in: a fight\u2019s rounds, minutes or hours, or one of your time units from the Combat card\u2019s Turns box. A round lasts as long as the Turns box says.'));
+    row.appendChild(select('sys-roll-ifu', opts, cur, 'What it counts in: a fight\u2019s rounds, minutes or hours, or one of your time units from the Combat tab\u2019s Turns box. A round lasts as long as the Turns box says.'));
     var fl = el('label', 'sys-hover'), fc = el('input', 'sys-roll-iffresh'); fc.type = 'checkbox'; fc.checked = !!(fi && fi.fresh === true); fc.title = 'Its count begins again with each fight. Left unticked, its count goes on from one fight to the next.'; fl.appendChild(fc); fl.appendChild(document.createTextNode(' Each fight starts again')); row.appendChild(fl);
     var hl = el('label', 'sys-hover'), hc = el('input', 'sys-roll-ifhold'); hc.type = 'checkbox'; hc.checked = !!(fi && fi.whileNeeds === true); hc.title = 'In a fight, its count grows only while this rule\u2019s Needs hold for its character, and stands still the rest of the time. Save keeps the tick only beside Needs.'; hl.appendChild(hc); hl.appendChild(document.createTextNode(' Only while its needs hold')); row.appendChild(hl);   // 1.5.5
     return row;
@@ -11301,13 +11310,16 @@ function renderAll() {
     ui('sysFields').style.display = tab === 'fields' ? '' : 'none';
     ui('sysRolls').style.display = tab === 'rolls' ? '' : 'none';
     var sc = ui('sysChars'); if (sc) sc.style.display = tab === 'chars' ? '' : 'none';
+    var scb = ui('sysCombat'); if (scb) { scb.style.display = tab === 'combat' ? '' : 'none'; if (tab === 'combat') renderCombat(); }   // 1.6.2: the Combat tab, its topics down the side
+    var sru = ui('sysRules'); if (sru) sru.style.display = tab === 'rules' ? '' : 'none';   // 1.6.2: and the Rules tab
     var siEl = ui('sysItems'); if (siEl) siEl.style.display = tab === 'items' ? '' : 'none';
     var sfEl = ui('sysEffects'); if (sfEl) sfEl.style.display = tab === 'effects' ? '' : 'none';   // 5h
     var slEl = ui('sysLists'); if (slEl) { slEl.style.display = tab === 'lists' ? '' : 'none'; if (tab === 'lists') renderLists(); }   // Stage 6 F4b
-    if (tab === 'lists') renderBudgets();   // 126: the Point budgets box, under the list rules
-    if (tab === 'lists') renderEnv();   // 1.6.0: the Environment readings box, under the budgets
-    if (tab === 'lists') renderTables();   // 1.6.0: the Tables box
-    if (tab === 'lists') renderLinks();   // 1.6.0: the Linked sheets box, under the readings
+    if (tab === 'rules') renderBudgets();   // 126: the Point budgets box
+    if (tab === 'rules') renderEnv();   // 1.6.0: the Environment readings box
+    if (tab === 'rules') renderTables();   // 1.6.0: the Tables box
+    if (tab === 'rules') renderLinks();   // 1.6.0: the Linked sheets box
+    if (tab === 'rules' && window.wpSysUi) window.wpSysUi.rulesDrawn();
     rowsFor('sysEffectRows', 'effects', function(efr) { if (!draft.effects || !draft.effects.length) efr.appendChild(el('div', 'sys-empty', 'No status effects yet. Add Rage, Prone, Blessed\u2026 each with the numbers it changes, then put a Status effects field on the sheet.')); (draft.effects || []).forEach(function(d) { efr.appendChild(effectRow(d)); }); });
     var sl = ui('sysLayout'); if (sl) { sl.style.display = tab === 'layout' ? '' : 'none'; if (tab === 'layout') renderLayout(); }
     var scal = ui('sysCalendar'); if (scal) { scal.style.display = tab === 'calendar' ? '' : 'none'; if (tab === 'calendar') renderCalendar(); }   // item 20 K1: the calendar
@@ -11316,7 +11328,7 @@ function renderAll() {
     rowsFor('sysRollRows', 'rolls', function(rr) { if (!draft.rolls.length) rr.appendChild(el('div', 'sys-empty', 'No rolls yet. A roll is a formula with dice, as a button on the sheet: d20 + STRmod. Set its Kind to Apply for a button that moves pools or numbers instead (Apply costs, Apply wounds).'));
     draft.rolls.forEach(function(r) { rr.appendChild(rollRow(r)); }); });
     var rAdd = ui('sysAddRoll'); if (rAdd) { rAdd.disabled = draft.rolls.length >= LIMITS.rolls; rAdd.title = rAdd.disabled ? 'A system holds ' + LIMITS.rolls + ' rolls at most. Remove one to add another.' : 'Add a roll'; }   // 1.6.0: one past the cap was dropped at Save with nothing said
-    rowsFor('sysItemRows', 'items', function(itr) { if (!draft.items || !draft.items.length) itr.appendChild(el('div', 'sys-empty', 'No items yet. Add weapons, gear or explosives your characters can carry — an item with a blast area can be thrown from the sheet.')); (draft.items || []).forEach(function(it) { itr.appendChild(itemRow(it)); }); renderCombat(); });
+    rowsFor('sysItemRows', 'items', function(itr) { if (!draft.items || !draft.items.length) itr.appendChild(el('div', 'sys-empty', 'No items yet. Add weapons, gear or explosives your characters can carry — an item with a blast area can be thrown from the sheet.')); (draft.items || []).forEach(function(it) { itr.appendChild(itemRow(it)); }); });
     rowsFor('sysCharRows', 'chars', function(cr) { var camp = getActiveCampaign(), list = charList(camp); if (!list.length) cr.appendChild(el('div', 'sys-empty', 'No characters yet. New character here, or "New character from this token" in a token\'s Properties.')); list.forEach(function(c) { cr.appendChild(charRow(c, camp)); }); charFilter(); });
     var note = ui('sysFeatureNote'); if (note) note.style.display = featureOn() ? 'none' : '';
     if (!_tabPress) patchErrors();
@@ -11324,17 +11336,17 @@ function renderAll() {
 }
 // [systemcheck:rowfocus-start]
 // 1.6.0: what holds the focus in a row of the editor, by the row's own id and the list's or the box's own class, and the same control found in
-// the rows drawn since. Found by comparing, so no id of a system file is ever put in a selector. A list's card or the Combat card repeats its boxes, so there a
+// the rows drawn since. Found by comparing, so no id of a system file is ever put in a selector. A list's card or the Combat tab repeats its boxes, so there a
 // control goes by its place among those of its class
 function rowFocusOf(a) {
     var row = a && a.closest ? a.closest('#systemModal .sys-row') : null, cls = a && typeof a.className === 'string' ? a.className.split(' ').filter(function(c) { return c.indexOf('sys-') === 0; })[0] : '';
     if (row && row.dataset && row.dataset.id && cls) return { id: row.dataset.id, cls: cls };
-    var card = !row && cls ? a.closest('#systemModal .sys-list-card, #sysCombatBox') : null, nth = card ? Array.prototype.indexOf.call(card.querySelectorAll('.' + cls), a) : -1;
+    var card = !row && cls ? a.closest('#systemModal .sys-list-card, #sysCombatBox, #sysRulesBox') : null, nth = card ? Array.prototype.indexOf.call(card.querySelectorAll('.' + cls), a) : -1;
     return nth >= 0 ? { lid: (card.dataset && card.dataset.lid) || '', cls: cls, nth: nth } : null;
 }
 function rowFocusBack(was) {
     if (!was) return;
-    var rows = document.querySelectorAll(was.nth === undefined ? '#systemModal .sys-row' : '#systemModal .sys-list-card, #sysCombatBox'), row = null, i;
+    var rows = document.querySelectorAll(was.nth === undefined ? '#systemModal .sys-row' : '#systemModal .sys-list-card, #sysCombatBox, #sysRulesBox'), row = null, i;
     for (i = 0; i < rows.length && !row; i++) if (was.nth === undefined ? rows[i].dataset.id === was.id : (rows[i].dataset.lid || '') === was.lid) row = rows[i];
     var box = !row ? null : was.nth === undefined ? row.querySelector('.' + was.cls) : row.querySelectorAll('.' + was.cls)[was.nth];
     if (box && box.focus) box.focus();
@@ -11936,20 +11948,21 @@ function onClick(e) {
     if (b.id === 'sysAddChar') { showPrompt('Name the character', 'New character', function(name) { if (name === null) return; var c = newCharacter({ name: String(name || '').trim() || 'New character' }); afterCharChange(c, true); renderAll(); }); return; }
     if (b.id === 'sysAddItem') { if (!Array.isArray(draft.items)) draft.items = []; if (draft.items.length >= LIMITS.items) { toast('At most ' + LIMITS.items + ' items.'); return; } draft.items.push({ id: uid('i_'), name: '', category: '', icon: '', notes: '', vis: 'all', area: null, damage: '', cost: '', throwSkill: '' }); markDirty(); renderAll(); var li = ui('sysItemRows').lastElementChild; if (li) { var n = li.querySelector('.sys-item-name'); if (n) n.focus(); li.scrollIntoView({ block: 'nearest' }); } return; }
     if (b.id === 'sysAddEffect') { if (!Array.isArray(draft.effects)) draft.effects = []; if (draft.effects.length >= LIMITS.effects) { toast('At most ' + LIMITS.effects + ' effects.'); return; } draft.effects.push({ id: uid('e_'), name: '', icon: '', tone: '', dur: '', notes: '', vis: 'all', mods: [] }); markDirty(); renderAll(); var lastE = ui('sysEffectRows') && ui('sysEffectRows').lastElementChild; if (lastE) { var ni = lastE.querySelector('.sys-fx-name'); if (ni) ni.focus(); } return; }   // 5h
+    if (b.dataset.topic && window.wpSysUi) { window.wpSysUi.topicPress(b.dataset.set, b.dataset.topic); return; }   // 1.6.2: a topic down the side, nothing drawn again
     if (b.dataset.tab) { tab = b.dataset.tab; _tabPress = true; try { renderAll(); } finally { _tabPress = false; } return; }
     if (onLayoutClick(b)) return;
     if (!b.dataset.act) return;
-    if (turnClick(b)) return;   // turn-based combat T1: the Combat card's actions and time units
-    if (lightClick(b)) return;   // lighting L4: the Combat card's light presets
-    if (sensesClick(b)) return;   // senses S2a: the Combat card's senses
-    if (rangeClick(b)) return;   // range penalties R1: the Combat card's range table
-    if (postureClick(b)) return;   // conditions C3: the Combat card
-    if (heightClick(b)) return;   // item 19 H2: the Combat card's height table
+    if (turnClick(b)) return;   // turn-based combat T1: the Combat tab's actions and time units
+    if (lightClick(b)) return;   // lighting L4: the Combat tab's light presets
+    if (sensesClick(b)) return;   // senses S2a: the Combat tab's senses
+    if (rangeClick(b)) return;   // range penalties R1: the Combat tab's range table
+    if (postureClick(b)) return;   // conditions C3: the Combat tab
+    if (heightClick(b)) return;   // item 19 H2: the Combat tab's height table
     if (calendarClick(b)) return;   // item 20 K1: the Calendar tab
     if (budgetClick(b)) return;   // 126: the Lists tab's point budgets
     if (envClick(b)) return;   // 1.6.0: the Environment readings
     if (tableClick(b)) return;   // 1.6.0: the Tables box
-    if (barsClick(b)) return;   // backlog 28: the Combat card's Token bars
+    if (barsClick(b)) return;   // backlog 28: the Combat tab's Token bars
     if (linkClick(b)) return;   // 1.6.0: the Linked sheets
     if (damageClick(b)) return;   // 1.5.6: the Taking damage box
     if (typeof coverHitClick === 'function' && coverHitClick(b)) return;   // 1.6.0: where a hit behind cover lands
@@ -12247,7 +12260,7 @@ function dmgFollowWords(sys, info) {   // 1.6.2: the rolls a blow will ask for, 
 function takeDamage(charId, pre) {
     pre = dmgObj(pre) ? pre : {};
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp), rules = dmgRules(sys), SCd = window.wpSystemCore;
-    if (!c || !rules || !SCd) { toast('This system takes no damage by the damage step. Set it up in the System editor\u2019s Combat card.'); return false; }
+    if (!c || !rules || !SCd) { toast('This system takes no damage by the damage step. Set it up in the System editor\u2019s Combat tab.'); return false; }
     if (!canDamage(charId)) { toast('You may not apply damage to that character.'); return false; }
     dmgClose();
     var box = el('div', 'dmg-win'); box.id = 'dmgWin'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');

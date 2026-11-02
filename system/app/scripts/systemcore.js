@@ -1420,7 +1420,7 @@ function cleanEvery(v, needs) {
     var o = { n: n, u: u }; if (v.rest === true) o.rest = true; if (v.wait === true) o.wait = true; if (v.whileNeeds === true && !!cleanFormulaText(needs)) o.whileNeeds = true; return o;
 }
 // Backlog 152 (the fight clock, docs/FIGHT_CLOCK_DESIGN.md 2 and 13): a roll or an apply action that also runs in a fight, In a fight — every n
-// rounds (the round's length, the Combat card's Turns box), minutes or hours, or n of the system's own time units by key, with fresh (Each fight
+// rounds (the round's length, the Combat tab's Turns box), minutes or hours, or n of the system's own time units by key, with fresh (Each fight
 // starts again, true only) its count begun anew with each fight. { n: 1 to 1000, u, fresh? }. A time word other than those three is no unit
 // of the system's (cleanTurn refuses them), so it is no unit here either. 1.5.5: whileNeeds? as By the clock's (cleanEvery), written last
 var FIGHT_UNITS = Object.freeze({ round: 1, min: 1, hour: 1 });
@@ -1527,7 +1527,7 @@ function moveAllowCells(v, unit, scale) {
     return Math.round(v * MAP_UNITS[unit] / (sc.per * MAP_UNITS[sc.unit]) * 1e6) / 1e6;   // to the millionth: 30 ft on 5 ft squares is 6, not 6.000000000000001
 }
 function costKey(v) { return typeof v === 'string' && STAT_KEY.test(v) ? v : ''; }   // T1: the action a roll costs (checked against the actions once they are cleaned)
-// T1: each roll's cost against the Combat card's actions, in the action's spelling; one naming no action stays in the GM's view (the validator
+// T1: each roll's cost against the Combat tab's actions, in the action's spelling; one naming no action stays in the GM's view (the validator
 // names it) and goes from the players'
 function costTargets(out, gmView) {
     var acts = map(); (out.combat && out.combat.turn && Array.isArray(out.combat.turn.acts) ? out.combat.turn.acts : []).forEach(function(a) { acts[lower(a.key)] = a.key; });
@@ -1639,7 +1639,7 @@ function rowTimers(sys, char, secs, perOf, F) {   // F (1.6.0): the formula engi
 // [systemcheck:damage-start]
 // 1.5.6, the damage step (the owner, 2026-10-24: "taking damage and running down HP and running through anything that provides DR first, DR
 // degradation and DUR degradation. all of this generalized for waypoint"): camp.system.combat.damage, absent when a system takes no damage by it.
-//   pool    the resource a wound comes off (the Combat card's hpResource where none is named)
+//   pool    the resource a wound comes off (the Combat tab's hpResource where none is named)
 //   major   a formula: a wound at or above it, in one blow, is a Major Wound ('' none). 1.6.0 (a build's sort, B3): it reads the hit location's
 //           own names as Hit.<name> beside the character's (0 where no location was struck), so a threshold may be a third on the head
 //   onMajor { fx, roll }, only beside major and in the GM's view alone: what a Major Wound does. fx, a library effect switched on (as an apply
@@ -1684,7 +1684,7 @@ function rowTimers(sys, char, secs, perOf, F) {   // F (1.6.0): the formula engi
 // injuring hit and a Major Wound (a Major Wound with no brokenMajorWear reads majorWear). Each reads the row (Row.), the location (Hit.),
 // Listed (its figure there) and Worn (what has worn off); one that gives no number, or less than 0, wears what the layer wore before.
 // The blow's own names too (book round hg, asked by the same session): Blow.dmg the damage rolled, before Protection; Blow.through what got
-// past it; Blow.wound the wound it dealt; Blow.type the damage type's place in the Combat card's list, 1 the first, 0 none; Blow.cuts 1 for a
+// past it; Blow.wound the wound it dealt; Blow.type the damage type's place in the Combat tab's list, 1 the first, 0 none; Blow.cuts 1 for a
 // type ticked as cutting; and ToDestroy, the wear that takes the piece to its wear cap, destroyed. The cap is twice its listed figure (it
 // wears to minus that figure), or a layer's own wearCap (1.6.0, asked by the same session for a piece whose Durability is one pool across
 // its locations), a formula read alike that gives the most wear the row may hold there; one that gives no number, or less than Worn, keeps
@@ -1698,7 +1698,7 @@ function rowTimers(sys, char, secs, perOf, F) {   // F (1.6.0): the formula engi
 // divisor or a type that ignores DR cannot let a hit through unworn; a blow with no location wears it too (Hit. names read 0); and with no wearCap
 // it stops at its figure, where it is down (layerWord), wear never going past it nor being put back. wears and pick are dropped beside it: one stat
 // typed (1.6.0, Type named by): { stat, plus }, what a row adds to the DR at the location against one damage type. stat, a number stat of the row
-// naming the type by its place in the Combat card's list, 1 the first, 0 none; plus, a formula read as the wear formulas are. It is worked out for
+// naming the type by its place in the Combat tab's list, 1 the first, 0 none; plus, a formula read as the wear formulas are. It is worked out for
 // each part of a blow by that part's own type, added before the armour divisor, and stored nowhere, so it never wears. A row counts where it wears
 // (on, or anyRow) and where its at gives that part a figure, and it stops once the row is broken there. Several rows add up
 var LAYER_WEAR = ['majorWear', 'brokenWear', 'brokenMajorWear', 'wearCap', 'hitWear'];
@@ -2776,10 +2776,10 @@ function rowLookOp(sys, char, f, q, opts) {
     return out;
 }
 // [systemcheck:rowlook-end]
-// 1.6.0 (the v2 sort's B1): a critical range, kept on the Combat card under criticals at fixed rolls and on a system roll or a list roll of any
+// 1.6.0 (the v2 sort's B1): a critical range, kept on the Combat tab under criticals at fixed rolls and on a system roll or a list roll of any
 // system (a technique that widens it): critAt and fumbleAt, each a formula of the roller's names with no dice, each absent where it does not clean
 function critRangeInto(out, r) { var a = cleanFormulaText(r.critAt), b = cleanFormulaText(r.fumbleAt); if (a) out.critAt = a; if (b) out.fumbleAt = b; }
-function hasRange(r) { return !!(r.critAt || r.fumbleAt || r.bigAt); }   // a roll with a range of its own names itself as it is rolled, or its press sends the formula alone and the host reads the Combat card's. The name stays in the players' view, whatever the view drops
+function hasRange(r) { return !!(r.critAt || r.fumbleAt || r.bigAt); }   // a roll with a range of its own names itself as it is rolled, or its press sends the formula alone and the host reads the Combat tab's. The name stays in the players' view, whatever the view drops
 // 1.6.0 (the book's ruling of 2026-10-29: only a natural 3 or 18 is a critical; a technique's widened range lands as a Big Hit instead): a system
 // roll or a list roll may carry bigAt, what lands as a Big Hit, a formula of the roller's names (a list roll's row's too) with no dice, under any
 // rule. Its cleaner and the players' view treat it as critAt. bigOf is its one reading
@@ -2928,7 +2928,7 @@ function cleanBlastRules(v, F) {
 // 1.5.9 (es): a launcher list's Flies at most (spec.chamber.reach): the yards a round that flies straight goes, a formula of the launcher row's
 // own names, no dice; '' where it does not clean
 function cleanReach(text, F) { return blastFormula(text, F, null, false); }
-// ... and an item's blast extras, kept in its area beside its radius: its damage type's key (a key of the Combat card's types), whether
+// ... and an item's blast extras, kept in its area beside its radius: its damage type's key (a key of the Combat tab's types), whether
 // going off uses one up (use, true only), whether it is placed, not thrown (place, true only: a mine), and the trigger radius in yards (trig,
 // 0.5 to 100 to the tenth, only beside place), and its armour divisor (ad, 0.1 to 100 to the tenth, never 1). 1.5.9 (es): how a round fired
 // from a launcher lands when the roll misses (flight: 'scatter', as a missed throw; 'line', straight on to the first wall or character; never
@@ -4113,7 +4113,7 @@ function cleanSystem(sys, opts) {
         out.fields.forEach(function(f) { if (f.list && isObj(f.list.load) && f.list.load.needs && mentions(f.list.load.needs)) { delete f.list.load.needs; delete f.list.load.needsText; } });   // 1.5.8 Loads only where, alike   // 1.5.8: a switch's needs naming a GM-only value go, as a list roll's (players' switches are then not held back by them)   // R2b: a list roll's consequences, or its needs, naming a GM-only value go (players' rolls then change nothing / are not held back)
         out.rolls = out.rolls.filter(function(r) { return r.apply ? !r.apply.some(function(c) { return mentions(c.formula); }) : !mentions(r.formula); });   // H7: an apply action naming a GM-only value goes whole
         out.rolls.forEach(function(r) { if (r.then && r.then.some(function(c) { return mentions(c.formula); })) delete r.then; if (r.malf && mentions(r.malf)) { delete r.malf; r.named = true; } if (r.needs && mentions(r.needs)) { delete r.needs; delete r.needsText; delete r.hideOff; if (r.every) delete r.every.whileNeeds; if (r.inFight) delete r.inFight.whileNeeds; } });   // 1.5.4: its needs naming one go, as a list roll's (players' presses are then not held back by them); 1.5.5: and Only while its needs hold with them   // R3: a Malf naming one too   // R1: a consequence naming a GM-only value takes them all (players' rolls then change nothing)
-        var critGo = function(r) { if (r.critAt && mentions(r.critAt)) { delete r.critAt; r.named = true; } if (r.fumbleAt && mentions(r.fumbleAt)) { delete r.fumbleAt; r.named = true; } if (r.bigAt && mentions(r.bigAt)) delete r.bigAt; };   // 1.6.0: a roll's own critical range naming a GM-only value goes, as its Malf does (their rolls then read the Combat card's). Either keeps the roll named, so the host still finds the entry whose figure it works out alone
+        var critGo = function(r) { if (r.critAt && mentions(r.critAt)) { delete r.critAt; r.named = true; } if (r.fumbleAt && mentions(r.fumbleAt)) { delete r.fumbleAt; r.named = true; } if (r.bigAt && mentions(r.bigAt)) delete r.bigAt; };   // 1.6.0: a roll's own critical range naming a GM-only value goes, as its Malf does (their rolls then read the Combat tab's). Either keeps the roll named, so the host still finds the entry whose figure it works out alone
         out.rolls.forEach(critGo); out.fields.forEach(function(f) { if (f.list && Array.isArray(f.list.rolls)) f.list.rolls.forEach(critGo); });
         var mjGo = function(r) { if (r.dmgMajorIf && mentions(r.dmgMajorIf)) delete r.dmgMajorIf; if (r.hits && mentions(r.hits)) delete r.hits; if (r.dkind && mentions(r.dkind)) delete r.dkind; if (r.dmg2 && mentions(r.dmg2)) { delete r.dmg2; delete r.dtype2; delete r.ad2; delete r.dkind2; } if (r.ad2 && mentions(r.ad2)) delete r.ad2; if (r.dkind2 && mentions(r.dkind2)) delete r.dkind2; DMG_MORE.forEach(function(k) { if (r['dmg' + k] && mentions(r['dmg' + k])) { delete r['dmg' + k]; delete r['dtype' + k]; delete r['ad' + k]; delete r['dkind' + k]; } if (r['ad' + k] && mentions(r['ad' + k])) delete r['ad' + k]; if (r['dkind' + k] && mentions(r['dkind' + k])) delete r['dkind' + k]; }); }; out.rolls.forEach(mjGo); out.fields.forEach(function(f) { if (f.list && Array.isArray(f.list.rolls)) f.list.rolls.forEach(mjGo); });   // 1.6.0: A Major Wound where naming a GM-only value goes, as a list roll's armour divisor does (only the host marks a card); B3: a second part read from one goes whole, its own armour divisor alone as ad does
         out.rolls.forEach(function(r) { if (r.label.indexOf('{') >= 0 && capMentions(r.label)) r.label = labelHead(r.label); });   // HUD frame (HF5a, H3): a label naming a GM-only value keeps only its plain text before the first {...} (fail closed, as a caption)
@@ -4196,7 +4196,7 @@ function cleanSystem(sys, opts) {
     (isObj(sys.combat) && isObj(sys.combat.senses) && Array.isArray(sys.combat.senses.list) ? sys.combat.senses.list : []).forEach(function(s) { var t = isObj(s) && isObj(s.notice) && isObj(s.notice.stealth) ? s.notice.stealth.r : null; if (typeof t === 'string') out.rolls.forEach(function(r) { if (r.id === t) r.named = true; }); });   // 1.6.0
     if (gmView && isObj(sys.combat) && isObj(sys.combat.holds)) holdsNamed(sys.combat.holds, out.rolls, out.fields);   // 1.6.0 Who holds whom
     out.combat = cleanCombat(sys.combat, resIds, gmKinds, secret, F, fieldIds, !gmView, function(id) { var hitF = null; out.fields.forEach(function(x) { if (!hitF && x.id === id) hitF = x; }); return hitF; });
-    if (!gmView && typeof mentions === 'function') ['critAt', 'fumbleAt'].forEach(function(k) { if (out.combat[k] && mentions(out.combat[k])) delete out.combat[k]; });   // 1.6.0: the Combat card's critical range naming a GM-only value goes from the players' view (their rolls then read 3 and 18)
+    if (!gmView && typeof mentions === 'function') ['critAt', 'fumbleAt'].forEach(function(k) { if (out.combat[k] && mentions(out.combat[k])) delete out.combat[k]; });   // 1.6.0: the Combat tab's critical range naming a GM-only value goes from the players' view (their rolls then read 3 and 18)
     if (out.combat.initiative && Array.isArray(out.combat.initiative.ties)) {   // initiative O2: a step that reads a GM-only value goes (the order is public: a player would learn which is higher), judged over the GM's view, in both views alike
         var sysTi = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables };
         out.combat.initiative.ties = out.combat.initiative.ties.filter(function(t) { var pt = F.parse(t); return !!(pt && pt.ok && Array.isArray(pt.names)) && !gmDerivedNames(sysTi, F, pt.names).length; });
@@ -4965,7 +4965,7 @@ function applyScope(sys, char, act, gm, F) {
 // Stage 6 HUD R1: the consequences one roll makes — a check's verdict (pass: true | false; null when the roll tests nothing) picks its "on
 // success" or "on failure" changes; "always" ones apply either way
 // 1.5.7: the damage type a damage roll names, as a key of the system's damage types, or '': its dtype is such a key, or a formula read with the
-// roll's own names (a list roll's row) that gives the type's place in the Combat card's list, 1 for the first. Nothing is rolled
+// roll's own names (a list roll's row) that gives the type's place in the Combat tab's list, 1 for the first. Nothing is rolled
 function dmgTypeOf(sys, ent, vars, F) {
     var rules = sys && isObj(sys.combat) && isObj(sys.combat.damage) ? sys.combat.damage : null, types = rules && Array.isArray(rules.types) ? rules.types.filter(function(t) { return isObj(t) && typeof t.key === 'string' && t.key; }) : [];
     if (!isObj(ent) || ent.dmg !== true || typeof ent.dtype !== 'string' || !ent.dtype || !types.length) return '';
@@ -5034,7 +5034,7 @@ function dmgPartOf(sys, ent, vars, F, o, k) {
 // When says, so a jam keeps its round chambered; every other change of a Then is as before. Every caller (the host's roll, the GM's own, a time rule) comes here
 function thenChanges(entry, pass, malf, crit) { return (isObj(entry) && Array.isArray(entry.then) ? entry.then : []).filter(function(c) { return isObj(c) && !(malf === true && (c.fire === true || c.feed === true)) && (!c.when || (pass === true && c.when === 'hit') || (pass === false && c.when === 'miss') || (malf === true && c.when === 'malf') || (pass === true && crit === 'crit' && c.when === 'crit') || (pass === false && crit === 'fumble' && c.when === 'fumble')); }); }   // R3: malf — the roll malfunctioned (it is then a failure too)
 // 1.6.0 (the v2 sort's B1): the critical range one roll is judged by under criticals at fixed rolls (combat.checks 'fixed'), [at, fumble]: each the
-// roll's own formula (entry.critAt, entry.fumbleAt: a system roll's or a list roll's), else the Combat card's, else 3 and 18, worked out with the
+// roll's own formula (entry.critAt, entry.fumbleAt: a system roll's or a list roll's), else the Combat tab's, else 3 and 18, worked out with the
 // roller's names (vars: a list roll's are its row's), no dice rolled, rounded; a formula that cannot be worked out gives way to the next. null
 // under any other rule. Only the machine that rolls asks it (the host's roll-req, the GM's own net.diceRoll, a time rule), and the record carries
 // the two numbers (dicecore ruleOf), so every card and consequence reads the same
@@ -7863,7 +7863,7 @@ function rangeCtx(sys, mp, from, to, opts) {
     return out;
 }
 // 1.6.0 (a build's combat module: "Size adds to attack rolls against the target"): what TargetSize reads, the target's own value of the field the
-// Combat card names (combat.targetSize), worked out on the target's character as its sheet works it out; 0 with no such field, no character
+// Combat tab names (combat.targetSize), worked out on the target's character as its sheet works it out; 0 with no such field, no character
 // behind the token (opts.charOf, the caller's own lookup: the host holds every character, a player's app only its own), or a value that is no
 // number. Held to within 1000 either way
 function targetSizeOf(sys, to, opts) {
@@ -7873,7 +7873,7 @@ function targetSizeOf(sys, to, opts) {
     return typeof v === 'number' && fin(v) ? Math.max(-1000, Math.min(1000, v)) : 0;
 }
 // 1.6.0 Target.<key> (asked by the core handbook session, for a target's own modifier on a roll): up to TARGET_READS more fields of the target's sheet, named by the
-// Combat card (combat.targetReads) and read as TargetSize is, each a number its viewer can read truthfully. Reading one counts as reading the range for the host's
+// Combat tab (combat.targetReads) and read as TargetSize is, each a number its viewer can read truthfully. Reading one counts as reading the range for the host's
 // privacy rule, and it reads 0 with no target. targetReadsOf answers { lower key: figure } or null
 var TARGET_READS = 6;
 function targetReadKey(sys, k) { var ids = sys && isObj(sys.combat) && Array.isArray(sys.combat.targetReads) ? sys.combat.targetReads : null; return !!ids && ids.some(function(id) { var f = fieldById(sys, id); return !!f && lower(f.key) === k; }); }
@@ -9484,8 +9484,8 @@ function validateSystem(sys, F) {
     TOKEN_NAMES.forEach(function(n) { var l = lower(n), fam = l.split('.')[0]; if (!ix[fam] && !known[l]) known[l] = { id: '', key: n, kind: fam === 'arc' && l !== 'arc' ? 'toggle' : 'number', vis: 'all' }; });   // 5h Fold 3: the facing names (a field named Facing, Arc or Threats keeps the family)
     var edges = map(), gmP = gmPools(sys, F);   // a pool whose max is GM-only: players see none of it
     var crits = isObj(sys.combat) && (sys.combat.checks === 'under3d6' || sys.combat.checks === 'fixed'), fixedC = crits && sys.combat.checks === 'fixed';   // 1.5.8: whether the system's Roll outcomes give criticals (1.6.0: or criticals at fixed rolls)
-    function noRangeSays() { return 'Roll outcomes on the Combat card is not Criticals at fixed rolls, so this roll\u2019s critical range is never read.'; }
-    function noCritSays(w) { return 'This system\u2019s rolls have no criticals (Roll outcomes on the Combat card), so ' + THEN_WHEN[w] + ' never happens.'; }
+    function noRangeSays() { return 'Roll outcomes on the Combat tab is not Criticals at fixed rolls, so this roll\u2019s critical range is never read.'; }
+    function noCritSays(w) { return 'This system\u2019s rolls have no criticals (Roll outcomes on the Combat tab), so ' + THEN_WHEN[w] + ' never happens.'; }
     // Stage 6 F5a1: the names a carried list offers — totals (L.count|qty|paid|<stat>|<col>), L.on.<same>, an addressed row (L.<Key>.lvl|qty|on|has|
     // paid|<stat>|<col>) — and a row's own inside its list's columns (Row.<word>): a target like a field's (key: the loop graph's node, a column's
     // own; noEdge: nothing worked out behind it), or null. A Row.* name outside a list's columns reads { rowOutside }
@@ -9583,8 +9583,8 @@ function validateSystem(sys, F) {
         var v = placeName(sys, l); if (v === undefined) return null;
         var t = { id: '', key: n, kind: 'number', vis: 'all', noEdge: true };
         if (fam === 'posture' && v < 0) t.says = '"' + n + '" names no posture of this system, so it reads -1 and never matches Posture.';
-        if (fam === 'type' && v === 0) t.says = '"' + n + '" names no damage type on the Combat card, so it reads 0.';
-        if (fam === 'kind' && v === 0) t.says = '"' + n + '" names no kind of blow on the Combat card, so it reads 0.';
+        if (fam === 'type' && v === 0) t.says = '"' + n + '" names no damage type on the Combat tab, so it reads 0.';
+        if (fam === 'kind' && v === 0) t.says = '"' + n + '" names no kind of blow on the Combat tab, so it reads 0.';
         if (fam === 'value') { var vr = valueNamed(sys, sg[1], sg[2]); t.says = vr.n < 0 ? '"' + n + '" names no value: no number of that key has that value name, so it reads -1 and never matches it.' : vr.also ? '"' + n + '" is a value name of more than one number, at different figures: it reads the first one\u2019s.' : ''; }
         if (fam === 'place') { var pr = placeNamed(sys, sg[1], sg[2]); t.says = !pr.n ? '"' + n + '" names no place: no list has a set of places ' + n.split('.')[1] + ' with that value name, so it reads 0, which has() refuses.' : pr.also ? '"' + n + '" is a place of more than one list, at different places: it reads the first list\u2019s.' : ''; }
         return t;
@@ -9630,12 +9630,12 @@ function validateSystem(sys, F) {
             if (re.test(text)) warnings.push({ id: owner.id, prop: prop, message: '"' + c[1] + '" is compared with a bare number, which is ' + c[3] });
         });
     }
-    function dkindSays(id, key, prop, text, vis, rowList) {   // 1.6.0: a roll's kind of blow: a key of the Combat card's kinds, or a formula giving a kind's place; a kind the system does not hold is said, since the blow then carries none
+    function dkindSays(id, key, prop, text, vis, rowList) {   // 1.6.0: a roll's kind of blow: a key of the Combat tab's kinds, or a formula giving a kind's place; a kind the system does not hold is said, since the blow then carries none
         if (typeof text !== 'string' || !text.trim()) return;
         var t = text.trim(), lt = lower(t), kdL = isObj(sys.combat) && isObj(sys.combat.damage) && Array.isArray(sys.combat.damage.kinds) ? sys.combat.damage.kinds : [];
         if (kdL.some(function(k) { return isObj(k) && typeof k.key === 'string' && lower(k.key) === lt; })) return;
-        if (!kdL.length) { warnings.push({ id: id, prop: prop, message: 'The Combat card names no kinds of blow, so this roll\u2019s blow carries none.' }); return; }
-        if (STAT_KEY.test(t) && !known[lt]) { warnings.push({ id: id, prop: prop, message: '"' + t + '" is no kind of blow on the Combat card, so the blow carries none.' }); return; }
+        if (!kdL.length) { warnings.push({ id: id, prop: prop, message: 'The Combat tab names no kinds of blow, so this roll\u2019s blow carries none.' }); return; }
+        if (STAT_KEY.test(t) && !known[lt]) { warnings.push({ id: id, prop: prop, message: '"' + t + '" is no kind of blow on the Combat tab, so the blow carries none.' }); return; }
         checkFormula({ id: id, key: key }, prop, t, false, vis, rowList);
     }
     function isRollProp(p) { return p === 'roll' || p === 'rollFormula' || (typeof p === 'string' && p.indexOf('list.roll.') === 0); }   // F5b: a list's roll is a roll
@@ -9676,8 +9676,8 @@ function validateSystem(sys, F) {
             if (!target && !ix.blow && l.indexOf('blow.') === 0 && BLOW_NAMES[l.slice(5)] === 1) { if (!blowV && !/^list\.col\./.test(prop) && !(prop === 'formula' && owner.kind === 'formula')) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only in a roll the damage step posts (a Major Wound\u2019s or a wound\u2019s), a list\u2019s column or a formula field: DR read for a blow reads it there, and anywhere else on the sheet it reads 0.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = { id: '', key: n, kind: 'number', vis: 'all', noEdge: true }; }   // 1.6.0 (the core's gaps 6 and 7)
             if (!target && !ix.hit && l.indexOf('hit.') === 0 && l.length > 4) { if (!blowV || !hitF) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only in a roll the damage step posts, with hit locations set.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } var hT = wordTarget(hitF, l.slice(4), false); if (!hT || hT.ctrTotal || hT.pickTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '": ' + (hitF.label || hitF.key) + ' has no stat or column ' + n.slice(4) + '.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = Object.assign({}, hT, { noEdge: true }); }
             if (!target && !ix.target && l.indexOf('target.') === 0 && l.length > 7 && targetReadKey(sys, l.slice(7))) target = { id: '', key: 'Target', kind: 'number', vis: 'all', noEdge: true };   // 1.6.0
-            if (!target && !ix.target && (l === 'target.postureranged' || l === 'target.aimed' || l === 'target.coverorposture')) { if (!(isObj(sys.combat) && sys.combat.postureOnAttack === true)) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only where the Combat card ticks An attack reads its target\u2019s posture.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = { id: '', key: n, kind: 'number', vis: 'all', noEdge: true }; }   // 1.6.0
-            if (!target && !ix.target && l.indexOf('target.hit.') === 0 && l.length > 11) { var thF = targetHitList(sys); if (!thF) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only where the Combat card names the list of hit locations (Called shots read).', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } var thT = wordTarget(thF, l.slice(11), false); if (!thT || thT.ctrTotal || thT.pickTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '": ' + (thF.label || thF.key) + ' has no stat or column ' + n.slice(11) + '.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = Object.assign({}, thT, { noEdge: true }); }   // 1.6.0 (B5): the target's own location row
+            if (!target && !ix.target && (l === 'target.postureranged' || l === 'target.aimed' || l === 'target.coverorposture')) { if (!(isObj(sys.combat) && sys.combat.postureOnAttack === true)) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only where the Combat tab ticks An attack reads its target\u2019s posture.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = { id: '', key: n, kind: 'number', vis: 'all', noEdge: true }; }   // 1.6.0
+            if (!target && !ix.target && l.indexOf('target.hit.') === 0 && l.length > 11) { var thF = targetHitList(sys); if (!thF) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only where the Combat tab names the list of hit locations (Called shots read).', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } var thT = wordTarget(thF, l.slice(11), false); if (!thT || thT.ctrTotal || thT.pickTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '": ' + (thF.label || thF.key) + ' has no stat or column ' + n.slice(11) + '.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = Object.assign({}, thT, { noEdge: true }); }   // 1.6.0 (B5): the target's own location row
             if (!target && !ix.presser && l.indexOf('presser.') === 0 && l.length > 8) { if (!(Array.isArray(sys.links) ? sys.links : []).some(function(k) { return isObj(k) && k.kind === 'crew' && k.press === true && k.group; })) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only where a Crew link lets its crew press this sheet\u2019s rolls and the vehicle reads its crew as a group.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = { id: '', key: 'Presser', kind: 'number', vis: 'all', noEdge: true }; }   // 1.6.0
             if (!target && (l === 'crossstep' || l === 'crossed')) { if (!crossV || /(^|\.)cross\./.test(prop)) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is known only in a roll or an action that runs When a value crosses.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = { id: '', key: l === 'crossstep' ? 'CrossStep' : 'Crossed', kind: 'number', vis: 'all', noEdge: true }; }   // 1.6.0
             if (!target && l === 'onself') { errors.push({ id: owner.id, prop: prop, message: '"OnSelf" is known only in a roll or an action that Applies to the user or an adjacent character.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
@@ -9883,7 +9883,7 @@ function validateSystem(sys, F) {
     if (trn && trn.move) checkFormula({ id: 'combat', key: '#turn' }, 'turn.move', trn.move, false, 'all');
     if (trn && trn.run) checkFormula({ id: 'combat', key: '#turn' }, 'turn.run', trn.run, false, 'all');   // 1.6.0: a move by giving up an action
     if (trn && trn.holdLost) checkFormula({ id: 'combat', key: '#turn' }, 'turn.holdLost', trn.holdLost, false, 'gm');   // 1.6.0: read on the host alone
-    if (fixedC) ['critAt', 'fumbleAt'].forEach(function(k) { if (sys.combat[k]) checkFormula({ id: 'checks', key: '#checks' }, k, sys.combat[k], false, 'all'); });   // 1.6.0: the Combat card's critical range (no dice)
+    if (fixedC) ['critAt', 'fumbleAt'].forEach(function(k) { if (sys.combat[k]) checkFormula({ id: 'checks', key: '#checks' }, k, sys.combat[k], false, 'all'); });   // 1.6.0: the Combat tab's critical range (no dice)
     if (isObj(sys.combat) && isObj(sys.combat.holds)) {   // 1.6.0 Who holds whom: its formula, and what it names
         var hdV = sys.combat.holds, hdRoll = function(ref) { var m = typeof ref === 'string' ? /^(f_[A-Za-z0-9_]{1,24})#(\d{1,2})$/.exec(ref) : null, f = m ? fieldById(sys, m[1]) : null; return m ? !!(f && isObj(f.list) && Array.isArray(f.list.rolls) && f.list.rolls[+m[2]]) : (Array.isArray(sys.rolls) ? sys.rolls : []).some(function(r) { return isObj(r) && r.id === ref; }); };
         if (hdV.ends) checkFormula({ id: 'holds', key: '#holds' }, 'ends', hdV.ends, false, 'gm');
@@ -9897,7 +9897,7 @@ function validateSystem(sys, F) {
     var stnSays = function(id, prop, r) { (isObj(r) && Array.isArray(r.stations) ? r.stations : []).forEach(function(s) { if (typeof s === 'string' && !crewStn[lower(s)]) warnings.push({ id: id, prop: prop, message: 'It names the station ' + s + ', which no Crew link has, so nobody at it may press this roll.' }); }); };   // 1.6.2 (backlog 208, point 9)
     sys.rolls.forEach(function(r) { stnSays(r.id, 'stations', r); });
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.rolls)) f.list.rolls.forEach(function(r) { stnSays(f.id, 'list', r); }); });
-    var costErr = function(id, prop, k) { errors.push({ id: id, prop: prop, message: 'No action \u201c' + k + '\u201d on the Combat card (System \u25b8 Items): add it there, or pick another.' }); };
+    var costErr = function(id, prop, k) { errors.push({ id: id, prop: prop, message: 'No action \u201c' + k + '\u201d on the Combat tab: add it there, or pick another.' }); };
     sys.rolls.forEach(function(r) { if (r.cost && !actK[lower(r.cost)]) costErr(r.id, 'cost', r.cost); });
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.rolls)) f.list.rolls.forEach(function(r, i) { if (isObj(r) && r.cost && !actK[lower(r.cost)]) costErr(f.id, 'list.cost.' + i + '.' + (r.label || (Array.isArray(r.apply) ? 'Apply' : 'Roll')), r.cost); }); });
     sys.fields.forEach(function(f) {   // Stage 6 HUD R2: a list's counters — each most a formula (no dice) that reads the row
@@ -9929,7 +9929,7 @@ function validateSystem(sys, F) {
             if (!isObj(a)) return;
             if (typeof a.vs === 'string') checkFormula({ id: it.id, key: it.id }, 'aff.' + ai + '.vs', a.vs, false, 'gm');
             if (typeof a.needs === 'string' && a.needs) checkFormula({ id: it.id, key: it.id }, 'aff.' + ai + '.needs', a.needs, false, 'gm');
-            if (isObj(a.lasts) && typeof a.lasts.n === 'string' && a.lasts.n) { checkFormula({ id: it.id, key: it.id }, 'aff.' + ai + '.lasts', a.lasts.n, true, 'gm'); if (!affLastsSecs(sys, 1, a.lasts.u)) warnings.push({ id: it.id, prop: 'aff.' + ai + '.lasts', message: 'Lasts names a time unit the Combat card does not have, so the effect lasts its own time.' }); }
+            if (isObj(a.lasts) && typeof a.lasts.n === 'string' && a.lasts.n) { checkFormula({ id: it.id, key: it.id }, 'aff.' + ai + '.lasts', a.lasts.n, true, 'gm'); if (!affLastsSecs(sys, 1, a.lasts.u)) warnings.push({ id: it.id, prop: 'aff.' + ai + '.lasts', message: 'Lasts names a time unit the Combat tab does not have, so the effect lasts its own time.' }); }
         });
         if (it.cost) checkFormula({ id: it.id, key: it.id }, 'cost', it.cost, false, it.vis);
         if (it.throwSkill && !ix[lower(it.throwSkill)]) warnings.push({ id: it.id, prop: 'throwSkill', message: 'Throw skill "' + it.throwSkill + '" is not a field.' });

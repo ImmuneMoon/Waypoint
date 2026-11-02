@@ -1,6 +1,12 @@
 WAYPOINT 1.6.2 — What's New
 ============================
 
+The System editor
+- Combat and Rules are tabs of their own now. Everything the Combat card held
+  is on the Combat tab, and the budgets, readings, linked sheets and tables
+  that stood on the Lists tab are on the Rules tab. Each has its topics down
+  the left side, one at a time. Nothing went: only where it sits has changed.
+
 At the table
 - Explode on the Radius tool now asks for a Defense roll where your system gives
   its blasts one. A system with no such roll goes off at once, as before.
@@ -16,7 +22,7 @@ At the table
 - A station nobody holds reads 0, as a skill of 0 does. The roll's card now says
   nobody is there.
 - A roll that resists can keep its figure from the table. Tick Hide what a defence
-  needs on the Combat card, or press Hide figures on an NPC's sheet. Where the roll
+  needs on the Combat tab, or press Hide figures on an NPC's sheet. Where the roll
   reads its attacker, a player's card shows the dice and Success or Failure, and
   your card shows it all. An attack by your own character goes the same way.
 

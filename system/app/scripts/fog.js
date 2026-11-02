@@ -2208,7 +2208,7 @@ var LIGHT_SAID = {
     var sfield = ui('fogSightField');
     if (sfield) sfield.addEventListener('change', function() { var camp = activeCamp(); if (!camp) return; var cf = campFog(camp); cf.fields.sight = sfield.value || undefined; if (!sfield.value) delete cf.fields.sight; save(); syncMenu(); redraw(); });
     var sedit = ui('fogSensesEdit');
-    if (sedit) sedit.addEventListener('click', function() { closeMenu(); if (window.wpSheets && window.wpSheets.open) window.wpSheets.open('items'); });   // senses S2a: they are set on the System editor's Combat card
+    if (sedit) sedit.addEventListener('click', function() { closeMenu(); if (window.wpSheets && window.wpSheets.open) window.wpSheets.open('combat', 'senses'); });   // senses S2a: they are set on the System editor's Combat tab
     var msel = ui('fogMarksMode');   // senses S4b: "Marks in a fight" (what is held is forgotten: the new rule starts from now)
     if (msel) msel.addEventListener('change', function() {
         var camp = activeCamp(); if (!camp) return; var cf = campFog(camp);

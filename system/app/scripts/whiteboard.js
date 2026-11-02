@@ -73,7 +73,7 @@ function boxHeight(box, yd) { if (!box) return; var s = String(ydBox(yd)); box.s
 // [systemcheck:lenunit-end]
 // [systemcheck:postranged-start]
 // A posture's ranged note (1.6.0, backlog 183 (3), the owner by prompt: "A ranged note per posture (Recommended)"): what a foe's RANGED roll
-// against a token in it takes, a whole number the system gives each posture of its own list (its Combat card), none by default. Display only,
+// against a token in it takes, a whole number the system gives each posture of its own list (its Combat tab), none by default. Display only,
 // no roll reads it: after the distance on a ruler that ends on the token, and a second line under its posture in its chip's tooltip and its
 // hover card, while Token posture is on (as the chip is). The chip, the menus and the hover card follow the list. A name or a tag comes from a
 // system file or the host: it lands through esc or as text
@@ -4401,7 +4401,7 @@ window.wpFitToGrid = fitToGrid;
   // A blast thrown from a character sheet: placed on the host, shown to everyone on the map (never the personal quick-tool). opts: x, y (the
   // point clicked), ft, name, by, charId, fieldId, rowId (the row it is thrown from), damage, gmOnly; and from this machine alone: goOff (a mine
   // going off: no roll, no aim), direct (the token struck directly), dtype, notes, icon. mapIn: the map it goes off on (the map on screen else)
-  // 1.6.0: what an item's list says of its blast, by the Combat card's two stats: BlastFills, the yards it fills, and BlastNoDrop. f, the list its row stands on; def, its entry
+  // 1.6.0: what an item's list says of its blast, by the Combat tab's two stats: BlastFills, the yards it fills, and BlastNoDrop. f, the list its row stands on; def, its entry
   function blastStats(sys, f, def) {
       var rl = typeof blastRules === 'function' ? blastRules(sys) : null, S = window.wpSystemCore, out = {}; if (!rl || !S || typeof S.rowStat !== 'function' || !f || !f.list || !def) return out;
       if (rl.fills) { var fv = S.rowStat(f.list, def, rl.fills); if (typeof fv === 'number' && isFinite(fv) && fv > 0) out.fills = Math.min(10000, fv); }
@@ -4464,7 +4464,7 @@ window.wpFitToGrid = fitToGrid;
   // throws, it should automatically place an explosive in the area indicated in the throw, following rules on when it automatically detonates
   // and causes damage", "Mines only activate when they are stepped on, as opposed to grenades that automatically detonate once deployed").
   // The host's half: blastcore.js is the pure one. A throw knows what it aims at: the character token clicked, else the point clicked. Where the
-  // system's Combat card names a throw's roll (combat.blast.roll) and the item a throw skill, the host rolls it first, with the range to the aim:
+  // system's Combat tab names a throw's roll (combat.blast.roll) and the item a throw skill, the host rolls it first, with the range to the aim:
   // a success lands on the aim, a miss scatters from it along the line of the throw by the scatter's feet, a critical failure goes off in the
   // thrower's hand. Where the card names how far and how near a thing may be thrown (max, min, in yards), a throw past them is refused in
   // words. A thrown explosive goes off where it lands, at once. An item marked Placed, not thrown (a mine) is laid as a trigger zone hidden
@@ -4564,7 +4564,7 @@ window.wpFitToGrid = fitToGrid;
       return hit ? hit.id : '';
   }
   // 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 2): a blast's fragmentation, after its shares and in the same pass. It reaches
-  // the Combat card's frag.reach in yards (read with FragDice, the dice it rolls, and 1.6.0 BlastDice, the dice the blast's own damage rolls), else the blast's own radius, and never less; who rolls what is
+  // the Combat tab's frag.reach in yards (read with FragDice, the dice it rolls, and 1.6.0 BlastDice, the dice the blast's own damage rolls), else the blast's own radius, and never less; who rolls what is
   // blastcore fragTargets: one roll every token shares, or one each under frag.each, and the token struck directly a roll of its own under
   // frag.direct. Only total cover stops it under frag.cover 'total', where a token partly behind cover takes it all; else the system's cover
   // outcomes, as the blast. Each hit is rolled with the thrower's character (a damage card already applied, kept as private as the item) and
@@ -4619,8 +4619,8 @@ window.wpFitToGrid = fitToGrid;
   }
   // 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 2, its affliction half): a blast's afflictions, after its shares and its fragmentation
   // and in the same pass. Each reaches everyone in the blast's own radius (who all; a character the system's cover outcome shields passed over),
-  // else those the blast or its fragmentation wounded, after DR, or under the Combat card's hurt 'share' those any share of it reached (H7). A
-  // character its Only where does not hold for is not touched. Each other rolls the Combat card's resist roll as itself, Resist standing for the
+  // else those the blast or its fragmentation wounded, after DR, or under the Combat tab's hurt 'share' those any share of it reached (H7). A
+  // character its Only where does not hold for is not touched. Each other rolls the Combat tab's resist roll as itself, Resist standing for the
   // item's resist target read with its own names (an NPC's card the GM's, a GM-only item's kept the GM's); a failure puts the effect on in the list
   // that holds it, else the system's first effects list (applyEffectOp's add: on again and its timer afresh where it is there), for its Lasts
   // where that is set (rolled as the victim) and else the effect's own time. With no resist roll on the card nothing is rolled, and the GM is told
@@ -4666,7 +4666,7 @@ window.wpFitToGrid = fitToGrid;
           });
       });
       var who = nm || 'The blast';
-      if (owed.length) toast(who + ': ' + owed.slice(0, 6).join(', ') + (owed.length > 6 ? ' and ' + (owed.length - 6) + ' more' : '') + ' must resist. The Combat card has no resist roll, so nothing was rolled.');
+      if (owed.length) toast(who + ': ' + owed.slice(0, 6).join(', ') + (owed.length > 6 ? ' and ' + (owed.length - 6) + ' more' : '') + ' must resist. The Combat tab has no resist roll, so nothing was rolled.');
       if (gone) toast(who + ': the effect an affliction puts on is gone from the system, so it was not rolled.');
       if (odd) toast(who + ': ' + odd + ' resist roll' + (odd === 1 ? '' : 's') + ' could not be judged, so nothing was put on. The resist roll must be a check, such as 3d6 <= Resist.');
       return out;
@@ -4748,7 +4748,7 @@ window.wpFitToGrid = fitToGrid;
       else if (shielded || spared) toast('No damage:' + coverNote.replace(/^ ·/, '') + '.');
       if (ap && !ap.on && ap.resisted && !applied && !(fp && fp.hit) && !shielded && !spared) toast((b.name || 'The blast') + ': ' + ap.resisted + ' resisted.');   // 1.5.9 (es): an affliction resisted by all, and nothing else said
   }
-  // 1.6.0 (the core's gap 8; the owner, by prompt: "the gm or the victim can roll, controlled by a setting"): under the Combat card's eachBy
+  // 1.6.0 (the core's gap 8; the owner, by prompt: "the gm or the victim can roll, controlled by a setting"): under the Combat tab's eachBy
   // 'victim' each character in the blast rolls its own dice from a card: its player's, an NPC's or a GM-only item's the GM's. The host keeps
   // what each card rolls (memory alone, the newest OWED_MAX, gone with the table): the blast, the character and its token, its yards, the dice
   // at that distance and the cover it had as the blast went off. A press rolls it once (the host's dice, as the victim), its falloff reads that
@@ -4971,10 +4971,10 @@ window.wpFitToGrid = fitToGrid;
   // round's own. On a hit the host puts it on the roller's target (net.js, wpLaunchHit); the GM's Launch puts it where the GM clicks (wpArmLaunch),
   // as for a round that misses where its item says nothing. 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 1): a round whose item says
   // how it lands on a miss (its area's flight) is put down by the host on a miss too (wpLaunchMiss): one that scatters lands as a missed throw does,
-  // a yard a point missed and never more than half the distance fired, by the Combat card's own scatter where it names one; one that flies straight
+  // a yard a point missed and never more than half the distance fired, by the Combat tab's own scatter where it names one; one that flies straight
   // goes on along its line, past the aim, and goes off on the first wall or character in its path, or at its farthest (the launcher list's Flies at
   // most, else the board's edge). One that scatters goes off on a thrown grenade's timing, so it waits for the fuse where the card sets one (the
-  // book's fix log (eu), H1). What the book has not ruled yet is the Combat card's to say (combat.blast.launch). The host's alone, never on a
+  // book's fix log (eu), H1). What the book has not ruled yet is the Combat tab's to say (combat.blast.launch). The host's alone, never on a
   // player's app
   function launchRowOf(camp, opts) {   // the launcher's row on this machine's own copy and the round it puts down: { ch, f, row, def, area }
       var S = window.wpSystemCore, sys = camp && camp.system; if (!S || !sys || !opts || typeof opts.charId !== 'string' || typeof opts.fieldId !== 'string' || typeof opts.rowId !== 'string') return null;
@@ -5000,7 +5000,7 @@ window.wpFitToGrid = fitToGrid;
   }
   window.wpLaunchAt = launchAt;
   // 1.6.0 A burst (the owner, by prompt: "both as 2 options depending on how the gm prefers"): a round that failed, past the first, lands a rolled distance off
-  // where the first round landed and goes off at the start of the next turn. The Combat card's launch.stray rolls the distance here, as the round fails, and the
+  // where the first round landed and goes off at the start of the next turn. The Combat tab's launch.stray rolls the distance here, as the round fails, and the
   // GM says the way: the map's six or eight ways, or Click on the map, whose next click gives it, or Skip, which lets it go. It waits as a kind of the bell, in this
   // machine's memory, as a fuse does
   var _strays = Object.create(null), STRAY_MAX = 32, strayN = 0;
@@ -5124,7 +5124,7 @@ window.wpFitToGrid = fitToGrid;
       var lenW = function(yd) { return typeof rulerLen === 'function' && typeof rulerUnitNow === 'function' ? rulerLen(yd, rulerUnitNow()) : Math.round(yd * 10) / 10 + ' yd'; };
       if (o.crit === 'fumble' && ln.fumble === 'none') { toast('A critical failure: ' + nm + ' misfires and goes nowhere. The round is spent.'); return null; }
       if (o.crit === 'fumble' && ln.fumble === 'feet') return launchAt(Object.assign(base, { x: sc.x, y: sc.y, direct: null, said: ' A critical failure: it goes off at the shooter\u2019s feet.', fuse: ln.now !== true && fl === 'scatter' }), map);
-      if (fl === 'scatter') {   // as a missed throw: from the aim along the line it was fired on, by the Combat card's scatter (Margin, ThrowDistance: the distance fired), else the book's
+      if (fl === 'scatter') {   // as a missed throw: from the aim along the line it was fired on, by the Combat tab's scatter (Margin, ThrowDistance: the distance fired), else the book's
           var syd = null;
           if (typeof bl.scatter === 'string' && bl.scatter && F) { var sv = F.evaluate(bl.scatter, { vars: function(n) { var l = String(n).toLowerCase(); return l === 'margin' ? mg : l === 'throwdistance' ? dYd : undefined; } }); syd = sv && sv.ok ? (typeof sv.value === 'boolean' ? (sv.value ? 1 : 0) : sv.value) : null; }
           syd = typeof syd === 'number' && isFinite(syd) ? Math.max(0, Math.min(1000, syd)) : BC.bookScatterYd(mg, dYd);

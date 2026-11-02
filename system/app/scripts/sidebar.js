@@ -576,6 +576,7 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
           });
       });
       document.addEventListener('pointerdown', function(e) { if (!(e.target.closest && e.target.closest('.section-actions'))) hideSectionActions(); }, true);
+      document.querySelectorAll('.section-plus').forEach(function(b) { b.addEventListener('click', function() { var t = document.getElementById(b.dataset.press); if (t) t.click(); }); });   // 1.6.2: the empty sections say press +, so a + is in sight; the rest stay on a right-click
       document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && (!window.wpEsc || window.wpEsc.free(e))) hideSectionActions(); });   // 1.5.4: esckey.js puts them away, one thing a press
       document.querySelectorAll('.section-actions').forEach(function(a) { a.addEventListener('click', function() { setTimeout(hideSectionActions, 0); }); });
       (function() { var sb = document.getElementById('campaignSidebar'); if (sb) sb.addEventListener('scroll', hideSectionActions); })();

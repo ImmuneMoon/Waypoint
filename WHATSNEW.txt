@@ -11,6 +11,9 @@ The System editor
 - Sections can stand side by side. Drop one on another's left or right edge, or
   pick Beside the one before in the section list. In a narrow window they stack
   again. Any system can use this, and a sheet that does not is drawn as before.
+- A new system is easier to start. A field's key now fills in from its label,
+  the empty sections of the left panel show their + in sight, and a row nobody
+  has typed in no longer shows an error.
 - Combat and Rules are tabs of their own now. Everything the Combat card held
   is on the Combat tab, and the budgets, readings, linked sheets and tables
   that stood on the Lists tab are on the Rules tab. Each has its topics down
@@ -31,6 +34,10 @@ The System editor
 - Adds to DR is one table now, the damage types across the top.
 
 At the table
+- Advantage now helps on a roll-under check. It keeps the lower die there, where
+  it used to keep the higher one and made the roll worse.
+- A pool set by the sheet goes on rolling when it shrinks past its keep count. It
+  keeps what it has.
 - Explode on the Radius tool now asks for a Defense roll where your system gives
   its blasts one. A system with no such roll goes off at once, as before.
 - A player who joins late now sees past cards about those they can see. Cards

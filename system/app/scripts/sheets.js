@@ -6501,6 +6501,7 @@ function openDownloadMenu(anchor) {
 // An outside sheet file (2026-10-18) is read only where a reader is at hand: on the GM's own machine one that a module of the GM's registered
 // (systemcore registerReader: none ships with the app), at someone's table the host's, which its snapshot says (net.sheetFilesOk). A
 // Waypoint character file needs none
+function sysReaders() { var S = window.wpSystemCore; return !!(S && typeof S.readers === 'function' && S.readers().length); }   // any reader at all, whichever system it answers on
 function sheetReaders() { var S = window.wpSystemCore; return S && typeof S.readers === 'function' ? S.readers(systemOf()) : []; }   // 1.6.0: a reader with a mark only on its own system
 function gmReader() { var out = null; sheetReaders().forEach(function(r) { if (!out && r.ui && typeof r.ui.gmFile === 'function') out = r; }); return out; }
 function sheetFilesOk() { if (!isClient()) return sheetReaders().length > 0; var n = net(); return !!(n && typeof n.sheetFilesOk === 'function' && n.sheetFilesOk() === true); }
@@ -6816,7 +6817,8 @@ function open(which, topic) {
     var m = ui('systemModal'); if (!m) return;
     ui('sysCampName').textContent = camp.name || 'Campaign';
     ui('sysName').value = draft.name || '';
-    if (ui('sysMark')) ui('sysMark').value = typeof draft.mark === 'string' ? draft.mark : '';
+    if (ui('sysMark')) { ui('sysMark').value = typeof draft.mark === 'string' ? draft.mark : ''; var mkR = ui('sysMark').closest('.sys-flags'); if (mkR) mkR.hidden = !draft.mark && !sysReaders();   // 1.6.2: a word for an outside reader, which a table without one has no use for
+    }
     m.style.display = 'flex';
     if (window.wpSysUi) window.wpSysUi.pickReset();   // 1.6.2: a list opens on its first row
     if (topic && window.wpSysUi) window.wpSysUi.topicPress(tab, topic);   // the Combat or Rules tab at one topic
@@ -12129,7 +12131,7 @@ function onClick(e) {
     if (!draft) return;
     var b = e.target.closest && e.target.closest('button'); if (!b) return;
     if (onSwClick(b)) return;   // 1.6.0: an item's or an effect's roll bonuses
-    if (b.id === 'sysAddField') { if (draft.fields.length >= LIMITS.fields) { toast('At most ' + LIMITS.fields + ' fields.'); return; } draft.fields.push({ id: uid('f_'), key: '', label: '', kind: 'number', def: 0, step: 1, edit: 'owner', vis: 'all', hover: false }); markDirty(); renderAll(); var last = ui('sysFieldRows').lastElementChild; if (last) { var k = last.querySelector('.sys-key'); if (k) k.focus(); last.scrollIntoView({ block: 'nearest' }); } return; }
+    if (b.id === 'sysAddField') { if (draft.fields.length >= LIMITS.fields) { toast('At most ' + LIMITS.fields + ' fields.'); return; } draft.fields.push({ id: uid('f_'), key: '', label: '', kind: 'number', def: 0, step: 1, edit: 'owner', vis: 'all', hover: false }); markDirty(); renderAll(); var last = ui('sysFieldRows').lastElementChild; if (last) { var k = last.querySelector('input.sys-label'); if (k) k.focus(); last.scrollIntoView({ block: 'nearest' }); } return; }
     if (b.id === 'sysAddRoll') { draft.rolls.push({ id: uid('r_'), label: '', formula: '', vis: 'all' }); markDirty(); renderAll(); var lr = ui('sysRollRows').lastElementChild; if (lr) { var l = lr.querySelector('.sys-label'); if (l) l.focus(); } return; }
     if (b.id === 'sysAddChar') { showPrompt('Name the character', 'New character', function(name) { if (name === null) return; var c = newCharacter({ name: String(name || '').trim() || 'New character' }); afterCharChange(c, true); renderAll(); }); return; }
     if (b.id === 'sysAddItem') { if (!Array.isArray(draft.items)) draft.items = []; if (draft.items.length >= LIMITS.items) { toast('At most ' + LIMITS.items + ' items.'); return; } draft.items.push({ id: uid('i_'), name: '', category: '', icon: '', notes: '', vis: 'all', area: null, damage: '', cost: '', throwSkill: '' }); markDirty(); renderAll(); var li = ui('sysItemRows').lastElementChild; if (li) { var n = li.querySelector('.sys-item-name'); if (n) n.focus(); li.scrollIntoView({ block: 'nearest' }); } return; }

@@ -92,7 +92,7 @@ function pickWords(text) { return String(text || '').toLowerCase().split(/\s+/).
 function rowFinds(hay, words) { for (var i = 0; i < words.length; i++) if (hay.indexOf(words[i]) < 0) return false; return true; }
 // A row of the list: its key, its name and what it is, each a text node. Written again only where the words moved
 function rowWrite(b, r) {
-    var k = b.childNodes[0], n = b.childNodes[1], t = b.childNodes[2], nm = r.name || 'No name yet';
+    var k = b.childNodes[0], n = b.childNodes[1], t = b.childNodes[2], nm = r.name || r.key || 'No name yet';
     if (k.textContent !== (r.key || '')) k.textContent = r.key || '';
     if (n.textContent !== nm) n.textContent = nm;
     n.classList.toggle('none', !r.name);

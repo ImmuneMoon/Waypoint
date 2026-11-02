@@ -173,9 +173,9 @@ const kids = n => n.childNodes.slice();
     const d = makeDom(), { document, window } = d;
     Object.defineProperty(d.El.prototype, 'options', { get() { return this.childNodes; } });
     const cut = name => { const a = sh.indexOf('\nfunction ' + name + '('); if (a < 0) return ''; if (name === 'listCard') return sh.slice(a + 1, sh.indexOf('    return card;\n}\n', a) + 18); const line = sh.slice(a + 1, sh.indexOf('\n', a + 1)); if (/\}\s*(\/\/.*)?$/.test(line) && (line.match(/\{/g) || []).length === (line.match(/\}/g) || []).length) return line; const m = /\n\}/g; m.lastIndex = a + 1; return sh.slice(a + 1, m.exec(sh).index + 2); };
-    const names = ['el', 'input', 'numInput', 'numField', 'select', 'opt', 'labeledNum', 'labeledSelect', 'capBox', 'capInline', 'checkLabel', 'lazySelect', 'lineUnder', 'fieldRow', 'buildDefCell', 'roundCells', 'spillCtl', 'rollRow', 'effectRow', 'itemRow', 'itemModsBox', 'itemStatsBox', 'grantBox', 'grantEntries', 'grantName', 'swBox', 'swTargets', 'affBox', 'listCard', 'everyRow', 'fightRow', 'askRow', 'noteRow', 'crossRow', 'callsBox', 'applyEditor', 'startsBox', 'badgeBox', 'toneRow', 'altBox', 'needsGmBox', 'areaBox', 'resistBySel', 'resistOrBox', 'rollStationBox', 'dieSel', 'metricSel', 'decBox', 'placeSel', 'lvlCapsBox', 'onceBox', 'upkeepBox', 'onRemoveBox', 'partCapsBox', 'listCrossRow', 'swWordsBox', 'rollExtras', 'glyphButton'];
+    const names = ['el', 'input', 'numInput', 'numField', 'select', 'opt', 'labeledNum', 'labeledSelect', 'capBox', 'capInline', 'checkLabel', 'lazySelect', 'lineUnder', 'fieldRow', 'buildDefCell', 'roundCells', 'spillCtl', 'rollRow', 'effectRow', 'itemRow', 'itemModsBox', 'itemStatsBox', 'grantBox', 'grantEntries', 'grantName', 'swBox', 'swTargets', 'affBox', 'listCard', 'everyRow', 'fightRow', 'askRow', 'noteRow', 'crossRow', 'callsBox', 'applyEditor', 'startsBox', 'badgeBox', 'toneRow', 'altBox', 'needsGmBox', 'areaBox', 'resistBySel', 'resistOrBox', 'rollStationBox', 'dieSel', 'metricSel', 'decBox', 'placeSel', 'lvlCapsBox', 'onceBox', 'upkeepBox', 'onRemoveBox', 'partCapsBox', 'listCrossRow', 'swWordsBox', 'rollExtras', 'glyphButton', 'damageBox', 'dbxObj', 'dbxField', 'dbxKeys', 'dbxOpts', 'dbxPools', 'dbxLists', 'dbxStr', 'dbxTick', 'dbxCap', 'dbxNum', 'dbxBtn', 'majRowsOf'];
     const code = names.map(cut).join('\n');
-    window.wpSoundOn = { btn: () => { const b = document.createElement('button'); b.className = 'sys-sound-on'; return b; } }; window.wpSystemCore = {};
+    window.wpSoundOn = { btn: () => { const b = document.createElement('button'); b.className = 'wib wi-sound tool ghost snd-on-btn'; return b; } }; window.wpSystemCore = {};
     const mkSel = c => { const s = document.createElement('select'); s.className = c; return s; };
     const draft = {
         fields: [
@@ -194,9 +194,9 @@ const kids = n => n.childNodes.slice();
     const base = { document, window, console, draft, Object, Array, String, Number, Math, JSON, RegExp, isFinite, parseFloat, parseInt, Date, Set, Map, WeakMap, Boolean, Error, Symbol, undefined, Infinity, NaN,
         KIND_LABEL: { number: 'Number', formula: 'Formula', resource: 'Resource', skill: 'Skill', toggle: 'Toggle', text: 'Text', notes: 'Notes', select: 'Select', 'item-list': 'Item list', effects: 'Status effects' }, KIND_HELP: {}, STORED: { number: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1, effects: 1 }, ITEM_COL_LABEL: { category: 'C', cost: 'C', damage: 'D', area: 'A', notes: 'N' }, LIMITS: new Proxy({}, { get: () => 99 }), GRANT_MAX: 8, ROUND_WORDS: [['', 'None'], ['near', 'N'], ['from', 'F']],
         btnRow: l => { const b = document.createElement('span'); b.className = 'sys-btns'; l.forEach(x => { const q = document.createElement('button'); q.className = 'tool ghost sys-btn'; q.dataset.act = x[0]; b.appendChild(q); }); return b; },
-        turnActs: () => [{ key: 'a', n: 1 }], costOptions: () => [['', 'x']], fxTargets: () => [['f_n|add', 'x']], modVal: () => 'f_n|add', modHowSel: mkSel, itemStatDefs: () => [{ key: 'w', label: 'W' }], errorCell: () => { const e = document.createElement('div'); e.className = 'sys-err'; return e; }, listNamesText: () => 'x', PLACES: [['', 'x']], postureList: () => draft.combat.postures, swSays: () => '', affSays: () => '', iconText: () => '', lvlOnlyText: () => '', AFF_WHO: [['', 'x']], AFF_UNITS_ED: [['turns', 't']], draftRowOf: () => null };
+        turnActs: () => [{ key: 'a', n: 1 }], costOptions: () => [['', 'x']], fxTargets: () => [['f_n|add', 'x']], modVal: () => 'f_n|add', modHowSel: mkSel, itemStatDefs: () => [{ key: 'w', label: 'W' }], errorCell: () => { const e = document.createElement('div'); e.className = 'sys-err'; return e; }, listNamesText: () => 'x', PLACES: [['', 'x']], postureList: () => draft.combat.postures, swSays: () => '', affSays: () => '', iconText: () => '', lvlOnlyText: () => '', AFF_WHO: [['', 'x']], AFF_UNITS_ED: [['turns', 't']], draftRowOf: () => null, DBX_LIM: { types: 32, kinds: 8, layers: 8, weapons: 4, wears: 8, onWound: 6, onMajor: 4 }, DBX_DIE: [] };
     const env = new Proxy(base, { has: (t, k) => typeof k === 'string', get: (t, k) => (k in t ? t[k] : (k === Symbol.unscopables ? undefined : stub(k))) });
-    const R = new Function('env', 'with (env) {\n' + code + '\nreturn { fieldRow, rollRow, effectRow, itemRow, listCard };\n}')(env);
+    const R = new Function('env', 'with (env) {\n' + code + '\nreturn { fieldRow, rollRow, effectRow, itemRow, listCard, damageBox };\n}')(env);
     const P4 = (() => { const load = new Function('window', 'document', 'localStorage', src), kept = {}, st = { getItem: k => (k in kept ? kept[k] : null), setItem: (k, v) => { kept[k] = String(v); } }; window.localStorage = st; document.readyState = 'complete'; window.wpStepLog = () => {}; load(window, document, st); return { U: window.wpSysUi, kept }; })(), U = P4.U;
     const controls = row => row.all().filter(n => /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(n.tagName)).map(n => n.tagName + '.' + n.className + (n.dataset.act ? '#' + n.dataset.act : '') + '|' + n.title).sort();
     const rows = () => [].concat(draft.fields.filter(f => f.kind !== 'item-list').map(f => ['fields', R.fieldRow(f), f.key]), draft.fields.filter(f => f.kind === 'item-list').map(f => ['fields', R.fieldRow(f), f.key]), draft.rolls.map(r => ['rolls', R.rollRow(r), r.label]), draft.items.map(i => ['items', R.itemRow(i), i.name]), draft.effects.map(x => ['effects', R.effectRow(x), x.name]), [['lists', R.listCard(draft.fields[10], ['A'], [draft.fields[2]], [{ key: 'a' }]), 'Gear']]);
@@ -233,7 +233,85 @@ const kids = n => n.childNodes.slice();
     check('a list\'s card in its groups: the title first, each part where a new GM would look for it', list.firstChild.textContent.includes('Gear') && J(lg) === J(['holds', 'rows', 'level', 'on', 'stats', 'cols', 'cts', 'rolls', 'parts', 'badges', 'loads', 'specs', 'once', 'look', 'other', 'names']) && list.querySelector('.sys-grp[data-grp="lists:on"] .sys-list-upkeep') !== null && list.querySelector('.sys-grp[data-grp="lists:parts"] .sys-pcaps') !== null && list.querySelector('.sys-grp[data-grp="lists:rolls"] .sys-list-rolladd') !== null, J(lg));
     const odd = d.mk('div', 'sys-row'), kid = d.mk('input', 'sys-never-heard-of'); odd.appendChild(d.mk('div', 'sys-row-main')); odd.firstChild.appendChild(kid); window.wpSysUi.arrange(odd, 'fields');
     check('a control the table does not know goes to More, in sight, and is never lost', odd.querySelector('.sys-grp[data-grp="fields:more"] .sys-never-heard-of') === kid && odd.querySelector('.sys-grp[data-grp="fields:more"]').open === true);
+    /* ---------- the table of ticks ---------- */
+    const cb = d.mk('div', '', null, 'sysCombatBox'), nav2 = d.mk('div', '', null, 'sysCombatNav'); modal.appendChild(nav2); modal.appendChild(cb);
+    draft.fields[10].list.stats = [{ key: 'w', label: 'W' }, { key: 'nat', label: 'Natural' }]; draft.combat.damage = { locs: { list: 'f_l' }, types: [{ key: 'cut', label: 'Cutting', plus: ['nat'] }, { key: 'burn' }, { label: 'Heat' }] };
+    R.damageBox(cb, draft.combat);
+    const boxesBefore = cb.querySelectorAll('.sys-dmgr-yplus').map(x => x.dataset.k + ':' + x.checked).sort(), tipsBefore = cb.querySelectorAll('.sys-dmgr-plus label').map(l => l.title);
+    window.wpSysUi.combatDrawn(cb);
+    const table = cb.querySelector('.sys-tick-table'), th = table ? table.querySelectorAll('thead th').map(t => t.textContent) : [], body = table ? table.querySelectorAll('tbody tr') : [];
+    check('Adds to DR is one table, the damage types across the top, in place of a row of ticks a type', !!table && J(th.slice(0, 1)) === J(['Adds to DR']) && J(th.slice(1)) === J(['Cutting', 'burn', 'Heat']) && !cb.querySelector('.sys-dmgr-plus'), J(th));
+    check('every tick is in it, as it was: its class, its stat, ticked as it was, with a name for a screen reader and its tooltip on its cell', J(cb.querySelectorAll('.sys-dmgr-yplus').map(x => x.dataset.k + ':' + x.checked).sort()) === J(boxesBefore) && boxesBefore.length === body.length * 3 && table.querySelectorAll('td').every(t => t.title === tipsBefore[0]) && /adds to DR against/.test(table.querySelector('.sys-dmgr-yplus').getAttribute('aria-label')));
+    const tick = table.querySelectorAll('.sys-dmgr-yplus')[4], cell = tick.closest('.sys-dmgr-type');
+    check('a tick still tells its handler which type it stands for: the cell answers as the row did', cell && cell.dataset.yi === '1' && sh.includes("var y = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!y) return true;"));
+    check('the table stands after the types, by + Type', (() => { const k = kids(cb.querySelector('.sys-dmgr')); return k.indexOf(cb.querySelector('.sys-tick-scroll')) === k.findIndex(n => n.dataset.act === 'dmgryadd') + 1; })());
+    const nameBox = cb.querySelectorAll('.sys-dmgr-ylabel')[1]; nameBox.value = 'Burning'; d.fire(nameBox, 'input', {});
+    check('a type\'s name typed reaches its heading', table.querySelectorAll('th.sys-tick-col')[1].textContent === 'Burning');
+    const empty = d.mk('div', 'sys-dmgr'); check('no types, no table', (() => { const b2 = d.mk('div'); b2.appendChild(empty); window.wpSysUi.combatDrawn(b2); return !b2.querySelector('.sys-tick-table'); })());
+
+    /* ---------- Save and the count of errors ---------- */
+    const foot = d.mk('div', 'sys-foot'), btn = d.mk('button', 'tool ghost', null, 'sysErrBtn'), lst = d.mk('div', 'sys-errlist', null, 'sysErrList'); btn.hidden = true; lst.hidden = true; foot.appendChild(btn); foot.appendChild(lst); modal.appendChild(foot);
+    const row3 = R.rollRow(draft.rolls[0]); row3.lastChild.dataset.errFor = 'r_a'; const paneR = d.mk('div', '', null, 'sysRollRows'); paneR.appendChild(row3); modal.appendChild(paneR); window.wpSysUi.arrange(row3, 'rolls');
+    const needsBox = row3.querySelector('.sys-roll-needs'), mjBox = row3.querySelector('.sys-roll-mjif'); row3.querySelector('.sys-grp[data-grp="rolls:damage"]').open = false;
+    const gone = [], whereOf = id => (id === 'r_a' ? { name: 'Roll Attack', row: id } : id === 'x' ? { name: 'List Kit' } : null), host = { where: whereOf, say: (e, w) => (w ? 'warn ' : '') + e.message, go: (id, prop) => gone.push([id, prop]) };
+    window.wpSysUi.errHost(host);
+    new Function('window', 'document', 'localStorage', src)(window, document, window.localStorage); window.wpSysUi.errHost(host); window.wpSysUi.arrange(d.mk('div', 'sys-row'), 'rolls');
+    window.wpSysUi.marks({}, {});
+    check('with nothing wrong the foot says nothing more', btn.hidden === true);
+    window.wpSysUi.marks({ r_a: [{ prop: 'dmgMajorIf', message: 'Bad <b>formula</b>' }, { prop: 'nothing known', message: 'Other' }], x: [{ prop: 'list', message: 'List one' }] }, { y: [{ prop: 'p', message: 'Odd' }] });
+    check('the count of errors stands in the foot, counted, and a warning beside it', btn.hidden === false && btn.textContent === '3 errors, 1 warning', btn.textContent);
+    d.fire(btn, 'click', {});
+    const lines = kids(lst);
+    check('a press lists them, where each stands and what it says, as text, errors first', lst.hidden === false && btn.getAttribute('aria-expanded') === 'true' && lines.length === 4 && lines[0].childNodes[0].textContent === 'Roll Attack' && lines[0].childNodes[1].textContent === 'Bad <b>formula</b>' && lines[1].childNodes.length === 2 && lines[3].classList.contains('warn') && lines[3].childNodes[1].textContent === 'warn Odd');
+    const groupD = row3.querySelector('.sys-grp[data-grp="rolls:damage"]'); d.fire(lines[0], 'click', {});
+    check('pressing an error goes to the box it names: its tab and row by the host, its folded group opened, the box in view with the focus on it', J(gone) === J([['r_a', 'dmgMajorIf']]) && groupD.open === true && document.activeElement === mjBox && mjBox.calls.includes('scrollIntoView') && lst.hidden === true);
+    d.fire(btn, 'click', {}); d.fire(kids(lst)[1], 'click', {});
+    check('a word no box answers goes to what Save says under the row', row3.querySelector('[data-err-for]').calls.includes('scrollIntoView') && gone.length === 2);
+    d.fire(btn, 'click', {}); const ek = d.fire(kids(lst)[0], 'keydown', { key: 'Escape' });
+    check('Escape puts the list away and goes no further', lst.hidden === true && ek.stopped === true && document.activeElement === btn);
+    window.wpSysUi.marks({}, {}); check('put right, the count goes and so does the list', btn.hidden === true && lst.hidden === true);
+    check('the router hands Escape to the list and to a search that holds words', read('scripts/esckey.js').includes("errL.hidden === false") && read('scripts/esckey.js').includes("t.classList.contains('sys-find')"));
+    const rsE = sh.slice(sh.indexOf('function errWhere(id) {'), sh.indexOf('// [sysuicheck:rows-end]')), Ug = { calls: [], pickSet(k, r) { this.calls.push(['pick', k, r]); }, topicPress(s, t) { this.calls.push(['topic', s, t]); }, topicOf: id => ({ damage: ['combat', 'damage'], budgets: ['rules', 'budgets'] }[id] || null), topicName: (s, t) => t };
+    const drE = { fields: [{ id: 'f', key: 'K', label: 'Kit' }, { id: 'l', key: 'L', label: 'Lst', kind: 'item-list' }], rolls: [{ id: 'r', label: 'Hit' }], items: [{ id: 'i', name: 'Rope' }], effects: [{ id: 'e', name: 'Rage' }] };
+    const E = new Function('window', 'draft', 'errPrefix', rsE + "\nvar tab = 'fields', _tabPress = false, drew = 0; function renderAll() { drew++; }\nreturn { errWhere, errGo, errSay, tabNow: () => tab, drew: () => drew };")({ wpSysUi: Ug }, drE, (p, w) => (p === 'turn.move' ? 'Move per turn: ' : ''));
+    check('where an error stands: a row by its tab, a list by its own word, a topic by its tab and name, and what cannot be placed goes nowhere', J(E.errWhere('f')) === J({ tab: 'fields', kind: 'fields', row: 'f', name: 'Field Kit' }) && J(E.errWhere('list:l')) === J({ tab: 'lists', kind: 'lists', row: 'l', name: 'List Lst' }) && E.errWhere('r').tab === 'rolls' && E.errWhere('i').kind === 'items' && E.errWhere('e').name === 'Effect Rage' && E.errWhere('damage').topic === 'damage' && E.errWhere('calendar').tab === 'calendar' && E.errWhere('plc:x').tab === 'layout' && E.errWhere('nothing') === null && E.errWhere('list:gone') === null);
+    E.errGo('i'); E.errGo('damage'); E.errGo('nothing');
+    check('going there opens the tab and the row or topic, and draws it once', J(Ug.calls) === J([['pick', 'items', 'i'], ['topic', 'combat', 'damage']]) && E.tabNow() === 'combat' && E.drew() === 2 && E.errSay({ prop: 'turn.move', message: 'Bad' }) === 'Move per turn: Bad');
+    const mapped = src.slice(src.indexOf('var GROUPS = {'), src.indexOf('var VALUE_TITLE')) + src.slice(src.indexOf('var PROP_BOX = ['), src.indexOf('// The box a word names'));
+    const missing = (mapped.match(/'sys-[a-z0-9-]+'/g) || []).map(s => s.slice(1, -1)).filter(c => !sh.includes(c) && !/^sys-roll-p[345]f$/.test(c));
+    check('every class the groups and the map of boxes name is one the editor really has', missing.length === 0, J(missing));
+
+    /* ---------- the notes that fold ---------- */
+    const tabR = d.mk('div', 'sys-tab', null, 'sysRolls'), bar = d.mk('div', 'sys-toolbar'), note = d.mk('span', 'sys-note'), other = d.mk('div', 'sys-toolbar'), onote = d.mk('span', 'sys-note'); note.textContent = 'A long note.'; onote.textContent = 'Preview'; bar.appendChild(note); tabR.appendChild(bar); other.appendChild(onote); const lay = d.mk('div', 'sys-layout-preview-box'); lay.appendChild(other); modal.appendChild(tabR); modal.appendChild(lay);
+    const kept2 = {}; window.localStorage = { getItem: k => (k in kept2 ? kept2[k] : null), setItem: (k, v) => { kept2[k] = v; } };
+    new Function('window', 'document', 'localStorage', src)(window, document, window.localStorage);
+    const nb = bar.querySelector('.sys-note-btn');
+    check('a tab\'s long note has a button beside it, and a note that is no tab\'s has none', !!nb && nb.textContent === 'Got it' && nb.getAttribute('aria-expanded') === 'true' && !other.querySelector('.sys-note-btn'));
+    d.fire(nb, 'click', {});
+    check('Got it folds it away and it stays folded for this computer; the words stay in the page', note.hidden === true && nb.textContent === 'About this tab' && kept2.wp_sysNotes === '{"sysRolls":1}' && note.textContent === 'A long note.');
+    bar.removeChild(nb); new Function('window', 'document', 'localStorage', src)(window, document, window.localStorage);
+    const nb2 = bar.querySelector('.sys-note-btn');
+    check('the next time it opens folded', note.hidden === true && nb2.textContent === 'About this tab');
+    d.fire(nb2, 'click', {});
+    check('About this tab brings it back', note.hidden === false && kept2.wp_sysNotes === '{}');
+    check('what the ticks mean stays one press away: every key and its button are as they were', ['fields', 'rolls', 'items', 'lists'].every(k => ix.includes('data-key="' + k + '"')) && ix.split('What the ticks mean</button>').length === 5);
+    const focusRow = R.fieldRow(draft.fields[3]); window.wpSysUi.arrange(focusRow, 'fields'); modal.appendChild(focusRow);
+    const rGrp = focusRow.querySelector('.sys-grp[data-grp="fields:round"]'), rBox = focusRow.querySelector('.sys-round') || rGrp.querySelector('select'); rBox.focus();
+    const again2 = R.fieldRow(draft.fields[3]); window.wpSysUi.arrange(again2, 'fields');
+    check('a group worked in stays open when its row is drawn again, though nothing in it is in use', again2.querySelector('.sys-grp[data-grp="fields:round"]').open === true);
+    window.wpSysUi.pickReset(); const again3 = R.fieldRow(draft.fields[3]); window.wpSysUi.arrange(again3, 'fields');
+    check('and folds again when the editor is opened anew', again3.querySelector('.sys-grp[data-grp="fields:round"]').open === false);
     check('the layer failing leaves the row as its builder made it', (() => { const row = d.mk('div', 'sys-row'); const r = window.wpSysUi.arrange(row, 'nothing'); return r === row; })());
+}
+
+/* ---------- nothing removed, in the page ---------- */
+{
+    // every id the editor's page held before this work, and every tooltip it held (the owner: "lets not remove functionality with these updates, thats critical")
+    const BEFORE = ["systemModal","sysCampName","sysName","sysStartSel","sysExportBtn","sysImportBtn","sysClose","sysCapNote","sysFeatureNote","sysFields","sysAddField","sysKeyFields","sysFieldRows","sysTestBtn","sysTestOut","sysRolls","sysAddRoll","sysKeyRolls","sysRollRows","sysItems","sysCombatBox","sysAddItem","sysOpenLibrary","sysKeyItems","sysItemRows","sysLists","sysKeyLists","sysListRules","sysBudgets","sysEnv","sysLinks","sysTables","sysListRows","sysEffects","sysAddEffect","sysEffectRows","sysChars","sysAddChar","sysNewSheets","sysSheetsCurrent","sysCharFilter","sysMark","sysCharRows","sysLayout","sysLayoutView","sysAddSection","sysLayoutAuto","sysLayoutClear","sysLayoutNote","sysLayoutSecs","sysPreviewChar","sysLayoutPreview","sysCalendar","sysFoot","sysSaveBtn","sysImportFile"];
+    const sysP = ix.slice(ix.indexOf('<div id="systemModal"'), ix.indexOf('<!-- Combat roster (GM) -->'));
+    const gone = BEFORE.filter(id => sysP.split(' id="' + id + '"').length !== 2);
+    check('every id of the editor\'s page stands once, as before this work', BEFORE.length > 40 && gone.length === 0, J(gone));
+    check('and every tooltip of its page, with the two new tabs\' own', (sysP.match(/ title="/g) || []).length === 38 + 2, (sysP.match(/ title="/g) || []).length);
 }
 
 const words = ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].map(root);

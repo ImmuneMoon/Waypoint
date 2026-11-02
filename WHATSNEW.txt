@@ -12,6 +12,11 @@ The System editor
   you can drag a line to move it. A dot marks one with an error or a warning.
 - What a line holds stands in named groups. Those you seldom need start
   folded, and say in use where they hold something.
+- The foot of the editor counts your errors and warnings. Press the count
+  to list them, and press one to go to the box it names.
+- A tab's long note folds away with Got it, and About this tab brings it
+  back.
+- Adds to DR is one table now, the damage types across the top.
 
 At the table
 - Explode on the Radius tool now asks for a Defense roll where your system gives

@@ -1902,6 +1902,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>The Fields, Rolls, Items, Lists and Effects tabs list what they hold down the left, one line each, with a search at the top. Press a line to open it on the right.</li>
                                   <li>The arrow keys go through a list, and Enter goes into the line that is open. Alt and an arrow moves a line, and you can drag one. A red dot marks a line with an error, and a gold one a warning.</li>
                                   <li>What a line holds stands in named groups. Press a group&rsquo;s name to fold it or open it. A group you seldom need starts folded, and says <b>in use</b> where it holds something.</li>
+                                  <li>The foot of the editor counts your errors and warnings. Press the count for a list of them, and press one to go to the box it names.</li>
+                                  <li>Press <b>Got it</b> beside a tab&rsquo;s long note to fold it away. <b>About this tab</b> brings it back.</li>
                               </ul>
                           </li>
                           <li><b>Limits:</b> a system holds up to 600 fields and 160 rolls, and the sheet and its HUD up to 100 sections and 800 placements each. Anything past a limit is left out when the system loads or is imported, and a notice names what was left out. The System editor shows a note at its top while something stands at its limit, and after a load left something out.</li>
@@ -4682,7 +4684,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             </div>
         </div>
         <div id="sysCalendar" class="sys-tab" style="display:none;"></div>
-        <div class="sys-foot"><span id="sysFoot" class="sys-note"></span><span style="flex:1;"></span><button class="tool" id="sysSaveBtn" title="Save the system to this campaign (players at the table get the visible fields at once)">Save</button></div>
+        <div class="sys-foot"><span id="sysFoot" class="sys-note"></span><button type="button" class="tool ghost" id="sysErrBtn" hidden aria-expanded="false" aria-controls="sysErrList"></button><div id="sysErrList" class="sys-errlist" hidden></div><span style="flex:1;"></span><button class="tool" id="sysSaveBtn" title="Save the system to this campaign (players at the table get the visible fields at once)">Save</button></div>
         <input type="file" id="sysImportFile" accept=".json,application/json" style="display:none;">
     </div>
 </div>

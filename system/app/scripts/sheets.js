@@ -11355,6 +11355,24 @@ function pickMove(kind, id, toId, after) {
     var arr = kind === 'rolls' ? draft.rolls : kind === 'items' ? draft.items : kind === 'effects' ? draft.effects : draft.fields;
     if (window.wpSysUi.moveIn(arr, id, toId, after)) { markDirty(); renderAll(); }
 }
+// Where an error stands, and pressing it goes there: its tab, then its row or its topic, by what the layer holds
+function errWhere(id) {
+    var U = window.wpSysUi, one = function(arr) { return (arr || []).filter(function(x) { return x && x.id === id; })[0]; }, m = /^list:(.+)$/.exec(id), x;
+    if (m) { x = (draft.fields || []).filter(function(f) { return f && f.id === m[1]; })[0]; return x ? { tab: 'lists', kind: 'lists', row: x.id, name: 'List ' + (x.label || x.key || '') } : null; }
+    if ((x = one(draft.fields))) return { tab: 'fields', kind: 'fields', row: id, name: 'Field ' + (x.label || x.key || '') };
+    if ((x = one(draft.rolls))) return { tab: 'rolls', kind: 'rolls', row: id, name: 'Roll ' + (x.label || '') };
+    if ((x = one(draft.items))) return { tab: 'items', kind: 'items', row: id, name: 'Item ' + (x.name || '') };
+    if ((x = one(draft.effects))) return { tab: 'effects', kind: 'effects', row: id, name: 'Effect ' + (x.name || '') };
+    if (/^plc:/.test(id)) return { tab: 'layout', name: 'Layout' };
+    if (id === 'calendar') return { tab: 'calendar', name: 'Calendar' };
+    var t = U && U.topicOf(id); return t ? { tab: t[0], set: t[0], topic: t[1], name: (t[0] === 'combat' ? 'Combat, ' : 'Rules, ') + U.topicName(t[0], t[1]) } : null;
+}
+function errGo(id) {
+    var U = window.wpSysUi, p = errWhere(id); if (!p || !U) return;
+    tab = p.tab; if (p.kind) U.pickSet(p.kind, p.row); if (p.topic) U.topicPress(p.set, p.topic);
+    _tabPress = true; try { renderAll(); } finally { _tabPress = false; }
+}
+function errSay(e, warn) { return errPrefix(e && e.prop, warn) + (e && e.message ? e.message : ''); }
 // [sysuicheck:rows-end]
 // [systemcheck:rowfocus-start]
 // 1.6.0: what holds the focus in a row of the editor, by the row's own id and the list's or the box's own class, and the same control found in
@@ -12188,7 +12206,7 @@ function importFile(file) {
     m.addEventListener('input', onInput);
     m.addEventListener('change', onChange);
     m.addEventListener('click', onClick);
-    if (window.wpSysUi) window.wpSysUi.host({ pick: pickOpen, move: pickMove });   // 1.6.2
+    if (window.wpSysUi) { window.wpSysUi.host({ pick: pickOpen, move: pickMove }); window.wpSysUi.errHost({ where: errWhere, say: errSay, go: errGo }); }   // 1.6.2
     m.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); close(false); } });
     var t = ui('sysTestBtn'); if (t) t.addEventListener('click', runTest);
     var st = ui('sysStartSel'); if (st) st.addEventListener('change', function() { var v = st.value; st.value = ''; if (v) startFrom(v); });

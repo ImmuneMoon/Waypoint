@@ -72,7 +72,8 @@ function escKeep(doc, t) {
     if (escAt(t, '.hk-picking')) return true;   // 1.6.0: a key being picked in Settings, Keys (commands.js): its Escape lets the wait go
     var bar = doc.getElementById('tsBar');
     if (escAt(t, '.ts-box') && bar && bar.hidden !== true && escShown(bar)) return true;
-    return (t.id === 'helpSearch' || t.id === 'journalSearch') && typeof t.value === 'string' && t.value !== '';
+    var errL = doc.getElementById('sysErrList'); if (errL && errL.hidden === false) return true;   // the System editor's list of errors goes first
+    return (t.id === 'helpSearch' || t.id === 'journalSearch' || (t.classList && t.classList.contains('sys-find'))) && typeof t.value === 'string' && t.value !== '';
 }
 // The one painted on top: the highest z-index, and of two alike the one later in the page
 function escZ(win, el) { var s = win && typeof win.getComputedStyle === 'function' ? win.getComputedStyle(el) : null, z = s ? parseInt(s.zIndex, 10) : NaN; return isFinite(z) ? z : 0; }

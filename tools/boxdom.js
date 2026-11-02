@@ -69,7 +69,7 @@ function makeDom() {
             one = one.trim(); const m = /^([a-zA-Z]*)((?:[.#][\w-]+)*)((?:\[data-[\w-]+(?:="[^"]*")?\])*)$/.exec(one); if (!m) throw new Error('selector not understood by the test page: ' + one);
             if (m[1] && this.tagName !== m[1].toUpperCase()) return false;
             if (!(m[2].match(/[.#][\w-]+/g) || []).every(p => p[0] === '#' ? this.id === p.slice(1) : this.classList.contains(p.slice(1)))) return false;
-            return (m[3].match(/\[data-([\w-]+)(?:="([^"]*)")?\]/g) || []).every(p => { const k = /\[data-([\w-]+)(?:="([^"]*)")?\]/.exec(p); return k[2] === undefined ? this.dataset[k[1]] !== undefined : String(this.dataset[k[1]]) === k[2]; });
+            return (m[3].match(/\[data-([\w-]+)(?:="([^"]*)")?\]/g) || []).every(p => { const k = /\[data-([\w-]+)(?:="([^"]*)")?\]/.exec(p); k[1] = k[1].replace(/-([a-z])/g, (x, c) => c.toUpperCase()); return k[2] === undefined ? this.dataset[k[1]] !== undefined : String(this.dataset[k[1]]) === k[2]; });
         });
     };
     El.prototype.matches = El.prototype.is;

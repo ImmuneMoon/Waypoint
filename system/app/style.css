@@ -3478,7 +3478,24 @@
   .sys-empty { color: var(--dim); font-size: 12px; padding: 14px; text-align: center; }
   .sys-test { display: flex; flex-direction: column; gap: 4px; }
   .sys-test-out { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; color: var(--ink); max-height: 120px; overflow: auto; display: flex; flex-wrap: wrap; gap: 2px 16px; }
-  .sys-foot { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--edge); padding-top: 8px; }
+  .sys-foot { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--edge); padding-top: 8px; flex: none; position: relative; }
+  #sysErrBtn { color: var(--red); white-space: nowrap; }
+  #sysErrBtn[hidden] { display: none; }
+  #sysErrBtn.warn { color: var(--gold); }
+  .sys-errlist { position: absolute; left: 0; bottom: calc(100% + 4px); width: min(620px, 100%); max-height: 46vh; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.45); z-index: 5; }
+  .sys-errlist[hidden] { display: none; }
+  .sys-err-go { display: block; flex: none; text-align: left; width: 100%; background: none; border: none; border-left: 3px solid var(--red); border-radius: 3px; padding: 4px 8px; color: var(--ink); font: inherit; font-size: 11.5px; line-height: 1.4; cursor: pointer; }
+  .sys-err-go.warn { border-left-color: var(--gold); }
+  .sys-err-go:hover, .sys-err-go:focus-visible { background: rgba(224,165,79,0.12); outline: none; }
+  .sys-err-where { display: block; color: var(--dim); font-size: 10.5px; }
+  .sys-err-says { display: block; }
+  .sys-tick-scroll { overflow-x: auto; margin: 4px 0; }
+  .sys-tick-table { border-collapse: collapse; font-size: 11.5px; }
+  .sys-tick-table th { font-weight: 500; color: var(--dim); padding: 3px 8px; text-align: center; white-space: nowrap; }
+  .sys-tick-table thead th:first-child, .sys-tick-table tbody th { text-align: left; }
+  .sys-tick-table td.sys-dmgr-type { display: table-cell; text-align: center; padding: 2px 8px; border-top: 1px solid var(--edge); border-bottom: none; }
+  .sys-note-btn { flex: none; white-space: nowrap; }
+  .sys-toolbar .sys-note[hidden] { display: none; }
   #sysSaveBtn.on { color: #1a1a1a; }   /* keep .tool.on's orange fill; dark text stays legible (was gold-on-gold) */
   .sys-char-row .sys-char-name { width: 200px; }
   .sys-layout-wrap { display: flex; gap: 10px; min-height: 0; flex: 1; }

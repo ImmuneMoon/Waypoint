@@ -146,7 +146,7 @@ var GROUPS = {
         ['round', 'Rounding', 0, ['sys-round', 'sys-roundto', 'sys-roundat']]] },
     rolls: { split: ['sys-row-main'], head: ['sys-label', 'sys-roll-kind', 'sys-formula', 'sys-btns'], list: [
         ['how', 'How it rolls', 1, ['sys-roll-malf', 'sys-roll-critat', 'sys-roll-fumbleat', 'sys-roll-bigat', 'sys-init-chk', 'sys-roll-anytime']],
-        ['look', 'Who sees it and how it looks', 1, ['sys-vis', 'sys-roll-tone', 'sys-sound-on', 'sys-roll-die', 'sys-roll-icon', 'sys-glyph-btn']],
+        ['look', 'Who sees it and how it looks', 1, ['sys-vis', 'sys-roll-tone', 'snd-on-btn', 'sys-roll-die', 'sys-roll-icon', 'sys-glyph-btn']],
         ['use', 'When it can be used', 1, ['sys-roll-needsrow', 'sys-roll-cost', 'sys-roll-near', 'sys-roll-each', 'sys-roll-by', 'sys-crewstn']],
         ['damage', 'Damage', 0, ['sys-dmg-chk', 'sys-roll-hits', 'sys-roll-mjif', 'sys-roll-mjdmg', 'sys-roll-dtype', 'sys-roll-dkind', 'sys-roll-p2*', 'sys-roll-p3*', 'sys-roll-p4*', 'sys-roll-p5*', 'sys-area']],
         ['resist', 'Resisting it', 0, ['sys-roll-rsist', 'sys-roll-rsby', 'sys-rsor', 'sys-roll-rsnocrit']],
@@ -178,7 +178,7 @@ var GROUPS = {
         ['specs', 'Specialties', 0, ['sys-list-specs', 'sys-list-specof', 'sys-list-speccover', 'sys-list-specby', 'sys-list-specfall', 'sys-list-specnever', 'sys-list-specpen', 'sys-list-specsum', 'sys-list-specdflt']],
         ['once', 'Counted once', 0, ['sys-list-once', 'sys-list-oncenote']],
         ['look', 'Look and work log', 0, ['sys-list-rowlook', 'sys-list-lkmain', 'sys-list-lkby', 'sys-list-worklog']],
-        ['other', 'Other rules', 0, ['sys-list-modsif', 'sys-list-atfrom', 'sys-list-atby', 'sys-list-subject', 'sys-list-subjectif', 'sys-list-sets', 'sys-list-placeby', 'sys-list-onrm']],
+        ['other', 'Other rules', 0, ['sys-list-modsif', 'sys-list-atfrom', 'sys-list-atby', 'sys-list-subject', 'sys-list-sjif', 'sys-list-sets', 'sys-list-placeby', 'sys-list-onrm']],
         ['names', 'What formulas read', 0, ['sys-list-names']]] },
     effects: { split: ['sys-row-main', 'sys-flags'], head: ['sys-fx-icon', 'sys-glyph-btn', 'sys-fx-name', 'sys-fx-tone', 'sys-btns'], list: [
         ['changes', 'What it changes', 1, ['sys-fx-target', 'act:fxmodadd']],
@@ -229,7 +229,7 @@ function piecesOf(row, spec) {
     return out;
 }
 // A row built, arranged: the head, what Save says of it, then a group a name. Nothing is made again, so every control keeps its class and its handlers
-function arrange(row, kind, doc, kept) {
+function arrange(row, kind, doc, kept, touched) {
     if (!own(GROUPS, kind)) return row;
     var spec = GROUPS[kind], pieces = piecesOf(row, spec), head = [], errs = [], by = {}, wait = [], order = [];
     pieces.forEach(function(p) {
@@ -252,12 +252,87 @@ function arrange(row, kind, doc, kept) {
         d.className = 'sys-grp'; d.dataset.grp = key; s.className = 'sys-grp-head'; s.appendChild(doc.createTextNode(name)); b.className = 'sys-flags sys-grp-body';
         ps.forEach(function(p) { b.appendChild(p); });
         var used = usedIn(b); if (used && !g[2]) { var u = doc.createElement('small'); u.className = 'sys-grp-used'; u.textContent = 'in use'; s.appendChild(u); }
-        d.open = kept && own(kept, key) ? kept[key] === 1 : !!g[2] || used;
+        d.open = kept && own(kept, key) ? kept[key] === 1 : !!g[2] || used || !!(touched && touched[key]);
         d.appendChild(s); d.appendChild(b); row.appendChild(d);
     });
     return row;
 }
 // [sysuicheck:groups-end]
+
+// [sysuicheck:ticks-start]
+// A list of ticks a type, such as Adds to DR, as one table: the types across the top, what they may add down the side. The ticks are the builder's,
+// each in a cell that stands for its type as its row did (sys-dmgr-type, data-yi), so its handler reads it as before. The tooltip moves to the cell
+function tickTable(wrap, doc) {
+    var cols = [], rows = [], seen = {}, add = null;
+    for (var c = wrap.firstChild; c; c = c.nextSibling) {
+        if (c.dataset && c.dataset.act === 'dmgryadd') add = c;
+        if (!hasClass(c, 'sys-dmgr-type')) continue;
+        var p = c.querySelector('.sys-dmgr-plus'); if (!p) continue;
+        var lb = c.querySelector('.sys-dmgr-ylabel'), ky = c.querySelector('.sys-dmgr-ykey'), col = { yi: c.dataset.yi, name: (lb && lb.value) || (ky && ky.value) || 'Type ' + (cols.length + 1), ticks: {} };
+        p.querySelectorAll('label').forEach(function(l) {
+            var box = l.querySelector('input'), k = box && box.dataset ? box.dataset.k : ''; if (!k) return;
+            if (!own(seen, k)) { seen[k] = 1; rows.push({ k: k, name: String(l.textContent || '').trim(), title: l.title || '' }); }
+            col.ticks[k] = box;
+        });
+        cols.push(col); p.parentNode.removeChild(p);
+    }
+    if (!cols.length || !rows.length) return null;
+    var make = function(t, cls, text) { var e = doc.createElement(t); if (cls) e.className = cls; if (text !== undefined) e.appendChild(doc.createTextNode(text)); return e; };
+    var scroll = make('div', 'sys-tick-scroll'), table = make('table', 'sys-tick-table'), head = make('thead'), hr = make('tr'), body = make('tbody');
+    hr.appendChild(make('th', null, 'Adds to DR'));
+    cols.forEach(function(c2) { var th = make('th', 'sys-tick-col', c2.name); th.dataset.yi = c2.yi; hr.appendChild(th); });
+    head.appendChild(hr); table.appendChild(head);
+    rows.forEach(function(r) {
+        var tr = make('tr'); tr.appendChild(make('th', null, r.name));
+        cols.forEach(function(c2) { var td = make('td', 'sys-dmgr-type sys-tick-cell'), box = c2.ticks[r.k]; td.dataset.yi = c2.yi; if (box) { td.title = r.title; box.setAttribute('aria-label', r.name + ' adds to DR against ' + c2.name); td.appendChild(box); } tr.appendChild(td); });
+        body.appendChild(tr);
+    });
+    table.appendChild(body); scroll.appendChild(table);
+    wrap.insertBefore(scroll, add ? add.nextSibling : null);
+    return table;
+}
+// [sysuicheck:ticks-end]
+
+// [sysuicheck:errors-start]
+// Which box an error names, by what the validator calls it. A word it does not know goes to what Save says under the row, which is in sight
+var PROP_BOX = [[/^(?:apply|then)\.(\d+)$/, ['sys-apply-formula']], [/^(?:formula|maxFormula)$/, ['sys-formula']], [/^roll$/, ['sys-roll']], [/^key$/, ['sys-key', 'sys-item-key']], [/^label$/, ['sys-label', 'sys-fx-name', 'sys-item-name']], [/^caption$/, ['sys-caption']],
+    [/^needs$/, ['sys-roll-needs']], [/^malf$/, ['sys-roll-malf']], [/^critAt$/, ['sys-roll-critat']], [/^fumbleAt$/, ['sys-roll-fumbleat']], [/^bigAt$/, ['sys-roll-bigat']], [/^hits$/, ['sys-roll-hits']], [/^dmgMajorIf$/, ['sys-roll-mjif']], [/^dtype$/, ['sys-roll-dtype']], [/^dkind$/, ['sys-roll-dkind']], [/^dmg2$/, ['sys-roll-p2f']], [/^dmg3$/, ['sys-roll-p3f']], [/^dmg4$/, ['sys-roll-p4f']], [/^dmg5$/, ['sys-roll-p5f']],
+    [/^cost$/, ['sys-roll-cost', 'sys-item-cost']], [/^damage$/, ['sys-item-damage']], [/^throwSkill$/, ['sys-item-throw']], [/^lvlOnly$/, ['sys-item-only']], [/^to$/, ['sys-roll-near']], [/^resistBy$/, ['sys-roll-rsby']], [/^resistOr$/, ['sys-rsor']], [/^calls$/, ['sys-calls']],
+    [/^list\.col\.(\d+)/, ['sys-list-colformula']], [/^list\.col\./, ['sys-list-colformula']], [/^list\.roll\.(\d+)/, ['sys-list-rollformula']], [/^list\.roll\./, ['sys-list-rollformula']], [/^list\.needs\.(\d+)/, ['sys-list-needs']], [/^list\.malf\.(\d+)/, ['sys-list-malf']], [/^list\.critAt\.(\d+)/, ['sys-list-critat']], [/^list\.fumbleAt\.(\d+)/, ['sys-list-fumbleat']], [/^list\.bigAt\.(\d+)/, ['sys-list-bigat']], [/^list\.(?:apply|then)\.(\d+)/, ['sys-list-applyformula']], [/^list\.ctr\.(\d+)/, ['sys-list-ctmax']],
+    [/^list\.modsif$/, ['sys-list-modsif']], [/^list\.fitif$/, ['sys-list-partsfitif']], [/^list\.subjectif$/, ['sys-list-sjif']], [/^list\.upamt$/, ['sys-list-upamt']], [/^list\.onneeds$/, ['sys-list-swneeds']], [/^list\.onshow$/, ['sys-list-swshow']], [/^list\.chneeds$/, ['sys-list-chamberneeds']], [/^list\.feedturns/, ['sys-list-feedturns']], [/^list\.feedif/, ['sys-list-feedif']], [/^list\.unheld$/, ['sys-list-unheldlvl']],
+    [/^turn\.move$/, ['sys-turn-mvf']], [/^turn\.run$/, ['sys-turn-runf']], [/^turn\.holdLost$/, ['sys-turn-lostf']], [/^has$/, ['sys-bud-has']], [/^spent$/, ['sys-bud-spent']]];
+// The box a word names in what holds it, the nth of its class where the word says which. Found by comparing, so nothing of a system file reaches a selector
+function boxIn(scope, prop) {
+    if (typeof prop !== 'string' || !scope) return null;
+    for (var i = 0; i < PROP_BOX.length; i++) {
+        var m = PROP_BOX[i][0].exec(prop); if (!m) continue;
+        for (var j = 0; j < PROP_BOX[i][1].length; j++) { var l = scope.querySelectorAll('.' + PROP_BOX[i][1][j]), hit = l[m[1] ? Math.min(+m[1], l.length - 1) : 0]; if (hit) return hit; }
+    }
+    return null;
+}
+var ERR_ROWS = 200;
+// A line for every error and warning: where it stands, and what it says. Errors first
+function errRows(errs, warns, whereOf, say) {
+    var out = [], add = function(m, warn) { Object.keys(m || {}).forEach(function(id) { (m[id] || []).forEach(function(e) { if (out.length >= ERR_ROWS) return; var w = whereOf(id); out.push({ id: id, prop: e && e.prop, warn: warn, where: w ? w.name : '', text: say(e, warn) }); }); }); };
+    add(errs, false); add(warns, true); return out;
+}
+function errCount(m) { return Object.keys(m || {}).reduce(function(n, k) { return n + ((m[k] || []).length); }, 0); }
+function errWords(n, w) { return (n ? n + (n === 1 ? ' error' : ' errors') : '') + (n && w ? ', ' : '') + (w ? w + (w === 1 ? ' warning' : ' warnings') : ''); }
+function errDraw(list, rows, doc) {
+    while (list.firstChild) list.removeChild(list.firstChild);
+    rows.forEach(function(r, i) {
+        var b = doc.createElement('button'), a = doc.createElement('span'), t = doc.createElement('span'); b.type = 'button'; b.className = 'sys-err-go' + (r.warn ? ' warn' : ''); b.dataset.at = String(i);
+        a.className = 'sys-err-where'; a.textContent = r.where || 'The system'; t.className = 'sys-err-says'; t.textContent = r.text; b.appendChild(a); b.appendChild(t); list.appendChild(b);
+    });
+}
+// [sysuicheck:errors-end]
+
+// [sysuicheck:notes-start]
+// The long notes at the top of a tab fold away once read, and this computer keeps which. Fixed words of the page, moved by nothing but a press
+function notesRead(store) { var out = {}; try { var v = JSON.parse(store.getItem('wp_sysNotes') || '{}'); if (v && typeof v === 'object') Object.keys(v).forEach(function(k) { if (/^sys[A-Za-z]+$/.test(k) && v[k] === 1) out[k] = 1; }); } catch (e) {} return out; }
+function notesKeep(store, folded) { try { store.setItem('wp_sysNotes', JSON.stringify(folded)); return true; } catch (e) { return false; } }
+function noteShow(note, b, folded) { note.hidden = !!folded; b.setAttribute('aria-expanded', folded ? 'false' : 'true'); b.textContent = folded ? 'About this tab' : 'Got it'; }
+// [sysuicheck:notes-end]
 
 var store = { getItem: function() { return null; }, setItem: function() {} }; try { if (window.localStorage) store = window.localStorage; } catch (e) {}
 var topicNow = topicsRead(store);
@@ -273,10 +348,11 @@ function topicPress(set, id) { var ok = showTopic(set, id); log('topic', { set: 
 // The Combat tab's box once its builder has filled it
 function combatDrawn(box) {
     var nav = byId('sysCombatNav'); topicsNav(nav, 'combat', document); topicsBuild(box, 'combat', document, 'blasts'); topicsShow(box, nav, topicNow.combat);
+    var dm = box.querySelector('.sys-dmgr'); if (dm) tickTable(dm, document);
 }
 function rulesDrawn() { var box = byId('sysRulesBox'), nav = byId('sysRulesNav'); topicsNav(nav, 'rules', document); topicsShow(box, nav, topicNow.rules); }
-function marks(errs, warns) { lastErrs = errs; lastWarns = warns; topicMarks(byId('sysCombatNav'), 'combat', errs, warns); topicMarks(byId('sysRulesNav'), 'rules', errs, warns); }
-var picks = {}, lastErrs = null, lastWarns = null, host = null, groupsNow = keptGroups(store);
+function marks(errs, warns) { lastErrs = errs; lastWarns = warns; topicMarks(byId('sysCombatNav'), 'combat', errs, warns); topicMarks(byId('sysRulesNav'), 'rules', errs, warns); footSync(); }
+var picks = {}, lastErrs = null, lastWarns = null, host = null, groupsNow = keptGroups(store), groupsTouched = {};   // touched: a group worked in stays open while the editor is, though the row no longer uses it
 function pickState(kind) { return picks[kind] || (picks[kind] = { id: '', at: 0, known: null }); }
 // The list drawn for these rows, and which row is open
 function pickDraw(kind, rows) {
@@ -289,7 +365,7 @@ function pickDraw(kind, rows) {
     return st.id;
 }
 function pickSet(kind, id) { pickState(kind).id = id; }
-function pickReset() { picks = {}; Object.keys(PICK).forEach(function(k) { var f = byId(PICK[k].find), l = byId(PICK[k].list); if (f) f.value = ''; if (l) findApply(l, l.parentNode.querySelector('.sys-pick-none'), ''); }); }
+function pickReset() { picks = {}; groupsTouched = {}; Object.keys(PICK).forEach(function(k) { var f = byId(PICK[k].find), l = byId(PICK[k].list); if (f) f.value = ''; if (l) findApply(l, l.parentNode.querySelector('.sys-pick-none'), ''); }); }
 function openRow(kind, id) { if (host) host.pick(kind, id); }
 function moveRow(kind, id, toId, after) { if (host) host.move(kind, id, toId, after); }
 // Into the row that is open: its first box
@@ -327,6 +403,8 @@ function pickWire(kind) {
 // The arrow keys go down the side, each press showing its topic
 function onKey(e) {
     var t = e.target; if (!t || !t.classList) return;
+    if (e.key === 'Escape' && t.classList.contains('sys-find') && t.value) { e.stopPropagation(); t.value = ''; findApply(t.parentNode.querySelector('.sys-pick-list'), t.parentNode.querySelector('.sys-pick-none'), ''); return; }
+    if (e.key === 'Escape' && byId('sysErrList') && !byId('sysErrList').hidden) { e.stopPropagation(); errShow(false); var eb = byId('sysErrBtn'); if (eb && eb.focus) eb.focus(); return; }
     if (t.classList.contains('sys-pick-row')) { pickKey(e, t); return; }
     if (t.classList.contains('sys-topic')) {
         if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
@@ -334,13 +412,57 @@ function onKey(e) {
         if (n && n.dataset && n.dataset.topic) { showTopic(n.dataset.set, n.dataset.topic); n.focus(); }
     }
 }
+// The count of errors in the foot, and the list a press on it opens
+var errNow = [], errHost = null;
+function footSync() {
+    var b = byId('sysErrBtn'), list = byId('sysErrList'), n = errCount(lastErrs), w = errCount(lastWarns); if (!b) return;
+    b.hidden = !n && !w; b.textContent = errWords(n, w); b.classList.toggle('warn', !n && !!w);
+    if (!n && !w) errShow(false); else if (list && !list.hidden) errFill();
+}
+function errFill() { var list = byId('sysErrList'); if (!list || !errHost) return; errNow = errRows(lastErrs, lastWarns, errHost.where, errHost.say); errDraw(list, errNow, document); }
+function errShow(on) { var b = byId('sysErrBtn'), list = byId('sysErrList'); if (!list) return; if (on) errFill(); list.hidden = !on; if (b) b.setAttribute('aria-expanded', on ? 'true' : 'false'); }
+// Onto the box an error names: what folds it opened, the box in view, the focus on it
+function reach(id, prop) {
+    var modal = byId('systemModal'), cells = modal ? modal.querySelectorAll('[data-err-for]') : [], cell = null, i;
+    for (i = 0; i < cells.length && !cell; i++) if (cells[i].dataset.errFor === id) cell = cells[i];
+    if (!cell) return null;
+    var scope = cell.closest('.sys-row') || (hasClass(cell.previousSibling || {}, 'sys-list-card') ? cell.previousSibling : cell.parentNode), box = boxIn(scope, prop), to = box || cell;
+    for (var n = to; n && n !== modal; n = n.parentNode) if (n.tagName === 'DETAILS') { n.open = true; if (n.dataset && n.dataset.grp) groupsTouched[n.dataset.grp] = 1; }
+    if (to.scrollIntoView) to.scrollIntoView({ block: 'center' });
+    if (box && box.focus) box.focus();
+    return to;
+}
+function onErrPress(e) {
+    var b = e.target && e.target.closest ? e.target.closest('.sys-err-go, #sysErrBtn') : null; if (!b) return;
+    e.stopPropagation();
+    if (b.id === 'sysErrBtn') { var l = byId('sysErrList'); errShow(!!l && l.hidden); return; }
+    var r = errNow[+b.dataset.at]; if (!r || !errHost) return;
+    errShow(false); errHost.go(r.id, r.prop); log('error-go', { reached: !!reach(r.id, r.prop) });
+}
 // A press on a group's name folds or opens it, and this computer keeps which
 function onGroupPress(e) {
     var s = e.target && e.target.closest ? e.target.closest('.sys-grp-head') : null, d = s ? s.parentNode : null; if (!d || !d.dataset || !d.dataset.grp) return;
     groupsNow[d.dataset.grp] = d.open ? 0 : 1; groupsKeep(store, groupsNow);   // read before the browser turns it
 }
-function arrangeOne(row, kind) { try { return arrange(row, kind, document, groupsNow); } catch (e) { log('arrange-failed', { kind: kind }); return row; } }
+function onGroupFocus(e) { var d = e.target && e.target.closest ? e.target.closest('.sys-grp') : null; if (d && d.dataset && d.dataset.grp) groupsTouched[d.dataset.grp] = 1; }
+function arrangeOne(row, kind) { try { return arrange(row, kind, document, groupsNow, groupsTouched); } catch (e) { log('arrange-failed', { kind: kind }); return row; } }
 function arrangeIn(box, kind, cls) { for (var c = box.firstChild; c; c = c.nextSibling) if (hasClass(c, cls)) arrangeOne(c, kind); }
-function wire() { var m = byId('systemModal'); if (m) { m.addEventListener('keydown', onKey); m.addEventListener('click', onGroupPress); } Object.keys(PICK).forEach(pickWire); }
-window.wpSysUi = { topicPress: topicPress, combatDrawn: combatDrawn, rulesDrawn: rulesDrawn, marks: marks, pickDraw: pickDraw, pickSet: pickSet, pickReset: pickReset, moveIn: moveIn, arrange: arrangeOne, arrangeIn: arrangeIn, isPick: function(k) { return own(PICK, k); }, paneOf: function(k) { return own(PICK, k) ? PICK[k].pane : ''; }, host: function(h) { host = h; } };
+var notesFolded = notesRead(store);
+function notesWire() {
+    var m = byId('systemModal'); if (!m) return;
+    m.querySelectorAll('.sys-toolbar .sys-note').forEach(function(note) {
+        var bar = note.parentNode, tab = bar ? bar.parentNode : null; if (!tab || !hasClass(tab, 'sys-tab') || !tab.id) return;
+        var key = tab.id, b = document.createElement('button'); b.type = 'button'; b.className = 'tool ghost sys-note-btn'; b.dataset.note = key;
+        bar.insertBefore(b, note.nextSibling); noteShow(note, b, notesFolded[key] === 1);
+        b.addEventListener('click', function(e) { e.stopPropagation(); if (notesFolded[key] === 1) delete notesFolded[key]; else notesFolded[key] = 1; notesKeep(store, notesFolded); noteShow(note, b, notesFolded[key] === 1); });
+    });
+}
+// What a type of damage is called follows what is typed into its name
+function onNameInput(e) {
+    var t = e.target; if (!t || !t.classList || !(t.classList.contains('sys-dmgr-ylabel') || t.classList.contains('sys-dmgr-ykey'))) return;
+    var tw = t.closest('.sys-dmgr-type'), m = byId('sysCombatBox'), th = tw && m ? m.querySelector('th.sys-tick-col[data-yi="' + tw.dataset.yi + '"]') : null; if (!th) return;
+    var lb = tw.querySelector('.sys-dmgr-ylabel'), ky = tw.querySelector('.sys-dmgr-ykey'); th.textContent = (lb && lb.value) || (ky && ky.value) || 'Type ' + (+tw.dataset.yi + 1);
+}
+function wire() { var m = byId('systemModal'); if (m) { m.addEventListener('keydown', onKey); m.addEventListener('click', onGroupPress); m.addEventListener('click', onErrPress); m.addEventListener('input', onNameInput); m.addEventListener('focusin', onGroupFocus); } Object.keys(PICK).forEach(pickWire); notesWire(); }
+window.wpSysUi = { topicPress: topicPress, combatDrawn: combatDrawn, rulesDrawn: rulesDrawn, marks: marks, pickDraw: pickDraw, pickSet: pickSet, pickReset: pickReset, moveIn: moveIn, errHost: function(h) { errHost = h; }, topicOf: function(id) { return own(ERR_TOPIC, id) ? ERR_TOPIC[id] : /^b_/.test(id) ? ['rules', 'budgets'] : null; }, topicName: function(s, t) { var l = own(TOPICS, s) ? TOPICS[s] : [], i; for (i = 0; i < l.length; i++) if (l[i][0] === t) return l[i][1]; return ''; }, arrange: arrangeOne, arrangeIn: arrangeIn, isPick: function(k) { return own(PICK, k); }, paneOf: function(k) { return own(PICK, k) ? PICK[k].pane : ''; }, host: function(h) { host = h; } };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();

@@ -8556,6 +8556,12 @@ function renamesCarry(prev, next) {
         (Array.isArray(next.rolls) ? next.rolls : []).forEach(fix);
         (Array.isArray(next.fields) ? next.fields : []).forEach(function(f) { if (isObj(f) && isObj(f.list) && Array.isArray(f.list.rolls)) f.list.rolls.forEach(fix); });
     }
+    rn.picks.forEach(function(p) {   // 1.6.2: a line of Holds by kind names a value of its parts' list in words, so it follows a renamed value
+        (Array.isArray(next.fields) ? next.fields : []).forEach(function(h) {
+            var ps = isObj(h) && isObj(h.list) && isObj(h.list.parts) ? h.list.parts : null; if (!ps || ps.from !== p.f || !Array.isArray(ps.caps)) return;
+            ps.caps.forEach(function(k) { if (!isObj(k) || !same(k.slot, p.key)) return; if (Array.isArray(k.is)) k.is = k.is.map(function(v) { return same(v, p.from) ? p.to : v; }); else if (same(k.is, p.from)) k.is = p.to; });
+        });
+    });
     rn.refsGone = rollRefsFollow(prev, next, rn);
     return rn;
 }

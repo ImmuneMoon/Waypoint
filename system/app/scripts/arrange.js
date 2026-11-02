@@ -74,7 +74,7 @@ function drawList() {
     secs.forEach(function(s) { var b = mk('button', 'arr-row' + (s.parent ? ' arr-row-kid' : ''), nameOf(s)); b.type = 'button'; b.dataset.show = s.id; b.title = 'Show this section in the preview'; box.appendChild(b); });
     if (!secs.length) box.appendChild(mk('div', 'sys-hint', 'No sections yet.'));
     var rest = st.host.unplaced();
-    box.appendChild(mk('div', 'sys-tabmgr-head arr-rest', 'Not on the sheet'));
+    box.appendChild(mk('div', 'sys-tabmgr-head arr-rest', st.host.hud() ? 'Not on the HUD' : 'Not on the sheet'));
     if (!rest.length) box.appendChild(mk('div', 'sys-hint', 'Everything is placed.'));
     rest.forEach(function(r) { var b = mk('button', 'arr-row arr-new', r.name); b.type = 'button'; b.dataset.drag = 'n'; b.dataset.v = r.v; b.title = 'Drag this onto a section, or press Enter to add it to the first section'; box.appendChild(b); });
 }

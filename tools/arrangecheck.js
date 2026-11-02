@@ -134,6 +134,27 @@ const R = 1;
     run.add(body, secA, {}); run.add(body, secB, { beside: true }); run.add(body, secC, { beside: true }); run.add(body, secD, {}); run.reset(); run.add(body, secE, { beside: true });
     check('sections set Beside the one before share a row in their order, and the next stands on its own', body.kids.length === 3 && body.kids[0].cls === 'sheet-siderow' && body.kids[0].kids.map(k => k.cls).join() === 'a,b,c' && body.kids[1] === secD, body.kids.map(k => k.cls));
     check('with nothing before it in its run, a section set beside stands alone', body.kids[2] === secE);
+    // ---- the smaller finds of a walk through the builder from nothing ----
+    const shK = readU('scripts/sheets.js'), k0 = shK.indexOf('function keyFromLabel(label, f) {'), k1 = shK.indexOf('function arrSet(on) {');
+    const keyKit = fields => new Function('draft', 'F', 'validKey', 'var _keyAuto = new WeakSet();\n' + shK.slice(k0, k1) + '\nreturn { keyFromLabel: keyFromLabel, keyFollows: keyFollows, auto: _keyAuto };')({ fields }, () => null, k => /^[A-Za-z][A-Za-z0-9]*$/.test(k) && k !== 'floor');
+    const fA = { key: '', label: '' }, fB = { key: 'BodyStrength', label: 'Other' }, kit = keyKit([fA, fB]), kb = { value: '' }, tBox = { closest: () => ({ querySelector: () => kb }) };
+    check('a field with no key takes one from its label, in words a formula can read', kit.keyFromLabel('2 Mind & Will', fA) === 'MindWill' && kit.keyFromLabel('', fA) === '' && kit.keyFromLabel('!!!', fA) === '');
+    check('never one another field holds', kit.keyFromLabel('body strength', fA) === 'BodyStrength2');
+    check('never a word the formula language keeps', kit.keyFromLabel('floor', fA) === 'Floor' && keyKit([]).keyFromLabel('fl', {}) === 'Fl');
+    fA.label = 'Speed'; kit.keyFollows(fA, tBox); const k1st = fA.key; fA.label = 'Speed Run'; kit.keyFollows(fA, tBox);
+    check('it follows the label, and the box shows it', k1st === 'Speed' && fA.key === 'SpeedRun' && kb.value === 'SpeedRun');
+    kit.auto.delete(fA); fA.label = 'Other words'; kit.keyFollows(fA, tBox);
+    check('a key typed by hand stands', fA.key === 'SpeedRun');
+    check('typing in the key box ends it, and a new row says nothing until something is typed', /f\.key = t\.value\.trim\(\); _keyAuto\.delete\(f\);/.test(shK) && /if \(\(f\.key \|\| f\.label\) && !validKey\(f\.key \|\| '', F\(\)\)\)/.test(shK));
+    check('an empty system says what a field is', /A field is one thing on a sheet: a number, a pool such as hit points, a choice or a list of gear\./.test(shK));
+    const prev = { fields: [{ id: 'f_m', key: 'Mods', kind: 'item-list', list: { stats: [{ key: 'Slot', kind: 'pick', opts: [{ label: 'Overlay' }, { label: 'Rig' }] }] } }, { id: 'f_h', key: 'Host', kind: 'item-list', list: { parts: { from: 'f_m', caps: [{ slot: 'Slot', is: 'Overlay', by: 'N' }, { slot: 'Slot', is: ['Overlay', 'Rig'], by: 'N' }, { slot: 'Other', is: 'Overlay', by: 'N' }] } } }] };
+    const next = JSON.parse(j(prev)); next.fields[0].list.stats[0].opts[0].label = 'Plate';
+    C.renamesCarry(prev, next);
+    const lines = next.fields[1].list.parts.caps;
+    check('a line of Holds by kind follows a value renamed in its parts\' list, alone or among several, and a line of another stat stays', lines[0].is === 'Plate' && j(lines[1].is) === '["Plate","Rig"]' && lines[2].is === 'Overlay', j(lines));
+    const su = readU('scripts/sysui.js');
+    check('a time rule\'s unit with no number beside it sets nothing, so its group is not in use', /hasClass\(n, 'sys-roll-evu'\)[^\n]*\.sys-roll-evn[^\n]*!every\.value\) return false/.test(su));
+    check('Arrange on a HUD with nothing on it yet keeps its list and says what to press', /'No HUD yet\. Press \+ Section, or Copy the sheet\\u2019s sections\.'/.test(shK) && /st\.host\.hud\(\) \? 'Not on the HUD' : 'Not on the sheet'/.test(readU('scripts/arrange.js')));
     // ---- the page and the words ----
     const sh = readU("scripts/sheets.js"), css = readU('style.css'), html = readU('index.html'), core = readU('scripts/systemcore.js');
     check('buildSections stands a section on the row of the one before', /function sideAdd\(into, secEl, sec\)/.test(sh) && (sh.match(/sideAdd\(/g) || []).length === 3, (sh.match(/sideAdd\(/g) || []).length);

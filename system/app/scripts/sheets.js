@@ -1150,10 +1150,10 @@ function renderSheet() {
     var nmB = ui('sheetName'); if (nmB) nmB.style.display = isClient() && own && !c.partial && c.making === 1 ? '' : 'none';   // renamed only while in the making (owner)
     var ulB = ui('sheetUnlock'); if (ulB) { var ulOn = gm && !!c.ownerId && !c.npc && c.making !== 1 && c.review !== 1; ulB.style.display = ulOn ? '' : 'none'; if (ulOn) { ulB.textContent = c.unlocked === 1 ? 'Lock for player' : 'Unlock for player'; ulB.title = c.unlocked === 1 ? 'Lock it again: its player keeps only the fields they may always change' : 'Let its player fill in every field they can see (they press Done when finished)'; } }
     // [systemcheck:sheetedit-start]
-    var arrH = ui('sheetArrange'); if (arrH) arrH.style.display = gm && canWrite() && !c.partial ? '' : 'none';   // 1.6.2
     var edB = ui('sheetEdit'); if (edB) { var edOn = !c.partial && c.making !== 1 && (gm ? canWrite() : own); edB.style.display = edOn ? '' : 'none'; if (edOn) { edB.textContent = lockedS ? 'Edit sheet' : 'Lock sheet'; edB.classList.toggle('on', !lockedS); edB.title = lockedS ? 'This sheet is locked. Rolls, pools, switches, effects and what you carry still work. Edit sheet lets you change its stats, levels, lists and notes' : 'Lock the sheet again, so that a slip while you play changes none of its stats'; } }
     p.classList.toggle('sheet-editing', !lockedS);
     // [systemcheck:sheetedit-end]
+    var arrH = ui('sheetArrange'); if (arrH) arrH.style.display = gm && canWrite() && !c.partial ? '' : 'none';   // 1.6.2
     if (typeof asPlayerHead === 'function') asPlayerHead(c, gm, seeP, sub, edB, camp);   // 1.6.0: As player
     if (typeof hideFigHead === 'function') hideFigHead(c, gm);   // 1.6.2: Hide figures
     var dlX = ui('sheetDelete'); if (dlX) { var mineX = isClient() && own && !c.partial && charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }).length > 1; dlX.style.display = (gm && canWrite()) || mineX ? '' : 'none'; dlX.title = gm ? 'Delete this sheet: its values are gone; its tokens keep their name and lose the link' : 'Delete this sheet of yours: one you are still making, or one you do not play (your GM is told)'; }
@@ -2602,8 +2602,9 @@ function renderPreview() {
     if (!c) startRows(clean, pc, F());   // 1.6.0 Starts with: Defaults shows a character as it is made
     var pv = layoutView === 'hud' ? hudView(clean) : clean;   // Stage 6 HUD frame (HF1): the HUD's own layout, in the shared look
     box.classList.toggle('sys-layout-preview-hud', layoutView === 'hud');
-    if (!pv) { box.textContent = ''; box.appendChild(el('div', 'sys-empty', 'No HUD yet: add a section, a band figure or a ledger figure on the left.')); return; }
-    _fxLive = false; try { buildSections(box, pv, pc, resolveAll(pv, pc, F(), pc && pc.id ? tokenCtxFor(pc.id, camp) : null), true, false, renderPreview, { campId: camp && camp.id, view: layoutView, preview: true, arrange: !!(window.wpArrange && window.wpArrange.on()), targets: pinTargetsAll(clean.sheet) }); } finally { _fxLive = true; }   // 5h: the preview's effect controls would act on the saved system, not the draft
+    var arrN = !!(window.wpArrange && window.wpArrange.on());
+    if (!pv) { box.textContent = ''; box.appendChild(el('div', 'sys-empty', arrN ? 'No HUD yet. Press + Section, or Copy the sheet\u2019s sections.' : 'No HUD yet: add a section, a band figure or a ledger figure on the left.')); if (arrN) window.wpArrange.sync(box, { sheet: { sections: [] } }); return; }
+    _fxLive = false; try { buildSections(box, pv, pc, resolveAll(pv, pc, F(), pc && pc.id ? tokenCtxFor(pc.id, camp) : null), true, false, renderPreview, { campId: camp && camp.id, view: layoutView, preview: true, targets: pinTargetsAll(clean.sheet), arrange: !!(window.wpArrange && window.wpArrange.on()) }); } finally { _fxLive = true; }   // 5h: the preview's effect controls would act on the saved system, not the draft
     applySheetLookTo(box, sheetLook(camp, clean));   // the preview wears the sheet's look too
     syncFramePad(box);
     Array.prototype.forEach.call(box.children, function(ch) { ch.inert = true; });   // Stage 6: the preview draws a real character's values as the GM — no keyboard edit may reach it (the box itself stays the scroller)
@@ -2739,7 +2740,7 @@ function arrHost() {
     var nameOfPl = function(pl) { var t = pl ? placementLabel(pl, Object.fromEntries(draft.fields.map(function(f) { return [f.id, f]; })), Object.fromEntries(draft.rolls.map(function(r) { return [r.id, r]; }))) : null; return t || 'this'; };
     var placedNow = function() { var m = {}; layoutSections().forEach(function(s) { (s.fields || []).forEach(function(p) { if (p && p.id) m['f:' + p.id] = 1; if (p && p.roll) m['r:' + p.roll] = 1; }); }); return m; };
     return {
-        sections: layoutSections, tabs: layoutTabs, plName: nameOfPl,
+        sections: layoutSections, tabs: layoutTabs, plName: nameOfPl, hud: function() { return layoutView === 'hud'; },
         restore: function(list) { layoutRoot().sections = list; markDirty(); renderPreview(); },
         changed: function() { markDirty(); renderPreview(); },
         full: function() { var n = 0; layoutSections().forEach(function(s) { n += (s.fields || []).length; }); return n >= LIMITS.placements; },
@@ -2748,6 +2749,21 @@ function arrHost() {
         unplaced: function() { var m = placedNow(), out = []; draft.fields.forEach(function(f) { if (!m['f:' + f.id]) out.push({ v: 'f:' + f.id, name: f.label || f.key || '(field)' }); }); draft.rolls.forEach(function(r) { if (!m['r:' + r.id]) out.push({ v: 'r:' + r.id, name: 'Roll: ' + (r.label || '(roll)') }); }); return out; },
         showTab: function(id) { var box = ui('sysLayoutPreview'); if (box && box.dataset.wpTab !== id) { box.dataset.wpTab = id; renderPreview(); } }
     };
+}
+// 1.6.2 (found building a system from nothing): a key is a word a newcomer has no reason to know, so a field with none takes one from its label, and
+// follows the label until it is typed by hand
+var _keyAuto = new WeakSet();
+function keyFromLabel(label, f) {
+    var k = String(label || '').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/ +/).map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join('').replace(/^[0-9]+/, '').slice(0, 24);
+    if (!k) return '';
+    var taken = {}; draft.fields.forEach(function(o) { if (o !== f && o && typeof o.key === 'string') taken[o.key.toLowerCase()] = 1; });
+    var out = k, n = 2; while (taken[out.toLowerCase()]) out = k + (n++);
+    return validKey(out, F()) ? out : '';
+}
+function keyFollows(f, t) {
+    if (f.key && !_keyAuto.has(f)) return;
+    _keyAuto.add(f); f.key = keyFromLabel(f.label, f);
+    var row = t.closest ? t.closest('.sys-row, .sys-pick-open, .sys-open') : null, kb = row && row.querySelector ? row.querySelector('.sys-key') : null; if (kb) kb.value = f.key;
 }
 function arrSet(on) {
     if (!window.wpArrange) return;
@@ -7246,7 +7262,7 @@ function refreshErrors() {
     var seenKey = Object.create(null);
     draft.fields.forEach(function(f) {
         var errs = [];
-        if (!validKey(f.key || '', F())) errs.push({ prop: 'key', message: !f.key ? 'A key is needed.' : 'Not a usable key: letters, digits, _ and dots; no spaces; not a function, reserved word or dice.' });
+        if ((f.key || f.label) && !validKey(f.key || '', F())) errs.push({ prop: 'key', message: !f.key ? 'A key is needed.' : 'Not a usable key: letters, digits, _ and dots; no spaces; not a function, reserved word or dice.' });
         else { var l = String(f.key).toLowerCase(); if (seenKey[l]) errs.push({ prop: 'key', message: 'Another field has this key.' }); seenKey[l] = 1; }
         if (!KINDS[f.kind]) errs.push({ prop: 'kind', message: 'Pick a kind.' });
         if (errs.length) errorsById[f.id] = errs;
@@ -11455,7 +11471,7 @@ function renderAll() {
     rowsFor('sysEffectRows', 'effects', function(efr) { if (!draft.effects || !draft.effects.length) efr.appendChild(el('div', 'sys-empty', 'No status effects yet. Add Rage, Prone, Blessed\u2026 each with the numbers it changes, then put a Status effects field on the sheet.')); pickRows(efr, 'effects', draft.effects || [], effectRow); });
     var sl = ui('sysLayout'); if (sl) { sl.style.display = tab === 'layout' ? '' : 'none'; if (tab === 'layout') renderLayout(); }
     var scal = ui('sysCalendar'); if (scal) { scal.style.display = tab === 'calendar' ? '' : 'none'; if (tab === 'calendar') renderCalendar(); }   // item 20 K1: the calendar
-    rowsFor('sysFieldRows', 'fields', function(fr) { if (!draft.fields.length) fr.appendChild(el('div', 'sys-empty', 'No fields yet. Add one, or Start from a preset.'));
+    rowsFor('sysFieldRows', 'fields', function(fr) { if (!draft.fields.length) fr.appendChild(el('div', 'sys-empty', 'No fields yet. A field is one thing on a sheet: a number, a pool such as hit points, a choice or a list of gear. Press + Field, or pick a preset under Start from.'));
     pickRows(fr, 'fields', draft.fields, fieldRow); });
     rowsFor('sysRollRows', 'rolls', function(rr) { if (!draft.rolls.length) rr.appendChild(el('div', 'sys-empty', 'No rolls yet. A roll is a formula with dice, as a button on the sheet: d20 + STRmod. Set its Kind to Apply for a button that moves pools or numbers instead (Apply costs, Apply wounds).'));
     pickRows(rr, 'rolls', draft.rolls, rollRow); });
@@ -11795,8 +11811,8 @@ function onInput(e) {
     var ctx = fieldOfRow(t); if (!ctx) return;
     var f = ctx.f, r = ctx.r, c = t.className || '';
     if (f) {
-        if (c.indexOf('sys-key') >= 0) f.key = t.value.trim();
-        else if (c.indexOf('sys-label') >= 0) f.label = t.value.slice(0, LIMITS.label);
+        if (c.indexOf('sys-key') >= 0) { f.key = t.value.trim(); _keyAuto.delete(f); }
+        else if (c.indexOf('sys-label') >= 0) { f.label = t.value.slice(0, LIMITS.label); keyFollows(f, t); }
         else if (c.indexOf('sys-formula') >= 0) { var p = DEF_PROP[f.kind]; if (p) f[p] = t.value; }
         else if (c.indexOf('sys-roll') >= 0) f.roll = t.value.trim() || undefined;
         else if (c.indexOf('sys-unit') >= 0) { if (t.value.trim()) f.unit = t.value.slice(0, 32); else delete f.unit; }   // Stage 5g (Save cuts it to 8 code points, never half an emoji)

@@ -208,7 +208,10 @@ function hasClass(n, c) { return typeof n.className === 'string' && n.className.
 // Whether a group holds anything set: a tick ticked, a box written in, a list off its first choice
 function usedIn(n) {
     if (n.tagName === 'INPUT') { var t = n.type; if (t === 'checkbox' || t === 'radio') return n.checked === true; return t !== 'color' && String(n.value || '') !== ''; }
-    if (n.tagName === 'SELECT') return String(n.value || '') !== '' && n.firstChild !== null && n.firstChild.value !== n.value;
+    if (n.tagName === 'SELECT') {
+        if (hasClass(n, 'sys-roll-evu') && n.parentNode && n.parentNode.querySelector) { var every = n.parentNode.querySelector('.sys-roll-evn'); if (every && !every.value) return false; }   // a unit with no number beside it sets nothing
+        return String(n.value || '') !== '' && n.firstChild !== null && n.firstChild.value !== n.value;
+    }
     for (var c = n.firstChild; c; c = c.nextSibling) if (c.nodeType === 1 && usedIn(c)) return true;
     return false;
 }

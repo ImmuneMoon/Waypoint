@@ -287,7 +287,7 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         check('a list view, a print and the HUD draw the state as a chip in words, once in a drawer, whose head says it', rd.split("tileStateChip(spec, res, rowIdOf(entry))").length === 3 && /\.body-drawer-row \.sheet-item-state \{ display: none; \}/.test(css) && rd.includes("head.appendChild(el('span', 'body-drawer-state', stO.label))"));
         check('a row with no place and a list with no states add nothing', !X.sheetToMarkdown(sy, { id: 'c', name: 'C', values: { f_b: [{ id: 'w_x', defId: 'i_p', qty: 1 }], f_k: [] } }, S.resolveAll(sy, { id: 'c', name: 'C', values: { f_b: [{ id: 'w_x', defId: 'i_p', qty: 1 }], f_k: [] } }, F), {}).toString().includes('Limb ('));
     }
-    /* ---- what a trade does, and a column on some rows (the SotMW session's asks) ---- */
+    /* ---- what a trade does, and a column on some rows ---- */
     {
         const RW = { v: 1, name: 'Tr', fields: [{ id: 'f_m', key: 'Money', kind: 'item-list', label: 'Money', list: { multi: true, trade: true, stats: [{ key: 'Fake', label: 'Fake' }, { key: 'Seen', label: 'Seen', vis: 'gm' }, { key: 'Tag', label: 'Tag' }, { key: 'Pk', kind: 'pick', label: 'Pk', opts: [{ label: 'A' }] }],
             cols: [{ key: 'Worth', label: 'Worth', formula: 'Row.Fake + 1', showIf: 'Row.Fake > 0' }, { key: 'Bad', label: 'Bad', formula: '1', showIf: '1d6 > 3' }, { key: 'Hd', label: 'Hd', formula: '1', showIf: 'Row.Seen > 0' }],

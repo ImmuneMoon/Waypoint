@@ -57,6 +57,11 @@ const j = JSON.stringify;
     const v = timed('validateSystem', 2600, () => S.validateSystem(gm, F));
     check('the system at its ceilings has no error of its own', v.errors.length === 0, j(v.errors.slice(0, 3)));
     timed('capsAt', 40, () => S.capsAt(gm));
+    {   // 1.6.2 (body fold 2): a body of thirty tiles and fifty worn rows, every one reading Fits where, Reaches and Counts where, and a tile reading what stands there
+        const tiles = [], worn = [], items = [{ id: 'i_tile', name: 'Tile', stats: { Z: 1 } }, { id: 'i_worn', name: 'Worn', stats: { Z: 1, D: 2 } }]; for (let i = 0; i < 30; i++) tiles.push({ id: 'w_t' + i, defId: 'i_tile', qty: 1 }); for (let i = 0; i < 50; i++) worn.push(i % 2 ? { id: 'w_r' + i, defId: 'i_worn', qty: 1, pl: 'w_t' + (i % 30) } : { id: 'w_r' + i, defId: 'i_worn', qty: 1 });
+        const sys = S.cleanSystem({ v: 1, name: 'Body', fields: [{ id: 'f_t', key: 'Tt', kind: 'item-list', list: { multi: true, stats: [{ key: 'Z', label: 'Z' }], cols: [{ key: 'C', label: 'C', formula: 'Here.Ww.sum.D' }] } }, { id: 'f_w', key: 'Ww', kind: 'item-list', list: { multi: true, stats: [{ key: 'Z', label: 'Z' }, { key: 'D', label: 'D' }], stand: { from: 'f_t', fits: 'Row.Z = At.Z', reach: 'Tile.Z = At.Z', counts: 'Row.D > 0' } } }], items }, { F, gmView: true });
+        timed('where fifty rows stand on thirty tiles, and each tile\'s total', 900, () => S.resolveAll(sys, { id: 'c_b', values: { f_t: tiles, f_w: worn } }, F));
+    }
     timed('droppedCounts', 600, () => S.droppedCounts(big.raw, gm));
     check('capsAt names what stands at its limit, and droppedCounts says nothing of a system that lost nothing', S.capsAt(gm).length > 0 && !S.droppedWords(S.droppedCounts(big.raw, gm)), j(S.droppedCounts(big.raw, gm)));
     const pvJ = j(pv);

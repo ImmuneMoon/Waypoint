@@ -55,6 +55,11 @@ function charToJson(sys, view, all, opts) {
                 var v = clone(vals[f.id]);
                 if (f.kind === 'effects' && Array.isArray(v)) v.forEach(function(r) { if (isObj(r)) delete r.t; });   // a countdown runs on the GM's clock: never in a file
                 if (f.kind === 'item-list' && Array.isArray(v)) v.forEach(function(r) { var it = isObj(r) && typeof r.defId === 'string' ? itemIn(sys, r.defId) : null; if (it) { if (typeof it.name === 'string' && it.name) r.name = it.name; if (typeof it.key === 'string' && it.key) r.key = it.key; } });   // Onboarding F4: its item's name, for a reader on another campaign
+                if (f.kind === 'item-list' && Array.isArray(v) && isObj(f.list) && (f.list.hang === true || isObj(f.list.stand))) {   // 1.6.2 (body fold 2): a place by its entry's key and name as well as its row's id, so that it is found again where an id is gone
+                    var labelOf = function(x) { var it = isObj(x) && typeof x.defId === 'string' ? itemIn(sys, x.defId) : null, o = {}, nm = isObj(x) && isObj(x.ov) && typeof x.ov.name === 'string' && x.ov.name ? x.ov.name : isObj(x) && isObj(x.def) && typeof x.def.name === 'string' ? x.def.name : it && typeof it.name === 'string' ? it.name : ''; if (nm) o.name = nm; var ky = it && typeof it.key === 'string' ? it.key : isObj(x) && isObj(x.def) && typeof x.def.key === 'string' ? x.def.key : ''; if (ky) o.key = ky; return nm ? o : null; };
+                    var byId = function(rows, id) { return (Array.isArray(rows) ? rows : []).filter(function(x) { return rowIdOf(x) === id; })[0]; }, tiles = isObj(f.list.stand) ? vals[f.list.stand.from] : null;
+                    v.forEach(function(r) { if (!isObj(r)) return; if (typeof r.up === 'string') { var uL = labelOf(byId(v, r.up)); if (uL) r.upAt = uL; } if (typeof r.pl === 'string') { var pL = labelOf(byId(tiles, r.pl)); if (pL) r.plAt = pL; } });
+                }
                 values[f.id] = v;   // a pool left full stays absent (read back, {cur: null} would be an empty pool)
                 if (typeof v === 'string') { var lk = lookOf(f, view); if (lk) { looks[f.id] = lk; nLooks++; } }   // item 35: the look of a text, where one stands for the very words written (cleaned by the field's own rule)
             }
@@ -100,7 +105,7 @@ function charFromJson(view, j, find, findKey) {
     };
     var mods = function(ms) { return (Array.isArray(ms) ? ms.slice(0, 12) : []).map(function(m) { if (!isObj(m) || typeof m.f !== 'string') return null; var t = target(m.f) || (same && anyF[m.f]) || null; if (!t) return null; var o = { f: t.id, op: m.op }; if (m.v !== undefined) o.v = m.v; if (m.part) o.part = m.part; if (m.lvl === true) o.lvl = true; if (Array.isArray(m.tiers)) o.tiers = m.tiers; if (typeof m.key === 'string') o.key = m.key; if (typeof m.col === 'string') o.col = m.col; return o; }).filter(Boolean); };
     var n = 0, pfx = Math.random().toString(36).slice(2, 6), rid = function(p) { n++; return p + 'f' + pfx + n.toString(36); };
-    var idMap = Object.create(null), grQ = [];   // 1.6.0 (v2, B4): each file row's new id, and the adds of rows another row granted, which then name that row by its new id
+    var idMap = Object.create(null), grQ = [], lnQ = [], linkOf = function(q, r) { var o = {}, n = 0; ['up', 'pl'].forEach(function(k) { if (typeof r[k] === 'string') { o[k] = r[k]; n++; } if (isObj(r[k + 'At']) && typeof r[k + 'At'].name === 'string') { o[k + 'At'] = { name: r[k + 'At'].name.slice(0, 240), key: typeof r[k + 'At'].key === 'string' ? r[k + 'At'].key.slice(0, 40) : '' }; n++; } }); if (n) lnQ.push({ q: q, o: o }); };   // 1.6.0 (v2, B4): each file row's new id, and the adds of rows another row granted, which then name that row by its new id
     var label = function(fid) { var ff = own(fileF, fid) ? fileF[fid] : null; return isObj(ff) ? String(ff.label || ff.key || 'A field').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 60) : 'A field'; };
     var catOk = function(cats, c) { var l = String(c == null ? '' : c).slice(0, 40).toLowerCase(); return !!l && cats.some(function(x) { return String(x).toLowerCase() === l; }); };
     var rowsInto = function(f, rows) {
@@ -120,7 +125,7 @@ function charFromJson(view, j, find, findKey) {
             var e = typeof r.defId === 'string' && own(items, r.defId) ? items[r.defId] : same && def && r.lnk !== 1 ? null : named(nm, key);   // on this very system a row of the character's own stays its own, whatever its name reads as in the library
             if (!e && r.lnk === 1 && key && typeof findKey === 'function') (findKey(key) || []).forEach(function(x) { if (!e && isObj(x) && typeof x.id === 'string' && x.vis !== 'gm' && (!cats || catOk(cats, x.category))) e = x; });   // a library copy with its own name ("Guns (Pistol)" over Guns): by its key
             if (e) {
-                var qA = { op: 'add', defId: e.id, rowId: id, qty: qty }; out.ops.push({ f: f.id, q: qA }); if (typeof r.gr === 'string') grQ.push({ q: qA, gr: r.gr, gp: r.gp === 1 }); else if (typeof r.gb === 'string') grQ.push({ q: qA, gb: r.gb, gl: r.gl });   // 1.6.0 (a builder audit): a row a grant backs keeps its mark too
+                var qA = { op: 'add', defId: e.id, rowId: id, qty: qty }; out.ops.push({ f: f.id, q: qA }); linkOf(qA, r); if (typeof r.gr === 'string') grQ.push({ q: qA, gr: r.gr, gp: r.gp === 1 }); else if (typeof r.gb === 'string') grQ.push({ q: qA, gb: r.gb, gl: r.gl });   // 1.6.0 (a builder audit): a row a grant backs keeps its mark too
                 var ov = {}, src = isObj(r.ov) ? r.ov : def || {};
                 var nm2 = typeof src.name === 'string' ? src.name : ''; if (nm2 && nm2 !== e.name) ov.name = nm2;
                 if (isObj(src.stats) && Object.keys(src.stats).length) ov.stats = src.stats;
@@ -130,7 +135,7 @@ function charFromJson(view, j, find, findKey) {
                 if (typeof def.desc === 'string' && def.desc.trim()) d.desc = def.desc; if (Array.isArray(def.lvls) && def.lvls.length) d.lvls = def.lvls;   // 1.5.5 (155): its own long text (the fill cleans it)
                 if (isObj(def.stats)) d.stats = def.stats;
                 var ms = mods(def.mods); if (ms.length) { d.mods = ms; if (def.modsOn === true) d.modsOn = true; }
-                out.ops.push({ f: f.id, q: { op: 'custom', rowId: id, def: d } });
+                var qC = { op: 'custom', rowId: id, def: d }; out.ops.push({ f: f.id, q: qC }); linkOf(qC, r);
                 if (qty > 1 && !spec.noQty) out.ops.push({ f: f.id, q: { op: 'setQty', rowId: id, qty: qty } });
             } else { out.lost++; return; }   // a pointer to an item this campaign does not have, with nothing to know it by
             var facts = {};
@@ -167,6 +172,7 @@ function charFromJson(view, j, find, findKey) {
         out.values[f.id] = k === 'resource' ? { cur: v.cur } : v;
         if (fileLooks && (k === 'text' || k === 'notes') && own(fileLooks, fid)) { if (!out.looks) out.looks = {}; out.looks[f.id] = recShapeOk(fileLooks[fid]) ? clone(fileLooks[fid]) : null; }   // item 35 (a look that is no record: null, which ends the text's old look where the fill is applied, as a look that does not clean does)
     });
+    lnQ.forEach(function(x) { var o = {}; ['up', 'pl'].forEach(function(k) { if (typeof x.o[k] === 'string' && own(idMap, x.o[k])) o[k] = idMap[x.o[k]]; else if (x.o[k + 'At']) o[k + 'At'] = x.o[k + 'At']; }); if (Object.keys(o).length) x.q.link = o; });   // 1.6.2 (body fold 2): fillMaking lays them once every row stands
     grQ.forEach(function(x) { if (x.gb !== undefined) { if (own(idMap, x.gb)) { x.q.gb = idMap[x.gb]; if (typeof x.gl === 'number' && isFinite(x.gl)) x.q.gl = x.gl; } return; } if (own(idMap, x.gr)) { x.q.gr = idMap[x.gr]; if (x.gp) x.q.gp = 1; } });   // 1.6.0 (v2, B4): a granted row keeps its mark (systemcore fillMaking takes it as it comes); 1.6.0: and its Pays back
     return out;
 }

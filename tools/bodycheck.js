@@ -138,6 +138,27 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         const ask2 = S.readsOf(SS, { list: SS.fields[1].list }), askR = S.readsOf(SS, { list: SS.fields[1].list, reach: true });
         check('a form offers the place in plain words, and Tile.* only in Reaches', J(ask2).includes('At.Zone') && !J(ask2).includes('Tile.Zone') && J(askR).includes('Tile.Zone') && S.nameWord(SS, 'At.Zone', SS.fields[1].list) === 'the place it stands: Zone' && S.nameWord(SS, 'Here.Wear.count', SS.fields[0].list) === 'how many of Wear stand here', J([ask2, S.nameWord(SS, 'Here.Wear.count', SS.fields[0].list)]));
     }
+    /* ---- fold 2: through a file ---- */
+    {
+        const X = await import(url.pathToFileURL(app('scripts/sheetexport.js')).href);
+        const RW = { v: 1, name: 'File', fields: [{ id: 'f_body', key: 'Body', kind: 'item-list', label: 'Body', list: { multi: true, noQty: true, hang: true, custom: true } }, { id: 'f_wear', key: 'Wear', kind: 'item-list', label: 'Wear', list: { multi: true, custom: true, stand: { from: 'f_body' } } }], listRules: { sheetUpload: 'making' }, items: [{ id: 'i_part', name: 'Part', key: 'Part' }, { id: 'i_boot', name: 'Boot', key: 'Boot' }] };
+        const SF = S.cleanSystem(RW, { F, gmView: true }), VF = S.cleanSystem(SF, { F, gmView: false });
+        const src = { id: 'c_s', name: 'Sal', ownerId: 'u_s', npc: false, values: { f_body: [{ id: 'w_arm', defId: 'i_part', qty: 1, ov: { name: 'Arm' } }, { id: 'w_hand', defId: 'i_part', qty: 1, up: 'w_arm', ov: { name: 'Hand' } }], f_wear: [{ id: 'w_gl', defId: 'i_boot', qty: 1, pl: 'w_hand' }] } };
+        const own = S.charFor(src, VF, 'u_s'), file = X.charToJson(SF, own, [], {}), items = { i_part: SF.items[0], i_boot: SF.items[1] }, findV = () => [SF.items[0], SF.items[1]];
+        const inFile = (file.values || (file.character && file.character.values) || {});
+        check('a file names a place by the row’s id, and by its entry’s key and name beside it', J((inFile.f_wear || [])[0] && inFile.f_wear[0].plAt) === J({ name: 'Hand', key: 'Part' }) && inFile.f_wear[0].pl === 'w_hand' && J(inFile.f_body[1].upAt) === J({ name: 'Arm', key: 'Part' }), J(inFile));
+        const mk = () => ({ id: 'c_m', name: 'Pax', ownerId: 'u_a', npc: false, making: 1, values: {} });
+        const fl = X.charFromJson(VF, JSON.parse(J(file)), findV), r1 = S.fillMaking(SF, mk(), fl, F, { view: VF });
+        const nm = (rows, n) => (rows || []).filter(x => x.ov && x.ov.name === n)[0] || (rows || []).filter(x => x.def && x.def.name === n)[0];
+        check('read back whole, under new ids, every place holds', r1.ok === true && r1.left === 0 && (() => { const arm = nm(r1.values.f_body, 'Arm'), hand = nm(r1.values.f_body, 'Hand'), g = r1.values.f_wear[0]; return !!arm && !!hand && hand.up === S.rowIdOf(arm) && g.pl === S.rowIdOf(hand) && S.rowIdOf(hand) !== 'w_hand'; })(), J(r1));
+        const noBody = JSON.parse(J(file)); (noBody.values || noBody.character.values).f_body = undefined; delete (noBody.values || noBody.character.values).f_body; (noBody.values || noBody.character.values).f_wear[0].pl = 'w_old1';
+        const flN = X.charFromJson(VF, noBody, findV), hasHand = mk(); hasHand.values.f_body = [{ id: 'w_mine', defId: 'i_part', qty: 1, ov: { name: 'Hand' } }]; const r2 = S.fillMaking(SF, hasHand, flN, F, { view: VF });
+        check('an id that is gone is found by key and name, among the rows the character already has', r2.ok === true && r2.values.f_wear[0].pl === 'w_mine', J(r2));
+        const flL = X.charFromJson(VF, JSON.parse(J(noBody)), findV), r3 = S.fillMaking(SF, mk(), flL, F, { view: VF });
+        check('a place that finds nothing stays unplaced and is said', r3.ok === true && !('pl' in r3.values.f_wear[0]) && r3.left === 1, J(r3));
+        const again = S.cleanChar(Object.assign(mk(), { values: r1.values }), SF, { state: 'host' });
+        check('and what a file laid down is clean', typeof nm(again.values.f_body, 'Hand').up === 'string' && typeof again.values.f_wear[0].pl === 'string', J(again.values));
+    }
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never finished'); process.exitCode = 1; } });

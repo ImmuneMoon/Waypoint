@@ -177,7 +177,7 @@ var GROUPS = {
         ['rolls', 'Rolls', 1, ['sys-list-roll', 'sys-list-needsrow', 'sys-list-rolladd', 'sys-list-xsrow', 'sys-calls']],
         ['parts', 'Parts', 0, ['sys-list-partsfrom', 'sys-list-partscats', 'sys-list-partshosts', 'sys-list-partscap', 'sys-pcaps', 'sys-list-partsfitif', 'sys-list-partsfitwords', 'sys-pfits', 'sys-list-partslabel', 'sys-list-partsdeep']],
         ['stand', 'Stands at another list', 0, ['sys-list-standfrom', 'sys-list-standfits', 'sys-list-standsays', 'sys-list-standreach', 'sys-list-standcounts', 'sys-list-standoff', 'sys-list-standbox', 'sys-list-standpieces']],
-        ['tiles', 'Tiles', 0, ['sys-list-tileside', 'sys-list-tiletop', 'sys-tboxes']],
+        ['tiles', 'Tiles', 0, ['sys-list-tileside', 'sys-list-tiletop', 'sys-list-tiledraw', 'sys-list-tilemake', 'sys-tboxes']],
         ['badges', 'Badges', 0, ['sys-badges']],
         ['loads', 'Loads, feeds and chambers', 0, ['sys-list-load', 'sys-list-feed', 'sys-list-feedadd', 'sys-list-chamber']],
         ['specs', 'Specialties', 0, ['sys-list-specs', 'sys-list-specof', 'sys-list-speccover', 'sys-list-specby', 'sys-list-specfall', 'sys-list-specnever', 'sys-list-specpen', 'sys-list-specsum', 'sys-list-specdflt']],

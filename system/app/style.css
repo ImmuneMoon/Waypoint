@@ -4072,12 +4072,20 @@
   .body-box { padding: 2px 4px; border: 1px dashed var(--border); border-radius: 6px; background: transparent; color: var(--dim); font: inherit; font-size: 11px; line-height: 1.2; overflow-wrap: anywhere; cursor: pointer; }
   .body-box.full { border-style: solid; border-color: var(--gold); color: var(--text); }
   .body-box.taken { border-style: solid; color: var(--text); font-style: italic; }
+  .body-tile.edit { cursor: grab; touch-action: none; }
+  .body-tile.moving { opacity: 0.6; cursor: grabbing; }
   .body-strip { display: flex; flex-wrap: wrap; gap: 8px; }
   .body-strip .body-tile { flex: 0 1 92px; min-height: 56px; }
   .body-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; padding: 6px 4px; border: 1.5px dashed var(--border); border-radius: 10px; background: transparent; color: var(--dim); font: inherit; font-size: 12px; cursor: pointer; }
   .body-tile.full { border-style: solid; border-width: 2px; border-color: var(--gold); color: var(--text); }
   .body-tile.cover { border-style: solid; color: var(--text); }
   .body-tile.sel { box-shadow: 0 0 0 2px var(--gold); }
+  .body-draw { width: 34px; height: 34px; fill: currentColor; flex: none; }
+  .body-draw-flip { transform: scaleX(-1); }
+  .body-mark { position: absolute; left: 4px; bottom: 3px; width: 13px; height: 13px; fill: currentColor; }
+  .body-mark-f { color: #c98f86; }
+  .body-mark-p { color: #6fc0da; }
+  .body-mark-r { color: #a8b6c4; }
   .body-tile-name { max-width: 100%; text-align: center; overflow-wrap: anywhere; line-height: 1.15; }
   .body-tile-top { font-size: 11px; opacity: 0.8; }
   .body-tile-n { position: absolute; top: 3px; right: 5px; font-size: 10px; font-weight: 700; color: var(--gold); }

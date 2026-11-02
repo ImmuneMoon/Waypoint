@@ -159,6 +159,36 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         const again = S.cleanChar(Object.assign(mk(), { values: r1.values }), SF, { state: 'host' });
         check('and what a file laid down is clean', typeof nm(again.values.f_body, 'Hand').up === 'string' && typeof again.values.f_wear[0].pl === 'string', J(again.values));
     }
+    /* ---- what Save says of a place ---- */
+    {
+        const sh2 = read('scripts/sheets.js'), slS = sh2.slice(sh2.indexOf('// [bodycheck:standsays-start]'), sh2.indexOf('// [bodycheck:standsays-end]')), says = new Function(slS + '; return standSays;')();
+        const dice = n => J(n).includes('"dice"') || J(n).includes('"type":"dice"'), ok = () => true, no = () => false;
+        check('what Save drops of a place is said, and why, so no formula quietly does nothing', J(says({ from: 'f_t', reach: 'At.Sec > 0' }, { from: 'f_t' }, F, dice, ok)).includes('Reaches reads a GM-only value') && J(says({ from: 'f_t', counts: 'Row.' }, { from: 'f_t' }, F, dice, ok)).includes('Counts where is no formula Save can keep') && says({ from: 'f_t' }, null, F, dice, ok)[0].includes('that list is not there') && J(says({ from: 'f_t', fits: 'At.Sec > 0' }, { from: 'f_t', fits: 'At.Sec > 0' }, F, dice, no)).includes('their own moves are not refused by it') && says({ from: 'f_t', fits: 'At.N > 0' }, { from: 'f_t', fits: 'At.N > 0' }, F, dice, ok).length === 0, J(says({ from: 'f_t', counts: 'Row.' }, { from: 'f_t' }, F, dice, ok)));
+        check('and it is said under the list, from what the cleaner kept', sh2.includes("standSays(f.list.stand, cf && cf.list ? cf.list.stand : null, F(), hasDice,"));
+    }
+    /* ---- fold 3: tiles ---- */
+    {
+        const T = await import(url.pathToFileURL(app('scripts/tilecore.js')).href);
+        const body = [{ id: 'torso' }, { id: 'head', up: 'torso' }, { id: 'larm', up: 'torso', side: -1 }, { id: 'lhand', up: 'larm', side: -1 }, { id: 'rarm', up: 'torso', side: 1 }, { id: 'rhand', up: 'rarm', side: 1 }, { id: 'lleg', up: 'torso', side: -1 }, { id: 'tail' }];
+        const L = T.tileLayout(body), at = id => L.tiles.filter(t => t.id === id)[0], un = new Set(L.tiles.map(t => t.c + '|' + t.r));
+        check('a figure comes from what hangs from what: a child out to its side, one on its parent’s own side below it, and a row with no parent and no child in the strip', at('larm').c === at('torso').c - 1 && at('rarm').c === at('torso').c + 1 && at('lhand').c === at('larm').c && at('lhand').r === at('larm').r + 1 && at('head').r > at('torso').r && J(L.strip) === J(['tail']) && L.cols === 3, J(L));
+        check('no two tiles share a place, and every row stands somewhere', un.size === L.tiles.length && L.tiles.length + L.strip.length === body.length, J(L));
+        const cyc = T.tileLayout([{ id: 'a', up: 'b' }, { id: 'b', up: 'a' }, { id: 'c', up: 'gone' }, { id: 'd', up: 'd' }, null, { nope: 1 }]);
+        check('a circle a file wrote, a parent that is gone and a row that hangs from itself hide no row', cyc.tiles.length === 0 && J(cyc.strip.slice().sort()) === J(['a', 'b', 'c', 'd']), J(cyc));
+        const many = []; for (let i = 0; i < 2000; i++) many.push({ id: 'r' + i, up: i ? 'r' + (i - 1) : undefined }); const big = T.tileLayout(many);
+        check('a chain of any length is held to the most it draws, and answers', big.tiles.length + big.strip.length === 400, J([big.tiles.length, big.strip.length]));
+        check('an arrow goes to the nearest tile that way, and stays where none is', T.tileStep(L.tiles, 'torso', 'left') === 'larm' && T.tileStep(L.tiles, 'torso', 'right') === 'rarm' && T.tileStep(L.tiles, 'larm', 'down') === 'lhand' && T.tileStep(L.tiles, 'lhand', 'left') === 'lhand' && T.tileStep(L.tiles, 'nope', 'up') === 'nope');
+        check('a side is read from a stat’s words, or from 1 and 2', T.tileSide('Left', 0) === -1 && T.tileSide('RIGHT hand', 0) === 1 && T.tileSide('', 1) === -1 && T.tileSide('', 2) === 1 && T.tileSide('', 0) === 0 && T.tileSide(undefined, undefined) === 0);
+        const RW = { v: 1, name: 'T', fields: [{ id: 'f_b', key: 'Bb', kind: 'item-list', label: 'Bb', list: { multi: true, hang: true, stats: [{ key: 'Sd', label: 'Sd' }], cols: [{ key: 'C', label: 'C', formula: '1' }], tiles: { side: 'sd', top: 'c' } } }, { id: 'f_w', key: 'Ww', kind: 'item-list', label: 'Ww', list: { multi: true, stand: { from: 'f_b' } } }, { id: 'f_x', key: 'Xx', kind: 'item-list', label: 'Xx', list: { multi: true, tiles: { side: 'nope', top: 'nope' } } }], items: [{ id: 'i_a', name: 'A' }], sheet: { tabs: [], sections: [{ id: 's_a', title: 'Body', fields: [{ id: 'f_b', show: 'tiles+' }, { id: 'f_w', show: 'nonsense' }, { id: 'f_x', show: 'tiles' }] }] } };
+        const SS = S.cleanSystem(RW, { F, gmView: true }), VV = S.cleanSystem(SS, { F, gmView: false }), secs = SS.sheet.sections[0].fields;
+        check('Shows as is kept as one of its words, in both views, and which stats a tile reads as the list spells them', J(secs.map(p => p.show)) === J(['tiles+', undefined, 'tiles']) && J(SS.fields[0].list.tiles) === J({ side: 'Sd', top: 'C' }) && !('tiles' in (SS.fields[2].list || {})) && VV.sheet.sections[0].fields[0].show === 'tiles+', J([secs, SS.fields[0].list]));
+        const ch = { id: 'c_a', name: 'A', ownerId: 'u_a', npc: false, values: { f_b: [{ id: 'w_b1', defId: 'i_a', qty: 1 }, { id: 'w_b2', defId: 'i_a', qty: 1 }], f_w: [{ id: 'w_w1', defId: 'i_a', qty: 1, pl: 'w_b1' }] } }, RA = S.resolveAll(SS, ch, F), eOf = id => (RA.entries || RA)[id] || (RA.byId && RA.byId[id]) || (Array.isArray(RA) ? RA.filter(e => e.f && e.f.id === id)[0] : null);
+        check('a sheet is told what stands at each tile', J(eOf('f_b').tn) === J({ w_b1: [{ f: 'f_w', r: 'w_w1' }] }) && eOf('f_w').sd.w_w1.r === 'w_b1', J(eOf('f_b') && eOf('f_b').tn));
+        const shT = read('scripts/sheets.js');
+        check('a tile opens its row through the list’s own drawing, so no control or right is drawn twice', shT.includes("itemListInto(tvI.into, f, c, tvI.rows, sysI, canThrow, playOk, gm, emptyI, resI, editOk, lookOk, ownOk)") && shT.includes("itemTableInto(tvI.into, f, c, tvI.rows, sysI, canThrow, playOk, gm, emptyI, resI, editOk, lookOk, ownOk)"));
+        check('a print and the HUD draw the list; the switch is this computer’s and never on the character or the wire', shT.includes("if (!how || window.wpPrintCopy === true || _fxView === 'hud') return null;") && shT.includes("TILE_SHOW = 'wp_bodyShow'") && !read('scripts/net.js').includes('wp_bodyShow'));
+        check('Escape shuts a tile’s drawer before the sheet, and one tab stop reaches the grid', read('scripts/esckey.js').includes("escAt(t, '.body-tiles.has-open')") && shT.includes('b.tabIndex = t.id === focusTo ? 0 : -1;'));
+    }
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never finished'); process.exitCode = 1; } });

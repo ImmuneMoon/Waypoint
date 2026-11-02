@@ -28,7 +28,8 @@ import { upkeepLines } from './systemcore.js';   // 205 follow-up (3): a turn's 
 import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, setGateEngine } from './systemcore.js';   // 1.6.0: linked sheets
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
-import { fitIfOk, partFitEntry } from './systemcore.js';   // 1.6.0 Fits where (the core handbook session's ask 18)
+import { fitIfOk, partFitEntry, modsIfOk } from './systemcore.js';
+import { tileLayout, tileStep, tileSide } from './tilecore.js';   // 1.6.2 (body fold 3)   // 1.6.0 Fits where (the core handbook session's ask 18)
 import { targetHitList, targetHitRows, readsTargetHit } from './systemcore.js';   // 1.6.0 (B5): a called shot by the target's own location
 import { tableKeyOk, TABLE_KEY, TABLE_ROW_KEY, nameFold } from './systemcore.js';   // 1.6.0: a system's tables, as Save reads them (tableSays)
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
@@ -2570,6 +2571,7 @@ function renderLayout() {
             if (plf && plf.kind === 'item-list' && typeof placeCatBtn === 'function') { var pbL = plf.list && plf.list.placeBy ? ((plf.list.stats || []).filter(function(s) { return s && typeof s.key === 'string' && s.key.toLowerCase() === String(plf.list.placeBy).toLowerCase(); }).map(function(s) { return s.label || s.key; })[0] || '') : '', pcB = placeCatBtn(pl, pbL); if (pcB) pr.appendChild(pcB); }   // 1.5.5: By category (1.6.0 R13: or by the list's choice stat)
             if (plf && plf.kind === 'item-list') { var cnB = el('button', 'tool ghost sys-btn sys-pl-count' + (pl.count === true ? ' on' : ''), pl.count === true ? 'Rows counted' : 'Count rows'); cnB.dataset.act = 'plcount'; cnB.title = pl.count === true ? 'Its section\u2019s title shows how many rows this place shows. Press to stop counting' : 'Show in its section\u2019s title how many rows this place shows, such as Melee Technique (3)'; pr.appendChild(cnB); }   // 1.6.0, backlog 180 R9
             if (plf && plf.kind === 'item-list') pr.appendChild(input('sys-pl-empty field', pl.empty || '', 'What this place says when it shows no row. Empty: No items.', 'When empty'));   // 191
+            if (plf && plf.kind === 'item-list') pr.appendChild(select('sys-pl-tiles', [['', 'Shows as a list'], ['tiles', 'Shows as tiles'], ['tiles+', 'Both, tiles first'], ['list+', 'Both, list first']], typeof pl.show === 'string' ? pl.show : '', 'How this place shows its rows. With both, the sheet has a switch, and each person\u2019s choice is kept on their computer'));   // 1.6.2 (body fold 3)
             pr.appendChild(btnRow([['plup', 'Move up', '&#9650;'], ['pldown', 'Move down', '&#9660;'], ['pldel', 'Take off the sheet (the field stays defined)', '&times;']]));
             list.appendChild(pr);
             if (plf && plf.kind === 'item-list' && typeof placeCatPart === 'function') placeCatPart(list, pl, sec, pi, plf, secs);   // 1.5.5: its categories, and what Save does with it
@@ -2622,6 +2624,7 @@ function onLayoutInput(t) {
     var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
     var plr = t.closest('.sys-pl');
     if (plr && c.indexOf('sys-pl-text') >= 0) { var pl = (sec.fields || [])[+plr.dataset.pi]; if (pl) pl.text = t.value.slice(0, LIMITS.label); }
+    if (plr && c.indexOf('sys-pl-tiles') >= 0) { var plT = (sec.fields || [])[+plr.dataset.pi]; if (plT) { if (t.value) plT.show = t.value; else delete plT.show; markDirty(); renderPreview(); return true; } }   // 1.6.2 (body fold 3): Shows as
     if (plr && c.indexOf('sys-pl-empty') >= 0) { var ple = (sec.fields || [])[+plr.dataset.pi]; if (ple) { var pev = t.value.slice(0, LIMITS.label); if (pev.trim()) ple.empty = pev; else delete ple.empty; } }   // 191: When empty
     else if (plr && c.indexOf('sys-pl-rformula') >= 0) { var plf = (sec.fields || [])[+plr.dataset.pi]; if (plf) plf.formula = t.value.slice(0, LIMITS.formula); }   // Stage 6 HUD H9
     else if (plr && c.indexOf('sys-pl-rtext') >= 0) { var plt = (sec.fields || [])[+plr.dataset.pi]; if (plt) plt.text = t.value.slice(0, LIMITS.ruleText); }   // Stage 6 HUD H11
@@ -3091,6 +3094,51 @@ function standCtl(entry, c, f, spec, can, sysI, res) {
     if (st && st.off && sp.offWord) box.appendChild(el('span', 'sheet-chip', sp.offWord));
     return box.firstChild ? box : null;
 }
+// [bodycheck:tileview-start]
+// 1.6.2 (body fold 3): a list drawn as tiles. Nothing of a row is drawn but through the sheet's own list: pressing a tile opens a drawer that holds that row as the list draws it, so every control, right and refusal is the list's. tileView answers null for the plain list, or { into, rows }: where the list draws, and the one row it draws
+var _tileOpen = Object.create(null), TILE_SHOW = 'wp_bodyShow';
+function tileKept(key) { try { var o = JSON.parse(localStorage.getItem(TILE_SHOW) || '{}'); return o && typeof o === 'object' && (o[key] === 'tiles' || o[key] === 'list') ? o[key] : ''; } catch (e) { return ''; } }
+function tileKeep(key, v) { try { var o = JSON.parse(localStorage.getItem(TILE_SHOW) || '{}'); if (!o || typeof o !== 'object' || Array.isArray(o)) o = {}; o[key] = v; var ks = Object.keys(o); if (ks.length > 200) delete o[ks[0]]; localStorage.setItem(TILE_SHOW, JSON.stringify(o)); } catch (e) {} }
+function tileSwitch(wrap, key, now, f, c) {
+    var bar = el('div', 'body-switch'); [['tiles', 'Tiles'], ['list', 'List']].forEach(function(p) { var b = el('button', 'tool ghost sys-btn' + (now === p[0] ? ' on' : ''), p[1]); b.type = 'button'; b.dataset.fid = f.id; b.dataset.part = 'tsw-' + p[0]; if (now === p[0]) b.ariaPressed = 'true'; b.addEventListener('click', function() { tileKeep(key, p[0]); renderViews(c.id); }); bar.appendChild(b); });
+    wrap.appendChild(bar);
+}
+function tileWords(rows, sysI, c, e) {
+    var names = (Array.isArray(e) ? e : []).map(function(x) { var rw = c.values && Array.isArray(c.values[x.f]) ? c.values[x.f].filter(function(y) { return rowIdOf(y) === x.r; })[0] : null, d = rw ? rowDef(sysI, rw) : null; return (d && d.def && d.def.name) || ''; }).filter(Boolean);
+    return names.length ? names.join(', ') : 'Nothing here';
+}
+function tileView(wrap, f, c, rows, sysI, plc, res) {
+    var how = plc && plc.show; if (!how || window.wpPrintCopy === true || _fxView === 'hud') return null;
+    var spec = f.list || {}, tsp = spec.tiles && typeof spec.tiles === 'object' ? spec.tiles : {}, camp = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, key = (camp ? camp.id : '') + '|' + f.id, both = how !== 'tiles', now = both ? (tileKept(key) || (how === 'list+' ? 'list' : 'tiles')) : 'tiles';
+    if (both) tileSwitch(wrap, key, now, f, c);
+    if (now !== 'tiles') return null;
+    var cells = rows.filter(function(r) { return r && r.hid !== 1; }).map(function(r) { var d = rowDef(sysI, r), st = tsp.side && d ? rowStat(spec, d.def, tsp.side) : undefined; return { id: rowIdOf(r), up: r.up, side: tsp.side ? tileSide(typeof st === 'string' ? st : statLabelOf(spec, tsp.side, st), st) : 0, row: r, name: (d && d.def && d.def.name) || 'A row' }; }), lay = tileLayout(cells), byId = Object.create(null), openKey = c.id + '|' + f.id, open = _tileOpen[openKey] || '', flat = lay.tiles.slice(), holder = el('div', 'body-tiles');
+    cells.forEach(function(x) { byId[x.id] = x; }); lay.strip.forEach(function(id, i) { flat.push({ id: id, c: i, r: lay.rows + 1 }); });
+    if (open && !byId[open]) open = '';
+    var focusTo = open || (flat[0] ? flat[0].id : ''), put = function(t, into, inGrid) {
+        var x = byId[t.id], on = res && res.tn ? res.tn[t.id] : null, holds = (on || []).filter(function(e) { return !e.reach; }).length, reach = (on || []).filter(function(e) { return e.reach; }).length, b = el('button', 'body-tile' + (holds ? ' full' : reach ? ' cover' : '') + (t.id === open ? ' sel' : '')); b.type = 'button'; b.dataset.fid = f.id; b.dataset.part = 'tile-' + t.id; b.dataset.tile = t.id; b.tabIndex = t.id === focusTo ? 0 : -1; b.ariaExpanded = t.id === open ? 'true' : 'false';
+        if (inGrid) { b.style.gridColumn = String(t.c + 1); b.style.gridRow = String(t.r + 1); }
+        b.title = x.name + ': ' + tileWords(rows, sysI, c, on); b.ariaLabel = x.name + '. ' + (holds ? holds + (holds === 1 ? ' thing here.' : ' things here.') : reach ? 'Covered.' : 'Empty.');
+        b.appendChild(el('span', 'body-tile-name', x.name)); if (tsp.top) { var cix = (Array.isArray(spec.cols) ? spec.cols : []).map(function(q) { return q && q.key; }).indexOf(tsp.top), cl = cix >= 0 && res && res.cells && res.cells[t.id] ? res.cells[t.id][cix] : null, tv = cl ? (cl.error ? '' : cl.text !== undefined ? cl.text : cl.value) : (rowDef(sysI, x.row) ? rowStat(spec, rowDef(sysI, x.row).def, tsp.top) : ''); if (tv !== '' && tv !== undefined && tv !== null && typeof tv !== 'object') b.appendChild(el('span', 'body-tile-top', String(tv))); }
+        if (holds) b.appendChild(el('span', 'body-tile-n', String(holds)));
+        b.addEventListener('click', function() { if (_tileOpen[openKey] === t.id) delete _tileOpen[openKey]; else _tileOpen[openKey] = t.id; renderViews(c.id); });
+        into.appendChild(b);
+    };
+    if (lay.tiles.length) { var stage = el('div', 'body-stage'); stage.style.setProperty('--tile-cols', String(Math.max(1, lay.cols))); lay.tiles.forEach(function(t) { put(t, stage, true); }); holder.appendChild(stage); }
+    if (lay.strip.length) { var sp2 = el('div', 'body-strip'); lay.strip.forEach(function(id) { put({ id: id }, sp2, false); }); holder.appendChild(sp2); }
+    holder.addEventListener('keydown', function(ev) {
+        if (ev.key === 'Escape' && _tileOpen[openKey]) { ev.preventDefault(); ev.stopPropagation(); delete _tileOpen[openKey]; renderViews(c.id); return; }
+        var dir = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[ev.key], t = ev.target; if (!dir || !t || !t.dataset || !t.dataset.tile) return;
+        ev.preventDefault(); ev.stopPropagation(); var to = tileStep(flat, t.dataset.tile, dir); if (to === t.dataset.tile) return; Array.prototype.forEach.call(holder.querySelectorAll('.body-tile'), function(x) { if (x.dataset.tile === to) { t.tabIndex = -1; x.tabIndex = 0; x.focus(); } });
+    });
+    wrap.appendChild(holder);
+    if (!open) { holder.classList.remove('has-open'); return { into: null, rows: [] }; }
+    holder.classList.add('has-open'); var dr = el('div', 'body-drawer'), head = el('div', 'body-drawer-head'), shut = el('button', 'tool ghost sys-btn', '\u00d7'); shut.type = 'button'; shut.title = 'Close this'; shut.ariaLabel = 'Close this'; shut.dataset.fid = f.id; shut.dataset.part = 'tile-shut';
+    shut.addEventListener('click', function() { delete _tileOpen[openKey]; renderViews(c.id); }); head.appendChild(el('span', 'body-drawer-name', byId[open].name)); head.appendChild(shut); dr.appendChild(head); holder.appendChild(dr);
+    return { into: dr, rows: [byId[open].row] };
+}
+function statLabelOf(spec, key, n) { var s = (Array.isArray(spec.stats) ? spec.stats : []).filter(function(x) { return x && typeof x.key === 'string' && x.key.toLowerCase() === String(key).toLowerCase(); })[0]; return s && Array.isArray(s.labels) && typeof n === 'number' && typeof s.labels[n] === 'string' ? s.labels[n] : ''; }
+// [bodycheck:tileview-end]
 function subjectCtl(entry, c, f, spec, can, ok) {   // ok: false where Subject only where does not hold for this row (resolveAll's sjOk), which then shows nothing and reads subject 0
     var ws = spec && Array.isArray(spec.subject) ? spec.subject : null; if (!ws || !ws.length || !entry || entry.hid === 1 || ok === false) return null;
     var at = typeof entry.sj === 'number' && ws[entry.sj - 1] ? entry.sj : 0;
@@ -4761,7 +4809,9 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var phI = typeof partHostIds === 'function' ? partHostIds(sysI, c, f.id) : null; if (phI) rowsI = rowsI.filter(function(r) { return !(r && typeof r.in === 'string' && phI[r.in]); });   // 1.6.0 R14: a part stands under its host
         if (typeof setStrip === 'function' && !onOnly && (!catT || catT.home)) setStrip(wrap, c, f, specI, sysI, carried, playOk, e);   // 1.6.0 R15: the list's sets, once, over its home placement
         var lookOk = !!(gm || (own && f.vis === 'all'));   // 1.6.0, backlog 206: a row's look and its work log are its owner's and the GM's, whoever else may change the list
-        if (f.table) itemTableInto(wrap, f, c, rowsI, sysI, canThrow, playOk, gm, emptyI, resI, editOk, lookOk, ownOk);   // Stage 4: rich table (F5a1: e, its columns' cells and totals)
+        var tvI = typeof tileView === 'function' ? tileView(wrap, f, c, rowsI, sysI, plc, resI) : null;   // 1.6.2 (body fold 3): tiles, and the row a tile opens, through the list's own drawing
+        if (tvI) { if (tvI.into) { if (f.table) itemTableInto(tvI.into, f, c, tvI.rows, sysI, canThrow, playOk, gm, emptyI, resI, editOk, lookOk, ownOk); else itemListInto(tvI.into, f, c, tvI.rows, sysI, canThrow, playOk, gm, emptyI, resI, editOk, lookOk, ownOk); } }
+        else if (f.table) itemTableInto(wrap, f, c, rowsI, sysI, canThrow, playOk, gm, emptyI, resI, editOk, lookOk, ownOk);   // Stage 4: rich table (F5a1: e, its columns' cells and totals)
         else itemListInto(wrap, f, c, rowsI, sysI, canThrow, playOk, gm, emptyI, resI, editOk, lookOk, ownOk);            // the plain carried list (as before)
         if (catT && catT.home && carried.length && specI && e && e.foot && (!f.table || f.table.footer)) totalsLine(wrap, specI, e.foot, 'Whole list');   // 1.5.5: the whole list's totals, once, under its home placement (catHome), where its rows would show them
         var custOK = !!specI && (gm || specI.custom === true);   // F4c3: + Custom… — the GM's on any list shaped in the Lists tab, a player's where it takes custom rows
@@ -7725,6 +7775,10 @@ function refreshErrors() {
         else if (typeof fitIfOk === 'function' && !fitIfOk({ fields: clean.fields, items: clean.items, core: clean.core, tables: clean.tables }, F(), cf, cf.list.parts.fitIf)) said = 'reads a GM-only value, here or through what it reads, so your players\u2019 sheets keep none of it and their parts are not judged by it. Yours are.';
         if (said) (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Fits where ' + said });
     });
+    draft.fields.forEach(function(f) {   // 1.6.2 (body fold 2)
+        if (!f || f.kind !== 'item-list' || !f.list || !f.list.stand || typeof f.list.stand !== 'object') return; var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0], gsS = { fields: clean.fields, items: clean.items, core: clean.core, tables: clean.tables };
+        standSays(f.list.stand, cf && cf.list ? cf.list.stand : null, F(), hasDice, function(t) { return modsIfOk(gsS, F(), cf, t); }).forEach(function(w) { (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: w }); });
+    });
     draft.fields.forEach(function(f) {   // 1.6.2: a further rule of Fits where and a line of Holds by kind by a formula, as the cleaner reads them
         if (!f || f.kind !== 'item-list' || !f.list || !f.list.parts) return;
         var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0], cp = cf && cf.list ? cf.list.parts : null; if (!cp) return;
@@ -8906,6 +8960,9 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     if (pbChoices.length || sp.groupBy) { var gbW = el('label', 'sys-check'), gbL = el('select', 'sys-list-groupby'), gbO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; gbW.appendChild(document.createTextNode('Rows gather by ')); gbL.appendChild(gbO('', 'Nothing', !sp.groupBy)); pbChoices.forEach(function(s) { gbL.appendChild(gbO(s.key, s.label || s.key, !!sp.groupBy && String(sp.groupBy).toLowerCase() === s.key.toLowerCase())); }); gbW.title = 'Rows stand under a heading for each value of this stat, in its own order'; gbW.appendChild(gbL); fl.appendChild(gbW); }
     var sjbW = el('label', 'sys-check'), sjbI = el('input', 'field sys-list-subject'); sjbI.type = 'text'; sjbI.value = Array.isArray(sp.subject) ? sp.subject.join(', ') : ''; sjbI.placeholder = 'none'; sjbW.appendChild(document.createTextNode('Subjects ')); sjbW.appendChild(sjbI); sjbW.title = 'Short words a row may hold one of, split by commas, up to ' + LIMITS.subjects + '. A row picks its word on the sheet. Row.subject reads its place, 1 for the first and 0 for none, and List.Subject.Word.sum.Stat adds the rows that hold a word, with .max and .min for the highest and the lowest'; fl.appendChild(sjbW);   // 1.6.0 Subjects
     if (Array.isArray(sp.subject) && sp.subject.length) { var sjiW = el('label', 'sys-check'), sjiI = el('input', 'field sys-list-sjif'); sjiI.type = 'text'; sjiI.value = typeof sp.subjectIf === 'string' ? sp.subjectIf : ''; sjiI.placeholder = 'every row'; sjiI.spellcheck = false; sjiI.autocomplete = 'off'; sjiW.appendChild(document.createTextNode('Subject only where ')); sjiW.appendChild(sjiI); sjiW.title = 'A formula of the row with no dice, such as Row.Takes > 0. Only a row where it holds shows the menu, and any other reads subject 0. Empty: every row'; fl.appendChild(sjiW); }   // 1.6.0 Subject only where
+    var tlPick = function(cls, cap, val, tip, words) { var w = el('label', 'sys-check'), s = el('select', cls), o0 = el('option', null, 'Nothing'); o0.value = ''; if (!val) o0.selected = true; s.appendChild(o0); (Array.isArray(words) ? words : []).forEach(function(x) { var o = el('option', null, x[1]); o.value = x[0]; if (val === x[0]) o.selected = true; s.appendChild(o); }); w.appendChild(document.createTextNode(cap + ' ')); w.appendChild(s); w.title = tip; fl.appendChild(w); }, tlSt = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s.key === 'string' && s.key; }).map(function(s) { return [s.key, s.label || s.key]; }), tlCl = (Array.isArray(sp.cols) ? sp.cols : []).filter(function(s) { return s && typeof s.key === 'string' && s.key; }).map(function(s) { return [s.key, s.label || s.key]; }), tlSp = sp.tiles && typeof sp.tiles === 'object' ? sp.tiles : {};   // 1.6.2 (body fold 3)
+    tlPick('sys-list-tileside', 'Tile side from', tlSp.side || '', 'The stat that says a tile is on the left or the right, in its words or as 1 and 2', tlSt);
+    tlPick('sys-list-tiletop', 'Tile figure', tlSp.top || '', 'A figure each tile shows, such as its aim penalty', tlSt.concat(tlCl));
     var sdL = (typeof draft !== 'undefined' && draft && draft.fields || []).filter(function(x) { return x && x.kind === 'item-list' && x.id !== f.id; }), sdS = sp.stand && typeof sp.stand === 'object' ? sp.stand : null;   // 1.6.2 (body fold 2)
     if (sdL.length || sdS) {
         var sdW = el('label', 'sys-check'), sdF = el('select', 'sys-list-standfrom'), sdO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; sdW.appendChild(document.createTextNode('Rows stand at a row of ')); sdF.appendChild(sdO('', 'No other list', !sdS));
@@ -11845,6 +11902,20 @@ function grantFocus(gi, sk) {
     if (typeof document === 'undefined' || !document.querySelectorAll) return;
     Array.prototype.some.call(document.querySelectorAll('.sys-grant'), function(ln) { if (+ln.dataset.gi !== gi) return false; var sl = sk ? Array.prototype.filter.call(ln.querySelectorAll('.sys-grant-sline'), function(x) { return x.dataset.sk === sk; })[0] : null, c = sk ? (sl && sl.querySelector('input, select')) : ln.querySelector('.sys-grant-nm'); if (c && c.focus) c.focus(); return true; });
 }
+// [bodycheck:standsays-start]
+// 1.6.2 (body fold 2): what Save does with a list's Rows stand at a row of, as the cleaner reads it (cs: the cleaned stand, or none), so that no formula quietly does nothing. okG: whether a formula reads no GM-only value
+function standSays(st, cs, Fm, diceIn, okG) {
+    var out = []; if (!st || typeof st !== 'object') return out;
+    if (!cs) { out.push('Rows stand at a row of: that list is not there, so Save drops it.'); return out; }
+    var bad = function(k, name, rest) {
+        var t = typeof st[k] === 'string' ? st[k].trim() : ''; if (!t || cs[k]) return; var pz = null; try { pz = Fm.parse(t); } catch (e) { pz = null; }
+        out.push(name + (!pz || !pz.ok ? ' is no formula Save can keep, so Save drops it.' : pz.ast && diceIn(pz.ast.body) ? ' rolls dice, and it is read with none, so Save drops it.' : ' reads a GM-only value, here or through what it reads. Your players\u2019 sheets must give the same figures as yours, so Save drops it.') + rest);
+    };
+    bad('fits', 'Fits where', ' A row then fits anywhere.'); bad('reach', 'Reaches', ' A row then covers only where it stands.'); bad('counts', 'Counts where', ' Every placed row then counts.');
+    if (cs.fits && !okG(cs.fits)) out.push('Fits where reads a GM-only value, here or through what it reads, so your players\u2019 sheets keep none of it and their own moves are not refused by it. You are told when one breaks it.');
+    return out;
+}
+// [bodycheck:standsays-end]
 function grantBox(it) {
     var box = el('div', 'sys-fx-mods sys-grant-box'), gs = Array.isArray(it.grants) ? it.grants : [], lists = (draft.fields || []).filter(function(f) { return f && f.kind === 'item-list' && typeof f.id === 'string'; });
     box.appendChild(el('span', 'sys-note', 'Rows it grants, free, when a row of it is added or reaches a level:'));
@@ -12271,6 +12342,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-edge') >= 0) { if (t.checked) lsc.edge = true; else delete lsc.edge; }   // 1.6.0 R16
         else if (c.indexOf('sys-list-atfrom') >= 0) { if (t.value) { var atC = (Array.isArray(lsc.stats) ? lsc.stats : []).filter(function(s) { return s && typeof s.key === 'string' && s.key && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length : Array.isArray(s.labels) && s.labels.length); })[0]; lsc.at = { from: t.value, by: (lsc.at && lsc.at.by) || (atC ? atC.key : '') }; } else delete lsc.at; }   // 1.6.0 Stands at
         else if (c.indexOf('sys-list-atby') >= 0) { if (lsc.at) lsc.at.by = t.value; }
+        else if (c.indexOf('sys-list-tileside') >= 0 || c.indexOf('sys-list-tiletop') >= 0) { var tlK = c.indexOf('sys-list-tileside') >= 0 ? 'side' : 'top', tlO2 = Object.assign({}, lsc.tiles || {}); if (t.value) tlO2[tlK] = t.value; else delete tlO2[tlK]; if (Object.keys(tlO2).length) lsc.tiles = tlO2; else delete lsc.tiles; }   // 1.6.2 (body fold 3)
         else if (c.indexOf('sys-list-standfrom') >= 0) { if (t.value) lsc.stand = Object.assign({}, lsc.stand || {}, { from: t.value }); else delete lsc.stand; }   // 1.6.2 (body fold 2)
         else if (c.indexOf('sys-list-standpieces') >= 0) { if (lsc.stand) { if (t.checked) lsc.stand.pieces = true; else delete lsc.stand.pieces; } }
         else if (/sys-list-stand(fits|says|reach|counts|off)/.test(c)) { if (lsc.stand) { var sdK = /standfits/.test(c) ? 'fits' : /standsays/.test(c) ? 'fitSays' : /standreach/.test(c) ? 'reach' : /standcounts/.test(c) ? 'counts' : 'offWord', sdV = String(t.value || '').trim(); if (sdV) lsc.stand[sdK] = sdV.slice(0, sdK === 'offWord' ? LIMITS.label : sdK === 'fitSays' ? LIMITS.needsWords : LIMITS.formula); else delete lsc.stand[sdK]; } }

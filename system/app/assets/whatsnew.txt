@@ -42,6 +42,8 @@ The System editor
 - A list's rows can stand at rows of another list, as armour on the parts of a
   body. A formula reads the place a row stands, and a row of that list reads
   what stands there. Fits where, Reaches and Counts where set the rules.
+- A list's place can show as tiles, set out by what hangs from what, or as both
+  with a switch. Pressing a tile opens its row in a drawer with all its controls.
 
 At the table
 - Result bands name a roll by how it went, as a strong hit, a weak hit or a

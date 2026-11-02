@@ -6,6 +6,7 @@ let pass = 0, fail = 0, summed = false;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 900))); } }
 const J = JSON.stringify, NL = '\n', root = path.join(__dirname, '..');
 const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSync(app(p), 'utf8').replace(/\r\n/g, NL), readRoot = p => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, NL);
+globalThis.window = globalThis.window || {};
 (async () => {
     const S = await import(url.pathToFileURL(app('scripts/systemcore.js')).href), F = await import(url.pathToFileURL(app('scripts/formula.js')).href);
     const RAW = { v: 1, name: 'V', fields: [{ id: 'f_hp', key: 'HP', kind: 'number', def: 7 }, { id: 'f_a', key: 'Boost', kind: 'formula', formula: 'Shared.V1 + 1' }, { id: 'f_b', key: 'Peek', kind: 'formula', formula: 'Shared.V2 + 1' }, { id: 'f_c', key: 'Gone', kind: 'formula', formula: 'Shared.V9' }],
@@ -24,6 +25,14 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
     check('with no word it takes off, as a change does', r2.lines[0].d === -1 && held.V1 === 5);
     const n0 = moved.length, c2 = ch(); run('r_f', c2);
     check('a value that is gone moves nothing', moved.length === n0 && run('r_f').ok === false);
+    const rq = S.cleanSystem({ v: 1, name: 'R', fields: [{ id: 'f_hp', key: 'HP', kind: 'number', def: 7 }], values: [{ key: 'V1', label: 'Momentum', max: 9, start: 0 }], rolls: [{ id: 'r_r', label: 'R', apply: [{ shared: 'V1', formula: '1d6', add: true, roll: true }] }, { id: 'r_n', label: 'N', apply: [{ shared: 'V1', formula: '1d6', add: true }] }] }, { F, gmView: true }), kq = { id: 'c', values: {} }, rA = rq.rolls[0], rN = rq.rolls[1], savedH = Object.assign({}, held); held = {};
+    const rD = S.applyAct(rq, kq, rA, S.makeResolver(rq, kq, F, null), F, null, null, undefined, { random: () => 4 }, null, { now: 1 });
+    check('a Rolled amount rolls on the host\u2019s dice, and says them on the line', rD.ok === true && rD.lines[0].d === 4 && /1d6/.test(rD.lines[0].roll) && rD.drew === true, J(rD));
+    check('with no dice core, or no Rolled tick, an amount rolls nothing', S.applyAct(rq, kq, rA, S.makeResolver(rq, kq, F, null), F, null, null, undefined, null, null, { now: 1 }).ok === false && S.applyAct(rq, kq, rN, S.makeResolver(rq, kq, F, null), F, null, null, undefined, { random: () => 4 }, null, { now: 1 }).ok === false);
+    held = savedH;
+    check('a value that moved says so on the card', r1.drew === true);
+    const sinkWas = moved.length; S.setValueSink(() => { throw new Error('a redraw that fails'); }); const rT = run('r_b'); S.setValueSink(m => { moved.push(m); Object.assign(held, m); });
+    check('a sink that throws never stops what the roll landed: the answer still comes back, for the card to be posted', rT.ok === true && rT.lines.length === 1 && moved.length === sinkWas, J(rT));
     check('a card that moves a GM-only value is the GM’s, a shared one its owner’s', S.applyScope(sy, ch(), act('r_d'), false, F) === 'gm' && S.applyScope(sy, ch(), act('r_a'), false, F) === 'owner');
     check('a name that reads a GM-only value is GM-only', S.gmOnlyNames(sy, [{ name: 'Shared.V2' }]).length === 1 && S.gmOnlyNames(sy, [{ name: 'Shared.V1' }]).length === 0, J(S.gmOnlyNames(sy, [{ name: 'Shared.V2' }])));
     check('a player’s figures hold only what they may read, and within range', J(S.cleanShared({ V1: 99, V2: 3, V9: 1, V3: 'x' }, sy, false)) === J({ V1: 6 }) && J(S.cleanShared({ V1: 1, V2: 3 }, sy, true)) === J({ V1: 1, V2: 3 }) && S.cleanShared({ V2: 3 }, sy, false) === null);
@@ -31,10 +40,11 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
     check('it reads in words', S.nameWord(sy, 'Shared.V1') === 'Momentum', S.nameWord(sy, 'Shared.V1'));
     const TK = await import(url.pathToFileURL(app('scripts/trackcore.js')).href), tkA = TK.cleanTracker({ id: 't1', kind: 'count', name: 'M', vis: 'all', val: 'V1', v: 2, min: 0, max: 4 }, {}), tkC = TK.cleanTracker({ id: 't2', kind: 'clock', name: 'C', vis: 'all', val: 'V1', parts: 6, fill: 1 }, {}), tkT = TK.cleanTracker({ id: 't3', kind: 'timer', name: 'T', val: 'V1', total: 60000 }, {});
     check('a tracker keeps the value it shows, a countdown none, and the wire never names it', tkA.val === 'V1' && tkC.val === 'V1' && !('val' in tkT) && !J(TK.wireFor([tkA, tkC], null, 0, 0)).includes('V1') && TK.wireFor([tkA], null, 0, 0).length === 1, J(TK.wireFor([tkA, tkC], null, 0, 0)));
+    check('the tracker\u2019s module puts both on its page object, which is all trackers.js can reach', typeof window.wpTrackCore.figIn === 'function' && typeof window.wpTrackCore.figOf === 'function');
     check('it takes the value’s figure within its own range, and says the same back', TK.figIn(tkA, 3).v === 3 && TK.figIn(tkA, 9).v === 4 && TK.figIn(tkC, 5).fill === 5 && TK.figIn(tkA, 2) === tkA && TK.figOf(TK.figIn(tkC, 5)) === 5 && TK.figOf(tkT) === null);
     const nt = fs.readFileSync(app('scripts/net.js'), 'latin1').replace(/\r\n/g, NL), ix = read('index.html'), sh = read('scripts/sheets.js'), fb = readRoot('WHATSNEW.txt');
     check('the host tells the table what it may read, a player’s app takes it from the synced host alone and writes nothing, and no snapshot carries a GM-only figure', nt.includes("c.send({ type: 'shared', campId: camp.id, vals: vals })") && nt.includes("} else if (msg.type === 'shared' && net.role === 'client') {") && nt.includes("if (!campSh || !SSh || !SSh.cleanShared) return;") && nt.includes("window.wpSystemCore.cleanShared(camp.shared, camp.system, false)") && !/type === 'shared'[^\n]*net\.role === 'host'/.test(nt));
-    check('the box stands in the Rules tab, a change picks a value by name, and no key is typed', ix.includes('<div id="sysValues" data-topic="values"></div>') && sh.includes("['val:' + t.key, 'Shared: ' + (t.label || 'A value')]") && sh.includes("draft.values.push({ key: 'V' + n, label: '' })") && !/sys-val-key/.test(sh));
+    check('the box stands in the Rules tab, a change picks a value by name, and no key is typed', ix.includes('<div id="sysValues" data-topic="values"></div>') && sh.includes("['val:' + t.key, 'Shared: ' + (t.label || 'A value')]") && sh.includes("draft.values.push({ key: 'V' + n, label: '' })") && sh.includes('function valuesMoved() { renderViews(); }') && !/sys-val-key/.test(sh));
     check('Help, both notes and CI say it', /<b>Shared values<\/b> are numbers the whole table shares/.test(ix) && /Shared values: a number the whole table shares/.test(fb) && /Shared values: a number the whole table shares/.test(read('assets/whatsnew.txt')) && readRoot('.github/workflows/checks.yml').includes('node tools/valuecheck.js'));
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });

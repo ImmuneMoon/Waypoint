@@ -216,7 +216,7 @@ function hideSet(v, pid, on) {
     if (at < 0) return null; list.splice(at, 1); return list;
 }
 
-var API = { LIMITS: LIMITS, COLORS: COLORS, COLOR_KEYS: COLOR_KEYS, KINDS: KINDS, cleanTracker: cleanTracker, cleanTrackers: cleanTrackers, leftNow: leftNow, doneOf: doneOf, onMap: onMap,
+var API = { figIn: figIn, figOf: figOf, LIMITS: LIMITS, COLORS: COLORS, COLOR_KEYS: COLOR_KEYS, KINDS: KINDS, cleanTracker: cleanTracker, cleanTrackers: cleanTrackers, leftNow: leftNow, doneOf: doneOf, onMap: onMap,
     wireFor: wireFor, wireSig: wireSig, step: step, start: start, pause: pause, reset: reset, settle: settle, fmtReal: fmtReal, fmtGame: fmtGame, fmtLeft: fmtLeft, face: face,
     endLine: endLine, clockParts: clockParts, fresh: fresh, cleanHide: cleanHide, hiddenFrom: hiddenFrom, hideSet: hideSet };
 if (typeof window !== 'undefined') window.wpTrackCore = API;

@@ -358,7 +358,7 @@ function drawForm() {
     body.appendChild(field('Kind', chips('kind', [['count', 'Counter', 'A number with − and +'], ['timer', 'Countdown', 'Time left, with start and pause'], ['clock', 'Clock', 'A circle you fill one part at a time']], d.kind)));
     var valL = valsOf(camp); if (d.kind !== 'timer' && valL.length) {   // 1.6.2 (G8)
         var vs = el('select', 'field'); vs.id = 'trkVal'; var v0 = el('option', '', 'Its own number'); v0.value = ''; vs.appendChild(v0); valL.forEach(function(v) { var o = el('option', '', (v.label || 'A value') + (v.vis === 'gm' ? ' (you alone)' : '')); o.value = v.key; vs.appendChild(o); }); vs.value = valL.some(function(v) { return v.key === d.val; }) ? d.val : '';
-        vs.addEventListener('change', function() { readForm(); drawForm(); }); body.appendChild(field('Shows', vs, 'A shared value of the system. Rolls that move it move this, and a press here moves it. One for you alone stays off the table.'));
+        vs.addEventListener('change', function() { readForm(); var pk = valL.filter(function(v) { return v.key === d.val; })[0]; if (pk && (!String(d.name || '').trim() || /^(Counter|Countdown|Clock)$/.test(String(d.name).trim()))) d.name = pk.label; drawForm(); }); body.appendChild(field('Shows', vs, 'A shared value of the system. Rolls that move it move this, and a press here moves it. One for you alone stays off the table.'));
     }
     if (d.kind === 'count') {
         var row = el('div', 'trk-row');

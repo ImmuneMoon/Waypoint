@@ -6811,7 +6811,7 @@ var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, st
 // [formcheck:source-start]
 // 1.6.2: what a formula's form may offer, and every name in words, for the box it stands over
 var FORM_ONLY = { 'sys-range-formula': ['Distance'], 'sys-height-formula': ['HeightDiff'], 'sys-combat-bfall': ['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop'], 'sys-combat-beach': ['BlastDice', 'BlastDistance', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop'], 'sys-combat-bscatter': ['Margin', 'ThrowDistance'], 'sys-combat-bhand': ['Natural'], 'sys-combat-fgreach': ['FragDice', 'BlastDice'] };
-var FORM_MORE = { 'sys-combat-broll': ['ThrowSkill', 'ThrowDistance'], 'sys-combat-resist': ['Resist'], 'sys-dmgr-lat': ['Listed'], 'sys-dmgr-lhitw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lmajw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lbrkw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lbrkm': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lwcap': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-ltplus': ['Listed', 'Worn'], 'sys-dmgr-ohto': ['Held.count'] };
+var FORM_MORE = { 'sys-band-if': ['RollTotal', 'Natural', 'RollMargin', 'RollCrit', 'RollBig'], 'sys-combat-broll': ['ThrowSkill', 'ThrowDistance'], 'sys-combat-resist': ['Resist'], 'sys-dmgr-lat': ['Listed'], 'sys-dmgr-lhitw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lmajw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lbrkw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lbrkm': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lwcap': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-ltplus': ['Listed', 'Worn'], 'sys-dmgr-ohto': ['Held.count'] };
 // the list a box of the damage step stands on: the list picked in its own row
 function formRowList(inp) {
     for (var n = inp, i = 0; n && i < 6; n = n.parentNode, i++) { var s = n.querySelector ? n.querySelector('select.sys-dmgr-llist, select.sys-dmgr-wlist, select.sys-dmgr-ohlist') : null; if (s && s.value) { var f = fieldOf(s.value); return f && f.list ? f.list : undefined; } }
@@ -6911,7 +6911,7 @@ function bandWhens(r, ch) {
 function bandBox(get, put, own, redraw) {
     var box = el('div', 'sys-alt sys-bands'), rows = Array.isArray(get()) ? get() : [];
     box.appendChild(el('div', 'sys-num-cap', own ? 'This roll\u2019s own result bands' : 'Result bands'));
-    box.appendChild(el('small', 'sys-line', own ? 'In place of the Combat tab\u2019s, for this roll alone.' : 'Each is a name and a formula. The first that holds names the roll on its card, and a change can hang on it.'));
+    box.appendChild(el('small', 'sys-line', own ? 'In place of the Combat tab\u2019s, for this roll alone.' : 'Each has a name and a test. The first that holds names the roll on its card, and a change can hang on it.'));
     rows.forEach(function(b, i) {
         var row = el('div', 'sys-flags sys-band-row'), n = input('sys-band-name field', b && typeof b.name === 'string' ? b.name : '', 'What the card calls a roll in this band', 'Name'), f = input('sys-band-if field', b && typeof b.if === 'string' ? b.if : '', 'A formula with no dice that holds for this band. It reads RollTotal, Natural, RollMargin, RollCrit and RollBig beside the roller\u2019s names', 'Such as RollTotal >= 10'), x = el('button', 'tool ghost sys-btn sys-band-rm', '\u00d7');
         n.maxLength = 30; f.maxLength = LIMITS.formula; x.type = 'button'; x.title = 'Take this band away';
@@ -9275,9 +9275,9 @@ function defendSays(df, rolls, cm, fields) {
     return { errs: errs, warns: warns };
 }
 var STRAY_LINE = 'For a burst\u2019s round that failed, past the first, whose item scatters on a miss. A dice formula, such as 1d6, gives the yards it lands from the first round. You say which way from the bell, and it waits for the fuse. With none, you place it with Launch.';   // 1.6.0
-var FILLS_LINE = 'A number stat of an item\u2019s list: the yards it fills. A falloff reads it as BlastFills, 0 for an item that has none. Give the item a blast radius that reaches as far.';   // 1.6.0
+var FILLS_LINE = 'A number stat of an item\u2019s list: the yards it fills. Give the item a blast radius that reaches as far.';   // 1.6.0
 var FILL_COVER_LINE = 'With a stat picked above. Only total cover stops it: a token partly behind cover takes it all.';   // 1.6.0
-var NO_DROP_LINE = 'A number stat of an item\u2019s list that is not 0 where dropping to the ground does not answer it. A falloff reads it as BlastNoDrop, 1 or 0.';   // 1.6.0
+var NO_DROP_LINE = 'A number stat of an item\u2019s list that is not 0 where dropping to the ground does not answer it.';   // 1.6.0
 var EACH_ADD_LINE = 'With Each victim\u2019s dice set. Takes its add with it: 4d6+4 at 3 dice rolls 3d6+3. Leaves the adds whole: it rolls 3d6+4.';   // 1.6.0
 var EACH_BY_LINE = 'With Each victim\u2019s dice set. The GM: each one is rolled as the blast goes off. The victim: each player gets a card with a Roll button, and an NPC\u2019s card is yours.';   // 1.6.0 (the core's gap 8)
 var RESIST_LINE = 'The check a character rolls against an affliction. Resist stands for what the item says it is resisted against. With none, you are told who must resist.';

@@ -46,7 +46,9 @@ function diceOk(o) { return o.kind === 'dice'; }
 function askOf(inp) { var cs = inp && inp.classList; if (cs) for (var k in ASKS) if (Object.prototype.hasOwnProperty.call(ASKS, k) && cs.contains(k)) return ASKS[k]; return null; }
 var NUM0 = function() { return { k: 'num', v: 0, s: '0' }; };
 var NUM1 = function() { return { k: 'num', v: 1, s: '1' }; };
-function emptyWord(kind) { return kind === 'cond' ? 'Always' : 'Not set'; }
+// what an empty box means: a test that is not set may mean always or never, and the box says which
+var EMPTY = { 'sys-combat-bhand': 'Never', 'sys-dmgr-mjif': 'Every one', 'sys-dmgr-oif': 'Every wound', 'sys-dmgr-ohat': 'No row', 'sys-dmgr-locvital': 'None', 'sys-dmgr-aif': 'Never', 'sys-cvh-where': 'None', 'sys-roll-mjif': 'Never', 'sys-list-rollmjif': 'Never', 'sys-sense-nksneak': 'Never', 'sys-fx-auto': 'Only by hand', 'sys-hold-ends': 'Never', 'sys-turn-lostf': 'Never', 'sys-band-if': 'Never', 'sys-alt-if': 'Never', 'sys-ovr-when': 'Never' };
+function emptyWord(kind, inp) { var cs = inp && inp.classList; if (cs) for (var k in EMPTY) if (Object.prototype.hasOwnProperty.call(EMPTY, k) && cs.contains(k)) return EMPTY[k]; return kind === 'cond' ? 'Always' : 'Not set'; }
 // a value as the one thing a row holds; steps of their own where a form has more than one
 function valOfForm(f) { return f && f.steps && f.steps.length === 1 && f.steps[0].op === 'start' && !f.check ? f.steps[0].v : { k: 'calc', form: f }; }
 function formOfVal(v) { return v && v.k === 'calc' ? v.form : { steps: [{ op: 'start', v: v }] }; }
@@ -64,7 +66,7 @@ function sayOf(s) { return { name: typeof s.word === 'function' ? s.word : null 
 // the line a shut box shows
 function lineOf(inp, kind) {
     var t = String(inp.value || '').trim(), sc = srcFor(inp);
-    if (!t) return { text: emptyWord(kind), bad: false, none: true };
+    if (!t) return { text: emptyWord(kind, inp), bad: false, none: true };
     if (kind === 'cond') { var c = readCond(t); return c.ok ? { text: saysCond(c.cond, sayOf(sc)) } : { text: t, bad: true }; }
     var r = read(t); return r.ok ? { text: says(r.form, sayOf(sc)) } : { text: t, bad: true };
 }

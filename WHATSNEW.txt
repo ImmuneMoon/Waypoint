@@ -34,6 +34,9 @@ The System editor
 - Adds to DR is one table now, the damage types across the top.
 
 At the table
+- Result bands name a roll by how it went, as a strong hit, a weak hit or a
+  miss. Each is a name and a formula, and a change of a roll can hang on one. A
+  roll can also read RollTotal and Natural.
 - A roll's top comparison is a check even with no dice in it, so Might >=
   Target.Might has a success and a failure, and its Then runs by them.
 - A dice modifier reads the sheet from brackets: (Pool)d10kh(Keep) and

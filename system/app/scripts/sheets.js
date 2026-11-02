@@ -6852,6 +6852,32 @@ function altBox(obj, tip) {
     return box;
 }
 // [systemcheck:altbox-end]
+// [systemcheck:bandbox-start] 1.6.2 (backlog 210 (a)): result bands, a name and a formula a row, on the Combat tab's Roll outcomes and on one roll in place of those. Edited in place on the
+// list it is handed, with listeners of its own and class names no handler of the Rolls tab reads. get and put read and set the list where it lives, and what Save drops is said by refreshErrors
+function bandWhens(r, ch) {
+    var seen = {}, o = [], put = function(n) { var k = String(n).trim(); if (k && !seen[k.toLowerCase()]) { seen[k.toLowerCase()] = 1; o.push(['band:' + k, 'On ' + k]); } };
+    [typeof draft !== 'undefined' && draft && draft.combat ? draft.combat.bands : null, r ? r.bands : null].forEach(function(l) { (Array.isArray(l) ? l : []).forEach(function(b) { if (b && typeof b.name === 'string') put(b.name); }); });
+    if (ch && typeof ch.band === 'string' && ch.band) put(ch.band);
+    return o;
+}
+function bandBox(get, put, own, redraw) {
+    var box = el('div', 'sys-alt sys-bands'), rows = Array.isArray(get()) ? get() : [];
+    box.appendChild(el('div', 'sys-num-cap', own ? 'This roll\u2019s own result bands' : 'Result bands'));
+    box.appendChild(el('small', 'sys-line', own ? 'In place of the Combat tab\u2019s, for this roll alone.' : 'Each is a name and a formula. The first that holds names the roll on its card, and a change can hang on it.'));
+    rows.forEach(function(b, i) {
+        var row = el('div', 'sys-flags sys-band-row'), n = input('sys-band-name field', b && typeof b.name === 'string' ? b.name : '', 'What the card calls a roll in this band', 'Name'), f = input('sys-band-if field', b && typeof b.if === 'string' ? b.if : '', 'A formula with no dice that holds for this band. It reads RollTotal, Natural, RollMargin, RollCrit and RollBig beside the roller\u2019s names', 'Such as RollTotal >= 10'), x = el('button', 'tool ghost sys-btn sys-band-rm', '\u00d7');
+        n.maxLength = 30; f.maxLength = LIMITS.formula; x.type = 'button'; x.title = 'Take this band away';
+        n.addEventListener('input', function() { rows[i].name = n.value; markDirty(); patchErrors(); });
+        f.addEventListener('input', function() { rows[i].if = f.value; markDirty(); patchErrors(); });
+        x.addEventListener('click', function() { rows.splice(i, 1); if (!rows.length) put(null); markDirty(); redraw(); });
+        row.appendChild(n); row.appendChild(f); row.appendChild(x); box.appendChild(row);
+    });
+    var add = el('button', 'tool ghost sys-band-add', '+ Band'); add.type = 'button'; add.title = 'Add a result band, eight at most'; add.disabled = rows.length >= 8;
+    add.addEventListener('click', function() { var l = Array.isArray(get()) ? get() : []; l.push({ name: '', if: '' }); put(l); markDirty(); redraw(); });
+    box.appendChild(add);
+    return box;
+}
+// [systemcheck:bandbox-end]
 // [systemcheck:callsbox-start] 1.6.0: a roll's or an action's Calls for, edited in place on the draft object it is handed, with listeners of its own
 // and class names no handler of the Rolls or Lists tab reads. Every label is an option's text or a value
 function callsBox(obj, sys, isApply) {
@@ -8155,7 +8181,7 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
     var targets = draft.fields.filter(function(f) { return f && APPLY_KINDS[f.kind] === 1; }).map(function(f) { return [f.id, (f.label || f.key || f.id) + (f.kind === 'resource' ? ' (pool)' : '')]; });
     list.forEach(function(ch0, i) {
         var ch = ch0 && typeof ch0 === 'object' ? ch0 : {}, rw = el('div', 'sys-flags sys-apply-row'); rw.dataset.ai = String(i); rw.dataset.k = key;
-        if (key === 'then') rw.appendChild(select('sys-apply-when', [['', 'Always'], ['hit', 'On success'], ['crit', 'On a critical success'], ['miss', 'On failure'], ['fumble', 'On a critical failure'], ['malf', 'On malfunction']], ch.when || '', 'When the roll makes this change: always, or only when its test succeeds or fails. A critical success is a success too, and a critical failure a failure'));
+        if (key === 'then') rw.appendChild(select('sys-apply-when', [['', 'Always'], ['hit', 'On success'], ['crit', 'On a critical success'], ['miss', 'On failure'], ['fumble', 'On a critical failure'], ['malf', 'On malfunction']].concat(typeof bandWhens === 'function' ? bandWhens(r, ch) : []), ch.band ? 'band:' + ch.band : ch.when || '', 'When the roll makes this change: always, or only when its test succeeds or fails. A critical success is a success too, and a critical failure a failure'));
         if (key === 'then') { var ifI = input('sys-apply-if field', typeof ch.if === 'string' ? ch.if : '', 'Only where: a formula with no dice this change also needs, reading how the roll went, such as RollMargin >= 3. Empty: nothing more', 'Only where'); ifI.maxLength = LIMITS.formula; rw.appendChild(ifI); }   // 1.6.2
         var fxT = []; (Array.isArray(draft.effects) ? draft.effects : []).forEach(function(d) { if (d && typeof d.id === 'string') fxT.push(['fx+:' + d.id, 'Switch on: ' + (d.name || d.id)], ['fx-:' + d.id, 'Switch off: ' + (d.name || d.id)]); });   // 1.6.0: an effect switched on or off
         var allT = allRowTargets(), allV = typeof ch.list === 'string' ? allRowValue(ch, allT) : '';   // 1.6.0: one number stat on every row of a list
@@ -8238,6 +8264,7 @@ function rollRow(r) {
     if (r.every || r.inFight || r.notes) row.appendChild(noteRow(r));   // 1.6.0, backlog 173: where its runs are said, for a time rule
     if (typeof crossRow === 'function') row.appendChild(crossRow(r));   // 1.5.9 (book es/et plan 4a): when a value crosses a step
     if (typeof callsBox === 'function') row.appendChild(callsBox(r, typeof draft !== 'undefined' ? draft : null, isApply));   // 1.6.0: Calls for
+    if (!isApply && typeof bandBox === 'function') row.appendChild(bandBox(function() { return r.bands; }, function(l) { if (l) r.bands = l; else delete r.bands; }, true, function() { renderAll(); }));   // 1.6.2: result bands
     row.appendChild(applyEditor(r, isApply ? 'apply' : 'then'));   // R1: a roll's consequences under it
     var err = errorCell(r.id); err.dataset.errFor = r.id; row.appendChild(err);
     return row;
@@ -9065,7 +9092,7 @@ function listApplyEditor(box, rr, ri, key, sp, targets) {   // key (R2b): 'apply
     var sel = function(cls, opts, val, title) { var s = el('select', cls); s.title = title; opts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; s.appendChild(op); }); s.value = val; return s; };
     list.forEach(function(ch0, ai) {
         var ch = ch0 && typeof ch0 === 'object' ? ch0 : {}, rw = el('div', 'sys-flags sys-list-applyrow'); rw.dataset.ri = String(ri); rw.dataset.ai = String(ai); rw.dataset.k = key;
-        if (key === 'then') rw.appendChild(sel('sys-list-applywhen', [['', 'Always'], ['hit', 'On success'], ['crit', 'On a critical success'], ['miss', 'On failure'], ['fumble', 'On a critical failure'], ['malf', 'On malfunction']], ch.when || '', 'When the roll makes this change: always, or only when its test succeeds or fails. A critical success is a success too, and a critical failure a failure'));
+        if (key === 'then') rw.appendChild(sel('sys-list-applywhen', [['', 'Always'], ['hit', 'On success'], ['crit', 'On a critical success'], ['miss', 'On failure'], ['fumble', 'On a critical failure'], ['malf', 'On malfunction']].concat(typeof bandWhens === 'function' ? bandWhens(null, ch) : []), ch.band ? 'band:' + ch.band : ch.when || '', 'When the roll makes this change: always, or only when its test succeeds or fails. A critical success is a success too, and a critical failure a failure'));
         if (key === 'then') { var ifL = input('sys-list-applyif field', typeof ch.if === 'string' ? ch.if : '', 'Only where: a formula with no dice this change also needs, reading the row as Row.Cost and how the roll went as RollMargin. Empty: nothing more', 'Only where'); ifL.maxLength = LIMITS.formula; rw.appendChild(ifL); }   // 1.6.2
         var opts = [['', 'Pick a pool, number or counter\u2026']].concat(targets.map(function(f) { return [f.id, (f.label || f.key || f.id) + (f.kind === 'resource' ? ' (pool)' : '')]; }), ctrs.map(function(t) { return ['c:' + t.key, 'Counter: ' + (t.label || t.key)]; })); if (ch.f && !targets.some(function(f) { return f.id === ch.f; })) opts.push([ch.f, 'A field that is gone']); if (ch.c && !ctrs.some(function(t) { return t.key === ch.c; })) opts.push(['c:' + ch.c, 'A counter that is gone']);
         (typeof draft !== 'undefined' && draft && Array.isArray(draft.effects) ? draft.effects : []).forEach(function(d) { if (d && typeof d.id === 'string') opts.push(['fx+:' + d.id, 'Switch on: ' + (d.name || d.id)], ['fx-:' + d.id, 'Switch off: ' + (d.name || d.id)]); });   // 1.6.0: an effect switched on or off, the row's quantity, one of its own number stats
@@ -10683,6 +10710,7 @@ function checksBox(box, cm) {
     item('Named success', tn, 'A success by the margin beside it or more wears this name on its card.');
     var ta = el('input', 'field sys-checks-tierat'); ta.type = 'number'; ta.min = '1'; ta.max = '1000000'; ta.step = '1'; ta.value = typeof tr.at === 'number' ? String(tr.at) : ''; ta.placeholder = 'e.g. 5'; ta.title = 'How far a success must beat its target to wear the name: 5 means by 5 or more';
     item('By at least', ta, 'How far it must beat its target.');
+    if (typeof bandBox === 'function') box.appendChild(bandBox(function() { return cm.bands; }, function(l) { if (l) cm.bands = l; else delete cm.bands; }, false, function() { if (typeof renderCombat === 'function') renderCombat(); }));   // 1.6.2: result bands
     var err = errorCell('checks'); err.dataset.errFor = 'checks'; box.appendChild(err);
 }
 function onChecksInput(t) {
@@ -12044,7 +12072,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-rollcost') >= 0) { var rcr = t.closest('.sys-list-roll'), rcD = rcr && Array.isArray(lsc.rolls) ? lsc.rolls[+rcr.dataset.ri] : null; if (!rcD || typeof rcD !== 'object') return; if (t.value) rcD.cost = t.value; else delete rcD.cost; }   // turn-based combat T1
         else if (c.indexOf('sys-list-rollkind') >= 0) { var rkr = t.closest('.sys-list-roll'), rkD = rkr && Array.isArray(lsc.rolls) ? lsc.rolls[+rkr.dataset.ri] : null; if (!rkD || typeof rkD !== 'object') return; if (t.value === 'apply') { if (!Array.isArray(rkD.apply)) rkD.apply = [{ f: '', formula: '' }]; } else delete rkD.apply; }   // Stage 6 HUD H7b: Roll | Apply (a formula typed before stays in the draft)
         else if (c.indexOf('sys-list-applyrolled') >= 0) { var arr = t.closest('.sys-list-applyrow'), arR = arr && Array.isArray(lsc.rolls) ? lsc.rolls[+arr.dataset.ri] : null, arK = arr && arr.dataset.k === 'then' ? 'then' : 'apply', arC = arR && Array.isArray(arR[arK]) ? arR[arK][+arr.dataset.ai] : null; if (!arC || typeof arC !== 'object') return; if (t.checked) arC.roll = true; else delete arC.roll; }   // 1.5.9: Rolled (Save keeps it only with a target and an amount)
-        else if (c.indexOf('sys-list-applytarget') >= 0 || c.indexOf('sys-list-applyop') >= 0 || c.indexOf('sys-list-applywhen') >= 0) { var atr = t.closest('.sys-list-applyrow'), atR = atr && Array.isArray(lsc.rolls) ? lsc.rolls[+atr.dataset.ri] : null, atK = atr && atr.dataset.k === 'then' ? 'then' : 'apply', atC = atR && Array.isArray(atR[atK]) ? atR[atK][+atr.dataset.ai] : null; if (!atC || typeof atC !== 'object') return; if (c.indexOf('sys-list-applytarget') >= 0) { setChangeTarget(atC, t.value); markDirty(); renderAll(); return; } else if (c.indexOf('sys-list-applywhen') >= 0) { if (t.value === 'hit' || t.value === 'miss' || t.value === 'malf' || t.value === 'crit' || t.value === 'fumble') atC.when = t.value; else delete atC.when; } else { delete atC.add; delete atC.set; if (t.value === 'add') atC.add = true; else if (t.value === 'set') atC.set = true; } }   // R2b: a counter, a consequence's When
+        else if (c.indexOf('sys-list-applytarget') >= 0 || c.indexOf('sys-list-applyop') >= 0 || c.indexOf('sys-list-applywhen') >= 0) { var atr = t.closest('.sys-list-applyrow'), atR = atr && Array.isArray(lsc.rolls) ? lsc.rolls[+atr.dataset.ri] : null, atK = atr && atr.dataset.k === 'then' ? 'then' : 'apply', atC = atR && Array.isArray(atR[atK]) ? atR[atK][+atr.dataset.ai] : null; if (!atC || typeof atC !== 'object') return; if (c.indexOf('sys-list-applytarget') >= 0) { setChangeTarget(atC, t.value); markDirty(); renderAll(); return; } else if (c.indexOf('sys-list-applywhen') >= 0) { delete atC.band; if (String(t.value).indexOf('band:') === 0) { atC.band = t.value.slice(5); delete atC.when; } else if (t.value === 'hit' || t.value === 'miss' || t.value === 'malf' || t.value === 'crit' || t.value === 'fumble') atC.when = t.value; else delete atC.when; } else { delete atC.add; delete atC.set; if (t.value === 'add') atC.add = true; else if (t.value === 'set') atC.set = true; } }   // R2b: a counter, a consequence's When
         else if (c.indexOf('sys-list-colmetric') >= 0 || c.indexOf('sys-list-statmetric') >= 0) { var mcol = c.indexOf('sys-list-colmetric') >= 0, mrw = t.closest(mcol ? '.sys-list-col' : '.sys-list-stat'), mLs = mcol ? lsc.cols : lsc.stats, mD = mrw && Array.isArray(mLs) ? mLs[+(mcol ? mrw.dataset.ci : mrw.dataset.si)] : null; if (!mD || typeof mD !== 'object') return; if (t.value === 'swap' || t.value === 'bare') mD.unitShow = t.value; else delete mD.unitShow; }   // 1.5.4: how a measure reads under Metric
         else if (c.indexOf('sys-list-loadfrom') >= 0) { if (t.value) { var ld0 = lsc.load && typeof lsc.load === 'object' ? lsc.load : {}, ct0 = Array.isArray(lsc.counters) && lsc.counters[0] && typeof lsc.counters[0].key === 'string' ? lsc.counters[0].key : ''; lsc.load = { from: t.value, ct: typeof ld0.ct === 'string' && ld0.ct ? ld0.ct : ct0 }; if (Array.isArray(ld0.cats)) lsc.load.cats = ld0.cats; } else delete lsc.load; }   // 1.5.8 Loads from
         else if (c.indexOf('sys-list-chamberfrom') >= 0) { if (t.value) { var ch0 = lsc.chamber && typeof lsc.chamber === 'object' ? lsc.chamber : {}; lsc.chamber = Object.assign({}, ch0, { from: t.value }); if (typeof lsc.chamber.cap !== 'number') lsc.chamber.cap = 1; } else delete lsc.chamber; }   // 1.5.9 Chambers from
@@ -12114,7 +12142,7 @@ function onChange(e) {
         else if (c.indexOf('sys-apply-target') >= 0) { var chT = applyChangeOf(t, r); if (!chT) return; setChangeTarget(chT, t.value); markDirty(); renderAll(); return; }   // 1.6.0: a field, or an effect switched on or off
         else if (c.indexOf('sys-apply-op') >= 0) { var chO = applyChangeOf(t, r); if (!chO) return; delete chO.add; delete chO.set; if (t.value === 'add') chO.add = true; else if (t.value === 'set') chO.set = true; }
         else if (c.indexOf('sys-apply-rolled') >= 0) { var chRl = applyChangeOf(t, r); if (!chRl) return; if (t.checked) chRl.roll = true; else delete chRl.roll; }   // 1.5.9: Rolled (Save keeps it only with a target and an amount)
-        else if (c.indexOf('sys-apply-when') >= 0) { var chW = applyChangeOf(t, r); if (!chW) return; if (t.value === 'hit' || t.value === 'miss' || t.value === 'malf' || t.value === 'crit' || t.value === 'fumble') chW.when = t.value; else delete chW.when; }   // R1; 1.5.8: a critical success or failure
+        else if (c.indexOf('sys-apply-when') >= 0) { var chW = applyChangeOf(t, r); if (!chW) return; delete chW.band; if (String(t.value).indexOf('band:') === 0) { chW.band = t.value.slice(5); delete chW.when; } else if (t.value === 'hit' || t.value === 'miss' || t.value === 'malf' || t.value === 'crit' || t.value === 'fumble') chW.when = t.value; else delete chW.when; }   // R1; 1.5.8: a critical success or failure
         else if (c.indexOf('sys-vis') >= 0) r.vis = t.value;
         else if (c.indexOf('sys-roll-tone') >= 0) { if (t.value) r.tone = t.value; else delete r.tone; }   // Stage 6 look fold
         else if (c.indexOf('sys-roll-die') >= 0) { if (t.value) r.die = t.value; else delete r.die; }   // 1.5.8: the die its button wears (Save keeps a name of the set)

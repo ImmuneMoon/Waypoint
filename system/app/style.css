@@ -3952,6 +3952,12 @@
   .sys-list-card .sys-flags.sys-list-needsrow { margin-left: 18px; } .sys-list-card .sys-flags.sys-list-needsrow input.sys-list-needs { flex: 2 1 180px; font-family: ui-monospace, Consolas, monospace; }   /* R2b */
   .sys-apply.sys-then { margin-left: 18px; } .sys-apply.sys-then .sys-apply-add { align-self: flex-start; }   /* R1: a roll's consequences */
   .sys-flags.sys-apply-row input.sys-apply-formula { flex: 3 1 220px; font-family: ui-monospace, Consolas, monospace; }
+  .sys-bands { flex: 1 1 100%; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: stretch; align-self: stretch; text-align: left; gap: 6px; margin-top: 6px; }
+  .sys-bands > .sys-line { margin-top: -2px; }
+  .sys-band-row { display: flex; align-items: center; gap: 6px; }
+  .sys-band-row .sys-band-name { flex: 0 0 170px; width: auto; margin: 0; }
+  .sys-band-row .sys-band-if { flex: 1 1 auto; width: auto; min-width: 0; margin: 0; font-family: ui-monospace, Consolas, monospace; }
+  .sys-bands > .sys-band-add { align-self: flex-start; }
   .sys-flags.sys-apply-row input.sys-apply-if, .sys-flags.sys-list-applyrow input.sys-list-applyif { width: auto; flex: 2 1 170px; margin: 0; font-family: ui-monospace, Consolas, monospace; }   /* Only where stands beside When, so that a change keeps to two lines */
   .sys-list-card .sys-flags.sys-list-applyrow { margin-left: 18px; } .sys-list-card .sys-flags.sys-list-applyrow input.sys-list-applyformula { flex: 3 1 220px; font-family: ui-monospace, Consolas, monospace; }   /* H7b: a list action's changes */
   .sys-list-card .sys-list-applyadd { margin-left: 18px; }

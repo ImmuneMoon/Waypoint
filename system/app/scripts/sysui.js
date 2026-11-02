@@ -153,6 +153,7 @@ var GROUPS = {
         ['clock', 'By the clock and in a fight', 0, ['sys-roll-everyrow', 'sys-roll-fightrow', 'sys-roll-askrow', 'sys-roll-noterow']],
         ['cross', 'When a value crosses a step', 0, ['sys-roll-xsrow']],
         ['calls', 'Calls for', 0, ['sys-calls']],
+        ['bands', 'Result bands', 0, ['sys-bands']],
         ['then', 'What it changes', 1, ['sys-apply']]] },
     items: { split: ['sys-row-main', 'sys-flags'], head: ['sys-item-name', 'sys-item-cat', 'sys-btns'], list: [
         ['what', 'What it is', 1, ['sys-item-damage', 'sys-item-cost', 'sys-item-throw', 'sys-item-key', 'sys-item-lvl', 'sys-item-only', 'sys-item-again', 'sys-item-notes']],

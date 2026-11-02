@@ -3268,7 +3268,7 @@
   .lib-imcell b { font-size: 16px; color: var(--ink); font-variant-numeric: tabular-nums; }
   .lib-imcell span { font-size: 10.5px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lib-imcell.zero { opacity: .55; }
-  #libraryModal.lib-csv-on .lib-cols { grid-template-columns: 200px minmax(0, 0.7fr) minmax(0, 1.3fr); }   /* 1.6.2: a spreadsheet's columns need room */
+  @media (min-width: 901px) { #libraryModal.lib-csv-on .lib-cols { grid-template-columns: 200px minmax(0, 0.7fr) minmax(0, 1.3fr); } }   /* 1.6.2: a spreadsheet's columns need room */
   #libraryModal .lib-col > .sys-toolbar { flex-wrap: wrap; gap: 6px 8px; }
   .lib-csv-cols { display: flex; flex-direction: column; gap: 4px; flex: none; }
   .lib-csv-col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px; align-items: center; font-size: 12px; }
@@ -3283,7 +3283,7 @@
   .lib-guide-at { box-shadow: 0 0 0 2px var(--gold); }
   .lib-guide-tip { color: var(--dim); font-size: 11.5px; line-height: 1.35; margin-left: 116px; flex: none; }
   .lib-reasons { margin: 0; padding-left: 18px; color: var(--dim); font-size: 11.5px; line-height: 1.45; flex: none; overflow-wrap: anywhere; }
-  @media (max-width: 900px) { .lib-cols { grid-template-columns: minmax(0, 1fr); grid-template-rows: 140px minmax(220px, 1fr) minmax(260px, 1fr); overflow: auto; } #libraryModal .lib-box { height: 94vh; padding: 12px; } }
+  @media (max-width: 900px) { .lib-cols { grid-template-columns: minmax(0, 1fr); grid-template-rows: 140px minmax(220px, 1fr) minmax(260px, 1fr); overflow: auto; } #libraryModal .lib-box { height: 94vh; padding: 12px; } #libraryModal.lib-csv-on .lib-cols { grid-template-rows: 110px 110px minmax(340px, 1fr); } }   /* found by hand: a spreadsheet's form needs the room, and stands under the two lists */
   /* Stage 6 F6b: an item's changes as chips on its row, and a custom row's changes in its form */
   .sheet-item-mod { border: 1px solid var(--sheet-edge, var(--edge)); color: var(--sheet-ink, var(--ink)); }
   .sheet-item-mod.off { opacity: .5; }

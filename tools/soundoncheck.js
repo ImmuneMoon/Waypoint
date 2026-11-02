@@ -243,6 +243,8 @@ const engine = () => ({ played: [], heard: [], list: [{ id: 's_shot', name: 'Gun
     const nA = readRoot('WHATSNEW.txt'), nB = readU('assets/whatsnew.txt');
     check('both release notes say it, under a heading of its own after At the table in 1.6.2', [nA, nB].every(n => { const v = n.slice(0, n.indexOf('WAYPOINT 1.6.1')); return v.indexOf('At the table') >= 0 && v.indexOf('Sounds on actions') > v.indexOf('At the table') && v.includes('A hidden act stays silent for players.'); }));
     check('the integration guide names the key', readRoot('CAMPAIGN_INTEGRATION.md').includes('"soundOn": [{ "ev":'));
+    const sonSrc = readU('scripts/soundon.js');
+    check('Sound on a blast says whether one is set: drawn again with the list, and as the Radius tool\'s options open, so another campaign\'s line never shows', /function redraw\(\) \{ fill\(\); blastSync\(\); \}/.test(sonSrc) && /classList\.toggle\('active', !!\(camp && lineOf\(camp, \{ k: 'blast' \}\)\)\)/.test(sonSrc) && sonSrc.includes("['blastOptBtn', 'blastModeBtn'].forEach"));
     const ci = readRoot('.github/workflows/checks.yml');
     check('the CI step is there', ci.includes('run: node tools/soundoncheck.js'));
 

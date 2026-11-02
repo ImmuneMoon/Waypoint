@@ -149,7 +149,9 @@ function fill() {
     add.addEventListener('click', function(e) { e.stopPropagation(); _add = { at: '', which: '', name: '', snd: '' }; fill(); });
     box.appendChild(add); focusBack(box, fat);
 }
-function redraw() { fill(); }
+// Sound on a blast says whether one is set, as the small buttons do
+function blastSync() { var b = typeof ui === 'function' ? ui('blastSoundBtn') : null, camp = getActiveCampaign(); if (!b || !b.classList) return; b.classList.toggle('active', !!(camp && lineOf(camp, { k: 'blast' }))); }
+function redraw() { fill(); blastSync(); }
 // sound.js renderPanel: the list, above the panel's foot
 function draw(body) {
     if (!body || !getActiveCampaign()) return;
@@ -196,6 +198,6 @@ function btn(ev, words) {
 }
 // [soundoncheck:ask-end]
 
-(function wireBlast() { var b = ui('blastSoundBtn'); if (b) b.addEventListener('click', function(e) { e.stopPropagation(); ask(b, { k: 'blast' }); }); })();
+(function wireBlast() { var b = ui('blastSoundBtn'); if (b) b.addEventListener('click', function(e) { e.stopPropagation(); ask(b, { k: 'blast' }); }); ['blastOptBtn', 'blastModeBtn'].forEach(function(id) { var o = ui(id); if (o) o.addEventListener('click', blastSync); }); })();
 
 window.wpSoundOn = { fire: fire, on: on, door: door, zoneDrop: zoneDrop, draw: draw, ask: ask, btn: btn, setLine: setLine, redraw: redraw };

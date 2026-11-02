@@ -3,7 +3,7 @@
    handler that reads it: the form writes its value and says so with an input event, and a change event as it closes, so the System editor's
    dispatchers, its errors and its Save need no word of this. The stored value is still the formula, and opening a form and leaving it writes
    nothing. Text nodes and values only: a label and a stored formula can come from a file. The pure half is formcore.js. */
-import { read, write, says, readCond, writeCond, saysCond } from './formcore.js';
+import { read, write, says, readCond, writeCond, saysCond, rollFace, tryRoll, tryValue } from './formcore.js';
 
 // [formcheck:boxes-start]
 // which boxes wear the form, and what each wants: a figure (amt), a figure with dice (roll) or a yes or no (cond)
@@ -24,6 +24,12 @@ var KEEPS = [['', 'Keep all'], ['kh', 'Keep the highest'], ['kl', 'Keep the lowe
 var REROLLS = [['', 'No reroll'], ['r', 'Reroll once'], ['rr', 'Reroll every time']];
 var EXPLODES = [['', 'No exploding'], ['once', 'Exploding'], ['own', 'Each its own die']];
 var FACES = ['4', '6', '8', '10', '12', '20', '100'];
+// what a roll is for (the owner, by prompt on the sheet: "C. Kind, then questions" and "Keep it, with the odds"): a form starts from what you are doing, and each part asks in plain words
+var KINDS = [['beat', 'Beat a number', 'Works or fails: a skill, a dodge, an attack.'], ['total', 'Get a total', 'Damage, initiative, a table to look up.'], ['hits', 'Count hits', 'A handful of dice, each that reaches a number counts.'], ['else', 'Something else', 'Build it step by step.']];
+var BEAT = [['<=', 'At most'], ['>=', 'At least'], ['<', 'Under'], ['>', 'Over'], ['=', 'Exactly'], ['!=', 'Anything but']];
+var BEAT_SAY = { '<=': 'They need this or less. Rolling low is good here.', '>=': 'They need this or more. Rolling high is good here.', '<': 'They need under this. Rolling low is good here.', '>': 'They need over this. Rolling high is good here.', '=': 'They need exactly this.', '!=': 'Anything but this works.' };
+var ASKS = { 'sys-roll-needs': ['When can they use this?', 'The button greys out at other times.'], 'sys-ovr-value': ['What does it read instead?', 'This takes the place of its own figure while the test holds.'], 'sys-ovr-when': ['When does it read that?', 'Its own figure stands the rest of the time.'], 'sys-spill-below': ['How low can it go before it spills?', 'Anything past this goes on into the next pool.'], 'sys-apply-formula': ['How much?', 'The figure this change uses.'], 'sys-apply-if': ['Only when?', 'Leave this empty to make the change every time.'], 'sys-formula': ['How is this worked out?', 'The sheet works this out by itself.'] };
+function askOf(inp) { var cs = inp && inp.classList; if (cs) for (var k in ASKS) if (Object.prototype.hasOwnProperty.call(ASKS, k) && cs.contains(k)) return ASKS[k]; return null; }
 var NUM0 = function() { return { k: 'num', v: 0, s: '0' }; };
 var NUM1 = function() { return { k: 'num', v: 1, s: '1' }; };
 function emptyWord(kind) { return kind === 'cond' ? 'Always' : 'Not set'; }
@@ -66,14 +72,16 @@ function commit() {
     if (t === o.inp.value) return;
     o.inp.value = t; o.touched = true; o.inp.dispatchEvent(new Event('input', { bubbles: true }));
     if (o.text && o.text.input) o.text.input.value = t;
+    tryDraw();
 }
 function redraw(focus) {
     var o = open; if (!o) return;
     o.body.textContent = '';
     if (o.bad) o.body.appendChild(el('div', 'fb-note', 'This one cannot be shown as steps yet. Change it with As text below.'));
-    else if (o.kind === 'cond') condInto(o.body, o.form, 'c');
-    else formInto(o.body, o.form, 'f', o.kind === 'roll');
+    else if (o.kind === 'roll') rollInto(o.body, o);
+    else { var ask = askOf(o.inp); if (ask) { o.body.appendChild(el('div', 'fb-qh', ask[0])); o.body.appendChild(el('div', 'fb-qs', ask[1])); } if (o.kind === 'cond') condInto(o.body, o.form, 'c'); else formInto(o.body, o.form, 'f', false); }
     if (focus) { var q = o.body.querySelector('[data-p="' + focus + '"]'); if (q) { try { q.focus(); } catch (e) {} } }
+    tryDraw();
 }
 function again(p) { commit(); redraw(p); }
 
@@ -115,10 +123,10 @@ function diceInto(host, v, set, p) {
     row.appendChild(kp);
     if (v.keep) valueInto(row, function() { return v.keep.v; }, function(x) { v.keep.v = x; mark(); }, p + 'kv', false);
     box.appendChild(row);
-    var more = btn('fb-more', v.moreOpen || v.reroll || v.explode || v.cs ? 'Fewer dice rules' : 'More dice rules', 'Reroll, explode, or count successes');
+    var csOwn = open && open.now === 'hits', showCs = !!v.cs && !csOwn, more = btn('fb-more', v.moreOpen || v.reroll || v.explode || showCs ? 'Fewer dice rules' : 'More dice rules', 'Reroll or explode');
     more.dataset.p = p + 'm'; more.addEventListener('click', function() { v.moreOpen = !v.moreOpen; redraw(p + 'm'); });
     box.appendChild(more);
-    if (v.moreOpen || v.reroll || v.explode || v.cs) {
+    if (v.moreOpen || v.reroll || v.explode || showCs) {
         var r1 = el('div', 'fb-step'), rr = sel('fb-sel', REROLLS, v.reroll ? v.reroll.sub : ''); rr.dataset.p = p + 'r';
         rr.addEventListener('change', function() { if (rr.value) v.reroll = { sub: rr.value, op: v.reroll ? v.reroll.op : '=', v: v.reroll ? v.reroll.v : NUM1() }; else delete v.reroll; mark(); again(p + 'r'); });
         r1.appendChild(rr);
@@ -129,6 +137,7 @@ function diceInto(host, v, set, p) {
         r2.appendChild(ex);
         if (v.explode && v.explode.own) { var eo = sel('fb-sel', [['', 'on its top face'], ['>=', 'on this or more']], v.explode.op || ''); eo.addEventListener('change', function() { if (eo.value) { v.explode.op = eo.value; v.explode.v = v.explode.v || { k: 'num', v: 6, s: '6' }; } else { delete v.explode.op; delete v.explode.v; } mark(); again(p + 'x'); }); r2.appendChild(eo); if (v.explode.op) valueInto(r2, function() { return v.explode.v; }, function(x) { v.explode.v = x; mark(); }, p + 'xv', false); }
         box.appendChild(r2);
+        if (csOwn) { host.appendChild(box); return; }
         var r3 = el('div', 'fb-step'), cs = sel('fb-sel', [['', 'Add the dice'], ['>=', 'Count dice at or over'], ['<=', 'Count dice at or under']], v.cs ? v.cs.op : ''); cs.dataset.p = p + 'c';
         cs.addEventListener('change', function() { if (cs.value) v.cs = { op: cs.value, v: v.cs ? v.cs.v : { k: 'num', v: 5, s: '5' } }; else delete v.cs; mark(); again(p + 'c'); });
         r3.appendChild(cs);
@@ -141,7 +150,7 @@ function formInto(host, f, p, isRoll, dice) {
     var d = dice === undefined ? open.kind === 'roll' : dice;
     f.steps.forEach(function(st, i) {
         var row = el('div', 'fb-step'), pi = p + i;
-        if (st.op === 'start') row.appendChild(el('span', 'fb-word', i ? 'Add' : 'Start with'));
+        if (st.op === 'start') { if (i) row.appendChild(el('span', 'fb-word', 'Add')); }
         else {
             var known = OPS.some(function(o) { return o[0] === st.op; }), s = sel('fb-sel fb-op', known ? OPS : OPS.concat([[st.op, st.op]]), st.op, 'What this step does to the answer so far'); s.dataset.p = pi + 'o'; s.setAttribute('aria-label', 'What this step does');
             s.addEventListener('change', function() {
@@ -157,7 +166,7 @@ function formInto(host, f, p, isRoll, dice) {
         if (i) { var x = btn('fb-x', '×', 'Take this step away'); x.setAttribute('aria-label', 'Take this step away'); x.dataset.p = pi + 'x'; x.addEventListener('click', function() { f.steps.splice(i, 1); again(p + 'add'); }); row.appendChild(x); }
         host.appendChild(row);
     });
-    var add = btn('fb-add', '+ Add a step', 'Do something more to the answer'); add.dataset.p = p + 'add';
+    var add = btn('fb-add', '+ Add to this', 'Do something more to the answer'); add.dataset.p = p + 'add';
     add.addEventListener('click', function() { f.steps.push({ op: '+', v: NUM0() }); again(p + f.steps.length - 1 + 'vb'); });
     host.appendChild(add);
     if (isRoll) {
@@ -169,6 +178,94 @@ function formInto(host, f, p, isRoll, dice) {
         host.appendChild(cr);
     }
 }
+// the plain questions of a roll
+function qInto(host, head, say) { var q = el('div', 'fb-q'); q.appendChild(el('div', 'fb-qh', head)); if (say) q.appendChild(el('div', 'fb-qs', say)); host.appendChild(q); return q; }
+function pressPick(p) { var o = open, b = o && o.body.querySelector('[data-p="' + p + '"]'); if (b && typeof b.click === 'function') { try { b.click(); } catch (e) {} } }
+function addsInto(host, f, from, word, p) {   // figures added to or taken off the first
+    f.steps.forEach(function(st, i) {
+        if (i < from) return;
+        var row = el('div', 'fb-step'), pi = p + i, s = sel('fb-sel fb-op', [['+', 'plus'], ['-', 'minus']], st.op); s.dataset.p = pi + 'o'; s.setAttribute('aria-label', 'Added or taken off');
+        s.addEventListener('change', function() { st.op = s.value; commit(); }); row.appendChild(s);
+        valueInto(row, function() { return st.v; }, function(x) { st.v = x; }, pi + 'v', false);
+        var x = btn('fb-x', '×', 'Take this away'); x.setAttribute('aria-label', 'Take this away'); x.dataset.p = pi + 'x'; x.addEventListener('click', function() { f.steps.splice(i, 1); again(p + 'add'); }); row.appendChild(x);
+        host.appendChild(row);
+    });
+    var add = btn('fb-add', word, 'Add a figure, or take one off'); add.dataset.p = p + 'add';
+    add.addEventListener('click', function() { f.steps.push({ op: '+', v: NUM0() }); var at = p + (f.steps.length - 1) + 'vb'; again(at); pressPick(at); });
+    host.appendChild(add);
+}
+function targetInto(host, c, p) {   // what the total must reach
+    var r = c.r, simple = !!r.steps[0] && r.steps[0].op === 'start' && r.steps.slice(1).every(function(s) { return s.op === '+' || s.op === '-'; }), row = el('div', 'fb-step'), s = sel('fb-sel', BEAT, c.op); s.dataset.p = p + 'o'; s.setAttribute('aria-label', 'How the total must compare');
+    s.addEventListener('change', function() { c.op = s.value; again(p + 'o'); }); row.appendChild(s);
+    if (!simple) { valueInto(row, function() { return valOfForm(c.r); }, function(x) { c.r = formOfVal(x); }, p + 'v', false); host.appendChild(row); return; }
+    valueInto(row, function() { return r.steps[0].v; }, function(x) { r.steps[0].v = x; }, p + 'v', false); host.appendChild(row);
+    addsInto(host, r, 1, '+ Add to this', p + 'a');
+}
+function facePick(k) {
+    var o = open, f = o.form, d = f.steps[0].v; o.fresh = false;
+    if (k === 'else') { o.face = 'else'; again('kelse'); return; }
+    o.face = '';
+    if (d && d.k === 'dice') { if (k === 'hits' && !d.cs) { d.cs = { op: '>=', v: { k: 'num', v: 5, s: '5' } }; d.dirty = true; } else if (k !== 'hits' && d.cs) { delete d.cs; d.dirty = true; } }
+    if (k === 'beat' && !f.check) f.check = { op: '>=', r: { steps: [{ op: 'start', v: { k: 'num', v: 10, s: '10' } }] } };
+    if (k !== 'beat') delete f.check;
+    again('k' + k);
+}
+function rollInto(host, o) {
+    var f = o.form, face = rollFace(f), plain = face.kind !== 'else', now = o.fresh ? '' : o.face === 'else' ? 'else' : face.kind, sc = srcFor(o.inp), who = sc && sc.subject ? 'the ' + sc.subject + ' button' : 'this button'; o.now = now;
+    host.appendChild(el('div', 'fb-cap', 'What is this roll for?'));
+    var g = el('div', 'fb-kinds');
+    KINDS.forEach(function(c) {
+        var b = btn('fb-kind' + (now === c[0] ? ' on' : '')); b.appendChild(el('b', null, c[1])); b.appendChild(el('small', null, c[2])); b.setAttribute('aria-pressed', now === c[0] ? 'true' : 'false'); b.dataset.p = 'k' + c[0];
+        if (!plain && c[0] !== 'else') b.disabled = true; else b.addEventListener('click', function() { facePick(c[0]); });
+        g.appendChild(b);
+    });
+    host.appendChild(g);
+    if (!now) { host.appendChild(el('div', 'fb-note', 'Pick one to begin.')); return; }
+    if (now === 'else') { if (!plain) host.appendChild(el('div', 'fb-note', 'This roll does more than these can show, so it stays as steps.')); formInto(host, f, 'f', true); return; }
+    var d = f.steps[0].v, q = qInto(host, 'What do they roll?', 'The dice ' + who + ' throws.');
+    diceInto(q, d, function(x) { f.steps[0].v = x; }, 'f0v');
+    addsInto(q, f, 1, '+ Add a figure', 'fa');
+    if (now === 'beat') { var qb = qInto(host, 'What must they beat?', BEAT_SAY[f.check.op] || ''); targetInto(qb, f.check, 'ck'); }
+    else if (now === 'hits') {
+        var qh = qInto(host, 'What counts as a hit?', 'Each die that reaches this counts as one hit.'), lh = el('div', 'fb-step'), ho = sel('fb-sel', [['>=', 'At least'], ['<=', 'At most']], d.cs.op); ho.dataset.p = 'hc'; ho.setAttribute('aria-label', 'What a die must reach');
+        ho.addEventListener('change', function() { d.cs.op = ho.value; d.dirty = true; commit(); }); lh.appendChild(ho);
+        valueInto(lh, function() { return d.cs.v; }, function(x) { d.cs.v = x; d.dirty = true; }, 'hv', false); qh.appendChild(lh);
+        var qn = qInto(host, 'How many hits do they need?', f.check ? '' : 'Leave this out to just count them.');
+        if (f.check) { targetInto(qn, f.check, 'ck'); var off = btn('fb-add', 'Just count them', 'Take the number of hits away'); off.dataset.p = 'hn'; off.addEventListener('click', function() { delete f.check; again('hn'); }); qn.appendChild(off); }
+        else { var on = btn('fb-add', '+ Set a number', 'Set how many hits they need'); on.dataset.p = 'hn'; on.addEventListener('click', function() { f.check = { op: '>=', r: { steps: [{ op: 'start', v: NUM1() }] } }; again('hn'); }); qn.appendChild(on); }
+    }
+}
+// [formcheck:try-start]
+// Try it: what this does for one of the campaign's characters, on this computer alone. Nothing here is stored
+var tryWho = '', tryOver = Object.create(null);
+function tryOut(box, o, T, people) {
+    var who = people.filter(function(p) { return p.id === tryWho; })[0], s = '';
+    try {
+        var vars = T.vars(tryWho, tryOver);
+        s = o.kind === 'roll' ? tryRoll(o.form, { who: who.name, vars: vars }) : tryValue(String(o.inp.value || ''), { who: who.name, vars: vars, cond: o.kind === 'cond' });
+    } catch (e) { s = ''; }
+    box.textContent = s;
+}
+function tryDraw() {
+    var o = open; if (!o || !o.tryEl) return;
+    var box = o.tryEl, sc = srcFor(o.inp), T = sc && sc.trial, text = String(o.inp.value || '').trim(); box.textContent = ''; box.hidden = true;
+    if (!T || o.bad || o.fresh || !text) return;
+    var people = []; try { people = T.people() || []; } catch (e) { people = []; }
+    box.hidden = false;
+    if (!people.length) { box.appendChild(el('div', 'fb-tryline', 'Make a character to try this on.')); return; }
+    if (!people.some(function(p) { return p.id === tryWho; })) tryWho = people[0].id;
+    var line = el('div', 'fb-tryline'), res = el('div', 'fb-tryout'), s = sel('fb-sel', people.map(function(p) { return [p.id, p.name]; }), tryWho, 'Who to try this on'); s.setAttribute('aria-label', 'Who to try this on');
+    line.appendChild(el('span', null, 'Try it on')); line.appendChild(s);
+    s.addEventListener('change', function() { tryWho = s.value; tryOut(res, o, T, people); });
+    var asks = []; try { asks = T.asks(text) || []; } catch (e) { asks = []; }
+    asks.slice(0, 4).forEach(function(a) {
+        var l = String(a.s).toLowerCase(), n = el('input', 'fb-num'); n.type = 'text'; n.inputMode = 'decimal'; n.value = tryOver[l] === undefined ? '0' : String(tryOver[l]); n.setAttribute('aria-label', a.word);
+        n.addEventListener('input', function() { var x = Number(n.value); if (n.value.trim() !== '' && isFinite(x)) { tryOver[l] = x; tryOut(res, o, T, people); } });
+        line.appendChild(el('span', null, 'with ' + a.word)); line.appendChild(n);
+    });
+    box.appendChild(line); box.appendChild(res); tryOut(res, o, T, people);
+}
+// [formcheck:try-end]
 function condInto(host, c, p) {
     if (!c.tests.length) c.tests.push({ val: { steps: [{ op: 'start', v: NUM1() }] } });
     if (c.tests.length > 1 || c.not) {
@@ -251,12 +348,12 @@ function openMenu(anchor, done, dice) {
 
 function formOpen(b) {
     if (open && open.box === b) return; shut();
-    var t = String(b.inp.value || '').trim(), kind = b.kind, o = { box: b, inp: b.inp, kind: kind, was: b.inp.value, touched: false, form: null, bad: false };
+    var t = String(b.inp.value || '').trim(), kind = b.kind, o = { box: b, inp: b.inp, kind: kind, was: b.inp.value, touched: false, form: null, bad: false, fresh: kind === 'roll' && !t, face: '', now: '' };
     if (kind === 'cond') { if (!t) o.form = { any: false, tests: [{ l: { steps: [{ op: 'start', v: NUM0() }] }, op: '>=', r: { steps: [{ op: 'start', v: NUM1() }] } }] }; else { var c = readCond(t); if (c.ok) o.form = c.cond; else o.bad = true; } }
     else if (!t) o.form = { steps: [{ op: 'start', v: kind === 'roll' ? { k: 'dice', n: { k: 'num', v: 1, s: '1' }, f: { k: 'num', v: 20, s: '20' }, dirty: true } : NUM0() }] };
     else { var r = read(t); if (r.ok) o.form = r.form; else o.bad = true; }
-    o.root = el('div', 'fb-open'); o.body = el('div', 'fb-body'); o.root.appendChild(o.body);
-    var foot = el('div', 'fb-foot'), done = btn('fb-done', 'Done', 'Keep these steps'), cancel = btn('fb-cancel', 'Cancel', 'Put it back as it was'), clear = btn('fb-cancel', 'Clear', 'Take this out'), tx = btn('fb-astext', 'As text', 'Show it as text, to copy it or paste one in');
+    o.root = el('div', 'fb-open'); o.body = el('div', 'fb-body'); o.root.appendChild(o.body); o.tryEl = el('div', 'fb-try'); o.tryEl.hidden = true; o.root.appendChild(o.tryEl);
+    var foot = el('div', 'fb-foot'), done = btn('fb-done', 'Done', 'Keep this'), cancel = btn('fb-cancel', 'Cancel', 'Put it back as it was'), clear = btn('fb-cancel', 'Clear', 'Take this out'), tx = btn('fb-astext', 'As text', 'Show it as text, to copy it or paste one in');
     foot.appendChild(done); foot.appendChild(cancel); foot.appendChild(clear); foot.appendChild(tx); o.root.appendChild(foot);
     done.addEventListener('click', function() { shut(); });
     cancel.addEventListener('click', function() { shut(false); });
@@ -304,4 +401,4 @@ function watch(root) {
 // [formcheck:sweep-end]
 function setSource(fn) { source = fn; }
 if (typeof window !== 'undefined') window.wpFormBox = { sweep: sweep, watch: watch, setSource: setSource, kindOf: kindOf, isOpen: function() { return !!open; }, shut: shut };
-export { sweep, watch, setSource, kindOf, menuRows, menuPick, lineOf, valOfForm, formOfVal, emptyWord };
+export { sweep, watch, setSource, kindOf, menuRows, menuPick, lineOf, valOfForm, formOfVal, emptyWord, askOf };

@@ -10,7 +10,7 @@ import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
-import { nameWord, readsOf } from './systemcore.js';   // 1.6.2: a name in words, and what a box may offer
+import { nameWord, nameAsks, readsOf } from './systemcore.js';   // 1.6.2: a name in words, and what a box may offer
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { DMG_LIM, COVER_HIT_ROWS } from './systemcore.js';   // 1.6.2: what the Combat tab's boxes hold
 import { cleanCover } from './systemcore.js';   // 1.6.0: what cover takes off an attack, as Save reads it (refreshErrors)
@@ -6813,11 +6813,24 @@ var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, st
 function formCtx(inp) {
     var rw = inp && inp.closest ? inp.closest('.sys-row') : null, id = rw && rw.dataset ? rw.dataset.id : '', r = null, cs = inp && inp.classList;
     if (typeof id === 'string' && /^r_/.test(id)) (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(x) { if (x && x.id === id) r = x; });
-    return r ? { roll: r, then: !Array.isArray(r.apply) && !!cs && (cs.contains('sys-apply-formula') || cs.contains('sys-apply-if')) } : {};
+    if (r) return { roll: r, subject: r.label, then: !Array.isArray(r.apply) && !!cs && (cs.contains('sys-apply-formula') || cs.contains('sys-apply-if')) };
+    var fd = null; if (typeof id === 'string') (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(x) { if (x && x.id === id) fd = x; });
+    return fd ? { subject: fd.label || '' } : {};
+}
+// what Try it reads: one of the campaign's characters as this draft would work them out, and a figure given by hand for what depends on the moment
+function formTrial(d) {
+    return {
+        people: function() { var c = getActiveCampaign(); return c ? charList(c).sort(function(a, b) { return (a.npc ? 1 : 0) - (b.npc ? 1 : 0); }).map(function(x) { return { id: x.id, name: x.name || 'Character' }; }) : []; },
+        vars: function(id, over) {
+            var c = getActiveCampaign(), chs = c ? charsOf(c) : null, ch = chs && Object.prototype.hasOwnProperty.call(chs, id) ? chs[id] : null, r = ch && F() ? makeResolver(d, ch, F()) : null;
+            return function(n) { var l = String(n).toLowerCase(); if (over[l] !== undefined) return over[l]; var v = null; try { v = r ? r(l) : null; } catch (e) { v = null; } return typeof v === 'number' && isFinite(v) ? v : v === true ? 1 : 0; };
+        },
+        asks: function(text) { var nm = F() ? F().names(text) : []; return (Array.isArray(nm) ? nm : []).filter(function(n) { return nameAsks(d, n); }).map(function(n) { return { s: n, word: nameWord(d, n) }; }); }
+    };
 }
 function formSource(inp) {
     var d = draft; if (!d) return null; var ctx = formCtx(inp);
-    return { get groups() { return readsOf(d, ctx); }, word: function(s) { return nameWord(d, s, ctx.list); } };
+    return { subject: ctx.subject || '', trial: formTrial(d), get groups() { return readsOf(d, ctx); }, word: function(s) { return nameWord(d, s, ctx.list); } };
 }
 // [formcheck:source-end]
 var _formOn = false;

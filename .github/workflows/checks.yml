@@ -120,6 +120,9 @@ jobs:
       - name: askcheck — what a roll or an action asks as it is pressed
         if: ${{ !cancelled() }}
         run: node tools/askcheck.js
+      - name: cardcheck — what a roll's card offers before it lands
+        if: ${{ !cancelled() }}
+        run: node tools/cardcheck.js
       - name: objcheck — map objects, the pure core, the GM's window, the wire and the words
         if: ${{ !cancelled() }}
         run: node tools/objcheck.js

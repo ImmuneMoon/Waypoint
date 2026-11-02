@@ -7947,6 +7947,10 @@ function handleMessage(msg, conn) {
         if (!allow('sceneshut', { perMs: 1000, burst: 4, windowMs: 60000, table: 300 }, String(spS.id))) return;
         if (window.wpScene && typeof window.wpScene.seen === 'function') window.wpScene.seen(spS.id, String(spS.name || 'A player'), msg.id);
         // [netcheck:sceneclosed-end]
+    } else if (msg.type === 'card-act' && net.role === 'host') {
+        var Dc = DC(), qc = Dc && Dc.cleanCardAct ? Dc.cleanCardAct(msg) : null; if (!qc) return;   // 1.6.2 (G5): a press on a held roll's card, its roller's alone
+        if (!diceLimit) diceLimit = Dc.RateLimit(Dc.LIMITS); if (diceLimit.allow(conn.peer, Date.now()) !== true) return;
+        var pidC = peerProfileId(conn); if (pidC && typeof cardPress === 'function') cardPress(qc.id, qc.key, pidC);
     } else if (msg.type === 'show-ask' && net.role === 'host') {
         // [netcheck:showask-start]
         // 1.6.2: an admitted player asks to put drawings of their own to show on the map they are on. Only such drawings are named to the GM, as one item of the
@@ -9168,7 +9172,8 @@ function handleMessage(msg, conn) {
         if (actQ && actQ.cost && chQ && typeof actSpend === 'function') { var costQ = actSpend(campQ, turnChQ.id, net.roster[conn.peer], actQ.cost, conn, turnChQ.name); if (costQ) { denyQ('error', { error: { message: costQ, pos: 0, len: 0 } }); return; } }   // turn-based combat T4: what it costs
         if (jobQ) { var jsQ = jobPress(SQ, campQ, chQ, q.row, actQ, varsQ, Fq, jobQ.round, q.label, saveRemoteSoon); if (jsQ) { denyQ('error', { error: { message: jsQ, pos: 0, len: 0 } }); return; } }   // a press short of its turns moves the count and rolls nothing; the last goes on and rolls
         if (chQ && !q.att && typeof offTurnWarn === 'function') offTurnWarn(campQ, turnChQ, q.act, rowGQ, q.label || (actQ && actQ.label), conn);   // 1.6.0: nothing refused it, so a warning is said
-        var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid };
+        var restQ = function(resQ, heldQ) {   // 1.6.2 (G5): all that follows a roll, which a roll with card actions holds until it is accepted
+        var recQ = { type: 'roll', id: heldQ || Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid };
         var blowRecQ = q.att && typeof attemptRec === 'function' ? attemptRec(q.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
         if (q.att && typeof attemptDrop === 'function') attemptDrop(q.att);   // 1.6.0 (B2): an attempt is resisted once
         var mfQ = null; if (actQ && actQ.malf && varsQ) { var mqQ = Fq.evaluate(actQ.malf, { vars: varsQ }); if (mqQ.ok && typeof mqQ.value === 'number' && isFinite(mqQ.value)) mfQ = Math.max(1, Math.min(1000000, Math.round(mqQ.value))); }   // Stage 6 HUD R3: its Malf, through their view
@@ -9233,6 +9238,9 @@ function handleMessage(msg, conn) {
         }
         if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv); attemptCalled(campQ, blowRecQ, q.act, rowGQ, pcQ, chQ, !!recQ.priv, tcQ); if (typeof holdsRolled === 'function' && typeof SQ.holdRefOf === 'function') holdsRolled(campQ, chQ, actQ, holdRefQ(campQ, q, actQ), pcQ, tcQ, blowRecQ, atQ); }   // 1.6.0: Calls for, with its Then landed; Who holds whom
         if (actQ && actQ.burst && q.row && typeof burstAfter === 'function') burstAfter(campQ, chQ, actQ, q.row, resQ, ruleQ, mfQ !== null && Dq.naturalOf(resQ) >= mfQ, typeof taQ !== 'undefined' ? taQ : null, tcQ, saveRemoteSoon);   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
+        };
+        var heldCQ = chQ && actQ && typeof cardHold === 'function' ? cardHold({ asked: typeof askedQ !== 'undefined' ? askedQ : null, S: SQ, D: Dq, F: Fq, camp: campQ, ent: cardEnt(campQ, q.act, rowGQ, actQ), res: resQ, expr: q.expr, vars: varsQ, tc: tcQ, ch: chQ, pid: pidQ, conn: conn, priv: q.priv === 'gm', from: diceFrom(net.roster[conn.peer], false), rid: q.rid, label: q.label, as: String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label), cid: q.charId, go: function(r, e, id, st) { q.expr = e; if (st) varsQ.bandStep = st; restQ(r, id); } }) : false;
+        if (!heldCQ) restQ(resQ);
         // [netcheck:rollreq-end]
     } else if (msg.type === 'hit-ask' && net.role === 'host') {
         // [netcheck:hitask-start]
@@ -9594,6 +9602,7 @@ function wireConn(conn) {
     });
     conn.on('close', function() {
         // [netcheck:connclose-start]
+        if (typeof cardAway === 'function') cardAway(conn.peer);   // 1.6.2 (G5): the time stops while its roller is away
         var cur = net.conns[0] === conn;   // (a player's app) the connection this app holds — not one a later dial has replaced
         net.conns = net.conns.filter(function(c) { return c !== conn; });
         delete assetInflight[conn.peer]; delete assetRefs[conn.peer]; delete assetBytes[conn.peer];
@@ -10777,10 +10786,79 @@ net.rollsFor = function(charId, name, sinceSeq, max) {   // newest first: tagged
 function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper'; }).slice(-60).map(function(m) { var wr = m.roll || m.apply; if (typeof figOf === 'function') wr = figOf(wr); return m.roll ? { from: m.from, text: '', scope: m.scope, ts: m.ts, roll: wr } : m.apply ? { from: m.from, text: '', scope: m.scope, ts: m.ts, apply: wr } : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)
 // [netcheck:rolltag-end]
 function pushRoll(rec, res, scope, opts) {
+    if (rec && typeof rec.id === 'string') for (var iR = chatLog.length - 1; iR >= 0; iR--) if (chatLog[iR] && chatLog[iR].roll && chatLog[iR].roll.id === rec.id) { chatLog[iR].roll = rec; chatLog[iR].res = res; if (!rec.pend) ringPush(chatLog[iR], opts && opts.cid); renderChat(); return; }   // 1.6.2 (G5): a held roll's card, changed or landed, takes the place of the one before it
     var m = { from: rec.from, text: '', scope: scope, ts: rec.ts, roll: rec, res: res, rollBad: res ? null : ((opts && opts.bad) || 'error'), toName: opts && opts.toName ? opts.toName : '' };
-    pushChat(m); ringPush(m, opts && opts.cid);
+    pushChat(m); if (!rec.pend) ringPush(m, opts && opts.cid);
 }
+// [netcheck:cardhold-start]
+// 1.6.2 (backlog 210 b, G5; the owner: "Wait for Accept, then run", and "a roll with no card actions shouldn't wait, so ordinary rolls stay instant"): a roll
+// whose card offers something is held here, its Then and all that follows it not run, and its card says so plainly. Accept, or the time the system sets,
+// runs what follows once. The time does not run on while its roller is away, since it could spend a choice for them, and the GM may accept for them. Each
+// action works on the roll in hand and sends the card again under its one id, so the final card takes its place. Nothing here is stored
+var _cardHeld = Object.create(null);
+function cardEnt(camp, act, row, seen) {   // a player's press is judged through their view, which holds no card actions, so they are read from the GM's entry
+    var sys = camp && camp.system, hit = null; if (!sys) return seen;
+    if (typeof act === 'string' && act) (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (r && r.id === act) hit = r; });
+    else if (row && typeof row.i === 'number') (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (f && f.id === row.f && f.list && Array.isArray(f.list.rolls)) hit = f.list.rolls[row.i] || null; });
+    return hit || seen;
+}
+function cardVars(h) { var o = h.o, vd = o.D.verdictOf(h.res, o.D.ruleOf({}, o.camp.system && o.camp.system.combat ? o.camp.system.combat.checks : '')); return o.S.withRollCrit(o.vars, o.S.thenCrit(vd, false), o.S.thenMargin(vd, false), false, h.res); }
+function cardOffers(h) {
+    var o = h.o, v = cardVars(h), out = [];
+    h.acts.forEach(function(a, i) { if ((h.used[i] || 0) >= (a.times || 1)) return; if (a.pay && !cardPayAct(o, a)) return; if (a.does === 'bandUp' && !(o.S.bandsFor(o.camp.system, o.ent).length > h.step + 1)) return; if (o.S.cardActOk(a, v, o.F)) out.push({ k: String(i), l: a.label }); });
+    return out;
+}
+function cardPayAct(o, a) { var hit = null; (Array.isArray(o.camp.system.rolls) ? o.camp.system.rolls : []).forEach(function(r) { if (r && r.id === a.pay && Array.isArray(r.apply)) hit = r; }); return hit; }
+function cardSend(h, offers) {
+    var o = h.o, rec = { type: 'roll', id: h.id, from: o.from, expr: h.expr, draws: h.res.draws, v: o.F.VERSION, ts: Date.now(), pend: h.wait, offers: offers };
+    if (o.rid) rec.rid = o.rid; if (o.label) rec.label = o.label; if (o.as) rec.as = o.as; if (o.priv) rec.priv = 'gm'; if (o.asked && o.asked.length) rec.asked = o.asked;
+    if (h.res.breakdown && h.res.breakdown.names && h.res.breakdown.names.length) { var nmH = o.D.cleanNames(h.res.breakdown.names); if (nmH && nmH.length) rec.names = nmH; }   // what its formula read, without which no other machine can draw the card
+    if (o.conn) { if (o.priv) { try { o.conn.send(rec); } catch (e) { sendFailed(e); } } else sendTable(rec, null); } else if (!o.priv) sendTable(rec, null);
+    pushRoll(rec, h.res, o.priv ? 'whisper' : 'global', { cid: o.cid });
+}
+function cardClock(h) { if (h.timer) clearTimeout(h.timer); h.timer = null; if (h.away) return; h.timer = setTimeout(function() { cardSettle(h); }, h.wait * 1000); }
+function cardSettle(h) { if (!_cardHeld[h.id]) return; delete _cardHeld[h.id]; if (h.timer) clearTimeout(h.timer); h.timer = null; h.o.go(h.res, h.expr, h.id, h.step); }
+function cardHold(o) {
+    if (!o || !o.camp || !o.camp.system || !o.ent || typeof o.S.cardActsOf !== 'function') return false;
+    var acts = o.S.cardActsOf(o.camp.system, o.ent); if (!acts.length) return false;
+    var h = { id: o.D.uid(), o: o, acts: acts, used: {}, res: o.res, expr: o.expr, step: 0, wait: o.S.cardWaitOf(o.camp.system), timer: null, away: false }, off = cardOffers(h); if (!off.length) return false;
+    _cardHeld[h.id] = h; cardSend(h, off); cardClock(h); return true;
+}
+function cardSay(h, words) { var o = h.o; if (o.conn && typeof turnNote === 'function') turnNote(o.conn, words, o.cid); else if (typeof toast === 'function') toast(words); }
+// who: the profile that pressed, '' for the GM's own hand. A press is its roller's or the GM's, and an action is the roller's alone
+function cardPress(id, key, who) {
+    var h = typeof id === 'string' && Object.prototype.hasOwnProperty.call(_cardHeld, id) ? _cardHeld[id] : null; if (!h) return false;
+    var o = h.o, mine = who === '' || who === o.pid; if (!mine) return false;
+    if (key === 'accept') { cardSettle(h); return true; }
+    if (who === '' && o.pid) return false;
+    var i = Number(key), a = h.acts[i]; if (!a || !cardOffers(h).some(function(x) { return x.k === String(i); })) return false;
+    if (a.pay) {
+        var pa = cardPayAct(o, a), pr = pa ? o.S.applyAct(o.camp.system, o.ch, pa, o.vars, o.F, o.tc, null, undefined, o.D) : null;
+        if (!pr || !pr.ok) { cardSay(h, (pr && pr.message) || 'That cannot be paid now.'); return false; }
+        o.ch.values = o.ch.values || {}; Object.keys(pr.values).forEach(function(k) { o.ch.values[k] = pr.values[k]; }); o.ch.updated = Date.now(); saveRemoteSoon(); net.syncCharDelta(o.ch.id, pr.values); if (window.wpSheets) window.wpSheets.charChanged(o.ch.id);
+    }
+    h.used[i] = (h.used[i] || 0) + 1;
+    var again = null, keep = h.res.draws.slice(), at = 0;
+    if (a.does === 'again') again = o.F.evaluate(h.expr, { vars: o.vars });
+    else if (a.does === 'againIf') again = o.F.evaluate(h.expr, { vars: o.vars, random: function(fc) { var raw = keep[at++]; if (typeof raw === 'number' && raw >= 1 && raw <= fc && !o.S.cardDieHolds(raw, a.test)) return raw; return 1 + Math.floor(Math.random() * fc); } });
+    else if (a.does === 'add' || a.does === 'sub') {
+        var nv = o.F.evaluate(a.n, { vars: cardVars(h) }), md = nv.ok && typeof nv.value === 'number' && isFinite(nv.value) ? Math.round(nv.value) : null; if (md === null) { cardSay(h, 'That amount could not be worked out.'); return false; }
+        var cm = o.D.composeModifier(h.expr, a.does === 'add' ? md : -md, o.F.parse); if (!cm.ok) { cardSay(h, 'That roll cannot take that change.'); return false; }
+        h.expr = cm.expr; again = o.F.evaluate(h.expr, { vars: o.vars, random: function(fc) { var raw = keep[at++]; return typeof raw === 'number' && raw >= 1 && raw <= fc ? raw : 1 + Math.floor(Math.random() * fc); } });
+    } else if (a.does === 'bandUp') h.step += 1;
+    if (again) { if (!again.ok) { cardSay(h, 'That roll cannot take that change.'); return false; } h.res = again; }
+    var off = cardOffers(h); if (!off.length) { cardSettle(h); return true; }
+    cardSend(h, off); cardClock(h); return true;
+}
+function cardAway(peer) { Object.keys(_cardHeld).forEach(function(id) { var h = _cardHeld[id]; if (h.o.conn && h.o.conn.peer === peer) { h.away = true; if (h.timer) clearTimeout(h.timer); h.timer = null; } }); }
+function cardForget() { Object.keys(_cardHeld).forEach(function(id) { if (_cardHeld[id].timer) clearTimeout(_cardHeld[id].timer); delete _cardHeld[id]; }); }
+net.cardAct = function(id, key) {
+    if (net.role === 'client') { if (!net.conns[0] || !net.conns[0].open) return false; try { net.conns[0].send({ type: 'card-act', id: String(id), key: String(key) }); } catch (e) { return false; } return true; }
+    return cardPress(id, key, '');
+};
+// [netcheck:cardhold-end]
 function diceSessionReset(clearChat) {
+    if (typeof cardForget === 'function') cardForget();   // 1.6.2: a roll still held goes with its table, nothing of it landed
     if (_dicePending) { clearTimeout(_dicePending.timer); _dicePending = null; }
     if (diceLimit) diceLimit.reset();
     _diceSlowSaid = {};
@@ -10864,7 +10942,8 @@ net.diceRoll = function(expr, o) {
     if (entR && entR.job && chR && o.row && typeof o.row.r === 'string' && SR && typeof SR.jobStep === 'function') { var jrR = typeof jobRound === 'function' ? jobRound(campR, chR.id) : null, jbR = SR.jobBar(chR, o.row, entR, varsR, F, jrR); if (jbR) return { error: jbR }; var jsR = jobPress(SR, campR, chR, o.row, entR, varsR, F, jrR, o.label, function() { save(true); }); if (jsR) return { error: jsR }; }   // 1.6.0: a job counted across turns
     var moR = hvR && hvR.length > 1 ? SR.hitRolls(campR.system, entR, expr, hvR.slice(1), F, D, { rounds: rnR.slice(1) }) : null; if (moR && moR.error) return { error: moR.error };   // ... and each hit after it, rolled here
     if (chR && !o.att && typeof net.offTurnSay === 'function') net.offTurnSay(chR, o.act, o.row, o.label);   // 1.6.0: off its turn, the GM is told, once nothing has refused it
-    var rec = { type: 'roll', id: D.uid(), from: o.from || diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() };   // o.from: this machine's own word, the player whose press this roll follows (a line's damage)
+    var restR = function(res, heldR) {   // 1.6.2 (G5): all that follows a roll, which a roll with card actions holds until it is accepted
+    var rec = { type: 'roll', id: heldR || D.uid(), from: o.from || diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() };   // o.from: this machine's own word, the player whose press this roll follows (a line's damage)
     var mfR = null; if (entR && entR.malf && varsR) { var mqR = F.evaluate(entR.malf, { vars: varsR }); if (mqR.ok && typeof mqR.value === 'number' && isFinite(mqR.value)) mfR = Math.max(1, Math.min(1000000, Math.round(mqR.value))); }   // Stage 6 HUD R3: its Malf
     if (askedR && askedR.length) rec.asked = askedR;   // 1.6.2
     var blowRecR = typeof o.att === 'string' && typeof attemptRec === 'function' ? attemptRec(o.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
@@ -10975,6 +11054,9 @@ net.diceRoll = function(expr, o) {
     if (entR && entR.burst && o.row && typeof burstAfter === 'function') burstAfter(campR, chR, entR, o.row, res, ruleR, mfR !== null && D.naturalOf(res) >= mfR, typeof taR !== 'undefined' ? taR : null, tcR, function() { save(true); });   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
     net.rollCheck = D.checkOf ? D.checkOf(res, ruleR) : null;   // 1.5.8 explosives: this roll's pass, critical and margin, read by a throw right after it (this machine's own)
     return { ok: true, value: res.value, priv: !!rec.priv };
+    };
+    if (chR && entR && o.used !== true && !o.blast && !o.range && !o.cross && typeof cardHold === 'function' && cardHold({ asked: askedR, S: SR, D: D, F: F, camp: campR, ent: entR, res: res, expr: expr, vars: varsR, tc: tcR, ch: chR, pid: '', conn: null, priv: !!(o.priv || o.gmOnly), from: o.from || diceFrom(getProfile(), true), label: o.label, as: chR.name, cid: chR.id, go: function(r, e, id, st) { expr = e; if (st) varsR.bandStep = st; restR(r, id); } })) return { ok: true, pending: true, value: res.value };
+    return restR(res);
 };
 // [netcheck:diceroll-end]
 // [netcheck:burst-start]

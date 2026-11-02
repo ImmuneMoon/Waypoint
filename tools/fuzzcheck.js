@@ -1001,6 +1001,7 @@ function mutations(tpl) {
             'char-style': { type: 'char-style', rid: 'r9', charId: 'c_p1', fieldId: 'f_class', look: { fmt: { b: true }, sig: win.wpLook.textSig('Ranger') } },   // item 35: the look of a text of their own sheet
             'throw-req': { type: 'throw-req', charId: 'c_p1', fieldId: 'f_inv', rowId: 'w_1', mapId: 'm_open', x: 200, y: 200 },
             'door-req': { type: 'door-req', mapId: 'm_open', itemId: 'door1' },
+            'card-act': { type: 'card-act', id: 'r_nosuchhe', key: 'accept' },   // 1.6.2 (G5): a press on a held roll's card, its roller's alone; none is held here
             'show-ask': { type: 'show-ask', campId: 'c1', itemId: 'm_open', ids: ['stroke_show', 'draw_show', 'stroke_onmap'] },   // 1.6.2: an ask to put a drawing on the map changes nothing by itself
             'door-req-secret': { type: 'door-req', mapId: 'm_open', itemId: 'door_secret' },   // fold B5: a secret door: a door request naming it is answered as a wall's is — with nothing — and changes nothing
             'door-req-line': { type: 'door-req', mapId: 'm_open', itemId: 'door_line' },   // Match a wall: the same for a secret door drawn as a line, which the GM also locked: answered with nothing, and nothing of the three doors changes

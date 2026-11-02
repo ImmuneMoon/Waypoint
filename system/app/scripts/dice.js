@@ -150,6 +150,13 @@ function renderCard(m) {
     else if (typeof rec.cov === 'string' && rec.cov) wrap.appendChild(el('div', 'roll-aim', 'Target in ' + rec.cov.toLowerCase()));   // 1.6.0: the number alone did not say why
     var amR = rec.aim && typeof rec.aim === 'object' && typeof rec.aim.n === 'string' && rec.aim.n ? rec.aim : null;   // 1.6.0 (B5): where a called shot was aimed, and what its location gave
     (Array.isArray(rec.asked) ? rec.asked : []).forEach(function(a) { if (a && typeof a.l === 'string' && typeof a.w === 'string') wrap.appendChild(el('div', 'roll-aim', a.l + ' ' + a.w)); });   // 1.6.2: what its roller answered
+    if (typeof rec.pend === 'number' && rec.pend > 0) {   // 1.6.2 (G5): held until it is accepted, and it says so, so that nobody takes it for landed
+        wrap.appendChild(el('div', 'roll-pend', 'Pending. Nothing has landed yet.'));
+        var nP = net(), meP = !!(nP && nP.myId && rec.from && rec.from.id === nP.myId), gmP = !!(nP && (!nP.active || nP.role === 'host')), barP = el('div', 'roll-pend-bar');
+        if (meP || (gmP && rec.from && rec.from.gm)) (Array.isArray(rec.offers) ? rec.offers : []).forEach(function(a) { var b = el('button', 'tool ghost', a.l); b.type = 'button'; b.addEventListener('click', function() { if (nP.cardAct) nP.cardAct(rec.id, a.k); }); barP.appendChild(b); });
+        if (meP || gmP) { var ac = el('button', 'tool', 'Accept'); ac.type = 'button'; ac.title = 'Let it land as it stands. It lands by itself after ' + rec.pend + ' seconds'; ac.addEventListener('click', function() { if (nP.cardAct) nP.cardAct(rec.id, 'accept'); }); barP.appendChild(ac); }
+        if (barP.childNodes.length) wrap.appendChild(barP);
+    }
     if (amR) { var amF = Array.isArray(amR.f) ? amR.f.filter(function(x) { return x && typeof x.v === 'number' && isFinite(x.v); }) : [], amS = function(n) { return n < 0 ? '\u2212' + (-n) : n > 0 ? '+' + n : '0'; }; wrap.appendChild(el('div', 'roll-aim', 'at ' + amR.n + (amF.length === 1 ? ' (' + amS(amF[0].v) + ')' : amF.length ? ' (' + amF.map(function(x) { return x.k + ' ' + amS(x.v); }).join(', ') + ')' : ''))); }
     if (rec.cvh && typeof rec.cvh === 'object' && typeof rec.cvh.n === 'string' && typeof coverHitWords === 'function') wrap.appendChild(el('div', 'roll-aim', coverHitWords(rec.cvh)));   // 1.6.0: where a hit behind cover landed, and the die
     var p2c = rec.dmg === 1 && rec.dmg2 && typeof rec.dmg2 === 'object' && typeof rec.dmg2.t === 'number' && isFinite(rec.dmg2.t) ? rec.dmg2 : null;   // 1.6.0 (B3): the blow's second part, of another type, rolled by the host
@@ -224,6 +231,7 @@ function renderDue(m) {
 function waits(m) {
     if (!m) return false;
     if (m.due) return !m.done && !m.over && !m.due.theirs && !window.wpPopout;
+    if (m.roll && typeof m.roll.pend === 'number' && m.roll.pend > 0) { var nW = net(); return !!(nW && ((nW.myId && m.roll.from && m.roll.from.id === nW.myId) || !nW.active || nW.role === 'host')); }   // 1.6.2 (G5): held, its roller and the GM have something to press
     var rec = m.roll, dS = window.wpSheets; if (!rec || rec.dmg !== 1 || rec.dmgUsed === 1 || !m.res || !m.res.ok) return false;
     return !malfOf(rec, m.res) && !!(dS && typeof dS.damageOn === 'function' && dS.damageOn());
 }

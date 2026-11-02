@@ -153,6 +153,7 @@ var GROUPS = {
         ['clock', 'By the clock and in a fight', 0, ['sys-roll-everyrow', 'sys-roll-fightrow', 'sys-roll-askrow', 'sys-roll-noterow']],
         ['cross', 'When a value crosses a step', 0, ['sys-roll-xsrow']],
         ['asks', 'What it asks when pressed', 0, ['sys-asks']],
+        ['card', 'On the card', 0, ['sys-cardacts']],
         ['calls', 'Calls for', 0, ['sys-calls']],
         ['bands', 'Result bands', 0, ['sys-bands']],
         ['then', 'What it changes', 1, ['sys-apply']]] },

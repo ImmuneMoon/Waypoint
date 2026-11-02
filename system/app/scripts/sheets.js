@@ -10,6 +10,7 @@ import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
+import { cleanCardActs, CARD_MAX } from './systemcore.js';   // 1.6.2: what a card offers
 import { cleanAsks, askEnds, askJudge, withAsk, ASKS_MAX, ASK_OPTS } from './systemcore.js';   // 1.6.2: a roll's questions
 import { nameWord, nameAsks, readsOf, plainMessage } from './systemcore.js';   // 1.6.2: a name in words, and what a box may offer
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
@@ -4996,6 +4997,35 @@ function asksBox(obj) {
     draw();
     return box;
 }
+// 1.6.2 (G5): On the card, on a roll and on the Combat tab. A box of its own listeners, as asksBox is. get and put read and set the list where it lives
+function cardBox(get, put) {
+    var box = el('div', 'sys-cardacts'), sys = typeof draft !== 'undefined' ? draft : null;
+    var ch = function(redraw) { markDirty(); if (redraw) draw(); if (typeof patchErrors === 'function') patchErrors(); };
+    var pays = function() { return (sys && Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return r && Array.isArray(r.apply); }); };
+    var draw = function() {
+        box.textContent = ''; var list = Array.isArray(get()) ? get() : [];
+        list.forEach(function(a, j) {
+            var q = el('div', 'sys-ask'), top = el('div', 'sys-ask-top'), lab = input('sys-ask-label field', a.label || '', 'The words on the button', 'Push your luck'); lab.maxLength = LIMITS.label;
+            lab.addEventListener('input', function() { a.label = lab.value.slice(0, LIMITS.label); ch(); note(); });
+            var does = select('sys-card-does', [['again', 'Roll again'], ['againIf', 'Roll some of the dice again'], ['add', 'Add a number'], ['sub', 'Take off a number'], ['bandUp', 'Take the result up a band']], a.does || 'again', 'What it does to the roll');
+            does.addEventListener('change', function() { a.does = does.value; ch(true); });
+            var x = el('button', 'tool ghost sys-btn', '\u00d7'); x.type = 'button'; x.title = 'Take this off'; x.addEventListener('click', function(e) { e.stopPropagation(); list.splice(j, 1); put(list.length ? list : null); ch(true); });
+            top.appendChild(lab); top.appendChild(does); top.appendChild(x); q.appendChild(top);
+            if (a.does === 'add' || a.does === 'sub') { var nb = input('sys-card-n field', a.n || '', 'How much', 'How much'); nb.addEventListener('input', function() { a.n = nb.value.slice(0, LIMITS.formula); ch(); note(); }); q.appendChild(nb); }
+            if (a.does === 'againIf') { var tw = el('div', 'sys-ask-ends'), t0 = a.test && typeof a.test === 'object' ? a.test : (a.test = { op: '<=', v: 1 }); tw.appendChild(document.createTextNode('Dice showing ')); var op = select('sys-card-op', [['<=', 'at most'], ['>=', 'at least'], ['=', 'exactly']], t0.op, 'Which dice roll again'); op.addEventListener('change', function() { t0.op = op.value; ch(); }); var tv = input('sys-ask-opt-v field', String(t0.v), 'The number on the die', 'Number'); tv.addEventListener('input', function() { var n = Number(tv.value); if (tv.value.trim() !== '' && isFinite(n)) t0.v = n; ch(); }); tw.appendChild(op); tw.appendChild(tv); q.appendChild(tw); }
+            var nd = input('sys-card-needs field', a.needs || '', 'When it is offered', 'When it is offered'); nd.addEventListener('input', function() { if (nd.value.trim()) a.needs = nd.value.slice(0, LIMITS.formula); else delete a.needs; ch(); }); q.appendChild(nd);
+            var row = el('div', 'sys-ask-ends'), acts = pays(), pay = select('sys-card-pay', [['', 'It costs nothing']].concat(acts.map(function(r) { return [r.id, 'Costs: ' + (r.label || 'an action')]; })), a.pay || '', 'An action of this system it runs as it is pressed. It is refused where that action cannot run');
+            pay.addEventListener('change', function() { if (pay.value) a.pay = pay.value; else delete a.pay; ch(); });
+            var tb = el('label', 'sys-ask-end'); tb.appendChild(document.createTextNode('Times on one roll ')); var ti = input('sys-ask-opt-v field', String(a.times || 1), 'How many times one roll may use it', '1'); ti.addEventListener('input', function() { var n = Math.floor(Number(ti.value)); if (n > 1) a.times = Math.min(9, n); else delete a.times; ch(); }); tb.appendChild(ti);
+            row.appendChild(pay); row.appendChild(tb); q.appendChild(row);
+            var nt = el('div', 'sys-ask-note'); q.appendChild(nt); var note = function() { nt.textContent = cleanCardActs([a]) ? '' : 'Save leaves this out until it has words and all it needs.'; }; note();
+            box.appendChild(q);
+        });
+        if (list.length < CARD_MAX) { var ad = el('button', 'tool ghost sys-btn sys-card-add', '+ Card action'); ad.type = 'button'; ad.title = 'Something a roller may do on the card before the roll lands. The roll then waits to be accepted'; ad.addEventListener('click', function(e) { e.stopPropagation(); var l = Array.isArray(get()) ? get() : []; l.push({ label: '', does: 'again' }); put(l); ch(true); var ins = box.querySelectorAll('.sys-ask-label'); if (ins.length) ins[ins.length - 1].focus(); }); box.appendChild(ad); }
+    };
+    draw();
+    return box;
+}
 // [sinkcheck:hitmenu-start]
 // 1.6.0 (B5, a called shot by the target's own location; the owner's handbook: "A limb out of scale changes its penalty by its own Size", and "A
 // body has only the locations its parts give it"): pressed, a roll that reads Target.Hit (directly or through a value worked out from it) asks
@@ -6938,7 +6968,7 @@ function formCtx(inp) {
         return { list: sp || undefined, subject: rr ? rr.label || '' : '', roll: rr || undefined, then: !!rr && !Array.isArray(rr.apply) && !!cs && (cs.contains('sys-list-applyformula') || cs.contains('sys-list-applyif')) };
     }
     if (typeof id === 'string' && /^r_/.test(id)) (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(x) { if (x && x.id === id) r = x; });
-    if (r) return { roll: r, subject: r.label, then: !Array.isArray(r.apply) && !!cs && (cs.contains('sys-apply-formula') || cs.contains('sys-apply-if')) };
+    if (r) return { roll: r, subject: r.label, then: !Array.isArray(r.apply) && !!cs && (cs.contains('sys-apply-formula') || cs.contains('sys-apply-if') || cs.contains('sys-card-n') || cs.contains('sys-card-needs')) };
     var fd = null; if (typeof id === 'string') (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(x) { if (x && x.id === id) fd = x; });
     return fd ? { subject: fd.label || '', list: fd.kind === 'item-list' && fd.list ? fd.list : undefined } : {};
 }
@@ -8420,6 +8450,7 @@ function rollRow(r) {
     if (r.every || r.inFight || r.notes) row.appendChild(noteRow(r));   // 1.6.0, backlog 173: where its runs are said, for a time rule
     if (typeof crossRow === 'function') row.appendChild(crossRow(r));   // 1.5.9 (book es/et plan 4a): when a value crosses a step
     if (typeof asksBox === 'function') row.appendChild(asksBox(r));   // 1.6.2: what it asks when pressed
+    if (!isApply && typeof cardBox === 'function') row.appendChild(cardBox(function() { return r.cardActs; }, function(l) { if (l) r.cardActs = l; else delete r.cardActs; }));   // 1.6.2: and what its card offers
     if (typeof callsBox === 'function') row.appendChild(callsBox(r, typeof draft !== 'undefined' ? draft : null, isApply));   // 1.6.0: Calls for
     if (!isApply && typeof bandBox === 'function') row.appendChild(bandBox(function() { return r.bands; }, function(l) { if (l) r.bands = l; else delete r.bands; }, true, function() { renderAll(); }));   // 1.6.2: result bands
     row.appendChild(applyEditor(r, isApply ? 'apply' : 'then'));   // R1: a roll's consequences under it
@@ -10869,6 +10900,7 @@ function checksBox(box, cm) {
     item('Named success', tn, 'A success by the margin beside it or more wears this name on its card.');
     var ta = el('input', 'field sys-checks-tierat'); ta.type = 'number'; ta.min = '1'; ta.max = '1000000'; ta.step = '1'; ta.value = typeof tr.at === 'number' ? String(tr.at) : ''; ta.placeholder = 'e.g. 5'; ta.title = 'How far a success must beat its target to wear the name: 5 means by 5 or more';
     item('By at least', ta, 'How far it must beat its target.');
+    if (typeof cardBox === 'function') { box.appendChild(cardBox(function() { return cm.cardActs; }, function(l) { if (l) cm.cardActs = l; else delete cm.cardActs; })); var cwL = el('label', 'sys-ask-end'); cwL.appendChild(document.createTextNode('A held card lands by itself after ')); var cwI = input('sys-card-wait field', cm.cardWait === undefined ? '60' : String(cm.cardWait), 'How long a roll with card actions waits to be accepted. Never while its roller is away', '60'); cwI.addEventListener('input', function() { var n = Math.floor(Number(cwI.value)); if (n >= 5 && n !== 60) cm.cardWait = Math.min(600, n); else delete cm.cardWait; markDirty(); }); cwL.appendChild(cwI); cwL.appendChild(document.createTextNode(' seconds')); box.appendChild(cwL); }   // 1.6.2
     if (typeof bandBox === 'function') box.appendChild(bandBox(function() { return cm.bands; }, function(l) { if (l) cm.bands = l; else delete cm.bands; }, false, function() { if (typeof renderCombat === 'function') renderCombat(); }));   // 1.6.2: result bands
     var err = errorCell('checks'); err.dataset.errFor = 'checks'; box.appendChild(err);
 }

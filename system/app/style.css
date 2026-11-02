@@ -3691,6 +3691,9 @@
   input.field.sys-ask-opt-v { flex: none; width: 80px; }
   .sys-ask-note { color: var(--gold); font-size: 12px; }
   .sys-ask-note:empty { display: none; }
+  .sys-cardacts { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+  .roll-pend { color: var(--gold); font-size: 12px; margin-top: 4px; }
+  .roll-pend-bar { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
   .sheet-item-statsel { font-size: 11px; padding: 1px 4px; min-height: 0; height: auto; max-width: 160px; width: auto; }   /* 1.6.0, backlog 180 R10: a choice stat as a menu on its row */
   .sheet-split { font-size: 11px; padding: 0 6px; }   /* 1.6.0, backlog 180 R11 */
   .sheet-parts { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 2px 0 6px 18px; }   /* 1.6.0 R14: a row's parts, as pills under it */

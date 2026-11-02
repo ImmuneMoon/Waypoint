@@ -78,6 +78,17 @@ System editor
   another row granted can say what it gives free.
 
 Fitted parts
+- Holds by kind may read a formula in place of a stat, such as the most any
+  part of the row gives, so a row's slots can come from one of its parts.
+- One line of Holds by kind may count several values, such as one integrated,
+  overlay or underlay part.
+- Fits where may hold further rules, each with its own words for the player it
+  stops, and those words may run to 200 characters.
+- A list's Changes apply where now holds back a row's roll bonuses as well as
+  its changes, and Only while switched on stands beside a roll bonus with no
+  change on the item.
+- A library entry's roll bonus now reaches its player. Before, only the GM was
+  offered it.
 - A full row now refuses a player's part and lets you fit it all the same, and
   you are told. Before, it refused you too.
 - Under a row the sheet says how many of each kind it holds, such as Overlay 1

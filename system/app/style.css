@@ -3958,7 +3958,7 @@
   .sys-list-cats { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 12px; }
   .sys-list-cat, .sys-check { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; cursor: pointer; }
   .sys-list-card .sys-flags { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
-  .sys-list-card .sys-pcaps { flex-basis: 100%; }   /* 205 (5): Holds by kind, a line of its own */
+  .sys-list-card .sys-pcaps, .sys-list-card .sys-pfits { flex-basis: 100%; }   /* 205 (5): Holds by kind, a line of its own */
   .sys-list-card .sys-starts { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }   /* 1.6.0 Starts with: a line an entry */
   .sys-start-name { min-width: 140px; font-size: 12px; }
   .sheet-value.sheet-over { font-style: italic; }   /* 205 (6): a number taken from a formula, closed to editing */

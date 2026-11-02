@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
 import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { cleanDamageRules, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanDamageRules, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { cleanCover } from './systemcore.js';   // 1.6.0: what cover takes off an attack, as Save reads it (refreshErrors)
@@ -3384,7 +3384,7 @@ function partPills(wrap, c, f, spec, sysI, entry, chg, dep) {
     var pf = partsSrc(sysI, spec); if (!pf) return null;
     var pspec = pf.list || {}, hid = rowIdOf(entry), parts = partsOf(sysI, c, spec, hid); if (!parts.length && !chg) return null;
     var box = el('div', 'sheet-parts');
-    if (typeof partsCapLines === 'function') partsCapLines(sysI, spec, entry, (c.values || {})[pf.id], hid).forEach(function(ln) {   // 1.6.2 Fitted slots: how many of each kind this row holds
+    if (typeof partsCapLines === 'function') partsCapLines(sysI, spec, entry, (c.values || {})[pf.id], hid, typeof capRead === 'function' && typeof F === 'function' ? capRead(sysI, c, f, entry, F()) : undefined).forEach(function(ln) {   // 1.6.2 Fitted slots: how many of each kind this row holds
         var over = ln.used > ln.cap, sl = el('span', 'sheet-part-slot' + (over ? ' over' : ''), (ln.kind || 'Parts') + ' ' + ln.used + ' of ' + ln.cap); sl.title = over ? 'More than this row holds' : 'How many this row holds'; box.appendChild(sl);
     });
     parts.forEach(function(p) {
@@ -6876,18 +6876,26 @@ function partCapsBox(sp) {
                 sS.addEventListener('change', function(e) { e.stopPropagation(); if (!sp.parts || !Array.isArray(sp.parts.caps) || !sp.parts.caps[j]) return; var cj = sp.parts.caps[j]; if (sS.value) { cj.slot = sS.value; cj.is = ''; delete cj.cats; } else { delete cj.slot; delete cj.is; cj.cats = []; } ch(); draw(); });
                 lead.push(sS);
             }
-            var cI;
+            var cI, isMore = [];
             if (slCur) {
-                cI = el('select', 'sys-pcap-is'); cI.title = 'The value of that stat this line counts, such as Arm'; var isCur = typeof k.is === 'string' ? k.is.toLowerCase() : '', isHit = false;
-                var oi0 = el('option', null, 'that read…'); oi0.value = ''; cI.appendChild(oi0);
-                (slSt ? vals(slSt) : []).forEach(function(v) { var o = el('option', null, 'that read ' + v); o.value = v; if (!isHit && isCur && v.toLowerCase() === isCur) { o.selected = true; isHit = true; } cI.appendChild(o); });
-                if (isCur && !isHit) { var oxi = el('option', null, k.is + ' (not one of its values)'); oxi.value = k.is; oxi.selected = true; cI.appendChild(oxi); }
-                cI.addEventListener('change', function(e) { e.stopPropagation(); set('is', cI.value); });
+                var isOf = function(w) { return Array.isArray(w) ? w.slice() : [typeof w === 'string' ? w : '']; }, isL = isOf(k.is);   // 1.6.2: a line may count parts of any of several values
+                isL.forEach(function(iv, ii) {
+                    var iS = el('select', 'sys-pcap-is'); iS.title = ii ? 'A further value this line counts. Pick the first choice to take it away' : 'The value of that stat this line counts, such as Arm'; var isCur = typeof iv === 'string' ? iv.toLowerCase() : '', isHit = false;
+                    var oi0 = el('option', null, ii ? 'or\u2026' : 'that read\u2026'); oi0.value = ''; iS.appendChild(oi0);
+                    (slSt ? vals(slSt) : []).forEach(function(v) { var o = el('option', null, (ii ? 'or ' : 'that read ') + v); o.value = v; if (!isHit && isCur && v.toLowerCase() === isCur) { o.selected = true; isHit = true; } iS.appendChild(o); });
+                    if (isCur && !isHit) { var oxi = el('option', null, iv + ' (not one of its values)'); oxi.value = iv; oxi.selected = true; iS.appendChild(oxi); }
+                    iS.addEventListener('change', function(e) { e.stopPropagation(); if (!sp.parts || !Array.isArray(sp.parts.caps) || !sp.parts.caps[j]) return; var nl = isOf(sp.parts.caps[j].is), was = nl.length; if (iS.value || nl.length === 1) nl[ii] = iS.value; else nl.splice(ii, 1); set('is', nl.length > 1 ? nl : nl[0]); if (nl.length !== was) draw(); });
+                    if (!ii) cI = iS; else isMore.push(iS);
+                });
+                if (isL.length < 24) { var isO = el('button', 'tool ghost sys-btn sys-pcap-or', '+ Or'); isO.type = 'button'; isO.title = 'Count parts of another value on this line too, such as one integrated, overlay or underlay part'; isO.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts || !Array.isArray(sp.parts.caps) || !sp.parts.caps[j]) return; var nw = isOf(sp.parts.caps[j].is); if (!nw[nw.length - 1]) return; sp.parts.caps[j].is = nw.concat(['']); ch(); draw(); }); isMore.push(isO); }
             } else {
             cI = input('sys-pcap-cats field', Array.isArray(k.cats) ? k.cats.join(', ') : '', 'The categories of parts this line counts, with commas between them, such as Arm', 'Arm, Leg'); cI.maxLength = LIMITS.text;
             cI.addEventListener('input', function(e) { e.stopPropagation(); set('cats', String(cI.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean)); });
             cI.addEventListener('change', function(e) { e.stopPropagation(); });
             }
+            var fI = input('sys-pcap-f field', typeof k.f === 'string' ? k.f : '', 'Or a formula that says how many, read on the row: its own names as Row.*, such as Row.parts.max.Slots, and the character\u2019s. It takes the place of the stat. Where it gives no number there is no limit', 'or a formula'); fI.maxLength = LIMITS.formula;
+            fI.addEventListener('input', function(e) { e.stopPropagation(); var fv = String(fI.value || '').trim(); if (!sp.parts || !Array.isArray(sp.parts.caps) || !sp.parts.caps[j]) return; if (fv) sp.parts.caps[j].f = fv; else delete sp.parts.caps[j].f; ch(); });
+            fI.addEventListener('change', function(e) { e.stopPropagation(); });
             var bS = el('select', 'sys-pcap-by'), cur = typeof k.by === 'string' ? k.by.toLowerCase() : '', hit = false; bS.title = 'A row holds as many parts of those categories as its figure in this stat reads';
             var o0 = el('option', null, 'as many as the row\u2019s\u2026'); o0.value = ''; bS.appendChild(o0);
             nums().forEach(function(s) { var o = el('option', null, 'as many as the row\u2019s ' + (s.label || s.key)); o.value = s.key; if (!hit && cur && s.key.toLowerCase() === cur) { o.selected = true; hit = true; } bS.appendChild(o); });
@@ -6895,10 +6903,31 @@ function partCapsBox(sp) {
             bS.addEventListener('change', function(e) { e.stopPropagation(); set('by', bS.value); });
             var x = el('button', 'tool ghost sys-btn sys-pcap-del', '\u00d7'); x.type = 'button'; x.title = 'Remove this line';
             x.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts || !Array.isArray(sp.parts.caps)) return; sp.parts.caps.splice(j, 1); if (!sp.parts.caps.length) delete sp.parts.caps; ch(); draw(); });
-            lead.concat([cI, bS, x]).forEach(function(n) { rw.appendChild(n); }); box.appendChild(rw);
+            lead.concat([cI], isMore, [bS, fI, x]).forEach(function(n) { rw.appendChild(n); }); box.appendChild(rw);
         });
         var ad = el('button', 'tool ghost sys-btn sys-pcap-add', '+ Kind'); ad.type = 'button'; ad.disabled = list.length >= max; ad.title = ad.disabled ? 'At most ' + max + ' kinds a list' : 'Cap how many parts of some categories a row holds, such as 2 arms, by one of its own stats';
         ad.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts) return; if (!Array.isArray(sp.parts.caps)) sp.parts.caps = []; if (sp.parts.caps.length >= max) return; sp.parts.caps.push({ cats: [], by: '' }); ch(); draw(); var ins = box.querySelectorAll('.sys-pcap-cats'); if (ins.length) ins[ins.length - 1].focus(); }); box.appendChild(ad);
+    };
+    draw();
+    return box;
+}
+// 1.6.2: further rules of Fits where, each with its own words, so that one sentence need not cover three refusals. A part must meet them all, and the first that fails speaks
+function partFitsBox(sp) {
+    var box = el('div', 'sys-badges sys-pfits'), max = 24, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var draw = function() {
+        box.textContent = ''; var list = sp.parts && Array.isArray(sp.parts.fitMore) ? sp.parts.fitMore : [];
+        list.forEach(function(r0, j) {
+            var r = r0 && typeof r0 === 'object' ? r0 : {}, rw = el('div', 'sys-flags sys-pfit-row'), set = function(key, v) { if (!sp.parts || !Array.isArray(sp.parts.fitMore) || !sp.parts.fitMore[j]) return; if (v) sp.parts.fitMore[j][key] = v; else delete sp.parts.fitMore[j][key]; ch(); };
+            var iI = input('sys-pfit-if field', typeof r['if'] === 'string' ? r['if'] : '', 'Another formula a part must meet, read as Fits where is', 'and fits where'); iI.maxLength = LIMITS.formula;
+            iI.addEventListener('input', function(e) { e.stopPropagation(); set('if', String(iI.value || '').trim()); }); iI.addEventListener('change', function(e) { e.stopPropagation(); });
+            var sI = input('sys-pfit-says field', typeof r.says === 'string' ? r.says : '', 'The words a player is told when this rule stops a part', 'Refused with'); sI.maxLength = LIMITS.needsWords;
+            sI.addEventListener('input', function(e) { e.stopPropagation(); set('says', String(sI.value || '').trim()); }); sI.addEventListener('change', function(e) { e.stopPropagation(); });
+            var x = el('button', 'tool ghost sys-btn sys-pfit-del', '\u00d7'); x.type = 'button'; x.title = 'Remove this rule';
+            x.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts || !Array.isArray(sp.parts.fitMore)) return; sp.parts.fitMore.splice(j, 1); if (!sp.parts.fitMore.length) delete sp.parts.fitMore; ch(); draw(); });
+            [iI, sI, x].forEach(function(n) { rw.appendChild(n); }); box.appendChild(rw);
+        });
+        var ad = el('button', 'tool ghost sys-btn sys-pfit-add', '+ Another rule'); ad.type = 'button'; ad.disabled = list.length >= max; ad.title = ad.disabled ? 'At most ' + max + ' more rules a list' : 'Another rule a part must meet, with words of its own for the player it stops';
+        ad.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts) return; if (!Array.isArray(sp.parts.fitMore)) sp.parts.fitMore = []; if (sp.parts.fitMore.length >= max) return; sp.parts.fitMore.push({ 'if': '' }); ch(); draw(); var ins = box.querySelectorAll('.sys-pfit-if'); if (ins.length) ins[ins.length - 1].focus(); }); box.appendChild(ad);
     };
     draw();
     return box;
@@ -7360,6 +7389,24 @@ function refreshErrors() {
         if (!cf.list.parts.fitIf) { var pzF = null; try { pzF = F().parse(f.list.parts.fitIf.trim()); } catch (e) { pzF = null; } said = !pzF || !pzF.ok ? 'is no formula Save can keep, so Save drops it.' : 'rolls dice, and it is read with none, so Save drops it.'; }
         else if (typeof fitIfOk === 'function' && !fitIfOk({ fields: clean.fields, items: clean.items, core: clean.core, tables: clean.tables }, F(), cf, cf.list.parts.fitIf)) said = 'reads a GM-only value, here or through what it reads, so your players\u2019 sheets keep none of it and their parts are not judged by it. Yours are.';
         if (said) (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: 'Fits where ' + said });
+    });
+    draft.fields.forEach(function(f) {   // 1.6.2: a further rule of Fits where and a line of Holds by kind by a formula, as the cleaner reads them
+        if (!f || f.kind !== 'item-list' || !f.list || !f.list.parts) return;
+        var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0], cp = cf && cf.list ? cf.list.parts : null; if (!cp) return;
+        var gs = { fields: clean.fields, items: clean.items, core: clean.core, tables: clean.tables }, say = function(w) { (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: w }); };
+        var bad = function(name, t, rest) { var pz = null; try { pz = F().parse(t); } catch (e) { pz = null; } say(name + (!pz || !pz.ok ? ' is no formula Save can keep, so Save drops it.' : typeof hasDice === 'function' && pz.ast && hasDice(pz.ast.body) ? ' rolls dice, and it is read with none, so Save drops it.' : rest)); };
+        (Array.isArray(f.list.parts.fitMore) ? f.list.parts.fitMore : []).forEach(function(r, i) {
+            var t = r && typeof r['if'] === 'string' ? r['if'].trim() : '', nm = 'Fits where, rule ' + (i + 2); if (!t) return;
+            var kept = (Array.isArray(cp.fitMore) ? cp.fitMore : []).filter(function(x) { return x['if'] === t; })[0];
+            if (!kept) bad(nm, t, ' cannot be kept, so Save drops it.');
+            else if (typeof fitIfOk === 'function' && !fitIfOk(gs, F(), cf, t)) say(nm + ' reads a GM-only value, here or through what it reads, so your players\u2019 sheets keep none of it and their parts are not judged by it. Yours are.');
+        });
+        (Array.isArray(f.list.parts.caps) ? f.list.parts.caps : []).forEach(function(k, i) {
+            var t = k && typeof k.f === 'string' ? k.f.trim() : '', nm = 'Holds by kind, line ' + (i + 1); if (!t) return;
+            var kept = (Array.isArray(cp.caps) ? cp.caps : []).filter(function(x) { return x.f === t; })[0];
+            if (!kept) bad(nm, t, ' says nothing of what it counts yet, so Save drops the line.');
+            else if (typeof capFOk === 'function' && !capFOk(gs, F(), cf, t)) say(nm + ' reads a GM-only value, here or through what it reads, so your players\u2019 sheets keep none of it and their rows are not limited by it. Yours are.');
+        });
     });
     draft.fields.forEach(function(f) {   // 1.6.0 Specialties, as the cleaner reads it: a part that names no stat or column of the list goes
         if (!f || f.kind !== 'item-list' || !f.list || !f.list.specs || typeof f.list.specs !== 'object') return;
@@ -8349,7 +8396,7 @@ function itemModsBox(it, anyL, anyO) {
         box.appendChild(ln);
     });
     var add = el('button', 'tool ghost sys-btn', '+ Change'); add.dataset.act = 'itemmodadd'; add.title = 'Add a number to a field, or switch a toggle on, while a character carries it'; if (!targets.length) add.disabled = true; box.appendChild(add);
-    if (anyO && (it.mods || []).length) box.appendChild(checkLabel('sys-item-modson', it.modsOn === true, 'Only while switched on', 'Its changes count only while its row is switched on (Readied, Equipped\u2026)'));
+    if (anyO && ((it.mods || []).length || (it.rollSw || []).length)) box.appendChild(checkLabel('sys-item-modson', it.modsOn === true, 'Only while switched on', 'Its changes and its roll bonuses count only while its row is switched on (Readied, Equipped\u2026)'));
     return box;
 }
 // Stage 6 F4c1: an item's stat boxes — the stats of every list it can be on (its category among the list's, or a list with none), once per key
@@ -8483,6 +8530,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             var pfW = el('label', 'sys-check'), pfI = el('input', 'field sys-list-partsfitif'); pfI.type = 'text'; pfI.value = typeof sp.parts.fitIf === 'string' ? sp.parts.fitIf : ''; pfI.placeholder = 'every part fits'; pfI.spellcheck = false; pfI.autocomplete = 'off'; pfW.appendChild(document.createTextNode('Fits where ')); pfW.appendChild(pfI);   // 1.6.0 Fits where (the core handbook session's ask 18)
             pfW.title = 'A formula a part must meet to be fitted to a row: the part\u2019s own names as Row.*, the row it goes on as Host.*, and the character\u2019s, such as Row.Grip <= Host.Grip. A player is refused where it does not hold, and you are told. Blank: every part fits'; fl.appendChild(pfW);
             var pwW = el('label', 'sys-check'), pwI = el('input', 'field sys-list-partsfitwords'); pwI.type = 'text'; pwI.value = typeof sp.parts.fitIfSays === 'string' ? sp.parts.fitIfSays : ''; pwI.placeholder = 'Does not fit'; pwW.appendChild(document.createTextNode('Refused with ')); pwW.appendChild(pwI); pwW.title = 'The words a player is told when a part does not fit. Blank: the part, the row and the formula are named'; fl.appendChild(pwW);
+            if (typeof partFitsBox === 'function') fl.appendChild(partFitsBox(sp));   // 1.6.2: further rules, each with its own words
             var plW = el('label', 'sys-check'), plI = el('input', 'field sys-list-partslabel'); plI.type = 'text'; plI.value = sp.parts.label || ''; plI.placeholder = 'Part'; plW.appendChild(document.createTextNode('Add button says ')); plW.appendChild(plI); plW.title = 'The word on the button that adds a part, such as Option or Upgrade'; fl.appendChild(plW);
         }
     }
@@ -11826,7 +11874,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-partscap') >= 0) { if (lsc.parts) { if (t.value) lsc.parts.capBy = t.value; else delete lsc.parts.capBy; } }   // 1.6.0 (v2, B6): Holds as many as the row's stat
         else if (c.indexOf('sys-list-partsdeep') >= 0) { if (lsc.parts) { if (t.checked) lsc.parts.deep = true; else delete lsc.parts.deep; } }   // 205 (4): Parts hold parts
         else if (c.indexOf('sys-list-partsfitif') >= 0) { if (lsc.parts) { var pfv = String(t.value || '').trim(); if (pfv) lsc.parts.fitIf = pfv.slice(0, LIMITS.formula); else delete lsc.parts.fitIf; } }   // 1.6.0 Fits where (Save cleans it)
-        else if (c.indexOf('sys-list-partsfitwords') >= 0) { if (lsc.parts) { var pwv = String(t.value || '').trim(); if (pwv) lsc.parts.fitIfSays = pwv.slice(0, LIMITS.label); else delete lsc.parts.fitIfSays; } }
+        else if (c.indexOf('sys-list-partsfitwords') >= 0) { if (lsc.parts) { var pwv = String(t.value || '').trim(); if (pwv) lsc.parts.fitIfSays = pwv.slice(0, LIMITS.needsWords); else delete lsc.parts.fitIfSays; } }
         else if (c.indexOf('sys-list-partslabel') >= 0) { if (lsc.parts) { var plv = String(t.value || '').trim(); if (plv) lsc.parts.label = plv; else delete lsc.parts.label; } }
         else if (c.indexOf('sys-list-sets') >= 0) { if (t.value) lsc.sets = t.value; else delete lsc.sets; }   // 1.6.0 R15: Sets by
         else if (c.indexOf('sys-list-placeby') >= 0) { if (t.value) lsc.placeBy = t.value; else delete lsc.placeBy; }   // 1.6.0 R13: the places' ticks are then the stat's value names

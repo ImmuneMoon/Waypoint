@@ -43,6 +43,7 @@ var RE_CSBAD = /cs(-?\d+)/iy;
 var RE_EXPL = /!(?!=)/y;
 var RE_OWN = /!!(?!=)/y;                                 // 1.6.2: each die an explosion rolls is a die of its own. d6!!=3 stays d6! != 3, as it always read
 var RE_OWNOP = /<=|>=|<|>/y;
+var RE_DNAME = /@([\p{L}_][\p{L}\p{N}_]*)/uy;          // 1.6.2: a dice term's name, its last suffix: 5d10cs>=7@pool
 var RE_CMPF = /cs(<=|>=|!=|<>|==|=|<|>)\(/iy, RE_RERF = /(rr|r)(<=|>=|!=|<>|==|=|<|>)\(/iy;   // 1.6.2: a figure in brackets, read when the dice are rolled
 var SUFFIX_SHAPE = /^(?:(?:kh|kl|dh|dl)\d*|rr?(?:<=|>=|!=|<>|==|=|<|>)?-?\d+|cs\S*|!)$/i;
 function table(o) { return Object.assign(Object.create(null), o); }       // no prototype: a name called constructor is just a name
@@ -98,6 +99,7 @@ function lex(src) {
             }
             if ((mm = at(RE_CSBAD, p))) fail('cs needs a comparison, for example cs>=5.', p, mm[0].length);
             if ((mm = at(RE_EXPL, p))) { list.push({ kind: 'explode', pos: p, len: 1, text: '!' }); p += 1; continue; }
+            if ((mm = at(RE_DNAME, p))) { list.push({ kind: 'name', v: mm[1].toLowerCase(), pos: p, len: mm[0].length, text: mm[0] }); p += mm[0].length; }
             break;
         }
         return { list: list, end: p };
@@ -190,8 +192,14 @@ var FUNCS = table({
     floor: { min: 1, max: 1 }, ceil: { min: 1, max: 1 }, trunc: { min: 1, max: 1 }, round: { min: 1, max: 2 },
     abs: { min: 1, max: 1 }, sqrt: { min: 1, max: 1 }, min: { min: 1, max: Infinity }, max: { min: 1, max: Infinity },
     clamp: { min: 3, max: 3 }, mod: { min: 2, max: 2 }, 'if': { min: 3, max: 3 }, and: { min: 1, max: Infinity }, or: { min: 1, max: Infinity },
-    has: { min: 2, max: 2 }   // 1.6.0: has(set, n), a set of places (a list switch's over) holds place n, 1 to 16
+    has: { min: 2, max: 2 },   // 1.6.0: has(set, n), a set of places (a list switch's over) holds place n, 1 to 16
+    // 1.6.2: with(dice, ..., result) rolls dice to read and answers its last part; the rest read a group of dice named with @, and roll nothing
+    'with': { min: 2, max: 9 }, count: { min: 1, max: 1 }, high: { min: 1, max: 1 }, low: { min: 1, max: 1 }, nth: { min: 2, max: 2 }, best: { min: 2, max: 2 }, worst: { min: 2, max: 2 },
+    sets: { min: 1, max: 1 }, setface: { min: 1, max: 1 }, pairs: { min: 1, max: 1 }, total: { min: 1, max: 1 }, digit: { min: 2, max: 2 }
 });
+var DREADS = table({ count: 1, high: 1, low: 1, nth: 1, best: 1, worst: 1, sets: 1, setface: 1, pairs: 1, total: 1 });
+function groupArg(name, a) { return a && a.t === 'name' && !a.paren ? a : name === 'count' && a && a.t === 'cmp' && a.l && a.l.t === 'name' && !a.l.paren ? a.l : null; }
+function topOf(n) { while (n && n.t === 'call' && n.name === 'with') n = n.args[n.args.length - 1]; return n; }   // what a roll's check is judged on, past any with()
 function arityText(name, f) {
     if (f.min === f.max) return name + ' takes ' + f.min + ' argument' + (f.min === 1 ? '' : 's');
     if (f.max === Infinity) return name + ' takes at least ' + f.min + ' argument' + (f.min === 1 ? '' : 's');
@@ -368,6 +376,7 @@ Parser.prototype.call = function(nameTok, pos) {
     this.leave();
     var node = this.finish({ t: 'call', name: nameTok.v, text: nameTok.text, args: args }, pos);
     if (args.length < f.min || args.length > f.max) fail(arityText(nameTok.text, f) + ', got ' + args.length + '.', node.pos, node.len);
+    if (DREADS[node.name]) { var ga = groupArg(node.name, args[0]); if (!ga) fail(nameTok.text + ' reads dice named with @, as in ' + nameTok.text + '(pool).', node.pos, node.len); node.group = ga.v; node.groupText = ga.text; }
     return node;
 };
 // 1.6.2: a modifier's figure, a formula of its own in the same text, so that an error points at it. It rolls no dice: a roll has one set of dice
@@ -398,6 +407,8 @@ Parser.prototype.diceNode = function(count, faces, suffixes, pos) {
         } else if (s.kind === 'explode') {
             if (node.explode) fail('! given twice.', s.pos, s.len);
             node.explode = s;
+        } else if (s.kind === 'name') {
+            node.as = s.v;
         } else {
             if (node.cs) fail('cs given twice.', s.pos, s.len);
             node.cs = s;
@@ -405,12 +416,14 @@ Parser.prototype.diceNode = function(count, faces, suffixes, pos) {
     }
     this.finish(node, pos);
     node.text = this.srcOf(node);
+    if (node.as) node.text = node.text.slice(0, node.text.lastIndexOf('@'));   // the name is the formula's own, and no card says it
     return node;
 };
 
 function collectNames(node, out, seen) {
     if (!node || typeof node !== 'object') return;
     if (node.t === 'name') { if (!seen[node.v]) { seen[node.v] = true; out.push(node.text); } return; }
+    if (node.t === 'call' && DREADS[node.name]) { if (node.args[0].t === 'cmp') collectNames(node.args[0].r, out, seen); for (var d = 1; d < node.args.length; d++) collectNames(node.args[d], out, seen); return; }   // 1.6.2: a group of dice is no name of the sheet
     if (node.t === 'dice') { collectNames(node.count, out, seen); if (node.faces !== 'F') collectNames(node.faces, out, seen); [node.keep, node.reroll, node.explode, node.cs].forEach(function(m) { if (m && m.expr) collectNames(m.expr, out, seen); }); return; }
     if (node.items) for (var i = 0; i < node.items.length; i++) collectNames(node.items[i].node || node.items[i], out, seen);
     if (node.args) for (var a = 0; a < node.args.length; a++) collectNames(node.args[a], out, seen);
@@ -419,6 +432,16 @@ function collectNames(node, out, seen) {
     if (node.body) collectNames(node.body, out, seen);
 }
 
+// 1.6.2: the groups of dice a formula names, and those it reads
+function diceGroups(node, made, read) {
+    if (!node || typeof node !== 'object') return;
+    if (node.t === 'dice') { if (node.as && made.indexOf(node.as) < 0) made.push(node.as); return; }
+    if (node.t === 'call' && node.group && read.indexOf(node.group) < 0) read.push(node.group);
+    if (node.items) for (var i = 0; i < node.items.length; i++) diceGroups(node.items[i].node || node.items[i], made, read);
+    if (node.args) for (var a = 0; a < node.args.length; a++) diceGroups(node.args[a], made, read);
+    if (node.a) diceGroups(node.a, made, read);
+    if (node.l) { diceGroups(node.l, made, read); diceGroups(node.r, made, read); }
+}
 function parse(text) {
     try {
         if (typeof text !== 'string') text = text === undefined || text === null ? '' : String(text);
@@ -429,9 +452,9 @@ function parse(text) {
         var body = p.expr();
         var t = p.peek();
         if (t.t !== 'eof') { if (t.t === 'op' && t.v === ')') fail('Unexpected ")".', t.pos, 1); fail('Unexpected ' + q(t.text) + '.', t.pos, t.len || 1); }
-        var ast = { t: 'root', body: body, src: text, pos: 0, len: text.length }, names = [];
-        collectNames(body, names, Object.create(null));
-        return { ok: true, ast: ast, names: names };
+        var ast = { t: 'root', body: body, top: topOf(body), src: text, pos: 0, len: text.length }, names = [], made = [], read = [];
+        collectNames(body, names, Object.create(null)); diceGroups(body, made, read);
+        return { ok: true, ast: ast, names: names, groups: made, reads: read };
     } catch (e) {
         if (e instanceof FormulaError) return { ok: false, error: { message: e.message, pos: e.pos, len: e.len } };
         return { ok: false, error: { message: 'The formula could not be evaluated.', pos: 0, len: 0 } };
@@ -495,6 +518,8 @@ function Ctx(ast, options) {
     this.stack = Array.isArray(options.stack) ? options.stack.map(function(s) { return String(s).toLowerCase(); }) : [];
     this.draws = []; this.dice = []; this.checks = []; this.names = []; this.pool = 0;
     this.recs = new Map();
+    this.top = topOf(ast.body); this.aside = 0;
+    this.groups = typeof options.vars === 'function' && Array.isArray(options.vars.diceGroups) ? options.vars.diceGroups : [];   // the roll's own, where a band or a change of it reads them
 }
 Ctx.prototype.draw = function(faces, fudge, node) {
     var raw = this.random(fudge ? 3 : faces), top = fudge ? 3 : faces;
@@ -571,6 +596,7 @@ function rollDice(node, c) {
     c.pool += count;
     var lo = fudge ? -1 : 1, hi = fudge ? 1 : faces, facesText = fudge ? 'dF' : 'd' + faces;
     var rec = { text: node.text, count: count, faces: fudge ? 'F' : faces, rolls: [], kept: [], dropped: [], rerolled: [], exploded: [], capped: false, cs: null, total: 0, dice: [], pos: node.pos, len: node.len };
+    if (node.as) rec.as = node.as; if (c.aside) rec.aside = true;
     var idx = c.dice.length; c.dice.push(rec); c.recs.set(node, { dice: idx, value: 0 });
     if (count === 0) return 0;
     if (node.explode) {
@@ -675,9 +701,9 @@ function ev(node, c) {
         case 'cmp': {
             var d0 = c.dice.length, L = ev(node.l, c), lRolled = c.dice.length > d0, d1 = c.dice.length, R = ev(node.r, c), rRolled = c.dice.length > d1;
             var ln = num(L), rn = num(R), pass = meets(node.op, ln, rn);
-            if (lRolled || rRolled || node === c.ast.body) {   // 1.6.2: a roll's top comparison is its check whether or not it rolls a die, so a figure against a figure has a success and a failure
+            if (lRolled || rRolled || node === c.top) {   // 1.6.2: a roll's top comparison is its check whether or not it rolls a die, so a figure against a figure has a success and a failure
                 var margin = (node.op === '>' || node.op === '>=') ? ln - rn : (node.op === '<' || node.op === '<=') ? rn - ln : Math.abs(ln - rn);
-                var chk = { left: ln, op: node.op, right: rn, pass: pass, margin: margin, top: node === c.ast.body };
+                var chk = { left: ln, op: node.op, right: rn, pass: pass, margin: margin, top: node === c.top };
                 c.checks.push(chk); c.recs.set(node, { check: chk, lRolled: lRolled, rRolled: rRolled });
             }
             return pass;
@@ -692,10 +718,42 @@ function ev(node, c) {
     }
     fail('The formula could not be evaluated.', 0, 0);
 }
+// 1.6.2: a group of dice named with @, the dice it kept, highest first. It is this formula's own, else the roll's, where a band or a change of it reads one
+function groupOf(node, c) {
+    var g = null, i;
+    for (i = c.dice.length - 1; i >= 0 && !g; i--) if (c.dice[i].as === node.group) g = c.dice[i];
+    for (i = 0; i < c.groups.length && !g; i++) if (c.groups[i] && c.groups[i].as === node.group) g = c.groups[i];
+    if (!g) fail('No dice called ' + q(node.groupText) + ' in this roll.', node.pos, node.len);
+    return { rec: g, kept: (Array.isArray(g.dice) ? g.dice : []).filter(function(d) { return d && d.kept; }).map(function(d) { return d.value; }).sort(function(p, r) { return r - p; }) };
+}
+function readGroup(node, c) {
+    var g = groupOf(node, c), k = g.kept, a = node.args, name = node.name, n = 0, i, cnt = Object.create(null);
+    function want() { var v = num(ev(a[1], c)); if (!isInt(v) || v < 0) fail(node.text + ': a place is a whole number from 0 up, got ' + fmt(v) + '.', a[1].pos, a[1].len); return v; }
+    k.forEach(function(v) { cnt[v] = (cnt[v] || 0) + 1; });
+    switch (name) {
+        case 'count': {
+            if (a[0].t !== 'cmp') { n = k.length; break; }
+            var t = num(ev(a[0].r, c)); k.forEach(function(v) { if (meets(a[0].op, v, t)) n++; }); break;
+        }
+        case 'high': n = k.length ? k[0] : 0; break;
+        case 'low': n = k.length ? k[k.length - 1] : 0; break;
+        case 'nth': { var w = want(); n = w >= 1 && w <= k.length ? k[w - 1] : 0; break; }
+        case 'best': case 'worst': { var w2 = want(); (name === 'best' ? k.slice(0, w2) : k.slice(k.length - Math.min(w2, k.length))).forEach(function(v) { n += v; }); break; }
+        case 'sets': Object.keys(cnt).forEach(function(f) { n = Math.max(n, cnt[f]); }); break;
+        case 'setface': { var most = 0; k.forEach(function(v) { if (cnt[v] > most) { most = cnt[v]; n = v; } }); break; }   // highest first, so a tie goes to the higher face
+        case 'pairs': Object.keys(cnt).forEach(function(f) { n += Math.floor(cnt[f] / 2); }); break;
+        case 'total': n = typeof g.rec.total === 'number' ? g.rec.total : 0; break;
+    }
+    c.recs.set(node, { read: true, value: n });
+    return n;
+}
 function callFn(node, c) {
     var a = node.args, name = node.name, x, i;
     function arg(k) { return num(ev(a[k], c)); }
+    if (DREADS[name]) return readGroup(node, c);
     switch (name) {
+        case 'with': { c.aside++; for (i = 0; i < a.length - 1; i++) ev(a[i], c); c.aside--; return ev(a[a.length - 1], c); }
+        case 'digit': { x = arg(0); var pl = arg(1); if (!isInt(pl) || pl < 1 || pl > 15) fail('digit: a place is a whole number from 1 to 15.', a[1].pos, a[1].len); return Math.floor(Math.abs(x) / Math.pow(10, pl - 1)) % 10; }
         case 'if': return ev(a[truthy(ev(a[0], c)) ? 1 : 2], c);
         case 'and': case 'or': {
             var isAnd = name === 'and';
@@ -785,6 +843,7 @@ function render(node, c, out) {                       // appends strings and { d
             out.push(node.text + '(');
             for (i = 0; i < node.args.length; i++) { if (i) out.push(', '); render(node.args[i], c, out); }
             out.push(')');
+            if (r && r.read) out.push(' (' + fmt(r.value) + ')');
             break;
     }
     if (node.paren) out.push(')');
@@ -821,7 +880,7 @@ function evaluateAst(ast, options) {
         }
         var dice = c.dice.map(function(rec) {
             return { text: rec.text, count: rec.count, faces: rec.faces, rolls: rec.rolls, kept: rec.kept, dropped: rec.dropped, rerolled: rec.rerolled, exploded: rec.exploded,
-                     capped: rec.capped, cs: rec.cs, total: rec.total, dice: rec.dice, pos: rec.pos, len: rec.len };
+                     capped: rec.capped, cs: rec.cs, total: rec.total, dice: rec.dice, pos: rec.pos, len: rec.len, as: rec.as, aside: rec.aside };
         });
         var summary = top ? fmt(top.left) + ' ' + top.op + ' ' + fmt(top.right) + ': ' + verdict(top) : '= ' + fmt(value);
         return { ok: true, value: value, type: typeof value === 'boolean' ? 'boolean' : 'number', diceRolled: c.pool, draws: c.draws,

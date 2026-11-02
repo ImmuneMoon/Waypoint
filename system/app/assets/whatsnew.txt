@@ -37,6 +37,10 @@ At the table
 - Result bands name a roll by how it went, as a strong hit, a weak hit or a
   miss. Each is a name and a formula, and a change of a roll can hang on one. A
   roll can also read RollTotal and Natural.
+- One set of dice can be read twice. Name it with @, as in 5d10@pool, and read
+  it with count, high, low, nth, best, worst, sets, setface, pairs or total. A
+  roll's bands and changes read it too, with no new roll, and with() rolls dice
+  to read later without adding them to the result.
 - A roll's top comparison is a check even with no dice in it, so Might >=
   Target.Might has a success and a failure, and its Then runs by them.
 - A dice modifier reads the sheet from brackets: (Pool)d10kh(Keep) and

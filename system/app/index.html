@@ -1862,6 +1862,15 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><code>(Level)d6</code> and <code>d(Faces)</code> take a computed count or faces.</li>
                           <li>A modifier reads the sheet from brackets, as in <code>(Pool)d10kh(Keep)</code> or <code>(Pool)d6cs&gt;=(Target)</code>. A figure in brackets rolls no dice.</li>
                           <li>A keep past a computed pool keeps what the pool has, so a pool that shrinks in play goes on rolling.</li>
+                          <li><b>Dice read twice.</b> Name a group of dice with <code>@</code>, as in <code>5d10@pool</code>. A formula then reads that same group with no new roll.
+                            <ul>
+                              <li><code>count(pool &gt;= 7)</code> counts the dice that pass. <code>high(pool)</code> and <code>low(pool)</code> give the highest and the lowest.</li>
+                              <li><code>nth(pool, 2)</code> gives the second highest. <code>best(pool, 2)</code> adds the two highest, and <code>worst(pool, 2)</code> the two lowest.</li>
+                              <li><code>sets(pool)</code> gives the most dice that match, <code>setface(pool)</code> the face they show, and <code>pairs(pool)</code> how many pairs there are.</li>
+                              <li><code>total(pool)</code> gives the group&rsquo;s total. <code>digit(RollTotal, 2)</code> gives one digit of a number, 1 for the units and 2 for the tens.</li>
+                              <li><code>with(2d10@c, 1d6 + Skill)</code> rolls dice to read later. They are not added to the result and are not the roll&rsquo;s own dice.</li>
+                              <li>A roll&rsquo;s bands and its changes read the same names, so a band can say <code>count(c &lt; RollTotal) = 2</code>.</li>
+                            </ul></li>
                           <li>Case does not matter. Modifiers must touch the dice: write <code>4d6kh3</code>, not <code>4d6 kh3</code>.</li>
                           <li>Names such as <b>STR</b> or <b>Skill.Stealth</b> are the fields of the campaign&rsquo;s system. Help &#9656; Character sheets tells of them.
                               <ul>

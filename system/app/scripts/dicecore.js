@@ -51,6 +51,7 @@ function cleanExpr(s) {
 // split at its top-level operator (the parser allows only one): roll-OVER (>,>=,=,!=) boosts the roll (left)
 // side; roll-UNDER (<,<=) eases the target (right) side. The result is re-parsed so a broken formula is never
 // produced — and, since it is just a longer formula string, the host resolves it through the normal wire path.
+function mainDice(res) { return (res && res.ok && res.breakdown && Array.isArray(res.breakdown.dice) ? res.breakdown.dice : []).filter(function(d) { return !d || !d.aside; }); }   // 1.6.2: dice with() rolled to read are no part of the roll's own
 function composeModifier(expr, mod, parse) {
     if (typeof parse !== 'function') return { ok: false };
     var clean = cleanExpr(expr); if (!clean) return { ok: false };
@@ -58,14 +59,17 @@ function composeModifier(expr, mod, parse) {
     if (mod === 0) return { ok: true, expr: clean };   // nothing to fold in
     var modTxt = (mod > 0 ? ' + ' : ' - ') + Math.abs(mod), out;
     var p = null; try { p = parse(clean); } catch (e) { p = null; }
-    var body = p && p.ok && p.ast ? p.ast.body : null;
+    var body = p && p.ok && p.ast ? p.ast.body : null, top = p && p.ok && p.ast && p.ast.top ? p.ast.top : body, inW = top !== body && top && isInt(top.pos) && isInt(top.len);   // 1.6.2: inside with(), the comparison's own span
+    var from = inW ? top.pos : 0, to = inW ? top.pos + top.len : clean.length;
+    if (inW && top.t !== 'cmp') body = null;
+    else if (inW) body = top;
     if (body && body.t === 'cmp' && isInt(body.opPos) && isInt(body.opLen)) {
-        var left = clean.slice(0, body.opPos).trim();
+        var left = clean.slice(from, body.opPos).trim();
         var opTxt = clean.slice(body.opPos, body.opPos + body.opLen).trim();
-        var right = clean.slice(body.opPos + body.opLen).trim();
+        var right = clean.slice(body.opPos + body.opLen, to).trim();
         if (!left || !opTxt || !right) out = '(' + clean + ')' + modTxt;
-        else if (body.op === '<' || body.op === '<=') out = left + ' ' + opTxt + ' (' + right + ')' + modTxt;   // roll-under: a bonus raises the target
-        else out = '(' + left + ')' + modTxt + ' ' + opTxt + ' ' + right;                                       // roll-over / = / !=: a bonus lifts the roll
+        else if (body.op === '<' || body.op === '<=') out = clean.slice(0, from) + left + ' ' + opTxt + ' (' + right + ')' + modTxt + clean.slice(to);   // roll-under: a bonus raises the target
+        else out = clean.slice(0, from) + '(' + left + ')' + modTxt + ' ' + opTxt + ' ' + right + clean.slice(to);                                       // roll-over / = / !=: a bonus lifts the roll
     } else out = '(' + clean + ')' + modTxt;                                                                     // a value roll (or unparseable): safe additive append
     var cc = cleanExpr(out); if (!cc) return { ok: false };
     var q = null; try { q = parse(cc); } catch (e2) { q = null; }
@@ -111,8 +115,8 @@ function withAdvantage(expr, mode, parse) {
     if (dice.length !== 1) return { ok: false };
     var d = dice[0], countOne = d.count === null || (d.count && d.count.t === 'num' && d.count.v === 1);
     if (!countOne || d.keep || !d.faces || d.faces === 'F' || d.faces.t !== 'num' || !isInt(d.pos) || !isInt(d.len)) return { ok: false };
-    var low = lowGood(p.ast.body, d);
-    var out = clean.slice(0, d.pos) + '2d' + d.faces.text + ((mode === 'adv') !== low ? 'kh1' : 'kl1') + clean.slice(d.pos + d.len);
+    var low = lowGood(p.ast.top || p.ast.body, d);
+    var out = clean.slice(0, d.pos) + '2d' + d.faces.text + ((mode === 'adv') !== low ? 'kh1' : 'kl1') + (d.as ? '@' + d.as : '') + clean.slice(d.pos + d.len);
     var cc = cleanExpr(out); if (!cc) return { ok: false };
     var q = null; try { q = parse(cc); } catch (e2) { q = null; }
     if (!q || !q.ok) return { ok: false };
@@ -510,10 +514,10 @@ function parseCommand(text) {
 // (the natural total, nothing added): 3-4 are a critical success, 5 one at a target of 15 or more, 6 at 16 or more; 17 fails (critically at a
 // target of 15 or less), 18 always fails critically, and so does failing by 10 or more. { total, target, pass, crit: 'crit' | 'fumble' | '' } or null
 function under3d6(res) {
-    if (!res || !res.ok || !res.breakdown || !Array.isArray(res.breakdown.dice) || res.breakdown.dice.length !== 1) return null;
+    var main = mainDice(res); if (main.length !== 1) return null;
     var top = null, checks = Array.isArray(res.breakdown.checks) ? res.breakdown.checks : []; for (var i = 0; i < checks.length; i++) if (checks[i] && checks[i].top) top = checks[i];
     if (!top || top.op !== '<=' || typeof top.left !== 'number' || typeof top.right !== 'number' || !isFinite(top.right)) return null;
-    var rec = res.breakdown.dice[0]; if (!rec || rec.count !== 3 || rec.faces !== 6 || rec.cs || !Array.isArray(rec.dice) || rec.dice.length !== 3) return null;
+    var rec = main[0]; if (!rec || rec.count !== 3 || rec.faces !== 6 || rec.cs || !Array.isArray(rec.dice) || rec.dice.length !== 3) return null;
     if (rec.dice.some(function(d) { return !d || !d.kept || (Array.isArray(d.hist) && d.hist.length > 1) || (Array.isArray(d.chain) && d.chain.length > 1); })) return null;
     var t = rec.total, T = top.right; if (typeof t !== 'number' || top.left !== t) return null;   // something added to the dice: an ordinary check
     if (t <= 4 || (t === 5 && T >= 15) || (t === 6 && T >= 16)) return { total: t, target: T, pass: true, crit: 'crit' };
@@ -532,8 +536,8 @@ function cleanCrit(v) {
 }
 function isFixedRule(rule) { return !!rule && typeof rule === 'object' && !Array.isArray(rule) && isInt(rule.at) && isInt(rule.fumble); }
 function fixedCrit(res, rule) {
-    if (!isFixedRule(rule) || !res || !res.ok || !res.breakdown || !Array.isArray(res.breakdown.dice) || !res.breakdown.dice.length) return null;
-    if (res.breakdown.dice.some(function(d) { return !d || d.cs; })) return null;
+    var main = mainDice(res); if (!isFixedRule(rule) || !main.length) return null;
+    if (main.some(function(d) { return !d || d.cs; })) return null;
     var top = null, checks = Array.isArray(res.breakdown.checks) ? res.breakdown.checks : []; for (var i = 0; i < checks.length; i++) if (checks[i] && checks[i].top) top = checks[i];
     if (!top) return null;
     var up = rule.high === true, n = naturalOf(res), lo = up ? n >= rule.at : n <= rule.at, hi = up ? n <= rule.fumble : n >= rule.fumble, pass = !!top.pass;
@@ -584,8 +588,8 @@ function fmtNum(v) {
 function critOf(res, rule) {
     var u3 = rule === 'under3d6' ? under3d6(res) : null; if (u3) return u3.crit || null;
     if (isFixedRule(rule)) { var fx = fixedCrit(res, rule); return fx && fx.crit ? fx.crit : null; }   // 1.6.0: under criticals at fixed rolls nothing else is a critical
-    if (!res || !res.ok || !res.breakdown || !Array.isArray(res.breakdown.dice) || res.breakdown.dice.length !== 1) return null;
-    var rec = res.breakdown.dice[0];
+    var main = mainDice(res); if (main.length !== 1) return null;
+    var rec = main[0];
     if (!rec || rec.count !== 1 || rec.faces !== 20 || !Array.isArray(rec.dice) || rec.dice.length !== 1 || rec.cs) return null;
     var die = rec.dice[0];
     if (!die || !die.kept || (Array.isArray(die.hist) && die.hist.length > 1) || (Array.isArray(die.chain) && die.chain.length > 1)) return null;
@@ -642,7 +646,7 @@ function cardText(rec, res, F, opts) {
 }
 // Stage 6 HUD R3: a roll's natural total — the dice alone, every term's kept total (3d6 <= Skill: the three dice; d20 + Hit: the d20) — and
 // whether a record's malfunction threshold (rec.malf) is reached by it (his reference weapon: a natural total at or past its Malf)
-function naturalOf(res) { return (res && res.ok && res.breakdown && Array.isArray(res.breakdown.dice) ? res.breakdown.dice : []).reduce(function(s, d) { return s + (d && typeof d.total === 'number' && isFinite(d.total) ? d.total : 0); }, 0); }
+function naturalOf(res) { return mainDice(res).reduce(function(s, d) { return s + (d && typeof d.total === 'number' && isFinite(d.total) ? d.total : 0); }, 0); }
 function malfOf(rec, res) { return !!(rec && isInt(rec.malf) && res && res.ok && naturalOf(res) >= rec.malf); }
 function malfWords(rec) { return rec && rec.malfHid === 1 ? 'malfunction' : 'malfunction (Malf ' + (rec ? rec.malf : '') + ')'; }   // what a card says of it, the one place
 // Chat cards (owner 2026-09-27): the colours a card takes from a system's sheet look — a palette's primary, good, danger (bad), muted and the

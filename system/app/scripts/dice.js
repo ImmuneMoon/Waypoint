@@ -31,8 +31,9 @@ function readableInto(brk, res, parts, expr) {
     var groups = parts.filter(function(p) { return p && typeof p === 'object' && p.die; }), b = res.breakdown || {}, top = null;
     (Array.isArray(b.checks) ? b.checks : []).forEach(function(c) { if (c && c.top) top = c; });
     groups.forEach(function(p, i) {
-        if (i) brk.appendChild(document.createTextNode(' + '));
-        var d = p.die, head = d && typeof d.count === 'number' && d.faces !== undefined ? d.count + 'd' + d.faces + ' ' : '';
+        var d = p.die, was = i ? groups[i - 1].die : null;
+        if (i) brk.appendChild(document.createTextNode((d && d.aside) || (was && was.aside) ? ' \u00b7 ' : ' + '));   // 1.6.2: dice rolled to read are not added to the roll's
+        var head = d && typeof d.count === 'number' && d.faces !== undefined ? d.count + 'd' + d.faces + ' ' : '';
         brk.appendChild(document.createTextNode(head + '['));
         brk.appendChild(el('span', 'roll-die', p.text));
         brk.appendChild(document.createTextNode(']'));

@@ -347,6 +347,33 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('crypto restored', typeof globalThis.crypto === 'object');
     }
 
+    /* ---- 1.6.2: one set of dice read twice (backlog 210 (a)) ---- */
+    {
+        const R = (text, draws, opts) => ev(text, Object.assign({ random: scripted(draws) }, opts || {}));
+        const v = (text, draws, opts) => { const r = R(text, draws, opts); return r.ok ? r.value : 'ERR: ' + r.error.message; };
+        check('a dice term takes a name as its last suffix, and reading it rolls nothing: count, high, low, nth, best, worst, sets, setface, pairs and total, over the dice the group kept',
+            v('5d10@p + count(p >= 7)', [7, 3, 9, 7, 1]) === 27 + 3 && v('with(5d10@p, high(p))', [7, 3, 9, 7, 1]) === 9 && v('with(5d10@p, low(p))', [7, 3, 9, 7, 1]) === 1
+            && v('with(5d10@p, nth(p, 2))', [7, 3, 9, 7, 1]) === 7 && v('with(5d10@p, nth(p, 9))', [7, 3, 9, 7, 1]) === 0 && v('with(5d10@p, best(p, 2))', [7, 3, 9, 7, 1]) === 16 && v('with(5d10@p, worst(p, 2))', [7, 3, 9, 7, 1]) === 4
+            && v('with(5d10@p, best(p, 9))', [7, 3, 9, 7, 1]) === 27 && v('with(5d10@p, sets(p))', [7, 3, 9, 7, 1]) === 2 && v('with(5d10@p, setface(p))', [7, 3, 9, 7, 1]) === 7 && v('with(4d6@p, setface(p))', [2, 5, 2, 5]) === 5
+            && v('with(5d10@p, pairs(p))', [4, 4, 4, 4, 1]) === 2 && v('with(5d10@p, total(p))', [7, 3, 9, 7, 1]) === 27 && v('with(4d6dl1@p, count(p))', [1, 2, 3, 4]) === 3 && v('with(3d6cs>=5@p, total(p))', [5, 6, 1]) === 2, v('5d10@p + count(p >= 7)', [7, 3, 9, 7, 1]));
+        check('a test may read the sheet, and digit reads a place of a number',
+            v('with(3d10@p, count(p >= Aim))', [2, 6, 8], { vars: { Aim: 6 } }) === 2 && F.names('with(3d10@p, count(p >= Aim))').join() === 'Aim' && v('digit(47, 1)') === 7 && v('digit(47, 2)') === 4 && v('digit(47, 3)') === 0 && v('digit(0 - 47, 2)') === 4
+            && /whole number from 1 to 15/.test(v('digit(47, 0)')));
+        const pp = F.parse('with(2d10kh1@c, 1d6@a + 1 >= high(c))');
+        check('parse names the groups and what is read, and a group is no name of the sheet; a read that names nothing, or not a group, is refused in words',
+            pp.ok && pp.groups.join() === 'c,a' && pp.reads.join() === 'c' && pp.names.length === 0 && /No dice called "z" in this roll/.test(v('high(z)'))
+            && /count reads dice named with @/.test(F.parse('count(1 + 2)').error.message) && /high reads dice named with @/.test(F.parse('high(2d6)').error.message) && /high reads dice named with @/.test(F.parse('high((p))').error.message));
+        const w = R('with(2d10@c, 1d6 + 1 >= high(c))', [3, 8, 6]);
+        check('with() rolls in order, its dice marked aside, and its last part is the roll: a comparison there is the check, whole, with no name on the card',
+            w.ok && w.value === false && w.breakdown.checks.filter(c => c.top).length === 1 && w.breakdown.dice[0].aside === true && w.breakdown.dice[0].as === 'c' && !w.breakdown.dice[1].aside && !/@/.test(w.breakdown.text) && /high\(c\) \(8\)/.test(w.breakdown.text), j(w));
+        const gs = R('5d10@p', [7, 3, 9, 7, 1]), vars = Object.assign(() => undefined, { diceGroups: gs.breakdown.dice });
+        check('what a roll named is read by a formula handed its groups, with no new roll, and another formula of that roll has no dice to read without them',
+            F.evaluate('count(p >= 7) + high(p)', { vars: vars, random: throwing() }).value === 12 && F.evaluate('sets(p)', { vars: vars, random: throwing() }).value === 2 && !F.evaluate('sets(p)', { vars: () => undefined, random: throwing() }).ok);
+        const rp = F.evaluate('with(2d10@c, 1d6 + 1)', { random: F.fromDraws(R('with(2d10@c, 1d6 + 1)', [3, 8, 6]).draws) });
+        check('a stored roll replays with its dice in the same order', rp.ok && rp.value === 7, j(rp));
+        check('a name is the last suffix, so a modifier after it is refused, and a term with no name and a field called count read as they did', !F.parse('5d10@p!').ok && F.parse('5d10cs>=7@p').ok && v('2d6', [3, 2]) === 5 && v('count', [], { vars: { count: 4 } }) === 4 && v('count + 1', [], { vars: { count: 4 } }) === 5, j(F.parse('5d10@p!')));
+    }
+
     /* ---- group 11b: publication under a window ---- */
     global.window = {};
     const F2 = await import(url + '?x');

@@ -5118,12 +5118,13 @@ function rollTotalOf(res) {
     var cs = isObj(res.breakdown) && Array.isArray(res.breakdown.checks) ? res.breakdown.checks : [], top = null; cs.forEach(function(c) { if (isObj(c) && c.top) top = c; });
     return top && typeof top.left === 'number' && fin(top.left) ? top.left : 0;
 }
-function rollNaturalOf(res) { return (isObj(res) && res.ok && isObj(res.breakdown) && Array.isArray(res.breakdown.dice) ? res.breakdown.dice : []).reduce(function(s, d) { return s + (isObj(d) && typeof d.total === 'number' && fin(d.total) ? d.total : 0); }, 0); }
+function rollNaturalOf(res) { return (isObj(res) && res.ok && isObj(res.breakdown) && Array.isArray(res.breakdown.dice) ? res.breakdown.dice : []).reduce(function(s, d) { return s + (isObj(d) && !d.aside && typeof d.total === 'number' && fin(d.total) ? d.total : 0); }, 0); }
 function withRollCrit(vars, crit, margin, big, res) {   // 1.6.0: and RollBig, 1 where the roll lands as a Big Hit (bigOf), else 0. 1.6.2: and RollTotal and Natural, where the roll's result is handed in
     if (typeof vars !== 'function') return vars;
     var k = crit === 'crit' ? 1 : crit === 'fumble' ? -1 : 0, mg = typeof margin === 'number' && fin(margin) ? Math.max(-1e6, Math.min(1e6, margin)) : 0;
     var w = function(l, t) { var v = vars(l, t); if (v !== undefined) return v; var n = String(l).toLowerCase(); return n === 'rollcrit' ? k : n === 'rollmargin' ? mg : n === 'rollbig' ? (big === true ? 1 : 0) : res !== undefined && n === 'rolltotal' ? rollTotalOf(res) : res !== undefined && n === 'natural' ? rollNaturalOf(res) : v; };
     Object.keys(vars).forEach(function(p) { w[p] = vars[p]; });
+    if (isObj(res) && isObj(res.breakdown) && Array.isArray(res.breakdown.dice)) w.diceGroups = res.breakdown.dice.filter(function(d) { return isObj(d) && typeof d.as === 'string'; });   // 1.6.2: the roll's named dice, for a band and a change to read with no new roll
     return w;
 }
 // 1.6.0 (the owner's ruling after the hand test: "I'd refuse before the roll. Dice that can never pay off are a false promise"): what a list roll's Then
@@ -9811,6 +9812,8 @@ function validateSystem(sys, F) {
     if (dmgV) { (Array.isArray(dmgV.onMajor) ? dmgV.onMajor : [dmgV.onMajor]).forEach(function(w) { if (isObj(w) && typeof w.roll === 'string') blowRolls[w.roll] = 1; });   // 1.6.0: each of onMajor's rows
         (Array.isArray(dmgV.onWound) ? dmgV.onWound : []).forEach(function(w) { if (isObj(w) && typeof w.roll === 'string') blowRolls[w.roll] = 1; }); }
     var crossV = false;   // 1.6.0: the entry being read runs When a value crosses, so CrossStep and Crossed are known in it (never in its own steps)
+    var rollG = null;   // 1.6.2: the entry being read's named dice, which its Then and its bands read; null where any roll may hold them (the Combat tab's bands)
+    var rollGroups = function(fm) { var p = F && typeof fm === 'string' && fm ? F.parse(fm) : null; return p && p.ok && Array.isArray(p.groups) ? p.groups : []; };
     var nearV = false;   // 1.5.9 (book es/et plan, section 3): the entry being read Applies to an adjacent character, so OnSelf is known in it
     var byIfV = false;   // 1.6.0: a call's Read on the one who resisted is being read, so a row is known in it only where it names a list's roll
     function isApplyProp(p) { return typeof p === 'string' && (p.indexOf('apply.') === 0 || p.indexOf('list.apply.') === 0 || p.indexOf('then.') === 0 || p.indexOf('list.then.') === 0); }   // R2b: a list roll's consequence too   // R1: a roll's consequence too   // Stage 6 HUD H7: an apply action's amount (no dice, no loop edge: nothing reads an action)
@@ -9828,6 +9831,10 @@ function validateSystem(sys, F) {
         if (!p.ok) { errors.push({ id: owner.id, prop: prop, message: p.error.message, pos: p.error.pos, len: p.error.len }); return; }
         if (!allowDice && hasDice(p.ast.body)) { errors.push({ id: owner.id, prop: prop, message: isApplyProp(prop) ? 'An amount cannot roll dice: roll first, and let the amount read the field the result goes in.' : 'Dice are not allowed in a definition; put the dice in a roll.', pos: 0, len: text.length }); }
         bareCmp(owner, prop, text);   // 1.6.0: a comparison of Posture or Blow.type with a bare number
+        (Array.isArray(p.reads) ? p.reads : []).forEach(function(g) {   // 1.6.2: named dice are this formula's own, or the roll's in its Then and its bands
+            if (p.groups.indexOf(g) >= 0 || (/(^|\.)(then|band)\./.test(prop) && (rollG === null || rollG.indexOf(g) >= 0))) return;
+            errors.push({ id: owner.id, prop: prop, message: 'No dice called "' + g + '" here. Name them with @ in this roll\u2019s formula.', pos: Math.max(0, lower(text).indexOf(g)), len: g.length });
+        });
         p.names.forEach(function(n) {
             var l = lower(n), target = known[l];
             if (!target && (l === 'rolltotal' || l === 'natural') && /(^|\.)(then|band)\./.test(prop)) target = { id: '', key: l === 'natural' ? 'Natural' : 'RollTotal', kind: 'number', vis: 'all', noEdge: true };   // 1.6.2: what the roll came to, and its dice alone
@@ -9911,9 +9918,9 @@ function validateSystem(sys, F) {
         if (typeof c.s === 'string' && !(isObj(lf.list) && Array.isArray(lf.list.stats) ? lf.list.stats : []).some(function(t) { return isObj(t) && t.kind !== 'pick' && typeof t.key === 'string' && lower(t.key) === lower(c.s); })) errors.push({ id: lf.id, prop: prop, message: 'Pick the stat this changes: "' + c.s + '" is no number stat of this list.' });
     };
     // 1.6.0 (the live test, 2026-10-30): an attempt comes only from a roll that succeeds against its target, so a roll whose formula is no check (a plain damage roll) never makes one
-    var noCheck = function(fm) { var p = F && typeof fm === 'string' && fm ? F.parse(fm) : null; return !!(p && p.ok && isObj(p.ast) && isObj(p.ast.body) && p.ast.body.t !== 'cmp'); }, NO_CHECK = 'Resisted by does nothing here: this roll has no check, so it never succeeds against its target and nothing is posted to the target.';
+    var noCheck = function(fm) { var p = F && typeof fm === 'string' && fm ? F.parse(fm) : null, t = p && p.ok && isObj(p.ast) ? p.ast.top || p.ast.body : null; return !!(isObj(t) && t.t !== 'cmp'); }, NO_CHECK = 'Resisted by does nothing here: this roll has no check, so it never succeeds against its target and nothing is posted to the target.';
     sys.rolls.forEach(function(r) {
-        nearV = r.to === 'near'; crossV = isObj(r.cross); resistV = r.resist === true; blowV = blowRolls[r.id] === 1;   // 1.5.9; 1.6.0: crossV; B2: resistV; the core's gaps 6 and 7: blowV
+        rollG = rollGroups(r.formula); nearV = r.to === 'near'; crossV = isObj(r.cross); resistV = r.resist === true; blowV = blowRolls[r.id] === 1;   // 1.5.9; 1.6.0: crossV; B2: resistV; the core's gaps 6 and 7: blowV
         if (typeof r.resistBy === 'string' && noCheck(r.formula)) warnings.push({ id: r.id, prop: 'resistBy', message: NO_CHECK });
         if (typeof r.resistBy === 'string' && !sys.rolls.some(function(x) { return isObj(x) && x.id === r.resistBy && x.resist === true && !x.apply; })) warnings.push({ id: r.id, prop: 'resistBy', message: 'Resisted by names a roll that is not ticked Resists an attempt, so nothing is posted to the target.' });   // 1.6.0 (B2)
         if (Array.isArray(r.resistOr) && r.resistOr.some(function(id) { return !resistOrOk(sys, id); })) warnings.push({ id: r.id, prop: 'resistOr', message: 'Or resisted by names a roll that is not ticked Resists an attempt, so the target is not offered it.' });   // 1.6.0 (the core's gap 5)
@@ -9933,7 +9940,7 @@ function validateSystem(sys, F) {
             if (Array.isArray(r.then)) r.then.forEach(function(c, i) { if (c.when === 'malf' && !r.malf) warnings.push({ id: r.id, prop: 'then.' + i, message: 'This roll has no Malf, so On malfunction never happens.' }); });
             if (Array.isArray(r.then)) r.then.forEach(function(c, i) { if ((c.when === 'crit' || c.when === 'fumble') && !crits) warnings.push({ id: r.id, prop: 'then.' + i, message: noCritSays(c.when) }); });   // 1.5.8
             if (Array.isArray(r.then)) {   // Stage 6 HUD R1: its consequences — as an apply action's changes; On success / On failure need a test
-                var rp0 = F.parse(r.formula || ''), tests = !!(rp0.ok && rp0.ast && rp0.ast.body && rp0.ast.body.t === 'cmp');
+                var rp0 = F.parse(r.formula || ''), tests = !!(rp0.ok && rp0.ast && (rp0.ast.top || rp0.ast.body) && (rp0.ast.top || rp0.ast.body).t === 'cmp');
                 r.then.forEach(function(c, i) {
                     var tp = 'then.' + i, tf0 = c.f ? fieldById(sys, c.f) : null;
                     if (typeof c.if === 'string' && c.if) checkFormula({ id: r.id, key: r.id }, tp + '.if', c.if, false, r.vis);   // 1.6.2: Only where
@@ -9957,7 +9964,7 @@ function validateSystem(sys, F) {
             checkFormula({ id: r.id, key: r.id }, pr, c.formula, c.roll === true, r.vis); rolledWarn(r.id, pr, c);   // 1.5.9: a Rolled amount may roll dice
         });
     });
-    nearV = false; crossV = false; resistV = false; blowV = false;
+    rollG = null; nearV = false; crossV = false; resistV = false; blowV = false;
     // Stage 6 F5a1: each list's columns (no dice; Row.* known there), and field keys that would hide a list's names
     sys.fields.forEach(function(f) {
         if (lower(f.key) === 'row') errors.push({ id: f.id, prop: 'key', message: 'Row is the name a list\u2019s columns read their row by: give this field another key.' });
@@ -9987,7 +9994,7 @@ function validateSystem(sys, F) {
         if (f.kind !== 'item-list' || !isObj(f.list) || !Array.isArray(f.list.rolls)) return;
         f.list.rolls.forEach(function(r, i) {
             if (!isObj(r)) return;
-            nearV = r.to === 'near'; crossV = isObj(r.cross); resistV = r.resist === true;   // 1.5.9; 1.6.0: crossV; and resistV, a list's roll ticked Resists an attempt
+            rollG = rollGroups(r.formula); nearV = r.to === 'near'; crossV = isObj(r.cross); resistV = r.resist === true;   // 1.5.9; 1.6.0: crossV; and resistV, a list's roll ticked Resists an attempt
             if (typeof r.resistBy === 'string' && noCheck(r.formula)) warnings.push({ id: f.id, prop: 'list', message: (r.label || 'A roll') + ': ' + NO_CHECK });   // prop list: said on the Lists tab, beside the box
             if (typeof r.resistBy === 'string' && !sys.rolls.some(function(x) { return isObj(x) && x.id === r.resistBy && x.resist === true && !x.apply; })) warnings.push({ id: f.id, prop: 'list.resistBy', message: 'Resisted by names a roll that is not ticked Resists an attempt, so nothing is posted to the target.' });   // 1.6.0 (B2)
             if (Array.isArray(r.resistOr) && r.resistOr.some(function(id) { return !resistOrOk(sys, id); })) warnings.push({ id: f.id, prop: 'list.resistOr', message: 'Or resisted by names a roll that is not ticked Resists an attempt, so the target is not offered it.' });   // 1.6.0 (the core's gap 5)
@@ -10014,7 +10021,7 @@ function validateSystem(sys, F) {
                 if (Array.isArray(r.then)) r.then.forEach(function(c, k) { if (c.when === 'malf' && !r.malf) warnings.push({ id: f.id, prop: 'list.then.' + i + '.' + k + '.' + rl2, message: 'This roll has no Malf, so On malfunction never happens.' }); });   // Stage 6 HUD R2b: what it needs (no dice, Row.* known)
                 if (Array.isArray(r.then)) r.then.forEach(function(c, k) { if ((c.when === 'crit' || c.when === 'fumble') && !crits) warnings.push({ id: f.id, prop: 'list.then.' + i + '.' + k + '.' + rl2, message: noCritSays(c.when) }); });   // 1.5.8: On a critical success or failure where the system has no criticals
                 if (Array.isArray(r.then)) {   // Stage 6 HUD R2b: its consequences — a pool, a number or one of the row's counters
-                    var rp2 = F.parse(r.formula || ''), tests2 = !!(rp2.ok && rp2.ast && rp2.ast.body && rp2.ast.body.t === 'cmp');
+                    var rp2 = F.parse(r.formula || ''), tests2 = !!(rp2.ok && rp2.ast && (rp2.ast.top || rp2.ast.body) && (rp2.ast.top || rp2.ast.body).t === 'cmp');
                     r.then.forEach(function(c, k) {
                         var tp2 = 'list.then.' + i + '.' + k + '.' + rl2, tf2 = c.f ? fieldById(sys, c.f) : null;
                         if (typeof c.fx === 'string') { fxSays(f.id, tp2, c, f.vis); return; }   // 1.6.0: an effect switched, the row's quantity or one of its stats
@@ -10045,7 +10052,7 @@ function validateSystem(sys, F) {
             });
         });
     });
-    nearV = false; crossV = false; resistV = false;
+    rollG = null; nearV = false; crossV = false; resistV = false;
     var trn = isObj(sys.combat) && isObj(sys.combat.turn) ? sys.combat.turn : null, actK = map();   // turn-based combat T1: the move (no dice) and what each roll costs
     if (trn && trn.move) checkFormula({ id: 'combat', key: '#turn' }, 'turn.move', trn.move, false, 'all');
     if (trn && trn.run) checkFormula({ id: 'combat', key: '#turn' }, 'turn.run', trn.run, false, 'all');   // 1.6.0: a move by giving up an action

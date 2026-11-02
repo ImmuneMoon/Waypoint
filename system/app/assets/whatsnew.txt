@@ -73,6 +73,7 @@ System editor
   a long note held to two lines with the rest on its tooltip.
 - A dropdown can hold 64 names. Move a name to another place and the editor says
   so before Save, since what holds a number keeps it and reads the name now there.
+- A weapon's Dur formula can read the blow that hit it, as a layer's wear can.
 - Counted once: Given free can name a column now, as Full price can, so a row
   another row granted can say what it gives free.
 

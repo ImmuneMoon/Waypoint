@@ -2143,7 +2143,8 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
         var hit = null; (rules.weapons || []).forEach(function(wp) { if (hit) return; var f = fieldById(sys, wp.list), src = f && char.values && Array.isArray(char.values[f.id]) ? char.values[f.id] : null; if (src && src.some(function(r) { return rowIdOf(r) === inp.weapon; })) hit = { wp: wp, f: f, src: src }; });
         if (!hit) return { ok: false, reason: 'missing' };
         var wl = values[hit.f.id] || JSON.parse(JSON.stringify(hit.src)), wrow = null; wl.forEach(function(r) { if (!wrow && rowIdOf(r) === inp.weapon) wrow = r; });
-        var wv = R.row(hit.f.id, inp.weapon), ld = wv ? Math.floor(num(ev(hit.wp.dur, wv))) : 0, wear = num(R.stat(hit.f, wrow, hit.wp.wear)), cond = clampNum(Math.floor(num(R.stat(hit.f, wrow, hit.wp.cond))), 0, 3);
+        var wv = R.row(hit.f.id, inp.weapon), wB = blowW || blowKinds({ dmg: bAmt, through: 0, wound: 0, type: ty ? (rules.types || []).indexOf(ty) + 1 : 0, cuts: bCuts, major: false }), wV = wv ? function(l, text) { return /^blow\./.test(l) ? layerVars(0, 0, wB, wv)(l, text) : wv(l, text); } : null;   // 1.6.2: a weapon's Dur may depend on what hit it, as a layer's wear may
+        var ld = wV ? Math.floor(num(ev(hit.wp.dur, wV))) : 0, wear = num(R.stat(hit.f, wrow, hit.wp.wear)), cond = clampNum(Math.floor(num(R.stat(hit.f, wrow, hit.wp.cond))), 0, 3);
         var over = bAmt - (hit.wp.test === 'listed' ? ld : ld - wear), nc = cond, nw2 = wear, wrd = rowDef(sys, wrow), wn = wrd && wrd.def && wrd.def.name ? wrd.def.name : 'The weapon';
         if (ld > 0 && over >= 1 && cond < 3) {
             if (over <= 10) { nw2 = Math.min(ld * 2, wear + 1); nc = Math.max(cond, 1); }

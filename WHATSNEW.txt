@@ -36,7 +36,7 @@ The System editor
 At the table
 - Result bands name a roll by how it went, as a strong hit, a weak hit or a
   miss. Each is a name and a formula, and a change of a roll can hang on one. A
-  roll can also read RollTotal and Natural. The Roll window has a Coin button beside the dice: it flips at once, and the card says Heads or Tails.
+  roll can also read RollTotal and Natural. The Roll window has a Coin button beside the dice: it flips at once, and the card says Heads or Tails. A sheet’s rolls say what they are in plain words in their tooltips, the ± window and a card’s hover, never a formula. A choice on a list may be plain words, such as Iron and Bronze.
 - One set of dice can be read twice. Name it with @, as in 5d10@pool, and read
   it with count, high, low, nth, best, worst, sets, setface, pairs or total. A
   roll's bands and changes read it too, with no new roll, and with() rolls dice

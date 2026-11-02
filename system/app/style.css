@@ -2876,7 +2876,7 @@
   .snd-on-foot { display: flex; gap: 4px; flex-basis: 100%; }
   .snd-on-add { align-self: flex-start; }
   .snd-on-btn { padding: 1px 6px; font-size: 12px; }
-  .snd-on-btn.on { color: var(--gold); border-color: var(--gold); }
+  .snd-on-btn.on { color: var(--gold-ink, #1a1a1a); border-color: var(--gold); }   /* 1.6.2: the drawing in dark ink on the gold fill */
   .snd-on-pop { position: fixed; z-index: 100003; width: 240px; max-height: 320px; overflow: auto; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: 0 10px 28px rgba(0,0,0,0.5); box-sizing: border-box; font-size: 12px; }
   .snd-on-pophead { color: var(--gold); font-weight: 700; padding: 2px 4px 4px; overflow-wrap: anywhere; }
   .snd-on-poprow { display: block; width: 100%; text-align: left; padding: 3px 6px; background: none; border: 0; border-radius: 4px; color: var(--text); font: inherit; cursor: pointer; }
@@ -3237,6 +3237,37 @@
   .dice-head { display: flex; align-items: center; gap: 6px; }
   #dicePanel .notepad-btn { padding: 1px 7px; font-size: 11px; }
   .dice-quick { display: flex; flex-wrap: wrap; gap: 4px; }
+  /* 1.6.2: the form over a formula box (formbox.js) */
+  .fb { flex: 1 1 100%; min-width: 0; width: 100%; }
+  .fb-line { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 6px 4px 8px; min-height: 30px; }
+  .fb-say { flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink); overflow-wrap: anywhere; }
+  .fb-none .fb-say { color: var(--dim); }
+  .fb-bad { border-color: var(--red); } .fb-bad .fb-say { color: var(--red); font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; }
+  .fb-go, .fb-done, .fb-cancel, .fb-astext, .fb-more { background: var(--panel2); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; padding: 2px 9px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .fb-go:hover, .fb-cancel:hover, .fb-more:hover, .fb-astext:hover { border-color: var(--gold); color: var(--gold); }
+  .fb-done { background: var(--gold); border-color: var(--gold); color: var(--bg); font-weight: 600; }
+  .fb-open { background: var(--bg); border: 1px solid var(--gold); border-radius: 8px; padding: 8px 10px; }
+  .fb-step { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
+  .fb-word { color: var(--dim); font-size: 12px; min-width: 66px; }
+  .fb-and, .fb-d { color: var(--dim); font-size: 12px; }
+  .fb-sel, .fb-num, .fb-pick, .fb-text, .fb-find { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; font: inherit; font-size: 12.5px; min-height: 26px; }
+  .fb-sel { padding: 1px 4px; } .fb-num { width: 56px; padding: 1px 6px; } .fb-num.fb-off { border-color: var(--red); }
+  .fb-pick { padding: 1px 8px; cursor: pointer; text-align: left; max-width: 100%; overflow-wrap: anywhere; } .fb-pick:hover { border-color: var(--gold); }
+  .fb-pick-more { padding: 1px 6px; margin-left: -4px; color: var(--dim); }
+  .fb-x { background: transparent; border: 0; color: var(--dim); cursor: pointer; margin-left: auto; font-size: 15px; line-height: 1; padding: 2px 4px; } .fb-x:hover { color: var(--red); }
+  .fb-add { background: transparent; border: 0; color: var(--gold); cursor: pointer; font: inherit; font-size: 12px; padding: 4px 0; }
+  .fb-sub { flex: 1 1 100%; border-left: 2px solid var(--gold); margin-left: 4px; padding-left: 10px; }
+  .fb-dice { flex: 1 1 100%; }
+  .fb-foot { display: flex; gap: 6px; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--edge); }
+  .fb-astext { margin-left: auto; background: transparent; border: 0; color: var(--dim); text-decoration: underline; }
+  .fb-textrow { margin-top: 6px; } .fb-text { width: 100%; padding: 2px 6px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .fb-note { color: var(--dim); font-size: 12px; margin-top: 4px; }
+  .fb-menu { position: fixed; z-index: 96000; width: 280px; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--gold); border-radius: 8px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+  .fb-find { width: 100%; padding: 2px 8px; margin-bottom: 6px; }
+  .fb-list { overflow-y: auto; min-height: 0; flex: 1; }
+  .fb-head { color: var(--gold); font-size: 11px; margin: 6px 2px 2px; }
+  .fb-it { display: flex; justify-content: space-between; gap: 8px; width: 100%; background: transparent; border: 0; border-radius: 4px; color: var(--ink); font: inherit; font-size: 12.5px; padding: 3px 6px; cursor: pointer; text-align: left; }
+  .fb-it:hover, .fb-it:focus { background: rgba(224,165,79,.14); outline: none; } .fb-it small { color: var(--dim); }
   .dice-quick button { background: transparent; color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 2px 8px; font-size: 11.5px; cursor: pointer; font-family: inherit; }
   .dice-quick button:hover { border-color: var(--gold); color: var(--gold); }
   .dice-err { color: var(--red); font-size: 11.5px; line-height: 1.4; }

@@ -129,6 +129,9 @@ jobs:
       - name: trackcheck — the table trackers, the pure core, the strip, the stream window and the pins
         if: ${{ !cancelled() }}
         run: node tools/trackcheck.js
+      - name: formcheck — formulas as forms, read and written back the same, in words, and the form on a page that refuses markup
+        if: ${{ !cancelled() }}
+        run: node tools/formcheck.js
       - name: imgtagcheck — the Image Library tags, the pure core, the chips and menus drawn as text, and the pins
         if: ${{ !cancelled() }}
         run: node tools/imgtagcheck.js

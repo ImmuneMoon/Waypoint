@@ -79,6 +79,7 @@ async function flush() {
 
 /* ---- open and close ---- */
 function open() {
+    if (window.wpSheets && typeof window.wpSheets.formOn === 'function') window.wpSheets.formOn();   // 1.6.2: its formula boxes wear the form
     if (!gmHere() || !LB()) { toast('The library is the GM’s: open it on your own machine.'); return; }
     var m = ui('libraryModal'), c = getActiveCampaign(); if (!m || !c) return;
     st.open = true; st.campId = c.id; st.work = map(); st.dirty = map(); st.q = ''; st.entryId = null; st.draftNew = null; st.sel = map(); st.anchor = null; st.imp = null;

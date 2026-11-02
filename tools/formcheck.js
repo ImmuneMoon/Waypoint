@@ -180,11 +180,12 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     check('what a closed box offers is what Save keeps there', Object.keys(FOo).length === 7 && SC.cleanBlastRules({ fall: FOo['sys-combat-bfall'].join(' + '), each: FOo['sys-combat-beach'].join(' + '), scatter: FOo['sys-combat-bscatter'].join(' + '), hand: FOo['sys-combat-bhand'].join(' + ') }, F) !== null && ['fall', 'each', 'scatter', 'hand'].every(k => { const o = {}; o[k] = FOo[{ fall: 'sys-combat-bfall', each: 'sys-combat-beach', scatter: 'sys-combat-bscatter', hand: 'sys-combat-bhand' }[k]].join(' + '); const c = SC.cleanBlastRules(o, F); return c && c[k]; }), j(Object.keys(FOo)));
     check('an empty box says what empty means there', B.emptyWord('cond') === 'Always' && B.emptyWord('amt') === 'Not set' && B.emptyWord('cond', { classList: { contains: c => c === 'sys-combat-bhand' } }) === 'Never' && B.emptyWord('cond', { classList: { contains: c => c === 'sys-dmgr-oif' } }) === 'Every wound');
     check('no line of the blast boxes names a code name', !/reads it as Blast|Names: Blast|Name: Natural/.test(sheetsT));
+    check('the Library window\u2019s boxes ask too, by the ids it gives them', B.kindOf({ id: 'libF_needsIf' }) === 'cond' && B.kindOf({ id: 'libF_damage' }) === 'dice' && B.askOf({ id: 'libF_needsIf' })[0] === 'What must be true before it can be taken?' && B.emptyWord('cond', { id: 'libF_needsIf' }) === 'Nothing' && ['needsIf', 'damage', 'cost', 'areaFrag'].every(k => readU('scripts/librarywin.js').includes("'" + k + "'")), B.kindOf({ id: 'libF_needsIf' }));
     check('a press on a fault opens the form that stands over its box', /formToo\(box\)/.test(readU('scripts/sysui.js')) && /function openFor\(inp\)/.test(fbs));
 
     /* ================= the wiring ================= */
     const ix = readU('index.html'), sh = readU('scripts/sheets.js'), ek = readU('scripts/esckey.js'), st = readU('style.css'), fb = readU('scripts/formbox.js');
-    check('the page loads the form, the System editor hands it its names and has it watch', ix.includes('src="scripts/formbox.js"') && /wpFormBox\.setSource\(formSource\)/.test(sh) && /wpFormBox\.watch\(/.test(sh));
+    check('the page loads the form, the System editor hands it its names and has it watch', ix.includes('src="scripts/formbox.js"') && /wpFormBox\.setSource\(formSource\)/.test(sh) && /watch\(ui\('libraryModal'\)\)/.test(sh) && /wpFormBox\.watch\(/.test(sh));
     check('Escape in a form is the form\'s, and the form holds no markup of its own', ek.includes("escAt(t, '.fb-open')") && !/innerHTML|insertAdjacentHTML/.test(fb));
     check('its styles', /\.fb-line\b/.test(st) && /\.fb-menu\b/.test(st) && /\.fb-step\b/.test(st));
     summed = true;

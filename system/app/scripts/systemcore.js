@@ -8621,7 +8621,7 @@ function cleanRollSw(v, kinds) {
             else if (typeof t.l === 'string' && FIELD_ID.test(t.l)) { if (!kinds || kinds[t.l] === 'item-list') { x = { l: t.l }; var k = cleanItemKey(t.key); if (k) x.key = k; var rl = cutText(t.roll, LIMITS.label); if (rl) x.roll = rl; } }   // 1.6.0: roll, one list roll by its label
             if (!x) return; var sk = JSON.stringify(x).toLowerCase(); if (seen[sk]) return; seen[sk] = 1; to.push(x);
         });
-        if (to.length) outS.push({ name: nm, v: n, to: to });
+        if (to.length) { var swO = { name: nm, v: n, to: to }; if (typeof s.pay === 'string' && ROLL_ID.test(s.pay)) swO.pay = s.pay; outS.push(swO); }   // 1.6.2 (G6): pay, a system action run as it is ticked
     });
     return outS.length ? outS : null;
 }
@@ -8630,7 +8630,7 @@ function cleanRollSw(v, kinds) {
 // holder ('<list>|<row>' or '<effects list>|<effect>'), i: its place there, name, v, to, gm: a GM-only holder }
 function rollSwitchesAll(sys, char, F) {
     var outA = [], lib = null, seenRef = map(), gate = null, Fg = F || (_gateF ? _gateF() : null); if (!isObj(sys) || !Array.isArray(sys.fields) || !isObj(char) || !isObj(char.values)) return outA;
-    var push = function(s, d) { (Array.isArray(d.rollSw) ? d.rollSw : []).forEach(function(w, i) { if (isObj(w) && typeof w.name === 'string' && typeof w.v === 'number' && Array.isArray(w.to)) outA.push({ s: s, i: i, name: w.name, v: w.v, to: w.to, gm: d.vis === 'gm' }); }); };
+    var push = function(s, d) { (Array.isArray(d.rollSw) ? d.rollSw : []).forEach(function(w, i) { if (isObj(w) && typeof w.name === 'string' && typeof w.v === 'number' && Array.isArray(w.to)) outA.push(Object.assign({ s: s, i: i, name: w.name, v: w.v, to: w.to, gm: d.vis === 'gm' }, typeof w.pay === 'string' ? { pay: w.pay } : null)); }); };
     sys.fields.forEach(function(f) {
         if (!isObj(f) || typeof f.id !== 'string' || !hasOwn(char.values, f.id) || !Array.isArray(char.values[f.id])) return; var rows = char.values[f.id];
         if (f.kind === 'effects') rows.forEach(function(r) {
@@ -8906,12 +8906,12 @@ function renamesSay(rn) {
 // that roll now, once. { ok, v: their sum, names: [{ n, v, gm? }] } or { ok: false }
 function swJudge(sys, char, ref, picks) {
     if (!Array.isArray(picks) || !picks.length) return { ok: true, v: 0, names: [] };
-    var av = rollSwitches(sys, char, ref), took = map(), v = 0, names = [], bad = false;
+    var av = rollSwitches(sys, char, ref), took = map(), v = 0, names = [], bad = false, pays = [];
     picks.forEach(function(p) {
         if (bad) return; var w = isObj(p) ? av.filter(function(x) { return x.s === p.s && x.i === p.i; })[0] : null; var k = w ? w.s + '#' + w.i : '';
-        if (!w || took[k]) { bad = true; return; } took[k] = 1; v += w.v; var nm = { n: w.name, v: w.v }; if (w.gm) nm.gm = true; names.push(nm);
+        if (!w || took[k]) { bad = true; return; } took[k] = 1; v += w.v; if (typeof w.pay === 'string') pays.push(w.pay); var nm = { n: w.name, v: w.v }; if (w.gm) nm.gm = true; names.push(nm);
     });
-    return bad ? { ok: false } : { ok: true, v: v, names: names };
+    if (bad) return { ok: false }; var okS = { ok: true, v: v, names: names }; if (pays.length) okS.pays = pays; return okS;
 }
 function rollMods(vars, names) {
     if (typeof vars !== 'function' || typeof vars.detail !== 'function' || !Array.isArray(names)) return null;

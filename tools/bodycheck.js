@@ -272,6 +272,21 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         const noS = S.cleanSystem({ v: 1, name: 'N', fields: [{ id: 'f_b', key: 'Body', kind: 'item-list', list: { multi: true, stats: [{ key: 'Z', label: 'Z' }], tiles: { top: 'Z' } } }], items: [] }, { F, gmView: true });
         check('a system with no states holds no such key and reads as before', !('states' in noS.fields[0].list.tiles) && !('ts' in S.resolveAll(noS, { id: 'c', values: {} }, F).f_b) && S.tileThenRuns(noS, { id: 'c', values: {} }, F, null, {}).runs.length === 0);
     }
+    /* ---- fold 9: where tiles are not drawn ---- */
+    {
+        const RW = { v: 1, name: 'Pg', fields: [
+            { id: 'f_b', key: 'Body', kind: 'item-list', label: 'Body', list: { multi: true, noQty: true, hang: true, stats: [{ key: 'Cut', label: 'Cut' }], tiles: { boxes: [{ key: 'dropped', label: 'Dropped', strip: true }], states: [{ key: 'gone', label: 'Severed', 'if': 'Row.Cut = 1', shape: 'lost' }] } } },
+            { id: 'f_k', key: 'Kit', kind: 'item-list', label: 'Kit', list: { multi: true, noQty: true, stand: { from: 'f_b' } } }],
+            items: [{ id: 'i_p', name: 'Limb', stats: { Cut: 0 } }, { id: 'i_k', name: 'Knife', stats: {} }, { id: 'i_s', name: 'Sling', stats: {} }],
+            sheet: { sections: [{ id: 's1', title: 'Body', placements: [{ field: 'f_b' }, { field: 'f_k' }] }] } };
+        const sy = S.cleanSystem(RW, { F, gmView: true }), ch = { id: 'c_p', name: 'P', values: { f_b: [{ id: 'w_arm', defId: 'i_p', qty: 1, ov: { stats: { Cut: 1 } } }, { id: 'w_leg', defId: 'i_p', qty: 1 }], f_k: [{ id: 'w_kn', defId: 'i_k', qty: 1, pl: 'w_leg' }, { id: 'w_sl', defId: 'i_s', qty: 1, pl: 'b_dropped' }] } };
+        const X = await import(url.pathToFileURL(app('scripts/sheetexport.js')).href), md = X.sheetToMarkdown(sy, ch, S.resolveAll(sy, ch, F), {});
+        const txt = J(md);
+        check('fold 9: the readable page says a tile’s state and where a row stands, a box of the strip too', txt.includes('Limb (Severed)') && txt.includes('Knife (at Limb)') && txt.includes('Sling (at Dropped)'), txt.slice(0, 600));
+        const rd = read('scripts/sheets.js'), css = read('style.css');
+        check('a list view, a print and the HUD draw the state as a chip in words, once in a drawer, whose head says it', rd.split("tileStateChip(spec, res, rowIdOf(entry))").length === 3 && /\.body-drawer-row \.sheet-item-state \{ display: none; \}/.test(css) && rd.includes("head.appendChild(el('span', 'body-drawer-state', stO.label))"));
+        check('a row with no place and a list with no states add nothing', !X.sheetToMarkdown(sy, { id: 'c', name: 'C', values: { f_b: [{ id: 'w_x', defId: 'i_p', qty: 1 }], f_k: [] } }, S.resolveAll(sy, { id: 'c', name: 'C', values: { f_b: [{ id: 'w_x', defId: 'i_p', qty: 1 }], f_k: [] } }, F), {}).toString().includes('Limb ('));
+    }
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never finished'); process.exitCode = 1; } });

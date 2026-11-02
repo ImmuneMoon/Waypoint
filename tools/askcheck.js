@@ -104,6 +104,27 @@ const slice = (s, t) => { const a = s.indexOf('// [' + t + '-start]'), b = s.ind
         check('and the send puts it on the message', nsrc.includes("req.ask = o.ask;") && nsrc.includes("if (ask && typeof ask === 'object') req.ask = ask;"));
     }
     check('both ends of a number are forms, so nobody types a name', /'sys-ask-min': 'amt', 'sys-ask-max': 'amt'/.test(read('scripts/formbox.js')) && /'sys-ask-min': \['What is the lowest answer\?'/.test(read('scripts/formbox.js')));
+    /* ---- a roll bonus with a cost (G6) ---- */
+    {
+        const RW = { v: 1, name: 'Sw', fields: [{ id: 'f_ep', key: 'EP', kind: 'number', def: 3 }, { id: 'f_ab', key: 'Ab', kind: 'number', def: 10, roll: '1d20' }, { id: 'f_k', key: 'Kit', kind: 'item-list', list: { multi: true, noQty: true } }],
+            rolls: [{ id: 'r_pay', label: 'Spend 2', apply: [{ f: 'f_ep', formula: 'EP - 2', set: true }], needs: 'EP >= 2', needsText: 'You have too little left.' }, { id: 'r_fr', label: 'Free', apply: [{ f: 'f_ab', formula: '1', add: true }] }],
+            items: [{ id: 'i_a', name: 'Aimer', rollSw: [{ name: 'Aim', v: 2, to: [{ f: 'f_ab' }], pay: 'r_pay' }, { name: 'Steady', v: 1, to: [{ f: 'f_ab' }], pay: 'bad id!' }, { name: 'Hard', v: 3, to: [{ f: 'f_ab' }], pay: 'r_pay' }] }] };
+        const sy = S.cleanSystem(RW, { F, gmView: true }), pv = S.cleanSystem(sy, { F, gmView: false }), it = sy.items[0], ch = o => ({ id: 'c', name: 'C', values: Object.assign({ f_ep: 3, f_ab: 10, f_k: [{ id: 'w_a', defId: 'i_a', qty: 1 }] }, o || {}) });
+        check('G6: a roll bonus keeps its cost, and one that names no action keeps none', it.rollSw[0].pay === 'r_pay' && !('pay' in it.rollSw[1]) && pv.items[0].rollSw[0].pay === 'r_pay', J(it.rollSw));
+        const av = S.rollSwitches(sy, ch(), { f: 'f_ab' }), j1 = S.swJudge(sy, ch(), { f: 'f_ab' }, [{ s: av[0].s, i: 0 }]), j0 = S.swJudge(sy, ch(), { f: 'f_ab' }, [{ s: av[1].s, i: 1 }]), jA = S.swJudge(sy, ch(), { f: 'f_ab' }, [{ s: av[0].s, i: 0 }, { s: av[2].s, i: 2 }]);
+        check('the judge says what a tick costs, and a bonus with no cost answers as it did', J(j1.pays) === J(['r_pay']) && !('pays' in j0) && J(jA.pays) === J(['r_pay', 'r_pay']), J([j1, j0, jA]));
+        const nt = fs.readFileSync(app('scripts/net.js'), 'latin1').replace(/\r\n/g, NL), posted = [], sent = [], net = { syncCharDelta: (i, v) => sent.push(v), postApplyCard: (c, l, ln, sc) => posted.push([l, sc]) }, saves = [];
+        const mk = new Function('net', 'saveRemoteSoon', 'window', slice(nt, 'netcheck:swpay') + '\nreturn { swPayPlan, swPayDo };')(net, () => saves.push(1), {});
+        const c1 = ch(), p1 = mk.swPayPlan(S, { system: sy }, c1, ['r_pay'], F, D, null);
+        check('a cost is worked out on a copy: nothing is spent until the roll goes on', J(p1.values) === J({ f_ep: 1 }) && c1.values.f_ep === 3 && p1.cards.length === 1 && p1.cards[0].label === 'Spend 2', J(p1));
+        mk.swPayDo(c1, p1);
+        check('then it is stored once, sent to the table and said on a card', c1.values.f_ep === 1 && sent.length === 1 && saves.length === 1 && posted.length === 1, J([c1.values, sent, posted]));
+        const c2 = ch({ f_ep: 1 }), p2 = mk.swPayPlan(S, { system: sy }, c2, ['r_pay'], F, D, null), c3 = ch(), p3 = mk.swPayPlan(S, { system: sy }, c3, ['r_pay', 'r_pay'], F, D, null);
+        check('one that cannot be paid refuses in the action’s own words, the second of two judged on what the first left, and nothing is spent', p2.error === 'You have too little left.' && p3.error === 'You have too little left.' && c2.values.f_ep === 1 && c3.values.f_ep === 3, J([p2, p3]));
+        check('an action that is gone refuses too', mk.swPayPlan(S, { system: sy }, ch(), ['r_gone'], F, D, null).error === 'That bonus cannot be paid now.');
+        const ds = read('scripts/dice.js'), sh = read('scripts/sheets.js');
+        check('the roll’s window says the cost beside its tick, and the host judges it before it spends anything else', ds.includes("b.appendChild(el('span', 'dice-swbtn-c', w.cost))") && sh.includes("o.cost = (pa && pa.label) || 'A cost';") && nt.indexOf('var swpQ = swQ') < nt.indexOf('var costQ = actSpend') && nt.indexOf('if (swpQ) swPayDo(chQ, swpQ);') > nt.indexOf('var costQ = actSpend'));
+    }
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite did not finish'); process.exitCode = 1; } });

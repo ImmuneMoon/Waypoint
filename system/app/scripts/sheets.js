@@ -3132,6 +3132,7 @@ function standCtl(entry, c, f, spec, can, sysI, res) {
         sel.addEventListener('change', function() { commitItem(c, f, { op: 'place', rowId: rid, at: sel.value || null, back: uid('w_') }); });
         box.appendChild(sel);
     } else if (cur) { var ch = el('span', 'sheet-chip', 'At ' + nameOf(cur)); if (auto) ch.title = 'Not placed yet. It stands at the first place it fits.'; box.appendChild(ch); }
+    else if (st && typeof st.r === 'string' && st.r.slice(0, 2) === 'b_') { var tfR = (Array.isArray(sysI.fields) ? sysI.fields : []).filter(function(x) { return x && x.id === sp.from; })[0], bxR = tfR && tfR.list && tfR.list.tiles && Array.isArray(tfR.list.tiles.boxes) ? tfR.list.tiles.boxes.filter(function(b) { return !!b && 'b_' + b.key === st.r; })[0] : null; if (bxR) box.appendChild(el('span', 'sheet-chip', 'At ' + bxR.label)); }   // 1.6.2 (body fold 9): a box of the strip is a place too
     if (st && st.off && sp.offWord) box.appendChild(el('span', 'sheet-chip', sp.offWord));
     return box.firstChild ? box : null;
 }
@@ -3140,6 +3141,7 @@ function standCtl(entry, c, f, spec, can, sysI, res) {
 var _tileOpen = Object.create(null), TILE_SHOW = 'wp_bodyShow', _tileHere = null, _tileEdit = Object.create(null);
 // 1.6.2 (body fold 7): Edit layout: a press of the GM's that moves a tile, by where it lands on the grid or by an arrow in its drawer
 function tileStateIn(tsp, res, id) { var k = res && res.ts ? res.ts[id] : ''; return k && Array.isArray(tsp.states) ? tsp.states.filter(function(s) { return !!s && s.key === k; })[0] || null : null; }   // 1.6.2 (body fold 8): the state a tile is in, as the sheet worked it out
+function tileStateChip(spec, res, rid) { var s = spec && spec.tiles ? tileStateIn(spec.tiles, res, rid) : null; return s ? el('span', 'sheet-chip sheet-item-state sheet-st-' + (s.shape || 'warn'), s.label) : null; }   // 1.6.2 (body fold 9): the state in words, on a row wherever tiles are not drawn
 function tileMoveTo(c, f, id, cell) { commitItem(c, f, { op: 'set', rowId: id, facts: { tp: cell } }); }
 function tileDrag(stage, b, t, lay, f, c) {
     b.addEventListener('pointerdown', function(ev) {
@@ -3715,6 +3717,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         _rowMenu = null;
         var sjC = typeof subjectCtl === 'function' ? subjectCtl(entry, c, f, spec, chg && !hudRow && !opnR, res && res.sjOk ? res.sjOk[rid] : undefined) : null; if (sjC) line.appendChild(sjC);   // 1.6.0 Subjects
         var sdC = typeof standCtl === 'function' ? standCtl(entry, c, f, spec, chg && !hudRow && !opnR, sysI, res) : null; if (sdC) line.appendChild(sdC);   // 1.6.2 (body fold 2)
+        var stcL = typeof tileStateChip === 'function' ? tileStateChip(spec, res, rowIdOf(entry)) : null; if (stcL) line.appendChild(stcL);
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
         rowRollBtns(line, spec, entry, def, c, f, res);   // F5b: the list's rolls on this row
         if (spec && !hudRow) {   // 1.6.0 R2: the parts placed in the details stand at the top of the row's details
@@ -4134,6 +4137,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         if (typeof onceBits === 'function') onceBits(nameTd, sysI, c, f, carried, entry);   // 1.5.8 Counted once
         var sjT = typeof subjectCtl === 'function' ? subjectCtl(entry, c, f, spec, chg && !hudRow, res && res.sjOk ? res.sjOk[rid] : undefined) : null; if (sjT) nameTd.appendChild(sjT);   // 1.6.0 Subjects
         var sdT = typeof standCtl === 'function' ? standCtl(entry, c, f, spec, chg && !hudRow, sysI, res) : null; if (sdT) nameTd.appendChild(sdT);   // 1.6.2 (body fold 2)
+        var stcT = typeof tileStateChip === 'function' ? tileStateChip(spec, res, rowIdOf(entry)) : null; if (stcT) nameTd.appendChild(stcT);
         if (typeof badgeBits === 'function') { var bdT = badgeBits(nameTd, spec, res && res.bd ? res.bd[rid] : null, tr, hudRow); if (bdT) nameTd.appendChild(bdT); }   // 1.6.0 R4: in a table the badges go in the name's cell
         if (typeof rowEdge === 'function') rowEdge(tr, spec, res && res.bd ? res.bd[rid] : null, !!(spec && spec.on) && rowOn(spec, entry), !!(spec && spec.on));   // 1.6.0 R16
         tr.appendChild(nameTd);
@@ -4994,7 +4998,7 @@ function unheldVia(LP, c, f, spec, rollOnly) { return { open: function(o) { retu
 var _swMemo = null;
 function swAll(sys, c) { if (!_swMemo) { _swMemo = typeof Map === 'function' ? new Map() : null; if (_swMemo) Promise.resolve().then(function() { _swMemo = null; }); } var hit = _swMemo ? _swMemo.get(c) : null; if (hit && hit.sys === sys) return hit.all; var all = rollSwitchesAll(sys, c); if (_swMemo) _swMemo.set(c, { sys: sys, all: all }); return all; }
 function swCount(c, ref) { var sys = systemOf(); if (!sys || !c || typeof c !== 'object') return 0; try { return rollSwitches(sys, c, ref, swAll(sys, c)).length; } catch (e) { return 0; } }
-function rollSwitchesFor(charId, ref) { var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp); if (!sys || !c || !ref || typeof ref !== 'object') return []; try { return rollSwitches(sys, c, ref).map(function(w) { return { s: w.s, i: w.i, name: w.name, v: w.v }; }); } catch (e) { return []; } }
+function rollSwitchesFor(charId, ref) { var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp); if (!sys || !c || !ref || typeof ref !== 'object') return []; try { return rollSwitches(sys, c, ref).map(function(w) { var o = { s: w.s, i: w.i, name: w.name, v: w.v }; if (typeof w.pay === 'string') { var pa = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return !!r && r.id === w.pay; })[0]; o.cost = (pa && pa.label) || 'A cost'; } return o; }); } catch (e) { return []; } }
 // [systemcheck:grouproll-start]
 // 1.6.0 (v2, B7a; the owner, 2026-10-29, by prompt: "Lowest target (Recommended)", "Right-click menu (Recommended)"): a group roll by its weakest
 // member, on the GM's own machine. groupRollsFor: the rolls two or more characters picked may roll as a group (none for a player, the stream
@@ -8767,6 +8771,7 @@ function swBox(h) {
         var ln = el('div', 'sys-fx-mod sys-sw'); ln.dataset.si = String(si);
         ln.appendChild(input('sys-sw-name field', typeof s.name === 'string' ? s.name : '', 'Its name in the roll\u2019s \u00b1 window and on the card, such as Aimed shot', 'Name'));
         ln.appendChild(numInput('sys-sw-v', typeof s.v === 'number' ? s.v : '', 'How much it helps the roll, as the \u00b1 window\u2019s modifier does. A negative one hinders. Whole, 1 to 99 either way', '1'));
+        var pyO = [['', 'No cost']].concat((Array.isArray(draft.rolls) ? draft.rolls : []).filter(function(r) { return !!r && Array.isArray(r.apply) && typeof r.id === 'string'; }).map(function(r) { return [r.id, 'Costs: ' + (r.label || 'Apply')]; })); if (typeof s.pay === 'string' && s.pay && !pyO.some(function(o) { return o[0] === s.pay; })) pyO.push([s.pay, 'Costs: an action that is gone']); ln.appendChild(select('sys-sw-pay', pyO, typeof s.pay === 'string' ? s.pay : '', 'What ticking it spends: one of the system\u2019s actions, run as the roll is made. A roll it cannot pay for is refused'));
         (Array.isArray(s.to) ? s.to : []).forEach(function(t, ti) {
             var tw = el('span', 'sys-sw-to'), v = swToVal(t), op = tg.slice(); tw.dataset.ti = String(ti);
             if (v && !op.some(function(o) { return o[0] === v; })) op.unshift([v, '(a roll that is gone)']);
@@ -8796,6 +8801,7 @@ function swSays(s) {   // what Save does with one roll bonus: '' where it keeps 
     if (!(typeof s.name === 'string' && s.name.trim())) return 'Save drops it: it needs a name.';
     var n = typeof s.v === 'number' && isFinite(s.v) ? Math.round(s.v) : 0; if (!n || n < -99 || n > 99) return 'Save drops it: how much it helps must be a whole number from 1 to 99, or from \u22121 to \u221299.';
     if (!cleanRollSw([s])) return 'Save drops it: it needs a roll it offers itself to.';
+    if (typeof s.pay === 'string' && s.pay && !(Array.isArray(draft.rolls) ? draft.rolls : []).some(function(r) { return !!r && r.id === s.pay && Array.isArray(r.apply); })) return 'It is kept, but the action it costs is gone, so a roll that ticks it is refused. Pick another, or No cost.';
     var gone = (Array.isArray(s.to) ? s.to : []).filter(function(t) { return t && typeof t.l === 'string' && typeof t.roll === 'string' && t.roll.trim() && swRollOpts(t.l, t.roll).o.some(function(x) { return / \(no roll of that name now\)$/.test(x[1]); }); })[0];   // 1.6.0
     if (gone) return 'It is kept, but no roll of that list is named ' + gone.roll.trim() + ' now, so it offers itself to none there.';
     var sgn = typeof swGone === 'function' ? swGone(draft, s) : []; if (sgn.length) return 'It is kept, but ' + sgn[0] + '.';   // 1.6.2 (backlog 208, point 10)
@@ -8813,6 +8819,7 @@ function onSwInput(t) {
     markDirty(); swSaysAt(t, L.s); return true;
 }
 function onSwChange(t) {
+    if (/(^| )sys-sw-pay( |$)/.test(t.className || '')) { var LP = swLine(t, swHolder(t)); if (!LP) return true; if (t.value) LP.s.pay = t.value; else delete LP.s.pay; markDirty(); swSaysAt(t, LP.s); return true; }   // 1.6.2 (G6)
     if (/(^| )sys-sw-roll( |$)/.test(t.className || '')) {   // 1.6.0: one roll of the list, or any
         var LR = swLine(t, swHolder(t)), twR = t.closest ? t.closest('.sys-sw-to') : null, tR = LR && twR && Array.isArray(LR.s.to) ? LR.s.to[+twR.dataset.ti] : null; if (!tR || typeof tR !== 'object') return true;
         if (t.value) tR.roll = String(t.value).slice(0, LIMITS.label); else delete tR.roll; markDirty(); swSaysAt(t, LR.s); return true;

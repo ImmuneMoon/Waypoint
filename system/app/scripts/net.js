@@ -9171,8 +9171,10 @@ function handleMessage(msg, conn) {
         var jobQ = actQ && actQ.job && chQ && q.row && typeof q.row.r === 'string' && typeof SQ.jobStep === 'function' ? { round: typeof jobRound === 'function' ? jobRound(campQ, turnChQ.id) : null } : null;   // 1.6.0: a job counted across turns, judged before anything is spent
         if (jobQ) { var jbQ = SQ.jobBar(chQ, q.row, actQ, varsQ, Fq, jobQ.round); if (jbQ) { denyQ('error', { error: { message: jbQ, pos: 0, len: 0 } }); return; } }
         var whyQ = Dq.checkTableRoll(resQ); if (whyQ) { denyQ(whyQ); return; }
+        var swpQ = swQ && swQ.pays && chQ && typeof swPayPlan === 'function' ? swPayPlan(SQ, campQ, chQ, swQ.pays, Fq, Dq, tcQ) : null; if (swpQ && swpQ.error) { denyQ('error', { error: { message: swpQ.error, pos: 0, len: 0 } }); return; }   // 1.6.2 (G6): a bonus's cost, judged before anything is spent
         if (actQ && actQ.cost && chQ && typeof actSpend === 'function') { var costQ = actSpend(campQ, turnChQ.id, net.roster[conn.peer], actQ.cost, conn, turnChQ.name); if (costQ) { denyQ('error', { error: { message: costQ, pos: 0, len: 0 } }); return; } }   // turn-based combat T4: what it costs
         if (jobQ) { var jsQ = jobPress(SQ, campQ, chQ, q.row, actQ, varsQ, Fq, jobQ.round, q.label, saveRemoteSoon); if (jsQ) { denyQ('error', { error: { message: jsQ, pos: 0, len: 0 } }); return; } }   // a press short of its turns moves the count and rolls nothing; the last goes on and rolls
+        if (swpQ) swPayDo(chQ, swpQ);
         if (chQ && !q.att && typeof offTurnWarn === 'function') offTurnWarn(campQ, turnChQ, q.act, rowGQ, q.label || (actQ && actQ.label), conn);   // 1.6.0: nothing refused it, so a warning is said
         var restQ = function(resQ, heldQ) {   // 1.6.2 (G5): all that follows a roll, which a roll with card actions holds until it is accepted
         var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid }; if (heldQ) recQ.id = heldQ;
@@ -10811,6 +10813,22 @@ function cardOffers(h) {
     h.acts.forEach(function(a, i) { if ((h.used[i] || 0) >= (a.times || 1)) return; if (a.pay && !cardPayAct(o, a)) return; if (a.does === 'bandUp' && !(o.S.bandsFor(o.camp.system, o.ent).length > h.step + 1)) return; if (o.S.cardActOk(a, v, o.F)) out.push({ k: String(i), l: a.label }); });
     return out;
 }
+// [netcheck:swpay-start]
+// 1.6.2 (G6): a roll bonus with a cost, a system action run as it is ticked, from the GM's system whatever the roller's view holds. Worked out whole on a copy before anything is spent, so a bonus that cannot be paid refuses the roll, and stored once nothing else has refused it
+function swPayPlan(S, camp, ch, pays, F, D, tc) {
+    var sys = camp.system, rolls = Array.isArray(sys.rolls) ? sys.rolls : [], work = Object.assign({}, ch, { values: Object.assign({}, ch.values) }), all = {}, cards = [];
+    for (var i = 0; i < pays.length; i++) {
+        var act = rolls.filter(function(r) { return !!r && r.id === pays[i] && Array.isArray(r.apply); })[0]; if (!act) return { error: 'That bonus cannot be paid now.' };
+        var res = S.applyAct(sys, work, act, S.makeResolver(sys, work, F, tc || null), F, tc || null, null, undefined, D); if (!res || !res.ok) return { error: (res && res.message) || 'That bonus cannot be paid now.' };
+        Object.keys(res.values).forEach(function(k) { work.values[k] = res.values[k]; all[k] = res.values[k]; }); if (Array.isArray(res.lines) && res.lines.length) cards.push({ label: act.label, lines: res.lines, scope: S.applyScope(sys, work, act, false, F) });
+    }
+    return { values: all, cards: cards };
+}
+function swPayDo(ch, plan) {
+    var ks = Object.keys(plan.values); if (!ks.length) return; ch.values = ch.values || {}; ks.forEach(function(k) { ch.values[k] = plan.values[k]; }); ch.updated = Date.now(); saveRemoteSoon(); net.syncCharDelta(ch.id, plan.values); if (window.wpSheets) window.wpSheets.charChanged(ch.id);
+    plan.cards.forEach(function(c) { net.postApplyCard(ch, c.label, c.lines, c.scope); });
+}
+// [netcheck:swpay-end]
 function cardPayAct(o, a) { var hit = null; (Array.isArray(o.camp.system.rolls) ? o.camp.system.rolls : []).forEach(function(r) { if (r && r.id === a.pay && Array.isArray(r.apply)) hit = r; }); return hit; }
 function cardSend(h, offers) {
     var o = h.o, rec = { type: 'roll', id: h.id, from: o.from, expr: h.expr, draws: h.res.draws, v: o.F.VERSION, ts: Date.now(), pend: h.wait, offers: offers };
@@ -10944,6 +10962,7 @@ net.diceRoll = function(expr, o) {
     var why = D.checkTableRoll(res); if (why) return { error: D.denyText(why) };
     if (entR && entR.job && chR && o.row && typeof o.row.r === 'string' && SR && typeof SR.jobStep === 'function') { var jrR = typeof jobRound === 'function' ? jobRound(campR, chR.id) : null, jbR = SR.jobBar(chR, o.row, entR, varsR, F, jrR); if (jbR) return { error: jbR }; var jsR = jobPress(SR, campR, chR, o.row, entR, varsR, F, jrR, o.label, function() { save(true); }); if (jsR) return { error: jsR }; }   // 1.6.0: a job counted across turns
     var moR = hvR && hvR.length > 1 ? SR.hitRolls(campR.system, entR, expr, hvR.slice(1), F, D, { rounds: rnR.slice(1) }) : null; if (moR && moR.error) return { error: moR.error };   // ... and each hit after it, rolled here
+    var swpR = swR && swR.pays && chR && typeof swPayPlan === 'function' ? swPayPlan(SR, campR, chR, swR.pays, F, D, tcR) : null; if (swpR && swpR.error) return { error: swpR.error }; if (swpR) swPayDo(chR, swpR);   // 1.6.2 (G6)
     if (chR && !o.att && typeof net.offTurnSay === 'function') net.offTurnSay(chR, o.act, o.row, o.label);   // 1.6.0: off its turn, the GM is told, once nothing has refused it
     var restR = function(res, heldR) {   // 1.6.2 (G5): all that follows a roll, which a roll with card actions holds until it is accepted
     var rec = { type: 'roll', id: D.uid(), from: o.from || diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() }; if (heldR) rec.id = heldR;   // o.from: this machine's own word, the player whose press this roll follows (a line's damage)

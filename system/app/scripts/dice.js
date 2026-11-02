@@ -357,7 +357,7 @@ function rollWithMod(charId, expr, label, opts, anchor, swRef) {   // swRef (1.6
         swAv.forEach(function(w) {
             var k = w.s + '#' + w.i, b = el('button', 'tool ghost dice-swbtn'); b.type = 'button'; b.setAttribute('aria-pressed', 'false');
             b.appendChild(el('span', 'dice-swbtn-n', w.name)); b.appendChild(el('span', 'dice-swbtn-v', (w.v > 0 ? '+' : '−') + Math.abs(w.v)));
-            b.title = 'Add ' + w.name + ' to this roll'; b.addEventListener('click', function() { swOn[k] = !swOn[k]; refresh(); });
+            b.title = 'Add ' + w.name + ' to this roll'; if (w.cost) { b.appendChild(el('span', 'dice-swbtn-c', w.cost)); b.title += '. Ticking it costs this as you roll: ' + w.cost; } b.addEventListener('click', function() { swOn[k] = !swOn[k]; refresh(); });
             swBtns.push([b, k]); swBox.appendChild(b);
         });
         pop.appendChild(swBox);

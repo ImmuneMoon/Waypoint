@@ -120,6 +120,9 @@ jobs:
       - name: askcheck — what a roll or an action asks as it is pressed
         if: ${{ !cancelled() }}
         run: node tools/askcheck.js
+      - name: bodycheck — rows that hang from a row, and what a grant names
+        if: ${{ !cancelled() }}
+        run: node tools/bodycheck.js
       - name: cardcheck — what a roll's card offers before it lands
         if: ${{ !cancelled() }}
         run: node tools/cardcheck.js

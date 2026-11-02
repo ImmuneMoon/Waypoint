@@ -2567,7 +2567,7 @@ function tradeApply(sys, a, b, offA, offB, whoA, whoB, into) {   // into { a: { 
             var f = fieldById(sys, l.fid), spec = isObj(f && f.list) ? f.list : {}, list = listOf(s[0], s[1], l.fid), i = at(list, l.rowId); if (i < 0) { err = 'changed'; return; }
             var r = list[i], rd = rowDef(sys, r), nm = (rd && rd.def && rd.def.name) || 'Item';
             if (l.key === undefined) {
-                var mv = JSON.parse(JSON.stringify(r)), kids = []; mv.qty = l.qty; delete mv.keptOn; delete mv.hid; delete mv.gr; delete mv.gp; delete mv.in; grantOwn(mv); if (isObj(spec.on)) mv.on = false;   // 1.6.0: alone, it is no one's grant or part there
+                var mv = JSON.parse(JSON.stringify(r)), kids = []; mv.qty = l.qty; delete mv.keptOn; delete mv.hid; delete mv.gr; delete mv.gp; delete mv.in; delete mv.up; grantOwn(mv); if (isObj(spec.on)) mv.on = false;   // 1.6.0: alone, it is no one's grant or part there
                 if (l.qty >= (r.qty | 0 || 1)) {
                     list.splice(i, 1);
                     tradeCarry(sys, seenOf(s[0], s[1]), l.rowId).forEach(function(k) { var kl = listOf(s[0], s[1], k.f), ki = at(kl, rowIdOf(k.row)); if (ki < 0) return; kids.push({ f: k.f, how: k.how, by: k.by, old: rowIdOf(k.row), row: JSON.parse(JSON.stringify(kl[ki])) }); kl.splice(ki, 1); gone[s[0]][rowIdOf(k.row)] = 1; });
@@ -3562,6 +3562,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     if (isObj(out.lvl) && typeof v.unheld === 'string') { var uhT = cleanFormulaText(v.unheld); if (uhT) out.unheld = uhT; }   // 1.6.0 Rolls unheld entries (the owner, by prompt: "On the list (Recommended)", "GM and owner, by a tick (Recommended)"): the level an entry nobody holds is rolled at, a formula of its own names, on a list with a level
     if (typeof v.modsIf === 'string') { var miT = cleanFormulaText(v.modsIf); if (miT) out.modsIf = miT; }   // 1.6.0 Changes apply where (the campaign build's ask): a formula of the holder's names and each row's own (Row.*); a row where it does not hold gives none of its changes (fxIndex, unseenMods). The same in both views: cleanSystem drops one that cannot stand (modsIfOk)
     if (v.edge === true) out.edge = true;   // 1.6.0 R16: Edge follows its state, a row's edge in the tone of its strongest badge, else the accent while it is switched on
+    if (v.hang === true) out.hang = true;   // 1.6.2 (body fold 1): Rows hang from a row, a row's up and Row.up.<name>
     if (v.grantRaise === true) out.grantRaise = true;   // 1.6.0 (a builder audit): A grant raises a held row, on a list with a quantity too (grantRaises)
     if (v.menus === true) out.menus = true;
     if (typeof v.sets === 'string' && v.sets && isObj(out.on)) { var stS = (Array.isArray(out.stats) ? out.stats : []).filter(function(s) { return isObj(s) && lower(s.key) === lower(v.sets) && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length > 0 : Array.isArray(s.labels) && s.labels.length > 0); })[0]; if (stS) out.sets = stS.key; }   // 1.6.0 R15: Sets by a choice stat, the rows of one value a set switched on together
@@ -5034,7 +5035,7 @@ function chainsWalk(sys, F) {
         var pts = spec && isObj(spec.parts) ? partsSrc(sys, spec) : null;   // 1.6.0 R14: the list its parts come from (Row.parts.*)
         var ats = spec && isObj(spec.at) ? atSrc(sys, spec) : null;   // 1.6.0 Stands at: the list the row its stat names is in (Row.<by>.*)
         var fds = map(); (spec && Array.isArray(spec.feeds) ? spec.feeds : []).forEach(function(fd) { var s = isObj(fd) ? loadSrc(sys, feedSpec(spec, fd)) : null; if (s) fds[lower(fd.key)] = s; });   // 1.6.0 Feeds: the list each feed loads from (Row.Feed.<key>.*)
-        return (lists[lk] = { sp: spec && isObj(spec.specs) ? spec.specs : null, k: lk, fid: f.id, st: st, cl: cl, ct: ct, chs: chs, fds: fds, pts: pts, ats: ats && ats.id !== f.id ? ats : null, atb: ats ? lower(spec.at.by) : '' });
+        return (lists[lk] = { sp: spec && isObj(spec.specs) ? spec.specs : null, k: lk, fid: f.id, st: st, cl: cl, ct: ct, chs: chs, fds: fds, pts: pts, ats: ats && ats.id !== f.id ? ats : null, atb: ats ? lower(spec.at.by) : '', hg: !!(spec && spec.hang === true) });
     };
     var defNode = function(f, sfx) {   // a field's name: its definition worked out (a formula, a skill's base, a pool's most), '' for one read as stored
         if (f.kind === 'number' && isObj(f.override)) return sfx && sfx !== 'base' ? '' : node('f|' + lower(f.key), [f.override.when, f.override.value].filter(function(x) { return typeof x === 'string' && x; }), null, [], []);   // 205 (6): a number's override (its .base too)
@@ -5070,7 +5071,7 @@ function chainsWalk(sys, F) {
     var nodeOf = function(name, L) {   // the resolver's own lookup (fn, and a column's rowVars): the node a name is worked out under, or ''
         var l = lower(name);
         if (L && l.slice(0, 5) === 'host.' && !ix.host && !lkC.host) { var hw = l.slice(5), hn = []; if (hw.indexOf('.') < 0) sys.fields.forEach(function(hf) { if (isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === L.fid) { var hd = rowNode(listOf(hf), hw); if (hd) hn.push(hd); } }); if (hn.length) return hn.length === 1 ? hn[0] : node('h|' + L.k + '|' + hw, [], null, [], hn); }   // 205 (3): a part's Host.<w>, on each list its host may be in
-        if (L && l.slice(0, 4) === 'row.') { var w = l.slice(4), cw = w.split('.'); return w.indexOf('.') < 0 ? rowNode(L, w) : cw[0] === 'feed' && cw.length >= 3 && cw.length <= 4 && (cw.length === 3 || cw[2] === 'fired') && L.fds[cw[1]] ? rowNode(listOf(L.fds[cw[1]]), cw[cw.length - 1]) : cw.length === 2 && (cw[0] === 'round' || cw[0] === 'fired') && L.chs ? rowNode(listOf(L.chs), cw[1]) : cw.length === 2 && L.ats && cw[0] === L.atb ? rowNode(listOf(L.ats), cw[1]) : cw[0] === 'parts' && L.pts && (cw.length === 2 || (cw.length === 3 && (cw[1] === 'max' || cw[1] === 'min' || cw[1] === 'all'))) ? rowNode(listOf(L.pts), cw[cw.length - 1]) : ''; }   // 1.5.9: a round's stat or column, on its own list; 1.6.0 R14: a part's (205 (1): its highest or lowest too)
+        if (L && l.slice(0, 4) === 'row.') { var w = l.slice(4), cw = w.split('.'); return w.indexOf('.') < 0 ? rowNode(L, w) : cw[0] === 'feed' && cw.length >= 3 && cw.length <= 4 && (cw.length === 3 || cw[2] === 'fired') && L.fds[cw[1]] ? rowNode(listOf(L.fds[cw[1]]), cw[cw.length - 1]) : cw.length === 2 && (cw[0] === 'round' || cw[0] === 'fired') && L.chs ? rowNode(listOf(L.chs), cw[1]) : cw.length === 2 && L.ats && cw[0] === L.atb ? rowNode(listOf(L.ats), cw[1]) : cw.length === 2 && L.hg && cw[0] === 'up' ? rowNode(L, cw[1]) : cw[0] === 'parts' && L.pts && (cw.length === 2 || (cw.length === 3 && (cw[1] === 'max' || cw[1] === 'min' || cw[1] === 'all'))) ? rowNode(listOf(L.pts), cw[cw.length - 1]) : ''; }   // 1.5.9: a round's stat or column, on its own list; 1.6.0 R14: a part's (205 (1): its highest or lowest too)
         if (ix[l]) return defNode(ix[l], '');
         if (tbW) { var tbN = tableRead(sys, l); if (tbN) return tbN.by ? nodeOf(tbN.by, L) : ''; }   // 1.6.0: a table read by a name is worked out as that name is; a fixed row is a figure
         if (l.indexOf('.') > 0) { var ln = listNode(l); if (ln !== undefined) return ln; }
@@ -5548,6 +5549,7 @@ function rowFacts(o, e, spec) {
     var tt = cleanTt(e.tt, spec); if (tt) o.tt = tt;   // 1.6.0: the part of a step its timed counters have lived
     if (isObj(spec) && isObj(spec.upkeep) && (spec.upkeep.each === 'clock' || typeof spec.upkeep.eachBy === 'string') && typeof e.ut === 'number' && fin(e.ut) && e.ut > 0) o.ut = Math.min(1e9, e.ut);   // 1.6.0 (CORE gap 13): ... and of a step its upkeep by the clock (the GM's alone)
     if (typeof e.in === 'string' && ROW_ID.test(e.in)) o.in = e.in;   // 1.6.0 R14: a part, by its host row's id
+    if (isObj(spec) && spec.hang === true && typeof e.up === 'string' && ROW_ID.test(e.up) && e.up !== e.id) o.up = e.up;   // 1.6.2 (body fold 1): the row it hangs from, by its id, a fact of its own: a part leaves its list and goes with its host, and this does neither
     if (typeof e.gr === 'string' && ROW_ID.test(e.gr)) o.gr = e.gr;   // 1.6.0 (v2, B4): a row another row granted, by that row's id (applyRowOp)
     if (e.gp === 1 && typeof o.gr === 'string') o.gp = 1;   // 1.6.0: ... by a grant ticked Pays back (Row.paysback), only beside its mark
     if (typeof e.gb === 'string' && ROW_ID.test(e.gb)) { o.gb = e.gb; var glF = lvlNum(e.gl); if (glF !== undefined && typeof e.gl === 'number') o.gl = isObj(spec) && isObj(spec.lvl) ? lvlClamp(spec.lvl, glF) : glF; }   // 1.6.0 (a builder audit): a row of its own a grant backs (grantBack), by the granting row's id, and the level it stood at before (the host's own)
@@ -5915,16 +5917,29 @@ function cleanGrants(v, kinds, self) {
         var o = { list: g.list, entry: g.entry, qty: clampNum(Math.round(cleanNum(g.qty, 1)) || 1, 1, LIMITS.maxQty) }, fr = typeof g.from === 'number' ? lvlNum(g.from) : undefined; if (fr !== undefined) o.from = fr; if (g.once === true) o.once = true;
         if (g.pay === true) o.pay = true; var gl = typeof g.lvl === 'number' ? lvlNum(g.lvl) : undefined; if (gl !== undefined) o.lvl = gl;   // 1.6.0: Pays back, and the level it grants at
         var gsp = cutText(g.spec, LIMITS.label); if (gsp && specSquash(gsp)) o.spec = gsp;   // 1.6.0 Specialties: its specifier, the row it adds named for it
-        var k = o.list + '|' + o.entry + '|' + (fr === undefined ? '' : fr) + (o.spec ? '|' + specSquash(o.spec) : ''); if (seen[k]) return; seen[k] = 1;
+        var gnm = o.spec ? '' : cutText(g.name, LIMITS.itemName); if (gnm && specSquash(gnm)) o.name = gnm;   // 1.6.2 (body fold 1): the row's own name, so one entry may be granted as Left Hand and as Right Hand
+        var gst = cleanGrantStats(g.stats); if (gst) o.stats = gst;   // ... its own stats, and the grant it hangs from
+        var gup = cutText(g.up, LIMITS.itemName); if (gup && specSquash(gup)) o.up = gup;
+        var tgK = grantTag(o), k = o.list + '|' + o.entry + '|' + (fr === undefined ? '' : fr) + (tgK ? '|' + tgK : ''); if (seen[k]) return; seen[k] = 1;
         out.push(o);
     });
+    var nms = map(); out.forEach(function(o) { if (typeof o.name === 'string') nms[specSquash(o.name)] = 1; });
+    out.forEach(function(o) { if (typeof o.up === 'string' && (nms[specSquash(o.up)] !== 1 || (typeof o.name === 'string' && specSquash(o.up) === specSquash(o.name)))) delete o.up; });   // Hangs from names another grant of this entry
     return out.length ? out : undefined;
 }
+// 1.6.2 (body fold 1): what a grant sets on the row it makes, stat by stat: a number, or a choice by its words. Each is judged against the list as the row is made (grantAdd), and one the list lacks does nothing
+function cleanGrantStats(v) {
+    if (!isObj(v)) return undefined; var o = {}, n = 0;
+    Object.keys(v).slice(0, LIMITS.entryStats * 4).forEach(function(k) { if (n >= LIMITS.entryStats || !STAT_KEY.test(k) || (k in Object.prototype) || (lower(k) in Object.prototype)) return; var x = v[k], t = typeof x === 'number' && fin(x) && Math.abs(x) <= LIMITS.statAbs ? x : typeof x === 'string' ? cutText(x, LIMITS.label) : ''; if (t === '') return; o[k] = t; n++; });
+    return n ? o : undefined;
+}
+// 1.6.2 (body fold 1): what tells two grants of one entry apart: its specifier, else its own name, read as a row's name is (grantSpecOf)
+function grantTag(g) { if (!isObj(g)) return ''; if (typeof g.spec === 'string' && specSquash(g.spec)) return specSquash(g.spec); return typeof g.name === 'string' && g.name ? grantSpecOf({ ov: { name: g.name } }) : ''; }
 // A players' view of a definition never names an entry players cannot see: a grant of one is left out of it (the host still grants it).
 // shown(id): whether players may see that entry; with no judge every grant goes
 function hideGrants(def, shown) {
     if (!isObj(def) || !Array.isArray(def.grants)) return def;
-    var keep = def.grants.filter(function(g) { return isObj(g) && typeof shown === 'function' && shown(g.entry) === true; });
+    var keep = def.grants.filter(function(g) { return isObj(g) && typeof shown === 'function' && shown(g.entry) === true; }).map(function(g) { if (!isObj(g.stats)) return g; var c = Object.assign({}, g); delete c.stats; return c; });   // 1.6.2 (body fold 1): what a grant sets is the host's to write, and a stat it sets may be one players never see
     if (keep.length) def.grants = keep; else delete def.grants;
     return def;
 }
@@ -5935,10 +5950,10 @@ function grantWant(def, lvl) {
     var at = typeof lvl === 'number' && fin(lvl) ? lvl : 0, out = map(), by = map();
     (isObj(def) && Array.isArray(def.grants) ? def.grants : []).forEach(function(g) {
         if (!isObj(g) || typeof g.list !== 'string' || typeof g.entry !== 'string' || (typeof g.from === 'number' && at < g.from)) return;
-        var k = g.list + '|' + g.entry + (typeof g.spec === 'string' && specSquash(g.spec) ? '|' + specSquash(g.spec) : ''), n = clampNum(cleanNum(g.qty, 1) | 0, 1, LIMITS.maxQty);   // 1.6.0 Specialties: one holding an entry and specifier
+        var tg = grantTag(g), k = g.list + '|' + g.entry + (tg ? '|' + tg : ''), n = clampNum(cleanNum(g.qty, 1) | 0, 1, LIMITS.maxQty);   // 1.6.0 Specialties: one holding an entry and specifier (1.6.2: or its own name)
         if (out[k]) out[k].qty = clampNum(out[k].qty + n, 1, LIMITS.maxQty); else { out[k] = { list: g.list, entry: g.entry, qty: n }; if (typeof g.spec === 'string' && specSquash(g.spec)) out[k].spec = g.spec; }
         if (g.once === true) out[k].once = true;   // 1.6.0 (CORE gap 15)
-        var fw = typeof g.from === 'number' ? g.from : -Infinity; if (by[k] === undefined || fw >= by[k]) { by[k] = fw; delete out[k].pay; delete out[k].lvl; if (g.pay === true) out[k].pay = true; if (typeof g.lvl === 'number' && fin(g.lvl)) out[k].lvl = g.lvl; }   // 1.6.0: a grant's own terms
+        var fw = typeof g.from === 'number' ? g.from : -Infinity; if (by[k] === undefined || fw >= by[k]) { by[k] = fw; delete out[k].pay; delete out[k].lvl; delete out[k].name; delete out[k].stats; delete out[k].up; if (g.pay === true) out[k].pay = true; if (typeof g.lvl === 'number' && fin(g.lvl)) out[k].lvl = g.lvl; if (typeof g.name === 'string' && g.name) out[k].name = g.name; if (isObj(g.stats)) out[k].stats = g.stats; if (typeof g.up === 'string' && g.up) out[k].up = g.up; }   // 1.6.0: a grant's own terms (1.6.2: and what it names)
     });
     return out;
 }
@@ -6006,13 +6021,13 @@ function grantCut(sys, W, seed, withSeed, keptTo) {
 function grantHeirs(sys, vals, ids, seed, withSeed, W) {
     var fids = Object.keys(vals), moved = false;
     var wantOf = function(x, f2, k) { return grantWantOf(sys, x, f2, k); };
-    var filled = function(xid, fid, entry) { return grantFilled(vals, xid, fid, entry); };   // 1.6.0 (a builder audit): a row of its own it backs fills its grant too
+    var filled = function(xid, fid, entry, w) { return grantFilled(vals, xid, fid, entry, w); };   // 1.6.0 (a builder audit): a row of its own it backs fills its grant too
     fids.forEach(function(fid) {
         vals[fid].forEach(function(r) {
             if (!isObj(r) || r.hid === 1 || typeof r.gr !== 'string' || typeof r.defId !== 'string') return;
             var rid = rowIdOf(r), going = ids[r.gr] === 1 || (withSeed && seed[rid] === 1); if (!going) return;
             var k = fid + '|' + r.defId, kS = grantSpecOf(r) ? k + '|' + grantSpecOf(r) : k, heir = null, hw = null;   // 1.6.0 Specialties: a row named for its grant's specifier passes to a grant of the same specifier
-            fids.forEach(function(f2) { vals[f2].forEach(function(x) { var xid = rowIdOf(x); if (heir || !isObj(x) || x.hid === 1 || !xid || xid === rid || xid === r.gr || ids[xid] === 1 || seed[xid] === 1) return; var w = wantOf(x, f2, kS) || (kS !== k ? wantOf(x, f2, k) : null); if (w && !filled(xid, fid, r.defId)) { heir = x; hw = w; } }); });
+            fids.forEach(function(f2) { vals[f2].forEach(function(x) { var xid = rowIdOf(x); if (heir || !isObj(x) || x.hid === 1 || !xid || xid === rid || xid === r.gr || ids[xid] === 1 || seed[xid] === 1) return; var w = wantOf(x, f2, kS) || (kS !== k ? wantOf(x, f2, k) : null); if (w && !filled(xid, fid, r.defId, w)) { heir = x; hw = w; } }); });
             if (!heir) return;
             r.gr = rowIdOf(heir); var tf = fieldById(sys, fid); if (!(tf && isObj(tf.list) && tf.list.noQty)) r.qty = clampNum(hw.qty, 1, LIMITS.maxQty);
             grantTermsOn(sys, fid, r, hw, null);   // 1.6.0: held now by the heir's grant, on its terms: Pays back as it says, and its level where it names one (else the row keeps its own)
@@ -6037,11 +6052,14 @@ function grantAdd(sys, W, g, qty, rid, ctx, depth) {
     var hd = grantRaises(sp) ? grantHeld(L, g.entry, g) : null; if (hd) { if (typeof hd.gr !== 'string') grantBack(sys, W, g.list, hd, g, rid, ctx); return null; }   // 1.6.0 (a builder audit, the core's rule: the higher, with no double): an entry its list holds already is raised to the grant's level and marked as backed by it, never doubled; a row another row granted is left to it (grantHeirs)
     if (sp && sp.noQty && !sp.multi && L.some(function(r) { return isObj(r) && r.defId === g.entry && r.hid !== 1 && typeof r.opn !== 'string' && grantSpecIs(r, g); })) return null;
     if (g.once === true && L.some(function(r) { return isObj(r) && r.defId === g.entry && r.hid !== 1 && typeof r.opn !== 'string' && grantSpecIs(r, g); })) return null;   // 1.6.0 (CORE gap 15): once a character, whatever row holds it
+    if (g.once === true && typeof g.name === 'string' && g.name && L.some(function(r) { return isObj(r) && r.hid !== 1 && rowNamedAs(sys, r) === specSquash(g.name); })) return null;   // 1.6.2 (body fold 1): ... by its name too, so a plan laid over a body adds what is missing
     if (L.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return { ok: false, reason: 'value', msg: 'No room on ' + (tf.label || 'that list') + ' for ' + (ent.name || 'what it grants') + '.' };
     var id = uid('w_'); while (L.some(function(r) { return rowIdOf(r) === id; })) id = uid('w_');
     var row = { id: id, defId: g.entry, qty: sp && sp.noQty ? 1 : clampNum(qty, 1, LIMITS.maxQty), gr: rid };
     if (g.pay === true) row.gp = 1;   // 1.6.0: Pays back (Row.paysback)
     if (typeof g.spec === 'string' && specSquash(g.spec)) row.ov = { name: cutText((ent.name || 'Item') + ' (' + g.spec + ')', LIMITS.itemName) };   // 1.6.0 Specialties: named for its specifier, as Keen Sense (Smell)
+    else if (typeof g.name === 'string' && g.name) row.ov = { name: cutText(g.name, LIMITS.itemName) };   // 1.6.2 (body fold 1): its own name
+    if (isObj(g.stats)) Object.keys(g.stats).forEach(function(k) { var one = {}; one[k] = g.stats[k]; applyOv(row, ent, { stats: one }, sp, null, false, sp, {}); });   // ... and its own stats, each held as the GM's, one its list lacks doing nothing
     if (ctx.mk) row.mk = 1;
     if (sp && isObj(sp.lvl)) row.lvl = typeof g.lvl === 'number' && fin(g.lvl) ? lvlClamp(sp.lvl, g.lvl) : lvlStart(sp, ent);   // 1.6.0: at its grant's level where it names one (a grant is never refused for Levels it may be, and such a row is marked on the sheet)
     startStamp(sp, row);   // 1.6.0: Keeps the starting level
@@ -6081,7 +6099,7 @@ function grantRelevel(sys, fid, r, w, ctx, by) {
 }
 // ... and no longer backed: back to the level it stood at, its marks gone
 function grantWantOf(sys, x, f2, k) { var rd = rowDef(sys, x), d = rd && isObj(rd.def) ? rd.def : null; if (!isObj(d) || !Array.isArray(d.grants)) return null; var f = fieldById(sys, f2), w = grantWant(d, rowLvl(f && isObj(f.list) ? f.list : null, x, d)); return w[k] || null; }
-function grantFilled(vals, xid, fid, entry) { return (vals[fid] || []).some(function(y) { return isObj(y) && (y.gr === xid || y.gb === xid) && y.defId === entry && y.hid !== 1; }); }
+function grantFilled(vals, xid, fid, entry, w) { return (vals[fid] || []).some(function(y) { return isObj(y) && (y.gr === xid || y.gb === xid) && y.defId === entry && y.hid !== 1 && (!w || grantSpecIs(y, w)); }); }   // w (1.6.2): the grant, so that Right Hand does not fill the grant of a Left Hand
 // a row of its own whose backing grant ends: it passes to the first row, in list order, whose entry grants it now, that gone() does not
 // name, and whose grant of it is unfilled, at the higher of its own level and that grant's; with none it falls back to its own level
 function grantUnback(sys, vals, fid, r, gone) {
@@ -6122,12 +6140,24 @@ function grantRaisedSays(sys, W, raised) {
         return x.n + ' raised to ' + fmtNum(x.l) + ' by ' + bn + '.';
     }).join(' ');
 }
+// 1.6.2 (body fold 1): a row's name as a grant reads it, and what a grant's Hangs from links once its rows stand, in either order of the grants: each
+// row of the grant with no up of its own hangs from the row of that name, one this row granted before any other. A once grant links a row that was there
+// before it, so a plan laid over a body joins it up. Nothing moves a link a row already has, which may be the GM's
+function rowNamedAs(sys, r) { var rd = rowDef(sys, r); return specSquash(isObj(r.ov) && typeof r.ov.name === 'string' && r.ov.name ? r.ov.name : rd && isObj(rd.def) && typeof rd.def.name === 'string' ? rd.def.name : ''); }
+function upOk(list, rid, to) { var at = to; for (var n = 0; n < 64; n++) { if (at === rid) return false; var r = null; for (var i = 0; i < list.length; i++) if (rowIdOf(list[i]) === at) { r = list[i]; break; } if (!r) return n > 0; if (!isObj(r) || typeof r.up !== 'string') return true; at = r.up; } return false; }
+function grantLink(sys, W, rid, w1) {
+    Object.keys(w1).forEach(function(k) {
+        var g = w1[k]; if (typeof g.up !== 'string') return; var L = W.get(g.list), tf = fieldById(sys, g.list); if (!L || !tf || !isObj(tf.list) || tf.list.hang !== true) return;
+        var sq = specSquash(g.up), nm = typeof g.name === 'string' && g.name ? specSquash(g.name) : '', par = null; L.forEach(function(r) { if (!isObj(r) || r.hid === 1 || rowNamedAs(sys, r) !== sq) return; if (!par || (par.gr !== rid && r.gr === rid)) par = r; }); if (!par) return;
+        L.forEach(function(r) { if (!isObj(r) || r === par || r.hid === 1 || typeof r.up === 'string' || (r.gr !== rid && g.once !== true) || !(nm ? rowNamedAs(sys, r) === nm : r.defId === g.entry && grantSpecIs(r, g)) || !upOk(L, rowIdOf(r), rowIdOf(par))) return; r.up = rowIdOf(par); W.touched[g.list] = 1; });
+    });
+}
 // A granting row's grants moved from what they held (w0) to what they hold now (w1), each entry on each list: rows granted where none were,
 // a quantity moved by the difference, rows taken out (with what they granted) where it holds none now
 // 1.6.0 Specialties: a granted row's specifier, as its name says it (Keen Sense (Smell) reads smell), and whether a row is one a grant would
 // make: any row where the grant names none, else one of that specifier
 function grantSpecOf(r) { var nm = isObj(r) && isObj(r.ov) && typeof r.ov.name === 'string' ? r.ov.name : '', np = nm ? specNameParts(nm) : null; return nm ? (np ? np.s : specSquash(nm)) : ''; }
-function grantSpecIs(r, g) { var gs = isObj(g) && typeof g.spec === 'string' ? specSquash(g.spec) : ''; return !gs || grantSpecOf(r) === gs; }
+function grantSpecIs(r, g) { var gs = grantTag(g); return !gs || grantSpecOf(r) === gs; }
 function grantMove(sys, W, rid, w0, w1, ctx, depth) {
     var keys = Object.keys(w0).concat(Object.keys(w1).filter(function(k) { return !w0[k]; }));
     for (var i = 0; i < keys.length; i++) {
@@ -6143,6 +6173,7 @@ function grantMove(sys, W, rid, w0, w1, ctx, depth) {
         if (mine.length) { var tf = fieldById(sys, g.list); if (!(tf && isObj(tf.list) && tf.list.noQty)) { mine[0].qty = clampNum((mine[0].qty | 0) + b - a, 1, LIMITS.maxQty); W.touched[g.list] = 1; } continue; }
         if (b > a) { var r0 = grantAdd(sys, W, g, a ? b - a : b, rid, ctx, depth); if (r0) return r0; }
     }
+    grantLink(sys, W, rid, w1);
     return null;
 }
 // ... put back for a granting row's Undo: each kept row by its place, ascending, never one whose id its list already holds, and only rows
@@ -6222,7 +6253,7 @@ function rowDef(sys, row) {
 // players' fields only (the 5h rule: the owner's sheet, their rolls and the host agree); a custom row without its GM texts; a kept curse
 // (hid) not at all. lib: the host's full items by id — without it a GM-only row is left out (fail closed). F4b: the facts go as stored, a
 // curse the GM keeps on (keptOn) as switched off.
-function projFacts(o, r) { if (typeof r.sj === 'number') o.sj = r.sj; if (isObj(r.ct)) o.ct = JSON.parse(JSON.stringify(r.ct)); if (isObj(r.bu)) { var buP = cleanBu(r.bu); if (buP) o.bu = buP; } if (typeof r.opn === 'string') o.opn = r.opn; if (typeof r.in === 'string') o.in = r.in; if (r.mk === 1) o.mk = 1; if (typeof r.sl === 'number') o.sl = r.sl; if (typeof r.gr === 'string') { o.gr = r.gr; if (r.gp === 1) o.gp = 1; } if (typeof r.gb === 'string') o.gb = r.gb;   // 1.6.0 (a builder audit): a row a grant backs says so on its owner's copy (its own level before is the host's)   // 1.6.0 R14: a part says its host on its owner's copy; 1.6.0 (v2, B5): a row made while making says so   // 1.5.8: an opened row says so on its owner's copy   // R2: its counters go as stored
+function projFacts(o, r) { if (typeof r.sj === 'number') o.sj = r.sj; if (typeof r.up === 'string') o.up = r.up; if (isObj(r.ct)) o.ct = JSON.parse(JSON.stringify(r.ct)); if (isObj(r.bu)) { var buP = cleanBu(r.bu); if (buP) o.bu = buP; } if (typeof r.opn === 'string') o.opn = r.opn; if (typeof r.in === 'string') o.in = r.in; if (r.mk === 1) o.mk = 1; if (typeof r.sl === 'number') o.sl = r.sl; if (typeof r.gr === 'string') { o.gr = r.gr; if (r.gp === 1) o.gp = 1; } if (typeof r.gb === 'string') o.gb = r.gb;   // 1.6.0 (a builder audit): a row a grant backs says so on its owner's copy (its own level before is the host's)   // 1.6.0 R14: a part says its host on its owner's copy; 1.6.0 (v2, B5): a row made while making says so   // 1.5.8: an opened row says so on its owner's copy   // R2: its counters go as stored
  if (typeof r.lvl === 'number') o.lvl = r.lvl; if (typeof r.on === 'boolean') o.on = r.keptOn === 1 ? false : r.on; if (typeof r.note === 'string' && r.note) o.note = r.note; if (typeof r.paid === 'number') o.paid = r.paid; if (isObj(r.look)) o.look = JSON.parse(JSON.stringify(r.look)); if (Array.isArray(r.workLog)) o.workLog = JSON.parse(JSON.stringify(r.workLog)); }   // F4c1: paid   // 1.6.0, backlog 206: its look and its work log
 // F4c1: an inline or custom copy's stats as its owner holds them — its list's (spec: the view's list options; none: no stats); spec true is compare
 // only (sheets.js ownerSeesSame): every stat as the GM's machine holds it, so a change to one is never taken for "the same"
@@ -6392,13 +6423,18 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         if (q.op === 'keep') {   // "Make custom" — a deleted entry's copy becomes the character's own item
             if (opts.player || !isObj(list[idx].snap)) return { ok: false, reason: 'field' };
             var wasHid = list[idx].hid === 1;
-            var kr = { id: q.rowId, qty: list[idx].qty }; ['lvl', 'on', 'note', 'paid', 'keptOn', 'sj'].forEach(function(k) { if (list[idx][k] !== undefined) kr[k] = list[idx][k]; }); kr.def = isObj(list[idx].ov) ? mergeOv(list[idx].snap, list[idx].ov) : list[idx].snap;   // F4b: its facts go with it (F4c1: what it cost; F4c2: its own values folded into its definition, the ov itself not kept)
+            var kr = { id: q.rowId, qty: list[idx].qty }; ['lvl', 'on', 'note', 'paid', 'keptOn', 'sj', 'up'].forEach(function(k) { if (list[idx][k] !== undefined) kr[k] = list[idx][k]; }); kr.def = isObj(list[idx].ov) ? mergeOv(list[idx].snap, list[idx].ov) : list[idx].snap;   // F4b: its facts go with it (F4c1: what it cost; F4c2: its own values folded into its definition, the ov itself not kept)
             var leK = itemDef(sys, list[idx].defId) || libFind(list[idx].defId); if (isObj(leK)) { kr.def = Object.assign({}, kr.def); ownLong(kr.def, leK); }   // 155: an entry that is still there gives the row its long text, which the row now keeps as its own
             list[idx] = kr; if (wasHid) list[idx].hid = 1;
             extra.qty = list[idx].qty;
         } else if (q.op === 'set') {   // F4b: a row's facts, all or none. A player switching off an item with an equip lock: bound — it stays on
             // (their message; within the grace after it went on, it comes off); curse on contact — it looks off to them and stays on here
-            var fx = isObj(q.facts) ? q.facts : null, rw = list[idx]; if (!fx || (fx.lvl === undefined && fx.on === undefined && fx.note === undefined && fx.paid === undefined && fx.ct === undefined && fx.sj === undefined)) return { ok: false, reason: 'value' };   // no fact: nothing to do
+            var fx = isObj(q.facts) ? q.facts : null, rw = list[idx]; if (!fx || (fx.lvl === undefined && fx.on === undefined && fx.note === undefined && fx.paid === undefined && fx.ct === undefined && fx.sj === undefined && fx.up === undefined)) return { ok: false, reason: 'value' };   // no fact: nothing to do
+            if (fx.up !== undefined) {   // 1.6.2 (body fold 1): the row it hangs from is the GM's to set (the wire's facts never carry it), one of this list, never itself or a row under it
+                if (opts.player) return { ok: false, reason: 'field' };
+                if (!spec || spec.hang !== true) return { ok: false, reason: 'value' };
+                if (fx.up === null || fx.up === '') delete rw.up; else { if (typeof fx.up !== 'string' || !ROW_ID.test(fx.up) || !upOk(list, rowIdOf(rw), fx.up)) return { ok: false, reason: 'value' }; rw.up = fx.up; }
+            }
             if (fx.paid !== undefined) {   // F4c1: what one cost is the GM's to correct (a player's: field, before any fact applies); null: back to the list price
                 if (opts.player) return { ok: false, reason: 'field' };
                 if (!spec || !spec.price) return { ok: false, reason: 'value' };
@@ -9120,6 +9156,15 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var ai = atIndex(L.spec, x.d, AL.rows.map(function(it) { return it.d; }));
         return ai < 0 ? 0 : rowVal(AL, AL.rows[ai], sg[1]);
     }
+    // 1.6.2 (body fold 1): Row.up.<w>, the row this one hangs from read as that row's own Row.<w>; 0 where it hangs from nothing, from a row that is
+    // gone or from one kept from its player; undefined on a list that does not hang rows
+    function upVal(L, x, w) {
+        if (!L.spec || L.spec.hang !== true || w.slice(0, 3) !== 'up.' || (isObj(L.spec.at) && lower(L.spec.at.by) === 'up')) return undefined;
+        var n = w.slice(3); if (!n || n.indexOf('.') >= 0) return undefined;
+        if (x.virt || !isObj(x.r) || typeof x.r.up !== 'string') return 0;
+        for (var i = 0; i < L.rows.length; i++) if (L.rows[i].id === x.r.up) return isObj(L.rows[i].r) && L.rows[i].r.hid === 1 ? 0 : rowVal(L, L.rows[i], n);
+        return 0;
+    }
     // 1.6.2 Fitted slots: Row.fitted, 1 while a row stands in a host that is there, so that a rule can tell a part from a row carried loose on the same list
     function fittedOf(L, x) {
         if (x.virt || !isObj(x.r) || typeof x.r.in !== 'string') return 0;
@@ -9140,7 +9185,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     }
     function rowVars(L, x) {   // a column's names: Row.* reads this row, every other name the resolver (one cache)
         if (x.rv) return x.rv;
-        var v = function(name, nt) { var l = lower(name); if (tbOn && l.slice(0, 6) === 'table.' && !ix[l]) { var tb0 = tableVal(l, L, x); if (tb0 !== undefined) return tb0; } if (l.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hv = hostVal(L, x, l.slice(5)); if (hv !== undefined) return hv; } if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); if (w.indexOf('.') < 0) return rowVal(L, x, w); var av = atVal(L, x, w); if (av === undefined) av = roundVal(L, x, w); return av !== undefined ? av : feedVal(L, x, w); } return fn(name, nt); };
+        var v = function(name, nt) { var l = lower(name); if (tbOn && l.slice(0, 6) === 'table.' && !ix[l]) { var tb0 = tableVal(l, L, x); if (tb0 !== undefined) return tb0; } if (l.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hv = hostVal(L, x, l.slice(5)); if (hv !== undefined) return hv; } if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); if (w.indexOf('.') < 0) return rowVal(L, x, w); var av = atVal(L, x, w); if (av === undefined) av = upVal(L, x, w); if (av === undefined) av = roundVal(L, x, w); return av !== undefined ? av : feedVal(L, x, w); } return fn(name, nt); };
         v.refs = function(names) { return refsOut(refUp(names, L, x)); };   // 1.6.0 Specialties: the cases a roll's names used, for its card
         v.detail = function(name) { var l = lower(name); if (l.slice(0, 4) === 'row.' && l.indexOf('.', 4) < 0) return detail[lower(L.f.key) + '#' + x.id + '.' + l.slice(4)] || null; return detail[l] || null; };   // 1.5.8: a row's own column under its own key
         v.burst = function() { return !x.virt && isObj(x.r) && isObj(x.r.bu) ? x.r.bu : null; };   // 1.6.0: its last burst (hitVars)
@@ -9807,6 +9852,7 @@ function nameWord(sys, name, rowSpec) {
         if (fam === 'on') return held() + ' of the one it is used on';
         if (fam === 'hit' || fam === 'host' || fam === 'row') {
             var wl = lower(rest[0]); if (fam === 'row' && ROW_SAYS[wl] && rest.length === 1) return ROW_SAYS[wl];
+            if (fam === 'row' && wl === 'up' && rest.length === 2) return 'the row it hangs from: ' + (statWord(rowSpec, rest[1]) || humanName(rest[1]));   // 1.6.2 (body fold 1)
             var spec0 = fam === 'row' ? rowSpec : fam === 'hit' && isObj(sys.combat) && isObj(sys.combat.damage) && isObj(sys.combat.damage.locs) ? (fieldById(sys, sys.combat.damage.locs.list) || {}).list : null, sw = statWord(spec0, rest[rest.length - 1]);
             if (!sw) sys.fields.forEach(function(f) { if (!sw && isObj(f) && f.kind === 'item-list') sw = statWord(f.list, rest[rest.length - 1]); });
             return (fam === 'row' ? 'this row\u2019s ' : fam === 'host' ? 'the host row\u2019s ' : 'the location\u2019s ') + (sw || humanName(one));
@@ -9861,6 +9907,7 @@ function readsOf(sys, ctx) {
         var sp0 = ctx.list, rw = []; if (isObj(sp0.lvl)) rw.push('Row.lvl'); rw.push('Row.qty'); if (isObj(sp0.on)) rw.push('Row.on'); if (sp0.price) rw.push('Row.paid');
         ['stats', 'cols', 'counters'].forEach(function(k) { (Array.isArray(sp0[k]) ? sp0[k] : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string' && x.key && (k !== 'stats' || x.kind !== 'pick' || (Array.isArray(x.opts) && x.opts.length))) rw.push('Row.' + x.key); }); });
         if (!ix.row) group('This row', rw);
+        if (sp0.hang === true && !ix.row) { var upN = []; ['stats', 'cols'].forEach(function(k) { (Array.isArray(sp0[k]) ? sp0[k] : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string' && x.key) upN.push('Row.up.' + x.key); }); }); if (upN.length) group('The row it hangs from', upN); }   // 1.6.2 (body fold 1)
     }
     if (r && Array.isArray(r.asks) && !ctx.only) group('What they answered', r.asks.filter(function(a) { return isObj(a) && typeof a.key === 'string' && a.key; }).map(function(a) { return 'Ask.' + a.key; }));   // 1.6.2
     if (Array.isArray(ctx.more) && ctx.more.length) group('For this', ctx.more);
@@ -9942,6 +9989,7 @@ function validateSystem(sys, F) {
             var atV = atSrc(sys, rowList.list); if (!atV || atV.id === rowList.id) return null;
             var awV = listWords(atV)[sg[2]]; return awV === 'stat' || awV === 'col' || awV === 'pick' ? { id: '', key: 'l#' + lower(atV.key), kind: 'number', vis: atV.vis, noEdge: true } : null;
         }
+        if (sg[0] === 'row' && sg.length === 3 && sg[1] === 'up' && !ix.row && rowList && isObj(rowList.list) && rowList.list.hang === true) return wordTarget(rowList, sg[2], false) ? { id: '', key: 'l#' + lower(rowList.key), kind: 'number', vis: rowList.vis, noEdge: true } : null;   // 1.6.2 (body fold 1): Row.up.<w>, a word of the row it hangs from: another row's, so no edge of the loop graph, and the resolver's chain answers a loop by the rows themselves
         if (sg[0] === 'row' && sg[1] === 'feed' && (sg.length === 4 || (sg.length === 5 && sg[3] === 'fired')) && !ix.row) {   // 1.6.0 Feeds: Row.Feed.<key>.<w> and Row.Feed.<key>.fired.<w>, a stat, a choice or a column of the feed's list; Row.Feed.<key>.turns
             if (!rowList) return { rowOutside: true };
             var fdV = isObj(rowList.list) ? feedOf(rowList.list, sg[2]) : null, fsV = fdV ? loadSrc(sys, feedSpec(rowList.list, fdV)) : null; if (!fsV) return null;
@@ -11326,7 +11374,7 @@ function gmDerivedNames(sys, F, names) {
             var atG = isObj(f.list.at) && !ix.row ? atSrc(sys, f.list) : null, atP = atG ? 'row.' + lower(f.list.at.by) + '.' : '';   // 1.6.0 Stands at: Row.<by>.<w> is worked out from that list's names
             var hsG = ix.host ? [] : sys.fields.filter(function(hf) { return isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === f.id; });   // 205 (3): a part's Host.<w> is worked out from its hosts' lists
             var node = 'l#' + lower(f.key), one = function(r) { if (!r) return; if (r.f.vis === 'gm') { if (!hot[node]) { hot[node] = 1; queue.push(node); } } else if (r.def) (readBy[r.f.id] = readBy[r.f.id] || []).push(node); };
-            var edge = function(nm) { var ln = lower(nm), srS = gmStD ? gmEdgeSrc(sys, f.list, ln) : null, tbE = tbD ? tableRead(sys, ln) : null; if (srS) { one({ f: { id: 'l#' + lower(srS.key), vis: srS.vis === 'gm' ? 'gm' : 'all' }, def: true }); return; } if (tbE) { if (tbE.gm) { one({ f: { id: '#gm', vis: 'gm' }, def: false }); return; } if (!tbE.by) return; nm = tbE.by; ln = nm; } if (hsG.length && ln.indexOf('host.') === 0) { hsG.forEach(function(hf) { one({ f: { id: 'l#' + lower(hf.key), vis: hf.vis === 'gm' ? 'gm' : 'all' }, def: true }); }); return; } one(ptG && ln.indexOf('row.parts.') === 0 ? { f: { id: 'l#' + lower(ptG.key), vis: ptG.vis === 'gm' ? 'gm' : 'all' }, def: true } : atG && ln.indexOf(atP) === 0 ? { f: { id: 'l#' + lower(atG.key), vis: atG.vis === 'gm' ? 'gm' : 'all' }, def: true } : reads(nm)); };
+            var edge = function(nm) { if (f.list.hang === true && lower(nm).indexOf('row.up.') === 0) nm = 'row.' + nm.slice(7); var ln = lower(nm), srS = gmStD ? gmEdgeSrc(sys, f.list, ln) : null, tbE = tbD ? tableRead(sys, ln) : null; if (srS) { one({ f: { id: 'l#' + lower(srS.key), vis: srS.vis === 'gm' ? 'gm' : 'all' }, def: true }); return; } if (tbE) { if (tbE.gm) { one({ f: { id: '#gm', vis: 'gm' }, def: false }); return; } if (!tbE.by) return; nm = tbE.by; ln = nm; } if (hsG.length && ln.indexOf('host.') === 0) { hsG.forEach(function(hf) { one({ f: { id: 'l#' + lower(hf.key), vis: hf.vis === 'gm' ? 'gm' : 'all' }, def: true }); }); return; } one(ptG && ln.indexOf('row.parts.') === 0 ? { f: { id: 'l#' + lower(ptG.key), vis: ptG.vis === 'gm' ? 'gm' : 'all' }, def: true } : atG && ln.indexOf(atP) === 0 ? { f: { id: 'l#' + lower(atG.key), vis: atG.vis === 'gm' ? 'gm' : 'all' }, def: true } : reads(nm)); };
             (Array.isArray(f.list.stats) ? f.list.stats : []).forEach(function(st) { if (isObj(st) && st.kind === 'pick') (Array.isArray(st.opts) ? st.opts : []).forEach(function(o) { if (isObj(o) && typeof o.name === 'string' && o.name) edge(o.name); }); });
             (Array.isArray(f.list.cols) ? f.list.cols : []).forEach(function(c) { if (!isObj(c) || typeof c.formula !== 'string' || !c.formula) return; figExpand(sys, F.names(c.formula) || []).forEach(function(n) { edge(nameOf(n)); }); });
         });

@@ -579,7 +579,7 @@ function grantsBox(form, e) {
     var all = allEntries().concat(sysItems()), entOf = function(id) { for (var i = 0; i < all.length; i++) if (all[i] && all[i].id === id) return all[i]; return null; };
     var listFor = function(ent) { var cg = ent && typeof ent.category === 'string' ? ent.category.toLowerCase() : ''; var hit = lists.filter(function(f) { return f.list && Array.isArray(f.list.cats) && f.list.cats.some(function(x) { return String(x).toLowerCase() === cg; }); })[0]; return (hit || lists[0] || {}).id || ''; };
     var draw = function() {
-        box.textContent = '';
+        box.textContent = ''; var upDraws = [];
         st.fg.forEach(function(g, gi) {
             var ln = el('div', 'lib-ctl lib-grant'), ent = entOf(g.entry), lo = lists.map(function(f) { return [f.id, f.label || f.key || 'A list']; });
             ln.appendChild(el('span', 'lib-need-name', ent ? ent.name : 'An entry that is gone'));
@@ -596,6 +596,21 @@ function grantsBox(form, e) {
             lv.addEventListener('input', function() { var n = Number(lv.value); if (lv.value.trim() === '' || !isFinite(n)) delete g.lvl; else g.lvl = n; });
             var pl = el('label', 'lib-mod-lvl lib-grant-pay'), pc = el('input'); pc.type = 'checkbox'; pc.checked = g.pay === true; pl.appendChild(pc); pl.appendChild(el('span', null, ' Pays back')); pl.title = 'On the row it grants, Row.paysback reads 1, so a cost can count it as bought though it came free. Another entry may grant the same one without it';   // 1.6.0: Pays back
             pc.addEventListener('change', function() { if (pc.checked) g.pay = true; else delete g.pay; }); ln.appendChild(pl);
+            var gmr = el('div', 'lib-grant-more');   // 1.6.2 (body fold 1): what it names, on a line of its own
+            var gnm = el('input', 'field lib-grant-nm'); gnm.type = 'text'; gnm.placeholder = 'Its own name'; gnm.value = typeof g.name === 'string' ? g.name : ''; gnm.title = 'A name for the row it grants in place of the entry\u2019s, such as Left Hand. Two grants of one entry with different names add a row each. Leave it empty for the entry\u2019s name'; gmr.appendChild(gnm);   // 1.6.2 (body fold 1)
+            gnm.addEventListener('change', function() { var nv = gnm.value.trim().slice(0, 240), was = typeof g.name === 'string' ? g.name : ''; if (nv) g.name = nv; else delete g.name; if (was) st.fg.forEach(function(x) { if (x.up === was) { if (nv) x.up = nv; else delete x.up; } }); upDraws.forEach(function(f) { f(); }); });   // in place: a redraw here loses the box the focus is going to
+            var gf = lists.filter(function(f) { return f.id === g.list; })[0], upOf = function() { var o = [['', 'Hangs from nothing']]; st.fg.forEach(function(x, xi) { if (xi !== gi && x.list === g.list && typeof x.name === 'string' && x.name) o.push([x.name, 'Hangs from ' + x.name]); }); if (typeof g.up === 'string' && g.up && !o.some(function(p) { return p[0] === g.up; })) o.push([g.up, 'Hangs from ' + g.up + ' (no such grant)']); return o; };
+            if ((gf && gf.list && gf.list.hang === true) || g.up) { var us = select(upOf(), g.up || ''), usH = el('span', 'lib-grant-uphold'); us.title = 'The row of this list it stands under, by the name another grant here gives it'; var usW = function(sl) { sl.title = us.title; sl.addEventListener('change', function() { if (sl.value) g.up = sl.value; else delete g.up; }); }; usW(us); usH.appendChild(us); upDraws.push(function() { usH.textContent = ''; var s2 = select(upOf(), g.up || ''); usW(s2); usH.appendChild(s2); }); gmr.appendChild(usH); }
+            var gss = gf && gf.list && Array.isArray(gf.list.stats) ? gf.list.stats.filter(function(s) { return s && typeof s.key === 'string' && s.key && s.set !== true; }) : [], gsv = g.stats && typeof g.stats === 'object' ? g.stats : null;
+            Object.keys(gsv || {}).forEach(function(k) {
+                var sd = gss.filter(function(s) { return s.key.toLowerCase() === k.toLowerCase(); })[0], sl = el('span', 'lib-grant-sline'); sl.appendChild(el('span', 'lib-need-name', sd ? (sd.label || sd.key) : k + ' (not a stat of this list)'));
+                if (sd && sd.kind === 'pick') { var ps = select((Array.isArray(sd.opts) ? sd.opts : []).filter(function(o) { return o && typeof o.label === 'string'; }).map(function(o) { return [o.label, o.label]; }), String(gsv[k])); ps.addEventListener('change', function() { gsv[k] = ps.value; }); sl.appendChild(ps); }
+                else { var nb = el('input', 'field lib-mod-amt'); nb.type = 'number'; nb.step = 'any'; nb.value = typeof gsv[k] === 'number' ? String(gsv[k]) : '0'; nb.title = 'What it sets this stat to'; nb.addEventListener('input', function() { var n = Number(nb.value); gsv[k] = nb.value.trim() === '' || !isFinite(n) ? 0 : n; }); sl.appendChild(nb); }
+                var sx = el('button', 'tool ghost', '\u00d7'); sx.type = 'button'; sx.title = 'It no longer sets this'; sx.addEventListener('click', function() { delete gsv[k]; if (!Object.keys(gsv).length) delete g.stats; draw(); }); sl.appendChild(sx); gmr.appendChild(sl);
+            });
+            var gsm = gss.filter(function(s) { return !Object.keys(gsv || {}).some(function(k) { return k.toLowerCase() === s.key.toLowerCase(); }); });
+            if (gsm.length) { var ad = select([['', '+ Sets a stat\u2026']].concat(gsm.map(function(s) { return [s.key, s.label || s.key]; })), ''); ad.title = 'Sets a stat of the row it grants, in place of the entry\u2019s'; ad.addEventListener('change', function() { var sd = gsm.filter(function(s) { return s.key === ad.value; })[0]; if (!sd) return; g.stats = gsv || {}; g.stats[sd.key] = sd.kind === 'pick' && Array.isArray(sd.opts) && sd.opts[0] ? sd.opts[0].label : 0; draw(); }); gmr.appendChild(ad); }
+            ln.appendChild(gmr);
             box.appendChild(ln);
             var why = !ent ? 'Save keeps it, but that entry is gone, so nothing is granted.' : !lists.some(function(f) { return f.id === g.list; }) ? 'Save drops it: pick a list it is added to.' : '';
             if (why) box.appendChild(el('div', 'lib-warn', why));

@@ -32,6 +32,13 @@ The System editor
 - A tab's long note folds away with Got it, and About this tab brings it
   back.
 - Adds to DR is one table now, the damage types across the top.
+- A list's rows can gather under headings, one for each value of a choice stat.
+  A stat ticked Player sets this is its owner's to set, on a list that is
+  otherwise yours.
+- Rows can hang from a row of their list, as a hand under its arm. You set it on
+  the row, and a formula of the row can read the row it hangs from.
+- A grant can name the row it makes, set its stats and hang it from another
+  grant's row, so one entry can lay a whole body down.
 
 At the table
 - Result bands name a roll by how it went, as a strong hit, a weak hit or a
@@ -55,6 +62,11 @@ At the table
   it used to keep the higher one and made the roll worse.
 - A pool set by the sheet goes on rolling when it shrinks past its keep count. It
   keeps what it has.
+- A roll or an action can ask a question as it is pressed: a pick of answers, a
+  value of the sheet, or a number between two. The card says what was answered.
+- A roll's card can offer actions before it lands, such as rolling again. It says
+  the result is pending and waits for Accept, or for the time the Combat tab
+  sets. A roll that offers nothing never waits.
 - Explode on the Radius tool now asks for a Defense roll where your system gives
   its blasts one. A system with no such roll goes off at once, as before.
 - A player who joins late now sees past cards about those they can see. Cards

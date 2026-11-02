@@ -1639,6 +1639,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (PPw && !item.byPlayer && window.wpCanPersistLocal && window.wpCanPersistLocal()) {
                   item.strokeWidth = PPw.strokeWidth; item.tip = PPw.tip; item.color = PPw.color; item.layer = PPw.layer; item.name = PPw.name;
                   if (PPw.blocksSight === true) { item.blocksSight = true; item.sightType = PPw.sightType === 'door' ? 'door' : 'wall'; }
+                  else if (PPw.barrier === true) item.barrier = true;   // backlog 23c: glass, chain-link and a force field drawn as a line
               }
               // [buildcheck:penpreset-end]
               if (PPw && item.sightType === 'door' && item.blocksSight === true && !item.byPlayer && typeof window.wpDoorCut === 'function') window.wpDoorCut(getActiveMap(), item);   // the map builder: a door drawn along a wall line cuts its doorway, in this stroke's own save

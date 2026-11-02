@@ -5432,7 +5432,7 @@ window.wpFitToGrid = fitToGrid;
       var BC = window.wpBuildCore; if (!sel || !BC || !Array.isArray(BC.TEXTURES)) return;
       while (sel.firstChild) sel.removeChild(sel.firstChild);
       var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Plain color'; sel.appendChild(o0);
-      BC.TEXTURES.forEach(function(n) { var o = document.createElement('option'); o.value = n; o.textContent = n.charAt(0).toUpperCase() + n.slice(1); sel.appendChild(o); });
+      BC.TEXTURES.forEach(function(n) { var o = document.createElement('option'); o.value = n; o.textContent = typeof BC.texName === 'function' ? BC.texName(n) : n.charAt(0).toUpperCase() + n.slice(1); sel.appendChild(o); });
       var can = typeof BC.picName === 'function' && !!(window.wpFogCore && typeof window.wpFogCore.cleanTexSrc === 'function'), src = can ? texPicOf(pic) : '';
       if (src) { var op = document.createElement('option'); op.value = TEX_PIC; op.textContent = BC.picName(src); sel.appendChild(op); }
       if (can) { var ok = document.createElement('option'); ok.value = TEX_PICK; ok.textContent = 'A picture\u2026'; sel.appendChild(ok); }
@@ -7831,12 +7831,13 @@ document.addEventListener('keydown', function(e) {
 // each, the shapes as one row of chips, then Texture and Color, and only for Water its Difficult terrain tick, only for a Corridor its width.
 var BUILD_MAX = 6000;   // a map's copy holds this many pieces for players (net.js): a gesture past it lays nothing more
 var BUILD_SHAPES = ['rect', 'circle', 'poly', 'corridor', 'line'];
-var BUILD_LINES = { floor: 'Flagstones. Tokens walk on it.', wall: 'Blocks sight and gives cover.', door: 'A wall that opens. Players can open it.', water: 'Difficult terrain, counted double.', rubble: 'Gives cover. Tokens can cross it.', wood: 'Planks.', grass: '', street: 'Cobbles. Tokens walk on it.', building: 'A roof. Blocks sight and stops tokens.', citywall: 'Stone. Blocks sight and stops tokens.' };
+var BUILD_LINES = { floor: 'Flagstones. Tokens walk on it.', wall: 'Blocks sight and gives cover.', door: 'A wall that opens. Players can open it.', water: 'Difficult terrain, counted double.', rubble: 'Gives cover. Tokens can cross it.', wood: 'Planks.', grass: '', street: 'Cobbles. Tokens walk on it.', building: 'A roof. Blocks sight and stops tokens.', citywall: 'Stone. Blocks sight and stops tokens.', factory: 'Tread plate. Tokens walk on it.', concrete: 'Slabs. Tokens walk on it.', tile: 'Tokens walk on it.', carpet: 'Tokens walk on it.', deck: 'Deck plate. Tokens walk on it.', grating: 'Tokens walk on it.', walkway: 'A lit grid. Tokens walk on it.', brickwall: 'Blocks sight and gives cover.', blockwall: 'Blocks sight and gives cover.', bulkhead: 'Blocks sight and gives cover.', ironwall: 'Blocks sight and gives cover.', irondoor: 'A wall that opens. Players can open it.', hatch: 'A wall that opens. Players can open it.', glass: 'Stops tokens. You can see through it.', chainlink: 'Stops tokens. You can see through it.', forcefield: 'Stops tokens. You can see through it.', road: 'Asphalt. Tokens walk on it.', roadlines: 'Asphalt with a dashed line.', rail: 'Tokens walk on it.', terrace: 'A slate roof. Blocks sight and stops tokens.', millroof: 'A sawtooth roof. Blocks sight and stops tokens.', roof: 'A flat roof. Blocks sight and stops tokens.', module: 'Hull plate. Blocks sight and stops tokens.', canal: 'Difficult terrain, counted double.', coolant: 'Difficult terrain, counted double.', scrap: 'Gives cover. Tokens can cross it.', wreckage: 'Gives cover. Tokens can cross it.' };
 var BUILD_SHAPE_LINES = { rect: 'Click a cell, or drag an area.', circle: 'Click a cell, or drag an area. The circle fills its box.', poly: 'Click each corner. Click the first again to close it.', corridor: 'Drag along it.', line: 'Draw along the grid lines. The line is the wall.' };
-var _build = { mat: 'floor', shape: 'rect', tex: 'flagstones', pic: '', tile: 1, color: '#5a5663', terrain: 0, corridorW: 1, walls: false, poly: null, polyEl: null, pen: false, loaded: false };
+var _build = { mat: 'floor', shape: 'rect', tex: 'flagstones', pic: '', tile: 1, color: '#5a5663', terrain: 0, corridorW: 1, walls: false, poly: null, polyEl: null, pen: false, loaded: false, era: '', find: '', drawn: '', body: null, eraEls: [] };
 function buildCore() { return window.wpBuildCore || null; }
 function buildGrid() { var C = window.wpFogCore; if (!C) return null; return state.gridType === 'hex' ? C.hexGrid(30, 52) : state.gridType === 'square' ? C.squareGrid(50) : null; }   // the lattice the fill tool's cellSnap reads
 function buildHex6(v) { return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null; }
+function buildWet(id) { var BC = buildCore(), k = BC ? BC.cleanMaterial(id) : null; return !!(k && BC.MATERIALS[k].terrain); }   // a material that costs movement
 function buildMay() { return !playerScreen() && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()); }   // the GM's own campaign on the GM's own screen
 function buildHere() { var m = getActiveMap(); return !!m && m.type === 'map' && state.viewMode === 'visual'; }   // the play map is on screen: Build lays on a map and on nothing else
 function buildMapKey() { var c = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, m = getActiveMap(); return (c && c.id ? c.id : '') + '|' + (m && m.id ? m.id : ''); }
@@ -7862,28 +7863,29 @@ function buildLoad() {   // the options' last choices, kept on this computer, ea
         var v = JSON.parse(localStorage.getItem('wp_build') || 'null'); if (!v || typeof v !== 'object') return;
         var mat = BC.cleanMaterial(v.mat), M = mat ? BC.MATERIALS[mat] : null; if (!M) return;
         _build.mat = mat; _build.shape = BUILD_SHAPES.indexOf(v.shape) >= 0 ? v.shape : 'rect';
-        if (_build.shape === 'line' && mat !== 'wall' && mat !== 'door') _build.shape = 'rect';
+        if (_build.shape === 'line' && !BC.lineMat(mat)) _build.shape = 'rect';
         _build.tex = v.tex === '' ? '' : (BC.cleanTexture(v.tex) || M.texture); _build.color = buildHex6(v.color) || M.color;
         _build.pic = (FC && typeof FC.cleanTexSrc === 'function' ? FC.cleanTexSrc(v.pic) : null) || ''; _build.tile = (FC && typeof FC.cleanTexTile === 'function' ? FC.cleanTexTile(v.tile) : null) || 1;   // fold B3: a picture as the fill, and its repeat
-        _build.terrain = mat === 'water' ? ((FC && FC.cleanTerrain ? FC.cleanTerrain(v.terrain) : null) || 0) : 0; _build.corridorW = v.corridorW === 2 ? 2 : 1; _build.walls = v.walls === true;
+        _build.terrain = M.terrain ? ((FC && FC.cleanTerrain ? FC.cleanTerrain(v.terrain) : null) || 0) : 0; _build.corridorW = v.corridorW === 2 ? 2 : 1; _build.walls = v.walls === true;
+        _build.era = BC.ERAS.indexOf(v.era) >= 0 ? v.era : '';
     } catch (e) {}
 }
-function buildSave() { try { var kept = { mat: _build.mat, shape: _build.shape, tex: _build.tex, color: _build.color, terrain: _build.terrain, corridorW: _build.corridorW }; if (_build.walls === true) kept.walls = true; if (_build.pic) { kept.pic = _build.pic; kept.tile = _build.tile; } localStorage.setItem('wp_build', JSON.stringify(kept)); } catch (e) {} }   // With walls is kept only while it is ticked, a picture and its repeat only while one is the fill
+function buildSave() { try { var kept = { mat: _build.mat, shape: _build.shape, tex: _build.tex, color: _build.color, terrain: _build.terrain, corridorW: _build.corridorW }; if (_build.walls === true) kept.walls = true; if (_build.era) kept.era = _build.era; if (_build.pic) { kept.pic = _build.pic; kept.tile = _build.tile; } localStorage.setItem('wp_build', JSON.stringify(kept)); } catch (e) {} }   // With walls is kept only while it is ticked, a picture and its repeat only while one is the fill
 function buildMaterial(mat) {   // a material brings its own texture, colour and terrain; a Wall or a Door is a thin line by default (the owner's answer of 2026-10-01)
     var BC = buildCore(), id = BC ? BC.cleanMaterial(mat) : null, M = id ? BC.MATERIALS[id] : null; if (!M) return false;
     _build.mat = id; _build.tex = M.texture; _build.pic = ''; _build.color = M.color; _build.terrain = M.terrain || 0;   // its own pattern takes a picture's place
-    _build.shape = (id === 'wall' || id === 'door') ? 'line' : (_build.shape === 'line' ? 'rect' : _build.shape);
+    _build.shape = BC.lineMat(id) ? 'line' : (_build.shape === 'line' ? 'rect' : _build.shape);
     return true;
 }
 function buildShape(shape) {   // a Wall line is a wall's or a door's: picked with another material in hand, it takes Wall
     if (BUILD_SHAPES.indexOf(shape) < 0) return false;
-    if (shape === 'line' && _build.mat !== 'wall' && _build.mat !== 'door') { if (!buildMaterial('wall')) return false; }
+    var BC0 = buildCore(); if (shape === 'line' && !(BC0 && BC0.lineMat(_build.mat))) { if (!buildMaterial('wall')) return false; }
     _build.shape = shape;
     return true;
 }
 function buildProps() {   // the props of the piece about to be laid (buildcore pieceProps: a fresh bag by whitelist, never a type, a place or a flag of another kind)
     var BC = buildCore(); if (!BC) return null;
-    return BC.pieceProps(_build.mat, { texture: _build.tex, texSrc: _build.pic || undefined, texTile: _build.tile, color: _build.color, terrain: _build.mat === 'water' ? (_build.terrain || 0) : undefined });
+    return BC.pieceProps(_build.mat, { texture: _build.tex, texSrc: _build.pic || undefined, texTile: _build.tile, color: _build.color, terrain: buildWet(_build.mat) ? (_build.terrain || 0) : undefined });
 }
 // Arm the board for the next piece: for a Wall line the pen under Build's preset, for every other shape a placement that is Build's own
 // (never armPlacement, which takes Select and speaks). Build is still the tool in hand either way
@@ -7892,7 +7894,7 @@ function buildArm() {
     if (_build.shape !== 'poly') buildPolyEnd();
     if (_build.shape === 'line') {
         if (window.wpPlace) disarmPlacement();
-        window.wpPenPreset = BC.penPreset(_build.mat === 'door' ? 'door' : 'wall', { color: _build.color });
+        window.wpPenPreset = BC.penPreset(_build.mat, { color: _build.color });
         window.isDrawingMode = true; _build.pen = true;
         if (wbWrap) wbWrap.style.cursor = 'crosshair';
         return !!window.wpPenPreset;
@@ -7922,21 +7924,95 @@ function buildTake() {
     buildArm();
 }
 // The options from the choices. The material rows are made once, by name: a swatch of the material's own tile, its name, one grey line
+// The materials, by what a thing is (backlog 23c; the owner, 2026-11-02, of a map that mixes eras: "all of these make it difficult and not user friendly", then by
+// prompt "all 3"). Find goes straight to one, the era chips only filter, Your palette is the campaign's own pins and On this map what the map already uses, and
+// those two stand whatever the filter says. A fold is open as it was left, and with no word yet where the material in hand stands. Every cell is a name and a
+// tile, made by name with text nodes. Drawn only when something it shows has moved, so a box being typed in keeps its place
+function buildCamp() { return typeof getActiveCampaign === 'function' ? getActiveCampaign() : null; }
+function buildPins(BC) { var c = buildCamp(); return c ? BC.cleanPins(c.buildPins) : []; }
+function buildPinFlip(BC, id) {
+    var c = buildCamp(); if (!c) return;
+    var p = buildPins(BC), at = p.indexOf(id);
+    if (at >= 0) p.splice(at, 1);
+    else if (p.length >= BC.PIN_MAX) { toast('Your palette is full. Take one off first.'); return; }
+    else p.push(id);
+    if (p.length) c.buildPins = p; else delete c.buildPins;
+    save(); buildMatsDraw(BC);
+}
+function buildUsed(BC) {   // what the map on screen already uses, the most used first, 8 at most, by the name Build gave each piece
+    var map = getActiveMap(), list = map && Array.isArray(map.whiteboard) ? map.whiteboard : [], byName = Object.create(null), n = Object.create(null);
+    BC.MATERIAL_IDS.forEach(function(id) { byName[BC.MATERIALS[id].name] = id; });
+    list.forEach(function(w) { var id = w && typeof w.name === 'string' ? byName[w.name] : undefined; if (id) n[id] = (n[id] | 0) + 1; });
+    return Object.keys(n).sort(function(a, b) { return n[b] - n[a]; }).slice(0, 8);
+}
+function buildFolds() { try { var v = JSON.parse(localStorage.getItem('wp_buildFolds') || 'null'); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; } catch (e) { return {}; } }
+function buildFoldSet(name, open) { try { var v = buildFolds(); v[name] = open ? 1 : 0; localStorage.setItem('wp_buildFolds', JSON.stringify(v)); } catch (e) {} }
+function buildFoldOpen(k, kept) { return kept[k.name] === 1 || kept[k.name] === 0 ? kept[k.name] === 1 : k.ids.indexOf(_build.mat) >= 0; }
+function buildShown(BC, id) {
+    if (_build.era && (BC.MAT_ERAS[id] || []).indexOf(_build.era) < 0) return false;
+    var q = _build.find.trim().toLowerCase();
+    return !q || BC.MATERIALS[id].name.toLowerCase().indexOf(q) >= 0;
+}
+function buildCell(BC, id, pins) {
+    var M = BC.MATERIALS[id], c = document.createElement('div'), b = document.createElement('button'), sw = document.createElement('span'), nm = document.createElement('span'), ts = BC.texStyle(M.texture, 0, 0), pin = document.createElement('button'), on = pins.indexOf(id) >= 0;
+    c.className = 'build-cell'; b.type = 'button'; b.className = 'build-mat'; b.dataset.buildmat = id; b.title = BUILD_LINES[id] ? M.name + '. ' + BUILD_LINES[id] : M.name;
+    sw.className = 'build-tile'; sw.style.backgroundColor = M.color; if (ts) { sw.style.backgroundImage = ts.image; sw.style.backgroundSize = ts.size; }
+    nm.className = 'build-nm'; nm.textContent = M.name; b.appendChild(sw); b.appendChild(nm);
+    b.addEventListener('click', function(ev) { ev.stopPropagation(); buildPick(function() { return buildMaterial(id); }); });
+    if (id === _build.mat) b.classList.add('on');
+    pin.type = 'button'; pin.className = 'build-pin wib wi-pin' + (on ? ' on' : ''); pin.title = on ? 'Take it off your palette' : 'Pin it to your palette'; pin.setAttribute('aria-pressed', on ? 'true' : 'false');
+    pin.addEventListener('click', function(ev) { ev.stopPropagation(); buildPinFlip(BC, id); });
+    c.appendChild(b); c.appendChild(pin);
+    return c;
+}
+function buildCells(BC, ids, pins) { var g = document.createElement('div'); g.className = 'build-grid'; ids.forEach(function(id) { g.appendChild(buildCell(BC, id, pins)); }); return g; }
+function buildHead(text) { var h = document.createElement('div'); h.className = 'build-head'; h.textContent = text; return h; }
+function buildMatsHead(BC, box) {   // the box and the chips are made once, so that a word being typed keeps its place
+    var f = document.createElement('input'), eras = document.createElement('div'), body = document.createElement('div');
+    f.type = 'text'; f.className = 'build-find'; f.id = 'buildFind'; f.placeholder = 'Find a material'; f.title = 'Goes straight to a material, whatever its era. Enter takes the first one.'; f.setAttribute('aria-label', 'Find a material');
+    f.addEventListener('input', function() { _build.find = f.value; buildMatsDraw(BC); });
+    f.addEventListener('keydown', function(ev) {
+        if (ev.key !== 'Enter') return;
+        ev.preventDefault(); ev.stopPropagation();
+        var first = null; BC.MAT_KINDS.forEach(function(k) { k.ids.forEach(function(id) { if (!first && buildShown(BC, id)) first = id; }); });
+        if (first) buildPick(function() { return buildMaterial(first); });
+    });
+    eras.className = 'build-eras';
+    [''].concat(BC.ERAS).forEach(function(e) {
+        var c = document.createElement('button'); c.type = 'button'; c.className = 'tile-chip build-era'; c.dataset.era = e; c.textContent = e || 'All'; c.title = e ? 'Show what suits this era. It only filters: you can lay anything on any map.' : 'Show every material.';
+        c.addEventListener('click', function(ev) { ev.stopPropagation(); _build.era = e; buildSave(); buildMatsDraw(BC); });
+        eras.appendChild(c); _build.eraEls.push(c);
+    });
+    body.className = 'build-matbody'; _build.body = body;
+    box.appendChild(f); box.appendChild(eras); box.appendChild(body);
+}
+function buildMatsDraw(BC) {
+    var box = document.getElementById('buildMatRows'); if (!box) return;
+    if (!box.firstChild) buildMatsHead(BC, box);
+    var body = _build.body, pins = buildPins(BC), used = buildUsed(BC), kept = buildFolds(), find = !!_build.find.trim();
+    _build.eraEls.forEach(function(c) { c.classList.toggle('on', c.dataset.era === _build.era); });
+    var open = BC.MAT_KINDS.map(function(k) { return buildFoldOpen(k, kept) ? 1 : 0; }).join(''), sig = [_build.era, _build.find, pins.join(), used.join(), open].join('|');
+    if (sig === _build.drawn && body.firstChild) return;
+    _build.drawn = sig;
+    while (body.firstChild) body.removeChild(body.firstChild);
+    if (pins.length) { body.appendChild(buildHead('Your palette')); body.appendChild(buildCells(BC, pins, pins)); }
+    if (used.length) { body.appendChild(buildHead('On this map')); body.appendChild(buildCells(BC, used, pins)); }
+    var any = false;
+    BC.MAT_KINDS.forEach(function(k) {
+        var ids = k.ids.filter(function(id) { return buildShown(BC, id); }); if (!ids.length) return;
+        any = true;
+        var isOpen = find || buildFoldOpen(k, kept), b = document.createElement('button'), n = document.createElement('small');
+        b.type = 'button'; b.className = 'build-fold'; b.setAttribute('aria-expanded', isOpen ? 'true' : 'false'); b.textContent = k.name; n.textContent = String(ids.length); b.appendChild(n);
+        b.addEventListener('click', function(ev) { ev.stopPropagation(); buildFoldSet(k.name, !isOpen); _build.drawn = ''; buildMatsDraw(BC); });
+        body.appendChild(b);
+        if (isOpen) body.appendChild(buildCells(BC, ids, pins));
+    });
+    if (!any) { var none = document.createElement('div'); none.className = 'build-none'; none.textContent = 'No material by that name.'; body.appendChild(none); }
+}
 function buildSync() {
     var BC = buildCore(), FC = window.wpFogCore; if (!BC) return;
     buildLoad();
-    var box = document.getElementById('buildMatRows');
-    if (box && !box.firstChild) BC.MATERIAL_IDS.forEach(function(id) {
-        var M = BC.MATERIALS[id], b = document.createElement('button'); b.type = 'button'; b.className = 'wb-tool-btn menu-row build-mat'; b.dataset.buildmat = id; b.title = M.name;
-        var ic = document.createElement('span'), sw = document.createElement('span'), ts = BC.texStyle(M.texture, 0, 0);
-        ic.className = 'mr-ico'; sw.className = 'build-tile'; sw.style.backgroundColor = M.color; if (ts) { sw.style.backgroundImage = ts.image; sw.style.backgroundSize = ts.size; }
-        ic.appendChild(sw); b.appendChild(ic);
-        var tx = document.createElement('span'); tx.className = 'mr-txt'; tx.appendChild(document.createTextNode(M.name));
-        if (BUILD_LINES[id]) { var sm = document.createElement('small'); sm.textContent = BUILD_LINES[id]; tx.appendChild(sm); }
-        b.appendChild(tx);
-        b.addEventListener('click', function(ev) { ev.stopPropagation(); buildPick(function() { return buildMaterial(id); }); });
-        box.appendChild(b);
-    });
+    buildMatsDraw(BC);
     Array.prototype.forEach.call(document.querySelectorAll('#buildMatRows .build-mat'), function(b) { b.classList.toggle('on', b.dataset.buildmat === _build.mat); });
     Array.prototype.forEach.call(document.querySelectorAll('#buildShapeRow .build-shape-btn'), function(b) { b.classList.toggle('active', b.dataset.buildshape === _build.shape); });
     var ln = document.getElementById('buildShapeLine'); if (ln) ln.textContent = BUILD_SHAPE_LINES[_build.shape] || '';
@@ -7947,7 +8023,7 @@ function buildSync() {
     var cs = document.querySelector('#buildColorRow .draw-swatch.custom'); if (cs) { cs.classList.toggle('active', !hit); cs.style.background = hit ? '' : (buildHex6(_build.color) || ''); }
     var ci = document.getElementById('buildColorInput'); if (ci && buildHex6(_build.color)) ci.value = _build.color;
     var tr = document.getElementById('buildTerrainRow'), tc = document.getElementById('buildTerrainChk'), tn = document.getElementById('buildTerrainCost'), tv = FC && FC.cleanTerrain ? FC.cleanTerrain(_build.terrain) : null;
-    if (tr) tr.hidden = _build.mat !== 'water';
+    if (tr) tr.hidden = !buildWet(_build.mat);
     if (tc) tc.checked = !!tv;
     if (tn) { if (tv) tn.value = tv; tn.disabled = !tv; }
     var cr = document.getElementById('buildCorridorRow'), cw = document.getElementById('buildCorridorW');
@@ -8041,7 +8117,7 @@ window.wpDoorCut = doorCut;
 function buildLay(map, boxes, props, more, walls) {
     var BC = buildCore(); if (!BC || !props) return;
     if (!boxes.length) { toast('Nothing to lay there.'); return; }
-    var room = BUILD_MAX - map.whiteboard.length, laid = 0, wall = false, full = false, keys = ['color', 'layer', 'name', 'texture', 'texSrc', 'texTile', 'blocksSight', 'sightType', 'cover', 'terrain', 'secret', 'seenColor', 'seenTexture', 'seenWidth', 'seenOpacity', 'seenTip'];   // a piece laid again in place wears the new material and nothing of the old: a picture it wore goes with its pattern
+    var room = BUILD_MAX - map.whiteboard.length, laid = 0, wall = false, full = false, keys = ['color', 'layer', 'name', 'texture', 'texSrc', 'texTile', 'blocksSight', 'sightType', 'barrier', 'cover', 'terrain', 'secret', 'seenColor', 'seenTexture', 'seenWidth', 'seenOpacity', 'seenTip'];   // a piece laid again in place wears the new material and nothing of the old: a picture it wore goes with its pattern
     for (var i = 0; i < boxes.length; i++) {
         var b = boxes[i], item = Object.assign({ id: 'wb' + uid(), type: b.type, x: b.x, y: b.y, w: b.w, h: b.h, z: 10 }, newOpacityProps(), props);
         if (b.pts) { item.pts = b.pts; item.baseW = b.baseW; item.baseH = b.baseH; item.tip = 'fill'; }
@@ -8212,7 +8288,7 @@ function genNewSeed() { var GC = genCore(); return GC ? GC.seedOf(Math.floor(Mat
 function genForm() {
     var GC = genCore(); if (!GC) return null;
     var val = function(id) { var e = genEl(id); return e ? String(e.value) : ''; }, num = function(id, d) { var s = val(id).trim(), v = Number(s); return s !== '' && isFinite(v) ? v : d; };
-    return GC.cleanGen({ seed: val('genSeed').trim(), w: num('genW', GC.SIZE.w), h: num('genH', GC.SIZE.h), rooms: val('genRooms'), corr: val('genCorr'), doors: val('genDoors') });
+    return GC.cleanGen({ seed: val('genSeed').trim(), w: num('genW', GC.SIZE.w), h: num('genH', GC.SIZE.h), rooms: val('genRooms'), corr: val('genCorr'), doors: val('genDoors'), theme: val('genTheme') });
 }
 // The two Size boxes written as the sizes that will be used (10 to 60, whole). True when a box read otherwise: what was laid would not
 // have been what the box showed
@@ -8224,7 +8300,7 @@ function genSizes() {
 }
 function genFill(o) {
     var set = function(id, v) { var e = genEl(id); if (e) e.value = String(v); };
-    set('genSeed', o.seed); set('genW', o.w); set('genH', o.h); set('genRooms', o.rooms); set('genCorr', o.corr); set('genDoors', o.doors);
+    set('genSeed', o.seed); set('genW', o.w); set('genH', o.h); set('genRooms', o.rooms); set('genCorr', o.corr); set('genDoors', o.doors); set('genTheme', o.theme || 'fantasy');
 }
 // What Generate would do now: { ok, say } and, where it can be laid, { map (null for a new one), fresh, kind, opts, pieces }
 function genPlan() {
@@ -8247,8 +8323,8 @@ function genPlan() {
     return { ok: true, say: genCountWords(pc.count, held), map: map, fresh: fresh, kind: kind, opts: opts, pieces: pc };
 }
 // The dungeon's pieces as ordinary items: the very items the Build tool lays for a Floor and draws for a Wall line and a Door line
-function genItems(pc) {
-    var BC = buildCore(), fp = BC ? BC.pieceProps('floor', {}) : null, wp = BC ? BC.penPreset('wall', {}) : null, dp = BC ? BC.penPreset('door', {}) : null, out = [];
+function genItems(pc, theme) {
+    var BC = buildCore(), T = BC ? BC.THEMES[BC.cleanTheme(theme)] : null, fp = T ? BC.pieceProps(T.floor, {}) : null, wp = T ? BC.penPreset(T.wall, {}) : null, dp = T ? BC.penPreset(T.door, {}) : null, out = [];
     if (!fp || !wp || !dp) return out;
     pc.floors.forEach(function(b) { out.push(Object.assign({ id: 'wb' + uid(), type: b.type, x: b.x, y: b.y, w: b.w, h: b.h, z: 10 }, newOpacityProps(), fp)); });
     pc.walls.forEach(function(L) { out.push(buildWallItem(L, wp)); });
@@ -8301,7 +8377,7 @@ function genUnfocus(modalId) { var m = genEl(modalId), a = document.activeElemen
 // What Tab walks through, in the dialog's own order: never a row that is put away nor a control that is out of use
 function genStops() {
     var out = Array.prototype.slice.call(document.querySelectorAll('#genWhere .gen-chip'));
-    ['genMap', 'genName', 'genGrid', 'genW', 'genH', 'genRooms', 'genCorr', 'genDoors', 'genSeed', 'genSeedNew', 'genCancel', 'genGo'].forEach(function(id) {
+    ['genMap', 'genName', 'genGrid', 'genW', 'genH', 'genRooms', 'genCorr', 'genDoors', 'genTheme', 'genSeed', 'genSeedNew', 'genCancel', 'genGo'].forEach(function(id) {
         var e = genEl(id), row = id === 'genMap' ? genEl('genMapRow') : id === 'genName' || id === 'genGrid' ? genEl('genNameRow') : null;
         if (e && !e.disabled && !(row && row.hidden)) out.push(e);
     });
@@ -8321,7 +8397,7 @@ function genGo() {
     if (!genShown()) return false;   // only from the dialog as it stands: a second press finds it put away
     if (genSizes()) { genSync(); return false; }   // a size that was not as it will be used is shown first, with its count: the next press lays it
     var plan = genPlan(); if (!plan.ok) { genSync(); return false; }
-    var camp = getActiveCampaign(), here = getActiveMap(), map = plan.map, nmBox = genEl('genName'), items = genItems(plan.pieces);
+    var camp = getActiveCampaign(), here = getActiveMap(), map = plan.map, nmBox = genEl('genName'), items = genItems(plan.pieces, plan.opts ? plan.opts.theme : '');
     if (!items.length) { toast('That dungeon could not be laid. Nothing was changed.'); return false; }
     if (plan.fresh) {
         map = createNewMap(getUniqueItemTitle(genText(nmBox ? nmBox.value : '', 80) || 'Dungeon', null));
@@ -8350,7 +8426,7 @@ function genWire() {
     // the dialog hands the focus back to this row when it is put away: a key still held from the press that put it away presses nothing here
     if (row) row.addEventListener('keydown', function(e) { if (e.repeat === true && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape')) { e.preventDefault(); e.stopPropagation(); } });   // a held Escape would be Build's own next, and put the tool away
     Array.prototype.forEach.call(document.querySelectorAll('#genWhere .gen-chip'), function(b) { b.addEventListener('click', function() { var w = this.dataset.where; if (GEN_WHERE.indexOf(w) < 0) return; _gen.where = w; genSync(); }); });
-    ['genMap', 'genGrid', 'genRooms', 'genCorr', 'genDoors'].forEach(function(id) { var e = genEl(id); if (e) e.addEventListener('change', genSync); });
+    ['genMap', 'genGrid', 'genRooms', 'genCorr', 'genDoors', 'genTheme'].forEach(function(id) { var e = genEl(id); if (e) e.addEventListener('change', genSync); });
     ['genW', 'genH'].forEach(function(id) { var e = genEl(id); if (!e) return; e.addEventListener('input', genSync); e.addEventListener('change', function() { genSizes(); genSync(); }); });   // a size left outside its bounds reads as the size that will be used
     var sb = genEl('genSeed'); if (sb) sb.addEventListener('input', genSync);
     var nw = genEl('genSeedNew'); if (nw) nw.addEventListener('click', function() { var s = genEl('genSeed'); if (s) s.value = genNewSeed(); genSync(); });
@@ -8409,7 +8485,7 @@ genWire();
 // list as an option's text, never as markup. It leans on the dungeon dialog's helpers (genEl, genText, genMaps, genCountWords, genNewSeed)
 var CITY_LINES = { here: 'Its middle goes where the middle of your screen is. Nothing on the map is changed.', other: 'It lands in the middle of that map as you last saw it. You are taken there once it is made.', fresh: 'A new map is made for it. You are taken there once it is made.', none: 'This campaign has no other map.' };
 var CITY_GRIDS = ['off', 'square', 'hex'], CITY_NAMES = { village: 'Village', town: 'Town', city: 'City' }, CITY_MATS = { field: 'grass', street: 'street', water: 'water', bridge: 'wood' }, CITY_WALL_PX = 8;
-var _city = { where: 'here', maps: '', grid: '', named: false };
+var _city = { where: 'here', maps: '', grid: '', named: false, laid: false };
 function cityCore() { return window.wpCityCore || null; }
 function cityShown() { var m = genEl('cityModal'); return !!m && m.style.display === 'flex'; }
 function cityWord(size) { return Object.prototype.hasOwnProperty.call(CITY_NAMES, size) ? CITY_NAMES[size] : CITY_NAMES.town; }
@@ -8420,11 +8496,11 @@ function cityGridFor(size) { return size === 'village' ? 'square' : 'off'; }
 function cityForm() {
     var CC = cityCore(); if (!CC) return null;
     var val = function(id) { var e = genEl(id); return e ? String(e.value) : ''; }, fl = genEl('cityFields');
-    return CC.cleanCity({ seed: val('citySeed').trim(), size: val('citySize'), wall: val('cityWall'), water: val('cityWater'), roofs: val('cityRoofs'), fields: !fl || fl.checked !== false });
+    return CC.cleanCity({ seed: val('citySeed').trim(), size: val('citySize'), wall: val('cityWall'), water: val('cityWater'), roofs: val('cityRoofs'), fields: !fl || fl.checked !== false, layout: val('cityLayout'), theme: val('cityTheme') });
 }
 function cityFill(o) {
     var set = function(id, v) { var e = genEl(id); if (e) e.value = String(v); }, fl = genEl('cityFields');
-    set('citySeed', o.seed); set('citySize', o.size); set('cityWall', o.wall); set('cityWater', o.water); set('cityRoofs', o.roofs); if (fl) fl.checked = o.fields !== false;
+    set('citySeed', o.seed); set('citySize', o.size); set('cityWall', o.wall); set('cityWater', o.water); set('cityRoofs', o.roofs); set('cityLayout', o.layout || 'winding'); set('cityTheme', o.theme || 'fantasy'); if (fl) fl.checked = o.fields !== false;
 }
 // Where a city's top left corner goes, so that its MIDDLE is the middle of the view (`mid`, the screen's own, for the map on screen), else
 // of the map as it was last seen, else of its home. The whole city stays on the board, and a village sits on its lattice of cells
@@ -8462,14 +8538,14 @@ function cityPiece(g, props) {
 }
 // The city's pieces as ordinary items, in the order they are laid: each wears the props of its material, a house its own roof and that
 // roof's colour, and a town's wall is the pen's Wall line under the City wall's name and colour
-function cityItems(pc) {
+function cityItems(pc, theme) {
     var BC = buildCore(), out = [], grounds = {}; if (!BC || !pc) return out;
-    var cw = BC.pieceProps('citywall', {}), pen = BC.penPreset('wall', {}), ok = !!cw && !!pen;
-    Object.keys(CITY_MATS).forEach(function(k) { grounds[k] = BC.pieceProps(CITY_MATS[k], {}); if (!grounds[k]) ok = false; });
+    var T = BC.THEMES[BC.cleanTheme(theme)], cw = BC.pieceProps(T.block, {}), pen = BC.penPreset('wall', {}), ok = !!cw && !!pen;
+    Object.keys(CITY_MATS).forEach(function(k) { grounds[k] = BC.pieceProps(T[k] || CITY_MATS[k], {}); if (!grounds[k]) ok = false; });
     if (!ok) return out;
     var line = Object.assign({}, pen, { name: cw.name, color: cw.color, strokeWidth: CITY_WALL_PX });
     pc.grounds.forEach(function(g) { if (Object.prototype.hasOwnProperty.call(grounds, g.kind)) out.push(cityPiece(g.geo, grounds[g.kind])); });
-    pc.buildings.forEach(function(b) { var p = BC.pieceProps('building', { texture: b.roof, color: b.color }); if (p) out.push(cityPiece(b.geo, p)); });
+    pc.buildings.forEach(function(b) { var p = T.roofs ? BC.pieceProps(T.roofs[b.roof], {}) : BC.pieceProps('building', { texture: b.roof, color: b.color }); if (p) out.push(cityPiece(b.geo, p)); });
     pc.walls.forEach(function(wl) { out.push(wl.line ? buildWallItem(wl.geo, line) : cityPiece(wl.geo, cw)); });
     pc.towers.forEach(function(t) { out.push(cityPiece(t.geo, cw)); });
     return out;
@@ -8489,6 +8565,9 @@ function cityMapsFill() {
 // The dialog as it stands: the chip in use, the row its choice needs, the line that says where it lands, the count, and Generate put out
 // of use with the reason in sight where the city cannot be laid. A new map's grid and name follow the Size until the GM sets them
 function citySync() {
+    var rfE = genEl('cityRoofs'), thS = genEl('cityTheme'), lyS = genEl('cityLayout'), szS = genEl('citySize');   // a list that decides nothing here is out of use: a theme picks its own roofs, and a village has its one main street
+    if (rfE && thS) rfE.disabled = !!thS.value && thS.value !== 'fantasy';
+    if (lyS && szS) lyS.disabled = szS.value === 'village';
     if (!cityShown()) return;
     var where = GEN_WHERE.indexOf(_city.where) >= 0 ? _city.where : 'here', o = cityForm();
     Array.prototype.forEach.call(document.querySelectorAll('#cityWhere .gen-chip'), function(b) { var on = b.dataset.where === where; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
@@ -8517,7 +8596,7 @@ function cityHide() { var m = genEl('cityModal'); if (!m || m.style.display === 
 // What Tab walks through, in the dialog's own order: never a row that is put away nor a control that is out of use
 function cityStops() {
     var out = Array.prototype.slice.call(document.querySelectorAll('#cityWhere .gen-chip'));
-    ['cityMap', 'cityName', 'cityGrid', 'citySeed', 'citySeedNew', 'citySize', 'cityWall', 'cityWater', 'cityRoofs', 'cityFields', 'cityCancel', 'cityGo'].forEach(function(id) {
+    ['cityMap', 'cityName', 'cityGrid', 'citySeed', 'citySeedNew', 'citySize', 'cityTheme', 'cityLayout', 'cityWall', 'cityWater', 'cityRoofs', 'cityFields', 'cityCancel', 'cityGo'].forEach(function(id) {
         var e = genEl(id), row = id === 'cityMap' ? genEl('cityMapRow') : id === 'cityName' || id === 'cityGrid' ? genEl('cityNameRow') : null;
         if (e && !e.disabled && !(row && row.hidden)) out.push(e);
     });
@@ -8536,7 +8615,7 @@ function cityTab(target, back) {
 function cityGo() {
     if (!cityShown()) return false;   // only from the dialog as it stands: a second press finds it put away
     var plan = cityPlan(); if (!plan.ok) { citySync(); return false; }
-    var camp = getActiveCampaign(), here = getActiveMap(), map = plan.map, nmBox = genEl('cityName'), items = cityItems(plan.pieces), word = cityWord(plan.opts.size);
+    var camp = getActiveCampaign(), here = getActiveMap(), map = plan.map, nmBox = genEl('cityName'), items = cityItems(plan.pieces, plan.opts.theme), word = cityWord(plan.opts.size);
     if (!items.length) { toast('That city could not be laid. Nothing was changed.'); return false; }
     if (plan.fresh) {
         map = createNewMap(getUniqueItemTitle(genText(nmBox ? nmBox.value : '', 80) || word, null));
@@ -8566,6 +8645,12 @@ function cityWire() {
     if (row) row.addEventListener('keydown', function(e) { if (e.repeat === true && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape')) { e.preventDefault(); e.stopPropagation(); } });   // a held Escape would be Build's own next, and put the tool away
     Array.prototype.forEach.call(document.querySelectorAll('#cityWhere .gen-chip'), function(b) { b.addEventListener('click', function() { var w = this.dataset.where; if (GEN_WHERE.indexOf(w) < 0) return; _city.where = w; citySync(); }); });
     ['cityMap', 'citySize', 'cityWall', 'cityWater', 'cityRoofs', 'cityFields'].forEach(function(id) { var e = genEl(id); if (e) e.addEventListener('change', citySync); });
+    var lyE = genEl('cityLayout'); if (lyE) lyE.addEventListener('change', function() { _city.laid = true; citySync(); });
+    var thE = genEl('cityTheme'); if (thE) thE.addEventListener('change', function() {   // a modern or a future city starts on a grid with no wall, until the GM says otherwise
+        var grid = thE.value === 'modern' || thE.value === 'futuristic', ly = genEl('cityLayout'), wl = genEl('cityWall');
+        if (!_city.laid && ly) { ly.value = grid ? 'grid' : 'winding'; if (wl && grid) wl.value = 'none'; }
+        citySync();
+    });
     // a grid or a name the GM set for the new map stands, whatever Size is picked afterwards
     var gs = genEl('cityGrid'); if (gs) gs.addEventListener('change', function() { var g = String(this.value); _city.grid = CITY_GRIDS.indexOf(g) >= 0 ? g : ''; citySync(); });
     var nm = genEl('cityName'); if (nm) nm.addEventListener('input', function() { _city.named = true; });

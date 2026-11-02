@@ -128,6 +128,19 @@ Fitted parts
   Row.fitted says whether a row is fitted at all. So a part can stop giving
   anything while the row it is on is off.
 
+Era materials for the map builder
+
+- Build now has 37 materials, from stone keeps to starship decks. Sixteen new
+  patterns are drawn by the app, such as tread plate, asphalt, chain-link and a
+  force field's honeycomb.
+- Materials are listed by what they are, so you can mix eras on one map. Find
+  goes straight to one, and the era chips only narrow the list.
+- On this map keeps what the map uses in reach, and pins make a short palette
+  for the campaign.
+- Glass, chain-link and force fields stop tokens, and you can see through them.
+- The dungeon and city dialogs have a Theme, and a seed gives the same plan in
+  every theme. A city can now have a grid of straight blocks.
+
 Reusing a system
 - New campaign now asks whether to start with a copy of the system of one of your
   campaigns. Its library packs come with it, and its handbook pages unless you

@@ -23,7 +23,7 @@
 'use strict';
 
 import { cellOf, cellCenter, cellKey } from './fogcore.js';
-import { outlineWalls, wallLine, hexCellBox } from './buildcore.js';
+import { outlineWalls, wallLine, hexCellBox, cleanTheme } from './buildcore.js';
 
 var VERSION = 1;
 function isObj(v) { return v !== null && typeof v === 'object'; }
@@ -46,8 +46,10 @@ function pick(list, v, d) { return typeof v === 'string' && list.indexOf(v) >= 0
 // first seed), a size of 10 to 60 cells each way, and one word for each of the three lists. Read by own keys only
 function cleanGen(v) {
     var o = isObj(v) ? v : {}, seed = own(o, 'seed');
-    return { seed: typeof seed === 'string' && SEED_RE.test(seed) ? seed : '0000-fox', w: whole(own(o, 'w'), SIZE.w), h: whole(own(o, 'h'), SIZE.h),
-        rooms: pick(ROOMS, own(o, 'rooms'), 'some'), corr: pick(CORRS, own(o, 'corr'), 'winding'), doors: pick(DOORS, own(o, 'doors'), 'most') };
+    var out = { seed: typeof seed === 'string' && SEED_RE.test(seed) ? seed : '0000-fox', w: whole(own(o, 'w'), SIZE.w), h: whole(own(o, 'h'), SIZE.h),
+        rooms: pick(ROOMS, own(o, 'rooms'), 'some'), corr: pick(CORRS, own(o, 'corr'), 'winding'), doors: pick(DOORS, own(o, 'doors'), 'most') }, th = cleanTheme(own(o, 'theme'));
+    if (th !== 'fantasy') out.theme = th;   // the pieces' and no part of the seed's text: a seed gives one plan in every theme, and the first theme names nothing
+    return out;
 }
 // Chance from the seed alone: a 32-bit hash of the text (FNV-1a) feeds a small generator (mulberry32). The same text, the same numbers
 function hash32(s) { var h = 0x811c9dc5; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return h >>> 0; }

@@ -33,7 +33,7 @@ function r2(v) { return Math.round(v * 100) / 100; }
 function frozenTable(o) { var t = Object.create(null), k; for (k in o) if (Object.prototype.hasOwnProperty.call(o, k)) t[k] = Object.freeze(o[k]); return Object.freeze(t); }
 
 /* ---------- textures ---------- */
-var TEXTURES = Object.freeze(['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass', 'shingles', 'pantiles', 'slates', 'thatch', 'forest', 'mountains', 'sand', 'snow']);
+var TEXTURES = Object.freeze(['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass', 'shingles', 'pantiles', 'slates', 'thatch', 'forest', 'mountains', 'sand', 'snow', 'ironplate', 'treadplate', 'rails', 'sawtooth', 'asphalt', 'lanes', 'concrete', 'tiles', 'carpet', 'glass', 'chainlink', 'deck', 'grating', 'hull', 'forcefield', 'holo']);
 function cleanTexture(v) { return typeof v === 'string' && TEXTURES.indexOf(v) >= 0 ? v : null; }
 
 // name -> { w, h, d, dark, light, fill? }: the tile's size in whole pixels, ONE path drawn twice (dark under light, the widths), and for
@@ -105,8 +105,60 @@ var TEX = frozenTable({
         d: 'M 5 13 Q 12.5 7 20 13 M 29 31 Q 36.5 25 44 31 M 8 45 Q 14.5 40 21 45 M 33 9 L 33.1 9 M 42 17 L 42.1 17 M 11 27 L 11.1 27 M 21 34 L 21.1 34 M 36 42 L 36.1 42 M 45 39 L 45.1 39' },
     // snow: four short drift marks and five flakes, the same dots; all inside the tile
     snow: { w: 50, h: 50, dark: 1.6, light: 0.8,
-        d: 'M 6 11 H 14 M 30 25 H 38 M 11 40 H 18 M 37 44 H 43 M 36 8 L 36.1 8 M 22 19 L 22.1 19 M 45 17 L 45.1 17 M 8 27 L 8.1 27 M 26 36 L 26.1 36' }
+        d: 'M 6 11 H 14 M 30 25 H 38 M 11 40 H 18 M 37 44 H 43 M 36 8 L 36.1 8 M 22 19 L 22.1 19 M 45 17 L 45.1 17 M 8 27 L 8.1 27 M 26 36 L 26.1 36' },
+    // The era patterns (backlog 23c; the owner, 2026-11-02, by prompt: "Use these drawings (Recommended)"), each as the sheet drew it
+    // iron plate: staggered plates with their rivets
+    ironplate: { w: 50, h: 50, dark: 2.4, light: 1.1,
+        d: 'M -4 12.5 H 54 M -4 37.5 H 54 M 12.5 12.5 V 37.5 M 37.5 37.5 V 54 M 37.5 -4 V 12.5 M 5 17 L 5.1 17 M 20 17 L 20.1 17 M 30 17 L 30.1 17 M 45 17 L 45.1 17 M 5 33 L 5.1 33 M 20 33 L 20.1 33 M 30 33 L 30.1 33 M 45 33 L 45.1 33 M 5 42 L 5.1 42 M 30 42 L 30.1 42 M 45 42 L 45.1 42 M 5 8 L 5.1 8 M 30 8 L 30.1 8 M 45 8 L 45.1 8' },
+    // tread plate: rows of short marks, each turned from its neighbours
+    treadplate: { w: 50, h: 50, dark: 2.2, light: 1,
+        d: 'M 3.25 9.25 L 9.25 3.25 M 3.25 15.75 L 9.25 21.75 M 3.25 34.25 L 9.25 28.25 M 3.25 40.75 L 9.25 46.75 M 15.75 3.25 L 21.75 9.25 M 15.75 21.75 L 21.75 15.75 M 15.75 28.25 L 21.75 34.25 M 15.75 46.75 L 21.75 40.75 M 28.25 9.25 L 34.25 3.25 M 28.25 15.75 L 34.25 21.75 M 28.25 34.25 L 34.25 28.25 M 28.25 40.75 L 34.25 46.75 M 40.75 3.25 L 46.75 9.25 M 40.75 21.75 L 46.75 15.75 M 40.75 28.25 L 46.75 34.25 M 40.75 46.75 L 46.75 40.75' },
+    // rail track: two rails along x over four sleepers
+    rails: { w: 50, h: 50, dark: 3, light: 1.7,
+        d: 'M -4 18 H 54 M -4 32 H 54 M 6.25 11 V 39 M 18.75 11 V 39 M 31.25 11 V 39 M 43.75 11 V 39' },
+    // a mill roof: two rows of saw teeth
+    sawtooth: { w: 50, h: 50, dark: 1.8, light: 0.8,
+        d: 'M -12.5 22 L 12.5 6 V 22 L 37.5 6 V 22 L 62.5 6 M -12.5 47 L 12.5 31 V 47 L 37.5 31 V 47 L 62.5 31' },
+    // asphalt: fourteen grains, the same dots as sand
+    asphalt: { w: 50, h: 50, dark: 1.5, light: 0.8,
+        d: 'M 6 7 L 6.1 7 M 17 13 L 17.1 13 M 29 5 L 29.1 5 M 41 11 L 41.1 11 M 11 24 L 11.1 24 M 24 21 L 24.1 21 M 36 28 L 36.1 28 M 45 23 L 45.1 23 M 7 38 L 7.1 38 M 19 34 L 19.1 34 M 30 42 L 30.1 42 M 42 37 L 42.1 37 M 14 45 L 14.1 45 M 25 31 L 25.1 31' },
+    // road lines: two dashes along the middle of the tile, filled, since a road line reads light
+    lanes: { w: 50, h: 50, dark: 0.6, light: 0.4, fill: 'rgba(255,255,255,0.6)',
+        d: 'M 6 23 H 22 V 27 H 6 Z M 31 23 H 47 V 27 H 31 Z' },
+    // concrete: one joint each way, a few grains and a small crack
+    concrete: { w: 50, h: 50, dark: 1.5, light: 0.7,
+        d: 'M -4 25 H 54 M 25 -4 V 54 M 8 9 L 8.1 9 M 17 15 L 17.1 15 M 37 8 L 37.1 8 M 42 17 L 42.1 17 M 10 38 L 10.1 38 M 16 44 L 16.1 44 M 34 34 L 34.1 34 M 43 42 L 43.1 42 M 31 37 L 35 40 L 38 39' },
+    // floor tile: a grid of four by four
+    tiles: { w: 50, h: 50, dark: 1.3, light: 0.7,
+        d: 'M -4 6.25 H 54 M -4 18.75 H 54 M -4 31.25 H 54 M -4 43.75 H 54 M 6.25 -4 V 54 M 18.75 -4 V 54 M 31.25 -4 V 54 M 43.75 -4 V 54' },
+    // carpet: small chevrons, 8 px apart, on a 48 px tile
+    carpet: { w: 48, h: 48, dark: 1, light: 0.5,
+        d: 'M 2 3 L 4 5 L 6 3 M 10 3 L 12 5 L 14 3 M 18 3 L 20 5 L 22 3 M 26 3 L 28 5 L 30 3 M 34 3 L 36 5 L 38 3 M 42 3 L 44 5 L 46 3 M 4 11 L 6 13 L 8 11 M 12 11 L 14 13 L 16 11 M 20 11 L 22 13 L 24 11 M 28 11 L 30 13 L 32 11 M 36 11 L 38 13 L 40 11 M 2 19 L 4 21 L 6 19 M 10 19 L 12 21 L 14 19 M 18 19 L 20 21 L 22 19 M 26 19 L 28 21 L 30 19 M 34 19 L 36 21 L 38 19 M 42 19 L 44 21 L 46 19 M 4 27 L 6 29 L 8 27 M 12 27 L 14 29 L 16 27 M 20 27 L 22 29 L 24 27 M 28 27 L 30 29 L 32 27 M 36 27 L 38 29 L 40 27 M 2 35 L 4 37 L 6 35 M 10 35 L 12 37 L 14 35 M 18 35 L 20 37 L 22 35 M 26 35 L 28 37 L 30 35 M 34 35 L 36 37 L 38 35 M 42 35 L 44 37 L 46 35 M 4 43 L 6 45 L 8 43 M 12 43 L 14 45 L 16 43 M 20 43 L 22 45 L 24 43 M 28 43 L 30 45 L 32 43 M 36 43 L 38 45 L 40 43' },
+    // glass: two pairs of glints
+    glass: { w: 50, h: 50, dark: 1.7, light: 1.2,
+        d: 'M 7 23 L 23 7 M 14 26 L 26 14 M 28 44 L 44 28 M 35 46 L 46 35' },
+    // chain-link: the hatching drawn both ways
+    chainlink: { w: 50, h: 50, dark: 1.5, light: 0.9,
+        d: 'M -4 2.25 L 47.75 54 M -4 14.75 L 35.25 54 M -4 27.25 L 22.75 54 M -4 39.75 L 10.25 54 M 2.25 -4 L 54 47.75 M 14.75 -4 L 54 35.25 M 27.25 -4 L 54 22.75 M 39.75 -4 L 54 10.25 M 54 2.25 L 2.25 54 M 54 14.75 L 14.75 54 M 54 27.25 L 27.25 54 M 54 39.75 L 39.75 54 M 47.75 -4 L -4 47.75 M 35.25 -4 L -4 35.25 M 22.75 -4 L -4 22.75 M 10.25 -4 L -4 10.25' },
+    // deck plate: one panel with cut corners, four bolts and a bar
+    deck: { w: 50, h: 50, dark: 1.8, light: 0.8,
+        d: 'M 9 3 H 41 L 47 9 V 41 L 41 47 H 9 L 3 41 V 9 Z M 17 25 H 33 M 10 10 L 10.1 10 M 40 10 L 40.1 10 M 10 40 L 10.1 40 M 40 40 L 40.1 40' },
+    // grating: four blocks of bars, turned from each other
+    grating: { w: 50, h: 50, dark: 1.8, light: 0.8,
+        d: 'M 6 5 V 21 M 11 5 V 21 M 16 5 V 21 M 21 5 V 21 M 29 6 H 45 M 29 11 H 45 M 29 16 H 45 M 29 21 H 45 M 5 29 H 21 M 5 34 H 21 M 5 39 H 21 M 5 44 H 21 M 29 29 V 45 M 34 29 V 45 M 39 29 V 45 M 44 29 V 45' },
+    // hull plate: long seams, a slanted joint and a vent
+    hull: { w: 50, h: 50, dark: 2, light: 0.9,
+        d: 'M -4 9 H 54 M -4 41 H 54 M 15 9 L 21 41 M 41 41 V 54 M 41 -4 V 9 M 28 19 H 38 V 31 H 28 Z M 30 23 H 36 M 30 27 H 36' },
+    // force field: a honeycomb on a 48 by 28 tile, its slanted edges drawn past the tile so that its own edge cuts them
+    forcefield: { w: 48, h: 28, dark: 1.5, light: 1.1,
+        d: 'M 12 7 H 28 M 36 21 H 56 M -12 21 H 4 M 12 7 L 4 21 M 4 21 L 12 35 M 4 -7 L 12 7 M 28 7 L 36 21 M 36 21 L 28 35 M 36 -7 L 28 7' },
+    // a holo walkway: a thin grid with a lit square on each crossing
+    holo: { w: 50, h: 50, dark: 1, light: 0.7, fill: 'rgba(120,230,255,0.5)',
+        d: 'M -4 12.5 H 54 M -4 37.5 H 54 M 12.5 -4 V 54 M 37.5 -4 V 54 M 10.5 10.5 H 14.5 V 14.5 H 10.5 Z M 35.5 10.5 H 39.5 V 14.5 H 35.5 Z M 10.5 35.5 H 14.5 V 39.5 H 10.5 Z M 35.5 35.5 H 39.5 V 39.5 H 35.5 Z' }
 });
+// The words a Texture list shows for a pattern: its own name with a capital, but for those two words make plainer
+var TEX_WORDS = frozenTable({ ironplate: 'Iron plate', treadplate: 'Tread plate', rails: 'Rail track', sawtooth: 'Sawtooth roof', lanes: 'Road lines', tiles: 'Floor tile', chainlink: 'Chain-link', deck: 'Deck plate', hull: 'Hull plate', forcefield: 'Force field', holo: 'Holo grid' });
+function texName(n) { var k = cleanTexture(n); return !k ? '' : TEX_WORDS[k] || k.charAt(0).toUpperCase() + k.slice(1); }
 var DARK = 'rgba(0,0,0,0.38)', LIGHT = 'rgba(255,255,255,0.18)', SVG_NS = 'http://www.w3.org/2000/svg';
 var TEX_INK = Object.freeze({ dark: DARK, light: LIGHT });   // the two strokes of every tile, for a drawer that draws the tile itself (the map picture)
 
@@ -171,9 +223,78 @@ var MATERIALS = frozenTable({
     // a town's own three (fold B6): a street is a floor, a building is a block that stops sight and tokens as a wall does (the owner: "A block"), and so is a city wall
     street: { name: 'Street', texture: 'cobbles', color: '#6b6672', layer: 'back' },
     building: { name: 'Building', texture: 'shingles', color: '#7a3f33', layer: 'back-mid', blocksSight: true, sightType: 'wall' },
-    citywall: { name: 'City wall', texture: 'stone', color: '#4a4753', layer: 'back-mid', blocksSight: true, sightType: 'wall' }
+    citywall: { name: 'City wall', texture: 'stone', color: '#4a4753', layer: 'back-mid', blocksSight: true, sightType: 'wall' },
+    // The era materials (backlog 23c). Glass, chain-link and a force field are see-through barriers (the owner, by prompt: "Yes, see-through barriers
+    // (Recommended)"): a token cannot cross one and sight passes it, and their colours let the ground show
+    factory: { name: 'Factory floor', texture: 'treadplate', color: '#4f5157', layer: 'back' },
+    concrete: { name: 'Concrete', texture: 'concrete', color: '#6d6f72', layer: 'back' },
+    tile: { name: 'Floor tile', texture: 'tiles', color: '#8d9296', layer: 'back' },
+    carpet: { name: 'Carpet', texture: 'carpet', color: '#5a4560', layer: 'back' },
+    deck: { name: 'Deck', texture: 'deck', color: '#454c5c', layer: 'back' },
+    grating: { name: 'Grating', texture: 'grating', color: '#3c4250', layer: 'back' },
+    walkway: { name: 'Walkway', texture: 'holo', color: '#233040', layer: 'back' },
+    brickwall: { name: 'Brick wall', texture: 'bricks', color: '#5a3a2e', layer: 'back-mid', blocksSight: true, sightType: 'wall' },
+    blockwall: { name: 'Block wall', texture: 'concrete', color: '#4c4e52', layer: 'back-mid', blocksSight: true, sightType: 'wall' },
+    bulkhead: { name: 'Bulkhead', texture: 'hull', color: '#262b36', layer: 'back-mid', blocksSight: true, sightType: 'wall' },
+    ironwall: { name: 'Iron plate', texture: 'ironplate', color: '#56606c', layer: 'back-mid', blocksSight: true, sightType: 'wall' },
+    irondoor: { name: 'Iron door', texture: 'ironplate', color: '#56606c', layer: 'back-mid', blocksSight: true, sightType: 'door' },
+    hatch: { name: 'Hatch', texture: 'deck', color: '#6a5a30', layer: 'back-mid', blocksSight: true, sightType: 'door' },
+    glass: { name: 'Glass', texture: 'glass', color: '#7fb2c899', layer: 'back-mid', barrier: true },
+    chainlink: { name: 'Chain-link', texture: 'chainlink', color: '#8a8f9499', layer: 'back-mid', barrier: true },
+    forcefield: { name: 'Force field', texture: 'forcefield', color: '#49b6d899', layer: 'back-mid', barrier: true },
+    road: { name: 'Road', texture: 'asphalt', color: '#3a3c40', layer: 'back' },
+    roadlines: { name: 'Road lines', texture: 'lanes', color: '#3a3c40', layer: 'back' },
+    rail: { name: 'Rail track', texture: 'rails', color: '#6a5a4a', layer: 'back' },
+    terrace: { name: 'Terrace', texture: 'slates', color: '#44474e', layer: 'back-mid', blocksSight: true, sightType: 'wall' },
+    millroof: { name: 'Mill roof', texture: 'sawtooth', color: '#4b4f57', layer: 'back-mid', blocksSight: true, sightType: 'wall' },
+    roof: { name: 'Roof', texture: 'asphalt', color: '#55585e', layer: 'back-mid', blocksSight: true, sightType: 'wall' },
+    module: { name: 'Module', texture: 'hull', color: '#3a4150', layer: 'back-mid', blocksSight: true, sightType: 'wall' },
+    canal: { name: 'Canal', texture: 'ripples', color: '#2f4a46', layer: 'back', terrain: 2 },
+    coolant: { name: 'Coolant', texture: 'ripples', color: '#2a6f7a', layer: 'back', terrain: 2 },
+    scrap: { name: 'Scrap', texture: 'stone', color: '#5b4a3c', layer: 'back-mid', cover: 'yes' },
+    wreckage: { name: 'Wreckage', texture: 'stone', color: '#4a4e58', layer: 'back-mid', cover: 'yes' }
 });
-var MATERIAL_IDS = Object.freeze(['floor', 'wall', 'door', 'water', 'rubble', 'wood', 'grass', 'street', 'building', 'citywall']);
+var MATERIAL_IDS = Object.freeze(['floor', 'wall', 'door', 'water', 'rubble', 'wood', 'grass', 'street', 'building', 'citywall', 'factory', 'concrete', 'tile', 'carpet', 'deck', 'grating', 'walkway', 'brickwall', 'blockwall', 'bulkhead', 'ironwall', 'irondoor', 'hatch', 'glass', 'chainlink', 'forcefield', 'road', 'roadlines', 'rail', 'terrace', 'millroof', 'roof', 'module', 'canal', 'coolant', 'scrap', 'wreckage']);
+// Build's options, by what a thing is and never by its era first (the owner, 2026-11-02: a map may mix them all, by prompt: "all 3"): one fold a kind. Each
+// material is in exactly one
+var MAT_KINDS = Object.freeze([
+    Object.freeze({ name: 'Floors', ids: Object.freeze(['floor', 'wood', 'factory', 'concrete', 'tile', 'carpet', 'deck', 'grating', 'walkway']) }),
+    Object.freeze({ name: 'Walls', ids: Object.freeze(['wall', 'brickwall', 'citywall', 'blockwall', 'bulkhead', 'ironwall']) }),
+    Object.freeze({ name: 'Doors', ids: Object.freeze(['door', 'irondoor', 'hatch']) }),
+    Object.freeze({ name: 'See-through', ids: Object.freeze(['glass', 'chainlink', 'forcefield']) }),
+    Object.freeze({ name: 'Ground and roads', ids: Object.freeze(['grass', 'street', 'road', 'roadlines', 'rail']) }),
+    Object.freeze({ name: 'Buildings', ids: Object.freeze(['building', 'terrace', 'millroof', 'roof', 'module']) }),
+    Object.freeze({ name: 'Water', ids: Object.freeze(['water', 'canal', 'coolant']) }),
+    Object.freeze({ name: 'Rubble', ids: Object.freeze(['rubble', 'scrap', 'wreckage']) })
+]);
+// The eras a material reads as, for the era chips. They only filter: a material may stand in several, and nothing here limits what may be laid
+var ERAS = Object.freeze(['Fantasy', 'Victorian', 'Modern', 'Futuristic']);
+var MAT_ERAS = (function() {
+    var o = Object.create(null), put = function(era, ids) { ids.forEach(function(id) { o[id] = (o[id] || []).concat(era); }); };
+    put('Fantasy', ['floor', 'wood', 'wall', 'citywall', 'door', 'grass', 'street', 'building', 'water', 'rubble']);
+    put('Victorian', ['wood', 'factory', 'brickwall', 'ironwall', 'irondoor', 'grass', 'street', 'rail', 'terrace', 'millroof', 'canal', 'scrap']);
+    put('Modern', ['wood', 'concrete', 'tile', 'carpet', 'blockwall', 'irondoor', 'glass', 'chainlink', 'grass', 'road', 'roadlines', 'roof', 'water', 'rubble']);
+    put('Futuristic', ['deck', 'grating', 'walkway', 'bulkhead', 'ironwall', 'hatch', 'forcefield', 'glass', 'grass', 'module', 'coolant', 'wreckage']);
+    Object.keys(o).forEach(function(k) { Object.freeze(o[k]); });
+    return Object.freeze(o);
+})();
+// The materials a Wall line may be: a thing that stands along a line. A City wall stays a block, as a generator lays it
+var MAT_LINE = Object.freeze(['wall', 'door', 'brickwall', 'blockwall', 'bulkhead', 'ironwall', 'irondoor', 'hatch', 'glass', 'chainlink', 'forcefield']);
+function lineMat(v) { var id = cleanMaterial(v); return !!id && MAT_LINE.indexOf(id) >= 0; }
+// The generators' themes (backlog 23c; the owner, by prompt: the dungeon and the city dialogs each take a Theme): what each part of a plan is laid in. A theme changes
+// materials and never a plan, so a seed gives the same plan in every theme. A roof names the material a plan's roof is laid as; a theme with none keeps the plan's own
+var THEME_IDS = Object.freeze(['fantasy', 'victorian', 'modern', 'futuristic']);
+var THEME_NAMES = Object.freeze({ fantasy: 'Fantasy', victorian: 'Victorian', modern: 'Modern', futuristic: 'Futuristic' });
+var THEMES = frozenTable({
+    fantasy: { floor: 'floor', wall: 'wall', door: 'door', field: 'grass', street: 'street', water: 'water', bridge: 'wood', block: 'citywall', roofs: null },
+    victorian: { floor: 'factory', wall: 'brickwall', door: 'irondoor', field: 'grass', street: 'street', water: 'canal', bridge: 'factory', block: 'brickwall', roofs: Object.freeze({ shingles: 'terrace', pantiles: 'millroof', slates: 'terrace', thatch: 'millroof' }) },
+    modern: { floor: 'concrete', wall: 'blockwall', door: 'irondoor', field: 'grass', street: 'road', water: 'water', bridge: 'concrete', block: 'blockwall', roofs: Object.freeze({ shingles: 'roof', pantiles: 'roof', slates: 'roof', thatch: 'roof' }) },
+    futuristic: { floor: 'deck', wall: 'bulkhead', door: 'hatch', field: 'grass', street: 'walkway', water: 'coolant', bridge: 'grating', block: 'bulkhead', roofs: Object.freeze({ shingles: 'module', pantiles: 'module', slates: 'module', thatch: 'module' }) }
+});
+function cleanTheme(v) { return typeof v === 'string' && THEME_IDS.indexOf(v) >= 0 ? v : 'fantasy'; }
+// A campaign's own palette: material ids, each once, in the order pinned. It is read only through this, whatever a file holds
+var PIN_MAX = 12;
+function cleanPins(v) { var o = []; (Array.isArray(v) ? v.slice(0, 200) : []).forEach(function(id) { var k = cleanMaterial(id); if (k && o.indexOf(k) < 0 && o.length < PIN_MAX) o.push(k); }); return o; }
 function cleanMaterial(v) { return typeof v === 'string' && MATERIAL_IDS.indexOf(v) >= 0 ? v : null; }
 var HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 function hexColor(v) { return typeof v === 'string' && HEX_RE.test(v) && cssColor(v) === v ? v : null; }
@@ -206,6 +327,7 @@ function pieceProps(matId, ov) {
     if (o.blocksSight === false) { /* neither key */ }
     else if (o.door === true) { out.blocksSight = true; out.sightType = 'door'; }
     else if (m.blocksSight) { out.blocksSight = true; out.sightType = m.sightType; }
+    else if (m.barrier) out.barrier = true;   // a see-through barrier: it stops tokens, and nothing that sight reads
     if (o.cover === true) out.cover = 'yes';
     else if (o.cover !== false && m.cover) out.cover = m.cover;
     if (o.terrain === undefined) { if (m.terrain) out.terrain = m.terrain; }
@@ -215,9 +337,10 @@ function pieceProps(matId, ov) {
 // The Wall-line preset the pen takes for a wall or a door drawn as a line: item 18 W2's thin wall (a path with blocksSight), a square tip,
 // never a texture (a stroke is not textured); null for any other material
 function penPreset(matId, ov) {
-    var id = cleanMaterial(matId); if (id !== 'wall' && id !== 'door') return null;
-    var m = MATERIALS[id], o = picks(ov), door = o.door === true || id === 'door';
-    return { strokeWidth: 6, tip: 'square', color: hexColor(o.color) || m.color, layer: 'back-mid', name: m.name, blocksSight: true, sightType: door ? 'door' : 'wall' };
+    var id = cleanMaterial(matId); if (!lineMat(id)) return null;
+    var m = MATERIALS[id], o = picks(ov), door = o.door === true || m.sightType === 'door', out = { strokeWidth: 6, tip: 'square', color: hexColor(o.color) || m.color, layer: 'back-mid', name: m.name };
+    if (m.barrier) out.barrier = true; else { out.blocksSight = true; out.sightType = door ? 'door' : 'wall'; }
+    return out;
 }
 
 /* ---------- one of the campaign's own pictures as a fill (fold B3) ---------- */
@@ -770,6 +893,6 @@ function walledUnder(kept, D, Dv) {
 }
 function runLen(r) { var n = 0; for (var i = 1; i < r.length; i++) n += Math.sqrt((r[i][0] - r[i - 1][0]) * (r[i][0] - r[i - 1][0]) + (r[i][1] - r[i - 1][1]) * (r[i][1] - r[i - 1][1])); return n; }
 
-var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX: TEX, TEX_CSS: TEX_CSS, TEX_INK: TEX_INK, texStyle: texStyle, texPos: texPos, texPattern: texPattern, PIC_CELL: PIC_CELL, picUrl: picUrl, picPos: picPos, picStyle: picStyle, picPattern: picPattern, picName: picName, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls, corridorWalls: corridorWalls, wallLine: wallLine, cutOk: cutOk, cutWalls: cutWalls };
+var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, texName: texName, MAT_KINDS: MAT_KINDS, ERAS: ERAS, MAT_ERAS: MAT_ERAS, lineMat: lineMat, PIN_MAX: PIN_MAX, cleanPins: cleanPins, THEME_IDS: THEME_IDS, THEME_NAMES: THEME_NAMES, THEMES: THEMES, cleanTheme: cleanTheme, TEX: TEX, TEX_CSS: TEX_CSS, TEX_INK: TEX_INK, texStyle: texStyle, texPos: texPos, texPattern: texPattern, PIC_CELL: PIC_CELL, picUrl: picUrl, picPos: picPos, picStyle: picStyle, picPattern: picPattern, picName: picName, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls, corridorWalls: corridorWalls, wallLine: wallLine, cutOk: cutOk, cutWalls: cutWalls };
 if (typeof window !== 'undefined') window.wpBuildCore = API;
-export { VERSION, TEXTURES, cleanTexture, TEX, TEX_CSS, TEX_INK, texStyle, texPos, texPattern, PIC_CELL, picUrl, picPos, picStyle, picPattern, picName, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls, corridorWalls, wallLine, cutOk, cutWalls };
+export { VERSION, TEXTURES, cleanTexture, texName, MAT_KINDS, ERAS, MAT_ERAS, lineMat, PIN_MAX, cleanPins, THEME_IDS, THEME_NAMES, THEMES, cleanTheme, TEX, TEX_CSS, TEX_INK, texStyle, texPos, texPattern, PIC_CELL, picUrl, picPos, picStyle, picPattern, picName, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls, corridorWalls, wallLine, cutOk, cutWalls };

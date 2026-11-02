@@ -18,7 +18,7 @@
    Only +, -, * and / reach a number that is kept, never a sine or a root: a plan is the same on every machine. */
 'use strict';
 
-import { polyItem, wallLine } from './buildcore.js';
+import { polyItem, wallLine, cleanTheme } from './buildcore.js';
 
 var VERSION = 1;
 function isObj(v) { return v !== null && typeof v === 'object'; }
@@ -27,6 +27,7 @@ function fin(v) { return typeof v === 'number' && isFinite(v); }
 var SIZES = Object.freeze(['village', 'town', 'city']), WALLS = Object.freeze(['none', 'gates', 'towers']), WATERS = Object.freeze(['none', 'river', 'coast']);
 var ROOF_NAMES = Object.freeze(['shingles', 'pantiles', 'slates', 'thatch']), ROOFS = Object.freeze(['mixed'].concat(ROOF_NAMES));
 var ROOF_COLOR = Object.freeze({ shingles: '#7a3f33', pantiles: '#a8552f', slates: '#4b5563', thatch: '#b59a55' });   // each roof's own colour, as the city sheet drew them
+var LAYOUTS = Object.freeze(['winding', 'grid']);   // backlog 23c: the streets of a town or a city: wards around a market, or straight blocks
 var SEED_RE = /^[A-Za-z0-9-]{1,24}$/, CELL = 50;
 function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined; }
 function pick(list, v, d) { return typeof v === 'string' && list.indexOf(v) >= 0 ? v : d; }
@@ -34,8 +35,10 @@ function pick(list, v, d) { return typeof v === 'string' && list.indexOf(v) >= 0
 // first seed), and one word for each list. Fields outside is on unless it is false itself. Read by own keys only
 function cleanCity(v) {
     var o = isObj(v) ? v : {}, seed = own(o, 'seed');
-    return { seed: typeof seed === 'string' && SEED_RE.test(seed) ? seed : '0000-fox', size: pick(SIZES, own(o, 'size'), 'town'), wall: pick(WALLS, own(o, 'wall'), 'gates'),
-        water: pick(WATERS, own(o, 'water'), 'river'), roofs: pick(ROOFS, own(o, 'roofs'), 'mixed'), fields: own(o, 'fields') !== false };
+    var out = { seed: typeof seed === 'string' && SEED_RE.test(seed) ? seed : '0000-fox', size: pick(SIZES, own(o, 'size'), 'town'), wall: pick(WALLS, own(o, 'wall'), 'gates'),
+        water: pick(WATERS, own(o, 'water'), 'river'), roofs: pick(ROOFS, own(o, 'roofs'), 'mixed'), fields: own(o, 'fields') !== false }, th = cleanTheme(own(o, 'theme'));
+    if (own(o, 'layout') === 'grid') out.layout = 'grid'; if (th !== 'fantasy') out.theme = th;   // the first of each names nothing, so that a kept setting and every plan stays as it was
+    return out;
 }
 // Chance from the seed alone, as the dungeon's: a 32-bit hash of the text (FNV-1a) feeds a small generator (mulberry32)
 function hash32(s) { var h = 0x811c9dc5; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return h >>> 0; }
@@ -43,7 +46,7 @@ function rngOf(text) {
     var a = hash32(text) || 1;
     return function() { a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
-function seedText(o) { return 'city|' + VERSION + '|' + o.seed + '|' + o.size + '|' + o.wall + '|' + o.water + '|' + o.roofs + '|' + (o.fields ? 'f' : '-'); }
+function seedText(o) { return 'city|' + VERSION + '|' + o.seed + '|' + o.size + '|' + o.wall + '|' + o.water + '|' + o.roofs + '|' + (o.fields ? 'f' : '-') + (o.layout === 'grid' && o.size !== 'village' ? '|grid' : ''); }   // a theme is no part of it, and a winding plan's text is what it always was, so every seed goes on giving its city
 // A house's roof: the one picked, or with Mixed mostly its neighbourhood's own and now and then another
 function roofOf(o, rnd, main) { return o.roofs !== 'mixed' ? o.roofs : (rnd() < 0.72 ? main : ROOF_NAMES[Math.floor(rnd() * ROOF_NAMES.length)]); }
 
@@ -272,11 +275,61 @@ function genOverview(o, rnd) {
     return plan;
 }
 
+// A grid of blocks (backlog 23c; the owner, by prompt: "A street grid too"), the same plan shape as a town of wards. Straight roads between blocks of a few whole sizes,
+// a square in the middle block, a river down one wide road under bridges, a coast below the last row, and roads out from one road each way. Whole numbers only
+var G_BLOCK = 220, G_ROAD = 48, G_RIVER = 110, G_WALK = 12, G_LANE = 8, G_FIELD = 180;
+function genBlocks(o, rnd) {
+    var big = o.size === 'city', nx = big ? 8 : 5, ny = big ? 6 : 4, M = O_MARGIN, coast = o.water === 'coast', i, j;
+    var mi = Math.floor(nx / 2), mj = Math.floor(ny / 2), rc = o.water === 'river' ? mi - 1 + (rnd() < 0.5 ? 0 : 1) : -1;   // the road after block rc is the river's
+    var spans = function(n, wide) { var a = [], p = M + G_ROAD; for (var k = 0; k < n; k++) { var s = G_BLOCK + Math.floor(rnd() * 5) * 20 - 40; a.push([p, p + s]); p += s + (k === wide ? G_RIVER : G_ROAD); } return { a: a, end: p }; };
+    var X = spans(nx, rc), Y = spans(ny, -1), x1 = X.end, y1 = Y.end, W = x1 + M, H = y1 + M, R = O_RIVER;
+    var rect = function(a, b, c, d) { return [[a, b], [c, b], [c, d], [a, d]]; };
+    var plan = { kind: 'free', w: W, h: H, streets: [rect(M, M, x1, y1)], bridges: [], water: [], fields: [], buildings: [], walls: [], towers: [] };
+    var mid = function(S, k) { return Math.round((S.a[k][1] + S.a[k + 1][0]) / 2); };   // the middle of the road after block k
+    var mr = mi - 1 === rc ? mi : mi - 1, mx = mid(X, mr), my = mid(Y, mj - 1), cx = rc >= 0 ? mid(X, rc) : 0, r = O_ROAD;
+    if (rc >= 0) {
+        plan.water.push(rect(cx - R, 0, cx + R, H));
+        var cross = []; for (j = 0; j < ny - 1; j++) cross.push(mid(Y, j));
+        if (cross.length > 3) cross = [cross[0], cross[Math.floor((cross.length - 1) / 2)], cross[cross.length - 1]];
+        cross.forEach(function(y) { plan.bridges.push(rect(cx - R - 14, y - 20, cx + R + 14, y + 20)); });
+    }
+    if (coast) plan.water.push(rect(0, y1 + 40, W, H));
+    // a road out each way, but for the one that faces the sea
+    plan.streets.push(rect(mx - r, 0, mx + r, M + 4), rect(0, my - r, M + 4, my + r), rect(x1 - 4, my - r, W, my + r));
+    if (!coast) plan.streets.push(rect(mx - r, y1 - 4, mx + r, H));
+    if (o.wall !== 'none') {
+        var runs = function(a, b, cuts) { var o2 = [], p = a; cuts.filter(function(c) { return c[0] > a && c[0] < b; }).sort(function(u, v) { return u[0] - v[0]; }).forEach(function(c) { if (c[0] - c[1] > p) o2.push([p, c[0] - c[1]]); p = c[0] + c[1]; }); if (b > p) o2.push([p, b]); return o2; };
+        var gx = [[mx, O_GATE]].concat(rc >= 0 ? [[cx, R + 8]] : []), gs = coast ? (rc >= 0 ? [[cx, R + 8]] : []) : gx;
+        runs(M, x1, gx).forEach(function(s) { plan.walls.push([[s[0], M], [s[1], M]]); });
+        runs(M, x1, gs).forEach(function(s) { plan.walls.push([[s[0], y1], [s[1], y1]]); });
+        runs(M, y1, [[my, O_GATE]]).forEach(function(s) { plan.walls.push([[M, s[0]], [M, s[1]]]); plan.walls.push([[x1, s[0]], [x1, s[1]]]); });
+        if (o.wall === 'towers') [[M, M], [x1, M], [x1, y1], [M, y1], [mx - O_GATE, M], [mx + O_GATE, M], [M, my - O_GATE], [M, my + O_GATE], [x1, my - O_GATE], [x1, my + O_GATE]].forEach(function(t) { plan.towers.push({ x: t[0], y: t[1], r: O_TOWER }); });
+    }
+    // the blocks: the square in the middle, a park now and then, and every other block cut into lots
+    for (i = 0; i < nx; i++) for (j = 0; j < ny; j++) {
+        if (i === mi && j === mj) continue;
+        var a = X.a[i][0] + G_WALK, b = X.a[i][1] - G_WALK, c = Y.a[j][0] + G_WALK, d = Y.a[j][1] - G_WALK;
+        if (o.fields && rnd() < 0.08) { plan.fields.push(rect(a, c, b, d)); continue; }
+        var na = 2 + Math.floor(rnd() * 2), nb = 2 + Math.floor(rnd() * 2), blockRoof = ROOF_NAMES[Math.floor(rnd() * ROOF_NAMES.length)];
+        for (var u = 0; u < na; u++) for (var v = 0; v < nb; v++) {
+            if (rnd() < 0.08) continue;
+            var pts = rect(Math.round(a + (b - a) * u / na) + (u ? G_LANE : 0), Math.round(c + (d - c) * v / nb) + (v ? G_LANE : 0), Math.round(a + (b - a) * (u + 1) / na), Math.round(c + (d - c) * (v + 1) / nb));
+            if (polyItem(pts)) plan.buildings.push({ pts: pts, roof: roofOf(o, rnd, blockRoof) });
+        }
+    }
+    // fields outside it, clear of the roads and the water
+    if (o.fields) {
+        var clearX = function(x) { return Math.abs(x - mx) > G_FIELD / 2 + r + 10 && (rc < 0 || Math.abs(x - cx) > G_FIELD / 2 + R + 10); };
+        for (var fx = M + G_FIELD; fx + G_FIELD <= x1; fx += G_FIELD + 40) { if (!clearX(fx + G_FIELD / 2)) continue; if (rnd() < 0.6) plan.fields.push(rect(fx, 30, fx + G_FIELD, 30 + G_FIELD)); if (!coast && rnd() < 0.6) plan.fields.push(rect(fx, y1 + 30, fx + G_FIELD, y1 + 30 + G_FIELD)); }
+    }
+    return plan;
+}
+
 // genCity(opts) -> the plan of one city, from the settings as cleanCity keeps them (plan.opts)
 //   a village:  { kind: 'cells', cols, rows, and boxes { c, r, w, h } of cells: streets, bridges, water, fields, walls, towers, and buildings, each with its roof }
 //   a town or a city:  { kind: 'free', w, h in pixels, and polygons [[x, y]]: streets, bridges, water, fields; walls: lines [[x, y]]; towers: { x, y, r }; buildings: { pts, roof } }
 function genCity(opts) {
-    var o = cleanCity(opts), rnd = rngOf(seedText(o)), plan = o.size === 'village' ? genVillage(o, rnd) : genOverview(o, rnd);
+    var o = cleanCity(opts), rnd = rngOf(seedText(o)), plan = o.size === 'village' ? genVillage(o, rnd) : o.layout === 'grid' ? genBlocks(o, rnd) : genOverview(o, rnd);
     plan.opts = o;
     return plan;
 }
@@ -316,7 +369,7 @@ function cityPieces(plan, ox, oy) {
     return out;
 }
 
-var API = { VERSION: VERSION, SIZES: SIZES, WALLS: WALLS, WATERS: WATERS, ROOFS: ROOFS, ROOF_NAMES: ROOF_NAMES, ROOF_COLOR: ROOF_COLOR, CELL: CELL, cleanCity: cleanCity, oneCity: oneCity, cityEdge: cityEdge, genCity: genCity, cityPieces: cityPieces };
+var API = { VERSION: VERSION, LAYOUTS: LAYOUTS, SIZES: SIZES, WALLS: WALLS, WATERS: WATERS, ROOFS: ROOFS, ROOF_NAMES: ROOF_NAMES, ROOF_COLOR: ROOF_COLOR, CELL: CELL, cleanCity: cleanCity, oneCity: oneCity, cityEdge: cityEdge, genCity: genCity, cityPieces: cityPieces };
 if (typeof window !== 'undefined') window.wpCityCore = API;
-export { VERSION, SIZES, WALLS, WATERS, ROOFS, ROOF_NAMES, ROOF_COLOR, CELL, cleanCity, oneCity, cityEdge, genCity, cityPieces };
+export { VERSION, LAYOUTS, SIZES, WALLS, WATERS, ROOFS, ROOF_NAMES, ROOF_COLOR, CELL, cleanCity, oneCity, cityEdge, genCity, cityPieces };
 export default API;

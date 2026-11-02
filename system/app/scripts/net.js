@@ -1179,6 +1179,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         delete camp.cast;
         delete camp.pinnedMaps;
         delete camp.pinnedPages;   // 1.5.4 (pageshelf.js): the pages pinned for the session name planners, which never leave this machine
+        delete camp.buildPins;   // 1.6.2: the GM's own palette in Build
         delete camp.fights;   // 1.6.0: a running fight as the host keeps it, numbers, rolls and all (fightsKeep)
         delete camp.sessionLog;
         delete camp.pictures; delete camp.imageCats;   // the picture library's per-campaign bookkeeping (1.5.0)

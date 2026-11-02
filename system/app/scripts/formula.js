@@ -41,6 +41,9 @@ var RE_REROLL = /(rr|r)(<=|>=|!=|<>|==|=|<|>)?(-?\d+)/iy;
 var RE_CS = /cs(<=|>=|!=|<>|==|=|<|>)(-?\d+)/iy;
 var RE_CSBAD = /cs(-?\d+)/iy;
 var RE_EXPL = /!(?!=)/y;
+var RE_OWN = /!!(?!=)/y;                                 // 1.6.2: each die an explosion rolls is a die of its own. d6!!=3 stays d6! != 3, as it always read
+var RE_OWNOP = /<=|>=|<|>/y;
+var RE_CMPF = /cs(<=|>=|!=|<>|==|=|<|>)\(/iy, RE_RERF = /(rr|r)(<=|>=|!=|<>|==|=|<|>)\(/iy;   // 1.6.2: a figure in brackets, read when the dice are rolled
 var SUFFIX_SHAPE = /^(?:(?:kh|kl|dh|dl)\d*|rr?(?:<=|>=|!=|<>|==|=|<|>)?-?\d+|cs\S*|!)$/i;
 function table(o) { return Object.assign(Object.create(null), o); }       // no prototype: a name called constructor is just a name
 var RESERVED = table({ and: 1, or: 1, not: 1, 'true': 1, 'false': 1 });
@@ -52,9 +55,34 @@ function lex(src) {
     var n = src.length, toks = [], frames = [], i = 0, mm;
     function at(re, p) { re.lastIndex = p; return re.exec(src); }
 
-    function lexSuffixes(p) {                       // modifiers glued to a dice term: kh3 kl dh dl2 r1 rr<=2 cs>=5 !
-        var list = [];
+    function figureAt(p) {                          // src[p] is the ( of a modifier's figure: kh(Keep), cs>=(Target)
+        var depth = 0, e = p;
+        for (; e < n; e++) { if (src[e] === '(') depth++; else if (src[e] === ')' && --depth === 0) break; }
+        if (e >= n) fail('Missing ")" to close the "(" at column ' + (p + 1) + '.', p, 1);
+        return { expr: figureNode(src, p + 1, e), end: e + 1 };
+    }
+    function lexSuffixes(p) {                       // modifiers glued to a dice term: kh3 kl dh dl2 r1 rr<=2 cs>=5 ! !! !!>=9, and a figure in brackets for any number of them: kh(Keep) cs>=(Target) rr<=(Low) !!>=(Top)
+        var list = [], fg;
         for (;;) {
+            if ((mm = at(RE_KEEP, p)) && mm[2] === undefined && src[p + mm[0].length] === '(') {
+                fg = figureAt(p + mm[0].length); list.push({ kind: 'keep', sub: mm[1].toLowerCase(), n: 0, expr: fg.expr, pos: p, len: fg.end - p, text: src.slice(p, fg.end) }); p = fg.end; continue;
+            }
+            if ((mm = at(RE_RERF, p))) {
+                fg = figureAt(p + mm[0].length - 1); list.push({ kind: 'reroll', sub: mm[1].toLowerCase(), op: canonOp(mm[2]), n: 0, expr: fg.expr, pos: p, len: fg.end - p, text: src.slice(p, fg.end) }); p = fg.end; continue;
+            }
+            if ((mm = at(RE_CMPF, p))) {
+                fg = figureAt(p + mm[0].length - 1); list.push({ kind: 'cs', op: canonOp(mm[1]), n: 0, expr: fg.expr, pos: p, len: fg.end - p, text: src.slice(p, fg.end) }); p = fg.end; continue;
+            }
+            if ((mm = at(RE_OWN, p))) {
+                var ow = { kind: 'explode', own: true, pos: p, len: 2, text: '!!' }, oe = p + 2, om = at(RE_OWNOP, oe);
+                if (om) {
+                    ow.op = om[0]; oe += om[0].length; var ofn;
+                    if (src[oe] === '(') { ofn = figureAt(oe); ow.expr = ofn.expr; oe = ofn.end; }
+                    else { var odg = /-?\d+/y; odg.lastIndex = oe; var ods = odg.exec(src); if (!ods) fail('!! needs a number after its comparison, for example !!>=9.', p, oe - p); ow.n = parseInt(ods[0], 10); oe += ods[0].length; }
+                    ow.len = oe - p; ow.text = src.slice(p, oe);
+                }
+                list.push(ow); p = oe; continue;
+            }
             if ((mm = at(RE_KEEP, p))) {
                 if (mm[2] === undefined && isNameChar(src[p + mm[0].length])) break;   // 4d6khan: khan is a name, not a modifier
                 list.push({ kind: 'keep', sub: mm[1].toLowerCase(), n: mm[2] === undefined ? 1 : parseInt(mm[2], 10), pos: p, len: mm[0].length, text: mm[0] });
@@ -342,6 +370,21 @@ Parser.prototype.call = function(nameTok, pos) {
     if (args.length < f.min || args.length > f.max) fail(arityText(nameTok.text, f) + ', got ' + args.length + '.', node.pos, node.len);
     return node;
 };
+// 1.6.2: a modifier's figure, a formula of its own in the same text, so that an error points at it. It rolls no dice: a roll has one set of dice
+function rollsDice(n) {
+    if (!n || typeof n !== 'object') return false;
+    if (n.t === 'dice') return true;
+    if (n.items) for (var i = 0; i < n.items.length; i++) if (rollsDice(n.items[i].node || n.items[i])) return true;
+    if (n.args) for (var a = 0; a < n.args.length; a++) if (rollsDice(n.args[a])) return true;
+    return rollsDice(n.a) || rollsDice(n.l) || rollsDice(n.r);
+}
+function figureNode(src, from, to) {
+    if (!src.slice(from, to).trim()) fail('A dice modifier\u2019s brackets need a figure.', from - 1, to - from + 2);
+    var text = src.slice(0, from).replace(/[^]/g, ' ') + src.slice(from, to), p = new Parser(lex(text), text), body = p.expr(), t = p.peek();
+    if (t.t !== 'eof') fail('Unexpected ' + q(t.text) + '.', t.pos, t.len || 1);
+    if (rollsDice(body)) fail('A dice modifier\u2019s figure rolls no dice.', from, to - from);
+    return body;
+}
 Parser.prototype.diceNode = function(count, faces, suffixes, pos) {
     var node = { t: 'dice', count: count, faces: faces, keep: null, reroll: null, explode: null, cs: null };
     for (var k = 0; k < suffixes.length; k++) {
@@ -368,7 +411,7 @@ Parser.prototype.diceNode = function(count, faces, suffixes, pos) {
 function collectNames(node, out, seen) {
     if (!node || typeof node !== 'object') return;
     if (node.t === 'name') { if (!seen[node.v]) { seen[node.v] = true; out.push(node.text); } return; }
-    if (node.t === 'dice') { collectNames(node.count, out, seen); if (node.faces !== 'F') collectNames(node.faces, out, seen); return; }
+    if (node.t === 'dice') { collectNames(node.count, out, seen); if (node.faces !== 'F') collectNames(node.faces, out, seen); [node.keep, node.reroll, node.explode, node.cs].forEach(function(m) { if (m && m.expr) collectNames(m.expr, out, seen); }); return; }
     if (node.items) for (var i = 0; i < node.items.length; i++) collectNames(node.items[i].node || node.items[i], out, seen);
     if (node.args) for (var a = 0; a < node.args.length; a++) collectNames(node.args[a], out, seen);
     if (node.a) collectNames(node.a, out, seen);
@@ -505,6 +548,10 @@ function resolveName(node, c) {
     return val;
 }
 
+function figureOf(m, c) {   // 1.6.2: a modifier's figure, read as the dice are rolled, and it names what it read as any formula does
+    var v = num(ev(m.expr, c)); if (!isInt(v)) fail('A dice modifier\u2019s figure must be a whole number, got ' + fmt(v) + '.', m.pos, m.len);
+    return v;
+}
 function rollDice(node, c) {
     var count = 1, faces, fudge = false, i;
     if (node.count) {
@@ -530,20 +577,27 @@ function rollDice(node, c) {
         if (fudge) fail('Fudge dice cannot explode.', node.explode.pos, node.explode.len);
         if (faces === 1) fail('d1 cannot explode (every roll is its highest face).', node.explode.pos, node.explode.len);
     }
-    if (node.reroll && node.reroll.sub === 'rr' && alwaysTrue(node.reroll.op, node.reroll.n, lo, hi)) fail(node.reroll.text + ' would reroll a ' + facesText + ' forever.', node.reroll.pos, node.reroll.len);
+    var rerollN = node.reroll ? (node.reroll.expr ? figureOf(node.reroll, c) : node.reroll.n) : 0;
+    var blowN = null, blown = function(x) { return x === faces; };
+    if (node.explode && node.explode.op) {
+        blowN = node.explode.expr ? figureOf(node.explode, c) : node.explode.n;
+        if (alwaysTrue(node.explode.op, blowN, lo, hi)) fail(node.explode.text + ' would explode a ' + facesText + ' forever.', node.explode.pos, node.explode.len);
+        blown = function(x) { return meets(node.explode.op, x, blowN); };
+    }
+    if (node.reroll && node.reroll.sub === 'rr' && alwaysTrue(node.reroll.op, rerollN, lo, hi)) fail(node.reroll.text + ' would reroll a ' + facesText + ' forever.', node.reroll.pos, node.reroll.len);
     var keepN = 0;
     if (node.keep) {
-        var kn = node.keep.n, sub = node.keep.sub, shrinks = !!node.count && node.count.t !== 'num';   // 1.6.2: a pool the sheet sets may shrink in play, and it still rolls: keep what it has
+        var fromSheet = !!node.keep.expr, kn = fromSheet ? Math.max(0, figureOf(node.keep, c)) : node.keep.n, keepWant = kn, sub = node.keep.sub, shrinks = fromSheet || (!!node.count && node.count.t !== 'num');   // 1.6.2: a pool the sheet sets may shrink in play, and it still rolls: keep what it has
         if (shrinks && (sub === 'kh' || sub === 'kl') && kn > count) kn = count;
         if (shrinks && sub !== 'kh' && sub !== 'kl' && kn > count - 1) kn = count - 1;
-        if (sub === 'kh' || sub === 'kl') { if (kn < 1 || kn > count) fail('Cannot keep ' + kn + ' dice of ' + count + '.', node.keep.pos, node.keep.len); }
+        if (sub === 'kh' || sub === 'kl') { if ((kn < 1 && !fromSheet) || kn > count) fail('Cannot keep ' + kn + ' dice of ' + count + '.', node.keep.pos, node.keep.len); }
         else if (shrinks ? kn < 0 : (kn < 1 || kn > count - 1)) fail('Cannot drop ' + kn + ' dice of ' + count + (kn >= count ? ' (nothing would be left).' : '.'), node.keep.pos, node.keep.len);
         keepN = kn;
     }
     for (i = 0; i < count; i++) {
         var v = c.draw(faces, fudge, node), hist = [v], chain, k, capped = false;
         if (node.reroll) {
-            var rop = node.reroll.op, rn = node.reroll.n;
+            var rop = node.reroll.op, rn = rerollN;
             if (node.reroll.sub === 'r') { if (meets(rop, v, rn)) { v = c.draw(faces, fudge, node); hist.push(v); } }
             else {
                 for (k = 0; k < LIMITS.maxReroll && meets(rop, v, rn); k++) { v = c.draw(faces, fudge, node); hist.push(v); }
@@ -552,31 +606,37 @@ function rollDice(node, c) {
         }
         chain = [v];
         if (node.explode) {
-            for (k = 0; k < LIMITS.maxExplode && chain[chain.length - 1] === faces; k++) chain.push(c.draw(faces, fudge, node));
-            if (chain[chain.length - 1] === faces) capped = true;
+            for (k = 0; k < LIMITS.maxExplode && blown(chain[chain.length - 1]); k++) chain.push(c.draw(faces, fudge, node));
+            if (blown(chain[chain.length - 1])) capped = true;
         }
+        var ownDice = node.explode && node.explode.own ? chain.splice(1) : [];   // 1.6.2: !! each die it rolls stands alone, for cs, a keep and the card
         var value = 0; for (k = 0; k < chain.length; k++) value += chain[k];
         rec.rolls.push(hist[0]);
         if (hist.length > 1) rec.rerolled.push(hist);
         if (chain.length > 1) rec.exploded.push(chain);
         if (capped) rec.capped = true;
         rec.dice.push({ hist: hist, chain: chain, value: value, kept: true, hit: false, capped: capped });
+        if (ownDice.length) {
+            rec.exploded.push([v].concat(ownDice)); rec.dice[rec.dice.length - 1].exp = true;
+            ownDice.forEach(function(x, oi) { rec.dice.push({ hist: [x], chain: [x], value: x, kept: true, hit: false, capped: false, exp: oi < ownDice.length - 1 }); });
+        }
     }
     if (node.keep) {
         var order = rec.dice.map(function(d, j) { return j; }).sort(function(a, b) { return rec.dice[b].value - rec.dice[a].value || a - b; });   // highest first, ties by position
         var s = node.keep.sub, n2 = keepN, drop = {};
+        if (shrinks && node.explode && node.explode.own) n2 = Math.min(keepWant, s === 'kh' || s === 'kl' ? rec.dice.length : rec.dice.length - 1);
         if (s === 'kh') order.slice(n2).forEach(function(j) { drop[j] = true; });
-        else if (s === 'kl') order.slice(0, count - n2).forEach(function(j) { drop[j] = true; });
+        else if (s === 'kl') order.slice(0, rec.dice.length - n2).forEach(function(j) { drop[j] = true; });
         else if (s === 'dh') order.slice(0, n2).forEach(function(j) { drop[j] = true; });
-        else order.slice(count - n2).forEach(function(j) { drop[j] = true; });
+        else order.slice(rec.dice.length - n2).forEach(function(j) { drop[j] = true; });
         rec.dice.forEach(function(d, j) { d.kept = !drop[j]; });
     }
     rec.dice.forEach(function(d) { (d.kept ? rec.kept : rec.dropped).push(d.value); });
     var total = 0;
     if (node.cs) {
-        var hits = 0;
-        rec.dice.forEach(function(d) { if (d.kept && meets(node.cs.op, d.value, node.cs.n)) { d.hit = true; hits++; } });
-        rec.cs = { op: node.cs.op, n: node.cs.n, count: hits }; total = hits;
+        var hits = 0, csN = node.cs.expr ? figureOf(node.cs, c) : node.cs.n;
+        rec.dice.forEach(function(d) { if (d.kept && meets(node.cs.op, d.value, csN)) { d.hit = true; hits++; } });
+        rec.cs = { op: node.cs.op, n: csN, count: hits }; total = hits;
     } else rec.dice.forEach(function(d) { if (d.kept) total += d.value; });
     rec.total = total;
     c.recs.set(node, { dice: idx, value: total });
@@ -615,7 +675,7 @@ function ev(node, c) {
         case 'cmp': {
             var d0 = c.dice.length, L = ev(node.l, c), lRolled = c.dice.length > d0, d1 = c.dice.length, R = ev(node.r, c), rRolled = c.dice.length > d1;
             var ln = num(L), rn = num(R), pass = meets(node.op, ln, rn);
-            if (lRolled || rRolled) {
+            if (lRolled || rRolled || node === c.ast.body) {   // 1.6.2: a roll's top comparison is its check whether or not it rolls a die, so a figure against a figure has a success and a failure
                 var margin = (node.op === '>' || node.op === '>=') ? ln - rn : (node.op === '<' || node.op === '<=') ? rn - ln : Math.abs(ln - rn);
                 var chk = { left: ln, op: node.op, right: rn, pass: pass, margin: margin, top: node === c.ast.body };
                 c.checks.push(chk); c.recs.set(node, { check: chk, lRolled: lRolled, rRolled: rRolled });
@@ -670,6 +730,7 @@ function dieToken(d, fudge) {
         if (ch.length > 4) ch = ch.slice(0, 2).concat(['…', ch[ch.length - 1]]);
         s += '!+' + ch.join('+');
     }
+    if (d.exp) s += '!';
     if (d.capped) s += ' capped';
     if (d.hit) s += '✓';
     if (!d.kept) s = '(' + s + ')';

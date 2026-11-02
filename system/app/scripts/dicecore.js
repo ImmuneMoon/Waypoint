@@ -345,7 +345,7 @@ function cleanRoll(rec) {
     if (rec.rid !== undefined) { if (typeof rec.rid !== 'string' || !RID_RE.test(rec.rid)) return null; out.rid = rec.rid; }
     if (rec.names !== undefined) { var nm = cleanNames(rec.names); if (!nm) return null; if (nm.length) out.names = nm; }
     if (rec.malf !== undefined) { if (!isInt(rec.malf) || rec.malf < 1 || rec.malf > 1000000) return null; out.malf = rec.malf; if (rec.malfHid === 1) out.malfHid = 1; }   // malfHid (1.6.0): the figure is the roll's own, standing in for a Malf that reads a GM-only stat, so a card names none
-    if (rec.crit !== undefined) { var crc = cleanCrit(rec.crit); if (!crc) return null; out.crit = [crc.at, crc.fumble]; }   // 1.6.0: criticals at fixed rolls, the two numbers the host judged this roll by
+    if (rec.crit !== undefined) { var crc = cleanCrit(rec.crit); if (!crc) return null; out.crit = crc.high ? [crc.at, crc.fumble, 1] : [crc.at, crc.fumble]; }   // 1.6.0: criticals at fixed rolls, the two numbers the host judged this roll by
     if (rec.hid === 'pass' || rec.hid === 'fail' || rec.hid === 'rolled') { out.hid = rec.hid; if ((rec.hidc === 'crit' || rec.hidc === 'fumble') && rec.hid !== 'rolled') out.hidc = rec.hidc; }   // 1.6.2: the host's own word for a roll whose figure is hidden (hidRoll): only these words
     if (rec.big === true) out.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): the host's mark of a success that lands as a Big Hit, no critical; anything else is left off
     if (rec.mods !== undefined) { var md = cleanMods(rec.mods); if (md) out.mods = md; }
@@ -523,10 +523,11 @@ function under3d6(res) {
 // roll (a record's crit, cleanCrit; ruleOf). A check whose natural total (its dice alone, naturalOf) is at or under at is a critical success, at or
 // over fumble a critical failure, and nothing else is a critical; where both could apply the check's own outcome decides. A critical success
 // passes and a critical failure fails, whatever the arithmetic said. { total, target, pass, crit, margin, by } or null: no rule, no check, no
-// dice, or a pool that counts successes
+// dice, or a pool that counts successes. 1.6.2: a rule with a third place, 1, is high rolls are good: at or over at is the critical success and at or
+// under fumble the critical failure
 function cleanCrit(v) {
-    if (!Array.isArray(v) || v.length !== 2 || !isInt(v[0]) || !isInt(v[1]) || Math.abs(v[0]) > 1000000 || Math.abs(v[1]) > 1000000) return null;
-    return { at: v[0], fumble: v[1] };
+    if (!Array.isArray(v) || (v.length !== 2 && !(v.length === 3 && v[2] === 1)) || !isInt(v[0]) || !isInt(v[1]) || Math.abs(v[0]) > 1000000 || Math.abs(v[1]) > 1000000) return null;
+    return v.length === 3 ? { at: v[0], fumble: v[1], high: true } : { at: v[0], fumble: v[1] };
 }
 function isFixedRule(rule) { return !!rule && typeof rule === 'object' && !Array.isArray(rule) && isInt(rule.at) && isInt(rule.fumble); }
 function fixedCrit(res, rule) {
@@ -534,7 +535,7 @@ function fixedCrit(res, rule) {
     if (res.breakdown.dice.some(function(d) { return !d || d.cs; })) return null;
     var top = null, checks = Array.isArray(res.breakdown.checks) ? res.breakdown.checks : []; for (var i = 0; i < checks.length; i++) if (checks[i] && checks[i].top) top = checks[i];
     if (!top) return null;
-    var n = naturalOf(res), lo = n <= rule.at, hi = n >= rule.fumble, pass = !!top.pass;
+    var up = rule.high === true, n = naturalOf(res), lo = up ? n >= rule.at : n <= rule.at, hi = up ? n <= rule.fumble : n >= rule.fumble, pass = !!top.pass;
     var crit = lo && hi ? (pass ? 'crit' : 'fumble') : lo ? 'crit' : hi ? 'fumble' : '';
     if (crit) pass = crit === 'crit';
     var ord = top.op !== '=' && top.op !== '!=', m = ord && typeof top.margin === 'number' && isFinite(top.margin) ? top.margin : 0, mg = pass ? Math.max(0, m) : Math.min(0, m);
@@ -548,7 +549,7 @@ function verdictOf(res, rule) {
     if (!res || !res.ok) return null;
     var u = rule === 'under3d6' ? under3d6(res) : null;
     if (u) { var by = u.pass ? u.target - u.total : u.total - u.target; return { kind: 'check', pass: u.pass, text: (u.pass ? 'success' : 'failure') + (by > 0 ? ' by ' + fmtNum(by) : ''), crit: u.crit, margin: u.pass ? Math.max(0, u.target - u.total) : Math.min(0, u.target - u.total) }; }   // 1.5.8: margin, how far it beat its target (a miss below 0)
-    var fx = fixedCrit(res, rule); if (fx) return { kind: 'check', pass: fx.pass, text: (fx.pass ? 'success' : 'failure') + (fx.by > 0 ? ' by ' + fmtNum(fx.by) : ''), crit: fx.crit, margin: fx.margin };   // 1.6.0: criticals at fixed rolls
+    var fx = fixedCrit(res, rule); if (fx) { var vf = { kind: 'check', pass: fx.pass, text: (fx.pass ? 'success' : 'failure') + (fx.by > 0 ? ' by ' + fmtNum(fx.by) : ''), crit: fx.crit, margin: fx.margin }; if (rule.high === true) vf.high = true; return vf; }   // 1.6.0: criticals at fixed rolls
     var top = null, checks = res.breakdown && res.breakdown.checks ? res.breakdown.checks : [];
     for (var i = 0; i < checks.length; i++) if (checks[i].top) top = checks[i];
     if (top) {

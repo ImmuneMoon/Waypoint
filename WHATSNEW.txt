@@ -34,6 +34,16 @@ The System editor
 - Adds to DR is one table now, the damage types across the top.
 
 At the table
+- A roll's top comparison is a check even with no dice in it, so Might >=
+  Target.Might has a success and a failure, and its Then runs by them.
+- A dice modifier reads the sheet from brackets: (Pool)d10kh(Keep) and
+  (Pool)d6cs>=(Target). A figure in brackets rolls no dice.
+- !! explodes into dice of their own, so 6d10!!cs>=8 counts each one, and !!>=9
+  explodes on a 9 or more too.
+- Criticals at fixed rolls can read High rolls are good, for a game where a
+  natural 20 is the critical success.
+- A change of a roll's Then may say Only where, so it can hang on how the roll
+  went, as RollMargin >= 3.
 - Advantage now helps on a roll-under check. It keeps the lower die there, where
   it used to keep the higher one and made the roll worse.
 - A pool set by the sheet goes on rolling when it shrinks past its keep count. It

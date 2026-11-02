@@ -3931,6 +3931,7 @@
   .sys-list-card .sys-flags.sys-list-needsrow { margin-left: 18px; } .sys-list-card .sys-flags.sys-list-needsrow input.sys-list-needs { flex: 2 1 180px; font-family: ui-monospace, Consolas, monospace; }   /* R2b */
   .sys-apply.sys-then { margin-left: 18px; } .sys-apply.sys-then .sys-apply-add { align-self: flex-start; }   /* R1: a roll's consequences */
   .sys-flags.sys-apply-row input.sys-apply-formula { flex: 3 1 220px; font-family: ui-monospace, Consolas, monospace; }
+  .sys-flags.sys-apply-row input.sys-apply-if, .sys-flags.sys-list-applyrow input.sys-list-applyif { width: auto; flex: 2 1 170px; margin: 0; font-family: ui-monospace, Consolas, monospace; }   /* Only where stands beside When, so that a change keeps to two lines */
   .sys-list-card .sys-flags.sys-list-applyrow { margin-left: 18px; } .sys-list-card .sys-flags.sys-list-applyrow input.sys-list-applyformula { flex: 3 1 220px; font-family: ui-monospace, Consolas, monospace; }   /* H7b: a list action's changes */
   .sys-list-card .sys-list-applyadd { margin-left: 18px; }
   .apply-lines { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 2px; font-size: 13px; }

@@ -574,9 +574,8 @@ function cleanSlider(v) {
 // formula; never the initiative roll. A change: { f: fieldId, formula, add? }; each field once, LIMITS.applyChanges at most. An unfinished one (no field,
 // no formula) is kept for the GM's editor, where the validator names it; the players' view drops the whole action (applyTargets)
 function cleanApplyChanges(list, withWhen, withCounters) {   // withWhen (R1): a roll's consequences, each always / on success / on failure (a field once per when); withCounters (R2b): a list's — a change may move one of the row's counters ({ c: key })
-    var out = [], seen = map();
-    (Array.isArray(list) ? list : []).forEach(function(c) {
-        if (out.length >= LIMITS.applyChanges || !isObj(c)) return;
+    var out = [], seenBy = map();
+    var one = function(c, seen) {
         if (c.fire === true && withWhen && withCounters) { var fw = c.when === 'hit' || c.when === 'miss' || c.when === 'malf' || c.when === 'crit' || c.when === 'fumble' ? c.when : '', fk = 'fire|' + fw; if (seen[fk]) return; seen[fk] = 1; var fo = { fire: true }; if (fw) fo.when = fw; var fnc = cleanFormulaText(c.n); if (fnc) fo.n = fnc; out.push(fo); return; }   // 1.5.9 Chambers from: a list roll's Then may fire the first chambered round (once per when); 1.6.0: n, How many, a formula of the row's names with no dice: that many go at one press, absent one
         if (c.feed === true && withWhen && withCounters) { var fdw = c.when === 'hit' || c.when === 'miss' || c.when === 'malf' || c.when === 'crit' || c.when === 'fumble' ? c.when : '', fdk = 'feed|' + fdw; if (seen[fdk]) return; seen[fdk] = 1; var fdc = { feed: true }; if (fdw) fdc.when = fdw; var fdn = cleanFormulaText(c.n); if (fdn) fdc.n = fdn; out.push(fdc); return; }   // 1.6.0 Feeds: a list roll's Then may spend a shot from every feed of its row (once per when); n, How many, as Fire's
         var whX = withWhen && (c.when === 'hit' || c.when === 'miss' || c.when === 'malf' || c.when === 'crit' || c.when === 'fumble') ? c.when : '';
@@ -602,6 +601,15 @@ function cleanApplyChanges(list, withWhen, withCounters) {   // withWhen (R1): a
         if (wh) o.when = wh;
         if (c.roll === true && (f || ck) && o.formula) o.roll = true;   // 1.5.9 (book es/et plan, section 0): Rolled, its amount may roll dice, which only the host rolls (applyAct's D); only as true, only with a target and an amount
         out.push(o);
+    };
+    // 1.6.2 (the research into other systems): a change of a roll's Then may say Only where, a formula with no dice read with the same names as its amount, RollMargin
+    // and RollCrit among them, so that an effect or a row's change can hang on how the roll went. It is kept with the change, and a field may be
+    // changed once for each such condition
+    (Array.isArray(list) ? list : []).forEach(function(c) {
+        if (out.length >= LIMITS.applyChanges || !isObj(c)) return;
+        var ik = withWhen ? cleanFormulaText(c.if) || '' : '', n0 = out.length;
+        one(c, seenBy[ik] || (seenBy[ik] = map()));
+        if (ik && out.length > n0) out[out.length - 1].if = ik;
     });
     return out;
 }
@@ -2829,7 +2837,7 @@ function cleanCombat(c, resIds, fieldIds, secretIds, F, viewKinds, pl, fl) {   /
     if (typeof c.hpResource === 'string' && resIds && resIds[c.hpResource]) out.hpResource = c.hpResource;
     var tn = cleanTurn(c.turn); if (tn) out.turn = tn;   // turn-based combat T1: the system's turn rules (absent: none)
     if (c.checks === 'under3d6') out.checks = 'under3d6';   // Stage 6 F8: 3d6 roll-under criticals (absent: success or failure by the margin)
-    else if (c.checks === 'fixed') { out.checks = 'fixed'; critRangeInto(out, c); }   // 1.6.0 (the v2 sort's B1): criticals at fixed rolls, at or under critAt and at or over fumbleAt, each a formula with no dice (absent: 3 and 18)
+    else if (c.checks === 'fixed') { out.checks = 'fixed'; critRangeInto(out, c); if (c.critHigh === true) out.critHigh = true; }   // 1.6.0 (the v2 sort's B1): criticals at fixed rolls, at or under critAt and at or over fumbleAt, each a formula with no dice (absent: 3 and 18)
     var tr = cleanTier(c.tier); if (tr) out.tier = tr;   // 1.6.0: a success at or past a margin is named on its card
     var lt = cleanLightRules(c.light); if (lt) out.light = lt;   // lighting L4: the system's light rules (absent: none)
     var sn = cleanSenses(c.senses, fieldIds, secretIds, pl !== true, F); if (sn) out.senses = sn;   // senses S1: the system's senses (absent: none)
@@ -4114,7 +4122,7 @@ function cleanSystem(sys, opts) {
         var capMentions = function(t) { return String(t).split('{').slice(1).some(function(p) { return mentions(capExpr(p.split('}')[0]).expr); }); };   // Stage 6: after every "{" (closed or not, drawn or not), the ± stripped   // Fold B: a caption's {formula} is formula text too
         out.fields.forEach(function(f) { if (f.kind === 'number' && isObj(f.override) && (mentions(f.override.when) || mentions(f.override.value))) f.override = null; });   // 205 (6): a number taken from a GM-only value reads "GM only"
         out.fields.forEach(function(f) { var p = DEF_PROP[f.kind]; if (p && f[p] && mentions(f[p])) f[p] = null; if (f.roll && mentions(f.roll)) delete f.roll; if (f.caption && capMentions(f.caption)) delete f.caption; if (f.list && Array.isArray(f.list.cols)) f.list.cols.forEach(function(c) { if (c.formula && mentions(c.formula)) c.formula = null; }); if (f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(x) { if (x.kind !== 'pick') return; x.opts = x.opts.filter(function(o) { return !mentions(o.name); }); if (x.def && !x.opts.some(function(o) { return lower(o.label) === lower(x.def); })) delete x.def; }); if (f.list && Array.isArray(f.list.counters)) f.list.counters.forEach(function(t) { if (t.max && mentions(t.max)) t.max = null; }); if (f.list && Array.isArray(f.list.rolls)) { f.list.rolls = f.list.rolls.filter(function(r) { return r.apply ? !r.apply.some(function(c) { return mentions(c.formula); }) : !mentions(r.formula); }); if (!f.list.rolls.length) delete f.list.rolls; } });   // F5b: a list roll naming a GM-only value is dropped   // F5a2: a choice's option naming a GM-only value is dropped (critic 3: never a blanked one)   // F5a1: a list column too (it reads "GM only")
-        out.fields.forEach(function(f) { if (f.list && Array.isArray(f.list.rolls)) f.list.rolls.forEach(function(r) { if (r.job && mentions(r.job.turns)) delete r.job; if (r.then && r.then.some(function(c) { return mentions(c.formula) || mentions(c.n) || mentions(c.money); })) delete r.then; if (r.needs && mentions(r.needs)) { delete r.needs; delete r.needsText; delete r.hideOff; } if (r.malf && mentions(r.malf)) { delete r.malf; r.named = true; } if (r.ad && mentions(r.ad)) delete r.ad; if (r.showIf && mentions(r.showIf)) delete r.showIf; if (r.alt) { r.alt = r.alt.filter(function(a) { return !mentions(a.if); }); if (!r.alt.length) delete r.alt; } }); if (f.list && Array.isArray(f.list.counters)) f.list.counters.forEach(function(t) { if (t.alt) { t.alt = t.alt.filter(function(a) { return !mentions(a.if); }); if (!t.alt.length) delete t.alt; } }); if (f.list && Array.isArray(f.list.badges)) { f.list.badges = f.list.badges.filter(function(b) { return !mentions(b.if); }); if (!f.list.badges.length) delete f.list.badges; } });   // 1.6.0 R4: a badge too   // 1.6.0: another name chosen by a GM-only value would tell it
+        out.fields.forEach(function(f) { if (f.list && Array.isArray(f.list.rolls)) f.list.rolls.forEach(function(r) { if (r.job && mentions(r.job.turns)) delete r.job; if (r.then && r.then.some(function(c) { return mentions(c.formula) || mentions(c.n) || mentions(c.money) || mentions(c.if); })) delete r.then; if (r.needs && mentions(r.needs)) { delete r.needs; delete r.needsText; delete r.hideOff; } if (r.malf && mentions(r.malf)) { delete r.malf; r.named = true; } if (r.ad && mentions(r.ad)) delete r.ad; if (r.showIf && mentions(r.showIf)) delete r.showIf; if (r.alt) { r.alt = r.alt.filter(function(a) { return !mentions(a.if); }); if (!r.alt.length) delete r.alt; } }); if (f.list && Array.isArray(f.list.counters)) f.list.counters.forEach(function(t) { if (t.alt) { t.alt = t.alt.filter(function(a) { return !mentions(a.if); }); if (!t.alt.length) delete t.alt; } }); if (f.list && Array.isArray(f.list.badges)) { f.list.badges = f.list.badges.filter(function(b) { return !mentions(b.if); }); if (!f.list.badges.length) delete f.list.badges; } });   // 1.6.0 R4: a badge too   // 1.6.0: another name chosen by a GM-only value would tell it
         out.fields.forEach(function(f) { if (f.list && isObj(f.list.on) && f.list.on.needs && mentions(f.list.on.needs)) { delete f.list.on.needs; delete f.list.on.needsText; } if (f.list && isObj(f.list.on) && f.list.on.showIf && mentions(f.list.on.showIf)) delete f.list.on.showIf; });
         out.fields.forEach(function(f) { if (f.list && typeof f.list.unheld === 'string' && mentions(f.list.unheld)) delete f.list.unheld; });   // 1.6.0 Rolls unheld entries: an Unheld level read from a GM-only value goes, and players then roll no entry unheld there
         out.fields.forEach(function(f) { if (f.list && isObj(f.list.chamber) && f.list.chamber.needs && mentions(f.list.chamber.needs)) { delete f.list.chamber.needs; delete f.list.chamber.needsText; } });   // 1.5.9 Chambers only where, as Loads only where
@@ -4524,6 +4532,11 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
     var amts = [], names = [], seenN = map();
     for (var i = 0; i < act.apply.length; i++) {
         var c = act.apply[i], f = isObj(c) && typeof c.f === 'string' ? fieldById(sys, c.f) : null, ctr = null, lfC = null;
+        if (isObj(c) && typeof c.if === 'string' && c.if) {   // 1.6.2: Only where, read as its amount is read; one that cannot be worked out does not hold
+            var ifR = null; try { ifR = F.evaluate(c.if, { vars: vars, random: noDice }); } catch (e) { ifR = null; }
+            ((ifR && ifR.ok && ifR.breakdown && Array.isArray(ifR.breakdown.names)) ? ifR.breakdown.names : []).forEach(function(n) { if (n && typeof n.name === 'string' && !seenN[lower(n.name)]) { seenN[lower(n.name)] = 1; names.push(n); } });
+            if (!ifR || !ifR.ok || !(ifR.value === true || (typeof ifR.value === 'number' && ifR.value !== 0))) continue;
+        }
         if (isObj(c) && c.off === true) { amts.push({ off: true, lf: rowCtx && typeof rowCtx.f === 'string' ? fieldById(sys, rowCtx.f) : null }); continue; }   // 1.6.0: its own row switched off
         if (isObj(c) && typeof c.money === 'string') {   // 1.6.0: the sheet's money, by a figure of the row's names and what the roll came to, no dice: above 0 paid in, below 0 paid out, all or nothing with the rest
             var moP = F.parse(c.money); if (!moP.ok) return { ok: false, reason: 'error', message: moP.error.message };
@@ -4798,7 +4811,7 @@ function timeRuleRun(sys, char, rule, n, F, D, at, opt) {
             var res = F.evaluate(rule.formula, { vars: vars }); if (!res.ok) break;
             out.rolls.made++;
             var mf = null; if (rule.malf) { var mq = F.evaluate(rule.malf, { vars: vars }); if (mq.ok && typeof mq.value === 'number' && fin(mq.value)) mf = Math.max(1, Math.min(1000000, Math.round(mq.value))); }
-            var crg = critRange(sys, rule, vars, F), mfHit = mf !== null && D && D.naturalOf ? D.naturalOf(res) >= mf : false, vd = D && D.verdictOf ? D.verdictOf(res, crg ? { at: crg[0], fumble: crg[1] } : chk) : null, pass = mfHit ? false : (vd && vd.kind === 'check' ? vd.pass : null);   // 1.6.0: criticals at fixed rolls, by its own range
+            var crg = critRange(sys, rule, vars, F), mfHit = mf !== null && D && D.naturalOf ? D.naturalOf(res) >= mf : false, vd = D && D.verdictOf ? D.verdictOf(res, crg ? { at: crg[0], fumble: crg[1], high: crg[2] === 1 } : chk) : null, pass = mfHit ? false : (vd && vd.kind === 'check' ? vd.pass : null);   // 1.6.0: criticals at fixed rolls, by its own range
             if (pass === true) out.rolls.pass++; else if (pass === false) out.rolls.fail++;
             var cr = thenCrit(vd, mfHit), th = thenChanges(rule, pass, mfHit, cr); if (!th.length) continue; act = { apply: th }; vars = withRollCrit(vars, cr, thenMargin(vd, mfHit), bigOf(rule, vars, F, D, res, vd, mfHit));   // 1.5.8: its critical, and RollCrit and RollMargin in its amounts (1.6.0: and RollBig)
         }
@@ -5057,7 +5070,7 @@ function critRange(sys, entry, vars, F) {
     var cm = isObj(sys) && isObj(sys.combat) ? sys.combat : null; if (!cm || cm.checks !== 'fixed') return null;
     var ev = function(t) { if (typeof t !== 'string' || !t || !F || typeof F.evaluate !== 'function') return null; var r = null; try { r = F.evaluate(t, typeof vars === 'function' ? { vars: vars, random: noDice } : { random: noDice }); } catch (e) { r = null; } return r && r.ok && typeof r.value === 'number' && fin(r.value) ? Math.max(-1000000, Math.min(1000000, Math.round(r.value))) : null; };
     var pick = function(k, d) { var v = isObj(entry) ? ev(entry[k]) : null; if (v === null) v = ev(cm[k]); return v === null ? d : v; };
-    return [pick('critAt', 3), pick('fumbleAt', 18)];
+    return cm.critHigh === true ? [pick('critAt', 20), pick('fumbleAt', 1), 1] : [pick('critAt', 3), pick('fumbleAt', 18)];   // 1.6.2: High rolls are good: at or over critAt, at or under fumbleAt
 }
 // 1.6.0 (the book's ruling of 2026-10-29): whether a roll lands as a Big Hit: a success (vd, the dice core's verdict; never a malfunction) whose
 // natural roll (its dice alone, D.naturalOf) is at or under the roll's own bigAt, worked out with the roller's names, no dice. It is no critical:
@@ -5066,7 +5079,7 @@ function bigOf(entry, vars, F, D, res, vd, malf) {
     if (!isObj(entry) || typeof entry.bigAt !== 'string' || !entry.bigAt || malf === true || !isObj(vd) || vd.kind !== 'check' || vd.pass !== true) return false;
     if (!F || typeof F.evaluate !== 'function' || !D || typeof D.naturalOf !== 'function' || !isObj(res) || !res.ok || !isObj(res.breakdown) || !Array.isArray(res.breakdown.dice) || !res.breakdown.dice.length) return false;
     var r = null; try { r = F.evaluate(entry.bigAt, typeof vars === 'function' ? { vars: vars, random: noDice } : { random: noDice }); } catch (e) { r = null; }
-    return !!(r && r.ok && typeof r.value === 'number' && fin(r.value) && D.naturalOf(res) <= r.value);
+    return !!(r && r.ok && typeof r.value === 'number' && fin(r.value) && (vd.high === true ? D.naturalOf(res) >= r.value : D.naturalOf(res) <= r.value));   // 1.6.2: on high rolls it reads the other way
 }
 // 1.5.8: the critical a roll's consequences go by, from the dice core's verdict (verdictOf: only a check read by the system's Roll outcomes rule
 // carries one, today 3d6 roll-under criticals): 'crit', 'fumble' or ''. A malfunction is a failure, so it is never a critical success
@@ -5097,7 +5110,7 @@ function moneyThen(x) { return isObj(x) && Array.isArray(x.then) && x.then.some(
 function moneyDue(sys, char, entry, vars, F) {
     if (!moneyThen(entry) || !isObj(char) || typeof vars !== 'function' || !F) return null;
     var free = function(n) { try { return vars(String(n)) === undefined; } catch (e) { return false; } };
-    var readsRoll = function(c) { return F.names(c.money).some(function(n) { var l = lower(String(n)); return (l === 'rollmargin' || l === 'rollcrit' || l === 'rollbig') && free(n); }); };
+    var readsRoll = function(c) { return !!c.if || F.names(c.money).some(function(n) { var l = lower(String(n)); return (l === 'rollmargin' || l === 'rollcrit' || l === 'rollbig') && free(n); }); };
     var figure = function(c, v) { var p = F.parse(c.money); if (!p.ok || hasDice(p.ast.body)) return null; var r = F.evaluate(c.money, { vars: v }), n = !r.ok ? null : typeof r.value === 'boolean' ? (r.value ? 1 : 0) : r.value; return typeof n === 'number' && fin(n) ? moneyR(n) : null; };
     var had = moneyHeld(sys, char), may = false, always = true, due = null;
     MONEY_ENDS.forEach(function(end) {
@@ -9893,6 +9906,7 @@ function validateSystem(sys, F) {
                 var rp0 = F.parse(r.formula || ''), tests = !!(rp0.ok && rp0.ast && rp0.ast.body && rp0.ast.body.t === 'cmp');
                 r.then.forEach(function(c, i) {
                     var tp = 'then.' + i, tf0 = c.f ? fieldById(sys, c.f) : null;
+                    if (typeof c.if === 'string' && c.if) checkFormula({ id: r.id, key: r.id }, tp + '.if', c.if, false, r.vis);   // 1.6.2: Only where
                     if (typeof c.fx === 'string') { fxSays(r.id, tp, c, r.vis); return; }   // 1.6.0: an effect switched
                     if (typeof c.list === 'string') { allSays(r.id, tp, c, r.vis, true); if (c.when && !tests && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: r.id, prop: tp, message: 'This roll tests nothing (no comparison, like 3d6 <= Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); checkFormula({ id: r.id, key: r.id }, tp, c.formula, c.roll === true, r.vis, allList(c)); rolledWarn(r.id, tp, c); return; }   // 1.6.0: every row of a list
                     if (!tf0 || APPLY_KINDS[tf0.kind] !== 1) errors.push({ id: r.id, prop: tp, message: 'Pick the pool or number this changes.' });
@@ -10980,6 +10994,7 @@ function malfMask(real, nat) { return nat >= real ? nat : null; }
 // What a card carries in place of the true range: the range players would read, moved only as far as this very roll needs, so that the card shows the
 // outcome the true range gives and says nothing of the range. real and pub: [at, fumble]; nat: the roll's natural total
 function critMask(real, pub, nat) {
+    if (real[2] === 1) { var ua = pub[0], uz = pub[1], ul = nat >= real[0], uh = nat <= real[1]; return [ul ? Math.min(ua, nat) : Math.max(ua, nat + 1), uh ? Math.max(uz, nat) : Math.min(uz, nat - 1), 1]; }   // 1.6.2: High rolls are good
     var a = pub[0], z = pub[1], lo = nat <= real[0], hi = nat >= real[1];
     return [lo ? Math.max(a, nat) : Math.min(a, nat - 1), hi ? Math.min(z, nat) : Math.max(z, nat + 1)];
 }

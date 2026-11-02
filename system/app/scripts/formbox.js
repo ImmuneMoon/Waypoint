@@ -7,7 +7,10 @@ import { read, write, says, readCond, writeCond, saysCond, rollFace, tryRoll, tr
 
 // [formcheck:boxes-start]
 // which boxes wear the form, and what each wants: a figure (amt), a figure with dice (roll) or a yes or no (cond)
-var BOXES = { 'sys-roll': 'roll', 'sys-roll-needs': 'cond', 'sys-ovr-value': 'amt', 'sys-ovr-when': 'cond', 'sys-spill-below': 'amt', 'sys-apply-formula': 'amt', 'sys-apply-if': 'cond' };
+var BOXES = { 'sys-roll': 'roll', 'sys-roll-needs': 'cond', 'sys-ovr-value': 'amt', 'sys-ovr-when': 'cond', 'sys-spill-below': 'amt', 'sys-apply-formula': 'amt', 'sys-apply-if': 'cond',
+    'sys-pl-rformula': 'roll', 'sys-list-rollformula': 'roll', 'sys-item-damage': 'dice', 'sys-item-afrag': 'dice', 'sys-item-afflasts': 'dice', 'sys-roll-p2f': 'dice', 'sys-list-rollp2f': 'dice',
+    'sys-roll-malf': 'amt', 'sys-roll-critat': 'amt', 'sys-roll-fumbleat': 'amt', 'sys-roll-bigat': 'amt', 'sys-roll-hits': 'amt', 'sys-list-rollhits': 'amt', 'sys-list-malf': 'amt', 'sys-list-bigat': 'amt', 'sys-rljobturns': 'amt', 'sys-fx-amtf': 'amt', 'sys-item-cost': 'amt', 'sys-item-affvs': 'amt', 'sys-pcap-f': 'amt', 'sys-list-colformula': 'amt', 'sys-list-ctmax': 'amt', 'sys-list-feedturns': 'amt', 'sys-list-chamberreach': 'amt', 'sys-area-reach': 'amt', 'sys-list-upamt': 'amt', 'sys-list-ormamt': 'amt', 'sys-list-applyformula': 'amt', 'sys-list-applymoney': 'amt', 'sys-link-fform': 'amt', 'sys-turn-mvf': 'amt', 'sys-turn-runf': 'amt', 'sys-bud-has': 'amt', 'sys-bud-spent': 'amt', 'sys-roll-xsat': 'amt', 'sys-list-xsat': 'amt',
+    'sys-sec-showif': 'cond', 'sys-pl-showif': 'cond', 'sys-roll-mjif': 'cond', 'sys-list-rollmjif': 'cond', 'sys-band-if': 'cond', 'sys-call-if': 'cond', 'sys-call-byif': 'cond', 'sys-fx-auto': 'cond', 'sys-item-affneeds': 'cond', 'sys-list-swshow': 'cond', 'sys-list-swneeds': 'cond', 'sys-pcap-if': 'cond', 'sys-pfit-if': 'cond', 'sys-badge-if': 'cond', 'sys-list-loadneeds': 'cond', 'sys-list-feedif': 'cond', 'sys-list-chamberneeds': 'cond', 'sys-list-rollshow': 'cond', 'sys-list-needs': 'cond', 'sys-list-applyif': 'cond', 'sys-list-modsif': 'cond', 'sys-list-partsfitif': 'cond', 'sys-list-sjif': 'cond', 'sys-hold-ends': 'cond', 'sys-alt-if': 'cond', 'sys-turn-lostf': 'cond' };
 function kindOf(inp) {
     var cs = inp && inp.classList; if (!cs) return '';
     if (cs.contains('sys-formula')) { var rw = inp.closest ? inp.closest('.sys-row') : null; return rw && /^r_/.test(rw.dataset.id || '') ? 'roll' : 'amt'; }
@@ -28,7 +31,14 @@ var FACES = ['4', '6', '8', '10', '12', '20', '100'];
 var KINDS = [['beat', 'Beat a number', 'Works or fails: a skill, a dodge, an attack.'], ['total', 'Get a total', 'Damage, initiative, a table to look up.'], ['hits', 'Count hits', 'A handful of dice, each that reaches a number counts.'], ['else', 'Something else', 'Build it step by step.']];
 var BEAT = [['<=', 'At most'], ['>=', 'At least'], ['<', 'Under'], ['>', 'Over'], ['=', 'Exactly'], ['!=', 'Anything but']];
 var BEAT_SAY = { '<=': 'They need this or less. Rolling low is good here.', '>=': 'They need this or more. Rolling high is good here.', '<': 'They need under this. Rolling low is good here.', '>': 'They need over this. Rolling high is good here.', '=': 'They need exactly this.', '!=': 'Anything but this works.' };
-var ASKS = { 'sys-roll-needs': ['When can they use this?', 'The button greys out at other times.'], 'sys-ovr-value': ['What does it read instead?', 'This takes the place of its own figure while the test holds.'], 'sys-ovr-when': ['When does it read that?', 'Its own figure stands the rest of the time.'], 'sys-spill-below': ['How low can it go before it spills?', 'Anything past this goes on into the next pool.'], 'sys-apply-formula': ['How much?', 'The figure this change uses.'], 'sys-apply-if': ['Only when?', 'Leave this empty to make the change every time.'], 'sys-formula': ['How is this worked out?', 'The sheet works this out by itself.'] };
+var ASKS = { 'sys-roll-malf': ['When does it jam?', 'A natural roll at or past this jams.'], 'sys-list-malf': ['When does it jam?', 'A natural roll at or past this jams.'], 'sys-roll-critat': ['What counts as a critical success?', 'A natural roll at or past this.'], 'sys-roll-fumbleat': ['What counts as a critical failure?', 'A natural roll at or past this.'], 'sys-roll-bigat': ['What lands as a Big Hit?', 'A success whose natural roll reaches this.'], 'sys-list-bigat': ['What lands as a Big Hit?', 'A success whose natural roll reaches this.'],
+    'sys-roll-hits': ['How many times does it hit?', 'The damage is rolled this many times on one card.'], 'sys-list-rollhits': ['How many times does it hit?', 'The damage is rolled this many times on one card.'], 'sys-rljobturns': ['How many turns does this job take?', 'The roll is pressed once a turn until it is done.'], 'sys-fx-amtf': ['How much does it change?', 'This takes the place of the number beside it.'], 'sys-item-cost': ['What does it cost?', 'The price a character pays for it.'], 'sys-item-affvs': ['What do they resist it with?', 'Read on the character it reaches.'],
+    'sys-item-damage': ['How much damage does it do?', 'The dice the item rolls.'], 'sys-item-afrag': ['How much fragmentation does it throw?', 'The dice rolled when it goes off.'], 'sys-item-afflasts': ['How long does it last?', 'Dice are fine here.'], 'sys-roll-p2f': ['How much is the second part?', 'Damage of another type, rolled in the same blow.'], 'sys-list-rollp2f': ['How much is the second part?', 'Damage of another type, rolled in the same blow.'],
+    'sys-pcap-f': ['How many does it hold?', 'Read on the row that holds them.'], 'sys-list-colformula': ['How is this column worked out?', 'Worked out for each row.'], 'sys-list-ctmax': ['What is the most it can reach?', 'Worked out for each row.'], 'sys-list-feedturns': ['How many turns does a change take?', 'Read on the row.'], 'sys-list-chamberreach': ['How far does a round fly?', 'In yards.'], 'sys-area-reach': ['How far does it go?', 'In yards.'], 'sys-list-upamt': ['How much does a row pay?', 'Taken each time it comes due.'], 'sys-list-ormamt': ['How much?', 'Read on the row before it goes.'], 'sys-list-applyformula': ['How much?', 'Read on the row when it is pressed.'], 'sys-list-applymoney': ['How much money?', 'Read on the row when it is pressed.'], 'sys-link-fform': ['How is it worked out?', 'Worked out on each sheet of the group.'],
+    'sys-turn-mvf': ['How far does a character move in a turn?', 'Worked out for each character.'], 'sys-turn-runf': ['How far can they go by giving up an action?', 'The most a turn may move that way.'], 'sys-turn-lostf': ['When is a held action lost?', 'Read on the one holding it.'], 'sys-bud-has': ['How many points do they have?', 'Worked out for each character.'], 'sys-bud-spent': ['How many have they spent?', 'Worked out for each character.'], 'sys-roll-xsat': ['What is the first step?', 'The figure at which this first runs.'], 'sys-list-xsat': ['What is the first step?', 'The figure at which this first runs.'],
+    'sys-sec-showif': ['When does this section show?', 'It stays hidden at other times.'], 'sys-pl-showif': ['When does this show?', 'It stays hidden at other times.'], 'sys-roll-mjif': ['When is it a Major Wound?', 'The card then lands it as one, whatever its size.'], 'sys-list-rollmjif': ['When is it a Major Wound?', 'The card then lands it as one, whatever its size.'], 'sys-band-if': ['When does a roll land here?', 'The first band that holds names the roll.'], 'sys-call-if': ['When does this card come?', 'Read on the one who rolled.'], 'sys-call-byif': ['When does this card come?', 'Read on the one who resisted.'], 'sys-fx-auto': ['When is this effect on?', 'It comes on and goes off by itself.'], 'sys-item-affneeds': ['Who can it touch?', 'Read on the character it reaches.'], 'sys-list-swshow': ['On which rows does the switch show?', 'Read on each row.'], 'sys-list-swneeds': ['When can a row be switched on?', 'A player is refused at other times.'], 'sys-pcap-if': ['When does this limit count?', 'Read on the row.'], 'sys-pfit-if': ['When does a part fit?', 'Read on the part and its row.'], 'sys-badge-if': ['When does this badge show?', 'Read on each row.'], 'sys-list-loadneeds': ['When can a row load?', 'Read on the row.'], 'sys-list-feedif': ['On which rows does this feed stand?', 'Read on each row.'], 'sys-list-chamberneeds': ['When can a row chamber a round?', 'Read on the row.'], 'sys-list-rollshow': ['On which rows does this button show?', 'Read on each row.'], 'sys-list-needs': ['When can they use this?', 'The button greys out at other times.'], 'sys-list-applyif': ['Only when?', 'Leave this empty to make the change every time.'], 'sys-list-modsif': ['When do its changes count?', 'Read on each row.'], 'sys-list-partsfitif': ['When does a part fit?', 'Read on the part and the row it goes on.'], 'sys-list-sjif': ['Which rows may hold a subject?', 'Read on each row.'], 'sys-hold-ends': ['When do their holds end?', 'Read on the holder.'], 'sys-alt-if': ['When does this name show?', 'Read on each row.'],
+    'sys-roll-needs': ['When can they use this?', 'The button greys out at other times.'], 'sys-ovr-value': ['What does it read instead?', 'This takes the place of its own figure while the test holds.'], 'sys-ovr-when': ['When does it read that?', 'Its own figure stands the rest of the time.'], 'sys-spill-below': ['How low can it go before it spills?', 'Anything past this goes on into the next pool.'], 'sys-apply-formula': ['How much?', 'The figure this change uses.'], 'sys-apply-if': ['Only when?', 'Leave this empty to make the change every time.'], 'sys-formula': ['How is this worked out?', 'The sheet works this out by itself.'] };
+function diceOk(o) { return o.kind === 'dice'; }
 function askOf(inp) { var cs = inp && inp.classList; if (cs) for (var k in ASKS) if (Object.prototype.hasOwnProperty.call(ASKS, k) && cs.contains(k)) return ASKS[k]; return null; }
 var NUM0 = function() { return { k: 'num', v: 0, s: '0' }; };
 var NUM1 = function() { return { k: 'num', v: 1, s: '1' }; };
@@ -79,7 +89,7 @@ function redraw(focus) {
     o.body.textContent = '';
     if (o.bad) o.body.appendChild(el('div', 'fb-note', 'This one cannot be shown as steps yet. Change it with As text below.'));
     else if (o.kind === 'roll') rollInto(o.body, o);
-    else { var ask = askOf(o.inp); if (ask) { o.body.appendChild(el('div', 'fb-qh', ask[0])); o.body.appendChild(el('div', 'fb-qs', ask[1])); } if (o.kind === 'cond') condInto(o.body, o.form, 'c'); else formInto(o.body, o.form, 'f', false); }
+    else { var ask = askOf(o.inp); if (ask) { o.body.appendChild(el('div', 'fb-qh', ask[0])); o.body.appendChild(el('div', 'fb-qs', ask[1])); } if (o.kind === 'cond') condInto(o.body, o.form, 'c'); else formInto(o.body, o.form, 'f', false, diceOk(o)); }
     if (focus) { var q = o.body.querySelector('[data-p="' + focus + '"]'); if (q) { try { q.focus(); } catch (e) {} } }
     tryDraw();
 }
@@ -147,7 +157,7 @@ function diceInto(host, v, set, p) {
     host.appendChild(box);
 }
 function formInto(host, f, p, isRoll, dice) {
-    var d = dice === undefined ? open.kind === 'roll' : dice;
+    var d = dice === undefined ? open.kind === 'roll' || open.kind === 'dice' : dice;
     f.steps.forEach(function(st, i) {
         var row = el('div', 'fb-step'), pi = p + i;
         if (st.op === 'start') { if (i) row.appendChild(el('span', 'fb-word', 'Add')); }
@@ -242,7 +252,7 @@ function tryOut(box, o, T, people) {
     var who = people.filter(function(p) { return p.id === tryWho; })[0], s = '';
     try {
         var vars = T.vars(tryWho, tryOver);
-        s = o.kind === 'roll' ? tryRoll(o.form, { who: who.name, vars: vars }) : tryValue(String(o.inp.value || ''), { who: who.name, vars: vars, cond: o.kind === 'cond' });
+        s = o.kind === 'roll' || o.kind === 'dice' ? tryRoll(o.form, { who: who.name, vars: vars }) : tryValue(String(o.inp.value || ''), { who: who.name, vars: vars, cond: o.kind === 'cond' });
     } catch (e) { s = ''; }
     box.textContent = s;
 }
@@ -350,7 +360,7 @@ function formOpen(b) {
     if (open && open.box === b) return; shut();
     var t = String(b.inp.value || '').trim(), kind = b.kind, o = { box: b, inp: b.inp, kind: kind, was: b.inp.value, touched: false, form: null, bad: false, fresh: kind === 'roll' && !t, face: '', now: '' };
     if (kind === 'cond') { if (!t) o.form = { any: false, tests: [{ l: { steps: [{ op: 'start', v: NUM0() }] }, op: '>=', r: { steps: [{ op: 'start', v: NUM1() }] } }] }; else { var c = readCond(t); if (c.ok) o.form = c.cond; else o.bad = true; } }
-    else if (!t) o.form = { steps: [{ op: 'start', v: kind === 'roll' ? { k: 'dice', n: { k: 'num', v: 1, s: '1' }, f: { k: 'num', v: 20, s: '20' }, dirty: true } : NUM0() }] };
+    else if (!t) o.form = { steps: [{ op: 'start', v: kind === 'roll' || kind === 'dice' ? { k: 'dice', n: { k: 'num', v: 1, s: '1' }, f: { k: 'num', v: 20, s: '20' }, dirty: true } : NUM0() }] };
     else { var r = read(t); if (r.ok) o.form = r.form; else o.bad = true; }
     o.root = el('div', 'fb-open'); o.body = el('div', 'fb-body'); o.root.appendChild(o.body); o.tryEl = el('div', 'fb-try'); o.tryEl.hidden = true; o.root.appendChild(o.tryEl);
     var foot = el('div', 'fb-foot'), done = btn('fb-done', 'Done', 'Keep this'), cancel = btn('fb-cancel', 'Cancel', 'Put it back as it was'), clear = btn('fb-cancel', 'Clear', 'Take this out'), tx = btn('fb-astext', 'As text', 'Show it as text, to copy it or paste one in');
@@ -400,5 +410,7 @@ function watch(root) {
 }
 // [formcheck:sweep-end]
 function setSource(fn) { source = fn; }
-if (typeof window !== 'undefined') window.wpFormBox = { sweep: sweep, watch: watch, setSource: setSource, kindOf: kindOf, isOpen: function() { return !!open; }, shut: shut };
+// a fault's press reaches the form that stands over its box
+function openFor(inp) { var w = inp && inp.parentNode, go = w && w.querySelector ? w.querySelector('.fb-go') : null; if (go && typeof go.click === 'function') { go.click(); return true; } return false; }
+if (typeof window !== 'undefined') window.wpFormBox = { openFor: openFor, sweep: sweep, watch: watch, setSource: setSource, kindOf: kindOf, isOpen: function() { return !!open; }, shut: shut };
 export { sweep, watch, setSource, kindOf, menuRows, menuPick, lineOf, valOfForm, formOfVal, emptyWord, askOf };

@@ -10,7 +10,7 @@ import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
-import { nameWord, nameAsks, readsOf } from './systemcore.js';   // 1.6.2: a name in words, and what a box may offer
+import { nameWord, nameAsks, readsOf, plainMessage } from './systemcore.js';   // 1.6.2: a name in words, and what a box may offer
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { DMG_LIM, COVER_HIT_ROWS } from './systemcore.js';   // 1.6.2: what the Combat tab's boxes hold
 import { cleanCover } from './systemcore.js';   // 1.6.0: what cover takes off an attack, as Save reads it (refreshErrors)
@@ -6815,7 +6815,7 @@ function formCtx(inp) {
     if (typeof id === 'string' && /^r_/.test(id)) (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(x) { if (x && x.id === id) r = x; });
     if (r) return { roll: r, subject: r.label, then: !Array.isArray(r.apply) && !!cs && (cs.contains('sys-apply-formula') || cs.contains('sys-apply-if')) };
     var fd = null; if (typeof id === 'string') (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(x) { if (x && x.id === id) fd = x; });
-    return fd ? { subject: fd.label || '' } : {};
+    return fd ? { subject: fd.label || '', list: fd.kind === 'item-list' && fd.list ? fd.list : undefined } : {};
 }
 // what Try it reads: one of the campaign's characters as this draft would work them out, and a figure given by hand for what depends on the moment
 function formTrial(d) {
@@ -7986,10 +7986,10 @@ function refreshErrors() {
 function errorCell(id) {
     var cell = el('div', 'sys-err');
     (errorsById[id] || []).forEach(function(e) {
-        cell.appendChild(el('div', 'sys-err-line', errPrefix(e.prop) + e.message));
+        cell.appendChild(el('div', 'sys-err-line', errPrefix(e.prop) + (typeof plainMessage === 'function' ? plainMessage(draft, e.message) : e.message)));
         if (e.pos !== undefined && e.len > 0) { var src = formulaTextFor(id, e.prop); if (src) { var pre = el('pre', 'dice-caret'); pre.textContent = src + NL + new Array(Math.min(e.pos, src.length) + 1).join(' ') + new Array(Math.min(e.len, 200) + 1).join('^'); cell.appendChild(pre); } }
     });
-    (warningsById[id] || []).forEach(function(w) { cell.appendChild(el('div', 'sys-warn-line', errPrefix(w.prop, true) + w.message)); });
+    (warningsById[id] || []).forEach(function(w) { cell.appendChild(el('div', 'sys-warn-line', errPrefix(w.prop, true) + (typeof plainMessage === 'function' ? plainMessage(draft, w.message) : w.message))); });
     if (!cell.childNodes.length) cell.style.display = 'none';
     return cell;
 }
@@ -11580,7 +11580,7 @@ function errGo(id) {
     tab = p.tab; if (p.kind) U.pickSet(p.kind, p.row); if (p.topic) U.topicPress(p.set, p.topic);
     _tabPress = true; try { renderAll(); } finally { _tabPress = false; }
 }
-function errSay(e, warn) { return errPrefix(e && e.prop, warn) + (e && e.message ? e.message : ''); }
+function errSay(e, warn) { return errPrefix(e && e.prop, warn) + (e && e.message ? (typeof plainMessage === 'function' ? plainMessage(draft, e.message) : e.message) : ''); }
 // [sysuicheck:rows-end]
 // [systemcheck:rowfocus-start]
 // 1.6.0: what holds the focus in a row of the editor, by the row's own id and the list's or the box's own class, and the same control found in
@@ -12658,7 +12658,7 @@ function dmgPartPre(mk) { if (!dmgObj(mk) || typeof mk.amt !== 'number' || !isFi
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
 // [systemcheck:dmgwin-end]
 function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : null; return nameWord(s, n); }   // 1.6.2: a name in words, for a card
-window.wpSheets = { nameWord: nameWordNow, bellNote: bellNote, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, nameWord: nameWordNow, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

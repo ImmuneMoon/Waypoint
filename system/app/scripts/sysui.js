@@ -306,6 +306,7 @@ var PROP_BOX = [[/^(?:apply|then)\.(\d+)$/, ['sys-apply-formula']], [/^(?:formul
     [/^list\.modsif$/, ['sys-list-modsif']], [/^list\.fitif$/, ['sys-list-partsfitif']], [/^list\.capf$/, ['sys-pcaps']], [/^list\.subjectif$/, ['sys-list-sjif']], [/^list\.upamt$/, ['sys-list-upamt']], [/^list\.onneeds$/, ['sys-list-swneeds']], [/^list\.onshow$/, ['sys-list-swshow']], [/^list\.chneeds$/, ['sys-list-chamberneeds']], [/^list\.feedturns/, ['sys-list-feedturns']], [/^list\.feedif/, ['sys-list-feedif']], [/^list\.unheld$/, ['sys-list-unheldlvl']],
     [/^turn\.move$/, ['sys-turn-mvf']], [/^turn\.run$/, ['sys-turn-runf']], [/^turn\.holdLost$/, ['sys-turn-lostf']], [/^has$/, ['sys-bud-has']], [/^spent$/, ['sys-bud-spent']]];
 // The box a word names in what holds it, the nth of its class where the word says which. Found by comparing, so nothing of a system file reaches a selector
+function formToo(b) { if (b && b.hidden && window.wpFormBox && typeof window.wpFormBox.openFor === 'function') window.wpFormBox.openFor(b); return b; }
 function boxIn(scope, prop) {
     if (typeof prop !== 'string' || !scope) return null;
     for (var i = 0; i < PROP_BOX.length; i++) {
@@ -431,10 +432,10 @@ function reach(id, prop) {
     var modal = byId('systemModal'), cells = modal ? modal.querySelectorAll('[data-err-for]') : [], cell = null, i;
     for (i = 0; i < cells.length && !cell; i++) if (cells[i].dataset.errFor === id) cell = cells[i];
     if (!cell) return null;
-    var scope = cell.closest('.sys-row') || (hasClass(cell.previousSibling || {}, 'sys-list-card') ? cell.previousSibling : cell.parentNode), box = boxIn(scope, prop), to = box || cell;
+    var scope = cell.closest('.sys-row') || (hasClass(cell.previousSibling || {}, 'sys-list-card') ? cell.previousSibling : cell.parentNode), box = boxIn(scope, prop), to = box && box.hidden && box.parentNode ? box.parentNode : box || cell;   // a box under a form: its form
     for (var n = to; n && n !== modal; n = n.parentNode) if (n.tagName === 'DETAILS') { n.open = true; if (n.dataset && n.dataset.grp) groupsTouched[n.dataset.grp] = 1; }
     if (to.scrollIntoView) to.scrollIntoView({ block: 'center' });
-    if (box && box.focus) box.focus();
+    if (box && box.hidden) formToo(box); else if (box && box.focus) box.focus();
     return to;
 }
 function onErrPress(e) {

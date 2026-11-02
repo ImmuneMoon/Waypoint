@@ -3283,6 +3283,7 @@
   .dice-quick button:hover { border-color: var(--gold); color: var(--gold); }
   .dice-err { color: var(--red); font-size: 11.5px; line-height: 1.4; }
   .dice-caret { margin: 2px 0 0; font-family: ui-monospace, Consolas, monospace; font-size: 11px; white-space: pre; color: var(--dim); }
+  #systemModal .sys-err .dice-caret { display: none; }   /* 1.6.2: the System editor says a fault in words; As text is where a formula is shown */
   .dice-row { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--dim); }
   .dice-row label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
   .log-kind.k-dice { color: var(--gold); }

@@ -85,6 +85,8 @@ Fitted parts
   part of the row gives, so a row's slots can come from one of its parts.
 - One line of Holds by kind may count several values, such as one integrated,
   overlay or underlay part.
+- A line of Holds by kind may say Only where it counts, and carry a short name
+  for the sheet and for a refusal.
 - Fits where may hold further rules, each with its own words for the player it
   stops, and those words may run to 200 characters.
 - A list's Changes apply where now holds back a row's roll bonuses as well as

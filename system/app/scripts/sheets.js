@@ -6924,6 +6924,12 @@ function partCapsBox(sp) {
             var fI = input('sys-pcap-f field', typeof k.f === 'string' ? k.f : '', 'Or a formula that says how many, read on the row: its own names as Row.*, such as Row.parts.max.Slots, and the character\u2019s. It takes the place of the stat. Where it gives no number there is no limit', 'or a formula'); fI.maxLength = LIMITS.formula;
             fI.addEventListener('input', function(e) { e.stopPropagation(); var fv = String(fI.value || '').trim(); if (!sp.parts || !Array.isArray(sp.parts.caps) || !sp.parts.caps[j]) return; if (fv) sp.parts.caps[j].f = fv; else delete sp.parts.caps[j].f; ch(); });
             fI.addEventListener('change', function(e) { e.stopPropagation(); });
+            var ifI = input('sys-pcap-if field', typeof k['if'] === 'string' ? k['if'] : '', 'Only where this formula holds, read on the row as the figure is, does the line count. Elsewhere it holds no limit and the sheet says nothing of it. One that cannot be worked out does not hold', 'only where'); ifI.maxLength = LIMITS.formula;
+            ifI.addEventListener('input', function(e) { e.stopPropagation(); var fv = String(ifI.value || '').trim(); if (!sp.parts || !Array.isArray(sp.parts.caps) || !sp.parts.caps[j]) return; if (fv) sp.parts.caps[j]['if'] = fv; else delete sp.parts.caps[j]['if']; ch(); });
+            ifI.addEventListener('change', function(e) { e.stopPropagation(); });
+            var lbI = input('sys-pcap-label field', typeof k.label === 'string' ? k.label : '', 'A short name for this line, which the sheet and a refusal use in place of the list of what it counts', 'short name'); lbI.maxLength = LIMITS.label;
+            lbI.addEventListener('input', function(e) { e.stopPropagation(); var lv = String(lbI.value || '').trim(); if (!sp.parts || !Array.isArray(sp.parts.caps) || !sp.parts.caps[j]) return; if (lv) sp.parts.caps[j].label = lv; else delete sp.parts.caps[j].label; ch(); });
+            lbI.addEventListener('change', function(e) { e.stopPropagation(); });
             var bS = el('select', 'sys-pcap-by'), cur = typeof k.by === 'string' ? k.by.toLowerCase() : '', hit = false; bS.title = 'A row holds as many parts of those categories as its figure in this stat reads';
             var o0 = el('option', null, 'as many as the row\u2019s\u2026'); o0.value = ''; bS.appendChild(o0);
             nums().forEach(function(s) { var o = el('option', null, 'as many as the row\u2019s ' + (s.label || s.key)); o.value = s.key; if (!hit && cur && s.key.toLowerCase() === cur) { o.selected = true; hit = true; } bS.appendChild(o); });
@@ -6931,7 +6937,7 @@ function partCapsBox(sp) {
             bS.addEventListener('change', function(e) { e.stopPropagation(); set('by', bS.value); });
             var x = el('button', 'tool ghost sys-btn sys-pcap-del', '\u00d7'); x.type = 'button'; x.title = 'Remove this line';
             x.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts || !Array.isArray(sp.parts.caps)) return; sp.parts.caps.splice(j, 1); if (!sp.parts.caps.length) delete sp.parts.caps; ch(); draw(); });
-            lead.concat([cI], isMore, [bS, fI, x]).forEach(function(n) { rw.appendChild(n); }); box.appendChild(rw);
+            lead.concat([cI], isMore, [bS, fI, ifI, lbI, x]).forEach(function(n) { rw.appendChild(n); }); box.appendChild(rw);
         });
         var ad = el('button', 'tool ghost sys-btn sys-pcap-add', '+ Kind'); ad.type = 'button'; ad.disabled = list.length >= max; ad.title = ad.disabled ? 'At most ' + max + ' kinds a list' : 'Cap how many parts of some categories a row holds, such as 2 arms, by one of its own stats';
         ad.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts) return; if (!Array.isArray(sp.parts.caps)) sp.parts.caps = []; if (sp.parts.caps.length >= max) return; sp.parts.caps.push({ cats: [], by: '' }); ch(); draw(); var ins = box.querySelectorAll('.sys-pcap-cats'); if (ins.length) ins[ins.length - 1].focus(); }); box.appendChild(ad);
@@ -7430,10 +7436,12 @@ function refreshErrors() {
             else if (typeof fitIfOk === 'function' && !fitIfOk(gs, F(), cf, t)) say(nm + ' reads a GM-only value, here or through what it reads, so your players\u2019 sheets keep none of it and their parts are not judged by it. Yours are.');
         });
         (Array.isArray(f.list.parts.caps) ? f.list.parts.caps : []).forEach(function(k, i) {
-            var t = k && typeof k.f === 'string' ? k.f.trim() : '', nm = 'Holds by kind, line ' + (i + 1); if (!t) return;
-            var kept = (Array.isArray(cp.caps) ? cp.caps : []).filter(function(x) { return x.f === t; })[0];
-            if (!kept) bad(nm, t, ' says nothing of what it counts yet, so Save drops the line.');
-            else if (typeof capFOk === 'function' && !capFOk(gs, F(), cf, t)) say(nm + ' reads a GM-only value, here or through what it reads, so your players\u2019 sheets keep none of it and their rows are not limited by it. Yours are.');
+            ['f', 'if'].forEach(function(w) {
+                var t = k && typeof k[w] === 'string' ? k[w].trim() : '', nm = 'Holds by kind, line ' + (i + 1) + (w === 'if' ? ', Only where' : ''); if (!t) return;
+                var kept = (Array.isArray(cp.caps) ? cp.caps : []).filter(function(x) { return x[w] === t; })[0];
+                if (!kept) bad(nm, t, ' says nothing of what it counts yet, so Save drops the line.');
+                else if (typeof capFOk === 'function' && !capFOk(gs, F(), cf, t)) say(nm + ' reads a GM-only value, here or through what it reads, so your players\u2019 sheets keep none of it and their rows are not limited by it. Yours are.');
+            });
         });
     });
     draft.fields.forEach(function(f) {   // 1.6.0 Specialties, as the cleaner reads it: a part that names no stat or column of the list goes

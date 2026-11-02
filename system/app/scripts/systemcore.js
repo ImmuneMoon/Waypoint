@@ -3545,10 +3545,10 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
                 var ptk = []; v.parts.caps.forEach(function(c) {
                     if (!isObj(c) || ptk.length >= PART_CAPS) return;
                     var kb = typeof c.by === 'string' ? lower(statKey(c.by.trim(), F)) : '', kbS = ''; (out.stats || []).forEach(function(s) { if (!kbS && kb && s.kind !== 'pick' && s.set !== true && lower(s.key) === kb) kbS = s.key; });
-                    var ksl = typeof c.slot === 'string' ? statKey(c.slot.trim(), F) : '', kis = capIsIn(c.is), kf = cleanFormulaText(c.f);   // the core handbook session's ask 4 (2026-10-29): or { slot, is, by }, the parts whose own choice stat slot reads is (cleanSystem spells both as the parts' list does, and drops a line it cannot); 1.6.2: is may be several values, any of which counts, and f, a formula read on the host row, says how many in place of by
-                    if (ksl && kis) { if (kf) ptk.push({ slot: ksl, is: kis, f: kf }); else if (kbS) ptk.push({ slot: ksl, is: kis, by: kbS }); return; }
+                    var ksl = typeof c.slot === 'string' ? statKey(c.slot.trim(), F) : '', kis = capIsIn(c.is), kf = cleanFormulaText(c.f), kif = cleanFormulaText(c['if']), klb = cutText(c.label, LIMITS.label), kEnd = function(o) { if (kif) o['if'] = kif; if (klb) o.label = klb; return o; };   // the core handbook session's ask 4 (2026-10-29): or { slot, is, by }, the parts whose own choice stat slot reads is (cleanSystem spells both as the parts' list does, and drops a line it cannot); 1.6.2: is may be several values, any of which counts, and f, a formula read on the host row, says how many in place of by
+                    if (ksl && kis) { if (kf) ptk.push(kEnd({ slot: ksl, is: kis, f: kf })); else if (kbS) ptk.push(kEnd({ slot: ksl, is: kis, by: kbS })); return; }
                     var kc = [], seenK = map(); (Array.isArray(c.cats) ? c.cats : []).forEach(function(x) { var kt = cutText(x, LIMITS.category); if (!kt || seenK[lower(kt)] || kc.length >= LIMITS.listCats) return; seenK[lower(kt)] = 1; kc.push(kt); });
-                    if (kf && kc.length) ptk.push({ cats: kc, f: kf }); else if (kbS && kc.length) ptk.push({ cats: kc, by: kbS });
+                    if (kf && kc.length) ptk.push(kEnd({ cats: kc, f: kf })); else if (kbS && kc.length) ptk.push(kEnd({ cats: kc, by: kbS }));
                 });
                 if (ptk.length) pto.caps = ptk;
             }
@@ -4188,13 +4188,13 @@ function cleanSystem(sys, opts) {
         var sysFi = { fields: F ? gmViewFields(sys, F) : [], items: sys.items, core: sys.core, tables: sys.tables };
         out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.feeds)) f.list.feeds.forEach(function(fd) { if (typeof fd['if'] === 'string' && !modsIfOk(sysFi, F, f, fd['if'])) delete fd['if']; }); });
     }
-    if (out.fields.some(function(f) { return f.kind === 'item-list' && isObj(f.list) && isObj(f.list.parts) && (fitRows(f.list.parts).length || capFsOf(f.list.parts).length); }) && (!gmView || (F && typeof F.parse === 'function'))) {   // 1.6.0 Fits where (ask 18): one that does not parse or rolls dice goes in both views; from the players' view one that reads a GM-only value at any depth goes too, judged over the GM's view with the part's own names and its host's as modsIfOk judges a list's gate. Their parts are then not judged by it, as needs a player cannot read never hold them back
+    if (out.fields.some(function(f) { return f.kind === 'item-list' && isObj(f.list) && isObj(f.list.parts) && (fitRows(f.list.parts).length || capTexts(f.list.parts).length); }) && (!gmView || (F && typeof F.parse === 'function'))) {   // 1.6.0 Fits where (ask 18): one that does not parse or rolls dice goes in both views; from the players' view one that reads a GM-only value at any depth goes too, judged over the GM's view with the part's own names and its host's as modsIfOk judges a list's gate. Their parts are then not judged by it, as needs a player cannot read never hold them back
         var sysFi = { fields: F ? gmViewFields(sys, F) : [], items: sys.items, core: sys.core, tables: sys.tables };
         out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.parts) && typeof f.list.parts.fitIf === 'string' && !fitIfOk(sysFi, F, f, f.list.parts.fitIf, gmView)) { delete f.list.parts.fitIf; delete f.list.parts.fitIfSays; } });
         out.fields.forEach(function(f) {   // 1.6.2: a further rule of Fits where by the same test; a line of Holds by kind by a formula is read on the host row, so it is judged as a list's gate, by that list's own names. A line left with no formula goes, so its parts are not limited by it
             var p = f.kind === 'item-list' && isObj(f.list) && isObj(f.list.parts) ? f.list.parts : null; if (!p) return;
             if (Array.isArray(p.fitMore)) { var fm = p.fitMore.filter(function(r) { return fitIfOk(sysFi, F, f, r['if'], gmView); }); if (fm.length) p.fitMore = fm; else delete p.fitMore; }
-            if (Array.isArray(p.caps)) { var kp = p.caps.filter(function(k) { return typeof k.f !== 'string' || capFOk(sysFi, F, f, k.f, gmView); }); if (kp.length) p.caps = kp; else delete p.caps; }
+            if (Array.isArray(p.caps)) { var kp = p.caps.filter(function(k) { return capTexts({ caps: [k] }).every(function(t) { return capFOk(sysFi, F, f, t, gmView); }); }); if (kp.length) p.caps = kp; else delete p.caps; }
         });
     }
     var rowAll = function(c) { return isObj(c) && typeof c.list === 'string' && readsRow(c.formula, F); };   // 1.6.0: a system change on every row of a list worked out row by row (Row.*)
@@ -6761,20 +6761,21 @@ function capIsList(k) { return Array.isArray(k.is) ? k.is : typeof k.is === 'str
 // ... a line's is as the cleaner keeps it: one value as text, so a line of one reads as it always did, several as a list, each once
 function capIsIn(v) { if (!Array.isArray(v)) return cutText(v, LIMITS.label); var out = [], seen = map(); v.slice(0, 256).forEach(function(x) { var w = cutText(x, LIMITS.label); if (!w || seen[lower(w)] || out.length >= PART_IS) return; seen[lower(w)] = 1; out.push(w); }); return out.length > 1 ? out : out.length ? out[0] : ''; }
 function capTakes(k, psp, def, cat) { var is = capIsList(k); if (typeof k.slot === 'string' && is.length) { if (!isObj(def)) return false; var w = lower(statName(psp, def, k.slot)); return is.some(function(x) { return lower(x) === w; }); } return Array.isArray(k.cats) && catIn(k.cats, cat); }
-function capKind(k) { var is = capIsList(k); return typeof k.slot === 'string' && is.length ? is.join(' or ') : Array.isArray(k.cats) ? k.cats.join(' or ') : ''; }
+function capKind(k) { if (typeof k.label === 'string' && k.label) return k.label; var is = capIsList(k); return typeof k.slot === 'string' && is.length ? is.join(' or ') : Array.isArray(k.cats) ? k.cats.join(' or ') : ''; }
 function capFig(hspec, def, k, read) {
+    if (typeof k['if'] === 'string' && k['if'] && !(typeof read === 'function' && read(k['if']))) return null;   // 1.6.2 Only where: a line that does not apply to this row is no limit and says nothing, and one that cannot be worked out does not apply
     if (typeof k.f === 'string' && k.f) { var v = typeof read === 'function' ? read(k.f) : null; return typeof v === 'number' && fin(v) ? v : null; }
     var c = typeof k.by === 'string' && def ? rowStat(hspec, def, k.by) : null; return typeof c === 'number' && fin(c) ? c : null;
 }
-// the lines of a list's parts that read a formula, for the cleaner
-function capFsOf(p) { return isObj(p) && Array.isArray(p.caps) ? p.caps.filter(function(k) { return isObj(k) && typeof k.f === 'string'; }) : []; }
+// the formulas the lines of a list's parts read, its figures and its Only where, for the cleaner
+function capTexts(p) { var out = []; (isObj(p) && Array.isArray(p.caps) ? p.caps : []).forEach(function(k) { if (!isObj(k)) return; ['f', 'if'].forEach(function(w) { if (typeof k[w] === 'string' && k[w]) out.push(k[w]); }); }); return out; }
 // ... whether one may stand: it parses and rolls no dice, and in the players' view it reads no GM-only value at any depth, judged as a list's gate
 function capFOk(sysG, F, f, text, gmView) { if (gmView !== true) return modsIfOk(sysG, F, f, text); return fitIfOk(sysG, F, f, text, true); }
 // ... what works a line's formula out on a host row: a resolver of the character, made only where a line asks. A player is held only by a formula
 // their own view holds, as Fits where is judged (a line that reads a GM-only value is not in it, so it never tells them a figure they may not know)
 function capRead(sys, char, hf, row, F, opts) {
     var r = null, mine = null;
-    if (isObj(opts) && opts.player && isObj(opts.view)) { var a = actorSpec(sys, hf.id, hf.list, opts); mine = map(); capFsOf(a && a.parts).forEach(function(k) { mine[k.f] = 1; }); }
+    if (isObj(opts) && opts.player && isObj(opts.view)) { var a = actorSpec(sys, hf.id, hf.list, opts); mine = map(); capTexts(a && a.parts).forEach(function(t) { mine[t] = 1; }); }
     return function(text) {
         if ((mine && mine[text] !== 1) || !F || typeof F.evaluate !== 'function') return null;
         try { if (!r) r = makeResolver(sys, char, F, null); return r.rowNum(hf, row, text); } catch (e) { return null; }
@@ -9927,7 +9928,7 @@ function validateSystem(sys, F) {
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.on) && typeof f.list.on.showIf === 'string' && f.list.on.showIf) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#onshow' }, 'list.onshow', f.list.on.showIf, false, f.vis, f); });   // 1.6.0: where a row's switch is shown (no dice, Row.* known)   // 1.5.8: what a row's switch needs (no dice, Row.* known)
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && typeof f.list.modsIf === 'string' && f.list.modsIf) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#modsif' }, 'list.modsif', f.list.modsIf, false, f.vis, f); });   // 1.6.0 Changes apply where: no dice, the holder's names and Row.* known
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && typeof f.list.subjectIf === 'string' && f.list.subjectIf) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#subjectif' }, 'list.subjectif', f.list.subjectIf, false, f.vis, f); });   // 1.6.0 Subject only where, read as Changes apply where is
-    sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.parts)) { var pfV = partsSrc(sys, f.list); if (pfV) fitRows(f.list.parts).forEach(function(r, ri) { checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#fitif' + (ri || '') }, 'list.fitif', r['if'], false, f.vis, pfV); }); capFsOf(f.list.parts).forEach(function(k, ci) { checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#capf' + ci }, 'list.capf', k.f, false, f.vis, f); }); } });   // 1.6.0 Fits where (ask 18): no dice, the part's own names (Row.*) and its host's (Host.*) known
+    sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.parts)) { var pfV = partsSrc(sys, f.list); if (pfV) fitRows(f.list.parts).forEach(function(r, ri) { checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#fitif' + (ri || '') }, 'list.fitif', r['if'], false, f.vis, pfV); }); capTexts(f.list.parts).forEach(function(t, ci) { checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#capf' + ci }, 'list.capf', t, false, f.vis, f); }); } });   // 1.6.0 Fits where (ask 18): no dice, the part's own names (Row.*) and its host's (Host.*) known
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && typeof f.list.unheld === 'string' && f.list.unheld) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#unheld' }, 'list.unheld', f.list.unheld, false, f.vis, f); });   // 1.6.0 Rolls unheld entries: the Unheld level (no dice, Row.* known)
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.feeds)) f.list.feeds.forEach(function(fd) { if (isObj(fd) && typeof fd.turns === 'string' && fd.turns) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#feed' }, 'list.feedturns', fd.turns, false, f.vis, f); if (isObj(fd) && typeof fd['if'] === 'string' && fd['if']) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#feed' }, 'list.feedif', fd['if'], false, f.vis, f); }); });   // 1.6.0 Feeds: the turns a change takes (no dice, Row.* known)
     sys.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.chamber) && typeof f.list.chamber.needs === 'string' && f.list.chamber.needs) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#chneeds' }, 'list.chneeds', f.list.chamber.needs, false, f.vis, f); });   // 1.5.9 Chambers only where: what a row must meet to chamber (no dice, Row.* known)

@@ -7,10 +7,10 @@
 // [sysuicheck:topics-start]
 // The Combat and Rules tabs, each with its topics down the side, one topic at a time. A topic: its id, its name, and one short line
 var TOPICS = {
-    combat: [['turns', 'Turns', 'What a character may do on its turn, and how long a round lasts.'], ['initiative', 'Initiative', 'Who goes first, and how a tie is settled.'], ['outcomes', 'Roll outcomes', 'How a roll against a target reads its dice.'],
+    combat: [['turns', 'Turns', 'What a character may do on its turn, and how long a round lasts.'],
         ['damage', 'Damage', 'What a hit does to a character.'], ['cover', 'Cover', 'What walls and low pieces do for those behind them.'], ['blasts', 'Blasts and throws', 'What happens when something is thrown or goes off.'],
         ['range', 'Range', 'What distance does to a roll.'], ['height', 'Height', 'What standing higher or lower does to a roll.'], ['light', 'Light', 'Your game’s dim, dark and light sources.'],
-        ['senses', 'Senses', 'What a character knows of the map besides what it sees.'], ['postures', 'Postures', 'How a token can stand.'], ['holds', 'Who holds whom', 'Grabs, pins and those who break free.'], ['bars', 'Token bars', 'Pools shown as a ring around a token.']],
+        ['senses', 'Senses', 'What a character knows of the map besides what it sees.'], ['initiative', 'Initiative', 'Who goes first, and how a tie is settled.'], ['outcomes', 'Roll outcomes', 'How a roll against a target reads its dice.'], ['postures', 'Postures', 'How a token can stand.'], ['holds', 'Who holds whom', 'Grabs, pins and those who break free.'], ['bars', 'Token bars', 'Pools shown as a ring around a token.']],
     rules: [['budgets', 'Point budgets', 'Points a character has and has spent.'], ['env', 'Environment readings', 'What a map gives the characters on it, such as a temperature.'], ['links', 'Linked sheets', 'A rider and a mount, or a crew and a vehicle.'], ['tables', 'Tables', 'Figures a formula reads by a name.']]
 };
 // Which topic a word of the editor's error boxes stands in
@@ -236,7 +236,7 @@ function arrange(row, kind, doc, kept, touched) {
         if (p.nodeType !== 1) { wait.push(p); return; }
         var w = classWords(p);
         if (hasClass(p, 'sys-err') || p.dataset && p.dataset.errFor !== undefined) { errs.push(p); return; }
-        if (wordIn(w, spec.head) && !hasClass(p, 'sys-flags')) { head.push(p); return; }
+        if (wordIn(p.tagName === 'LABEL' ? w : classWords({ className: p.className, dataset: {} }), spec.head)) { head.push(p); return; }   // a caption's label by what it holds; a box by itself, never by a button deep inside it
         if (hasClass(p, 'sys-num-cap')) { wait.push(p); return; }   // a caption goes where what it heads goes
         var g = groupOf(spec, w); if (!by[g]) { by[g] = []; order.push(g); }
         wait.forEach(function(x) { by[g].push(x); }); wait = []; by[g].push(p);
@@ -359,9 +359,10 @@ function pickDraw(kind, rows) {
     var c = own(PICK, kind) ? PICK[kind] : null; if (!c) return '';
     var st = pickState(kind), nx = pickNext(st, rows.map(function(r) { return r.id; })), list = byId(c.list), was = st.id; st.id = nx.id; st.at = nx.at; st.known = nx.known;
     if (!list) return st.id;
-    var made = listWrite(list, kind, rows, document), b = listShow(list, st.id, lastErrs, lastWarns), box = byId(c.find);
+    var had = list.contains(document.activeElement), made = listWrite(list, kind, rows, document), b = listShow(list, st.id, lastErrs, lastWarns), box = byId(c.find);
     if (made) findApply(list, list.parentNode.querySelector('.sys-pick-none'), box ? box.value : '');
     if (b && (made || was !== st.id) && b.scrollIntoView) b.scrollIntoView({ block: 'nearest' });
+    if (b && made && had && b.focus) b.focus();
     return st.id;
 }
 function pickSet(kind, id) { pickState(kind).id = id; }
@@ -433,7 +434,7 @@ function reach(id, prop) {
     return to;
 }
 function onErrPress(e) {
-    var b = e.target && e.target.closest ? e.target.closest('.sys-err-go, #sysErrBtn') : null; if (!b) return;
+    var b = e.target && e.target.closest ? e.target.closest('.sys-err-go, #sysErrBtn') : null; if (!b) { if (!(e.target && e.target.closest && e.target.closest('#sysErrList'))) errShow(false); return; }
     e.stopPropagation();
     if (b.id === 'sysErrBtn') { var l = byId('sysErrList'); errShow(!!l && l.hidden); return; }
     var r = errNow[+b.dataset.at]; if (!r || !errHost) return;

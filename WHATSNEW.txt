@@ -77,6 +77,15 @@ System editor
 - Counted once: Given free can name a column now, as Full price can, so a row
   another row granted can say what it gives free.
 
+Fitted parts
+- A full row now refuses a player's part and lets you fit it all the same, and
+  you are told. Before, it refused you too.
+- Under a row the sheet says how many of each kind it holds, such as Overlay 1
+  of 2.
+- A part reads the row it is fitted to as Host.on, Host.lvl and Host.qty, and
+  Row.fitted says whether a row is fitted at all. So a part can stop giving
+  anything while the row it is on is off.
+
 Reusing a system
 - New campaign now asks whether to start with a copy of the system of one of your
   campaigns. Its library packs come with it, and its handbook pages unless you

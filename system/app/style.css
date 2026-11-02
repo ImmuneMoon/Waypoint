@@ -3571,6 +3571,8 @@
   .sheet-parts { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 2px 0 6px 18px; }   /* 1.6.0 R14: a row's parts, as pills under it */
   .sheet-part { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--edge); background: var(--panel2); border-radius: 12px; padding: 1px 4px 1px 9px; }
   .sheet-part .sheet-chip { margin-left: 0; }
+  .sheet-part-slot { font-size: 11px; color: var(--dim); white-space: nowrap; }   /* 1.6.2 Fitted slots: how many of a kind a row holds */
+  .sheet-part-slot.over { color: var(--gold); }
   .sheet-parts.sheet-parts-sub { flex-basis: 100%; padding: 0 0 2px 18px; }   /* 205 (4): a part's own parts, a level in */
   .sheet-part-pm, .sheet-part-rm { min-width: 0; width: 20px; height: 20px; padding: 0; border-radius: 50%; line-height: 1; }
   .sheet-part-n { min-width: 1ch; text-align: center; }

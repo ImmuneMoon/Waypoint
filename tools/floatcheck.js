@@ -1076,5 +1076,7 @@ const dice = read('scripts/dice.js');
         wn.every(t => count(t, NOTE) === 1) && fs.readFileSync(path.join(root, '.github/workflows/checks.yml'), 'utf8').replace(/\r\n/g, '\n').includes('        if: ${{ !cancelled() }}\n        run: node tools/floatcheck.js\n'));
 }
 
+check('1.6.2 a sheet opened in a box already up is held inside the window too: its stored place is asked of fit once it is laid (found by hand: the panel stood past the edge of a narrow window)', /function placeSheet\(\) \{[^\n]*sizePanel\(p, pos\.w, pos\.h\); \} catch \(e\) \{\} if \(window\.wpFloats && window\.wpFloats\.fit\) window\.wpFloats\.fit\(p\); \}/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8')));
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

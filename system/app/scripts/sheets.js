@@ -303,6 +303,7 @@ function playerNames(camp) {
 // (camp.players, every name the campaign has seen, never leaves the host): their own character reads with their own name, an owner
 // who is not at the table as "a player" — never a bare id. The GM's view is unchanged.
 function ownerName(c, camp) {
+    if (c && c.shared === 1) return 'Shared sheet';   // 1.6.2 (G8): on the app of a player it is shared with, whose copy reads as theirs
     if (!c || !c.ownerId) return '';
     var n = net(), away = !!(n && ((n.active && n.role === 'client') || n.foreign));
     if (away && c.ownerId === myId() && n.getProfile) { var pr = n.getProfile(); if (pr && typeof pr.name === 'string' && pr.name.trim()) return pr.name.trim().slice(0, 40); }
@@ -1181,13 +1182,14 @@ function renderSheet() {
     var gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId()), lockedS = viewLocked(c, { view: 'sheet' });   // the sheet's lock, as buildSections will read it
     var seeP = typeof asPlayerView === 'function' ? asPlayerView(c, camp, gm) : null, sysD = seeP ? seeP.sys : sys, cD = seeP ? seeP.char : c;   // 1.6.0: As player, the system and the copy its owner is sent
     head.textContent = c.name;
-    sub.textContent = (c.npc ? 'NPC' : c.shared === 1 ? 'Shared sheet' : c.ownerId ? ownerName(c, camp) : 'unassigned') + (gm && Array.isArray(c.shareWith) && c.shareWith.length ? ' \u00b7 shared with ' + c.shareWith.length : '') + (c.partial ? ' · hover fields only' : '') + (c.making === 1 ? ' · making' : c.unlocked === 1 ? (gm ? ' · open to its player' : ' · yours to fill in') : '') + (gm && c.review === 1 ? ' · new' : '');
+    sub.textContent = (c.npc ? 'NPC' : c.ownerId ? ownerName(c, camp) : 'unassigned') + (c.partial ? ' · hover fields only' : '') + (c.making === 1 ? ' · making' : c.unlocked === 1 ? (gm ? ' · open to its player' : ' · yours to fill in') : '') + (gm && c.review === 1 ? ' · new' : '');
+    if (gm && Array.isArray(c.shareWith) && c.shareWith.length) sub.textContent += ' · shared with ' + c.shareWith.length;   // 1.6.2 (G8)
     var giveS = gm && !c.partial && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && !window.wpStream && !!window.wpCharList; if (sub.classList) sub.classList.toggle('sheet-sub-give', giveS); if (sub.setAttribute) { if (giveS) { sub.setAttribute('role', 'button'); sub.tabIndex = 0; sub.title = 'Press to give this character to a player'; } else { sub.removeAttribute('role'); sub.removeAttribute('tabindex'); sub.removeAttribute('title'); } }   // 1.6.0: who has it is said here, so it is changed here
     // Onboarding F3: its state
     var revert = ui('sheetRevert'); if (revert) revert.style.display = gm && lastChange && lastChange.charId === c.id ? '' : 'none';
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; var pickL = gm ? charList(camp) : charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }); if (gm || pickL.length > 1) { pickL.forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : '') + (x.making === 1 ? ' (being made)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
-    var upB = ui('sheetUpload'); if (upB) { var upOn = gm ? canWrite() && !c.partial : isClient() && own && c.shared !== 1 && !c.partial && (c.making !== 1 || fillOk()), rdG = upOn && gm ? gmReader() : null, outF = !gm && sheetFilesOk(); upB.style.display = upOn ? '' : 'none'; upB.title = gm ? 'Upload: pick a Waypoint character file (.wpchar.json)' + (rdG ? ' or a ' + rdG.name + ' file' : '') + '. You review what changes before anything is applied' : c.making === 1 ? 'Upload: fill this character from a file, your own sheet download (.wpchar.json)' + (outF ? ', or a sheet file your GM\u2019s Waypoint reads' : '') : 'Upload: send a Waypoint character file (.wpchar.json)' + (outF ? ', or a sheet file your GM\u2019s Waypoint reads,' : '') + ' to your GM, who approves what changes'; }   // 1.6.0: always on the sheet, for the GM on any character and for a player on their own; while making, where the table lets a file fill it
+    var upB = ui('sheetUpload'); if (upB) { var upOn = gm ? canWrite() && !c.partial : isClient() && own && !c.partial && (c.making !== 1 || fillOk()), rdG = upOn && gm ? gmReader() : null, outF = !gm && sheetFilesOk(); upB.style.display = upOn ? '' : 'none'; upB.title = gm ? 'Upload: pick a Waypoint character file (.wpchar.json)' + (rdG ? ' or a ' + rdG.name + ' file' : '') + '. You review what changes before anything is applied' : c.making === 1 ? 'Upload: fill this character from a file, your own sheet download (.wpchar.json)' + (outF ? ', or a sheet file your GM\u2019s Waypoint reads' : '') : 'Upload: send a Waypoint character file (.wpchar.json)' + (outF ? ', or a sheet file your GM\u2019s Waypoint reads,' : '') + ' to your GM, who approves what changes'; }   // 1.6.0: always on the sheet, for the GM on any character and for a player on their own; while making, where the table lets a file fill it
     var picB = ui('sheetPic'); if (picB) picB.style.display = !lockedS && isClient() && own && !c.partial ? '' : 'none';   // Onboarding F1c: the owner's own picture for it
     var dlB = ui('sheetDownload'); if (dlB) dlB.style.display = canOpen(c.id) && !c.partial ? '' : 'none';   // Onboarding F2a: whoever may open it takes it away
     var dnB = ui('sheetDone'); if (dnB) { var dnOn = isClient() && own && !c.partial && (c.making === 1 || c.unlocked === 1); dnB.style.display = dnOn ? '' : 'none'; }   // Onboarding F3: the owner's Done
@@ -1200,7 +1202,8 @@ function renderSheet() {
     var arrH = ui('sheetArrange'); if (arrH) arrH.style.display = gm && canWrite() && !c.partial ? '' : 'none';   // 1.6.2
     if (typeof asPlayerHead === 'function') asPlayerHead(c, gm, seeP, sub, edB, camp);   // 1.6.0: As player
     if (typeof hideFigHead === 'function') hideFigHead(c, gm);   // 1.6.2: Hide figures
-    var dlX = ui('sheetDelete'); if (dlX) { var mineX = isClient() && own && c.shared !== 1 && !c.partial && charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }).length > 1; dlX.style.display = (gm && canWrite()) || mineX ? '' : 'none'; dlX.title = gm ? 'Delete this sheet: its values are gone; its tokens keep their name and lose the link' : 'Delete this sheet of yours: one you are still making, or one you do not play (your GM is told)'; }
+    var dlX = ui('sheetDelete'); if (dlX) { var mineX = isClient() && own && !c.partial && charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }).length > 1; dlX.style.display = (gm && canWrite()) || mineX ? '' : 'none'; dlX.title = gm ? 'Delete this sheet: its values are gone; its tokens keep their name and lose the link' : 'Delete this sheet of yours: one you are still making, or one you do not play (your GM is told)'; }
+    if (c.shared === 1) ['sheetUpload', 'sheetPic', 'sheetDelete'].forEach(function(k) { var bS = ui(k); if (bS) bS.style.display = 'none'; });   // 1.6.2 (G8): those stay with its one player
     renderReviewBar(c, camp, gm);
     var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';   // 126: the point budgets, under the head
     var lkB = ui('sheetLinks'); if (lkB) lkB.style.display = linkBar(lkB, sys, c, camp, lockedS) ? '' : 'none';   // 1.6.0: the linked sheets, under the budgets
@@ -7182,7 +7185,7 @@ function formSource(inp) {
 }
 // [formcheck:source-end]
 var _formOn = false;
-function formOn() { if (_formOn || !window.wpFormBox) return; _formOn = true; window.wpFormBox.setSource(formSource); if (ui('systemModal')) window.wpFormBox.watch(ui('systemModal')); if (ui('libraryModal')) window.wpFormBox.watch(ui('libraryModal')); }
+function formOn() { if (_formOn || !window.wpFormBox) return; _formOn = true; window.wpFormBox.setSource(formSource); if (window.wpFormBox.setPicks) window.wpFormBox.setPicks(function(k) { var dm = draft && draft.combat && draft.combat.damage, l = dm && Array.isArray(dm[k]) ? dm[k] : []; return l.filter(function(t) { return !!t && typeof t.key === 'string' && !!t.key; }).map(function(t) { return [t.key, t.label || t.key]; }); }); if (ui('systemModal')) window.wpFormBox.watch(ui('systemModal')); if (ui('libraryModal')) window.wpFormBox.watch(ui('libraryModal')); }
 function open(which, topic) {
     if (!canWrite()) { toast('Not while you are at someone else\'s table.'); return; }
     var camp = getActiveCampaign(); if (!camp) return;

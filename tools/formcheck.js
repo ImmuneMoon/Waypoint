@@ -245,6 +245,31 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     check('Escape in a form is the form\'s, and the form holds no markup of its own', ek.includes("escAt(t, '.fb-open')") && !/innerHTML|insertAdjacentHTML/.test(fb));
     check('its styles', /\.fb-line\b/.test(st) && /\.fb-menu\b/.test(st) && /\.fb-step\b/.test(st));
     { const nf = C.read('Row.pen <= -9'), wd = C.says(nf.form, {}); check('a number below 0 reads as a number, never as one with its sign flipped', !wd.includes('flipped') && wd.includes('-9') && C.write(nf.form) === 'Row.pen <= -9', wd); }
+    /* ================= a box that holds a name of a list, and a stat's options ================= */
+    const pkRoot = doc.createElement('div'), pkOf = (cls, v, ph) => { const b = doc.createElement('input'); b.type = 'text'; b.className = cls + ' field'; b.value = v; b.placeholder = ph; pkRoot.appendChild(b); return b; };
+    modal.appendChild(pkRoot); B.setSource(() => ({ groups: [{ name: 'This character', items: [{ label: 'Might', s: 'Might' }, { label: 'Agility', s: 'Agility' }] }], word: () => '' })); B.setPicks(k => (k === 'types' ? [['fire', 'Fire'], ['stun', 'Stunning']] : [['cut', 'Cutting']]));
+    const pT = pkOf('sys-roll-dtype', 'Stun', 'Damage type'), pR = pkOf('sys-list-rollp2t', 'Row.dt2', 'Second part type'), pK = pkOf('sys-roll-p3k', '', 'Third part kind'), pOpt = pkOf('sys-list-statopts', 'Iron, Strength = ST, Bronze', 'Options');
+    B.sweep(pkRoot); B.sweep(pkRoot);
+    const pkSels = pkRoot.querySelectorAll('.fb-keypick'), pkTexts = s => s.childNodes.map(o => o.textContent);
+    check('a type or a kind stands as a list of its names, in any case of its key, once however often it is swept, and no key is on show', pkSels.length === 3 && pkSels[0].value === 'fire'.replace('fire', 'stun') && pT.hidden === true && pT.value === 'Stun' && j(pkTexts(pkSels[0])) === j(['Damage type', 'Fire', 'Stunning', 'Worked out by a rule\u2026']) && j(pkTexts(pkSels[2])) === j(['Third part kind', 'Cutting', 'Worked out by a rule\u2026']) && pkSels[2].value === '', j(pkSels.length));
+    check('a rule stands as that row of the list, and the form opens on it', pkSels[1].value === '@rule' && pR.parentNode.className === 'fb' && pR.value === 'Row.dt2' && !!pR.parentNode.querySelector('.fb-go'));
+    const pkPress = (s, v) => { s.value = v; (s.handlers.change || []).forEach(h => h({ target: s })); };
+    pT.calls.length = 0; pkPress(pkSels[0], 'fire');
+    check('a pick writes the box and says so, which the System editor\u2019s handlers read as before', pT.value === 'fire' && pT.calls.includes('dispatch input') && pT.calls.includes('dispatch change'), j(pT.calls));
+    pkPress(pkSels[1], 'stun');
+    check('a name picked over a rule takes the form away', pR.value === 'stun' && pR.parentNode === pkRoot && pR.hidden === true && pR.dataset.fbr === undefined && pR.dataset.fb === undefined);
+    pkPress(pkSels[0], '@rule');
+    check('Worked out by a rule starts with nothing, and opens the form', pT.value === '' && pT.parentNode.className === 'fb' && pT.dataset.fbr === '1');
+    pkPress(pkSels[0], '');
+    check('the first row clears it', pT.value === '' && pT.dataset.fb === undefined && pT.hidden === true);
+    check('a stat\u2019s options are text and rows of each other, a comma or an equals sign in a label is no new option, and what stands for itself says so once', j(C.readOpts('Iron, Strength = ST,, Bronze')) === j([{ label: 'Iron', name: '' }, { label: 'Strength', name: 'ST' }, { label: 'Bronze', name: '' }]) && C.writeOpts(C.readOpts('Iron, Strength = ST, Bronze')) === 'Iron, Strength = ST, Bronze' && C.writeOpts([{ label: 'A, B=C', name: '' }, { label: 'X', name: 'X' }, { label: ' ', name: 'Y' }]) === 'A  B C, X');
+    const optBox = pkRoot.querySelector('.fb-opts'), optRows = () => optBox.querySelectorAll('.fb-opt');
+    check('the options stand as a row each, and the box stays with its value', pOpt.hidden === true && optRows().length === 3 && pOpt.value === 'Iron, Strength = ST, Bronze' && optBox.querySelectorAll('.fb-optname')[1].value === 'Strength');
+    check('a figure it stands for is picked by name, and one that is gone says so', j(optBox.querySelectorAll('.fb-optfig')[0].childNodes.map(o => o.textContent)) === j(['Just this word', 'Stands for Might', 'Stands for Agility', 'Stands for a figure that is gone'].filter(x => !/gone/.test(x))) && optBox.querySelectorAll('.fb-optfig')[1].value === 'ST' && optBox.querySelectorAll('.fb-optfig')[1].childNodes.some(o => /gone/.test(o.textContent)));
+    pOpt.calls.length = 0; press(optBox.querySelectorAll('.fb-optrm')[0]);
+    check('taking an option away writes the box and says so', pOpt.value === 'Strength = ST, Bronze' && pOpt.calls.includes('dispatch change') && optRows().length === 2, pOpt.value);
+    press(optBox.querySelector('.fb-optadd')); const lbN = optBox.querySelectorAll('.fb-optname'), lastN = lbN[lbN.length - 1]; lastN.value = 'Tin'; (lastN.handlers.input || []).forEach(h => h({ target: lastN })); (lastN.handlers.change || []).forEach(h => h({ target: lastN }));
+    check('+ Option adds a row, and what is typed reaches the box as it is left', pOpt.value === 'Strength = ST, Bronze, Tin' && optRows().length === 3, pOpt.value);
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exitCode = 1;

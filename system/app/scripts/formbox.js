@@ -3,7 +3,7 @@
    handler that reads it: the form writes its value and says so with an input event, and a change event as it closes, so the System editor's
    dispatchers, its errors and its Save need no word of this. The stored value is still the formula, and opening a form and leaving it writes
    nothing. Text nodes and values only: a label and a stored formula can come from a file. The pure half is formcore.js. */
-import { read, write, says, readCond, writeCond, saysCond, rollFace, readLine, readMake, tryRoll, tryValue, tryWords, readWords, writeWords, saysWords } from './formcore.js';
+import { readOpts, writeOpts, read, write, says, readCond, writeCond, saysCond, rollFace, readLine, readMake, tryRoll, tryValue, tryWords, readWords, writeWords, saysWords } from './formcore.js';
 
 // [formcheck:boxes-start]
 // which boxes wear the form, and what each wants: a figure (amt), a figure with dice (roll) or a yes or no (cond)
@@ -16,6 +16,7 @@ var BOXES = { 'sys-roll': 'roll', 'sys-roll-needs': 'cond', 'sys-ovr-value': 'am
 var LIB_BOX = { libF_damage: 'dice', libF_cost: 'amt', libF_needsIf: 'cond', libF_areaFrag: 'dice' };   // the Library window names its boxes by id
 function kindOf(inp) {
     if (inp && typeof inp.id === 'string' && Object.prototype.hasOwnProperty.call(LIB_BOX, inp.id)) return LIB_BOX[inp.id];
+    if (inp && inp.dataset && inp.dataset.fbr === '1') return 'amt';   // a list's box set to a rule
     var cs = inp && inp.classList; if (!cs) return '';
     if (cs.contains('sys-caption') || cs.contains('sys-list-rolllabel') || (cs.contains('sys-label') && inp.closest && (function() { var rw = inp.closest('.sys-row'); return !!rw && /^r_/.test(rw.dataset.id || ''); })())) return 'words';
     if (cs.contains('sys-formula')) { var rw = inp.closest ? inp.closest('.sys-row') : null; return rw && /^r_/.test(rw.dataset.id || '') ? 'roll' : 'amt'; }
@@ -459,9 +460,48 @@ function dressLine(inp, kind) {
     inp.addEventListener('wpformshown', function() { drawLine(b); });
     drawLine(b);
 }
+// [formcheck:pick-start]
+// 1.6.2 (the owner: "no code on the user side"): a box that holds a name of one of the system's lists, or a rule that gives its place. It stands as that list, by the names the Combat tab gave, and a rule is a row of the list that opens the form. The stored value is what it always was
+var picksOf = null;
+function setPicks(fn) { picksOf = fn; }
+function pickKind(inp) { var cs = String(inp && inp.className || '').split(' '); for (var i = 0; i < cs.length; i++) { var c = cs[i]; if (/^sys-(roll-dtype|list-rolldtype|roll-p[2-5]t|list-rollp[2-5]t)$/.test(c)) return 'types'; if (/^sys-(roll-dkind|list-rolldkind|roll-p[2-5]k|list-rollp[2-5]k)$/.test(c)) return 'kinds'; } return ''; }
+function undress(inp) { var w = inp.parentNode; if (w && w.className === 'fb' && w.parentNode) { w.parentNode.insertBefore(inp, w); w.parentNode.removeChild(w); } delete inp.dataset.fb; }
+function dressPick(inp, kind) {
+    var rows = picksOf ? (picksOf(kind) || []) : [], v = String(inp.value || '').trim(), hit = rows.filter(function(r) { return String(r[0]).toLowerCase() === v.toLowerCase(); })[0], rule = !!v && !hit;
+    var sel = el('select', 'field fb-keypick'), add = function(val, text) { var o = el('option', '', text); o.value = val; sel.appendChild(o); };
+    add('', inp.placeholder || 'None'); rows.forEach(function(r) { add(r[0], r[1]); }); add('@rule', 'Worked out by a rule\u2026');
+    sel.value = rule ? '@rule' : hit ? hit[0] : ''; sel.title = 'Pick one by name. Worked out by a rule picks it from the sheet: the rule gives its place in the Combat tab\u2019s list, 1 for the first';
+    inp.dataset.fbp = '1'; inp.parentNode.insertBefore(sel, inp);
+    var set = function() {
+        if (sel.value === '@rule') { inp.dataset.fbr = '1'; inp.hidden = false; if (hit || !rule) { inp.value = ''; } dress(inp); return; }
+        delete inp.dataset.fbr; undress(inp); inp.hidden = true; if (inp.value !== sel.value) { inp.value = sel.value; try { inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {} }
+    };
+    sel.addEventListener('change', set);
+    if (rule) { inp.dataset.fbr = '1'; dress(inp); } else inp.hidden = true;
+}
+// A stat's options: a row each, with what it stands for picked from the sheet's own figures, never typed
+function figsOf(inp) { var s = null; try { s = source ? source(inp) : null; } catch (e) { s = null; } var out = []; ((s && s.groups) || []).forEach(function(g) { if (g && g.name === 'This character') (g.items || []).forEach(function(i) { if (i && typeof i.s === 'string') out.push([i.s, i.label || i.s]); }); }); return out; }
+function dressOpts(inp) {
+    inp.dataset.fbo = '1'; inp.hidden = true; var box = el('div', 'fb-opts'), rows = readOpts(inp.value), figs = figsOf(inp); inp.parentNode.insertBefore(box, inp);
+    var keep = function() { var t = writeOpts(rows); if (t === inp.value) return; inp.value = t; try { inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {} };
+    var draw = function() {
+        box.textContent = '';
+        rows.forEach(function(r, i) {
+            var rw = el('div', 'fb-opt'), lb = el('input', 'field fb-optname'), sel = el('select', 'field fb-optfig'), add = function(v, t) { var o = el('option', '', t); o.value = v; sel.appendChild(o); }, rm = btn('tool ghost sys-btn fb-optrm', '\u00d7', 'Take this option away');
+            lb.type = 'text'; lb.value = r.label; lb.placeholder = 'An option'; lb.title = 'What the option is called'; lb.addEventListener('input', function() { r.label = lb.value; }); lb.addEventListener('change', keep);
+            add('', 'Just this word'); figs.forEach(function(f) { add(f[0], 'Stands for ' + f[1]); }); if (r.name && !figs.some(function(f) { return String(f[0]).toLowerCase() === r.name.toLowerCase(); })) add(r.name, 'Stands for a figure that is gone'); sel.value = r.name || ''; sel.title = 'An option may stand for a figure of the sheet, which a formula then reads through it'; sel.addEventListener('change', function() { r.name = sel.value; keep(); });
+            rm.addEventListener('click', function() { rows.splice(i, 1); keep(); draw(); });
+            rw.appendChild(lb); if (figs.length || r.name) rw.appendChild(sel); rw.appendChild(rm); box.appendChild(rw);
+        });
+        var more = btn('tool ghost sys-btn fb-optadd', '+ Option', 'Add an option to this list'); more.addEventListener('click', function() { rows.push({ label: '', name: '' }); draw(); var all = box.querySelectorAll('.fb-optname'); if (all.length && all[all.length - 1].focus) all[all.length - 1].focus(); }); box.appendChild(more);
+    };
+    draw();
+}
+// [formcheck:pick-end]
 function sweep(root) {
     if (!root || typeof root.querySelectorAll !== 'function') return 0;
     var n = 0, all = root.querySelectorAll('input');
+    for (var p = 0; p < all.length; p++) { var ip = all[p]; if (!ip.dataset || !ip.parentNode) continue; if (!ip.dataset.fbp) { var pk = pickKind(ip); if (pk) dressPick(ip, pk); } if (!ip.dataset.fbo && ip.classList && ip.classList.contains('sys-list-statopts')) dressOpts(ip); }
     for (var i = 0; i < all.length; i++) { if (all[i].dataset && !all[i].dataset.fb && !all[i].dataset.fbw && kindOf(all[i])) { dress(all[i]); if (all[i].dataset.fb) n++; } }
     return n;
 }
@@ -476,5 +516,5 @@ function watch(root) {
 function setSource(fn) { source = fn; }
 // a fault's press reaches the form that stands over its box
 function openFor(inp) { var w = inp && inp.parentNode, go = w && w.querySelector ? w.querySelector('.fb-go') : null; if (go && typeof go.click === 'function') { go.click(); return true; } return false; }
-if (typeof window !== 'undefined') window.wpFormBox = { openFor: openFor, sweep: sweep, watch: watch, setSource: setSource, kindOf: kindOf, isOpen: function() { return !!open; }, shut: shut };
-export { sweep, watch, setSource, kindOf, menuRows, menuPick, lineOf, valOfForm, formOfVal, emptyWord, askOf };
+if (typeof window !== 'undefined') window.wpFormBox = { setPicks: setPicks, openFor: openFor, sweep: sweep, watch: watch, setSource: setSource, kindOf: kindOf, isOpen: function() { return !!open; }, shut: shut };
+export { setPicks, sweep, watch, setSource, kindOf, menuRows, menuPick, lineOf, valOfForm, formOfVal, emptyWord, askOf };

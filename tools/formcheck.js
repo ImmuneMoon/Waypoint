@@ -136,7 +136,8 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     check('open, each piece stands on a line of its own and nothing of a key shows', fwo.querySelectorAll('.fb-words').length === 2 && fwo.querySelectorAll('.fb-pick').length === 1 && fwo.querySelector('.fb-pick').textContent === 'Dodge' && !/\{|\u00b1/.test(fwo.textContent), fwo.textContent.slice(0, 120));
     press(fwo.querySelector('[data-p="wadd"]'));
     check('words added write the box, with the figure kept', fw.i.value === 'Attack ({\u00b1Dodge}) ', fw.i.value);
-    check('the line above the form follows what is being built', fwb.querySelector('.fb-say').textContent === 'Attack (Dodge) ', fwb.querySelector('.fb-say').textContent);
+    const w0 = fwo.querySelectorAll('.fb-words')[0]; w0.value = 'Hit ('; (w0.handlers && w0.handlers.input || []).forEach(h => h({ target: w0 }));
+    check('the line above the form follows what is being built', fwb.querySelector('.fb-say').textContent === 'Hit (Dodge)', fwb.querySelector('.fb-say').textContent);
     press(fwo.querySelector('.fb-cancel'));
     check('Cancel puts the words back', fw.i.value === 'Attack ({\u00b1Dodge})', fw.i.value);
     check('Try it reads the words for a character, a sign, a figure and a unit among them', C.tryWords(C.readWords('Attack ({\u00b1Dodge}) of {Dodge|lb}'), who) === 'For Kael it reads: Attack (+12) of 12 lb', C.tryWords(C.readWords('Attack ({\u00b1Dodge}) of {Dodge|lb}'), who));

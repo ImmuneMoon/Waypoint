@@ -3488,8 +3488,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && css.includes('  #imgCatMenu .img-tag-state { display: inline-block; width: 14px; color: var(--gold); font-weight: 700; }') && css.includes('  .img-lib-cell.picked .img-lib-tag { left: 26px; max-width: calc(100% - 30px); }') && wbSrc.includes('\'<button class="tool ghost" data-act="all" title="Pick every picture shown now">Select all shown</button>\''));
 }
 
-check('the System editor\'s Items and Lists tabs scroll as one page, so their rows keep their height under the Combat tab and under the budgets, readings, links and tables (found live: both were squeezed to a slit of 12 px in a window 800 high, and no entry or list could be edited)',
-    /#sysItems, #sysLists \{ overflow-y: auto; \}/.test(css) && /#sysItems > \.sys-rows, #sysLists > \.sys-rows \{ flex: 0 0 auto; max-height: none; overflow: visible; \}/.test(css));
+check('the System editor\'s Items and Lists tabs scroll as one page, so their rows keep their height (found live: both were squeezed to a slit of 12 px in a window 800 high, and no entry or list could be edited; 1.6.2: the list beside one open keeps a height of its own, moved on purpose)',
+    /#sysItems, #sysLists \{ overflow-y: auto; \}/.test(css) && /\.sys-split \{[^}]*min-height: 280px; \}/.test(css) && /\.sys-split > \.sys-rows \{ max-height: none; min-height: 0; \}/.test(css));
 
 {   // a press that a redraw would lose (io.js pressHold, run for real on plain objects)
     const ioS = rootRead('system/app/scripts/io.js'), phS = ioS.slice(ioS.indexOf('// [lookcheck:presshold-start]'), ioS.indexOf('// [lookcheck:presshold-end]')).replace('export function', 'function');

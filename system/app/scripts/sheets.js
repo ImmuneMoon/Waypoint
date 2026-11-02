@@ -8389,14 +8389,15 @@ function itemStatsBox(it, defs) {
 // Stage 6 F4b: the Lists tab — one card per item-list field: the categories its picker offers, the same item more than once, no quantity, a
 // level per row (names count from its minimum) and a switch per row. Changes go to the draft; Save cleans them
 function renderLists() {
-    var box = ui('sysListRows'); if (!box) return; box.textContent = '';
-    var lists = (draft.fields || []).filter(function(f) { return f.kind === 'item-list'; }), rules = ui('sysListRules');
+    var box = ui('sysListRows'); if (!box) return; var stL = box.scrollTop; box.textContent = '';
+    var lists = (draft.fields || []).filter(function(f) { return f.kind === 'item-list'; }), rules = ui('sysListRules'), oneL = typeof pickOne === 'function' ? pickOne('lists', lists) : lists;   // 1.6.2: the list picked alone
     if (rules) { rules.textContent = ''; if (lists.length) rules.appendChild(labeledSelect('sys-listrules-stats', 'Item stats on players’ sheets', [['', 'GM only'], ['owner', 'Players may change them'], ['ask', 'Players ask, the GM approves']], draft.listRules && draft.listRules.statsAsk === true ? 'ask' : draft.listRules && draft.listRules.ownerStats === true ? 'owner' : '', 'Players may change the stats of their own copies with the row\u2019s pencil (a dot marks each; Follow the library takes them back; a stat you set on a copy holds). Turning it off keeps what they set. With Players ask, each change waits for you in the Review, of a library entry they may see too')); if (lists.length) rules.appendChild(labeledSelect('sys-listrules-upload', 'A player’s sheet upload', [['', 'Everything waits for you'], ['facts', 'Their row facts apply at once']], draft.listRules && draft.listRules.uploadFacts === true ? 'facts' : '', 'When a player sends their sheet file (Import JSON on their sheet): everything waits for your review, or the levels, switches and quantities of rows they already carry apply at once (the rest still waits)')); }   // Stage 6 F4c2: the Rules box (Setting A), per system
     if (!lists.length) { box.appendChild(el('div', 'sys-empty', 'No item lists yet. Add an Item list field in Fields (Skills, Weapons, Gear\u2026), then shape it here.')); return; }
     var cats = [], seen = Object.create(null);
     (draft.items || []).forEach(function(it) { var cc = String((it && it.category) || '').trim(); if (cc && !seen[cc.toLowerCase()]) { seen[cc.toLowerCase()] = 1; cats.push(cc); } });
     var tgL = draft.fields.filter(function(x) { return x && (x.kind === 'resource' || x.kind === 'number'); });   // R2b: what a list's actions may move (APPLY_KINDS)
-    lists.forEach(function(f) { box.appendChild(listCard(f, cats, tgL, draft.combat && draft.combat.turn && Array.isArray(draft.combat.turn.acts) ? draft.combat.turn.acts.filter(function(a) { return a && typeof a.key === 'string' && a.key; }) : [])); var le = errorCell('list:' + f.id); le.dataset.errFor = 'list:' + f.id; box.appendChild(le); });   // F4c1: the list's stat messages under its card
+    oneL.forEach(function(f) { box.appendChild(listCard(f, cats, tgL, draft.combat && draft.combat.turn && Array.isArray(draft.combat.turn.acts) ? draft.combat.turn.acts.filter(function(a) { return a && typeof a.key === 'string' && a.key; }) : [])); var le = errorCell('list:' + f.id); le.dataset.errFor = 'list:' + f.id; box.appendChild(le); });   // F4c1: the list's stat messages under its card
+    if (stL) box.scrollTop = stL;
 }
 // [systemcheck:stattick-start]
 // A list stat's two ticks (1.5.4): On the row and Hidden are one or the other, in the draft and in the card's own boxes
@@ -11321,15 +11322,15 @@ function renderAll() {
     if (tab === 'rules') renderTables();   // 1.6.0: the Tables box
     if (tab === 'rules') renderLinks();   // 1.6.0: the Linked sheets box
     if (tab === 'rules' && window.wpSysUi) window.wpSysUi.rulesDrawn();
-    rowsFor('sysEffectRows', 'effects', function(efr) { if (!draft.effects || !draft.effects.length) efr.appendChild(el('div', 'sys-empty', 'No status effects yet. Add Rage, Prone, Blessed\u2026 each with the numbers it changes, then put a Status effects field on the sheet.')); (draft.effects || []).forEach(function(d) { efr.appendChild(effectRow(d)); }); });
+    rowsFor('sysEffectRows', 'effects', function(efr) { if (!draft.effects || !draft.effects.length) efr.appendChild(el('div', 'sys-empty', 'No status effects yet. Add Rage, Prone, Blessed\u2026 each with the numbers it changes, then put a Status effects field on the sheet.')); pickRows(efr, 'effects', draft.effects || [], effectRow); });
     var sl = ui('sysLayout'); if (sl) { sl.style.display = tab === 'layout' ? '' : 'none'; if (tab === 'layout') renderLayout(); }
     var scal = ui('sysCalendar'); if (scal) { scal.style.display = tab === 'calendar' ? '' : 'none'; if (tab === 'calendar') renderCalendar(); }   // item 20 K1: the calendar
     rowsFor('sysFieldRows', 'fields', function(fr) { if (!draft.fields.length) fr.appendChild(el('div', 'sys-empty', 'No fields yet. Add one, or Start from a preset.'));
     pickRows(fr, 'fields', draft.fields, fieldRow); });
     rowsFor('sysRollRows', 'rolls', function(rr) { if (!draft.rolls.length) rr.appendChild(el('div', 'sys-empty', 'No rolls yet. A roll is a formula with dice, as a button on the sheet: d20 + STRmod. Set its Kind to Apply for a button that moves pools or numbers instead (Apply costs, Apply wounds).'));
-    draft.rolls.forEach(function(r) { rr.appendChild(rollRow(r)); }); });
+    pickRows(rr, 'rolls', draft.rolls, rollRow); });
     var rAdd = ui('sysAddRoll'); if (rAdd) { rAdd.disabled = draft.rolls.length >= LIMITS.rolls; rAdd.title = rAdd.disabled ? 'A system holds ' + LIMITS.rolls + ' rolls at most. Remove one to add another.' : 'Add a roll'; }   // 1.6.0: one past the cap was dropped at Save with nothing said
-    rowsFor('sysItemRows', 'items', function(itr) { if (!draft.items || !draft.items.length) itr.appendChild(el('div', 'sys-empty', 'No items yet. Add weapons, gear or explosives your characters can carry — an item with a blast area can be thrown from the sheet.')); (draft.items || []).forEach(function(it) { itr.appendChild(itemRow(it)); }); });
+    rowsFor('sysItemRows', 'items', function(itr) { if (!draft.items || !draft.items.length) itr.appendChild(el('div', 'sys-empty', 'No items yet. Add weapons, gear or explosives your characters can carry — an item with a blast area can be thrown from the sheet.')); pickRows(itr, 'items', draft.items || [], itemRow); });
     rowsFor('sysCharRows', 'chars', function(cr) { var camp = getActiveCampaign(), list = charList(camp); if (!list.length) cr.appendChild(el('div', 'sys-empty', 'No characters yet. New character here, or "New character from this token" in a token\'s Properties.')); list.forEach(function(c) { cr.appendChild(charRow(c, camp)); }); charFilter(); });
     var note = ui('sysFeatureNote'); if (note) note.style.display = featureOn() ? 'none' : '';
     if (!_tabPress) patchErrors();
@@ -11338,7 +11339,13 @@ function renderAll() {
 // [sysuicheck:rows-start]
 // 1.6.2, a list beside one open: only the row picked is built. sysui.js keeps the list, and each builder is as it was
 function pickModel(kind) {
-    return kind === 'fields' ? draft.fields.map(function(f) { return { id: f.id, key: f.key || '', name: f.label || '', tag: KIND_LABEL[f.kind] || '' }; }) : [];
+    var nameOf = function(t) { return String(t || '').replace(/\s*\(?\{[^}]*\}\)?/g, '').trim(); };   // a roll's label may hold {a formula}
+    if (kind === 'fields') return draft.fields.map(function(f) { return { id: f.id, key: f.key || '', name: f.label || '', tag: KIND_LABEL[f.kind] || '' }; });
+    if (kind === 'rolls') return draft.rolls.map(function(r) { return { id: r.id, name: nameOf(r.label), tag: Array.isArray(r.apply) ? 'Apply' : r.init ? 'Initiative' : r.dmg ? 'Damage' : 'Roll', more: typeof r.formula === 'string' ? r.formula : '' }; });
+    if (kind === 'items') return (draft.items || []).map(function(it) { return { id: it.id, key: it.key || '', name: it.name || '', tag: it.category || '' }; });
+    if (kind === 'lists') return draft.fields.filter(function(f) { return f.kind === 'item-list'; }).map(function(f) { return { id: f.id, key: f.key || '', name: f.label || '', err: 'list:' + f.id }; });
+    if (kind === 'effects') return (draft.effects || []).map(function(d) { return { id: d.id, name: d.name || '', tag: d.tone === 'buff' ? 'Buff' : d.tone === 'debuff' ? 'Debuff' : '' }; });
+    return [];
 }
 function pickOne(kind, arr) { var U = window.wpSysUi; if (!U) return arr; var id = U.pickDraw(kind, pickModel(kind)); return arr.filter(function(x) { return x.id === id; }); }
 function pickRows(box, kind, arr, build) { pickOne(kind, arr).forEach(function(x) { box.appendChild(build(x)); }); }

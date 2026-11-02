@@ -3341,12 +3341,11 @@
   .sys-tabs button.active { color: var(--gold); border-bottom-color: var(--gold); }
   .sys-tab { display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1; }
   #sysItems, #sysLists { overflow-y: auto; }   /* a tab can be taller than the editor: it scrolls rather than spilling out of it */
-  #sysItems > .sys-rows, #sysLists > .sys-rows { flex: 0 0 auto; max-height: none; overflow: visible; }   /* and its rows keep their whole height: as a box of their own they were squeezed to a slit of 12 px under all that in a window 800 high (found live, 2026-10-30) */
   .sys-toolbar { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--dim); }
   /* ---- 1.6.2, the System editor's layout (sysui.js): a list or topics down the left, one thing on the right ---- */
   .sys-split { display: grid; grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 12px; flex: 1 1 auto; min-height: 280px; }
   .sys-split-topics { grid-template-columns: 170px minmax(0, 1fr); min-height: 0; }
-  #sysFields { overflow-y: auto; }
+  #sysFields, #sysRolls, #sysEffects { overflow-y: auto; }
   .sys-topics { display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow-y: auto; }
   .sys-topic { position: relative; text-align: left; background: none; border: none; border-radius: 5px; color: var(--dim); padding: 6px 18px 6px 9px; font: inherit; font-size: 12.5px; cursor: pointer; }
   .sys-topic:hover { color: var(--ink); background: rgba(255,255,255,0.05); }

@@ -73,7 +73,7 @@ function topicMarks(nav, set, errs, warns) {
 // [sysuicheck:pick-start]
 // A list beside one open (the owner, by prompt): what a tab holds stands as a list down the left, one line a row, and the right shows the one picked.
 // A system may hold 600 fields, so a row is built only when it is opened, and the list is made again only when its rows change
-var PICK = { fields: { list: 'sysFieldList', find: 'sysFieldFind', pane: 'sysFieldRows' } };
+var PICK = { fields: { list: 'sysFieldList', find: 'sysFieldFind', pane: 'sysFieldRows' }, rolls: { list: 'sysRollList', find: 'sysRollFind', pane: 'sysRollRows' }, items: { list: 'sysItemList', find: 'sysItemFind', pane: 'sysItemRows' }, lists: { list: 'sysListList', find: 'sysListFind', pane: 'sysListRows' }, effects: { list: 'sysEffectList', find: 'sysEffectFind', pane: 'sysEffectRows' } };
 // Which row is open once the rows are these: a row that has just come is the one, else the one open, else the row now at its place
 function pickNext(st, ids) {
     var known = Object.create(null), fresh = [], at = -1, i;
@@ -97,7 +97,7 @@ function rowWrite(b, r) {
     if (n.textContent !== nm) n.textContent = nm;
     n.classList.toggle('none', !r.name);
     if (t.textContent !== (r.tag || '')) t.textContent = r.tag || '';
-    b.wpFind = ((r.key || '') + ' ' + (r.name || '') + ' ' + (r.tag || '')).toLowerCase();
+    b.wpFind = ((r.key || '') + ' ' + (r.name || '') + ' ' + (r.tag || '') + ' ' + (r.more || '')).toLowerCase();
 }
 function rowMake(doc, kind, r) {
     var b = doc.createElement('button'); b.type = 'button'; b.className = 'sys-pick-row'; b.draggable = true; b.dataset.kind = kind; b.dataset.id = r.id; b.dataset.err = r.err || r.id; b.setAttribute('role', 'option');

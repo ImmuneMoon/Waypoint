@@ -560,7 +560,8 @@ function modsBox(form, e) {
         var add = el('button', 'tool ghost', '+ Change'); add.type = 'button'; add.title = 'Add a number to a field, or switch a toggle on, while a character carries it'; add.disabled = !targets.length || st.fm.length >= 12;
         add.addEventListener('click', function() { var tp = targets[0][0].split('|'), nm = { f: tp[0], op: tp[1] === 'on' ? 'on' : 'add' }; if (nm.op === 'add') { nm.v = 1; if (tp[1] === 'max') nm.part = 'max'; } st.fm.push(nm); draw(); });
         box.appendChild(add);
-        if (anyO && (st.fm.length || st.fs.length)) { var ol = el('label', 'lib-mod-on'), oc = el('input'); oc.type = 'checkbox'; oc.id = 'libF_modsOn'; oc.checked = e.modsOn === true; ol.appendChild(oc); ol.appendChild(document.createTextNode(' Only while switched on')); ol.title = 'Its changes count only while its row is switched on (Readied, Equipped…)'; box.appendChild(ol); }
+        if (anyO && (st.fm.length || (st.fs ? st.fs.length : Array.isArray(e.rollSw) && e.rollSw.length))) {   // renderForm reads the roll bonuses after this box, so they may not be read yet
+            var ol = el('label', 'lib-mod-on'), oc = el('input'); oc.type = 'checkbox'; oc.id = 'libF_modsOn'; oc.checked = e.modsOn === true; ol.appendChild(oc); ol.appendChild(document.createTextNode(' Only while switched on')); ol.title = 'Its changes count only while its row is switched on (Readied, Equipped…)'; box.appendChild(ol); }
     };
     draw();
 }

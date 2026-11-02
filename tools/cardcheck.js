@@ -83,6 +83,28 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
     const bw = world(); bw.roll('r_b', '1d4 >= 1'); const bc = bw.table[0]; bw.api.press(bc.id, '0', 'u_a'); const bf = bw.table[bw.table.length - 1];
     check('up a band takes the result up one step, and lands where there is no higher', bf.band === 'High' && !bf.pend, J(bf));
 
+    // result points (G5)
+    {
+        const kept = S.cleanCardActs([{ label: 'Flank', does: 'run', act: 'r_flank', spend: 2 }, { label: 'x', does: 'run' }, { label: 'y', does: 'again', spend: 0 }, { label: 'z', does: 'again', spend: 500 }]);
+        check('G5: an action may run one of the system’s and spend points, within bounds', J(kept) === J([{ label: 'Flank', does: 'run', act: 'r_flank', spend: 2 }, { label: 'y', does: 'again' }, { label: 'z', does: 'again', spend: 99 }]), J(kept));
+        const PR = { v: 1, name: 'P', combat: { checks: 'plain' }, fields: [{ id: 'f_hp', key: 'HP', kind: 'number', def: 0 }, { id: 'f_luck', key: 'Luck', kind: 'number', def: 2 }],
+            rolls: [{ id: 'r_x', label: 'Try', formula: '1d6 + 100 >= 1', cardPts: 'floor(RollMargin / 40)', cardPtsWord: 'Raises', cardActs: [{ label: 'Flank', does: 'run', act: 'r_f', spend: 1, times: 9 }, { label: 'Big', does: 'run', act: 'r_b', spend: 2 }, { label: 'Far', does: 'run', act: 'r_b', spend: 99 }], then: [{ f: 'f_hp', formula: '1', add: true }] }, { id: 'r_f', label: 'Flanked', apply: [{ f: 'f_luck', formula: '10', add: true }] }, { id: 'r_b', label: 'Big one', apply: [{ f: 'f_luck', formula: 'Luck * 2', set: true }] }, { id: 'r_z', label: 'None', formula: '1d6 >= 1', cardActs: [{ label: 'Flank', does: 'run', act: 'r_f', spend: 1 }] }] };
+        const SP = S.cleanSystem(PR, { F, gmView: true }), PV = S.cleanSystem(SP, { F, gmView: false }), pw0 = world();
+        check('what a roll gives to spend is the GM’s view alone', SP.rolls[0].cardPts === 'floor(RollMargin / 40)' && SP.rolls[0].cardPtsWord === 'Raises' && !('cardPts' in PV.rolls[0]) && J(S.cardPtsOf(SP, SP.rolls[0])) === J({ text: 'floor(RollMargin / 40)', word: 'Raises' }) && S.cardPtsOf(SP, SP.rolls[3]) === null);
+        const go = () => { const w = world({ vals: { f_luck: 3 } }); w.camp.system = JSON.parse(J(SP)); w.roll('r_x', SP.rolls[0].formula); return w; }, w1 = go(), c1 = w1.table[0], lands = w => w.table[w.table.length - 1];
+        check('the card says what is left, offers what can be paid for with its price, and an action that costs too much stays off', c1.pts && c1.pts.n === 2 && c1.pts.w === 'Raises' && J(c1.offers.map(o => o.l)) === J(['Flank (1)', 'Big (2)']), J(c1));
+        check('the cleaner keeps the points as data', (() => { const r = D.cleanRoll(Object.assign({}, c1, { type: 'roll' })); return !r || (r.pts && r.pts.n === 2 && r.pts.w === 'Raises'); })());
+        w1.api.press(c1.id, '0', 'u_a'); const c2 = lands(w1);
+        check('a pick spends its points at once and runs nothing yet: what it does waits for Accept', c2.pts.n === 1 && J(c2.offers.map(o => o.l)) === J(['Flank (1)']) && w1.camp.chars.c_a.values.f_luck === 3 && w1.deltas.length === 0, J([c2, w1.camp.chars.c_a.values]));
+        w1.api.press(c1.id, '0', 'u_a');
+        check('with nothing left to pick it lands, the Then first, then each pick in order on the sheet as the last left it', w1.camp.chars.c_a.values.f_hp === 1 && w1.camp.chars.c_a.values.f_luck === 23 && w1.api.held().length === 0, J(w1.camp.chars.c_a.values));
+        const w2 = go(); w2.api.press(w2.table[0].id, '1', 'u_a');
+        check('a pick reads the sheet as it stands when it lands, and a press that takes all ends the wait', w2.camp.chars.c_a.values.f_luck === 6 && w2.api.held().length === 0, J(w2.camp.chars.c_a.values));
+        const w3 = go(); w3.tick();
+        check('left alone nothing is spent, and the roll lands', w3.camp.chars.c_a.values.f_luck === 3 && w3.camp.chars.c_a.values.f_hp === 1);
+        const w4 = world(); w4.camp.system = JSON.parse(J(SP)); w4.roll('r_z', SP.rolls[3].formula);
+        check('with no points a roll has nothing to spend, so an action that spends leaves nothing to wait for', w4.api.held().length === 0 && !w4.table[0].pend, J(w4.table[0]));
+    }
     // the words and the wiring
     const ix = read('index.html'), dc = read('scripts/dice.js'), ci = readRoot('.github/workflows/checks.yml');
     check('the card says it plainly', dc.includes("'Pending. Nothing has landed yet.'"));

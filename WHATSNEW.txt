@@ -42,6 +42,8 @@ The System editor
 - A list's rows can stand at rows of another list, as armour on the parts of a
   body. A formula reads the place a row stands, and a row of that list reads
   what stands there. Fits where, Reaches and Counts where set the rules.
+- A roll can give points to spend on its card. Each thing on offer takes some, and
+  one can run an action of the system once the roll has landed.
 - A roll bonus can cost something. Pick one of the system's actions, and it runs
   as the roll is made. A roll that cannot pay for it is refused, with nothing spent.
 - A tile can be in a state, such as Crippled or Severed, and says so in words. A

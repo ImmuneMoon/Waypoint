@@ -10808,9 +10808,12 @@ function cardEnt(camp, act, row, seen) {   // a player's press is judged through
     return hit || seen;
 }
 function cardVars(h) { var o = h.o, vd = o.D.verdictOf(h.res, o.D.ruleOf({}, o.camp.system && o.camp.system.combat ? o.camp.system.combat.checks : '')); return o.S.withRollCrit(o.vars, o.S.thenCrit(vd, false), o.S.thenMargin(vd, false), false, h.res); }
+// 1.6.2 (G5): what a roll has left to spend: its figure, worked out from the roll as it stands, less what was spent. A roll with none has no points, and an action that spends is not offered
+function cardPoints(h) { var o = h.o, p = typeof o.S.cardPtsOf === 'function' ? o.S.cardPtsOf(o.camp.system, o.ent) : null; if (!p) return null; var r = null; try { r = o.F.evaluate(p.text, { vars: cardVars(h), random: function() { return 1; } }); } catch (e) { r = null; } var n = r && r.ok && typeof r.value === 'number' && isFinite(r.value) ? Math.floor(r.value) : 0; return { n: Math.max(0, Math.min(999, n - (h.spent || 0))), w: p.word }; }
+function cardRunAct(o, id) { var hit = null; (Array.isArray(o.camp.system.rolls) ? o.camp.system.rolls : []).forEach(function(r) { if (r && r.id === id && Array.isArray(r.apply)) hit = r; }); return hit; }
 function cardOffers(h) {
-    var o = h.o, v = cardVars(h), out = [];
-    h.acts.forEach(function(a, i) { if ((h.used[i] || 0) >= (a.times || 1)) return; if (a.pay && !cardPayAct(o, a)) return; if (a.does === 'bandUp' && !(o.S.bandsFor(o.camp.system, o.ent).length > h.step + 1)) return; if (o.S.cardActOk(a, v, o.F)) out.push({ k: String(i), l: a.label }); });
+    var o = h.o, v = cardVars(h), out = [], pts = cardPoints(h);
+    h.acts.forEach(function(a, i) { if ((h.used[i] || 0) >= (a.times || 1)) return; if (a.pay && !cardPayAct(o, a)) return; if (a.spend && (!pts || pts.n < a.spend)) return; if (a.does === 'run' && (!o.ch || !cardRunAct(o, a.act))) return; if (a.does === 'bandUp' && !(o.S.bandsFor(o.camp.system, o.ent).length > h.step + 1)) return; if (o.S.cardActOk(a, v, o.F)) out.push({ k: String(i), l: a.spend ? a.label + ' (' + a.spend + ')' : a.label }); });
     return out;
 }
 // [netcheck:swpay-start]
@@ -10831,18 +10834,26 @@ function swPayDo(ch, plan) {
 // [netcheck:swpay-end]
 function cardPayAct(o, a) { var hit = null; (Array.isArray(o.camp.system.rolls) ? o.camp.system.rolls : []).forEach(function(r) { if (r && r.id === a.pay && Array.isArray(r.apply)) hit = r; }); return hit; }
 function cardSend(h, offers) {
-    var o = h.o, rec = { type: 'roll', id: h.id, from: o.from, expr: h.expr, draws: h.res.draws, v: o.F.VERSION, ts: Date.now(), pend: h.wait, offers: offers };
+    var o = h.o, rec = { type: 'roll', id: h.id, from: o.from, expr: h.expr, draws: h.res.draws, v: o.F.VERSION, ts: Date.now(), pend: h.wait, offers: offers }, ptsS = cardPoints(h); if (ptsS) rec.pts = ptsS;
     if (o.rid) rec.rid = o.rid; if (o.label) rec.label = o.label; if (o.as) rec.as = o.as; if (o.priv) rec.priv = 'gm'; if (o.asked && o.asked.length) rec.asked = o.asked;
     if (h.res.breakdown && h.res.breakdown.names && h.res.breakdown.names.length) { var nmH = o.D.cleanNames(h.res.breakdown.names); if (nmH && nmH.length) rec.names = nmH; }   // what its formula read, without which no other machine can draw the card
     if (o.conn) { if (o.priv) { try { o.conn.send(rec); } catch (e) { sendFailed(e); } } else sendTable(rec, null); } else if (!o.priv) sendTable(rec, null);
     pushRoll(rec, h.res, o.priv ? 'whisper' : 'global', { cid: o.cid });
 }
 function cardClock(h) { if (h.timer) clearTimeout(h.timer); h.timer = null; if (h.away) return; h.timer = setTimeout(function() { cardSettle(h); }, h.wait * 1000); }
-function cardSettle(h) { if (!_cardHeld[h.id]) return; delete _cardHeld[h.id]; if (h.timer) clearTimeout(h.timer); h.timer = null; h.o.go(h.res, h.expr, h.id, h.step); }
+function cardSettle(h) { if (!_cardHeld[h.id]) return; delete _cardHeld[h.id]; if (h.timer) clearTimeout(h.timer); h.timer = null; h.o.go(h.res, h.expr, h.id, h.step); cardRuns(h); }
+function cardRuns(h) {   // 1.6.2 (G5): what was picked runs once the roll has landed, in the order picked, each read on the sheet as the one before left it
+    var o = h.o, vd = o.D.verdictOf(h.res, o.D.ruleOf({}, o.camp.system && o.camp.system.combat ? o.camp.system.combat.checks : ''));
+    (h.queue || []).forEach(function(id) {
+        var act = cardRunAct(o, id); if (!act || !o.ch) return; var v = o.S.withRollCrit(o.S.makeResolver(o.camp.system, o.ch, o.F, o.tc || null), o.S.thenCrit(vd, false), o.S.thenMargin(vd, false), false, h.res), pr = o.S.applyAct(o.camp.system, o.ch, act, v, o.F, o.tc || null, null, undefined, o.D); if (!pr || !pr.ok) { cardSay(h, (pr && pr.message) || 'That could not be done.'); return; }
+        var ks = Object.keys(pr.values); if (ks.length) { o.ch.values = o.ch.values || {}; ks.forEach(function(k) { o.ch.values[k] = pr.values[k]; }); o.ch.updated = Date.now(); saveRemoteSoon(); net.syncCharDelta(o.ch.id, pr.values); if (window.wpSheets) window.wpSheets.charChanged(o.ch.id); }
+        if (Array.isArray(pr.lines) && pr.lines.length && typeof net.postApplyCard === 'function') net.postApplyCard(o.ch, act.label, pr.lines, o.S.applyScope(o.camp.system, o.ch, act, false, o.F));
+    });
+}
 function cardHold(o) {
     if (!o || !o.camp || !o.camp.system || !o.ent || typeof o.S.cardActsOf !== 'function') return false;
     var acts = o.S.cardActsOf(o.camp.system, o.ent); if (!acts.length) return false;
-    var h = { id: o.D.uid(), o: o, acts: acts, used: {}, res: o.res, expr: o.expr, step: 0, wait: o.S.cardWaitOf(o.camp.system), timer: null, away: false }, off = cardOffers(h); if (!off.length) return false;
+    var h = { id: o.D.uid(), o: o, acts: acts, used: {}, spent: 0, queue: [], res: o.res, expr: o.expr, step: 0, wait: o.S.cardWaitOf(o.camp.system), timer: null, away: false }, off = cardOffers(h); if (!off.length) return false;
     _cardHeld[h.id] = h; cardSend(h, off); cardClock(h); return true;
 }
 function cardSay(h, words) { var o = h.o; if (o.conn && typeof turnNote === 'function') turnNote(o.conn, words, o.cid); else if (typeof toast === 'function') toast(words); }
@@ -10858,7 +10869,7 @@ function cardPress(id, key, who) {
         if (!pr || !pr.ok) { cardSay(h, (pr && pr.message) || 'That cannot be paid now.'); return false; }
         o.ch.values = o.ch.values || {}; Object.keys(pr.values).forEach(function(k) { o.ch.values[k] = pr.values[k]; }); o.ch.updated = Date.now(); saveRemoteSoon(); net.syncCharDelta(o.ch.id, pr.values); if (window.wpSheets) window.wpSheets.charChanged(o.ch.id);
     }
-    h.used[i] = (h.used[i] || 0) + 1;
+    h.used[i] = (h.used[i] || 0) + 1; if (a.spend) h.spent += a.spend; if (a.does === 'run') h.queue.push(a.act);
     var again = null, keep = h.res.draws.slice(), at = 0;
     if (a.does === 'again') again = o.F.evaluate(h.expr, { vars: o.vars });
     else if (a.does === 'againIf') again = o.F.evaluate(h.expr, { vars: o.vars, random: function(fc) { var raw = keep[at++]; if (typeof raw === 'number' && raw >= 1 && raw <= fc && !o.S.cardDieHolds(raw, a.test)) return raw; return 1 + Math.floor(Math.random() * fc); } });

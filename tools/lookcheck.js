@@ -1419,7 +1419,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
 {
     const sh = read('scripts/sheets.js');
     const LINES = [['sys-combat-auto', 'What happens when a blast is thrown.'], ['sys-combat-roller', 'Who makes a thrown blast’s rolls.'], ['sys-combat-hp', 'The pool that Full auto damage is taken from.'],
-        ['sys-combat-cover-on', 'Cover is read from the map’s walls and cover pieces. A roll reads it as TargetCover.'], ['sys-combat-height-rule', 'This needs Token elevation on. A piece’s height is in its Properties.'],
+        ['sys-combat-cover-on', 'Cover is read from the map’s walls and cover pieces.'], ['sys-combat-height-rule', 'This needs Token elevation on. A piece’s height is in its Properties.'],
         ['sys-combat-checks', 'How a check against a target reads its dice.']];
     const rA = sh.indexOf('function combatBody() {'), rc = rA < 0 ? '' : sh.slice(rA, sh.indexOf('\n}\n', rA));
     // the statement that builds a list, with the tooltip it always had as its last word, and the line that follows it at once

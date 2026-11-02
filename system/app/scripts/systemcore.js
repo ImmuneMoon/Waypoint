@@ -9646,6 +9646,7 @@ var NAME_WORDS = Object.freeze(Object.assign(Object.create(null), {
     rollmargin: 'how far this roll passed or failed by', rollcrit: 'whether this roll was a critical', rollbig: 'whether this roll lands as a Big Hit', rolltotal: 'what this roll came to', natural: 'what the dice alone came to',
     rangemod: 'the range penalty to the target', targetdistance: 'the distance to the target', heightmod: 'the height penalty to the target', heightdiff: 'the height difference to the target', targetsize: 'the target\u2019s size', targetlight: 'the light on the target', targetloud: 'whether the target is loud', targetcover: 'the target\u2019s cover', targetcovergrade: 'the grade of the target\u2019s cover',
     'target.postureranged': 'the target\u2019s posture penalty', 'target.aimed': 'whether the shot was aimed', 'target.coverorposture': 'the target\u2019s cover or posture',
+    resist: 'what it is resisted against', 'held.count': 'how many stand there',
     posture: 'the token\u2019s posture', elevation: 'the token\u2019s height', combatround: 'the round of the fight', making: 'whether the character is being made',
     facing: 'which way the token faces', arc: 'the side it is being attacked from', 'arc.front': 'whether it is attacked from the front', 'arc.side': 'whether it is attacked from the side', 'arc.rear': 'whether it is attacked from behind', threats: 'how many threats it faces', 'threats.front': 'the threats in front of it', 'threats.side': 'the threats beside it', 'threats.rear': 'the threats behind it',
     'date.year': 'the year', 'date.day': 'the day of the month', 'date.days': 'the days passed', 'date.hour': 'the hour', 'date.minute': 'the minute',
@@ -9728,6 +9729,7 @@ function blowRollIds(sys) { var o = map(), d = isObj(sys.combat) && isObj(sys.co
 function readsOf(sys, ctx) {
     var out = []; if (!isObj(sys) || !Array.isArray(sys.fields)) return out;
     ctx = isObj(ctx) ? ctx : {}; var ix = keyIndexOf(sys), r = isObj(ctx.roll) ? ctx.roll : null, W = function(s) { return { label: capWord(nameWord(sys, s, ctx.list)), s: s }; };
+    if (Array.isArray(ctx.only)) return [{ name: 'What this can read', items: ctx.only.map(W) }];   // a box with names of its own and no other
     var free = function(n) { var h = lower(n.split('.')[0]); return !ix[lower(n)] && !ix[h]; }, group = function(name, names) { var its = names.filter(Boolean).map(W); if (its.length) out.push({ name: name, items: its }); };
     var me = [], lists = [];
     sys.fields.forEach(function(f) {
@@ -9744,6 +9746,7 @@ function readsOf(sys, ctx) {
         ['stats', 'cols', 'counters'].forEach(function(k) { (Array.isArray(sp0[k]) ? sp0[k] : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string' && x.key && (k !== 'stats' || x.kind !== 'pick' || (Array.isArray(x.opts) && x.opts.length))) rw.push('Row.' + x.key); }); });
         if (!ix.row) group('This row', rw);
     }
+    if (Array.isArray(ctx.more) && ctx.more.length) group('For this', ctx.more);
     group('This character', me);
     var hasAim = (Array.isArray(sys.combat && sys.combat.targetReads) ? sys.combat.targetReads : []).map(function(id) { var f = fieldById(sys, id); return f && free('Target.' + f.key) ? 'Target.' + f.key : ''; }), thl = targetHitList(sys), hits = thl && isObj(thl.list) ? (Array.isArray(thl.list.stats) ? thl.list.stats : []).filter(function(x) { return isObj(x) && x.kind !== 'pick'; }).concat(Array.isArray(thl.list.cols) ? thl.list.cols : []).map(function(x) { return isObj(x) && typeof x.key === 'string' && free('Target') ? 'Target.Hit.' + x.key : ''; }) : [];
     group('The target', ['RangeMod', 'TargetDistance', 'HeightMod', 'HeightDiff', 'TargetSize', 'TargetCover', 'TargetCoverGrade'].filter(free).concat(hasAim, hits));
@@ -9752,7 +9755,11 @@ function readsOf(sys, ctx) {
     if (r && r.resist === true) group('Their attempt', ['AttemptMargin', 'Attempt.kind'].filter(free).concat((Array.isArray(sys.combat && sys.combat.targetReads) ? sys.combat.targetReads : []).map(function(id) { var f = fieldById(sys, id); return f && free('Attempter.' + f.key) ? 'Attempter.' + f.key : ''; })));
     if (r && r.to === 'near') group('The one it is used on', ['OnSelf'].filter(free).concat(free('On.x') ? me.map(function(k) { return 'On.' + k; }) : []));
     if (r && isObj(r.cross)) group('The crossing', ['CrossStep', 'Crossed'].filter(free));
-    if (r && blowRollIds(sys)[r.id] === 1 && free('Blow.x')) group('The blow', Object.keys(BLOW_NAMES).map(function(k) { return 'Blow.' + k; }));
+    if ((ctx.blow === true || (r && blowRollIds(sys)[r.id] === 1)) && free('Blow.x')) {
+        group('The blow', Object.keys(BLOW_NAMES).map(function(k) { return 'Blow.' + k; }));
+        var lc0 = isObj(sys.combat) && isObj(sys.combat.damage) && isObj(sys.combat.damage.locs) ? fieldById(sys, sys.combat.damage.locs.list) : null, lsp = lc0 && isObj(lc0.list) ? lc0.list : null;
+        if (lsp && free('Hit.x')) group('The location struck', (Array.isArray(lsp.stats) ? lsp.stats : []).filter(function(x) { return isObj(x) && x.kind !== 'pick'; }).concat(Array.isArray(lsp.cols) ? lsp.cols : []).map(function(x) { return isObj(x) && typeof x.key === 'string' ? 'Hit.' + x.key : ''; }));
+    }
     lists.forEach(function(g) { group(g.name, g.ns); });
     return out;
 }

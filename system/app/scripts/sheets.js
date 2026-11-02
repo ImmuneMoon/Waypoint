@@ -6810,7 +6810,21 @@ var KIND_LABEL = { number: 'Number', formula: 'Formula', resource: 'Resource', s
 var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, step. With a min and a max it can show as a slider on a two-colour track.', formula: 'Computed from other fields; never stored, never edited.', resource: 'A current value with a formula for its max (HP): a bar with - and + on the sheet.', skill: 'Stored ranks plus a base formula; its value is ranks + base.', toggle: 'On or off (a condition); true or false in formulas.', text: 'A short text (up to 200 characters); not a number for formulas.', notes: 'A long text; never read by formulas.', select: 'One of a fixed list of options.', 'item-list': 'A list of items the character carries, filled from the Items library on the sheet.', effects: 'The status effects the character carries: added from the Effects library in one click, or made on the spot with their own numbers. Each changes its numbers everywhere they are used.' };
 // [formcheck:source-start]
 // 1.6.2: what a formula's form may offer, and every name in words, for the box it stands over
+var FORM_ONLY = { 'sys-range-formula': ['Distance'], 'sys-height-formula': ['HeightDiff'], 'sys-combat-bfall': ['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop'], 'sys-combat-beach': ['BlastDice', 'BlastDistance', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop'], 'sys-combat-bscatter': ['Margin', 'ThrowDistance'], 'sys-combat-bhand': ['Natural'], 'sys-combat-fgreach': ['FragDice', 'BlastDice'] };
+var FORM_MORE = { 'sys-combat-broll': ['ThrowSkill', 'ThrowDistance'], 'sys-combat-resist': ['Resist'], 'sys-dmgr-lat': ['Listed'], 'sys-dmgr-lhitw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lmajw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lbrkw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lbrkm': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lwcap': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-ltplus': ['Listed', 'Worn'], 'sys-dmgr-ohto': ['Held.count'] };
+// the list a box of the damage step stands on: the list picked in its own row
+function formRowList(inp) {
+    for (var n = inp, i = 0; n && i < 6; n = n.parentNode, i++) { var s = n.querySelector ? n.querySelector('select.sys-dmgr-llist, select.sys-dmgr-wlist, select.sys-dmgr-ohlist') : null; if (s && s.value) { var f = fieldOf(s.value); return f && f.list ? f.list : undefined; } }
+    if (inp.classList && (inp.classList.contains('sys-dmgr-locvital') || inp.classList.contains('sys-dmgr-locmult') || inp.classList.contains('sys-dmgr-locdie') || inp.classList.contains('sys-cvh-where'))) { var dr = draft.combat && draft.combat.damage && draft.combat.damage.locs, l = dr ? fieldOf(dr.list) : null; return l && l.list ? l.list : undefined; }
+    return undefined;
+}
+function fieldOf(id) { var hit = null; (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(x) { if (x && x.id === id) hit = x; }); return hit; }
 function formCtx(inp) {
+    var cl = inp && inp.classList, own = null, more = null, dmg = false;
+    if (cl) { Object.keys(FORM_ONLY).forEach(function(k) { if (cl.contains(k)) own = FORM_ONLY[k]; }); Object.keys(FORM_MORE).forEach(function(k) { if (cl.contains(k)) more = FORM_MORE[k]; }); for (var q = 0; q < cl.length; q++) if (cl[q].indexOf('sys-dmgr-') === 0 || cl[q] === 'sys-cvh-where') dmg = true; }
+    if (own) return { only: own };
+    if (dmg) return { blow: true, more: more || undefined, list: formRowList(inp) };
+    if (more) return { more: more };
     var rw = inp && inp.closest ? inp.closest('.sys-row') : null, id = rw && rw.dataset ? rw.dataset.id : '', r = null, cs = inp && inp.classList;
     var card = inp && inp.closest ? inp.closest('.sys-list-card') : null, lid = card && card.dataset ? card.dataset.lid : '';
     if (lid) {   // a box of a list: its row's figures, and the roll it belongs to where it belongs to one
@@ -9153,12 +9167,12 @@ function listApplyEditor(box, rr, ri, key, sp, targets) {   // key (R2b): 'apply
 // 1.5.8 explosives: the Combat tab's blast formulas (systemcore cleanBlastRules), each a box with one line under it saying what Save does with
 // it, the cleaner's own reading. Values and text nodes only
 var BLAST_BOXES = [
-    ['fall', 'Blast falloff', 'Each token\u2019s share of a blast. Names: BlastDamage, BlastDistance in yards, BlastDice, Direct and Centre, the blast\u2019s own cell, and BlastFills and BlastNoDrop, the two stats named below. With none, every token takes the whole roll.', 'if(or(Direct, Centre), BlastDamage, if(BlastDistance > 2 * BlastDice, 0, floor(BlastDamage / (3 * BlastDistance))))'],
-    ['each', 'Each victim\u2019s dice', 'The dice each character in a blast rolls of its own. Names: BlastDice, the blast\u2019s own dice, BlastDistance in yards, Direct, Centre, BlastFills and BlastNoDrop. Below 1 it rolls none. With none, one roll for all.', 'BlastDice - floor(BlastDistance)'],
-    ['roll', 'Throw roll', 'The check a throw rolls first. ThrowSkill stands for the item\u2019s throw skill. RangeMod reads the distance to the aim. Row. reads the thrown item\u2019s row, and ThrowDistance the yards to the aim. With none, a throw lands where it is aimed.', '3d6 <= ThrowSkill + RangeMod'],
-    ['scatter', 'Scatter on a miss', 'How many yards a miss lands from its aim. Names: Margin and ThrowDistance. With none, a yard a point missed, never more than half the distance thrown.', 'min(Margin, ThrowDistance / 2)'],
-    ['hand', 'In the hand', 'Whether a critical failure goes off in the thrower\u2019s hand. Name: Natural, its dice. With none, it drops at the thrower\u2019s feet.', 'Natural >= 18'],
-    ['max', 'Longest throw', 'How far a thing may be thrown, in yards. It reads the thrower\u2019s sheet and the item\u2019s row as Row. With none, any distance.', ''],
+    ['fall', 'Blast falloff', 'Each token\u2019s share of a blast. With none, every token takes the whole roll.', 'if(or(Direct, Centre), BlastDamage, if(BlastDistance > 2 * BlastDice, 0, floor(BlastDamage / (3 * BlastDistance))))'],
+    ['each', 'Each victim\u2019s dice', 'The dice each character in a blast rolls of its own. Below 1 it rolls none. With none, one roll for all.', 'BlastDice - floor(BlastDistance)'],
+    ['roll', 'Throw roll', 'The check a throw rolls first. With none, a throw lands where it is aimed.', '3d6 <= ThrowSkill + RangeMod'],
+    ['scatter', 'Scatter on a miss', 'How many yards a miss lands from its aim. With none, a yard a point missed, never more than half the distance thrown.', 'min(Margin, ThrowDistance / 2)'],
+    ['hand', 'In the hand', 'Whether a critical failure goes off in the thrower\u2019s hand. With none, it drops at the thrower\u2019s feet.', 'Natural >= 18'],
+    ['max', 'Longest throw', 'How far a thing may be thrown, in yards. With none, any distance.', ''],
     ['min', 'Shortest throw', 'How near a thing may be thrown, in yards. With none, any distance.', '']
 ];
 // 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 2): how an explosive's fragmentation is rolled (cleanBlastRules' frag). Each list's
@@ -9406,7 +9420,7 @@ function combatBody() {
     lineUnder(box, 'The pool that Full auto damage is taken from.');
     if (typeof tp === 'function') tp('cover');
     box.appendChild(labeledSelect('sys-combat-cover-on', 'Cover from blockers', [['off', 'Off'], ['on', 'On — the ruler, blasts and target marks']], cm.cover.on ? 'on' : 'off', 'When on, the ruler between two character tokens, a blast\'s labels and target marks show cover, read from the map\'s pieces: its sight-blockers (walls, pillars, closed doors, filled cells) and pieces set to give cover you can see over (a crate, a low wall). It changes no roll; with Full auto, the settings below say what a blast does behind each grade of cover, and a blast thrown into a wall or a closed door goes off in front of it.'));
-    lineUnder(box, 'Cover is read from the map\u2019s walls and cover pieces. A roll reads it as TargetCover.');
+    lineUnder(box, 'Cover is read from the map\u2019s walls and cover pieces.');
     box.appendChild(labeledSelect('sys-combat-cover-style', 'Cover grades', [['graded', 'Graded — half / three-quarters / total'], ['binary', 'Simple — cover / none']], cm.cover.style === 'binary' ? 'binary' : 'graded', 'Graded uses the corner rule for d20-style tiers; Simple reports only whether there is cover (for systems that treat cover as one flat penalty or DR). The tier names are built in; custom thresholds come later.'));
     if (cm.cover.on) box.appendChild(labeledNum('sys-combat-cover-objects', 'Placed objects give cover, cells across', typeof cm.cover.objects === 'number' ? cm.cover.objects : '', 'A picture or a plain shape this many cells across or smaller gives cover you can see over with no setting of its own. Empty: only walls and pieces set to give cover count. A patterned floor, water and the like never count this way, and No cover in a piece\u2019s Properties turns one off.'));
     if (cm.cover.on) lineUnder(box, 'Empty for none. A larger picture stays part of the map.');

@@ -240,6 +240,38 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         const kept = S.cleanChar(Object.assign(mk(), { values: { f_a: [{ id: 'w_a1', defId: 'i_a', qty: 1, tp: { c: 1, r: 2, x: 1 } }, { id: 'w_a2', defId: 'i_a', qty: 1, tp: { c: 1e3, r: 2 } }], f_b: [{ id: 'w_b1', defId: 'i_a', qty: 1, tp: { c: 1, r: 2 } }] } }), sy, { state: 'host' });
         check('it is kept cleaned, on a list that lays out tiles alone', J(kept.values.f_a[0].tp) === J({ c: 1, r: 2 }) && !('tp' in kept.values.f_a[1]) && !('tp' in kept.values.f_b[0]), J(kept.values));
     }
+    /* ---- fold 8: states ---- */
+    {
+        const RW = { v: 1, name: 'St', fields: [
+            { id: 'f_hp', key: 'Secret', kind: 'number', vis: 'gm' },
+            { id: 'f_b', key: 'Body', kind: 'item-list', label: 'Body', list: { multi: true, noQty: true, hang: true, stats: [{ key: 'Cut', label: 'Cut' }, { key: 'Hurt', label: 'Hurt' }], tiles: { boxes: [{ key: 'dropped', label: 'Dropped', strip: true }], states: [{ key: 'gone', label: 'Severed', 'if': 'Row.Cut = 1', shape: 'lost', follows: true }, { key: 'hurt', label: 'Crippled', 'if': 'Row.Hurt = 1', shape: 'bad' }, { key: 'x', label: 'Secret', 'if': 'Secret = 1' }, { key: 'none', label: 'No when' }, { key: 'dice', label: 'Dice', 'if': '1d6 = 1' }] } } },
+            { id: 'f_k', key: 'Kit', kind: 'item-list', label: 'Kit', list: { multi: true, noQty: true, on: { label: 'Worn' }, stats: [{ key: 'Broke', label: 'Broke' }, { key: 'Sits', label: 'Sits' }], stand: { from: 'f_b', then: [
+                { state: 'gone', 'if': 'Row.Sits = 1', does: 'stays' }, { state: 'gone', does: 'drops', to: 'dropped' }, { state: 'hurt', does: 'changes', apply: [{ off: true }] }, { state: 'hurt', does: 'changes', apply: [{ s: 'broke', formula: '1', set: true }] },
+                { state: 'nope', does: 'stays' }, { state: 'gone', does: 'drops', to: 'nope' }, { state: 'gone', does: 'changes', apply: [{ s: 'Nope', formula: '1', set: true }] }, { state: 'gone', 'if': '1d6', does: 'stays' }] } } }],
+            items: [{ id: 'i_p', name: 'Part', stats: { Cut: 0, Hurt: 0 } }, { id: 'i_k', name: 'Knife', stats: { Broke: 0, Sits: 0 } }] };
+        const sy = S.cleanSystem(RW, { F, gmView: true }), pv = S.cleanSystem(sy, { F, gmView: false }), kS = f => f.fields.filter(x => x.id === 'f_b')[0].list.tiles.states.map(s => s.key), th = sy.fields.filter(x => x.id === 'f_k')[0].list.stand.then;
+        check('fold 8: a state that cannot be read goes in both views, one with no When is kept and never holds', J(kS(sy)) === J(['gone', 'hurt', 'none']) && J(kS(pv)) === J(['gone', 'hurt', 'none']), J(kS(sy)));
+        check('what a state does is the GM’s alone, and a line that names a state, a box or a stat there is not goes', th.length === 4 && th.every(t => t.state === 'gone' || t.state === 'hurt') && th[3].apply[0].s === 'Broke' && !('then' in pv.fields.filter(x => x.id === 'f_k')[0].list.stand), J(th));
+        const mk = (o) => ({ id: 'c_a', name: 'A', values: { f_hp: 0, f_b: [Object.assign({ id: 'w_arm', defId: 'i_p', qty: 1 }, o.arm || {}), { id: 'w_hand', defId: 'i_p', qty: 1, up: 'w_arm' }, { id: 'w_leg', defId: 'i_p', qty: 1 }], f_k: [{ id: 'w_k1', defId: 'i_k', qty: 1, pl: 'w_arm', on: true }, { id: 'w_k2', defId: 'i_k', qty: 1, pl: 'w_hand', on: true }, { id: 'w_k3', defId: 'i_k', qty: 1, pl: 'w_leg', on: true }, { id: 'w_k4', defId: 'i_k', qty: 1, pl: 'w_arm', ov: { stats: { Sits: 1 } } }] } });
+        const cut = { ov: { stats: { Cut: 1 } } }, hu = { ov: { stats: { Hurt: 1 } } }, ts = c => S.resolveAll(sy, c, F).f_b.ts;
+        check('a tile is in the first state that holds, and what hangs from it follows only where the state says', J(ts(mk({ arm: cut }))) === J({ w_arm: 'gone', w_hand: 'gone' }) && J(ts(mk({ arm: hu }))) === J({ w_arm: 'hurt' }) && J(ts(mk({}))) === '{}', J(ts(mk({ arm: cut }))));
+        const was = S.tileThenRuns(sy, mk({}), F, null, {}), first = S.tileThenRuns(sy, mk({ arm: cut }), F, null, {});
+        check('what it was is noted first, so a load does nothing', J(was.now) === J({ 'f_b|w_arm': '', 'f_b|w_hand': '', 'f_b|w_leg': '' }) && first.runs.length === 0, J(first));
+        const go = S.tileThenRuns(sy, mk({ arm: cut }), F, null, was.now), hit = go.runs.map(x => x.r + ':' + x.then.does + ':' + x.tile).sort();
+        check('coming into a state, what stands there and on what hangs from it goes, a row its first line keeps stays, and a tile elsewhere is left', J(hit) === J(['w_k1:drops:w_arm', 'w_k2:drops:w_hand']), J(hit));
+        check('it runs once: a tile already in that state does nothing more', S.tileThenRuns(sy, mk({ arm: cut }), F, null, go.now).runs.length === 0);
+        const back = S.tileThenRuns(sy, mk({}), F, null, go.now), again = S.tileThenRuns(sy, mk({ arm: cut }), F, null, back.now);
+        check('a tile that leaves a state and comes back runs again', back.runs.length === 0 && again.runs.length === 2);
+        const hr = S.tileThenRuns(sy, mk({ arm: hu }), F, null, was.now);
+        check('the first line of a state that holds speaks for a row', hr.runs.length === 2 && hr.runs.every(x => x.then.apply[0].off === true), J(hr.runs));
+        const onC = mk({ arm: hu }), rA = S.resolveAll(sy, onC, F).vars, rv = rA.row('f_k', 'w_k1'), a1 = S.applyAct(sy, onC, { apply: hr.runs[0].then.apply }, rv, F, null, { f: 'f_k', r: 'w_k1' });
+        check('a line that changes a row is an action on that row, and a line that moves one is a place', a1.ok === true && a1.values.f_k[0].on === false && (() => { const q = S.applyRowOp(sy, mk({ arm: cut }), 'f_k', { op: 'place', rowId: 'w_k1', at: 'b_dropped' }, F, {}); return q.ok === true && q.value[0].pl === 'b_dropped'; })(), J(a1));
+        const fz = read('scripts/sheets.js'), sl = fz.slice(fz.indexOf('// [bodycheck:tilefollow-start]'), fz.indexOf('// [bodycheck:tilefollow-end]'));
+        check('what the follow asks of the core is imported, since nothing else in the suite runs it', /import \{[^}]*\browKeptFrom\b[^}]*\} from '.\/systemcore.js'/.test(fz) && /import \{[^}]*\btileThenRuns\b[^}]*\} from '.\/systemcore.js'/.test(fz));
+        check('on the machine that owns the campaign alone, an NPC whose rules are off runs nothing, and three deep at most', sl.includes('!crossOk()') && sl.includes("rulesRun(c.id) === false") && sl.includes('_tileDepth >= 3'));
+        const noS = S.cleanSystem({ v: 1, name: 'N', fields: [{ id: 'f_b', key: 'Body', kind: 'item-list', list: { multi: true, stats: [{ key: 'Z', label: 'Z' }], tiles: { top: 'Z' } } }], items: [] }, { F, gmView: true });
+        check('a system with no states holds no such key and reads as before', !('states' in noS.fields[0].list.tiles) && !('ts' in S.resolveAll(noS, { id: 'c', values: {} }, F).f_b) && S.tileThenRuns(noS, { id: 'c', values: {} }, F, null, {}).runs.length === 0);
+    }
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never finished'); process.exitCode = 1; } });

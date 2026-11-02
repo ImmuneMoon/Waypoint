@@ -42,6 +42,10 @@ The System editor
 - A list's rows can stand at rows of another list, as armour on the parts of a
   body. A formula reads the place a row stands, and a row of that list reads
   what stands there. Fits where, Reaches and Counts where set the rules.
+- A tile can be in a state, such as Crippled or Severed, and says so in words. A
+  list that stands on tiles can say what a state does to what stands there: it
+  stays, it goes to a box such as Dropped, it is switched off or a stat is set.
+  That runs once, as the tile comes into the state.
 - A list's place can show as tiles, set out by what hangs from what, or as both
   with a switch. Pressing a tile opens its row in a drawer with all its controls,
   and what stands there. A tile can offer boxes, such as Held under a hand, and

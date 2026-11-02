@@ -54,6 +54,7 @@ function testOf(n, c) {
     return { val: formOf(n, c) };
 }
 function valOf(n, c) {   // a node as one value
+    if (n.t === 'neg' && n.a && n.a.t === 'num' && n.a.v !== 0) return { k: 'num', v: -n.a.v, s: '-' + n.a.text };   // a number below 0 is a number, never one with its sign flipped
     switch (n.t) {
         case 'num': return { k: 'num', v: n.v, s: n.text };
         case 'bool': return { k: 'bool', v: n.v };
@@ -74,6 +75,7 @@ function stepsInto(n, c, out) {   // left to right, each step on the answer so f
         for (var i = 1; i < n.items.length; i++) out.push({ op: n.t === 'pow' ? '^' : n.items[i].op, v: valOf(n.items[i].node, c) });
         return;
     }
+    if (n.t === 'neg' && n.a && n.a.t === 'num' && n.a.v !== 0) { out.push({ op: 'start', v: valOf(n, c) }); return; }
     if (n.t === 'neg') { stepsInto(n.a, c, out); out.push({ op: 'neg' }); return; }
     if (n.t === 'pos') { stepsInto(n.a, c, out); out.push({ op: 'pos' }); return; }   // a plus sign turns a yes or no into 1 or 0
     if (n.t === 'call') {

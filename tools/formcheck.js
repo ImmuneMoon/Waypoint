@@ -244,6 +244,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     check('the page loads the form, the System editor hands it its names and has it watch', ix.includes('src="scripts/formbox.js"') && /wpFormBox\.setSource\(formSource\)/.test(sh) && /watch\(ui\('libraryModal'\)\)/.test(sh) && /wpFormBox\.watch\(/.test(sh));
     check('Escape in a form is the form\'s, and the form holds no markup of its own', ek.includes("escAt(t, '.fb-open')") && !/innerHTML|insertAdjacentHTML/.test(fb));
     check('its styles', /\.fb-line\b/.test(st) && /\.fb-menu\b/.test(st) && /\.fb-step\b/.test(st));
+    { const nf = C.read('Row.pen <= -9'), wd = C.says(nf.form, {}); check('a number below 0 reads as a number, never as one with its sign flipped', !wd.includes('flipped') && wd.includes('-9') && C.write(nf.form) === 'Row.pen <= -9', wd); }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exitCode = 1;

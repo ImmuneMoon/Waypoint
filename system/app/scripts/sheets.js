@@ -31,6 +31,7 @@ import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a veh
 import { fitIfOk, partFitEntry, modsIfOk } from './systemcore.js';
 import { tileLayout, tileStep, tileSide } from './tilecore.js';   // 1.6.2 (body fold 3)
 import { tileDrawOf, tileMakeOf, tileNode, tileMarkNode } from './tiledraw.js';   // 1.6.2 (body fold 6)
+import { tileThenRuns, rowKeptFrom } from './systemcore.js';   // 1.6.2 (body fold 8)
 import { standFitSays } from './systemcore.js';   // 1.6.2 (body fold 5)   // 1.6.0 Fits where (the core handbook session's ask 18)
 import { targetHitList, targetHitRows, readsTargetHit } from './systemcore.js';   // 1.6.0 (B5): a called shot by the target's own location
 import { tableKeyOk, TABLE_KEY, TABLE_ROW_KEY, nameFold } from './systemcore.js';   // 1.6.0: a system's tables, as Save reads them (tableSays)
@@ -410,6 +411,7 @@ function afterCharChange(c, whole, values) {
     if (posA.length && n && n.active && n.role === 'host' && n.broadcastItemFiltered) posA.forEach(function(mid) { n.broadcastItemFiltered(camp.id, mid); });   // 1.5.9: the maps whose tokens it moved
     if (window.appRender) window.appRender();
     renderViews(c.id);   // HUD frame (HF2a): the sheet and every HUD of this character
+    if (typeof tileFollow === 'function') tileFollow(c, camp);   // 1.6.2 (body fold 8)
     if (typeof crossFollow === 'function') crossFollow(c, camp);   // 1.5.9: a value that crossed a step runs its rules, once the change is stored
 }
 // [systemcheck:envfollow-start]
@@ -536,6 +538,7 @@ function rowCrossRows(c, x) { return c && c.values && Array.isArray(c.values[x.f
 function rowCrossValue(vars, x, rid) { var rv = vars && typeof vars.row === 'function' ? vars.row(x.f, rid) : null; if (!rv) return null; var v = rv('Row.' + x.r.cross.ct); return typeof v === 'number' && isFinite(v) ? { v: v, rv: rv } : null; }
 function crossValue(sys, c, r, vars) { var f = fieldById(sys, r.cross.f), v = f ? vars(f.key) : null; return typeof v === 'number' && isFinite(v) ? v : null; }
 function crossSeed() {
+    if (typeof tileSeed === 'function') tileSeed();   // 1.6.2 (body fold 8)
     var camp = getActiveCampaign(), sys = camp && camp.system; if (!sys || !crossOk() || typeof makeResolver !== 'function') return 0;
     var rules = crossRules(sys), lrs = rowCrossRules(sys), n = 0; if (!rules.length && !lrs.length) return 0;
     Object.keys(camp.chars || {}).forEach(function(id) {
@@ -587,9 +590,43 @@ function ruleFollow(c, camp) {
     if (!c || typeof c.id !== 'string' || !camp) return 0;
     var mp = typeof postureFollow === 'function' ? postureFollow(c, camp) : [];
     if (mp.length) { var n = net(), was = n ? n.applyingRemote : false; if (n) n.applyingRemote = true; try { save(true); } finally { if (n) n.applyingRemote = was; } if (n && n.active && n.role === 'host' && n.broadcastItemFiltered) mp.forEach(function(mid) { n.broadcastItemFiltered(camp.id, mid); }); }
+    if (typeof tileFollow === 'function') tileFollow(c, camp);   // 1.6.2 (body fold 8)
     return typeof crossFollow === 'function' ? crossFollow(c, camp) : 0;
 }
 // [systemcheck:cross-end]
+// [bodycheck:tilefollow-start]
+// 1.6.2 (body fold 8): as a tile comes into a state, what stands there does what its list says, on the machine that owns the campaign, once a change is stored. What each character's tiles were in is kept in memory alone, so a load does nothing, and a tile that leaves a state and comes back runs again. An NPC whose rules are off runs nothing, as a crossing on a row does
+var _tileSeen = Object.create(null), _tileNoted = Object.create(null), _tileDepth = 0, _tileSig = '';
+function tileSys(sys) { return !!sys && Array.isArray(sys.fields) && sys.fields.some(function(f) { return !!f && !!f.list && !!f.list.tiles && Array.isArray(f.list.tiles.states); }); }
+function tileSeed() {
+    var camp = getActiveCampaign(), sys = camp && camp.system, n = 0; if (!sys || !tileSys(sys) || !crossOk() || typeof tileThenRuns !== 'function') return 0;
+    var sg = (camp.id || '') + JSON.stringify(sys.fields.map(function(f) { return f && f.list && f.list.tiles ? f.list.tiles.states : 0; })); if (sg !== _tileSig) { _tileSig = sg; _tileNoted = Object.create(null); }   // states changed in the editor: what each tile was in is noted again, so that a change of the rules runs nothing
+    Object.keys(camp.chars || {}).forEach(function(id) { var k = (camp.id || '') + '|' + id, c = camp.chars[id]; if (_tileNoted[k] || !c || typeof c !== 'object') return; _tileNoted[k] = 1; _tileSeen[k] = tileThenRuns(sys, c, F(), tokenCtxFor(id, camp), {}).now; n++; });
+    return n;
+}
+function tileThenWords(sys, c, x) {
+    var tf = fieldById(sys, x.tf), lf = fieldById(sys, x.f), rows = function(f, id) { return (c.values && f && Array.isArray(c.values[f.id]) ? c.values[f.id] : []).filter(function(r) { return rowIdOf(r) === id; })[0] || null; }, nm = function(f, id) { var r = rows(f, id), d = r ? rowDef(sys, r) : null; return (d && d.def && d.def.name) || 'A row'; }, st = (tf.list.tiles.states.filter(function(s) { return s.key === x.state; })[0] || {}).label || x.state, tile = nm(tf, x.tile) + ' is ' + st;
+    return { tile: tile, row: nm(lf, x.r), kept: !!(rows(lf, x.r) && rowKeptFrom(sys, rows(lf, x.r))), box: x.then.does === 'drops' ? (tf.list.tiles.boxes.filter(function(b) { return b.key === x.then.to; })[0] || {}).label || x.then.to : '' };
+}
+function tileFollow(c, camp) {
+    if (!c || typeof c.id !== 'string' || !camp || !camp.system || !tileSys(camp.system) || !crossOk() || typeof tileThenRuns !== 'function') return 0;
+    var sys = camp.system, k = (camp.id || '') + '|' + c.id, o = tileThenRuns(sys, c, F(), tokenCtxFor(c.id, camp), _tileSeen[k] || {}); _tileSeen[k] = o.now; _tileNoted[k] = 1; if (!o.runs.length) return 0;
+    if (_tileDepth >= 3 || (window.wpCalendar && typeof window.wpCalendar.rulesRun === 'function' && window.wpCalendar.rulesRun(c.id) === false)) return 0;
+    var n = net(), done = 0, says = []; _tileDepth++;
+    try {
+        o.runs.slice(0, 24).forEach(function(x) {
+            var cN = charById(c.id, camp), f = fieldById(sys, x.f); if (!cN || !f) return; var w = tileThenWords(sys, cN, x);
+            if (x.then.does === 'drops') { commitItem(cN, f, { op: 'place', rowId: x.r, at: 'b_' + x.then.to }); says.push({ t: w.tile + ': ' + w.row + ' went to ' + w.box + '.', g: w.kept }); done++; return; }
+            var tc = tokenCtxFor(c.id, camp), vv = resolveAll(sys, cN, F(), tc).vars, rv = vv && typeof vv.row === 'function' ? vv.row(x.f, x.r) : null; if (!rv) return;
+            var res = applyAct(sys, cN, { apply: x.then.apply }, rv, F(), tc, { f: x.f, r: x.r }, undefined, window.wpDiceCore || null, null, { now: Date.now(), inCombat: !!(n && n.charInCombat && n.charInCombat(c.id)) }); if (!res || !res.ok) return;
+            var ids = Object.keys(res.values); if (ids.length) { cN.values = cN.values || {}; ids.forEach(function(fid) { cN.values[fid] = res.values[fid]; }); afterCharChange(cN, false, res.values); }
+            says.push({ t: w.tile + ': ' + w.row + ' changed.', g: w.kept }); done++;
+        });
+    } finally { _tileDepth--; }
+    says.forEach(function(s) { if (n && typeof n.timeCard === 'function') n.timeCard(c, s.t, s.g); else toast(s.t); });
+    return done;
+}
+// [bodycheck:tilefollow-end]
 // [systemcheck:fxposture-start]
 // 1.5.9 (docs/BOOK_ES_ET_PLAN.md; the owner's O6: "An effect can set posture", so Down lays its token prone the moment it applies; the book (eu):
 // Down's prone lasts after healing): on the machine that owns the campaign, after every change of a character, the effects that set a posture
@@ -3102,6 +3139,7 @@ function standCtl(entry, c, f, spec, can, sysI, res) {
 // 1.6.2 (body fold 3): a list drawn as tiles. Nothing of a row is drawn but through the sheet's own list: pressing a tile opens a drawer that holds that row as the list draws it, so every control, right and refusal is the list's. tileView answers null for the plain list, or { into, rows }: where the list draws, and the one row it draws
 var _tileOpen = Object.create(null), TILE_SHOW = 'wp_bodyShow', _tileHere = null, _tileEdit = Object.create(null);
 // 1.6.2 (body fold 7): Edit layout: a press of the GM's that moves a tile, by where it lands on the grid or by an arrow in its drawer
+function tileStateIn(tsp, res, id) { var k = res && res.ts ? res.ts[id] : ''; return k && Array.isArray(tsp.states) ? tsp.states.filter(function(s) { return !!s && s.key === k; })[0] || null : null; }   // 1.6.2 (body fold 8): the state a tile is in, as the sheet worked it out
 function tileMoveTo(c, f, id, cell) { commitItem(c, f, { op: 'set', rowId: id, facts: { tp: cell } }); }
 function tileDrag(stage, b, t, lay, f, c) {
     b.addEventListener('pointerdown', function(ev) {
@@ -3160,8 +3198,9 @@ function tileView(wrap, f, c, rows, sysI, plc, res) {
         var x = byId[t.id], on = res && res.tn ? res.tn[t.id] : null, holds = (on || []).filter(function(e) { return !e.reach && !boxOf[e.f]; }).length, reach = (on || []).filter(function(e) { return e.reach && !boxOf[e.f]; }).length, cellB = inGrid ? el('div', 'body-cell') : null, b = el('button', 'body-tile' + (holds ? ' full' : reach ? ' cover' : '') + (t.id === open ? ' sel' : '')); b.type = 'button'; b.dataset.fid = f.id; b.dataset.part = 'tile-' + t.id; b.dataset.tile = t.id; b.tabIndex = t.id === focusTo ? 0 : -1; b.ariaExpanded = t.id === open ? 'true' : 'false';
         if (inGrid) { cellB.style.gridColumn = String(t.c + 1); cellB.style.gridRow = String(t.r + 1); }
         b.title = x.name + ': ' + tileWords(rows, sysI, c, on); b.ariaLabel = x.name + '. ' + (holds ? holds + (holds === 1 ? ' thing here.' : ' things here.') : reach ? 'Covered.' : 'Empty.');
+        var stS = tileStateIn(tsp, res, t.id); if (stS) { b.classList.add('body-st-' + (stS.shape || 'warn')); b.title = stS.label + '. ' + b.title; b.ariaLabel = stS.label + '. ' + b.ariaLabel; }
         var drN = x.draw ? tileNode(document, x.draw) : null; if (drN) { if (x.side === -1) drN.classList.add('body-draw-flip'); b.appendChild(drN); } var mkN = x.make ? tileMarkNode(document, x.make) : null; if (mkN) { b.title += ' (' + (x.make === 'p' ? 'prosthetic' : x.make === 'r' ? 'robotic' : 'organic') + ')'; b.appendChild(mkN); }
-        b.appendChild(el('span', 'body-tile-name', x.name)); if (tsp.top) { var cix = (Array.isArray(spec.cols) ? spec.cols : []).map(function(q) { return q && q.key; }).indexOf(tsp.top), cl = cix >= 0 && res && res.cells && res.cells[t.id] ? res.cells[t.id][cix] : null, tv = cl ? (cl.error ? '' : cl.text !== undefined ? cl.text : cl.value) : (rowDef(sysI, x.row) ? rowStat(spec, rowDef(sysI, x.row).def, tsp.top) : ''); if (tv !== '' && tv !== undefined && tv !== null && typeof tv !== 'object') b.appendChild(el('span', 'body-tile-top', String(tv))); }
+        b.appendChild(el('span', 'body-tile-name', x.name)); if (stS) b.appendChild(el('span', 'body-tile-state', stS.label)); if (tsp.top) { var cix = (Array.isArray(spec.cols) ? spec.cols : []).map(function(q) { return q && q.key; }).indexOf(tsp.top), cl = cix >= 0 && res && res.cells && res.cells[t.id] ? res.cells[t.id][cix] : null, tv = cl ? (cl.error ? '' : cl.text !== undefined ? cl.text : cl.value) : (rowDef(sysI, x.row) ? rowStat(spec, rowDef(sysI, x.row).def, tsp.top) : ''); if (tv !== '' && tv !== undefined && tv !== null && typeof tv !== 'object') b.appendChild(el('span', 'body-tile-top', String(tv))); }
         if (holds) b.appendChild(el('span', 'body-tile-n', String(holds)));
         b.addEventListener('click', function() { if (editing && into.dataset && into.dataset.dragged) { delete into.dataset.dragged; return; } if (_tileOpen[openKey] === t.id) delete _tileOpen[openKey]; else _tileOpen[openKey] = t.id; renderViews(c.id); });
         if (!inGrid) { into.appendChild(b); return; } cellB.appendChild(b); if (editing) { b.classList.add('edit'); tileDrag(into, b, t, lay, f, c); }
@@ -3181,7 +3220,7 @@ function tileView(wrap, f, c, rows, sysI, plc, res) {
     wrap.appendChild(holder);
     if (!open) { holder.classList.remove('has-open'); return { into: null, rows: [] }; }
     holder.classList.add('has-open'); var dr = el('div', 'body-drawer'), head = el('div', 'body-drawer-head'), shut = el('button', 'tool ghost sys-btn', '\u00d7'); shut.type = 'button'; shut.title = 'Close this'; shut.ariaLabel = 'Close this'; shut.dataset.fid = f.id; shut.dataset.part = 'tile-shut';
-    shut.addEventListener('click', function() { delete _tileOpen[openKey]; renderViews(c.id); }); head.appendChild(el('span', 'body-drawer-name', openBox ? openBox.label : byId[open].name)); head.appendChild(shut); dr.appendChild(head); holder.appendChild(dr);
+    shut.addEventListener('click', function() { delete _tileOpen[openKey]; renderViews(c.id); }); head.appendChild(el('span', 'body-drawer-name', openBox ? openBox.label : byId[open].name)); var stO = openBox ? null : tileStateIn(tsp, res, open); if (stO) head.appendChild(el('span', 'body-drawer-state', stO.label)); head.appendChild(shut); dr.appendChild(head); holder.appendChild(dr);
     if (editing && !openBox) {   // 1.6.2 (body fold 7): the same move with no drag
         var seatT = lay.tiles.filter(function(t) { return t.id === open; })[0], base = seatT ? { c: seatT.c + lay.lo, r: seatT.r } : { c: 0, r: lay.rows }, mvBar = el('div', 'body-switch body-move'); [['\u2190', 'Left', -1, 0], ['\u2191', 'Up', 0, -1], ['\u2193', 'Down', 0, 1], ['\u2192', 'Right', 1, 0]].forEach(function(m) { var q = el('button', 'tool ghost sys-btn', m[0]); q.type = 'button'; q.title = 'Move this tile ' + m[1].toLowerCase(); q.ariaLabel = q.title; q.dataset.fid = f.id; q.dataset.part = 'tile-mv-' + m[1]; q.addEventListener('click', function() { tileMoveTo(c, f, open, { c: Math.max(-20, Math.min(20, base.c + m[2])), r: Math.max(0, Math.min(60, base.r + m[3])) }); }); mvBar.appendChild(q); }); if (byId[open].tp) { var bk = el('button', 'tool ghost sys-btn', 'Back to its place'); bk.type = 'button'; bk.dataset.fid = f.id; bk.dataset.part = 'tile-mv-back'; bk.title = 'It sets itself out by what it hangs from again'; bk.addEventListener('click', function() { tileMoveTo(c, f, open, null); }); mvBar.appendChild(bk); } dr.appendChild(mvBar);
     }
@@ -7056,6 +7095,7 @@ function charChanged(id) {
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.sensesForget) window.wpFog.sensesForget();   // the fog's kept senses are read again from the sheet
     if (typeof lookPrune === 'function') lookPrune(id);   // item 35: a change from the table (a player's edit, a time rule) that left a look without its text
     if (typeof openSyncOne === 'function') openSyncOne(id);   // 1.5.8: a change from the table (a Form a player switched on) that opens or closes rows
+    if (typeof tileFollow === 'function' && typeof id === 'string') { var campT = getActiveCampaign(), cT = charById(id, campT); if (cT) tileFollow(cT, campT); }   // 1.6.2 (body fold 8)
     if (typeof crossFollow === 'function' && typeof id === 'string') { var campX = getActiveCampaign(), cX = charById(id, campX); if (cX) crossFollow(cX, campX); }   // 1.5.9: a change from the table that crossed a step
     if (typeof postureFollow === 'function' && typeof id === 'string') { var campP = getActiveCampaign(), cP = charById(id, campP), mpP = cP ? postureFollow(cP, campP) : []; if (mpP.length) { var nP = net(), wasP = nP ? nP.applyingRemote : false; if (nP) nP.applyingRemote = true; try { save(true); } finally { if (nP) nP.applyingRemote = wasP; } if (nP && nP.active && nP.role === 'host' && nP.broadcastItemFiltered) mpP.forEach(function(mid) { nP.broadcastItemFiltered(campP.id, mid); }); } }   // 1.5.9: a change from the table (a player's edit, a time rule) that brought on an effect that sets a posture; never a step of the GM's undo
     if (typeof goneFire === 'function') goneFire(id);   // 1.6.0: a row a press of ours used up, now gone from our copy: its Undo
@@ -7301,6 +7341,43 @@ function tileBoxesBox(sp) {
             var x = el('button', 'tool ghost sys-btn', '\u00d7'); x.type = 'button'; x.title = 'Remove this box'; x.addEventListener('click', function() { list.splice(j, 1); if (!list.length && sp.tiles) { delete sp.tiles.boxes; if (!Object.keys(sp.tiles).length) delete sp.tiles; } ch(); draw(); }); rw.appendChild(x); box.appendChild(rw);
         });
         var add = el('button', 'tool ghost sys-btn', '+ Box'); add.type = 'button'; add.title = 'A place a tile offers beyond its own face'; add.disabled = list.length >= 8; add.addEventListener('click', function() { sp.tiles = sp.tiles && typeof sp.tiles === 'object' ? sp.tiles : {}; sp.tiles.boxes = Array.isArray(sp.tiles.boxes) ? sp.tiles.boxes : []; var n = 1; while (sp.tiles.boxes.some(function(b) { return b && b.key === 'box' + n; })) n++; sp.tiles.boxes.push({ key: 'box' + n, label: 'Box ' + n }); ch(); draw(); }); box.appendChild(add);
+    };
+    draw(); return box;
+}
+// 1.6.2 (body fold 8): the states of a tile, and what one does to what stands there. Each draws itself, with listeners of its own and classes no handler of the Lists tab reads
+function tileStatesBox(sp) {
+    var box = el('div', 'sys-badges sys-tstates'), ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var draw = function() {
+        box.textContent = ''; box.appendChild(el('span', 'sys-num-cap', 'States of a tile')); var list = sp.tiles && Array.isArray(sp.tiles.states) ? sp.tiles.states : [];
+        list.forEach(function(s0, j) {
+            var s = s0 && typeof s0 === 'object' ? s0 : {}, rw = el('div', 'sys-flags sys-tstate-row'), txt = function(cls, ph, k, tip) { var i = el('input', 'field ' + cls); i.type = 'text'; i.value = typeof s[k] === 'string' ? s[k] : ''; i.placeholder = ph; i.title = tip; i.spellcheck = false; i.autocomplete = 'off'; i.addEventListener('input', function() { var v = i.value.trim(); if (v) list[j][k] = v; else delete list[j][k]; ch(); }); rw.appendChild(i); };
+            txt('sys-tstate-label', 'Its name', 'label', 'What a tile in this state says, such as Severed'); txt('sys-tstate-if', 'never', 'if', 'When a tile is in this state. The first state that holds is the one it shows');
+            var lk = el('select', 'field sys-tstate-look'); [['warn', 'Looks hurt'], ['bad', 'Looks broken'], ['lost', 'Looks out of play']].forEach(function(p) { var o = el('option', null, p[1]); o.value = p[0]; if ((s.shape || 'warn') === p[0]) o.selected = true; lk.appendChild(o); }); lk.title = 'How the tile is drawn beside its words'; lk.addEventListener('change', function() { list[j].shape = lk.value; ch(); }); rw.appendChild(lk);
+            if (sp.hang === true) { var fl = el('label', 'sys-check'), fc = el('input'); fc.type = 'checkbox'; fc.checked = s.follows === true; fc.addEventListener('change', function() { if (fc.checked) list[j].follows = true; else delete list[j].follows; ch(); }); fl.appendChild(fc); fl.appendChild(document.createTextNode(' What hangs from it too')); fl.title = 'A tile that hangs from this one is in this state too, so a lost arm takes its hand with it'; rw.appendChild(fl); }
+            var x = el('button', 'tool ghost sys-btn', '\u00d7'); x.type = 'button'; x.title = 'Remove this state'; x.addEventListener('click', function() { list.splice(j, 1); if (!list.length && sp.tiles) { delete sp.tiles.states; if (!Object.keys(sp.tiles).length) delete sp.tiles; } ch(); draw(); }); rw.appendChild(x); box.appendChild(rw);
+        });
+        var add = el('button', 'tool ghost sys-btn', '+ State'); add.type = 'button'; add.title = 'A state a tile can be in, such as Crippled or Severed'; add.disabled = list.length >= 8; add.addEventListener('click', function() { sp.tiles = sp.tiles && typeof sp.tiles === 'object' ? sp.tiles : {}; sp.tiles.states = Array.isArray(sp.tiles.states) ? sp.tiles.states : []; var n = 1; while (sp.tiles.states.some(function(b) { return b && b.key === 'state' + n; })) n++; sp.tiles.states.push({ key: 'state' + n, label: 'State ' + n }); ch(); draw(); }); box.appendChild(add);
+    };
+    draw(); return box;
+}
+function standThenBox(sd, tf, sp) {
+    var tl = tf && tf.list && tf.list.tiles ? tf.list.tiles : {}, sts = Array.isArray(tl.states) ? tl.states.filter(function(s) { return !!s && typeof s.key === 'string'; }) : [], bxs = Array.isArray(tl.boxes) ? tl.boxes.filter(function(b) { return !!b && b.strip === true && typeof b.key === 'string'; }) : [], nums = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return !!s && typeof s.key === 'string' && s.key && s.kind !== 'pick' && s.set !== true; });
+    if (!sts.length) return null; var box = el('div', 'sys-badges sys-sthen'), ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var sel = function(cls, tip, val, opts, on) { var s = el('select', 'field ' + cls); s.title = tip; opts.forEach(function(p) { var o = el('option', null, p[1]); o.value = p[0]; if (val === p[0]) o.selected = true; s.appendChild(o); }); s.addEventListener('change', function() { on(s.value); }); return s; };
+    var kind = function(t) { return t.does === 'drops' ? 'drops' : t.does === 'changes' && Array.isArray(t.apply) && t.apply[0] ? (t.apply[0].off === true ? 'off' : 'set') : 'stays'; };
+    var draw = function() {
+        box.textContent = ''; box.appendChild(el('span', 'sys-num-cap', 'When its place changes state')); var list = Array.isArray(sd.then) ? sd.then : [];
+        list.forEach(function(t0, j) {
+            var t = t0 && typeof t0 === 'object' ? t0 : {}, rw = el('div', 'sys-flags sys-sthen-row'), k = kind(t);
+            rw.appendChild(sel('sys-sthen-state', 'Which state of the place', t.state, sts.map(function(s) { return [s.key, s.label || s.key]; }), function(v) { list[j].state = v; ch(); }));
+            var i = el('input', 'field sys-sthen-if'); i.type = 'text'; i.value = typeof t['if'] === 'string' ? t['if'] : ''; i.placeholder = 'always'; i.title = 'Which rows this is for. The first line that holds speaks for a row'; i.spellcheck = false; i.autocomplete = 'off'; i.addEventListener('input', function() { var v = i.value.trim(); if (v) list[j]['if'] = v; else delete list[j]['if']; ch(); }); rw.appendChild(i);
+            var ways = [['stays', 'It stays'], ['off', 'It is switched off']]; if (bxs.length) ways.push(['drops', 'It goes to']); if (nums.length) ways.push(['set', 'Its stat is set']);
+            rw.appendChild(sel('sys-sthen-does', 'What happens to a row that stands there', k, ways, function(v) { var r = list[j]; delete r.to; delete r.apply; r.does = v === 'drops' ? 'drops' : v === 'stays' ? 'stays' : 'changes'; if (v === 'drops') r.to = bxs[0].key; if (v === 'off') r.apply = [{ off: true }]; if (v === 'set') r.apply = [{ s: nums[0].key, formula: '1', set: true }]; ch(); draw(); }));
+            if (k === 'drops') rw.appendChild(sel('sys-sthen-to', 'The box of the strip it goes to', t.to, bxs.map(function(b) { return [b.key, b.label || b.key]; }), function(v) { list[j].to = v; ch(); }));
+            if (k === 'set') { var c0 = t.apply[0]; rw.appendChild(sel('sys-sthen-stat', 'The stat that is set', c0.s, nums.map(function(s) { return [s.key, s.label || s.key]; }), function(v) { c0.s = v; ch(); })); var nb = el('input', 'field sys-sthen-num'); nb.type = 'number'; nb.value = String(Number(c0.formula) || 0); nb.title = 'What it is set to'; nb.addEventListener('input', function() { c0.formula = String(Number(nb.value) || 0); ch(); }); rw.appendChild(nb); }
+            var x = el('button', 'tool ghost sys-btn', '\u00d7'); x.type = 'button'; x.title = 'Remove this line'; x.addEventListener('click', function() { list.splice(j, 1); if (!list.length) delete sd.then; ch(); draw(); }); rw.appendChild(x); box.appendChild(rw);
+        });
+        var add = el('button', 'tool ghost sys-btn', '+ When'); add.type = 'button'; add.title = 'What a state of its place does to a row, such as dropping what a lost hand held'; add.disabled = list.length >= 8; add.addEventListener('click', function() { sd.then = Array.isArray(sd.then) ? sd.then : []; sd.then.push({ state: sts[0].key, does: 'stays' }); ch(); draw(); }); box.appendChild(add);
     };
     draw(); return box;
 }
@@ -9035,6 +9112,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     tlPick('sys-list-tiledraw', 'Tile drawing from', tlSp.draw || '', 'A stat whose words name the drawing a tile wears, such as Wing. With none, a word of the row\u2019s name is used, such as Left Arm', tlSt);
     tlPick('sys-list-tilemake', 'Tile make from', tlSp.make || '', 'A stat that says a part is organic, prosthetic or robotic. Its tile wears the mark for it', tlSt);
     if (typeof tileBoxesBox === 'function') fl.appendChild(tileBoxesBox(sp));
+    if (typeof tileStatesBox === 'function') fl.appendChild(tileStatesBox(sp));
     var sdL = (typeof draft !== 'undefined' && draft && draft.fields || []).filter(function(x) { return x && x.kind === 'item-list' && x.id !== f.id; }), sdS = sp.stand && typeof sp.stand === 'object' ? sp.stand : null;   // 1.6.2 (body fold 2)
     if (sdL.length || sdS) {
         var sdW = el('label', 'sys-check'), sdF = el('select', 'sys-list-standfrom'), sdO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; sdW.appendChild(document.createTextNode('Rows stand at a row of ')); sdF.appendChild(sdO('', 'No other list', !sdS));
@@ -9049,6 +9127,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             if (sdS.counts) sdT('sys-list-standoff', 'Otherwise it says', 'nothing', sdS.offWord, 'What a placed row says while it does not count');
             var sdF2 = (typeof draft !== 'undefined' && draft && draft.fields || []).filter(function(x) { return x && x.id === sdS.from; })[0], sdB = sdF2 && sdF2.list && sdF2.list.tiles && Array.isArray(sdF2.list.tiles.boxes) ? sdF2.list.tiles.boxes.filter(function(b) { return b && !b.strip && typeof b.key === 'string'; }) : []; if (sdB.length || sdS.box) tlPick('sys-list-standbox', 'Stands in', sdS.box || '', 'A box of the tile rather than its face, as a held weapon stands under a hand', sdB.map(function(b) { return [b.key, b.label || b.key]; }));
             fl.appendChild(checkLabel('sys-list-standpieces', sdS.pieces === true, 'Each row is one piece', 'Placing one of a stack splits it off first, so one boot or one glove stands alone'));
+            var sdTh = typeof standThenBox === 'function' ? standThenBox(sdS, sdF2, sp) : null; if (sdTh) fl.appendChild(sdTh);
         }
     }
     fl.appendChild(checkLabel('sys-list-edge', sp.edge === true, 'Edge follows its state', 'A row\u2019s left edge takes the colour of its strongest badge, or the accent while it is switched on. Its words always stand beside it'));   // 1.6.0 R16

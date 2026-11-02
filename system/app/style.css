@@ -4088,6 +4088,12 @@
   .body-mark-r { color: #a8b6c4; }
   .body-tile-name { max-width: 100%; text-align: center; overflow-wrap: anywhere; line-height: 1.15; }
   .body-tile-top { font-size: 11px; opacity: 0.8; }
+  .body-tile.body-st-warn { border-style: solid; border-color: #e0a03a; }
+  .body-tile.body-st-bad { border-style: solid; border-color: #d9534f; color: #d9a0a0; }
+  .body-tile.body-st-lost { border-style: dotted; border-color: #d9534f; color: var(--muted, #8a8a94); background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(217, 83, 79, 0.14) 6px 8px); }
+  .body-tile-state { font-size: 10px; font-weight: 700; line-height: 1.1; color: #e0a03a; }
+  .body-st-bad .body-tile-state, .body-st-lost .body-tile-state { color: #e9877f; }
+  .body-drawer-state { margin-left: 8px; font-size: 12px; font-weight: 700; color: #e0a03a; }
   .body-tile-n { position: absolute; top: 3px; right: 5px; font-size: 10px; font-weight: 700; color: var(--gold); }
   .body-drawer { padding: 8px 10px; border: 1px solid var(--gold); border-radius: 10px; }
   .body-drawer .sheet-field { margin-top: 8px; }

@@ -3,7 +3,7 @@
    handler that reads it: the form writes its value and says so with an input event, and a change event as it closes, so the System editor's
    dispatchers, its errors and its Save need no word of this. The stored value is still the formula, and opening a form and leaving it writes
    nothing. Text nodes and values only: a label and a stored formula can come from a file. The pure half is formcore.js. */
-import { read, write, says, readCond, writeCond, saysCond, rollFace, tryRoll, tryValue, tryWords, readWords, writeWords, saysWords } from './formcore.js';
+import { read, write, says, readCond, writeCond, saysCond, rollFace, readLine, readMake, tryRoll, tryValue, tryWords, readWords, writeWords, saysWords } from './formcore.js';
 
 // [formcheck:boxes-start]
 // which boxes wear the form, and what each wants: a figure (amt), a figure with dice (roll) or a yes or no (cond)
@@ -33,7 +33,8 @@ var REROLLS = [['', 'No reroll'], ['r', 'Reroll once'], ['rr', 'Reroll every tim
 var EXPLODES = [['', 'No exploding'], ['once', 'Exploding'], ['own', 'Each its own die']];
 var FACES = ['4', '6', '8', '10', '12', '20', '100'];
 // what a roll is for (the owner, by prompt on the sheet: "C. Kind, then questions" and "Keep it, with the odds"): a form starts from what you are doing, and each part asks in plain words
-var KINDS = [['beat', 'Beat a number', 'Works or fails: a skill, a dodge, an attack.'], ['total', 'Get a total', 'Damage, initiative, a table to look up.'], ['hits', 'Count hits', 'A handful of dice, each that reaches a number counts.'], ['else', 'Something else', 'Build it step by step.']];
+var KINDS = [['beat', 'Beat a number', 'Works or fails: a skill, a dodge, an attack.'], ['total', 'Get a total', 'Damage, initiative, a table to look up.'], ['hits', 'Count hits', 'A handful of dice, each that reaches a number counts.'], ['read', 'Read the dice', 'One handful, read more than one way.'], ['else', 'Something else', 'Build it step by step.']];
+var READS = [['high', 'The highest die'], ['low', 'The lowest die'], ['nth', 'A die by its place from the top'], ['best', 'The best few'], ['worst', 'The worst few'], ['count', 'How many reach'], ['sets', 'The most that match'], ['pairs', 'How many pairs'], ['total', 'The total']];
 var BEAT = [['<=', 'At most'], ['>=', 'At least'], ['<', 'Under'], ['>', 'Over'], ['=', 'Exactly'], ['!=', 'Anything but']];
 var BEAT_SAY = { '<=': 'They need this or less. Rolling low is good here.', '>=': 'They need this or more. Rolling high is good here.', '<': 'They need under this. Rolling low is good here.', '>': 'They need over this. Rolling high is good here.', '=': 'They need exactly this.', '!=': 'Anything but this works.' };
 var ASKS = { 'sys-caption': ['What does the line under it say?', 'Words, with figures of the sheet among them.'], 'sys-label': ['What does the button say?', 'Words, with figures of the sheet among them.'], 'sys-list-rolllabel': ['What does the button say?', 'Words, with figures of the row among them.'], 'sys-range-formula': ['What is the penalty at a distance?', 'Worked out from how far away the target is.'], 'sys-height-formula': ['What is the penalty for a difference in height?', 'Worked out from how much higher the roller stands.'], 'sys-combat-bfall': ['How much does each token take?', 'With nothing set, every token takes the whole roll.'], 'sys-combat-beach': ['How many dice does each victim roll?', 'With nothing set, one roll for all.'], 'sys-combat-bscatter': ['How far does a miss land from its aim?', 'In yards.'], 'sys-combat-bhand': ['When does it go off in the hand?', 'Read on a critical failure.'], 'sys-combat-bmax': ['How far can it be thrown?', 'In yards.'], 'sys-combat-bmin': ['How near can it be thrown?', 'In yards.'], 'sys-combat-fgreach': ['How far does fragmentation reach?', 'In yards.'], 'sys-combat-blstray': ['How far does a stray round go?', 'In yards.'],
@@ -242,8 +243,25 @@ function targetInto(host, c, p) {   // what the total must reach
     valueInto(row, function() { return r.steps[0].v; }, function(x) { r.steps[0].v = x; }, p + 'v', false); host.appendChild(row);
     addsInto(host, r, 1, '+ Add to this', p + 'a');
 }
+function readInto(host, w, g) {   // what is read from the handful, a line each
+    var last = w.last;
+    last.steps.forEach(function(st, i) {
+        var row = el('div', 'fb-step'), pi = 'rl' + i, ln = readLine(st.v, g) || { how: 'high' };
+        if (i) { var s = sel('fb-sel fb-op', [['+', 'plus'], ['-', 'minus']], st.op); s.dataset.p = pi + 'o'; s.setAttribute('aria-label', 'Added or taken off'); s.addEventListener('change', function() { st.op = s.value; commit(); }); row.appendChild(s); }
+        var how = sel('fb-sel', READS, ln.how); how.dataset.p = pi + 'h'; how.setAttribute('aria-label', 'What is read from the dice');
+        how.addEventListener('change', function() { st.v = readMake(how.value, g, ln.op, ln.n); again(pi + 'h'); }); row.appendChild(how);
+        if (ln.how === 'count') { var o = sel('fb-sel', [['>=', 'at least'], ['<=', 'at most'], ['=', 'exactly']], ln.op); o.dataset.p = pi + 'c'; o.setAttribute('aria-label', 'How a die must compare'); o.addEventListener('change', function() { st.v = readMake('count', g, o.value, ln.n); again(pi + 'c'); }); row.appendChild(o); }
+        if (ln.n) valueInto(row, function() { return ln.n; }, function(x) { ln.n = x; st.v = readMake(ln.how, g, ln.op, x); }, pi + 'n', false);
+        if (last.steps.length > 1) { var x = btn('fb-x', '×', 'Take this away'); x.setAttribute('aria-label', 'Take this away'); x.dataset.p = pi + 'x'; x.addEventListener('click', function() { last.steps.splice(i, 1); if (last.steps[0]) last.steps[0].op = 'start'; again('rladd'); }); row.appendChild(x); }
+        host.appendChild(row);
+    });
+    var add = btn('fb-add', '+ Read something else', 'Read these same dice another way'); add.dataset.p = 'rladd'; add.addEventListener('click', function() { last.steps.push({ op: '+', v: readMake('count', g) }); again('rl' + (last.steps.length - 1) + 'h'); }); host.appendChild(add);
+}
 function facePick(k) {
-    var o = open, f = o.form, d = f.steps[0].v; o.fresh = false;
+    var o = open, f = o.form, cur = f.steps[0].v; o.fresh = false;
+    if (cur && cur.k === 'with' && k !== 'read') { var dv = cur.dice[0].steps[0].v; delete dv.as; dv.dirty = true; f.steps = [{ op: 'start', v: dv }]; }
+    if (k === 'read') { var d0 = f.steps[0].v; if (d0 && d0.k === 'dice') { delete d0.cs; d0.as = 'p'; d0.dirty = true; delete f.check; f.steps = [{ op: 'start', v: { k: 'with', dice: [{ steps: [{ op: 'start', v: d0 }] }], last: { steps: [{ op: 'start', v: readMake('high', 'p') }] } } }]; } o.face = ''; again('kread'); return; }
+    var d = f.steps[0].v;
     if (k === 'else') { o.face = 'else'; again('kelse'); return; }
     o.face = '';
     if (d && d.k === 'dice') { if (k === 'hits' && !d.cs) { d.cs = { op: '>=', v: { k: 'num', v: 5, s: '5' } }; d.dirty = true; } else if (k !== 'hits' && d.cs) { delete d.cs; d.dirty = true; } }
@@ -263,6 +281,7 @@ function rollInto(host, o) {
     host.appendChild(g);
     if (!now) { host.appendChild(el('div', 'fb-note', 'Pick one to begin.')); return; }
     if (now === 'else') { if (!plain) host.appendChild(el('div', 'fb-note', 'This roll does more than these can show, so it stays as steps.')); formInto(host, f, 'f', true); return; }
+    if (now === 'read') { var dr = face.dice, qd = qInto(host, 'What do they roll?', 'One handful. Every line below reads these same dice.'); diceInto(qd, dr, function(x) { f.steps[0].v.dice[0].steps[0].v = x; }, 'f0v'); readInto(qInto(host, 'What do you read from them?', 'The card shows each one in words.'), f.steps[0].v, face.group); return; }
     var d = f.steps[0].v, q = qInto(host, 'What do they roll?', 'The dice ' + who + ' throws.');
     diceInto(q, d, function(x) { f.steps[0].v = x; }, 'f0v');
     addsInto(q, f, 1, '+ Add a figure', 'fa');

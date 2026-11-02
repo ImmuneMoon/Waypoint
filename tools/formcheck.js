@@ -48,7 +48,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     const sayT = t => C.says(C.read(t).form, { name: s => ({ 'agility.max': 'Agility at its most', might: 'Might', skill: 'Skill' })[s.toLowerCase()] || '' });
     check('a form says what it does in words, and no code', sayT('floor((Agility.max + Might) / 4)') === 'Agility at its most plus Might divided by 4, rounded down' && sayT('3d6 + 2 <= Skill') === '3d6 plus 2, a success if it is at most Skill' && sayT('4d6kh3') === '4d6, keeping the highest 3' && sayT('6d10!!cs>=8') === '6d10, each exploding into a die of its own, counting 8 or more as a success' && sayT('max(1, Might)') === 'Might, at least 1' && sayT('clamp(Might, 1, 5)') === 'Might, held between 1 and 5' && !/[(){}@]|\bmax\b|\bfloor\b/.test(sayT('floor(max(Might, 1))')), sayT('floor((Agility.max + Might) / 4)'));
     check('a yes or no says it too', C.saysCond(C.readCond('HP < 3 and Str >= 2').cond, {}) === 'HP is under 3, and Str is at least 2' && C.saysCond(C.readCond('HP < 3 or Str').cond, {}) === 'HP is under 3, or Str' && C.saysCond(C.readCond('not (Str = 3)').cond, {}) === 'not (Str is 3)');
-    check('dice read twice say what is read', sayT('with(6d10@p, high(p) + count(p >= 7))') === 'roll 6d10 to read, then the highest of p plus how many of p is at least 7');
+    check('dice read twice say what is read', sayT('with(6d10@p, high(p) + count(p >= 7))') === 'roll 6d10, then read the highest of the dice plus how many reach 7');
 
     /* ================= the form, on a page that refuses markup ================= */
     const doc = global.document, modal = doc.createElement('div'); modal.id = 'systemModal'; (doc.body || dom.body).appendChild(modal);
@@ -82,22 +82,26 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
 
     /* ================= what a roll is for, and what it does ================= */
     const who = { who: 'Kael', vars: n => ({ dodge: 12, attemptmargin: 3, might: 2 })[String(n).toLowerCase()] || 0 }, tr = t => C.tryRoll(C.read(t).form, who);
-    check('a roll has a kind by its shape, and what it cannot show stays as steps', ['3d6 <= 9', '2d6 + 3', '6d10cs>=8', '6d10cs>=8 >= 2', 'with(6d10@p, high(p))', 'floor(Might)', '5d10@p'].map(t => C.rollFace(C.read(t).form).kind).join() === 'beat,total,hits,hits,else,else,else');
+    check('a roll has a kind by its shape, and what it cannot show stays as steps', ['3d6 <= 9', '2d6 + 3', '6d10cs>=8', '6d10cs>=8 >= 2', 'with(6d10@p, high(p))', 'floor(Might)', '5d10@p'].map(t => C.rollFace(C.read(t).form).kind).join() === 'beat,total,hits,hits,read,else,else');
     check('what a roll does for one character, in a sentence, with the odds worked out exactly on plain dice', tr('3d6 <= Dodge - AttemptMargin') === 'Kael rolls 3d6 and needs 9 or less. That works about 38 times in 100.' && tr('d20 + Might >= 15') === 'Kael rolls 1d20 and adds 2, and needs a total of 15 or more. That works about 40 times in 100.' && tr('2d6 + 3') === 'Kael rolls 2d6 and adds 3. That gives 5 to 15, about 10.' && tr('3d6 >= 19') === 'Kael rolls 3d6 and needs 19 or more. That almost never works.' && tr('3d6 >= 3') === 'Kael rolls 3d6 and needs 3 or more. That almost always works.', j([tr('3d6 <= Dodge - AttemptMargin'), tr('d20 + Might >= 15'), tr('3d6 >= 19')]));
-    check('dice with rules are sampled, and a figure of the sheet reads as a number', /^Kael rolls 4d6, keeping the highest 3\. That gives 3 to 18, about 12(\.\d)?\.$/.test(tr('4d6kh3')) && /^Kael rolls 2d6\. That gives 2 to 12, about \d(\.\d)?\.$/.test(tr('(Might)d6')) && /^Kael rolls 6d10\. Each die at 8 or more is a hit\. That makes about 1\.\d hits\.$/.test(tr('6d10cs>=8')) && /^Kael rolls 6d10 and needs 2 or more hits\. Each die at 8 or more is a hit\. That works about \d+ times in 100\.$/.test(tr('6d10cs>=8 >= 2')) && /times in 100\.$/.test(tr('with(6d10@p, high(p) >= 9)')), j([tr('4d6kh3'), tr('(Might)d6'), tr('6d10cs>=8 >= 2')]));
+    check('dice with rules are sampled, and a figure of the sheet reads as a number', /^Kael rolls 4d6, keeping the highest 3\. That gives about 12(\.\d)?\.$/.test(tr('4d6kh3')) && /^Kael rolls 2d6\. That gives about \d(\.\d)?\.$/.test(tr('(Might)d6')) && /^Kael rolls 6d10\. Each die at 8 or more is a hit\. That makes about 1\.\d hits\.$/.test(tr('6d10cs>=8')) && /^Kael rolls 6d10 and needs 2 or more hits\. Each die at 8 or more is a hit\. That works about \d+ times in 100\.$/.test(tr('6d10cs>=8 >= 2')) && /times in 100\.$/.test(tr('with(6d10@p, high(p) >= 9)')), j([tr('4d6kh3'), tr('(Might)d6'), tr('6d10cs>=8 >= 2')]));
     check('a test and a figure say what they are for this character', C.tryValue('Might >= 1', Object.assign({ cond: true }, who)) === 'For Kael this holds now.' && C.tryValue('Might >= 9', Object.assign({ cond: true }, who)) === 'For Kael this does not hold now.' && C.tryValue('Dodge - 1', who) === 'For Kael this comes to 11.', C.tryValue('Dodge - 1', who));
+    const rl = t => C.rollFace(C.read(t).form), okR = t => rl(t).kind === 'read', RB = 'with(6d10@p, high(p) + count(p >= 7))';
+    check('Read the dice: one handful read by lines; anything else around it stays as steps', okR(RB) && okR('with(3d6@x, low(x) - total(x))') && okR('with(5d10@p, nth(p, 2) + best(p, 2) - worst(p, 2) + sets(p) + pairs(p))') && !okR('with(6d10@p, high(p) + 1)') && !okR('with(6d10@p, 2d6@q, high(p))') && !okR('with(6d10@p, high(q))') && !okR('with(6d10, 1)') && !okR('with(6d10@p, high(p)) + 1') && !okR('with(6d10@p, high(p)) >= 3') && !okR('with(6d10@p, count(p))'));
+    check('each line reads back and writes as it was', ['high', 'low', 'sets', 'pairs', 'total'].every(h => C.write({ steps: [{ op: 'start', v: C.readMake(h, 'p') }] }) === h + '(p)') && C.write({ steps: [{ op: 'start', v: C.readMake('count', 'p', '>=', { k: 'num', v: 7, s: '7' }) }] }) === 'count(p >= 7)' && C.write({ steps: [{ op: 'start', v: C.readMake('best', 'p', null, { k: 'num', v: 2, s: '2' }) }] }) === 'best(p, 2)' && j(Object.keys(C.readLine(rl(RB).lines.steps[1].v, 'p')).sort()) === j(['how', 'n', 'op']));
+    check('it says what it does, with no name of the dice in it, and Try it works it out', C.says(C.read(RB).form, {}) === 'roll 6d10, then read the highest of the dice plus how many reach 7' && /^Kael rolls 6d10\. That gives about 11\.\d\.$/.test(tr(RB)), j([C.says(C.read(RB).form, {}), tr(RB)]));
     const mkRoll = v => { const r = doc.createElement('div'); r.className = 'sys-row'; r.dataset.id = 'r_x'; const i = doc.createElement('input'); i.type = 'text'; i.className = 'sys-formula field'; i.value = v; r.appendChild(i); modal.appendChild(r); B.sweep(modal); return i; };
     const srcT = { groups: [], word: s => ({ dodge: 'Dodge', attemptmargin: 'how far their attempt beat its target' })[String(s).toLowerCase()] || '', subject: 'Dodge', trial: { people: () => [{ id: 'c1', name: 'Kael' }], vars: (id, over) => n => { const l = String(n).toLowerCase(); return over[l] !== undefined ? over[l] : ({ dodge: 12 })[l] || 0; }, asks: t => /AttemptMargin/.test(t) ? [{ s: 'AttemptMargin', word: 'how far their attempt beat its target' }] : [] } };
     B.setSource(() => srcT);
     const openR = i => { press(i.parentNode.querySelector('.fb-go')); return i.parentNode.querySelector('.fb-open'); }, cards = b => Array.from(b.querySelectorAll('.fb-kind')), onCard = b => cards(b).filter(c => c.classList.contains('on')).map(c => c.querySelector('b').textContent).join(), heads = b => Array.from(b.querySelectorAll('.fb-qh')).map(h => h.textContent).join(' | ');
     const iD = mkRoll('3d6 <= Dodge - AttemptMargin'), bD = openR(iD);
-    check('a roll opens on what it is for, its kind picked, and asks in plain questions', cards(bD).length === 4 && onCard(bD) === 'Beat a number' && heads(bD) === 'What do they roll? | What must they beat?' && /The dice the Dodge button throws\./.test(bD.textContent) && /Rolling low is good here/.test(bD.textContent) && !/Start with|Add a step/.test(bD.textContent), heads(bD));
+    check('a roll opens on what it is for, its kind picked, and asks in plain questions', cards(bD).length === 5 && onCard(bD) === 'Beat a number' && heads(bD) === 'What do they roll? | What must they beat?' && /The dice the Dodge button throws\./.test(bD.textContent) && /Rolling low is good here/.test(bD.textContent) && !/Start with|Add a step/.test(bD.textContent), heads(bD));
     check('Try it says what happens, and asks by a number for what depends on the moment', bD.querySelector('.fb-tryout').textContent === 'Kael rolls 3d6 and needs 12 or less. That works about 74 times in 100.' && /with how far their attempt beat its target/.test(bD.querySelector('.fb-tryline').textContent) && iD.value === '3d6 <= Dodge - AttemptMargin', bD.querySelector('.fb-tryout').textContent);
     const tn = bD.querySelector('.fb-tryline .fb-num'); tn.value = '3'; (tn.handlers && tn.handlers.input || []).forEach(h => h({ target: tn }));
     check('a figure typed into Try it moves the answer and leaves the roll as it was', bD.querySelector('.fb-tryout').textContent === 'Kael rolls 3d6 and needs 9 or less. That works about 38 times in 100.' && iD.value === '3d6 <= Dodge - AttemptMargin', bD.querySelector('.fb-tryout').textContent);
     press(bD.querySelector('.fb-cancel'));
     const iN = mkRoll(''), bN = openR(iN);
-    check('a new roll asks what it is for and nothing else', cards(bN).length === 4 && onCard(bN) === '' && !bN.querySelector('.fb-q') && /Pick one to begin\./.test(bN.textContent) && iN.value === '', heads(bN));
+    check('a new roll asks what it is for and nothing else', cards(bN).length === 5 && onCard(bN) === '' && !bN.querySelector('.fb-q') && /Pick one to begin\./.test(bN.textContent) && iN.value === '', heads(bN));
     press(cards(bN)[1]);
     check('picking a kind brings its questions, and a total never asks what it must beat', onCard(bN) === 'Get a total' && heads(bN) === 'What do they roll?' && iN.value === '1d20', iN.value);
     press(cards(bN)[0]);
@@ -106,12 +110,20 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     check('Count hits asks what a hit is, and takes the number away', onCard(bN) === 'Count hits' && iN.value === '1d20cs>=5' && heads(bN) === 'What do they roll? | What counts as a hit? | How many hits do they need?', iN.value);
     press(cards(bN)[1]);
     check('back to a total, the hits go', iN.value === '1d20' && onCard(bN) === 'Get a total', iN.value);
-    press(cards(bN)[3]);
+    press(cards(bN)[4]);
     check('Something else shows the steps', onCard(bN) === 'Something else' && !bN.querySelector('.fb-q') && !!bN.querySelector('.fb-step'), onCard(bN));
     press(bN.querySelector('.fb-cancel'));
     const iC = mkRoll('with(6d10@p, high(p) + 1)'), bC = openR(iC);
-    check('a roll that does more stays as steps, says so, and its other kinds cannot be pressed', onCard(bC) === 'Something else' && cards(bC).slice(0, 3).every(c => c.disabled === true) && /stays as steps/.test(bC.textContent), onCard(bC));
+    check('a roll that does more stays as steps, says so, and its other kinds cannot be pressed', onCard(bC) === 'Something else' && cards(bC).slice(0, 4).every(c => c.disabled === true) && /stays as steps/.test(bC.textContent), onCard(bC));
     press(bC.querySelector('.fb-cancel'));
+    const iR = mkRoll('3d6'), bR = openR(iR);
+    press(cards(bR)[3]);
+    check('picking Read the dice turns the dice into one handful, and asks what is read', onCard(bR) === 'Read the dice' && iR.value === 'with(3d6@p, high(p))' && heads(bR) === 'What do they roll? | What do you read from them?', iR.value);
+    press(bR.querySelector('[data-p="rladd"]'));
+    check('another reading is added to the same dice', iR.value === 'with(3d6@p, high(p) + count(p >= 7))' && okR(iR.value), iR.value);
+    press(cards(bR)[1]);
+    check('a total takes the reading away and keeps the dice', iR.value === '3d6', iR.value);
+    press(bR.querySelector('.fb-cancel'));
     const iA = mkRoll('2d6 + 3'), bA = openR(iA);
     press(bA.querySelector('[data-p="faadd"]'));
     check('a figure added to a roll writes the box', iA.value === '2d6 + 3 + 0', iA.value);

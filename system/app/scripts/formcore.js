@@ -188,7 +188,7 @@ function diceSays(v, say) {
 function fnSays(v, say) {
     var a = v.args, n = v.name, w = function(i) { return a[i] ? formSays(a[i], say) : ''; }, all = function() { return a.map(function(f) { return formSays(f, say); }).join(', '); };
     if (READ_WORDS[n]) return READ_WORDS[n] + ' ' + w(0);
-    if (n === 'count') { var st = a[0] && a[0].steps && a[0].steps[0] && a[0].steps[0].v, c = st && st.k === 'test' ? st.cond.tests[0] : null; return c && c.l ? 'how many of ' + formSays(c.l, say) + ' ' + (CMP_WORDS[c.op] || c.op) + ' ' + formSays(c.r, say) : 'how many dice in ' + w(0); }
+    if (n === 'count') { var st = a[0] && a[0].steps && a[0].steps[0] && a[0].steps[0].v, c = st && st.k === 'test' ? st.cond.tests[0] : null; return c && c.l ? (c.op === '>=' ? 'how many reach ' + formSays(c.r, say) : 'how many of ' + formSays(c.l, say) + ' ' + (CMP_WORDS[c.op] || c.op) + ' ' + formSays(c.r, say)) : 'how many dice in ' + w(0); }
     if (n === 'nth') return 'number ' + w(1) + ' from the highest of ' + w(0);
     if (n === 'best') return 'the best ' + w(1) + ' of ' + w(0);
     if (n === 'worst') return 'the worst ' + w(1) + ' of ' + w(0);
@@ -210,7 +210,7 @@ function valSays(v, say) {
         case 'calc': return '(' + formSays(v.form, say) + ')';
         case 'test': return condSays(v.cond, say);
         case 'if': return '(if ' + condSays(v.c, say) + ' then ' + formSays(v.a, say) + ', otherwise ' + formSays(v.b, say) + ')';
-        case 'with': return 'roll ' + v.dice.map(function(f) { return formSays(f, say); }).join(' and ') + ' to read, then ' + formSays(v.last, say);
+        case 'with': { var one = v.dice.length === 1 ? oneVal(v.dice[0]) : null, g = one && one.as ? String(one.as).toLowerCase() : '', sayW = g ? { name: function(s) { return String(s).toLowerCase() === g ? 'the dice' : say && typeof say.name === 'function' ? say.name(s) : ''; } } : say; return 'roll ' + v.dice.map(function(f) { return formSays(f, say); }).join(' and ') + ', then read ' + formSays(v.last, sayW); }
         case 'fn': return fnSays(v, say);
         case 'text': return String(v.s);
     }
@@ -246,7 +246,31 @@ function says(f, say) { return formSays(f, say); }
 function saysCond(c, say) { return condSays(c, say); }
 /* ---------- what a roll is for, and what it does at the table ---------- */
 // the plain shape of a roll: dice, figures added or taken off, and a number to beat. Anything else stays as steps
+// one line of Read the dice: what is read from the handful. null for anything else
+var READ_TAKES = { nth: 1, best: 1, worst: 1 }, READ_PLAIN = { high: 1, low: 1, sets: 1, pairs: 1, total: 1 };
+function oneVal(f) { return f && f.steps && f.steps.length === 1 && f.steps[0].op === 'start' && !f.check ? f.steps[0].v : null; }
+function isGroup(v, g) { return !!v && v.k === 'name' && String(v.s).toLowerCase() === String(g).toLowerCase(); }
+function readLine(v, g) {
+    if (!v || v.k !== 'fn') return null;
+    var a = v.args || [], head = oneVal(a[0]);
+    if (v.name === 'count') { var c = head && head.k === 'test' && head.cond.tests.length === 1 && !head.cond.any && !head.cond.not ? head.cond.tests[0] : null, r = c && c.l ? oneVal(c.r) : null; return a.length === 1 && r && isGroup(oneVal(c.l), g) && (c.op === '>=' || c.op === '<=' || c.op === '=') ? { how: 'count', op: c.op, n: r } : null; }
+    if (!isGroup(head, g)) return null;
+    if (READ_PLAIN[v.name] && a.length === 1) return { how: v.name };
+    var n = READ_TAKES[v.name] && a.length === 2 ? oneVal(a[1]) : null; return n ? { how: v.name, n: n } : null;
+}
+function readMake(how, g, op, n) {
+    var nm = { steps: [{ op: 'start', v: { k: 'name', s: g } }] }, fig = n || { k: 'num', v: how === 'count' ? 7 : 2, s: how === 'count' ? '7' : '2' };
+    if (how === 'count') return { k: 'fn', name: 'count', args: [{ steps: [{ op: 'start', v: { k: 'test', cond: { any: false, tests: [{ l: nm, op: op || '>=', r: { steps: [{ op: 'start', v: fig }] } }] } } }] }] };
+    return { k: 'fn', name: how, args: READ_TAKES[how] ? [nm, { steps: [{ op: 'start', v: fig }] }] : [nm] };
+}
+function readFace(f) {   // one handful named, read by lines added or taken off, with nothing else around it
+    var w = f.steps.length === 1 && !f.check ? f.steps[0].v : null; if (!w || w.k !== 'with' || w.dice.length !== 1) return null;
+    var d = oneVal(w.dice[0]), last = w.last; if (!d || d.k !== 'dice' || !d.as || !last || last.check || !last.steps.length) return null;
+    for (var i = 0; i < last.steps.length; i++) { var st = last.steps[i]; if ((i ? st.op !== '+' && st.op !== '-' : st.op !== 'start') || !readLine(st.v, d.as)) return null; }
+    return { kind: 'read', dice: d, group: d.as, lines: last };
+}
 function rollFace(f) {
+    var rf = f && f.steps && f.steps.length ? readFace(f) : null; if (rf) return rf;
     var st = f && f.steps, first = st && st[0];
     if (!first || first.op !== 'start' || !first.v || first.v.k !== 'dice' || first.v.as) return { kind: 'else' };
     for (var i = 1; i < st.length; i++) if (st[i].op !== '+' && st[i].op !== '-') return { kind: 'else' };
@@ -278,6 +302,7 @@ function fig1(x) { return String(Math.round(x * 10) / 10); }
 function timesWord(p) { var n = Math.round(p * 100); return n <= 0 ? 'That almost never works.' : n >= 100 ? 'That almost always works.' : 'That works about ' + n + ' times in 100.'; }
 function needWord(op, n) { return op === '<=' ? n + ' or less' : op === '>=' ? n + ' or more' : op === '<' ? 'under ' + n : op === '>' ? 'over ' + n : op === '=' ? 'exactly ' + n : 'anything but ' + n; }
 function spanWord(lo, hi, mean) { return lo === hi ? fig1(lo) : fig1(lo) + ' to ' + fig1(hi) + ', about ' + fig1(mean); }
+function aboutWord(s) { return s.lo === s.hi ? fig1(s.lo) : 'about ' + fig1(s.mean); }   // sampled dice: thousands of tries can miss a rare low or high, so no range is claimed
 function rolledWord(d, vars) {   // the dice as a person would say them, with a figure of the sheet read
     var c = {}, one = function(v) { var r = figOf({ steps: [{ op: 'start', v: v }] }, vars); return r === null ? null : { k: 'num', v: r, s: String(r) }; }, k; for (k in d) if (Object.prototype.hasOwnProperty.call(d, k)) c[k] = d[k];
     if (c.n && c.n.k !== 'num') { var n = one(c.n); if (!n) return ''; c.n = n; } if (c.f && c.f.k && c.f.k !== 'num') { var f = one(c.f); if (!f) return ''; c.f = f; }
@@ -286,7 +311,8 @@ function rolledWord(d, vars) {   // the dice as a person would say them, with a 
 // what a roll does for one character, in a sentence or two. o.who their name, o.vars what they read
 function tryRoll(form, o) {
     var face = rollFace(form), who = o.who, vars = o.vars, text = write(form), s;
-    if (face.kind === 'else') { s = sampleOf(text, vars); return !s ? '' : s.isB ? who + ' rolls. ' + timesWord(s.share) : who + ' rolls and gets ' + spanWord(s.lo, s.hi, s.mean) + '.'; }
+    if (face.kind === 'read') { var rw = rolledWord(face.dice, vars); s = sampleOf(text, vars); return s && rw ? who + ' rolls ' + rw + '. That gives ' + aboutWord(s) + '.' : ''; }
+    if (face.kind === 'else') { s = sampleOf(text, vars); return !s ? '' : s.isB ? who + ' rolls. ' + timesWord(s.share) : who + ' rolls and gets ' + aboutWord(s) + '.'; }
     var d = face.dice, word = rolledWord(d, vars), adds = 0; if (!word) return '';
     for (var i = 1; i < form.steps.length; i++) { var x = figOf({ steps: [{ op: 'start', v: form.steps[i].v }] }, vars); if (x === null) return ''; adds += form.steps[i].op === '-' ? -x : x; }
     var roll = who + ' rolls ' + word + (adds > 0 ? ' and adds ' + fig1(adds) : adds < 0 ? ' and takes off ' + fig1(-adds) : ''), pool = plainPool(d) ? poolOf(diceN(d), d.f.v) : null;
@@ -303,13 +329,13 @@ function tryRoll(form, o) {
         return roll + (adds ? ', and needs a total of ' : ' and needs ') + needWord(form.check.op, need) + '.' + (share === null ? '' : ' ' + timesWord(share));
     }
     if (pool) { var lo = diceN(d) + adds, hi = diceN(d) * d.f.v + adds, m = 0; pool.forEach(function(p, t) { m += p * (t + adds); }); return roll + '. That gives ' + spanWord(lo, hi, m) + '.'; }
-    s = sampleOf(text, vars); return s ? roll + '. That gives ' + spanWord(s.lo, s.hi, s.mean) + '.' : roll + '.';
+    s = sampleOf(text, vars); return s ? roll + '. That gives ' + aboutWord(s) + '.' : roll + '.';
 }
 // a figure or a yes or no, for one character
 function tryValue(text, o) {
     var s = sampleOf(text, o.vars); if (!s) return '';
     if (o.cond) { if (s.dice) return 'For ' + o.who + ' that holds about ' + Math.round((s.isB ? s.share : 1) * 100) + ' times in 100.'; var yes = s.isB ? s.share > 0 : s.mean !== 0; return 'For ' + o.who + ' this ' + (yes ? 'holds now.' : 'does not hold now.'); }
-    return s.isB ? 'For ' + o.who + ' this ' + (s.share > 0 ? 'holds now.' : 'does not hold now.') : 'For ' + o.who + ' this comes to ' + spanWord(s.lo, s.hi, s.mean) + '.';
+    return s.isB ? 'For ' + o.who + ' this ' + (s.share > 0 ? 'holds now.' : 'does not hold now.') : 'For ' + o.who + ' this comes to ' + aboutWord(s) + '.';
 }
 /* ---------- words with figures among them: a caption, a roll's label ---------- */
 // "Attack ({\u00b1Bonus})" as [{ text }, { form, sign, unit }, { text }]. null where a figure in it cannot be read
@@ -329,6 +355,6 @@ function writeWords(parts) { return parts.map(function(p) { return p.form ? '{' 
 function saysWords(parts, say) { return parts.map(function(p) { return p.form ? says(p.form, say) : p.text; }).join(''); }
 // what the words read for one character
 function tryWords(parts, o) { return 'For ' + o.who + ' it reads: ' + parts.map(function(p) { if (!p.form) return p.text; var x = figOf(p.form, o.vars); return x === null ? '?' : (p.sign && x >= 0 ? '+' : '') + fig1(x) + (p.unit ? ' ' + p.unit.slice(1).trim() : ''); }).join(''); }
-var API = { tryWords: tryWords, readWords: readWords, writeWords: writeWords, saysWords: saysWords, rollFace: rollFace, tryRoll: tryRoll, tryValue: tryValue, read: read, write: write, says: says, readCond: readCond, writeCond: writeCond, saysCond: saysCond, CMP_WORDS: CMP_WORDS, STEP_WORDS: STEP_WORDS, ROUND_WORDS: ROUND_WORDS };
+var API = { readLine: readLine, readMake: readMake, tryWords: tryWords, readWords: readWords, writeWords: writeWords, saysWords: saysWords, rollFace: rollFace, tryRoll: tryRoll, tryValue: tryValue, read: read, write: write, says: says, readCond: readCond, writeCond: writeCond, saysCond: saysCond, CMP_WORDS: CMP_WORDS, STEP_WORDS: STEP_WORDS, ROUND_WORDS: ROUND_WORDS };
 if (typeof window !== 'undefined') window.wpFormCore = API;
-export { tryWords, readWords, writeWords, saysWords, rollFace, tryRoll, tryValue, read, write, says, readCond, writeCond, saysCond, CMP_WORDS, STEP_WORDS, ROUND_WORDS };
+export { readLine, readMake, tryWords, readWords, writeWords, saysWords, rollFace, tryRoll, tryValue, read, write, says, readCond, writeCond, saysCond, CMP_WORDS, STEP_WORDS, ROUND_WORDS };

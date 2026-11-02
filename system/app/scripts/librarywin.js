@@ -5,10 +5,12 @@
    copy at once and the pack is written a second later (one revision for a burst of edits); closing the window writes what is pending.
    A pack not read (still loading, or unreadable) cannot change: writing it would replace what is on disk with nothing. Built with text
    nodes only. The rules are librarycore's (librarycheck); the store is library.js's. */
+import { state as saved } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { toast } from './io.js';
 import { showPrompt, showConfirm } from './dialogs.js';
 import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, libCtx, LIB, packFile, readPackImport, packImportPlan, bulkSet, bulkMove, lvlsToText } from './librarycore.js';
+import { CSV, readCsv, headsOf, headLooks, csvStats, csvTargets, guessMap, setTarget, bestList, csvEntries, csvPreview, csvCats } from './csvcore.js';
 import { itemReach, carriedBy, lvlOnlyRead, lvlOnlyText, modTiersRead, modTiersText, keyUses, keyUseSays, catNear } from './systemcore.js';
 
 var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'lvlOnly', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg', 'again', 'rollSw', 'opens', 'grants', 'mods', 'modsOn', 'needs', 'needsIf', 'needsFrom', 'needsMsg'];
@@ -83,10 +85,10 @@ function open() {
     if (!packById(st.packId)) st.packId = packs().length ? packs()[0].id : null;
     var cn = ui('libCampName'); if (cn) cn.textContent = c.name || '';
     var s = ui('libSearch'); if (s) s.value = '';
-    m.style.display = 'flex'; state(''); renderAll();
+    m.style.display = 'flex'; state(''); renderAll(); guideOpen();
     if (s) try { s.focus({ preventScroll: true }); } catch (e) {}
 }
-async function close() { if (!st.open) return; await flush(); st.open = false; st.work = map(); st.imp = null; var m = ui('libraryModal'); if (m) m.style.display = 'none'; var b = ui('sysOpenLibrary'); if (b && !b.offsetParent) b = ui('campMenuBtn'); if (b) try { b.focus({ preventScroll: true }); } catch (e) {} }   // back to the System editor, whose keys (Esc) then work
+async function close() { if (!st.open) return; await flush(); st.open = false; st.work = map(); st.imp = null; csvWide(false); st.g = null; guideSync(); var m = ui('libraryModal'); if (m) m.style.display = 'none'; var b = ui('sysOpenLibrary'); if (b && !b.offsetParent) b = ui('campMenuBtn'); if (b) try { b.focus({ preventScroll: true }); } catch (e) {} }   // back to the System editor, whose keys (Esc) then work
 function renderAll() { renderPacks(); renderPackBar(); renderList(); renderForm(); }
 // the library finished reading (library.js): what was loading can be shown now; an entry being edited stays as typed
 function refresh() { if (!st.open) return; renderPacks(); renderPackBar(); renderList(); if (!current()) renderForm(); }
@@ -127,7 +129,7 @@ function renderPackBar() {
     if (!ready(p.id)) bar.appendChild(el('div', 'lib-warn', LB().state() === 'loading' ? 'Reading this pack…' : 'This pack could not be read, so it cannot change here. Its file is kept as it is.'));
 }
 function newPack() {
-    showPrompt('Name the new pack', 'Gear', async function(name) { if (name === null || name === undefined || !st.open) return; var r = await LB().createPack(name); if (!r || r.error) { toast((r && r.error) || 'The pack could not be made.'); return; } st.packId = r.id; st.entryId = null; st.draftNew = null; st.sel = map(); renderAll(); });
+    showPrompt('Name the new pack', 'Gear', async function(name) { if (name === null || name === undefined || !st.open) return; var r = await LB().createPack(name); if (!r || r.error) { toast((r && r.error) || 'The pack could not be made.'); return; } st.packId = r.id; st.entryId = null; st.draftNew = null; st.sel = map(); renderAll(); guideAt('pack'); });
 }
 // L2a2: a pack saved as a file — the GM's copy as held, or a players' copy as the players' view holds it (librarycore packFile)
 function exportPack(which) {
@@ -170,8 +172,8 @@ function libStep(step, o) { try { if (typeof window !== 'undefined' && typeof wi
 function renderImport(form) {
     var im = st.imp, d = im.data, targets = packs().filter(function(p) { return ready(p.id); });
     if (!targets.some(function(p) { return p.id === im.target; })) im.target = targets.length ? targets[0].id : null;
-    form.appendChild(el('div', 'lib-fhead', 'Import “' + d.name + '”'));
-    form.appendChild(el('div', 'lib-note', im.file + ' · ' + plural(d.entries.length) + (d.dropped ? ' (and ' + d.dropped + ' not valid)' : '') + '. Nothing changes until you press Import.'));
+    if (im.csv) csvBox(form, im); else form.appendChild(el('div', 'lib-fhead', 'Import “' + d.name + '”'));   // 1.6.2: a spreadsheet says which column goes where first, then goes the way a pack file goes
+    if (!im.csv) form.appendChild(el('div', 'lib-note', im.file + ' · ' + plural(d.entries.length) + (d.dropped ? ' (and ' + d.dropped + ' not valid)' : '') + '. Nothing changes until you press Import.'));
     if (d.lostStats && d.lostStats.length) form.appendChild(el('div', 'lib-warn', 'Left out: stats no list of this system has \u2014 ' + d.lostStats.map(function(x) { return x.key + ' (' + x.n + ')'; }).join(', ') + '. Set up the lists first (or import the system) to keep them.'));   // Stage 6 F3
     var md = field(form, 'imMode', 'Import as', im.mode, { pairs: [['new', 'A new pack'], ['id', 'Merged into a pack, by id'], ['key', 'Merged into a pack, by key'], ['replace', 'Replacing a pack, by id']], title: 'By id: an entry of the same id is replaced. By key: an entry of the same key is replaced and keeps its id. Either way the rest are added. Replacing: the pack becomes the file, and the entries the file lacks are removed' });
     md.addEventListener('change', function() { im.mode = md.value; renderForm(); });
@@ -179,6 +181,7 @@ function renderImport(form) {
         if (targets.length) { var tg = field(form, 'imTarget', 'Into', im.target, { pairs: targets.map(function(p) { return [p.id, p.name]; }) }); tg.addEventListener('change', function() { im.target = tg.value; renderForm(); }); }
         else form.appendChild(el('div', 'lib-warn', 'There is no pack to merge into yet.'));
     }
+    if (im.csv && im.mode === 'new') { var pn = field(form, 'imPack', 'Pack name', d.name, { max: LIB.packName, title: 'The name of the new pack' }); pn.addEventListener('change', function() { im.csv.pack = pn.value; csvRedraw(im); }); }
     var plan = planFor(im), sum = el('div', 'lib-imsum'), rmv = Array.isArray(plan.remove) ? plan.remove : [], used = Array.isArray(plan.inUse) ? plan.inUse : [];
     [['Added', plan.add], ['Updated', plan.update], ['Unchanged', plan.same], ['Skipped', plan.skip], ['Not valid', plan.invalid]].concat(im.mode === 'replace' ? [['Removed', rmv.length]] : []).forEach(function(x) { var c = el('div', 'lib-imcell' + (x[1] ? '' : ' zero')); c.appendChild(el('b', null, String(x[1]))); c.appendChild(el('span', null, x[0])); sum.appendChild(c); });
     form.appendChild(sum);
@@ -214,8 +217,77 @@ async function doImport() {
     schedule(pid); await flush();
     toast('Imported into “' + ((packById(pid) || {}).name || '') + '”: ' + plan.add + ' added, ' + plan.update + ' updated' + (rmv.length ? ', ' + rmv.length + ' removed' : '') + (plan.skip ? ', ' + plan.skip + ' skipped' : '') + '.');
     if (im.mode === 'replace') libStep('done', { add: plan.add, update: plan.update, remove: rmv.length });
+    if (im.csv) catLog('csv-done', { add: plan.add, update: plan.update, same: plan.same, skip: plan.skip, invalid: plan.invalid, cells: im.data.cells, clash: plan.clash, mode: im.mode });
     renderAll();
 }
+
+/* ---- from a spreadsheet (1.6.2): a CSV file's columns matched to what an entry holds, its rows shown as they will come in, then the import above ---- */
+// [catalogcheck:csvbox-start]
+function catLog(step, o) { try { if (typeof window !== 'undefined' && typeof window.wpStepLog === 'function') window.wpStepLog('catalog v1', step, o); } catch (e) {} }   // structure only: counts and a status, never a name or a cell
+function csvWide(on) { var m = ui('libraryModal'); if (m && m.classList) m.classList.toggle('lib-csv-on', !!on); }   // its columns need room: the form takes it while they are up
+function csvPick() {
+    var fi = el('input'); fi.type = 'file'; fi.accept = '.csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain';
+    fi.addEventListener('change', function() {
+        var f = fi.files && fi.files[0]; if (!f || !st.open) return;
+        if (f.size > CSV.bytes) { catLog('csv-refused', { why: 'size' }); toast('That file is too large (' + Math.round(CSV.bytes / 1048576) + ' MB at most).'); return; }
+        f.arrayBuffer().then(function(buf) { if (st.open) csvOpen(String(f.name || ''), new Uint8Array(buf)); }).catch(function() { catLog('csv-refused', { why: 'read' }); toast('That file could not be read.'); });
+    });
+    fi.click();
+}
+function csvOpen(fileName, bytes) {
+    var t = readCsv(bytes); if (t.error) { catLog('csv-refused', { why: 'file' }); toast(t.error); return; }
+    var c = camp(), sys = c && c.system, hasHead = headLooks(t), heads = headsOf(t, hasHead), list = bestList(sys, heads), stats = csvStats(sys, list), mapped = guessMap(heads, csvTargets(stats));
+    var name = fileName.replace(/\.[^.]*$/, '').replace(/[_]+/g, ' ').trim().slice(0, LIB.packName), low = name.toLowerCase(), hit = packs().filter(function(p) { return String(p.name || '').trim().toLowerCase() === low; })[0];
+    var cv = { file: fileName.slice(0, 80), table: t, hasHead: hasHead, heads: heads, list: list, stats: stats, map: mapped, cat: csvCatFor(list, mapped), pack: name };
+    var im = { file: cv.file, csv: cv, data: null, mode: hit ? (mapped.indexOf('key') >= 0 ? 'key' : 'id') : 'new', target: hit ? hit.id : st.packId };   // a file named as a pack updates that pack, by default
+    csvApply(im); st.imp = im; st.sel = map(); st.entryId = null; st.draftNew = null; drawRows(); renderForm();
+    catLog('csv-read', { rows: t.rows.length, cols: heads.length, sep: t.sep === ',' ? 'comma' : t.sep === ';' ? 'semicolon' : t.sep === '\t' ? 'tab' : 'other', enc: t.enc, guessed: mapped.filter(Boolean).length, cutRows: t.cut.rows, cutCols: t.cut.cols, cutCells: t.cut.cells, open: t.open });
+}
+function csvCatFor(list, mapped) { if (mapped.indexOf('category') >= 0) return ''; var f = itemLists().filter(function(x) { return x.id === list; })[0]; return f && Array.isArray(f.list.cats) && typeof f.list.cats[0] === 'string' ? f.list.cats[0] : ''; }
+function csvApply(im) { var cv = im.csv; im.data = csvEntries(cv.table, cv.map, cv.stats, gmCtx(), { hasHead: cv.hasHead, cat: cv.cat, name: cv.pack }); }
+// a change of what the file says: planned again, and the form drawn where it stood, with the focus on the box that changed
+function csvRedraw(im) {
+    csvApply(im); var form = ui('libForm'), top = form ? form.scrollTop : 0, at = document.activeElement ? document.activeElement.id : ''; renderForm();
+    if (form) form.scrollTop = top; var n = at ? ui(at) : null; if (n && n.focus) try { n.focus({ preventScroll: true }); } catch (e) {}
+}
+function csvBox(form, im) {
+    var cv = im.csv, d = im.data, t = cv.table, c = camp(), sys = c && c.system, wd = function(n, one, many) { return n + ' ' + (n === 1 ? one : many); };
+    form.appendChild(el('div', 'lib-fhead', 'From a spreadsheet'));
+    form.appendChild(el('div', 'lib-note', cv.file + ': ' + wd(d.rows, 'row', 'rows') + ' in ' + wd(cv.heads.length, 'column', 'columns') + '. Nothing changes until you press Import.'));
+    if (t.cut.rows) form.appendChild(el('div', 'lib-warn', 'Only the first ' + CSV.rows + ' rows were read. ' + wd(t.cut.rows, 'row was', 'rows were') + ' left out.'));
+    if (t.cut.cols) form.appendChild(el('div', 'lib-warn', 'Only the first ' + CSV.cols + ' columns were read. ' + wd(t.cut.cols, 'column was', 'columns were') + ' left out.'));
+    if (t.cut.cells) form.appendChild(el('div', 'lib-warn', wd(t.cut.cells, 'cell was', 'cells were') + ' longer than ' + CSV.cell + ' characters and cut there.'));
+    if (t.open) form.appendChild(el('div', 'lib-warn', 'A quote in the file never closes, so its last cell runs to the end. Check that row.'));
+    var hd = field(form, 'csvHead', 'First row', cv.hasHead ? 'yes' : 'no', { pairs: [['yes', 'Names the columns'], ['no', 'Is a row like the others']], title: 'Whether the first row of the file holds the headings' });
+    hd.addEventListener('change', function() { cv.hasHead = hd.value === 'yes'; cv.heads = headsOf(t, cv.hasHead); cv.map = guessMap(cv.heads, csvTargets(cv.stats), cv.map); csvRedraw(im); });
+    var ls = field(form, 'csvList', 'For the list', cv.list, { pairs: [['', 'Any list']].concat(itemLists().map(function(f) { return [f.id, f.label || f.key || 'A list']; })), title: 'The list these entries are for. Its stats are the ones a column can go to' });
+    ls.addEventListener('change', function() { cv.list = ls.value; cv.stats = csvStats(sys, cv.list); cv.map = guessMap(cv.heads, csvTargets(cv.stats), cv.map); if (!cv.cat) cv.cat = csvCatFor(cv.list, cv.map); csvRedraw(im); });
+    catList(form);
+    var ct = field(form, 'csvCat', 'Category for rows with none', cv.cat, { max: 40, list: 'libCats', title: 'A list offers the entries of the categories it names. Rows with no category of their own take this one' });
+    ct.addEventListener('change', function() { cv.cat = ct.value.trim(); csvRedraw(im); });
+    form.appendChild(el('div', 'lib-fsub', 'Which column goes where'));
+    var targets = [['', 'Leave out']].concat(csvTargets(cv.stats).map(function(x) { return [x.id, x.label]; })), first = cv.hasHead ? t.rows[1] : t.rows[0], grid = el('div', 'lib-csv-cols');
+    cv.heads.forEach(function(h, i) {
+        var row = el('label', 'lib-csv-col'), s = select(targets, cv.map[i] || ''); s.id = 'libCsvCol' + i; s.title = 'What this column holds';
+        row.appendChild(el('span', 'lib-csv-head', h)); row.appendChild(el('span', 'lib-csv-first', first && first[i] !== undefined ? String(first[i]).slice(0, CSV.sample) : ''));
+        s.addEventListener('change', function() { cv.map = setTarget(cv.map, i, s.value); csvRedraw(im); }); row.appendChild(s); grid.appendChild(row);
+    });
+    form.appendChild(grid);
+    if (d.needName) { form.appendChild(el('div', 'lib-warn', 'Pick the column that holds the name. Every entry needs one.')); return; }
+    form.appendChild(el('div', 'lib-fsub', 'As they will come in'));
+    var pv = csvPreview(d, cv.stats, cv.map), tb = el('table', 'lib-csv-table'), hr = el('tr'); pv.cols.forEach(function(x) { hr.appendChild(el('th', null, x)); }); tb.appendChild(hr);
+    pv.rows.forEach(function(r) { var tr = el('tr'); r.forEach(function(x) { tr.appendChild(el('td', null, x)); }); tb.appendChild(tr); });
+    if (pv.rows.length) form.appendChild(tb);
+    if (d.entries.length > pv.rows.length) form.appendChild(el('div', 'lib-note', 'The first ' + pv.rows.length + ' of ' + d.entries.length + '.'));
+    if (d.dropped) form.appendChild(el('div', 'lib-warn', wd(d.dropped, 'row cannot', 'rows cannot') + ' be read. The list below says why.'));
+    if (d.cells) form.appendChild(el('div', 'lib-warn', wd(d.cells, 'cell', 'cells') + ' could not be used. Those rows come in without them. The list below says which.'));
+    if (d.more) form.appendChild(el('div', 'lib-note', 'The list below stops at ' + LIB.reasons + ' lines. ' + wd(d.more, 'more is', 'more are') + ' not shown.'));
+    if (d.repeats) form.appendChild(el('div', 'lib-note', wd(d.repeats, 'row repeats', 'rows repeat') + ' the name and category of a row above. Each comes in as an entry of its own.'));
+    var cs = csvCats(sys, cv.list, d.entries);
+    if (cs.none) form.appendChild(el('div', 'lib-warn', wd(cs.none, 'entry has', 'entries have') + ' no category, so a list that names categories will not offer them.'));
+    if (cs.off.length) form.appendChild(el('div', 'lib-warn', 'No list takes these categories: ' + cs.off.slice(0, 8).join(', ') + (cs.off.length > 8 ? ', and more' : '') + '.'));
+}
+// [catalogcheck:csvbox-end]
 
 /* ---- entries ---- */
 function listBox() { var box = ui('libList'); if (!box) return null; var sp = box.querySelector('.lib-spacer'); if (!sp) { box.textContent = ''; sp = el('div', 'lib-spacer'); box.appendChild(sp); } return { box: box, sp: sp }; }
@@ -258,7 +330,7 @@ function current() { if (st.draftNew) return st.draftNew; if (!st.entryId) retur
 function newEntry() {
     if (!st.packId) { toast('Make a pack first.'); return; } if (!ready(st.packId)) return;
     var id = newEntryId(taken()); if (!id) return;
-    st.draftNew = { id: id, name: '', category: '', vis: 'all' }; st.entryId = id; st.sel = map(); st.imp = null; drawRows(); renderForm(); var n = ui('libF_name'); if (n) try { n.focus(); } catch (e) {}
+    st.draftNew = { id: id, name: '', category: '', vis: 'all' }; st.entryId = id; st.sel = map(); st.imp = null; guideAt('entry'); drawRows(); renderForm(); guideSync(); var n = ui('libF_name'); if (n) try { n.focus(); } catch (e) {}
 }
 // 1.6.0 O1: a stat read as a set of places takes a tick a place under its box, which the ticks write as its number (place i is bit i)
 function placeTicks(form, inp, names) {
@@ -273,11 +345,12 @@ function field(form, id, label, value, opts) {
     else if (opts.choices) { var pairs = [['', '—']].concat(opts.choices.map(function(c) { return [c, c]; })); if (v && opts.choices.indexOf(v) < 0) pairs.push([v, v]); inp = select(pairs, v); }
     else { inp = el(opts.area ? 'textarea' : 'input', 'field'); if (opts.area) inp.rows = opts.rows || 3; else inp.type = 'text'; inp.value = v; if (opts.max) inp.maxLength = opts.max; if (opts.ph) inp.placeholder = opts.ph; if (opts.list) inp.setAttribute('list', opts.list); }
     inp.id = 'libF_' + id; if (opts.title) row.title = opts.title;
-    row.appendChild(inp); form.appendChild(row); return inp;
+    row.appendChild(inp); form.appendChild(row); if (typeof guideTip === 'function') guideTip(form, id); return inp;
 }
 function renderForm() {
     var form = ui('libForm'); if (!form) return; form.textContent = '';
     st.fs = null; st.fsFor = null;   // 1.6.0: and of its roll bonuses
+    if (typeof csvWide === 'function') csvWide(!!(st.imp && st.imp.csv));   // 1.6.2
     st.fm = null; st.fmFor = null; st.fn = null; st.fnFor = null; st.fo = null; st.foFor = null; st.fg = null; st.fgFor = null;   // 1.6.0 (v2, B4): and of what it grants   // 1.5.8: and of what it opens   // the owed review, 2026-10-09: the form is filled from the entry as it is stored, every box of it. The working copies of its changes and its needs outlived the form (a close, an import, another campaign), and Save entry wrote stale ones back
     if (st.imp) { renderImport(form); return; }
     var many = st.draftNew ? [] : chosen(); if (many.length > 1) { renderBulk(form, many); return; }
@@ -607,12 +680,12 @@ function saveEntry() {
     var kgS = was && typeof was.key === 'string' && was.key && was.key.toLowerCase() !== (typeof c.key === 'string' ? c.key : '').toLowerCase() ? keyGoneSays(was.key, '') : '';   // 1.6.2 (backlog 208): a key renamed
     var nrC = c.category && camp() ? catNear(camp().system, c.category) : '', ctS = nrC ? 'Its category \u201c' + c.category + '\u201d is not quite \u201c' + nrC + '\u201d, the one a list takes, so that list does not take it.' : '';
     var tellE = [rt, kgS, ctS].filter(Boolean).join(' '); if (tellE) toast(tellE);
-    st.draftNew = null; st.entryId = c.id; st.sel = map(); st.sel[c.id] = 1; st.anchor = c.id; schedule(st.packId); renderPacks(); renderList(); renderForm();
+    st.draftNew = null; st.entryId = c.id; st.sel = map(); st.sel[c.id] = 1; st.anchor = c.id; schedule(st.packId); renderPacks(); renderList(); renderForm(); guideAt('saved');
 }
 function duplicateEntry() { var e = current(); if (!e || st.draftNew) return; var id = newEntryId(taken()); if (!id) return; var d = clone(e); d.id = id; d.name = (e.name + ' (copy)').slice(0, 60); delete d.key; st.draftNew = d; st.entryId = id; st.sel = map(); drawRows(); renderForm(); }
 function deleteEntry() {
     var e = current(); if (!e) return;
-    if (st.draftNew) { st.draftNew = null; st.entryId = null; drawRows(); renderForm(); return; }
+    if (st.draftNew) { st.draftNew = null; st.entryId = null; drawRows(); renderForm(); guideSync(); return; }
     var pid = st.packId;
     var kgD = typeof e.key === 'string' && e.key ? keyGoneSays(e.key, e.id) : '';   // 1.6.2 (backlog 208)
     showConfirm('Delete “' + e.name + '” from this pack? Characters keep the copies they carry.' + (kgD ? ' ' + kgD : ''), function(yes) { if (!yes || !st.open || !ready(pid)) return; st.work[pid] = workOf(pid).filter(function(x) { return x.id !== e.id; }); delete st.sel[e.id]; if (st.entryId === e.id) st.entryId = null; schedule(pid); renderPacks(); renderList(); renderForm(); });
@@ -661,12 +734,76 @@ function delMany() {
     showConfirm('Delete ' + plural(ids.length) + ' from this pack? Characters keep the copies they carry.', function(yes) { if (!yes || !st.open || !ready(pid)) return; var gone = map(); ids.forEach(function(id) { gone[id] = 1; }); st.work[pid] = workOf(pid).filter(function(x) { return !gone[x.id]; }); st.sel = map(); st.entryId = null; schedule(pid); renderPacks(); renderList(); renderForm(); });
 }
 
+/* ---- a row of a sheet taken into the library (1.6.2) ---- */
+// [catalogcheck:take-start]
+// The sheet's Add to the library: the row's definition cleaned as any entry is, under a fresh id, added to the pack through the import's own plan, so
+// a full pack is refused and a key another entry holds is counted as an import counts it. newName: make that pack first. { ok, name, pack, clash } or { error }
+async function takeEntry(packId, raw, newName) {
+    var c = getActiveCampaign(), lb = LB(); if (!c || !lb || !gmHere()) { catLog('row-refused', { why: 'here' }); return { error: 'The library is the GM\u2019s: add to it on your own machine.' }; }
+    if (typeof newName === 'string') { var made = await lb.createPack(newName); if (!made || made.error) { catLog('row-refused', { why: 'pack' }); return { error: (made && made.error) || 'The pack could not be made.' }; } packId = made.id; }
+    if (!lb.ready(packId)) { catLog('row-refused', { why: 'unread' }); return { error: 'That pack is not read yet, so it cannot change.' }; }
+    var ps = ((c.library && c.library.packs) || []).filter(function(p) { return lb.ready(p.id); }).map(function(p) { return { id: p.id, name: p.name, entries: lb.entriesOf(p.id) }; }), used = map();
+    ps.forEach(function(p) { p.entries.forEach(function(e) { used[e.id] = 1; }); }); ((c.system && c.system.items) || []).forEach(function(it) { if (it && it.id) used[it.id] = 1; });
+    var id = newEntryId(used), e = id ? cleanLibEntry(Object.assign({}, raw, { id: id }), libCtx(c.system, F(), true)) : null; if (!e) { catLog('row-refused', { why: 'clean' }); return { error: 'That row could not be made an entry.' }; }
+    var plan = packImportPlan(ps, packId, { entries: [e] }, 'id'); if (plan.add !== 1) { catLog('row-refused', { why: 'plan', skip: plan.skip }); return { error: plan.reasons[0] || 'That row could not be added.' }; }
+    var sv = await lb.savePack(packId, plan.entries); if (!sv || !sv.ok) { catLog('row-refused', { why: 'write' }); return { error: (sv && sv.error) || 'The pack could not be written.' }; }
+    var p = ps.filter(function(x) { return x.id === packId; })[0]; catLog('row-added', { clash: plan.clash, made: typeof newName === 'string' });
+    return { ok: true, name: e.name, pack: p ? p.name : '', clash: plan.clash };
+}
+// [catalogcheck:take-end]
+
+/* ---- a first pack, guided (1.6.2): offered once to a GM with no pack yet, on the window's own controls ---- */
+// [catalogcheck:guide-start]
+// The steps are the window's own: its + Pack, its + Entry, its form with a word under each box. The guide is offered, never forced: a press on anything
+// but what it asks for puts it aside until the window opens again. Done or dismissed, this computer does not offer it again. st.g: { step } while it runs
+var GUIDE_KEY = 'wp_libGuide', GUIDE_OFFER = 'New to the library? A short walk through your first pack takes a minute.';
+var GUIDE_WORDS = { pack: 'Step 1 of 3. Press + Pack and give it a name, such as Gear. A pack holds entries, and an entry is one thing a character can take.', entry: 'Step 2 of 3. Press + Entry to add the first thing to your pack.', fill: 'Step 3 of 3. Only the name is needed. Fill in what you like, then press Save entry.', done: 'That is your first pack. A character can now take this entry from a list on the sheet. Spreadsheet\u2026 brings in many at once.' };
+var GUIDE_TIPS = { name: 'What it is called, on the sheet and in every list.', key: 'A short name formulas read it by. Leave it empty unless a formula needs it.', category: 'A list offers the entries of the categories it names, so pick one a list takes.', icon: 'An emoji to go beside its name, if you like.', vis: 'GM only keeps it out of the players\u2019 lists.', lvl: 'The level a new row starts at. Leave it empty for the list\u2019s own.', lvlOnly: 'The levels it exists at. Leave it empty for any level.', notes: 'A short line shown with the row on the sheet.', desc: 'What it does, in full. It shows in the row\u2019s details.', lvls: 'What each level gives, one level a line.', tags: 'Words a search finds it by.', ref: 'A book and page, if it has one.' };
+var GUIDE_STAT = 'The figures its list shows. Leave one empty where it has none.';
+function guideNext(step, ev) { return step === 'pack' && ev === 'pack' ? 'entry' : step === 'entry' && ev === 'entry' ? 'fill' : step === 'fill' && ev === 'saved' ? 'done' : step; }
+function guideHolds(step, where) { return where === 'strip' || (step === 'pack' && where === 'pack') || (step === 'entry' && where === 'entry') || (step === 'fill' && (where === 'form' || where === 'entry')); }   // does a press there leave the guide up?
+function guideStored() { try { return !!localStorage.getItem(GUIDE_KEY); } catch (e) { return false; } }
+function guideKeep(v) { try { localStorage.setItem(GUIDE_KEY, v); } catch (e) {} }
+function guideAnyPacks() { var cs = saved && saved.appState && saved.appState.campaigns ? saved.appState.campaigns : {}; return Object.keys(cs).some(function(id) { var c = cs[id]; return !!(c && c.library && Array.isArray(c.library.packs) && c.library.packs.length); }); }
+function guideWanted() { return !!st.open && !st.g && !st.gAside && !guideStored() && !guideAnyPacks(); }
+function guideOpen() { st.g = null; st.gAside = false; if (guideWanted()) catLog('guide-offered', {}); guideSync(); }
+function guideStart() { st.g = { step: 'pack' }; catLog('guide-started', {}); guideSync(); }
+function guideStop(how) { var was = st.g ? st.g.step : 'offer'; st.g = null; st.gAside = true; if (how !== 'aside' && was !== 'done') guideKeep('no'); catLog(how === 'aside' ? 'guide-aside' : 'guide-closed', { step: was }); guideSync(); }
+function guideAt(ev) { if (!st.g) return; var nx = guideNext(st.g.step, ev); if (nx === st.g.step) return; st.g.step = nx; if (nx === 'done') { guideKeep('done'); catLog('guide-done', {}); } guideSync(); }
+function guideTip(form, id) {
+    if (!st.g || st.g.step !== 'fill') return; var t = GUIDE_TIPS[id];
+    if (!t && /^st_/.test(id) && (!st.g.stat || st.g.stat === id)) { st.g.stat = id; t = GUIDE_STAT; }
+    if (t) form.appendChild(el('div', 'lib-guide-tip', t));
+}
+function guideButton(box, text, fn, ghost) { var b = el('button', 'tool' + (ghost ? ' ghost' : ''), text); b.type = 'button'; b.addEventListener('click', fn); box.appendChild(b); return b; }
+function guideSync() {
+    var box = ui('libGuide'), mark = function(n, on) { if (n && n.classList) n.classList.toggle('lib-guide-at', !!on); }; if (!box) return;
+    if (st.g && st.g.step === 'fill' && !st.draftNew) st.g.step = 'entry';   // the draft was let go: the step before it
+    var g = st.g, step = g ? g.step : '', offer = !g && guideWanted(), words = g ? GUIDE_WORDS[step] : offer ? GUIDE_OFFER : '';
+    box.textContent = ''; box.hidden = !words;
+    mark(ui('libNewPack'), step === 'pack'); mark(ui('libNewEntry'), step === 'entry'); mark(document.querySelector('#libForm .lib-save'), step === 'fill');
+    if (!words) return;
+    box.appendChild(el('span', 'lib-guide-words', words));
+    if (offer) { guideButton(box, 'Show me', guideStart); guideButton(box, 'No thanks', function() { guideStop('no'); }, true); }
+    else if (step === 'done') guideButton(box, 'Done', function() { guideStop('no'); });
+    else guideButton(box, 'Stop the guide', function() { guideStop('no'); }, true);
+}
+function guidePress(e) {
+    if (!st.g && !guideWanted()) return;
+    var t = e.target, inn = function(id) { var n = ui(id); return !!n && typeof n.contains === 'function' && n.contains(t); };
+    var where = inn('libGuide') ? 'strip' : inn('libNewPack') ? 'pack' : inn('libNewEntry') ? 'entry' : inn('libForm') ? 'form' : 'other';
+    if (!guideHolds(st.g ? st.g.step : 'offer', where)) guideStop('aside');
+}
+// [catalogcheck:guide-end]
+
 /* ---- wiring ---- */
 (function wire() {
     var m = ui('libraryModal'); if (!m) return;
     var c = ui('libClose'); if (c) c.addEventListener('click', close);
     var np = ui('libNewPack'); if (np) np.addEventListener('click', newPack);
     var im = ui('libImport'); if (im) im.addEventListener('click', importPick);
+    var cs = ui('libCsv'); if (cs) cs.addEventListener('click', csvPick);
+    m.addEventListener('click', guidePress, true);
     var ne = ui('libNewEntry'); if (ne) ne.addEventListener('click', newEntry);
     var s = ui('libSearch'); if (s) s.addEventListener('input', function() { st.q = s.value.slice(0, 120); var b = ui('libList'); if (b) b.scrollTop = 0; renderList(); if (!st.imp && !st.draftNew && Object.keys(st.sel).length > 1) afterPick(); });   // the bulk panel counts what shows; an entry's form, being typed in, stays
     var lst = ui('libList'); if (lst) { lst.addEventListener('scroll', drawRows, { passive: true }); lst.addEventListener('keydown', function(e) { if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); pickAll(); } }); }
@@ -675,4 +812,4 @@ function delMany() {
     m.addEventListener('keydown', function(e) { var q = ui('customConfirm'), p = ui('customPrompt'); if ((q && q.style.display === 'flex') || (p && p.style.display === 'flex')) return; e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); close(); } });
 })();
 
-window.wpLibraryWin = { open: open, close: close, flush: flush, refresh: refresh, isOpen: function() { return st.open; } };
+window.wpLibraryWin = { open: open, close: close, flush: flush, refresh: refresh, isOpen: function() { return st.open; }, canTake: gmHere, takeEntry: takeEntry };

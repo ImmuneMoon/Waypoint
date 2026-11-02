@@ -311,6 +311,38 @@ export function packImportPlan(library, targetId, incoming, mode, rnd, used) {
     res.entries.forEach(function(e) { var k = lk(e); if (mine[e.id] && k && keys[k] > 1) res.clash++; });
     return res;
 }
+// 1.6.2 (the owner: "its also important for users to have a way to create catalogues if they cant"): a row a character holds made an entry anyone
+// can take. rowLibJudge says why it may not be: 'none' (it has no definition), 'gm' (a GM-only item, or a copy of an entry players may not see, as
+// library.js needShown judges one, which fails closed), 'same' (a plain copy of an entry that is still there, with nothing of its own), '' where it
+// may. A row the GM keeps on its character is judged as any row of its kind. entryFromRow is the definition as the row reads it, its own values
+// folded in, for cleanLibEntry to clean: a copy's key stays with the entry it was copied from, and a row with no category takes its list's first, so
+// that the list goes on offering it. The row itself is not touched. packsForRow is the packs read, the list's own first: the one that holds the
+// entry the row came from, then the one with the most entries of the row's or the list's categories; a GM-only pack last
+var OV_OWN = ['name', 'icon', 'category', 'notes', 'damage', 'cost', 'rm', 'eq'];
+export function rowHasOwn(row) { var ov = isObj(row) && isObj(row.ov) ? row.ov : null; if (!ov) return false; return OV_OWN.some(function(k) { return typeof ov[k] === 'string' && ov[k] !== ''; }) || isObj(ov.area) || (isObj(ov.stats) && Object.keys(ov.stats).length > 0); }
+export function rowLibJudge(rd, row, shown) {
+    if (!isObj(rd) || !isObj(rd.def) || !isObj(row)) return 'none';
+    if (rd.def.vis === 'gm' || (isObj(rd.base) && rd.base.vis === 'gm')) return 'gm';
+    if (rd.src !== 'lib') return '';
+    if (typeof shown !== 'function' || shown(row.defId) !== true) return 'gm';
+    return rowHasOwn(row) ? '' : 'same';
+}
+export function entryFromRow(rd, spec) {
+    var e = JSON.parse(JSON.stringify(rd.def)); delete e.id; e.vis = 'all'; if (rd.src === 'lib') delete e.key;
+    var cats = isObj(spec) && Array.isArray(spec.cats) ? spec.cats : []; if (!(typeof e.category === 'string' && e.category.trim()) && typeof cats[0] === 'string') e.category = cats[0];
+    return e;
+}
+export function packsForRow(packs, entriesOf, rd, spec, isReady) {
+    var cats = map(), src = isObj(rd) && isObj(rd.base) && typeof rd.base.id === 'string' ? rd.base.id : '', out = [], own = function(c) { if (typeof c === 'string' && c) cats[c.toLowerCase()] = 1; };
+    if (isObj(spec) && Array.isArray(spec.cats)) spec.cats.forEach(own); if (isObj(rd) && isObj(rd.def)) own(rd.def.category);
+    (Array.isArray(packs) ? packs : []).forEach(function(p, i) {
+        if (!isObj(p) || typeof p.id !== 'string' || (typeof isReady === 'function' && !isReady(p.id))) return;
+        var list = typeof entriesOf === 'function' ? entriesOf(p.id) : null, n = 0, holds = false; list = Array.isArray(list) ? list : [];
+        list.forEach(function(e) { if (!isObj(e)) return; if (src && e.id === src) holds = true; if (typeof e.category === 'string' && cats[e.category.toLowerCase()] === 1) n++; });
+        out.push({ id: p.id, name: typeof p.name === 'string' ? p.name : '', gm: p.vis === 'gm', count: list.length, fit: holds ? Infinity : n, at: i });
+    });
+    return out.sort(function(a, b) { return (a.gm ? 1 : 0) - (b.gm ? 1 : 0) || (b.fit === a.fit ? 0 : b.fit > a.fit ? 1 : -1) || a.at - b.at; });
+}
 // L2a2: a bulk change to a pack's chosen entries (ids): a category, tags added or replacing theirs, who may see them — each entry
 // cleaned again (ctx), the others untouched. { entries, changed }
 export function bulkSet(entries, ids, change, ctx) {

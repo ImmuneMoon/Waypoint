@@ -69,6 +69,19 @@ Sounds on actions
   secret door play for you alone, and so does anything a player cannot see.
 - A line whose roll or sound has gone stays in the list and says so.
 
+Making a catalogue
+- The Library window has a new button, Spreadsheet... It reads a CSV file, as a
+  spreadsheet program saves one. Waypoint matches each column to what an entry
+  holds by its heading, and you can change any of them.
+- You see the rows as they will come in, how many cannot be read, and why. They
+  then come in as a pack file does: a new pack, or merged by id or by key. The
+  same file read again updates the entries it made.
+- Right-click a row on a sheet and pick Add to the library, or use the button in
+  its form. It becomes an entry anyone can take, with its stats, its text and its
+  changes. You pick the pack, and the row stays as it is. This is the GM's alone.
+- With no pack yet, the Library window offers a short walk through your first
+  pack. Press anything else and it stands aside.
+
 WAYPOINT 1.6.1 — What's New
 ============================
 

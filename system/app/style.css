@@ -3268,6 +3268,20 @@
   .lib-imcell b { font-size: 16px; color: var(--ink); font-variant-numeric: tabular-nums; }
   .lib-imcell span { font-size: 10.5px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lib-imcell.zero { opacity: .55; }
+  #libraryModal.lib-csv-on .lib-cols { grid-template-columns: 200px minmax(0, 0.7fr) minmax(0, 1.3fr); }   /* 1.6.2: a spreadsheet's columns need room */
+  #libraryModal .lib-col > .sys-toolbar { flex-wrap: wrap; gap: 6px 8px; }
+  .lib-csv-cols { display: flex; flex-direction: column; gap: 4px; flex: none; }
+  .lib-csv-col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px; align-items: center; font-size: 12px; }
+  .lib-csv-head { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lib-csv-first { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lib-csv-table { border-collapse: collapse; font-size: 11.5px; flex: none; width: 100%; table-layout: fixed; }
+  .lib-csv-table th { color: var(--dim); font-weight: 600; text-align: left; border-bottom: 1px solid var(--edge); padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lib-csv-table td { color: var(--ink); border-bottom: 1px solid var(--edge); padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lib-guide { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: none; margin: 6px 0; padding: 8px 10px; border: 1px solid var(--gold); border-radius: 8px; background: rgba(224,165,79,0.10); }   /* 1.6.2: a first pack, guided */
+  .lib-guide[hidden] { display: none; }
+  .lib-guide-words { flex: 1; min-width: 200px; color: var(--ink); font-size: 12.5px; line-height: 1.4; }
+  .lib-guide-at { box-shadow: 0 0 0 2px var(--gold); }
+  .lib-guide-tip { color: var(--dim); font-size: 11.5px; line-height: 1.35; margin-left: 116px; flex: none; }
   .lib-reasons { margin: 0; padding-left: 18px; color: var(--dim); font-size: 11.5px; line-height: 1.45; flex: none; overflow-wrap: anywhere; }
   @media (max-width: 900px) { .lib-cols { grid-template-columns: minmax(0, 1fr); grid-template-rows: 140px minmax(220px, 1fr) minmax(260px, 1fr); overflow: auto; } #libraryModal .lib-box { height: 94vh; padding: 12px; } }
   /* Stage 6 F6b: an item's changes as chips on its row, and a custom row's changes in its form */
@@ -4486,6 +4500,8 @@
   .sheet-hit-pop { max-height: min(460px, calc(100vh - 16px)); overflow-y: auto; }   /* 1.6.0 (B5): a target's locations, a long list scrolling inside */
   .sheet-dl-item { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 6px 8px; color: var(--ink); cursor: pointer; font: inherit; }
   .sheet-dl-item:hover, .sheet-dl-item:focus-visible { background: var(--surface); border-color: var(--edge); outline: none; }
+  .sheet-rowlib-pop { max-height: 60vh; overflow-y: auto; }   /* 1.6.2: a row added to the library: every pack on offer */
+  .sheet-rowlib-pop > .sheet-dl-s { padding: 2px 8px 4px; overflow-wrap: anywhere; }
   .sheet-dl-t { font-size: 13px; }
   .sheet-dl-s, .sheet-dl-note { font-size: 11px; color: var(--dim); }
   .sheet-dl-gm { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 6px 8px 2px; margin-top: 2px; border-top: 1px solid var(--edge); cursor: pointer; }

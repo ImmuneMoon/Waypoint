@@ -51,6 +51,9 @@ jobs:
       - name: itemcheck — item library
         if: ${{ !cancelled() }}
         run: node tools/itemcheck.js
+      - name: catalogcheck — making a catalogue (a spreadsheet read as a pack, a row added to the library, a first pack guided)
+        if: ${{ !cancelled() }}
+        run: node tools/catalogcheck.js
       - name: librarycheck — the library's pure core (entries, packs, manifest)
         if: ${{ !cancelled() }}
         run: node tools/librarycheck.js

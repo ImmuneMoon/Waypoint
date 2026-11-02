@@ -5647,6 +5647,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('Group roll on the GM\'s menu: a roll label from a file is written escaped (no tag, no attribute break), a label that is no text written as text, and nothing of a token or a character is written',
             a > 0 && b > a && !!gl && hR.indexOf('<img') < 0 && hR.indexOf('<b x') < 0 && hR.indexOf('&lt;img src=x onerror=alert(1)&gt;') > 0 && hR.indexOf('&quot;&gt;') > 0 && hR.indexOf('&#39;') > 0 && />7<\/div>/.test(hR) && hR.indexOf('c_1') < 0 && hR.indexOf('t1') < 0, hR);
     }
+    {   // 1.6.2 a spreadsheet from anywhere: a hostile heading, cell and file name reach the Library window as text nodes and values alone
+        const SYC = await import(modUrl('systemcore.js')), LCC = await import(modUrl('librarycore.js')), FC = await import(modUrl('formula.js')), CC = await import(modUrl('csvcore.js'));
+        const wS = fs.readFileSync(path.join(dir, 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n'), wrote = [], j = JSON.stringify;
+        const mk = tag => { const e = { tag, kids: [], on: {}, className: '', id: '', title: '', value: '', type: '', _t: '', dataset: {}, style: {}, appendChild(x) { this.kids.push(x); return x; }, setAttribute(k) { wrote.push('attr:' + k); }, addEventListener(t, f) { this.on[t] = f; } };
+            Object.defineProperty(e, 'textContent', { get() { return this._t; }, set(v) { this._t = String(v); } }); ['innerHTML', 'outerHTML'].forEach(k => Object.defineProperty(e, k, { get() { return ''; }, set() { wrote.push(k); } })); e.insertAdjacentHTML = () => wrote.push('insertAdjacentHTML'); return e; };
+        const cut = (from, to) => { const i = wS.indexOf(from), k = wS.indexOf(to, i); if (i < 0 || k < 0) throw new Error('sinkcheck: librarywin.js ' + from); return wS.slice(i, k); };
+        const src = cut('function el(tag, cls, text) {', '\n') + '\n' + cut('function select(pairs, value) {', '\n') + '\n' + cut('function field(form, id, label, value, opts) {', '\n}\n') + '\n}\n' + cut('// [catalogcheck:csvbox-start]', '// [catalogcheck:csvbox-end]');
+        const sysC = SYC.cleanSystem({ fields: [{ id: 'f_g', key: 'Gear', kind: 'item-list', list: { cats: ['Tool'], stats: [{ key: 'Wt', label: 'Weight' }] } }], items: [] }, { F: FC, gmView: true }), ctx = LCC.libCtx(sysC, FC, true);
+        const BAD = '<img src=x onerror=alert(1)>', BAD2 = '"><script>alert(2)</script>', file = 'Name,Weight,Type,' + BAD + ',' + BAD2.replace(/"/g, '""').replace(/^/, '"') + '"\n' + BAD + ',' + BAD2.slice(2) + ',' + BAD + ',' + BAD + ',' + BAD + '\n"=cmd|\' /C calc\'!A0",2,Tool,x,y\n';
+        const form = mk('div'), st = {}, names = { document: { createElement: mk, activeElement: null }, st, ui: () => null, camp: () => ({ system: sysC }), gmCtx: () => ctx, itemLists: () => sysC.fields, catList() {}, packs: () => [], map: () => Object.create(null), drawRows() {}, renderForm() {}, toast() {}, window: {}, LIB: LCC.LIB };
+        Object.keys(CC).forEach(k => { names[k] = CC[k]; });
+        const keys = Object.keys(names), B = new Function(...keys, '"use strict";\n' + src + '\nreturn { csvOpen, csvBox };')(...keys.map(k => names[k]));
+        B.csvOpen(BAD + '.csv', new TextEncoder().encode(file)); B.csvBox(form, st.imp);
+        const all = [], walk = n => { all.push(n); n.kids.forEach(walk); }; walk(form);
+        const shown = all.map(n => n._t).join('|'), selHeld = all.filter(n => n.tag === 'select' && /^libCsvCol/.test(n.id)), tds = all.filter(n => n.tag === 'td').map(n => n._t);
+        check('1.6.2 a spreadsheet from anywhere (librarywin.js csvBox, sliced with its el, select and field and run with the real csvcore on a page that records every write): a hostile heading, a hostile cell and a hostile file name are drawn as the text of text nodes, a cell as the text of a table cell, the column lists hold fixed words and values, and no markup is written; a reason names a cell as text too',
+            wrote.filter(w => /HTML/.test(w)).length === 0 && !/innerHTML|insertAdjacentHTML|outerHTML/.test(src) && shown.indexOf(BAD) >= 0 && tds.indexOf(BAD) >= 0 && all.some(n => n.className === 'lib-csv-head' && n._t === BAD.slice(0, CC.CSV.head)) && all.some(n => n.className === 'lib-note' && n._t.indexOf(BAD) === 0) && selHeld.length === 5 && selHeld.every(s => s.kids.every(o => o.tag === 'option' && o.kids.length === 0)) && st.imp.data.entries[0].name === BAD && st.imp.data.reasons.some(r => r.indexOf('Weight reads') >= 0),
+            j([wrote, tds.slice(0, 6), shown.slice(0, 300)]));
+    }
     {   // 1.5.8 the Library window's blast extras: a hostile damage type and number from a campaign file reach the form as values and text alone, and Save keeps neither
         const SYB = await import(modUrl('systemcore.js')), LCB = await import(modUrl('librarycore.js')), FB = await import(modUrl('formula.js'));
         const wS = fs.readFileSync(path.join(dir, 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n'), made = [], j = JSON.stringify;

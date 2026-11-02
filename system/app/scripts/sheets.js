@@ -29,7 +29,7 @@ import { targetHitList, targetHitRows, readsTargetHit } from './systemcore.js'; 
 import { tableKeyOk, TABLE_KEY, TABLE_ROW_KEY, nameFold } from './systemcore.js';   // 1.6.0: a system's tables, as Save reads them (tableSays)
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { FEEDS_MAX, feedOf, feedSpec, feedCt, feedCount, feedStack, feedLive } from './systemcore.js';   // 1.6.0 Feeds
-import { lvlsFromBox, lvlsToText } from './librarycore.js';
+import { lvlsFromBox, lvlsToText, rowLibJudge, entryFromRow, packsForRow } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
 import { cleanCalendar, fmtWhen, fmtDate, timeOf, calPreset, CAL_LIMITS } from './calendarcore.js';
 
@@ -3458,6 +3458,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         var rd = rowDef(sysI, entry), def = rd ? rd.def : null; if (!def) return;
         var rid = rowIdOf(entry);
         var line = el('div', 'sheet-item' + (entry.hid === 1 ? ' sheet-item-hid' : '') + (opens ? ' sheet-item-opens' : ''));
+        if (typeof rowLibHook === 'function') rowLibHook(line, entry, rd, c, f, spec, gm);   // 1.6.2: Add to the library
         var opSlot = opens ? el('span', 'sheet-item-opslot') : null; if (opSlot) line.appendChild(opSlot);   // the arrow goes here once the row knows whether it has details
         _placeWant = hudRow ? null : 'row';
         if (def.icon) line.appendChild(iconNode(def.icon, 'sheet-item-icon'));
@@ -3640,6 +3641,54 @@ function openLoadMenu(anchor, c, f, entry, sf, spec, sys) {
     document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
     var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
 }
+// [catalogcheck:rowlib-start]
+// 1.6.2 (the owner: "its also important for users to have a way to create catalogues if they cant"): a row a character holds made an entry anyone can
+// take. Offered by a right-click on the row and by a button in its form, on the GM's own machine alone, in the sheet itself, for a row librarycore
+// rowLibJudge allows: never a GM-only item, never a plain copy of an entry that is still there. It asks which pack, the list's own first, with a new
+// pack on offer. The row stands as it is: no op turns a row into a copy of an entry, so the sheet says so. The pops are the sheet's own, and every
+// name is a text node
+function rowLibOk(rd, entry, gm) { if (!gm || !_fxLive || typeof rowLibJudge !== 'function' || typeof window === 'undefined') return false; var lw = window.wpLibraryWin, lb = window.wpLibrary; return !!(lw && lw.canTake && lw.canTake() && lb) && rowLibJudge(rd, entry, lb.needShown) === ''; }
+function rowLibPop() { closeLoadMenu(); var pop = el('div', 'sheet-dl-pop sheet-rowlib-pop'); pop.setAttribute('role', 'menu'); pop._anchor = null; return pop; }
+function rowLibItem(pop, label, sub, fn) { var b = el('button', 'sheet-dl-item'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.appendChild(el('span', 'sheet-dl-t', label)); b.appendChild(el('span', 'sheet-dl-s', sub)); b.addEventListener('click', function(e) { e.preventDefault(); fn(); }); pop.appendChild(b); }
+function rowLibShow(pop, x, y) {
+    pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+    pop.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return; e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {} });
+    document.body.appendChild(pop); _ldPop = pop;
+    pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, x)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (pop.offsetHeight || 60) - 8, y)) + 'px';
+    document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
+    var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
+}
+function rowLibSend(c, f, rid, spec, packId, newName) {
+    closeLoadMenu();
+    var camp = getActiveCampaign(), cN = charById(c.id, camp), rows = cN && cN.values && Array.isArray(cN.values[f.id]) ? cN.values[f.id] : [], row = rows.filter(function(r) { return rowIdOf(r) === rid; })[0], rd = row ? rowDef(systemOf(camp), row) : null;
+    if (!rd || !rowLibOk(rd, row, true)) { toast('That row has changed, so nothing was added.'); return; }
+    window.wpLibraryWin.takeEntry(packId, entryFromRow(rd, spec), newName).then(function(r) {
+        if (!r || r.error) { toast((r && r.error) || 'That row could not be added.'); return; }
+        toast('Added \u201c' + r.name + '\u201d to \u201c' + r.pack + '\u201d. The row on this sheet stays as it is.' + (r.clash ? ' Its key is also the key of another entry.' : ''));
+    });
+}
+function rowLibPacks(x, y, entry, c, f, spec) {
+    var camp = getActiveCampaign(), lb = window.wpLibrary, rid = rowIdOf(entry), rd = rowDef(systemOf(camp), entry), pop = rowLibPop(), plural = function(n) { return n + (n === 1 ? ' entry' : ' entries'); };
+    pop.appendChild(el('div', 'sheet-dl-s', 'Add \u201c' + (rd && rd.def ? rd.def.name : 'this row') + '\u201d to which pack?'));
+    packsForRow(camp && camp.library ? camp.library.packs : [], lb.entriesOf, rd, spec, lb.ready).forEach(function(p) { rowLibItem(pop, p.name, p.gm ? 'GM only: players cannot take it' : plural(p.count), function() { rowLibSend(c, f, rid, spec, p.id); }); });
+    rowLibItem(pop, 'A new pack\u2026', 'Name it, and the entry goes in', function() { closeLoadMenu(); showPrompt('Name the new pack', 'Gear', function(name) { if (name === null || name === undefined) return; rowLibSend(c, f, rid, spec, null, String(name)); }); });
+    rowLibShow(pop, x, y);
+}
+function rowLibHook(line, entry, rd, c, f, spec, gm) {
+    if (!rowLibOk(rd, entry, gm)) return;
+    line.addEventListener('contextmenu', function(e) {
+        e.preventDefault(); e.stopPropagation();
+        var rc = e.clientX || e.clientY ? null : line.getBoundingClientRect(), x = rc ? rc.left : e.clientX, y = rc ? rc.bottom : e.clientY, pop = rowLibPop();   // the keyboard's menu key has no place of its own
+        rowLibItem(pop, 'Add to the library', 'Make it an entry anyone can take', function() { rowLibPacks(x, y, entry, c, f, spec); });
+        rowLibShow(pop, x, y);
+    });
+}
+function rowLibBtn(host, entry, rd, c, f, spec, gm) {
+    if (!rowLibOk(rd, entry, gm)) return;
+    var b = el('button', 'tool ghost sys-btn sheet-rf-lib', 'Add to the library'); b.type = 'button'; b.dataset.fid = f.id; b.dataset.part = 'lib-' + rowIdOf(entry); b.title = 'Make this row an entry of the library, with its stats, its text and its changes. The row stays as it is';
+    b.addEventListener('click', function() { var r = b.getBoundingClientRect(); rowLibPacks(r.left, r.bottom + 6, entry, c, f, spec); }); host.appendChild(b);
+}
+// [catalogcheck:rowlib-end]
 // 1.6.0 Feeds (the core's ruling: mixed loads fire in the order stacked, noted on loading): a chip for each feed of a row, saying what it holds in that
 // order and how much of each is left, with Load or Swap, which change the whole of that feed, and Add, which stacks more behind what is there. The
 // other feed never moves. A play control, as Load is. Every name from a campaign as text
@@ -3818,6 +3867,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         var rid = rowIdOf(entry);
         shown++; totalQty += entry.qty;
         var tr = el('tr', entry.hid === 1 ? 'sheet-item-hid' : null), nameTd = el('td', 'sheet-itcol-name'), opSlotT = opensT ? el('span', 'sheet-item-opslot') : null; if (opSlotT) nameTd.appendChild(opSlotT);
+        if (typeof rowLibHook === 'function') rowLibHook(tr, entry, rd, c, f, spec, gm);   // 1.6.2: Add to the library
         if (def.icon) nameTd.appendChild(iconNode(def.icon, 'sheet-item-icon'));
         nameTd.appendChild(document.createTextNode(def.name));
         if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft')));
@@ -4022,6 +4072,7 @@ function rowForm(entry, rd, c, f, spec, sysI, mode) {
         fb.title = mode === 'gm' ? (lost ? 'Every value of this copy back to the copy kept when the item left the library' : 'Every value of this copy back to the library’s') : asks ? 'Ask the GM for every stat of this copy back to the library’s' : 'Your own stats back to the library’s (a stat the GM set stays)';
         fb.addEventListener('click', function() { send(mode === 'gm' ? null : { stats: null }); }); head.appendChild(fb);
     }
+    if (typeof rowLibBtn === 'function') rowLibBtn(head, entry, rd, c, f, spec, mode === 'gm');   // 1.6.2
     var dn = el('button', 'tool ghost sys-btn sheet-rf-done', 'Done'); dn.type = 'button'; dn.dataset.fid = f.id; dn.dataset.part = 'ed-' + rid;
     dn.addEventListener('click', function() { _rowForm = null; renderViews(c.id); }); head.appendChild(dn);
     form.appendChild(head); form.appendChild(grid);
@@ -4095,6 +4146,7 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
         [['', w.none], ['bound', w.bound], ['curse', w.curse]].forEach(function(o) { s.appendChild(opt(o[0], o[1], now === o[0])); });
         s.addEventListener('change', function() { one(k, s.value || null); }); add(cap, s, k);
     };
+    if (typeof rowLibBtn === 'function') rowLibBtn(head, entry, rd, c, f, spec, gmF);   // 1.6.2
     var dn = el('button', 'tool ghost sys-btn sheet-rf-done', 'Done'); dn.type = 'button'; dn.dataset.fid = f.id; dn.dataset.part = 'ed-' + rid;
     dn.addEventListener('click', function() { _rowForm = null; renderViews(c.id); }); head.appendChild(dn);
     form.appendChild(head); form.appendChild(grid);

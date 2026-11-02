@@ -898,6 +898,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 the picker opens with the focus in its search box (libpicker.js focusSoon, run for real; found by the round test): asked at once, and asked again once the list that opened it has had its say; left alone where the focus is in the picker already, or the picker has closed; open() asks',
             j(away) === j([0, 1, 1]) && j(held) === j([0, 1, 0]) && j(shut) === j([0, 1, 0]) && pkF.includes("    try { search.focus({ preventScroll: true }); } catch (e) {}\n    focusSoon(search);\n}"), j([away, held, shut]));
     }
+    {   // 1.6.2: a spreadsheet goes the way a pack file goes, and a row taken into the library is cleaned as any entry is
+        const Cv = await import(url('csvcore.js')), sysC = S.cleanSystem({ v: 1, name: 'L', rolls: [], fields: [{ id: 'f_inv', key: 'Gear', kind: 'item-list', list: { stats: [{ key: 'Wt', label: 'Weight' }] } }] }, { F, gmView: true }), ctxC = libCtx(sysC, F, true);
+        const tb = Cv.readCsv(new TextEncoder().encode('Name,Weight,Key\nRope,1,Rope\nKnife,2,\n')), dt = Cv.csvEntries(tb, ['name', 'st:Wt', 'key'], Cv.csvStats(sysC, ''), ctxC, { hasHead: true, name: 'Goods' });
+        const fileD = L.readPackImport(JSON.stringify({ format: 'waypoint-pack', name: 'Goods', entries: dt.entries }), ctxC), libH = [{ id: 'p_a', name: 'A', entries: [{ id: 'i_old', key: 'rope', name: 'Old rope', vis: 'all' }] }];
+        const sameKeys = ['entries', 'add', 'update', 'same', 'skip', 'clash'], planOf = (d, m) => { const r = L.packImportPlan(libH, 'p_a', d, m); const o = {}; sameKeys.forEach(k => { o[k] = r[k]; }); return j(o); };
+        check('1.6.2 a spreadsheet\'s rows and a pack file of the same entries give one plan in every mode (csvcore csvEntries through the real packImportPlan): its answer is the shape readPackImport gives', ['id', 'key', 'new', 'replace'].every(m => planOf(dt, m) === planOf(fileD, m)) && dt.name === fileD.name && dt.vis === fileD.vis, planOf(dt, 'key'));
+        const rd = { def: { name: 'Pebble', vis: 'all', notes: 'Warm.', stats: { Wt: 1, Nope: 2 }, key: 'Pebble', desc: 'It hums.' }, src: 'custom', base: {} }, e = L.cleanLibEntry(Object.assign({}, L.entryFromRow(rd, null), { id: 'i_p' }), ctxC);
+        check('1.6.2 a row made an entry (librarycore entryFromRow through the real cleaner) keeps its stats, its text and its key, and what no list holds goes as it would from any file', !!e && j(e.stats) === j({ Wt: 1 }) && e.notes === 'Warm.' && e.desc === 'It hums.' && e.key === 'Pebble' && e.vis === 'all', j(e));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

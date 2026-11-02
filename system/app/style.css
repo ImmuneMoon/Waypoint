@@ -293,6 +293,7 @@
   .sheet-roll .ico-die.sheet-roll-die { width: 15px; height: 15px; margin-right: 6px; vertical-align: -3px; }
   .roll-break .ico-die { width: 14px; height: 14px; margin-right: 5px; vertical-align: -3px; color: var(--ink); }
   .dice-quick button .ico-die { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
+  .dice-quick button .ico-coin { display: inline-block; width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; background: currentColor; -webkit-mask: url("assets/icons/fa/solid/coins.svg") center / contain no-repeat; mask: url("assets/icons/fa/solid/coins.svg") center / contain no-repeat; }   /* the app's own bundled coins icon, in the button's colour */
   .dice-head .ico-die, .combat-roll .ico-die, #combatRollAllBtn .ico-die { width: 14px; height: 14px; vertical-align: -3px; }
   .sidebar h3 .tool .ico, .section-head .tool .ico { width: 13px; height: 13px; vertical-align: -2px; }
   #netBtn.net-live{border-color:var(--green);color:var(--green);box-shadow:0 0 6px rgba(92,184,122,0.5)}

@@ -3243,6 +3243,12 @@
   .fb { flex: 1 1 100%; min-width: 0; width: 100%; }
   .fb-line { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 6px 4px 8px; min-height: 30px; }
   .fb-col { flex: 1; min-width: 0; }
+  .dk-head, .dk-card { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
+  .dk-card .dk-name { flex: 1 1 160px; min-width: 120px; }
+  .dk-card input[type="number"] { width: 64px; }
+  .dk-pic { max-width: 26px; max-height: 26px; border-radius: 3px; }
+  .dk-count { color: var(--muted); font-size: 12px; }
+  .dk-paste { width: 100%; min-height: 70px; }
   .fb-opts { display: flex; flex-direction: column; gap: 3px; min-width: 200px; }
   .fb-opt { display: flex; gap: 4px; align-items: center; }
   .fb-opt .fb-optname { flex: 1 1 110px; min-width: 80px; }

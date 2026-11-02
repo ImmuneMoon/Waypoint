@@ -45,6 +45,8 @@
 <script type="module" src="scripts/dicecore.js"></script>
 <script type="module" src="scripts/dice.js"></script>
 <script type="module" src="scripts/inlinedice.js"></script>
+<script type="module" src="scripts/deckcore.js"></script>
+<script type="module" src="scripts/deckui.js"></script>
 <script type="module" src="scripts/sysui.js"></script>
 <script type="module" src="scripts/formbox.js"></script>
 <script type="module" src="scripts/arrange.js"></script>
@@ -2200,6 +2202,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li><b>A grant raises a held row</b> is for a list with a quantity. A grant of an entry the list already holds raises that row to the grant&rsquo;s level and adds no second row. A list with no quantity always does this.</li>
                                   <li>A row of two or more has <b>Split</b> beside its &minus;/+. It asks how many, then puts them in a row of their own, such as three of five grenades. The new row starts switched off. A row that holds a load is unloaded first.</li>
                                   <li>A sheet can be <b>shared</b>. On its player&rsquo;s name under the sheet&rsquo;s title, tick <b>Also shared with</b>. Those players can use the sheet as their own, and its tokens and turns stay with its one player.</li>
+                                  <li>The Rules tab&rsquo;s <b>Decks and bags</b> are sets of things you draw from. A roll&rsquo;s Then or an action draws with <b>Draw from:</b>, and each campaign keeps its own pile. <b>After a draw</b> says whether a card goes back, waits in a discard pile, or stays out.</li>
                                   <li>The Rules tab&rsquo;s <b>Shared values</b> are numbers the whole table shares, such as Momentum. A roll&rsquo;s Then or an action moves one with <b>Shared:</b>, and a formula can read it. Each campaign keeps its own figure, and <b>Now</b> sets it by hand. A tracker&rsquo;s <b>Shows</b> list puts one on the map&rsquo;s strip.</li>
                                   <li>The Rules tab&rsquo;s <b>Result tables</b> hold ranges and words. A roll&rsquo;s Then or an action can roll on one by <b>Roll on:</b>, and the card shows the words. A row can switch on an effect, or go on to another table, three deep at most.</li>
                                   <li>A list ticked <b>Tradable</b> can say what a trade does to a row: <b>When traded</b> clears a stat, sets it or moves it to another, and that other may be GM-only. It can also name a roll of the list, made for you alone once both sides confirm. A column can show on some rows only.</li>
@@ -4723,7 +4726,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="sys-split sys-split-topics"><div id="sysCombatNav" class="sys-topics" role="tablist" aria-orientation="vertical" aria-label="Combat topics"></div><div id="sysCombatBox"></div></div>
         </div>
         <div id="sysRules" class="sys-tab" style="display:none;">
-            <div class="sys-split sys-split-topics"><div id="sysRulesNav" class="sys-topics" role="tablist" aria-orientation="vertical" aria-label="Rules topics"></div><div id="sysRulesBox" data-lid="rules"><div id="sysBudgets" data-topic="budgets"></div><div id="sysEnv" data-topic="env"></div><div id="sysLinks" data-topic="links"></div><div id="sysTables" data-topic="tables"></div><div id="sysResults" data-topic="results"></div><div id="sysValues" data-topic="values"></div></div></div>
+            <div class="sys-split sys-split-topics"><div id="sysRulesNav" class="sys-topics" role="tablist" aria-orientation="vertical" aria-label="Rules topics"></div><div id="sysRulesBox" data-lid="rules"><div id="sysBudgets" data-topic="budgets"></div><div id="sysEnv" data-topic="env"></div><div id="sysLinks" data-topic="links"></div><div id="sysTables" data-topic="tables"></div><div id="sysResults" data-topic="results"></div><div id="sysValues" data-topic="values"></div><div id="sysDecks" data-topic="decks"></div></div></div>
         </div>
         <div id="sysChars" class="sys-tab" style="display:none;">
             <div class="sys-toolbar"><button class="tool" id="sysAddChar" title="A new character of this campaign (saved at once)">+ Character</button><button class="tool ghost" id="sysNewSheets" title="After a change to the system that the sheets no longer fit: every player&rsquo;s character goes out of date until you approve a new sheet or mark it current (saved at once)">Ask for new sheets&hellip;</button><button class="tool ghost" id="sysSheetsCurrent" title="Make every out-of-date sheet current as it is: their players play again">Mark all current</button><input type="search" id="sysCharFilter" class="field" placeholder="Find a character by name&hellip;" title="Show only the characters whose name holds these letters" style="max-width:220px;"><span class="sys-note">Characters are saved as you go. Give one a player and it reaches them with the visible fields; an NPC never leaves your machine. A token points at a character through its Properties (or right-click &#9656; New character sheet).</span></div>

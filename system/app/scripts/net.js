@@ -1180,6 +1180,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         delete camp.pinnedMaps;
         delete camp.pinnedPages;   // 1.5.4 (pageshelf.js): the pages pinned for the session name planners, which never leave this machine
         delete camp.buildPins;   // 1.6.2: the GM's own palette in Build
+        camp.pileN = decksFor(camp); delete camp.piles; if (Array.isArray(camp.decks)) camp.decks = camp.decks.filter(function(d) { return !!d && d.vis !== 'gm'; });   // 1.6.2 (G9): never the order of a pile
         if (camp.shared) { var shS = window.wpSystemCore && window.wpSystemCore.cleanShared ? window.wpSystemCore.cleanShared(camp.shared, camp.system, false) : null; if (shS) camp.shared = shS; else delete camp.shared; }   // 1.6.2 (G8): a GM-only value never leaves the host
         delete camp.fights;   // 1.6.0: a running fight as the host keeps it, numbers, rolls and all (fightsKeep)
         delete camp.sessionLog;
@@ -3056,6 +3057,13 @@ net.syncTrackers = function(now) {
 net.trackersForget = function(peer) { if (typeof peer === 'string') delete _trkSig[peer]; else _trkSig = Object.create(null); };
 // [netcheck:trksync-end]
 // 1.6.2 (G8): a shared value, written on the host and told to the table, a GM-only one kept off the wire. A player's app holds what it was told and writes nothing; a tracker that shows a value follows it
+// 1.6.2 (G9): a draw's piles, the host's alone: the table is told how many are left, and which was drawn last where everyone saw it, never the order
+function decksFor(camp) { var S = SC(), DC = window.wpDeckCore, o = {}; if (!camp || !camp.system || !S || !DC) return o; (Array.isArray(camp.system.decks) ? camp.system.decks : []).concat(Array.isArray(camp.decks) ? camp.decks : []).forEach(function(d) { if (d && d.vis !== 'gm' && typeof d.key === 'string') o[d.key] = DC.pileCounts(camp.piles && own(camp.piles, d.key) ? camp.piles[d.key] : null, d); }); return o; }
+net.decksTell = function(camp) { if (!camp || !net.active || net.role !== 'host') return; var counts = decksFor(camp); net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send({ type: 'decks', campId: camp.id, counts: counts }); } catch (e) { sendFailed(e, 'decks'); } } }); };
+net.decksSet = function(moves) {
+    var camp = getActiveCampaign(); if (!camp || net.role === 'client') return; camp.piles = Object.assign({}, camp.piles || {}, moves); saveRemoteSoon(); net.decksTell(camp);
+    if (window.wpSheets && typeof window.wpSheets.valuesMoved === 'function') window.wpSheets.valuesMoved(); if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'moved', { n: Object.keys(moves).length });
+};
 net.valuesTell = function(camp) {
     var S = SC(); if (!camp || !camp.system || !S || !net.active || net.role !== 'host') return; var vals = S.cleanShared(camp.shared, camp.system, false) || {};
     net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send({ type: 'shared', campId: camp.id, vals: vals }); } catch (e) { sendFailed(e, 'shared'); } } });
@@ -8714,6 +8722,13 @@ function handleMessage(msg, conn) {
         var fgIn = !ckIn && CCk.cleanDateFig ? CCk.cleanDateFig(msg.date) : null; if (fgIn) campCk.dateFig = fgIn; else delete campCk.dateFig;   // 1.6.0: the date's numbers alone, while no clock is sent
         if (window.wpCalendar) window.wpCalendar.refresh();
         // [netcheck:clockmsg-end]
+    } else if (msg.type === 'decks' && net.role === 'client') {
+        // 1.6.2 (G9): how many are left, from the synced host only, for the campaign on screen, each cleaned against the deck as this app holds it
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
+        var campDk = campOf(msg.campId), DCk = window.wpDeckCore; if (!campDk || !campDk.system || !DCk || !msg.counts || typeof msg.counts !== 'object') return; var keptK = Object.create(null);
+        (Array.isArray(campDk.system.decks) ? campDk.system.decks : []).concat(Array.isArray(campDk.decks) ? campDk.decks : []).forEach(function(d) { if (d && own(msg.counts, d.key)) { var cK = DCk.cleanCounts(msg.counts[d.key], d); if (cK) keptK[d.key] = cK; } });
+        campDk.pileN = keptK; if (window.wpSheets && typeof window.wpSheets.valuesMoved === 'function') window.wpSheets.valuesMoved();
     } else if (msg.type === 'shared' && net.role === 'client') {
         // 1.6.2 (G8): the shared values this player may read, from the synced host only, for the campaign on screen, cleaned again against their view
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
@@ -10417,6 +10432,8 @@ function figLabel(entry) { return entry && typeof entry.label === 'string' && en
 // here too (the host's chat, or a solo GM's), and in the session log
 // [netcheck:postapply-start]
 function postApply(rec, scope, ch, conn) {
+    var pubL = Array.isArray(rec.lines) ? rec.lines.filter(function(l) { return !!l && l.pub === 1; }) : [];   // 1.6.2 (G9): a draw shown to everyone goes to the table, whatever else moved. A private roll keeps it private
+    if (pubL.length) { rec.lines.forEach(function(l) { if (l) delete l.pub; }); if (scope === 'owner') { var restL = rec.lines.filter(function(l) { return pubL.indexOf(l) < 0; }); if (!restL.length) scope = 'table'; else { rec.lines = restL; postApply(Object.assign({}, rec, { id: 'r_' + Math.random().toString(36).slice(2, 10), lines: pubL }), 'table', ch, conn); } } }
     if (scope !== 'table') rec.priv = 'gm';
     if (net.active && net.role === 'host') {
         var wrA = typeof figOf === 'function' ? figOf(rec) : rec;   // 1.6.2
@@ -10449,7 +10466,7 @@ function rowGoneTell(charId, ch, gone, conn) {
     return items.length;
 }
 // [netcheck:rowgone-end]
-function applyLines(lines) { var mxL = (typeof window !== 'undefined' && window && window.wpSystemCore && window.wpSystemCore.LIMITS && window.wpSystemCore.LIMITS.applyChanges) || 120; return (Array.isArray(lines) ? lines : []).slice(0, mxL).map(function(l) {   /* one line a change: systemcore LIMITS.applyChanges (12 since 1.6.0, 8 since 1.5.4), as dicecore cleanApply takes them */ var cap = function(x) { return Math.max(-1e15, Math.min(1e15, x)); }; if (typeof l.say === 'string') { var oS = { n: String(l.n).slice(0, 60), say: l.say.slice(0, 1000) }; if (typeof l.roll === 'string' && l.roll) oS.roll = l.roll.slice(0, 60); return oS; } if (l.fx === 1 || l.fx === 0) { var oF = { n: String(l.n).slice(0, 60), fx: l.fx }; if (typeof l.roll === 'string' && l.roll) oF.roll = l.roll.slice(0, 60); return oF; } if (typeof l.all === 'number') { var oA = l.vary === true ? (l.set === true ? { n: String(l.n).slice(0, 60), s: 1 } : { n: String(l.n).slice(0, 60), s: 1, mv: 1 }) : l.set === true ? { n: String(l.n).slice(0, 60), s: 1, v: cap(l.v) } : { n: String(l.n).slice(0, 60), d: cap(l.d) }; if (typeof l.roll === 'string' && l.roll) oA.roll = l.roll.slice(0, 60); return oA; } var o = { n: String(l.n).slice(0, 60), d: cap(l.d), v: cap(l.v) }; if (typeof l.roll === 'string' && l.roll) o.roll = l.roll.slice(0, 60); return o; }); }   /* 1.5.9: and the dice a Rolled amount drew, as text */   // what the card carries: a label, two numbers (clients refuse past 1e15)
+function applyLines(lines) { var mxL = (typeof window !== 'undefined' && window && window.wpSystemCore && window.wpSystemCore.LIMITS && window.wpSystemCore.LIMITS.applyChanges) || 120; return (Array.isArray(lines) ? lines : []).slice(0, mxL).map(function(l) {   /* one line a change: systemcore LIMITS.applyChanges (12 since 1.6.0, 8 since 1.5.4), as dicecore cleanApply takes them */ var cap = function(x) { return Math.max(-1e15, Math.min(1e15, x)); }; if (typeof l.say === 'string') { var oS = { n: String(l.n).slice(0, 60), say: l.say.slice(0, 1000) }; if (typeof l.roll === 'string' && l.roll) oS.roll = l.roll.slice(0, 60); if (l.pub === true) oS.pub = 1; return oS; } if (l.fx === 1 || l.fx === 0) { var oF = { n: String(l.n).slice(0, 60), fx: l.fx }; if (typeof l.roll === 'string' && l.roll) oF.roll = l.roll.slice(0, 60); return oF; } if (typeof l.all === 'number') { var oA = l.vary === true ? (l.set === true ? { n: String(l.n).slice(0, 60), s: 1 } : { n: String(l.n).slice(0, 60), s: 1, mv: 1 }) : l.set === true ? { n: String(l.n).slice(0, 60), s: 1, v: cap(l.v) } : { n: String(l.n).slice(0, 60), d: cap(l.d) }; if (typeof l.roll === 'string' && l.roll) oA.roll = l.roll.slice(0, 60); return oA; } var o = { n: String(l.n).slice(0, 60), d: cap(l.d), v: cap(l.v) }; if (typeof l.roll === 'string' && l.roll) o.roll = l.roll.slice(0, 60); return o; }); }   /* 1.5.9: and the dice a Rolled amount drew, as text */   // what the card carries: a label, two numbers (clients refuse past 1e15)
 // [netcheck:postapply-end]
 // The bell (the HUD's notes, sheets.js): a note for a character's bell on this machine — cid '' finds this player's character named as
 function bellOut(cid, note, as) { try { if (window.wpSheets && window.wpSheets.bellNote) window.wpSheets.bellNote(cid, note, as); } catch (e) { console.error(e); } }

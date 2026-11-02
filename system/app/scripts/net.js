@@ -9173,7 +9173,7 @@ function handleMessage(msg, conn) {
         if (jobQ) { var jsQ = jobPress(SQ, campQ, chQ, q.row, actQ, varsQ, Fq, jobQ.round, q.label, saveRemoteSoon); if (jsQ) { denyQ('error', { error: { message: jsQ, pos: 0, len: 0 } }); return; } }   // a press short of its turns moves the count and rolls nothing; the last goes on and rolls
         if (chQ && !q.att && typeof offTurnWarn === 'function') offTurnWarn(campQ, turnChQ, q.act, rowGQ, q.label || (actQ && actQ.label), conn);   // 1.6.0: nothing refused it, so a warning is said
         var restQ = function(resQ, heldQ) {   // 1.6.2 (G5): all that follows a roll, which a roll with card actions holds until it is accepted
-        var recQ = { type: 'roll', id: heldQ || Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid };
+        var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid }; if (heldQ) recQ.id = heldQ;
         var blowRecQ = q.att && typeof attemptRec === 'function' ? attemptRec(q.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
         if (q.att && typeof attemptDrop === 'function') attemptDrop(q.att);   // 1.6.0 (B2): an attempt is resisted once
         var mfQ = null; if (actQ && actQ.malf && varsQ) { var mqQ = Fq.evaluate(actQ.malf, { vars: varsQ }); if (mqQ.ok && typeof mqQ.value === 'number' && isFinite(mqQ.value)) mfQ = Math.max(1, Math.min(1000000, Math.round(mqQ.value))); }   // Stage 6 HUD R3: its Malf, through their view
@@ -9602,9 +9602,9 @@ function wireConn(conn) {
     });
     conn.on('close', function() {
         // [netcheck:connclose-start]
-        if (typeof cardAway === 'function') cardAway(conn.peer);   // 1.6.2 (G5): the time stops while its roller is away
         var cur = net.conns[0] === conn;   // (a player's app) the connection this app holds — not one a later dial has replaced
         net.conns = net.conns.filter(function(c) { return c !== conn; });
+        if (typeof cardAway === 'function') cardAway(conn.peer);   // 1.6.2 (G5): the time stops while its roller is away
         delete assetInflight[conn.peer]; delete assetRefs[conn.peer]; delete assetBytes[conn.peer];
         if (diceLimit) diceLimit.forget(conn.peer);
         if (charLimit) charLimit.forget(conn.peer);
@@ -10788,7 +10788,8 @@ function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !==
 function pushRoll(rec, res, scope, opts) {
     if (rec && typeof rec.id === 'string') for (var iR = chatLog.length - 1; iR >= 0; iR--) if (chatLog[iR] && chatLog[iR].roll && chatLog[iR].roll.id === rec.id) { chatLog[iR].roll = rec; chatLog[iR].res = res; if (!rec.pend) ringPush(chatLog[iR], opts && opts.cid); renderChat(); return; }   // 1.6.2 (G5): a held roll's card, changed or landed, takes the place of the one before it
     var m = { from: rec.from, text: '', scope: scope, ts: rec.ts, roll: rec, res: res, rollBad: res ? null : ((opts && opts.bad) || 'error'), toName: opts && opts.toName ? opts.toName : '' };
-    pushChat(m); if (!rec.pend) ringPush(m, opts && opts.cid);
+    if (rec.pend) { pushChat(m); return; }
+    pushChat(m); ringPush(m, opts && opts.cid);
 }
 // [netcheck:cardhold-start]
 // 1.6.2 (backlog 210 b, G5; the owner: "Wait for Accept, then run", and "a roll with no card actions shouldn't wait, so ordinary rolls stay instant"): a roll
@@ -10900,7 +10901,7 @@ net.diceRoll = function(expr, o) {
     if (o.charId) { chR = (campR && campR.chars && typeof o.charId === 'string' && Object.prototype.hasOwnProperty.call(campR.chars, o.charId) ? campR.chars[o.charId] : null); if (!chR || !campR.system || !SR) return { error: D.denyText('char') }; tcR = window.wpSheets && window.wpSheets.tokenCtxFor ? window.wpSheets.tokenCtxFor(chR.id, campR) : null; varsR = SR.makeResolver(campR.system, chR, F, tcR); }
     if (chR && o.range && typeof o.range === 'object' && SR && SR.withRange) { tcR = SR.withRange(tcR || {}, o.range); varsR = SR.makeResolver(campR.system, chR, F, tcR); }
     if (chR && o.cross && typeof o.cross === 'object' && SR && typeof SR.withCross === 'function') { tcR = SR.withCross(tcR, o.cross); varsR = SR.makeResolver(campR.system, chR, F, tcR); }   // 1.6.0: a crossing's run reads CrossStep and Crossed (this machine's own word, never over the wire)   // 1.5.8 explosives: a throw's range to the point it aims at (this machine's own word, never over the wire)
-    var thR = null; if (chR && typeof o.hit === 'string') { thR = typeof targetHitIn === 'function' && SR && typeof SR.withTargetHit === 'function' ? targetHitIn(campR, tcR && tcR.range, o.hit, '') : null; if (!thR) return { error: 'That location is not on the target now.' }; tcR = SR.withTargetHit(tcR, thR); varsR = SR.makeResolver(campR.system, chR, F, tcR); }   // 1.6.0 (B5): the location row picked on its target, this machine's own word
+    var thnR = null; if (chR && typeof o.hit === 'string') { thnR = typeof targetHitIn === 'function' && SR && typeof SR.withTargetHit === 'function' ? targetHitIn(campR, tcR && tcR.range, o.hit, '') : null; if (!thnR) return { error: 'That location is not on the target now.' }; tcR = SR.withTargetHit(tcR, thnR); varsR = SR.makeResolver(campR.system, chR, F, tcR); }   // 1.6.0 (B5): the location row picked on its target, this machine's own word
     if (chR && typeof o.att === 'string' && typeof attSoftGone === 'function' && attSoftGone(o.att)) o = Object.assign({}, o, { att: undefined });
     if (chR && typeof o.att === 'string') { var atR = typeof attemptPeek === 'function' ? attemptPeek(o.att, chR.id, o.act, o.row) : null; if (atR === null || !SR.withAttempt) return { error: typeof ATT_GONE === 'string' ? ATT_GONE : 'That attempt is not there now.' }; tcR = SR.withAttempt(tcR, atR); var abR = typeof attemptRec === 'function' ? attemptRec(o.att) : null; if (abR && abR.blow && SR.withBlow) tcR = SR.withBlow(tcR, abR.blow); if (abR && (typeof abR.k === 'number' || abR.rd)) tcR = SR.withAttempt(tcR, atR, abR.k, abR.rd); varsR = SR.makeResolver(campR.system, abR && abR.blow && abR.vals ? Object.assign({}, chR, { values: abR.vals }) : chR, F, tcR); }   // 1.6.0 (B2): the attempt it resists, from this machine's own record   // 1.6.0 (the core's gaps 6 and 7): or the blow it answers
     var rowP = null;
@@ -10943,7 +10944,7 @@ net.diceRoll = function(expr, o) {
     var moR = hvR && hvR.length > 1 ? SR.hitRolls(campR.system, entR, expr, hvR.slice(1), F, D, { rounds: rnR.slice(1) }) : null; if (moR && moR.error) return { error: moR.error };   // ... and each hit after it, rolled here
     if (chR && !o.att && typeof net.offTurnSay === 'function') net.offTurnSay(chR, o.act, o.row, o.label);   // 1.6.0: off its turn, the GM is told, once nothing has refused it
     var restR = function(res, heldR) {   // 1.6.2 (G5): all that follows a roll, which a roll with card actions holds until it is accepted
-    var rec = { type: 'roll', id: heldR || D.uid(), from: o.from || diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() };   // o.from: this machine's own word, the player whose press this roll follows (a line's damage)
+    var rec = { type: 'roll', id: D.uid(), from: o.from || diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() }; if (heldR) rec.id = heldR;   // o.from: this machine's own word, the player whose press this roll follows (a line's damage)
     var mfR = null; if (entR && entR.malf && varsR) { var mqR = F.evaluate(entR.malf, { vars: varsR }); if (mqR.ok && typeof mqR.value === 'number' && isFinite(mqR.value)) mfR = Math.max(1, Math.min(1000000, Math.round(mqR.value))); }   // Stage 6 HUD R3: its Malf
     if (askedR && askedR.length) rec.asked = askedR;   // 1.6.2
     var blowRecR = typeof o.att === 'string' && typeof attemptRec === 'function' ? attemptRec(o.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
@@ -10968,10 +10969,10 @@ net.diceRoll = function(expr, o) {
     if (rec.dmg === 1 && rnR && rnR[0]) { rec.rno = rnR[0].rno; if (rnR[0].rnd) rec.rnd = rnR[0].rnd; }   // ... which says which round each hit was
     if (tcR && tcR.range && tcR.range.cgrade > 0 && typeof SR.coverWord === 'function' && rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row || null, 'coverRead')) { var cwR = SR.coverWord(campR.system, tcR.range.cgrade); if (cwR) rec.cov = cwR; }   // 1.6.0: as a player's roll
     if (tcR && tcR.range && tcR.range.pn && typeof SR.posRec === 'function' && rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row || null, 'postureRead')) { var prR = SR.posRec(campR.system, tcR.range); if (prR) rec.pos = prR; }   // 1.6.0: as a player's roll
-    if (thR && typeof thR.aim === 'function') { var amR = thR.aim(); if (amR) rec.aim = amR; }   // 1.6.0 (B5): where it was aimed and what it read there, for its card
-    if (rec.dmg === 1 && thR) rec.hit = o.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target
-    var cvR = rec.dmg === 1 && chR && !rec.dmgOn && typeof o.blast !== 'string' && o.used !== true && typeof coverHitIn === 'function' ? coverHitIn(campR, chR.id, tcR && tcR.range, thR ? o.hit : '') : null; if (cvR) rec.cvh = SR.coverHitCard(cvR);   // 1.6.0: where a hit behind cover lands, and the die
-    if (rec.dmg !== 1 && chR && typeof coverAimNote === 'function') coverAimNote(campR, chR.id, tcR && tcR.range, thR ? o.hit : '', function() { return SR.readsTargetHit(campR.system, chR, F, expr, o.row, tcR); });   // ... and an attack's pick, for its damage
+    if (thnR && typeof thnR.aim === 'function') { var amR = thnR.aim(); if (amR) rec.aim = amR; }   // 1.6.0 (B5): where it was aimed and what it read there, for its card
+    if (rec.dmg === 1 && thnR) rec.hit = o.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target
+    var cvR = rec.dmg === 1 && chR && !rec.dmgOn && typeof o.blast !== 'string' && o.used !== true && typeof coverHitIn === 'function' ? coverHitIn(campR, chR.id, tcR && tcR.range, thnR ? o.hit : '') : null; if (cvR) rec.cvh = SR.coverHitCard(cvR);   // 1.6.0: where a hit behind cover lands, and the die
+    if (rec.dmg !== 1 && chR && typeof coverAimNote === 'function') coverAimNote(campR, chR.id, tcR && tcR.range, thnR ? o.hit : '', function() { return SR.readsTargetHit(campR.system, chR, F, expr, o.row, tcR); });   // ... and an attack's pick, for its damage
     if (rec.dmg === 1 && typeof o.blast === 'string' && /^b_[a-z0-9]{1,16}$/.test(o.blast)) rec.blast = o.blast;   // 1.5.8 explosives: the blast this damage is for (this machine's own word): the card's Apply to all in the blast
     if (rec.dmg === 1 && o.used === true) { rec.dmgUsed = 1; if (o.usedWait === true) rec.dmgWait = 1; }   // 1.5.9 (es): this machine's own word, a damage roll already applied as it is rolled (a blast's fragmentation): its card says Applied (the cleaner of a player's app keeps no such key)
     if (res.breakdown && res.breakdown.names && res.breakdown.names.length) { var nmR = D.cleanNames(res.breakdown.names); if (!nmR) return { error: 'That roll could not be recorded.' }; if (nmR.length) rec.names = nmR; }
@@ -10996,7 +10997,7 @@ net.diceRoll = function(expr, o) {
     else if (hosting && o.gmOnly) { rec.priv = 'gm'; toast('Kept private: that roll is GM only' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // the caller's word: a GM-only field's own roll, a GM-only roll, a GM-only item's damage — its label and formula are the GM's
     else if (gmR.length) { rec.priv = 'gm'; toast('Kept private: that roll uses a GM-only value (' + gmR.join(', ') + ').'); }   // a public roll never carries a GM-only value
     else if (hosting && typeof abR !== 'undefined' && abR && abR.kp === true && SR && typeof SR.readsAttempt === 'function' && SR.readsAttempt(expr, F)) { rec.priv = 'gm'; toast('Kept private: it reads the kind of a GM-only attack' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // 1.6.0: a record's names travel, so a public card would name it
-    else if (hosting && thR && thR.secret()) { rec.priv = 'gm'; toast('Kept private: it reads a figure of its target\u2019s location that players do not see' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // 1.6.0 (B5): a GM-only row, or a figure worked out from a GM-only value
+    else if (hosting && thnR && thnR.secret()) { rec.priv = 'gm'; toast('Kept private: it reads a figure of its target\u2019s location that players do not see' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // 1.6.0 (B5): a GM-only row, or a figure worked out from a GM-only value
     else if (hosting && tcR && tcR.range && typeof rangeUnseen === 'function' && typeof rangeReadBy === 'function' && rangeUnseen(campR, tcR.range, '') && rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row && o.row.k ? null : o.row)) { rec.priv = 'gm'; toast('Kept private: a player on that map cannot see its target' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // range R3: its card would tell them how far it is
     else if (hosting && rowP && SR && varsR && SR.gmEffectNames(varsR, rowP.names).length) { rec.priv = 'gm'; toast('Kept private: a GM-only effect changes ' + SR.gmEffectNames(varsR, rowP.names).join(', ') + '.'); }   // F5b: through a column
     else if (hosting && rec.names && SR && varsR && SR.gmEffectNames(varsR, rec.names).length) { rec.priv = 'gm'; toast('Kept private: a GM-only effect changes ' + SR.gmEffectNames(varsR, rec.names).join(', ') + '.'); }   // 5h: nor a number a GM-only effect moved

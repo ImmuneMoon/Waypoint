@@ -3,7 +3,7 @@
    handler that reads it: the form writes its value and says so with an input event, and a change event as it closes, so the System editor's
    dispatchers, its errors and its Save need no word of this. The stored value is still the formula, and opening a form and leaving it writes
    nothing. Text nodes and values only: a label and a stored formula can come from a file. The pure half is formcore.js. */
-import { read, write, says, readCond, writeCond, saysCond, rollFace, tryRoll, tryValue } from './formcore.js';
+import { read, write, says, readCond, writeCond, saysCond, rollFace, tryRoll, tryValue, tryWords, readWords, writeWords, saysWords } from './formcore.js';
 
 // [formcheck:boxes-start]
 // which boxes wear the form, and what each wants: a figure (amt), a figure with dice (roll) or a yes or no (cond)
@@ -17,6 +17,7 @@ var LIB_BOX = { libF_damage: 'dice', libF_cost: 'amt', libF_needsIf: 'cond', lib
 function kindOf(inp) {
     if (inp && typeof inp.id === 'string' && Object.prototype.hasOwnProperty.call(LIB_BOX, inp.id)) return LIB_BOX[inp.id];
     var cs = inp && inp.classList; if (!cs) return '';
+    if (cs.contains('sys-caption') || cs.contains('sys-list-rolllabel') || (cs.contains('sys-label') && inp.closest && (function() { var rw = inp.closest('.sys-row'); return !!rw && /^r_/.test(rw.dataset.id || ''); })())) return 'words';
     if (cs.contains('sys-formula')) { var rw = inp.closest ? inp.closest('.sys-row') : null; return rw && /^r_/.test(rw.dataset.id || '') ? 'roll' : 'amt'; }
     for (var k in BOXES) if (Object.prototype.hasOwnProperty.call(BOXES, k) && cs.contains(k)) return BOXES[k];
     return '';
@@ -35,7 +36,7 @@ var FACES = ['4', '6', '8', '10', '12', '20', '100'];
 var KINDS = [['beat', 'Beat a number', 'Works or fails: a skill, a dodge, an attack.'], ['total', 'Get a total', 'Damage, initiative, a table to look up.'], ['hits', 'Count hits', 'A handful of dice, each that reaches a number counts.'], ['else', 'Something else', 'Build it step by step.']];
 var BEAT = [['<=', 'At most'], ['>=', 'At least'], ['<', 'Under'], ['>', 'Over'], ['=', 'Exactly'], ['!=', 'Anything but']];
 var BEAT_SAY = { '<=': 'They need this or less. Rolling low is good here.', '>=': 'They need this or more. Rolling high is good here.', '<': 'They need under this. Rolling low is good here.', '>': 'They need over this. Rolling high is good here.', '=': 'They need exactly this.', '!=': 'Anything but this works.' };
-var ASKS = { 'sys-range-formula': ['What is the penalty at a distance?', 'Worked out from how far away the target is.'], 'sys-height-formula': ['What is the penalty for a difference in height?', 'Worked out from how much higher the roller stands.'], 'sys-combat-bfall': ['How much does each token take?', 'With nothing set, every token takes the whole roll.'], 'sys-combat-beach': ['How many dice does each victim roll?', 'With nothing set, one roll for all.'], 'sys-combat-bscatter': ['How far does a miss land from its aim?', 'In yards.'], 'sys-combat-bhand': ['When does it go off in the hand?', 'Read on a critical failure.'], 'sys-combat-bmax': ['How far can it be thrown?', 'In yards.'], 'sys-combat-bmin': ['How near can it be thrown?', 'In yards.'], 'sys-combat-fgreach': ['How far does fragmentation reach?', 'In yards.'], 'sys-combat-blstray': ['How far does a stray round go?', 'In yards.'],
+var ASKS = { 'sys-caption': ['What does the line under it say?', 'Words, with figures of the sheet among them.'], 'sys-label': ['What does the button say?', 'Words, with figures of the sheet among them.'], 'sys-list-rolllabel': ['What does the button say?', 'Words, with figures of the row among them.'], 'sys-range-formula': ['What is the penalty at a distance?', 'Worked out from how far away the target is.'], 'sys-height-formula': ['What is the penalty for a difference in height?', 'Worked out from how much higher the roller stands.'], 'sys-combat-bfall': ['How much does each token take?', 'With nothing set, every token takes the whole roll.'], 'sys-combat-beach': ['How many dice does each victim roll?', 'With nothing set, one roll for all.'], 'sys-combat-bscatter': ['How far does a miss land from its aim?', 'In yards.'], 'sys-combat-bhand': ['When does it go off in the hand?', 'Read on a critical failure.'], 'sys-combat-bmax': ['How far can it be thrown?', 'In yards.'], 'sys-combat-bmin': ['How near can it be thrown?', 'In yards.'], 'sys-combat-fgreach': ['How far does fragmentation reach?', 'In yards.'], 'sys-combat-blstray': ['How far does a stray round go?', 'In yards.'],
     'sys-dmgr-major': ['How large is a Major Wound?', 'A wound this large or larger in one blow.'], 'sys-dmgr-mjif': ['Which Major Wounds does this act on?', 'Leave this empty for every one.'], 'sys-dmgr-oif': ['Which wounds does this act on?', 'Leave this empty for every wound.'], 'sys-dmgr-ohat': ['Which rows stand there?', 'Read on each row.'], 'sys-dmgr-ohto': ['What is written on those rows?', 'Read on each row.'], 'sys-dmgr-locvital': ['Which locations are vital?', 'Read on each location.'], 'sys-dmgr-locmult': ['What does a wound multiply by here?', 'Read on each location.'], 'sys-dmgr-locdie': ['What is added for each die?', 'Read on each location.'], 'sys-dmgr-aif': ['When does this take the type\u2019s place?', 'Read on the character.'], 'sys-dmgr-lat': ['What does this layer stop here?', 'Its listed figure at the hit location.'], 'sys-dmgr-lpick': ['Which stat wears here?', '1 for the first ticked, in the list\u2019s order.'], 'sys-dmgr-lhitw': ['What does an ordinary hit wear?', 'Leave this empty for 1.'], 'sys-dmgr-lmajw': ['What does a Major Wound wear?', 'Leave this empty for a quarter of its figure.'], 'sys-dmgr-lbrkw': ['What does a hit wear once it is broken?', 'Leave this empty for 1.'], 'sys-dmgr-lbrkm': ['What does a Major Wound wear once it is broken?', 'Leave this empty to read as a Major Wound above.'], 'sys-dmgr-lwcap': ['What is the most it can wear?', 'It is destroyed there. Leave this empty for twice its figure.'], 'sys-dmgr-ltplus': ['What does it add against this type?', 'Added to the DR for that part of a blow.'], 'sys-dmgr-wdur': ['How sturdy is the weapon?', 'Read on each row.'], 'sys-cvh-where': ['Which location rows does this mean?', 'Read on each location.'], 'sys-sense-nksneak': ['When is it sneaking?', 'Read on the creature.'],
     'sys-roll-malf': ['When does it jam?', 'A natural roll at or past this jams.'], 'sys-list-malf': ['When does it jam?', 'A natural roll at or past this jams.'], 'sys-roll-critat': ['What counts as a critical success?', 'A natural roll at or past this.'], 'sys-roll-fumbleat': ['What counts as a critical failure?', 'A natural roll at or past this.'], 'sys-roll-bigat': ['What lands as a Big Hit?', 'A success whose natural roll reaches this.'], 'sys-list-bigat': ['What lands as a Big Hit?', 'A success whose natural roll reaches this.'],
     'sys-roll-hits': ['How many times does it hit?', 'The damage is rolled this many times on one card.'], 'sys-list-rollhits': ['How many times does it hit?', 'The damage is rolled this many times on one card.'], 'sys-rljobturns': ['How many turns does this job take?', 'The roll is pressed once a turn until it is done.'], 'sys-fx-amtf': ['How much does it change?', 'This takes the place of the number beside it.'], 'sys-item-cost': ['What does it cost?', 'The price a character pays for it.'], 'sys-item-affvs': ['What do they resist it with?', 'Read on the character it reaches.'],
@@ -70,6 +71,7 @@ function sayOf(s) { return { name: typeof s.word === 'function' ? s.word : null 
 function lineOf(inp, kind) {
     var t = String(inp.value || '').trim(), sc = srcFor(inp);
     if (!t) return { text: emptyWord(kind, inp), bad: false, none: true };
+    if (kind === 'words') { var wp = readWords(t); return wp ? { text: saysWords(wp, sayOf(sc)) } : { text: t, bad: true }; }
     if (kind === 'cond') { var c = readCond(t); return c.ok ? { text: saysCond(c.cond, sayOf(sc)) } : { text: t, bad: true }; }
     var r = read(t); return r.ok ? { text: says(r.form, sayOf(sc)) } : { text: t, bad: true };
 }
@@ -82,21 +84,23 @@ function shut(keep) {
     if (keep === false && o.inp.value !== o.was) { o.inp.value = o.was; o.inp.dispatchEvent(new Event('input', { bubbles: true })); }
     if (o.touched) { try { o.inp.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {} }
     if (o.root.parentNode) o.root.parentNode.removeChild(o.root);
-    o.box.line.hidden = false; drawLine(o.box);
+    o.box.go.hidden = false; drawLine(o.box);
     if (o.box.go && o.box.go.isConnected) { try { o.box.go.focus(); } catch (e) {} }
 }
 function commit() {
     var o = open; if (!o || !o.form) return;
-    var t = o.kind === 'cond' ? writeCond(o.form) : write(o.form);
+    var t = o.kind === 'words' ? writeWords(o.form) : o.kind === 'cond' ? writeCond(o.form) : write(o.form);
     if (t === o.inp.value) return;
     o.inp.value = t; o.touched = true; o.inp.dispatchEvent(new Event('input', { bubbles: true }));
     if (o.text && o.text.input) o.text.input.value = t;
+    drawLine(o.box);   // the line above the form follows what is being built
     tryDraw();
 }
 function redraw(focus) {
     var o = open; if (!o) return;
     o.body.textContent = '';
     if (o.bad) o.body.appendChild(el('div', 'fb-note', 'This one cannot be shown as steps yet. Change it with As text below.'));
+    else if (o.kind === 'words') wordsInto(o.body, o);
     else if (o.kind === 'roll') rollInto(o.body, o);
     else { var ask = askOf(o.inp); if (ask) { o.body.appendChild(el('div', 'fb-qh', ask[0])); o.body.appendChild(el('div', 'fb-qs', ask[1])); } if (o.kind === 'cond') condInto(o.body, o.form, 'c'); else formInto(o.body, o.form, 'f', false, diceOk(o)); }
     if (focus) { var q = o.body.querySelector('[data-p="' + focus + '"]'); if (q) { try { q.focus(); } catch (e) {} } }
@@ -197,6 +201,24 @@ function formInto(host, f, p, isRoll, dice) {
         host.appendChild(cr);
     }
 }
+// words and figures in the order they read, each a line of its own
+function wordsInto(host, o) {
+    var ask = askOf(o.inp), ps = o.form; if (ask) { host.appendChild(el('div', 'fb-qh', ask[0])); host.appendChild(el('div', 'fb-qs', ask[1])); }
+    ps.forEach(function(p, i) {
+        var row = el('div', 'fb-step'), pi = 'w' + i;
+        if (p.form) {
+            valueInto(row, function() { return valOfForm(p.form); }, function(x) { p.form = formOfVal(x); }, pi, false);
+            var sl = el('label', 'fb-tick'), sc = el('input'); sc.type = 'checkbox'; sc.checked = p.sign; sc.dataset.p = pi + 's'; sl.appendChild(sc); sl.appendChild(document.createTextNode(' Show its plus sign')); sc.addEventListener('change', function() { p.sign = sc.checked; commit(); }); row.appendChild(sl);
+        } else { var n = el('input', 'fb-words'); n.type = 'text'; n.value = p.text; n.dataset.p = pi; n.setAttribute('aria-label', 'Words'); n.addEventListener('input', function() { if (/[{}]/.test(n.value)) n.value = n.value.replace(/[{}]/g, ''); p.text = n.value; commit(); }); row.appendChild(n); }
+        if (ps.length > 1) { var x = btn('fb-x', '×', 'Take this away'); x.setAttribute('aria-label', 'Take this away'); x.dataset.p = pi + 'x'; x.addEventListener('click', function() { ps.splice(i, 1); again('wadd'); }); row.appendChild(x); }
+        host.appendChild(row);
+    });
+    var bar = el('div', 'fb-step'), aw = btn('fb-add', '+ Add words', 'Add words after this'), af = btn('fb-add', '+ Add a figure', 'Add a figure of the sheet after this'); aw.dataset.p = 'wadd'; af.dataset.p = 'wfig';
+    aw.addEventListener('click', function() { ps.push({ text: ' ' }); again('w' + (ps.length - 1)); });
+    af.addEventListener('click', function() { var lp = ps[ps.length - 1]; if (lp && !lp.form && lp.text && !/\s$/.test(lp.text)) lp.text += ' ';   // a figure after words stands apart from them
+        ps.push({ form: { steps: [{ op: 'start', v: NUM0() }] }, sign: false, unit: '' }); var at = 'w' + (ps.length - 1) + 'b'; again(at); pressPick(at); });
+    bar.appendChild(aw); bar.appendChild(af); host.appendChild(bar);
+}
 // the plain questions of a roll
 function qInto(host, head, say) { var q = el('div', 'fb-q'); q.appendChild(el('div', 'fb-qh', head)); if (say) q.appendChild(el('div', 'fb-qs', say)); host.appendChild(q); return q; }
 function pressPick(p) { var o = open, b = o && o.body.querySelector('[data-p="' + p + '"]'); if (b && typeof b.click === 'function') { try { b.click(); } catch (e) {} } }
@@ -261,7 +283,7 @@ function tryOut(box, o, T, people) {
     var who = people.filter(function(p) { return p.id === tryWho; })[0], s = '';
     try {
         var vars = T.vars(tryWho, tryOver);
-        s = o.kind === 'roll' || o.kind === 'dice' ? tryRoll(o.form, { who: who.name, vars: vars }) : tryValue(String(o.inp.value || ''), { who: who.name, vars: vars, cond: o.kind === 'cond' });
+        s = o.kind === 'words' ? tryWords(o.form, { who: who.name, vars: vars }) : o.kind === 'roll' || o.kind === 'dice' ? tryRoll(o.form, { who: who.name, vars: vars }) : tryValue(String(o.inp.value || ''), { who: who.name, vars: vars, cond: o.kind === 'cond' });
     } catch (e) { s = ''; }
     box.textContent = s;
 }
@@ -368,7 +390,8 @@ function openMenu(anchor, done, dice) {
 function formOpen(b) {
     if (open && open.box === b) return; shut();
     var t = String(b.inp.value || '').trim(), kind = b.kind, o = { box: b, inp: b.inp, kind: kind, was: b.inp.value, touched: false, form: null, bad: false, fresh: kind === 'roll' && !t, face: '', now: '' };
-    if (kind === 'cond') { if (!t) o.form = { any: false, tests: [{ l: { steps: [{ op: 'start', v: NUM0() }] }, op: '>=', r: { steps: [{ op: 'start', v: NUM1() }] } }] }; else { var c = readCond(t); if (c.ok) o.form = c.cond; else o.bad = true; } }
+    if (kind === 'words') { var wf = readWords(t); if (wf) o.form = wf.length ? wf : [{ text: '' }]; else o.bad = true; }
+    else if (kind === 'cond') { if (!t) o.form = { any: false, tests: [{ l: { steps: [{ op: 'start', v: NUM0() }] }, op: '>=', r: { steps: [{ op: 'start', v: NUM1() }] } }] }; else { var c = readCond(t); if (c.ok) o.form = c.cond; else o.bad = true; } }
     else if (!t) o.form = { steps: [{ op: 'start', v: kind === 'roll' || kind === 'dice' ? { k: 'dice', n: { k: 'num', v: 1, s: '1' }, f: { k: 'num', v: 20, s: '20' }, dirty: true } : NUM0() }] };
     else { var r = read(t); if (r.ok) o.form = r.form; else o.bad = true; }
     o.root = el('div', 'fb-open'); o.body = el('div', 'fb-body'); o.root.appendChild(o.body); o.tryEl = el('div', 'fb-try'); o.tryEl.hidden = true; o.root.appendChild(o.tryEl);
@@ -383,21 +406,32 @@ function formOpen(b) {
         o.root.appendChild(row); o.text = { row: row, input: inp };
         inp.addEventListener('input', function() {
             o.inp.value = inp.value; o.touched = true; o.inp.dispatchEvent(new Event('input', { bubbles: true }));
-            var v = inp.value.trim(), x = kind === 'cond' ? readCond(v) : read(v);
-            if (x.ok) { o.form = kind === 'cond' ? x.cond : x.form; o.bad = false; note.textContent = ''; redraw(); } else if (v) { note.textContent = x.error && x.error.message ? x.error.message : 'That cannot be read.'; }
+            var v = inp.value.trim(), x = kind === 'words' ? (function() { var wr = readWords(inp.value); return wr ? { ok: true, words: wr } : { ok: false }; })() : kind === 'cond' ? readCond(v) : read(v);
+            if (x.ok) { o.form = kind === 'words' ? (x.words.length ? x.words : [{ text: '' }]) : kind === 'cond' ? x.cond : x.form; o.bad = false; note.textContent = ''; redraw(); } else if (v) { note.textContent = x.error && x.error.message ? x.error.message : 'That cannot be read.'; }
         });
         inp.focus();
     });
     o.root.addEventListener('keydown', function(e) { if (e.key === 'Escape' && !menu) { e.preventDefault(); e.stopPropagation(); shut(); } });
-    b.line.hidden = true; b.wrap.appendChild(o.root);
+    b.go.hidden = true; b.wrap.appendChild(o.root);
     open = o; redraw();
     var first = o.body.querySelector('input, select, button'); if (first) { try { first.focus(); } catch (e) {} }
 }
 // [formcheck:sweep-start]
-function dress(inp) {
+function dress(inp, force) {
     if (!inp || !inp.dataset || inp.dataset.fb) return;
+    if (force === true && kindOf(inp) === 'words') { if (!inp.parentNode) return; inp.dataset.fb = '1'; dressLine(inp, 'words'); return; }
     var kind = kindOf(inp); if (!kind || !inp.parentNode) return;
+    if (kind === 'words' && !/[{}]/.test(inp.value || '')) {   // plain words stay a box to type in, with a way to add a figure beside it
+        if (inp.dataset.fbw) return; inp.dataset.fbw = '1';
+        var add = btn('fb-add fb-addfig', '+ Add a figure', 'Put a figure of the sheet among these words');
+        add.addEventListener('click', function(e) { e.preventDefault(); if (add.parentNode) add.parentNode.removeChild(add); delete inp.dataset.fbw; dress(inp, true); var w = inp.parentNode, go = w && w.querySelector ? w.querySelector('.fb-go') : null; if (go && typeof go.click === 'function') { go.click(); var q = w.querySelector('[data-p="wfig"]'); if (q && typeof q.click === 'function') q.click(); } });   // the press that said add a figure adds one
+        if (inp.nextSibling) inp.parentNode.insertBefore(add, inp.nextSibling); else inp.parentNode.appendChild(add);
+        return;
+    }
     inp.dataset.fb = '1';
+    dressLine(inp, kind);
+}
+function dressLine(inp, kind) {
     var wrap = el('div', 'fb'), line = el('div', 'fb-line'), say = el('span', 'fb-say'), go = btn('fb-go', 'Change', 'Change this in a form'), b = { inp: inp, kind: kind, wrap: wrap, line: line, say: say, go: go };
     var col = el('div', 'fb-col'), ask = askOf(inp), lead = kind === 'roll' ? 'What this roll does' : ask ? ask[0] : '';   // a shut box says what it is, or 'Not set' says nothing
     if (lead) col.appendChild(el('div', 'fb-lead', lead)); col.appendChild(say);
@@ -409,7 +443,7 @@ function dress(inp) {
 function sweep(root) {
     if (!root || typeof root.querySelectorAll !== 'function') return 0;
     var n = 0, all = root.querySelectorAll('input');
-    for (var i = 0; i < all.length; i++) { if (all[i].dataset && !all[i].dataset.fb && kindOf(all[i])) { dress(all[i]); n++; } }
+    for (var i = 0; i < all.length; i++) { if (all[i].dataset && !all[i].dataset.fb && !all[i].dataset.fbw && kindOf(all[i])) { dress(all[i]); if (all[i].dataset.fb) n++; } }
     return n;
 }
 function watch(root) {

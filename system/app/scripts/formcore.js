@@ -311,6 +311,24 @@ function tryValue(text, o) {
     if (o.cond) { if (s.dice) return 'For ' + o.who + ' that holds about ' + Math.round((s.isB ? s.share : 1) * 100) + ' times in 100.'; var yes = s.isB ? s.share > 0 : s.mean !== 0; return 'For ' + o.who + ' this ' + (yes ? 'holds now.' : 'does not hold now.'); }
     return s.isB ? 'For ' + o.who + ' this ' + (s.share > 0 ? 'holds now.' : 'does not hold now.') : 'For ' + o.who + ' this comes to ' + spanWord(s.lo, s.hi, s.mean) + '.';
 }
-var API = { rollFace: rollFace, tryRoll: tryRoll, tryValue: tryValue, read: read, write: write, says: says, readCond: readCond, writeCond: writeCond, saysCond: saysCond, CMP_WORDS: CMP_WORDS, STEP_WORDS: STEP_WORDS, ROUND_WORDS: ROUND_WORDS };
+/* ---------- words with figures among them: a caption, a roll's label ---------- */
+// "Attack ({\u00b1Bonus})" as [{ text }, { form, sign, unit }, { text }]. null where a figure in it cannot be read
+function readWords(text) {
+    var t = String(text === undefined || text === null ? '' : text), out = [], re = /\{([^{}]*)\}/g, last = 0, m;
+    while ((m = re.exec(t))) {
+        if (m.index > last) out.push({ text: t.slice(last, m.index) });
+        var inner = m[1].trim(), bar = inner.lastIndexOf('|'), unit = bar >= 0 ? inner.slice(bar) : ''; if (bar >= 0) inner = inner.slice(0, bar).trim();
+        var sg = /^(\u00b1|\+\/-)\s*/.exec(inner), body = sg ? inner.slice(sg[0].length) : inner, r = read(body);
+        if (!r.ok) return null;
+        out.push({ form: r.form, sign: !!sg, unit: unit }); last = m.index + m[0].length;
+    }
+    if (last < t.length) out.push({ text: t.slice(last) });
+    return out;
+}
+function writeWords(parts) { return parts.map(function(p) { return p.form ? '{' + (p.sign ? '\u00b1' : '') + write(p.form) + p.unit + '}' : p.text; }).join(''); }
+function saysWords(parts, say) { return parts.map(function(p) { return p.form ? says(p.form, say) : p.text; }).join(''); }
+// what the words read for one character
+function tryWords(parts, o) { return 'For ' + o.who + ' it reads: ' + parts.map(function(p) { if (!p.form) return p.text; var x = figOf(p.form, o.vars); return x === null ? '?' : (p.sign && x >= 0 ? '+' : '') + fig1(x) + (p.unit ? ' ' + p.unit.slice(1).trim() : ''); }).join(''); }
+var API = { tryWords: tryWords, readWords: readWords, writeWords: writeWords, saysWords: saysWords, rollFace: rollFace, tryRoll: tryRoll, tryValue: tryValue, read: read, write: write, says: says, readCond: readCond, writeCond: writeCond, saysCond: saysCond, CMP_WORDS: CMP_WORDS, STEP_WORDS: STEP_WORDS, ROUND_WORDS: ROUND_WORDS };
 if (typeof window !== 'undefined') window.wpFormCore = API;
-export { rollFace, tryRoll, tryValue, read, write, says, readCond, writeCond, saysCond, CMP_WORDS, STEP_WORDS, ROUND_WORDS };
+export { tryWords, readWords, writeWords, saysWords, rollFace, tryRoll, tryValue, read, write, says, readCond, writeCond, saysCond, CMP_WORDS, STEP_WORDS, ROUND_WORDS };

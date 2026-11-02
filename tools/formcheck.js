@@ -67,7 +67,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     const go = wrap.querySelector('.fb-go'), calls = inp.calls;
     go.click ? go.click() : go.handlers.click.forEach(h => h({ preventDefault() {} }));
     const body = wrap.querySelector('.fb-open');
-    check('Change opens the steps in the row', !!body && wrap.querySelector('.fb-line').hidden === true && body.querySelectorAll('.fb-step').length === 4, body && body.querySelectorAll('.fb-step').length);
+    check('Change opens the steps in the row', !!body && wrap.querySelector('.fb-go').hidden === true && !wrap.querySelector('.fb-line').hidden && body.querySelectorAll('.fb-step').length === 4, body && body.querySelectorAll('.fb-step').length);
     const press = e => e.click ? e.click() : (e.handlers.click || []).forEach(h => h({ preventDefault() {}, target: e }));
     press(body.querySelector('.fb-done'));
     check('opened and left, it writes nothing and says nothing', inp.value === 'floor((Agility.max + Might) / 4)' && !inp.calls.some(c => /dispatch/.test(c)), j(inp.calls));
@@ -119,6 +119,27 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     const iO = mkRoll('3d6 <= 12'), bO = openR(iO); press(bO.querySelector('.fb-done'));
     check('a roll opened and left writes nothing', iO.value === '3d6 <= 12', iO.value);
     check('a box that is no roll says what it asks', j(B.askOf(Object.assign(doc.createElement('input'), { className: 'sys-roll-needs' }))) === j(['When can they use this?', 'The button greys out at other times.']) || B.askOf({ classList: { contains: c => c === 'sys-roll-needs' } })[0] === 'When can they use this?');
+
+    /* ================= words with figures ================= */
+    const ww = ['Attack', 'Attack ({\u00b1Bonus})', '{Might} of {HP.max}', 'Load {Weight|lb}', 'Odd {1 + 2} end', ''];
+    check('words and figures read back as they were written', ww.every(s => C.writeWords(C.readWords(s)) === s), j(ww.map(s => C.writeWords(C.readWords(s)))));
+    check('words say their figures as the sheet does, and a figure that cannot be read is no form', C.saysWords(C.readWords('Attack ({\u00b1Dodge})'), { name: s => (s === 'Dodge' ? 'Dodge' : '') }) === 'Attack (Dodge)' && C.readWords('Bad {1 +') !== null && C.readWords('Bad {1 + }') === null && j(C.readWords('{+/-Might}').map(p => p.sign)) === j([true]), j(C.readWords('{+/-Might}')));
+    B.setSource(() => srcT);
+    const mkW = v => { const r = doc.createElement('div'); r.className = 'sys-row'; r.dataset.id = 'f_x'; const i = doc.createElement('input'); i.type = 'text'; i.className = 'sys-caption field'; i.value = v; r.appendChild(i); modal.appendChild(r); B.sweep(modal); return { r, i }; };
+    const pw = mkW('Plain words');
+    check('plain words stay a box to type in, with a way to add a figure', pw.i.hidden !== true && !pw.i.dataset.fb && !!pw.r.querySelector('.fb-addfig'), j(pw.i.dataset));
+    B.sweep(modal);
+    check('sweeping again adds no second button', pw.r.querySelectorAll('.fb-addfig').length === 1);
+    const fw = mkW('Attack ({\u00b1Dodge})'), fwb = fw.i.parentNode;
+    check('words with a figure read in words, and say what the box is', fw.i.hidden === true && fwb.querySelector('.fb-say').textContent === 'Attack (Dodge)' && fwb.querySelector('.fb-lead').textContent === 'What does the line under it say?', fwb.querySelector('.fb-say').textContent);
+    press(fwb.querySelector('.fb-go')); const fwo = fwb.querySelector('.fb-open');
+    check('open, each piece stands on a line of its own and nothing of a key shows', fwo.querySelectorAll('.fb-words').length === 2 && fwo.querySelectorAll('.fb-pick').length === 1 && fwo.querySelector('.fb-pick').textContent === 'Dodge' && !/\{|\u00b1/.test(fwo.textContent), fwo.textContent.slice(0, 120));
+    press(fwo.querySelector('[data-p="wadd"]'));
+    check('words added write the box, with the figure kept', fw.i.value === 'Attack ({\u00b1Dodge}) ', fw.i.value);
+    check('the line above the form follows what is being built', fwb.querySelector('.fb-say').textContent === 'Attack (Dodge) ', fwb.querySelector('.fb-say').textContent);
+    press(fwo.querySelector('.fb-cancel'));
+    check('Cancel puts the words back', fw.i.value === 'Attack ({\u00b1Dodge})', fw.i.value);
+    check('Try it reads the words for a character, a sign, a figure and a unit among them', C.tryWords(C.readWords('Attack ({\u00b1Dodge}) of {Dodge|lb}'), who) === 'For Kael it reads: Attack (+12) of 12 lb', C.tryWords(C.readWords('Attack ({\u00b1Dodge}) of {Dodge|lb}'), who));
 
     /* ================= every name in words ================= */
     const SC = await import(url('systemcore.js'));

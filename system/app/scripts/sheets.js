@@ -6812,6 +6812,12 @@ var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, st
 // 1.6.2: what a formula's form may offer, and every name in words, for the box it stands over
 function formCtx(inp) {
     var rw = inp && inp.closest ? inp.closest('.sys-row') : null, id = rw && rw.dataset ? rw.dataset.id : '', r = null, cs = inp && inp.classList;
+    var card = inp && inp.closest ? inp.closest('.sys-list-card') : null, lid = card && card.dataset ? card.dataset.lid : '';
+    if (lid) {   // a box of a list: its row's figures, and the roll it belongs to where it belongs to one
+        var lf = null; (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(x) { if (x && x.id === lid) lf = x; });
+        var sp = lf && lf.list ? lf.list : null, re = inp.closest('.sys-list-roll'), rr = re && sp && Array.isArray(sp.rolls) ? sp.rolls[Number(re.dataset.ri)] : null;
+        return { list: sp || undefined, subject: rr ? rr.label || '' : '', roll: rr || undefined, then: !!rr && !Array.isArray(rr.apply) && !!cs && (cs.contains('sys-list-applyformula') || cs.contains('sys-list-applyif')) };
+    }
     if (typeof id === 'string' && /^r_/.test(id)) (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(x) { if (x && x.id === id) r = x; });
     if (r) return { roll: r, subject: r.label, then: !Array.isArray(r.apply) && !!cs && (cs.contains('sys-apply-formula') || cs.contains('sys-apply-if')) };
     var fd = null; if (typeof id === 'string') (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(x) { if (x && x.id === id) fd = x; });

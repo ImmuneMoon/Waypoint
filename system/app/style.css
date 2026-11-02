@@ -3240,7 +3240,9 @@
   /* 1.6.2: the form over a formula box (formbox.js) */
   .fb { flex: 1 1 100%; min-width: 0; width: 100%; }
   .fb-line { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 6px 4px 8px; min-height: 30px; }
-  .fb-say { flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink); overflow-wrap: anywhere; }
+  .fb-col { flex: 1; min-width: 0; }
+  .fb-lead { color: var(--dim); font-size: 11.5px; }
+  .fb-say { display: block; min-width: 0; font-size: 12.5px; color: var(--ink); overflow-wrap: anywhere; }
   .fb-none .fb-say { color: var(--dim); }
   .fb-bad { border-color: var(--red); } .fb-bad .fb-say { color: var(--red); font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; }
   .fb-go, .fb-done, .fb-cancel, .fb-astext, .fb-more { background: var(--panel2); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; padding: 2px 9px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }

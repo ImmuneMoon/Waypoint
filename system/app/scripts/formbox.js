@@ -390,7 +390,9 @@ function dress(inp) {
     var kind = kindOf(inp); if (!kind || !inp.parentNode) return;
     inp.dataset.fb = '1';
     var wrap = el('div', 'fb'), line = el('div', 'fb-line'), say = el('span', 'fb-say'), go = btn('fb-go', 'Change', 'Change this in a form'), b = { inp: inp, kind: kind, wrap: wrap, line: line, say: say, go: go };
-    line.appendChild(say); line.appendChild(go); go.addEventListener('click', function(e) { e.preventDefault(); formOpen(b); });
+    var col = el('div', 'fb-col'), ask = askOf(inp), lead = kind === 'roll' ? 'What this roll does' : ask ? ask[0] : '';   // a shut box says what it is, or 'Not set' says nothing
+    if (lead) col.appendChild(el('div', 'fb-lead', lead)); col.appendChild(say);
+    line.appendChild(col); line.appendChild(go); go.addEventListener('click', function(e) { e.preventDefault(); formOpen(b); });
     inp.parentNode.insertBefore(wrap, inp); wrap.appendChild(line); wrap.appendChild(inp); inp.hidden = true;
     inp.addEventListener('wpformshown', function() { drawLine(b); });
     drawLine(b);

@@ -7089,6 +7089,7 @@ function refWarns(saved, clean, camp0) {
     var warn = function(k, m) { (warningsById[k] = warningsById[k] || []).push({ message: m }); }, low = function(x) { return typeof x === 'string' ? x.trim().toLowerCase() : ''; };
     var rn = renamesOf(saved, draft), said = function(k, l, w) { l.forEach(function(p) { var o = {}; o[w] = [p]; warn(k(p), renamesSay(o)[0]); }); }, chars = (camp0 && camp0.chars) || {};
     said(function(p) { return 'list:' + p.f; }, rn.picks, 'picks'); said(function(p) { return 'list:' + p.f; }, rn.rolls, 'rolls'); said(function(p) { return p.f; }, rn.selects, 'selects'); said(function() { return 'links'; }, rn.stations, 'stations');
+    rn.names.forEach(function(p) { renamesSay({ names: [p] }).forEach(function(m) { warn(p.list ? 'list:' + p.f : p.f, m); }); });   // 1.6.2: a number's value names moved: said before Save, since the numbers stored in rows and the library stay as they are
     rn.subjects.forEach(function(p) { renamesSay({ subjects: [p] }).forEach(function(m) { warn('list:' + p.f, m); }); });   // 1.6.2: a list's subjects moved: a word only moved says nothing, since its rows follow
     var fromIn = function(l, f, x) { return l.some(function(p) { return p.f === f && low(p.from) === low(x); }); };
     ((saved && saved.fields) || []).forEach(function(sf) {

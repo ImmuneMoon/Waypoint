@@ -71,6 +71,8 @@ System editor
 - A table read by a choice says which options have no row of the table.
 - The Calendar's Coming up list reads more easily: each date on its own line, and
   a long note held to two lines with the rest on its tooltip.
+- A dropdown can hold 64 names. Move a name to another place and the editor says
+  so before Save, since what holds a number keeps it and reads the name now there.
 - Counted once: Given free can name a column now, as Full price can, so a row
   another row granted can say what it gives free.
 

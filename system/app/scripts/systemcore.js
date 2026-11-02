@@ -71,7 +71,7 @@ var LIMITS = Object.freeze({
     icon: 8, unit: 8,                        // Stage 5g: a tab's or a section's icon (code points: an emoji or a glyph or two), a number's unit ("pts")
     caption: 400, captionExprs: 8,           // Stage 5g Fold B: a field's caption line and the {formula} values in it
     ruleText: 2000,                          // Stage 6 HUD H11: a rules-text placement (plain text, its line breaks kept)
-    labels: 32,                              // Stage 6: names for a number's values (a dropdown) or a formula's (shown instead of the number); 10 before 1.6.0, now a list's stat may name one value per damage type
+    labels: 64,                              // Stage 6: names for a number's values (a dropdown) or a formula's (shown instead of the number); 10 before 1.6.0, 32 before 1.6.2, now a list's stat may name one value per damage type
     effects: 200, effectRows: 30, effectMods: 12, effectAmount: 1e6, effectDur: 40,  // Stage 5h: the library, a character's list, changes per effect, a change's size, a duration note
     uploadChanges: 600,                      // Stage 6 U1: the changes one upload may propose
     upWords: 400,                            // 1.6.0: the words a line of the Review keeps of a value, each side, which it shows whole
@@ -8407,14 +8407,24 @@ function rollRefsFollow(prev, next, rn) {
 }
 // 1.6.2 (backlog 208, points 6, 9 and 10): a name renamed in the System editor. What is stored by a name follows it. renamesOf: what became what from
 // the system saved to the draft: { picks, selects, stations, rolls }, each { f (the field or link), word (its name), from, to } and a pick's key
+function namesMoved(before, after) {   // a value name that still stands, at another place
+    if (!Array.isArray(before) || !Array.isArray(after)) return false;
+    var la = after.map(function(x) { return typeof x === 'string' ? lower(x.trim()) : ''; });
+    return before.some(function(x, i) { var l = typeof x === 'string' ? lower(x.trim()) : '', at = l ? la.indexOf(l) : -1; return at >= 0 && at !== i; });
+}
 function renamesOf(prev, next) {
-    var out = { picks: [], selects: [], stations: [], rolls: [], subjects: [] }; if (!isObj(prev) || !isObj(next)) return out;
+    var out = { picks: [], selects: [], stations: [], rolls: [], subjects: [], names: [] }; if (!isObj(prev) || !isObj(next)) return out;
     var fieldIn = function(s, id) { return (Array.isArray(s.fields) ? s.fields : []).filter(function(x) { return isObj(x) && x.id === id; })[0] || null; }, word = function(x) { return x.label || x.key || ''; };
     var labels = function(l) { return (Array.isArray(l) ? l : []).map(function(o) { return isObj(o) && typeof o.label === 'string' ? o.label : ''; }); }, names = function(l) { return (Array.isArray(l) ? l : []).map(function(o) { return isObj(o) && typeof o.name === 'string' ? o.name : ''; }); }, rollL = function(sp) { return (isObj(sp) && Array.isArray(sp.rolls) ? sp.rolls : []).filter(function(r) { return isObj(r) && !Array.isArray(r.apply); }).map(function(r) { return typeof r.label === 'string' ? r.label : ''; }); };
     (Array.isArray(prev.fields) ? prev.fields : []).forEach(function(pf) {
         var nf = isObj(pf) ? fieldIn(next, pf.id) : null; if (!nf || nf.kind !== pf.kind) return;
         if (pf.kind === 'select') listRenames(pf.options, nf.options).forEach(function(p) { out.selects.push({ f: nf.id, word: word(nf), from: p.from, to: p.to }); });
+        if (namesMoved(pf.labels, nf.labels)) out.names.push({ f: nf.id, word: word(nf), list: false });
         if (pf.kind !== 'item-list' || !isObj(pf.list) || !isObj(nf.list)) return;
+        (Array.isArray(pf.list.stats) ? pf.list.stats : []).forEach(function(pn) {   // 1.6.2: a number's value names say a place, so what holds the number now reads whatever name stands there
+            var nn = isObj(pn) && pn.kind !== 'pick' && typeof pn.key === 'string' ? (Array.isArray(nf.list.stats) ? nf.list.stats : []).filter(function(x) { return isObj(x) && typeof x.key === 'string' && lower(x.key) === lower(pn.key); })[0] : null;
+            if (nn && namesMoved(pn.labels, nn.labels)) out.names.push({ f: nf.id, word: word(nn), list: true });
+        });
         (Array.isArray(pf.list.stats) ? pf.list.stats : []).forEach(function(ps) {
             if (!isObj(ps) || ps.kind !== 'pick' || typeof ps.key !== 'string') return;
             var ns = (Array.isArray(nf.list.stats) ? nf.list.stats : []).filter(function(x) { return isObj(x) && x.kind === 'pick' && typeof x.key === 'string' && lower(x.key) === lower(ps.key); })[0]; if (!ns) return;
@@ -8493,6 +8503,7 @@ function renamesSay(rn) {
         (p.gone || []).forEach(function(w) { out.push(p.word + ': the subject \u201c' + w + '\u201d is gone. Rows that held it hold none now.'); });
     });
     (rn.refsGone || []).forEach(function(w) { out.push(w + ' named a list\u2019s roll that is gone, so that is taken off.'); });
+    (rn.names || []).forEach(function(p) { out.push(p.word + ': a name moved to another place. What holds a number keeps it, so it now reads the name that stands there. Add a new name at the end to leave them as they are.'); });
     return out;
 }
 // The one judge of what a roller ticked (the host's, on every roll that names its switches): each pick { s, i } a switch that offers itself to

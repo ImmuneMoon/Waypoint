@@ -132,6 +132,9 @@ jobs:
       - name: moneycheck — currencies, money held and moved in each
         if: ${{ !cancelled() }}
         run: node tools/moneycheck.js
+      - name: setupcheck — a map's set-ups of its tokens, fog and lights
+        if: ${{ !cancelled() }}
+        run: node tools/setupcheck.js
       - name: thengmcheck — a Then step players may not see, run on the host
         if: ${{ !cancelled() }}
         run: node tools/thengmcheck.js

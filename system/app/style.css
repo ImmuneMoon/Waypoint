@@ -1740,6 +1740,18 @@
   .sheet-debt input.sheet-debt-amt { width: 72px; }
   .trade-debt { color: var(--gold); }
   .trade-hag { color: var(--gold); }
+  .setup-box { width: min(560px, 94vw); }
+  .setup-note { color: var(--dim); font-size: 12px; margin-bottom: 8px; }
+  .setup-empty { color: var(--dim); padding: 6px 0; }
+  .setup-row { border-top: 1px solid var(--border); padding: 6px 0; }
+  .setup-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .setup-name { font-weight: 600; }
+  .setup-when { color: var(--dim); flex: 1 1 auto; }
+  .setup-btns { display: flex; gap: 6px; }
+  .setup-ticks { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 6px 0 0 8px; }
+  .setup-tick { display: inline-flex; align-items: center; gap: 4px; }
+  .setup-foot { display: flex; gap: 6px; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px; }
+  .setup-foot .setup-newname { flex: 1 1 auto; }
   .sheet-item-hot { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px; }
   .trade-hagbtn { align-self: flex-start; margin-top: 6px; }
   .trade-total { font-size: 12px; color: var(--dim); }

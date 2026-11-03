@@ -228,6 +228,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (one) one.addEventListener('click', function() { go(false); });
       if (nest) nest.addEventListener('click', function() { go(true, true); });
       if (unnest) unnest.addEventListener('click', function() { go(true, false); });
+      var su = document.getElementById('ctxSetups'); if (su) su.addEventListener('click', function() { if (!menu) return; var sid = menu.dataset.id; menu.style.display = 'none'; if (window.wpSetups) window.wpSetups.open(sid); });   // backlog 31: the map's set-ups
   })();
   // Right-click → Move Up / Move Down. Wired once to the static menu items; the open handler
   // in updateSidebarNav decides which are shown and greys out the ends of a list.

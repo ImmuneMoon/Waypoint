@@ -99,6 +99,9 @@ The System editor
   at its own per cent.
 - A currency may be Physical, with what one of it weighs (Money.weight in a
   formula), or Digital, which may need a device to pay or be paid in it.
+- A map keeps set-ups: named saves of its tokens, fog and lights, opened from
+  the map's right-click menu or its tab. Restore puts them back, Undo takes it
+  back, and a tick keeps any part as it is.
   A sheet says the money held in each currency under its first money list. A
   list that holds money says how players change it: at once, by asking (it
   waits in the GM's Review), or the GM's alone.

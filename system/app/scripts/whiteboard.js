@@ -9936,6 +9936,7 @@ function tableMenuParts(e, role) {
         var scnPg = window.wpPageShelf && typeof window.wpPageShelf.scenePage === 'function' ? window.wpPageShelf.scenePage() : null;   // 1.6.0 (pageshelf.js): the map's scene page, opened by the one rule as Next scene is
         if (scnPg) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(scnPg.id) + '" title="This map\'s scene page. Shift+P opens it too. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself."><i class="wib wi-mask"></i> Scene page: ' + esc(scnPg.title) + '</div>';
         var amPin = getActiveMap(), isPinned = !!(camp && amPin && Array.isArray(camp.pinnedMaps) && camp.pinnedMaps.indexOf(amPin.id) >= 0);
+        if (amPin && amPin.type === 'map' && window.wpSetups) html += '<div class="menu-item cm-session" data-act="setups" title="Named saves of this map\u2019s tokens, fog and lights, restored from a list">Set-ups\u2026</div>';   // backlog 31
         if (amPin && amPin.type === 'map') html += '<div class="menu-item cm-session" data-act="pin" title="Pinned maps sit at the top of the Maps list"><i class="wib wi-pin"></i> ' + (isPinned ? 'Unpin this map' : 'Pin this map') + '</div>';
         if (role !== 'host') html += '<div class="menu-item cm-session" data-act="log"><i class="wib wi-scroll"></i> Game Record\u2026</div>';
         html += '<div class="menu-divider"></div>';
@@ -10017,6 +10018,7 @@ function tableMenuParts(e, role) {
                     import('./io.js').then(function(m) { m.save(true); m.toast(atP >= 0 ? 'Unpinned.' : 'Pinned — it sits at the top of the Maps list now.'); });
                     import('./sidebar.js').then(function(m) { m.updateSidebarNav(); });
                 }
+                else if (act === 'setups') { var suM = getActiveMap(); if (suM && window.wpSetups) window.wpSetups.open(suM.id); }   // backlog 31
                 else if (act === 'scene') { if (window.wpPageShelf) window.wpPageShelf.open(it.dataset.id, window.wpPageShelf.wayNow(ce)); }   // 1.5.4 (pageshelf.js): over the map by a plain click, as every page asked for from the play map
                 else if (act === 'bring') n.bringPlayerHere(it.dataset.pid, pt.x, pt.y);
                 else if (act === 'travel') n.toggleTravelLock();

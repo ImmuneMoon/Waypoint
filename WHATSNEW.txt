@@ -44,6 +44,9 @@ The System editor
   what stands there. Fits where, Reaches and Counts where set the rules.
 - Wall marks stand aside until you point at a wall or select it, and its hover card
   says what it is. Settings can show them always or never.
+- How many of an action a roll or action costs: one press may spend two or more.
+- How turns go: one list on the Combat tab for the shape of a fight's turns. A system you
+  have saved opens as it did.
 - Decks and bags: a set of cards or tokens a system names, which rolls and actions
   draw from and shuffle. Each campaign keeps its own pile.
 - A hand of cards: a list marked as a hand holds what a character draws, shown as a

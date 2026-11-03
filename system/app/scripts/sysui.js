@@ -147,7 +147,7 @@ var GROUPS = {
     rolls: { split: ['sys-row-main'], head: ['sys-label', 'sys-roll-kind', 'sys-formula', 'sys-btns'], list: [
         ['how', 'How it rolls', 1, ['sys-roll-malf', 'sys-roll-critat', 'sys-roll-fumbleat', 'sys-roll-bigat', 'sys-init-chk', 'sys-roll-anytime']],
         ['look', 'Who sees it and how it looks', 1, ['sys-vis', 'sys-roll-tone', 'snd-on-btn', 'sys-roll-die', 'sys-roll-icon', 'sys-glyph-btn']],
-        ['use', 'When it can be used', 1, ['sys-roll-needsrow', 'sys-roll-cost', 'sys-roll-near', 'sys-roll-each', 'sys-roll-by', 'sys-crewstn']],
+        ['use', 'When it can be used', 1, ['sys-roll-needsrow', 'sys-roll-cost', 'sys-costhowrow', 'sys-costhow', 'sys-roll-near', 'sys-roll-each', 'sys-roll-by', 'sys-crewstn']],
         ['damage', 'Damage', 0, ['sys-dmg-chk', 'sys-roll-hits', 'sys-roll-mjif', 'sys-roll-mjdmg', 'sys-roll-dtype', 'sys-roll-dkind', 'sys-roll-p2*', 'sys-roll-p3*', 'sys-roll-p4*', 'sys-roll-p5*', 'sys-area']],
         ['resist', 'Resisting it', 0, ['sys-roll-rsist', 'sys-roll-rsby', 'sys-rsor', 'sys-roll-rsnocrit']],
         ['clock', 'By the clock and in a fight', 0, ['sys-roll-everyrow', 'sys-roll-fightrow', 'sys-roll-askrow', 'sys-roll-noterow']],

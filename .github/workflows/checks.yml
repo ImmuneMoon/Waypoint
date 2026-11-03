@@ -117,6 +117,9 @@ jobs:
       - name: accountcheck — this install linked to a Waypoint website account, the shell's routes and the order of linking
         if: ${{ !cancelled() }}
         run: node tools/accountcheck.js
+      - name: shapecheck — turn shapes
+        if: ${{ !cancelled() }}
+        run: node tools/shapecheck.js
       - name: deckcheck — decks and bags
         if: ${{ !cancelled() }}
         run: node tools/deckcheck.js

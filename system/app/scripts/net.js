@@ -5401,19 +5401,19 @@ function runGate(camp, charId, cost, conn, who, look, pr) {   // a press that co
     if (moveMode(camp, 'acts') === 'off') { if (look !== true) { sp[a.key] = used + 1; runSyncOf(camp, charId); } return ''; }   // actions not counted: this turn's move still reads what it spent
     return null;
 }
-function actSpend(camp, charId, pr, cost, conn, who, look) {   // look, only as true: says what would be refused and spends nothing
+function actSpend(camp, charId, pr, cost, conn, who, look, k) {   // look, only as true: says what would be refused and spends nothing. k (1.6.2, G10): how many of it, 2 or more, else one
     var rg = cost ? runGate(camp, charId, cost, conn, who, look, pr) : null; if (rg !== null) return rg;   // 1.6.0 A move by giving up an action
     if (!cost || moveMode(camp, 'acts') === 'off') return '';
     var a = null; actsOf(camp).forEach(function(x) { if (!a && x && x.key === cost) a = x; }); if (!a || !actsCombat(camp, charId, pr)) return '';
     var cbS = actsCombat(camp, charId, pr);
     if (!net.turnMax[charId]) { var mpS = camp.items && own(camp.items, pr.location) ? camp.items[pr.location] : null, SS = SC(), twS = SS && mpS ? SS.charTokenOn(mpS, charId, pr.id, { strict: true }) : null, chS = camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; net.turnMax[charId] = actsMaxOf(camp, chS, mpS, twS, cbS); }   // 192: a press before its first turn: its counts worked out now
-    var sp = net.turnSpent[charId] || (net.turnSpent[charId] = {}), used = sp[a.key] || 0, lbl = a.label || a.key, n = actMax(charId, a);
-    if (look === true) return used >= n && moveMode(camp, 'acts') === 'refuse' ? 'No ' + lbl + ' left this turn.' : '';
-    if (used >= n) {
-        if (moveMode(camp, 'acts') === 'refuse') return 'No ' + lbl + ' left this turn.';
+    var sp = net.turnSpent[charId] || (net.turnSpent[charId] = {}), used = sp[a.key] || 0, lbl = a.label || a.key, n = actMax(charId, a), kn = typeof k === 'number' && k >= 2 ? k : 1, noneW = used >= n || kn === 1 ? 'No ' + lbl + ' left this turn.' : 'This takes ' + kn + ' of ' + lbl + ', and ' + (n - used) + ' left this turn.';
+    if (look === true) return used + kn > n && moveMode(camp, 'acts') === 'refuse' ? noneW : '';
+    if (used + kn > n) {
+        if (moveMode(camp, 'acts') === 'refuse') return noneW;
         turnNote(conn, lbl + ': used past what a turn allows.', charId); toast((who || 'A character') + ' used a ' + lbl + ' past what a turn allows.'); if (typeof bellOut === 'function') bellOut(charId, { title: 'Turn', text: 'Used a ' + lbl + ' past what a turn allows.' });
-    } else turnNote(conn, lbl + ': ' + (n - used - 1) + ' of ' + n + ' left this turn.', charId);
-    sp[a.key] = used + 1; actsTell(camp, charId); if (typeof runSyncOf === 'function') runSyncOf(camp, charId);   // 1.6.0: the turn's allowance follows
+    } else turnNote(conn, lbl + ': ' + (n - used - kn) + ' of ' + n + ' left this turn.', charId);
+    sp[a.key] = used + kn; actsTell(camp, charId); if (typeof runSyncOf === 'function') runSyncOf(camp, charId);   // 1.6.0: the turn's allowance follows
     return '';
 }
 function turnActsStart(mapId, c) {   // the character whose turn begins has its actions back
@@ -8315,7 +8315,7 @@ function handleMessage(msg, conn) {
         var rowGA = typeof rowOnGm === 'function' ? rowOnGm(Sa, campA, viewA, qa.row) : qa.row, offA = typeof offTurnBar === 'function' ? offTurnBar(campA, chA, qa.act, rowGA, actA.label) : ''; if (offA) { denyA('error', offA); return; }   // 1.6.0: off their turn, by the system's rule
         var resA = Sa.applyAct(campA.system, chA, actA, varsA, Fa, tcA, qa.row ? { f: qa.row.f, r: qa.row.r } : null, undefined, window.wpDiceCore || null, onA ? { char: onA.ch, tctx: typeof allyCtx === 'function' ? allyCtx(mapA, onA.tok) : null } : null, typeof fxNow === 'function' ? fxNow(qa.charId, onA) : null);   // R2b: a list's action may move its row's counters; 1.5.9: the host's dice roll a Rolled amount (never the player's word); and its changes land on the one it is used on
         if (!resA.ok) { denyA(resA.reason, resA.message); return; }
-        var costA = typeof actSpend === 'function' ? actSpend(campA, qa.charId, profA, actA.cost, conn, chA.name) : ''; if (costA) { denyA('error', costA); return; }   // turn-based combat T4: what it costs (worked out first: a press that cannot land spends nothing)
+        var costA = typeof actSpend === 'function' ? actSpend(campA, qa.charId, profA, actA.cost, conn, chA.name, false, actA.costN) : ''; if (costA) { denyA('error', costA); return; }   // turn-based combat T4: what it costs (worked out first: a press that cannot land spends nothing)
         if (typeof offTurnWarn === 'function') offTurnWarn(campA, chA, qa.act, rowGA, actA.label, conn);   // 1.6.0: nothing refused it, so a warning is said
         if (resA && Array.isArray(resA.fitSays) && resA.fitSays.length && typeof toast === 'function') toast('A part no longer fits. ' + resA.fitSays[0]);   // 1.6.0 Fits where, judged again: the GM is told
         var ownA = !onA || Object.keys(resA.values).length > 0;   // 1.5.9: a press that moved only the one it was used on writes nothing of the user's
@@ -9248,7 +9248,7 @@ function handleMessage(msg, conn) {
         if (jobQ) { var jbQ = SQ.jobBar(chQ, q.row, actQ, varsQ, Fq, jobQ.round); if (jbQ) { denyQ('error', { error: { message: jbQ, pos: 0, len: 0 } }); return; } }
         var swpQ = swQ && swQ.pays && chQ && typeof swPayPlan === 'function' ? swPayPlan(SQ, campQ, chQ, swQ.pays, Fq, Dq, tcQ) : null; if (swpQ && swpQ.error) { denyQ('error', { error: { message: swpQ.error, pos: 0, len: 0 } }); return; }   // 1.6.2 (G6): a bonus's cost, judged before anything is spent
         var whyQ = Dq.checkTableRoll(resQ); if (whyQ) { denyQ(whyQ); return; }
-        if (actQ && actQ.cost && chQ && typeof actSpend === 'function') { var costQ = actSpend(campQ, turnChQ.id, net.roster[conn.peer], actQ.cost, conn, turnChQ.name); if (costQ) { denyQ('error', { error: { message: costQ, pos: 0, len: 0 } }); return; } }   // turn-based combat T4: what it costs
+        if (actQ && actQ.cost && chQ && typeof actSpend === 'function') { var costQ = actSpend(campQ, turnChQ.id, net.roster[conn.peer], actQ.cost, conn, turnChQ.name, false, actQ.costN); if (costQ) { denyQ('error', { error: { message: costQ, pos: 0, len: 0 } }); return; } }   // turn-based combat T4: what it costs
         if (jobQ) { var jsQ = jobPress(SQ, campQ, chQ, q.row, actQ, varsQ, Fq, jobQ.round, q.label, saveRemoteSoon); if (jsQ) { denyQ('error', { error: { message: jsQ, pos: 0, len: 0 } }); return; } }   // a press short of its turns moves the count and rolls nothing; the last goes on and rolls
         if (swpQ) swPayDo(chQ, swpQ);
         if (chQ && !q.att && typeof offTurnWarn === 'function') offTurnWarn(campQ, turnChQ, q.act, rowGQ, q.label || (actQ && actQ.label), conn);   // 1.6.0: nothing refused it, so a warning is said

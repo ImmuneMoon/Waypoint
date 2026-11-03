@@ -130,6 +130,7 @@ function twDraw(doc, root, v, off, act) {
     if (v.change && v.status === 'open') root.appendChild(twEl(doc, 'div', 'trade-change', v.change.say));   // 157 M1d
     if (v.cost && v.status === 'open') root.appendChild(twEl(doc, 'div', 'trade-cost', v.cost));
     if (v.hotSays && v.status === 'open') root.appendChild(twEl(doc, 'div', 'trade-change trade-hotsays', v.hotSays));   // 157 M1j
+    if (v.devSays && v.status === 'open') root.appendChild(twEl(doc, 'div', 'trade-change trade-devsays', v.devSays));   // 157 M1k
     if (v.hagOn && v.status === 'open') {   // 157 M1i: haggling, once a trade, pressed by either side
         if (typeof v.hag === 'number' && v.hag) root.appendChild(twEl(doc, 'div', 'trade-msg trade-hag', 'Haggled: prices move ' + twNum(Math.abs(v.hag)) + '% toward ' + (v.hag > 0 ? v.a.name : v.b.name) + '.'));
         else if (v.hagDone) root.appendChild(twEl(doc, 'div', 'trade-msg trade-hag', 'Haggled: prices stay as they are.'));

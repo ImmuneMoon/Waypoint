@@ -50,7 +50,7 @@ export function cleanObjects(v) {
 // A piece that blocks sight is a wall, which gives total cover by itself; any other gives the grade it says, or none at all where it says none
 export function objProps(o, hex) {
     var c = cleanObj(o); if (!c) return null;
-    var p = { name: c.name, w: (c.w || 1) * (hex ? 60 : 50), h: (c.h || 1) * (hex ? 52 : 50), layer: 'middle' };
+    var p = { name: c.name, w: (c.w || 1) * (hex ? 60 : 50), h: (c.h || 1) * (hex ? 52 : 50), layer: 'back-mid' };   // 1.6.2: over the map's own pictures and under the tokens, so a character stands over a crate it stands at (the owner, 2026-11-02: why is this over the character)
     if (c.src) p.src = c.src; else p.color = c.color || LAND_COLOR;
     if (c.sight) { p.blocksSight = true; p.sightType = 'wall'; } else {
         if (c.stops) p.barrier = true;

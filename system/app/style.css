@@ -4194,6 +4194,11 @@
   .sys-start-name { min-width: 140px; font-size: 12px; }
   .sheet-value.sheet-over { font-style: italic; }   /* 205 (6): a number taken from a formula, closed to editing */
   .sys-list-card .sys-flags input.field { width: auto; flex: 1 1 140px; min-width: 100px; }
+  /* a row stands on the feet of its boxes, so that a caption over one box pushes it below the others. A box in a row keeps no form's margin */
+  .sys-flags input.field, .sys-flags select.field, .sys-def input.field, .sys-def select.field, .sys-row-main input.field, .sys-row-main select.field, .sys-num input.field, .sys-num select.field { margin-bottom: 0; }
+  .sys-row-main:has(> .sys-num), .sys-def:has(> .sys-num), .sys-flags:has(> .sys-num), .sys-list-card .sys-flags:has(> .sys-num) { align-items: flex-end; }
+  .sys-flags:has(> .sys-num) > .sys-check, .sys-def:has(> .sys-num) > .sys-check { padding-bottom: 3px; }
+  .sys-list-stat > select, .sys-list-col > select, .sys-list-stat > input.field, .sys-list-col > input.field { align-self: stretch; }
   .sys-list-card input[type=number] { width: 68px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 6px; font-size: 12px; box-sizing: border-box; }
   /* Stage 6 look fold (L1): a sheet palette. The palette remaps the theme's variables on the sheet (sheets.js applyPaletteTo); these rules
      add what the variables alone can't say. Every rule is gated by .sheet-paletted, so a sheet without a palette is exactly as before. */

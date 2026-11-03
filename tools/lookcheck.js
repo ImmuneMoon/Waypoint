@@ -3650,5 +3650,14 @@ check('the roster numbers rows of one name, and the sheet that says it is out of
             && !/&#\d+;|&#x|\p{Extended_Pictographic}/u.test(wcRow) && wcCss.includes('.wc-card .wc-ic .ico { display: block; width: 24px; height: 24px; color: var(--gold); }'), wcRow.slice(0, 200));
     }
 }
+/* ---------- a row of the System editor stands on the feet of its boxes ---------- */
+// The owner, 2026-11-02, of a stat's Default box: "the default label here is pushing the field below the rest". A row centred its items, so a box under a caption
+// stood lower than the boxes beside it, and a text box kept the 13 px a form's field leaves under it, in a row and inside a caption. The order of the rules counts:
+// the list card's own row rule says centre, so the rule that says the foot comes after it.
+{
+    const at = s => css.indexOf(s), cardRow = '.sys-list-card .sys-flags { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }', foot = '.sys-row-main:has(> .sys-num), .sys-def:has(> .sys-num), .sys-flags:has(> .sys-num), .sys-list-card .sys-flags:has(> .sys-num) { align-items: flex-end; }';
+    check('a row of the System editor stands on the feet of its boxes (the owner: "the default label here is pushing the field below the rest"): a row that holds a captioned box lines its boxes up at the foot, after the list card\'s own rule that says centre; a box in a row or under a caption keeps no form\'s margin; a tick stands level with the box beside it; and a stat\'s and a column\'s boxes fill their row',
+        at(cardRow) >= 0 && at(foot) > at(cardRow) && at('.sys-num input.field, .sys-num select.field { margin-bottom: 0; }') > 0 && at('.field{margin-bottom:13px}') >= 0 && css.split('.sys-check { padding-bottom: 3px; }').length === 2 && at('.sys-list-stat > select, .sys-list-col > select, .sys-list-stat > input.field, .sys-list-col > input.field { align-self: stretch; }') > 0);
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

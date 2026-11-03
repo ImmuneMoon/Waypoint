@@ -35,7 +35,7 @@ import { setValueSource, setValueSink, valueNow, cleanValues, setDeckSource, set
 import { tileThenRuns, rowKeptFrom } from './systemcore.js';   // 1.6.2 (body fold 8)
 import { standFitSays } from './systemcore.js';   // 1.6.2 (body fold 5)   // 1.6.0 Fits where (the core handbook session's ask 18)
 import { targetHitList, targetHitRows, readsTargetHit } from './systemcore.js';   // 1.6.0 (B5): a called shot by the target's own location
-import { tableKeyOk, TABLE_KEY, TABLE_ROW_KEY, nameFold } from './systemcore.js';   // 1.6.0: a system's tables, as Save reads them (tableSays)
+import { tableKeyOk, TABLE_KEY, TABLE_ROW_KEY, nameFold, tableRangeSays } from './systemcore.js';   // 1.6.0: a system's tables, as Save reads them (tableSays)
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { FEEDS_MAX, feedOf, feedSpec, feedCt, feedCount, feedStack, feedLive } from './systemcore.js';   // 1.6.0 Feeds
 import { lvlsFromBox, lvlsToText, rowLibJudge, entryFromRow, packsForRow } from './librarycore.js';
@@ -10193,7 +10193,7 @@ function renderTables() {
         [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove this table']].forEach(function(bd) { head.appendChild(tableBtn(bd[1], 'table' + bd[0], bd[2])); });
         blk.appendChild(head);
         var sc = el('div', 'sys-tbl-scroll'), grid = el('table', 'sys-tbl-grid'), hr = el('tr');
-        hr.appendChild(el('th', null, 'Row key')); hr.appendChild(el('th', null, 'Row name'));
+        hr.appendChild(el('th', null, 'Row key')); hr.appendChild(el('th', null, 'Row name')); hr.appendChild(el('th', null, 'From')); hr.appendChild(el('th', null, 'To'));   // 1.6.2 (G7): a range a figure finds the row by
         cols.forEach(function(c0, ci) {
             var c = c0 && typeof c0 === 'object' ? c0 : {}, th = el('th'), ck = input('sys-tbl-ckey field', typeof c.key === 'string' ? c.key : '', 'The column\u2019s key in a formula: a letter, then letters, digits or _', 'density'), cl = input('sys-tbl-clabel field', typeof c.label === 'string' ? c.label : '', 'Its name in this box', 'Name'), cd = tableBtn('\u00d7', 'tablecoldel', 'Remove this column');
             ck.maxLength = 24; cl.maxLength = LIMITS.label; ck.dataset.ci = String(ci); cl.dataset.ci = String(ci); cd.dataset.ci = String(ci);
@@ -10205,6 +10205,7 @@ function renderTables() {
             var cell = function(x) { var td = el('td'); td.appendChild(x); tr.appendChild(td); return td; };
             var rk = input('sys-tbl-rkey field', typeof r.key === 'string' ? r.key : '', 'The row\u2019s key: a letter, then letters, digits or _. A formula finds it by this key, or by its name', 'Steel'), rl = input('sys-tbl-rlabel field', typeof r.label === 'string' ? r.label : '', 'Its name: a choice that says this name finds the row too', 'Name');
             rk.maxLength = 40; rl.maxLength = LIMITS.label; rk.dataset.ri = String(ri); rl.dataset.ri = String(ri); cell(rk); cell(rl);
+            var rlo = numInput('sys-tbl-lo field', typeof r.lo === 'number' ? r.lo : '', 'The lowest figure that finds this row. Empty: a figure never finds it', 'any'), rhi = numInput('sys-tbl-hi field', typeof r.hi === 'number' ? r.hi : '', 'The highest figure that finds this row. Empty: From alone', 'any'); rlo.dataset.ri = String(ri); rhi.dataset.ri = String(ri); cell(rlo); cell(rhi);
             cols.forEach(function(c0, ci) { var ky = c0 && typeof c0.key === 'string' ? c0.key : '', has = Object.prototype.hasOwnProperty.call(vals, ky) && typeof vals[ky] === 'number', vi = numInput('sys-tbl-val field', has ? vals[ky] : '', 'A figure: empty reads 0', 'any'); vi.dataset.ri = String(ri); vi.dataset.ci = String(ci); cell(vi); });
             var rd = tableBtn('\u00d7', 'tablerowdel', 'Remove this row'); rd.dataset.ri = String(ri); cell(rd); grid.appendChild(tr);
         });
@@ -10227,6 +10228,7 @@ function onTableInput(t) {
     else if (c.indexOf('sys-tbl-clabel') >= 0 && col) col.label = t.value.slice(0, LIMITS.label);
     else if (c.indexOf('sys-tbl-rkey') >= 0 && row) row.key = t.value.slice(0, 40);
     else if (c.indexOf('sys-tbl-rlabel') >= 0 && row) row.label = t.value.slice(0, LIMITS.label);
+    else if ((c.indexOf('sys-tbl-lo') >= 0 || c.indexOf('sys-tbl-hi') >= 0) && row) { var kR = c.indexOf('sys-tbl-lo') >= 0 ? 'lo' : 'hi', vR = t.value.trim() === '' ? NaN : Number(t.value); if (isFinite(vR)) row[kR] = vR; else delete row[kR]; }   // 1.6.2 (G7)
     else if (c.indexOf('sys-tbl-val') >= 0 && row && col) { var v = t.value.trim() === '' ? NaN : Number(t.value); if (!row.vals || typeof row.vals !== 'object') row.vals = {}; if (isFinite(v)) row.vals[col.key] = v; else delete row.vals[col.key]; }
     else return true;
     markDirty(); patchErrors(); return true;
@@ -10288,6 +10290,7 @@ function tableSays(tables) {
             kc.forEach(function(ck) { var v = r.vals && typeof r.vals === 'object' && Object.prototype.hasOwnProperty.call(r.vals, ck) ? r.vals[ck] : undefined; if (v !== undefined && !(typeof v === 'number' && isFinite(v) && Math.abs(v) <= LIMITS.statAbs)) say(at + 'the figure under ' + ck + ' is no number of ' + LIMITS.statAbs + ' or less. Save drops that figure.'); });
         });
         if (!rn) { say(nm + ': it needs a row. Save drops it.'); return; }
+        (typeof tableRangeSays === 'function' ? tableRangeSays(t) : []).forEach(say);   // 1.6.2 (G7; the owner: "the builder should warn when two rows' ranges overlap or leave a gap")
         seen[key.toLowerCase()] = 1; kept++;
     });
     return { errs: errs };

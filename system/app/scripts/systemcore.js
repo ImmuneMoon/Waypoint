@@ -8327,6 +8327,7 @@ function cleanTables(v, gmView) {
             if (rows.length >= LIMITS.tableRows || !isObj(r)) return; var rk = tableKeyOk(r.key, TABLE_ROW_KEY), fk = rk ? nameFold(rk) : ''; if (!fk || rs[fk]) return; rs[fk] = 1;
             var ro = { key: rk }, lb = cutText(r.label, LIMITS.label), vals = {}, src = isObj(r.vals) ? r.vals : {}; if (lb && lb !== rk) ro.label = lb;
             cols.forEach(function(c) { var nv = hasOwn(src, c.key) ? statNum(src[c.key]) : undefined; if (nv !== undefined) vals[c.key] = nv; });
+            var rlo = statNum(r.lo), rhi = statNum(r.hi); if (rlo !== undefined) { ro.lo = rlo; ro.hi = rhi !== undefined && rhi >= rlo ? rhi : rlo; }   // 1.6.2 (G7): a range, From and To, which a by read of a number finds the row by
             ro.vals = vals; rows.push(ro);
         });
         if (!rows.length || cells + cols.length * rows.length > LIMITS.tableCells) return;
@@ -8365,13 +8366,26 @@ function tableIndex(sys) {   // by a table's key in lower case: { cols: its keys
     var m = map();
     sys.tables.forEach(function(t) {
         if (!isObj(t) || typeof t.key !== 'string' || m[lower(t.key)]) return;
-        var e = { cols: map(), rows: map() }, rs = Array.isArray(t.rows) ? t.rows : [];
+        var e = { cols: map(), rows: map(), t: tableRanged(t) ? t : null }, rs = Array.isArray(t.rows) ? t.rows : [];   // t: a table whose rows have ranges, read by a figure
         (Array.isArray(t.cols) ? t.cols : []).forEach(function(c) { if (isObj(c) && typeof c.key === 'string' && e.cols[lower(c.key)] === undefined) e.cols[lower(c.key)] = c.key; });
         rs.forEach(function(r) { var f = isObj(r) ? nameFold(r.key) : ''; if (f && !e.rows[f]) e.rows[f] = r; });
         rs.forEach(function(r) { var f = isObj(r) ? nameFold(r.label) : ''; if (f && !e.rows[f]) e.rows[f] = r; });
         m[lower(t.key)] = e;
     });
     return m;
+}
+// 1.6.2 (backlog 210 c, G7; the owner, 2026-11-03, by prompt: "A range on each row"): a row found by a figure, the first whose range holds it, so a two-way chart is typed in as a book prints it. A row that answers one figure is a range from it to itself, and a table reordered reads the same
+function tableRanged(t) { return isObj(t) && Array.isArray(t.rows) && t.rows.some(function(r) { return isObj(r) && typeof r.lo === 'number'; }); }
+function tableRowAt(t, v) { if (typeof v !== 'number' || !fin(v)) return null; var rs = isObj(t) && Array.isArray(t.rows) ? t.rows : []; for (var i = 0; i < rs.length; i++) { var r = rs[i]; if (isObj(r) && typeof r.lo === 'number' && v >= r.lo && v <= (typeof r.hi === 'number' ? r.hi : r.lo)) return r; } return null; }
+// ... and what the builder warns of: a row with no range in a table whose rows have ranges, two ranges that overlap, and a gap between two, read as whole numbers where both bounds are (a gap of no whole number between 3 and 4 is none). Words, one a fault
+function tableRangeSays(t) {
+    if (!tableRanged(t)) return []; var out = [], lab = (isObj(t) && (t.label || t.key)) || 'A table', nm = function(r) { return r.label || r.key || 'a row'; }, rs = t.rows.filter(isObj);
+    rs.forEach(function(r) { if (typeof r.lo !== 'number') out.push(lab + ': ' + nm(r) + ' has no range, so a figure never finds it.'); });
+    var rg = rs.filter(function(r) { return typeof r.lo === 'number'; }).map(function(r) { return { r: r, lo: r.lo, hi: typeof r.hi === 'number' ? r.hi : r.lo }; }).sort(function(a, b) { return a.lo - b.lo || a.hi - b.hi; });
+    for (var i = 1, top = rg.length ? rg[0] : null; i < rg.length; i++) { var a = top, b = rg[i], whole = Math.floor(a.hi) === a.hi && Math.floor(b.lo) === b.lo; if (b.hi > top.hi) top = b;   // a: the range reaching furthest so far, so a long range covers what comes after it
+        if (b.lo <= a.hi) out.push(lab + ': ' + nm(a.r) + ' and ' + nm(b.r) + ' overlap, so a figure from ' + b.lo + ' to ' + Math.min(a.hi, b.hi) + ' finds ' + nm(a.r) + ' first.');
+        else if (whole ? b.lo > a.hi + 1 : b.lo > a.hi) out.push(lab + ': nothing covers ' + (whole ? (a.hi + 1 === b.lo - 1 ? String(a.hi + 1) : (a.hi + 1) + ' to ' + (b.lo - 1)) : 'between ' + a.hi + ' and ' + b.lo) + ', so a figure there reads 0.'); }
+    return out;
 }
 function tableFig(e, name, col) { var ck = e.cols[col], r = e.rows[nameFold(String(name || ''))], v = r && ck !== undefined && isObj(r.vals) && hasOwn(r.vals, ck) ? r.vals[ck] : 0; return typeof v === 'number' && fin(v) ? v : 0; }   // a figure, 0 where the row, the column or the figure is not there
 // One of the website's seven postures for a token's stored text, by its id: the ids themselves, the 1.4.6 ids and the handbook's long names, as
@@ -9187,8 +9201,14 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var e = tbI[p.k]; if (!e) return undefined;
         if (!p.by) return tableFig(e, p.row, p.col);
         var nm = tableWord(p.by, L, x); if (isObj(nm)) return nm;
+        if (nm === '' && e.t) { var fg = tableNum(p.by, L, x); if (isObj(fg)) return fg; var hr = tableRowAt(e.t, fg); nm = hr ? hr.key : ''; }   // 1.6.2 (G7): a name that holds no words but a figure finds the row whose range holds it
         var v = tableFig(e, nm, p.col), via = L ? null : viaOf([{ name: p.by }]); if (via) detail[l] = { base: v, mods: [], via: via };   // a GM-only effect on what chose the row keeps a public roll private
         return v;
+    }
+    function tableNum(by, L, x) {   // the figure a name holds, for a table whose rows have ranges: a row's own (Row.<w>, Host.<w>) or the sheet's; undefined for none, an error as it is
+        if (L && by.slice(0, 4) === 'row.' && !ix.row) { var w = by.slice(4); return w.indexOf('.') < 0 ? rowVal(L, x, w) : undefined; }
+        if (L && by.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hw = by.slice(5), hh = hostRow(L, x, hw).hit; return hh && hw.indexOf('.') < 0 ? rowVal(hh.L, hh.x, hw) : undefined; }
+        var v = fn(by); return isObj(v) && v.error ? v : typeof v === 'number' ? v : typeof v === 'boolean' ? (v ? 1 : 0) : undefined;
     }
     function tableWord(by, L, x) {   // the words a name holds, '' for none, or the error of working it out
         if (L && by.slice(0, 4) === 'row.' && !ix.row) { var w = by.slice(4); return w.slice(0, 6) === 'parts.' ? partsWord(L, x, w.slice(6)) : w.indexOf('.') < 0 ? rowWord(L, x, w) : ''; }
@@ -10436,15 +10456,16 @@ function validateSystem(sys, F) {
             if (by.slice(0, 4) === 'row.' && !ix.row) {
                 if (!rowList) return { rowOutside: true };
                 var w = by.slice(4), ps = w.slice(0, 6) === 'parts.' && isObj(rowList.list) && isObj(rowList.list.parts) ? partsSrc(sys, rowList.list) : null, nk = w.slice(0, 6) === 'parts.' ? (ps ? nameIn(ps, w.slice(6)) : '') : w.indexOf('.') < 0 ? nameIn(rowList, w) : '';
+                if (!nk && tableRanged(t) && !ps && w.indexOf('.') < 0) { var spR = isObj(rowList.list) ? rowList.list : {}, stR = (Array.isArray(spR.stats) ? spR.stats : []).filter(function(x) { return isObj(x) && lower(String(x.key)) === w; })[0], clR = (Array.isArray(spR.cols) ? spR.cols : []).filter(function(x) { return isObj(x) && lower(String(x.key)) === w; })[0]; nk = stR && stR.kind !== 'pick' ? 'stat' : clR ? 'col' : ROW_WORDS[w] === 1 ? 'stat' : ''; }   // 1.6.2 (G7): a figure finds a row by its range
                 named = !!nk; if (nk === 'col' && !ps) { out.key = 'l#' + lower(rowList.key) + '.' + w; delete out.noEdge; }   // a column of value names is worked out: a node of the loop graph
             } else if (by.slice(0, 5) === 'host.' && !ix.host && !lnkV.host) {
                 if (!rowList) return { rowOutside: true };
                 sys.fields.forEach(function(hf) { if (isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === rowList.id && nameIn(hf, by.slice(5))) { named = true; if (hf.vis === 'gm') out.vis = 'gm'; } });
             } else {
                 var bf = ix[by];
-                if (bf) { named = bf.kind === 'text' || bf.kind === 'select' || ((bf.kind === 'number' || bf.kind === 'formula') && Array.isArray(bf.labels)); out.id = bf.id; if (bf.vis === 'gm') out.vis = 'gm'; if (named) { out.key = bf.key; delete out.noEdge; } }
+                if (bf) { named = bf.kind === 'text' || bf.kind === 'select' || ((bf.kind === 'number' || bf.kind === 'formula') && Array.isArray(bf.labels)) || (tableRanged(t) && (bf.kind === 'number' || bf.kind === 'formula' || bf.kind === 'skill' || bf.kind === 'resource' || bf.kind === 'toggle')); out.id = bf.id; if (bf.vis === 'gm') out.vis = 'gm'; if (named) { out.key = bf.key; delete out.noEdge; } }
             }
-            if (!named) says = '"' + n + '" reads ' + by + ', which holds no name, so it reads 0. A text field, a list field, a number with value names or a choice holds one.';
+            if (!named) says = '"' + n + '" reads ' + by + ', which holds no name, so it reads 0. A text field, a list field, a number with value names or a choice holds one' + (tableRanged(t) ? ', and a number finds a row by its range.' : '.');
             else if (by.slice(0, 4) === 'row.' && by.indexOf('.', 4) < 0 && rowList) {   // 1.6.2 (backlog 208, point 6): an option with no row of the table reads 0, as a label renamed on one side leaves it
                 var byS = (isObj(rowList.list) && Array.isArray(rowList.list.stats) ? rowList.list.stats : []).filter(function(x) { return isObj(x) && x.kind === 'pick' && lower(String(x.key)) === by.slice(4); })[0];
                 var byM = byS ? (Array.isArray(byS.opts) ? byS.opts : []).filter(function(o) { return isObj(o) && typeof o.label === 'string' && !tableRowOf(t, o.label); }).map(function(o) { return o.label; }) : [];
@@ -11991,7 +12012,7 @@ Object.assign(API, { targetReadsOf: targetReadsOf, TARGET_READS: TARGET_READS, r
 Object.assign(API, { listRollRef: listRollRef, rowKeptFrom: rowKeptFrom });   // 1.6.0: found by hand, a resist card asks both, and with neither here it never offered a list's roll
 Object.assign(API, { upkeepLines: upkeepLines, upkeepWords: upkeepWords });   // 205 follow-up (3): an upkeep's payments said
 Object.assign(API, { cleanLvlOnly: cleanLvlOnly, lvlOnlyRead: lvlOnlyRead, lvlOnlyText: lvlOnlyText, lvlOnlyOn: lvlOnlyOn, lvlOnlyHas: lvlOnlyHas, lvlOnlyMiss: lvlOnlyMiss, lvlOnlyList: lvlOnlyList, lvlOnlyHit: lvlOnlyHit, lvlOnlySays: lvlOnlySays, lvlStart: lvlStart, lvlNear: lvlNear, modTiersRead: modTiersRead, cleanModTiers: cleanModTiers, modTiersText: modTiersText, modAt: modAt });   // 1.6.0: Levels it may be, and a change's figures By level
-Object.assign(API, { cleanTables: cleanTables, tableKeyOk: tableKeyOk, tableParts: tableParts, tableRead: tableRead, tableFam: tableFam, tableRowOf: tableRowOf, TABLE_KEY: TABLE_KEY, TABLE_ROW_KEY: TABLE_ROW_KEY, nameFold: nameFold });   // 1.6.0: a system's tables
+Object.assign(API, { cleanTables: cleanTables, tableKeyOk: tableKeyOk, tableParts: tableParts, tableRead: tableRead, tableFam: tableFam, tableRowOf: tableRowOf, TABLE_KEY: TABLE_KEY, TABLE_ROW_KEY: TABLE_ROW_KEY, nameFold: nameFold, tableRanged: tableRanged, tableRowAt: tableRowAt, tableRangeSays: tableRangeSays });   // 1.6.0: a system's tables; 1.6.2: a row by a range
 Object.assign(API, { HOLD_ALSO: HOLD_ALSO, HOLD_ROLLS: HOLD_ROLLS, cleanHolds: cleanHolds, holdRefOf: holdRefOf });   // 1.6.0 Who holds whom
 Object.assign(API, { FEEDS_MAX: FEEDS_MAX, FEED_STACK: FEED_STACK, feedOf: feedOf, feedSpec: feedSpec, feedCt: feedCt, feedStack: feedStack, feedAt: feedAt, feedLive: feedLive, feedRoom: feedRoom, feedShort: feedShort, feedShortOf: feedShortOf, feedCount: feedCount });   // 1.6.0 Feeds
 if (typeof window !== 'undefined') window.wpSystemCore = API;
@@ -12004,5 +12025,6 @@ export { FEEDS_MAX, FEED_STACK, feedOf, feedSpec, feedCt, feedStack, feedAt, fee
 export { majorWords, dmgOnSelf, dmgMajorOf, dmgPart2Of, dmgPartOf, DMG_MORE };   // 1.6.0: A Major Wound where; B3: a blow's second part
 export { upkeepLines, upkeepWords };   // 205 follow-up (3): an upkeep's payments said
 export { cleanLvlOnly, lvlOnlyRead, lvlOnlyText, lvlOnlyOn, lvlOnlyHas, lvlOnlyMiss, lvlOnlyList, lvlOnlyHit, lvlOnlySays, lvlStart, lvlNear, modTiersRead, cleanModTiers, modTiersText, modAt };   // 1.6.0: Levels it may be, and a change's figures By level
+export { tableRanged, tableRowAt, tableRangeSays, resultAdd };   // 1.6.2 (G7)
 export { revRowWords, revRows };   // 1.6.0: what a Review line says of a list; a reader's file for a player
 export { cleanTables, tableKeyOk, tableParts, tableRead, tableFam, tableRowOf, TABLE_KEY, TABLE_ROW_KEY, nameFold };   // 1.6.0: a system's tables

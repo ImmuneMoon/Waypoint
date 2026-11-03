@@ -2378,6 +2378,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li><code>Table.Metal.by.Row.mat.density</code> finds the row by what the row&rsquo;s choice says, so one short formula serves every metal. A list put in another order changes nothing.</li>
                                   <li>A row is found by its key or its name, ignoring case and anything that is no letter or digit. So a choice that says Mild Steel finds the row MildSteel.</li>
                                   <li>The word after <code>by</code> may be a text field, a list field, a number with value names, a row&rsquo;s choice, <code>Host.mat</code> or <code>Row.parts.mat</code>.</li>
+                                  <li>A row may also hold a range, <b>From</b> and <b>To</b>. Then a number after <code>by</code> finds the row whose range holds it, as a chart in a book is read.</li>
+                                  <li>A row that answers one number has the same From and To. The editor warns where two ranges overlap or leave a gap.</li>
                                   <li><b>Who reads it</b> keeps a table from your players. A formula that reads it is then GM only too.</li>
                               </ul>
                           </li>

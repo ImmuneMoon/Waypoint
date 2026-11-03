@@ -82,6 +82,9 @@ The System editor
   trade window, and an entry may carry its own buy and sell figures.
   A game may have traders make change: the window says the change owed, or that
   it cannot be given, and the payer may overpay.
+  A sheet says the money held in each currency under its first money list. A
+  list that holds money says how players change it: at once, by asking (it
+  waits in the GM's Review), or the GM's alone.
 - A list can say what a trade does to a row: a stat is cleared, set or moved to
   another, which may be GM-only. It can also call for a roll, made for the GM alone
   once both sides confirm. A column can show on some rows only.

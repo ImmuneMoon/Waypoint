@@ -9303,7 +9303,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     });
     var sadd = el('button', 'tool ghost sys-btn sys-list-statadd', '+ Stat'); sadd.dataset.act = 'statadd'; sadd.disabled = sts.length >= LIMITS.listStats; sadd.title = sadd.disabled ? 'At most ' + LIMITS.listStats + ' stats a list' : 'A number each item of this list carries (Acc, Wt, Cost), set on the item in Items'; sb.appendChild(sadd);
     if (sts.length) { var pr = el('label', 'sys-num sys-price-box'), ps = el('select', 'sys-list-price'); pr.appendChild(el('span', 'sys-num-cap', 'Price')); ps.title = 'A row records it as Paid when added: what one cost (yours to correct on the sheet)'; priceOptions(ps, sp); pr.appendChild(ps); sb.appendChild(pr); if (sp.price && typeof placeSel === 'function') sb.appendChild(placeSel('paid', sp.paidPlace)); if (sp.price && typeof curBoxes === 'function') curBoxes(sb, sp, true); if (sp.price && typeof rateBoxes === 'function') rateBoxes(sb, sp); }   // 1.6.0 R2: where Paid stands
-    { var mb = el('label', 'sys-num sys-money-box'), msel = el('select', 'sys-list-money'); mb.appendChild(el('span', 'sys-num-cap', 'Holds money')); msel.title = 'Rows of this list are money: each row holds its level, as a chip holds its amount, or each piece is worth a stat, as a bar is worth its denomination. Buying and selling pay from and into these rows'; if (typeof moneyOptions === 'function') moneyOptions(msel, sp); mb.appendChild(msel); sb.appendChild(mb); if (typeof curBoxes === 'function') curBoxes(sb, sp); }   // 1.5.6 the Money box
+    { var mb = el('label', 'sys-num sys-money-box'), msel = el('select', 'sys-list-money'); mb.appendChild(el('span', 'sys-num-cap', 'Holds money')); msel.title = 'Rows of this list are money: each row holds its level, as a chip holds its amount, or each piece is worth a stat, as a bar is worth its denomination. Buying and selling pay from and into these rows'; if (typeof moneyOptions === 'function') moneyOptions(msel, sp); mb.appendChild(msel); sb.appendChild(mb); if (typeof curBoxes === 'function') curBoxes(sb, sp); if (typeof moneyEditBox === 'function') moneyEditBox(sb, sp); }   // 1.5.6 the Money box
     card.appendChild(sb);
     if (typeof badgeBox === 'function') card.appendChild(badgeBox(sp));   // 1.6.0 R4: its row badges
     // Stage 6 F5a1: the list's columns — a formula worked out for each row (Row.lvl, Row.<stat>, another column), LIMITS.listCols at most — and the names it offers
@@ -9634,6 +9634,12 @@ function curBoxes(sb, sp, price) {   // price: the boxes of a price's currency (
     var chs = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length > 0 : Array.isArray(s.labels) && s.labels.length > 0); }); if (!chs.length) return;
     var bb = el('label', 'sys-num sys-money-box'), bsel = el('select', price ? 'sys-list-pcurby' : 'sys-list-curby'); bb.appendChild(el('span', 'sys-num-cap', price ? 'Price currency by' : 'Currency by')); bsel.title = price ? 'A choice of each row that names the currency its price is set in. A row whose choice names none is priced as the list says' : 'A choice of each row that names its currency, such as Crowns or Marks. A row whose choice names none holds what the list holds';
     put(bsel, [['', 'Not by a choice']].concat(chs.map(function(s) { return [s.key, 'Its ' + (s.label || s.key)]; })), price ? sp.priceCurBy : sp.curBy); bb.appendChild(bsel); sb.appendChild(bb);
+}
+function moneyEditBox(sb, sp) {   // 157 M2: how a player changes this money: at once, by asking (it waits in the Review), or the GM's alone
+    if (!sp || typeof sp.money !== 'string' || !sp.money) return;
+    var lb = el('label', 'sys-num sys-money-box'), s = el('select', 'sys-list-medit'); lb.appendChild(el('span', 'sys-num-cap', 'Players change it')); s.title = 'How a player changes this money by hand. They ask: a typed amount or count waits in the Review for you. Buying, selling and trading move money by their own rules';
+    [['', 'At once'], ['ask', 'They ask'], ['gm', 'GM only']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if ((sp.moneyEdits || '') === o[0]) op.selected = true; s.appendChild(op); });
+    lb.appendChild(s); sb.appendChild(lb);
 }
 function rateBoxes(sb, sp) {   // 157 M1c: an entry's own Buy and Sell figures, a number stat each, shown while the system's traders set buy and sell prices
     if (typeof draft === 'undefined' || !draft || !draft.trading || draft.trading.rates !== true || !sp || !sp.price) return;
@@ -12871,6 +12877,7 @@ function onChange(e) {
             if (oKey === 'by' && !t.value) delete lsc.once;
             else { var oD = lsc.once && typeof lsc.once === 'object' ? lsc.once : (lsc.once = {}); if (t.value) oD[oKey] = t.value; else delete oD[oKey]; if (oKey === 'by' && !oD.rank) { var oN = (Array.isArray(lsc.stats) ? lsc.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.kind !== 'pick'; })[0]; oD.rank = lsc.lvl && typeof lsc.lvl === 'object' ? 'lvl' : oN ? oN.key : ''; if (!oD.rank) delete oD.rank; } }
         }
+        else if (c.indexOf('sys-list-medit') >= 0) { if (t.value === 'ask' || t.value === 'gm') lsc.moneyEdits = t.value; else delete lsc.moneyEdits; }   // 157 M2
         else if (c.indexOf('sys-list-buyby') >= 0) { if (t.value) lsc.buyBy = t.value; else delete lsc.buyBy; }   // 157 M1c
         else if (c.indexOf('sys-list-sellby') >= 0) { if (t.value) lsc.sellBy = t.value; else delete lsc.sellBy; }   // 157 M1c
         else if (c.indexOf('sys-list-pcurby') >= 0) { if (t.value) lsc.priceCurBy = t.value; else delete lsc.priceCurBy; }   // 157 M1b: a choice of each row that names its price's currency

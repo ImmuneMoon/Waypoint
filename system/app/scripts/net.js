@@ -3792,6 +3792,24 @@ function tradeDo(actor, msg) {
     return { error: 'That is not a step of a trade.' };
 }
 // what a trade did: a private line to each side's player at the table and the GM (the damageCard pattern), and the Game Record
+// 157 M2: a player's ask to change their money waits in the Review as one line of the character's ask, as a stat's ask does (char-ask): a newer ask
+// of the same row replaces the older line, the GM is told by a card and a Session Log line, and nothing of the character changes until they apply it
+function moneyAskPut(camp, ch, pr, q, conn) {
+    var S = SC(), say = function(reason, text) { try { conn.send({ type: 'char-deny', rid: q.rid, reason: reason, msg: text || '' }); } catch (e) { sendFailed(e); } };
+    var a = S && S.moneyAsk ? S.moneyAsk(camp.system, ch, q.fieldId, q) : { ok: false, reason: 'missing' };
+    if (!a.ok) { say(a.reason === 'same' ? 'money' : a.reason, a.reason === 'same' ? 'That is what it holds now.' : a.msg); return; }
+    var ups = Array.isArray(camp.uploads) ? camp.uploads : [], ent = null; ups.forEach(function(u) { if (!ent && u && u.ask === true && u.charId === ch.id) ent = u; });
+    var chs = ent && Array.isArray(ent.changes) ? ent.changes.filter(function(c) { return !(c && c.kind === 'fact' && c.f === q.fieldId && c.row === q.rowId); }) : [];
+    if (chs.length >= S.LIMITS.uploadChanges) { say('money', 'Your GM has too many changes to review. Try again later.'); return; }
+    var n = 0; chs.forEach(function(c) { var m = /^u_([a-z0-9]{1,8})$/.exec((c && c.id) || ''); if (m) n = Math.max(n, parseInt(m[1], 36) || 0); }); a.change.id = 'u_' + (n + 1).toString(36); chs.push(a.change);
+    var now = Date.now(), rest = ups.filter(function(u) { return u !== ent; }), e = ent || { id: 'up_' + now.toString(36) + Math.random().toString(36).slice(2, 6), charId: ch.id, from: pr.id, name: String(pr.name || 'A player').slice(0, 60), ask: true };
+    e.at = now; e.changes = chs; rest.push(e); camp.uploads = rest.slice(-S.LIMITS.uploads); saveRemoteSoon();
+    var t = (pr.name || 'A player') + ' asks to change ' + (ch.name || 'their character') + ': ' + a.change.label + ', ' + a.change.from + ' to ' + a.change.to + '.';
+    toast(t); logEvent('char', t);
+    if (window.wpSheets && window.wpSheets.approveNote) window.wpSheets.approveNote(ch.id, t, 'review', e.id);
+    if (window.wpSheets && window.wpSheets.uploadsChanged) window.wpSheets.uploadsChanged(ch.id);
+    say('money', 'Sent to your GM to review.');
+}
 function tradeCard(chars, text) {
     var t = String(text).slice(0, 1500), m = { type: 'chat', scope: 'whisper', from: { id: net.myId || 'gm', name: 'GM', gm: true }, text: t, ts: Date.now() }, to = Object.create(null);
     chars.forEach(function(ch) { if (ch && ch.ownerId && !ch.npc) to[ch.ownerId] = 1; });
@@ -8697,6 +8715,9 @@ function handleMessage(msg, conn) {
         var gofI = function(rid) { var k = qi.charId + '|' + qi.fieldId + '|' + rid + '|on'; return !!(Object.prototype.hasOwnProperty.call(_rowGrace, k) && _rowGrace[k].until > nowI); };   // 1.5.4 One at a time: each row's own grace, for a bound row a switch-on would switch off
         var befI = chI.values && Array.isArray(chI.values[qi.fieldId]) ? chI.values[qi.fieldId] : [];   // 1.5.8: the list before this change (a removed row's Undo)
         var befV = chI.values ? Object.assign({}, chI.values) : {};   // 1.6.0 R14: every list before it, for a host's parts
+        var meI = Si.moneyEditOf ? Si.moneyEditOf(campI.system, qi.fieldId, qi) : null;   // 157 M2: a Money box's rule for a player's own change of its money
+        if (meI === 'gm') { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'money', msg: 'Only the GM changes this money.' }); } catch (e) { sendFailed(e); } return; }
+        if (meI === 'ask') { moneyAskPut(campI, chI, profI, qi, conn); return; }
         if (qi.op === 'restore') {   // 1.5.8: a removed row's Undo: only the row this host took out for them, while the list is as that removal left it
             var goI = Object.prototype.hasOwnProperty.call(_rowGrace, gkI + '|gone') ? _rowGrace[gkI + '|gone'] : null;
             if (!goI || goI.until <= nowI || JSON.stringify(befI) !== goI.after) { denyI('stale'); return; }

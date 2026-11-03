@@ -49,6 +49,24 @@ function padStep(binds, down, stick, t, held) {
     });
     return { fire: fire, held: nh };
 }
+// What Settings says of the controllers connected (the owner, 2026-11-03: "the controller compatibility should include info about the controller
+// connected"): a line each, its name as the browser gives it with the maker's numbers taken off, how many buttons it has, and whether its layout
+// is the standard one, whose names Settings uses. With none, how to make one show: a browser names a controller only after one of its buttons is pressed
+function padName(id) {
+    var s = String(typeof id === 'string' ? id : '').replace(/[\u0000-\u001f\u007f]/g, ' ');
+    s = s.replace(/\s*\([^)]*vendor[^)]*\)\s*/ig, ' ').replace(/^\s*[0-9a-f]{1,4}-[0-9a-f]{1,4}-/i, '').replace(/\s+/g, ' ').trim();
+    return s.slice(0, 80) || 'A controller';
+}
+function padAbout(pads) {
+    var out = [];
+    (pads && typeof pads === 'object' && typeof pads.length === 'number' ? Array.prototype.slice.call(pads, 0, 8) : []).forEach(function(g) {
+        if (!g || typeof g !== 'object' || g.connected === false) return;
+        var n = g.buttons && typeof g.buttons.length === 'number' ? g.buttons.length : 0;
+        out.push('Connected: ' + padName(g.id) + ', ' + n + (n === 1 ? ' button' : ' buttons') + '. ' + (g.mapping === 'standard' ? 'It uses the standard layout, so its buttons are the ones named here.' : 'Its layout is not the standard one, so a button may not be the one its name says here.'));
+    });
+    if (!out.length) out.push('No controller is connected. Plug one in and press any of its buttons: the browser shows a controller only after a press.');
+    return out;
+}
 // [shelfcheck:pad-end]
 
 function padLog(step, f) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('pad v1', step, f || {}); } catch (e) {} }
@@ -91,12 +109,20 @@ function padTick(t) {
     if (!why) st.fire.forEach(function(id) { padFire(id); });   // while a key would run nothing, what is pressed is only noted, so it runs nothing until let go
     _raf = setTimeout(padNext, PAD_EVERY);
 }
+function padPads() { try { return typeof navigator !== 'undefined' && typeof navigator.getGamepads === 'function' ? navigator.getGamepads() || [] : []; } catch (e) { return []; } }
+// Settings' controller line, drawn as text, a line a controller
+function padInfoDraw(doc) {
+    var d = doc || (typeof document !== 'undefined' ? document : null), box = d ? d.getElementById('setPadInfo') : null; if (!box) return false;
+    while (box.firstChild) box.removeChild(box.firstChild);
+    padAbout(padPads()).forEach(function(w, i) { if (i) box.appendChild(d.createElement('br')); box.appendChild(d.createTextNode(w)); });
+    return true;
+}
 function padNow() { return typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now(); }
 function padNext() { padTick(padNow()); }
 function padWake() { if (!_raf) _raf = setTimeout(padNext, PAD_EVERY); }   // a timer, never a frame: a window that is not being painted runs no frame
 if (typeof window !== 'undefined') {
-    window.addEventListener('gamepadconnected', function(e) { padLog('connect', { n: e && e.gamepad && typeof e.gamepad.index === 'number' ? e.gamepad.index : -1, standard: !!(e && e.gamepad && e.gamepad.mapping === 'standard') }); padWake(); });
-    window.addEventListener('gamepaddisconnected', function() { padLog('disconnect', {}); });
+    window.addEventListener('gamepadconnected', function(e) { padLog('connect', { n: e && e.gamepad && typeof e.gamepad.index === 'number' ? e.gamepad.index : -1, standard: !!(e && e.gamepad && e.gamepad.mapping === 'standard') }); padInfoDraw(); padWake(); });
+    window.addEventListener('gamepaddisconnected', function() { padLog('disconnect', {}); setTimeout(function() { padInfoDraw(); }, 0); });   // the browser's list drops it once this event is over
     padWake();
     window.wpPad = {
         ids: PAD_IDS.slice(), word: function(id) { return padWord(_binds[id]); }, has: function(id) { return PAD_IDS.indexOf(id) >= 0; },
@@ -111,7 +137,8 @@ if (typeof window !== 'undefined') {
         off: function(id) { if (PAD_IDS.indexOf(id) < 0) return false; var m = padMine(); m[id] = -1; var ok = padSave(m); _binds = padsNow(padMine()); padLog(ok ? 'pad-off' : 'pad-save-failed', { id: id }); return ok; },
         reset: function() { try { localStorage.removeItem('wp_pad'); } catch (e) {} _binds = padsNow({}); padLog('pad-reset', {}); },
         reload: function() { _binds = padsNow(padMine()); },   // a profile opened here brought its buttons
-        connected: function() { return padRead().any; }
+        connected: function() { return padRead().any; },
+        about: function() { return padAbout(padPads()); }, info: padInfoDraw   // Settings, Keys: what is connected
     };
 }
-export { PAD_IDS, PAD_DEF, padWord, padsClean, padsNow, padAt, padStep };
+export { PAD_IDS, PAD_DEF, padWord, padsClean, padsNow, padAt, padStep, padName, padAbout };

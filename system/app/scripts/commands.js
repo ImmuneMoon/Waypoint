@@ -194,6 +194,7 @@ function keysDraw(doc) {
     var list = doc.getElementById('setKeysList'); if (!list) return false;
     _pick = null;
     while (list.firstChild) list.removeChild(list.firstChild);
+    var PI = typeof window !== 'undefined' ? window.wpPad : null; if (PI && typeof PI.info === 'function') PI.info(doc);   // 1.6.2: which controller is connected
     COMMANDS.forEach(function(c) {
         var row = doc.createElement('div'), nm = doc.createElement('span'), t = doc.createElement('span'), sm = doc.createElement('small'), key = doc.createElement('button'), off = doc.createElement('button'), k = _keys[c.id] || '';
         row.className = 'set-key-row'; nm.className = 'set-name'; t.textContent = c.name; sm.textContent = c.does; nm.appendChild(t); nm.appendChild(sm);

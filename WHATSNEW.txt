@@ -86,6 +86,10 @@ The System editor
   a Separate currency taken in place of money at a rate it offers.
   A list with a price may name its Condition, a per cent of full worth, and a
   row trades and sells at it.
+  A sheet says the money held in each currency under its first money list. A
+  list that holds money says how players change it: at once, by asking (it
+  waits in the GM's Review), or the GM's alone.
+  A formula reads the money a character holds, as Money or as one currency's own.
 - The GM's Trade log, in the quick jump, lists this session's trades, and Put
   back restores both sheets where they still stand as the trade left them.
 - A side of a trade may put I owe you in place of money, and both sheets keep
@@ -105,10 +109,6 @@ The System editor
 - Encounter groups: save the selected character tokens as a group, and place it
   from the Image Library in one press. Each NPC gets a fresh sheet, numbered
   on, unless you tick it Unique.
-  A sheet says the money held in each currency under its first money list. A
-  list that holds money says how players change it: at once, by asking (it
-  waits in the GM's Review), or the GM's alone.
-  A formula reads the money a character holds, as Money or as one currency's own.
 - A step of a roll's Then that reads or changes something players may not see
   now runs when a player rolls, on the GM's Waypoint, where before the whole
   Then changed nothing. The player keeps the roll's other steps.
@@ -179,6 +179,13 @@ At the table
   needs on the Combat tab, or press Hide figures on an NPC's sheet. Where the roll
   reads its attacker, a player's card shows the dice and Success or Failure, and
   your card shows it all. An attack by your own character goes the same way.
+- A token moves a step with the arrow keys and turns with [ and ]. N picks your
+  next token. Settings, Keys lets you set your own, and Restore Default Keys
+  puts them back.
+- A game controller works too: the D-pad and the left stick move, the bumpers
+  turn, A picks the next token and Y ends your turn. Its buttons are yours to
+  set beside the keys, and Settings says which controller is connected, how many
+  buttons it has, and whether its layout is the standard one.
 
 Drawings to show
 - The pen now makes two kinds of drawing. On the map is what it always

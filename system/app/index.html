@@ -2983,7 +2983,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                               <ul>
                                   <li>A key the app uses is refused, and the line under the list says what has it.</li>
                                   <li>A key another command has moves to the one you set. That command is left with no key, and the line under the list says so.</li>
-                                  <li>The &times; beside a key takes it off. <b>Put Back the Default Keys</b> gives every command the key it came with.</li>
+                                  <li>The &times; beside a key takes it off. <b>Restore Default Keys</b> gives every command the key it came with.</li>
+                                  <li>Under the list, Settings says which controller is connected, how many buttons it has, and whether its layout is the standard one. A controller in another layout may name its buttons otherwise.</li>
                                   <li>Your keys are kept on this computer. A key never works while you type in a box, or while a window or a question is up.</li>
                                   <li>Your keys and controller buttons go with your profile when you save it to a file or a code. <b>This computer keeps its own keys</b> keeps them as they are when a profile is opened here.</li>
                               </ul>
@@ -4245,8 +4246,9 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="set-group-body">
             <div id="setKeysList" class="set-keys" title="Each tool and command, with the key that runs it on this computer"></div>
             <div class="set-line">Press a key box, then the key you want. Esc cancels. A key never works while you type in a box.</div>
+            <div id="setPadInfo" class="set-pad-info" role="status" aria-live="polite"></div>
             <div id="setKeysSay" class="set-keys-say" role="status" aria-live="polite"></div>
-            <button class="tool ghost" id="setKeysResetBtn" style="width:100%;" title="Gives every command the key it came with, here on this computer">Put Back the Default Keys</button>
+            <button class="tool ghost" id="setKeysResetBtn" style="width:100%;" title="Gives every command the key it came with, here on this computer">Restore Default Keys</button>
             <div class="set-line tight">Every command gets the key it came with again. Your keys are kept on this computer.</div>
             <label style="display:flex; align-items:center; gap:6px; margin-top:8px; cursor:pointer;" title="When a profile is opened here, this computer keeps the keys and controller buttons it has"><input type="checkbox" id="setKeysOwn"> <span class="set-name"><span>This computer keeps its own keys</span><small>Your keys go with your profile. Tick this to keep this computer&rsquo;s when a profile is opened here.</small></span></label>
             </div>

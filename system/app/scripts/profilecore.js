@@ -32,21 +32,30 @@ function cleanKnown(m, keyRule, valOk, copy) {
     ks.slice(Math.max(0, ks.length - MAX_KNOWN)).forEach(function(k) { out[k] = copy ? copy(m[k]) : m[k]; });
     return out;
 }
+// 1.6.2, backlog 202 (the owner, 2026-11-02, by prompt, of where key bindings are kept: "both"): the keys a player set (wp_keys: a command's
+// id and its key as keycore writes one, or '' for none) and a controller's buttons (wp_pad: a button's number, -1 for none) go in the pack.
+// Opened on a computer whose own keys are kept (wp_keysLocal, its tick in Settings, Keys) they are left as that computer has them
+var CMD_ID = /^[a-z]+(\.[A-Za-z]+)+$/, KEY_NAME = /^(Ctrl\+)?(Alt\+)?(Shift\+)?[A-Za-z0-9]{1,20}$/, MAX_BINDS = 64;
+function cleanBinds(v, valOk) { var out = {}, n = 0; if (!isObj(v)) return out; Object.keys(v).forEach(function(k) { if (n < MAX_BINDS && k.length <= 40 && CMD_ID.test(k) && !(k in Object.prototype) && valOk(v[k])) { out[k] = v[k]; n++; } }); return out; }
+function keyVal(x) { return x === '' || (typeof x === 'string' && x.length <= 40 && KEY_NAME.test(x)); }
+function padVal(x) { return typeof x === 'number' && Math.floor(x) === x && x >= -1 && x <= 16; }
 function cleanPack(raw, o) {
     if (!isObj(raw) || raw.kind !== KIND || raw.v !== V) return null;
     var prof = cleanProfile(raw.profile, o); if (!prof) return null;
-    return {
+    var pk = {
         kind: KIND, v: V, at: typeof raw.at === 'number' && isFinite(raw.at) && raw.at > 0 ? Math.floor(raw.at) : 0, profile: prof,
         tableKeys: cleanKnown(raw.tableKeys, idOk, keyOk),
         gmPins: cleanKnown(raw.gmPins, idOk, pubOk, function(v) { return { kty: 'EC', crv: 'P-256', x: v.x, y: v.y }; }),
         gmRooms: cleanKnown(raw.gmRooms, roomOk, idOk)
     };
+    var kb = cleanBinds(raw.keys, keyVal), pb = cleanBinds(raw.pad, padVal); if (Object.keys(kb).length) pk.keys = kb; if (Object.keys(pb).length) pk.pad = pb;   // 1.6.2: only where there are any, so a pack with none is as it was
+    return pk;
 }
 function parse(s) { if (typeof s !== 'string' || !s || s.length > MAX_TEXT) return null; try { return JSON.parse(s); } catch (e) { return null; } }
 // A pack from this computer's stores, each handed in as the text localStorage holds (or null); null where there is no profile to carry
 function packOf(store, o, now) {
     var s = isObj(store) ? store : {};
-    return cleanPack({ kind: KIND, v: V, at: typeof now === 'number' ? now : 0, profile: parse(s.wp_profile), tableKeys: parse(s.wp_tableKeys), gmPins: parse(s.wp_gmPins), gmRooms: parse(s.wp_gmRooms) }, o);
+    return cleanPack({ kind: KIND, v: V, at: typeof now === 'number' ? now : 0, profile: parse(s.wp_profile), tableKeys: parse(s.wp_tableKeys), gmPins: parse(s.wp_gmPins), gmRooms: parse(s.wp_gmRooms), keys: parse(s.wp_keys), pad: parse(s.wp_pad) }, o);
 }
 // The file's text, and the same pack read back from a file's text
 function fileText(pack) { return JSON.stringify(pack, null, 1); }
@@ -82,12 +91,14 @@ function openWrites(local, pack) {
         Object.keys(a).forEach(function(k) { if (keyRule(k) && valOk(a[k])) out[k] = a[k]; });
         var ks = Object.keys(out), cut = {}; ks.slice(Math.max(0, ks.length - MAX_KNOWN)).forEach(function(k) { cut[k] = out[k]; }); return cut;
     };
-    return {
+    var w = {
         wp_profile: JSON.stringify(pack.profile),
         wp_tableKeys: JSON.stringify(pack.tableKeys || {}),
         wp_gmPins: JSON.stringify(join(l.wp_gmPins, pack.gmPins || {}, idOk, pubOk)),
         wp_gmRooms: JSON.stringify(join(l.wp_gmRooms, pack.gmRooms || {}, roomOk, idOk))
     };
+    if (l.wp_keysLocal !== '1') { if (isObj(pack.keys)) w.wp_keys = JSON.stringify(pack.keys); if (isObj(pack.pad)) w.wp_pad = JSON.stringify(pack.pad); }   // 1.6.2: a computer that keeps its own keys keeps them
+    return w;
 }
 // The Profile window's list of the tables that know you (1.6.0; the owner, 2026-10-29, by prompt: "Yes, a short list", and of when you last
 // joined: "Keep a small record"). store: the texts localStorage holds for wp_tableKeys (the GMs whose table gave this player a key) and

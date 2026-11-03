@@ -110,6 +110,7 @@ if (typeof window !== 'undefined') {
         picking: function(id) { return !!_pick && (id === undefined || _pick.id === id); },
         off: function(id) { if (PAD_IDS.indexOf(id) < 0) return false; var m = padMine(); m[id] = -1; var ok = padSave(m); _binds = padsNow(padMine()); padLog(ok ? 'pad-off' : 'pad-save-failed', { id: id }); return ok; },
         reset: function() { try { localStorage.removeItem('wp_pad'); } catch (e) {} _binds = padsNow({}); padLog('pad-reset', {}); },
+        reload: function() { _binds = padsNow(padMine()); },   // a profile opened here brought its buttons
         connected: function() { return padRead().any; }
     };
 }

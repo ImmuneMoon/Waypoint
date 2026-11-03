@@ -270,6 +270,8 @@ window.wpMoveDir = function(e) { var c = e && typeof codeOf === 'function' ? cod
 keysDraw(document);
 (function wireKeys() {
     var reset = document.getElementById('setKeysResetBtn'); if (reset) reset.addEventListener('click', function() { keysReset(document); });
+    var keep = document.getElementById('setKeysOwn');   // 1.6.2, backlog 202: this computer keeps its own keys when a profile is opened here
+    if (keep) { try { keep.checked = localStorage.getItem('wp_keysLocal') === '1'; } catch (e) {} keep.addEventListener('change', function() { var ok = true; try { if (keep.checked) localStorage.setItem('wp_keysLocal', '1'); else localStorage.removeItem('wp_keysLocal'); } catch (e) { ok = false; } keysSay(document, !ok ? 'The change could not be kept on this computer.' : keep.checked ? 'This computer keeps its own keys when a profile is opened here.' : 'A profile opened here brings its keys.'); cmdLog(ok ? 'keys-own' : 'key-save-failed', { on: keep.checked }); }); }
     var open = document.getElementById('settingsBtn'); if (open) open.addEventListener('click', function() { keysDraw(document); keysSay(document, ''); });   // each opening shows the keys as they are, with nothing waiting
 })();
 
@@ -378,5 +380,5 @@ function jumpAct(en) {
     try { return String(c.act() || ''); } catch (e) { return ''; }
 }
 
-window.wpCommands = { list: COMMANDS, byId: cmdById, run: cmdRun, rows: jumpRows, go: jumpGo, act: jumpAct, heldNow: function() { return hotkeyHeld(document, window, { target: document.activeElement }); }, settingRows: function() { return setRows(document, window); }, openSetting: setOpen };
+window.wpCommands = { list: COMMANDS, byId: cmdById, run: cmdRun, rows: jumpRows, go: jumpGo, act: jumpAct, heldNow: function() { return hotkeyHeld(document, window, { target: document.activeElement }); }, keysReload: function() { keysLoad(); keysDraw(document); if (window.wpPad && typeof window.wpPad.reload === 'function') window.wpPad.reload(); }, settingRows: function() { return setRows(document, window); }, openSetting: setOpen };
 export { COMMANDS, cmdById, cmdRun, jumpRows, jumpGo, jumpAct, setRows };

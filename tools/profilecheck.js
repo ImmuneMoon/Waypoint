@@ -93,7 +93,7 @@ const app = p => path.join(__dirname, '..', 'system', 'app', p), read = p => fs.
         !!R && J(s1) === J({ u_gm1: { gm: 'Mara <i>' + 'x'.repeat(52), campaign: 'Reach', at: 1234 } }) && J(Object.keys(s2)) === J(['u_gm3', 'u_gm4', 'u_gm1']) && J(s2.u_gm3) === J({ gm: '', campaign: '', at: 1234 }) && s2.u_gm1.gm === 'Mara again' && J(R.seen()) === '{}', J([s1, s2]));
     check('it is kept at the snapshot a table sends, after the key and before the campaign is drawn, once per connection and only from a GM id sent as text, and nowhere else; it is this computer\'s alone: no message names it, it is not in a profile pack or the account\'s stores',
         nj.includes('        // [netcheck:snapkey-end]\n        if (!conn.wpSeenTaken && typeof msg.gmId === \'string\') { conn.wpSeenTaken = true; rememberTableSeen(net.gmId, msg.notepad); }') && (nj.match(/rememberTableSeen\(/g) || []).length === 2 && (nj.match(/wp_tablesSeen/g) || []).length === 2
-        && !core.includes('wp_tablesSeen\'') && st.includes("var PROF_STORES = ['wp_profile', 'wp_tableKeys', 'wp_gmPins', 'wp_gmRooms'];"), '');
+        && !core.includes('wp_tablesSeen\'') && st.includes("var PROF_STORES = ['wp_profile', 'wp_tableKeys', 'wp_gmPins', 'wp_gmRooms', 'wp_keys', 'wp_pad', 'wp_keysLocal'];"), '');   /* 1.6.2, backlog 202: the keys and controller buttons go with the profile, moved on purpose */
     // ---- the window's wiring (settings.js profilewin) ----
     const pwS = st.slice(st.indexOf('// [settings:profilewin-start]'), st.indexOf('// [settings:profilewin-end]'));
     check('the window opens from your picture in the top row, the welcome\'s Your profile, Settings\' row and the quick jump, each logged as profile v1 with where from; the list is drawn on each opening and when the tables change, and asks the Journal for names it lacks; your picture follows every change of who you are (a write of the profile from anywhere, another window of this app), as do the welcome\'s Join boxes; nothing in it writes markup',
@@ -150,6 +150,21 @@ const app = p => path.join(__dirname, '..', 'system', 'app', p), read = p => fs.
             pw.includes('<button class="tool ghost danger" id="profStartOverBtn" type="button"') && pwS.includes("var over = ui('profStartOverBtn'); if (over) over.addEventListener('click', profStartOver);")
             && ix.includes('<li><b>Start over as a new player</b> is at the bottom of your profile.') && ix.includes('<li>To be yourself again, open a saved profile, paste a profile code from another computer, or link your account.</li>')
             && [read('assets/whatsnew.txt'), fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8')].every(t => t.replace(/\r\n/g, NL).includes('- Start over as a new player, at the bottom of your profile, forgets every')), '');
+    }
+    {   // 1.6.2, backlog 202 (the owner, 2026-11-02, by prompt, of where key bindings are kept: "both"): a pack carries the keys and controller buttons, cleaned; a computer that keeps its own keeps them
+        const base = { kind: P.KIND, v: 1, at: 5, profile: { id: 'u_kael', name: 'Kael' } };
+        const kp = P.cleanPack(Object.assign({}, base, { keys: { 'token.up': 'KeyW', 'tool.select': '', 'token.down': 'Hyper+S', 'bad id': 'KeyQ', 'toString': 'KeyT', 'map.last': 7 }, pad: { 'turn.end': 2, 'token.next': -1, 'token.up': 17, 'token.left': 1.5 } }));
+        const none = P.cleanPack(Object.assign({}, base, { keys: { 'bad id': 'KeyQ' }, pad: [] }));
+        const pk = P.packOf({ wp_profile: JSON.stringify({ id: 'u_kael', name: 'Kael' }), wp_keys: JSON.stringify({ 'token.up': 'KeyW' }), wp_pad: JSON.stringify({ 'turn.end': 2 }) }, {}, 9);
+        const wOpen = P.openWrites({}, kp), wKeep = P.openWrites({ wp_keysLocal: '1', wp_keys: '{"token.up":"KeyI"}' }, kp), wNone = P.openWrites({}, none);
+        check('1.6.2 backlog 202: a pack carries the keys a player set and their controller buttons, cleaned (a command\'s id and a key as the keys\' core writes one or none, a button 0 to 16 or none), and has neither where there are none, as a pack always was; opening it writes them, but where this computer keeps its own keys it leaves them as they are',
+            J(kp.keys) === J({ 'token.up': 'KeyW', 'tool.select': '' }) && J(kp.pad) === J({ 'turn.end': 2, 'token.next': -1 }) && !('keys' in none) && !('pad' in none) && J(pk.keys) === J({ 'token.up': 'KeyW' }) && J(pk.pad) === J({ 'turn.end': 2 })
+            && wOpen.wp_keys === J(kp.keys) && wOpen.wp_pad === J(kp.pad) && !('wp_keys' in wKeep) && !('wp_pad' in wKeep) && wKeep.wp_profile === J(kp.profile) && !('wp_keys' in wNone) && !('wp_pad' in wNone)
+            && P.fromCode(P.codeOf(kp)) !== null && J(P.fromCode(P.codeOf(kp)).keys) === J(kp.keys) && J(P.fromFile(P.fileText(kp)).pad) === J(kp.pad), J([kp, none, wOpen, wKeep]));
+        const cmS = read('scripts/commands.js'), ixS = read('index.html');
+        check('1.6.2 backlog 202: Settings, Keys has This computer keeps its own keys, kept as wp_keysLocal and said; a profile opened here has the keys read again; Help says the keys go with the profile',
+            ixS.includes('<input type="checkbox" id="setKeysOwn">') && cmS.includes("var keep = document.getElementById('setKeysOwn');") && cmS.includes("localStorage.setItem('wp_keysLocal', '1')") && cmS.includes('keysReload: function() { keysLoad(); keysDraw(document);')
+            && st.includes("if (window.wpCommands && typeof window.wpCommands.keysReload === 'function') window.wpCommands.keysReload();") && ixS.includes('<li>Your keys and controller buttons go with your profile when you save it to a file or a code.'));
     }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

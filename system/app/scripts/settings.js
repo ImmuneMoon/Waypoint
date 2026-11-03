@@ -1212,7 +1212,7 @@ if (_verBtn) _verBtn.addEventListener('click', function() { if (window.wpShowWha
    (wp_profile and wp_tableKeys) and joins what it knows of GMs; the id it hosts under stays (net.js hostId, seeded first so it is never made
    from the new profile). Never during a table, and asked first with the buttons alone. Every step logs as "profile v1" (structure only). */
 // [settings:profcarry-start]
-var PROF_STORES = ['wp_profile', 'wp_tableKeys', 'wp_gmPins', 'wp_gmRooms'];
+var PROF_STORES = ['wp_profile', 'wp_tableKeys', 'wp_gmPins', 'wp_gmRooms', 'wp_keys', 'wp_pad', 'wp_keysLocal'];   // 1.6.2: the keys and controller buttons go with the profile
 function profStores() { var s = {}; PROF_STORES.forEach(function(k) { try { s[k] = localStorage.getItem(k); } catch (e) { s[k] = null; } }); return s; }
 function profRules() { var n = window.wpNet; return { avatarOk: n && n.safeAvatar, faceClean: n && n.cleanFace }; }
 function profStep(step, o) { if (typeof window.wpStepLog === 'function') window.wpStepLog('profile v1', step, o); }
@@ -1234,6 +1234,7 @@ function profOpen(pack, how) {
             if (window.wpPrefsPush) window.wpPrefsPush();   // the saves folder's preferences.json follows
             if (typeof syncPanel === 'function') syncPanel();
             if (window.wpFaces && window.wpFaces.paintRows) window.wpFaces.paintRows();
+            if (window.wpCommands && typeof window.wpCommands.keysReload === 'function') window.wpCommands.keysReload();   // 1.6.2: the keys and buttons it brought
             toast('You now join tables as ' + (pack.profile.name || 'that player') + '.');
             profStep('opened', { how: how, same: same, tables: Object.keys(pack.tableKeys).length });
         }, { noEnter: true, yes: 'Open it' });

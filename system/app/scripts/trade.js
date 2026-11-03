@@ -73,6 +73,16 @@ function twDraw(doc, root, v, off, act) {
         });
         var tot = twTotal(s.lines); if (tot !== null) col.appendChild(twEl(doc, 'div', 'trade-total', 'Worth at list price: ' + twNum(tot)));
         (s.money || []).forEach(function(m) { col.appendChild(twEl(doc, 'div', 'trade-total trade-money', m.label + ' offered: ' + twNum(m.v))); });   // 157 M1b: the money on offer, a Separate currency on its own line
+        if (Array.isArray(v.curs) && v.curs.length) {   // 157 M1b: the currencies a side accepts, ticked by whoever acts for it; none ticked is open
+            var accN = Array.isArray(s.acc) ? s.acc : [], accOf = function(k) { return accN.some(function(x) { return String(x).toLowerCase() === String(k).toLowerCase(); }); };
+            if (me && v.status === 'open') {
+                var ab = twEl(doc, 'div', 'trade-acc'); ab.appendChild(twEl(doc, 'span', 'trade-acc-cap', 'Accepts'));
+                v.curs.forEach(function(c) { var lb = twEl(doc, 'label', 'trade-acc-one'), cb = doc.createElement('input'); cb.type = 'checkbox'; cb.checked = accOf(c.key); cb.setAttribute('data-k', 'acc|' + sd + '|' + c.key);
+                    cb.addEventListener('change', function() { var keys = v.curs.filter(function(x) { return x.key === c.key ? cb.checked : accOf(x.key); }).map(function(x) { return x.key; }); act('acc', sd, keys); });
+                    lb.appendChild(cb); lb.appendChild(twEl(doc, 'span', null, c.label)); ab.appendChild(lb); });
+                ab.appendChild(twEl(doc, 'small', 'trade-acc-line', accN.length ? 'Money in any other currency is refused.' : 'Nothing ticked: you decide as you confirm.')); col.appendChild(ab);
+            } else col.appendChild(twEl(doc, 'div', 'trade-acc-said', accN.length ? 'Accepts ' + v.curs.filter(function(c) { return accOf(c.key); }).map(function(c) { return c.label; }).join(', ') + '.' : 'Accepts any money.'));
+        }
         if (me && v.status === 'open') {
             col.appendChild(twInv(doc, s.name, twChoices(off[sd], s.lines), function(v) { act('add', sd, v); }));
             var ok = twEl(doc, 'button', 'tool trade-ok' + (s.ok ? ' on' : ''), s.ok ? 'Confirmed' : 'Confirm'); ok.type = 'button'; ok.setAttribute('aria-pressed', s.ok ? 'true' : 'false'); ok.setAttribute('data-k', 'ok|' + sd);
@@ -113,6 +123,7 @@ function twAct(kind, sd, arg) {
     else if (kind === 'drop') { lines.splice(arg, 1); say(n.tradePut(v.tid, lines, side)); }
     else if (kind === 'ok') say(n.tradeConfirm(v.tid, arg === true, side));
     else if (kind === 'into' && n.tradeInto) say(n.tradeInto(v.tid, arg.fid, arg.row, side));
+    else if (kind === 'acc' && n.tradeAccepts) say(n.tradeAccepts(v.tid, arg, side));   // 157 M1b
 }
 function twRender() {
     var v = _tw.view, body = document.getElementById('tradeBody'); if (!body) return;

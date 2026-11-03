@@ -1718,6 +1718,11 @@
   .trade-into-sel { width: 100%; background: var(--panel2); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; padding: 4px 6px; font: inherit; font-size: 12px; color-scheme: dark; outline: none; }
   .trade-into-sel:focus { border-color: var(--gold); }
   .trade-x { padding: 0 6px; }
+  .trade-acc { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 6px 0; font-size: 12px; }
+  .trade-acc-cap { font-weight: 600; }
+  .trade-acc-one { display: inline-flex; align-items: center; gap: 4px; }
+  .trade-acc-line { flex-basis: 100%; color: var(--dim); }
+  .trade-acc-said { margin: 6px 0; font-size: 12px; color: var(--dim); }
   .trade-total { font-size: 12px; color: var(--dim); }
   .trade-state { font-size: 12px; color: var(--dim); }
   .trade-state.on { color: var(--gold); }

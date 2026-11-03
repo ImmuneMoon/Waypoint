@@ -76,7 +76,8 @@ The System editor
   names its own. A Separate currency never mixes with the rest. A price may be
   set in a currency: an ordinary one is turned into the base unit, and a price
   in a Separate currency is paid from it alone. The trade window says how much
-  money each side offers, each Separate currency on a line of its own.
+  money each side offers, each Separate currency on a line of its own, and a
+  trader ticks the currencies it accepts there, kept for its next trade.
 - A list can say what a trade does to a row: a stat is cleared, set or moved to
   another, which may be GM-only. It can also call for a roll, made for the GM alone
   once both sides confirm. A column can show on some rows only.

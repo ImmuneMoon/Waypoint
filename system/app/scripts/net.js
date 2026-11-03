@@ -3614,7 +3614,7 @@ function tradeLines(S, sys, ch, off, who, other) {   // other: who takes it, for
     var can = Object.create(null); S.tradeOfferable(sys, ch, who).forEach(function(e) { can[e.fid + '|' + e.rowId] = e; });
     return (off || []).map(function(l) {
         var e = can[l.fid + '|' + l.rowId]; if (!e) return null; var o = { fid: l.fid, rowId: l.rowId, name: e.name, list: e.list };
-        if (l.key === undefined) { o.qty = l.qty; if (typeof e.price === 'number') { o.price = e.price; var dl = S.tradeDeal ? S.tradeDeal(sys, ch, other, e) : null; if (dl !== null) o.deal = dl; } } else { var sp = e.split.filter(function(s) { return s.key === l.key; })[0]; o.key = l.key; o.amt = l.amt; o.label = sp ? sp.label : l.key; }
+        if (l.key === undefined) { o.qty = l.qty; if (typeof e.price === 'number') { o.price = e.price; var dl = S.tradeDeal ? S.tradeDeal(sys, ch, other, e) : null; if (dl !== null) o.deal = dl; if (typeof e.cond === 'number') o.cond = e.cond; } } else { var sp = e.split.filter(function(s) { return s.key === l.key; })[0]; o.key = l.key; o.amt = l.amt; o.label = sp ? sp.label : l.key; }
         return o;
     }).filter(Boolean);
 }
@@ -3918,7 +3918,7 @@ function cleanTradeView(v) {
             if (!l || typeof l !== 'object' || typeof l.fid !== 'string' || typeof l.rowId !== 'string' || l.fid.length > 40 || l.rowId.length > 40) return null;
             var o = { fid: l.fid, rowId: l.rowId, name: txt(l.name, 80) || 'Item', list: txt(l.list, 60) };
             if (typeof l.key === 'string') { var a = num(l.amt); if (a === null) return null; o.key = l.key.slice(0, 40); o.amt = a; o.label = txt(l.label, 60) || o.key; }
-            else { var q = num(l.qty); if (q === null || q < 1) return null; o.qty = Math.floor(q); var p = num(l.price); if (p !== null) { o.price = p; var dv = num(l.deal); if (dv !== null) o.deal = dv; } }
+            else { var q = num(l.qty); if (q === null || q < 1) return null; o.qty = Math.floor(q); var p = num(l.price); if (p !== null) { o.price = p; var dv = num(l.deal); if (dv !== null) o.deal = dv; var cdv = num(l.cond); if (cdv !== null && cdv >= 0 && cdv < 100) o.cond = Math.round(cdv); } }
             return o;
         }).filter(Boolean);
         var out = { charId: s.charId, name: txt(s.name, 60) || 'A character', ok: s.ok === true, lines: lines };

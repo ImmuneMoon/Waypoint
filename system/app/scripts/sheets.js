@@ -9295,7 +9295,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         sb.appendChild(sr);
     });
     var sadd = el('button', 'tool ghost sys-btn sys-list-statadd', '+ Stat'); sadd.dataset.act = 'statadd'; sadd.disabled = sts.length >= LIMITS.listStats; sadd.title = sadd.disabled ? 'At most ' + LIMITS.listStats + ' stats a list' : 'A number each item of this list carries (Acc, Wt, Cost), set on the item in Items'; sb.appendChild(sadd);
-    if (sts.length) { var pr = el('label', 'sys-num sys-price-box'), ps = el('select', 'sys-list-price'); pr.appendChild(el('span', 'sys-num-cap', 'Price')); ps.title = 'A row records it as Paid when added: what one cost (yours to correct on the sheet)'; priceOptions(ps, sp); pr.appendChild(ps); sb.appendChild(pr); if (sp.price && typeof placeSel === 'function') sb.appendChild(placeSel('paid', sp.paidPlace)); if (sp.price && typeof curBoxes === 'function') curBoxes(sb, sp, true); }   // 1.6.0 R2: where Paid stands
+    if (sts.length) { var pr = el('label', 'sys-num sys-price-box'), ps = el('select', 'sys-list-price'); pr.appendChild(el('span', 'sys-num-cap', 'Price')); ps.title = 'A row records it as Paid when added: what one cost (yours to correct on the sheet)'; priceOptions(ps, sp); pr.appendChild(ps); sb.appendChild(pr); if (sp.price && typeof placeSel === 'function') sb.appendChild(placeSel('paid', sp.paidPlace)); if (sp.price && typeof curBoxes === 'function') curBoxes(sb, sp, true); if (sp.price && typeof rateBoxes === 'function') rateBoxes(sb, sp); }   // 1.6.0 R2: where Paid stands
     { var mb = el('label', 'sys-num sys-money-box'), msel = el('select', 'sys-list-money'); mb.appendChild(el('span', 'sys-num-cap', 'Holds money')); msel.title = 'Rows of this list are money: each row holds its level, as a chip holds its amount, or each piece is worth a stat, as a bar is worth its denomination. Buying and selling pay from and into these rows'; if (typeof moneyOptions === 'function') moneyOptions(msel, sp); mb.appendChild(msel); sb.appendChild(mb); if (typeof curBoxes === 'function') curBoxes(sb, sp); }   // 1.5.6 the Money box
     card.appendChild(sb);
     if (typeof badgeBox === 'function') card.appendChild(badgeBox(sp));   // 1.6.0 R4: its row badges
@@ -9627,6 +9627,15 @@ function curBoxes(sb, sp, price) {   // price: the boxes of a price's currency (
     var chs = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length > 0 : Array.isArray(s.labels) && s.labels.length > 0); }); if (!chs.length) return;
     var bb = el('label', 'sys-num sys-money-box'), bsel = el('select', price ? 'sys-list-pcurby' : 'sys-list-curby'); bb.appendChild(el('span', 'sys-num-cap', price ? 'Price currency by' : 'Currency by')); bsel.title = price ? 'A choice of each row that names the currency its price is set in. A row whose choice names none is priced as the list says' : 'A choice of each row that names its currency, such as Crowns or Marks. A row whose choice names none holds what the list holds';
     put(bsel, [['', 'Not by a choice']].concat(chs.map(function(s) { return [s.key, 'Its ' + (s.label || s.key)]; })), price ? sp.priceCurBy : sp.curBy); bb.appendChild(bsel); sb.appendChild(bb);
+}
+function rateBoxes(sb, sp) {   // 157 M1c: an entry's own Buy and Sell figures, a number stat each, shown while the system's traders set buy and sell prices
+    if (typeof draft === 'undefined' || !draft || !draft.trading || draft.trading.rates !== true || !sp || !sp.price) return;
+    var ns = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.kind !== 'pick' && s.set !== true; }); if (!ns.length) return;
+    [['buyBy', 'sys-list-buyby', 'Buy figure', 'What a trader pays for this entry, where its figure is set, in place of its Buys at per cent'], ['sellBy', 'sys-list-sellby', 'Sell figure', 'What a trader asks for this entry, where its figure is set, in place of its Sells at per cent']].forEach(function(q) {
+        var lb = el('label', 'sys-num sys-money-box'), s = el('select', q[1]); lb.appendChild(el('span', 'sys-num-cap', q[2])); s.title = q[3]; var lo = typeof sp[q[0]] === 'string' ? sp[q[0]].toLowerCase() : '';
+        [['', 'None']].concat(ns.map(function(x) { return [x.key, 'Its ' + (x.label || x.key)]; })).forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0].toLowerCase() === lo) op.selected = true; s.appendChild(op); });
+        lb.appendChild(s); sb.appendChild(lb);
+    });
 }
 function priceOptions(sel, sp) {   // F4c1: the Price choices — No price, then each stat by its key (kept up to date as a key is typed)
     sel.textContent = '';
@@ -10176,7 +10185,9 @@ function renderCurrencies() {
         if (sepI) sepI.addEventListener('change', function() { if (sepI.checked) t.sep = true; else delete t.sep; ch(); }); rm.type = 'button'; rm.title = 'Remove this currency'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.currencies; ch(true); });
         [nm, capped('Worth', wb), sepL, rm].forEach(function(x) { rw.appendChild(x); }); wrap.appendChild(rw);
     });
-    var add = el('button', 'tool ghost sys-btn sys-bud-add', '+ Currency'); add.type = 'button'; add.title = 'A currency your game counts money in'; add.disabled = !!list && list.length >= CUR_MAX; add.addEventListener('click', function() { draft.currencies = Array.isArray(draft.currencies) ? draft.currencies : []; var n = 1; while (draft.currencies.some(function(t) { return t && t.key === 'C' + n; })) n++; draft.currencies.push({ key: 'C' + n, label: '', worth: 1 }); ch(true); }); wrap.appendChild(add); box.appendChild(wrap);
+    var trL = el('label', 'sys-check sys-trade-rates'), trI = el('input'); trI.type = 'checkbox'; trI.checked = !!(draft.trading && draft.trading.rates === true); trL.title = 'A trader sets a Buys at and a Sells at per cent of list price in the trade window, and an entry\u2019s own Buy and Sell figures come first. Off: everything is worth its list price';
+    trI.addEventListener('change', function() { if (trI.checked) draft.trading = Object.assign({}, draft.trading || {}, { rates: true }); else if (draft.trading) { delete draft.trading.rates; if (!Object.keys(draft.trading).length) delete draft.trading; } ch(); }); trL.appendChild(trI); trL.appendChild(document.createTextNode(' Traders set buy and sell prices'));   // 157 M1c
+    var add = el('button', 'tool ghost sys-btn sys-bud-add', '+ Currency'); add.type = 'button'; add.title = 'A currency your game counts money in'; add.disabled = !!list && list.length >= CUR_MAX; add.addEventListener('click', function() { draft.currencies = Array.isArray(draft.currencies) ? draft.currencies : []; var n = 1; while (draft.currencies.some(function(t) { return t && t.key === 'C' + n; })) n++; draft.currencies.push({ key: 'C' + n, label: '', worth: 1 }); ch(true); }); wrap.appendChild(add); wrap.appendChild(trL); box.appendChild(wrap);
 }
 // 1.6.2 (G9): the Rules tab's Decks, one editor for a system's and a campaign's
 function renderDecks() {
@@ -12851,6 +12862,8 @@ function onChange(e) {
             if (oKey === 'by' && !t.value) delete lsc.once;
             else { var oD = lsc.once && typeof lsc.once === 'object' ? lsc.once : (lsc.once = {}); if (t.value) oD[oKey] = t.value; else delete oD[oKey]; if (oKey === 'by' && !oD.rank) { var oN = (Array.isArray(lsc.stats) ? lsc.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.kind !== 'pick'; })[0]; oD.rank = lsc.lvl && typeof lsc.lvl === 'object' ? 'lvl' : oN ? oN.key : ''; if (!oD.rank) delete oD.rank; } }
         }
+        else if (c.indexOf('sys-list-buyby') >= 0) { if (t.value) lsc.buyBy = t.value; else delete lsc.buyBy; }   // 157 M1c
+        else if (c.indexOf('sys-list-sellby') >= 0) { if (t.value) lsc.sellBy = t.value; else delete lsc.sellBy; }   // 157 M1c
         else if (c.indexOf('sys-list-pcurby') >= 0) { if (t.value) lsc.priceCurBy = t.value; else delete lsc.priceCurBy; }   // 157 M1b: a choice of each row that names its price's currency
         else if (c.indexOf('sys-list-pcur') >= 0) { if (t.value) lsc.priceCur = t.value; else delete lsc.priceCur; }   // 157 M1b: the currency a price is set in
         else if (c.indexOf('sys-list-curby') >= 0) { if (t.value) lsc.curBy = t.value; else delete lsc.curBy; }   // 157 M1: a choice of each row that names its currency

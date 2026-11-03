@@ -3610,11 +3610,11 @@ function tradeHere(pid) { return !!pid && net.active && net.role === 'host' && n
 // who acts for a character: its player while at the table, '' for the GM (an NPC, one with no player, one whose player is away)
 function tradeBy(ch) { return ch && !ch.npc && ch.ownerId && tradeHere(ch.ownerId) ? ch.ownerId : ''; }
 function tradeOfChar(id) { var hit = null; Object.keys(_trades).forEach(function(k) { var tr = _trades[k]; if (!hit && (tr.a.charId === id || tr.b.charId === id)) hit = tr; }); return hit; }
-function tradeLines(S, sys, ch, off, who) {
+function tradeLines(S, sys, ch, off, who, other) {   // other: who takes it, for what it is worth to them (157 M1c)
     var can = Object.create(null); S.tradeOfferable(sys, ch, who).forEach(function(e) { can[e.fid + '|' + e.rowId] = e; });
     return (off || []).map(function(l) {
         var e = can[l.fid + '|' + l.rowId]; if (!e) return null; var o = { fid: l.fid, rowId: l.rowId, name: e.name, list: e.list };
-        if (l.key === undefined) { o.qty = l.qty; if (typeof e.price === 'number') o.price = e.price; } else { var sp = e.split.filter(function(s) { return s.key === l.key; })[0]; o.key = l.key; o.amt = l.amt; o.label = sp ? sp.label : l.key; }
+        if (l.key === undefined) { o.qty = l.qty; if (typeof e.price === 'number') { o.price = e.price; var dl = S.tradeDeal ? S.tradeDeal(sys, ch, other, e) : null; if (dl !== null) o.deal = dl; } } else { var sp = e.split.filter(function(s) { return s.key === l.key; })[0]; o.key = l.key; o.amt = l.amt; o.label = sp ? sp.label : l.key; }
         return o;
     }).filter(Boolean);
 }
@@ -3658,9 +3658,10 @@ function tradeSpend(camp, pays) {
 net.tradeFights = function() { return !!tradeAct(getActiveCampaign()); };   // the system lets a trade happen in a fight: its row stands on an NPC there (trade.js canAsk)
 function tradeView(tr, you, status, msg) {
     var S = SC(), camp = getActiveCampaign(), ca = tradeChar(camp, tr.a.charId), cb = tradeChar(camp, tr.b.charId), sys = camp && camp.system;
-    var side = function(sd, ch, off, ok) { var o = { charId: sd.charId, name: String((ch && ch.name) || 'A character').slice(0, 60), ok: !!ok, lines: S && sys && ch ? tradeLines(S, sys, ch, off, sd.by ? 'player' : 'gm') : [] }, mo = S && S.tradeMoney && sys && ch ? S.tradeMoney(sys, ch, off) : []; if (mo.length) o.money = mo; if (curs && ch && ch.trader && Array.isArray(ch.trader.acc)) o.acc = ch.trader.acc.slice(); return o; };
+    var side = function(sd, ch, off, ok, other) { var o = { charId: sd.charId, name: String((ch && ch.name) || 'A character').slice(0, 60), ok: !!ok, lines: S && sys && ch ? tradeLines(S, sys, ch, off, sd.by ? 'player' : 'gm', other) : [] }, mo = S && S.tradeMoney && sys && ch ? S.tradeMoney(sys, ch, off) : []; if (mo.length) o.money = mo; if (curs && ch && ch.trader && Array.isArray(ch.trader.acc)) o.acc = ch.trader.acc.slice(); if (rates && ch && ch.trader) ['buy', 'sell'].forEach(function(k) { if (typeof ch.trader[k] === 'number') o[k] = ch.trader[k]; }); return o; };   // 157 M1c: its buy and sell prices
+    var rates = !!(S && S.tradeRatesOn && S.tradeRatesOn(sys));   // 157 M1c
     var curs = sys && Array.isArray(sys.currencies) && sys.currencies.length ? [{ key: '*', label: 'The base unit' }].concat(sys.currencies.map(function(c) { return { key: c.key, label: String(c.label || c.key).slice(0, 60) }; })) : null;   // 157 M1b: what a side may accept   // 157 M1b: the money on offer, a Separate currency's on its own line
-    var v = { tid: tr.tid, status: status || tr.status, you: you, a: side(tr.a, ca, tr.offA, tr.okA), b: side(tr.b, cb, tr.offB, tr.okB) }; if (curs) v.curs = curs;
+    var v = { tid: tr.tid, status: status || tr.status, you: you, a: side(tr.a, ca, tr.offA, tr.okA, cb), b: side(tr.b, cb, tr.offB, tr.okB, ca) }; if (curs) v.curs = curs; if (rates) v.rates = true;
     // where an amount this side receives lands (the receiver picks a chip): only on the view of one who acts for that side, since it names their own rows
     if (S && S.tradeInto && sys) [['a', ca, cb, tr.offB, tr.intoA], ['b', cb, ca, tr.offA, tr.intoB]].forEach(function(q) {
         if (!(you === 'both' || you === q[0]) || !q[1] || !q[2]) return; var seen = Object.create(null), gets = [];
@@ -3759,6 +3760,12 @@ function tradeDo(actor, msg) {
         if (tN) chT.trader = tN; else delete chT.trader; chT.updated = Date.now(); saveRemoteSoon();
         var hadT = tr2.okA || tr2.okB; tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, hadT ? 'The terms changed: confirm again.' : ''); return { ok: true };
     }
+    if (msg.op === 'rates') {   // 157 M1c: a side's Buys at and Sells at, set in the window by whoever acts for it, kept on its character as what it accepts is
+        if (!(S.tradeRatesOn && S.tradeRatesOn(camp.system))) return { error: 'This game sets no buy and sell prices.' };
+        var chR = mine === 'a' ? ca : cb, rN = Object.assign({}, chR.trader || {}); ['buy', 'sell'].forEach(function(k) { if (typeof msg[k] === 'number') rN[k] = msg[k]; else delete rN[k]; });
+        var rC = S.cleanTrader ? S.cleanTrader(rN) : null; if (rC) chR.trader = rC; else delete chR.trader; chR.updated = Date.now(); saveRemoteSoon();
+        var hadR = tr2.okA || tr2.okB; tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, hadR ? 'The terms changed: confirm again.' : ''); return { ok: true };
+    }
     if (msg.op === 'confirm') {
         if (mine === 'a') tr2.okA = msg.on === true; else tr2.okB = msg.on === true;
         if (!(tr2.okA && tr2.okB)) { tradeTell(tr2); return { ok: true }; }
@@ -3801,6 +3808,7 @@ net.tradeAsk = function(from, to) { return tradeSendUp({ op: 'ask', from: String
 net.tradeAnswer = function(tid, yes) { if (window.wpNotices && window.wpNotices.done) { try { window.wpNotices.done('trade:' + tid); } catch (e) {} } return tradeSendUp({ op: 'answer', tid: String(tid || ''), yes: yes === true }); };
 net.tradePut = function(tid, offer, side) { var o = { op: 'put', tid: String(tid || ''), offer: Array.isArray(offer) ? offer.slice(0, 80) : [] }; if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };
 net.tradeConfirm = function(tid, on, side) { var o = { op: 'confirm', tid: String(tid || ''), on: on === true }; if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };
+net.tradeRates = function(tid, r, side) { var o = { op: 'rates', tid: String(tid || '') }; ['buy', 'sell'].forEach(function(k) { if (r && typeof r[k] === 'number' && isFinite(r[k])) o[k] = r[k]; }); if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };   // 157 M1c
 net.tradeAccepts = function(tid, acc, side) { var o = { op: 'accepts', tid: String(tid || ''), acc: Array.isArray(acc) ? acc.slice(0, 13).map(String) : [] }; if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };   // 157 M1b
 net.tradeInto = function(tid, fid, row, side) { var o = { op: 'into', tid: String(tid || ''), fid: String(fid || ''), row: typeof row === 'string' ? row : '' }; if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };
 net.tradeCancel = function(tid) { return tradeSendUp({ op: 'cancel', tid: String(tid || '') }); };
@@ -3822,7 +3830,7 @@ function cleanTradeView(v) {
             if (!l || typeof l !== 'object' || typeof l.fid !== 'string' || typeof l.rowId !== 'string' || l.fid.length > 40 || l.rowId.length > 40) return null;
             var o = { fid: l.fid, rowId: l.rowId, name: txt(l.name, 80) || 'Item', list: txt(l.list, 60) };
             if (typeof l.key === 'string') { var a = num(l.amt); if (a === null) return null; o.key = l.key.slice(0, 40); o.amt = a; o.label = txt(l.label, 60) || o.key; }
-            else { var q = num(l.qty); if (q === null || q < 1) return null; o.qty = Math.floor(q); var p = num(l.price); if (p !== null) o.price = p; }
+            else { var q = num(l.qty); if (q === null || q < 1) return null; o.qty = Math.floor(q); var p = num(l.price); if (p !== null) { o.price = p; var dv = num(l.deal); if (dv !== null) o.deal = dv; } }
             return o;
         }).filter(Boolean);
         var out = { charId: s.charId, name: txt(s.name, 60) || 'A character', ok: s.ok === true, lines: lines };
@@ -3835,10 +3843,11 @@ function cleanTradeView(v) {
         if (gets.length) out.gets = gets;
         var mon = (Array.isArray(s.money) ? s.money.slice(0, 13) : []).map(function(x) { var n = x && typeof x === 'object' ? num(x.v) : null; return n === null ? null : { label: txt(x.label, 60) || 'Money', v: n }; }).filter(Boolean); if (mon.length) out.money = mon;   // 157 M1b
         var acS = (Array.isArray(s.acc) ? s.acc.slice(0, 13) : []).filter(function(k) { return typeof k === 'string' && /^(\*|[A-Za-z][A-Za-z0-9_]{0,23})$/.test(k); }); if (acS.length) out.acc = acS;
+        ['buy', 'sell'].forEach(function(k) { var rv = num(s[k]); if (rv !== null && rv >= 0 && rv <= 1000) out[k] = Math.round(rv); });   // 157 M1c
         return out;
     };
     var a = side(v.a), b = side(v.b); if (!a || !b) return null;
-    var o = { tid: v.tid, status: st, you: you, a: a, b: b }; var cuV = (Array.isArray(v.curs) ? v.curs.slice(0, 13) : []).map(function(c) { return c && typeof c === 'object' && typeof c.key === 'string' && /^(\*|[A-Za-z][A-Za-z0-9_]{0,23})$/.test(c.key) ? { key: c.key, label: txt(c.label, 60) || c.key } : null; }).filter(Boolean); if (cuV.length) o.curs = cuV; var m = txt(v.msg, 200); if (m) o.msg = m; var cs = txt(v.cost, 200); if (cs) o.cost = cs; return o;
+    var o = { tid: v.tid, status: st, you: you, a: a, b: b }; if (v.rates === true) o.rates = true; var cuV = (Array.isArray(v.curs) ? v.curs.slice(0, 13) : []).map(function(c) { return c && typeof c === 'object' && typeof c.key === 'string' && /^(\*|[A-Za-z][A-Za-z0-9_]{0,23})$/.test(c.key) ? { key: c.key, label: txt(c.label, 60) || c.key } : null; }).filter(Boolean); if (cuV.length) o.curs = cuV; var m = txt(v.msg, 200); if (m) o.msg = m; var cs = txt(v.cost, 200); if (cs) o.cost = cs; return o;
 }
 // [netcheck:trade-end]
 // Turn-based combat T2 (owner, 2026-09-26): the token whose turn it is on the map in view, when it is this player's own — { mapId, rowId, tok }
@@ -8502,7 +8511,7 @@ function handleMessage(msg, conn) {
         if (!allow('trade', { perMs: 0, burst: 20, windowMs: 4000, table: 400 }, conn.peer)) { try { conn.send({ type: 'tradeState', refused: 'Too many steps at once. Try again in a moment.' }); } catch (e) { sendFailed(e); } return; }   // no spacing: a number left by a press on Confirm sends both at once (found live, 2026-10-30: the Confirm was dropped without a word)
         if (peerPaused(conn.peer)) { try { conn.send({ type: 'tradeState', refused: !net.paused && typeof peerGmPaused === 'function' && !peerGmPaused(conn.peer) && typeof HELD_WORDS === 'string' ? HELD_WORDS : 'The table is paused.' }); } catch (e) { sendFailed(e); } return; }
         var qTr = { op: msg.op }; ['from', 'to', 'tid', 'side', 'fid', 'row'].forEach(function(k) { if (typeof msg[k] === 'string' && msg[k].length <= 40) qTr[k] = msg[k]; });
-        if (msg.yes === true) qTr.yes = true; if (msg.on === true) qTr.on = true; if (Array.isArray(msg.offer)) qTr.offer = msg.offer.slice(0, 80); if (Array.isArray(msg.acc)) qTr.acc = msg.acc.slice(0, 13);
+        if (msg.yes === true) qTr.yes = true; if (msg.on === true) qTr.on = true; if (Array.isArray(msg.offer)) qTr.offer = msg.offer.slice(0, 80); if (Array.isArray(msg.acc)) qTr.acc = msg.acc.slice(0, 13); ['buy', 'sell'].forEach(function(k) { if (typeof msg[k] === 'number' && isFinite(msg[k])) qTr[k] = msg[k]; });
         var rTr = tradeDo({ pid: prTr.id }, qTr);
         if (rTr && rTr.error) { try { conn.send({ type: 'tradeState', refused: String(rTr.error).slice(0, 200) }); } catch (e) { sendFailed(e); } }
         // [netcheck:tradebranch-end]

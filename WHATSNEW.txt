@@ -78,6 +78,8 @@ The System editor
   in a Separate currency is paid from it alone. The trade window says how much
   money each side offers, each Separate currency on a line of its own, and a
   trader ticks the currencies it accepts there, kept for its next trade.
+  A game may let a trader buy and sell at a per cent of list price, set in the
+  trade window, and an entry may carry its own buy and sell figures.
 - A list can say what a trade does to a row: a stat is cleared, set or moved to
   another, which may be GM-only. It can also call for a roll, made for the GM alone
   once both sides confirm. A column can show on some rows only.

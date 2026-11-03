@@ -39,7 +39,7 @@ function twInv(doc, name, ch, add) {
     });
     return inv;
 }
-function twTotal(lines) { var t = 0, any = false; (lines || []).forEach(function(l) { if (typeof l.price === 'number' && l.qty) { t += l.price * l.qty; any = true; } }); return any ? t : null; }
+function twTotal(lines, deal) { var t = 0, any = false; (lines || []).forEach(function(l) { if (typeof l.price === 'number' && l.qty) { t += (deal && typeof l.deal === 'number' ? l.deal : l.price) * l.qty; any = true; } }); return any ? t : null; }   // deal: at this trade's prices (157 M1c)
 // draw the window's body for a view: doc the page, root the body to fill, off { a: [...], b: [...] } what each side of this screen may offer,
 // act(kind, side, arg) the window's own handler
 function twDraw(doc, root, v, off, act) {
@@ -58,7 +58,7 @@ function twDraw(doc, root, v, off, act) {
                 box.addEventListener('change', function() { act('num', sd, { i: i, n: Number(box.value) }); }); row.appendChild(box);
                 var x = twEl(doc, 'button', 'tool ghost trade-x', '×'); x.type = 'button'; x.title = 'Take it off the table'; x.setAttribute('aria-label', 'Take ' + l.name + ' off the table'); x.setAttribute('data-k', 'drop|' + sd + '|' + i); x.addEventListener('click', function() { act('drop', sd, i); }); row.appendChild(x);
             } else row.appendChild(twEl(doc, 'span', 'trade-qty', l.key !== undefined ? twNum(l.amt) : 'x' + l.qty));
-            if (typeof l.price === 'number' && l.key === undefined) row.appendChild(twEl(doc, 'span', 'trade-price', twNum(l.price * l.qty)));
+            if (typeof l.price === 'number' && l.key === undefined) { var pe = twEl(doc, 'span', 'trade-price' + (typeof l.deal === 'number' ? ' trade-deal' : ''), twNum((typeof l.deal === 'number' ? l.deal : l.price) * l.qty)); if (typeof l.deal === 'number') pe.title = 'List price ' + twNum(l.price * l.qty); row.appendChild(pe); }   // 157 M1c: at this trade's price, the list price in its tooltip
             list.appendChild(row);
         });
         col.appendChild(list);
@@ -71,7 +71,8 @@ function twDraw(doc, root, v, off, act) {
             gs.value = g.pick || ''; gs.addEventListener('change', function() { act('into', sd, { fid: g.fid, row: gs.value }); });
             gr.appendChild(gs); col.appendChild(gr);
         });
-        var tot = twTotal(s.lines); if (tot !== null) col.appendChild(twEl(doc, 'div', 'trade-total', 'Worth at list price: ' + twNum(tot)));
+        var tot = twTotal(s.lines), dtot = twTotal(s.lines, true), dealt = (s.lines || []).some(function(l) { return typeof l.deal === 'number'; });
+        if (tot !== null) col.appendChild(twEl(doc, 'div', 'trade-total', dealt ? 'Worth at these prices: ' + twNum(dtot) + ' (list price ' + twNum(tot) + ')' : 'Worth at list price: ' + twNum(tot)));   // 157 M1c
         (s.money || []).forEach(function(m) { col.appendChild(twEl(doc, 'div', 'trade-total trade-money', m.label + ' offered: ' + twNum(m.v))); });   // 157 M1b: the money on offer, a Separate currency on its own line
         if (Array.isArray(v.curs) && v.curs.length) {   // 157 M1b: the currencies a side accepts, ticked by whoever acts for it; none ticked is open
             var accN = Array.isArray(s.acc) ? s.acc : [], accOf = function(k) { return accN.some(function(x) { return String(x).toLowerCase() === String(k).toLowerCase(); }); };
@@ -82,6 +83,16 @@ function twDraw(doc, root, v, off, act) {
                     lb.appendChild(cb); lb.appendChild(twEl(doc, 'span', null, c.label)); ab.appendChild(lb); });
                 ab.appendChild(twEl(doc, 'small', 'trade-acc-line', accN.length ? 'Money in any other currency is refused.' : 'Nothing ticked: you decide as you confirm.')); col.appendChild(ab);
             } else col.appendChild(twEl(doc, 'div', 'trade-acc-said', accN.length ? 'Accepts ' + v.curs.filter(function(c) { return accOf(c.key); }).map(function(c) { return c.label; }).join(', ') + '.' : 'Accepts any money.'));
+        }
+        if (v.rates) {   // 157 M1c: a trader's buy and sell prices, a per cent of list price, set by whoever acts for that side
+            if (me && v.status === 'open') {
+                var rb = twEl(doc, 'div', 'trade-acc trade-rates'); rb.appendChild(twEl(doc, 'span', 'trade-acc-cap', 'Prices'));
+                [['sell', 'Sells at', 'What this side asks for what it gives, as a per cent of list price. An entry\u2019s own Sell figure comes first'], ['buy', 'Buys at', 'What this side pays for what it is given, as a per cent of list price. An entry\u2019s own Buy figure comes first']].forEach(function(q) {
+                    var lb = twEl(doc, 'label', 'trade-acc-one'), ib = doc.createElement('input'); ib.type = 'number'; ib.min = '0'; ib.max = '1000'; ib.step = '1'; ib.className = 'trade-rate field'; ib.value = typeof s[q[0]] === 'number' ? String(s[q[0]]) : ''; ib.placeholder = '100'; ib.title = q[2]; ib.setAttribute('aria-label', q[1] + ' per cent'); ib.setAttribute('data-k', 'rate|' + sd + '|' + q[0]);
+                    ib.addEventListener('change', function() { var r = {}; ['buy', 'sell'].forEach(function(k) { var x = k === q[0] ? ib.value : (typeof s[k] === 'number' ? String(s[k]) : ''); var n = Number(x); if (String(x).trim() !== '' && isFinite(n)) r[k] = n; }); act('rate', sd, r); });
+                    lb.appendChild(twEl(doc, 'span', null, q[1])); lb.appendChild(ib); lb.appendChild(twEl(doc, 'span', null, '%')); rb.appendChild(lb); });
+                rb.appendChild(twEl(doc, 'small', 'trade-acc-line', 'Of list price. Empty is list price. An entry\u2019s own Buy or Sell figure comes first.')); col.appendChild(rb);
+            } else if (typeof s.sell === 'number' || typeof s.buy === 'number') col.appendChild(twEl(doc, 'div', 'trade-acc-said', [typeof s.sell === 'number' ? 'Sells at ' + s.sell + '%' : '', typeof s.buy === 'number' ? 'buys at ' + s.buy + '%' : ''].filter(Boolean).join(' and ').replace(/^b/, 'B') + ' of list price.'));
         }
         if (me && v.status === 'open') {
             col.appendChild(twInv(doc, s.name, twChoices(off[sd], s.lines), function(v) { act('add', sd, v); }));
@@ -124,6 +135,7 @@ function twAct(kind, sd, arg) {
     else if (kind === 'ok') say(n.tradeConfirm(v.tid, arg === true, side));
     else if (kind === 'into' && n.tradeInto) say(n.tradeInto(v.tid, arg.fid, arg.row, side));
     else if (kind === 'acc' && n.tradeAccepts) say(n.tradeAccepts(v.tid, arg, side));   // 157 M1b
+    else if (kind === 'rate' && n.tradeRates) say(n.tradeRates(v.tid, arg, side));   // 157 M1c
 }
 function twRender() {
     var v = _tw.view, body = document.getElementById('tradeBody'); if (!body) return;

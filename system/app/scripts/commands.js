@@ -130,7 +130,7 @@ function cmdById(id) { for (var i = 0; i < COMMANDS.length; i++) if (COMMANDS[i]
 function cmdCan(c) { try { return c.can(); } catch (e) { return 'That cannot run now.'; } }
 // Run a command. via: 'jump' (the quick jump) or 'key'. Answers true, or the words that say why it did not run
 function cmdRun(id, via) {
-    var c = cmdById(id), how = via === 'key' ? 'key' : 'jump';
+    var c = cmdById(id), how = via === 'key' || via === 'pad' ? via : 'jump';   // 1.6.2: a controller's button (gamepad.js) too
     if (!c) { cmdLog('run-unknown', { via: how }); return 'There is no such command.'; }
     var ok = cmdCan(c);
     if (ok !== true) { cmdLog('run-held', { id: c.id, via: how }); return typeof ok === 'string' ? ok : 'That cannot run now.'; }
@@ -202,7 +202,14 @@ function keysDraw(doc) {
         key.addEventListener('keydown', function(e) { keysPress(doc, c.id, key, e); });
         key.addEventListener('blur', function() { if (_pick && _pick.btn === key) keysUnpick(doc, ''); });
         off.addEventListener('click', function() { var ok = keysSet(doc, c.id, ''); keysSay(doc, ok ? c.name + ' has no key now.' : 'The change could not be kept on this computer.'); cmdLog(ok ? 'key-off' : 'key-save-failed', { id: c.id }); });
-        row.appendChild(nm); row.appendChild(key); row.appendChild(off); list.appendChild(row);
+        row.appendChild(nm); row.appendChild(key); row.appendChild(off);
+        var P = typeof window !== 'undefined' ? window.wpPad : null;   // 1.6.2, backlog 202: the controller's button beside the key, for what a controller runs
+        if (P && typeof P.has === 'function' && P.has(c.id)) {
+            var pad = doc.createElement('button'), pw = P.word(c.id); pad.type = 'button'; pad.className = 'tool ghost set-pad'; pad.setAttribute('data-cmd', c.id); pad.textContent = pw || 'None'; pad.title = 'Controller: press, then press the button you want for ' + c.name;
+            pad.addEventListener('click', function() { var on = P.pick(c.id, c.name, keysNames(), function(words) { keysDraw(doc); keysSay(doc, words); }); if (on) { pad.textContent = 'Press a button\u2026'; pad.classList.add('hk-picking'); keysSay(doc, 'Press the controller button you want for ' + c.name + '. Press here again to cancel.'); } });
+            row.appendChild(pad);
+        }
+        list.appendChild(row);
     });
     return true;
 }
@@ -246,6 +253,7 @@ function moveRefusal(k, id, keys, names) {
 }
 function keysReset(doc) {
     var ok = true; try { localStorage.removeItem('wp_keys'); } catch (e) { ok = false; }
+    if (typeof window !== 'undefined' && window.wpPad && typeof window.wpPad.reset === 'function') window.wpPad.reset();   // 1.6.2: and the controller's buttons
     keysLoad(); keysDraw(doc);
     keysSay(doc, ok ? 'Every command has the key it came with again.' : 'The change could not be kept on this computer.');
     cmdLog(ok ? 'keys-reset' : 'key-save-failed', { n: Object.keys(_keys).filter(function(id) { return !!_keys[id]; }).length });
@@ -370,5 +378,5 @@ function jumpAct(en) {
     try { return String(c.act() || ''); } catch (e) { return ''; }
 }
 
-window.wpCommands = { list: COMMANDS, byId: cmdById, run: cmdRun, rows: jumpRows, go: jumpGo, act: jumpAct, settingRows: function() { return setRows(document, window); }, openSetting: setOpen };
+window.wpCommands = { list: COMMANDS, byId: cmdById, run: cmdRun, rows: jumpRows, go: jumpGo, act: jumpAct, heldNow: function() { return hotkeyHeld(document, window, { target: document.activeElement }); }, settingRows: function() { return setRows(document, window); }, openSetting: setOpen };
 export { COMMANDS, cmdById, cmdRun, jumpRows, jumpGo, jumpAct, setRows };

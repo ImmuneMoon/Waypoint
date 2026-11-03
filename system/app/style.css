@@ -1356,6 +1356,8 @@
   .set-key-row .set-key { flex: none; min-width: 76px; padding: 3px 8px; font-size: 11.5px; }
   .set-key.hk-picking { border-color: var(--gold); color: var(--gold); }
   .set-key-row .set-key-off { flex: none; padding: 3px 8px; }
+  .set-key-row .set-pad { flex: none; min-width: 76px; padding: 3px 8px; font-size: 11.5px; }
+  .set-pad.hk-picking { border-color: var(--gold); color: var(--gold); }
   .set-keys-say { font-size: 10.5px; color: var(--gold); line-height: 1.4; margin: 2px 0 8px; }
   .set-keys-say:empty { display: none; }
   /* 1.5.4 (pageshelf.js): the Pages shelf on the play map's toolbar. Its rows are made of elements and text nodes by the script */

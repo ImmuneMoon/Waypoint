@@ -1504,6 +1504,41 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
       return true;
   }
 
+  // 1.6.2, backlog 202: the selection moved one step, by a key (the handler below) or a controller (gamepad.js, through wpNudge). shift: bigger
+  // steps, or the other diagonal on a hex map. Answers whether anything moved
+  function nudgeSel(mvDir, shift) {
+      var m2 = getActiveMap();
+      if (!m2 || m2.type !== 'map') return false;
+      var step = shift ? 10 : 1;
+      var dx = mvDir[0] * step, dy = mvDir[1] * step;
+      if (state.viewMode === 'visual') {
+          var ids2 = selectedWbIds();
+          if (!ids2.length) return false;
+              ids2.forEach(function(id) {
+                  var it = m2.whiteboard.find(function(x) { return x.id === id; });
+                  if (!it || it.locked) return;
+                  var snapN = window.wpSnapOn ? window.wpSnapOn() : !!state.snap;   // the snap rule: with Snap on a token hops cell to cell, off it moves by pixels like anything else
+                  var hexToken = snapN && state.gridType === 'hex' && (it.isChar || it.type === 'hexagon' || it.shape === 'hexagon');
+                  if (hexToken) {
+                      // On a hex grid a token hops cell to cell: ↑/↓ one row, ←/→ one
+                      // column along the diagonal (Shift takes the other diagonal)
+                      if (dy) { it.y += Math.sign(dy) * 52; }
+                      else { it.x += Math.sign(dx) * 45; it.y += (shift ? -1 : 1) * Math.sign(dx) * -26; }
+                      if (window.wpSeatHex) window.wpSeatHex(it, m2);
+                  } else if (snapN && (it.isChar || it.waiting) && window.wpSeatDrop) {   // a square grid or a map with no grid: one cell (one dot) at a time
+                      it.x += Math.sign(dx) * 50; it.y += Math.sign(dy) * 50;
+                      window.wpSeatDrop(it, m2);
+                  } else { it.x += dx; it.y += dy; }
+                  if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(it, true);
+              });
+          save(); render(); return true;
+      } else if (state.viewMode === 'data' && state.selId) {
+          var room = m2.rooms.find(function(r) { return r.id === state.selId; });
+          if (room) { room.x += dx; room.y += dy; save(); render(); return true; }
+      }
+      return false;
+  }
+  window.wpNudge = function(dir, shift) { return Array.isArray(dir) && dir.length === 2 && canPersistLocal() ? nudgeSel(dir, shift === true) : false; };
   document.addEventListener('keydown', function(e) {
 
       var t = e.target;
@@ -1554,53 +1589,7 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
       var ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
       var mvDir = typeof window.wpMoveDir === 'function' ? window.wpMoveDir(e) : ARROWS[e.key];   // 1.6.2, backlog 202: the keys the four moves have now (commands.js), the arrows at first
-      if (mvDir) {
-
-          var m2 = getActiveMap();
-
-          if (!m2 || m2.type !== 'map') return;
-
-          var step = e.shiftKey ? 10 : 1;
-
-          var dx = mvDir[0] * step, dy = mvDir[1] * step;
-
-          if (state.viewMode === 'visual') {
-
-              var ids2 = selectedWbIds();
-
-              if (!ids2.length) return;
-
-              ids2.forEach(function(id) {
-                  var it = m2.whiteboard.find(function(x) { return x.id === id; });
-                  if (!it || it.locked) return;
-                  var snapN = window.wpSnapOn ? window.wpSnapOn() : !!state.snap;   // the snap rule: with Snap on a token hops cell to cell, off it moves by pixels like anything else
-                  var hexToken = snapN && state.gridType === 'hex' && (it.isChar || it.type === 'hexagon' || it.shape === 'hexagon');
-                  if (hexToken) {
-                      // On a hex grid a token hops cell to cell: ↑/↓ one row, ←/→ one
-                      // column along the diagonal (Shift takes the other diagonal)
-                      if (dy) { it.y += Math.sign(dy) * 52; }
-                      else { it.x += Math.sign(dx) * 45; it.y += (e.shiftKey ? -1 : 1) * Math.sign(dx) * -26; }
-                      if (window.wpSeatHex) window.wpSeatHex(it, m2);
-                  } else if (snapN && (it.isChar || it.waiting) && window.wpSeatDrop) {   // a square grid or a map with no grid: one cell (one dot) at a time
-                      it.x += Math.sign(dx) * 50; it.y += Math.sign(dy) * 50;
-                      window.wpSeatDrop(it, m2);
-                  } else { it.x += dx; it.y += dy; }
-                  if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(it, true);
-              });
-
-              save(); render(); e.preventDefault();
-
-          } else if (state.viewMode === 'data' && state.selId) {
-
-              var room = m2.rooms.find(function(r) { return r.id === state.selId; });
-
-              if (room) { room.x += dx; room.y += dy; save(); render(); e.preventDefault(); }
-
-          }
-
-          return;
-
-      }
+      if (mvDir) { if (nudgeSel(mvDir, e.shiftKey)) e.preventDefault(); return; }
 
       // [cleanupcheck:bksp-start]
       // 1.5.6 (the sweep of 2026-10-17, seen live): Backspace deletes nothing while a button or a link has the focus. Shift+Tab out of

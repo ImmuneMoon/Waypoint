@@ -170,7 +170,7 @@ function drawRow(doc, row, m) {
         m.saved.list.forEach(function(f, i) { var b = chip(doc, { text: '\u2605 ' + f.name, active: f.active, cls: 'img-saved', title: 'Show what this saved filter picks: its tags and its words' }); data(b, 'saved', i); row.appendChild(b); });
         if (!m.saved.list.length) row.appendChild(el(doc, 'span', 'img-saved-none', 'None yet: pick tags or type words, then save them.'));
         if (m.saved.save) row.appendChild(chip(doc, { text: 'Save this filter\u2026', cls: 'img-cat-new', act: 'filter-save', title: 'Keep what is picked now, the tags, the switch and the words, under a name of yours' }));
-        if (m.saved.imp) row.appendChild(chip(doc, { text: 'Import from another campaign\u2026', cls: 'img-cat-new', act: 'filter-import', title: 'Bring in a saved filter of another campaign of yours' }));
+        if (m.saved.imp) row.appendChild(chip(doc, { text: 'Import a saved filter\u2026', cls: 'img-cat-new', act: 'filter-import', title: 'Bring in a saved filter of another campaign of yours' }));
         if (m.saved.tools) {
             var ft = el(doc, 'div', 'img-cat-tools');
             ft.appendChild(chip(doc, { text: 'Rename', cls: 'img-cat-tool', act: 'filter-rename', title: 'Rename this saved filter' }));

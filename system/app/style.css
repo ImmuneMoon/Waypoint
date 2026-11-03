@@ -3576,7 +3576,7 @@
   #declareBox .dc-head { font-weight: 600; color: var(--ink); }
   #declareBox .dc-out { color: var(--muted); font-size: 12px; }
   #declareBox .dc-reveal { align-self: flex-start; }
-  #systemModal:not(.sys-show-keys) .sys-list-statkey, #systemModal:not(.sys-show-keys) .sys-list-colkey, #systemModal:not(.sys-show-keys) .sys-list-ctkey, #systemModal:not(.sys-show-keys) .sys-dmgr-ykey, #systemModal:not(.sys-show-keys) .sys-dmgr-kkey, #systemModal:not(.sys-show-keys) .sys-item-key, #systemModal:not(.sys-show-keys) .sys-tbl-ckey { display: none; }
+  #systemModal:not(.sys-show-keys) .sys-list-statkey, #systemModal:not(.sys-show-keys) .sys-list-colkey, #systemModal:not(.sys-show-keys) .sys-list-ctkey, #systemModal:not(.sys-show-keys) .sys-dmgr-ykey, #systemModal:not(.sys-show-keys) .sys-dmgr-kkey, #systemModal:not(.sys-show-keys) .sys-item-key, #systemModal:not(.sys-show-keys) .sys-tbl-ckey, #systemModal:not(.sys-show-keys) .sys-list-names, #systemModal:not(.sys-show-keys) .sys-targetreads { display: none; }
   #systemModal:not(.sys-show-keys) label:has(> .sys-env-key), #systemModal:not(.sys-show-keys) label:has(> .sys-tbl-key), #systemModal:not(.sys-show-keys) label:has(> .sys-link-key), #systemModal:not(.sys-show-keys) label:has(> .sys-key) { display: none; }
   #systemModal:not(.sys-show-keys) .sys-tbl-grid tr > :first-child { display: none; }
   #systemModal:not(.sys-show-keys) .sys-pick-key { display: none; }

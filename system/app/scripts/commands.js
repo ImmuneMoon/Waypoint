@@ -209,7 +209,7 @@ function keysDraw(doc) {
             var pad = doc.createElement('button'), pw = P.word(c.id); pad.type = 'button'; pad.className = 'tool ghost set-pad'; pad.setAttribute('data-cmd', c.id); pad.textContent = pw || 'None'; pad.title = 'Controller: press, then press the button you want for ' + c.name;
             pad.addEventListener('click', function() { var on = P.pick(c.id, c.name, keysNames(), function(words) { keysDraw(doc); keysSay(doc, words); }); if (on) { pad.textContent = 'Press a button\u2026'; pad.classList.add('hk-picking'); keysSay(doc, 'Press the controller button you want for ' + c.name + '. Press here again to cancel.'); } });
             row.appendChild(pad);
-        }
+        } else if (P && typeof P.has === 'function') { var gap = doc.createElement('span'); gap.className = 'set-pad-none'; gap.setAttribute('aria-hidden', 'true'); row.appendChild(gap); }   // what a controller does not run keeps its column, so the keys stand in one line
         list.appendChild(row);
     });
     return true;

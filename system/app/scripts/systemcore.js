@@ -2724,7 +2724,7 @@ function cleanCurrencies(v) {
         var w = typeof c.worth === 'number' && fin(c.worth) && c.worth > 0 ? Math.round(clampNum(c.worth, 1e-6, 1e9) * 1e6) / 1e6 : 1, o = { key: key, label: cutText(c.label, LIMITS.label) || key, worth: w || 1e-6 };
         if (c.sep === true) o.sep = true;
         if (c.kind === 'physical') { o.kind = 'physical'; if (typeof c.weight === 'number' && fin(c.weight) && c.weight > 0) o.weight = Math.round(clampNum(c.weight, 0, 1e6) * 1e4) / 1e4; }   // 157 M1k: what one of it weighs
-        else if (c.kind === 'digital') { o.kind = 'digital'; if (typeof c.device === 'string' && DEVICE_ID.test(c.device)) o.device = c.device; }   // 157 M1k: the device it needs
+        else if (c.kind === 'digital') { o.kind = 'digital'; if (typeof c.device === 'string' && DEVICE_ID.test(c.device)) { o.device = c.device; var dnm = cutText(c.deviceName, LIMITS.itemName); if (dnm) o.deviceName = dnm; } }   // 157 M1k: the device it needs
         res.push(o);
     });
     return res;
@@ -2758,7 +2758,7 @@ function carriesEntry(sys, char, id) {
 // the words that stop a character paying or being paid in a digital currency it has no device for; '' where it may. Pure
 function curDeviceSays(sys, char, curKey, paid) {
     var cu = curKey ? moneyCurs(sys).filter(function(c) { return lower(c.key) === lower(curKey); })[0] : null; if (!cu || cu.kind !== 'digital' || !cu.device || carriesEntry(sys, char, cu.device)) return '';
-    var it = (isObj(sys) && Array.isArray(sys.items) ? sys.items : []).concat(isObj(sys) && Array.isArray(sys.core) ? sys.core : []).filter(function(x) { return isObj(x) && (x.id === cu.device || (typeof x.key === 'string' && lower(x.key) === lower(cu.device))); })[0], dn = it && it.vis !== 'gm' ? cutText(it.name, LIMITS.itemName) : '';
+    var it = (isObj(sys) && Array.isArray(sys.items) ? sys.items : []).concat(isObj(sys) && Array.isArray(sys.core) ? sys.core : []).filter(function(x) { return isObj(x) && (x.id === cu.device || (typeof x.key === 'string' && lower(x.key) === lower(cu.device))); })[0], dn = it ? (it.vis !== 'gm' ? cutText(it.name, LIMITS.itemName) : '') : cu.deviceName || '';
     return (cutText(isObj(char) ? char.name : '', 60) || 'This character') + ' carries no ' + (dn || 'device') + ' to ' + (paid ? 'be paid' : 'pay') + ' in ' + cu.label + '.';
 }
 // 157 M1k: the weight of the physical money a character holds, each currency's units times what one of it weighs. Pure

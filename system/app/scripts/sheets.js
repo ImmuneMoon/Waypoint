@@ -10246,10 +10246,12 @@ function renderCurrencies() {
         kd.addEventListener('change', function() { if (kd.value) t.kind = kd.value; else delete t.kind; if (t.kind !== 'physical') delete t.weight; if (t.kind !== 'digital') delete t.device; ch(true); }); if (window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(kd);   // a key step opens the list, since a pick draws the row again
         var kdExtra = null;
         if (t.kind === 'physical') { var wg = numInput('sys-cur-weight', typeof t.weight === 'number' ? t.weight : '', 'What one of it weighs, in your game\u2019s own unit. Formulas read the whole as Money.weight', 'any'); wg.addEventListener('input', function() { var n = Number(wg.value); if (String(wg.value).trim() !== '' && isFinite(n) && n > 0) t.weight = n; else delete t.weight; ch(); }); kdExtra = capped('Weight of one', wg); }
-        else if (t.kind === 'digital') {   // by its entry key, so an entry of the library is a device too
-            var dvK = input('sys-cur-device field', t.device || '', 'The entry a character must carry to pay or be paid in it', 'Entry'), dvSeen = Object.create(null), dvO = [];
-            (Array.isArray(draft.items) ? draft.items : []).concat(Array.isArray(draft.core) ? draft.core : []).forEach(function(x) { if (x && typeof x.key === 'string' && x.key && !dvSeen[x.key]) { dvSeen[x.key] = 1; dvO.push([x.key, x.name || x.key]); } }); dvO.sort(function(a, b) { return a[1].localeCompare(b[1]); });
-            dvK.addEventListener('input', function() { var v = String(dvK.value || '').trim(); if (v) t.device = v.slice(0, 64); else delete t.device; ch(); }); var dvW = entryPick(dvK, dvO, 'Needs nothing'); dvW.title = 'Only a character carrying this entry can pay or be paid in it'; kdExtra = capped('Device', dvW);
+        else if (t.kind === 'digital') {   // picked by its name, from the system's items and the library's entries, never typed
+            var dvO = typeof grantEntries === 'function' ? grantEntries() : [], dvS = el('select', 'field sys-cur-device'), dvHas = !t.device;
+            [['', 'Needs nothing']].concat(dvO).forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if ((t.device || '') === o[0]) { op.selected = true; dvHas = true; } dvS.appendChild(op); });
+            if (!dvHas) { var dvOld = el('option', null, t.deviceName || 'An entry no longer here'); dvOld.value = t.device; dvOld.selected = true; dvS.appendChild(dvOld); }
+            dvS.title = 'Only a character carrying this entry can pay or be paid in it'; dvS.addEventListener('change', function() { var pk = dvS.options[dvS.selectedIndex]; if (dvS.value) { t.device = dvS.value; t.deviceName = pk ? String(pk.text).replace(/ \(GM only\)$/, '').slice(0, 120) : ''; } else { delete t.device; delete t.deviceName; } ch(); });
+            kdExtra = capped('Device', dvS);
         }
         [nm, capped('Worth', wb), sepL, kd].concat(kdExtra ? [kdExtra] : []).concat([rm]).forEach(function(x) { rw.appendChild(x); }); wrap.appendChild(rw);
     });

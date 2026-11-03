@@ -1740,6 +1740,7 @@
   .sheet-debt input.sheet-debt-amt { width: 72px; }
   .trade-debt { color: var(--gold); }
   .trade-hag { color: var(--gold); }
+  .sheet-item-hot { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px; }
   .trade-hagbtn { align-self: flex-start; margin-top: 6px; }
   .trade-total { font-size: 12px; color: var(--dim); }
   .trade-state { font-size: 12px; color: var(--dim); }

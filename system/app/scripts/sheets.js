@@ -3053,6 +3053,11 @@ function onCtl(entry, c, f, spec, editable, labelled, okOn, show) {   // okOn (1
     var l = el('label', 'sheet-item-onl'); l.appendChild(cb); l.appendChild(el('span', 'sheet-item-onn', S.label)); return l;
 }
 // F4b: 📝 — the item's notes and the row's own note (a box for whoever may change the row); null when there is nothing to show
+function hotMark(box, entry, c, f) {   // 157 M1j: the GM marks a row Stolen or Illegal, a fact of the row the host keeps and its owner's copy carries
+    var w = el('label', 'sheet-item-hot'), s = el('select', 'field sheet-item-hotsel'), cur = entry.hot === 'stolen' || entry.hot === 'illegal' ? entry.hot : ''; w.appendChild(el('span', 'sheet-item-hotcap', 'Goods')); s.title = 'Stolen or Illegal: a trader not ticked Fence refuses it, and a fence buys it at its own per cent';
+    [['', 'Clean'], ['stolen', 'Stolen'], ['illegal', 'Illegal']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0] === cur) op.selected = true; s.appendChild(op); });
+    s.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { hot: s.value || null } }); }); w.appendChild(s); box.appendChild(w);
+}
 function noteBits(entry, def, c, f, editable, ovc, sysI, gm, may) {   // ovc (F4c2): what the copy holds of its own (ovCtx), for the dots; sysI, gm, may (1.6.0, backlog 206): the system drawn, the GM's sheet, and whether this viewer may change the row's look and log
     var box = el('div', 'sheet-item-noteline'), spec = f.list || null;
     if (spec && Array.isArray(spec.stats) && spec.stats.length) { var sln = spec.boxes === true && typeof statBoxes === 'function' ? statBoxes(entry, def, spec, ovc) : statLineNode(entry, def, spec, ovc); if (sln) box.appendChild(sln); }   // 1.6.0 R3: as boxes where the list ticks it   // F4c1: every stat (1.5.4: but a Hidden one), and what one cost
@@ -3062,6 +3067,7 @@ function noteBits(entry, def, c, f, editable, ovc, sysI, gm, may) {   // ovc (F4
     if (editable) { var ni = el('input', 'field sheet-item-note'); ni.type = 'text'; ni.dataset.fid = f.id; ni.dataset.part = 'note-' + rowIdOf(entry); ni.maxLength = LIMITS.rowNote; ni.placeholder = 'A note on this one'; ni.value = entry.note || ''; ni.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { note: ni.value } }); }); box.appendChild(ni); }
     else if (entry.note) box.appendChild(el('div', 'sheet-item-rownote', entry.note));
     if (spec && (spec.look || spec.workLog === true) && sysI && typeof lookBits === 'function') lookBits(box, entry, c, f, spec, sysI, gm, may);   // 1.6.0, backlog 206
+    if (gm && sysI && sysI.trading && sysI.trading.hot === true && typeof hotMark === 'function') hotMark(box, entry, c, f);   // 157 M1j: the GM's Stolen or Illegal mark
     return box.childNodes.length ? box : null;
 }
 // 1.5.4 (the owner, of a power's details: "theres no actually useful info here about the ability"; by prompt: "On the row itself"): what
@@ -9329,7 +9335,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         sb.appendChild(sr);
     });
     var sadd = el('button', 'tool ghost sys-btn sys-list-statadd', '+ Stat'); sadd.dataset.act = 'statadd'; sadd.disabled = sts.length >= LIMITS.listStats; sadd.title = sadd.disabled ? 'At most ' + LIMITS.listStats + ' stats a list' : 'A number each item of this list carries (Acc, Wt, Cost), set on the item in Items'; sb.appendChild(sadd);
-    if (sts.length) { var pr = el('label', 'sys-num sys-price-box'), ps = el('select', 'sys-list-price'); pr.appendChild(el('span', 'sys-num-cap', 'Price')); ps.title = 'A row records it as Paid when added: what one cost (yours to correct on the sheet)'; priceOptions(ps, sp); pr.appendChild(ps); sb.appendChild(pr); if (sp.price && typeof placeSel === 'function') sb.appendChild(placeSel('paid', sp.paidPlace)); if (sp.price && typeof curBoxes === 'function') curBoxes(sb, sp, true); if (sp.price && typeof rateBoxes === 'function') rateBoxes(sb, sp); if (sp.price && typeof condBox === 'function') condBox(sb, sp); }   // 1.6.0 R2: where Paid stands
+    if (sts.length) { var pr = el('label', 'sys-num sys-price-box'), ps = el('select', 'sys-list-price'); pr.appendChild(el('span', 'sys-num-cap', 'Price')); ps.title = 'A row records it as Paid when added: what one cost (yours to correct on the sheet)'; priceOptions(ps, sp); pr.appendChild(ps); sb.appendChild(pr); if (sp.price && typeof placeSel === 'function') sb.appendChild(placeSel('paid', sp.paidPlace)); if (sp.price && typeof curBoxes === 'function') curBoxes(sb, sp, true); if (sp.price && typeof rateBoxes === 'function') rateBoxes(sb, sp); if (sp.price && typeof condBox === 'function') condBox(sb, sp); if (sp.price && typeof draft !== 'undefined' && draft && draft.trading && draft.trading.hot === true && typeof hotBox === 'function') hotBox(sb, sp); }   // 1.6.0 R2: where Paid stands
     { var mb = el('label', 'sys-num sys-money-box'), msel = el('select', 'sys-list-money'); mb.appendChild(el('span', 'sys-num-cap', 'Holds money')); msel.title = 'Rows of this list are money: each row holds its level, as a chip holds its amount, or each piece is worth a stat, as a bar is worth its denomination. Buying and selling pay from and into these rows'; if (typeof moneyOptions === 'function') moneyOptions(msel, sp); mb.appendChild(msel); sb.appendChild(mb); if (typeof curBoxes === 'function') curBoxes(sb, sp); if (typeof moneyEditBox === 'function') moneyEditBox(sb, sp); }   // 1.5.6 the Money box
     card.appendChild(sb);
     if (typeof badgeBox === 'function') card.appendChild(badgeBox(sp));   // 1.6.0 R4: its row badges
@@ -9667,6 +9673,12 @@ function moneyEditBox(sb, sp) {   // 157 M2: how a player changes this money: at
     if (!sp || typeof sp.money !== 'string' || !sp.money) return;
     var lb = el('label', 'sys-num sys-money-box'), s = el('select', 'sys-list-medit'); lb.appendChild(el('span', 'sys-num-cap', 'Players change it')); s.title = 'How a player changes this money by hand. They ask: a typed amount or count waits in the Review for you. Buying, selling and trading move money by their own rules';
     [['', 'At once'], ['ask', 'They ask'], ['gm', 'GM only']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if ((sp.moneyEdits || '') === o[0]) op.selected = true; s.appendChild(op); });
+    lb.appendChild(s); sb.appendChild(lb);
+}
+function hotBox(sb, sp) {   // 157 M1j: a stat of the list that says a row is stolen or illegal, so a system can set it from its own rules
+    var ns = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.set !== true; }); if (!ns.length) return;
+    var lb = el('label', 'sys-num sys-money-box'), s = el('select', 'sys-list-hot'); lb.appendChild(el('span', 'sys-num-cap', 'Stolen by')); s.title = 'A stat that says a row is stolen or illegal: a value name that says illegal is Illegal, any other name or a number that is not 0 Stolen. The GM may still mark a row by hand'; var lo = typeof sp.hot === 'string' ? sp.hot.toLowerCase() : '';
+    [['', 'Only the GM\u2019s mark']].concat(ns.map(function(x) { return [x.key, 'Its ' + (x.label || x.key)]; })).forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0].toLowerCase() === lo) op.selected = true; s.appendChild(op); });
     lb.appendChild(s); sb.appendChild(lb);
 }
 function condBox(sb, sp) {   // 157 M1f: a number stat of the list that is each row's condition, a per cent of full worth
@@ -10244,6 +10256,8 @@ function renderCurrencies() {
     hgI.disabled = !hgD && !hgRolls.length; if (hgI.disabled) hgL.title = 'Add a roll on the Rolls tab first, the one both sides make to haggle';
     hgI.addEventListener('change', function() { if (hgI.checked && hgRolls.length) draft.trading = Object.assign({}, draft.trading || {}, { haggle: { roll: hgRolls[0].id, step: 1, most: 20 } }); else if (draft.trading) { delete draft.trading.haggle; if (!Object.keys(draft.trading).length) delete draft.trading; } ch(true); });
     wrap.appendChild(hgL);
+    var htL = el('label', 'sys-check sys-trade-hot'), htI = el('input'); htI.type = 'checkbox'; htI.checked = !!(draft.trading && draft.trading.hot === true); htL.title = 'The GM may mark a row Stolen or Illegal in its details, or a list names a stat that says so. A trader not ticked Fence in the trade window refuses it, and a fence buys it at its own per cent'; htL.appendChild(htI); htL.appendChild(document.createTextNode(' Stolen and illegal goods'));   // 157 M1j
+    htI.addEventListener('change', function() { if (htI.checked) draft.trading = Object.assign({}, draft.trading || {}, { hot: true }); else if (draft.trading) { delete draft.trading.hot; if (!Object.keys(draft.trading).length) delete draft.trading; } ch(); }); wrap.appendChild(htL);
     if (hgD) {
         var hgW = el('div', 'sys-flags'), hgS = el('select', 'field sys-trade-hagroll'), hgSt = numInput('sys-trade-hagstep', typeof hgD.step === 'number' ? hgD.step : 1, 'How many per cent each point of difference moves the prices', 'any'), hgM = numInput('sys-trade-hagmost', typeof hgD.most === 'number' ? hgD.most : 20, 'The most the prices may move either way, as a per cent', 'any');
         hgRolls.forEach(function(r) { var o = el('option', null, r.label || 'A roll'); o.value = r.id; if (r.id === hgD.roll) o.selected = true; hgS.appendChild(o); }); hgS.title = 'The roll both sides make. A merchant may be given a figure to haggle at in the trade window';
@@ -12929,6 +12943,7 @@ function onChange(e) {
             else { var oD = lsc.once && typeof lsc.once === 'object' ? lsc.once : (lsc.once = {}); if (t.value) oD[oKey] = t.value; else delete oD[oKey]; if (oKey === 'by' && !oD.rank) { var oN = (Array.isArray(lsc.stats) ? lsc.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.kind !== 'pick'; })[0]; oD.rank = lsc.lvl && typeof lsc.lvl === 'object' ? 'lvl' : oN ? oN.key : ''; if (!oD.rank) delete oD.rank; } }
         }
         else if (c.indexOf('sys-list-cond') >= 0) { if (t.value) lsc.cond = t.value; else delete lsc.cond; }   // 157 M1f
+        else if (c.indexOf('sys-list-hot') >= 0) { if (t.value) lsc.hot = t.value; else delete lsc.hot; }   // 157 M1j
         else if (c.indexOf('sys-list-medit') >= 0) { if (t.value === 'ask' || t.value === 'gm') lsc.moneyEdits = t.value; else delete lsc.moneyEdits; }   // 157 M2
         else if (c.indexOf('sys-list-buyby') >= 0) { if (t.value) lsc.buyBy = t.value; else delete lsc.buyBy; }   // 157 M1c
         else if (c.indexOf('sys-list-sellby') >= 0) { if (t.value) lsc.sellBy = t.value; else delete lsc.sellBy; }   // 157 M1c

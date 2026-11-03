@@ -58,7 +58,7 @@ function twDraw(doc, root, v, off, act) {
                 box.addEventListener('change', function() { act('num', sd, { i: i, n: Number(box.value) }); }); row.appendChild(box);
                 var x = twEl(doc, 'button', 'tool ghost trade-x', '×'); x.type = 'button'; x.title = 'Take it off the table'; x.setAttribute('aria-label', 'Take ' + l.name + ' off the table'); x.setAttribute('data-k', 'drop|' + sd + '|' + i); x.addEventListener('click', function() { act('drop', sd, i); }); row.appendChild(x);
             } else row.appendChild(twEl(doc, 'span', 'trade-qty', l.key !== undefined ? twNum(l.amt) : 'x' + l.qty));
-            if (typeof l.price === 'number' && l.key === undefined) { var pe = twEl(doc, 'span', 'trade-price' + (typeof l.deal === 'number' ? ' trade-deal' : ''), twNum((typeof l.deal === 'number' ? l.deal : l.price) * l.qty)); if (typeof l.deal === 'number') pe.title = 'List price ' + twNum(l.price * l.qty); if (typeof l.cond === 'number') pe.title = (pe.title ? pe.title + '. ' : '') + 'In ' + l.cond + '% condition'; row.appendChild(pe); }   // 157 M1f: its condition in its tooltip   // 157 M1c: at this trade's price, the list price in its tooltip
+            if (typeof l.price === 'number' && l.key === undefined) { var pe = twEl(doc, 'span', 'trade-price' + (typeof l.deal === 'number' ? ' trade-deal' : ''), twNum((typeof l.deal === 'number' ? l.deal : l.price) * l.qty)); if (typeof l.deal === 'number') pe.title = 'List price ' + twNum(l.price * l.qty); if (typeof l.cond === 'number') pe.title = (pe.title ? pe.title + '. ' : '') + 'In ' + l.cond + '% condition'; if (l.hot) pe.title = (pe.title ? pe.title + '. ' : '') + (l.hot === 'illegal' ? 'Illegal' : 'Stolen'); row.appendChild(pe); }   // 157 M1f: its condition in its tooltip   // 157 M1c: at this trade's price, the list price in its tooltip
             list.appendChild(row);
         });
         col.appendChild(list);
@@ -76,6 +76,14 @@ function twDraw(doc, root, v, off, act) {
         (s.money || []).forEach(function(m) { col.appendChild(twEl(doc, 'div', 'trade-total trade-money', m.label + ' offered: ' + twNum(m.v))); });
         if (typeof s.moneyAt === 'number') col.appendChild(twEl(doc, 'div', 'trade-total trade-money trade-deal', 'At the other side\u2019s rates: ' + twNum(s.moneyAt)));   // 157 M1e
         var oth = v[sd === 'a' ? 'b' : 'a'];
+        if (v.hot) {   // 157 M1j: whether this side fences, and what it buys the stolen and illegal at
+            if (me && v.status === 'open') {
+                var fw = twEl(doc, 'div', 'trade-acc trade-fence'), fl = twEl(doc, 'label', 'trade-acc-one'), fc = doc.createElement('input'), fa = doc.createElement('input'); fc.type = 'checkbox'; fc.checked = s.fence === true; fc.setAttribute('data-k', 'fence|' + sd); fc.title = 'This side takes what is stolen or illegal. A trader not ticked refuses it';
+                fa.type = 'number'; fa.min = '0'; fa.max = '1000'; fa.step = '1'; fa.className = 'trade-rate field'; fa.placeholder = '100'; fa.value = typeof s.fenceAt === 'number' ? String(s.fenceAt) : ''; fa.disabled = s.fence !== true; fa.title = 'What a fence pays for what is stolen or illegal, as a per cent of list price. Empty: list price'; fa.setAttribute('aria-label', 'Buys stolen at, per cent'); fa.setAttribute('data-k', 'fenceat|' + sd);
+                var fgo = function() { var n = Number(fa.value); act('fence', sd, { on: fc.checked, amt: String(fa.value).trim() !== '' && isFinite(n) ? n : undefined }); }; fc.addEventListener('change', fgo); fa.addEventListener('change', fgo);
+                fl.appendChild(fc); fl.appendChild(twEl(doc, 'span', null, 'Fence')); fw.appendChild(fl); var fl2 = twEl(doc, 'label', 'trade-acc-one'); fl2.appendChild(twEl(doc, 'span', null, 'Buys stolen at')); fl2.appendChild(fa); fl2.appendChild(twEl(doc, 'span', null, '%')); fw.appendChild(fl2); col.appendChild(fw);
+            } else if (s.fence === true) col.appendChild(twEl(doc, 'div', 'trade-acc-said', s.name + ' fences' + (typeof s.fenceAt === 'number' ? ', buying the stolen at ' + s.fenceAt + '% of list price.' : '.')));
+        }
         if (me && v.status === 'open' && v.hagOn && s.merch) {   // 157 M1i: what a merchant the GM acts for haggles at
             var hw = twEl(doc, 'label', 'trade-acc trade-hagat'), hi = doc.createElement('input'); hw.appendChild(twEl(doc, 'span', 'trade-acc-cap', 'Haggles at')); hi.type = 'number'; hi.min = '0'; hi.step = '1'; hi.className = 'trade-rate field'; hi.placeholder = 'Its sheet'; hi.value = typeof s.hagAt === 'number' ? String(s.hagAt) : ''; hi.title = 'The figure ' + s.name + ' haggles at, in place of what the roll is compared with. Empty: its own sheet'; hi.setAttribute('aria-label', 'Haggles at'); hi.setAttribute('data-k', 'hagat|' + sd);
             hi.addEventListener('change', function() { var n = Number(hi.value); act('hagat', sd, String(hi.value).trim() !== '' && isFinite(n) && n > 0 ? n : 0); }); hw.appendChild(hi); col.appendChild(hw);
@@ -121,6 +129,7 @@ function twDraw(doc, root, v, off, act) {
     root.appendChild(cols);
     if (v.change && v.status === 'open') root.appendChild(twEl(doc, 'div', 'trade-change', v.change.say));   // 157 M1d
     if (v.cost && v.status === 'open') root.appendChild(twEl(doc, 'div', 'trade-cost', v.cost));
+    if (v.hotSays && v.status === 'open') root.appendChild(twEl(doc, 'div', 'trade-change trade-hotsays', v.hotSays));   // 157 M1j
     if (v.hagOn && v.status === 'open') {   // 157 M1i: haggling, once a trade, pressed by either side
         if (typeof v.hag === 'number' && v.hag) root.appendChild(twEl(doc, 'div', 'trade-msg trade-hag', 'Haggled: prices move ' + twNum(Math.abs(v.hag)) + '% toward ' + (v.hag > 0 ? v.a.name : v.b.name) + '.'));
         else if (v.hagDone) root.appendChild(twEl(doc, 'div', 'trade-msg trade-hag', 'Haggled: prices stay as they are.'));
@@ -178,6 +187,7 @@ function twAct(kind, sd, arg) {
     else if (kind === 'xrate' && n.tradeXRates) say(n.tradeXRates(v.tid, arg, side));   // 157 M1e
     else if (kind === 'owe' && n.tradeOwe) say(n.tradeOwe(v.tid, arg, side));   // 157 M1h
     else if (kind === 'hag' && n.tradeHaggle) say(n.tradeHaggle(v.tid, side));   // 157 M1i
+    else if (kind === 'fence' && n.tradeFence) say(n.tradeFence(v.tid, !!(arg && arg.on), arg ? arg.amt : undefined, side));   // 157 M1j
     else if (kind === 'hagat' && n.tradeHagAt) say(n.tradeHagAt(v.tid, arg, side));   // 157 M1i
     else if (kind === 'rate' && n.tradeRates) say(n.tradeRates(v.tid, arg, side));   // 157 M1c
 }

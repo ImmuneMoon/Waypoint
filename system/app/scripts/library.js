@@ -8,7 +8,7 @@
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { libCtx, readPackFile, cleanPack, packMeta, manifestSig, addPack, removePack, nextRev, libImportPlan, setPackMeta, keyIndex, playerIndex, hashText, itemsToMove } from './librarycore.js';
-import { setLibraryFind, coreOf, cleanSystem, libSnaps, setRuleJudge, gmDerivedNames, gmViewFields } from './systemcore.js';
+import { setLibraryFind, setLibraryIds, coreOf, cleanSystem, libSnaps, setRuleJudge, gmDerivedNames, gmViewFields } from './systemcore.js';
 
 function map() { return Object.create(null); }
 var cur = { campId: null, sig: '', byId: map(), packs: map(), n: 0, state: 'none', error: '' };
@@ -295,6 +295,7 @@ function playerEntry(id) {
 }
 setLibraryFind(entryFor);
 setRuleJudge(needRuleShown);   // 126b: an owner's copy of a row carries its entry's rule only where players may read it
+setLibraryIds(function() { var camp = getActiveCampaign(), o = []; (camp && camp.library && Array.isArray(camp.library.packs) ? camp.library.packs : []).forEach(function(p) { if (p && typeof p.id === 'string') (cur.packs[p.id] || []).forEach(function(id) { o.push(id); }); }); return o; });   // 1.6.2 (G7): what a result row's random entry may be drawn from, read through entryFor
 // the campaign on screen, or its manifest, changed (a load, a switch, a restore): read it again
 setInterval(function() { if (busy) return; var camp = getActiveCampaign(), sig = manifestSig(camp); if (sig !== cur.sig || (camp ? camp.id : null) !== cur.campId) load(camp); }, 1000);
 

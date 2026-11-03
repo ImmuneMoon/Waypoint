@@ -4867,7 +4867,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
                 if (nowN === null || nowN === undefined) { if (!D) return { ok: false, reason: 'error', message: 'Only the table\u2019s host rolls on that.' }; var rrN = F.evaluate(tbN.dice, typeof D.random === 'function' ? { vars: vars, random: D.random } : { vars: vars }); if (!rrN || !rrN.ok || typeof rrN.value !== 'number' || !fin(rrN.value)) return { ok: false, reason: 'error', message: 'That table could not be rolled on.' }; nowN = Math.floor(rrN.value); drewN = String(nowN); } else drewN = String(nowN);
                 var rwN = resultRow(tbN, nowN); lines.push({ n: tbN.label, say: rwN && rwN.words ? rwN.words : 'Nothing happens.', roll: drewN });
                 if (rwN && rwN.fx) { var fxN = (Array.isArray(sys.effects) ? sys.effects : []).filter(function(d) { return isObj(d) && d.id === rwN.fx; })[0]; if (fxN) addFx.push({ fx: fxN, on: true }); }
-                if (rwN && isObj(rwN.add)) { var adL = resultAdd(sys, work, rwN.add); if (adL) { out[adL.f] = work.values[adL.f]; asIs = false; lines.push(adL.line); } }   // 1.6.2 (G7): an entry it adds, as a row of the list's own
+                if (rwN && isObj(rwN.add)) { var adL = resultAdd(sys, work, rwN.add, function(n) { var rr = F.evaluate('1d' + n, typeof D.random === 'function' ? { random: D.random } : {}); return rr && rr.ok && typeof rr.value === 'number' ? rr.value : 1; }); if (adL) { if (!adL.none) { out[adL.f] = work.values[adL.f]; asIs = false; } lines.push(adL.line); } }   // 1.6.2 (G7): an entry it adds, named or drawn, as a row of the list's own
                 tbN = rwN && rwN.next ? resultOf(sys, rwN.next) : null;
             }
             Array.prototype.splice.apply(amts, [j + 1, 0].concat(addFx)); continue;
@@ -8259,7 +8259,10 @@ function cleanResults(v, gmView) {
         (Array.isArray(t.rows) ? t.rows : []).slice(0, RES_ROWS * 2).forEach(function(r) {
             if (rows.length >= RES_ROWS || !isObj(r)) return; var lo = typeof r.lo === 'number' && fin(r.lo) ? Math.floor(r.lo) : null, hi = typeof r.hi === 'number' && fin(r.hi) ? Math.floor(r.hi) : lo; if (lo === null || hi < lo) return;
             var x = { lo: lo, hi: hi }, w = cutText(r.words, LIMITS.noteText); if (w) x.words = w; if (typeof r.fx === 'string' && EFFECT_ID.test(r.fx)) x.fx = r.fx; var nx = tableKeyOk(r.next, TABLE_KEY); if (nx) x.next = nx;
-            if (gmView && isObj(r.add) && typeof r.add.list === 'string' && FIELD_ID.test(r.add.list) && typeof r.add.entry === 'string' && ITEM_ID.test(r.add.entry)) x.add = { list: r.add.list, entry: r.add.entry };   // ... and an entry it adds to a list, the GM's view alone, since only the host reads a table
+            if (gmView && isObj(r.add) && typeof r.add.list === 'string' && FIELD_ID.test(r.add.list)) {   // ... and an entry it adds to a list, the GM's view alone, since only the host reads a table: a named entry, or (1.6.2) a random entry of a category, narrowed by one number stat
+                if (typeof r.add.entry === 'string' && ITEM_ID.test(r.add.entry)) x.add = { list: r.add.list, entry: r.add.entry };
+                else { var rcat = cutText(r.add.cat, LIMITS.category); if (rcat) { var ra = { list: r.add.list, cat: rcat }, rst = typeof r.add.stat === 'string' && STAT_KEY.test(r.add.stat) ? r.add.stat : ''; if (rst) { var rmo = statNum(r.add.most), rle = statNum(r.add.least); if (rmo !== undefined || rle !== undefined) { ra.stat = rst; if (rmo !== undefined) ra.most = rmo; if (rle !== undefined) ra.least = rle; } } x.add = ra; } }
+            }
             rows.push(x);
         });
         if (!rows.length) return; seen[lower(key)] = 1; var o = { key: key, label: cutText(t.label, LIMITS.label) || key, dice: dice, rows: rows }; if (t.vis === 'gm') o.vis = 'gm'; res.push(o);
@@ -8303,14 +8306,29 @@ function valueNow(sys, key) { var d = valueDef(sys, key); if (!d) return 0; var 
 function cleanShared(v, sys, gmView) { var o = {}, any = false; if (!isObj(v)) return null; Object.keys(v).slice(0, VALUES_MAX * 4).forEach(function(k) { var d = valueDef(sys, k); if (d && typeof v[k] === 'number' && fin(v[k]) && (gmView || d.vis !== 'gm')) { o[d.key] = valueHeld(d, v[k]); any = true; } }); return any ? o : null; }
 function resultOf(sys, key) { var k = lower(String(key)); return (isObj(sys) && Array.isArray(sys.results) ? sys.results : []).filter(function(t) { return isObj(t) && lower(t.key) === k; })[0] || null; }
 // 1.6.2 (backlog 210 c, G7): a row of a result table adds an entry to a list: a row of its own, at Paid 0, its level, switch and making mark as an add writes them. An entry that is gone, a list that is no item list, a list that is full and a list that holds each entry once and has it already add nothing. Answers { f, line } or null
-function resultAdd(sys, work, ad) {
+// 1.6.2 (G7): the entries a random add may draw: the system's items and the library's entries of that category, compared ignoring case, and, where the row narrows them, those whose number stat lies inside its bounds (an entry with no such figure is left out). A pick by the host's dice, an id or ''
+var _libIds = null;
+function setLibraryIds(fn) { _libIds = typeof fn === 'function' ? fn : null; }
+function resultPool(sys, ad) {
+    var cat = lower(String(ad.cat || '')), out = [], seen = map(), ok = function(e) {
+        if (!isObj(e) || typeof e.id !== 'string' || seen[e.id] || lower(String(e.category || '')) !== cat) return; seen[e.id] = 1;
+        if (typeof ad.stat === 'string') { var sv = isObj(e.stats) && hasOwn(e.stats, ad.stat) ? e.stats[ad.stat] : undefined; if (typeof sv !== 'number' || !fin(sv) || (typeof ad.most === 'number' && sv > ad.most) || (typeof ad.least === 'number' && sv < ad.least)) return; }
+        out.push(e.id);
+    };
+    (isObj(sys) && Array.isArray(sys.items) ? sys.items : []).forEach(ok);
+    var ids = []; try { ids = _libIds ? _libIds() : []; } catch (e) { ids = []; } (Array.isArray(ids) ? ids : []).slice(0, 20000).forEach(function(id) { ok(libFind(id)); });
+    return out;
+}
+function resultPick(sys, ad, rnd) { var pool = resultPool(sys, ad); if (!pool.length || typeof rnd !== 'function') return ''; var n = Math.floor(rnd(pool.length)); return pool[n >= 1 && n <= pool.length ? n - 1 : 0]; }
+function resultAdd(sys, work, ad, rnd) {
     var tf = fieldById(sys, ad.list), sp = tf && tf.kind === 'item-list' && isObj(tf.list) ? tf.list : null; if (!sp) return null;
-    var ent = itemDef(sys, ad.entry), fromLib = false; if (!ent) { ent = libFind(ad.entry); fromLib = isObj(ent); } if (!isObj(ent)) return null;
+    var eid = ad.entry; if (typeof ad.cat === 'string') { eid = resultPick(sys, ad, rnd); if (!eid) return { f: tf.id, none: true, line: { n: tf.label || 'A list', say: 'Nothing fits, so nothing is added.' } }; }   // 1.6.2: a random entry of a category, drawn by the host's dice
+    var ent = itemDef(sys, eid), fromLib = false; if (!ent) { ent = libFind(eid); fromLib = isObj(ent); } if (!isObj(ent)) return null;
     var L = (isObj(work.values) && Array.isArray(work.values[tf.id]) ? work.values[tf.id] : []).slice();
     if (L.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return null;
-    if (sp.noQty && !sp.multi && L.some(function(r) { return isObj(r) && r.defId === ad.entry && r.hid !== 1 && typeof r.opn !== 'string'; })) return null;
+    if (sp.noQty && !sp.multi && L.some(function(r) { return isObj(r) && r.defId === eid && r.hid !== 1 && typeof r.opn !== 'string'; })) return null;
     var id = uid('w_'); while (L.some(function(r) { return rowIdOf(r) === id; })) id = uid('w_');
-    var row = { id: id, defId: ad.entry, qty: 1 }; if (work.making === true) row.mk = 1; if (isObj(sp.lvl)) row.lvl = lvlStart(sp, ent); startStamp(sp, row); if (isObj(sp.on)) row.on = sp.on.def === true; if (sp.price) row.paid = 0; if (fromLib) row.snap = cleanRowDef(ent, true);
+    var row = { id: id, defId: eid, qty: 1 }; if (work.making === true) row.mk = 1; if (isObj(sp.lvl)) row.lvl = lvlStart(sp, ent); startStamp(sp, row); if (isObj(sp.on)) row.on = sp.on.def === true; if (sp.price) row.paid = 0; if (fromLib) row.snap = cleanRowDef(ent, true);
     L.push(row); if (row.on === true && onHeld(sys, sp, L, L.length - 1, sp)) row.on = false; work.values[tf.id] = L;
     return { f: tf.id, line: { n: tf.label || 'A list', say: ent.vis === 'gm' ? 'Gains something.' : 'Gains ' + (cutText(ent.name, LIMITS.itemName) || 'an entry') + '.' } };
 }
@@ -12025,6 +12043,6 @@ export { FEEDS_MAX, FEED_STACK, feedOf, feedSpec, feedCt, feedStack, feedAt, fee
 export { majorWords, dmgOnSelf, dmgMajorOf, dmgPart2Of, dmgPartOf, DMG_MORE };   // 1.6.0: A Major Wound where; B3: a blow's second part
 export { upkeepLines, upkeepWords };   // 205 follow-up (3): an upkeep's payments said
 export { cleanLvlOnly, lvlOnlyRead, lvlOnlyText, lvlOnlyOn, lvlOnlyHas, lvlOnlyMiss, lvlOnlyList, lvlOnlyHit, lvlOnlySays, lvlStart, lvlNear, modTiersRead, cleanModTiers, modTiersText, modAt };   // 1.6.0: Levels it may be, and a change's figures By level
-export { tableRanged, tableRowAt, tableRangeSays, resultAdd };   // 1.6.2 (G7)
+export { tableRanged, tableRowAt, tableRangeSays, resultAdd, resultPool, resultPick, setLibraryIds };   // 1.6.2 (G7)
 export { revRowWords, revRows };   // 1.6.0: what a Review line says of a list; a reader's file for a player
 export { cleanTables, tableKeyOk, tableParts, tableRead, tableFam, tableRowOf, TABLE_KEY, TABLE_ROW_KEY, nameFold };   // 1.6.0: a system's tables

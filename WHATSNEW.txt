@@ -67,7 +67,8 @@ The System editor
   and actions read and move. Each campaign keeps its own figure.
 - Result tables: a table of ranges and words that a roll's Then or an action can
   roll on. The card shows the words. A row can switch on an effect, add an entry
-  to a list, or go on to another table.
+  to a list, or go on to another table. The entry may be a random one of a
+  category, narrowed by a stat such as a price.
 - A table's row may hold a range, From and To, so a rule finds the row by a
   number, as a chart in a book is read. The editor warns of overlaps and gaps.
 - A list can say what a trade does to a row: a stat is cleared, set or moved to

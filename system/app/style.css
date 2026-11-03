@@ -3243,6 +3243,13 @@
   .fb { flex: 1 1 100%; min-width: 0; width: 100%; }
   .fb-line { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 6px 4px 8px; min-height: 30px; }
   .fb-col { flex: 1; min-width: 0; }
+  .sheet-hand-shut { color: var(--muted); font-size: 13px; padding: 2px 0; }
+  .sheet-fan { display: flex; justify-content: center; padding: 16px 18px 20px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+  .sheet-fan .sheet-item { flex: 0 1 116px; min-width: 70px; min-height: 152px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px; margin-left: -12px; border: 1px solid var(--dim); border-radius: 9px; background: var(--panel); box-shadow: 0 2px 6px rgba(0, 0, 0, .35); transform: translateY(calc(var(--fan, 0) * var(--fan, 0) * 2px)) rotate(calc(var(--fan, 0) * 4deg)); transition: transform .12s; }
+  .sheet-fan .sheet-item:first-child { margin-left: 0; }
+  .sheet-fan .sheet-item:hover, .sheet-fan .sheet-item:focus-within { transform: translateY(-10px); z-index: 2; position: relative; }
+  .sheet-fan .sheet-item .sheet-item-name { white-space: normal; }
+  @media (prefers-reduced-motion: reduce) { .sheet-fan .sheet-item { transition: none; } }
   .dk-head, .dk-card { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
   .dk-card .dk-name { flex: 1 1 160px; min-width: 120px; }
   .dk-card input[type="number"] { width: 64px; }

@@ -44,6 +44,9 @@ The System editor
   what stands there. Fits where, Reaches and Counts where set the rules.
 - Decks and bags: a set of cards or tokens a system names, which rolls and actions
   draw from and shuffle. Each campaign keeps its own pile.
+- A hand of cards: a list marked as a hand holds what a character draws, shown as a
+  fan. Only its owner sees the cards, and everyone else sees how many.
+- A fight's order can come from a draw each round, and a card can end the round.
 - Shared sheets: the GM ticks which players share a sheet, and any of them can use
   it. It keeps one player for its tokens and turns.
 - Shared values: a number the whole table shares, named in the system, which rolls

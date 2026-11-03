@@ -70,6 +70,7 @@ function sheet(camp, id) {
     Object.keys(cur).concat(Object.keys(was)).forEach(function(k, i, all) {
         if (all.indexOf(k) !== i) return;
         var f = fields.find(function(x) { return x && x.id === k; }), hid = !c.ownerId || !!(f && f.vis === 'gm');
+        if (f && S && S.handKept && S.handKept(f.list, c)) { var nW = Array.isArray(was[k]) ? was[k].length : 0, nC = Array.isArray(cur[k]) ? cur[k].length : 0; if (nW !== nC) add('sheet', who, (f.label || f.key) + ': ' + nC + (nC === 1 ? ' card' : ' cards')); return; }   // 1.6.2 (G9): the record is the GM's to read, and a hand is its owner's alone
         fieldLines(f ? f.label || f.key : k, was[k], cur[k], nameOf).forEach(function(l) { add('sheet', who, l.x, l.d, hid); });
     });
 }

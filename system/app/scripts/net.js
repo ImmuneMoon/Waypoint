@@ -5862,8 +5862,26 @@ function combatSides(mapId, c, fresh) {   // a fight's start or a roster edit: t
     if (c.side !== 'pc' && c.side !== 'rest') combatSideRoll(camp, mapId, c);
     combatSideOrder(camp, mapId, c); if (fresh) c.turn = 0;
 }
+// 1.6.2 (G9, fold 3): the order from a draw. Each row draws a card, highest first by a number of the deck's, or in the order drawn with none. A card marked ends stands in that order by itself, and the round ends when play reaches it (c.endAt, the host's own). What each drew is shown to the table but for a token hidden from it, and the pile stays the host's
+function deckOrder(camp, c) {
+    var ir = initRulesOf(camp), K = window.wpDeckCore, F = window.wpFormula; if (!ir || !ir.deck || !K || !camp.system || !c || !Array.isArray(c.rows)) return false; var d = K.deckOf(camp.system.decks, ir.deck.key); if (!d || !d.cards.length) return false;
+    var rnd = function(n) { var r = F && F.evaluate ? F.evaluate('1d' + n) : null; return r && r.ok && typeof r.value === 'number' ? r.value : 1 + Math.floor(Math.random() * n); }, by = ir.deck.by, val = function(i) { return by ? K.cardVal(d, i, by) : 0; };
+    var p = camp.piles && own(camp.piles, d.key) ? K.cleanPile(camp.piles[d.key], d) : null; if (!p || ir.deck.fresh === true) p = K.shufflePile(d, p, rnd, true);
+    var got = [], ends = [], guard = c.rows.length + K.CARDS_MAX * 2;
+    while (got.length < c.rows.length && guard-- > 0) { var dr = K.drawCards(d, p, 1, rnd); if (!dr.cards.length) break; p = dr.pile; var i = dr.cards[0]; if (d.cards[i].ends === true) ends.push({ at: got.length, v: val(i), name: d.cards[i].name }); else got.push(i); }
+    var pairs = c.rows.map(function(r, k) { return { r: r, i: k < got.length ? got[k] : null, at: k }; }), has = function(x) { return x.i === null ? -Infinity : val(x.i); };
+    if (by) pairs.sort(function(a, b) { var d0 = has(b) - has(a); return d0 ? (d0 > 0 ? 1 : -1) : a.at - b.at; });
+    c.rows = pairs.map(function(x, k) { x.r.init = by && x.i !== null ? val(x.i) : pairs.length - k; x.r.rolled = 1; delete x.r.tb; return x.r; });
+    var pos = null; ends.forEach(function(e) { var at = by ? pairs.filter(function(x) { return has(x) > e.v; }).length : e.at; if (pos === null || at < pos) pos = at; }); if (pos !== null && pos < c.rows.length) c.endAt = Math.max(1, pos); else delete c.endAt;
+    camp.piles = Object.assign({}, camp.piles || {}); camp.piles[d.key] = p; saveRemoteSoon(); if (typeof net.decksTell === 'function') net.decksTell(camp);
+    var map = camp.items && own(camp.items, c.mapId) ? camp.items[c.mapId] : null, lines = pairs.filter(function(x) { var tk = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(w) { return w && w.id === x.r.tokId; }) : null; return x.i !== null && !(tk && tk.hidden); }).map(function(x) { return { n: String(x.r.name || 'Someone'), say: d.cards[x.i].name }; });
+    if (lines.length && typeof net.postApplyCard === 'function') net.postApplyCard(null, 'Round ' + c.round + ': ' + d.label, lines, 'table');
+    if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'order', { rows: c.rows.length, ends: ends.length });
+    return true;
+}
 function combatNewRound(mapId, c) {   // combatStep at a new round, once per round reached (a step back and on again rolls nothing); turn 0 is the new order's first
     var camp = getActiveCampaign(), ir = initRulesOf(camp); if (!ir || !camp) return;
+    if (ir.deck) { if (c.round <= (typeof c.rr === 'number' ? c.rr : 1)) return; c.rr = c.round; if (deckOrder(camp, c)) c.turn = 0; return; }   // 1.6.2 (G9)
     var every = ir.every === true, side = typeof ir.side === 'string' && !!ir.side, S = every || side ? SC() : null; if (!S) return;
     if (c.round <= (typeof c.rr === 'number' ? c.rr : 1)) return; c.rr = c.round;
     if (every && window.wpSheets && window.wpSheets.rollInit) {
@@ -6056,6 +6074,8 @@ function fightSet(fid, combat) {
         if (had) had.rows.forEach(function(r) { if (r && typeof r.tokId === 'string' && !f.rows.some(function(x) { return x && x.tokId === r.tokId; })) { var wn = _fightWas[fid] = _fightWas[fid] || Object.create(null); wn[r.tokId] = { init: r.init, rolled: r.rolled === 1 }; } });
         tg = fightTime(campNow(), had, f);   // fold 4: its own time (a new fight's, or a roster edit's), before it is stored
         net.combats[fid] = f;
+        if (!had && typeof deckOrder === 'function') { var campDo = campNow(); if (campDo && initRulesOf(campDo) && initRulesOf(campDo).deck) { f.rr = 1; deckOrder(campDo, f); f.turn = 0; } }   // 1.6.2 (G9): a new fight's first order is drawn too
+        if (had && typeof had.endAt === 'number') f.endAt = had.endAt;
         if (first && typeof marksStart === 'function') { try { marksStart(mapId); } catch (e) { console.error(e); } }   // senses S4b: everyone's marks held from the fight's start
         if (had && typeof had.rr === 'number') f.rr = had.rr;   // initiative O4: the last round the fight rolled for, and this round's side, kept through a roster edit
         if (had && (had.side === 'pc' || had.side === 'rest')) f.side = had.side;
@@ -6117,8 +6137,8 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     var mapId = c.mapId, t = c.turn + (dir < 0 ? -1 : 1), r0 = c.round, t0 = c.turn, endRow = dir > 0 && c.rows[t0] && (!c.rows[t0].held || holdRule('holdEnd') === 'end') ? c.rows[t0] : null;   // 1.6.0: the turn a forward step ends (a held one only where the system says a hold ends the turn; once a turn, so acting from it runs nothing again)
     var pkFrom = c.rows[t0], pkRow = nx && nx.round && typeof pick === 'string' ? c.rows[nx.at] : null;   // initiative O5: whose turn ends, and the row picked to open a new round, found again once its order is made
     if (S5) t = chosenGo(c, dir, nx, t0);   // initiative O5: the place chosen (a new round where none is left), or back to the last turn had (a correction)
-    else if (t >= c.rows.length) { t = 0; c.round += 1; }
-    else if (t < 0) { if (c.round > 1) { c.round -= 1; t = c.rows.length - 1; } else t = 0; }
+    else if (t >= c.rows.length || (dir > 0 && typeof c.endAt === 'number' && t >= c.endAt)) { t = 0; c.round += 1; }   // 1.6.2 (G9): a card that ends the round ends it where it stands
+    else if (t < 0) { if (c.round > 1) { c.round -= 1; t = (typeof c.endAt === 'number' ? Math.min(c.endAt, c.rows.length) : c.rows.length) - 1; } else t = 0; }
     c.turn = t;
     if (c.round !== r0 && holdRule('hold') !== 'next' && holdRule('holdNames') !== true) c.rows.forEach(function(r) { if (r) delete r.held; });   // initiative O3 (the owner's answer): a hold not used by the round's end is lost (1.6.0: unless the system's hold lasts to the row's next turn, which the next line ends)
     if (holdRule('holdNames') === true) holdTurn(c, t, dir, t0);   // 1.6.0: a named hold lasts to its row's next turn, a row set off has had its moment, and a lost action takes a hold
@@ -10432,6 +10452,13 @@ function figLabel(entry) { return entry && typeof entry.label === 'string' && en
 // here too (the host's chat, or a solo GM's), and in the session log
 // [netcheck:postapply-start]
 function postApply(rec, scope, ch, conn) {
+    var handL = Array.isArray(rec.lines) ? rec.lines.filter(function(l) { return !!l && l.hand === 1; }) : [];   // 1.6.2 (G9): what a hand drew is for its owner alone: the GM and the table are told how many
+    if (handL.length) {
+        var restH = rec.lines.filter(function(l) { return handL.indexOf(l) < 0; }), toOwn = Object.assign({}, rec, { id: 'r_' + Math.random().toString(36).slice(2, 10), priv: 'gm', lines: handL.map(function(l) { return { n: l.n, say: l.say }; }) });
+        if (net.active && net.role === 'host') net.conns.forEach(function(c) { if (!c.open || !net.roster[c.peer]) return; if (c === conn || (ch && ch.ownerId && peerProfileId(c) === ch.ownerId)) { try { c.send(toOwn); } catch (e) { sendFailed(e); } } });
+        postApply(Object.assign({}, rec, { id: 'r_' + Math.random().toString(36).slice(2, 10), lines: handL.map(function(l) { return { n: l.n, say: l.cnt }; }) }), 'table', ch, conn);
+        if (!restH.length) return; rec.lines = restH;
+    }
     var pubL = Array.isArray(rec.lines) ? rec.lines.filter(function(l) { return !!l && l.pub === 1; }) : [];   // 1.6.2 (G9): a draw shown to everyone goes to the table, whatever else moved. A private roll keeps it private
     if (pubL.length) { rec.lines.forEach(function(l) { if (l) delete l.pub; }); if (scope === 'owner') { var restL = rec.lines.filter(function(l) { return pubL.indexOf(l) < 0; }); if (!restL.length) scope = 'table'; else { rec.lines = restL; postApply(Object.assign({}, rec, { id: 'r_' + Math.random().toString(36).slice(2, 10), lines: pubL }), 'table', ch, conn); } } }
     if (scope !== 'table') rec.priv = 'gm';
@@ -10466,7 +10493,7 @@ function rowGoneTell(charId, ch, gone, conn) {
     return items.length;
 }
 // [netcheck:rowgone-end]
-function applyLines(lines) { var mxL = (typeof window !== 'undefined' && window && window.wpSystemCore && window.wpSystemCore.LIMITS && window.wpSystemCore.LIMITS.applyChanges) || 120; return (Array.isArray(lines) ? lines : []).slice(0, mxL).map(function(l) {   /* one line a change: systemcore LIMITS.applyChanges (12 since 1.6.0, 8 since 1.5.4), as dicecore cleanApply takes them */ var cap = function(x) { return Math.max(-1e15, Math.min(1e15, x)); }; if (typeof l.say === 'string') { var oS = { n: String(l.n).slice(0, 60), say: l.say.slice(0, 1000) }; if (typeof l.roll === 'string' && l.roll) oS.roll = l.roll.slice(0, 60); if (l.pub === true) oS.pub = 1; return oS; } if (l.fx === 1 || l.fx === 0) { var oF = { n: String(l.n).slice(0, 60), fx: l.fx }; if (typeof l.roll === 'string' && l.roll) oF.roll = l.roll.slice(0, 60); return oF; } if (typeof l.all === 'number') { var oA = l.vary === true ? (l.set === true ? { n: String(l.n).slice(0, 60), s: 1 } : { n: String(l.n).slice(0, 60), s: 1, mv: 1 }) : l.set === true ? { n: String(l.n).slice(0, 60), s: 1, v: cap(l.v) } : { n: String(l.n).slice(0, 60), d: cap(l.d) }; if (typeof l.roll === 'string' && l.roll) oA.roll = l.roll.slice(0, 60); return oA; } var o = { n: String(l.n).slice(0, 60), d: cap(l.d), v: cap(l.v) }; if (typeof l.roll === 'string' && l.roll) o.roll = l.roll.slice(0, 60); return o; }); }   /* 1.5.9: and the dice a Rolled amount drew, as text */   // what the card carries: a label, two numbers (clients refuse past 1e15)
+function applyLines(lines) { var mxL = (typeof window !== 'undefined' && window && window.wpSystemCore && window.wpSystemCore.LIMITS && window.wpSystemCore.LIMITS.applyChanges) || 120; return (Array.isArray(lines) ? lines : []).slice(0, mxL).map(function(l) {   /* one line a change: systemcore LIMITS.applyChanges (12 since 1.6.0, 8 since 1.5.4), as dicecore cleanApply takes them */ var cap = function(x) { return Math.max(-1e15, Math.min(1e15, x)); }; if (typeof l.say === 'string') { var oS = { n: String(l.n).slice(0, 60), say: l.say.slice(0, 1000) }; if (typeof l.roll === 'string' && l.roll) oS.roll = l.roll.slice(0, 60); if (l.pub === true) oS.pub = 1; if (l.hand === true) { oS.hand = 1; oS.cnt = String(l.cnt || '').slice(0, 60); } return oS; } if (l.fx === 1 || l.fx === 0) { var oF = { n: String(l.n).slice(0, 60), fx: l.fx }; if (typeof l.roll === 'string' && l.roll) oF.roll = l.roll.slice(0, 60); return oF; } if (typeof l.all === 'number') { var oA = l.vary === true ? (l.set === true ? { n: String(l.n).slice(0, 60), s: 1 } : { n: String(l.n).slice(0, 60), s: 1, mv: 1 }) : l.set === true ? { n: String(l.n).slice(0, 60), s: 1, v: cap(l.v) } : { n: String(l.n).slice(0, 60), d: cap(l.d) }; if (typeof l.roll === 'string' && l.roll) oA.roll = l.roll.slice(0, 60); return oA; } var o = { n: String(l.n).slice(0, 60), d: cap(l.d), v: cap(l.v) }; if (typeof l.roll === 'string' && l.roll) o.roll = l.roll.slice(0, 60); return o; }); }   /* 1.5.9: and the dice a Rolled amount drew, as text */   // what the card carries: a label, two numbers (clients refuse past 1e15)
 // [netcheck:postapply-end]
 // The bell (the HUD's notes, sheets.js): a note for a character's bell on this machine — cid '' finds this player's character named as
 function bellOut(cid, note, as) { try { if (window.wpSheets && window.wpSheets.bellNote) window.wpSheets.bellNote(cid, note, as); } catch (e) { console.error(e); } }

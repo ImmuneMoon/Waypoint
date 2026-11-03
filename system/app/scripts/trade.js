@@ -76,6 +76,10 @@ function twDraw(doc, root, v, off, act) {
         (s.money || []).forEach(function(m) { col.appendChild(twEl(doc, 'div', 'trade-total trade-money', m.label + ' offered: ' + twNum(m.v))); });
         if (typeof s.moneyAt === 'number') col.appendChild(twEl(doc, 'div', 'trade-total trade-money trade-deal', 'At the other side\u2019s rates: ' + twNum(s.moneyAt)));   // 157 M1e
         var oth = v[sd === 'a' ? 'b' : 'a'];
+        if (me && v.status === 'open' && v.hagOn && s.merch) {   // 157 M1i: what a merchant the GM acts for haggles at
+            var hw = twEl(doc, 'label', 'trade-acc trade-hagat'), hi = doc.createElement('input'); hw.appendChild(twEl(doc, 'span', 'trade-acc-cap', 'Haggles at')); hi.type = 'number'; hi.min = '0'; hi.step = '1'; hi.className = 'trade-rate field'; hi.placeholder = 'Its sheet'; hi.value = typeof s.hagAt === 'number' ? String(s.hagAt) : ''; hi.title = 'The figure ' + s.name + ' haggles at, in place of what the roll is compared with. Empty: its own sheet'; hi.setAttribute('aria-label', 'Haggles at'); hi.setAttribute('data-k', 'hagat|' + sd);
+            hi.addEventListener('change', function() { var n = Number(hi.value); act('hagat', sd, String(hi.value).trim() !== '' && isFinite(n) && n > 0 ? n : 0); }); hw.appendChild(hi); col.appendChild(hw);
+        }
         if (me && v.status === 'open') {   // 157 M1h: I owe you, in place of money
             var ow = twEl(doc, 'label', 'trade-acc trade-owe'), oi = doc.createElement('input'); ow.appendChild(twEl(doc, 'span', 'trade-acc-cap', 'I owe you')); oi.type = 'number'; oi.min = '0'; oi.step = 'any'; oi.className = 'trade-rate field'; oi.placeholder = '0'; oi.value = typeof s.owe === 'number' ? String(s.owe) : ''; oi.title = 'What ' + s.name + ' will owe ' + oth.name + ' on this trade, in place of money. Both sheets keep it under Debts'; oi.setAttribute('aria-label', 'I owe you'); oi.setAttribute('data-k', 'owe|' + sd);
             oi.addEventListener('change', function() { var n = Number(oi.value); act('owe', sd, String(oi.value).trim() !== '' && isFinite(n) && n > 0 ? n : 0); }); ow.appendChild(oi); col.appendChild(ow);
@@ -117,6 +121,11 @@ function twDraw(doc, root, v, off, act) {
     root.appendChild(cols);
     if (v.change && v.status === 'open') root.appendChild(twEl(doc, 'div', 'trade-change', v.change.say));   // 157 M1d
     if (v.cost && v.status === 'open') root.appendChild(twEl(doc, 'div', 'trade-cost', v.cost));
+    if (v.hagOn && v.status === 'open') {   // 157 M1i: haggling, once a trade, pressed by either side
+        if (typeof v.hag === 'number' && v.hag) root.appendChild(twEl(doc, 'div', 'trade-msg trade-hag', 'Haggled: prices move ' + twNum(Math.abs(v.hag)) + '% toward ' + (v.hag > 0 ? v.a.name : v.b.name) + '.'));
+        else if (v.hagDone) root.appendChild(twEl(doc, 'div', 'trade-msg trade-hag', 'Haggled: prices stay as they are.'));
+        if (!v.hagDone && mine.length) { var hb = twEl(doc, 'button', 'tool ghost trade-hagbtn', 'Haggle'); hb.type = 'button'; hb.title = 'Both sides roll, and the difference moves the prices. Once a trade, and both confirm again after'; hb.setAttribute('data-k', 'hag'); hb.addEventListener('click', function() { act('hag', mine[0], null); }); root.appendChild(hb); }
+    }
     if (typeof v.debt === 'number' && v.debt) root.appendChild(twEl(doc, 'div', 'trade-msg trade-debt', (v.debt > 0 ? v.a.name + ' owes ' + v.b.name + ' ' + twNum(v.debt) : v.b.name + ' owes ' + v.a.name + ' ' + twNum(-v.debt)) + ' from before.'));   // 157 M1h: the debt that stands between them
     var line = v.status === 'asking' ? (mine.indexOf('a') >= 0 ? 'Waiting for ' + v.b.name + ' to answer.' : v.a.name + ' asks to trade.') : (v.msg || 'Both sides confirm, and everything moves at once.');
     root.appendChild(twEl(doc, 'div', 'trade-msg', line));
@@ -168,6 +177,8 @@ function twAct(kind, sd, arg) {
     else if (kind === 'acc' && n.tradeAccepts) say(n.tradeAccepts(v.tid, arg, side));   // 157 M1b
     else if (kind === 'xrate' && n.tradeXRates) say(n.tradeXRates(v.tid, arg, side));   // 157 M1e
     else if (kind === 'owe' && n.tradeOwe) say(n.tradeOwe(v.tid, arg, side));   // 157 M1h
+    else if (kind === 'hag' && n.tradeHaggle) say(n.tradeHaggle(v.tid, side));   // 157 M1i
+    else if (kind === 'hagat' && n.tradeHagAt) say(n.tradeHagAt(v.tid, arg, side));   // 157 M1i
     else if (kind === 'rate' && n.tradeRates) say(n.tradeRates(v.tid, arg, side));   // 157 M1c
 }
 function twRender() {

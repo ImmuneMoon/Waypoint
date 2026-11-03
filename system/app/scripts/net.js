@@ -3610,11 +3610,11 @@ function tradeHere(pid) { return !!pid && net.active && net.role === 'host' && n
 // who acts for a character: its player while at the table, '' for the GM (an NPC, one with no player, one whose player is away)
 function tradeBy(ch) { return ch && !ch.npc && ch.ownerId && tradeHere(ch.ownerId) ? ch.ownerId : ''; }
 function tradeOfChar(id) { var hit = null; Object.keys(_trades).forEach(function(k) { var tr = _trades[k]; if (!hit && (tr.a.charId === id || tr.b.charId === id)) hit = tr; }); return hit; }
-function tradeLines(S, sys, ch, off, who, other) {   // other: who takes it, for what it is worth to them (157 M1c)
+function tradeLines(S, sys, ch, off, who, other, hag) {   // other: who takes it, for what it is worth to them (157 M1c); hag: haggling toward this side (157 M1i)
     var can = Object.create(null); S.tradeOfferable(sys, ch, who).forEach(function(e) { can[e.fid + '|' + e.rowId] = e; });
     return (off || []).map(function(l) {
         var e = can[l.fid + '|' + l.rowId]; if (!e) return null; var o = { fid: l.fid, rowId: l.rowId, name: e.name, list: e.list };
-        if (l.key === undefined) { o.qty = l.qty; if (typeof e.price === 'number') { o.price = e.price; var dl = S.tradeDeal ? S.tradeDeal(sys, ch, other, e) : null; if (dl !== null) o.deal = dl; if (typeof e.cond === 'number') o.cond = e.cond; } } else { var sp = e.split.filter(function(s) { return s.key === l.key; })[0]; o.key = l.key; o.amt = l.amt; o.label = sp ? sp.label : l.key; }
+        if (l.key === undefined) { o.qty = l.qty; if (typeof e.price === 'number') { o.price = e.price; var dl = S.tradeDeal ? S.tradeDeal(sys, ch, other, e, hag) : null; if (dl !== null) o.deal = dl; if (typeof e.cond === 'number') o.cond = e.cond; } } else { var sp = e.split.filter(function(s) { return s.key === l.key; })[0]; o.key = l.key; o.amt = l.amt; o.label = sp ? sp.label : l.key; }
         return o;
     }).filter(Boolean);
 }
@@ -3658,13 +3658,15 @@ function tradeSpend(camp, pays) {
 net.tradeFights = function() { return !!tradeAct(getActiveCampaign()); };   // the system lets a trade happen in a fight: its row stands on an NPC there (trade.js canAsk)
 function tradeView(tr, you, status, msg) {
     var S = SC(), camp = getActiveCampaign(), ca = tradeChar(camp, tr.a.charId), cb = tradeChar(camp, tr.b.charId), sys = camp && camp.system;
-    var side = function(sd, ch, off, ok, other) { var o = { charId: sd.charId, name: String((ch && ch.name) || 'A character').slice(0, 60), ok: !!ok, lines: S && sys && ch ? tradeLines(S, sys, ch, off, sd.by ? 'player' : 'gm', other) : [] }, mo = S && S.tradeMoney && sys && ch ? S.tradeMoney(sys, ch, off) : []; if (mo.length) o.money = mo; if (curs && ch && ch.trader && Array.isArray(ch.trader.acc)) o.acc = ch.trader.acc.slice(); if (rates && ch && ch.trader) ['buy', 'sell'].forEach(function(k) { if (typeof ch.trader[k] === 'number') o[k] = ch.trader[k]; }); if (xch && ch && ch.trader && ch.trader.xr) o.xr = Object.assign({}, ch.trader.xr); var atM = xch && S.tradeMoneyAt ? S.tradeMoneyAt(sys, ch, off, other) : null, faceM = mo.filter(function(m) { return m.cur === ''; })[0]; if (atM !== null && (!faceM || atM !== faceM.v)) o.moneyAt = atM; return o; };   // 157 M1e: its exchange rates, and what its money counts for with the other side   // 157 M1c: its buy and sell prices
+    var side = function(sd, ch, off, ok, other) { var o = { charId: sd.charId, name: String((ch && ch.name) || 'A character').slice(0, 60), ok: !!ok, lines: S && sys && ch ? tradeLines(S, sys, ch, off, sd.by ? 'player' : 'gm', other, sd === tr.a ? hagV : -hagV) : [] }, mo = S && S.tradeMoney && sys && ch ? S.tradeMoney(sys, ch, off) : []; if (mo.length) o.money = mo; if (curs && ch && ch.trader && Array.isArray(ch.trader.acc)) o.acc = ch.trader.acc.slice(); if (rates && ch && ch.trader) ['buy', 'sell'].forEach(function(k) { if (typeof ch.trader[k] === 'number') o[k] = ch.trader[k]; }); if (xch && ch && ch.trader && ch.trader.xr) o.xr = Object.assign({}, ch.trader.xr); var atM = xch && S.tradeMoneyAt ? S.tradeMoneyAt(sys, ch, off, other) : null, faceM = mo.filter(function(m) { return m.cur === ''; })[0]; if (atM !== null && (!faceM || atM !== faceM.v)) o.moneyAt = atM; return o; };   // 157 M1e: its exchange rates, and what its money counts for with the other side   // 157 M1c: its buy and sell prices
     var rates = !!(S && S.tradeRatesOn && S.tradeRatesOn(sys));   // 157 M1c
+    var hagOn = !!(sys && sys.trading && sys.trading.haggle), hagV = hagOn && typeof tr.hag === 'number' ? tr.hag : 0;   // 157 M1i
     var xch = !!(sys && sys.trading && sys.trading.exchange === true && Array.isArray(sys.currencies) && sys.currencies.length);   // 157 M1e
     var curs = sys && Array.isArray(sys.currencies) && sys.currencies.length ? [{ key: '*', label: 'The base unit' }].concat(sys.currencies.map(function(c) { return { key: c.key, label: String(c.label || c.key).slice(0, 60) }; })) : null;   // 157 M1b: what a side may accept   // 157 M1b: the money on offer, a Separate currency's on its own line
     var v = { tid: tr.tid, status: status || tr.status, you: you, a: side(tr.a, ca, tr.offA, tr.okA, cb), b: side(tr.b, cb, tr.offB, tr.okB, ca) }; if (curs) v.curs = curs; if (rates) v.rates = true; if (xch) v.xch = true;
     if (typeof tr.oweA === 'number' && tr.oweA > 0) v.a.owe = tr.oweA; if (typeof tr.oweB === 'number' && tr.oweB > 0) v.b.owe = tr.oweB; var dbStand = S && S.debtOf && ca && cb ? S.debtOf(ca, cb.id) : 0; if (dbStand) v.debt = dbStand;   // 157 M1h: what each side owes on this trade, and the debt between them
-    var chg = S && S.tradeChange && sys && ca && cb ? S.tradeChange(sys, ca, tr.offA, cb, tr.offB) : null;   // 157 M1d: change owed, or the payer told it cannot be given
+    if (hagOn) { v.hagOn = true; if (tr.hagDone) v.hagDone = true; if (hagV) v.hag = hagV; [['a', tr.a, ca], ['b', tr.b, cb]].forEach(function(q) { if (!q[1].by && q[2] && (q[2].npc || !q[2].ownerId)) { v[q[0]].merch = true; if (q[2].trader && typeof q[2].trader.hag === 'number') v[q[0]].hagAt = q[2].trader.hag; } }); }   // 157 M1i: haggling, and what a merchant the GM acts for haggles at
+    var chg = S && S.tradeChange && sys && ca && cb ? S.tradeChange(sys, ca, tr.offA, cb, tr.offB, hagV) : null;   // 157 M1d: change owed, or the payer told it cannot be given
     if (chg) { var cP = v[chg.payer].name, cR = chg.payer === 'a' ? 'b' : 'a', cRn = v[cR].name, cO = String(chg.over); v.change = { payer: chg.payer, over: chg.over, say: chg.can ? cRn + ' owes ' + cP + ' ' + cO + ' in change.' : cRn + ' can\u2019t give change for that: overpay by ' + cO + ', or offer smaller pieces.' + ((cR === 'a' ? tr.a : tr.b).by ? ' ' + cRn + ' may also add something to make up the difference.' : '') }; }
     // where an amount this side receives lands (the receiver picks a chip): only on the view of one who acts for that side, since it names their own rows
     if (S && S.tradeInto && sys) [['a', ca, cb, tr.offB, tr.intoA], ['b', cb, ca, tr.offA, tr.intoB]].forEach(function(q) {
@@ -3776,6 +3778,20 @@ function tradeDo(actor, msg) {
         if (xC) chX.trader = xC; else delete chX.trader; chX.updated = Date.now(); saveRemoteSoon();
         var hadX = tr2.okA || tr2.okB; tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, hadX ? 'The terms changed: confirm again.' : ''); return { ok: true };
     }
+    if (msg.op === 'haggle') {   // 157 M1i: both sides roll the system's haggling roll on the host, and the difference in their margins moves the prices, once a trade
+        var hgR = camp.system && camp.system.trading ? camp.system.trading.haggle : null; if (!hgR) return { error: 'This game sets no haggling.' }; if (tr2.hagDone) return { error: 'This trade has been haggled over already.' };
+        var Fh = window.wpFormula, Dh = window.wpDiceCore; if (!Fh || !Dh || !S.haggleRoll) return { error: 'Haggling cannot be rolled here.' };
+        var rlH = Dh.ruleOf ? Dh.ruleOf(null, camp.system.combat ? camp.system.combat.checks : '') : '', vH = [ca, cb].map(function(ch) { var rs = S.haggleRoll(camp.system, ch, Fh); return rs ? Dh.verdictOf(rs, rlH) : null; });
+        if (!vH[0] || !vH[1] || vH[0].kind !== 'check' || vH[1].kind !== 'check') return { error: 'The haggling roll cannot be worked out for both sides.' };
+        var pH = Math.max(-hgR.most, Math.min(hgR.most, Math.round(((vH[0].margin || 0) - (vH[1].margin || 0)) * hgR.step * 10) / 10)); tr2.hag = pH; tr2.hagDone = true; tr2.okA = false; tr2.okB = false;
+        var saidH = 'Haggling. ' + (ca.name || 'A character') + ': ' + vH[0].text + '. ' + (cb.name || 'A character') + ': ' + vH[1].text + '. ' + (pH ? 'Prices move ' + Math.abs(pH) + '% toward ' + ((pH > 0 ? ca : cb).name || 'a character') + '.' : 'Prices stay as they are.');
+        tradeCard([ca, cb], saidH); tradeTell(tr2, null, saidH + ' Confirm again.'); return { ok: true };
+    }
+    if (msg.op === 'hagat') {   // 157 M1i: what a merchant haggles at, set by the GM acting for it, kept on its character as its prices are
+        var chH = mine === 'a' ? ca : cb; if (tr2[mine].by || !(chH.npc || !chH.ownerId)) return { error: 'Only the GM sets what a merchant haggles at.' };
+        var hN = Object.assign({}, chH.trader || {}); if (typeof msg.amt === 'number' && isFinite(msg.amt) && msg.amt > 0) hN.hag = msg.amt; else delete hN.hag; var hC = S.cleanTrader ? S.cleanTrader(hN) : null; if (hC) chH.trader = hC; else delete chH.trader; chH.updated = Date.now(); saveRemoteSoon();
+        tradeTell(tr2); return { ok: true };
+    }
     if (msg.op === 'owe') {   // 157 M1h: I owe you, in place of money, set by whoever acts for that side
         var oN = typeof msg.amt === 'number' && isFinite(msg.amt) ? Math.max(0, Math.min(1e9, Math.round(msg.amt * 100) / 100)) : 0; if (mine === 'a') tr2.oweA = oN; else tr2.oweB = oN;
         var hadO = tr2.okA || tr2.okB; tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, hadO ? 'The offer changed: confirm again.' : ''); return { ok: true };
@@ -3784,7 +3800,7 @@ function tradeDo(actor, msg) {
         if (mine === 'a') tr2.okA = msg.on === true; else tr2.okB = msg.on === true;
         if (!(tr2.okA && tr2.okB)) { tradeTell(tr2); return { ok: true }; }
         var accC = S.tradeAcceptSays ? S.tradeAcceptSays(camp.system, ca, tr2.offA, cb) || S.tradeAcceptSays(camp.system, cb, tr2.offB, ca) : ''; if (accC) { tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, accC); return { error: accC }; }   // 157 M1b: terms changed since the money was put on
-        var chgC = S.tradeChange ? S.tradeChange(camp.system, ca, tr2.offA, cb, tr2.offB) : null;   // 157 M1d: what the payer agreed to give over, said on the card
+        var chgC = S.tradeChange ? S.tradeChange(camp.system, ca, tr2.offA, cb, tr2.offB, typeof tr2.hag === 'number' ? tr2.hag : 0) : null;   // 157 M1d: what the payer agreed to give over, said on the card
         var res = S.tradeApply(camp.system, ca, cb, tr2.offA, tr2.offB, who(tr2.a), who(tr2.b), { a: tr2.intoA, b: tr2.intoB });
         if (!res.ok && res.reason === 'empty' && ((tr2.oweA || 0) - (tr2.oweB || 0))) res = { ok: true, valuesA: {}, valuesB: {}, linesA: [], linesB: [] };   // 157 M1h: a trade of I owe you alone
         var oweNet = (tr2.oweA || 0) - (tr2.oweB || 0);
@@ -3933,6 +3949,8 @@ net.tradePut = function(tid, offer, side) { var o = { op: 'put', tid: String(tid
 net.tradeConfirm = function(tid, on, side) { var o = { op: 'confirm', tid: String(tid || ''), on: on === true }; if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };
 net.tradeRates = function(tid, r, side) { var o = { op: 'rates', tid: String(tid || '') }; ['buy', 'sell'].forEach(function(k) { if (r && typeof r[k] === 'number' && isFinite(r[k])) o[k] = r[k]; }); if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };   // 157 M1c
 net.tradeXRates = function(tid, xr, side) { var o = { op: 'xrates', tid: String(tid || ''), xr: {} }; if (xr && typeof xr === 'object') Object.keys(xr).slice(0, 13).forEach(function(k) { if (typeof xr[k] === 'number' && isFinite(xr[k])) o.xr[k] = xr[k]; }); if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };   // 157 M1e
+net.tradeHaggle = function(tid, side) { var o = { op: 'haggle', tid: String(tid || '') }; if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };   // 157 M1i
+net.tradeHagAt = function(tid, amt, side) { var o = { op: 'hagat', tid: String(tid || ''), amt: typeof amt === 'number' && isFinite(amt) ? amt : 0 }; if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };   // 157 M1i
 net.tradeOwe = function(tid, amt, side) { var o = { op: 'owe', tid: String(tid || ''), amt: typeof amt === 'number' && isFinite(amt) ? amt : 0 }; if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };   // 157 M1h
 net.debtSet = function(aId, bId, v) {   // 157 M1h: the GM's hand on a debt: a owes b v (below 0: b owes a), 0 clears; both sheets, saved, sent to their owners and logged
     if (net.role === 'client') return { error: 'Only the GM changes a debt.' }; var S = SC(), camp = getActiveCampaign(), a = camp && camp.chars ? camp.chars[aId] : null, b = camp && camp.chars ? camp.chars[bId] : null;
@@ -3977,11 +3995,11 @@ function cleanTradeView(v) {
         var acS = (Array.isArray(s.acc) ? s.acc.slice(0, 13) : []).filter(function(k) { return typeof k === 'string' && /^(\*|[A-Za-z][A-Za-z0-9_]{0,23})$/.test(k); }); if (acS.length) out.acc = acS;
         ['buy', 'sell'].forEach(function(k) { var rv = num(s[k]); if (rv !== null && rv >= 0 && rv <= 1000) out[k] = Math.round(rv); });   // 157 M1c
         if (s.xr && typeof s.xr === 'object' && !Array.isArray(s.xr)) { var xrS = {}, xnS = 0; Object.keys(s.xr).slice(0, 13).forEach(function(k) { var xv = num(s.xr[k]); if (/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(k) && xv !== null && xv >= 0 && xv <= 1000) { xrS[k] = Math.round(xv); xnS++; } }); if (xnS) out.xr = xrS; }   // 157 M1e
-        var maS = num(s.moneyAt); if (maS !== null) out.moneyAt = maS; var owS = num(s.owe); if (owS !== null && owS > 0) out.owe = owS;   // 157 M1h
+        var maS = num(s.moneyAt); if (maS !== null) out.moneyAt = maS; var owS = num(s.owe); if (owS !== null && owS > 0) out.owe = owS; if (s.merch === true) out.merch = true; var haS = num(s.hagAt); if (haS !== null && haS >= 0) out.hagAt = haS;   // 157 M1h
         return out;
     };
     var a = side(v.a), b = side(v.b); if (!a || !b) return null;
-    var o = { tid: v.tid, status: st, you: you, a: a, b: b }; if (v.rates === true) o.rates = true; if (v.xch === true) o.xch = true; var dbN = num(v.debt); if (dbN !== null && dbN !== 0) o.debt = dbN; if (v.change && typeof v.change === 'object' && (v.change.payer === 'a' || v.change.payer === 'b')) { var ovN = num(v.change.over); if (ovN !== null && ovN > 0) o.change = { payer: v.change.payer, over: ovN, say: txt(v.change.say, 300) }; } var cuV = (Array.isArray(v.curs) ? v.curs.slice(0, 13) : []).map(function(c) { return c && typeof c === 'object' && typeof c.key === 'string' && /^(\*|[A-Za-z][A-Za-z0-9_]{0,23})$/.test(c.key) ? { key: c.key, label: txt(c.label, 60) || c.key } : null; }).filter(Boolean); if (cuV.length) o.curs = cuV; var m = txt(v.msg, 200); if (m) o.msg = m; var cs = txt(v.cost, 200); if (cs) o.cost = cs; return o;
+    var o = { tid: v.tid, status: st, you: you, a: a, b: b }; if (v.rates === true) o.rates = true; if (v.xch === true) o.xch = true; var dbN = num(v.debt); if (dbN !== null && dbN !== 0) o.debt = dbN; if (v.hagOn === true) o.hagOn = true; if (v.hagDone === true) o.hagDone = true; var hgN = num(v.hag); if (hgN !== null && hgN !== 0 && Math.abs(hgN) <= 100) o.hag = hgN; if (v.change && typeof v.change === 'object' && (v.change.payer === 'a' || v.change.payer === 'b')) { var ovN = num(v.change.over); if (ovN !== null && ovN > 0) o.change = { payer: v.change.payer, over: ovN, say: txt(v.change.say, 300) }; } var cuV = (Array.isArray(v.curs) ? v.curs.slice(0, 13) : []).map(function(c) { return c && typeof c === 'object' && typeof c.key === 'string' && /^(\*|[A-Za-z][A-Za-z0-9_]{0,23})$/.test(c.key) ? { key: c.key, label: txt(c.label, 60) || c.key } : null; }).filter(Boolean); if (cuV.length) o.curs = cuV; var m = txt(v.msg, 200); if (m) o.msg = m; var cs = txt(v.cost, 200); if (cs) o.cost = cs; return o;
 }
 // [netcheck:trade-end]
 // Turn-based combat T2 (owner, 2026-09-26): the token whose turn it is on the map in view, when it is this player's own — { mapId, rowId, tok }

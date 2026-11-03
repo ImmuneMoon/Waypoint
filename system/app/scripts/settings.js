@@ -232,6 +232,15 @@ if (_fxRed) { try { _fxRed.checked = localStorage.getItem('wp_fxReduced') === '1
 function hiddenLookOf(v) { return v === 'none' ? 'none' : 'fade'; }
 function hiddenLookApply(v) { try { document.body.classList.toggle('hid-none', hiddenLookOf(v) === 'none'); } catch (e) {} }
 // [lookcheck:hiddenlook-end]
+// 1.6.2 (the owner: "these all over the map on every objecy is distracting", by prompt "A Settings choice", "on hover by default"): when a plain wall wears its mark on this screen. The body's one word wallmk-always or wallmk-never, which the style sheet reads, and none for on hover
+// [lookcheck:wallmarks-start]
+function wallMarkOf(v) { return v === 'always' || v === 'never' ? v : 'hover'; }
+function wallMarkApply(v) { var w = wallMarkOf(v); try { document.body.classList.toggle('wallmk-always', w === 'always'); document.body.classList.toggle('wallmk-never', w === 'never'); } catch (e) {} }
+// [lookcheck:wallmarks-end]
+var _wmSel = ui('setWallMarks'), _wm0 = 'hover';
+try { _wm0 = wallMarkOf(localStorage.getItem('wp_wallMarks')); } catch (e) {}
+wallMarkApply(_wm0);
+if (_wmSel) { _wmSel.value = _wm0; _wmSel.addEventListener('change', function() { var v = wallMarkOf(_wmSel.value); try { localStorage.setItem('wp_wallMarks', v); } catch (e) {} wallMarkApply(v); }); }
 var _hidSel = ui('setHiddenLook'), _hid0 = 'fade';
 try { _hid0 = hiddenLookOf(localStorage.getItem('wp_hiddenLook')); } catch (e) {}
 hiddenLookApply(_hid0);

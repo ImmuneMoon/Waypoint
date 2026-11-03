@@ -378,6 +378,7 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
       if (dNav) dNav.innerHTML = treeHtml('doc') || '<div class="nav-empty">No pages yet — press + above to write a rules or reference page your players can read.</div>';
       // The Characters section follows every redraw of the panel (charlist.js), and its sync asks panelJudge what a joined player's panel holds
       if (window.wpCharList) window.wpCharList.sync(); else panelJudge(0);
+      if (window.wpDeckWin) window.wpDeckWin.sync();   // 1.6.2 (G9)
 
       if (window.wpPageShelf && window.wpPageShelf.noteActive) window.wpPageShelf.noteActive();   // 1.5.4 (pageshelf.js): a page that is the item on screen is one of the last pages opened
       mNav.innerHTML = mapQuickHtml(camp) + (treeHtml('map') || '<div class="nav-empty">No maps yet — press + above to create your first location.</div>');
@@ -530,7 +531,7 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
 
   (function() {
 
-      [['planners', 'plannerNavList'], ['handbook', 'docNavList'], ['maps', 'mapNavList'], ['characters', 'charNavList']].forEach(function(pair) {
+      [['planners', 'plannerNavList'], ['handbook', 'docNavList'], ['maps', 'mapNavList'], ['characters', 'charNavList'], ['decks', 'deckNavList']].forEach(function(pair) {
 
           var key = pair[0], nav = document.getElementById(pair[1]);
 

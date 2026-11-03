@@ -15,7 +15,7 @@ import { getActiveMap } from './models.js';
 import { state } from './state.js';
 
 // [lookcheck:leftrail-start]
-var RAIL_SECS = ['handbook', 'planners', 'maps', 'characters'];   // the panel's sections, as their titles name them (data-section)
+var RAIL_SECS = ['handbook', 'planners', 'maps', 'characters', 'decks'];   // the panel's sections, as their titles name them (data-section)
 // The panel's state after something happened. st: { mode: 'docked' | 'rail' | 'open', sec, auto, play, pin }: sec is the section it was
 // opened at, auto says it folded by itself, play that the play map is on screen, pin that it is pinned there. ev: { t: 'view', play } the
 // view changed, { t: 'icon', sec } a press on an icon of the rail, { t: 'away' } a press anywhere else or Esc, { t: 'pin' } the rail's pin,

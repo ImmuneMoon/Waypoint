@@ -1603,7 +1603,7 @@ function turnView(v, final) {
 // live: Effects, Sound, Music, Video and the notepad came up under an open sheet or page panel, which stand later in the page at the same z,
 // and a press on them left them there)
 var _zTop = 9000;
-var Z_BOXES = ['sheetPanel', 'docPanel', 'soundPanel', 'musicPanel', 'videoPanel', 'fxPanel', 'notepadPanel', 'timePanel', 'trkPanel'];
+var Z_BOXES = ['sheetPanel', 'docPanel', 'soundPanel', 'musicPanel', 'videoPanel', 'fxPanel', 'notepadPanel', 'timePanel', 'deckPanel', 'trkPanel'];
 function floatPanels() { var l = Z_BOXES.map(function(id) { return ui(id); }); Object.keys(huds).forEach(function(id) { l.push(huds[id].panel); }); return l.filter(Boolean); }
 function raisePanel(p) {
     if (!p || String(p.style.zIndex) === String(_zTop)) return;
@@ -5692,7 +5692,7 @@ if (typeof setCrewSource === 'function') setCrewSource(crewSource);
 if (typeof setValueSource === 'function') setValueSource(function(k) { var c = getActiveCampaign(); return c && c.shared && Object.prototype.hasOwnProperty.call(c.shared, k) ? c.shared[k] : undefined; });
 if (typeof setValueSink === 'function') setValueSink(function(moves) { var n = net(); if (n && typeof n.valuesSet === 'function') n.valuesSet(moves); });
 // 1.6.2 (G9): a deck's counts, or with whole true its pile, which only the machine that owns the campaign holds
-if (typeof setDeckSource === 'function') setDeckSource(function(k, whole) { var c = getActiveCampaign(), DC = window.wpDeckCore; if (!c || !DC) return null; var d = DC.deckOf(c.system && c.system.decks, k); if (!d) return null; var p = c.piles && Object.prototype.hasOwnProperty.call(c.piles, k) ? DC.cleanPile(c.piles[k], d) : null; if (whole) return p; if (c.pileN && Object.prototype.hasOwnProperty.call(c.pileN, k)) return c.pileN[k]; return DC.pileCounts(p, d); });
+if (typeof setDeckSource === 'function') setDeckSource(function(k, whole) { var c = getActiveCampaign(), DC = window.wpDeckCore; if (!c || !DC) return null; var d = DC.deckOf(c.system && c.system.decks, k) || DC.deckOf(DC.cleanDecks(c.decks, true, /^C[0-9]+$/), k); if (whole === 'def') return d; if (!d) return null; var p = c.piles && Object.prototype.hasOwnProperty.call(c.piles, k) ? DC.cleanPile(c.piles[k], d) : null; if (whole) return p; if (c.pileN && Object.prototype.hasOwnProperty.call(c.pileN, k)) return c.pileN[k]; return DC.pileCounts(p, d); });
 if (typeof setDeckSink === 'function') setDeckSink(function(moves) { var n = net(); if (n && typeof n.decksSet === 'function') n.decksSet(moves); });
 // 1.6.2 (G8): the GM ticks who shares a sheet. Each whole copy then goes out as any change of the sheet does, and a player taken off it holds a teammate's copy again
 function shareToggle(cid, pid) {

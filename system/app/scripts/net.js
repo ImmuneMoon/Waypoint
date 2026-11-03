@@ -1180,7 +1180,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         delete camp.pinnedMaps;
         delete camp.pinnedPages;   // 1.5.4 (pageshelf.js): the pages pinned for the session name planners, which never leave this machine
         delete camp.buildPins;   // 1.6.2: the GM's own palette in Build
-        if (camp.piles || Array.isArray(camp.decks) || (camp.system && Array.isArray(camp.system.decks))) camp.pileN = typeof decksFor === 'function' ? decksFor(camp) : {}; delete camp.piles; if (Array.isArray(camp.decks)) camp.decks = camp.decks.filter(function(d) { return !!d && d.vis !== 'gm'; });   // 1.6.2 (G9): never the order of a pile
+        if (camp.piles || Array.isArray(camp.decks) || (camp.system && Array.isArray(camp.system.decks))) camp.pileN = typeof decksFor === 'function' ? decksFor(camp) : {}; delete camp.piles; if (Array.isArray(camp.decks)) { camp.decks = window.wpDeckCore ? window.wpDeckCore.cleanDecks(camp.decks, false, /^C[0-9]+$/) : []; if (!camp.decks.length) delete camp.decks; }   // 1.6.2 (G9): never the order of a pile
         if (camp.shared) { var shS = window.wpSystemCore && window.wpSystemCore.cleanShared ? window.wpSystemCore.cleanShared(camp.shared, camp.system, false) : null; if (shS) camp.shared = shS; else delete camp.shared; }   // 1.6.2 (G8): a GM-only value never leaves the host
         delete camp.fights;   // 1.6.0: a running fight as the host keeps it, numbers, rolls and all (fightsKeep)
         delete camp.sessionLog;
@@ -3059,7 +3059,27 @@ net.trackersForget = function(peer) { if (typeof peer === 'string') delete _trkS
 // 1.6.2 (G8): a shared value, written on the host and told to the table, a GM-only one kept off the wire. A player's app holds what it was told and writes nothing; a tracker that shows a value follows it
 // 1.6.2 (G9): a draw's piles, the host's alone: the table is told how many are left, and which was drawn last where everyone saw it, never the order
 function decksFor(camp) { var S = SC(), DC = window.wpDeckCore, o = {}; if (!camp || !camp.system || !S || !DC) return o; (Array.isArray(camp.system.decks) ? camp.system.decks : []).concat(Array.isArray(camp.decks) ? camp.decks : []).forEach(function(d) { if (d && d.vis !== 'gm' && typeof d.key === 'string') o[d.key] = DC.pileCounts(camp.piles && own(camp.piles, d.key) ? camp.piles[d.key] : null, d); }); return o; }
-net.decksTell = function(camp) { if (!camp || !net.active || net.role !== 'host') return; var counts = decksFor(camp); net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send({ type: 'decks', campId: camp.id, counts: counts }); } catch (e) { sendFailed(e, 'decks'); } } }); };
+net.decksTell = function(camp) { if (!camp) return; if (window.wpDeckWin) window.wpDeckWin.sync(); if (!net.active || net.role !== 'host') return; var counts = decksFor(camp), defs = Array.isArray(camp.decks) ? camp.decks.filter(function(d) { return !!d && d.vis !== 'gm'; }) : []; net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send({ type: 'decks', campId: camp.id, counts: counts, decks: defs }); } catch (e) { sendFailed(e, 'decks'); } } }); };
+// [netcheck:deckdo-start]
+// 1.6.2 (G9, fold 4): a draw by hand. The GM's press and a player's message end here, and the host judges: a deck the player may know that is open to them, a hand they may reach, and the host's own dice. A player's hand is theirs alone, as a roll's is
+function deckRun(camp, key, op, pid, o) {
+    var K = window.wpDeckCore, S = SC(), F = window.wpFormula; if (!camp || !K || !S || !camp.system) return 'That cannot be done now.'; var cd = K.cleanDecks(camp.decks, true, /^C[0-9]+$/), d = K.deckOf(camp.system.decks, key) || K.deckOf(cd, key); if (!d || !d.cards.length) return 'That deck is not here.';
+    if (pid && (d.vis === 'gm' || d.open !== true || op !== 'draw')) return 'Only the GM can do that.';
+    var rnd = function(n) { var r = F && F.evaluate ? F.evaluate('1d' + n) : null; return r && r.ok && typeof r.value === 'number' ? r.value : 1 + Math.floor(Math.random() * n); }, p = camp.piles && own(camp.piles, d.key) ? K.cleanPile(camp.piles[d.key], d) : null, keep = function(np) { camp.piles = Object.assign({}, camp.piles || {}); camp.piles[d.key] = np; saveRemoteSoon(); net.decksTell(camp); if (window.wpSheets && window.wpSheets.valuesMoved) window.wpSheets.valuesMoved(); };
+    if (op === 'shuffle') { keep(K.shufflePile(d, p, rnd)); if (net.postApplyCard) net.postApplyCard(null, 'Shuffle', [{ n: d.label, say: (d.word || 'Deck') + ' shuffled.' }], 'table'); return null; }
+    if (op === 'reset') { var held = []; Object.keys(camp.chars || {}).forEach(function(id) { var v = camp.chars[id] && camp.chars[id].values; if (v) Object.keys(v).forEach(function(f) { if (Array.isArray(v[f])) v[f].forEach(function(r) { if (r && Array.isArray(r.cd) && r.cd[0] === d.key) held.push(r.cd[1]); }); }); }); keep(K.shufflePile(d, p, rnd, true, held)); if (net.postApplyCard) net.postApplyCard(null, 'Start again', [{ n: d.label, say: (d.word || 'Deck') + ' started again.' }], 'table'); return null; }
+    if (op !== 'draw') return 'That cannot be done now.'; var n = Math.max(1, Math.min(K.DRAW_MAX, Math.floor(Number(o && o.n) || 1))), ch = o && o.charId && camp.chars && own(camp.chars, o.charId) ? camp.chars[o.charId] : null, lf = ch && o.to ? (Array.isArray(camp.system.fields) ? camp.system.fields : []).filter(function(f) { return !!f && f.id === o.to && f.kind === 'item-list' && !!f.list && !!f.list.hand; })[0] : null;
+    if ((o && o.charId) && (!ch || !lf)) return 'That hand is not here.'; if (ch && pid && !handsTo(ch, pid)) return 'That hand is not yours.';
+    var dr = K.drawCards(d, p, n, rnd, !!lf); if (!dr.cards.length) return 'Nothing left to draw.'; if (lf) dr.pile.last = p ? p.last : null; keep(dr.pile); var names = dr.cards.map(function(i) { return d.cards[i].name; }).join(', ');
+    if (lf) { ch.values = ch.values || {}; var rows = (Array.isArray(ch.values[lf.id]) ? ch.values[lf.id] : []).slice(); dr.cards.forEach(function(ix) { rows.push(S.cardRow(lf, d, ix, rows)); }); ch.values[lf.id] = rows; ch.updated = Date.now(); var mv = {}; mv[lf.id] = rows; net.syncCharDelta(ch.id, mv); if (window.wpSheets) window.wpSheets.charChanged(ch.id); var ln = { n: d.label, say: names }; if (S.handKept(lf.list, ch)) { ln.hand = true; ln.cnt = 'Draws ' + (dr.cards.length === 1 ? 'a card.' : dr.cards.length + ' cards.'); } net.postApplyCard(ch, 'Draw', [ln], 'owner', false, null, o && o.by); }
+    else net.postApplyCard(null, 'Draw', [{ n: d.label, say: names }], 'table', false, null, o && o.by);
+    if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'draw', { n: dr.cards.length, hand: !!lf }); return null;
+}
+net.deckDo = function(key, op, o) {
+    if (net.active && net.role === 'client') { var c0 = net.conns[0]; if (!c0 || !c0.open) return 'The table is not there.'; try { c0.send({ type: 'deck-do', key: String(key), op: String(op), n: o && o.n, charId: o && o.charId || '', to: o && o.to || '' }); } catch (e) { return 'That could not be sent.'; } return null; }
+    return deckRun(getActiveCampaign(), key, op, '', o);
+};
+// [netcheck:deckdo-end]
 net.decksSet = function(moves) {
     var camp = getActiveCampaign(); if (!camp || net.role === 'client') return; camp.piles = Object.assign({}, camp.piles || {}, moves); saveRemoteSoon(); net.decksTell(camp);
     if (window.wpSheets && typeof window.wpSheets.valuesMoved === 'function') window.wpSheets.valuesMoved(); if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'moved', { n: Object.keys(moves).length });
@@ -6074,9 +6094,9 @@ function fightSet(fid, combat) {
         if (had) had.rows.forEach(function(r) { if (r && typeof r.tokId === 'string' && !f.rows.some(function(x) { return x && x.tokId === r.tokId; })) { var wn = _fightWas[fid] = _fightWas[fid] || Object.create(null); wn[r.tokId] = { init: r.init, rolled: r.rolled === 1 }; } });
         tg = fightTime(campNow(), had, f);   // fold 4: its own time (a new fight's, or a roster edit's), before it is stored
         net.combats[fid] = f;
+        if (first && typeof marksStart === 'function') { try { marksStart(mapId); } catch (e) { console.error(e); } }   // senses S4b: everyone's marks held from the fight's start
         if (!had && typeof deckOrder === 'function') { var campDo = campNow(); if (campDo && initRulesOf(campDo) && initRulesOf(campDo).deck) { f.rr = 1; deckOrder(campDo, f); f.turn = 0; } }   // 1.6.2 (G9): a new fight's first order is drawn too
         if (had && typeof had.endAt === 'number') f.endAt = had.endAt;
-        if (first && typeof marksStart === 'function') { try { marksStart(mapId); } catch (e) { console.error(e); } }   // senses S4b: everyone's marks held from the fight's start
         if (had && typeof had.rr === 'number') f.rr = had.rr;   // initiative O4: the last round the fight rolled for, and this round's side, kept through a roster edit
         if (had && (had.side === 'pc' || had.side === 'rest')) f.side = had.side;
         if (typeof combatSides === 'function') combatSides(mapId, f, !had);   // ...and each side together (a new fight rolls the sides first)
@@ -6503,6 +6523,7 @@ function targetHitAsk(camp, peer, pid, charId) {
     var w = Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === rc.tid; }) : null, tc = w && typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null;
     return tc ? { tid: rc.tid, rows: S.targetHitRows(camp.system, tc, true) } : null;
 }
+var deckLimit = null;   // 1.6.2 (G9)
 var hitLimit = null;
 // A player's app: a host that answers hit-ask says so in its join snapshot (hits: true, read as true only); an older one would stay silent, so
 // such a roll is rolled with no location picked, as before. net.hitRows asks the host for the rows of its own target (cb(rows), or cb(null)
@@ -8746,9 +8767,9 @@ function handleMessage(msg, conn) {
         // 1.6.2 (G9): how many are left, from the synced host only, for the campaign on screen, each cleaned against the deck as this app holds it
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
-        var campDk = campOf(msg.campId), dkCore = window.wpDeckCore; if (!campDk || !campDk.system || !dkCore || !msg.counts || typeof msg.counts !== 'object') return; var keptK = Object.create(null);
+        var campDk = campOf(msg.campId), dkCore = window.wpDeckCore; if (!campDk || !campDk.system || !dkCore || !msg.counts || typeof msg.counts !== 'object') return; var keptK = Object.create(null); var dkIn = dkCore.cleanDecks(msg.decks, false, /^C[0-9]+$/); if (dkIn.length) campDk.decks = dkIn; else delete campDk.decks;
         (Array.isArray(campDk.system.decks) ? campDk.system.decks : []).concat(Array.isArray(campDk.decks) ? campDk.decks : []).forEach(function(d) { if (d && own(msg.counts, d.key)) { var cK = dkCore.cleanCounts(msg.counts[d.key], d); if (cK) keptK[d.key] = cK; } });
-        campDk.pileN = keptK; if (window.wpSheets && typeof window.wpSheets.valuesMoved === 'function') window.wpSheets.valuesMoved();
+        campDk.pileN = keptK; if (window.wpSheets && typeof window.wpSheets.valuesMoved === 'function') window.wpSheets.valuesMoved(); if (window.wpDeckWin) window.wpDeckWin.sync();
     } else if (msg.type === 'shared' && net.role === 'client') {
         // 1.6.2 (G8): the shared values this player may read, from the synced host only, for the campaign on screen, cleaned again against their view
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
@@ -9301,6 +9322,10 @@ function handleMessage(msg, conn) {
         var heldCQ = chQ && actQ && typeof cardHold === 'function' ? cardHold({ asked: typeof askedQ !== 'undefined' ? askedQ : null, S: SQ, D: Dq, F: Fq, camp: campQ, ent: cardEnt(campQ, q.act, rowGQ, actQ), res: resQ, expr: q.expr, vars: varsQ, tc: tcQ, ch: chQ, pid: pidQ, conn: conn, priv: q.priv === 'gm', from: diceFrom(net.roster[conn.peer], false), rid: q.rid, label: q.label, as: String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label), cid: q.charId, go: function(r, e, id, st) { q.expr = e; if (st) varsQ.bandStep = st; restQ(r, id); } }) : false;
         if (!heldCQ) restQ(resQ);
         // [netcheck:rollreq-end]
+    } else if (msg.type === 'deck-do' && net.role === 'host') {
+        // 1.6.2 (G9): a player's draw by hand, admitted (the gate above), limited, and judged by deckRun. Nothing of a pile goes back but the counts
+        var Dd = DC(); if (!Dd || typeof msg.key !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(msg.key) || msg.op !== 'draw') return; if (!deckLimit) deckLimit = Dd.RateLimit(Dd.LIMITS); if (deckLimit.allow(conn.peer, Date.now()) !== true) return;
+        var whyD = deckRun(getActiveCampaign(), msg.key, 'draw', peerProfileId(conn), { n: msg.n, charId: typeof msg.charId === 'string' ? msg.charId.slice(0, 30) : '', to: typeof msg.to === 'string' ? msg.to.slice(0, 30) : '', by: diceFrom(net.roster[conn.peer], false) }); if (whyD && typeof turnNote === 'function') turnNote(conn, whyD, '');
     } else if (msg.type === 'hit-ask' && net.role === 'host') {
         // [netcheck:hitask-start]
         // 1.6.0 (B5): a player asks which locations their own target has, before a roll that reads Target.Hit: admitted (the gate above), their
@@ -10782,8 +10807,8 @@ function blowCripWrite(bc, persist) {   // its changes onto the character, sent 
 }
 // [netcheck:attempt-end]
 // Stage 6 HUD H7: the GM's own press (sheets.js has worked it out and stored it): the card, as the GM's
-net.postApplyCard = function(ch, label, lines, scope, hid, asked) {   // hid (1.6.2): a roll whose figure is hidden: its card says what moved and no figure
-    var rec = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), lines: applyLines(lines), ts: Date.now() };
+net.postApplyCard = function(ch, label, lines, scope, hid, asked, by) {   // hid (1.6.2): a roll whose figure is hidden: its card says what moved and no figure. by (1.6.2): who did it, where that is not the GM
+    var rec = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: by && by.name ? by : diceFrom(getProfile(), true), lines: applyLines(lines), ts: Date.now() };
     if (label) rec.label = String(label).slice(0, 60);
     if (ch && ch.name) rec.as = String(ch.name).slice(0, 60);
     if (!rec.lines.length) return;

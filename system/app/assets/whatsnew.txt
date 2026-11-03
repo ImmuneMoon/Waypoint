@@ -42,11 +42,15 @@ The System editor
 - A list's rows can stand at rows of another list, as armour on the parts of a
   body. A formula reads the place a row stands, and a row of that list reads
   what stands there. Fits where, Reaches and Counts where set the rules.
+- Wall marks stand aside until you point at a wall or select it, and its hover card
+  says what it is. Settings can show them always or never.
 - Decks and bags: a set of cards or tokens a system names, which rolls and actions
   draw from and shuffle. Each campaign keeps its own pile.
 - A hand of cards: a list marked as a hand holds what a character draws, shown as a
   fan. Only its owner sees the cards, and everyone else sees how many.
 - A fight's order can come from a draw each round, and a card can end the round.
+- The left panel's Decks section: draw by hand, shuffle, and build a deck for one
+  campaign alone.
 - Shared sheets: the GM ticks which players share a sheet, and any of them can use
   it. It keeps one player for its tokens and turns.
 - Shared values: a number the whole table shares, named in the system, which rolls

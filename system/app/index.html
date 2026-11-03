@@ -47,6 +47,7 @@
 <script type="module" src="scripts/inlinedice.js"></script>
 <script type="module" src="scripts/deckcore.js"></script>
 <script type="module" src="scripts/deckui.js"></script>
+<script type="module" src="scripts/deckwin.js"></script>
 <script type="module" src="scripts/sysui.js"></script>
 <script type="module" src="scripts/formbox.js"></script>
 <script type="module" src="scripts/arrange.js"></script>
@@ -762,6 +763,7 @@
                       <h4>The right-click menu</h4>
                       <ul>
                           <li><b>Lock / Unlock</b>: locked items can't be moved or resized, and they dim slightly. A locked token is frozen for its player too. They can't move or turn it, change its posture or elevation, or mark threats on it until you unlock it.</li>
+                          <li><b>Wall marks</b>: a wall shows a gold line, and its small mark when you point at it or select it. Its hover card says what it is. Settings can show the marks always or never.</li>
                           <li><b>Hide from Players / Show to Players</b>: in multiplayer, players see nothing at all of a hidden item. They get no outline, no placeholder and none of its moves. You see a ghost with an eye. Show it again and it appears for them where it stands. To leave hidden pieces off your own screen too, pick Invisible under <b>Hidden pieces on my map</b> in Settings.</li>
                           <li><b>Show Above Grid</b> lifts an item above the grid lines. Text does this automatically.</li>
                           <li><b>Bring to Front / Forward / Backward / Send to Back</b>: five stacking layers for building scenes.</li>
@@ -2203,6 +2205,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>A row of two or more has <b>Split</b> beside its &minus;/+. It asks how many, then puts them in a row of their own, such as three of five grenades. The new row starts switched off. A row that holds a load is unloaded first.</li>
                                   <li>A sheet can be <b>shared</b>. On its player&rsquo;s name under the sheet&rsquo;s title, tick <b>Also shared with</b>. Those players can use the sheet as their own, and its tokens and turns stay with its one player.</li>
                                   <li>The Rules tab&rsquo;s <b>Decks and bags</b> are sets of things you draw from. A roll&rsquo;s Then or an action draws with <b>Draw from:</b>, and each campaign keeps its own pile. <b>After a draw</b> says whether a card goes back, waits in a discard pile, or stays out.</li>
+                                  <li>The left panel&rsquo;s <b>Decks</b> section lists every deck with how many are left. Open one to draw by hand, shuffle, or build a deck for this campaign alone. Players draw from one ticked <b>Players may draw</b>.</li>
                                   <li>A list ticked <b>A hand of cards</b> holds what a character draws, shown as a fan. Only its owner sees the cards, and everyone else sees how many. <b>The GM sees hands</b> lets the GM read them too.</li>
                                   <li>The Combat tab&rsquo;s <b>Initiative</b> box can take a fight&rsquo;s order from <b>A draw each round</b>. A card ticked <b>Ends the round</b> ends the round where it stands.</li>
                                   <li>The Rules tab&rsquo;s <b>Shared values</b> are numbers the whole table shares, such as Momentum. A roll&rsquo;s Then or an action moves one with <b>Shared:</b>, and a formula can read it. Each campaign keeps its own figure, and <b>Now</b> sets it by hand. A tracker&rsquo;s <b>Shows</b> list puts one on the map&rsquo;s strip.</li>
@@ -2980,6 +2983,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       <button class="rail-btn gm-only" id="railPlanners" data-rail="planners" aria-expanded="false" title="Planners. Opens the left panel at your planners."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM10 10v6l5-3z"/></svg></button>
       <button class="rail-btn gm-only" id="railMaps" data-rail="maps" aria-expanded="false" title="Maps. Opens the left panel at the maps."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5l5.5-2 6 2 5.5-2v13l-5.5 2-6-2-5.5 2zM9 4.5v13M15 6.5v13"/></svg></button>
       <button class="rail-btn" id="railCharacters" data-rail="characters" aria-expanded="false" title="Characters. Opens the left panel at the character sheets." hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM5.5 20v-1.5A4.5 4.5 0 0 1 10 14h4a4.5 4.5 0 0 1 4.5 4.5V20"/></svg></button>
+      <button class="rail-btn" id="railDecks" data-rail="decks" aria-expanded="false" title="Decks. Opens the left panel at the decks and bags." hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 5h7.8A1.6 1.6 0 0 1 18 6.6v11.8a1.6 1.6 0 0 1-1.6 1.6H8.6A1.6 1.6 0 0 1 7 18.4V6.6A1.6 1.6 0 0 1 8.6 5zM4.5 8.2v9.6a1.6 1.6 0 0 0 .9 1.4M12.5 9.2l2.3 3.3-2.3 3.3-2.3-3.3z"/></svg></button>
       <button class="rail-btn gm-only" id="railSearch" title="Search. Quick-jump, Ctrl+K."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.4 15.4l5.1 5.1"/></svg></button>
       <span class="rail-grow"></span>
       <button class="rail-btn" id="railPin" title="Keep the left panel open."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 3.5h7M10 3.5v5l-3.2 4.5h10.4L14 8.5v-5M12 13v7.5"/></svg></button>
@@ -3000,6 +3004,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div class="sidebar-section sb-characters" hidden>
             <h3><span class="section-title" data-section="characters" data-label="Characters" title="Collapse/expand this section">&#9662; Characters</span> <button class="tool ghost gm-only" id="newCharBtn" style="padding:2px 6px; margin:0;" title="New character sheet"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15"/></svg></button></h3>
             <div id="charNavList"></div>
+        </div>
+        <div class="sidebar-section sb-decks" hidden>
+            <h3><span class="section-title" data-section="decks" data-label="Decks" title="Collapse/expand this section">&#9662; Decks</span> <button class="tool ghost gm-only" id="newDeckBtn" style="padding:2px 6px; margin:0;" title="A deck or bag for this campaign alone"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15"/></svg></button></h3>
+            <div id="deckNavList"></div>
         </div>
     </div>
     <div id="leftGrip" title="Drag to resize the panel"></div>
@@ -4251,6 +4259,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             </div>
             <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dim); margin:-2px 0 8px; cursor:pointer;" title="Skip screen shake and shorten flashes on this machine (photosensitivity or a slow GPU). Your setting only."><input type="checkbox" id="setFxReduced"> <span class="set-name"><span>Reduce motion (this machine)</span><small>Skips screen shake and shortens flashes.</small></span></label>
             <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dim); margin:-2px 0 8px;" title="The line the fog draws above a token that is blind by its sheet (Blind, then the senses that still work), and where a sense fails. Always: as ever. On hover or selected: only above the token under your pointer or one you selected. Never: not drawn. Your setting only: nobody else&rsquo;s screen changes."><span class="set-name"><span>Sense captions over tokens (this machine)</span><small>The line above a token that is blind, or where a sense fails.</small></span> <select id="setSenseCaps" class="field" style="width:auto; font-size:10.5px; padding:1px 4px;"><option value="always">Always</option><option value="hover">On hover or selected</option><option value="never">Never</option></select></label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dim); margin:-2px 0 8px;" title="When a plain wall shows its small mark on your own map. On hover or selected: only the wall under your pointer or one you selected. Always: on every wall. Never: not drawn. Doors, barriers and portals keep their marks. Your setting only: nobody else&rsquo;s screen changes."><span class="set-name"><span>Wall marks on my map (this machine)</span><small>The small mark on a wall. Its gold line stays either way.</small></span> <select id="setWallMarks" class="field" style="width:auto; font-size:10.5px; padding:1px 4px;"><option value="hover">On hover or selected</option><option value="always">Always</option><option value="never">Never</option></select></label>
             <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dim); margin:-2px 0 8px;" title="How a piece you hid from players looks on your own map. Faded: see-through, with a dashed edge and an eye, as ever. Invisible: not drawn on your screen until you show it to players again. Players never see a hidden piece either way. Your setting only: nobody else&rsquo;s screen changes."><span class="set-name"><span>Hidden pieces on my map (this machine)</span><small>Faded shows them see-through. Invisible leaves them out until shown.</small></span> <select id="setHiddenLook" class="field" style="width:auto; font-size:10.5px; padding:1px 4px;"><option value="fade">Faded</option><option value="none">Invisible</option></select></label>
             <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dim); margin:-2px 0 8px;" title="At someone else&rsquo;s table, the private notes the GM&rsquo;s app sends you when your character&rsquo;s time rules run, such as a pool that fills by the hour. Every time: as ever. Gathered: one note with all of them every 10 minutes or every hour. Off: none in your chat. The rules still run. As GM, your own summaries follow it too, and the Game Record keeps every line. Your setting only."><span class="set-name"><span>Time rule notes (this machine)</span><small>How often notes of your character&rsquo;s time rules reach your chat.</small></span> <select id="setTimeNotes" class="field" style="width:auto; font-size:10.5px; padding:1px 4px;"><option value="all">Every time</option><option value="10m">Gathered every 10 minutes</option><option value="1h">Gathered every hour</option><option value="off">Off</option></select></label>
             <div class="set-vtt-row" data-vtt="fog" style="margin-bottom:8px;">
@@ -4616,6 +4625,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 </div>
 <!-- Table trackers (1.6.0, backlog 29): a tracker's menu beside its name and its form (trackers.js) -->
 <div id="trkMenu" class="trk-menu" role="menu" aria-label="Tracker" style="display:none;"></div>
+<div id="deckPanel" style="display:none;" role="dialog" aria-label="Decks">
+    <div id="deckHead"><span class="notepad-title"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 5h7.8A1.6 1.6 0 0 1 18 6.6v11.8a1.6 1.6 0 0 1-1.6 1.6H8.6A1.6 1.6 0 0 1 7 18.4V6.6A1.6 1.6 0 0 1 8.6 5zM4.5 8.2v9.6a1.6 1.6 0 0 0 .9 1.4M12.5 9.2l2.3 3.3-2.3 3.3-2.3-3.3z"/></svg> Decks</span><span style="flex:1;"></span><button class="notepad-btn" id="deckCloseBtn" title="Close">&times;</button></div>
+    <div id="deckBody"></div>
+</div>
 <div id="trkPanel" style="display:none;" role="dialog" aria-label="Tracker">
     <div id="trkHead"><span class="notepad-title"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 3.5V12l6 6"/></svg> <span id="trkTitle">Tracker</span></span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="trkCloseBtn" title="Close without saving">&times;</button></div>
     <div id="trkBody"></div>

@@ -327,6 +327,8 @@
   .wb-item.wb-door.wb-door-open { outline-style: dashed; outline-color: #4caf7d; opacity: 0.9; }
   /* item 18 W2: a pen line that blocks is drawn as its line (a dashed gold glow), never by its box; a player may click a line door */
   .wb-item.path.wb-blocks-sight, .wb-item.path.wb-door { outline: none; }
+  body:not(.wallmk-always) .wb-item.wb-blocks-sight:not(.wb-door):not(.wb-barrier):not([data-portal="true"])::after { content: none; }   /* 1.6.2: Wall marks in Settings (settings.js wallMarkApply). A plain wall wears its gold line, and its mark under the pointer or selected. A door, a barrier and a portal keep theirs */
+  body:not(.wallmk-always):not(.wallmk-never) .wb-item.wb-blocks-sight:not(.wb-door):not(.wb-barrier):not([data-portal="true"]):hover::after, body:not(.wallmk-always):not(.wallmk-never) .wb-item.wb-blocks-sight.sel:not(.wb-door):not(.wb-barrier):not([data-portal="true"])::after { content: ''; }
   .wb-item.path.wb-blocks-sight svg path { stroke-dasharray: 10 5; filter: drop-shadow(0 0 2px var(--gold)); }
   .wb-item.path.wb-door svg path { filter: drop-shadow(0 0 3px var(--gold)); }
   .wb-item.path.wb-door.wb-door-open svg path { stroke-dasharray: 14 72 14 0; filter: drop-shadow(0 0 3px #4caf7d); }   /* of a length counted as 100: its two ends alone */
@@ -3243,6 +3245,18 @@
   .fb { flex: 1 1 100%; min-width: 0; width: 100%; }
   .fb-line { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 6px 4px 8px; min-height: 30px; }
   .fb-col { flex: 1; min-width: 0; }
+  body.net-client #campaignSidebar .sidebar-section.sb-decks:not([hidden]) { display: block !important; }
+  .dk-row { display: flex; justify-content: space-between; gap: 8px; width: 100%; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
+  #deckPanel { position: fixed; left: 60px; top: 100px; width: 420px; max-width: calc(100vw - 24px); max-height: 80vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; }
+  #deckHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
+  #deckHead .notepad-btn { padding: 1px 7px; font-size: 11px; }
+  #deckBody { overflow: auto; padding: 10px 12px 12px; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+  #deckBody .dk-drawn { width: 58px; flex: none; }
+  #deckBody > .dk-head { flex-wrap: nowrap; }
+  #deckBody > .dk-head .field { margin: 0; }
+  #deckBody .dk-to { flex: 1 1 0; width: auto; min-width: 0; }
+  #deckBody .dk-title { font-weight: 600; color: var(--ink); }
+  #deckBody > .tool { align-self: flex-start; }
   .sheet-hand-shut { color: var(--muted); font-size: 13px; padding: 2px 0; }
   .sheet-fan { display: flex; justify-content: center; padding: 16px 18px 20px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
   .sheet-fan .sheet-item { flex: 0 1 116px; min-width: 70px; min-height: 152px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px; margin-left: -12px; border: 1px solid var(--dim); border-radius: 9px; background: var(--panel); box-shadow: 0 2px 6px rgba(0, 0, 0, .35); transform: translateY(calc(var(--fan, 0) * var(--fan, 0) * 2px)) rotate(calc(var(--fan, 0) * 4deg)); transition: transform .12s; }

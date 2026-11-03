@@ -669,6 +669,14 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                       return;
                   }
 
+                  var wtW = !wItem.nodeId && !wItem.targetMapId && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client') ? wallWords(wItem, window.wpFogCore) : null;
+                  if (wtW) {   // 1.6.2: what a wall is, in words: the GM's own card, as a trigger zone's is
+                      tt.innerHTML = '<div class="room" style="border-left-color:var(--gold); margin:0; pointer-events:none;">' +
+                                     '<div class="rn">' + esc(wtW[0]) + '</div>' +
+                                     '<div class="rc" style="color:var(--dim); font-size:11px; text-transform:none; letter-spacing:0;">' + esc(wtW[1]) + '</div></div>';
+                      tt.style.display = 'block';
+                      return;
+                  }
                   if (!wItem.nodeId && wItem.targetMapId) {
                       // A direct portal: say where it leads
                       var campP = getActiveCampaign();
@@ -3603,6 +3611,16 @@ window.wpFitToGrid = fitToGrid;
   // 1.6.0 (the owner, 2026-10-31: "hovering over the tokens that have badges should tell you what the badges do as well"): a target mark, its tags
   // and a status mark take no pointer, so their own tooltips never show. The token's hover card says them in words, as text. A new mark on a
   // token that takes no pointer says itself here
+  // [lookcheck:wallwords-start]
+  function wallWords(w, FC) {   // [its name, what it does] for a piece that stops something, or null. The name is the piece's own where it has one
+      if (!w || !FC) return null; var nm = typeof w.name === 'string' ? w.name.trim() : '', sec = typeof FC.secretOn === 'function' && FC.secretOn(w), dr = typeof FC.isDoor === 'function' && FC.isDoor(w), bar = typeof FC.barrierOn === 'function' && FC.barrierOn(w);
+      if (sec) return [nm || 'Secret door', 'Players see a wall here until it is found'];
+      if (dr) return [nm || 'Door', (w.doorOpen === true ? 'Open' : 'Shut') + (w.doorLock === true ? ', locked for players' : '')];
+      if (bar) return [nm || 'Barrier', 'Stops movement, and can be seen through'];
+      if (w.blocksSight === true) return [nm || 'Wall', 'Blocks sight and movement'];
+      return null;
+  }
+  // [lookcheck:wallwords-end]
   function markSays(name, cv, rg, lt, hg) {   // one target mark: who, and what each tag on it shows
       var parts = [];
       if (cv) parts.push((TARGET_COVER_GLYPH[cv.name] || '\u25d0') + ' ' + cv.name);

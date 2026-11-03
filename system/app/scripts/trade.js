@@ -73,14 +73,20 @@ function twDraw(doc, root, v, off, act) {
         });
         var tot = twTotal(s.lines), dtot = twTotal(s.lines, true), dealt = (s.lines || []).some(function(l) { return typeof l.deal === 'number'; });
         if (tot !== null) col.appendChild(twEl(doc, 'div', 'trade-total', dealt ? 'Worth at these prices: ' + twNum(dtot) + ' (list price ' + twNum(tot) + ')' : 'Worth at list price: ' + twNum(tot)));   // 157 M1c
-        (s.money || []).forEach(function(m) { col.appendChild(twEl(doc, 'div', 'trade-total trade-money', m.label + ' offered: ' + twNum(m.v))); });   // 157 M1b: the money on offer, a Separate currency on its own line
+        (s.money || []).forEach(function(m) { col.appendChild(twEl(doc, 'div', 'trade-total trade-money', m.label + ' offered: ' + twNum(m.v))); });
+        if (typeof s.moneyAt === 'number') col.appendChild(twEl(doc, 'div', 'trade-total trade-money trade-deal', 'At the other side\u2019s rates: ' + twNum(s.moneyAt)));   // 157 M1e   // 157 M1b: the money on offer, a Separate currency on its own line
         if (Array.isArray(v.curs) && v.curs.length) {   // 157 M1b: the currencies a side accepts, ticked by whoever acts for it; none ticked is open
             var accN = Array.isArray(s.acc) ? s.acc : [], accOf = function(k) { return accN.some(function(x) { return String(x).toLowerCase() === String(k).toLowerCase(); }); };
             if (me && v.status === 'open') {
                 var ab = twEl(doc, 'div', 'trade-acc'); ab.appendChild(twEl(doc, 'span', 'trade-acc-cap', 'Accepts'));
+                var xrN = s.xr && typeof s.xr === 'object' ? s.xr : {}, xrOf = function(k) { var hit = null; Object.keys(xrN).forEach(function(x) { if (x.toLowerCase() === String(k).toLowerCase()) hit = xrN[x]; }); return hit; };   // 157 M1e
                 v.curs.forEach(function(c) { var lb = twEl(doc, 'label', 'trade-acc-one'), cb = doc.createElement('input'); cb.type = 'checkbox'; cb.checked = accOf(c.key); cb.setAttribute('data-k', 'acc|' + sd + '|' + c.key);
                     cb.addEventListener('change', function() { var keys = v.curs.filter(function(x) { return x.key === c.key ? cb.checked : accOf(x.key); }).map(function(x) { return x.key; }); act('acc', sd, keys); });
-                    lb.appendChild(cb); lb.appendChild(twEl(doc, 'span', null, c.label)); ab.appendChild(lb); });
+                    lb.appendChild(cb); lb.appendChild(twEl(doc, 'span', null, c.label)); ab.appendChild(lb);
+                    if (v.xch && c.key !== '*') { var xb = doc.createElement('input'); xb.type = 'number'; xb.min = '0'; xb.max = '1000'; xb.step = '1'; xb.className = 'trade-rate field'; xb.placeholder = '100'; var xv0 = xrOf(c.key); xb.value = typeof xv0 === 'number' ? String(xv0) : ''; xb.title = 'What you count one of ' + c.label + ' at, as a per cent of its worth. Empty: its worth, and a Separate currency is not taken in place of money'; xb.setAttribute('aria-label', c.label + ' taken at, per cent'); xb.setAttribute('data-k', 'xr|' + sd + '|' + c.key);
+                        xb.addEventListener('change', function() { var m = {}; Object.keys(xrN).forEach(function(x) { if (x.toLowerCase() !== String(c.key).toLowerCase()) m[x] = xrN[x]; }); var n = Number(xb.value); if (String(xb.value).trim() !== '' && isFinite(n)) m[c.key] = n; act('xrate', sd, m); });
+                        ab.appendChild(xb); ab.appendChild(twEl(doc, 'span', 'trade-acc-pc', '%')); }
+                });
                 ab.appendChild(twEl(doc, 'small', 'trade-acc-line', accN.length ? 'Money in any other currency is refused.' : 'Nothing ticked: you decide as you confirm.')); col.appendChild(ab);
             } else col.appendChild(twEl(doc, 'div', 'trade-acc-said', accN.length ? 'Accepts ' + v.curs.filter(function(c) { return accOf(c.key); }).map(function(c) { return c.label; }).join(', ') + '.' : 'Accepts any money.'));
         }
@@ -137,6 +143,7 @@ function twAct(kind, sd, arg) {
     else if (kind === 'ok') say(n.tradeConfirm(v.tid, arg === true, side));
     else if (kind === 'into' && n.tradeInto) say(n.tradeInto(v.tid, arg.fid, arg.row, side));
     else if (kind === 'acc' && n.tradeAccepts) say(n.tradeAccepts(v.tid, arg, side));   // 157 M1b
+    else if (kind === 'xrate' && n.tradeXRates) say(n.tradeXRates(v.tid, arg, side));   // 157 M1e
     else if (kind === 'rate' && n.tradeRates) say(n.tradeRates(v.tid, arg, side));   // 157 M1c
 }
 function twRender() {

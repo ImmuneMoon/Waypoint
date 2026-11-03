@@ -5304,10 +5304,10 @@ function declareIn(fid, rowId, text, pid) {   // pid: a player's own line; '' th
     return null;
 }
 function declareReveal(fid) {   // the one reveal. Those who have said nothing say nothing
-    var c = orderById(fid), S = c && c.dec && c.dec.open === 1 ? c.dec : null; if (!S || net.role !== 'host') return false; c.dec = { round: S.round, lines: Object.create(null), open: 0 };
-    var mk = function(rows) { var L = rows.filter(function(r) { return !!r && own(S.lines, r.id); }).map(function(r) { return { n: String(r.name || 'Someone').slice(0, 60), say: S.lines[r.id] }; }); return L.length ? { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), label: 'Declared', lines: applyLines(L), ts: Date.now() } : null; };
+    var c = orderById(fid), open = c && c.dec && c.dec.open === 1 ? c.dec : null; if (!open || net.role !== 'host') return false; c.dec = { round: open.round, lines: Object.create(null), open: 0 };
+    var mk = function(rows) { var L = rows.filter(function(r) { return !!r && own(open.lines, r.id); }).map(function(r) { return { n: String(r.name || 'Someone').slice(0, 60), say: open.lines[r.id] }; }); return L.length ? { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), label: 'Declared', lines: applyLines(L), ts: Date.now() } : null; };
     if (net.active) net.conns.forEach(function(k) { if (!k.open || !net.roster[k.peer]) return; var pid = peerProfileId(k), p = net.roster[k.peer], cp = p && p.location === c.mapId ? combatsFor(pid, c.mapId)[fid] : null; if (!cp) return; var seen = c.rows.filter(function(r, i) { return !!cp.rows[i] && cp.rows[i].name !== 'Hidden'; }), rec = mk(seen); if (rec) { try { k.send(rec); } catch (e) { sendFailed(e); } } });
-    var mine = mk(c.rows); if (mine) { pushChat({ from: mine.from, text: '', scope: 'global', ts: mine.ts, apply: mine }); logEvent('table', 'Declared on ' + mapTitleOf(c.mapId) + ', round ' + S.round); }
+    var mine = mk(c.rows); if (mine) { pushChat({ from: mine.from, text: '', scope: 'global', ts: mine.ts, apply: mine }); logEvent('table', 'Declared on ' + mapTitleOf(c.mapId) + ', round ' + open.round); }
     broadcastCombats(); combatRefresh(); return true;
 }
 net.declareIn = function(fid, rowId, text) { if (net.role === 'client') { var c0 = net.conns[0]; if (!c0 || !c0.open) return 'The table is not there.'; try { c0.send({ type: 'declare', fid: String(fid), rowId: String(rowId), text: declareClean(text) }); } catch (e) { return 'That could not be sent.'; } return null; } return declareIn(fid, rowId, text, ''); };

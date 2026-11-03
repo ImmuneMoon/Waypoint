@@ -3576,6 +3576,7 @@
   #declareBox .dc-head { font-weight: 600; color: var(--ink); }
   #declareBox .dc-out { color: var(--muted); font-size: 12px; }
   #declareBox .dc-reveal { align-self: flex-start; }
+  .sys-init-tiew { display: block; flex: 1 1 100%; }
   .sys-init-sidew { display: flex; flex: 1 1 100%; flex-wrap: wrap; gap: 6px; align-items: center; }
   /* Items tab (Stage 5): the campaign item library + the combat/blast settings */
   #sysCombatBox, #sysListRules { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; padding: 8px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }

@@ -9322,10 +9322,6 @@ function handleMessage(msg, conn) {
         var heldCQ = chQ && actQ && typeof cardHold === 'function' ? cardHold({ asked: typeof askedQ !== 'undefined' ? askedQ : null, S: SQ, D: Dq, F: Fq, camp: campQ, ent: cardEnt(campQ, q.act, rowGQ, actQ), res: resQ, expr: q.expr, vars: varsQ, tc: tcQ, ch: chQ, pid: pidQ, conn: conn, priv: q.priv === 'gm', from: diceFrom(net.roster[conn.peer], false), rid: q.rid, label: q.label, as: String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label), cid: q.charId, go: function(r, e, id, st) { q.expr = e; if (st) varsQ.bandStep = st; restQ(r, id); } }) : false;
         if (!heldCQ) restQ(resQ);
         // [netcheck:rollreq-end]
-    } else if (msg.type === 'deck-do' && net.role === 'host') {
-        // 1.6.2 (G9): a player's draw by hand, admitted (the gate above), limited, and judged by deckRun. Nothing of a pile goes back but the counts
-        var Dd = DC(); if (!Dd || typeof msg.key !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(msg.key) || msg.op !== 'draw') return; if (!deckLimit) deckLimit = Dd.RateLimit(Dd.LIMITS); if (deckLimit.allow(conn.peer, Date.now()) !== true) return;
-        var whyD = deckRun(getActiveCampaign(), msg.key, 'draw', peerProfileId(conn), { n: msg.n, charId: typeof msg.charId === 'string' ? msg.charId.slice(0, 30) : '', to: typeof msg.to === 'string' ? msg.to.slice(0, 30) : '', by: diceFrom(net.roster[conn.peer], false) }); if (whyD && typeof turnNote === 'function') turnNote(conn, whyD, '');
     } else if (msg.type === 'hit-ask' && net.role === 'host') {
         // [netcheck:hitask-start]
         // 1.6.0 (B5): a player asks which locations their own target has, before a roll that reads Target.Hit: admitted (the gate above), their
@@ -9336,6 +9332,10 @@ function handleMessage(msg, conn) {
         var anH = chH && !chH.npc && pidH && (chH.ownerId === pidH || (typeof handsTo === 'function' && handsTo(chH, pidH))) && chH.making !== 1 && typeof targetHitAsk === 'function' ? targetHitAsk(campH, conn.peer, pidH, msg.charId) : null;
         try { conn.send({ type: 'hit-rows', rid: ridH, rows: anH ? anH.rows : [] }); } catch (e) { sendFailed(e); }
         // [netcheck:hitask-end]
+    } else if (msg.type === 'deck-do' && net.role === 'host') {
+        // 1.6.2 (G9): a player's draw by hand, admitted (the gate above), limited, and judged by deckRun. Nothing of a pile goes back but the counts
+        var Dd = DC(); if (!Dd || typeof msg.key !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(msg.key) || msg.op !== 'draw') return; if (!deckLimit) deckLimit = Dd.RateLimit(Dd.LIMITS); if (deckLimit.allow(conn.peer, Date.now()) !== true) return;
+        var whyD = deckRun(getActiveCampaign(), msg.key, 'draw', peerProfileId(conn), { n: msg.n, charId: typeof msg.charId === 'string' ? msg.charId.slice(0, 30) : '', to: typeof msg.to === 'string' ? msg.to.slice(0, 30) : '', by: diceFrom(net.roster[conn.peer], false) }); if (whyD && typeof turnNote === 'function') turnNote(conn, whyD, '');
     } else if (msg.type === 'hit-rows' && net.role === 'client') {
         // [netcheck:hitrows-start]
         // 1.6.0 (B5): the host's answer to our hit-ask, from the synced host only, for the question still open: each row an id and a name as text

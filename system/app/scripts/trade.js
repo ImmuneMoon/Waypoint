@@ -131,6 +131,23 @@ function twNet() { return window.wpNet || null; }
 function twGm() { var n = twNet(); return !(n && n.active && n.role === 'client'); }
 function twModal() { return document.getElementById('tradeModal'); }
 function twShow(on) { var m = twModal(); if (!m) return; m.style.display = on ? 'flex' : 'none'; _tw.shown = !!on; }
+// 157 M1g: the GM's log of this session's trades, each with Put back, drawn as text nodes
+function tlDraw(doc, root, list, press) {
+    while (root.firstChild) root.removeChild(root.firstChild);
+    if (!list.length) { root.appendChild(twEl(doc, 'div', 'trade-msg', 'No trade has been done this session.')); return; }
+    list.forEach(function(e) {
+        var row = twEl(doc, 'div', 'trade-log-row'), d = new Date(e.at), hm = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        row.appendChild(twEl(doc, 'div', 'trade-log-said', hm + ' ' + e.said));
+        if (e.back) row.appendChild(twEl(doc, 'div', 'trade-log-back', e.back));
+        else { var b = twEl(doc, 'button', 'tool ghost', 'Put back'); b.type = 'button'; b.title = 'Put both sheets back as they stood before this trade, where they still can be'; b.addEventListener('click', function() { press(e.id); }); row.appendChild(b); }
+        root.appendChild(row);
+    });
+}
+function tlOpen() {
+    var n = twNet(), m = document.getElementById('tradeLogModal'), body = document.getElementById('tradeLogBody'); if (!n || typeof n.tradeLog !== 'function' || !m || !body) return false;
+    var draw = function() { tlDraw(document, body, n.tradeLog(), function(id) { showConfirm('Put this trade back on both sheets? What changed since stays as it is.', function(ans) { if (ans !== true) return; var r = n.tradeReverse(id); if (r && r.error && typeof toast === 'function') toast(r.error); else if (r && r.back && typeof toast === 'function') toast(r.back); draw(); }); }); };
+    draw(); m.style.display = 'flex'; return true;
+}
 function twAct(kind, sd, arg) {
     var n = twNet(), v = _tw.view; if (!n || !v) return;
     var side = v.you === 'both' ? sd : undefined, lines = twOffer(v[sd].lines), say = function(r) { if (r && r.error && typeof toast === 'function') toast(r.error); };
@@ -203,8 +220,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         if (bd) _tw.hold = pressHold(bd, window);
         var end = function() { var v = _tw.view; if (!v) { twShow(false); return; } showConfirm('End this trade for both sides?', function(ans) { if (ans === true && twNet()) { var r = twNet().tradeCancel(v.tid); if (r && r.error && typeof toast === 'function') toast(r.error); } }); };
         if (cl) cl.addEventListener('click', end); if (ca) ca.addEventListener('click', end);
+        var tlc = document.getElementById('tradeLogClose'); if (tlc) tlc.addEventListener('click', function() { var m = document.getElementById('tradeLogModal'); if (m) m.style.display = 'none'; });   // 157 M1g
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
-    window.wpTrade = { ask: ask, canAsk: canAsk, mineOn: mineOn, render: twRender, draw: twDraw, choices: twChoices };
+    window.wpTrade = { ask: ask, canAsk: canAsk, mineOn: mineOn, render: twRender, draw: twDraw, choices: twChoices, openLog: tlOpen, drawLog: tlDraw };
 }
 export { twDraw, twChoices, twOffer, canAsk };

@@ -3784,6 +3784,8 @@ function tradeDo(actor, msg) {
         if (!res.ok) { tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, res.msg); return { error: res.msg }; }
         var paysT = tradePayers(camp, tr2), barT = paysT.length ? tradeBar(camp, paysT) : ''; if (barT) { tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, barT); return { error: barT }; }
         if (typeof S.tradeRolls === 'function' && window.wpDice && typeof window.wpDice.rollFor === 'function' && window.wpFormula) S.tradeRolls(camp.system, ca, tr2.offA, window.wpFormula).concat(S.tradeRolls(camp.system, cb, tr2.offB, window.wpFormula)).forEach(function(q) { window.wpDice.rollFor(q.charId, q.formula, q.label, { row: { f: q.f, r: q.r, i: q.i }, gmOnly: true }); });   // 1.6.2: on the sheets as they stand, so that the row is still there to roll on; the GM's to see
+        var logT = { id: tr2.tid, at: Date.now(), a: { charId: tr2.a.charId, name: String(ca.name || 'A character').slice(0, 60), before: {}, after: JSON.parse(JSON.stringify(res.valuesA)) }, b: { charId: tr2.b.charId, name: String(cb.name || 'A character').slice(0, 60), before: {}, after: JSON.parse(JSON.stringify(res.valuesB)) } };   // 157 M1g: what the trade log can put back
+        Object.keys(res.valuesA).forEach(function(k) { logT.a.before[k] = JSON.parse(JSON.stringify(ca.values && ca.values[k] !== undefined ? ca.values[k] : [])); }); Object.keys(res.valuesB).forEach(function(k) { logT.b.before[k] = JSON.parse(JSON.stringify(cb.values && cb.values[k] !== undefined ? cb.values[k] : [])); });
         tr2.closing = true; var now = Date.now(); ca.values = ca.values || {}; cb.values = cb.values || {};
         Object.keys(res.valuesA).forEach(function(k) { ca.values[k] = res.valuesA[k]; }); Object.keys(res.valuesB).forEach(function(k) { cb.values[k] = res.valuesB[k]; }); ca.updated = now; cb.updated = now;
         saveRemoteSoon();
@@ -3793,6 +3795,7 @@ function tradeDo(actor, msg) {
         var said = (ca.name || 'A character') + ' gave ' + (res.linesA.join(', ') || 'nothing') + '. ' + (cb.name || 'A character') + ' gave ' + (res.linesB.join(', ') || 'nothing') + '.';
         if (chgC) said += ' ' + ((chgC.payer === 'a' ? cb : ca).name || 'A character') + ' kept ' + chgC.over + ' over the price.';
         tradeCard([ca, cb], 'Trade done. ' + said);
+        logT.said = 'Trade done. ' + said; if (typeof tradeLogPut === 'function') tradeLogPut(logT);
         tradeEnd(tr2, 'done', 'Trade done. ' + said);
         return { ok: true };
     }
@@ -3875,6 +3878,30 @@ net.toGmButtons = function(wrap, rec) {
     wrap.appendChild(row);
 };
 // [togmcheck:host-end]
+// [moneycheck:tradelog-start]
+// 157 M1g: the GM's log of this session's trades, in memory alone (the newest 30): each side's lists before and after, so that Put back restores every
+// row and coin where it still stands as the trade left it (systemcore tradeUndoList), and says plainly what could not come back
+var _tradeLog = [];
+function tradeLogPut(e) { _tradeLog.push(e); if (_tradeLog.length > 30) _tradeLog.shift(); }
+net.tradeLog = function() { if (net.role === 'client') return []; return _tradeLog.slice().reverse().map(function(e) { var o = { id: e.id, at: e.at, said: String(e.said || '').slice(0, 1500) }; if (e.back) o.back = e.back; return o; }); };
+net.tradeReverse = function(id) {
+    if (net.role === 'client') return { error: 'Only the GM keeps the trade log.' };
+    var e = _tradeLog.filter(function(x) { return x.id === id; })[0], S = SC(), camp = getActiveCampaign(); if (!e) return { error: 'That trade is no longer in the log.' }; if (e.back) return { error: 'That trade was put back already.' };
+    if (!S || typeof S.tradeUndoList !== 'function' || !camp || !camp.system) return { error: 'The trade cannot be put back here.' };
+    var missed = [], chars = [], nameOf = function(r) { var d = typeof S.rowDef === 'function' ? S.rowDef(camp.system, r) : null; return d && d.def && d.def.name ? String(d.def.name) : ''; };
+    [e.a, e.b].forEach(function(sd) {
+        var ch = typeof tradeChar === 'function' ? tradeChar(camp, sd.charId) : null; if (!ch) { missed.push(sd.name + '\u2019s sheet, which is gone'); return; }
+        var vals = {}; ch.values = ch.values || {};
+        Object.keys(sd.after).forEach(function(k) { var r = S.tradeUndoList(sd.before[k], sd.after[k], ch.values[k], nameOf); vals[k] = r.list; r.missed.forEach(function(m) { missed.push(sd.name + '\u2019s ' + m); }); });
+        Object.keys(vals).forEach(function(k) { ch.values[k] = vals[k]; }); ch.updated = Date.now(); chars.push(ch);
+        if (Object.keys(vals).length) { net.syncCharDelta(sd.charId, vals); if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(sd.charId); }
+    });
+    saveRemoteSoon();
+    e.back = missed.length ? 'Put back, but not ' + missed.join(', ') + ': they changed since.' : 'Put back.';
+    if (chars.length && typeof tradeCard === 'function') tradeCard(chars, 'The GM put back a trade between ' + e.a.name + ' and ' + e.b.name + '.');
+    return { ok: true, back: e.back, missed: missed };
+};
+// [moneycheck:tradelog-end]
 function tradeCard(chars, text) {
     var t = String(text).slice(0, 1500), m = { type: 'chat', scope: 'whisper', from: { id: net.myId || 'gm', name: 'GM', gm: true }, text: t, ts: Date.now() }, to = Object.create(null);
     chars.forEach(function(ch) { if (ch && ch.ownerId && !ch.npc) to[ch.ownerId] = 1; });

@@ -86,6 +86,8 @@ The System editor
   a Separate currency taken in place of money at a rate it offers.
   A list with a price may name its Condition, a per cent of full worth, and a
   row trades and sells at it.
+- The GM's Trade log, in the quick jump, lists this session's trades, and Put
+  back restores both sheets where they still stand as the trade left them.
   A sheet says the money held in each currency under its first money list. A
   list that holds money says how players change it: at once, by asking (it
   waits in the GM's Review), or the GM's alone.

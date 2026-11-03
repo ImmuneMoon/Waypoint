@@ -2614,6 +2614,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>Under a sheet&rsquo;s first money list, a <b>Money</b> line says how much the character holds in each currency. <b>In all</b> is every currency but the Separate ones, in the base unit.</li>
                                   <li>In the trade window, whoever acts for a side ticks what it <b>Accepts</b>. Money in another currency is then refused. Nothing ticked is open, and that side decides as it confirms. The ticks are kept on the character.</li>
                                   <li>Tick <b>Traders set buy and sell prices</b> under Money. Each trader then has a <b>Sells at</b> and a <b>Buys at</b>, a per cent of list price. They are set in the trade window beside what it accepts. A list with a price may name an entry’s own <b>Buy figure</b> and <b>Sell figure</b>, which come first. The window then says what each side offers is worth at these prices.</li>
+                                  <li>The <b>Trade log</b>, in the quick jump, lists this session&rsquo;s trades. <b>Put back</b> restores both sheets as they stood, where the rows still are as the trade left them, and says what changed since and stayed.</li>
                                   <li>A list with a price may name a stat as its <b>Condition</b>, read as a per cent of full worth: a row at 60 trades and sells at 60% of its price. Your system may fill that stat from its own wear rules.</li>
                                   <li>Tick <b>Traders set exchange rates</b> under Money, and each trader sets what it takes each currency at, a per cent of its worth, beside its Accepts ticks. A Separate currency it gives a rate is then taken in place of money. The window says what the money offered comes to at those rates.</li>
                                   <li>Tick <b>Traders make change</b> under Money. Where one side pays more than it gets, the window says the change the other owes. Where the other side cannot give it from the money it holds, the window says so. The payer may then overpay with <b>Confirm, overpaying by</b>. They may also pay with other pieces, or take it back. The card says who kept the extra.</li>
@@ -4994,6 +4995,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <h3><span id="tradeTitle">Trade</span> <button id="tradeCloseBtn" class="tool ghost modal-close" title="End this trade" aria-label="End this trade"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></h3>
         <div id="tradeBody" class="trade-body"></div>
         <div class="trade-foot"><button id="tradeCancelBtn" type="button" class="tool ghost" title="End this trade for both sides">Cancel trade</button></div>
+    </div>
+</div>
+<div id="tradeLogModal" class="trade-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="tradeLogTitle">
+    <div class="trade-box">
+        <h3><span id="tradeLogTitle">Trades this session</span> <button id="tradeLogClose" class="tool ghost modal-close" title="Close the trade log" aria-label="Close the trade log"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></h3>
+        <div id="tradeLogBody" class="trade-body"></div>
     </div>
 </div>
 </body>

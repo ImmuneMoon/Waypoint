@@ -270,6 +270,27 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     check('taking an option away writes the box and says so', pOpt.value === 'Strength = ST, Bronze' && pOpt.calls.includes('dispatch change') && optRows().length === 2, pOpt.value);
     press(optBox.querySelector('.fb-optadd')); const lbN = optBox.querySelectorAll('.fb-optname'), lastN = lbN[lbN.length - 1]; lastN.value = 'Tin'; (lastN.handlers.input || []).forEach(h => h({ target: lastN })); (lastN.handlers.change || []).forEach(h => h({ target: lastN }));
     check('+ Option adds a row, and what is typed reaches the box as it is left', pOpt.value === 'Strength = ST, Bronze, Tin' && optRows().length === 3, pOpt.value);
+    {
+        const shK = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), kS = shK.slice(shK.indexOf('var KEY_FOLLOW = {'), shK.indexOf('function onInput(e) {'));
+        const fired = []; class Ev { constructor(n, o) { this.type = n; this.o = o; } } const box = (c, v) => { const b = { value: v || '', dataset: {}, classList: { contains: x => c.split(' ').includes(x) }, dispatchEvent: e => fired.push([c, b.value, e.type]) }; return b; };
+        const row = (ks) => { const r = { querySelector: s => ks.filter(k => s === '.' + k.c)[0] || null }; return r; };
+        const mk = (labelC, keyC, sel, others) => { const key = box(keyC, ''), lab = box(labelC, ''), r = row([{ c: keyC }]); r.querySelector = s => (s === '.' + keyC ? key : null); r.parentNode = { querySelectorAll: () => [key].concat(others || []) }; lab.closest = q => (q === sel ? r : null); return { key, lab }; };
+        const K = new Function('statKey', 'F', 'Event', kS + '\nreturn { keyBoxFollow, keyWord };')((w) => !/^(count|qty|on|has|lvl|paid|row)$/i.test(w), () => ({}), Ev);
+        check('a name makes its short form as letters and digits, starting with a letter', K.keyWord('Hit points') === 'HitPoints' && K.keyWord('2nd wind!') === 'ndWind' && K.keyWord('Déjà') === 'DJ' && K.keyWord('') === '');
+        const a = mk('sys-list-statlabel', 'sys-list-statkey', '.sys-list-stat'); a.lab.value = 'Hit points'; K.keyBoxFollow(a.lab); a.lab.value = 'Hit points left'; K.keyBoxFollow(a.lab);
+        check('the short form follows the name while it is new, and tells the page as if it were typed', a.key.value === 'HitPointsLeft' && fired.length === 2 && fired[1][2] === 'input', JSON.stringify(a.key.value));
+        const b = mk('sys-list-statlabel', 'sys-list-statkey', '.sys-list-stat'); b.key.value = 'Old'; b.lab.value = 'New name'; K.keyBoxFollow(b.lab);
+        check('one already there stays, so a rename breaks nothing', b.key.value === 'Old');
+        const c = mk('sys-list-statlabel', 'sys-list-statkey', '.sys-list-stat', [{ value: 'Wear' }, { value: 'Wear2' }]); c.lab.value = 'Wear'; K.keyBoxFollow(c.lab);
+        check('two of one name are told apart', c.key.value === 'Wear3', c.key.value);
+        const d = mk('sys-list-statlabel', 'sys-list-statkey', '.sys-list-stat'); d.lab.value = 'Count'; K.keyBoxFollow(d.lab);
+        check('a word a formula already uses is passed over on a list', d.key.value === 'CountStat', d.key.value);
+        const nP = fired.length; K.keyBoxFollow(box('sys-other', 'x')); K.keyBoxFollow({ classList: null }); K.keyBoxFollow(null);
+        check('any other box is left alone', fired.length === nP);
+        const css = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8'), page = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8');
+        check('the short forms stand out of sight until a tick of this computer shows them, and each control stays in the page', ['sys-list-statkey', 'sys-list-colkey', 'sys-list-ctkey', 'sys-dmgr-ykey', 'sys-dmgr-kkey', 'sys-item-key', 'sys-tbl-ckey'].every(k => css.includes('#systemModal:not(.sys-show-keys) .' + k)) && ['sys-env-key', 'sys-tbl-key', 'sys-link-key', 'sys-key'].every(k => css.includes('label:has(> .' + k + ')')) && page.includes('id="sysShowKeys"') && shK.includes("input('sys-list-statkey field'"));
+    }
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exitCode = 1;

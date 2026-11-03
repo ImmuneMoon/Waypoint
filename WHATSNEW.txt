@@ -53,6 +53,7 @@ The System editor
   when nobody stands above 0.
 - Everyone declares first: a line from each character at a round's start, hidden from
   everyone until all are in.
+- The System editor asks for names alone: each short form fills itself in, out of sight.
 - Decks and bags: a set of cards or tokens a system names, which rolls and actions
   draw from and shuffle. Each campaign keeps its own pile.
 - A hand of cards: a list marked as a hand holds what a character draws, shown as a

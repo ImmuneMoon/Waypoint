@@ -2174,7 +2174,7 @@ function showIfNote(text) {
 }
 // [systemcheck:ifnotes-end]
 function placementLabel(pl, byId, rollById) {
-    if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
+    if (pl.id) { var f = byId[pl.id]; return f ? fieldWord(f) : null; }
     if (pl.roll) { var r = rollById[pl.roll]; return r ? rollPick(r) : null; }
     if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait'; if (pl.kind === 'link') return 'Handbook link'; if (pl.kind === 'search') return 'Handbook search'; if (pl.kind === 'text') return 'Rules text'; if (pl.kind === 'roller') return 'Custom roller'; if (pl.kind === 'facing') return 'Facing dial'; if (pl.kind === 'stance') return 'Stance (posture & elevation)'; if (pl.kind === 'pin') return 'Pin button'; if (pl.kind === 'hud') return 'HUD button';
     return null;
@@ -2487,7 +2487,7 @@ function renderLayout() {
             box.appendChild(el('div', 'sys-hint', 'Put figures in a group and give it a Pin button beside where they live (a Pin placement in a section, or Pin in a section\u2019s header). Each viewer pins a group to the band while they scroll, remembered on their own machine for each character. A group with no Pin button, and figures in no group, are always shown.'));
         }
         var opts = [['', cfg.addLabel]];
-        draft.fields.forEach(function(f) { if (cfg.kinds[f.kind] === 1 && !on[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '')]); });
+        draft.fields.forEach(function(f) { if (cfg.kinds[f.kind] === 1 && !on[f.id]) opts.push(['f:' + f.id, fieldWord(f)]); });
         if (cfg.rolls) draft.rolls.forEach(function(r) { if (!on[r.id]) opts.push(['r:' + r.id, rollPick(r)]); });
         var row = el('div', 'sys-row-main sys-band-addrow');
         var add = select('sys-band-add', opts, '', cfg.addTitle); row.appendChild(add);
@@ -2632,7 +2632,7 @@ function renderLayout() {
 function layoutAddOpts(placed, hudOn, onSheet, grpList) {
     var opts = [['', 'Add to this section\u2026']], inHdr = headerEdits(draft, hudOn ? (draft.sheet && draft.sheet.hud) || null : undefined);
     draft.fields.forEach(function(f) { if (placed[f.id] && f.kind === 'item-list') opts.push(['f:' + f.id, (f.label || f.key || '(field)') + ' again, for other categories']); });   // 1.5.5: a list placed once a category
-    draft.fields.forEach(function(f) { if (!placed[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '') + (inHdr[f.id] === 1 ? ' (in the header)' : '') + (hudOn && onSheet[f.id] ? ' (on the sheet)' : '')]); });   // Stage 6: the GM is told a field is already edited in the header
+    draft.fields.forEach(function(f) { if (!placed[f.id]) opts.push(['f:' + f.id, fieldWord(f) + (inHdr[f.id] === 1 ? ' (in the header)' : '') + (hudOn && onSheet[f.id] ? ' (on the sheet)' : '')]); });   // Stage 6: the GM is told a field is already edited in the header
     draft.rolls.forEach(function(r) { opts.push(['r:' + r.id, rollPick(r)]); });
     opts.push(['k:heading', 'Heading'], ['k:text', 'Rules text'], ['k:roller', 'Custom roller'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait'], ['k:facing', 'Facing dial'], ['k:stance', 'Stance (posture & elevation)']);
     grpList.forEach(function(g) { opts.push(['p:' + g.id, 'Pin button: ' + (g.label || 'Group')]); });   // Stage 6: a band group's Pin, beside its figures
@@ -4542,7 +4542,7 @@ function rowAimInto(ln, sys, m, pre, mi) {
     dl.id = pre + 'keys' + mi + '_' + String(m.f).replace(/[^A-Za-z0-9_]/g, '');
     ((sys.items || []).concat(sys.core || [])).forEach(function(e) { if (!e || typeof e.key !== 'string' || !e.key || seen[e.key] || (cats && cats.indexOf(String(e.category || '').toLowerCase()) < 0)) return; seen[e.key] = 1; var o = el('option'); o.value = e.key; o.label = e.name || e.key; dl.appendChild(o); });
     ln.appendChild(dl);
-    var ky = input(pre + 'mkey field', typeof m.key === 'string' ? m.key : '', 'The key of the entry it changes, such as Disguise. A character who does not have that entry yet still gets it on the entry\u2019s default.', 'Entry key'); ky.setAttribute('list', dl.id); ln.appendChild(ky);
+    var ky = input(pre + 'mkey field', typeof m.key === 'string' ? m.key : '', 'The key of the entry it changes, such as Disguise. A character who does not have that entry yet still gets it on the entry\u2019s default.', 'Entry key'); ky.setAttribute('list', dl.id); ln.appendChild(entryPick(ky, entryNames(sys, m.f), 'Pick an entry'));
     ln.appendChild(select(pre + 'mcol', (f.list.cols || []).map(function(c) { return [c.key, c.label || c.key]; }), m.col, 'The column of that entry it adds to, such as its Target'));
 }
 function rowAimSet(mm, sys, value) {   // a target picked: one entry of a list starts with no key and the list's first column; any other takes them off
@@ -7812,7 +7812,7 @@ function refreshErrors() {
         var sp = f.list && typeof f.list === 'object' ? f.list : {}, st = Array.isArray(sp.stats) ? sp.stats : [], errs = [], mine = Object.create(null), keptW = Object.create(null), n = 0, nm = f.label || f.key || 'another list';
         st.forEach(function(s, i) {
             var k = s && typeof s === 'object' && typeof s.key === 'string' ? s.key : '';
-            if (!k.trim()) { errs.push({ message: 'Stat ' + (i + 1) + ' needs a key: Save drops it.' }); return; }
+            if (!k.trim()) { errs.push({ message: 'Stat ' + (i + 1) + ' needs a name: Save drops it.' }); return; }
             if (!statKey(k, F())) { errs.push({ message: 'Stat key "' + k + '" is not usable: a letter, then letters, digits and _ (up to 24, no spaces); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, min, cur, ranks, base; a function or reserved word such as floor, and, true; constructor, toString). Save drops it.' }); return; }
             var l = k.toLowerCase(); if (mine[l]) { errs.push({ message: 'Stat key "' + k + '" repeats "' + mine[l] + '" (keys ignore case): Save keeps the first.' }); return; }
             mine[l] = k; if (++n > capS) return;
@@ -8850,7 +8850,7 @@ function swBox(h) {
             var tw = el('span', 'sys-sw-to'), v = swToVal(t), op = tg.slice(); tw.dataset.ti = String(ti);
             if (v && !op.some(function(o) { return o[0] === v; })) op.unshift([v, '(a roll that is gone)']);
             tw.appendChild(select('sys-sw-tosel', op, v, 'A roll it offers itself to'));
-            if (t && typeof t.l === 'string') tw.appendChild(input('sys-sw-key field', typeof t.key === 'string' ? t.key : '', 'Only on rows of the entry with this key. Blank: on every row of the list', 'Entry key (optional)'));
+            if (t && typeof t.l === 'string') tw.appendChild(entryPick(input('sys-sw-key field', typeof t.key === 'string' ? t.key : '', 'Only on rows of this entry. Blank: on every row of the list', 'Entry (optional)'), entryNames(draft, t.l), 'Every row of the list'));
             if (t && typeof t.l === 'string') { var swR = swRollOpts(t.l, t.roll); tw.appendChild(select('sys-sw-roll', swR.o, swR.v, 'Only this roll of the list, such as its Attack and not its Damage. Any roll: every roll on its rows')); }   // 1.6.0
             tw.appendChild(btnRow([['swtodel', 'Take this roll off', '&times;']]));
             ln.appendChild(tw);
@@ -9041,15 +9041,15 @@ function itemStatsBox(it, defs) {
         var v = valOf(s.key), lb = el('label', 'sys-num'), ctl; lb.appendChild(el('span', 'sys-num-cap', s.label));
         if (s.kind === 'pick') {   // F5a2: a choice — a dropdown of its labels (blank: the default)
             var pv = typeof v === 'string' ? ((s.opts || []).filter(function(o) { return o.label.toLowerCase() === v.toLowerCase(); })[0] || {}).label || '' : '';
-            ctl = select('sys-item-stat', [['', '—' + (s.def ? ' (' + s.def + ')' : '')]].concat((s.opts || []).map(function(o) { return [o.label, o.label]; })), pv, s.label + ' (' + s.key + ')'); ctl.dataset.pick = '1';
+            ctl = select('sys-item-stat', [['', '—' + (s.def ? ' (' + s.def + ')' : '')]].concat((s.opts || []).map(function(o) { return [o.label, o.label]; })), pv, s.label); ctl.dataset.pick = '1';
         } else if (s.set === true) {   // 1.6.0 O1: a set of places, a tick a place (its value names name them)
             ctl = el('span', 'sys-places'); var setV = typeof v === 'number' && isFinite(v) ? Math.floor(Math.abs(v)) & 0xFFFF : 0, setL = Array.isArray(s.labels) ? s.labels : [], setN = Math.max(1, Math.min(16, setL.length || 1));
             for (var pbi = 0; pbi < setN; pbi++) { var pbl = el('label', 'sys-hover'), pbc = el('input', 'sys-item-placebit'); pbc.type = 'checkbox'; pbc.checked = ((setV >> pbi) & 1) === 1; pbc.dataset.sk = s.key; pbc.dataset.bit = String(pbi); pbl.appendChild(pbc); pbl.appendChild(document.createTextNode(' ' + (setL[pbi] || 'Place ' + (pbi + 1)))); ctl.appendChild(pbl); }
-            ctl.title = s.label + ' (' + s.key + '): the places it takes. Two rows that share a place are never on together';
+            ctl.title = s.label + ': the places it takes. Two rows that share a place are never on together';
         } else if (Array.isArray(s.labels) && s.labels.length) {   // a stat with value names: a dropdown (a value past them stays, greyed)
-            ctl = select('sys-item-stat', [['', '—']].concat(s.labels.map(function(n, i) { return [String(i), n || String(i)]; })), typeof v === 'number' ? String(v) : '', s.label + ' (' + s.key + ')');
+            ctl = select('sys-item-stat', [['', '—']].concat(s.labels.map(function(n, i) { return [String(i), n || String(i)]; })), typeof v === 'number' ? String(v) : '', s.label);
             if (typeof v === 'number' && !(v >= 0 && v < s.labels.length && Math.floor(v) === v)) { var xo = el('option', null, String(v)); xo.value = String(v); xo.selected = true; xo.disabled = true; ctl.appendChild(xo); }
-        } else ctl = numInput('sys-item-stat', typeof v === 'number' ? v : '', s.label + ' (' + s.key + '; blank: ' + (typeof s.def === 'number' ? s.def : 0) + ')', 'any');
+        } else ctl = numInput('sys-item-stat', typeof v === 'number' ? v : '', s.label + ' (blank: ' + (typeof s.def === 'number' ? s.def : 0) + ')', 'any');
         ctl.dataset.sk = s.key; lb.appendChild(ctl); box.appendChild(lb);
     });
     Object.keys(have).forEach(function(k) {
@@ -9085,7 +9085,7 @@ function statTick(d, which, on, row) {
 // [systemcheck:stattick-end]
 function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1): the actions a list roll may cost   // targets (R2b): the pools and numbers an action or a consequence may move
     var sp = f.list && typeof f.list === 'object' ? f.list : {}, card = el('div', 'sys-list-card'); card.dataset.lid = f.id;
-    card.appendChild(el('div', 'sys-list-title', (f.label || f.key || 'Item list') + (f.key ? ' (' + f.key + ')' : '')));
+    card.appendChild(el('div', 'sys-list-title', f.label || f.key || 'Item list'));
     var cl = el('div', 'sys-list-cats'); cl.appendChild(el('span', 'sys-num-cap', 'Categories'));
     var mine = Array.isArray(sp.cats) ? sp.cats.map(String) : [], low = mine.map(function(x) { return x.toLowerCase(); }), shown = allCats.slice();
     mine.forEach(function(x) { if (!shown.some(function(y) { return y.toLowerCase() === x.toLowerCase(); })) shown.push(x); });   // one no item has any more stays tickable
@@ -9315,7 +9315,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
 function ctKeySays(sp, F0) {
     var out = [], seen = Object.create(null); (Array.isArray(sp && sp.stats) ? sp.stats : []).concat(Array.isArray(sp && sp.cols) ? sp.cols : []).forEach(function(x) { if (x && typeof x.key === 'string') seen[x.key.toLowerCase()] = 'stat'; });
     (Array.isArray(sp && sp.counters) ? sp.counters : []).forEach(function(t, i) {
-        var k = t && typeof t === 'object' && typeof t.key === 'string' ? t.key.trim() : ''; if (!k) { out.push('Counter ' + (i + 1) + ' needs a key: Save drops it.'); return; }
+        var k = t && typeof t === 'object' && typeof t.key === 'string' ? t.key.trim() : ''; if (!k) { out.push('Counter ' + (i + 1) + ' needs a name: Save drops it.'); return; }
         if (!statKey(k, F0)) { out.push('Counter key "' + k + '" is not usable: a letter, then letters, digits and _ (up to 24, no spaces); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, min, cur, ranks, base; a function or reserved word such as floor, and, true). Save drops it.'); return; }
         var l = k.toLowerCase(); if (seen[l]) { out.push('Counter key "' + k + '" is already ' + (seen[l] === 'stat' ? 'a stat\u2019s or a column\u2019s key of this list' : 'another counter\u2019s key') + ': Save drops it.'); return; }
         seen[l] = 'counter';
@@ -11763,7 +11763,7 @@ function noticeRow(s, i) {
     var opts = [['', '\u2014 pick a sneak roll \u2014']].concat((Array.isArray(draft.rolls) ? draft.rolls : []).filter(function(r) { return r && !r.apply; }).map(function(r) { return ['r:' + r.id, 'Sneak roll: ' + (r.label || r.id)]; }), (Array.isArray(draft.fields) ? draft.fields : []).filter(function(f) { return f && f.kind === 'item-list'; }).map(function(f) { return ['l:' + f.id, 'Sneak roll: a roll of ' + (f.label || f.key)]; }));
     if (cur && !opts.some(function(o) { return o[0] === cur; })) opts.push([cur, 'A roll no longer here']);
     rw.appendChild(select('sys-sense-nkroll', opts, cur, 'The roll a sneak\u2019s player makes. A failure is noticed. A success takes its margin off each viewer\u2019s check, which reads it as AttemptMargin'));
-    if (typeof st.l === 'string') { var ky = input('sys-sense-nkkey field', typeof st.key === 'string' ? st.key : '', 'Which entry of the list is the sneak roll, by its key', 'Entry key'); ky.maxLength = LIMITS.label; rw.appendChild(ky); }
+    if (typeof st.l === 'string') { var ky = input('sys-sense-nkkey field', typeof st.key === 'string' ? st.key : '', 'Which entry of the list is the sneak roll', 'Entry'); ky.maxLength = LIMITS.label; rw.appendChild(entryPick(ky, entryNames(draft, st.l), 'Pick an entry')); }
     return rw;
 }
 function noticeSays(s) {
@@ -12311,9 +12311,34 @@ function lvlBoxSays(it) {
     return out;
 }
 function itemOfRow(target) { var row = target.closest && target.closest('.sys-item-row'); if (!row) return null; return (draft.items || []).find(function(x) { return x.id === row.dataset.iid; }) || null; }
+// 1.6.2 (the owner: no key a user reads or types, ever): a name box is the only box a builder needs. The short name beside it stands out of sight, fills itself in from the name while it is new, and stays what it is once saved, so that a rename breaks nothing. The System editor's foot has a tick that shows them. A key that names ANOTHER thing is a different matter: it wants a pick
+var KEY_FOLLOW = { 'sys-list-statlabel': ['sys-list-statkey', '.sys-list-stat', 1], 'sys-list-collabel': ['sys-list-colkey', '.sys-list-col', 1], 'sys-list-ctlabel': ['sys-list-ctkey', '.sys-list-ct', 1], 'sys-env-label': ['sys-env-key', '.sys-env-row'], 'sys-tbl-label': ['sys-tbl-key', '.sys-tbl-head'], 'sys-tbl-clabel': ['sys-tbl-ckey', 'th'], 'sys-tbl-rlabel': ['sys-tbl-rkey', 'tr'], 'sys-link-label': ['sys-link-key', '.sys-link-row'], 'sys-dmgr-ylabel': ['sys-dmgr-ykey', '.sys-dmgr-type'], 'sys-dmgr-klabel': ['sys-dmgr-kkey', '.sys-dmgr-kind'] };
+function fieldWord(f) {   // a field in a list of fields: its name, and the short form only where two fields share one
+    var nm = f.label || f.key || '(field)', twin = (draft && Array.isArray(draft.fields) ? draft.fields : []).some(function(o) { return o !== f && !!o && (o.label || o.key) === nm; });
+    return twin && f.key && f.label ? nm + ' (' + f.key + ')' : nm;
+}
+function keyWord(label) { return String(label || '').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/ +/).map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join('').replace(/^[0-9]+/, '').slice(0, 24); }
+function keyBoxFollow(t) {
+    var cs = t && t.classList, pair = null; if (!cs || typeof t.closest !== 'function') return; Object.keys(KEY_FOLLOW).forEach(function(k) { if (cs.contains(k)) pair = KEY_FOLLOW[k]; }); if (!pair) return;
+    var row = t.closest(pair[1]), kb = row && row.querySelector ? row.querySelector('.' + pair[0]) : null; if (!kb || (kb.value && kb.dataset.follow !== '1')) return;
+    var word = keyWord(t.value), scope = row.parentNode, taken = {}; if (scope && scope.querySelectorAll) Array.prototype.forEach.call(scope.querySelectorAll('.' + pair[0]), function(o) { if (o !== kb && o.value) taken[o.value.toLowerCase()] = 1; });
+    if (word && pair[2] && !statKey(word, F())) word = (word + 'Stat').slice(0, 24); var outW = word, n = 2; while (outW && taken[outW.toLowerCase()]) outW = word + (n++);
+    kb.value = outW; kb.dataset.follow = '1'; kb.dispatchEvent(new Event('input', { bubbles: true }));
+}
+function entryNames(sys, listId) {   // [key, name] of what a list's rows may be, as far as this editor holds them
+    var f = ((sys && sys.fields) || []).filter(function(x) { return !!x && x.id === listId && x.kind === 'item-list' && x.list; })[0], cats = f && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats.map(function(s) { return String(s).toLowerCase(); }) : null, seen = Object.create(null), out = [];
+    ((sys && sys.items) || []).concat((sys && sys.core) || []).forEach(function(e) { if (!e || typeof e.key !== 'string' || !e.key || seen[e.key] || (cats && cats.indexOf(String(e.category || '').toLowerCase()) < 0)) return; seen[e.key] = 1; out.push([e.key, e.name || e.key]); });
+    return out.sort(function(a, b) { return a[1].localeCompare(b[1]); });
+}
+function entryPick(inp, opts, blank) {   // the box stays, out of sight, and a pick writes it as typing would. Another entry shows it, for an entry of a pack
+    var w = el('span', 'sys-entry'), cur = String(inp.value || ''), has = opts.some(function(o) { return o[0] === cur; }), rows = [['', blank]].concat(opts).concat([['?', 'Another entry\u2026']]), s = select('sys-entrypick', rows, !cur || has ? cur : '?', 'Which entry');
+    var show = function(on) { if (inp.style) inp.style.display = on ? '' : 'none'; }; show(!!cur && !has); w.appendChild(s); w.appendChild(inp);
+    if (s.addEventListener) s.addEventListener('change', function() { if (s.value === '?') { show(true); if (inp.focus) inp.focus(); return; } show(false); inp.value = s.value; ['input', 'change'].forEach(function(n) { inp.dispatchEvent(new Event(n, { bubbles: true })); }); });
+    return w;
+}
 function onInput(e) {
     if (!draft) return;
-    var t = e.target; if (onLayoutInput(t)) return;
+    var t = e.target; keyBoxFollow(t); if (onLayoutInput(t)) return;
     if (onSwInput(t)) return;   // 1.6.0: an item's or an effect's roll bonuses
     if (onTurnInput(t)) return;   // turn-based combat T1
     if (onLightInput(t)) return;   // lighting L4

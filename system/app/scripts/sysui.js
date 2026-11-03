@@ -73,6 +73,11 @@ function topicMarks(nav, set, errs, warns) {
 // [sysuicheck:pick-start]
 // A list beside one open (the owner, by prompt): what a tab holds stands as a list down the left, one line a row, and the right shows the one picked.
 // A system may hold 600 fields, so a row is built only when it is opened, and the list is made again only when its rows change
+function shortNames(doc) {   // the foot's tick: this computer's own
+    var d = doc || document, m = d.getElementById('systemModal'), b = d.getElementById('sysShowKeys'), on = false; if (!m || !b) return; try { on = localStorage.getItem('wp_sysShort') === '1'; } catch (e) {} b.checked = on; m.classList.toggle('sys-show-keys', on);
+    b.addEventListener('change', function() { m.classList.toggle('sys-show-keys', b.checked); try { if (b.checked) localStorage.setItem('wp_sysShort', '1'); else localStorage.removeItem('wp_sysShort'); } catch (e) {} });
+}
+if (typeof document !== 'undefined') { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function() { shortNames(document); }); else shortNames(document); }
 var PICK = { fields: { list: 'sysFieldList', find: 'sysFieldFind', pane: 'sysFieldRows' }, rolls: { list: 'sysRollList', find: 'sysRollFind', pane: 'sysRollRows' }, items: { list: 'sysItemList', find: 'sysItemFind', pane: 'sysItemRows' }, lists: { list: 'sysListList', find: 'sysListFind', pane: 'sysListRows' }, effects: { list: 'sysEffectList', find: 'sysEffectFind', pane: 'sysEffectRows' } };
 // Which row is open once the rows are these: a row that has just come is the one, else the one open, else the row now at its place
 function pickNext(st, ids) {

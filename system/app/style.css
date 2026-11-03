@@ -4028,6 +4028,7 @@
   .sheet-chip.sheet-item-col, .sheet-chip.sheet-item-total { white-space: nowrap; font-size: 11px; }
   .sheet-chip.sheet-item-col small, .sheet-chip.sheet-item-total small { color: var(--dim); }
   .sheet-chip.sheet-item-colerr { color: var(--red, #e5534b); cursor: help; }
+  .sheet-money-all { font-weight: 600; }
   .sheet-item-totals { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; padding: 4px 2px 0; font-size: 11px; }
   .sheet-item-totals-cap { color: var(--dim); text-transform: uppercase; letter-spacing: .04em; font-size: 10px; }
   .sheet-itcol-col, .sheet-itft-sum { white-space: nowrap; text-align: right; }

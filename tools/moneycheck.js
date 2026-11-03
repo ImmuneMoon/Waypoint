@@ -129,6 +129,10 @@ function moneyWalk(S, F) {
     check('the host says the change owed or that it cannot be given, a player’s app keeps the words, the payer’s Confirm says it overpays, and the card says who kept it',
         nt.includes("' can\\u2019t give change for that: overpay by ' + cO + ', or offer smaller pieces.'") && nt.includes("' kept ' + chgC.over + ' over the price.'") && nt.includes("o.change = { payer: v.change.payer, over: ovN, say: txt(v.change.say, 300) };")
         && tw.includes("'Confirm, overpaying by ' + twNum(ovr)") && tw.includes("root.appendChild(twEl(doc, 'div', 'trade-change', v.change.say));"));
+    // the sheet's Money line (157 M1)
+    check('what a character holds is said in each currency it holds, in the system’s order and its own units, then In all in the base unit; none with no currency or no money', J(S.moneySummary(sy, mk())) === J({ fid: 'f_chips', parts: [{ label: 'Crowns', v: 3, sep: false }, { label: 'Marks', v: 14, sep: false }, { label: 'Tokens', v: 7, sep: true }, { label: 'In all', v: 67, all: true }] })
+        && S.moneySummary(noCur, mk()) === null && S.moneySummary(sy, { values: {} }) === null && J(S.moneySummary(sy, { values: { f_coins: [{ id: 'w_4', defId: 'i_tk1', qty: 2 }] } })) === J({ fid: 'f_chips', parts: [{ label: 'Tokens', v: 2, sep: true }] }), J(S.moneySummary(sy, mk())));
+    check('the sheet draws it once, under the first money list’s home placement, never in a tile’s drawer', read('scripts/sheets.js').includes("if ((!catT || catT.home) && !onOnly && typeof moneySumLine === 'function') moneySumLine(wrap, sysI, c, f);") && read('scripts/sheets.js').includes("if (!ms || ms.fid !== f.id || !ms.parts.length) return;"));
     // the editor
     const sh = read('scripts/sheets.js'), ix = read('index.html'), ui = read('scripts/sysui.js');
     check('the Rules tab has Money, a currency a row with its name, Worth and Separate, a key made once and never shown', ix.includes('<div id="sysMoney" data-topic="money"></div>') && ui.includes("['money', 'Money', 'The currencies money is counted in.']") && sh.includes("function renderCurrencies() {")

@@ -6477,7 +6477,8 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
     if (opts.player && ((f.edit !== 'owner' && !openChar(char) && !ownQ) || f.vis !== 'all')) return { ok: false, reason: 'field' };
     if (!isObj(q) || !ROW_OPS[q.op]) return { ok: false, reason: 'value' };
     var src = char && char.values && Array.isArray(char.values[fieldId]) ? char.values[fieldId] : [];
-    var list = JSON.parse(JSON.stringify(src)), vo = valueOpts(sys), extra = {}, spec = isObj(f.list) ? f.list : null;   // spec (F4b): the list's options
+    var raw = fl && opts.raw === true;   // 1.6.2, backlog 211: a fill hands its own copy of the list, to change in place and clean once at its end (fillMaking); nothing else does
+    var list = raw && Array.isArray(src) ? src : JSON.parse(JSON.stringify(src)), vo = valueOpts(sys), extra = {}, spec = isObj(f.list) ? f.list : null;   // spec (F4b): the list's options
     var grOn = opts.copy !== true && !fl, grSteps = [];   // 1.6.0 (v2, B4): the rows a row grants, moved in this same change on the machine that owns the character (a player's own app waits for its host; a file brings its granted rows as they come)
     var hnd = opts.player && !mkR ? 'player' : 'gm', gsp = opts.player ? (actorSpec(sys, fieldId, spec, opts) || spec) : spec;   // 1.5.4 One at a time: whose hand, and the list options a row's group is read by (a player's own view, on the host and on their own app alike)
     var at = function(rid) { for (var i = 0; i < list.length; i++) if (rowIdOf(list[i]) === rid) return i; return -1; };
@@ -6744,7 +6745,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
     }
     if (typeof rmRun === 'object' && rmRun) { extra.also = Object.assign({}, extra.also, rmRun.vals); extra.rmBack = rmRun.back; }   // 1.6.0: as one change with the removal
     if (grOn && q.op === 'restore' && isObj(q.rmBack)) { var rmBk = onRemoveBack(sys, char, q.rmBack, vo); if (Object.keys(rmBk).length) extra.also = Object.assign({}, extra.also, rmBk); }   // ... and its Undo, from what the caller kept, never a player's word
-    var value = cleanValue(f, list, vo); if (value === undefined) return { ok: false, reason: 'value' };
+    var value = raw ? list : cleanValue(f, list, vo); if (value === undefined) return { ok: false, reason: 'value' };
     var out = { ok: true, value: value }; Object.keys(extra).forEach(function(k) { out[k] = extra[k]; });
     return out;
 }
@@ -11387,10 +11388,15 @@ function applyProposal(sys, char, proposal, accepted, F, opts) {
 // rows and changes in place). opts: applyRowOp's (view, lib) and now. { ok, values, done, left } — counts only; not in the making: { ok: false }.
 // fill.looks: { fieldId: a look record } for the texts in fill.values (item 35); the answer then holds looks, the character's looks after the fill.
 // opts.rowOp: the row op of the reader that made the fill (absent: applyRowOp)
+// 1.6.2, backlog 211: each row op copied and cleaned the whole list, so a file of 1,500 rows took seconds. A fill now changes its own copy of a
+// list in place (raw) and cleans each list it changed once, after the last row. An op that fails may have changed the list before it
+// failed, so the first one that does, and a clean at the end that refuses a list, make the fill again the way it always was (fillWay
+// 'old'): a failed op leaves nothing behind, and the answer is the old one
 function fillMaking(sys, char, fill, F, opts) {
     if (!isObj(sys) || !Array.isArray(sys.fields) || !isObj(char) || openChar(char) !== 'making' || !isObj(fill)) return { ok: false, reason: 'notmaking' };
+    var opts0 = opts, rawOk = !(isObj(opts) && opts.fillWay === 'old'), failed = false;
     var rowOp = isObj(opts) && typeof opts.rowOp === 'function' ? opts.rowOp : plainRowOp;
-    opts = Object.assign({}, isObj(opts) ? opts : {}, { player: true, fill: true }); delete opts.rowOp;
+    opts = Object.assign({}, isObj(opts) ? opts : {}, { player: true, fill: true, raw: rawOk }); delete opts.rowOp; delete opts.fillWay;
     var work = { id: char.id, name: char.name, ownerId: char.ownerId, npc: false, making: 1, values: JSON.parse(JSON.stringify(isObj(char.values) ? char.values : {})) }, done = 0, left = 0;
     var mine = function(fid, kind) { var f = typeof fid === 'string' ? fieldById(sys, fid) : null; return f && f.kind === kind && f.vis === 'all' ? f : null; };   // making: every visible field is theirs (D3)
     var vals = isObj(fill.values) ? fill.values : {}, pools = [], lkIn = isObj(fill.looks) ? fill.looks : null, wrote = [];
@@ -11400,16 +11406,18 @@ function fillMaking(sys, char, fill, F, opts) {
         var r = applyEdit(sys, work, fid, vals[fid], F, opts); if (r.ok) { work.values[fid] = r.value; done++; if (lkIn && hasOwn(lkIn, fid)) wrote.push(fid); } else left++;
     });
     (Array.isArray(fill.lists) ? fill.lists : []).forEach(function(fid) { if (mine(fid, 'item-list')) work.values[fid] = (Array.isArray(work.values[fid]) ? work.values[fid] : []).filter(function(r) { return isObj(r) && r.hid === 1; }); });
-    var groups = [], at = map(), per = map();
+    var groups = [], at = map(), per = map(), rawLists = map();
     (Array.isArray(fill.ops) ? fill.ops : []).forEach(function(o) { if (!isObj(o) || typeof o.f !== 'string' || !isObj(o.q) || typeof o.q.rowId !== 'string') return; var k = o.f + '|' + o.q.rowId; if (!at[k]) { at[k] = { f: o.f, ops: [] }; groups.push(at[k]); } at[k].ops.push(o.q); });
     groups.forEach(function(g) {
         var f = mine(g.f, 'item-list'); if (!f) { left++; return; }
         per[g.f] = (per[g.f] | 0) + 1; if (per[g.f] > LIMITS.carried) { left++; return; }   // no list holds more rows: the rest never reach applyRowOp (a file cannot keep the host busy)
         var aspec = actorSpec(sys, g.f, isObj(f.list) ? f.list : null, opts), keys = map(); (aspec && Array.isArray(aspec.stats) ? aspec.stats : []).forEach(function(s) { if (isObj(s) && typeof s.key === 'string') keys[lower(s.key)] = s.key; });
         var listStats = function(st) { var o = {}; if (isObj(st)) Object.keys(st).forEach(function(k) { if (Object.prototype.hasOwnProperty.call(st, k) && keys[lower(k)]) o[keys[lower(k)]] = st[k]; }); return Object.keys(o).length ? o : null; };
+        if (failed) return;
         var before = work.values[g.f], ok = true;
+        if (rawOk) { if (!Array.isArray(before)) work.values[g.f] = []; rawLists[g.f] = 1; }   // changed in place, cleaned once below
         g.ops.forEach(function(q0) {
-            if (!ok) return;
+            if (!ok || failed) return;
             var q = JSON.parse(JSON.stringify(q0));
             if (q.op === 'custom' && isObj(q.def)) { var d = {}; Object.keys(q.def).forEach(function(k) { if (CUSTOM_OWN[k] === 1) d[k] = q.def[k]; }); var s2 = listStats(d.stats); if (s2) d.stats = s2; else delete d.stats; q.def = d; }   // the players' fields; the list's own stats
             if (q.op === 'ov') { var p = {}; if (isObj(q.ov) && typeof q.ov.name === 'string') p.name = q.ov.name; var s3 = listStats(isObj(q.ov) ? q.ov.stats : null); if (s3) p.stats = s3; if (!Object.keys(p).length || (p.name === undefined && Object.keys(p.stats).every(function(k) { return p.stats[k] === null; }))) return; q.ov = p; }   // a patch that states nothing — none of the list's stats, or each of them null, the entry's own (the bridge writes a ranged weapon's range so) — changes no row a fill made: passed over, never counted as left out
@@ -11421,6 +11429,7 @@ function fillMaking(sys, char, fill, F, opts) {
             }
             if (q.op === 'ov' && g.agName && isObj(q.ov) && q.ov.name === g.agName) { delete q.ov.name; if (!Object.keys(q.ov).length) return; }   // its name came with the add
             var r = rowOp(sys, work, g.f, q, F, opts);
+            if (!r.ok && rawOk) { failed = true; return; }   // it may have changed the list on its way: the fill is made again the old way
             if (!r.ok && q.op === 'custom' && (r.why === 'badkey' || r.why === 'key') && isObj(q.def) && q.def.key !== undefined) { delete q.def.key; r = rowOp(sys, work, g.f, q, F, opts); }   // a key taken: the row without it
             if (!r.ok && q.op === 'set' && isObj(q.facts) && Object.keys(q.facts).length > 1) {   // one bad fact never takes the others: each alone
                 var bad1 = false; Object.keys(q.facts).forEach(function(k) { var one = {}; one[k] = q.facts[k]; var r1 = applyRowOp(sys, work, g.f, { op: 'set', rowId: q.rowId, facts: one }, F, opts); if (r1.ok) work.values[g.f] = r1.value; else bad1 = true; });
@@ -11432,6 +11441,8 @@ function fillMaking(sys, char, fill, F, opts) {
         });
         if (ok) done++; else { work.values[g.f] = before; left++; }
     });
+    if (failed) return fillMaking(sys, char, fill, F, Object.assign({}, isObj(opts0) ? opts0 : {}, { fillWay: 'old' }));
+    if (rawOk) { var vR = valueOpts(sys), badR = false; Object.keys(rawLists).forEach(function(fid) { if (badR) return; var fR = fieldById(sys, fid), cR = fR ? cleanValue(fR, work.values[fid], vR) : undefined; if (cR === undefined) badR = true; else work.values[fid] = cR; }); if (badR) return fillMaking(sys, char, fill, F, Object.assign({}, isObj(opts0) ? opts0 : {}, { fillWay: 'old' })); }
     (Array.isArray(fill.fxLists) ? fill.fxLists : []).forEach(function(fid) { if (mine(fid, 'effects')) work.values[fid] = []; });
     (Array.isArray(fill.fx) ? fill.fx : []).slice(0, LIMITS.effectRows * 2).forEach(function(o) {
         if (!isObj(o) || typeof o.f !== 'string' || !isObj(o.q)) { left++; return; }

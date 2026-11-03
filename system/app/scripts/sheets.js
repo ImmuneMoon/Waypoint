@@ -9524,7 +9524,7 @@ function onceBox(box, sp) {
         var acL = el('label', 'sys-check'), acI = el('input', 'sys-list-onceacross'); acI.type = 'checkbox'; acI.checked = o.across === true; acL.title = 'Rows of one group count once whatever specialty each row names. Without this, each specialty counts on its own'; acL.appendChild(acI); acL.appendChild(el('span', null, 'Across specialties')); rw.appendChild(acL);
     }
     box.appendChild(rw);
-    if (o.by) box.appendChild(el('div', 'sys-note sys-list-oncenote', 'A row of a group that does not apply gives none of its changes. Charge a group once with a cost column such as if(Row.once, max(0, Row.oncecost - Row.oncefree), 0).'));
+    if (o.by) box.appendChild(el('div', 'sys-note sys-list-oncenote', 'A row of a group that does not apply gives none of its changes. To charge a group once, give the list a cost column that asks whether the row applies.'));
 }
 // F5a1: the names a list offers formulas, as one line of text for its card (its key as typed)
 // 205 (3): whether a list of the draft takes its parts from this one (its parts then read Host.<w>)
@@ -9953,7 +9953,7 @@ function shapeOff(e) { if (e && e.style) e.style.display = 'none'; }
 function initBox(box, cm) {
     var ir = cm.initiative && typeof cm.initiative === 'object' && !Array.isArray(cm.initiative) ? cm.initiative : {}, ties = Array.isArray(ir.ties) ? ir.ties : [], wrap = el('div', 'sys-init');
     wrap.appendChild(el('div', 'sys-light-head', 'Initiative'));
-    wrap.appendChild(el('div', 'sys-note', 'The combat roster orders a fight by the roll you tick Initiative on (the Rolls tab): one with no dice is worked out (Basic Speed), one with dice rolled (d20 + DEX). When two tie, the steps below settle it in turn: a value puts the higher first (DX); a roll (1d6, d20) is made only for those still tied, and made again while they stay tied. They read only what players can read: the order is public. Rolled again every round has everyone roll it again when a new round begins; a Sides roll (1d6) plays the players against the rest each round, the higher side first. Next is chosen keeps the order as it stands each round, and whoever ends a turn may pick who goes next from those who have not gone; it takes the place of sides.'));
+    wrap.appendChild(el('div', 'sys-note', 'Who goes first comes from the roll you tick Initiative on, in the Rolls tab. A roll with no dice is worked out, and one with dice is rolled. When two tie, the steps below settle it in turn: a value puts the higher first, and dice are rolled only for those still tied, and again while they stay tied. They read only what players can read, since the order is public.'));
     var shNow = turnShapeSeen(ir), rS = el('div', 'sys-flags sys-init-shaperow'), sS = select('sys-init-shape', TURN_SHAPES, shNow, 'The shape of a fight\u2019s turns. Only what the shape asks for shows below'); rS.appendChild(el('span', 'sys-num-cap', 'How turns go')); rS.appendChild(sS); wrap.appendChild(rS); wrap.appendChild(el('div', 'sys-note', TURN_WORDS[shNow] || ''));
     var r = el('div', 'sys-flags sys-init-ties'); r.appendChild(el('span', 'sys-num-cap', 'Ties go to the higher'));
     for (var i = 0; i < LIMITS.initTies; i++) { var ti = input('sys-init-tie field', typeof ties[i] === 'string' ? ties[i] : '', i === 0 ? 'The first step for a tie: a value (DX) or a roll (1d6)' : 'If still tied: a value or a roll', i === 0 ? 'e.g. DX' : i === 1 ? 'then, e.g. 1d6' : 'then\u2026'); ti.maxLength = LIMITS.formula; ti.dataset.ti = String(i); var tiW = el('span', 'sys-init-tiew'); tiW.appendChild(ti); r.appendChild(tiW); if (i > 0 && !(typeof ties[i - 1] === 'string' && ties[i - 1])) shapeOff(tiW); }   // the next step shows once the one before it is filled
@@ -10047,7 +10047,7 @@ function renderEnv() {
     var box = ui('sysEnv'); if (!box) return; box.textContent = '';
     var arr = Array.isArray(draft.env) ? draft.env : [], wrap = el('div', 'sys-budgets sys-env');
     wrap.appendChild(el('div', 'sys-light-head', 'Environment readings'));
-    wrap.appendChild(el('div', 'sys-note', 'A reading is a value a map gives its characters where their token stands, such as a temperature. You paint it on a map with the Environment tool. Waypoint writes it into the number field you pick, and keeps the toggle you pick on while it applies. Its bands are formulas of the character\u2019s names: the figure turns amber past a warning band and red past a danger band, and so does a badge on the token of a character a player plays. Give that field a minimum and maximum wide enough for every reading.'));
+    wrap.appendChild(el('div', 'sys-note', 'A reading is a value a map gives its characters where their token stands, such as a temperature. You paint it on a map with the Environment tool. Waypoint writes it into the number field you pick, and keeps the toggle you pick on while it applies. Its bands are figures of the character: the figure turns amber past a warning band and red past a danger band, and so does a badge on the token of a character a player plays. Give that field a minimum and maximum wide enough for every reading.'));
     arr.forEach(function(e0, i) {
         var e = e0 && typeof e0 === 'object' ? e0 : {}, rw = el('div', 'sys-flags sys-env-row'); rw.dataset.ei = String(i);
         var cap = function(t, x) { var l = el('label', 'sys-combat-item sys-bud-f'); l.appendChild(el('span', 'sys-num-cap', t)); l.appendChild(x); rw.appendChild(l); };   // every box of the row says what it is
@@ -10171,7 +10171,7 @@ function renderTables() {
     var box = ui('sysTables'); if (!box) return; box.textContent = '';
     var arr = Array.isArray(draft.tables) ? draft.tables : [], wrap = el('div', 'sys-budgets sys-tables');
     wrap.appendChild(el('div', 'sys-light-head', 'Tables'));
-    wrap.appendChild(el('div', 'sys-note', 'A table holds figures a formula reads by name, such as a metal\u2019s density and price. Table.Metal.Steel.density reads one figure. Table.Metal.by.Row.mat.density finds the row by what the row\u2019s choice says, so one short formula serves every metal. A row is matched by its key or its name, and a row or a column that is not there reads 0.'));
+    wrap.appendChild(el('div', 'sys-note', 'A table holds figures a rule reads by name, such as a metal\u2019s density and price. A rule can read one figure, or find the row by what a row of a list has picked, so one rule serves every metal. A row or a column that is not there reads 0.'));
     arr.forEach(function(t0, i) {
         var t = t0 && typeof t0 === 'object' ? t0 : {}, blk = el('div', 'sys-tbl'), head = el('div', 'sys-flags sys-tbl-head'), cols = Array.isArray(t.cols) ? t.cols : [], rows = Array.isArray(t.rows) ? t.rows : [];
         blk.dataset.ti = String(i);
@@ -10288,7 +10288,7 @@ function renderBudgets() {
     var box = ui('sysBudgets'); if (!box) return; box.textContent = '';
     var arr = Array.isArray(draft.budgets) ? draft.budgets : [], wrap = el('div', 'sys-budgets');
     wrap.appendChild(el('div', 'sys-light-head', 'Point budgets'));
-    wrap.appendChild(el('div', 'sys-note', 'A budget holds the points a character has against the points it has spent. Each is a formula, such as Points, or Traits.paid + Skills.paid. The sheet shows spent of has under its head. When a player’s own change would take their character over, the budget refuses it, or lets it through with a note to them and to you. Your own changes are never refused.'));
+    wrap.appendChild(el('div', 'sys-note', 'A budget holds the points a character has against the points it has spent, each worked out from the sheet. The sheet shows spent of has under its head. When a player’s own change would take their character over, the budget refuses it, or lets it through with a note to them and to you. Your own changes are never refused.'));
     arr.forEach(function(b0, i) {
         var b = b0 && typeof b0 === 'object' ? b0 : {}, rw = el('div', 'sys-flags sys-bud-row'); rw.dataset.bi = String(i);
         var n = input('sys-bud-name field', typeof b.name === 'string' ? b.name : '', 'Its name on the sheet: Character points, Gear', 'Name'); n.maxLength = LIMITS.name; rw.appendChild(n);
@@ -10346,7 +10346,7 @@ function renderLinks() {
     var box = ui('sysLinks'); if (!box) return; box.textContent = '';
     var arr = Array.isArray(draft.links) ? draft.links : [], wrap = el('div', 'sys-budgets sys-links');
     wrap.appendChild(el('div', 'sys-light-head', 'Linked sheets'));
-    wrap.appendChild(el('div', 'sys-note', 'A link lets one sheet read the figures of another. A Mount link holds the one mount a rider rides. A Crew link holds the vehicle a character crews, and many characters may crew one vehicle. Formulas read the linked sheet by the key: Mount.Move is the mount\u2019s Move, and Mount.has is 1 while linked. With no link each reads 0. Each sheet shows a menu for its links under its head.'));
+    wrap.appendChild(el('div', 'sys-note', 'A link lets one sheet read the figures of another. A Mount link holds the one mount a rider rides. A Crew link holds the vehicle a character crews, and many characters may crew one vehicle. A rule can read the linked sheet\u2019s figures, and with no link each reads 0. Each sheet shows a menu for its links under its head.'));
     arr.forEach(function(k0, i) {
         var k = k0 && typeof k0 === 'object' ? k0 : {}, rw = el('div', 'sys-flags sys-link-row'); rw.dataset.ki = String(i);
         var kl = el('label', 'sys-combat-item'); kl.appendChild(el('span', 'sys-num-cap', 'Key')); var ki = input('sys-link-key field', typeof k.key === 'string' ? k.key : '', 'The name formulas read it by: the key Mount reads Mount.Move', 'Mount'); ki.maxLength = LIMITS.key; kl.appendChild(ki); rw.appendChild(kl);
@@ -11263,7 +11263,7 @@ function rangeBy(rg) { return !rg || typeof rg !== 'object' || Array.isArray(rg)
 function rangeBox(box, cm) {
     var rg = cm.range && typeof cm.range === 'object' && !Array.isArray(cm.range) ? cm.range : null, by = rangeBy(rg), wrap = el('div', 'sys-range');
     wrap.appendChild(el('div', 'sys-light-head', 'Range'));
-    wrap.appendChild(el('div', 'sys-note', 'Your game\u2019s range penalty: a modifier by how far the target is. The ruler shows it, and each target mark beside its cover and light. A table gives each distance\u2019s modifier (up to that distance; past the last row, its modifier holds); a formula works it out from Distance, in the unit picked here.'));
+    wrap.appendChild(el('div', 'sys-note', 'Your game\u2019s range penalty: a modifier by how far the target is. The ruler shows it, and each target mark beside its cover and light. A table gives each distance\u2019s modifier (up to that distance; past the last row, its modifier holds); or work it out from the distance, in the unit picked here.'));
     var r1 = el('div', 'sys-flags sys-range-top');
     r1.appendChild(labeledSelect('sys-range-by', 'Range penalty', [['', 'None'], ['table', 'By a table'], ['formula', 'By a formula']], by, 'None: no range penalty is shown. A table: a modifier for each distance. A formula: a modifier worked out from Distance.'));
     if (by) r1.appendChild(labeledSelect('sys-range-unit', 'Counts in', [['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['cells', 'grid cells']], typeof rg.unit === 'string' && Object.prototype.hasOwnProperty.call(RANGE_UNITS, rg.unit) ? rg.unit : 'yd', 'What its distances count in: each map\u2019s scale converts it (60 ft on 5 ft squares is 12 squares)'));
@@ -11398,7 +11398,7 @@ function heightBy(hg) { return !hg || typeof hg !== 'object' || Array.isArray(hg
 function heightBox(box, cm) {
     var hg = cm.height && typeof cm.height === 'object' && !Array.isArray(cm.height) ? cm.height : null, by = heightBy(hg), wrap = el('div', 'sys-range sys-height');
     wrap.appendChild(el('div', 'sys-light-head', 'Height'));
-    wrap.appendChild(el('div', 'sys-note', 'Your game\u2019s height modifier: by how much higher the roller stands than the target (with Token elevation on). Rolls read HeightMod; the ruler between two character tokens and each target mark show it. A table gives each difference\u2019s modifier, lowest first: a difference below 0 is looking up (up to that difference; below the first row its modifier, past the last row its modifier); a formula works it out from HeightDiff.'));
+    wrap.appendChild(el('div', 'sys-note', 'Your game\u2019s height modifier: by how much higher the roller stands than the target (with Token elevation on). Rolls can read it, and the ruler between two character tokens and each target mark show it. A table gives each difference\u2019s modifier, lowest first: a difference below 0 is looking up (up to that difference; below the first row its modifier, past the last row its modifier); or work it out from the difference.'));
     var r1 = el('div', 'sys-flags sys-height-top');
     r1.appendChild(labeledSelect('sys-height-by', 'Height modifier', [['', 'None'], ['table', 'By a table'], ['formula', 'By a formula']], by, 'None: no height modifier. A table: a modifier for each height difference. A formula: a modifier worked out from HeightDiff.'));
     if (by) r1.appendChild(labeledSelect('sys-height-unit', 'Counts in', [['yd', 'yards'], ['ft', 'feet'], ['m', 'metres']], typeof hg.unit === 'string' && Object.prototype.hasOwnProperty.call(HEIGHT_UNITS, hg.unit) ? hg.unit : 'yd', 'What its differences count in: a token\u2019s elevation is converted into it'));

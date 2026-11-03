@@ -86,6 +86,9 @@ The System editor
   list that holds money says how players change it: at once, by asking (it
   waits in the GM's Review), or the GM's alone.
   A formula reads the money a character holds, as Money or as one currency's own.
+- A step of a roll's Then that reads or changes something players may not see
+  now runs when a player rolls, on the GM's Waypoint, where before the whole
+  Then changed nothing. The player keeps the roll's other steps.
 - A list can say what a trade does to a row: a stat is cleared, set or moved to
   another, which may be GM-only. It can also call for a roll, made for the GM alone
   once both sides confirm. A column can show on some rows only.

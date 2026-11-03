@@ -3810,6 +3810,27 @@ function moneyAskPut(camp, ch, pr, q, conn) {
     if (window.wpSheets && window.wpSheets.uploadsChanged) window.wpSheets.uploadsChanged(ch.id);
     say('money', 'Sent to your GM to review.');
 }
+// [thengmcheck:run-start]
+// 1.6.2 (asked by the session that keeps a campaign's build, settled 2026-11-03): the steps of a player's roll's Then their view could not hold (systemcore thenGmCut: they read or
+// change what players may not), run here from the GM's own entry on the host's own copy, after the rest, with the roll's result as the rest read it. No
+// card goes out: what happens to the roller shows on their sheet, and the GM is told on a line of the Game Record. A step that reads what the roller
+// answered (Ask.) or the one it is used on (On.) does not read it here
+function thenGmRun(camp, ch, q, view, act, o) {
+    var S = SC(); if (!S || !camp || !camp.system || !ch || !o || !o.F) return null; var sys = camp.system, gE = null;
+    if (q.act) (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (!gE && r && r.id === q.act) gE = r; });
+    else if (q.row) { var rg = rowOnGm(S, camp, view, q.row); (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (!gE && f && f.id === rg.f && f.list && Array.isArray(f.list.rolls)) gE = f.list.rolls[rg.i] || null; }); }
+    if (!gE || !Array.isArray(gE.then)) return null;
+    var steps = act.thenGm.map(function(i) { return gE.then[i]; }).filter(Boolean); if (!steps.length) return null;
+    var th = S.thenChanges({ then: steps }, o.mf ? false : (o.vd && o.vd.kind === 'check' ? o.vd.pass : null), o.mf, o.cr, o.band); if (!th.length) return null;
+    var gv = S.makeResolver(sys, ch, o.F, o.tc); if (q.row && q.row.r) { gv = gv.row(q.row.f, q.row.r, typeof q.row.lv === 'number' ? q.row.lv : undefined); if (!gv) return null; }
+    var r = S.applyAct(sys, ch, { apply: th }, typeof S.withRollCrit === 'function' ? S.withRollCrit(gv, o.cr, typeof S.thenMargin === 'function' ? S.thenMargin(o.vd, o.mf) : 0, o.big === true, o.res) : gv, o.F, o.tc, q.row && q.row.r ? { f: q.row.f, r: q.row.r } : null, undefined, o.D, null, typeof fxNow === 'function' ? fxNow(q.charId, null) : null);
+    if (!r || !r.ok) return r;
+    ch.values = ch.values || {}; Object.keys(r.values).forEach(function(k) { ch.values[k] = r.values[k]; }); ch.updated = Date.now(); saveRemoteSoon();
+    if (Object.keys(r.values).length) { net.syncCharDelta(q.charId, r.values); if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(q.charId); }
+    logEvent('char', (ch.name || 'A character') + ': the hidden part of ' + String(o.label || 'a roll').slice(0, 60) + ' ran.');
+    return r;
+}
+// [thengmcheck:run-end]
 function tradeCard(chars, text) {
     var t = String(text).slice(0, 1500), m = { type: 'chat', scope: 'whisper', from: { id: net.myId || 'gm', name: 'GM', gm: true }, text: t, ts: Date.now() }, to = Object.create(null);
     chars.forEach(function(ch) { if (ch && ch.ownerId && !ch.npc) to[ch.ownerId] = 1; });
@@ -9468,6 +9489,7 @@ function handleMessage(msg, conn) {
             if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === true && tcQ && tcQ.range && typeof tcQ.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ.range.tid, mapId: tcQ.range.mapId, margin: vdQ.margin });   // 1.5.9 Chambers from: a hit puts the round it fired on the roller's target
             else if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === false && typeof window.wpLaunchMiss === 'function') window.wpLaunchMiss({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ && tcQ.range && typeof tcQ.range.tid === 'string' ? tcQ.range.tid : '', mapId: tcQ && tcQ.range && typeof tcQ.range.mapId === 'string' ? tcQ.range.mapId : '', margin: vdQ.margin, crit: ((typeof Dq.checkOf === 'function' ? Dq.checkOf(resQ, ruleQ) : null) || vdQ).crit === 'fumble' ? 'fumble' : '' });   // 1.5.9 (es): a miss lands as its round says, by the verdict's margin (a round that says nothing: the GM places it); its critical failure read as a throw's is, by every system's own (the review of fold 2: a d20's natural 1 too)
         }
+        if (chQ && actQ && Array.isArray(actQ.thenGm) && actQ.thenGm.length && typeof thenGmRun === 'function') { var mfGQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ, vdGQ = Dq.verdictOf(resQ, ruleQ); thenGmRun(campQ, chQ, q, viewQ, actQ, { cr: typeof SQ.thenCrit === 'function' ? SQ.thenCrit(vdGQ, mfGQ) : '', mf: mfGQ, vd: vdGQ, big: recQ.big === true, res: resQ, band: recQ.band, tc: tcQ, D: Dq, F: Fq, label: recQ.label }); }   // 1.6.2: the Then's steps the players' view could not hold, run here alone, also where it held none of them
         if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv); attemptCalled(campQ, blowRecQ, q.act, rowGQ, pcQ, chQ, !!recQ.priv, tcQ); if (typeof holdsRolled === 'function' && typeof SQ.holdRefOf === 'function') holdsRolled(campQ, chQ, actQ, holdRefQ(campQ, q, actQ), pcQ, tcQ, blowRecQ, atQ); }   // 1.6.0: Calls for, with its Then landed; Who holds whom
         if (actQ && actQ.burst && q.row && typeof burstAfter === 'function') burstAfter(campQ, chQ, actQ, q.row, resQ, ruleQ, mfQ !== null && Dq.naturalOf(resQ) >= mfQ, typeof taQ !== 'undefined' ? taQ : null, tcQ, saveRemoteSoon);   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
         };

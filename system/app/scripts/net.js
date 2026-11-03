@@ -3831,6 +3831,43 @@ function thenGmRun(camp, ch, q, view, act, o) {
     return r;
 }
 // [thengmcheck:run-end]
+// [togmcheck:host-start]
+// HR1: what the host keeps of each roll that went straight to the GM, in memory alone (the newest 50): whether its Then waits, whether it was a critical
+// failure, and what it was rolled with. The GM's card offers Apply and Skip where it waits, and Roll again secretly and Decide on a critical failure
+var _toGm = Object.create(null);
+function toGmKeep(id, h) { var ks = Object.keys(_toGm); if (ks.length >= 50) delete _toGm[ks[0]]; _toGm[id] = h; }
+function toGmApply(id) {
+    var h = Object.prototype.hasOwnProperty.call(_toGm, id) ? _toGm[id] : null; if (!h || !h.wait || h.ran) return { error: 'That roll is not waiting now.' }; h.ran = 'apply';
+    var S = h.S, mf = h.mf !== null && h.D.naturalOf(h.res) >= h.mf, vd = h.D.verdictOf(h.res, h.rule), cr = typeof S.thenCrit === 'function' ? S.thenCrit(vd, mf) : '', said = '';
+    var th = h.act && h.act.then ? S.thenChanges(h.act, mf ? false : (vd && vd.kind === 'check' ? vd.pass : null), mf, cr, h.band) : [];
+    if (th.length) {
+        var ta = S.applyAct(h.camp.system, h.ch, { apply: th }, typeof S.withRollCrit === 'function' ? S.withRollCrit(h.vars, cr, typeof S.thenMargin === 'function' ? S.thenMargin(vd, mf) : 0, h.big, h.res) : h.vars, h.F, h.tc, h.q.row && h.q.row.r ? { f: h.q.row.f, r: h.q.row.r } : null, undefined, h.D, null, typeof fxNow === 'function' ? fxNow(h.q.charId, null) : null);
+        if (ta && ta.ok) { h.ch.values = h.ch.values || {}; Object.keys(ta.values).forEach(function(k) { h.ch.values[k] = ta.values[k]; }); h.ch.updated = Date.now(); saveRemoteSoon(); if (Object.keys(ta.values).length) { net.syncCharDelta(h.q.charId, ta.values); if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(h.q.charId); } }
+        else if (ta && ta.message) said = String(ta.message);
+    }
+    if (h.act && Array.isArray(h.act.thenGm) && h.act.thenGm.length && typeof thenGmRun === 'function') thenGmRun(h.camp, h.ch, h.q, h.view, h.act, { cr: cr, mf: mf, vd: vd, big: h.big, res: h.res, band: h.band, tc: h.tc, D: h.D, F: h.F, label: h.label });
+    logEvent('char', (h.ch.name || 'A character') + ': ' + (h.label || 'a roll') + ', applied by the GM.');
+    return said ? { ok: true, said: said } : { ok: true };
+}
+function toGmAgain(id) {   // the same roll again, worked out here with what it was rolled with, a card the GM's alone
+    var h = Object.prototype.hasOwnProperty.call(_toGm, id) ? _toGm[id] : null; if (!h) return { error: 'That roll is no longer kept.' };
+    var res = h.F.evaluate(h.expr, { vars: h.vars }); if (!res || !res.ok) return { error: 'It could not be rolled again.' };
+    var rec = { type: 'roll', id: h.D.uid(), from: h.from, expr: h.expr, draws: res.draws, v: h.F.VERSION, ts: Date.now(), priv: 'gm', label: String((h.label || 'Roll') + ': again, in secret').slice(0, 120) }; if (h.as) rec.as = h.as;
+    pushRoll(rec, res, 'whisper', { cid: h.q.charId }); logEvent('dice', h.D.cardText(rec, res, h.F, { rule: h.rule }), { w: h.as || '', h: true });
+    return { ok: true };
+}
+net.toGmButtons = function(wrap, rec) {
+    var h = rec && typeof rec.id === 'string' && Object.prototype.hasOwnProperty.call(_toGm, rec.id) ? _toGm[rec.id] : null; if (!h || net.role === 'client' || !wrap || typeof document === 'undefined') return;
+    var row = document.createElement('div'); row.className = 'chat-togm';
+    var say = function(t) { while (row.firstChild) row.removeChild(row.firstChild); row.appendChild(document.createTextNode(t)); };
+    var mk = function(txt, tip, fn) { var b = document.createElement('button'); b.type = 'button'; b.className = 'tool ghost'; b.textContent = txt; b.title = tip; b.addEventListener('click', fn); row.appendChild(b); };
+    row.appendChild(document.createTextNode(h.crit === 'fumble' ? 'Sent to you, a critical failure. ' : 'Sent to you. '));
+    if (h.wait && !h.ran) { mk('Apply', 'Run its Then now', function() { var r = toGmApply(rec.id); say(r.error || r.said || 'Applied.'); }); mk('Skip', 'Its Then does nothing', function() { h.ran = 'skip'; logEvent('char', (h.ch.name || 'A character') + ': ' + (h.label || 'a roll') + ', skipped by the GM.'); say('Skipped.'); }); }
+    else if (h.wait) row.appendChild(document.createTextNode(h.ran === 'skip' ? 'Skipped. ' : 'Applied. '));
+    if (h.crit === 'fumble' && !h.decided) { mk('Roll again secretly', 'Roll the same roll where only you see it', function() { var r = toGmAgain(rec.id); if (r.error) say(r.error); }); mk('Decide', 'Decide what happens yourself, with no roll', function() { h.decided = true; say('You decide.'); }); }
+    wrap.appendChild(row);
+};
+// [togmcheck:host-end]
 function tradeCard(chars, text) {
     var t = String(text).slice(0, 1500), m = { type: 'chat', scope: 'whisper', from: { id: net.myId || 'gm', name: 'GM', gm: true }, text: t, ts: Date.now() }, to = Object.create(null);
     chars.forEach(function(ch) { if (ch && ch.ownerId && !ch.npc) to[ch.ownerId] = 1; });
@@ -9425,6 +9462,7 @@ function handleMessage(msg, conn) {
         if (jobQ) { var jsQ = jobPress(SQ, campQ, chQ, q.row, actQ, varsQ, Fq, jobQ.round, q.label, saveRemoteSoon); if (jsQ) { denyQ('error', { error: { message: jsQ, pos: 0, len: 0 } }); return; } }   // a press short of its turns moves the count and rolls nothing; the last goes on and rolls
         if (swpQ) swPayDo(chQ, swpQ);
         if (chQ && !q.att && typeof offTurnWarn === 'function') offTurnWarn(campQ, turnChQ, q.act, rowGQ, q.label || (actQ && actQ.label), conn);   // 1.6.0: nothing refused it, so a warning is said
+        var tgQ = actQ && typeof SQ.toGmOf === 'function' ? SQ.toGmOf(q.row && viewQ ? ((viewQ.fields || []).filter(function(f) { return f && f.id === q.row.f; })[0] || {}).list : null, actQ) : null;   // HR1: it goes straight to the GM
         var restQ = function(resQ, heldQ) {   // 1.6.2 (G5): all that follows a roll, which a roll with card actions holds until it is accepted
         var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid }; if (heldQ) recQ.id = heldQ;
         var blowRecQ = q.att && typeof attemptRec === 'function' ? attemptRec(q.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
@@ -9464,7 +9502,8 @@ function handleMessage(msg, conn) {
         }
         var hsQ = typeof holdsSqueeze === 'function' && chQ && typeof SQ.holdRefOf === 'function' ? holdsSqueeze(campQ, chQ, holdRefQ(campQ, q, actQ), recQ, Dq) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
         var hdQ = !!(blowRecQ && typeof figAnswers === 'function' && figAnswers(blowRecQ, q.expr, Fq)); if (hdQ) figMark(recQ, resQ, Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : ''), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, Dq, Fq);   // 1.6.2: a roll answering an attempt whose figure is hidden: what leaves here is its copy
-        if (q.priv) { recQ.priv = 'gm'; try { conn.send(hdQ ? figOf(recQ) : recQ); } catch (e) { sendFailed(e); } if (cvQ) recQ.hit = cvQ.row; pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }   // cvQ: the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
+        if (tgQ) { recQ.priv = 'gm'; var stQ = { type: 'roll', id: recQ.id, from: recQ.from, expr: '0', draws: [], v: recQ.v, ts: recQ.ts, rid: q.rid, hid: 'gm', priv: 'gm' }; if (recQ.label) stQ.label = recQ.label; if (recQ.as) stQ.as = recQ.as; try { conn.send(stQ); } catch (e) { sendFailed(e); } if (typeof toGmKeep === 'function') toGmKeep(recQ.id, { wait: tgQ === 'wait', crit: (function() { var tvQ = Dq.verdictOf(resQ, ruleQ), tmQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ; return tmQ || (typeof SQ.thenCrit === 'function' && SQ.thenCrit(tvQ, tmQ) === 'fumble') ? 'fumble' : ''; })(), S: SQ, D: Dq, F: Fq, camp: campQ, ch: chQ, q: q, view: viewQ, act: actQ, res: resQ, rule: ruleQ, mf: mfQ, vars: varsQ, tc: tcQ, big: recQ.big === true, band: recQ.band, label: recQ.label || '', as: recQ.as, from: recQ.from, expr: q.expr }); if (cvQ) recQ.hit = cvQ.row; pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }   // HR1: its roller gets a card that says only it went; the GM gets the roll
+         else if (q.priv) { recQ.priv = 'gm'; try { conn.send(hdQ ? figOf(recQ) : recQ); } catch (e) { sendFailed(e); } if (cvQ) recQ.hit = cvQ.row; pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }   // cvQ: the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
         else { sendTable(hdQ ? figOf(recQ) : recQ, null); if (cvQ) recQ.hit = cvQ.row; pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
         if (hsQ) hsQ.forEach(function(rxQ) { if (q.priv) { rxQ.priv = 'gm'; try { conn.send(rxQ); } catch (e) { sendFailed(e); } pushRoll(rxQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); } else { sendTable(rxQ, null); pushRoll(rxQ, resQ, 'global', { cid: chQ ? q.charId : '' }); } });
         var ruleQ = Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '');   // Stage 6 F8: the system's roll outcomes (1.6.0: or the record's own critical range)
@@ -9477,7 +9516,7 @@ function handleMessage(msg, conn) {
         if (blowRecQ && blowRecQ.defend && typeof window.wpBlastDefended === 'function') { var dfvQ = Dq.verdictOf(resQ, ruleQ); window.wpBlastDefended(blowRecQ.defend, !!dfvQ && dfvQ.kind === 'check' && dfvQ.pass === true && !(mfQ !== null && Dq.naturalOf(resQ) >= mfQ)); }   // 1.6.0: a blast's own Defense roll
         if (blowRecQ && typeof blowCrip === 'function') blowCripWrite(blowCrip(campQ, blowRecQ, Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, Dq.naturalOf(resQ)), saveRemoteSoon);   // 1.6.0 (the core's gap 7): a failed roll of a blow cripples the location struck
         if (actQ && actQ.init === true && typeof initIntoFight === 'function') initIntoFight(campQ, locQ, q.charId, pidQ, resQ.value);   // initiative O1: their own initiative roll into the fight on their map, once
-        if (actQ && actQ.then) {   // Stage 6 HUD R1: its consequences on the host's copy, through the roller's view, all or nothing (nothing to apply is quiet)
+        if (actQ && actQ.then && tgQ !== 'wait') {   // Stage 6 HUD R1: its consequences on the host's copy (HR1: not yet where it waits for the GM), through the roller's view, all or nothing (nothing to apply is quiet)
             var mfHitQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ, vdQ = Dq.verdictOf(resQ, ruleQ), crQ = typeof SQ.thenCrit === 'function' ? SQ.thenCrit(vdQ, mfHitQ) : '', thQ = SQ.thenChanges(actQ, mfHitQ ? false : (vdQ && vdQ.kind === 'check' ? vdQ.pass : null), mfHitQ, crQ, recQ.band);   // R3: a malfunction is a failure, with its own changes; 1.5.8: and a critical, with its own
             var taQ = thQ.length ? SQ.applyAct(campQ.system, chQ, { apply: thQ }, typeof SQ.withRollCrit === 'function' ? SQ.withRollCrit(varsQ, crQ, typeof SQ.thenMargin === 'function' ? SQ.thenMargin(vdQ, mfHitQ) : 0, recQ.big === true, resQ) : varsQ, Fq, tcQ, q.row && q.row.r ? (actQ.burst === 'attack' ? { f: q.row.f, r: q.row.r, burst: true } : { f: q.row.f, r: q.row.r }) : null, undefined, Dq, onQ ? { char: onQ.ch, tctx: typeof allyCtx === 'function' ? allyCtx(mapQ, onQ.tok) : null } : null, typeof fxNow === 'function' ? fxNow(q.charId, onQ) : null) : null;   // 1.5.8: its amounts read RollCrit   // R2b: a list roll may move its row's counters   // 1.5.9: the host's dice roll a Rolled amount, and its field changes land on the one it is used on
             if (taQ && Array.isArray(taQ.fitSays) && taQ.fitSays.length && typeof toast === 'function') toast('A part no longer fits. ' + taQ.fitSays[0]);   // 1.6.0 Fits where, judged again: the GM is told
@@ -9489,11 +9528,11 @@ function handleMessage(msg, conn) {
             if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === true && tcQ && tcQ.range && typeof tcQ.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ.range.tid, mapId: tcQ.range.mapId, margin: vdQ.margin });   // 1.5.9 Chambers from: a hit puts the round it fired on the roller's target
             else if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === false && typeof window.wpLaunchMiss === 'function') window.wpLaunchMiss({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ && tcQ.range && typeof tcQ.range.tid === 'string' ? tcQ.range.tid : '', mapId: tcQ && tcQ.range && typeof tcQ.range.mapId === 'string' ? tcQ.range.mapId : '', margin: vdQ.margin, crit: ((typeof Dq.checkOf === 'function' ? Dq.checkOf(resQ, ruleQ) : null) || vdQ).crit === 'fumble' ? 'fumble' : '' });   // 1.5.9 (es): a miss lands as its round says, by the verdict's margin (a round that says nothing: the GM places it); its critical failure read as a throw's is, by every system's own (the review of fold 2: a d20's natural 1 too)
         }
-        if (chQ && actQ && Array.isArray(actQ.thenGm) && actQ.thenGm.length && typeof thenGmRun === 'function') { var mfGQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ, vdGQ = Dq.verdictOf(resQ, ruleQ); thenGmRun(campQ, chQ, q, viewQ, actQ, { cr: typeof SQ.thenCrit === 'function' ? SQ.thenCrit(vdGQ, mfGQ) : '', mf: mfGQ, vd: vdGQ, big: recQ.big === true, res: resQ, band: recQ.band, tc: tcQ, D: Dq, F: Fq, label: recQ.label }); }   // 1.6.2: the Then's steps the players' view could not hold, run here alone, also where it held none of them
+        if (chQ && actQ && tgQ !== 'wait' && Array.isArray(actQ.thenGm) && actQ.thenGm.length && typeof thenGmRun === 'function') { var mfGQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ, vdGQ = Dq.verdictOf(resQ, ruleQ); thenGmRun(campQ, chQ, q, viewQ, actQ, { cr: typeof SQ.thenCrit === 'function' ? SQ.thenCrit(vdGQ, mfGQ) : '', mf: mfGQ, vd: vdGQ, big: recQ.big === true, res: resQ, band: recQ.band, tc: tcQ, D: Dq, F: Fq, label: recQ.label }); }   // 1.6.2: the Then's steps the players' view could not hold, run here alone, also where it held none of them
         if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv); attemptCalled(campQ, blowRecQ, q.act, rowGQ, pcQ, chQ, !!recQ.priv, tcQ); if (typeof holdsRolled === 'function' && typeof SQ.holdRefOf === 'function') holdsRolled(campQ, chQ, actQ, holdRefQ(campQ, q, actQ), pcQ, tcQ, blowRecQ, atQ); }   // 1.6.0: Calls for, with its Then landed; Who holds whom
         if (actQ && actQ.burst && q.row && typeof burstAfter === 'function') burstAfter(campQ, chQ, actQ, q.row, resQ, ruleQ, mfQ !== null && Dq.naturalOf(resQ) >= mfQ, typeof taQ !== 'undefined' ? taQ : null, tcQ, saveRemoteSoon);   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
         };
-        var heldCQ = chQ && actQ && typeof cardHold === 'function' ? cardHold({ asked: typeof askedQ !== 'undefined' ? askedQ : null, S: SQ, D: Dq, F: Fq, camp: campQ, ent: cardEnt(campQ, q.act, rowGQ, actQ), res: resQ, expr: q.expr, vars: varsQ, tc: tcQ, ch: chQ, pid: pidQ, conn: conn, priv: q.priv === 'gm', from: diceFrom(net.roster[conn.peer], false), rid: q.rid, label: q.label, as: String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label), cid: q.charId, go: function(r, e, id, st) { q.expr = e; if (st) varsQ.bandStep = st; restQ(r, id); } }) : false;
+        var heldCQ = chQ && actQ && !tgQ && typeof cardHold === 'function' ? cardHold({ asked: typeof askedQ !== 'undefined' ? askedQ : null, S: SQ, D: Dq, F: Fq, camp: campQ, ent: cardEnt(campQ, q.act, rowGQ, actQ), res: resQ, expr: q.expr, vars: varsQ, tc: tcQ, ch: chQ, pid: pidQ, conn: conn, priv: q.priv === 'gm', from: diceFrom(net.roster[conn.peer], false), rid: q.rid, label: q.label, as: String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label), cid: q.charId, go: function(r, e, id, st) { q.expr = e; if (st) varsQ.bandStep = st; restQ(r, id); } }) : false;
         if (!heldCQ) restQ(resQ);
         // [netcheck:rollreq-end]
     } else if (msg.type === 'hit-ask' && net.role === 'host') {

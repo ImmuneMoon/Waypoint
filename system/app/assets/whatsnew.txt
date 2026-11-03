@@ -89,6 +89,9 @@ The System editor
 - A step of a roll's Then that reads or changes something players may not see
   now runs when a player rolls, on the GM's Waypoint, where before the whole
   Then changed nothing. The player keeps the roll's other steps.
+- A roll can go to the GM, set on the roll or on a list. Its player sees only that
+  it was sent. Its Then runs at once or waits for the GM, and on a critical
+  failure the GM can roll again in secret or decide.
 - A list can say what a trade does to a row: a stat is cleared, set or moved to
   another, which may be GM-only. It can also call for a roll, made for the GM alone
   once both sides confirm. A column can show on some rows only.

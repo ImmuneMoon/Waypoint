@@ -135,6 +135,9 @@ jobs:
       - name: thengmcheck — a Then step players may not see, run on the host
         if: ${{ !cancelled() }}
         run: node tools/thengmcheck.js
+      - name: togmcheck — a roll that goes straight to the GM
+        if: ${{ !cancelled() }}
+        run: node tools/togmcheck.js
       - name: askcheck — what a roll or an action asks as it is pressed
         if: ${{ !cancelled() }}
         run: node tools/askcheck.js

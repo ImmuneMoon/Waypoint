@@ -151,7 +151,7 @@ var GROUPS = {
         ['round', 'Rounding', 0, ['sys-round', 'sys-roundto', 'sys-roundat']]] },
     rolls: { split: ['sys-row-main'], head: ['sys-label', 'sys-roll-kind', 'sys-formula', 'sys-btns'], list: [
         ['how', 'How it rolls', 1, ['sys-roll-malf', 'sys-roll-critat', 'sys-roll-fumbleat', 'sys-roll-bigat', 'sys-init-chk', 'sys-roll-anytime']],
-        ['look', 'Who sees it and how it looks', 1, ['sys-vis', 'sys-roll-tone', 'snd-on-btn', 'sys-roll-die', 'sys-roll-icon', 'sys-glyph-btn']],
+        ['look', 'Who sees it and how it looks', 1, ['sys-vis', 'sys-roll-togm', 'sys-roll-tone', 'snd-on-btn', 'sys-roll-die', 'sys-roll-icon', 'sys-glyph-btn']],
         ['use', 'When it can be used', 1, ['sys-roll-needsrow', 'sys-roll-cost', 'sys-costhowrow', 'sys-costhow', 'sys-clockrow', 'sys-clockn', 'sys-roll-near', 'sys-roll-each', 'sys-roll-by', 'sys-crewstn']],
         ['damage', 'Damage', 0, ['sys-dmg-chk', 'sys-roll-hits', 'sys-roll-mjif', 'sys-roll-mjdmg', 'sys-roll-dtype', 'sys-roll-dkind', 'sys-roll-p2*', 'sys-roll-p3*', 'sys-roll-p4*', 'sys-roll-p5*', 'sys-area']],
         ['resist', 'Resisting it', 0, ['sys-roll-rsist', 'sys-roll-rsby', 'sys-rsor', 'sys-roll-rsnocrit']],
@@ -173,7 +173,7 @@ var GROUPS = {
         ['blast', 'Blast', 0, ['sys-item-area', 'sys-item-affs']]] },
     lists: { split: ['sys-flags', 'sys-list-cols'], head: ['sys-list-title'], list: [
         ['holds', 'What it holds', 1, ['sys-list-cats', 'sys-starts']],
-        ['rows', 'How its rows behave', 1, ['sys-list-multi', 'sys-list-noqty', 'sys-list-hang', 'sys-list-graise', 'sys-list-custom', 'sys-ownsw', 'sys-list-open', 'sys-list-hand', 'sys-list-handgm', 'sys-list-trade', 'sys-list-edge', 'sys-list-groupby', 'sys-list-menus', 'sys-list-boxes', 'sys-traderules']],
+        ['rows', 'How its rows behave', 1, ['sys-list-multi', 'sys-list-noqty', 'sys-list-hang', 'sys-list-graise', 'sys-list-custom', 'sys-ownsw', 'sys-list-open', 'sys-list-hand', 'sys-list-handgm', 'sys-list-trade', 'sys-list-togm', 'sys-list-edge', 'sys-list-groupby', 'sys-list-menus', 'sys-list-boxes', 'sys-traderules']],
         ['level', 'Level', 1, ['sys-list-lvl', 'sys-list-lcaps']],
         ['on', 'Switch', 1, ['sys-list-on', 'sys-list-upkeep']],
         ['stats', 'Stats', 1, ['sys-list-stats']],

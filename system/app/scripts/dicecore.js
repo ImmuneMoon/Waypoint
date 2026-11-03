@@ -374,6 +374,7 @@ function cleanRoll(rec) {
     if (rec.names !== undefined) { var nm = cleanNames(rec.names); if (!nm) return null; if (nm.length) out.names = nm; }
     if (rec.malf !== undefined) { if (!isInt(rec.malf) || rec.malf < 1 || rec.malf > 1000000) return null; out.malf = rec.malf; if (rec.malfHid === 1) out.malfHid = 1; }   // malfHid (1.6.0): the figure is the roll's own, standing in for a Malf that reads a GM-only stat, so a card names none
     if (rec.crit !== undefined) { var crc = cleanCrit(rec.crit); if (!crc) return null; out.crit = crc.high ? [crc.at, crc.fumble, 1] : [crc.at, crc.fumble]; }   // 1.6.0: criticals at fixed rolls, the two numbers the host judged this roll by
+    if (rec.hid === 'gm') out.hid = 'gm';   // HR1: a roll that went straight to the GM: its roller's copy holds no figure
     if (rec.hid === 'pass' || rec.hid === 'fail' || rec.hid === 'rolled') { out.hid = rec.hid; if ((rec.hidc === 'crit' || rec.hidc === 'fumble') && rec.hid !== 'rolled') out.hidc = rec.hidc; }   // 1.6.2: the host's own word for a roll whose figure is hidden (hidRoll): only these words
     if (typeof rec.band === 'string' && rec.band.trim()) out.band = rec.band.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 30);   // 1.6.2: the name of the result band the host found, text alone
     if (rec.big === true) out.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): the host's mark of a success that lands as a Big Hit, no critical; anything else is left off
@@ -669,6 +670,7 @@ function cardText(rec, res, F, opts) {
     if (u) { var by = u.pass ? u.target - u.total : u.total - u.target; body = body.replace(/:\s*(success|failure)( by [^:]*)?$/, '') + ': ' + (u.crit ? 'critical ' : '') + (u.pass ? 'success' : 'failure') + (by > 0 ? ' by ' + fmtNum(by) : ''); }
     var fxc = !u && opts ? fixedCrit(res, opts.rule) : null;   // 1.6.0: criticals at fixed rolls, alike
     if (fxc) body = body.replace(/:\s*(success|failure)( by [^:]*)?$/, '') + ': ' + (fxc.crit ? 'critical ' : '') + (fxc.pass ? 'success' : 'failure') + (fxc.by > 0 ? ' by ' + fmtNum(fxc.by) : '');
+    if (rec && rec.hid === 'gm') body = 'sent to the GM';   // HR1
     if (rec && (rec.hid === 'pass' || rec.hid === 'fail')) body += ': ' + (rec.hidc ? 'critical ' : '') + (rec.hid === 'pass' ? 'success' : 'failure');   // 1.6.2: the host's word, the copy holding no check
     return who + tagOf(rec, opts) + as + ' rolled ' + (rec && rec.label ? rec.label + ': ' : '') + body + (malfOf(rec, res) ? ' \u2014 ' + malfWords(rec) : '');   // R3
 }

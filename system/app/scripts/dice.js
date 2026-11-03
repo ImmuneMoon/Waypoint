@@ -114,7 +114,8 @@ function renderCard(m) {
     if (rec.as && rec.as !== rec.from.name) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'as ' + rec.as)); }   // the character the roll was made as (1.5.0)
     wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
     wrap.appendChild(el('br'));
-    if (rec.label) wrap.appendChild(el('div', 'roll-title', rec.label + (typeof rec.onName === 'string' && rec.onName ? ': ' + rec.onName : '')));   // chat cards: the roll's name as the card's title (his reference cards); the formula on its own line
+    if (rec.label) wrap.appendChild(el('div', 'roll-title', rec.label + (typeof rec.onName === 'string' && rec.onName ? ': ' + rec.onName : '')));
+    if (rec.hid === 'gm') { wrap.appendChild(el('div', 'roll-togm', 'Sent to the GM.')); return wrap; }   // HR1: its roller sees that it went, and nothing of it   // chat cards: the roll's name as the card's title (his reference cards); the formula on its own line
     if (!res || !res.ok || !Fm) {
         wrap.appendChild(el('div', 'roll-bad', 'a roll that could not be read' + (m.rollBad === 'version' ? ' (a different dice engine)' : '')));
         if (rec.dmg === 1) wrap.className += ' card-dmg';   // a damage roll needs no dice to be one
@@ -179,6 +180,7 @@ function renderCard(m) {
         ab.addEventListener('click', function() { if (rec.dmgUsed === 1) return; dS.damageFromRoll(rec.from && rec.from.id, dv, function() { rec.dmgUsed = 1; if (ab.parentNode) ab.parentNode.replaceChild(el('div', 'chat-dmgdone', 'Applied'), ab); }, typeof rec.dtype === 'string' ? rec.dtype : undefined, { on: typeof rec.dmgOn === 'string' ? rec.dmgOn : undefined, dice: dN, ad: typeof rec.ad === 'number' ? rec.ad : 0, major: rec.major === 1, kind: typeof rec.dkind === 'string' ? rec.dkind : undefined, part2: p2c ? { amt: p2c.t, type: p2c.dtype, ad: p2c.ad, dice: p2c.n, kind: p2c.dkind } : undefined, part3: pkc[3] ? { amt: pkc[3].t, type: pkc[3].dtype, ad: pkc[3].ad, dice: pkc[3].n, kind: pkc[3].dkind } : undefined, part4: pkc[4] ? { amt: pkc[4].t, type: pkc[4].dtype, ad: pkc[4].ad, dice: pkc[4].n, kind: pkc[4].dkind } : undefined, part5: pkc[5] ? { amt: pkc[5].t, type: pkc[5].dtype, ad: pkc[5].ad, dice: pkc[5].n, kind: pkc[5].dkind } : undefined, hits: hmC.length ? hmC.map(function(h) { var o = { amt: h.t, type: h.dtype, ad: h.ad, dice: h.n, kind: h.dkind, major: h.major === 1 }; [2, 3, 4, 5].forEach(function(k) { var p = h['dmg' + k]; if (p) o['part' + k] = { amt: p.t, type: p.dtype, ad: p.ad, dice: p.n, kind: p.dkind }; }); return o; }) : undefined }); });
         wrap.appendChild(ab);
     }
+    if (n && typeof n.toGmButtons === 'function') n.toGmButtons(wrap, rec);   // HR1: on the GM's own card of a roll that went to them
     return wrap;
 }
 // 1.6.0 (the live test, 2026-10-30): which round a hit was, in words; '' where it names none

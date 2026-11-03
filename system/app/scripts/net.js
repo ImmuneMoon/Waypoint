@@ -5225,12 +5225,43 @@ function turnStarted(mapId, c) { var first = fightReachTurn(c); if (first) { if 
 // takes a row out, adds one or sorts the order again, and a player's initiative that re-sorts it in play, neither skip a turn still to come nor run one
 // again. A new fight starts with none, and a roster edit keeps all three (fightReachKept). A new place that reorders a fight's rows keeps each row's id
 function fightReachRound(c) { var rh = c && typeof c.rh === 'number' ? c.rh : 0; if (!c || !(c.round > rh)) return false; c.rh = c.round; c.th = Object.create(null); return true; }
+// [netcheck:several-start]
+// 1.6.2 (G10): several turns a round. c.seq, the host's own and never sent, holds the ids of a round's turns in order, and c.sq the place in it. c.turn still names the row on turn, so every reader of a row stands. A row's later turns are its second, third and so on in the round (seqOcc), which is how th and et tell them apart, and which the three settings read
+function severalRule(camp) { var ir = typeof initRulesOf === 'function' ? initRulesOf(camp) : null; return ir && ir.several ? ir.several : null; }
+function seqOcc(c, at) { if (!c || !Array.isArray(c.seq)) return 0; var id = c.seq[at], n = 0; for (var i = 0; i < at; i++) if (c.seq[i] === id) n++; return n; }
+function seqIdx(c, at) { var id = c.seq[at], i = c.rows.findIndex(function(r) { return !!r && r.id === id; }); return i < 0 ? 0 : i; }
+function sevSlots(camp, c, sev) {   // by table: the segments a row's character acts in, read from the system's table by the value of its field
+    var S = SC(), F = window.wpFormula, sys = camp && camp.system, map = camp && camp.items && own(camp.items, c.mapId) ? camp.items[c.mapId] : null, tb = sys && Array.isArray(sys.tables) ? sys.tables.filter(function(t) { return !!t && t.key === sev.table; })[0] : null;
+    return function(r) {
+        var tk = map && Array.isArray(map.whiteboard) && typeof r.tokId === 'string' ? map.whiteboard.find(function(w) { return !!w && w.id === r.tokId; }) : null, ch = tk && typeof tk.charId === 'string' && camp.chars && own(camp.chars, tk.charId) ? camp.chars[tk.charId] : null; if (!ch || !tb || !S || !F) return null;
+        var v = F.evaluate(sev.stat, { vars: S.makeResolver(sys, ch, F) }), want = v && v.ok ? String(v.value) : '', row = (Array.isArray(tb.rows) ? tb.rows : []).filter(function(x) { return !!x && String(x.key) === want; })[0]; if (!row || !row.vals) return null;
+        var out = []; (Array.isArray(tb.cols) ? tb.cols : []).forEach(function(col, i) { if (col && Number(row.vals[col.key]) > 0) out.push(i); }); return out;
+    };
+}
+function seqMake(camp, c) {
+    var sev = severalRule(camp), S = sev && typeof SC === 'function' ? SC() : null; if (!c || !sev || !S || typeof S.turnSeq !== 'function') { if (c) { delete c.seq; delete c.sq; delete c.mvUsed; } return; }
+    var ids = S.turnSeq(sev, c.rows, sev.by === 'table' ? sevSlots(camp, c, sev) : null); c.seq = ids.length ? ids : c.rows.map(function(r) { return r.id; });
+}
+function seqPlace(camp, c, had) {   // a new fight, or a roster edit: the same turn of the same row where it still stands
+    var wasId = had && Array.isArray(had.rows) && had.rows[had.turn] ? had.rows[had.turn].id : null, wasN = had && Array.isArray(had.seq) ? seqOcc(had, typeof had.sq === 'number' ? had.sq : 0) : 0; seqMake(camp, c); if (!c.seq) return;
+    var at = 0, n = 0, found = -1; for (var i = 0; i < c.seq.length; i++) if (c.seq[i] === wasId) { if (found < 0 || n <= wasN) found = i; n++; } if (found >= 0) at = found;
+    c.sq = at; c.turn = seqIdx(c, at); if (had && had.mvUsed) c.mvUsed = had.mvUsed;
+}
+function seqStep(c, dir) {   // the next turn or the one before: the row on turn, a new round or the last one's end named by c.round
+    var at = (typeof c.sq === 'number' ? c.sq : 0), nx = at + (dir < 0 ? -1 : 1); c.sqWas = at;
+    if (nx >= c.seq.length) { c.round += 1; c.sq = 0; delete c.mvUsed; return seqIdx(c, 0); }
+    if (nx < 0) { if (c.round > 1) { c.round -= 1; c.sq = c.seq.length - 1; return seqIdx(c, c.sq); } return c.turn; }
+    c.sq = nx; return seqIdx(c, nx);
+}
+function seqMoved(c, sev) { if (!c || !sev || sev.move !== 'round' || typeof c.id !== 'string') return; var st = net.turnMove[c.id]; if (st && typeof st.rowId === 'string') { c.mvUsed = c.mvUsed || Object.create(null); c.mvUsed[st.rowId] = st.moved; } }   // Move, Once a round: how far it has gone so far this round
+// [netcheck:several-end]
 function fightReachTurn(c) {
     var row = c && typeof c.round === 'number' && typeof c.turn === 'number' && Array.isArray(c.rows) ? c.rows[c.turn] : null; if (!row) return false;
     var rh = typeof c.rh === 'number' ? c.rh : 0;
     if (c.round > rh) { c.rh = c.round; c.th = Object.create(null); }
     else if (c.round < rh) return false;   // a round the fight has gone past: a correction, nothing of it runs again
     var th = c.th && typeof c.th === 'object' ? c.th : (c.th = Object.create(null)), k = typeof row.id === 'string' && row.id ? row.id : '#' + c.turn;   // a row with no id by its place
+    if (c.seq && typeof seqOcc === 'function' && seqOcc(c, c.sq) > 0) k += '#' + seqOcc(c, c.sq);   // 1.6.2 (G10): its later turns of the round are turns of their own
     if (th[k] === 1) return false;
     th[k] = 1; return true;
 }
@@ -5244,6 +5275,7 @@ function fightReachTurnEnd(c, round, row, at) {
     if (round > eh) { c.eh = round; c.et = Object.create(null); }
     else if (round < eh) return false;
     var et = c.et && typeof c.et === 'object' ? c.et : (c.et = Object.create(null)), k = typeof row.id === 'string' && row.id ? row.id : '#' + at;
+    if (c.seq && typeof seqOcc === 'function' && seqOcc(c, c.sqWas) > 0) k += '#' + seqOcc(c, c.sqWas);
     if (et[k] === 1) return false;
     et[k] = 1; return true;
 }
@@ -5305,6 +5337,7 @@ function turnMoveStart(mapId, c) {
     var w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === row.tokId; }) : null; if (!w || !w.isChar || !w.ownerId) return;
     if (!fidM) return;
     var st = { rowId: row.id, tokId: w.id, moved: 0, allow: null }; net.turnMove[fidM] = st;
+    if (c.mvUsed && typeof c.mvUsed[row.id] === 'number') st.moved = c.mvUsed[row.id];   // 1.6.2 (G10): Move, Once a round
     net.turnMoveOwn[fidM] = w.ownerId;   // 1.5.7: whose it is, so the figures go to them alone (kept apart from the state the turn's rules read)
     var S = SC(), F = window.wpFormula, ch = camp.chars && typeof w.charId === 'string' && own(camp.chars, w.charId) ? camp.chars[w.charId] : null;
     if (!S || !F || !camp.system || !ch || ch.npc || ch.ownerId !== w.ownerId || !window.wpSheets) return;
@@ -5420,6 +5453,7 @@ function turnActsStart(mapId, c) {   // the character whose turn begins has its 
     var row = c && Array.isArray(c.rows) ? c.rows[c.turn] : null, camp = getActiveCampaign(); if (!row || typeof row.tokId !== 'string' || !camp || !actsOf(camp).length) return;
     var map = camp.items && own(camp.items, mapId) ? camp.items[mapId] : null, w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === row.tokId; }) : null;
     if (!w || typeof w.charId !== 'string') return;
+    if (c.seq && typeof seqOcc === 'function' && seqOcc(c, c.sq) > 0) { var svA = severalRule(camp); if (svA && svA.acts === 'round') return; }   // 1.6.2 (G10): Actions, Once a round
     delete net.turnSpent[w.charId]; net.turnMax[w.charId] = actsMaxOf(camp, camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null, map, w, c); if (window.wpVtt && window.wpVtt.on('turns')) actsTell(camp, w.charId);   // 192: its counts for this turn
 }
 function turnActsEnd(mapId, had) {   // a combat ended: its characters' counts go (their sheets stop greying)
@@ -5508,13 +5542,14 @@ function fxCombatChars(mapId, combat) { var camp = getActiveCampaign(); if (!cam
 function turnFxStart(mapId, c) {   // the character whose turn begins: a round of its timed effects passes, once in each round of that fight (fold 3: c.turned, so two rows of one sheet count once)
     var camp = getActiveCampaign(), row = c && Array.isArray(c.rows) ? c.rows[c.turn] : null; if (!camp || !row) return;
     var tn = c.turned && typeof c.turned === 'object' ? c.turned : (c.turned = Object.create(null)), rd = typeof c.round === 'number' ? c.round : 1;
-    fxCombatChars(mapId, { rows: [row] }).forEach(function(ch) { if (typeof ch.id === 'string') { if (Object.prototype.hasOwnProperty.call(tn, ch.id) && tn[ch.id] >= rd) return; tn[ch.id] = rd; } fxApply(camp, ch, 'turn', Date.now()); });
+    var fxEach = !!(c.seq && typeof severalRule === 'function' && severalRule(camp) && severalRule(camp).fx === 'turn');   // 1.6.2 (G10): Timed effects, Each of its turns
+    fxCombatChars(mapId, { rows: [row] }).forEach(function(ch) { if (typeof ch.id === 'string') { if (!fxEach && Object.prototype.hasOwnProperty.call(tn, ch.id) && tn[ch.id] >= rd) return; tn[ch.id] = rd; } fxApply(camp, ch, 'turn', Date.now()); });
 }
 // 1.6.0 Counts at its turn's end: the character whose turn ended, in the round it ended: a round passes for its effects set so, once in each round of that fight (c.fxEnded, { charId: round }, the host's own and never sent, as turned is)
 function turnFxEnd(mapId, c, row, round) {
     var camp = getActiveCampaign(); if (!camp || !c || !row) return;
     var tn = c.fxEnded && typeof c.fxEnded === 'object' ? c.fxEnded : (c.fxEnded = Object.create(null)), rd = typeof round === 'number' ? round : 1;
-    fxCombatChars(mapId, { rows: [row] }).forEach(function(ch) { if (typeof ch.id !== 'string') return; if (Object.prototype.hasOwnProperty.call(tn, ch.id) && tn[ch.id] >= rd) return; tn[ch.id] = rd; fxApply(camp, ch, 'turnEnd', Date.now()); });
+    var fxEachE = !!(c.seq && typeof severalRule === 'function' && severalRule(camp) && severalRule(camp).fx === 'turn'); fxCombatChars(mapId, { rows: [row] }).forEach(function(ch) { if (typeof ch.id !== 'string') return; if (!fxEachE && Object.prototype.hasOwnProperty.call(tn, ch.id) && tn[ch.id] >= rd) return; tn[ch.id] = rd; fxApply(camp, ch, 'turnEnd', Date.now()); });
 }
 function fxCombatEdge(mapId, combat, kind) { var camp = getActiveCampaign(), now = Date.now(); if (kind === 'bank' && !net._fxStop) net._fxStop = now; fxCombatChars(mapId, combat).forEach(function(ch) { fxApply(camp, ch, kind, now); }); }   // bank at a combat's start, resume at its end
 function fxClockTick() {   // out of combat: the clock, on the GM's own machine
@@ -5841,6 +5876,7 @@ function initIntoFight(camp, mapId, charId, pid, value) {
     c.rows = S && S.orderByInit ? S.orderByInit(c.rows, tieIF) : c.rows;
     var at = cur ? c.rows.indexOf(cur) : 0; c.turn = at >= 0 ? at : 0;
     if (typeof combatSideOrder === 'function') combatSideOrder(camp, mapId, c);   // initiative O4: each side stays together
+    if (c.seq && typeof seqPlace === 'function') seqPlace(camp, c, { rows: c.rows, turn: c.turn, seq: c.seq, sq: c.sq, mvUsed: c.mvUsed });   // 1.6.2 (G10): a new number may mean more turns
     toast((row.name || 'Someone') + ' rolled initiative: ' + row.init + ', now ' + (c.rows.indexOf(row) + 1) + ' of ' + c.rows.length + '.');
     logEvent('table', (row.name || 'Someone') + ' rolled initiative on ' + mapTitleOf(mapId) + ': ' + row.init);
     broadcastCombats(); combatRefresh();
@@ -6100,6 +6136,7 @@ function fightSet(fid, combat) {
         if (had && typeof had.rr === 'number') f.rr = had.rr;   // initiative O4: the last round the fight rolled for, and this round's side, kept through a roster edit
         if (had && (had.side === 'pc' || had.side === 'rest')) f.side = had.side;
         if (typeof combatSides === 'function') combatSides(mapId, f, !had);   // ...and each side together (a new fight rolls the sides first)
+        if (typeof seqPlace === 'function') seqPlace(campNow(), f, had);   // 1.6.2 (G10): a round of several turns
         if (had && typeof fightReachKept === 'function') fightReachKept(had, f);   // fold 3: a roster edit keeps how far the fight has gone (rh, th, turned), put back after cleaning as rr and side are; a new fight starts with none
         if (had && typeof holdsPrune === 'function') holdsPrune(getActiveCampaign(), f);   // 1.6.0: a row taken out of the order ends what it held and what held it
         if (had && chosenRule()) chosenMark(f);   // initiative O5: each row's mark of having gone, by its id, the row on turn none
@@ -6156,7 +6193,9 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     var campS = campNow(), a0 = timeCore() ? fightAtOf(c, campS) : null;   // fold 4: the fight's own time before the step
     var mapId = c.mapId, t = c.turn + (dir < 0 ? -1 : 1), r0 = c.round, t0 = c.turn, endRow = dir > 0 && c.rows[t0] && (!c.rows[t0].held || holdRule('holdEnd') === 'end') ? c.rows[t0] : null;   // 1.6.0: the turn a forward step ends (a held one only where the system says a hold ends the turn; once a turn, so acting from it runs nothing again)
     var pkFrom = c.rows[t0], pkRow = nx && nx.round && typeof pick === 'string' ? c.rows[nx.at] : null;   // initiative O5: whose turn ends, and the row picked to open a new round, found again once its order is made
+    var at0 = c.sq, seqR = c.seq && typeof seqStep === 'function' ? severalRule(campS) : null; if (seqR) seqMoved(c, seqR);
     if (S5) t = chosenGo(c, dir, nx, t0);   // initiative O5: the place chosen (a new round where none is left), or back to the last turn had (a correction)
+    else if (seqR) t = seqStep(c, dir);   // 1.6.2 (G10): the round's own order of turns
     else if (t >= c.rows.length || (dir > 0 && typeof c.endAt === 'number' && t >= c.endAt)) { t = 0; c.round += 1; }   // 1.6.2 (G9): a card that ends the round ends it where it stands
     else if (t < 0) { if (c.round > 1) { c.round -= 1; t = (typeof c.endAt === 'number' ? Math.min(c.endAt, c.rows.length) : c.rows.length) - 1; } else t = 0; }
     c.turn = t;
@@ -6165,13 +6204,14 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     if (c.rows[t]) delete c.rows[t].held;   // ...and a row whose turn it is holds nothing
     if (endRow && typeof turnEnded === 'function') turnEnded(mapId, c, endRow, r0, t0);   // 1.6.0: its end first, before the new round and the next turn
     if (c.round > r0 && typeof combatNewRound === 'function') { combatNewRound(mapId, c); t = c.turn; }
+    if (seqR && c.round > r0) { seqMake(campS, c); c.sq = 0; if (c.seq) { t = seqIdx(c, 0); c.turn = t; } }
     if (S5) { var atP = pkRow ? c.rows.indexOf(pkRow) : -1; if (atP >= 0) { c.turn = atP; t = atP; } chosenMark(c); }   // initiative O5: the new round opened by the one picked, and each row's mark of having gone   // initiative O4: a new round's order (rolled again, by side), the first time the fight reaches it
     if (c.round !== r0) roundChanged(mapId, c);   // G10
     var tg = c.round !== r0 && a0 ? fightTurned(campS, c, a0, r0) : null;   // fold 4: its own time moves by the round's length (a step back, back)
-    toast((c.rows[t].name || 'Someone') + "'s turn" + ((S5 ? c.round > r0 : t === 0 && dir > 0) ? ' — round ' + c.round : '') + '.');
+    toast((c.rows[t].name || 'Someone') + "'s turn" + ((S5 || seqR ? c.round > r0 : t === 0 && dir > 0) ? ' — round ' + c.round : '') + '.');
     if (S5 && typeof pick === 'string') logEvent('table', (by === 'player' ? (pkFrom && pkFrom.name) || 'Someone' : 'The GM') + ' picked ' + (c.rows[t].name || 'someone') + ' to go ' + (c.round > r0 ? 'first in round ' + c.round : 'next') + ' on ' + mapTitleOf(mapId));   // initiative O5: a pick, in the Game Record
     broadcastCombats(); combatRefresh();
-    if (c.round !== r0 || c.turn !== t0) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing), after the broadcast
+    if (c.round !== r0 || c.turn !== t0 || (seqR && c.sq !== at0)) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing), after the broadcast
     if (tg) ordersMoved('step', tg);   // fold 4: the round it closed counted, and the clock moved once the fight furthest behind moves on
 }
 // Initiative O3 (the owner's answer, "After the current turn"): the character whose turn it is holds it — play moves on as with Next turn and its row
@@ -6231,7 +6271,7 @@ function fightAct(fid, rowId) {
     var i = c.rows.findIndex(function(r) { return r && r.id === rowId; }); if (i < 0 || i === c.turn || c.rows[i].held !== 1) return false;
     if (holdRule('holdAct') === 'stay') { var rowS = c.rows[i]; delete rowS.held; toast((rowS.name || 'Someone') + ' has acted from a hold.'); logEvent('table', (rowS.name || 'Someone') + ' acted from a hold on ' + mapTitleOf(c.mapId)); broadcastCombats(); combatRefresh(); return true; }   // 1.6.0: a system that keeps its order: the hold ends, and nothing moves
     var row = c.rows.splice(i, 1)[0], t = c.turn - (i < c.turn ? 1 : 0); delete row.held;
-    c.rows.splice(t + 1, 0, row); c.turn = t;
+    c.rows.splice(t + 1, 0, row); c.turn = t; if (Array.isArray(c.seq)) c.seq.splice((typeof c.sq === 'number' ? c.sq : 0) + 1, 0, row.id);   // 1.6.2 (G10): a turn of its own, next
     toast((row.name || 'Someone') + ' acts next.'); logEvent('table', (row.name || 'Someone') + ' acted from a hold on ' + mapTitleOf(c.mapId));
     broadcastCombats(); combatRefresh();
     return true;
@@ -11691,7 +11731,8 @@ function fightsRead(raw, camp) {   // what the save holds, as data: { list, on }
         var onTurn = f.rows[f.turn], rows = f.rows.filter(function(r) { return !(typeof r.tokId === 'string' && has[r.tokId] !== 1); }); if (!rows.length) return;
         f.turn = Math.max(0, rows.indexOf(onTurn)); f.rows = rows; delete f.mv;
         rows.forEach(function(r) { delete r.hf; delete r.sf; var raw = r.held === 1 ? k.rows.filter(function(x) { return !!x && typeof x === 'object' && x.id === r.id; })[0] : null, SF = raw && raw.holdFor && typeof SC === 'function' ? SC() : null, hc = SF && typeof SF.cleanHoldFor === 'function' ? SF.cleanHoldFor(camp.system, raw.holdFor) : null; if (hc) { r.holdFor = hc; if (raw.holdFor.was === 1) hc.was = 1; } });   // 1.6.0: a named hold comes back with its fight
-        ['n', 'rr', 'rh', 'eh'].forEach(function(key) { if (fightNum(k[key])) f[key] = k[key]; });
+        ['n', 'rr', 'rh', 'eh', 'sq'].forEach(function(key) { if (fightNum(k[key])) f[key] = k[key]; });
+        if (Array.isArray(k.seq) && k.seq.length && k.seq.length <= 2000) { var sqK = k.seq.filter(function(x) { return typeof x === 'string'; }); if (sqK.length === k.seq.length) f.seq = sqK; }   // 1.6.2 (G10): the round's order of turns comes back with its fight
         ['et', 'th', 'turned', 'fxEnded'].forEach(function(key) { if (k[key] && typeof k[key] === 'object') f[key] = fightMarks(k[key]); });
         if (Array.isArray(k.hl)) { var hlK = holdsRead(k.hl, rows); if (hlK.length) f.hl = hlK; }   // 1.6.0 Who holds whom
         if (Array.isArray(k.ps)) f.ps = fightIdsIn(k.ps);

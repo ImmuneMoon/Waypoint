@@ -9938,13 +9938,13 @@ function combatBody() {
 // it would drop
 // [sinkcheck:initbox-start]
 // 1.6.2 (G10; the owner, by prompt: "One list", since turn shapes are alternatives and a builder should see only what applies): How turns go. It stores nothing of its own: a shape is read from the keys a system already holds, and picking one writes them, so a saved system opens as it did. A hold, a Wait and the turn-end rules stand on top of a shape and are no part of this list. pick is the draft's own word, which the cleaner never keeps, for a shape whose box is still empty
-var TURN_SHAPES = [['once', 'Once a round'], ['sides', 'Sides take turns'], ['chosen', 'Next is chosen'], ['draw', 'From a draw']];
-var TURN_WORDS = { once: 'Everyone acts once a round, in the order the roll gives.', sides: 'The players\u2019 characters and everyone else each make the roll below, and the higher side goes first.', chosen: 'The order stands each round, and whoever ends a turn may pick who goes next.', draw: 'Each character draws at each new round, and the draw sets the order.' };
+var TURN_SHAPES = [['once', 'Once a round'], ['sides', 'Sides take turns'], ['chosen', 'Next is chosen'], ['draw', 'From a draw'], ['several', 'Several turns a round']];
+var TURN_WORDS = { once: 'Everyone acts once a round, in the order the roll gives.', sides: 'The players\u2019 characters and everyone else each make the roll below, and the higher side goes first.', chosen: 'The order stands each round, and whoever ends a turn may pick who goes next.', draw: 'Each character draws at each new round, and the draw sets the order.', several: 'A character acts more than once a round, by its number or by a table of yours.' };
 function turnShape(ir) { if (!ir || typeof ir !== 'object') return 'once'; if (ir.clock) return 'clock'; if (ir.several) return 'several'; if (ir.chosen === true) return 'chosen'; if (ir.deck) return 'draw'; if (typeof ir.side === 'string' && ir.side.trim()) return 'sides'; return 'once'; }
 function turnShapeSeen(ir) { return ir && TURN_SHAPES.some(function(s) { return s[0] === ir.pick; }) ? ir.pick : turnShape(ir); }
 function turnShapePick(cm, v) {
     var i0 = cm.initiative && typeof cm.initiative === 'object' && !Array.isArray(cm.initiative) ? cm.initiative : (cm.initiative = {}); ['chosen', 'side', 'deck', 'several', 'clock'].forEach(function(k) { delete i0[k]; });
-    if (v === 'chosen') i0.chosen = true; if (v === 'once') delete i0.pick; else i0.pick = v; if (!Object.keys(i0).length) delete cm.initiative;
+    if (v === 'chosen') i0.chosen = true; if (v === 'several') i0.several = { by: 'passes' }; if (v === 'once') delete i0.pick; else i0.pick = v; if (!Object.keys(i0).length) delete cm.initiative;
 }
 function shapeOff(e) { if (e && e.style) e.style.display = 'none'; }
 function initBox(box, cm) {
@@ -9974,6 +9974,19 @@ function initBox(box, cm) {
         if (shNow !== 'draw') shapeOff(r3);
         wrap.appendChild(r3);
     } else if (shNow === 'draw') wrap.appendChild(el('div', 'sys-note', 'Make a deck first, in the Rules tab.'));
+    if (shNow === 'several') {   // 1.6.2 (G10): its own listeners, and classes no handler reads, as the deck's row has
+        var sv = ir.several && typeof ir.several === 'object' ? ir.several : {}, r4 = el('div', 'sys-flags sys-init-sevrow'), setV = function(k, v, redraw) { var i0 = cm.initiative || (cm.initiative = {}), s0 = i0.several && typeof i0.several === 'object' ? i0.several : (i0.several = { by: 'passes' }); if (v === '') delete s0[k]; else s0[k] = v; markDirty(); if (redraw) renderCombat(); };
+        var sBy = select('sys-init-sevby', [['passes', 'By passes'], ['table', 'By a table']], sv.by === 'table' ? 'table' : 'passes', 'Passes: a character acts at its number, then again at that number less a figure, while that stays above 0. A table: a row for each value, a column for each segment'); sBy.addEventListener('change', function() { setV('by', sBy.value, true); }); r4.appendChild(sBy);
+        if (sv.by === 'table') {
+            var tbL = Array.isArray(draft.tables) ? draft.tables.filter(function(t) { return !!t && typeof t.key === 'string'; }) : [], flL = (Array.isArray(draft.fields) ? draft.fields : []).filter(function(f) { return !!f && !!f.key && (f.kind === 'number' || f.kind === 'formula'); });
+            var sT = select('sys-init-sevtable', [['', 'Pick a table']].concat(tbL.map(function(t) { return [t.key, t.label || t.key]; })), typeof sv.table === 'string' ? sv.table : '', 'A row for each value the number can hold, a column for each segment, and a figure above 0 where the character acts'); sT.addEventListener('change', function() { setV('table', sT.value); }); r4.appendChild(sT);
+            var sF = select('sys-init-sevstat', [['', 'Pick the number it reads']].concat(flL.map(function(f) { return [f.key, f.label || f.key]; })), typeof sv.stat === 'string' ? sv.stat : '', 'Which number of the sheet finds the character\u2019s row'); sF.addEventListener('change', function() { setV('stat', sF.value); }); r4.appendChild(sF);
+        } else { var mI = el('input', 'sys-init-sevminus field'); mI.type = 'number'; mI.min = '1'; mI.max = '1000'; mI.step = '1'; mI.value = typeof sv.minus === 'number' ? String(sv.minus) : ''; mI.title = 'What each pass takes from a character\u2019s number'; mI.addEventListener('change', function() { var n = Math.floor(Number(mI.value)); setV('minus', n >= 1 && n <= 1000 ? n : ''); }); var mL = el('label', 'sys-hover'); mL.appendChild(document.createTextNode('Each pass takes away ')); mL.appendChild(mI); r4.appendChild(mL); }
+        wrap.appendChild(r4);
+        var r5 = el('div', 'sys-flags sys-init-sevsets'), each = [['turn', 'Each of its turns'], ['round', 'Once a round']];
+        [['move', 'Move comes back', 'turn'], ['acts', 'Actions come back', 'turn'], ['fx', 'Timed effects count', 'round']].forEach(function(p) { var sS2 = select('sys-init-sev' + p[0], each, sv[p[0]] === 'round' || sv[p[0]] === 'turn' ? sv[p[0]] : p[2], 'Each of its turns, or once a round'); sS2.addEventListener('change', function() { setV(p[0], sS2.value === p[2] ? '' : sS2.value); }); r5.appendChild(el('span', 'sys-num-cap', p[1])); r5.appendChild(sS2); });
+        wrap.appendChild(r5);
+    }
     var err = errorCell('initiative'); err.dataset.errFor = 'initiative'; wrap.appendChild(err);
     box.appendChild(wrap);
 }

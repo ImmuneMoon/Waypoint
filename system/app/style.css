@@ -3568,6 +3568,7 @@
   .sys-btns { margin-left: auto; display: inline-flex; gap: 2px; }
   .sys-btn { padding: 1px 7px; font-size: 11px; }
   .sys-costhowrow .field { width: 52px; margin: 0; }
+  .sys-init-sevrow .field { width: 76px; margin: 0; }
   .sys-init-sidew { display: flex; flex: 1 1 100%; flex-wrap: wrap; gap: 6px; align-items: center; }
   /* Items tab (Stage 5): the campaign item library + the combat/blast settings */
   #sysCombatBox, #sysListRules { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; padding: 8px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }

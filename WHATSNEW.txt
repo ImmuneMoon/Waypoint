@@ -85,6 +85,7 @@ The System editor
   A sheet says the money held in each currency under its first money list. A
   list that holds money says how players change it: at once, by asking (it
   waits in the GM's Review), or the GM's alone.
+  A formula reads the money a character holds, as Money or as one currency's own.
 - A list can say what a trade does to a row: a stat is cleared, set or moved to
   another, which may be GM-only. It can also call for a roll, made for the GM alone
   once both sides confirm. A column can show on some rows only.

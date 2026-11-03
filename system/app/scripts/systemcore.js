@@ -2912,6 +2912,13 @@ function moneyAsk(sys, char, fieldId, q) {
     if (amt === 'lvl') ch.facts = { lvl: to }; else ch.qty = to;
     return { ok: true, change: ch };
 }
+// 157 M1: Money, the base unit's money a character holds (every currency but the Separate ones, at its worth), and Money.<currency>, that
+// currency's own count, by its key or its name. A field, link or crew group keyed Money keeps the family. undefined where it names nothing. Pure
+function moneyCurNamed(sys, w) { var k = nameFold(String(w || '')); if (!k) return null; return moneyCurs(sys).filter(function(c) { return nameFold(c.key) === k; })[0] || moneyCurs(sys).filter(function(c) { return nameFold(c.label) === k; })[0] || null; }
+function moneyNamed(sys, char, l) {
+    if (!moneyBoxes(sys).length) return undefined; if (l === 'money') return moneyHeld(sys, char);
+    var cu = l.slice(0, 6) === 'money.' ? moneyCurNamed(sys, l.slice(6)) : null; return cu ? moneyHeld(sys, char, cu.key) : undefined;
+}
 function curName(sys, k) { if (k === '*') return 'the base unit'; var cu = moneyCurs(sys).filter(function(c) { return lower(c.key) === lower(k); })[0]; return cu ? cu.label : String(k); }
 // '' where the taker takes every money the giver offers, else the words: a row of a currency is that currency, any other money row the base unit
 function tradeAcceptSays(sys, giver, off, taker) {
@@ -8519,7 +8526,7 @@ function cleanTables(v, gmView) {
     return kept.length ? kept : null;
 }
 function tableFam(sys, ix) {   // whether the family is live: the system keeps a table, and no field, link or crew group is keyed Table
-    if (!isObj(sys) || ((!Array.isArray(sys.tables) || !sys.tables.length) && (!Array.isArray(sys.values) || !sys.values.length) && (!Array.isArray(sys.decks) || !sys.decks.length))) return false;
+    if (!isObj(sys) || ((!Array.isArray(sys.tables) || !sys.tables.length) && (!Array.isArray(sys.values) || !sys.values.length) && (!Array.isArray(sys.decks) || !sys.decks.length) && !moneyBoxes(sys).length)) return false;   // 157 M1: Money too
     if (!ix) { ix = map(); (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (isObj(f) && typeof f.key === 'string') ix[lower(f.key)] = f; }); }
     return !ix.table && !linkByKey(sys).table && !groupByKey(sys).table;
 }
@@ -8530,6 +8537,7 @@ function tableParts(l) {   // a name in lower case: { k, row, col } or { k, by, 
 }
 function tableRead(sys, l) {   // for the judges: null for no such name, else { t: the table or null, gm: a GM-only table's, by: the name a by read reads, '' for a fixed row }
     if (typeof l === 'string' && l.slice(0, 5) === 'deck.' && isObj(sys) && Array.isArray(sys.decks)) { var dkT = deckOf(sys.decks, l.slice(5).split('.')[0]); return { t: dkT, gm: !dkT || dkT.vis === 'gm', by: '' }; }   // 1.6.2 (G9)
+    if (typeof l === 'string' && (l === 'money' || l.slice(0, 6) === 'money.') && isObj(sys) && moneyBoxes(sys).length) { var mcR = l === 'money' || !!moneyCurNamed(sys, l.slice(6)); return { t: mcR ? { money: true } : null, gm: !mcR || moneyBoxes(sys).some(function(b) { return b.f.vis === 'gm'; }), by: '' }; }   // 157 M1: what a character holds is a figure, GM-only where a money list is
     if (typeof l === 'string' && l.slice(0, 7) === 'shared.' && isObj(sys) && Array.isArray(sys.values)) { var vd = valueDef(sys, l.slice(7)); return { t: vd, gm: !vd || vd.vis === 'gm', by: '' }; }   // 1.6.2 (G8): a shared value is read as one fixed figure, so every judge of a name asks here
     if (typeof l !== 'string' || l.slice(0, 6) !== 'table.' || !isObj(sys) || !Array.isArray(sys.tables)) return null;
     var p = tableParts(l); if (!p) return null;
@@ -9902,6 +9910,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
             return typeof prV === 'number' ? prV : 0;
         }
         if (fam === 'shared' && l.length > 7 && !ix.shared && !lkx.shared && Array.isArray(sys.values)) return valueNow(sys, l.slice(7));   // 1.6.2 (G8)
+        if (fam === 'money' && !ix.money && !lkx.money && !gkx.money) { var mnV = moneyNamed(sys, char, l); if (mnV !== undefined) return mnV; }   // 157 M1: what the character holds
         if (fam === 'deck' && l.length > 5 && !ix.deck && !lkx.deck && Array.isArray(sys.decks)) return deckRead(sys, l.slice(5));   // 1.6.2 (G9)
         if (fam === 'table' && tbOn) return tableVal(l, null, null);   // 1.6.0: a system's tables (a field, link or crew group keyed Table keeps the family, above)
         if (fam === 'date') { var dk = l.slice(5); if (dk !== 'year' && dk !== 'day' && dk !== 'days' && dk !== 'hour' && dk !== 'minute') return undefined; var dv = null; try { dv = _dateSrc ? _dateSrc() : null; } catch (e) { dv = null; } return isObj(dv) && fin(dv[dk]) ? dv[dk] : 0; }   // 1.6.0: the campaign's date
@@ -10406,6 +10415,7 @@ function nameWord(sys, name, rowSpec) {
     if (mf) { var L = fieldWord(mf); return m[2] === 'max' ? L + ' at its most' : m[2] === 'cur' ? L + ' now' : m[2] === 'full' ? 'whether ' + L + ' is full' : m[2] === 'ranks' ? L + ' ranks' : L + ' base'; }
     if (NAME_WORDS[l]) return NAME_WORDS[l];
     if (l.length > 4 && l.indexOf('ask.') === 0) { var ak0 = askFind(sys, l.slice(4)); return ak0 ? 'their answer to \u201c' + ak0.label + '\u201d' : 'their answer'; }   // 1.6.2
+    if ((l === 'money' || l.slice(0, 6) === 'money.') && !ix.money && moneyBoxes(sys).length) { if (l === 'money') return 'the money they hold'; var cuW = moneyCurNamed(sys, l.slice(6)); return (cuW ? cuW.label : humanName(s.slice(6))) + ' they hold'; }   // 157 M1
     var p = s.split('.'), fam = lower(p[0]), rest = p.slice(1), one = rest.join('.'), held = function() { var f = ix[lower(one)]; return f ? fieldWord(f) : humanName(one); };
     if (rest.length && !ix[fam]) {
         if (fam === 'target' && lower(rest[0]) === 'hit' && rest.length > 1) { var tf = targetHitList(sys), tw = tf ? statWord(tf.list, rest[1]) : ''; return 'the called location\u2019s ' + (tw || humanName(rest[1])); }
@@ -10481,6 +10491,7 @@ function readsOf(sys, ctx) {
     if (Array.isArray(ctx.more) && ctx.more.length) group('For this', ctx.more);
     group('This character', me);
     if (!ix.deck) group('Decks', [].concat.apply([], (Array.isArray(sys.decks) ? sys.decks : []).filter(function(v) { return isObj(v) && typeof v.key === 'string'; }).map(function(v) { return ['Deck.' + v.key + '.left', 'Deck.' + v.key + '.discard'].concat((Array.isArray(v.stats) ? v.stats : []).map(function(s) { return 'Deck.' + v.key + '.last.' + s.key; })); })));   // 1.6.2 (G9)
+    if (!ix.money && !linkByKey(sys).money && !groupByKey(sys).money && moneyBoxes(sys).length) group('Money', ['Money'].concat(moneyCurs(sys).map(function(c) { return 'Money.' + c.key; })));   // 157 M1
     if (!ix.shared) group('The table', (Array.isArray(sys.values) ? sys.values : []).filter(function(v) { return isObj(v) && typeof v.key === 'string'; }).map(function(v) { return 'Shared.' + v.key; }));   // 1.6.2 (G8)
     var hasAim = (Array.isArray(sys.combat && sys.combat.targetReads) ? sys.combat.targetReads : []).map(function(id) { var f = fieldById(sys, id); return f && free('Target.' + f.key) ? 'Target.' + f.key : ''; }), thl = targetHitList(sys), hits = thl && isObj(thl.list) ? (Array.isArray(thl.list.stats) ? thl.list.stats : []).filter(function(x) { return isObj(x) && x.kind !== 'pick'; }).concat(Array.isArray(thl.list.cols) ? thl.list.cols : []).map(function(x) { return isObj(x) && typeof x.key === 'string' && free('Target') ? 'Target.Hit.' + x.key : ''; }) : [];
     group('The target', ['RangeMod', 'TargetDistance', 'HeightMod', 'HeightDiff', 'TargetSize', 'TargetCover', 'TargetCoverGrade'].filter(free).concat(hasAim, hits));
@@ -10625,6 +10636,7 @@ function validateSystem(sys, F) {
     // 1.6.0: Table.<table>.<row>.<col> and Table.<table>.by.<name>.<col>, a number of the table's own; a row, a column or a name that holds none says so (says), since each reads 0. One the system's tables do not hold is an unknown name, and a GM-only table a GM-only value
     function tableT(n, rowList) {
         var l = lower(n); if (l.slice(0, 5) === 'deck.' && !ix.deck && Array.isArray(sys.decks)) { var dpT = l.slice(5).split('.'), dkV = deckOf(sys.decks, dpT[0]), wkV = dpT[1], okV = dkV && (wkV === 'left' || wkV === 'discard' || (wkV === 'last' && dpT.length === 3 && dkV.stats.some(function(s) { return lower(s.key) === dpT[2]; }))); return okV ? { id: '', key: n, kind: 'number', vis: dkV.vis === 'gm' ? 'gm' : 'all', noEdge: true } : null; }   // 1.6.2 (G9)
+        if ((l === 'money' || l.slice(0, 6) === 'money.') && !ix.money && !linkByKey(sys).money && !groupByKey(sys).money && moneyBoxes(sys).length) { var mrT = tableRead(sys, l); return mrT && mrT.t ? { id: '', key: n, kind: 'number', vis: mrT.gm ? 'gm' : 'all', noEdge: true } : null; }   // 157 M1
         if (l.slice(0, 7) === 'shared.' && !ix.shared && Array.isArray(sys.values)) { var vdT = valueDef(sys, l.slice(7)); return vdT ? { id: '', key: n, kind: 'number', vis: vdT.vis === 'gm' ? 'gm' : 'all', noEdge: true } : null; }   // 1.6.2 (G8)
         if (l.slice(0, 6) !== 'table.' || !tableFam(sys, ix)) return null;
         var p = tableParts(l), rd = p ? tableRead(sys, l) : null; if (!rd || !rd.t) return null;

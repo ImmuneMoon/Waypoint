@@ -129,6 +129,9 @@ jobs:
       - name: resultcheck — result tables
         if: ${{ !cancelled() }}
         run: node tools/resultcheck.js
+      - name: moneycheck — currencies, money held and moved in each
+        if: ${{ !cancelled() }}
+        run: node tools/moneycheck.js
       - name: askcheck — what a roll or an action asks as it is pressed
         if: ${{ !cancelled() }}
         run: node tools/askcheck.js

@@ -18,7 +18,7 @@ function page(store0) {
     const modal = m('div', '', null, 'systemModal'); document.body.appendChild(modal);
     ['sysCombatNav', 'sysCombatBox', 'sysRulesNav'].forEach(id => modal.appendChild(m('div', '', null, id)));
     const rules = m('div', '', null, 'sysRulesBox'); modal.appendChild(rules);
-    [['budgets', 'sysBudgets'], ['env', 'sysEnv'], ['links', 'sysLinks'], ['tables', 'sysTables'], ['results', 'sysResults'], ['values', 'sysValues'], ['decks', 'sysDecks']].forEach(t => rules.appendChild(m('div', '', { topic: t[0] }, t[1])));
+    [['budgets', 'sysBudgets'], ['env', 'sysEnv'], ['links', 'sysLinks'], ['tables', 'sysTables'], ['results', 'sysResults'], ['values', 'sysValues'], ['money', 'sysMoney'], ['decks', 'sysDecks']].forEach(t => rules.appendChild(m('div', '', { topic: t[0] }, t[1])));
     const kept = {}, store = { getItem: k => (k in kept ? kept[k] : (store0 && k in store0 ? store0[k] : null)), setItem: (k, v) => { kept[k] = String(v); } };
     window.localStorage = store; window.steps = []; window.wpStepLog = (n, s, f) => window.steps.push([n, s, f]);
     document.readyState = 'complete';
@@ -53,7 +53,7 @@ const kids = n => n.childNodes.slice();
     check('what is in view is kept for this computer, and each step is logged by structure alone', J(JSON.parse(kept.wp_sysTopics)) === J({ combat: 'range', rules: 'budgets' }) && window.steps.every(s => s[0] === 'sysui v1' && !/Range|Damage/.test(J(s[2]))) && window.steps.length === 4, J(window.steps));
     ui.rulesDrawn();
     const rb = document.getElementById('sysRulesBox'), rn = document.getElementById('sysRulesNav'), shown = () => kids(rb).filter(x => !x.hidden).map(x => x.id);
-    check('the Rules tab has its seven topics, one at a time, and draws nothing itself', J(kids(rn).map(b => b.dataset.topic)) === J(['budgets', 'env', 'links', 'tables', 'results', 'values', 'decks']) && J(shown()) === J(['sysBudgets']));
+    check('the Rules tab has its eight topics, one at a time, and draws nothing itself', J(kids(rn).map(b => b.dataset.topic)) === J(['budgets', 'env', 'links', 'tables', 'results', 'values', 'money', 'decks']) && J(shown()) === J(['sysBudgets']));
     ui.topicPress('rules', 'tables');
     check('a press there shows that box alone', J(shown()) === J(['sysTables']));
     ui.combatDrawn((() => { box.textContent = ''; return box; })());

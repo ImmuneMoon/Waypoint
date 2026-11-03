@@ -71,6 +71,9 @@ The System editor
   category, narrowed by a stat such as a price.
 - A table's row may hold a range, From and To, so a rule finds the row by a
   number, as a chart in a book is read. The editor warns of overlaps and gaps.
+- Currencies: the Rules tab's Money names the currencies your game counts money
+  in, each worth so much of the base unit. A money list holds one, or each row
+  names its own. A Separate currency never mixes with the rest.
 - A list can say what a trade does to a row: a stat is cleared, set or moved to
   another, which may be GM-only. It can also call for a roll, made for the GM alone
   once both sides confirm. A column can show on some rows only.

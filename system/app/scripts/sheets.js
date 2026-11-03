@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
 import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { cleanDamageRules, CUR_MAX, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanDamageRules, CUR_MAX, priceCurOf, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
 import { cleanCardActs, CARD_MAX } from './systemcore.js';   // 1.6.2: what a card offers
 import { cleanAsks, askEnds, askJudge, withAsk, ASKS_MAX, ASK_OPTS } from './systemcore.js';   // 1.6.2: a roll's questions
@@ -6116,7 +6116,7 @@ function askStatsOf(c, f, rid, p, ovS, heldL) {
 // market value. The agreed price rides the row op (pay, get) and the host moves the money with it (systemcore rowOpMoney). Never for one of
 // the GM's own NPCs (a merchant's stock), an undo, or a list that holds money itself
 var _price = { q: null, on: null };
-function priceUnit(sys, sp, row) { var rd = row ? rowDef(sys, row) : null; var u = rd && rd.def ? rowStat(sp, rd.def, sp.price) : 0; return typeof u === 'number' && isFinite(u) && u > 0 ? u : 0; }
+function priceUnit(sys, sp, row) { var rd = row ? rowDef(sys, row) : null; var u = rd && rd.def ? rowStat(sp, rd.def, sp.price) : 0, pc = rd && rd.def && typeof priceCurOf === 'function' ? priceCurOf(sys, sp, rd.def) : null; if (pc && !pc.sep && typeof u === 'number') u = Math.round(u * pc.worth * 100) / 100; return typeof u === 'number' && isFinite(u) && u > 0 ? u : 0; }
 function pricePct(list, pct) { var n = Math.ceil(list * pct / 100 - 1e-9); return n > 0 ? n : 0; }   // the site's: a percentage of the list price, rounded up once to a whole unit, never below 0
 function priceAsk(c, f, q) {   // true when it asked, and the row op waits for the answer
     var camp = getActiveCampaign(), sys = systemOf(camp), sp = f && f.list && typeof f.list === 'object' ? f.list : null;
@@ -6132,7 +6132,8 @@ function priceAsk(c, f, q) {   // true when it asked, and the row op waits for t
         n = wq - nq; unit = priceUnit(sys, sp, was); name = rowDef(sys, was) ? rowDef(sys, was).def.name : 'it';
     }
     if (!(unit > 0) || !(n > 0)) return false;
-    priceOpen(c, f, q, { buy: q.op === 'add', n: n, list: Math.round(unit * n * 100) / 100, name: name || 'it', player: player, held: moneyHeld(sys, c) });
+    var pcR = q.op === 'add' ? row : was, pcD = pcR ? rowDef(sys, pcR) : null, pcS = pcD && pcD.def && typeof priceCurOf === 'function' ? priceCurOf(sys, sp, pcD.def) : null; if (pcS && !pcS.sep) pcS = null;   // 157 M1b: a price set in a Separate currency is said and paid in it
+    priceOpen(c, f, q, { buy: q.op === 'add', n: n, list: Math.round(unit * n * 100) / 100, name: name || 'it', player: player, held: pcS ? moneyHeld(sys, c, pcS.key) : moneyHeld(sys, c), cur: pcS ? pcS.label : '' });
     return true;
 }
 function priceOpen(c, f, q, o) {
@@ -6149,7 +6150,8 @@ function priceDraw(doc, body, o, said) {
     while (body.firstChild) body.removeChild(body.firstChild);
     var mk = function(tag, cls, text) { var e = doc.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = String(text); return e; };
     var fmt = function(x) { return typeof fmtNum === 'function' ? fmtNum(x) : String(x); };
-    body.appendChild(mk('div', 'price-list', (o.buy ? 'List price ' : 'Market value ') + fmt(o.list) + (o.n > 1 ? ' for ' + o.n : '') + '.'));
+    var cw = typeof o.cur === 'string' && o.cur ? ' ' + o.cur : '';   // 157 M1b: a price set in a Separate currency names it
+    body.appendChild(mk('div', 'price-list', (o.buy ? 'List price ' : 'Market value ') + fmt(o.list) + cw + (o.n > 1 ? ' for ' + o.n : '') + '.'));
     var way = mk('div', 'price-way'), st = { mode: 'list', total: o.list, pct: 100, charge: !!o.player || !o.buy };
     var radio = function(val, text) { var lb = mk('label'), r = doc.createElement('input'); r.type = 'radio'; r.name = 'priceWay'; r.value = val; r.checked = st.mode === val; r.addEventListener('change', function() { if (r.checked) { st.mode = val; tell(); } }); lb.appendChild(r); lb.appendChild(mk('span', null, text)); return lb; };
     var tot = doc.createElement('input'); tot.type = 'number'; tot.className = 'price-num'; tot.min = '0'; tot.step = '0.01'; tot.value = String(o.list); tot.setAttribute('aria-label', o.buy ? 'The total paid' : 'What it sells for');
@@ -6157,7 +6159,7 @@ function priceDraw(doc, body, o, said) {
     var line = mk('div', 'price-total');
     var tell = function() {
         var t = st.mode === 'list' ? o.list : st.mode === 'pct' ? pricePct(o.list, st.pct) : st.total; t = typeof t === 'number' && isFinite(t) && t >= 0 ? Math.round(t * 100) / 100 : 0;
-        line.textContent = (o.buy ? (st.charge ? 'Pays ' : 'Given free, at ') : 'Sells for ') + fmt(t) + '.';
+        line.textContent = (o.buy ? (st.charge ? 'Pays ' : 'Given free, at ') : 'Sells for ') + fmt(t) + cw + '.';
         said({ total: t, charge: st.charge });
     };
     tot.addEventListener('input', function() { var n = Number(tot.value); st.total = isFinite(n) && n >= 0 ? n : 0; st.mode = 'total'; way.querySelector('input[value=total]').checked = true; tell(); });
@@ -6170,7 +6172,7 @@ function priceDraw(doc, body, o, said) {
         var cl = mk('label', 'price-charge'), cb = doc.createElement('input'); cb.type = 'checkbox'; cb.checked = false; cb.addEventListener('change', function() { st.charge = cb.checked; tell(); });
         cl.appendChild(cb); cl.appendChild(mk('span', null, 'Charge them')); body.appendChild(cl);
     }
-    body.appendChild(mk('div', 'price-held', 'Held now: ' + fmt(o.held) + '. ' + (o.buy ? 'Paid from the smallest chips first, then the largest pieces, with change.' : 'Paid onto the largest chip.')));
+    body.appendChild(mk('div', 'price-held', 'Held now: ' + fmt(o.held) + cw + '. ' + (o.buy ? 'Paid from the smallest chips first, then the largest pieces, with change.' : 'Paid onto the largest chip.')));
     tell();
 }
 function priceClose() { var m = document.getElementById('priceModal'); if (m) m.style.display = 'none'; _price.q = null; }
@@ -9293,7 +9295,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         sb.appendChild(sr);
     });
     var sadd = el('button', 'tool ghost sys-btn sys-list-statadd', '+ Stat'); sadd.dataset.act = 'statadd'; sadd.disabled = sts.length >= LIMITS.listStats; sadd.title = sadd.disabled ? 'At most ' + LIMITS.listStats + ' stats a list' : 'A number each item of this list carries (Acc, Wt, Cost), set on the item in Items'; sb.appendChild(sadd);
-    if (sts.length) { var pr = el('label', 'sys-num sys-price-box'), ps = el('select', 'sys-list-price'); pr.appendChild(el('span', 'sys-num-cap', 'Price')); ps.title = 'A row records it as Paid when added: what one cost (yours to correct on the sheet)'; priceOptions(ps, sp); pr.appendChild(ps); sb.appendChild(pr); if (sp.price && typeof placeSel === 'function') sb.appendChild(placeSel('paid', sp.paidPlace)); }   // 1.6.0 R2: where Paid stands
+    if (sts.length) { var pr = el('label', 'sys-num sys-price-box'), ps = el('select', 'sys-list-price'); pr.appendChild(el('span', 'sys-num-cap', 'Price')); ps.title = 'A row records it as Paid when added: what one cost (yours to correct on the sheet)'; priceOptions(ps, sp); pr.appendChild(ps); sb.appendChild(pr); if (sp.price && typeof placeSel === 'function') sb.appendChild(placeSel('paid', sp.paidPlace)); if (sp.price && typeof curBoxes === 'function') curBoxes(sb, sp, true); }   // 1.6.0 R2: where Paid stands
     { var mb = el('label', 'sys-num sys-money-box'), msel = el('select', 'sys-list-money'); mb.appendChild(el('span', 'sys-num-cap', 'Holds money')); msel.title = 'Rows of this list are money: each row holds its level, as a chip holds its amount, or each piece is worth a stat, as a bar is worth its denomination. Buying and selling pay from and into these rows'; if (typeof moneyOptions === 'function') moneyOptions(msel, sp); mb.appendChild(msel); sb.appendChild(mb); if (typeof curBoxes === 'function') curBoxes(sb, sp); }   // 1.5.6 the Money box
     card.appendChild(sb);
     if (typeof badgeBox === 'function') card.appendChild(badgeBox(sp));   // 1.6.0 R4: its row badges
@@ -9617,14 +9619,14 @@ function moneyOptions(sel, sp) {   // 1.5.6 the Money box: no money, each row's 
 }
 // 157 M1: what a money list holds, the base unit or one of the Rules tab's currencies, and a choice of each row that names its own. Only where the
 // system names currencies and the list holds money
-function curBoxes(sb, sp) {
-    var cs = typeof draft !== 'undefined' && draft && Array.isArray(draft.currencies) ? draft.currencies.filter(function(c) { return c && typeof c === 'object' && typeof c.key === 'string'; }) : []; if (!cs.length || !sp || typeof sp.money !== 'string' || !sp.money) return;
+function curBoxes(sb, sp, price) {   // price: the boxes of a price's currency (157 M1b), beside the Price box, in place of a Money box's
+    var cs = typeof draft !== 'undefined' && draft && Array.isArray(draft.currencies) ? draft.currencies.filter(function(c) { return c && typeof c === 'object' && typeof c.key === 'string'; }) : []; if (!cs.length || !sp || (price ? !sp.price : typeof sp.money !== 'string' || !sp.money)) return;
     var put = function(sel, opts, now) { var lo = typeof now === 'string' ? now.toLowerCase() : ''; opts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0].toLowerCase() === lo) op.selected = true; sel.appendChild(op); }); };
-    var cb = el('label', 'sys-num sys-money-box'), csel = el('select', 'sys-list-cur'); cb.appendChild(el('span', 'sys-num-cap', 'In')); csel.title = 'The currency this list holds. The base unit is the one prices are written in';
-    put(csel, [['', 'The base unit']].concat(cs.map(function(c) { return [c.key, c.label || 'A currency']; })), sp.cur); cb.appendChild(csel); sb.appendChild(cb);
+    var cb = el('label', 'sys-num sys-money-box'), csel = el('select', price ? 'sys-list-pcur' : 'sys-list-cur'); cb.appendChild(el('span', 'sys-num-cap', price ? 'Priced in' : 'In')); csel.title = price ? 'The currency a price is set in. An ordinary currency is turned into the base unit. A Separate one is paid from its own money alone' : 'The currency this list holds. The base unit is the one prices are written in';
+    put(csel, [['', 'The base unit']].concat(cs.map(function(c) { return [c.key, c.label || 'A currency']; })), price ? sp.priceCur : sp.cur); cb.appendChild(csel); sb.appendChild(cb);
     var chs = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length > 0 : Array.isArray(s.labels) && s.labels.length > 0); }); if (!chs.length) return;
-    var bb = el('label', 'sys-num sys-money-box'), bsel = el('select', 'sys-list-curby'); bb.appendChild(el('span', 'sys-num-cap', 'Currency by')); bsel.title = 'A choice of each row that names its currency, such as Crowns or Marks. A row whose choice names none holds what the list holds';
-    put(bsel, [['', 'Not by a choice']].concat(chs.map(function(s) { return [s.key, 'Its ' + (s.label || s.key)]; })), sp.curBy); bb.appendChild(bsel); sb.appendChild(bb);
+    var bb = el('label', 'sys-num sys-money-box'), bsel = el('select', price ? 'sys-list-pcurby' : 'sys-list-curby'); bb.appendChild(el('span', 'sys-num-cap', price ? 'Price currency by' : 'Currency by')); bsel.title = price ? 'A choice of each row that names the currency its price is set in. A row whose choice names none is priced as the list says' : 'A choice of each row that names its currency, such as Crowns or Marks. A row whose choice names none holds what the list holds';
+    put(bsel, [['', 'Not by a choice']].concat(chs.map(function(s) { return [s.key, 'Its ' + (s.label || s.key)]; })), price ? sp.priceCurBy : sp.curBy); bb.appendChild(bsel); sb.appendChild(bb);
 }
 function priceOptions(sel, sp) {   // F4c1: the Price choices — No price, then each stat by its key (kept up to date as a key is typed)
     sel.textContent = '';
@@ -12849,6 +12851,8 @@ function onChange(e) {
             if (oKey === 'by' && !t.value) delete lsc.once;
             else { var oD = lsc.once && typeof lsc.once === 'object' ? lsc.once : (lsc.once = {}); if (t.value) oD[oKey] = t.value; else delete oD[oKey]; if (oKey === 'by' && !oD.rank) { var oN = (Array.isArray(lsc.stats) ? lsc.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.kind !== 'pick'; })[0]; oD.rank = lsc.lvl && typeof lsc.lvl === 'object' ? 'lvl' : oN ? oN.key : ''; if (!oD.rank) delete oD.rank; } }
         }
+        else if (c.indexOf('sys-list-pcurby') >= 0) { if (t.value) lsc.priceCurBy = t.value; else delete lsc.priceCurBy; }   // 157 M1b: a choice of each row that names its price's currency
+        else if (c.indexOf('sys-list-pcur') >= 0) { if (t.value) lsc.priceCur = t.value; else delete lsc.priceCur; }   // 157 M1b: the currency a price is set in
         else if (c.indexOf('sys-list-curby') >= 0) { if (t.value) lsc.curBy = t.value; else delete lsc.curBy; }   // 157 M1: a choice of each row that names its currency
         else if (c.indexOf('sys-list-cur') >= 0) { if (t.value) lsc.cur = t.value; else delete lsc.cur; }   // 157 M1: the currency the list holds
         else if (c.indexOf('sys-list-money') >= 0) { if (t.value) lsc.money = t.value; else delete lsc.money; }   // 1.5.6 the Money box (Save keeps a level only with one, a stat only as a number stat)

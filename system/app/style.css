@@ -1741,6 +1741,12 @@
   .trade-debt { color: var(--gold); }
   .trade-hag { color: var(--gold); }
   .setup-box { width: min(560px, 94vw); }
+  .group-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 8px; }
+  .group-cell { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 8px 28px 8px 10px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; background: var(--panel2); }
+  .group-cell:hover { border-color: var(--gold); }
+  .group-name { font-weight: 600; }
+  .group-count { color: var(--dim); }
+  .group-cell .group-del { position: absolute; top: 4px; right: 4px; }
   .setup-note { color: var(--dim); font-size: 12px; margin-bottom: 8px; }
   .setup-empty { color: var(--dim); padding: 6px 0; }
   .setup-row { border-top: 1px solid var(--border); padding: 6px 0; }

@@ -1178,7 +1178,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         delete camp.handoutLog;
         delete camp.cast;
         delete camp.pinnedMaps;
-        delete camp.pinnedPages;   // 1.5.4 (pageshelf.js): the pages pinned for the session name planners, which never leave this machine
+        delete camp.pinnedPages; delete camp.groups;   // 1.5.4 (pageshelf.js): the pages pinned for the session name planners, which never leave this machine; backlog 31: and the GM's encounter groups
         delete camp.buildPins;   // 1.6.2: the GM's own palette in Build
         if (camp.piles || Array.isArray(camp.decks) || (camp.system && Array.isArray(camp.system.decks))) camp.pileN = typeof decksFor === 'function' ? decksFor(camp) : {}; delete camp.piles; if (Array.isArray(camp.decks)) { camp.decks = window.wpDeckCore ? window.wpDeckCore.cleanDecks(camp.decks, false, /^C[0-9]+$/) : []; if (!camp.decks.length) delete camp.decks; }   // 1.6.2 (G9): never the order of a pile
         if (camp.shared) { var shS = window.wpSystemCore && window.wpSystemCore.cleanShared ? window.wpSystemCore.cleanShared(camp.shared, camp.system, false) : null; if (shS) camp.shared = shS; else delete camp.shared; }   // 1.6.2 (G8): a GM-only value never leaves the host

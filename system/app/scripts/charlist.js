@@ -86,13 +86,14 @@ function charNoToken(name, waiting, client) { return name + (waiting ? ' has a t
 // The rows of a character's menu, as the owner picked them: Sheet, HUD where the sheet has one, Find on the map, Delete sheet. Backlog 152 fold 4b (the
 // owner's answer 1, 2026-10-19: a Rules run switch on each NPC, "placed somewhere easy to use quickly"): after Find on the map, an NPC's Rules run as a
 // tick row where it has the switch. rules: which way it stands, true or false (calendar.js rulesRun); anything else, no row
-function charMenuRows(hud, del, rules, give, debts) {   // debts (157 M1h): the GM's Debts... row
+function charMenuRows(hud, del, rules, give, debts, unique) {   // debts (157 M1h): the GM's Debts... row; unique (backlog 31): an NPC's Unique tick
     var rows = [{ act: 'sheet', text: 'Sheet\u2026' }];
     if (hud) rows.push({ act: 'hud', text: 'HUD\u2026' });
     rows.push({ rule: true }, { act: 'find', text: 'Find on the map' });
     if (give === true) rows.push({ act: 'give', text: 'Give to a player\u2026' });
     if (debts === true) rows.push({ act: 'debts', text: 'Debts\u2026' });   // 1.6.0: the GM's, here and on the sheet's own line
     if (rules === true || rules === false) rows.push({ act: 'rules', text: 'Rules run', tick: rules });
+    if (unique === true || unique === false) rows.push({ act: 'unique', text: 'Unique', tick: unique });   // a named NPC: a group's drop uses its one sheet
     if (del) rows.push({ rule: true }, { act: 'delete', text: 'Delete sheet\u2026', red: true });
     return rows;
 }
@@ -181,9 +182,9 @@ function menuFor(id, x, y) {
     // Delete only where the sheet module will take it: a player's own whole sheet while their link is up, the GM's where the campaign can be written
     var client = foreign(), del = client ? !!(linkUp() && c.ownerId && c.ownerId === window.wpNet.myId && !c.partial && c.shared !== 1) : !!(window.wpCanPersistLocal && window.wpCanPersistLocal());
     var Cal = window.wpCalendar, rules = !client && Cal && typeof Cal.rulesRun === 'function' ? Cal.rulesRun(id) : null;   // 152 fold 4b: the GM's alone, and only where calendar.js says the character has the switch
-    charMenuRows(!!(S.hudFor && S.hudFor(id)), del, rules, !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()), !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && typeof S.debtAdd === 'function').forEach(function(r) {
+    charMenuRows(!!(S.hudFor && S.hudFor(id)), del, rules, !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()), !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && typeof S.debtAdd === 'function', !client && c.npc === true && typeof S.uniqueToggle === 'function' && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) ? c.unique === true : null).forEach(function(r) {
         var d = document.createElement(r.rule ? 'div' : 'button');
-        if (r.rule) d.className = 'menu-divider'; else { d.type = 'button'; if (r.red) d.className = 'danger'; d.dataset.act = r.act; d.setAttribute('role', r.tick === true || r.tick === false ? 'menuitemcheckbox' : 'menuitem'); if (r.tick === true || r.tick === false) { d.setAttribute('aria-checked', r.tick ? 'true' : 'false'); d.title = 'Ticked, this NPC\u2019s time rules run by themselves as time passes. Unticked, they do not'; } d.appendChild(document.createTextNode((r.tick === true ? '\u2713 ' : '') + r.text)); }
+        if (r.rule) d.className = 'menu-divider'; else { d.type = 'button'; if (r.red) d.className = 'danger'; d.dataset.act = r.act; d.setAttribute('role', r.tick === true || r.tick === false ? 'menuitemcheckbox' : 'menuitem'); if (r.tick === true || r.tick === false) { d.setAttribute('aria-checked', r.tick ? 'true' : 'false'); d.title = r.act === 'unique' ? 'Ticked, an encounter group placed with this NPC uses this one sheet. Unticked, each placing makes a fresh numbered copy' : 'Ticked, this NPC\u2019s time rules run by themselves as time passes. Unticked, they do not'; } d.appendChild(document.createTextNode((r.tick === true ? '\u2713 ' : '') + r.text)); }
         _menu.appendChild(d);
     });
     _menu.style.display = 'flex';
@@ -198,6 +199,7 @@ function menuPress(e) {
             var act = b.dataset.act, cid = _menu.dataset.char; if (act === 'give') { giveMenu(cid, _menuAt[0], _menuAt[1]); return; } menuAway();
             var S2 = sheets(); if (!S2 || !cid) return;
             if (act === 'debts') { if (S2.debtAdd) S2.debtAdd(cid); return; }
+            if (act === 'unique') { if (S2.uniqueToggle) S2.uniqueToggle(cid); return; }   // backlog 31
             if (act === 'sheet') openOf(cid);
             else if (act === 'hud') { if (!away() && S2.hudFor(cid)) S2.openHud(cid); }
             else if (act === 'find') findOf(cid);

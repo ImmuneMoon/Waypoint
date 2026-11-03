@@ -4960,6 +4960,7 @@ function cleanChar(c, sys, opts) {
     var srC = cleanSheetRev(c.sheetRev); if (srC) out.sheetRev = srC;   // 1.6.0 (backlog 190): the revision it was last made current at
     if (opts && opts.state === 'host' && out.ownerId) { var swC = cleanShareWith(c.shareWith, out.ownerId); if (swC.length) out.shareWith = swC; }   // 1.6.2 (G8): the GM's word, and never on a copy
     var dbC = cleanDebts(c.debts); if (dbC) out.debts = dbC;   // 157 M1h: its debts, on the host and on its owner's copy
+    if (opts && opts.state === 'host' && c.unique === true && out.npc) out.unique = true;   // backlog 31: a named NPC, the GM's own
     if (opts && opts.state === 'owner' && c.shared === 1) out.shared = 1;
     if (opts && opts.state === 'host' && c.hideFig === true && (out.npc || !out.ownerId)) out.hideFig = true;
     if (opts && opts.state === 'host' && isObj(c.trader)) { var trC = cleanTrader(c.trader); if (trC) out.trader = trC; }   // 157 M1b: a trader's terms, the GM's alone   // 1.6.2: the GM's tick on an NPC's sheet, true only and the GM's alone: charView writes no such key

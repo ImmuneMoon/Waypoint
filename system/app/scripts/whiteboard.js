@@ -6628,7 +6628,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           : _imgLibScope === 'shared' ? 'No shared pictures yet \u2014 the Tutorial\u2019s art lands here once it has run.'
           : _imgLibScope === 'unfiled' ? 'Nothing unfiled: every picture belongs to a campaign.'
           : 'No images match.';
-      grid.innerHTML = (grid.dataset.cast ? castLibraryHtml(filter) : '') + html || '<div style="color:var(--dim); padding:20px; text-align:center;">' + empty + '</div>';
+      var showGroups = !_imgLibPick && !_imgLibPicker && state.viewMode === 'visual' && _imgLibScope === 'camp' && (grid.dataset.cast === '1' || !soleTag());   // backlog 31: groups in this campaign's pictures, and wherever the cast shows
+      grid.innerHTML = (showGroups ? groupsLibraryHtml(filter) : '') + (grid.dataset.cast ? castLibraryHtml(filter) : '') + html || '<div style="color:var(--dim); padding:20px; text-align:center;">' + empty + '</div>';
       var label = !_imgLibCat || _imgLibCat === '__bymap', hint = _imgLibPicker ? 'Ctrl-click to pick it to bring in' : 'right-click to tag it; Ctrl-click to pick several';
       Array.prototype.forEach.call(grid.querySelectorAll('.img-lib-cell[data-src]'), function(cell) { TagCore.cellTags(document, cell, imgCatsOf(cell.dataset.src), label, hint); });
       renderImgSelBar();
@@ -6792,6 +6793,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   if (_el_imgLibGrid) _el_imgLibGrid.addEventListener('change', function(e) { var b = e.target.closest('.cast-batch'); if (b) b.value = setCastBatch(b.value); });
 
   if (_el_imgLibGrid) _el_imgLibGrid.addEventListener('click', function(e) {
+      var gcell = e.target.closest('.group-cell');   // backlog 31: a group places, or its x deletes it after a question
+      if (gcell) { var gidC = gcell.dataset.gid; if (e.target.closest('.group-del')) { var campG = getActiveCampaign(), gl = campG && Array.isArray(campG.groups) ? campG.groups : [], gg = gl.filter(function(x) { return x && x.id === gidC; })[0]; if (gg) showConfirm('Delete the group ' + gg.name + '? Its tokens and sheets stay.', function(yes) { if (yes !== true) return; var ix = gl.indexOf(gg); if (ix >= 0) gl.splice(ix, 1); if (!gl.length) delete campG.groups; save(true); var sG = document.getElementById('imgLibSearch'); renderImgLib(sG ? sG.value : ''); }); return; } groupPlace(gidC); return; }
       var cell = e.target.closest('.img-lib-cell');
       if (!cell) return;
       if ((!_imgLibPick || _imgLibPicker) && !cell.classList.contains('cast-cell') && (e.ctrlKey || e.metaKey || e.shiftKey || (_imgLibSelMode && !e.target.closest('.img-cell-batch')))) { e.preventDefault(); imgSelToggle(cell, e); return; }   // backlog 34: with Select on a plain click picks too
@@ -9390,6 +9393,44 @@ window.wpCastSaveCharacter = function(c) {
     import('./io.js').then(function(m) { m.save(true); m.toast((c.name || 'Character') + ' saved to the campaign cast.'); });
     return true;
 };
+// backlog 31, fold 2: encounter groups. The selected character tokens saved as a named group (camp.groups, the GM's alone); placing one lays them
+// at the centre of the view as saved, each NPC that is not ticked Unique on a fresh copy of its sheet, numbered on
+function groupsOf(camp) { if (!Array.isArray(camp.groups)) camp.groups = []; return camp.groups; }
+function groupSave(items) {
+    var camp = getActiveCampaign(), SU = window.wpSetupCore; if (!camp || !SU) return; var toks = items.filter(function(w) { return w && w.isChar === true && !w.waiting; });
+    if (!toks.length) { import('./io.js').then(function(m) { m.toast('Select the character tokens to save as a group.'); }); return; }
+    if (groupsOf(camp).length >= SU.GROUP_MAX) { import('./io.js').then(function(m) { m.toast('A campaign keeps ' + SU.GROUP_MAX + ' groups at most.'); }); return; }
+    showPrompt('Name the encounter group', 'Group ' + (groupsOf(camp).length + 1), function(v) { var nm = SU.cleanName(v); if (!nm) return; var g = SU.takeGroup(toks, nm, Date.now(), SU.newId(groupsOf(camp), 'gr_')); if (!g) return; groupsOf(camp).push(g); if (window.wpStepLog) window.wpStepLog('groups v1', 'save', { pieces: g.pieces.length });
+        import('./io.js').then(function(m) { m.save(true); m.toast('Saved the group ' + g.name + ' in the Image Library.'); }); });
+}
+function groupCopyChar(camp, ch) {   // a fresh copy of an NPC's sheet, numbered on; nothing of who plays it, its links or its debts
+    var c = JSON.parse(JSON.stringify(ch)), id = null; for (var i = 0; i < 50 && !id; i++) { var t = 'c_' + Math.random().toString(36).slice(2, 12); if (!camp.chars[t]) id = t; } if (!id) return null;
+    ['ownerId', 'links', 'debts', 'shareWith', 'making', 'invited', 'unlocked', 'trader', 'unique'].forEach(function(k) { delete c[k]; }); c.id = id; c.npc = true; c.name = window.wpSetupCore.nextName(ch.name, Object.values(camp.chars).map(function(x) { return x && x.name; })); c.updated = Date.now();
+    camp.chars[id] = c; return c;
+}
+function groupPlace(gid) {
+    var camp = getActiveCampaign(), am = getActiveMap(), SU = window.wpSetupCore; if (!camp || !am || am.type !== 'map' || !SU) return;
+    var g = groupsOf(camp).filter(function(x) { return x && x.id === gid; })[0]; if (!g) return; am.whiteboard = am.whiteboard || []; camp.chars = camp.chars || {};
+    var c0 = viewCentre(), wMax = Math.max.apply(null, g.pieces.map(function(p) { return p.dx + (p.w || 50); })), hMax = Math.max.apply(null, g.pieces.map(function(p) { return p.dy + (p.h || 50); })), made = 0, copied = 0;
+    g.pieces.forEach(function(p) {
+        var it = JSON.parse(JSON.stringify(p)); delete it.dx; delete it.dy; it.id = 'wb' + Math.random().toString(36).slice(2, 10); it.x = c0.x - wMax / 2 + p.dx; it.y = c0.y - hMax / 2 + p.dy; delete it.threats; delete it.ownerId;
+        var ch = it.charId && camp.chars[it.charId] ? camp.chars[it.charId] : null;
+        if (ch && SU.groupSheetWay(ch) === 'copy') { var nc = groupCopyChar(camp, ch); if (nc) { it.charId = nc.id; it.charName = nc.name; it.name = nc.name; copied++; } }
+        else if (it.charId && !ch) delete it.charId;
+        if (window.wpSeatCell) window.wpSeatCell(it, am); else if (window.wpSeatHex) window.wpSeatHex(it, am);
+        am.whiteboard.push(it); made++;
+    });
+    if (window.wpSheets && window.wpSheets.syncOwners) window.wpSheets.syncOwners(camp);
+    if (window.wpStepLog) window.wpStepLog('groups v1', 'place', { pieces: made, copies: copied });
+    var lib = document.getElementById('imgLibModal'); if (lib) lib.style.display = 'none';   // the GM sees where it landed; groups show only where the library picks nothing
+    import('./io.js').then(function(m) { m.save(); if (window.appRender) window.appRender(); m.toast(g.name + ' placed: ' + made + (made === 1 ? ' token' : ' tokens') + (copied ? ', ' + copied + (copied === 1 ? ' new sheet' : ' new sheets') : '') + '.'); });
+}
+function groupsLibraryHtml(filter) {
+    var camp = getActiveCampaign(); if (!camp || !Array.isArray(camp.groups) || !camp.groups.length) return ''; var q = (filter || '').toLowerCase(), list = camp.groups.filter(function(g) { return g && (!q || String(g.name || '').toLowerCase().indexOf(q) >= 0); });
+    if (!list.length) return '';
+    return '<div class="img-lib-folder group-head" style="color:var(--gold);"><span>Groups</span><span class="cast-head-note">\u2014 press one to place it at the centre of your view; NPCs not ticked Unique get fresh sheets</span></div>'
+        + '<div class="group-grid">' + list.map(function(g) { return '<div class="group-cell" data-gid="' + esc(g.id) + '" title="' + esc(g.name) + ' \u2014 press to place it"><span class="group-name">' + esc(g.name) + '</span><small class="group-count">' + g.pieces.length + (g.pieces.length === 1 ? ' token' : ' tokens') + '</small><button class="tool ghost group-del" data-gid="' + esc(g.id) + '" title="Delete this group">&times;</button></div>'; }).join('') + '</div>';
+}
 // [systemcheck:castplace-start]
 function castPlace(cid, x, y, count) {
     var camp = getActiveCampaign(), am = getActiveMap();
@@ -10345,6 +10386,7 @@ document.addEventListener('contextmenu', function(e) {
             if (isWb && firstItem && firstItem.id && !firstItem.hidden && window.wpFx && window.wpVtt && window.wpVtt.on('fx')) html += '<div class="menu-item cm-pulse"><i class="wib wi-spark"></i> Pulse</div>';
             html += '<div class="menu-item cm-dup"><i class="wib wi-dup"></i> Duplicate</div>';
             if (isWb && firstItem && (firstItem.isChar || firstItem.charName)) html += '<div class="menu-item cm-cast-save"><i class="wib wi-starf"></i> Save to Campaign Cast</div>';
+            if (isWb && firstItem && firstItem.isChar && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client') && window.wpCanPersistLocal && window.wpCanPersistLocal()) html += '<div class="menu-item cm-encounter-save" title="Save the selected character tokens as an encounter group in the Image Library, placed again in one press">Save as an encounter group\u2026</div>';   // backlog 31
             html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
 
             cMenu.innerHTML = html;
@@ -10521,6 +10563,8 @@ document.addEventListener('contextmenu', function(e) {
                     cMenu.style.display = 'none';
                     if (itTH && itTH.ownerId && window.wpTrackers && window.wpTrackers.setHidden(itTH.ownerId, !window.wpTrackers.hidden(itTH.ownerId))) toast(window.wpTrackers.hidden(itTH.ownerId) ? 'Table trackers hidden from this player.' : 'This player sees the table\u2019s trackers again.');
                     return;
+                } else if (action.includes('cm-encounter-save')) {   // backlog 31
+                    groupSave(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean));
                 } else if (action.includes('cm-cast-save')) {
                     castSave(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean));
                     return;

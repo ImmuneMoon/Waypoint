@@ -29,6 +29,8 @@ import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, se
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
 import { fitIfOk, partFitEntry, modsIfOk } from './systemcore.js';
+import { rowTextRule } from './systemcore.js';   // item 35, fold 1d: the look of a row's own text
+import { cleanRec as lookClean, makeRec as lookMake } from './lookcore.js';
 import { tileLayout, tileStep, tileSide } from './tilecore.js';   // 1.6.2 (body fold 3)
 import { tileDrawOf, tileMakeOf, tileNode, tileMarkNode } from './tiledraw.js';   // 1.6.2 (body fold 6)
 import { setValueSource, setValueSink, valueNow, cleanValues, setDeckSource, setDeckSink, handKept } from './systemcore.js';   // 1.6.2 (G8)
@@ -3068,8 +3070,10 @@ function noteBits(entry, def, c, f, editable, ovc, sysI, gm, may) {   // ovc (F4
     var ab = descBits(entry, def, spec);   // 1.5.4: what the entry does, and what each of its levels gives
     if (def.notes && !(ab && noteInDesc(def.notes, def.desc))) box.appendChild(el('div', 'sheet-item-notes', def.notes));   // a note that only begins the description is not said twice
     if (ab) box.appendChild(ab);
-    if (editable) { var ni = el('input', 'field sheet-item-note'); ni.type = 'text'; ni.dataset.fid = f.id; ni.dataset.part = 'note-' + rowIdOf(entry); ni.maxLength = LIMITS.rowNote; ni.placeholder = 'A note on this one'; ni.value = entry.note || ''; ni.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { note: ni.value } }); }); box.appendChild(ni); }
-    else if (entry.note) box.appendChild(el('div', 'sheet-item-rownote', entry.note));
+    var nbx = editable && typeof sbxRowNode === 'function' ? sbxRowNode(c, f, entry, 'note', 'A note on this one', 'Note') : null;   // item 35, fold 1d: in the sheet's own text box, so that it takes a look
+    if (nbx) box.appendChild(nbx);
+    else if (editable) { var ni = el('input', 'field sheet-item-note'); ni.type = 'text'; ni.dataset.fid = f.id; ni.dataset.part = 'note-' + rowIdOf(entry); ni.maxLength = LIMITS.rowNote; ni.placeholder = 'A note on this one'; ni.value = entry.note || ''; ni.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { note: ni.value } }); }); box.appendChild(ni); }
+    else if (entry.note) box.appendChild(typeof rowRead === 'function' ? rowRead(entry.note, entry.nlk, 'note', 'div', 'sheet-item-rownote') : el('div', 'sheet-item-rownote', entry.note));
     if (spec && (spec.look || spec.workLog === true) && sysI && typeof lookBits === 'function') lookBits(box, entry, c, f, spec, sysI, gm, may);   // 1.6.0, backlog 206
     if (gm && sysI && sysI.trading && sysI.trading.hot === true && typeof hotMark === 'function') hotMark(box, entry, c, f);   // 157 M1j: the GM's Stolen or Illegal mark
     return box.childNodes.length ? box : null;
@@ -3085,7 +3089,7 @@ function descBits(entry, def, spec) {
     var d = typeof def.desc === 'string' && def.desc.trim() ? def.desc : '', L = (Array.isArray(def.lvls) ? def.lvls : []).filter(function(r) { return !!r && typeof r === 'object' && typeof r.lvl === 'number' && typeof r.text === 'string' && !!r.text; });
     if (!d && !L.length) return null;
     var box = el('div', 'sheet-item-about'), LS = spec && spec.lvl && typeof spec.lvl === 'object' ? spec.lvl : null;
-    if (d) box.appendChild(el('div', 'sheet-item-desc', d));
+    if (d) box.appendChild(entry && entry.dlk && typeof rowRead === 'function' ? rowRead(d, entry.dlk, 'desc', 'div', 'sheet-item-desc') : el('div', 'sheet-item-desc', d));   // item 35, fold 1d: an own row's description with its look
     if (L.length) {
         var at = LS ? rowLvl(spec, entry, def) : null, t = el('table', 'sheet-item-lvls'), hd = el('thead'), hr = el('tr'), tb = el('tbody');
         hr.appendChild(el('th', null, (LS && LS.label) || 'Level')); hr.appendChild(el('th', null, 'What it gives')); hd.appendChild(hr); t.appendChild(hd);
@@ -3718,7 +3722,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         _placeWant = hudRow ? null : 'row';
         if (def.icon) line.appendChild(iconNode(def.icon, 'sheet-item-icon'));
         var ovc = ovCtx(entry, rd, gm);   // F4c2: what this copy holds of its own (a dot on each)
-        var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft'))); if (def.notes) nm.title = def.name + '\n' + def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
+        var nm = el('span', 'sheet-item-name', def.name); if (entry.mlk && typeof rowReadInto === 'function') rowReadInto(nm, def.name, entry.mlk, 'name'); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft'))); if (def.notes) nm.title = def.name + '\n' + def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
         if (spec && spec.look) lookSwatches(line, sysI, c, spec, entry);   // 1.6.0, backlog 206: its swatches beside its name, on the HUD too
         var opnR = typeof entry.opn === 'string'; if (opnR && typeof openedWords === 'function') { line.className += ' sheet-item-opened'; nm.appendChild(el('span', 'sheet-item-opened-tag', ' (' + openedWords(entry, c, sysI, spec) + ')')); }   // 1.5.8: a row another row opens says so, and holds no control that changes it
         var bdLn = typeof badgeBits === 'function' ? badgeBits(line, spec, res && res.bd ? res.bd[rid] : null, line, hudRow) : null;   // 1.6.0 R4: its badges after the name (no lines on the HUD)
@@ -4149,7 +4153,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         var tr = el('tr', entry.hid === 1 ? 'sheet-item-hid' : null), nameTd = el('td', 'sheet-itcol-name'), opSlotT = opensT ? el('span', 'sheet-item-opslot') : null; if (opSlotT) nameTd.appendChild(opSlotT);
         if (typeof rowLibHook === 'function') rowLibHook(tr, entry, rd, c, f, spec, gm);   // 1.6.2: Add to the library
         if (def.icon) nameTd.appendChild(iconNode(def.icon, 'sheet-item-icon'));
-        nameTd.appendChild(document.createTextNode(def.name));
+        nameTd.appendChild(entry.mlk && typeof rowRead === 'function' ? rowRead(def.name, entry.mlk, 'name', 'span', 'sheet-item-tname') : document.createTextNode(def.name));   // item 35, fold 1d: an own row's name with its look
         if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft')));
         var ovT = ovCtx(entry, rd, gm); ovNameDot(nameTd, ovT);   // F4c2: a dot when the copy holds values of its own
         if (spec && spec.look) lookSwatches(nameTd, sysI, c, spec, entry);   // 1.6.0, backlog 206: its swatches beside its name
@@ -4447,7 +4451,9 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
     dn.addEventListener('click', function() { _rowForm = null; renderViews(c.id); }); head.appendChild(dn);
     form.appendChild(head); form.appendChild(grid);
     if (typeof upBox === 'function') upBox(form, entry, c, f, spec, sysI, mode);   // 1.6.2 (body fold 1)
-    var nb = text('name', 'Name', LIMITS.itemName, d.name || '', 'Its name (blank keeps it)');
+    var nbx = typeof sbxRowNode === 'function' ? sbxRowNode(c, f, entry, 'name', 'Its name', 'Name') : null, nb;   // item 35, fold 1d: in the sheet's own text box, so that it takes a look
+    if (nbx) { var nl = el('label', 'sheet-rf-f'); nl.appendChild(el('span', 'sheet-rf-cap', 'Name')); nbx.title = 'Its name (blank keeps it)'; nl.appendChild(nbx); grid.appendChild(nl); nb = nbx; }
+    else nb = text('name', 'Name', LIMITS.itemName, d.name || '', 'Its name (blank keeps it)');
     text('icon', 'Icon', 48, d.icon || '', 'An emoji, or icon:name');
     var cats = [], seenC = Object.create(null), curC = typeof d.category === 'string' ? d.category : '', pushC = function(x) { var t = String(x || '').trim(); if (t && !seenC[t.toLowerCase()]) { seenC[t.toLowerCase()] = 1; cats.push(t); } };
     if (spec && Array.isArray(spec.cats)) spec.cats.forEach(pushC); else catChoices(sysI).forEach(pushC);   // owed review F5a1#7: a players' view's empty list (every category GM-only) offers none
@@ -4463,7 +4469,9 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
             a.addEventListener('change', function() { if (hold(partOf(k), a.value)) return; took(partOf(k)); one(k, read(a.value)); });
             add(cap, a, k, title); if (a.parentNode) a.parentNode.className += ' sheet-rf-wide'; return a;
         };
-        area('desc', 'Description', LIMITS.desc, typeof d.desc === 'string' ? d.desc : '', 'What it does, in full. It shows in the row\u2019s details', function(v) { return v.trim() ? v : null; });
+        var dbx = typeof sbxRowNode === 'function' ? sbxRowNode(c, f, entry, 'desc', 'What it does, in full', 'Description') : null;   // item 35, fold 1d
+        if (dbx) { var dl = el('label', 'sheet-rf-f sheet-rf-wide'); dl.appendChild(el('span', 'sheet-rf-cap', 'Description')); dbx.title = 'What it does, in full. It shows in the row\u2019s details'; dl.appendChild(dbx); grid.appendChild(dl); }
+        else area('desc', 'Description', LIMITS.desc, typeof d.desc === 'string' ? d.desc : '', 'What it does, in full. It shows in the row\u2019s details', function(v) { return v.trim() ? v : null; });
         if (typeof lvlsFromBox === 'function' && typeof lvlsToText === 'function') area('lvls', 'By level', LIMITS.lvls * (LIMITS.lvlText + LIMITS.lvlTag + 16), lvlsToText(d.lvls), 'What each level gives, one level a line, as 2: what it gives', function(v) {
             var lv = lvlsFromBox(v, d.lvls), lines = v.split('\n').filter(function(x) { return x.trim(); }).length;
             if (lv.length < lines && typeof toast === 'function') toast((lines - lv.length) + ((lines - lv.length) === 1 ? ' line was' : ' lines were') + ' not read. Write each level as 2: what it gives.');
@@ -4660,10 +4668,10 @@ function effectsInto(wrap, f, c, rows, sys, editable, edit) {   // edit (the she
         var sw = el('input'); sw.type = 'checkbox'; sw.checked = r.on !== false; sw.disabled = !editable; sw.dataset.fid = f.id; sw.dataset.part = 'fx-' + r.id;
         sw.title = r.on === false ? 'Suspended \u2014 tick to apply it again' : 'Applied \u2014 untick to suspend it';
         sw.addEventListener('change', function() { commitEffect(c, f, { op: 'on', rowId: r.id, on: sw.checked }); });
-        if (cards) { wrap.appendChild(fxCard(line, sw, r, d, f, c, labels, editable, sys)); return; }
+        if (cards) { wrap.appendChild(fxCard(line, sw, r, d, f, c, labels, editable, sys, mk)); return; }
         line.appendChild(sw);
         if (d.icon) line.appendChild(iconNode(d.icon, 'sheet-fx-icon'));
-        var nm = el('span', 'sheet-fx-name', d.name || 'Effect'); if (d.notes) nm.title = d.notes; line.appendChild(nm);
+        var nm = typeof fxNameNode === 'function' ? fxNameNode(c, f, r, d, mk) : el('span', 'sheet-fx-name', d.name || 'Effect'); if (d.notes) nm.title = d.notes; line.appendChild(nm);
         if (d.tone === 'buff' || d.tone === 'debuff') line.appendChild(el('span', 'sheet-fx-tone', d.tone === 'buff' ? 'Buff' : 'Debuff'));
         if (d.dur) line.appendChild(el('span', 'sheet-fx-dur', d.dur));
         if (r.t) line.appendChild(fxLeftChip(r.t, sys));   // T5a
@@ -4691,11 +4699,11 @@ function effectsInto(wrap, f, c, rows, sys, editable, edit) {   // edit (the she
 }
 // Stage 6 look fold (L6): one effect as a card — the switch, icon, name, then its tone and duration (with the hourglass); the notes as text; a
 // pill per change ("+2 ST", "−5 HP max", or the name of what it switches on); the × in the corner for whoever may end it
-function fxCard(line, sw, r, d, f, c, labels, editable, sys) {   // sys (T5a): a timed effect's round length
+function fxCard(line, sw, r, d, f, c, labels, editable, sys, mk) {   // sys (T5a): a timed effect's round length; mk: an effect made on the spot's name may be edited
     line.classList.add('sheet-fx-card');
     var head = el('div', 'sheet-fx-head'); head.appendChild(sw);
     if (d.icon) head.appendChild(iconNode(d.icon, 'sheet-fx-icon'));
-    head.appendChild(el('span', 'sheet-fx-name', d.name || 'Effect'));
+    head.appendChild(typeof fxNameNode === 'function' ? fxNameNode(c, f, r, d, mk) : el('span', 'sheet-fx-name', d.name || 'Effect'));
     var meta = el('span', 'sheet-fx-meta');
     if (d.tone === 'buff' || d.tone === 'debuff') meta.appendChild(el('span', 'sheet-fx-tone', d.tone === 'buff' ? 'Buff' : 'Debuff'));
     if (d.dur) { var du = el('span', 'sheet-fx-dur'); du.appendChild(iconNode('icon:hourglass-half', 'sheet-fx-durico')); du.appendChild(document.createTextNode(' ' + d.dur)); meta.appendChild(du); }
@@ -4708,6 +4716,11 @@ function fxCard(line, sw, r, d, f, c, labels, editable, sys) {   // sys (T5a): a
     if (mods.length) { var pills = el('div', 'sheet-fx-pills'); mods.forEach(function(m) { pills.appendChild(el('span', 'sheet-fx-mod ' + (m.op === 'on' ? 'sheet-fx-mod-on' : m.v >= 0 ? 'sheet-fx-mod-pos' : 'sheet-fx-mod-neg'), fxPillText(m, labels))); }); line.appendChild(pills); }
     if (editable) { var rm = el('button', 'tool ghost sheet-pm sheet-fx-rm sheet-fx-x', '\u00d7'); rm.title = 'End this effect'; rm.addEventListener('click', function() { commitEffect(c, f, { op: 'remove', rowId: r.id }); }); line.appendChild(rm); }
     return line;
+}
+// item 35, fold 1d: an effect's name; one made on the spot is a text box where the sheet may be changed, else read with its look
+function fxNameNode(c, f, r, d, mk) {
+    var mine = typeof r.ref !== 'string', bx = mine && mk && typeof sbxRowNode === 'function' ? sbxRowNode(c, f, r, 'fx', 'Its name', 'Name') : null; if (bx) return bx;
+    return mine && r.lk && typeof rowRead === 'function' ? rowRead(d.name || 'Effect', r.lk, 'fx', 'span', 'sheet-fx-name') : el('span', 'sheet-fx-name', d.name || 'Effect');
 }
 // L6: a pill's text, the amount first (the owner's Q10): "+2 ST", "−5 HP max"; a switch reads as the name of what it turns on
 function fxPillText(m, labels) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm; if (typeof m.vf === 'string' && m.vf) return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' \u2265 ' : m.op === 'min' ? ' \u2264 ' : ' ') + m.vf; if (m.op === 'max' || m.op === 'min') return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' \u2265 ' : ' \u2264 ') + fmtNum(m.v); return (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)) + ' ' + nm + (m.part === 'max' ? ' max' : ''); }
@@ -5828,6 +5841,69 @@ function commit(c, f, value) {
 // field is drawn as it always was.
 var _sbx = { on: 0, live: false, paper: false, stale: false, run: '', drafts: Object.create(null), timers: Object.create(null) };
 var SBX_KEY = /^(c_[A-Za-z0-9_]{1,24}):(f_[A-Za-z0-9_]{1,24})$/, SBX_MS = 600, SBX_WAIT = 400;
+// item 35, fold 1d: a key may also name one text of one row of a list: its note, or an own row's name or description,
+// "<charId>:<fieldId>:<rowId>:<part>"; they keep their drafts here as a field's do, and are committed through the row's own op. An effect
+// made on the spot names its row x_… and its name 'fx'
+var SBX_ROW = /^(c_[A-Za-z0-9_]{1,24}):(f_[A-Za-z0-9_]{1,24}):((?:w|x)_[A-Za-z0-9_]{1,24}):(note|name|desc|fx)$/, SBX_LK = Object.freeze({ note: 'nlk', name: 'mlk', desc: 'dlk', fx: 'lk' });
+function sbxIsKey(key) { return typeof key === 'string' && (SBX_KEY.test(key) || SBX_ROW.test(key)); }
+function sbxRow(key) {
+    var m = SBX_ROW.exec(String(key)), camp = m ? getActiveCampaign() : null, sys = camp ? systemOf(camp) : null, c = sys ? charById(m[1], camp) : null, f = c ? fieldById(sys, m[2]) : null;
+    var fx = !!m && m[4] === 'fx';
+    if (!f || f.kind !== (fx ? 'effects' : 'item-list') || !c.values || !Array.isArray(c.values[f.id]) || typeof rowTextRule !== 'function') return null;
+    var row = null; c.values[f.id].forEach(function(r) { if (!row && r && (fx ? r.id : rowIdOf(r)) === m[3]) row = r; }); if (!row) return null;
+    if (fx ? typeof row.ref === 'string' : m[4] !== 'note' && (!row.def || row.lnk === 1 || typeof row.defId === 'string')) return null;   // a name and a description: a row of the character's own alone; an effect's name: one made on the spot
+    return { c: c, f: f, row: row, part: m[4], rule: rowTextRule(m[4]) };
+}
+function sbxRowStored(p) { return p.part === 'note' ? String(p.row.note || '') : p.part === 'fx' ? String(p.row.name || '') : String((p.row.def && p.row.def[p.part]) || ''); }
+function sbxRowFmt(p) { var r = p.row[SBX_LK[p.part]], c = r && typeof lookClean === 'function' ? lookClean(r, sbxRowStored(p), p.rule) : null; return c ? c.fmt : undefined; }
+function sbxRowCut(p, v) { v = typeof v === 'string' ? v : ''; return (p.rule.multi ? v.replace(SBX_CTRL_NL, ' ') : v.replace(SBX_CTRL, ' ')).slice(0, p.rule.max); }
+function sbxRowField(key) {
+    var p = sbxRow(key); if (!p) return null;
+    var open = function() { var d = _sbx.drafts[key]; if (!d) { var s0 = sbxRowStored(p); d = _sbx.drafts[key] = { text: s0, base: s0, fmt: sbxRowFmt(p) }; } return d; };
+    return { ident: key,
+        text: function() { var d = _sbx.drafts[key]; return d ? d.text : sbxRowStored(p); },
+        fmt: function() { var d = _sbx.drafts[key]; return d ? d.fmt : sbxRowFmt(p); },
+        setText: function(v) { var t = sbxRowCut(p, v); if (!_sbx.drafts[key] && t === sbxRowStored(p)) return; open().text = t; },
+        setFmt: function(v) { var g = v && typeof v === 'object' ? v : undefined; if (!_sbx.drafts[key]) { var r = g && typeof lookMake === 'function' ? lookMake(g, '', sbxRowStored(p), p.rule) : undefined; if (JSON.stringify((r && r.fmt) || null) === JSON.stringify(sbxRowFmt(p) || null)) return; } open().fmt = g; } };
+}
+// A row's text is committed by its own op, the text and its look together: a note by the row's set, a name and a description by the custom op
+function sbxRowCommit(key, d) {
+    var p = sbxRow(key); if (!p) return false;
+    var was = sbxRowStored(p), wasFmt = sbxRowFmt(p);
+    if (d.text === d.base && d.text !== was) { renderViews(p.c.id); return false; }
+    var rec = d.fmt && typeof lookMake === 'function' ? lookMake(d.fmt, '', d.text, p.rule) : null;
+    if (d.text === was && JSON.stringify((rec && rec.fmt) || null) === JSON.stringify(wasFmt || null)) return false;
+    if (p.part === 'fx') {   // an effect made on the spot: the row again whole, with its name and the look for the name as kept (trimmed)
+        var nmX = d.text.trim(), rx = p.row, recX = nmX && d.text.indexOf(nmX) === 0 && d.fmt && typeof lookMake === 'function' ? lookMake(d.fmt, '', nmX, p.rule) : null;
+        commitEffect(p.c, p.f, { op: 'adhoc', row: { id: rx.id, name: nmX || 'Effect', icon: rx.icon || '', tone: rx.tone || '', dur: rx.dur || '', notes: rx.notes || '', on: rx.on !== false, mods: Array.isArray(rx.mods) ? rx.mods : [], lk: recX || null } });
+        return true;
+    }
+    if (p.part === 'note') commitItem(p.c, p.f, { op: 'set', rowId: rowIdOf(p.row), facts: { note: d.text, nlk: rec || null } });
+    else { var df = {}, lk = {}; df[p.part] = d.text.trim() ? d.text : null; lk[p.part] = rec || null; commitItem(p.c, p.f, { op: 'custom', rowId: rowIdOf(p.row), def: df, looks: lk }); }
+    return true;
+}
+// The box of a row's text, dressed as a field's is; null where the box cannot serve (the caller draws its plain control)
+function sbxRowNode(c, f, entry, part, placeholder, label) {
+    if (!_sbx.live || !sbxOn() || typeof rowTextRule !== 'function') return null;
+    var n = net(); if (n && typeof n.looksOk === 'function' && !n.looksOk()) return null;
+    var rk = part === 'fx' ? (entry && entry.id) : rowIdOf(entry); if (typeof rk !== 'string') return null;
+    var w = sbxApi(), multi = part === 'desc', d = el('div', 'sheet-box ' + (multi ? 'sheet-notes sheet-rowbox' : 'sheet-text sheet-rowbox') + (part === 'note' ? ' sheet-item-note' : part === 'fx' ? ' sheet-fx-name' : '')); d.dataset.fid = f.id; d.dataset.part = part + '-' + rk;
+    if (!w.dress(d, { key: c.id + ':' + f.id + ':' + rk + ':' + part, multi: multi, placeholder: placeholder || '', label: label || '' })) return null;
+    return d;
+}
+// A row's text where it is only read, with its look (the reader, links asking first), else as plain words
+function rowRead(text, rec, part, tag, cls) {
+    var d = el(tag || 'div', cls || ''); if (!rowReadInto(d, text, rec, part)) d.textContent = String(text || '');
+    return d;
+}
+// The same into an element that is there (a row's name span): false, and nothing drawn, where there is no look for these very words
+function rowReadInto(d, text, rec, part) {
+    var rd = typeof window !== 'undefined' && window.wpTextRead && typeof window.wpTextRead.fill === 'function' ? window.wpTextRead : null, rule = typeof rowTextRule === 'function' ? rowTextRule(part) : null;
+    var lk = rd && rule && rec && typeof lookClean === 'function' ? lookClean(rec, String(text || ''), rule) : null;
+    if (!lk) return false;
+    d.classList.add('wp-run-read'); rd.fill(d, String(text || ''), lk, document, { rule: _sbx.paper ? Object.assign({}, rule, { link: false }) : rule, typed: false, ask: true });
+    return true;
+}
 function sbxApi() { var w = typeof window !== 'undefined' ? window.wpTextBox : null; return w && typeof w.host === 'function' && typeof w.dress === 'function' && typeof w.fill === 'function' && typeof w.pending === 'function' ? w : null; }
 // The host registers once, when the first box is wanted: its roots are the sheet's panel and the HUDs' layer
 function sbxOn() {
@@ -5853,6 +5929,7 @@ var SBX_CTRL_NL = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCha
 function sbxCut(f, v) { v = typeof v === 'string' ? v : ''; return f.kind === 'text' ? v.replace(SBX_CTRL, ' ').slice(0, f.max || LIMITS.text) : v.replace(SBX_CTRL_NL, ' ').slice(0, LIMITS.notes); }
 // A field as the box reads and writes it: the draft where one is open, else what is stored
 function sbxField(key) {
+    var rf = sbxRowField(key); if (rf) return rf;   // item 35, fold 1d: a row's text
     var p = sbxParts(key); if (!p) return null;
     var open = function() { var d = _sbx.drafts[key]; if (!d) { var s0 = sbxStored(p.c, p.f); d = _sbx.drafts[key] = { text: s0, base: s0, fmt: sbxFmtOf(p.c, p.f) }; } return d; };   // base: the words the draft was opened on
     return { ident: key + ':' + p.f.kind,
@@ -5864,11 +5941,11 @@ function sbxField(key) {
         setText: function(v) { var t = sbxCut(p.f, v); if (!_sbx.drafts[key] && t === sbxStored(p.c, p.f)) return; open().text = t; },
         setFmt: function(v) { var g = v && typeof v === 'object' ? v : undefined; if (!_sbx.drafts[key]) { var r = g ? lookFor(p.f, sbxStored(p.c, p.f), g) : undefined; if (JSON.stringify((r && r.fmt) || null) === JSON.stringify(sbxFmtOf(p.c, p.f) || null)) return; } open().fmt = g; } };
 }
-function sbxName(key) { var p = sbxParts(key); return p ? String(p.f.label || p.f.key || '') : ''; }
-function sbxSizes(key) { var p = sbxParts(key); return !!p && p.f.kind === 'notes'; }   // no size on a one-line text
+function sbxName(key) { var rp = sbxRow(key); if (rp) return rp.part === 'note' ? 'Note' : rp.part === 'name' ? 'Name' : 'Description'; var p = sbxParts(key); return p ? String(p.f.label || p.f.key || '') : ''; }
+function sbxSizes(key) { var rp = sbxRow(key); if (rp) return rp.part === 'desc'; var p = sbxParts(key); return !!p && p.f.kind === 'notes'; }   // no size on a one-line text
 function sbxBarHost(box) { return box && box.closest ? box.closest('#sheetPanel, .hud-panel') : null; }
-function sbxChanged(key) { if (typeof key !== 'string' || !SBX_KEY.test(key)) return; clearTimeout(_sbx.timers[key]); _sbx.timers[key] = setTimeout(function() { sbxCommit(key); }, SBX_MS); }
-function sbxLeft(key) { if (typeof key !== 'string' || !SBX_KEY.test(key)) return; sbxCommit(key); if (_sbx.run === key) _sbx.run = ''; }   // (the run of typing ends where the box is left)
+function sbxChanged(key) { if (!sbxIsKey(key)) return; clearTimeout(_sbx.timers[key]); _sbx.timers[key] = setTimeout(function() { sbxCommit(key); }, SBX_MS); }
+function sbxLeft(key) { if (!sbxIsKey(key)) return; sbxCommit(key); if (_sbx.run === key) _sbx.run = ''; }   // (the run of typing ends where the box is left)
 // A view of the sheet is closed: nothing is told of a leaving then, so every open draft is committed now and the run of typing ends
 function sbxFlush() { Object.keys(_sbx.drafts).forEach(function(k) { sbxCommit(k); }); _sbx.run = ''; }
 // What was typed is committed: the text first, as the input committed it, then the look for the text as it then stands. A default that was
@@ -5879,6 +5956,7 @@ function sbxCommit(key) {
     var d = _sbx.drafts[key]; if (!d) return false;
     if (typeof _rfClearing !== 'undefined' && _rfClearing) { _sbx.timers[key] = setTimeout(function() { sbxCommit(key); }, 0); return false; }   // a view is being cleared this instant: right after it
     delete _sbx.drafts[key];
+    if (SBX_ROW.test(key)) return sbxRowCommit(key, d);   // item 35, fold 1d: a row's text, by its own op
     var p = sbxParts(key); if (!p) return false;
     var had = !!p.c.values && typeof p.c.values[p.f.id] === 'string', was = sbxStored(p.c, p.f), wasFmt = sbxFmtOf(p.c, p.f);
     // Nothing was typed (the draft holds the words it was opened on: a look alone, or words typed and taken back) and the words changed

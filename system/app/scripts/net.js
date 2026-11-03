@@ -4092,7 +4092,7 @@ net.charItem = function(charId, fieldId, q) {
         _charPending[ridM] = { charId: charId, fieldId: fieldId, batch: [], kind: 'item', timer: setTimeout(function() { charPendingDone(ridM, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
         if (q.op === 'restore') _charPending[ridM].q = { op: 'restore', rowId: q.rowId };   // 1.5.8: its words, if refused, are the Undo's
         var mM = { type: 'char-item', rid: ridM, charId: charId, fieldId: fieldId, op: q.op };
-        ['defId', 'rowId', 'qty', 'pay', 'get', 'from', 'back', 'fill', 'in', 'name', 'look', 'work', 'drop', 'feed', 'more', 'ov', 'at'].forEach(function(k) { if (q[k] !== undefined) mM[k] = q[k]; });   // 1.6.0, backlog 206: a look, a work line, a line's place   // 1.6.0 R14: in, a part's host   // 1.5.8: a load's from (null: unload) and back
+        ['defId', 'rowId', 'qty', 'pay', 'get', 'from', 'back', 'fill', 'in', 'name', 'look', 'looks', 'work', 'drop', 'feed', 'more', 'ov', 'at'].forEach(function(k) { if (q[k] !== undefined) mM[k] = q[k]; });   // 1.6.0, backlog 206: a look, a work line, a line's place   // 1.6.0 R14: in, a part's host   // 1.5.8: a load's from (null: unload) and back
         try { net.conns[0].send(mM); } catch (e) { charPendingDone(ridM, false, 'value'); return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
     }
@@ -4103,7 +4103,7 @@ net.charItem = function(charId, fieldId, q) {
     c.values = c.values || {}; c.values[fieldId] = res.value;
     _charPending[rid] = { charId: charId, fieldId: fieldId, value: res.value, prev: prev, kind: 'item', q: JSON.parse(JSON.stringify(q)), timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };   // Stage 6: the op itself, worked out again over a newer host copy
     var mI = { type: 'char-item', rid: rid, charId: charId, fieldId: fieldId, op: q.op };   // only the keys this op uses
-    if (q.defId !== undefined) mI.defId = q.defId; if (q.rowId !== undefined) mI.rowId = q.rowId; if (q.qty !== undefined) mI.qty = q.qty; if (q.facts !== undefined) mI.facts = q.facts; if (q.ov !== undefined) mI.ov = q.ov; if (q.def !== undefined) mI.def = q.def;   // facts (F4b): a set op's level, switch, note; ov (F4c2): a copy's own stats (null travels: back to the library); def (F4c3): a custom row's patch
+    if (q.defId !== undefined) mI.defId = q.defId; if (q.rowId !== undefined) mI.rowId = q.rowId; if (q.qty !== undefined) mI.qty = q.qty; if (q.facts !== undefined) mI.facts = q.facts; if (q.ov !== undefined) mI.ov = q.ov; if (q.def !== undefined) mI.def = q.def; if (q.looks !== undefined) mI.looks = q.looks;   // item 35, fold 1d: an own row's name and description looks   // facts (F4b): a set op's level, switch, note; ov (F4c2): a copy's own stats (null travels: back to the library); def (F4c3): a custom row's patch
     try { net.conns[0].send(mI); } catch (e) { charPendingDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
     if (Array.isArray(res.offRows) && res.offRows.length && typeof S.overSays === 'function' && typeof toast === 'function') toast(res.offRows.slice(0, 4).map(S.overSays).join(' '));   // 1.6.0 O1: what came off, and where, as the host stores it
     return { ok: true, pending: true, row: res.row, added: res.added, qty: res.qty };   // Stage 6: the row a pickup landed on, how much it added (the Undo), its quantity now

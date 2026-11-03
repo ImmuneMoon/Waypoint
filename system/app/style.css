@@ -4038,6 +4038,8 @@
   .sheet-item-onl { display: inline-flex; align-items: center; gap: 4px; flex: none; font-size: 11px; color: var(--dim); cursor: pointer; }
   .sheet-item-noteline { padding: 2px 8px 6px 28px; font-size: 12px; color: var(--dim); }
   .sheet-item-noteline input.sheet-item-note { width: 100%; margin-top: 4px; padding: 3px 6px; font-size: 12px; }
+  .sheet-item-noteline .sheet-box.sheet-item-note { margin-top: 4px; font-size: 12px; }   /* item 35, fold 1d: a row's note in the text box */
+  .sheet-fx .sheet-box.sheet-fx-name { flex: 1 1 8em; min-width: 6em; }
   /* Stage 6 F4c1: a list's stats on a row (chips On the row, the notes line), what one cost (the GM's box, the owner's chip), the Lists card's stats, the Items tab's boxes */
   .sheet-chip.sheet-item-stat { white-space: nowrap; font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; }
   .sheet-item-stat small { color: var(--dim); font-size: 10px; }

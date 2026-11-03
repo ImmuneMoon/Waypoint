@@ -138,6 +138,9 @@ jobs:
       - name: plookcheck — a personal look, a character's name in a font and colour of its own
         if: ${{ !cancelled() }}
         run: node tools/plookcheck.js
+      - name: rowlookcheck — the look of a row's note, an own row's name and description, and an effect's name
+        if: ${{ !cancelled() }}
+        run: node tools/rowlookcheck.js
       - name: thengmcheck — a Then step players may not see, run on the host
         if: ${{ !cancelled() }}
         run: node tools/thengmcheck.js

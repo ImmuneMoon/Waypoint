@@ -192,6 +192,8 @@ At the table
   roll cards, which are edged in its colour, and a player's own sheet text is
   set in their font.
   Personal looks is a VTT feature, on until the GM switches it off.
+- A row's note, a name and a description of a row of the character's own, and
+  the name of an effect made on the spot take a look too, as a sheet's text does.
 
 Drawings to show
 - The pen now makes two kinds of drawing. On the map is what it always

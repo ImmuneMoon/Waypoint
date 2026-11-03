@@ -5012,6 +5012,7 @@ function cleanFightBody(k, mapId) {   // one fight's order, cleaned: { mapId, ro
     if (!rows.length) return null;
     var f = { mapId: mapId, round: Math.max(1, Math.min(9999, Number(k.round) || 1)), turn: Math.max(0, Math.min(rows.length - 1, Number(k.turn) || 0)), rows: rows };
     if (k.side === 'pc' || k.side === 'rest') f.side = k.side;   // initiative O4: the side going first this round (shown to the table)
+    if (k.dec && typeof k.dec === 'object' && Array.isArray(k.dec.in)) f.dec = { in: k.dec.in.slice(0, 60).map(function(x) { return String(x).slice(0, 40); }), n: Math.max(0, Math.min(60, Number(k.dec.n) || 0)) };   // 1.6.2 (G10): a declaration under way: who is in, and of how many
     if (k.mv && typeof k.mv === 'object' && typeof k.mv.m === 'number' && typeof k.mv.a === 'number' && isFinite(k.mv.m) && isFinite(k.mv.a)) { f.mv = { m: Math.max(0, Math.min(1e6, k.mv.m)), a: Math.max(0, Math.min(1e6, k.mv.a)) }; if (typeof k.mv.w === 'number' && isFinite(k.mv.w)) f.mv.w = Math.max(0, Math.min(1e6, k.mv.w)); }   // 1.5.7: the turn's move, this player's own; 1.6.0: w, how far it goes before it spends the action
     return f;
 }
@@ -5065,6 +5066,7 @@ function combatsFor(recipientId, mapId) {
             return oD;
         }) };
         if (cmb.side === 'pc' || cmb.side === 'rest') out[fid].side = cmb.side;   // initiative O4: which side goes first this round (never its rolls: those are their cards)
+        if (cmb.dec && cmb.dec.open === 1) { var shownD = out[fid].rows.filter(function(r) { return r.name !== 'Hidden'; }); out[fid].dec = { in: shownD.map(function(r) { return r.id; }).filter(function(id) { return own(cmb.dec.lines, id); }), n: shownD.length }; }   // 1.6.2 (G10): who is in, of those they can see, and never what
         var stMv = net.turnMove && Object.prototype.hasOwnProperty.call(net.turnMove, fid) ? net.turnMove[fid] : null, curMv = cmb.rows[cmb.turn];   // 1.5.7: the turn's move, to the token's own player alone
         if (stMv && typeof stMv.allow === 'number' && net.turnMoveOwn && net.turnMoveOwn[fid] === recipientId && curMv && curMv.id === stMv.rowId) { out[fid].mv = { m: Math.round(stMv.moved * 100) / 100, a: Math.round(stMv.allow * 100) / 100 }; if (typeof stMv.run === 'number' && stMv.ran !== true && stMv.allow > stMv.walk) out[fid].mv.w = Math.round(stMv.walk * 100) / 100; }
     });
@@ -5214,7 +5216,7 @@ function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRe
 // Stage 6 HUD G10: a combat's round just changed (its start, or a step past either end) — the sheets' round hook runs the Each round actions;
 // a fault in it never stops the turn
 // Item 20 K2 moved the clock by a fight's rounds here; 152 fold 4 gives each fight its own time, and the orders slice's coordinator (ordersMoved) moves the clock
-function roundChanged(mapId, c) { if (fightReachRound(c)) { if (typeof recLine === 'function') recLine('fight', '', 'Round ' + c.round + ' begins', 'On ' + mapTitleOf(mapId)); try { if (window.wpSheets && window.wpSheets.roundHook) window.wpSheets.roundHook(mapId, c); } catch (e) { console.error(e); } } if (typeof marksRound === 'function') { try { marksRound(mapId, c); } catch (e) { console.error(e); } } }   // senses S4b: marks held to the round; fold 3: the round hook only for a round the fight reaches for the first time
+function roundChanged(mapId, c) { if (fightReachRound(c)) { if (typeof declareOpen === 'function') declareOpen(c); if (typeof recLine === 'function') recLine('fight', '', 'Round ' + c.round + ' begins', 'On ' + mapTitleOf(mapId)); try { if (window.wpSheets && window.wpSheets.roundHook) window.wpSheets.roundHook(mapId, c); } catch (e) { console.error(e); } } if (typeof marksRound === 'function') { try { marksRound(mapId, c); } catch (e) { console.error(e); } } }   // senses S4b: marks held to the round; fold 3: the round hook only for a round the fight reaches for the first time
 function turnStarted(mapId, c) { var first = fightReachTurn(c); if (first) { if (typeof recLine === 'function') recLine('fight', String(c.rows && c.rows[c.turn] && c.rows[c.turn].name || ''), 'Turn starts', 'Round ' + c.round + ' on ' + mapTitleOf(mapId)); try { if (window.wpSheets && window.wpSheets.turnHook) window.wpSheets.turnHook(mapId, c); } catch (e) { console.error(e); } } try { turnMoveStart(mapId, c); } catch (e) { console.error(e); } try { turnActsStart(mapId, c); } catch (e) { console.error(e); } if (first) { try { turnFxStart(mapId, c); } catch (e) { console.error(e); } } if (typeof marksTurn === 'function') { try { marksTurn(mapId, c); } catch (e) { console.error(e); } } if (first && typeof window !== 'undefined' && typeof window.wpFuseTick === 'function') { try { window.wpFuseTick(mapId); } catch (e) { console.error(e); } } if (typeof window !== 'undefined' && window.wpNotice && typeof window.wpNotice.turnStart === 'function' && c.rows && c.rows[c.turn] && typeof c.rows[c.turn].tokId === 'string') window.wpNotice.turnStart(mapId, c.rows[c.turn].tokId); }   // 1.6.0: a loud token is quiet at its next turn   // turn-based combat T2b: a character's turn just began; T3b: its move; senses S4b: its player's marks; fold 3: the turn hook and its timed effects only for a turn first reached in that round, its move and its actions at every start, a step back's too
 // Fold 3 (backlog 152, docs/FIGHT_CLOCK_DESIGN.md sections 2 and 6, settled 18): a step back is a correction, so nothing is lived twice in a fight. Each
 // fight keeps how far it has gone, the host's own and never sent (combatsFor names what it sends, and cleanFightBody writes none of it): rh, the highest
@@ -5255,6 +5257,62 @@ function seqStep(c, dir) {   // the next turn or the one before: the row on turn
 }
 function seqMoved(c, sev) { if (!c || !sev || sev.move !== 'round' || typeof c.id !== 'string') return; var st = net.turnMove[c.id]; if (st && typeof st.rowId === 'string') { c.mvUsed = c.mvUsed || Object.create(null); c.mvUsed[st.rowId] = st.moved; } }   // Move, Once a round: how far it has gone so far this round
 // [netcheck:several-end]
+// [netcheck:countclock-start]
+// 1.6.2 (G10): a counting clock. A row's number is its count, and the rows stand sorted by it. A turn's end lowers the count by what the turn spent: the costs its rolls named, added up; else the standard cost if it pressed anything; else the pass cost. At least 1, so that the clock keeps moving by itself. When nobody stands above 0 a new cycle starts, which is a new round: the counts go back to where they began, or are rolled again under Rolled again every round. Off its turn a press costs only what it names, at once. ck0 holds where each row began, ckUsed what the turn on hand has spent and ckBack the steps a correction takes back, all the host's own and never sent
+function clockRule(camp) { var ir = typeof initRulesOf === 'function' ? initRulesOf(camp) : null; return ir && ir.clock ? ir.clock : null; }
+function clockCharOf(camp, map, r) { var tk = map && Array.isArray(map.whiteboard) && r && typeof r.tokId === 'string' ? map.whiteboard.find(function(w) { return !!w && w.id === r.tokId; }) : null; return tk && typeof tk.charId === 'string' && camp.chars && own(camp.chars, tk.charId) ? camp.chars[tk.charId] : null; }
+function clockSort(camp, c) { var S = SC(), map = camp && camp.items && own(camp.items, c.mapId) ? camp.items[c.mapId] : null, cur = c.rows[c.turn]; if (!S || !S.orderByInit) return; c.rows = S.orderByInit(c.rows, S.initTie ? S.initTie(camp.system, window.wpFormula, function(r) { return clockCharOf(camp, map, r); }) : null); c.turn = Math.max(0, c.rows.indexOf(cur)); }
+function clockCost(c, ck) { var u = c.ckUsed, pass = typeof ck.pass === 'number' ? ck.pass : ck.cost; return Math.max(1, u && u.named ? u.n : u && u.press ? ck.cost : pass); }
+function clockStep(camp, c, dir, ck) {
+    var S = SC(), row = c.rows[c.turn]; if (!S) return c.turn;
+    if (dir < 0) { var b = Array.isArray(c.ckBack) ? c.ckBack.pop() : null, rB = b ? c.rows.filter(function(r) { return !!r && r.id === b.id; })[0] : null; if (!rB) return c.turn; rB.init = b.was; clockSort(camp, c); return Math.max(0, c.rows.indexOf(rB)); }
+    if (row && row.held !== 1) { c.ckBack = (Array.isArray(c.ckBack) ? c.ckBack : []).slice(-199); c.ckBack.push({ id: row.id, was: row.init }); row.init = Math.max(0, (typeof row.init === 'number' ? row.init : 0) - clockCost(c, ck)); } delete c.ckUsed;
+    clockSort(camp, c); var nx = S.clockNext(c.rows, c.ckNext); delete c.ckNext;
+    if (nx === -2) { c.rows.forEach(function(r) { if (r) delete r.held; }); nx = S.clockNext(c.rows); }
+    if (nx < 0) { c.round += 1; return 0; }
+    return nx;
+}
+function clockCycle(camp, c) {
+    var S = SC(), ir = initRulesOf(camp), c0 = c.ck0 || (c.ck0 = Object.create(null)); c.rows.forEach(function(r) { if (!r || typeof r.id !== 'string') return; delete r.held; if (!ir || ir.every !== true) { if (Object.prototype.hasOwnProperty.call(c0, r.id)) r.init = c0[r.id]; } else if (typeof r.init === 'number') c0[r.id] = r.init; });
+    delete c.ckBack; delete c.ckUsed; delete c.ckNext; clockSort(camp, c); var nx = S ? S.clockNext(c.rows) : 0; c.turn = nx >= 0 ? nx : 0;
+}
+function clockStart(camp, c, had) {   // a new fight, or a roster edit
+    if (!clockRule(camp)) return; var S = SC(), c0 = had && had.ck0 ? had.ck0 : Object.create(null); c.rows.forEach(function(r) { if (r && typeof r.id === 'string' && typeof r.init === 'number' && !Object.prototype.hasOwnProperty.call(c0, r.id)) c0[r.id] = r.init; }); c.ck0 = c0;
+    if (had) { if (Array.isArray(had.ckBack)) c.ckBack = had.ckBack; if (had.ckUsed) c.ckUsed = had.ckUsed; }
+    clockSort(camp, c); if (!had) { var nx = S ? S.clockNext(c.rows) : 0; c.turn = nx >= 0 ? nx : 0; }
+}
+function clockPress(camp, charId, ent) {   // what a press spends, from the host's own entry
+    var ck = clockRule(camp); if (!ck || !ent || typeof charId !== 'string') return; var n = typeof ent.clockN === 'number' ? ent.clockN : null, hit = null;
+    Object.keys(net.combats).forEach(function(id) { var c = net.combats[id], map = camp.items && own(camp.items, c.mapId) ? camp.items[c.mapId] : null; if (hit || !c || !Array.isArray(c.rows)) return; c.rows.forEach(function(r) { if (hit) return; var ch = clockCharOf(camp, map, r); if (ch && ch.id === charId) hit = { c: c, row: r }; }); }); if (!hit) return;
+    if (hit.c.rows[hit.c.turn] === hit.row) { var u = hit.c.ckUsed || (hit.c.ckUsed = { n: 0 }); u.press = 1; if (n !== null) { u.named = 1; u.n += n; } return; }
+    if (n) { hit.row.init = Math.max(0, (typeof hit.row.init === 'number' ? hit.row.init : 0) - n); clockSort(camp, hit.c); if (typeof broadcastCombats === 'function') broadcastCombats(); if (typeof combatRefresh === 'function') combatRefresh(); }
+}
+net.clockPress = function(camp, charId, ent) { clockPress(camp, charId, ent); };
+// [netcheck:countclock-end]
+// [netcheck:declare-start]
+// 1.6.2 (G10; the owner, by prompt: "Who's in, not what"): at each round's start everyone writes a line of what they mean to do, hidden from everyone, the GM too, until all are in, and the GM writes for the NPCs the same way. c.dec { round, lines, open } is the host's own: a player's copy of a fight says only who is in (combatsFor, dec), and at the reveal each connection is sent the lines of the rows it can see, so that an NPC hidden from a player says nothing to them. Nothing holds anyone to a line. A step on reveals what is in, so that none is lost
+function declareRule(camp) { var ir = typeof initRulesOf === 'function' ? initRulesOf(camp) : null; return !!(ir && ir.declare === true); }
+function declareOpen(c) { if (c && declareRule(campNow())) c.dec = { round: c.round, lines: Object.create(null), open: 1 }; }
+function declareOwner(camp, c, row) { var map = camp && camp.items && own(camp.items, c.mapId) ? camp.items[c.mapId] : null, tk = map && Array.isArray(map.whiteboard) && row && typeof row.tokId === 'string' ? map.whiteboard.find(function(w) { return !!w && w.id === row.tokId; }) : null; return tk && typeof tk.ownerId === 'string' ? tk.ownerId : ''; }
+function declareClean(t) { return typeof t === 'string' ? t.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').trim().slice(0, 200) : ''; }
+function declareIn(fid, rowId, text, pid) {   // pid: a player's own line; '' the GM's. Words for what cannot be done, else null
+    var c = orderById(fid), camp = campNow(); if (!c || !c.dec || c.dec.open !== 1 || !declareRule(camp)) return 'Nothing is being declared now.';
+    var row = c.rows.filter(function(r) { return !!r && r.id === rowId; })[0]; if (!row) return 'That row is not in the fight.';
+    if (pid && declareOwner(camp, c, row) !== pid) return 'That row is not yours.';
+    var t = declareClean(text); if (t) c.dec.lines[row.id] = t; else delete c.dec.lines[row.id];
+    if (c.rows.every(function(r) { return !r || (typeof r.id === 'string' && own(c.dec.lines, r.id)); })) declareReveal(fid); else { broadcastCombats(); combatRefresh(); }
+    return null;
+}
+function declareReveal(fid) {   // the one reveal. Those who have said nothing say nothing
+    var c = orderById(fid), S = c && c.dec && c.dec.open === 1 ? c.dec : null; if (!S || net.role !== 'host') return false; c.dec = { round: S.round, lines: Object.create(null), open: 0 };
+    var mk = function(rows) { var L = rows.filter(function(r) { return !!r && own(S.lines, r.id); }).map(function(r) { return { n: String(r.name || 'Someone').slice(0, 60), say: S.lines[r.id] }; }); return L.length ? { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), label: 'Declared', lines: applyLines(L), ts: Date.now() } : null; };
+    if (net.active) net.conns.forEach(function(k) { if (!k.open || !net.roster[k.peer]) return; var pid = peerProfileId(k), p = net.roster[k.peer], cp = p && p.location === c.mapId ? combatsFor(pid, c.mapId)[fid] : null; if (!cp) return; var seen = c.rows.filter(function(r, i) { return !!cp.rows[i] && cp.rows[i].name !== 'Hidden'; }), rec = mk(seen); if (rec) { try { k.send(rec); } catch (e) { sendFailed(e); } } });
+    var mine = mk(c.rows); if (mine) { pushChat({ from: mine.from, text: '', scope: 'global', ts: mine.ts, apply: mine }); logEvent('table', 'Declared on ' + mapTitleOf(c.mapId) + ', round ' + S.round); }
+    broadcastCombats(); combatRefresh(); return true;
+}
+net.declareIn = function(fid, rowId, text) { if (net.role === 'client') { var c0 = net.conns[0]; if (!c0 || !c0.open) return 'The table is not there.'; try { c0.send({ type: 'declare', fid: String(fid), rowId: String(rowId), text: declareClean(text) }); } catch (e) { return 'That could not be sent.'; } return null; } return declareIn(fid, rowId, text, ''); };
+net.declareReveal = function(fid) { return declareReveal(fid); };
+// [netcheck:declare-end]
 function fightReachTurn(c) {
     var row = c && typeof c.round === 'number' && typeof c.turn === 'number' && Array.isArray(c.rows) ? c.rows[c.turn] : null; if (!row) return false;
     var rh = typeof c.rh === 'number' ? c.rh : 0;
@@ -5262,6 +5320,7 @@ function fightReachTurn(c) {
     else if (c.round < rh) return false;   // a round the fight has gone past: a correction, nothing of it runs again
     var th = c.th && typeof c.th === 'object' ? c.th : (c.th = Object.create(null)), k = typeof row.id === 'string' && row.id ? row.id : '#' + c.turn;   // a row with no id by its place
     if (c.seq && typeof seqOcc === 'function' && seqOcc(c, c.sq) > 0) k += '#' + seqOcc(c, c.sq);   // 1.6.2 (G10): its later turns of the round are turns of their own
+    if (c.ck0) k += '#' + row.init;   // ...and on a counting clock a row's turn is known by its count, so a step back runs nothing again
     if (th[k] === 1) return false;
     th[k] = 1; return true;
 }
@@ -5276,6 +5335,7 @@ function fightReachTurnEnd(c, round, row, at) {
     else if (round < eh) return false;
     var et = c.et && typeof c.et === 'object' ? c.et : (c.et = Object.create(null)), k = typeof row.id === 'string' && row.id ? row.id : '#' + at;
     if (c.seq && typeof seqOcc === 'function' && seqOcc(c, c.sqWas) > 0) k += '#' + seqOcc(c, c.sqWas);
+    if (c.ck0) k += '#' + row.init;
     if (et[k] === 1) return false;
     et[k] = 1; return true;
 }
@@ -5877,6 +5937,7 @@ function initIntoFight(camp, mapId, charId, pid, value) {
     var at = cur ? c.rows.indexOf(cur) : 0; c.turn = at >= 0 ? at : 0;
     if (typeof combatSideOrder === 'function') combatSideOrder(camp, mapId, c);   // initiative O4: each side stays together
     if (c.seq && typeof seqPlace === 'function') seqPlace(camp, c, { rows: c.rows, turn: c.turn, seq: c.seq, sq: c.sq, mvUsed: c.mvUsed });   // 1.6.2 (G10): a new number may mean more turns
+    if (c.ck0) c.ck0[row.id] = row.init;   // ...and on a counting clock it is where this row begins
     toast((row.name || 'Someone') + ' rolled initiative: ' + row.init + ', now ' + (c.rows.indexOf(row) + 1) + ' of ' + c.rows.length + '.');
     logEvent('table', (row.name || 'Someone') + ' rolled initiative on ' + mapTitleOf(mapId) + ': ' + row.init);
     broadcastCombats(); combatRefresh();
@@ -6137,6 +6198,8 @@ function fightSet(fid, combat) {
         if (had && (had.side === 'pc' || had.side === 'rest')) f.side = had.side;
         if (typeof combatSides === 'function') combatSides(mapId, f, !had);   // ...and each side together (a new fight rolls the sides first)
         if (typeof seqPlace === 'function') seqPlace(campNow(), f, had);   // 1.6.2 (G10): a round of several turns
+        if (typeof clockStart === 'function') clockStart(campNow(), f, had);   // 1.6.2 (G10): a counting clock
+        if (had && had.dec) f.dec = had.dec; else delete f.dec;   // 1.6.2 (G10): what is declared stays the host's own through a roster edit
         if (had && typeof fightReachKept === 'function') fightReachKept(had, f);   // fold 3: a roster edit keeps how far the fight has gone (rh, th, turned), put back after cleaning as rr and side are; a new fight starts with none
         if (had && typeof holdsPrune === 'function') holdsPrune(getActiveCampaign(), f);   // 1.6.0: a row taken out of the order ends what it held and what held it
         if (had && chosenRule()) chosenMark(f);   // initiative O5: each row's mark of having gone, by its id, the row on turn none
@@ -6190,12 +6253,14 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     var nx = S5 && dir > 0 ? S5.chosenNext(c.rows, c.turn, typeof pick === 'string' ? pick : undefined) : null;
     if (S5 && dir > 0 && !nx) return false;   // a pick that may not go next (one who has gone, the one on turn, one not there): nothing moves
     if (by !== 'player') net.fightOn = fid;   // fold 4: the GM's own step of a fight makes it the one played
+    if (dir > 0 && c.dec && c.dec.open === 1 && typeof declareReveal === 'function') declareReveal(fid);   // 1.6.2 (G10): play moving on shows what is in
     var campS = campNow(), a0 = timeCore() ? fightAtOf(c, campS) : null;   // fold 4: the fight's own time before the step
     var mapId = c.mapId, t = c.turn + (dir < 0 ? -1 : 1), r0 = c.round, t0 = c.turn, endRow = dir > 0 && c.rows[t0] && (!c.rows[t0].held || holdRule('holdEnd') === 'end') ? c.rows[t0] : null;   // 1.6.0: the turn a forward step ends (a held one only where the system says a hold ends the turn; once a turn, so acting from it runs nothing again)
     var pkFrom = c.rows[t0], pkRow = nx && nx.round && typeof pick === 'string' ? c.rows[nx.at] : null;   // initiative O5: whose turn ends, and the row picked to open a new round, found again once its order is made
-    var at0 = c.sq, seqR = c.seq && typeof seqStep === 'function' ? severalRule(campS) : null; if (seqR) seqMoved(c, seqR);
+    var at0 = c.sq, seqR = c.seq && typeof seqStep === 'function' ? severalRule(campS) : null, ckR = typeof clockRule === 'function' ? clockRule(campS) : null; if (seqR) seqMoved(c, seqR);
     if (S5) t = chosenGo(c, dir, nx, t0);   // initiative O5: the place chosen (a new round where none is left), or back to the last turn had (a correction)
     else if (seqR) t = seqStep(c, dir);   // 1.6.2 (G10): the round's own order of turns
+    else if (ckR) t = clockStep(campS, c, dir, ckR);   // 1.6.2 (G10): a counting clock
     else if (t >= c.rows.length || (dir > 0 && typeof c.endAt === 'number' && t >= c.endAt)) { t = 0; c.round += 1; }   // 1.6.2 (G9): a card that ends the round ends it where it stands
     else if (t < 0) { if (c.round > 1) { c.round -= 1; t = (typeof c.endAt === 'number' ? Math.min(c.endAt, c.rows.length) : c.rows.length) - 1; } else t = 0; }
     c.turn = t;
@@ -6205,13 +6270,14 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     if (endRow && typeof turnEnded === 'function') turnEnded(mapId, c, endRow, r0, t0);   // 1.6.0: its end first, before the new round and the next turn
     if (c.round > r0 && typeof combatNewRound === 'function') { combatNewRound(mapId, c); t = c.turn; }
     if (seqR && c.round > r0) { seqMake(campS, c); c.sq = 0; if (c.seq) { t = seqIdx(c, 0); c.turn = t; } }
+    if (ckR && c.round > r0) { clockCycle(campS, c); t = c.turn; }
     if (S5) { var atP = pkRow ? c.rows.indexOf(pkRow) : -1; if (atP >= 0) { c.turn = atP; t = atP; } chosenMark(c); }   // initiative O5: the new round opened by the one picked, and each row's mark of having gone   // initiative O4: a new round's order (rolled again, by side), the first time the fight reaches it
     if (c.round !== r0) roundChanged(mapId, c);   // G10
     var tg = c.round !== r0 && a0 ? fightTurned(campS, c, a0, r0) : null;   // fold 4: its own time moves by the round's length (a step back, back)
-    toast((c.rows[t].name || 'Someone') + "'s turn" + ((S5 || seqR ? c.round > r0 : t === 0 && dir > 0) ? ' — round ' + c.round : '') + '.');
+    toast((c.rows[t].name || 'Someone') + "'s turn" + ((S5 || seqR || ckR ? c.round > r0 : t === 0 && dir > 0) ? ' — round ' + c.round : '') + '.');
     if (S5 && typeof pick === 'string') logEvent('table', (by === 'player' ? (pkFrom && pkFrom.name) || 'Someone' : 'The GM') + ' picked ' + (c.rows[t].name || 'someone') + ' to go ' + (c.round > r0 ? 'first in round ' + c.round : 'next') + ' on ' + mapTitleOf(mapId));   // initiative O5: a pick, in the Game Record
     broadcastCombats(); combatRefresh();
-    if (c.round !== r0 || c.turn !== t0 || (seqR && c.sq !== at0)) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing), after the broadcast
+    if (c.round !== r0 || c.turn !== t0 || (seqR && c.sq !== at0) || (ckR && dir > 0)) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing), after the broadcast
     if (tg) ordersMoved('step', tg);   // fold 4: the round it closed counted, and the clock moved once the fight furthest behind moves on
 }
 // Initiative O3 (the owner's answer, "After the current turn"): the character whose turn it is holds it — play moves on as with Next turn and its row
@@ -6271,7 +6337,7 @@ function fightAct(fid, rowId) {
     var i = c.rows.findIndex(function(r) { return r && r.id === rowId; }); if (i < 0 || i === c.turn || c.rows[i].held !== 1) return false;
     if (holdRule('holdAct') === 'stay') { var rowS = c.rows[i]; delete rowS.held; toast((rowS.name || 'Someone') + ' has acted from a hold.'); logEvent('table', (rowS.name || 'Someone') + ' acted from a hold on ' + mapTitleOf(c.mapId)); broadcastCombats(); combatRefresh(); return true; }   // 1.6.0: a system that keeps its order: the hold ends, and nothing moves
     var row = c.rows.splice(i, 1)[0], t = c.turn - (i < c.turn ? 1 : 0); delete row.held;
-    c.rows.splice(t + 1, 0, row); c.turn = t; if (Array.isArray(c.seq)) c.seq.splice((typeof c.sq === 'number' ? c.sq : 0) + 1, 0, row.id);   // 1.6.2 (G10): a turn of its own, next
+    c.rows.splice(t + 1, 0, row); c.turn = t; if (Array.isArray(c.seq)) c.seq.splice((typeof c.sq === 'number' ? c.sq : 0) + 1, 0, row.id); if (c.ck0) c.ckNext = row.id;   // 1.6.2 (G10): a turn of its own, next
     toast((row.name || 'Someone') + ' acts next.'); logEvent('table', (row.name || 'Someone') + ' acted from a hold on ' + mapTitleOf(c.mapId));
     broadcastCombats(); combatRefresh();
     return true;
@@ -6563,7 +6629,7 @@ function targetHitAsk(camp, peer, pid, charId) {
     var w = Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === rc.tid; }) : null, tc = w && typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null;
     return tc ? { tid: rc.tid, rows: S.targetHitRows(camp.system, tc, true) } : null;
 }
-var deckLimit = null;   // 1.6.2 (G9)
+var declareLimit = null, deckLimit = null;   // 1.6.2 (G9)
 var hitLimit = null;
 // A player's app: a host that answers hit-ask says so in its join snapshot (hits: true, read as true only); an older one would stay silent, so
 // such a roll is rolled with no location picked, as before. net.hitRows asks the host for the rows of its own target (cb(rows), or cb(null)
@@ -8355,7 +8421,7 @@ function handleMessage(msg, conn) {
         var rowGA = typeof rowOnGm === 'function' ? rowOnGm(Sa, campA, viewA, qa.row) : qa.row, offA = typeof offTurnBar === 'function' ? offTurnBar(campA, chA, qa.act, rowGA, actA.label) : ''; if (offA) { denyA('error', offA); return; }   // 1.6.0: off their turn, by the system's rule
         var resA = Sa.applyAct(campA.system, chA, actA, varsA, Fa, tcA, qa.row ? { f: qa.row.f, r: qa.row.r } : null, undefined, window.wpDiceCore || null, onA ? { char: onA.ch, tctx: typeof allyCtx === 'function' ? allyCtx(mapA, onA.tok) : null } : null, typeof fxNow === 'function' ? fxNow(qa.charId, onA) : null);   // R2b: a list's action may move its row's counters; 1.5.9: the host's dice roll a Rolled amount (never the player's word); and its changes land on the one it is used on
         if (!resA.ok) { denyA(resA.reason, resA.message); return; }
-        var costA = typeof actSpend === 'function' ? actSpend(campA, qa.charId, profA, actA.cost, conn, chA.name, false, actA.costN) : ''; if (costA) { denyA('error', costA); return; }   // turn-based combat T4: what it costs (worked out first: a press that cannot land spends nothing)
+        var costA = typeof actSpend === 'function' ? actSpend(campA, qa.charId, profA, actA.cost, conn, chA.name, false, actA.costN) : ''; if (costA) { denyA('error', costA); return; } if (typeof clockPress === 'function') clockPress(campA, qa.charId, actA);   // 1.6.2 (G10)   // turn-based combat T4: what it costs (worked out first: a press that cannot land spends nothing)
         if (typeof offTurnWarn === 'function') offTurnWarn(campA, chA, qa.act, rowGA, actA.label, conn);   // 1.6.0: nothing refused it, so a warning is said
         if (resA && Array.isArray(resA.fitSays) && resA.fitSays.length && typeof toast === 'function') toast('A part no longer fits. ' + resA.fitSays[0]);   // 1.6.0 Fits where, judged again: the GM is told
         var ownA = !onA || Object.keys(resA.values).length > 0;   // 1.5.9: a press that moved only the one it was used on writes nothing of the user's
@@ -9288,7 +9354,8 @@ function handleMessage(msg, conn) {
         if (jobQ) { var jbQ = SQ.jobBar(chQ, q.row, actQ, varsQ, Fq, jobQ.round); if (jbQ) { denyQ('error', { error: { message: jbQ, pos: 0, len: 0 } }); return; } }
         var swpQ = swQ && swQ.pays && chQ && typeof swPayPlan === 'function' ? swPayPlan(SQ, campQ, chQ, swQ.pays, Fq, Dq, tcQ) : null; if (swpQ && swpQ.error) { denyQ('error', { error: { message: swpQ.error, pos: 0, len: 0 } }); return; }   // 1.6.2 (G6): a bonus's cost, judged before anything is spent
         var whyQ = Dq.checkTableRoll(resQ); if (whyQ) { denyQ(whyQ); return; }
-        if (actQ && actQ.cost && chQ && typeof actSpend === 'function') { var costQ = actSpend(campQ, turnChQ.id, net.roster[conn.peer], actQ.cost, conn, turnChQ.name, false, actQ.costN); if (costQ) { denyQ('error', { error: { message: costQ, pos: 0, len: 0 } }); return; } }   // turn-based combat T4: what it costs
+        if (actQ && actQ.cost && chQ && typeof actSpend === 'function') { var costQ = actSpend(campQ, turnChQ.id, net.roster[conn.peer], actQ.cost, conn, turnChQ.name, false, actQ.costN); if (costQ) { denyQ('error', { error: { message: costQ, pos: 0, len: 0 } }); return; } }
+        if (actQ && chQ && typeof clockPress === 'function') clockPress(campQ, turnChQ.id, actQ);   // 1.6.2 (G10)   // turn-based combat T4: what it costs
         if (jobQ) { var jsQ = jobPress(SQ, campQ, chQ, q.row, actQ, varsQ, Fq, jobQ.round, q.label, saveRemoteSoon); if (jsQ) { denyQ('error', { error: { message: jsQ, pos: 0, len: 0 } }); return; } }   // a press short of its turns moves the count and rolls nothing; the last goes on and rolls
         if (swpQ) swPayDo(chQ, swpQ);
         if (chQ && !q.att && typeof offTurnWarn === 'function') offTurnWarn(campQ, turnChQ, q.act, rowGQ, q.label || (actQ && actQ.label), conn);   // 1.6.0: nothing refused it, so a warning is said
@@ -9376,6 +9443,10 @@ function handleMessage(msg, conn) {
         // 1.6.2 (G9): a player's draw by hand, admitted (the gate above), limited, and judged by deckRun. Nothing of a pile goes back but the counts
         var Dd = DC(); if (!Dd || typeof msg.key !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(msg.key) || msg.op !== 'draw') return; if (!deckLimit) deckLimit = Dd.RateLimit(Dd.LIMITS); if (deckLimit.allow(conn.peer, Date.now()) !== true) return;
         var whyD = deckRun(getActiveCampaign(), msg.key, 'draw', peerProfileId(conn), { n: msg.n, charId: typeof msg.charId === 'string' ? msg.charId.slice(0, 30) : '', to: typeof msg.to === 'string' ? msg.to.slice(0, 30) : '', by: diceFrom(net.roster[conn.peer], false) }); if (whyD && typeof turnNote === 'function') turnNote(conn, whyD, '');
+    } else if (msg.type === 'declare' && net.role === 'host') {
+        // 1.6.2 (G10): a player's line for a row of their own, admitted (the gate above), limited, and judged by declareIn. It goes to nobody
+        var Dc = DC(); if (!Dc || typeof msg.fid !== 'string' || typeof msg.rowId !== 'string' || typeof msg.text !== 'string') return; if (!declareLimit) declareLimit = Dc.RateLimit(Dc.LIMITS); if (declareLimit.allow(conn.peer, Date.now()) !== true) return;
+        var whyDc = declareIn(msg.fid.slice(0, 40), msg.rowId.slice(0, 40), msg.text, peerProfileId(conn)); if (whyDc && typeof turnNote === 'function') turnNote(conn, whyDc, '');
     } else if (msg.type === 'hit-rows' && net.role === 'client') {
         // [netcheck:hitrows-start]
         // 1.6.0 (B5): the host's answer to our hit-ask, from the synced host only, for the question still open: each row an id and a name as text
@@ -11103,6 +11174,7 @@ net.diceRoll = function(expr, o) {
     if (entR && entR.job && chR && o.row && typeof o.row.r === 'string' && SR && typeof SR.jobStep === 'function') { var jrR = typeof jobRound === 'function' ? jobRound(campR, chR.id) : null, jbR = SR.jobBar(chR, o.row, entR, varsR, F, jrR); if (jbR) return { error: jbR }; var jsR = jobPress(SR, campR, chR, o.row, entR, varsR, F, jrR, o.label, function() { save(true); }); if (jsR) return { error: jsR }; }   // 1.6.0: a job counted across turns
     var moR = hvR && hvR.length > 1 ? SR.hitRolls(campR.system, entR, expr, hvR.slice(1), F, D, { rounds: rnR.slice(1) }) : null; if (moR && moR.error) return { error: moR.error };   // ... and each hit after it, rolled here
     var swpR = swR && swR.pays && chR && typeof swPayPlan === 'function' ? swPayPlan(SR, campR, chR, swR.pays, F, D, tcR) : null; if (swpR && swpR.error) return { error: swpR.error }; if (swpR) swPayDo(chR, swpR);   // 1.6.2 (G6)
+    if (chR && entR && typeof clockPress === 'function') clockPress(campR, chR.id, entR);   // 1.6.2 (G10): what the GM's own press spends on a counting clock
     if (chR && !o.att && typeof net.offTurnSay === 'function') net.offTurnSay(chR, o.act, o.row, o.label);   // 1.6.0: off its turn, the GM is told, once nothing has refused it
     var restR = function(res, heldR) {   // 1.6.2 (G5): all that follows a roll, which a roll with card actions holds until it is accepted
     var rec = { type: 'roll', id: D.uid(), from: o.from || diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() }; if (heldR) rec.id = heldR;   // o.from: this machine's own word, the player whose press this roll follows (a line's damage)
@@ -11733,7 +11805,7 @@ function fightsRead(raw, camp) {   // what the save holds, as data: { list, on }
         rows.forEach(function(r) { delete r.hf; delete r.sf; var raw = r.held === 1 ? k.rows.filter(function(x) { return !!x && typeof x === 'object' && x.id === r.id; })[0] : null, SF = raw && raw.holdFor && typeof SC === 'function' ? SC() : null, hc = SF && typeof SF.cleanHoldFor === 'function' ? SF.cleanHoldFor(camp.system, raw.holdFor) : null; if (hc) { r.holdFor = hc; if (raw.holdFor.was === 1) hc.was = 1; } });   // 1.6.0: a named hold comes back with its fight
         ['n', 'rr', 'rh', 'eh', 'sq'].forEach(function(key) { if (fightNum(k[key])) f[key] = k[key]; });
         if (Array.isArray(k.seq) && k.seq.length && k.seq.length <= 2000) { var sqK = k.seq.filter(function(x) { return typeof x === 'string'; }); if (sqK.length === k.seq.length) f.seq = sqK; }   // 1.6.2 (G10): the round's order of turns comes back with its fight
-        ['et', 'th', 'turned', 'fxEnded'].forEach(function(key) { if (k[key] && typeof k[key] === 'object') f[key] = fightMarks(k[key]); });
+        ['et', 'th', 'turned', 'fxEnded', 'ck0'].forEach(function(key) { if (k[key] && typeof k[key] === 'object') f[key] = fightMarks(k[key]); });
         if (Array.isArray(k.hl)) { var hlK = holdsRead(k.hl, rows); if (hlK.length) f.hl = hlK; }   // 1.6.0 Who holds whom
         if (Array.isArray(k.ps)) f.ps = fightIdsIn(k.ps);
         if (Array.isArray(k.pp)) f.pp = k.pp.slice(-10).map(fightIdsIn);

@@ -3567,8 +3567,15 @@
   .sys-hover, .sys-toggle-def { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; }
   .sys-btns { margin-left: auto; display: inline-flex; gap: 2px; }
   .sys-btn { padding: 1px 7px; font-size: 11px; }
-  .sys-costhowrow .field { width: 52px; margin: 0; }
+  .sys-costhowrow .field, .sys-clockrow .field, .sys-init-ckrow .field { width: 76px; margin: 0; }
   .sys-init-sevrow .field { width: 76px; margin: 0; }
+  #declareBox { position: fixed; left: calc(var(--mainleft, 0px) + 12px); bottom: 150px; z-index: 8990; width: 320px; max-width: calc(100vw - 24px); max-height: 40vh; overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; font-size: 13px; }
+  #declareBox .dc-row { display: flex; gap: 6px; align-items: center; }
+  #declareBox .dc-row .field { flex: 1 1 0; min-width: 0; margin: 0; }
+  #declareBox .dc-name { flex: 0 1 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  #declareBox .dc-head { font-weight: 600; color: var(--ink); }
+  #declareBox .dc-out { color: var(--muted); font-size: 12px; }
+  #declareBox .dc-reveal { align-self: flex-start; }
   .sys-init-sidew { display: flex; flex: 1 1 100%; flex-wrap: wrap; gap: 6px; align-items: center; }
   /* Items tab (Stage 5): the campaign item library + the combat/blast settings */
   #sysCombatBox, #sysListRules { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; padding: 8px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }

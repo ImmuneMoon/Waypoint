@@ -1726,6 +1726,7 @@
   .trade-rates input.trade-rate { width: 64px; flex: none; }
   .trade-rates .trade-acc-one > span { white-space: nowrap; }
   .trade-deal { color: var(--gold); }
+  .trade-change { margin-top: 8px; color: var(--gold); }
   .trade-total { font-size: 12px; color: var(--dim); }
   .trade-state { font-size: 12px; color: var(--dim); }
   .trade-state.on { color: var(--gold); }

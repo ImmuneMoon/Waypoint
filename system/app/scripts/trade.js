@@ -96,13 +96,15 @@ function twDraw(doc, root, v, off, act) {
         }
         if (me && v.status === 'open') {
             col.appendChild(twInv(doc, s.name, twChoices(off[sd], s.lines), function(v) { act('add', sd, v); }));
-            var ok = twEl(doc, 'button', 'tool trade-ok' + (s.ok ? ' on' : ''), s.ok ? 'Confirmed' : 'Confirm'); ok.type = 'button'; ok.setAttribute('aria-pressed', s.ok ? 'true' : 'false'); ok.setAttribute('data-k', 'ok|' + sd);
-            ok.title = s.ok ? 'Take your confirm back' : 'You agree to this trade as it stands. Any change clears both confirms';
+            var ovr = v.change && v.change.payer === sd && !s.ok ? v.change.over : 0;   // 157 M1d: the payer is asked to overpay in words
+            var ok = twEl(doc, 'button', 'tool trade-ok' + (s.ok ? ' on' : ''), s.ok ? 'Confirmed' : ovr ? 'Confirm, overpaying by ' + twNum(ovr) : 'Confirm'); ok.type = 'button'; ok.setAttribute('aria-pressed', s.ok ? 'true' : 'false'); ok.setAttribute('data-k', 'ok|' + sd);
+            ok.title = s.ok ? 'Take your confirm back' : ovr ? 'You give ' + twNum(ovr) + ' more than you get, and the other side keeps it. Any change clears both confirms' : 'You agree to this trade as it stands. Any change clears both confirms';
             ok.addEventListener('click', function() { act('ok', sd, !s.ok); }); col.appendChild(ok);
         } else if (v.status === 'open') col.appendChild(twEl(doc, 'div', 'trade-state' + (s.ok ? ' on' : ''), s.ok ? s.name + ' has confirmed.' : 'Waiting for ' + s.name + ' to confirm.'));
         cols.appendChild(col);
     });
     root.appendChild(cols);
+    if (v.change && v.status === 'open') root.appendChild(twEl(doc, 'div', 'trade-change', v.change.say));   // 157 M1d
     if (v.cost && v.status === 'open') root.appendChild(twEl(doc, 'div', 'trade-cost', v.cost));
     var line = v.status === 'asking' ? (mine.indexOf('a') >= 0 ? 'Waiting for ' + v.b.name + ' to answer.' : v.a.name + ' asks to trade.') : (v.msg || 'Both sides confirm, and everything moves at once.');
     root.appendChild(twEl(doc, 'div', 'trade-msg', line));

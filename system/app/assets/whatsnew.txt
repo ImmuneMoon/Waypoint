@@ -80,6 +80,8 @@ The System editor
   trader ticks the currencies it accepts there, kept for its next trade.
   A game may let a trader buy and sell at a per cent of list price, set in the
   trade window, and an entry may carry its own buy and sell figures.
+  A game may have traders make change: the window says the change owed, or that
+  it cannot be given, and the payer may overpay.
 - A list can say what a trade does to a row: a stat is cleared, set or moved to
   another, which may be GM-only. It can also call for a roll, made for the GM alone
   once both sides confirm. A column can show on some rows only.

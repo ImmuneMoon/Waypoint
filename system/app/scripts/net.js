@@ -3662,6 +3662,8 @@ function tradeView(tr, you, status, msg) {
     var rates = !!(S && S.tradeRatesOn && S.tradeRatesOn(sys));   // 157 M1c
     var curs = sys && Array.isArray(sys.currencies) && sys.currencies.length ? [{ key: '*', label: 'The base unit' }].concat(sys.currencies.map(function(c) { return { key: c.key, label: String(c.label || c.key).slice(0, 60) }; })) : null;   // 157 M1b: what a side may accept   // 157 M1b: the money on offer, a Separate currency's on its own line
     var v = { tid: tr.tid, status: status || tr.status, you: you, a: side(tr.a, ca, tr.offA, tr.okA, cb), b: side(tr.b, cb, tr.offB, tr.okB, ca) }; if (curs) v.curs = curs; if (rates) v.rates = true;
+    var chg = S && S.tradeChange && sys && ca && cb ? S.tradeChange(sys, ca, tr.offA, cb, tr.offB) : null;   // 157 M1d: change owed, or the payer told it cannot be given
+    if (chg) { var cP = v[chg.payer].name, cR = chg.payer === 'a' ? 'b' : 'a', cRn = v[cR].name, cO = String(chg.over); v.change = { payer: chg.payer, over: chg.over, say: chg.can ? cRn + ' owes ' + cP + ' ' + cO + ' in change.' : cRn + ' can\u2019t give change for that: overpay by ' + cO + ', or offer smaller pieces.' + ((cR === 'a' ? tr.a : tr.b).by ? ' ' + cRn + ' may also add something to make up the difference.' : '') }; }
     // where an amount this side receives lands (the receiver picks a chip): only on the view of one who acts for that side, since it names their own rows
     if (S && S.tradeInto && sys) [['a', ca, cb, tr.offB, tr.intoA], ['b', cb, ca, tr.offA, tr.intoB]].forEach(function(q) {
         if (!(you === 'both' || you === q[0]) || !q[1] || !q[2]) return; var seen = Object.create(null), gets = [];
@@ -3770,6 +3772,7 @@ function tradeDo(actor, msg) {
         if (mine === 'a') tr2.okA = msg.on === true; else tr2.okB = msg.on === true;
         if (!(tr2.okA && tr2.okB)) { tradeTell(tr2); return { ok: true }; }
         var accC = S.tradeAcceptSays ? S.tradeAcceptSays(camp.system, ca, tr2.offA, cb) || S.tradeAcceptSays(camp.system, cb, tr2.offB, ca) : ''; if (accC) { tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, accC); return { error: accC }; }   // 157 M1b: terms changed since the money was put on
+        var chgC = S.tradeChange ? S.tradeChange(camp.system, ca, tr2.offA, cb, tr2.offB) : null;   // 157 M1d: what the payer agreed to give over, said on the card
         var res = S.tradeApply(camp.system, ca, cb, tr2.offA, tr2.offB, who(tr2.a), who(tr2.b), { a: tr2.intoA, b: tr2.intoB });
         if (!res.ok) { tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, res.msg); return { error: res.msg }; }
         var paysT = tradePayers(camp, tr2), barT = paysT.length ? tradeBar(camp, paysT) : ''; if (barT) { tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, barT); return { error: barT }; }
@@ -3781,6 +3784,7 @@ function tradeDo(actor, msg) {
         if (window.wpSheets) { window.wpSheets.charChanged(tr2.a.charId); window.wpSheets.charChanged(tr2.b.charId); }
         if (paysT.length) tradeSpend(camp, paysT);
         var said = (ca.name || 'A character') + ' gave ' + (res.linesA.join(', ') || 'nothing') + '. ' + (cb.name || 'A character') + ' gave ' + (res.linesB.join(', ') || 'nothing') + '.';
+        if (chgC) said += ' ' + ((chgC.payer === 'a' ? cb : ca).name || 'A character') + ' kept ' + chgC.over + ' over the price.';
         tradeCard([ca, cb], 'Trade done. ' + said);
         tradeEnd(tr2, 'done', 'Trade done. ' + said);
         return { ok: true };
@@ -3847,7 +3851,7 @@ function cleanTradeView(v) {
         return out;
     };
     var a = side(v.a), b = side(v.b); if (!a || !b) return null;
-    var o = { tid: v.tid, status: st, you: you, a: a, b: b }; if (v.rates === true) o.rates = true; var cuV = (Array.isArray(v.curs) ? v.curs.slice(0, 13) : []).map(function(c) { return c && typeof c === 'object' && typeof c.key === 'string' && /^(\*|[A-Za-z][A-Za-z0-9_]{0,23})$/.test(c.key) ? { key: c.key, label: txt(c.label, 60) || c.key } : null; }).filter(Boolean); if (cuV.length) o.curs = cuV; var m = txt(v.msg, 200); if (m) o.msg = m; var cs = txt(v.cost, 200); if (cs) o.cost = cs; return o;
+    var o = { tid: v.tid, status: st, you: you, a: a, b: b }; if (v.rates === true) o.rates = true; if (v.change && typeof v.change === 'object' && (v.change.payer === 'a' || v.change.payer === 'b')) { var ovN = num(v.change.over); if (ovN !== null && ovN > 0) o.change = { payer: v.change.payer, over: ovN, say: txt(v.change.say, 300) }; } var cuV = (Array.isArray(v.curs) ? v.curs.slice(0, 13) : []).map(function(c) { return c && typeof c === 'object' && typeof c.key === 'string' && /^(\*|[A-Za-z][A-Za-z0-9_]{0,23})$/.test(c.key) ? { key: c.key, label: txt(c.label, 60) || c.key } : null; }).filter(Boolean); if (cuV.length) o.curs = cuV; var m = txt(v.msg, 200); if (m) o.msg = m; var cs = txt(v.cost, 200); if (cs) o.cost = cs; return o;
 }
 // [netcheck:trade-end]
 // Turn-based combat T2 (owner, 2026-09-26): the token whose turn it is on the map in view, when it is this player's own — { mapId, rowId, tok }

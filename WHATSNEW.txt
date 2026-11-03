@@ -186,6 +186,9 @@ At the table
   turn, A picks the next token and Y ends your turn. Its buttons are yours to
   set beside the keys, and Settings says which controller is connected, how many
   buttons it has, and whether its layout is the standard one.
+- A character's name can wear a look of its own: a font of Waypoint's own and a
+  colour. Its player sets it under the sheet's head, and the GM on any sheet.
+  Personal looks is a VTT feature, on until the GM switches it off.
 
 Drawings to show
 - The pen now makes two kinds of drawing. On the map is what it always

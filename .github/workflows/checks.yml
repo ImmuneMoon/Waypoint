@@ -135,6 +135,9 @@ jobs:
       - name: setupcheck — a map's set-ups of its tokens, fog and lights
         if: ${{ !cancelled() }}
         run: node tools/setupcheck.js
+      - name: plookcheck — a personal look, a character's name in a font and colour of its own
+        if: ${{ !cancelled() }}
+        run: node tools/plookcheck.js
       - name: thengmcheck — a Then step players may not see, run on the host
         if: ${{ !cancelled() }}
         run: node tools/thengmcheck.js

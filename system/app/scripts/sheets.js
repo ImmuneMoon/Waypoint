@@ -1181,7 +1181,7 @@ function renderSheet() {
     if (!c || !sys || !F()) { closeSheet(); return; }
     var gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId()), lockedS = viewLocked(c, { view: 'sheet' });   // the sheet's lock, as buildSections will read it
     var seeP = typeof asPlayerView === 'function' ? asPlayerView(c, camp, gm) : null, sysD = seeP ? seeP.sys : sys, cD = seeP ? seeP.char : c;   // 1.6.0: As player, the system and the copy its owner is sent
-    head.textContent = c.name;
+    head.textContent = c.name; if (window.wpPlook) window.wpPlook.dress(head, window.wpPlook.ofChar(c));   // 1.6.2, backlog 35: its name in its own look
     sub.textContent = (c.npc ? 'NPC' : c.ownerId ? ownerName(c, camp) : 'unassigned') + (c.partial ? ' · hover fields only' : '') + (c.making === 1 ? ' · making' : c.unlocked === 1 ? (gm ? ' · open to its player' : ' · yours to fill in') : '') + (gm && c.review === 1 ? ' · new' : '');
     if (gm && Array.isArray(c.shareWith) && c.shareWith.length) sub.textContent += ' · shared with ' + c.shareWith.length;   // 1.6.2 (G8)
     var giveS = gm && !c.partial && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && !window.wpStream && !!window.wpCharList; if (sub.classList) sub.classList.toggle('sheet-sub-give', giveS); if (sub.setAttribute) { if (giveS) { sub.setAttribute('role', 'button'); sub.tabIndex = 0; sub.title = 'Press to give this character to a player'; } else { sub.removeAttribute('role'); sub.removeAttribute('tabindex'); sub.removeAttribute('title'); } }   // 1.6.0: who has it is said here, so it is changed here
@@ -1206,6 +1206,7 @@ function renderSheet() {
     if (c.shared === 1) ['sheetUpload', 'sheetPic', 'sheetDelete'].forEach(function(k) { var bS = ui(k); if (bS) bS.style.display = 'none'; });   // 1.6.2 (G8): those stay with its one player
     renderReviewBar(c, camp, gm);
     var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';   // 126: the point budgets, under the head
+    var plB = ui('sheetPlook'); if (plB) plB.style.display = !c.partial && typeof lookBar === 'function' && lookBar(plB, c, gm, own) ? '' : 'none';   // 1.6.2, backlog 35: its personal look
     var dtB = ui('sheetDebts'); if (dtB) dtB.style.display = !c.partial && typeof debtBar === 'function' && debtBar(dtB, c, gm, camp) ? '' : 'none';   // 157 M1h: its debts, under the budgets
     var lkB = ui('sheetLinks'); if (lkB) lkB.style.display = linkBar(lkB, sys, c, camp, lockedS) ? '' : 'none';   // 1.6.0: the linked sheets, under the budgets
     if (typeof renderStaleBar === 'function') renderStaleBar(c, camp, gm, own);   // 1.6.0 (backlog 190): an out-of-date sheet says so
@@ -1358,6 +1359,7 @@ function renderHud(charId) {
     if (!c || !full || !F() || !canOpen(charId) || !hudHasContent(full)) { closeHud(charId); return; }   // the HUD removed, the feature off, the character gone or no longer theirs
     var sys = hudView(full), fk = focusKeyOf(v.body), stH = v.body.scrollTop, gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId());
     v.name.textContent = c.name; v.sub.textContent = (full.sheet.hud.title || 'HUD') + (c.npc ? ' \u00b7 NPC' : '');
+    if (window.wpPlook) window.wpPlook.dress(v.name, window.wpPlook.ofChar(c));   // 1.6.2, backlog 35: its name in its own look
     v.panel.setAttribute('aria-label', 'HUD: ' + c.name);
     if (c.portrait) { v.por.src = imgSrc(c.portrait); v.por.style.display = ''; } else { v.por.removeAttribute('src'); v.por.style.display = 'none'; }
     var all = resolveAll(sys, c, F(), tokenCtxFor(c.id, camp));
@@ -1681,7 +1683,7 @@ function headerBlocks(head, sys, c, all, gm, own) {
         if (c.portrait) { var im = el('img'); im.alt = ''; im.src = imgSrc(c.portrait); pw.appendChild(im); }
         head.appendChild(pw); head.classList.add('sheet-head-grid');
         main = el('div', 'sheet-head-main'); head.appendChild(main);
-        var nm = el('div', 'sheet-head-name', c.name || ''); nm.title = c.name || ''; main.appendChild(nm);
+        var nm = el('div', 'sheet-head-name', c.name || ''); nm.title = c.name || ''; if (window.wpPlook) window.wpPlook.dress(nm, window.wpPlook.ofChar(c)); main.appendChild(nm);
     }
     var IDN_EDIT = { text: 1, select: 1, number: 1, toggle: 1 };   // Stage 6 look fold: identity rows edited in place
     var openF = function(f) { return typeof fieldOpen !== 'function' || fieldOpen(f); };   // the sheet's lock (through typeof, as in fieldNodeBody)
@@ -6533,6 +6535,40 @@ function debtBar(box, c, gm, camp) {
     }
     return box.childNodes.length > 0;
 }
+// [plookcheck:bar-start]
+// 1.6.2, backlog 35, a personal look (the owner, 2026-11-03, by prompt: "player, or GM, both can clear the other's changes"): a line under the
+// sheet's head, its name in a font of Waypoint's own and a colour, for its player (sent to the host, which judges it) and for the GM (here, on any
+// character, NPCs too). Words as text, fonts by the list's own names; off with Personal looks off on this screen
+function lookBar(box, c, gm, own) {
+    if (!box) return false; while (box.firstChild) box.removeChild(box.firstChild);
+    var V = window.wpVtt, T = window.wpTextFmt, S = window.wpSystemCore, n = window.wpNet, P = window.wpPlook;
+    if (!T || !S || !P || typeof S.cleanPlook !== 'function' || !c || c.partial || (V && typeof V.on === 'function' && V.on('plook') === false)) return false;
+    var mine = !gm && !!own && isClient() && !!n && typeof n.charLook === 'function' && c.shared !== 1;
+    if (!(gm ? canWrite() : mine)) return false;
+    var cur = S.cleanPlook(c.plook) || {}, row = el('span', 'sheet-plook-row');
+    row.appendChild(el('span', 'sheet-plook-cap', gm ? 'Name look' : 'My look'));
+    var fs = el('select', 'field sheet-plook-font'); fs.title = 'The font this character\u2019s name is shown in, for everyone at the table'; fs.setAttribute('aria-label', 'Font of the name');
+    var o0 = el('option', null, 'Plain'); o0.value = ''; fs.appendChild(o0);
+    var groups = []; (T.FONTS || []).forEach(function(f) { if (groups.indexOf(f[2]) < 0) groups.push(f[2]); });
+    groups.forEach(function(g) { var og = el('optgroup'); og.label = g; (T.FONTS || []).forEach(function(f) { if (f[2] !== g) return; var o = el('option', null, f[0]); o.value = f[0]; o.style.fontFamily = T.fontCss(f[0]); og.appendChild(o); }); fs.appendChild(og); });
+    fs.value = cur.font || ''; if (window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(fs);   // a key step opens the list, so that stepping past a font sets nothing
+    var cl = el('input', 'sheet-plook-color'); cl.type = 'color'; cl.value = cur.color || '#e0a54f'; cl.title = 'The colour of this character\u2019s name'; cl.setAttribute('aria-label', 'Colour of the name'); if (!cur.color) cl.classList.add('unset');
+    var off = el('button', 'tool ghost sheet-plook-clear', 'Clear'); off.type = 'button'; off.title = 'Draw its name plain again, for everyone'; off.disabled = !cur.font && !cur.color;
+    var say = el('span', 'sheet-plook-name', c.name || ''); P.dress(say, cur);
+    var put = function(look) {
+        var lk = look ? S.cleanPlook(look) : null;
+        if (gm) { if (lk) c.plook = lk; else delete c.plook; c.updated = Date.now(); afterCharChange(c, true); if (n && n.role === 'host' && typeof n.syncChar === 'function') n.syncChar(c.id); if (n && typeof n.plMoved === 'function') n.plMoved(c.id); if (window.wpStepLog) window.wpStepLog('plook v1', 'set', { by: 'gm', font: lk && lk.font ? 1 : 0, color: lk && lk.color ? 1 : 0 }); renderSheet(); return; }
+        var r = n.charLook(c.id, lk, function(a) { if (a && a.error) toast(a.error); if (window.wpStepLog) window.wpStepLog('plook v1', a && a.ok ? 'set' : 'refused', { by: 'player' }); });
+        if (r && r.error) toast(r.error);
+    };
+    fs.addEventListener('change', function() { put({ font: fs.value || undefined, color: cur.color }); });
+    cl.addEventListener('change', function() { put({ font: cur.font, color: cl.value }); });
+    off.addEventListener('click', function() { put(null); });
+    [fs, cl, off, say].forEach(function(x) { row.appendChild(x); });
+    box.appendChild(row);
+    return true;
+}
+// [plookcheck:bar-end]
 function debtNum(x) { return String(Math.round(x * 100) / 100); }
 function uniqueToggle(id) {   // backlog 31: a named NPC, whose token an encounter group's drop puts on its one sheet; the GM's alone
     var camp = getActiveCampaign(), c = charById(id, camp); if (isClient() || !canWrite() || !c || c.npc !== true) return false;

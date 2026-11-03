@@ -1359,6 +1359,13 @@
   .set-key-row .set-pad { flex: none; min-width: 88px; padding: 3px 8px; font-size: 11.5px; }
   .set-pad.hk-picking { border-color: var(--gold); color: var(--gold); }
   .set-key-row .set-pad-none { flex: none; width: 88px; }
+  .sheet-plook { margin: 4px 10px 2px; }   /* 1.6.2, backlog 35: the personal look line under the sheet's head */
+  .sheet-plook-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11.5px; }
+  .sheet-plook-cap { color: var(--dim); }
+  .sheet-plook-font { width: auto; max-width: 160px; padding: 3px 6px; font-size: 11.5px; }
+  .sheet-plook-color { width: 30px; height: 24px; padding: 1px; border: 1px solid var(--edge); border-radius: 5px; background: var(--panel2); cursor: pointer; }
+  .sheet-plook-color.unset { opacity: 0.55; }
+  .sheet-plook-name { font-size: 13px; font-weight: 600; }
   .set-pad-info { font-size: 10.5px; color: var(--dim); line-height: 1.4; margin-top: 3px; }
   .set-pad-info:empty { display: none; }   /* 1.6.2: the controller connected, said under the keys' line */   /* 1.6.2: an empty slot where a controller runs nothing, so every row's key stands in the same column */
   .set-keys-say { font-size: 10.5px; color: var(--gold); line-height: 1.4; margin: 2px 0 8px; }

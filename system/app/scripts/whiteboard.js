@@ -1971,6 +1971,33 @@ window.wpFitToGrid = fitToGrid;
       applyFacing(item, (item.rot || 0) + (item.front || 0) + steps * st, false);
       refreshTokenDom(item);
   };
+  // 1.6.2, backlog 202: the keys that turn the selected tokens and pick the next token of yours (commands.js). A turn is the facing arrow's own
+  // press: a player turns their own token, not locked, the table not paused for them, and it lands as the arrow's release lands. Each answers
+  // true, or words that say why nothing happened
+  window.wpKeyTurn = function(steps) {
+      var am = getActiveMap(); if (!am || am.type !== 'map' || state.viewMode !== 'visual') return 'Turning works on the play map.';
+      if (window.wpVtt && !window.wpVtt.on('turning')) return 'Token facing is switched off.';
+      var n = window.wpNet, client = !!(n && n.active && n.role === 'client'), ids = (state.selWbIds && state.selWbIds.length) ? state.selWbIds : (state.selWbId ? [state.selWbId] : []), done = 0;
+      if (client && (n.paused || n.selfPaused || n.selfHeld)) return 'The table is paused for you.';
+      ids.forEach(function(id) {
+          var it = am.whiteboard.find(function(x) { return x && x.id === id; }); if (!it || !it.isChar) return;
+          if (client && (it.ownerId !== n.myId || it.locked)) return;
+          window.wpTurnToken(it, steps < 0 ? -1 : 1); if (n && n.active && n.streamPos) n.streamPos(it, true, am.id); done++;
+      });
+      if (!done) return client ? 'Select a token of yours to turn it.' : 'Select a character token to turn it.';
+      save(); render(); return true;
+  };
+  window.wpKeyNext = function() {
+      var am = getActiveMap(); if (!am || am.type !== 'map' || state.viewMode !== 'visual') return 'Picking a token works on the play map.';
+      var n = window.wpNet, client = !!(n && n.active && n.role === 'client');
+      var toks = am.whiteboard.filter(function(x) { return x && (x.isChar || x.waiting) && (client ? x.ownerId === n.myId : !x.waiting); });
+      if (!toks.length) return client ? 'You have no token on this map.' : 'There is no character token on this map.';
+      var at = -1; toks.forEach(function(x, i) { if (x.id === state.selWbId) at = i; }); var nx = toks[(at + 1) % toks.length];
+      state.selWbIds = [nx.id]; state.selWbId = nx.id; render();
+      var wrap = document.getElementById('whiteboardWrap'), z = state.zoomLevel || 1;
+      if (wrap) { wrap.scrollLeft = Math.max(0, (nx.x + (nx.w || 60) / 2) * z - wrap.clientWidth / 2); wrap.scrollTop = Math.max(0, (nx.y + (nx.h || 52) / 2) * z - wrap.clientHeight / 2); }
+      return true;
+  };
   /* Stage 5h Fold 3: the character sheet's facing dial. It turns a token on ITS OWN map (the step from that map's grid, never the
      viewer's Snap setting or the grid on screen) under the arrow's rule (a player turns their own token, while not paused; facing on),
      and ends like the arrow's release: a final pos (the host saves it), then save + render. A token on a map off screen (the GM's dial

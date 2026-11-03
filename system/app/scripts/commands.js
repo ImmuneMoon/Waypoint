@@ -15,7 +15,7 @@ import { state } from './state.js';
 import { getActiveMap, getActiveCampaign } from './models.js';
 import { toast } from './io.js';
 import { navigateToMap } from './sidebar.js';
-import { keyOf, keyName, keysNow, keyAt, keysClean, keyRefusal } from './keycore.js';
+import { codeOf, keyOf, keyName, keysNow, keyAt, keysClean, keyRefusal } from './keycore.js';
 
 // [shelfcheck:cmds-start]
 // A tool of the play map's toolbar: its id, its name, the button that is its press, what it does, other words that find it, how its
@@ -95,6 +95,25 @@ function sceneCan() {
 function sceneAct() { var PS = window.wpPageShelf, s = PS && typeof PS.scenePage === 'function' ? PS.scenePage() : null, t = s && typeof s.title === 'string' ? s.title.slice(0, 60) : ''; return t ? 'Enter opens ' + t + ' over the map.' : 'Enter opens the scene page over the map.'; }
 var CMD_SCENE = { id: 'page.scene', name: 'Scene page', does: 'Open this map’s scene page over the map.', also: ['scene', 'map page', 'planner'], icon: 'mask', key: 'Shift+KeyP',
     can: sceneCan, run: function() { var r = window.wpPageShelf.sceneOpen({}); if (r !== 'panel' && r !== 'window' && r !== 'go') throw new Error('not opened'); }, act: sceneAct };
+// 1.6.2, backlog 202 (the owner, 2026-11-02, by prompt: a controller moves, turns, picks and ends a turn; the arrows move by default, and
+// "if the user wants to set up wsad, they can"). The four moves keep the arrows they always had: io.js's key handler does the moving (Shift
+// there takes bigger steps, or the other diagonal on a hex map) and asks moveDir which way a key moves now. A move is its own (own): it runs
+// from its key alone, never from the quick jump, and its key is one key with nothing held. Turn, the next token and End turn run as any command
+var CMD_MOVES = [
+    ['token.up', 'Move up', 'Move the selection one step up.', 'ArrowUp', [0, -1]],
+    ['token.down', 'Move down', 'Move the selection one step down.', 'ArrowDown', [0, 1]],
+    ['token.left', 'Move left', 'Move the selection one step left.', 'ArrowLeft', [-1, 0]],
+    ['token.right', 'Move right', 'Move the selection one step right.', 'ArrowRight', [1, 0]]
+];
+var CMD_MOVE = CMD_MOVES.map(function(m) { return { id: m[0], name: m[1], does: m[2], also: ['nudge', 'step', 'walk'], icon: 'pawn', key: m[3], own: true, dir: m[4], can: function() { return cmdPlayMap() ? true : 'Moving works on the play map.'; }, run: function() { return 'Press its key to move.'; }, act: function() { return ''; } }; });
+function hookCan(fn, what) { if (typeof window[fn] !== 'function') return what + ' is not in this window.'; return cmdPlayMap() ? true : what + ' works on the play map.'; }
+function endBtn() { if (typeof document.querySelector !== 'function') return null; return document.querySelector('#combatStrip .combat-strip-endturn') || document.querySelector('#combatStrip [data-act="next"]'); }
+var CMD_TOKEN = [
+    { id: 'token.turnLeft', name: 'Turn left', does: 'Turn the selected token to its next facing left.', also: ['rotate', 'face', 'facing'], icon: 'refresh', key: 'BracketLeft', can: function() { return hookCan('wpKeyTurn', 'Turning'); }, run: function() { return window.wpKeyTurn(-1); }, act: function() { return 'Enter turns the selected token left.'; } },
+    { id: 'token.turnRight', name: 'Turn right', does: 'Turn the selected token to its next facing right.', also: ['rotate', 'face', 'facing'], icon: 'refresh', key: 'BracketRight', can: function() { return hookCan('wpKeyTurn', 'Turning'); }, run: function() { return window.wpKeyTurn(1); }, act: function() { return 'Enter turns the selected token right.'; } },
+    { id: 'token.next', name: 'Next token', does: 'Select the next token of yours on this map.', also: ['pick', 'select', 'cycle'], icon: 'next', key: 'KeyN', can: function() { return hookCan('wpKeyNext', 'Picking a token'); }, run: function() { return window.wpKeyNext(); }, act: function() { return 'Enter selects the next token of yours.'; } },
+    { id: 'turn.end', name: 'End turn', does: 'End your turn in a fight. The GM moves play on.', also: ['pass', 'done', 'next turn'], icon: 'check', key: '', can: function() { return endBtn() ? true : 'There is no turn of yours to end now.'; }, run: function() { endBtn().click(); }, act: function() { return 'Enter ends your turn.'; } }
+];
 function winCan(w) {
     var b = document.getElementById(w[2]), n = window.wpNet;
     if (w[5] && n && (n.foreign || (n.active && n.role === 'client'))) return 'The ' + w[1].toLowerCase() + ' is the GM’s.';
@@ -103,7 +122,7 @@ function winCan(w) {
 var COMMANDS = CMD_TOOLS.map(function(t) {
     return { id: t[0], name: t[1], does: t[3], also: t[4], icon: 'wrench', key: t[6] || '', can: function() { return toolCan(t); },
         run: function() { document.getElementById(t[2]).click(); }, act: function() { return toolAct(t); } };   // the tool's own press, as the toolbar's
-}).concat([CMD_LAST, CMD_SCENE], CMD_WINDOWS.map(function(w) {
+}).concat([CMD_LAST, CMD_SCENE], CMD_MOVE, CMD_TOKEN, CMD_WINDOWS.map(function(w) {
     return { id: w[0], name: w[1], does: w[3], also: w[4], icon: w[0] === 'open.settings' ? 'cog' : 'wrench', key: '', can: function() { return winCan(w); },
         run: function() { document.getElementById(w[2]).click(); }, act: function() { return 'Enter opens ' + w[1] + '.'; } };
 }));
@@ -115,7 +134,8 @@ function cmdRun(id, via) {
     if (!c) { cmdLog('run-unknown', { via: how }); return 'There is no such command.'; }
     var ok = cmdCan(c);
     if (ok !== true) { cmdLog('run-held', { id: c.id, via: how }); return typeof ok === 'string' ? ok : 'That cannot run now.'; }
-    try { c.run(); } catch (e) { cmdLog('run-failed', { id: c.id, via: how }); return c.name + ' did not run.'; }
+    var said; try { said = c.run(); } catch (e) { cmdLog('run-failed', { id: c.id, via: how }); return c.name + ' did not run.'; }
+    if (typeof said === 'string' && said) { cmdLog('run-held', { id: c.id, via: how }); return said; }   // 1.6.2: a run that found nothing to do says why
     cmdLog('run', { id: c.id, via: how });
     return true;
 }
@@ -150,6 +170,7 @@ function hotkeyHeld(doc, win, e) {
 function hotkeyDown(e) {
     var k = keyOf(e); if (!k || k === keysTalk()) return;   // a held key alone, and push to talk's own key, are no command's
     var id = keyAt(_keys, k); if (!id) return;
+    var own = typeof cmdById === 'function' ? cmdById(id) : null; if (own && own.own) return;   // 1.6.2: a move is io.js's key handler's to make
     var why = hotkeyHeld(document, window, e);
     if (why) { if (why !== 'repeat' && why !== 'typing') cmdLog('key-held', { id: id, why: why }); return; }
     e.preventDefault();
@@ -205,12 +226,23 @@ function keysPress(doc, id, btn, e) {
     if (e.code === 'Escape' || e.key === 'Escape') { keysUnpick(doc, 'No key was changed.'); return; }
     if (e.repeat === true) return;
     var k = keyOf(e); if (!k) return;   // a held key alone: the wait goes on
-    var why = keyRefusal(k, id, _keys, keysNames(), keysTalk());
+    var c = cmdById(id), names = keysNames(), took = keyAt(_keys, k); if (took === id) took = '';   // 1.6.2 (the owner: "reassign the settings that use those keys"): a key another command has moves here
+    var keysFor = Object.assign({}, _keys); if (took) keysFor[took] = '';
+    var why = keyRefusal(k, id, keysFor, names, keysTalk()) || moveRefusal(k, id, keysFor, names);
     if (why) { keysSay(doc, why); cmdLog('key-refused', { id: id, key: k.replace(/\+/g, '-') }); return; }
-    var c = cmdById(id), ok = keysSet(doc, id, k);
-    keysSay(doc, ok ? c.name + ' is ' + keyName(k) + ' now.' : 'The key could not be kept on this computer.');
+    var mine = keysMine(); mine[id] = k; if (took) mine[took] = ''; var ok = keysSave(mine); keysLoad(); keysDraw(doc);
+    keysSay(doc, ok ? c.name + ' is ' + keyName(k) + ' now.' + (took ? ' ' + names[took] + ' had it and has no key now. Give it another below.' : '') : 'The key could not be kept on this computer.');
+    if (took && ok) cmdLog('key-taken', { id: took });
     cmdLog(ok ? 'key-set' : 'key-save-failed', { id: id, key: k.replace(/\+/g, '-') });
     var nb = keysButton(doc, id); if (nb && typeof nb.focus === 'function') nb.focus();
+}
+// 1.6.2, backlog 202: a move key is one key alone, since Shift with it takes bigger steps; so Shift with a move key is no other command's
+function moveRefusal(k, id, keys, names) {
+    var c = cmdById(id), n = keyName(k), bare = k.split('+').pop();
+    if (c && c.own && k !== bare) return 'A move key is one key with nothing held. Shift with it takes bigger steps.';
+    if (c && c.own) { var sh = keyAt(keys, 'Shift+' + bare); if (sh && sh !== id) return 'Shift+' + keyName(bare) + ' is ' + (names[sh] || 'another command') + ', and Shift with a move key takes bigger steps. Pick another key.'; }
+    if (!(c && c.own) && k.indexOf('Shift+') === 0 && k.split('+').length === 2) { var mv = keyAt(keys, bare), mc = mv ? cmdById(mv) : null; if (mc && mc.own) return n + ' moves in bigger steps with ' + mc.name + '. Pick another key.'; }
+    return '';
 }
 function keysReset(doc) {
     var ok = true; try { localStorage.removeItem('wp_keys'); } catch (e) { ok = false; }
@@ -225,6 +257,8 @@ keysLoad();
 cmdLog('keys-load', { n: Object.keys(_keys).filter(function(id) { return !!_keys[id]; }).length });
 window.addEventListener('keydown', hotkeyDown);   // at the window, coming back up: after every listener of the page
 window.wpCommandKey = function(id) { return keyName(_keys[id] || ''); };
+// 1.6.2, backlog 202: which way a key moves the selection now, or null. Asked by io.js's key handler; a key held with Ctrl or the command key moves nothing
+window.wpMoveDir = function(e) { var c = e && typeof codeOf === 'function' ? codeOf(e) : e && e.code; if (!e || typeof c !== 'string' || !c || e.ctrlKey || e.metaKey) return null; for (var i = 0; i < CMD_MOVES.length; i++) if (_keys[CMD_MOVES[i][0]] === c) return CMD_MOVES[i][4].slice(); return null; };
 keysDraw(document);
 (function wireKeys() {
     var reset = document.getElementById('setKeysResetBtn'); if (reset) reset.addEventListener('click', function() { keysReset(document); });
@@ -317,7 +351,7 @@ var _setFound = [];
 function keyFor(id) { return typeof window.wpCommandKey === 'function' ? String(window.wpCommandKey(id) || '') : ''; }
 function jumpRows() {
     var out = [];
-    COMMANDS.forEach(function(c) { if (cmdCan(c) === true) out.push({ kind: 'cmd', label: c.name, sub: c.does, cmdId: c.id, also: c.also || [], icon: c.icon, key: keyFor(c.id) }); });
+    COMMANDS.forEach(function(c) { if (!c.own && cmdCan(c) === true) out.push({ kind: 'cmd', label: c.name, sub: c.does, cmdId: c.id, also: c.also || [], icon: c.icon, key: keyFor(c.id) }); });
     _setFound = setRows(document, window);
     _setFound.forEach(function(r, i) { out.push({ kind: 'set', label: r.name, sub: r.sub, setAt: i, icon: 'cog' }); });
     return out;

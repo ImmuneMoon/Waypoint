@@ -9,10 +9,18 @@
 
 var KEY_CODE = /^[A-Za-z0-9]{1,20}$/;
 var KEY_HELD = /^(Control|Alt|Shift|Meta|OS)(Left|Right)?$|^(CapsLock|NumLock|ScrollLock|Fn|FnLock|ContextMenu|Unidentified)$/;
+// 1.6.2: a press whose code is empty (some virtual keyboards give none) is read by its own character: a letter, a digit, an arrow or a mark
+var KEY_FROM = { '[': 'BracketLeft', ']': 'BracketRight', ',': 'Comma', '.': 'Period', '/': 'Slash', ';': 'Semicolon', "'": 'Quote', '-': 'Minus', '=': 'Equal', '`': 'Backquote', '\\': 'Backslash', ' ': 'Space' };
+function codeOf(e) {
+    if (!e) return ''; if (typeof e.code === 'string' && e.code) return e.code; if (e.code !== undefined && e.code !== '') return '';
+    var k = typeof e.key === 'string' ? e.key : '';
+    if (/^[A-Za-z]$/.test(k)) return 'Key' + k.toUpperCase(); if (/^[0-9]$/.test(k)) return 'Digit' + k; if (/^Arrow(Up|Down|Left|Right)$/.test(k)) return k;
+    return Object.prototype.hasOwnProperty.call(KEY_FROM, k) ? KEY_FROM[k] : '';
+}
 // A key press as one name, or '' for a press that is no key of its own (a held key alone, a press with no code)
 function keyOf(e) {
-    if (!e || typeof e.code !== 'string' || !KEY_CODE.test(e.code) || KEY_HELD.test(e.code)) return '';
-    return (e.ctrlKey === true || e.metaKey === true ? 'Ctrl+' : '') + (e.altKey === true ? 'Alt+' : '') + (e.shiftKey === true ? 'Shift+' : '') + e.code;
+    var code = codeOf(e); if (!code || !KEY_CODE.test(code) || KEY_HELD.test(code)) return '';
+    return (e.ctrlKey === true || e.metaKey === true ? 'Ctrl+' : '') + (e.altKey === true ? 'Alt+' : '') + (e.shiftKey === true ? 'Shift+' : '') + code;
 }
 // A key as stored: a name keyOf could write, or ''
 function keyClean(v) {
@@ -30,13 +38,13 @@ function keyName(k) {
     var w = /^Key[A-Z]$/.test(code) ? code.slice(3) : /^Digit[0-9]$/.test(code) ? code.slice(5) : /^Numpad[0-9]$/.test(code) ? 'Num ' + code.slice(6) : Object.prototype.hasOwnProperty.call(KEY_WORDS, code) ? KEY_WORDS[code] : code;
     return parts.concat([w]).join('+');
 }
-// The app's own keys and the window's, each with what it already does. The arrows nudge with and without Shift; Esc, Enter and Tab are
+// The app's own keys and the window's, each with what it already does. The arrows alone are the four moves' keys (1.6.2, commands.js), with Shift nudging; Esc, Enter and Tab are
 // refused with any key held (keyRefusal)
 var APP_KEYS = {
     'Ctrl+KeyK': 'quick jump', 'Ctrl+KeyZ': 'Undo', 'Ctrl+KeyY': 'Redo', 'Ctrl+Shift+KeyZ': 'Redo', 'Ctrl+KeyC': 'Copy', 'Ctrl+KeyX': 'Cut', 'Ctrl+KeyV': 'Paste',
     'Ctrl+KeyD': 'Duplicate', 'Ctrl+KeyA': 'Select all', 'Ctrl+KeyF': 'Find', 'Ctrl+KeyB': 'bold text', 'Ctrl+KeyI': 'italic text', 'Ctrl+KeyU': 'underlined text',
     'Ctrl+Shift+KeyM': 'Mute', 'Shift+Digit1': 'Fit to content', 'KeyT': 'Target', 'Space': 'panning', 'Backquote': 'the developer console',
-    'Delete': 'Delete', 'Backspace': 'Delete', 'ArrowLeft': 'nudging', 'ArrowRight': 'nudging', 'ArrowUp': 'nudging', 'ArrowDown': 'nudging',
+    'Delete': 'Delete', 'Backspace': 'Delete',
     'Shift+ArrowLeft': 'nudging', 'Shift+ArrowRight': 'nudging', 'Shift+ArrowUp': 'nudging', 'Shift+ArrowDown': 'nudging', 'Alt+ArrowLeft': 'Back', 'Alt+ArrowRight': 'Forward',
     'Alt+F10': 'the text bar', 'Alt+KeyV': 'the View menu', 'Ctrl+KeyR': 'Reload', 'Ctrl+Shift+KeyR': 'Reload', 'F5': 'Reload', 'Ctrl+Digit0': 'Actual size',
     'Ctrl+Equal': 'Zoom in', 'Ctrl+Shift+Equal': 'Zoom in', 'Ctrl+Minus': 'Zoom out', 'F11': 'Full screen', 'F12': 'the developer tools',
@@ -77,5 +85,5 @@ function keysNow(cmds, mine, talk) {
 // The command a key runs now, or ''
 function keyAt(keys, k) { var c = keyClean(k); if (!c || !keys) return ''; var ids = Object.keys(keys); for (var i = 0; i < ids.length; i++) if (keys[ids[i]] === c) return ids[i]; return ''; }
 
-if (typeof window !== 'undefined') window.wpKeyCore = { keyOf: keyOf, keyClean: keyClean, keyName: keyName, APP_KEYS: APP_KEYS, keyRefusal: keyRefusal, keysClean: keysClean, keysNow: keysNow, keyAt: keyAt };
-export { keyOf, keyClean, keyName, APP_KEYS, keyRefusal, keysClean, keysNow, keyAt };
+if (typeof window !== 'undefined') window.wpKeyCore = { codeOf: codeOf, keyOf: keyOf, keyClean: keyClean, keyName: keyName, APP_KEYS: APP_KEYS, keyRefusal: keyRefusal, keysClean: keysClean, keysNow: keysNow, keyAt: keyAt };
+export { codeOf, keyOf, keyClean, keyName, APP_KEYS, keyRefusal, keysClean, keysNow, keyAt };

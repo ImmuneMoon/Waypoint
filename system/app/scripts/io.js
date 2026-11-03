@@ -1553,7 +1553,8 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
       // Arrow keys nudge the selection (Shift = 10px steps)
       var ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
-      if (ARROWS[e.key]) {
+      var mvDir = typeof window.wpMoveDir === 'function' ? window.wpMoveDir(e) : ARROWS[e.key];   // 1.6.2, backlog 202: the keys the four moves have now (commands.js), the arrows at first
+      if (mvDir) {
 
           var m2 = getActiveMap();
 
@@ -1561,7 +1562,7 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
 
           var step = e.shiftKey ? 10 : 1;
 
-          var dx = ARROWS[e.key][0] * step, dy = ARROWS[e.key][1] * step;
+          var dx = mvDir[0] * step, dy = mvDir[1] * step;
 
           if (state.viewMode === 'visual') {
 

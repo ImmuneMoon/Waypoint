@@ -3658,7 +3658,7 @@ function tradeSpend(camp, pays) {
 net.tradeFights = function() { return !!tradeAct(getActiveCampaign()); };   // the system lets a trade happen in a fight: its row stands on an NPC there (trade.js canAsk)
 function tradeView(tr, you, status, msg) {
     var S = SC(), camp = getActiveCampaign(), ca = tradeChar(camp, tr.a.charId), cb = tradeChar(camp, tr.b.charId), sys = camp && camp.system;
-    var side = function(sd, ch, off, ok) { return { charId: sd.charId, name: String((ch && ch.name) || 'A character').slice(0, 60), ok: !!ok, lines: S && sys && ch ? tradeLines(S, sys, ch, off, sd.by ? 'player' : 'gm') : [] }; };
+    var side = function(sd, ch, off, ok) { var o = { charId: sd.charId, name: String((ch && ch.name) || 'A character').slice(0, 60), ok: !!ok, lines: S && sys && ch ? tradeLines(S, sys, ch, off, sd.by ? 'player' : 'gm') : [] }, mo = S && S.tradeMoney && sys && ch ? S.tradeMoney(sys, ch, off) : []; if (mo.length) o.money = mo; return o; };   // 157 M1b: the money on offer, a Separate currency's on its own line
     var v = { tid: tr.tid, status: status || tr.status, you: you, a: side(tr.a, ca, tr.offA, tr.okA), b: side(tr.b, cb, tr.offB, tr.okB) };
     // where an amount this side receives lands (the receiver picks a chip): only on the view of one who acts for that side, since it names their own rows
     if (S && S.tradeInto && sys) [['a', ca, cb, tr.offB, tr.intoA], ['b', cb, ca, tr.offA, tr.intoB]].forEach(function(q) {
@@ -3824,6 +3824,7 @@ function cleanTradeView(v) {
             return { fid: g.fid, list: txt(g.list, 60) || 'List', label: txt(g.label, 60) || 'It', pick: pick, opts: opts };
         }).filter(Boolean);
         if (gets.length) out.gets = gets;
+        var mon = (Array.isArray(s.money) ? s.money.slice(0, 13) : []).map(function(x) { var n = x && typeof x === 'object' ? num(x.v) : null; return n === null ? null : { label: txt(x.label, 60) || 'Money', v: n }; }).filter(Boolean); if (mon.length) out.money = mon;   // 157 M1b
         return out;
     };
     var a = side(v.a), b = side(v.b); if (!a || !b) return null;

@@ -72,6 +72,7 @@ function twDraw(doc, root, v, off, act) {
             gr.appendChild(gs); col.appendChild(gr);
         });
         var tot = twTotal(s.lines); if (tot !== null) col.appendChild(twEl(doc, 'div', 'trade-total', 'Worth at list price: ' + twNum(tot)));
+        (s.money || []).forEach(function(m) { col.appendChild(twEl(doc, 'div', 'trade-total trade-money', m.label + ' offered: ' + twNum(m.v))); });   // 157 M1b: the money on offer, a Separate currency on its own line
         if (me && v.status === 'open') {
             col.appendChild(twInv(doc, s.name, twChoices(off[sd], s.lines), function(v) { act('add', sd, v); }));
             var ok = twEl(doc, 'button', 'tool trade-ok' + (s.ok ? ' on' : ''), s.ok ? 'Confirmed' : 'Confirm'); ok.type = 'button'; ok.setAttribute('aria-pressed', s.ok ? 'true' : 'false'); ok.setAttribute('data-k', 'ok|' + sd);

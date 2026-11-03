@@ -75,6 +75,14 @@ function moneyWalk(S, F) {
     check('a price in a Separate currency is paid from that currency alone, and one in the base unit from the base unit’s money', bCharm.ok && bCharm.values.f_coins.filter(r => r.defId === 'i_tk1')[0].qty === 4 && bCharm.values.f_chips[0].lvl === 30 && bRope.ok && bRope.values.f_chips[0].lvl === 25 && bRope.values.f_coins.filter(r => r.defId === 'i_tk1')[0].qty === 7,
         J([bCharm, bRope]));
     check('a Separate price more than that currency holds is refused in its own words, whatever else is held', bTooMuch.ok === false && bTooMuch.msg === 'Not enough Tokens: 7 held, 9 needed.', J(bTooMuch));
+    // the money on offer in a trade (157 M1b)
+    const tm = off => S.tradeMoney(sy, mk(), off);
+    check('a trade’s money on offer is the base unit’s at each row’s worth, a Separate currency on a line of its own, a chip’s amount by its amount', J(tm([{ fid: 'f_coins', rowId: 'w_1', qty: 2 }, { fid: 'f_coins', rowId: 'w_2', qty: 4 }, { fid: 'f_coins', rowId: 'w_4', qty: 3 }, { fid: 'f_chips', rowId: 'w_c1', key: '@lvl', amt: 12.5 }]))
+        === J([{ cur: '', label: 'Money', v: 34.5 }, { cur: 'C3', label: 'Tokens', v: 3 }]), J(tm([{ fid: 'f_coins', rowId: 'w_1', qty: 2 }, { fid: 'f_coins', rowId: 'w_2', qty: 4 }, { fid: 'f_coins', rowId: 'w_4', qty: 3 }, { fid: 'f_chips', rowId: 'w_c1', key: '@lvl', amt: 12.5 }])));
+    check('what is no money, a row that is gone and an offer that is no list say nothing', J(tm([{ fid: 'f_odd', rowId: 'x', qty: 1 }, { fid: 'f_coins', rowId: 'nope', qty: 1 }])) === '[]' && J(tm('junk')) === '[]' && J(S.tradeMoney(S.cleanSystem({ v: 1, name: 'N', rolls: [], fields: [] }, { F, gmView: true }), mk(), [{ fid: 'f_coins', rowId: 'w_1', qty: 1 }])) === '[]');
+    const nt = read('scripts/net.js'), tw = read('scripts/trade.js');
+    check('the host puts it on each side of the view only where there is some, the player’s app keeps it as words and numbers, and the window draws a line each', nt.includes("mo = S && S.tradeMoney && sys && ch ? S.tradeMoney(sys, ch, off) : []; if (mo.length) o.money = mo; return o; };") && nt.includes("if (mon.length) out.money = mon;")
+        && tw.includes("(s.money || []).forEach(function(m) { col.appendChild(twEl(doc, 'div', 'trade-total trade-money', m.label + ' offered: ' + twNum(m.v))); });"));
     // the editor
     const sh = read('scripts/sheets.js'), ix = read('index.html'), ui = read('scripts/sysui.js');
     check('the Rules tab has Money, a currency a row with its name, Worth and Separate, a key made once and never shown', ix.includes('<div id="sysMoney" data-topic="money"></div>') && ui.includes("['money', 'Money', 'The currencies money is counted in.']") && sh.includes("function renderCurrencies() {")

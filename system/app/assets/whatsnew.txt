@@ -66,8 +66,8 @@ The System editor
 - Shared values: a number the whole table shares, named in the system, which rolls
   and actions read and move. Each campaign keeps its own figure.
 - Result tables: a table of ranges and words that a roll's Then or an action can
-  roll on. The card shows the words. A row can switch on an effect or go on to
-  another table.
+  roll on. The card shows the words. A row can switch on an effect, add an entry
+  to a list, or go on to another table.
 - A list can say what a trade does to a row: a stat is cleared, set or moved to
   another, which may be GM-only. It can also call for a roll, made for the GM alone
   once both sides confirm. A column can show on some rows only.

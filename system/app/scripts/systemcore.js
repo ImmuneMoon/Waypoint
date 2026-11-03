@@ -4867,6 +4867,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
                 if (nowN === null || nowN === undefined) { if (!D) return { ok: false, reason: 'error', message: 'Only the table\u2019s host rolls on that.' }; var rrN = F.evaluate(tbN.dice, typeof D.random === 'function' ? { vars: vars, random: D.random } : { vars: vars }); if (!rrN || !rrN.ok || typeof rrN.value !== 'number' || !fin(rrN.value)) return { ok: false, reason: 'error', message: 'That table could not be rolled on.' }; nowN = Math.floor(rrN.value); drewN = String(nowN); } else drewN = String(nowN);
                 var rwN = resultRow(tbN, nowN); lines.push({ n: tbN.label, say: rwN && rwN.words ? rwN.words : 'Nothing happens.', roll: drewN });
                 if (rwN && rwN.fx) { var fxN = (Array.isArray(sys.effects) ? sys.effects : []).filter(function(d) { return isObj(d) && d.id === rwN.fx; })[0]; if (fxN) addFx.push({ fx: fxN, on: true }); }
+                if (rwN && isObj(rwN.add)) { var adL = resultAdd(sys, work, rwN.add); if (adL) { out[adL.f] = work.values[adL.f]; asIs = false; lines.push(adL.line); } }   // 1.6.2 (G7): an entry it adds, as a row of the list's own
                 tbN = rwN && rwN.next ? resultOf(sys, rwN.next) : null;
             }
             Array.prototype.splice.apply(amts, [j + 1, 0].concat(addFx)); continue;
@@ -8257,7 +8258,9 @@ function cleanResults(v, gmView) {
         if (res.length >= RES_MAX || !isObj(t) || (t.vis === 'gm' && !gmView)) return; var key = tableKeyOk(t.key, TABLE_KEY), dice = cleanFormulaText(t.dice); if (!key || !dice || seen[lower(key)]) return; var rows = [];
         (Array.isArray(t.rows) ? t.rows : []).slice(0, RES_ROWS * 2).forEach(function(r) {
             if (rows.length >= RES_ROWS || !isObj(r)) return; var lo = typeof r.lo === 'number' && fin(r.lo) ? Math.floor(r.lo) : null, hi = typeof r.hi === 'number' && fin(r.hi) ? Math.floor(r.hi) : lo; if (lo === null || hi < lo) return;
-            var x = { lo: lo, hi: hi }, w = cutText(r.words, LIMITS.noteText); if (w) x.words = w; if (typeof r.fx === 'string' && EFFECT_ID.test(r.fx)) x.fx = r.fx; var nx = tableKeyOk(r.next, TABLE_KEY); if (nx) x.next = nx; rows.push(x);
+            var x = { lo: lo, hi: hi }, w = cutText(r.words, LIMITS.noteText); if (w) x.words = w; if (typeof r.fx === 'string' && EFFECT_ID.test(r.fx)) x.fx = r.fx; var nx = tableKeyOk(r.next, TABLE_KEY); if (nx) x.next = nx;
+            if (gmView && isObj(r.add) && typeof r.add.list === 'string' && FIELD_ID.test(r.add.list) && typeof r.add.entry === 'string' && ITEM_ID.test(r.add.entry)) x.add = { list: r.add.list, entry: r.add.entry };   // ... and an entry it adds to a list, the GM's view alone, since only the host reads a table
+            rows.push(x);
         });
         if (!rows.length) return; seen[lower(key)] = 1; var o = { key: key, label: cutText(t.label, LIMITS.label) || key, dice: dice, rows: rows }; if (t.vis === 'gm') o.vis = 'gm'; res.push(o);
     });
@@ -8299,6 +8302,18 @@ function setValueSink(fn) { _valSink = typeof fn === 'function' ? fn : null; }
 function valueNow(sys, key) { var d = valueDef(sys, key); if (!d) return 0; var n; try { n = _valSrc ? _valSrc(d.key) : undefined; } catch (e) { n = undefined; } return valueHeld(d, typeof n === 'number' ? n : d.start); }
 function cleanShared(v, sys, gmView) { var o = {}, any = false; if (!isObj(v)) return null; Object.keys(v).slice(0, VALUES_MAX * 4).forEach(function(k) { var d = valueDef(sys, k); if (d && typeof v[k] === 'number' && fin(v[k]) && (gmView || d.vis !== 'gm')) { o[d.key] = valueHeld(d, v[k]); any = true; } }); return any ? o : null; }
 function resultOf(sys, key) { var k = lower(String(key)); return (isObj(sys) && Array.isArray(sys.results) ? sys.results : []).filter(function(t) { return isObj(t) && lower(t.key) === k; })[0] || null; }
+// 1.6.2 (backlog 210 c, G7): a row of a result table adds an entry to a list: a row of its own, at Paid 0, its level, switch and making mark as an add writes them. An entry that is gone, a list that is no item list, a list that is full and a list that holds each entry once and has it already add nothing. Answers { f, line } or null
+function resultAdd(sys, work, ad) {
+    var tf = fieldById(sys, ad.list), sp = tf && tf.kind === 'item-list' && isObj(tf.list) ? tf.list : null; if (!sp) return null;
+    var ent = itemDef(sys, ad.entry), fromLib = false; if (!ent) { ent = libFind(ad.entry); fromLib = isObj(ent); } if (!isObj(ent)) return null;
+    var L = (isObj(work.values) && Array.isArray(work.values[tf.id]) ? work.values[tf.id] : []).slice();
+    if (L.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return null;
+    if (sp.noQty && !sp.multi && L.some(function(r) { return isObj(r) && r.defId === ad.entry && r.hid !== 1 && typeof r.opn !== 'string'; })) return null;
+    var id = uid('w_'); while (L.some(function(r) { return rowIdOf(r) === id; })) id = uid('w_');
+    var row = { id: id, defId: ad.entry, qty: 1 }; if (work.making === true) row.mk = 1; if (isObj(sp.lvl)) row.lvl = lvlStart(sp, ent); startStamp(sp, row); if (isObj(sp.on)) row.on = sp.on.def === true; if (sp.price) row.paid = 0; if (fromLib) row.snap = cleanRowDef(ent, true);
+    L.push(row); if (row.on === true && onHeld(sys, sp, L, L.length - 1, sp)) row.on = false; work.values[tf.id] = L;
+    return { f: tf.id, line: { n: tf.label || 'A list', say: ent.vis === 'gm' ? 'Gains something.' : 'Gains ' + (cutText(ent.name, LIMITS.itemName) || 'an entry') + '.' } };
+}
 function resultRow(t, n) { return (isObj(t) && Array.isArray(t.rows) ? t.rows : []).filter(function(r) { return n >= r.lo && n <= r.hi; })[0] || null; }
 function cleanTables(v, gmView) {
     var out = [], seen = map(), cells = 0;   // 1.6.2: a table whose cells would pass LIMITS.tableCells in all is left out: the editor draws a box for every cell

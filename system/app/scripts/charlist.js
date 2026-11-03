@@ -42,7 +42,7 @@ function charDraw(doc, box, model, gm, open) {
     var el = function(tag, cls, text) { var e = doc.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.appendChild(doc.createTextNode(text)); return e; };
     var rowOf = function(r) {
         var d = el('div', 'ch-row'); d.dataset.char = r.id; d.setAttribute('role', 'button'); d.setAttribute('tabindex', '0');   // a class of its own: the tree binds its own rows by theirs (sidebar.js)
-        d.appendChild(el('span', 'si-title', r.name)); if (r.who) d.appendChild(el('small', 'ch-who', r.who));
+        var tN = el('span', 'si-title', r.name); if (typeof window !== 'undefined' && window.wpPlook) window.wpPlook.dress(tN, window.wpPlook.ofCharId(r.id)); d.appendChild(tN); if (r.who) d.appendChild(el('small', 'ch-who', r.who));
         return d;
     };
     var n = model.players.length + model.npcs.length;
@@ -59,7 +59,7 @@ function charDraw(doc, box, model, gm, open) {
     return n;
 }
 // What was drawn, as a text: the list is drawn again only when this changed
-function charSig(model, gm, open) { return JSON.stringify([gm ? 1 : 0, open ? 1 : 0, model.players.map(function(r) { return [r.id, r.name, r.who]; }), model.npcs.map(function(r) { return [r.id, r.name]; })]); }
+function charSig(model, gm, open) { return JSON.stringify([gm ? 1 : 0, open ? 1 : 0, model.players.map(function(r) { return [r.id, r.name, r.who]; }), model.npcs.map(function(r) { return [r.id, r.name]; }), typeof window !== 'undefined' && window.wpPlook ? model.players.concat(model.npcs).map(function(r) { return window.wpPlook.sig(window.wpPlook.ofCharId(r.id)); }) : []]); }   // 1.6.2, backlog 35: and the looks
 // A character's token to go to: on the map on screen before any other, a shown one before one the GM hid; hidden ones only for the GM (all).
 // items: camp.items. Answers { map, tok } or null
 function charTokenOf(items, charId, activeId, all) {

@@ -625,7 +625,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                       var ownerAv = (!wItem.src && wItem.face && window.wpNet && window.wpNet.faceView) ? (window.wpNet.faceView({ face: wItem.face }, cssColor((wItem.color && wItem.color !== 'transparent') ? wItem.color : '#4db3d3')).img || null) : null;   // Onboarding F1c: the character's own face (an emoji face has no picture: the silhouette), never its owner's live profile picture
                       var portrait = wItem.src ? resolveImg(wItem.src) : (ownerAv || (window.wpDefaultAvatar ? window.wpDefaultAvatar((wItem.color && wItem.color !== 'transparent') ? wItem.color : ('hsl(' + wbHashHue(wItem.charName || wItem.id) + ',55%,55%)')) : null));   // character image → owner profile picture → color-tinted silhouette default
                       if (portrait) { var ttImg = document.createElement('img'); ttImg.src = portrait; ttImg.loading = 'lazy'; ttImg.decoding = 'async'; ttImg.style.cssText = 'width:100%; height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;'; ttRoot.appendChild(ttImg); }   // fixed height so the card measures the same before/after the image loads (matches the room card)
-                      var ttName = document.createElement('div'); ttName.className = 'rn'; ttName.textContent = cname; ttRoot.appendChild(ttName);
+                      var ttName = document.createElement('div'); ttName.className = 'rn'; ttName.textContent = cname; if (window.wpPlook) window.wpPlook.dress(ttName, window.wpPlook.ofTok(wItem)); ttRoot.appendChild(ttName);
                       var ttStats = document.createElement('div'); ttStats.className = 'rc'; ttStats.style.cssText = 'color:var(--ink); font-size:11px; white-space:pre-wrap; text-transform:none; letter-spacing:0;'; ttStats.textContent = cstats.length > 400 ? cstats.slice(0, 400) + '…' : cstats; ttRoot.appendChild(ttStats);   // prose, not a label: no uppercase; capped for the hover peek (full text lives in the roster / Properties)
                       if (!isClientC && wItem.gmInfo) { var gmTxt = String(wItem.gmInfo); var ttGm = document.createElement('div'); ttGm.className = 'rc'; ttGm.style.cssText = 'color:var(--gold); font-size:11px; white-space:pre-wrap; margin-top:4px; border-top:1px solid var(--edge); padding-top:3px; text-transform:none; letter-spacing:0;'; ttGm.textContent = gmTxt.length > 300 ? gmTxt.slice(0, 300) + '…' : gmTxt; ttRoot.appendChild(ttGm); }   // per-token GM note / dialogue (GM only; stripped on the wire), capped
                       var sheetLines = window.wpSheets ? window.wpSheets.hoverLinesForToken(wItem) : [];
@@ -1017,6 +1017,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
                   var iniP = String(item.charName || item.name || '?').trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase() || '?';
                   if (!iniEl) { iniEl = document.createElement('span'); iniEl.className = 'token-initials tok-pending'; el.appendChild(iniEl); }
                   if (iniEl.textContent !== iniP) iniEl.textContent = iniP;
+                  if (window.wpPlook) window.wpPlook.fontOn(iniEl, window.wpPlook.ofTok(item));   // 1.6.2, backlog 35: its look's font
               } else if (iniEl && iniEl.classList.contains('tok-pending')) iniEl.remove();
 
           } else if(item.type === 'text') {
@@ -1059,6 +1060,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
               // Stand-in token: initials until a portrait arrives
               var ini = String(item.charName || '?').trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase() || '?';
               if (el.dataset.ini !== ini || !el.querySelector(':scope > .token-initials')) { el.textContent = ''; var iniS = document.createElement('span'); iniS.className = 'token-initials'; iniS.textContent = ini; el.appendChild(iniS); el.dataset.ini = ini; }
+              var iniL = el.querySelector(':scope > .token-initials'); if (iniL && window.wpPlook) window.wpPlook.fontOn(iniL, window.wpPlook.ofTok(item));   // 1.6.2, backlog 35: its look's font
               }
 
           } else if (item.type === 'light') {
@@ -9868,9 +9870,16 @@ function findOf(mapId, tokId, who, am, view) { return (who === 'gm' || who === '
 // A name as the strip and the roster write it: a button where it finds a token here, else the plain name. Everything through esc
 function findName(name, tokId, ok) {
     var t = esc(String(name || ''));
+    var stL = typeof nameCss === 'function' ? nameCss(tokId) : ''; if (stL) t = '<span class="plook-name" style="' + esc(stL) + '">' + t + '</span>';   // 1.6.2, backlog 35: its character's look
     if (ok !== true || typeof tokId !== 'string' || !tokId) return t;
     var tip = esc('Find ' + (String(name || '') || 'this token') + ' on the map');
     return '<button type="button" class="combat-find" data-tok="' + esc(tokId) + '" data-tip="' + tip + '" aria-label="' + tip + '">' + t + '</button>';
+}
+// 1.6.2, backlog 35: the css of the look of the character a token of the map on screen stands for, or '' (wpPlook.css, which cleans it)
+function nameCss(tokId) {
+    var P = typeof window !== 'undefined' ? window.wpPlook : null; if (!P || typeof P.css !== 'function' || typeof tokId !== 'string' || !tokId) return '';
+    var am = typeof getActiveMap === 'function' ? getActiveMap() : null, w = am && Array.isArray(am.whiteboard) ? am.whiteboard.filter(function(x) { return x && x.id === tokId; })[0] : null;
+    return w ? P.css(P.ofTok(w)) : '';
 }
 // The scroll that puts the token's middle in the middle of a view vw by vh at zoom z, with that middle on the board
 function findScroll(tok, z, vw, vh) {

@@ -123,6 +123,14 @@ function withAdvantage(expr, mode, parse) {
     if (!q || !q.ok) return { ok: false };
     return { ok: true, expr: cc };
 }
+// 1.6.2, backlog 35: the personal look of the character a card was made as: a font's plain name and a #rrggbb colour, or null. The font is
+// judged again where it is drawn (wpPlook, Waypoint's own fonts alone)
+function cleanPl(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return null; var o = {};
+    if (typeof v.font === 'string' && /^[A-Za-z0-9][A-Za-z0-9 ]{0,59}$/.test(v.font)) o.font = v.font;
+    if (typeof v.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.color)) o.color = v.color.toLowerCase();
+    return o.font || o.color ? o : null;
+}
 function cleanFrom(f) {
     if (!f || typeof f !== 'object') return null;
     var id = str(f.id, 60), name = str(f.name, 60);
@@ -397,7 +405,7 @@ function cleanRoll(rec) {
     [3, 4, 5].forEach(function(k) { if (rec['dmg' + k] !== undefined && out.dmg === 1) { var dkc = cleanDmg2(rec['dmg' + k]); if (dkc) out['dmg' + k] = dkc; } });   // 1.6.0: a third and a fourth part, each as the second   // 1.6.0 (B3): the blow's second part, only on a damage roll (one that does not clean is left off, the roll kept)   // chat cards: a damage roll, marked by the host from its roll (never the roller's word)   // Stage 6 HUD R3: the roll's malfunction threshold (every machine works the malfunction out from the draws)
     if (rec.more !== undefined && out.dmg === 1) { var hc = cleanHits(rec.more); if (hc) out.more = hc; }   // 1.6.0 A burst: the hits after the first, only on a damage roll (a list that does not clean is left off, the roll kept)
     var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
-    var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
+    var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as; var plC = cleanPl(rec.pl); if (plC && as) out.pl = plC;
     return out;
 }
 // Stage 6 HUD H7: the host's card for an apply action — { type: 'apply', id, from, as?, label?, lines: [{ n, d, v, roll? }] (1 to LIMITS.applyLines), ts, priv? }:
@@ -429,7 +437,7 @@ function cleanApply(rec) {
     if (rec.asked !== undefined) { var akA = cleanAsked(rec.asked); if (akA) out.asked = akA; }   // 1.6.2: what its presser answered
     if (rec.priv !== undefined) { if (rec.priv !== 'gm') return null; out.priv = 'gm'; }
     var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
-    var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
+    var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as; var plC = cleanPl(rec.pl); if (plC && as) out.pl = plC;
     var on = cleanLabel(rec.on); if (on === null) return null; if (on) out.on = on;   // 1.5.9 (book es/et plan, section 3): the character it was used on, by name
     return out;
 }
@@ -443,7 +451,7 @@ function cleanDue(rec) {
     if (!isInt(rec.round) || rec.round < 1 || rec.round > 9999) return null;
     var out = { id: rec.id, from: from, charId: rec.charId, act: rec.act, why: rec.why, round: rec.round, ts: typeof rec.ts === 'number' && isFinite(rec.ts) ? rec.ts : 0 }; if (rec.why === 'blast') delete out.act;
     var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
-    var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
+    var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as; var plC = cleanPl(rec.pl); if (plC && as) out.pl = plC;
     if (rec.theirs !== undefined) { if (rec.theirs !== 1) return null; out.theirs = 1; }
     if (rec.roll !== undefined) { if (rec.roll !== 1) return null; out.roll = 1; }   // 1.5.9 (book es/et plan 4b): a roll that is due, whose button rolls it
     if (rec.why === 'major' && rec.mw !== undefined) { var mwD = cleanLabel(rec.mw); if (mwD === null) return null; if (mwD) out.mw = mwD; }   // 1.6.0: the system's own word for a Major Wound

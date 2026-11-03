@@ -1366,6 +1366,7 @@
   .sheet-plook-color { width: 30px; height: 24px; padding: 1px; border: 1px solid var(--edge); border-radius: 5px; background: var(--panel2); cursor: pointer; }
   .sheet-plook-color.unset { opacity: 0.55; }
   .sheet-plook-name { font-size: 13px; font-weight: 600; }
+  .plook-text .sheet-text:not([style*="font-family"]), .plook-text .sheet-notes:not([style*="font-family"]), .plook-text .sheet-read:not([style*="font-family"]), .plook-text .sheet-box:not([style*="font-family"]) { font-family: var(--plook-font); }   /* 1.6.2, backlog 35: a player's own character's text in their font, where a field sets none */
   .set-pad-info { font-size: 10.5px; color: var(--dim); line-height: 1.4; margin-top: 3px; }
   .set-pad-info:empty { display: none; }   /* 1.6.2: the controller connected, said under the keys' line */   /* 1.6.2: an empty slot where a controller runs nothing, so every row's key stands in the same column */
   .set-keys-say { font-size: 10.5px; color: var(--gold); line-height: 1.4; margin: 2px 0 8px; }

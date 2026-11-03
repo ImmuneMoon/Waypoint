@@ -903,6 +903,7 @@ function plOf(w) {
     var lk = ch && S && typeof S.cleanPlook === 'function' ? S.cleanPlook(ch.plook) : null; _plSig[w.id] = lk ? JSON.stringify(lk) : '';
     return lk;
 }
+function plOn(rec, ch) { var S = SC(), lk = ch && S && typeof S.cleanPlook === 'function' ? S.cleanPlook(ch.plook) : null; if (lk && rec && rec.as) rec.pl = lk; return rec; }   // a card's: the look of the character it names
 function plMoved(id) {
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(); if (!camp || !camp.items) return;
@@ -8641,7 +8642,7 @@ function handleMessage(msg, conn) {
         if (onA && typeof allyWrite === 'function') allyWrite(onA.ch, resA.onValues);
         if (!onA || resA.lines.length) {
             var recA = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(profA, false), label: labelA, lines: applyLines(resA.lines), ts: Date.now() };
-            if (chA.name) recA.as = String(chA.name).slice(0, 60);
+            if (chA.name) recA.as = String(chA.name).slice(0, 60); if (typeof plOn === 'function') plOn(recA, chA);
             if (askedA && askedA.length) recA.asked = askedA;   // 1.6.2
             postApply(recA, Sa.applyScope(campA.system, chA, actA, rowGmA, Fa), chA, conn);
         }
@@ -9621,7 +9622,7 @@ function handleMessage(msg, conn) {
         if (recQ.names && typeof SQ !== 'undefined' && SQ && typeof SQ.rollRefs === 'function' && typeof varsQ === 'function') { var rfQ = SQ.rollRefs(varsQ, recQ.names); if (rfQ) recQ.refs = rfQ; }   // 1.6.0 Specialties: the case each reference used, worked out through the player's view
         if (typeof swQ !== 'undefined' && swQ && swQ.ok && swQ.names.length) recQ.sw = swQ.names.map(function(x) { return { n: x.n, v: x.v }; });   // 1.6.0: the roll switches it was rolled with, by name (their view holds no GM-only one)   // 1.5.8 (handoff 90 Part B): what changed the values it reads
         if (q.label) recQ.label = q.label;
-        if (chQ) recQ.as = String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label);
+        if (chQ) recQ.as = String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label); if (chQ && typeof plOn === 'function' && !(typeof pressQ !== 'undefined' && pressQ)) plOn(recQ, chQ);   // 1.6.2, backlog 35: a player's roll, in its character's look (a crew press names two, so none)
         if (!q.priv && tcQ && tcQ.range && typeof rangeUnseen === 'function' && typeof rangeReadBy === 'function' && rangeUnseen(campQ, tcQ.range, pidQ) && rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? null : q.row)) {   // range R3: its card would tell another player how far a target they cannot see is
             q.priv = 'gm'; if (typeof turnNote === 'function') turnNote(conn, 'Rolled privately: a player on that map cannot see your target.', q.charId);
         }
@@ -10871,7 +10872,7 @@ function dueLine(rec) { var D = DC(); return D && D.dueText ? D.dueText(rec) : '
 net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, B2): an attempt to resist, { att, by, m } (1.6.0, the core's gap 5: and or, the other rolls it may be resisted by)
     if (!ch || typeof ch.id !== 'string' || !act || typeof act.id !== 'string') return;
     var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : kind === 'turnEnd' ? 'turnEnd' : kind === 'cross' ? 'cross' : kind === 'major' ? 'major' : kind === 'wound' ? 'wound' : kind === 'resist' && more && typeof more.att === 'string' ? 'resist' : kind === 'called' ? 'called' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
-    if (ch.name) rec.as = String(ch.name).slice(0, 60);
+    if (ch.name) rec.as = String(ch.name).slice(0, 60); if (typeof plOn === 'function') plOn(rec, ch);
     if (rec.why === 'major' && more && typeof more.mw === 'string' && more.mw) rec.mw = more.mw.slice(0, 60);   // 1.6.0: the system's own word for a Major Wound
     if (rec.why === 'called' && more) { if (typeof more.att === 'string' && more.att) rec.att = more.att; if (more.by) rec.by = String(more.by).slice(0, 60); }   // 1.6.0: a roll another called for
     if ((rec.why === 'major' || rec.why === 'wound') && more && typeof more.att === 'string') rec.att = more.att;   // 1.6.0 (the core's gaps 6 and 7): the blow it answers, by the id of the host's record
@@ -10886,7 +10887,7 @@ net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, 
 net.postBlastDue = function(ch, att, label, toOwner, go) {   // go (1.6.0): the GM's card that lets a blast's Defense rolls go, this machine's own; 'hold': the same for a hold that waits for its target's roll
     if (!ch || typeof ch.id !== 'string' || typeof att !== 'string') return;
     var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, label: String(label || 'A blast').slice(0, 60), why: 'blast', round: 1, roll: 1, att: att, ts: Date.now() };
-    if (go === true || go === 'hold') { rec.go = 1; if (go === 'hold') rec.hold = 1; } else if (ch.name) rec.as = String(ch.name).slice(0, 60);
+    if (go === true || go === 'hold') { rec.go = 1; if (go === 'hold') rec.hold = 1; } else if (ch.name) { rec.as = String(ch.name).slice(0, 60); if (typeof plOn === 'function') plOn(rec, ch); }
     postDue(rec, ch, !!toOwner);
 };
 // ... and a player's press of that card, sent to the host, which rolls it (whiteboard.js wpBlastOwedRoll)
@@ -11152,7 +11153,7 @@ function blowCripWrite(bc, persist) {   // its changes onto the character, sent 
 net.postApplyCard = function(ch, label, lines, scope, hid, asked, by) {   // hid (1.6.2): a roll whose figure is hidden: its card says what moved and no figure. by (1.6.2): who did it, where that is not the GM
     var rec = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: by && by.name ? by : diceFrom(getProfile(), true), lines: applyLines(lines), ts: Date.now() };
     if (label) rec.label = String(label).slice(0, 60);
-    if (ch && ch.name) rec.as = String(ch.name).slice(0, 60);
+    if (ch && ch.name) { rec.as = String(ch.name).slice(0, 60); if (typeof plOn === 'function') plOn(rec, ch); }
     if (!rec.lines.length) return;
     if (Array.isArray(asked) && asked.length) rec.asked = asked;   // 1.6.2: what was answered
     if (hid === true && typeof figApply === 'function') figApply(rec);
@@ -11444,7 +11445,7 @@ net.diceRoll = function(expr, o) {
     if (rec.names && SR && typeof SR.rollRefs === 'function' && typeof varsR === 'function') { var rfR = SR.rollRefs(varsR, rec.names); if (rfR) rec.refs = rfR; }   // 1.6.0 Specialties: the case each reference used (a GM-only row is never named)
     if (swR && swR.names.length) rec.sw = swR.names.map(function(x) { return { n: x.n, v: x.v }; });   // 1.6.0: the roll switches, by name (a GM-only one keeps the roll the GM's, below)   // 1.5.8 (handoff 90 Part B): what changed the values it reads
     if (o.label) rec.label = String(o.label).slice(0, D.LIMITS.label);
-    if (chR) rec.as = String(chR.name || '').slice(0, D.LIMITS.label);
+    if (chR) { rec.as = String(chR.name || '').slice(0, D.LIMITS.label); if (typeof plOn === 'function') plOn(rec, chR); }
     var hosting = net.active && net.role === 'host', toName = '', gmR = [];
     var noChkR = rec.dmg === 1 && typeof D.checkOf === 'function' && !D.checkOf(res, D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '')); if (noChkR) delete rec.crit;   // 1.6.2: a damage roll with no check has no critical to read, so its range is no part of its card and keeps nothing private
     if (hosting && !o.priv && SR && campR && campR.system) SR.gmOnlyNames(campR.system, F.names(expr).map(function(n) { return { name: n }; })).concat(rec.names ? SR.gmDerivedNames(campR.system, F, rec.names) : []).forEach(function(n) { if (!gmR.some(function(m) { return m.toLowerCase() === n.toLowerCase(); })) gmR.push(n); });   // a GM-only name the formula writes (a branch not taken too: the card shows the text), and a value it read that is GM-only or worked out from one

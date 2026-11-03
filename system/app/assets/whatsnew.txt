@@ -188,6 +188,9 @@ At the table
   buttons it has, and whether its layout is the standard one.
 - A character's name can wear a look of its own: a font of Waypoint's own and a
   colour. Its player sets it under the sheet's head, and the GM on any sheet.
+  It shows on the sheet, the hover card, the turn order, Characters and the
+  roll cards, which are edged in its colour, and a player's own sheet text is
+  set in their font.
   Personal looks is a VTT feature, on until the GM switches it off.
 
 Drawings to show

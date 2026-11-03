@@ -99,6 +99,12 @@ function refsInto(wrap, refs) {
     refs.forEach(function(x) { if (x && typeof x === 'object' && typeof x.s === 'string' && x.s) box.appendChild(el('div', 'chat-mod-src', x.s)); });
     if (box.firstChild) wrap.appendChild(box);
 }
+// 1.6.2, backlog 35: a card's "as" or "for" and the character's name, the name in its personal look where the card carries one
+function asTag(word, rec, card) {
+    var t = el('span', 'chat-tag', word), n = el('span', 'chat-as', rec.as); t.appendChild(n);
+    var P = typeof window !== 'undefined' ? window.wpPlook : null; if (P && rec.pl && P.on()) { P.dress(n, rec.pl); if (card && card.style && /^#[0-9a-f]{6}$/.test(rec.pl.color || '')) card.style.boxShadow = 'inset 0 0 0 1px ' + rec.pl.color; }   // and the card edged in its colour
+    return t;
+}
 function renderCard(m) {
     var rec = m.roll, res = m.res, n = net(), Fm = F();
     var priv = !!(rec.priv || rec.to);
@@ -111,7 +117,7 @@ function renderCard(m) {
     var tag = rec.priv === 'gm' ? (rec.from.gm ? 'private' : 'to the GM') : rec.to ? (m.toName ? 'to ' + m.toName : 'private') : '';
     if (tag) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', tag)); }
     if (rec.dmg === 1) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-dmg', 'damage')); }   // chat cards (owner 2026-09-27): a damage roll's tag
-    if (rec.as && rec.as !== rec.from.name) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'as ' + rec.as)); }   // the character the roll was made as (1.5.0)
+    if (rec.as && rec.as !== rec.from.name) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(typeof asTag === 'function' ? asTag('as ', rec, wrap) : el('span', 'chat-tag', 'as ' + rec.as)); }   // the character the roll was made as (1.5.0)
     wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
     wrap.appendChild(el('br'));
     if (rec.label) wrap.appendChild(el('div', 'roll-title', rec.label + (typeof rec.onName === 'string' && rec.onName ? ': ' + rec.onName : '')));
@@ -199,7 +205,7 @@ function hitInto(wrap, i, h, t, words, faces) {
 function renderDue(m) {
     var rec = m.due, wrap = el('div', 'chat-roll chat-due whisper');
     var who = el('b', null, 'Due'); who.style.color = 'var(--gold)'; wrap.appendChild(who);
-    if (rec.as) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'for ' + rec.as)); }
+    if (rec.as) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(typeof asTag === 'function' ? asTag('for ', rec, wrap) : el('span', 'chat-tag', 'for ' + rec.as)); }
     wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
     wrap.appendChild(el('br'));
     var whD = rec.why === 'called' ? (rec.by ? 'called for by ' + rec.by : 'called for') : rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? (typeof resistWhy === 'function' ? resistWhy(rec) : 'resisting an attempt') : rec.why === 'major' ? (typeof dueMajor === 'function' ? dueMajor(rec) : 'a Major Wound') : rec.why === 'wound' ? 'a wound' : rec.hold === 1 ? 'waiting for their roll' : rec.why === 'blast' ? 'a blast' : 'round ' + rec.round;
@@ -247,7 +253,7 @@ function renderApply(m) {
     wrap.appendChild(who);
     if (rec.from.gm) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-gm', 'GM')); }
     if (priv) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'private')); }
-    if (rec.as && rec.as !== rec.from.name) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'as ' + rec.as)); }
+    if (rec.as && rec.as !== rec.from.name) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(typeof asTag === 'function' ? asTag('as ', rec, wrap) : el('span', 'chat-tag', 'as ' + rec.as)); }
     if (rec.on) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'on ' + rec.on)); }   // 1.5.9 (book es/et plan, section 3): the character it was used on, as text
     wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
     wrap.appendChild(el('br'));

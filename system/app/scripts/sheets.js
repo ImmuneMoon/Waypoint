@@ -1182,6 +1182,7 @@ function renderSheet() {
     var gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId()), lockedS = viewLocked(c, { view: 'sheet' });   // the sheet's lock, as buildSections will read it
     var seeP = typeof asPlayerView === 'function' ? asPlayerView(c, camp, gm) : null, sysD = seeP ? seeP.sys : sys, cD = seeP ? seeP.char : c;   // 1.6.0: As player, the system and the copy its owner is sent
     head.textContent = c.name; if (window.wpPlook) window.wpPlook.dress(head, window.wpPlook.ofChar(c));   // 1.6.2, backlog 35: its name in its own look
+    if (typeof plookText === 'function') plookText(body, c);   // and its text in its player's font
     sub.textContent = (c.npc ? 'NPC' : c.ownerId ? ownerName(c, camp) : 'unassigned') + (c.partial ? ' · hover fields only' : '') + (c.making === 1 ? ' · making' : c.unlocked === 1 ? (gm ? ' · open to its player' : ' · yours to fill in') : '') + (gm && c.review === 1 ? ' · new' : '');
     if (gm && Array.isArray(c.shareWith) && c.shareWith.length) sub.textContent += ' · shared with ' + c.shareWith.length;   // 1.6.2 (G8)
     var giveS = gm && !c.partial && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && !window.wpStream && !!window.wpCharList; if (sub.classList) sub.classList.toggle('sheet-sub-give', giveS); if (sub.setAttribute) { if (giveS) { sub.setAttribute('role', 'button'); sub.tabIndex = 0; sub.title = 'Press to give this character to a player'; } else { sub.removeAttribute('role'); sub.removeAttribute('tabindex'); sub.removeAttribute('title'); } }   // 1.6.0: who has it is said here, so it is changed here
@@ -1360,6 +1361,7 @@ function renderHud(charId) {
     var sys = hudView(full), fk = focusKeyOf(v.body), stH = v.body.scrollTop, gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId());
     v.name.textContent = c.name; v.sub.textContent = (full.sheet.hud.title || 'HUD') + (c.npc ? ' \u00b7 NPC' : '');
     if (window.wpPlook) window.wpPlook.dress(v.name, window.wpPlook.ofChar(c));   // 1.6.2, backlog 35: its name in its own look
+    if (typeof plookText === 'function') plookText(v.body, c);
     v.panel.setAttribute('aria-label', 'HUD: ' + c.name);
     if (c.portrait) { v.por.src = imgSrc(c.portrait); v.por.style.display = ''; } else { v.por.removeAttribute('src'); v.por.style.display = 'none'; }
     var all = resolveAll(sys, c, F(), tokenCtxFor(c.id, camp));
@@ -5938,6 +5940,18 @@ function sbxHeld(root) { var w = sbxApi(); if (!w || !root || !root.querySelecto
 function sbxDefer() { if (_sbx.stale) return; _sbx.stale = true; sbxWait(); }
 function sbxWait() { setTimeout(function() { if (!_sbx.stale) return; var roots = [ui('sheetPanel'), ui('hudLayer')]; if (roots.some(function(r) { return sbxHeld(r); })) { sbxWait(); return; } _sbx.stale = false; renderViews(null); }, SBX_WAIT); }
 // [systemcheck:sheetbox-end]
+// 1.6.2, backlog 35 (the owner, 2026-11-03: a look reaches "sheet text"): a player's own character draws its text and notes fields in its
+// player's font where the field has no font of its own; an NPC's, an unassigned character's and the look switched off draw them as ever
+function ownerFont(c) {
+    var P = typeof window !== 'undefined' ? window.wpPlook : null, T = typeof window !== 'undefined' ? window.wpTextFmt : null;
+    if (!P || !T || !c || c.npc || !c.ownerId) return ''; var lk = P.ofChar(c); return lk && lk.font ? T.fontCss(lk.font) : '';
+}
+// a view of the character: its text and notes fields take the font through one style rule (.plook-text), which leaves alone a field that sets
+// a font of its own; none for a character with no such font
+function plookText(body, c) {
+    if (!body || !body.classList || !body.style) return; var fnt = ownerFont(c); body.classList.toggle('plook-text', !!fnt);
+    if (fnt) body.style.setProperty('--plook-font', fnt); else body.style.removeProperty('--plook-font');
+}
 // [systemcheck:sheetlook-start]
 // Item 35: a text or notes field drawn WITH ITS LOOK. Where the field may be used here, in its own box (above). Where it is only read here (a
 // locked sheet, the HUD, a window of its own, a field

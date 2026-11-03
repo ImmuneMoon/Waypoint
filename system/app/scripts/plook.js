@@ -21,6 +21,9 @@ function dress(el, look) {
     el.style.color = lk && lk.color ? lk.color : '';
     return el;
 }
+// a look as css text for a style attribute (the caller escapes it): the font through fontCss, the colour as cleaned; '' for none
+function css(look) { var T = typeof window !== 'undefined' ? window.wpTextFmt : null, lk = clean(look); if (!lk) return ''; var s = ''; if (lk.font && T && typeof T.fontCss === 'function') s += 'font-family:' + T.fontCss(lk.font) + ';'; if (lk.color) s += 'color:' + lk.color + ';'; return s; }
+function fontOn(el, look) { if (!el || !el.style) return el; var T = typeof window !== 'undefined' ? window.wpTextFmt : null, lk = clean(look); el.style.fontFamily = lk && lk.font && T && typeof T.fontCss === 'function' ? T.fontCss(lk.font) : ''; return el; }
 function sig(look) { var lk = clean(look); return lk ? (lk.font || '') + '|' + (lk.color || '') : ''; }
-if (typeof window !== 'undefined') window.wpPlook = { ofChar: ofChar, ofTok: ofTok, ofCharId: ofCharId, dress: dress, sig: sig, on: on };
-export { ofChar, ofTok, ofCharId, dress, sig, on };
+if (typeof window !== 'undefined') window.wpPlook = { ofChar: ofChar, ofTok: ofTok, ofCharId: ofCharId, dress: dress, fontOn: fontOn, css: css, sig: sig, on: on };
+export { ofChar, ofTok, ofCharId, dress, fontOn, css, sig, on };

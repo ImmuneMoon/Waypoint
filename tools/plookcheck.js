@@ -36,7 +36,7 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
     const mkP = (camp, vttOn) => {
         const w = { wpSystemCore: { cleanPlook: S.cleanPlook }, wpTextFmt: { fontCss: T.fontCss }, wpVtt: { on: id => id === 'plook' ? vttOn : true } };
         const body = plS.replace(/^import [^\n]*\n/m, '').replace(/^if \(typeof window[^\n]*\n/m, '').replace(/^export [^\n]*\n?/m, '');
-        return new Function('window', 'getActiveCampaign', body + '\nreturn { ofChar, ofTok, ofCharId, dress, sig, on };')(w, () => camp);
+        return new Function('window', 'getActiveCampaign', body + '\nreturn { ofChar, ofTok, ofCharId, dress, fontOn, css, sig, on };')(w, () => camp);
     };
     const campA = { chars: { c_k: { id: 'c_k', plook: { font: 'Lora', color: '#112233' } } } };
     const P1 = mkP(campA, true), P0 = mkP(campA, false), Pn = mkP(null, true);
@@ -83,6 +83,32 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
     check('Settings, VTT features has its row for this campaign and for the default of new ones, named as the rows are found (set + Plook), with its words when it moves and for a player’s own switch',
         ix.includes('<div class="set-vtt-row" data-vtt="plook"') && ix.includes('id="setPlookState"') && ix.includes('id="setPlookBtn"') && ix.includes('id="setVttGlobalPlookState"') && ix.includes('id="setVttGlobalPlookBtn"')
         && /\n    plook: \['Personal looks on/.test(st) && /\n    plook: 'For you it draws every name plain/.test(st));
+    // ---- fold 2: every other place a name is shown, the cards, and the sheet's text
+    const D = await imp('scripts/dicecore.js'), base = { type: 'roll', id: 'r_1', from: { id: 'u_a', name: 'Ann' }, expr: '3d6', draws: [], v: 1, ts: 1 };
+    const cr = D.cleanRoll || null;
+    if (cr) {
+        const k1 = cr(Object.assign({}, base, { as: 'Kessa', pl: { font: 'Cinzel', color: '#ABCDEF' } })), k2 = cr(Object.assign({}, base, { pl: { font: 'Cinzel' } })), k3 = cr(Object.assign({}, base, { as: 'Kessa', pl: { font: 'Cinzel"; x', color: 'red', more: 1 } }));
+        check('a roll card keeps the look of the character it names, cleaned (a font’s plain name, a #rrggbb colour in lower case), and none with no character named or for a look that does not clean',
+            k1 && J(k1.pl) === J({ font: 'Cinzel', color: '#abcdef' }) && k2 && !('pl' in k2) && k3 && !('pl' in k3), J([k1 && k1.pl, k2 && k2.pl, k3 && k3.pl]));
+    } else check('dicecore publishes cleanRoll', false);
+    const di = read('scripts/dice.js'), wb = read('scripts/whiteboard.js'), cl = read('scripts/charlist.js'), dc = read('scripts/dicecore.js');
+    check('a card says the name it was made as in that character’s look, edged in its colour, through asTag (the tag as it always was where asTag is not at hand); dicecore cleans the look on a roll, an apply and a due card alike',
+        di.includes("function asTag(word, rec, card) {") && (di.match(/typeof asTag === 'function' \? asTag\('(as|for) ', rec, wrap\)/g) || []).length === 3 && di.includes("card.style.boxShadow = 'inset 0 0 0 1px ' + rec.pl.color;")
+        && (dc.match(/var plC = cleanPl\(rec\.pl\); if \(plC && as\) out\.pl = plC;/g) || []).length === 3);
+    check('the host names a card’s character with its look where it names it from its record (seven places, a crew press none), through plOn asked by typeof',
+        (net.match(/if \(typeof plOn === 'function'\)( && !\(typeof pressQ[^)]*\)\))? plOn\(rec[A-Za-z]*, ch[A-Za-z]*\);|typeof plOn === 'function' && !\(typeof pressQ !== 'undefined' && pressQ\)\) plOn\(recQ, chQ\);/g) || []).length >= 6 && net.includes('function plOn(rec, ch) {'));
+    check('the hover card’s name, a token’s initials (the font alone, so a plate of the same colour never hides them), the turn strip’s and the roster’s names, and the Characters section’s rows wear the look; the section is drawn again when a look changes',
+        wb.includes("ttName.textContent = cname; if (window.wpPlook) window.wpPlook.dress(ttName, window.wpPlook.ofTok(wItem));") && (wb.match(/window\.wpPlook\.fontOn\(ini[EL][a-z]*, window\.wpPlook\.ofTok\(item\)\)/g) || []).length === 2
+        && wb.includes("var stL = typeof nameCss === 'function' ? nameCss(tokId) : ''; if (stL) t = '<span class=\"plook-name\" style=\"' + esc(stL) + '\">' + t + '</span>';") && wb.includes('function nameCss(tokId) {')
+        && cl.includes("window.wpPlook.dress(tN, window.wpPlook.ofCharId(r.id))") && cl.includes("window.wpPlook.sig(window.wpPlook.ofCharId(r.id))"));
+    const P2 = mkP(campA, true);
+    check('css gives a look as style text for a name written as markup, the font through fontCss and the colour as cleaned, nothing that could end the attribute (the caller escapes it too); fontOn sets the font alone',
+        P2.css({ font: 'cinzel', color: '#ABCDEF' }) === 'font-family:"Cinzel", serif;color:#abcdef;' && P2.css(null) === '' && P2.css({ font: 'Arial', color: 'red' }) === ''
+        && (() => { const e = { style: { fontFamily: '', color: 'keep' } }; P2.fontOn(e, { font: 'Lora', color: '#000000' }); return e.style.fontFamily === '"Lora", serif' && e.style.color === 'keep'; })());
+    const cssT = read('style.css');
+    check('a player’s own character’s text and notes fields take their player’s font through one rule, never a field that sets a font of its own; the sheet and the HUD say it, and an NPC’s or an unassigned character’s text is as ever',
+        cssT.includes('.plook-text .sheet-text:not([style*="font-family"])') && cssT.includes('font-family: var(--plook-font);') && sh.includes('function plookText(body, c) {') && sh.includes("if (!P || !T || !c || c.npc || !c.ownerId) return '';")
+        && sh.includes("if (typeof plookText === 'function') plookText(body, c);") && sh.includes("if (typeof plookText === 'function') plookText(v.body, c);"));
     summed = true; console.log('\n' + pass + ' passed, ' + fail + ' failed.'); process.exitCode = fail ? 1 : 0;
 })().catch(e => { console.log('FAIL      the suite threw: ' + (e && e.stack || e)); process.exitCode = 1; summed = true; });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never finished its checks'); process.exitCode = 1; } });

@@ -86,11 +86,12 @@ function charNoToken(name, waiting, client) { return name + (waiting ? ' has a t
 // The rows of a character's menu, as the owner picked them: Sheet, HUD where the sheet has one, Find on the map, Delete sheet. Backlog 152 fold 4b (the
 // owner's answer 1, 2026-10-19: a Rules run switch on each NPC, "placed somewhere easy to use quickly"): after Find on the map, an NPC's Rules run as a
 // tick row where it has the switch. rules: which way it stands, true or false (calendar.js rulesRun); anything else, no row
-function charMenuRows(hud, del, rules, give) {
+function charMenuRows(hud, del, rules, give, debts) {   // debts (157 M1h): the GM's Debts... row
     var rows = [{ act: 'sheet', text: 'Sheet\u2026' }];
     if (hud) rows.push({ act: 'hud', text: 'HUD\u2026' });
     rows.push({ rule: true }, { act: 'find', text: 'Find on the map' });
-    if (give === true) rows.push({ act: 'give', text: 'Give to a player\u2026' });   // 1.6.0: the GM's, here and on the sheet's own line
+    if (give === true) rows.push({ act: 'give', text: 'Give to a player\u2026' });
+    if (debts === true) rows.push({ act: 'debts', text: 'Debts\u2026' });   // 1.6.0: the GM's, here and on the sheet's own line
     if (rules === true || rules === false) rows.push({ act: 'rules', text: 'Rules run', tick: rules });
     if (del) rows.push({ rule: true }, { act: 'delete', text: 'Delete sheet\u2026', red: true });
     return rows;
@@ -180,7 +181,7 @@ function menuFor(id, x, y) {
     // Delete only where the sheet module will take it: a player's own whole sheet while their link is up, the GM's where the campaign can be written
     var client = foreign(), del = client ? !!(linkUp() && c.ownerId && c.ownerId === window.wpNet.myId && !c.partial && c.shared !== 1) : !!(window.wpCanPersistLocal && window.wpCanPersistLocal());
     var Cal = window.wpCalendar, rules = !client && Cal && typeof Cal.rulesRun === 'function' ? Cal.rulesRun(id) : null;   // 152 fold 4b: the GM's alone, and only where calendar.js says the character has the switch
-    charMenuRows(!!(S.hudFor && S.hudFor(id)), del, rules, !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal())).forEach(function(r) {
+    charMenuRows(!!(S.hudFor && S.hudFor(id)), del, rules, !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()), !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && typeof S.debtAdd === 'function').forEach(function(r) {
         var d = document.createElement(r.rule ? 'div' : 'button');
         if (r.rule) d.className = 'menu-divider'; else { d.type = 'button'; if (r.red) d.className = 'danger'; d.dataset.act = r.act; d.setAttribute('role', r.tick === true || r.tick === false ? 'menuitemcheckbox' : 'menuitem'); if (r.tick === true || r.tick === false) { d.setAttribute('aria-checked', r.tick ? 'true' : 'false'); d.title = 'Ticked, this NPC\u2019s time rules run by themselves as time passes. Unticked, they do not'; } d.appendChild(document.createTextNode((r.tick === true ? '\u2713 ' : '') + r.text)); }
         _menu.appendChild(d);
@@ -196,6 +197,7 @@ function menuPress(e) {
             var b = e.target && e.target.closest ? e.target.closest('[data-act]') : null; if (!b) return;
             var act = b.dataset.act, cid = _menu.dataset.char; if (act === 'give') { giveMenu(cid, _menuAt[0], _menuAt[1]); return; } menuAway();
             var S2 = sheets(); if (!S2 || !cid) return;
+            if (act === 'debts') { if (S2.debtAdd) S2.debtAdd(cid); return; }
             if (act === 'sheet') openOf(cid);
             else if (act === 'hud') { if (!away() && S2.hudFor(cid)) S2.openHud(cid); }
             else if (act === 'find') findOf(cid);

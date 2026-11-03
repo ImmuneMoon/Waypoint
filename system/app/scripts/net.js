@@ -3663,6 +3663,7 @@ function tradeView(tr, you, status, msg) {
     var xch = !!(sys && sys.trading && sys.trading.exchange === true && Array.isArray(sys.currencies) && sys.currencies.length);   // 157 M1e
     var curs = sys && Array.isArray(sys.currencies) && sys.currencies.length ? [{ key: '*', label: 'The base unit' }].concat(sys.currencies.map(function(c) { return { key: c.key, label: String(c.label || c.key).slice(0, 60) }; })) : null;   // 157 M1b: what a side may accept   // 157 M1b: the money on offer, a Separate currency's on its own line
     var v = { tid: tr.tid, status: status || tr.status, you: you, a: side(tr.a, ca, tr.offA, tr.okA, cb), b: side(tr.b, cb, tr.offB, tr.okB, ca) }; if (curs) v.curs = curs; if (rates) v.rates = true; if (xch) v.xch = true;
+    if (typeof tr.oweA === 'number' && tr.oweA > 0) v.a.owe = tr.oweA; if (typeof tr.oweB === 'number' && tr.oweB > 0) v.b.owe = tr.oweB; var dbStand = S && S.debtOf && ca && cb ? S.debtOf(ca, cb.id) : 0; if (dbStand) v.debt = dbStand;   // 157 M1h: what each side owes on this trade, and the debt between them
     var chg = S && S.tradeChange && sys && ca && cb ? S.tradeChange(sys, ca, tr.offA, cb, tr.offB) : null;   // 157 M1d: change owed, or the payer told it cannot be given
     if (chg) { var cP = v[chg.payer].name, cR = chg.payer === 'a' ? 'b' : 'a', cRn = v[cR].name, cO = String(chg.over); v.change = { payer: chg.payer, over: chg.over, say: chg.can ? cRn + ' owes ' + cP + ' ' + cO + ' in change.' : cRn + ' can\u2019t give change for that: overpay by ' + cO + ', or offer smaller pieces.' + ((cR === 'a' ? tr.a : tr.b).by ? ' ' + cRn + ' may also add something to make up the difference.' : '') }; }
     // where an amount this side receives lands (the receiver picks a chip): only on the view of one who acts for that side, since it names their own rows
@@ -3775,12 +3776,18 @@ function tradeDo(actor, msg) {
         if (xC) chX.trader = xC; else delete chX.trader; chX.updated = Date.now(); saveRemoteSoon();
         var hadX = tr2.okA || tr2.okB; tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, hadX ? 'The terms changed: confirm again.' : ''); return { ok: true };
     }
+    if (msg.op === 'owe') {   // 157 M1h: I owe you, in place of money, set by whoever acts for that side
+        var oN = typeof msg.amt === 'number' && isFinite(msg.amt) ? Math.max(0, Math.min(1e9, Math.round(msg.amt * 100) / 100)) : 0; if (mine === 'a') tr2.oweA = oN; else tr2.oweB = oN;
+        var hadO = tr2.okA || tr2.okB; tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, hadO ? 'The offer changed: confirm again.' : ''); return { ok: true };
+    }
     if (msg.op === 'confirm') {
         if (mine === 'a') tr2.okA = msg.on === true; else tr2.okB = msg.on === true;
         if (!(tr2.okA && tr2.okB)) { tradeTell(tr2); return { ok: true }; }
         var accC = S.tradeAcceptSays ? S.tradeAcceptSays(camp.system, ca, tr2.offA, cb) || S.tradeAcceptSays(camp.system, cb, tr2.offB, ca) : ''; if (accC) { tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, accC); return { error: accC }; }   // 157 M1b: terms changed since the money was put on
         var chgC = S.tradeChange ? S.tradeChange(camp.system, ca, tr2.offA, cb, tr2.offB) : null;   // 157 M1d: what the payer agreed to give over, said on the card
         var res = S.tradeApply(camp.system, ca, cb, tr2.offA, tr2.offB, who(tr2.a), who(tr2.b), { a: tr2.intoA, b: tr2.intoB });
+        if (!res.ok && res.reason === 'empty' && ((tr2.oweA || 0) - (tr2.oweB || 0))) res = { ok: true, valuesA: {}, valuesB: {}, linesA: [], linesB: [] };   // 157 M1h: a trade of I owe you alone
+        var oweNet = (tr2.oweA || 0) - (tr2.oweB || 0);
         if (!res.ok) { tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, res.msg); return { error: res.msg }; }
         var paysT = tradePayers(camp, tr2), barT = paysT.length ? tradeBar(camp, paysT) : ''; if (barT) { tr2.okA = false; tr2.okB = false; tradeTell(tr2, null, barT); return { error: barT }; }
         if (typeof S.tradeRolls === 'function' && window.wpDice && typeof window.wpDice.rollFor === 'function' && window.wpFormula) S.tradeRolls(camp.system, ca, tr2.offA, window.wpFormula).concat(S.tradeRolls(camp.system, cb, tr2.offB, window.wpFormula)).forEach(function(q) { window.wpDice.rollFor(q.charId, q.formula, q.label, { row: { f: q.f, r: q.r, i: q.i }, gmOnly: true }); });   // 1.6.2: on the sheets as they stand, so that the row is still there to roll on; the GM's to see
@@ -3793,9 +3800,10 @@ function tradeDo(actor, msg) {
         if (window.wpSheets) { window.wpSheets.charChanged(tr2.a.charId); window.wpSheets.charChanged(tr2.b.charId); }
         if (paysT.length) tradeSpend(camp, paysT);
         var said = (ca.name || 'A character') + ' gave ' + (res.linesA.join(', ') || 'nothing') + '. ' + (cb.name || 'A character') + ' gave ' + (res.linesB.join(', ') || 'nothing') + '.';
+        if (oweNet && S.debtPut && S.debtOf) { var dbW = S.debtOf(ca, cb.id) + oweNet; S.debtPut(ca, cb, dbW); net.syncChar(tr2.a.charId); net.syncChar(tr2.b.charId); said += ' ' + (oweNet > 0 ? (ca.name || 'A character') + ' owes ' + (cb.name || 'a character') + ' ' + (Math.round(oweNet * 100) / 100) : (cb.name || 'A character') + ' owes ' + (ca.name || 'a character') + ' ' + (Math.round(-oweNet * 100) / 100)) + ' more.'; }   // 157 M1h: the debt both sheets keep
         if (chgC) said += ' ' + ((chgC.payer === 'a' ? cb : ca).name || 'A character') + ' kept ' + chgC.over + ' over the price.';
         tradeCard([ca, cb], 'Trade done. ' + said);
-        logT.said = 'Trade done. ' + said; if (typeof tradeLogPut === 'function') tradeLogPut(logT);
+        if (oweNet) logT.owe = oweNet; logT.said = 'Trade done. ' + said; if (typeof tradeLogPut === 'function') tradeLogPut(logT);   // 157 M1h: the debt it made, which Put back takes off
         tradeEnd(tr2, 'done', 'Trade done. ' + said);
         return { ok: true };
     }
@@ -3896,6 +3904,7 @@ net.tradeReverse = function(id) {
         Object.keys(vals).forEach(function(k) { ch.values[k] = vals[k]; }); ch.updated = Date.now(); chars.push(ch);
         if (Object.keys(vals).length) { net.syncCharDelta(sd.charId, vals); if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(sd.charId); }
     });
+    if (typeof e.owe === 'number' && e.owe && S.debtPut && S.debtOf) { var dA = tradeChar(camp, e.a.charId), dB = tradeChar(camp, e.b.charId); if (dA && dB) { S.debtPut(dA, dB, S.debtOf(dA, dB.id) - e.owe); net.syncChar(e.a.charId); net.syncChar(e.b.charId); } else missed.push('the debt it made'); }   // 157 M1h
     saveRemoteSoon();
     e.back = missed.length ? 'Put back, but not ' + missed.join(', ') + ': they changed since.' : 'Put back.';
     if (chars.length && typeof tradeCard === 'function') tradeCard(chars, 'The GM put back a trade between ' + e.a.name + ' and ' + e.b.name + '.');
@@ -3924,6 +3933,14 @@ net.tradePut = function(tid, offer, side) { var o = { op: 'put', tid: String(tid
 net.tradeConfirm = function(tid, on, side) { var o = { op: 'confirm', tid: String(tid || ''), on: on === true }; if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };
 net.tradeRates = function(tid, r, side) { var o = { op: 'rates', tid: String(tid || '') }; ['buy', 'sell'].forEach(function(k) { if (r && typeof r[k] === 'number' && isFinite(r[k])) o[k] = r[k]; }); if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };   // 157 M1c
 net.tradeXRates = function(tid, xr, side) { var o = { op: 'xrates', tid: String(tid || ''), xr: {} }; if (xr && typeof xr === 'object') Object.keys(xr).slice(0, 13).forEach(function(k) { if (typeof xr[k] === 'number' && isFinite(xr[k])) o.xr[k] = xr[k]; }); if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };   // 157 M1e
+net.tradeOwe = function(tid, amt, side) { var o = { op: 'owe', tid: String(tid || ''), amt: typeof amt === 'number' && isFinite(amt) ? amt : 0 }; if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };   // 157 M1h
+net.debtSet = function(aId, bId, v) {   // 157 M1h: the GM's hand on a debt: a owes b v (below 0: b owes a), 0 clears; both sheets, saved, sent to their owners and logged
+    if (net.role === 'client') return { error: 'Only the GM changes a debt.' }; var S = SC(), camp = getActiveCampaign(), a = camp && camp.chars ? camp.chars[aId] : null, b = camp && camp.chars ? camp.chars[bId] : null;
+    if (!S || !S.debtPut || !a || !b || aId === bId) return { error: 'That debt cannot be set.' }; S.debtPut(a, b, v); a.updated = b.updated = Date.now(); saveRemoteSoon(); net.syncChar(aId); net.syncChar(bId);
+    if (window.wpSheets && window.wpSheets.charChanged) { window.wpSheets.charChanged(aId); window.wpSheets.charChanged(bId); }
+    var n = typeof v === 'number' && isFinite(v) ? Math.round(v * 100) / 100 : 0; logEvent('char', n > 0 ? (a.name || 'A character') + ' owes ' + (b.name || 'a character') + ' ' + n + ', set by the GM.' : n < 0 ? (b.name || 'A character') + ' owes ' + (a.name || 'a character') + ' ' + (-n) + ', set by the GM.' : 'The GM cleared the debt between ' + (a.name || 'a character') + ' and ' + (b.name || 'a character') + '.');
+    return { ok: true };
+};
 net.tradeAccepts = function(tid, acc, side) { var o = { op: 'accepts', tid: String(tid || ''), acc: Array.isArray(acc) ? acc.slice(0, 13).map(String) : [] }; if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };   // 157 M1b
 net.tradeInto = function(tid, fid, row, side) { var o = { op: 'into', tid: String(tid || ''), fid: String(fid || ''), row: typeof row === 'string' ? row : '' }; if (side === 'a' || side === 'b') o.side = side; return tradeSendUp(o); };
 net.tradeCancel = function(tid) { return tradeSendUp({ op: 'cancel', tid: String(tid || '') }); };
@@ -3960,11 +3977,11 @@ function cleanTradeView(v) {
         var acS = (Array.isArray(s.acc) ? s.acc.slice(0, 13) : []).filter(function(k) { return typeof k === 'string' && /^(\*|[A-Za-z][A-Za-z0-9_]{0,23})$/.test(k); }); if (acS.length) out.acc = acS;
         ['buy', 'sell'].forEach(function(k) { var rv = num(s[k]); if (rv !== null && rv >= 0 && rv <= 1000) out[k] = Math.round(rv); });   // 157 M1c
         if (s.xr && typeof s.xr === 'object' && !Array.isArray(s.xr)) { var xrS = {}, xnS = 0; Object.keys(s.xr).slice(0, 13).forEach(function(k) { var xv = num(s.xr[k]); if (/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(k) && xv !== null && xv >= 0 && xv <= 1000) { xrS[k] = Math.round(xv); xnS++; } }); if (xnS) out.xr = xrS; }   // 157 M1e
-        var maS = num(s.moneyAt); if (maS !== null) out.moneyAt = maS;
+        var maS = num(s.moneyAt); if (maS !== null) out.moneyAt = maS; var owS = num(s.owe); if (owS !== null && owS > 0) out.owe = owS;   // 157 M1h
         return out;
     };
     var a = side(v.a), b = side(v.b); if (!a || !b) return null;
-    var o = { tid: v.tid, status: st, you: you, a: a, b: b }; if (v.rates === true) o.rates = true; if (v.xch === true) o.xch = true; if (v.change && typeof v.change === 'object' && (v.change.payer === 'a' || v.change.payer === 'b')) { var ovN = num(v.change.over); if (ovN !== null && ovN > 0) o.change = { payer: v.change.payer, over: ovN, say: txt(v.change.say, 300) }; } var cuV = (Array.isArray(v.curs) ? v.curs.slice(0, 13) : []).map(function(c) { return c && typeof c === 'object' && typeof c.key === 'string' && /^(\*|[A-Za-z][A-Za-z0-9_]{0,23})$/.test(c.key) ? { key: c.key, label: txt(c.label, 60) || c.key } : null; }).filter(Boolean); if (cuV.length) o.curs = cuV; var m = txt(v.msg, 200); if (m) o.msg = m; var cs = txt(v.cost, 200); if (cs) o.cost = cs; return o;
+    var o = { tid: v.tid, status: st, you: you, a: a, b: b }; if (v.rates === true) o.rates = true; if (v.xch === true) o.xch = true; var dbN = num(v.debt); if (dbN !== null && dbN !== 0) o.debt = dbN; if (v.change && typeof v.change === 'object' && (v.change.payer === 'a' || v.change.payer === 'b')) { var ovN = num(v.change.over); if (ovN !== null && ovN > 0) o.change = { payer: v.change.payer, over: ovN, say: txt(v.change.say, 300) }; } var cuV = (Array.isArray(v.curs) ? v.curs.slice(0, 13) : []).map(function(c) { return c && typeof c === 'object' && typeof c.key === 'string' && /^(\*|[A-Za-z][A-Za-z0-9_]{0,23})$/.test(c.key) ? { key: c.key, label: txt(c.label, 60) || c.key } : null; }).filter(Boolean); if (cuV.length) o.curs = cuV; var m = txt(v.msg, 200); if (m) o.msg = m; var cs = txt(v.cost, 200); if (cs) o.cost = cs; return o;
 }
 // [netcheck:trade-end]
 // Turn-based combat T2 (owner, 2026-09-26): the token whose turn it is on the map in view, when it is this player's own — { mapId, rowId, tok }
@@ -8628,7 +8645,7 @@ function handleMessage(msg, conn) {
         if (!allow('trade', { perMs: 0, burst: 20, windowMs: 4000, table: 400 }, conn.peer)) { try { conn.send({ type: 'tradeState', refused: 'Too many steps at once. Try again in a moment.' }); } catch (e) { sendFailed(e); } return; }   // no spacing: a number left by a press on Confirm sends both at once (found live, 2026-10-30: the Confirm was dropped without a word)
         if (peerPaused(conn.peer)) { try { conn.send({ type: 'tradeState', refused: !net.paused && typeof peerGmPaused === 'function' && !peerGmPaused(conn.peer) && typeof HELD_WORDS === 'string' ? HELD_WORDS : 'The table is paused.' }); } catch (e) { sendFailed(e); } return; }
         var qTr = { op: msg.op }; ['from', 'to', 'tid', 'side', 'fid', 'row'].forEach(function(k) { if (typeof msg[k] === 'string' && msg[k].length <= 40) qTr[k] = msg[k]; });
-        if (msg.yes === true) qTr.yes = true; if (msg.on === true) qTr.on = true; if (Array.isArray(msg.offer)) qTr.offer = msg.offer.slice(0, 80); if (Array.isArray(msg.acc)) qTr.acc = msg.acc.slice(0, 13); ['buy', 'sell'].forEach(function(k) { if (typeof msg[k] === 'number' && isFinite(msg[k])) qTr[k] = msg[k]; }); if (msg.xr && typeof msg.xr === 'object' && !Array.isArray(msg.xr)) { var xrQ = {}; Object.keys(msg.xr).slice(0, 13).forEach(function(k) { if (/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(k) && typeof msg.xr[k] === 'number' && isFinite(msg.xr[k])) xrQ[k] = msg.xr[k]; }); qTr.xr = xrQ; }   // 157 M1e
+        if (msg.yes === true) qTr.yes = true; if (msg.on === true) qTr.on = true; if (Array.isArray(msg.offer)) qTr.offer = msg.offer.slice(0, 80); if (Array.isArray(msg.acc)) qTr.acc = msg.acc.slice(0, 13); ['buy', 'sell'].forEach(function(k) { if (typeof msg[k] === 'number' && isFinite(msg[k])) qTr[k] = msg[k]; }); if (typeof msg.amt === 'number' && isFinite(msg.amt)) qTr.amt = msg.amt; if (msg.xr && typeof msg.xr === 'object' && !Array.isArray(msg.xr)) { var xrQ = {}; Object.keys(msg.xr).slice(0, 13).forEach(function(k) { if (/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(k) && typeof msg.xr[k] === 'number' && isFinite(msg.xr[k])) xrQ[k] = msg.xr[k]; }); qTr.xr = xrQ; }   // 157 M1e
         var rTr = tradeDo({ pid: prTr.id }, qTr);
         if (rTr && rTr.error) { try { conn.send({ type: 'tradeState', refused: String(rTr.error).slice(0, 200) }); } catch (e) { sendFailed(e); } }
         // [netcheck:tradebranch-end]

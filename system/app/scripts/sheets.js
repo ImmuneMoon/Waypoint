@@ -1206,6 +1206,7 @@ function renderSheet() {
     if (c.shared === 1) ['sheetUpload', 'sheetPic', 'sheetDelete'].forEach(function(k) { var bS = ui(k); if (bS) bS.style.display = 'none'; });   // 1.6.2 (G8): those stay with its one player
     renderReviewBar(c, camp, gm);
     var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';   // 126: the point budgets, under the head
+    var dtB = ui('sheetDebts'); if (dtB) dtB.style.display = !c.partial && typeof debtBar === 'function' && debtBar(dtB, c, gm, camp) ? '' : 'none';   // 157 M1h: its debts, under the budgets
     var lkB = ui('sheetLinks'); if (lkB) lkB.style.display = linkBar(lkB, sys, c, camp, lockedS) ? '' : 'none';   // 1.6.0: the linked sheets, under the budgets
     if (typeof renderStaleBar === 'function') renderStaleBar(c, camp, gm, own);   // 1.6.0 (backlog 190): an out-of-date sheet says so
     if (seeP) { if (bdB) bdB.style.display = !cD.partial && budgetBar(bdB, sysD, cD) ? '' : 'none'; if (lkB) lkB.style.display = linkBar(lkB, sysD, cD, camp, true) ? '' : 'none'; }   // 1.6.0: As player, what its owner reads
@@ -6504,6 +6505,30 @@ function doneMaking() {
 // 126, point budgets on the sheet (the owner: "the sheet shows spent of total"): one chip a budget, its name, "spent of has", and what is
 // left or by how much it is over. A budget whose figures cannot be worked out for this character shows a dash. A budget's name comes from
 // the system, which can come from a file: every word here is a text node. true: it drew a chip
+// 157 M1h: a character's debts, a line a character: what it owes or is owed. On the GM's sheet each has its amount to change and Clear, and the
+// character's menu's Debts... opens a line to add one (debtAdd). Every word a text node
+var _debtAdd = Object.create(null);
+function debtBar(box, c, gm, camp) {
+    if (!box) return false; box.textContent = ''; var SD = window.wpSystemCore, list = SD && SD.cleanDebts ? SD.cleanDebts(c.debts) || [] : [], n = window.wpNet, can = !!gm && !!n && typeof n.debtSet === 'function' && n.role !== 'client';
+    var said = function(r) { if (r && r.error) toast(r.error); };
+    list.forEach(function(d) {
+        var row = el('span', 'sheet-debt' + (d.v > 0 ? ' owes' : ' owed')); row.appendChild(document.createTextNode(d.v > 0 ? 'Owes ' + d.name + ' ' + debtNum(d.v) : d.name + ' owes ' + debtNum(-d.v)));
+        if (can) { var nb = el('input', 'field sheet-debt-amt'); nb.type = 'number'; nb.min = '0'; nb.step = 'any'; nb.value = String(Math.abs(d.v)); nb.title = 'How much'; nb.setAttribute('aria-label', 'How much'); nb.addEventListener('change', function() { var x = Number(nb.value); if (!isFinite(x) || x < 0) return; said(n.debtSet(c.id, d.with, d.v > 0 ? x : -x)); }); row.appendChild(nb);
+            var cl = el('button', 'tool ghost', 'Clear'); cl.type = 'button'; cl.title = 'Clear this debt on both sheets'; cl.addEventListener('click', function() { said(n.debtSet(c.id, d.with, 0)); }); row.appendChild(cl); }
+        box.appendChild(row);
+    });
+    if (can && _debtAdd[c.id]) {
+        var ad = el('span', 'sheet-debt sheet-debt-add'), who = el('select', 'field sheet-debt-who'), dir = el('select', 'field sheet-debt-dir'), amt = el('input', 'field sheet-debt-amt'), go = el('button', 'tool', 'Add debt');
+        (typeof charList === 'function' ? charList(camp) : []).filter(function(x) { return x && x.id !== c.id && !x.partial; }).forEach(function(x) { var o = el('option', null, x.name || 'A character'); o.value = x.id; who.appendChild(o); });
+        [['owe', 'owes them'], ['owed', 'is owed by them']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; dir.appendChild(op); });
+        who.title = 'The other character'; dir.title = 'Which way the debt runs'; amt.type = 'number'; amt.min = '0'; amt.step = 'any'; amt.placeholder = '0'; amt.title = 'How much'; amt.setAttribute('aria-label', 'How much'); go.type = 'button';
+        go.addEventListener('click', function() { var x = Number(amt.value); if (!who.value || !isFinite(x) || x <= 0) { toast('Pick a character and an amount.'); return; } delete _debtAdd[c.id]; var r = n.debtSet(c.id, who.value, dir.value === 'owe' ? SD.debtOf(c, who.value) + x : SD.debtOf(c, who.value) - x); if (!r || !r.ok) _debtAdd[c.id] = true; said(r); });   // its line goes before the redraw the change makes
+        ad.appendChild(document.createTextNode(c.name ? c.name + ' ' : '')); [dir, who, amt, go].forEach(function(x) { ad.appendChild(x); }); box.appendChild(ad);
+    }
+    return box.childNodes.length > 0;
+}
+function debtNum(x) { return String(Math.round(x * 100) / 100); }
+function debtAdd(id) { _debtAdd[id] = true; if (typeof openSheet === 'function') openSheet(id); }
 function budgetBar(box, sys, c) {
     if (!box) return false; box.textContent = '';
     var list = sys && c && F() ? budgetsOf(sys, c, F()) : [];
@@ -13446,7 +13471,7 @@ function dmgPartPre(mk) { if (!dmgObj(mk) || typeof mk.amt !== 'number' || !isFi
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
 // [systemcheck:dmgwin-end]
 function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : null; return nameWord(s, n); }   // 1.6.2: a name in words, for a card
-window.wpSheets = { bellNote: bellNote, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, debtAdd: debtAdd, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

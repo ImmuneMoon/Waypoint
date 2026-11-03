@@ -74,7 +74,12 @@ function twDraw(doc, root, v, off, act) {
         var tot = twTotal(s.lines), dtot = twTotal(s.lines, true), dealt = (s.lines || []).some(function(l) { return typeof l.deal === 'number'; });
         if (tot !== null) col.appendChild(twEl(doc, 'div', 'trade-total', dealt ? 'Worth at these prices: ' + twNum(dtot) + ' (list price ' + twNum(tot) + ')' : 'Worth at list price: ' + twNum(tot)));   // 157 M1c
         (s.money || []).forEach(function(m) { col.appendChild(twEl(doc, 'div', 'trade-total trade-money', m.label + ' offered: ' + twNum(m.v))); });
-        if (typeof s.moneyAt === 'number') col.appendChild(twEl(doc, 'div', 'trade-total trade-money trade-deal', 'At the other side\u2019s rates: ' + twNum(s.moneyAt)));   // 157 M1e   // 157 M1b: the money on offer, a Separate currency on its own line
+        if (typeof s.moneyAt === 'number') col.appendChild(twEl(doc, 'div', 'trade-total trade-money trade-deal', 'At the other side\u2019s rates: ' + twNum(s.moneyAt)));   // 157 M1e
+        var oth = v[sd === 'a' ? 'b' : 'a'];
+        if (me && v.status === 'open') {   // 157 M1h: I owe you, in place of money
+            var ow = twEl(doc, 'label', 'trade-acc trade-owe'), oi = doc.createElement('input'); ow.appendChild(twEl(doc, 'span', 'trade-acc-cap', 'I owe you')); oi.type = 'number'; oi.min = '0'; oi.step = 'any'; oi.className = 'trade-rate field'; oi.placeholder = '0'; oi.value = typeof s.owe === 'number' ? String(s.owe) : ''; oi.title = 'What ' + s.name + ' will owe ' + oth.name + ' on this trade, in place of money. Both sheets keep it under Debts'; oi.setAttribute('aria-label', 'I owe you'); oi.setAttribute('data-k', 'owe|' + sd);
+            oi.addEventListener('change', function() { var n = Number(oi.value); act('owe', sd, String(oi.value).trim() !== '' && isFinite(n) && n > 0 ? n : 0); }); ow.appendChild(oi); col.appendChild(ow);
+        } else if (typeof s.owe === 'number') col.appendChild(twEl(doc, 'div', 'trade-acc-said', s.name + ' will owe ' + twNum(s.owe) + ' on this trade.'));   // 157 M1b: the money on offer, a Separate currency on its own line
         if (Array.isArray(v.curs) && v.curs.length) {   // 157 M1b: the currencies a side accepts, ticked by whoever acts for it; none ticked is open
             var accN = Array.isArray(s.acc) ? s.acc : [], accOf = function(k) { return accN.some(function(x) { return String(x).toLowerCase() === String(k).toLowerCase(); }); };
             if (me && v.status === 'open') {
@@ -112,6 +117,7 @@ function twDraw(doc, root, v, off, act) {
     root.appendChild(cols);
     if (v.change && v.status === 'open') root.appendChild(twEl(doc, 'div', 'trade-change', v.change.say));   // 157 M1d
     if (v.cost && v.status === 'open') root.appendChild(twEl(doc, 'div', 'trade-cost', v.cost));
+    if (typeof v.debt === 'number' && v.debt) root.appendChild(twEl(doc, 'div', 'trade-msg trade-debt', (v.debt > 0 ? v.a.name + ' owes ' + v.b.name + ' ' + twNum(v.debt) : v.b.name + ' owes ' + v.a.name + ' ' + twNum(-v.debt)) + ' from before.'));   // 157 M1h: the debt that stands between them
     var line = v.status === 'asking' ? (mine.indexOf('a') >= 0 ? 'Waiting for ' + v.b.name + ' to answer.' : v.a.name + ' asks to trade.') : (v.msg || 'Both sides confirm, and everything moves at once.');
     root.appendChild(twEl(doc, 'div', 'trade-msg', line));
 }
@@ -161,6 +167,7 @@ function twAct(kind, sd, arg) {
     else if (kind === 'into' && n.tradeInto) say(n.tradeInto(v.tid, arg.fid, arg.row, side));
     else if (kind === 'acc' && n.tradeAccepts) say(n.tradeAccepts(v.tid, arg, side));   // 157 M1b
     else if (kind === 'xrate' && n.tradeXRates) say(n.tradeXRates(v.tid, arg, side));   // 157 M1e
+    else if (kind === 'owe' && n.tradeOwe) say(n.tradeOwe(v.tid, arg, side));   // 157 M1h
     else if (kind === 'rate' && n.tradeRates) say(n.tradeRates(v.tid, arg, side));   // 157 M1c
 }
 function twRender() {

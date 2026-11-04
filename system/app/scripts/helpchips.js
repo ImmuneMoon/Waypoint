@@ -63,11 +63,12 @@ function chipsDraw(doc) {
     var marks = help.querySelectorAll('b[data-ctl]');
     for (var i = 0; i < marks.length; i++) {
         var b = marks[i], key = b.getAttribute('data-ctl'), f = chipFind(doc, key); if (!f) continue;
+        if (!b.dataset.name) b.dataset.name = String(b.textContent || '').replace(/\s+/g, ' ').trim();   // Help's own words for it, kept before the chip takes their place
         var chip = b.querySelector('.help-chip');
         if (!chip) { chip = doc.createElement('span'); chip.className = 'help-chip'; chip.setAttribute('role', 'button'); chip.dataset.ctl = key; b.textContent = ''; b.appendChild(chip); }
         chip.textContent = ''; chip.appendChild(chipCopy(doc, f.el));
         var why = chipReach(doc, f); chip.classList.toggle('help-chip-off', !!why); chip.setAttribute('tabindex', why ? '-1' : '0'); chip.setAttribute('aria-disabled', why ? 'true' : 'false');
-        var words = (f.el.textContent || '').replace(/\s+/g, ' ').trim() || String(f.el.getAttribute('title') || '').split('.')[0].trim(); chip.setAttribute('aria-label', words); chip.dataset.tip = why ? words + '. ' + why + '.' : 'Show me ' + words + '.';   // fold 2: an icon alone says itself by its tooltip
+        var words = (b.dataset.name || (f.el.textContent || '').replace(/\s+/g, ' ').trim() || String(f.el.getAttribute('title') || '').split('.')[0].trim()).replace(/[.\u2026]+$/, ''); chip.setAttribute('aria-label', words); chip.dataset.tip = why ? words + '. ' + why + '.' : 'Show me ' + words + '.';   // fold 2: an icon alone says itself by its tooltip   // a chip says itself in Help's words (a menu row's own may hold more, such as how many kinds it lists), never ending in two stops
         n++;
     }
     return n;

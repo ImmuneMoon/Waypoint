@@ -110,9 +110,16 @@ function rowPage(opts) {
     timers.length = 0; api.chipGo(T.doc, '#soundInd'); timers.filter(x => x[1] === 0).forEach(x => x[0]());
     check('a control the row folded away is shown by opening the tray and lighting its button there', T.tray.hidden === false && T.stand.classList.contains('help-found') && !T.fold.classList.contains('help-found'));
     const n2 = api.chipsDraw(T.doc), cs = T.help.querySelectorAll('.help-chip');
-    check('an icon with no words of its own says itself by its tooltip; a control of the GM\u2019s is in reach for the GM', n2 === 3 && cs[1].dataset.tip === 'Show me More.' && !cs[2].classList.contains('help-chip-off'), JSON.stringify(cs.map(c => c.dataset.tip)));
+    check('a chip says itself in Help\u2019s own words, the menu row\u2019s other words left out; a control of the GM\u2019s is in reach for the GM', n2 === 3 && cs[1].dataset.tip === 'Show me More.' && !cs[2].classList.contains('help-chip-off'), JSON.stringify(cs.map(c => c.dataset.tip)));
     const Tp = rowPage({ player: true }); api.chipsDraw(Tp.doc); const cp = Tp.help.querySelectorAll('.help-chip');
     check('on a player\u2019s app a control of the GM\u2019s is drawn greyed and says so', cp[2].classList.contains('help-chip-off') && cp[2].dataset.tip === 'Snapshot. The GM\u2019s.' && !cp[0].classList.contains('help-chip-off'), JSON.stringify(cp.map(c => c.dataset.tip)));
+}
+{
+    const W = rowPage(); W.saveAs.appendChild(mk('span', { text: '13 kinds' })); W.help.querySelectorAll('b')[0].textContent = 'Restore points\u2026'; W.help.querySelectorAll('b')[0].setAttribute('data-ctl', '#saveAsBtn');
+    api.chipsDraw(W.doc); api.chipsDraw(W.doc); const cw = W.help.querySelectorAll('.help-chip');
+    check('drawn twice, a chip still says Help\u2019s own words, with no stop doubled', cw[0].dataset.tip === 'Show me Restore points.' && cw[0].getAttribute('aria-label') === 'Restore points', JSON.stringify(cw.map(c => c.dataset.tip)));
+    const cssW = read('style.css');
+    check('a menu row copied into a chip keeps the menu\u2019s look', cssW.includes('.help-chip-in > .menu-item, .help-chip-in > .rm-row { display: inline-flex !important;'));
 }
 // ---- every mark Help carries names a control the page has
 const html = read('index.html'), marks = [...html.matchAll(/<b data-ctl="([^"]+)">/g)].map(m => m[1]);

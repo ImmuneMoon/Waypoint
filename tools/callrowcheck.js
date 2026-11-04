@@ -77,17 +77,27 @@ const imp = p => import('file:///' + path.resolve(app(p)).replace(/\\/g, '/'));
     H.callsAfter(camp, Object.assign({}, ent, { calls: [{ roll: 'r_dodge' }] }), true, () => 0, chA, false, { f: 'f_w', r: 'w_vibro', i: 0 }); const h3 = posted.pop();
     check('on a success or a failure a list’s roll is posted on the row the roll was made on, none with no row, and a roll of the system as before',
         h1 && h1.ch === 'c_a' && J(h1.more.row) === J({ f: 'f_w', r: 'w_vibro', i: 1 }) && h2 && h3 && h3.act === 'r_dodge' && !h3.more.row, J([h1, h3]));
+    // ---- Blow.big: the attack's Big Hit rides the call's record
+    const dj = read('scripts/dice.js'), nj = src, sh = read('scripts/sheets.js');
+    H.callsAfter(camp, Object.assign({}, ent, { calls: [{ roll: 'r_dodge' }] }), true, () => 0, chA, false, null, true); const g1 = posted.pop(), gR = g1 && _attempts[g1.more.att];
+    H.callsAfter(camp, entH, true, () => 0, chA, false, { f: 'f_w', r: 'w_vibro', i: 0 }, true); const g2 = posted.pop(), gR2 = g2 && _attempts[g2.more.att];
+    H.callsAfter(camp, Object.assign({}, ent, { calls: [{ roll: 'r_dodge' }] }), true, () => 0, chA, false, null); const g3 = posted.pop(), gR3 = g3 && _attempts[g3.more.att];
+    check('an attack that lands as a Big Hit marks the record of each card it calls for, a roll of the system and a list\u2019s roll alike; one that does not marks none',
+        gR && gR.big === true && gR2 && gR2.big === true && gR3 && gR3.big === undefined, J([gR, gR2, gR3]));
+    check('a damage roll made with such a record is marked a Major Wound and Blow.big on the host, on a player\u2019s press and the GM\u2019s, and the card hands both to the Take damage window',
+        nj.includes("if (recQ.dmg === 1 && typeof abQ !== 'undefined' && abQ && abQ.big === true) { recQ.major = 1; recQ.blowBig = 1; }") && nj.includes("if (rec.dmg === 1 && typeof abR !== 'undefined' && abR && abR.big === true) { rec.major = 1; rec.blowBig = 1; }")
+        && nj.includes("!!recQ.priv, q.row, recQ.big === true);") && nj.includes("!!rec.priv || !!rec.to, o.row, rec.big === true);") && dj.includes("major: rec.major === 1, big: rec.blowBig === 1 ? true : undefined, kind:") && sh.includes("if (more.big === true) { pre.major = true; pre.big = true; }") && sh.includes("if (pre.big === true && mjt.checked) o.big = true;"));
     // ---- the card
     const due = { type: 'due', id: 'r_abcdefgh', from: { id: 'u_gm', name: 'GM', gm: true }, charId: 'c_p', act: 'r_row', label: 'Durability', why: 'called', round: 1, roll: 1, att: 'b_abcd1234', by: 'Attack', or: [{ row: { f: 'f_w', r: 'w_saber', i: 1 }, label: 'Durability' }], nm: 1, ts: 1 };
     const cd = D.cleanDue(due), bad = [{ nm: undefined }, { or: undefined }, { or: [due.or[0], { row: { f: 'f_w', r: 'w_axe', i: 1 } }] }, { or: [{ act: 'r_x', row: due.or[0].row }] }, { or: [{ row: { f: 'f_w', r: 'w_saber', i: 200 } }] }, { or: [{ row: { f: 'x', r: 'w_saber', i: 1 } }] }, { roll: undefined }].map(o => D.cleanDue(Object.assign({}, due, o)));
     check('a called card may carry one list row as its one button; two rows, no mark, a roll beside it, a place past a list’s rolls, a bad list and a card that is no roll are refused; a card with none is as before',
         cd && J(cd.or) === J(due.or) && cd.nm === 1 && cd.att === 'b_abcd1234' && bad.every(x => x === null) && D.cleanDue(Object.assign({}, due, { or: undefined, nm: undefined })).why === 'called', J([cd, bad]));
     // ---- the press, the editor, the words
-    const dj = read('scripts/dice.js'), nj = src, sh = read('scripts/sheets.js'), html = read('index.html'), wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wa = read('assets/whatsnew.txt'), ci = fs.readFileSync(path.join(root, '.github', 'workflows', 'checks.yml'), 'utf8');
+    const html = read('index.html'), wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wa = read('assets/whatsnew.txt'), ci = fs.readFileSync(path.join(root, '.github', 'workflows', 'checks.yml'), 'utf8');
     check('the card’s button presses that row’s roll, and the host puts the row on the card as its one button',
         dj.includes("rec.why === 'called' && rec.nm === 1 && Array.isArray(rec.or) && rec.or[0] ? rec.or[0].row : undefined") && nj.includes("if (rec.why === 'called' && more && more.row && typeof more.row === 'object') { rec.or = [{ row: { f: more.row.f, r: more.row.r, i: more.row.i }"));
     check('the attempt keeps who made it and on which row, and both roll paths hand the row to callsAfter',
-        nj.includes("if (c.to === 'self') cK.to = 'self';") && nj.includes("_attempts[id].callFrom = fromCh.id;") && nj.includes("_attempts[id].callRow = { f: rowRef.f, r: rowRef.r };") && nj.includes("!!recQ.priv, q.row);") && nj.includes("!!rec.priv || !!rec.to, o.row);"));
+        nj.includes("if (c.to === 'self') cK.to = 'self';") && nj.includes("_attempts[id].callFrom = fromCh.id;") && nj.includes("_attempts[id].callRow = { f: rowRef.f, r: rowRef.r };") && nj.includes("!!recQ.priv, q.row, recQ.big === true);") && nj.includes("!!rec.priv || !!rec.to, o.row, rec.big === true);"));
     check('the System editor offers a list’s rolls to call for and, When it is resisted, who the card goes to; Help and both notes say so; CI runs this suite',
         sh.includes("'Calls for: ' + (f.label || f.key || 'List') + ': ' + (lr.label || 'Roll') + ' on that row'") && sh.includes("select('sys-call-to', [['', 'To the one who resisted'], ['self', 'To the roller']]")
         && html.includes('A call can ask for a list’s roll') && wn.includes('A roll\'s Calls for can ask for a list\'s roll on a row') && wa.includes('A roll\'s Calls for can ask for a list\'s roll on a row') && ci.includes('run: node tools/callrowcheck.js'));

@@ -1960,7 +1960,7 @@ function layerVars(listed, worn, blow, both, cap) {
     var bw = blow && typeof blow === 'object' ? blow : {}, bn = function(v) { return typeof v === 'number' && isFinite(v) ? v : 0; };
     return function(l, text) {
         if (l === 'listed') return listed; if (l === 'worn') return worn; if (l === 'todestroy') return Math.max(0, (typeof cap === 'number' ? cap : listed * 2) - worn);
-        if (l === 'blow.dmg') return bn(bw.dmg); if (l === 'blow.through') return bn(bw.through); if (l === 'blow.wound') return bn(bw.wound); if (l === 'blow.type') return bn(bw.type); if (l === 'blow.cuts') return bw.cuts ? 1 : 0; if (l === 'blow.major') return bw.major ? 1 : 0; if (l === 'blow.kind') return bn(bw.kind);
+        if (l === 'blow.dmg') return bn(bw.dmg); if (l === 'blow.through') return bn(bw.through); if (l === 'blow.wound') return bn(bw.wound); if (l === 'blow.type') return bn(bw.type); if (l === 'blow.cuts') return bw.cuts ? 1 : 0; if (l === 'blow.major') return bw.major ? 1 : 0; if (l === 'blow.big') return bw.big ? 1 : 0; if (l === 'blow.kind') return bn(bw.kind);
         if (/^blow\.(type|wound|kind)[2345]$/.test(l)) return bn(bw[l.slice(5)]);   // 1.6.0: each added part's type, wound and kind, 0 with none
         return both(l, text);
     };
@@ -2039,9 +2039,11 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
             var mw = {}, mif = cleanFormulaText(w.if); if (mif) mw.if = mif;
             if (typeof w.fx === 'string' && EFFECT_ID.test(w.fx)) mw.fx = w.fx;
             if (typeof w.roll === 'string' && ROLL_ID.test(w.roll)) { mw.roll = w.roll; if (out.locs) { var mwc = dmgStatOk(fl, out.locs.list, w.crip); if (mwc) { mw.crip = mwc; var mwb = cleanFormulaText(w.cripBy); if (mwb) mw.cripBy = mwb; } } }
+            if (mw.roll && w.asAt === true) mw.asAt = true;   // 1.6.2: its roll on the sheet as it stood at this row
             if (mw.fx || mw.roll) oms.push(mw);
         }); if (oms.length) out.onMajor = oms;
     }
+    if (out.onMajor && !Array.isArray(out.onMajor) && out.onMajor.roll && d.onMajor.asAt === true) out.onMajor.asAt = true;   // 1.6.2: its roll on the sheet as it stood here
     if (out.onMajor && !Array.isArray(out.onMajor) && out.onMajor.roll && out.locs) { var omc = dmgStatOk(fl, out.locs.list, d.onMajor.crip); if (omc) { out.onMajor.crip = omc; var omb = cleanFormulaText(d.onMajor.cripBy); if (omb) out.onMajor.cripBy = omb; } }   // 1.6.0 (the core's gap 7): the location its roll's failure cripples, and by how much
     if (!pl && Array.isArray(d.onWound)) {   // 1.6.0 (the core's gap 6): what any wound does
         var ows = []; d.onWound.forEach(function(w) {
@@ -2181,10 +2183,12 @@ function dmgOnMajor(sys, char, om, values, lines, info, F, fxo, wnd) {   // wnd 
 // 1.6.0: Blow.type2, wound2, type3, wound3, type4, wound4, type5 and wound5, each added part's type (its place in the types, 1 the first, 0 with none) and its
 // wound, by its slot; 0 where the blow has no such part, so an Any wound row can fire for a part's own type
 // 1.6.0: Blow.kind, the blow's kind (its place in the system's kinds, 1 the first, 0 none), and kind2 to kind5, each added part's, its own else the first part's
-var BLOW_NAMES = Object.freeze({ dmg: 1, through: 1, wound: 1, type: 1, cuts: 1, major: 1, type2: 1, wound2: 1, type3: 1, wound3: 1, type4: 1, wound4: 1, type5: 1, wound5: 1, kind: 1, kind2: 1, kind3: 1, kind4: 1, kind5: 1 });
+// 1.6.2 big: 1 where the attack that called this damage landed as a Big Hit (its success inside its Lands as a Big Hit range), carried by the call's
+// record to the damage roll it posted; the damage is then a Major Wound so long as some of it gets through (the book: "if it injures at all"), else 0
+var BLOW_NAMES = Object.freeze({ dmg: 1, through: 1, wound: 1, type: 1, cuts: 1, major: 1, big: 1, type2: 1, wound2: 1, type3: 1, wound3: 1, type4: 1, wound4: 1, type5: 1, wound5: 1, kind: 1, kind2: 1, kind3: 1, kind4: 1, kind5: 1 });
 function withBlow(tctx, b) {
     var o = {}; if (!isObj(b)) b = {};
-    Object.keys(BLOW_NAMES).forEach(function(k) { o[k] = k === 'cuts' || k === 'major' ? (b[k] === true || b[k] === 1 ? 1 : 0) : fin(b[k]) ? Math.max(-1e6, Math.min(1e6, b[k])) : 0; });
+    Object.keys(BLOW_NAMES).forEach(function(k) { o[k] = k === 'cuts' || k === 'major' || k === 'big' ? (b[k] === true || b[k] === 1 ? 1 : 0) : fin(b[k]) ? Math.max(-1e6, Math.min(1e6, b[k])) : 0; });
     if (isObj(b.hit) && typeof b.hit.f === 'string' && typeof b.hit.r === 'string') o.hit = { f: b.hit.f, r: b.hit.r };
     return Object.assign({}, isObj(tctx) ? tctx : {}, { blow: o });
 }
@@ -2195,7 +2199,7 @@ function withBlow(tctx, b) {
 // 1.6.0: sys, where the caller hands it, adds Type.<key>, a damage type's place, and Kind.<key>, a kind's, so Blow.type and Blow.kind are compared by name (placeName)
 function blowCripN(text, margin, natural, b, F, sys) {
     if (typeof text !== 'string' || !text || !F || typeof F.evaluate !== 'function') return null;
-    var bw = isObj(b) ? b : {}, r = F.evaluate(text, { vars: function(n) { var l = lower(n); if (l === 'margin') return fin(margin) ? margin : 0; if (l === 'natural') return fin(natural) ? natural : 0; if (l.indexOf('blow.') === 0 && BLOW_NAMES[l.slice(5)] === 1) return l === 'blow.cuts' || l === 'blow.major' ? (bw[l.slice(5)] === true || bw[l.slice(5)] === 1 ? 1 : 0) : fin(bw[l.slice(5)]) ? bw[l.slice(5)] : 0; if (isObj(sys) && (l.indexOf('type.') === 0 || l.indexOf('kind.') === 0)) return placeName(sys, l); return undefined; }, random: noDice });
+    var bw = isObj(b) ? b : {}, r = F.evaluate(text, { vars: function(n) { var l = lower(n); if (l === 'margin') return fin(margin) ? margin : 0; if (l === 'natural') return fin(natural) ? natural : 0; if (l.indexOf('blow.') === 0 && BLOW_NAMES[l.slice(5)] === 1) return l === 'blow.cuts' || l === 'blow.major' || l === 'blow.big' ? (bw[l.slice(5)] === true || bw[l.slice(5)] === 1 ? 1 : 0) : fin(bw[l.slice(5)]) ? bw[l.slice(5)] : 0; if (isObj(sys) && (l.indexOf('type.') === 0 || l.indexOf('kind.') === 0)) return placeName(sys, l); return undefined; }, random: noDice });
     var v = r && r.ok ? (typeof r.value === 'boolean' ? (r.value ? 1 : 0) : r.value) : null; return typeof v === 'number' && fin(v) ? Math.floor(v) : null;
 }
 function blowCripOf(sys, char, b, crip, n) {
@@ -2240,6 +2244,7 @@ function poolSpill(sys, w, pf, cur, loss, F, tctx) {
 function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, the clock an effect a Major Wound switches on starts its timer by ({ now, inCombat }, as applyAct's); wl (1.6.0, a burst): a list told each wear this blow writes (damageBurst)
     var rules = sys && isObj(sys.combat) && isObj(sys.combat.damage) ? sys.combat.damage : null; if (!rules || !F || !isObj(char)) return { ok: false, reason: 'field' };
     if (!isObj(inp) || typeof inp.amt !== 'number' || !fin(inp.amt) || inp.amt < 0 || inp.amt > DMG_LIM.amt) return { ok: false, reason: 'value' };
+    if (inp.big === true && inp.major !== true) inp = Object.assign({}, inp, { major: true });   // 1.6.2: an attack's Big Hit is a Major Wound if it injures at all
     var pIn = [];   // 1.6.0 (B3): the added parts of the same blow, each of another type: inp.part2, part3, part4 and part5, { amt, type, ad, dice }, by slot
     [2].concat(DMG_MORE).forEach(function(k) { var pk = isObj(inp['part' + k]) ? inp['part' + k] : null; if (pk) pIn.push({ k: k, p: pk }); });
     if (pIn.some(function(x) { var p2 = x.p; return typeof p2.amt !== 'number' || !fin(p2.amt) || p2.amt < 0 || p2.amt > DMG_LIM.amt; })) return { ok: false, reason: 'value' };
@@ -2347,14 +2352,14 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
                     spD.steps.forEach(function(s) { values[s.f] = s.value; var sf = fieldById(sys, s.f); if (sf && sf.vis !== 'gm' && spHid[s.f] !== 1) lines.push(s.amt + ' spill' + (s.amt === 1 ? 's' : '') + ' into ' + s.label + '.'); (info.spill = info.spill || []).push({ f: s.f, amt: s.amt }); });
                 }
             }
-            var blowF = blowKinds({ dmg: bAmt, through: through, wound: wound, type: ty ? (rules.types || []).indexOf(ty) + 1 : 0, cuts: bCuts }), follows = []; Bs.forEach(function(B, i) { blowF['type' + twos[i].k] = twos[i].ty ? (rules.types || []).indexOf(twos[i].ty) + 1 : 0; blowF['wound' + twos[i].k] = B.wound; });   // 1.6.0: and each added part's own type and wound, by its slot   // 1.6.0 (B3): a blow of two parts, their totals (its type the first part's)   // 1.6.0 (the core's gaps 6 and 7): the blow, for onWound, onMajor's if and the rolls posted
-            var wR = function(l, text) { if (/^blow\./.test(l)) { var bk = l.slice(5); return BLOW_NAMES[bk] === 1 ? (bk === 'cuts' || bk === 'major' ? (blowF[bk] ? 1 : 0) : num(blowF[bk])) : R(l, text); } return hitR(l, text); };   // a part the blow does not have reads 0
+            var blowF = blowKinds({ dmg: bAmt, through: through, wound: wound, type: ty ? (rules.types || []).indexOf(ty) + 1 : 0, cuts: bCuts }), follows = []; Bs.forEach(function(B, i) { blowF['type' + twos[i].k] = twos[i].ty ? (rules.types || []).indexOf(twos[i].ty) + 1 : 0; blowF['wound' + twos[i].k] = B.wound; }); if (inp.big === true) blowF.big = 1;   // 1.6.0: and each added part's own type and wound, by its slot   // 1.6.2: and the attack's Big Hit   // 1.6.0 (B3): a blow of two parts, their totals (its type the first part's)   // 1.6.0 (the core's gaps 6 and 7): the blow, for onWound, onMajor's if and the rolls posted
+            var wR = function(l, text) { if (/^blow\./.test(l)) { var bk = l.slice(5); return BLOW_NAMES[bk] === 1 ? (bk === 'cuts' || bk === 'major' || bk === 'big' ? (blowF[bk] ? 1 : 0) : num(blowF[bk])) : R(l, text); } return hitR(l, text); };   // a part the blow does not have reads 0
             var omP = null;
             var mjW = (pool === mainP ? A.wound : 0) + Bs.reduce(function(a, B, i) { return a + (twos[i].pool === mainP ? B.wound : 0); }, 0);   // 1.6.0 (B3): the parts on the main pool, added, for ONE Major Wound test
             if (mjW > 0 && (rules.major || inp.major === true)) { var th = rules.major ? num(ev(rules.major, hitR)) : 0; if (inp.major === true || (th > 0 && mjW >= th)) {   // 1.6.0: a blow the host marked Always a Major Wound (inp.major, the roll's record) is one whatever its size
-                info.major = true; blowF.major = 1; lines.push(majorWords(rules) + '.'); omP = majPick(rules.onMajor, ev, wR); dmgOnMajor(sys, char, omP, values, lines, info, F, fxo); } }   // 1.6.0: the row of onMajor the blow picks
+                info.major = true; blowF.major = 1; lines.push(majorWords(rules) + '.'); omP = majPick(rules.onMajor, ev, wR); var atM = omP && omP.asAt === true ? valsAt(values) : null; dmgOnMajor(sys, char, omP, values, lines, info, F, fxo); } }   // 1.6.2: atM, the sheet before the Major Wound's own effect   // 1.6.0: the row of onMajor the blow picks
             var folOf = function(roll, why, o) { var fo = { roll: roll, why: why }; if (o.crip) { fo.crip = o.crip; if (o.cripBy) fo.cripBy = o.cripBy; } return fo; };
-            if (info.majorRoll) follows.push(folOf(info.majorRoll, 'major', omP || {}));
+            if (info.majorRoll) { var foM = folOf(info.majorRoll, 'major', omP || {}); if (typeof atM !== 'undefined' && atM) foM.vals = atM; follows.push(foM); }
             if (Array.isArray(rules.onWound)) {
                 rules.onWound.forEach(function(ow) {
                     var hdW = isObj(ow.held) ? heldRows(sys, char, values, ow.held, wR, ev, yes, F, ropts) : null, owR = hdW ? function(l, text) { return l === 'held.count' ? hdW.rows.length : wR(l, text); } : wR;   // 1.6.0: what stands where the blow lands
@@ -2370,7 +2375,7 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
             if (lrow && rules.locs.crip) { var cp = get(lf, lrow, rules.locs.crip); if (cp > 0 && wound > cp) { info.crip = true; lines.push('Enough to cripple ' + lname + '.'); } }
         }
         var blowW = blowKinds({ dmg: bAmt, through: info.through, wound: info.wound, type: ty ? (rules.types || []).indexOf(ty) + 1 : 0, cuts: bCuts, major: info.major === true });   // the blow, for a layer's wear formulas
-        Bs.forEach(function(B, i) { blowW['type' + twos[i].k] = twos[i].ty ? (rules.types || []).indexOf(twos[i].ty) + 1 : 0; blowW['wound' + twos[i].k] = B.wound; });   // 1.6.0: and each added part's own type and wound
+        Bs.forEach(function(B, i) { blowW['type' + twos[i].k] = twos[i].ty ? (rules.types || []).indexOf(twos[i].ty) + 1 : 0; blowW['wound' + twos[i].k] = B.wound; }); if (inp.big === true) blowW.big = 1;   // 1.6.0: and each added part's own type and wound   // 1.6.2: and the attack's Big Hit
         var wearW = (noWear ? 0 : A.ww) + Bs.reduce(function(a, B, i) { return a + (twos[i].noWear ? 0 : B.ww); }, 0), wearA = (noWear ? 0 : amt) + twos.reduce(function(a, t) { return a + (t.noWear ? 0 : t.amt); }, 0);   // 1.6.0 (B3): the parts whose type wears, as one blow: each layer wears once
         // 1.6.0: a layer's figure (its at) is read once a part, each part by its own Blow.kind and Blow.type (partR), every other Blow. name the whole blow's. A part it gives 0 or less for passes the layer by: that part neither wears it nor counts
         // against it, so a layer that stands against one kind is worn by the part of that kind alone. The row's figure for the blow is the highest of the parts that reach it. A figure that reads no Blow. name is the same for every part, as it was
@@ -10686,7 +10691,7 @@ var NAME_WORDS = Object.freeze(Object.assign(Object.create(null), {
     facing: 'which way the token faces', arc: 'the side it is being attacked from', 'arc.front': 'whether it is attacked from the front', 'arc.side': 'whether it is attacked from the side', 'arc.rear': 'whether it is attacked from behind', threats: 'how many threats it faces', 'threats.front': 'the threats in front of it', 'threats.side': 'the threats beside it', 'threats.rear': 'the threats behind it',
     'date.year': 'the year', 'date.day': 'the day of the month', 'date.days': 'the days passed', 'date.hour': 'the hour', 'date.minute': 'the minute',
     onself: 'whether it is used on the user', crossstep: 'which step was crossed', crossed: 'how many steps were crossed',
-    'blow.dmg': 'the damage rolled', 'blow.through': 'the damage past DR', 'blow.wound': 'the wound it dealt', 'blow.type': 'the damage type', 'blow.cuts': 'whether the blow cuts', 'blow.major': 'whether it is a Major Wound', 'blow.kind': 'the kind of blow',
+    'blow.dmg': 'the damage rolled', 'blow.through': 'the damage past DR', 'blow.wound': 'the wound it dealt', 'blow.type': 'the damage type', 'blow.cuts': 'whether the blow cuts', 'blow.major': 'whether it is a Major Wound', 'blow.big': 'whether the attack landed as a Big Hit', 'blow.kind': 'the kind of blow',
     'blow.type2': 'the second part\u2019s damage type', 'blow.wound2': 'the second part\u2019s wound', 'blow.kind2': 'the second part\u2019s kind', 'blow.type3': 'the third part\u2019s damage type', 'blow.wound3': 'the third part\u2019s wound', 'blow.kind3': 'the third part\u2019s kind', 'blow.type4': 'the fourth part\u2019s damage type', 'blow.wound4': 'the fourth part\u2019s wound', 'blow.kind4': 'the fourth part\u2019s kind', 'blow.type5': 'the fifth part\u2019s damage type', 'blow.wound5': 'the fifth part\u2019s wound', 'blow.kind5': 'the fifth part\u2019s kind',
     blastdistance: 'the distance from the blast', blastdice: 'the dice of the blast', blastdamage: 'the damage of the blast', direct: 'whether it was struck directly', centre: 'whether it stands at the centre', blastfills: 'how much of the area it fills', blastnodrop: 'whether its damage keeps its strength', fragdice: 'the fragmentation dice', throwskill: 'the skill it is thrown with', throwdistance: 'the distance of the throw', margin: 'how far it failed by', distance: 'the distance',
     listed: 'its listed figure', worn: 'what is worn off it', todestroy: 'the wear that destroys it'

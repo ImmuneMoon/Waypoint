@@ -55,7 +55,7 @@ function make(D) {
         var box = held(map.id, vt.id), k = w.id + '|' + id, e = box[k]; if (R.busy) return e ? !!e.ok : true;
         var f = D.fog().noticeFacts(map, camp, vt, w), ln = loudOf(map, w, rule), sig = f.light + '|' + f.cover + (ln ? '|' + ln : ''); if (ln) f = Object.assign({}, f, { loud: ln });
         var rc = moves(map.id)[w.id], d = decide(e, { moving: moving(rc, D.now(), !!D.fightOf(map.id, w.id)), sneak: sneakRoll(camp, map, w, rule), sig: sig });
-        if (d.roll) { var en = { ok: roll(camp, map, vt, vCh, w, rule, d.m, f), by: 'roll', sig: sig }; if (d.sn !== undefined) en.sn = d.sn; box[k] = en; return en.ok; }
+        if (d.roll) { var en = { ok: roll(camp, map, vt, vCh, w, rule, d.m, f), by: 'roll', sig: sig }; if (d.sn !== undefined) en.sn = d.sn; box[k] = en; if (D.kept) D.kept(); return en.ok; }   // 1.6.2: kept with the fight
         box[k] = d.e; return d.e.ok;
     }
     function ticking() { if (!R.t) R.t = D.every(tick, 1000); }
@@ -138,7 +138,31 @@ function make(D) {
     }
     function forget() { if (R.t) D.stop(R.t); R.t = 0; R.res = Object.create(null); R.mv = Object.create(null); R.sn = Object.create(null); R.was = Object.create(null); R.loud = Object.create(null); R.memo = null; R.memoSys = null; }
 
-    return { on: on, pass: pass, stealth: stealth, turnEnd: turnEnd, turnStart: turnStart, tick: tick, forget: forget, state: R };
+    // 1.6.2 (build 14: "a reload of the GM's app rolls every result again"): what is held, as data the fight's save carries (net.js fightsKeep), and back
+    // as the table opens (fightsBack), read as data: each viewer's results, the sneak rolls and who was sneaking, bounded. Moving and noise are not kept: a
+    // creature reads as still after a reload, and a result its moving made is rolled again once it stops, as ever
+    var ID_K = /^[A-Za-z0-9_:-]{1,80}$/, KEY_K = /^[A-Za-z0-9_:|-]{1,160}$/;
+    function keep() {
+        var res = {}, n = 0;
+        Object.keys(R.res).slice(0, 40).forEach(function(mapId) { var vs = R.res[mapId], om = {}; Object.keys(vs).slice(0, 200).forEach(function(vId) { var es = vs[vId], ov = {}; Object.keys(es).slice(0, 400).forEach(function(k) { var e = es[k]; if (!e) return; var o = { ok: !!e.ok, by: e.by, sig: e.sig }; if (typeof e.sn === 'number') o.sn = e.sn; ov[k] = o; n++; }); if (Object.keys(ov).length) om[vId] = ov; }); if (Object.keys(om).length) res[mapId] = om; });
+        var sn = {}; Object.keys(R.sn).slice(0, 400).forEach(function(c) { var s = R.sn[c]; if (s) sn[c] = { n: s.n, ok: !!s.ok, m: s.m }; });
+        return n || Object.keys(sn).length ? { res: res, sn: sn, was: Object.keys(R.was).slice(0, 400), seq: R.seq } : null;
+    }
+    function restore(o) {
+        if (!o || typeof o !== 'object') return 0; var n = 0, fin = function(v) { return typeof v === 'number' && isFinite(v); };
+        var res = o.res && typeof o.res === 'object' ? o.res : {};
+        Object.keys(res).slice(0, 40).forEach(function(mapId) { var vs = res[mapId]; if (!ID_K.test(mapId) || !vs || typeof vs !== 'object') return;
+            Object.keys(vs).slice(0, 200).forEach(function(vId) { var es = vs[vId]; if (!ID_K.test(vId) || !es || typeof es !== 'object') return;
+                Object.keys(es).slice(0, 400).forEach(function(k) { var e = es[k]; if (!KEY_K.test(k) || !e || typeof e !== 'object' || typeof e.ok !== 'boolean' || (e.by !== 'roll' && e.by !== 'sneak' && e.by !== 'move') || typeof e.sig !== 'string' || e.sig.length > 200) return;
+                    var en = { ok: e.ok, by: e.by, sig: e.sig }; if (e.sn !== undefined) { if (!fin(e.sn) || e.sn < 0 || Math.floor(e.sn) !== e.sn) return; en.sn = e.sn; } held(mapId, vId)[k] = en; n++; }); }); });
+        var sn = o.sn && typeof o.sn === 'object' ? o.sn : {}, top = 0;
+        Object.keys(sn).slice(0, 400).forEach(function(c) { var s = sn[c]; if (!ID_K.test(c) || !s || typeof s !== 'object' || !fin(s.n) || s.n < 0 || Math.floor(s.n) !== s.n || typeof s.ok !== 'boolean' || !fin(s.m)) return; R.sn[c] = { n: s.n, ok: s.ok, m: Math.max(-999, Math.min(999, s.m)) }; if (s.n > top) top = s.n; });
+        (Array.isArray(o.was) ? o.was.slice(0, 400) : []).forEach(function(c) { if (typeof c === 'string' && ID_K.test(c)) R.was[c] = 1; });
+        R.seq = Math.max(R.seq, top, fin(o.seq) && o.seq >= 0 && o.seq <= 1e9 ? Math.floor(o.seq) : 0);
+        return n;
+    }
+
+    return { on: on, pass: pass, stealth: stealth, turnEnd: turnEnd, turnStart: turnStart, tick: tick, forget: forget, keep: keep, restore: restore, state: R };
 }
 
 // [noticecheck:page-start]
@@ -152,6 +176,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         elev: function() { var v = window.wpVtt; return !v || !!(v.rulesOn ? v.rulesOn('elevation') : v.on('elevation')); },
         rec: function(who, what, detail) { if (window.wpRecord) window.wpRecord.add('roll', who, what, detail, true); },
         arm: function(mapId) { var n = window.wpNet; if (n && n.noticeArm) n.noticeArm(mapId); },
+        kept: function() { var n = window.wpNet; if (n && n.fightsKeepSoon) n.fightsKeepSoon(); },   // 1.6.2: a result rolled is kept with the fight
         now: function() { return Date.now(); }, every: function(fn, ms) { return setInterval(fn, ms); }, stop: function(t) { clearInterval(t); },
         log: function(line) { try { fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: stepLine('notice v1', line, {}) }).catch(function() {}); } catch (e) {} },
     });

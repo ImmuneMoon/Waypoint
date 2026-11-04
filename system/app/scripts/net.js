@@ -12161,10 +12161,12 @@ function fightsKeep() {
     var camp = getActiveCampaign(); if (!camp) return false;
     if (!fightIds().length) { _fightKept = ''; if (!camp.fights) return false; delete camp.fights; saveRemoteSoon(); return true; }
     var bodyK = { on: net.fightOn, list: net.combats }; if (net.targets && Object.keys(net.targets).length) bodyK.targets = net.targets;
+    var ntK = window.wpNotice && typeof window.wpNotice.keep === 'function' ? window.wpNotice.keep() : null; if (ntK) bodyK.notice = ntK;   // 1.6.2: noticing results, so a reload rolls nothing again
     var text = JSON.stringify(bodyK); if (text === _fightKept) return false;
     _fightKept = text; camp.fights = JSON.parse(text); saveRemoteSoon(); return true;
 }
 function fightsKeepSoon() { if (net.role !== 'host' || net.stream || _fightSoon) return; _fightSoon = setTimeout(fightsKeep, 200); }
+net.fightsKeepSoon = fightsKeepSoon;   // 1.6.2: notice.js asks it once a result is rolled
 function fightNum(v) { return typeof v === 'number' && isFinite(v) && v >= 0 && v <= 1e6 && Math.floor(v) === v; }
 function fightMarks(v) {   // { a row's or a character's id: a whole number }, into an object with no prototype
     var o = Object.create(null); if (!v || typeof v !== 'object') return o;
@@ -12195,7 +12197,7 @@ function fightsRead(raw, camp) {   // what the save holds, as data: { list, on }
     if (typeof raw.on === 'string' && Object.prototype.hasOwnProperty.call(list, raw.on)) on = raw.on;
     var kept = {}, tgRaw = raw.targets && typeof raw.targets === 'object' && typeof cleanTargets === 'function' ? cleanTargets(raw.targets) : {};   // 1.6.0: a pointer whose token still stands
     Object.keys(tgRaw).forEach(function(pid) { var t = tgRaw[pid], map = own(camp.items, t.mapId) ? camp.items[t.mapId] : null; if (map && Array.isArray(map.whiteboard) && map.whiteboard.some(function(w) { return !!w && w.id === t.id; })) kept[pid] = t; });
-    return { list: list, on: on, targets: kept };
+    return { list: list, on: on, targets: kept, notice: raw.notice && typeof raw.notice === 'object' ? raw.notice : null };   // 1.6.2: noticing results, read as data by notice.js restore
 }
 function fightsBack() {   // as the host's table opens: the fights its campaign kept, if none runs yet; how many came back
     if (net.role !== 'host' || net.stream || fightIds().length) return 0;
@@ -12206,6 +12208,7 @@ function fightsBack() {   // as the host's table opens: the fights its campaign 
     ids.forEach(function(id) { net.combats[id] = back.list[id]; if (typeof back.list[id].n === 'number' && back.list[id].n > _fightN) _fightN = back.list[id].n; });
     net.fightOn = back.on || ids[0]; _fightKept = '';
     Object.keys(back.targets || {}).forEach(function(pid) { if (!own(net.targets, pid)) net.targets[pid] = back.targets[pid]; });   // 1.6.0: what was aimed at is still aimed at
+    if (back.notice && window.wpNotice && typeof window.wpNotice.restore === 'function') { try { window.wpNotice.restore(back.notice); } catch (e) { console.error(e); } }   // 1.6.2: and who noticed whom
     ids.forEach(function(id) {
         var f = net.combats[id];
         if (!maps[f.mapId]) { maps[f.mapId] = 1; if (typeof marksStart === 'function') { try { marksStart(f.mapId); } catch (e) { console.error(e); } } }

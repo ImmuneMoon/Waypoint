@@ -229,6 +229,24 @@ function world(opts) {
     ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].forEach(f => check(f + ' says it', /Noticed by/.test(rd(f) || '')));
     check('the record names each check as hidden from players', /window\.wpRecord\.add\('roll', who, what, detail, true\)/.test(read('notice.js')));
 
+    /* ---------- 1.6.2 results kept with the fight (build 14: "a reload of the GM's app rolls every result again") ---------- */
+    {
+        const k1 = world(); let keptN = 0; k1.D.kept = () => { keptN++; }; k1.notice = N.make(k1.D); k1.pass = true; k1.judge();
+        const kp = k1.notice.keep(), txt = JSON.stringify(kp);
+        const k2 = world(); k2.notice = N.make(k2.D); const nBack = k2.notice.restore(JSON.parse(txt)); const again = k2.judge();
+        check('a roll is said to be kept, what is held comes out as data, and a new machine given it rolls nothing again and answers as the first did',
+            keptN === 1 && kp && kp.res && kp.res.m1 && Object.keys(kp.res.m1.V).length === 1 && nBack === 1 && k2.rolled.length === 0 && again === k1.judge(), txt);
+        const k3 = world(); k3.notice = N.make(k3.D); k3.judge(); const k3s = k3.notice.state;
+        const junk = { res: { m1: { V: { 'T|sn_b': { ok: 'yes', by: 'roll', sig: 'x' }, 'bad key <b>': { ok: true, by: 'roll', sig: '' }, 'T|x': { ok: true, by: 'guess', sig: '' }, 'T|y': { ok: true, by: 'roll', sig: 'x'.repeat(300) }, 'T|z': { ok: true, by: 'move', sig: 's', sn: 1.5 } } }, '__proto__': { V: {} }, 'm 2': { V: { 'T|a': { ok: true, by: 'roll', sig: '' } } } }, sn: { c1: { n: 3, ok: true, m: 1e9 }, c2: { n: -1, ok: true, m: 0 }, c3: 'x' }, was: ['c1', '<x>', 7], seq: 5 };
+        const kn = N.make(world().D), nJ = kn.restore(junk), sJ = kn.state;
+        check('restore reads it as data: an entry of a wrong shape, a bad key or id, a sig too long and a sneak roll that is no whole number are passed over, a margin held to its bounds, the count kept ahead of every sneak roll; nothing but an object restores nothing',
+            nJ === 0 && Object.keys(sJ.res.m1 || {}).length === 0 && !Object.prototype.hasOwnProperty.call(sJ.res, 'm 2') && JSON.stringify(sJ.sn) === JSON.stringify({ c1: { n: 3, ok: true, m: 999 } }) && JSON.stringify(Object.keys(sJ.was)) === JSON.stringify(['c1']) && sJ.seq === 5 && kn.restore(null) === 0 && kn.restore('x') === 0 && N.make(world().D).keep() === null, JSON.stringify([sJ.res, sJ.sn, sJ.was, sJ.seq]));
+        const nsrc = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'latin1');
+        check('the fight\u2019s save carries them and gives them back as the table opens, and the page tells the fight a result was rolled',
+            nsrc.includes("var ntK = window.wpNotice && typeof window.wpNotice.keep === 'function' ? window.wpNotice.keep() : null; if (ntK) bodyK.notice = ntK;") && nsrc.includes("notice: raw.notice && typeof raw.notice === 'object' ? raw.notice : null };") && nsrc.includes("window.wpNotice.restore(back.notice)") && nsrc.includes('net.fightsKeepSoon = fightsKeepSoon;')
+            && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'notice.js'), 'utf8').includes("kept: function() { var n = window.wpNet; if (n && n.fightsKeepSoon) n.fightsKeepSoon(); },"));
+        void k3s;
+    }
     console.log(pass + ' passed, ' + fail + ' failed.');
     summed = true;
     if (fail) process.exitCode = 1;

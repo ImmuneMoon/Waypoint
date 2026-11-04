@@ -5565,6 +5565,10 @@ function jobPress(S, camp, ch, ref, ent, vars, F, round, label, saved) {
     ch.values = ch.values || {}; Object.keys(st.values).forEach(function(k) { ch.values[k] = st.values[k]; }); ch.updated = Date.now(); if (typeof saved === 'function') saved();
     if (typeof net.syncCharDelta === 'function') net.syncCharDelta(ch.id, st.values); if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(ch.id);
     if (typeof window !== 'undefined' && window && typeof window.wpStepLog === 'function') window.wpStepLog('job v1', st.done ? 'done' : 'press', { n: st.n, of: st.of });
+    if (st.done && typeof S.jobLoad === 'function') {   // 1.6.2 Load takes a job: the load its row waited for is made now
+        var jl = S.jobLoad(camp.system, ch, ref, ent, F, 'w_' + Math.random().toString(36).slice(2, 12));
+        if (jl && jl.values) { Object.keys(jl.values).forEach(function(k) { ch.values[k] = jl.values[k]; }); ch.updated = Date.now(); if (typeof saved === 'function') saved(); if (typeof net.syncCharDelta === 'function') net.syncCharDelta(ch.id, jl.values); if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(ch.id); if (typeof window.wpStepLog === 'function') window.wpStepLog('job v1', jl.error ? 'load gone' : 'loaded', {}); }
+    }
     if (st.done) return '';
     var nm = String(label || ent.label || 'The job').split('{')[0].trim().slice(0, 60) || 'The job'; return nm + ': ' + st.n + ' of ' + st.of + '.';
 }

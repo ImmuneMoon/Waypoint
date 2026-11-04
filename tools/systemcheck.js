@@ -14269,6 +14269,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 S.dmgOnSelf({ dmg: true, each: 'turn' }) === true && S.dmgOnSelf({ dmg: true, each: 'round' }) === true && S.dmgOnSelf({ dmg: true, each: 'turnEnd' }) === true && S.dmgOnSelf({ dmg: true, cross: { f: 'f_x' } }) === true && S.dmgOnSelf({ dmg: true }, 'a_1') === true
                 && S.dmgOnSelf({ dmg: true }) === false && S.dmgOnSelf({ each: 'turn' }) === false && S.dmgOnSelf(null) === false && S.dmgOnSelf({ dmg: 1, each: 'turn' }) === false && S.dmgOnSelf({ dmg: true }, 7) === false, '');
         }
+        {   /* 1.6.2 Load takes a job (build 14: a power pack changes at once with Load, and the table counts the turns its Reload prints) */
+            const sysJ = cleanSystem({ v: 1, name: 'J', rolls: [], fields: [
+                { id: 'f_gun', key: 'Gun', label: 'Guns', kind: 'item-list', vis: 'all', edit: 'owner', list: { counters: [{ key: 'ammo', label: 'Shots', max: '10' }, { key: 'rl', label: 'Reloading', max: '3' }], rolls: [{ label: 'Reload', formula: '1', job: { turns: '2', ct: 'rl' } }], load: { from: 'f_pack', ct: 'ammo', job: 'RL' } } },
+                { id: 'f_pack', key: 'Pack', label: 'Packs', kind: 'item-list', vis: 'all', edit: 'owner', list: { lvl: { label: 'Charge' } } }],
+                items: [{ id: 'i_gun', name: 'Blaster' }, { id: 'i_pk', name: 'Power pack' }] }, { F, gmView: true });
+            const gl = sysJ.fields[0].list, chJ = () => ({ id: 'c_j', name: 'J', values: { f_gun: [{ id: 'w_g', defId: 'i_gun', qty: 1 }], f_pack: [{ id: 'w_p1', defId: 'i_pk', qty: 2, lvl: 10 }] } });
+            check('1.6.2 a list\u2019s Load may name the job that makes it, by the job\u2019s counter as the list spells it', gl.load.job === 'rl', j(gl.load));
+            const c1 = chJ(), w1 = S.applyRowOp(sysJ, c1, 'f_gun', { op: 'load', rowId: 'w_g', from: 'w_p1', back: 'w_new1' }, F, {}), g1 = w1.ok && w1.value[0];
+            check('1.6.2 a Load picked then only waits: the row is marked with what it waits for, nothing comes off the pack and nothing is loaded; what cannot be loaded is refused as it would be at once',
+                w1.ok && w1.wait === true && g1.lw === 'w_p1' && !g1.ld && !(w1.also && w1.also.f_pack) && !S.applyRowOp(sysJ, chJ(), 'f_gun', { op: 'load', rowId: 'w_g', from: 'w_none', back: 'w_new1' }, F, {}).ok, j(w1));
+            c1.values.f_gun = w1.value; const st = S.cleanChar ? null : null;
+            const ref = { f: 'f_gun', r: 'w_g', i: 0 }, jl = S.jobLoad(sysJ, c1, ref, gl.rolls[0], F, 'w_back1'), lg = jl && jl.values && jl.values.f_gun[0];
+            check('1.6.2 the job\u2019s last press makes the load it waited for: one unit off the pack, the copy on the row, its counter set, and nothing left waiting; a row with nothing waiting, or another job, loads nothing',
+                lg && lg.ld && !lg.lw && lg.ct && lg.ct.ammo === 10 && jl.values.f_pack[0].qty === 1 && S.jobLoad(sysJ, chJ(), ref, gl.rolls[0], F, 'w_b') === null && S.jobLoad(sysJ, c1, ref, { job: { ct: 'other', turns: '1' } }, F, 'w_b') === null, j(jl));
+            const c2 = chJ(); c2.values.f_gun = w1.value; c2.values.f_pack = [];
+            const jg = S.jobLoad(sysJ, c2, ref, gl.rolls[0], F, 'w_b');
+            check('1.6.2 what it waited for and is gone loads nothing, says so and takes the mark off', jg && jg.error && !jg.values.f_gun[0].lw, j(jg));
+            const c3 = chJ(); c3.values.f_gun = w1.value; const un = S.applyRowOp(sysJ, c3, 'f_gun', { op: 'load', rowId: 'w_g', from: null, back: 'w_b' }, F, {});
+            check('1.6.2 taking out leaves nothing waiting', un && (!un.ok || !un.value[0].lw), j(un));
+            const kept = cleanSystem(sysJ, { F, gmView: false }), pl = S.charFor ? S.charFor(Object.assign(chJ(), { ownerId: 'p1', values: { f_gun: w1.value, f_pack: [{ id: 'w_p1', defId: 'i_pk', qty: 2, lvl: 10 }] } }), kept, 'p1', {}) : null;
+            check('1.6.2 the mark is kept on the row and reaches its owner\u2019s copy', !pl || (pl.values.f_gun[0].lw === 'w_p1'), j(pl && pl.values.f_gun));
+            const njJ = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'latin1'), shJ = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
+            check('1.6.2 the host makes it at the job\u2019s last press, the sheet says what waits, and the Lists tab names the job',
+                njJ.includes("var jl = S.jobLoad(camp.system, ch, ref, ent, F, 'w_' + Math.random().toString(36).slice(2, 12));") && shJ.includes("'sheet-item-loadnext', 'Next: '") && shJ.includes("el('select', 'sys-list-loadjob')") && shJ.includes("else if (c.indexOf('sys-list-loadjob') >= 0) {"));
+            void st;
+        }
         {   /* 1.6.2 a blast reads the Environment readings where it goes off (build 14: a blast at scale, vacuum half, water double) */
             const BCx = await import(url('blastcore.js'));
             const cbR = S.cleanBlastRules({ fall: 'if(Env.Medium = 2, BlastDamage * 2, BlastDamage)', each: 'BlastDice - Env.Medium', radius: 'if(Env.Medium = 1, BlastRadius / 2, BlastRadius)' }, F), cbX = S.cleanBlastRules({ radius: 'BlastDamage', fall: 'Env.Bad key + 1' }, F), cbD = S.cleanBlastRules({ radius: '1d6' }, F);

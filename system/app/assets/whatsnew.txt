@@ -192,6 +192,8 @@ At the table
   roll cards, which are edged in its colour, and a player's own sheet text is
   set in their font.
   Personal looks is a VTT feature, on until the GM switches it off.
+- A Load can wait for a job of its list, so a reload that takes turns loads
+  only at the job's last press. The row says what it waits to load.
 - A blast reads the Environment readings where it goes off, and Blast radius
   can change how far it reaches there, so it can reach half as far in vacuum
   and twice as far in water. A part past what its host holds reads

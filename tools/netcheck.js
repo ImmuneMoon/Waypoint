@@ -19347,6 +19347,47 @@ pendingChecks.push((async () => {
     check('1.6.0 linked sheets (source): every way a character change leaves the host reaches linkTell through typeof (syncChar and syncCharDelta), the copy an owner is sent and the join snapshot carry the figures, and the host\'s branch judges by linkSet alone',
         (src.match(/if \(typeof linkTell === 'function'\) linkTell\(id\);/g) || []).length === 2 && (src.match(/\(typeof withLinkFigs === 'function' \? withLinkFigs : function\(v0\) \{ return v0; \}\)\(withHoverLines\(/g) || []).length === 2
         && (src.match(/linkSet\(/g) || []).length === 1 && lkS.indexOf("Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, qk.stn !== undefined ? { player: true, pid: profK.id, stn: qk.stn } : { player: true, pid: profK.id })") > lkS.indexOf("denyK('owner')"));   // CORE gap 16 (a deliberate change of this pin): and the station the player picked
+    // 1.6.2 (vehicles, fold (a)): a row of a player's own character joined to a sheet of their own, or a new sheet made from it, through the same
+    // char-link branch, run for real; the figures the owner's copy carries, and that copy sent again once the joined sheet moves (sheetTell)
+    {
+        const rawV = { v: 1, name: 'V', rolls: [], fields: [{ id: 'f_hp', key: 'HP', kind: 'number', def: 10 }, { id: 'f_isv', key: 'IsV', kind: 'toggle' }, { id: 'f_vh', key: 'Vehicles', kind: 'item-list', list: { sheets: { on: 'f_isv' }, cols: [{ key: 'Hull', label: 'Hull', formula: 'Row.sheet.HP' }] } }], items: [{ id: 'i_sk', key: 'Skiff', name: 'Skiff' }] };
+        const sysV = Sx.cleanSystem(rawV, { F: Fx, gmView: true }), viewV = Sx.cleanSystem(rawV, { F: Fx, gmView: false });
+        const cV = () => ({ c_kael: { id: 'c_kael', name: 'Kael', ownerId: 'u_a', npc: false, values: { f_vh: [{ id: 'w_s1', defId: 'i_sk', qty: 1 }] } }, c_bolt: { id: 'c_bolt', name: 'Bolt', ownerId: 'u_a', npc: false, values: { f_hp: 22 } }, c_sela: { id: 'c_sela', name: 'Sela', ownerId: 'u_b', npc: false, values: {} } });
+        const hostV = (msg, chars) => {
+            const camp = { id: 'k', system: sysV, chars: chars || cV() }, out = { answer: [], synced: [], saves: 0, logs: [], changed: [] }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
+            const netV = { active: true, role: 'host', paused: false, conns: [], roster: { pA: { id: 'u_a' } }, syncChar: id => out.synced.push(id) };
+            const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { charChanged: id => out.changed.push(id) }, wpDiceCore: null, wpStepLog: (a, s, f) => out.logs.push([a, s, f]) };
+            new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'var charLimit = { allow: () => true }, _charSlowSaid = {};\n' + lkS)(
+                msg, { peer: 'pA', send: box(out.answer) }, netV, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; });
+            out.camp = camp; return out;
+        };
+        const MR = more => Object.assign({ type: 'char-link', rid: 'k2', charId: 'c_kael', row: { f: 'f_vh', r: 'w_s1' } }, more);
+        const jn = hostV(MR({ to: 'c_bolt' })), mk = hostV(MR({ make: true })), mkId = Object.keys(mk.camp.chars).find(id => !cV()[id]), made = mkId ? mk.camp.chars[mkId] : null;
+        check('1.6.2 (vehicles, fold (a)): a player\'s char-link that names a row joins it to a sheet of their own, and with make makes a new one under the row\'s name, theirs and with the list\'s toggle on: stored, saved once, acked, the new sheet and the character sent and redrawn, each step logged with no name',
+            jn.camp.chars.c_kael.values.f_vh[0].sh === 'c_bolt' && jn.saves === 1 && j(jn.answer) === j([{ type: 'char-ack', rid: 'k2' }]) && j(jn.synced) === j(['c_kael']) && j(jn.logs) === j([['links v1', 'asked', { on: 1 }], ['links v1', 'done', { row: 1, on: 1 }]])
+            && !!made && made.name === 'Skiff' && made.ownerId === 'u_a' && made.npc === false && made.values.f_isv === true && mk.camp.chars.c_kael.values.f_vh[0].sh === mkId && j(mk.synced) === j([mkId, 'c_kael']) && j(mk.changed) === j([mkId, 'c_kael']) && mk.saves === 1 && mk.logs[1][1] === 'made',
+            j([jn.camp.chars.c_kael, jn.answer, jn.logs, made, mk.synced, mk.logs]));
+        const wordsV = r => r.answer.map(a => [a.type, a.reason, a.msg || '']), quietV = r => r.saves === 0 && r.synced.length === 0 && Object.keys(r.camp.chars).length === 3 && !('sh' in r.camp.chars.c_kael.values.f_vh[0]);
+        const notMine = hostV(MR({ to: 'c_sela' })), noRow = hostV(MR({ to: 'c_bolt', row: { f: 'f_vh', r: 'w_zz' } })), noMake = hostV(MR({ make: true, row: { f: 'f_vh', r: 'w_zz' } })), bad = hostV(MR({ to: 'c_bolt', make: true }));
+        check('1.6.2 (vehicles, fold (a)): the host refuses in the judge\'s words and keeps nothing: another player\'s sheet, a row that is not there, a new sheet for a row that is not there (made and then let go), and a make that names a sheet is no message at all',
+            [notMine, noRow, noMake].every(quietV) && j(wordsV(notMine)) === j([['char-deny', 'owner', 'You can join only a sheet of your own.']]) && j(wordsV(noRow)) === j([['char-deny', 'error', 'That row is not there now.']]) && j(wordsV(noMake)) === j([['char-deny', 'missing', '']]) && bad.answer.length === 0 && quietV(bad),
+            j([wordsV(notMine), wordsV(noRow), wordsV(noMake), bad.answer]));
+        const campV = { id: 'k', system: sysV, chars: cV() }; campV.chars.c_kael.values.f_vh[0].sh = 'c_bolt';
+        Sx.setLinkSource((id, s) => { const c = campV.chars[id]; return !c ? null : s === sysV ? c : Sx.charForView(c, s, { full: sysV }); });
+        const sentV = [], logsV = [], mkC = peer => ({ peer, open: true, send: m => { packCheck(m); sentV.push([peer, JSON.parse(JSON.stringify(m))]); } });
+        const netW = { active: true, role: 'host', conns: [mkC('pA'), mkC('pB')], roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } } }, winW = { wpFormula: Fx, wpStepLog: (a, s, f) => logsV.push([a, s, f]) };
+        const ownFn = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
+        const viewFor = (id, pid) => { const f = new Function('SC', 'window', 'own', ltS + '\nreturn withLinkFigs;')(() => Sx, winW, ownFn); return f(Sx.charFor(campV.chars[id], viewV, pid, {}), viewV); };
+        const apiV = new Function('net', 'SC', 'window', 'getActiveCampaign', 'charViewFor', 'peerProfileId', 'sendFailed', 'own', ltS + '\nreturn { linkTell: linkTell };')(netW, () => Sx, winW, () => campV, viewFor, c => netW.roster[c.peer].id, e => { throw e; }, ownFn);
+        const ownV = viewFor('c_kael', 'u_a');
+        apiV.linkTell('c_bolt'); const firstV = sentV.slice(); sentV.length = 0; apiV.linkTell('c_bolt'); const sameV = sentV.slice(); sentV.length = 0; campV.chars.c_bolt.values.f_hp = 9; apiV.linkTell('c_bolt'); const movedV = sentV.slice(); sentV.length = 0;
+        Sx.setLinkSource(null);
+        check('1.6.2 (vehicles, fold (a)): an owner\'s copy carries the figures of the sheets its rows are joined to, by row, and a change of such a sheet sends the row\'s owner their copy again, once, to them alone, logged by count',
+            j(ownV.sk) === j({ w_s1: { id: 'c_bolt', name: 'Bolt', v: { hp: 22 } } }) && firstV.length === 1 && firstV[0][0] === 'pA' && firstV[0][1].char.sk.w_s1.v.hp === 22 && sameV.length === 0 && movedV.length === 1 && movedV[0][1].char.sk.w_s1.v.hp === 9 && logsV.every(l => l[0] === 'rowsheet v1' && l[1] === 'told'),
+            j([ownV.sk, firstV, sameV, movedV, logsV]));
+        check('1.6.2 (vehicles, fold (a)): a trade stores the sheets of the rows that changed hands (sheetsGo) and sends each to its new owner',
+            src.includes("S.sheetsGo(camp.system, camp, cb, res.valuesB)") && src.includes("goA.give.concat(goB.give).forEach(function(sid) { net.syncChar(sid);") && src.includes("if (S.sheetFigs) { var sk = S.sheetFigs(view, v, window.wpFormula); if (sk) v.sk = sk; }"));
+    }
 })());
 // The core handbook session's ask (2026-10-29, after ask 6): a crew figure that reads the vehicle doing the reading (Vehicle.Class). The host's
 // withLinkFigs (the linktell slice, run for real with the real systemcore and formula engine) gives a player's vehicle its crew figures, ck,

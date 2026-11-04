@@ -3509,9 +3509,22 @@ net.charLink = function(charId, linkId, toId, stn) {   // stn (1.6.0, CORE gap 1
     try { var mK = { type: 'char-link', rid: q.rid, charId: q.charId, linkId: q.linkId, to: q.to }; if (q.stn !== undefined) mK.stn = q.stn; net.conns[0].send(mK); } catch (e) { charPendingDone(q.rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true };
 };
+// 1.6.2 (vehicles, fold (a)): a row of one of our characters joined to a sheet of our own (toId '' takes it off), or with make a new sheet made from it,
+// sent and waited for: the host judges it (rowSheetSet) and answers with the character whole, the sheet's figures with it, or char-deny with its words
+net.charRowSheet = function(charId, fieldId, rowId, toId, make) {
+    var S = SC(), camp = getActiveCampaign();
+    if (!S || !camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    var c = (camp.chars && typeof charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null); if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
+    var q0 = { rid: 'k' + Math.random().toString(36).slice(2, 10), charId: charId, row: { f: fieldId, r: rowId }, to: make === true ? '' : toId || '' }; if (make === true) q0.make = true;
+    var q = S.cleanCharLink(q0); if (!q || !q.row) return { error: 'That is not allowed.' };
+    _charPending[q.rid] = { charId: charId, fieldId: '', batch: [], timer: setTimeout(function() { charPendingDone(q.rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
+    try { var mR = { type: 'char-link', rid: q.rid, charId: q.charId, row: q.row, to: q.to }; if (q.make) mR.make = true; net.conns[0].send(mR); } catch (e) { charPendingDone(q.rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
+    return { ok: true, pending: true };
+};
 // [netcheck:linktell-start]
 // 1.6.0 linked sheets: an owner's whole copy (never a teammate's) with the figures of the sheets it links, worked out through view (systemcore linkFigs)
-function withLinkFigs(v, view) { var S = SC(); if (!v || v.partial || !S || !window.wpFormula) return v; if (v.links && S.linkFigs) { var lk = S.linkFigs(view, v, window.wpFormula); if (lk) v.lk = lk; } if (S.crewFigs) { var ck = S.crewFigs(view, v, window.wpFormula); if (ck) v.ck = ck; } if (typeof crewRollsFor === 'function') { var cr = crewRollsFor(v, view); if (cr) v.cr = cr; } return v; }   // 1.6.0 (CORE gap 16): and a vehicle's crew figures
+function withLinkFigs(v, view) { var S = SC(); if (!v || v.partial || !S || !window.wpFormula) return v; if (v.links && S.linkFigs) { var lk = S.linkFigs(view, v, window.wpFormula); if (lk) v.lk = lk; } if (S.crewFigs) { var ck = S.crewFigs(view, v, window.wpFormula); if (ck) v.ck = ck; } if (S.sheetFigs) { var sk = S.sheetFigs(view, v, window.wpFormula); if (sk) v.sk = sk; } if (typeof crewRollsFor === 'function') { var cr = crewRollsFor(v, view); if (cr) v.cr = cr; } return v; }   // 1.6.0 (CORE gap 16): and a vehicle's crew figures
 // 1.6.0 linked sheets ("Only the figures read"): a character's change reaches the figures of every sheet that links it. That sheet's owner gets
 // their copy again, whole, where the figures it carries moved since the host last sent them
 // 1.6.0 Its crew may press this sheet's rolls: what the crew member this copy is for may press, by link, each vehicle read through the players' view
@@ -3527,8 +3540,26 @@ function crewRollsFor(v, view) {
     return out;
 }
 var _lkSent = Object.create(null), _ckSent = Object.create(null);   // 1.6.0 (CORE gap 16): the crew figures last sent, by peer and vehicle
+// 1.6.2 (vehicles, fold (a)): a row's owner gets their copy again where the figures of the sheet the row is joined to moved (sheetFigs), once a change
+var _skSent = Object.create(null);
+function sheetTell(id) {
+    var S = SC(), camp = getActiveCampaign(); if (!S || typeof S.sheetRows !== 'function' || !camp || !camp.system || !camp.chars) return 0;
+    var hold = Object.create(null), n = 0; S.sheetRows(camp.system, camp.chars).forEach(function(h) { if (h.r.sh === id) hold[h.c.id] = 1; });
+    Object.keys(hold).forEach(function(rid) {
+        var r = own(camp.chars, rid) ? camp.chars[rid] : null; if (!r || r.npc || !r.ownerId) return;
+        net.conns.forEach(function(c) {
+            if (!c.open || !net.roster[c.peer] || !(typeof handsTo === 'function' ? handsTo(r, peerProfileId(c)) : peerProfileId(c) === r.ownerId)) return;
+            var v = charViewFor(rid, peerProfileId(c)); if (!v || v.partial) return;
+            var sig = JSON.stringify(v.sk || null), key = c.peer + '|' + rid; if (_skSent[key] === sig) return; _skSent[key] = sig;
+            try { c.send({ type: 'char', campId: camp.id, char: v }); n++; } catch (e) { sendFailed(e); }
+        });
+    });
+    if (n && window.wpStepLog) window.wpStepLog('rowsheet v1', 'told', { copies: n });
+    return n;
+}
 function linkTell(id) {
     if (!net.active || net.role !== 'host') return;
+    if (typeof sheetTell === 'function') sheetTell(id);   // 1.6.2 (vehicles, fold (a)): the rows joined to it
     var camp = getActiveCampaign(); if (!camp || !camp.chars || !camp.system || !Array.isArray(camp.system.links) || !camp.system.links.length) return;
     var n = 0;
     Object.keys(camp.chars).forEach(function(rid) {
@@ -3844,10 +3875,13 @@ function tradeDo(actor, msg) {
         var logT = { id: tr2.tid, at: Date.now(), a: { charId: tr2.a.charId, name: String(ca.name || 'A character').slice(0, 60), before: {}, after: JSON.parse(JSON.stringify(res.valuesA)) }, b: { charId: tr2.b.charId, name: String(cb.name || 'A character').slice(0, 60), before: {}, after: JSON.parse(JSON.stringify(res.valuesB)) } };   // 157 M1g: what the trade log can put back
         Object.keys(res.valuesA).forEach(function(k) { logT.a.before[k] = JSON.parse(JSON.stringify(ca.values && ca.values[k] !== undefined ? ca.values[k] : [])); }); Object.keys(res.valuesB).forEach(function(k) { logT.b.before[k] = JSON.parse(JSON.stringify(cb.values && cb.values[k] !== undefined ? cb.values[k] : [])); });
         tr2.closing = true; var now = Date.now(); ca.values = ca.values || {}; cb.values = cb.values || {};
+        var goA = typeof S.sheetsGo === 'function' ? S.sheetsGo(camp.system, camp, ca, res.valuesA) : { give: [] }, goB = typeof S.sheetsGo === 'function' ? S.sheetsGo(camp.system, camp, cb, res.valuesB) : { give: [] };   // 1.6.2 (vehicles, fold (a)): the sheets of the rows that changed hands
         Object.keys(res.valuesA).forEach(function(k) { ca.values[k] = res.valuesA[k]; }); Object.keys(res.valuesB).forEach(function(k) { cb.values[k] = res.valuesB[k]; }); ca.updated = now; cb.updated = now;
         saveRemoteSoon();
         if (Object.keys(res.valuesA).length) net.syncCharDelta(tr2.a.charId, res.valuesA); if (Object.keys(res.valuesB).length) net.syncCharDelta(tr2.b.charId, res.valuesB);
         if (window.wpSheets) { window.wpSheets.charChanged(tr2.a.charId); window.wpSheets.charChanged(tr2.b.charId); }
+        goA.give.concat(goB.give).forEach(function(sid) { net.syncChar(sid); if (window.wpSheets) window.wpSheets.charChanged(sid); });   // the sheets that went with their rows, to their new owners
+        if (goA.give.length + goB.give.length && window.wpStepLog) window.wpStepLog('rowsheet v1', 'traded', { sheets: goA.give.length + goB.give.length, dropped: (goA.drop || 0) + (goB.drop || 0) });
         if (paysT.length) tradeSpend(camp, paysT);
         var said = (ca.name || 'A character') + ' gave ' + (res.linesA.join(', ') || 'nothing') + '. ' + (cb.name || 'A character') + ' gave ' + (res.linesB.join(', ') || 'nothing') + '.';
         if (oweNet && S.debtPut && S.debtOf) { var dbW = S.debtOf(ca, cb.id) + oweNet; S.debtPut(ca, cb, dbW); net.syncChar(tr2.a.charId); net.syncChar(tr2.b.charId); said += ' ' + (oweNet > 0 ? (ca.name || 'A character') + ' owes ' + (cb.name || 'a character') + ' ' + (Math.round(oweNet * 100) / 100) : (cb.name || 'A character') + ' owes ' + (ca.name || 'a character') + ' ' + (Math.round(-oweNet * 100) / 100)) + ' more.'; }   // 157 M1h: the debt both sheets keep
@@ -8564,6 +8598,26 @@ function handleMessage(msg, conn) {
         var campK = getActiveCampaign(), chK = (campK && campK.chars && Object.prototype.hasOwnProperty.call(campK.chars, qk.charId) ? campK.chars[qk.charId] : null);
         if (!campK || !campK.system || !chK) { denyK('missing'); return; }
         var profK = net.roster[conn.peer]; if (chK.npc || !chK.ownerId || !profK || chK.ownerId !== profK.id) { denyK('owner'); return; }
+        if (qk.row) {   // 1.6.2 (vehicles, fold (a); the owner's answer to Q2: a player who owns both the row and the sheet): Rows are sheets
+            var rlR = chK.values && Array.isArray(chK.values[qk.row.f]) ? chK.values[qk.row.f] : [], rwR = null; rlR.forEach(function(x) { if (!rwR && x && typeof x === 'object' && Sk.rowIdOf(x) === qk.row.r) rwR = x; });
+            var madeR = null;
+            if (qk.make) {   // a new sheet as the owner answered: the list's template or the system's defaults, the row's name, theirs, the list's toggle on
+                var fR = Sk.fieldById(campK.system, qk.row.f); if (!rwR || rwR.hid === 1 || !fR || !Sk.sheetsOn(fR.list)) { denyK('missing'); return; }
+                var idR = Sk.uid('c_'); while (Object.prototype.hasOwnProperty.call(campK.chars, idR)) idR = Sk.uid('c_');
+                madeR = Sk.sheetFromRow(campK.system, campK.chars, chK, qk.row.f, rwR, idR); var srR = typeof Sk.sheetRevOf === 'function' ? Sk.sheetRevOf(campK.system) : 0; if (srR) madeR.sheetRev = srR;
+                campK.chars[madeR.id] = madeR;
+            }
+            var resR = Sk.rowSheetSet(campK.system, campK.chars, chK, qk.row.f, qk.row.r, madeR ? madeR.id : qk.to, { player: true, pid: profK.id });
+            if (!resR.ok) { if (madeR) delete campK.chars[madeR.id]; denyK(resR.reason === 'owner' ? 'owner' : 'error', resR.msg); return; }
+            chK.values = chK.values || {}; chK.values[qk.row.f] = resR.values[qk.row.f]; chK.updated = Date.now();
+            saveRemoteSoon();
+            try { conn.send({ type: 'char-ack', rid: qk.rid }); } catch (e) { sendFailed(e); }
+            logK(madeR ? 'made' : 'done', { row: 1, on: qk.to || madeR ? 1 : 0 });
+            if (madeR) { net.syncChar(madeR.id); if (window.wpSheets) window.wpSheets.charChanged(madeR.id); }
+            net.syncChar(qk.charId);
+            if (window.wpSheets) window.wpSheets.charChanged(qk.charId);
+            return;
+        }
         var resK = Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, qk.stn !== undefined ? { player: true, pid: profK.id, stn: qk.stn } : { player: true, pid: profK.id });   // 1.6.0 (CORE gap 16): and its station
         if (!resK.ok) { denyK('error', resK.msg); return; }
         if (resK.links) chK.links = resK.links; else delete chK.links;

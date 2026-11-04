@@ -214,12 +214,19 @@ At the table
   list, so one gun can hold an attachment from one list and a scope from
   another. Holds, Holds by kind, Fits where and the figures a row reads of its
   parts count every list, and removing a row takes all of its parts.
+- A list's rows can be sheets. Tick Rows are sheets, and each row can be
+  joined to a character sheet of the campaign, as a vehicle's row to the
+  vehicle's own sheet. The sheet's picture and name stand on the row and open
+  it, and a column of the list can read its figures. Make a new sheet makes one
+  with the row's name, as a copy of a sheet the list names or from the
+  system's defaults. A sheet traded with its row goes with it to its new
+  holder's player, but a character someone plays never moves.
 - An attack that lands as a Big Hit passes it on to the damage roll it calls
   for, which is then a Major Wound if any of it gets through, read as
   Blow.big. A Major Wound row's roll can leave out the hit's own effects too.
 - A roll's Calls for can ask for a list's roll on a row: the row that resisted,
   or, sent to the roller, the attack's own row. So a weapon that parries, or
-  is parried by, a lightsaber rolls against its own Durability.
+  is parried by, an energy blade rolls against its own Durability.
 - An Any wound row can also run on a blow that wounds nobody, as armour that
   stops it all, for knockback. A row's roll can read the sheet as it stood at
   that row, so a shock roll leaves out the Rattled of the same hit.

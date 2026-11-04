@@ -3808,6 +3808,12 @@
   .roll-pend { color: var(--gold); font-size: 12px; margin-top: 4px; }
   .roll-pend-bar { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
   .sheet-item-statsel { font-size: 11px; padding: 1px 4px; min-height: 0; height: auto; max-width: 160px; width: auto; }   /* 1.6.0, backlog 180 R10: a choice stat as a menu on its row */
+  .sheet-item-sheet { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }   /* 1.6.2 (vehicles, fold (a)): the sheet a row is joined to */
+  .sheet-item-sheetopen { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 1px 7px 1px 2px; min-height: 0; border: 1px solid var(--border); border-radius: 999px; max-width: 200px; }
+  .sheet-item-sheetopen:disabled { opacity: 0.85; cursor: default; }
+  .sheet-item-sheetpic { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex: none; }
+  .sheet-item-sheetname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sheet-item-sheetmenu { font-size: 11px; padding: 1px 6px; min-height: 0; }
   .sheet-split { font-size: 11px; padding: 0 6px; }   /* 1.6.0, backlog 180 R11 */
   .sheet-parts { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 2px 0 6px 18px; }   /* 1.6.0 R14: a row's parts, as pills under it */
   .sheet-part { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--edge); background: var(--panel2); border-radius: 12px; padding: 1px 4px 1px 9px; }

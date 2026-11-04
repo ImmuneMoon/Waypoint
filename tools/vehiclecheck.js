@@ -1,0 +1,127 @@
+// vehiclecheck — vehicle and starship combat (1.6.2, docs/VEHICLE_COMBAT_DESIGN.md). Fold (a): a list ticked Rows are sheets, a row joined to a
+// character sheet of the campaign, Row.sheet.<name> in each place a name is read, the one judge of a join, a new sheet made from a row, the figures
+// a player's copy carries, and a trade that takes the sheet with its row. systemcore imported and run on invented data, the sheet's control sliced
+// and run on a page of plain objects. No browser, no network.
+'use strict';
+const fs = require('fs'), path = require('path'), url = require('url');
+let pass = 0, fail = 0, summed = false;
+function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail === undefined ? '' : ' -> ' + String(detail).slice(0, 700))); } }
+const J = JSON.stringify, NL = '\n', root = path.join(__dirname, '..');
+const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSync(app(p), 'utf8').replace(/\r\n/g, NL), readRoot = p => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, NL);
+(async () => {
+    const S = await import(url.pathToFileURL(app('scripts/systemcore.js')).href), F = await import(url.pathToFileURL(app('scripts/formula.js')).href);
+    /* ---- fold (a): Rows are sheets ---- */
+    const RAW = { v: 1, name: 'Vehicles', fields: [
+        { id: 'f_hp', key: 'HP', label: 'Hull', kind: 'number', def: 10 },
+        { id: 'f_isv', key: 'IsVehicle', label: 'Is a vehicle', kind: 'toggle' },
+        { id: 'f_sec', key: 'Secret', label: 'Secret', kind: 'number', def: 7, vis: 'gm' },
+        { id: 'f_note', key: 'Note', label: 'Note', kind: 'text' },
+        { id: 'f_veh', key: 'Vehicles', label: 'Vehicles', kind: 'item-list', list: { trade: true, sheets: { on: 'f_isv', tpl: 'c_tpl' }, cols: [{ key: 'Hull', label: 'Hull', formula: 'Row.sheet.HP' }, { key: 'Joined', label: 'Joined', formula: 'Row.sheet.has' }, { key: 'Sneak', label: 'Sneak', formula: 'Row.sheet.Secret + 1' }] } },
+        { id: 'f_kit', key: 'Kit', label: 'Kit', kind: 'item-list', list: { cols: [{ key: 'Bad', label: 'Bad', formula: 'Row.sheet.HP' }] } }],
+        items: [{ id: 'i_sk', key: 'Skiff', name: 'Skiff', category: '' }, { id: 'i_box', key: 'Box', name: 'Box', category: '' }] };
+    const SYS = S.cleanSystem(RAW, { F, gmView: true }), VIEW = S.cleanSystem(RAW, { F, gmView: false }), vl = s => s.fields.find(f => f.id === 'f_veh').list;
+    check('Rows are sheets is kept as an object in both views, its template the GM’s alone, its toggle only a toggle of the view, and a list with none has no key',
+        J(vl(SYS).sheets) === J({ on: 'f_isv', tpl: 'c_tpl' }) && J(vl(VIEW).sheets) === J({ on: 'f_isv' }) && !('sheets' in (SYS.fields.find(f => f.id === 'f_kit').list || {}))
+        && J(S.cleanSystem({ v: 1, name: 'B', fields: [{ id: 'f_n', key: 'N', kind: 'number' }, { id: 'f_x', key: 'X', kind: 'item-list', list: { sheets: { on: 'f_n', tpl: 'nobody' } } }] }, { F, gmView: true }).fields[1].list.sheets) === J({})
+        && !('sheets' in (S.cleanSystem({ v: 1, name: 'B', fields: [{ id: 'f_x', key: 'X', kind: 'item-list', list: { sheets: 'yes' } }] }, { F, gmView: true }).fields[0].list || {})), J([vl(SYS), vl(VIEW)]));
+    const chars0 = () => ({
+        c_kael: { id: 'c_kael', name: 'Kael', ownerId: 'u_a', npc: false, values: { f_veh: [{ id: 'w_s1', defId: 'i_sk', qty: 1 }, { id: 'w_s2', defId: 'i_sk', qty: 1 }] } },
+        c_bolt: { id: 'c_bolt', name: 'Bolt', ownerId: 'u_a', npc: false, values: { f_hp: 22, f_sec: 3 } },
+        c_mira: { id: 'c_mira', name: 'Mira', ownerId: 'u_b', npc: false, values: { f_veh: [{ id: 'w_m1', defId: 'i_sk', qty: 1 }] } },
+        c_tpl: { id: 'c_tpl', name: 'Skiff template', ownerId: '', npc: true, portrait: '/saves/images/skiff.png', values: { f_hp: 40, f_veh: [{ id: 'w_t1', defId: 'i_sk', qty: 1, sh: 'c_ghost' }] } },
+        c_cart: { id: 'c_cart', name: 'Old cart', ownerId: '', npc: true, values: { f_hp: 4 } } });
+    let C = chars0(); S.setLinkSource(id => C[id] || null);
+    const set = (c, row, to, o) => S.rowSheetSet(SYS, C, C[c], 'f_veh', row, to, o);
+    const jn = set('c_kael', 'w_s1', 'c_bolt', { player: true, pid: 'u_a' });
+    check('a player joins a row of their own character to a sheet of their own: the list as it is to be stored, the row keeping the sheet’s id', jn.ok === true && jn.values.f_veh[0].sh === 'c_bolt' && !('sh' in C.c_kael.values.f_veh[0]), J(jn));
+    C.c_kael.values.f_veh = jn.values.f_veh;
+    const says = r => [r.ok, r.reason, r.msg];
+    check('the one judge refuses, in its words: another player’s sheet, an NPC’s, a row of another player’s character, a sheet joined to another row (a player is never told whose), the sheet the row stands on, a sheet that is not here, a row that is not there',
+        J(says(set('c_kael', 'w_s2', 'c_mira', { player: true, pid: 'u_a' }))) === J([false, 'owner', 'You can join only a sheet of your own.'])
+        && set('c_kael', 'w_s2', 'c_cart', { player: true, pid: 'u_a' }).reason === 'owner'
+        && J(says(set('c_mira', 'w_m1', 'c_bolt', { player: true, pid: 'u_a' }))) === J([false, 'owner', 'That row is not yours.'])
+        && J(says(set('c_kael', 'w_s2', 'c_bolt', { player: true, pid: 'u_a' }))) === J([false, 'error', 'Bolt is joined to another row already. Take that join off first.'])
+        && J(says(set('c_mira', 'w_m1', 'c_bolt', {}))) === J([false, 'error', 'Bolt is joined to Skiff of Kael already. Take that join off first.'])
+        && set('c_kael', 'w_s2', 'c_kael', {}).reason === 'value' && set('c_kael', 'w_s2', 'c_zed', {}).reason === 'missing' && set('c_kael', 'w_zz', 'c_cart', {}).reason === 'missing', J(says(set('c_kael', 'w_s2', 'c_bolt', { player: true, pid: 'u_a' }))));
+    check('the GM joins any sheet, an NPC’s too, and takes one off; a row that has none has nothing to take off', set('c_kael', 'w_s2', 'c_cart', {}).ok === true && (() => { const o = set('c_kael', 'w_s1', '', {}); return o.ok === true && !('sh' in o.values.f_veh[0]); })() && set('c_kael', 'w_s2', '', {}).reason === 'same');
+    const cleanRows = (v, sys) => S.cleanChar({ id: 'c_kael', name: 'Kael', ownerId: 'u_a', values: v }, sys || SYS, { state: 'host' }).values;
+    check('a stored row keeps its sheet on a list ticked Rows are sheets, never on another, and never an id that is no character’s', cleanRows({ f_veh: [{ id: 'w_s1', defId: 'i_sk', qty: 1, sh: 'c_bolt' }, { id: 'w_s2', defId: 'i_sk', qty: 1, sh: 'bolt' }] }).f_veh.map(r => r.sh || '').join() === 'c_bolt,'
+        && !('sh' in cleanRows({ f_kit: [{ id: 'w_k1', defId: 'i_box', qty: 1, sh: 'c_bolt' }] }).f_kit[0]));
+    /* ---- Row.sheet.<name> ---- */
+    const ent = (c, sys) => S.resolveAll(sys || SYS, c, F).f_veh.cells, cell = (cs, row, key) => ((cs[row] || []).find(x => x.key === key) || {}).value;
+    const cs1 = ent(C.c_kael);
+    check('Row.sheet.<name> reads the joined sheet live, Row.sheet.has is 1 while it is joined, and both read 0 with no sheet', cell(cs1, 'w_s1', 'Hull') === 22 && cell(cs1, 'w_s1', 'Joined') === 1 && cell(cs1, 'w_s2', 'Hull') === 0 && cell(cs1, 'w_s2', 'Joined') === 0, J(cs1));
+    C.c_bolt.values.f_hp = 17;
+    check('... and follows the sheet as it changes', cell(ent(C.c_kael), 'w_s1', 'Hull') === 17);
+    const nest = chars0(); nest.c_bolt.values.f_veh = [{ id: 'w_b1', defId: 'i_sk', qty: 1, sh: 'c_cart' }]; nest.c_kael.values.f_veh[0].sh = 'c_bolt'; C = nest;
+    check('one level deep: the joined sheet’s own joins read 0 from it, so two sheets joined each to the other never loop', (() => { C.c_cart.values.f_veh = [{ id: 'w_c1', defId: 'i_sk', qty: 1, sh: 'c_bolt' }]; const r = S.makeResolver(SYS, C.c_kael, F); return cell(ent(C.c_kael), 'w_s1', 'Hull') === 22 && cell(ent(C.c_bolt), 'w_b1', 'Hull') === 4; })(), J(ent(C.c_kael)));
+    C = chars0(); C.c_kael.values.f_veh[0].sh = 'c_bolt';
+    /* ---- the players' view ---- */
+    check('a column that reads a GM-only figure of the joined sheet is GM only in the players’ view, as one that reads the character’s own would be; one that reads a visible figure stays',
+        vl(VIEW).cols.find(c => c.key === 'Sneak') && vl(VIEW).cols.find(c => c.key === 'Sneak').formula === null && vl(VIEW).cols.find(c => c.key === 'Hull').formula === 'Row.sheet.HP', J(vl(VIEW).cols));
+    check('the GM-only judges read Row.sheet.<name> as the name it reads there', J(S.gmOnlyNames(SYS, [{ name: 'Row.sheet.Secret' }, { name: 'Row.sheet.HP' }])) === J(['Row.sheet.Secret']));
+    const own = S.charFor(C.c_kael, VIEW, 'u_a', {});
+    check('its owner’s copy carries the row’s sheet', own.values.f_veh[0].sh === 'c_bolt', J(own.values));
+    S.setLinkSource((id, s) => { const c = C[id]; return !c ? null : s === SYS ? c : S.charForView(c, s, { full: SYS }); });
+    const sk = S.sheetFigs(VIEW, own, F);
+    check('the host works out the figures a player’s copy reads, through the players’ view: what the system’s formulas read of a row’s sheet, never a GM-only figure, by row', J(sk) === J({ w_s1: { id: 'c_bolt', name: 'Bolt', v: { hp: 22 } } }), J(sk));
+    const back = S.cleanChar(Object.assign(JSON.parse(J(own)), { sk: Object.assign({}, sk, { w_s2: { id: 'nope', v: { hp: 1 } }, __proto__x: 1, w_s3: { id: 'c_cart', name: '<b>x</b>', v: { hp: 'lots', 'x.y.z.a.b.c.d.e': 2, constructor: 3 } } }) }), VIEW, { state: 'owner' });
+    S.setLinkSource(null);
+    const rP = S.resolveAll(VIEW, back, F).f_veh.cells;
+    check('a player’s app keeps the figures only as numbers and true or false, by row ids and plain names, and reads them as the host does', J(back.sk.w_s1) === J({ id: 'c_bolt', name: 'Bolt', v: { hp: 22 } }) && !back.sk.w_s2 && J(back.sk.w_s3.v) === J({}) && cell(rP, 'w_s1', 'Hull') === 22 && cell(rP, 'w_s1', 'Joined') === 1 && cell(rP, 'w_s2', 'Joined') === 0, J([back.sk, rP]));
+    S.setLinkSource(id => C[id] || null);
+    /* ---- the validator and the words ---- */
+    const errs = sys => S.validateSystem(S.cleanSystem(sys, { F, gmView: true }), F).errors.map(e => e.message);
+    const vRaw = JSON.parse(J(RAW)); vRaw.fields[4].list.cols.push({ key: 'Nope', label: 'Nope', formula: 'Row.sheet.Nothing' });
+    check('the validator takes Row.sheet.<name> where its list is ticked and the name is a field of the system, and refuses one that names nothing, or on a list not ticked', errs(RAW).filter(m => /sheet/i.test(m)).length === 1 && errs(vRaw).filter(m => /Nothing/.test(m)).length === 1, J([errs(RAW), errs(vRaw)]));
+    check('it says Row.sheet.<name> in words, and offers the sheet’s figures as a group of its own', S.nameWord(SYS, 'Row.sheet.HP', vl(SYS)) === 'its sheet’s Hull' && S.nameWord(SYS, 'Row.sheet.has', vl(SYS)) === 'whether it is joined to a sheet'
+        && S.readsOf(SYS, { list: vl(SYS) }).some(g => g && g.name === 'Its sheet' && g.items.some(i => i.s === 'Row.sheet.HP') && g.items.some(i => i.s === 'Row.sheet.has')), J(S.readsOf(SYS, { list: vl(SYS) })));
+    /* ---- a new sheet ---- */
+    const nw = S.sheetFromRow(SYS, C, C.c_kael, 'f_veh', C.c_kael.values.f_veh[1], 'c_new');
+    check('a new sheet made from a row is a copy of the list’s template, its rows joined to nothing, under the row’s name, its owner the row’s owner, the list’s toggle switched on, and the template’s picture', nw.name === 'Skiff' && nw.ownerId === 'u_a' && nw.npc === false && nw.values.f_hp === 40 && nw.values.f_isv === true && !('sh' in nw.values.f_veh[0]) && nw.portrait === '/saves/images/skiff.png' && C.c_tpl.values.f_veh[0].sh === 'c_ghost', J(nw));
+    const noT = JSON.parse(J(RAW)); delete noT.fields[4].list.sheets.tpl; const sysN = S.cleanSystem(noT, { F, gmView: true }), npcRow = S.sheetFromRow(sysN, C, C.c_cart, 'f_veh', { id: 'w_q', defId: 'i_box', qty: 1 }, 'c_n2');
+    check('with no template it starts at the system’s defaults with the toggle on, and a row of an NPC makes an NPC', J(npcRow.values) === J({ f_isv: true }) && npcRow.npc === true && npcRow.ownerId === '' && npcRow.name === 'Box', J(npcRow));
+    /* ---- a trade takes the sheet with its row ---- */
+    const go = (to, vals, camp) => S.sheetsGo(SYS, camp || { chars: C }, C[to], vals);
+    const v1 = { f_veh: [{ id: 'w_s1', defId: 'i_sk', qty: 1, sh: 'c_bolt' }] }, g1 = go('c_mira', v1);
+    check('a sheet goes with its row to the receiver’s player', J(g1) === J({ drop: 0, give: ['c_bolt'] }) && C.c_bolt.ownerId === 'u_b' && v1.f_veh[0].sh === 'c_bolt', J([g1, C.c_bolt]));
+    C = chars0(); const v2 = { f_veh: [{ id: 'w_s1', defId: 'i_sk', qty: 1, sh: 'c_bolt' }] }, g2 = go('c_mira', v2, { chars: C, players: { u_a: { charId: 'c_bolt' } } });
+    check('never a player’s character in play: that join is dropped and the sheet stays theirs', J(g2) === J({ drop: 1, give: [] }) && !('sh' in v2.f_veh[0]) && C.c_bolt.ownerId === 'u_a', J([g2, v2]));
+    C = chars0(); const v3 = { f_veh: [{ id: 'w_s1', defId: 'i_sk', qty: 1, sh: 'c_mira' }] }, g3 = go('c_mira', v3), v4 = { f_veh: [{ id: 'w_s1', defId: 'i_sk', qty: 1, sh: 'c_cart' }] }, g4 = go('c_cart', v4);
+    check('a row that comes to the sheet it is joined to lets it go, and to an NPC a sheet becomes an NPC’s', J(g3) === J({ drop: 1, give: [] }) && !('sh' in v3.f_veh[0]) && J(g4) === J({ drop: 1, give: [] }) && (() => { C = chars0(); const v5 = { f_veh: [{ id: 'w_s1', defId: 'i_sk', qty: 1, sh: 'c_bolt' }] }; S.sheetsGo(SYS, { chars: C }, C.c_cart, v5); return C.c_bolt.npc === true && C.c_bolt.ownerId === ''; })(), J([g3, g4]));
+    C = chars0(); C.c_kael.values.f_veh = [{ id: 'w_s1', defId: 'i_sk', qty: 1, sh: 'c_bolt' }]; C.c_mira.values.f_veh = [{ id: 'w_m1', defId: 'i_sk', qty: 1 }];
+    const tr = S.tradeApply(SYS, C.c_kael, C.c_mira, [{ fid: 'f_veh', rowId: 'w_s1', qty: 1 }], [], 'gm', 'gm', {});
+    check('a traded row joined to a sheet stands alone on the receiver’s list, never stacked onto a row of the same entry, and keeps its sheet', tr.ok === true && (tr.valuesB.f_veh || []).length === 2 && tr.valuesB.f_veh.some(r => r.sh === 'c_bolt'), J(tr));
+    C = chars0(); C.c_kael.values.f_veh = [{ id: 'w_s1', defId: 'i_sk', qty: 3, sh: 'c_bolt' }];
+    const tr2 = S.tradeApply(SYS, C.c_kael, C.c_mira, [{ fid: 'f_veh', rowId: 'w_s1', qty: 1 }], [], 'gm', 'gm', {});
+    check('a stack split by a trade keeps its sheet on the row it came from', tr2.ok === true && tr2.valuesA.f_veh[0].sh === 'c_bolt' && tr2.valuesB.f_veh.every(r => r.sh === undefined), J(tr2));
+    /* ---- a sheet deleted, and the player's message ---- */
+    C = chars0(); C.c_kael.values.f_veh[0].sh = 'c_bolt';
+    check('a sheet deleted: every row joined to it lets it go, and names the characters it changed', J(S.rowSheetsDrop(SYS, C, 'c_bolt')) === J(['c_kael']) && !('sh' in C.c_kael.values.f_veh[0]));
+    const cl = m => S.cleanCharLink(Object.assign({ rid: 'k1', charId: 'c_kael' }, m));
+    check('a player’s join is a char-link that names a row: a field and a row by their ids, a sheet or none, or make with no sheet named; any other shape is no message', J(cl({ row: { f: 'f_veh', r: 'w_s1' }, to: 'c_bolt' })) === J({ rid: 'k1', charId: 'c_kael', row: { f: 'f_veh', r: 'w_s1' }, to: 'c_bolt' })
+        && J(cl({ row: { f: 'f_veh', r: 'w_s1' }, make: true })) === J({ rid: 'k1', charId: 'c_kael', row: { f: 'f_veh', r: 'w_s1' }, to: '', make: true })
+        && [cl({ row: { f: 'f_veh', r: 'w_s1' }, to: 'c_bolt', make: true }), cl({ row: { f: 'veh', r: 'w_s1' } }), cl({ row: { f: 'f_veh', r: '__proto__' } }), cl({ row: { f: 'f_veh', r: 'w_s1' }, to: 5 })].every(x => x === null));
+    /* ---- the sheet's control, on a page of plain objects ---- */
+    {
+        const sh = read('scripts/sheets.js'), sl = sh.slice(sh.indexOf('// [sinkcheck:rowsheet-start]'), sh.indexOf('// [sinkcheck:rowsheet-end]'));
+        const mk = (tag, cls, text) => { const n = { tag, cls: cls || '', kids: [], attrs: {}, style: {}, title: '', disabled: false, on: {}, appendChild(k) { this.kids.push(k); return k; }, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(t, f) { this.on[t] = f; }, get childNodes() { return this.kids; } }; if (text !== undefined) n.kids.push({ text: String(text) }); return n; };
+        const camp = { system: SYS, chars: chars0() }; camp.chars.c_kael.values.f_veh[0].sh = 'c_bolt'; camp.chars.c_bolt.portrait = '/saves/images/bolt.png'; camp.chars.c_bolt.name = '<img src=x onerror=1>';
+        const opened = [], api = new Function('el', 'getActiveCampaign', 'charById', 'canOpen', 'openSheet', 'imgSrc', 'rowIdOf', 'isClient', sl + '\nreturn { sheetCtl: sheetCtl };')(
+            mk, () => camp, id => camp.chars[id] || null, () => true, id => opened.push(id), p => 'IMG:' + p, S.rowIdOf, () => false);
+        const spec = vl(SYS), w = api.sheetCtl(camp.chars.c_kael.values.f_veh[0], camp.chars.c_kael, { id: 'f_veh' }, spec, true), btn = w.kids[0];
+        const txt = n => (n.kids || []).map(k => k.text !== undefined ? k.text : txt(k)).join('');
+        check('a joined row shows its sheet’s picture through imgSrc and its name as a text node, and a press opens that sheet', btn.kids[0].tag === 'img' && btn.kids[0].src === 'IMG:/saves/images/bolt.png' && txt(btn) === '<img src=x onerror=1>' && (btn.on.click(), opened[0] === 'c_bolt') && txt(w.kids[1]) === 'Change…', J(w));
+        const w2 = api.sheetCtl(camp.chars.c_kael.values.f_veh[1], camp.chars.c_kael, { id: 'f_veh' }, spec, true), w3 = api.sheetCtl(camp.chars.c_kael.values.f_veh[1], camp.chars.c_kael, { id: 'f_veh' }, spec, false), w4 = api.sheetCtl(camp.chars.c_kael.values.f_veh[0], camp.chars.c_kael, { id: 'f_kit' }, {}, true);
+        check('a row with no sheet offers Join a sheet to whoever may join it and shows nothing to anyone else, and a list not ticked shows nothing', txt(w2) === 'Join a sheet…' && w3 === null && w4 === null);
+        check('the menu lists only the player’s own sheets on a player’s app, never one joined to another row, with Make a new sheet first; every name set as text', /isClient\(\) \|\| \(!x\.npc && x\.ownerId === me && x\.shared !== 1\)/.test(sl) && /!taken\[x\.id\]/.test(sl) && /add\('Make a new sheet'/.test(sl) && !/innerHTML/.test(sl));
+        check('on a player’s app a join is sent and waited for, and on the GM’s judged by rowSheetSet and stored with a step log', /nR\.charRowSheet\(c\.id, f\.id, rid, toId, make === true\)/.test(sl) && /rowSheetSet\(sys, cs, c, f\.id, rid, made \? made\.id : toId, \{\}\)/.test(sl) && /wpStepLog\('rowsheet v1'/.test(sl));
+        check('the row control stands on a row and in a rich table, for the GM where the sheet may be changed and for a player on their own open sheet', (sh.match(/sheetCtl\(entry, c, f, spec, !hudRow && \(gm \? chg : !!ownOk\)\)/g) || []).length === 2);
+    }
+    /* ---- the words ---- */
+    const help = read('index.html');
+    check('Help says Rows are sheets, in plain words', /<b>Rows are sheets<\/b>/.test(help) && /Make a new sheet/.test(help));
+    check('both release notes say it', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /Rows are sheets/.test(readRoot(p))));
+    summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
+})().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });
+process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never finished'); process.exitCode = 1; } });

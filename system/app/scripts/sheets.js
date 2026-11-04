@@ -26,7 +26,8 @@ import { partsTree } from './systemcore.js';   // 205 follow-up (2): the removal
 import { upChanges, revIdle } from './systemcore.js';   // 1.6.0: what a Review entry can apply, and when it asks nothing
 import { lvlOnlyRead, lvlOnlyText, lvlOnlyOn, lvlOnlyHas, lvlOnlyList, lvlOnlySays, modTiersRead, modTiersText, modAt } from './systemcore.js';   // 1.6.0: Levels it may be, and a change's figures By level
 import { upkeepLines } from './systemcore.js';   // 205 follow-up (3): a turn's or a round's upkeep said on a card
-import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, setGateEngine } from './systemcore.js';   // 1.6.0: linked sheets
+import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, setGateEngine } from './systemcore.js';
+import { rowSheetSet, sheetFromRow, rowSheetsDrop, sheetRows } from './systemcore.js';   // 1.6.2 (vehicles, fold (a)): Rows are sheets   // 1.6.0: linked sheets
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
 import { fitIfOk, partFitEntry, modsIfOk } from './systemcore.js';
@@ -700,6 +701,7 @@ function deleteCharacter(id) {
     var prev = c.ownerId || '';
     delete charsOf(camp)[id];
     var lkGone = linksDrop(charsOf(camp), id);   // 1.6.0: every link to it goes
+    if (typeof rowSheetsDrop === 'function' && camp.system) lkGone = lkGone.concat(rowSheetsDrop(camp.system, charsOf(camp), id));   // 1.6.2 (vehicles, fold (a)): and every row joined to it
     Object.values(camp.items || {}).forEach(function(m) { if (m && m.type === 'map') (m.whiteboard || []).forEach(function(w) { if (w && w.charId === id) delete w.charId; }); });
     if (prev) { unbindStale(camp, prev, c); if (c.made === 1) unbindMade(camp, prev, c.name); syncOwners(camp); var nD = net(); if (nD && nD.logEvent) nD.logEvent('char', c.name + ' deleted (played by ' + (playerNames(camp)[prev] || 'a player') + '; they keep its tokens)'); }   // their leftover tokens stay theirs (by name); another character of theirs may now be in play
     save(true);
@@ -3266,6 +3268,56 @@ function subjectCtl(entry, c, f, spec, can, ok) {   // ok: false where Subject o
     return sel;
 }
 // [systemcheck:subject-end]
+// [sinkcheck:rowsheet-start] 1.6.2 (vehicles, fold (a); the owner, 2026-11-04, by prompt: the sheet's picture and name stand on the row, and a press
+// opens it): on a list ticked Rows are sheets, the sheet a row is joined to, and for whoever may join it (the GM, or a player who owns both the row
+// and the sheet) a menu: another sheet, a new one, or none. Its words are text nodes, a picture only through imgSrc
+function sheetCtl(entry, c, f, spec, can) {
+    if (!spec || !spec.sheets || typeof spec.sheets !== 'object' || !entry || entry.hid === 1) return null;
+    var camp = getActiveCampaign(), rid = rowIdOf(entry), sh = typeof entry.sh === 'string' ? entry.sh : '', t = sh ? charById(sh, camp) : null;
+    var sk = sh && c && c.sk && typeof c.sk === 'object' && Object.prototype.hasOwnProperty.call(c.sk, rid) && c.sk[rid] && c.sk[rid].id === sh ? c.sk[rid] : null;
+    var w = el('span', 'sheet-item-sheet');
+    if (sh) {
+        var nm = t && !t.partial ? (t.name || 'Character') : sk ? sk.name : 'A sheet', op = !!t && !t.partial && canOpen(sh), b = el('button', 'tool ghost sheet-item-sheetopen'); b.type = 'button';
+        if (t && !t.partial && t.portrait) { var im = el('img', 'sheet-item-sheetpic'); im.alt = ''; im.src = imgSrc(t.portrait); b.appendChild(im); }
+        b.appendChild(el('span', 'sheet-item-sheetname', nm)); b.disabled = !op; b.title = op ? 'Open the sheet of ' + nm : nm + '\u2019s sheet is not yours to open';
+        b.addEventListener('click', function() { if (canOpen(sh)) openSheet(sh); });
+        w.appendChild(b);
+    }
+    if (can) { var m = el('button', 'tool ghost sheet-item-sheetmenu', sh ? 'Change\u2026' : 'Join a sheet\u2026'); m.type = 'button'; m.title = sh ? 'Join this row to another sheet, make a new one, or take the sheet off' : 'Join this row to a sheet, or make a new sheet for it'; m.addEventListener('click', function() { sheetMenu(m, entry, c, f); }); w.appendChild(m); }
+    return w.childNodes.length ? w : null;
+}
+function sheetMenu(anchor, entry, c, f) {
+    if (_ldPop) { var was = _ldPop._anchor === anchor; closeLoadMenu(); if (was) return; }
+    var camp = getActiveCampaign(), cs = charsOf(camp), nC = net(), me = isClient() ? (nC && nC.myId) || '' : '', sh = typeof entry.sh === 'string' ? entry.sh : '';
+    var taken = Object.create(null); (typeof sheetRows === 'function' && camp && camp.system ? sheetRows(camp.system, cs) : []).forEach(function(h) { if (h.r !== entry && !(h.c.id === c.id && rowIdOf(h.r) === rowIdOf(entry))) taken[h.r.sh] = 1; });
+    var pop = el('div', 'sheet-dl-pop sheet-sheet-pop'); pop.setAttribute('role', 'menu'); pop.setAttribute('aria-label', 'The sheet of this row'); pop._anchor = anchor;
+    var add = function(text, go, on, tip) { var b = el('button', 'sheet-dl-item' + (on ? ' on' : ''), text); b.type = 'button'; b.setAttribute('role', 'menuitem'); if (tip) b.title = tip; b.addEventListener('click', function(e) { e.preventDefault(); closeLoadMenu(); try { anchor.focus(); } catch (er) {} go(); }); pop.appendChild(b); };
+    add('Make a new sheet', function() { rowSheetDo(c, f, entry, '', true); }, false, 'A new sheet with this row\u2019s name, made as the list says');
+    Object.keys(cs).map(function(id) { return cs[id]; }).filter(function(x) { return x && !x.partial && x.id !== c.id && !taken[x.id] && (!isClient() || (!x.npc && x.ownerId === me && x.shared !== 1)); }).sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); }).slice(0, 80).forEach(function(x) { add(x.name || 'Character', function() { if (x.id !== sh) rowSheetDo(c, f, entry, x.id, false); }, x.id === sh); });
+    if (sh) add('Take the sheet off', function() { rowSheetDo(c, f, entry, '', false); }, false, 'The sheet stays, joined to nothing');
+    pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+    pop.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return; e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {} });
+    document.body.appendChild(pop); _ldPop = pop;
+    var r0 = anchor.getBoundingClientRect(), n = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r0.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (24 + 36 * Math.min(n, 12)), r0.bottom + 6)) + 'px';
+    document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
+    var cur = pop.querySelector('.sheet-dl-item.on') || pop.querySelector('.sheet-dl-item'); try { if (cur) cur.focus(); } catch (er) {}
+}
+// A join, a new sheet or none: on a player's app sent and waited for (the host judges it), on the GM's machine judged by rowSheetSet and stored
+function rowSheetDo(c, f, entry, toId, make) {
+    var camp = getActiveCampaign(), sys = camp && camp.system, rid = rowIdOf(entry); if (!sys || !c || !rid) return;
+    if (isClient()) { var nR = net(), aR = nR && typeof nR.charRowSheet === 'function' ? nR.charRowSheet(c.id, f.id, rid, toId, make === true) : { error: 'Not at a table.' }; if (aR && aR.error) toast(aR.error); return; }
+    if (!canWrite()) return;
+    var cs = charsOf(camp), made = null;
+    if (make === true) { made = sheetFromRow(sys, cs, c, f.id, entry, uid('c_')); while (Object.prototype.hasOwnProperty.call(cs, made.id)) made.id = uid('c_'); var srM = window.wpSystemCore && typeof window.wpSystemCore.sheetRevOf === 'function' ? window.wpSystemCore.sheetRevOf(sys) : 0; if (srM) made.sheetRev = srM; cs[made.id] = made; }
+    var res = rowSheetSet(sys, cs, c, f.id, rid, made ? made.id : toId, {});
+    if (!res.ok) { if (made) delete cs[made.id]; toast(res.msg); return; }
+    c.values = c.values || {}; c.values[f.id] = res.values[f.id];
+    if (made) afterCharChange(made, true);
+    afterCharChange(c, false, res.values);
+    if (window.wpStepLog) window.wpStepLog('rowsheet v1', made ? 'made' : toId ? 'joined' : 'off', { gm: 1 });
+    if (made) toast('Made the sheet ' + made.name + '.');
+}
+// [sinkcheck:rowsheet-end]
 // The arrow before a row's name (R1): a real button that opens the row's details and says so, kept per row as 📝's line is. none: no details,
 // a blank of its size so the names line up
 function rowOpener(line, entry, c, f, name, none) {
@@ -3743,6 +3795,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         _rowMenu = null;
         var sjC = typeof subjectCtl === 'function' ? subjectCtl(entry, c, f, spec, chg && !hudRow && !opnR, res && res.sjOk ? res.sjOk[rid] : undefined) : null; if (sjC) line.appendChild(sjC);   // 1.6.0 Subjects
         var sdC = typeof standCtl === 'function' ? standCtl(entry, c, f, spec, chg && !hudRow && !opnR, sysI, res) : null; if (sdC) line.appendChild(sdC);   // 1.6.2 (body fold 2)
+        var shC = typeof sheetCtl === 'function' ? sheetCtl(entry, c, f, spec, !hudRow && (gm ? chg : !!ownOk)) : null; if (shC) line.appendChild(shC);   // 1.6.2 (vehicles, fold (a))
         var stcL = typeof tileStateChip === 'function' ? tileStateChip(spec, res, rowIdOf(entry)) : null; if (stcL) line.appendChild(stcL);
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid, res && res.tw ? res.tw[rid] : undefined));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
         rowRollBtns(line, spec, entry, def, c, f, res);   // F5b: the list's rolls on this row
@@ -4170,6 +4223,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         if (typeof onceBits === 'function') onceBits(nameTd, sysI, c, f, carried, entry);   // 1.5.8 Counted once
         var sjT = typeof subjectCtl === 'function' ? subjectCtl(entry, c, f, spec, chg && !hudRow, res && res.sjOk ? res.sjOk[rid] : undefined) : null; if (sjT) nameTd.appendChild(sjT);   // 1.6.0 Subjects
         var sdT = typeof standCtl === 'function' ? standCtl(entry, c, f, spec, chg && !hudRow, sysI, res) : null; if (sdT) nameTd.appendChild(sdT);   // 1.6.2 (body fold 2)
+        var shT = typeof sheetCtl === 'function' ? sheetCtl(entry, c, f, spec, !hudRow && (gm ? chg : !!ownOk)) : null; if (shT) nameTd.appendChild(shT);   // 1.6.2 (vehicles, fold (a))
         var stcT = typeof tileStateChip === 'function' ? tileStateChip(spec, res, rowIdOf(entry)) : null; if (stcT) nameTd.appendChild(stcT);
         if (typeof badgeBits === 'function') { var bdT = badgeBits(nameTd, spec, res && res.bd ? res.bd[rid] : null, tr, hudRow); if (bdT) nameTd.appendChild(bdT); }   // 1.6.0 R4: in a table the badges go in the name's cell
         if (typeof rowEdge === 'function') rowEdge(tr, spec, res && res.bd ? res.bd[rid] : null, !!(spec && spec.on) && rowOn(spec, entry), !!(spec && spec.on));   // 1.6.0 R16
@@ -6982,6 +7036,7 @@ function removeMade(id, note) {
     });
     delete charsOf(camp)[id];
     var lkMade = linksDrop(charsOf(camp), id);   // 1.6.0: every link to it goes
+    if (typeof rowSheetsDrop === 'function' && camp.system) lkMade = lkMade.concat(rowSheetsDrop(camp.system, charsOf(camp), id));   // 1.6.2 (vehicles, fold (a)): and every row joined to it
     if (pid) { unbindStale(camp, pid, c); unbindMade(camp, pid, c.name); syncOwners(camp); }   // its name binds nothing of theirs any more; their other character may now be in play
     if (maps.length && window.wpHistBarrier) window.wpHistBarrier(maps);   // an undo never brings its tokens back
     save(true);
@@ -9442,6 +9497,16 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     var fl = el('div', 'sys-flags');
     fl.appendChild(checkLabel('sys-list-multi', sp.multi === true, 'Same item more than once', 'Adding an item it already holds makes a new row (a skill twice, with two specialties) instead of raising the quantity'));
     fl.appendChild(checkLabel('sys-list-noqty', sp.noQty === true, 'No quantity', 'Rows have no quantity (skills, powers): the \u2212/+ and \u00d7n go, and an item is on the list once unless the same item may be there more than once. Quantities already stored come back if you untick it'));
+    fl.appendChild(checkLabel('sys-list-sheets', !!(sp.sheets && typeof sp.sheets === 'object'), 'Rows are sheets', 'Each row may be joined to a character sheet of the campaign, as a vehicle\u2019s row to the vehicle\u2019s own sheet. The sheet\u2019s picture and name stand on the row and open it, and a column of this list can read that sheet\u2019s figures'));   // 1.6.2 (vehicles, fold (a))
+    if (sp.sheets && typeof sp.sheets === 'object') {   // what a new sheet made from a row starts as: a copy of a template sheet, else the system's defaults, with a toggle switched on
+        var shW = el('div', 'sys-row'), shCs = charsOf(getActiveCampaign()), shTp = el('select', 'sys-list-sheettpl'), shOn = el('select', 'sys-list-sheeton'), shO = function(sel, v, tx, on) { var o = el('option', null, tx); o.value = v; if (on) o.selected = true; sel.appendChild(o); };
+        shO(shTp, '', 'The system\u2019s defaults', !sp.sheets.tpl); Object.keys(shCs).map(function(id) { return shCs[id]; }).filter(function(x) { return x && !x.partial; }).sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); }).slice(0, 200).forEach(function(x) { shO(shTp, x.id, 'A copy of ' + (x.name || 'Character'), sp.sheets.tpl === x.id); });
+        if (sp.sheets.tpl && !Object.prototype.hasOwnProperty.call(shCs, sp.sheets.tpl)) shO(shTp, sp.sheets.tpl, 'A sheet that is not here now', true);
+        shO(shOn, '', 'Nothing more', !sp.sheets.on); (draft.fields || []).filter(function(g) { return g && g.kind === 'toggle'; }).forEach(function(g) { shO(shOn, g.id, g.label || g.key || 'A toggle', sp.sheets.on === g.id); });
+        var shL1 = el('label', 'sys-check'); shL1.appendChild(document.createTextNode('A new sheet starts as ')); shL1.appendChild(shTp); shTp.title = 'What a sheet made from a row of this list starts as. Either way it takes the row\u2019s name and belongs to whoever owns the row';
+        var shL2 = el('label', 'sys-check'); shL2.appendChild(document.createTextNode(' and switches on ')); shL2.appendChild(shOn); shOn.title = 'A toggle a new sheet starts switched on, so a section can show only on such sheets';
+        shW.appendChild(shL1); shW.appendChild(shL2); fl.appendChild(shW);
+    }
     fl.appendChild(checkLabel('sys-list-hang', sp.hang === true, 'Rows hang from a row', 'A row may stand under another row of this list, as a hand under its arm. You set it on the row, or a grant does, and a formula of the row can read the row it hangs from'));   // 1.6.2 (body fold 1)
     fl.appendChild(checkLabel('sys-list-graise', sp.grantRaise === true, 'A grant raises a held row', 'A grant of an entry this list already holds raises that row to the grant\u2019s level and adds none. When the row that granted it goes, the held row falls back to its own level. A list with no quantity always does this'));   // 1.6.0 (a builder audit)
     if (sp.custom === true && typeof ownSwBox === 'function') fl.appendChild(ownSwBox(sp));
@@ -13192,6 +13257,9 @@ function onChange(e) {
         else if (c.indexOf('sys-list-multi') >= 0) { if (t.checked) lsc.multi = true; else delete lsc.multi; }
         else if (c.indexOf('sys-list-noqty') >= 0) { if (t.checked) lsc.noQty = true; else delete lsc.noQty; }
         else if (c.indexOf('sys-list-hang') >= 0) { if (t.checked) lsc.hang = true; else delete lsc.hang; }   // 1.6.2 (body fold 1)
+        else if (c.indexOf('sys-list-sheets') >= 0) { if (t.checked) lsc.sheets = lsc.sheets && typeof lsc.sheets === 'object' ? lsc.sheets : {}; else delete lsc.sheets; renderLists(); }   // 1.6.2 (vehicles, fold (a))
+        else if (c.indexOf('sys-list-sheettpl') >= 0) { if (lsc.sheets && typeof lsc.sheets === 'object') { if (t.value) lsc.sheets.tpl = t.value; else delete lsc.sheets.tpl; } }
+        else if (c.indexOf('sys-list-sheeton') >= 0) { if (lsc.sheets && typeof lsc.sheets === 'object') { if (t.value) lsc.sheets.on = t.value; else delete lsc.sheets.on; } }
         else if (c.indexOf('sys-list-graise') >= 0) { if (t.checked) lsc.grantRaise = true; else delete lsc.grantRaise; }   // 1.6.0 (a builder audit)
         else if (c.indexOf('sys-list-custom') >= 0) { if (t.checked) lsc.custom = true; else delete lsc.custom; }   // Stage 6 F4c3
         else if (c.indexOf('sys-list-place') >= 0) { if (typeof placeSet === 'function') placeSet(lsc, t.dataset.part, t.value); }   // 1.6.0 R2: a part's Shows list

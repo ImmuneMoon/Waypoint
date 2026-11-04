@@ -1,5 +1,5 @@
 // callrowcheck — a call that runs a list's roll on a row, and one that goes to the roller (1.6.2; asked by a system build: a weapon that parries, or is
-// parried by, a lightsaber rolls against its own Durability, so the call must reach the very row of the weapon that resisted, or the attacker's own).
+// parried by, a beam blade rolls against its own Durability, so the call must reach the very row of the weapon that resisted, or the attacker's own).
 // systemcore's cleaner and what the editor says, net.js's rollcalls slice run for real on stand-ins of the table, dicecore's card, dice.js's press,
 // the System editor's box, Help and both notes.
 'use strict';
@@ -15,7 +15,7 @@ const imp = p => import('file:///' + path.resolve(app(p)).replace(/\\/g, '/'));
     const cc = S.cleanCalls([{ roll: 'f_w#1', when: 'resisted', byIf: 'Row.saber = 1' }, { roll: 'f_w#1', when: 'resisted', to: 'self' }, { roll: 'f_w#1', when: 'hit', to: 'self' }, { roll: 'f_w#999' }, { roll: 'f_w' }, { roll: 'r_a', when: 'resisted', to: 'them' }]);
     check('a call may name a list’s roll by its place, as Or resisted by does, and To the roller is kept only beside When it is resisted; a place past a list’s rolls, a list with no place and any other word for who are refused',
         J(cc) === J([{ roll: 'f_w#1', when: 'resisted', byIf: 'Row.saber = 1' }, { roll: 'f_w#1', when: 'resisted', to: 'self' }, { roll: 'f_w#1', when: 'hit' }, { roll: 'r_a', when: 'resisted' }]), J(cc));
-    // ---- a system: a weapons list with an Attack, a Parry that resists it and a Durability roll; a sword and a lightsaber
+    // ---- a system: a weapons list with an Attack, a Parry that resists it and a Durability roll; a sword and a beam blade
     const raw = { v: 1, name: 'Parry', fields: [
         { id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '10', vis: 'all', edit: 'owner' },
         { id: 'f_w', key: 'Wpn', label: 'Weapons', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'dur', label: 'Durability' }, { key: 'saber', label: 'Saber' }], cols: [], rolls: [
@@ -23,7 +23,7 @@ const imp = p => import('file:///' + path.resolve(app(p)).replace(/\\/g, '/'));
             { label: 'Durability', formula: '3d6 <= Row.dur', needs: 'Row.dur > 0' },
             { label: 'Parry', formula: '3d6 <= 11', resist: true, calls: [] }] } }],
         rolls: [{ id: 'r_dodge', label: 'Dodge', formula: '3d6 <= 10', resist: true, vis: 'all' }],
-        items: [{ id: 'i_sword', name: 'Vibroblade', stats: { dur: 12, saber: 0 } }, { id: 'i_saber', name: 'Lightsaber', stats: { dur: 0, saber: 1 } }, { id: 'i_axe', name: 'Axe', stats: { dur: 0, saber: 0 } }] };
+        items: [{ id: 'i_sword', name: 'Steel Edge', stats: { dur: 12, saber: 0 } }, { id: 'i_saber', name: 'Beam Blade', stats: { dur: 0, saber: 1 } }, { id: 'i_axe', name: 'Axe', stats: { dur: 0, saber: 0 } }] };
     const sys = S.cleanSystem(raw, { F, gmView: true }), view = S.cleanSystem(raw, { F, gmView: false });
     const wl = sys.fields.find(f => f.id === 'f_w');
     check('the list keeps the Attack’s call to the roller on its own row', J(wl.list.rolls[0].calls) === J([{ roll: 'f_w#1', when: 'resisted', byIf: 'Row.saber = 1', to: 'self' }]), J(wl.list.rolls[0].calls));
@@ -47,7 +47,7 @@ const imp = p => import('file:///' + path.resolve(app(p)).replace(/\\/g, '/'));
     // to the one who resisted: the parrier's own row
     H.attemptCalled(camp, { calls: [{ roll: 'f_w#1', by: '' }], callBy: 'Attack' }, '', { f: 'f_w', r: 'w_saber', i: 2 }, true, chP, false, null);
     const p1 = posted.pop();
-    // the lightsaber's Durability is 0, so its needs fail: nothing; a sword that parries has 12
+    // the beam blade's Durability is 0, so its needs fail: nothing; a sword that parries has 12
     chP.values.f_w[0].defId = 'i_sword';
     H.attemptCalled(camp, { calls: [{ roll: 'f_w#1', by: '' }], callBy: 'Attack' }, '', { f: 'f_w', r: 'w_saber', i: 2 }, true, chP, false, null);
     const p2 = posted.pop(), key2 = p2 && _attempts[p2.more.att];
@@ -68,7 +68,7 @@ const imp = p => import('file:///' + path.resolve(app(p)).replace(/\\/g, '/'));
     const n1 = posted.length; H.attemptCalled(camp, recS, '', { f: 'f_w', r: 'w_axe', i: 2 }, true, chP, false, null); const s2 = posted.length === n1;
     H.attemptCalled(camp, Object.assign({}, recS, { callPriv: true }), '', { f: 'f_w', r: 'w_saber', i: 2 }, true, chP, false, null); const s3 = posted.pop();
     H.attemptCalled(camp, Object.assign({}, recS, { callFrom: 'c_n', callRow: { f: 'f_w', r: 'w_gsword' } }), '', { f: 'f_w', r: 'w_saber', i: 2 }, true, chP, false, null); const s4 = posted.pop();
-    check('To the roller: the card goes to the attacker on the attack’s own row, only where the one who resisted parried with a lightsaber (its byIf read on their row); a private attack’s and an NPC’s go to the GM',
+    check('To the roller: the card goes to the attacker on the attack’s own row, only where the one who resisted parried with a beam blade (its byIf read on their row); a private attack’s and an NPC’s go to the GM',
         s1 && s1.ch === 'c_a' && J(s1.more.row) === J({ f: 'f_w', r: 'w_vibro', i: 1 }) && s1.toO === true && s2 && s3 && s3.ch === 'c_a' && s3.toO === false && s4 && s4.ch === 'c_n' && s4.toO === false && J(s4.more.row) === J({ f: 'f_w', r: 'w_gsword', i: 1 }), J([s1, s2, s3, s4]));
     // on a hit or a miss, the roller's own row
     const ent = wl.list.rolls[0], entH = Object.assign({}, ent, { calls: [{ roll: 'f_w#1', when: 'hit' }] });

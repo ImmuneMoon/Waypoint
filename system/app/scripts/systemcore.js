@@ -687,21 +687,30 @@ function hideOffInto(out, r) { if (out.needs && r.hideOff === true) out.hideOff 
 // with the roller's names, a list's Row.* among them, as the roll was made. named marks the roll, so that its press names it and the host finds it.
 // byIf (the owner, 2026-10-31, of a call that came for any parry): beside resisted alone, a formula with no dice read as the target's roll succeeds, on
 // the one who resisted, with that roll's row's Row.* where it is a list's (net.js attemptCalled). None: any roll that brings it, as before
+// 1.6.2 (asked by a system build: a weapon that parries, or is parried by, a lightsaber rolls against its own Durability): roll may name a list's roll
+// (f_<id>#<place>, as Or resisted by does), posted on a row: the row that resisted, or the roller's own row, and only where that row is of that list.
+// to: 'self', beside resisted alone, sends the card to the roller in place of the one who resisted, on the roller's own row; byIf is still read on the
+// one who resisted, so a vibroblade's Attack can call for its own Durability roll only where a lightsaber parried it
 function cleanCalls(v) {
     var out = [], seen = map();
     (Array.isArray(v) ? v : []).forEach(function(c) {
-        if (out.length >= LIMITS.rollCalls || !isObj(c) || typeof c.roll !== 'string' || !ROLL_ID.test(c.roll)) return;
+        if (out.length >= LIMITS.rollCalls || !isObj(c) || typeof c.roll !== 'string' || !(ROLL_ID.test(c.roll) || listRollRef(c.roll))) return;
         var when = c.when === 'hit' || c.when === 'miss' || c.when === 'resisted' ? c.when : '', by = when === 'resisted' && typeof c.by === 'string' && (ROLL_ID.test(c.by) || /^f_[A-Za-z0-9_]{1,24}#\d{1,2}$/.test(c.by)) ? c.by : '', fi = cleanFormulaText(c.if), bi = when === 'resisted' ? cleanFormulaText(c.byIf) : null;
-        var k = c.roll + '|' + when + '|' + by + '|' + (fi || '') + '|' + (bi || ''); if (seen[k]) return; seen[k] = 1;
-        var o = { roll: c.roll }; if (when) o.when = when; if (by) o.by = by; if (fi) o.if = fi; if (bi) o.byIf = bi; out.push(o);
+        var to = when === 'resisted' && c.to === 'self' ? 'self' : '';   // 1.6.2: to the roller
+        var k = c.roll + '|' + when + '|' + by + '|' + (fi || '') + '|' + (bi || '') + '|' + to; if (seen[k]) return; seen[k] = 1;
+        var o = { roll: c.roll }; if (when) o.when = when; if (by) o.by = by; if (fi) o.if = fi; if (bi) o.byIf = bi; if (to) o.to = to; out.push(o);
     });
     return out.length ? out : null;
 }
-function callSays(sys, r) {   // what the editor says of a roll's Calls for
+function callSays(sys, r, lf) {   // what the editor says of a roll's Calls for; lf (1.6.2): the list the roll is on, none for a roll of the system
     var out = [], rolls = isObj(sys) && Array.isArray(sys.rolls) ? sys.rolls : [];
     r.calls.forEach(function(c) {
         if (!isObj(c)) return;
-        if (!rolls.some(function(x) { return isObj(x) && x.id === c.roll; })) out.push('Calls for names a roll that is not in the system, so no card comes.');
+        var lr = listRollRef(c.roll), lfC = lr && isObj(sys) && Array.isArray(sys.fields) ? sys.fields.filter(function(x) { return isObj(x) && x.id === lr.f && x.kind === 'item-list'; })[0] : null, lrr = lfC && isObj(lfC.list) && Array.isArray(lfC.list.rolls) ? lfC.list.rolls[lr.i] : null;   // 1.6.2: a list's roll, on a row
+        if (lr) { if (!isObj(lrr) || typeof lrr.formula !== 'string' || !lrr.formula || Array.isArray(lrr.apply)) out.push('Calls for names a list’s roll that is not there, so no card comes.');
+            else if (c.when === 'resisted' && c.to !== 'self' && typeof c.by === 'string' && c.by && c.by.indexOf('#') < 0) out.push('Calls for runs a list’s roll on the row that resisted, but the roll that brings it is no list’s roll, so no card comes.');
+            else if ((c.when !== 'resisted' || c.to === 'self') && !(isObj(lf) && lf.id === lr.f)) out.push('Calls for runs a list’s roll on the roller’s own row, which is a row of that list only where this roll is that list’s own, so no card comes.'); }
+        else if (!rolls.some(function(x) { return isObj(x) && x.id === c.roll; })) out.push('Calls for names a roll that is not in the system, so no card comes.');
         if (c.when === 'resisted' && typeof r.resistBy !== 'string') out.push('Calls for waits for it to be resisted, but nothing resists it, so no card comes.');
         else if (c.when === 'resisted' && c.by && c.by !== r.resistBy && !(Array.isArray(r.resistOr) && r.resistOr.indexOf(c.by) >= 0)) out.push('Calls for names a roll that does not resist this one, so no card comes.');
     });
@@ -11194,7 +11203,7 @@ function validateSystem(sys, F) {
             if (Array.isArray(r.resistOr) && r.resistOr.some(function(id) { return !resistOrOk(sys, id); })) warnings.push({ id: f.id, prop: 'list.resistOr', message: 'Or resisted by names a roll that is not ticked Resists an attempt, so the target is not offered it.' });   // 1.6.0 (the core's gap 5)
             if (isObj(r.cross)) { var xLb = 'list.cross.' + i + '.' + (r.label || (Array.isArray(r.apply) ? 'Apply' : 'Roll')); checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#cross' }, xLb, r.cross.at, false, f.vis, f); if (r.cross.step) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#cross' }, xLb, r.cross.step, false, f.vis, f); }   // 1.6.0: a counter's crossing, its steps read with the row's names
             if (typeof r.showIf === 'string' && r.showIf) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#show' }, 'list.show.' + i + '.' + (r.label || (Array.isArray(r.apply) ? 'Apply' : 'Roll')), r.showIf, false, f.vis, f);
-            if (Array.isArray(r.calls)) { r.calls.forEach(function(cl, j) { if (isObj(cl) && cl.if) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#calls' }, 'list.calls.' + i + '.' + j, cl.if, false, f.vis, f); if (isObj(cl) && cl.byIf) checkByIf({ id: f.id, key: 'l#' + lower(f.key) + '#calls' }, 'list.byIf.' + i + '.' + j, cl); }); callSays(sys, r).forEach(function(m) { warnings.push({ id: f.id, prop: 'list', message: (r.label || 'A roll') + ': ' + m }); }); }   // 1.6.0: Calls for
+            if (Array.isArray(r.calls)) { r.calls.forEach(function(cl, j) { if (isObj(cl) && cl.if) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#calls' }, 'list.calls.' + i + '.' + j, cl.if, false, f.vis, f); if (isObj(cl) && cl.byIf) checkByIf({ id: f.id, key: 'l#' + lower(f.key) + '#calls' }, 'list.byIf.' + i + '.' + j, cl); }); callSays(sys, r, f).forEach(function(m) { warnings.push({ id: f.id, prop: 'list', message: (r.label || 'A roll') + ': ' + m }); }); }   // 1.6.0: Calls for
             if (Array.isArray(r.alt)) r.alt.forEach(function(a, j) { if (isObj(a) && typeof a.if === 'string') checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#alt' }, 'list.alt.' + i + '.' + j + '.' + (a.label || 'name'), a.if, false, f.vis, f); });   // 1.6.0: another name's formula (no dice, Row.* known)   // 1.6.0: Shown where (no dice, Row.* known)
             if (!Array.isArray(r.apply)) {
                 var rl2 = r.label || 'Roll';

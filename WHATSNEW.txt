@@ -192,6 +192,9 @@ At the table
   roll cards, which are edged in its colour, and a player's own sheet text is
   set in their font.
   Personal looks is a VTT feature, on until the GM switches it off.
+- A roll's Calls for can ask for a list's roll on a row: the row that resisted,
+  or, sent to the roller, the attack's own row. So a weapon that parries, or
+  is parried by, a lightsaber rolls against its own Durability.
 - An Any wound row can also run on a blow that wounds nobody, as armour that
   stops it all, for knockback. A row's roll can read the sheet as it stood at
   that row, so a shock roll leaves out the Rattled of the same hit.

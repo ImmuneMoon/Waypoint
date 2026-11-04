@@ -514,7 +514,12 @@ function cleanDue(rec) {
     } else if (rec.why === 'blast') {   // 1.6.0 (the core's gap 8): the share it rolls, by the id of the host's record, which holds the dice
         if (out.roll !== 1 || typeof rec.att !== 'string' || !ATT_RE.test(rec.att) || rec.by !== undefined || rec.m !== undefined || rec.or !== undefined) return null; out.att = rec.att;
     } else if (rec.why === 'called') {   // 1.6.0: a roll another called for (systemcore cleanCalls), by the id of the host's record and the name of what called it
-        if (rec.m !== undefined || rec.or !== undefined) return null; if (rec.att !== undefined) { if (typeof rec.att !== 'string' || !ATT_RE.test(rec.att)) return null; out.att = rec.att; }
+        if (rec.m !== undefined) return null; if (rec.att !== undefined) { if (typeof rec.att !== 'string' || !ATT_RE.test(rec.att)) return null; out.att = rec.att; }
+        if (rec.or !== undefined || rec.nm !== undefined) {   // 1.6.2: a list's roll on one row, the card's one button: { row: { f, r, i }, label }, with nm 1
+            var cO = Array.isArray(rec.or) && rec.or.length === 1 ? rec.or[0] : null, cW = cO && typeof cO === 'object' ? cO.row : null;
+            if (rec.nm !== 1 || out.roll !== 1 || !cW || typeof cW !== 'object' || Array.isArray(cW) || cO.act !== undefined || typeof cW.f !== 'string' || !/^f_[A-Za-z0-9_]{1,24}$/.test(cW.f) || typeof cW.r !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(cW.r) || !isInt(cW.i) || cW.i < 0 || cW.i >= LIMITS.rowRolls) return null;
+            var cL = cleanLabel(cO.label); if (cL === null) return null; out.or = [cL ? { row: { f: cW.f, r: cW.r, i: cW.i }, label: cL } : { row: { f: cW.f, r: cW.r, i: cW.i } }]; out.nm = 1;
+        }
         var byC = cleanLabel(rec.by); if (byC === null) return null; if (byC) out.by = byC;
     } else if ((rec.why === 'major' || rec.why === 'wound') && rec.att !== undefined) {   // 1.6.0 (the core's gaps 6 and 7): the blow a roll the damage step posted answers, by the id of the host's record
         if (out.roll !== 1 || typeof rec.att !== 'string' || !ATT_RE.test(rec.att) || rec.by !== undefined || rec.m !== undefined || rec.or !== undefined) return null; out.att = rec.att;

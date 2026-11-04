@@ -7573,6 +7573,7 @@ function callsBox(obj, sys, isApply) {
     var box = el('div', 'sys-alt sys-calls'), max = LIMITS.rollCalls;
     var said = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
     var rollsOf = function() { return sys && Array.isArray(sys.rolls) ? sys.rolls.filter(function(x) { return x && typeof x.id === 'string'; }) : []; };
+    var listRolls = function() { var o = []; (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) f.list.rolls.forEach(function(lr, i) { if (lr && typeof lr.formula === 'string' && lr.formula && !Array.isArray(lr.apply)) o.push([f.id + '#' + i, 'Calls for: ' + (f.label || f.key || 'List') + ': ' + (lr.label || 'Roll') + ' on that row']); }); }); return o; };   // 1.6.2
     var nameOf = function(id) {
         var hit = rollsOf().filter(function(x) { return x.id === id; })[0]; if (hit) return hit.label || 'Roll';
         var m = /^(f_[A-Za-z0-9_]+)#(\d+)$/.exec(String(id)), lf = m && sys && Array.isArray(sys.fields) ? sys.fields.filter(function(x) { return x && x.id === m[1]; })[0] : null, lr = lf && lf.list && Array.isArray(lf.list.rolls) ? lf.list.rolls[+m[2]] : null;
@@ -7581,17 +7582,19 @@ function callsBox(obj, sys, isApply) {
     var draw = function() {
         box.textContent = ''; var list = Array.isArray(obj.calls) ? obj.calls : [], rolls = rollsOf();
         list.forEach(function(c, j) {
-            var rw = el('span', 'sys-alt-row sys-call-row'), opts = rolls.map(function(x) { return [x.id, 'Calls for: ' + (x.label || 'Roll')]; }); if (!rolls.some(function(x) { return x.id === c.roll; })) opts.push([c.roll, 'Calls for: a roll that is gone']);
-            var rs = select('sys-call-roll', opts, c.roll, 'The roll posted as a card to press. It comes only while that roll\u2019s own needs hold');
+            var toSel = null, rw = el('span', 'sys-alt-row sys-call-row'), opts = rolls.map(function(x) { return [x.id, 'Calls for: ' + (x.label || 'Roll')]; }).concat(listRolls()); if (!opts.some(function(x) { return x[0] === c.roll; })) opts.push([c.roll, 'Calls for: a roll that is gone']);
+            var rs = select('sys-call-roll', opts, c.roll, 'The roll posted as a card to press. It comes only while that roll\u2019s own needs hold. A list\u2019s roll is posted on a row: the row that resisted, or the roller\u2019s own row');
             rs.addEventListener('change', function(e) { e.stopPropagation(); c.roll = rs.value; said(); }); rw.appendChild(rs);
             if (!isApply) {
                 var whs = [['', 'Whatever comes of it'], ['hit', 'On a success'], ['miss', 'On a failure']]; if (typeof obj.resistBy === 'string' || c.when === 'resisted') whs.push(['resisted', 'When it is resisted']);
                 var ws = select('sys-call-when', whs, c.when || '', 'When the card comes. When it is resisted: as the target\u2019s roll succeeds, and the card goes to the target');
-                ws.addEventListener('change', function(e) { e.stopPropagation(); if (ws.value) c.when = ws.value; else delete c.when; if (c.when !== 'resisted') { delete c.by; delete c.byIf; } said(); draw(); var nw = box.children[j] && box.children[j].children[1]; if (nw && nw.focus) nw.focus(); }); rw.appendChild(ws);   // the box is drawn anew, so the keys stay on the list
+                ws.addEventListener('change', function(e) { e.stopPropagation(); if (ws.value) c.when = ws.value; else delete c.when; if (c.when !== 'resisted') { delete c.by; delete c.byIf; delete c.to; } said(); draw(); var nw = box.children[j] && box.children[j].children[1]; if (nw && nw.focus) nw.focus(); }); rw.appendChild(ws);   // the box is drawn anew, so the keys stay on the list
                 if (c.when === 'resisted') {
                     var bys = [['', 'By any roll']]; [obj.resistBy].concat(Array.isArray(obj.resistOr) ? obj.resistOr : []).forEach(function(id) { if (typeof id === 'string' && id) bys.push([id, 'By ' + nameOf(id)]); }); if (c.by && !bys.some(function(x) { return x[0] === c.by; })) bys.push([c.by, 'By a roll that does not resist it']);
                     var bs = select('sys-call-by', bys, c.by || '', 'Which of the rolls that may resist it brings the card');
                     bs.addEventListener('change', function(e) { e.stopPropagation(); if (bs.value) c.by = bs.value; else delete c.by; said(); }); rw.appendChild(bs);
+                    var ts = select('sys-call-to', [['', 'To the one who resisted'], ['self', 'To the roller']], c.to === 'self' ? 'self' : '', 'Who the card goes to. To the roller: on the roller\u2019s own row, so a weapon that was parried can roll for itself');   // 1.6.2
+                    ts.addEventListener('change', function(e) { e.stopPropagation(); if (ts.value === 'self') c.to = 'self'; else delete c.to; said(); }); toSel = ts;   // drawn last, before x
                 }
             }
             var fi = input('sys-call-if field', typeof c.if === 'string' ? c.if : '', 'Only while this is true, read with the roller\u2019s names. On a list Row.<name> reads its row. No dice', 'Only where (optional)'); fi.maxLength = LIMITS.formula;
@@ -7601,11 +7604,12 @@ function callsBox(obj, sys, isApply) {
                 bi.addEventListener('input', function() { if (bi.value.trim()) c.byIf = bi.value.slice(0, LIMITS.formula); else delete c.byIf; said(); });
                 bc.appendChild(el('span', 'sys-num-cap', 'Read on the one who resisted')); bc.appendChild(bi); rw.appendChild(bc);
             }
+            if (toSel) rw.appendChild(toSel);
             var x = el('button', 'tool ghost sys-btn sys-call-del', '\u00d7'); x.type = 'button'; x.title = 'Stop calling for this roll';
             x.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(obj.calls)) return; obj.calls.splice(j, 1); if (!obj.calls.length) delete obj.calls; said(); draw(); }); rw.appendChild(x);
             box.appendChild(rw);
         });
-        if (list.length < max && rolls.length) { var ad = el('button', 'tool ghost sys-btn sys-call-add', '+ Calls for a roll'); ad.type = 'button'; ad.title = 'Post another roll of the system as a card to press after this one'; ad.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(obj.calls)) obj.calls = []; if (obj.calls.length >= max) return; obj.calls.push({ roll: rollsOf()[0].id }); said(); draw(); }); box.appendChild(ad); }
+        if (list.length < max && (rolls.length || listRolls().length)) { var ad = el('button', 'tool ghost sys-btn sys-call-add', '+ Calls for a roll'); ad.type = 'button'; ad.title = 'Post another roll of the system as a card to press after this one'; ad.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(obj.calls)) obj.calls = []; if (obj.calls.length >= max) return; obj.calls.push({ roll: rollsOf().length ? rollsOf()[0].id : listRolls()[0][0] }); said(); draw(); }); box.appendChild(ad); }
     };
     draw();
     return box;

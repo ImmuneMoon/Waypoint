@@ -243,7 +243,7 @@ function renderDue(m) {
             return wrap;
         }
         var runW = rec.roll === 1 ? 'Roll' : 'Run', b = el('button', 'tool chat-due-run', runW); b.type = 'button'; b.title = rec.roll === 1 ? 'Roll it now, as its button on the sheet does' : 'Apply it now, as its button on the sheet does';   // 1.5.9: a roll that is due
-        b.addEventListener('click', function() { if (m.done) return; m.done = true; b.disabled = true; b.textContent = 'Pressed'; var ok = window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, rec.act, typeof rec.att === 'string' ? rec.att : undefined) : false; if (!ok) { m.done = false; b.disabled = false; b.textContent = runW; } });   // 1.6.0 (the core's gaps 6 and 7): a blow's card names its record too   // done first: the press's own card redraws the chat
+        b.addEventListener('click', function() { if (m.done) return; m.done = true; b.disabled = true; b.textContent = 'Pressed'; var ok = window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, rec.act, typeof rec.att === 'string' ? rec.att : undefined, rec.why === 'called' && rec.nm === 1 && Array.isArray(rec.or) && rec.or[0] ? rec.or[0].row : undefined) : false; if (!ok) { m.done = false; b.disabled = false; b.textContent = runW; } });   // 1.6.0 (the core's gaps 6 and 7): a blow's card names its record too   // done first: the press's own card redraws the chat
         wrap.appendChild(b);
     }
     return wrap;

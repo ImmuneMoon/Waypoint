@@ -29,6 +29,11 @@ const slice = (s, t) => { const a = s.indexOf('// [' + t + '-start]'), b = s.ind
     const mine = [{ id: 'a', name: 'Table', src: PIC }], t1 = O.objTake(mine, { id: 'z', name: 'Crate', cover: 'half' }, 'n1'), t2 = O.objTake(mine, { id: 'z', name: 'Table', src: PIC }, 'n2');
     check('taken from another campaign: a copy under a new id, and the same object not twice; a new id no list holds', t1.took === true && t1.list.length === 2 && t1.list[1].id === 'n1' && t2.same === true && t2.list.length === 1
         && O.objId([[{ id: 'o_a' }]], 10) === 'o_a_1' && /^o_/.test(O.objId([], 1)) && O.objTake(many, { id: 'z', name: 'New' }, 'n3').full === true);
+    {   // 1.6.2: an object's Protection, cleaned, placed as the piece's coverPro, said in its words
+        const pp = O.objProps({ id: 'a', name: 'Crate', cover: 'half', pro: 4 }, false), pw = O.objProps({ id: 'a', name: 'Pillar', sight: true, pro: 6 }, false);
+        check('1.6.2 an object\u2019s Protection: a whole number kept, placed as the piece\u2019s coverPro whether it blocks sight or not, said in its words, nothing else kept',
+            O.cleanObj({ id: 'a', name: 'x', pro: 4.6 }).pro === 4 && !('pro' in O.cleanObj({ id: 'a', name: 'x', pro: '4' })) && !('pro' in O.cleanObj({ id: 'a', name: 'x', pro: 0 })) && pp.coverPro === 4 && pw.coverPro === 6 && !('coverPro' in O.objProps({ id: 'a', name: 'x', cover: 'half' }, false)) && O.objWords({ id: 'a', name: 'x', cover: 'half', pro: 4 }) === 'Half cover · Protection 4');
+    }
     check('its words say what it does', O.objWords({ id: 'a', name: 'x', cover: 'half' }) === 'Half cover' && O.objWords({ id: 'a', name: 'x', sight: true }) === 'Blocks sight' && O.objWords({ id: 'a', name: 'x', stops: true, w: 2 }) === 'No cover · Stops tokens · 2 by 1 cells');
     // the grade on the line, by the ruler's own lines
     const grid = FC.squareGrid(50), a = FC.cellOf(25, 125, grid), b = FC.cellOf(325, 125, grid), on = FC.cellKey(FC.cellOf(175, 125, grid), grid), off = FC.cellKey(FC.cellOf(175, 325, grid), grid), set = k => { const s = Object.create(null); s[k] = 1; return s; };

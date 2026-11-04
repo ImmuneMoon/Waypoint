@@ -202,6 +202,9 @@ At the table
   grenade kept in a pack cannot be thrown until it is taken out.
 - Noticing results are kept with a running fight, so reloading the GM's app
   rolls none of them again.
+- A piece that gives cover, a map object among them, can have a Protection
+  figure in Properties. A roll reads the highest on the line to its target as
+  TargetCoverPro, so a damage roll can take what the cover stops off the blow.
 - An attack that lands as a Big Hit passes it on to the damage roll it calls
   for, which is then a Major Wound if any of it gets through, read as
   Blow.big. A Major Wound row's roll can leave out the hit's own effects too.

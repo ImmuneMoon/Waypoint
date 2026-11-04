@@ -9,7 +9,7 @@
 
    The shape has room for what comes later (interactions such as sitting in a chair, a box the GM sets as openable, what a box holds): a later key
    joins cleanObj and objProps, and an object from before it reads as having none. */
-import { cleanTexSrc } from './fogcore.js';
+import { cleanTexSrc, cleanCoverPro } from './fogcore.js';
 
 export var OBJ_MAX = 2000;
 var NAME_MAX = 60, CELLS_MAX = 12, ID_RE = /^[A-Za-z0-9_-]{1,40}$/, HEX_RE = /^#[0-9a-fA-F]{6}$/;
@@ -33,6 +33,7 @@ export function cleanObj(o) {
     var out = { id: id, name: name }, src = cleanTexSrc(own(o, 'src')), cv = own(o, 'cover'), w = cells(own(o, 'w')), h = cells(own(o, 'h')), col = own(o, 'color');
     if (src) out.src = src;
     if (OBJ_GRADES.indexOf(cv) >= 0) out.cover = cv;
+    var pro = cleanCoverPro(own(o, 'pro')); if (pro) out.pro = pro;   // 1.6.2: its Protection, read as TargetCoverPro where it stands on the line
     if (own(o, 'sight') === true) out.sight = true; else if (own(o, 'stops') === true) out.stops = true;   // what blocks sight stops tokens already
     if (w > 1) out.w = w;
     if (h > 1) out.h = h;
@@ -52,6 +53,7 @@ export function objProps(o, hex) {
     var c = cleanObj(o); if (!c) return null;
     var p = { name: c.name, w: (c.w || 1) * (hex ? 60 : 50), h: (c.h || 1) * (hex ? 52 : 50), layer: 'back-mid' };   // 1.6.2: over the map's own pictures and under the tokens, so a character stands over a crate it stands at (the owner, 2026-11-02: why is this over the character)
     if (c.src) p.src = c.src; else p.color = c.color || LAND_COLOR;
+    if (c.pro) p.coverPro = c.pro;
     if (c.sight) { p.blocksSight = true; p.sightType = 'wall'; } else {
         if (c.stops) p.barrier = true;
         if (c.cover) { p.cover = 'yes'; p.coverAs = c.cover; } else p.cover = 'no';
@@ -63,6 +65,7 @@ export function objType(o) { var c = cleanObj(o); return c && c.src ? 'image' : 
 export function objWords(o) {
     var c = cleanObj(o); if (!c) return '';
     var w = [c.sight ? 'Blocks sight' : c.cover ? GRADE_WORDS[c.cover] : 'No cover'];
+    if (c.pro) w.push('Protection ' + c.pro);
     if (c.stops) w.push('Stops tokens');
     if ((c.w || 1) > 1 || (c.h || 1) > 1) w.push((c.w || 1) + ' by ' + (c.h || 1) + ' cells');
     return w.join(' · ');

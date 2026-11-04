@@ -61,6 +61,10 @@ function formInto(box, o, kind, list) {
     sel.value = o.cover || ''; sel.disabled = !!o.sight; sel.dataset.tip = o.sight ? 'A piece that blocks sight gives total cover by itself.' : 'What it gives whenever a line to a target passes through it.';
     sel.addEventListener('change', function() { commit({ cover: sel.value || undefined }); draw(); });
     row('Cover', sel);
+    var pro = el('input'); pro.type = 'number'; pro.min = 0; pro.max = 999; pro.step = 1; pro.placeholder = 'None'; pro.value = o.pro || '';
+    pro.dataset.tip = 'How much it stops of a blow that passes through it, where your system reads it in a roll. Empty for none.';
+    pro.addEventListener('change', function() { commit({ pro: Number(pro.value) || undefined }); draw(); });
+    row('Protection', pro);
     var tick = function(label, on, tip, go) { var l = el('label', 'gen-tick'); var c = el('input'); c.type = 'checkbox'; c.checked = on; c.addEventListener('change', function() { go(c.checked); }); l.appendChild(c); l.appendChild(el('span', '', label)); l.dataset.tip = tip; f.appendChild(l); };
     tick('Blocks sight', !!o.sight, 'A wall to sight, tokens and cover.', function(v) { commit({ sight: v || undefined, stops: undefined }); draw(); });
     if (!o.sight) tick('Stops tokens', !!o.stops, 'Tokens cannot cross it. Sight passes.', function(v) { commit({ stops: v || undefined }); draw(); });

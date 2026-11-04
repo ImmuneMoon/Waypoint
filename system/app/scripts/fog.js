@@ -467,6 +467,13 @@ function coverSetsFor(map, grid, blast) {
     // asked first, and a see-over one then stopped no blast). It is taken AFTER every other piece and only where it fits under the caps, so
     // that no wall loses its cover to one: a ticked barrier too large for what is left is passed over alone, and the GM is told once for
     // each count (one large barrier switched off all blast cover on its map, walls included, and nothing said so)
+    var pro = null, nPro = 0, proPut = function(w, v) {   // 1.6.2: a cover piece's Protection (TargetCoverPro): its cells, or its line, kept under its figure, the cells cap shared by them all
+        var pb = pro && pro[v] ? pro[v] : null; if (!pb) { pro = pro || Object.create(null); pb = pro[v] = { set: Object.create(null), segs: [] }; }
+        if (w.type === 'path') { var ps = C.pathSegs(w); if (pb.segs.length + ps.length <= C.LIMITS.wallSegs) pb.segs = pb.segs.concat(ps); return; }
+        var pc = footprintCells(w, grid, C); if (pc.over) return;
+        if (!pc.length) pc = [C.cellOf(w.x + (w.w || 0) / 2, w.y + (w.h || 0) / 2, grid)];
+        for (var pj = 0; pj < pc.length && nPro < cap; pj++) { var pk = C.cellKey(pc[pj], grid); if (!pb.set[pk]) { pb.set[pk] = 1; nPro++; } }
+    };
     var gr = null, later = [], putPiece = function(w, role, own) {   // own: a ticked barrier. false: it did not fit
         var hW = C.cleanHeight(w.height) || 1, hR = role === 'hard' ? C.cleanHeight(w.height) || Infinity : 0, k, j;
         if (!own && role === 'hard' && hR < Infinity) lowW = true;
@@ -490,6 +497,7 @@ function coverSetsFor(map, grid, blast) {
     for (var i = 0; i < wb.length && !over; i++) {
         if (blast === true && C.blastStopOn(wb[i])) { later.push(wb[i]); continue; }   // a barrier ticked Stops blasts: a wall to a blast, taken last
         var role = C.coverRole(wb[i], most), asG = blast !== true && role === 'soft' && C.coverAsOf ? C.coverAsOf(wb[i], most) : '';
+        if (blast !== true && role && C.cleanCoverPro) { var pv = C.cleanCoverPro(wb[i].coverPro); if (pv) proPut(wb[i], pv); }   // 1.6.2: a piece that gives cover may carry Protection, read apart (coverPro)
         if (asG) {   // 1.6.0: a placed object that says its grade stands apart from the see-over cells, in the cell of its own middle where it covers no cell's centre
             var gc = footprintCells(wb[i], grid, C); if (gc.over) continue;
             if (!gc.length) gc = [C.cellOf(wb[i].x + (wb[i].w || 0) / 2, wb[i].y + (wb[i].h || 0) / 2, grid)];
@@ -511,6 +519,7 @@ function coverSetsFor(map, grid, blast) {
     if (!over && hardLines.some(function(g) { return g.h < Infinity; })) { var fsg = []; hardLines.forEach(function(g) { if (!(g.h < Infinity)) g.segs.forEach(function(s) { fsg.push(s); }); }); fullW = C.withWalls(Object.create(null), fsg, grid); }
     var result = over || !(hasH || hasS || gr) ? null : { hard: hasH ? hard : null, soft: hasS ? soft : null, all: all, softH: softH, softLines: softLines, hardH: hardH, hardLines: hardLines, fullW: fullW, lowW: lowW };
     if (result && gr) result.gr = gr;
+    if (result && pro) { for (var pvk in pro) pro[pvk] = pro[pvk].segs.length ? C.withWalls(pro[pvk].set, pro[pvk].segs, grid) : pro[pvk].set; result.pro = pro; }   // 1.6.2: Protection by figure, each set with its lines' walls
     _coverStamp[ck] = stamp; _coverCache[ck] = result;
     return result;
 }
@@ -966,6 +975,15 @@ function coverGrade(map, camp, from, to, shown) {
     var at = function(t) { return { x: t.x + (t.w || 60) / 2, y: t.y + (t.h || 52) / 2 }; }, a = at(from), b = at(to);
     var tier = coverBetween(a.x, a.y, b.x, b.y, tokHeight(from, map, shown === true), tokHeight(to, map, shown === true), map, camp);
     return !tier ? 0 : tier.block ? 3 : tier.name === 'Three-quarters cover' ? 2 : 1;
+}
+// 1.6.2: what TargetCoverPro reads from one token to another: the highest Protection among the cover pieces on the line, as the ruler's lines find
+// them; 0 with none, with cover off or no map. The two places that read the range ask it only where the target has cover (TargetCoverGrade above 0)
+function coverPro(map, camp, from, to) {
+    var C = core(); if (!map || !from || !to || !C || !C.proOnLine || !coverOn(camp && camp.system)) return 0;
+    var grid = gridForMap(map); if (!grid) return 0;
+    var cs = coverSetsFor(map, grid); if (!cs || !cs.pro) return 0;
+    var at = function(t) { return C.cellOf(t.x + (t.w || 60) / 2, t.y + (t.h || 52) / 2, grid); };
+    return C.proOnLine(at(from), at(to), grid, cs.pro);
 }
 // ... and what a check reads of where the creature stands: the light on its cell (0 dark, 1 dim, 2 clear) and the cover between them (coverGrade's own reading)
 function noticeFacts(map, camp, from, to) {
@@ -2318,7 +2336,7 @@ window.wpFogRedraw = redraw;
 setTimeout(sync, 0);
 window.wpFog = {
     // host enforcement (net.js)
-    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, coverGrade: coverGrade, coverObject: coverObject, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, coverGrade: coverGrade, coverPro: coverPro, coverObject: coverObject, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     PARTY: PARTY, fogPartyCells: fogPartyCells,   // R2 #14: the stream window's standpoint (the players' tokens together) and the cells it draws by, for its copy (net.js fogPartyCopy)
     // GM tools
     handNote: handNote,   // 1.5.4: what to say when a piece's fog mark cannot show yet (inspector.js, whiteboard.js)

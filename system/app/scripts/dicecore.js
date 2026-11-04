@@ -431,7 +431,9 @@ function cleanRoll(rec) {
     if (rec.dmg !== undefined) { if (rec.dmg !== 1) return null; out.dmg = 1; }
     if (rec.dmgOn !== undefined && out.dmg === 1 && typeof rec.dmgOn === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(rec.dmgOn)) out.dmgOn = rec.dmgOn;   // 1.6.0: the character this damage lands on, the host's from its entry (one that does not clean is left off, the roll kept)
     if (rec.cov === 'Half cover' || rec.cov === 'Three-quarters cover' || rec.cov === 'Total cover' || rec.cov === 'Cover') out.cov = rec.cov;   // 1.6.0: the cover a roll read, by the four words coverTier gives
-    if (rec.cvh !== undefined) { var cvc = cleanCovHit(rec.cvh); if (cvc) out.cvh = cvc; }   // 1.6.0: where a hit behind cover landed (one that does not clean is left off, the roll kept)
+    if (rec.cvh !== undefined) { var cvc = cleanCovHit(rec.cvh); if (cvc) out.cvh = cvc; }
+    if (rec.body === 1 && out.dmg !== 1) out.body = 1;   // 1.6.2: a miss that switched to a body in the way (the host's word)
+    if (rec.bodyOn === 1 && out.dmg === 1 && out.dmgOn) out.bodyOn = 1;   // ... and the damage that lands on that body   // 1.6.0: where a hit behind cover landed (one that does not clean is left off, the roll kept)
     if (rec.asked !== undefined) { var akc = cleanAsked(rec.asked); if (akc) out.asked = akc; }   // 1.6.2: what its roller answered
     if (typeof rec.pend === 'number' && isFinite(rec.pend) && rec.pend > 0) { out.pend = Math.min(600, Math.floor(rec.pend)); var ofc = cleanOffers(rec.offers); if (ofc) out.offers = ofc; var pts = rec.pts; if (pts && typeof pts === 'object' && typeof pts.n === 'number' && isFinite(pts.n) && pts.n >= 0 && pts.n <= 999 && typeof pts.w === 'string' && pts.w) out.pts = { n: Math.floor(pts.n), w: pts.w.slice(0, 60) }; }   // 1.6.2 (G5): held, nothing of it landed yet
     if (rec.aim !== undefined) { var amc = cleanAim(rec.aim); if (amc) out.aim = amc; }   // 1.6.0 (B5): where a called shot was aimed (one that does not clean is left off, the roll kept)

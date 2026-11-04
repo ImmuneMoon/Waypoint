@@ -6759,7 +6759,8 @@ function rangeTo(camp, map, mapId, tok, pid) {
         var vt = window.wpVtt, el = !vt || (vt.rulesOn ? vt.rulesOn('elevation') : vt.on('elevation'));
         var gOf = function(t) { var St = window.wpStance; return St && St.tokenGround ? St.tokenGround(t, map, true) : 0; };   // item 19b H5: each on the ground it stands on, as the player's copy reads it (never a piece the GM hid)
         var cOf = function(t) { return t && typeof t.charId === 'string' && camp.chars && own(camp.chars, t.charId) ? camp.chars[t.charId] : null; };   // 1.6.0: TargetSize, from the target's own character
-        var rc = S.rangeCtx(camp.system, map, tok, w, { F: window.wpFormula, elev: !!el, posture: !vt || !!(vt.rulesOn ? vt.rulesOn('posture') : vt.on('posture')), groundOf: gOf, charOf: cOf }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target
+        var bdN = window.wpFog && typeof window.wpFog.bodiesOnLine === 'function' ? window.wpFog.bodiesOnLine(map, tok, w, drop) : null;   // 1.6.2: a body in the way, never one this player's copy drops
+        var rc = S.rangeCtx(camp.system, map, tok, w, { F: window.wpFormula, elev: !!el, posture: !vt || !!(vt.rulesOn ? vt.rulesOn('posture') : vt.on('posture')), groundOf: gOf, charOf: cOf, bodies: bdN }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target
         var Fgc = window.wpFog; if (rc && Fgc && typeof Fgc.coverGrade === 'function') { var cvN = Fgc.coverGrade(map, camp, tok, w, true); if (cvN) { rc.cgrade = cvN; rc.cover = cvN === 3 ? 2 : 1; var cpN = typeof Fgc.coverPro === 'function' ? Fgc.coverPro(map, camp, tok, w) : 0; if (cpN) rc.cpro = cpN; } }   // 1.6.0: TargetCover and TargetCoverGrade, as the ruler reads it
         return rc;
     };
@@ -9637,6 +9638,7 @@ function handleMessage(msg, conn) {
         if (typeof askedQ !== 'undefined' && askedQ && askedQ.length) recQ.asked = askedQ;   // 1.6.2
         if (q.hit && thQ0 && typeof thQ0.aim === 'function') { var amQ = thQ0.aim(); if (amQ) recQ.aim = amQ; }   // 1.6.0 (B5): where it was aimed and what it read there, for its card
         if (recQ.dmg === 1 && q.hit) recQ.hit = q.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target (a player's app keeps no such key)
+        if (recQ.dmg === 1 && chQ && !recQ.dmgOn && typeof bodyLand === 'function') bodyLand(recQ, chQ.id, tcQ && tcQ.range);   // 1.6.2: after a miss switched to a body in the way
         var cvQ = recQ.dmg === 1 && chQ && !recQ.dmgOn && typeof coverHitIn === 'function' ? coverHitIn(campQ, chQ.id, tcQ && tcQ.range, q.hit || '') : null; if (cvQ) recQ.cvh = SQ.coverHitCard(cvQ);   // 1.6.0: where a hit behind cover lands, and the die
         if (recQ.dmg !== 1 && chQ && typeof coverAimNote === 'function') coverAimNote(campQ, chQ.id, tcQ && tcQ.range, q.hit || '', function() { return SQ.readsTargetHit(viewQ, chvQ, Fq, q.expr, q.row, tcQ); });   // ... and an attack's pick, for its damage
         if (resQ.breakdown && resQ.breakdown.names && resQ.breakdown.names.length) { var nmQ = Dq.cleanNames(resQ.breakdown.names); if (!nmQ) { denyQ('error'); return; } if (nmQ.length) recQ.names = nmQ; }
@@ -9648,6 +9650,7 @@ function handleMessage(msg, conn) {
         if (!q.priv && tcQ && tcQ.range && typeof rangeUnseen === 'function' && typeof rangeReadBy === 'function' && rangeUnseen(campQ, tcQ.range, pidQ) && rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? null : q.row)) {   // range R3: its card would tell another player how far a target they cannot see is
             q.priv = 'gm'; if (typeof turnNote === 'function') turnNote(conn, 'Rolled privately: a player on that map cannot see your target.', q.charId);
         }
+        if (recQ.dmg !== 1 && chQ && typeof bodySwitch === 'function') bodySwitch(campQ, chQ.id, recQ, resQ, Dq, mfQ, tcQ && tcQ.range, function() { return rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? q.row : null, 'bodyRead'); });   // 1.6.2: a miss within a body's cover hits the body
         var hsQ = typeof holdsSqueeze === 'function' && chQ && typeof SQ.holdRefOf === 'function' ? holdsSqueeze(campQ, chQ, holdRefQ(campQ, q, actQ), recQ, Dq) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
         var hdQ = !!(blowRecQ && typeof figAnswers === 'function' && figAnswers(blowRecQ, q.expr, Fq)); if (hdQ) figMark(recQ, resQ, Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : ''), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, Dq, Fq);   // 1.6.2: a roll answering an attempt whose figure is hidden: what leaves here is its copy
         if (tgQ) { recQ.priv = 'gm'; var stQ = { type: 'roll', id: recQ.id, from: recQ.from, expr: '0', draws: [], v: recQ.v, ts: recQ.ts, rid: q.rid, hid: 'gm', priv: 'gm' }; if (recQ.label) stQ.label = recQ.label; if (recQ.as) stQ.as = recQ.as; try { conn.send(stQ); } catch (e) { sendFailed(e); } if (typeof toGmKeep === 'function') toGmKeep(recQ.id, { wait: tgQ === 'wait', crit: (function() { var tvQ = Dq.verdictOf(resQ, ruleQ), tmQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ; return tmQ || (typeof SQ.thenCrit === 'function' && SQ.thenCrit(tvQ, tmQ) === 'fumble') ? 'fumble' : ''; })(), S: SQ, D: Dq, F: Fq, camp: campQ, ch: chQ, q: q, view: viewQ, act: actQ, res: resQ, rule: ruleQ, mf: mfQ, vars: varsQ, tc: tcQ, big: recQ.big === true, band: recQ.band, label: recQ.label || '', as: recQ.as, from: recQ.from, expr: q.expr }); if (cvQ) recQ.hit = cvQ.row; pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }   // HR1: its roller gets a card that says only it went; the GM gets the roll
@@ -11038,6 +11041,37 @@ function attemptMake(camp, entry, vd, malf, range, fromCh, priv, vars, rowRef) {
     if (typeof net.postDue === 'function') net.postDue(tch, rr, 'resist', 1, toO, { att: id, by: fromCh && fromCh.name ? (toO && typeof npcByOf === 'function' ? npcByOf(camp, fromCh, tch.ownerId) : fromCh.name) : '', m: hdA && toO ? undefined : m, or: alts, rows: rowsA, nm: noMain, kn: kindOn && !priv ? attKindWord(camp, entry, fromCh, rowRef) : '' });
     return id;
 }
+// [netcheck:bodyin-start]
+// 1.6.2 (build 14; the owner by way of the Campaign beats session, 2026-11-04: "a miss by no more than that cover's penalty switches to the body
+// automatically, the card says so, and the damage card goes to that body's token"). A roll that reads TargetBodyCover and misses by no more than it
+// switches to the body: its card says so, and the roller's next damage roll lands on that body, while its pointer is on the same target and for ten
+// minutes at most. Any other roll of that character ends it. The host's own, in memory alone, and never a hidden body
+var _bodyNext = Object.create(null);
+function bodySwitch(camp, charId, rec, res, D, mf, rg, reads) {
+    if (typeof charId !== 'string' || !rec) return false;
+    delete _bodyNext[charId];
+    if (!rg || !(rg.body > 0) || typeof rg.bodyTok !== 'string' || typeof rg.tid !== 'string' || typeof rg.mapId !== 'string' || !D || typeof D.verdictOf !== 'function' || typeof D.ruleOf !== 'function') return false;
+    var vd = D.verdictOf(res, D.ruleOf(rec, camp && camp.system && camp.system.combat ? camp.system.combat.checks : ''));
+    if (!vd || vd.kind !== 'check' || vd.pass !== false || typeof vd.margin !== 'number' || !isFinite(vd.margin) || -vd.margin > rg.body) return false;
+    if (typeof mf === 'number' && typeof D.naturalOf === 'function' && D.naturalOf(res) >= mf) return false;   // a malfunction hits nobody
+    if (typeof reads === 'function' && reads() !== true) return false;
+    var map = camp && camp.items && own(camp.items, rg.mapId) ? camp.items[rg.mapId] : null, w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === rg.bodyTok; }) : null;
+    if (!w || !w.isChar || w.hidden || typeof w.charId !== 'string' || !camp.chars || !own(camp.chars, w.charId)) return false;
+    _bodyNext[charId] = { ch: w.charId, tok: w.id, tid: rg.tid, mapId: rg.mapId, at: Date.now() };
+    rec.body = 1;
+    if (window.wpStepLog) window.wpStepLog('bodycover v1', 'switched', { by: -vd.margin, cover: rg.body });
+    return true;
+}
+function bodyLand(rec, charId, rg) {
+    var b = typeof charId === 'string' && own(_bodyNext, charId) ? _bodyNext[charId] : null; if (!b || !rec) return false;
+    delete _bodyNext[charId];
+    if (!rg || rg.tid !== b.tid || rg.mapId !== b.mapId || Date.now() - b.at > 600000) return false;
+    rec.dmgOn = b.ch; rec.bodyOn = 1;
+    if (window.wpStepLog) window.wpStepLog('bodycover v1', 'landed', {});
+    return true;
+}
+net.bodyForget = function() { _bodyNext = Object.create(null); };
+// [netcheck:bodyin-end]
 // [netcheck:rollcalls-start]
 // 1.6.0 (the owner, 2026-10-31, by prompt: "A card to press"): Calls for, on the host alone. A roll or an action of the
 // system or a list posts another roll of the system as a card (systemcore callsDue picks which, cleanCalls says what each holds): to the character's
@@ -11588,6 +11622,7 @@ net.diceRoll = function(expr, o) {
     if (tcR && tcR.range && tcR.range.pn && typeof SR.posRec === 'function' && rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row || null, 'postureRead')) { var prR = SR.posRec(campR.system, tcR.range); if (prR) rec.pos = prR; }   // 1.6.0: as a player's roll
     if (thnR && typeof thnR.aim === 'function') { var amR = thnR.aim(); if (amR) rec.aim = amR; }   // 1.6.0 (B5): where it was aimed and what it read there, for its card
     if (rec.dmg === 1 && thnR) rec.hit = o.hit;   // 1.6.0 (B5): the location it was aimed at, for Apply to target
+    if (rec.dmg === 1 && chR && !rec.dmgOn && typeof o.blast !== 'string' && o.used !== true && typeof bodyLand === 'function') bodyLand(rec, chR.id, tcR && tcR.range);   // 1.6.2: after a miss switched to a body in the way
     var cvR = rec.dmg === 1 && chR && !rec.dmgOn && typeof o.blast !== 'string' && o.used !== true && typeof coverHitIn === 'function' ? coverHitIn(campR, chR.id, tcR && tcR.range, thnR ? o.hit : '') : null; if (cvR) rec.cvh = SR.coverHitCard(cvR);   // 1.6.0: where a hit behind cover lands, and the die
     if (rec.dmg !== 1 && chR && typeof coverAimNote === 'function') coverAimNote(campR, chR.id, tcR && tcR.range, thnR ? o.hit : '', function() { return SR.readsTargetHit(campR.system, chR, F, expr, o.row, tcR); });   // ... and an attack's pick, for its damage
     if (rec.dmg === 1 && typeof o.blast === 'string' && /^b_[a-z0-9]{1,16}$/.test(o.blast)) rec.blast = o.blast;   // 1.5.8 explosives: the blast this damage is for (this machine's own word): the card's Apply to all in the blast
@@ -11598,6 +11633,7 @@ net.diceRoll = function(expr, o) {
     if (swR && swR.names.length) rec.sw = swR.names.map(function(x) { return { n: x.n, v: x.v }; });   // 1.6.0: the roll switches, by name (a GM-only one keeps the roll the GM's, below)   // 1.5.8 (handoff 90 Part B): what changed the values it reads
     if (o.label) rec.label = String(o.label).slice(0, D.LIMITS.label);
     if (chR) { rec.as = String(chR.name || '').slice(0, D.LIMITS.label); if (typeof plOn === 'function') plOn(rec, chR); }
+    if (rec.dmg !== 1 && chR && typeof bodySwitch === 'function') bodySwitch(campR, chR.id, rec, res, D, mfR, tcR && tcR.range, function() { return rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row || null, 'bodyRead'); });   // 1.6.2: a miss within a body's cover hits the body
     var hosting = net.active && net.role === 'host', toName = '', gmR = [];
     var noChkR = rec.dmg === 1 && typeof D.checkOf === 'function' && !D.checkOf(res, D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '')); if (noChkR) delete rec.crit;   // 1.6.2: a damage roll with no check has no critical to read, so its range is no part of its card and keeps nothing private
     if (hosting && !o.priv && SR && campR && campR.system) SR.gmOnlyNames(campR.system, F.names(expr).map(function(n) { return { name: n }; })).concat(rec.names ? SR.gmDerivedNames(campR.system, F, rec.names) : []).forEach(function(n) { if (!gmR.some(function(m) { return m.toLowerCase() === n.toLowerCase(); })) gmR.push(n); });   // a GM-only name the formula writes (a branch not taken too: the card shows the text), and a value it read that is GM-only or worked out from one

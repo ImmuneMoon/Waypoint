@@ -205,6 +205,10 @@ At the table
 - A piece that gives cover, a map object among them, can have a Protection
   figure in Properties. A roll reads the highest on the line to its target as
   TargetCoverPro, so a damage roll can take what the cover stops off the blow.
+- A body in the way can hide the target. On the Combat tab, with cover on, a
+  formula works out from the two Sizes how much a character token on the line
+  hides it, read as TargetBodyCover. A roll that reads it and misses by no more
+  than that hits the body, its card says so, and the damage lands there.
 - An attack that lands as a Big Hit passes it on to the damage roll it calls
   for, which is then a Major Wound if any of it gets through, read as
   Blow.big. A Major Wound row's roll can leave out the hit's own effects too.

@@ -19559,6 +19559,26 @@ pendingChecks.push((async () => {
         const noS = missing(asked('SC', 'wpSystemCore'), sys), noD = missing(asked('DC', 'wpDiceCore'), dic);
         check('every name net.js asks of the system core and the dice core is one the core publishes on the window (listRollRef and rowKeptFrom were not, so a resist card never offered a list\'s roll)', sys.has('listRollRef') && sys.has('rowKeptFrom') && asked('SC', 'wpSystemCore').size > 3 && !noS.length && !noD.length, j([noS, noD]));
     }
+    /* ---- 1.6.2 (build 14): a body in the way. The bodyin slice run for real: a miss within the body's cover switches to it, the next damage lands there ---- */
+    {
+        const srcB = between('// [netcheck:bodyin-start]', '// [netcheck:bodyin-end]', 'bodyin'), ownB = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
+        const runB = new Function('net', 'own', 'window', srcB + '\nreturn { bodySwitch, bodyLand };')({}, ownB, {});
+        const Db = { verdictOf: r => r.vd, ruleOf: () => '', naturalOf: r => r.nat };
+        const body = (o) => Object.assign({ id: 'tb', isChar: true, charId: 'c_b' }, o || {});
+        const campB = w => ({ system: { combat: {} }, items: { m1: { whiteboard: [w] } }, chars: { c_a: {}, c_b: {} } }), rg = { body: 4, bodyTok: 'tb', tid: 'tt', mapId: 'm1' };
+        const miss = m => ({ vd: { kind: 'check', pass: false, margin: -m }, nat: 10 }), hit = { vd: { kind: 'check', pass: true, margin: 1 }, nat: 9 };
+        const r1 = {}, s1 = runB.bodySwitch(campB(body()), 'c_a', r1, miss(3), Db, null, rg, () => true), d1 = { dmg: 1 }, l1 = runB.bodyLand(d1, 'c_a', rg), d2 = { dmg: 1 }, l2 = runB.bodyLand(d2, 'c_a', rg);
+        const far = runB.bodySwitch(campB(body()), 'c_a', {}, miss(5), Db, null, rg, () => true), onHit = runB.bodySwitch(campB(body()), 'c_a', {}, hit, Db, null, rg, () => true), malf = runB.bodySwitch(campB(body()), 'c_a', {}, miss(1), Db, 9, rg, () => true);
+        const unread = runB.bodySwitch(campB(body()), 'c_a', {}, miss(1), Db, null, rg, () => false), hid = runB.bodySwitch(campB(body({ hidden: true })), 'c_a', {}, miss(1), Db, null, rg, () => true), none = runB.bodySwitch(campB(body()), 'c_a', {}, miss(1), Db, null, Object.assign({}, rg, { body: 0 }), () => true);
+        runB.bodySwitch(campB(body()), 'c_a', {}, miss(2), Db, null, rg, () => true); const d3 = { dmg: 1 }, moved = runB.bodyLand(d3, 'c_a', Object.assign({}, rg, { tid: 'tx' }));
+        runB.bodySwitch(campB(body()), 'c_a', {}, miss(2), Db, null, rg, () => true); runB.bodySwitch(campB(body()), 'c_a', {}, hit, Db, null, rg, () => true); const d4 = { dmg: 1 }, ended = runB.bodyLand(d4, 'c_a', rg);
+        check('1.6.2 a body in the way: a roll that reads it and misses by no more than its cover switches to the body (its card marked), and that character\u2019s next damage roll lands there, once; not a miss by more, a hit, a malfunction, a roll that does not read it, a hidden body or none; not after the pointer moved or another roll',
+            s1 === true && r1.body === 1 && l1 === true && d1.dmgOn === 'c_b' && d1.bodyOn === 1 && l2 === false && !d2.dmgOn && !far && !onHit && !malf && !unread && !hid && !none && moved === false && !d3.dmgOn && ended === false && !d4.dmgOn,
+            j([s1, r1, d1, l2, far, onHit, malf, unread, hid, none, moved, ended]));
+        const nt = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8');
+        check('both roll paths ask the switch for a roll that is no damage, and the landing for a damage roll, before where a hit behind cover lands',
+            nt.includes("if (recQ.dmg !== 1 && chQ && typeof bodySwitch === 'function') bodySwitch(campQ, chQ.id, recQ, resQ, Dq, mfQ, tcQ && tcQ.range,") && nt.includes("if (rec.dmg !== 1 && chR && typeof bodySwitch === 'function') bodySwitch(campR, chR.id, rec, res, D, mfR, tcR && tcR.range,") && nt.includes("if (recQ.dmg === 1 && chQ && !recQ.dmgOn && typeof bodyLand === 'function') bodyLand(recQ, chQ.id, tcQ && tcQ.range);") && nt.includes("typeof bodyLand === 'function') bodyLand(rec, chR.id, tcR && tcR.range);") && nt.includes("window.wpFog.bodiesOnLine(map, tok, w, drop)"));
+    }
     /* ---- 1.6.0 (the owner, 2026-10-31, by prompt: "A card to press"): Calls for on the host: the slice run for real with the real core and a recording card ---- */
     {
         const Sc = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js')).split(String.fromCharCode(92)).join('/')), Fc = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'formula.js')).split(String.fromCharCode(92)).join('/'));

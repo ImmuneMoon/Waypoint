@@ -84,6 +84,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('cleanRollReq: rid + expr, optional priv gm only', JSON.stringify(cleanRollReq({ rid: 'q1', expr: ' 4d6kh3 ' })) === '{"rid":"q1","expr":"4d6kh3"}' && cleanRollReq({ rid: 'q1', expr: 'd20', priv: 'gm' }).priv === 'gm' && cleanRollReq({ rid: 'q1', expr: 'd20', priv: 'all' }) === null && cleanRollReq({ expr: 'd20' }) === null && cleanRollReq({ rid: 'bad id', expr: 'd20' }) === null && cleanRollReq(null) === null);
 
     /* ---- records ---- */
+    check('1.6.2 a card keeps a miss that switched to a body in the way, and the damage that lands on it, each only as 1 and only where it may be', cleanRoll(rec({ body: 1 })).body === 1 && !('body' in cleanRoll(rec({ body: 2 }))) && !('body' in cleanRoll(rec({ dmg: 1, body: 1 }))) && cleanRoll(rec({ dmg: 1, dmgOn: 'c_abc', bodyOn: 1 })).bodyOn === 1 && !('bodyOn' in cleanRoll(rec({ dmg: 1, bodyOn: 1 }))));
     const r1 = cleanRoll(rec({}));
     check('cleanRoll keeps the character a damage roll lands on only as a character id on a damage roll',
         cleanRoll(rec({ dmg: 1, dmgOn: 'c_abc' })).dmgOn === 'c_abc' && !('dmgOn' in cleanRoll(rec({ dmgOn: 'c_abc' }))) && !('dmgOn' in cleanRoll(rec({ dmg: 1, dmgOn: '<b>' }))) && !('dmgOn' in cleanRoll(rec({ dmg: 1, dmgOn: 7 }))));

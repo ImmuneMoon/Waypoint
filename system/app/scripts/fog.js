@@ -1023,6 +1023,36 @@ function revealedCellList(map, camp, ownerId) {
 // A point query on what is already kept (the map's walls, its fog areas, its lights' lit cells), never a viewer's whole disc; on a player's
 // copy the lit cells the host sent count too (litFor). A target in a wall's or a closed door's own cell reads the light on its near face, as
 // seenCells shows it: the brightest of the open cells beside it this viewer sees, at least the map's own
+// 1.6.2 (vehicles, fold (c), part two; the owner, by prompt: "Yes, by walls"): whether one token sees another, as a mark that ends out of sight reads
+// it. Where the fog is drawn over the target's cell it is the fog's own sight (lightSeen: seen in some light, by the eyes or a full sense); anywhere
+// else, the map's walls alone (a clear line from cell to cell). A token that is not there sees and is seen, so nothing ends by a guess
+function tokSees(map, camp, from, to) {
+    var C = core(), grid = map ? gridForMap(map) : null; if (!C || !map || !from || !to) return true;
+    if (!grid) return tokSeesFree(map, from, to, C);   // a map with no grid: the fog judges nothing there, so the walls' own lines do
+    var mid = function(t) { return C.cellOf(t.x + (t.w || 60) / 2, t.y + (t.h || 52) / 2, grid); }, a = mid(from), b = mid(to), mf = mapFog(map), drawn = false;
+    if (fogFeatureOn() && mf.on && mf.mode === 'auto') { var mk = fogMask(map, camp, grid); drawn = mk.mode !== 'none' && inMask(mk, C.cellKey(b, grid)); }
+    if (drawn) { var t = lightSeen(from, to, map, camp); return typeof t === 'number' && t > 0; }
+    return C.lineClear(a, b, grid, blockersFor(map, grid));
+}
+// The line from one token's middle to the other's, against the lines of every piece that blocks sight on a map with no grid: a pen line by its own
+// segments, any other piece by the edges of its box as it is turned. Neither token counts, and a piece too broken to read blocks nothing
+function tokSeesFree(map, from, to, C) {
+    var mid = function(t) { return { x: t.x + (t.w || 60) / 2, y: t.y + (t.h || 52) / 2 }; }, P = mid(from), Q = mid(to), wb = Array.isArray(map.whiteboard) ? map.whiteboard : [];
+    var side = function(a, b, c) { return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x); };
+    var cross = function(a, b, c, d) { var d1 = side(c, d, a), d2 = side(c, d, b), d3 = side(a, b, c), d4 = side(a, b, d); return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)); };
+    for (var i = 0; i < wb.length; i++) {
+        var w = wb[i]; if (!w || w === from || w === to || w.id === from.id || w.id === to.id || !eligibleBlocker(w)) continue;
+        var segs = [];
+        if (w.type === 'path') { try { segs = C.pathSegs(w).map(function(s) { return [{ x: s[0], y: s[1] }, { x: s[2], y: s[3] }]; }); } catch (e) { segs = []; } }
+        else if (isFinite(w.x) && isFinite(w.y) && isFinite(w.w) && isFinite(w.h)) {
+            var cx = w.x + w.w / 2, cy = w.y + w.h / 2, rd = (w.rot || 0) * Math.PI / 180, cs = Math.cos(rd), sn = Math.sin(rd);
+            var pt = function(dx, dy) { return { x: cx + dx * cs - dy * sn, y: cy + dx * sn + dy * cs }; }, hw = w.w / 2, hh = w.h / 2, k = [pt(-hw, -hh), pt(hw, -hh), pt(hw, hh), pt(-hw, hh)];
+            segs = [[k[0], k[1]], [k[1], k[2]], [k[2], k[3]], [k[3], k[0]]];
+        }
+        for (var j = 0; j < segs.length; j++) if (cross(P, Q, segs[j][0], segs[j][1])) return false;
+    }
+    return true;
+}
 function lightSeen(from, to, map, camp) {
     if (!fogFeatureOn() || !map || map.type !== 'map' || !from || !to) return null;
     var mf = mapFog(map); if (!mf.on || mf.mode !== 'auto') return null;
@@ -2361,6 +2391,7 @@ window.wpFog = {
     tableLeft: tableLeft, onSnapshot: onSnapshot, foreign: foreign,
     lightLevel: mapLevel, lightCount: lightCount,
     lightSeen: lightSeen,
+    tokSees: tokSees,   // 1.6.2 (vehicles, fold (c), part two): a mark that ends out of sight
     setOutline: setOutline, canOutline: canOutline,   // the GM's sight outline: the selected token's line of sight, as a line round what it sees
     tokenSenses: tokenSenses, campSenses: campSenses,   // senses S2b: a token's Properties show its senses as the host reads them
     sensesForget: sensesForget,   // a sheet changed: the overlay's kept senses are read again (sheets.js)

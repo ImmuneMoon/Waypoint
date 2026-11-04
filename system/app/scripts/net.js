@@ -4618,6 +4618,7 @@ function portalUnder(item, map) {
    gmHand: true only from the board's own drag on this machine (datamap.js), never from a message — the pos gate passes nothing, so a
    player's drop is judged in full; the GM's own drop passes a portal locked for players (hostTravel), as every act of the GM's does. */
 net.tokenDropped = function(item, map, gmHand) {
+    try { if (typeof window !== 'undefined' && window.wpSheets && window.wpSheets.tagsMoved && item && map) window.wpSheets.tagsMoved(map, item.id); } catch (e) { console.error(e); }   // 1.6.2 (vehicles, fold (c), part two): a mark judged at the end of its holder's move
     if (!item || !item.isChar || !map) return false;
     if (!item.ownerId) return npcTravel(item, map);                                   // an NPC: the GM's own token, moves through
     var atTable = net.active && net.role === 'host' && Object.keys(net.roster).some(function(k) { return net.roster[k] && net.roster[k].id === item.ownerId; });
@@ -5643,7 +5644,8 @@ function turnEnded(mapId, c, row, round, at) {
     try { if (typeof turnFxEnd === 'function') turnFxEnd(mapId, c, row, round); } catch (e) { console.error(e); }   // after the hook: what is rolled at a turn's end still reads what wears off there
     try { if (typeof turnJobEnd === 'function') turnJobEnd(mapId, c, row, round); } catch (e) { console.error(e); }   // 1.6.0: a job with no press this turn starts again
     try { if (typeof holdsTurnEnd === 'function') holdsTurnEnd(mapId, c, row, round); } catch (e) { console.error(e); }   // 1.6.0 Who holds whom: a holder's turn, lived once
-    try { if (typeof tagsEnded === 'function' && row && typeof row.tokId === 'string') tagsEnded(mapId, { turn: row.tokId }); } catch (e) { console.error(e); }   // 1.6.2 (vehicles, fold (c)): a mark ticked to end at its holder's turn's end
+    try { if (typeof tagsEnded === 'function' && row && typeof row.tokId === 'string') tagsEnded(mapId, { turn: row.tokId }); } catch (e) { console.error(e); }
+    try { if (window.wpSheets && window.wpSheets.tagsTurn && row && typeof row.tokId === 'string') window.wpSheets.tagsTurn(mapId, row.tokId); } catch (e) { console.error(e); }   // ... and a mark judged at the end of its holder's turn (part two)   // 1.6.2 (vehicles, fold (c)): a mark ticked to end at its holder's turn's end
 }
 // [netcheck:turnended-end]
 // [netcheck:job-start]

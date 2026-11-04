@@ -9043,10 +9043,10 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
         var allT = allRowTargets(), allV = typeof ch.list === 'string' ? allRowValue(ch, allT) : '';   // 1.6.0: one number stat on every row of a list
         var opts = [['', 'Pick a pool, number or effect\u2026']].concat(targets, fxT, allT); if (allV && !allT.some(function(o) { return o[0] === allV; })) opts.push([allV, 'A list or stat that is gone']); if (typeof ch.fx === 'string' && !fxT.some(function(o) { return o[0].slice(4) === ch.fx; })) opts.push([(ch.on === false ? 'fx-:' : 'fx+:') + ch.fx, 'An effect that is gone']); if (ch.f && !targets.some(function(o) { return o[0] === ch.f; })) opts.push([ch.f, 'A field that is gone']);
         if (typeof resultTargets === 'function') resultTargets(ch).forEach(function(o) { opts.push(o); });   // 1.6.2 (G7)
-        rw.appendChild((typeof lazySelect === 'function' ? lazySelect : select)('sys-apply-target', opts, allV ? allV : typeof ch.deck === 'string' ? (ch.shuffle === true ? 'ds:' : 'dk:') + ch.deck : typeof ch.shared === 'string' ? 'val:' + ch.shared : typeof ch.table === 'string' ? 'tbl:' + ch.table : typeof ch.tag === 'string' ? (ch.on === false ? 'tg-:' : 'tg+:') + ch.tag : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or an effect it switches on or off (on the character it is used on). Every row of a list sets one of its number stats on each of the list\u2019s rows'));
+        rw.appendChild((typeof lazySelect === 'function' ? lazySelect : select)('sys-apply-target', opts, allV ? allV : typeof ch.deck === 'string' ? (ch.shuffle === true ? 'ds:' : 'dk:') + ch.deck : typeof ch.shared === 'string' ? 'val:' + ch.shared : typeof ch.table === 'string' ? 'tbl:' + ch.table : typeof ch.tag === 'string' ? (ch.shake === true ? 'tg~:' : ch.on === false ? 'tg-:' : 'tg+:') + ch.tag : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or an effect it switches on or off (on the character it is used on). Every row of a list sets one of its number stats on each of the list\u2019s rows'));
         if (typeof ch.deck === 'string') rw.appendChild(deckBox(ch)); else
         if (typeof ch.table === 'string') rw.appendChild(resultByBox(ch)); else
-        if (typeof ch.fx !== 'string') {   // 1.6.0: an effect switched has no amount
+        if (typeof ch.fx !== 'string' && typeof ch.tag !== 'string') {   // 1.6.0: an effect switched has no amount; 1.6.2: nor a mark
         var mkF = typeof markOpts === 'function' ? markOpts(ch) : [];   // 1.6.2: a number shown as boxes marked one by one
         rw.appendChild(select('sys-apply-op', mkF.length ? mkF : [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']], mkF.length ? markVal(ch) : ch.set ? 'set' : ch.add ? 'add' : 'sub', 'Subtract (a cost, a wound), add (rest, healing) or set it to the amount (back to 0); never past the field\u2019s min and max'));
         var fm = input('sys-apply-formula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount, worked out when pressed: no dice unless Rolled is ticked (3, FPCost, max(0, Incoming - DR)); below 0 counts as 0', 'Amount'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
@@ -9080,17 +9080,18 @@ function deckBox(ch) {   // How many and who sees it. Its own listeners, and cla
     return w;
 }
 function resultTargets(ch) { var o = (Array.isArray(draft.values) ? draft.values : []).filter(function(t) { return !!t && typeof t.key === 'string'; }).map(function(t) { return ['val:' + t.key, 'Shared: ' + (t.label || 'A value')]; });
-    (Array.isArray(draft.tags) ? draft.tags : []).forEach(function(t) { if (t && typeof t.key === 'string') o.push(['tg+:' + t.key, 'Mark the target: ' + (t.label || 'A mark')], ['tg-:' + t.key, 'Take off the target: ' + (t.label || 'A mark')]); });   // 1.6.2 (vehicles, fold (c))
-    if (ch && typeof ch.tag === 'string' && !o.some(function(x) { return x[0].slice(4) === ch.tag; })) o.push([(ch.on === false ? 'tg-:' : 'tg+:') + ch.tag, 'A mark that is gone']); if (typeof deckTargets === 'function') o = deckTargets(ch).concat(o); if (ch && typeof ch.shared === 'string' && !o.some(function(x) { return x[0] === 'val:' + ch.shared; })) o.push(['val:' + ch.shared, 'A shared value that is gone']); o = o.concat((Array.isArray(draft.results) ? draft.results : []).filter(function(t) { return !!t && typeof t.key === 'string'; }).map(function(t) { return ['tbl:' + t.key, 'Roll on: ' + (t.label || 'A table')]; })); if (ch && typeof ch.table === 'string' && !o.some(function(x) { return x[0] === 'tbl:' + ch.table; })) o.push(['tbl:' + ch.table, 'A table that is gone']); return o; }
+    (Array.isArray(draft.tags) ? draft.tags : []).forEach(function(t) { if (t && typeof t.key === 'string') o.push(['tg+:' + t.key, 'Mark the target: ' + (t.label || 'A mark')], ['tg-:' + t.key, 'Take off the target: ' + (t.label || 'A mark')], ['tg~:' + t.key, 'Shake off: ' + (t.label || 'A mark')]); });   // 1.6.2 (vehicles, fold (c))
+    if (ch && typeof ch.tag === 'string' && !o.some(function(x) { return x[0].slice(4) === ch.tag; })) o.push([(ch.shake === true ? 'tg~:' : ch.on === false ? 'tg-:' : 'tg+:') + ch.tag, 'A mark that is gone']); if (typeof deckTargets === 'function') o = deckTargets(ch).concat(o); if (ch && typeof ch.shared === 'string' && !o.some(function(x) { return x[0] === 'val:' + ch.shared; })) o.push(['val:' + ch.shared, 'A shared value that is gone']); o = o.concat((Array.isArray(draft.results) ? draft.results : []).filter(function(t) { return !!t && typeof t.key === 'string'; }).map(function(t) { return ['tbl:' + t.key, 'Roll on: ' + (t.label || 'A table')]; })); if (ch && typeof ch.table === 'string' && !o.some(function(x) { return x[0] === 'tbl:' + ch.table; })) o.push(['tbl:' + ch.table, 'A table that is gone']); return o; }
 function resultByBox(ch) { var i = input('sys-res-by field', typeof ch.by === 'string' ? ch.by : '', 'Which row it reads. Empty: it rolls the table\u2019s own dice', 'Its own dice'); i.addEventListener('input', function() { var v = i.value.trim(); if (v) ch.by = v.slice(0, LIMITS.formula); else delete ch.by; markDirty(); if (typeof patchErrors === 'function') patchErrors(); }); return i; }
 function setChangeTarget(ch, v) {
-    v = String(v || ''); ['f', 'c', 'fire', 'feed', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money', 'mark', 'tag'].forEach(function(k) { delete ch[k]; });
+    v = String(v || ''); ['f', 'c', 'fire', 'feed', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money', 'mark', 'tag', 'shake'].forEach(function(k) { delete ch[k]; });
     delete ch.discard; delete ch.to; delete ch.deck; delete ch.shuffle; delete ch.show; delete ch.shared; delete ch.table; delete ch.by; if (v.indexOf('dk:') === 0 || v.indexOf('ds:') === 0) { ch.deck = v.slice(3); delete ch.add; delete ch.set; delete ch.roll; if (v.charAt(1) === 's') { ch.shuffle = true; delete ch.formula; } else if (typeof ch.formula !== 'string' || !ch.formula) ch.formula = '1'; return; } if (v.indexOf('val:') === 0) { ch.shared = v.slice(4); if (typeof ch.formula !== 'string') ch.formula = ''; return; } if (v.indexOf('tbl:') === 0) { ch.table = v.slice(4); delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; return; }   // 1.6.2 (G7): a roll on a result table, no amount
     if (v === 'money') { ch.money = ''; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0: the sheet's money, a figure of its own
     else if (v === 'discard') { ch.discard = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.2 (G9)
     else if (v === 'off') { ch.off = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0 (CORE gap 13): this row switched off, no amount
     else if (v === 'fire') ch.fire = true;
     else if (v === 'feed') { ch.feed = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0 Feeds: a shot from every feed, no amount
+    else if (v.indexOf('tg~:') === 0) { ch.tag = v.slice(4); ch.shake = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // part two: shaken off the one who rolls
     else if (v.indexOf('tg+:') === 0 || v.indexOf('tg-:') === 0) { ch.tag = v.slice(4); ch.on = v.charAt(2) === '+'; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.2 (vehicles, fold (c)): a mark on the target, or taken off it; no amount
     else if (v.indexOf('fx+:') === 0 || v.indexOf('fx-:') === 0) { ch.fx = v.slice(4); ch.on = v.charAt(2) === '+'; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }
     else if (v === 'q') ch.q = true;
@@ -10612,9 +10613,57 @@ function tableBtn(text, act, title) { var b = el('button', 'tool ghost sys-btn',
 // 1.6.2 (G8): the Rules tab's Shared values. The definition is the system's, and Now is this campaign's own figure. Its own listeners
 // 1.6.2 (vehicles, fold (c); the owner, by prompt: a mark lives on the map and can say it ends with the fight): the Rules tab's Marks, the marks one token
 // may hold on another. A key is made once and never shown. Its own listeners
+// [vehiclecheck:tagjudge-start]
+// 1.6.2 (vehicles, fold (c), part two): what ends a mark by its own rules, judged on the machine that owns the campaign alone and taken off through
+// net.tagsPut, so the table is told as for any change. A mark whose holder or target is no longer on its map goes. One of its effects (endFx) on for
+// either token's character ends it whenever it is looked at. Out of sight (wpFog.tokSees) and Kept while (keep: the holder's names, the marked
+// token as its target) are judged when the mark says: at once (every look), at the end of its holder's move (tagsMoved, from net.tokenDropped) or of
+// its holder's turn (tagsTurn, from net.js turnEnded). A Kept while that cannot be worked out does not hold. Looked at each second (tagTick)
+function tagKeeps(S, Fm, sys, camp, map, d, hold, tgt) {
+    if (typeof d.keep !== 'string' || !d.keep) return true; if (!S || !Fm) return true;
+    var ch = typeof hold.charId === 'string' && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, hold.charId) ? camp.chars[hold.charId] : { id: '', values: {} };
+    var fl = typeof tokenFlags === 'function' ? tokenFlags() : {}, tc = S.tokenCtx(map, hold, fl) || {};
+    var rc = S.rangeCtx(sys, map, hold, tgt, { F: Fm, elev: !!fl.elevation, posture: !!fl.posture }); if (rc) { rc.tid = tgt.id; rc.mapId = map.id; }
+    var r = null; try { r = Fm.evaluate(d.keep, { vars: S.makeResolver(sys, ch, Fm, rc ? S.withRange(tc, rc) : tc) }); } catch (e) { r = null; }
+    if (!r || !r.ok) return false; return r.value === true || (typeof r.value === 'number' && r.value !== 0);
+}
+function tagLost(S, Fm, sys, camp, map, d, hold, tgt, at) {   // at: { move, turn }; the reason it ends, or null
+    if (!hold || !tgt) return 'gone';
+    if (Array.isArray(d.endFx) && d.endFx.length) {
+        var onOf = function(w) { var c = typeof w.charId === 'string' && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, w.charId) ? camp.chars[w.charId] : null; return c ? S.fxOnIds(sys, c, Fm) : {}; };
+        var ho = onOf(hold), to = onOf(tgt); if (d.endFx.some(function(x) { return ho[x] === 1 || to[x] === 1; })) return 'effect';
+    }
+    if (!d.sight && !d.keep) return null;
+    if (d.check === 'move' ? !at.move : d.check === 'turn' ? !at.turn : false) return null;
+    var Fg = window.wpFog; if (d.sight && Fg && typeof Fg.tokSees === 'function' && !Fg.tokSees(map, camp, hold, tgt)) return 'sight';
+    return tagKeeps(S, Fm, sys, camp, map, d, hold, tgt) ? null : 'keep';
+}
+function tagJudge(o) {   // o: { mapId, moved } after a token's move, { mapId, turn } at a token's turn's end, or none for a look at what stands
+    var camp = getActiveCampaign(), sys = camp && camp.system, S = window.wpSystemCore, Fm = typeof F === 'function' ? F() : null, n = net();
+    if (!sys || !Array.isArray(sys.tags) || !sys.tags.length || !S || isClient() || !canWrite() || !n || n.stream || typeof n.tagsPut !== 'function' || typeof n.tagsOf !== 'function') return 0;
+    var offs = [], why = {};
+    Object.keys(camp.items || {}).forEach(function(mid) {
+        var map = camp.items[mid]; if (!map || map.type !== 'map' || (o && o.mapId && o.mapId !== mid)) return;
+        var list = n.tagsOf(map); if (!list.length) return;
+        var tk = Object.create(null); (Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) { if (w && typeof w.id === 'string' && !w.waiting) tk[w.id] = w; });
+        list.forEach(function(t) {
+            var d = S.tagOf(sys, t.k); if (!d) return;
+            var at = { move: !!(o && o.moved === t.by), turn: !!(o && o.turn === t.by) };
+            var r = null; try { r = tagLost(S, Fm, sys, camp, map, d, tk[t.by] || null, tk[t.on] || null, at); } catch (e) { r = null; }
+            if (r) { offs.push({ mapId: mid, by: t.by, on: t.on, k: t.k, put: false }); why[r] = (why[r] || 0) + 1; }
+        });
+    });
+    if (!offs.length) return 0;
+    if (window.wpStepLog) window.wpStepLog('marks v1', 'ended', why);
+    return n.tagsPut(offs);
+}
+function tagsMoved(map, tokId) { if (!map || typeof map.id !== 'string' || typeof tokId !== 'string') return 0; return tagJudge({ mapId: map.id, moved: tokId }); }
+function tagsTurn(mapId, tokId) { if (typeof mapId !== 'string' || typeof tokId !== 'string') return 0; return tagJudge({ mapId: mapId, turn: tokId }); }
+// [vehiclecheck:tagjudge-end]
+if (typeof window !== 'undefined' && !window.__wpTagTick) window.__wpTagTick = setInterval(function() { try { tagJudge(null); } catch (e) {} }, 1000);
 function renderTags() {
     var box = ui('sysTags'); if (!box) return; box.textContent = ''; var list = Array.isArray(draft.tags) ? draft.tags : null, ch = function(re) { markDirty(); if (re) renderTags(); if (typeof patchErrors === 'function') patchErrors(); }, wrap = el('div', 'sys-budgets sys-results');
-    wrap.appendChild(el('div', 'sys-light-head', 'Marks')); wrap.appendChild(el('div', 'sys-note', 'A mark one token holds on another, such as a pilot hounding a craft. A change of a roll or an action puts it on its target or takes it off. Formulas read whether you hold it on the target, and whether it is held on you. It stays until one of its rules ends it or you take it off.'));
+    wrap.appendChild(el('div', 'sys-light-head', 'Marks')); wrap.appendChild(el('div', 'sys-note', 'A mark one token holds on another, such as a pilot hounding a craft. A change of a roll or an action puts it on its target or takes it off, and Shake off takes it off the one who rolls. Formulas read whether you hold it on the target, and whether it is held on you. It stays until one of its rules ends it or you take it off.'));
     (list || []).forEach(function(t, i) {
         var rw = el('div', 'sys-flags sys-tbl-head'), nm = input('sys-tag-label field', t.label || '', 'Its name, on the map and on cards', 'Hound'), rm = el('button', 'tool ghost sys-btn sys-tag-rm', '\u00d7');
         var fg = checkLabel('sys-tag-fight', t.fight === true, 'Ends with the fight', 'It ends once the last fight on its map is over'), tn = checkLabel('sys-tag-turn', t.turn === true, 'Ends at its holder\u2019s turn\u2019s end', 'It ends when the turn of the token that holds it ends');
@@ -10622,6 +10671,27 @@ function renderTags() {
         [[fg, 'fight'], [tn, 'turn']].forEach(function(p) { var ip = p[0].querySelector('input'); if (ip) ip.addEventListener('change', function() { if (ip.checked) t[p[1]] = true; else delete t[p[1]]; ch(); }); });
         rm.type = 'button'; rm.title = 'Remove this mark'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.tags; ch(true); });
         [nm, fg, tn, rm].forEach(function(x) { rw.appendChild(x); }); wrap.appendChild(rw);
+        // part two: what else ends it
+        var r2 = el('div', 'sys-flags'), sg = checkLabel('sys-tag-sight', t.sight === true, 'Ends out of sight', 'It ends when its holder no longer sees the token it is held on. Where no fog is drawn, the map\u2019s walls judge it');
+        var sgI = sg.querySelector('input'); if (sgI) sgI.addEventListener('change', function() { if (sgI.checked) t.sight = true; else delete t.sight; if (!t.sight && !t.keep) delete t.check; ch(true); });
+        var kl = el('label', 'sys-check'); kl.appendChild(document.createTextNode('Kept while ')); var kp = input('sys-tag-keep field', t.keep || '', 'It holds only while this is so, read for the holder with the marked token as its target. Empty: nothing of its own ends it', 'Always'); kp.maxLength = LIMITS.formula; kl.appendChild(kp);
+        var kpSet = function(re) { var v = kp.value.trim(); if (v) t.keep = v.slice(0, LIMITS.formula); else delete t.keep; if (!t.sight && !t.keep) delete t.check; ch(re); };
+        kp.addEventListener('input', function() { kpSet(false); }); kp.addEventListener('change', function() { kpSet(true); });
+        r2.appendChild(sg); r2.appendChild(kl);
+        if (t.sight || t.keep) {
+            var wh = el('select', 'field sys-tag-check'); [['', 'Judged at once'], ['move', 'Judged at the end of its holder\u2019s move'], ['turn', 'Judged at the end of its holder\u2019s turn']].forEach(function(p) { var op = el('option', null, p[1]); op.value = p[0]; if ((t.check || '') === p[0]) op.selected = true; wh.appendChild(op); });
+            wh.title = 'When out of sight and Kept while are read. At the end of a move or a turn, the mark goes only if the rule still fails then'; wh.addEventListener('change', function() { if (wh.value) t.check = wh.value; else delete t.check; ch(); }); r2.appendChild(wh);
+        }
+        wrap.appendChild(r2);
+        var r3 = el('div', 'sys-flags'), fxL = Array.isArray(draft.effects) ? draft.effects.filter(function(x) { return !!x && typeof x.id === 'string'; }) : [], fxN = function(id) { var x = fxL.filter(function(y) { return y.id === id; })[0]; return x ? (x.name || x.id) : 'An effect no longer here'; };
+        r3.appendChild(el('span', 'sys-num-cap', 'Ends when either token has on'));
+        (Array.isArray(t.endFx) ? t.endFx : []).forEach(function(id, j) { var cp = el('button', 'tool ghost sys-btn sys-tag-fxrm', fxN(id) + ' \u00d7'); cp.type = 'button'; cp.title = 'No longer ends it'; cp.addEventListener('click', function() { t.endFx.splice(j, 1); if (!t.endFx.length) delete t.endFx; ch(true); }); r3.appendChild(cp); });
+        var fxS = el('select', 'field sys-tag-fx'), fxH = el('option', null, fxL.length ? '+ An effect' : 'No effects yet'); fxH.value = ''; fxS.appendChild(fxH);
+        fxL.forEach(function(x) { if ((t.endFx || []).indexOf(x.id) >= 0) return; var op = el('option', null, x.name || x.id); op.value = x.id; fxS.appendChild(op); });
+        fxS.title = 'An effect that ends this mark the moment it is on for the holder or for the token it is held on'; fxS.disabled = !fxL.length || (t.endFx || []).length >= 8;
+        fxS.addEventListener('change', function() { if (!fxS.value) return; t.endFx = Array.isArray(t.endFx) ? t.endFx : []; if (t.endFx.indexOf(fxS.value) < 0) t.endFx.push(fxS.value); ch(true); });
+        if (window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(fxS);
+        r3.appendChild(fxS); wrap.appendChild(r3);
     });
     var add = el('button', 'tool ghost sys-btn sys-tag-add', '+ Mark'); add.type = 'button'; add.title = 'A mark one token may hold on another'; add.addEventListener('click', function() { draft.tags = Array.isArray(draft.tags) ? draft.tags : []; if (draft.tags.length >= 12) { toast('A system holds 12 marks.'); return; } var n = 1; while (draft.tags.some(function(t) { return t && t.key === 'M' + n; })) n++; draft.tags.push({ key: 'M' + n, label: '' }); ch(true); });
     wrap.appendChild(add); box.appendChild(wrap);
@@ -13954,7 +14024,7 @@ function dmgPartPre(mk) { if (!dmgObj(mk) || typeof mk.amt !== 'number' || !isFi
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
 // [systemcheck:dmgwin-end]
 function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : null; return nameWord(s, n); }   // 1.6.2: a name in words, for a card
-window.wpSheets = { bellNote: bellNote, debtAdd: debtAdd, uniqueToggle: uniqueToggle, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, formOn: formOn, majorFollow: majorFollow, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

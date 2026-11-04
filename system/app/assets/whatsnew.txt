@@ -221,6 +221,13 @@ At the table
   its name. A player sees the marks their own tokens hold or are held by. A
   mark may end with the fight or at its holder's turn's end, and the GM takes
   one off by pressing its name.
+- A mark can end by itself. Ends out of sight ends it when its holder no
+  longer sees the target, by the fog where it is drawn and by the walls
+  elsewhere. Kept while keeps it only while what you build there stays so for
+  its holder. Each is judged at once, or at the end of the holder's move or
+  turn, as the mark says. A mark also ends the moment an effect you pick is on
+  for either token. Shake off, a change of a roll's Then or an action, takes a
+  mark off the one who rolls, whoever holds it.
 - A list's rows can be sheets. Tick Rows are sheets, and each row can be
   joined to a character sheet of the campaign, as a vehicle's row to the
   vehicle's own sheet. The sheet's picture and name stand on the row and open

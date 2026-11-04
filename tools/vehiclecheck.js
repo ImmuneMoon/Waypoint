@@ -168,11 +168,72 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         draw(false)(map2);
         check('a player\u2019s board draws the line and the tag, and offers nothing to press', layer.kids.length === 1 && !layer.kids[0].kids[2].attrs.class && !layer.kids[0].kids[2].on.click);
     }
+    /* ---- fold (c), part two: what ends a mark by its own rules ---- */
+    {
+        const RAWD = { v: 1, name: 'Craft', fields: [{ id: 'f_pil', key: 'Pilot', label: 'Piloting', kind: 'number', def: 12 }, { id: 'f_fx', key: 'Fx', label: 'Effects', kind: 'effects' }],
+            effects: [{ id: 'e_stun', name: 'Stunned', mods: [] }, { id: 'e_down', name: 'Down', mods: [] }],
+            tags: [{ key: 'Hound', label: 'Hound', sight: true, check: 'move' }, { key: 'Track', label: 'Track', keep: 'Pilot > 20' }, { key: 'Lock', label: 'Lock', endFx: ['e_stun', 'e_stun', 'bad', 'e_down'], check: 'turn' }, { key: 'Pin', label: 'Pin', keep: 'Pilot > 1', check: 'turn' }, { key: 'Odd', label: 'Odd', sight: 'yes', check: 'move' }],
+            rolls: [{ id: 'r_sh', label: 'Shake it', kind: 'apply', apply: [{ tag: 'Hound', shake: true }, { tag: 'Hound', shake: true }, { tag: 'Hound', on: false }] }] };
+        const SD = S.cleanSystem(RAWD, { F, gmView: true }), VD = S.cleanSystem(RAWD, { F, gmView: false });
+        check('part two: what ends a mark is kept in the GM\u2019s view alone, each only as written (out of sight only as true, Kept while as text, when it is judged only beside one of those two, an effect by its id once and no more than eight), and the players\u2019 view keeps the mark with none of it',
+            J(SD.tags) === J([{ key: 'Hound', label: 'Hound', sight: true, check: 'move' }, { key: 'Track', label: 'Track', keep: 'Pilot > 20' }, { key: 'Lock', label: 'Lock', endFx: ['e_stun', 'e_down'] }, { key: 'Pin', label: 'Pin', keep: 'Pilot > 1', check: 'turn' }, { key: 'Odd', label: 'Odd' }])
+            && J(VD.tags) === J([{ key: 'Hound', label: 'Hound' }, { key: 'Track', label: 'Track' }, { key: 'Lock', label: 'Lock' }, { key: 'Pin', label: 'Pin' }, { key: 'Odd', label: 'Odd' }]), J([SD.tags, VD.tags]));
+        const shA = SD.rolls.find(r => r.id === 'r_sh');
+        check('Shake off is a change of its own, once a mark and a when, beside Take off the target', J(shA.apply) === J([{ tag: 'Hound', shake: true }, { tag: 'Hound', on: false }]), J(shA.apply));
+        let sunk = []; S.setTagSink(m => sunk.push(m));
+        const chD = { id: 'c_p', name: 'Pilot', ownerId: 'u_a', values: {} }, varsD = S.makeResolver(SD, chD, F);
+        const rS = S.applyAct(SD, chD, { id: 'r_x', label: 'X', kind: 'apply', apply: [{ tag: 'Hound', shake: true }] }, varsD, F, { self: 'tok_b', selfMap: 'm1' });
+        const rS0 = S.applyAct(SD, chD, { id: 'r_x', label: 'X', kind: 'apply', apply: [{ tag: 'Hound', shake: true }] }, varsD, F, { self: 'tok_b' });
+        check('a Shake off hands the host the mark taken off the one it is used by, whoever holds it, and needs no target; with no map it does nothing', rS.ok === true && J(sunk[0]) === J([{ mapId: 'm1', on: 'tok_b', k: 'Hound', put: false, any: true }]) && rS0.ok === false && sunk.length === 1, J([rS, rS0, sunk]));
+        S.setTagSink(null);
+        const shk = S.tagsMove(SD, [{ k: 'Hound', by: 'tok_a', on: 'tok_b' }, { k: 'Hound', by: 'tok_c', on: 'tok_b' }, { k: 'Track', by: 'tok_a', on: 'tok_b' }, { k: 'Hound', by: 'tok_a', on: 'tok_c' }], [{ mapId: 'm1', on: 'tok_b', k: 'hound', put: false, any: true }]);
+        check('the map lets go of that mark on that token from every holder, and of nothing else', shk.changed === true && J(shk.list) === J([{ k: 'Track', by: 'tok_a', on: 'tok_b' }, { k: 'Hound', by: 'tok_a', on: 'tok_c' }]), J(shk));
+        const chFx = { id: 'c_q', values: { f_fx: [{ id: 'x_1', ref: 'e_stun', on: true }, { id: 'x_2', ref: 'e_down', on: false }, { id: 'x_3', name: 'Own' }] } };
+        check('fxOnIds names the library effects a character has on, by id, and no row switched off', J(S.fxOnIds(SD, chFx, F)) === J({ e_stun: 1 }) && J(S.fxOnIds(SD, { values: {} }, F)) === J({}), J(S.fxOnIds(SD, chFx, F)));
+        const badD = JSON.parse(J(RAWD)); badD.tags[1].keep = 'Pilot >'; badD.tags[2].endFx = ['e_gone'];
+        const vD = S.validateSystem(S.cleanSystem(badD, { F, gmView: true }), F);
+        check('the validator reads Kept while as a formula of the holder\u2019s names and says an effect that ends a mark and is no longer in the system', vD.errors.some(e => e.prop === 'tag.keep') && vD.warnings.some(w => w.prop === 'tag.endfx' && /An effect that ended Lock/.test(w.message)) && S.validateSystem(SD, F).errors.length === 0, J(vD));
+        // the judge, sliced from sheets.js and run on stand-ins of the page and the table
+        const shJ = read('scripts/sheets.js'), slJ = shJ.slice(shJ.indexOf('// [vehiclecheck:tagjudge-start]'), shJ.indexOf('// [vehiclecheck:tagjudge-end]'));
+        const tok = (id, ch, x) => ({ id, charId: ch, isChar: true, x, y: 0, w: 60, h: 52 });
+        const mapJ = { id: 'm1', type: 'map', whiteboard: [tok('tA', 'c_a', 0), tok('tB', 'c_b', 120), tok('tC', 'c_c', 240), tok('tD', 'c_d', 360)] };
+        let marks = [{ k: 'Hound', by: 'tA', on: 'tB' }, { k: 'Track', by: 'tA', on: 'tC' }, { k: 'Lock', by: 'tD', on: 'tB' }, { k: 'Pin', by: 'tD', on: 'tC' }, { k: 'Pin', by: 'tA', on: 'tGone' }];
+        const campJ = { id: 'k', system: SD, items: { m1: mapJ }, chars: { c_a: { id: 'c_a', values: { f_pil: 12 } }, c_b: { id: 'c_b', values: { f_fx: [{ id: 'x_1', ref: 'e_stun', on: true }] } }, c_c: { id: 'c_c', values: {} }, c_d: { id: 'c_d', values: { f_pil: 12 } } } };
+        const offs = [], logs = [], netJ = { tagsOf: () => marks.slice(), tagsPut: m => { offs.push(m); marks = S.tagsMove(SD, marks, m).list; return m.length; } }, sees = { v: true };
+        const jud = (o) => new Function('window', 'F', 'getActiveCampaign', 'isClient', 'canWrite', 'net', 'tokenFlags', slJ + '\nreturn { tagJudge: tagJudge, tagsMoved: tagsMoved, tagsTurn: tagsTurn };')({ wpSystemCore: S, wpFog: { tokSees: () => sees.v }, wpStepLog: (a, b, c) => logs.push([a, b, c]) }, () => F, () => campJ, () => !!(o && o.client), () => true, () => netJ, () => ({}));
+        const J1 = jud();
+        sees.v = false; J1.tagJudge(null);
+        check('a look ends at once: a mark whose token is gone, one an effect it names is on for either token (here the target is Stunned), and one whose Kept while does not hold; one judged at the end of a move or a turn waits, out of sight or not',
+            J(marks) === J([{ k: 'Hound', by: 'tA', on: 'tB' }, { k: 'Pin', by: 'tD', on: 'tC' }]) && J(logs) === J([['marks v1', 'ended', { keep: 1, effect: 1, gone: 1 }]]), J([marks, logs]));
+        J1.tagsMoved(mapJ, 'tD');
+        check('another token\u2019s move leaves a mark judged at the end of its holder\u2019s move as it is', marks.length === 2);
+        J1.tagsMoved(mapJ, 'tA');
+        check('its holder\u2019s move ends it where its holder no longer sees the target', J(marks) === J([{ k: 'Pin', by: 'tD', on: 'tC' }]), J(marks));
+        campJ.chars.c_d.values.f_pil = 1; J1.tagJudge(null);
+        check('a Kept while that fails is not read before the turn it waits for', marks.length === 1);
+        J1.tagsTurn('m1', 'tD');
+        check('it ends at its holder\u2019s turn\u2019s end where it still does not hold then', marks.length === 0, J(marks));
+        marks = [{ k: 'Track', by: 'tA', on: 'tC' }]; const J2 = jud({ client: true }); J2.tagJudge(null);
+        check('a player\u2019s app judges nothing: only the machine that owns the campaign ends a mark', marks.length === 1);
+        const fgS = read('scripts/fog.js'), ntS = read('scripts/net.js');
+        // a map with no grid: the line from one token's middle to the other's against each wall's own lines, sliced from fog.js and run with the real fogcore
+        const FC = await import(url.pathToFileURL(app('scripts/fogcore.js')).href), slF = fgS.slice(fgS.indexOf('function tokSeesFree('), fgS.indexOf('function lightSeen('));
+        const free = new Function('eligibleBlocker', slF + '\nreturn tokSeesFree;')(w => w.blocksSight === true && !w.hidden);
+        const tA = { id: 'a', x: 0, y: 0, w: 60, h: 52 }, tB = { id: 'b', x: 300, y: 0, w: 60, h: 52 }, wl = { id: 'w', type: 'path', x: 150, y: -100, w: 4, h: 300, baseW: 4, baseH: 300, pts: [[0, 0], [0, 300]], blocksSight: true };
+        const box = { id: 'k', type: 'rect', x: 140, y: 10, w: 20, h: 20, blocksSight: true, rot: 0 }, see = (wb) => free({ whiteboard: wb }, tA, tB, FC);
+        check('on a map with no grid a wall line or a wall block between the two tokens hides one from the other; one beside the line, a hidden wall, a see-through barrier and the tokens themselves do not',
+            see([wl]) === false && see([box]) === false && see([Object.assign({}, wl, { x: 400 })]) === true && see([Object.assign({}, wl, { hidden: true })]) === true && see([Object.assign({}, wl, { blocksSight: undefined, barrier: true })]) === true && see([Object.assign({}, tA, { blocksSight: true })]) === true && see([]) === true);
+        check('out of sight is the fog\u2019s own sight where the fog is drawn over the target, else the map\u2019s walls; the holder\u2019s move and turn hand the judge what it waits for; the System editor sets each part; Kept while is a form',
+            /function tokSees\(map, camp, from, to\)/.test(fgS) && /tokSees: tokSees/.test(fgS) && /if \(drawn\) \{ var t = lightSeen\(from, to, map, camp\); return typeof t === 'number' && t > 0; \}/.test(fgS) && /return C\.lineClear\(a, b, grid, blockersFor\(map, grid\)\);/.test(fgS)
+            && /window\.wpSheets\.tagsMoved\(map, item\.id\)/.test(ntS) && /window\.wpSheets\.tagsTurn\(mapId, row\.tokId\)/.test(ntS)
+            && /'Ends out of sight'/.test(shJ) && /'sys-tag-keep field'/.test(shJ) && /Judged at the end of its holder/.test(shJ) && /'field sys-tag-fx'/.test(shJ) && /'Shake off: '/.test(shJ) && /'sys-tag-keep': 'cond'/.test(read('scripts/formbox.js')));
+    }
     /* ---- the words ---- */
     const help = read('index.html');
     check('Help says Rows are sheets, in plain words', /<b>Rows are sheets<\/b>/.test(help) && /Make a new sheet/.test(help));
     check('Help says what a mark is, in plain words', /<b>Marks<\/b>/.test(help) && /dashed line/.test(help));
-    check('both release notes say it', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /Rows are sheets/.test(readRoot(p)) && /A token can hold a mark on another/.test(readRoot(p))));
+    check('Help says what else ends a mark and what Shake off does', /<b>Ends out of sight<\/b>/.test(help) && /<b>Kept while<\/b>/.test(help) && /<b>Shake off<\/b>/.test(help));
+    check('both release notes say it', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /Rows are sheets/.test(readRoot(p)) && /A token can hold a mark on another/.test(readRoot(p)) && /A mark can end by itself/.test(readRoot(p))));
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never finished'); process.exitCode = 1; } });

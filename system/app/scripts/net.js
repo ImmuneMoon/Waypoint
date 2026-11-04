@@ -8630,13 +8630,14 @@ function handleMessage(msg, conn) {
         var profE = net.roster[conn.peer]; if (chE.npc || !chE.ownerId || !profE || (chE.ownerId !== profE.id && !(typeof handsTo === 'function' && handsTo(chE, profE.id)))) { denyE('owner'); return; }
         var resE = Se.applyEdit(campE.system, chE, q.fieldId, q.value, Fe, { player: true });
         if (!resE.ok) { denyE(resE.reason); return; }
-        var bcE = {}; bcE[q.fieldId] = resE.value; var bwE = Se.budgetWatch(campE.system, chE, bcE, Fe);   // 126: a point budget is judged before anything is stored
+        var flE = resE.clear || typeof Se.autoFills !== 'function' ? {} : Se.autoFills(campE.system, chE, q.fieldId, resE.value, Fe);   // 1.6.2 (auto apply): what typing it fills, in the same change
+        var bcE = {}; bcE[q.fieldId] = resE.value; Object.keys(flE).forEach(function(k) { bcE[k] = flE[k]; }); var bwE = Se.budgetWatch(campE.system, chE, bcE, Fe);   // 126: a point budget is judged before anything is stored
         if (bwE.refuse) { try { conn.send({ type: 'char-deny', rid: q.rid, reason: 'budget', msg: Se.budgetSays(bwE.refuse) }); } catch (e) { sendFailed(e); } return; }
-        chE.values = chE.values || {}; chE.values[q.fieldId] = resE.value; chE.updated = Date.now();
+        if (typeof Se.autoStore === 'function') Se.autoStore(chE, q.fieldId, resE.value, flE); else { chE.values = chE.values || {}; chE.values[q.fieldId] = resE.value; } chE.updated = Date.now();   // 1.6.2 (auto apply): its own mark goes, each field filled is marked
         saveRemoteSoon();
         try { conn.send(bwE.warn.length ? { type: 'char-ack', rid: q.rid, msg: Se.budgetSays(bwE.warn[0]) } : { type: 'char-ack', rid: q.rid }); } catch (e) { sendFailed(e); }   // 126: a budget that only warns lets the change through, with its words to the player
         if (bwE.warn.length && typeof budgetNotice === 'function') budgetNotice(chE, bwE.warn);   // ... and to the GM
-        var dE = {}; dE[q.fieldId] = resE.value; net.syncCharDelta(q.charId, dE);
+        var dE = {}; dE[q.fieldId] = resE.value; Object.keys(flE).forEach(function(k) { dE[k] = flE[k]; }); net.syncCharDelta(q.charId, dE);
         if (window.wpSheets) window.wpSheets.charChanged(q.charId);
         // [netcheck:charedit-end]
     } else if (msg.type === 'char-link' && net.role === 'host') {
@@ -8702,15 +8703,17 @@ function handleMessage(msg, conn) {
         var campM = getActiveCampaign(), chM = (campM && campM.chars && typeof qm.charId === 'string' && Object.prototype.hasOwnProperty.call(campM.chars, qm.charId) ? campM.chars[qm.charId] : null);
         if (!campM || !campM.system || !chM) { denyM('missing'); return; }
         var profM = net.roster[conn.peer]; if (chM.npc || !chM.ownerId || !profM || (chM.ownerId !== profM.id && !(typeof handsTo === 'function' && handsTo(chM, profM.id)))) { denyM('owner'); return; }
-        var workM = Object.assign({}, chM, { values: JSON.parse(JSON.stringify(chM.values || {})) }), dM = {};
+        var workM = Object.assign({}, chM, { values: JSON.parse(JSON.stringify(chM.values || {})), af: chM.af && typeof chM.af === 'object' ? Object.assign({}, chM.af) : undefined }), dM = {};   // 1.6.2 (auto apply): its marks with it
         for (var iM = 0; iM < qm.values.length; iM++) {
             var resM = Sm.applyEdit(campM.system, workM, qm.values[iM].fieldId, qm.values[iM].value, Fm, { player: true });
             if (!resM.ok) { denyM(resM.reason); return; }   // one refused value refuses the batch: nothing is stored
-            workM.values[qm.values[iM].fieldId] = resM.value; dM[qm.values[iM].fieldId] = resM.value;
+            var fidM = qm.values[iM].fieldId, flM = resM.clear || typeof Sm.autoFills !== 'function' ? {} : Sm.autoFills(campM.system, workM, fidM, resM.value, Fm);   // 1.6.2 (auto apply)
+            if (typeof Sm.autoStore === 'function') Sm.autoStore(workM, fidM, resM.value, flM); else workM.values[fidM] = resM.value;
+            dM[fidM] = resM.value; Object.keys(flM).forEach(function(k) { dM[k] = flM[k]; });
         }
         var bwM = Sm.budgetWatch(campM.system, chM, dM, Fm);   // 126: the whole batch against the point budgets, before anything is stored
         if (bwM.refuse) { try { conn.send({ type: 'char-deny', rid: qm.rid, reason: 'budget', msg: Sm.budgetSays(bwM.refuse) }); } catch (e) { sendFailed(e); } return; }
-        chM.values = chM.values || {}; Object.keys(dM).forEach(function(k) { chM.values[k] = dM[k]; }); chM.updated = Date.now();
+        chM.values = workM.values; if (workM.af && Object.keys(workM.af).length) chM.af = workM.af; else delete chM.af; chM.updated = Date.now();
         saveRemoteSoon();
         try { conn.send(bwM.warn.length ? { type: 'char-ack', rid: qm.rid, msg: Sm.budgetSays(bwM.warn[0]) } : { type: 'char-ack', rid: qm.rid }); } catch (e) { sendFailed(e); }
         if (bwM.warn.length && typeof budgetNotice === 'function') budgetNotice(chM, bwM.warn);

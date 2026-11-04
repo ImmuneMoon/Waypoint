@@ -2167,6 +2167,14 @@
   #zoomBox.pos-fold .zoom-posbtn { color: var(--ink); }
   @media (prefers-reduced-motion: reduce) { #cursorPos { transition: none; } }
   .zoom-sep { width: 1px; height: 16px; background: var(--edge); }
+  /* 1.6.2 (auto apply): the small grey word beside a figure worked out or filled, and the faint way back to the worked-out figure */
+  .sheet-autobits { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; white-space: nowrap; }
+  .sheet-auto { font-size: 10px; color: var(--dim); font-style: italic; }
+  .sheet-auto-reset { background: transparent; border: none; padding: 0 2px; color: var(--dim); opacity: 0.45; font-size: 12px; line-height: 1; cursor: pointer; }
+  .sheet-auto-reset:hover, .sheet-auto-reset:focus-visible { opacity: 1; color: var(--ink); }
+  @media print { .sheet-auto-reset { display: none; } }
+  .sys-wout-box { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+  .sys-tfill-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   body.no-pointerpos #zoomBox .zoom-pos, body.no-zoomctl #zoomBox .zoom-ctl, body.no-pointerpos #zoomBox .zoom-sep, body.no-zoomctl #zoomBox .zoom-sep { display: none; }
   body.no-pointerpos.no-zoomctl #zoomBox { display: none !important; }   /* both put away: no empty box (render() writes the box's display inline) */
   body.no-pointerpos.no-zoomctl #partyStrip { top: 26px; }   /* and the party strip moves up into its place */

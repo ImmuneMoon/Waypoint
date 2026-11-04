@@ -10888,7 +10888,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && sh.includes("    renderReviewBar(c, camp, gm);\n    var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';") && ixB.includes('<div id="sheetBudgets" class="sheet-budgets" role="status" style="display:none;"></div><div id="sheetDebts" class="sheet-debts" style="display:none;"></div><div id="sheetLinks" class="sheet-lks" style="display:none;"></div><div id="sheetReviewBar" class="sheet-review-bar" role="status" style="display:none;"></div><div id="sheetStaleBar" class="sheet-review-bar sheet-stale-bar" role="status" style="display:none;"></div><div id="sheetBody"></div>')
             && sh.includes("    var bdP = el('div', 'sheet-budgets'); if (budgetBar(bdP, sys, c)) container.insertBefore(bdP, container.firstChild);")
             && sh.split("if (typeof budgetNote === 'function') budgetNote(sys, c, f.id, res.value);").length === 3 && sh.split("if (typeof budgetNote === 'function') budgetNote(sys, c, d);").length === 2
-            && sh.indexOf("budgetNote(sys, c, d);") < sh.indexOf("c.values = c.values || {}; ids.forEach(function(fid) { c.values[fid] = d[fid]; });") && /budgetNote\(sys, c, f\.id, res\.value\);[^\n]*\n    c\.values = c\.values \|\| \{\}; c\.values\[f\.id\] = res\.value;/.test(sh)
+            && sh.indexOf("budgetNote(sys, c, d);") < sh.indexOf("c.values = work.values; if (work.af && Object.keys(work.af).length) c.af = work.af; else delete c.af;") && /budgetNote\(sys, c, f\.id, res\.value\);[^\n]*\n    if \(typeof autoStore === 'function'\) autoStore\(c, f\.id, res\.value, fillG\);/.test(sh)
             && sh.split("reason === 'budget' ? (msg || 'That would take the character over a point budget.')").length === 2 && /import \{[^}]*fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll,[^}]*\} from '\.\/systemcore\.js';/.test(sh)
             && cssB.includes('\n  .sheet-budgets { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--edge); font-size: 12px; flex: none; }\n') && cssB.includes('\n  .sheet-budget.over { border-color: var(--red); }\n  .sheet-budget.over .sheet-budget-fig, .sheet-budget.over .sheet-budget-left { color: var(--red); }\n')
             && cssB.includes('\n  #sysBudgets input, #sysBudgets select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 7px; font-size: 12px; box-sizing: border-box; }\n') && cssB.includes('\n  .sys-bud-row .sys-bud-f input { width: 100%; font-family: ui-monospace, Consolas, monospace; }\n'));
@@ -22240,6 +22240,60 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('208 the wiring: Save carries the renames before it cleans and onto the characters before the re-check, says what is gone, the check of the draft says the rest; Help, both release notes and the guide',
             sh.indexOf('renamesCarry(camp.system, draft)') > 0 && sh.indexOf('renamesCarry(camp.system, draft)') < sh.indexOf('var clean = cleanSystem(src, { F: F(), gmView: true });') && sh.indexOf('renamesOnChars(camp.chars || {}, rnS)') < sh.indexOf('reCleanChars(camp, clean);   // Stage 6: before the save') && sh.includes("if (typeof refWarns === 'function') refWarns(saved, clean, camp0);") && sh.includes('goneS.slice(0, 3)')
             && idx208.includes('Rename a choice&rsquo;s option and press Save') && idx208.includes('A station nobody holds reads 0') && idx208.includes('the Library says what still names the old key') && [wn208, wa208].every(t => t.slice(0, t.indexOf('WAYPOINT 1.6.1')).includes('Rename a choice\'s option and press Save')) && gd208.includes('**Earlier names (1.6.2):**'));
+    }
+    /* ---- 1.6.2 auto apply (a system session's ask; the CORE session's answers of 2026-11-04: two general options, a small grey word with the
+       tooltip naming its source, build it now, a GM's edit counts as typed, and "everything applies at once, with no Apply button anywhere") ---- */
+    {
+        const J = JSON.stringify;
+        const RAWA = { v: 1, name: 'A', fields: [
+            { id: 'f_h', key: 'Height', label: 'Height', kind: 'text', unit: 'height' },
+            { id: 'f_w', key: 'Weight', label: 'Weight', kind: 'text', unit: 'weight' },
+            { id: 'f_l', key: 'Long', label: 'Length', kind: 'number' },
+            { id: 'f_g', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm', def: 3 },
+            { id: 'f_s', key: 'Size', label: 'Size', kind: 'number', auto: 'floor(max(Height.figure, Long) / 12)', fills: [{ f: 'f_h', formula: 'Size * 12 + 6' }, { f: 'f_w', formula: 'Size * 30' }, { f: 'f_s', formula: '1' }, { f: 'f_h', formula: '2' }, { f: 'f_gone', formula: '1' }, { f: 'bad', formula: '1' }, { f: 'f_l', formula: '1d6' }] },
+            { id: 'f_x', key: 'Hidden', label: 'Hidden', kind: 'number', auto: 'Secret * 2', fills: [{ f: 'f_l', formula: 'Secret' }] },
+            { id: 'f_t', key: 'Plain', label: 'Plain', kind: 'text', auto: '1' }] };
+        const GA = S.cleanSystem(RAWA, { F, gmView: true }), VA = S.cleanSystem(RAWA, { F, gmView: false }), fA = (s, id) => s.fields.find(x => x.id === id);
+        check('auto apply: a number, or a text read as a height or a weight, keeps Worked out until typed as a formula with no dice, and up to four Typing it fills rows, each another field once with a formula of no dice; never itself, a plain text, a field read twice, an id that is none, an amount that rolls dice; the players\u2019 view keeps both, but where one reads a GM-only value: then the worked-out figure is GM only and that row goes',
+            fA(GA, 'f_s').auto === 'floor(max(Height.figure, Long) / 12)' && J(fA(GA, 'f_s').fills) === J([{ f: 'f_h', formula: 'Size * 12 + 6' }, { f: 'f_w', formula: 'Size * 30' }, { f: 'f_gone', formula: '1' }]) && !('auto' in fA(GA, 'f_t'))
+            && J(fA(VA, 'f_s').fills) === J(fA(GA, 'f_s').fills) && fA(VA, 'f_x').auto === null && !('fills' in fA(VA, 'f_x')) && fA(GA, 'f_x').auto === 'Secret * 2', J([fA(GA, 'f_s'), fA(VA, 'f_x')]));
+        const vA = S.validateSystem(GA, F);
+        check('the validator reads a height or a weight as a figure (Height.figure, in inches) in a worked-out formula, and says a fill whose field is gone', vA.errors.length === 0 && vA.warnings.some(w => w.id === 'f_s' && /A field this fills is not a number, a height or a weight/.test(w.message)), J([vA.errors, vA.warnings]));
+        const chA = v => ({ id: 'c_a', name: 'A', ownerId: 'u_a', values: v || {} });
+        const r1 = S.resolveAll(GA, chA({ f_h: "5'7\"" }), F), r2 = S.resolveAll(GA, chA({ f_h: "5'7\"", f_s: 9 }), F), r3 = S.resolveAll(GA, chA({ f_l: 80 }), F);
+        check('with nothing typed the field reads its worked-out figure, a height read in inches (5\u20327\u2033 is 67, so Size 5), the longer of two, and is marked worked out; a typed figure stands', r1.f_s.value === 5 && r1.f_s.auto === 1 && r2.f_s.value === 9 && !r2.f_s.auto && r3.f_s.value === 6, J([r1.f_s, r2.f_s, r3.f_s]));
+        let c = chA({ f_h: "5'7\"" }), fl = S.autoFills(GA, c, 'f_s', 7, F);
+        check('typing it fills only what is blank: a typed height is never overwritten, a blank weight is written in pounds', J(fl) === J({ f_w: '210 lbs' }), J(fl));
+        c = chA({}); fl = S.autoFills(GA, c, 'f_s', 7, F); S.autoStore(c, 'f_s', 7, fl);
+        check('... into a blank height in feet and inches, and both are marked as filled', J(c.values) === J({ f_s: 7, f_h: "7'6\"", f_w: '210 lbs' }) && J(c.af) === J({ f_h: 1, f_w: 1 }), J(c));
+        fl = S.autoFills(GA, c, 'f_s', 6, F); S.autoStore(c, 'f_s', 6, fl);
+        check('typing it again writes what a fill wrote again', J(c.values) === J({ f_s: 6, f_h: "6'6\"", f_w: '180 lbs' }), J(c.values));
+        S.autoStore(c, 'f_h', "6'0\"", {}); fl = S.autoFills(GA, c, 'f_s', 5, F);
+        check('once someone types a filled figure, the GM too, its mark goes and no fill writes over it', J(c.af) === J({ f_w: 1 }) && J(fl) === J({ f_w: '150 lbs' }), J([c.af, fl]));
+        const rA = S.resolveAll(GA, c, F), rCopy = S.resolveAll(GA, { id: 'c_a', values: { f_s: 6, f_w: '180 lbs' } }, F);
+        check('a filled figure is marked with the field it came from, by the mark on the host\u2019s record, and on a copy, which keeps no mark, by what the fill gives now', rA.f_w.filled === 'Size' && !rA.f_h.filled && rCopy.f_w.filled === 'Size', J([rA.f_w, rA.f_h, rCopy.f_w]));
+        const host = S.cleanChar(Object.assign({}, c, { af: Object.assign({ f_l: 1, f_nope: 1, bad: 2 }, c.af) }), GA, { state: 'host' }), own = S.cleanChar(c, GA, { state: 'owner' });
+        check('the marks are the host\u2019s own: kept only for a number, height or weight that holds a figure, and never on a copy', J(host.af) === J({ f_w: 1 }) && own.af === undefined, J([host.af, own.af]));
+        const clr = S.applyEdit(GA, c, 'f_s', null, F, { player: true }), noClr = S.applyEdit(GA, c, 'f_l', null, F, { player: true });
+        S.autoStore(c, 'f_s', null, {}); const rB = S.resolveAll(GA, c, F);
+        check('Reset sets it back: a null for a field that has a worked-out figure is stored as none, and it reads its worked-out figure again; a field with none takes no null; the wire takes a null', clr.ok === true && clr.value === null && clr.clear === true && noClr.ok === true && noClr.value === 0 && !('f_s' in c.values) && rB.f_s.auto === 1 && rB.f_s.value === 6 && S.cleanCharEdit({ rid: 'r_1', charId: 'c_a', fieldId: 'f_s', value: null }).value === null && J(S.autoFills(GA, c, 'f_s', null, F)) === '{}', J([clr, noClr, rB.f_s]));
+        const rP = S.resolveAll(VA, chA({}), F);
+        check('in the players\u2019 view a figure worked out from a GM-only value reads GM only', rP.f_x.auto === 1 && /GM only/.test(String(rP.f_x.error)), J(rP.f_x));
+        check('the words: Height.figure is the height in inches, and a box that may read names offers it', S.nameWord(GA, 'Height.figure') === 'Height in inches' && S.nameWord(GA, 'Weight.figure') === 'Weight in pounds' && J(S.readsOf(GA, {})).includes('Height.figure'), S.nameWord(GA, 'Height.figure'));
+        const gmD = S.gmDerivedNames(GA, F, [{ name: 'Hidden' }, { name: 'Size' }]);
+        check('a number worked out from a GM-only value is GM-derived, so a public roll that reads it stays the GM\u2019s', J(gmD) === J(['Hidden']), J(gmD));
+        // the sheet's word and its way back (sheets.js autoBits, sliced by its markers and run on a page of plain objects)
+        const shA = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), abSrc = shA.slice(shA.indexOf('// [systemcheck:autobits-start]'), shA.indexOf('// [systemcheck:autobits-end]'));
+        const mkE = (tag, cls, text) => { const n = { tag, className: cls || '', textContent: text || '', title: '', dataset: {}, kids: [], on: {}, appendChild(k) { n.kids.push(k); return k; }, addEventListener(ty, fn) { n.on[ty] = fn; } }; return n; }, sent = [];
+        const AB = new Function('el', 'commit', 'lookPaper', abSrc + '\nreturn autoBits;')(mkE, (cc, ff, v) => sent.push([ff.id, v]), () => false);
+        const fS = fA(GA, 'f_s'), w1 = AB(fS, c, { auto: 1 }, true, undefined), w2 = AB(fA(GA, 'f_w'), c, { filled: 'Size' }, true, '180 lbs'), w3 = AB(fS, c, {}, true, 9), w4 = AB(fS, c, {}, false, 9), w5 = AB(fA(GA, 'f_l'), c, {}, true, 4);
+        w3.kids[0].on.click();
+        check('the sheet says worked out, or filled with the field it came from in its tooltip, and where a figure was typed into a field that has a worked-out one, a faint icon sets it back (a null, the one change); nothing where the field may not be used, or has nothing worked out',
+            w1.kids.length === 1 && w1.kids[0].textContent === 'worked out' && w2.kids[0].textContent === 'filled' && /from Size/.test(w2.kids[0].title) && w3.kids.length === 1 && w3.kids[0].tag === 'button' && w3.kids[0].className === 'sheet-auto-reset' && w4 === null && w5 === null && J(sent) === J([['f_s', null]]), J([w1, w2, w3 && w3.kids.length, w4, w5, sent]));
+        const nt = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8'), fb = fs.readFileSync(path.join(app, 'scripts', 'formbox.js'), 'utf8');
+        check('every place a typed figure is stored fills at once, in the same change: the GM\u2019s own and the host\u2019s, one at a time and in a batch; Revert takes the marks back with the figures; both boxes are forms',
+            /autoFills\(sys, c, f\.id, res\.value, F\(\)\)/.test(shA) && /autoFills\(sys, work, q\.fieldId, res\.value, F\(\)\)/.test(shA) && /Se\.autoFills\(campE\.system, chE, q\.fieldId, resE\.value, Fe\)/.test(nt) && /Sm\.autoFills\(campM\.system, workM, fidM, resM\.value, Fm\)/.test(nt)
+            && /if \(lastChange\.af !== undefined\)/.test(shA) && /'sys-wout': 'amt', 'sys-tfill-f': 'amt'/.test(fb));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

@@ -2602,7 +2602,7 @@ pendingChecks.push((async () => {
     const ceOrder = ['Sm.cleanCharEdits(msg); if (!qm) return;', "denyM('paused')", 'charLimit.allow(conn.peer, Date.now())', "denyM('off')", "denyM('missing')", "denyM('owner')", 'Sm.applyEdit(campM.system, workM,', "{ type: 'char-ack', rid: qm.rid }", 'net.syncCharDelta(qm.charId, dM);'];
     let ceAt = -1; const ceIn = ceOrder.every(t => { const p = chSrc.indexOf(t, ceAt + 1); if (p < 0) return false; ceAt = p; return true; });
     check('HF4b char-edits (source): the gates run in char-edit\'s order before any value is judged, the values are judged on a working copy and stored only after all pass; the client sends one message of the cleaned values',
-        ceIn && /if \(!resM\.ok\) \{ denyM\(resM\.reason\); return; \}/.test(chSrc) && chSrc.indexOf('chM.values[k] = dM[k]') > chSrc.indexOf('for (var iM = 0;')
+        ceIn && /if \(!resM\.ok\) \{ denyM\(resM\.reason\); return; \}/.test(chSrc) && chSrc.indexOf('chM.values = workM.values') > chSrc.indexOf('for (var iM = 0;')
         && /net\.charEdits = function\(charId, list\) \{/.test(src) && (src.match(/type: 'char-edits'/g) || []).length === 1);
 })());
 
@@ -15488,7 +15488,7 @@ pendingChecks.push((async () => {
             && j(plMake.answer) === ACK('e1') && went(plMake) && j(plPlay.answer) === NO('e1', 200, 100) && quiet(plPlay, { f_st: 19 }) && j(plOpen.answer) === NO('e1', 200, 100)
             && bnSrc.length > 300 && !/innerHTML/.test(bnSrc) && src.split('budgetNotice(').length === 5 && src.split('.budgetWatch(').length === 4
             && edSrc.indexOf('Se.budgetWatch(campE.system, chE, bcE, Fe)') < edSrc.indexOf('chE.values[q.fieldId] = resE.value') && edSrc.indexOf('Se.budgetWatch(') > edSrc.indexOf('Se.applyEdit(')
-            && msSrc.indexOf('Sm.budgetWatch(campM.system, chM, dM, Fm)') < msSrc.indexOf('chM.values[k] = dM[k]') && msSrc.indexOf('Sm.budgetWatch(') > msSrc.indexOf('for (var iM = 0;')
+            && msSrc.indexOf('Sm.budgetWatch(campM.system, chM, dM, Fm)') < msSrc.indexOf('chM.values = workM.values') && msSrc.indexOf('Sm.budgetWatch(') > msSrc.indexOf('for (var iM = 0;')
             && ciSrc.indexOf('Si.budgetWatch(campI.system, chI, bcI, Fi)') < ciSrc.indexOf('chI.values[qi.fieldId] = resI.value') && ciSrc.indexOf('Si.budgetWatch(') > ciSrc.indexOf('Si.applyRowOp(')
             && shB.split("reason === 'budget' ? (msg || 'That would take the character over a point budget.')").length === 2 && Sx.cleanDenyReason('budget') === 'budget',
             j([off.answer, none.answer, mkPlay.answer, mkMake.answer, plMake.answer, plPlay.answer, src.split('budgetNotice(').length, src.split('.budgetWatch(').length]));

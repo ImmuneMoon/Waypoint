@@ -231,6 +231,14 @@ At the table
 - The arrow beside the pointer location at the top right of a map folds its
   numbers away, and a second press shows them again. This computer remembers
   which you chose.
+- A field can be worked out until someone types it, and typing it can fill
+  in others at once, with nothing to press. In the Fields tab, a number or a
+  height or weight takes Worked out until typed and Typing it fills, each
+  built with a form: a size from a height, say, and an average height and
+  weight once someone types the size. A fill writes only where a field is
+  blank or still holds what a fill wrote, never over a figure someone typed.
+  The sheet marks such figures worked out or filled, and a faint arrow sets
+  a typed one back.
 - A list's rows can be sheets. Tick Rows are sheets, and each row can be
   joined to a character sheet of the campaign, as a vehicle's row to the
   vehicle's own sheet. The sheet's picture and name stand on the row and open

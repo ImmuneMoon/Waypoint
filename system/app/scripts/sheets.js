@@ -6,6 +6,7 @@
 import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
+import { autoFills, autoStore } from './systemcore.js';   // 1.6.2 (auto apply)
 import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, CUR_MAX, priceCurOf, moneySummary, condShare, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
@@ -4992,17 +4993,18 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         box.appendChild(ovV); return box;
     }
     if (k === 'number' && Array.isArray(f.labels) && f.labels.length) {   // Stage 6: a number with value names — a dropdown that stores the position (formulas read the number)
-        var rowL = el('div', 'sheet-ctl'), ls = el('select', 'field sheet-select'), curL = Number(raw === undefined ? f.def : raw);
+        var rowL = el('div', 'sheet-ctl'), ls = el('select', 'field sheet-select'), curL = Number(raw === undefined || raw === null ? (e && e.auto && typeof e.value === 'number' ? (typeof e.base === 'number' ? e.base : e.value) : f.def) : raw);   // 1.6.2 (auto apply)
         ls.dataset.fid = f.id; f.labels.forEach(function(t, i) { ls.appendChild(opt(String(i), t || String(i), curL === i)); });
         if (!(curL === Math.floor(curL) && curL >= 0 && curL < f.labels.length)) { var ob = opt(String(curL), fmtNum(curL), true); ob.disabled = true; ls.insertBefore(ob, ls.firstChild); }   // a stored value past the names shows as its number (what formulas read) until a name is picked
         ls.disabled = !use; ls.addEventListener('change', function() { commit(c, f, Number(ls.value)); });
         rowL.appendChild(ls);
         if (e && e.mods && e.mods.length) { var fbL0 = fxMark(e); if (fbL0) { fbL0.textContent = '\u2192 ' + (e.text || fmtNum(e.value)); rowL.appendChild(fbL0); } }   // 5h: an effect moved it — the effective value beside the choice
+        var abL = typeof autoBits === 'function' ? autoBits(f, c, e, use, raw) : null; if (abL) rowL.appendChild(abL);   // 1.6.2 (auto apply)
         box.appendChild(rowL); return box;
     }
     if (k === 'number' || k === 'skill') {
         var row = el('div', 'sheet-ctl');
-        var inp = el('input', 'field sheet-num'); inp.type = 'number'; inp.dataset.fid = f.id; inp.value = raw === undefined ? String(f.def) : String(raw);
+        var inp = el('input', 'field sheet-num'); inp.type = 'number'; inp.dataset.fid = f.id; inp.value = raw === undefined || raw === null ? String(e && e.auto && typeof e.value === 'number' ? (typeof e.base === 'number' ? e.base : e.value) : f.def) : String(raw);   // 1.6.2 (auto apply): worked out until typed
         if (f.min !== undefined) inp.min = String(f.min); if (f.max !== undefined) inp.max = String(f.max); inp.step = String(f.step || 1); inp.disabled = !use;
         inp.addEventListener('change', function() { commit(c, f, Number(inp.value)); });
         if (k === 'number' && f.slider && f.min !== undefined && f.max !== undefined) {   // Stage 5e: a gradient slider — the same number as a range on a two-colour track with end labels
@@ -5028,6 +5030,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var skW = k === 'skill' && !!e && !e.error && !!f.unit && (f.unitShow === 'swap' || f.unitShow === 'bare') && typeof figWords === 'function';   // 1.5.4: a skill's total is read, so a Metric list other than beside writes it in its own form, its unit with it
         if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : '= ' + (e ? (skW ? figWords(f, e.value, e.text) : e.text) : '')); tot.title = e && e.error ? e.error : (f.base ? 'ranks + ' + f.base : 'ranks'); row.appendChild(tot); var fmS = fxMark(e); if (fmS) { row.appendChild(fmS); tot.title += '\n' + fmS.title; } uAt = [e && !e.error ? e.value : NaN, e ? e.text : '']; }
         if (f.unit && !skW) row.appendChild(el('span', 'sheet-unit', typeof unitText === 'function' ? unitText(f, uAt[0], uAt[1]) : f.unit));   // Stage 5g; 1.5.4: a measure in metric too under Metric
+        var abN = k === 'number' && typeof autoBits === 'function' ? autoBits(f, c, e, use, raw) : null; if (abN) row.appendChild(abN);   // 1.6.2 (auto apply)
         box.appendChild(row); return box;
     }
     if (k === 'resource') {
@@ -5056,7 +5059,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         return box;
     }
     if (k === 'toggle') { var lb = el('label', 'sheet-toggle'); var cb = el('input'); cb.type = 'checkbox'; cb.dataset.fid = f.id; cb.checked = raw === undefined ? f.def === true : raw === true; cb.disabled = !use; cb.addEventListener('change', function() { commit(c, f, cb.checked); }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + (cb.checked ? 'on' : 'off'))); box.appendChild(lb); if (e && e.value === true && !cb.checked && e.mods && e.mods.length) { var ft = el('span', 'sheet-eff sheet-eff-same', 'on (' + e.mods.map(function(m) { return m.name; }).join(', ') + ')'); ft.title = 'Switched on by ' + e.mods.map(function(m) { return m.name; }).join(', '); box.appendChild(ft); } return box; }
-    if (k === 'text' && typeof heightNode === 'function') { var hN = heightNode(f, c, use); if (hN) { box.appendChild(hN); return box; } }   // 1.5.4: a height, read by the half of the viewer's setting
+    if (k === 'text' && typeof heightNode === 'function') { var hN = heightNode(f, c, use, e); if (hN) { box.appendChild(hN); var abH = typeof autoBits === 'function' ? autoBits(f, c, e, use, raw) : null; if (abH) box.appendChild(abH); return box; } }   // 1.6.2 (auto apply): e, a figure worked out until typed   // 1.5.4: a height, read by the half of the viewer's setting
     if ((k === 'text' || k === 'notes') && typeof lookNode === 'function') { var lkN = lookNode(f, c, use, k === 'notes'); if (lkN) { box.appendChild(lkN); return box; } }   // item 35: read with its look where it is only read here; else as ever, below
     if (k === 'text') { var ti = el('input', 'field sheet-text'); ti.type = 'text'; ti.dataset.fid = f.id; ti.maxLength = f.max || 200; ti.value = raw === undefined ? String(f.def || '') : String(raw); ti.disabled = !use; ti.addEventListener('change', function() { commit(c, f, ti.value); }); box.appendChild(ti); return box; }
     if (k === 'notes') { var ta = el('textarea', 'field sheet-notes'); ta.dataset.fid = f.id; ta.rows = 4; ta.value = raw === undefined ? '' : String(raw); ta.disabled = !use; var tmr = null; ta.addEventListener('input', function() { clearTimeout(tmr); tmr = setTimeout(function() { commit(c, f, ta.value); }, 600); }); ta.addEventListener('change', function() { clearTimeout(tmr); commit(c, f, ta.value); }); box.appendChild(ta); return box; }
@@ -6012,11 +6015,13 @@ function commit(c, f, value) {
     var res = applyEdit(sys, c, f.id, value, F(), {});
     if (!res.ok) { toast(res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed here.'); renderViews(c.id); return; }
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;
-    lastChange = { charId: c.id, fieldId: f.id, prev: prev };
+    var fillG = res.clear || typeof autoFills !== 'function' ? {} : autoFills(sys, c, f.id, res.value, F()), extraG = null;   // 1.6.2 (auto apply): what typing it fills, in the same change, so one Revert takes it all back
+    Object.keys(fillG).forEach(function(k) { (extraG = extraG || {})[k] = c.values && Object.prototype.hasOwnProperty.call(c.values, k) ? clone(c.values[k]) : undefined; });
+    lastChange = { charId: c.id, fieldId: f.id, prev: prev, extra: extraG, af: c.af ? clone(c.af) : null };
     if (typeof budgetNote === 'function') budgetNote(sys, c, f.id, res.value);   // 126: the GM's own change is never refused; a notice says when it takes the character over a budget
-    c.values = c.values || {}; c.values[f.id] = res.value;
-    var d = {}; d[f.id] = res.value;
-    afterCharChange(c, false, d);
+    if (typeof autoStore === 'function') autoStore(c, f.id, res.value, fillG); else { c.values = c.values || {}; c.values[f.id] = res.value; }
+    var d = {}; d[f.id] = res.value; Object.keys(fillG).forEach(function(k) { d[k] = fillG[k]; });
+    afterCharChange(c, res.value === null, d);
 }
 // [systemcheck:sheetbox-start]
 // Item 35: a sheet's text and notes fields in the planner's own text box (planner.js, window.wpTextBox), so that selected words take a
@@ -6244,6 +6249,22 @@ function lookPaper() { return typeof _sbx !== 'undefined' && !!_sbx && _sbx.pape
 function lookOnPaper(f, c) { return !!f && f.kind === 'text' && lookPaper() && !!lookOf(f, c); }   // a one-line text that prints with its look (the header's own control asks)
 function lookReadRule(f) { var r = lookRule(f); if (!r || !lookPaper()) return r; var o = {}, k; for (k in r) if (Object.prototype.hasOwnProperty.call(r, k)) o[k] = r[k]; o.link = false; return o; }
 // [systemcheck:sheetlook-end]
+// [systemcheck:autobits-start]
+// 1.6.2 (auto apply; the CORE session, 2026-11-04: "the small grey word with the tooltip naming its source, gone once someone types", and of Reset,
+// "keep it out of the way (the field's menu or a small icon), so it doesn't read as a button the player must press"): beside a field worked out until
+// typed, the word worked out; beside one a fill wrote and nobody has typed since, the word filled, its tooltip naming the field it came from; and
+// where a figure was typed into a field that has a worked-out one, a faint icon that sets it back. Nothing is pressed for a figure to apply. Null for none
+function autoBits(f, c, e, use, raw) {
+    var w = el('span', 'sheet-autobits'), any = false, paper = typeof lookPaper === 'function' && lookPaper();
+    if (e && e.auto === 1) { var s = el('span', 'sheet-auto', 'worked out'); s.title = 'Worked out from the sheet. Type your own figure and it stays.'; w.appendChild(s); any = true; }
+    else if (e && typeof e.filled === 'string' && e.filled) { var s2 = el('span', 'sheet-auto', 'filled'); s2.title = 'Filled in from ' + e.filled + '. Type your own figure and it stays.'; w.appendChild(s2); any = true; }
+    if (typeof f.auto === 'string' && f.auto && use && !paper && !(e && e.auto === 1) && raw !== undefined && raw !== null && raw !== '') {
+        var b = el('button', 'sheet-auto-reset', '\u21ba'); b.type = 'button'; b.title = 'Back to the worked-out figure'; b.ariaLabel = 'Set ' + (f.label || f.key) + ' back to the worked-out figure'; b.dataset.fid = f.id; b.dataset.part = 'autoreset';
+        b.addEventListener('click', function() { commit(c, f, null); }); w.appendChild(b); any = true;
+    }
+    return any ? w : null;
+}
+// [systemcheck:autobits-end]
 // [systemcheck:fieldunit-start]
 // 1.5.4, a field's display unit (systemcore cleanFieldUnit; the owner, 2026-10-17: "my system should match the site while letting the user pick
 // metric or imperial"). The viewer's own Measurement system, read where the map reads it (whiteboard.js metricOn), and what the sheet draws by
@@ -6264,27 +6285,27 @@ function unitFig(x, value, shown, total) { return typeof listWords === 'function
 function unitHeadNow(unit, how) { return typeof unitHead === 'function' ? unitHead(unit, how, unitsMetric()) : String(unit); }
 // A text field read as a height or a weight (the unit height or weight), as the viewer's setting reads it: the text as stored, and the half
 // shown. Null where it is no measure or where the half is the text itself
-function heightNow(f, c) {
+function heightNow(f, c, e) {   // e (1.6.2, auto apply): the figure worked out while nothing is typed, shown as any height is
     var mt = f && f.kind === 'text' && typeof cleanFieldUnit === 'function' ? cleanFieldUnit(f.unit, 'text') : '';
     if (!mt || (mt === 'height' ? typeof heightWords !== 'function' : typeof textWords !== 'function')) return null;
-    var raw = c && c.values ? c.values[f.id] : undefined, stored = raw === undefined || raw === null ? String(f.def || '') : String(raw), shown = mt === 'height' ? heightWords(stored, unitsMetric()) : textWords(f, stored, unitsMetric());
-    return shown === stored ? null : { stored: stored, shown: shown };
+    var raw = c && c.values ? c.values[f.id] : undefined, wo = (raw === undefined || raw === null || raw === '') && !!e && e.auto === 1 && typeof e.value === 'string', stored = wo ? e.value : raw === undefined || raw === null ? String(f.def || '') : String(raw), shown = mt === 'height' ? heightWords(stored, unitsMetric()) : textWords(f, stored, unitsMetric());
+    return shown === stored && !wo ? null : { stored: stored, shown: shown };
 }
 // 1.5.4: where the field may be used, its box shows the half of the viewer's setting, as the website's own box does, and a figure typed in
 // it is stored as the website stores one (systemcore measureStore): in the book's units as typed, a metric one as the book's pair, the
 // imperial half first. Nothing is stored unless something was typed. Null with no measure or no helper: the field as it always was
-function measureBox(f, c, cls) {
+function measureBox(f, c, cls, e) {   // e (1.6.2, auto apply): as heightNow
     var mt = f && f.kind === 'text' && typeof cleanFieldUnit === 'function' ? cleanFieldUnit(f.unit, 'text') : ''; if (!mt || typeof measureStore !== 'function' || typeof textWords !== 'function') return null;
-    var raw = c && c.values ? c.values[f.id] : undefined, stored = raw === undefined || raw === null ? String(f.def || '') : String(raw), ti = el('input', cls || 'field sheet-text');
+    var raw = c && c.values ? c.values[f.id] : undefined, wo = (raw === undefined || raw === null || raw === '') && !!e && e.auto === 1 && typeof e.value === 'string', stored = wo ? e.value : raw === undefined || raw === null ? String(f.def || '') : String(raw), ti = el('input', cls || 'field sheet-text');
     ti.type = 'text'; ti.dataset.fid = f.id; ti.maxLength = f.max || 200; ti.value = textWords(f, stored, unitsMetric()); if (ti.value !== stored) ti.title = stored;
     ti.addEventListener('change', function() { commit(c, f, measureStore(ti.value, mt, unitsMetric())); });
     return ti;
 }
 // Where the field is only read here, or on paper: the half, in the box a read text is drawn in, the text as stored in its tooltip. Where it
 // may be used here its box is measureBox's. Null where there is no half to show: the field is then drawn as it always was
-function heightNode(f, c, use) {
-    var paper = typeof lookPaper === 'function' && lookPaper(); if (use && !paper) return measureBox(f, c);
-    var h = heightNow(f, c); if (!h) return null;
+function heightNode(f, c, use, e) {
+    var paper = typeof lookPaper === 'function' && lookPaper(); if (use && !paper) return measureBox(f, c, undefined, e);
+    var h = heightNow(f, c, e); if (!h) return null;
     var ti = el('input', 'field sheet-text'); ti.type = 'text'; ti.dataset.fid = f.id; ti.value = h.shown; ti.disabled = true; ti.title = h.stored; return ti;
 }
 function heightPaper(f, c, tone) {   // the header's own control on paper: the half, as the locked sheet shows it
@@ -6356,19 +6377,22 @@ function commitMany(c, list) {
     list = list.slice(0, LIMITS.editBatch);
     if (isClient()) { var n = net(); if (!n || !n.charEdits) return; var r = n.charEdits(c.id, list); if (r && r.error) toast(r.error); renderViews(c.id); return; }
     if (!canWrite()) return;
-    var work = Object.assign({}, c, { values: clone(c.values || {}) }), d = {}, prevs = {}, ids = [];   // judged in order on a working copy, all or none
+    var work = Object.assign({}, c, { values: clone(c.values || {}), af: c.af ? clone(c.af) : undefined }), d = {}, prevs = {}, ids = [], af0 = c.af ? clone(c.af) : null;   // judged in order on a working copy, all or none (1.6.2: its marks with it)
     for (var i = 0; i < list.length; i++) {
         var q = list[i]; if (!q || typeof q.fieldId !== 'string' || Object.prototype.hasOwnProperty.call(d, q.fieldId)) continue;
         var res = applyEdit(sys, work, q.fieldId, q.value, F(), {});
         if (!res.ok) { toast(res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed here.'); renderViews(c.id); return; }
         prevs[q.fieldId] = c.values && Object.prototype.hasOwnProperty.call(c.values, q.fieldId) ? clone(c.values[q.fieldId]) : undefined;
-        work.values[q.fieldId] = res.value; d[q.fieldId] = res.value; ids.push(q.fieldId);
+        var flC = res.clear || typeof autoFills !== 'function' ? {} : autoFills(sys, work, q.fieldId, res.value, F());   // 1.6.2 (auto apply)
+        if (typeof autoStore === 'function') autoStore(work, q.fieldId, res.value, flC); else work.values[q.fieldId] = res.value;
+        d[q.fieldId] = res.value; ids.push(q.fieldId);
+        Object.keys(flC).forEach(function(k) { if (!Object.prototype.hasOwnProperty.call(prevs, k)) prevs[k] = c.values && Object.prototype.hasOwnProperty.call(c.values, k) ? clone(c.values[k]) : undefined; d[k] = flC[k]; if (ids.indexOf(k) < 0) ids.push(k); });
     }
     if (!ids.length) return;
     var extra = null; ids.slice(1).forEach(function(fid) { (extra = extra || {})[fid] = prevs[fid]; });
-    lastChange = { charId: c.id, fieldId: ids[0], prev: prevs[ids[0]], extra: extra };   // one Revert brings every value back
+    lastChange = { charId: c.id, fieldId: ids[0], prev: prevs[ids[0]], extra: extra, af: af0 };   // one Revert brings every value back
     if (typeof budgetNote === 'function') budgetNote(sys, c, d);   // 126
-    c.values = c.values || {}; ids.forEach(function(fid) { c.values[fid] = d[fid]; });
+    c.values = work.values; if (work.af && Object.keys(work.af).length) c.af = work.af; else delete c.af;
     afterCharChange(c, false, d);
 }
 // One inventory change on the open sheet (add / remove / setQty). Like commit, but for the item-list kind, which
@@ -6585,6 +6609,7 @@ function revertLast() {
     else { c.values[lastChange.fieldId] = lastChange.prev; d[lastChange.fieldId] = lastChange.prev; }
     if (lastChange.extra) Object.keys(lastChange.extra).forEach(function(fid) { var pv = lastChange.extra[fid]; if (pv === undefined) { delete c.values[fid]; d[fid] = null; } else { c.values[fid] = pv; d[fid] = pv; } });   // 5h: a pool an effect's end brought down
     if (fR && fR.kind === 'item-list' && ownerSeesSame(camp, sysR, curR, lastChange.prev, fidR)) delete d[fidR];   // F4b review: taking back a change its owner never held (a kept curse, a kept-on switch) tells them nothing
+    if (lastChange.af !== undefined) { if (lastChange.af) c.af = lastChange.af; else delete c.af; }   // 1.6.2 (auto apply): the marks as they were
     var also = lastChange.also || null;
     lastChange = null;
     afterCharChange(c, d[Object.keys(d)[0]] === null, d);
@@ -8940,6 +8965,7 @@ function fieldRow(f) {
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects') { flags.appendChild(capInline(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'optional'), 'Roll: ')); if (typeof dieSel === 'function') flags.appendChild(dieSel('sys-fielddie', f.rollDie, 'The die its roll button wears. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20. Kept only beside a roll')); }
     if (f.kind === 'number' || f.kind === 'formula') flags.appendChild(capInline(input('sys-vnames field', (f.labels || []).join(', '),'Names for the values 0, 1, 2\u2026 separated by commas (Not stunned, Physical, Mental): a number becomes a dropdown, a formula shows the name for its value; formulas still read the number. A named value is a word: \u00b1 colour, unit and slider do not apply to it', 'optional'), 'Value names: '));   // Stage 6
     if (f.kind === 'number') { var ovF = f.override && typeof f.override === 'object' ? f.override : {}; flags.appendChild(capInline(input('sys-ovr-value field', ovF.value, 'The number reads this formula instead of what is typed, closed to editing, while the next formula holds: Chassis.Might', 'none'), 'Taken from: ')); if (ovF.value || ovF.when) flags.appendChild(capInline(input('sys-ovr-when field', ovF.when, 'While this holds, no dice: Bodies.count > 0. Otherwise the number is what is typed, as before', 'Bodies.count > 0'), 'while: ')); }   // 205 (6)
+    if ((f.kind === 'number' || (f.kind === 'text' && (f.unit === 'height' || f.unit === 'weight'))) && typeof autoBox === 'function') flags.appendChild(autoBox(f));   // 1.6.2 (auto apply): Worked out until typed, Typing it fills
     if (f.kind === 'formula') { var bgl = el('label', 'sys-hover'), bgc = el('input'); bgc.type = 'checkbox'; bgc.checked = !!f.badge; bgc.className = 'sys-badge-chk'; bgl.appendChild(bgc); bgl.appendChild(document.createTextNode(' Badge')); bgl.title = 'Show the value as a small pill; with value names, each name can have its own colour'; flags.appendChild(bgl); }   // Stage 6 look fold (L7)
     flags.appendChild(capInline(input('sys-caption field', f.caption, 'A line under the field on the sheet \u2014 {formula} shows a value, {\u00b1formula} the value with its sign (+2), e.g. Base: {ST * 2}', 'optional'), 'Caption: '));   // Fold B; Stage 6: {\u00b1\u2026}
     if (f.kind === 'resource') {   // Fold B: the pool's icon, a fill-to-max button, the bar
@@ -12963,6 +12989,36 @@ function lvlBoxSays(it) {
 function itemOfRow(target) { var row = target.closest && target.closest('.sys-item-row'); if (!row) return null; return (draft.items || []).find(function(x) { return x.id === row.dataset.iid; }) || null; }
 // 1.6.2 (the owner: no key a user reads or types, ever): a name box is the only box a builder needs. The short name beside it stands out of sight, fills itself in from the name while it is new, and stays what it is once saved, so that a rename breaks nothing. The System editor's foot has a tick that shows them. A key that names ANOTHER thing is a different matter: it wants a pick
 var KEY_FOLLOW = { 'sys-list-statlabel': ['sys-list-statkey', '.sys-list-stat', 1], 'sys-list-collabel': ['sys-list-colkey', '.sys-list-col', 1], 'sys-list-ctlabel': ['sys-list-ctkey', '.sys-list-ct', 1], 'sys-env-label': ['sys-env-key', '.sys-env-row'], 'sys-tbl-label': ['sys-tbl-key', '.sys-tbl-head'], 'sys-tbl-clabel': ['sys-tbl-ckey', 'th'], 'sys-tbl-rlabel': ['sys-tbl-rkey', 'tr'], 'sys-link-label': ['sys-link-key', '.sys-link-row'], 'sys-dmgr-ylabel': ['sys-dmgr-ykey', '.sys-dmgr-type'], 'sys-dmgr-klabel': ['sys-dmgr-kkey', '.sys-dmgr-kind'] };
+// [systemcheck:autobox-start]
+// 1.6.2 (auto apply): a field's two options, its own listeners (the Fields tab's dispatcher never hears them) and classes no handler there reads.
+// Worked out until typed: a form whose figure the field reads while nothing is typed. Typing it fills: rows of another number, height or weight and a
+// form for what is written there once this is typed, only where that field is blank or still holds what a fill wrote. A height reads and is written in
+// inches, a weight in pounds
+function autoBox(f) {
+    var box = el('div', 'sys-wout-box'), ch = function(re) { markDirty(); if (re && typeof renderAll === 'function') renderAll(); else if (typeof patchErrors === 'function') patchErrors(); }, stop = function(ev) { ev.stopPropagation(); };
+    var meas = f.kind === 'text', inp = input('sys-wout field', typeof f.auto === 'string' ? f.auto : '', 'What it reads until someone types a figure' + (meas ? (f.unit === 'height' ? ', in inches' : ', in pounds') : '') + '. Once someone types one, theirs stays. Empty: nothing is worked out', 'none');
+    inp.maxLength = LIMITS.formula; box.appendChild(capInline(inp, 'Worked out until typed: '));
+    var setA = function(ev) { stop(ev); var v = inp.value.trim(); if (v) f.auto = v.slice(0, LIMITS.formula); else delete f.auto; ch(false); };
+    inp.addEventListener('input', setA); inp.addEventListener('change', setA);
+    var fl = Array.isArray(f.fills) ? f.fills : [], all = draft && Array.isArray(draft.fields) ? draft.fields : [];
+    var tgs = all.filter(function(x) { return !!x && x !== f && typeof x.id === 'string' && (x.kind === 'number' || (x.kind === 'text' && (x.unit === 'height' || x.unit === 'weight'))); });
+    fl.forEach(function(row, i) {
+        var rw = el('div', 'sys-flags sys-tfill-row'), sel = el('select', 'field sys-tfill-to'), h0 = el('option', null, 'Pick a field\u2026'); h0.value = ''; sel.appendChild(h0);
+        tgs.forEach(function(x) { var op = el('option', null, fieldWord(x) + (x.kind === 'text' ? (x.unit === 'height' ? ' (inches)' : ' (pounds)') : '')); op.value = x.id; if (x.id === row.f) op.selected = true; sel.appendChild(op); });
+        if (row.f && !tgs.some(function(x) { return x.id === row.f; })) { var gone = el('option', null, 'A field that is gone'); gone.value = row.f; gone.selected = true; sel.appendChild(gone); }
+        sel.title = 'The field this fills in'; sel.addEventListener('change', function(ev) { stop(ev); row.f = sel.value; ch(false); }); sel.addEventListener('input', stop);
+        var fi = input('sys-tfill-f field', typeof row.formula === 'string' ? row.formula : '', 'What it writes there once this is typed, worked out from the sheet. It writes only where that field is blank or still holds a figure a fill wrote, never one someone typed', 'Amount');
+        fi.maxLength = LIMITS.formula; var setF = function(ev) { stop(ev); row.formula = fi.value.slice(0, LIMITS.formula); ch(false); }; fi.addEventListener('input', setF); fi.addEventListener('change', setF);
+        var rm = el('button', 'tool ghost sys-btn sys-tfill-rm', '\u00d7'); rm.type = 'button'; rm.title = 'It no longer fills this'; rm.addEventListener('click', function(ev) { stop(ev); fl.splice(i, 1); if (!fl.length) delete f.fills; ch(true); });
+        rw.appendChild(el('span', 'sys-num-cap', i ? 'and' : 'Typing it fills')); rw.appendChild(sel); rw.appendChild(fi); rw.appendChild(rm); box.appendChild(rw);
+    });
+    var cap = window.wpSystemCore && window.wpSystemCore.AUTO_FILLS || 4, add = el('button', 'tool ghost sys-btn sys-tfill-add', '+ Typing it fills');
+    add.type = 'button'; add.disabled = fl.length >= cap || !tgs.length; add.title = !tgs.length ? 'There is no other number, height or weight to fill' : fl.length >= cap ? 'At most ' + cap + ' fields' : 'Another field this one fills in when someone types it';
+    add.addEventListener('click', function(ev) { stop(ev); if (add.disabled) return; (f.fills = Array.isArray(f.fills) ? f.fills : []).push({ f: tgs[0].id, formula: '' }); ch(true); });
+    box.appendChild(add);
+    return box;
+}
+// [systemcheck:autobox-end]
 function fieldWord(f) {   // a field in a list of fields: its name, and the short form only where two fields share one
     var nm = f.label || f.key || '(field)', twin = (draft && Array.isArray(draft.fields) ? draft.fields : []).some(function(o) { return o !== f && !!o && (o.label || o.key) === nm; });
     return twin && f.key && f.label ? nm + ' (' + f.key + ')' : nm;

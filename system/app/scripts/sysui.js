@@ -148,6 +148,7 @@ var GROUPS = {
         ['who', 'Who sees and changes it', 1, ['sys-edit', 'sys-vis', 'sys-live-sel']],
         ['sheet', 'On the sheet', 1, ['sys-hover-chk', 'sys-tile-chk', 'sys-slider-chk', 'sys-counter-chk', 'sys-unit', 'sys-unit-text', 'sys-metricshow', 'sys-dec', 'sys-group-chk', 'sys-sign-chk', 'sys-caption', 'sys-res-icon', 'sys-glyph-btn', 'sys-reset-chk', 'sys-res-color', 'act:rescolorclr', 'sys-colorband-chk', 'sys-bar-chk', 'sys-badge-chk', 'sys-tones-row', 'sys-slider-row', 'sys-trackshape', 'sys-trackof']],
         ['rules', 'Rolls and rules', 0, ['sys-roll', 'sys-fielddie', 'sys-vnames', 'sys-ovr-value', 'sys-ovr-when', 'sys-spill-*']],
+        ['auto', 'Worked out and filled', 0, ['sys-wout-box']],   // 1.6.2 (auto apply)
         ['round', 'Rounding', 0, ['sys-round', 'sys-roundto', 'sys-roundat']]] },
     rolls: { split: ['sys-row-main'], head: ['sys-label', 'sys-roll-kind', 'sys-formula', 'sys-btns'], list: [
         ['how', 'How it rolls', 1, ['sys-roll-malf', 'sys-roll-critat', 'sys-roll-fumbleat', 'sys-roll-bigat', 'sys-init-chk', 'sys-roll-anytime']],

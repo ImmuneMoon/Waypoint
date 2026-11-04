@@ -147,6 +147,9 @@ jobs:
       - name: fxvalcheck — an effect that holds a number, added again, falling over time, changed by hand
         if: ${{ !cancelled() }}
         run: node tools/fxvalcheck.js
+      - name: helpchipcheck — Help draws the controls it names and shows each one where it is
+        if: ${{ !cancelled() }}
+        run: node tools/helpchipcheck.js
       - name: assistcheck — a roll that waits for others to help, its card and what each helper adds
         if: ${{ !cancelled() }}
         run: node tools/assistcheck.js

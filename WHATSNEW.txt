@@ -192,6 +192,9 @@ At the table
   roll cards, which are edged in its colour, and a player's own sheet text is
   set in their font.
   Personal looks is a VTT feature, on until the GM switches it off.
+- Help draws the System editor's buttons and tabs as they look in the app.
+  Press one, and Help steps aside, opens the editor on that tab and lights
+  the button; Back to Help returns. The rest of Help follows.
 - A roll can wait for help. Its card asks the others on the roller's map, and
   the GM for an NPC, and each helper adds a figure of their own sheet, a die,
   or what their own roll gives. The roller presses Roll, or it rolls by itself

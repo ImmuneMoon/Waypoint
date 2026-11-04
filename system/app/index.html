@@ -80,6 +80,7 @@
 <script type="module" src="scripts/share.js"></script>
 <script type="module" src="scripts/charlist.js"></script>
 <script type="module" src="scripts/notices.js"></script>
+<script type="module" src="scripts/helpchips.js"></script>
 <script type="module" src="scripts/timepanel.js"></script>
 <script type="module" src="scripts/record.js"></script>
 <script type="module" src="scripts/notice.js"></script>
@@ -316,6 +317,7 @@
                       <h4>What Waypoint is</h4>
                       <p>Waypoint organizes a tabletop campaign into <b>Maps</b> and <b>Planners</b>. A map is a location with two faces. Its <b>Data Map</b> holds your notes as linked nodes. Its <b>Play Map</b> is the freeform battle map. A planner is a document page for a session plan. Everything lives in the left sidebar.</p>
                       <p>New here? The <b><i class="wib wi-cap"></i> Tutorial</b> tab runs a guided tour over a small demo campaign. You can keep that campaign and build on it. To jump straight to a topic, type in the <b>search box</b> above.</p>
+                      <p>A button Help names is drawn as it looks in the app. Press it, and Help steps aside and shows you that button, opening its window and tab first. <b>Back to Help</b> brings you back to where you were. A button you cannot reach here is drawn greyed, and says why.</p>
                       <h4>The welcome screen</h4>
                       <p>When Waypoint opens you land on a <b>Welcome</b> screen. It offers five things: <b>Start a campaign</b>, <b>Import</b> one from a file, <b>Continue</b> a campaign you already have, <b>Join a game</b>, or <b>Your profile</b>.</p>
                       <ul>
@@ -1930,11 +1932,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <div class="help-pane" data-pane="sheets" style="display:none;">
                       <h4>The system</h4>
                       <ul>
-                          <li>Press the campaign&rsquo;s name in the top row, then <b>System</b>, to write the rules of the campaign on screen, with no code. A system is a list of <b>fields</b>. Each has a <b>key</b> that formulas use, such as <code>STR</code> or <code>Skill.Stealth</code>, a label, a kind, and what it stores or computes. Everything is saved with the campaign. <b>Save</b> in the editor keeps your changes, and players at a table get the visible fields at once.</li>
-                          <li><b>What the ticks mean:</b> the Fields, Rolls, Items and Lists tabs of the System editor each have a key. Press <b>What the ticks mean</b> at the top of the tab. It names each tick of a row with one line, and stays open until you close it.</li>
+                          <li>Press the campaign&rsquo;s name in the top row, then <b>System</b>, to write the rules of the campaign on screen, with no code. A system is a list of <b>fields</b>. Each has a <b>key</b> that formulas use, such as <code>STR</code> or <code>Skill.Stealth</code>, a label, a kind, and what it stores or computes. Everything is saved with the campaign. <b data-ctl="#sysSaveBtn">Save</b> in the editor keeps your changes, and players at a table get the visible fields at once.</li>
+                          <li><b>What the ticks mean:</b> the Fields, Rolls, Items and Lists tabs of the System editor each have a key. Press <b data-ctl="sys:fields:sys-key-btn">What the ticks mean</b> at the top of the tab. It names each tick of a row with one line, and stays open until you close it.</li>
                           <li><b>Finding your way:</b> each tab of the System editor holds one kind of thing.
                               <ul>
-                                  <li>The rules of a fight are on the <b>Combat</b> tab. Budgets, readings, linked sheets and tables are on the <b>Rules</b> tab. Each has its topics down the left side, one at a time.</li>
+                                  <li>The rules of a fight are on the <b data-ctl="sys-tab:combat">Combat</b> tab. Budgets, readings, linked sheets and tables are on the <b data-ctl="sys-tab:rules">Rules</b> tab. Each has its topics down the left side, one at a time.</li>
                                   <li>The Fields, Rolls, Items, Lists and Effects tabs list what they hold down the left, one line each, with a search at the top. Press a line to open it on the right.</li>
                                   <li>The arrow keys go through a list, and Enter goes into the line that is open. Alt and an arrow moves a line, and you can drag one. A red dot marks a line with an error, and a gold one a warning.</li>
                                   <li>What a line holds stands in named groups. Press a group&rsquo;s name to fold it or open it. A group you seldom need starts folded, and says <b>in use</b> where it holds something.</li>
@@ -1956,7 +1958,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           </li>
                           <li><b>Keys</b> are one name to the formula engine: letters, digits, <code>_</code> and dots, with no spaces. A key is never a function or reserved word, such as <code>floor</code> or <code>and</code>, and never something that reads as dice, such as <code>d6</code> or <code>dF</code>. The endings <code>.max</code>, <code>.ranks</code>, <code>.cur</code> and <code>.base</code> are reserved: <code>HP.max</code> is a resource&rsquo;s max, and <code>Skill.Stealth.ranks</code> the raw ranks. <code>HP.full</code> is 1 while the pool is full and nothing is stored, and 0 once a current is stored, even one at its max.</li>
                           <li><b>Formulas</b> use the dice engine&rsquo;s syntax without dice: <code>+ - * / ^</code>, <code>floor ceil round abs min max clamp mod</code>, <code>if(cond, a, b)</code>, comparisons and <code>and</code> / <code>or</code> / <code>not</code>. A formula has up to 1000 characters. It may name other fields, in any order, but not in a loop. <b>Dice belong in rolls only</b>: a die inside a field&rsquo;s definition is refused, because a sheet must not re-roll every time it is drawn.</li>
-                          <li>Errors show under the field as you type, with a caret under the offending place. <b>Compute with defaults</b> at the foot of the Fields tab evaluates every formula so you can see the numbers.</li>
+                          <li>Errors show under the field as you type, with a caret under the offending place. <b data-ctl="#sysTestBtn">Compute with defaults</b> at the foot of the Fields tab evaluates every formula so you can see the numbers.</li>
                           <li><b>Visible to players</b> or <b>GM only</b> is set per field. A GM-only field and its value never leave your machine. A visible formula that names one shows an error to players, and the editor warns you.
                               <ul>
                                   <li>A resource whose maximum is worked out from a GM-only field, directly or through a visible formula, is GM only as a whole. Its value would tell players the maximum, so it never leaves your machine either.</li>
@@ -2030,7 +2032,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>They can read the one it is used on too, as <code>On.</code> and a name. So its needs can be <code>not(On.Droid)</code>, &ldquo;Not on a droid&rdquo;, and a heal can add <code>On.HTBonus</code>. On yourself, <code>On.</code> reads your own figures.</li>
                               </ul>
                           </li>
-                          <li><b>Calendar</b>, the System editor&rsquo;s Calendar tab, is the calendar your game keeps.
+                          <li><b data-ctl="sys-tab:calendar">Calendar</b>, the System editor&rsquo;s Calendar tab, is the calendar your game keeps.
                               <ul>
                                   <li>Its <b>periods</b> come in year order, each a name and its days. Tick <b>Outside the month count</b> for a festival week or a holiday between months. Such a period is never numbered as a month, and one of a single day reads by its name alone.</li>
                                   <li>Set <b>the week</b>: its days run on across months and years, and you say which one <b>Day 1 is a</b>.</li>
@@ -2041,9 +2043,9 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>Under the tab you see how long a year is and how day 1 reads. What Save would drop is said there too.</li>
                               </ul>
                           </li>
-                          <li><b>Layout</b>, the System editor&rsquo;s Layout tab, arranges the sheet. It is made of <b>sections</b> of 1 to 4 columns. They hold your fields, roll buttons, headings, a divider or the portrait, dragged into place.
+                          <li><b data-ctl="sys-tab:layout">Layout</b>, the System editor&rsquo;s Layout tab, arranges the sheet. It is made of <b>sections</b> of 1 to 4 columns. They hold your fields, roll buttons, headings, a divider or the portrait, dragged into place.
                             <ul>
-                              <li><b>Arrange</b> makes the preview large, so you can drag the sheet itself. It works for the sheet and for the HUD. The Arrange button on a sheet opens it with that character&rsquo;s figures.</li>
+                              <li><b data-ctl="#sysArrange">Arrange</b> makes the preview large, so you can drag the sheet itself. It works for the sheet and for the HUD. The Arrange button on a sheet opens it with that character&rsquo;s figures.</li>
                               <li>Drag a section by its grip, or a field from anywhere on it. Drop a field in another section to move it there. Drop a section on a tab to send it to that tab.</li>
                               <li>Drop a section on another&rsquo;s left or right edge and the two share a row. The section list calls this <b>Beside the one before</b>. In a narrow window they stack again.</li>
                               <li>Fields left off the sheet are listed on the left, ready to drag on. Alt and the arrow keys move a grip that has the focus. Nothing changes for anyone until you press Save.</li>
@@ -2162,17 +2164,17 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>Show if works out on the character&rsquo;s own values, on the sheet and the HUD alike, and the Layout preview draws a hidden part dimmed. A formula that cannot be worked out shows the part, and one reading a GM-only value always shows for players. It only hides: the values still reach the player, so a secret stays <b>GM only</b>.</li>
                               </ul>
                           </li>
-                          <li><b>Start from&hellip;</b> replaces the system with <b>Basic d20</b> or a blank. Basic d20 has six attributes with modifiers, HP, AC, skills with d20 rolls, and conditions. <b>Export</b> writes a <b>.wpsystem.json</b> you can <b>Import</b> into another campaign or share.</li>
+                          <li><b>Start from&hellip;</b> replaces the system with <b>Basic d20</b> or a blank. Basic d20 has six attributes with modifiers, HP, AC, skills with d20 rolls, and conditions. <b data-ctl="#sysExportBtn">Export</b> writes a <b>.wpsystem.json</b> you can <b data-ctl="#sysImportBtn">Import</b> into another campaign or share.</li>
                           <li><b>Character sheets</b> is a VTT feature under <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 5.1L10.7 2.8L13.3 2.8L13.8 5.1A7.1 7.1 0 0 1 15.6 5.9L17.6 4.6L19.4 6.4L18.1 8.5A7.1 7.1 0 0 1 18.9 10.2L21.2 10.7L21.2 13.3L18.9 13.8A7.1 7.1 0 0 1 18.1 15.6L19.4 17.6L17.6 19.4L15.6 18.1A7.1 7.1 0 0 1 13.8 18.9L13.3 21.2L10.7 21.2L10.2 18.9A7.1 7.1 0 0 1 8.5 18.1L6.4 19.4L4.6 17.6L5.9 15.6A7.1 7.1 0 0 1 5.1 13.8L2.8 13.3L2.8 10.7L5.1 10.2A7.1 7.1 0 0 1 5.9 8.5L4.6 6.4L6.4 4.6L8.4 5.9A7.1 7.1 0 0 1 10.2 5.1zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z"/></svg> Settings &#9656; VTT features. Off for the campaign, the system stays yours to edit but nothing of it shows at the table. A player who turns it off for themselves loses the sheet panel and the hover lines, and their token still moves.</li>
                       </ul>
                       <h4>Items and blasts from the sheet</h4>
                       <ul>
-                          <li>The System editor&rsquo;s <b>Items</b> tab is the campaign&rsquo;s <b>item library</b>: weapons, gear and explosives. Each item has a name, a category, an optional <b>blast area</b>, a <b>damage</b> roll, a <b>cost</b> formula, an icon and a <b>Visible / GM only</b> flag. The blast area is a radius in feet. The damage roll allows dice, as in <code>3d6 + STRmod</code>.
+                          <li>The System editor&rsquo;s <b data-ctl="sys-tab:items">Items</b> tab is the campaign&rsquo;s <b>item library</b>: weapons, gear and explosives. Each item has a name, a category, an optional <b>blast area</b>, a <b>damage</b> roll, a <b>cost</b> formula, an icon and a <b>Visible / GM only</b> flag. The blast area is a radius in feet. The damage roll allows dice, as in <code>3d6 + STRmod</code>.
                               <ul>
                                   <li>The items you make here move into the library&rsquo;s <b>Items</b> pack the next time the campaign opens on your machine. A safety copy is taken first. Characters keep carrying them, and formulas that name them read the same. The tutorial&rsquo;s Firepot stays here.</li>
                                   <li>A GM-only item stays out of the players&rsquo; list. One you give a character reaches its owner: its name, icon, category and notes. Players&rsquo; sheets never carry item formulas.</li>
                                   <li>A visible item&rsquo;s damage is rolled at the table like any roll. The damage of a GM-only item, or of one thrown from a GM-only list, goes to you alone, and its blast reaches players without its name.</li>
-                                  <li>Once a list has <b>stats</b>, set on the <b>Lists</b> tab, an item gets a box for each stat of the lists it can be on. A list it can be on has its category among its own, or names none. The box is a number, or a dropdown for a stat with value names. A value under a key none of its lists has shows apart, so you can clear it.</li>
+                                  <li>Once a list has <b>stats</b>, set on the <b data-ctl="sys-tab:lists">Lists</b> tab, an item gets a box for each stat of the lists it can be on. A list it can be on has its category among its own, or names none. The box is a number, or a dropdown for a stat with value names. A value under a key none of its lists has shows apart, so you can clear it.</li>
                               </ul>
                           </li>
                           <li>An item can also <b>change the character carrying it</b>, with <b>+ Change</b> on its row or in the Library&rsquo;s entry form. These are the same changes a status effect makes: a number, skill or formula up or down, a pool&rsquo;s max, a toggle switched on.
@@ -2226,7 +2228,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>A custom row has an icon, a category of the list&rsquo;s, notes, stats and a <b>key</b>. The key is one no row or item of the list they can see has, and a formula reads that row as List.key.lvl. Like any pickup it has a moment&rsquo;s <b>Undo</b>.</li>
                               </ul>
                           </li>
-                          <li>The System editor&rsquo;s <b>Lists</b> tab shapes each Item list field.
+                          <li>The System editor&rsquo;s <b data-ctl="sys-tab:lists">Lists</b> tab shapes each Item list field.
                               <ul>
                                   <li>It sets which item <b>categories</b> the list&rsquo;s picker offers, grouped by category. None ticked offers every one.</li>
                                   <li><b>Same item more than once</b> gives a new row each time, as for a skill with two specialties.</li>
@@ -2361,7 +2363,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>Every hit meets the armour as it was before the burst. The wear adds up and comes off once, at the end. A hit the armour stops wears nothing. One Revert takes it all back.</li>
                               </ul>
                           </li>
-                          <li><b>Point budgets</b> watch the points a character has against the points it has spent. You set them up on the <b>Rules</b> tab.
+                          <li><b>Point budgets</b> watch the points a character has against the points it has spent. You set them up on the <b data-ctl="sys-tab:rules">Rules</b> tab.
                               <ul>
                                   <li>A budget is a name and two formulas: what a character <b>has</b>, and what it has <b>spent</b>. Each can be a number, a field such as Points, or a list&rsquo;s total such as Traits.paid.</li>
                                   <li>The sheet shows each budget under its head: spent of has, and what is left. A budget that is over turns red.</li>
@@ -2401,7 +2403,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>Its Damage is worked out inside <code>floor(&hellip; / if(and(Row.Half &gt; 0, TargetDistance &gt; Row.Half), 2, 1))</code>, so a shot past Half does half damage.</li>
                               </ul>
                           </li>
-                          <li><b>Tables</b> hold figures a formula reads by name, such as a metal&rsquo;s density and price. You set them up on the <b>Rules</b> tab.
+                          <li><b>Tables</b> hold figures a formula reads by name, such as a metal&rsquo;s density and price. You set them up on the <b data-ctl="sys-tab:rules">Rules</b> tab.
                               <ul>
                                   <li>A table has a key, columns and rows. Each row has a key, a name and a figure in each column.</li>
                                   <li><code>Table.Metal.Steel.density</code> reads one figure. A row or a column that is not there reads 0, and the editor warns you.</li>
@@ -2413,7 +2415,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li><b>Who reads it</b> keeps a table from your players. A formula that reads it is then GM only too.</li>
                               </ul>
                           </li>
-                          <li><b>Linked sheets</b> let one sheet read the figures of another. You set them up on the <b>Rules</b> tab.
+                          <li><b>Linked sheets</b> let one sheet read the figures of another. You set them up on the <b data-ctl="sys-tab:rules">Rules</b> tab.
                               <ul>
                                   <li>A <b>Mount</b> link holds the one mount a rider rides. A mount has one rider at a time.</li>
                                   <li>A Mount link&rsquo;s <b>Mount reads riders as</b> is the key the mount reads its rider by, such as Riders. On the mount <code>Riders.count</code> is 1 while ridden, and <code>Riders.max.Riding</code>, <code>Riders.min.Riding</code> and <code>Riders.sum.Riding</code> read a figure of the rider. With no rider each reads 0.</li>
@@ -2482,7 +2484,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>You alone are told when a player switches such an item on, tries to switch a bound one off or switches a cursed one off.</li>
                               </ul>
                           </li>
-                          <li><b>A copy&rsquo;s own values</b>: on a list shaped in the <b>Lists</b> tab, each row of a library item has a <b><i class="wib wi-pen"></i></b>, and so does each row of a deleted item&rsquo;s copy. Any of the tab&rsquo;s options shapes a list: categories, a level, a switch, stats. A plain list has no <i class="wib wi-pen"></i>.
+                          <li><b>A copy&rsquo;s own values</b>: on a list shaped in the <b data-ctl="sys-tab:lists">Lists</b> tab, each row of a library item has a <b><i class="wib wi-pen"></i></b>, and so does each row of a deleted item&rsquo;s copy. Any of the tab&rsquo;s options shapes a list: categories, a level, a switch, stats. A plain list has no <i class="wib wi-pen"></i>.
                               <ul>
                                   <li>It opens the copy&rsquo;s form under the row. The form holds its name, icon, category, notes and stats, a blast, and the damage and cost formulas. It also holds its own removal and switch-off locks with their messages. <b>A player may remove it</b> frees this copy of the library&rsquo;s lock.</li>
                                   <li>An empty box follows the library, whose value shows faintly. A value you type is this copy&rsquo;s own, and a gold <b>&bull;</b> marks it. The dot sits before the name, on a stat&rsquo;s chip or column, or in the row&rsquo;s <i class="wib wi-note"></i> line for a stat not shown on the row. Hover it for the library&rsquo;s value.</li>
@@ -2532,7 +2534,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>Tick <b>Placed, not thrown</b> for a mine. Its button places it, hidden from players. It never goes off as it is placed. It goes off when a character steps into its trigger radius, or with <b>Set off the mine</b> on your right-click menu.</li>
                               </ul>
                           </li>
-                          <li><b>Combat settings</b> are on the <b>Combat</b> tab, a topic at a time down its side.
+                          <li><b>Combat settings</b> are on the <b data-ctl="sys-tab:combat">Combat</b> tab, a topic at a time down its side.
                               <ul>
                                   <li><b>Blast automation</b> has three settings. <b>Full auto</b> rolls the damage and applies it to every token in range. <b>Roll to chat</b> rolls but leaves applying to you. <b>Measure only</b> just shows the area.</li>
                                   <li>Behind cover, Full auto does what the card&rsquo;s <b>Blast behind &hellip; cover</b> settings say. They show while <b>Cover from blockers</b> is on.</li>
@@ -2791,7 +2793,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       </ul>
                       <h4>Status effects</h4>
                       <ul>
-                          <li>The System editor&rsquo;s <b>Effects</b> tab is a library of <b>status effects</b>. Each has a name, an icon, Buff or Debuff, a duration note and its <b>changes</b>. A change adds a number to a field or switches a toggle on. Examples are +2 ST, &minus;1 Dodge, +5 to HP&rsquo;s max, +1 to a skill&rsquo;s total, and Prone switched on. A GM-only effect stays off the players&rsquo; list. Once you apply one to a player&rsquo;s character, its owner sees it there.</li>
+                          <li>The System editor&rsquo;s <b data-ctl="sys-tab:effects">Effects</b> tab is a library of <b>status effects</b>. Each has a name, an icon, Buff or Debuff, a duration note and its <b>changes</b>. A change adds a number to a field or switches a toggle on. Examples are +2 ST, &minus;1 Dodge, +5 to HP&rsquo;s max, +1 to a skill&rsquo;s total, and Prone switched on. A GM-only effect stays off the players&rsquo; list. Once you apply one to a player&rsquo;s character, its owner sees it there.</li>
                           <li>A change&rsquo;s amount may be <b>by a formula</b>, typed in the box after its number, in place of it. It is worked out for each character, such as <code>-max(0, -MP)</code> for 1 off Agility for each MP below 0. The formula reads the sheet with no effect applied, so one effect never reads another. It rolls no dice and may not read a GM-only value. The sheet shows the formula beside the field it changes.</li>
                           <li>A change may instead hold a value <b>At least</b> or <b>At most</b> a figure, picked in its How list. Two effects that each say Stun at least 1 read 1, never 2. These count after the changes that add, and never times a row&rsquo;s level.</li>
                           <li><b>Applies itself when</b>, under an effect&rsquo;s changes, turns an effect on by itself. It is a formula, such as <code>HP &lt;= 0</code> for Unconscious.
@@ -2824,7 +2826,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       </ul>
                       <h4>Characters and their sheets</h4>
                       <ul>
-                          <li>A <b>character</b> belongs to the campaign, not to a token. The editor&rsquo;s <b>Characters</b> tab creates them: a name, the player who plays them, NPC, a portrait. Any number of tokens can point at one, so a PC with tokens on two maps has one HP total.
+                          <li>A <b>character</b> belongs to the campaign, not to a token. The editor&rsquo;s <b data-ctl="sys-tab:chars">Characters</b> tab creates them: a name, the player who plays them, NPC, a portrait. Any number of tokens can point at one, so a PC with tokens on two maps has one HP total.
                               <ul>
                                   <li>Pick the character in a token&rsquo;s <b>Properties</b>, in its <b>Character</b> list. <b>New character from this token</b> there makes one named after it. Or right-click a token &#9656; <b>New character sheet&hellip;</b>.</li>
                                   <li>Duplicating, pasting or dropping several copies from the Cast makes separate creatures. A single Cast drop keeps the link.</li>
@@ -2840,7 +2842,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>An NPC has no player and never reaches players. An unassigned character is yours alone until you pick a player.</li>
                               </ul>
                           </li>
-                          <li><b>Deleting a sheet</b>: <b>Delete</b> in a sheet&rsquo;s head removes that sheet after asking. Its values are gone, and its tokens keep their name and lose the link. You may delete any sheet. A player may delete one of their own that they are still making or do not play, and the one they play is yours to delete. You are told. A sheet a player deleted does not come back with <b>Undo</b>. A sheet still being made says so in the sheet&rsquo;s list and on its row of the <b>Characters</b> tab, whose box finds a character by name.</li>
+                          <li><b>Deleting a sheet</b>: <b>Delete</b> in a sheet&rsquo;s head removes that sheet after asking. Its values are gone, and its tokens keep their name and lose the link. You may delete any sheet. A player may delete one of their own that they are still making or do not play, and the one they play is yours to delete. You are told. A sheet a player deleted does not come back with <b>Undo</b>. A sheet still being made says so in the sheet&rsquo;s list and on its row of the <b data-ctl="sys-tab:chars">Characters</b> tab, whose box finds a character by name.</li>
                           <li><b>The sheet panel</b>: select a character&rsquo;s token and press the <b><i class="wib wi-clip"></i></b> button on its toolbar. Or right-click the token &#9656; <b>Sheet&hellip;</b>, the first row of its menu. Or use <b>Open sheet</b> from Properties or the Characters tab.
                               <ul>
                                   <li>It floats over the play map. Drag its head to move it and its bottom-right corner to resize it. Double-click the corner for the default size. Both are remembered.</li>
@@ -2931,7 +2933,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>How many of an action a turn allows may be a number or a formula of the character, such as <code>1 + ExtraReady</code>. It is worked out for each character when their turn begins, so an entry that raises the field gives extra uses.</li>
                               </ul>
                           </li>
-                          <li><b>The sheet&rsquo;s layout</b>: the editor&rsquo;s <b>Layout</b> tab arranges the sheet in sections of 1 to 4 columns. Add a field, a roll button, a heading, a divider or the portrait to a section. Set each to one column or the full row. Drag rows to reorder them or move them between sections. Watch the preview with a chosen character&rsquo;s values. Without a layout the sheet arranges itself: one section per kind, then the rolls. <b>Start from the automatic layout</b> copies that as a starting point. A field left off the sheet stays defined: rollable, and on the hover card. Save keeps the layout with the system, and players&rsquo; sheets follow at once.</li>
+                          <li><b>The sheet&rsquo;s layout</b>: the editor&rsquo;s <b data-ctl="sys-tab:layout">Layout</b> tab arranges the sheet in sections of 1 to 4 columns. Add a field, a roll button, a heading, a divider or the portrait to a section. Set each to one column or the full row. Drag rows to reorder them or move them between sections. Watch the preview with a chosen character&rsquo;s values. Without a layout the sheet arranges itself: one section per kind, then the rolls. <b data-ctl="#sysLayoutAuto">Start from the automatic layout</b> copies that as a starting point. A field left off the sheet stays defined: rollable, and on the hover card. Save keeps the layout with the system, and players&rsquo; sheets follow at once.</li>
                           <li><b>Facing dial</b>: on the Layout tab, add a <b>Facing dial</b> to a section. A section set <b>Above the tabs</b> keeps it on every tab. It shows and sets which way the character&rsquo;s token faces. That is the same facing as the token&rsquo;s arrow, so turning either turns both.
                               <ul>
                                   <li>A player&rsquo;s dial follows their own token on the map they are on. The GM&rsquo;s follows the selected token. Failing that it follows a connected player&rsquo;s token on the map that player is on, and failing that the character&rsquo;s token on the map on screen.</li>
@@ -2959,11 +2961,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>New sheets after a change</b>: when you change the system so that the sheets your players have no longer fit, ask them for new ones.
                               <ul>
                                   <li><b>Reader mark</b>, in the System editor&rsquo;s Characters tab, is a plain word. A sheet reader of your own that names that word answers on that system alone. Elsewhere Upload reads Waypoint&rsquo;s own files.</li>
-                                  <li><b>Ask for new sheets&hellip;</b> in the System editor&rsquo;s Characters tab puts every player&rsquo;s character out of date at once. It is saved and told to the table straight away.</li>
+                                  <li><b data-ctl="#sysNewSheets">Ask for new sheets&hellip;</b> in the System editor&rsquo;s Characters tab puts every player&rsquo;s character out of date at once. It is saved and told to the table straight away.</li>
                                   <li>A player with a character out of date can chat and read pages, and nothing else. Their map is dimmed and a line at the top says why.</li>
                                   <li>The sheet says it is out of date. Its player presses <b>Send a new sheet&hellip;</b> and picks a Waypoint character file. A file a sheet reader of yours takes works too.</li>
                                   <li>The file waits in your <b>Review</b>, one line a field that differs. Applying it makes the character current, even with nothing ticked. Rows only you can see stay as they are.</li>
-                                  <li><b>Mark current</b> on the sheet makes a character current as it is. <b>Mark all current</b> in the Characters tab does it for every one. You are never held yourself. A new sheet that changes nothing goes with it, and one with changes stays in your <b>Review</b> to apply or keep out.</li>
+                                  <li><b>Mark current</b> on the sheet makes a character current as it is. <b data-ctl="#sysSheetsCurrent">Mark all current</b> in the Characters tab does it for every one. You are never held yourself. A new sheet that changes nothing goes with it, and one with changes stays in your <b>Review</b> to apply or keep out.</li>
                               </ul>
                           </li>
                           <li><b>A player&rsquo;s sheet update</b>: where your Waypoint reads a sheet file made elsewhere, a player can send you theirs.

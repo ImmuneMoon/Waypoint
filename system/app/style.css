@@ -5132,3 +5132,16 @@
 .gm-dice { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .gm-dice[hidden] { display: none; }
 .gm-dice .inline-dice { padding: 2px 6px; font-size: 12px; }
+
+/* 1.6.2, backlog 142: Help draws the real control a bold name stands for (helpchips.js), a copy that takes no press of its own */
+.help-chip { display: inline-flex; align-items: center; vertical-align: middle; cursor: pointer; border-radius: 5px; margin: 0 1px; padding: 0 1px; font-weight: 400; border: 1px solid var(--border, rgba(255,255,255,.18)); background: var(--panel2, transparent); }
+.help-chip:hover { border-color: var(--gold); }
+.help-chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.help-chip-in { display: inline-flex !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: none !important; gap: 0 !important; box-shadow: none !important; width: auto !important; position: static !important; flex: none !important; overflow: visible !important; }
+.help-chip-in > * { pointer-events: none; margin: 0 !important; }
+.help-chip-off { opacity: .5; cursor: default; }
+.help-found { outline: 2px solid var(--gold) !important; outline-offset: 2px; box-shadow: 0 0 0 6px rgba(212, 175, 55, .35) !important; }
+.help-back { position: fixed; right: 16px; bottom: 16px; z-index: 100001; }
+.help-back[hidden] { display: none; }
+#helpModal.help-over { z-index: 100002 !important; }
+.help-chip-in > * { padding-top: 1px !important; padding-bottom: 1px !important; line-height: 1.3 !important; }

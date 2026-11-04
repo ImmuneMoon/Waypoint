@@ -370,7 +370,7 @@ for (const t of targets) {
     helpSrc.split('<div class="help-pane" data-pane="').slice(1).forEach(p => {
         const id = p.slice(0, p.indexOf('"')), opens = [], re = /<(h4|li|p|div class="help-tip")\b[^>]*>/g; let m;
         while ((m = re.exec(p))) opens.push({ tag: m[1] === 'h4' ? 'H4' : m[1] === 'li' ? 'LI' : m[1] === 'p' ? 'P' : 'DIV', at: m.index, end: m.index + m[0].length });
-        panes[id] = opens.map((o, i) => { const body = p.slice(o.end, i + 1 < opens.length ? opens[i + 1].at : p.length), b = /<b>([\s\S]*?)<\/b>/.exec(body);
+        panes[id] = opens.map((o, i) => { const body = p.slice(o.end, i + 1 < opens.length ? opens[i + 1].at : p.length), b = /<b(?:\s[^>]*)?>([\s\S]*?)<\/b>/.exec(body);   /* 1.6.2, backlog 142: a bold may carry a chip's mark (moved on purpose) */
             return { tagName: o.tag, textContent: textOf(o.tag === 'H4' ? body.slice(0, body.indexOf('</h4>')) : body), querySelector: q => (q === 'b' && b ? { textContent: textOf(b[1]) } : null) }; });
     });
     const docOf = map => ({ querySelector: sel => { const m = /^#helpModal \.help-pane\[data-pane="([^"]*)"\]$/.exec(sel), list = m && Object.prototype.hasOwnProperty.call(map, m[1]) ? map[m[1]] : null; return list ? { querySelectorAll: q => (q === 'h4, li, p, .help-tip' ? list : []) } : null; } });

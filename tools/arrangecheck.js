@@ -172,7 +172,7 @@ const R = 1;
     check('the module is loaded', /<script type="module" src="scripts\/arrange\.js"><\/script>/.test(html));
     check('Escape stops a drag and closes nothing', /arr-drag/.test(readU('scripts/esckey.js')));
     check('a drop writes no markup', !/innerHTML/.test(readU('scripts/arrange.js')) && !/innerHTML/.test(readU('scripts/arrangecore.js')));
-    check('Help says it', /<b>Arrange<\/b>/.test(html) && /Beside the one before/.test(html));
+    check('Help says it', /<b(?: data-ctl="#sysArrange")?>Arrange<\/b>/.test(html) /* 1.6.2, backlog 142: a chip's mark (moved on purpose) */ && /Beside the one before/.test(html));
     check('both release notes say it', /Arrange/.test(readRoot('WHATSNEW.txt')) && /Arrange/.test(readU('assets/whatsnew.txt')));
     check('the guide names the key', /beside/.test(readRoot('CAMPAIGN_INTEGRATION.md')));
     check('the CI step is there', readRoot('.github/workflows/checks.yml').includes('run: node tools/arrangecheck.js'));

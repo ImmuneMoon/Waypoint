@@ -274,9 +274,9 @@ function renderHelp(m) {
 // 1.6.0 (the live test, 2026-10-30): whether a card still asks for a press on this machine: an Apply no one has pressed, or a Due card that is theirs. Table Chat raised by a roll stays up for it (net.js chatWaits)
 function waits(m) {
     if (!m) return false;
-    if (m.help) return !m.help.done && !window.wpPopout && (m.help.mine === 1 || m.help.gm === 1 || (Array.isArray(m.help.can) && m.help.can.length > 0));   // 1.6.2 Assist
     if (m.due) return !m.done && !m.over && !m.due.theirs && !window.wpPopout;
     if (m.roll && typeof m.roll.pend === 'number' && m.roll.pend > 0) { var nW = net(); return !!(nW && ((nW.myId && m.roll.from && m.roll.from.id === nW.myId) || !nW.active || nW.role === 'host')); }   // 1.6.2 (G5): held, its roller and the GM have something to press
+    if (m.help) return !m.help.done && !window.wpPopout && (m.help.mine === 1 || m.help.gm === 1 || (Array.isArray(m.help.can) && m.help.can.length > 0));   // 1.6.2 Assist
     var rec = m.roll, dS = window.wpSheets; if (!rec || rec.dmg !== 1 || rec.dmgUsed === 1 || !m.res || !m.res.ok) return false;
     return !malfOf(rec, m.res) && !!(dS && typeof dS.damageOn === 'function' && dS.damageOn());
 }

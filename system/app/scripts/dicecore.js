@@ -236,7 +236,7 @@ function cleanHelpCard(rec) {
     var out = { id: rec.id, from: from, ts: typeof rec.ts === 'number' && isFinite(rec.ts) ? rec.ts : 0, ends: rec.ends, total: rec.total, lines: [] };
     for (var i = 0; i < rec.lines.length; i++) { var l = rec.lines[i], n = l && typeof l === 'object' ? cleanLabel(l.n) : null; if (!n || typeof l.w !== 'string' || l.w.length > 120 || CTRL_RE.test(l.w)) return null; out.lines.push({ n: n, w: l.w }); }
     var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
-    var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
+    var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as; var plC = cleanPl(rec.pl); if (plC && as) out.pl = plC;
     if (rec.cap !== undefined) { if (!isInt(rec.cap) || rec.cap < 1 || rec.cap > 99) return null; out.cap = rec.cap; }
     if (rec.can !== undefined) { if (!Array.isArray(rec.can) || rec.can.length > 8) return null; out.can = []; for (var c = 0; c < rec.can.length; c++) { var x = rec.can[c], cn = x && typeof x === 'object' ? cleanLabel(x.name) : null; if (!x || typeof x.id !== 'string' || !CHAR_RE.test(x.id) || !cn) return null; out.can.push({ id: x.id, name: cn }); } }
     if (rec.rolls !== undefined) { if (!Array.isArray(rec.rolls) || rec.rolls.length > 8) return null; out.rolls = []; for (var r = 0; r < rec.rolls.length; r++) { var y = rec.rolls[r], rl = y && typeof y === 'object' ? cleanLabel(y.label) : null; if (!y || !isInt(y.i) || y.i < 0 || y.i > 7 || !rl) return null; out.rolls.push({ i: y.i, label: rl }); } }

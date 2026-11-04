@@ -93,8 +93,8 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
     } else check('dicecore publishes cleanRoll', false);
     const di = read('scripts/dice.js'), wb = read('scripts/whiteboard.js'), cl = read('scripts/charlist.js'), dc = read('scripts/dicecore.js');
     check('a card says the name it was made as in that character’s look, edged in its colour, through asTag (the tag as it always was where asTag is not at hand); dicecore cleans the look on a roll, an apply and a due card alike',
-        di.includes("function asTag(word, rec, card) {") && (di.match(/typeof asTag === 'function' \? asTag\('(as|for) ', rec, wrap\)/g) || []).length === 3 && di.includes("card.style.boxShadow = 'inset 0 0 0 1px ' + rec.pl.color;")
-        && (dc.match(/var plC = cleanPl\(rec\.pl\); if \(plC && as\) out\.pl = plC;/g) || []).length === 3);
+        di.includes("function asTag(word, rec, card) {") && (di.match(/typeof asTag === 'function' \? asTag\('(as|for) ', rec, wrap\)/g) || []).length === 4 /* 1.6.2 Assist: the help card too (moved on purpose) */ && di.includes("card.style.boxShadow = 'inset 0 0 0 1px ' + rec.pl.color;")
+        && (dc.match(/var plC = cleanPl\(rec\.pl\); if \(plC && as\) out\.pl = plC;/g) || []).length === 4 /* 1.6.2 Assist: the help card too (moved on purpose) */);
     check('the host names a card’s character with its look where it names it from its record (seven places, a crew press none), through plOn asked by typeof',
         (net.match(/if \(typeof plOn === 'function'\)( && !\(typeof pressQ[^)]*\)\))? plOn\(rec[A-Za-z]*, ch[A-Za-z]*\);|typeof plOn === 'function' && !\(typeof pressQ !== 'undefined' && pressQ\)\) plOn\(recQ, chQ\);/g) || []).length >= 6 && net.includes('function plOn(rec, ch) {'));
     check('the hover card’s name, a token’s initials (the font alone, so a plate of the same colour never hides them), the turn strip’s and the roster’s names, and the Characters section’s rows wear the look; the section is drawn again when a look changes',

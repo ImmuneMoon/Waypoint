@@ -11238,7 +11238,7 @@ net.rollsFor = function(charId, name, sinceSeq, max) {   // newest first: tagged
         if (e.cid ? e.cid === charId : !!(name && e.m.roll.as === name && e.m.from && (e.m.from.gm === true || e.m.from.id === net.myId))) out.push({ from: e.m.from, scope: e.m.scope, ts: e.m.ts, seq: e.seq, fresh: !e.replay, roll: e.m.roll, res: e.m.res, rollBad: e.m.rollBad, toName: e.m.toName }); }
     return out;
 };
-function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper'; }).slice(-60).map(function(m) { var wr = m.roll || m.apply; if (typeof figOf === 'function') wr = figOf(wr); return m.roll ? { from: m.from, text: '', scope: m.scope, ts: m.ts, roll: wr } : m.apply ? { from: m.from, text: '', scope: m.scope, ts: m.ts, apply: wr } : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)
+function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper'; }).filter(function(m) { return !m.help; }).slice(-60).map(function(m) { var wr = m.roll || m.apply; if (typeof figOf === 'function') wr = figOf(wr); return m.roll ? { from: m.from, text: '', scope: m.scope, ts: m.ts, roll: wr } : m.apply ? { from: m.from, text: '', scope: m.scope, ts: m.ts, apply: wr } : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)
 // [netcheck:rolltag-end]
 function pushRoll(rec, res, scope, opts) {
     if (rec && typeof rec.id === 'string') for (var iR = chatLog.length - 1; iR >= 0; iR--) if (chatLog[iR] && chatLog[iR].roll && chatLog[iR].roll.id === rec.id) { chatLog[iR].roll = rec; chatLog[iR].res = res; if (!rec.pend) ringPush(chatLog[iR], opts && opts.cid); renderChat(); return; }   // 1.6.2 (G5): a held roll's card, changed or landed, takes the place of the one before it
@@ -11369,7 +11369,7 @@ function helpCan(h, pid) {   // the characters of this profile ('' the GM's NPCs
 }
 function helpRec(h, pid) {
     var o = h.o, rec = { type: 'help', id: h.id, from: o.from, ts: h.ts, ends: h.ends, lines: h.lines.map(function(l) { return { n: l.n, w: l.w }; }), total: o.S.helpTotal(o.ent.help, h.lines) };
-    if (o.label) rec.label = String(o.label).split('{')[0].trim().slice(0, 60); if (o.ch.name) rec.as = String(o.ch.name).slice(0, 60); if (o.ent.help.cap) rec.cap = o.ent.help.cap;
+    if (o.label) rec.label = String(o.label).split('{')[0].trim().slice(0, 60); if (o.ch.name) rec.as = String(o.ch.name).slice(0, 60); if (typeof plOn === 'function') plOn(rec, o.ch); if (o.ent.help.cap) rec.cap = o.ent.help.cap;
     if (h.done) { rec.done = 1; if (h.why) rec.why = h.why; return rec; }
     var can = helpCan(h, pid); if (can.length) { rec.can = can; if (o.ent.help.by === 'roll') rec.rolls = helpRolls(h).filter(function(r) { return o.ent.help.same === true || !h.rolls[r.id]; }).map(function(r) { return { i: r.i, label: r.label }; }); }
     if (pid === o.pid) { rec.mine = 1; if (o.rid) rec.rid = o.rid; } else if (pid === '') rec.gm = 1;
@@ -11737,7 +11737,7 @@ function renderChat() {
     var frag = document.createDocumentFragment();
     chatLog.forEach(function(m) {
         var node = null;
-        try { node = m.roll ? (window.wpDice ? window.wpDice.renderCard(m) : null) : m.apply ? (window.wpDice && window.wpDice.renderApply ? window.wpDice.renderApply(m) : null) : m.due ? (window.wpDice && window.wpDice.renderDue ? window.wpDice.renderDue(m) : null) : m.trun && window.wpTimePanel && window.wpTimePanel.renderLine ? window.wpTimePanel.renderLine(m) : m.trk && window.wpTrackers && window.wpTrackers.renderLine ? window.wpTrackers.renderLine(m) : m.help ? (window.wpDice && window.wpDice.renderHelp ? window.wpDice.renderHelp(m) : null) : chatEntryNode(m); } catch (e) { node = null; }   // one bad entry never blanks the panel
+        try { node = m.roll ? (window.wpDice ? window.wpDice.renderCard(m) : null) : m.apply ? (window.wpDice && window.wpDice.renderApply ? window.wpDice.renderApply(m) : null) : m.due ? (window.wpDice && window.wpDice.renderDue ? window.wpDice.renderDue(m) : null) : m.trun && window.wpTimePanel && window.wpTimePanel.renderLine ? window.wpTimePanel.renderLine(m) : m.help ? (window.wpDice && window.wpDice.renderHelp ? window.wpDice.renderHelp(m) : null) : m.trk && window.wpTrackers && window.wpTrackers.renderLine ? window.wpTrackers.renderLine(m) : chatEntryNode(m); } catch (e) { node = null; }   // one bad entry never blanks the panel
         if (node) frag.appendChild(node);
     });
     log.textContent = ''; log.appendChild(frag);

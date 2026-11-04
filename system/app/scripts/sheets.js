@@ -7420,7 +7420,7 @@ function openReview(charId, mine, pick) {   // mine: the GM's own file, read on 
         var acc = {}; Object.keys(ticks).forEach(function(k) { if (ticks[k]) acc[k] = true; });
         var r = applyProposal(sys, ch2, up, acc, F(), rdA ? { rowOp: rdA.rowOp } : {});
         ch2.values = r.values; lastChange = null;   // the values are replaced whole: no single field to Revert
-        if (window.wpSystemCore && typeof window.wpSystemCore.proposalMarks === 'function') window.wpSystemCore.afApply(ch2, window.wpSystemCore.proposalMarks(sys, up, acc));   // 1.6.2 (auto apply): an accepted figure the file says a fill wrote is marked, any other is typed
+        if (typeof window !== 'undefined' && window.wpSystemCore && typeof window.wpSystemCore.proposalMarks === 'function') window.wpSystemCore.afApply(ch2, window.wpSystemCore.proposalMarks(sys, up, acc));   // 1.6.2 (auto apply): an accepted figure the file says a fill wrote is marked, any other is typed
         if (up.rev === true && window.wpSystemCore && typeof window.wpSystemCore.sheetRevOf === 'function') { var srA = window.wpSystemCore.sheetRevOf(sys); if (srA) { ch2.sheetRev = srA; if (window.wpStepLog) window.wpStepLog('sheetrev v1', 'current', { by: 'review', changes: r.done }); } }   // 1.6.0 (backlog 190): approved: current
         cmp.uploads = (Array.isArray(cmp.uploads) ? cmp.uploads : []).filter(function(u) { return !u || u.id !== up.id; });
         afterCharChange(ch2, true);

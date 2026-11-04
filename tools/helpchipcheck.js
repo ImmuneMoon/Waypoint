@@ -48,12 +48,12 @@ function page(opts) {
     const helpBody = mk('div', { cls: 'help-body' }, [pane]); helpBody.scrollTop = 120;
     const help = mk('div', { id: 'helpModal', style: { display: 'flex' } }, [helpBody]);
     const body = mk('body', {}, [opener, sys, help]);
-    const doc = { body, getElementById: id => body.all().find(n => n.id === id) || null, querySelectorAll: s => body.querySelectorAll(s), createElement: t => new El(t) };
+    const doc = { body, getElementById: id => body.all().find(n => n.id === id) || null, querySelectorAll: s => body.querySelectorAll(s), querySelector: s => body.querySelector(s), createElement: t => new El(t) };
     return { doc, sys, help, pane, opener };
 }
 const src = read('scripts/helpchips.js'), cut = (a, b) => src.slice(src.indexOf('// [helpchipcheck:' + a + '-start]'), src.indexOf('// [helpchipcheck:' + b + '-end]'));
 const timers = [], opened = [];
-const api = new Function('window', 'setTimeout', 'MutationObserver', cut('core', 'wire') + '\nreturn { chipFind, chipReach, chipCopy, chipsDraw, chipGo, chipBack, CHIP_KEY, CHIP_TAB_IDS };')({ wpOpenHelp: p => opened.push(p) }, (f, ms) => { timers.push([f, ms]); return timers.length; }, undefined);
+const api = new Function('window', 'setTimeout', 'MutationObserver', cut('core', 'wire') + '\nreturn { chipFind, chipReach, chipCopy, chipsDraw, chipGo, chipBack, chipMenus, chipStand, CHIP_KEY, CHIP_TAB_IDS };')({ wpOpenHelp: p => opened.push(p) }, (f, ms) => { timers.push([f, ms]); return timers.length; }, undefined);
 // ---- the core
 const P = page(), d = P.doc;
 const fTab = api.chipFind(d, 'sys-tab:rules'), fSave = api.chipFind(d, '#sysSaveBtn'), fKey = api.chipFind(d, 'sys:fields:sys-key-btn');
@@ -85,6 +85,35 @@ check('a window already open is not opened again', P2.opener.clicks === 1);
 check('a chip this screen cannot reach does nothing when pressed', api.chipGo(G.doc, '#sysSaveBtn') === false && G.help.style.display === 'flex');
 api.chipBack(d);
 check('Back to Help opens Help again on the part it was left on, over the window the chip opened, and goes away', J(opened) === J(['sheets']) && P.help.classList.contains('help-over') && d.getElementById('helpBackBtn').hidden === true);
+// ---- fold 2: the top row and its menus
+function rowPage(opts) {
+    opts = opts || {};
+    const more = mk('button', { id: 'moreMenuBtn', attrs: { 'aria-controls': 'moreMenu', title: 'More. Export As, Import.' } }, [mk('i', { cls: 'wib wi-dots' })]);
+    const imp = mk('button', { id: 'importBtn', cls: 'rm-row', text: 'Import' }), saveAs = mk('button', { id: 'saveAsBtn', cls: 'rm-row', text: 'Export As' }), pic = mk('button', { id: 'exportMapPicBtn', cls: 'menu-item', text: 'Save Map as Picture' });
+    const kinds = mk('div', { id: 'saveAsMenu', style: { display: 'none' } }, [pic]), menu = mk('div', { id: 'moreMenu', cls: 'row-menu', hidden: true }, [imp, saveAs, kinds]);
+    more.onclick = () => { menu.hidden = false; }; saveAs.onclick = () => { kinds.style.display = 'block'; };
+    const gm = mk('button', { id: 'gmOnly', cls: 'gm-only', text: 'Snapshot' }), fold = mk('button', { id: 'soundInd', cls: 'row-fold', attrs: { title: 'Sound effects.' } });
+    const trayBtn = mk('button', { id: 'rowTrayBtn', attrs: { 'aria-controls': 'rowTray' } }), stand = mk('button', { attrs: { 'data-press': 'soundInd' }, text: 'Sound effects' }), tray = mk('div', { id: 'rowTray', cls: 'row-menu', hidden: true }, [stand]);
+    trayBtn.onclick = () => { tray.hidden = false; };
+    const header = mk('header', {}, [more, menu, gm, fold, trayBtn, tray]);
+    const help = mk('div', { id: 'helpModal', style: { display: 'flex' } }, [mk('div', { cls: 'help-body' }, [mk('div', { cls: 'help-pane', data: { pane: 'start' }, style: { display: 'block' } }, [mk('b', { attrs: { 'data-ctl': '#exportMapPicBtn' }, text: 'Save Map as Picture' }), mk('b', { attrs: { 'data-ctl': '#moreMenuBtn' }, text: 'More' }), mk('b', { attrs: { 'data-ctl': '#gmOnly' }, text: 'Snapshot' })])])]);
+    const body = mk('body', { cls: opts.player ? 'net-client' : '' }, [header, help]);
+    return { doc: { body, getElementById: id => body.all().find(n => n.id === id) || null, querySelectorAll: s => body.querySelectorAll(s), querySelector: s => body.querySelector(s), createElement: tg => new El(tg) }, more, menu, kinds, pic, saveAs, gm, fold, stand, tray, trayBtn, help };
+}
+{
+    const T = rowPage(), ch = api.chipMenus(T.doc, T.pic);
+    check('fold 2: a control in a menu of the row is reached through every menu that holds it, outermost first, each by the button that opens it; one the row folded into the tray stands there by its own button',
+        ch.length === 2 && ch[0].box === T.menu && ch[0].open === T.more && ch[1].box === T.kinds && ch[1].open === T.saveAs && api.chipStand(T.doc, T.fold) === T.stand && api.chipStand(T.doc, T.pic) === T.pic && api.chipMenus(T.doc, T.stand)[0].open === T.trayBtn);
+    timers.length = 0; const g = api.chipGo(T.doc, '#exportMapPicBtn'); const before = T.menu.hidden === true && T.kinds.style.display === 'none'; timers.filter(x => x[1] === 0).forEach(x => x[0]());
+    check('pressed, Help steps aside and, a moment after, More and then Export As\u2019s list are opened and the control is brought into view and lit; Back to Help is shown',
+        g === true && before && T.help.style.display === 'none' && T.menu.hidden === false && T.kinds.style.display === 'block' && T.pic.classList.contains('help-found') && T.pic.scrolled === 1 && T.doc.getElementById('helpBackBtn').hidden === false);
+    timers.length = 0; api.chipGo(T.doc, '#soundInd'); timers.filter(x => x[1] === 0).forEach(x => x[0]());
+    check('a control the row folded away is shown by opening the tray and lighting its button there', T.tray.hidden === false && T.stand.classList.contains('help-found') && !T.fold.classList.contains('help-found'));
+    const n2 = api.chipsDraw(T.doc), cs = T.help.querySelectorAll('.help-chip');
+    check('an icon with no words of its own says itself by its tooltip; a control of the GM\u2019s is in reach for the GM', n2 === 3 && cs[1].dataset.tip === 'Show me More.' && !cs[2].classList.contains('help-chip-off'), JSON.stringify(cs.map(c => c.dataset.tip)));
+    const Tp = rowPage({ player: true }); api.chipsDraw(Tp.doc); const cp = Tp.help.querySelectorAll('.help-chip');
+    check('on a player\u2019s app a control of the GM\u2019s is drawn greyed and says so', cp[2].classList.contains('help-chip-off') && cp[2].dataset.tip === 'Snapshot. The GM\u2019s.' && !cp[0].classList.contains('help-chip-off'), JSON.stringify(cp.map(c => c.dataset.tip)));
+}
 // ---- every mark Help carries names a control the page has
 const html = read('index.html'), marks = [...html.matchAll(/<b data-ctl="([^"]+)">/g)].map(m => m[1]);
 const bad = marks.filter(k => { if (!api.CHIP_KEY.test(k)) return true; if (k[0] === '#') return html.split('id="' + k.slice(1) + '"').length !== 2; if (k.indexOf('sys-tab:') === 0) return !html.includes('<button data-tab="' + k.slice(8) + '"'); const p = k.split(':'), tid = Object.keys(api.CHIP_TAB_IDS).find(x => api.CHIP_TAB_IDS[x] === p[1]); if (!tid) return true; const at = html.indexOf('id="' + tid + '"'), end = html.indexOf('<div id="sys', at + 10); return at < 0 || html.slice(at, end > 0 ? end : undefined).indexOf(p[2]) < 0; });

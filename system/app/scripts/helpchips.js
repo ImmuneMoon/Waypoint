@@ -21,10 +21,27 @@ function chipFind(doc, key) {
     var win = null; for (var w in CHIP_WINDOWS) if (Object.prototype.hasOwnProperty.call(CHIP_WINDOWS, w)) { var box = doc.getElementById(w); if (box && box.contains(el)) win = w; }
     return { el: el, win: win };
 }
+// 1.6.2 fold 2, the top row: the menus that hold a control, outermost first, each with the button that opens it (a menu of the row names its button
+// by aria-controls; Export As's list has its own); a control the row folded into the » tray is reached by its stand-in there
+var CHIP_OPENERS = { saveAsMenu: 'saveAsBtn' };
+function chipMenus(doc, el) {
+    var out = [];
+    for (var n = el && el.parentNode; n && n.getAttribute; n = n.parentNode) {
+        var id = n.id; if (!id) continue;
+        var op = CHIP_OPENERS[id] ? doc.getElementById(CHIP_OPENERS[id]) : doc.querySelector('[aria-controls="' + id + '"]'); if (op) out.unshift({ box: n, open: op });
+    }
+    return out;
+}
+function chipShut(box) { return !!box && (box.hidden === true || (box.style && box.style.display === 'none')); }
+function chipStand(doc, el) {   // what stands for a control: itself, or its button in the tray while the row has folded it away
+    if (el && el.classList && el.classList.contains('row-fold') && el.id) { var t = doc.querySelector('#rowTray [data-press="' + el.id + '"]'); if (t) return t; }
+    return el;
+}
 // whether this screen may reach it, and the words where it may not
 function chipReach(doc, f) {
     if (!f) return 'Not on this screen';
-    if (!f.win) return f.el.offsetParent === null && f.el.style.display === 'none' ? 'Not on this screen' : '';
+    if (!f.win && f.el.closest && f.el.closest('.gm-only') && doc.body && doc.body.classList && doc.body.classList.contains('net-client')) return 'The GM\u2019s';   // fold 2: a control of the GM's, on a player's app
+    if (!f.win) { var st = chipStand(doc, f.el); return st === f.el && !chipMenus(doc, f.el).length && f.el.offsetParent === null && f.el.style.display === 'none' ? 'Not on this screen' : ''; }
     var op = doc.getElementById(CHIP_WINDOWS[f.win].open); if (!op) return 'Not on this screen';
     return op.style.display === 'none' || op.hidden ? 'The GM’s' : '';
 }
@@ -50,7 +67,7 @@ function chipsDraw(doc) {
         if (!chip) { chip = doc.createElement('span'); chip.className = 'help-chip'; chip.setAttribute('role', 'button'); chip.dataset.ctl = key; b.textContent = ''; b.appendChild(chip); }
         chip.textContent = ''; chip.appendChild(chipCopy(doc, f.el));
         var why = chipReach(doc, f); chip.classList.toggle('help-chip-off', !!why); chip.setAttribute('tabindex', why ? '-1' : '0'); chip.setAttribute('aria-disabled', why ? 'true' : 'false');
-        var words = (f.el.textContent || '').replace(/\s+/g, ' ').trim(); chip.setAttribute('aria-label', words); chip.dataset.tip = why ? words + '. ' + why + '.' : 'Show me ' + words + '.';
+        var words = (f.el.textContent || '').replace(/\s+/g, ' ').trim() || String(f.el.getAttribute('title') || '').split('.')[0].trim(); chip.setAttribute('aria-label', words); chip.dataset.tip = why ? words + '. ' + why + '.' : 'Show me ' + words + '.';   // fold 2: an icon alone says itself by its tooltip
         n++;
     }
     return n;
@@ -69,8 +86,13 @@ function chipGo(doc, key) {
         if (tab) { var tbs = doc.querySelectorAll('#' + f.win + ' ' + CHIP_WINDOWS[f.win].tabs); for (var i = 0; i < tbs.length; i++) if (tbs[i].dataset.tab === tab && !tbs[i].classList.contains('active')) tbs[i].click(); }
         f = chipFind(doc, key) || f;
     }
-    if (f.el.scrollIntoView) f.el.scrollIntoView({ block: 'center' });
-    f.el.classList.add('help-found'); setTimeout(function() { f.el.classList.remove('help-found'); }, 2000);
+    var lit = function() { var el = f.win ? f.el : chipStand(doc, f.el); if (el.scrollIntoView) el.scrollIntoView({ block: 'center' }); el.classList.add('help-found'); setTimeout(function() { el.classList.remove('help-found'); }, 2000); };
+    if (!f.win) {   // fold 2: the top row: open what holds it a moment after Help steps aside, so the press that put Help away does not close it again
+        var st = chipStand(doc, f.el), chain = chipMenus(doc, st); chipBackShow(doc);
+        setTimeout(function() { chain.forEach(function(m) { if (chipShut(m.box) && m.open.click) m.open.click(); }); lit(); }, 0);
+        return true;
+    }
+    lit();
     chipBackShow(doc);
     return true;
 }

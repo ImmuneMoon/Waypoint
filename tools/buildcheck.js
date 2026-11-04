@@ -10,7 +10,7 @@
 const path = require('path'), fs = require('fs'), os = require('os'), cp = require('child_process');
 const NL = String.fromCharCode(10);
 const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).replace(/[\\]/g, '/');
-const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, NL);
+const read = f => { const t = fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, NL); return /index\.html$/.test(f) ? t.replace(/<b data-ctl="[^"]*">/g, '<b>') : t; };   // 1.6.2: Help's words read without a chip's mark (backlog 142), which helpchipcheck holds
 const j = o => JSON.stringify(o);
 // a window that keeps its listeners, and what a dialog's world says of Escape heard first there (the review of fold B6): used by the
 // dungeon's and the city's dialog alike

@@ -10188,6 +10188,12 @@ function onBlastChange(t) {   // the lists of the Blasts and throws part
     if (!Object.keys(bl).length) delete cm.blast;
     markDirty(); return true;
 }
+function bodyBox(box, cm) {
+    var bdL = el('label', 'sys-combat-item'); bdL.appendChild(el('span', 'sys-num-cap', 'A body in the way hides'));
+    var bdI = input('sys-combat-cover-body field', typeof cm.cover.body === 'string' ? cm.cover.body : '', BODY_LINE, 'A formula'); bdI.dataset.vk = 'body'; bdL.appendChild(bdI); box.appendChild(bdL);
+    lineUnder(box, BODY_LINE);
+    var bdE = el('div', 'sys-blast-err'); bdE.dataset.vk = 'body'; bdE.textContent = bodySays(cm.cover.body); box.appendChild(bdE);
+}
 var BODY_LINE = 'How much a character on the line between a roll and its target hides the target, from the two Sizes. A roll reads it, and a miss by no more than it hits that body. Empty: a body hides nothing.';
 function bodySays(v) { var SCb = window.wpSystemCore; return !v || !SCb || typeof SCb.cleanBodyCover !== 'function' || SCb.cleanBodyCover(v, F()) ? '' : 'Save drops it: it may read only the two Sizes, with no dice.'; }   // what Save does with it: '' where it keeps it
 function onBlastInput(t) {
@@ -10304,12 +10310,7 @@ function combatBody() {
     box.appendChild(labeledSelect('sys-combat-cover-style', 'Cover grades', [['graded', 'Graded — half / three-quarters / total'], ['binary', 'Simple — cover / none']], cm.cover.style === 'binary' ? 'binary' : 'graded', 'Graded uses the corner rule for d20-style tiers; Simple reports only whether there is cover (for systems that treat cover as one flat penalty or DR). The tier names are built in; custom thresholds come later.'));
     if (cm.cover.on) box.appendChild(labeledNum('sys-combat-cover-objects', 'Placed objects give cover, cells across', typeof cm.cover.objects === 'number' ? cm.cover.objects : '', 'A picture or a plain shape this many cells across or smaller gives cover you can see over with no setting of its own. Empty: only walls and pieces set to give cover count. A patterned floor, water and the like never count this way, and No cover in a piece\u2019s Properties turns one off.'));
     if (cm.cover.on) lineUnder(box, 'Empty for none. A larger picture stays part of the map.');
-    if (cm.cover.on) {   // 1.6.2: a body in the way, read from the two Sizes
-        var bdL = el('label', 'sys-combat-item'); bdL.appendChild(el('span', 'sys-num-cap', 'A body in the way hides'));
-        var bdI = input('sys-combat-cover-body field', typeof cm.cover.body === 'string' ? cm.cover.body : '', BODY_LINE, 'A formula'); bdI.dataset.vk = 'body'; bdL.appendChild(bdI); box.appendChild(bdL);
-        lineUnder(box, BODY_LINE);
-        var bdE = el('div', 'sys-blast-err'); bdE.dataset.vk = 'body'; bdE.textContent = bodySays(cm.cover.body); box.appendChild(bdE);
-    }
+    if (cm.cover.on && typeof bodyBox === 'function') bodyBox(box, cm);   // 1.6.2: a body in the way, read from the two Sizes
     if (cm.cover.on) box.appendChild(labeledSelect('sys-combat-height-rule', 'Height and cover', [['', 'Flat — height changes no cover'], ['clears', 'Height clears low cover — from above; from below it hides the target']], cm.height && typeof cm.height === 'object' && cm.height.rule === 'clears' ? 'clears' : '', 'With Token elevation on, looked at from higher than a see-over piece (a crate, a low wall), it gives no cover; from below the target it hides them (total cover). Walls block at any height. A piece\u2019s height is in its Properties; a see-over piece with none is 1 yard tall.'));   // item 19 H1 (the owner's answer: the handbook's rule, per system)
     if (cm.cover.on) lineUnder(box, 'This needs Token elevation on. A piece\u2019s height is in its Properties.');
     if (cm.cover.on) {   // cover follow-ups (owner 2026-09-28): what a full-auto blast does behind each grade

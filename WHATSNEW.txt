@@ -192,6 +192,10 @@ At the table
   roll cards, which are edged in its colour, and a player's own sheet text is
   set in their font.
   Personal looks is a VTT feature, on until the GM switches it off.
+- A list can say which rows may be thrown or placed, Thrown only where, so a
+  grenade kept in a pack cannot be thrown until it is taken out.
+- Noticing results are kept with a running fight, so reloading the GM's app
+  rolls none of them again.
 - An attack that lands as a Big Hit passes it on to the damage roll it calls
   for, which is then a Major Wound if any of it gets through, read as
   Blow.big. A Major Wound row's roll can leave out the hit's own effects too.

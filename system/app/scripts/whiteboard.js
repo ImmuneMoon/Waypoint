@@ -4575,6 +4575,8 @@ window.wpFitToGrid = fitToGrid;
   function throwPrep(opts, map) {
       var camp = getActiveCampaign(), sys = camp && camp.system, S = window.wpSystemCore, F = window.wpFormula, BC = window.wpBlastCore, rules = blastRules(sys), amP = getActiveMap(), onScreen = !!(amP && amP.id === map.id);
       var tr = opts.goOff ? null : throwRowOf(camp, opts), def = tr ? tr.def : null, area = def && def.area && typeof def.area === 'object' ? def.area : null;
+      var twF = tr && tr.f && tr.f.list && typeof tr.f.list.throwIf === 'string' ? tr.f.list.throwIf : '';   // 1.6.2 Thrown only where: judged on the host's own copy, a placed one as a thrown one
+      if (twF && S && F) { var twR = null; try { twR = S.makeResolver(sys, tr.ch, F); twR = twR && typeof twR.row === 'function' ? twR.row(tr.f.id, opts.rowId) : null; } catch (x) { twR = null; } if (typeof twR !== 'function' || !S.rollNeedsOk({ needs: twF }, twR, F)) return { stop: tr.f.list.throwSays || (opts.name || 'That') + ' cannot be thrown or placed now.' }; }
       if (area && area.place === true) return { mine: placeMine(opts, tr, map) };   // a mine is placed, never thrown
       var thrB = throwerOf(map, opts.charId), thrC = thrB ? tokenCentre(thrB) : null;
       var aimT = opts.goOff ? null : tokenAtPoint(map, opts.x, opts.y, true), aim = aimT ? tokenCentre(aimT) : { x: opts.x, y: opts.y };   // the aim: the character token clicked, else the point

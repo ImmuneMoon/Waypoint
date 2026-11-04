@@ -14269,6 +14269,27 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 S.dmgOnSelf({ dmg: true, each: 'turn' }) === true && S.dmgOnSelf({ dmg: true, each: 'round' }) === true && S.dmgOnSelf({ dmg: true, each: 'turnEnd' }) === true && S.dmgOnSelf({ dmg: true, cross: { f: 'f_x' } }) === true && S.dmgOnSelf({ dmg: true }, 'a_1') === true
                 && S.dmgOnSelf({ dmg: true }) === false && S.dmgOnSelf({ each: 'turn' }) === false && S.dmgOnSelf(null) === false && S.dmgOnSelf({ dmg: 1, each: 'turn' }) === false && S.dmgOnSelf({ dmg: true }, 7) === false, '');
         }
+        {   /* 1.6.2 Thrown only where (build 14: a row in storage can still be thrown, loaded, chambered or fitted): a list's throwIf and its words */
+            const mkT = (ti, ts) => ({ v: 1, name: 'T', rolls: [], fields: [{ id: 'f_sec', key: 'Sec', label: 'Sec', kind: 'number', def: 1, vis: 'gm' },
+                { id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: Object.assign({ stats: [{ key: 'where', label: 'Where' }] }, ti === undefined ? {} : { throwIf: ti }, ts === undefined ? {} : { throwSays: ts }) }],
+                items: [{ id: 'i_nade', name: 'Grenade', stats: { where: 1 }, area: { ft: 15, name: 'Boom' }, damage: '2d6' }] });
+            const tG = cleanSystem(mkT(' Row.where = 1 ', '  Not from the pack. '), { F, gmView: true }), tP = cleanSystem(mkT('Row.where = 1', 'Not from the pack.'), { F, gmView: false });
+            const tD = cleanSystem(mkT('1d6 > 3', 'x'), { F, gmView: true }), tSg = cleanSystem(mkT('Sec > 0', 'Hidden'), { F, gmView: true }), tSp = cleanSystem(mkT('Sec > 0', 'Hidden'), { F, gmView: false }), tN = cleanSystem(mkT(undefined, 'lonely'), { F, gmView: true });
+            const lG = tG.fields.find(x => x.id === 'f_g').list, lP = tP.fields.find(x => x.id === 'f_g').list;
+            check('1.6.2 the cleaner keeps Thrown only where and its words, the same in both views; one that rolls dice goes from both, one that reads a GM-only value stays for the GM who judges every throw and goes from the players\u2019 view with its words, and words with no formula go',
+                lG.throwIf === 'Row.where = 1' && lG.throwSays === 'Not from the pack.' && lP.throwIf === 'Row.where = 1' && lP.throwSays === 'Not from the pack.' && !('throwIf' in tD.fields.find(x => x.id === 'f_g').list) && tSg.fields.find(x => x.id === 'f_g').list.throwIf === 'Sec > 0' && !('throwIf' in tSp.fields.find(x => x.id === 'f_g').list) && !('throwSays' in tSp.fields.find(x => x.id === 'f_g').list) && !('throwSays' in tN.fields.find(x => x.id === 'f_g').list), j([lG, lP, tD.fields.find(x => x.id === 'f_g').list, tSg.fields.find(x => x.id === 'f_g').list, tSp.fields.find(x => x.id === 'f_g').list]));
+            const chT = { id: 'c_t', name: 'T', values: { f_g: [{ id: 'w_a', defId: 'i_nade', qty: 1 }, { id: 'w_b', defId: 'i_nade', qty: 1, ov: { stats: { where: 2 } } }] } };
+            const rT = resolveAll(tG, chT, F, null).f_g, rN = resolveAll(tN, chT, F, null).f_g;
+            check('1.6.2 each row is judged on its own names: the grenade in hand may be thrown, the one in the pack not; a list with none judges nothing',
+                rT.tw && rT.tw.w_a === true && rT.tw.w_b === false && !('tw' in rN), j([rT.tw]));
+            const vT = validateSystem(cleanSystem(mkT('Row.nope = 1'), { F, gmView: true }), F);
+            check('1.6.2 the validator reads it with the row\u2019s names', (vT.errors || []).concat(vT.warnings || []).some(e => /nope/i.test(e.message || '')), j(vT));
+            const wbT = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8'), shT = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
+            check('1.6.2 the host refuses a throw or a placing where it does not hold, before a mine is laid, in its words; the sheet greys Throw with those words first; the Lists tab has the box and its words',
+                wbT.includes("return { stop: tr.f.list.throwSays || (opts.name || 'That') + ' cannot be thrown or placed now.' }; }\n      if (area && area.place === true) return { mine: placeMine(opts, tr, map) };".replace(/\n/g, wbT.includes('\r\n') ? '\r\n' : '\n'))
+                && shT.includes("if (ok === false) { tb.disabled = true; tb.title = (f.list && f.list.throwSays) || (plc ? 'This cannot be placed now.' : 'This cannot be thrown now.'); }") && (shT.match(/itemThrowBtn\(def, c, f, rid, res && res\.tw \? res\.tw\[rid\] : undefined\)/g) || []).length === 2
+                && shT.includes("el('input', 'field sys-list-throwif')") && shT.includes("else if (c.indexOf('sys-list-throwif') >= 0) {"));
+        }
         {   /* 1.6.2 (asked by a system build): an Any wound row that also runs on a blow with no wound (any), and one whose roll reads the sheet as it stood at that row (asAt) */
             const mkY = ow => { const s = mkM(); s.combat.damage.onWound = ow; return cleanSystem(s, { F, gmView: true }); };
             const cY = mkY([{ fx: 'e_shock', any: true, asAt: true }, { roll: 'r_vit', any: 1, asAt: true }, { roll: 'r_vit', asAt: 'yes' }, { fx: 'e_shock' }]).combat.damage.onWound;

@@ -9631,22 +9631,17 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     fl.appendChild(checkLabel('sys-list-worklog', sp.workLog === true, 'Rows keep a work log', 'Each row keeps a log of the work done on it: a repair, a fit, a restyle or a build, its owner\u2019s own or hired. A fee is paid from the character\u2019s money where the sheet keeps money. You alone take a line off'));
     if (sp.on && (pbChoices.length || sp.sets)) { var stW = el('label', 'sys-check'), stS = el('select', 'sys-list-sets'), stO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; stW.appendChild(document.createTextNode('Sets by ')); stS.appendChild(stO('', 'None', !sp.sets)); pbChoices.forEach(function(s) { stS.appendChild(stO(s.key, s.label || s.key, !!sp.sets && String(sp.sets).toLowerCase() === s.key.toLowerCase())); }); stW.title = 'Rows whose stat names the same set are switched on together: the sheet shows each set with All on and All off, and Row.setall reads 1 while the whole set is on'; stW.appendChild(stS); fl.appendChild(stW); }   // 1.6.0, backlog 180 R15
     if (pbChoices.length || sp.placeBy) { var pbW = el('label', 'sys-check'), pbS = el('select', 'sys-list-placeby'), pbO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }; pbW.appendChild(document.createTextNode('Places split by ')); pbS.appendChild(pbO('', 'Category', !sp.placeBy)); pbChoices.forEach(function(s) { pbS.appendChild(pbO(s.key, s.label || s.key, !!sp.placeBy && String(sp.placeBy).toLowerCase() === s.key.toLowerCase())); }); pbW.title = 'A list placed in several places shows each place\u2019s rows by their category, or by a choice stat\u2019s value: a body slot, a container'; pbW.appendChild(pbS); fl.appendChild(pbW); }
-    if (pbChoices.length || sp.arc) {   // 1.6.2 (vehicles, fold (b)): Arcs by a choice stat, each value covering bearings from the facing
+    if (pbChoices.length || sp.arc) {   // 1.6.2 (vehicles, fold (b), rebuilt): Arcs by a choice stat, each value naming an arc of the Combat tab
         var arcSp = sp.arc && typeof sp.arc === 'object' ? sp.arc : {}, arcW = el('label', 'sys-check'), arcS = el('select', 'sys-list-arcby'), arcO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; }, arcHit = null;
         arcW.appendChild(document.createTextNode('Arcs by ')); arcS.appendChild(arcO('', 'Nothing', !arcSp.by));
         pbChoices.forEach(function(s) { if (s.vis === 'gm') return; var on = !!arcSp.by && String(arcSp.by).toLowerCase() === s.key.toLowerCase(); if (on) arcHit = s; arcS.appendChild(arcO(s.key, s.label || s.key, on)); });
         if (arcSp.by && !arcHit) arcS.appendChild(arcO(arcSp.by, arcSp.by + ' (not a choice stat of this list)', true));
-        arcW.title = 'A stat whose values are the arcs a row can reach, such as Mount: Front, Rear, Turret. Each value covers the bearings you set under it, from the token\u2019s facing. A roll\u2019s needs then read whether its target stands in that row\u2019s arc'; arcW.appendChild(arcS); fl.appendChild(arcW);
+        arcW.title = 'A stat whose values name the arcs a row can reach, such as Mount: Front, Rear, Turret. The arcs themselves are named on the Combat tab. A roll\u2019s needs then read whether its target stands in that row\u2019s arc'; arcW.appendChild(arcS); fl.appendChild(arcW);
         if (arcHit) {
-            var arcBox = el('div', 'sys-arcs'), arcVals = arcHit.kind === 'pick' ? (arcHit.opts || []).map(function(o) { return o && typeof o.label === 'string' ? o.label : ''; }) : (arcHit.labels || []).slice(), arcCv = Array.isArray(arcSp.cover) ? arcSp.cover : [];
-            arcBox.appendChild(el('div', 'sys-note', 'Each value covers the bearings from its From to its To, clockwise. 0 is straight ahead, 90 the right, 180 behind and -90 the left.'));
-            arcVals.forEach(function(nm) {
-                if (!nm) return; var cv = arcCv.filter(function(x) { return x && typeof x.v === 'string' && x.v.toLowerCase() === nm.toLowerCase(); })[0] || {}, row = el('div', 'sys-row sys-arc'); row.dataset.av = nm;
-                row.appendChild(el('span', 'sys-arc-name', nm));
-                [['sys-list-arcf', 'From', cv.f], ['sys-list-arct', 'To', cv.t]].forEach(function(p) { var w = el('label', 'sys-check'), i = el('input', 'field sys-num ' + p[0]); i.type = 'number'; i.min = '-180'; i.max = '180'; i.step = '1'; if (typeof p[2] === 'number') i.value = String(p[2]); i.disabled = cv.all === true; w.appendChild(document.createTextNode(p[1] + ' ')); w.appendChild(i); w.title = p[1] === 'From' ? 'Where the arc begins, in degrees from straight ahead' : 'Where the arc ends, clockwise from where it begins'; row.appendChild(w); });
-                row.appendChild(checkLabel('sys-list-arcall', cv.all === true, 'All round', 'This value reaches every bearing, as a turret does'));
-                arcBox.appendChild(row);
-            });
+            var arcBox = el('div', 'sys-arcs'), arcVals = arcHit.kind === 'pick' ? (arcHit.opts || []).map(function(o) { return o && typeof o.label === 'string' ? o.label : ''; }) : (arcHit.labels || []).slice(), arcNm = draft.combat && Array.isArray(draft.combat.arcs) ? draft.combat.arcs : [];
+            var arcFind = function(nm) { var l = nm.toLowerCase(); return arcNm.filter(function(a) { return a && typeof a.key === 'string' && a.key.toLowerCase() === l; })[0] || arcNm.filter(function(a) { return a && typeof a.label === 'string' && a.label.toLowerCase() === l; })[0] || null; };
+            arcBox.appendChild(el('div', 'sys-note', arcNm.length ? 'Each value reaches the arc of its own name, as the Combat tab sets them out under Arcs.' : 'Name the arcs on the Combat tab, under Arcs. Each value then reaches the arc of its own name.'));
+            arcVals.forEach(function(nm) { if (!nm) return; var a = arcFind(nm); arcBox.appendChild(el('div', 'sys-note sys-arc', nm + ': ' + (!a ? 'names no arc yet, so it reaches nowhere.' : a.all ? 'all round.' : 'the ' + a.label + ' arc, from ' + a.f + ' to ' + a.t + '.'))); });
             fl.appendChild(arcBox);
         }
     }
@@ -10457,6 +10452,7 @@ function combatBody() {
     turnBox(box, cm); tp('initiative');   // turn-based combat T1: the system's turn rules
     initBox(box, cm); tp('postures');   // initiative O2: how ties of initiative break
     postureBox(box, cm);   // conditions C3: the system's own postures
+    tp('arcs'); if (typeof arcsBox === 'function') arcsBox(box, cm);   // 1.6.2 (vehicles, fold (b), rebuilt): the system's own arcs
     if (window.wpSysUi) window.wpSysUi.combatDrawn(box);   // 1.6.2: into a pane a topic
 }
 // Initiative O2 (docs/TURN_ORDER_PLAN.md; the owner's note: 3d6 systems order by Basic Speed and roll only to settle ties, d20 systems roll and
@@ -11236,6 +11232,34 @@ function upkeepChange(lsc, t, c) {
 // is how a token stands with none set and takes neither. Every text lands as a value or a text node. Save cleans them; refreshErrors says what it would drop
 // [sinkcheck:posturebox-start]
 function postureDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); return Array.isArray(cm.postures) ? cm.postures : (cm.postures = []); }
+// 1.6.2 (vehicles, fold (b), rebuilt; the owner, by prompt: "Yes, rebuild arcs"): the Combat tab's Arcs, the system's own, each a name and a range of
+// whole degrees from a token's facing, clockwise, or all round; they may overlap. Its own listeners, so no handler of the tab reads them. A
+// new arc's short name follows its name until the editor is closed, and stays after, so a formula that reads it keeps it
+function arcsBox(box, cm) {
+    var wrap = el('div', 'sys-holds sys-arcsbox'), list = Array.isArray(cm.arcs) ? cm.arcs : null, SCa = window.wpSystemCore || {}, max = SCa.ARC_MAX || 32, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
+    var keyFor = function(a, lb) { var k = typeof SCa.arcKey === 'function' ? SCa.arcKey(lb) : '', base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    wrap.appendChild(el('div', 'sys-light-head', 'Arcs'));
+    wrap.appendChild(el('div', 'sys-note', 'Each covers the bearings from its From to its To, clockwise from straight ahead: 0 is ahead, 90 the right, 180 behind and -90 the left. Arcs may overlap. With none named, a token reads the front, side and rear its grid gives.'));
+    (list || []).forEach(function(a, i) {
+        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-arc-label field', a.label || '', 'Its name, such as Front or Turret', 'Front');
+        nm.addEventListener('input', function() { a.label = nm.value.slice(0, LIMITS.label); if (a._new || !a.key) a.key = keyFor(a, a.label); ch(); });
+        rw.appendChild(nm);
+        [['sys-arc-f', 'From', 'f', 'Where the arc begins, in degrees from straight ahead'], ['sys-arc-t', 'To', 't', 'Where the arc ends, clockwise from where it begins']].forEach(function(p) {
+            var w = el('label', 'sys-check'), ip = el('input', 'field sys-num ' + p[0]); ip.type = 'number'; ip.min = '-180'; ip.max = '180'; ip.step = '1'; if (typeof a[p[2]] === 'number') ip.value = String(a[p[2]]); ip.disabled = a.all === true;
+            ip.addEventListener('input', function() { var v = ip.value === '' ? NaN : Number(ip.value); if (isFinite(v)) a[p[2]] = Math.max(-180, Math.min(180, Math.round(v))); else delete a[p[2]]; ch(); });
+            w.appendChild(document.createTextNode(p[1] + ' ')); w.appendChild(ip); w.title = p[3]; rw.appendChild(w);
+        });
+        var al = checkLabel('sys-arc-all', a.all === true, 'All round', 'It holds every bearing, as a turret does'), alI = al.querySelector('input');
+        if (alI) alI.addEventListener('change', function() { if (alI.checked) a.all = true; else delete a.all; ch(true); });
+        rw.appendChild(al);
+        var rm = el('button', 'tool ghost sys-btn sys-arc-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this arc'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete cm.arcs; ch(true); }); rw.appendChild(rm);
+        wrap.appendChild(rw);
+    });
+    var add = el('button', 'tool ghost sys-btn sys-arc-add', '+ Arc'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'An arc a hit can come from or a gun can fire into';
+    add.addEventListener('click', function() { if (!Array.isArray(cm.arcs)) cm.arcs = []; list = cm.arcs; if (list.length >= max) return; list.push({ label: '', f: -60, t: 60, _new: true }); ch(true); });
+    var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
+    box.appendChild(wrap);
+}
 function postureBox(box, cm) {
     var arr = Array.isArray(cm.postures) ? cm.postures : [], wrap = el('div', 'sys-postures'), targets = fxTargets(draft);
     wrap.appendChild(el('div', 'sys-light-head', 'Postures'));
@@ -13457,8 +13481,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-partslabel') >= 0) { if (lsc.parts) { var plv = String(t.value || '').trim(); if (plv) lsc.parts.label = plv; else delete lsc.parts.label; } }
         else if (c.indexOf('sys-list-sets') >= 0) { if (t.value) lsc.sets = t.value; else delete lsc.sets; }   // 1.6.0 R15: Sets by
         else if (c.indexOf('sys-list-groupby') >= 0) { if (t.value) lsc.groupBy = t.value; else delete lsc.groupBy; }
-        else if (c.indexOf('sys-list-arcby') >= 0) { if (t.value) lsc.arc = Object.assign({ cover: [] }, lsc.arc && typeof lsc.arc === 'object' ? lsc.arc : {}, { by: t.value }); else delete lsc.arc; }   // 1.6.2 (vehicles, fold (b)): Arcs by
-        else if (c.indexOf('sys-list-arcf') >= 0 || c.indexOf('sys-list-arct') >= 0 || c.indexOf('sys-list-arcall') >= 0) { var arR = t.closest('.sys-arc'), arN = arR ? arR.dataset.av : ''; if (!arN || !lsc.arc || typeof lsc.arc !== 'object') return; if (!Array.isArray(lsc.arc.cover)) lsc.arc.cover = []; var arE = lsc.arc.cover.filter(function(x) { return x && typeof x.v === 'string' && x.v.toLowerCase() === arN.toLowerCase(); })[0]; if (!arE) { arE = { v: arN }; lsc.arc.cover.push(arE); } if (c.indexOf('sys-list-arcall') >= 0) { if (t.checked) arE.all = true; else delete arE.all; } else { var arK = c.indexOf('sys-list-arcf') >= 0 ? 'f' : 't', arV = t.value === '' ? NaN : Number(t.value); if (isFinite(arV)) arE[arK] = Math.max(-180, Math.min(180, Math.round(arV))); else delete arE[arK]; markDirty(); patchErrors(); return; } }
+        else if (c.indexOf('sys-list-arcby') >= 0) { if (t.value) lsc.arc = { by: t.value }; else delete lsc.arc; }   // 1.6.2 (vehicles, fold (b)): Arcs by
         else if (c.indexOf('sys-list-statown') >= 0) { var soR = t.closest('.sys-list-stat'), soD = soR && Array.isArray(lsc.stats) ? lsc.stats[+soR.dataset.si] : null; if (soD && typeof soD === 'object') { if (t.checked) soD.own = true; else delete soD.own; } }
         else if (c.indexOf('sys-list-placeby') >= 0) { if (t.value) lsc.placeBy = t.value; else delete lsc.placeBy; }   // 1.6.0 R13: the places' ticks are then the stat's value names
         else if (c.indexOf('sys-list-menus') >= 0) { if (t.checked) lsc.menus = true; else delete lsc.menus; }   // 1.6.0 R10

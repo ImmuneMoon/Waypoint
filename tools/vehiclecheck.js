@@ -228,69 +228,74 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
             && /window\.wpSheets\.tagsMoved\(map, item\.id\)/.test(ntS) && /window\.wpSheets\.tagsTurn\(mapId, row\.tokId\)/.test(ntS)
             && /'Ends out of sight'/.test(shJ) && /'sys-tag-keep field'/.test(shJ) && /Judged at the end of its holder/.test(shJ) && /'field sys-tag-fx'/.test(shJ) && /'Shake off: '/.test(shJ) && /'sys-tag-keep': 'cond'/.test(read('scripts/formbox.js')));
     }
-    /* ---- fold (b): left and right, and a row's arc ---- */
+    /* ---- fold (b), rebuilt: the system's own arcs, and a row's arc ---- */
     {
-        const ev = (txt, ro, sys) => { const r = F.evaluate(txt, { vars: S.makeResolver(sys || S.cleanSystem({ v: 1, name: 'A', fields: [] }, { F, gmView: true }), { id: 'c', values: {} }, F, ro) }); return r.ok ? r.value : 'err:' + (r.error && r.error.message); };
-        const fx = (sides, th) => ({ facing: { deg: 0, sides, threats: th } });
-        const pick = (sides, th) => ['Arc.front', 'Arc.side', 'Arc.left', 'Arc.right', 'Arc.rear'].map(n => ev(n + ' * 1', fx(sides, th)));
-        check('Arc.left and Arc.right split Arc.side, on six sides and on four: a hit from the front-right is still the front, one from the side is left or right, one from behind is neither',
-            J(pick(6, [120])) === J([0, 1, 0, 1, 0]) && J(pick(6, [-120])) === J([0, 1, 1, 0, 0]) && J(pick(6, [60])) === J([1, 0, 0, 0, 0]) && J(pick(6, [-60])) === J([1, 0, 0, 0, 0]) && J(pick(6, [180])) === J([0, 0, 0, 0, 1])
-            && J(pick(4, [90])) === J([0, 1, 0, 1, 0]) && J(pick(4, [-90])) === J([0, 1, 1, 0, 0]) && J(pick(4, [0])) === J([1, 0, 0, 0, 0]) && J(pick(4, [180])) === J([0, 0, 0, 0, 1])
-            && ev('Arc.left * 1', null) === 0 && ev('Arc.right * 1', null) === 0, J([pick(6, [120]), pick(6, [-120]), pick(4, [90]), pick(4, [-90])]));
-        check('the side is read from the facing, not the map: a token facing right reads a hit from above as its left',
-            J(['Arc.left', 'Arc.right'].map(n => ev(n + ' * 1', { facing: { deg: 90, sides: 6, threats: [0] } }))) === J([1, 0]) && J(['Arc.left', 'Arc.right'].map(n => ev(n + ' * 1', { facing: { deg: 90, sides: 4, threats: [180] } }))) === J([0, 1]));
-        check('Threats.left and Threats.right count the threats on each side, every threat counted once, and the facing names list them',
-            ev('Threats.left', fx(6, [120, -120, 0])) === 1 && ev('Threats.right', fx(6, [120, -120, 0])) === 1 && ev('Threats.left', fx(4, [-90, 90, 180])) === 1 && ev('Threats.side', fx(6, [120, -120])) === 2
-            && ['Arc.left', 'Arc.right', 'Threats.left', 'Threats.right'].every(n => S.FACING_NAMES.indexOf(n) >= 0) && S.TOKEN_NAMES.indexOf('Arc.left') >= 0);
-        check('a field named Arc keeps the whole family, Arc.left and Arc.right too', ev('Arc.left', fx(6, [-120]), S.cleanSystem({ v: 1, name: 'A', fields: [{ id: 'f_a', key: 'Arc', kind: 'number', def: 4 }] }, { F, gmView: true })).toString().indexOf('err:') === 0);
-        const ARAW = { v: 1, name: 'Guns', fields: [
+        const ARCS = [{ label: 'Front', f: -60, t: 60 }, { label: 'Right', f: 30, t: 150 }, { label: 'Rear', f: 120, t: -120 }, { label: 'Turret', all: true }, { key: 'Bow', label: 'Bow guns', f: -30, t: 30 },
+            { label: 'front', f: 0, t: 1 }, { label: '', f: 0, t: 9 }, { label: 'Ghost', f: 0 }, { label: '9 lives', f: 0, t: 9 }, { label: 'Wide', f: 999, t: -181 }, 'junk', null];
+        const ARAW = { v: 1, name: 'Guns', combat: { arcs: ARCS }, fields: [
             { id: 'f_hp', key: 'HP', label: 'Hull', kind: 'number', def: 10 },
             { id: 'f_gun', key: 'Guns', label: 'Guns', kind: 'item-list', list: {
-                stats: [{ key: 'Mount', label: 'Mount', kind: 'pick', opts: [{ label: 'Front', name: 'Front' }, { label: 'Right', name: 'Right' }, { label: 'Rear', name: 'Rear' }, { label: 'Turret', name: 'Turret' }, { label: 'Bow', name: 'Bow', was: ['Nose'] }] }, { key: 'Secret', label: 'Secret', kind: 'pick', vis: 'gm', opts: [{ label: 'A', name: 'A' }] }, { key: 'Facing', label: 'Facing', kind: 'number', labels: ['Ahead', 'Behind'] }],
-                arc: { by: 'mount', cover: [{ v: 'front', f: -60, t: 60 }, { v: 'Right', f: 30, t: 150 }, { v: 'Rear', f: 120, t: -120 }, { v: 'Turret', all: true }, { v: 'Nose', f: -30, t: 30 }, { v: 'Front', f: 0, t: 1 }, { v: 'Ghost', f: 0, t: 90 }, { v: 'Rear', f: 'x' }] },
+                stats: [{ key: 'Mount', label: 'Mount', kind: 'pick', opts: [{ label: 'Front', name: 'Front' }, { label: 'Left', name: 'Left' }, { label: 'Rear', name: 'Rear' }, { label: 'Turret', name: 'Turret' }, { label: 'Bow', name: 'Bow' }] }, { key: 'Secret', label: 'Secret', kind: 'pick', vis: 'gm', opts: [{ label: 'A', name: 'A' }] }],
+                arc: { by: 'mount', cover: [{ v: 'Front', f: 0, t: 1 }] },
                 rolls: [{ label: 'Fire', formula: '3d6 <= 12', needs: 'Target.inArc = 1' }] } },
-            { id: 'f_box', key: 'Box', label: 'Box', kind: 'item-list', list: { stats: [{ key: 'Secret', label: 'Secret', kind: 'pick', vis: 'gm', opts: [{ label: 'A', name: 'A' }] }, { key: 'Pos', label: 'Pos', kind: 'number', labels: ['Ahead', 'Behind'] }], arc: { by: 'Secret', cover: [{ v: 'A', all: true }] } } },
-            { id: 'f_bad', key: 'Bad', label: 'Bad', kind: 'formula', formula: 'Target.inArc' }],
-            items: [{ id: 'i_las', key: 'Laser', name: 'Laser', category: '', stats: { Mount: 'Front' } }, { id: 'i_tur', key: 'Turret', name: 'Turret gun', category: '', stats: { Mount: 'Turret' } }, { id: 'i_rr', key: 'Tail', name: 'Tail gun', category: '', stats: { Mount: 'Rear' } }, { id: 'i_bow', key: 'BowGun', name: 'Bow gun', category: '', stats: { Mount: 'Bow' } }, { id: 'i_none', key: 'Loose', name: 'Loose', category: '' }] };
+            { id: 'f_box', key: 'Box', label: 'Box', kind: 'item-list', list: { stats: [{ key: 'Secret', label: 'Secret', kind: 'pick', vis: 'gm', opts: [{ label: 'A', name: 'A' }] }], arc: { by: 'Secret' } } },
+            { id: 'f_bad', key: 'Bad', label: 'Bad', kind: 'formula', formula: 'Target.inArc' },
+            { id: 'f_tok', key: 'Tok', label: 'Tok', kind: 'formula', formula: 'Arc.Turret + Threats.Rear' },
+            { id: 'f_gh', key: 'Gh', label: 'Gh', kind: 'formula', formula: 'Arc.Ghost' }],
+            items: [{ id: 'i_las', key: 'Laser', name: 'Laser', category: '', stats: { Mount: 'Front' } }, { id: 'i_tur', key: 'Turret', name: 'Turret gun', category: '', stats: { Mount: 'Turret' } }, { id: 'i_rr', key: 'Tail', name: 'Tail gun', category: '', stats: { Mount: 'Rear' } }, { id: 'i_bow', key: 'BowGun', name: 'Bow gun', category: '', stats: { Mount: 'Bow' } }, { id: 'i_lft', key: 'Port', name: 'Port gun', category: '', stats: { Mount: 'Left' } }, { id: 'i_none', key: 'Loose', name: 'Loose', category: '' }] };
         const AS = S.cleanSystem(ARAW, { F, gmView: true }), AV = S.cleanSystem(ARAW, { F, gmView: false }), gl = s => s.fields.find(f => f.id === 'f_gun').list;
-        const wantArc = { by: 'Mount', cover: [{ v: 'Front', f: -60, t: 60 }, { v: 'Right', f: 30, t: 150 }, { v: 'Rear', f: 120, t: -120 }, { v: 'Turret', all: true }, { v: 'Bow', f: -30, t: 30 }] };
-        check('Arcs by is kept by the stat’s own spelling and each value by its own name or a name it had before, once, with whole degrees or all round, the same in both views; a value the stat has not, one given twice and one with no To go',
-            J(gl(AS).arc) === J(wantArc) && J(gl(AV).arc) === J(wantArc), J([gl(AS).arc, gl(AV).arc]));
-        check('Arcs by is never a GM-only stat, a set of places or a stat with no values, and a list that names none has no key',
-            !('arc' in (AS.fields.find(f => f.id === 'f_box').list || {})) && !('arc' in (S.cleanSystem({ v: 1, name: 'B', fields: [{ id: 'f_x', key: 'X', kind: 'item-list', list: { stats: [{ key: 'N', label: 'N', kind: 'number' }], arc: { by: 'N', cover: [] } } }] }, { F, gmView: true }).fields[0].list || {}))
-            && !('arc' in (S.cleanSystem({ v: 1, name: 'B', fields: [{ id: 'f_x', key: 'X', kind: 'item-list', list: {} }] }, { F, gmView: true }).fields[0].list || {}))
-            && J(S.cleanArc({ by: 'Pos', cover: [{ v: 'behind', f: 999, t: -181 }] }, [{ key: 'Pos', kind: 'number', labels: ['Ahead', 'Behind'] }])) === J({ by: 'Pos', cover: [{ v: 'Behind', f: -81, t: 179 }] }));
+        const wantArcs = [{ key: 'Front', label: 'Front', f: -60, t: 60 }, { key: 'Right', label: 'Right', f: 30, t: 150 }, { key: 'Rear', label: 'Rear', f: 120, t: -120 }, { key: 'Turret', label: 'Turret', all: true }, { key: 'Bow', label: 'Bow guns', f: -30, t: 30 }, { key: 'Wide', label: 'Wide', f: -81, t: 179 }];
+        check('the system names its own arcs, each a name and whole degrees or all round, a short name made from its name where none is given, the same in both views; one with no name, no To, a short name taken or one that cannot begin with a letter goes',
+            J(AS.combat.arcs) === J(wantArcs) && J(AV.combat.arcs) === J(wantArcs) && !('arcs' in S.cleanSystem({ v: 1, name: 'B', fields: [] }, { F, gmView: true }).combat) && S.cleanArcs([]) === null && S.cleanArcs('x') === null
+            && S.cleanArcs(Array.from({ length: 50 }, (_, i) => ({ label: 'A' + i, all: true }))).length === S.ARC_MAX && S.arcKey('bow guns') === 'bowGuns' && S.arcKey('9 lives') === '', J([AS.combat.arcs]));
+        check('an arc is found by its short name, else by its name, either ignoring case', S.arcNamed(AS.combat.arcs, 'bow').label === 'Bow guns' && S.arcNamed(AS.combat.arcs, 'BOW GUNS').key === 'Bow' && S.arcNamed(AS.combat.arcs, 'Nose') === null && S.arcNamed(null, 'Front') === null);
+        const ev = (txt, ro, sys) => { const r = F.evaluate(txt, { vars: S.makeResolver(sys || AS, { id: 'c', values: {} }, F, ro) }); return r.ok ? r.value : 'err:' + (r.error && r.error.message || ''); };
+        const fx = (deg, th, sides) => ({ facing: { deg, sides: sides || 6, threats: th } });
+        const pick = (deg, th) => ['Arc.Front', 'Arc.Right', 'Arc.Rear', 'Arc.Turret', 'Arc.Bow'].map(n => ev(n + ' * 1', fx(deg, th)));
+        check('Arc.<name> reads 1 where the hit comes from inside that arc, read from the token\u2019s own facing, and arcs that overlap both read it',
+            J(pick(0, [120])) === J([0, 1, 1, 1, 0]) && J(pick(0, [0])) === J([1, 0, 0, 1, 1]) && J(pick(0, [180])) === J([0, 0, 1, 1, 0]) && J(pick(90, [0])) === J([0, 0, 0, 1, 0]) && J(pick(90, [180])) === J([0, 1, 0, 1, 0]) && J(pick(0, [])) === J([1, 0, 0, 1, 1]), J([pick(0, [120]), pick(90, [0]), pick(90, [180])]));
+        check('Threats.<name> counts the threats in that arc, each threat in every arc that holds it', ev('Threats.Right', fx(0, [120, 60])) === 2 && ev('Threats.Front', fx(0, [120, 60])) === 1 && ev('Threats.Rear', fx(0, [120, 60])) === 1 && ev('Threats.Turret', fx(0, [120, 60, 0])) === 3 && ev('Threats.Front', fx(0, [])) === 0);
+        const SF = S.cleanSystem({ v: 1, name: 'F', combat: { arcs: [{ label: 'front', f: -30, t: 30 }] }, fields: [] }, { F, gmView: true }), S0 = S.cleanSystem({ v: 1, name: 'Z', fields: [] }, { F, gmView: true });
+        check('with no arcs named a token reads the front, side and rear its grid gives, as before; an arc of the system named front wins over that one; left and right are no names of their own',
+            ev('Arc.front * 1', fx(0, [60]), S0) === 1 && ev('Arc.front * 1', fx(0, [60]), SF) === 0 && ev('Arc.side * 1', fx(0, [120]), S0) === 1 && String(ev('Arc.left', fx(0, [-120]), S0)).indexOf('err:') === 0 && String(ev('Threats.right', fx(0, [120]), S0)).indexOf('err:') === 0
+            && S.FACING_NAMES.indexOf('Arc.left') < 0 && S.FACING_NAMES.indexOf('Threats.right') < 0 && J(S.FACING_NAMES) === J(['Facing', 'Arc', 'Arc.front', 'Arc.side', 'Arc.rear', 'Threats', 'Threats.front', 'Threats.side', 'Threats.rear']));
+        check('a field named Arc keeps the whole family, the system\u2019s own arcs too', String(ev('Arc.Turret', fx(0, [0]), S.cleanSystem({ v: 1, name: 'A', combat: { arcs: [{ label: 'Turret', all: true }] }, fields: [{ id: 'f_a', key: 'Arc', kind: 'number', def: 4 }] }, { F, gmView: true }))).indexOf('err:') === 0);
+        check('Arcs by keeps the stat alone, by its own spelling, the same in both views; never a GM-only stat, and a list that names none has no key',
+            J(gl(AS).arc) === J({ by: 'Mount' }) && J(gl(AV).arc) === J({ by: 'Mount' }) && !('arc' in (AS.fields.find(f => f.id === 'f_box').list || {}))
+            && !('arc' in (S.cleanSystem({ v: 1, name: 'B', fields: [{ id: 'f_x', key: 'X', kind: 'item-list', list: {} }] }, { F, gmView: true }).fields[0].list || {})) && J(S.cleanArc({ by: 'pos' }, [{ key: 'Pos', kind: 'number', labels: ['Ahead'] }])) === J({ by: 'Pos' }));
         check('an arc holds a bearing from its From clockwise to its To, both ends in, across the turn of the compass; All round holds every bearing; anything else holds none',
             [0, 60, -60].every(b => S.arcHolds({ f: -60, t: 60 }, b)) && ![61, -61, 180].some(b => S.arcHolds({ f: -60, t: 60 }, b)) && [120, 180, -120, -150].every(b => S.arcHolds({ f: 120, t: -120 }, b)) && !S.arcHolds({ f: 120, t: -120 }, 90)
             && S.arcHolds({ all: true }, 37) && S.arcHolds({ f: 10, t: 10 }, 10) && !S.arcHolds({ f: 10, t: 10 }, 11) && !S.arcHolds({ f: 0, t: 90 }, NaN) && !S.arcHolds(null, 0));
         const mapH = { id: 'm1', meta: { gridType: 'hex' }, whiteboard: [] }, ship = { id: 't_s', x: 0, y: 0, w: 60, h: 52, rot: 0 }, east = { id: 't_e', x: 300, y: 0, w: 60, h: 52 }, north = { id: 't_n', x: 0, y: -300, w: 60, h: 52 }, south = { id: 't_x', x: 0, y: 300, w: 60, h: 52 };
         const rcE = S.rangeCtx(AS, mapH, ship, east, { F }), rcN = S.rangeCtx(AS, mapH, ship, north, { F }), rcTurn = S.rangeCtx(AS, mapH, Object.assign({}, ship, { rot: 60, front: 30 }), east, { F }), rcS = S.rangeCtx(AS, mapH, ship, south, { F });
-        check('the range carries the target’s bearing from the roller’s facing, turned with its token and its front, and withRange hands it on; a system whose rows say no arc carries none, so every other range is as before',
-            rcE.rb === 90 && rcN.rb === 0 && rcTurn.rb === 0 && rcS.rb === 180 && S.withRange({}, rcE).range.rb === 90 && !('rb' in S.rangeCtx(S.cleanSystem({ v: 1, name: 'B', fields: [] }, { F, gmView: true }), mapH, ship, east, { F })), J([rcE, rcN, rcTurn, rcS]));
-        const ch = { id: 'c_s', name: 'Skiff', values: { f_gun: [{ id: 'w_l', defId: 'i_las', qty: 1 }, { id: 'w_t', defId: 'i_tur', qty: 1 }, { id: 'w_r', defId: 'i_rr', qty: 1 }, { id: 'w_b', defId: 'i_bow', qty: 1 }, { id: 'w_n', defId: 'i_none', qty: 1 }] } };
+        check('the range carries the target\u2019s bearing from the roller\u2019s facing, turned with its token and its front, and withRange hands it on; a system whose rows say no arc carries none, so every other range is as before',
+            rcE.rb === 90 && rcN.rb === 0 && rcTurn.rb === 0 && rcS.rb === 180 && S.withRange({}, rcE).range.rb === 90 && !('rb' in S.rangeCtx(S0, mapH, ship, east, { F })), J([rcE, rcN, rcTurn, rcS]));
+        const ch = { id: 'c_s', name: 'Skiff', values: { f_gun: [{ id: 'w_l', defId: 'i_las', qty: 1 }, { id: 'w_t', defId: 'i_tur', qty: 1 }, { id: 'w_r', defId: 'i_rr', qty: 1 }, { id: 'w_b', defId: 'i_bow', qty: 1 }, { id: 'w_p', defId: 'i_lft', qty: 1 }, { id: 'w_n', defId: 'i_none', qty: 1 }] } };
         const inArc = (rc, row) => { const fn = S.makeResolver(AS, ch, F, rc ? S.withRange({}, rc) : {}); const rv = fn.row('f_gun', row); const r = F.evaluate('Target.inArc', { vars: rv }); return [r.ok ? r.value : 'err', fn.rangeRead && fn.rangeRead()]; };
-        check('Target.inArc reads 1 where the target stands in that row’s arc, 0 where it does not, for a row with no value and with no target, and it counts as reading the range',
+        check('Target.inArc reads 1 where the target stands in the arc the row\u2019s value names, by the arc\u2019s short name or its name, 0 where it does not, for a value that names no arc, a row with no value and with no target, and it counts as reading the range',
             J(inArc(rcN, 'w_l')) === J([1, true]) && J(inArc(rcE, 'w_l')) === J([0, true]) && J(inArc(rcE, 'w_t')) === J([1, true]) && J(inArc(rcS, 'w_r')) === J([1, true]) && J(inArc(rcN, 'w_r')) === J([0, true])
-            && J(inArc(rcN, 'w_b')) === J([1, true]) && J(inArc(rcE, 'w_b')) === J([0, true]) && inArc(rcN, 'w_n')[0] === 0 && inArc(null, 'w_t')[0] === 0 && inArc(rcTurn, 'w_l')[0] === 1, J([inArc(rcN, 'w_l'), inArc(rcE, 'w_l'), inArc(rcE, 'w_t'), inArc(rcS, 'w_r'), inArc(null, 'w_t')]));
+            && J(inArc(rcN, 'w_b')) === J([1, true]) && J(inArc(rcE, 'w_b')) === J([0, true]) && inArc(rcN, 'w_p')[0] === 0 && inArc(rcN, 'w_n')[0] === 0 && inArc(null, 'w_t')[0] === 0 && inArc(rcTurn, 'w_l')[0] === 1, J([inArc(rcN, 'w_l'), inArc(rcE, 'w_l'), inArc(rcE, 'w_t'), inArc(rcS, 'w_r'), inArc(rcN, 'w_b')]));
         const resA = S.resolveAll(AS, ch, F, S.withRange({}, rcE)), resN = S.resolveAll(AS, ch, F, S.withRange({}, rcN)), rnOf = (res, row) => { const rn = res.f_gun && res.f_gun.rn; return rn && rn[row] ? rn[row] : null; };
-        check('a roll’s needs read it, so the sheet greys a gun whose target is out of its arc and leaves one in arc to press', J(rnOf(resA, 'w_l')) !== J(rnOf(resN, 'w_l')) && J(rnOf(resA, 'w_t')) === J(rnOf(resN, 'w_t')), J([rnOf(resA, 'w_l'), rnOf(resN, 'w_l'), rnOf(resA, 'w_t')]));
+        check('a roll\u2019s needs read it, so the sheet greys a gun whose target is out of its arc and leaves one in arc to press', J(rnOf(resA, 'w_l')) !== J(rnOf(resN, 'w_l')) && J(rnOf(resA, 'w_t')) === J(rnOf(resN, 'w_t')), J([rnOf(resA, 'w_l'), rnOf(resN, 'w_l')]));
         const vr = S.validateSystem(AS, F), vBad = vr.errors.filter(e => e.id === 'f_bad').map(e => e.message).join('|');
-        check('the validator knows Target.inArc in a list’s own formulas where the list says its rows’ arcs, and says where it is known anywhere else',
-            !vr.errors.some(e => e.id === 'f_gun') && /known only in a list whose rows say their arc/.test(vBad) && S.nameWord(AS, 'Target.inArc') === 'whether the target stands in this row’s arc', J(vr.errors));
-        const rdA = S.readsOf(AS, { list: gl(AS) }), rdB = S.readsOf(AS, {});
-        check('the boxes of such a list offer it under Its arc, and no other box does', rdA.some(g => g.name === 'Its arc') && !rdB.some(g => g.name === 'Its arc'));
+        check('the validator knows Target.inArc in a list\u2019s own formulas where the list says its rows\u2019 arcs, and knows Arc.<name> and Threats.<name> for every arc the system names and no other',
+            !vr.errors.some(e => e.id === 'f_gun' || e.id === 'f_tok') && /known only in a list whose rows say their arc/.test(vBad) && vr.errors.some(e => e.id === 'f_gh') && S.nameWord(AS, 'Target.inArc') === 'whether the target stands in this row\u2019s arc'
+            && S.nameWord(AS, 'Arc.Bow') === 'whether it is attacked from its Bow guns arc' && S.nameWord(AS, 'Threats.Rear') === 'the threats in its Rear arc', J(vr.errors));
+        const rdA = S.readsOf(AS, { list: gl(AS) }), rdB = S.readsOf(AS, {}), tokG = rdB.find(g => g.name === 'This token'), tokS = tokG ? tokG.items.map(x => x.s) : [];
+        check('the boxes of such a list offer Target.inArc under Its arc, and every box offers the system\u2019s own arcs under This token', rdA.some(g => g.name === 'Its arc') && !rdB.some(g => g.name === 'Its arc') && ['Arc.Front', 'Arc.Turret', 'Arc.Bow', 'Threats.Turret', 'Threats.Wide'].every(n => tokS.indexOf(n) >= 0), J(tokS));
         const shA = read('scripts/sheets.js'), uiA = read('scripts/sysui.js');
-        check('the Lists tab has Arcs by and a row for each of its values, with From, To and All round, each kept in the list’s draft, and the layout names them so none falls to More',
-            /el\('select', 'sys-list-arcby'\)/.test(shA) && /'field sys-num ' \+ p\[0\]/.test(shA) && /checkLabel\('sys-list-arcall'/.test(shA) && /c\.indexOf\('sys-list-arcby'\) >= 0\) \{ if \(t\.value\) lsc\.arc = /.test(shA) && /arE\[arK\] = Math\.max\(-180, Math\.min\(180/.test(shA)
-            && /\['arcs', 'Arcs', 0, \['sys-list-arcby', 'sys-arcs'\]\]/.test(uiA));
+        check('the Combat tab has Arcs, its own listeners and its short name made once, and the Lists tab\u2019s Arcs by says which arc each value reaches, with no degrees of its own; the layout names them so none falls to More',
+            /\n    tp\('arcs'\); if \(typeof arcsBox === 'function'\) arcsBox\(box, cm\);/.test(shA) && /^function arcsBox\(box, cm\) \{/m.test(shA) && /input\('sys-arc-label field'/.test(shA) && /checkLabel\('sys-arc-all'/.test(shA) && /'tool ghost sys-btn sys-arc-add', '\+ Arc'/.test(shA) && /if \(a\._new \|\| !a\.key\) a\.key = keyFor\(a, a\.label\)/.test(shA)
+            && /names no arc yet, so it reaches nowhere/.test(shA) && !/sys-list-arcf|sys-list-arcall/.test(shA) && /if \(t\.value\) lsc\.arc = \{ by: t\.value \}; else delete lsc\.arc;/.test(shA)
+            && /\['arcs', 'Arcs', 0, \['sys-list-arcby', 'sys-arcs'\]\]/.test(uiA) && /\['arcs', 'Arcs', 'The arcs a hit can come from, and a gun can fire into\.'\]\]/.test(uiA));
     }
     /* ---- the words ---- */
     const help = read('index.html');
     check('Help says Rows are sheets, in plain words', /<b>Rows are sheets<\/b>/.test(help) && /Make a new sheet/.test(help));
     check('Help says what a mark is, in plain words', /<b>Marks<\/b>/.test(help) && /dashed line/.test(help));
     check('Help says what else ends a mark and what Shake off does', /<b>Ends out of sight<\/b>/.test(help) && /<b>Kept while<\/b>/.test(help) && /<b>Shake off<\/b>/.test(help));
-    check('Help says Arcs by and the left and right sides, in plain words', /<b>Arcs by<\/b> names a choice stat/.test(help) && /<b>All round<\/b> covers every bearing/.test(help) && /<b>Arc\.left<\/b> and <b>Arc\.right<\/b> split the side/.test(help));
-    check('both release notes say it', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A side hit now reads as the left or the right/.test(readRoot(p)) && /Rows are sheets/.test(readRoot(p)) && /A token can hold a mark on another/.test(readRoot(p)) && /A mark can end by itself/.test(readRoot(p))));
+    check('Help says the system\u2019s own arcs and Arcs by, in plain words', /<b>Arcs<\/b> on the Combat tab names the arcs/.test(help) && /<b>Arcs by<\/b> names a choice stat/.test(help) && !/Arc\.left/.test(help));
+    check('both release notes say it', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A system can now name its own arcs/.test(readRoot(p)) && /Rows are sheets/.test(readRoot(p)) && /A token can hold a mark on another/.test(readRoot(p)) && /A mark can end by itself/.test(readRoot(p))));
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never finished'); process.exitCode = 1; } });

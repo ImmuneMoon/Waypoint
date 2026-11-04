@@ -193,6 +193,7 @@ var GROUPS = {
     effects: { split: ['sys-row-main', 'sys-flags'], head: ['sys-fx-icon', 'sys-glyph-btn', 'sys-fx-name', 'sys-fx-tone', 'sys-btns'], list: [
         ['changes', 'What it changes', 1, ['sys-fx-target', 'act:fxmodadd']],
         ['time', 'How long it lasts', 1, ['sys-fx-dur', 'sys-fx-agbox', 'sys-fx-endsbox', 'sys-fx-egbox', 'sys-fx-autorow']],
+        ['val', 'Its number', 0, ['sys-fxv-box']],
         ['who', 'Who sees it', 1, ['sys-fx-vis', 'sys-fx-notes']],
         ['posture', 'Posture', 0, ['sys-fx-posture', 'sys-fx-postureback', 'sys-fx-keepbox']],
         ['sw', 'Roll bonuses', 0, ['sys-sw-box']]] }

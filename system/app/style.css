@@ -4058,7 +4058,11 @@
   .sheet-trk-rim { fill: none; stroke: #6b6658; stroke-width: 1.6; }
   .sheet-trk-wedge { fill: transparent; stroke: #6b6658; stroke-width: 1.2; }
   .sheet-trk-wedge.on { fill: var(--trk); stroke: var(--bg, #15171c); }
-  .sheet-trk-words { font-size: 12px; color: var(--dim); }   /* item 35, fold 1d: a row's note in the text box */
+  .sheet-trk-words { font-size: 12px; color: var(--dim); }
+  /* 1.6.2: an effect's number, beside its name */
+  .sheet-fx-val { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; }
+  .sheet-fx-valn { min-width: 16px; text-align: center; font-weight: 600; color: var(--gold); }
+  .sheet-fx-valpm { padding: 0 5px; min-width: 18px; line-height: 16px; }   /* item 35, fold 1d: a row's note in the text box */
   .sheet-fx .sheet-box.sheet-fx-name { flex: 1 1 8em; min-width: 6em; }
   /* Stage 6 F4c1: a list's stats on a row (chips On the row, the notes line), what one cost (the GM's box, the owner's chip), the Lists card's stats, the Items tab's boxes */
   .sheet-chip.sheet-item-stat { white-space: nowrap; font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; }

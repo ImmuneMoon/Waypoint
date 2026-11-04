@@ -4673,12 +4673,13 @@ function effectsInto(wrap, f, c, rows, sys, editable, edit) {   // edit (the she
         line.appendChild(sw);
         if (d.icon) line.appendChild(iconNode(d.icon, 'sheet-fx-icon'));
         var nm = typeof fxNameNode === 'function' ? fxNameNode(c, f, r, d, mk) : el('span', 'sheet-fx-name', d.name || 'Effect'); if (d.notes) nm.title = d.notes; line.appendChild(nm);
+        var fvN = typeof fxValNode === 'function' ? fxValNode(c, f, r, d, editable) : null; if (fvN) line.appendChild(fvN);   // 1.6.2: its number
         if (d.tone === 'buff' || d.tone === 'debuff') line.appendChild(el('span', 'sheet-fx-tone', d.tone === 'buff' ? 'Buff' : 'Debuff'));
         if (d.dur) line.appendChild(el('span', 'sheet-fx-dur', d.dur));
         if (r.t) line.appendChild(fxLeftChip(r.t, sys));   // T5a
         var tcL = fxTimerCtl(r, d, f, c, sys, editable); if (tcL) line.appendChild(tcL);   // T5b
         if (editable) { var rm = el('button', 'tool ghost sheet-pm sheet-fx-rm', '\u00d7'); rm.title = 'End this effect'; rm.addEventListener('click', function() { commitEffect(c, f, { op: 'remove', rowId: r.id }); }); line.appendChild(rm); }
-        var mods = (d.mods || []).map(function(m) { return fxChangeText(m, labels); }); if (mods.length) line.appendChild(el('div', 'sheet-fx-mods', mods.join(' \u00b7 ')));
+        var mods = (d.mods || []).map(function(m) { return fxChangeText(m, labels) + (m && m.perVal === true && typeof r.v === 'number' ? ' \u00d7 ' + r.v : ''); });   // 1.6.2: a change Times its number if (mods.length) line.appendChild(el('div', 'sheet-fx-mods', mods.join(' \u00b7 ')));
         wrap.appendChild(line);
     });
     autoFxInto(wrap, f, c, rows, sys, labels);
@@ -4705,6 +4706,7 @@ function fxCard(line, sw, r, d, f, c, labels, editable, sys, mk) {   // sys (T5a
     var head = el('div', 'sheet-fx-head'); head.appendChild(sw);
     if (d.icon) head.appendChild(iconNode(d.icon, 'sheet-fx-icon'));
     head.appendChild(typeof fxNameNode === 'function' ? fxNameNode(c, f, r, d, mk) : el('span', 'sheet-fx-name', d.name || 'Effect'));
+    var fvC = typeof fxValNode === 'function' ? fxValNode(c, f, r, d, editable) : null; if (fvC) head.appendChild(fvC);   // 1.6.2: its number
     var meta = el('span', 'sheet-fx-meta');
     if (d.tone === 'buff' || d.tone === 'debuff') meta.appendChild(el('span', 'sheet-fx-tone', d.tone === 'buff' ? 'Buff' : 'Debuff'));
     if (d.dur) { var du = el('span', 'sheet-fx-dur'); du.appendChild(iconNode('icon:hourglass-half', 'sheet-fx-durico')); du.appendChild(document.createTextNode(' ' + d.dur)); meta.appendChild(du); }
@@ -4717,6 +4719,18 @@ function fxCard(line, sw, r, d, f, c, labels, editable, sys, mk) {   // sys (T5a
     if (mods.length) { var pills = el('div', 'sheet-fx-pills'); mods.forEach(function(m) { pills.appendChild(el('span', 'sheet-fx-mod ' + (m.op === 'on' ? 'sheet-fx-mod-on' : m.v >= 0 ? 'sheet-fx-mod-pos' : 'sheet-fx-mod-neg'), fxPillText(m, labels))); }); line.appendChild(pills); }
     if (editable) { var rm = el('button', 'tool ghost sheet-pm sheet-fx-rm sheet-fx-x', '\u00d7'); rm.title = 'End this effect'; rm.addEventListener('click', function() { commitEffect(c, f, { op: 'remove', rowId: r.id }); }); line.appendChild(rm); }
     return line;
+}
+// 1.6.2, effects with a value: the number an effect holds, beside its name, with − and + where the list may be changed in play (as the effects list
+// allows; at 0 the effect ends). Its tooltip says how it falls. Text and buttons only
+function fxValNode(c, f, r, d, editable) {
+    if (!r || typeof r.v !== 'number' || !isFinite(r.v)) return null;
+    var w = el('span', 'sheet-fx-val'), dv = d && d.val && typeof d.val === 'object' ? d.val : null;
+    var falls = dv && dv.by ? 'It falls by ' + dv.by + (dv.each === 'turn' ? ' each turn of its character' : dv.each === 'minute' ? ' each game minute' : ' each game hour') + '. ' : '';
+    var put = function(n) { commitEffect(c, f, { op: 'val', rowId: r.id, v: n }); };
+    if (editable) { var mn = el('button', 'tool ghost sheet-pm sheet-fx-valpm', '−'); mn.type = 'button'; mn.title = r.v <= 1 ? 'One less: at 0 the effect ends' : 'One less'; mn.addEventListener('click', function() { put(r.v - 1); }); w.appendChild(mn); }
+    var nb = el('span', 'sheet-fx-valn', String(r.v)); nb.title = (d && d.name ? d.name + ' ' : '') + r.v + '. ' + falls + 'At 0 the effect ends.'; w.appendChild(nb);
+    if (editable) { var pl = el('button', 'tool ghost sheet-pm sheet-fx-valpm', '+'); pl.type = 'button'; pl.title = 'One more'; pl.addEventListener('click', function() { put(r.v + 1); }); w.appendChild(pl); }
+    return w;
 }
 // item 35, fold 1d: an effect's name; one made on the spot is a text box where the sheet may be changed, else read with its look
 function fxNameNode(c, f, r, d, mk) {
@@ -8777,6 +8791,8 @@ function markOpts(ch) {
     if (!f || f.kind !== 'number' || !f.track || f.track.each !== true) return [];
     return [['mark', 'Mark box'], ['up', 'Mark box, or the next free one up'], ['clear', 'Clear box']];
 }
+// 1.6.2: whether a library effect of the draft holds a number
+function fxHolds(id) { return (draft && Array.isArray(draft.effects) ? draft.effects : []).some(function(d) { return d && d.id === id && !!d.val; }); }
 function markVal(ch) { return ch.mark === 'up' ? 'up' : ch.mark === 'off' ? 'clear' : 'mark'; }
 function fieldRow(f) {
     var row = el('div', 'sys-row'); row.dataset.id = f.id;
@@ -8917,6 +8933,7 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
         var fm = input('sys-apply-formula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount, worked out when pressed: no dice unless Rolled is ticked (3, FPCost, max(0, Incoming - DR)); below 0 counts as 0', 'Amount'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
         var rlL = el('label', 'sys-hover'), rlC = el('input'); rlC.type = 'checkbox'; rlC.className = 'sys-apply-rolled'; rlC.checked = ch.roll === true; rlL.appendChild(rlC); rlL.appendChild(el('span', null, ' Rolled')); rlL.title = 'Rolled: the amount may roll dice, such as 1d6. The host rolls it each time, and the card shows the dice'; rw.appendChild(rlL);   // 1.5.9 (book es/et plan, section 0)
         }
+        if (typeof ch.fx === 'string' && ch.on !== false && typeof fxHolds === 'function' && fxHolds(ch.fx)) { var fxnI = input('sys-apply-fxn field', typeof ch.n === 'string' ? ch.n : '', 'The number the effect goes on with, as Bleeding 3. Empty: its own start. Added again while it is on, the effect\u2019s rule says what happens', 'With number'); fxnI.maxLength = LIMITS.formula; rw.appendChild(fxnI); }   // 1.6.2: an effect that holds a number
         [['applyup', '\u25b2', 'Move up'], ['applydown', '\u25bc', 'Move down'], ['applydel', '\u00d7', 'Remove this change']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
         box.appendChild(rw);
     });
@@ -9054,7 +9071,9 @@ function effectRow(d) {
         ln.appendChild((typeof lazySelect === 'function' ? lazySelect : select)('sys-fx-target', opts, val, 'What this change affects'));
         if (val.slice(-4) === '|row') rowAimInto(ln, draft, m, 'sys-fx-', mi);   // 1.5.8
         if (m.op !== 'on') { ln.appendChild(modHowSel('sys-fx-how', m.op)); var am = numInput('sys-fx-amt', m.v, 'How much it adds (negative to take away), or the figure it holds the value at'); am.step = 'any'; ln.appendChild(am);
-            var amF = input('sys-fx-amtf field', typeof m.vf === 'string' ? m.vf : '', 'By a formula, in place of the number: the amount it adds or holds the value at, worked out for each character, such as -max(0, -MP) for 1 off each MP below 0. It reads the sheet with no effect applied, rolls no dice, and may not read a GM-only value', 'or by a formula'); amF.maxLength = LIMITS.formula; ln.appendChild(amF); if (typeof m.vf === 'string' && m.vf.trim()) am.disabled = true; }   // 1.6.0: Adds, At least or At most; CORE gap 12: by a formula
+            var amF = input('sys-fx-amtf field', typeof m.vf === 'string' ? m.vf : '', 'By a formula, in place of the number: the amount it adds or holds the value at, worked out for each character, such as -max(0, -MP) for 1 off each MP below 0. It reads the sheet with no effect applied, rolls no dice, and may not read a GM-only value', 'or by a formula'); amF.maxLength = LIMITS.formula; ln.appendChild(amF); if (typeof m.vf === 'string' && m.vf.trim()) am.disabled = true;
+            if (d.val && m.op === 'add') { var pvL = el('label', 'sys-hover'), pvC = el('input'); pvC.type = 'checkbox'; pvC.className = 'sys-fxv-per'; pvC.checked = m.perVal === true; pvL.appendChild(pvC); pvL.appendChild(document.createTextNode(' Times its number')); pvL.title = 'This change is its amount times the effect’s number: Bleeding 3 with −1 here takes 3 off'; ln.appendChild(pvL); }   // 1.6.2
+        }   // 1.6.0: Adds, At least or At most; CORE gap 12: by a formula
         ln.appendChild(btnRow([['fxmoddel', 'Remove this change', '&times;']]));
         mods.appendChild(ln);
     });
@@ -9063,6 +9082,14 @@ function effectRow(d) {
     flags.appendChild(input('sys-fx-notes field', d.notes, 'Notes shown as the effect\u2019s tooltip on the sheet', 'Notes'));
     flags.appendChild(select('sys-fx-vis', [['all', 'Visible to players'], ['gm', 'GM only']], d.vis || 'all', 'GM only: off the players\u2019 list until you apply it to their character'));
     var agW = el('span', 'sys-hover sys-fx-agbox', 'When added again: '); agW.appendChild(select('sys-fx-again', [['', 'Replace'], ['longer', 'Keep the longer'], ['add', 'Add the times']], d.again === 'longer' || d.again === 'add' ? d.again : '', 'Added again while it is on: Replace gives it the new time, Keep the longer keeps whichever has more time left (no end is the longest), Add the times adds the new time to what was left')); flags.appendChild(agW);   // 1.6.0 (a builder audit)
+    var fvW = el('span', 'sys-hover sys-fxv-box'), fvL = el('label', 'sys-hover'), fvC = el('input'); fvC.type = 'checkbox'; fvC.className = 'sys-fxv-chk'; fvC.checked = !!d.val; fvL.appendChild(fvC); fvL.appendChild(document.createTextNode(' Holds a number')); fvL.title = 'The effect holds a number, as Bleeding 3. Its changes can be ticked Times its number. At 0 the effect ends'; fvW.appendChild(fvL);   // 1.6.2
+    if (d.val) {
+        fvW.appendChild(document.createTextNode(' Starts at ')); fvW.appendChild(numInput('sys-fxv-start field', d.val.start, 'Its number when it goes on and nothing says another'));
+        fvW.appendChild(document.createTextNode(' Added again: ')); fvW.appendChild(select('sys-fxv-again', [['', 'Add the numbers'], ['higher', 'Keep the higher'], ['replace', 'Replace it']], d.val.again === 'higher' || d.val.again === 'replace' ? d.val.again : '', 'Added again while it is on: add the new number to it, keep the higher of the two, or take the new one'));
+        fvW.appendChild(document.createTextNode(' Falls by ')); fvW.appendChild(numInput('sys-fxv-by field', d.val.by, 'How much it falls each time. Empty: it stays'));
+        fvW.appendChild(select('sys-fxv-each', [['', 'It stays'], ['turn', 'each turn of its character'], ['minute', 'each game minute'], ['hour', 'each game hour']], d.val.by ? d.val.each || '' : '', 'When it falls. In a fight a character has one turn a round, at the start or end its Counts at says. A minute or an hour is on the game clock'));
+    }
+    flags.appendChild(fvW);
     var enW = el('span', 'sys-hover sys-fx-endsbox', 'Counts at: '); enW.appendChild(select('sys-fx-ends', [['', 'Its turn\u2019s start'], ['turnEnd', 'Its turn\u2019s end']], d.ends === 'turnEnd' ? 'turnEnd' : '', 'When a fight takes a turn off its time. At its turn\u2019s end, an effect of 1 turn lasts through its character\u2019s whole next turn, and one put on during a turn lasts through the turn after')); flags.appendChild(enW);   // 1.6.0
     var egW = el('span', 'sys-hover sys-fx-egbox', 'Shares an end: '); egW.appendChild(input('sys-fx-endgroup field', d.endGroup, 'A short word. Effects with the same word end together: when one comes on, an effect of a higher rank that would end sooner takes the later end. Letters, digits, hyphens and underscores', 'none'));
     if (typeof d.endGroup === 'string' && d.endGroup) { egW.appendChild(document.createTextNode(' Rank: ')); egW.appendChild(numInput('sys-fx-endrank field', d.endRank, 'Higher is heavier. Empty counts as 1')); }
@@ -12728,6 +12755,8 @@ function onInput(e) {
         else if (fc.indexOf('sys-fx-icon') >= 0) fxd.icon = t.value.slice(0, 32);
         else if (fc.indexOf('sys-fx-dur') >= 0) fxd.dur = t.value.slice(0, 200);
         else if (fc.indexOf('sys-fx-endgroup') >= 0) { var egV = t.value.trim().slice(0, 24), egHad = !!fxd.endGroup; if (egV) fxd.endGroup = egV; else { delete fxd.endGroup; delete fxd.endRank; } if (egHad !== !!egV) { markDirty(); renderAll(); return; } }   // 1.6.0 Shares an end: Rank stands beside a word
+        else if (fc.indexOf('sys-fxv-start') >= 0) { var fvS = Math.round(Number(t.value)); if (fxd.val) fxd.val.start = fvS >= 1 ? fvS : 1; }   // 1.6.2
+        else if (fc.indexOf('sys-fxv-by') >= 0) { var fvB = Math.round(Number(t.value)); if (fxd.val) { if (t.value !== '' && fvB >= 1) { fxd.val.by = fvB; if (!fxd.val.each) fxd.val.each = 'turn'; } else { delete fxd.val.by; delete fxd.val.each; } } }
         else if (fc.indexOf('sys-fx-endrank') >= 0) { var erV = parseFloat(t.value); if (isFinite(erV)) fxd.endRank = erV; else delete fxd.endRank; }
         else if (fc.indexOf('sys-fx-notes') >= 0) fxd.notes = t.value.slice(0, LIMITS.noteText);
         else if (fc.indexOf('sys-fx-auto') >= 0) { var auV = t.value.slice(0, LIMITS.formula); if (auV.trim()) fxd.auto = auV; else delete fxd.auto; }   // conditions C4: the automatic formula (emptied: the key goes)
@@ -12933,6 +12962,7 @@ function onInput(e) {
         else return;
     } else if (r) {
         if (c.indexOf('sys-apply-if') >= 0) { var chW = applyChangeOf(t, r); if (!chW) return; if (t.value.trim()) chW.if = t.value.slice(0, LIMITS.formula); else delete chW.if; }
+        else if (c.indexOf('sys-apply-fxn') >= 0) { var chN = applyChangeOf(t, r); if (!chN) return; var fxnV = t.value.slice(0, LIMITS.formula); if (fxnV.trim()) chN.n = fxnV; else delete chN.n; }   // 1.6.2: With number
         else if (c.indexOf('sys-apply-formula') >= 0) { var chI = applyChangeOf(t, r); if (!chI) return; chI.formula = t.value.slice(0, LIMITS.formula); }   // Stage 6 HUD H7: a change's amount
         else if (c.indexOf('sys-label') >= 0) r.label = t.value.slice(0, LIMITS.label);
         else if (c.indexOf('sys-formula') >= 0) r.formula = t.value;
@@ -12995,6 +13025,10 @@ function onChange(e) {
     if (c.indexOf('sys-listrules-stats') >= 0 || c.indexOf('sys-listrules-upload') >= 0) { var lr = Object.assign({}, draft.listRules || {}); if (c.indexOf('sys-listrules-stats') >= 0) { delete lr.ownerStats; delete lr.statsAsk; if (t.value === 'owner') lr.ownerStats = true; else if (t.value === 'ask') lr.statsAsk = true; } else { if (t.value === 'facts') lr.uploadFacts = true; else delete lr.uploadFacts; } if (Object.keys(lr).length) draft.listRules = lr; else delete draft.listRules; markDirty(); patchErrors(); return; }   // Stage 6: settings A and B   // Stage 6 F4c2: Setting A
     var fxc = fxOfRow(t);   // 5h: a library effect's selects
     if (fxc) {
+        if (c.indexOf('sys-fxv-chk') >= 0) { if (t.checked) fxc.val = { start: 1 }; else delete fxc.val; markDirty(); renderAll(); return; }   // 1.6.2: Holds a number
+        if (c.indexOf('sys-fxv-again') >= 0) { if (fxc.val) { if (t.value === 'higher' || t.value === 'replace') fxc.val.again = t.value; else delete fxc.val.again; } markDirty(); patchErrors(); return; }
+        if (c.indexOf('sys-fxv-each') >= 0) { if (fxc.val) { if (t.value) { fxc.val.each = t.value; if (!(fxc.val.by >= 1)) fxc.val.by = 1; } else { delete fxc.val.each; delete fxc.val.by; } } markDirty(); renderAll(); return; }
+        if (c.indexOf('sys-fxv-per') >= 0) { var pvln = t.closest('.sys-fx-mod'), pvm = pvln ? (fxc.mods || [])[+pvln.dataset.mi] : null; if (pvm) { if (t.checked) pvm.perVal = true; else delete pvm.perVal; } markDirty(); patchErrors(); return; }
         if (c.indexOf('sys-fx-ends') >= 0) { if (t.value === 'turnEnd') fxc.ends = 'turnEnd'; else delete fxc.ends; markDirty(); patchErrors(); return; }   // 1.6.0 Counts at
         if (c.indexOf('sys-fx-again') >= 0) { if (t.value === 'longer' || t.value === 'add') fxc.again = t.value; else delete fxc.again; markDirty(); patchErrors(); return; }   // 1.6.0 (a builder audit): When added again
         if (c.indexOf('sys-fx-tone') >= 0) { fxc.tone = t.value; markDirty(); patchErrors(); return; }

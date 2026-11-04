@@ -144,6 +144,9 @@ jobs:
       - name: markcheck — a number, a pool or a formula shown as dots, boxes or a clock, and the box fill rule
         if: ${{ !cancelled() }}
         run: node tools/markcheck.js
+      - name: fxvalcheck — an effect that holds a number, added again, falling over time, changed by hand
+        if: ${{ !cancelled() }}
+        run: node tools/fxvalcheck.js
       - name: thengmcheck — a Then step players may not see, run on the host
         if: ${{ !cancelled() }}
         run: node tools/thengmcheck.js

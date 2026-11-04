@@ -192,6 +192,9 @@ At the table
   roll cards, which are edged in its colour, and a player's own sheet text is
   set in their font.
   Personal looks is a VTT feature, on until the GM switches it off.
+- An effect can hold a number, as Bleeding 3. Its changes can count that many
+  times, adding it again adds, keeps the higher or replaces, and it can fall each
+  turn or each game minute or hour. At 0 it ends.
 - A number, a pool or a formula can show as a track: dots, a row of boxes, or
   a clock in parts. Press a mark to set it. Boxes can also be marked one by one,
   and an action can mark a box, or the next free one up.

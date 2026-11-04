@@ -118,10 +118,61 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         check('on a player’s app a join is sent and waited for, and on the GM’s judged by rowSheetSet and stored with a step log', /nR\.charRowSheet\(c\.id, f\.id, rid, toId, make === true\)/.test(sl) && /rowSheetSet\(sys, cs, c, f\.id, rid, made \? made\.id : toId, \{\}\)/.test(sl) && /wpStepLog\('rowsheet v1'/.test(sl));
         check('the row control stands on a row and in a rich table, for the GM where the sheet may be changed and for a player on their own open sheet', (sh.match(/sheetCtl\(entry, c, f, spec, !hudRow && \(gm \? chg : !!ownOk\)\)/g) || []).length === 2);
     }
+    /* ---- fold (c): marks one token holds on another ---- */
+    {
+        const RAWC = { v: 1, name: 'Craft', fields: [{ id: 'f_pil', key: 'Pilot', label: 'Piloting', kind: 'number', def: 12 }, { id: 'f_hit', key: 'Hit', label: 'To hit', kind: 'formula', formula: 'Pilot + if(Target.marked.Hound, 2, 0)' }, { id: 'f_hd', key: 'Hounded', label: 'Hounded', kind: 'formula', formula: 'Marked.Hound' }],
+            tags: [{ key: 'Hound', label: 'Hound', fight: true }, { key: 'Track', label: 'Track', turn: true }, { key: 'Hound', label: 'Twice' }, { key: 'bad key', label: 'x' }, { key: 'Lock', label: '<b>Lock</b>' }],
+            rolls: [{ id: 'r_hd', label: 'Hound them', kind: 'apply', apply: [{ tag: 'Hound' }, { tag: 'Track', on: false }, { tag: 'Track', on: false }] }] };
+        const SC2 = S.cleanSystem(RAWC, { F, gmView: true }), VC2 = S.cleanSystem(RAWC, { F, gmView: false });
+        check('fold (c): a system names its marks, each key once, its label as text, ending with the fight or at its holder\u2019s turn\u2019s end only as true, the same in both views', J(SC2.tags) === J([{ key: 'Hound', label: 'Hound', fight: true }, { key: 'Track', label: 'Track', turn: true }, { key: 'Lock', label: '<b>Lock</b>' }]) && J(VC2.tags) === J(SC2.tags), J(SC2.tags));
+        const act = SC2.rolls.find(r => r.id === 'r_hd');
+        check('a change puts a mark on the target or takes one off, once a mark and a when, with no amount', J(act.apply) === J([{ tag: 'Hound', on: true }, { tag: 'Track', on: false }]), J(act.apply));
+        let sunk = []; S.setTagSink(m => sunk.push(m));
+        const ch = { id: 'c_p', name: 'Pilot', ownerId: 'u_a', values: {} }, vars = S.makeResolver(SC2, ch, F);
+        const tc = { self: 'tok_a', range: { mod: 0, dist: 5, tid: 'tok_b', mapId: 'm1' } };
+        const r1 = S.applyAct(SC2, ch, act, vars, F, tc);
+        check('applyAct hands the host what a change put on and took off, from the token it is used by on its target, and says each on the card as an effect is', r1.ok === true && J(sunk[0]) === J([{ mapId: 'm1', by: 'tok_a', on: 'tok_b', k: 'Hound', put: true }, { mapId: 'm1', by: 'tok_a', on: 'tok_b', k: 'Track', put: false }]) && J(r1.lines) === J([{ n: 'Hound', fx: 1 }, { n: 'Track', fx: 0 }]), J([r1, sunk]));
+        sunk = []; const r2 = S.applyAct(SC2, ch, act, vars, F, { self: 'tok_a' });
+        check('with no target it does nothing, and says so as any change that moves nothing', r2.ok === false && r2.reason === 'none' && sunk.length === 0, J(r2));
+        S.setTagSink(null);
+        let list = S.tagsMove(SC2, [], [{ mapId: 'm1', by: 'tok_a', on: 'tok_b', k: 'hound', put: true }, { mapId: 'm1', by: 'tok_a', on: 'tok_b', k: 'Hound', put: true }, { mapId: 'm1', by: 'tok_c', on: 'tok_b', k: 'Track', put: true }, { mapId: 'm1', by: 'tok_a', on: 'tok_a', k: 'Hound', put: true }, { mapId: 'm1', by: 'tok_a', on: 'tok_b', k: 'Nope', put: true }]);
+        check('a map keeps each mark once a pair, in the system\u2019s spelling, never a token on itself nor a mark the system lacks', list.changed === true && J(list.list) === J([{ k: 'Hound', by: 'tok_a', on: 'tok_b' }, { k: 'Track', by: 'tok_c', on: 'tok_b' }]), J(list));
+        const off = S.tagsMove(SC2, list.list, [{ by: 'tok_a', on: 'tok_b', k: 'Hound', put: false }]);
+        check('taken off, it is gone, and taking off what is not there changes nothing', J(off.list) === J([{ k: 'Track', by: 'tok_c', on: 'tok_b' }]) && S.tagsMove(SC2, off.list, [{ by: 'tok_a', on: 'tok_b', k: 'Hound', put: false }]).changed === false);
+        check('a map\u2019s stored marks are read back as data: a key, two token ids, never junk or a prototype\u2019s key', J(S.cleanMapTags([{ k: 'Hound', by: 'a', on: 'b' }, { k: 'Hound', by: 'a', on: 'b' }, { k: '__proto__', by: 'a', on: 'b' }, { k: 'Hound', by: '<x>', on: 'b' }, 5, null, { k: 'Track', by: 'a', on: 'a' }], SC2)) === J([{ k: 'Hound', by: 'a', on: 'b' }]));
+        const ends = S.tagsEnd(SC2, [{ k: 'Hound', by: 'a', on: 'b' }, { k: 'Track', by: 'a', on: 'b' }, { k: 'Track', by: 'c', on: 'b' }, { k: 'Lock', by: 'a', on: 'b' }], { turn: 'a' }), endF = S.tagsEnd(SC2, ends.list, { fight: true });
+        check('a mark ticked to end at its holder\u2019s turn\u2019s end goes when that holder\u2019s turn ends, one ticked to end with the fight when the fight ends, and the rest stay', J(ends.list) === J([{ k: 'Hound', by: 'a', on: 'b' }, { k: 'Track', by: 'c', on: 'b' }, { k: 'Lock', by: 'a', on: 'b' }]) && J(endF.list) === J([{ k: 'Track', by: 'c', on: 'b' }, { k: 'Lock', by: 'a', on: 'b' }]), J([ends, endF]));
+        const mapT = { id: 'm1', whiteboard: [] };
+        S.setTagSource(m => m === mapT ? [{ k: 'Hound', by: 'tok_a', on: 'tok_b' }, { k: 'Track', by: 'tok_c', on: 'tok_a' }] : []);
+        const ctxA = S.tokenCtx(mapT, { id: 'tok_a', x: 0, y: 0 }, {}), ctxB = S.tokenCtx(mapT, { id: 'tok_b', x: 0, y: 0 }, {}), ctxZ = S.tokenCtx({ id: 'm2', whiteboard: [] }, { id: 'tok_a' }, {});
+        check('the token context says the token it is read for and the marks around it: those it holds by target, those held on it', ctxA.self === 'tok_a' && J(ctxA.tags) === J({ on: { track: 1 }, held: { tok_b: { hound: 1 } } }) && J(ctxB.tags) === J({ on: { hound: 1 }, held: {} }) && !('tags' in ctxZ), J([ctxA, ctxB]));
+        const rA = S.makeResolver(SC2, ch, F, Object.assign({}, ctxA, { range: { mod: 0, dist: 3, tid: 'tok_b', mapId: 'm1' } })), rA2 = S.makeResolver(SC2, ch, F, Object.assign({}, ctxA, { range: { mod: 0, dist: 3, tid: 'tok_c', mapId: 'm1' } })), rB = S.makeResolver(SC2, ch, F, ctxB), r0 = S.makeResolver(SC2, ch, F);
+        check('Target.marked.<key> reads 1 while this token holds that mark on its target and 0 on any other; Marked.<key> 1 while any token holds it on this one; both 0 with no token', rA('Hit') === 14 && rA2('Hit') === 12 && rB('Hounded') === 1 && rA('Hounded') === 0 && r0('Hit') === 12 && r0('Hounded') === 0, J([rA('Hit'), rA2('Hit'), rB('Hounded'), r0('Hit')]));
+        S.setTagSource(null);
+        const errsC = raw => S.validateSystem(S.cleanSystem(raw, { F, gmView: true }), F).errors.map(e => e.message);
+        const badC = JSON.parse(J(RAWC)); badC.fields.push({ id: 'f_x', key: 'X', kind: 'formula', formula: 'Target.marked.Nope + Marked.Nope' }); badC.rolls.push({ id: 'r_x', label: 'X', kind: 'apply', apply: [{ tag: 'Gone' }] });
+        check('the validator knows both names where the system has that mark, and names a mark it does not have, in a formula and in a change', errsC(RAWC).length === 0 && errsC(badC).filter(m => /no mark Nope/.test(m)).length === 2 && errsC(badC).some(m => /That mark is not in this system any more/.test(m)), J([errsC(RAWC), errsC(badC)]));
+        check('and says them in words', S.nameWord(SC2, 'Target.marked.Hound') === 'whether you hold Hound on the target' && S.nameWord(SC2, 'Marked.Hound') === 'whether Hound is held on them');
+        const sh = read('scripts/sheets.js'), wb = read('scripts/whiteboard.js'), nt = read('scripts/net.js');
+        check('the System editor names marks on the Rules tab and a change can put one on or take one off; the sheet registers the map\u2019s marks as this screen holds them', /function renderTags\(\)/.test(sh) && /'Mark the target: '/.test(sh) && /ch\.tag = v\.slice\(4\); ch\.on = v\.charAt\(2\) === '\+';/.test(sh) && /setTagSource\(function\(map\) \{ var n = net\(\); return n && typeof n\.tagsOf === 'function'/.test(sh) && /setTagSink\(function\(moves\)/.test(sh));
+        check('a map\u2019s marks are the host\u2019s own, kept off every copy of the map; a player is sent those their own tokens hold or are held by, never one of a hidden token; they end with the fight and at a holder\u2019s turn', (nt.match(/'setups', 'tags'\]\.forEach/g) || []).length === 2 && /mine\(t\.by\) \|\| mine\(t\.on\)/.test(nt) && /!w\.hidden && !w\.waiting/.test(nt) && /tagsEnded\(mapId, \{ fight: true \}\)/.test(nt) && /tagsEnded\(mapId, \{ turn: row\.tokId \}\)/.test(nt));
+        // the board's line and tag, on a page of plain objects
+        const slT = wb.slice(wb.indexOf('// [vehiclecheck:tagsdraw-start]'), wb.indexOf('// [vehiclecheck:tagsdraw-end]'));
+        const mk = tag => ({ tag, attrs: {}, kids: [], on: {}, textContent: '', setAttribute(k, v) { this.attrs[k] = String(v); }, appendChild(k) { this.kids.push(k); return k; }, removeChild(k) { this.kids.splice(this.kids.indexOf(k), 1); }, get firstChild() { return this.kids[0] || null; }, addEventListener(t2, fn) { this.on[t2] = fn; } });
+        const layer = mk('svg'), doc = { getElementById: id => id === 'tagLayer' ? layer : null, createElementNS: (ns, t2) => mk(t2) };
+        const map2 = { id: 'm1', whiteboard: [{ id: 'tok_a', x: 0, y: 0, w: 60, h: 52, isChar: true }, { id: 'tok_b', x: 200, y: 100, w: 60, h: 52, isChar: true }] }, taken = [];
+        const net2 = { tagsOf: () => [{ k: 'Lock', by: 'tok_a', on: 'tok_b' }, { k: 'Hound', by: 'tok_a', on: 'tok_gone' }], tagsTakeOff: (mid, t2) => { taken.push([mid, t2.k]); return true; } };
+        const draw = gmT => new Function('document', 'window', 'getActiveCampaign', 'playerScreen', 'state', 'toast', slT + '\nreturn tagsDraw;')(doc, { wpSystemCore: S, wpNet: net2 }, () => ({ system: SC2 }), () => !gmT, { streamMode: false }, () => {});
+        draw(true)(map2); const g = layer.kids[0];
+        check('the board draws a mark as a dashed line from its holder to its target with a dot at the target and its name as a text node, the GM\u2019s tag taking it off at a press; a mark whose token is gone draws nothing', layer.kids.length === 1 && g.kids[0].tag === 'line' && g.kids[0].attrs.x1 === '30' && g.kids[0].attrs.x2 === '230' && g.kids[1].tag === 'circle' && g.kids[2].textContent === '<b>Lock</b>' && g.kids[2].attrs.class === 'tag-mark-off' && (g.kids[2].on.click({ stopPropagation() {} }), J(taken) === J([['m1', 'Lock']])), J(layer));
+        draw(false)(map2);
+        check('a player\u2019s board draws the line and the tag, and offers nothing to press', layer.kids.length === 1 && !layer.kids[0].kids[2].attrs.class && !layer.kids[0].kids[2].on.click);
+    }
     /* ---- the words ---- */
     const help = read('index.html');
     check('Help says Rows are sheets, in plain words', /<b>Rows are sheets<\/b>/.test(help) && /Make a new sheet/.test(help));
-    check('both release notes say it', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /Rows are sheets/.test(readRoot(p))));
+    check('Help says what a mark is, in plain words', /<b>Marks<\/b>/.test(help) && /dashed line/.test(help));
+    check('both release notes say it', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /Rows are sheets/.test(readRoot(p)) && /A token can hold a mark on another/.test(readRoot(p))));
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never finished'); process.exitCode = 1; } });

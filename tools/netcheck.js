@@ -1256,7 +1256,7 @@ pendingChecks.push((async () => {
     const siOne = new Function(siSrc() + '\nreturn sanitizeItem;')(), oneMap = () => ({ id: 'm1', type: 'map', meta: { title: 'One', gen: { seed: 's-gen' }, city: { seed: 's-city' }, world: { seed: 's-world' }, env: { temp: -30 }, envCells: { '1,1': { temp: 45 } }, scenePage: 'p_secret_scene', keep: 'kept' }, rooms: [], links: [], whiteboard: [] });
     const oneSent = siOne(oneMap()), oneHost = CHM(oneMap()), oneGm = oneMap(); siOne(oneGm);
     check('map builder: a map\'s GM-only meta keys are ONE list (the second reading of fold B7): cleanHostMap and sanitizeItem each hold it once, written the same, and it names exactly the dungeon\'s, the city\'s and the world\'s keys; run for real, the host\'s send and a player\'s app each take every key of the list off a map\'s meta and leave a meta key that is no such key as it came, and the send leaves the GM\'s own map as it was; and with the two lines gone nothing else of net.js names a key of the list',
-        gmMetaHm.length === 1 && gmMetaSi.length === 1 && gmMetaHm[0] === gmMetaSi[0] && gmMetaHm[0] === "'gen', 'city', 'world', 'env', 'envCells', 'scenePage', 'setups'" && gmMetaAll.length === 2 && gmMetaGone === 2 && ['gen', 'city', 'world', 'env', 'envCells', 'scenePage', 'setups'].every(gmMetaOne)   /* backlog 31: and a map's set-ups (moved on purpose);  1.6.0: and the map environment's two keys (moved on purpose); 1.6.0: and a map's scene page (backlog 26, moved on purpose) */
+        gmMetaHm.length === 1 && gmMetaSi.length === 1 && gmMetaHm[0] === gmMetaSi[0] && gmMetaHm[0] === "'gen', 'city', 'world', 'env', 'envCells', 'scenePage', 'setups', 'tags'" && gmMetaAll.length === 2 && gmMetaGone === 2 && ['gen', 'city', 'world', 'env', 'envCells', 'scenePage', 'setups', 'tags'].every(gmMetaOne)   /* backlog 31: and a map's set-ups (moved on purpose);  1.6.0: and the map environment's two keys (moved on purpose); 1.6.0: and a map's scene page (backlog 26, moved on purpose) */
         && JSON.stringify(oneSent.meta) === '{"title":"One","keep":"kept"}' && JSON.stringify(oneHost.meta) === '{"title":"One","keep":"kept"}' && JSON.stringify(oneGm.meta) === JSON.stringify(oneMap().meta), JSON.stringify([gmMetaSaid(), oneSent.meta, oneHost.meta]));
     }
     // The camera is each screen's own (the review of backlog 26, 2026-10-16, finding 1): Find on the map from a fight, and the Characters
@@ -19387,6 +19387,27 @@ pendingChecks.push((async () => {
             j([ownV.sk, firstV, sameV, movedV, logsV]));
         check('1.6.2 (vehicles, fold (a)): a trade stores the sheets of the rows that changed hands (sheetsGo) and sends each to its new owner',
             src.includes("S.sheetsGo(camp.system, camp, cb, res.valuesB)") && src.includes("goA.give.concat(goB.give).forEach(function(sid) { net.syncChar(sid);") && src.includes("if (S.sheetFigs) { var sk = S.sheetFigs(view, v, window.wpFormula); if (sk) v.sk = sk; }"));
+    }
+    // 1.6.2 (vehicles, fold (c)): a map's marks, the host's own (the tags slice run for real with the real systemcore): kept as a change put them on, sent to
+    // each player as theirs (tokTags) and never a hidden token's, once a change, and cleaned again on a player's app (the tagsin slice)
+    {
+        const tgS = between('// [netcheck:tags-start]', '// [netcheck:tags-end]', 'tags'), tiS = between('// [netcheck:tagsin-start]', '// [netcheck:tagsin-end]', 'tagsin');
+        const sysT = Sx.cleanSystem({ v: 1, name: 'T', fields: [], tags: [{ key: 'Hound', label: 'Hound', fight: true }, { key: 'Track', label: 'Track', turn: true }] }, { F: Fx, gmView: true });
+        const mapT = { id: 'm1', type: 'map', meta: { title: 'Canyon' }, whiteboard: [{ id: 'tA', isChar: true, ownerId: 'u_a' }, { id: 'tB', isChar: true, ownerId: '' }, { id: 'tH', isChar: true, ownerId: '', hidden: true }, { id: 'tC', isChar: true, ownerId: 'u_b' }] };
+        const campT = { id: 'k', system: sysT, items: { m1: mapT } }, sentT = [], saves = { n: 0 }, mkT = peer => ({ peer, open: true, send: m => { packCheck(m); sentT.push([peer, JSON.parse(JSON.stringify(m))]); } });
+        const netT = { active: true, role: 'host', conns: [mkT('pA'), mkT('pB')], roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } } };
+        const apiT = new Function('net', 'SC', 'window', 'getActiveCampaign', 'own', 'mapHeldOf', 'save', 'render', 'sendFailed', tgS + '\nreturn { tagsTell: tagsTell, tagsEnded: tagsEnded };')(netT, () => Sx, {}, () => campT, (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k), () => ({ m1: 1 }), () => { saves.n++; }, () => {}, e => { throw e; });
+        netT.tagsPut([{ mapId: 'm1', by: 'tA', on: 'tB', k: 'Hound', put: true }, { mapId: 'm1', by: 'tH', on: 'tA', k: 'Track', put: true }, { mapId: 'm1', by: 'tB', on: 'tC', k: 'Hound', put: true }]);
+        const toA = sentT.filter(s => s[0] === 'pA').map(s => s[1]), toB = sentT.filter(s => s[0] === 'pB').map(s => s[1]); sentT.length = 0; apiT.tagsTell(); const again = sentT.slice();
+        check('1.6.2 (vehicles, fold (c)): the host keeps a mark on its map, saved, and sends each player the marks their own tokens hold or are held by, never one of a hidden token, nothing twice for the same marks; the map leaves with none of them',
+            j(Sx.mapTagsOf(mapT, sysT)) === j([{ k: 'Hound', by: 'tA', on: 'tB' }, { k: 'Track', by: 'tH', on: 'tA' }, { k: 'Hound', by: 'tB', on: 'tC' }]) && saves.n === 1
+            && j(toA) === j([{ type: 'tokTags', campId: 'k', itemId: 'm1', marks: [{ k: 'Hound', by: 'tA', on: 'tB' }] }]) && j(toB) === j([{ type: 'tokTags', campId: 'k', itemId: 'm1', marks: [{ k: 'Hound', by: 'tB', on: 'tC' }] }]) && again.length === 0, j([toA, toB, again]));
+        sentT.length = 0; apiT.tagsEnded('m1', { fight: true });
+        check('1.6.2 (vehicles, fold (c)): a fight\u2019s end takes off every mark of that map that ends with the fight, and the players are told', j(Sx.mapTagsOf(mapT, sysT)) === j([{ k: 'Track', by: 'tH', on: 'tA' }]) && sentT.length === 2 && sentT.every(s => j(s[1].marks) === j([])), j([mapT.meta, sentT]));
+        const stP = { appState: { activeCampaignId: 'k' } }, campP = { id: 'k', system: sysT }, drew = { n: 0 };
+        const runIn = (msg, peer) => new Function('msg', 'conn', 'net', 'state', 'SC', 'getActiveCampaign', 'validKey', 'render', '_tagsSeen', tiS)(msg, { peer: peer || 'host' }, { foreign: true, syncedPeer: 'host', stream: false }, stP, () => Sx, () => campP, k => typeof k === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(k), () => { drew.n++; }, seen);
+        const seen = Object.create(null); runIn({ type: 'tokTags', campId: 'k', itemId: 'm1', marks: [{ k: 'hound', by: 'tA', on: 'tB' }, { k: 'Nope', by: 'tA', on: 'tB' }, { k: 'Hound', by: '<x>', on: 'tB' }, 5] }); runIn({ type: 'tokTags', campId: 'k', itemId: 'm2', marks: [{ k: 'Hound', by: 'a', on: 'b' }] }, 'stranger');
+        check('1.6.2 (vehicles, fold (c)): a player\u2019s app takes the marks from the synced host alone, cleaned by its own system: a mark it does not have and a token id that is no id are gone', j(seen.m1) === j([{ k: 'Hound', by: 'tA', on: 'tB' }]) && !('m2' in seen) && drew.n === 1, j([seen, drew]));
     }
 })());
 // The core handbook session's ask (2026-10-29, after ask 6): a crew figure that reads the vehicle doing the reading (Vehicle.Class). The host's

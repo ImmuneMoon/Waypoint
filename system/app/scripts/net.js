@@ -483,7 +483,7 @@ function cleanHostMap(m) {
     var flC = window.wpFogCore && window.wpFogCore.cleanFogLit ? window.wpFogCore.cleanFogLit(m.fogLit) : null; if (flC) m.fogLit = flC; else delete m.fogLit;   // lighting L3: the lit cells the host sent this player, cleaned again
     if (m.lightsCapped !== true) delete m.lightsCapped;
     if (typeof camHold === 'function') camHold(m, null);   // the camera is this screen's own: none a host names (applyItem and applyItemDelta put this app's own back)
-    if (m.meta && typeof m.meta === 'object') ['gen', 'city', 'world', 'env', 'envCells', 'scenePage', 'setups'].forEach(function(k) { if (m.meta[k] !== undefined) delete m.meta[k]; });   // 1.6.0: a map's scene page (pageshelf.js, the GM's alone)   // 1.6.0: and the map's environment, its own readings and its painted cells   // 1.5.4: a map's GM-only meta keys (the seed and settings a dungeon, a city or a world was generated from) are never sent, and a player's app keeps none a host names. ONE list here and the same list in sanitizeItem: a new such key joins both (netcheck reads the two against each other)
+    if (m.meta && typeof m.meta === 'object') ['gen', 'city', 'world', 'env', 'envCells', 'scenePage', 'setups', 'tags'].forEach(function(k) { if (m.meta[k] !== undefined) delete m.meta[k]; });   // 1.6.0: a map's scene page (pageshelf.js, the GM's alone)   // 1.6.0: and the map's environment, its own readings and its painted cells   // 1.5.4: a map's GM-only meta keys (the seed and settings a dungeon, a city or a world was generated from) are never sent, and a player's app keeps none a host names. ONE list here and the same list in sanitizeItem: a new such key joins both (netcheck reads the two against each other)
     if (m.fogMarks !== undefined) { var mkC = window.wpFogCore && window.wpFogCore.cleanFogMarks ? window.wpFogCore.cleanFogMarks(m.fogMarks, ownCellKeysOf(m)) : null; if (mkC) m.fogMarks = mkC; else delete m.fogMarks; }   // senses S4: this player's marks, cleaned again
     if (m.fogOff !== undefined) { var ofC = window.wpFogCore && window.wpFogCore.cleanFogOff ? window.wpFogCore.cleanFogOff(m.fogOff, ownTokIdsOf(m)) : null; if (ofC) m.fogOff = ofC; else delete m.fogOff; }   // senses S7a: their own tokens only, cleaned again
     if (m.cats && typeof m.cats === 'object') Object.keys(m.cats).forEach(function(k) { var c = m.cats[k]; if (k in Object.prototype) { delete m.cats[k]; return; } if (c && typeof c === 'object' && !safeColor(c.color)) c.color = '#888'; });
@@ -793,7 +793,7 @@ function sanitizeItem(item) {
     if (item.type !== 'map') return item;
     var m = JSON.parse(JSON.stringify(item), wireNum);
     if (m.meta && typeof m.meta === 'object') { delete m.meta.lastX; delete m.meta.lastY; delete m.meta.lastZoom; delete m.meta.lastWbX; delete m.meta.lastWbY; delete m.meta.lastWbZoom; }   // the camera (CAM_KEYS, written out here): where the GM last looked may be on a hidden token, and is the GM's screen's own; a player's app opens on its own (camLand)
-    if (m.meta && typeof m.meta === 'object') ['gen', 'city', 'world', 'env', 'envCells', 'scenePage', 'setups'].forEach(function(k) { if (m.meta[k] !== undefined) delete m.meta[k]; });   // 1.6.0: a map's scene page (pageshelf.js, the GM's alone)   // 1.6.0: and the map's environment, its own readings and its painted cells   // 1.5.4: a map's GM-only meta keys (the seed and settings a dungeon, a city or a world was generated from, kept to make it again) never go on the wire. The same list as in cleanHostMap: a new such key joins both
+    if (m.meta && typeof m.meta === 'object') ['gen', 'city', 'world', 'env', 'envCells', 'scenePage', 'setups', 'tags'].forEach(function(k) { if (m.meta[k] !== undefined) delete m.meta[k]; });   // 1.6.0: a map's scene page (pageshelf.js, the GM's alone)   // 1.6.0: and the map's environment, its own readings and its painted cells   // 1.5.4: a map's GM-only meta keys (the seed and settings a dungeon, a city or a world was generated from, kept to make it again) never go on the wire. The same list as in cleanHostMap: a new such key joins both
     delete m.fogLit; delete m.lightsCapped;   // lighting L3: only ever set per player, on their own copy (fogCopyFor) — never from the host's map
     delete m.fogMarks; delete m.fogOff;   // senses S4: likewise a player's marks
     // fog of war (1.5.0 FV2): map.fog travels so a player's client can paint its own-vision overlay; the host
@@ -989,7 +989,61 @@ function barsMoved(id) {
 // holds whole, sent only when what it says changed (_barSent, by connection and map: the host's memory only), {} once to clear it. A hidden or a
 // waiting token sends nothing, as on the board. Soon: what one moment changed is looked at once
 var _barSent = Object.create(null), _barTimer = null;
-function tokBarsSoon() { if (_barTimer !== null || !net.active || net.role !== 'host') return; _barTimer = setTimeout(function() { _barTimer = null; tokBarsTell(); }, 40); }
+function tokBarsSoon() { if (_barTimer !== null || !net.active || net.role !== 'host') return; _barTimer = setTimeout(function() { _barTimer = null; tokBarsTell(); if (typeof tagsTell === 'function') tagsTell(); }, 40); }   // 1.6.2 (vehicles, fold (c)): and each player's marks
+// [netcheck:tags-start]
+// 1.6.2 (vehicles, fold (c); the owner, 2026-11-04, by prompt: the GM sees every mark, each player the marks their own tokens hold or are held by; a
+// mark lives on the map and is saved with it): a map's marks (the host's own, read and written through systemcore mapTagsOf and mapTagsSet alone) are
+// answered to this screen's resolver (net.tagsOf: a player's app what its host sent), kept as a change put them on or took them off (net.tagsPut), sent to
+// each player as theirs (tokTags, tagsTell: by connection
+// and map, only on a change, never a mark of a hidden token) and ended with a fight or a holder's turn (tagsEnded). Each step logged as marks v1
+var _tagsSeen = Object.create(null), _tagSent = Object.create(null);
+function tagLog(step, facts) { try { if (window.wpStepLog) window.wpStepLog('marks v1', step, facts || {}); } catch (e) {} }
+net.tagsOf = function(map) {
+    var S = SC(), camp = getActiveCampaign(); if (!S || !map || typeof map.id !== 'string') return [];
+    if (net.active && net.role === 'client') return Object.prototype.hasOwnProperty.call(_tagsSeen, map.id) ? _tagsSeen[map.id] : [];
+    return S.mapTagsOf(map, camp && camp.system);
+};
+net.tagsPut = function(moves) {
+    var S = SC(), camp = getActiveCampaign(); if (!S || !camp || !camp.system || !camp.items || (net.active && net.role === 'client') || !Array.isArray(moves)) return 0;
+    var byMap = Object.create(null), n = 0; moves.forEach(function(m) { if (m && typeof m.mapId === 'string') (byMap[m.mapId] = byMap[m.mapId] || []).push(m); });
+    Object.keys(byMap).forEach(function(mid) {
+        var mp = own(camp.items, mid) ? camp.items[mid] : null; if (!mp || mp.type !== 'map') return;
+        var r = S.tagsMove(camp.system, S.mapTagsOf(mp, camp.system), byMap[mid]); if (!r.changed) return;
+        S.mapTagsSet(mp, r.list); n++;
+    });
+    if (!n) return 0;
+    tagLog('put', { maps: n, moves: moves.length }); save(true); tagsTell(); render();
+    return n;
+};
+net.tagsTakeOff = function(mapId, t) {   // the GM's hand: one mark off its map
+    var S = SC(), camp = getActiveCampaign(); if (!S || !camp || !camp.system || (net.active && net.role === 'client') || !t) return false;
+    return net.tagsPut([{ mapId: mapId, by: t.by, on: t.on, k: t.k, put: false }]) > 0;
+};
+function tagsEnded(mapId, o) {   // what a fight's end or a holder's turn's end takes off one map
+    var S = SC(), camp = getActiveCampaign(), mp = camp && camp.items && own(camp.items, mapId) ? camp.items[mapId] : null; if (!S || !mp || !camp.system) return 0;
+    var r = S.tagsEnd(camp.system, S.mapTagsOf(mp, camp.system), o); if (!r.changed) return 0;
+    S.mapTagsSet(mp, r.list);
+    tagLog(o && o.fight ? 'fight-end' : 'turn-end', { left: r.list.length }); save(true); tagsTell(); render();
+    return 1;
+}
+function tagsTell() {
+    if (!net.active || net.role !== 'host' || !Array.isArray(net.conns)) return;
+    var S = SC(), camp = getActiveCampaign(); if (!S || !camp || !camp.items || !camp.system) return;
+    net.conns.forEach(function(c) {
+        var pr = c && c.open && own(net.roster, c.peer) ? net.roster[c.peer] : null, pid = pr && typeof pr.id === 'string' && pr.id ? pr.id : null; if (!pid) return;
+        var held = mapHeldOf(c), sent = own(_tagSent, c.peer) ? _tagSent[c.peer] : (_tagSent[c.peer] = Object.create(null));
+        Object.keys(held).forEach(function(mid) {
+            var m = held[mid] === 1 && own(camp.items, mid) ? camp.items[mid] : null; if (!m || m.type !== 'map' || !Array.isArray(m.whiteboard)) return;
+            var tk = Object.create(null); m.whiteboard.forEach(function(w) { if (w && typeof w.id === 'string' && !w.hidden && !w.waiting && !w.gmNoteFor) tk[w.id] = w; });
+            var mine = function(id) { return own(tk, id) && tk[id].ownerId === pid; };
+            var tags = S.mapTagsOf(m, camp.system).filter(function(t) { return own(tk, t.by) && own(tk, t.on) && (mine(t.by) || mine(t.on)); });
+            var h = tags.length ? JSON.stringify(tags) : '';
+            if ((own(sent, mid) ? sent[mid] : '') === h) return;
+            try { c.send({ type: 'tokTags', campId: camp.id, itemId: mid, marks: tags }); sent[mid] = h; } catch (e) { sendFailed(e); }
+        });
+    });
+}
+// [netcheck:tags-end]
 function tokBarsTell() {
     if (!net.active || net.role !== 'host' || !Array.isArray(net.conns)) return;
     var camp = getActiveCampaign(); if (!camp || !camp.items) return;
@@ -5589,6 +5643,7 @@ function turnEnded(mapId, c, row, round, at) {
     try { if (typeof turnFxEnd === 'function') turnFxEnd(mapId, c, row, round); } catch (e) { console.error(e); }   // after the hook: what is rolled at a turn's end still reads what wears off there
     try { if (typeof turnJobEnd === 'function') turnJobEnd(mapId, c, row, round); } catch (e) { console.error(e); }   // 1.6.0: a job with no press this turn starts again
     try { if (typeof holdsTurnEnd === 'function') holdsTurnEnd(mapId, c, row, round); } catch (e) { console.error(e); }   // 1.6.0 Who holds whom: a holder's turn, lived once
+    try { if (typeof tagsEnded === 'function' && row && typeof row.tokId === 'string') tagsEnded(mapId, { turn: row.tokId }); } catch (e) { console.error(e); }   // 1.6.2 (vehicles, fold (c)): a mark ticked to end at its holder's turn's end
 }
 // [netcheck:turnended-end]
 // [netcheck:job-start]
@@ -5927,6 +5982,7 @@ function combatOver(fid, had, quiet, title) {   // fold 2: by the fight's own id
     if (had && net.fightOn === fid) net.fightOn = typeof fightBehind === 'function' ? fightBehind() : (fightIds()[0] || null);   // fold 4: the Active fight ended: the one furthest behind is played
     if (had && typeof marksEnd === 'function' && !fightsOn(mapId).length) { try { marksEnd(mapId); } catch (e) { console.error(e); } }   // senses S4b: the marks follow every move again, once the map's last fight is over (fold 2)
     if (typeof fid === 'string' && typeof combatForget === 'function') combatForget(fid);   // the fight over: nothing of it seen
+    if (had && !gone && typeof tagsEnded === 'function' && !fightsOn(mapId).length) { try { tagsEnded(mapId, { fight: true }); } catch (e) { console.error(e); } }   // 1.6.2 (vehicles, fold (c)): a mark that ends with the fight, once the map's last one is over
     if (had && !gone && !fightsOn(mapId).length && typeof window !== 'undefined' && window.wpFightBlastsGo) { try { window.wpFightBlastsGo(mapId); } catch (e) { console.error(e); } }   // 1.6.0: the circles of what was thrown there go with the map's last fight
     if (had && !gone && !fightsOn(mapId).length && typeof window !== 'undefined' && window.wpDrawShow) { try { window.wpDrawShow.sceneOver(mapId); } catch (e) { console.error(e); } }   // 1.6.2: and the drawings to show that stay until then
     var leftO = fightIds().length;
@@ -9184,6 +9240,16 @@ function handleMessage(msg, conn) {
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId || !validKey(msg.itemId)) return;
         applyFogDiff(msg);
         // [netcheck:fogdiff-end]
+    } else if (msg.type === 'tokTags' && net.role === 'client') {
+        // [netcheck:tagsin-start]
+        // 1.6.2 (vehicles, fold (c)): the marks of this player's own tokens on one map, as the host sent them: from the synced host only,
+        // never in the stream window, for the hosted campaign, cleaned again by the system's own marks
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId || !validKey(msg.itemId)) return;
+        var Stg = SC(), campTg = getActiveCampaign(); if (!Stg || !campTg || !campTg.system) return;
+        var tgL = Stg.cleanMapTags(Array.isArray(msg.marks) ? msg.marks : [], campTg.system); if (tgL.length) _tagsSeen[msg.itemId] = tgL; else delete _tagsSeen[msg.itemId];
+        render();
+        // [netcheck:tagsin-end]
     } else if (msg.type === 'tokBars' && net.role === 'client') {
         // [netcheck:tokbars-start]
         // Backlog 28: the bars of this player's own tokens on one map that their owner alone is shown, worked out by the host (tokBarsTell): from

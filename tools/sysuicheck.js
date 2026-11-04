@@ -53,7 +53,7 @@ const kids = n => n.childNodes.slice();
     check('what is in view is kept for this computer, and each step is logged by structure alone', J(JSON.parse(kept.wp_sysTopics)) === J({ combat: 'range', rules: 'budgets' }) && window.steps.every(s => s[0] === 'sysui v1' && !/Range|Damage/.test(J(s[2]))) && window.steps.length === 4, J(window.steps));
     ui.rulesDrawn();
     const rb = document.getElementById('sysRulesBox'), rn = document.getElementById('sysRulesNav'), shown = () => kids(rb).filter(x => !x.hidden).map(x => x.id);
-    check('the Rules tab has its eight topics, one at a time, and draws nothing itself', J(kids(rn).map(b => b.dataset.topic)) === J(['budgets', 'env', 'links', 'tables', 'results', 'values', 'money', 'decks']) && J(shown()) === J(['sysBudgets']));
+    check('the Rules tab has its nine topics, one at a time, and draws nothing itself', J(kids(rn).map(b => b.dataset.topic)) === J(['budgets', 'env', 'links', 'tables', 'results', 'values', 'tags', 'money', 'decks']) /* 1.6.2 (vehicles, fold (c)): Marks (moved on purpose) */ && J(shown()) === J(['sysBudgets']));
     ui.topicPress('rules', 'tables');
     check('a press there shows that box alone', J(shown()) === J(['sysTables']));
     ui.combatDrawn((() => { box.textContent = ''; return box; })());

@@ -1261,6 +1261,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
 
       positionHandles(activeMap);
       if (window.wpRefreshBlasts) window.wpRefreshBlasts();   // tokens moved: re-check who is in a blast
+      if (typeof tagsDraw === 'function') tagsDraw(activeMap);   // 1.6.2 (vehicles, fold (c)): the marks one token holds on another
 
       
 
@@ -3836,6 +3837,28 @@ window.wpFitToGrid = fitToGrid;
       return mc && mc.cost > mc.len + 0.05 ? 'Move cost ' + measureLabel(0, mc.cost) : '';
   }
   // [fogcheck:rulercost-end]
+  // [vehiclecheck:tagsdraw-start] 1.6.2 (vehicles, fold (c); the owner, by prompt: "A line and a tag"): each mark this screen holds drawn as a dashed line from
+  // the token that holds it to the one it is on, its name a tag at the middle, with SVG elements made by name and text nodes only (a mark's name is a system's).
+  // The GM's tag takes the mark off at a press
+  function tagsDraw(map) {
+      var layer = document.getElementById('tagLayer'); if (!layer) return;
+      while (layer.firstChild) layer.removeChild(layer.firstChild);
+      var S = window.wpSystemCore, camp = getActiveCampaign(), n = window.wpNet; if (!S || !map || !Array.isArray(map.whiteboard) || !camp || !camp.system || !Array.isArray(camp.system.tags) || !n || typeof n.tagsOf !== 'function') return;
+      var list = n.tagsOf(map); if (!Array.isArray(list) || !list.length) return;
+      var byId = Object.create(null); map.whiteboard.forEach(function(w) { if (w && typeof w.id === 'string' && !w.waiting) byId[w.id] = w; });
+      var NS = 'http://www.w3.org/2000/svg', gmT = !(typeof playerScreen === 'function' && playerScreen()) && !state.streamMode, cen = function(w) { var ww = typeof w.w === 'number' && w.w > 0 ? w.w : 60, hh = typeof w.h === 'number' && w.h > 0 ? w.h : 52; return [Number(w.x) + ww / 2, Number(w.y) + hh / 2]; };
+      list.forEach(function(t) {
+          var a = byId[t.by], b = byId[t.on], d = S.tagOf(camp.system, t.k); if (!a || !b || !d) return;
+          var pa = cen(a), pb = cen(b); if (![pa[0], pa[1], pb[0], pb[1]].every(function(x) { return isFinite(x); })) return;
+          var g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'tag-mark');
+          var ln = document.createElementNS(NS, 'line'); ln.setAttribute('x1', String(pa[0])); ln.setAttribute('y1', String(pa[1])); ln.setAttribute('x2', String(pb[0])); ln.setAttribute('y2', String(pb[1])); g.appendChild(ln);
+          var dt = document.createElementNS(NS, 'circle'); dt.setAttribute('cx', String(pb[0])); dt.setAttribute('cy', String(pb[1])); dt.setAttribute('r', '5'); g.appendChild(dt);
+          var tx = document.createElementNS(NS, 'text'); tx.setAttribute('x', String((pa[0] + pb[0]) / 2)); tx.setAttribute('y', String((pa[1] + pb[1]) / 2 - 6)); tx.setAttribute('text-anchor', 'middle'); tx.textContent = d.label;
+          if (gmT) { tx.setAttribute('class', 'tag-mark-off'); var tt = document.createElementNS(NS, 'title'); tt.textContent = 'Take ' + d.label + ' off'; tx.appendChild(tt); tx.addEventListener('click', function(e) { e.stopPropagation(); if (n.tagsTakeOff(map.id, t)) toast(d.label + ' taken off.'); }); }
+          g.appendChild(tx); layer.appendChild(g);
+      });
+  }
+  // [vehiclecheck:tagsdraw-end]
   function renderMeasures() {
 
       var layer = document.getElementById('measureLayer');

@@ -27,7 +27,7 @@ import { upChanges, revIdle } from './systemcore.js';   // 1.6.0: what a Review 
 import { lvlOnlyRead, lvlOnlyText, lvlOnlyOn, lvlOnlyHas, lvlOnlyList, lvlOnlySays, modTiersRead, modTiersText, modAt } from './systemcore.js';   // 1.6.0: Levels it may be, and a change's figures By level
 import { upkeepLines } from './systemcore.js';   // 205 follow-up (3): a turn's or a round's upkeep said on a card
 import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, setGateEngine } from './systemcore.js';
-import { rowSheetSet, sheetFromRow, rowSheetsDrop, sheetRows } from './systemcore.js';   // 1.6.2 (vehicles, fold (a)): Rows are sheets   // 1.6.0: linked sheets
+import { rowSheetSet, sheetFromRow, rowSheetsDrop, sheetRows, setTagSource, setTagSink } from './systemcore.js';   // 1.6.2 (vehicles, fold (a)): Rows are sheets; fold (c): marks   // 1.6.0: linked sheets
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
 import { fitIfOk, partFitEntry, modsIfOk } from './systemcore.js';
@@ -5902,6 +5902,8 @@ function linkSource(id, sys) {
     return sys && Array.isArray(sys.fields) ? charForView(c, sys, { full: camp.system }) : null;
 }
 if (typeof setLinkSource === 'function') setLinkSource(linkSource);   // (a suite's slice of this file holds no import)
+if (typeof setTagSource === 'function') setTagSource(function(map) { var n = net(); return n && typeof n.tagsOf === 'function' ? n.tagsOf(map) : []; });   // 1.6.2 (vehicles, fold (c)): a map's marks as this screen holds them
+if (typeof setTagSink === 'function') setTagSink(function(moves) { var n = net(); if (n && typeof n.tagsPut === 'function') n.tagsPut(moves); });   // ... and kept on the GM's machine as a change put them on
 if (typeof setGateEngine === 'function') setGateEngine(F);   // 1.6.0 Changes apply where: the engine the host judges a hidden row's gate with (systemcore unseenMods)
 // 1.6.0 (CORE gap 16): a vehicle's crew, every character whose link holds it, each as linkSource hands a linked sheet (the GM's own for the GM's
 // system, the owner's projection for any other, so a GM-only figure never counts for a player); on a player's app none (their copy reads the
@@ -9041,7 +9043,7 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
         var allT = allRowTargets(), allV = typeof ch.list === 'string' ? allRowValue(ch, allT) : '';   // 1.6.0: one number stat on every row of a list
         var opts = [['', 'Pick a pool, number or effect\u2026']].concat(targets, fxT, allT); if (allV && !allT.some(function(o) { return o[0] === allV; })) opts.push([allV, 'A list or stat that is gone']); if (typeof ch.fx === 'string' && !fxT.some(function(o) { return o[0].slice(4) === ch.fx; })) opts.push([(ch.on === false ? 'fx-:' : 'fx+:') + ch.fx, 'An effect that is gone']); if (ch.f && !targets.some(function(o) { return o[0] === ch.f; })) opts.push([ch.f, 'A field that is gone']);
         if (typeof resultTargets === 'function') resultTargets(ch).forEach(function(o) { opts.push(o); });   // 1.6.2 (G7)
-        rw.appendChild((typeof lazySelect === 'function' ? lazySelect : select)('sys-apply-target', opts, allV ? allV : typeof ch.deck === 'string' ? (ch.shuffle === true ? 'ds:' : 'dk:') + ch.deck : typeof ch.shared === 'string' ? 'val:' + ch.shared : typeof ch.table === 'string' ? 'tbl:' + ch.table : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or an effect it switches on or off (on the character it is used on). Every row of a list sets one of its number stats on each of the list\u2019s rows'));
+        rw.appendChild((typeof lazySelect === 'function' ? lazySelect : select)('sys-apply-target', opts, allV ? allV : typeof ch.deck === 'string' ? (ch.shuffle === true ? 'ds:' : 'dk:') + ch.deck : typeof ch.shared === 'string' ? 'val:' + ch.shared : typeof ch.table === 'string' ? 'tbl:' + ch.table : typeof ch.tag === 'string' ? (ch.on === false ? 'tg-:' : 'tg+:') + ch.tag : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or an effect it switches on or off (on the character it is used on). Every row of a list sets one of its number stats on each of the list\u2019s rows'));
         if (typeof ch.deck === 'string') rw.appendChild(deckBox(ch)); else
         if (typeof ch.table === 'string') rw.appendChild(resultByBox(ch)); else
         if (typeof ch.fx !== 'string') {   // 1.6.0: an effect switched has no amount
@@ -9077,16 +9079,19 @@ function deckBox(ch) {   // How many and who sees it. Its own listeners, and cla
     if (hands.length) { var hs = select('sys-deck-to', [['', 'To the table']].concat(hands.map(function(f) { return [f.id, 'To the hand: ' + (f.label || 'A hand')]; })), typeof ch.to === 'string' ? ch.to : '', 'Where what is drawn goes. A hand keeps it until it is discarded'); hs.addEventListener('change', function() { if (hs.value) ch.to = hs.value; else delete ch.to; markDirty(); }); w.appendChild(hs); }
     return w;
 }
-function resultTargets(ch) { var o = (Array.isArray(draft.values) ? draft.values : []).filter(function(t) { return !!t && typeof t.key === 'string'; }).map(function(t) { return ['val:' + t.key, 'Shared: ' + (t.label || 'A value')]; }); if (typeof deckTargets === 'function') o = deckTargets(ch).concat(o); if (ch && typeof ch.shared === 'string' && !o.some(function(x) { return x[0] === 'val:' + ch.shared; })) o.push(['val:' + ch.shared, 'A shared value that is gone']); o = o.concat((Array.isArray(draft.results) ? draft.results : []).filter(function(t) { return !!t && typeof t.key === 'string'; }).map(function(t) { return ['tbl:' + t.key, 'Roll on: ' + (t.label || 'A table')]; })); if (ch && typeof ch.table === 'string' && !o.some(function(x) { return x[0] === 'tbl:' + ch.table; })) o.push(['tbl:' + ch.table, 'A table that is gone']); return o; }
+function resultTargets(ch) { var o = (Array.isArray(draft.values) ? draft.values : []).filter(function(t) { return !!t && typeof t.key === 'string'; }).map(function(t) { return ['val:' + t.key, 'Shared: ' + (t.label || 'A value')]; });
+    (Array.isArray(draft.tags) ? draft.tags : []).forEach(function(t) { if (t && typeof t.key === 'string') o.push(['tg+:' + t.key, 'Mark the target: ' + (t.label || 'A mark')], ['tg-:' + t.key, 'Take off the target: ' + (t.label || 'A mark')]); });   // 1.6.2 (vehicles, fold (c))
+    if (ch && typeof ch.tag === 'string' && !o.some(function(x) { return x[0].slice(4) === ch.tag; })) o.push([(ch.on === false ? 'tg-:' : 'tg+:') + ch.tag, 'A mark that is gone']); if (typeof deckTargets === 'function') o = deckTargets(ch).concat(o); if (ch && typeof ch.shared === 'string' && !o.some(function(x) { return x[0] === 'val:' + ch.shared; })) o.push(['val:' + ch.shared, 'A shared value that is gone']); o = o.concat((Array.isArray(draft.results) ? draft.results : []).filter(function(t) { return !!t && typeof t.key === 'string'; }).map(function(t) { return ['tbl:' + t.key, 'Roll on: ' + (t.label || 'A table')]; })); if (ch && typeof ch.table === 'string' && !o.some(function(x) { return x[0] === 'tbl:' + ch.table; })) o.push(['tbl:' + ch.table, 'A table that is gone']); return o; }
 function resultByBox(ch) { var i = input('sys-res-by field', typeof ch.by === 'string' ? ch.by : '', 'Which row it reads. Empty: it rolls the table\u2019s own dice', 'Its own dice'); i.addEventListener('input', function() { var v = i.value.trim(); if (v) ch.by = v.slice(0, LIMITS.formula); else delete ch.by; markDirty(); if (typeof patchErrors === 'function') patchErrors(); }); return i; }
 function setChangeTarget(ch, v) {
-    v = String(v || ''); ['f', 'c', 'fire', 'feed', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money', 'mark'].forEach(function(k) { delete ch[k]; });
+    v = String(v || ''); ['f', 'c', 'fire', 'feed', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money', 'mark', 'tag'].forEach(function(k) { delete ch[k]; });
     delete ch.discard; delete ch.to; delete ch.deck; delete ch.shuffle; delete ch.show; delete ch.shared; delete ch.table; delete ch.by; if (v.indexOf('dk:') === 0 || v.indexOf('ds:') === 0) { ch.deck = v.slice(3); delete ch.add; delete ch.set; delete ch.roll; if (v.charAt(1) === 's') { ch.shuffle = true; delete ch.formula; } else if (typeof ch.formula !== 'string' || !ch.formula) ch.formula = '1'; return; } if (v.indexOf('val:') === 0) { ch.shared = v.slice(4); if (typeof ch.formula !== 'string') ch.formula = ''; return; } if (v.indexOf('tbl:') === 0) { ch.table = v.slice(4); delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; return; }   // 1.6.2 (G7): a roll on a result table, no amount
     if (v === 'money') { ch.money = ''; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0: the sheet's money, a figure of its own
     else if (v === 'discard') { ch.discard = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.2 (G9)
     else if (v === 'off') { ch.off = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0 (CORE gap 13): this row switched off, no amount
     else if (v === 'fire') ch.fire = true;
     else if (v === 'feed') { ch.feed = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0 Feeds: a shot from every feed, no amount
+    else if (v.indexOf('tg+:') === 0 || v.indexOf('tg-:') === 0) { ch.tag = v.slice(4); ch.on = v.charAt(2) === '+'; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.2 (vehicles, fold (c)): a mark on the target, or taken off it; no amount
     else if (v.indexOf('fx+:') === 0 || v.indexOf('fx-:') === 0) { ch.fx = v.slice(4); ch.on = v.charAt(2) === '+'; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }
     else if (v === 'q') ch.q = true;
     else if (v.indexOf('all:') === 0) { var aP = v.slice(4), aC = aP.indexOf(':'); ch.list = aC > 0 ? aP.slice(0, aC) : aP; ch.s = aC > 0 ? aP.slice(aC + 1) : ''; }   // 1.6.0: every row of a list
@@ -10605,6 +10610,22 @@ function tableFresh(list, word) { var has = function(k) { return list.some(funct
 function tableBtn(text, act, title) { var b = el('button', 'tool ghost sys-btn', text); b.dataset.act = act; b.title = title; return b; }
 // 1.6.2 (G7): the Rules tab's Result tables. A key is made once and never shown. Its own listeners
 // 1.6.2 (G8): the Rules tab's Shared values. The definition is the system's, and Now is this campaign's own figure. Its own listeners
+// 1.6.2 (vehicles, fold (c); the owner, by prompt: a mark lives on the map and can say it ends with the fight): the Rules tab's Marks, the marks one token
+// may hold on another. A key is made once and never shown. Its own listeners
+function renderTags() {
+    var box = ui('sysTags'); if (!box) return; box.textContent = ''; var list = Array.isArray(draft.tags) ? draft.tags : null, ch = function(re) { markDirty(); if (re) renderTags(); if (typeof patchErrors === 'function') patchErrors(); }, wrap = el('div', 'sys-budgets sys-results');
+    wrap.appendChild(el('div', 'sys-light-head', 'Marks')); wrap.appendChild(el('div', 'sys-note', 'A mark one token holds on another, such as a pilot hounding a craft. A change of a roll or an action puts it on its target or takes it off. Formulas read whether you hold it on the target, and whether it is held on you. It stays until one of its rules ends it or you take it off.'));
+    (list || []).forEach(function(t, i) {
+        var rw = el('div', 'sys-flags sys-tbl-head'), nm = input('sys-tag-label field', t.label || '', 'Its name, on the map and on cards', 'Hound'), rm = el('button', 'tool ghost sys-btn sys-tag-rm', '\u00d7');
+        var fg = checkLabel('sys-tag-fight', t.fight === true, 'Ends with the fight', 'It ends once the last fight on its map is over'), tn = checkLabel('sys-tag-turn', t.turn === true, 'Ends at its holder\u2019s turn\u2019s end', 'It ends when the turn of the token that holds it ends');
+        nm.addEventListener('input', function() { t.label = nm.value.slice(0, LIMITS.label); ch(); });
+        [[fg, 'fight'], [tn, 'turn']].forEach(function(p) { var ip = p[0].querySelector('input'); if (ip) ip.addEventListener('change', function() { if (ip.checked) t[p[1]] = true; else delete t[p[1]]; ch(); }); });
+        rm.type = 'button'; rm.title = 'Remove this mark'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.tags; ch(true); });
+        [nm, fg, tn, rm].forEach(function(x) { rw.appendChild(x); }); wrap.appendChild(rw);
+    });
+    var add = el('button', 'tool ghost sys-btn sys-tag-add', '+ Mark'); add.type = 'button'; add.title = 'A mark one token may hold on another'; add.addEventListener('click', function() { draft.tags = Array.isArray(draft.tags) ? draft.tags : []; if (draft.tags.length >= 12) { toast('A system holds 12 marks.'); return; } var n = 1; while (draft.tags.some(function(t) { return t && t.key === 'M' + n; })) n++; draft.tags.push({ key: 'M' + n, label: '' }); ch(true); });
+    wrap.appendChild(add); box.appendChild(wrap);
+}
 function renderValues() {
     var box = ui('sysValues'); if (!box) return; box.textContent = ''; var list = Array.isArray(draft.values) ? draft.values : null, ch = function(re) { markDirty(); if (re) renderValues(); if (typeof patchErrors === 'function') patchErrors(); }, wrap = el('div', 'sys-budgets sys-results'), camp = getActiveCampaign();
     wrap.appendChild(el('div', 'sys-light-head', 'Shared values')); wrap.appendChild(el('div', 'sys-note', 'A number the whole table shares, such as Momentum or an alarm. Rolls and actions read it, and move it with Shared: in a change. Each campaign keeps its own figure. A tracker can show one.'));
@@ -12681,6 +12702,7 @@ function renderAll() {
     if (tab === 'rules') renderTables();   // 1.6.0: the Tables box
     if (tab === 'rules') renderResults();   // 1.6.2 (G7)
     if (tab === 'rules') renderValues();   // 1.6.2 (G8)
+    if (tab === 'rules') renderTags();   // 1.6.2 (vehicles, fold (c))
     if (tab === 'rules') renderCurrencies();   // 157 M1
     if (tab === 'rules') renderDecks();   // 1.6.2 (G9)
     if (tab === 'rules') renderLinks();   // 1.6.0: the Linked sheets box

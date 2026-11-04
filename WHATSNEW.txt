@@ -214,6 +214,13 @@ At the table
   list, so one gun can hold an attachment from one list and a scope from
   another. Holds, Holds by kind, Fits where and the figures a row reads of its
   parts count every list, and removing a row takes all of its parts.
+- A token can hold a mark on another, such as a pilot hounding a craft. The
+  Rules tab names the marks. A roll's Then or an action puts one on its
+  target or takes it off, and formulas read whether you hold it on the target
+  and whether it is held on you. A mark shows on the map as a dashed line with
+  its name. A player sees the marks their own tokens hold or are held by. A
+  mark may end with the fight or at its holder's turn's end, and the GM takes
+  one off by pressing its name.
 - A list's rows can be sheets. Tick Rows are sheets, and each row can be
   joined to a character sheet of the campaign, as a vehicle's row to the
   vehicle's own sheet. The sheet's picture and name stand on the row and open

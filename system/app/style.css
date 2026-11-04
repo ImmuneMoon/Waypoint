@@ -1168,6 +1168,11 @@
   
   #wbTooltipContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 30000; }
   #gridOverlay { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 0; }
+  #tagLayer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15990; overflow: visible; }   /* 1.6.2 (vehicles, fold (c)): the marks one token holds on another */
+  #tagLayer line { stroke: var(--teal); stroke-width: 2; stroke-dasharray: 6 6; }
+  #tagLayer circle { fill: var(--teal); }
+  #tagLayer text { fill: var(--teal); font: bold 12px sans-serif; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; }
+  #tagLayer .tag-mark-off { pointer-events: auto; cursor: pointer; }
   #measureLayer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 16000; overflow: visible; }
   #measureLayer line { stroke: var(--gold); stroke-width: 2; stroke-dasharray: 8 5; }
   #measureLayer circle { fill: var(--gold); }

@@ -14269,6 +14269,30 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 S.dmgOnSelf({ dmg: true, each: 'turn' }) === true && S.dmgOnSelf({ dmg: true, each: 'round' }) === true && S.dmgOnSelf({ dmg: true, each: 'turnEnd' }) === true && S.dmgOnSelf({ dmg: true, cross: { f: 'f_x' } }) === true && S.dmgOnSelf({ dmg: true }, 'a_1') === true
                 && S.dmgOnSelf({ dmg: true }) === false && S.dmgOnSelf({ each: 'turn' }) === false && S.dmgOnSelf(null) === false && S.dmgOnSelf({ dmg: 1, each: 'turn' }) === false && S.dmgOnSelf({ dmg: true }, 7) === false, '');
         }
+        {   /* 1.6.2 (asked by a system build): an Any wound row that also runs on a blow with no wound (any), and one whose roll reads the sheet as it stood at that row (asAt) */
+            const mkY = ow => { const s = mkM(); s.combat.damage.onWound = ow; return cleanSystem(s, { F, gmView: true }); };
+            const cY = mkY([{ fx: 'e_shock', any: true, asAt: true }, { roll: 'r_vit', any: 1, asAt: true }, { roll: 'r_vit', asAt: 'yes' }, { fx: 'e_shock' }]).combat.damage.onWound;
+            check('1.6.2 the cleaner keeps Also with no wound and the roll\u2019s sheet as it was there only as true, the second only beside a roll, and a row with neither key for key as before',
+                j(cY) === j([{ fx: 'e_shock', any: true }, { roll: 'r_vit', asAt: true }, { roll: 'r_vit' }, { fx: 'e_shock' }]), j(cY));
+            const stop = { amt: 4, loc: 'w_body' };   // the Plate's 6 stops the whole of it
+            const yA = DS(mkY([{ if: 'Blow.dmg >= 4', fx: 'e_shock', any: true }]), chD(), stop, F, undefined, { now: 1, inCombat: false }), yN = DS(mkY([{ if: 'Blow.dmg >= 4', fx: 'e_shock' }]), chD(), stop, F, undefined, { now: 1, inCombat: false });
+            const yR = DS(mkY([{ roll: 'r_vit', any: true }, { fx: 'e_shock' }]), chD(), stop, F), yW = DS(mkY([{ if: 'Blow.wound = 0', fx: 'e_shock', any: true }]), chD(), { amt: 9, type: 'cut', loc: 'w_body' }, F);
+            check('1.6.2 a row ticked Also with no wound runs on a blow armour stops whole, reading the damage rolled and a wound of 0, while no pool moves and no row without the tick runs; a blow that wounds runs it as any row',
+                yA.ok && yA.info.wound === 0 && !('f_hp' in yA.values) && Array.isArray(yA.values.f_fx) && yA.values.f_fx.some(r => r.ref === 'e_shock') && yA.lines.includes('Shock goes on.')
+                && yN.ok && !('f_fx' in yN.values) && !yN.lines.includes('Shock goes on.')
+                && yR.ok && j(yR.info.follows) === j([{ roll: 'r_vit', why: 'wound' }]) && yR.info.blow.wound === 0 && !('f_fx' in yR.values)
+                && yW.ok && yW.info.wound > 0 && !('f_fx' in yW.values), j([yA.values, yA.lines, yN.values, yR.info, yW.values]));
+            const hit = { amt: 9, type: 'cut', loc: 'w_body' }, yS = DS(mkY([{ roll: 'r_vit', asAt: true }, { fx: 'e_shock' }]), chD(), hit, F, undefined, { now: 1, inCombat: false }), yL = DS(mkY([{ fx: 'e_shock' }, { roll: 'r_vit', asAt: true }]), chD(), hit, F, undefined, { now: 1, inCombat: false }), yP = DS(mkY([{ roll: 'r_vit' }, { fx: 'e_shock' }]), chD(), hit, F, undefined, { now: 1, inCombat: false });
+            const fS = yS.ok && yS.info.follows[0], fL = yL.ok && yL.info.follows[0];
+            check('1.6.2 a roll ticked to read the sheet as it was at its row carries the step\u2019s writes as they stood there: above the row that puts Rattled on it holds the wound and not the effect, below it both; with no tick the roll carries nothing of its own and reads the sheet as the whole blow left it',
+                fS && fS.vals && fS.vals.f_hp && fS.vals.f_hp.cur === yS.values.f_hp.cur && !('f_fx' in fS.vals) && yS.values.f_fx.some(r => r.ref === 'e_shock')
+                && fL && fL.vals && Array.isArray(fL.vals.f_fx) && fL.vals.f_fx.some(r => r.ref === 'e_shock')
+                && yP.ok && !('vals' in yP.info.follows[0]), j([fS, fL, yP.info.follows]));
+            const shY = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
+            check('1.6.2 the roll is worked out on that sheet (majorFollow lays the row\u2019s own writes over the character\u2019s values in place of the whole blow\u2019s), and the Any wound row has its two ticks, the second only beside a roll, each set by one handler',
+                shY.includes("var snF = snap && dmgObj(f.vals) ? ") && shY.includes("n.blowMake(c, r.id, info.blow, f.crip, f.cripBy, snF, ") && shY.includes("rw.appendChild(dbxTick('sys-dmgr-oany', w.any === true, 'Also with no wound',") && shY.includes("if (w.roll) rw.appendChild(dbxTick('sys-dmgr-oasat', w.asAt === true,")
+                && shY.includes("var oK = dbxHas(c, 'sys-dmgr-oany') ? 'any' : 'asAt'; if (on) oT[oK] = true; else delete oT[oK];"));
+        }
         {   /* 1.6.0 (the core's gaps 6 and 7): what any wound does (onWound), a posted roll reading the blow (Blow.<name>, Hit.<name>), and its failure crippling the location (crip) */
             const mkW = (om, ow) => { const s = mkM(om); s.effects.push({ id: 'e_bleed', name: 'Bleeding', vis: 'all', mods: [] });
                 s.rolls.push({ id: 'r_big', label: 'Big Hit', formula: '3d6 <= 10 + Hit.nat - Blow.wound', vis: 'all' }, { id: 'r_shock', label: 'Shock', formula: '3d6 <= 12 - Blow.wound', vis: 'all' }, { id: 'r_free', label: 'Free', formula: '3d6 <= 12 - Blow.wound', vis: 'all' });

@@ -1901,6 +1901,10 @@ function rowTimers(sys, char, secs, perOf, F) {   // F (1.6.0): the formula engi
 //           and the character's names, is true for each row at the struck location; if reads how many as Held.count; stat, a number stat, and
 //           to, a formula of the same names and Held.count, write every such row. So a row may do its work with no effect and no roll. Rows
 //           kept from their player count for nothing, and each row of onWound reads what the row before it wrote
+//           any (1.6.2, asked by a system build: knockback counts where armour stops the whole injury): true only, the row runs on every blow
+//           that lands, a wound or none, Blow.wound then 0; a row without it runs on a wound alone, as before. asAt (1.6.2, of a shock roll that
+//           leaves out the Rattled of the same hit): true only, beside a roll, which is then worked out on the sheet as it stood when this row
+//           was reached, before its own effect and any later row's, in place of the sheet as the whole blow left it (info.follows[i].vals)
 //   A roll the step posts (onMajor's or an onWound one's) reads Blow.<name> and Hit.<name> of the blow that called it when it is rolled from
 //   its card (the host's own record, withBlow; 0 on any other press), so one Big Hit roll is -2 on the face by a column of the location
 //   locs    { list, dr, crip, vital, mult }: the list of hit locations, the column or stat that is a location's DR, the column or stat at which a wound there
@@ -2037,6 +2041,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
             if (typeof w.fx === 'string' && EFFECT_ID.test(w.fx)) ow.fx = w.fx;
             if (typeof w.roll === 'string' && ROLL_ID.test(w.roll)) { ow.roll = w.roll; if (out.locs) { var owc = dmgStatOk(fl, out.locs.list, w.crip); if (owc) { ow.crip = owc; var owb = cleanFormulaText(w.cripBy); if (owb) ow.cripBy = owb; } } }
             var owh = cleanHeld(w.held, fl); if (owh) ow.held = owh;   // 1.6.0: what stands where the blow lands
+            if (w.any === true) ow.any = true; if (ow.roll && w.asAt === true) ow.asAt = true;   // 1.6.2: on every blow that lands; its roll on the sheet as it stood at this row
             if (ow.fx || ow.roll || (ow.held && ow.held.stat)) ows.push(ow);
         }); if (ows.length) out.onWound = ows;
     }
@@ -2142,6 +2147,8 @@ function majPick(om, ev, vars) {
 // 1.6.0 (B3): what a Major Wound does, into the step's own values and lines: its effect switched on through applyEffectOp (with the values the
 // blow has written so far, so a pool the effect brings down is brought down from the wounded figure), and its roll named in info.majorRoll for
 // the caller to post (wpSheets.majorFollow). Nothing where the system has no such effect or roll, or the effect is already on
+// 1.6.2: a copy of the step's writes so far, a key it took away kept as undefined, for a roll an onWound row ticked asAt posts
+function valsAt(values) { var o = {}; Object.keys(values).forEach(function(k) { o[k] = values[k] === undefined ? undefined : JSON.parse(JSON.stringify(values[k])); }); return o; }
 function dmgOnMajor(sys, char, om, values, lines, info, F, fxo, wnd) {   // wnd (1.6.0, the core's gap 6): an onWound entry, its roll and effect named in info.woundRolls and info.woundFx
     if (!isObj(om)) return;
     if (typeof om.roll === 'string' && (Array.isArray(sys.rolls) ? sys.rolls : []).some(function(r) { return isObj(r) && r.id === om.roll; })) { if (wnd) (info.woundRolls = info.woundRolls || []).push(om.roll); else info.majorRoll = om.roll; }
@@ -2316,7 +2323,8 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
         info.dr = eff; info.through = through; info.wound = wound;
         lines.push(A.line);
         if (Bs.length) { Bs.forEach(function(x) { lines.push(x.line); }); info.amt = bAmt; info.parts = [A].concat(Bs).map(function(x, i) { var P = i ? twos[i - 1] : { amt: amt, ad: ad, ty: ty, kd: kd, pf: pf }, ps = { type: P.ty ? P.ty.key : '', amt: P.amt, ad: P.ad, dr: x.eff, through: x.through, wound: x.wound, pool: P.pf.key }; if (P.kd) ps.kind = P.kd.key; return ps; }); }
-        if (wound > 0) {
+        var woundAny = Array.isArray(rules.onWound) && rules.onWound.some(function(ow) { return isObj(ow) && ow.any === true; });   // 1.6.2: a row that runs on every blow that lands
+        if (wound > 0 || woundAny) {   // with no wound no pool moves, no Major Wound is judged and only the rows ticked so run
             var grp = [{ pf: pf, w: A.wound }]; Bs.forEach(function(B, i) { var gx = grp.filter(function(g) { return g.pf.id === twos[i].pf.id; })[0]; if (gx) gx.w += B.wound; else grp.push({ pf: twos[i].pf, w: B.wound }); });   // 1.6.0 (B3): each pool the blow reaches, once, its parts' wounds added
             for (var gi = 0; gi < grp.length; gi++) {
                 var gpf = grp[gi].pf, gw = grp[gi].w; if (!(gw > 0)) continue;
@@ -2341,9 +2349,11 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
             if (Array.isArray(rules.onWound)) {
                 rules.onWound.forEach(function(ow) {
                     var hdW = isObj(ow.held) ? heldRows(sys, char, values, ow.held, wR, ev, yes, F, ropts) : null, owR = hdW ? function(l, text) { return l === 'held.count' ? hdW.rows.length : wR(l, text); } : wR;   // 1.6.0: what stands where the blow lands
+                    if (!(wound > 0) && ow.any !== true) return;   // 1.6.2
                     if (ow.if && !yes(ev(ow.if, owR))) return;
+                    var atV = ow.asAt === true ? valsAt(values) : null;   // 1.6.2: the sheet as it stands now, before this row's effect
                     var nR = (info.woundRolls || []).length; dmgOnMajor(sys, char, ow, values, lines, info, F, fxo, true);
-                    if ((info.woundRolls || []).length > nR) follows.push(folOf(ow.roll, 'wound', ow));
+                    if ((info.woundRolls || []).length > nR) { var foW = folOf(ow.roll, 'wound', ow); if (atV) foW.vals = atV; follows.push(foW); }
                     if (hdW && ow.held.stat) heldWrite(sys, char, values, ow.held, hdW, ev, lines);
                 });
             }

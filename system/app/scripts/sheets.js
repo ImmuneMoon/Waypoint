@@ -11268,6 +11268,8 @@ function damageBox(box, cm) {
                 dbxCap(rw, 'and writes'); rw.appendChild(select('sys-dmgr-ohstat', dbxOpts(['', 'Nothing'], dbxKeys(owH.list, true), owH.stat), dbxStr(owH.stat), 'A number stat written on every row at the location. Pick nothing to read Held.count alone'));
                 if (owH.stat) { var ohT = input('sys-dmgr-ohto field', dbxStr(owH.to), 'The figure written on each of those rows. It reads what Where reads, the row as Row. and a name, and Held.count', 'to, e.g. if(Blow.major, 2, 1)'); ohT.maxLength = LIMITS.formula; rw.appendChild(ohT); }
             }
+            rw.appendChild(dbxTick('sys-dmgr-oany', w.any === true, 'Also with no wound', 'Ticked: this row also runs on a blow that lands but wounds nobody, as armour that stops the whole injury. Where then reads Blow.dmg, the damage rolled, and Blow.wound is 0. Off: only on a wound'));   // 1.6.2
+            if (w.roll) rw.appendChild(dbxTick('sys-dmgr-oasat', w.asAt === true, 'Its roll reads the sheet as it was here', 'Ticked: the roll it asks for is worked out on the sheet as it stood when this row was reached, before this row\u2019s effect and any row below it. So a shock roll put above Rattled leaves out the Rattled of the same hit. Off: on the sheet as the whole blow left it'));   // 1.6.2
             rw.appendChild(dbxBtn('dmgrodel', '\u00d7', 'Remove this'));
             wrap.appendChild(rw);
         });
@@ -11458,6 +11460,8 @@ function onDamageChange(t) {
         var lO = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lO) return true; if (on) { lO.whole = true; delete lO.wears; delete lO.pick; } else { delete lO.whole; delete lO.anyPool; } redraw = true;
     } else if (dbxHas(c, 'sys-dmgr-lpoolany')) {   // 1.6.0: Any pool
         var lPa = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lPa) return true; if (on) lPa.anyPool = true; else delete lPa.anyPool;
+    } else if (dbxHas(c, 'sys-dmgr-oany') || dbxHas(c, 'sys-dmgr-oasat')) {   // 1.6.2: an Any wound row on every blow that lands; its roll on the sheet as it stood there
+        var oT = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oT) return true; var oK = dbxHas(c, 'sys-dmgr-oany') ? 'any' : 'asAt'; if (on) oT[oK] = true; else delete oT[oK];
     } else if (dbxHas(c, 'sys-dmgr-lany')) {   // 1.6.0: Every row
         var lA = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lA) return true; if (on) lA.anyRow = true; else delete lA.anyRow;
     } else if (dbxHas(c, 'sys-dmgr-lwears')) {   // 1.6.0: the stats it may wear, kept in the list's own order
@@ -13790,7 +13794,8 @@ function majorFollow(c, info, vals) {
     fl.forEach(function(f) {
         var r = dmgObj(f) ? (Array.isArray(sys.rolls) ? sys.rolls : []).find(function(x) { return dmgObj(x) && x.id === f.roll; }) : null; if (!r) return;
         var nm = typeof F === 'function' && F() && typeof r.formula === 'string' ? F().names(r.formula) : [], reads = nm.some(function(x) { return /^(blow|hit)\./i.test(x); });   // a roll that reads neither and cripples nothing needs the record only for the sheet as the blow left it: a soft one, which it may do without
-        var att = snap && typeof n.blowMake === 'function' ? n.blowMake(c, r.id, info.blow, f.crip, f.cripBy, snap, !reads && typeof f.crip !== 'string') : '';
+        var snF = snap && dmgObj(f.vals) ? JSON.parse(JSON.stringify(dmgObj(c.values) ? c.values : {})) : snap; if (snF !== snap) Object.keys(f.vals).forEach(function(k) { if (f.vals[k] === undefined) delete snF[k]; else snF[k] = JSON.parse(JSON.stringify(f.vals[k])); });   // 1.6.2: a row ticked asAt, the sheet as it stood at that row
+        var att = snap && typeof n.blowMake === 'function' ? n.blowMake(c, r.id, info.blow, f.crip, f.cripBy, snF, !reads && typeof f.crip !== 'string') : '';
         var mrD = att ? { att: att } : {}, drD = sys.combat && sys.combat.damage; if (f.why !== 'wound' && drD && typeof drD.majorWord === 'string' && drD.majorWord.trim()) mrD.mw = drD.majorWord.trim();   // 1.6.0: the card says the system's own word for it
         n.postDue(c, r, f.why === 'wound' ? 'wound' : 'major', 1, !c.npc && !!c.ownerId && r.vis !== 'gm', mrD.att || mrD.mw ? mrD : undefined); did = true;
     });

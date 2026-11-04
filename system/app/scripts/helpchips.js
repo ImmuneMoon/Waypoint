@@ -10,6 +10,29 @@ function chipHelpBox(doc) { return doc.getElementById('helpModal'); }
 // a window a control may live in, the control that opens it, and what a tab of it is called: the System editor for now
 var CHIP_WINDOWS = { systemModal: { open: 'systemBtn', tabs: '.sys-tabs button[data-tab]', tabOf: function(el) { var t = el && el.closest ? el.closest('.sys-tab') : null; return t && t.id ? CHIP_TAB_IDS[t.id] || '' : ''; } },
     settingsModal: { open: 'settingsBtn' }, profileModal: { open: 'rowMeBtn' }, netModal: { open: 'netBtn' } };   // fold 3: Settings, your profile and Multiplayer, which have no tabs: a group of Settings unfolds and a part of Multiplayer opens by its own button
+// fold 3: the names Help says them by, marked as Help opens (Help's text stays as written, which many suites read): the part of Help, the name in
+// its own words, the control, and where a name stands for something else as well, the one occurrence of it in that part that means the control
+var CHIP_NAMES = [
+    ['start', 'your profile', '#rowMeBtn'], ['start', 'open your profile', '#setProfileOpenBtn'], ['start', 'start over as a new player', '#profStartOverBtn'], ['start', 'reset multiplayer identity', '#setResetIdentityBtn'],
+    ['start', 'save my profile', '#setProfSaveBtn'], ['start', 'copy my profile code', '#setProfCopyBtn'], ['start', 'open a profile', '#setProfOpenBtn'], ['start', 'paste a profile code', '#setProfPasteBtn'], ['start', 'link to my account', '#setAcctLinkBtn'],
+    ['start', 'paused', '#pausedPill'], ['start', 'notifications', '#notesBtn'], ['start', 'new campaign', '#newCampBtn'], ['start', 'export this campaign', '#exportCampaignBtn'], ['start', 'share this campaign', '#exportShareBtn'], ['start', 'export everything', '#exportBtn'],
+    ['start', 'update now', '#setUpdateNowBtn'], ['start', 'restore the previous version', '#setUpdateRestoreBtn'], ['start', 'snapshot the save now', '#setSnapNowBtn'], ['start', 'get installer', '#setUpdateInstallerBtn'],
+    ['whiteboard', 'save as image', '#exportImgBtn'], ['whiteboard', 'lock travel between maps', '#netTravelLockBtn'],
+    ['grids', 'game record', '#netLogBtn'], ['grids', 'vtt integration', '#setVttMasterBtn'], ['grids', 'apply to existing campaigns', '#setVttPushBtn'], ['grids', 'grid opacity', '#setGridOpacity'], ['grids', 'toggle pointer location', '#setPointerPosBtn'], ['grids', 'toggle zoom buttons', '#setZoomCtlBtn'],
+    ['planners', 'save markdown', '#exportMdBtn'], ['handbook', 'save markdown', '#exportMdBtn'],
+    ['mp-gm', 'display name', '#setNameInput'], ['mp-gm', 'host a table', '#netPaneHostBtn'], ['mp-gm', 'start hosting this campaign', '#netHostBtn'], ['mp-gm', 'stream window', '#setStreamBtn'], ['mp-gm', 'game record', '#netLogBtn'],
+    ['mp-gm', 'start combat', '#netCombatBtn', 2], ['mp-gm', 'pause the table', '#netPauseBtn'], ['mp-gm', 'firewall-friendly connections', '#setRelayBtn'], ['mp-gm', 'test relay', '#setTurnTestBtn'],
+    ['mp-player', 'join a table', '#netPaneJoinBtn'], ['mp-player', 'join', '#netJoinBtn'], ['mp-player', 'table notepad', '#netNotepadBtn'], ['dice', 'table chat', '#chatBtn'], ['keys', 'restore default keys', '#setKeysResetBtn']];
+function chipWords(s) { return String(s || '').replace(/\s+/g, ' ').trim().replace(/[.\u2026:]+$/, '').toLowerCase(); }
+function chipsName(help) {
+    var n = 0;
+    CHIP_NAMES.forEach(function(c) {
+        var pane = help.querySelector('.help-pane[data-pane="' + c[0] + '"]'); if (!pane) return;
+        var bs = pane.querySelectorAll('b'), k = 0;
+        for (var i = 0; i < bs.length; i++) { var b = bs[i]; if (b.getAttribute('data-ctl') || b.dataset.name || chipWords(b.textContent) !== c[1]) continue; k++; if (c[3] && k !== c[3]) continue; b.setAttribute('data-ctl', c[2]); n++; }
+    });
+    return n;
+}
 // fold 3: a part of a window that shows only at times, and the words a chip says while it does not
 var CHIP_WHEN = { netHostInfo: 'While you host', setUpdateRow: 'When an update is found', setRelayBlock: 'With a relay server set' };
 var CHIP_TAB_IDS = { sysFields: 'fields', sysRolls: 'rolls', sysItems: 'items', sysLists: 'lists', sysEffects: 'effects', sysCombat: 'combat', sysRules: 'rules', sysChars: 'chars', sysLayout: 'layout', sysCalendar: 'calendar' };
@@ -72,6 +95,7 @@ var _chipBack = null;   // where Help was left: its pane and its scroll
 // draw every chip of Help as it opens: a bold name stays as it is where its control is not in the page at all
 function chipsDraw(doc) {
     var help = chipHelpBox(doc); if (!help) return 0; var n = 0;
+    chipsName(help);   // fold 3
     var marks = help.querySelectorAll('b[data-ctl]');
     for (var i = 0; i < marks.length; i++) {
         var b = marks[i], key = b.getAttribute('data-ctl'), f = chipFind(doc, key); if (!f) continue;

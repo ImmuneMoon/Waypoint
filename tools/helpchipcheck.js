@@ -53,7 +53,7 @@ function page(opts) {
 }
 const src = read('scripts/helpchips.js'), cut = (a, b) => src.slice(src.indexOf('// [helpchipcheck:' + a + '-start]'), src.indexOf('// [helpchipcheck:' + b + '-end]'));
 const timers = [], opened = [];
-const api = new Function('window', 'setTimeout', 'MutationObserver', cut('core', 'wire') + '\nreturn { chipFind, chipReach, chipCopy, chipsDraw, chipGo, chipBack, chipMenus, chipStand, CHIP_KEY, CHIP_TAB_IDS };')({ wpOpenHelp: p => opened.push(p) }, (f, ms) => { timers.push([f, ms]); return timers.length; }, undefined);
+const api = new Function('window', 'setTimeout', 'MutationObserver', cut('core', 'wire') + '\nreturn { chipFind, chipReach, chipCopy, chipsDraw, chipGo, chipBack, chipMenus, chipStand, chipsName, chipWords, CHIP_NAMES, CHIP_KEY, CHIP_TAB_IDS };')({ wpOpenHelp: p => opened.push(p) }, (f, ms) => { timers.push([f, ms]); return timers.length; }, undefined);
 // ---- the core
 const P = page(), d = P.doc;
 const fTab = api.chipFind(d, 'sys-tab:rules'), fSave = api.chipFind(d, '#sysSaveBtn'), fKey = api.chipFind(d, 'sys:fields:sys-key-btn');
@@ -146,8 +146,17 @@ function rowPage(opts) {
 // ---- every mark Help carries names a control the page has
 const html = read('index.html'), marks = [...html.matchAll(/<b data-ctl="([^"]+)">/g)].map(m => m[1]);
 const bad = marks.filter(k => { if (!api.CHIP_KEY.test(k)) return true; if (k[0] === '#') return html.split('id="' + k.slice(1) + '"').length !== 2; if (k.indexOf('sys-tab:') === 0) return !html.includes('<button data-tab="' + k.slice(8) + '"'); const p = k.split(':'), tid = Object.keys(api.CHIP_TAB_IDS).find(x => api.CHIP_TAB_IDS[x] === p[1]); if (!tid) return true; const at = html.indexOf('id="' + tid + '"'), end = html.indexOf('<div id="sys', at + 10); return at < 0 || html.slice(at, end > 0 ? end : undefined).indexOf(p[2]) < 0; });
-check('every mark Help carries is a key of the chips’ own form, and names a button or a tab the page has: the System editor’s 25 first, then fold 3’s 46 of Settings, your profile, Multiplayer and the top row', marks.length >= 71 && bad.length === 0, J([marks.length, bad]));
-check('fold 3 marks the names that mean a control, and leaves a name that means the feature as it is', /<b data-ctl="#netHostBtn">Start Hosting this Campaign<\/b>|<b data-ctl="#netHostBtn">/.test(html) && /<b data-ctl="#setKeysResetBtn">/.test(html) && /<b data-ctl="#exportMdBtn">/.test(html) && !/<b data-ctl="[^"]+">Fog of war<\/b>/.test(html) && !/<b data-ctl="[^"]+">Cancel<\/b>/.test(html));
+check('every mark Help carries is a key of the chips’ own form, and names a button or a tab the page has: the System editor’s 25 first', marks.length >= 25 && bad.length === 0, J([marks.length, bad]));
+{   // fold 3: the names marked as Help opens, each a bold of its part as Help writes it, naming a control the page has, its one occurrence where it says so
+    const paneOf = p => { const i = html.indexOf('class="help-pane" data-pane="' + p + '"') >= 0 ? html.indexOf('class="help-pane" data-pane="' + p + '"') : html.indexOf('data-pane="' + p + '"'); if (i < 0) return ''; const j = html.indexOf('class="help-pane"', i + 20); return html.slice(i, j < 0 ? html.length : j); };
+    const words = s => api.chipWords(s.replace(/<[^>]+>/g, '').replace(/&hellip;/g, '').replace(/&rsquo;/g, '\u2019'));
+    const badN = api.CHIP_NAMES.filter(c => { const p = paneOf(c[0]), n = [...p.matchAll(/<b>([\s\S]*?)<\/b>/g)].filter(m => words(m[1]) === c[1]).length; return !n || (c[3] && n < c[3]) || html.split('id="' + c[2].slice(1) + '"').length !== 2 || !api.CHIP_KEY.test(c[2]); });
+    check('fold 3 names 43 more in their parts of Help (Settings, your profile, Multiplayer and the top row), each a bold Help writes there and a control the page has; Help\u2019s text is left as written', api.CHIP_NAMES.length === 43 && !badN.length && !/data-ctl="#(?:setKeysResetBtn|netJoinBtn|exportMdBtn)"/.test(html), J(badN));
+    const pn = mk('div', { cls: 'help-pane', data: { pane: 'mp-gm' } }, [mk('b', { text: 'Start combat' }), mk('b', { text: 'Start Combat' }), mk('b', { text: 'Pause the Table' }), mk('b', { text: 'Fog of war' })]), hb = mk('div', { id: 'helpModal' }, [pn]);
+    const nN = api.chipsName(hb), bsN = pn.querySelectorAll('b').map(b => b.getAttribute('data-ctl') || '');
+    check('marked as Help opens: a name of the list in its part, in any case, the one occurrence where the list names it, never twice, and a name not in the list left as it is', nN === 2 && J(bsN) === J(['', '#netCombatBtn', '#netPauseBtn', '']) && api.chipsName(hb) === 0, J([nN, bsN]));
+}
+
 const sheets = html.slice(html.indexOf('data-pane="sheets"'), html.indexOf('data-pane="keys"'));
 check('the marks are on the names of what you press, and a bold that means something else in its sentence is left plain', !/<b data-ctl="[^"]+">Undo<\/b>/.test(html) && /The rules of a fight are on the <b data-ctl="sys-tab:combat">Combat<\/b> tab/.test(sheets) && /<b data-ctl="#sysSaveBtn">Save<\/b> in the editor keeps your changes/.test(sheets) && /with the <b>Calendar<\/b> on/.test(sheets));
 // ---- the wiring, the styles, the words

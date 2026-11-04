@@ -228,6 +228,11 @@ At the table
   turn, as the mark says. A mark also ends the moment an effect you pick is on
   for either token. Shake off, a change of a roll's Then or an action, takes a
   mark off the one who rolls, whoever holds it.
+- A side hit now reads as the left or the right, so a hit from one side can
+  strike that side. A list can name a choice stat as its rows' arcs, such as
+  Front, Rear and Turret, and set the bearings each covers in degrees from the
+  token's facing, or all round. A roll's needs can then ask whether its target
+  stands in that row's arc, so a gun greys out where it cannot fire.
 - The arrow beside the pointer location at the top right of a map folds its
   numbers away, and a second press shows them again. This computer remembers
   which you chose.

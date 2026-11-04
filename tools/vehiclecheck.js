@@ -228,12 +228,69 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
             && /window\.wpSheets\.tagsMoved\(map, item\.id\)/.test(ntS) && /window\.wpSheets\.tagsTurn\(mapId, row\.tokId\)/.test(ntS)
             && /'Ends out of sight'/.test(shJ) && /'sys-tag-keep field'/.test(shJ) && /Judged at the end of its holder/.test(shJ) && /'field sys-tag-fx'/.test(shJ) && /'Shake off: '/.test(shJ) && /'sys-tag-keep': 'cond'/.test(read('scripts/formbox.js')));
     }
+    /* ---- fold (b): left and right, and a row's arc ---- */
+    {
+        const ev = (txt, ro, sys) => { const r = F.evaluate(txt, { vars: S.makeResolver(sys || S.cleanSystem({ v: 1, name: 'A', fields: [] }, { F, gmView: true }), { id: 'c', values: {} }, F, ro) }); return r.ok ? r.value : 'err:' + (r.error && r.error.message); };
+        const fx = (sides, th) => ({ facing: { deg: 0, sides, threats: th } });
+        const pick = (sides, th) => ['Arc.front', 'Arc.side', 'Arc.left', 'Arc.right', 'Arc.rear'].map(n => ev(n + ' * 1', fx(sides, th)));
+        check('Arc.left and Arc.right split Arc.side, on six sides and on four: a hit from the front-right is still the front, one from the side is left or right, one from behind is neither',
+            J(pick(6, [120])) === J([0, 1, 0, 1, 0]) && J(pick(6, [-120])) === J([0, 1, 1, 0, 0]) && J(pick(6, [60])) === J([1, 0, 0, 0, 0]) && J(pick(6, [-60])) === J([1, 0, 0, 0, 0]) && J(pick(6, [180])) === J([0, 0, 0, 0, 1])
+            && J(pick(4, [90])) === J([0, 1, 0, 1, 0]) && J(pick(4, [-90])) === J([0, 1, 1, 0, 0]) && J(pick(4, [0])) === J([1, 0, 0, 0, 0]) && J(pick(4, [180])) === J([0, 0, 0, 0, 1])
+            && ev('Arc.left * 1', null) === 0 && ev('Arc.right * 1', null) === 0, J([pick(6, [120]), pick(6, [-120]), pick(4, [90]), pick(4, [-90])]));
+        check('the side is read from the facing, not the map: a token facing right reads a hit from above as its left',
+            J(['Arc.left', 'Arc.right'].map(n => ev(n + ' * 1', { facing: { deg: 90, sides: 6, threats: [0] } }))) === J([1, 0]) && J(['Arc.left', 'Arc.right'].map(n => ev(n + ' * 1', { facing: { deg: 90, sides: 4, threats: [180] } }))) === J([0, 1]));
+        check('Threats.left and Threats.right count the threats on each side, every threat counted once, and the facing names list them',
+            ev('Threats.left', fx(6, [120, -120, 0])) === 1 && ev('Threats.right', fx(6, [120, -120, 0])) === 1 && ev('Threats.left', fx(4, [-90, 90, 180])) === 1 && ev('Threats.side', fx(6, [120, -120])) === 2
+            && ['Arc.left', 'Arc.right', 'Threats.left', 'Threats.right'].every(n => S.FACING_NAMES.indexOf(n) >= 0) && S.TOKEN_NAMES.indexOf('Arc.left') >= 0);
+        check('a field named Arc keeps the whole family, Arc.left and Arc.right too', ev('Arc.left', fx(6, [-120]), S.cleanSystem({ v: 1, name: 'A', fields: [{ id: 'f_a', key: 'Arc', kind: 'number', def: 4 }] }, { F, gmView: true })).toString().indexOf('err:') === 0);
+        const ARAW = { v: 1, name: 'Guns', fields: [
+            { id: 'f_hp', key: 'HP', label: 'Hull', kind: 'number', def: 10 },
+            { id: 'f_gun', key: 'Guns', label: 'Guns', kind: 'item-list', list: {
+                stats: [{ key: 'Mount', label: 'Mount', kind: 'pick', opts: [{ label: 'Front', name: 'Front' }, { label: 'Right', name: 'Right' }, { label: 'Rear', name: 'Rear' }, { label: 'Turret', name: 'Turret' }, { label: 'Bow', name: 'Bow', was: ['Nose'] }] }, { key: 'Secret', label: 'Secret', kind: 'pick', vis: 'gm', opts: [{ label: 'A', name: 'A' }] }, { key: 'Facing', label: 'Facing', kind: 'number', labels: ['Ahead', 'Behind'] }],
+                arc: { by: 'mount', cover: [{ v: 'front', f: -60, t: 60 }, { v: 'Right', f: 30, t: 150 }, { v: 'Rear', f: 120, t: -120 }, { v: 'Turret', all: true }, { v: 'Nose', f: -30, t: 30 }, { v: 'Front', f: 0, t: 1 }, { v: 'Ghost', f: 0, t: 90 }, { v: 'Rear', f: 'x' }] },
+                rolls: [{ label: 'Fire', formula: '3d6 <= 12', needs: 'Target.inArc = 1' }] } },
+            { id: 'f_box', key: 'Box', label: 'Box', kind: 'item-list', list: { stats: [{ key: 'Secret', label: 'Secret', kind: 'pick', vis: 'gm', opts: [{ label: 'A', name: 'A' }] }, { key: 'Pos', label: 'Pos', kind: 'number', labels: ['Ahead', 'Behind'] }], arc: { by: 'Secret', cover: [{ v: 'A', all: true }] } } },
+            { id: 'f_bad', key: 'Bad', label: 'Bad', kind: 'formula', formula: 'Target.inArc' }],
+            items: [{ id: 'i_las', key: 'Laser', name: 'Laser', category: '', stats: { Mount: 'Front' } }, { id: 'i_tur', key: 'Turret', name: 'Turret gun', category: '', stats: { Mount: 'Turret' } }, { id: 'i_rr', key: 'Tail', name: 'Tail gun', category: '', stats: { Mount: 'Rear' } }, { id: 'i_bow', key: 'BowGun', name: 'Bow gun', category: '', stats: { Mount: 'Bow' } }, { id: 'i_none', key: 'Loose', name: 'Loose', category: '' }] };
+        const AS = S.cleanSystem(ARAW, { F, gmView: true }), AV = S.cleanSystem(ARAW, { F, gmView: false }), gl = s => s.fields.find(f => f.id === 'f_gun').list;
+        const wantArc = { by: 'Mount', cover: [{ v: 'Front', f: -60, t: 60 }, { v: 'Right', f: 30, t: 150 }, { v: 'Rear', f: 120, t: -120 }, { v: 'Turret', all: true }, { v: 'Bow', f: -30, t: 30 }] };
+        check('Arcs by is kept by the stat’s own spelling and each value by its own name or a name it had before, once, with whole degrees or all round, the same in both views; a value the stat has not, one given twice and one with no To go',
+            J(gl(AS).arc) === J(wantArc) && J(gl(AV).arc) === J(wantArc), J([gl(AS).arc, gl(AV).arc]));
+        check('Arcs by is never a GM-only stat, a set of places or a stat with no values, and a list that names none has no key',
+            !('arc' in (AS.fields.find(f => f.id === 'f_box').list || {})) && !('arc' in (S.cleanSystem({ v: 1, name: 'B', fields: [{ id: 'f_x', key: 'X', kind: 'item-list', list: { stats: [{ key: 'N', label: 'N', kind: 'number' }], arc: { by: 'N', cover: [] } } }] }, { F, gmView: true }).fields[0].list || {}))
+            && !('arc' in (S.cleanSystem({ v: 1, name: 'B', fields: [{ id: 'f_x', key: 'X', kind: 'item-list', list: {} }] }, { F, gmView: true }).fields[0].list || {}))
+            && J(S.cleanArc({ by: 'Pos', cover: [{ v: 'behind', f: 999, t: -181 }] }, [{ key: 'Pos', kind: 'number', labels: ['Ahead', 'Behind'] }])) === J({ by: 'Pos', cover: [{ v: 'Behind', f: -81, t: 179 }] }));
+        check('an arc holds a bearing from its From clockwise to its To, both ends in, across the turn of the compass; All round holds every bearing; anything else holds none',
+            [0, 60, -60].every(b => S.arcHolds({ f: -60, t: 60 }, b)) && ![61, -61, 180].some(b => S.arcHolds({ f: -60, t: 60 }, b)) && [120, 180, -120, -150].every(b => S.arcHolds({ f: 120, t: -120 }, b)) && !S.arcHolds({ f: 120, t: -120 }, 90)
+            && S.arcHolds({ all: true }, 37) && S.arcHolds({ f: 10, t: 10 }, 10) && !S.arcHolds({ f: 10, t: 10 }, 11) && !S.arcHolds({ f: 0, t: 90 }, NaN) && !S.arcHolds(null, 0));
+        const mapH = { id: 'm1', meta: { gridType: 'hex' }, whiteboard: [] }, ship = { id: 't_s', x: 0, y: 0, w: 60, h: 52, rot: 0 }, east = { id: 't_e', x: 300, y: 0, w: 60, h: 52 }, north = { id: 't_n', x: 0, y: -300, w: 60, h: 52 }, south = { id: 't_x', x: 0, y: 300, w: 60, h: 52 };
+        const rcE = S.rangeCtx(AS, mapH, ship, east, { F }), rcN = S.rangeCtx(AS, mapH, ship, north, { F }), rcTurn = S.rangeCtx(AS, mapH, Object.assign({}, ship, { rot: 60, front: 30 }), east, { F }), rcS = S.rangeCtx(AS, mapH, ship, south, { F });
+        check('the range carries the target’s bearing from the roller’s facing, turned with its token and its front, and withRange hands it on; a system whose rows say no arc carries none, so every other range is as before',
+            rcE.rb === 90 && rcN.rb === 0 && rcTurn.rb === 0 && rcS.rb === 180 && S.withRange({}, rcE).range.rb === 90 && !('rb' in S.rangeCtx(S.cleanSystem({ v: 1, name: 'B', fields: [] }, { F, gmView: true }), mapH, ship, east, { F })), J([rcE, rcN, rcTurn, rcS]));
+        const ch = { id: 'c_s', name: 'Skiff', values: { f_gun: [{ id: 'w_l', defId: 'i_las', qty: 1 }, { id: 'w_t', defId: 'i_tur', qty: 1 }, { id: 'w_r', defId: 'i_rr', qty: 1 }, { id: 'w_b', defId: 'i_bow', qty: 1 }, { id: 'w_n', defId: 'i_none', qty: 1 }] } };
+        const inArc = (rc, row) => { const fn = S.makeResolver(AS, ch, F, rc ? S.withRange({}, rc) : {}); const rv = fn.row('f_gun', row); const r = F.evaluate('Target.inArc', { vars: rv }); return [r.ok ? r.value : 'err', fn.rangeRead && fn.rangeRead()]; };
+        check('Target.inArc reads 1 where the target stands in that row’s arc, 0 where it does not, for a row with no value and with no target, and it counts as reading the range',
+            J(inArc(rcN, 'w_l')) === J([1, true]) && J(inArc(rcE, 'w_l')) === J([0, true]) && J(inArc(rcE, 'w_t')) === J([1, true]) && J(inArc(rcS, 'w_r')) === J([1, true]) && J(inArc(rcN, 'w_r')) === J([0, true])
+            && J(inArc(rcN, 'w_b')) === J([1, true]) && J(inArc(rcE, 'w_b')) === J([0, true]) && inArc(rcN, 'w_n')[0] === 0 && inArc(null, 'w_t')[0] === 0 && inArc(rcTurn, 'w_l')[0] === 1, J([inArc(rcN, 'w_l'), inArc(rcE, 'w_l'), inArc(rcE, 'w_t'), inArc(rcS, 'w_r'), inArc(null, 'w_t')]));
+        const resA = S.resolveAll(AS, ch, F, S.withRange({}, rcE)), resN = S.resolveAll(AS, ch, F, S.withRange({}, rcN)), rnOf = (res, row) => { const rn = res.f_gun && res.f_gun.rn; return rn && rn[row] ? rn[row] : null; };
+        check('a roll’s needs read it, so the sheet greys a gun whose target is out of its arc and leaves one in arc to press', J(rnOf(resA, 'w_l')) !== J(rnOf(resN, 'w_l')) && J(rnOf(resA, 'w_t')) === J(rnOf(resN, 'w_t')), J([rnOf(resA, 'w_l'), rnOf(resN, 'w_l'), rnOf(resA, 'w_t')]));
+        const vr = S.validateSystem(AS, F), vBad = vr.errors.filter(e => e.id === 'f_bad').map(e => e.message).join('|');
+        check('the validator knows Target.inArc in a list’s own formulas where the list says its rows’ arcs, and says where it is known anywhere else',
+            !vr.errors.some(e => e.id === 'f_gun') && /known only in a list whose rows say their arc/.test(vBad) && S.nameWord(AS, 'Target.inArc') === 'whether the target stands in this row’s arc', J(vr.errors));
+        const rdA = S.readsOf(AS, { list: gl(AS) }), rdB = S.readsOf(AS, {});
+        check('the boxes of such a list offer it under Its arc, and no other box does', rdA.some(g => g.name === 'Its arc') && !rdB.some(g => g.name === 'Its arc'));
+        const shA = read('scripts/sheets.js'), uiA = read('scripts/sysui.js');
+        check('the Lists tab has Arcs by and a row for each of its values, with From, To and All round, each kept in the list’s draft, and the layout names them so none falls to More',
+            /el\('select', 'sys-list-arcby'\)/.test(shA) && /'field sys-num ' \+ p\[0\]/.test(shA) && /checkLabel\('sys-list-arcall'/.test(shA) && /c\.indexOf\('sys-list-arcby'\) >= 0\) \{ if \(t\.value\) lsc\.arc = /.test(shA) && /arE\[arK\] = Math\.max\(-180, Math\.min\(180/.test(shA)
+            && /\['arcs', 'Arcs', 0, \['sys-list-arcby', 'sys-arcs'\]\]/.test(uiA));
+    }
     /* ---- the words ---- */
     const help = read('index.html');
     check('Help says Rows are sheets, in plain words', /<b>Rows are sheets<\/b>/.test(help) && /Make a new sheet/.test(help));
     check('Help says what a mark is, in plain words', /<b>Marks<\/b>/.test(help) && /dashed line/.test(help));
     check('Help says what else ends a mark and what Shake off does', /<b>Ends out of sight<\/b>/.test(help) && /<b>Kept while<\/b>/.test(help) && /<b>Shake off<\/b>/.test(help));
-    check('both release notes say it', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /Rows are sheets/.test(readRoot(p)) && /A token can hold a mark on another/.test(readRoot(p)) && /A mark can end by itself/.test(readRoot(p))));
+    check('Help says Arcs by and the left and right sides, in plain words', /<b>Arcs by<\/b> names a choice stat/.test(help) && /<b>All round<\/b> covers every bearing/.test(help) && /<b>Arc\.left<\/b> and <b>Arc\.right<\/b> split the side/.test(help));
+    check('both release notes say it', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A side hit now reads as the left or the right/.test(readRoot(p)) && /Rows are sheets/.test(readRoot(p)) && /A token can hold a mark on another/.test(readRoot(p)) && /A mark can end by itself/.test(readRoot(p))));
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never finished'); process.exitCode = 1; } });

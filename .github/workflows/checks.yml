@@ -147,6 +147,9 @@ jobs:
       - name: fxvalcheck — an effect that holds a number, added again, falling over time, changed by hand
         if: ${{ !cancelled() }}
         run: node tools/fxvalcheck.js
+      - name: woundfcheck — a wound worked out by a formula, for every type or one, and a wound of 0
+        if: ${{ !cancelled() }}
+        run: node tools/woundfcheck.js
       - name: thengmcheck — a Then step players may not see, run on the host
         if: ${{ !cancelled() }}
         run: node tools/thengmcheck.js

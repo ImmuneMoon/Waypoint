@@ -192,6 +192,9 @@ At the table
   roll cards, which are edged in its colour, and a player's own sheet text is
   set in their font.
   Personal looks is a VTT feature, on until the GM switches it off.
+- A wound can be worked out by a formula of what got through, for every damage
+  type or for one type alone. The system says whether a wound of 0 still wears
+  armour.
 - An effect can hold a number, as Bleeding 3. Its changes can count that many
   times, adding it again adds, keeps the higher or replaces, and it can fall each
   turn or each game minute or hour. At 0 it ends.

@@ -1975,6 +1975,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
     var fx = function(s) { return pl ? '' : cleanFormulaText(s) || ''; };
     var out = {}; if (isPool(d.pool)) out.pool = d.pool;
     var mj = fx(d.major); if (mj) out.major = mj;
+    var wfS = fx(d.woundF); if (wfS) out.woundF = wfS; if (!pl && d.zero === 'none') out.zero = 'none';   // 1.6.2: a wound by a formula for every type, and what a wound of 0 does (absent: armour still wears)
     var mjw = cutText(d.majorWord, LIMITS.label); if (mjw) out.majorWord = mjw;   // 1.6.0 Major Wound is called: a system's own word for the step, the same in both views, read by majorWords alone (absent: A Major Wound)
     if (mj && !pl && isObj(d.onMajor) && !Array.isArray(d.onMajor)) { var om = {}, omIf = cleanFormulaText(d.onMajor.if); if (omIf) om.if = omIf; if (typeof d.onMajor.fx === 'string' && EFFECT_ID.test(d.onMajor.fx)) om.fx = d.onMajor.fx; if (typeof d.onMajor.roll === 'string' && ROLL_ID.test(d.onMajor.roll)) om.roll = d.onMajor.roll; if (om.fx || om.roll) out.onMajor = om; }
     if (isObj(d.locs) && isList(d.locs.list)) {
@@ -2016,6 +2017,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
             if (isObj(y.alt)) { var ai = cleanFormulaText(y.alt.if); if (ai) { var al = { if: ai }; if (isPool(y.alt.pool)) al.pool = y.alt.pool; if (typeof y.alt.mult === 'number' && fin(y.alt.mult)) al.mult = dmgNum(y.alt.mult, 0, DMG_LIM.mult, 1); if (y.alt.noWear === true) al.noWear = true; o.alt = al; } }
             if (y.noWear === true) o.noWear = true;
             if (y.cuts === true) o.cuts = true;
+            var ywf = cleanFormulaText(y.woundF); if (ywf) o.woundF = ywf; else if (y.byMult === true) o.byMult = true;   // 1.6.2: its own wound formula, or its multiplier in place of the system's
             DMG_DIE.forEach(function(k) { var dv = dmgNum(y[k[0]], k[1], 10, 0); if (dv) o[k[0]] = dv; });   // 1.6.0: its figures a die
         }
         types.push(o);
@@ -2265,7 +2267,10 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
                 dieAdd = Math.floor(dice * per);
             }
             var wound = through > 0 && mult > 0 ? Math.max(1, Math.floor(through * mult) + dieAdd) : 0;
-            return { eff: eff, through: through, wound: wound, dieAdd: dieAdd, line: (ty ? ty.label + ' ' : '') + amt + (lrow ? ' to ' + lname : '') + (eff ? ', DR ' + eff : '') + ': ' + (through ? through + ' through' + (mult !== 1 ? ' \u00d7' + mult : '') + (dieAdd ? ' ' + (dieAdd > 0 ? '+' : '\u2212') + Math.abs(dieAdd) + ' for ' + dice + (dice === 1 ? ' die' : ' dice') : '') + ', ' + wound + ' ' + (pf.label || pf.key) : 'nothing gets through') };
+            var wFx = ty && ty.woundF ? ty.woundF : ty && ty.byMult ? '' : rules.woundF || '', zw = false;   // 1.6.2: Wound by formula, the type's own, else the system's (a type ticked Its multiplier keeps its own)
+            if (wFx && through > 0) { var wvF = ev(wFx, partR(P, Object.assign({}, blow0, { through: through }))); if (typeof wvF === 'boolean') wvF = wvF ? 1 : 0; if (typeof wvF !== 'number' || !isFinite(wvF)) return { fail: { ok: false, reason: 'error', message: 'The wound could not be worked out from its formula.' } }; wound = Math.max(0, Math.min(DMG_LIM.amt, Math.floor(wvF))); zw = wound === 0; }
+            var ww = wound > 0 ? wound : zw && rules.zero !== 'none' ? 1 : 0;   // what wear reads: a wound of 0 from the formula still wears armour unless the system says it does nothing
+            return { eff: eff, through: through, wound: wound, ww: ww, dieAdd: wFx && through > 0 ? 0 : dieAdd, line: (ty ? ty.label + ' ' : '') + amt + (lrow ? ' to ' + lname : '') + (eff ? ', DR ' + eff : '') + ': ' + (through ? through + ' through' + (wFx ? ', by its formula' : (mult !== 1 ? ' \u00d7' + mult : '') + (dieAdd ? ' ' + (dieAdd > 0 ? '+' : '\u2212') + Math.abs(dieAdd) + ' for ' + dice + (dice === 1 ? ' die' : ' dice') : '')) + ', ' + wound + ' ' + (pf.label || pf.key) : 'nothing gets through') };
         };
         var A = partStep({ amt: amt, ad: ad, dice: dice, ty: ty, kd: kd, pool: pool, pf: pf, mult: mult }); if (A.fail) return A.fail;
         if (A.dieAdd) info.dieAdd = A.dieAdd;
@@ -2311,13 +2316,13 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
         }
         var blowW = blowKinds({ dmg: bAmt, through: info.through, wound: info.wound, type: ty ? (rules.types || []).indexOf(ty) + 1 : 0, cuts: bCuts, major: info.major === true });   // the blow, for a layer's wear formulas
         Bs.forEach(function(B, i) { blowW['type' + twos[i].k] = twos[i].ty ? (rules.types || []).indexOf(twos[i].ty) + 1 : 0; blowW['wound' + twos[i].k] = B.wound; });   // 1.6.0: and each added part's own type and wound
-        var wearW = (noWear ? 0 : A.wound) + Bs.reduce(function(a, B, i) { return a + (twos[i].noWear ? 0 : B.wound); }, 0), wearA = (noWear ? 0 : amt) + twos.reduce(function(a, t) { return a + (t.noWear ? 0 : t.amt); }, 0);   // 1.6.0 (B3): the parts whose type wears, as one blow: each layer wears once
+        var wearW = (noWear ? 0 : A.ww) + Bs.reduce(function(a, B, i) { return a + (twos[i].noWear ? 0 : B.ww); }, 0), wearA = (noWear ? 0 : amt) + twos.reduce(function(a, t) { return a + (t.noWear ? 0 : t.amt); }, 0);   // 1.6.0 (B3): the parts whose type wears, as one blow: each layer wears once
         // 1.6.0: a layer's figure (its at) is read once a part, each part by its own Blow.kind and Blow.type (partR), every other Blow. name the whole blow's. A part it gives 0 or less for passes the layer by: that part neither wears it nor counts
         // against it, so a layer that stands against one kind is worn by the part of that kind alone. The row's figure for the blow is the highest of the parts that reach it. A figure that reads no Blow. name is the same for every part, as it was
         var wearP = null, mainOf = function(p) { return !mainP || p === mainP; };   // 1.6.0: a part that took the main pool (the pool, or with none named any)
         if ((lrow || (rules.layers || []).some(function(l) { return l.whole === true; })) && (!noWear || twos.some(function(t) { return !t.noWear; })) && (wearW > 0 || dWear > 0)) (rules.layers || []).forEach(function(ly) {   // 1.6.0: a type that wears by the dice wears whether or not the blow gets through
             if (!lrow && ly.whole !== true) return;   // 1.6.0: with no location only a layer of Every location wears
-            if (!wearP) { wearP = [{ ty: ty, kd: kd, amt: amt, wound: A.wound, noWear: noWear, mp: mainOf(pool), dW: dice && ty && ty.dieWear > 0 && !noWear ? Math.floor(dice * ty.dieWear) : 0 }].concat(twos.map(function(t, i) { return { ty: t.ty, kd: t.kd, amt: t.amt, wound: Bs[i].wound, noWear: t.noWear, mp: mainOf(t.pool), dW: t.dice && t.ty && t.ty.dieWear > 0 && !t.noWear ? Math.floor(t.dice * t.ty.dieWear) : 0 }; })).filter(function(P) { return !P.noWear; }); wearP.forEach(function(P) { P.R = partR(P, blowW); P.hv = lrow ? P.R.row(lf.id, inp.loc) : null; }); }
+            if (!wearP) { wearP = [{ ty: ty, kd: kd, amt: amt, wound: A.ww, noWear: noWear, mp: mainOf(pool), dW: dice && ty && ty.dieWear > 0 && !noWear ? Math.floor(dice * ty.dieWear) : 0 }].concat(twos.map(function(t, i) { return { ty: t.ty, kd: t.kd, amt: t.amt, wound: Bs[i].ww, noWear: t.noWear, mp: mainOf(t.pool), dW: t.dice && t.ty && t.ty.dieWear > 0 && !t.noWear ? Math.floor(t.dice * t.ty.dieWear) : 0 }; })).filter(function(P) { return !P.noWear; }); wearP.forEach(function(P) { P.R = partR(P, blowW); P.hv = lrow ? P.R.row(lf.id, inp.loc) : null; }); }
             var f = fieldById(sys, ly.list), src = f && char.values && Array.isArray(char.values[f.id]) ? (Array.isArray(values[f.id]) ? values[f.id] : char.values[f.id]) : null; if (!src || !f.list) return;   // 1.6.0: a layer after another on one list goes on from what that one wore
             var list = JSON.parse(JSON.stringify(src)), changed = false, hasOn = isObj(f.list.on) && ly.anyRow !== true;   // 1.6.0: Every row walks the rows that are off too
             list.forEach(function(row) {

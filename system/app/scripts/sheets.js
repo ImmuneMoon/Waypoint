@@ -7400,7 +7400,7 @@ var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, st
 // [formcheck:source-start]
 // 1.6.2: what a formula's form may offer, and every name in words, for the box it stands over
 var FORM_ONLY = { 'sys-range-formula': ['Distance'], 'sys-height-formula': ['HeightDiff'], 'sys-combat-bfall': ['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop'], 'sys-combat-beach': ['BlastDice', 'BlastDistance', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop'], 'sys-combat-bscatter': ['Margin', 'ThrowDistance'], 'sys-combat-bhand': ['Natural'], 'sys-combat-fgreach': ['FragDice', 'BlastDice'] };
-var FORM_MORE = { 'sys-dmgr-mjcripby': ['Margin', 'Natural'], 'sys-dmgr-ocripby': ['Margin', 'Natural'], 'sys-card-pts': ['RollTotal', 'Natural', 'RollMargin', 'RollCrit', 'RollBig'], 'sys-band-if': ['RollTotal', 'Natural', 'RollMargin', 'RollCrit', 'RollBig'], 'sys-combat-broll': ['ThrowSkill', 'ThrowDistance'], 'sys-combat-resist': ['Resist'], 'sys-dmgr-lat': ['Listed'], 'sys-dmgr-lhitw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lmajw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lbrkw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lbrkm': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lwcap': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-ltplus': ['Listed', 'Worn'], 'sys-dmgr-ohto': ['Held.count'] };
+var FORM_MORE = { 'sys-dmgr-woundf': ['Blow.through', 'Blow.dmg'], 'sys-dmgr-ywf': ['Blow.through', 'Blow.dmg'], 'sys-dmgr-mjcripby': ['Margin', 'Natural'], 'sys-dmgr-ocripby': ['Margin', 'Natural'], 'sys-card-pts': ['RollTotal', 'Natural', 'RollMargin', 'RollCrit', 'RollBig'], 'sys-band-if': ['RollTotal', 'Natural', 'RollMargin', 'RollCrit', 'RollBig'], 'sys-combat-broll': ['ThrowSkill', 'ThrowDistance'], 'sys-combat-resist': ['Resist'], 'sys-dmgr-lat': ['Listed'], 'sys-dmgr-lhitw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lmajw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lbrkw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lbrkm': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lwcap': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-ltplus': ['Listed', 'Worn'], 'sys-dmgr-ohto': ['Held.count'] };
 // the list a box of the damage step stands on: the list picked in its own row
 function formRowList(inp) {
     for (var n = inp, i = 0; n && i < 6; n = n.parentNode, i++) { var s = n.querySelector ? n.querySelector('select.sys-dmgr-llist, select.sys-dmgr-wlist, select.sys-dmgr-ohlist') : null; if (s && s.value) { var f = fieldOf(s.value); return f && f.list ? f.list : undefined; } }
@@ -11179,6 +11179,8 @@ function damageBox(box, cm) {
     var r1 = el('div', 'sys-flags sys-dmgr-top');
     dbxCap(r1, 'Wounds come off'); r1.appendChild(select('sys-dmgr-pool', dbxOpts(['', 'The pool Full auto damage comes off'], pools, d.pool), dbxStr(d.pool), 'The pool a wound comes off. Unset, the one Full auto damage is taken from'));
     dbxCap(r1, 'Major Wound at'); var mj = input('sys-dmgr-major field', dbxStr(d.major), 'A wound this large or larger in one blow is a Major Wound. No dice. It may read the hit location as Hit. and a name, 0 where no location was struck', 'e.g. HP.max / 2'); mj.maxLength = LIMITS.formula; r1.appendChild(mj);
+    dbxCap(r1, 'Wound by'); var wfI = input('sys-dmgr-woundf field', dbxStr(d.woundF), 'How large a wound is, worked out from what got through and the character\u2019s sheet, for every damage type. 0 is no wound. Empty: what gets through, times the type\u2019s multiplier', 'What gets through'); wfI.maxLength = LIMITS.formula; r1.appendChild(wfI);   // 1.6.2
+    r1.appendChild(select('sys-dmgr-zero', [['', 'A wound of 0 still wears armour'], ['none', 'A wound of 0 does nothing']], d.zero === 'none' ? 'none' : '', 'When the wound formula gives 0 for damage that got through: armour layers still wear as for a hit, or nothing happens at all'));
     dbxCap(r1, 'Called'); var mjw = input('sys-dmgr-mjword field', dbxStr(d.majorWord), 'What your game calls this step. The damage lines and the Take damage window say it in place of A Major Wound', 'A Major Wound'); mjw.maxLength = LIMITS.label; r1.appendChild(mjw);
     wrap.appendChild(r1);
     {   // 1.6.0 (B3): what a Major Wound does (kept by Save only beside its formula)
@@ -11237,6 +11239,8 @@ function damageBox(box, cm) {
         var lb = input('sys-dmgr-ylabel field', dbxStr(y.label), 'Its name in the Take damage window', 'Name'); lb.maxLength = LIMITS.label; a.appendChild(lb);
         dbxCap(a, 'Times'); a.appendChild(dbxNum('sys-dmgr-ymult', y.mult, 'What gets through is multiplied by this, 0 to 10. Unset is 1', '1'));
         dbxCap(a, 'Vital times'); a.appendChild(dbxNum('sys-dmgr-yvital', y.vital, 'Its multiplier at a vital location. Unset or 0 is as anywhere', ''));
+        dbxCap(a, 'Wound by'); var ywI = input('sys-dmgr-ywf field', dbxStr(y.woundF), 'This type\u2019s own wound formula, in place of the one under Taking damage. Empty: that one, or its multiplier where Its multiplier is ticked', 'As the system'); ywI.maxLength = LIMITS.formula; a.appendChild(ywI);   // 1.6.2
+        if (!dbxStr(y.woundF)) a.appendChild(dbxTick('sys-dmgr-ybymult', y.byMult, 'Its multiplier', 'Ticked: this type wounds by its multiplier even where the system has a wound formula'));
         a.appendChild(select('sys-dmgr-ypool', dbxOpts(['', 'The main pool'], pools, y.pool), dbxStr(y.pool), 'The pool this type comes off, where not the main one'));
         a.appendChild(dbxTick('sys-dmgr-ynodr', y.noDr, 'Ignores DR', 'Ticked: DR stops none of it'));
         a.appendChild(dbxTick('sys-dmgr-ynowear', y.noWear, 'Wears nothing', 'Ticked: it wears no armour'));
@@ -11338,6 +11342,8 @@ function onDamageInput(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-dmgr-') < 0) return false;
     var txt = String(t.value === undefined ? '' : t.value).slice(0, LIMITS.formula);
     if (dbxHas(c, 'sys-dmgr-major')) { dbxSet(dbxDraft(), 'major', txt.trim() ? txt : ''); dbxTidy(); }
+    else if (dbxHas(c, 'sys-dmgr-woundf')) { dbxSet(dbxDraft(), 'woundF', txt.trim() ? txt : ''); dbxTidy(); }   // 1.6.2
+    else if (dbxHas(c, 'sys-dmgr-ywf')) { var yW = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!yW) return true; dbxSet(yW, 'woundF', txt.trim() ? txt : ''); if (txt.trim()) delete yW.byMult; }
     if (dbxHas(c, 'sys-dmgr-mjword')) { dbxSet(dbxDraft(), 'majorWord', txt.trim() ? txt : ''); dbxTidy(); }
     else if (dbxHas(c, 'sys-dmgr-locvital')) { var d = dbxDraft(); if (!dbxObj(d.locs)) return true; dbxSet(d.locs, 'vital', txt.trim() ? txt : ''); }
     else if (dbxHas(c, 'sys-dmgr-locmult')) { var dM = dbxDraft(); if (!dbxObj(dM.locs)) return true; dbxSet(dM.locs, 'mult', txt.trim() ? txt : ''); }
@@ -11368,6 +11374,8 @@ function onDamageChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-dmgr-') < 0) return false;
     var v = typeof t.value === 'string' ? t.value : '', on = t.checked === true, redraw = false;
     if (dbxHas(c, 'sys-dmgr-pool')) { dbxSet(dbxDraft(), 'pool', v); dbxTidy(); }
+    else if (dbxHas(c, 'sys-dmgr-zero')) { dbxSet(dbxDraft(), 'zero', v); }   // 1.6.2
+    else if (dbxHas(c, 'sys-dmgr-ybymult')) { var yB = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!yB) return true; dbxSet(yB, 'byMult', on); }
     else if (dbxHas(c, 'sys-dmgr-mjfx') || dbxHas(c, 'sys-dmgr-mjroll') || dbxHas(c, 'sys-dmgr-mjcrip')) { var mJ = majAt(t); if (!mJ) return true; var oJ = mJ.row; dbxSet(oJ, dbxHas(c, 'sys-dmgr-mjfx') ? 'fx' : dbxHas(c, 'sys-dmgr-mjroll') ? 'roll' : 'crip', v); if (!oJ.roll) delete oJ.crip; if (!oJ.crip) delete oJ.cripBy; majWrite(mJ.d, mJ.rows); redraw = dbxHas(c, 'sys-dmgr-mjroll') || dbxHas(c, 'sys-dmgr-mjcrip'); }   // 1.6.0 (B3)   // 1.6.0 (the core's gap 7): its failure cripples
     else if (dbxHas(c, 'sys-dmgr-ohlist') || dbxHas(c, 'sys-dmgr-ohstat')) { var oHl = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oHl) return true; if (dbxHas(c, 'sys-dmgr-ohlist')) { if (v) { var oHk = dbxObj(oHl.held) ? oHl.held : {}; if (oHk.list !== v) { delete oHk.stat; delete oHk.to; } oHk.list = v; oHl.held = oHk; } else delete oHl.held; } else if (dbxObj(oHl.held)) { dbxSet(oHl.held, 'stat', v); if (!v) delete oHl.held.to; } redraw = true; }   // 1.6.0: what stands where the blow lands
     else if (dbxHas(c, 'sys-dmgr-ofx') || dbxHas(c, 'sys-dmgr-oroll') || dbxHas(c, 'sys-dmgr-ocrip')) { var oC = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oC) return true; dbxSet(oC, dbxHas(c, 'sys-dmgr-ofx') ? 'fx' : dbxHas(c, 'sys-dmgr-oroll') ? 'roll' : 'crip', v); if (!oC.roll) delete oC.crip; if (!oC.crip) delete oC.cripBy; redraw = dbxHas(c, 'sys-dmgr-oroll') || dbxHas(c, 'sys-dmgr-ocrip'); }   // 1.6.0 (the core's gap 6)
@@ -11445,6 +11453,8 @@ function damageSays(d, sys, Fx) {
     if (any && !cleanDamageRules(d, kinds, res, fl, false)) say('Taking damage: Save keeps these rules only with a pool, a damage type, hit locations or Any wound, so it drops them.');
     if (typeof d.pool === 'string' && d.pool && !piece({ pool: d.pool }).pool) say('Wounds come off: that pool is gone, so Save drops it.');
     if (typeof d.major === 'string' && d.major.trim()) { if (!piece({ major: d.major }).major) say('Major Wound: the formula is too long or not on one line, so Save drops it.'); else reads(d.major, 'Major Wound'); }
+    if (typeof d.woundF === 'string' && d.woundF.trim()) { if (!piece({ woundF: d.woundF }).woundF) say('Wound by: the formula is too long or not on one line, so Save drops it.'); else reads(d.woundF, 'Wound by'); }   // 1.6.2
+    (Array.isArray(d.types) ? d.types : []).forEach(function(y) { if (dbxObj(y) && typeof y.woundF === 'string' && y.woundF.trim()) reads(y.woundF, 'Wound by of ' + (y.label || y.key || 'a type')); });
     if (Array.isArray(d.onMajor)) {   // 1.6.0: onMajor's rows, as the cleaner reads them
         if (d.onMajor.some(function(w) { return dbxObj(w) && (w.fx || w.roll); }) && !(typeof d.major === 'string' && d.major.trim())) say('A Major Wound switches on and asks for: Save keeps them only with a Major Wound formula, so it drops them.');
         d.onMajor.forEach(function(w, i) {

@@ -21,6 +21,7 @@ import { callDrops } from './systemcore.js';   // 1.6.0: a call's Read on the on
 import { cleanTurn } from './systemcore.js';   // 1.6.0: a move by giving up an action, as Save reads it (refreshErrors)
 import { readsAttempt } from './systemcore.js';   // 1.6.0: needs that read Attempt.kind, which only the host can judge
 import { groupRolls, groupWeakest } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
+import { partsFromHas, partsSrcs, partsBag } from './systemcore.js';   // 1.6.2: parts from several lists
 import { partsTree } from './systemcore.js';   // 205 follow-up (2): the removal question counts a deep list's whole tree of parts
 import { upChanges, revIdle } from './systemcore.js';   // 1.6.0: what a Review entry can apply, and when it asks nothing
 import { lvlOnlyRead, lvlOnlyText, lvlOnlyOn, lvlOnlyHas, lvlOnlyList, lvlOnlySays, modTiersRead, modTiersText, modAt } from './systemcore.js';   // 1.6.0: Levels it may be, and a change's figures By level
@@ -3622,20 +3623,21 @@ function paidCtl(entry, def, c, f, spec, editable, gm, labelled) {
 // the entries that fit (the system's own, From the library...). partHostIds: the hosts of a list's parts on a character, so a part is drawn
 // under its host and not again among the list's own rows. Every change is a row op of the parts' list, judged as any is
 function partHostIds(sys, c, fieldId) {
-    var out = null; (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(hf) { if (!hf || hf.kind !== 'item-list' || !hf.list || !hf.list.parts || hf.list.parts.from !== fieldId) return; (c && c.values && Array.isArray(c.values[hf.id]) ? c.values[hf.id] : []).forEach(function(r) { if (r && (typeof r.in !== 'string' || hf.list.parts.deep === true)) { out = out || Object.create(null); out[rowIdOf(r)] = 1; } }); });   // 205 (4): a part that holds parts too
+    var out = null; (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(hf) { if (!hf || hf.kind !== 'item-list' || !hf.list || !hf.list.parts || !(typeof partsFromHas === 'function' ? partsFromHas(hf.list.parts, fieldId) : hf.list.parts.from === fieldId)) return; (c && c.values && Array.isArray(c.values[hf.id]) ? c.values[hf.id] : []).forEach(function(r) { if (r && (typeof r.in !== 'string' || hf.list.parts.deep === true)) { out = out || Object.create(null); out[rowIdOf(r)] = 1; } }); });   // 205 (4): a part that holds parts too
     return out;
 }
 // 205 (4): where the parts' list says Parts hold parts, each part's own parts are drawn under it, a level in (dep: the host's level, 0 for a
 // row that is no part); no add control past PART_DEPTH, where the host refuses one
 function partPills(wrap, c, f, spec, sysI, entry, chg, dep) {
     if (!spec || !spec.parts || typeof partsSrc !== 'function') return null;
-    var pf = partsSrc(sysI, spec); if (!pf) return null;
-    var pspec = pf.list || {}, hid = rowIdOf(entry), parts = partsOf(sysI, c, spec, hid); if (!parts.length && !chg) return null;
+    var pfs = typeof partsSrcs === 'function' ? partsSrcs(sysI, spec) : [partsSrc(sysI, spec)].filter(Boolean); if (!pfs.length) return null;   // 1.6.2: every list its parts come from, in the order ticked
+    var pf = pfs[0], hid = rowIdOf(entry), parts = partsOf(sysI, c, spec, hid); if (!parts.length && !chg) return null;
     var box = el('div', 'sheet-parts');
-    if (typeof partsCapLines === 'function') partsCapLines(sysI, spec, entry, (c.values || {})[pf.id], hid, typeof capRead === 'function' && typeof F === 'function' ? capRead(sysI, c, f, entry, F()) : undefined).forEach(function(ln) {   // 1.6.2 Fitted slots: how many of each kind this row holds
+    if (typeof partsCapLines === 'function') partsCapLines(sysI, spec, entry, typeof partsBag === 'function' ? partsBag(sysI, c, spec, '', null) : (c.values || {})[pf.id], hid, typeof capRead === 'function' && typeof F === 'function' ? capRead(sysI, c, f, entry, F()) : undefined).forEach(function(ln) {   // 1.6.2 Fitted slots: how many of each kind this row holds
         var over = ln.used > ln.cap, sl = el('span', 'sheet-part-slot' + (over ? ' over' : ''), (ln.kind || 'Parts') + ' ' + ln.used + ' of ' + ln.cap); sl.title = over ? 'More than this row holds' : 'How many this row holds'; box.appendChild(sl);
     });
-    parts.forEach(function(p) {
+    pfs.forEach(function(pf) { var pspec = pf.list || {};   // 1.6.2: each part with the list it is in, so its - + and x change that list
+    ((c.values || {})[pf.id] || []).filter(function(r) { return r && r.in === hid && r.hid !== 1; }).forEach(function(p) {
         var prd = rowDef(sysI, p), pd = prd ? prd.def : null; if (!pd) return;
         var pill = el('span', 'sheet-part'), lv = pspec.lvl ? rowLvl(pspec, p, pd) : undefined;
         pill.appendChild(el('span', 'sheet-part-name', pd.name + (typeof lv === 'number' ? ', ' + String(pspec.lvl.label || 'level').toLowerCase() + ' ' + lv : '')));
@@ -3652,20 +3654,22 @@ function partPills(wrap, c, f, spec, sysI, entry, chg, dep) {
         box.appendChild(pill);
         if (pspec.parts && pspec.parts.deep === true && pspec.parts.from === pf.id) { var subP = partPills(box, c, pf, pspec, sysI, p, chg, (dep | 0) + 1); if (subP) subP.className += ' sheet-parts-sub'; }   // 205 (4): its own parts, a level in
     });
+    });
     if (chg && typeof partHostOk === 'function' && !partHostOk(sysI, spec, entry)) chg = false;   // 198: a row the list's hosts do not name holds no parts (its own, if any, still shown)
     if (chg && (dep | 0) >= (typeof PART_DEPTH === 'number' ? PART_DEPTH : 6)) chg = false;   // 205 (4): no deeper than the host takes
     if (!parts.length && !chg) return null;
-    if (chg) {
-        var fit = Object.assign({}, pspec, { cats: Array.isArray(spec.parts.cats) && spec.parts.cats.length ? spec.parts.cats : pspec.cats }), word = spec.parts.label || 'Part';
+    if (chg) pfs.forEach(function(pf) {   // 1.6.2: an add list for each list its parts come from, named for it where there are more than one
+        var pspec = pf.list || {}, partsL = parts.filter(function(p) { return ((c.values || {})[pf.id] || []).indexOf(p) >= 0; });
+        var fit = Object.assign({}, pspec, { cats: Array.isArray(spec.parts.cats) && spec.parts.cats.length ? spec.parts.cats : pspec.cats }), word = (spec.parts.label || 'Part') + (pfs.length > 1 ? ' from ' + (pf.label || pf.key || 'a list') : '');
         var add = el('select', 'field sheet-part-add'); add.appendChild(opt('', '+ ' + word + '\u2026', true)); add.title = 'Add a ' + word.toLowerCase() + ' to ' + ((rowDef(sysI, entry) || {}).def || {}).name; if (window.wpTexList) window.wpTexList.keys(add);   // a key step chooses nothing here: it opens the list, as a Texture list's does
         var fitOf = isClient() && typeof partFitEntry === 'function' ? function(it) { return partFitEntry(sysI, c, pf.id, hid, it, typeof F === 'function' ? F() : null, true); } : null;   // 1.6.0 Fits where (ask 18): a part a player's host would refuse is greyed out and says why, as cantTake does; the GM's own hand passes and is told
-        var nP = typeof pickerInto === 'function' ? pickerInto(add, (sysI && sysI.items) || [], fit, parts, fitOf) : 0;
+        var nP = typeof pickerInto === 'function' ? pickerInto(add, (sysI && sysI.items) || [], fit, partsL, fitOf) : 0;
         var gmL = !isClient() && !!(window.wpLibPicker && window.wpLibrary && window.wpLibrary.size && window.wpLibrary.size() > 0), plL = false;
         if (isClient() && window.wpLibPicker && window.wpNet && window.wpNet.libManifest) { var lmP = window.wpNet.libManifest(); plL = !!lmP && lmP.packs.some(function(pk) { return pk.count > 0; }); }
         if (gmL || plL) add.appendChild(opt('__lib', 'From the library\u2026'));
-        add.addEventListener('change', function() { var v = add.value; add.value = ''; if (!v) return; if (v === '__lib') { openLibPicker(add, c, pf, fit, parts, hid); return; } commitItem(c, pf, { op: 'add', defId: v, rowId: uid('w_'), in: hid }); });
+        add.addEventListener('change', function() { var v = add.value; add.value = ''; if (!v) return; if (v === '__lib') { openLibPicker(add, c, pf, fit, partsL, hid); return; } commitItem(c, pf, { op: 'add', defId: v, rowId: uid('w_'), in: hid }); });
         if (nP !== 0 || gmL || plL) box.appendChild(add);
-    }
+    });
     if (!box.childNodes.length) return null;
     wrap.appendChild(box); return box;
 }
@@ -7749,7 +7753,7 @@ function partCapsBox(sp) {
     var box = el('div', 'sys-badges sys-pcaps'), max = typeof PART_CAPS === 'number' ? PART_CAPS : 240, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
     var nums = function() { return (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.kind !== 'pick' && s.set !== true; }); };
     var vals = function(s) { return s.kind === 'pick' ? (Array.isArray(s.opts) ? s.opts.map(function(o) { return o && typeof o === 'object' ? o.label : ''; }) : []).filter(function(x) { return typeof x === 'string' && x; }) : (Array.isArray(s.labels) ? s.labels : []).filter(function(x) { return typeof x === 'string' && x; }); };
-    var slots = function() { var fs0 = typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : [], src = sp.parts && typeof sp.parts.from === 'string' ? fs0.filter(function(f) { return f && f.id === sp.parts.from && f.kind === 'item-list'; })[0] : null, st = src && src.list && Array.isArray(src.list.stats) ? src.list.stats : [];
+    var slots = function() { var fs0 = typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : [], srcIds = sp.parts ? [sp.parts.from].concat(Array.isArray(sp.parts.also) ? sp.parts.also : []) : [], st = []; fs0.forEach(function(f) { if (f && f.kind === 'item-list' && srcIds.indexOf(f.id) >= 0 && f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(s) { if (s && !st.some(function(x) { return x && x.key === s.key; })) st.push(s); }); });   // 1.6.2: the stats of every list the parts come from
         return st.filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key && s.set !== true && vals(s).length > 0; }); };
     var draw = function() {
         box.textContent = ''; box.appendChild(el('span', 'sys-num-cap', 'Holds by kind'));
@@ -9480,11 +9484,11 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     var pbChoices = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s.key === 'string' && s.key && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length : Array.isArray(s.labels) && s.labels.length); });   // 1.6.0, backlog 180 R13
     var ptLists = typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields.filter(function(x) { return x && x.kind === 'item-list'; }) : [];   // 1.6.0, backlog 180 R14: Parts from
     if (ptLists.length) {
-        var ptW = el('label', 'sys-check'), ptS = el('select', 'sys-list-partsfrom'), ptO = function(v, tx, sl) { var o = el('option', null, tx); o.value = v; if (sl) o.selected = true; return o; };
-        ptW.appendChild(document.createTextNode('Parts from ')); ptS.appendChild(ptO('', 'None', !sp.parts));
-        ptLists.forEach(function(x) { ptS.appendChild(ptO(x.id, (x.label || x.key || 'List') + (x.id === f.id ? ' (this list)' : ''), !!sp.parts && sp.parts.from === x.id)); });
-        ptW.title = 'Each row of this list can hold parts, rows of the list you pick: purchases on a power, upgrades in a limb. They show as pills under the row, and its rules can count them and add them up';
-        ptW.appendChild(ptS); fl.appendChild(ptW);
+        var ptW = el('span', 'sys-check sys-list-partsrow'), ptIds = sp.parts ? [sp.parts.from].concat(Array.isArray(sp.parts.also) ? sp.parts.also : []) : [];   // 1.6.2 (the owner, by prompt: "Several lists. Parts from becomes ticks"): a tick a list
+        ptW.appendChild(document.createTextNode('Parts from '));
+        ptLists.forEach(function(x) { var ptL = el('label', 'sys-check'), ptC = el('input', 'sys-list-partsfrom'); ptC.type = 'checkbox'; ptC.dataset.pf = x.id; ptC.checked = ptIds.indexOf(x.id) >= 0; ptL.appendChild(ptC); ptL.appendChild(document.createTextNode(' ' + (x.label || x.key || 'List') + (x.id === f.id ? ' (this list)' : ''))); ptW.appendChild(ptL); });
+        ptW.title = 'Each row of this list can hold parts, rows of the lists you tick: purchases on a power, upgrades in a limb, a scope and an attachment on one gun. They show as pills under the row, and its rules can count them and add them up';
+        fl.appendChild(ptW);
         if (sp.parts) {
             var pcW = el('label', 'sys-check'), pcI = el('input', 'field sys-list-partscats'); pcI.type = 'text'; pcI.value = Array.isArray(sp.parts.cats) ? sp.parts.cats.join(', ') : ''; pcI.placeholder = 'every category'; pcW.appendChild(document.createTextNode('Parts fit ')); pcW.appendChild(pcI); pcW.title = 'The categories a part may be, with commas between them. Empty: any entry of that list'; fl.appendChild(pcW);
             var phW = el('label', 'sys-check'), phI = el('input', 'field sys-list-partshosts'); phI.type = 'text'; phI.value = Array.isArray(sp.parts.hosts) ? sp.parts.hosts.join(', ') : ''; phI.placeholder = 'every row'; phW.appendChild(document.createTextNode('Held by ')); phW.appendChild(phI); phW.title = 'The categories of this list\u2019s rows that may hold parts, with commas between them. Empty: every row that is not a part itself'; fl.appendChild(phW);   // 198
@@ -9876,7 +9880,7 @@ function onceBox(box, sp) {
 }
 // F5a1: the names a list offers formulas, as one line of text for its card (its key as typed)
 // 205 (3): whether a list of the draft takes its parts from this one (its parts then read Host.<w>)
-function partsHostIn(id) { return (typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : []).some(function(x) { return x && x.kind === 'item-list' && x.list && x.list.parts && x.list.parts.from === id; }); }
+function partsHostIn(id) { return (typeof draft !== 'undefined' && draft && Array.isArray(draft.fields) ? draft.fields : []).some(function(x) { return x && x.kind === 'item-list' && x.list && x.list.parts && (x.list.parts.from === id || (Array.isArray(x.list.parts.also) && x.list.parts.also.indexOf(id) >= 0)); }); }
 function listNamesText(key, sp, isParts) {
     var k = String(key || 'List'), own = [], nums = [];
     if (k.indexOf('.') >= 0) return 'A list whose key has a dot has no names formulas can read (they would read ' + k.split('.')[0] + '.\u2026): give it a key without one.';   // owed review F5a1#6
@@ -13200,7 +13204,12 @@ function onChange(e) {
         else if (c.indexOf('sys-list-standpieces') >= 0) { if (lsc.stand) { if (t.checked) lsc.stand.pieces = true; else delete lsc.stand.pieces; } }
         else if (c.indexOf('sys-list-standbox') >= 0) { if (lsc.stand) { if (t.value) lsc.stand.box = t.value; else delete lsc.stand.box; } }
         else if (/sys-list-stand(fits|says|reach|counts|off)/.test(c)) { if (lsc.stand) { var sdK = /standfits/.test(c) ? 'fits' : /standsays/.test(c) ? 'fitSays' : /standreach/.test(c) ? 'reach' : /standcounts/.test(c) ? 'counts' : 'offWord', sdV = String(t.value || '').trim(); if (sdV) lsc.stand[sdK] = sdV.slice(0, sdK === 'offWord' ? LIMITS.label : sdK === 'fitSays' ? LIMITS.needsWords : LIMITS.formula); else delete lsc.stand[sdK]; } }
-        else if (c.indexOf('sys-list-partsfrom') >= 0) { if (t.value) lsc.parts = Object.assign({}, lsc.parts || {}, { from: t.value }); else delete lsc.parts; }   // 1.6.0 R14: Parts from
+        else if (c.indexOf('sys-list-partsfrom') >= 0) {   // 1.6.0 R14: Parts from (1.6.2: a tick a list, this list first where it is ticked, then the others in the order of the fields)
+            var pfIds = lsc.parts ? [lsc.parts.from].concat(Array.isArray(lsc.parts.also) ? lsc.parts.also : []) : [], pfId = t.dataset ? t.dataset.pf : '', ordF = (draft.fields || []).map(function(x) { return x && x.id; });
+            if (t.type !== 'checkbox') pfIds = t.value ? [t.value] : []; else if (pfId) { pfIds = pfIds.filter(function(x) { return x !== pfId; }); if (t.checked) pfIds.push(pfId); }
+            pfIds = pfIds.filter(function(x, i) { return typeof x === 'string' && x && pfIds.indexOf(x) === i; }).sort(function(a, b) { return (a === lch.id ? -1 : ordF.indexOf(a)) - (b === lch.id ? -1 : ordF.indexOf(b)); }).slice(0, 4);
+            if (!pfIds.length) delete lsc.parts; else { lsc.parts = Object.assign({}, lsc.parts || {}, { from: pfIds[0] }); if (pfIds.length > 1) lsc.parts.also = pfIds.slice(1); else delete lsc.parts.also; if (lsc.parts.deep === true && pfIds[0] !== lch.id) delete lsc.parts.deep; }
+        }
         else if (c.indexOf('sys-list-partscats') >= 0) { if (lsc.parts) { var pcs = String(t.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (pcs.length) lsc.parts.cats = pcs; else delete lsc.parts.cats; } }
         else if (c.indexOf('sys-list-partshosts') >= 0) { if (lsc.parts) { var phs = String(t.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean); if (phs.length) lsc.parts.hosts = phs; else delete lsc.parts.hosts; } }   // 198: Held by
         else if (c.indexOf('sys-list-partscap') >= 0) { if (lsc.parts) { if (t.value) lsc.parts.capBy = t.value; else delete lsc.parts.capBy; } }   // 1.6.0 (v2, B6): Holds as many as the row's stat

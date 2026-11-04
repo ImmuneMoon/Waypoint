@@ -209,6 +209,10 @@ At the table
   formula works out from the two Sizes how much a character token on the line
   hides it, read as TargetBodyCover. A roll that reads it and misses by no more
   than that hits the body, its card says so, and the damage lands there.
+- A list's rows can take parts from several lists. Parts from is a tick a
+  list, so one gun can hold an attachment from one list and a scope from
+  another. Holds, Holds by kind, Fits where and the figures a row reads of its
+  parts count every list, and removing a row takes all of its parts.
 - An attack that lands as a Big Hit passes it on to the damage roll it calls
   for, which is then a Major Wound if any of it gets through, read as
   Blow.big. A Major Wound row's roll can leave out the hit's own effects too.

@@ -4038,7 +4038,27 @@
   .sheet-item-onl { display: inline-flex; align-items: center; gap: 4px; flex: none; font-size: 11px; color: var(--dim); cursor: pointer; }
   .sheet-item-noteline { padding: 2px 8px 6px 28px; font-size: 12px; color: var(--dim); }
   .sheet-item-noteline input.sheet-item-note { width: 100%; margin-top: 4px; padding: 3px 6px; font-size: 12px; }
-  .sheet-item-noteline .sheet-box.sheet-item-note { margin-top: 4px; font-size: 12px; }   /* item 35, fold 1d: a row's note in the text box */
+  .sheet-item-noteline .sheet-box.sheet-item-note { margin-top: 4px; font-size: 12px; }
+  /* 1.6.2: a track display (dots, boxes, boxes marked one by one, a clock), drawn as the owner picked them */
+  .sheet-trk { --trk: var(--gold); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+  .sheet-trk-marks { display: inline-flex; flex-wrap: wrap; gap: 2px 2px; }
+  .sheet-trk-mark { background: none; border: 0; padding: 1px; margin: 0; display: inline-flex; flex-direction: column; align-items: center; color: var(--dim); cursor: default; border-radius: 4px; line-height: 1; }
+  button.sheet-trk-mark, button.sheet-trk-clockbtn { cursor: pointer; }
+  button.sheet-trk-mark:focus-visible, button.sheet-trk-clockbtn:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+  button.sheet-trk-mark:disabled { cursor: default; opacity: .7; }
+  .sheet-trk-mark svg, .sheet-trk-dial { display: block; overflow: visible; }
+  .sheet-trk-dot, .sheet-trk-box { fill: none; stroke: #6b6658; stroke-width: 1.6; }
+  .sheet-trk-mark.on .sheet-trk-dot { fill: var(--trk); stroke: var(--trk); }
+  .sheet-trk-dots .sheet-trk-mark.on .sheet-trk-dot, .sheet-trk-boxes .sheet-trk-mark.on .sheet-trk-box { fill: var(--trk); stroke: var(--trk); }
+  .sheet-trk-cross { stroke: transparent; stroke-width: 2; stroke-linecap: round; fill: none; }
+  .sheet-trk-each .sheet-trk-mark.on .sheet-trk-box { stroke: var(--trk); }
+  .sheet-trk-each .sheet-trk-mark.on .sheet-trk-cross { stroke: var(--trk); }
+  .sheet-trk-n { font-size: 10px; color: var(--dim); margin-top: 2px; }
+  .sheet-trk-clockbtn { background: none; border: 0; padding: 0; display: inline-block; border-radius: 50%; }
+  .sheet-trk-rim { fill: none; stroke: #6b6658; stroke-width: 1.6; }
+  .sheet-trk-wedge { fill: transparent; stroke: #6b6658; stroke-width: 1.2; }
+  .sheet-trk-wedge.on { fill: var(--trk); stroke: var(--bg, #15171c); }
+  .sheet-trk-words { font-size: 12px; color: var(--dim); }   /* item 35, fold 1d: a row's note in the text box */
   .sheet-fx .sheet-box.sheet-fx-name { flex: 1 1 8em; min-width: 6em; }
   /* Stage 6 F4c1: a list's stats on a row (chips On the row, the notes line), what one cost (the GM's box, the owner's chip), the Lists card's stats, the Items tab's boxes */
   .sheet-chip.sheet-item-stat { white-space: nowrap; font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; }

@@ -146,7 +146,7 @@ var GROUPS = {
     fields: { split: ['sys-row-main', 'sys-flags'], pull: ['sys-round', 'sys-roundto', 'sys-roundat'], head: ['sys-key', 'sys-label', 'sys-kind', 'sys-btns'], list: [
         ['value', 'The number', 1, ['sys-def']],
         ['who', 'Who sees and changes it', 1, ['sys-edit', 'sys-vis', 'sys-live-sel']],
-        ['sheet', 'On the sheet', 1, ['sys-hover-chk', 'sys-tile-chk', 'sys-slider-chk', 'sys-counter-chk', 'sys-unit', 'sys-unit-text', 'sys-metricshow', 'sys-dec', 'sys-group-chk', 'sys-sign-chk', 'sys-caption', 'sys-res-icon', 'sys-glyph-btn', 'sys-reset-chk', 'sys-res-color', 'act:rescolorclr', 'sys-colorband-chk', 'sys-bar-chk', 'sys-badge-chk', 'sys-tones-row', 'sys-slider-row']],
+        ['sheet', 'On the sheet', 1, ['sys-hover-chk', 'sys-tile-chk', 'sys-slider-chk', 'sys-counter-chk', 'sys-unit', 'sys-unit-text', 'sys-metricshow', 'sys-dec', 'sys-group-chk', 'sys-sign-chk', 'sys-caption', 'sys-res-icon', 'sys-glyph-btn', 'sys-reset-chk', 'sys-res-color', 'act:rescolorclr', 'sys-colorband-chk', 'sys-bar-chk', 'sys-badge-chk', 'sys-tones-row', 'sys-slider-row', 'sys-trackshape', 'sys-trackof']],
         ['rules', 'Rolls and rules', 0, ['sys-roll', 'sys-fielddie', 'sys-vnames', 'sys-ovr-value', 'sys-ovr-when', 'sys-spill-*']],
         ['round', 'Rounding', 0, ['sys-round', 'sys-roundto', 'sys-roundat']]] },
     rolls: { split: ['sys-row-main'], head: ['sys-label', 'sys-roll-kind', 'sys-formula', 'sys-btns'], list: [
@@ -308,7 +308,7 @@ function tickTable(wrap, doc) {
 
 // [sysuicheck:errors-start]
 // Which box an error names, by what the validator calls it. A word it does not know goes to what Save says under the row, which is in sight
-var PROP_BOX = [[/^(?:apply|then)\.(\d+)$/, ['sys-apply-formula']], [/^(?:formula|maxFormula)$/, ['sys-formula']], [/^roll$/, ['sys-roll']], [/^key$/, ['sys-key', 'sys-item-key']], [/^label$/, ['sys-label', 'sys-fx-name', 'sys-item-name']], [/^caption$/, ['sys-caption']],
+var PROP_BOX = [[/^(?:apply|then)\.(\d+)$/, ['sys-apply-formula']], [/^(?:formula|maxFormula)$/, ['sys-formula']], [/^roll$/, ['sys-roll']], [/^key$/, ['sys-key', 'sys-item-key']], [/^label$/, ['sys-label', 'sys-fx-name', 'sys-item-name']], [/^caption$/, ['sys-caption']], [/^track$/, ['sys-trackof']],
     [/^needs$/, ['sys-roll-needs']], [/^malf$/, ['sys-roll-malf']], [/^critAt$/, ['sys-roll-critat']], [/^fumbleAt$/, ['sys-roll-fumbleat']], [/^bigAt$/, ['sys-roll-bigat']], [/^hits$/, ['sys-roll-hits']], [/^dmgMajorIf$/, ['sys-roll-mjif']], [/^dtype$/, ['sys-roll-dtype']], [/^dkind$/, ['sys-roll-dkind']], [/^dmg2$/, ['sys-roll-p2f']], [/^dmg3$/, ['sys-roll-p3f']], [/^dmg4$/, ['sys-roll-p4f']], [/^dmg5$/, ['sys-roll-p5f']],
     [/^cost$/, ['sys-roll-cost', 'sys-item-cost']], [/^damage$/, ['sys-item-damage']], [/^throwSkill$/, ['sys-item-throw']], [/^lvlOnly$/, ['sys-item-only']], [/^to$/, ['sys-roll-near']], [/^resistBy$/, ['sys-roll-rsby']], [/^resistOr$/, ['sys-rsor']], [/^calls$/, ['sys-calls']],
     [/^list\.col\.(\d+)/, ['sys-list-colformula']], [/^list\.col\./, ['sys-list-colformula']], [/^list\.roll\.(\d+)/, ['sys-list-rollformula']], [/^list\.roll\./, ['sys-list-rollformula']], [/^list\.needs\.(\d+)/, ['sys-list-needs']], [/^list\.malf\.(\d+)/, ['sys-list-malf']], [/^list\.critAt\.(\d+)/, ['sys-list-critat']], [/^list\.fumbleAt\.(\d+)/, ['sys-list-fumbleat']], [/^list\.bigAt\.(\d+)/, ['sys-list-bigat']], [/^list\.(?:apply|then)\.(\d+)/, ['sys-list-applyformula']], [/^list\.ctr\.(\d+)/, ['sys-list-ctmax']],

@@ -29,7 +29,8 @@ import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, se
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
 import { fitIfOk, partFitEntry, modsIfOk } from './systemcore.js';
-import { rowTextRule } from './systemcore.js';   // item 35, fold 1d: the look of a row's own text
+import { rowTextRule } from './systemcore.js';
+import { trackMarks, trackWords } from './systemcore.js';   // 1.6.2: track displays   // item 35, fold 1d: the look of a row's own text
 import { cleanRec as lookClean, makeRec as lookMake } from './lookcore.js';
 import { tileLayout, tileStep, tileSide } from './tilecore.js';   // 1.6.2 (body fold 3)
 import { tileDrawOf, tileMakeOf, tileNode, tileMarkNode } from './tiledraw.js';   // 1.6.2 (body fold 6)
@@ -4839,6 +4840,63 @@ function formulaSays(sysA, text) {
     try { var w = FC.says(r.form, { name: function(n) { return nameWord(s, n); } }); return w ? 'Worked out from ' + w : ''; } catch (err) { return ''; }
 }
 function sheetFault(sysA, text) { try { return plainMessage(sysA || systemOf(getActiveCampaign()), text); } catch (err) { return String(text || ''); } }
+// [markcheck:track-start] 1.6.2, track displays (the owner, 2026-11-03, by prompt; the looks picked on the track sheet, all four A): a number,
+// a pool or a formula drawn as dots (filled and outlined), a row of boxes (filled from the left), boxes marked one by one (a cross in a marked box,
+// its number under it) or a clock in parts (a pie in wedges). A press on a mark sets the value to it, a press on the highest filled one takes one
+// off; a box marked one by one is marked or cleared alone. A formula's track only shows. null where there is nothing to count: the field is drawn
+// as before. SVG made by name from fixed figures; the words are text
+var TRK_NS = 'http://www.w3.org/2000/svg';
+function trkSvg(tag, attrs) { var n = document.createElementNS(TRK_NS, tag); Object.keys(attrs).forEach(function(k) { n.setAttribute(k, String(attrs[k])); }); return n; }
+function trackFill(f, e, raw) {   // how many marks are filled (contiguous), or the set (boxes one by one)
+    if (f.track.each) return Math.max(0, Math.floor(Number(raw === undefined ? f.def : raw) || 0));
+    var v = e && typeof e.value === 'number' && isFinite(e.value) ? e.value : 0;
+    return Math.max(0, Math.floor(f.kind === 'number' && typeof f.min === 'number' ? v - f.min : v));
+}
+function trackPress(f, raw, e, i) {   // what a press on mark i (1 the first) stores: the number for a number, { cur } for a pool
+    if (f.track.each) { var bits = Math.max(0, Math.floor(Number(raw === undefined ? f.def : raw) || 0)); return bits ^ (1 << (i - 1)); }
+    var now = trackFill(f, e, raw), to = now === i ? i - 1 : i;
+    return f.kind === 'resource' ? { cur: to } : (typeof f.min === 'number' ? f.min : 0) + to;
+}
+function trackNode(f, c, e, use, raw) {
+    if (!f || !f.track || typeof trackMarks !== 'function') return null;
+    var n = trackMarks(f, e); if (!n) return null;
+    var shape = f.track.shape, each = f.track.each === true, filled = trackFill(f, e, raw), live = !!use && f.kind !== 'formula';
+    var on = function(i) { return each ? (filled & (1 << (i - 1))) !== 0 : i <= filled; };
+    var wrap = el('div', 'sheet-ctl sheet-trk sheet-trk-' + (each ? 'each' : shape));
+    if (typeof f.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(f.color)) wrap.style.setProperty('--trk', f.color);   // a pool's own colour
+    var go = function(i) { commit(c, f, trackPress(f, raw, e, i)); };
+    var words = each ? (typeof trackWords === 'function' ? trackWords(filled) : '') : f.kind === 'formula' ? (e ? e.text : '') : fmtNum(Math.min(filled, n)) + ' / ' + fmtNum(n);
+    if (shape === 'clock') {
+        var sv = trkSvg('svg', { width: 48, height: 48, viewBox: '-24 -24 48 48', class: 'sheet-trk-dial', 'aria-hidden': 'true' });
+        sv.appendChild(trkSvg('circle', { r: 21, class: 'sheet-trk-rim' }));
+        var pt = function(k) { var a = (k / n) * Math.PI * 2 - Math.PI / 2; return (21 * Math.cos(a)).toFixed(2) + ' ' + (21 * Math.sin(a)).toFixed(2); };
+        for (var w = 1; w <= n; w++) { var big = n === 1, d = big ? 'M0 -21 A21 21 0 1 1 -0.01 -21 Z' : 'M0 0 L' + pt(w - 1) + ' A21 21 0 0 1 ' + pt(w) + ' Z', wd = trkSvg('path', { d: d, class: 'sheet-trk-wedge' + (on(w) ? ' on' : '') }); wd.dataset.i = String(w); sv.appendChild(wd); }
+        var hold = el(live ? 'button' : 'span', 'sheet-trk-clockbtn'); if (live) { hold.type = 'button'; hold.dataset.fid = f.id; hold.dataset.part = 'track'; }
+        hold.appendChild(sv); hold.title = (f.label || f.key) + ': ' + words + (live ? '. Press a part to set it, or the last filled one to take one off. Arrow keys move it by one' : '');
+        if (live) {
+            hold.addEventListener('click', function(ev) { var t = ev.target && ev.target.closest ? ev.target.closest('[data-i]') : null; var i = t ? Number(t.dataset.i) : filled < n ? filled + 1 : n; if (i >= 1 && i <= n) go(i); });
+            hold.addEventListener('keydown', function(ev) { var k = ev.key, to = k === 'ArrowRight' || k === 'ArrowUp' ? filled + 1 : k === 'ArrowLeft' || k === 'ArrowDown' ? filled - 1 : null; if (to === null) return; ev.preventDefault(); if (to < 0 || to > n) return; commit(c, f, f.kind === 'resource' ? { cur: to } : (typeof f.min === 'number' ? f.min : 0) + to); });
+        }
+        wrap.appendChild(hold);
+    } else {
+        var marks = el('span', 'sheet-trk-marks');
+        for (var i = 1; i <= n; i++) {
+            var m = el(live ? 'button' : 'span', 'sheet-trk-mark' + (on(i) ? ' on' : '')), s;
+            if (live) { m.type = 'button'; m.dataset.fid = f.id; m.dataset.part = 'trk-' + i; (function(ii) { m.addEventListener('click', function() { go(ii); }); })(i); }
+            m.title = each ? 'Box ' + i + (on(i) ? ', marked' : '') + (live ? '. Press to ' + (on(i) ? 'clear' : 'mark') + ' it' : '') : String(i) + (live ? (on(i) && i === filled ? '. Press to take one off' : '. Press to set it to ' + i) : '');
+            m.setAttribute('aria-label', (f.label || f.key) + ' ' + m.title);
+            if (shape === 'dots') { s = trkSvg('svg', { width: 18, height: 18, viewBox: '0 0 18 18', 'aria-hidden': 'true' }); s.appendChild(trkSvg('circle', { cx: 9, cy: 9, r: 7, class: 'sheet-trk-dot' })); }
+            else { s = trkSvg('svg', { width: 20, height: 20, viewBox: '0 0 20 20', 'aria-hidden': 'true' }); s.appendChild(trkSvg('rect', { x: 1, y: 1, width: 18, height: 18, rx: 3, class: 'sheet-trk-box' })); if (each) s.appendChild(trkSvg('path', { d: 'M5.5 5.5 L14.5 14.5 M14.5 5.5 L5.5 14.5', class: 'sheet-trk-cross' })); }
+            m.appendChild(s);
+            if (each) m.appendChild(el('span', 'sheet-trk-n', String(i)));
+            marks.appendChild(m);
+        }
+        wrap.appendChild(marks);
+    }
+    wrap.appendChild(el('span', 'sheet-trk-words', words));
+    return wrap;
+}
+// [markcheck:track-end]
 function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the section placement drawn (an item list may show only its rows switched on); sysArg: the system being drawn (the pop-out's cleaned copy, the Layout preview's draft); the item list resolves its defs from it
     var box = el('div', 'sheet-field sheet-kind-' + f.kind);
     if (f.tile) box.classList.add('sheet-tile');   // Stage 3: compact stat tile (value big, label small)
@@ -4851,6 +4909,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     var ownOk = !gm && !!own && f.vis === 'all' && !lk && !c.partial && (typeof _fxLive === 'undefined' || _fxLive);   // 1.6.2: a stat its list ticks Player sets this, on their own open sheet, whoever edits the list
     var raw = c.values ? c.values[f.id] : undefined;
     var k = f.kind;
+    if (f.track && typeof trackNode === 'function' && !(e && e.error) && !(k === 'number' && e && e.over === true)) { var trN = trackNode(f, c, e, k === 'formula' ? false : use, raw); if (trN) { box.classList.add('sheet-has-track'); box.appendChild(trN); return box; } }   // 1.6.2: a track in place of its box
     if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? (f.unit && e.text !== '' && !e.label ? (typeof figWords === 'function' ? figWords(f, e.value, e.text) : e.text + ' ' + f.unit) : e.text) : ''); v.title = e && e.error ? (typeof sheetFault === 'function' ? sheetFault(sysArg, e.error) : e.error) : typeof formulaSays === 'function' ? formulaSays(sysArg, f.formula) : ''; if (e && !e.error && e.unrounded !== undefined && typeof roundSays === 'function') v.title += '\n' + roundSays(f, e.unrounded); if (f.badge && e && !e.error) { var tnB = valueTone(f, e), bd = el('span', 'sheet-badge' + (Object.prototype.hasOwnProperty.call(TONE_CLASS, tnB) ? TONE_CLASS[tnB] : ''), v.textContent); v.textContent = ''; v.appendChild(bd); } var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
     if (k === 'number' && e && e.over === true) {   // 205 (6): taken from a formula while its when holds: its figure, closed to editing
         var ovV = el('div', 'sheet-value sheet-over' + signTone(f, e), f.unit && !e.label ? (typeof figWords === 'function' ? figWords(f, e.value, e.text) : e.text + ' ' + f.unit) : e.text);
@@ -8711,6 +8770,14 @@ function capInline(box, words) { var l = el('label', 'sys-hover sys-capin'); l.a
 // 107, options that say what they do: one grey line under the captioned list a box was just given. Fixed words, set as text
 function lineUnder(box, text) { var l = box && box.lastChild; if (l) l.appendChild(el('small', 'sys-line', text)); }
 // [lookcheck:lineunder-end]
+// 1.6.2, the fill rule: a change of a number shown as boxes marked one by one is a mark, a clear or the next free box up, never a sum
+var MARK_HOW = Object.freeze({ mark: 'on', up: 'up', clear: 'off' });
+function markOpts(ch) {
+    var f = ch && typeof ch.f === 'string' ? (draft && Array.isArray(draft.fields) ? draft.fields : []).filter(function(x) { return x && x.id === ch.f; })[0] : null;
+    if (!f || f.kind !== 'number' || !f.track || f.track.each !== true) return [];
+    return [['mark', 'Mark box'], ['up', 'Mark box, or the next free one up'], ['clear', 'Clear box']];
+}
+function markVal(ch) { return ch.mark === 'up' ? 'up' : ch.mark === 'off' ? 'clear' : 'mark'; }
 function fieldRow(f) {
     var row = el('div', 'sys-row'); row.dataset.id = f.id;
     var top = el('div', 'sys-row-main');
@@ -8725,6 +8792,11 @@ function fieldRow(f) {
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') { var tl = el('label', 'sys-hover'); var tc = el('input'); tc.type = 'checkbox'; tc.checked = !!f.tile; tc.className = 'sys-tile-chk'; tl.appendChild(tc); tl.appendChild(document.createTextNode(' Tile')); tl.title = 'Show this field as a stat tile (big value, small label)'; flags.appendChild(tl); }   // Stage 3
     if (f.kind === 'number' && (!f.counter || f.slider)) { var sl = el('label', 'sys-hover'); var sc = el('input'); sc.type = 'checkbox'; sc.checked = !!f.slider; sc.className = 'sys-slider-chk'; sl.appendChild(sc); sl.appendChild(document.createTextNode(' Slider')); sl.title = 'Show this number as a range on a two-colour track with end labels (needs a min and a max)'; flags.appendChild(sl); }   // Stage 5e (a counter is not a slider: hidden while Counter is on, shown while a slider is set so it can be turned off)
     if ((f.kind === 'number' && !f.slider && !(Array.isArray(f.labels) && f.labels.length)) || f.kind === 'skill') { var cnl = el('label', 'sys-hover'); var cnc = el('input'); cnc.type = 'checkbox'; cnc.checked = !!f.counter; cnc.className = 'sys-counter-chk'; cnl.appendChild(cnc); cnl.appendChild(document.createTextNode(' Counter')); cnl.title = 'Draw \u2212 and + either side of the box (a turn counter, death saves, ammo, slots used)'; flags.appendChild(cnl); }   // HUD frame (HF4a, H8): never with a slider or value names
+    if (f.kind === 'resource' || f.kind === 'formula' || (f.kind === 'number' && !f.slider && !(Array.isArray(f.labels) && f.labels.length))) {   // 1.6.2: a track display, and how many marks it draws
+        var tkO = [['', 'its box'], ['dots', 'dots'], ['boxes', 'a row of boxes']]; if (f.kind === 'number') tkO.push(['each', 'boxes marked one by one']); tkO.push(['clock', 'a clock in parts']);
+        flags.appendChild(capInline(select('sys-trackshape', tkO, f.track ? (f.track.each ? 'each' : f.track.shape) : '', f.kind === 'formula' ? 'Draw its figure as dots, boxes or a clock. A formula\u2019s track only shows' : 'Draw the value as dots, boxes or a clock. A press on a mark sets the value, and a press on the last filled one takes one off. Boxes marked one by one keep which boxes are marked, and an action can mark a box or the next free one up'), 'Shows as: '));
+        if (f.track) flags.appendChild(capInline(input('sys-trackof field', f.track.of, 'How many marks it draws. Leave it empty for ' + (f.kind === 'formula' ? 'as many as its figure' : f.kind === 'resource' ? 'the pool\u2019s max' : f.track.each ? 'none: boxes marked one by one need a number here' : 'its min to its max'), f.kind === 'formula' ? 'its figure' : f.kind === 'resource' ? 'its max' : f.track.each ? 'needed' : 'its range'), 'Out of: '));
+    }
     if (f.kind !== 'formula') { var lvL = el('label', 'sys-hover sys-live'); lvL.appendChild(document.createTextNode('Locked: ')); var lvS = el('select', 'sys-live-sel'); [['', 'automatic'], ['on', 'stays live'], ['off', 'needs Edit sheet']].forEach(function(o) { lvS.appendChild(opt(o[0], o[1], (f.live === true ? 'on' : f.live === false ? 'off' : '') === o[0])); }); lvL.appendChild(lvS); lvL.title = 'On a locked sheet and in the HUD. Automatic: a pool, a switch, a counter and a number with value names keep working, and everything else needs Edit sheet. Choose here to say otherwise for this field'; flags.appendChild(lvL); }   // the sheet's lock: this field's own word on it
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') { var uIn = input('sys-unit field', f.unit, 'A short unit after the value, on the sheet and in the header (pts, kg, ft). yd, ft, in, lb and mi are measures: under Metric the sheet shows the figure in metric too', 'pts'); flags.appendChild(capInline(uIn, 'Unit: ')); var uLs = typeof unitWordsList === 'function' ? unitWordsList() : ''; if (uLs) uIn.setAttribute('list', uLs); }   // Stage 5g; 1.5.4: the measures offered as a list, any other unit still typed
     if ((f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') && typeof metricSel === 'function') { flags.appendChild(metricSel('sys-metricshow', f.unitShow)); flags.appendChild(decBox(f)); var grl = el('label', 'sys-hover'); var grc = el('input'); grc.type = 'checkbox'; grc.checked = f.group === true; grc.className = 'sys-group-chk'; grl.appendChild(grc); grl.appendChild(document.createTextNode(' 1,000s')); grl.title = 'Group the thousands with commas: 1,234.57'; flags.appendChild(grl); }   // 1.5.4: how a measure reads under Metric, the decimals, the thousands
@@ -8840,7 +8912,8 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
         if (typeof ch.deck === 'string') rw.appendChild(deckBox(ch)); else
         if (typeof ch.table === 'string') rw.appendChild(resultByBox(ch)); else
         if (typeof ch.fx !== 'string') {   // 1.6.0: an effect switched has no amount
-        rw.appendChild(select('sys-apply-op', [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']], ch.set ? 'set' : ch.add ? 'add' : 'sub', 'Subtract (a cost, a wound), add (rest, healing) or set it to the amount (back to 0); never past the field\u2019s min and max'));
+        var mkF = typeof markOpts === 'function' ? markOpts(ch) : [];   // 1.6.2: a number shown as boxes marked one by one
+        rw.appendChild(select('sys-apply-op', mkF.length ? mkF : [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']], mkF.length ? markVal(ch) : ch.set ? 'set' : ch.add ? 'add' : 'sub', 'Subtract (a cost, a wound), add (rest, healing) or set it to the amount (back to 0); never past the field\u2019s min and max'));
         var fm = input('sys-apply-formula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount, worked out when pressed: no dice unless Rolled is ticked (3, FPCost, max(0, Incoming - DR)); below 0 counts as 0', 'Amount'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
         var rlL = el('label', 'sys-hover'), rlC = el('input'); rlC.type = 'checkbox'; rlC.className = 'sys-apply-rolled'; rlC.checked = ch.roll === true; rlL.appendChild(rlC); rlL.appendChild(el('span', null, ' Rolled')); rlL.title = 'Rolled: the amount may roll dice, such as 1d6. The host rolls it each time, and the card shows the dice'; rw.appendChild(rlL);   // 1.5.9 (book es/et plan, section 0)
         }
@@ -8873,7 +8946,7 @@ function deckBox(ch) {   // How many and who sees it. Its own listeners, and cla
 function resultTargets(ch) { var o = (Array.isArray(draft.values) ? draft.values : []).filter(function(t) { return !!t && typeof t.key === 'string'; }).map(function(t) { return ['val:' + t.key, 'Shared: ' + (t.label || 'A value')]; }); if (typeof deckTargets === 'function') o = deckTargets(ch).concat(o); if (ch && typeof ch.shared === 'string' && !o.some(function(x) { return x[0] === 'val:' + ch.shared; })) o.push(['val:' + ch.shared, 'A shared value that is gone']); o = o.concat((Array.isArray(draft.results) ? draft.results : []).filter(function(t) { return !!t && typeof t.key === 'string'; }).map(function(t) { return ['tbl:' + t.key, 'Roll on: ' + (t.label || 'A table')]; })); if (ch && typeof ch.table === 'string' && !o.some(function(x) { return x[0] === 'tbl:' + ch.table; })) o.push(['tbl:' + ch.table, 'A table that is gone']); return o; }
 function resultByBox(ch) { var i = input('sys-res-by field', typeof ch.by === 'string' ? ch.by : '', 'Which row it reads. Empty: it rolls the table\u2019s own dice', 'Its own dice'); i.addEventListener('input', function() { var v = i.value.trim(); if (v) ch.by = v.slice(0, LIMITS.formula); else delete ch.by; markDirty(); if (typeof patchErrors === 'function') patchErrors(); }); return i; }
 function setChangeTarget(ch, v) {
-    v = String(v || ''); ['f', 'c', 'fire', 'feed', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money'].forEach(function(k) { delete ch[k]; });
+    v = String(v || ''); ['f', 'c', 'fire', 'feed', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money', 'mark'].forEach(function(k) { delete ch[k]; });
     delete ch.discard; delete ch.to; delete ch.deck; delete ch.shuffle; delete ch.show; delete ch.shared; delete ch.table; delete ch.by; if (v.indexOf('dk:') === 0 || v.indexOf('ds:') === 0) { ch.deck = v.slice(3); delete ch.add; delete ch.set; delete ch.roll; if (v.charAt(1) === 's') { ch.shuffle = true; delete ch.formula; } else if (typeof ch.formula !== 'string' || !ch.formula) ch.formula = '1'; return; } if (v.indexOf('val:') === 0) { ch.shared = v.slice(4); if (typeof ch.formula !== 'string') ch.formula = ''; return; } if (v.indexOf('tbl:') === 0) { ch.table = v.slice(4); delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; return; }   // 1.6.2 (G7): a roll on a result table, no amount
     if (v === 'money') { ch.money = ''; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0: the sheet's money, a figure of its own
     else if (v === 'discard') { ch.discard = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.2 (G9)
@@ -8885,7 +8958,7 @@ function setChangeTarget(ch, v) {
     else if (v.indexOf('all:') === 0) { var aP = v.slice(4), aC = aP.indexOf(':'); ch.list = aC > 0 ? aP.slice(0, aC) : aP; ch.s = aC > 0 ? aP.slice(aC + 1) : ''; }   // 1.6.0: every row of a list
     else if (v.indexOf('s:') === 0) ch.s = v.slice(2);
     else if (v.indexOf('c:') === 0) ch.c = v.slice(2);
-    else ch.f = v;
+    else { ch.f = v; if (typeof markOpts === 'function' && markOpts(ch).length) { ch.mark = 'on'; delete ch.add; delete ch.set; } }   // 1.6.2: a number of boxes marked one by one is marked, never summed
     if (typeof ch.fx !== 'string' && typeof ch.formula !== 'string' && ch.fire !== true && ch.feed !== true && ch.off !== true && typeof ch.money !== 'string') ch.formula = '';
 }
 function applyChangeOf(t, r) { var rw = t.closest('.sys-apply-row'), i = rw ? +rw.dataset.ai : -1, k = rw && rw.dataset.k === 'then' ? 'then' : 'apply'; return r && Array.isArray(r[k]) && i >= 0 && i < r[k].length && r[k][i] && typeof r[k][i] === 'object' ? r[k][i] : null; }
@@ -9858,7 +9931,8 @@ function listApplyEditor(box, rr, ri, key, sp, targets) {   // key (R2b): 'apply
         if (ch.fire === true || ch.feed === true) { var fnI = input('sys-list-applyfiren field', typeof ch.n === 'string' ? ch.n : '', ch.feed === true ? 'How many shots this spends at one press: a number or a formula of the row\u2019s names, no dice, such as Row.Rate. Empty: one. Each feed gives that many, and it stops where the emptiest feed runs out' : 'How many rounds this spends at one press: a number or a formula of the row\u2019s names, no dice, such as Row.Rate. Empty: one. They go in order, and it stops when the chamber is empty', 'How many (one)'); fnI.maxLength = LIMITS.formula; rw.appendChild(fnI); }   // 1.6.0: How many
         if (typeof ch.money === 'string') { var moI = input('sys-list-applymoney field', ch.money, 'How much money moves: a formula with no dice, reading the row as Row.Cost and how the roll went as RollMargin. Above 0 is paid in, below 0 is paid out. With too little held a player\u2019s roll lands none of its Then, and your own takes what is held', 'Figure (0 - Row.Cost)'); moI.maxLength = LIMITS.formula; rw.appendChild(moI); }   // 1.6.0
         if (ch.fire !== true && ch.feed !== true && ch.off !== true && typeof ch.fx !== 'string' && typeof ch.money !== 'string') {
-        rw.appendChild(sel('sys-list-applyop', [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']], ch.set ? 'set' : ch.add ? 'add' : 'sub', 'Subtract (a cost) or add; never past the field\u2019s min and max'));
+        var mkL = typeof markOpts === 'function' ? markOpts(ch) : [];   // 1.6.2
+        rw.appendChild(sel('sys-list-applyop', mkL.length ? mkL : [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']], mkL.length ? markVal(ch) : ch.set ? 'set' : ch.add ? 'add' : 'sub', 'Subtract (a cost) or add; never past the field\u2019s min and max'));
         var fm = input('sys-list-applyformula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount for the row: no dice unless Rolled is ticked; Row.lvl, Row.<stat>, Row.<column> read the row (Row.FPCost)', 'Amount (Row.FPCost)'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
         var lrlL = el('label', 'sys-hover'), lrlC = el('input'); lrlC.type = 'checkbox'; lrlC.className = 'sys-list-applyrolled'; lrlC.checked = ch.roll === true; lrlL.appendChild(lrlC); lrlL.appendChild(el('span', null, ' Rolled')); lrlL.title = 'Rolled: the amount may roll dice, such as 1d6. The host rolls it each time, and the card shows the dice'; rw.appendChild(lrlL);   // 1.5.9 (book es/et plan, section 0)
         }
@@ -12839,6 +12913,7 @@ function onInput(e) {
         else if (c.indexOf('sys-vnames') >= 0) { var vn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (vn.length && !vn[vn.length - 1]) vn.pop(); if (vn.some(Boolean)) f.labels = vn; else delete f.labels; }   // Stage 6: a blank between names keeps its place (every later name keeps its number)
         else if (c.indexOf('sys-res-icon') >= 0) { if (t.value.trim()) f.icon = t.value.slice(0, 32); else delete f.icon; }   // Fold B
         else if (c.indexOf('sys-ovr-value') >= 0 || c.indexOf('sys-ovr-when') >= 0) { var ovK = c.indexOf('sys-ovr-value') >= 0 ? 'value' : 'when', ovT = t.value.trim() ? t.value.slice(0, LIMITS.formula) : ''; var ovO = Object.assign({}, f.override && typeof f.override === 'object' ? f.override : {}); if (ovT) ovO[ovK] = ovT; else delete ovO[ovK]; if (ovO.value || ovO.when) f.override = ovO; else delete f.override; if (ovK === 'value') { markDirty(); renderAll(); return; } }   // 205 (6): Taken from, then while
+        else if (c.indexOf('sys-trackof') >= 0) { if (f.track && typeof f.track === 'object') { if (t.value.trim()) f.track.of = t.value.slice(0, LIMITS.formula); else delete f.track.of; } }   // 1.6.2: a track's Out of
         else if (c.indexOf('sys-spill-below') >= 0) { if (f.spill && typeof f.spill === 'object') { if (t.value.trim()) f.spill.below = t.value.slice(0, LIMITS.formula); else delete f.spill.below; } }   // 1.6.0 Spills into: below a formula
         else if (c.indexOf('sys-res-color') >= 0) { if (/^#[0-9a-fA-F]{6}$/.test(t.value)) f.color = t.value.toLowerCase(); }   // Stage 6 look fold (L7)
         else if (c.indexOf('sys-slider-lowColor') >= 0) { f.slider = f.slider || {}; f.slider.lowColor = t.value; }   // Stage 5e (the colour classes before the label ones: 'sys-slider-low' is a prefix of both)
@@ -13071,7 +13146,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-costhow') >= 0) { var chR = t.closest('.sys-list-roll'), chD = chR && Array.isArray(lsc.rolls) ? lsc.rolls[+chR.dataset.ri] : null; if (!chD || typeof chD !== 'object') return; var chL = Math.floor(Number(t.value)); if (chL >= 2 && chL <= LIMITS.costN) chD.costN = chL; else delete chD.costN; }   // turn-based combat T1
         else if (c.indexOf('sys-list-rollkind') >= 0) { var rkr = t.closest('.sys-list-roll'), rkD = rkr && Array.isArray(lsc.rolls) ? lsc.rolls[+rkr.dataset.ri] : null; if (!rkD || typeof rkD !== 'object') return; if (t.value === 'apply') { if (!Array.isArray(rkD.apply)) rkD.apply = [{ f: '', formula: '' }]; } else delete rkD.apply; }   // Stage 6 HUD H7b: Roll | Apply (a formula typed before stays in the draft)
         else if (c.indexOf('sys-list-applyrolled') >= 0) { var arr = t.closest('.sys-list-applyrow'), arR = arr && Array.isArray(lsc.rolls) ? lsc.rolls[+arr.dataset.ri] : null, arK = arr && arr.dataset.k === 'then' ? 'then' : 'apply', arC = arR && Array.isArray(arR[arK]) ? arR[arK][+arr.dataset.ai] : null; if (!arC || typeof arC !== 'object') return; if (t.checked) arC.roll = true; else delete arC.roll; }   // 1.5.9: Rolled (Save keeps it only with a target and an amount)
-        else if (c.indexOf('sys-list-applytarget') >= 0 || c.indexOf('sys-list-applyop') >= 0 || c.indexOf('sys-list-applywhen') >= 0) { var atr = t.closest('.sys-list-applyrow'), atR = atr && Array.isArray(lsc.rolls) ? lsc.rolls[+atr.dataset.ri] : null, atK = atr && atr.dataset.k === 'then' ? 'then' : 'apply', atC = atR && Array.isArray(atR[atK]) ? atR[atK][+atr.dataset.ai] : null; if (!atC || typeof atC !== 'object') return; if (c.indexOf('sys-list-applytarget') >= 0) { setChangeTarget(atC, t.value); markDirty(); renderAll(); return; } else if (c.indexOf('sys-list-applywhen') >= 0) { delete atC.band; if (String(t.value).indexOf('band:') === 0) { atC.band = t.value.slice(5); delete atC.when; } else if (t.value === 'hit' || t.value === 'miss' || t.value === 'malf' || t.value === 'crit' || t.value === 'fumble') atC.when = t.value; else delete atC.when; } else { delete atC.add; delete atC.set; if (t.value === 'add') atC.add = true; else if (t.value === 'set') atC.set = true; } }   // R2b: a counter, a consequence's When
+        else if (c.indexOf('sys-list-applytarget') >= 0 || c.indexOf('sys-list-applyop') >= 0 || c.indexOf('sys-list-applywhen') >= 0) { var atr = t.closest('.sys-list-applyrow'), atR = atr && Array.isArray(lsc.rolls) ? lsc.rolls[+atr.dataset.ri] : null, atK = atr && atr.dataset.k === 'then' ? 'then' : 'apply', atC = atR && Array.isArray(atR[atK]) ? atR[atK][+atr.dataset.ai] : null; if (!atC || typeof atC !== 'object') return; if (c.indexOf('sys-list-applytarget') >= 0) { setChangeTarget(atC, t.value); markDirty(); renderAll(); return; } else if (c.indexOf('sys-list-applywhen') >= 0) { delete atC.band; if (String(t.value).indexOf('band:') === 0) { atC.band = t.value.slice(5); delete atC.when; } else if (t.value === 'hit' || t.value === 'miss' || t.value === 'malf' || t.value === 'crit' || t.value === 'fumble') atC.when = t.value; else delete atC.when; } else { delete atC.add; delete atC.set; delete atC.mark; if (t.value === 'add') atC.add = true; else if (t.value === 'set') atC.set = true; else if (MARK_HOW[t.value]) atC.mark = MARK_HOW[t.value]; } }   // R2b: a counter, a consequence's When; 1.6.2: or the fill rule
         else if (c.indexOf('sys-list-colmetric') >= 0 || c.indexOf('sys-list-statmetric') >= 0) { var mcol = c.indexOf('sys-list-colmetric') >= 0, mrw = t.closest(mcol ? '.sys-list-col' : '.sys-list-stat'), mLs = mcol ? lsc.cols : lsc.stats, mD = mrw && Array.isArray(mLs) ? mLs[+(mcol ? mrw.dataset.ci : mrw.dataset.si)] : null; if (!mD || typeof mD !== 'object') return; if (t.value === 'swap' || t.value === 'bare') mD.unitShow = t.value; else delete mD.unitShow; }   // 1.5.4: how a measure reads under Metric
         else if (c.indexOf('sys-list-loadfrom') >= 0) { if (t.value) { var ld0 = lsc.load && typeof lsc.load === 'object' ? lsc.load : {}, ct0 = Array.isArray(lsc.counters) && lsc.counters[0] && typeof lsc.counters[0].key === 'string' ? lsc.counters[0].key : ''; lsc.load = { from: t.value, ct: typeof ld0.ct === 'string' && ld0.ct ? ld0.ct : ct0 }; if (Array.isArray(ld0.cats)) lsc.load.cats = ld0.cats; } else delete lsc.load; }   // 1.5.8 Loads from
         else if (c.indexOf('sys-list-chamberfrom') >= 0) { if (t.value) { var ch0 = lsc.chamber && typeof lsc.chamber === 'object' ? lsc.chamber : {}; lsc.chamber = Object.assign({}, ch0, { from: t.value }); if (typeof lsc.chamber.cap !== 'number') lsc.chamber.cap = 1; } else delete lsc.chamber; }   // 1.5.9 Chambers from
@@ -13130,6 +13205,7 @@ function onChange(e) {
         else if (c.indexOf('sys-spill-to') >= 0) { if (t.value) f.spill = Object.assign({}, f.spill && typeof f.spill === 'object' ? f.spill : {}, { to: t.value }); else delete f.spill; markDirty(); renderAll(); return; }   // 1.6.0 Spills into: from where follows
         else if (c.indexOf('sys-spill-at') >= 0) { if (f.spill && typeof f.spill === 'object') { if (t.value === 'neg' || t.value === 'f') f.spill.at = t.value; else delete f.spill.at; if (t.value !== 'f') delete f.spill.below; } markDirty(); renderAll(); return; }   // ... and the formula's box
         else if (c.indexOf('sys-slider-chk') >= 0) { if (t.checked) { f.slider = f.slider || {}; delete f.counter; } else delete f.slider; markDirty(); renderAll(); return; }   // Stage 5e: slider on/off (its row of labels and colours appears)
+        else if (c.indexOf('sys-trackshape') >= 0) { var tkV = t.value, tkOf = f.track && typeof f.track === 'object' ? f.track.of : undefined; if (!tkV) delete f.track; else { f.track = tkV === 'each' ? { shape: 'boxes', each: true } : { shape: tkV }; if (tkOf) f.track.of = tkOf; delete f.counter; } markDirty(); renderAll(); return; }   // 1.6.2: Shows as (a track takes a counter's place)
         else if (c.indexOf('sys-counter-chk') >= 0) { if (t.checked) { f.counter = true; delete f.slider; } else delete f.counter; markDirty(); renderAll(); return; }   // HUD frame (HF4a): counter on/off — a number is a counter or a slider, never both (the other's box hides)
         else if (c.indexOf('sys-slider-lowColor') >= 0 || c.indexOf('sys-slider-midColor') >= 0 || c.indexOf('sys-slider-highColor') >= 0) { markDirty(); renderAll(); return; }   // a colour picked (the input handler stored it): redraw so "Theme colours" appears
         else if (c.indexOf('sys-itbl-on') >= 0) { if (t.checked) f.table = f.table || { columns: ['category'] }; else delete f.table; markDirty(); renderAll(); return; }   // Stage 4: rich item table on/off (seed one column so it renders)
@@ -13148,7 +13224,7 @@ function onChange(e) {
     } else if (r) {
         if (c.indexOf('sys-roll-kind') >= 0) { if (t.value === 'apply') { if (!Array.isArray(r.apply)) r.apply = [{ f: '', formula: '' }]; delete r.init; } else { delete r.apply; delete r.round; delete r.each; delete r.by; } markDirty(); renderAll(); return; }   // Stage 6 HUD H7: Roll | Apply (a formula typed before stays in the draft)
         else if (c.indexOf('sys-apply-target') >= 0) { var chT = applyChangeOf(t, r); if (!chT) return; setChangeTarget(chT, t.value); markDirty(); renderAll(); return; }   // 1.6.0: a field, or an effect switched on or off
-        else if (c.indexOf('sys-apply-op') >= 0) { var chO = applyChangeOf(t, r); if (!chO) return; delete chO.add; delete chO.set; if (t.value === 'add') chO.add = true; else if (t.value === 'set') chO.set = true; }
+        else if (c.indexOf('sys-apply-op') >= 0) { var chO = applyChangeOf(t, r); if (!chO) return; delete chO.add; delete chO.set; delete chO.mark; if (t.value === 'add') chO.add = true; else if (t.value === 'set') chO.set = true; else if (MARK_HOW[t.value]) chO.mark = MARK_HOW[t.value]; }   // 1.6.2: or the fill rule
         else if (c.indexOf('sys-apply-rolled') >= 0) { var chRl = applyChangeOf(t, r); if (!chRl) return; if (t.checked) chRl.roll = true; else delete chRl.roll; }   // 1.5.9: Rolled (Save keeps it only with a target and an amount)
         else if (c.indexOf('sys-apply-when') >= 0) { var chW = applyChangeOf(t, r); if (!chW) return; delete chW.band; if (String(t.value).indexOf('band:') === 0) { chW.band = t.value.slice(5); delete chW.when; } else if (t.value === 'hit' || t.value === 'miss' || t.value === 'malf' || t.value === 'crit' || t.value === 'fumble') chW.when = t.value; else delete chW.when; }   // R1; 1.5.8: a critical success or failure
         else if (c.indexOf('sys-vis') >= 0) r.vis = t.value;

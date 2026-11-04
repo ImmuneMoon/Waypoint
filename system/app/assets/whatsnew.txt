@@ -192,6 +192,9 @@ At the table
   roll cards, which are edged in its colour, and a player's own sheet text is
   set in their font.
   Personal looks is a VTT feature, on until the GM switches it off.
+- A number, a pool or a formula can show as a track: dots, a row of boxes, or
+  a clock in parts. Press a mark to set it. Boxes can also be marked one by one,
+  and an action can mark a box, or the next free one up.
 - A row's note, a name and a description of a row of the character's own, and
   the name of an effect made on the spot take a look too, as a sheet's text does.
 

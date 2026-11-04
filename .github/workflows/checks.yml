@@ -141,6 +141,9 @@ jobs:
       - name: rowlookcheck — the look of a row's note, an own row's name and description, and an effect's name
         if: ${{ !cancelled() }}
         run: node tools/rowlookcheck.js
+      - name: markcheck — a number, a pool or a formula shown as dots, boxes or a clock, and the box fill rule
+        if: ${{ !cancelled() }}
+        run: node tools/markcheck.js
       - name: thengmcheck — a Then step players may not see, run on the host
         if: ${{ !cancelled() }}
         run: node tools/thengmcheck.js

@@ -225,7 +225,10 @@ At the table
 - Help draws the System editor's buttons and tabs as they look in the app.
   Press one, and Help steps aside, opens the editor on that tab and lights
   the button; Back to Help returns. A button of the top row's menus opens
-  its menu first. The rest of Help follows.
+  its menu first. So do the buttons Help names in Settings, your profile and
+  the Multiplayer window, which opens on the group or part that holds them. A
+  button shown only at times, as Pause the table while you host, is drawn
+  greyed and says when.
 - A roll can wait for help. Its card asks the others on the roller's map, and
   the GM for an NPC, and each helper adds a figure of their own sheet, a die,
   or what their own roll gives. The roller presses Roll, or it rolls by itself

@@ -6,8 +6,12 @@
 // window it lives in on its tab, brings it into view and lights it for two seconds, and Back to Help returns to the place Help was left. A control this
 // screen cannot reach (the System editor on a player's app) is drawn greyed and says why. Nothing is stored or sent
 // [helpchipcheck:core-start]
+function chipHelpBox(doc) { return doc.getElementById('helpModal'); }
 // a window a control may live in, the control that opens it, and what a tab of it is called: the System editor for now
-var CHIP_WINDOWS = { systemModal: { open: 'systemBtn', tabs: '.sys-tabs button[data-tab]', tabOf: function(el) { var t = el && el.closest ? el.closest('.sys-tab') : null; return t && t.id ? CHIP_TAB_IDS[t.id] || '' : ''; } } };
+var CHIP_WINDOWS = { systemModal: { open: 'systemBtn', tabs: '.sys-tabs button[data-tab]', tabOf: function(el) { var t = el && el.closest ? el.closest('.sys-tab') : null; return t && t.id ? CHIP_TAB_IDS[t.id] || '' : ''; } },
+    settingsModal: { open: 'settingsBtn' }, profileModal: { open: 'rowMeBtn' }, netModal: { open: 'netBtn' } };   // fold 3: Settings, your profile and Multiplayer, which have no tabs: a group of Settings unfolds and a part of Multiplayer opens by its own button
+// fold 3: a part of a window that shows only at times, and the words a chip says while it does not
+var CHIP_WHEN = { netHostInfo: 'While you host', setUpdateRow: 'When an update is found', setRelayBlock: 'With a relay server set' };
 var CHIP_TAB_IDS = { sysFields: 'fields', sysRolls: 'rolls', sysItems: 'items', sysLists: 'lists', sysEffects: 'effects', sysCombat: 'combat', sysRules: 'rules', sysChars: 'chars', sysLayout: 'layout', sysCalendar: 'calendar' };
 var CHIP_KEY = /^(?:sys-tab:[a-z]{1,16}|sys:[a-z]{1,16}:[a-z][a-z0-9-]{0,63}|#[A-Za-z][A-Za-z0-9_-]{0,63})$/;   // a tab, the first control of a class inside a tab, or a control by its id
 // the control a key names in this document, and the window that holds it (none for a control of the page itself)
@@ -28,10 +32,12 @@ function chipMenus(doc, el) {
     var out = [];
     for (var n = el && el.parentNode; n && n.getAttribute; n = n.parentNode) {
         var id = n.id; if (!id) continue;
-        var op = CHIP_OPENERS[id] ? doc.getElementById(CHIP_OPENERS[id]) : doc.querySelector('[aria-controls="' + id + '"]'); if (op) out.unshift({ box: n, open: op });
+        var op = CHIP_OPENERS[id] ? doc.getElementById(CHIP_OPENERS[id]) : chipOpener(doc, id); if (op) out.unshift({ box: n, open: op });
     }
     return out;
 }
+// the button that opens a part, never a chip's copy of it in Help (fold 3: Join a table is both)
+function chipOpener(doc, id) { var all = doc.querySelectorAll('[aria-controls="' + id + '"]'), help = chipHelpBox(doc); for (var i = 0; i < all.length; i++) if (!(help && help.contains(all[i]))) return all[i]; return null; }
 function chipShut(box) { return !!box && (box.hidden === true || (box.style && box.style.display === 'none')); }
 function chipStand(doc, el) {   // what stands for a control: itself, or its button in the tray while the row has folded it away
     if (el && el.classList && el.classList.contains('row-fold') && el.id) { var t = doc.querySelector('#rowTray [data-press="' + el.id + '"]'); if (t) return t; }
@@ -43,12 +49,19 @@ function chipReach(doc, f) {
     if (!f.win && f.el.closest && f.el.closest('.gm-only') && doc.body && doc.body.classList && doc.body.classList.contains('net-client')) return 'The GM\u2019s';   // fold 2: a control of the GM's, on a player's app
     if (!f.win) { var st = chipStand(doc, f.el); return st === f.el && !chipMenus(doc, f.el).length && f.el.offsetParent === null && f.el.style.display === 'none' ? 'Not on this screen' : ''; }
     var op = doc.getElementById(CHIP_WINDOWS[f.win].open); if (!op) return 'Not on this screen';
-    return op.style.display === 'none' || op.hidden ? 'The GM’s' : '';
+    if (op.style.display === 'none' || op.hidden) return 'The GM’s';
+    if (CHIP_WINDOWS[f.win].tabs) return '';   // a window with tabs opens the control's tab (chipGo)
+    var box = doc.getElementById(f.win);   // fold 3: a part of the window put away until it applies, which no button of the window opens
+    for (var n = f.el.parentNode; n && n !== box; n = n.parentNode) { if (!n.id || !n.style || n.style.display !== 'none') continue; if (chipOpener(doc, n.id)) continue; return CHIP_WHEN[n.id] || 'Not shown now'; }
+    return '';
 }
+// fold 3: the closed groups of Settings around a control, outermost first
+function chipFolds(el, box) { var out = []; for (var n = el && el.parentNode; n && n !== box; n = n.parentNode) if (n.tagName === 'DETAILS' && !n.open) out.unshift(n); return out; }
 // the copy a chip shows: the control's own element with its words and its drawing, made inert (no id, no handler, no focus of its own), inside the
 // classes of the control's parent, so the style sheet draws it as in the app
 function chipCopy(doc, el) {
     var c = el.cloneNode(true); c.removeAttribute('id'); c.removeAttribute('title'); c.removeAttribute('data-tip'); c.removeAttribute('disabled'); c.setAttribute('tabindex', '-1'); c.setAttribute('aria-hidden', 'true');
+    c.removeAttribute('aria-controls'); c.removeAttribute('aria-expanded');   // fold 3: a copy opens nothing and is found by nothing
     var all = c.querySelectorAll ? c.querySelectorAll('[id]') : []; for (var i = 0; i < all.length; i++) all[i].removeAttribute('id');
     var wrap = doc.createElement('span'); wrap.className = 'help-chip-in ' + (el.parentNode && typeof el.parentNode.className === 'string' ? el.parentNode.className : ''); wrap.appendChild(c);
     return wrap;
@@ -56,7 +69,6 @@ function chipCopy(doc, el) {
 // [helpchipcheck:core-end]
 // [helpchipcheck:wire-start]
 var _chipBack = null;   // where Help was left: its pane and its scroll
-function chipHelpBox(doc) { return doc.getElementById('helpModal'); }
 // draw every chip of Help as it opens: a bold name stays as it is where its control is not in the page at all
 function chipsDraw(doc) {
     var help = chipHelpBox(doc); if (!help) return 0; var n = 0;
@@ -68,7 +80,7 @@ function chipsDraw(doc) {
         if (!chip) { chip = doc.createElement('span'); chip.className = 'help-chip'; chip.setAttribute('role', 'button'); chip.dataset.ctl = key; b.textContent = ''; b.appendChild(chip); }
         chip.textContent = ''; chip.appendChild(chipCopy(doc, f.el));
         var why = chipReach(doc, f); chip.classList.toggle('help-chip-off', !!why); chip.setAttribute('tabindex', why ? '-1' : '0'); chip.setAttribute('aria-disabled', why ? 'true' : 'false');
-        var words = (b.dataset.name || (f.el.textContent || '').replace(/\s+/g, ' ').trim() || String(f.el.getAttribute('title') || '').split('.')[0].trim()).replace(/[.\u2026]+$/, ''); chip.setAttribute('aria-label', words); chip.dataset.tip = why ? words + '. ' + why + '.' : 'Show me ' + words + '.';   // fold 2: an icon alone says itself by its tooltip   // a chip says itself in Help's words (a menu row's own may hold more, such as how many kinds it lists), never ending in two stops
+        var words = (b.dataset.name || (f.el.textContent || '').replace(/\s+/g, ' ').trim() || String(f.el.getAttribute('title') || '').split('.')[0].trim()).replace(/[.\u2026:]+$/, ''); chip.setAttribute('aria-label', words); chip.dataset.tip = why ? words + '. ' + why + '.' : 'Show me ' + words + '.';   // fold 2: an icon alone says itself by its tooltip   // a chip says itself in Help's words (a menu row's own may hold more, such as how many kinds it lists), never ending in two stops
         n++;
     }
     return n;
@@ -81,6 +93,16 @@ function chipGo(doc, key) {
     var help = chipHelpBox(doc), pane = chipPaneOn(help), body = pane ? pane.parentNode : null;
     _chipBack = { pane: pane ? pane.dataset.pane : '', top: body ? body.scrollTop : 0 };
     if (help) help.style.display = 'none';
+    if (f.win && !CHIP_WINDOWS[f.win].tabs) {   // fold 3: a window with no tabs opens now, and a moment after, its group or its part, and the control is lit
+        var boxW = doc.getElementById(f.win); if (boxW && boxW.style.display === 'none') { var opW = doc.getElementById(CHIP_WINDOWS[f.win].open); if (opW) opW.click(); }
+        chipBackShow(doc);
+        setTimeout(function() {
+            chipFolds(f.el, boxW).forEach(function(d) { d.open = true; });
+            chipMenus(doc, f.el).forEach(function(m) { if (boxW && boxW.contains(m.box) && chipShut(m.box) && m.open.click) m.open.click(); });
+            var elW = f.el; if (elW.scrollIntoView) elW.scrollIntoView({ block: 'center' }); elW.classList.add('help-found'); setTimeout(function() { elW.classList.remove('help-found'); }, 2000);
+        }, 0);
+        return true;
+    }
     if (f.win) {
         var box = doc.getElementById(f.win); if (box && box.style.display === 'none') { var op = doc.getElementById(CHIP_WINDOWS[f.win].open); if (op) op.click(); }
         var tab = key.indexOf('sys-tab:') === 0 ? key.slice(8) : key.indexOf('sys:') === 0 ? key.split(':')[1] : CHIP_WINDOWS[f.win].tabOf(f.el);

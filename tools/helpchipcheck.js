@@ -121,10 +121,33 @@ function rowPage(opts) {
     const cssW = read('style.css');
     check('a menu row copied into a chip keeps the menu\u2019s look', cssW.includes('.help-chip-in > .menu-item, .help-chip-in > .rm-row { display: inline-flex !important;'));
 }
+// ---- fold 3: Settings, your profile and Multiplayer, windows with no tabs
+{
+    const det = mk('details', { cls: 'set-group' }, [mk('summary', { text: 'Advanced' }), mk('button', { id: 'setKeysResetBtn', cls: 'tool ghost', text: 'Restore default keys' })]); det.open = false;
+    const set = mk('div', { id: 'settingsModal', style: { display: 'none' } }, [det]), setOp = mk('button', { id: 'settingsBtn' }); setOp.onclick = () => { set.style.display = 'flex'; };
+    const joinBtn = mk('button', { id: 'netJoinBtn', cls: 'tool', text: 'Join' }), paneJ = mk('div', { id: 'netPaneJoin', style: { display: 'none' } }, [joinBtn]), paneBtn = mk('button', { id: 'netPaneJoinBtn', attrs: { 'aria-controls': 'netPaneJoin' }, text: 'Join a table' });
+    paneBtn.onclick = () => { paneJ.style.display = 'block'; };
+    const pause = mk('button', { id: 'netPauseBtn', cls: 'tool', text: 'Pause the table' }), info = mk('div', { id: 'netHostInfo', style: { display: 'none' } }, [pause]), paneH = mk('div', { id: 'netPaneHost', style: { display: 'none' } }, [info]);
+    const net = mk('div', { id: 'netModal', style: { display: 'none' } }, [paneBtn, paneJ, paneH]), netOp = mk('button', { id: 'netBtn' }); netOp.onclick = () => { net.style.display = 'flex'; };
+    const help = mk('div', { id: 'helpModal', style: { display: 'flex' } }, [mk('div', { cls: 'help-body' }, [mk('div', { cls: 'help-pane', data: { pane: 'start' }, style: { display: 'block' } }, [mk('b', { attrs: { 'data-ctl': '#setKeysResetBtn' }, text: 'Restore default keys' }), mk('b', { attrs: { 'data-ctl': '#netJoinBtn' }, text: 'Join' }), mk('b', { attrs: { 'data-ctl': '#netPauseBtn' }, text: 'Pause the table' }), mk('button', { cls: 'tool', attrs: { 'aria-controls': 'netPaneJoin' }, text: 'a copy' })])])]);
+    const body = mk('body', {}, [help, setOp, set, netOp, net]), doc = { body, getElementById: id => body.all().find(n => n.id === id) || null, querySelectorAll: s => body.querySelectorAll(s), querySelector: s => body.querySelector(s), createElement: tg => new El(tg) };
+    const fK = api.chipFind(doc, '#setKeysResetBtn'), fJ = api.chipFind(doc, '#netJoinBtn'), fP = api.chipFind(doc, '#netPauseBtn');
+    check('fold 3: a control of Settings or Multiplayer names its window; one in a part a button of the window opens is in reach, and one in a part shown only at times says when', fK.win === 'settingsModal' && fJ.win === 'netModal' && api.chipReach(doc, fK) === '' && api.chipReach(doc, fJ) === '' && api.chipReach(doc, fP) === 'While you host', J([fK.win, fJ.win, api.chipReach(doc, fP)]));
+    api.chipsDraw(doc); const cs3 = help.querySelectorAll('.help-chip');
+    check('a chip of a control shown only at times is drawn greyed and says why', cs3[2].classList.contains('help-chip-off') && cs3[2].dataset.tip === 'Pause the table. While you host.' && !cs3[0].classList.contains('help-chip-off'), J(cs3.map(c => c.dataset.tip)));
+    timers.length = 0; const gK = api.chipGo(doc, '#setKeysResetBtn'); const openNow = set.style.display === 'flex' && det.open === false; timers.filter(x => x[1] === 0).forEach(x => x[0]());
+    check('pressed, Settings opens at once, and a moment after its group unfolds and the control is brought into view and lit', gK === true && openNow && det.open === true && fK.el.classList.contains('help-found') && fK.el.scrolled === 1);
+    timers.length = 0; const gJ = api.chipGo(doc, '#netJoinBtn'); timers.filter(x => x[1] === 0).forEach(x => x[0]());
+    check('in Multiplayer the part that holds it is opened by its own button, never a copy of it that stands in Help before the window, and the control lit', gJ === true && net.style.display === 'flex' && paneJ.style.display === 'block' && joinBtn.classList.contains('help-found') && paneBtn.clicks === 1);
+    const cpy = api.chipCopy(doc, paneBtn).kids[0];
+    check('a copy of a button that opens a part names no part', cpy.getAttribute('aria-controls') == null && cpy.getAttribute('aria-expanded') == null, J(cpy.attrs));
+    check('a control shown only at times is not pressed open', api.chipGo(doc, '#netPauseBtn') === false);
+}
 // ---- every mark Help carries names a control the page has
 const html = read('index.html'), marks = [...html.matchAll(/<b data-ctl="([^"]+)">/g)].map(m => m[1]);
 const bad = marks.filter(k => { if (!api.CHIP_KEY.test(k)) return true; if (k[0] === '#') return html.split('id="' + k.slice(1) + '"').length !== 2; if (k.indexOf('sys-tab:') === 0) return !html.includes('<button data-tab="' + k.slice(8) + '"'); const p = k.split(':'), tid = Object.keys(api.CHIP_TAB_IDS).find(x => api.CHIP_TAB_IDS[x] === p[1]); if (!tid) return true; const at = html.indexOf('id="' + tid + '"'), end = html.indexOf('<div id="sys', at + 10); return at < 0 || html.slice(at, end > 0 ? end : undefined).indexOf(p[2]) < 0; });
-check('every mark Help carries is a key of the chips’ own form, and names a button or a tab the page has: the System editor’s 25 first', marks.length >= 25 && bad.length === 0, J([marks.length, bad]));
+check('every mark Help carries is a key of the chips’ own form, and names a button or a tab the page has: the System editor’s 25 first, then fold 3’s 46 of Settings, your profile, Multiplayer and the top row', marks.length >= 71 && bad.length === 0, J([marks.length, bad]));
+check('fold 3 marks the names that mean a control, and leaves a name that means the feature as it is', /<b data-ctl="#netHostBtn">Start Hosting this Campaign<\/b>|<b data-ctl="#netHostBtn">/.test(html) && /<b data-ctl="#setKeysResetBtn">/.test(html) && /<b data-ctl="#exportMdBtn">/.test(html) && !/<b data-ctl="[^"]+">Fog of war<\/b>/.test(html) && !/<b data-ctl="[^"]+">Cancel<\/b>/.test(html));
 const sheets = html.slice(html.indexOf('data-pane="sheets"'), html.indexOf('data-pane="keys"'));
 check('the marks are on the names of what you press, and a bold that means something else in its sentence is left plain', !/<b data-ctl="[^"]+">Undo<\/b>/.test(html) && /The rules of a fight are on the <b data-ctl="sys-tab:combat">Combat<\/b> tab/.test(sheets) && /<b data-ctl="#sysSaveBtn">Save<\/b> in the editor keeps your changes/.test(sheets) && /with the <b>Calendar<\/b> on/.test(sheets));
 // ---- the wiring, the styles, the words

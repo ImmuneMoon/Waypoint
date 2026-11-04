@@ -22294,6 +22294,20 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('every place a typed figure is stored fills at once, in the same change: the GM\u2019s own and the host\u2019s, one at a time and in a batch; Revert takes the marks back with the figures; both boxes are forms',
             /autoFills\(sys, c, f\.id, res\.value, F\(\)\)/.test(shA) && /autoFills\(sys, work, q\.fieldId, res\.value, F\(\)\)/.test(shA) && /Se\.autoFills\(campE\.system, chE, q\.fieldId, resE\.value, Fe\)/.test(nt) && /Sm\.autoFills\(campM\.system, workM, fidM, resM\.value, Fm\)/.test(nt)
             && /if \(lastChange\.af !== undefined\)/.test(shA) && /'sys-wout': 'amt', 'sys-tfill-f': 'amt'/.test(fb));
+        // a file read in may say which of its figures are fills (the Campaign beats session's follow-up: a website's average height keeps following Size)
+        const fillF = { values: { f_h: "6'6\"", f_w: '180 lbs', f_t: 'x' }, filled: ['f_h', 'f_t', 'f_nope'] }, fm = S.fillMarks(GA, fillF, { f_h: "6'6\"", f_w: '180 lbs', f_t: 'x' });
+        const chM = { id: 'c_m', values: {}, af: { f_w: 1, f_l: 1 } }; S.afApply(chM, fm);
+        check('a fill from a file marks the figures the file lists as fills and takes the mark off any other it wrote, a number, a height or a weight alone', J(fm) === J({ f_h: 1, f_w: 0 }) && J(chM.af) === J({ f_l: 1, f_h: 1 }), J([fm, chM.af]));
+        const upP = { changes: [{ id: 'u_1', kind: 'value', f: 'f_h', value: "5'0\"", filled: true }, { id: 'u_2', kind: 'value', f: 'f_w', value: '90 lbs' }, { id: 'u_3', kind: 'value', f: 'f_l', value: 3, filled: true }] }, pm = S.proposalMarks(GA, upP, { u_1: true, u_2: true });
+        const upC = S.cleanUploads([{ id: 'up_1', charId: 'c_a', at: 1, from: 'p', changes: [{ id: 'u_1', kind: 'value', f: 'f_h', label: 'H', value: "5'0\"", filled: true, accept: true }, { id: 'u_2', kind: 'value', f: 'f_w', label: 'W', value: '9', filled: 'yes', accept: true }] }]);
+        check('a Review keeps the mark on its value line only as true, and an accepted line marks its figure, an unticked one leaves it as it was', J(pm) === J({ f_h: 1, f_w: 0 }) && upC[0].changes[0].filled === true && !('filled' in upC[0].changes[1]), J([pm, upC && upC[0] && upC[0].changes]));
+        const rvP = S.revProposal(GA, { id: 'c_a', ownerId: 'u_a', values: { f_h: "5'0\"" } }, { values: { f_h: "6'0\"" }, filled: ['f_h'] }, F, {});
+        check('... and a figure read for a character in play rides to the Review marked as a fill where the file says so', rvP && Array.isArray(rvP.changes) && rvP.changes.some(c => c.kind === 'value' && c.f === 'f_h' && c.filled === true), J(rvP));
+        const XP = await import(url('sheetexport.js')), jOut = XP.charToJson(GA, { id: 'c_a', name: 'A', values: { f_h: "6'6\"", f_w: '180 lbs' }, af: { f_h: 1, f_x: 1 } }, null, {}), jNone = XP.charToJson(GA, { id: 'c_a', name: 'A', values: { f_h: "6'6\"" } }, null, {});
+        const jBack = XP.charFromJson(GA, jOut, null, null);
+        check('a Waypoint character file carries the marks of the figures it holds, absent with none, and reads them back for this sheet', J(jOut.filled) === J(['f_h']) && !('filled' in jNone) && jBack && J(jBack.filled) === J(['f_h']), J([jOut.filled, jNone.filled, jBack && jBack.filled]));
+        const ntF = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8');
+        check('the host\u2019s fill of a character being made and the Review\u2019s Apply lay those marks on the host\u2019s record', /Su\.afApply\(chU, Su\.fillMarks\(campU\.system, fillF, rF\.values\)\)/.test(ntF) && /window\.wpSystemCore\.afApply\(ch2, window\.wpSystemCore\.proposalMarks\(sys, up, acc\)\)/.test(shA));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

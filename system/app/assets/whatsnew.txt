@@ -239,6 +239,8 @@ At the table
   blank or still holds what a fill wrote, never over a figure someone typed.
   The sheet marks such figures worked out or filled, and a faint arrow sets
   a typed one back.
+  A character file carries which figures are fills, and a file read in can
+  say so too, so an average keeps following what fills it.
 - A list's rows can be sheets. Tick Rows are sheets, and each row can be
   joined to a character sheet of the campaign, as a vehicle's row to the
   vehicle's own sheet. The sheet's picture and name stand on the row and open

@@ -75,6 +75,7 @@ function charToJson(sys, view, all, opts) {
     if (typeof opts.picture === 'string' && opts.picture.length <= PICTURE_MAX && PIC_RE.test(opts.picture)) out.picture = opts.picture;
     out.values = values;
     if (nLooks) out.looks = looks;   // keyed as the values are; absent with no look, so such a file is byte for byte as it was
+    var flO = view && isObj(view.af) ? Object.keys(view.af).filter(function(k) { return view.af[k] === 1 && Object.prototype.hasOwnProperty.call(values, k); }) : []; if (flO.length) out.filled = flO;   // 1.6.2 (auto apply): the figures a fill wrote (the host's marks), by the values' keys; absent with none
     out.computed = computed;
     return out;
 }
@@ -159,7 +160,7 @@ function charFromJson(view, j, find, findKey) {
             if (typeof r.name === 'string' && r.name.trim()) out.fx.push({ f: f.id, q: { op: 'adhoc', row: { id: id, name: r.name, icon: typeof r.icon === 'string' ? r.icon : '', tone: typeof r.tone === 'string' ? r.tone : '', dur: typeof r.dur === 'string' ? r.dur : '', notes: typeof r.notes === 'string' ? r.notes : '', on: r.on !== false, mods: mods(r.mods) } } });
         });
     };
-    var vals = isObj(j.values) ? j.values : {}, fileLooks = isObj(j.looks) ? j.looks : null;
+    var vals = isObj(j.values) ? j.values : {}, fileLooks = isObj(j.looks) ? j.looks : null, fileFilled = Array.isArray(j.filled) ? j.filled.slice(0, 400).filter(function(x) { return typeof x === 'string'; }) : null;
     Object.keys(vals).slice(0, 400).forEach(function(fid) {
         if (!own(vals, fid)) return;
         var f = target(fid), v = vals[fid]; if (!f) { out.unmatched.push(label(fid)); return; }
@@ -170,6 +171,7 @@ function charFromJson(view, j, find, findKey) {
         var fits = k === 'number' || k === 'skill' ? typeof v === 'number' && isFinite(v) : k === 'toggle' ? typeof v === 'boolean' : k === 'resource' ? isObj(v) && typeof v.cur === 'number' && isFinite(v.cur) : typeof v === 'string';
         if (!fits) { out.unmatched.push(label(fid)); return; }
         out.values[f.id] = k === 'resource' ? { cur: v.cur } : v;
+        if (fileFilled && fileFilled.indexOf(fid) >= 0 && (k === 'number' || k === 'text')) (out.filled = out.filled || []).push(f.id);   // 1.6.2 (auto apply): a figure the file says a fill wrote
         if (fileLooks && (k === 'text' || k === 'notes') && own(fileLooks, fid)) { if (!out.looks) out.looks = {}; out.looks[f.id] = recShapeOk(fileLooks[fid]) ? clone(fileLooks[fid]) : null; }   // item 35 (a look that is no record: null, which ends the text's old look where the fill is applied, as a look that does not clean does)
     });
     lnQ.forEach(function(x) { var o = {}; if (x.o.tp) o.tp = x.o.tp; ['up', 'pl'].forEach(function(k) { if (typeof x.o[k] === 'string' && own(idMap, x.o[k])) o[k] = idMap[x.o[k]]; else if (x.o[k + 'At']) o[k + 'At'] = x.o[k + 'At']; }); if (Object.keys(o).length) x.q.link = o; });   // 1.6.2 (body fold 2): fillMaking lays them once every row stands

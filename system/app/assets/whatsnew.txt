@@ -192,6 +192,10 @@ At the table
   roll cards, which are edged in its colour, and a player's own sheet text is
   set in their font.
   Personal looks is a VTT feature, on until the GM switches it off.
+- A blast reads the Environment readings where it goes off, and Blast radius
+  can change how far it reaches there, so it can reach half as far in vacuum
+  and twice as far in water. A part past what its host holds reads
+  Row.pastSlot as 1, so a third arm on two arm slots can give nothing.
 - A list can say which rows may be thrown or placed, Thrown only where, so a
   grenade kept in a pack cannot be thrown until it is taken out.
 - Noticing results are kept with a running fight, so reloading the GM's app

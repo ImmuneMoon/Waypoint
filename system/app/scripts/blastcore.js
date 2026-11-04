@@ -52,10 +52,13 @@ function diceAt(expr, n, withAdds) {
 // A token's share of a blast by the Combat tab's falloff formula, with its four names: BlastDamage (what was rolled), BlastDistance (yards
 // from the blast's centre, height counted), BlastDice (how many dice the damage rolled) and Direct (1 for the token struck directly, else 0).
 // Centre: 1 for a token in the blast's own cell. No dice are ever rolled. A whole number, 0 or more, at most what was rolled; null where the formula cannot be worked out
+// 1.6.2: one Environment reading of a blast's, by its key in any case, 0 where it is not set there
+function envRead(ev, key) { if (!isObj(ev)) return 0; var k = Object.keys(ev).filter(function(x) { return x.toLowerCase() === key; })[0]; return k !== undefined && fin(ev[k]) ? ev[k] : 0; }
 function fallShare(F, formula, o) {
     if (!F || typeof F.evaluate !== 'function' || typeof formula !== 'string' || !formula || !isObj(o)) return null;
     var nm = { blastdamage: fin(o.dmg) ? o.dmg : 0, blastdistance: fin(o.dist) ? Math.max(0, o.dist) : 0, blastdice: fin(o.dice) ? o.dice : 0, direct: o.direct ? 1 : 0, centre: o.centre ? 1 : 0, blastfills: fin(o.fills) ? Math.max(0, o.fills) : 0, blastnodrop: o.noDrop === true ? 1 : 0 };   // 1.6.0: BlastFills, the yards an item fills, 0 for none; BlastNoDrop, 1 where its stat says so
-    var r = F.evaluate(formula, { vars: function(n) { var l = String(n).toLowerCase(); return hasOwn(nm, l) ? nm[l] : undefined; }, random: function() { return NaN; } });   // a die fails at the die (as systemcore's noDice): the cleaner keeps none
+    var ev = isObj(o.env) ? o.env : null;   // 1.6.2: the Environment readings where it went off, Env.<key>, 0 for one not set there
+    var r = F.evaluate(formula, { vars: function(n) { var l = String(n).toLowerCase(); if (hasOwn(nm, l)) return nm[l]; if (l.indexOf('env.') === 0) return envRead(ev, l.slice(4)); return undefined; }, random: function() { return NaN; } });   // a die fails at the die (as systemcore's noDice): the cleaner keeps none
     if (!r || !r.ok) return null;
     var v = typeof r.value === 'boolean' ? (r.value ? 1 : 0) : r.value; if (!fin(v)) return null;
     return Math.max(0, Math.min(fin(o.dmg) ? Math.max(0, Math.floor(o.dmg)) : 0, Math.floor(v)));
@@ -226,6 +229,6 @@ function lineTargets(from, aim, toks, o) {
     });
     return out.sort(function(a, b) { return a.along - b.along; }).map(function(t) { return t.id; });
 }
-var API = { lineTargets: lineTargets, towardPoint: towardPoint, diceAt: diceAt, VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
+var API = { envRead: envRead, lineTargets: lineTargets, towardPoint: towardPoint, diceAt: diceAt, VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
 if (typeof window !== 'undefined') window.wpBlastCore = API;
-export { lineTargets, towardPoint, diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanMine, inTrigger, STAND_INS };
+export { envRead, lineTargets, towardPoint, diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanMine, inTrigger, STAND_INS };

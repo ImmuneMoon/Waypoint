@@ -7450,7 +7450,7 @@ var KIND_LABEL = { number: 'Number', formula: 'Formula', resource: 'Resource', s
 var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, step. With a min and a max it can show as a slider on a two-colour track.', formula: 'Computed from other fields; never stored, never edited.', resource: 'A current value with a formula for its max (HP): a bar with - and + on the sheet.', skill: 'Stored ranks plus a base formula; its value is ranks + base.', toggle: 'On or off (a condition); true or false in formulas.', text: 'A short text (up to 200 characters); not a number for formulas.', notes: 'A long text; never read by formulas.', select: 'One of a fixed list of options.', 'item-list': 'A list of items the character carries, filled from the Items library on the sheet.', effects: 'The status effects the character carries: added from the Effects library in one click, or made on the spot with their own numbers. Each changes its numbers everywhere they are used.' };
 // [formcheck:source-start]
 // 1.6.2: what a formula's form may offer, and every name in words, for the box it stands over
-var FORM_ONLY = { 'sys-range-formula': ['Distance'], 'sys-height-formula': ['HeightDiff'], 'sys-combat-bfall': ['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop'], 'sys-combat-beach': ['BlastDice', 'BlastDistance', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop'], 'sys-combat-bscatter': ['Margin', 'ThrowDistance'], 'sys-combat-bhand': ['Natural'], 'sys-combat-fgreach': ['FragDice', 'BlastDice'] };
+var FORM_ONLY = { 'sys-range-formula': ['Distance'], 'sys-height-formula': ['HeightDiff'], 'sys-combat-bfall': ['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop'], 'sys-combat-beach': ['BlastDice', 'BlastDistance', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop'], 'sys-combat-bradius': ['BlastRadius'], 'sys-combat-bscatter': ['Margin', 'ThrowDistance'], 'sys-combat-bhand': ['Natural'], 'sys-combat-fgreach': ['FragDice', 'BlastDice'] };
 var FORM_MORE = { 'sys-dmgr-woundf': ['Blow.through', 'Blow.dmg'], 'sys-dmgr-ywf': ['Blow.through', 'Blow.dmg'], 'sys-dmgr-mjcripby': ['Margin', 'Natural'], 'sys-dmgr-ocripby': ['Margin', 'Natural'], 'sys-card-pts': ['RollTotal', 'Natural', 'RollMargin', 'RollCrit', 'RollBig'], 'sys-band-if': ['RollTotal', 'Natural', 'RollMargin', 'RollCrit', 'RollBig'], 'sys-combat-broll': ['ThrowSkill', 'ThrowDistance'], 'sys-combat-resist': ['Resist'], 'sys-dmgr-lat': ['Listed'], 'sys-dmgr-lhitw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lmajw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lbrkw': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lbrkm': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-lwcap': ['Listed', 'Worn', 'ToDestroy'], 'sys-dmgr-ltplus': ['Listed', 'Worn'], 'sys-dmgr-ohto': ['Held.count'] };
 // the list a box of the damage step stands on: the list picked in its own row
 function formRowList(inp) {
@@ -7462,6 +7462,7 @@ function fieldOf(id) { var hit = null; (Array.isArray(draft.fields) ? draft.fiel
 function formCtx(inp) {
     var cl = inp && inp.classList, own = null, more = null, dmg = false;
     if (cl) { Object.keys(FORM_ONLY).forEach(function(k) { if (cl.contains(k)) own = FORM_ONLY[k]; }); Object.keys(FORM_MORE).forEach(function(k) { if (cl.contains(k)) more = FORM_MORE[k]; }); for (var q = 0; q < cl.length; q++) if (cl[q].indexOf('sys-dmgr-') === 0 || cl[q] === 'sys-cvh-where') dmg = true; }
+    if (own && cl && (cl.contains('sys-combat-bfall') || cl.contains('sys-combat-beach') || cl.contains('sys-combat-bradius'))) own = own.concat((Array.isArray(draft.env) ? draft.env : []).filter(function(e) { return e && typeof e.key === 'string' && e.key; }).map(function(e) { return 'Env.' + e.key; }));   // 1.6.2: and the Environment readings where it goes off
     if (own) return { only: own };
     if (dmg) return { blow: true, more: more || undefined, list: formRowList(inp) };
     if (more) return { more: more };
@@ -10039,7 +10040,8 @@ var BLAST_BOXES = [
     ['scatter', 'Scatter on a miss', 'How many yards a miss lands from its aim. With none, a yard a point missed, never more than half the distance thrown.', 'min(Margin, ThrowDistance / 2)'],
     ['hand', 'In the hand', 'Whether a critical failure goes off in the thrower\u2019s hand. With none, it drops at the thrower\u2019s feet.', 'Natural >= 18'],
     ['max', 'Longest throw', 'How far a thing may be thrown, in yards. With none, any distance.', ''],
-    ['min', 'Shortest throw', 'How near a thing may be thrown, in yards. With none, any distance.', '']
+    ['min', 'Shortest throw', 'How near a thing may be thrown, in yards. With none, any distance.', ''],
+    ['radius', 'Blast radius', 'How far a blast reaches where it goes off, in yards, read from the item\u2019s own radius and the Environment readings there. With none, the item\u2019s own.', '']
 ];
 // 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 2): how an explosive's fragmentation is rolled (cleanBlastRules' frag). Each list's
 // first choice is the plan's reading where the book has not ruled, and each has one line under it
@@ -10057,7 +10059,7 @@ function fragSays(v) {   // what Save does with Fragmentation reaches: '' where 
 function blastSays(k, v) {   // what Save does with one formula: '' where it keeps it
     var SCb = window.wpSystemCore; if (!v || !SCb || typeof SCb.cleanBlastRules !== 'function') return '';
     var o = {}; o[k] = v; var c = SCb.cleanBlastRules(o, F());
-    return c && c[k] ? '' : k === 'each' ? 'Save drops it: it may read only the blast\u2019s dice, its distance and its fill, and whether the hit was direct or at the centre, with no dice.' : k === 'fall' ? 'Save drops it: it may read only the blast\u2019s damage, dice, distance and fill, and whether the hit was direct or at the centre, with no dice.' : k === 'scatter' ? 'Save drops it: it may read only how far the throw missed and how far it was thrown.' : k === 'hand' ? 'Save drops it: it may read only the roll\u2019s bare total, with no dice.' : k === 'roll' ? 'Save drops it: it does not read as a formula.' : 'Save drops it: it does not read as a formula with no dice.';
+    return c && c[k] ? '' : k === 'each' ? 'Save drops it: it may read only the blast\u2019s dice, its distance and its fill, and whether the hit was direct or at the centre, with no dice.' : k === 'fall' ? 'Save drops it: it may read only the blast\u2019s damage, dice, distance and fill, and whether the hit was direct or at the centre, with no dice.' : k === 'scatter' ? 'Save drops it: it may read only how far the throw missed and how far it was thrown.' : k === 'hand' ? 'Save drops it: it may read only the roll\u2019s bare total, with no dice.' : k === 'roll' ? 'Save drops it: it does not read as a formula.' : k === 'radius' ? 'Save drops it: it may read only the item\u2019s own radius and the Environment readings where it goes off, with no dice.' : 'Save drops it: it does not read as a formula with no dice.';
 }
 function blastBox(box, cm) {
     var bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : {};

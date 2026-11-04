@@ -137,11 +137,11 @@ var ROW_ID = /^w_[A-Za-z0-9_]{1,24}$/, ROW_OPS = Object.freeze({ add: 1, remove:
 var CHAMBER_CAP = 320;   // 1.5.9 Chambers from: the most rounds a chamber holds (8 before 1.6.0, 32 before 1.6.2)
 var FEEDS_MAX = 20, FEED_STACK = 80;   // 1.6.0 Feeds: a list's feeds, and the kinds one feed holds stacked at once
 // Stage 6 F4b: an item's key in formulas (F5a: Skills.<Key>.lvl) — never a row word, which a row's own names use
-var ITEM_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/, ROW_WORDS = Object.freeze({ count: 1, qty: 1, on: 1, has: 1, lvl: 1, paid: 1, row: 1, opened: 1, loaded: 1, loadmax: 1, once: 1, oncecost: 1, oncefree: 1, chambered: 1, setall: 1, parts: 1, again: 1, needsmet: 1, made: 1, startlvl: 1, bursthits: 1, side: 1, subject: 1, fitted: 1 });   // 1.6.0 (v2, B5): made, 1 for a row added while its character was in the making
+var ITEM_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/, ROW_WORDS = Object.freeze({ count: 1, qty: 1, on: 1, has: 1, lvl: 1, paid: 1, row: 1, opened: 1, loaded: 1, loadmax: 1, once: 1, oncecost: 1, oncefree: 1, chambered: 1, setall: 1, parts: 1, again: 1, needsmet: 1, made: 1, startlvl: 1, bursthits: 1, side: 1, subject: 1, fitted: 1, pastslot: 1 });   // 1.6.0 (v2, B5): made, 1 for a row added while its character was in the making
 // 1.6.0 (the owner, 2026-10-29: "this is additive functionality, we arent removing usable features that other campaign systems can utilize"): a row word
 // added after systems were built takes no key away from them. A list that keys a stat or a column so keeps it, and its formulas read that stat or
 // column under the name (the validator finds the stat first); the row word answers only in a list with none of that key
-var ROW_SOFT = Object.freeze({ made: 1, startlvl: 1, bursthits: 1, side: 1, subject: 1, fitted: 1, athit: 1 });   // 1.6.0: startlvl, the level a row started at (Keeps the starting level)
+var ROW_SOFT = Object.freeze({ made: 1, startlvl: 1, bursthits: 1, side: 1, subject: 1, fitted: 1, athit: 1, pastslot: 1 });   // 1.6.2: pastslot, a part past what its host holds   // 1.6.0: startlvl, the level a row started at (Keeps the starting level)
 function listKeyed(spec, l) { var has = function(a) { return Array.isArray(a) && a.some(function(s) { return isObj(s) && typeof s.key === 'string' && s.key.toLowerCase() === l; }); }; return isObj(spec) && (has(spec.stats) || has(spec.cols)); }   // 1.6.0 R14 Parts from: parts, how many parts a row holds   // 1.6.0 R15 Sets by: setall, 1 while the row's whole set is on   // 1.5.9 Chambers from: chambered, how many rounds a row holds   // 1.5.8 Loads from: loaded, a row that holds a loaded copy; loadmax, that copy's full level   // 1.5.8: opened, a row another row opens (openSync)   // 1.5.8 Counted once: once, oncecost, oncefree
 // 1.5.4: the words a list's names put between the list and what they read — List.on.Wt (the rows switched on), List.max.Parry and List.min.Wt
 // (the highest and the lowest one row gives), List.on.max.Parry — so never an item's key or a stat's: List.<word>.<name> never reads a row by its key.
@@ -3446,13 +3446,16 @@ function cleanCombat(c, resIds, fieldIds, secretIds, F, viewKinds, pl, fl) {   /
 //   eachBy   'victim', only beside each (the owner, by prompt: "the gm or the victim can roll, controlled by a setting"): each character's
 //            player gets a card whose Roll asks the host to roll it, an NPC's card the GM's; absent: the host rolls each at once
 var FRAG_NAMES = Object.freeze({ fragdice: 1, blastdice: 1 });   // 1.6.0: and BlastDice, the dice the blast's own damage rolls
-var BLAST_FALL =Object.freeze({ blastdamage: 1, blastdistance: 1, blastdice: 1, direct: 1, centre: 1, blastfills: 1, blastnodrop: 1 });   // Centre: 1 for a token in the blast's own cell; 1.6.0: BlastFills and BlastNoDrop, what the two stats below read
-var BLAST_EACH = Object.freeze({ blastdistance: 1, blastdice: 1, direct: 1, centre: 1, blastfills: 1, blastnodrop: 1 });   // 1.6.0 (the core's gap 8): what the dice each victim rolls may read, an item that fills its area among it, since a blast that rolls per victim rolls before any falloff
+var BLAST_FALL =Object.freeze({ blastdamage: 1, blastdistance: 1, blastdice: 1, direct: 1, centre: 1, blastfills: 1, blastnodrop: 1, 'env.': 1 });   // 1.6.2 env.: and each Environment reading where it goes off, as Env.<key>   // Centre: 1 for a token in the blast's own cell; 1.6.0: BlastFills and BlastNoDrop, what the two stats below read
+var BLAST_EACH = Object.freeze({ blastdistance: 1, blastdice: 1, direct: 1, centre: 1, blastfills: 1, blastnodrop: 1, 'env.': 1 });
+// 1.6.2 (build 14: a blast at scale, half its reach in vacuum, double in water): the Combat tab's Blast radius, a formula with no dice of BlastRadius (the
+// item's own radius, in yards) and the Environment readings where it goes off; what it gives, above 0, is the blast's radius, else the item's own
+var BLAST_RADIUS = Object.freeze({ blastradius: 1, 'env.': 1 });   // 1.6.0 (the core's gap 8): what the dice each victim rolls may read, an item that fills its area among it, since a blast that rolls per victim rolls before any falloff
 function blastFormula(text, F, names, dice) {
     var t = cleanFormulaText(text); if (!t) return '';
     if (!F || typeof F.parse !== 'function') return '';
     var p = F.parse(t); if (!p || !p.ok || !p.ast || (!dice && hasDice(p.ast.body))) return '';
-    if (names && !(Array.isArray(p.names) ? p.names : []).every(function(n) { return typeof n === 'string' && names[lower(n)] === 1; })) return '';
+    if (names && !(Array.isArray(p.names) ? p.names : []).every(function(n) { return typeof n === 'string' && (names[lower(n)] === 1 || (names['env.'] === 1 && /^env\.[a-z][a-z0-9_]{0,23}$/i.test(n))); })) return '';   // 1.6.2: Env.<key> where its names allow it
     return t;
 }
 // 1.6.0 A blast's own Defense roll: combat.blast.defend, the GM's view alone, { roll, yards?, noFrag?, posture?, count? }. roll a system roll by its id,
@@ -3483,6 +3486,7 @@ function cleanBlastRules(v, F) {
     if (typeof v.kind === 'string' && STAT_KEY.test(v.kind)) out.kind = v.kind;   // 1.6.0: the kind of blow its shares and fragmentation carry, a key of the damage rules' kinds (whiteboard.js blastKind hands on one that is there)
     var eaB = blastFormula(v.each, F, BLAST_EACH, false); if (eaB) { out.each = eaB; if (v.eachAdd === true) out.eachAdd = true; if (v.eachBy === 'victim') out.eachBy = 'victim'; }   // 1.6.0 (the core's gap 8): each victim's own dice, and who rolls them
     var dfB = cleanBlastDefend(v.defend); if (dfB) out.defend = dfB;   // 1.6.0: a blast's own Defense roll
+    var rdB = blastFormula(v.radius, F, BLAST_RADIUS, false); if (rdB) out.radius = rdB;   // 1.6.2: Blast radius
     return Object.keys(out).length ? out : null;
 }
 // 1.5.9 (es): a launcher list's Flies at most (spec.chamber.reach): the yards a round that flies straight goes, a formula of the launcher row's
@@ -9871,6 +9875,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (w === 'made' && !listKeyed(L.spec, 'made')) return x.virt || !isObj(x.r) ? 0 : x.r.mk === 1 ? 1 : 0;   // 1.6.0 (v2, B5): added while its character was in the making
         if (w === 'side' && !listKeyed(L.spec, 'side') && !(L.ct && L.ct.side)) { var sdK = locSideKey(sys, L.f); if (sdK) return rowVal(L, x, lower(sdK)); }   // 1.6.0 Sides of a location, Hit.side through it
         if (w === 'fitted' && !listKeyed(L.spec, 'fitted')) return fittedOf(L, x);   // 1.6.2 Fitted slots
+        if (w === 'pastslot' && !listKeyed(L.spec, 'pastslot')) return pastSlotOf(L, x);   // 1.6.2: past what its host holds
         if (w === 'athit' && L.spec && isObj(L.spec.stand) && !listKeyed(L.spec, 'athit')) { var bhA = ropts && isObj(ropts.blow) && isObj(ropts.blow.hit) ? ropts.blow.hit : null; return !x.virt && bhA && (standAll().on[bhA.r] || []).some(function(e) { return e.f === L.f.id && e.r === x.id; }) ? 1 : 0; }   // 1.6.2 (body fold 2): this row stands at or reaches the location struck
         if (w === 'startlvl' && !listKeyed(L.spec, 'startlvl')) return !x.virt && isObj(x.r) && typeof x.r.sl === 'number' && isObj(L.spec) && isObj(L.spec.lvl) && L.spec.lvl.start === true ? x.r.sl : rowLvl(L.spec, x.r, x.d);   // 1.6.0: the level it started at where its list keeps it, else its level now
         if (w === 'subject' && isObj(L.spec) && Array.isArray(L.spec.subject) && !listKeyed(L.spec, 'subject')) return x.virt ? 0 : sjHeld(L, x.r);   // 1.6.0 Subjects: its word's place, 1 for the first, 0 for none or where Subject only where does not hold
@@ -10017,6 +10022,29 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     function fittedOf(L, x) {
         if (x.virt || !isObj(x.r) || typeof x.r.in !== 'string') return 0;
         for (var fi = 0; fi < sys.fields.length; fi++) { var hf = sys.fields[fi]; if (!isObj(hf) || hf.kind !== 'item-list' || !isObj(hf.list) || !isObj(hf.list.parts) || hf.list.parts.from !== L.f.id) continue; var HL = listCtx(hf); for (var hi = 0; hi < HL.rows.length; hi++) if (HL.rows[hi].id === x.r.in && !HL.rows[hi].virt) return 1; }
+        return 0;
+    }
+    // 1.6.2 (build 14: an arm or a leg past the chassis's slots gives nothing): Row.pastSlot, 1 for a part that stands past what its host holds, counted in
+    // the list's order: Holds, or a line of Holds by kind the part takes, its figure read as the sheet says it (capFig). Its rows before it of the same
+    // host, and of that line, fill the room first, so the one that tips it over and every one after it read 1. A list's Changes apply where may then read
+    // Row.pastSlot = 0, so a part past the slots gives nothing; nothing is refused by it. 0 for a row stood in no host, a host gone, a host with no limit
+    function pastSlotOf(L, x) {
+        if (x.virt || !isObj(x.r) || typeof x.r.in !== 'string') return 0;
+        var hid = x.r.in, mine = Math.max(1, x.r.qty | 0), raw = [], seenMe = false; L.rows.forEach(function(y) { if (y.virt || !isObj(y.r)) return; if (y === x || y.r === x.r) seenMe = true; else if (!seenMe && y.r.in === hid) raw.push(y.r); });
+        var before = function(take) { return raw.reduce(function(a, r) { return a + (take(r) ? Math.max(1, r.qty | 0) : 0); }, 0); };
+        for (var fi = 0; fi < sys.fields.length; fi++) {
+            var hf = sys.fields[fi]; if (!isObj(hf) || hf.kind !== 'item-list' || !isObj(hf.list) || !isObj(hf.list.parts) || hf.list.parts.from !== L.f.id) continue;
+            var HL = listCtx(hf), hx = null; for (var hi = 0; hi < HL.rows.length; hi++) if (HL.rows[hi].id === hid && !HL.rows[hi].virt) hx = HL.rows[hi]; if (!hx) continue;
+            var rm = partsRoom(sys, hf.list, hx.r, raw.concat([x.r]), hid); if (rm && before(function() { return true; }) + mine > rm.cap) return 1;
+            var hd = rowDef(sys, hx.r), md = x.d || null, read = function(t) { try { return fn.rowNum(hf, hx.r, t); } catch (e) { return null; } };
+            var caps = Array.isArray(hf.list.parts.caps) ? hf.list.parts.caps : [];
+            for (var ci = 0; ci < caps.length; ci++) {
+                var k = caps[ci]; if (!isObj(k) || !md || !capTakes(k, L.spec, md, md.category)) continue;
+                var c = capFig(hf.list, hd && hd.def, k, read); if (c === null) continue;
+                if (before(function(r) { var rd = rowDef(sys, r); return !!(rd && rd.def && capTakes(k, L.spec, rd.def, rd.def.category)); }) + mine > Math.max(0, Math.floor(c))) return 1;
+            }
+            return 0;
+        }
         return 0;
     }
     function hostVal(L, x, w) { var h = hostRow(L, x, w); return h.hit ? rowVal(h.hit.L, h.hit.x, w) : h.known ? 0 : undefined; }
@@ -10701,11 +10729,11 @@ var NAME_WORDS = Object.freeze(Object.assign(Object.create(null), {
     onself: 'whether it is used on the user', crossstep: 'which step was crossed', crossed: 'how many steps were crossed',
     'blow.dmg': 'the damage rolled', 'blow.through': 'the damage past DR', 'blow.wound': 'the wound it dealt', 'blow.type': 'the damage type', 'blow.cuts': 'whether the blow cuts', 'blow.major': 'whether it is a Major Wound', 'blow.big': 'whether the attack landed as a Big Hit', 'blow.kind': 'the kind of blow',
     'blow.type2': 'the second part\u2019s damage type', 'blow.wound2': 'the second part\u2019s wound', 'blow.kind2': 'the second part\u2019s kind', 'blow.type3': 'the third part\u2019s damage type', 'blow.wound3': 'the third part\u2019s wound', 'blow.kind3': 'the third part\u2019s kind', 'blow.type4': 'the fourth part\u2019s damage type', 'blow.wound4': 'the fourth part\u2019s wound', 'blow.kind4': 'the fourth part\u2019s kind', 'blow.type5': 'the fifth part\u2019s damage type', 'blow.wound5': 'the fifth part\u2019s wound', 'blow.kind5': 'the fifth part\u2019s kind',
-    blastdistance: 'the distance from the blast', blastdice: 'the dice of the blast', blastdamage: 'the damage of the blast', direct: 'whether it was struck directly', centre: 'whether it stands at the centre', blastfills: 'how much of the area it fills', blastnodrop: 'whether its damage keeps its strength', fragdice: 'the fragmentation dice', throwskill: 'the skill it is thrown with', throwdistance: 'the distance of the throw', margin: 'how far it failed by', distance: 'the distance',
+    blastdistance: 'the distance from the blast', blastdice: 'the dice of the blast', blastdamage: 'the damage of the blast', direct: 'whether it was struck directly', centre: 'whether it stands at the centre', blastfills: 'how much of the area it fills', blastradius: 'the item\u2019s own radius, in yards', blastnodrop: 'whether its damage keeps its strength', fragdice: 'the fragmentation dice', throwskill: 'the skill it is thrown with', throwdistance: 'the distance of the throw', margin: 'how far it failed by', distance: 'the distance',
     listed: 'its listed figure', worn: 'what is worn off it', todestroy: 'the wear that destroys it'
 }));
 var ROW_SAYS = Object.freeze(Object.assign(Object.create(null), {
-    count: 'how many of this row', qty: 'this row\u2019s quantity', on: 'whether this row is on', has: 'whether this row is held', lvl: 'this row\u2019s level', paid: 'what this row cost', loaded: 'what this row has loaded', loadmax: 'the most this row can load', chambered: 'how many rounds this row has chambered', setall: 'whether this row\u2019s whole set is on', parts: 'how many parts this row holds', again: 'whether this row is held under another name', needsmet: 'whether this row\u2019s needs are met', startlvl: 'the level this row started at', bursthits: 'the hits of this burst', side: 'this row\u2019s side', subject: 'this row\u2019s subject', fitted: 'whether this row is fitted', once: 'whether this row counts', oncecost: 'what this row costs', oncefree: 'what this row gives free', paysback: 'whether this row pays back', granted: 'whether this row was granted', made: 'whether this row was made here'
+    count: 'how many of this row', qty: 'this row\u2019s quantity', on: 'whether this row is on', has: 'whether this row is held', lvl: 'this row\u2019s level', paid: 'what this row cost', loaded: 'what this row has loaded', loadmax: 'the most this row can load', chambered: 'how many rounds this row has chambered', setall: 'whether this row\u2019s whole set is on', parts: 'how many parts this row holds', again: 'whether this row is held under another name', needsmet: 'whether this row\u2019s needs are met', startlvl: 'the level this row started at', bursthits: 'the hits of this burst', side: 'this row\u2019s side', subject: 'this row\u2019s subject', fitted: 'whether this row is fitted', pastslot: 'whether this row stands past what its host holds', once: 'whether this row counts', oncecost: 'what this row costs', oncefree: 'what this row gives free', paysback: 'whether this row pays back', granted: 'whether this row was granted', made: 'whether this row was made here'
 }));
 function humanName(s) { return String(s).split('.').join(' ').replace(/([a-z0-9])([A-Z])/g, '$1 $2'); }
 function capWord(s) { s = String(s); return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -10732,6 +10760,7 @@ function nameWord(sys, name, rowSpec) {
     if (NAME_WORDS[l]) return NAME_WORDS[l];
     if (l.length > 4 && l.indexOf('ask.') === 0) { var ak0 = askFind(sys, l.slice(4)); return ak0 ? 'their answer to \u201c' + ak0.label + '\u201d' : 'their answer'; }   // 1.6.2
     if ((l === 'money' || l.slice(0, 6) === 'money.') && !ix.money && moneyBoxes(sys).length) { if (l === 'money') return 'the money they hold'; var cuW = moneyCurNamed(sys, l.slice(6)); if (!cuW && l === 'money.weight') return 'what the money they hold weighs'; return (cuW ? cuW.label : humanName(s.slice(6))) + ' they hold'; }   // 157 M1
+    if (l.length > 4 && l.indexOf('env.') === 0 && !ix.env) { var enW = (Array.isArray(sys.env) ? sys.env : []).filter(function(e) { return isObj(e) && typeof e.key === 'string' && lower(e.key) === l.slice(4); })[0]; return (enW ? lower(String(enW.label || enW.key)) : 'a reading') + ' where it goes off'; }   // 1.6.2: an Environment reading a blast reads
     var p = s.split('.'), fam = lower(p[0]), rest = p.slice(1), one = rest.join('.'), held = function() { var f = ix[lower(one)]; return f ? fieldWord(f) : humanName(one); };
     if (rest.length && !ix[fam]) {
         if (fam === 'target' && lower(rest[0]) === 'hit' && rest.length > 1) { var tf = targetHitList(sys), tw = tf ? statWord(tf.list, rest[1]) : ''; return 'the called location\u2019s ' + (tw || humanName(rest[1])); }
@@ -10799,6 +10828,7 @@ function readsOf(sys, ctx) {
     if (isObj(ctx.list)) {   // what a box of a list reads of its row
         var sp0 = ctx.list, rw = []; if (isObj(sp0.lvl)) rw.push('Row.lvl'); rw.push('Row.qty'); if (isObj(sp0.on)) rw.push('Row.on'); if (sp0.price) rw.push('Row.paid');
         ['stats', 'cols', 'counters'].forEach(function(k) { (Array.isArray(sp0[k]) ? sp0[k] : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string' && x.key && (k !== 'stats' || x.kind !== 'pick' || (Array.isArray(x.opts) && x.opts.length))) rw.push('Row.' + x.key); }); });
+        var lfO = sys.fields.filter(function(x) { return isObj(x) && x.list === sp0; })[0]; if (lfO && sys.fields.some(function(hf) { return isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === lfO.id; })) rw.push('Row.fitted', 'Row.pastSlot');   // 1.6.2: a part's place in its host
         if (!ix.row) group('This row', rw);
         var stT = isObj(sp0.stand) ? fieldById(sys, sp0.stand.from) : null; if (stT && !ix.at && isObj(stT.list)) { var atN = []; ['stats', 'cols'].forEach(function(k) { (Array.isArray(stT.list[k]) ? stT.list[k] : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string' && x.key) atN.push('At.' + x.key); }); }); if (atN.length) group('The place it stands', atN); if (ctx.reach && !ix.tile) { var tlN = atN.map(function(n) { return 'Tile.' + n.slice(3); }); if (tlN.length) group('The place it might reach', tlN); } }   // 1.6.2 (body fold 2)
         if (sp0.hang === true && !ix.row) { var upN = []; ['stats', 'cols'].forEach(function(k) { (Array.isArray(sp0[k]) ? sp0[k] : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string' && x.key) upN.push('Row.up.' + x.key); }); }); if (upN.length) group('The row it hangs from', upN); }   // 1.6.2 (body fold 1)
@@ -10855,6 +10885,7 @@ function validateSystem(sys, F) {
         if (!total && word === 'side' && !listKeyed(lf.list, 'side') && locSideKey(sys, lf)) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.6.0 Sides of a location: Row.side, and Hit.side through it
         if (!total && word === 'athit' && !listKeyed(lf.list, 'athit') && isObj(lf.list) && isObj(lf.list.stand)) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.6.2 (body fold 2): Row.atHit
         if (!total && word === 'fitted' && !listKeyed(lf.list, 'fitted') && sys.fields.some(function(hf) { return isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === lf.id; })) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.6.2 Fitted slots: Row.fitted, on a list another list takes parts from
+        if (!total && word === 'pastslot' && !listKeyed(lf.list, 'pastslot') && sys.fields.some(function(hf) { return isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && hf.list.parts.from === lf.id; })) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.6.2: Row.pastSlot, on a list another list takes parts from
         if (!total && word === 'startlvl' && !listKeyed(lf.list, 'startlvl') && isObj(lf.list) && isObj(lf.list.lvl)) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.6.0: Row.startlvl, on a list with a level
         if (!total && word === 'again') return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 193: Row.again
         if (!total && word === 'subject' && isObj(lf.list) && Array.isArray(lf.list.subject) && !listKeyed(lf.list, 'subject')) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // 1.6.0 Subjects: Row.subject

@@ -22307,6 +22307,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const jBack = XP.charFromJson(GA, jOut, null, null);
         check('a Waypoint character file carries the marks of the figures it holds, absent with none, and reads them back for this sheet', J(jOut.filled) === J(['f_h']) && !('filled' in jNone) && jBack && J(jBack.filled) === J(['f_h']), J([jOut.filled, jNone.filled, jBack && jBack.filled]));
         const ntF = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8');
+        // temporary hit points (the rule modules session's ask, 2026-11-04): combat.damage.first, a number a wound to the main pool comes off first
+        const tmpRaw = tw => ({ v: 1, name: 'T', rolls: [], sheet: { sections: [] }, fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '12', min: -99, vis: 'all', edit: 'owner' }, { id: 'f_tmp', key: 'TempHP', label: 'Temporary HP', kind: 'number', vis: tw || 'all' }, { id: 'f_txt', key: 'Note', kind: 'text' }],
+            combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: 'f_hp', damage: { pool: 'f_hp', first: 'f_tmp', major: '5', types: [{ key: 'cut', label: 'Cut', mult: 1 }] } } });
+        const tS = S.cleanSystem(tmpRaw(), { F, gmView: true }), tC = tmp => ({ id: 'c', name: 'Bo', values: { f_hp: { cur: 12 }, f_tmp: tmp } });
+        const t1 = S.damageStep(tS, tC(3), { amt: 5, type: 'cut' }, F, undefined, { now: 1 }), t2 = S.damageStep(tS, tC(9), { amt: 5, type: 'cut' }, F, undefined, { now: 1 }), t3 = S.damageStep(tS, tC(0), { amt: 4, type: 'cut' }, F, undefined, { now: 1 });
+        const tG = S.cleanSystem(tmpRaw('gm'), { F, gmView: true }), t4 = S.damageStep(tG, tC(3), { amt: 5, type: 'cut' }, F, undefined, { now: 1 });
+        const tBad = S.cleanSystem(Object.assign(tmpRaw(), { combat: Object.assign({}, tmpRaw().combat, { damage: Object.assign({}, tmpRaw().combat.damage, { first: 'f_txt' }) }) }), { F, gmView: true });
+        check('temporary hit points: a wound to the main pool comes off the number the rules name first, down to 0, and the rest off the pool, said in its line; one it holds whole moves no pool; a Major Wound reads the whole wound; a GM-only number is not named; a field that is no number is no such rule',
+            tS.combat.damage.first === 'f_tmp' && t1.values.f_tmp === 0 && J(t1.values.f_hp) === J({ cur: 10 }) && t1.lines.some(l => l === '3 taken by Temporary HP.') && t1.info.first === 3 && t1.info.major === true
+            && t2.values.f_tmp === 4 && !('f_hp' in t2.values) && t2.info.major === true && !('f_tmp' in t3.values) && J(t3.values.f_hp) === J({ cur: 8 }) && t4.values.f_tmp === 0 && !t4.lines.some(l => /Temporary/.test(l)) && !('first' in tBad.combat.damage), J([t1, t2.values, t3.values, t4.lines]));
         check('the host\u2019s fill of a character being made and the Review\u2019s Apply lay those marks on the host\u2019s record', /Su\.afApply\(chU, Su\.fillMarks\(campU\.system, fillF, rF\.values\)\)/.test(ntF) && /window\.wpSystemCore\.afApply\(ch2, window\.wpSystemCore\.proposalMarks\(sys, up, acc\)\)/.test(shA));
     }
     summed = true;

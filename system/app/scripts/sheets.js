@@ -11447,6 +11447,7 @@ function damageBox(box, cm) {
     wrap.appendChild(el('div', 'sys-note', 'How a hit is taken in the Take damage window. It goes through DR at the hit location, comes off a pool, and wears armour and weapons.'));
     var r1 = el('div', 'sys-flags sys-dmgr-top');
     dbxCap(r1, 'Wounds come off'); r1.appendChild(select('sys-dmgr-pool', dbxOpts(['', 'The pool Full auto damage comes off'], pools, d.pool), dbxStr(d.pool), 'The pool a wound comes off. Unset, the one Full auto damage is taken from'));
+    dbxCap(r1, 'Taken first from'); r1.appendChild(select('sys-dmgr-first', dbxOpts(['', 'Nothing'], (draft.fields || []).filter(function(f) { return f && f.kind === 'number'; }).map(function(f) { return [f.id, f.label || f.key || f.id]; }), d.first), dbxStr(d.first), 'A number a wound to that pool comes off first, down to 0, as temporary hit points. The rest goes to the pool. A Major Wound and every rule after it read the whole wound'));   // 1.6.2 (temporary hit points)
     dbxCap(r1, 'Major Wound at'); var mj = input('sys-dmgr-major field', dbxStr(d.major), 'A wound this large or larger in one blow is a Major Wound. No dice. It may read the hit location as Hit. and a name, 0 where no location was struck', 'e.g. HP.max / 2'); mj.maxLength = LIMITS.formula; r1.appendChild(mj);
     dbxCap(r1, 'Wound by'); var wfI = input('sys-dmgr-woundf field', dbxStr(d.woundF), 'How large a wound is, worked out from what got through and the character\u2019s sheet, for every damage type. 0 is no wound. Empty: what gets through, times the type\u2019s multiplier', 'What gets through'); wfI.maxLength = LIMITS.formula; r1.appendChild(wfI);   // 1.6.2
     r1.appendChild(select('sys-dmgr-zero', [['', 'A wound of 0 still wears armour'], ['none', 'A wound of 0 does nothing']], d.zero === 'none' ? 'none' : '', 'When the wound formula gives 0 for damage that got through: armour layers still wear as for a hit, or nothing happens at all'));
@@ -11646,6 +11647,7 @@ function onDamageChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-dmgr-') < 0) return false;
     var v = typeof t.value === 'string' ? t.value : '', on = t.checked === true, redraw = false;
     if (dbxHas(c, 'sys-dmgr-pool')) { dbxSet(dbxDraft(), 'pool', v); dbxTidy(); }
+    if (dbxHas(c, 'sys-dmgr-first')) { dbxSet(dbxDraft(), 'first', v); dbxTidy(); }   // 1.6.2 (temporary hit points)
     else if (dbxHas(c, 'sys-dmgr-zero')) { dbxSet(dbxDraft(), 'zero', v); }   // 1.6.2
     else if (dbxHas(c, 'sys-dmgr-ybymult')) { var yB = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!yB) return true; dbxSet(yB, 'byMult', on); }
     else if (dbxHas(c, 'sys-dmgr-mjfx') || dbxHas(c, 'sys-dmgr-mjroll') || dbxHas(c, 'sys-dmgr-mjcrip')) { var mJ = majAt(t); if (!mJ) return true; var oJ = mJ.row; dbxSet(oJ, dbxHas(c, 'sys-dmgr-mjfx') ? 'fx' : dbxHas(c, 'sys-dmgr-mjroll') ? 'roll' : 'crip', v); if (!oJ.roll) delete oJ.crip; if (!oJ.crip) delete oJ.cripBy; majWrite(mJ.d, mJ.rows); redraw = dbxHas(c, 'sys-dmgr-mjroll') || dbxHas(c, 'sys-dmgr-mjcrip'); }   // 1.6.0 (B3)   // 1.6.0 (the core's gap 7): its failure cripples

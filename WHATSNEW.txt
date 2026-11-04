@@ -241,6 +241,10 @@ At the table
   a typed one back.
   A character file carries which figures are fills, and a file read in can
   say so too, so an average keeps following what fills it.
+- Taking damage can name a number a wound comes off first, as temporary hit
+  points: Taken first from, beside Wounds come off. The wound comes off that
+  number down to 0 and the rest off the pool, and a Major Wound still reads
+  the whole wound.
 - A list's rows can be sheets. Tick Rows are sheets, and each row can be
   joined to a character sheet of the campaign, as a vehicle's row to the
   vehicle's own sheet. The sheet's picture and name stand on the row and open

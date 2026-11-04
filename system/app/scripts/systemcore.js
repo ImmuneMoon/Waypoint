@@ -2060,6 +2060,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
     var isList = function(id) { return typeof id === 'string' && FIELD_ID.test(id) && !!kinds && kinds[id] === 'item-list'; }, isPool = function(id) { return typeof id === 'string' && !!resIds && resIds[id] === 1; };
     var fx = function(s) { return pl ? '' : cleanFormulaText(s) || ''; };
     var out = {}; if (isPool(d.pool)) out.pool = d.pool;
+    if (typeof d.first === 'string' && FIELD_ID.test(d.first) && !!kinds && kinds[d.first] === 'number') out.first = d.first;   // 1.6.2 (temporary hit points; the rule modules session's ask): a number a wound to the main pool comes off first
     var mj = fx(d.major); if (mj) out.major = mj;
     var wfS = fx(d.woundF); if (wfS) out.woundF = wfS; if (!pl && d.zero === 'none') out.zero = 'none';   // 1.6.2: a wound by a formula for every type, and what a wound of 0 does (absent: armour still wears)
     var mjw = cutText(d.majorWord, LIMITS.label); if (mjw) out.majorWord = mjw;   // 1.6.0 Major Wound is called: a system's own word for the step, the same in both views, read by majorWords alone (absent: A Major Wound)
@@ -2380,6 +2381,8 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
             for (var gi = 0; gi < grp.length; gi++) {
                 var gpf = grp[gi].pf, gw = grp[gi].w; if (!(gw > 0)) continue;
                 var gch = gi ? Object.assign({}, char, { values: Object.assign({}, char.values || {}, values) }) : char, gR = gi ? makeResolver(sys, gch, F, ropts) : R;   // a second pool reads what the first wrote (a spill into it among them)
+                var tmpF = typeof rules.first === 'string' && gpf.id === mainP ? fieldById(sys, rules.first) : null;   // 1.6.2 (temporary hit points): the wound to the main pool comes off that number first, down to 0, after DR and the multipliers; a Major Wound and every rule after it read the whole wound
+                if (tmpF && tmpF.kind === 'number') { var tmpHas = num(hasOwn(values, tmpF.id) ? values[tmpF.id] : storedOf(tmpF, gch)), tmpTake = Math.max(0, Math.min(tmpHas, gw)); if (tmpTake > 0) { var tmpEd = applyEdit(sys, gch, tmpF.id, tmpHas - tmpTake, F, { vars: gR }); if (tmpEd.ok) { values[tmpF.id] = tmpEd.value; gw -= tmpTake; info.first = (info.first || 0) + tmpTake; if (tmpF.vis !== 'gm') lines.push(tmpTake + ' taken by ' + (tmpF.label || tmpF.key) + '.'); } } if (!(gw > 0)) continue; }
                 var cur = num(gR(gpf.key)), mn = poolLeast(gpf, gpf.minNeg === true ? gR(gpf.key + '.max') : null), nv = mn === undefined ? cur - gw : Math.max(mn, cur - gw);
                 var ed = applyEdit(sys, gch, gpf.id, nv, F, { vars: gR }); if (!ed.ok) return { ok: false, reason: ed.reason || 'value' };
                 values[gpf.id] = ed.value;

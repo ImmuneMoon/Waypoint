@@ -248,9 +248,33 @@ function renderDue(m) {
     }
     return wrap;
 }
+// 1.6.2 Assist: a roll that waits for help. Who it is for and what it is, who has helped and with what, the help so far, and while it waits a Help button for
+// each character this machine may help with (by each roll it may help by) and Roll for its roller and the GM. The host judges every press
+function renderHelp(m) {
+    var rec = m.help, wrap = el('div', 'chat-roll chat-help'), n = net();
+    var who = el('b', null, 'Help'); who.style.color = 'var(--gold)'; wrap.appendChild(who);
+    if (rec.as) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(typeof asTag === 'function' ? asTag('for ', rec, wrap) : el('span', 'chat-tag', 'for ' + rec.as)); }
+    wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
+    wrap.appendChild(el('br'));
+    wrap.appendChild(el('div', 'roll-expr chat-help-what', (rec.label || 'A roll') + (rec.done ? (rec.why === 'left' ? ' was not rolled: its roller left.' : ' is rolled.') : ' waits for help.')));
+    rec.lines.forEach(function(l) { wrap.appendChild(el('div', 'chat-help-line', l.n + ': ' + l.w)); });
+    if (rec.lines.length || rec.cap) wrap.appendChild(el('div', 'chat-help-total', 'Help so far: ' + (rec.total > 0 ? '+' : rec.total < 0 ? '\u2212' : '') + Math.abs(rec.total) + (rec.cap ? ', at most +' + rec.cap : '')));
+    if (rec.done || window.wpPopout) return wrap;
+    var left = Math.max(0, Math.ceil((rec.ends - Date.now()) / 1000)); wrap.appendChild(el('div', 'chat-due-note', 'It rolls by itself ' + (left > 0 ? 'in ' + left + ' seconds' : 'now') + (rec.mine || rec.gm ? ', or press Roll.' : '.')));
+    var can = Array.isArray(rec.can) ? rec.can : [], rolls = Array.isArray(rec.rolls) ? rec.rolls : null, bs = [];
+    can.forEach(function(c) { (rolls && rolls.length ? rolls : [null]).forEach(function(r) {
+        if (bs.length >= 12) return;
+        var many = can.length > 1 || rec.gm === 1, w = r ? (many ? c.name + ': ' : 'Help with ') + r.label : many ? 'Help as ' + c.name : 'Help', b = el('button', 'tool chat-due-run chat-help-btn', w); b.type = 'button'; b.title = 'Help as ' + c.name + (r ? ', with ' + r.label : ''); bs.push(b);
+        b.addEventListener('click', function() { if (m.pressed) return; m.pressed = true; bs.forEach(function(x) { x.disabled = true; }); var ok = n && typeof n.helpAct === 'function' ? n.helpAct(rec.id, 'help', c.id, r ? r.i : undefined) : false; if (!ok) { m.pressed = false; bs.forEach(function(x) { x.disabled = false; }); } });
+        wrap.appendChild(b); wrap.appendChild(document.createTextNode(' '));
+    }); });
+    if (rec.mine || rec.gm) { var rb = el('button', 'tool chat-due-run chat-help-roll', 'Roll'); rb.type = 'button'; rb.title = 'Stop waiting for help and roll now'; rb.addEventListener('click', function() { rb.disabled = true; if (!(n && typeof n.helpAct === 'function' && n.helpAct(rec.id, 'roll'))) rb.disabled = false; }); wrap.appendChild(rb); }
+    return wrap;
+}
 // 1.6.0 (the live test, 2026-10-30): whether a card still asks for a press on this machine: an Apply no one has pressed, or a Due card that is theirs. Table Chat raised by a roll stays up for it (net.js chatWaits)
 function waits(m) {
     if (!m) return false;
+    if (m.help) return !m.help.done && !window.wpPopout && (m.help.mine === 1 || m.help.gm === 1 || (Array.isArray(m.help.can) && m.help.can.length > 0));   // 1.6.2 Assist
     if (m.due) return !m.done && !m.over && !m.due.theirs && !window.wpPopout;
     if (m.roll && typeof m.roll.pend === 'number' && m.roll.pend > 0) { var nW = net(); return !!(nW && ((nW.myId && m.roll.from && m.roll.from.id === nW.myId) || !nW.active || nW.role === 'host')); }   // 1.6.2 (G5): held, its roller and the GM have something to press
     var rec = m.roll, dS = window.wpSheets; if (!rec || rec.dmg !== 1 || rec.dmgUsed === 1 || !m.res || !m.res.ok) return false;
@@ -507,4 +531,4 @@ function sync() {
 })();
 window.wpDiceSync = sync;
 setTimeout(sync, 0);
-window.wpDice = { waits: waits, roll: roll, rollFor: rollFor, rollWithMod: rollWithMod, syncChars: syncChars, renderCard: renderCard, renderApply: renderApply, renderDue: renderDue, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };
+window.wpDice = { waits: waits, roll: roll, rollFor: rollFor, rollWithMod: rollWithMod, syncChars: syncChars, renderCard: renderCard, renderApply: renderApply, renderDue: renderDue, renderHelp: renderHelp, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };

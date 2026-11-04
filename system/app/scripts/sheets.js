@@ -10,7 +10,7 @@ import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, CUR_MAX, priceCurOf, moneySummary, condShare, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { swDice, renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
-import { cleanCardActs, CARD_MAX } from './systemcore.js';   // 1.6.2: what a card offers
+import { cleanCardActs, CARD_MAX, cleanHelp } from './systemcore.js';   // 1.6.2: what a card offers
 import { cleanAsks, askEnds, askJudge, withAsk, ASKS_MAX, ASK_OPTS } from './systemcore.js';   // 1.6.2: a roll's questions
 import { nameWord, nameAsks, readsOf, plainMessage } from './systemcore.js';   // 1.6.2: a name in words, and what a box may offer
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
@@ -5292,6 +5292,56 @@ function asksBox(obj) {
     return box;
 }
 // 1.6.2 (G5): On the card, on a roll and on the Combat tab. A box of its own listeners, as asksBox is. get and put read and set the list where it lives
+// 1.6.2 Assist (the owner, 2026-11-03, by prompt: "The roll waits for help"): a roll's Others may help, and what one helper adds: a figure of their sheet
+// (a number, a formula or a die), or what their own roll gives, by its outcome; who may help, a test on the helper's sheet; all help together at most;
+// and how long it waits, else the Combat tab's. Its own listeners, and classes (sys-help-*) no dispatcher of the editor reads
+function helpBox(obj) {
+    var box = el('div', 'sys-help'), sys = typeof draft !== 'undefined' ? draft : null;
+    var ch = function(redraw) { markDirty(); if (redraw) draw(); if (typeof patchErrors === 'function') patchErrors(); };
+    var draw = function() {
+        box.textContent = ''; var h = obj.help && typeof obj.help === 'object' ? obj.help : null, note = function() {};
+        var on = checkLabel('sys-help-on', !!h, 'Others may help', 'Before it is rolled, its card asks others on the same map to help. Each adds what you set here. The roller presses Roll, or it rolls by itself once the wait ends');
+        on.querySelector('input').addEventListener('change', function(e) { if (e.target.checked) obj.help = { by: 'fig', fig: '1' }; else delete obj.help; ch(true); });
+        box.appendChild(on); if (!h) return;
+        var q = el('div', 'sys-ask');
+        var by = select('sys-help-by', [['fig', 'A helper adds a figure of their own sheet'], ['roll', 'A helper adds what their own roll gives']], h.by === 'roll' ? 'roll' : 'fig', 'What one helper adds to the roll');
+        by.addEventListener('change', function() { if (by.value === 'roll') { h.by = 'roll'; delete h.fig; if (!Array.isArray(h.rolls)) h.rolls = []; if (!h.table || typeof h.table !== 'object') h.table = { hit: 1 }; } else { h.by = 'fig'; delete h.rolls; delete h.table; delete h.same; if (!h.fig) h.fig = '1'; } ch(true); });
+        q.appendChild(by);
+        if (h.by === 'roll') {
+            if (!Array.isArray(h.rolls)) h.rolls = []; if (!h.table || typeof h.table !== 'object') h.table = {};
+            var rl = el('div', 'sys-ask-ends'); rl.appendChild(document.createTextNode('They help with: '));
+            (sys && Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return r && typeof r.id === 'string' && !Array.isArray(r.apply) && r.init !== true; }).forEach(function(r) {
+                var cl = checkLabel('sys-help-roll', h.rolls.indexOf(r.id) >= 0, String(r.label || 'A roll').split('{')[0].trim() || 'A roll', 'A helper may make this roll of their own to help');
+                cl.querySelector('input').addEventListener('change', function(e) { var i = h.rolls.indexOf(r.id); if (e.target.checked && i < 0 && h.rolls.length < 8) h.rolls.push(r.id); else if (!e.target.checked && i >= 0) h.rolls.splice(i, 1); ch(); note(); }); rl.appendChild(cl);
+            });
+            q.appendChild(rl);
+            var tw = el('div', 'sys-ask-ends');
+            [['crit', 'A critical success adds'], ['hit', 'A success adds'], ['miss', 'A failure adds'], ['fumble', 'A critical failure adds']].forEach(function(p) {
+                var lb = el('label', 'sys-ask-end'); lb.appendChild(document.createTextNode(p[1] + ' '));
+                var ni = input('sys-ask-opt-v field sys-help-t', typeof h.table[p[0]] === 'number' ? String(h.table[p[0]]) : '', 'What this outcome of a helper\u2019s roll adds. Blank: nothing, or for a critical one what a success or a failure adds', '0');
+                ni.addEventListener('input', function() { var n = Math.round(Number(ni.value)); if (ni.value.trim() && isFinite(n) && n) h.table[p[0]] = Math.max(-99, Math.min(99, n)); else delete h.table[p[0]]; ch(); note(); }); lb.appendChild(ni); tw.appendChild(lb);
+            });
+            q.appendChild(tw);
+            var sm = checkLabel('sys-help-same', h.same === true, 'The same roll may help more than once', 'Two helpers may help with the same roll. Off: each roll helps once'); sm.querySelector('input').addEventListener('change', function(e) { if (e.target.checked) h.same = true; else delete h.same; ch(); }); q.appendChild(sm);
+        } else {
+            var fg = input('sys-help-fig field', h.fig || '', 'What one helper adds, worked out on their own sheet: a number, a figure of theirs, or a die', 'What a helper adds');
+            fg.addEventListener('input', function() { if (fg.value.trim()) h.fig = fg.value.slice(0, LIMITS.formula); else delete h.fig; ch(); note(); }); q.appendChild(fg);
+        }
+        var nd = input('sys-help-needs field', h.needs || '', 'Who may help, a test on the helper\u2019s own sheet. Blank: anyone on the same map', 'Who may help');
+        nd.addEventListener('input', function() { if (nd.value.trim()) h.needs = nd.value.slice(0, LIMITS.formula); else delete h.needs; ch(); }); q.appendChild(nd);
+        var row = el('div', 'sys-ask-ends');
+        var cl2 = el('label', 'sys-ask-end'); cl2.appendChild(document.createTextNode('All help together at most ')); var cp = input('sys-ask-opt-v field sys-help-cap', h.cap ? String(h.cap) : '', 'The most all help together may add. Blank: no limit', 'No limit');
+        cp.addEventListener('input', function() { var n = Math.floor(Number(cp.value)); if (cp.value.trim() && n >= 1) h.cap = Math.min(99, n); else delete h.cap; ch(); }); cl2.appendChild(cp); row.appendChild(cl2);
+        var cw = sys && sys.combat && typeof sys.combat.helpWait === 'number' ? sys.combat.helpWait : 30, wl = el('label', 'sys-ask-end'); wl.appendChild(document.createTextNode('It waits '));
+        var wi = input('sys-ask-opt-v field sys-help-wait', h.wait ? String(h.wait) : '', 'How long it waits for help before it rolls by itself. Blank: the Combat tab\u2019s, ' + cw + ' seconds', String(cw));
+        wi.addEventListener('input', function() { var n = Math.floor(Number(wi.value)); if (wi.value.trim() && n >= 5) h.wait = Math.min(600, n); else delete h.wait; ch(); }); wl.appendChild(wi); wl.appendChild(document.createTextNode(' seconds')); row.appendChild(wl);
+        q.appendChild(row);
+        var nt = el('div', 'sys-ask-note'); q.appendChild(nt); note = function() { nt.textContent = cleanHelp(obj.help) ? '' : 'Save leaves this out until ' + (h.by === 'roll' ? 'it names a roll they help with and what an outcome adds.' : 'it says what a helper adds.'); }; note();
+        box.appendChild(q);
+    };
+    draw();
+    return box;
+}
 function cardBox(get, put, hold) {
     var box = el('div', 'sys-cardacts'), sys = typeof draft !== 'undefined' ? draft : null;
     var ch = function(redraw) { markDirty(); if (redraw) draw(); if (typeof patchErrors === 'function') patchErrors(); };
@@ -9029,6 +9079,7 @@ function rollRow(r) {
     if (typeof crossRow === 'function') row.appendChild(crossRow(r));   // 1.5.9 (book es/et plan 4a): when a value crosses a step
     if (typeof asksBox === 'function') row.appendChild(asksBox(r));   // 1.6.2: what it asks when pressed
     if (!isApply && typeof cardBox === 'function') row.appendChild(cardBox(function() { return r.cardActs; }, function(l) { if (l) r.cardActs = l; else delete r.cardActs; }, r));   // 1.6.2: and what its card offers
+    if (!isApply && r.init !== true && typeof helpBox === 'function') row.appendChild(helpBox(r));   // 1.6.2 Assist: and whether others may help
     if (typeof callsBox === 'function') row.appendChild(callsBox(r, typeof draft !== 'undefined' ? draft : null, isApply));   // 1.6.0: Calls for
     if (!isApply && typeof bandBox === 'function') row.appendChild(bandBox(function() { return r.bands; }, function(l) { if (l) r.bands = l; else delete r.bands; }, true, function() { renderAll(); }));   // 1.6.2: result bands
     row.appendChild(applyEditor(r, isApply ? 'apply' : 'then'));   // R1: a roll's consequences under it
@@ -9762,6 +9813,7 @@ function ctKeySays(sp, F0) {
         cb2.appendChild(ndRow);
         var lxR = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxR) cb2.appendChild(lxR);   // 1.6.0
         if (typeof callsBox === 'function') cb2.appendChild(callsBox(rr, typeof draft !== 'undefined' ? draft : null, false));   // 1.6.0: Calls for
+        if (typeof helpBox === 'function') cb2.appendChild(helpBox(rr));   // 1.6.2 Assist
         listApplyEditor(cb2, rr, ri, 'then', sp, targets);
     });
     var radd = el('button', 'tool ghost sys-btn sys-list-rolladd', '+ Roll'); radd.dataset.act = 'rolladd'; radd.disabled = rls.length >= LIMITS.rowRolls; radd.title = radd.disabled ? 'At most ' + LIMITS.rowRolls + ' rolls a list' : 'A button on each row that rolls this formula with the row\u2019s names (a weapon\u2019s Attack, a skill\u2019s Check)'; cb2.appendChild(radd);
@@ -11725,7 +11777,7 @@ function checksBox(box, cm) {
     item('Named success', tn, 'A success by the margin beside it or more wears this name on its card.');
     var ta = el('input', 'field sys-checks-tierat'); ta.type = 'number'; ta.min = '1'; ta.max = '1000000'; ta.step = '1'; ta.value = typeof tr.at === 'number' ? String(tr.at) : ''; ta.placeholder = 'e.g. 5'; ta.title = 'How far a success must beat its target to wear the name: 5 means by 5 or more';
     item('By at least', ta, 'How far it must beat its target.');
-    if (typeof cardBox === 'function') { box.appendChild(cardBox(function() { return cm.cardActs; }, function(l) { if (l) cm.cardActs = l; else delete cm.cardActs; }, cm)); var cwL = el('label', 'sys-ask-end'); cwL.appendChild(document.createTextNode('A held card lands by itself after ')); var cwI = input('sys-card-wait field', cm.cardWait === undefined ? '60' : String(cm.cardWait), 'How long a roll with card actions waits to be accepted. Never while its roller is away', '60'); cwI.addEventListener('input', function() { var n = Math.floor(Number(cwI.value)); if (n >= 5 && n !== 60) cm.cardWait = Math.min(600, n); else delete cm.cardWait; markDirty(); }); cwL.appendChild(cwI); cwL.appendChild(document.createTextNode(' seconds')); box.appendChild(cwL); }   // 1.6.2
+    if (typeof cardBox === 'function') { box.appendChild(cardBox(function() { return cm.cardActs; }, function(l) { if (l) cm.cardActs = l; else delete cm.cardActs; }, cm)); var cwL = el('label', 'sys-ask-end'); cwL.appendChild(document.createTextNode('A held card lands by itself after ')); var cwI = input('sys-card-wait field', cm.cardWait === undefined ? '60' : String(cm.cardWait), 'How long a roll with card actions waits to be accepted. Never while its roller is away', '60'); cwI.addEventListener('input', function() { var n = Math.floor(Number(cwI.value)); if (n >= 5 && n !== 60) cm.cardWait = Math.min(600, n); else delete cm.cardWait; markDirty(); }); cwL.appendChild(cwI); cwL.appendChild(document.createTextNode(' seconds')); box.appendChild(cwL); var hwL = el('label', 'sys-ask-end sys-help-defwait'); hwL.appendChild(document.createTextNode('A roll waiting for help rolls by itself after ')); var hwI = input('sys-help-defwaitin field', cm.helpWait === undefined ? '30' : String(cm.helpWait), 'How long a roll ticked Others may help waits, unless the roll sets its own. Its roller can press Roll at any time', '30'); hwI.addEventListener('input', function() { var n = Math.floor(Number(hwI.value)); if (n >= 5 && n !== 30) cm.helpWait = Math.min(600, n); else delete cm.helpWait; markDirty(); }); hwL.appendChild(hwI); hwL.appendChild(document.createTextNode(' seconds')); box.appendChild(hwL); }   // 1.6.2; Assist's wait too
     if (typeof bandBox === 'function') box.appendChild(bandBox(function() { return cm.bands; }, function(l) { if (l) cm.bands = l; else delete cm.bands; }, false, function() { if (typeof renderCombat === 'function') renderCombat(); }));   // 1.6.2: result bands
     var err = errorCell('checks'); err.dataset.errFor = 'checks'; box.appendChild(err);
 }

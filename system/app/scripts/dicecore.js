@@ -226,6 +226,33 @@ function cleanAsked(v) {
     return out.length ? out : null;
 }
 // 1.6.2 (G5): a press on a held roll's card, and the card's own words, a card saying it is pending and what its roller may do
+// 1.6.2 Assist: a card of a roll that waits for help, as the host sends it (net.js helpRec), cleaned key by key: its words, who has helped and with what, the
+// help so far, the characters this connection may help with and the rolls they may help by, whether it is our own roll (mine, with the press's rid) or the
+// GM's card (gm), and whether it is over (done, with why: 'left' where its roller left). null where anything is not of its shape
+function cleanHelpCard(rec) {
+    if (!rec || typeof rec !== 'object' || typeof rec.id !== 'string' || !ID_RE.test(rec.id)) return null;
+    var from = cleanFrom(rec.from); if (!from) return null;
+    if (typeof rec.ends !== 'number' || !isFinite(rec.ends) || !isInt(rec.total) || rec.total < -99 || rec.total > 99 || !Array.isArray(rec.lines) || rec.lines.length > 12) return null;
+    var out = { id: rec.id, from: from, ts: typeof rec.ts === 'number' && isFinite(rec.ts) ? rec.ts : 0, ends: rec.ends, total: rec.total, lines: [] };
+    for (var i = 0; i < rec.lines.length; i++) { var l = rec.lines[i], n = l && typeof l === 'object' ? cleanLabel(l.n) : null; if (!n || typeof l.w !== 'string' || l.w.length > 120 || CTRL_RE.test(l.w)) return null; out.lines.push({ n: n, w: l.w }); }
+    var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
+    var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
+    if (rec.cap !== undefined) { if (!isInt(rec.cap) || rec.cap < 1 || rec.cap > 99) return null; out.cap = rec.cap; }
+    if (rec.can !== undefined) { if (!Array.isArray(rec.can) || rec.can.length > 8) return null; out.can = []; for (var c = 0; c < rec.can.length; c++) { var x = rec.can[c], cn = x && typeof x === 'object' ? cleanLabel(x.name) : null; if (!x || typeof x.id !== 'string' || !CHAR_RE.test(x.id) || !cn) return null; out.can.push({ id: x.id, name: cn }); } }
+    if (rec.rolls !== undefined) { if (!Array.isArray(rec.rolls) || rec.rolls.length > 8) return null; out.rolls = []; for (var r = 0; r < rec.rolls.length; r++) { var y = rec.rolls[r], rl = y && typeof y === 'object' ? cleanLabel(y.label) : null; if (!y || !isInt(y.i) || y.i < 0 || y.i > 7 || !rl) return null; out.rolls.push({ i: y.i, label: rl }); } }
+    ['mine', 'gm', 'done'].forEach(function(k) { if (rec[k] === 1) out[k] = 1; });
+    if (out.mine === 1 && typeof rec.rid === 'string' && RID_RE.test(rec.rid)) out.rid = rec.rid;
+    if (out.done === 1 && rec.why === 'left') out.why = 'left';
+    return out;
+}
+// ... and a press on it: Help with a character of the presser's (by a roll of the card's by its place, where it helps by a roll), or Roll
+function cleanHelpAct(msg) {
+    if (!msg || typeof msg !== 'object' || typeof msg.id !== 'string' || !ID_RE.test(msg.id) || (msg.key !== 'help' && msg.key !== 'roll')) return null;
+    var out = { id: msg.id, key: msg.key }; if (msg.key === 'roll') return out;
+    if (typeof msg.char !== 'string' || !CHAR_RE.test(msg.char)) return null; out.char = msg.char;
+    if (msg.ix !== undefined) { if (!isInt(msg.ix) || msg.ix < 0 || msg.ix > 7) return null; out.ix = msg.ix; }
+    return out;
+}
 function cleanCardAct(msg) {
     if (!msg || typeof msg !== 'object' || typeof msg.id !== 'string' || !ID_RE.test(msg.id) || typeof msg.key !== 'string' || !/^(accept|\d{1,2})$/.test(msg.key)) return null;
     return { id: msg.id, key: msg.key };
@@ -743,6 +770,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { cleanDiceBonus: cleanDiceBonus, hidExpr: hidExpr, hidCrit: hidCrit, hidRoll: hidRoll, cleanAtt: cleanAtt, malfWords: malfWords, cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanCardAct: cleanCardAct, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
+var API = { cleanHelpCard: cleanHelpCard, cleanHelpAct: cleanHelpAct, cleanDiceBonus: cleanDiceBonus, hidExpr: hidExpr, hidCrit: hidCrit, hidRoll: hidRoll, cleanAtt: cleanAtt, malfWords: malfWords, cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanCardAct: cleanCardAct, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { cleanDiceBonus, hidExpr, hidCrit, hidRoll, cleanAtt, malfWords, cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanCardAct, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };
+export { cleanHelpCard, cleanHelpAct, cleanDiceBonus, hidExpr, hidCrit, hidRoll, cleanAtt, malfWords, cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanCardAct, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };

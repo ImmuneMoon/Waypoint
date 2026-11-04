@@ -8324,6 +8324,18 @@ function handleMessage(msg, conn) {
         if (!allow('sceneshut', { perMs: 1000, burst: 4, windowMs: 60000, table: 300 }, String(spS.id))) return;
         if (window.wpScene && typeof window.wpScene.seen === 'function') window.wpScene.seen(spS.id, String(spS.name || 'A player'), msg.id);
         // [netcheck:sceneclosed-end]
+    } else if (msg.type === 'help' && net.role === 'client') {
+        // 1.6.2 Assist: a help card, from the synced host only, cleaned. Our own roll's card holds its answer a while longer, since it waits for help
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        var Dhp = DC(), hpc = Dhp && Dhp.cleanHelpCard ? Dhp.cleanHelpCard(msg) : null; if (!hpc) return;
+        if (_dicePending && hpc.mine === 1 && hpc.rid === _dicePending.rid && !hpc.done) { var pdH = _dicePending; clearTimeout(pdH.timer); pdH.timer = setTimeout(function() { if (_dicePending === pdH) _dicePending = null; }, Math.max(5000, hpc.ends - Date.now() + 15000)); }
+        if (_dicePending && hpc.mine === 1 && hpc.rid === _dicePending.rid && hpc.done && hpc.why === 'left') { clearTimeout(_dicePending.timer); _dicePending = null; }
+        pushHelp(hpc);
+    } else if (msg.type === 'help-act' && net.role === 'host') {
+        var Dha = DC(), qha = Dha && Dha.cleanHelpAct ? Dha.cleanHelpAct(msg) : null; if (!qha) return;   // 1.6.2 Assist: Help on a held roll, or its roller's Roll
+        if (!diceLimit) diceLimit = Dha.RateLimit(Dha.LIMITS); if (diceLimit.allow(conn.peer, Date.now()) !== true) return;
+        if (net.paused || peerPaused(conn.peer)) return;
+        var pidHa = peerProfileId(conn); if (pidHa && typeof helpPress === 'function') helpPress(qha.id, qha.key, pidHa, qha.char, qha.ix, conn);
     } else if (msg.type === 'card-act' && net.role === 'host') {
         var Dc = DC(), qc = Dc && Dc.cleanCardAct ? Dc.cleanCardAct(msg) : null; if (!qc) return;   // 1.6.2 (G5): a press on a held roll's card, its roller's alone
         if (!diceLimit) diceLimit = Dc.RateLimit(Dc.LIMITS); if (diceLimit.allow(conn.peer, Date.now()) !== true) return;
@@ -9505,9 +9517,10 @@ function handleMessage(msg, conn) {
         // a player's roll: validated, rate-limited, rolled HERE with the host's dice, sent as a record (from = the roster entry, never the client's claim)
         var Dq = DC(), Fq = window.wpFormula; if (!Dq || !Fq) return;
         var q = Dq.cleanRollReq(msg); if (!q) { var ridBad = Dq.cleanRid(msg); if (ridBad) { try { conn.send({ type: 'roll-deny', rid: ridBad, reason: 'error', message: 'That roll could not be read.' }); } catch (e) { sendFailed(e); } } return; }
+        var hgQ = typeof helpTake === 'function' ? helpTake(conn.peer, q.rid) : null;   // 1.6.2 Assist: the press it held, let go with its help
         var denyQ = function(reason, r) { var d = { type: 'roll-deny', rid: q.rid, reason: reason }; if (r) { d.message = r.error.message; d.pos = r.error.pos; d.len = r.error.len; } try { conn.send(d); } catch (e) { sendFailed(e); } };
         if (!diceLimit) diceLimit = Dq.RateLimit(Dq.LIMITS);
-        var lim = diceLimit.allow(conn.peer, Date.now());
+        var lim = hgQ ? true : diceLimit.allow(conn.peer, Date.now());
         if (lim !== true) { var sk = conn.peer + '|' + lim; if (!_diceSlowSaid[sk] || Date.now() - _diceSlowSaid[sk] > Dq.LIMITS.windowMs) { _diceSlowSaid[sk] = Date.now(); denyQ(lim); } return; }   // one 'slow' per window, then silence
         if (window.wpVtt && !window.wpVtt.on('dice')) { denyQ('off'); return; }
         if (net.paused || peerPaused(conn.peer)) { denyQ('paused'); return; }   // frozen table (or this player is paused): no rolls
@@ -9552,6 +9565,7 @@ function handleMessage(msg, conn) {
                 if (swQ && !swQ.ok) { denyQ('error', { error: { message: 'That bonus is not yours to add to this roll now.', pos: 0, len: 0 } }); return; }
                 var cmQ = wantQ ? Dq.composeModifier(wantQ, (q.mod || 0) + (swQ ? swQ.v : 0), Fq.parse, (q.modD || '') + (swQ && swQ.d ? swQ.d : '')) : null;   // 1.6.2: and the dice the window and the bonuses add
                 if (!cmQ || !cmQ.ok || cmQ.expr !== q.expr) { denyQ('error', { error: { message: 'That roll does not match its button now.', pos: 0, len: 0 } }); return; }
+                if (hgQ && hgQ.n) { var chgQ = Dq.composeModifier(wantQ, (q.mod || 0) + (swQ ? swQ.v : 0) + hgQ.n, Fq.parse, (q.modD || '') + (swQ && swQ.d ? swQ.d : '')); if (!chgQ.ok) { denyQ('error', { error: { message: 'That roll cannot take that help.', pos: 0, len: 0 } }); return; } q.expr = chgQ.expr; }   // 1.6.2 Assist: all the help, as a bonus
                 if (pressQ && (actQ.init === true || actQ.resist === true || actQ.to === 'near' || actQ.askLvl === true)) { denyQ('error', { error: { message: 'That roll is not one a crew member presses.', pos: 0, len: 0 } }); return; }
                 if (pressQ && !SQ.rollStationOk(actQ, pressQ.stns, pressQ.link.pressNamed === true)) { denyQ('error', { error: { message: 'That roll is pressed from another station.', pos: 0, len: 0 } }); return; }
                 var hbQ = typeof holdsBar === 'function' && typeof SQ.holdRefOf === 'function' ? holdsBar(campQ, chQ, holdRefQ(campQ, q, actQ)) : ''; if (hbQ) { denyQ('error', { error: { message: hbQ, pos: 0, len: 0 } }); return; }   // 1.6.0 Who holds whom
@@ -9576,6 +9590,10 @@ function handleMessage(msg, conn) {
         if (chQ && !q.att && typeof offTurnBar === 'function') { var offQ = offTurnBar(campQ, turnChQ, q.act, rowGQ, q.label || (actQ && actQ.label)); if (offQ) { denyQ('error', { error: { message: offQ, pos: 0, len: 0 } }); return; } }   // 1.6.0: off their turn, by the system's rule; a card's press answers the host's own record
         if (actQ && actQ.burst === 'extra' && q.row && typeof SQ.burstBar === 'function') { var bbQ = SQ.burstBar(campQ.system, chQ, q.row.f, q.row.r); if (bbQ) { denyQ('error', { error: { message: bbQ, pos: 0, len: 0 } }); return; } }   // 1.6.0 A burst: its extra dice, once, after an attack that hit
         var hvQ = null, rnQ = null; if (actQ && actQ.dmg === true && actQ.hits && varsQ && typeof SQ.hitCount === 'function') { var hnQ = SQ.hitCount(actQ, varsQ, Fq); if (hnQ === null) { denyQ('error', { error: { message: 'How many hits it rolls for could not be worked out.', pos: 0, len: 0 } }); return; } if (hnQ < 1) { denyQ('error', { error: { message: 'There are no hits to roll for.', pos: 0, len: 0 } }); return; } hvQ = SQ.hitVars(varsQ, hnQ); rnQ = SQ.hitRounds(viewQ || campQ.system, varsQ, hnQ); varsQ = hvQ[0]; }   // 1.6.0 A burst: how many times it rolls, from the entry through their view; the first hit reads its own round
+        if (!hgQ && chQ && actQ && !q.priv && !q.att && !q.by && typeof helpHold === 'function') {   // 1.6.2 Assist: a roll that waits for help, before anything of it is rolled or spent
+            var heQ = cardEnt(campQ, q.act, rowGQ, actQ), tkHQ = mapQ ? SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ) : null;
+            if (heQ && heQ.help && helpHold({ S: SQ, D: Dq, F: Fq, camp: campQ, ent: heQ, ch: chQ, pid: pidQ, conn: conn, rid: q.rid, label: q.label || actQ.label, from: diceFrom(net.roster[conn.peer], false), mapId: tkHQ ? locQ : null, go: function(n) { _helpGo = { peer: conn.peer, rid: q.rid, n: n }; handleMessage(msg, conn); } })) return;
+        }
         var resQ = Fq.evaluate(q.expr, varsQ ? { vars: varsQ } : {});
         if (!resQ.ok) { denyQ('error', resQ); return; }
         var moQ = hvQ && hvQ.length > 1 ? SQ.hitRolls(campQ.system, actQ, q.expr, hvQ.slice(1), Fq, Dq, { rounds: rnQ.slice(1) }) : null; if (moQ && moQ.error) { denyQ('error', { error: { message: moQ.error, pos: 0, len: 0 } }); return; }   // ... and each hit after it, rolled here, before what it costs is spent
@@ -10032,6 +10050,7 @@ function wireConn(conn) {
         var cur = net.conns[0] === conn;   // (a player's app) the connection this app holds — not one a later dial has replaced
         net.conns = net.conns.filter(function(c) { return c !== conn; });
         if (typeof cardAway === 'function') cardAway(conn.peer);   // 1.6.2 (G5): the time stops while its roller is away
+        if (typeof helpAway === 'function') helpAway(conn.peer);   // 1.6.2 Assist: a roll waiting for help is not rolled once its roller has gone
         delete assetInflight[conn.peer]; delete assetRefs[conn.peer]; delete assetBytes[conn.peer];
         if (diceLimit) diceLimit.forget(conn.peer);
         if (charLimit) charLimit.forget(conn.peer);
@@ -11321,8 +11340,103 @@ net.cardAct = function(id, key) {
     return cardPress(id, key, '');
 };
 // [netcheck:cardhold-end]
+// [netcheck:helphold-start]
+// 1.6.2 Assist (the owner, 2026-11-03, by prompt: "The roll waits for help"; others "on the same map"; "Yes, the GM picks one", since allies and a rider's
+// mount can help): a roll whose entry is ticked Others may help is held here before anything of it is rolled or spent. Its card goes to the table: each
+// connection is told which of its own characters may help (helpCan), and the GM which NPCs. A press of Help is judged here, on the helper's own names
+// through their own view, and what they add is worked out here too, a figure or their own roll read off the roll's table. Roll, from its roller or the
+// GM, or the end of the wait, lets the roll go: it is made again from the press that was held, judged afresh, with all the help added as a bonus. A roll
+// whose roller leaves is not rolled. Nothing here is stored
+var _helpHeld = Object.create(null), _helpGo = null;
+function helpTake(peer, rid) { var g = _helpGo; if (!g || g.peer !== peer || g.rid !== rid) return null; _helpGo = null; return g; }
+function helpWord(r) { return String((r && r.label) || 'A roll').split('{')[0].trim().slice(0, 60) || 'A roll'; }
+function helpRolls(h) { var sys = h.o.camp.system, out = []; (h.o.ent.help.rolls || []).forEach(function(id, i) { (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (r && r.id === id && !Array.isArray(r.apply)) out.push({ i: i, id: id, label: helpWord(r) }); }); }); return out; }
+function helpVars(h, c, pid) {   // a helper's own names: a player's through their own view, an NPC's through the system
+    var o = h.o, sys = o.camp.system, view = pid && window.wpSheets && typeof window.wpSheets.playerSystem === 'function' ? window.wpSheets.playerSystem(o.camp) : sys; if (!view) return null;
+    var cv = pid ? o.S.charFor(c, view, pid, { lib: fxLib(sys), items: itemLib(sys), full: sys }) : c; if (!cv) return null;
+    return { view: view, vars: o.S.makeResolver(view, cv, o.F, null) };
+}
+function helpCan(h, pid) {   // the characters of this profile ('' the GM's NPCs) that may help this roll now, each by its id and name, 8 at most
+    var o = h.o, chs = o.camp.chars || {}, map = h.mapId && o.camp.items && Object.prototype.hasOwnProperty.call(o.camp.items, h.mapId) ? o.camp.items[h.mapId] : null, out = [];
+    Object.keys(chs).forEach(function(id) {
+        var c = chs[id]; if (out.length >= 8 || !c || c.id === o.ch.id || c.making === 1 || h.chars[c.id]) return;
+        var npc = !!c.npc || !c.ownerId; if (pid ? (npc || (c.ownerId !== pid && !(typeof handsTo === 'function' && handsTo(c, pid)))) : !npc) return;
+        if (map && !o.S.charTokenOn(map, c.id, pid || '', pid ? { strict: true } : {})) return;
+        if (o.ent.help.needs) { var hv = helpVars(h, c, pid); if (!hv || !o.S.rollNeedsOk({ needs: o.ent.help.needs }, hv.vars, o.F)) return; }
+        out.push({ id: c.id, name: String(c.name || 'A character').slice(0, 60) });
+    });
+    return out;
+}
+function helpRec(h, pid) {
+    var o = h.o, rec = { type: 'help', id: h.id, from: o.from, ts: h.ts, ends: h.ends, lines: h.lines.map(function(l) { return { n: l.n, w: l.w }; }), total: o.S.helpTotal(o.ent.help, h.lines) };
+    if (o.label) rec.label = String(o.label).split('{')[0].trim().slice(0, 60); if (o.ch.name) rec.as = String(o.ch.name).slice(0, 60); if (o.ent.help.cap) rec.cap = o.ent.help.cap;
+    if (h.done) { rec.done = 1; if (h.why) rec.why = h.why; return rec; }
+    var can = helpCan(h, pid); if (can.length) { rec.can = can; if (o.ent.help.by === 'roll') rec.rolls = helpRolls(h).filter(function(r) { return o.ent.help.same === true || !h.rolls[r.id]; }).map(function(r) { return { i: r.i, label: r.label }; }); }
+    if (pid === o.pid) { rec.mine = 1; if (o.rid) rec.rid = o.rid; } else if (pid === '') rec.gm = 1;
+    return rec;
+}
+function helpSend(h) {
+    if (net.active && net.role === 'host') net.conns.forEach(function(c) { var p = c.open ? net.roster[c.peer] : null; if (!p || typeof p.id !== 'string') return; try { c.send(helpRec(h, p.id)); } catch (e) { sendFailed(e); } });
+    pushHelp(helpRec(h, ''));
+}
+function helpClock(h) { if (h.timer) clearTimeout(h.timer); h.timer = setTimeout(function() { helpSettle(h); }, Math.max(0, h.ends - Date.now())); }
+function helpEnd(h, why) { delete _helpHeld[h.id]; if (h.timer) clearTimeout(h.timer); h.timer = null; h.done = true; if (why) h.why = why; helpSend(h); }
+function helpSettle(h) {
+    if (!_helpHeld[h.id]) return; var n = h.o.S.helpTotal(h.o.ent.help, h.lines); helpEnd(h, '');
+    if (window.wpStepLog) window.wpStepLog('help v1', 'rolled', { helpers: h.lines.length, total: n });
+    try { h.o.go(n); } catch (e) { if (typeof toast === 'function') toast('That roll could not be made.'); }
+}
+function helpHold(o) {
+    if (!o || !o.camp || !o.camp.system || !o.ent || !o.ent.help || !o.ch || typeof o.go !== 'function') return false;
+    var w = o.S.helpWaitOf(o.camp.system, o.ent), now = Date.now(), h = { id: o.D.uid(), o: o, lines: [], chars: {}, rolls: {}, ts: now, ends: now + w * 1000, mapId: o.mapId || null, timer: null, done: false };
+    _helpHeld[h.id] = h; helpSend(h); helpClock(h);
+    if (window.wpStepLog) window.wpStepLog('help v1', 'asked', { wait: w, by: o.pid ? 'player' : 'gm' });
+    return true;
+}
+function helpSay(o, conn, words) { if (conn && typeof turnNote === 'function') turnNote(conn, words); else if (typeof toast === 'function') toast(words); }
+// who: the profile that pressed, '' the GM's own hand. Help with a character of their own (the GM, an NPC), by a roll of help.rolls by its place where it
+// helps by a roll; Roll from the roll's roller or the GM
+function helpPress(id, key, who, charId, ix, conn) {
+    var h = typeof id === 'string' && Object.prototype.hasOwnProperty.call(_helpHeld, id) ? _helpHeld[id] : null; if (!h) return false;
+    var o = h.o, help = o.ent.help;
+    if (key === 'roll') { if (who !== '' && who !== o.pid) return false; helpSettle(h); return true; }
+    if (key !== 'help' || typeof charId !== 'string') return false;
+    if (!helpCan(h, who).some(function(c) { return c.id === charId; })) { helpSay(o, conn, 'That character cannot help with this roll now.'); return false; }
+    var c = o.camp.chars[charId], hv = helpVars(h, c, who); if (!hv) return false;
+    var line = null;
+    if (help.by === 'roll') {
+        var pick = helpRolls(h).filter(function(r) { return r.i === ix; })[0]; if (!pick) { helpSay(o, conn, 'Pick the roll they help with.'); return false; }
+        if (help.same !== true && h.rolls[pick.id]) { helpSay(o, conn, 'Someone has helped with ' + pick.label + ' already.'); return false; }
+        var re = null; (Array.isArray(hv.view.rolls) ? hv.view.rolls : []).forEach(function(r) { if (r && r.id === pick.id && typeof r.formula === 'string' && !Array.isArray(r.apply)) re = r; });
+        if (!re) { helpSay(o, conn, 'That roll is not one ' + (c.name || 'they') + ' can make.'); return false; }
+        var rr = o.F.evaluate(re.formula, { vars: hv.vars }); if (!rr.ok) { helpSay(o, conn, 'That roll could not be made.'); return false; }
+        var chk = o.D.checkOf ? o.D.checkOf(rr, o.D.ruleOf({}, o.camp.system.combat ? o.camp.system.combat.checks : '')) : null, out = o.S.helpOutcome(help, chk);
+        line = { n: String(c.name || 'A character').slice(0, 60), v: out.v, w: pick.label + ': ' + (out.word || 'rolled') + ', ' + (out.v ? (out.v > 0 ? '+' : '\u2212') + Math.abs(out.v) : 'nothing') };
+        h.rolls[pick.id] = 1;
+    } else {
+        var fg = o.S.helpFig(help, hv.vars, o.F); if (fg.error) { helpSay(o, conn, fg.error); return false; }
+        line = { n: String(c.name || 'A character').slice(0, 60), v: fg.v, w: (fg.v > 0 ? '+' : fg.v < 0 ? '\u2212' : '') + Math.abs(fg.v) };
+    }
+    h.chars[charId] = 1; h.lines.push(line); helpSend(h);
+    if (window.wpStepLog) window.wpStepLog('help v1', 'helped', { by: who ? 'player' : 'gm', v: line.v });
+    return true;
+}
+function helpAway(peer) { Object.keys(_helpHeld).forEach(function(id) { var h = _helpHeld[id]; if (h.o.conn && h.o.conn.peer === peer) helpEnd(h, 'left'); }); }
+function helpForget() { Object.keys(_helpHeld).forEach(function(id) { if (_helpHeld[id].timer) clearTimeout(_helpHeld[id].timer); delete _helpHeld[id]; }); _helpGo = null; }
+net.helpAct = function(id, key, charId, ix) {
+    var m = { type: 'help-act', id: String(id), key: String(key) }; if (typeof charId === 'string') m.char = charId; if (typeof ix === 'number') m.ix = ix;
+    if (net.active && net.role === 'client') { if (!net.conns[0] || !net.conns[0].open) return false; try { net.conns[0].send(m); } catch (e) { return false; } return true; }
+    return helpPress(m.id, m.key, '', m.char, m.ix, null);
+};
+// a help card on this screen: one entry a held roll, the newest in its place
+function pushHelp(rec) {
+    for (var i = chatLog.length - 1; i >= 0; i--) if (chatLog[i] && chatLog[i].help && chatLog[i].help.id === rec.id) { chatLog[i].help = rec; chatLog[i].pressed = false; renderChat(); return; }   // a new copy may be pressed again
+    pushChat({ from: rec.from, text: '', scope: 'global', ts: rec.ts, help: rec });
+}
+// [netcheck:helphold-end]
 function diceSessionReset(clearChat) {
     if (typeof cardForget === 'function') cardForget();   // 1.6.2: a roll still held goes with its table, nothing of it landed
+    if (typeof helpForget === 'function') helpForget();   // 1.6.2 Assist: and one waiting for help
     if (_dicePending) { clearTimeout(_dicePending.timer); _dicePending = null; }
     if (diceLimit) diceLimit.reset();
     _diceSlowSaid = {};
@@ -11398,6 +11512,10 @@ net.diceRoll = function(expr, o) {
     var swR = null; if (Array.isArray(o.sw) && o.sw.length) { var refSw = o.act && !o.row ? { r: String(o.act) } : o.fr ? { f: String(o.fr) } : o.row ? { l: String(o.row.f), row: String(o.row.r), i: typeof o.row.i === 'number' ? o.row.i : undefined } : null; swR = chR && SR && campR && campR.system && refSw && typeof SR.swJudge === 'function' ? SR.swJudge(campR.system, chR, refSw, o.sw) : { ok: false }; if (!swR.ok) return { error: 'That bonus is not this character\u2019s to add to this roll now.' }; }   // 1.6.0: the roll switches ticked, judged as a player's are (the formula already holds them)   // R2b: its needs (before anything is rolled)   // Stage 6 F5b: a roll on one row — its Row.* names
     if (entR && entR.burst === 'extra' && o.row && SR && typeof SR.burstBar === 'function') { var bbR = SR.burstBar(campR.system, chR, o.row.f, o.row.r); if (bbR) return { error: bbR }; }   // 1.6.0 A burst: its extra dice, once, after an attack that hit
     var hvR = null, rnR = null; if (entR && entR.dmg === true && entR.hits && varsR && SR && typeof SR.hitCount === 'function') { var hnR = SR.hitCount(entR, varsR, F); if (hnR === null) return { error: 'How many hits it rolls for could not be worked out.' }; if (hnR < 1) return { error: 'There are no hits to roll for.' }; hvR = SR.hitVars(varsR, hnR); rnR = SR.hitRounds(campR.system, varsR, hnR); varsR = hvR[0]; }   // 1.6.0 A burst: how many times it rolls, from the entry; the first hit reads its own round
+    if (chR && entR && entR.help && o.helped !== true && !o.priv && !o.gmOnly && o.used !== true && !o.blast && !o.range && !o.cross && !o.att && typeof helpHold === 'function') {   // 1.6.2 Assist: a roll that waits for help, before anything of it is rolled
+        var ftH = window.wpSheets && window.wpSheets.facingTarget ? window.wpSheets.facingTarget(chR, campR) : null;
+        if (helpHold({ S: SR, D: D, F: F, camp: campR, ent: entR, ch: chR, pid: '', conn: null, label: o.label || entR.label, from: o.from || diceFrom(getProfile(), true), mapId: ftH && ftH.tok ? ftH.mapId : null, go: function(n) { var cmH = n ? D.composeModifier(expr, n, F.parse) : { ok: true, expr: expr }; var rH = net.diceRoll(cmH.ok ? cmH.expr : expr, Object.assign({}, o, { helped: true })); if (rH && rH.error && typeof toast === 'function') toast(rH.error); } })) return { ok: true, held: true };
+    }
     var res = F.evaluate(expr, varsR ? { vars: varsR } : {});
     if (!res.ok) return { error: res.error.message, pos: res.error.pos, len: res.error.len };
     if (o.row && chR && SR && campR && campR.system) rowP = SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, (res.breakdown && res.breakdown.names) || [], F, uDefR || undefined);   // what its Row.* names read, and whether the row is GM-only
@@ -11619,7 +11737,7 @@ function renderChat() {
     var frag = document.createDocumentFragment();
     chatLog.forEach(function(m) {
         var node = null;
-        try { node = m.roll ? (window.wpDice ? window.wpDice.renderCard(m) : null) : m.apply ? (window.wpDice && window.wpDice.renderApply ? window.wpDice.renderApply(m) : null) : m.due ? (window.wpDice && window.wpDice.renderDue ? window.wpDice.renderDue(m) : null) : m.trun && window.wpTimePanel && window.wpTimePanel.renderLine ? window.wpTimePanel.renderLine(m) : m.trk && window.wpTrackers && window.wpTrackers.renderLine ? window.wpTrackers.renderLine(m) : chatEntryNode(m); } catch (e) { node = null; }   // one bad entry never blanks the panel
+        try { node = m.roll ? (window.wpDice ? window.wpDice.renderCard(m) : null) : m.apply ? (window.wpDice && window.wpDice.renderApply ? window.wpDice.renderApply(m) : null) : m.due ? (window.wpDice && window.wpDice.renderDue ? window.wpDice.renderDue(m) : null) : m.trun && window.wpTimePanel && window.wpTimePanel.renderLine ? window.wpTimePanel.renderLine(m) : m.trk && window.wpTrackers && window.wpTrackers.renderLine ? window.wpTrackers.renderLine(m) : m.help ? (window.wpDice && window.wpDice.renderHelp ? window.wpDice.renderHelp(m) : null) : chatEntryNode(m); } catch (e) { node = null; }   // one bad entry never blanks the panel
         if (node) frag.appendChild(node);
     });
     log.textContent = ''; log.appendChild(frag);
@@ -11686,7 +11804,7 @@ function pushChat(m) {
     var fl = window.wpFloats || null, view = fl && fl.view ? fl.view() : '';   // 1.5.4 (floats.js): the view on screen; a chat put away on it counts as closed
     var closed = !panel || panel.style.display === 'none' || !!(fl && fl.away(panel));
     var rise = !view || view === 'play' || !m.roll || m.from.id === net.myId;   // someone else's roll raises the chat only on the play map: on another view it is a notice and a count on the button
-    if ((m.roll || (m.due && !m.due.theirs)) && panel && closed && rise) {   // T2b: a reminder to press surfaces it too (never dismissed by itself)   // a roll always surfaces Table Chat so everyone sees the result (no toast needed then)
+    if ((m.roll || (m.due && !m.due.theirs) || (m.help && !m.help.done && (m.help.mine || m.help.gm || (m.help.can && m.help.can.length)))) && panel && closed && rise) {   // 1.6.2 Assist: a roll that waits for your help too   // T2b: a reminder to press surfaces it too (never dismissed by itself)   // a roll always surfaces Table Chat so everyone sees the result (no toast needed then)
         var lent = fl && fl.reveal ? fl.reveal(panel) : '';   // up on another view: borrowed for this one, and given back when the roll's few seconds are over
         panel.style.display = 'flex'; chatUnread = 0; refreshChatRecipients(); closed = false;
         _chatRollOpened = lent || true; _chatRaisedBy = m;
@@ -11696,7 +11814,7 @@ function pushChat(m) {
     if (closed) {
         if (m.from.id !== net.myId) {
             chatUnread++;
-            var line = m.roll ? (window.wpDice ? window.wpDice.line(m) : 'a roll') : m.apply ? applyLine(m.apply) : m.due ? dueLine(m.due) : (m.from.gm ? 'GM' : (m.from.name || 'Player')) + (m.scope === 'whisper' ? ' (private): ' : ': ') + m.text.slice(0, 60);
+            var line = m.roll ? (window.wpDice ? window.wpDice.line(m) : 'a roll') : m.apply ? applyLine(m.apply) : m.due ? dueLine(m.due) : m.help ? (m.help.as || 'Someone') + ' asks for help with ' + (m.help.label || 'a roll') + '.' : (m.from.gm ? 'GM' : (m.from.name || 'Player')) + (m.scope === 'whisper' ? ' (private): ' : ': ') + m.text.slice(0, 60);
             toast(String(line).slice(0, 120));
         }
     }

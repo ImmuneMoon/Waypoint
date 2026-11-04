@@ -3291,6 +3291,9 @@
   .dice-modpop-num { display: flex; align-items: center; justify-content: center; gap: 10px; }
   .dice-modpm { padding: 0 10px; height: 26px; font-size: 15px; }
   .dice-modpop-val { min-width: 40px; text-align: center; font-size: 18px; font-weight: 700; color: var(--gold); }
+  .chat-help-line { font-size: 12px; color: var(--ink); }
+  .chat-help-total { font-size: 12px; color: var(--gold); margin: 2px 0; }
+  .chat-help-btn, .chat-help-roll { margin-top: 4px; }
   .dice-moddice { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
   .dice-moddice-cap { white-space: nowrap; }
   .dice-moddice-in { flex: 1 1 auto; min-width: 0; font-family: ui-monospace, Consolas, monospace; }

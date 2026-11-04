@@ -208,7 +208,8 @@ At the table
 - A body in the way can hide the target. On the Combat tab, with cover on, a
   formula works out from the two Sizes how much a character token on the line
   hides it, read as TargetBodyCover. A roll that reads it and misses by no more
-  than that hits the body, its card says so, and the damage lands there.
+  than that hits the body as a full hit, with no Defense for the body. Its card
+  names the body to those who can see the target, and the damage lands there.
 - A list's rows can take parts from several lists. Parts from is a tick a
   list, so one gun can hold an attachment from one list and a scope from
   another. Holds, Holds by kind, Fits where and the figures a row reads of its

@@ -15685,8 +15685,8 @@ pendingChecks.push((async () => {
             j([n1, n2.answer, n3.answer, gN3, q1, q2, sentN]));
         const rq = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'), dr = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
         check('1.5.9 Chambers from, a launched round (net.js, pinned): after a roll\'s Then is applied, a round it fired on a hit, not a jam, goes off at the roller\'s target through the board\'s wpLaunchHit, asked through typeof, in the host\'s roll branch and the GM\'s own roll; a miss goes to the board\'s wpLaunchMiss instead (1.5.9 (es), moved on purpose: before, a miss placed nothing)',
-            rq.includes("if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && vdQ.pass === true && tcQ && tcQ.range && typeof tcQ.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ.range.tid, mapId: tcQ.range.mapId, margin: vdQ.margin });")
-            && dr.includes("if (taR && taR.ok && taR.fired && !mfHitR && vdR && vdR.kind === 'check' && vdR.pass === true && tcR && tcR.range && typeof tcR.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: chR.id, fieldId: taR.fired.f, rowId: taR.fired.r, tid: tcR.range.tid, mapId: tcR.range.mapId, margin: vdR.margin });"));
+            rq.includes("if (taQ && taQ.ok && taQ.fired && !mfHitQ && vdQ && vdQ.kind === 'check' && (vdQ.pass === true || recQ.body === 1) && tcQ && tcQ.range && typeof tcQ.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: q.charId, fieldId: taQ.fired.f, rowId: taQ.fired.r, tid: tcQ.range.tid, mapId: tcQ.range.mapId, margin: vdQ.margin });")
+            && dr.includes("if (taR && taR.ok && taR.fired && !mfHitR && vdR && vdR.kind === 'check' && (vdR.pass === true || rec.body === 1) && tcR && tcR.range && typeof tcR.range.tid === 'string' && typeof window.wpLaunchHit === 'function') window.wpLaunchHit({ charId: chR.id, fieldId: taR.fired.f, rowId: taR.fired.r, tid: tcR.range.tid, mapId: tcR.range.mapId, margin: vdR.margin });"));
     }
 })());
 pendingChecks.push((async () => {
@@ -19562,7 +19562,7 @@ pendingChecks.push((async () => {
     /* ---- 1.6.2 (build 14): a body in the way. The bodyin slice run for real: a miss within the body's cover switches to it, the next damage lands there ---- */
     {
         const srcB = between('// [netcheck:bodyin-start]', '// [netcheck:bodyin-end]', 'bodyin'), ownB = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
-        const runB = new Function('net', 'own', 'window', srcB + '\nreturn { bodySwitch, bodyLand };')({}, ownB, {});
+        const runB = new Function('net', 'own', 'window', 'npcShown', srcB + '\nreturn { bodySwitch, bodyLand, bodyAim, bodyView };')({}, ownB, {}, (camp, ch, p) => !!ch && (ch.npc !== true && !!ch.ownerId));
         const Db = { verdictOf: r => r.vd, ruleOf: () => '', naturalOf: r => r.nat };
         const body = (o) => Object.assign({ id: 'tb', isChar: true, charId: 'c_b' }, o || {});
         const campB = w => ({ system: { combat: {} }, items: { m1: { whiteboard: [w] } }, chars: { c_a: {}, c_b: {} } }), rg = { body: 4, bodyTok: 'tb', tid: 'tt', mapId: 'm1' };
@@ -19575,9 +19575,13 @@ pendingChecks.push((async () => {
         check('1.6.2 a body in the way: a roll that reads it and misses by no more than its cover switches to the body (its card marked), and that character\u2019s next damage roll lands there, once; not a miss by more, a hit, a malfunction, a roll that does not read it, a hidden body or none; not after the pointer moved or another roll',
             s1 === true && r1.body === 1 && l1 === true && d1.dmgOn === 'c_b' && d1.bodyOn === 1 && l2 === false && !d2.dmgOn && !far && !onHit && !malf && !unread && !hid && !none && moved === false && !d3.dmgOn && ended === false && !d4.dmgOn,
             j([s1, r1, d1, l2, far, onHit, malf, unread, hid, none, moved, ended]));
+        const rN = {}; runB.bodySwitch(Object.assign(campB(body({ name: 'Guard' })), {}), 'c_a', rN, miss(2), Db, null, rg, () => true); const fumble = runB.bodySwitch(campB(body()), 'c_a', {}, { vd: { kind: 'check', pass: false, margin: -1, crit: 'fumble' }, nat: 18 }, Db, null, rg, () => true);
+        const aimed = runB.bodyAim({ facing: 0, range: { tid: 'tt', mapId: 'm1', mod: 0 } }, rN), seen = runB.bodyView(rN, { id: 'p1' }, { chars: { c_t: { id: 'c_t', npc: true } } }), shown = runB.bodyView(Object.assign({}, rN, { bodyTgt: 'c_t' }), { id: 'p1' }, { chars: { c_t: { id: 'c_t', ownerId: 'p1' } } });
+        check('1.6.2 the stray shot is a full hit: aimed at the body, named to a player who can see the target and to no one else, the host\u2019s own keys never sent; a critical failure hits nobody',
+            rN.body === 1 && rN.bodyName === 'Guard' && rN.bodyTok === 'tb' && aimed.range.tid === 'tb' && aimed.range.mod === 0 && !seen.bodyName && seen.bodyTok === undefined && seen.bodyTgt === undefined && shown.bodyName === 'Guard' && shown.bodyTok === undefined && fumble === false, j([rN, aimed, seen, shown, fumble]));
         const nt = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8');
         check('both roll paths ask the switch for a roll that is no damage, and the landing for a damage roll, before where a hit behind cover lands',
-            nt.includes("if (recQ.dmg !== 1 && chQ && typeof bodySwitch === 'function') bodySwitch(campQ, chQ.id, recQ, resQ, Dq, mfQ, tcQ && tcQ.range,") && nt.includes("if (rec.dmg !== 1 && chR && typeof bodySwitch === 'function') bodySwitch(campR, chR.id, rec, res, D, mfR, tcR && tcR.range,") && nt.includes("if (recQ.dmg === 1 && chQ && !recQ.dmgOn && typeof bodyLand === 'function') bodyLand(recQ, chQ.id, tcQ && tcQ.range);") && nt.includes("typeof bodyLand === 'function') bodyLand(rec, chR.id, tcR && tcR.range);") && nt.includes("window.wpFog.bodiesOnLine(map, tok, w, drop)"));
+            nt.includes("if (recQ.dmg !== 1 && chQ && typeof bodySwitch === 'function' && bodySwitch(campQ, chQ.id, recQ, resQ, Dq, mfQ, tcQ && tcQ.range,") && nt.includes("tcQ = bodyAim(tcQ, recQ);") && nt.includes("if (rec.dmg !== 1 && chR && typeof bodySwitch === 'function' && bodySwitch(campR, chR.id, rec, res, D, mfR, tcR && tcR.range,") && nt.includes("tcR = bodyAim(tcR, rec);") && nt.includes("if (recQ.dmg === 1 && chQ && !recQ.dmgOn && typeof bodyLand === 'function') bodyLand(recQ, chQ.id, tcQ && tcQ.range);") && nt.includes("typeof bodyLand === 'function') bodyLand(rec, chR.id, tcR && tcR.range);") && nt.includes("window.wpFog.bodiesOnLine(map, tok, w, drop)"));
     }
     /* ---- 1.6.0 (the owner, 2026-10-31, by prompt: "A card to press"): Calls for on the host: the slice run for real with the real core and a recording card ---- */
     {

@@ -228,6 +228,9 @@ At the table
   turn, as the mark says. A mark also ends the moment an effect you pick is on
   for either token. Shake off, a change of a roll's Then or an action, takes a
   mark off the one who rolls, whoever holds it.
+- The arrow beside the pointer location at the top right of a map folds its
+  numbers away, and a second press shows them again. This computer remembers
+  which you chose.
 - A list's rows can be sheets. Tick Rows are sheets, and each row can be
   joined to a character sheet of the campaign, as a vehicle's row to the
   vehicle's own sheet. The sheet's picture and name stand on the row and open

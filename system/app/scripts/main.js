@@ -97,6 +97,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   window.wpApplyCorner = applyCorner;
   // [lookcheck:corner-end]
   applyCorner();
+  // [lookcheck:posfold-start]
+  // 1.6.2 (the owner, 2026-11-04: "clicking the mouse icon collapses it horizontally, and clicking it again expands it"): the pointer location's arrow
+  // folds its numbers away and shows them again, kept on this computer. The box stays where it is, and Toggle Pointer Location still hides the whole part
+  function posFoldSet(box, btn, fold) {
+    if (!box || !btn) return; box.classList.toggle('pos-fold', !!fold); btn.setAttribute('aria-pressed', fold ? 'true' : 'false');
+    var w = fold ? 'Show where the pointer is on the map.' : 'Fold the pointer location away. Press again to show it.';
+    if (btn.dataset && 'tip' in btn.dataset) btn.dataset.tip = w; else btn.title = w;
+  }
+  function posFoldWire(doc, store) {
+    var box = doc.getElementById('zoomBox'), btn = doc.getElementById('cursorPosBtn'); if (!box || !btn) return false;
+    var kept = false; try { kept = store.getItem('wp_posFold') === '1'; } catch (e) {}
+    posFoldSet(box, btn, kept);
+    btn.addEventListener('click', function(e) { e.stopPropagation(); var f = !box.classList.contains('pos-fold'); posFoldSet(box, btn, f); try { if (f) store.setItem('wp_posFold', '1'); else store.removeItem('wp_posFold'); } catch (err) {} });
+    return true;
+  }
+  // [lookcheck:posfold-end]
+  try { posFoldWire(document, window.localStorage); } catch (e) {}
 
   var _el_zoomInBtn = document.getElementById('zoomInBtn');
 

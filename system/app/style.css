@@ -2158,6 +2158,14 @@
   #zoomBox input:hover { border-color: var(--edge); }
   #zoomBox input:focus { border-color: var(--gold); background: var(--panel2); }
   #cursorPos { font-family: monospace; font-size: 11px; color: var(--dim); min-width: 80px; text-align: right; white-space: nowrap; }
+  /* 1.6.2 (the owner, 2026-11-04: "clicking the mouse icon collapses it horizontally, and clicking it again expands it"): the arrow folds the numbers away */
+  #zoomBox .zoom-posbtn { width: 22px; height: 22px; color: var(--dim); }
+  #zoomBox .zoom-posbtn > .ico { width: 13px; height: 13px; }
+  #zoomBox .zoom-pos { padding-left: 0; }
+  #cursorPos { max-width: 120px; overflow: hidden; transition: max-width 0.18s ease, min-width 0.18s ease, opacity 0.18s ease; }
+  #zoomBox.pos-fold #cursorPos { max-width: 0; min-width: 0; opacity: 0; }
+  #zoomBox.pos-fold .zoom-posbtn { color: var(--ink); }
+  @media (prefers-reduced-motion: reduce) { #cursorPos { transition: none; } }
   .zoom-sep { width: 1px; height: 16px; background: var(--edge); }
   body.no-pointerpos #zoomBox .zoom-pos, body.no-zoomctl #zoomBox .zoom-ctl, body.no-pointerpos #zoomBox .zoom-sep, body.no-zoomctl #zoomBox .zoom-sep { display: none; }
   body.no-pointerpos.no-zoomctl #zoomBox { display: none !important; }   /* both put away: no empty box (render() writes the box's display inline) */

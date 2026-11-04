@@ -192,6 +192,9 @@ At the table
   roll cards, which are edged in its colour, and a player's own sheet text is
   set in their font.
   Personal looks is a VTT feature, on until the GM switches it off.
+- A roll can take dice as a bonus. The ± window has Dice to add, for a one-off
+  +1d6, and a roll bonus can add dice as well as a figure. Added dice count in
+  the total and never toward a critical.
 - A wound can be worked out by a formula of what got through, for every damage
   type or for one type alone. The system says whether a wound of 0 still wears
   armour.

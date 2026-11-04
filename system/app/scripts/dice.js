@@ -3,7 +3,7 @@
    feature switch. The wire and the rolling itself live in net.js (net.diceRoll, the roll-req / roll / roll-deny
    handlers); the validators, replay and text in dicecore.js. Design of record: docs/DICE_PLAN.md. */
 import { toast } from './io.js';
-import { malfWords, coverHitWords, LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy, dueMajor, hitFaces, cleanPos, posWords } from './dicecore.js';
+import { cleanDiceBonus, malfWords, coverHitWords, LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy, dueMajor, hitFaces, cleanPos, posWords } from './dicecore.js';
 import { dieNode } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
 
 var ui = function(id) { return document.getElementById(id); };
@@ -45,7 +45,7 @@ function readWords(r) {
     return '';
 }
 function readableInto(brk, res, parts, expr) {
-    var groups = parts.filter(function(p) { return p && typeof p === 'object' && p.die; }), b = res.breakdown || {}, top = null;
+    var all = parts.filter(function(p) { return p && typeof p === 'object' && p.die; }), groups = all.filter(function(p) { return !p.die.plus; }), plus = all.filter(function(p) { return p.die.plus; }), b = res.breakdown || {}, top = null;   // 1.6.2: dice added as a bonus are said apart
     (Array.isArray(b.checks) ? b.checks : []).forEach(function(c) { if (c && c.top) top = c; });
     groups.forEach(function(p, i) {
         var d = p.die, was = i ? groups[i - 1].die : null;
@@ -57,16 +57,26 @@ function readableInto(brk, res, parts, expr) {
     });
     (Array.isArray(b.reads) ? b.reads : []).forEach(function(r) { var w = readWords(r); if (w) brk.appendChild(document.createTextNode(' \u00b7 ' + w)); });
     if (!top && groups.length && typeof res.value === 'number' && isFinite(res.value) && !/[*\/%(]/.test(String(expr || ''))) {   // 1.6.0: dice and adds, a sheet's value among them: the add said, or the sum after it reads as a slip. A formula that does more than add says its total alone
-        var diceSum = groups.reduce(function(n, p) { return n + (p.die && typeof p.die.total === 'number' ? p.die.total : NaN); }, 0), addN = res.value - diceSum;
+        plusInto(brk, plus, expr, ' + '); plus = [];
+        var diceSum = all.reduce(function(n, p) { return n + (p.die && typeof p.die.total === 'number' ? p.die.total * plusSign(p.die, expr) : NaN); }, 0), addN = res.value - diceSum;
         if (isFinite(addN) && addN !== 0) brk.appendChild(document.createTextNode((addN > 0 ? ' + ' : ' \u2212 ') + fmtNum(Math.abs(addN))));
     }
     if (top && typeof top.left === 'number' && typeof top.right === 'number' && isFinite(top.left) && isFinite(top.right)) {
         var w = top.op === '<=' ? ' or less' : top.op === '>=' ? ' or more' : top.op === '<' ? ', under it' : top.op === '>' ? ', over it' : '';
         brk.appendChild(document.createTextNode((groups.length ? ' = ' : '') + fmtNum(top.left) + ' \u00b7 needs ' + fmtNum(top.right) + w));
     }
+    if (plus.length) { brk.appendChild(document.createTextNode(' \u00b7 added ')); plusInto(brk, plus, expr, ''); }
     var full = parts.map(function(p) { return typeof p === 'string' ? p : p.text; }).join('');
     var Fw = F();   // 1.6.2: a formula that reads the sheet keeps its names off the card, and renderCard says them in words
-    brk.title = Fw && Fw.plainDice && !Fw.plainDice(String(expr || '')) ? '' : String(expr || '') + (full ? '\n' + full : '');
+    brk.title = Fw && Fw.plainDice && !Fw.plainDice(String(expr || '')) ? '' : String(expr || '').replace(/@_bonus/g, '') + (full ? '\n' + full : '');
+}
+// 1.6.2: an added die's sign, read from the formula just before it (composeModifier writes ' - 1d4@_bonus' for one taken away), and the dice said
+function plusSign(d, expr) { if (!d || !d.plus || typeof d.pos !== 'number') return 1; return /-\s*$/.test(String(expr || '').slice(0, d.pos)) ? -1 : 1; }
+function plusInto(brk, plus, expr, first) {
+    plus.forEach(function(p, i) {
+        var d = p.die, neg = plusSign(d, expr) < 0; brk.appendChild(document.createTextNode(neg ? (i || first ? ' \u2212 ' : '\u2212') : (i ? ' + ' : first)));
+        brk.appendChild(document.createTextNode(d.count + 'd' + d.faces + ' [')); brk.appendChild(el('span', 'roll-die', p.text)); brk.appendChild(document.createTextNode(']'));
+    });
 }
 function namesHover(rec) { var w = window.wpSheets && typeof window.wpSheets.nameWord === 'function' ? window.wpSheets.nameWord : null; return w && Array.isArray(rec.names) ? rec.names.map(function(n) { return w(n.name) + ': ' + n.value; }).join('\n') : ''; }
 // 1.5.8 (handoff 90 Part B): what changed the values the roll read, under its dice: each value's name and its figure, before and after where
@@ -87,10 +97,12 @@ function modsInto(wrap, mods) {
     });
     if (any) wrap.appendChild(box);
 }
+// 1.6.2: a bonus as it reads, its figure and its dice (+2 +1d6, +1d6, −1d4)
+function bonusWords(v, d) { var w = typeof v === 'number' && v ? (v > 0 ? '+' : '−') + Math.abs(v) : ''; if (typeof d === 'string' && d) w += (w ? ' ' : '') + d.replace(/-/g, '−').replace(/(.)([+−])/g, '$1 $2'); return w || '+0'; }
 // 1.6.0 roll switches: the bonuses ticked in the roll's ± window, by name, as text nodes; nothing where it had none
 function swInto(wrap, sw) {
     if (!Array.isArray(sw) || !sw.length) return; var box = el('div', 'chat-mods chat-sw');
-    sw.forEach(function(x) { if (x && typeof x === 'object' && typeof x.v === 'number') box.appendChild(el('div', 'chat-mod-src', (x.v > 0 ? '+' : '−') + Math.abs(x.v) + ' ' + x.n + ', added')); });
+    sw.forEach(function(x) { if (x && typeof x === 'object' && typeof x.v === 'number') box.appendChild(el('div', 'chat-mod-src', bonusWords(x.v, x.d) + ' ' + x.n + ', added')); });
     if (box.firstChild) wrap.appendChild(box);
 }
 // 1.6.0 Specialties: the case each reference the roll read used, such as as Blade (Longsword) \u22122, as text nodes; nothing where it read none
@@ -345,15 +357,15 @@ function clampMod(v) { return v > 99 ? 99 : v < -99 ? -99 : v; }
 // What the ± window's Roll sends: a named roll (a system roll, a list's roll by its index, and since 1.6.0 a field's own roll) its modifier,
 // advantage and roll switches as data, which the host rebuilds the formula from; a roll that is not named and has a switch ticked is named by
 // the roll's swRef first (act, row with its index, fr); any other its formula alone, as before
-function modOpts(opts, mod, advMode, pk, rf) {   // rf: the roll's swRef
+function modOpts(opts, mod, advMode, pk, rf, md) {   // rf: the roll's swRef; md (1.6.2): the dice the window adds
     var o = opts, named = !!(opts && (opts.act || opts.fr || (opts.row && typeof opts.row.i === 'number')));
     if (pk && pk.length && !named && rf && typeof rf === 'object') { o = Object.assign({}, opts || {}); if (typeof rf.r === 'string') o.act = rf.r; else if (typeof rf.f === 'string') o.fr = rf.f; else if (typeof rf.l === 'string' && typeof rf.row === 'string' && typeof rf.i === 'number') o.row = { f: rf.l, r: rf.row, i: rf.i }; named = !!(o.act || o.fr || o.row); }
-    return named ? Object.assign({}, o, { mod: mod || undefined, adv: advMode !== 'normal' ? advMode : undefined, sw: pk && pk.length ? pk : undefined }) : opts;
+    return named ? Object.assign({}, o, { mod: mod || undefined, modD: md || undefined, adv: advMode !== 'normal' ? advMode : undefined, sw: pk && pk.length ? pk : undefined }) : opts;
 }
 function rollWithMod(charId, expr, label, opts, anchor, swRef) {   // swRef (1.6.0): which roll this is ({ f } | { r } | { l, row, i }), for its roll switches
     var Fm = F(); closeModPop();
     if (!Fm || !Fm.parse) return rollFor(charId, expr, label, opts);
-    var mod = 0, advMode = 'normal', numEl, prevEl, advBtns = {};
+    var mod = 0, modD = '', advMode = 'normal', numEl, prevEl, advBtns = {}, dIn = null, dSay = null;   // 1.6.2: modD, dice added, as cleanDiceBonus writes them
     var canAdv = withAdvantage(expr, 'adv', Fm.parse).ok;   // a lone plain die can roll twice keep best/worst
     var pop = el('div', 'dice-modpop'); modPop = pop;
     pop.appendChild(el('div', 'dice-modpop-title', label ? 'Roll ' + label : 'Roll with a modifier'));
@@ -362,11 +374,12 @@ function rollWithMod(charId, expr, label, opts, anchor, swRef) {   // swRef (1.6
     var swAv = swRef && typeof swRef === 'object' && window.wpSheets && typeof window.wpSheets.rollSwitchesFor === 'function' ? window.wpSheets.rollSwitchesFor(charId, swRef) : [], swOn = {}, swBtns = [];
     if (!Array.isArray(swAv)) swAv = [];
     function swSum() { return swAv.reduce(function(s, w) { return s + (swOn[w.s + '#' + w.i] ? w.v : 0); }, 0); }
+    function swDice() { return swAv.reduce(function(s, w) { return s + (swOn[w.s + '#' + w.i] && typeof w.d === 'string' ? w.d : ''); }, ''); }   // 1.6.2: their dice, in the order offered (as the host adds them)
     if (swAv.length) {
         var swBox = el('div', 'dice-modsw'); swBox.appendChild(el('div', 'dice-modsw-cap', 'Bonuses you may add'));
         swAv.forEach(function(w) {
             var k = w.s + '#' + w.i, b = el('button', 'tool ghost dice-swbtn'); b.type = 'button'; b.setAttribute('aria-pressed', 'false');
-            b.appendChild(el('span', 'dice-swbtn-n', w.name)); b.appendChild(el('span', 'dice-swbtn-v', (w.v > 0 ? '+' : '−') + Math.abs(w.v)));
+            b.appendChild(el('span', 'dice-swbtn-n', w.name)); b.appendChild(el('span', 'dice-swbtn-v', bonusWords(w.v, w.d)));
             b.title = 'Add ' + w.name + ' to this roll'; if (w.cost) { b.appendChild(el('span', 'dice-swbtn-c', w.cost)); b.title += '. Ticking it costs this as you roll: ' + w.cost; } b.addEventListener('click', function() { swOn[k] = !swOn[k]; refresh(); });
             swBtns.push([b, k]); swBox.appendChild(b);
         });
@@ -375,11 +388,11 @@ function rollWithMod(charId, expr, label, opts, anchor, swRef) {   // swRef (1.6
     function applied() {   // advantage first (rewrites the die), then the flat modifier
         var base = expr;
         if (advMode !== 'normal') { var a = withAdvantage(expr, advMode, Fm.parse); if (a.ok) base = a.expr; }
-        return composeModifier(base, mod + swSum(), Fm.parse);   // 1.6.0: and the roll switches ticked
+        return composeModifier(base, mod + swSum(), Fm.parse, modD + swDice());   // 1.6.0: and the roll switches ticked; 1.6.2: and the dice added
     }
     function prevWords(x) {   // 1.6.2: plain dice as they stand, and a roll that reads the sheet in words: its name and what was added
-        if (!Fm.plainDice || Fm.plainDice(x)) return x;
-        var n = mod + swSum(), w = [label || 'This roll']; if (n) w.push((n > 0 ? '+' : '\u2212') + Math.abs(n)); if (advMode !== 'normal') w.push(advMode === 'adv' ? 'with advantage' : 'with disadvantage'); return w.join(' ');
+        if (!Fm.plainDice || (Fm.plainDice(x) && !(typeof Fm.names === 'function' && Fm.names(x).length))) return x;   // 1.6.2: a roll that reads a name is said by its own, never by the name
+        var n = mod + swSum(), dd = modD + swDice(), w = [label || 'This roll']; if (n || dd) w.push(bonusWords(n, dd)); if (advMode !== 'normal') w.push(advMode === 'adv' ? 'with advantage' : 'with disadvantage'); return w.join(' ');
     }
     function refresh() { swBtns.forEach(function(p) { p[0].classList.toggle('on', !!swOn[p[1]]); p[0].setAttribute('aria-pressed', swOn[p[1]] ? 'true' : 'false'); }); numEl.textContent = (mod > 0 ? '+' : '') + mod; var r = applied(); prevEl.textContent = prevWords(r.ok ? r.expr : expr); if (canAdv) ['dis', 'normal', 'adv'].forEach(function(m) { advBtns[m].classList.toggle('on', advMode === m); }); }
     if (canAdv) {
@@ -395,8 +408,14 @@ function rollWithMod(charId, expr, label, opts, anchor, swRef) {   // swRef (1.6
     numEl = el('span', 'dice-modpop-val', '0');
     var plus = el('button', 'tool ghost dice-modpm', '+'); plus.title = 'One more'; plus.addEventListener('click', function() { mod = clampMod(mod + 1); refresh(); });
     numRow.appendChild(minus); numRow.appendChild(numEl); numRow.appendChild(plus); pop.appendChild(numRow);
+    // 1.6.2 dice as bonuses (the owner: "A GM often calls for a one-off die ('+1d6 for the high ground')"): dice to add, typed as a table says them
+    var dRow = el('label', 'dice-moddice'); dRow.appendChild(el('span', 'dice-moddice-cap', 'Dice to add'));
+    dIn = el('input', 'field dice-moddice-in'); dIn.type = 'text'; dIn.maxLength = 40; dIn.placeholder = '+1d6'; dIn.title = 'Dice added to this roll, such as +1d6 or +1d6 \u2212 1d4. They add to its total and never make a critical'; dIn.setAttribute('autocomplete', 'off');
+    dIn.addEventListener('input', function() { var v = cleanDiceBonus(dIn.value); modD = v || ''; dSay.textContent = v === null ? 'Write dice as 1d6, or +1d6 \u2212 1d4: up to 4, each up to 20 dice.' : ''; refresh(); });
+    dIn.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+    dRow.appendChild(dIn); pop.appendChild(dRow); dSay = el('div', 'dice-moddice-say', ''); dSay.setAttribute('aria-live', 'polite'); pop.appendChild(dSay);
     prevEl = el('div', 'dice-modpop-prev', ''); pop.appendChild(prevEl);
-    var go = el('button', 'tool dice-modpop-go', 'Roll'); go.addEventListener('click', function() { var r = applied(); if (!r.ok) { toast('That roll cannot take that change.'); return; } closeModPop(); rollFor(charId, r.expr, label, modOpts(opts, mod, advMode, swAv.filter(function(w) { return swOn[w.s + '#' + w.i]; }).map(function(w) { return { s: w.s, i: w.i }; }), swRef)); });   // R1: a roll with consequences sends its modifier and advantage as data
+    var go = el('button', 'tool dice-modpop-go', 'Roll'); go.addEventListener('click', function() { var r = applied(); if (dIn && cleanDiceBonus(dIn.value) === null) { toast('Write the dice to add as 1d6, or +1d6 \u2212 1d4.'); dIn.focus(); return; } if (!r.ok) { toast('That roll cannot take that change.'); return; } closeModPop(); rollFor(charId, r.expr, label, modOpts(opts, mod, advMode, swAv.filter(function(w) { return swOn[w.s + '#' + w.i]; }).map(function(w) { return { s: w.s, i: w.i }; }), swRef, modD)); });   // R1: a roll with consequences sends its modifier and advantage as data
     pop.appendChild(go);
     document.body.appendChild(pop);
     var rct = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 120, top: 120, bottom: 140 };

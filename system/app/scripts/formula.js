@@ -43,7 +43,8 @@ var RE_CSBAD = /cs(-?\d+)/iy;
 var RE_EXPL = /!(?!=)/y;
 var RE_OWN = /!!(?!=)/y;                                 // 1.6.2: each die an explosion rolls is a die of its own. d6!!=3 stays d6! != 3, as it always read
 var RE_OWNOP = /<=|>=|<|>/y;
-var RE_DNAME = /@([\p{L}_][\p{L}\p{N}_]*)/uy;          // 1.6.2: a dice term's name, its last suffix: 5d10cs>=7@pool
+var RE_DNAME = /@([\p{L}_][\p{L}\p{N}_]*)/uy;
+var BONUS_AS = /^_bonus$/;   // 1.6.2: dice added as a bonus (dicecore composeModifier names them so): added to the roll, never part of its natural figure          // 1.6.2: a dice term's name, its last suffix: 5d10cs>=7@pool
 var RE_CMPF = /cs(<=|>=|!=|<>|==|=|<|>)\(/iy, RE_RERF = /(rr|r)(<=|>=|!=|<>|==|=|<|>)\(/iy;   // 1.6.2: a figure in brackets, read when the dice are rolled
 var SUFFIX_SHAPE = /^(?:(?:kh|kl|dh|dl)\d*|rr?(?:<=|>=|!=|<>|==|=|<|>)?-?\d+|cs\S*|!)$/i;
 function table(o) { return Object.assign(Object.create(null), o); }       // no prototype: a name called constructor is just a name
@@ -596,7 +597,7 @@ function rollDice(node, c) {
     c.pool += count;
     var lo = fudge ? -1 : 1, hi = fudge ? 1 : faces, facesText = fudge ? 'dF' : 'd' + faces;
     var rec = { text: node.text, count: count, faces: fudge ? 'F' : faces, rolls: [], kept: [], dropped: [], rerolled: [], exploded: [], capped: false, cs: null, total: 0, dice: [], pos: node.pos, len: node.len };
-    if (node.as) rec.as = node.as; if (c.aside) rec.aside = true;
+    if (node.as) rec.as = node.as; if (c.aside) rec.aside = true; if (node.as && BONUS_AS.test(node.as)) rec.plus = true;
     var idx = c.dice.length; c.dice.push(rec); c.recs.set(node, { dice: idx, value: 0 });
     if (count === 0) return 0;
     if (node.explode) {
@@ -884,7 +885,7 @@ function evaluateAst(ast, options) {
         }
         var dice = c.dice.map(function(rec) {
             return { text: rec.text, count: rec.count, faces: rec.faces, rolls: rec.rolls, kept: rec.kept, dropped: rec.dropped, rerolled: rec.rerolled, exploded: rec.exploded,
-                     capped: rec.capped, cs: rec.cs, total: rec.total, dice: rec.dice, pos: rec.pos, len: rec.len, as: rec.as, aside: rec.aside };
+                     capped: rec.capped, cs: rec.cs, total: rec.total, dice: rec.dice, pos: rec.pos, len: rec.len, as: rec.as, aside: rec.aside, plus: rec.plus };
         });
         var summary = top ? fmt(top.left) + ' ' + top.op + ' ' + fmt(top.right) + ': ' + verdict(top) : '= ' + fmt(value);
         return { ok: true, value: value, type: typeof value === 'boolean' ? 'boolean' : 'number', diceRolled: c.pool, draws: c.draws,
@@ -903,7 +904,7 @@ function names(text) { var p = parse(text); return p.ok ? p.names : []; }
 // 1.6.2: a formula anyone at a table reads as it stands: dice, numbers and arithmetic, with no function and nothing named with @. Anything else is said in words on its card
 function plainDice(text) {
     var p = parse(text); if (!p.ok) return false;
-    function has(n) { if (!n || typeof n !== 'object') return false; if (Array.isArray(n)) return n.some(has); if (n.t === 'call' || (n.t === 'dice' && n.as)) return true; return ['a', 'l', 'r', 'body', 'expr'].some(function(k) { return has(n[k]); }) || (Array.isArray(n.items) && n.items.some(function(x) { return has(x && x.node ? x.node : x); })); }
+    function has(n) { if (!n || typeof n !== 'object') return false; if (Array.isArray(n)) return n.some(has); if (n.t === 'call' || (n.t === 'dice' && n.as && !BONUS_AS.test(n.as))) return true; return ['a', 'l', 'r', 'body', 'expr'].some(function(k) { return has(n[k]); }) || (Array.isArray(n.items) && n.items.some(function(x) { return has(x && x.node ? x.node : x); })); }
     return !has(p.ast);
 }
 // The breakdown as tokens for a renderer: strings, and { die: <dice record>, text } for each dice group (cap = dice shown per group)

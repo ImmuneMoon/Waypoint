@@ -147,6 +147,9 @@ jobs:
       - name: fxvalcheck — an effect that holds a number, added again, falling over time, changed by hand
         if: ${{ !cancelled() }}
         run: node tools/fxvalcheck.js
+      - name: dicebonuscheck — dice added to a roll, in the modifier window and as a roll bonus
+        if: ${{ !cancelled() }}
+        run: node tools/dicebonuscheck.js
       - name: woundfcheck — a wound worked out by a formula, for every type or one, and a wound of 0
         if: ${{ !cancelled() }}
         run: node tools/woundfcheck.js

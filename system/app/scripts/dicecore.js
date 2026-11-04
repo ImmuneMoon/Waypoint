@@ -52,13 +52,24 @@ function cleanExpr(s) {
 // split at its top-level operator (the parser allows only one): roll-OVER (>,>=,=,!=) boosts the roll (left)
 // side; roll-UNDER (<,<=) eases the target (right) side. The result is re-parsed so a broken formula is never
 // produced — and, since it is just a longer formula string, the host resolves it through the normal wire path.
-function mainDice(res) { return (res && res.ok && res.breakdown && Array.isArray(res.breakdown.dice) ? res.breakdown.dice : []).filter(function(d) { return !d || !d.aside; }); }   // 1.6.2: dice with() rolled to read are no part of the roll's own
-function composeModifier(expr, mod, parse) {
+function mainDice(res) { return (res && res.ok && res.breakdown && Array.isArray(res.breakdown.dice) ? res.breakdown.dice : []).filter(function(d) { return !d || (!d.aside && !d.plus); }); }   // 1.6.2: dice with() rolled to read are no part of the roll's own
+// 1.6.2: dice as a bonus (the owner, by prompt: "Roll bonuses and the \u00b1 modifier"): a few dice terms, such as +1d6 or 1d6 - 1d4, each 1 to
+// 20 dice of 2 to 1000 sides, at most max terms (4). '' for none, null for text that is no such dice. The answer is written +1d6-1d4
+var DICE_BONUS = /^([+-]?)(\d{0,2})d(\d{1,4})/i;
+function cleanDiceBonus(v, max) {
+    if (v === undefined || v === null) return ''; if (typeof v !== 'string' || v.length > 80 || /[\dd]\s+[\dd]/i.test(v)) return null;   // a space inside a term (1d6 2) is no dice
+    var s = v.replace(/\s+/g, ''), out = '', n = 0, cap = isInt(max) && max > 0 ? max : 4; if (!s) return '';
+    while (s) { var m = DICE_BONUS.exec(s); if (!m || (n && !m[1])) return null; var c = m[2] === '' ? 1 : +m[2], f = +m[3]; if (c < 1 || c > 20 || f < 2 || f > 1000 || ++n > cap) return null; out += (m[1] === '-' ? '-' : '+') + c + 'd' + f; s = s.slice(m[0].length); }
+    return out;
+}
+function bonusDiceText(d) { var o = '', re = /([+-])(\d+)d(\d+)/g, m; while ((m = re.exec(d))) o += (m[1] === '-' ? ' - ' : ' + ') + m[2] + 'd' + m[3] + '@_bonus'; return o; }   // each named _bonus, so no critical reads it
+function composeModifier(expr, mod, parse, dice) {   // 1.6.2: dice, cleanDiceBonus's text (up to 8 terms in all), added beside the figure
     if (typeof parse !== 'function') return { ok: false };
     var clean = cleanExpr(expr); if (!clean) return { ok: false };
     if (!isInt(mod)) return { ok: false };            // a non-integer modifier is not allowed
-    if (mod === 0) return { ok: true, expr: clean };   // nothing to fold in
-    var modTxt = (mod > 0 ? ' + ' : ' - ') + Math.abs(mod), out;
+    var dz = dice ? cleanDiceBonus(dice, 8) : ''; if (dz === null) return { ok: false };
+    if (mod === 0 && !dz) return { ok: true, expr: clean };   // nothing to fold in
+    var modTxt = (mod ? (mod > 0 ? ' + ' : ' - ') + Math.abs(mod) : '') + bonusDiceText(dz), out;
     var p = null; try { p = parse(clean); } catch (e) { p = null; }
     var body = p && p.ok && p.ast ? p.ast.body : null, top = p && p.ok && p.ast && p.ast.top ? p.ast.top : body, inW = top !== body && top && isInt(top.pos) && isInt(top.len);   // 1.6.2: inside with(), the comparison's own span
     var from = inW ? top.pos : 0, to = inW ? top.pos + top.len : clean.length;
@@ -199,7 +210,7 @@ function cleanRid(msg) { return msg && typeof msg === 'object' && typeof msg.rid
 var SW_RE = /^f_[A-Za-z0-9_]{1,24}\|[a-z]_[A-Za-z0-9_]{1,24}$/;
 function cleanSwNames(v) {
     if (!Array.isArray(v) || !v.length || v.length > LIMITS.swPicks) return null; var o = [];
-    for (var i = 0; i < v.length; i++) { var x = v[i]; if (!x || typeof x !== 'object') return null; var n = cleanLabel(x.n); if (!n || !isInt(x.v) || !x.v || x.v < -99 || x.v > 99) return null; o.push({ n: n, v: x.v }); }
+    for (var i = 0; i < v.length; i++) { var x = v[i]; if (!x || typeof x !== 'object') return null; var n = cleanLabel(x.n), dz = cleanDiceBonus(x.d); if (!n || dz === null || !isInt(x.v) || (!x.v && !dz) || x.v < -99 || x.v > 99) return null; var w = { n: n, v: x.v }; if (dz) w.d = dz; o.push(w); }   // 1.6.2: d, its dice
     return o;
 }
 // 1.6.2: what a press answered, as data the host judges (systemcore cleanAskWire, kept to the same shape), and the words a card says of it
@@ -257,8 +268,9 @@ function cleanRollReq(msg) {
     }
     if (out.act || out.fr || (out.row && out.row.i !== undefined)) {   // R1/R2b: a named entry's modifier and advantage
         if (msg.mod !== undefined) { if (!isInt(msg.mod) || msg.mod < -99 || msg.mod > 99) return null; if (msg.mod) out.mod = msg.mod; }
+        if (msg.modD !== undefined) { var mdz = cleanDiceBonus(msg.modD); if (mdz === null) return null; if (mdz) out.modD = mdz; }   // 1.6.2: dice the \u00b1 window adds
         if (msg.adv !== undefined) { if (msg.adv !== 'adv' && msg.adv !== 'dis') return null; out.adv = msg.adv; }
-    } else if (msg.mod !== undefined || msg.adv !== undefined) return null;
+    } else if (msg.mod !== undefined || msg.modD !== undefined || msg.adv !== undefined) return null;
     if (msg.sw !== undefined) {   // 1.6.0: the roll switches ticked in its ± window, each by its holder and its place there (the host judges them: systemcore swJudge)
         if (!(out.act || out.fr || (out.row && out.row.i !== undefined)) || !Array.isArray(msg.sw) || !msg.sw.length || msg.sw.length > LIMITS.swPicks) return null;
         var swO = [], swK = {};
@@ -731,6 +743,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { hidExpr: hidExpr, hidCrit: hidCrit, hidRoll: hidRoll, cleanAtt: cleanAtt, malfWords: malfWords, cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanCardAct: cleanCardAct, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
+var API = { cleanDiceBonus: cleanDiceBonus, hidExpr: hidExpr, hidCrit: hidCrit, hidRoll: hidRoll, cleanAtt: cleanAtt, malfWords: malfWords, cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanCardAct: cleanCardAct, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { hidExpr, hidCrit, hidRoll, cleanAtt, malfWords, cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanCardAct, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };
+export { cleanDiceBonus, hidExpr, hidCrit, hidRoll, cleanAtt, malfWords, cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanCardAct, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };

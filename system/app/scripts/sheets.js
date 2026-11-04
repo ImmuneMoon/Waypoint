@@ -9,7 +9,7 @@ import { save, toast, toastAction } from './io.js';
 import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, CUR_MAX, priceCurOf, moneySummary, condShare, cleanHeld, areaFxPlan, cleanOnRemove, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsCapLines, capRead, capFOk, fitRows, partsKept, grantsKept, GRANT_MAX, START_MAX, startRows, partHostOk, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
-import { renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
+import { swDice, renamesOf, renamesCarry, renamesOnChars, renamesSay, swGone, goneRefs, catsGone, catNear, keysGone, keyUses, keyUseSays } from './systemcore.js';   // 1.6.2: backlog 208, the tracing audit
 import { cleanCardActs, CARD_MAX } from './systemcore.js';   // 1.6.2: what a card offers
 import { cleanAsks, askEnds, askJudge, withAsk, ASKS_MAX, ASK_OPTS } from './systemcore.js';   // 1.6.2: a roll's questions
 import { nameWord, nameAsks, readsOf, plainMessage } from './systemcore.js';   // 1.6.2: a name in words, and what a box may offer
@@ -9124,7 +9124,8 @@ function swBox(h) {
         if (!s || typeof s !== 'object') return;
         var ln = el('div', 'sys-fx-mod sys-sw'); ln.dataset.si = String(si);
         ln.appendChild(input('sys-sw-name field', typeof s.name === 'string' ? s.name : '', 'Its name in the roll\u2019s \u00b1 window and on the card, such as Aimed shot', 'Name'));
-        ln.appendChild(numInput('sys-sw-v', typeof s.v === 'number' ? s.v : '', 'How much it helps the roll, as the \u00b1 window\u2019s modifier does. A negative one hinders. Whole, 1 to 99 either way', '1'));
+        ln.appendChild(numInput('sys-sw-v', typeof s.v === 'number' ? s.v : '', 'How much it helps the roll, as the \u00b1 window\u2019s modifier does. A negative one hinders. Whole, 1 to 99 either way, or 0 where it adds dice alone', '1'));
+        ln.appendChild(input('sys-sw-d field', typeof s.d === 'string' ? s.d : '', 'Dice it adds to the roll, such as +1d6 or +1d6 \u2212 1d4: up to 4, each up to 20 dice. They add to the total and never make a critical. Blank: none', 'Dice it adds'));   // 1.6.2
         var pyO = [['', 'No cost']].concat((Array.isArray(draft.rolls) ? draft.rolls : []).filter(function(r) { return !!r && Array.isArray(r.apply) && typeof r.id === 'string'; }).map(function(r) { return [r.id, 'Costs: ' + (r.label || 'Apply')]; })); if (typeof s.pay === 'string' && s.pay && !pyO.some(function(o) { return o[0] === s.pay; })) pyO.push([s.pay, 'Costs: an action that is gone']); ln.appendChild(select('sys-sw-pay', pyO, typeof s.pay === 'string' ? s.pay : '', 'What ticking it spends: one of the system\u2019s actions, run as the roll is made. A roll it cannot pay for is refused'));
         (Array.isArray(s.to) ? s.to : []).forEach(function(t, ti) {
             var tw = el('span', 'sys-sw-to'), v = swToVal(t), op = tg.slice(); tw.dataset.ti = String(ti);
@@ -9153,7 +9154,7 @@ function swRollOpts(lid, cur) {
 function swSays(s) {   // what Save does with one roll bonus: '' where it keeps it whole
     if (!s || typeof s !== 'object') return '';
     if (!(typeof s.name === 'string' && s.name.trim())) return 'Save drops it: it needs a name.';
-    var n = typeof s.v === 'number' && isFinite(s.v) ? Math.round(s.v) : 0; if (!n || n < -99 || n > 99) return 'Save drops it: how much it helps must be a whole number from 1 to 99, or from \u22121 to \u221299.';
+    var n = typeof s.v === 'number' && isFinite(s.v) ? Math.round(s.v) : 0, dz = typeof swDice === 'function' ? swDice(s.d) : ''; if (dz === null) return 'Save drops its dice: write them as 1d6, or +1d6 \u2212 1d4, up to 4, each up to 20 dice of up to 1000 sides.'; if ((!n && !dz) || n < -99 || n > 99) return 'Save drops it: how much it helps must be a whole number from 1 to 99, or from \u22121 to \u221299, or it must add dice.';
     if (!cleanRollSw([s])) return 'Save drops it: it needs a roll it offers itself to.';
     if (typeof s.pay === 'string' && s.pay && !(Array.isArray(draft.rolls) ? draft.rolls : []).some(function(r) { return !!r && r.id === s.pay && Array.isArray(r.apply); })) return 'It is kept, but the action it costs is gone, so a roll that ticks it is refused. Pick another, or No cost.';
     var gone = (Array.isArray(s.to) ? s.to : []).filter(function(t) { return t && typeof t.l === 'string' && typeof t.roll === 'string' && t.roll.trim() && swRollOpts(t.l, t.roll).o.some(function(x) { return / \(no roll of that name now\)$/.test(x[1]); }); })[0];   // 1.6.0
@@ -9165,10 +9166,11 @@ function swHolder(t) { return fxOfRow(t) || itemOfRow(t); }
 function swLine(t, h) { var ln = t && t.closest ? t.closest('.sys-sw') : null; if (!ln || !h || !Array.isArray(h.rollSw)) return null; var s = h.rollSw[+ln.dataset.si]; return s && typeof s === 'object' ? { ln: ln, s: s } : null; }
 function swSaysAt(t, s) { var box = t.closest ? t.closest('.sys-sw-box') : null, ln = t.closest ? t.closest('.sys-sw') : null, er = box && ln ? Array.prototype.filter.call(box.querySelectorAll('.sys-sw-err'), function(x) { return x.dataset.si === ln.dataset.si; })[0] : null; if (er) er.textContent = swSays(s); }
 function onSwInput(t) {
-    var c = t.className || ''; if (!/(^| )sys-sw-(name|v|key)( |$)/.test(c)) return false;
+    var c = t.className || ''; if (!/(^| )sys-sw-(name|v|key|d)( |$)/.test(c)) return false;
     var L = swLine(t, swHolder(t)); if (!L) return true;
     if (/(^| )sys-sw-name( |$)/.test(c)) L.s.name = String(t.value).slice(0, LIMITS.label);
     else if (/(^| )sys-sw-v( |$)/.test(c)) { var n = parseFloat(t.value); if (isFinite(n)) L.s.v = n; else delete L.s.v; }
+    else if (/(^| )sys-sw-d( |$)/.test(c)) { var dv = String(t.value).slice(0, 80); if (dv.trim()) L.s.d = dv; else delete L.s.d; }   // 1.6.2
     else { var tw = t.closest('.sys-sw-to'), tt = tw && Array.isArray(L.s.to) ? L.s.to[+tw.dataset.ti] : null; if (tt && typeof tt === 'object') { var k = String(t.value).trim().slice(0, LIMITS.key); if (k) tt.key = k; else delete tt.key; } }
     markDirty(); swSaysAt(t, L.s); return true;
 }

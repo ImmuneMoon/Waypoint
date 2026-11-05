@@ -10516,6 +10516,7 @@ function combatBody() {
     initBox(box, cm); tp('postures');   // initiative O2: how ties of initiative break
     postureBox(box, cm);   // conditions C3: the system's own postures
     tp('arcs'); if (typeof arcsBox === 'function') arcsBox(box, cm);   // 1.6.2 (vehicles, fold (b), rebuilt): the system's own arcs
+    tp('mapkinds'); if (typeof mapKindsBox === 'function') mapKindsBox(box);   // 1.6.2 (vehicles, fold (g)): the system's map kinds
     if (window.wpSysUi) window.wpSysUi.combatDrawn(box);   // 1.6.2: into a pane a topic
 }
 // Initiative O2 (docs/TURN_ORDER_PLAN.md; the owner's note: 3d6 systems order by Basic Speed and roll only to settle ties, d20 systems roll and
@@ -11320,6 +11321,42 @@ function arcsBox(box, cm) {
     });
     var add = el('button', 'tool ghost sys-btn sys-arc-add', '+ Arc'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'An arc a hit can come from or a gun can fire into';
     add.addEventListener('click', function() { if (!Array.isArray(cm.arcs)) cm.arcs = []; list = cm.arcs; if (list.length >= max) return; list.push({ label: '', f: -60, t: 60, _new: true }); ch(true); });
+    var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
+    box.appendChild(wrap);
+}
+// 1.6.2 (vehicles, fold (g); the owner: "a toggle that switches any map to a vehicle map", and the core's answers G1 and G2): the system's map kinds,
+// each a name, the cell a map of that kind starts at, and the factors formulas read on it. Their own listeners, so no handler of the tab reads them. A
+// new kind's or factor's short name follows its name until the editor is closed, and stays after
+var MAPKIND_UNITS = [['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['km', 'kilometres'], ['mi', 'miles']];
+function mapKindsBox(box) {
+    var wrap = el('div', 'sys-holds sys-mapkinds'), list = Array.isArray(draft.mapKinds) ? draft.mapKinds : null, SCk = window.wpSystemCore || {}, max = SCk.MAPKIND_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
+    var keyFor = function(arr, a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (arr || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    wrap.appendChild(el('div', 'sys-light-head', 'Map kinds'));
+    wrap.appendChild(el('div', 'sys-note', 'Such as Vehicle or Space. Each sets the cell a map starts at when it is picked, and names factors a rule can read on that map, such as a Speed of 10. A map with no kind is at the personal scale, and every factor reads 1 there.'));
+    (list || []).forEach(function(k, i) {
+        var card = el('div', 'sys-mapkind'), rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-mk-label field', k.label || '', 'Its name, such as Vehicle', 'Vehicle');
+        nm.addEventListener('input', function() { k.label = nm.value.slice(0, LIMITS.label); if (k._new || !k.key) k.key = keyFor(list, k, k.label); ch(); }); rw.appendChild(nm);
+        var sc = k.scale && typeof k.scale === 'object' ? k.scale : null, pw = el('label', 'sys-check'), pi = el('input', 'field sys-num sys-mk-per'); pi.type = 'number'; pi.min = '0'; pi.step = 'any'; if (sc && typeof sc.per === 'number') pi.value = String(sc.per);
+        pi.addEventListener('input', function() { var v = pi.value === '' ? NaN : Number(pi.value); if (isFinite(v) && v > 0) { k.scale = Object.assign({ unit: 'yd' }, k.scale || {}, { per: v }); } else delete k.scale; ch(); });
+        pw.appendChild(document.createTextNode('A cell is ')); pw.appendChild(pi); pw.title = 'The cell a map starts at when it is switched to this kind. Empty: the map keeps its own'; rw.appendChild(pw);
+        var us = select('sys-mk-unit', MAPKIND_UNITS, sc && sc.unit ? sc.unit : 'yd', 'The unit of that cell'); us.addEventListener('change', function(e) { e.stopPropagation(); if (k.scale) k.scale.unit = us.value; ch(); }); rw.appendChild(us);
+        var rm = el('button', 'tool ghost sys-btn sys-mk-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this map kind'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.mapKinds; ch(true); }); rw.appendChild(rm);
+        card.appendChild(rw);
+        var fs = Array.isArray(k.factors) ? k.factors : null;
+        (fs || []).forEach(function(f, j) {
+            var fr = el('div', 'sys-flags sys-arcrow sys-mk-frow'), fn = input('sys-mk-flabel field', f.label || '', 'The factor\u2019s name, such as Speed', 'Speed');
+            fn.addEventListener('input', function() { f.label = fn.value.slice(0, LIMITS.label); if (f._new || !f.key) f.key = keyFor(fs, f, f.label); ch(); }); fr.appendChild(fn);
+            var fv = el('input', 'field sys-num sys-mk-fv'); fv.type = 'number'; fv.step = 'any'; if (typeof f.v === 'number') fv.value = String(f.v); fv.title = 'The number a rule reads on a map of this kind';
+            fv.addEventListener('input', function() { var v = fv.value === '' ? NaN : Number(fv.value); if (isFinite(v)) f.v = v; else delete f.v; ch(); }); fr.appendChild(fv);
+            var fx = el('button', 'tool ghost sys-btn sys-mk-frm', '\u00d7'); fx.type = 'button'; fx.title = 'Remove this factor'; fx.addEventListener('click', function() { fs.splice(j, 1); if (!fs.length) delete k.factors; ch(true); }); fr.appendChild(fx);
+            card.appendChild(fr);
+        });
+        var fa = el('button', 'tool ghost sys-btn sys-mk-fadd', '+ Factor'); fa.type = 'button'; fa.disabled = !!fs && fs.length >= 8; fa.title = 'A number a rule reads on a map of this kind, such as a Speed factor of 10';
+        fa.addEventListener('click', function() { if (!Array.isArray(k.factors)) k.factors = []; if (k.factors.length >= 8) return; k.factors.push({ label: '', v: 1, _new: true }); ch(true); var ki = i; setTimeout(function() { var cs = document.querySelectorAll('#systemModal .sys-mapkind'), fl = cs[ki] ? cs[ki].querySelectorAll('.sys-mk-flabel') : []; if (fl.length) fl[fl.length - 1].focus(); }, 0); }); card.appendChild(fa);
+        wrap.appendChild(card);
+    });
+    var add = el('button', 'tool ghost sys-btn sys-mk-add', '+ Map kind'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A scale a map can be switched to, such as Vehicle';
+    add.addEventListener('click', function() { if (!Array.isArray(draft.mapKinds)) draft.mapKinds = []; list = draft.mapKinds; if (list.length >= max) return; list.push({ label: '', _new: true }); ch(true); setTimeout(function() { var nb = document.querySelectorAll('#systemModal .sys-mk-label'); if (nb.length) nb[nb.length - 1].focus(); }, 0); });   // the new kind's name takes the focus
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
 }

@@ -287,7 +287,7 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         check('the Combat tab has Arcs, its own listeners and its short name made once, and the Lists tab\u2019s Arcs by says which arc each value reaches, with no degrees of its own; the layout names them so none falls to More',
             /\n    tp\('arcs'\); if \(typeof arcsBox === 'function'\) arcsBox\(box, cm\);/.test(shA) && /^function arcsBox\(box, cm\) \{/m.test(shA) && /input\('sys-arc-label field'/.test(shA) && /checkLabel\('sys-arc-all'/.test(shA) && /'tool ghost sys-btn sys-arc-add', '\+ Arc'/.test(shA) && /if \(a\._new \|\| !a\.key\) a\.key = keyFor\(a, a\.label\)/.test(shA)
             && /names no arc yet, so it reaches nowhere/.test(shA) && !/sys-list-arcf|sys-list-arcall/.test(shA) && /if \(t\.value\) lsc\.arc = \{ by: t\.value \}; else delete lsc\.arc;/.test(shA)
-            && /\['arcs', 'Arcs', 0, \['sys-list-arcby', 'sys-arcs'\]\]/.test(uiA) && /\['arcs', 'Arcs', 'The arcs a hit can come from, and a gun can fire into\.'\]\]/.test(uiA));
+            && /\['arcs', 'Arcs', 0, \['sys-list-arcby', 'sys-arcs'\]\]/.test(uiA) && /\['arcs', 'Arcs', 'The arcs a hit can come from, and a gun can fire into\.'\], \['mapkinds', /.test(uiA));
     }
     /* ---- fold (f): a row picked at random, and a card to the crew ---- */
     {
@@ -371,6 +371,32 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         check('the Combat tab\u2019s Blasts and throws has the system\u2019s distance unit and a sheet\u2019s scale, each with its line, and the forms offer MapCell and HitScale', /^function blastScaleInto\(box, cm, bl\) \{/m.test(shE) && /labeledSelect\('sys-combat-bunit'/.test(shE) && /labeledSelect\('sys-combat-bscale'/.test(shE)
             && /'sys-combat-bfall': \['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop', 'MapCell', 'HitScale'\]/.test(shE) && S.nameWord(ES, 'MapCell') === 'one cell of the map' && S.nameWord(ES, 'HitScale') === 'the scale of the one it hits');
     }
+    /* ---- fold (g): map kinds ---- */
+    {
+        const KR = { v: 1, name: 'Kinds', mapKinds: [
+            { label: 'Vehicle', scale: { per: 50, unit: 'yd' }, factors: [{ label: 'Speed', v: 10 }, { key: 'Rng', label: 'Range', v: 10 }, { label: 'Speed', v: 3 }, { label: 'Bad', v: 'x' }] },
+            { key: 'Space', label: 'Space', scale: { per: 0, unit: 'yd' }, factors: [{ label: 'Speed', v: 100 }] }, { label: 'vehicle' }, { label: '' }, { label: 'Air', scale: { per: 5, unit: 'parsec' } }, 'junk'],
+            fields: [{ id: 'f_spd', key: 'Spd', label: 'Speed', kind: 'number', def: 4 }, { id: 'f_mv', key: 'Move', label: 'Move', kind: 'formula', formula: 'Spd * MapFactor.Speed' }, { id: 'f_v', key: 'OnV', label: 'On a vehicle map', kind: 'formula', formula: 'MapKind.Vehicle' },
+                { id: 'f_bad', key: 'Bad', label: 'Bad', kind: 'formula', formula: 'MapKind.Boat + MapFactor.Warp' }] };
+        const KS = S.cleanSystem(KR, { F, gmView: true }), KV = S.cleanSystem(KR, { F, gmView: false });
+        const want = [{ key: 'Vehicle', label: 'Vehicle', scale: { per: 50, unit: 'yd' }, factors: [{ key: 'Speed', label: 'Speed', v: 10 }, { key: 'Rng', label: 'Range', v: 10 }] }, { key: 'Space', label: 'Space', factors: [{ key: 'Speed', label: 'Speed', v: 100 }] }, { key: 'Air', label: 'Air' }];
+        check('the system names its map kinds, the same in both views: a short name made from its name, the cell it starts at, and its factors, each a name and a plain number; a kind with no name, a short name taken, a cell that is no size or a unit the app does not know is left out',
+            J(KS.mapKinds) === J(want) && J(KV.mapKinds) === J(want) && !('mapKinds' in S.cleanSystem({ v: 1, name: 'B', fields: [] }, { F, gmView: true })) && S.cleanMapKinds(Array.from({ length: 20 }, (_, i) => ({ label: 'K' + i }))).length === S.MAPKIND_MAX, J(KS.mapKinds));
+        const veh = { id: 'm_v', meta: { kind: 'vehicle', gridType: 'hex' }, whiteboard: [] }, plain = { id: 'm_p', meta: {}, whiteboard: [] }, tokV = { id: 't1', x: 0, y: 0, w: 60, h: 52 };
+        const tcV = S.tokenCtx(veh, tokV, {}), tcP = S.tokenCtx(plain, tokV, {});
+        check('a token\u2019s context says the kind of the map it stands on, and a map with none says nothing', tcV.mapKind === 'vehicle' && !('mapKind' in tcP) && S.mapKindOf(KS, veh).key === 'Vehicle' && S.mapKindOf(KS, plain) === null, J([tcV, tcP]));
+        const ev = (n, ro) => { const r = F.evaluate(n, { vars: S.makeResolver(KS, { id: 'c', values: {} }, F, ro) }); return r.ok ? r.value : 'err'; };
+        check('MapFactor reads the factor of the map\u2019s kind and 1 where it names none or the map has no kind; MapKind reads 1 on a map of that kind; a sheet reads them where its token stands',
+            ev('Move', tcV) === 40 && ev('Move', tcP) === 4 && ev('Move', null) === 4 && ev('OnV', tcV) === 1 && ev('OnV', tcP) === 0 && ev('MapFactor.Rng', tcV) === 10 && ev('MapFactor.Rng', S.tokenCtx({ meta: { kind: 'Space' } }, tokV, {})) === 1 && ev('MapFactor.Speed', S.tokenCtx({ meta: { kind: 'Space' } }, tokV, {})) === 100);
+        const vk = S.validateSystem(KS, F), vbad = vk.errors.filter(e => e.id === 'f_bad').map(e => e.message).join('|');
+        check('the validator knows MapKind.<kind> and MapFactor.<factor> the system names, and says when one names none', !vk.errors.some(e => e.id === 'f_mv' || e.id === 'f_v') && /no map kind Boat/.test(vbad) && /names a factor Warp/.test(vbad), J(vk.errors));
+        const rk = S.readsOf(KS, {}), tk = rk.find(g => g.name === 'This token'), tks = tk ? tk.items.map(x => x.s) : [];
+        check('the forms offer each kind and each factor under This token, said in words', ['MapKind.Vehicle', 'MapKind.Space', 'MapFactor.Speed', 'MapFactor.Rng'].every(n => tks.indexOf(n) >= 0) && S.nameWord(KS, 'MapKind.Vehicle') === 'whether the map is Vehicle scale' && S.nameWord(KS, 'MapFactor.Rng') === 'the map\u2019s Range factor', J(tks));
+        const shG = read('scripts/sheets.js'), wbG = read('scripts/whiteboard.js'), mtG = read('scripts/maptabs.js'), ntG = fs.readFileSync(app('scripts/net.js'), 'latin1').replace(/\r\n/g, NL), ixG = read('index.html');
+        check('the Combat tab names map kinds, their cell and their factors with listeners of their own; the Measure menu\u2019s Map kind list sets a map\u2019s kind and its cell; the pill says it beside the map\u2019s name; a player\u2019s app keeps a kind only as a short name',
+            /^function mapKindsBox\(box\) \{/m.test(shG) && /tp\('mapkinds'\); if \(typeof mapKindsBox === 'function'\) mapKindsBox\(box\);/.test(shG) && /function mapKindSync\(\) \{/.test(wbG) && /m\.meta\.kind = k\.key; if \(k\.scale && typeof k\.scale\.per === 'number'\) \{ m\.meta\.cellValue = k\.scale\.per; m\.meta\.cellUnit = k\.scale\.unit; \}/.test(wbG)
+            && /<select id="measureKind"/.test(ixG) && /id="mapTabKind" hidden/.test(ixG) && /return hit && typeof hit\.label === 'string' && hit\.label \? hit\.label \+ ' scale' : '';/.test(mtG) && /m\.meta\.kind !== undefined && !\(typeof m\.meta\.kind === 'string'/.test(ntG));
+    }
     /* ---- the words ---- */
     const help = read('index.html');
     check('Help says Rows are sheets, in plain words', /<b>Rows are sheets<\/b>/.test(help) && /Make a new sheet/.test(help));
@@ -381,6 +407,8 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
     check('both release notes say the random row and the crew’s cards', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /a row picked at random from a\n  list with a switch/.test(readRoot(p)) && /Calls for can send its card to the crew/.test(readRoot(p))));
     check('Help says the system\u2019s distance unit, a cell of the map and a sheet\u2019s scale, in plain words', /<b>The system&rsquo;s distances count in<\/b>/.test(help) && /<b>A sheet&rsquo;s scale is<\/b>/.test(help));
     check('both release notes say a blast at scale', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A blast's formulas can now read one cell of the map/.test(readRoot(p))));
+    check('Help says map kinds, in plain words', /<b>Map kinds<\/b>/.test(help) && /<b>Map kind<\/b>/.test(help));
+    check('both release notes say map kinds', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A map can now be switched to a scale the system names/.test(readRoot(p))));
     check('both release notes say it', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A system can now name its own arcs/.test(readRoot(p)) && /Rows are sheets/.test(readRoot(p)) && /A token can hold a mark on another/.test(readRoot(p)) && /A mark can end by itself/.test(readRoot(p))));
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });

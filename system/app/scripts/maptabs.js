@@ -33,10 +33,19 @@ function tabsModel(camp, recent, hereOf) {
         return { id: id, title: tabTitle(m), pinned: pins.indexOf(id) >= 0, who: Array.isArray(who) ? who.filter(function(n) { return typeof n === 'string' && n !== ''; }) : [] };
     }
     if (camp) out.front = one(camp.activeItemId);
+    if (out.front) { var kw = tabKind(camp, out.front.id); if (kw) out.front.kind = kw; }   // 1.6.2 (vehicles, fold (g)): a map switched to another scale says so, for everyone on it
     var np = 0, nr = 0;
     pins.forEach(function(id) { if (np < TAB_PINS) { var t = one(id); if (t) { out.tabs.push(t); np++; } } });
     tabIds(recent).forEach(function(id) { if (nr < TAB_RECENT) { var t = one(id); if (t) { out.tabs.push(t); nr++; } } });
     return out;
+}
+// 1.6.2 (vehicles, fold (g); the owner by way of the Campaign beats session: "yes to the pill"): the words of a map's kind, as Vehicle scale; none at
+// the personal scale (no kind), and none for a kind the system no longer names
+function tabKind(camp, id) {
+    var m = tabMap(camp, id), k = m && m.meta && typeof m.meta.kind === 'string' ? m.meta.kind.toLowerCase() : ''; if (!k) return '';
+    var ks = camp && camp.system && Array.isArray(camp.system.mapKinds) ? camp.system.mapKinds : [], hit = null;
+    for (var i = 0; i < ks.length; i++) if (ks[i] && typeof ks[i].key === 'string' && ks[i].key.toLowerCase() === k) hit = ks[i];
+    return hit && typeof hit.label === 'string' && hit.label ? hit.label + ' scale' : '';
 }
 // What a tab says when it is pointed at: where a press goes, that it is pinned, and who is there
 function tabTip(t, front) {
@@ -68,6 +77,7 @@ function tabsDraw(doc, model, crumbUp) {
         if (pin) pin.hidden = !f.pinned;
         if (here) here.hidden = !f.who.length;
         if (n) n.textContent = f.who.length ? String(f.who.length) : '';
+        var kp = doc.getElementById('mapTabKind'); if (kp) { kp.textContent = f.kind || ''; kp.hidden = !f.kind; }
     }
     var sig = JSON.stringify(model.tabs);
     if (sig !== _tabSig) { _tabSig = sig; while (list.firstChild) list.removeChild(list.firstChild); model.tabs.forEach(function(t) { list.appendChild(tabBtn(doc, t)); }); }

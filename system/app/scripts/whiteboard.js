@@ -4028,6 +4028,28 @@ window.wpFitToGrid = fitToGrid;
 
   var _el_measureMenu = document.getElementById('measureMenu');
 
+  // 1.6.2 (vehicles, fold (g); the owner: "a toggle that switches any map to a vehicle map"): the map's kind, from the system's map kinds, the GM's
+  // own. Picking one sets the map's cell to the kind's, which the GM may change after; Personal scale takes the kind off. Nothing on the map moves
+  function mapKindSync() {
+      var row = document.getElementById('measureKindRow'), lab = document.getElementById('measureKindLabel'), sel = document.getElementById('measureKind'); if (!row || !sel) return;
+      var camp = getActiveCampaign(), ks = camp && camp.system && Array.isArray(camp.system.mapKinds) ? camp.system.mapKinds.filter(function(k) { return k && typeof k.key === 'string'; }) : [], m = getActiveMap();
+      row.hidden = !ks.length; if (lab) lab.hidden = !ks.length; if (!ks.length) return;
+      var cur = m && m.meta && typeof m.meta.kind === 'string' ? m.meta.kind : '', sig = JSON.stringify([ks.map(function(k) { return [k.key, k.label]; }), cur]);
+      if (sel.dataset.sig === sig) return; sel.dataset.sig = sig; while (sel.firstChild) sel.removeChild(sel.firstChild);
+      var opt = function(v, t) { var o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
+      opt('', 'Personal scale'); ks.forEach(function(k) { opt(k.key, (k.label || k.key) + ' scale'); }); if (cur && !ks.some(function(k) { return k.key.toLowerCase() === cur.toLowerCase(); })) opt(cur, 'A kind the system no longer names');
+      sel.value = ks.filter(function(k) { return k.key.toLowerCase() === cur.toLowerCase(); }).map(function(k) { return k.key; })[0] || cur;
+  }
+  (function() {
+      var sel = document.getElementById('measureKind'); if (!sel) return;
+      sel.addEventListener('change', function() {
+          var m = getActiveMap(), camp = getActiveCampaign(); if (!m || !m.meta || !camp) return;
+          var ks = camp.system && Array.isArray(camp.system.mapKinds) ? camp.system.mapKinds : [], k = ks.filter(function(x) { return x && typeof x.key === 'string' && x.key === sel.value; })[0] || null;
+          if (k) { m.meta.kind = k.key; if (k.scale && typeof k.scale.per === 'number') { m.meta.cellValue = k.scale.per; m.meta.cellUnit = k.scale.unit; } } else delete m.meta.kind;
+          sel.dataset.sig = ''; save(); renderMeasures(); syncMeasureMenu(); if (window.wpMapTabs && typeof window.wpMapTabs.sync === 'function') window.wpMapTabs.sync();
+          toast(k ? 'This map is now at ' + (k.label || k.key) + ' scale' + (k.scale ? ', 1 cell = ' + k.scale.per + ' ' + k.scale.unit : '') + '.' : 'This map is now at the personal scale.');
+      });
+  })();
   function syncMeasureMenu() {
 
       document.querySelectorAll('#measureUnitRow .draw-style-btn').forEach(function(b) {
@@ -4045,6 +4067,7 @@ window.wpFitToGrid = fitToGrid;
       if (vEl && document.activeElement !== vEl) vEl.value = cfg.per;
 
       if (uEl && document.activeElement !== uEl) uEl.value = cfg.unit;
+      if (typeof mapKindSync === 'function') mapKindSync();   // 1.6.2 (vehicles, fold (g))
 
   }
 

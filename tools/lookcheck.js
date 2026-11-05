@@ -3548,6 +3548,13 @@ check('the System editor\'s Items and Lists tabs scroll as one page, so their ro
         && cmS.includes('return KP(list, function() { return keysDraw(doc); });') && clS.includes('KP(box, dr)') && noS.includes('return KP(box, draw);') && wbS2.includes('if (KP) KP(row, function() { TagCore.drawRow(document, row, m); });')
         && /var keepTop = body\.scrollTop, menuEl = document\.getElementById\('buildMenu'\)/.test(wbS2), { kept, onX, toKey, byId, left });
 }
+{   // the map's area never scrolls itself (the owner, 2026-11-05: "theres a weird shadow over the scrollbar here"): a closed menu past its edge let it shift, and the fog lay over the left panel
+    const mS = fs.readFileSync(path.join(app, 'scripts', 'main.js'), 'utf8').replace(/\r\n/g, '\n'), at = mS.indexOf("    var mainBox = document.getElementById('main');\n"), lines = at > 0 ? mS.slice(at).split('\n').slice(0, 2) : [];
+    const box = { scrollLeft: 27, scrollTop: 4, ls: {}, addEventListener(k, f) { this.ls[k] = f; } };
+    if (lines.length === 2) new Function('document', lines.join('\n'))({ getElementById: id => id === 'main' ? box : null });
+    if (box.ls.scroll) box.ls.scroll();
+    check('the map\'s area is put back the moment anything scrolls it, so nothing placed over the map (the fog, the effects) slides over the left panel', !!box.ls.scroll && box.scrollLeft === 0 && box.scrollTop === 0 && /\n  #main \{ display: flex; flex: 1; overflow: hidden; position: relative; \}/.test(css));
+}
 check('a player\'s double-click on their own token opens its sheet, the first thing a player tries (found live), and any other piece does nothing on their app, with the GM\'s Properties as they were; a join request says Let in and Turn away, its Cancel put back with the answer',
     /window\.wpNet\.role === 'client'\) \{ if \(it2\.isChar && it2\.charId && it2\.ownerId === window\.wpNet\.myId && window\.wpSheets && window\.wpSheets\.openSheet\) \{ e\.stopPropagation\(\); window\.wpSheets\.openSheet\(it2\.charId\); \} return; \}/.test(rootRead('system/app/scripts/datamap.js'))
     && rootRead('system/app/scripts/datamap.js').indexOf('window.wpSheets.openSheet(it2.charId)') < rootRead('system/app/scripts/datamap.js').indexOf('var wallD = wallPickEl(am2, it2, e)')

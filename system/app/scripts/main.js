@@ -1366,6 +1366,11 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         if (typeof renderMinimap === 'function') renderMinimap();
     }
     window.addEventListener('resize', renderRulers);
+    // 1.6.2, found by the owner ("theres a weird shadow over the scrollbar"): the map's area never scrolls itself. It clips what overflows it,
+    // and a closed menu that stands past its right edge let a focus or a scroll into view shift it sideways; the fog, placed over the page
+    // where the map stands, then lay over the left panel's scrollbar. Whatever moves it is put back at once
+    var mainBox = document.getElementById('main');
+    if (mainBox) mainBox.addEventListener('scroll', function() { if (mainBox.scrollLeft || mainBox.scrollTop) { mainBox.scrollLeft = 0; mainBox.scrollTop = 0; } });
 
     /* ---------- minimap ---------- */
 

@@ -2590,6 +2590,29 @@
   #setPartsBody .set-snaps, #setPartsBody .set-saves { margin-top: 12px; }
   @media (max-width: 640px) { .set-parts { grid-template-columns: 1fr; } .set-nav { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--edge); padding: 0 0 6px; } }
   body.web-join #settingsModal .set-group[data-group="backups"] { display: none !important; }
+  /* the switches (1.6.2; the owner: "A switch at the right"), the Here and New columns, a feature's own settings under it */
+  #settingsModal button.set-sw.tool { width: 34px; height: 19px; min-width: 0; padding: 0; border: 0; border-radius: 10px; background: #3a3c49; position: relative; font-size: 0; color: transparent; flex: none; cursor: pointer; }
+  #settingsModal button.set-sw.tool::after { content: ''; position: absolute; top: 3px; left: 3px; width: 13px; height: 13px; border-radius: 50%; background: #c9c7c0; transition: left .14s; }
+  #settingsModal button.set-sw.tool[aria-checked="true"] { background: var(--gold); }
+  #settingsModal button.set-sw.tool[aria-checked="true"]::after { left: 18px; background: #1b1b22; }
+  #settingsModal button.set-sw.tool:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  #settingsModal button.set-sw.tool:hover { box-shadow: 0 0 0 2px rgba(224,165,79,0.25); }
+  #settingsModal :is(.set-sw-row, .set-devmode) { display: grid; grid-template-columns: minmax(0, 1fr) 46px 46px; align-items: center; column-gap: 0; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 0 !important; }
+  #settingsModal :is(.set-sw-row, .set-devmode) > * { grid-column: 1 / -1; }
+  #settingsModal :is(.set-sw-row, .set-devmode) > .set-field-label { grid-column: 1; grid-row: 1; margin: 0; color: var(--ink); font-size: 12.5px; }
+  #settingsModal :is(.set-sw-row, .set-devmode) > .set-sw { grid-row: 1; grid-column: 2; justify-self: center; }
+  #settingsModal :is(.set-sw-row, .set-devmode) > .set-sw.set-new { grid-column: 3; }
+  #settingsModal :is(.set-sw-row, .set-devmode) > div:not(.set-field-label):not(.set-trk-hide), #settingsModal :is(.set-sw-row, .set-devmode) > .set-line { margin-top: 3px; }
+  #settingsModal :is(.set-sw-row, .set-devmode) .set-st-plain { display: none; }
+  #settingsModal .set-cols-head { display: grid; grid-template-columns: minmax(0, 1fr) 46px 46px; color: var(--dim); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; text-align: center; padding: 0 0 4px; border-bottom: 1px solid var(--edge); }
+  #settingsModal .set-no-new .set-new, #settingsModal .set-no-new .set-new-col { display: none; }
+  #settingsModal .set-master-off .set-here, #settingsModal .set-master-off .set-move-mode, #settingsModal .set-master-off .set-trk-hide { opacity: .4; pointer-events: none; }
+  #settingsModal .set-feat-off .set-move-mode, #settingsModal .set-feat-off .set-trk-hide, #settingsModal .set-feat-off > .set-line { opacity: .5; }
+  #settingsModal .set-move-mode { grid-column: 1 / -1; padding-left: 14px; }
+  #setPartsBody label > select, #setPartsBody label > .field, #setPartsBody .set-move-mode > select { margin-left: auto; }
+  #setPartsBody input[type="range"] { accent-color: var(--gold); }
+  #setPartsBody .tool.danger { border-color: rgba(217,83,79,0.55); color: #f0a19e; }
+  #setPartsBody .tool.danger:hover { background: rgba(217,83,79,0.12); }
   #setResetIdentityBtn { width: 100%; margin-top: 10px; }
 
   /* Sidebar trees: guide lines per nesting level, a divider between top-level entries */

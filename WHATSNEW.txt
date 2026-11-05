@@ -339,6 +339,10 @@ Settings
   reaches your table. Snapshots of the save have a part of their own.
 - Keys stands in three groups, with a search of its own. The x that takes a
   key off shows on the row you point at.
+- On or off is a switch at the right end of its row. In This campaign each
+  feature has two: Here for the campaign on screen, and New for a campaign
+  you make later. A feature's own settings stand under it, greyed while it
+  is off.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

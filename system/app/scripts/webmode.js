@@ -26,7 +26,7 @@
      uploads     pictures, sounds, music and videos sent to the site: the Image Library, a picture dropped on the map, Sound, Music and
                  Video uploads, Handouts
      files       Import and Export As: campaigns, maps, pages, characters and systems as files
-     backups     snapshots of the saved campaign: Snapshot the Save Now, the snapshots list and Restore
+     backups     snapshots of the saved campaign: Snapshot the save now, the snapshots list and Restore
    Updates, Developer mode and the saves folder never show on a website, whatever can holds: there the deploy is the update.
 
    Join-only is the body's one word web-join (the style sheet puts away what is not the player's, and while the join page is up the whole

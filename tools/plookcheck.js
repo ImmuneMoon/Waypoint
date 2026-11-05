@@ -81,7 +81,7 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
     check('Personal looks is a VTT feature, on by default, that a player may switch off for themselves', /\{ id: 'plook', label: 'Personal looks', legacyKey: null \}/.test(vt) && !/id: 'plook'[^\n]*noLocal/.test(vt) && !/id: 'plook'[^\n]*def:/.test(vt));
     const st = read('scripts/settings.js');
     check('Settings, VTT features has its row for this campaign and for the default of new ones, named as the rows are found (set + Plook), with its words when it moves and for a player’s own switch',
-        ix.includes('<div class="set-vtt-row" data-vtt="plook"') && ix.includes('id="setPlookState"') && ix.includes('id="setPlookBtn"') && ix.includes('id="setVttGlobalPlookState"') && ix.includes('id="setVttGlobalPlookBtn"')
+        ix.includes('<div class="set-vtt-row set-sw-row" data-vtt="plook"') && ix.includes('id="setPlookState"') && ix.includes('id="setPlookBtn"') && ix.includes('id="setVttGlobalPlookState"') && ix.includes('id="setVttGlobalPlookBtn"')
         && /\n    plook: \['Personal looks on/.test(st) && /\n    plook: 'For you it draws every name plain/.test(st));
     // ---- fold 2: every other place a name is shown, the cards, and the sheet's text
     const D = await imp('scripts/dicecore.js'), base = { type: 'roll', id: 'r_1', from: { id: 'u_a', name: 'Ann' }, expr: '3d6', draws: [], v: 1, ts: 1 };

@@ -491,7 +491,7 @@ function syncVttPanel() {
     if (mBtn) mBtn.disabled = !editable;
     var offNote = ui('setVttMasterOffNote');
     if (offNote) { offNote.style.display = master ? 'none' : ''; offNote.textContent = client ? 'The GM runs this table without VTT features.' : 'VTT features are off for this campaign \u2014 plain whiteboard. Your per-feature choices are kept.'; }
-    var rows = ui('setVttRows'); if (rows) rows.style.display = master ? '' : 'none';
+    var rows = ui('setVttRows'); if (rows) { rows.style.display = ''; rows.classList.toggle('set-master-off', !master); }   // 1.6.2, backlog 171: the rows stay, greyed, so the New column can still be set
     vttFeatures().forEach(function(f) {
         var row = document.querySelector('.set-vtt-row[data-vtt="' + f.id + '"]'), st = ui('set' + cap(f.id) + 'State'), btn = ui('set' + cap(f.id) + 'Btn');
         if (!row) return;
@@ -531,6 +531,7 @@ function syncVttPanel() {
     [['setMoveMode', 'move'], ['setOrderMode', 'order'], ['setActsMode', 'acts']].forEach(function(p) { var s = ui(p[0]); if (!s) return; var tv = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules[p[1]] : ''; s.value = tv === 'warn' || tv === 'off' ? tv : 'refuse'; s.disabled = !editable; });   // T3b
     var wm = ui('setWallsMode'); if (wm) { var tr = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules.walls : ''; wm.value = tr === 'warn' || tr === 'off' ? tr : 'refuse'; wm.disabled = !editable; }   // turn-based combat T3a (D11): the walls' mode
     var defaults = ui('setVttDefaults'); if (defaults) defaults.style.display = editable ? '' : 'none';
+    grp.classList.toggle('set-no-new', !editable);   // the New column is the GM's own, as the defaults are
     var g = v.globalVtt();
     var gmState = ui('setVttGlobalMasterState'); if (gmState) gmState.textContent = g.master ? 'on' : 'off';
     vttFeatures().forEach(function(f) { var s = ui('setVttGlobal' + cap(f.id) + 'State'); if (s) s.textContent = g.features[f.id] ? 'on' : 'off'; });
@@ -1730,10 +1731,26 @@ function setPartsMake(doc, win, store) {
     P.draw = draw;
     return P;
 }
+// A switch (1.6.2; the owner, by prompt: "A switch at the right"): a button that was "Toggle X" under a line saying on or off. Its words stay for
+// a screen reader and its handler is as it was; what it shows is read from the state its line was given (setXState for setXBtn), so nothing
+// that writes a state needs to know of it. A plain on or off is put away, since the switch says it; a longer state stays in sight
+function swOn(t) { t = String(t || '').trim(); return /^(on|shown)\b/.test(t) || t === 'GM: on'; }
+function swSync(doc) {
+    Array.prototype.forEach.call(doc.querySelectorAll('#settingsModal button.set-sw'), function(b) {
+        var st = doc.getElementById(String(b.id || '').replace(/Btn$/, 'State')); if (!st) return;
+        var t = String(st.textContent || '').trim(), on = swOn(t);
+        if (b.getAttribute('aria-checked') !== String(on)) b.setAttribute('aria-checked', String(on));
+        st.classList.toggle('set-st-plain', b.style.display !== 'none' && /^(on|off|shown|hidden|GM: on|GM: off)$/.test(t));   // with no switch (a feature only the GM sets) the word says it
+        var row = b.classList.contains('set-here') && b.closest ? b.closest('.set-vtt-row') : null;
+        if (row) row.classList.toggle('set-feat-off', !on);
+    });
+}
 // [lookcheck:setparts-end]
 var _setParts = (typeof document !== 'undefined' && document.getElementById('setNav')) ? setPartsMake(document, window, localStorage) : null;
 if (_setParts) {
     window.wpSetParts = _setParts;
+    swSync(document);
+    if (typeof MutationObserver === 'function') { var _swWait = false; new MutationObserver(function() { if (_swWait) return; _swWait = true; Promise.resolve().then(function() { _swWait = false; swSync(document); }); }).observe(ui('settingsModal'), { subtree: true, childList: true, characterData: true }); }
     setGroups(document).forEach(function(g) { g.addEventListener('toggle', function() { _setParts.toggled(g); }); });
     var _setFind = ui('setFind');
     if (_setFind) {

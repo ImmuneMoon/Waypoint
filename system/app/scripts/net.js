@@ -53,7 +53,7 @@ function webJoinOnly() { var W = typeof window !== 'undefined' ? window.wpWebMod
 function webOlderWords(gms) { return 'The GM’s Waypoint' + (gms ? ' ' + gms : '') + ' is newer than this website’s. Try again once the website is updated.'; }
 // [netcheck:webjoin-end]
 function updateMessage(theirs, ours) {
-    return 'Your Waypoint (' + (theirs || 'older than 1.1.2') + ') is older than the GM\'s' + (ours ? ' (' + ours + ')' : '') + '. Update Waypoint, then rejoin: open Settings ▸ Check for Updates and press Update Now (or get the latest Waypoint_Setup.exe from your GM and run it over your copy — saves and settings are kept).';
+    return 'Your Waypoint (' + (theirs || 'older than 1.1.2') + ') is older than the GM\'s' + (ours ? ' (' + ours + ')' : '') + '. Update Waypoint, then rejoin: open Settings ▸ Check for updates and press Update Now (or get the latest Waypoint_Setup.exe from your GM and run it over your copy — saves and settings are kept).';
 }
 
 var net = {
@@ -108,7 +108,7 @@ function setProfileName(name) { return setProfile({ name: String(name == null ? 
 // 1.6.0 (the owner, 2026-10-29: a player's profile that moves between machines, and the website's decision 4 of 2026-10-23, "Separate host ID"):
 // the id this install hosts under, kept apart from the id it joins tables with (wp_profile.id). It is made once from the profile's id, so
 // nothing changes for anyone, and then stands: a profile opened from a file or a code, or a website account, gives this install another
-// joining id while every player's app still knows its table by this one. Only Reset Multiplayer Identity makes a new one
+// joining id while every player's app still knows its table by this one. Only Reset multiplayer identity makes a new one
 function hostId() {
     var h = null; try { h = localStorage.getItem('wp_hostId'); } catch (e) {}
     if (typeof h === 'string' && validProfileId(h)) return h;
@@ -7520,7 +7520,7 @@ function gmHail(cm, cn, conn) {
         });
     }).then(function() { return null; }, function() { return null; });
 }
-net.gmSignReset = function() { gmSignForget(); _gmSign = null; _gmSignP = null; };   // Settings ▸ Reset Multiplayer Identity: a new identity is a new GM
+net.gmSignReset = function() { gmSignForget(); _gmSign = null; _gmSignP = null; };   // Settings ▸ Reset multiplayer identity: a new identity is a new GM
 // [netcheck:gmsign-end]
 
 function denyJoin(conn, reason) {
@@ -8138,7 +8138,7 @@ function handleMessage(msg, conn) {
                 // The GM is the one behind: let the player in and tell the GM plainly — once per newer version per session, and never
                 // as a dialog (a dialog here would land on top of a pending Allow/Deny)
                 newerSeen[theirV] = true;
-                toast((prof.name || 'A player') + ' is joining on Waypoint ' + theirV + ' — newer than your ' + APP_VERSION + '. Update when this session is over: Settings ▸ Check for Updates.');
+                toast((prof.name || 'A player') + ' is joining on Waypoint ' + theirV + ' — newer than your ' + APP_VERSION + '. Update when this session is over: Settings ▸ Check for updates.');
                 logEvent('session', (prof.name || 'A player') + ' joined on a newer Waypoint (' + theirV + ' vs ' + APP_VERSION + ') — update after the session');
             }
         }

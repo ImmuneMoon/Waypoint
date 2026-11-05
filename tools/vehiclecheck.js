@@ -369,7 +369,41 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
             /l === 'blastradius' \? b\.ft \/ 3 : l === 'mapcell' \? b\.cell/.test(wbE) && /if \(l === 'mapcell'\) return blastCellOf\(b, map\); if \(l === 'hitscale'\) return S\.hitScaleOf \? S\.hitScaleOf\(sys, ch, F\)/.test(wbE)
             && (wbE.match(/env: (o\.)?b\.env, cell: /g) || []).length === 3 && /l === 'mapcell' \? blastCellOf\(b, map\) : undefined/.test(wbE) && /function blastCellOf\(b, map\) \{/.test(wbE) && /\n      blastCellOf\(b, map\);   \/\/ 1\.6\.2/.test(wbE));
         check('the Combat tab\u2019s Blasts and throws has the system\u2019s distance unit and a sheet\u2019s scale, each with its line, and the forms offer MapCell and HitScale', /^function blastScaleInto\(box, cm, bl\) \{/m.test(shE) && /labeledSelect\('sys-combat-bunit'/.test(shE) && /labeledSelect\('sys-combat-bscale'/.test(shE)
-            && /'sys-combat-bfall': \['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop', 'MapCell', 'HitScale'\]/.test(shE) && S.nameWord(ES, 'MapCell') === 'one cell of the map' && S.nameWord(ES, 'HitScale') === 'the scale of the one it hits');
+            && /'sys-combat-bfall': \['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop', 'BlastScale', 'MapCell', 'HitScale'\]/.test(shE) && S.nameWord(ES, 'MapCell') === 'one cell of the map' && S.nameWord(ES, 'HitScale') === 'the scale of the one it hits');
+    }
+    /* ---- the core's gaps 213 to 216 (2026-11-05) ---- */
+    {
+        const BCg = await import(url.pathToFileURL(path.join(root, 'system', 'app', 'scripts', 'blastcore.js')).href);
+        const cbG = S.cleanBlastRules({ fall: 'BlastDamage - BlastDistance / BlastScale', each: 'BlastDice - BlastDistance / (6 * BlastScale)', itemScale: 'Scale', noDrop: 'Stay' }, F);
+        check('213: an item’s own scale is a number stat of its list the Combat tab names, read by the falloff and each victim’s dice as BlastScale',
+            cbG && cbG.itemScale === 'Scale' && cbG.fall === 'BlastDamage - BlastDistance / BlastScale' && !!cbG.each && S.nameWord({ v: 1, fields: [] }, 'BlastScale') === 'the scale of the item that went off');
+        const fsG = o => BCg.fallShare(F, 'BlastDamage - BlastDistance / BlastScale', Object.assign({ dmg: 12, dist: 6, dice: 4 }, o));
+        check('213: a share reads the item’s scale where it went off, 1 where it has none or one that is no number above 0', fsG({ iscale: 6 }) === 11 && fsG({}) === 6 && fsG({ iscale: 0 }) === 6 && fsG({ iscale: -2 }) === 6 && fsG({ iscale: 'x' }) === 6);
+        check('213: a mine keeps its item’s scale for when it goes off, and none where it is 1 or no number', BCg.cleanMine({ ft: 9, iscale: 6 }).iscale === 6 && !('iscale' in BCg.cleanMine({ ft: 9, iscale: 1 })) && !('iscale' in BCg.cleanMine({ ft: 9, iscale: 'x' })));
+        const wbG = fs.readFileSync(path.join(root, 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8'), stG = new Function('window', 'blastRules', wbG.slice(wbG.indexOf('  function blastStats('), wbG.indexOf('  function placeThrownBlast(')) + '\nreturn blastStats;')({ wpSystemCore: S }, x => x.combat.blast), lG = { list: { stats: [{ key: 'Scale', label: 'Scale' }] } };
+        check('213: what an item’s list says of its scale (blastStats, run for real), and every way a blast goes off hands it on',
+            stG({ combat: { blast: { itemScale: 'Scale' } } }, lG, { stats: { Scale: 6 } }).iscale === 6 && !('iscale' in stG({ combat: { blast: { itemScale: 'Scale' } } }, lG, { stats: { Scale: 1 } })) && !('iscale' in stG({ combat: { blast: {} } }, lG, { stats: { Scale: 6 } }))
+            && wbG.includes('if (typeof fsB.iscale === \'number\' && fsB.iscale > 0) b.iscale = fsB.iscale;') && wbG.includes('if (typeof fsL.iscale === \'number\' && fsL.iscale > 0) po.iscale = fsL.iscale;') && wbG.includes('noDrop: m.noDrop, iscale: m.iscale }, map);') && (wbG.match(/iscale: (o\.)?b\.iscale, env:/g) || []).length === 3);
+        const sysL = S.cleanSystem({ v: 1, name: 'L', fields: [{ id: 'f_w', key: 'Guns', label: 'Guns', kind: 'item-list', vis: 'all', list: { stats: [{ key: 'Skill', label: 'Skill' }], rolls: [{ label: 'Fire', formula: '3d6 <= Row.Skill', then: [{ launch: true, when: 'hit' }] }, { label: 'Loose', apply: [{ launch: true }] }, { label: 'Spray', formula: '3d6', then: [{ launch: true, when: 'hit' }] }] } }] }, { F, gmView: true });
+        const vL = S.validateSystem(sysL, F);
+        check('215: a list’s Launch, on a roll’s Then and on an action, is no error, and On success of a roll that tests nothing is said as for any change',
+            sysL.fields[0].list.rolls.length === 3 && vL.errors.length === 0 && vL.warnings.length === 1 && /tests nothing/.test(vL.warnings[0].message), JSON.stringify([vL.errors, vL.warnings]));
+        const lnd = [], sk = S.setLaunchSink(l => lnd.push(...l));
+        const sysF = S.cleanSystem({ v: 1, name: 'F', fields: [{ id: 'f_w', key: 'Guns', label: 'Guns', kind: 'item-list', vis: 'all', list: { rolls: [{ label: 'Loose', apply: [{ launch: true }] }] } }], items: [{ id: 'i_msl', name: 'Missile', vis: 'all', flies: { speed: '10', rounds: 3, hp: 5 } }] }, { F, gmView: true });
+        const chF = { id: 'c_ship', name: 'Ship', values: { f_w: [{ id: 'w_1', defId: 'i_msl', qty: 1 }] } };
+        const runL = tc => { lnd.length = 0; return S.applyAct(sysF, chF, sysF.fields[0].list.rolls[0], S.makeResolver(sysF, chF, F, tc), F, tc, { f: 'f_w', r: 'w_1' }); };
+        const r1 = runL({ self: 'tok_gunner', selfMap: 'm1', range: { tid: 'tok_t', mapId: 'm1' }, press: { link: 'l_crew', id: 'c_gun' } }), a1 = lnd.slice();
+        const r2 = runL({ self: 'tok_ship', selfMap: 'm1', range: { tid: 'tok_t', mapId: 'm1' } }), a2 = lnd.slice();
+        const r3 = runL({ range: { tid: 'tok_t', mapId: 'm1' } }), a3 = lnd.slice();
+        check('216: a launch made through a Crew link names no token of its own, so the host launches from the sheet’s own token; one pressed on the sheet launches from its token; one with no token of the presser launches from the map its target is on',
+            a1.length === 1 && a1[0].from === '' && a1[0].map === 'm1' && a1[0].by === 'c_ship' && a2.length === 1 && a2[0].from === 'tok_ship' && a3.length === 1 && a3[0].from === '' && a3[0].map === 'm1', JSON.stringify([r1, a1, a2, a3]));
+        S.setLaunchSink(null);
+        const njG = fs.readFileSync(path.join(root, 'system', 'app', 'scripts', 'net.js'), 'latin1');
+        check('216: the host finds the sheet’s own token where none is named, a crew press reads the map the vehicle stands on, and with no token there the launch is said',
+            wbG.includes("S.charTokenOn(map, l.by, '', { hidden: true })") && wbG.includes("' is not launched: the sheet it is launched from has no token on that map.'") && njG.includes('function crewVehMap(camp, charId) {') && njG.includes("if (pressQ && !(mapQ && SQ.charTokenOn(mapQ, q.charId, '', {}))) { var vmQ = typeof crewVehMap === 'function' ? crewVehMap(campQ, q.charId) : null;"));
+        check('214: an arrival roll its target may resist waits on that attempt: kept there, landed where the target fails, avoided where it resists, and the GM’s Apply now lands it',
+            njG.includes("net.rollMade = typeof atR === 'string' ? atR : '';") && njG.includes('net.flyWait = function(att, fw) {') && njG.includes("if (rec && rec.fw && (pass === true || pass === false)) { var fwA = rec.fw; rec.fw = null;") && njG.includes('if (rec && !rec.ht && rec.fw) { var fwG = rec.fw; rec.fw = null;')
+            && wbG.includes("if (attW && typeof N.flyWait === 'function' && N.flyWait(attW, { m: map.id, w: w, tid: tgt.id, name: nm }))") && wbG.includes('window.wpFlyLand = function(fw, pass) {') && wbG.includes("if (pass === true) { toast(nm + ' is avoided.'); return true; }"));
     }
     /* ---- fold (g): map kinds ---- */
     {

@@ -56,7 +56,7 @@ function diceAt(expr, n, withAdds) {
 function envRead(ev, key) { if (!isObj(ev)) return 0; var k = Object.keys(ev).filter(function(x) { return x.toLowerCase() === key; })[0]; return k !== undefined && fin(ev[k]) ? ev[k] : 0; }
 function fallShare(F, formula, o) {
     if (!F || typeof F.evaluate !== 'function' || typeof formula !== 'string' || !formula || !isObj(o)) return null;
-    var nm = { blastdamage: fin(o.dmg) ? o.dmg : 0, blastdistance: fin(o.dist) ? Math.max(0, o.dist) : 0, blastdice: fin(o.dice) ? o.dice : 0, direct: o.direct ? 1 : 0, centre: o.centre ? 1 : 0, blastfills: fin(o.fills) ? Math.max(0, o.fills) : 0, blastnodrop: o.noDrop === true ? 1 : 0, mapcell: fin(o.cell) && o.cell > 0 ? o.cell : 1, hitscale: fin(o.scale) ? o.scale : 1 };   // 1.6.2 (vehicles, fold (e)): MapCell and HitScale, 1 where none is handed in   // 1.6.0: BlastFills, the yards an item fills, 0 for none; BlastNoDrop, 1 where its stat says so
+    var nm = { blastdamage: fin(o.dmg) ? o.dmg : 0, blastdistance: fin(o.dist) ? Math.max(0, o.dist) : 0, blastdice: fin(o.dice) ? o.dice : 0, direct: o.direct ? 1 : 0, centre: o.centre ? 1 : 0, blastfills: fin(o.fills) ? Math.max(0, o.fills) : 0, blastnodrop: o.noDrop === true ? 1 : 0, blastscale: fin(o.iscale) && o.iscale > 0 ? o.iscale : 1, mapcell: fin(o.cell) && o.cell > 0 ? o.cell : 1, hitscale: fin(o.scale) ? o.scale : 1 };   // 1.6.2 (vehicles, fold (e)): MapCell and HitScale, 1 where none is handed in   // 1.6.0: BlastFills, the yards an item fills, 0 for none; BlastNoDrop, 1 where its stat says so
     var ev = isObj(o.env) ? o.env : null;   // 1.6.2: the Environment readings where it went off, Env.<key>, 0 for one not set there
     var r = F.evaluate(formula, { vars: function(n) { var l = String(n).toLowerCase(); if (hasOwn(nm, l)) return nm[l]; if (l.indexOf('env.') === 0) return envRead(ev, l.slice(4)); return undefined; }, random: function() { return NaN; } });   // a die fails at the die (as systemcore's noDice): the cleaner keeps none
     if (!r || !r.ok) return null;
@@ -157,7 +157,7 @@ function cleanMine(m) {   // 1.5.9 (es): and its fragmentation (frag, a formula'
     var nt = text(m.notes, 800); if (nt) out.notes = nt;
     var fg = text(m.frag, 1200); if (fg) { out.frag = fg; if (typeof m.fragType === 'string' && MINE_TYPE.test(m.fragType)) out.fragType = m.fragType; }   // 1.5.9 (es): its fragmentation, rolled when it goes off
     var af = cleanAffs(m.aff); if (af) out.aff = af;   // 1.5.9 (es): and its afflictions
-    if (fin(m.fills) && m.fills > 0) out.fills = Math.min(10000, m.fills); if (m.noDrop === true) out.noDrop = true;   // 1.6.0: BlastFills and BlastNoDrop, read from its row as it is placed
+    if (fin(m.fills) && m.fills > 0) out.fills = Math.min(10000, m.fills); if (m.noDrop === true) out.noDrop = true; if (fin(m.iscale) && m.iscale > 0 && m.iscale !== 1) out.iscale = Math.min(1000, m.iscale);   // 1.6.2 (the core's gap 213): BlastScale too   // 1.6.0: BlastFills and BlastNoDrop, read from its row as it is placed
     return out;
 }
 // 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 2, its affliction half): a blast's afflictions as a mine and a blast carry them, the

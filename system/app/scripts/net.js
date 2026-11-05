@@ -6121,8 +6121,17 @@ function holdAsk(camp, att, rec, ent, ht) {
     var w = holdTok(camp.items && own(camp.items, ht.m) ? camp.items[ht.m] : null, ht.on), nm = String((ent && ent.label) || 'A hold').split('{')[0].trim() + ' on ' + ((w && (w.charName || w.name)) || tc.name || 'them');
     net.postBlastDue(tc, att, nm, false, 'hold');
 }
+// 1.6.2 (the core's gap 214): a thing in flight whose arrival roll its target may resist waits for that roll, as a grab does: kept on the attempt (fw),
+// landed by attemptCalled where the target fails, avoided where it resists. A player's target gets the GM a card whose Apply now lands it, since that roll may never come
+net.flyWait = function(att, fw) {
+    var rec = typeof attemptRec === 'function' ? attemptRec(att) : null, camp = getActiveCampaign(); if (net.role === 'client' || !rec || !camp || !fw) return false;
+    rec.fw = fw; var tc = camp.chars && own(camp.chars, rec.charId) ? camp.chars[rec.charId] : null;
+    if (tc && !tc.npc && tc.ownerId && typeof net.postBlastDue === 'function') { rec.htAtt = att; net.postBlastDue(tc, att, String(fw.name || 'It').slice(0, 50) + ' on ' + (tc.name || 'them'), false, 'hold'); }
+    return true;
+};
 net.holdGo = function(att) {
     var rec = typeof attemptRec === 'function' ? attemptRec(att) : null, camp = getActiveCampaign(); if (net.role === 'client' || !camp) return false;
+    if (rec && !rec.ht && rec.fw) { var fwG = rec.fw; rec.fw = null; if (typeof window.wpFlyLand === 'function') window.wpFlyLand(fwG, false); if (typeof net.dueOver === 'function') net.dueOver(att); if (typeof attemptDrop === 'function') attemptDrop(att); return true; }   // 1.6.2 (the core's gap 214): Apply now on a thing in flight's card lands it
     if (!rec || !rec.ht) { if (typeof toast === 'function') toast('Their roll is in already, so there is nothing to apply.'); return false; }
     var pw = holdLand(camp, rec.ht); if (pw) { if (typeof toast === 'function') toast(pw); return false; }
     if (typeof net.dueOver === 'function') net.dueOver(att); if (typeof attemptDrop === 'function') attemptDrop(att); holdLog('applied-now', {}); return true;
@@ -9666,7 +9675,8 @@ function handleMessage(msg, conn) {
             var viewQ = window.wpSheets ? window.wpSheets.playerSystem(campQ) : null, chvQ = viewQ ? SQ.charFor(srcQ, viewQ, pidQ, { lib: fxLib(campQ.system), items: itemLib(campQ.system), full: campQ.system }) : null; if (pressQ && viewQ) chvQ = SQ.charForView(srcQ, viewQ, { lib: fxLib(campQ.system), items: itemLib(campQ.system), full: campQ.system });
             if (!viewQ || !chvQ) { denyQ('char'); return; }
             var tokOwnQ = pressQ ? '' : pidQ, tokOptQ = pressQ ? {} : { strict: true };   // the vehicle's own token
-            var locQ = net.roster[conn.peer] && net.roster[conn.peer].location, mapQ = (typeof locQ === 'string' && campQ.items && own(campQ.items, locQ)) ? campQ.items[locQ] : null;   // 5h Fold 3: the facing names read the player's token on the map they are on
+            var locQ = net.roster[conn.peer] && net.roster[conn.peer].location, mapQ = (typeof locQ === 'string' && campQ.items && own(campQ.items, locQ)) ? campQ.items[locQ] : null;
+            if (pressQ && !(mapQ && SQ.charTokenOn(mapQ, q.charId, '', {}))) { var vmQ = typeof crewVehMap === 'function' ? crewVehMap(campQ, q.charId) : null; if (vmQ) { mapQ = vmQ.map; locQ = vmQ.id; } }   // 1.6.2 (the core's gap 216): a crew press reads the vehicle where its token stands, whether or not the presser has a token there   // 5h Fold 3: the facing names read the player's token on the map they are on
             var vtQ = window.wpVtt, ruleQ = function(k) { return !vtQ || (vtQ.rulesOn ? vtQ.rulesOn(k) : vtQ.on(k)); };
             tcQ = SQ.tokenCtx(mapQ, SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ), { turning: ruleQ('turning'), posture: ruleQ('posture'), elevation: ruleQ('elevation'), viewer: pidQ });   // facing and stance from the player's own token, on the table's settings (as their sheet reads them)
             tcQ = SQ.withRound(tcQ, mapQ ? net.combatRoundOf(locQ, (SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ) || {}).id) : null);   // fold 2: the fight that holds their token, else the first begun on that map, as their own sheet reads it (net.combatRoundOf)
@@ -11273,6 +11283,7 @@ function attemptByIf(camp, text, row, ch, tc) {
     return typeof v === 'function' && S.rollNeedsOk({ needs: text }, v, Fc);
 }
 function attemptCalled(camp, rec, act, row, pass, ch, priv, tc) {   // the target's roll against an attempt came in; tc: that roll's token context
+    if (rec && rec.fw && (pass === true || pass === false)) { var fwA = rec.fw; rec.fw = null; if (typeof window !== 'undefined' && typeof window.wpFlyLand === 'function') window.wpFlyLand(fwA, pass); if (rec.htAtt && typeof net.dueRolled === 'function') net.dueRolled(rec.htAtt); }   // 1.6.2 (the core's gap 214): a thing in flight lands where its target fails to resist, and is avoided where it resists
     if (!rec || pass !== true || !Array.isArray(rec.calls) || !ch) return;
     var ref = row && typeof row.f === 'string' && typeof row.i === 'number' ? row.f + '#' + row.i : act;
     rec.calls.forEach(function(c) {
@@ -11659,6 +11670,8 @@ function diceSessionReset(clearChat) {
 }
 // Roll from here: a client asks the host; a host or a solo GM rolls at once. Returns { ok } or { error, pos?, len? }.
 // [netcheck:diceroll-start]
+// 1.6.2 (the core's gap 216): the map of the hosted campaign that holds a sheet's token, the first in the campaign's order; null for none
+function crewVehMap(camp, charId) { var S = SC(), hit = null; if (!S || !camp || !camp.items || typeof S.charTokenOn !== 'function') return null; Object.keys(camp.items).forEach(function(id) { var m = camp.items[id]; if (!hit && m && m.type === 'map' && S.charTokenOn(m, charId, '', {})) hit = { id: id, map: m }; }); return hit; }
 // 1.6.2, backlog 212 fold 3: this computer's own dice look, which its rolls carry so that every screen draws them in it
 function rollLookOwn() { var D = DC(); return D && typeof D.cleanDiceLook === 'function' && window.wpDice3d && typeof window.wpDice3d.look === 'function' ? D.cleanDiceLook(window.wpDice3d.look()) : null; }
 net.diceRoll = function(expr, o) {
@@ -11853,6 +11866,7 @@ net.diceRoll = function(expr, o) {
     if (chR && (entR || blowRecR) && typeof callsAfter === 'function') { var vcR = D.verdictOf(res, ruleR), pcR = mfR !== null && D.naturalOf(res) >= mfR ? false : rec.body === 1 ? true : vcR && vcR.kind === 'check' ? vcR.pass === true : null; if (entR) callsAfter(campR, entR, pcR, varsR, typeof onR !== 'undefined' && onR ? onR.ch : chR, !!rec.priv || !!rec.to, o.row, rec.big === true); attemptCalled(campR, blowRecR, o.act, o.row, pcR, chR, !!rec.priv || !!rec.to, tcR); }   // 1.6.0: Calls for, with its Then landed
     if (chR && typeof holdsRolled === 'function' && SR && typeof SR.holdRefOf === 'function') { var vhR = D.verdictOf(res, ruleR); holdsRolled(campR, chR, entR, SR.holdRefOf(o.act, o.row), mfR !== null && D.naturalOf(res) >= mfR ? false : vhR && vhR.kind === 'check' ? vhR.pass === true : null, tcR, typeof blowRecR !== 'undefined' ? blowRecR : null, atR); }   // 1.6.0 Who holds whom
     if (entR && entR.burst && o.row && typeof burstAfter === 'function') burstAfter(campR, chR, entR, o.row, res, ruleR, mfR !== null && D.naturalOf(res) >= mfR, typeof taR !== 'undefined' ? taR : null, tcR, function() { save(true); });   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
+    net.rollMade = typeof atR === 'string' ? atR : '';   // 1.6.2 (the core's gap 214): the attempt this roll made, which a thing in flight waits on
     net.rollCheck = D.checkOf ? D.checkOf(res, ruleR) : null;   // 1.5.8 explosives: this roll's pass, critical and margin, read by a throw right after it (this machine's own)
     return { ok: true, value: res.value, priv: !!rec.priv };
     };

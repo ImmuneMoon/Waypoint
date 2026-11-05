@@ -4499,6 +4499,7 @@ window.wpFitToGrid = fitToGrid;
       var rl = typeof blastRules === 'function' ? blastRules(sys) : null, S = window.wpSystemCore, out = {}; if (!rl || !S || typeof S.rowStat !== 'function' || !f || !f.list || !def) return out;
       if (rl.fills) { var fv = S.rowStat(f.list, def, rl.fills); if (typeof fv === 'number' && isFinite(fv) && fv > 0) out.fills = Math.min(10000, fv); }
       if (rl.noDrop) { var nv = S.rowStat(f.list, def, rl.noDrop); if (typeof nv === 'number' && isFinite(nv) && nv !== 0) out.noDrop = true; }
+      if (rl.itemScale) { var iv = S.rowStat(f.list, def, rl.itemScale); if (typeof iv === 'number' && isFinite(iv) && iv > 0 && iv !== 1) out.iscale = Math.min(1000, iv); }   // 1.6.2 (the core's gap 213): BlastScale, the item's own scale
       return out;
   }
   function placeThrownBlast(opts, mapIn) {
@@ -4519,7 +4520,7 @@ window.wpFitToGrid = fitToGrid;
           var adB = opts.goOff ? opts.ad : pre.area && pre.area.ad; if (typeof adB === 'number' && isFinite(adB) && adB > 0) b.ad = adB;
           var fgB = opts.goOff ? opts.frag : pre.area && pre.area.frag; if (typeof fgB === 'string' && fgB) { b.frag = { expr: fgB.slice(0, 1200), by: typeof opts.charId === 'string' ? opts.charId : '', gm: !!opts.gmOnly }; var fgT = opts.goOff ? opts.fragType : pre.area && pre.area.fragType; if (typeof fgT === 'string' && fgT) b.frag.type = fgT; }   // 1.5.9 (es): its fragmentation, rolled as it goes off (the host's memory alone: broadcastBlast names none of it)
           var afB = opts.goOff ? opts.aff : pre.area && pre.area.aff, BCa = window.wpBlastCore, afC = Array.isArray(afB) && BCa && typeof BCa.cleanAffs === 'function' ? BCa.cleanAffs(afB) : null; if (afC) b.aff = afC;   // 1.5.9 (es): its afflictions, rolled by those it reaches as it goes off (the host's memory alone, as its fragmentation)
-          var fsB = opts.goOff ? opts : pre.tr && typeof blastStats === 'function' ? blastStats(getActiveCampaign().system, pre.tr.f, pre.def) : null; if (fsB) { if (typeof fsB.fills === 'number' && fsB.fills > 0) b.fills = fsB.fills; if (fsB.noDrop === true) b.noDrop = true; }   // 1.6.0: what its list says of it (the host's memory alone, as its fragmentation)
+          var fsB = opts.goOff ? opts : pre.tr && typeof blastStats === 'function' ? blastStats(getActiveCampaign().system, pre.tr.f, pre.def) : null; if (fsB) { if (typeof fsB.fills === 'number' && fsB.fills > 0) b.fills = fsB.fills; if (fsB.noDrop === true) b.noDrop = true; if (typeof fsB.iscale === 'number' && fsB.iscale > 0) b.iscale = fsB.iscale; }   // 1.6.0: what its list says of it (the host's memory alone, as its fragmentation)
       }
       if (onScreen) seatBlast(b);
       var thrB = opts.charId ? (map.whiteboard || []).filter(function(w) { return w.charId === opts.charId; }).sort(function(p, q) { return (q.isChar ? 1 : 0) - (p.isChar ? 1 : 0); })[0] : null;   // cover follow-ups (owner, answer 5): the thrower's token on this map
@@ -4815,12 +4816,12 @@ window.wpFitToGrid = fitToGrid;
           var tier = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, elevOn ? (b.elev || 0) : 0, 0) : null;
           if (fillTotal ? !!(tier && tier.block) : S.coverOutcome && S.coverOutcome(sys, tier) === 'none') return;   // stopped before anything is rolled for it
           if (eEx) {
-              var nE = blastFig(rules.each, function(nm) { var l = String(nm).toLowerCase(); if (l.indexOf('env.') === 0) return BC.envRead ? BC.envRead(b.env, l.slice(4)) : 0; if (l === 'mapcell') return blastCellOf(b, map); if (l === 'hitscale') return 1; return l === 'blastdice' ? eDice : l === 'blastdistance' ? Math.max(0, r.d) : l === 'direct' ? (dirE ? 1 : 0) : l === 'centre' ? (cenE ? 1 : 0) : l === 'blastfills' ? (b.fills > 0 ? b.fills : 0) : l === 'blastnodrop' ? (b.noDrop === true ? 1 : 0) : undefined; }, false);
+              var nE = blastFig(rules.each, function(nm) { var l = String(nm).toLowerCase(); if (l.indexOf('env.') === 0) return BC.envRead ? BC.envRead(b.env, l.slice(4)) : 0; if (l === 'mapcell') return blastCellOf(b, map); if (l === 'hitscale') return 1; return l === 'blastdice' ? eDice : l === 'blastdistance' ? Math.max(0, r.d) : l === 'direct' ? (dirE ? 1 : 0) : l === 'centre' ? (cenE ? 1 : 0) : l === 'blastfills' ? (b.fills > 0 ? b.fills : 0) : l === 'blastnodrop' ? (b.noDrop === true ? 1 : 0) : l === 'blastscale' ? (b.iscale > 0 ? b.iscale : 1) : undefined; }, false);
               var exE = typeof nE === 'number' && nE >= 1 ? BC.diceAt(eEx, Math.min(100, Math.floor(nE)), rules.eachAdd === true) : ''; if (!exE) return;
               var rE = window.wpDice && typeof window.wpDice.rollFor === 'function' ? window.wpDice.rollFor(b.rollBy || '', exE, (b.gm === true ? 'Blast' : (b.name || 'Blast')) + ' damage, ' + (r.tok.charName || r.tok.name || 'a thing in flight'), { gmOnly: b.gm === true, dmg: true, used: true }) : null;
               if (!rE || !rE.ok || typeof rE.value !== 'number' || !isFinite(rE.value)) return; share = Math.max(0, Math.floor(rE.value));
           }
-          if (fall) { share = BC.fallShare(F, fall, { dmg: share, dist: r.d, dice: dice, direct: dirE, centre: cenE, fills: b.fills, noDrop: b.noDrop, env: b.env, cell: blastCellOf(b, map), scale: 1 }); if (share === null) return; }
+          if (fall) { share = BC.fallShare(F, fall, { dmg: share, dist: r.d, dice: dice, direct: dirE, centre: cenE, fills: b.fills, noDrop: b.noDrop, iscale: b.iscale, env: b.env, cell: blastCellOf(b, map), scale: 1 }); if (share === null) return; }
           var amt = Math.floor(fillTotal ? share : S.coverDamage ? S.coverDamage(sys, tier, share) : share); if (!(amt > 0)) return;
           var q = { amt: amt }; if (b.dtype) q.type = b.dtype; if (typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad;
           if (window.wpFlyHit(r.tok, q)) n++;
@@ -4851,7 +4852,7 @@ window.wpFitToGrid = fitToGrid;
           var share = total;
           if (eEx) {   // 1.6.0 (the core's gap 8): this victim's own dice, by the card's formula; rolled now, or owed to its player's card
               var dirE = !!b.direct && r.tok.id === b.direct, cenE = typeof sameCellOn === 'function' && sameCellOn(map, b, tokenCentre(r.tok));
-              var nE = blastFig(rules.each, function(nm) { var l = String(nm).toLowerCase(); if (l.indexOf('env.') === 0) return BC.envRead ? BC.envRead(b.env, l.slice(4)) : 0; if (l === 'mapcell') return blastCellOf(b, map); if (l === 'hitscale') return S.hitScaleOf ? S.hitScaleOf(sys, ch, F) : 1; return l === 'blastdice' ? eDice : l === 'blastdistance' ? Math.max(0, r.d) : l === 'direct' ? (dirE ? 1 : 0) : l === 'centre' ? (cenE ? 1 : 0) : l === 'blastfills' ? (b.fills > 0 ? b.fills : 0) : l === 'blastnodrop' ? (b.noDrop === true ? 1 : 0) : undefined; }, false);
+              var nE = blastFig(rules.each, function(nm) { var l = String(nm).toLowerCase(); if (l.indexOf('env.') === 0) return BC.envRead ? BC.envRead(b.env, l.slice(4)) : 0; if (l === 'mapcell') return blastCellOf(b, map); if (l === 'hitscale') return S.hitScaleOf ? S.hitScaleOf(sys, ch, F) : 1; return l === 'blastdice' ? eDice : l === 'blastdistance' ? Math.max(0, r.d) : l === 'direct' ? (dirE ? 1 : 0) : l === 'centre' ? (cenE ? 1 : 0) : l === 'blastfills' ? (b.fills > 0 ? b.fills : 0) : l === 'blastnodrop' ? (b.noDrop === true ? 1 : 0) : l === 'blastscale' ? (b.iscale > 0 ? b.iscale : 1) : undefined; }, false);
               var exE = typeof nE === 'number' && nE >= 1 ? BC.diceAt(eEx, Math.min(100, Math.floor(nE)), rules.eachAdd === true) : ''; if (!exE) { spared++; return; }   // and its adds with its dice, where the card says so
               if (eVic) {
                   var tierV = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, stanceOn('elevation') ? (b.elev || 0) : 0, stanceOn('elevation') ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null;
@@ -4861,7 +4862,7 @@ window.wpFitToGrid = fitToGrid;
               var rE = window.wpDice && typeof window.wpDice.rollFor === 'function' ? window.wpDice.rollFor(b.rollBy || '', exE, (b.gm === true ? 'Blast' : (b.name || 'Blast')) + ' damage, ' + (r.tok.charName || r.tok.name || ch.name || 'a character'), { gmOnly: b.gm === true, dmg: true, used: true }) : null;
               if (!rE || !rE.ok || typeof rE.value !== 'number' || !isFinite(rE.value)) return; share = Math.max(0, Math.floor(rE.value)); eachN++;
           }
-          if (fall) { share = BC.fallShare(F, fall, { dmg: share, dist: r.d, dice: dice, direct: !!b.direct && r.tok.id === b.direct, centre: typeof sameCellOn === 'function' && sameCellOn(map, b, tokenCentre(r.tok)), fills: b.fills, noDrop: b.noDrop, env: b.env, cell: blastCellOf(b, map), scale: S.hitScaleOf ? S.hitScaleOf(sys, ch, F) : 1 }); if (share === null) return; }   // 1.5.8: the token's share by the card's falloff (1.6.0: of its own roll, where each rolls its own)
+          if (fall) { share = BC.fallShare(F, fall, { dmg: share, dist: r.d, dice: dice, direct: !!b.direct && r.tok.id === b.direct, centre: typeof sameCellOn === 'function' && sameCellOn(map, b, tokenCentre(r.tok)), fills: b.fills, noDrop: b.noDrop, iscale: b.iscale, env: b.env, cell: blastCellOf(b, map), scale: S.hitScaleOf ? S.hitScaleOf(sys, ch, F) : 1 }); if (share === null) return; }   // 1.5.8: the token's share by the card's falloff (1.6.0: of its own roll, where each rolls its own)
           var tierC = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, stanceOn('elevation') ? (b.elev || 0) : 0, stanceOn('elevation') ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null, ocC = fillTotal ? (tierC && tierC.block ? 'none' : 'full') : S.coverOutcome ? S.coverOutcome(sys, tierC) : 'full', dmgC = fillTotal ? (tierC && tierC.block ? 0 : share) : S.coverDamage ? S.coverDamage(sys, tierC, share) : share;   // cover follow-ups (owner 2026-09-28): the system's outcome for the cover this token has from the blast (the host's own board)
           if (ocC === 'none' && share > 0) { shielded++; return; }   // shielded: the system's outcome for this grade is none (a half that rounds to 0 took less)
           if (fall && !(dmgC > 0)) { spared++; return; }   // past the falloff's reach: nothing to apply
@@ -4915,7 +4916,7 @@ window.wpFitToGrid = fitToGrid;
       var rE = window.wpDice.rollFor(ch.id, o.expr, (o.b.gm === true ? 'Blast' : (o.b.name || 'Blast')) + ' damage', { gmOnly: o.b.gm === true, dmg: true, used: true });
       if (!rE || !rE.ok || typeof rE.value !== 'number' || !isFinite(rE.value)) return { error: 'That blast roll could not be made.' };
       var rules = blastRules(sys), fall = rules && rules.fall ? rules.fall : '', share = Math.max(0, Math.floor(rE.value)), hpId = sys.combat ? sys.combat.hpResource : '', step = !!(fall && sys.combat && sys.combat.damage && typeof S.damageStep === 'function');
-      if (fall) { share = BC.fallShare(F, fall, { dmg: share, dist: o.d, dice: BC.diceCount(o.b.dmgExpr || ''), direct: o.dir, centre: o.cen, fills: o.b.fills, noDrop: o.b.noDrop, env: o.b.env, cell: typeof o.b.cell === 'number' ? o.b.cell : 1, scale: S.hitScaleOf ? S.hitScaleOf(sys, ch, F) : 1 }); if (share === null) return { error: 'Its falloff could not be worked out.' }; }
+      if (fall) { share = BC.fallShare(F, fall, { dmg: share, dist: o.d, dice: BC.diceCount(o.b.dmgExpr || ''), direct: o.dir, centre: o.cen, fills: o.b.fills, noDrop: o.b.noDrop, iscale: o.b.iscale, env: o.b.env, cell: typeof o.b.cell === 'number' ? o.b.cell : 1, scale: S.hitScaleOf ? S.hitScaleOf(sys, ch, F) : 1 }); if (share === null) return { error: 'Its falloff could not be worked out.' }; }
       var dmgC = rules && rules.fillCover === 'total' && o.b.fills > 0 ? (o.tier && o.tier.block ? 0 : share) : S.coverDamage ? S.coverDamage(sys, o.tier, share) : share; if (!(dmgC > 0)) return { ok: true, amt: 0 };
       var vals = null, lines = null, st = null;
       if (step) {   // as the blast pass's own shares: DR at the default location, the blast's damage type, its armour divisor
@@ -5050,7 +5051,7 @@ window.wpFitToGrid = fitToGrid;
       var at = map.whiteboard.indexOf(zone); if (at < 0) return null;
       var m = zone.mine, cx = (Number(zone.x) || 0) + (Number(zone.w) || 0) / 2, cy = (Number(zone.y) || 0) + (Number(zone.h) || 0) / 2;
       map.whiteboard.splice(at, 1); save(); render();
-      return placeThrownBlast({ goOff: true, mine: true, x: cx, y: cy, ft: m.ft, name: m.name || 'Mine', by: m.by || '', charId: m.charId, damage: m.damage || '', gmOnly: !!m.gmOnly, direct: direct || null, dtype: m.type, ad: m.ad, notes: m.notes, icon: zone.mineIcon, frag: m.frag, fragType: m.fragType, aff: m.aff, fills: m.fills, noDrop: m.noDrop }, map);
+      return placeThrownBlast({ goOff: true, mine: true, x: cx, y: cy, ft: m.ft, name: m.name || 'Mine', by: m.by || '', charId: m.charId, damage: m.damage || '', gmOnly: !!m.gmOnly, direct: direct || null, dtype: m.type, ad: m.ad, notes: m.notes, icon: zone.mineIcon, frag: m.frag, fragType: m.fragType, aff: m.aff, fills: m.fills, noDrop: m.noDrop, iscale: m.iscale }, map);
   }
   // A character token that stepped in (the host's own map: the GM's drag, a player's drop): every mine whose trigger it stands in now and did
   // not stand in where the gesture began goes off, the token struck directly. Never on a player's app or in the stream window
@@ -5137,7 +5138,7 @@ window.wpFitToGrid = fitToGrid;
       var dir = hasD ? (typeof opts.direct === 'string' ? opts.direct : null) : aimT ? aimT.id : null, po = { goOff: true, launched: true, x: aim.x, y: aim.y, ft: a.ft, name: a.name || d.name || '', by: lr.ch.name || '', charId: opts.charId, fieldId: lr.f.id, rowId: opts.rowId, damage: d.damage || '', gmOnly: gm, direct: dir, dtype: a.type, ad: a.ad, notes: gm ? '' : d.notes, icon: d.icon, frag: a.frag, fragType: a.fragType, aff: a.aff };   // 1.5.9 (es): the round's own fragmentation and afflictions
       var lsS = window.wpSystemCore, lsF = lsS && typeof lsS.fieldById === 'function' && lr.f.list.chamber && typeof blastStats === 'function' ? lsS.fieldById(camp.system, lr.f.list.chamber.from) : null; if (lsF) Object.assign(po, blastStats(camp.system, lsF, d));   // 1.6.0: by the list its round comes from
       if (typeof opts.said === 'string' && opts.said) po.said = opts.said; if (opts.fuse === true) po.fuseOk = true;
-      var fsL = typeof blastStats === 'function' ? blastStats(camp.system, lr.f, d) : null; if (fsL) { if (typeof fsL.fills === 'number' && fsL.fills > 0) po.fills = fsL.fills; if (fsL.noDrop === true) po.noDrop = true; }   // 1.6.0: what its list says of it, as a throw's row is read
+      var fsL = typeof blastStats === 'function' ? blastStats(camp.system, lr.f, d) : null; if (fsL) { if (typeof fsL.fills === 'number' && fsL.fills > 0) po.fills = fsL.fills; if (fsL.noDrop === true) po.noDrop = true; if (typeof fsL.iscale === 'number' && fsL.iscale > 0) po.iscale = fsL.iscale; }   // 1.6.0: what its list says of it, as a throw's row is read
       if (typeof opts.margin === 'number' && isFinite(opts.margin)) po.atkM = opts.margin; if (opts.shot) po.defKey = burstKey(opts);   // 1.6.0: a blast's own Defense roll: the attack's margin, read by its direct target, and the burst whose rounds take one roll
       return placeThrownBlast(po, map);
   }
@@ -5271,7 +5272,9 @@ window.wpFitToGrid = fitToGrid;
       var camp = getActiveCampaign(), S = window.wpSystemCore, BC = window.wpBlastCore; if (!flyHere() || !camp || !S || !BC || !Array.isArray(list)) return 0;
       var n = 0, now = 0, maps = [];
       list.forEach(function(l) {
-          var map = l ? flyMap(camp, l.map) : null, from = flyTok(map, l && l.from), tgt = flyTok(map, l && l.target), fl = S.cleanFlies(l && l.def && l.def.flies); if (!map || !from || !tgt || tgt.hidden || !fl) return;
+          var map = l ? flyMap(camp, l.map) : null, from = flyTok(map, l && l.from) || (map && l && typeof l.by === 'string' && typeof S.charTokenOn === 'function' ? S.charTokenOn(map, l.by, '', { hidden: true }) : null), tgt = flyTok(map, l && l.target), fl = S.cleanFlies(l && l.def && l.def.flies);   // 1.6.2 (the core's gap 216): with no token named, the sheet's own token on that map (a vehicle a crew member pressed)
+          if (map && tgt && fl && !from) { toast(String(l.def && l.def.name || 'It').slice(0, 60) + ' is not launched: the sheet it is launched from has no token on that map.'); return; }
+          if (!map || !from || !tgt || tgt.hidden || !fl) return;
           var g = S.mapGridOf(map), c = tokenCentre(from), tc = tokenCentre(tgt), seat = BC.flyStep({ grid: g, from: c, to: tc, cells: 0 }) || c, W = g === 'hex' ? 30 : 26, H = g === 'hex' ? 26 : 26, nm = typeof l.def.name === 'string' && l.def.name ? l.def.name.slice(0, 60) : 'Missile';
           var fly = Object.assign({}, fl, { by: l.by, f: l.f, r: l.r, target: tgt.id, at: tc, n: Date.now() * 1000 + (++_flyN % 1000), left: fl.rounds, item: l.def }), fn = flyFight(map.id, from.id); if (fn !== undefined) fly.fn = fn; if (fl.path === 'line') fly.line = BC.flyLine({ x: seat.x, y: seat.y }, tc);
           map.whiteboard = Array.isArray(map.whiteboard) ? map.whiteboard : [];
@@ -5303,10 +5306,26 @@ window.wpFitToGrid = fitToGrid;
       }
       if (window.wpStepLog) window.wpStepLog('fly v1', 'arrive', { rolled: rolled, hit: hit });
       if (!hit) { toast(rolled ? nm + ' reaches ' + tn + ' and misses.' : nm + ' reaches ' + tn + ', but its roll cannot be made. It is spent.'); return; }
+      var attW = rolled && N && typeof N.rollMade === 'string' ? N.rollMade : '';   // the core's gap 214: a hit its target may resist waits for that roll
+      if (attW && typeof N.flyWait === 'function' && N.flyWait(attW, { m: map.id, w: w, tid: tgt.id, name: nm })) { if (window.wpStepLog) window.wpStepLog('fly v1', 'waits', {}); toast(nm + ' reaches ' + tn + '. It strikes unless ' + tn + ' resists.'); return; }
+      flyHit(camp, map, w, tgt);
+  }
+  // what lands: its blast at the target, else its damage as a card
+  function flyHit(camp, map, w, tgt) {
+      var fl = w.fly, it = fl.item || {}, nm = flyName(w), tn = tgt.charName || tgt.name || 'its target', ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, fl.by) ? camp.chars[fl.by] : null;
       if (flyBlast(camp, map, w, tokenCentre(tgt), tgt.id)) return;
       if (typeof it.damage === 'string' && it.damage && ch && window.wpDice && typeof window.wpDice.rollFor === 'function') { window.wpDice.rollFor(ch.id, it.damage, nm + ' damage', { gmOnly: it.vis === 'gm', dmg: true }); toast(nm + ' strikes ' + tn + '. Apply its damage from the card.'); return; }
       toast(nm + ' strikes ' + tn + '.');
   }
+  // 1.6.2 (the core's gap 214): the target's roll is in. pass: it resisted, so the thing is avoided; else it lands where its target now stands
+  window.wpFlyLand = function(fw, pass) {
+      var camp = getActiveCampaign(), map = fw && camp ? flyMap(camp, fw.m) : null; if (!flyHere() || !map || !fw.w || !fw.w.fly) return false;
+      var nm = flyName(fw.w), tgt = flyTok(map, fw.tid);
+      if (window.wpStepLog) window.wpStepLog('fly v1', pass === true ? 'avoided' : 'lands', { here: !!tgt });
+      if (pass === true) { toast(nm + ' is avoided.'); return true; }
+      if (!tgt) { toast(nm + ' finds nothing to strike: its target is gone.'); return false; }
+      flyHit(camp, map, fw.w, tgt); save(true); render(); flySent(camp, map); return true;
+  };
   window.wpFlyRound = function(mapId, c) {   // net.js roundChanged, on the host: a new round of a fight on that map moves what flies there, in launch order
       var camp = getActiveCampaign(), map = flyMap(camp, mapId), BC = window.wpBlastCore, S = window.wpSystemCore; if (!flyHere() || !map || !BC || !S || !c || typeof c.n !== 'number' || !Array.isArray(map.whiteboard)) return 0;
       var list = map.whiteboard.filter(function(w) { return w && w.fly && typeof w.fly === 'object' && (w.fly.fn === undefined || w.fly.fn === c.n); }).sort(function(p, q) { return (p.fly.n || 0) - (q.fly.n || 0); }); if (!list.length) return 0;

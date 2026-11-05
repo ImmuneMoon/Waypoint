@@ -190,7 +190,7 @@ var GROUPS = {
         ['specs', 'Specialties', 0, ['sys-list-specs', 'sys-list-specof', 'sys-list-speccover', 'sys-list-specby', 'sys-list-specfall', 'sys-list-specnever', 'sys-list-specpen', 'sys-list-specsum', 'sys-list-specdflt']],
         ['once', 'Counted once', 0, ['sys-list-once', 'sys-list-oncenote']],
         ['look', 'Look and work log', 0, ['sys-list-rowlook', 'sys-list-lkmain', 'sys-list-lkby', 'sys-list-worklog']],
-        ['other', 'Other rules', 0, ['sys-list-lockif', 'sys-list-lockcell', 'sys-list-locksays', 'sys-list-modsif', 'sys-list-atfrom', 'sys-list-atby', 'sys-list-subject', 'sys-list-sjif', 'sys-list-throwif', 'sys-list-throwsays', 'sys-list-sets', 'sys-list-placeby', 'sys-list-onrm']],
+        ['other', 'Other rules', 0, ['sys-list-layfrom', 'sys-list-layif', 'sys-list-laystat', 'sys-list-lockif', 'sys-list-lockcell', 'sys-list-locksays', 'sys-list-modsif', 'sys-list-atfrom', 'sys-list-atby', 'sys-list-subject', 'sys-list-sjif', 'sys-list-throwif', 'sys-list-throwsays', 'sys-list-sets', 'sys-list-placeby', 'sys-list-onrm']],
         ['arcs', 'Arcs', 0, ['sys-list-arcby', 'sys-arcs']],
         ['names', 'What formulas read', 0, ['sys-list-names']]] },
     effects: { split: ['sys-row-main', 'sys-flags'], head: ['sys-fx-icon', 'sys-glyph-btn', 'sys-fx-name', 'sys-fx-tone', 'sys-btns'], list: [

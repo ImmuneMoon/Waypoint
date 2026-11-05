@@ -353,6 +353,10 @@ System editor
   takes the test, and a tick for each part. Nobody changes a locked part on the
   sheet while it holds, the GM included, and Refused with says why. A file that
   fills a character still sets them.
+- A list's rows can be laid by another list's rows. Rows laid from, in the
+  Lists tab, picks the list, Only where says which of its rows lay one, and each
+  stat may copy one of that row's. A laid row follows its row and goes with it,
+  and nobody changes what it copies or removes it by hand.
 
 Build
 - Build's options stand in three tabs. Build holds the materials and the

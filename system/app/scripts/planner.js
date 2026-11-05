@@ -83,6 +83,122 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      leave a look pointing at another text: block.fmt.{title, sub, tag, must, caption}; a table's heads in colFmt (a list
      parallel to cols, kept in step by the Columns select); a row's cells on the row (row.fmt.col1…); a node's label on the
      node, an arrow's on the arrow. A block with none of these is saved, sent and drawn exactly as before. */
+  // [textcheck:pbenames-start]
+  // 1.6.2, backlog 171 (the owner, by prompt: "Plain names above"): a block is named by what it is, a box by a caption above it, and a
+  // flowchart's arrows by the words of the steps they join, never by an id
+  var BLOCK_NAMES = { h1: 'Title', h2: 'Section heading', h3: 'Sub-heading', lede: 'Lead text', oneline: 'One-line summary', node: 'Scene', table: 'Table',
+      flare: 'Callout', callout: 'Gold-edged note', image: 'Picture', rule: 'Line', flowchart: 'Flowchart', diagram: 'Diagram from code', text: 'Text', raw: 'Raw HTML' };
+  function blockName(b) { if (!b || typeof b !== 'object') return 'Block'; if (b.type === 'node' && b.mode === 'table') return 'Table'; return Object.prototype.hasOwnProperty.call(BLOCK_NAMES, b.type) ? BLOCK_NAMES[b.type] : String(b.type || 'Block'); }
+  function pbeCap(t) { return '<div class="pbe-cap">' + esc(t) + '</div>'; }
+  function fcStepWords(n) { var t = String(n && n.text != null ? n.text : '').split('\n')[0].trim(); if (t.length > 40) t = t.slice(0, 39) + '\u2026'; return t || 'A step with no words'; }
+  function fcStepOpts(b, was) {
+      var nodes = Array.isArray(b && b.nodes) ? b.nodes : [], seen = false;
+      var out = '<option value=""' + (was ? '' : ' selected') + '>Pick a step</option>' + nodes.map(function(n) {
+          var id = String(n && n.id || ''); if (!id) return ''; var on = id === was; if (on) seen = true;
+          return '<option value="' + esc(id) + '"' + (on ? ' selected' : '') + '>' + esc(fcStepWords(n)) + '</option>';
+      }).join('');
+      if (was && !seen) out += '<option value="' + esc(was) + '" selected>A step that is gone</option>';   // an arrow to a step deleted since keeps its end until another is picked
+      return out;
+  }
+  function fcFreeId(b) { var have = {}; (Array.isArray(b && b.nodes) ? b.nodes : []).forEach(function(n) { if (n && n.id) have[String(n.id)] = 1; }); for (var k = 1; ; k++) if (!have['n' + k]) return 'n' + k; }
+  // [textcheck:pbenames-end]
+  // [textcheck:pbeadd-start]
+  // A block is added where you want it (1.6.2, backlog 171; the owner, by prompt: "Both"): a + between any two blocks, and / typed on an
+  // empty line of text. Both open one menu of every kind by its name, in three groups, with a box that narrows it as you type. A pick
+  // made from / on an empty text block takes that block's place
+  var BLOCK_KINDS = [
+      ['text', 'Text', 'Words'], ['h2', 'Section heading', 'Words'], ['h3', 'Sub-heading', 'Words', '', 'doc'], ['lede', 'Lead text', 'Words', 'the line under a title'],
+      ['oneline', 'One-line summary', 'Words'], ['flare', 'Callout', 'Words'], ['callout', 'Gold-edged note', 'Words', '', 'doc'], ['h1', 'Title', 'Words', 'with a subtitle'],
+      ['node', 'Scene', 'Play', 'title, must resolve, routes', 'planner'], ['table', 'Table', 'Play'], ['flowchart', 'Flowchart', 'Play'],
+      ['image', 'Picture', 'More'], ['rule', 'Line', 'More', '', 'doc'], ['diagram', 'Diagram from code', 'More'], ['raw', 'Raw HTML', 'More', '', 'planner']];
+  function blockKinds(isDoc) { return BLOCK_KINDS.filter(function(k) { return !k[4] || k[4] === (isDoc ? 'doc' : 'planner'); }); }
+  function blockMake(type, isDoc) {
+      if (type === 'table') return isDoc ? { id: 'b_' + uid(), type: 'table', cols: ['Item', 'Detail', 'Notes'], rows: [] } : { id: 'b_' + uid(), type: 'node', mode: 'table' };
+      return { id: 'b_' + uid(), type: type };
+  }
+  function blockAdd(map, type, at, swap) {   // at: the place it goes; swap: true where it takes the place of the block there
+      if (!map) return -1;
+      var isDoc = map.type === 'doc';
+      if (!blockKinds(isDoc).some(function(k) { return k[0] === type; })) return -1;
+      if (isDoc && DOC_BLOCKS.indexOf(type) < 0) return -1;
+      if (!Array.isArray(map.blocks)) map.blocks = [];
+      var n = map.blocks.length; at = Math.max(0, Math.min(n, Math.round(Number(at) || 0)));
+      if (swap && at < n) map.blocks.splice(at, 1, blockMake(type, isDoc)); else map.blocks.splice(at, 0, blockMake(type, isDoc));
+      return at;
+  }
+  function pbeAddHtml(at) { return '<div class="pbe-add" data-at="' + at + '"><button type="button" class="pbe-add-btn" data-at="' + at + '" title="Add a block here" aria-label="Add a block here">+</button></div>'; }
+  var _pbe = { el: null, at: 0, swap: false, from: null, hi: 0 };
+  function pbeMenu() {
+      if (_pbe.el) return _pbe.el;
+      var m = document.createElement('div'); m.id = 'pbeAddMenu'; m.className = 'pbe-menu'; m.hidden = true; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Add a block');
+      var f = document.createElement('input'); f.type = 'text'; f.className = 'field pbe-find'; f.placeholder = 'Type to find a kind'; f.setAttribute('aria-label', 'Find a kind of block'); f.autocomplete = 'off'; f.spellcheck = false;
+      var list = document.createElement('div'); list.className = 'pbe-list'; list.setAttribute('role', 'listbox');
+      m.appendChild(f); m.appendChild(list); document.body.appendChild(m);
+      f.addEventListener('input', pbeDraw);
+      f.addEventListener('keydown', function(e) {   // a closed menu takes no key
+          if (m.hidden) return;
+          var rows = list.querySelectorAll('.pbe-kind');
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (rows.length) { _pbe.hi = (_pbe.hi + (e.key === 'ArrowDown' ? 1 : rows.length - 1)) % rows.length; pbeMark(); } }
+          else if (e.key === 'Enter') { e.preventDefault(); if (rows[_pbe.hi]) pbePick(rows[_pbe.hi].getAttribute('data-type')); }
+          else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); pbeClose(true); }
+          else if (e.key === 'Tab') { e.preventDefault(); }
+      });
+      list.addEventListener('mousedown', function(e) { e.preventDefault(); });   // the box keeps the focus
+      list.addEventListener('click', function(e) { var r = e.target.closest ? e.target.closest('.pbe-kind') : null; if (r) pbePick(r.getAttribute('data-type')); });
+      document.addEventListener('pointerdown', function(e) { if (!m.hidden && !m.contains(e.target) && !(e.target.closest && e.target.closest('.pbe-add-btn'))) pbeClose(false); }, true);
+      _pbe.el = m; return m;
+  }
+  function pbeDraw() {
+      var m = pbeMenu(), list = m.querySelector('.pbe-list'), q = String(m.querySelector('.pbe-find').value || '').toLowerCase().trim(), am = getActiveMap(), isDoc = !!(am && am.type === 'doc');
+      while (list.firstChild) list.removeChild(list.firstChild);
+      var last = '';
+      blockKinds(isDoc).forEach(function(k) {
+          if (q && (k[1] + ' ' + (k[3] || '')).toLowerCase().indexOf(q) < 0) return;
+          if (k[2] !== last && !q) { var g = document.createElement('div'); g.className = 'pbe-grp'; g.textContent = k[2]; list.appendChild(g); }
+          last = k[2];
+          var r = document.createElement('div'); r.className = 'pbe-kind'; r.setAttribute('role', 'option'); r.setAttribute('data-type', k[0]);
+          var nm = document.createElement('span'); nm.textContent = k[1]; r.appendChild(nm);
+          if (k[3]) { var sm = document.createElement('small'); sm.textContent = k[3]; r.appendChild(sm); }
+          list.appendChild(r);
+      });
+      if (!list.querySelector('.pbe-kind')) { var no = document.createElement('div'); no.className = 'pbe-none'; no.textContent = 'No kind of block has those words.'; list.appendChild(no); }
+      _pbe.hi = 0; pbeMark();
+  }
+  function pbeMark() { var rows = _pbe.el ? _pbe.el.querySelectorAll('.pbe-kind') : []; Array.prototype.forEach.call(rows, function(r, i) { var on = i === _pbe.hi; r.classList.toggle('on', on); r.setAttribute('aria-selected', on ? 'true' : 'false'); if (on && r.scrollIntoView) r.scrollIntoView({ block: 'nearest' }); }); }
+  function pbeOpen(anchor, at, swap, q) {
+      var m = pbeMenu(); _pbe.at = at; _pbe.swap = !!swap; _pbe.from = anchor;
+      var f = m.querySelector('.pbe-find'); f.value = q || ''; pbeDraw();
+      m.hidden = false;
+      var r = anchor.getBoundingClientRect(), h = Math.min(m.offsetHeight || 320, 340), top = r.bottom + 4;
+      if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 4);
+      m.style.top = top + 'px'; m.style.left = Math.max(8, Math.min(window.innerWidth - (m.offsetWidth || 240) - 8, r.left)) + 'px';
+      f.focus();
+  }
+  function pbeClose(back) { if (!_pbe.el || _pbe.el.hidden) return; _pbe.el.hidden = true; var a = _pbe.from; _pbe.from = null; if (back && a && a.focus && document.contains(a)) { try { a.focus(); } catch (e) {} } }
+  function pbePick(type) {
+      var am = getActiveMap(); if (!am || !type) return;
+      var at = blockAdd(am, type, _pbe.at, _pbe.swap); pbeClose(false);
+      if (at < 0) { toast('That kind of block is for planners.'); return; }
+      save(true); renderPlanner();
+      setTimeout(function() {
+          var ed = document.querySelector('.planner-block-edit[data-idx="' + at + '"]'); if (!ed) return;
+          try { ed.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+          var box = ed.querySelector('.ts-box') || ed.querySelector('.rte-body') || ed.querySelector('textarea') || ed.querySelector('input[type="text"]:not(.rte-link)'); if (box && box.focus) { try { box.focus(); } catch (e) {} }   // the block's own words first, never the Link box of its bar
+      }, 0);
+  }
+  function pbeWire(container) {
+      if (!container || container._pbeWired) return; container._pbeWired = true;
+      container.addEventListener('click', function(e) { var b = e.target.closest ? e.target.closest('.pbe-add-btn') : null; if (!b) return; e.preventDefault(); pbeOpen(b, parseInt(b.getAttribute('data-at'), 10) || 0, false, ''); });
+      container.addEventListener('keydown', function(e) {   // / on an empty line of text opens the menu there
+          if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+          var body = e.target && e.target.closest ? e.target.closest('.rte-body') : null; if (!body) return;
+          if (String(body.textContent || '').trim() !== '') return;
+          var idx = parseInt(body.getAttribute('data-idx'), 10); if (!(idx >= 0)) return;
+          e.preventDefault();
+          pbeOpen(body, idx, true, '');
+      }, true);
+  }
+  // [textcheck:pbeadd-end]
   // [sinkcheck:boxes-start]
   // [textcheck:fields-start]
   var TS_PLAIN = '.b-title, .b-sub, .b-must, .b-caption, .b-colhead, .r-col, .fc-n-text, .fc-e-text';   // the editor boxes that hold a plain field
@@ -451,25 +567,6 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   // The markup of an EMPTY box (renderPlanner writes the editor as one string): its classes, its place, its placeholder — never the field's
   // text, which tsFill draws. A placeholder is shown by the style sheet while the box holds nothing, and is no part of the text.
-  // [textcheck:pbenames-start]
-  // 1.6.2, backlog 171 (the owner, by prompt: "Plain names above"): a block is named by what it is, a box by a caption above it, and a
-  // flowchart's arrows by the words of the steps they join, never by an id
-  var BLOCK_NAMES = { h1: 'Title', h2: 'Section heading', h3: 'Sub-heading', lede: 'Lead text', oneline: 'One-line summary', node: 'Scene', table: 'Table',
-      flare: 'Callout', callout: 'Gold-edged note', image: 'Picture', rule: 'Line', flowchart: 'Flowchart', diagram: 'Diagram from code', text: 'Text', raw: 'Raw HTML' };
-  function blockName(b) { if (!b || typeof b !== 'object') return 'Block'; if (b.type === 'node' && b.mode === 'table') return 'Table'; return Object.prototype.hasOwnProperty.call(BLOCK_NAMES, b.type) ? BLOCK_NAMES[b.type] : String(b.type || 'Block'); }
-  function pbeCap(t) { return '<div class="pbe-cap">' + esc(t) + '</div>'; }
-  function fcStepWords(n) { var t = String(n && n.text != null ? n.text : '').split('\n')[0].trim(); if (t.length > 40) t = t.slice(0, 39) + '\u2026'; return t || 'A step with no words'; }
-  function fcStepOpts(b, was) {
-      var nodes = Array.isArray(b && b.nodes) ? b.nodes : [], seen = false;
-      var out = '<option value=""' + (was ? '' : ' selected') + '>Pick a step</option>' + nodes.map(function(n) {
-          var id = String(n && n.id || ''); if (!id) return ''; var on = id === was; if (on) seen = true;
-          return '<option value="' + esc(id) + '"' + (on ? ' selected' : '') + '>' + esc(fcStepWords(n)) + '</option>';
-      }).join('');
-      if (was && !seen) out += '<option value="' + esc(was) + '" selected>A step that is gone</option>';   // an arrow to a step deleted since keeps its end until another is picked
-      return out;
-  }
-  function fcFreeId(b) { var have = {}; (Array.isArray(b && b.nodes) ? b.nodes : []).forEach(function(n) { if (n && n.id) have[String(n.id)] = 1; }); for (var k = 1; ; k++) if (!have['n' + k]) return 'n' + k; }
-  // [textcheck:pbenames-end]
   function tsBoxHtml(cls, ph, data, style, multi, extra) {
       return '<div class="' + cls + ' ts-box' + (multi ? ' ts-multi' : '') + '" contenteditable="' + TS_EDIT + '" role="textbox" aria-multiline="' + (multi ? 'true' : 'false') + '" spellcheck="true" data-placeholder="' + esc(ph) + '" aria-label="' + esc(ph) + '" ' + data + (extra ? ' ' + extra : '') + (style ? ' style="' + style + '"' : '') + '></div>';
   }
@@ -1468,6 +1565,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       activeMap.blocks.forEach(function(b, idx) {
           if (b.type === 'h1') secCols = 1; else if (b.type === 'h2') secCols = Math.max(1, Math.min(3, Math.round(Number(b.cols) || 1)));
 
+          html += pbeAddHtml(idx);   // a + between any two blocks (backlog 171)
           html += '<div class="planner-block-edit" data-idx="'+idx+'">';
 
           html += '<div class="block-head"><span>' + esc(blockName(b)) + '</span>';
@@ -1615,9 +1713,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       rebaseHistory(activeMap);   // the legacy upgrade and block defaults above are clean-ups, never an undo step
 
+      html += pbeAddHtml(activeMap.blocks.length);
       blockContainer.innerHTML = html;
 
       tsFill(blockContainer, activeMap.blocks);   // every plain field's box drawn from its runs (the markup above holds no field's text)
+      pbeWire(blockContainer);
 
 
 
@@ -2995,7 +3095,7 @@ if(_el_addBlockSelect) _el_addBlockSelect.addEventListener('change', function() 
       if (!activeMap.blocks) activeMap.blocks = [];
 
       if (activeMap.type === 'doc' && DOC_BLOCKS.indexOf(this.value) < 0) { toast('That block is for planners.'); this.value = ''; return; }   // pages hold player-safe blocks only
-      activeMap.blocks.push(this.value === 'table' && activeMap.type !== 'doc' ? { id: 'b_'+uid(), type: 'node', mode: 'table' } : this.value === 'table' ? { id: 'b_'+uid(), type: 'table', cols: ['Item', 'Detail', 'Notes'], rows: [] } : { id: 'b_'+uid(), type: this.value });
+      activeMap.blocks.push(blockMake(this.value, activeMap.type === 'doc'));
 
       this.value = '';
 

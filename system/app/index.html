@@ -1134,6 +1134,7 @@
                       <ol>
                           <li>Right-click <b>Planners</b>, press <b>+</b> and open your new page.</li>
                           <li>Use the planner toolbar to add blocks: headings, prose, callouts, tables, and flowcharts. Blocks can be reordered and edited in place.</li>
+                          <li><b>Adding a block</b>: point between any two blocks and press the <b>+</b> that shows, or type <kbd>/</kbd> on an empty line of text. A menu lists every kind by its name. Type to narrow it and press Enter. A kind picked from <kbd>/</kbd> takes the empty line&rsquo;s place.</li>
                           <li>Planners nest under planners just like maps, and <b>re-order</b> the same way. Drag onto the top or bottom of a row, or right-click &rarr; <b>&#8593; Move Up</b> / <b>&#8595; Move Down</b>. Keep one parent per module with a child page per scene.</li>
                           <li>The toolbar&rsquo;s <b>Status&hellip;</b> list says where a scene stands. <b>Next</b> is the one you play next: the play map&rsquo;s right-click menu then offers it as <b>&#9654; Next scene</b>. A click there opens it over the map. <b>Played</b> and <b>Skipped</b> mark a scene done.</li>
                           <li><b>Outline</b>, beside the Find box, lists the page&rsquo;s headings. Click one to jump to it. The panel over the map, a page in its own window and a player&rsquo;s reader have the same button.</li>
@@ -3761,20 +3762,20 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
           <div style="margin-top: 15px; display: flex; gap: 8px;">
               <select id="addBlockSelect" class="tool">
                   <option value="" disabled selected>+ Add Block...</option>
-                  <option value="h1">Header (H1)</option>
-                  <option value="h2">Section (H2)</option>
-                  <option value="h3" data-for="doc">Sub-heading (H3)</option>
-                  <option value="lede">Lead Text</option>
-                  <option value="oneline">One-line Summary</option>
-                  <option value="node" data-for="planner">Scene Node (title, must-resolve, routes)</option>
-                  <option value="table">Table (plain grid)</option>
-                  <option value="flare">Flare / Callout</option>
-                  <option value="callout" data-for="doc">Callout (gold-edged note)</option>
-                  <option value="image">Image</option>
-                  <option value="rule" data-for="doc">Horizontal Line</option>
-                  <option value="flowchart">Flowchart Builder</option>
-                  <option value="diagram">Mermaid Diagram (Code)</option>
-                  <option value="text">Standard Text</option>
+                  <option value="h1">Title</option>
+                  <option value="h2">Section heading</option>
+                  <option value="h3" data-for="doc">Sub-heading</option>
+                  <option value="lede">Lead text</option>
+                  <option value="oneline">One-line summary</option>
+                  <option value="node" data-for="planner">Scene (title, must resolve, routes)</option>
+                  <option value="table">Table</option>
+                  <option value="flare">Callout</option>
+                  <option value="callout" data-for="doc">Gold-edged note</option>
+                  <option value="image">Picture</option>
+                  <option value="rule" data-for="doc">Line</option>
+                  <option value="flowchart">Flowchart</option>
+                  <option value="diagram">Diagram from code</option>
+                  <option value="text">Text</option>
                   <option value="raw" data-for="planner">Raw HTML</option>
               </select>
           </div>

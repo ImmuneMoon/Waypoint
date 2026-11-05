@@ -344,6 +344,14 @@ Settings
   you make later. A feature's own settings stand under it, greyed while it
   is off.
 
+Writing planners and pages
+- Point between any two blocks and press the + that shows, or type / on an
+  empty line of text. A menu lists every kind of block by its name, and
+  narrows as you type.
+- A block is named by what it is, such as Title, Lead text or Scene, and
+  each box has its name above it. A flowchart's arrow picks the steps it
+  joins by their own words.
+
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.
   A list can now give every tag a colour, and the Library can give each

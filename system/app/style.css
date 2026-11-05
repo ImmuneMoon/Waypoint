@@ -2363,12 +2363,33 @@
   /* 1.6.2, backlog 171: one formatting bar at the top of the editor. Each text block's own bar stays in the page and shows, held over the
      greyed copy at the top, only while that block is in use */
   #plannerEditorWrap .rte > .rte-bar { display: none; }
-  #plannerEditorWrap .rte.rte-on > .rte-bar { display: flex; position: fixed; top: var(--pbe-top, 0px); left: var(--pbe-left, 0px); width: var(--pbe-w, 400px); z-index: 60; margin: 0; box-shadow: 0 4px 12px rgba(0,0,0,.35); }
+  #plannerEditorWrap .rte.rte-on > .rte-bar { display: flex; position: fixed; top: var(--pbe-top, 0px); left: var(--pbe-left, 0px); width: var(--pbe-w, 400px); z-index: 60; margin: 0; background: var(--bg2); box-shadow: 0 4px 12px rgba(0,0,0,.35); }
   .pbe-barslot { position: sticky; top: -15px; z-index: 50; margin: -15px -15px 12px; padding: 8px 15px; background: var(--bg2); border-bottom: 1px solid var(--edge); }
   .pbe-barslot[hidden] { display: none; }
   .pbe-idlebar { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; opacity: .45; pointer-events: none; }
   .pbe-idlesay { color: var(--dim); font-size: 11px; margin-left: 6px; }
-  #plannerEditorWrap.pbe-bar-on .pbe-idlebar { visibility: hidden; }
+  body.pbe-bar-on .pbe-idlebar { visibility: hidden; }
+  /* 1.6.2, backlog 171: writing on the page itself. Edit shows the page alone; a pressed block's form is laid over it in a layer, the drawn
+     block making room; Render Preview's work is the switch's (Edit, Read, Side by side) */
+  #renderPlannerBtn { display: none; }
+  .pg-seg { display: inline-flex; border: 1px solid var(--edge); border-radius: 5px; overflow: hidden; }
+  .pg-seg .tool { border: 0; border-radius: 0; padding: 3px 9px; }
+  .pg-seg .tool.on { background: rgba(224,165,79,0.16); color: var(--gold); }
+  #plannerPreviewWrap.pbe-page { position: relative; }
+  #plannerEditorWrap.pbe-layer { position: absolute !important; top: 0; left: 0; width: 100% !important; height: 0; padding: 0 !important; border: 0 !important; background: none !important; overflow: visible !important; display: block !important; pointer-events: none; z-index: 20; }
+  .pbe-layer #plannerBlocks > .pbe-add, .pbe-layer #plannerBlocks + div { display: none !important; }   /* on the page the + stands between the drawn blocks */
+  .pbe-layer .planner-block-edit { display: none; position: absolute; pointer-events: auto; margin: 0; box-shadow: 0 8px 26px rgba(0,0,0,.5); border-color: var(--gold); }
+  .pbe-layer .planner-block-edit.pg-open { display: block; }
+  .pbe-layer .planner-block-edit .rte-body { font-size: 14.5px; line-height: 1.6; }   /* words written on the page read at the page's size */
+  .pbe-page #plannerPreview .pv-blk[data-blk] { cursor: text; border-radius: 4px; }
+  .pbe-page #plannerPreview .pv-blk[data-blk]:hover, .pbe-page #plannerPreview .pv-blk[data-blk]:focus-visible { outline: 1px dashed rgba(224,165,79,0.55); outline-offset: 4px; }
+  .pbe-page #plannerPreview .pv-blk.pg-hid { visibility: hidden; }
+  #plannerFindBar > .pbe-barslot { position: static; flex: 1 0 100%; margin: 2px 0 0; padding: 6px 0 0; border-top: 1px solid var(--edge); border-bottom: 0; background: none; }
+  .pg-add { display: block; width: 100%; height: 12px; margin: 0; padding: 0; border: 0; background: none; position: relative; cursor: pointer; }
+  .pg-add::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(224,165,79,0.55); opacity: 0; transition: opacity .12s; }
+  .pg-add::after { content: '+'; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 18px; height: 18px; line-height: 16px; border-radius: 50%; border: 1px solid var(--gold); background: var(--bg); color: var(--gold); font-weight: 700; font-size: 12px; text-align: center; opacity: 0; transition: opacity .12s; }
+  .pg-add:hover::before, .pg-add:hover::after, .pg-add:focus-visible::before, .pg-add:focus-visible::after, .pg-add-end::before, .pg-add-end::after { opacity: 1; }
+  .pg-add-end { height: 28px; margin-top: 10px; }
   .pbe-cap { color: var(--dim); font-size: 10.5px; margin: 2px 0 3px; }   /* 1.6.2, backlog 171: a box's name above it */
   .fc-e-end { display: flex; flex-direction: column; flex: 1; min-width: 0; }
   .fc-e-end select { width: 100%; }

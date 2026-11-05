@@ -345,6 +345,9 @@ Settings
   is off.
 
 Writing planners and pages
+- You write a planner or a page on the page itself. Press a block and its
+  boxes open where it stands. Edit, Read and Side by side at the top switch
+  how the page is shown, and Side by side keeps the editor beside the page.
 - Point between any two blocks and press the + that shows, or type / on an
   empty line of text. A menu lists every kind of block by its name, and
   narrows as you type.

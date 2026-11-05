@@ -180,6 +180,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var at = blockAdd(am, type, _pbe.at, _pbe.swap); pbeClose(false);
       if (at < 0) { toast('That kind of block is for planners.'); return; }
       save(true); renderPlanner();
+      if (pgOn()) { pgOpen(at); return; }   // writing on the page: the new block opens where it stands
       setTimeout(function() {
           var ed = document.querySelector('.planner-block-edit[data-idx="' + at + '"]'); if (!ed) return;
           try { ed.scrollIntoView({ block: 'nearest' }); } catch (e) {}
@@ -228,7 +229,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function pbeBarOn(wrap, rte) {
       Array.prototype.forEach.call(wrap.querySelectorAll('.rte.rte-on'), function(o) { if (o !== rte) o.classList.remove('rte-on'); });
       if (rte) { pbeBarPlace(wrap); rte.classList.add('rte-on'); }
-      wrap.classList.toggle('pbe-bar-on', !!rte);
+      wrap.classList.toggle('pbe-bar-on', !!rte); if (document.body) document.body.classList.toggle('pbe-bar-on', !!rte);   // the greyed copy steps aside wherever it stands
   }
   function pbeBarWire(wrap) {
       if (!wrap || wrap._pbeBar) return; wrap._pbeBar = true;
@@ -240,6 +241,122 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       window.addEventListener('resize', function() { pbeBarPlace(wrap); });
   }
   // [textcheck:pbebar-end]
+  // [textcheck:pbepage-start]
+  // Writing on the page itself (1.6.2, backlog 171; the owner, by prompt: "On the page itself"). Edit shows the drawn page alone, and a block
+  // pressed opens its form where it stands: the editor's own form (its boxes, handlers and undo as they were), laid in a layer over the page,
+  // the drawn block making room for it. A chart, a diagram and a picture keep their drawing in sight with the form under it. Read is the
+  // reader's view, and Side by side the two columns as before, kept on this computer (wp_plannerSide)
+  var PG_UNDER = { flowchart: 1, diagram: 1, image: 1 };
+  var _pg = { open: -1, ro: null, raf: 0 };
+  function pgSide() { try { return localStorage.getItem('wp_plannerSide') === '1'; } catch (e) { return false; } }
+  function pgOn() { return !plannerFullscreen && !pgSide(); }
+  function pgEls() { return { ed: document.getElementById('plannerEditorWrap'), pw: document.getElementById('plannerPreviewWrap'), pv: document.getElementById('plannerPreview'), wrap: document.getElementById('plannerWrap') }; }
+  function pgMode() { return plannerFullscreen ? 'read' : pgSide() ? 'side' : 'edit'; }
+  function pgSeg() {
+      var seg = document.getElementById('plannerModeSeg'); if (!seg) return;
+      var m = pgMode();
+      Array.prototype.forEach.call(seg.querySelectorAll('[data-mode]'), function(b) { var on = b.getAttribute('data-mode') === m; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+  }
+  function pgLayout() {   // where the editor stands: a layer over the page while editing on it, the column beside it otherwise
+      var E = pgEls(); if (!E.ed || !E.pw || !E.wrap) return;
+      var on = pgOn(), slot = document.getElementById('pbeBarSlot');
+      if (on) {
+          if (E.ed.parentNode !== E.pw) E.pw.appendChild(E.ed);
+          E.ed.classList.add('pbe-layer'); E.pw.classList.add('pbe-page'); E.pw.style.width = '100%';
+          var fb = document.getElementById('plannerFindBar'); if (slot && fb && slot.parentNode !== fb) fb.appendChild(slot);   // a row of the page's own bar, which sticks at the top and is measured with it
+      } else {
+          if (E.ed.parentNode !== E.wrap) E.wrap.insertBefore(E.ed, E.pw);
+          E.ed.classList.remove('pbe-layer'); E.pw.classList.remove('pbe-page');
+          if (slot && slot.parentNode !== E.ed) E.ed.insertBefore(slot, E.ed.firstChild);
+          if (_pg.open >= 0) { _pg.open = -1; }
+      }
+      pgSeg(); pgPlace();
+  }
+  function pgFace(pv, i) { return pv ? pv.querySelector('.pv-blk[data-blk="' + i + '"]') : null; }
+  function pgPlace() {   // the open form over (or under) its drawn block, the page making room for it
+      var E = pgEls(); if (!E.ed || !E.pv) return;
+      Array.prototype.forEach.call(E.pv.querySelectorAll('.pg-room'), function(f) { f.classList.remove('pg-room', 'pg-hid'); f.style.minHeight = ''; f.style.marginBottom = ''; f.style.marginTop = ''; });
+      var forms = E.ed.querySelectorAll('.planner-block-edit');
+      Array.prototype.forEach.call(forms, function(f) { var on = pgOn() && Number(f.getAttribute('data-idx')) === _pg.open; f.classList.toggle('pg-open', on); if (!on) { f.style.top = ''; f.style.left = ''; f.style.width = ''; } });
+      if (!pgOn() || _pg.open < 0) return;
+      var form = E.ed.querySelector('.planner-block-edit[data-idx="' + _pg.open + '"]'), am = getActiveMap(), b = am && am.blocks ? am.blocks[_pg.open] : null;
+      if (!form || !b) { _pg.open = -1; return; }
+      var face = pgFace(E.pv, _pg.open), under = !!PG_UNDER[b.type], anchor = face;
+      if (!anchor) { for (var k = _pg.open + 1; k < am.blocks.length && !anchor; k++) anchor = pgFace(E.pv, k); }
+      var pr = E.pw.getBoundingClientRect(), r = (anchor || E.pv).getBoundingClientRect(), base = E.pw.scrollTop - pr.top;
+      var top = anchor ? (face && under ? r.bottom + 6 : r.top) : r.bottom;
+      form.style.top = Math.round(top + base) + 'px'; form.style.left = Math.round(r.left - pr.left) + 'px'; form.style.width = Math.round(Math.max(300, r.width)) + 'px';
+      var h = form.offsetHeight;
+      if (face && !under) { face.classList.add('pg-room', 'pg-hid'); face.style.minHeight = h + 'px'; }
+      else if (face) { face.classList.add('pg-room'); face.style.marginBottom = (h + 14) + 'px'; }
+      else if (anchor) { anchor.classList.add('pg-room'); anchor.style.marginTop = (h + 14) + 'px'; }
+  }
+  function pgPlaceSoon() { if (_pg.raf) return; _pg.raf = requestAnimationFrame(function() { _pg.raf = 0; pgPlace(); }); }
+  function pgFocus(i) {
+      var ed = document.getElementById('plannerEditorWrap'), form = ed ? ed.querySelector('.planner-block-edit[data-idx="' + i + '"]') : null; if (!form) return;
+      var box = form.querySelector('.ts-box') || form.querySelector('.rte-body') || form.querySelector('textarea') || form.querySelector('select, input:not(.rte-link)');
+      if (box && box.focus) { try { box.focus({ preventScroll: true }); } catch (e) {} }
+      try { form.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+  }
+  function pgOpen(i) {
+      _pg.open = Math.round(Number(i)); pgPlace();
+      var ed = document.getElementById('plannerEditorWrap'), form = ed ? ed.querySelector('.planner-block-edit[data-idx="' + _pg.open + '"]') : null;
+      if (form && typeof ResizeObserver === 'function') { if (_pg.ro) _pg.ro.disconnect(); _pg.ro = new ResizeObserver(pgPlaceSoon); _pg.ro.observe(form); }
+      pgFocus(_pg.open);
+  }
+  function pgClose(back) {
+      var was = _pg.open; _pg.open = -1; if (_pg.ro) { _pg.ro.disconnect(); _pg.ro = null; } pgPlace();
+      if (back && was >= 0) { var f = pgFace(document.getElementById('plannerPreview'), was); if (f && f.focus) { try { f.focus({ preventScroll: true }); } catch (e) {} } }
+  }
+  function pgAfterDraw() {   // after each draw of the page: every block may be pressed or reached by Tab, a + stands before each, and the open form is laid again
+      var E = pgEls(); if (!E.pv) return;
+      if (pgOn()) {
+          var faces = E.pv.querySelectorAll('.pv-blk[data-blk]'), last = null;
+          Array.prototype.forEach.call(faces, function(f) {
+              f.tabIndex = 0; f.setAttribute('aria-label', 'Edit this block');
+              var b = document.createElement('button'); b.type = 'button'; b.className = 'pg-add'; b.setAttribute('data-at', f.getAttribute('data-blk')); b.title = 'Add a block here'; b.setAttribute('aria-label', 'Add a block here');
+              f.parentNode.insertBefore(b, f); last = f;
+          });
+          var am = getActiveMap(), end = document.createElement('button'); end.type = 'button'; end.className = 'pg-add pg-add-end'; end.setAttribute('data-at', String(am && am.blocks ? am.blocks.length : 0)); end.title = 'Add a block at the end'; end.setAttribute('aria-label', 'Add a block at the end');
+          E.pv.appendChild(end);
+      }
+      pgPlace();
+  }
+  function pgWire() {
+      var E = pgEls(); if (!E.pv || E.pv._pgWired) return; E.pv._pgWired = true;
+      E.pv.addEventListener('click', function(e) {
+          if (!pgOn()) return;
+          var t = e.target, add = t && t.closest ? t.closest('.pg-add') : null;
+          if (add) { e.preventDefault(); pbeOpen(add, parseInt(add.getAttribute('data-at'), 10) || 0, false, ''); return; }
+          if (t && t.closest && t.closest('a, button, input, select, textarea, label')) return;
+          var sel = window.getSelection ? String(window.getSelection()) : ''; if (sel) return;   // words being selected to copy open nothing
+          var face = t && t.closest ? t.closest('.pv-blk[data-blk]') : null;
+          if (face) { pgOpen(face.getAttribute('data-blk')); return; }
+          if (_pg.open >= 0) pgClose(false);
+      });
+      E.pv.addEventListener('keydown', function(e) {
+          if (!pgOn() || e.key !== 'Enter' || e.ctrlKey || e.metaKey || e.altKey) return;
+          var face = e.target && e.target.classList && e.target.classList.contains('pv-blk') ? e.target : null;
+          if (face && face.hasAttribute('data-blk')) { e.preventDefault(); pgOpen(face.getAttribute('data-blk')); }
+      });
+      if (E.ed) E.ed.addEventListener('keydown', function(e) { if (e.key === 'Escape' && !e.defaultPrevented && pgOn() && _pg.open >= 0 && !(e.target && e.target.closest && e.target.closest('.ts-bar, .rte-link, .pbe-menu'))) { e.preventDefault(); e.stopPropagation(); pgClose(true); } });
+      if (E.pw) E.pw.addEventListener('pointerdown', function(e) {   // a press on the page's margin, outside the drawn page and the form, puts the form away
+          if (!pgOn() || _pg.open < 0) return; var t = e.target;
+          if (t === E.pw) pgClose(false);
+      });
+      var seg = document.getElementById('plannerModeSeg');
+      if (seg) seg.addEventListener('click', function(e) {
+          var b = e.target && e.target.closest ? e.target.closest('[data-mode]') : null; if (!b) return;
+          var m = b.getAttribute('data-mode');
+          try { if (m === 'side') localStorage.setItem('wp_plannerSide', '1'); else if (m === 'edit') localStorage.removeItem('wp_plannerSide'); } catch (err) {}
+          var read = m === 'read';
+          if (read !== plannerFullscreen) { plannerFullscreen = read; var am = getActiveMap(); if (isDocLike(am)) { am.meta = am.meta || {}; am.meta.readerView = read; save(); } }
+          _pg.open = -1; renderPlannerPreview(); applyPlannerFullscreen();
+      });
+      window.addEventListener('resize', pgPlaceSoon);
+      if (E.pw) E.pw.addEventListener('scroll', function() { if (E.ed) pbeBarPlace(E.ed); }, { passive: true });   // the bar held over its slot as the page scrolls
+  }
+  // [textcheck:pbepage-end]
   // [sinkcheck:boxes-start]
   // [textcheck:fields-start]
   var TS_PLAIN = '.b-title, .b-sub, .b-must, .b-caption, .b-colhead, .r-col, .fc-n-text, .fc-e-text';   // the editor boxes that hold a plain field
@@ -1931,6 +2048,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       pw.style.width = plannerFullscreen ? '100%' : '50%';
 
       if (btn) btn.innerHTML = plannerFullscreen ? '<i class="wib wi-pen"></i> Edit' : '&#9654; Render Preview';
+      pgWire(); pgLayout();   // 1.6.2, backlog 171: Edit on the page, Read, or Side by side
 
   }
 
@@ -2812,6 +2930,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   window.wpPlannerRead = plannerRead;
   function renderPlannerPreview() {
       renderPlannerPreviewCore();
+      if (typeof pgAfterDraw === 'function') pgAfterDraw();   // writing on the page (backlog 171): every block pressable, a + before each, the open form laid again
       var box = document.getElementById('plannerFind');
       if (box && box.value.trim()) plannerFindApply(true);   // keep the hits lit through an edit
   }
@@ -2859,7 +2978,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // The page the preview now holds: drawn, its diagrams still to be laid out
   function pvDrawn(id) { _pvAt = { id: typeof id === 'string' ? id : '', gen: ((_pvAt && _pvAt.gen) || 0) + 1, busy: true }; return _pvAt.gen; }
   // That draw is laid out: a landing that waits for it is tried (an older draw's word is passed over)
-  function pvLaidOut(gen) { if (!_pvAt || gen !== _pvAt.gen) return false; _pvAt.busy = false; return plannerLandTry(); }
+  function pvLaidOut(gen) { if (typeof pgPlaceSoon === 'function') pgPlaceSoon(); if (!_pvAt || gen !== _pvAt.gen) return false; _pvAt.busy = false; return plannerLandTry(); }
   // The one way in (window.wpPlannerLand): the landing cleaned by the one cleaner (pagenav.js landOf), kept, and tried at once. A landing that
   // does not clean is none, and drops one that waited
   function plannerLand(id, land) {

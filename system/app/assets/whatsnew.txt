@@ -347,6 +347,13 @@ Settings
 - A list that is drawn again when you press in it keeps its place: Build's
   materials, Keys, the NPCs under Characters, the bell and the Image Library.
 
+System editor
+- A list can lock chosen parts of its rows while a test of the character holds:
+  the name, the level, the count or a stat. Locked while, in the Lists tab,
+  takes the test, and a tick for each part. Nobody changes a locked part on the
+  sheet while it holds, the GM included, and Refused with says why. A file that
+  fills a character still sets them.
+
 Build
 - Build's options stand in three tabs. Build holds the materials and the
   shape with one scroll, Objects your map objects, and Generate the dungeon,

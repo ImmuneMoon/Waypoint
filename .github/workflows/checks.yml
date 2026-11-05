@@ -117,6 +117,9 @@ jobs:
       - name: mousecheck — a command on a mouse press, the map's own gestures, and the mouse going with the profile
         if: ${{ !cancelled() }}
         run: node tools/mousecheck.js
+      - name: rowlockcheck — a list's cells locked while a test of the character holds, for everyone
+        if: ${{ !cancelled() }}
+        run: node tools/rowlockcheck.js
       - name: accountcheck — this install linked to a Waypoint website account, the shell's routes and the order of linking
         if: ${{ !cancelled() }}
         run: node tools/accountcheck.js

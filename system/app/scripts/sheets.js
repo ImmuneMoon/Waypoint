@@ -2881,7 +2881,31 @@ function itemThrowBtn(def, c, f, rid, ok) {   // ok (1.6.2): false where the lis
     tb.addEventListener('click', function() { if (window.wpArmBlast) { window.wpArmBlast(def.area.ft, def.area.name || def.name, { charId: c.id, fieldId: f.id, rowId: rid, by: c.name, damage: def.damage || '', gmOnly: def.vis === 'gm' || f.vis === 'gm' }); var hp = tb.closest('.hud-panel'); if (hp) closeHud(hp.dataset.cid); else closeSheet(); } });
     return tb;
 }
-function itemQtyCell(entry, c, f) {   // Stage 6 F4a: by row id. Every item has the same controls on a player's sheet (a bound or cursed one never shows it)
+// [systemcheck:rowlockui-start]
+// 1.6.2 Locked while: what a list locks now for the character drawn, worked out once as its rows are drawn (systemcore lockCells), and asked by
+// the row's controls: its count, its level, a stat's menu, the ✎ form's name and stat boxes. A locked cell is drawn as it reads, with the
+// rule's words as its tooltip; the host refuses a change to it whoever sends it
+var _lockOf = null;
+function lockNowOf(spec, c, sysI) {
+    var core = typeof window !== 'undefined' ? window.wpSystemCore : null, Fm = typeof window !== 'undefined' ? window.wpFormula : null;
+    if (!spec || !spec.lock || !core || typeof core.lockCells !== 'function' || !Fm || !sysI || !c) return null;
+    try { return core.lockCells(sysI, c, spec, Fm); } catch (e) { return null; }
+}
+function lockSet(f, c, sysI) { _lockOf = f && f.list && f.list.lock ? { c: c, f: f.id, cells: lockNowOf(f.list, c, sysI), says: f.list.lock.says || '' } : null; }
+function lockedHere(c, f, cell) { return !!(_lockOf && _lockOf.c === c && f && _lockOf.f === f.id && _lockOf.cells && _lockOf.cells[cell] === 1); }
+function lockTip() { return _lockOf && _lockOf.says ? _lockOf.says : 'Locked by its rule.'; }
+function lockForm(form, c, f, rid) {   // the ✎ form: a locked name or stat box drawn as it reads, never changed
+    if (!_lockOf || !_lockOf.cells || !form || typeof form.querySelectorAll !== 'function' || !f || _lockOf.f !== f.id || _lockOf.c !== c) return form;
+    var pre = 'rf-' + rid + '-';
+    Array.prototype.forEach.call(form.querySelectorAll('[data-part]'), function(x) {
+        var pt = String(x.dataset.part || ''); if (pt.indexOf(pre) !== 0) return; var nm = pt.slice(pre.length), cell = nm === 'name' ? 'name' : nm.indexOf('s-') === 0 ? 's:' + nm.slice(2).toLowerCase() : '';
+        if (cell && _lockOf.cells[cell] === 1) { x.disabled = true; x.title = lockTip(); if (x.classList) x.classList.add('sheet-locked'); }
+    });
+    return form;
+}
+// [systemcheck:rowlockui-end]
+function itemQtyCell(entry, c, f) {
+    if (typeof lockedHere === 'function' && lockedHere(c, f, 'qty')) { var qL = el('span', 'sheet-item-qty sheet-locked'); qL.title = lockTip(); qL.appendChild(el('span', 'sheet-item-qtyn', '\u00d7' + entry.qty)); return qL; }   // 1.6.2 Locked while   // Stage 6 F4a: by row id. Every item has the same controls on a player's sheet (a bound or cursed one never shows it)
     var qc = el('span', 'sheet-item-qty');
     var mn = el('button', 'tool ghost sheet-pm', '−'); mn.title = 'One less (removes at zero)'; mn.addEventListener('click', function() { commitItem(c, f, { op: 'setQty', rowId: rowIdOf(entry), qty: entry.qty - 1 }); });
     qc.appendChild(mn); qc.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
@@ -3029,6 +3053,7 @@ function askRollLvl(anchor, entry, def, spec, go) {
 // Stage 6 F4b: a row's level — a number box, or a dropdown when the level has names (they count from its minimum); text when it cannot be
 // changed. One set op per change (the host judges it again)
 function lvlCtl(entry, def, c, f, spec, editable) {
+    if (typeof lockedHere === 'function' && lockedHere(c, f, 'lvl')) editable = false;   // 1.6.2 Locked while: drawn as it reads
     var L = spec.lvl; if (!L || typeof L !== 'object') return null;
     var lv = rowLvl(spec, entry, def), w = el('span', 'sheet-item-lvl'), rid = rowIdOf(entry); w.title = L.label;
     var lvsE = L.entry === true && typeof entryLvls === 'function' ? entryLvls(def) : [];   // 1.6.0 R8: Levels from the entry
@@ -3132,6 +3157,7 @@ function statMenuMode(entry, rd, spec, gm, sysI, edit, own) {
     return m === 'stats' && lr.ownerStats === true && lr.statsAsk !== true ? 'stats' : ownS ? 'own' : '';   // under the ask rule a change is an ask, made in the ✎ form
 }
 function statMenu(s, sv, entry, rd, c, f, spec, mode) {
+    if (s && typeof s.key === 'string' && typeof lockedHere === 'function' && lockedHere(c, f, 's:' + s.key.toLowerCase())) return null;   // 1.6.2 Locked while: its chip, as it reads
     if (!s || typeof s.key !== 'string' || !s.key || s.set === true || s.hide === true) return null;
     var pick = s.kind === 'pick', opts = pick ? (Array.isArray(s.opts) ? s.opts.map(function(o) { return o && typeof o.label === 'string' ? o.label : ''; }).filter(Boolean) : []) : (Array.isArray(s.labels) ? s.labels.map(function(t, i) { return typeof t === 'string' && t ? t : String(i); }) : []);
     if (!opts.length) return null;
@@ -3766,7 +3792,8 @@ function groupRows(rows, spec, sysI) {
 function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, res, edit, lookOk, ownOk) {   // empty (F4b): the note when nothing shows; res (F5a1): the field's resolved entry (its columns' cells and totals); edit (the sheet's lock): may the character be CHANGED here — a level, a note, a row made, removed or given values of its own (absent: as editable) — where editable is what is used in play: the switch, a count, a use
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
     var chg = edit === undefined ? editable : !!edit && _fxLive, hudRow = _fxView === 'hud';   // hudRow (the owner, 2026-10-04): the HUD's rows stay short — a description is read on the sheet
-    var spec = f.list || null, seenCat = Object.create(null), nCat = 0, unseenL = gm ? unseenKeys(c, f, carried, sysI) : null;   // F4b: a list with options draws its rows' facts, and a category chip while its rows span more than one; F4c3: the keys of rows its owner cannot see (the GM's sheet)
+    var spec = f.list || null, seenCat = Object.create(null), nCat = 0, unseenL = gm ? unseenKeys(c, f, carried, sysI) : null;
+    if (typeof lockSet === 'function') lockSet(f, c, sysI);   // 1.6.2 Locked while   // F4b: a list with options draws its rows' facts, and a category chip while its rows span more than one; F4c3: the keys of rows its owner cannot see (the GM's sheet)
     if (spec) carried.forEach(function(r) { var d0 = rowDef(sysI, r), cc = d0 && d0.def && d0.def.category ? String(d0.def.category).toLowerCase() : ''; if (cc && !seenCat[cc]) { seenCat[cc] = 1; nCat++; } });
     var chips = nCat > 1, opens = !!(spec && spec.open === true) && !hudRow, openers = [];   // 1.6.0 R1: rows that open (never on the HUD, which has no details)
     if (opens && carried.length > 1) wrap.appendChild(openAllBar(openers));
@@ -4189,6 +4216,7 @@ function totalsLine(wrap, spec, foot, cap) {   // cap (1.5.5): its caption, Tota
 function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, res, edit, lookOk, ownOk) {   // res (F5a1): the field's resolved entry; edit (the sheet's lock): as itemListInto's
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
     var chg = edit === undefined ? editable : !!edit && _fxLive, hudRow = _fxView === 'hud';
+    if (typeof lockSet === 'function') lockSet(f, c, sysI);   // 1.6.2 Locked while
     var tbl = f.table, cols = (tbl.columns || []).slice(), spec = f.list || null, hasL = !!(spec && spec.lvl) && partPlace(spec.lvl, hudRow) === 'row', hasO = !!(spec && spec.on) && partPlace(spec.on, hudRow) === 'row', hasQ = !(spec && spec.noQty);   // 1.6.0 R2: a level or a switch placed elsewhere has no column   // F4b: a level and a switch column; no quantity
     var shownSt = spec && Array.isArray(spec.stats) ? spec.stats.filter(function(s) { return s && (s.show === true || s.own === true); }) : [], nStat = shownSt.length, hasP = !!(spec && spec.price) && partPlace({ place: spec.paidPlace }, hudRow) === 'row';   // F4c1: a column per stat shown On the row, and Paid (1.6.0 R2: where it stands)
     var shownCl = spec && Array.isArray(spec.cols) ? spec.cols.map(function(cc, i) { return { c: cc, i: i }; }).filter(function(x) { return x.c && partPlace(x.c, hudRow) === 'row'; }) : [], nCol = shownCl.length;   // 1.6.0 R2: a column in the details is drawn in the row's notes   // F5a1: a column per list column not Hidden
@@ -4487,7 +4515,7 @@ function rowForm(entry, rd, c, f, spec, sysI, mode) {
         text('rmMsg', 'Message on removal', LIMITS.rmMsg, base.rmMsg || '');
         if (spec && spec.on && typeof spec.on === 'object') { lockSel('eq', 'When a player switches it off', { none: 'A player may switch it off', bound: 'Bound: it stays on', curse: 'Curse on contact: you keep it on' }); text('eqMsg', 'Message on switching off', LIMITS.rmMsg, base.eqMsg || ''); }
     }
-    return form;
+    return typeof lockForm === 'function' ? lockForm(form, c, f, rid) : form;   // 1.6.2 Locked while
 }
 // Stage 6 F4c3: a custom row's form (the character's own item) — its values as they are, nothing behind them (no placeholders, no ↺): name, icon,
 // category (the list's categories, else those of the items drawn from, plus its own; or none), notes, key and stats, for its owner ('own') and
@@ -4604,7 +4632,7 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
         add('GM only', gv, 'vis', 'Secret: its player still has it (its name, notes and stats), never its key, blast, formulas, description or levels; they can no longer change it. On a list players can see, formulas do not read a GM-only row by its key (their sheet could not work out the same number): for a hidden thing that should count, carry a GM-only library item, or use a GM-only list');
     }
     if (stRef && stRef.focus === 'name') { delete stRef.focus; setTimeout(function() { try { nb.focus(); } catch (e) {} }, 0); }   // a new row: its name first
-    return form;
+    return typeof lockForm === 'function' ? lockForm(form, c, f, rid) : form;   // 1.6.2 Locked while
 }
 // 1.6.0: how a change that is no switch works — it adds, or it holds the value at least or at most at its figure (op max, op min)
 function modHowSel(cls, op) { return select(cls, [['add', 'Adds'], ['max', 'At least'], ['min', 'At most']], op === 'max' || op === 'min' ? op : 'add', 'Adds: the figure is added. At least: the value is never below it. At most: never above it. Two effects that each say at least 1 still read 1'); }
@@ -9630,6 +9658,19 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     fl.appendChild(checkLabel('sys-list-trade', sp.trade === true, 'Tradable', 'Rows of this list can be put on the table in a trade between two characters: gear and money, never skills'));   // 1.5.6 trading
     var miW = el('label', 'sys-check'), miI = el('input', 'field sys-list-modsif'); miI.type = 'text'; miI.value = typeof sp.modsIf === 'string' ? sp.modsIf : ''; miI.placeholder = 'always'; miI.spellcheck = false; miI.autocomplete = 'off'; miW.appendChild(document.createTextNode('Changes apply where ')); miW.appendChild(miI);   // 1.6.0 Changes apply where (the campaign build's ask)
     miW.title = 'A test of the character and of each row. A row where it does not hold gives none of its changes. It reads the sheet before any item or effect changes it. Blank: always'; fl.appendChild(miW);
+    { var lkS = sp.lock && typeof sp.lock === 'object' ? sp.lock : {}, lkW = el('label', 'sys-check'), lkI = el('input', 'field sys-list-lockif');   // 1.6.2 Locked while: chosen cells of its rows while a test of the character holds, for everyone, the GM too
+    lkI.type = 'text'; lkI.value = typeof lkS['if'] === 'string' ? lkS['if'] : ''; lkI.placeholder = 'never'; lkI.spellcheck = false; lkI.autocomplete = 'off';
+    lkW.appendChild(document.createTextNode('Locked while ')); lkW.appendChild(lkI); lkW.title = 'A test of the character. While it holds, the cells ticked under it are drawn as they read and nobody changes them on the sheet, the GM included. A file that fills a character still lays them. Blank: never locked'; fl.appendChild(lkW);
+    if (typeof lkS['if'] === 'string' && lkS['if']) {
+        var lkHas = function(k) { return (Array.isArray(lkS.cells) ? lkS.cells : []).some(function(x) { return String(x).toLowerCase() === String(k).toLowerCase(); }); }, lkRow = el('div', 'sys-lock-cells');
+        lkRow.appendChild(el('span', 'sys-lock-cap', 'What it locks:'));
+        var lkCells = [['name', 'Name']]; if (sp.lvl && typeof sp.lvl === 'object') lkCells.push(['lvl', sp.lvl.label || 'Level']); if (sp.noQty !== true) lkCells.push(['qty', 'Count']);
+        (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(s2) { if (s2 && typeof s2.key === 'string' && s2.key) lkCells.push([s2.key, s2.label || s2.key]); });
+        lkCells.forEach(function(lc) { var lw = el('label', 'sys-check'), li = el('input', 'sys-list-lockcell'); li.type = 'checkbox'; li.checked = lkHas(lc[0]); li.dataset.cell = lc[0]; lw.appendChild(li); lw.appendChild(document.createTextNode(' ' + lc[1])); lw.title = 'While the test holds, nobody changes this on the sheet'; lkRow.appendChild(lw); });
+        fl.appendChild(lkRow);
+        var lsW = el('label', 'sys-check'), lsI = el('input', 'field sys-list-locksays'); lsI.type = 'text'; lsI.maxLength = 200; lsI.value = typeof lkS.says === 'string' ? lkS.says : ''; lsI.placeholder = 'This row’s name cannot be changed while its rule holds.';
+        lsW.appendChild(document.createTextNode('Refused with ')); lsW.appendChild(lsI); lsW.title = 'What the sheet says when someone tries to change a locked cell, and its tooltip. Blank: the words above'; fl.appendChild(lsW);
+    } }
     var spcOn = !!(sp.specs && typeof sp.specs === 'object' && !Array.isArray(sp.specs));   // 1.6.0 Specialties (the core handbook session's skill reference)
     fl.appendChild(checkLabel('sys-list-specs', spcOn, 'Specialties', 'Each row is a specialty of a parent, as Blade (Longsword). A rule reads one by its parent and specialty: the row held, else the best row of that parent plus its Fallback, else the parent untrained'));
     if (spcOn) {
@@ -13642,6 +13683,9 @@ function onChange(e) {
         else if (c.indexOf('sys-list-specs') >= 0) { if (t.checked) lsc.specs = lsc.specs && typeof lsc.specs === 'object' && !Array.isArray(lsc.specs) ? lsc.specs : {}; else delete lsc.specs; }   // 1.6.0 Specialties
         else if (c.indexOf('sys-list-specsum') >= 0) { if (lsc.specs && typeof lsc.specs === 'object') { if (t.value === 'add') lsc.specs.sum = true; else delete lsc.specs.sum; } }   // gap 20: Subject reads
         else if (c.indexOf('sys-list-specby') >= 0 || c.indexOf('sys-list-specof') >= 0 || c.indexOf('sys-list-speccover') >= 0 || c.indexOf('sys-list-specnever') >= 0 || c.indexOf('sys-list-specpen') >= 0 || c.indexOf('sys-list-specfall') >= 0 || c.indexOf('sys-list-specdflt') >= 0) { var spK = c.indexOf('sys-list-specby') >= 0 ? 'by' : c.indexOf('sys-list-specof') >= 0 ? 'of' : c.indexOf('sys-list-speccover') >= 0 ? 'cover' : c.indexOf('sys-list-specnever') >= 0 ? 'never' : c.indexOf('sys-list-specpen') >= 0 ? 'pen' : c.indexOf('sys-list-specfall') >= 0 ? 'fall' : 'dflt'; if (lsc.specs && typeof lsc.specs === 'object') { if (t.value) lsc.specs[spK] = t.value; else delete lsc.specs[spK]; } }   // ... where a row says its specialty, its Fallback and its untrained figure
+        else if (c.indexOf('sys-list-lockif') >= 0) { var lkV = String(t.value || '').trim(); if (lkV) { lsc.lock = lsc.lock && typeof lsc.lock === 'object' ? lsc.lock : { cells: ['name'] }; lsc.lock['if'] = lkV.slice(0, LIMITS.formula); } else delete lsc.lock; }   // 1.6.2 Locked while (Save cleans it); a new lock starts with the name ticked
+        else if (c.indexOf('sys-list-lockcell') >= 0) { if (lsc.lock && typeof lsc.lock === 'object') { var lkck = String(t.dataset.cell || ''), lkcs = (Array.isArray(lsc.lock.cells) ? lsc.lock.cells : []).filter(function(x) { return String(x).toLowerCase() !== lkck.toLowerCase(); }); if (t.checked && lkck) lkcs.push(lkck); lsc.lock.cells = lkcs; } }
+        else if (c.indexOf('sys-list-locksays') >= 0) { if (lsc.lock && typeof lsc.lock === 'object') { var lkW2 = String(t.value || '').trim(); if (lkW2) lsc.lock.says = lkW2.slice(0, 200); else delete lsc.lock.says; } }
         else if (c.indexOf('sys-list-modsif') >= 0) { var miV = String(t.value || '').trim(); if (miV) lsc.modsIf = miV.slice(0, LIMITS.formula); else delete lsc.modsIf; }   // 1.6.0 Changes apply where (Save cleans it)
         else if (c.indexOf('sys-list-rowlook') >= 0) { if (t.checked) lsc.look = lsc.look && typeof lsc.look === 'object' ? lsc.look : {}; else delete lsc.look; }   // 1.6.0, backlog 206: Rows carry a look
         else if (c.indexOf('sys-list-lkmain') >= 0) { if (lsc.look) { var lkm = String(t.value || '').trim(); if (lkm) lsc.look.main = lkm; else delete lsc.look.main; } }

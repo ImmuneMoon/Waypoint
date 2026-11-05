@@ -121,6 +121,7 @@ function renderCard(m) {
     var rec = m.roll, res = m.res, n = net(), Fm = F();
     var priv = !!(rec.priv || rec.to);
     var wrap = el('div', 'chat-roll' + (priv ? ' whisper' : ''));
+    if (wrap.dataset && typeof rec.id === 'string') wrap.dataset.rid = rec.id;   // 1.6.2, backlog 212: the animated dice find their own card by it
     var mine = n && ((rec.from.gm && (!n.active || n.role === 'host')) || (n.myId && rec.from.id === n.myId));
     var who = el('b', null, mine ? 'You' : (rec.from.name || 'Player'));
     who.style.color = rec.from.gm ? 'var(--gold)' : 'hsl(' + playerHue(rec.from.id) + ', 55%, 68%)';
@@ -318,6 +319,7 @@ function line(m) { return cardText(m.roll, m.res, F(), { toName: m.toName }); }
 /* ---------- the sound: this machine's own Dice cue, nothing on the wire ---------- */
 function soundOn() { return pref('wp_diceSound', 'on') !== 'off'; }
 function landed(m) {
+    if (window.wpDice3d) { try { window.wpDice3d.play(m); } catch (e) {} }   // 1.6.2, backlog 212: the dice tumble and land on the faces the roll gave, as this computer's setting says
     if (!m || !m.roll || !m.res) return;
     if (!soundOn() || !window.wpSound || !window.wpVtt || !window.wpVtt.on('sound') || window.wpVtt.localOff('dice')) return;
     try { window.wpSound.local('dice'); } catch (e) {}

@@ -325,6 +325,14 @@ At the table
 - A row's note, a name and a description of a row of the character's own, and
   the name of an effect made on the spot take a look too, as a sheet's text does.
 
+Animated dice
+- When a roll lands, its dice tumble on its card in Table Chat and land on the
+  faces the roll gave. Each die is drawn in 3D, a d4, d6, d8, d10, d12 and d20,
+  with a d100 as its tens and units, and a die that was dropped shows darker.
+- Dice on a roll, in Settings, shows them over the map instead, or turns them
+  off. It is your own choice and changes nobody else's screen. With Reduce
+  motion the dice show already landed.
+
 Drawings to show
 - The pen now makes two kinds of drawing. On the map is what it always
   made, and fog covers it. To show stands over the fog for everyone on that

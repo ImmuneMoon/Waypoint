@@ -241,6 +241,9 @@ var _wmSel = ui('setWallMarks'), _wm0 = 'hover';
 try { _wm0 = wallMarkOf(localStorage.getItem('wp_wallMarks')); } catch (e) {}
 wallMarkApply(_wm0);
 if (_wmSel) { _wmSel.value = _wm0; _wmSel.addEventListener('change', function() { var v = wallMarkOf(_wmSel.value); try { localStorage.setItem('wp_wallMarks', v); } catch (e) {} wallMarkApply(v); }); }
+// 1.6.2, backlog 212: where this computer shows the dice of a roll tumbling (wp_dice3d: card, the default, map or off), which dice3d.js reads at each roll
+var _d3Sel = ui('setDiceShow'), _d3Of = function(v) { return v === 'map' || v === 'off' ? v : 'card'; };
+if (_d3Sel) { try { _d3Sel.value = _d3Of(localStorage.getItem('wp_dice3d')); } catch (e) { _d3Sel.value = 'card'; } _d3Sel.addEventListener('change', function() { try { localStorage.setItem('wp_dice3d', _d3Of(_d3Sel.value)); } catch (e) {} }); }
 var _hidSel = ui('setHiddenLook'), _hid0 = 'fade';
 try { _hid0 = hiddenLookOf(localStorage.getItem('wp_hiddenLook')); } catch (e) {}
 hiddenLookApply(_hid0);

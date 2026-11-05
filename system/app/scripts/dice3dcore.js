@@ -80,6 +80,9 @@ function numberFaces(normals, top) {
     });
     return out;
 }
+// which way is up on a face: a direction in its plane, the same rule for every face, so that a number drawn along it reads upright once
+// the die has landed with that face toward the viewer (uprightSpin)
+function faceUp(n) { var ref = Math.abs(n[2]) > 0.9 ? [0, 1, 0] : [0, 0, 1], d = dot(ref, n); return norm([ref[0] - n[0] * d, ref[1] - n[1] * d, ref[2] - n[2] * d]); }
 // a shape: its triangles with the part each belongs to, and its faces, each with its number, the words written on it, its direction and size
 function build(kind, verts, faces, nums, labels, rimFrom) {
     var pos = [], nrm = [], part = [], out = [], maxR = 0;
@@ -91,7 +94,7 @@ function build(kind, verts, faces, nums, labels, rimFrom) {
         for (var t = 1; t + 1 < f.length; t++) [f[0], f[t], f[t + 1]].forEach(function(i) { pos.push(V[i][0], V[i][1], V[i][2]); nrm.push(d[0], d[1], d[2]); part.push(0); });
         if (rimFrom !== undefined && fi >= rimFrom) return;
         var r = 0; f.forEach(function(i) { r = Math.max(r, len(sub(V[i], c))); });
-        out.push({ n: nums[fi], label: labels ? labels[fi] : String(nums[fi]), normal: d, center: c, size: r });
+        out.push({ n: nums[fi], label: labels ? labels[fi] : String(nums[fi]), normal: d, center: c, size: r, up: faceUp(d) });
     });
     return { kind: kind, pos: pos, nrm: nrm, part: part, faces: out, decal: true, model: false };
 }
@@ -160,7 +163,7 @@ function readObj(text, kind) {
         if (tr.g !== null && tr.g >= 1 && tr.g <= top) { var s = sums[tr.g] || (sums[tr.g] = { n: [0, 0, 0], c: [0, 0, 0], a: 0 }); s.n = [s.n[0] + x[0], s.n[1] + x[1], s.n[2] + x[2]]; var m3 = [(a[0] + b[0] + q[0]) / 3, (a[1] + b[1] + q[1]) / 3, (a[2] + b[2] + q[2]) / 3]; s.c = [s.c[0] + m3[0] * area, s.c[1] + m3[1] * area, s.c[2] + m3[2] * area]; s.a += area; }
     });
     var faces = [], missing = [];
-    for (var nn = 1; nn <= top; nn++) { var s2 = sums[nn]; if (!s2 || !(s2.a > 0)) { missing.push(nn); continue; } faces.push({ n: faceN(kind, nn), label: faceLabel(kind, nn), normal: norm(s2.n), center: [s2.c[0] / s2.a, s2.c[1] / s2.a, s2.c[2] / s2.a], size: Math.sqrt(s2.a) * 0.6 }); }
+    for (var nn = 1; nn <= top; nn++) { var s2 = sums[nn]; if (!s2 || !(s2.a > 0)) { missing.push(nn); continue; } var nN = norm(s2.n); faces.push({ n: faceN(kind, nn), label: faceLabel(kind, nn), normal: nN, center: [s2.c[0] / s2.a, s2.c[1] / s2.a, s2.c[2] / s2.a], size: Math.sqrt(s2.a) * 0.6, up: faceUp(nN) }); }
     if (missing.length) return { error: 'That model has no face for ' + (missing.length > 3 ? missing.length + ' numbers' : missing.join(', ')) + '. Name each face face1, face2 and so on.' };
     return { kind: kind, pos: pos, nrm: nrm, part: part, faces: faces, decal: !hasNum, model: true };
 }
@@ -176,6 +179,11 @@ function landTurn(shape, value, spin) {
     var f = null; (shape && shape.faces || []).forEach(function(x) { if (!f && x.n === value) f = x; });
     if (!f) return null;
     return qMul(qAxis([0, 0, 1], typeof spin === 'number' ? spin : 0), qFromTo(f.normal, [0, 0, 1]));
+}
+// the spin that leaves the landed face's number upright, its up toward the top of the screen
+function uprightSpin(shape, value) {
+    var f = null; (shape && shape.faces || []).forEach(function(x) { if (!f && x.n === value) f = x; });
+    if (!f || !f.up) return 0; var u = qRot(qFromTo(f.normal, [0, 0, 1]), f.up); return Math.PI / 2 - Math.atan2(u[1], u[0]);
 }
 function smooth(t) { t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); }
 // a tumble for one die: from seed, where it lands (x, y) and its landing turn, a function of t from 0 to 1 that answers its turn, its place
@@ -212,7 +220,7 @@ function rollDice(res) {
     return { dice: out, more: more };
 }
 
-var API = Object.freeze({ LIMITS: LIMITS, KINDS: KINDS, PARTS: PARTS, standIn: standIn, kindOf: kindOf, readObj: readObj, landTurn: landTurn, tumble: tumble, layout: layout, rollDice: rollDice,
+var API = Object.freeze({ LIMITS: LIMITS, KINDS: KINDS, PARTS: PARTS, standIn: standIn, kindOf: kindOf, readObj: readObj, landTurn: landTurn, uprightSpin: uprightSpin, tumble: tumble, layout: layout, rollDice: rollDice,
     seedOf: seedOf, chance: chance, qMul: qMul, qAxis: qAxis, qRot: qRot, qFromTo: qFromTo, qSlerp: qSlerp });
 if (typeof window !== 'undefined') window.wpDice3dCore = API;
-export { LIMITS, KINDS, PARTS, standIn, kindOf, readObj, landTurn, tumble, layout, rollDice, seedOf, chance, qMul, qAxis, qRot, qFromTo, qSlerp };
+export { LIMITS, KINDS, PARTS, standIn, kindOf, readObj, landTurn, uprightSpin, tumble, layout, rollDice, seedOf, chance, qMul, qAxis, qRot, qFromTo, qSlerp };

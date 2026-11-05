@@ -3915,6 +3915,7 @@
   #sheetAsPlayer.on { color: var(--gold-ink, #1a1a1a); }   /* 1.6.0: As player while it is on, as Lock sheet is */
   .sheet-grid > .sheet-kind-roll > .sheet-roll { flex: 1 1 auto; }   /* every roll of a section one height (sheets.js rollEven): the button fills the height it is given */
   .sheet-roll-pair > .sheet-roll { flex: 1 1 auto; min-width: 0; width: auto; }
+  .sheet-grid > .sheet-kind-roll .sheet-roll { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }   /* 1.6.2 (the owner, 2026-11-05: "One line, shrink to fit"): a section's roll keeps its name on one line, smaller where it must be (sheets.js rollFit), else cut with an ellipsis */
   .sheet-roll-pair > .sheet-roll-mod { padding: 0 7px; }
   .sheet-field-roll + .sheet-roll-mod { padding: 0 4px; font-size: 11px; margin-left: 2px; vertical-align: middle; }
   .sheet-item-roll + .sheet-roll-mod { height: 24px; font-size: 11px; margin-left: -2px; }

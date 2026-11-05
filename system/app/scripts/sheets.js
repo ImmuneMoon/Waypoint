@@ -5538,8 +5538,16 @@ function rollHidden(r, vars) {
 // prompt: "Same height in a section"): every roll of one section's grid stands at the height of its tallest, for any system's sheet. A grid is
 // measured when it is drawn and again when its width changes or it comes into sight (one observer a view), and a section that folds open
 // measures anew. A grid out of sight is left alone until then
+// 1.6.2 (the owner, 2026-11-05, by prompt: "One line, shrink to fit"): a roll's name stays on one line in a section, its text a little smaller where it
+// would not fit, down to 82% of its size and never under 10.5 px, and cut with an ellipsis past that (its tooltip names it whole)
+function rollFit(b) {
+    if (!b || !b.style) return; b.style.fontSize = ''; if (!(b.scrollWidth > b.clientWidth + 1) || typeof getComputedStyle !== 'function') return;
+    var cs = parseFloat(getComputedStyle(b).fontSize); if (!(cs > 0)) return;
+    for (var f = cs - 0.5, lo = Math.max(10.5, cs * 0.82); f >= lo; f -= 0.5) { b.style.fontSize = f + 'px'; if (b.scrollWidth <= b.clientWidth + 1) return; }
+}
 function evenGrid(g) {
     var rolls = Array.prototype.filter.call(g.children || [], function(x) { return x && x.classList && x.classList.contains('sheet-kind-roll'); });
+    rolls.forEach(function(x) { var bt = typeof x.querySelector === 'function' ? x.querySelector('.sheet-roll') : null; if (bt) rollFit(bt); });
     if (rolls.length < 2) return; rolls.forEach(function(x) { x.style.minHeight = ''; });
     var most = 0; rolls.forEach(function(x) { var h = typeof x.getBoundingClientRect === 'function' ? x.getBoundingClientRect().height : 0; if (h > most) most = h; });
     if (most > 0) rolls.forEach(function(x) { x.style.minHeight = Math.ceil(most) + 'px'; });

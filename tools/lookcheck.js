@@ -3525,6 +3525,28 @@ check('the System editor\'s Items and Lists tabs scroll as one page, so their ro
         && wbS.includes('pressHold(list, window)') && wbS.includes('if (hold && hold.busy()) hold.then(sortLater); else sortLater();') && wbS.includes("e.relatedTarget && list.contains(e.relatedTarget)") && wbS.includes('combatDraft.sortDue = true; }') && wbS.includes("if (combatDraft.sortDue) { combatDraft.sortDue = false; combatDraft.rows = combatSortByInit(combatDraft.rows); }\n".replace(/\n/g, '')) && wbS.includes('backE.focus({ preventScroll: true })') && trS.includes('_tw.hold = pressHold(bd, window);') && trS.includes('if (_tw.hold && _tw.hold.busy()) { _tw.hold.then(twRender); return; }'), J([log, during, after]));
 }
 
+{   // a list drawn anew under a press keeps its place (io.js keepPlace, run for real on plain objects; the owner, 2026-11-05: "the whole menu jumps to the top every time")
+    const ioS = rootRead('system/app/scripts/io.js'), kpS = ioS.slice(ioS.indexOf('// [lookcheck:keepplace-start]'), ioS.indexOf('// [lookcheck:keepplace-end]')).replace('export function', 'function').replace(/if \(typeof window[^\n]*\n/, '');
+    const keepPlace = new Function(kpS + '\nreturn keepPlace;')();
+    const doc = { activeElement: null }, mkBtn = (cls, data, dis) => { const b = { tagName: 'BUTTON', className: cls, attributes: Object.keys(data || {}).map(k => ({ name: k, value: data[k] })), disabled: !!dis, focus(o) { doc.activeElement = b; b.how = o; } }; return b; };
+    const outer = { nodeType: 1, scrollTop: 0, scrollLeft: 0, parentElement: null }, box = { nodeType: 1, scrollTop: 0, scrollLeft: 0, parentElement: outer, ownerDocument: doc, kids: [] };
+    box.querySelectorAll = () => box.kids.slice(); box.contains = el => box.kids.indexOf(el) >= 0;
+    const draw = (n, off) => { const had = box.kids.indexOf(doc.activeElement) >= 0; box.kids = []; for (let i = 0; i < n; i++) { const row = { nodeType: 1 }, k = mkBtn('tool ghost set-key', { 'data-cmd': 'c' + i }), x = mkBtn('tool ghost set-key-off', { 'data-cmd': 'c' + i }, off === i); k.parentElement = row; x.parentElement = row; row.querySelectorAll = () => [k, x]; box.kids.push(k, x); } box.scrollTop = 0; outer.scrollTop = 0; if (had) doc.activeElement = { tagName: 'BODY' }; };
+    draw(6); box.scrollTop = 120; outer.scrollTop = 40; doc.activeElement = box.kids[7];   // the x of the fourth row has the focus
+    keepPlace(box, () => draw(6));
+    const kept = [box.scrollTop, outer.scrollTop], onX = doc.activeElement === box.kids[7] && doc.activeElement.how && doc.activeElement.how.preventScroll === true;
+    doc.activeElement = box.kids[7]; keepPlace(box, () => draw(6, 3));   // the press turned that x off: its row's key takes the focus
+    const toKey = doc.activeElement === box.kids[6];
+    doc.activeElement = box.kids[3]; keepPlace(box, () => draw(6), el => { const a = (el.attributes || []).filter(t => t.name === 'data-cmd')[0]; return a ? a.value + '|' + el.className : null; });
+    const byId = doc.activeElement === box.kids[3];
+    const outside = { tagName: 'INPUT' }; doc.activeElement = outside; keepPlace(box, () => draw(6));
+    const left = doc.activeElement === outside, ret = keepPlace(box, () => 7), none = keepPlace(null, () => 8);
+    const cmS = rootRead('system/app/scripts/commands.js'), clS = rootRead('system/app/scripts/charlist.js'), noS = rootRead('system/app/scripts/notices.js'), wbS2 = rootRead('system/app/scripts/whiteboard.js');
+    check('a list drawn anew under a press keeps its place (the owner, 2026-11-05: "the whole menu jumps to the top every time", found with real clicks: a fold of Build\'s materials, the x beside a key in Settings, the NPCs fold under Characters and an x on the bell each threw their list to its top and the focus to the page): keepPlace puts back the scroll of the box and of every box around it, gives the focus back to the control that now stands where the pressed one stood with no scroll of its own, to its row\'s next control where the press turned it off, by a word of the caller\'s own where one is given, leaves a focus outside the box alone and hands back what the draw answers; Settings ▸ Keys, the Characters section, the bell and the Image Library\'s chips ask it',
+        J(kept) === J([120, 40]) && onX && toKey && byId && left && ret === 7 && none === 8
+        && cmS.includes('return KP(list, function() { return keysDraw(doc); });') && clS.includes('KP(box, dr)') && noS.includes('return KP(box, draw);') && wbS2.includes('if (KP) KP(row, function() { TagCore.drawRow(document, row, m); });')
+        && /var keepTop = body\.scrollTop, menuEl = document\.getElementById\('buildMenu'\)/.test(wbS2), { kept, onX, toKey, byId, left });
+}
 check('a player\'s double-click on their own token opens its sheet, the first thing a player tries (found live), and any other piece does nothing on their app, with the GM\'s Properties as they were; a join request says Let in and Turn away, its Cancel put back with the answer',
     /window\.wpNet\.role === 'client'\) \{ if \(it2\.isChar && it2\.charId && it2\.ownerId === window\.wpNet\.myId && window\.wpSheets && window\.wpSheets\.openSheet\) \{ e\.stopPropagation\(\); window\.wpSheets\.openSheet\(it2\.charId\); \} return; \}/.test(rootRead('system/app/scripts/datamap.js'))
     && rootRead('system/app/scripts/datamap.js').indexOf('window.wpSheets.openSheet(it2.charId)') < rootRead('system/app/scripts/datamap.js').indexOf('var wallD = wallPickEl(am2, it2, e)')

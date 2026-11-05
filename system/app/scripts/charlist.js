@@ -123,7 +123,7 @@ function sync() {
     var model = on ? charRowsOf(camp.chars, namesOf(camp), me) : { players: [], npcs: [] }, count = model.players.length + model.npcs.length, show = on && (!client || count > 0);
     sec.hidden = !show; if (rb) rb.hidden = !show;
     var sig = show ? charSig(model, !client, _open) : '';
-    if (sig !== _sig) { _sig = sig; if (show) charDraw(document, box, model, !client, _open); else while (box.firstChild) box.removeChild(box.firstChild); }
+    if (sig !== _sig) { _sig = sig; if (show) { var KP = typeof window !== 'undefined' ? window.wpKeepPlace : null, dr = function() { charDraw(document, box, model, !client, _open); }; if (typeof KP === 'function') KP(box, dr); else dr(); } else while (box.firstChild) box.removeChild(box.firstChild); }
     panelJudge(show ? count : 0);   // what a player's panel holds is judged wherever the count is known: a character that arrives reaches only this (render)
     return show ? count : 0;
 }

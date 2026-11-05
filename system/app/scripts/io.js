@@ -2163,6 +2163,40 @@ export function pressHold(el, win) {
     return { busy: function() { return down; }, then: function(fn) { todo = fn; } };
 }
 // [lookcheck:presshold-end]
+// [lookcheck:keepplace-start]
+// 1.6.2, found by hand (the owner: "the whole menu jumps to the top every time"): a box drawn again while one of its own controls holds the
+// focus lost its place. The pressed control is taken off the page, the focus falls to the page, and the box and every box around it that
+// scrolls go back to their top. keepPlace(root, draw, idOf) keeps the scroll of root and of each box around it, and gives the focus back
+// to the control that now stands where the pressed one stood (idOf(el), else its tag, first class and data-* words and its place among
+// the controls alike), with no scroll of its own. A list that is drawn anew on a press asks it
+var KEEP_STATE = { on: 1, open: 1, sel: 1, active: 1, current: 1, 'is-open': 1, 'hk-picking': 1 };
+export function keepPlace(root, draw, idOf) {
+    if (!root || typeof draw !== 'function') return typeof draw === 'function' ? draw() : undefined;
+    var doc = root.ownerDocument || document, boxes = [], n = root;
+    while (n && n.nodeType === 1) { if (n.scrollTop || n.scrollLeft) boxes.push([n, n.scrollTop, n.scrollLeft]); n = n.parentElement; }
+    var sel = 'button, input, select, textarea, a[href], [tabindex]';
+    var sig = function(el) {
+        if (typeof idOf === 'function') { var k = idOf(el); if (k != null) return String(k); }
+        var w = [el.tagName, String(el.className || '').split(/\s+/).filter(function(c) { return c && !KEEP_STATE[c]; }).join(' ')];   // a class that says a state may change with the redraw
+        Array.prototype.forEach.call(el.attributes || [], function(at) { if (/^data-/.test(at.name)) w.push(at.name + '=' + at.value); });
+        return w.join('|');
+    };
+    var a = doc.activeElement, key = null, nth = 0;
+    if (a && a !== root && root.contains(a)) {
+        key = sig(a); var all = root.querySelectorAll(sel);
+        for (var i = 0; i < all.length; i++) { if (all[i] === a) break; if (sig(all[i]) === key) nth++; }
+    }
+    try { return draw(); } finally {
+        boxes.forEach(function(b) { b[0].scrollTop = b[1]; b[0].scrollLeft = b[2]; });
+        if (key != null) {
+            var now = Array.prototype.filter.call(root.querySelectorAll(sel), function(el) { return sig(el) === key; }), to = now[Math.min(nth, now.length - 1)];
+            if (to && to.disabled) { var row = to.parentElement; to = row ? Array.prototype.filter.call(row.querySelectorAll(sel), function(x) { return !x.disabled; })[0] : null; }   // a control the press turned off: its row's next one
+            if (to && doc.activeElement !== to && typeof to.focus === 'function') { try { to.focus({ preventScroll: true }); } catch (e) {} }
+        }
+    }
+}
+if (typeof window !== 'undefined') window.wpKeepPlace = keepPlace;
+// [lookcheck:keepplace-end]
 
 export function toast(msg) {
 

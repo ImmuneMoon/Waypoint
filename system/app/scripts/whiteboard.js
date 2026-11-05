@@ -6470,7 +6470,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           sv.forEach(function(f, i) { if (_imgLibSavedAt < 0 && TagCore.sameFilter(f, now)) _imgLibSavedAt = i; });
           m.saved = { list: sv.map(function(f, i) { return { name: f.name, active: i === _imgLibSavedAt }; }), save: _imgLibSavedAt < 0 && (pk.length > 0 || TagCore.words(now.words).length > 0), imp: true, tools: _imgLibSavedAt >= 0 };
       }
-      TagCore.drawRow(document, row, m);
+      var KP = typeof window.wpKeepPlace === 'function' ? window.wpKeepPlace : null;   // 1.6.2: a chip pressed keeps the row where it stood, and the focus on that chip
+      if (KP) KP(row, function() { TagCore.drawRow(document, row, m); }); else TagCore.drawRow(document, row, m);
   }
   function tagLog(step, facts) { if (window.wpStepLog) window.wpStepLog('imglib v1', step, facts); }   // structure only: counts and the store's kind, never a tag's name
   // act: 'add' (tag with another), 'move' (drop the current view's category, tag with the chosen one), 'remove'
@@ -8250,6 +8251,7 @@ function buildMatsDraw(BC) {
     var open = BC.MAT_KINDS.map(function(k) { return buildFoldOpen(k, kept) ? 1 : 0; }).join(''), sig = [_build.era, _build.find, pins.join(), used.join(), open].join('|');
     if (sig === _build.drawn && body.firstChild) return;
     _build.drawn = sig;
+    var keepTop = body.scrollTop, menuEl = document.getElementById('buildMenu'), keepMenu = menuEl ? menuEl.scrollTop : 0, aeB = document.activeElement, keepFold = aeB && body.contains(aeB) && aeB.classList.contains('build-fold') ? aeB.getAttribute('data-fold') : null;   // a fold pressed is the focus: drawing it anew drops the palette's scroll unless it is kept
     while (body.firstChild) body.removeChild(body.firstChild);
     if (pins.length) { body.appendChild(buildHead('Your palette')); body.appendChild(buildCells(BC, pins, pins)); }
     if (used.length) { body.appendChild(buildHead('On this map')); body.appendChild(buildCells(BC, used, pins)); }
@@ -8258,12 +8260,14 @@ function buildMatsDraw(BC) {
         var ids = k.ids.filter(function(id) { return buildShown(BC, id); }); if (!ids.length) return;
         any = true;
         var isOpen = find || buildFoldOpen(k, kept), b = document.createElement('button'), n = document.createElement('small');
-        b.type = 'button'; b.className = 'build-fold'; b.setAttribute('aria-expanded', isOpen ? 'true' : 'false'); b.textContent = k.name; n.textContent = String(ids.length); b.appendChild(n);
+        b.type = 'button'; b.className = 'build-fold'; b.setAttribute('data-fold', k.name); b.setAttribute('aria-expanded', isOpen ? 'true' : 'false'); b.textContent = k.name; n.textContent = String(ids.length); b.appendChild(n);
         b.addEventListener('click', function(ev) { ev.stopPropagation(); buildFoldSet(k.name, !isOpen); _build.drawn = ''; buildMatsDraw(BC); });
         body.appendChild(b);
         if (isOpen) body.appendChild(buildCells(BC, ids, pins));
     });
     if (!any) { var none = document.createElement('div'); none.className = 'build-none'; none.textContent = 'No material by that name.'; body.appendChild(none); }
+    body.scrollTop = keepTop; if (menuEl) menuEl.scrollTop = keepMenu;   // the palette stays where it was scrolled to
+    if (keepFold) { var fb2 = Array.prototype.filter.call(body.querySelectorAll('.build-fold'), function(x) { return x.getAttribute('data-fold') === keepFold; })[0]; if (fb2) { try { fb2.focus({ preventScroll: true }); } catch (e) {} } }
 }
 function buildSync() {
     var BC = buildCore(), FC = window.wpFogCore; if (!BC) return;

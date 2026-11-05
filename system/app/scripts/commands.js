@@ -205,6 +205,8 @@ function keysFind(doc) {
 }
 function keysDraw(doc) {
     var list = doc.getElementById('setKeysList'); if (!list) return false;
+    var KP = typeof window !== 'undefined' ? window.wpKeepPlace : null;   // 1.6.2, found by hand: a press on a row's button keeps the list where it stood, and the focus on that row
+    if (typeof KP === 'function' && !keysDraw._in) { keysDraw._in = true; try { return KP(list, function() { return keysDraw(doc); }); } finally { keysDraw._in = false; } }
     _pick = null;
     while (list.firstChild) list.removeChild(list.firstChild);
     var PI = typeof window !== 'undefined' ? window.wpPad : null; if (PI && typeof PI.info === 'function') PI.info(doc);   // 1.6.2: which controller is connected
@@ -218,7 +220,7 @@ function keysDraw(doc) {
         var row = doc.createElement('div'), nm = doc.createElement('span'), t = doc.createElement('span'), sm = doc.createElement('small'), key = doc.createElement('button'), off = doc.createElement('button'), k = _keys[c.id] || '';
         row.className = 'set-key-row'; row.setAttribute('data-grp', G[0]); nm.className = 'set-name'; t.textContent = c.name; sm.textContent = c.does; nm.appendChild(t); nm.appendChild(sm);
         key.type = 'button'; key.className = 'tool ghost set-key'; key.setAttribute('data-cmd', c.id); key.textContent = k ? keyName(k) : 'None'; key.title = 'Press, then press the key you want for ' + c.name;
-        off.type = 'button'; off.className = 'tool ghost set-key-off'; off.textContent = '\u00D7'; off.title = 'Take the key off ' + c.name; off.disabled = !k;
+        off.type = 'button'; off.className = 'tool ghost set-key-off'; off.textContent = '\u00D7'; off.setAttribute('data-cmd', c.id); off.title = 'Take the key off ' + c.name; off.disabled = !k;
         key.addEventListener('click', function() { keysPick(doc, c.id, key); });
         key.addEventListener('keydown', function(e) { keysPress(doc, c.id, key, e); });
         key.addEventListener('blur', function() { if (_pick && _pick.btn === key) keysUnpick(doc, ''); });

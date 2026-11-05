@@ -147,6 +147,8 @@ function mkBtn(cls, text, title, keep) { var b = mk('button', cls, text); b.type
 // The list under the bell: what waits, then everything else, newest first. Elements and text nodes alone
 function draw() {
     var box = document.getElementById('notesList'); if (!box) return false;
+    var KP = typeof window !== 'undefined' ? window.wpKeepPlace : null;   // 1.6.2, found by hand: an x pressed down the list keeps the list where it stood
+    if (typeof KP === 'function' && !draw._in) { draw._in = true; try { return KP(box, draw); } finally { draw._in = false; } }
     while (box.firstChild) box.removeChild(box.firstChild);
     var ws = waiting(), l = listOf(campId()), now = Date.now();
     if (ws.length) {

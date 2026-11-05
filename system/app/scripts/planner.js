@@ -272,6 +272,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }
       pgSeg(); pgPlace();
   }
+  // ▲, ▼ and ✕ (1.6.2, found by hand): the open form goes with the block it was open on, and the focus stays on the arrow pressed
+  function pgMoved(from, to) { if (_pg.open === from) _pg.open = to; else if (_pg.open === to) _pg.open = from; }
+  function pgDropped(i) { if (_pg.open === i) _pg.open = -1; else if (_pg.open > i) _pg.open--; }
+  function pgReopen() { if (!pgOn() || _pg.open < 0) return; var ed = document.getElementById('plannerEditorWrap'), form = ed ? ed.querySelector('.planner-block-edit[data-idx="' + _pg.open + '"]') : null; if (_pg.ro) { _pg.ro.disconnect(); _pg.ro = null; } if (form && typeof ResizeObserver === 'function') { _pg.ro = new ResizeObserver(pgPlaceSoon); _pg.ro.observe(form); } pgPlace(); }
+  function pbeToolBack(i, cls) {
+      var ed = document.getElementById('plannerEditorWrap'), form = ed ? ed.querySelector('.planner-block-edit[data-idx="' + i + '"]') : null, tools = form ? Array.prototype.slice.call(form.querySelectorAll('.block-tools button')) : [];
+      var b = tools.filter(function(t) { return t.classList.contains(cls); })[0];
+      if (b && (cls === 'mv-up' ? i <= 0 : cls === 'mv-dn' ? i >= ((getActiveMap() || {}).blocks || []).length - 1 : false)) b = tools.filter(function(t) { return !t.classList.contains(cls); })[0] || b;   // at the end it can go no further: the other arrow
+      if (b) { try { b.focus({ preventScroll: true }); } catch (e) {} }
+  }
   function pgFace(pv, i) { return pv ? pv.querySelector('.pv-blk[data-blk="' + i + '"]') : null; }
   function pgPlace() {   // the open form over (or under) its drawn block, the page making room for it
       var E = pgEls(); if (!E.ed || !E.pv) return;
@@ -1935,19 +1945,19 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.mv-up')).forEach(el => el.addEventListener('click', function() { 
 
-          var i = parseInt(this.dataset.idx); if (i>0) { var t=activeMap.blocks[i]; activeMap.blocks[i]=activeMap.blocks[i-1]; activeMap.blocks[i-1]=t; save(true); renderPlanner(); }
+          var i = parseInt(this.dataset.idx); if (i>0) { var t=activeMap.blocks[i]; activeMap.blocks[i]=activeMap.blocks[i-1]; activeMap.blocks[i-1]=t; pgMoved(i, i - 1); save(true); renderPlanner(); pgReopen(); pbeToolBack(i - 1, 'mv-up'); }
 
       }));
 
       Array.from(blockContainer.querySelectorAll('.mv-dn')).forEach(el => el.addEventListener('click', function() { 
 
-          var i = parseInt(this.dataset.idx); if (i<activeMap.blocks.length-1) { var t=activeMap.blocks[i]; activeMap.blocks[i]=activeMap.blocks[i+1]; activeMap.blocks[i+1]=t; save(true); renderPlanner(); }
+          var i = parseInt(this.dataset.idx); if (i<activeMap.blocks.length-1) { var t=activeMap.blocks[i]; activeMap.blocks[i]=activeMap.blocks[i+1]; activeMap.blocks[i+1]=t; pgMoved(i, i + 1); save(true); renderPlanner(); pgReopen(); pbeToolBack(i + 1, 'mv-dn'); }
 
       }));
 
       Array.from(blockContainer.querySelectorAll('.del-blk')).forEach(el => el.addEventListener('click', function() { 
 
-          activeMap.blocks.splice(this.dataset.idx, 1); save(true); renderPlanner(); 
+          var di = parseInt(this.dataset.idx); activeMap.blocks.splice(di, 1); pgDropped(di); save(true); renderPlanner(); pgReopen(); 
 
       }));
 

@@ -2175,7 +2175,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             /activeMap\.blocks\[this\.dataset\.idx\]\.rows\.push\(\{\}\); save\(true\)/.test(plannerSrc) && /activeMap\.blocks\[this\.dataset\.idx\]\.rows\.splice\(this\.dataset\.ri, 1\); save\(true\)/.test(plannerSrc)
             && /\.nodes\.splice\(this\.dataset\.ni, 1\); save\(true\)/.test(plannerSrc) && /\.edges\.splice\(this\.dataset\.ei, 1\); save\(true\)/.test(plannerSrc) && /\.nodes\.push\(\{id: fcFreeId\(activeMap\.blocks\[this\.dataset\.idx\]\),/.test(plannerSrc) && /\.edges\.push\(\{from: '', to: '', text: '', style: 'solid'\}\)/.test(plannerSrc)
             && /var t=activeMap\.blocks\[i\]; activeMap\.blocks\[i\]=activeMap\.blocks\[i-1\]; activeMap\.blocks\[i-1\]=t;/.test(plannerSrc) && /var t=activeMap\.blocks\[i\]; activeMap\.blocks\[i\]=activeMap\.blocks\[i\+1\]; activeMap\.blocks\[i\+1\]=t;/.test(plannerSrc)
-            && /activeMap\.blocks\.splice\(this\.dataset\.idx, 1\); save\(true\)/.test(plannerSrc) && /tsSetColCount\(bb, n\);/.test(plannerSrc));
+            && /var di = parseInt\(this\.dataset\.idx\); activeMap\.blocks\.splice\(di, 1\); pgDropped\(di\); save\(true\)/.test(plannerSrc)   // 1.6.2, found by hand: the open form follows a block moved or deleted (moved on purpose)
+            && /pgMoved\(i, i - 1\); save\(true\); renderPlanner\(\); pgReopen\(\); pbeToolBack\(i - 1, 'mv-up'\);/.test(plannerSrc) && /pgMoved\(i, i \+ 1\); save\(true\); renderPlanner\(\); pgReopen\(\); pbeToolBack\(i \+ 1, 'mv-dn'\);/.test(plannerSrc) && /tsSetColCount\(bb, n\);/.test(plannerSrc));
         const t = { type: 'node', cols: ['A', 'B', 'C', 'D'], colFmt: [{ b: true }, null, null, { i: true }], rows: [{ col1: 'a', col4: 'd', fmt: { col4: { b: true } } }] };
         pg.tsSetColCount(t, 2); const cut = J([t.cols, t.colFmt, t.rows]);
         pg.tsSetColCount(t, 5);

@@ -451,6 +451,25 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   // The markup of an EMPTY box (renderPlanner writes the editor as one string): its classes, its place, its placeholder — never the field's
   // text, which tsFill draws. A placeholder is shown by the style sheet while the box holds nothing, and is no part of the text.
+  // [textcheck:pbenames-start]
+  // 1.6.2, backlog 171 (the owner, by prompt: "Plain names above"): a block is named by what it is, a box by a caption above it, and a
+  // flowchart's arrows by the words of the steps they join, never by an id
+  var BLOCK_NAMES = { h1: 'Title', h2: 'Section heading', h3: 'Sub-heading', lede: 'Lead text', oneline: 'One-line summary', node: 'Scene', table: 'Table',
+      flare: 'Callout', callout: 'Gold-edged note', image: 'Picture', rule: 'Line', flowchart: 'Flowchart', diagram: 'Diagram from code', text: 'Text', raw: 'Raw HTML' };
+  function blockName(b) { if (!b || typeof b !== 'object') return 'Block'; if (b.type === 'node' && b.mode === 'table') return 'Table'; return Object.prototype.hasOwnProperty.call(BLOCK_NAMES, b.type) ? BLOCK_NAMES[b.type] : String(b.type || 'Block'); }
+  function pbeCap(t) { return '<div class="pbe-cap">' + esc(t) + '</div>'; }
+  function fcStepWords(n) { var t = String(n && n.text != null ? n.text : '').split('\n')[0].trim(); if (t.length > 40) t = t.slice(0, 39) + '\u2026'; return t || 'A step with no words'; }
+  function fcStepOpts(b, was) {
+      var nodes = Array.isArray(b && b.nodes) ? b.nodes : [], seen = false;
+      var out = '<option value=""' + (was ? '' : ' selected') + '>Pick a step</option>' + nodes.map(function(n) {
+          var id = String(n && n.id || ''); if (!id) return ''; var on = id === was; if (on) seen = true;
+          return '<option value="' + esc(id) + '"' + (on ? ' selected' : '') + '>' + esc(fcStepWords(n)) + '</option>';
+      }).join('');
+      if (was && !seen) out += '<option value="' + esc(was) + '" selected>A step that is gone</option>';   // an arrow to a step deleted since keeps its end until another is picked
+      return out;
+  }
+  function fcFreeId(b) { var have = {}; (Array.isArray(b && b.nodes) ? b.nodes : []).forEach(function(n) { if (n && n.id) have[String(n.id)] = 1; }); for (var k = 1; ; k++) if (!have['n' + k]) return 'n' + k; }
+  // [textcheck:pbenames-end]
   function tsBoxHtml(cls, ph, data, style, multi, extra) {
       return '<div class="' + cls + ' ts-box' + (multi ? ' ts-multi' : '') + '" contenteditable="' + TS_EDIT + '" role="textbox" aria-multiline="' + (multi ? 'true' : 'false') + '" spellcheck="true" data-placeholder="' + esc(ph) + '" aria-label="' + esc(ph) + '" ' + data + (extra ? ' ' + extra : '') + (style ? ' style="' + style + '"' : '') + '></div>';
   }
@@ -1451,7 +1470,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           html += '<div class="planner-block-edit" data-idx="'+idx+'">';
 
-          html += '<div class="block-head"><span>' + (b.type === 'node' ? (b.mode === 'table' ? 'TABLE' : 'SCENE NODE') : esc(String(b.type).toUpperCase())) + '</span>';
+          html += '<div class="block-head"><span>' + esc(blockName(b)) + '</span>';
 
           html += '<div class="block-tools"><button class="tool ghost mv-up" data-idx="'+idx+'">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'">▼</button><button class="tool ghost danger del-blk" data-idx="'+idx+'"><i class="wib wi-close"></i></button></div></div>';
 
@@ -1459,13 +1478,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           if (b.type === 'h1') {
 
-              html += tsBoxHtml('field b-title', 'Title', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
+              html += pbeCap('Title') + tsBoxHtml('field b-title', 'Title', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
 
-              html += tsBoxHtml('field b-sub', 'Subtitle', 'data-idx="'+idx+'"', 'width:100%;');
+              html += pbeCap('Subtitle') + tsBoxHtml('field b-sub', 'Subtitle', 'data-idx="'+idx+'"', 'width:100%;');
 
           } else if (b.type === 'h2' || b.type === 'h3') {
 
-              html += tsBoxHtml('field b-title', b.type === 'h3' ? 'Sub-heading' : 'Section Header', 'data-idx="'+idx+'"', 'width:100%;');
+              html += pbeCap(b.type === 'h3' ? 'Sub-heading' : 'Section heading') + tsBoxHtml('field b-title', b.type === 'h3' ? 'Sub-heading' : 'Section heading', 'data-idx="'+idx+'"', 'width:100%;');
               if (isDocEd && b.type === 'h2') html += '<div class="fc-opts" style="margin-top:6px;"><label title="Everything under this section, up to the next section or title, flows in this many columns">Columns <select class="b-h2cols" data-idx="'+idx+'">' + [1, 2, 3].map(function(n) { return '<option value="' + n + '"' + (secCols === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></label></div>';
 
           } else if (b.type === 'oneline' || b.type === 'lede' || b.type === 'text' || b.type === 'callout' || b.type === 'flare') {
@@ -1478,7 +1497,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                     + '<label class="tool ghost b-img-uplabel" title="Upload a picture from your computer">Upload…<input type="file" accept="image/*" class="b-img-upload" data-idx="' + idx + '" style="display:none;"></label>'
                     + (isDocEd ? '' : '<label>Width <select class="b-imgw" data-idx="' + idx + '">' + [25, 33, 50, 66, 75, 100].map(function(w) { return '<option value="' + w + '"' + ((b.width || 100) === w ? ' selected' : '') + '>' + w + '%</option>'; }).join('') + '</select></label>'
                     + '<label>Align <select class="b-imga" data-idx="' + idx + '">' + [['left', 'Left'], ['center', 'Centre'], ['right', 'Right']].map(function(o) { return '<option value="' + o[0] + '"' + ((b.align || 'center') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>') + '</div>'
-                    + tsBoxHtml('field b-caption', 'Caption (optional)', 'data-idx="' + idx + '"', 'width:100%; margin-top:6px;') + '</div></div>';
+                    + pbeCap('Caption') + tsBoxHtml('field b-caption', 'Caption (optional)', 'data-idx="' + idx + '"', 'width:100%;') + '</div></div>';
           } else if (b.type === 'raw') {
 
               html += '<textarea class="field b-content" placeholder="Raw HTML..." data-idx="'+idx+'" style="width:100%; height:120px; font-family:monospace;">'+esc(b.content||'')+'</textarea>';
@@ -1492,10 +1511,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           } else if (b.type === 'node' || b.type === 'table') {
               var plain = b.mode === 'table' || b.type === 'table';   // a page's table block is the node grid in table mode, without the mode switch
               if (b.type === 'node') html += '<div class="fc-opts" style="margin-bottom:6px;"><label>Mode <select class="b-mode" data-idx="'+idx+'" title="Scene node: a scene with what must be resolved and the routes out of it. Plain table: just a grid of information."><option value="node"'+(plain ? '' : ' selected')+'>Scene node</option><option value="table"'+(plain ? ' selected' : '')+'>Plain table</option></select></label></div>';
-              html += tsBoxHtml('field b-title', plain ? 'Table title (optional)' : 'Node Title', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
+              html += pbeCap(plain ? 'Table title' : 'Scene title') + tsBoxHtml('field b-title', plain ? 'Table title (optional)' : 'Scene title', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
               if (!plain) {
-                  html += tsBoxHtml('field b-sub', 'Tag (optional)', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
-                  html += tsBoxHtml('field b-must', 'Must Resolve... (optional)', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
+                  html += pbeCap('Tag') + tsBoxHtml('field b-sub', 'Tag (optional)', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
+                  html += pbeCap('Must resolve') + tsBoxHtml('field b-must', 'What must be settled (optional)', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
                   var campL = getActiveCampaign();
                   var mapsL = campL ? Object.values(campL.items).filter(function(i) { return i.type === 'map'; }).sort(function(x, y) { return String(x.meta.title || '').localeCompare(String(y.meta.title || '')); }) : [];
                   var linkedMap = b.linkMapId && campL ? campL.items[b.linkMapId] : null;
@@ -1567,9 +1586,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                   html += '<div class="row-h">';
 
-                  html += '<input type="text" value="'+esc(e.from||'')+'" placeholder="From ID" data-idx="'+idx+'" data-ei="'+ei+'" class="fc-e-from" style="flex: 1;">';
+                  html += '<label class="fc-e-end"><span class="pbe-cap">From</span><select data-idx="'+idx+'" data-ei="'+ei+'" class="fc-e-from">' + fcStepOpts(b, e.from) + '</select></label>';
 
-                  html += '<input type="text" value="'+esc(e.to||'')+'" placeholder="To ID" data-idx="'+idx+'" data-ei="'+ei+'" class="fc-e-to" style="flex: 1;">';
+                  html += '<label class="fc-e-end"><span class="pbe-cap">To</span><select data-idx="'+idx+'" data-ei="'+ei+'" class="fc-e-to">' + fcStepOpts(b, e.to) + '</select></label>';
 
                   html += '<button class="tool ghost danger del-fc-e x-btn" data-idx="'+idx+'" data-ei="'+ei+'"><i class="wib wi-close"></i></button>';
 
@@ -1703,13 +1722,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.del-fc-n')).forEach(el => el.addEventListener('click', function() { activeMap.blocks[this.dataset.idx].nodes.splice(this.dataset.ni, 1); save(true); renderPlanner(); }));
 
-      Array.from(blockContainer.querySelectorAll('.add-fc-n')).forEach(el => el.addEventListener('click', function() { activeMap.blocks[this.dataset.idx].nodes.push({id: 'n'+(activeMap.blocks[this.dataset.idx].nodes.length+1), text: 'Node', shape: 'rect', color: 'neutral'}); save(true); renderPlanner(); }));
+      Array.from(blockContainer.querySelectorAll('.add-fc-n')).forEach(el => el.addEventListener('click', function() { activeMap.blocks[this.dataset.idx].nodes.push({id: fcFreeId(activeMap.blocks[this.dataset.idx]), text: 'Node', shape: 'rect', color: 'neutral'}); save(true); renderPlanner(); }));
 
 
 
-      Array.from(blockContainer.querySelectorAll('.fc-e-from')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].edges[this.dataset.ei].from = this.value; save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.fc-e-from')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].edges[this.dataset.ei].from = this.value; save(false); renderPlannerPreview(); }));
 
-      Array.from(blockContainer.querySelectorAll('.fc-e-to')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].edges[this.dataset.ei].to = this.value; save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.fc-e-to')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].edges[this.dataset.ei].to = this.value; save(false); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.fc-e-style')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].edges[this.dataset.ei].style = this.value; save(true); renderPlannerPreview(); }));
 

@@ -2345,6 +2345,10 @@
   .planner-block-edit { background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 12px; margin-bottom: 12px; position: relative; transition: border-color 0.4s, box-shadow 0.4s; }
   .planner-block-edit.blk-flash { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.35); }
   #plannerPreview .pv-blk { cursor: default; }
+  .pbe-cap { color: var(--dim); font-size: 10.5px; margin: 2px 0 3px; }   /* 1.6.2, backlog 171: a box's name above it */
+  .fc-e-end { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  .fc-e-end select { width: 100%; }
+  .planner-block-edit .fc-n-id { display: none; }   /* a step's id is the app's own: an arrow picks a step by its words */
   .planner-block-edit .block-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; color: var(--gold); font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; }
   .planner-block-edit .block-tools { display: flex; gap: 4px; }
   .node-row-edit { display: flex; gap: 6px; margin-bottom: 6px; }

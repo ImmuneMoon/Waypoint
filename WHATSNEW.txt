@@ -290,6 +290,8 @@ At the table
   on another view. A button of the Library window, Map objects, the dice
   roller or the combat roster opens its window first; the roster says that it
   needs a table you host.
+  A button in a sheet's head is lit in the sheet you have open, and the Game
+  Record's two buttons open it first.
 - A roll can wait for help. Its card asks the others on the roller's map, and
   the GM for an NPC, and each helper adds a figure of their own sheet, a die,
   or what their own roll gives. The roller presses Roll, or it rolls by itself

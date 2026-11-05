@@ -12,6 +12,8 @@ var CHIP_WINDOWS = { systemModal: { open: 'systemBtn', tabs: '.sys-tabs button[d
     settingsModal: { open: 'settingsBtn' }, profileModal: { open: 'rowMeBtn' }, netModal: { open: 'netBtn' },
     // fold 5: windows the map and the campaign open, each by its own button; the combat roster only at a table you host
     libraryModal: { open: 'libraryCampBtn' }, objModal: { open: 'addObjectsBtn' }, dicePanel: { open: 'diceBtn' },
+    sessionLogModal: { open: 'netLogBtn' },   // fold 6: the Game Record
+    sheetPanel: { when: function(doc) { var p = doc.getElementById('sheetPanel'); return p && p.style.display !== 'none' && !(p.classList && p.classList.contains('wp-away')) ? '' : 'With a sheet open'; } },   // fold 6: a sheet's head, with no one button that opens it: lit where a sheet is open
     combatModal: { open: 'netCombatBtn', when: function() { var n = typeof window !== 'undefined' ? window.wpNet : null; return n && n.active && n.role === 'host' ? '' : 'While you host'; } } };   // fold 3: Settings, your profile and Multiplayer, which have no tabs: a group of Settings unfolds and a part of Multiplayer opens by its own button
 // fold 3: the names Help says them by, marked as Help opens (Help's text stays as written, which many suites read): the part of Help, the name in
 // its own words, the control, and where a name stands for something else as well, the one occurrence of it in that part that means the control
@@ -34,7 +36,10 @@ var CHIP_NAMES = [
     ['sheets', 'explode', '#blastExplodeBtn'], ['sheets', 'undo last throw', '#blastUndoThrow'],
     // fold 5: a button inside a window the map or the campaign opens
     ['whiteboard', 'from a picture', '#objFromPic'], ['whiteboard', 'from another campaign', '#objFromOther', 2], ['sheets', '+ pack', '#libNewPack'], ['sheets', 'import', '#libImport', 1], ['sheets', 'spreadsheet', '#libCsv'],
-    ['mp-gm', 'roll all', '#combatRollAllBtn'], ['dice', 'roll', '#diceRollBtn']];
+    ['mp-gm', 'roll all', '#combatRollAllBtn'], ['dice', 'roll', '#diceRollBtn'],
+    // fold 6: a sheet's head, and the Game Record
+    ['mp-player', 'edit sheet', '#sheetEdit'], ['sheets', 'edit sheet', '#sheetEdit'], ['mp-gm', 'upload', '#sheetUpload'], ['mp-player', 'upload', '#sheetUpload'], ['sheets', 'delete', '#sheetDelete'], ['sheets', 'hide figures', '#sheetHideFig'],
+    ['sheets', 'unlock for player', '#sheetUnlock'], ['mp-player', 'done', '#sheetDone'], ['mp-gm', 'done', '#sheetDone', 1], ['mp-gm', 'save as text', '#sessionLogSave'], ['mp-gm', 'delete session', '#sessionLogClear']];
 function chipWords(s) { return String(s || '').replace(/\s+/g, ' ').trim().replace(/[.\u2026:]+$/, '').toLowerCase(); }
 function chipsName(help) {
     var n = 0;
@@ -97,10 +102,11 @@ function chipReach(doc, f) {
         return '';
     }
     if (!f.win) { var st = chipStand(doc, f.el); return st === f.el && !chipMenus(doc, f.el).length && f.el.offsetParent === null && f.el.style.display === 'none' ? 'Not on this screen' : ''; }
+    if (!CHIP_WINDOWS[f.win].open) { var whS = CHIP_WINDOWS[f.win].when ? CHIP_WINDOWS[f.win].when(doc) : 'Not on this screen'; return whS || (f.el.hidden === true || (f.el.style && f.el.style.display === 'none') ? 'Not shown now' : ''); }   // fold 6: a window no one button opens is reached where it is open
     var op = doc.getElementById(CHIP_WINDOWS[f.win].open); if (!op) return 'Not on this screen';
     if (op.style.display === 'none' || op.hidden) return 'The GM’s';
     if (op.closest && op.closest('.gm-only') && doc.body && doc.body.classList && doc.body.classList.contains('net-client')) return 'The GM\u2019s';   // fold 5: a window a GM's button opens, on a player's app
-    var wh = typeof CHIP_WINDOWS[f.win].when === 'function' ? CHIP_WINDOWS[f.win].when() : ''; if (wh) return wh;   // fold 5: a window that opens only at times
+    var wh = typeof CHIP_WINDOWS[f.win].when === 'function' ? CHIP_WINDOWS[f.win].when(doc) : ''; if (wh) return wh;   // fold 5: a window that opens only at times
     if (CHIP_WINDOWS[f.win].tabs) return '';   // a window with tabs opens the control's tab (chipGo)
     var box = doc.getElementById(f.win);   // fold 3: a part of the window put away until it applies, which no button of the window opens
     for (var n = f.el.parentNode; n && n !== box; n = n.parentNode) { if (!n.id || !n.style || n.style.display !== 'none') continue; if (chipOpener(doc, n.id)) continue; return CHIP_WHEN[n.id] || 'Not shown now'; }

@@ -649,7 +649,7 @@ function renderPanel() {
         var o = otherMusicCamps(); if (!o.length) { toast('No other campaign has music.'); return; }
         picking = { to: campL ? campL.id : '', from: o[0].id, pl: Object.create(null), tr: Object.create(null) }; renderPanel();
     });
-    var addF = el('button', 'tool ghost', '+ Add music…');
+    var addF = el('button', 'tool ghost music-add', '+ Add music…');   // music-add: Help's chip finds it (1.6.2, backlog 142 fold 7)
     var fileIn = el('input'); fileIn.type = 'file'; fileIn.accept = 'audio/*'; fileIn.multiple = true; fileIn.style.display = 'none';
     addF.addEventListener('click', function() { if (!canWrite()) { toast('Only the GM manages music.'); return; } fileIn.value = ''; fileIn.click(); });
     fileIn.addEventListener('change', function() { uploadTracks(fileIn.files); });

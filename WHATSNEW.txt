@@ -302,6 +302,8 @@ At the table
   on another view. A button of the Library window, Map objects, the dice
   roller or the combat roster opens its window first; the roster says that it
   needs a table you host.
+  A button of the Calendar, Sound, Music, Video, the Journal
+  or the table notepad opens its window first, and is lit there.
   A button in a sheet's head is lit in the sheet you have open, and the Game
   Record's two buttons open it first.
 - A roll can wait for help. Its card asks the others on the roller's map, and

@@ -54,7 +54,7 @@ function page(opts) {
 }
 const src = read('scripts/helpchips.js'), cut = (a, b) => src.slice(src.indexOf('// [helpchipcheck:' + a + '-start]'), src.indexOf('// [helpchipcheck:' + b + '-end]'));
 const timers = [], opened = [], winA = { wpOpenHelp: p => opened.push(p) };
-const api = new Function('window', 'setTimeout', 'MutationObserver', cut('core', 'wire') + '\nreturn { chipFind, chipReach, chipCopy, chipsDraw, chipGo, chipBack, chipMenus, chipStand, chipsName, chipWords, chipBarOpener, chipShut, CHIP_NAMES, CHIP_KEY, CHIP_TAB_IDS };')(winA, (f, ms) => { timers.push([f, ms]); return timers.length; }, undefined);
+const api = new Function('window', 'setTimeout', 'MutationObserver', cut('core', 'wire') + '\nreturn { chipFind, chipReach, chipCopy, chipsDraw, chipGo, chipBack, chipMenus, chipStand, chipsName, chipWords, chipBarOpener, chipShut, CHIP_NAMES, CHIP_KEY, CHIP_TAB_IDS, chipIn, chipReachIn, chipStandIn, CHIP_STANDS, CHIP_WINDOWS };')(winA, (f, ms) => { timers.push([f, ms]); return timers.length; }, undefined);
 // ---- the core
 const P = page(), d = P.doc;
 const fTab = api.chipFind(d, 'sys-tab:rules'), fSave = api.chipFind(d, '#sysSaveBtn'), fKey = api.chipFind(d, 'sys:fields:sys-key-btn');
@@ -199,11 +199,53 @@ check('every mark Help carries is a key of the chips’ own form, and names a bu
     timers.length = 0; const g6 = api.chipGo(D6, '#sheetEdit'); timers.filter(x => x[1] === 0).forEach(x => x[0]());
     check('a sheet\u2019s head button says With a sheet open until one is, is lit in the sheet that is open, and one that sheet does not show says so', fE.win === 'sheetPanel' && shut === 'With a sheet open' && open === '' && done === 'Not shown now' && g6 === true && fE.el.classList.contains('help-found'), J([shut, open, done]));
 }
+{   // fold 7: a control a window's script builds, reached by an in: key: drawn as a stand-in until the window is drawn, then as itself; judged by its window
+    const mk7 = o => {
+        const cal = mk('div', { id: 'calendarModal', style: { display: 'none' } }, [mk('div', { id: 'calendarBody' })]);
+        const chip = mk('button', { id: 'clockChip', style: { display: o.calOff ? 'none' : '' } }); chip.onclick = () => { cal.style.display = 'flex'; if (!o.never) cal.kids[0].appendChild(mk('button', { cls: 'tool ghost cal-set', text: 'Set the clock' })); };
+        const snd = mk('div', { id: 'soundPanel', style: { display: 'none' } }, []);
+        const bar = mk('div', { id: 'wbFloatingToolbar', cls: 'floating-toolbar', style: { display: o.dataView ? 'none' : '' } }, [mk('div', { cls: 'tool-pair gm-only' }, [mk('button', { id: 'soundBtn' })])]);
+        const pad = mk('div', { id: 'notepadPanel', style: { display: o.pad ? '' : 'none' } }, [mk('button', { id: 'notepadSaveBtn', text: 'Save to my Journal' })]);
+        const help = mk('div', { id: 'helpModal', style: { display: 'flex' } }, [mk('div', { cls: 'help-body' }, [mk('div', { cls: 'help-pane', data: { pane: 'grids' }, style: { display: 'block' } }, [mk('b', { attrs: { 'data-ctl': 'in:calendarModal.cal-set' }, text: 'Set the clock' }), mk('b', { attrs: { 'data-ctl': 'in:soundPanel.snd-mute' }, text: 'Mute mine' }), mk('b', { attrs: { 'data-ctl': 'in:calendarModal.nothing' }, text: 'Nothing' })])])]);
+        const bodyE = mk('body', { cls: o.player ? 'net-client' : '' }, [chip, cal, bar, snd, pad, help]);
+        return { cal, help, snd, doc: { body: bodyE, getElementById: id => bodyE.all().find(n => n.id === id) || null, querySelectorAll: q => bodyE.querySelectorAll(q), querySelector: q => bodyE.querySelector(q), createElement: t => new El(t) } };
+    };
+    const G = mk7({}), k = 'in:calendarModal.cal-set';
+    check('an in: key names a window of the page and a class, and nothing else', J(api.chipIn(k)) === J({ win: 'calendarModal', cls: 'cal-set' }) && api.CHIP_KEY.test(k) && !api.chipIn('in:cal.x y') && !api.chipIn('in:calendarModal.Cal') && !api.chipIn('#x') && api.chipIn(null) === null);
+    const n0 = api.chipsDraw(G.doc), c0 = G.help.querySelectorAll('.help-chip'), btn0 = c0[0] && c0[0].querySelector('button'), tick0 = c0[1] && c0[1].querySelector('input');
+    check('before its window is drawn, a chip stands in: a button of the control\u2019s classes with Help\u2019s words, a tick for a tick, inert; a class no stand-in names stays plain',
+        n0 === 2 && !!btn0 && btn0.className === 'tool ghost' && btn0.textContent === 'Set the clock' && btn0.getAttribute('tabindex') === '-1' && !!tick0 && tick0.type === 'checkbox' && c0[0].dataset.tip === 'Show me Set the clock.' && G.help.querySelectorAll('b')[2].textContent === 'Nothing', J([n0, btn0 && btn0.className]));
+    timers.length = 0; const g7 = api.chipGo(G.doc, k);
+    const runT = () => { for (let i = 0; i < 40; i++) { const j = timers.findIndex(t => t[1] < 2000); if (j < 0) break; timers.splice(j, 1)[0][0](); } };   // the light's own 2 s timer is left alone
+    runT(); const lit = G.cal.querySelector('.cal-set');
+    check('pressed, Help steps aside, the Calendar opens by its own chip, and the control its script drew is lit', g7 === true && G.help.style.display === 'none' && G.cal.style.display === 'flex' && !!lit && lit.classList.contains('help-found') && lit.scrolled === 1);
+    G.help.style.display = 'flex'; api.chipsDraw(G.doc); const c1 = G.help.querySelectorAll('.help-chip')[0];
+    check('once drawn, the chip copies the control itself', !!c1.querySelector('button.cal-set') && !c1.querySelector('button.cal-set').id);
+    const Nv = mk7({ never: true }); timers.length = 0; api.chipGo(Nv.doc, k); runT();
+    check('a control its window never draws is looked for a while and then let be, with nothing lit and nothing thrown', Nv.cal.style.display === 'flex' && !timers.some(t => t[1] < 2000));
+    const rOff = api.chipReachIn(mk7({ calOff: true }).doc, k), rPl = api.chipReachIn(mk7({ player: true }).doc, k), rHide = api.chipReachIn(mk7({}).doc, 'in:calendarModal.cal-hideme'), rHideP = api.chipReachIn(mk7({ player: true }).doc, 'in:calendarModal.cal-hideme');
+    const rSnd = api.chipReachIn(mk7({}).doc, 'in:soundPanel.snd-mute'), rSndD = api.chipReachIn(mk7({ dataView: true }).doc, 'in:soundPanel.snd-mute'), rSndP = api.chipReachIn(mk7({ player: true }).doc, 'in:soundPanel.snd-mute'), rNo = api.chipReachIn(mk7({}).doc, 'in:nowhere.x');
+    check('a chip says why: With the Calendar on, The GM\u2019s for Set the clock on a player\u2019s app, On a player\u2019s screen for Hide the clock for me on the GM\u2019s, On the play map for a panel the map\u2019s toolbar opens, The GM\u2019s for one only the GM opens, Not on this screen for a window that is not there',
+        rOff === 'With the Calendar on' && rPl === 'The GM\u2019s' && rHide === 'On a player\u2019s screen' && rHideP === '' && rSnd === '' && rSndD === 'On the play map' && rSndP === 'The GM\u2019s' && rNo === 'Not on this screen', J([rOff, rPl, rHide, rHideP, rSnd, rSndD, rSndP, rNo]));
+    const fPad = api.chipFind(mk7({}).doc, '#notepadSaveBtn'), fPadU = api.chipFind(mk7({ pad: true }).doc, '#notepadSaveBtn');
+    check('the table notepad\u2019s buttons say While the table notepad is up until it is', fPad.win === 'notepadPanel' && api.chipReach(mk7({}).doc, fPad) === 'While the table notepad is up' && api.chipReach(mk7({ pad: true }).doc, fPadU) === '');
+    const Np = mk7({}), selN = mk('div', { cls: 'cal-pick' }); Np.cal.appendChild(selN); Np.doc.getElementById('clockChip').onclick = () => { Np.cal.style.display = 'flex'; };
+    timers.length = 0; api.chipGo(Np.doc, k); runT();
+    check('a control its window shows only after a pick lights the row that says so in its place', selN.classList.contains('help-found'));
+    const tk = mk('label', { cls: 'journal-all' }, [mk('input', { id: 'journalAll' }), mk('span', { text: ' Every journal' })]), jm = mk('div', { id: 'journalModal', style: { display: 'none' } }, [tk]);
+    const hj = mk('div', { id: 'helpModal', style: { display: 'flex' } }, [mk('div', { cls: 'help-body' }, [mk('div', { cls: 'help-pane', data: { pane: 'mp-player' }, style: { display: 'block' } }, [mk('b', { attrs: { 'data-ctl': '#journalAll' }, text: 'Every journal' })])])]);
+    const bj = mk('body', {}, [mk('button', { id: 'journalBtn' }), jm, hj]), DJ = { body: bj, getElementById: id => bj.all().find(n => n.id === id) || null, querySelectorAll: q => bj.querySelectorAll(q), querySelector: q => bj.querySelector(q), createElement: t => new El(t) };
+    api.chipsDraw(DJ); const cj = hj.querySelector('.help-chip');
+    check('a tick is drawn with its words: its label, copied', !!cj && !!cj.querySelector('label') && cj.querySelector('label').textContent === ' Every journal' && !cj.querySelector('input').id);
+    check('a stand-in draws the control\u2019s look by its classes and Help\u2019s words, as text', (() => { const w = api.chipStandIn(G.doc, 'in:videoPanel.vid-add', '<b>Add videos</b>'); return w.className === 'help-chip-in' && w.kids[0].className === 'tool' && w.kids[0].textContent === '<b>Add videos</b>' && w.kids[0].getAttribute('aria-hidden') === 'true'; })());
+}
 {   // fold 3: the names marked as Help opens, each a bold of its part as Help writes it, naming a control the page has, its one occurrence where it says so
     const paneOf = p => { const i = html.indexOf('class="help-pane" data-pane="' + p + '"') >= 0 ? html.indexOf('class="help-pane" data-pane="' + p + '"') : html.indexOf('data-pane="' + p + '"'); if (i < 0) return ''; const j = html.indexOf('class="help-pane"', i + 20); return html.slice(i, j < 0 ? html.length : j); };
     const words = s => api.chipWords(s.replace(/<[^>]+>/g, '').replace(/&hellip;/g, '').replace(/&rsquo;/g, '\u2019'));
-    const badN = api.CHIP_NAMES.filter(c => { const p = paneOf(c[0]), n = [...p.matchAll(/<b>([\s\S]*?)<\/b>/g)].filter(m => words(m[1]) === c[1]).length; return !n || (c[3] && n < c[3]) || html.split('id="' + c[2].slice(1) + '"').length !== 2 || !api.CHIP_KEY.test(c[2]); });
-    check('fold 3 names 43 more in their parts of Help (Settings, your profile, Multiplayer and the top row), fold 4 20 on the map\u2019s toolbars fold 5 7 in the windows the map and the campaign open, and fold 6 11 in a sheet\u2019s head and the Game Record, each a bold Help writes there and a control the page has; Help\u2019s text is left as written', api.CHIP_NAMES.length === 81 && !badN.length && !/data-ctl="#(?:setKeysResetBtn|netJoinBtn|exportMdBtn)"/.test(html), J(badN));
+    const scriptsAll = fs.readdirSync(app('scripts')).filter(f => /\.js$/.test(f)).map(f => read('scripts/' + f)).join('\n');
+    const inOk = k => { const ip = api.chipIn(k); return !!ip && html.split('id="' + ip.win + '"').length === 2 && Object.prototype.hasOwnProperty.call(api.CHIP_WINDOWS, ip.win) && Object.prototype.hasOwnProperty.call(api.CHIP_STANDS, k) && new RegExp("['\"][a-z -]*\\b" + ip.cls + "\\b[a-z -]*['\"]").test(scriptsAll); };   // fold 7: a window of the page, and a class a script gives a control
+    const badN = api.CHIP_NAMES.filter(c => { const p = paneOf(c[0]), n = [...p.matchAll(/<b>([\s\S]*?)<\/b>/g)].filter(m => words(m[1]) === c[1]).length; return !n || (c[3] && n < c[3]) || (api.chipIn(c[2]) ? !inOk(c[2]) : html.split('id="' + c[2].slice(1) + '"').length !== 2) || !api.CHIP_KEY.test(c[2]); });
+    check('fold 3 names 43 more in their parts of Help (Settings, your profile, Multiplayer and the top row), fold 4 20 on the map\u2019s toolbars fold 5 7 in the windows the map and the campaign open, fold 6 11 in a sheet\u2019s head and the Game Record, and fold 7 11 in the Calendar, Sound, Music, Video, the Journal and the table notepad, each a bold Help writes there and a control the page has or a script builds in its window; Help\u2019s text is left as written', api.CHIP_NAMES.length === 92 && !badN.length && !/data-ctl="#(?:setKeysResetBtn|netJoinBtn|exportMdBtn)"/.test(html), J(badN));
     const pn = mk('div', { cls: 'help-pane', data: { pane: 'mp-gm' } }, [mk('b', { text: 'Start combat' }), mk('b', { text: 'Start Combat' }), mk('b', { text: 'Pause the Table' }), mk('b', { text: 'Fog of war' })]), hb = mk('div', { id: 'helpModal' }, [pn]);
     const nN = api.chipsName(hb), bsN = pn.querySelectorAll('b').map(b => b.getAttribute('data-ctl') || '');
     check('marked as Help opens: a name of the list in its part, in any case, the one occurrence where the list names it, never twice, and a name not in the list left as it is', nN === 2 && J(bsN) === J(['', '#netCombatBtn', '#netPauseBtn', '']) && api.chipsName(hb) === 0, J([nN, bsN]));
@@ -215,6 +257,7 @@ check('the marks are on the names of what you press, and a bold that means somet
 const css = read('style.css'), wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wa = read('assets/whatsnew.txt'), ci = fs.readFileSync(path.join(root, '.github', 'workflows', 'checks.yml'), 'utf8');
 check('the page loads the module, which listens to Help and draws its chips as it opens', html.includes('<script type="module" src="scripts/helpchips.js"></script>') && src.includes("new MutationObserver(function() { if (help.style.display !== 'none') { chipsDraw(doc);") && src.includes('window.wpHelpChips ='));
 check('a chip has its frame and its gold edge on hover, its copy takes no press, the light and Back to Help their styles, and Help stands over the window a chip opened', css.includes('.help-chip { display: inline-flex;') && css.includes('.help-chip:hover { border-color: var(--gold); }') && css.includes('.help-chip-in > * { pointer-events: none;') && css.includes('.help-found {') && css.includes('.help-back { position: fixed;') && css.includes('#helpModal.help-over { z-index: 100002 !important; }'));
+check('both notes say the Calendar, Sound, Music, Video, the Journal and the table notepad (fold 7)', [wn, wa].every(t => t.includes("A button of the Calendar, Sound, Music, Video, the Journal\n  or the table notepad opens its window first")));
 check('both notes say a sheet\u2019s head and the Game Record (fold 6)', [wn, wa].every(t => t.includes("A button in a sheet's head is lit in the sheet you have open")));
 check('both notes say the windows of fold 5', [wn, wa].every(t => t.includes("A button of the Library window, Map objects, the dice\n  roller or the combat roster opens its window first")));
 check('both notes say the map\u2019s toolbars (fold 4)', [wn, wa].every(t => t.includes("A row of the map's toolbars, such as Reveal all in\n  the fog menu, opens the tool's options first")));

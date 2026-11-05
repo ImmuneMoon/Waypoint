@@ -22,7 +22,13 @@ var CHIP_NAMES = [
     ['planners', 'save markdown', '#exportMdBtn'], ['handbook', 'save markdown', '#exportMdBtn'],
     ['mp-gm', 'display name', '#setNameInput'], ['mp-gm', 'host a table', '#netPaneHostBtn'], ['mp-gm', 'start hosting this campaign', '#netHostBtn'], ['mp-gm', 'stream window', '#setStreamBtn'], ['mp-gm', 'game record', '#netLogBtn'],
     ['mp-gm', 'start combat', '#netCombatBtn', 2], ['mp-gm', 'pause the table', '#netPauseBtn'], ['mp-gm', 'firewall-friendly connections', '#setRelayBtn'], ['mp-gm', 'test relay', '#setTurnTestBtn'],
-    ['mp-player', 'join a table', '#netPaneJoinBtn'], ['mp-player', 'join', '#netJoinBtn'], ['mp-player', 'table notepad', '#netNotepadBtn'], ['dice', 'table chat', '#chatBtn'], ['keys', 'restore default keys', '#setKeysResetBtn']];
+    ['mp-player', 'join a table', '#netPaneJoinBtn'], ['mp-player', 'join', '#netJoinBtn'], ['mp-player', 'table notepad', '#netNotepadBtn'], ['dice', 'table chat', '#chatBtn'], ['keys', 'restore default keys', '#setKeysResetBtn'],
+    // fold 4, the map's toolbars: a row of a tool's options, opened by the tool's own small arrow (a name that leads its entry stays as written)
+    ['whiteboard', 'clear drawings to show', '#drawShowClear'], ['mp-player', 'clear drawings to show', '#drawShowClear'], ['mp-player', 'ask to put them on the map', '#drawShowAsk'], ['whiteboard', 'trigger zone', '#shapeTriggerBtn'],
+    ['whiteboard', 'light and vision on this map', '#fogFoldLight'], ['whiteboard', 'preview a player\u2019s view', '#fogFoldPreview', 1], ['whiteboard', 'this campaign\u2019s fog settings', '#fogFoldCamp'], ['whiteboard', 'light source', '#fogLightPlace'],
+    ['whiteboard', 'reveal all', '#fogRevealAll'], ['whiteboard', 'cover all', '#fogCoverAll'], ['whiteboard', 'fit to content', '#wbFitBtn'], ['whiteboard', 'center on character', '#wbCenterCharBtn'], ['keys', 'fit to content', '#wbFitBtn'],
+    ['grids', 'cell labels', '#gridLabelsBtn', 2], ['grids', 'clear rulers', '#measureClearBtn'], ['grids', 'explode', '#blastExplodeBtn', 1], ['grids', 'explode', '#blastExplodeBtn', 2], ['grids', 'undo last throw', '#blastUndoThrow'],
+    ['sheets', 'explode', '#blastExplodeBtn'], ['sheets', 'undo last throw', '#blastUndoThrow']];
 function chipWords(s) { return String(s || '').replace(/\s+/g, ' ').trim().replace(/[.\u2026:]+$/, '').toLowerCase(); }
 function chipsName(help) {
     var n = 0;
@@ -34,7 +40,7 @@ function chipsName(help) {
     return n;
 }
 // fold 3: a part of a window that shows only at times, and the words a chip says while it does not
-var CHIP_WHEN = { netHostInfo: 'While you host', setUpdateRow: 'When an update is found', setRelayBlock: 'With a relay server set' };
+var CHIP_WHEN = { netHostInfo: 'While you host', setUpdateRow: 'When an update is found', setRelayBlock: 'With a relay server set', drawShowAsk: 'On a player\u2019s screen' };
 var CHIP_TAB_IDS = { sysFields: 'fields', sysRolls: 'rolls', sysItems: 'items', sysLists: 'lists', sysEffects: 'effects', sysCombat: 'combat', sysRules: 'rules', sysChars: 'chars', sysLayout: 'layout', sysCalendar: 'calendar' };
 var CHIP_KEY = /^(?:sys-tab:[a-z]{1,16}|sys:[a-z]{1,16}:[a-z][a-z0-9-]{0,63}|#[A-Za-z][A-Za-z0-9_-]{0,63})$/;   // a tab, the first control of a class inside a tab, or a control by its id
 // the control a key names in this document, and the window that holds it (none for a control of the page itself)
@@ -55,13 +61,19 @@ function chipMenus(doc, el) {
     var out = [];
     for (var n = el && el.parentNode; n && n.getAttribute; n = n.parentNode) {
         var id = n.id; if (!id) continue;
-        var op = CHIP_OPENERS[id] ? doc.getElementById(CHIP_OPENERS[id]) : chipOpener(doc, id); if (op) out.unshift({ box: n, open: op });
+        var op = CHIP_OPENERS[id] ? doc.getElementById(CHIP_OPENERS[id]) : chipOpener(doc, id) || chipBarOpener(n); if (op) out.unshift({ box: n, open: op });
     }
     return out;
 }
 // the button that opens a part, never a chip's copy of it in Help (fold 3: Join a table is both)
 function chipOpener(doc, id) { var all = doc.querySelectorAll('[aria-controls="' + id + '"]'), help = chipHelpBox(doc); for (var i = 0; i < all.length; i++) if (!(help && help.contains(all[i]))) return all[i]; return null; }
-function chipShut(box) { return !!box && (box.hidden === true || (box.style && box.style.display === 'none')); }
+function chipShut(box) { return !!box && (box.hidden === true || (box.style && box.style.display === 'none') || (!!box.classList && box.classList.contains('shape-menu') && !box.classList.contains('show'))); }   // fold 4: a tool's options are open while they show
+// fold 4: the button that opens a tool's options on the map's toolbars: the small arrow beside it, else the button that only opens a menu
+function chipBarOpener(n) {
+    if (!n || !n.classList || !n.classList.contains('shape-menu')) return null; var p = n.parentNode; if (!p || !p.classList || !p.classList.contains('tool-pair')) return null;
+    var kids = p.children || [], first = null; for (var i = 0; i < kids.length; i++) { var k = kids[i]; if (k === n || !k.classList) continue; if (k.classList.contains('tool-chev')) return k; if (!first && k.tagName === 'BUTTON') first = k; }
+    return first;
+}
 function chipStand(doc, el) {   // what stands for a control: itself, or its button in the tray while the row has folded it away
     if (el && el.classList && el.classList.contains('row-fold') && el.id) { var t = doc.querySelector('#rowTray [data-press="' + el.id + '"]'); if (t) return t; }
     return el;
@@ -70,6 +82,14 @@ function chipStand(doc, el) {   // what stands for a control: itself, or its but
 function chipReach(doc, f) {
     if (!f) return 'Not on this screen';
     if (!f.win && f.el.closest && f.el.closest('.gm-only') && doc.body && doc.body.classList && doc.body.classList.contains('net-client')) return 'The GM\u2019s';   // fold 2: a control of the GM's, on a player's app
+    var bar = !f.win && f.el.closest ? f.el.closest('.floating-toolbar') : null;   // fold 4: a toolbar of the map, which shows on its own view
+    if (bar) {
+        if (bar.style && bar.style.display === 'none') return bar.id === 'dataFloatingToolbar' ? 'On the data map' : 'On the play map';
+        var chB = chipMenus(doc, f.el), inB = function(x) { return chB.some(function(m) { return m.box === x; }); };
+        for (var mi = 0; mi < chB.length; mi++) if ((chB[mi].open.style && chB[mi].open.style.display === 'none') || chB[mi].open.hidden) return 'Not on this screen';
+        for (var nb = f.el; nb && nb !== bar; nb = nb.parentNode) { if (inB(nb) || !CHIP_WHEN[nb.id] || !(nb.hidden === true || (nb.style && nb.style.display === 'none'))) continue; return CHIP_WHEN[nb.id]; }   // a part a menu fills as it opens is judged then, so only a part named as shown at times greys a chip
+        return '';
+    }
     if (!f.win) { var st = chipStand(doc, f.el); return st === f.el && !chipMenus(doc, f.el).length && f.el.offsetParent === null && f.el.style.display === 'none' ? 'Not on this screen' : ''; }
     var op = doc.getElementById(CHIP_WINDOWS[f.win].open); if (!op) return 'Not on this screen';
     if (op.style.display === 'none' || op.hidden) return 'The GM’s';

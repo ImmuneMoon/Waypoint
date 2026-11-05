@@ -16,6 +16,7 @@ function El(tag, o) {
 }
 El.prototype.appendChild = function(c) { if (c.parentNode) c.parentNode.kids.splice(c.parentNode.kids.indexOf(c), 1); c.parentNode = this; this.kids.push(c); return c; };
 Object.defineProperty(El.prototype, 'textContent', { get() { return this.kids.length ? this.kids.map(k => k.textContent).join('') : this.text; }, set(v) { this.kids.forEach(k => { k.parentNode = null; }); this.kids = []; this.text = String(v); } });
+Object.defineProperty(El.prototype, 'children', { get() { return this.kids; } });
 Object.defineProperty(El.prototype, 'offsetParent', { get() { for (let n = this; n; n = n.parentNode) if (n.style && n.style.display === 'none') return null; return {}; } });
 El.prototype.setAttribute = function(k, v) { if (k === 'id') this.id = String(v); else this.attrs[k] = String(v); };
 El.prototype.getAttribute = function(k) { return k === 'id' ? (this.id || null) : Object.prototype.hasOwnProperty.call(this.attrs, k) ? this.attrs[k] : (k.indexOf('data-') === 0 && this.dataset[k.slice(5).replace(/-([a-z])/g, (m, c) => c.toUpperCase())] !== undefined ? this.dataset[k.slice(5).replace(/-([a-z])/g, (m, c) => c.toUpperCase())] : null); };
@@ -53,7 +54,7 @@ function page(opts) {
 }
 const src = read('scripts/helpchips.js'), cut = (a, b) => src.slice(src.indexOf('// [helpchipcheck:' + a + '-start]'), src.indexOf('// [helpchipcheck:' + b + '-end]'));
 const timers = [], opened = [];
-const api = new Function('window', 'setTimeout', 'MutationObserver', cut('core', 'wire') + '\nreturn { chipFind, chipReach, chipCopy, chipsDraw, chipGo, chipBack, chipMenus, chipStand, chipsName, chipWords, CHIP_NAMES, CHIP_KEY, CHIP_TAB_IDS };')({ wpOpenHelp: p => opened.push(p) }, (f, ms) => { timers.push([f, ms]); return timers.length; }, undefined);
+const api = new Function('window', 'setTimeout', 'MutationObserver', cut('core', 'wire') + '\nreturn { chipFind, chipReach, chipCopy, chipsDraw, chipGo, chipBack, chipMenus, chipStand, chipsName, chipWords, chipBarOpener, chipShut, CHIP_NAMES, CHIP_KEY, CHIP_TAB_IDS };')({ wpOpenHelp: p => opened.push(p) }, (f, ms) => { timers.push([f, ms]); return timers.length; }, undefined);
 // ---- the core
 const P = page(), d = P.doc;
 const fTab = api.chipFind(d, 'sys-tab:rules'), fSave = api.chipFind(d, '#sysSaveBtn'), fKey = api.chipFind(d, 'sys:fields:sys-key-btn');
@@ -147,11 +148,37 @@ function rowPage(opts) {
 const html = read('index.html'), marks = [...html.matchAll(/<b data-ctl="([^"]+)">/g)].map(m => m[1]);
 const bad = marks.filter(k => { if (!api.CHIP_KEY.test(k)) return true; if (k[0] === '#') return html.split('id="' + k.slice(1) + '"').length !== 2; if (k.indexOf('sys-tab:') === 0) return !html.includes('<button data-tab="' + k.slice(8) + '"'); const p = k.split(':'), tid = Object.keys(api.CHIP_TAB_IDS).find(x => api.CHIP_TAB_IDS[x] === p[1]); if (!tid) return true; const at = html.indexOf('id="' + tid + '"'), end = html.indexOf('<div id="sys', at + 10); return at < 0 || html.slice(at, end > 0 ? end : undefined).indexOf(p[2]) < 0; });
 check('every mark Help carries is a key of the chips’ own form, and names a button or a tab the page has: the System editor’s 25 first', marks.length >= 25 && bad.length === 0, J([marks.length, bad]));
+{   // fold 4: a row of a tool's options on the map's toolbars, opened by the tool's own small arrow, and what a chip says where the toolbar or its row does not show
+    const mkBar = (o) => {
+        const tool = mk('button', { id: 'fogModeBtn', cls: 'wb-tool-btn', style: o.toolOff ? { display: 'none' } : {} }), chev = mk('button', { id: 'fogOptBtn', cls: 'wb-tool-btn tool-chev' });
+        const fold = mk('button', { id: 'fogFoldLight', cls: 'menu-fold', attrs: { 'aria-controls': 'fogLightVision' } }), body = mk('div', { id: 'fogLightVision', cls: 'menu-fold-body', hidden: true }, [mk('button', { id: 'fogLightPlace', cls: 'draw-style-btn', text: 'Light source' })]);
+        const ask = mk('button', { id: 'drawShowAsk', cls: 'draw-style-btn', text: 'Ask to put them on the map', hidden: true });
+        const menu = mk('div', { id: 'fogMenu', cls: 'shape-menu draw-menu' }, [mk('button', { id: 'fogRevealAll', cls: 'draw-style-btn', text: 'Reveal all' }), fold, body, ask]);
+        const pair = mk('div', { cls: 'tool-pair' + (o.gm ? ' gm-only' : '') }, [tool, chev, menu]), pair2 = mk('div', { cls: 'tool-pair' }, [mk('button', { id: 'wbCenterBtn', cls: 'wb-tool-btn' }), mk('div', { id: 'wbCenterMenu', cls: 'shape-menu' }, [mk('button', { id: 'wbFitBtn', cls: 'wb-tool-btn view-row', text: 'Fit to Content' })])]);
+        const bar = mk('div', { id: 'wbFloatingToolbar', cls: 'floating-toolbar', style: o.barOff ? { display: 'none' } : {} }, [pair, pair2]);
+        chev.onclick = () => { menu.classList.add('show'); }; fold.onclick = () => { body.hidden = false; };
+        const help = mk('div', { id: 'helpModal', style: { display: 'flex' } }, [mk('div', { cls: 'help-body' }, [mk('div', { cls: 'help-pane', data: { pane: 'whiteboard' }, style: { display: 'block' } }, [])])]);
+        const bodyE = mk('body', { cls: o.player ? 'net-client' : '' }, [bar, help]);
+        return { doc: { body: bodyE, getElementById: id => bodyE.all().find(n => n.id === id) || null, querySelectorAll: q => bodyE.querySelectorAll(q), querySelector: q => bodyE.querySelector(q), createElement: t => new El(t) }, menu, chev, body, help };
+    };
+    const B = mkBar({}), fR = api.chipFind(B.doc, '#fogRevealAll'), fL = api.chipFind(B.doc, '#fogLightPlace');
+    check('a tool\u2019s options open by the small arrow beside the tool, and a menu that only opens by its button by that button; a menu of the toolbar is shut until it shows',
+        api.chipBarOpener(B.menu) === B.chev && api.chipBarOpener(B.doc.getElementById('wbCenterMenu')) === B.doc.getElementById('wbCenterBtn') && api.chipBarOpener(B.body) === null && api.chipShut(B.menu) === true && (B.menu.classList.add('show'), api.chipShut(B.menu)) === false);
+    B.menu.classList.remove('show');
+    check('a row inside a fold of the options is reached through the arrow and then the fold, outermost first', J(api.chipMenus(B.doc, fL.el).map(m => m.open.id)) === J(['fogOptBtn', 'fogFoldLight']) && fR.win === null && api.chipReach(B.doc, fR) === '' && api.chipReach(B.doc, fL) === '');
+    timers.length = 0; const gB = api.chipGo(B.doc, '#fogLightPlace'); timers.filter(x => x[1] === 0).forEach(x => x[0]());
+    check('pressed, Help steps aside, the options open by their arrow and the fold by its button, and the row is lit', gB === true && B.help.style.display === 'none' && B.menu.classList.contains('show') && B.body.hidden === false && fL.el.classList.contains('help-found') && fL.el.scrolled === 1);
+    const says = (o, k) => api.chipReach(mkBar(o).doc, api.chipFind(mkBar(o).doc, k));
+    check('a row the options fill as they open greys no chip: only a part named as shown at times does', (() => { const C = mkBar({}), row = mk('div', { id: 'fogLightRow', style: { display: 'none' } }); const lp = C.doc.getElementById('fogLightPlace'); C.body.appendChild(row); row.appendChild(lp); return api.chipReach(C.doc, api.chipFind(C.doc, '#fogLightPlace')); })() === '');
+    check('a chip says why where it cannot reach: the toolbar on another view, a GM\u2019s tool on a player\u2019s app, a tool that does not show, and a row shown only at times',
+        says({ barOff: true }, '#fogRevealAll') === 'On the play map' && says({ gm: true, player: true }, '#fogRevealAll') === 'The GM\u2019s' && says({ toolOff: true }, '#fogRevealAll') === '' && says({}, '#drawShowAsk') === 'On a player\u2019s screen'
+        && (() => { const C = mkBar({}); C.chev.style.display = 'none'; return api.chipReach(C.doc, api.chipFind(C.doc, '#fogRevealAll')); })() === 'Not on this screen', J([says({ barOff: true }, '#fogRevealAll'), says({ gm: true, player: true }, '#fogRevealAll'), says({ toolOff: true }, '#fogRevealAll'), says({}, '#drawShowAsk')]));
+}
 {   // fold 3: the names marked as Help opens, each a bold of its part as Help writes it, naming a control the page has, its one occurrence where it says so
     const paneOf = p => { const i = html.indexOf('class="help-pane" data-pane="' + p + '"') >= 0 ? html.indexOf('class="help-pane" data-pane="' + p + '"') : html.indexOf('data-pane="' + p + '"'); if (i < 0) return ''; const j = html.indexOf('class="help-pane"', i + 20); return html.slice(i, j < 0 ? html.length : j); };
     const words = s => api.chipWords(s.replace(/<[^>]+>/g, '').replace(/&hellip;/g, '').replace(/&rsquo;/g, '\u2019'));
     const badN = api.CHIP_NAMES.filter(c => { const p = paneOf(c[0]), n = [...p.matchAll(/<b>([\s\S]*?)<\/b>/g)].filter(m => words(m[1]) === c[1]).length; return !n || (c[3] && n < c[3]) || html.split('id="' + c[2].slice(1) + '"').length !== 2 || !api.CHIP_KEY.test(c[2]); });
-    check('fold 3 names 43 more in their parts of Help (Settings, your profile, Multiplayer and the top row), each a bold Help writes there and a control the page has; Help\u2019s text is left as written', api.CHIP_NAMES.length === 43 && !badN.length && !/data-ctl="#(?:setKeysResetBtn|netJoinBtn|exportMdBtn)"/.test(html), J(badN));
+    check('fold 3 names 43 more in their parts of Help (Settings, your profile, Multiplayer and the top row), and fold 4 20 on the map\u2019s toolbars, each a bold Help writes there and a control the page has; Help\u2019s text is left as written', api.CHIP_NAMES.length === 63 && !badN.length && !/data-ctl="#(?:setKeysResetBtn|netJoinBtn|exportMdBtn)"/.test(html), J(badN));
     const pn = mk('div', { cls: 'help-pane', data: { pane: 'mp-gm' } }, [mk('b', { text: 'Start combat' }), mk('b', { text: 'Start Combat' }), mk('b', { text: 'Pause the Table' }), mk('b', { text: 'Fog of war' })]), hb = mk('div', { id: 'helpModal' }, [pn]);
     const nN = api.chipsName(hb), bsN = pn.querySelectorAll('b').map(b => b.getAttribute('data-ctl') || '');
     check('marked as Help opens: a name of the list in its part, in any case, the one occurrence where the list names it, never twice, and a name not in the list left as it is', nN === 2 && J(bsN) === J(['', '#netCombatBtn', '#netPauseBtn', '']) && api.chipsName(hb) === 0, J([nN, bsN]));
@@ -163,5 +190,6 @@ check('the marks are on the names of what you press, and a bold that means somet
 const css = read('style.css'), wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wa = read('assets/whatsnew.txt'), ci = fs.readFileSync(path.join(root, '.github', 'workflows', 'checks.yml'), 'utf8');
 check('the page loads the module, which listens to Help and draws its chips as it opens', html.includes('<script type="module" src="scripts/helpchips.js"></script>') && src.includes("new MutationObserver(function() { if (help.style.display !== 'none') { chipsDraw(doc);") && src.includes('window.wpHelpChips ='));
 check('a chip has its frame and its gold edge on hover, its copy takes no press, the light and Back to Help their styles, and Help stands over the window a chip opened', css.includes('.help-chip { display: inline-flex;') && css.includes('.help-chip:hover { border-color: var(--gold); }') && css.includes('.help-chip-in > * { pointer-events: none;') && css.includes('.help-found {') && css.includes('.help-back { position: fixed;') && css.includes('#helpModal.help-over { z-index: 100002 !important; }'));
+check('both notes say the map\u2019s toolbars (fold 4)', [wn, wa].every(t => t.includes("A row of the map's toolbars, such as Reveal all in\n  the fog menu, opens the tool's options first")));
 check('Help says what a chip does, both notes say it, and CI runs this suite', html.includes('<p>A button Help names is drawn as it looks in the app. Press it, and Help steps aside and shows you that button') && wn.includes("- Help draws the System editor's buttons and tabs as they look in the app.") && wa.includes("- Help draws the System editor's buttons and tabs as they look in the app.") && ci.includes('run: node tools/helpchipcheck.js'));
 console.log('\n' + pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);

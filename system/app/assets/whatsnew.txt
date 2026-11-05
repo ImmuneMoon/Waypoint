@@ -285,7 +285,9 @@ At the table
   its menu first. So do the buttons Help names in Settings, your profile and
   the Multiplayer window, which opens on the group or part that holds them. A
   button shown only at times, as Pause the table while you host, is drawn
-  greyed and says when.
+  greyed and says when. A row of the map's toolbars, such as Reveal all in
+  the fog menu, opens the tool's options first, and says when the toolbar is
+  on another view.
 - A roll can wait for help. Its card asks the others on the roller's map, and
   the GM for an NPC, and each helper adds a figure of their own sheet, a die,
   or what their own roll gives. The roller presses Roll, or it rolls by itself

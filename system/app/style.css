@@ -5178,3 +5178,8 @@
 /* 1.6.2 (vehicles, fold (b), rebuilt): the Combat tab's Arcs, a name and its degrees on one row */
 .sys-arcrow { align-items: center; flex-wrap: wrap; }
 .sys-arcrow .sys-arc-label { flex: 0 1 14em; width: auto; min-width: 8em; }
+/* 1.6.2 (vehicles, fold (f)): a row picked at random, and who a call’s card goes to: a line of their own under the change */
+.sys-rnd, .sys-crew { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sys-rnd > .sys-cap { flex: 1 1 16em; }
+.sys-rnd > .fb, .sys-rnd > .sys-rnd-next { flex: 1 1 14em; }
+.sys-crew:empty { display: none; }

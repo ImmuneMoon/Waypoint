@@ -289,12 +289,72 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
             && /names no arc yet, so it reaches nowhere/.test(shA) && !/sys-list-arcf|sys-list-arcall/.test(shA) && /if \(t\.value\) lsc\.arc = \{ by: t\.value \}; else delete lsc\.arc;/.test(shA)
             && /\['arcs', 'Arcs', 0, \['sys-list-arcby', 'sys-arcs'\]\]/.test(uiA) && /\['arcs', 'Arcs', 'The arcs a hit can come from, and a gun can fire into\.'\]\]/.test(uiA));
     }
+    /* ---- fold (f): a row picked at random, and a card to the crew ---- */
+    {
+        const FRAW = { v: 1, name: 'Ship', fields: [
+            { id: 'f_hp', key: 'HP', label: 'Hull', kind: 'number', def: 10 },
+            { id: 'f_sys', key: 'Systems', label: 'Systems', kind: 'item-list', list: { on: { label: 'Working', def: true }, stats: [{ key: 'State', label: 'State' }, { key: 'Big', label: 'Big' }] } },
+            { id: 'f_bag', key: 'Bag', label: 'Bag', kind: 'item-list', list: { stats: [{ key: 'State', label: 'State' }] } },
+            { id: 'f_gmq', key: 'Hidden', label: 'Hidden', kind: 'item-list', vis: 'gm', list: { on: { label: 'On' } } }],
+            items: [{ id: 'i_eng', key: 'Engine', name: 'Engine', category: '', stats: { Big: 1 } }, { id: 'i_gun', key: 'Gun', name: 'Gun', category: '', stats: { Big: 0 } }, { id: 'i_sen', key: 'Sensor', name: 'Sensor', category: '', vis: 'gm', stats: { Big: 0 } }],
+            links: [{ id: 'lk_c', key: 'Ship', label: 'Ship', kind: 'crew', stations: ['Gunner', 'Pilot'], most: 2, edit: 'gm' }],
+            rolls: [
+                { id: 'r_hit', label: 'Crit', apply: [{ rand: 'f_sys', test: 'Row.Big = 0', offToo: true, next: { s: 'state', formula: '2', set: true } }] },
+                { id: 'r_on', label: 'Knock', apply: [{ rand: 'f_sys' }] },
+                { id: 'r_bad', label: 'Bad', apply: [{ rand: 'f_bag' }, { rand: 'f_sys', next: { s: 'State', formula: '1', set: true } }] },
+                { id: 'r_gm', label: 'Gm', apply: [{ rand: 'f_gmq' }] },
+                { id: 'r_dmg', label: 'Shock', formula: '3d6 <= HP' },
+                { id: 'r_atk', label: 'Atk', formula: '3d6 <= 12', calls: [{ roll: 'r_dmg', when: 'hit', crew: ['Gunner', 'gunner', 'Bad name!'] }, { roll: 'r_dmg', when: 'miss', crew: 'all' }, { roll: 'r_dmg', crew: 'all', to: 'self', when: 'resisted' }], resistBy: 'r_dmg' }] };
+        const FS = S.cleanSystem(FRAW, { F, gmView: true }), FV = S.cleanSystem(FRAW, { F, gmView: false }), rl = (sys, id) => sys.rolls.find(r => r.id === id);
+        check('a random row is kept on a system’s change of a list with a switch, its next step respelled as the list spells the stat and kept only beside Rows already off may be picked; a list with no switch keeps none',
+            J(rl(FS, 'r_hit').apply) === J([{ rand: 'f_sys', test: 'Row.Big = 0', offToo: true, next: { s: 'State', formula: '2', set: true } }]) && J(rl(FS, 'r_on').apply) === J([{ rand: 'f_sys' }])
+            && J(rl(FS, 'r_bad').apply.map(c => c.rand || '')) === J(['', 'f_sys']) && !('next' in rl(FS, 'r_bad').apply[1]), J([rl(FS, 'r_hit'), rl(FS, 'r_bad')]));
+        check('the players’ view keeps it where they hold the list, and a pick on a GM-only list leaves their view', J(rl(FV, 'r_hit').apply) === J(rl(FS, 'r_hit').apply) && !(rl(FV, 'r_gm') && (rl(FV, 'r_gm').apply || []).some(c => c.rand)), J([rl(FV, 'r_hit'), rl(FV, 'r_gm')]));
+        const shipC = () => ({ id: 'c_ship', name: 'Skiff', ownerId: 'u_a', npc: false, values: { f_hp: 10, f_sys: [{ id: 'w_e', defId: 'i_eng', qty: 1 }, { id: 'w_g', defId: 'i_gun', qty: 1 }, { id: 'w_s', defId: 'i_sen', qty: 1, on: false }] } });
+        const pick = (act, face, ch0) => { const ch = ch0 || shipC(); const D = { random: f => Math.min(f, face) }; return S.applyAct(FS, ch, act, S.makeResolver(FS, ch, F), F, null, null, null, D); };
+        const p1 = pick(rl(FS, 'r_hit'), 1), p2 = pick(rl(FS, 'r_hit'), 2);
+        check('a pick is among the rows its test lets, rows already off too where ticked: a row on is switched off, and the card says so', p1.ok === true && p1.values.f_sys.find(r => r.id === 'w_g').on === false && J(p1.lines[0]) === J({ f: 'f_sys', n: 'Gun switched off', d: -1, v: 0, roll: 'Picked at random' }), J(p1));
+        check('a row already off takes its next step, its stat set as the GM’s own figure, and a GM-only row is said as A row', p2.ok === true && p2.values.f_sys.find(r => r.id === 'w_s').ov.stats.State === 2 && /^A row: State$/.test(p2.lines[0].n) && p2.lines[0].roll === 'Picked at random, already off', J(p2));
+        const p3 = pick(rl(FS, 'r_on'), 1), chOff = shipC(); chOff.values.f_sys.forEach(r => { r.on = false; }); const p4 = pick(rl(FS, 'r_on'), 1, chOff);
+        check('with Rows already off unticked only rows that are on are picked, and with none to pick the card says so and nothing moves', p3.ok === true && p3.values.f_sys.find(r => r.id === 'w_e').on === false && p4.ok === true && p4.lines.some(l => l.say === 'No row to pick.') && !(p4.values && p4.values.f_sys), J([p3, p4]));
+        const chN = shipC(); chN.values.f_sys = [{ id: 'w_x', defId: 'i_gun', qty: 1, on: false }];
+        const p5 = pick({ id: 'r_x', label: 'X', kind: 'apply', apply: [{ rand: 'f_sys', offToo: true }] }, 1, chN), p6 = S.applyAct(FS, shipC(), rl(FS, 'r_on'), S.makeResolver(FS, shipC(), F), F);
+        check('a row already off with no next step: nothing more happens, said; and only the table’s host picks, so with no dice core nothing moves', p5.ok === true && p5.lines.some(l => l.say === 'Already off: nothing more happens.') && p6.ok === false && /host picks a row at random/.test(p6.message || ''), J([p5, p6]));
+        check('a pick on a GM-only list is the GM’s card', S.applyScope(FS, shipC(), rl(FS, 'r_gm'), false, F) === 'gm' && S.applyScope(FS, shipC(), rl(FS, 'r_hit'), false, F) === 'owner', J([S.applyScope(FS, shipC(), rl(FS, 'r_gm'), false, F), S.applyScope(FS, shipC(), rl(FS, 'r_hit'), false, F)]));
+        const vf = S.validateSystem(Object.assign({}, FS, { rolls: FS.rolls.concat([{ id: 'r_v', label: 'V', apply: [{ rand: 'f_sys', test: 'Row.Nope = 1' }] }]) }), F);
+        check('the validator reads the test with the list’s own row names', vf.errors.some(e => e.id === 'r_v') && !vf.errors.some(e => e.id === 'r_hit'), J(vf.errors));
+        check('a call’s crew is All crew or up to eight stations each once by its spelling, kept beside a system roll and dropped where the card goes to the roller',
+            J(rl(FS, 'r_atk').calls.map(c => c.crew || null)) === J([['Gunner'], 'all', null]) && S.cleanCrew('all') === 'all' && S.cleanCrew([]) === null && S.cleanCrew('Gunner') === null && S.cleanCrew(Array.from({ length: 12 }, (_, i) => 'S' + i)).length === S.CREW_STNS, J(rl(FS, 'r_atk').calls));
+        const chars = { c_ship: shipC(), c_g: { id: 'c_g', name: 'Gunner A', ownerId: 'u_b', values: { f_hp: 5 }, links: { lk_c: 'c_ship' }, stn: { lk_c: 'Gunner' } }, c_p: { id: 'c_p', name: 'Pilot B', ownerId: 'u_c', values: {}, links: { lk_c: 'c_ship' }, stn: { lk_c: ['pilot', 'Gunner'] } },
+            c_x: { id: 'c_x', name: 'Elsewhere', ownerId: 'u_d', values: {}, links: { lk_c: 'c_other' }, stn: { lk_c: 'Gunner' } }, c_n: { id: 'c_n', name: 'No post', ownerId: '', npc: true, values: {}, links: { lk_c: 'c_ship' } } };
+        check('the crew a card goes to: everyone linked to that sheet by a Crew link at a station named, ignoring case, or every one of them for All crew', J(S.crewAt(FS, chars, 'c_ship', ['Gunner'])) === J(['c_g', 'c_p']) && J(S.crewAt(FS, chars, 'c_ship', ['PILOT'])) === J(['c_p'])
+            && J(S.crewAt(FS, chars, 'c_ship', 'all')) === J(['c_g', 'c_p', 'c_n']) && J(S.crewAt(FS, chars, 'c_ship', null)) === J([]), J([S.crewAt(FS, chars, 'c_ship', ['Gunner']), S.crewAt(FS, chars, 'c_ship', 'all')]));
+        const om = S.cleanSystem(Object.assign({}, FRAW, { combat: { damage: { main: 'f_hp', major: 'Blow.wound > 5', onMajor: [{ roll: 'r_dmg', crew: 'all' }, { roll: 'r_dmg', if: 'Blow.wound > 9', crew: ['Pilot'] }], onWound: [{ roll: 'r_dmg', crew: ['Gunner'] }, { fx: 'nope', crew: 'all' }] } } }), { F, gmView: true }).combat.damage;
+        check('a Major Wound’s row and an Any wound row keep their crew beside their roll', om && J((Array.isArray(om.onMajor) ? om.onMajor : [om.onMajor]).map(o => o.crew || null)) === J(['all', ['Pilot']]) && J(om.onWound.map(o => o.crew || null)) === J([['Gunner']]), J(om));
+        const netSrc = fs.readFileSync(app('scripts/net.js'), 'latin1').replace(/\r\n/g, NL), a0 = netSrc.indexOf('[netcheck:rollcalls-start]'), a1 = netSrc.indexOf('[netcheck:rollcalls-end]');
+        const posted = [], vm = require('vm'), ctx = { window: { wpFormula: F }, net: { blowMake: (c, r) => 'b_' + c.id, postDue: (c, r, why, n, toO, o) => posted.push([c.id, r.id, why, toO, o.by]) }, _attempts: {}, SC: () => S, console };
+        vm.createContext(ctx); vm.runInContext(netSrc.slice(netSrc.indexOf(NL, a0) + 1, netSrc.lastIndexOf(NL, a1)), ctx);
+        const camp = { system: FS, chars };
+        ctx.net.callsAfter(camp, rl(FS, 'r_atk'), true, S.makeResolver(FS, chars.c_ship, F), chars.c_ship, false);
+        check('on the host a call to the crew posts one card to each crew sheet at a station it names, to that sheet’s player, and none to the vehicle', J(posted) === J([['c_g', 'r_dmg', 'called', true, 'Atk'], ['c_p', 'r_dmg', 'called', true, 'Atk']]), J(posted));
+        posted.length = 0; ctx.net.callsAfter(camp, rl(FS, 'r_atk'), false, S.makeResolver(FS, chars.c_ship, F), chars.c_ship, true);
+        check('All crew posts to every one, an NPC’s to the GM, and a private roll’s to the GM alone', J(posted.map(p => [p[0], p[3]])) === J([['c_g', false], ['c_p', false], ['c_n', false]]), J(posted));
+        check('Save says what it does with a crew card it cannot keep: no station ticked, or a card to the roller, goes to the character instead', J(S.crewDrops({ calls: [{ roll: 'r_dmg', crew: [] }, { roll: 'r_dmg', crew: 'all' }, { roll: 'r_dmg', when: 'resisted', to: 'self', crew: 'all' }, { roll: 'r_dmg' }] })) === J(['Calls for' + S.CREW_NONE, 'Calls for cannot go to the crew here, so Save sends the card to the character.']) && /none is ticked/.test(S.CREW_NONE), J(S.crewDrops({ calls: [{ roll: 'r_dmg', crew: [] }] })));
+        check('the editor says a Major Wound\u2019s or an Any wound row\u2019s crew card with no station ticked', /warn\('A Major Wound' \+ CREW_NONE\)/.test(read('scripts/sheets.js')) && /warn\('Any wound' \+ CREW_NONE\)/.test(read('scripts/sheets.js')) && /crewDrops\(r\)\.forEach/.test(read('scripts/sheets.js')));
+        const shF = read('scripts/sheets.js'), fbF = read('scripts/formbox.js');
+        check('the System editor offers a random row as a change’s target with its own box, and who a call’s card goes to on Calls for, a Major Wound and Any wound; their formulas are forms reading the list’s rows',
+            /^function randTargets\(ch\) \{/m.test(shF) && /^function randBox\(ch\) \{/m.test(shF) && /^function crewPick\(obj, redraw\) \{/m.test(shF) && /if \(v\.indexOf\('rnd:'\) === 0\) \{ ch\.rand = v\.slice\(4\);/.test(shF)
+            && /rw\.appendChild\(crewPick\(c, draw\)\)/.test(shF) && /rM\.appendChild\(crewPick\(om,/.test(shF) && /rw\.appendChild\(crewPick\(w,/.test(shF) && /cl\.contains\('sys-rnd-test'\) \|\| cl\.contains\('sys-rnd-next'\)/.test(shF)
+            && /'sys-rnd-test': 'cond', 'sys-rnd-next': 'amt'/.test(fbF) && /if \(f\.crew\) \{/.test(shF));
+    }
     /* ---- the words ---- */
     const help = read('index.html');
     check('Help says Rows are sheets, in plain words', /<b>Rows are sheets<\/b>/.test(help) && /Make a new sheet/.test(help));
     check('Help says what a mark is, in plain words', /<b>Marks<\/b>/.test(help) && /dashed line/.test(help));
     check('Help says what else ends a mark and what Shake off does', /<b>Ends out of sight<\/b>/.test(help) && /<b>Kept while<\/b>/.test(help) && /<b>Shake off<\/b>/.test(help));
     check('Help says the system\u2019s own arcs and Arcs by, in plain words', /<b>Arcs<\/b> on the Combat tab names the arcs/.test(help) && /<b>Arcs by<\/b> names a choice stat/.test(help) && !/Arc\.left/.test(help));
+    check('Help says a row picked at random and a card to the crew, in plain words', /<b>A row picked at random:<\/b>/.test(help) && /<b>Rows already off may be picked<\/b>/.test(help) && /<b>Card to all its crew<\/b>/.test(help));
+    check('both release notes say the random row and the crew’s cards', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /a row picked at random from a\n  list with a switch/.test(readRoot(p)) && /Calls for can send its card to the crew/.test(readRoot(p))));
     check('both release notes say it', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A system can now name its own arcs/.test(readRoot(p)) && /Rows are sheets/.test(readRoot(p)) && /A token can hold a mark on another/.test(readRoot(p)) && /A mark can end by itself/.test(readRoot(p))));
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });

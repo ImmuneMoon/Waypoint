@@ -18,7 +18,7 @@ import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: ho
 import { DMG_LIM, COVER_HIT_ROWS } from './systemcore.js';   // 1.6.2: what the Combat tab's boxes hold
 import { cleanCover } from './systemcore.js';   // 1.6.0: what cover takes off an attack, as Save reads it (refreshErrors)
 import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Save reads it (refreshErrors)
-import { callDrops } from './systemcore.js';   // 1.6.0: a call's Read on the one who resisted, as Save reads it (refreshErrors)
+import { callDrops, crewDrops, CREW_NONE } from './systemcore.js';   // 1.6.2 (fold (f)): a crew card with no station ticked   // 1.6.0: a call's Read on the one who resisted, as Save reads it (refreshErrors)
 import { cleanTurn } from './systemcore.js';   // 1.6.0: a move by giving up an action, as Save reads it (refreshErrors)
 import { readsAttempt } from './systemcore.js';   // 1.6.0: needs that read Attempt.kind, which only the host can judge
 import { groupRolls, groupWeakest } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
@@ -7553,6 +7553,7 @@ function formCtx(inp) {
     if (cl) { Object.keys(FORM_ONLY).forEach(function(k) { if (cl.contains(k)) own = FORM_ONLY[k]; }); Object.keys(FORM_MORE).forEach(function(k) { if (cl.contains(k)) more = FORM_MORE[k]; }); for (var q = 0; q < cl.length; q++) if (cl[q].indexOf('sys-dmgr-') === 0 || cl[q] === 'sys-cvh-where') dmg = true; }
     if (own && cl && (cl.contains('sys-combat-bfall') || cl.contains('sys-combat-beach') || cl.contains('sys-combat-bradius'))) own = own.concat((Array.isArray(draft.env) ? draft.env : []).filter(function(e) { return e && typeof e.key === 'string' && e.key; }).map(function(e) { return 'Env.' + e.key; }));   // 1.6.2: and the Environment readings where it goes off
     if (own) return { only: own };
+    if (cl && (cl.contains('sys-rnd-test') || cl.contains('sys-rnd-next'))) { var rlF = fieldOf(inp.dataset ? inp.dataset.rl : ''); return { list: rlF && rlF.list ? rlF.list : undefined, subject: 'A row picked at random' }; }   // 1.6.2 (fold (f))
     if (dmg) return { blow: true, more: more || undefined, list: formRowList(inp) };
     if (more) return { more: more };
     var rw = inp && inp.closest ? inp.closest('.sys-row') : null, id = rw && rw.dataset ? rw.dataset.id : '', r = null, cs = inp && inp.classList;
@@ -7696,6 +7697,7 @@ function callsBox(obj, sys, isApply) {
                 bc.appendChild(el('span', 'sys-num-cap', 'Read on the one who resisted')); bc.appendChild(bi); rw.appendChild(bc);
             }
             if (toSel) rw.appendChild(toSel);
+            if (c.to !== 'self' && !/#/.test(String(c.roll || '')) && typeof crewPick === 'function') rw.appendChild(crewPick(c, draw));   // 1.6.2 (fold (f))
             var x = el('button', 'tool ghost sys-btn sys-call-del', '\u00d7'); x.type = 'button'; x.title = 'Stop calling for this roll';
             x.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(obj.calls)) return; obj.calls.splice(j, 1); if (!obj.calls.length) delete obj.calls; said(); draw(); }); rw.appendChild(x);
             box.appendChild(rw);
@@ -8407,6 +8409,7 @@ function refreshErrors() {
     });
     if (typeof callDrops === 'function') {   // 1.6.0: a call's Read on the one who resisted that Save cannot keep, as the cleaner reads it (the validator says the rest)
         (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) { callDrops(r).forEach(function(m) { (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'byIf', message: m }); }); });
+        if (typeof crewDrops === 'function') (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) { crewDrops(r).forEach(function(m) { (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'calls', message: m }); }); });   // 1.6.2 (fold (f))
         draft.fields.forEach(function(f) { if (f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) f.list.rolls.forEach(function(r) { callDrops(r).forEach(function(m) { (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ message: (r.label || 'A roll') + ', read on the one who resisted: ' + m }); }); }); });
     }
     (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {   // 1.6.0: A Major Wound where that Save cannot keep, as the cleaner reads it (the validator says the rest)
@@ -9067,13 +9070,14 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
         if (key === 'then') rw.appendChild(select('sys-apply-when', [['', 'Always'], ['hit', 'On success'], ['crit', 'On a critical success'], ['miss', 'On failure'], ['fumble', 'On a critical failure'], ['malf', 'On malfunction']].concat(typeof bandWhens === 'function' ? bandWhens(r, ch) : []), ch.band ? 'band:' + ch.band : ch.when || '', 'When the roll makes this change: always, or only when its test succeeds or fails. A critical success is a success too, and a critical failure a failure'));
         if (key === 'then') { var ifI = input('sys-apply-if field', typeof ch.if === 'string' ? ch.if : '', 'Only where: a formula with no dice this change also needs, reading how the roll went, such as RollMargin >= 3. Empty: nothing more', 'Only where'); ifI.maxLength = LIMITS.formula; rw.appendChild(ifI); }   // 1.6.2
         var fxT = []; (Array.isArray(draft.effects) ? draft.effects : []).forEach(function(d) { if (d && typeof d.id === 'string') fxT.push(['fx+:' + d.id, 'Switch on: ' + (d.name || d.id)], ['fx-:' + d.id, 'Switch off: ' + (d.name || d.id)]); });   // 1.6.0: an effect switched on or off
-        var allT = allRowTargets(), allV = typeof ch.list === 'string' ? allRowValue(ch, allT) : '';   // 1.6.0: one number stat on every row of a list
+        var allT = [].concat(allRowTargets(), typeof randTargets === 'function' ? randTargets(ch) : []), allV = typeof ch.list === 'string' ? allRowValue(ch, allT) : typeof ch.rand === 'string' ? 'rnd:' + ch.rand : '';   // 1.6.0: one number stat on every row of a list; 1.6.2 (fold (f)): a row picked at random
         var opts = [['', 'Pick a pool, number or effect\u2026']].concat(targets, fxT, allT); if (allV && !allT.some(function(o) { return o[0] === allV; })) opts.push([allV, 'A list or stat that is gone']); if (typeof ch.fx === 'string' && !fxT.some(function(o) { return o[0].slice(4) === ch.fx; })) opts.push([(ch.on === false ? 'fx-:' : 'fx+:') + ch.fx, 'An effect that is gone']); if (ch.f && !targets.some(function(o) { return o[0] === ch.f; })) opts.push([ch.f, 'A field that is gone']);
         if (typeof resultTargets === 'function') resultTargets(ch).forEach(function(o) { opts.push(o); });   // 1.6.2 (G7)
         rw.appendChild((typeof lazySelect === 'function' ? lazySelect : select)('sys-apply-target', opts, allV ? allV : typeof ch.deck === 'string' ? (ch.shuffle === true ? 'ds:' : 'dk:') + ch.deck : typeof ch.shared === 'string' ? 'val:' + ch.shared : typeof ch.table === 'string' ? 'tbl:' + ch.table : typeof ch.tag === 'string' ? (ch.shake === true ? 'tg~:' : ch.on === false ? 'tg-:' : 'tg+:') + ch.tag : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or an effect it switches on or off (on the character it is used on). Every row of a list sets one of its number stats on each of the list\u2019s rows'));
+        if (typeof ch.rand === 'string') rw.appendChild(randBox(ch)); else
         if (typeof ch.deck === 'string') rw.appendChild(deckBox(ch)); else
         if (typeof ch.table === 'string') rw.appendChild(resultByBox(ch)); else
-        if (typeof ch.fx !== 'string' && typeof ch.tag !== 'string') {   // 1.6.0: an effect switched has no amount; 1.6.2: nor a mark
+        if (typeof ch.fx !== 'string' && typeof ch.tag !== 'string' && typeof ch.rand !== 'string') {   // 1.6.0: an effect switched has no amount; 1.6.2: nor a mark, nor a row picked at random
         var mkF = typeof markOpts === 'function' ? markOpts(ch) : [];   // 1.6.2: a number shown as boxes marked one by one
         rw.appendChild(select('sys-apply-op', mkF.length ? mkF : [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']], mkF.length ? markVal(ch) : ch.set ? 'set' : ch.add ? 'add' : 'sub', 'Subtract (a cost, a wound), add (rest, healing) or set it to the amount (back to 0); never past the field\u2019s min and max'));
         var fm = input('sys-apply-formula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount, worked out when pressed: no dice unless Rolled is ticked (3, FPCost, max(0, Incoming - DR)); below 0 counts as 0', 'Amount'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
@@ -9099,6 +9103,48 @@ function handFan(wrap) {   // the rows themselves, each keeping its controls: a 
     if (!wrap.querySelectorAll) return; var rows = wrap.querySelectorAll('.sheet-item'); if (!rows.length || !wrap.insertBefore) return; var fan = el('div', 'sheet-fan'), n = rows.length; wrap.insertBefore(fan, rows[0]);
     for (var i = 0; i < n; i++) { rows[i].style.setProperty('--fan', String(i - (n - 1) / 2)); fan.appendChild(rows[i]); }
 }
+// 1.6.2 (vehicles, fold (f); the owner, by prompt: "Rows where a test holds, and the builder ticks whether rows already off can be picked. If one
+// is picked, the call says what happens: nothing, or its next step"): a row of a list with a switch picked at random. Its own listeners, and
+// classes no handler of the Rolls tab reads
+function randTargets(ch) {
+    var o = []; (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(f) { if (f && f.kind === 'item-list' && f.list && f.list.on) o.push(['rnd:' + f.id, 'A row picked at random: ' + (f.label || 'A list')]); });
+    if (ch && typeof ch.rand === 'string' && !o.some(function(x) { return x[0] === 'rnd:' + ch.rand; })) o.push(['rnd:' + ch.rand, 'A list that is gone, or has no switch']); return o;
+}
+function randBox(ch) {
+    var w = el('span', 'sys-rnd'), said = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); }, lf = fieldOf(ch.rand), sp = lf && lf.list ? lf.list : null;
+    var tc = el('label', 'sys-num sys-cap'), t = input('sys-rnd-test field', typeof ch.test === 'string' ? ch.test : '', 'Which rows may be picked. Empty: any row', 'Any row'); t.maxLength = LIMITS.formula; t.dataset.rl = ch.rand;
+    t.addEventListener('input', function() { var v = t.value.trim(); if (v) ch.test = v.slice(0, LIMITS.formula); else delete ch.test; said(); }); tc.appendChild(el('span', 'sys-num-cap', 'Picked among')); tc.appendChild(t); w.appendChild(tc);
+    var ol = el('label', 'sys-hover'), oc = el('input', 'sys-rnd-off'); oc.type = 'checkbox'; oc.checked = ch.offToo === true; ol.appendChild(oc); ol.appendChild(document.createTextNode(' Rows already off may be picked')); ol.title = 'Ticked: a row already off may be picked too, and then takes its next step, or nothing. Off: only rows that are on, so each pick switches one off';
+    oc.addEventListener('change', function(e) { e.stopPropagation(); if (oc.checked) ch.offToo = true; else { delete ch.offToo; delete ch.next; } said(); renderAll(); }); w.appendChild(ol);
+    if (ch.offToo === true) {
+        var nx = ch.next && typeof ch.next === 'object' ? ch.next : null, stats = sp && Array.isArray(sp.stats) ? sp.stats.filter(function(x) { return x && x.kind !== 'pick' && typeof x.key === 'string' && x.key; }) : [];
+        var ns = select('sys-rnd-nexts', [['', 'Then nothing more happens']].concat(stats.map(function(x) { return [x.key, 'Then its ' + (x.label || 'stat') + ' changes']; })), nx ? nx.s : '', 'What happens to a row already off when it is picked: nothing, or one of its number stats changes, such as disabled to destroyed');
+        ns.addEventListener('change', function(e) { e.stopPropagation(); if (ns.value) { ch.next = Object.assign({ formula: '1', set: true }, nx || {}, { s: ns.value }); } else delete ch.next; said(); renderAll(); }); w.appendChild(ns);   // renderAll keeps the focus on this list (rowFocusOf)
+        if (nx) {
+            var no = select('sys-rnd-nexto', [['set', 'Set to'], ['add', 'Add'], ['sub', 'Subtract']], nx.set ? 'set' : nx.add ? 'add' : 'sub', 'How the stat changes');
+            no.addEventListener('change', function(e) { e.stopPropagation(); delete nx.set; delete nx.add; if (no.value === 'set') nx.set = true; else if (no.value === 'add') nx.add = true; said(); }); w.appendChild(no);
+            var nf = input('sys-rnd-next field', typeof nx.formula === 'string' ? nx.formula : '', 'The figure, read on the row picked', '1'); nf.maxLength = LIMITS.formula; nf.dataset.rl = ch.rand;
+            nf.addEventListener('input', function() { nx.formula = nf.value.trim().slice(0, LIMITS.formula); said(); }); w.appendChild(nf);
+        }
+    }
+    return w;
+}
+// 1.6.2 (vehicles, fold (f); the owner, by prompt: "a call names one or more stations, or All crew. Everyone linked at a named station gets one
+// card"): who a call's card goes to, on a system with a Crew link. Its own listeners, so no handler of the tab reads it
+function crewStations() { var o = []; (Array.isArray(draft.links) ? draft.links : []).forEach(function(k) { if (k && k.kind === 'crew' && Array.isArray(k.stations)) k.stations.forEach(function(s) { if (typeof s === 'string' && s && o.indexOf(s) < 0) o.push(s); }); }); return o; }
+var _crewFocus = null;   // the call whose list had the focus as its box was drawn again, so the keys stay on that list
+function crewPick(obj, redraw) {
+    var w = el('span', 'sys-crew'), has = (Array.isArray(draft.links) ? draft.links : []).some(function(k) { return k && k.kind === 'crew'; }); if (!has && !obj.crew) return w;
+    var stn = crewStations(), mode = obj.crew === 'all' ? 'all' : Array.isArray(obj.crew) ? 'stn' : '', said = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var s = select('sys-crew-to', [['', 'Card to the character'], ['all', 'Card to all its crew']].concat(stn.length || mode === 'stn' ? [['stn', 'Card to the crew at…']] : []), mode, 'Who gets the card: the character itself, or the crew linked to it by a Crew link, each with a card of their own that reads their station and the blow');
+    s.addEventListener('change', function(e) { e.stopPropagation(); if (s.value === 'all') obj.crew = 'all'; else if (s.value === 'stn') obj.crew = []; else delete obj.crew; said(); _crewFocus = obj; redraw(); _crewFocus = null; }); w.appendChild(s);
+    if (_crewFocus === obj) setTimeout(function() { if (s.isConnected && s.focus) s.focus(); }, 0);
+    if (mode === 'stn') stn.concat(obj.crew.filter(function(x) { return stn.indexOf(x) < 0; })).forEach(function(nm) {
+        var l = el('label', 'sys-hover'), c = el('input', 'sys-crew-stn'); c.type = 'checkbox'; c.checked = obj.crew.indexOf(nm) >= 0; l.appendChild(c); l.appendChild(document.createTextNode(' ' + nm + (stn.indexOf(nm) < 0 ? ' (gone)' : ''))); l.title = 'Everyone at the ' + nm + ' station gets a card';
+        c.addEventListener('change', function(e) { e.stopPropagation(); var i = obj.crew.indexOf(nm); if (c.checked && i < 0) obj.crew.push(nm); else if (!c.checked && i >= 0) obj.crew.splice(i, 1); said(); }); w.appendChild(l);
+    });
+    return w;
+}
 function deckBox(ch) {   // How many and who sees it. Its own listeners, and classes no handler of the Rolls tab reads
     var w = el('span', 'sys-deck-draw'); if (ch.shuffle === true) return w; var n = input('sys-deck-n field', typeof ch.formula === 'string' ? ch.formula : '1', 'How many cards to draw', '1'); n.addEventListener('input', function() { var v = n.value.trim(); ch.formula = v.slice(0, LIMITS.formula); markDirty(); if (typeof patchErrors === 'function') patchErrors(); });
     var s = select('sys-deck-show', [['', 'Everyone sees it'], ['self', 'Only who drew and you']], ch.show === 'self' ? 'self' : '', 'Who sees what was drawn'); s.addEventListener('change', function() { if (s.value) ch.show = 'self'; else delete ch.show; markDirty(); }); w.appendChild(n); w.appendChild(s);
@@ -9111,7 +9157,8 @@ function resultTargets(ch) { var o = (Array.isArray(draft.values) ? draft.values
     if (ch && typeof ch.tag === 'string' && !o.some(function(x) { return x[0].slice(4) === ch.tag; })) o.push([(ch.shake === true ? 'tg~:' : ch.on === false ? 'tg-:' : 'tg+:') + ch.tag, 'A mark that is gone']); if (typeof deckTargets === 'function') o = deckTargets(ch).concat(o); if (ch && typeof ch.shared === 'string' && !o.some(function(x) { return x[0] === 'val:' + ch.shared; })) o.push(['val:' + ch.shared, 'A shared value that is gone']); o = o.concat((Array.isArray(draft.results) ? draft.results : []).filter(function(t) { return !!t && typeof t.key === 'string'; }).map(function(t) { return ['tbl:' + t.key, 'Roll on: ' + (t.label || 'A table')]; })); if (ch && typeof ch.table === 'string' && !o.some(function(x) { return x[0] === 'tbl:' + ch.table; })) o.push(['tbl:' + ch.table, 'A table that is gone']); return o; }
 function resultByBox(ch) { var i = input('sys-res-by field', typeof ch.by === 'string' ? ch.by : '', 'Which row it reads. Empty: it rolls the table\u2019s own dice', 'Its own dice'); i.addEventListener('input', function() { var v = i.value.trim(); if (v) ch.by = v.slice(0, LIMITS.formula); else delete ch.by; markDirty(); if (typeof patchErrors === 'function') patchErrors(); }); return i; }
 function setChangeTarget(ch, v) {
-    v = String(v || ''); ['f', 'c', 'fire', 'feed', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money', 'mark', 'tag', 'shake'].forEach(function(k) { delete ch[k]; });
+    v = String(v || ''); ['f', 'c', 'fire', 'feed', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money', 'mark', 'tag', 'shake', 'rand', 'test', 'offToo', 'next'].forEach(function(k) { delete ch[k]; });
+    if (v.indexOf('rnd:') === 0) { ch.rand = v.slice(4); delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; return; }   // 1.6.2 (fold (f)): a row picked at random, no amount
     delete ch.discard; delete ch.to; delete ch.deck; delete ch.shuffle; delete ch.show; delete ch.shared; delete ch.table; delete ch.by; if (v.indexOf('dk:') === 0 || v.indexOf('ds:') === 0) { ch.deck = v.slice(3); delete ch.add; delete ch.set; delete ch.roll; if (v.charAt(1) === 's') { ch.shuffle = true; delete ch.formula; } else if (typeof ch.formula !== 'string' || !ch.formula) ch.formula = '1'; return; } if (v.indexOf('val:') === 0) { ch.shared = v.slice(4); if (typeof ch.formula !== 'string') ch.formula = ''; return; } if (v.indexOf('tbl:') === 0) { ch.table = v.slice(4); delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; return; }   // 1.6.2 (G7): a roll on a result table, no amount
     if (v === 'money') { ch.money = ''; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0: the sheet's money, a figure of its own
     else if (v === 'discard') { ch.discard = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.2 (G9)
@@ -11508,6 +11555,7 @@ function damageBox(box, cm) {
         if (om.roll && mjL) { dbxCap(rM, 'its failure cripples'); rM.appendChild(select('sys-dmgr-mjcrip', dbxOpts(['', 'Nothing'], dbxKeys(mjL, true), om.crip), dbxStr(om.crip), 'Where that roll fails, the location hit gets how far it failed in this number stat, at least 1. A formula can read 1 or more as crippled, and 5 or more as severed')); }
         if (om.roll && mjL && om.crip) { var mjB = input('sys-dmgr-mjcripby field', dbxStr(om.cripBy), CRIP_BY_LINE, 'by, e.g. if(Natural = 18, max(5, Margin), Margin)'); mjB.maxLength = LIMITS.formula; rM.appendChild(mjB); }   // 1.6.0 (the core's ruling on gap 7)
         dbxCap(rM, 'where'); var mjW = input('sys-dmgr-mjif field', dbxStr(om.if), 'True for the Major Wounds this row does something on. Blank: every one. It reads the blow and the location hit as Any wound does. With more rows, the first that holds is the one', 'e.g. Hit.loc = 1'); mjW.maxLength = LIMITS.formula; rM.appendChild(mjW);   // 1.6.0
+        if (om.roll && typeof crewPick === 'function') rM.appendChild(crewPick(om, function() { majWrite(d, mjRows); renderCombat(); }));   // 1.6.2 (fold (f))
         if (om.roll) rM.appendChild(dbxTick('sys-dmgr-mjasat', om.asAt === true, 'Its roll reads the sheet as it was here', 'Ticked: the roll it asks for is worked out on the sheet as it stood before this Major Wound\u2019s own effect and every Any wound row. So the Big Hit\u2019s Vitality roll leaves out the Rattled of the same hit. Off: on the sheet as the whole blow left it'));   // 1.6.2
         if (mjMany) rM.appendChild(dbxBtn('dmgrmjdel', '\u00d7', 'Remove this row'));
         wrap.appendChild(rM); });
@@ -11520,6 +11568,7 @@ function damageBox(box, cm) {
             dbxCap(rw, 'switches on'); rw.appendChild(select('sys-dmgr-ofx', dbxOpts(['', 'No effect'], fxs, w.fx), dbxStr(w.fx), 'An effect of the library the wound switches on, as an apply action does'));
             dbxCap(rw, 'and asks for'); rw.appendChild(select('sys-dmgr-oroll', dbxOpts(['', 'No roll'], rls, w.roll), dbxStr(w.roll), 'A roll of the system posted as a reminder to the wounded character\'s player. Rolled from its card, it can read the blow and the location hit, such as a Vitality roll made harder by the wound'));
             if (w.roll && mjL) { dbxCap(rw, 'its failure cripples'); rw.appendChild(select('sys-dmgr-ocrip', dbxOpts(['', 'Nothing'], dbxKeys(mjL, true), w.crip), dbxStr(w.crip), 'Where that roll fails, the location hit gets how far it failed in this number stat, at least 1')); }
+            if (w.roll && typeof crewPick === 'function') rw.appendChild(crewPick(w, function() { renderCombat(); }));   // 1.6.2 (fold (f))
             if (w.roll && mjL && w.crip) { var owB = input('sys-dmgr-ocripby field', dbxStr(w.cripBy), CRIP_BY_LINE, 'by, e.g. Margin'); owB.maxLength = LIMITS.formula; rw.appendChild(owB); }   // 1.6.0 (the core's ruling on gap 7)
             var owH = dbxObj(w.held) ? w.held : {};   // 1.6.0: what stands where the blow lands
             dbxCap(rw, 'reads what stands there on'); rw.appendChild(select('sys-dmgr-ohlist', dbxOpts(['', 'No list'], dbxLists(), owH.list), dbxStr(owH.list), 'A list whose rows may stand at the struck location. Where then reads how many as Held.count'));
@@ -11797,6 +11846,7 @@ function damageSays(d, sys, Fx) {
         if (typeof d.onMajor.cripBy === 'string' && d.onMajor.cripBy.trim()) reads(d.onMajor.cripBy, 'A Major Wound\u2019s roll, what its failure writes');   // 1.6.0 (the core's ruling on gap 7)
         if (typeof d.onMajor.crip === 'string' && d.onMajor.crip && !(dbxObj(d.locs) && numStat(d.locs.list, d.onMajor.crip))) say('A Major Wound\u2019s roll: its failure cripples a number stat of the hit locations, and that is none, so Save drops it.');   // 1.6.0 (the core's gap 7)
     }
+    if (typeof CREW_NONE === 'string') { (typeof majRowsOf === 'function' ? majRowsOf(d.onMajor) : []).forEach(function(o) { if (dbxObj(o) && Array.isArray(o.crew) && !o.crew.length) warn('A Major Wound' + CREW_NONE); }); (Array.isArray(d.onWound) ? d.onWound : []).forEach(function(o) { if (dbxObj(o) && Array.isArray(o.crew) && !o.crew.length) warn('Any wound' + CREW_NONE); }); }   // 1.6.2 (fold (f))
     (Array.isArray(d.onWound) ? d.onWound : []).forEach(function(w, i) {   // 1.6.0 (the core's gap 6)
         if (!dbxObj(w)) return; var nth = 'Any wound, row ' + (i + 1);
         var hld = dbxObj(w.held) ? w.held : null, hlG = hld ? cleanHeld(hld, fl) : null;   // 1.6.0: what stands where the blow lands, as the cleaner reads it
@@ -14100,6 +14150,11 @@ function majorFollow(c, info, vals) {
     fl.forEach(function(f) {
         var r = dmgObj(f) ? (Array.isArray(sys.rolls) ? sys.rolls : []).find(function(x) { return dmgObj(x) && x.id === f.roll; }) : null; if (!r) return;
         var nm = typeof F === 'function' && F() && typeof r.formula === 'string' ? F().names(r.formula) : [], reads = nm.some(function(x) { return /^(blow|hit)\./i.test(x); });   // a roll that reads neither and cripples nothing needs the record only for the sheet as the blow left it: a soft one, which it may do without
+        if (f.crew) {   // 1.6.2 (vehicles, fold (f)): to the crew at its stations, one card each on each crew sheet as it stands, reading the blow; a crew sheet cripples nothing
+            var cmC = getActiveCampaign(), SCc = window.wpSystemCore, idsC = cmC && cmC.chars && SCc && typeof SCc.crewAt === 'function' ? SCc.crewAt(sys, cmC.chars, c.id, f.crew) : [];
+            idsC.forEach(function(cid) { var x = cmC.chars[cid]; if (!x) return; var atC = dmgObj(info.blow) && typeof n.blowMake === 'function' ? n.blowMake(x, r.id, info.blow, '', '', null, !reads) : ''; n.postDue(x, r, f.why === 'wound' ? 'wound' : 'major', 1, !x.npc && !!x.ownerId && r.vis !== 'gm', atC ? { att: atC } : undefined); did = true; });
+            return;
+        }
         var snF = snap && dmgObj(f.vals) ? JSON.parse(JSON.stringify(dmgObj(c.values) ? c.values : {})) : snap; if (snF !== snap) Object.keys(f.vals).forEach(function(k) { if (f.vals[k] === undefined) delete snF[k]; else snF[k] = JSON.parse(JSON.stringify(f.vals[k])); });   // 1.6.2: a row ticked asAt, the sheet as it stood at that row
         var att = snap && typeof n.blowMake === 'function' ? n.blowMake(c, r.id, info.blow, f.crip, f.cripBy, snF, !reads && typeof f.crip !== 'string') : '';
         var mrD = att ? { att: att } : {}, drD = sys.combat && sys.combat.damage; if (f.why !== 'wound' && drD && typeof drD.majorWord === 'string' && drD.majorWord.trim()) mrD.mw = drD.majorWord.trim();   // 1.6.0: the card says the system's own word for it

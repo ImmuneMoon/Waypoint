@@ -11259,9 +11259,10 @@ function callPost(camp, rollId, ch, by, priv, row, big) {   // row (1.6.2): the 
     if (big === true && id && Object.prototype.hasOwnProperty.call(_attempts, id)) _attempts[id].big = true;   // 1.6.2
     if (typeof net.postDue === 'function') net.postDue(ch, rr, 'called', 1, toO, { att: id, by: by }); return true;
 }
+function crewPost(camp, c, ch, by, priv, big) { var S = SC(); if (!S || typeof S.crewAt !== 'function' || !camp || !camp.chars || !ch) return; S.crewAt(camp.system, camp.chars, ch.id, c.crew).forEach(function(id) { var x = Object.prototype.hasOwnProperty.call(camp.chars, id) ? camp.chars[id] : null; if (x) callPost(camp, c.roll, x, by, priv, null, big === true); }); }   // 1.6.2 (vehicles, fold (f)): a call to the crew at its stations, one card each, on each crew sheet
 function callsAfter(camp, entry, pass, vars, ch, priv, row, big) {   // big (1.6.2): the roll landed as a Big Hit   // pass: the roll's verdict, null for an action or a roll with no check; row (1.6.2): the row a list's roll was made on
     var S = SC(); if (!S || typeof S.callsDue !== 'function' || !entry || !Array.isArray(entry.calls)) return;
-    S.callsDue(entry, pass === true ? 'hit' : pass === false ? 'miss' : '', vars, window.wpFormula).forEach(function(c) { callPost(camp, c.roll, ch, callName(entry), priv, row, big === true); });
+    S.callsDue(entry, pass === true ? 'hit' : pass === false ? 'miss' : '', vars, window.wpFormula).forEach(function(c) { if (c.crew) { crewPost(camp, c, ch, callName(entry), priv, big); return; } callPost(camp, c.roll, ch, callName(entry), priv, row, big === true); });
 }
 net.callsAfter = callsAfter;
 function attemptByIf(camp, text, row, ch, tc) {
@@ -11274,7 +11275,7 @@ function attemptCalled(camp, rec, act, row, pass, ch, priv, tc) {   // the targe
     var ref = row && typeof row.f === 'string' && typeof row.i === 'number' ? row.f + '#' + row.i : act;
     rec.calls.forEach(function(c) {
         if (!((!c.by || c.by === ref) && (!c.byIf || attemptByIf(camp, c.byIf, row, ch, tc)))) return;
-        if (c.to !== 'self') { callPost(camp, c.roll, ch, rec.callBy, priv, row); return; }
+        if (c.crew && c.to !== 'self') { crewPost(camp, c, ch, rec.callBy, priv); return; } if (c.to !== 'self') { callPost(camp, c.roll, ch, rec.callBy, priv, row); return; }
         var fc = typeof rec.callFrom === 'string' && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, rec.callFrom) ? camp.chars[rec.callFrom] : null;   // 1.6.2: to the roller, on the roller's own row
         if (fc) callPost(camp, c.roll, fc, rec.callBy, rec.callPriv === true, rec.callRow);
     });

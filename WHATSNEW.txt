@@ -233,6 +233,15 @@ At the table
   Arcs may overlap. A rule can ask whether a hit comes from inside an arc,
   and a list can name the arc each of its rows reaches, so a gun greys out
   where it cannot fire.
+- A roll's Then or an action can switch off a row picked at random from a
+  list with a switch, such as a ship's systems after a hit. You say which
+  rows may be picked, and whether a row already off may be picked too. One
+  already off then takes its next step, such as disabled to destroyed, or
+  nothing happens. The table's host picks.
+- On a sheet with a Crew link, Calls for can send its card to the crew: all
+  of them, or those at the stations you tick, each with a card of their own.
+  A Major Wound's row and an Any wound row can do the same, and their card
+  reads the blow.
 - The arrow beside the pointer location at the top right of a map folds its
   numbers away, and a second press shows them again. This computer remembers
   which you chose.

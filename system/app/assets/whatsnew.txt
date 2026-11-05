@@ -233,6 +233,10 @@ At the table
   Arcs may overlap. A rule can ask whether a hit comes from inside an arc,
   and a list can name the arc each of its rows reaches, so a gun greys out
   where it cannot fire.
+- A blast's formulas can now read one cell of the map in the system's own
+  distance unit, which the Combat tab sets as yards, feet or metres. They can
+  also read the scale of the one it hits, from a number field the system
+  picks, so a person caught in a ship's blast can take more.
 - A roll's Then or an action can switch off a row picked at random from a
   list with a switch, such as a ship's systems after a hit. You say which
   rows may be picked, and whether a row already off may be picked too. One

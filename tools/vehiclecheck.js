@@ -347,6 +347,30 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
             && /rw\.appendChild\(crewPick\(c, draw\)\)/.test(shF) && /rM\.appendChild\(crewPick\(om,/.test(shF) && /rw\.appendChild\(crewPick\(w,/.test(shF) && /cl\.contains\('sys-rnd-test'\) \|\| cl\.contains\('sys-rnd-next'\)/.test(shF)
             && /'sys-rnd-test': 'cond', 'sys-rnd-next': 'amt'/.test(fbF) && /if \(f\.crew\) \{/.test(shF));
     }
+    /* ---- fold (e): blasts at scale ---- */
+    {
+        const BC = await import(url.pathToFileURL(app('scripts/blastcore.js')).href);
+        const ERAW = (unit, scale) => ({ v: 1, name: 'Blasts', combat: Object.assign({ blast: { fall: 'BlastDamage * HitScale', each: '2 + MapCell', radius: 'BlastRadius * MapCell', frag: { reach: 'FragDice * MapCell' }, scale: scale } }, unit ? { unit } : {}),
+            fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'number', def: 10 }, { id: 'f_sz', key: 'Size', label: 'Scale', kind: 'number', def: 1 }, { id: 'f_nm', key: 'Name', label: 'Name', kind: 'text' }, { id: 'f_gm', key: 'Big', label: 'Big', kind: 'number', def: 10, vis: 'gm' }] });
+        const ES = S.cleanSystem(ERAW('ft', 'f_sz'), { F, gmView: true }), EV = S.cleanSystem(ERAW('ft', 'f_sz'), { F, gmView: false });
+        check('the system\u2019s own distance unit is feet or metres, absent yards, the same in both views', ES.combat.unit === 'ft' && EV.combat.unit === 'ft' && S.cleanSystem(ERAW('m', 'f_sz'), { F, gmView: true }).combat.unit === 'm' && !('unit' in S.cleanSystem(ERAW('yd', 'f_sz'), { F, gmView: true }).combat) && !('unit' in S.cleanSystem(ERAW('km', 'f_sz'), { F, gmView: true }).combat), J([ES.combat, EV.combat]));
+        check('a blast\u2019s formulas keep MapCell and HitScale, and a sheet\u2019s scale is a number field of the view, the GM\u2019s own blast rules alone; a text field or one that is not there is dropped',
+            J(ES.combat.blast) === J({ fall: 'BlastDamage * HitScale', frag: { reach: 'FragDice * MapCell' }, each: '2 + MapCell', radius: 'BlastRadius * MapCell', scale: 'f_sz' }) && !('blast' in EV.combat)
+            && !('scale' in S.cleanSystem(ERAW('', 'f_nm'), { F, gmView: true }).combat.blast) && !('scale' in S.cleanSystem(ERAW('', 'f_nope'), { F, gmView: true }).combat.blast) && S.cleanSystem(ERAW('', 'f_gm'), { F, gmView: true }).combat.blast.scale === 'f_gm', J(ES.combat.blast));
+        const mp = (v, u, hex) => ({ meta: { cellValue: v, cellUnit: u, gridType: hex ? 'hex' : 'square' } });
+        const yd = S.cleanSystem(ERAW('', 'f_sz'), { F, gmView: true });
+        check('MapCell is one cell of the map in the system\u2019s unit, whatever unit the map is set in', S.mapCellIn(yd, mp(50, 'yd', true)) === 50 && S.mapCellIn(yd, mp(1, 'yd', true)) === 1 && S.mapCellIn(yd, mp(15, 'ft')) === 5 && S.mapCellIn(ES, mp(50, 'yd', true)) === 150 && S.mapCellIn(S.cleanSystem(ERAW('m', ''), { F, gmView: true }), mp(1, 'km', true)) === 1000 && S.mapCellIn(yd, null) > 0,
+            J([S.mapCellIn(yd, mp(50, 'yd', true)), S.mapCellIn(ES, mp(50, 'yd', true)), S.mapCellIn(S.cleanSystem(ERAW('m', ''), { F, gmView: true }), mp(1, 'km', true))]));
+        const shipC = { id: 'c_s', values: { f_sz: 10 } }, man = { id: 'c_m', values: {} };
+        check('HitScale is the scale field\u2019s figure on the sheet hit, 1 with no sheet, and the field\u2019s own default where nothing is stored', S.hitScaleOf(ES, shipC, F) === 10 && S.hitScaleOf(ES, man, F) === 1 && S.hitScaleOf(ES, null, F) === 1 && S.hitScaleOf(S.cleanSystem(ERAW('', ''), { F, gmView: true }), shipC, F) === 1, J([S.hitScaleOf(ES, shipC, F), S.hitScaleOf(ES, man, F)]));
+        check('a token\u2019s share reads MapCell and HitScale, 1 for each where none is handed in, held to what was rolled', BC.fallShare(F, 'BlastDamage * HitScale / 10', { dmg: 30, scale: 10 }) === 30 && BC.fallShare(F, 'BlastDamage / MapCell', { dmg: 30, cell: 3 }) === 10 && BC.fallShare(F, 'BlastDamage * HitScale', { dmg: 7 }) === 7 && BC.fallShare(F, 'BlastDamage * MapCell', { dmg: 7 }) === 7);
+        const wbE = read('scripts/whiteboard.js'), shE = read('scripts/sheets.js');
+        check('the host hands MapCell to a blast\u2019s radius, each victim\u2019s dice, the falloff and fragmentation\u2019s reach, and HitScale with the victim\u2019s own sheet; a cell is worked out once a blast and kept on it',
+            /l === 'blastradius' \? b\.ft \/ 3 : l === 'mapcell' \? b\.cell/.test(wbE) && /if \(l === 'mapcell'\) return blastCellOf\(b, map\); if \(l === 'hitscale'\) return S\.hitScaleOf \? S\.hitScaleOf\(sys, ch, F\)/.test(wbE)
+            && (wbE.match(/env: (o\.)?b\.env, cell: /g) || []).length === 2 && /l === 'mapcell' \? blastCellOf\(b, map\) : undefined/.test(wbE) && /function blastCellOf\(b, map\) \{/.test(wbE) && /\n      blastCellOf\(b, map\);   \/\/ 1\.6\.2/.test(wbE));
+        check('the Combat tab\u2019s Blasts and throws has the system\u2019s distance unit and a sheet\u2019s scale, each with its line, and the forms offer MapCell and HitScale', /^function blastScaleInto\(box, cm, bl\) \{/m.test(shE) && /labeledSelect\('sys-combat-bunit'/.test(shE) && /labeledSelect\('sys-combat-bscale'/.test(shE)
+            && /'sys-combat-bfall': \['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop', 'MapCell', 'HitScale'\]/.test(shE) && S.nameWord(ES, 'MapCell') === 'one cell of the map' && S.nameWord(ES, 'HitScale') === 'the scale of the one it hits');
+    }
     /* ---- the words ---- */
     const help = read('index.html');
     check('Help says Rows are sheets, in plain words', /<b>Rows are sheets<\/b>/.test(help) && /Make a new sheet/.test(help));
@@ -355,6 +379,8 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
     check('Help says the system\u2019s own arcs and Arcs by, in plain words', /<b>Arcs<\/b> on the Combat tab names the arcs/.test(help) && /<b>Arcs by<\/b> names a choice stat/.test(help) && !/Arc\.left/.test(help));
     check('Help says a row picked at random and a card to the crew, in plain words', /<b>A row picked at random:<\/b>/.test(help) && /<b>Rows already off may be picked<\/b>/.test(help) && /<b>Card to all its crew<\/b>/.test(help));
     check('both release notes say the random row and the crew’s cards', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /a row picked at random from a\n  list with a switch/.test(readRoot(p)) && /Calls for can send its card to the crew/.test(readRoot(p))));
+    check('Help says the system\u2019s distance unit, a cell of the map and a sheet\u2019s scale, in plain words', /<b>The system&rsquo;s distances count in<\/b>/.test(help) && /<b>A sheet&rsquo;s scale is<\/b>/.test(help));
+    check('both release notes say a blast at scale', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A blast's formulas can now read one cell of the map/.test(readRoot(p))));
     check('both release notes say it', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A system can now name its own arcs/.test(readRoot(p)) && /Rows are sheets/.test(readRoot(p)) && /A token can hold a mark on another/.test(readRoot(p)) && /A mark can end by itself/.test(readRoot(p))));
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });

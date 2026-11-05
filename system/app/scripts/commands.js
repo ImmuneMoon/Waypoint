@@ -286,9 +286,9 @@ function moveRefusal(k, id, keys, names) {
 function keysReset(doc) {
     var ok = true; try { localStorage.removeItem('wp_keys'); } catch (e) { ok = false; }
     if (typeof window !== 'undefined' && window.wpPad && typeof window.wpPad.reset === 'function') window.wpPad.reset();   // 1.6.2: and the controller's buttons
-    if (typeof window !== 'undefined' && window.wpMouse && typeof window.wpMouse.reset === 'function') { window.wpMouse.reset(); gesturesShow(doc); }   // and the mouse, its gestures too
+    var mouseBack = false; if (typeof window !== 'undefined' && window.wpMouse && typeof window.wpMouse.reset === 'function') { window.wpMouse.reset(); gesturesShow(doc); mouseBack = true; }   // and the mouse, its gestures too
     keysLoad(); keysDraw(doc);
-    keysSay(doc, ok ? 'Every command has the key it came with again.' : 'The change could not be kept on this computer.');
+    keysSay(doc, ok ? 'Every command has the key it came with again' + (mouseBack ? ', and the mouse is back as it came.' : '.') : 'The change could not be kept on this computer.');
     cmdLog(ok ? 'keys-reset' : 'key-save-failed', { n: Object.keys(_keys).filter(function(id) { return !!_keys[id]; }).length });
     return ok;
 }

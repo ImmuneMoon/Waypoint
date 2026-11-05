@@ -128,6 +128,9 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
     check('your mouse goes with your profile, cleaned, and a computer that keeps its own keys keeps its own mouse (the owner: "Yes, like keys")',
         !!pk && J(pk.mouse) === J({ cmds: { 'map.last': 'Back' }, pan: 'right' }) && w1 && w1.wp_mouse === J(pk.mouse) && w2 && !('wp_mouse' in w2)
         && !('mouse' in (pc.packOf({ wp_profile: store2.wp_profile }, {}, 1) || { mouse: 1 })), pk && pk.mouse);
+    check('Restore default keys says it puts the mouse back too: the line under it, its tooltip, and what it says once pressed where the mouse was put back (the owner, 2026-11-05: "lets fix that gap")',
+        html.includes('<div class="set-line tight">Every command gets the key it came with again, and the mouse goes back as it came. Your keys are kept on this computer.</div>') && html.includes('and puts the mouse and the map gestures back as they came, here on this computer">Restore default keys</button>')
+        && cmd.includes("window.wpMouse.reset(); gesturesShow(doc); mouseBack = true; }") && cmd.includes("'Every command has the key it came with again' + (mouseBack ? ', and the mouse is back as it came.' : '.')"));
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exitCode = 1;

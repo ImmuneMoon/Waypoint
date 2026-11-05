@@ -158,6 +158,7 @@ function chipFolds(el, box) { var out = []; for (var n = el && el.parentNode; n 
 function chipCopy(doc, el) {
     var c = el.cloneNode(true); c.removeAttribute('id'); c.removeAttribute('title'); c.removeAttribute('data-tip'); c.removeAttribute('disabled'); c.setAttribute('tabindex', '-1'); c.setAttribute('aria-hidden', 'true');
     c.removeAttribute('aria-controls'); c.removeAttribute('aria-expanded');   // fold 3: a copy opens nothing and is found by nothing
+    c.removeAttribute('hidden'); if (c.style && c.style.display === 'none') c.style.display = '';   // a control shown at times (the Paused pill, Restore) is drawn as it looks when shown, never 4 px of nothing
     var all = c.querySelectorAll ? c.querySelectorAll('[id]') : []; for (var i = 0; i < all.length; i++) all[i].removeAttribute('id');
     var wrap = doc.createElement('span'); wrap.className = 'help-chip-in ' + (el.parentNode && typeof el.parentNode.className === 'string' ? el.parentNode.className : ''); wrap.appendChild(c);
     return wrap;

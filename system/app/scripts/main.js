@@ -262,6 +262,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var edgeTools = document.getElementById('wbEdgeTools'); if (edgeTools) edgeTools.style.display = (!isPlanner && state.viewMode === 'visual') ? 'flex' : 'none';   // 107: View, Grid and Snap stand at the map's right edge, and show with the bar
 
       document.getElementById('plannerTools').style.display = isPlanner ? 'inline-flex' : 'none';
+      if (isPlanner) document.getElementById('plannerTools').setAttribute('data-label', activeMap && activeMap.type === 'doc' ? 'Page' : 'Planner');   // the bar of a handbook page says Page
 
       
 

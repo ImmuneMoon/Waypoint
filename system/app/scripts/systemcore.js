@@ -3589,7 +3589,8 @@ function cleanBlastRules(v, F) {
         if (Object.keys(fo).length) out.frag = fo;
     }
     var rsv = blastFormula(v.resist, F, null, true); if (rsv) out.resist = rsv;   // 1.5.9 (es): an affliction's resist roll, Resist standing for its target
-    if (v.hurt === 'share') out.hurt = 'share';   // H7: those it hurt are those any share reached (absent: those it wounded, after DR)
+    if (v.hurt === 'share') out.hurt = 'share';
+    if (v.flying === true) out.flying = true;   // 1.6.2 (vehicles, fold (d); the core's answer (A)): a blast hurts things in flight inside it as any token, off unless ticked   // H7: those it hurt are those any share reached (absent: those it wounded, after DR)
     var flK = statKey(typeof v.fills === 'string' ? v.fills.trim() : '', F), ndK = statKey(typeof v.noDrop === 'string' ? v.noDrop.trim() : '', F); if (flK) { out.fills = flK; if (v.fillCover === 'total') out.fillCover = 'total'; } if (ndK) out.noDrop = ndK;   // 1.6.0: the stats a blast's item fills and refuses a drop by
     if (typeof v.kind === 'string' && STAT_KEY.test(v.kind)) out.kind = v.kind;   // 1.6.0: the kind of blow its shares and fragmentation carry, a key of the damage rules' kinds (whiteboard.js blastKind hands on one that is there)
     var eaB = blastFormula(v.each, F, BLAST_EACH, false); if (eaB) { out.each = eaB; if (v.eachAdd === true) out.eachAdd = true; if (v.eachBy === 'victim') out.eachBy = 'victim'; }   // 1.6.0 (the core's gap 8): each victim's own dice, and who rolls them

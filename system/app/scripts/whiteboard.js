@@ -4682,7 +4682,8 @@ window.wpFitToGrid = fitToGrid;
       var rules = blastRules(sys), fr = rules && rules.frag && typeof rules.frag === 'object' ? rules.frag : {}, dice = BC.diceCount(fg.expr), rad = blastRadiusYd(b);
       var bDice = BC.diceCount(b.dmgExpr || ''), rch = fr.reach ? blastFig(fr.reach, function(n) { var l = String(n).toLowerCase(); return l === 'fragdice' ? dice : l === 'blastdice' ? bDice : l === 'mapcell' ? blastCellOf(b, map) : undefined; }, false) : null;
       var reach = typeof rch === 'number' && isFinite(rch) ? Math.max(rad, Math.min(10000, rch)) : rad;
-      var dr = blastDistances(b, map).filter(function(r) { return r && r.tok && typeof r.tok.charId === 'string' && !(typeof b.spare === 'string' && r.tok.id === b.spare); }), byId = Object.create(null);
+      var flyF = rules && rules.flying === true && typeof window.wpFlyHit === 'function';   // 1.6.2 (vehicles, fold (d)): it reaches a thing in flight as any token
+      var dr = blastDistances(b, map).filter(function(r) { return r && r.tok && (typeof r.tok.charId === 'string' || (flyF && r.tok.fly && !r.tok.charId)) && !(typeof b.spare === 'string' && r.tok.id === b.spare); }), byId = Object.create(null);
       dr.forEach(function(r) { if (!byId[r.tok.id]) byId[r.tok.id] = r; });
       var dfF = b.defended || null; if (dfF) dr = dr.filter(function(r) { return !(dfF[r.tok.id] && dfF[r.tok.id].nf === true); });   // 1.6.0: a Defense that succeeded
       var who = BC.fragTargets(dr.map(function(r) { return { id: r.tok.id, d: r.d + (dfF && dfF[r.tok.id] && dfF[r.tok.id].d > 0 ? dfF[r.tok.id].d : 0) }; }), reach, { direct: typeof b.direct === 'string' ? b.direct : null, own: fr.direct === true, each: fr.each === true });
@@ -4691,6 +4692,13 @@ window.wpFitToGrid = fitToGrid;
       var label = (b.name || 'Blast') + ' fragmentation', shared, rollOne = function() { var r = window.wpDice.rollFor(fg.by, fg.expr, label, { gmOnly: fg.gm === true, dmg: true, used: true }); return r && r.ok && typeof r.value === 'number' && isFinite(r.value) ? r.value : null; };
       var elevOn = stanceOn('elevation'), hit = 0, shielded = 0;
       who.forEach(function(w) {
+          if (flyF && byId[w.id] && byId[w.id].tok.fly && !byId[w.id].tok.charId) {   // a thing in flight: cover as any token, then its wound by D7
+              var rf = byId[w.id], tierY = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, rf.tok, map, elevOn ? (b.elev || 0) : 0, 0) : null;
+              if (fr.cover === 'total' ? !!(tierY && tierY.block) : S.coverOutcome && S.coverOutcome(sys, tierY) === 'none') { shielded++; return; }
+              var amtY = w.own ? rollOne() : (shared === undefined ? (shared = rollOne()) : shared); if (amtY === null) return; if (fr.cover !== 'total' && S.coverDamage) amtY = S.coverDamage(sys, tierY, amtY); amtY = Math.floor(amtY); if (!(amtY > 0)) return;
+              var qY = { amt: amtY }; if (tyOk) qY.type = ty; if (fr.ad === true && typeof b.ad === 'number' && b.ad > 0) qY.ad = b.ad;
+              if (window.wpFlyHit(rf.tok, qY)) hit++; return;
+          }
           var r = byId[w.id], ch = r && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, r.tok.charId) ? camp.chars[r.tok.charId] : null; if (!ch) return;   // own ids only
           var tierF = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, elevOn ? (b.elev || 0) : 0, elevOn ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null;
           if (fr.cover === 'total' ? !!(tierF && tierF.block) : S.coverOutcome && S.coverOutcome(sys, tierF) === 'none') { shielded++; return; }   // stopped before anything is rolled for it
@@ -4795,12 +4803,39 @@ window.wpFitToGrid = fitToGrid;
       else if (ap && ap.resisted) toast(nm + ': ' + ap.resisted + ' resisted.');
       return ap;
   }
+  // [vehiclecheck:flyblast-start]
+  // 1.6.2 (vehicles, fold (d); the core's answer (A), the Combat tab's Things in flight): a blast hurts what flies inside it as it hurts any token. Its
+  // share at its distance (its own dice where the card says each rolls its own, rolled at once since nobody owns it; HitScale 1), cover between them
+  // as for a token, then its wound by D7 through wpFlyHit, as a damage card's hit. A thing shot down stays down: Undo last throw puts back characters alone
+  function flyBlastPass(b, map, sys, rules, total, fall, dice, eEx, eDice, fillTotal) {
+      var S = window.wpSystemCore, F = window.wpFormula, BC = window.wpBlastCore, n = 0, elevOn = stanceOn('elevation'); if (!S || !F || !BC) return 0;
+      blastDistances(b, map).forEach(function(r) {
+          if (!r.tok.fly || r.tok.charId || !shapeHolds(b, r)) return;
+          var dirE = !!b.direct && r.tok.id === b.direct, cenE = typeof sameCellOn === 'function' && sameCellOn(map, b, tokenCentre(r.tok)), share = total;
+          var tier = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, elevOn ? (b.elev || 0) : 0, 0) : null;
+          if (fillTotal ? !!(tier && tier.block) : S.coverOutcome && S.coverOutcome(sys, tier) === 'none') return;   // stopped before anything is rolled for it
+          if (eEx) {
+              var nE = blastFig(rules.each, function(nm) { var l = String(nm).toLowerCase(); if (l.indexOf('env.') === 0) return BC.envRead ? BC.envRead(b.env, l.slice(4)) : 0; if (l === 'mapcell') return blastCellOf(b, map); if (l === 'hitscale') return 1; return l === 'blastdice' ? eDice : l === 'blastdistance' ? Math.max(0, r.d) : l === 'direct' ? (dirE ? 1 : 0) : l === 'centre' ? (cenE ? 1 : 0) : l === 'blastfills' ? (b.fills > 0 ? b.fills : 0) : l === 'blastnodrop' ? (b.noDrop === true ? 1 : 0) : undefined; }, false);
+              var exE = typeof nE === 'number' && nE >= 1 ? BC.diceAt(eEx, Math.min(100, Math.floor(nE)), rules.eachAdd === true) : ''; if (!exE) return;
+              var rE = window.wpDice && typeof window.wpDice.rollFor === 'function' ? window.wpDice.rollFor(b.rollBy || '', exE, (b.gm === true ? 'Blast' : (b.name || 'Blast')) + ' damage, ' + (r.tok.charName || r.tok.name || 'a thing in flight'), { gmOnly: b.gm === true, dmg: true, used: true }) : null;
+              if (!rE || !rE.ok || typeof rE.value !== 'number' || !isFinite(rE.value)) return; share = Math.max(0, Math.floor(rE.value));
+          }
+          if (fall) { share = BC.fallShare(F, fall, { dmg: share, dist: r.d, dice: dice, direct: dirE, centre: cenE, fills: b.fills, noDrop: b.noDrop, env: b.env, cell: blastCellOf(b, map), scale: 1 }); if (share === null) return; }
+          var amt = Math.floor(fillTotal ? share : S.coverDamage ? S.coverDamage(sys, tier, share) : share); if (!(amt > 0)) return;
+          var q = { amt: amt }; if (b.dtype) q.type = b.dtype; if (typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad;
+          if (window.wpFlyHit(r.tok, q)) n++;
+      });
+      if (n && window.wpStepLog) window.wpStepLog('fly v1', 'blast', { n: n });
+      return n;
+  }
+  // [vehiclecheck:flyblast-end]
   function applyBlastDamage(b, total, hpId, mapIn) {
       var camp = getActiveCampaign(), sys = camp && camp.system, S = window.wpSystemCore, F = window.wpFormula, map = mapIn || getActiveMap();
       if (!sys || !S || !F || !map) return;
       var rules = typeof blastRules === 'function' ? blastRules(sys) : null, BC = window.wpBlastCore, fall = rules && rules.fall && BC ? rules.fall : '', step = !!(fall && sys.combat && sys.combat.damage && typeof S.damageStep === 'function');
       if (typeof defendAsk === 'function' && defendAsk(b, total, hpId, map)) return;   // 1.6.0: a blast's own Defense roll: its share waits for the cards
-      var noRes = !hpId && !step; if (noRes) { toast('Full auto is on, but no damage resource is set (System editor ▸ Combat ▸ Damage subtracts from).'); if (!(b && b.frag && sys.combat && sys.combat.damage) && !(b && Array.isArray(b.aff) && b.aff.length)) return; }   // 1.5.9 (es): an affliction that reaches everyone in the blast goes on all the same   // the review of fold 3: the GM is told whether or not a fragmentation goes on through the damage step
+      var flyOn = !!(rules && rules.flying === true && typeof window.wpFlyHit === 'function');   // 1.6.2 (vehicles, fold (d)): things in flight need no damage resource
+      var noRes = !hpId && !step; if (noRes) { toast('Full auto is on, but no damage resource is set (System editor ▸ Combat ▸ Damage subtracts from).'); if (!(b && b.frag && sys.combat && sys.combat.damage) && !(b && Array.isArray(b.aff) && b.aff.length) && !flyOn) return; }   // 1.5.9 (es): an affliction that reaches everyone in the blast goes on all the same   // the review of fold 3: the GM is told whether or not a fragmentation goes on through the damage step
       var dfTx = b.defTx || null, byChar = dfTx ? dfTx.by : Object.create(null), hits = dfTx ? dfTx.hits : [], applied = 0, halved = 0, shielded = 0, spared = 0, dice = fall ? BC.diceCount(b.dmgExpr || '') : 0, types = step && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [];
       var typeOk = !!(b.dtype && types.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === String(b.dtype).toLowerCase(); }));
       var eEx = rules && rules.each && BC && typeof BC.diceAt === 'function' ? (b.dmgExpr || b.eachExpr || '') : '', eDice = eEx ? BC.diceCount(eEx) : 0, eVic = !!(eEx && eDice && rules.eachBy === 'victim'), owed = 0, eachN = 0;   // 1.6.0 (the core's gap 8): each victim's own dice
@@ -4846,9 +4881,11 @@ window.wpFitToGrid = fitToGrid;
           if (lines && window.wpNet && typeof window.wpNet.damageCard === 'function') window.wpNet.damageCard(ch, (b.name && b.gm !== true ? [b.name + ':'] : []).concat(lines, b.notes ? ['Notes: ' + b.notes] : []));   // what it did, to the GM and the character's player
           applied++;
       });
+      var flyN = flyOn && typeof flyBlastPass === 'function' ? flyBlastPass(b, map, sys, rules, total, fall, dice, eEx, eDice, fillTotal) : 0;   // 1.6.2 (vehicles, fold (d))
       var fp = typeof fragPass === 'function' ? fragPass(b, map, camp, sys, hpId, write, mark) : null, ap = typeof affPass === 'function' ? affPass(b, map, camp, sys, write, hurt) : null, fragNote = fp ? (fp.hit ? ' · fragmentation hit ' + fp.hit + ' token' + (fp.hit === 1 ? '' : 's') : '') + (fp.shielded ? ' · ' + fp.shielded + ' shielded from fragmentation' : '') : '';   // 1.5.9 (es)
-      var coverNote = (halved ? ' · ' + halved + ' behind cover took less' : '') + (shielded ? ' · ' + shielded + ' shielded by cover' : '') + (spared ? ' · ' + spared + ' took nothing' : '') + fragNote + (ap ? affNote(ap) : '') + (owed ? ' · ' + owed + ' to roll their own dice' : '');   // counts only: never a name (a hidden token counts too)   // 1.6.0 (the core's gap 8): and those whose card waits
+      var coverNote = (halved ? ' · ' + halved + ' behind cover took less' : '') + (shielded ? ' · ' + shielded + ' shielded by cover' : '') + (spared ? ' · ' + spared + ' took nothing' : '') + fragNote + (ap ? affNote(ap) : '') + (owed ? ' · ' + owed + ' to roll their own dice' : '') + (flyN ? ' · ' + flyN + ' in flight hit' : '');   // counts only: never a name (a hidden token counts too)   // 1.6.0 (the core's gap 8): and those whose card waits
       if (applied || (fp && fp.hit) || (ap && ap.on)) { _lastThrowTx = { hits: hits }; save(); syncBlastMenu(); if (b.notes) toast((b.name || 'The blast') + ': ' + b.notes); toast((!applied ? 'No blast damage' : eachN ? 'Blast damage applied to ' + applied + ' token' + (applied === 1 ? '' : 's') + ', each by its own dice' : fall ? 'Blast damage applied to ' + applied + ' token' + (applied === 1 ? '' : 's') + ' by distance' : '−' + total + ' to ' + applied + ' token' + (applied === 1 ? '' : 's')) + coverNote + '. Undo last throw is in the Radius options.'); }
+      else if (flyN) toast('The blast hit ' + flyN + ' in flight' + coverNote.replace(/ \u00b7 \d+ in flight hit$/, '') + '.');   // 1.6.2 (vehicles, fold (d)): what flies alone, which Undo last throw does not put back
       else if (owed) { if (b.notes) toast((b.name || 'The blast') + ': ' + b.notes); toast('Blast damage waits:' + coverNote.replace(/^ ·/, '') + '.'); }   // 1.6.0 (the core's gap 8)
       else if (shielded && !spared) toast('No damage: ' + shielded + ' token' + (shielded === 1 ? '' : 's') + ' shielded by cover.');
       else if (shielded || spared) toast('No damage:' + coverNote.replace(/^ ·/, '') + '.');

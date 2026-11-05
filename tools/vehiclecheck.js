@@ -367,7 +367,7 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         const wbE = read('scripts/whiteboard.js'), shE = read('scripts/sheets.js');
         check('the host hands MapCell to a blast\u2019s radius, each victim\u2019s dice, the falloff and fragmentation\u2019s reach, and HitScale with the victim\u2019s own sheet; a cell is worked out once a blast and kept on it',
             /l === 'blastradius' \? b\.ft \/ 3 : l === 'mapcell' \? b\.cell/.test(wbE) && /if \(l === 'mapcell'\) return blastCellOf\(b, map\); if \(l === 'hitscale'\) return S\.hitScaleOf \? S\.hitScaleOf\(sys, ch, F\)/.test(wbE)
-            && (wbE.match(/env: (o\.)?b\.env, cell: /g) || []).length === 2 && /l === 'mapcell' \? blastCellOf\(b, map\) : undefined/.test(wbE) && /function blastCellOf\(b, map\) \{/.test(wbE) && /\n      blastCellOf\(b, map\);   \/\/ 1\.6\.2/.test(wbE));
+            && (wbE.match(/env: (o\.)?b\.env, cell: /g) || []).length === 3 && /l === 'mapcell' \? blastCellOf\(b, map\) : undefined/.test(wbE) && /function blastCellOf\(b, map\) \{/.test(wbE) && /\n      blastCellOf\(b, map\);   \/\/ 1\.6\.2/.test(wbE));
         check('the Combat tab\u2019s Blasts and throws has the system\u2019s distance unit and a sheet\u2019s scale, each with its line, and the forms offer MapCell and HitScale', /^function blastScaleInto\(box, cm, bl\) \{/m.test(shE) && /labeledSelect\('sys-combat-bunit'/.test(shE) && /labeledSelect\('sys-combat-bscale'/.test(shE)
             && /'sys-combat-bfall': \['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop', 'MapCell', 'HitScale'\]/.test(shE) && S.nameWord(ES, 'MapCell') === 'one cell of the map' && S.nameWord(ES, 'HitScale') === 'the scale of the one it hits');
     }
@@ -465,6 +465,29 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         check('one whose item says so goes off at the end of its flight, four cells on toward the target', pieces().length === 0 && blasts.length === b1 + 1 && blasts[b1][0].direct === null && blasts[b1][0].x === 225, J(blasts.slice(b1)));
         win.fights = ['f_1']; E.wpFlyLaunch([{ by: 'c_k', f: 'f_gear', r: 'w_tube', def: itF(FS, 'i_msl'), from: 't_k', map: 'm1', target: 't_z' }]);
         check('with a fight on its map it waits for that fight’s rounds as before', pieces().length === 1 && pieces()[0].fly.left === 3); M.whiteboard.splice(M.whiteboard.indexOf(pieces()[0]), 1);
+        // a blast hurts things in flight (the core's answer (A)), off unless the Combat tab ticks it
+        check('Things in flight is kept only as true', S.cleanBlastRules({ flying: true }, F).flying === true && S.cleanBlastRules({ flying: 'yes' }, F) === null && !('flying' in (S.cleanBlastRules({ fuse: 'turn' }, F) || {})));
+        {
+            const slB = wb.slice(wb.indexOf('// [vehiclecheck:flyblast-start]'), wb.indexOf('// [vehiclecheck:flyblast-end]')), hitsB = [], rollsB = [];
+            const tk = (id, x, fly, extra) => Object.assign({ id, x, y: 0, w: 20, h: 20, isChar: true }, fly ? { fly: { hp: 3 } } : {}, extra || {});
+            const MB = { id: 'mB', whiteboard: [tk('f_near', 20, true), tk('f_far', 400, true), tk('f_wall', 40, true), tk('c_tok', 20, false, { charId: 'c_k' })] };
+            const winB = { wpSystemCore: { coverOutcome: (s, t) => t && t.block ? 'none' : 'full', coverDamage: (s, t, a) => a }, wpFormula: F, wpBlastCore: { fallShare: (F2, f, o) => Math.max(0, o.dmg - o.dist), diceAt: (e, n) => n + 'd6', envRead: () => 0 },
+                wpFog: { coverAt: (x, y, t) => ({ block: t.id === 'f_wall' }) }, wpFlyHit: (t, q) => { hitsB.push([t.id, q]); return true; }, wpDice: { rollFor: (...a) => { rollsB.push(a); return { ok: true, value: 7 }; } } };
+            const PB = new Function('window', 'blastDistances', 'shapeHolds', 'stanceOn', 'sameCellOn', 'tokenCentre', 'blastFig', 'blastCellOf', slB + '\nreturn flyBlastPass;')(winB,
+                (b, m) => m.whiteboard.map(t => ({ tok: t, d: t.x / 10 })), (b, r) => r.d <= 10, () => false, () => false, t => ({ x: t.x, y: t.y }), (f, look) => look('blastdistance') < 3 ? 2 : 1, () => 1);
+            const bB = { x: 0, y: 0, dtype: 'cut', ad: 2 }, nB = PB(bB, MB, {}, {}, 8, 'fall', 2, '', 0, false);
+            check('a blast that hurts things in flight gives each inside its radius its share at its distance through its wound by Protection, never one outside it, one behind a wall that stops it, or a character', nB === 1 && hitsB.length === 1 && hitsB[0][0] === 'f_near' && J(hitsB[0][1]) === J({ amt: 6, type: 'cut', ad: 2 }), J(hitsB));
+            hitsB.length = 0; const nE = PB(bB, MB, {}, { each: 'x' }, 8, '', 2, '3d6', 3, false);
+            check('where each victim rolls its own dice, a thing in flight has its own rolled at once by the host, nobody owning it', nE === 1 && rollsB.length === 1 && rollsB[0][1] === '2d6' && hitsB[0][1].amt === 7, J([rollsB, hitsB]));
+        }
+        {
+            const wbA = wb;
+            check('the blast pass asks it only where the Combat tab ticks Things in flight, which needs no damage resource, says how many it hit, and fragmentation reaches a thing in flight as any token',
+                /var flyOn = !!\(rules && rules\.flying === true && typeof window\.wpFlyHit === 'function'\);/.test(wbA) && /&& !flyOn\) return; \}/.test(wbA) && /var flyN = flyOn && typeof flyBlastPass === 'function' \? flyBlastPass\(/.test(wbA) && /else if \(flyN\) toast\('The blast hit ' \+ flyN \+ ' in flight'/.test(wbA)
+                && /\(flyF && r\.tok\.fly && !r\.tok\.charId\)/.test(wbA) && /if \(window\.wpFlyHit\(rf\.tok, qY\)\) hit\+\+; return;/.test(wbA));
+            const shB = read('scripts/sheets.js');
+            check('the Combat tab sets it with a list of its own', /labeledSelect\('sys-combat-bflying', 'Things in flight'/.test(shB) && /else if \(yk\) \{ if \(t\.value === 'hit'\) bl\.flying = true; else delete bl\.flying; \}/.test(shB));
+        }
         const blind = new Function('window', 'getActiveCampaign', 'getActiveMap', 'tokenCentre', 'state', 'save', 'render', 'toast', 'placeThrownBlast', slF + '\nreturn window;')({ wpSystemCore: S, wpBlastCore: BC, wpNet: { active: true, role: 'client' } }, () => camp, () => M, () => ({ x: 0, y: 0 }), {}, () => {}, () => {}, () => {}, () => {});
         check('a player\u2019s app launches, moves and shoots down nothing', blind.wpFlyLaunch([{ by: 'c_k', f: 'f_gear', r: 'w_tube', def: itF(FS, 'i_msl'), from: 't_k', map: 'm1', target: 't_z' }]) === 0 && blind.wpFlyRound('m1', { n: 1, round: 1 }) === 0 && blind.wpFlyHit({ fly: {} }, { amt: 1 }) === false);
         const ntD = fs.readFileSync(app('scripts/net.js'), 'latin1').replace(/\r\n/g, NL), shD = read('scripts/sheets.js');
@@ -484,7 +507,7 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
     check('both release notes say the random row and the crew’s cards', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /a row picked at random from a\n  list with a switch/.test(readRoot(p)) && /Calls for can send its card to the crew/.test(readRoot(p))));
     check('Help says the system\u2019s distance unit, a cell of the map and a sheet\u2019s scale, in plain words', /<b>The system&rsquo;s distances count in<\/b>/.test(help) && /<b>A sheet&rsquo;s scale is<\/b>/.test(help));
     check('both release notes say a blast at scale', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A blast's formulas can now read one cell of the map/.test(readRoot(p))));
-    check('Help says what flies once launched, in plain words', help.includes('<b>Fly once launched</b>') && help.includes('A change set to <b>Launch</b>') && help.includes('Shoot a thing in flight with a damage card') && help.includes('With no fight on its map it flies its whole flight at once.'));
+    check('Help says what flies once launched, in plain words', help.includes('<b>Fly once launched</b>') && help.includes('A change set to <b>Launch</b>') && help.includes('Shoot a thing in flight with a damage card') && help.includes('With no fight on its map it flies its whole flight at once.') && help.includes('The Combat tab&rsquo;s <b>Things in flight</b> may let a blast hurt them.'));
     check('both release notes say what flies once launched', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /An item can now fly once launched, as a missile does/.test(readRoot(p))));
     check('Help says map kinds, in plain words', /<b>Map kinds<\/b>/.test(help) && /<b>Map kind<\/b>/.test(help));
     check('both release notes say map kinds', ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(p => /A map can now be switched to a scale the system names/.test(readRoot(p))));

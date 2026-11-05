@@ -10283,6 +10283,7 @@ function blastBox(box, cm) {
         box.appendChild(labeledSelect('sys-combat-bnodrop', 'An item no drop answers by', stO('noDrop'), typeof bl.noDrop === 'string' ? bl.noDrop : '', NO_DROP_LINE)); lineUnder(box, NO_DROP_LINE);
     }
     if (typeof blastScaleInto === 'function') blastScaleInto(box, cm, bl);   // 1.6.2 (vehicles, fold (e))
+    { box.appendChild(labeledSelect('sys-combat-bflying', 'Things in flight', [['', 'A blast passes them by'], ['hit', 'A blast hurts them as any token']], bl.flying === true ? 'hit' : '', FLYING_LINE)); lineUnder(box, FLYING_LINE); }   // 1.6.2 (vehicles, fold (d))
     { box.appendChild(labeledSelect('sys-combat-beachadd', 'A die each victim loses', [['', 'Leaves the adds whole'], ['go', 'Takes its add with it']], bl.eachAdd === true ? 'go' : '', EACH_ADD_LINE)); lineUnder(box, EACH_ADD_LINE); }   // 1.6.0 (the core's rule on gap 8)
     { box.appendChild(labeledSelect('sys-combat-beachby', 'Each victim\u2019s dice rolled by', [['', 'The GM, each at once'], ['victim', 'The victim, from a card']], bl.eachBy === 'victim' ? 'victim' : '', EACH_BY_LINE)); lineUnder(box, EACH_BY_LINE); }   // 1.6.0 (the core's gap 8)
     box.appendChild(labeledSelect('sys-combat-bways', 'Ways a miss goes', [['6', 'Six, a d6 (the sides of a hex)'], ['8', 'Eight']], bl.ways === 8 ? '8' : '6', 'How many ways a miss may scatter from its aim, rolled as a die'));
@@ -10364,15 +10365,17 @@ function resistSays(v) {   // what Save does with the Resist roll: '' where it k
     var SCr = window.wpSystemCore; if (!v || !SCr || typeof SCr.cleanBlastRules !== 'function') return '';
     var c = SCr.cleanBlastRules({ resist: v }, F()); return c && c.resist ? '' : 'Save drops it: it does not read as a formula.';
 }
+var FLYING_LINE = 'A missile or anything else in flight inside a blast takes its share at its distance, less its Protection. Cover and fragmentation count as for any token.';
 var FRAG_TYPE_LINE = 'The damage type of fragmentation whose item names none. With none, the blast\u2019s own type.';
 var BLAST_KIND_LINE = 'The kind of blow a blast\u2019s shares and its fragmentation carry. With none, they carry no kind.';   // 1.6.0
 function onBlastChange(t) {   // the lists of the Blasts and throws part
-    var c = t && t.className || '', lk = /(^| )sys-combat-bl(fuse|fumble|stop|glance)( |$)/.exec(c), fk = /(^| )sys-combat-fg(type|cover|each|direct|ad)( |$)/.exec(c), hk = /(^| )sys-combat-affhurt( |$)/.test(c), ek = /(^| )sys-combat-beachby( |$)/.test(c), ak = /(^| )sys-combat-beachadd( |$)/.test(c), kk = /(^| )sys-combat-bkind( |$)/.test(c), sk = /(^| )sys-combat-b(fills|fillcover|nodrop)( |$)/.exec(c); if (c.indexOf('sys-combat-bways') < 0 && c.indexOf('sys-combat-bfuse') < 0 && !lk && !fk && !hk && !ek && !ak && !kk && !sk) return false;
+    var c = t && t.className || '', lk = /(^| )sys-combat-bl(fuse|fumble|stop|glance)( |$)/.exec(c), fk = /(^| )sys-combat-fg(type|cover|each|direct|ad)( |$)/.exec(c), hk = /(^| )sys-combat-affhurt( |$)/.test(c), ek = /(^| )sys-combat-beachby( |$)/.test(c), ak = /(^| )sys-combat-beachadd( |$)/.test(c), kk = /(^| )sys-combat-bkind( |$)/.test(c), sk = /(^| )sys-combat-b(fills|fillcover|nodrop)( |$)/.exec(c), yk = /(^| )sys-combat-bflying( |$)/.test(c); if (c.indexOf('sys-combat-bways') < 0 && c.indexOf('sys-combat-bfuse') < 0 && !lk && !fk && !hk && !ek && !ak && !kk && !sk && !yk) return false;
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : (cm.blast = {});
     if (sk) { var skK = sk[2] === 'fills' ? 'fills' : sk[2] === 'nodrop' ? 'noDrop' : 'fillCover'; if (t.value) bl[skK] = String(t.value).slice(0, 24); else delete bl[skK]; if (skK === 'fills' && !bl.fills) delete bl.fillCover; if (!Object.keys(bl).length) delete cm.blast; markDirty(); patchErrors(); if (skK === 'fills') renderCombat(); return true; }   // 1.6.0: the stats an item fills and refuses a drop by
     if (kk) { if (t.value) bl.kind = String(t.value).slice(0, 24); else delete bl.kind; }   // 1.6.0: the kind of blow it carries
     else if (ak) { if (t.value === 'go') bl.eachAdd = true; else delete bl.eachAdd; }   // 1.6.0 (the core's rule on gap 8): a lost die's add
     else if (ek) { if (t.value === 'victim') bl.eachBy = 'victim'; else delete bl.eachBy; }   // 1.6.0 (the core's gap 8): who rolls each victim's dice
+    else if (yk) { if (t.value === 'hit') bl.flying = true; else delete bl.flying; }   // 1.6.2 (vehicles, fold (d)): a blast hurts things in flight
     else if (hk) { if (t.value === 'share') bl.hurt = 'share'; else delete bl.hurt; }   // 1.5.9 (es) H7: whom an affliction that reaches those it hurts reaches, kept only off the plan's reading
     else if (fk) {   // 1.5.9 (es): fragmentation, kept only off the plan's reading
         var fo = bl.frag && typeof bl.frag === 'object' && !Array.isArray(bl.frag) ? bl.frag : (bl.frag = {}), fv = String(t.value || '');

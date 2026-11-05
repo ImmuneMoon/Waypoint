@@ -199,6 +199,47 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }, true);
   }
   // [textcheck:pbeadd-end]
+  // [textcheck:pbebar-start]
+  // One bar at the top (1.6.2, backlog 171; the owner, by prompt: "One bar at the top"). Each text block keeps its own bar in the page, so
+  // what a press does is wired as it always was; only the bar of the block in use shows, held at the top of the editor, over a greyed
+  // copy that stands there while no text block is in use
+  function pbeBarSlot(wrap) {
+      var slot = document.getElementById('pbeBarSlot');
+      if (!slot) { slot = document.createElement('div'); slot.id = 'pbeBarSlot'; slot.className = 'pbe-barslot'; wrap.insertBefore(slot, wrap.firstChild); }
+      return slot;
+  }
+  function pbeBarIdle(wrap, container) {
+      if (!wrap || !container) return;
+      var slot = pbeBarSlot(wrap), first = container.querySelector('.rte > .rte-bar');
+      while (slot.firstChild) slot.removeChild(slot.firstChild);
+      slot.hidden = !first;
+      if (!first) return;
+      var idle = first.cloneNode(true); idle.className = 'pbe-idlebar'; idle.setAttribute('aria-hidden', 'true');
+      Array.prototype.forEach.call(idle.querySelectorAll('button, input, select'), function(c) { c.disabled = true; c.tabIndex = -1; c.removeAttribute('id'); });
+      var say = document.createElement('span'); say.className = 'pbe-idlesay'; say.textContent = 'Click in a text block to style its words';
+      idle.appendChild(say); slot.appendChild(idle);
+      pbeBarPlace(wrap);
+  }
+  function pbeBarPlace(wrap) {
+      var slot = document.getElementById('pbeBarSlot'); if (!wrap || !slot || slot.hidden) return;
+      var r = (slot.firstChild || slot).getBoundingClientRect();
+      wrap.style.setProperty('--pbe-top', Math.round(r.top) + 'px'); wrap.style.setProperty('--pbe-left', Math.round(r.left) + 'px'); wrap.style.setProperty('--pbe-w', Math.round(r.width) + 'px');
+  }
+  function pbeBarOn(wrap, rte) {
+      Array.prototype.forEach.call(wrap.querySelectorAll('.rte.rte-on'), function(o) { if (o !== rte) o.classList.remove('rte-on'); });
+      if (rte) { pbeBarPlace(wrap); rte.classList.add('rte-on'); }
+      wrap.classList.toggle('pbe-bar-on', !!rte);
+  }
+  function pbeBarWire(wrap) {
+      if (!wrap || wrap._pbeBar) return; wrap._pbeBar = true;
+      wrap.addEventListener('focusin', function(e) { var rte = e.target && e.target.closest ? e.target.closest('.rte') : null; if (rte) pbeBarOn(wrap, rte); });
+      wrap.addEventListener('focusout', function() {
+          setTimeout(function() { var a = document.activeElement, rte = a && a.closest ? a.closest('.rte') : null; if (!rte || !wrap.contains(rte)) pbeBarOn(wrap, null); }, 0);
+      });
+      wrap.addEventListener('scroll', function() { pbeBarPlace(wrap); }, { passive: true });
+      window.addEventListener('resize', function() { pbeBarPlace(wrap); });
+  }
+  // [textcheck:pbebar-end]
   // [sinkcheck:boxes-start]
   // [textcheck:fields-start]
   var TS_PLAIN = '.b-title, .b-sub, .b-must, .b-caption, .b-colhead, .r-col, .fc-n-text, .fc-e-text';   // the editor boxes that hold a plain field
@@ -1771,6 +1812,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }));
       Array.from(blockContainer.querySelectorAll('.b-content')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].content = this.value; save(false); if(activeMap.blocks[this.dataset.idx].type !== 'diagram') renderPlannerPreview(); }));
       wireRte(blockContainer);
+      var _pbeWrap = document.getElementById('plannerEditorWrap'); pbeBarWire(_pbeWrap); pbeBarIdle(_pbeWrap, blockContainer); pbeBarOn(_pbeWrap, null);   // one bar at the top (backlog 171)
 
       
 
@@ -1951,7 +1993,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           return '<button type="button" class="rte-btn" data-cmd="' + k.c + '" title="' + k.t + '" tabindex="-1">' + k.l + '</button>';
       }).join('');
       return '<div class="rte" data-idx="' + idx + '"><div class="rte-bar">' + bar + '</div>'
-          + '<div class="field rte-body" contenteditable="true" data-idx="' + idx + '" data-placeholder="Write here — select text and use the bar, or Ctrl+B / I / U" spellcheck="true">' + rteInitial(b) + '</div></div>';
+          + '<div class="field rte-body" contenteditable="true" data-idx="' + idx + '" data-placeholder="Write here. Type / on an empty line for another kind of block." spellcheck="true">' + rteInitial(b) + '</div></div>';
   }
   // [sinkcheck:rtebar-end]
   function rteSyncBar(body) {

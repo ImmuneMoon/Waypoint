@@ -2360,6 +2360,15 @@
   .pbe-kind small { color: var(--dim); font-size: 10.5px; margin-left: auto; }
   .pbe-kind:hover, .pbe-kind.on { background: rgba(224,165,79,0.14); color: var(--gold); }
   .pbe-none { color: var(--dim); font-size: 12px; padding: 8px 6px; }
+  /* 1.6.2, backlog 171: one formatting bar at the top of the editor. Each text block's own bar stays in the page and shows, held over the
+     greyed copy at the top, only while that block is in use */
+  #plannerEditorWrap .rte > .rte-bar { display: none; }
+  #plannerEditorWrap .rte.rte-on > .rte-bar { display: flex; position: fixed; top: var(--pbe-top, 0px); left: var(--pbe-left, 0px); width: var(--pbe-w, 400px); z-index: 60; margin: 0; box-shadow: 0 4px 12px rgba(0,0,0,.35); }
+  .pbe-barslot { position: sticky; top: -15px; z-index: 50; margin: -15px -15px 12px; padding: 8px 15px; background: var(--bg2); border-bottom: 1px solid var(--edge); }
+  .pbe-barslot[hidden] { display: none; }
+  .pbe-idlebar { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; opacity: .45; pointer-events: none; }
+  .pbe-idlesay { color: var(--dim); font-size: 11px; margin-left: 6px; }
+  #plannerEditorWrap.pbe-bar-on .pbe-idlebar { visibility: hidden; }
   .pbe-cap { color: var(--dim); font-size: 10.5px; margin: 2px 0 3px; }   /* 1.6.2, backlog 171: a box's name above it */
   .fc-e-end { display: flex; flex-direction: column; flex: 1; min-width: 0; }
   .fc-e-end select { width: 100%; }

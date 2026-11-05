@@ -351,6 +351,8 @@ Writing planners and pages
 - A block is named by what it is, such as Title, Lead text or Scene, and
   each box has its name above it. A flowchart's arrow picks the steps it
   joins by their own words.
+- One formatting bar stands above the blocks and styles the text block
+  you are in. It is greyed until you click into one.
 
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.

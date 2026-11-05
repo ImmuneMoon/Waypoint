@@ -367,7 +367,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       guardSwitch(function() {
           state.appState.activeCampaignId = pick;
           state.selId = null; state.selWbId = null; state.linkStart = null;
+          if (campaignSelect.value !== pick) campaignSelect.value = pick;   // 1.6.2: a switch asked for from code (not the list) still shows the campaign on screen, in the list and the top row
           updateSidebarNav(); render(); save(true);
+          if (window.wpTopRow && window.wpTopRow.sync) window.wpTopRow.sync();
           setTimeout(function(){ if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
           if (done) done();
       }, updateCampaignSelect);   // cancelled: the picker shows the hosted campaign again

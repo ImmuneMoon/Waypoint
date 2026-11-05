@@ -8254,8 +8254,8 @@ function buildMatsDraw(BC) {
     _build.drawn = sig;
     var keepTop = body.scrollTop, menuEl = document.getElementById('buildMenu'), keepMenu = menuEl ? menuEl.scrollTop : 0, aeB = document.activeElement, keepFold = aeB && body.contains(aeB) && aeB.classList.contains('build-fold') ? aeB.getAttribute('data-fold') : null;   // a fold pressed is the focus: drawing it anew drops the palette's scroll unless it is kept
     while (body.firstChild) body.removeChild(body.firstChild);
-    if (pins.length) { body.appendChild(buildHead('Your palette')); body.appendChild(buildCells(BC, pins, pins)); }
-    if (used.length) { body.appendChild(buildHead('On this map')); body.appendChild(buildCells(BC, used, pins)); }
+    var strip = pins.concat(used.filter(function(id) { return pins.indexOf(id) < 0; }));   // 1.6.2 (the owner, by prompt: "One strip"): your pins first, then what this map uses, each once
+    if (strip.length) { body.appendChild(buildHead('Pinned and on this map')); body.appendChild(buildCells(BC, strip, pins)); }
     var any = false;
     BC.MAT_KINDS.forEach(function(k) {
         var ids = k.ids.filter(function(id) { return buildShown(BC, id); }); if (!ids.length) return;
@@ -8293,6 +8293,56 @@ function buildSync() {
     var cwl = document.getElementById('buildCorridorWalls'), cln = document.getElementById('buildCorridorLine');
     if (cwl) cwl.checked = _build.walls === true;
     if (cln) cln.hidden = _build.shape !== 'corridor';
+    var lf = document.getElementById('buildLookFold'); if (lf) lf.textContent = buildLookWords();   // 1.6.2: the folded look says what it is
+}
+// 1.6.2, backlog 171 (the owner, 2026-11-05, by prompt: "Three tabs", "A Generate tab"): Build's options stand in three tabs, Build, Objects
+// and Generate, each with one scroll. Every control keeps its id and its place in the page: a tab only puts away what is not its own,
+// read from the page in its order (a part runs from where it begins to where the next begins), and the generators stand as three cards
+var BUILD_TABS = ['build', 'objects', 'generate'];
+function buildTabNow() { try { var t = localStorage.getItem('wp_buildTab'); return BUILD_TABS.indexOf(t) >= 0 ? t : 'build'; } catch (e) { return 'build'; } }
+function buildTabSet(t, keep) {
+    var m = document.getElementById('buildMenu'), tabs = document.getElementById('buildTabs'); if (!m || BUILD_TABS.indexOf(t) < 0) return false;
+    m.setAttribute('data-btab', t);
+    if (tabs && tabs.querySelectorAll) Array.prototype.forEach.call(tabs.querySelectorAll('.build-tab'), function(b) { var on = b.getAttribute('data-btab') === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
+    if (keep) { try { localStorage.setItem('wp_buildTab', t); } catch (e) {} }
+    return true;
+}
+function buildTabsWire() {
+    var m = document.getElementById('buildMenu'), tabs = document.getElementById('buildTabs'); if (!m || !tabs || m._btabs || !m.children) return; m._btabs = true;
+    var part = 'build';
+    Array.prototype.forEach.call(m.children, function(c) {
+        if (c === tabs || c.id === 'buildHint') return;
+        if (c.nextElementSibling && c.nextElementSibling.id === 'buildObjRows') part = 'objects';   // the Map objects label begins the Objects tab
+        if (c.id === 'buildGenBtn') part = 'generate';
+        c.setAttribute('data-bpart', part);
+    });
+    var gens = ['buildGenBtn', 'buildCityBtn', 'buildWorldBtn'].map(function(id) { return document.getElementById(id); }).filter(Boolean);
+    if (gens.length && gens[0].parentNode) { var box = document.createElement('div'); box.className = 'build-gens'; box.setAttribute('data-bpart', 'generate'); gens[0].parentNode.insertBefore(box, gens[0]); gens.forEach(function(b) { box.appendChild(b); }); }   // three cards, in their order
+    Array.prototype.forEach.call(tabs.querySelectorAll('.build-tab'), function(b) {
+        b.addEventListener('click', function(ev) { ev.stopPropagation(); buildTabSet(b.getAttribute('data-btab'), true); });
+        b.addEventListener('keydown', function(ev) {
+            var at = BUILD_TABS.indexOf(b.getAttribute('data-btab')), to = ev.key === 'ArrowRight' ? at + 1 : ev.key === 'ArrowLeft' ? at - 1 : ev.key === 'Home' ? 0 : ev.key === 'End' ? BUILD_TABS.length - 1 : -2;
+            if (to === -2) return; ev.preventDefault(); ev.stopPropagation(); to = (to + BUILD_TABS.length) % BUILD_TABS.length;
+            buildTabSet(BUILD_TABS[to], true); var nb = tabs.querySelector('[data-btab="' + BUILD_TABS[to] + '"]'); if (nb && nb.focus) nb.focus();
+        });
+    });
+    buildTabSet(buildTabNow(), false);
+}
+// The texture and the colour fold into one line that says what they are (the owner's pick: "Three tabs", with the look folded)
+function buildLookOpen() { try { return localStorage.getItem('wp_buildLook') === '1'; } catch (e) { return false; } }
+function buildLookWire() {
+    var m = document.getElementById('buildMenu'), tx = document.getElementById('buildTexture'), cr = document.getElementById('buildColorRow'); if (!m || !tx || !cr || m._blook || !tx.parentNode) return; m._blook = true;
+    var row = tx.parentNode, lab = row.previousElementSibling, parts = [lab, row, document.getElementById('buildTileRow'), document.getElementById('buildTileLine'), cr.previousElementSibling, cr];
+    parts.forEach(function(p) { if (p && p.classList) p.classList.add('build-look-part'); });
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'build-lookfold'; b.id = 'buildLookFold'; b.title = 'The pattern and the colour of what you lay. Press to change them.';
+    if (lab && lab.parentNode) lab.parentNode.insertBefore(b, lab);
+    b.addEventListener('click', function(ev) { ev.stopPropagation(); var on = !m.classList.contains('look-open'); m.classList.toggle('look-open', on); b.setAttribute('aria-expanded', on ? 'true' : 'false'); try { localStorage.setItem('wp_buildLook', on ? '1' : '0'); } catch (e) {} });
+    var on0 = buildLookOpen(); m.classList.toggle('look-open', on0); b.setAttribute('aria-expanded', on0 ? 'true' : 'false');
+}
+function buildLookWords() {   // "Look: Bricks, dark stone": the texture as the list names it, and the colour by its swatch's name
+    var ts = document.getElementById('buildTexture'), o = ts && ts.options && ts.selectedIndex >= 0 ? ts.options[ts.selectedIndex] : null, tex = _build.shape === 'line' ? '' : (o ? String(o.textContent || '') : '');
+    var sw = document.querySelector('#buildColorRow .build-sw.active'), col = sw ? String(sw.getAttribute('title') || '').toLowerCase() : 'your own colour';
+    return 'Look: ' + (tex ? tex + ', ' : '') + col;
 }
 function buildPick(change) {   // a choice in the options: kept, shown, and the board armed for it while Build is in hand
     if (change() === false) return;
@@ -8478,6 +8528,7 @@ function buildWire() {   // the options' own controls, each once
     if (wbWrap) wbWrap.addEventListener('pointermove', buildMove);
     document.addEventListener('keydown', buildKey);
     wireTool({ id: 'buildModeBtn', chev: 'buildOptBtn', inHand: function() { return !!window.isBuildMode; }, sync: buildSync, take: buildTake });
+    buildTabsWire(); buildLookWire();   // 1.6.2, backlog 171: the three tabs and the folded look
 }
 // [buildcheck:buildtool-end]
 buildWire();

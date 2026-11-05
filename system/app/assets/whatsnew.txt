@@ -346,6 +346,14 @@ Settings
   with your profile as your keys do.
 - A list that is drawn again when you press in it keeps its place: Build's
   materials, Keys, the NPCs under Characters, the bell and the Image Library.
+
+Build
+- Build's options stand in three tabs. Build holds the materials and the
+  shape with one scroll, Objects your map objects, and Generate the dungeon,
+  city and world as three cards. Look, under the shape, opens the texture
+  and the colour and says what they are while shut.
+- Your pins and what the map uses stand in one strip, each material once.
+  A material's name is never cut by the row under it.
 - On or off is a switch at the right end of its row. In This campaign each
   feature has two: Here for the campaign on screen, and New for a campaign
   you make later. A feature's own settings stand under it, greyed while it

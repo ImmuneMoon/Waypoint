@@ -332,6 +332,9 @@ Animated dice
 - Dice on a roll, in Settings, shows them over the map instead, or turns them
   off. It is your own choice and changes nobody else's screen. With Reduce
   motion the dice show already landed.
+- Paint your dice, in Settings or on the dice roller, picks the colours and
+  the pattern your dice are drawn in. Start from one of eight ready sets, then
+  change any colour. Everyone at the table sees your rolls in your look.
 
 Drawings to show
 - The pen now makes two kinds of drawing. On the map is what it always

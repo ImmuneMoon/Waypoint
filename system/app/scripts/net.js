@@ -9741,7 +9741,7 @@ function handleMessage(msg, conn) {
         if (chQ && !q.att && typeof offTurnWarn === 'function') offTurnWarn(campQ, turnChQ, q.act, rowGQ, q.label || (actQ && actQ.label), conn);   // 1.6.0: nothing refused it, so a warning is said
         var tgQ = actQ && typeof SQ.toGmOf === 'function' ? SQ.toGmOf(q.row && viewQ ? ((viewQ.fields || []).filter(function(f) { return f && f.id === q.row.f; })[0] || {}).list : null, actQ) : null;   // HR1: it goes straight to the GM
         var restQ = function(resQ, heldQ) {   // 1.6.2 (G5): all that follows a roll, which a roll with card actions holds until it is accepted
-        var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid }; if (heldQ) recQ.id = heldQ;
+        var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid }; if (heldQ) recQ.id = heldQ; if (q.dl) recQ.dl = q.dl;
         var blowRecQ = q.att && typeof attemptRec === 'function' ? attemptRec(q.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
         if (q.att && typeof attemptDrop === 'function') attemptDrop(q.att);   // 1.6.0 (B2): an attempt is resisted once
         var mfQ = null; if (actQ && actQ.malf && varsQ) { var mqQ = Fq.evaluate(actQ.malf, { vars: varsQ }); if (mqQ.ok && typeof mqQ.value === 'number' && isFinite(mqQ.value)) mfQ = Math.max(1, Math.min(1000000, Math.round(mqQ.value))); }   // Stage 6 HUD R3: its Malf, through their view
@@ -9811,7 +9811,7 @@ function handleMessage(msg, conn) {
         if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : recQ.body === 1 ? true : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv, q.row, recQ.big === true); attemptCalled(campQ, blowRecQ, q.act, rowGQ, pcQ, chQ, !!recQ.priv, tcQ); if (typeof holdsRolled === 'function' && typeof SQ.holdRefOf === 'function') holdsRolled(campQ, chQ, actQ, holdRefQ(campQ, q, actQ), pcQ, tcQ, blowRecQ, atQ); }   // 1.6.0: Calls for, with its Then landed; Who holds whom
         if (actQ && actQ.burst && q.row && typeof burstAfter === 'function') burstAfter(campQ, chQ, actQ, q.row, resQ, ruleQ, mfQ !== null && Dq.naturalOf(resQ) >= mfQ, typeof taQ !== 'undefined' ? taQ : null, tcQ, saveRemoteSoon);   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
         };
-        var heldCQ = chQ && actQ && !tgQ && typeof cardHold === 'function' ? cardHold({ asked: typeof askedQ !== 'undefined' ? askedQ : null, S: SQ, D: Dq, F: Fq, camp: campQ, ent: cardEnt(campQ, q.act, rowGQ, actQ), res: resQ, expr: q.expr, vars: varsQ, tc: tcQ, ch: chQ, pid: pidQ, conn: conn, priv: q.priv === 'gm', from: diceFrom(net.roster[conn.peer], false), rid: q.rid, label: q.label, as: String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label), cid: q.charId, go: function(r, e, id, st) { q.expr = e; if (st) varsQ.bandStep = st; restQ(r, id); } }) : false;
+        var heldCQ = chQ && actQ && !tgQ && typeof cardHold === 'function' ? cardHold({ dl: q.dl || null, asked: typeof askedQ !== 'undefined' ? askedQ : null, S: SQ, D: Dq, F: Fq, camp: campQ, ent: cardEnt(campQ, q.act, rowGQ, actQ), res: resQ, expr: q.expr, vars: varsQ, tc: tcQ, ch: chQ, pid: pidQ, conn: conn, priv: q.priv === 'gm', from: diceFrom(net.roster[conn.peer], false), rid: q.rid, label: q.label, as: String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label), cid: q.charId, go: function(r, e, id, st) { q.expr = e; if (st) varsQ.bandStep = st; restQ(r, id); } }) : false;
         if (!heldCQ) restQ(resQ);
         // [netcheck:rollreq-end]
     } else if (msg.type === 'hit-ask' && net.role === 'host') {
@@ -11498,7 +11498,7 @@ function swPayDo(ch, plan) {
 function cardPayAct(o, a) { var hit = null; (Array.isArray(o.camp.system.rolls) ? o.camp.system.rolls : []).forEach(function(r) { if (r && r.id === a.pay && Array.isArray(r.apply)) hit = r; }); return hit; }
 function cardSend(h, offers) {
     var o = h.o, rec = { type: 'roll', id: h.id, from: o.from, expr: h.expr, draws: h.res.draws, v: o.F.VERSION, ts: Date.now(), pend: h.wait, offers: offers }, ptsS = cardPoints(h); if (ptsS) rec.pts = ptsS;
-    if (o.rid) rec.rid = o.rid; if (o.label) rec.label = o.label; if (o.as) rec.as = o.as; if (o.priv) rec.priv = 'gm'; if (o.asked && o.asked.length) rec.asked = o.asked;
+    if (o.dl) rec.dl = o.dl; if (o.rid) rec.rid = o.rid; if (o.label) rec.label = o.label; if (o.as) rec.as = o.as; if (o.priv) rec.priv = 'gm'; if (o.asked && o.asked.length) rec.asked = o.asked;
     if (h.res.breakdown && h.res.breakdown.names && h.res.breakdown.names.length) { var nmH = o.D.cleanNames(h.res.breakdown.names); if (nmH && nmH.length) rec.names = nmH; }   // what its formula read, without which no other machine can draw the card
     if (o.conn) { if (o.priv) { try { o.conn.send(rec); } catch (e) { sendFailed(e); } } else sendTable(rec, null); } else if (!o.priv) sendTable(rec, null);
     pushRoll(rec, h.res, o.priv ? 'whisper' : 'global', { cid: o.cid });
@@ -11659,6 +11659,8 @@ function diceSessionReset(clearChat) {
 }
 // Roll from here: a client asks the host; a host or a solo GM rolls at once. Returns { ok } or { error, pos?, len? }.
 // [netcheck:diceroll-start]
+// 1.6.2, backlog 212 fold 3: this computer's own dice look, which its rolls carry so that every screen draws them in it
+function rollLookOwn() { var D = DC(); return D && typeof D.cleanDiceLook === 'function' && window.wpDice3d && typeof window.wpDice3d.look === 'function' ? D.cleanDiceLook(window.wpDice3d.look()) : null; }
 net.diceRoll = function(expr, o) {
     o = o || {}; var D = DC(), F = window.wpFormula;
     var atN = net._attNext; if (atN && !o.att && o.charId === atN.charId && (((o.act === atN.act || !o.act) && !o.row && !atN.row) || (atN.row && o.row && !o.act && o.row.f === atN.row.f && o.row.r === atN.row.r && o.row.i === atN.row.i))) { o = Object.assign({}, o, atN.act ? { act: atN.act } : null, { att: atN.att }); net._attNext = null; }   // 1.6.0: a plain roll's button names nothing, so the card names it, and the first roll takes it: a blast its answer lets go rolls as itself   // 1.6.0: or a list's roll on one row   // 1.6.0 (B2): a resist card's press (sheets.js runDue) names the attempt it answers
@@ -11675,6 +11677,7 @@ net.diceRoll = function(expr, o) {
         if (o.charId) req.charId = o.charId;
         if (o.by && o.charId) req.by = String(o.by);   // 1.6.0: the crew sheet that pressed it
         if (o.label) req.label = String(o.label).slice(0, D.LIMITS.label);
+        var dlS = rollLookOwn(); if (dlS) req.dl = dlS;   // 1.6.2: the dice look, which the host passes on as it is cleaned
         if (o.src && o.charId) req.src = o.src;   // 1.6.2: which button it came from, for a sound on it
         if (o.row && o.charId) { req.row = { f: String(o.row.f), r: String(o.row.r) }; if (typeof o.row.k === 'string') req.row = { f: String(o.row.f), k: o.row.k }; if (typeof o.row.i === 'number') req.row.i = o.row.i; if (typeof o.row.i === 'number' && typeof o.row.lv === 'number') req.row.lv = o.row.lv; }   // R2b: a list's roll with consequences or needs names its index
         if (o.charId && ((o.act && !o.row) || (o.fr && !o.act && !o.row) || (o.row && typeof o.row.i === 'number'))) { if (o.act && !o.row) req.act = String(o.act); if (o.fr && !o.act && !o.row) req.fr = String(o.fr); if (Array.isArray(o.sw) && o.sw.length) req.sw = o.sw.slice(0, D.LIMITS.swPicks).map(function(x) { return { s: String(x && x.s), i: x && x.i }; }); if (o.mod) req.mod = o.mod; if (typeof o.modD === 'string' && o.modD) req.modD = o.modD; if (o.adv) req.adv = o.adv; if (typeof o.on === 'string' && o.on) req.on = o.on.slice(0, 80); }   // 1.5.9: on, the token of the adjacent character it is used on (the host judges it)   // Stage 6 HUD R1: the entry, its modifier and advantage (the host rebuilds the formula)   // Stage 6 F5b: a roll on a row
@@ -11739,7 +11742,7 @@ net.diceRoll = function(expr, o) {
     if (chR && entR && typeof clockPress === 'function') clockPress(campR, chR.id, entR);   // 1.6.2 (G10): what the GM's own press spends on a counting clock
     if (chR && !o.att && typeof net.offTurnSay === 'function') net.offTurnSay(chR, o.act, o.row, o.label);   // 1.6.0: off its turn, the GM is told, once nothing has refused it
     var restR = function(res, heldR) {   // 1.6.2 (G5): all that follows a roll, which a roll with card actions holds until it is accepted
-    var rec = { type: 'roll', id: D.uid(), from: o.from || diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() }; if (heldR) rec.id = heldR;   // o.from: this machine's own word, the player whose press this roll follows (a line's damage)
+    var rec = { type: 'roll', id: D.uid(), from: o.from || diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() }; if (heldR) rec.id = heldR; if (!o.from) { var dlR = rollLookOwn(); if (dlR) rec.dl = dlR; }   // o.from: this machine's own word, the player whose press this roll follows (a line's damage)
     var mfR = null; if (entR && entR.malf && varsR) { var mqR = F.evaluate(entR.malf, { vars: varsR }); if (mqR.ok && typeof mqR.value === 'number' && isFinite(mqR.value)) mfR = Math.max(1, Math.min(1000000, Math.round(mqR.value))); }   // Stage 6 HUD R3: its Malf
     if (askedR && askedR.length) rec.asked = askedR;   // 1.6.2
     var blowRecR = typeof o.att === 'string' && typeof attemptRec === 'function' ? attemptRec(o.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
@@ -11853,7 +11856,7 @@ net.diceRoll = function(expr, o) {
     net.rollCheck = D.checkOf ? D.checkOf(res, ruleR) : null;   // 1.5.8 explosives: this roll's pass, critical and margin, read by a throw right after it (this machine's own)
     return { ok: true, value: res.value, priv: !!rec.priv };
     };
-    if (chR && entR && o.used !== true && !o.blast && !o.range && !o.cross && typeof cardHold === 'function' && cardHold({ asked: askedR, S: SR, D: D, F: F, camp: campR, ent: entR, res: res, expr: expr, vars: varsR, tc: tcR, ch: chR, pid: '', conn: null, priv: !!(o.priv || o.gmOnly), from: o.from || diceFrom(getProfile(), true), label: o.label, as: chR.name, cid: chR.id, go: function(r, e, id, st) { expr = e; if (st) varsR.bandStep = st; restR(r, id); } })) return { ok: true, pending: true, value: res.value };
+    if (chR && entR && o.used !== true && !o.blast && !o.range && !o.cross && typeof cardHold === 'function' && cardHold({ dl: o.from ? null : rollLookOwn(), asked: askedR, S: SR, D: D, F: F, camp: campR, ent: entR, res: res, expr: expr, vars: varsR, tc: tcR, ch: chR, pid: '', conn: null, priv: !!(o.priv || o.gmOnly), from: o.from || diceFrom(getProfile(), true), label: o.label, as: chR.name, cid: chR.id, go: function(r, e, id, st) { expr = e; if (st) varsR.bandStep = st; restR(r, id); } })) return { ok: true, pending: true, value: res.value };
     return restR(res);
 };
 // [netcheck:diceroll-end]

@@ -107,7 +107,40 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
     check('a roll that lands asks the dice first, before the dice sound is judged, and its card carries its id for the dice to find', dj.includes('function landed(m) {\n    if (window.wpDice3d) { try { window.wpDice3d.play(m); } catch (e) {} }') && dj.includes("if (wrap.dataset && typeof rec.id === 'string') wrap.dataset.rid = rec.id;"));
     check('the page loads it after the dice, and Settings keeps the choice for this computer under wp_dice3d', ix.includes('<script type="module" src="scripts/dice.js"></script>\n<script type="module" src="scripts/dice3d.js"></script>') && ix.includes('<select id="setDiceShow"') && stj.includes("localStorage.setItem('wp_dice3d', _d3Of(_d3Sel.value))"));
     const wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wa = read('assets/whatsnew.txt');
-    check('Help and both notes say it', ix.includes("<li>The dice tumble on the roll's card and land on the faces it gave. <b>Dice on a roll</b> in Settings shows them over the map instead, or turns them off for you. With Reduce motion they show already landed.</li>") && [wn, wa].every(t => t.includes('Animated dice\n- When a roll lands, its dice tumble on its card in Table Chat and land on the\n')));
+    check('Help and both notes say it', ix.includes("<li>The dice tumble on the roll's card and land on the faces it gave. <b>Dice on a roll</b> in Settings shows them over the map instead, or turns them off for you. With Reduce motion they show already landed. <b>Paint your dice</b> in Settings, or Paint on the roller, picks their colours and a pattern. Everyone at the table sees your rolls in that look.</li>") && [wn, wa].every(t => t.includes('Animated dice\n- When a roll lands, its dice tumble on its card in Table Chat and land on the\n')));
+    // ---- fold 3: a look, the painter and the look a roll carries ----
+    const DC = await import(url.pathToFileURL(app('scripts/dicecore.js')).href);
+    const L0 = DC.cleanDiceLook({ b: '#2B2D38', t: '#4a4d5e', n: '#e8c46a', p: 'marble' });
+    check('a dice look is strict #rrggbb in lower case, a second colour that falls back to the body, edges only where named, and a pattern of the four',
+        J(L0) === J({ b: '#2b2d38', t: '#4a4d5e', n: '#e8c46a', p: 'marble' }) && J(DC.cleanDiceLook({ b: '#111111', n: '#eeeeee' })) === J({ b: '#111111', t: '#111111', n: '#eeeeee', p: 'solid' })
+        && DC.cleanDiceLook({ b: '#111111', n: '#eeeeee', e: '#222222' }).e === '#222222' && DC.cleanDiceLook({ b: '#111111', n: '#eeeeee', p: 'plaid' }).p === 'solid' && J(DC.DICE_PATS) === J(['solid', 'marble', 'speckle', 'two']));
+    const proto = Object.create({ b: '#111111', n: '#eeeeee' });
+    check('a look with no body or no numbers, a colour in any other form, a list or a look a prototype lends is none',
+        [null, 'x', [], {}, { b: '#111111' }, { n: '#111111' }, { b: 'red', n: '#eeeeee' }, { b: '#111', n: '#eeeeee' }, { b: '#11111g', n: '#eeeeee' }, { b: 'url(x)', n: '#eeeeee' }, proto].every(v => DC.cleanDiceLook(v) === null)
+        && DC.cleanDiceLook({ b: '#111111', n: '#eeeeee', t: 'javascript:x' }).t === '#111111' && !('e' in DC.cleanDiceLook({ b: '#111111', n: '#eeeeee', e: 'x' })));
+    const rq = DC.cleanRollReq({ rid: 'qabc12345', expr: '2d6', dl: { b: '#2b2d38', n: '#e8c46a', p: 'speckle' } }), rqBad = DC.cleanRollReq({ rid: 'qabc12345', expr: '2d6', dl: { b: 'nope' } });
+    const rc = DC.cleanRoll({ id: 'r_abcdef12', from: { id: 'p_kael', name: 'Kael' }, expr: '2d6', draws: [3, 4], v: 1, dl: { b: '#1b3d88', t: '#7fb4ee', n: '#ffffff', p: 'marble', x: 'y' } }), rcBad = DC.cleanRoll({ id: 'r_abcdef12', from: { id: 'p_kael', name: 'Kael' }, expr: '2d6', draws: [3, 4], v: 1, dl: 5 });
+    check('a roll asked for carries its roller’s look as it is cleaned, and the record the host sends keeps it; a look that does not clean is left off and the roll kept',
+        rq && J(rq.dl) === J({ b: '#2b2d38', t: '#2b2d38', n: '#e8c46a', p: 'speckle' }) && rqBad && !('dl' in rqBad) && rc && J(rc.dl) === J({ b: '#1b3d88', t: '#7fb4ee', n: '#ffffff', p: 'marble' }) && rcBad && !('dl' in rcBad));
+    check('eight ready sets, each a whole look that cleans as it is written, the first the look the dice had before', R.SETS.length === 8 && R.SETS.map(x => x.name).join() === 'Waypoint,Ivory,Obsidian,Ember,Tide,Jade,Bone,Amethyst'
+        && R.SETS.every(x => J(DC.cleanDiceLook(x)) === J({ b: x.b, t: x.t, n: x.n, p: x.p })) && R.SETS[0].b === '#2b2d38' && R.SETS[0].n === '#e8c46a' && R.PATS.map(x => x[0]).join() === DC.DICE_PATS.join());
+    check('a roll with no look, or one that does not clean, is drawn in the Waypoint set; a look is named by the set it is, else as your own',
+        J(R.lookOf(null)) === J(R.lookOf({ b: 'x' })) && R.lookOf(undefined).b === '#2b2d38' && R.setOf(R.SETS[4]) === 'Tide' && R.setOf(Object.assign({}, R.SETS[4], { n: '#000000' })) === '' && R.setOf(Object.assign({}, R.SETS[1], { e: '#000000' })) === '');
+    const sk = R.shadeOf(R.SETS[3], false), sd = R.shadeOf(R.SETS[3], true);
+    check('a die is drawn in the look’s colours and pattern, edges as the body where none are named, and a die the roll dropped darker in every colour',
+        sk.pat === 3 && R.shadeOf(R.SETS[0], false).pat === 0 && R.shadeOf(R.SETS[4], false).pat === 1 && R.shadeOf(R.SETS[2], false).pat === 2 && J(sk.edge) === J(sk.body)
+        && ['body', 'two', 'edge', 'num'].every(k => sd[k].every((v, i) => Math.abs(v - sk[k][i] * 0.55) < 1e-12)) && Math.abs(sk.body[0] - 0x8a / 255) < 1e-12);
+    const nj = fs.readFileSync(app('scripts/net.js'), 'latin1').replace(/\r\n/g, '\n');
+    check('a roll carries this computer’s look: a player’s request, the host’s record of it, the GM’s own roll and a card that waits, never a roll made for another player’s press',
+        nj.includes("function rollLookOwn() { var D = DC(); return D && typeof D.cleanDiceLook === 'function' && window.wpDice3d && typeof window.wpDice3d.look === 'function' ? D.cleanDiceLook(window.wpDice3d.look()) : null; }")
+        && nj.includes('var dlS = rollLookOwn(); if (dlS) req.dl = dlS;') && nj.includes('if (heldQ) recQ.id = heldQ; if (q.dl) recQ.dl = q.dl;') && nj.includes('if (heldR) rec.id = heldR; if (!o.from) { var dlR = rollLookOwn(); if (dlR) rec.dl = dlR; }')
+        && nj.includes('cardHold({ dl: q.dl || null,') && nj.includes('cardHold({ dl: o.from ? null : rollLookOwn(),') && nj.includes('if (o.dl) rec.dl = o.dl; if (o.rid) rec.rid = o.rid;'));
+    const esk = read('scripts/esckey.js');
+    check('the painter is a window of the page, opened from Settings and from the roller, its sets and patterns made as buttons with text, its colours four colour boxes, closed by Escape through its own button',
+        ix.includes('<div id="dicePaintModal"') && ix.includes('id="setDicePaintBtn"') && ix.includes('id="dicePaintBtn"') && ['dicePaintBody', 'dicePaintTwo', 'dicePaintNum', 'dicePaintEdge'].every(id => ix.includes('<input type="color" id="' + id + '"'))
+        && ix.includes('<canvas id="dicePaintPreview"') && esk.includes("['dicePaintModal', 'dicePaintCloseBtn']") && r3.includes("b.textContent = st.name;") && r3.includes("b.textContent = pt[1];")
+        && r3.includes("['setDicePaintBtn', 'dicePaintBtn'].forEach") && r3.includes("localStorage.setItem('wp_diceLook', JSON.stringify(l))") && r3.includes('look: lookOf(m.roll.dl)'));
+    check('both notes say the painter', [wn, wa].every(t => t.includes('- Paint your dice, in Settings or on the dice roller, picks the colours and\n')));
     // ---- the module ----
     const src = read('scripts/dice3dcore.js');
     check('the module is pure: it imports nothing, reads no page and no clock, and draws no chance but its own seeded one', !/^\s*import\s/m.test(src) && !/document\.|Math\.random|Date\.now|fetch\(/.test(src.replace(/\/\*[\s\S]*?\*\//, '')) && src.includes('window.wpDice3dCore = API'));

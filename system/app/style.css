@@ -5190,3 +5190,11 @@
 .sys-rnd > .sys-cap { flex: 1 1 16em; }
 .sys-rnd > .fb, .sys-rnd > .sys-rnd-next { flex: 1 1 14em; }
 .sys-crew:empty { display: none; }
+/* 1.6.2 (backlog 212, fold 3): the dice painter, a window of rows with a chip row for the ready sets and the patterns, and a preview of six dice */
+.dp-box { background: var(--bg2); padding: 22px; border: 1px solid var(--gold); border-radius: 8px; width: 460px; max-width: 92vw; max-height: 85vh; overflow-y: auto; }
+.dp-head { margin: 6px 0 6px; font-size: 12px; color: var(--ink); }
+.dp-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.dp-chip { padding: 3px 9px; font-size: 12px; }
+.dp-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--edge); font-size: 12px; color: var(--ink); cursor: pointer; }
+.dp-swatch { width: 40px; height: 26px; padding: 0; border: 1px solid var(--edge); border-radius: 5px; background: none; cursor: pointer; flex: 0 0 auto; }
+.dp-preview { display: block; width: 100%; height: 96px; margin: 6px 0 4px; background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; }

@@ -270,6 +270,7 @@ function cleanRollReq(msg) {
     if (msg.priv !== undefined) { if (msg.priv !== 'gm') return null; out.priv = 'gm'; }
     if (msg.charId !== undefined) { if (typeof msg.charId !== 'string' || !CHAR_RE.test(msg.charId)) return null; out.charId = msg.charId; }   // roll as this character (its own values)
     var label = cleanLabel(msg.label); if (label === null) return null; if (label) out.label = label;
+    if (msg.dl !== undefined) { var dlq = cleanDiceLook(msg.dl); if (dlq) out.dl = dlq; }   // 1.6.2: the roller's dice look (one that does not clean is left off, the roll kept)
     if (msg.row !== undefined) {   // Stage 6 F5b: a roll on one row of a carried list (its Row.* names), only as a character
         var rw = msg.row; if (!out.charId || !rw || typeof rw !== 'object' || Array.isArray(rw) || typeof rw.f !== 'string' || !/^[A-Za-z0-9_]{1,64}$/.test(rw.f)) return null;
         if (rw.k !== undefined) {   // 1.6.0 Rolls unheld entries: a list's roll, by its index, on an entry the character holds none of, named by its id (the host finds the entry and works its level out)
@@ -424,6 +425,7 @@ function cleanRoll(rec) {
     if (rec.hid === 'gm') out.hid = 'gm';   // HR1: a roll that went straight to the GM: its roller's copy holds no figure
     if (rec.hid === 'pass' || rec.hid === 'fail' || rec.hid === 'rolled') { out.hid = rec.hid; if ((rec.hidc === 'crit' || rec.hidc === 'fumble') && rec.hid !== 'rolled') out.hidc = rec.hidc; }   // 1.6.2: the host's own word for a roll whose figure is hidden (hidRoll): only these words
     if (typeof rec.band === 'string' && rec.band.trim()) out.band = rec.band.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 30);   // 1.6.2: the name of the result band the host found, text alone
+    if (rec.dl !== undefined) { var dlc = cleanDiceLook(rec.dl); if (dlc) out.dl = dlc; }   // 1.6.2: the roller's dice look, as the host passed it on
     if (rec.big === true) out.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): the host's mark of a success that lands as a Big Hit, no critical; anything else is left off
     if (rec.mods !== undefined) { var md = cleanMods(rec.mods); if (md) out.mods = md; }
     if (rec.sw !== undefined) { var swc = cleanSwNames(rec.sw); if (swc) out.sw = swc; }   // 1.6.0: the roll switches it was rolled with, by name (a list that does not clean is left off, the roll kept)   // 1.5.8: what changed the values it reads (a list that does not clean is left off, the roll kept)
@@ -758,6 +760,17 @@ function cleanCardLook(v) {
     if (Object.prototype.hasOwnProperty.call(v, 'tone') && (v.tone === 'dark' || v.tone === 'light')) out.tone = v.tone;
     return out;
 }
+// 1.6.2, backlog 212 fold 3 (the owner, by prompt: "The table sees each player's look"): a roller's dice look, the colours its dice are
+// drawn in on every screen that shows them. b the body, t the second colour (the pattern's), n the numbers, e the edges of a model that has
+// them, p a pattern of DICE_PATS. Strict #rrggbb, lower-cased, by its own keys; null where the body or the numbers are no colour.
+var DICE_PATS = ['solid', 'marble', 'speckle', 'two'];
+function cleanDiceLook(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+    var b = ownHex(v, 'b'), n = ownHex(v, 'n'); if (!b || !n) return null;
+    var out = { b: b, t: ownHex(v, 't') || b, n: n }, e = ownHex(v, 'e'); if (e) out.e = e;
+    var p = Object.prototype.hasOwnProperty.call(v, 'p') ? v.p : 'solid'; out.p = DICE_PATS.indexOf(p) >= 0 ? p : 'solid';
+    return out;
+}
 // Per-peer and per-table rate limit with an injected clock: allow(peer, now) -> true | 'slow' | 'table'
 function RateLimit(cfg) {
     cfg = cfg || LIMITS;
@@ -778,6 +791,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { cleanHelpCard: cleanHelpCard, cleanHelpAct: cleanHelpAct, cleanDiceBonus: cleanDiceBonus, hidExpr: hidExpr, hidCrit: hidCrit, hidRoll: hidRoll, cleanAtt: cleanAtt, malfWords: malfWords, cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanCardAct: cleanCardAct, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
+var API = { cleanHelpCard: cleanHelpCard, cleanHelpAct: cleanHelpAct, cleanDiceBonus: cleanDiceBonus, hidExpr: hidExpr, hidCrit: hidCrit, hidRoll: hidRoll, cleanAtt: cleanAtt, malfWords: malfWords, cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanCardAct: cleanCardAct, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook, cleanDiceLook: cleanDiceLook, DICE_PATS: DICE_PATS };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { cleanHelpCard, cleanHelpAct, cleanDiceBonus, hidExpr, hidCrit, hidRoll, cleanAtt, malfWords, cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanCardAct, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };
+export { cleanHelpCard, cleanHelpAct, cleanDiceBonus, hidExpr, hidCrit, hidRoll, cleanAtt, malfWords, cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanCardAct, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook, cleanDiceLook, DICE_PATS };

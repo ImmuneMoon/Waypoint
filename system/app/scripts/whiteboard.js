@@ -5557,6 +5557,7 @@ window.wpFitToGrid = fitToGrid;
   if (wbWrap) {
       wbWrap.addEventListener('pointerdown', function(e) {
           if (!e.altKey || e.button !== 0 || !window.wpFx || !window.wpFx.canPing()) return;
+          if (window.wpMouse && typeof window.wpMouse.gesture === 'function' && window.wpMouse.gesture('ping') === 'ctrlalt' && !(e.ctrlKey || e.metaKey)) return;   // 1.6.2: the ping on Ctrl + Alt + click where the GM picked it
           var box = wbWrap.getBoundingClientRect();
           var x = (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel, y = (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel;
           if (!(x >= 0 && x <= 30000 && y >= 0 && y <= 30000)) return;

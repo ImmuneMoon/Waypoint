@@ -1101,6 +1101,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       window.addEventListener('blur', function() { abortDrag(null); });
       el.addEventListener('dblclick', function(e) {
           if (modeStr !== 'visual') return;
+          if (window.wpMouse && typeof window.wpMouse.gesture === 'function' && window.wpMouse.gesture('open') === 'shiftdbl' && !e.shiftKey) return;   // 1.6.2: a piece opens on Shift + double-click where the player picked it
           var am2 = getActiveMap(); var it2 = am2 && am2.whiteboard.find(function(x){ return x.id === el.dataset.id; }); if (!it2) return;
           if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { if (it2.isChar && it2.charId && it2.ownerId === window.wpNet.myId && window.wpSheets && window.wpSheets.openSheet) { e.stopPropagation(); window.wpSheets.openSheet(it2.charId); } return; }   // 1.6.0: a player's double-click on their own token opens its sheet, the first thing a player tries (found live, 2026-10-30)
           var wallD = wallPickEl(am2, it2, e), wallDi = wallD && am2.whiteboard.find(function(x){ return x.id === wallD.dataset.id; });   // a double-click near a wall's line opens the wall, as its press picked it
@@ -1256,6 +1257,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       });
     }
 
+  // 1.6.2 (the owner, 2026-11-05, by prompt: "A short list each"): the mouse button that pans the map, the middle one where no module says
+  function panBtnNow(e) { return window.wpMouse && typeof window.wpMouse.panButton === 'function' ? window.wpMouse.panButton() : 1; }
   function attachPanning(wrapEl) {
 
       wrapEl.addEventListener('mousedown', function(e) { if (e.button === 1) e.preventDefault(); });   // the middle button pans: never the browser's own scroll anchor
@@ -1272,14 +1275,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       wrapEl.addEventListener('pointerdown', function(e) {
 
-          if (e.button !== undefined && e.button !== 0 && e.button !== 1) return; // Only left or middle click
+          if (e.button !== undefined && e.button !== 0 && e.button !== 1 && !(e.button === 2 && panBtnNow(e) === 2)) return; // Only left or middle click, or the right where it pans
 
           // Space held: pan from any tool over any target, reusing the shared pan closure below
           // (pointermove/pointerup already consume isPanning/startX/startY/scrollLeft/scrollTop). This
           // runs before the eraser/draw/marquee/place branches so Space overrides whatever tool is active.
           // The middle button pans the same way, whatever tool is active (fog, fill, draw, measure, the eraser): the tool's own gesture never
           // starts for it, and nothing is deselected.
-          if ((window.wpSpacePan && e.button === 0) || e.button === 1) {
+          if ((window.wpSpacePan && e.button === 0) || (e.button === panBtnNow(e) && e.button > 0)) {   // 1.6.2: the button that pans is the player's to pick (mousemap.js), the middle one as it comes
               isPanning = true;
               startX = e.pageX - wrapEl.offsetLeft; startY = e.pageY - wrapEl.offsetTop;
               scrollLeft = wrapEl.scrollLeft; scrollTop = wrapEl.scrollTop;
@@ -1675,6 +1678,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       wrapEl.addEventListener('wheel', function(e) {
 
           if (e.shiftKey && !e.ctrlKey) return;   // native scroll
+          if (window.wpMouse && typeof window.wpMouse.gesture === 'function' && window.wpMouse.gesture('zoom') === 'ctrl' && !(e.ctrlKey || e.metaKey)) { e.preventDefault(); var wk = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? wrapEl.clientHeight : 1; wrapEl.scrollLeft += (e.shiftKey ? e.deltaY : e.deltaX) * wk; if (!e.shiftKey) wrapEl.scrollTop += e.deltaY * wk; return; }   // 1.6.2: zoom by Ctrl + wheel, and the plain wheel moves the map (the board has no scroll of its own)
 
           e.preventDefault();
 

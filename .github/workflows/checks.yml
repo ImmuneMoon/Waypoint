@@ -114,6 +114,9 @@ jobs:
       - name: profilecheck — a profile carried to another computer, its file, its code and what opening it writes
         if: ${{ !cancelled() }}
         run: node tools/profilecheck.js
+      - name: mousecheck — a command on a mouse press, the map's own gestures, and the mouse going with the profile
+        if: ${{ !cancelled() }}
+        run: node tools/mousecheck.js
       - name: accountcheck — this install linked to a Waypoint website account, the shell's routes and the order of linking
         if: ${{ !cancelled() }}
         run: node tools/accountcheck.js

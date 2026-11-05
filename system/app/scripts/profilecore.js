@@ -7,6 +7,8 @@
    Pure: no page, no storage. Settings reads and writes the stores; this module only shapes, cleans, codes and merges.
    Published as window.wpProfileCore. */
 
+import { mouseClean } from './mousecore.js';   // 1.6.2: the mouse goes with the profile as the keys do
+
 var KIND = 'waypoint-profile', V = 1, MAX_KNOWN = 50, CODE_HEAD = 'WPP1.', MAX_TEXT = 400000;
 function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
@@ -38,6 +40,8 @@ function cleanKnown(m, keyRule, valOk, copy) {
 var CMD_ID = /^[a-z]+(\.[A-Za-z]+)+$/, KEY_NAME = /^(Ctrl\+)?(Alt\+)?(Shift\+)?[A-Za-z0-9]{1,20}$/, MAX_BINDS = 64;
 function cleanBinds(v, valOk) { var out = {}, n = 0; if (!isObj(v)) return out; Object.keys(v).forEach(function(k) { if (n < MAX_BINDS && k.length <= 40 && CMD_ID.test(k) && !(k in Object.prototype) && valOk(v[k])) { out[k] = v[k]; n++; } }); return out; }
 function keyVal(x) { return x === '' || (typeof x === 'string' && x.length <= 40 && KEY_NAME.test(x)); }
+// 1.6.2 (the owner, 2026-11-05, of the mouse: "Yes, like keys"): wp_mouse, a command's mouse press and the map's gestures, as mousemap.js keeps them; none where it says nothing
+function cleanMouse(v) { var c = mouseClean(v); if (!Object.keys(c.cmds).length) delete c.cmds; return Object.keys(c).length ? c : null; }
 function padVal(x) { return typeof x === 'number' && Math.floor(x) === x && x >= -1 && x <= 16; }
 function cleanPack(raw, o) {
     if (!isObj(raw) || raw.kind !== KIND || raw.v !== V) return null;
@@ -48,14 +52,14 @@ function cleanPack(raw, o) {
         gmPins: cleanKnown(raw.gmPins, idOk, pubOk, function(v) { return { kty: 'EC', crv: 'P-256', x: v.x, y: v.y }; }),
         gmRooms: cleanKnown(raw.gmRooms, roomOk, idOk)
     };
-    var kb = cleanBinds(raw.keys, keyVal), pb = cleanBinds(raw.pad, padVal); if (Object.keys(kb).length) pk.keys = kb; if (Object.keys(pb).length) pk.pad = pb;   // 1.6.2: only where there are any, so a pack with none is as it was
+    var kb = cleanBinds(raw.keys, keyVal), pb = cleanBinds(raw.pad, padVal), mb = cleanMouse(raw.mouse); if (Object.keys(kb).length) pk.keys = kb; if (Object.keys(pb).length) pk.pad = pb; if (mb) pk.mouse = mb;   // 1.6.2: only where there are any, so a pack with none is as it was
     return pk;
 }
 function parse(s) { if (typeof s !== 'string' || !s || s.length > MAX_TEXT) return null; try { return JSON.parse(s); } catch (e) { return null; } }
 // A pack from this computer's stores, each handed in as the text localStorage holds (or null); null where there is no profile to carry
 function packOf(store, o, now) {
     var s = isObj(store) ? store : {};
-    return cleanPack({ kind: KIND, v: V, at: typeof now === 'number' ? now : 0, profile: parse(s.wp_profile), tableKeys: parse(s.wp_tableKeys), gmPins: parse(s.wp_gmPins), gmRooms: parse(s.wp_gmRooms), keys: parse(s.wp_keys), pad: parse(s.wp_pad) }, o);
+    return cleanPack({ kind: KIND, v: V, at: typeof now === 'number' ? now : 0, profile: parse(s.wp_profile), tableKeys: parse(s.wp_tableKeys), gmPins: parse(s.wp_gmPins), gmRooms: parse(s.wp_gmRooms), keys: parse(s.wp_keys), pad: parse(s.wp_pad), mouse: parse(s.wp_mouse) }, o);
 }
 // The file's text, and the same pack read back from a file's text
 function fileText(pack) { return JSON.stringify(pack, null, 1); }
@@ -97,7 +101,7 @@ function openWrites(local, pack) {
         wp_gmPins: JSON.stringify(join(l.wp_gmPins, pack.gmPins || {}, idOk, pubOk)),
         wp_gmRooms: JSON.stringify(join(l.wp_gmRooms, pack.gmRooms || {}, roomOk, idOk))
     };
-    if (l.wp_keysLocal !== '1') { if (isObj(pack.keys)) w.wp_keys = JSON.stringify(pack.keys); if (isObj(pack.pad)) w.wp_pad = JSON.stringify(pack.pad); }   // 1.6.2: a computer that keeps its own keys keeps them
+    if (l.wp_keysLocal !== '1') { if (isObj(pack.keys)) w.wp_keys = JSON.stringify(pack.keys); if (isObj(pack.pad)) w.wp_pad = JSON.stringify(pack.pad); if (isObj(pack.mouse)) w.wp_mouse = JSON.stringify(pack.mouse); }   // 1.6.2: a computer that keeps its own keys keeps them
     return w;
 }
 // The Profile window's list of the tables that know you (1.6.0; the owner, 2026-10-29, by prompt: "Yes, a short list", and of when you last

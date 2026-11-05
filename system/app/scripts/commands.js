@@ -131,7 +131,7 @@ function cmdById(id) { for (var i = 0; i < COMMANDS.length; i++) if (COMMANDS[i]
 function cmdCan(c) { try { return c.can(); } catch (e) { return 'That cannot run now.'; } }
 // Run a command. via: 'jump' (the quick jump) or 'key'. Answers true, or the words that say why it did not run
 function cmdRun(id, via) {
-    var c = cmdById(id), how = via === 'key' || via === 'pad' ? via : 'jump';   // 1.6.2: a controller's button (gamepad.js) too
+    var c = cmdById(id), how = via === 'key' || via === 'pad' || via === 'mouse' ? via : 'jump';   // 1.6.2: a controller's button (gamepad.js) and a mouse press (mousemap.js) too
     if (!c) { cmdLog('run-unknown', { via: how }); return 'There is no such command.'; }
     var ok = cmdCan(c);
     if (ok !== true) { cmdLog('run-held', { id: c.id, via: how }); return typeof ok === 'string' ? ok : 'That cannot run now.'; }
@@ -211,7 +211,7 @@ function keysDraw(doc) {
     while (list.firstChild) list.removeChild(list.firstChild);
     var PI = typeof window !== 'undefined' ? window.wpPad : null; if (PI && typeof PI.info === 'function') PI.info(doc);   // 1.6.2: which controller is connected
     var head = doc.createElement('div'); head.className = 'set-key-head'; head.setAttribute('aria-hidden', 'true');
-    [['set-name', 'Command'], ['set-key-col', 'Key'], ['set-key-off-col', ''], ['set-pad-col', 'Controller']].forEach(function(h) { var sp = doc.createElement('span'); sp.className = h[0]; sp.textContent = h[1]; head.appendChild(sp); });
+    [['set-name', 'Command'], ['set-key-col', 'Key'], ['set-key-off-col', ''], ['set-pad-col', 'Controller'], ['set-mouse-col', 'Mouse']].forEach(function(h) { var sp = doc.createElement('span'); sp.className = h[0]; sp.textContent = h[1]; head.appendChild(sp); });
     list.appendChild(head);
     KEY_GROUPS.forEach(function(G) {
     var cmds = COMMANDS.filter(function(c) { return keyGroupOf(c) === G[0]; }); if (!cmds.length) return;
@@ -232,9 +232,16 @@ function keysDraw(doc) {
             pad.addEventListener('click', function() { var on = P.pick(c.id, c.name, keysNames(), function(words) { keysDraw(doc); keysSay(doc, words); }); if (on) { pad.textContent = 'Press a button\u2026'; pad.classList.add('hk-picking'); keysSay(doc, 'Press the controller button you want for ' + c.name + '. Press here again to cancel.'); } });
             row.appendChild(pad);
         } else if (P && typeof P.has === 'function') { var gap = doc.createElement('span'); gap.className = 'set-pad-none'; gap.setAttribute('aria-hidden', 'true'); row.appendChild(gap); }   // what a controller does not run keeps its column, so the keys stand in one line
+        var M = typeof window !== 'undefined' ? window.wpMouse : null;   // 1.6.2 (the owner, 2026-11-05: "lets add mapping for mouse clicks and controls too"): the mouse press beside the button, for every command but a move
+        if (M && typeof M.has === 'function' && M.has(c.id)) {
+            var mo = doc.createElement('button'), mw = M.word(c.id); mo.type = 'button'; mo.className = 'tool ghost set-mouse'; mo.setAttribute('data-cmd', c.id); mo.textContent = mw || 'None'; mo.title = 'Mouse: press, then press the mouse button you want for ' + c.name;
+            mo.addEventListener('click', function() { if (M.picking(c.id)) return; var on = M.pick(c.id, c.name, keysNames(), mo, function(words) { keysDraw(doc); keysSay(doc, words); var nb = doc.querySelector('#setKeysList .set-mouse[data-cmd="' + c.id + '"]'); if (nb && typeof nb.focus === 'function') { try { nb.focus({ preventScroll: true }); } catch (e) {} } }, function(words) { keysSay(doc, words); }); if (on) { mo.textContent = 'Press now\u2026'; keysSay(doc, 'Press the mouse button you want for ' + c.name + '. Esc cancels, Backspace takes it off.'); } });
+            row.appendChild(mo);
+        } else if (M && typeof M.has === 'function') { var mgap = doc.createElement('span'); mgap.className = 'set-mouse-none'; mgap.setAttribute('aria-hidden', 'true'); row.appendChild(mgap); }
         list.appendChild(row);
     });
     });
+    gesturesWire(doc); gesturesShow(doc);   // 1.6.2: the map's gestures under the keys
     keysFind(doc);
     return true;
 }
@@ -279,10 +286,28 @@ function moveRefusal(k, id, keys, names) {
 function keysReset(doc) {
     var ok = true; try { localStorage.removeItem('wp_keys'); } catch (e) { ok = false; }
     if (typeof window !== 'undefined' && window.wpPad && typeof window.wpPad.reset === 'function') window.wpPad.reset();   // 1.6.2: and the controller's buttons
+    if (typeof window !== 'undefined' && window.wpMouse && typeof window.wpMouse.reset === 'function') { window.wpMouse.reset(); gesturesShow(doc); }   // and the mouse, its gestures too
     keysLoad(); keysDraw(doc);
     keysSay(doc, ok ? 'Every command has the key it came with again.' : 'The change could not be kept on this computer.');
     cmdLog(ok ? 'keys-reset' : 'key-save-failed', { n: Object.keys(_keys).filter(function(id) { return !!_keys[id]; }).length });
     return ok;
+}
+// 1.6.2: the map's own gestures under the keys, each a list of the words mousemap.js takes (the owner: "A short list each")
+var GES_IDS = { pan: 'setGesPan', zoom: 'setGesZoom', ping: 'setGesPing', open: 'setGesOpen' };
+function gesturesShow(doc) {
+    var M = typeof window !== 'undefined' ? window.wpMouse : null; if (!M || typeof M.gesture !== 'function') return false;
+    Object.keys(GES_IDS).forEach(function(g) { var s = doc.getElementById(GES_IDS[g]); if (s) s.value = M.gesture(g); });
+    return true;
+}
+function gesturesWire(doc) {
+    Object.keys(GES_IDS).forEach(function(g) {
+        var s = doc.getElementById(GES_IDS[g]); if (!s || s._ges) return; s._ges = true;
+        s.addEventListener('change', function() {
+            var M = window.wpMouse; if (!M || typeof M.setGesture !== 'function') return;
+            var ok = M.setGesture(g, s.value); gesturesShow(doc); keysDraw(doc);
+            keysSay(doc, ok ? (s.closest && s.closest('label') ? String(s.closest('label').querySelector('.set-name span').textContent) : 'That') + ' is ' + M.gestureWords(g, s.value) + ' now.' : 'The change could not be kept on this computer.');
+        });
+    });
 }
 // [shelfcheck:keyrows-end]
 
@@ -406,5 +431,5 @@ function jumpAct(en) {
     try { return String(c.act() || ''); } catch (e) { return ''; }
 }
 
-window.wpCommands = { list: COMMANDS, byId: cmdById, run: cmdRun, rows: jumpRows, go: jumpGo, act: jumpAct, heldNow: function() { return hotkeyHeld(document, window, { target: document.activeElement }); }, keysReload: function() { keysLoad(); keysDraw(document); if (window.wpPad && typeof window.wpPad.reload === 'function') window.wpPad.reload(); }, settingRows: function() { return setRows(document, window); }, openSetting: setOpen };
+window.wpCommands = { list: COMMANDS, byId: cmdById, run: cmdRun, rows: jumpRows, go: jumpGo, act: jumpAct, heldNow: function() { return hotkeyHeld(document, window, { target: document.activeElement }); }, keysReload: function() { keysLoad(); keysDraw(document); if (window.wpPad && typeof window.wpPad.reload === 'function') window.wpPad.reload(); if (window.wpMouse && typeof window.wpMouse.reload === 'function') { window.wpMouse.reload(); gesturesShow(document); } }, settingRows: function() { return setRows(document, window); }, openSetting: setOpen };
 export { COMMANDS, cmdById, cmdRun, jumpRows, jumpGo, jumpAct, setRows };

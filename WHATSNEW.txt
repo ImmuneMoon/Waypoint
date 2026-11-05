@@ -339,6 +339,13 @@ Settings
   reaches your table. Snapshots of the save have a part of their own.
 - Keys stands in three groups, with a search of its own. The x that takes a
   key off shows on the row you point at.
+- The mouse is yours to set too. Beside each command's key, a Mouse box takes
+  a side button, the middle button, or a click with Ctrl, Alt or Shift held.
+  A side button works anywhere, any other press on the map. Under the commands,
+  Map gestures pick how you pan, zoom, ping and open a piece. Your mouse goes
+  with your profile as your keys do.
+- A list that is drawn again when you press in it keeps its place: Build's
+  materials, Keys, the NPCs under Characters, the bell and the Image Library.
 - On or off is a switch at the right end of its row. In This campaign each
   feature has two: Here for the campaign on screen, and New for a campaign
   you make later. A feature's own settings stand under it, greyed while it

@@ -92,6 +92,7 @@
 <script type="module" src="scripts/keycore.js"></script>
 <script type="module" src="scripts/commands.js"></script>
 <script type="module" src="scripts/gamepad.js"></script>
+<script type="module" src="scripts/mousemap.js"></script>
 <script type="module" src="scripts/setups.js"></script>
 <script type="module" src="scripts/plook.js"></script>
 <script type="module" src="scripts/blastcore.js"></script>
@@ -3062,6 +3063,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>Under the list, Settings says which controller is connected, how many buttons it has, and whether its layout is the standard one. A controller in another layout may name its buttons otherwise.</li>
                                   <li>Your keys are kept on this computer. A key never works while you type in a box, or while a window or a question is up.</li>
                                   <li>Your keys and controller buttons go with your profile when you save it to a file or a code. <b>This computer keeps its own keys</b> keeps them as they are when a profile is opened here.</li>
+                                  <li>The Mouse box beside a key takes a mouse press for that command. Press it, then press a side button, the middle button, or a click with <kbd>Ctrl</kbd>, <kbd>Alt</kbd> or <kbd>Shift</kbd> held. <kbd>Backspace</kbd> takes it off.</li>
+                                  <li>A side button works anywhere in the window. Any other press works on the map alone, so it never takes a click from a list or a button.</li>
+                                  <li>A plain click, a right click and a click the map already uses are refused, and the line under the list says why.</li>
+                                  <li><b>Map gestures</b>, under the commands, pick how you pan the map, how the wheel zooms, the click that pings and the click that opens a piece. <b>Restore default keys</b> puts the mouse back too.</li>
                               </ul>
                           </li>
                           <li><kbd>Shift + P</kbd> &nbsp; On the play map, open the map&rsquo;s scene page over the map. You pick it in the map&rsquo;s Properties.</li>
@@ -4363,9 +4368,18 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <input id="setKeysFind" class="field set-keys-find" type="search" placeholder="Find a command" aria-label="Find a command" autocomplete="off" spellcheck="false" title="Shows the commands whose name or line holds what you type">
             <div id="setKeysList" class="set-keys" title="Each tool and command, with the key that runs it on this computer"></div>
             <div class="set-line">Press a key box, then the key you want. Esc cancels. A key never works while you type in a box.</div>
+            <div class="set-line">Press a mouse box, then the mouse press you want: a side button, the middle button, or a click with Ctrl, Alt or Shift held. Backspace takes it off. A side button works anywhere, any other press on the map.</div>
             <div id="setKeysNone" class="set-keys-none" hidden>No command holds those words.</div>
             <div id="setPadInfo" class="set-pad-info" role="status" aria-live="polite"></div>
             <div id="setKeysSay" class="set-keys-say" role="status" aria-live="polite"></div>
+            <!-- 1.6.2, the owner, 2026-11-05: "lets add mapping for mouse clicks and controls too", by prompt "A short list each (Recommended)": the map's own gestures (mousemap.js) -->
+            <div class="set-key-grp set-ges-head">Map gestures</div>
+            <div id="setGestures" class="set-gestures">
+                <label class="set-ges" title="Which mouse button drags the map. With Right drag, a right click that does not move still opens the menu. Holding Space and dragging always pans too, and so does the Pan tool."><span class="set-name"><span>Pan the map</span><small>Space + drag always pans too.</small></span> <select id="setGesPan" class="field"><option value="middle">Middle drag</option><option value="right">Right drag</option><option value="off">Off</option></select></label>
+                <label class="set-ges" title="How the wheel zooms the map. With Ctrl + wheel, the plain wheel moves the map up and down instead, and Shift + wheel moves it sideways."><span class="set-name"><span>Zoom</span><small>With Ctrl + wheel, the wheel moves the map.</small></span> <select id="setGesZoom" class="field"><option value="wheel">Wheel</option><option value="ctrl">Ctrl + wheel</option></select></label>
+                <label class="set-ges" title="The click that pings a spot on the map for the table. The GM's ping alone: a player's click does what it always did."><span class="set-name"><span>Ping a spot</span><small>The GM&rsquo;s ping, for the table.</small></span> <select id="setGesPing" class="field"><option value="alt">Alt + click</option><option value="ctrlalt">Ctrl + Alt + click</option></select></label>
+                <label class="set-ges" title="The click that opens a piece on the map: its Properties for the GM, a player's own sheet for a player. Text boxes and portals keep their own double-click."><span class="set-name"><span>Open a piece</span><small>Properties, or your own sheet.</small></span> <select id="setGesOpen" class="field"><option value="dbl">Double-click</option><option value="shiftdbl">Shift + double-click</option></select></label>
+            </div>
             <button class="tool ghost" id="setKeysResetBtn" style="width:100%;" title="Gives every command the key it came with, here on this computer">Restore default keys</button>
             <div class="set-line tight">Every command gets the key it came with again. Your keys are kept on this computer.</div>
             <label style="display:flex; align-items:center; gap:6px; margin-top:8px; cursor:pointer;" title="When a profile is opened here, this computer keeps the keys and controller buttons it has"><input type="checkbox" id="setKeysOwn"> <span class="set-name"><span>This computer keeps its own keys</span><small>Your keys go with your profile. Tick this to keep this computer&rsquo;s when a profile is opened here.</small></span></label>

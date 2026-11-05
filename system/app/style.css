@@ -1155,6 +1155,9 @@
   
   /* ---- layout ---- */
   #main { display: flex; flex: 1; overflow: hidden; position: relative; }
+  #dataEmpty { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); z-index: 5; max-width: 420px; padding: 16px 20px; display: flex; flex-direction: column; gap: 6px; text-align: center; background: var(--bg2); border: 1px solid var(--edge); border-radius: 10px; pointer-events: none; }
+  #dataEmpty[hidden] { display: none; }
+  #dataEmpty .nm-line { color: var(--muted); }   /* 1.6.2: an empty data map says how to begin */
   /* 1.6.0: a campaign with no map. The board's own parts are put away, whatever a script last set on them, and the empty state shows */
   #noMapState { display: none; }
   body.no-map #main > *:not(#noMapState):not(#toggleLeftBtn), body.no-map #sidebar, body.no-map header #viewModeSelect, body.no-map header #mapBreadcrumb { display: none !important; }
@@ -3358,6 +3361,7 @@
   .cal-pend-since:empty { display: none; }
   .cal-pend-bar, .cal-kind { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .cal-kind-btn.cal-kind-on, .cal-live-btn.cal-kind-on { border-color: var(--gold); color: var(--gold); font-weight: 700; }
+  .cal-live-btn.cal-kind-on.cal-live-wait { border-style: dashed; font-weight: 400; opacity: .75; }   /* 1.6.2: Runs is picked but the clock is waiting */
   .cal-live { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }   /* 1.5.4: Runs / Held and the speed */
   .cal-live .field { width: auto; flex: 0 0 auto; }
   .sys-roll-everyrow input.sys-roll-evn, .sys-roll-fightrow input.sys-roll-ifn { width: 70px; }

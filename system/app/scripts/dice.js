@@ -4,6 +4,7 @@
    handlers); the validators, replay and text in dicecore.js. Design of record: docs/DICE_PLAN.md. */
 import { toast } from './io.js';
 import { cleanDiceBonus, malfWords, coverHitWords, LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy, dueMajor, hitFaces, cleanPos, posWords } from './dicecore.js';
+import { getActiveCampaign } from './models.js';   // 1.6.2: the campaign a player's roller reads its character from
 import { dieNode } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
 
 var ui = function(id) { return document.getElementById(id); };
@@ -362,6 +363,7 @@ function syncChars() {
     var was = s.value; s.textContent = '';
     var none = el('option', null, 'No character'); none.value = ''; s.appendChild(none);
     list.forEach(function(c) { var o = el('option', null, c.name + (c.npc ? ' (NPC)' : '')); o.value = c.id; s.appendChild(o); });
+    if (!was && isClient() && list.length) { var SC = window.wpSystemCore, camp = getActiveCampaign(), pl = SC && typeof SC.activeCharOf === 'function' && camp ? SC.activeCharOf(camp, me).id : null; was = list.some(function(c) { return c.id === pl; }) ? pl : list.length === 1 ? list[0].id : ''; }   // 1.6.2: a player's roller starts on the character they play
     s.value = list.some(function(c) { return c.id === was; }) ? was : '';
     s.style.display = list.length && (!window.wpVtt || window.wpVtt.on('sheets')) ? '' : 'none';
 }

@@ -275,6 +275,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       // Main wrappers
 
       document.getElementById('canvasWrap').style.display = (!isPlanner && state.viewMode === 'data') ? 'flex' : 'none';
+      var dataEmptyEl = document.getElementById('dataEmpty'); if (dataEmptyEl) dataEmptyEl.hidden = !(!isPlanner && state.viewMode === 'data' && !(Array.isArray(activeMap.rooms) && activeMap.rooms.length));   // 1.6.2: an empty data map says how to begin
 
       document.getElementById('whiteboardWrap').style.display = (!isPlanner && state.viewMode === 'visual') ? 'flex' : 'none';
       document.getElementById('zoomBox').style.display = isPlanner ? 'none' : 'flex';
@@ -1108,7 +1109,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       });
       return rows.filter(function(r) { return r.last; }).concat(rows.filter(function(r) { return !r.last; }));
   }
-  function wcHostWords(r) { return (r.maps === 1 ? '1 map' : r.maps + ' maps') + (r.last ? ' \u00b7 Open last' : ''); }
+  function wcHostWords(r) { var n = typeof window !== 'undefined' ? window.wpNet : null, live = !!(r.last && n && n.active && n.role === 'host'); return (r.maps === 1 ? '1 map' : r.maps + ' maps') + (live ? ' \u00b7 Its table is running' : r.last ? ' \u00b7 Open last' : ''); }   // 1.6.2: a running table said as one
   function wcHostDraw(doc, rows, away, pick) {
       var list = doc.getElementById('wcHostList'), none = doc.getElementById('wcHostNone'), make = doc.getElementById('wcHostNew');
       if (!list) return; list.textContent = '';

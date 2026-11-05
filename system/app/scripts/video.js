@@ -48,7 +48,7 @@ function bodyHtml(on, list, activeId, up) {
     if (!on) return '<div class="snd-none">Video is off for this campaign — switch it on in <i class="wib wi-cog"></i> Settings &#9656; This campaign.</div>';
     return '<div class="vid-top"><button class="tool vid-add" title="Add video files from your computer: MP4 (H.264) or WebM play everywhere; M4V, OGV and MOV when this app can play them. A file stays in your saves folder, whatever its size">&#8853; Add videos&hellip;</button>'
         + '<span class="vid-up" aria-live="polite">' + (up ? esc('Adding ' + up.name + ' — ' + up.pct + '%') : '') + '</span></div>'
-        + (list.length ? '<div class="vid-rows">' + rowsHtml(list, activeId) + '</div><div class="vid-foot">' + esc(sumLine(list)) + '</div>' : '<div class="snd-none">No videos in this campaign yet.</div>');
+        + (list.length ? '<div class="vid-rows">' + rowsHtml(list, activeId) + '</div><div class="vid-foot">' + esc(sumLine(list)) + '</div>' : '<div class="snd-none">No videos in this campaign yet. Show the table a clip, an opening or a scene. MP4 and WebM files play everywhere.</div>');
 }
 // [sinkcheck:videopanel-end]
 

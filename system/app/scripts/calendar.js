@@ -679,6 +679,7 @@ function liveRow(body, camp, ck) {   // the GM's window: Runs / Held, the speed,
     row.appendChild(cel('span', 'sys-num-cap', 'The clock'));
     [['run', '\u25b6 Runs', 'The clock runs by itself while a session is open: it waits while the table is paused and while a fight is on'], ['hold', '\u275A\u275A Held', 'The clock moves only by your steps and by a fight\u2019s rounds']].forEach(function(k) {
         var b = cbtn('cal-live-btn' + ((k[0] === 'hold') === held ? ' cal-kind-on' : ''), k[1], k[2], 'callive'); b.dataset.live = k[0]; row.appendChild(b);
+        if (k[0] === 'run' && !held && liveHeld(camp) !== '') { b.className += ' cal-live-wait'; b.title = k[2] + '. Picked, but not running now: the line below says why.'; }   // 1.6.2: Runs picked while the clock waits is drawn half lit
     });
     var sel = cel('select', 'field cal-live-rate'); sel.title = 'How fast the clock runs by itself';
     CAL_LIMITS.rates.forEach(function(r) { var o = cel('option', '', r === 1 ? 'Real time' : '\u00d7' + r); o.value = String(r); sel.appendChild(o); });

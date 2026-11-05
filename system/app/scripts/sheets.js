@@ -2988,6 +2988,8 @@ function lvlFit(i, L) {
 function entryLvls(def) { return (def && Array.isArray(def.lvls) ? def.lvls : []).filter(function(r) { return !!r && typeof r === 'object' && typeof r.lvl === 'number' && isFinite(r.lvl); }); }
 function lvlWord(L, n) { var t = lvlText(L, n); return Array.isArray(L.labels) && L.labels.length && t !== fmtNum(n) ? t : (L.label || 'Level') + ' ' + t; }
 function lvlTagOf(lvs, n) { for (var i = 0; i < lvs.length; i++) if (lvs[i].lvl === n) return typeof lvs[i].tag === 'string' ? lvs[i].tag : ''; return ''; }
+// 1.6.2 (180, R5's leftover; the owner: "is both a good idea? id like waypoint to have decent customization"): a By level tag's colour, its own line's, else its list's, else none
+function lvlTagTone(spec, r) { var t = r && typeof r.tone === 'string' ? r.tone : spec && typeof spec.lvlTone === 'string' ? spec.lvlTone : ''; return typeof badgeTone === 'function' ? badgeTone(t) : ''; }
 function lvlFace(node, L, n, tag) { node.appendChild(el('span', 'sheet-item-lvlword', lvlWord(L, n))); if (typeof tag === 'string' && tag) node.appendChild(el('span', 'sheet-item-lvltagbox', tag)); return node; }
 // 1.6.0 Levels it may be: the choices of a row's level menu where its entry names its levels. Those levels alone, each with its By level tag where it has
 // one, for a player whatever the list ticks, so a level is picked and never typed to be refused. The GM keeps the box on a list that has no menu
@@ -3103,7 +3105,7 @@ function descBits(entry, def, spec) {
         L.forEach(function(r) {
             var tr = el('tr', at !== null && r.lvl === at ? 'is-now' : null), td = el('td');
             tr.appendChild(el('th', null, LS ? lvlText(LS, r.lvl) : fmtNum(r.lvl)));
-            if (typeof r.tag === 'string' && r.tag) td.appendChild(el('span', 'sheet-item-lvltag', r.tag));
+            if (typeof r.tag === 'string' && r.tag) { var tnL = lvlTagTone(spec, r); td.appendChild(el('span', 'sheet-item-lvltag' + (tnL ? ' sheet-tone-' + tnL : ''), r.tag)); }
             td.appendChild(el('span', 'sheet-item-lvltext', r.text)); tr.appendChild(td); tb.appendChild(tr);
         });
         t.appendChild(tb); box.appendChild(t);
@@ -9760,6 +9762,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         lr.appendChild(checkLabel('sys-list-unheldon', typeof sp.unheld === 'string', 'Rolls unheld entries', 'The library picker gets Roll unheld: a roll of this list on an entry the character does not hold, at the Unheld level. You and the character\u2019s owner may roll it'));   // 1.6.0
         if (typeof sp.unheld === 'string') lr.appendChild(input('sys-list-unheldlvl field', sp.unheld, 'The level an entry nobody holds is rolled at: a formula of the entry\u2019s own names, such as Row.Dflt or -5. Row.has reads 0 there', 'Unheld level'));
         lr.appendChild(checkLabel('sys-list-lvlstart', lv.start === true, 'Keeps the starting level', 'Each new row remembers the level it starts at, and its rules can read it. A level changed in play can then be priced, as a drawback bought down. While a character is being made, the start follows the level'));   // 1.6.0
+        if (typeof labeledSelect === 'function') lr.appendChild(labeledSelect('sys-list-lvltone', 'Level tags\u2019 colour', [['', 'Plain'], ['good', 'Good (green)'], ['warn', 'Warning (amber)'], ['danger', 'Danger (red)'], ['accent', 'Accent'], ['primary', 'Primary']], typeof sp.lvlTone === 'string' ? sp.lvlTone : '', 'The colour of the small tag beside each level in an entry\u2019s By level rows. A level line in the Library may set its own.'));   // 1.6.2 (180)
         lr.appendChild(checkLabel('sys-list-lvlentry', lv.entry === true, 'Levels from the entry', 'A row\u2019s level is a menu of its entry\u2019s own By level rows, each with its words beside it in a box: Level 2 (10 pts). An entry with none keeps the level box'));   // 1.6.0 R8
         if (!(Array.isArray(lv.labels) && lv.labels.length)) lr.appendChild(checkLabel('sys-list-lvlsplit', lv.split === true, 'Split in trades', 'A trade may give part of this figure, as money from a chip. A row of quantity 1 only'));   // 1.5.6 trading: a chip's stored money as its level
     }
@@ -13639,6 +13642,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-worklog') >= 0) { if (t.checked) lsc.workLog = true; else delete lsc.workLog; }   // ... and Rows keep a work log
         else if (c.indexOf('sys-list-unheldon') >= 0) { if (t.checked) lsc.unheld = typeof lsc.unheld === 'string' ? lsc.unheld : ''; else delete lsc.unheld; }   // 1.6.0 Rolls unheld entries
         else if (c.indexOf('sys-list-lvlstart') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.start = true; else delete lsc.lvl.start; } }   // 1.6.0 Keeps the starting level
+        else if (c.indexOf('sys-list-lvltone') >= 0) { if (t.value) lsc.lvlTone = String(t.value).slice(0, 12); else delete lsc.lvlTone; }   // 1.6.2 (180)
         else if (c.indexOf('sys-list-lvlentry') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.entry = true; else delete lsc.lvl.entry; } }   // 1.6.0 R8
         else if (c.indexOf('sys-list-lvlsplit') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.split = true; else delete lsc.lvl.split; } }   // 1.5.6 trading
         else if (c.indexOf('sys-list-lcapup') >= 0) { var lcU = t.closest('.sys-list-lcap'), lcV = lcU && lsc.lvl && Array.isArray(lsc.lvl.caps) ? lsc.lvl.caps[+lcU.dataset.ci] : null; if (lcV && typeof lcV === 'object') { if (t.checked) lcV.up = true; else delete lcV.up; } }   // 1.6.0 At most at a level: or higher

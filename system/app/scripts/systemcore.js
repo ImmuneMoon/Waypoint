@@ -4193,6 +4193,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     if (v.boxes === true) out.boxes = true;   // 1.6.0 R3 (the owner, by prompt: "A. A list ticks it"): Figures as boxes in a row's details
     if (isObj(out.lvl) && typeof v.unheld === 'string') { var uhT = cleanFormulaText(v.unheld); if (uhT) out.unheld = uhT; }   // 1.6.0 Rolls unheld entries (the owner, by prompt: "On the list (Recommended)", "GM and owner, by a tick (Recommended)"): the level an entry nobody holds is rolled at, a formula of its own names, on a list with a level
     if (typeof v.modsIf === 'string') { var miT = cleanFormulaText(v.modsIf); if (miT) out.modsIf = miT; }   // 1.6.0 Changes apply where (the campaign build's ask): a formula of the holder's names and each row's own (Row.*); a row where it does not hold gives none of its changes (fxIndex, unseenMods). The same in both views: cleanSystem drops one that cannot stand (modsIfOk)
+    if (typeof v.lvlTone === 'string' && TONES[v.lvlTone] === 1) out.lvlTone = v.lvlTone;   // 1.6.2 (180): the colour of every By level tag of its entries, where a level line names none
     if (v.edge === true) out.edge = true;   // 1.6.0 R16: Edge follows its state, a row's edge in the tone of its strongest badge, else the accent while it is switched on
     if (v.hang === true) out.hang = true;   // 1.6.2 (body fold 1): Rows hang from a row, a row's up and Row.up.<name>
     var shS = cleanSheetsSpec(v.sheets, gmView); if (shS) out.sheets = shS;   // 1.6.2 (vehicles, fold (a)): Rows are sheets, a row's sh and Row.sheet.<name>
@@ -4462,6 +4463,7 @@ function cleanLvls(v) {
         var r = v[i]; if (!isObj(r) || typeof r.lvl !== 'number') continue;
         var lv = lvlNum(r.lvl), tx = cutText(r.text, LIMITS.lvlText); if (lv === undefined || !tx || seen[lv] === 1) continue;
         var o = { lvl: lv, text: tx }, tg = cutText(r.tag, LIMITS.lvlTag); if (tg) o.tag = tg;
+        if (tg && typeof r.tone === 'string' && TONES[r.tone] === 1) o.tone = r.tone;   // 1.6.2 (180, R5's leftover; the owner: both a list's tone and one a level line): its tag's colour, over the list's
         seen[lv] = 1; out.push(o);
     }
     out.sort(function(a, b) { return a.lvl - b.lvl; });

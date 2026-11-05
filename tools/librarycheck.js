@@ -912,6 +912,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const rd = { def: { name: 'Pebble', vis: 'all', notes: 'Warm.', stats: { Wt: 1, Nope: 2 }, key: 'Pebble', desc: 'It hums.' }, src: 'custom', base: {} }, e = L.cleanLibEntry(Object.assign({}, L.entryFromRow(rd, null), { id: 'i_p' }), ctxC);
         check('1.6.2 a row made an entry (librarycore entryFromRow through the real cleaner) keeps its stats, its text and its key, and what no list holds goes as it would from any file', !!e && j(e.stats) === j({ Wt: 1 }) && e.notes === 'Warm.' && e.desc === 'It hums.' && e.key === 'Pebble' && e.vis === 'all', j(e));
     }
+    {   // 1.6.2 (180, R5's leftover; the owner: both a list's tone and one a level line): a By level tag's colour
+        const lv = S.cleanLvls([{ lvl: 1, text: 'one', tag: '5 pts', tone: 'good' }, { lvl: 2, text: 'two', tag: '10 pts', tone: 'nope' }, { lvl: 3, text: 'three', tone: 'danger' }, { lvl: 4, text: 'four', tag: '20 pts', tone: '__proto__' }]);
+        check('180: a level line keeps a tone of the badge tones only beside a tag of its own; anything else is no key',
+            lv.length === 4 && lv[0].tone === 'good' && !('tone' in lv[1]) && !('tone' in lv[2]) && !('tone' in lv[3]), JSON.stringify(lv));
+        const was = [{ lvl: 1, text: 'one', tag: '5 pts', tone: 'good' }, { lvl: 2, text: 'two', tag: '10 pts', tone: 'warn' }];
+        const typed = L.lvlsFromBox('1 (5 pts): one, now longer\n2: two\n3 (30 pts): three', was);
+        check('180: a level’s tag keeps its colour while its line is typed in, by its level, and loses it where its tag goes',
+            typed[0].tone === 'good' && !('tone' in typed[1]) && !('tone' in typed[2]) && JSON.stringify(L.lvlsFromBox(L.lvlsToText(was), was)) === JSON.stringify(was), JSON.stringify(typed));
+        const ls = S.cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_l', key: 'Feats', label: 'Feats', kind: 'item-list', vis: 'all', list: { lvl: { label: 'Level', min: 0, max: 5, step: 1, def: 0 }, lvlTone: 'accent' } }, { id: 'f_m', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', list: { lvlTone: 'pink' } }] }, { F, gmView: true });
+        const lp = S.cleanSystem(ls, { F, gmView: false });
+        check('180: a list’s Level tags’ colour is a badge tone, the same in both views, and none for any other word',
+            ls.fields[0].list.lvlTone === 'accent' && !((ls.fields[1] && ls.fields[1].list) || {}).lvlTone && lp.fields[0].list.lvlTone === 'accent');
+        const fs = require('fs'), sh = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8'), lw = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'librarywin.js'), 'utf8');
+        const tf = new Function('badgeTone', sh.slice(sh.indexOf('function lvlTagTone('), sh.indexOf('function lvlFace(')) + '\nreturn lvlTagTone;')(t => ['good', 'warn', 'danger', 'accent', 'primary'].indexOf(t) >= 0 ? t : '');
+        check('180: the sheet draws a tag in its own line’s colour, else its list’s, else plain, as a badge tone class; the Lists tab and the Library form set them',
+            tf({ lvlTone: 'accent' }, { tone: 'good' }) === 'good' && tf({ lvlTone: 'accent' }, {}) === 'accent' && tf({}, {}) === '' && tf(null, { tone: 'x' }) === ''
+            && sh.includes("td.appendChild(el('span', 'sheet-item-lvltag' + (tnL ? ' sheet-tone-' + tnL : ''), r.tag));") && sh.includes("labeledSelect('sys-list-lvltone', 'Level tags\\u2019 colour',") && sh.includes("else if (c.indexOf('sys-list-lvltone') >= 0)")
+            && lw.includes('function lvlToneBox(form, e) {') && lw.includes("if (typed.lvls && st.lt) typed.lvls.forEach(function(r) { if (r.tag && st.lt[r.lvl]) r.tone = st.lt[r.lvl]; else delete r.tone; });"));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

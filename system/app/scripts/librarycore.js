@@ -161,7 +161,9 @@ export function lvlsToText(lvls) { return (Array.isArray(lvls) ? lvls : []).filt
 // for another change must not rewrite its levels
 export function lvlsFromBox(text, was) {
     var w = Array.isArray(was) && was.length ? was : null, t = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
-    return w && t === lvlsToText(w) ? JSON.parse(JSON.stringify(w)) : lvlsFromText(t);
+    if (w && t === lvlsToText(w)) return JSON.parse(JSON.stringify(w));
+    var out = lvlsFromText(t); if (w) out.forEach(function(r) { var o = w.filter(function(x) { return isObj(x) && x.lvl === r.lvl; })[0]; if (o && r.tag && typeof o.tone === 'string') r.tone = o.tone; });   // 1.6.2 (180): a level's tag keeps its colour while its line is typed in
+    return out;
 }
 export function entryFromForm(f) {
     f = isObj(f) ? f : {}; var s = function(v) { return typeof v === 'string' ? v : v == null ? '' : String(v); };

@@ -9,7 +9,7 @@ import { state as saved } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { toast } from './io.js';
 import { showPrompt, showConfirm } from './dialogs.js';
-import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, libCtx, LIB, packFile, readPackImport, packImportPlan, bulkSet, bulkMove, lvlsToText } from './librarycore.js';
+import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, libCtx, LIB, packFile, readPackImport, packImportPlan, bulkSet, bulkMove, lvlsToText, lvlsFromBox } from './librarycore.js';
 import { CSV, readCsv, headsOf, headLooks, csvStats, csvTargets, guessMap, setTarget, bestList, csvEntries, csvPreview, csvCats } from './csvcore.js';
 import { itemReach, carriedBy, lvlOnlyRead, lvlOnlyText, modTiersRead, modTiersText, keyUses, keyUseSays, catNear } from './systemcore.js';
 
@@ -348,6 +348,18 @@ function field(form, id, label, value, opts) {
     inp.id = 'libF_' + id; if (opts.title) row.title = opts.title;
     row.appendChild(inp); form.appendChild(row); if (typeof guideTip === 'function') guideTip(form, id); return inp;
 }
+// 1.6.2 (180; the owner: a tone for the list and one a level line, "is both a good idea?"): a colour for each level's tag, over its list's. One list
+// a level that has a tag, made again as the By level box is typed in; st.lt holds the picks by level, read by readForm
+var TONE_PAIRS = [['', 'As the list sets'], ['good', 'Good (green)'], ['warn', 'Warning (amber)'], ['danger', 'Danger (red)'], ['accent', 'Accent'], ['primary', 'Primary']];
+function lvlToneBox(form, e) {
+    var box = el('div', 'lib-lvltones'), area = ui('libF_lvls'); st.lt = {}; (Array.isArray(e.lvls) ? e.lvls : []).forEach(function(r) { if (r && typeof r.tone === 'string') st.lt[r.lvl] = r.tone; });
+    var draw = function() {
+        box.textContent = ''; var lv = lvlsFromBox(area ? area.value : '', e.lvls).filter(function(r) { return !!r.tag; }); if (!lv.length) return;
+        box.appendChild(el('div', 'lib-fsub', 'Tag colours'));
+        lv.forEach(function(r) { var row = el('label', 'lib-frow'); row.appendChild(el('span', 'lib-flabel', 'Level ' + r.lvl + ' (' + r.tag + ')')); var sl = select(TONE_PAIRS, st.lt[r.lvl] || ''); sl.className = 'field lib-lvltone'; sl.title = 'The colour of this level\u2019s tag on the sheet. As the list sets: the Lists tab\u2019s Level tags\u2019 colour'; sl.addEventListener('change', function() { if (sl.value) st.lt[r.lvl] = sl.value; else delete st.lt[r.lvl]; }); row.appendChild(sl); box.appendChild(row); });
+    };
+    if (area) area.addEventListener('input', draw); draw(); form.appendChild(box);
+}
 function renderForm() {
     var form = ui('libForm'); if (!form) return; form.textContent = '';
     st.fs = null; st.fsFor = null;   // 1.6.0: and of its roll bonuses
@@ -370,7 +382,9 @@ function renderForm() {
     var sd = statDefs(); if (sd.length) { form.appendChild(el('div', 'lib-fsub', 'Stats')); sd.forEach(function(s) { var inp = field(form, 'st_' + s.key.toLowerCase(), s.label, e.stats && e.stats[s.key] !== undefined ? e.stats[s.key] : '', s.opts ? { choices: s.opts } : { max: 40 }); inp.dataset.stat = s.key; if (s.set) placeTicks(form, inp, s.set); }); }
     field(form, 'notes', 'Notes', e.notes, { area: true, rows: 2, max: 1000, title: 'Shown with the row on the sheet (copied onto characters)' });
     field(form, 'desc', 'Description', e.desc, { area: true, rows: 5, max: LIB.desc, title: 'What it does, in full. Read in the library and in a row’s details on the sheet. A GM-only entry’s stays with you' });
+    st.lt = null;
     field(form, 'lvls', 'By level', lvlsToText(e.lvls), { area: true, rows: 4, max: 13000, ph: '1: what the first level gives', title: 'What each level gives, one level a line, as 2: text. A few words in brackets after the number are shown beside it, as 2 (Adept): text. A row’s details show it as a small table' });
+    if (typeof lvlToneBox === 'function') lvlToneBox(form, e);   // 1.6.2 (180)
     field(form, 'tags', 'Tags', (e.tags || []).join(', '), { max: 220, ph: 'comma, separated', title: 'Words the search finds it by' });
     field(form, 'ref', 'Reference', e.ref, { max: LIB.ref, ph: 'e.g. Core p. 152' });
     form.appendChild(el('div', 'lib-fsub', 'At the table'));
@@ -629,6 +643,7 @@ function readForm() {
     var g = function(id) { var n = ui('libF_' + id); return n ? n.value : ''; }, e = current(), stats = {};
     Array.prototype.forEach.call(document.querySelectorAll('#libForm [data-stat]'), function(n) { stats[n.dataset.stat] = n.value; });
     var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), lvlOnly: g('lvlOnly'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), lvlsWas: e.lvls, tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, areaType: g('areaType'), areaUse: g('areaUse'), areaPlace: g('areaPlace'), areaTrig: g('areaTrig'), areaAd: g('areaAd'), areaFlight: g('areaFlight'), areaFrag: g('areaFrag'), areaFragType: g('areaFragType'), flySpeed: g('flySpeed'), flyRounds: g('flyRounds'), flyHp: g('flyHp'), flyPro: g('flyPro'), flySize: g('flySize'), flyPath: g('flyPath'), flyRoll: g('flyRoll'), flyEnd: g('flyEnd'), areaAffs: [0, 1].map(function(i) { return { vs: g('areaAff' + i + 'Vs'), fx: g('areaAff' + i + 'Fx'), who: g('areaAff' + i + 'Who'), needs: g('areaAff' + i + 'Needs'), n: g('areaAff' + i + 'Lasts'), u: g('areaAff' + i + 'Unit') }; }), gmNotes: g('gmNotes'), again: g('again'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), rollSw: st.fsFor === e.id && st.fs ? st.fs : e.rollSw, mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, opens: st.foFor === e.id && st.fo ? st.fo : e.opens, grants: st.fgFor === e.id && st.fg ? st.fg : e.grants, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsIf: g('needsIf'), needsFrom: g('needsFrom'), needsMsg: g('needsMsg') });
+    if (typed.lvls && st.lt) typed.lvls.forEach(function(r) { if (r.tag && st.lt[r.lvl]) r.tone = st.lt[r.lvl]; else delete r.tone; });   // 1.6.2 (180): each level's tag colour as picked
     var out = clone(e), eqShown = !!ui('libF_eq'); FORM_KEYS.forEach(function(k) { if (eqShown || (k !== 'eq' && k !== 'eqMsg')) delete out[k]; }); return Object.assign(out, typed);   // a switch lock the form does not show (no list has a switch) is kept
 }
 // 1.5.8: an entry's blast extras beside its radius: its damage type (a key of the Combat tab's types, or none), whether going off uses one

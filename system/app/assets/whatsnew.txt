@@ -330,6 +330,11 @@ At the table
 - A row's note, a name and a description of a row of the character's own, and
   the name of an effect made on the spot take a look too, as a sheet's text does.
 
+Level tags in colour
+- An entry's By level rows show a small tag beside a level, such as 10 pts.
+  A list can now give every tag a colour, and the Library can give each
+  level's tag its own, which wins.
+
 Animated dice
 - When a roll lands, its dice tumble on its card in Table Chat and land on the
   faces the roll gave. Each die is drawn in 3D, a d4, d6, d8, d10, d12 and d20,

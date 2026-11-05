@@ -153,6 +153,9 @@ jobs:
       - name: helpchipcheck — Help draws the controls it names and shows each one where it is
         if: ${{ !cancelled() }}
         run: node tools/helpchipcheck.js
+      - name: dice3dcheck — animated dice, the stand-in dice, a model file and the face each die lands on
+        if: ${{ !cancelled() }}
+        run: node tools/dice3dcheck.js
       - name: assistcheck — a roll that waits for others to help, its card and what each helper adds
         if: ${{ !cancelled() }}
         run: node tools/assistcheck.js

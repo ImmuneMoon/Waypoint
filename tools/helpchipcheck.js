@@ -53,8 +53,8 @@ function page(opts) {
     return { doc, sys, help, pane, opener };
 }
 const src = read('scripts/helpchips.js'), cut = (a, b) => src.slice(src.indexOf('// [helpchipcheck:' + a + '-start]'), src.indexOf('// [helpchipcheck:' + b + '-end]'));
-const timers = [], opened = [];
-const api = new Function('window', 'setTimeout', 'MutationObserver', cut('core', 'wire') + '\nreturn { chipFind, chipReach, chipCopy, chipsDraw, chipGo, chipBack, chipMenus, chipStand, chipsName, chipWords, chipBarOpener, chipShut, CHIP_NAMES, CHIP_KEY, CHIP_TAB_IDS };')({ wpOpenHelp: p => opened.push(p) }, (f, ms) => { timers.push([f, ms]); return timers.length; }, undefined);
+const timers = [], opened = [], winA = { wpOpenHelp: p => opened.push(p) };
+const api = new Function('window', 'setTimeout', 'MutationObserver', cut('core', 'wire') + '\nreturn { chipFind, chipReach, chipCopy, chipsDraw, chipGo, chipBack, chipMenus, chipStand, chipsName, chipWords, chipBarOpener, chipShut, CHIP_NAMES, CHIP_KEY, CHIP_TAB_IDS };')(winA, (f, ms) => { timers.push([f, ms]); return timers.length; }, undefined);
 // ---- the core
 const P = page(), d = P.doc;
 const fTab = api.chipFind(d, 'sys-tab:rules'), fSave = api.chipFind(d, '#sysSaveBtn'), fKey = api.chipFind(d, 'sys:fields:sys-key-btn');
@@ -174,11 +174,28 @@ check('every mark Help carries is a key of the chips’ own form, and names a bu
         says({ barOff: true }, '#fogRevealAll') === 'On the play map' && says({ gm: true, player: true }, '#fogRevealAll') === 'The GM\u2019s' && says({ toolOff: true }, '#fogRevealAll') === '' && says({}, '#drawShowAsk') === 'On a player\u2019s screen'
         && (() => { const C = mkBar({}); C.chev.style.display = 'none'; return api.chipReach(C.doc, api.chipFind(C.doc, '#fogRevealAll')); })() === 'Not on this screen', J([says({ barOff: true }, '#fogRevealAll'), says({ gm: true, player: true }, '#fogRevealAll'), says({ toolOff: true }, '#fogRevealAll'), says({}, '#drawShowAsk')]));
 }
+{   // fold 5: a button inside a window the map or the campaign opens, by that window's own button; the combat roster only at a table you host
+    const mkW = (o) => {
+        const lib = mk('div', { id: 'libraryModal', style: { display: 'none' } }, [mk('button', { id: 'libNewPack', cls: 'tool', text: '+ Pack' })]), libB = mk('button', { id: 'libraryCampBtn', cls: 'rm-row' });
+        const cm = mk('div', { id: 'combatModal', style: { display: 'none' } }, [mk('button', { id: 'combatRollAllBtn', cls: 'tool', text: 'Roll all' })]), cmB = mk('button', { id: 'netCombatBtn' });
+        libB.onclick = () => { lib.style.display = 'flex'; }; cmB.onclick = () => { cm.style.display = 'flex'; };
+        const help = mk('div', { id: 'helpModal', style: { display: 'flex' } }, [mk('div', { cls: 'help-body' }, [mk('div', { cls: 'help-pane', data: { pane: 'sheets' }, style: { display: 'block' } }, [])])]);
+        const bodyE = mk('body', { cls: o.player ? 'net-client' : '' }, [mk('div', { cls: 'gm-only' }, [libB]), cmB, lib, cm, help]);
+        return { doc: { body: bodyE, getElementById: id => bodyE.all().find(n => n.id === id) || null, querySelectorAll: q => bodyE.querySelectorAll(q), querySelector: q => bodyE.querySelector(q), createElement: t => new El(t) }, lib, cm, help };
+    };
+    const W = mkW({}), fP = api.chipFind(W.doc, '#libNewPack'), fA = api.chipFind(W.doc, '#combatRollAllBtn');
+    winA.wpNet = null; const offA = api.chipReach(W.doc, fA); winA.wpNet = { active: true, role: 'host' }; const onA = api.chipReach(W.doc, fA);
+    check('a button of the Library window and the combat roster is found in its window; the roster says While you host until you host, and the Library is the GM\u2019s on a player\u2019s app',
+        fP.win === 'libraryModal' && fA.win === 'combatModal' && api.chipReach(W.doc, fP) === '' && offA === 'While you host' && onA === '' && api.chipReach(mkW({ player: true }).doc, api.chipFind(mkW({ player: true }).doc, '#libNewPack')) === 'The GM\u2019s', J([offA, onA]));
+    timers.length = 0; const gW = api.chipGo(W.doc, '#libNewPack'); timers.filter(x => x[1] === 0).forEach(x => x[0]());
+    check('pressed, Help steps aside, the Library window opens by its own button and its button is lit', gW === true && W.help.style.display === 'none' && W.lib.style.display === 'flex' && fP.el.classList.contains('help-found'));
+    winA.wpNet = null;
+}
 {   // fold 3: the names marked as Help opens, each a bold of its part as Help writes it, naming a control the page has, its one occurrence where it says so
     const paneOf = p => { const i = html.indexOf('class="help-pane" data-pane="' + p + '"') >= 0 ? html.indexOf('class="help-pane" data-pane="' + p + '"') : html.indexOf('data-pane="' + p + '"'); if (i < 0) return ''; const j = html.indexOf('class="help-pane"', i + 20); return html.slice(i, j < 0 ? html.length : j); };
     const words = s => api.chipWords(s.replace(/<[^>]+>/g, '').replace(/&hellip;/g, '').replace(/&rsquo;/g, '\u2019'));
     const badN = api.CHIP_NAMES.filter(c => { const p = paneOf(c[0]), n = [...p.matchAll(/<b>([\s\S]*?)<\/b>/g)].filter(m => words(m[1]) === c[1]).length; return !n || (c[3] && n < c[3]) || html.split('id="' + c[2].slice(1) + '"').length !== 2 || !api.CHIP_KEY.test(c[2]); });
-    check('fold 3 names 43 more in their parts of Help (Settings, your profile, Multiplayer and the top row), and fold 4 20 on the map\u2019s toolbars, each a bold Help writes there and a control the page has; Help\u2019s text is left as written', api.CHIP_NAMES.length === 63 && !badN.length && !/data-ctl="#(?:setKeysResetBtn|netJoinBtn|exportMdBtn)"/.test(html), J(badN));
+    check('fold 3 names 43 more in their parts of Help (Settings, your profile, Multiplayer and the top row), fold 4 20 on the map\u2019s toolbars and fold 5 7 in the windows the map and the campaign open, each a bold Help writes there and a control the page has; Help\u2019s text is left as written', api.CHIP_NAMES.length === 70 && !badN.length && !/data-ctl="#(?:setKeysResetBtn|netJoinBtn|exportMdBtn)"/.test(html), J(badN));
     const pn = mk('div', { cls: 'help-pane', data: { pane: 'mp-gm' } }, [mk('b', { text: 'Start combat' }), mk('b', { text: 'Start Combat' }), mk('b', { text: 'Pause the Table' }), mk('b', { text: 'Fog of war' })]), hb = mk('div', { id: 'helpModal' }, [pn]);
     const nN = api.chipsName(hb), bsN = pn.querySelectorAll('b').map(b => b.getAttribute('data-ctl') || '');
     check('marked as Help opens: a name of the list in its part, in any case, the one occurrence where the list names it, never twice, and a name not in the list left as it is', nN === 2 && J(bsN) === J(['', '#netCombatBtn', '#netPauseBtn', '']) && api.chipsName(hb) === 0, J([nN, bsN]));
@@ -190,6 +207,7 @@ check('the marks are on the names of what you press, and a bold that means somet
 const css = read('style.css'), wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wa = read('assets/whatsnew.txt'), ci = fs.readFileSync(path.join(root, '.github', 'workflows', 'checks.yml'), 'utf8');
 check('the page loads the module, which listens to Help and draws its chips as it opens', html.includes('<script type="module" src="scripts/helpchips.js"></script>') && src.includes("new MutationObserver(function() { if (help.style.display !== 'none') { chipsDraw(doc);") && src.includes('window.wpHelpChips ='));
 check('a chip has its frame and its gold edge on hover, its copy takes no press, the light and Back to Help their styles, and Help stands over the window a chip opened', css.includes('.help-chip { display: inline-flex;') && css.includes('.help-chip:hover { border-color: var(--gold); }') && css.includes('.help-chip-in > * { pointer-events: none;') && css.includes('.help-found {') && css.includes('.help-back { position: fixed;') && css.includes('#helpModal.help-over { z-index: 100002 !important; }'));
+check('both notes say the windows of fold 5', [wn, wa].every(t => t.includes("A button of the Library window, Map objects, the dice\n  roller or the combat roster opens its window first")));
 check('both notes say the map\u2019s toolbars (fold 4)', [wn, wa].every(t => t.includes("A row of the map's toolbars, such as Reveal all in\n  the fog menu, opens the tool's options first")));
 check('Help says what a chip does, both notes say it, and CI runs this suite', html.includes('<p>A button Help names is drawn as it looks in the app. Press it, and Help steps aside and shows you that button') && wn.includes("- Help draws the System editor's buttons and tabs as they look in the app.") && wa.includes("- Help draws the System editor's buttons and tabs as they look in the app.") && ci.includes('run: node tools/helpchipcheck.js'));
 console.log('\n' + pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);

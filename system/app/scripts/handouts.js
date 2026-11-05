@@ -1175,7 +1175,7 @@ function renderHandouts() {
     var clrA = ui('handoutClearAll'); if (clrA) clrA.disabled = !Object.keys(handoutsOf(camp)).length;   // Clear all: nothing to clear, nothing to press
     var hs = Object.values(handoutsOf(camp)).sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
     if (handoutTag) hs = hs.filter(function(h) { return (Array.isArray(h.tags) ? h.tags : []).indexOf(handoutTag) >= 0; });
-    if (!hs.length) { list.innerHTML = '<div style="color:var(--dim); padding:12px; line-height:1.5;">No handouts yet. Press <b>New handout</b> and pick a picture from your campaign — a place, a face, a letter. Then show it to the table, to one player, or attach it to a room so whoever walks in sees it.</div>'; return; }
+    if (!hs.length) { list.innerHTML = '<div style="color:var(--dim); padding:12px; line-height:1.5;">No handouts yet. Press <b>+ Picture handout</b> for a picture from your campaign, such as a place, a face or a letter, or <b>+ Text handout</b> for a written page. Then show it to the table or to one player, or attach it to a room so whoever walks in sees it.</div>'; return; }
     var rooms = [];
     Object.values(camp.items).forEach(function(m) { if (m.type !== 'map') return; (m.rooms || []).forEach(function(r) { if (r.handoutId) rooms.push({ hid: r.handoutId, label: (r.name || 'room') + ' · ' + (m.meta && m.meta.title || m.id) }); }); });
     // Give-to targets: only THIS campaign's registered players (camp.players never crosses campaigns),

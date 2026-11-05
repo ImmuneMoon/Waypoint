@@ -5214,6 +5214,90 @@ window.wpFitToGrid = fitToGrid;
       if (o.shot) { if (!launchRowOf(camp, o)) return null; var cS = tokenCentre(t); return launchAt({ charId: o.charId, fieldId: o.fieldId, rowId: o.rowId, x: cS.x, y: cS.y, shot: o.shot, margin: o.margin }, map); }   // 1.6.0 A burst: the very round, and one with no blast of its own puts nothing down
       var c = tokenCentre(t); return launchAt({ charId: o.charId, fieldId: o.fieldId, rowId: o.rowId, x: c.x, y: c.y, margin: o.margin }, map);
   };
+  // [vehiclecheck:fly-start]
+  // 1.6.2 (vehicles, fold (d), things in flight; the core's D1 to D7): what an act launches is a small token of its own on the launcher's map, with no sheet. Its figures
+  // are on the piece (fly: the host's own, never sent) and its HP is a ring of its own (bars). It moves at the start of each new round of the fight it was launched in,
+  // in launch order, and arrives as it enters its target's cell: the roll its item names is then made as the launcher's attack, and on a hit, or with no roll, its
+  // blast goes off at the target, else its damage is rolled as a card. Out of rounds it is gone, or goes off where it stands where its item says so
+  var _flyN = 0;
+  function flyHere() { var N = window.wpNet; return !(N && N.active && N.role === 'client') && !(N && N.stream); }
+  function flyMap(camp, id) { return camp && camp.items && typeof id === 'string' && Object.prototype.hasOwnProperty.call(camp.items, id) && camp.items[id] && camp.items[id].type === 'map' ? camp.items[id] : null; }
+  function flyTok(map, id) { return map && Array.isArray(map.whiteboard) && typeof id === 'string' ? map.whiteboard.filter(function(w) { return w && w.id === id && !w.waiting; })[0] || null : null; }
+  function flySent(camp, map) { var N = window.wpNet; if (N && N.active && N.role === 'host' && getActiveMap() !== map && typeof N.sendItem === 'function') N.sendItem(camp.id, map.id); }
+  function flyName(w) { var it = w && w.fly && w.fly.item; return it && it.vis !== 'gm' && typeof it.name === 'string' && it.name ? it.name : 'The missile'; }
+  function flyGone(map, w) { var i = map.whiteboard.indexOf(w); if (i >= 0) map.whiteboard.splice(i, 1); if (state.selWbIds) state.selWbIds = state.selWbIds.filter(function(id) { return id !== w.id; }); if (state.selWbId === w.id) state.selWbId = null; }
+  function flyFight(mapId, tokId) { var N = window.wpNet, c = N && typeof N.combatOfTok === 'function' ? N.combatOfTok(mapId, tokId) : null; return c && typeof c.n === 'number' ? c.n : undefined; }
+  window.wpFlyLaunch = function(list) {   // systemcore applyAct's launch sink, on the host: [{ by, f, r, def, from, map, target }]
+      var camp = getActiveCampaign(), S = window.wpSystemCore, BC = window.wpBlastCore; if (!flyHere() || !camp || !S || !BC || !Array.isArray(list)) return 0;
+      var n = 0, maps = [];
+      list.forEach(function(l) {
+          var map = l ? flyMap(camp, l.map) : null, from = flyTok(map, l && l.from), tgt = flyTok(map, l && l.target), fl = S.cleanFlies(l && l.def && l.def.flies); if (!map || !from || !tgt || tgt.hidden || !fl) return;
+          var g = S.mapGridOf(map), c = tokenCentre(from), tc = tokenCentre(tgt), seat = BC.flyStep({ grid: g, from: c, to: tc, cells: 0 }) || c, W = g === 'hex' ? 30 : 26, H = g === 'hex' ? 26 : 26, nm = typeof l.def.name === 'string' && l.def.name ? l.def.name.slice(0, 60) : 'Missile';
+          var fly = Object.assign({}, fl, { by: l.by, f: l.f, r: l.r, target: tgt.id, at: tc, n: Date.now() * 1000 + (++_flyN % 1000), left: fl.rounds, item: l.def }), fn = flyFight(map.id, from.id); if (fn !== undefined) fly.fn = fn; if (fl.path === 'line') fly.line = BC.flyLine({ x: seat.x, y: seat.y }, tc);
+          map.whiteboard = Array.isArray(map.whiteboard) ? map.whiteboard : [];
+          map.whiteboard.push({ id: 'wb' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), type: 'circle', x: Math.round(seat.x - W / 2), y: Math.round(seat.y - H / 2), w: W, h: H, color: '#e8a33d', name: nm, charName: nm, isChar: true, bars: [{ n: 'HP', cur: fl.hp, max: fl.hp, show: 'all' }, null], fly: fly });
+          n++; if (maps.indexOf(map) < 0) maps.push(map);
+      });
+      if (!n) return 0;
+      if (window.wpStepLog) window.wpStepLog('fly v1', 'launch', { n: n });
+      save(true); render(); maps.forEach(function(m) { flySent(camp, m); });
+      return n;
+  };
+  function flyBlast(camp, map, w, at, direct) {   // its item's blast where it stands or at its target
+      var it = w.fly.item || {}, a = it.area && typeof it.area === 'object' ? it.area : null, ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, w.fly.by) ? camp.chars[w.fly.by] : null; if (!a) return false;
+      var gm = it.vis === 'gm', po = { goOff: true, launched: true, x: at.x, y: at.y, ft: a.ft, name: a.name || it.name || '', by: ch && ch.name || '', charId: w.fly.by, fieldId: w.fly.f, rowId: w.fly.r, damage: it.damage || '', gmOnly: gm, direct: direct || null, dtype: a.type, ad: a.ad, notes: gm ? '' : it.notes, icon: it.icon, frag: a.frag, fragType: a.fragType, aff: a.aff };
+      placeThrownBlast(po, map); return true;
+  }
+  function flyArrive(camp, map, w, tgt) {
+      var S = window.wpSystemCore, F = window.wpFormula, N = window.wpNet, fl = w.fly, it = fl.item || {}, sys = camp.system || {}, nm = flyName(w), tn = tgt.charName || tgt.name || 'its target', hit = true, rolled = false;
+      var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, fl.by) ? camp.chars[fl.by] : null, rl = typeof fl.roll === 'string' && Array.isArray(sys.rolls) ? sys.rolls.filter(function(x) { return x && x.id === fl.roll && typeof x.formula === 'string'; })[0] : null;
+      flyGone(map, w);
+      if (fl.roll) {   // D2: the roll the item names, made as the launcher's attack, from where it arrived
+          hit = false;
+          if (rl && ch && N && typeof N.diceRoll === 'function') {
+              var rc = S && typeof S.rangeCtx === 'function' ? S.rangeCtx(sys, map, w, tgt, { F: F }) : null; rc = rc || { mod: 0, dist: 0 }; rc.tid = tgt.id; rc.mapId = map.id;
+              var dr = N.diceRoll(rl.formula, { charId: ch.id, act: rl.id, range: rc, label: nm + ' arrives' }), ck = N.rollCheck; rolled = true; hit = !!(dr && dr.ok && ck && ck.pass === true);
+          }
+      }
+      if (window.wpStepLog) window.wpStepLog('fly v1', 'arrive', { rolled: rolled, hit: hit });
+      if (!hit) { toast(rolled ? nm + ' reaches ' + tn + ' and misses.' : nm + ' reaches ' + tn + ', but its roll cannot be made. It is spent.'); return; }
+      if (flyBlast(camp, map, w, tokenCentre(tgt), tgt.id)) return;
+      if (typeof it.damage === 'string' && it.damage && ch && window.wpDice && typeof window.wpDice.rollFor === 'function') { window.wpDice.rollFor(ch.id, it.damage, nm + ' damage', { gmOnly: it.vis === 'gm', dmg: true }); toast(nm + ' strikes ' + tn + '. Apply its damage from the card.'); return; }
+      toast(nm + ' strikes ' + tn + '.');
+  }
+  window.wpFlyRound = function(mapId, c) {   // net.js roundChanged, on the host: a new round of a fight on that map moves what flies there, in launch order
+      var camp = getActiveCampaign(), map = flyMap(camp, mapId), BC = window.wpBlastCore, S = window.wpSystemCore, F = window.wpFormula; if (!flyHere() || !map || !BC || !S || !c || typeof c.n !== 'number' || !Array.isArray(map.whiteboard)) return 0;
+      var list = map.whiteboard.filter(function(w) { return w && w.fly && typeof w.fly === 'object' && (w.fly.fn === undefined || w.fly.fn === c.n); }).sort(function(p, q) { return (p.fly.n || 0) - (q.fly.n || 0); }); if (!list.length) return 0;
+      var g = S.mapGridOf(map), n = 0;
+      list.forEach(function(w) {
+          if (map.whiteboard.indexOf(w) < 0) return; var fl = w.fly; fl.fn = c.n; n++;
+          var tgt = flyTok(map, fl.target); if (tgt && tgt.hidden) tgt = null; if (tgt) fl.at = tokenCentre(tgt);
+          var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, fl.by) ? camp.chars[fl.by] : { id: '', values: {} };
+          var sv = F ? F.evaluate(fl.speed, { vars: S.makeResolver(camp.system, ch, F, S.tokenCtx(map, w, {})) }) : null, cells = sv && sv.ok && typeof sv.value === 'number' && isFinite(sv.value) ? Math.max(0, Math.min(BC.FLY_MAX, Math.floor(sv.value))) : 0;
+          var st = fl.at ? BC.flyStep({ grid: g, from: tokenCentre(w), to: fl.at, cells: cells, homing: fl.path !== 'line', line: fl.line }) : null;
+          if (st) { w.x = Math.round(st.x - (w.w || 26) / 2); w.y = Math.round(st.y - (w.h || 26) / 2); if (st.line) fl.line = st.line; }
+          fl.left = (fl.left || 1) - 1;
+          if (st && st.arrived && tgt) return flyArrive(camp, map, w, tgt);
+          if (fl.left <= 0) {   // D3: out of rounds, gone, or off where it stands
+              var at = tokenCentre(w); flyGone(map, w); if (window.wpStepLog) window.wpStepLog('fly v1', 'spent', { off: fl.end === 'off' });
+              if (fl.end === 'off' && flyBlast(camp, map, w, at, null)) return;
+              toast(flyName(w) + ' runs out of flight and is gone.');
+          }
+      });
+      if (n) { save(true); render(); flySent(camp, map); }
+      return n;
+  };
+  window.wpFlyHit = function(tok, inp) {   // sheets.js damageFromRoll, on the host: a hit on a thing in flight (D7), its wound by the system's own rule against its Protection
+      var camp = getActiveCampaign(), S = window.wpSystemCore, F = window.wpFormula; if (!flyHere() || !camp || !S || !tok || !tok.fly || typeof tok.fly !== 'object') return false;
+      var map = null; Object.keys(camp.items || {}).forEach(function(k) { var m = camp.items[k]; if (!map && m && m.type === 'map' && Array.isArray(m.whiteboard) && m.whiteboard.indexOf(tok) >= 0) map = m; }); if (!map) return false;
+      var fl = tok.fly, wd = S.flyWound(camp.system, inp, fl.pro, F), hp = Math.max(0, (typeof fl.hp === 'number' ? fl.hp : 1) - wd), nm = flyName(tok);
+      fl.hp = hp; if (Array.isArray(tok.bars) && tok.bars[0] && typeof tok.bars[0] === 'object') tok.bars[0].cur = hp;
+      if (window.wpStepLog) window.wpStepLog('fly v1', 'hit', { wound: wd, down: hp <= 0 });
+      if (hp <= 0) { flyGone(map, tok); toast(nm + ' takes ' + wd + ' and is shot down.'); }
+      else toast(nm + ' takes ' + wd + '. It has ' + hp + ' HP left.');
+      save(true); render(); flySent(camp, map); return true;
+  };
+  // [vehiclecheck:fly-end]
   var LAUNCH_BOARD = 30000;   // the board's own size, in board pixels (the style sheet's #whiteboard)
   // net.js on the host: a launched round that missed (o: charId, fieldId, rowId, tid and mapId, the roller's target, margin, the verdict's, and crit,
   // 'fumble' for a critical failure). Where its item says nothing of a miss, nothing: the GM places it with Launch, as before

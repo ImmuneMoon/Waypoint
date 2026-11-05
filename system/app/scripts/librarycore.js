@@ -189,6 +189,7 @@ export function entryFromForm(f) {
         }).filter(Boolean);
         if (afs.length) ar.aff = afs;
     }
+    var fsp = s(f.flySpeed).trim(); if (fsp) { var fn = function(v) { v = s(v).trim(); return /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : undefined; }, fo = { speed: fsp, rounds: fn(f.flyRounds), hp: fn(f.flyHp), pro: fn(f.flyPro), size: fn(f.flySize) }; if (f.flyPath === 'line') fo.path = 'line'; if (s(f.flyRoll).trim()) fo.roll = s(f.flyRoll).trim(); if (f.flyEnd === 'off') fo.end = 'off'; Object.keys(fo).forEach(function(k) { if (fo[k] === undefined) delete fo[k]; }); out.flies = fo; }   // 1.6.2 (vehicles, fold (d)): what it is once launched (the cleaner, cleanFlies, judges it)
     if (f.again === 'name') out.again = 'name';   // 1.6.0: held again under another name
     if (Array.isArray(f.rollSw) && f.rollSw.length) out.rollSw = JSON.parse(JSON.stringify(f.rollSw));   // 1.6.0: its roll bonuses (cleaned as an entry's are)
     if (f.rm === 'bound' || f.rm === 'curse') { out.rm = f.rm; if (s(f.rmMsg).trim()) out.rmMsg = s(f.rmMsg); }   // L2b: a player's removal (bound / curse on contact) and its message, as the Items tab has them

@@ -172,7 +172,7 @@ var GROUPS = {
         ['grants', 'Rows it grants', 0, ['sys-grant-box']],
         ['sw', 'Roll bonuses', 0, ['sys-sw-box']],
         ['keep', 'Taking it off', 0, ['sys-item-rmmode', 'sys-item-rmtext', 'sys-item-eqmode', 'sys-item-eqtext']],
-        ['blast', 'Blast', 0, ['sys-item-area', 'sys-item-affs']]] },
+        ['blast', 'Blast', 0, ['sys-item-area', 'sys-item-affs', 'sys-fly']]] },
     lists: { split: ['sys-flags', 'sys-list-cols'], head: ['sys-list-title'], list: [
         ['holds', 'What it holds', 1, ['sys-list-cats', 'sys-starts']],
         ['rows', 'How its rows behave', 1, ['sys-list-multi', 'sys-list-noqty', 'sys-list-sheets', 'sys-list-sheettpl', 'sys-list-sheeton', 'sys-list-hang', 'sys-list-graise', 'sys-list-custom', 'sys-ownsw', 'sys-list-open', 'sys-list-hand', 'sys-list-handgm', 'sys-list-trade', 'sys-list-togm', 'sys-list-edge', 'sys-list-groupby', 'sys-list-menus', 'sys-list-boxes', 'sys-traderules']],

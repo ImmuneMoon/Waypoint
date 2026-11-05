@@ -229,6 +229,52 @@ function lineTargets(from, aim, toks, o) {
     });
     return out.sort(function(a, b) { return a.along - b.along; }).map(function(t) { return t.id; });
 }
-var API = { envRead: envRead, lineTargets: lineTargets, towardPoint: towardPoint, diceAt: diceAt, VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
+// 1.6.2 (vehicles, fold (d), things in flight; the core's answers D1 to D5): a thing in flight moves a whole number of cells a round, cell by cell on
+// the map's lattice (a hex of 30 px sides and 52 px rows, a square of 50 px, or 50 px steps on a map with no grid), homing (each step to the
+// neighbour nearest the target's cell as it now stands) or straight (along the line it was launched on, kept as { ox, oy, dx, dy, k }). It passes
+// over every other token, and arrives the moment it enters the target's cell. flyStep reads nothing but its arguments: { grid, from: {x, y},
+// to: {x, y}, cells, homing, line } -> { x, y, path, arrived, line }, centres in board pixels; null for what is no place
+var FLY_MAX = 200;
+function hexOf(x, y) { var s = 30, h = 52, q = (x - s / 2) / (1.5 * s), r = y / h - q / 2, rx = Math.round(q), ry = Math.round(r), rz = Math.round(-q - r), dx = Math.abs(rx - q), dy = Math.abs(ry - r), dz = Math.abs(rz - (-q - r)); if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz; return { q: rx, r: ry }; }
+function hexAt(c) { return { x: c.q * 45 + 15, y: (c.r + c.q / 2) * 52 }; }
+function hexDist(a, b) { var dq = a.q - b.q, dr = a.r - b.r; return Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr)); }
+var HEX_NB = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
+function sqOf(x, y) { return { q: Math.floor(x / 50), r: Math.floor(y / 50) }; }
+function sqAt(c) { return { x: c.q * 50 + 25, y: c.r * 50 + 25 }; }
+function sqDist(a, b) { return Math.max(Math.abs(a.q - b.q), Math.abs(a.r - b.r)); }
+var SQ_NB = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+function flyStep(o) {
+    if (!isObj(o) || !isObj(o.from) || !isObj(o.to) || !fin(o.from.x) || !fin(o.from.y) || !fin(o.to.x) || !fin(o.to.y)) return null;
+    var n = fin(o.cells) ? Math.max(0, Math.min(FLY_MAX, Math.floor(o.cells))) : 0, path = [];
+    if (o.grid !== 'hex' && o.grid !== 'square') {   // no grid: 50 px a step, straight at the target or along the line
+        var px = { x: o.from.x, y: o.from.y }, ln = isObj(o.line) && fin(o.line.dx) && fin(o.line.dy) ? o.line : null;
+        for (var i = 0; i < n; i++) {
+            var tx = o.homing === false && ln ? px.x + ln.dx * 50 : o.to.x, ty = o.homing === false && ln ? px.y + ln.dy * 50 : o.to.y, dx = tx - px.x, dy = ty - px.y, len = Math.hypot(dx, dy);
+            if (o.homing !== false && len <= 50) { px = { x: o.to.x, y: o.to.y }; path.push(px); return { x: px.x, y: px.y, path: path, arrived: true, line: ln }; }
+            if (!(len > 1e-9)) break; px = { x: Math.round((px.x + dx / len * 50) * 100) / 100, y: Math.round((px.y + dy / len * 50) * 100) / 100 }; path.push(px);
+            if (Math.hypot(o.to.x - px.x, o.to.y - px.y) <= 25) return { x: px.x, y: px.y, path: path, arrived: true, line: ln };
+        }
+        return { x: px.x, y: px.y, path: path, arrived: false, line: ln };
+    }
+    var hex = o.grid === 'hex', cellOf = hex ? hexOf : sqOf, at = hex ? hexAt : sqAt, dist = hex ? hexDist : sqDist, nb = hex ? HEX_NB : SQ_NB;
+    var cur = cellOf(o.from.x, o.from.y), tc = cellOf(o.to.x, o.to.y), line = isObj(o.line) && fin(o.line.ox) && fin(o.line.oy) && fin(o.line.dx) && fin(o.line.dy) ? { ox: o.line.ox, oy: o.line.oy, dx: o.line.dx, dy: o.line.dy, k: fin(o.line.k) ? Math.max(0, Math.floor(o.line.k)) : 0 } : null;
+    if (cur.q === tc.q && cur.r === tc.r) { var p0 = at(cur); return { x: p0.x, y: p0.y, path: [], arrived: true, line: line }; }
+    for (var j = 0; j < n; j++) {
+        var next = null;
+        if (o.homing === false && line) {   // the next cell along the line it was launched on, never the one it stands in
+            for (var t = line.k + 1; t < line.k + 400 && !next; t++) { var c = cellOf(line.ox + line.dx * t * 10, line.oy + line.dy * t * 10); if (c.q !== cur.q || c.r !== cur.r) { next = c; line.k = t; } }
+        } else {
+            var best = null, bd = Infinity, bp = Infinity, tp = at(tc);
+            nb.forEach(function(d) { var c = { q: cur.q + d[0], r: cur.r + d[1] }, cd = dist(c, tc), cp = at(c), pd = Math.hypot(cp.x - tp.x, cp.y - tp.y); if (cd < bd || (cd === bd && pd < bp)) { best = c; bd = cd; bp = pd; } });
+            next = best;
+        }
+        if (!next) break; cur = next; var pp = at(cur); path.push(pp);
+        if (cur.q === tc.q && cur.r === tc.r) return { x: pp.x, y: pp.y, path: path, arrived: true, line: line };
+    }
+    var pe = at(cur); return { x: pe.x, y: pe.y, path: path, arrived: false, line: line };
+}
+// the line a thing in flight is launched on: from where it is launched toward its target, a unit step a pixel; null where the two are one place
+function flyLine(from, to) { if (!isObj(from) || !isObj(to) || !fin(from.x) || !fin(from.y) || !fin(to.x) || !fin(to.y)) return null; var dx = to.x - from.x, dy = to.y - from.y, len = Math.hypot(dx, dy); return len > 1e-6 ? { ox: from.x, oy: from.y, dx: dx / len, dy: dy / len, k: 0 } : null; }
+var API = { flyStep: flyStep, flyLine: flyLine, FLY_MAX: FLY_MAX, envRead: envRead, lineTargets: lineTargets, towardPoint: towardPoint, diceAt: diceAt, VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
 if (typeof window !== 'undefined') window.wpBlastCore = API;
-export { envRead, lineTargets, towardPoint, diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanMine, inTrigger, STAND_INS };
+export { flyStep, flyLine, FLY_MAX, envRead, lineTargets, towardPoint, diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanMine, inTrigger, STAND_INS };

@@ -13,7 +13,7 @@ import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, li
 import { CSV, readCsv, headsOf, headLooks, csvStats, csvTargets, guessMap, setTarget, bestList, csvEntries, csvPreview, csvCats } from './csvcore.js';
 import { itemReach, carriedBy, lvlOnlyRead, lvlOnlyText, modTiersRead, modTiersText, keyUses, keyUseSays, catNear } from './systemcore.js';
 
-var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'lvlOnly', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg', 'again', 'rollSw', 'opens', 'grants', 'mods', 'modsOn', 'needs', 'needsIf', 'needsFrom', 'needsMsg'];
+var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'lvlOnly', 'stats', 'area', 'flies', 'rm', 'rmMsg', 'eq', 'eqMsg', 'again', 'rollSw', 'opens', 'grants', 'mods', 'modsOn', 'needs', 'needsIf', 'needsFrom', 'needsMsg'];
 var NEED_MAX = 80, NEED_PICK = 2000;   // 126b: the entries one entry needs, and the longest list its chooser offers
 var VIS = [['all', 'Players can see it'], ['gm', 'GM only']];
 var st = { open: false, campId: null, packId: null, entryId: null, q: '', shown: [], work: map(), dirty: map(), timer: null, draftNew: null, sel: map(), anchor: null, imp: null, fm: null, fmFor: null, fn: null, fnFor: null };   // fm (F6): the open entry's changes being edited
@@ -378,6 +378,7 @@ function renderForm() {
     field(form, 'cost', 'Cost', e.cost, { max: 1000 });
     field(form, 'areaFt', 'Blast (ft)', e.area && e.area.ft ? e.area.ft : '', { max: 5, title: 'A blast radius in feet: the character can throw it from the sheet' });
     blastBox(form, e.area);   // 1.5.8: the blast's extras, as systemcore areaExtra keeps them
+    fliesLibBox(form, e.flies);   // 1.6.2 (vehicles, fold (d)): what it is once launched
     field(form, 'throwSkill', 'Thrown with', e.throwSkill, { max: 40, ph: 'A skill key', title: 'The skill a throw of it rolls' });
     field(form, 'gmNotes', 'GM notes', e.gmNotes, { area: true, rows: 3, max: LIB.gmNotes, title: 'Yours alone: never on a player’s screen' });
     modsBox(form, e);   // Stage 6 F6
@@ -627,7 +628,7 @@ function grantsBox(form, e) {
 function readForm() {
     var g = function(id) { var n = ui('libF_' + id); return n ? n.value : ''; }, e = current(), stats = {};
     Array.prototype.forEach.call(document.querySelectorAll('#libForm [data-stat]'), function(n) { stats[n.dataset.stat] = n.value; });
-    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), lvlOnly: g('lvlOnly'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), lvlsWas: e.lvls, tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, areaType: g('areaType'), areaUse: g('areaUse'), areaPlace: g('areaPlace'), areaTrig: g('areaTrig'), areaAd: g('areaAd'), areaFlight: g('areaFlight'), areaFrag: g('areaFrag'), areaFragType: g('areaFragType'), areaAffs: [0, 1].map(function(i) { return { vs: g('areaAff' + i + 'Vs'), fx: g('areaAff' + i + 'Fx'), who: g('areaAff' + i + 'Who'), needs: g('areaAff' + i + 'Needs'), n: g('areaAff' + i + 'Lasts'), u: g('areaAff' + i + 'Unit') }; }), gmNotes: g('gmNotes'), again: g('again'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), rollSw: st.fsFor === e.id && st.fs ? st.fs : e.rollSw, mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, opens: st.foFor === e.id && st.fo ? st.fo : e.opens, grants: st.fgFor === e.id && st.fg ? st.fg : e.grants, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsIf: g('needsIf'), needsFrom: g('needsFrom'), needsMsg: g('needsMsg') });
+    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), lvlOnly: g('lvlOnly'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), lvlsWas: e.lvls, tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, areaType: g('areaType'), areaUse: g('areaUse'), areaPlace: g('areaPlace'), areaTrig: g('areaTrig'), areaAd: g('areaAd'), areaFlight: g('areaFlight'), areaFrag: g('areaFrag'), areaFragType: g('areaFragType'), flySpeed: g('flySpeed'), flyRounds: g('flyRounds'), flyHp: g('flyHp'), flyPro: g('flyPro'), flySize: g('flySize'), flyPath: g('flyPath'), flyRoll: g('flyRoll'), flyEnd: g('flyEnd'), areaAffs: [0, 1].map(function(i) { return { vs: g('areaAff' + i + 'Vs'), fx: g('areaAff' + i + 'Fx'), who: g('areaAff' + i + 'Who'), needs: g('areaAff' + i + 'Needs'), n: g('areaAff' + i + 'Lasts'), u: g('areaAff' + i + 'Unit') }; }), gmNotes: g('gmNotes'), again: g('again'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), rollSw: st.fsFor === e.id && st.fs ? st.fs : e.rollSw, mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, opens: st.foFor === e.id && st.fo ? st.fo : e.opens, grants: st.fgFor === e.id && st.fg ? st.fg : e.grants, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsIf: g('needsIf'), needsFrom: g('needsFrom'), needsMsg: g('needsMsg') });
     var out = clone(e), eqShown = !!ui('libF_eq'); FORM_KEYS.forEach(function(k) { if (eqShown || (k !== 'eq' && k !== 'eqMsg')) delete out[k]; }); return Object.assign(out, typed);   // a switch lock the form does not show (no list has a switch) is kept
 }
 // 1.5.8: an entry's blast extras beside its radius: its damage type (a key of the Combat tab's types, or none), whether going off uses one
@@ -637,6 +638,20 @@ function dmgTypePairs(cur) {
     ((d && Array.isArray(d.types)) ? d.types : []).forEach(function(y) { if (!y || typeof y.key !== 'string' || seen[y.key]) return; seen[y.key] = 1; out.push([y.key, typeof y.label === 'string' && y.label ? y.label : y.key]); });
     if (typeof cur === 'string' && cur && !seen[cur]) out.push([cur, cur]);   // a stored type the Combat tab no longer lists stays as it is
     return out;
+}
+// 1.6.2 (vehicles, fold (d), things in flight): an entry that flies once a Launch puts it on the map, as systemcore cleanFlies keeps it. Blank Speed: it does not fly
+function fliesLibBox(form, f) {
+    f = f && typeof f === 'object' ? f : {}; var num = function(v) { return typeof v === 'number' && isFinite(v) ? v : ''; }, c = camp();
+    var rl = (c && c.system && Array.isArray(c.system.rolls) ? c.system.rolls : []).filter(function(r) { return r && typeof r.id === 'string' && typeof r.formula === 'string' && !Array.isArray(r.apply); }).map(function(r) { return [r.id, typeof r.label === 'string' && r.label ? r.label : 'A roll']; });
+    if (typeof f.roll === 'string' && f.roll && !rl.some(function(o) { return o[0] === f.roll; })) rl.push([f.roll, 'A roll that is gone']);
+    field(form, 'flySpeed', 'Flies once launched, cells a round', typeof f.speed === 'string' ? f.speed : '', { max: 1000, title: 'How many cells it flies each round once a change launches it, worked out from the launcher\u2019s sheet. Blank: it does not fly' });
+    field(form, 'flyRounds', 'Flies for (rounds)', num(f.rounds), { max: 2, title: 'How many rounds it flies before it is spent' });
+    field(form, 'flyHp', 'In flight, HP', num(f.hp), { max: 7, title: 'Its HP in flight. A hit takes a wound off it, worked out by your damage rules against its Protection' });
+    field(form, 'flyPro', 'In flight, Protection', num(f.pro), { max: 7, title: 'Taken off a hit before the wound. Blank: none' });
+    field(form, 'flySize', 'In flight, Size', num(f.size), { max: 3, title: 'Its Size. Blank: none' });
+    field(form, 'flyPath', 'It flies', f.path === 'line' ? 'line' : '', { pairs: [['', 'Homing on its target'], ['line', 'Straight on']], title: 'Homing: each step goes to the cell nearest its target as it now stands. Straight: it keeps to the line it was launched on' });
+    field(form, 'flyRoll', 'On arrival', typeof f.roll === 'string' ? f.roll : '', { pairs: [['', 'It strikes']].concat(rl), title: 'A roll made as the launcher\u2019s attack as it reaches its target, which the target may resist. On a hit its blast or damage lands. With none it strikes' });
+    field(form, 'flyEnd', 'Out of rounds', f.end === 'off' ? 'off' : '', { pairs: [['', 'It is gone'], ['off', 'It goes off where it stands']], title: 'When its rounds run out before it arrives. Going off needs a blast of its own' });
 }
 function blastBox(form, a) {
     a = a && typeof a === 'object' ? a : {}; var num = function(v) { return typeof v === 'number' && isFinite(v) ? v : ''; };

@@ -233,6 +233,11 @@ At the table
   Arcs may overlap. A rule can ask whether a hit comes from inside an arc,
   and a list can name the arc each of its rows reaches, so a gun greys out
   where it cannot fire.
+- An item can now fly once launched, as a missile does. A Launch change on a
+  list's roll or action puts it on the map as a small token with its own HP,
+  aimed at the launcher's target. It moves each round of the fight, and as it
+  arrives the roll you name is made as the launcher's attack. It can be shot
+  down with a damage card, which your damage rules take off its HP.
 - A map can now be switched to a scale the system names, such as Vehicle or
   Space, from Map kind in the measure options. Picking one sets the map's
   cell to that kind's, and everyone on the map sees the kind beside its name.

@@ -3678,6 +3678,7 @@
   #sysCombatBox { min-height: 0; overflow-y: auto; align-content: flex-start; border-bottom: none; margin-bottom: 0; padding-top: 2px; }   /* 1.6.2: the right side of the Combat tab scrolls by itself */
   #sysCombatBox > .sys-combat-note { flex: 0 0 100%; }
   .sys-item-area { display: inline-flex; gap: 5px; align-items: flex-end; }
+  .sys-fly { display: flex; flex-wrap: wrap; gap: 5px; align-items: flex-end; margin: 4px 0; }
   .sys-item-notes-row { margin-top: 5px; }
   .sys-item-notes-row input { width: 100%; box-sizing: border-box; }
   .sys-item-row .sys-item-damage, .sys-item-row .sys-item-cost, .sys-item-row .sys-item-throw { flex: 1; min-width: 110px; font-family: ui-monospace, Consolas, monospace; }

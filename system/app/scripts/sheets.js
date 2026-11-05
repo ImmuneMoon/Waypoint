@@ -28,7 +28,7 @@ import { upChanges, revIdle } from './systemcore.js';   // 1.6.0: what a Review 
 import { lvlOnlyRead, lvlOnlyText, lvlOnlyOn, lvlOnlyHas, lvlOnlyList, lvlOnlySays, modTiersRead, modTiersText, modAt } from './systemcore.js';   // 1.6.0: Levels it may be, and a change's figures By level
 import { upkeepLines } from './systemcore.js';   // 205 follow-up (3): a turn's or a round's upkeep said on a card
 import { setLinkSource, linkSet, linkedFrom, linksDrop, cleanLinks, LINK_NOT, setGateEngine } from './systemcore.js';
-import { rowSheetSet, sheetFromRow, rowSheetsDrop, sheetRows, setTagSource, setTagSink } from './systemcore.js';   // 1.6.2 (vehicles, fold (a)): Rows are sheets; fold (c): marks   // 1.6.0: linked sheets
+import { rowSheetSet, sheetFromRow, rowSheetsDrop, sheetRows, setTagSource, setTagSink, setLaunchSink } from './systemcore.js';   // 1.6.2 (vehicles, fold (a)): Rows are sheets; fold (c): marks   // 1.6.0: linked sheets
 import { ROW_LOOK, WORK_KINDS, cleanRowLook, rowLookShown, finishWords, workWords } from './systemcore.js';   // 1.6.0, backlog 206: a row's look and its work log
 import { setCrewSource } from './systemcore.js';   // 1.6.0 (CORE gap 16): a vehicle's crew as a group
 import { fitIfOk, partFitEntry, modsIfOk } from './systemcore.js';
@@ -5591,7 +5591,7 @@ function canRoll(c) { if (!c || !window.wpDice || !window.wpDice.rollFor) return
 // Stage 6 HUD H7: a viewer who may press an apply action on this character — the GM (who may write here), a player on their own character; the
 // sheets feature on (an apply moves the sheet, no dice)
 function canApply(c) { if (!c || !F()) return false; if (window.wpVtt && !window.wpVtt.on('sheets')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc && c.making !== 1); return canWrite(); }
-function applyTitle(r, sys) { return (Array.isArray(r.apply) ? r.apply : []).map(function(ch) { if (ch && typeof ch.fx === 'string') { var dF = (sys && Array.isArray(sys.effects) ? sys.effects : []).filter(function(d) { return d && d.id === ch.fx; })[0]; return ((dF && dF.name) || 'An effect') + (ch.on === false ? ' off' : ' on'); } var f = sys && ch && ch.f ? fieldById(sys, ch.f) : null; return (ch && ch.c ? ch.c : f ? (f.label || f.key) : 'a value') + (ch && ch.set ? ' = ' : ch && ch.add ? ' + ' : ' \u2212 ') + ((ch && ch.formula) || '?'); }).join('; '); }
+function applyTitle(r, sys) { return (Array.isArray(r.apply) ? r.apply : []).map(function(ch) { if (ch && ch.launch === true) return 'Launch it at the target'; if (ch && ch.fire === true) return 'Fire'; if (ch && ch.off === true) return 'Switch this row off'; if (ch && typeof ch.fx === 'string') { var dF = (sys && Array.isArray(sys.effects) ? sys.effects : []).filter(function(d) { return d && d.id === ch.fx; })[0]; return ((dF && dF.name) || 'An effect') + (ch.on === false ? ' off' : ' on'); } var f = sys && ch && ch.f ? fieldById(sys, ch.f) : null; return (ch && ch.c ? ch.c : f ? (f.label || f.key) : 'a value') + (ch && ch.set ? ' = ' : ch && ch.add ? ' + ' : ' \u2212 ') + ((ch && ch.formula) || '?'); }).join('; '); }
 function rollPick(r) { return Array.isArray(r.apply) ? 'Apply: ' + (r.label || 'Apply') : 'Roll: ' + (r.label || r.formula); }   // Stage 6 HUD H7: the Layout tab's name for a roll entry
 // Stage 6 HUD H7: an apply action's button — its label and look as a roll's; pressed, it moves its pools or numbers (applyAction). Inert in the
 // Layout preview and a pop-out, and for a viewer who may not change this character
@@ -5906,7 +5906,8 @@ function linkSource(id, sys) {
 }
 if (typeof setLinkSource === 'function') setLinkSource(linkSource);   // (a suite's slice of this file holds no import)
 if (typeof setTagSource === 'function') setTagSource(function(map) { var n = net(); return n && typeof n.tagsOf === 'function' ? n.tagsOf(map) : []; });   // 1.6.2 (vehicles, fold (c)): a map's marks as this screen holds them
-if (typeof setTagSink === 'function') setTagSink(function(moves) { var n = net(); if (n && typeof n.tagsPut === 'function') n.tagsPut(moves); });   // ... and kept on the GM's machine as a change put them on
+if (typeof setTagSink === 'function') setTagSink(function(moves) { var n = net(); if (n && typeof n.tagsPut === 'function') n.tagsPut(moves); });
+if (typeof setLaunchSink === 'function') setLaunchSink(function(list) { if (typeof window.wpFlyLaunch === 'function') window.wpFlyLaunch(list); });   // 1.6.2 (vehicles, fold (d)): what an act launches goes on the map, on the host   // ... and kept on the GM's machine as a change put them on
 if (typeof setGateEngine === 'function') setGateEngine(F);   // 1.6.0 Changes apply where: the engine the host judges a hidden row's gate with (systemcore unseenMods)
 // 1.6.0 (CORE gap 16): a vehicle's crew, every character whose link holds it, each as linkSource hands a linked sheet (the GM's own for the GM's
 // system, the owner's projection for any other, so a GM-only figure never counts for a player); on a player's app none (their copy reads the
@@ -9157,13 +9158,14 @@ function resultTargets(ch) { var o = (Array.isArray(draft.values) ? draft.values
     if (ch && typeof ch.tag === 'string' && !o.some(function(x) { return x[0].slice(4) === ch.tag; })) o.push([(ch.shake === true ? 'tg~:' : ch.on === false ? 'tg-:' : 'tg+:') + ch.tag, 'A mark that is gone']); if (typeof deckTargets === 'function') o = deckTargets(ch).concat(o); if (ch && typeof ch.shared === 'string' && !o.some(function(x) { return x[0] === 'val:' + ch.shared; })) o.push(['val:' + ch.shared, 'A shared value that is gone']); o = o.concat((Array.isArray(draft.results) ? draft.results : []).filter(function(t) { return !!t && typeof t.key === 'string'; }).map(function(t) { return ['tbl:' + t.key, 'Roll on: ' + (t.label || 'A table')]; })); if (ch && typeof ch.table === 'string' && !o.some(function(x) { return x[0] === 'tbl:' + ch.table; })) o.push(['tbl:' + ch.table, 'A table that is gone']); return o; }
 function resultByBox(ch) { var i = input('sys-res-by field', typeof ch.by === 'string' ? ch.by : '', 'Which row it reads. Empty: it rolls the table\u2019s own dice', 'Its own dice'); i.addEventListener('input', function() { var v = i.value.trim(); if (v) ch.by = v.slice(0, LIMITS.formula); else delete ch.by; markDirty(); if (typeof patchErrors === 'function') patchErrors(); }); return i; }
 function setChangeTarget(ch, v) {
-    v = String(v || ''); ['f', 'c', 'fire', 'feed', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money', 'mark', 'tag', 'shake', 'rand', 'test', 'offToo', 'next'].forEach(function(k) { delete ch[k]; });
+    v = String(v || ''); ['f', 'c', 'fire', 'feed', 'launch', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'money', 'mark', 'tag', 'shake', 'rand', 'test', 'offToo', 'next'].forEach(function(k) { delete ch[k]; });
     if (v.indexOf('rnd:') === 0) { ch.rand = v.slice(4); delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; return; }   // 1.6.2 (fold (f)): a row picked at random, no amount
     delete ch.discard; delete ch.to; delete ch.deck; delete ch.shuffle; delete ch.show; delete ch.shared; delete ch.table; delete ch.by; if (v.indexOf('dk:') === 0 || v.indexOf('ds:') === 0) { ch.deck = v.slice(3); delete ch.add; delete ch.set; delete ch.roll; if (v.charAt(1) === 's') { ch.shuffle = true; delete ch.formula; } else if (typeof ch.formula !== 'string' || !ch.formula) ch.formula = '1'; return; } if (v.indexOf('val:') === 0) { ch.shared = v.slice(4); if (typeof ch.formula !== 'string') ch.formula = ''; return; } if (v.indexOf('tbl:') === 0) { ch.table = v.slice(4); delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; return; }   // 1.6.2 (G7): a roll on a result table, no amount
     if (v === 'money') { ch.money = ''; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0: the sheet's money, a figure of its own
     else if (v === 'discard') { ch.discard = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.2 (G9)
     else if (v === 'off') { ch.off = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0 (CORE gap 13): this row switched off, no amount
     else if (v === 'fire') ch.fire = true;
+    else if (v === 'launch') { ch.launch = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.2 (vehicles, fold (d)): what it fired, else the row's own entry, launched at the target; no amount
     else if (v === 'feed') { ch.feed = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0 Feeds: a shot from every feed, no amount
     else if (v.indexOf('tg~:') === 0) { ch.tag = v.slice(4); ch.shake = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // part two: shaken off the one who rolls
     else if (v.indexOf('tg+:') === 0 || v.indexOf('tg-:') === 0) { ch.tag = v.slice(4); ch.on = v.charAt(2) === '+'; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.2 (vehicles, fold (c)): a mark on the target, or taken off it; no amount
@@ -9391,6 +9393,25 @@ function onSwClick(b) {
     else { var L3 = swLine(b, h), tw = b.closest ? b.closest('.sys-sw-to') : null; if (L3 && tw && Array.isArray(L3.s.to)) L3.s.to.splice(+tw.dataset.ti, 1); }
     markDirty(); renderAll(); return true;
 }
+// [vehiclecheck:fliesbox-start]
+// 1.6.2 (vehicles, fold (d), things in flight): an item that flies once a Launch puts it on the map: a small token of its own with no sheet, its own HP and Protection
+function fliesBox(it) {
+    var box = el('div', 'sys-fly'), fl = it.flies && typeof it.flies === 'object' ? it.flies : null;
+    box.appendChild(checkLabel('sys-fly-on', !!fl, 'Flies once launched', 'A change that launches it puts it on the map as a small token of its own, which flies at its target a number of cells each round of the fight'));
+    if (!fl) return box;
+    var sp = input('sys-fly-speed field', typeof fl.speed === 'string' ? fl.speed : '', 'How many cells it flies each round, worked out from the launcher\u2019s sheet. It may read the map\u2019s factors', 'Speed in cells a round'); sp.maxLength = LIMITS.formula; box.appendChild(sp);
+    box.appendChild(numField('sys-fly-rounds', fl.rounds || '', 'How many rounds it flies before it is spent', 'rounds', '1'));
+    box.appendChild(numField('sys-fly-hp', fl.hp || '', 'Its HP. A hit takes a wound off it, worked out by your damage rules against its Protection', 'HP', '1'));
+    box.appendChild(numField('sys-fly-pro', fl.pro || '', 'Its Protection, taken off a hit before the wound. Blank for none', 'Protection', '1'));
+    box.appendChild(numField('sys-fly-size', fl.size || '', 'Its Size. Blank for none', 'Size', '1'));
+    box.appendChild(select('sys-fly-path', [['', 'Homes in on its target'], ['line', 'Flies straight on']], fl.path === 'line' ? 'line' : '', 'Homing: each step goes to the cell nearest its target as the target now stands. Straight: it keeps to the line it was launched on, and misses a target that moves off it'));
+    var rl = (typeof draft !== 'undefined' && draft && Array.isArray(draft.rolls) ? draft.rolls : []).filter(function(r) { return r && typeof r.id === 'string' && typeof r.formula === 'string' && !Array.isArray(r.apply); }).map(function(r) { return [r.id, 'On arrival: roll ' + (r.label || 'a roll')]; });
+    if (typeof fl.roll === 'string' && fl.roll && !rl.some(function(o) { return o[0] === fl.roll; })) rl.push([fl.roll, 'On arrival: a roll that is gone']);
+    box.appendChild(select('sys-fly-roll', [['', 'On arrival: it strikes']].concat(rl), fl.roll || '', 'What happens as it reaches its target. A roll is made as the launcher\u2019s attack, which the target may resist: on a hit its blast or damage lands. With no roll it strikes'));
+    box.appendChild(select('sys-fly-end', [['', 'Out of rounds: it is gone'], ['off', 'Out of rounds: it goes off where it stands']], fl.end === 'off' ? 'off' : '', 'What happens when its rounds run out before it arrives. Going off needs a blast of its own'));
+    return box;
+}
+// [vehiclecheck:fliesbox-end]
 function fxOfRow(target) { var row = target.closest && target.closest('.sys-fx-row'); if (!row) return null; return (draft.effects || []).find(function(x) { return x.id === row.dataset.eid; }) || null; }
 function itemRow(it) {
     var row = el('div', 'sys-row sys-item-row'); row.dataset.iid = it.id;
@@ -9436,6 +9457,7 @@ function itemRow(it) {
     row.appendChild(itemModsBox(it, anyL, anyO));   // Stage 6 F6
     if (typeof grantBox === 'function') row.appendChild(grantBox(it));   // 1.6.0 (v2, B4): the rows it grants
     if (typeof swBox === 'function') row.appendChild(swBox(it));   // 1.6.0: its roll bonuses (asked through typeof: a suite slices this row alone)
+    if (typeof fliesBox === 'function') row.appendChild(fliesBox(it));   // 1.6.2 (vehicles, fold (d)): what it is once launched
     if (it.area) row.appendChild(affBox(it));   // 1.5.9 (es): its blast's afflictions
     var err = errorCell(it.id); err.dataset.errFor = it.id; row.appendChild(err);
     return row;
@@ -10182,11 +10204,12 @@ function listApplyEditor(box, rr, ri, key, sp, targets) {   // key (R2b): 'apply
         if ((sp && sp.on && typeof sp.on === 'object') || ch.off === true) opts.push(['off', sp && sp.on ? 'Switch this row off' : 'Switch off, but this list has no switch']);   // 1.6.0 (CORE gap 13)
         if (key === 'then' && ((sp && sp.chamber && typeof sp.chamber === 'object') || ch.fire === true)) opts.push(['fire', sp && sp.chamber ? 'Fire the next chambered round' : 'Fire, but this list has no Chambers from']);   // 1.5.9 Chambers from
         if (key === 'then' && ((sp && Array.isArray(sp.feeds) && sp.feeds.length) || ch.feed === true)) opts.push(['feed', sp && Array.isArray(sp.feeds) && sp.feeds.length ? 'A shot from every feed' : 'A shot, but this list has no feeds']);   // 1.6.0 Feeds
+        opts.push(['launch', key === 'then' ? 'Launch what it fired, else this row, at the target' : 'Launch this row at the target']);   // 1.6.2 (vehicles, fold (d)): an entry that flies once launched
         if (key === 'then') opts.push(['money', 'The sheet\u2019s money']);   // 1.6.0
-        rw.appendChild(sel('sys-list-applytarget', opts, typeof ch.money === 'string' ? 'money' : ch.off === true ? 'off' : ch.feed === true ? 'feed' : ch.fire === true ? 'fire' : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : ch.q === true ? 'q' : typeof ch.s === 'string' ? 's:' + ch.s : ch.c ? 'c:' + ch.c : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or one of the row\u2019s counters. Fire takes the next chambered round out, as the round last fired. A shot that jams fires nothing'));
+        rw.appendChild(sel('sys-list-applytarget', opts, typeof ch.money === 'string' ? 'money' : ch.off === true ? 'off' : ch.launch === true ? 'launch' : ch.feed === true ? 'feed' : ch.fire === true ? 'fire' : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : ch.q === true ? 'q' : typeof ch.s === 'string' ? 's:' + ch.s : ch.c ? 'c:' + ch.c : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or one of the row\u2019s counters. Fire takes the next chambered round out, as the round last fired. A shot that jams fires nothing'));
         if (ch.fire === true || ch.feed === true) { var fnI = input('sys-list-applyfiren field', typeof ch.n === 'string' ? ch.n : '', ch.feed === true ? 'How many shots this spends at one press: a number or a formula of the row\u2019s names, no dice, such as Row.Rate. Empty: one. Each feed gives that many, and it stops where the emptiest feed runs out' : 'How many rounds this spends at one press: a number or a formula of the row\u2019s names, no dice, such as Row.Rate. Empty: one. They go in order, and it stops when the chamber is empty', 'How many (one)'); fnI.maxLength = LIMITS.formula; rw.appendChild(fnI); }   // 1.6.0: How many
         if (typeof ch.money === 'string') { var moI = input('sys-list-applymoney field', ch.money, 'How much money moves: a formula with no dice, reading the row as Row.Cost and how the roll went as RollMargin. Above 0 is paid in, below 0 is paid out. With too little held a player\u2019s roll lands none of its Then, and your own takes what is held', 'Figure (0 - Row.Cost)'); moI.maxLength = LIMITS.formula; rw.appendChild(moI); }   // 1.6.0
-        if (ch.fire !== true && ch.feed !== true && ch.off !== true && typeof ch.fx !== 'string' && typeof ch.money !== 'string') {
+        if (ch.fire !== true && ch.feed !== true && ch.launch !== true && ch.off !== true && typeof ch.fx !== 'string' && typeof ch.money !== 'string') {
         var mkL = typeof markOpts === 'function' ? markOpts(ch) : [];   // 1.6.2
         rw.appendChild(sel('sys-list-applyop', mkL.length ? mkL : [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']], mkL.length ? markVal(ch) : ch.set ? 'set' : ch.add ? 'add' : 'sub', 'Subtract (a cost) or add; never past the field\u2019s min and max'));
         var fm = input('sys-list-applyformula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount for the row: no dice unless Rolled is ticked; Row.lvl, Row.<stat>, Row.<column> read the row (Row.FPCost)', 'Amount (Row.FPCost)'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
@@ -13239,6 +13262,7 @@ function onInput(e) {
         else if (ic.indexOf('sys-item-ft') >= 0) { if (it.area) it.area.ft = t.value === '' ? 0 : Number(t.value); }
         else if (ic.indexOf('sys-item-aad') >= 0) { if (it.area) { var adI = Number(t.value); if (t.value !== '' && isFinite(adI) && adI > 0) it.area.ad = adI; else delete it.area.ad; } }   // 1.5.8 explosives
         else if (ic.indexOf('sys-item-atrig') >= 0) { if (it.area) { var tgv = Number(t.value); if (t.value !== '' && isFinite(tgv) && tgv > 0) it.area.trig = tgv; else delete it.area.trig; } }   // 1.5.8 explosives
+        else if (/(^| )sys-fly-(speed|rounds|hp|pro|size)( |$)/.test(ic)) { if (!it.flies || typeof it.flies !== 'object') return; var flK = /sys-fly-(speed|rounds|hp|pro|size)/.exec(ic)[1]; if (flK === 'speed') it.flies.speed = String(t.value).slice(0, LIMITS.formula); else { var flN = Number(t.value); if (t.value !== '' && isFinite(flN)) it.flies[flK] = flN; else delete it.flies[flK]; } }   // 1.6.2 (vehicles, fold (d)): Save cleans them
         else if (ic.indexOf('sys-item-damage') >= 0) it.damage = t.value;
         else if (/(^| )sys-item-afrag( |$)/.test(ic)) { if (!it.area) return; if (t.value.trim()) it.area.frag = t.value.slice(0, LIMITS.formula); else { delete it.area.frag; delete it.area.fragType; } }   // 1.5.9 (es): its fragmentation (Save cleans it, the validator reads it)
         else if (/(^| )sys-item-aff(vs|needs|lasts)( |$)/.test(ic)) {   // 1.5.9 (es): an affliction's three formulas (Save cleans them, the validator reads them), and what Save does with it said at once
@@ -13542,6 +13566,8 @@ function onChange(e) {
             else if (afC.a.lasts && typeof afC.a.lasts === 'object') afC.a.lasts.u = vC.slice(0, 24);
             affSaysAt(t, iit, afC.a); markDirty(); patchErrors(); return;
         }
+        if (c.indexOf('sys-fly-on') >= 0) { if (t.checked) iit.flies = iit.flies && typeof iit.flies === 'object' ? iit.flies : { speed: '1', rounds: 1, hp: 1 }; else delete iit.flies; markDirty(); renderAll(); return; }   // 1.6.2 (vehicles, fold (d))
+        if (/(^| )sys-fly-(path|roll|end)( |$)/.test(c)) { if (!iit.flies || typeof iit.flies !== 'object') return; var flS = /sys-fly-(path|roll|end)/.exec(c)[1], flV = String(t.value || ''); if (flV) iit.flies[flS] = flV; else delete iit.flies[flS]; markDirty(); patchErrors(); return; }
         if (c.indexOf('sys-item-aflight') >= 0) { if (iit.area) { if (t.value === 'scatter' || t.value === 'line') iit.area.flight = t.value; else delete iit.area.flight; } markDirty(); patchErrors(); return; }   // 1.5.9 (es)
         if (c.indexOf('sys-item-shape') >= 0) { if (t.value === '') iit.area = null; else iit.area = { ft: iit.area ? iit.area.ft : 12, shape: 'circle', name: iit.area ? iit.area.name : '' }; markDirty(); renderAll(); return; }
         if (c.indexOf('sys-item-cat') >= 0) { var nsc = itemStatDefs(iit).map(function(s) { return s.key.toLowerCase(); }).join(','); if (nsc !== (t.dataset.scope || '')) { markDirty(); renderAll(); } return; }   // F4c1: a category that changes which lists it can be on redraws its stat boxes
@@ -14223,6 +14249,7 @@ function damageFromRoll(fromId, total, done, type, more) {   // 1.5.7: done, cal
     var mp = t && camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, t.mapId) ? camp.items[t.mapId] : null, tok = mp && Array.isArray(mp.whiteboard) ? mp.whiteboard.find(function(w) { return w && w.id === t.id; }) : null;
     if (!tok && !onC) { var am = camp && camp.items ? camp.items[camp.activeItemId] : null, sel = state.selWbIds && state.selWbIds.length === 1 ? state.selWbIds[0] : state.selWbId; if (am && Array.isArray(am.whiteboard) && sel) tok = am.whiteboard.find(function(w) { return w && w.id === sel; }); }
     var aimD = _aimNext; _aimNext = '';
+    if (!onC && tok && tok.fly && typeof tok.fly === 'object' && typeof window.wpFlyHit === 'function') { var fhD = window.wpFlyHit(tok, { amt: total, type: typeof type === 'string' ? type : '', ad: dmgObj(more) && typeof more.ad === 'number' ? more.ad : 1 }); if (fhD && typeof done === 'function') done(); return !!fhD; }   // 1.6.2 (vehicles, fold (d)): a thing in flight, shot at (the core's D7)
     if (!onC && (!tok || typeof tok.charId !== 'string' || !tok.charId)) { toast('Target a character first, or select its token, then press Apply to target again.'); return false; }
     var pre = { amt: total }; if (aimD) pre.loc = aimD; if (typeof done === 'function') pre.done = done; if (typeof type === 'string' && type) pre.type = type; if (dmgObj(more) && typeof more.kind === 'string' && more.kind) pre.kind = more.kind;
     if (dmgObj(more)) { if (typeof more.dice === 'number' && isFinite(more.dice) && more.dice > 0) pre.dice = more.dice; if (typeof more.ad === 'number' && isFinite(more.ad) && more.ad > 0) pre.ad = more.ad; if (more.major === true) pre.major = true; if (more.big === true) { pre.major = true; pre.big = true; } }   // 1.6.2: an attack's Big Hit   // 1.6.0: a roll ticked Always a Major Wound

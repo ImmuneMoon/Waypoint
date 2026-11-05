@@ -1293,7 +1293,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const hA = ix.indexOf('id="helpModal"'), hB = ix.indexOf('<!-- An update that needs the installer'), help = hA > 0 && hB > hA ? ix.slice(hA, hB) : '';
             const step = (tu.match(/\{ target: '#settingsBtn', title: 'Settings',\s*html: '([^\n]*)',\n/) || [])[1] || '';
             const g = ix.indexOf('<details class="set-group" data-group="updates">'), gEnd = ix.indexOf('</details>', g), group = g > 0 ? ix.slice(g, gEnd) : '';
-            check('the Restore button is in Settings under Updates & about, hidden until the shell says there is something to restore; Help says it (an Updates section: a signed update, the way back) and the tour\'s Settings step names the button',
+            check('the Restore button is in Settings under Updates and about, hidden until the shell says there is something to restore; Help says it (an Updates section: a signed update, the way back) and the tour\'s Settings step names the button',
                 /<button class="tool ghost" id="setUpdateRestoreBtn" style="display:none;[^"]*"[^>]*>Restore the previous version<\/button>/.test(group) && /<h4>Updates<\/h4>/.test(help) && /<b>Restore the previous version<\/b>/.test(help) && /signature/.test(help) && /refused/.test(help)
                 && /<b>Restore the previous version<\/b>/.test(step), j([group.length, help.length, step.length]));
             const upA = help.indexOf('<h4>Updates</h4>'), upB = help.indexOf('</ul>', upA), ups = upA > 0 ? help.slice(upA, upB) : '';

@@ -190,14 +190,33 @@ function keysNames() { var o = {}; COMMANDS.forEach(function(c) { o[c.id] = c.na
 function keysSay(doc, words) { var s = doc.getElementById('setKeysSay'); if (s) s.textContent = words || ''; }
 function keysSet(doc, id, k) { var mine = keysMine(); mine[id] = k; var ok = keysSave(mine); keysLoad(); keysDraw(doc); return ok; }
 function keysButton(doc, id) { var bs = doc.querySelectorAll('#setKeysList .set-key'); for (var i = 0; i < bs.length; i++) if (bs[i].getAttribute('data-cmd') === id) return bs[i]; return null; }
+// 1.6.2, backlog 171: the commands in three groups, in the order they stand in COMMANDS within each
+var KEY_GROUPS = [['tools', 'Tools'], ['token', 'Moving a token'], ['maps', 'Maps and windows']];
+function keyGroupOf(c) { if (/^tool\./.test(c.id)) return 'tools'; if (/^(token\.|turn\.)/.test(c.id)) return 'token'; return 'maps'; }
+function keysFind(doc) {
+    var f = doc.getElementById('setKeysFind'), q = f ? String(f.value || '').toLowerCase().replace(/\s+/g, ' ').trim() : '', list = doc.getElementById('setKeysList'); if (!list) return;
+    var words = q ? q.split(' ') : [], seen = {};
+    Array.prototype.forEach.call(list.querySelectorAll('.set-key-row'), function(r) {
+        var t = String(r.textContent || '').toLowerCase(), ok = words.every(function(w) { return t.indexOf(w) >= 0; });
+        r.hidden = !ok; if (ok) seen[r.getAttribute('data-grp')] = 1;
+    });
+    Array.prototype.forEach.call(list.querySelectorAll('.set-key-grp'), function(h) { h.hidden = !seen[h.getAttribute('data-grp')]; });
+    var none = doc.getElementById('setKeysNone'); if (none) none.hidden = !q || Object.keys(seen).length > 0;
+}
 function keysDraw(doc) {
     var list = doc.getElementById('setKeysList'); if (!list) return false;
     _pick = null;
     while (list.firstChild) list.removeChild(list.firstChild);
     var PI = typeof window !== 'undefined' ? window.wpPad : null; if (PI && typeof PI.info === 'function') PI.info(doc);   // 1.6.2: which controller is connected
-    COMMANDS.forEach(function(c) {
+    var head = doc.createElement('div'); head.className = 'set-key-head'; head.setAttribute('aria-hidden', 'true');
+    [['set-name', 'Command'], ['set-key-col', 'Key'], ['set-key-off-col', ''], ['set-pad-col', 'Controller']].forEach(function(h) { var sp = doc.createElement('span'); sp.className = h[0]; sp.textContent = h[1]; head.appendChild(sp); });
+    list.appendChild(head);
+    KEY_GROUPS.forEach(function(G) {
+    var cmds = COMMANDS.filter(function(c) { return keyGroupOf(c) === G[0]; }); if (!cmds.length) return;
+    var gh = doc.createElement('div'); gh.className = 'set-key-grp'; gh.setAttribute('data-grp', G[0]); gh.textContent = G[1]; list.appendChild(gh);
+    cmds.forEach(function(c) {
         var row = doc.createElement('div'), nm = doc.createElement('span'), t = doc.createElement('span'), sm = doc.createElement('small'), key = doc.createElement('button'), off = doc.createElement('button'), k = _keys[c.id] || '';
-        row.className = 'set-key-row'; nm.className = 'set-name'; t.textContent = c.name; sm.textContent = c.does; nm.appendChild(t); nm.appendChild(sm);
+        row.className = 'set-key-row'; row.setAttribute('data-grp', G[0]); nm.className = 'set-name'; t.textContent = c.name; sm.textContent = c.does; nm.appendChild(t); nm.appendChild(sm);
         key.type = 'button'; key.className = 'tool ghost set-key'; key.setAttribute('data-cmd', c.id); key.textContent = k ? keyName(k) : 'None'; key.title = 'Press, then press the key you want for ' + c.name;
         off.type = 'button'; off.className = 'tool ghost set-key-off'; off.textContent = '\u00D7'; off.title = 'Take the key off ' + c.name; off.disabled = !k;
         key.addEventListener('click', function() { keysPick(doc, c.id, key); });
@@ -213,6 +232,8 @@ function keysDraw(doc) {
         } else if (P && typeof P.has === 'function') { var gap = doc.createElement('span'); gap.className = 'set-pad-none'; gap.setAttribute('aria-hidden', 'true'); row.appendChild(gap); }   // what a controller does not run keeps its column, so the keys stand in one line
         list.appendChild(row);
     });
+    });
+    keysFind(doc);
     return true;
 }
 function keysPick(doc, id, btn) {
@@ -275,6 +296,7 @@ keysDraw(document);
     var keep = document.getElementById('setKeysOwn');   // 1.6.2, backlog 202: this computer keeps its own keys when a profile is opened here
     if (keep) { try { keep.checked = localStorage.getItem('wp_keysLocal') === '1'; } catch (e) {} keep.addEventListener('change', function() { var ok = true; try { if (keep.checked) localStorage.setItem('wp_keysLocal', '1'); else localStorage.removeItem('wp_keysLocal'); } catch (e) { ok = false; } keysSay(document, !ok ? 'The change could not be kept on this computer.' : keep.checked ? 'This computer keeps its own keys when a profile is opened here.' : 'A profile opened here brings its keys.'); cmdLog(ok ? 'keys-own' : 'key-save-failed', { on: keep.checked }); }); }
     var open = document.getElementById('settingsBtn'); if (open) open.addEventListener('click', function() { keysDraw(document); keysSay(document, ''); });   // each opening shows the keys as they are, with nothing waiting
+    var kfind = document.getElementById('setKeysFind'); if (kfind) { kfind.addEventListener('input', function() { keysFind(document); }); kfind.addEventListener('keydown', function(e) { if (e.key === 'Escape' && kfind.value) { e.preventDefault(); e.stopPropagation(); kfind.value = ''; keysFind(document); } }); }
 })();
 
 // [shelfcheck:setrows-start]

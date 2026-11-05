@@ -1377,7 +1377,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         var cv = document.getElementById('minimapCanvas');
         if (!box || !cv) return;
         var am = getActiveMap();
-        // The minimap is a VTT feature (Settings ▸ VTT features, per campaign; the GM's setting at a table): off
+        // The minimap is a VTT feature (Settings ▸ This campaign, per campaign; the GM's setting at a table): off
         // hides the box entirely. The box's own ▾ button and wp_minimap are only the personal collapse state.
         var show = am && am.type === 'map' && (state.viewMode === 'data' || state.viewMode === 'visual') && (!window.wpVtt || window.wpVtt.on('minimap'));
         box.style.display = show ? 'block' : 'none';

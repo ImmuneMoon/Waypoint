@@ -1486,7 +1486,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     };
     const A = mk(), rows = A.list.querySelectorAll('.set-key-row');
     check('Settings, Keys draws a row a command, in the list\'s order, as elements with text: its name, what it does, its key as a button (None where it has none) and a button that takes the key off, put out of use where there is no key',
-        rows.length === C.length && J(rows.map(r => r.querySelector('.set-name').childNodes[0].textContent)) === J(C.map(c => c.name)) && rows[0].querySelector('small').textContent === 'Pick and move pieces on the map.'
+        rows.length === C.length && J(rows.map(r => r.querySelector('.set-name').childNodes[0].textContent)) === J(C.filter(c => /^tool./.test(c.id)).concat(C.filter(c => /^(token.|turn.)/.test(c.id)), C.filter(c => !/^(tool.|token.|turn.)/.test(c.id))).map(c => c.name))   /* 1.6.2, backlog 171: in three groups, Tools, Moving a token, Maps and windows, moved on purpose */ && rows[0].querySelector('small').textContent === 'Pick and move pieces on the map.'
         && A.btn('tool.pen').textContent === 'P' && A.btn('map.last').textContent === 'Q' && A.btn('tool.fill').textContent === 'None' && A.off('tool.fill').disabled === true && A.off('tool.pen').disabled === false
         && A.btn('tool.pen').title === 'Press, then press the key you want for Pen' && A.off('tool.pen').title === 'Take the key off Pen' && A.btn('tool.pen').type === 'button');
     A.dom.fire(A.btn('tool.fill'), 'click'); const w1 = [A.btn('tool.fill').textContent, A.btn('tool.fill').classList.contains('hk-picking'), A.btn('tool.fill').getAttribute('aria-pressed'), A.say.textContent, A.held(A.doc, {}, { target: { tagName: 'DIV' } })];

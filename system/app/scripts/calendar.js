@@ -92,7 +92,7 @@ function winSigOf(camp, ck, cal) { return winBaseOf(camp, ck, cal) + '|' + ck.t;
 // up per character and rule, activity breaks it (calendarcore ruleFires); the steps and any amount run them as Rest or Active, a Set forward
 // always asks (the GM's choice). What is due waits in the window: players' characters ticked, NPCs offered; Apply runs the ticked ones on this
 // machine (sheets.js runTimeRules), Skip lets the time pass; either way what each rule has counted is kept (camp.clock.acc, the GM's own)
-// K5b: the table's word on the time rules (Settings \u25b8 VTT features \u25b8 Calendar: camp.turnRules.time) — 'auto' (the default since 1.5.5:
+// K5b: the table's word on the time rules (Settings \u25b8 This campaign \u25b8 Calendar: camp.turnRules.time) — 'auto' (the default since 1.5.5:
 // the rules run at once; a Set forward still asks), 'confirm' (the GM says), 'off' (none run and nothing is counted); a paused
 // table runs none. 159 (the owner, 2026-10-18, of the list Ask me left at the table: "the effects should run unless i pause time. unless some
 // gms might want this level of control?"): Run at once is the default, so a campaign with no word of its own runs them; Ask me is stored.
@@ -417,7 +417,7 @@ function keepAsked(camp, p) {   // a list answered: the counts of the rules it a
 // 160: time rules due, as the bell's list knows them (notices.js): they wait while a list waits for the campaign on screen; Open opens the Calendar.
 // 152 fold 4b's review: a list made while the Calendar was on still waits, whole, once it is switched off, but no window opens then: Open says how to
 // reach it, where it did nothing at all
-var TIME_OFF = 'These time rules wait in the Calendar, which is switched off. Switch it on in Settings \u25b8 VTT features to apply or skip them.';
+var TIME_OFF = 'These time rules wait in the Calendar, which is switched off. Switch it on in Settings \u25b8 This campaign to apply or skip them.';
 if (typeof window !== 'undefined') { var nkT = window.wpNoticeKinds = window.wpNoticeKinds || {}; nkT.time = { label: 'Open', still: function() { pendFor(getActiveCampaign()); return !!pend; }, run: function() { if (!clockOn()) { toast(TIME_OFF); return; } openWin(); } }; }
 // 152 fold 4b (the owner's answer of 2026-10-20, by prompt: "In the bell (Recommended)"): with the Calendar off no window can give the GM's word, so a run
 // of a rule ticked Ask me first that comes due in a fight waits in the bell (notices.js) under Waiting for you, one item a character and rule with its
@@ -616,7 +616,7 @@ function renderWin() {
     });
     body.appendChild(grid);
     comingUp(body, cal, notes, now.day, gm);
-    if (!gm) { if (pick !== null) dayNotes(body, cal, notes, pick, false); body.appendChild(cbtn('cal-hideme', 'Hide the clock for me', 'Takes the clock out of your header at this table; Settings \u25b8 VTT features brings it back', 'calhideme')); return; }
+    if (!gm) { if (pick !== null) dayNotes(body, cal, notes, pick, false); body.appendChild(cbtn('cal-hideme', 'Hide the clock for me', 'Takes the clock out of your header at this table; Settings \u25b8 This campaign brings it back', 'calhideme')); return; }
     var pr = cel('div', 'cal-pick');
     if (pick === null) pr.appendChild(cel('span', 'sys-note', 'Pick a day to set the clock to it or to write a note on it.'));
     else {
@@ -772,7 +772,7 @@ function onWinClick(e) {
     if (b.classList.contains('cal-day')) { var d = Number(b.dataset.day); if (d >= 0 && Math.floor(d) === d) { pick = pick === d ? null : d; renderWin(); } return; }
     if (act === 'calprev' || act === 'calnext') { view = stepView(cal, view || viewOf(cal, tOf(camp)), act === 'calnext' ? 1 : -1); renderWin(); return; }
     if (act === 'caltoday') { view = viewOf(cal, tOf(camp)); pick = null; renderWin(); return; }
-    if (isPlayer()) { if (act === 'calhideme' && window.wpVtt && window.wpVtt.setLocal('calendar', true)) { closeWin(); toast('The clock is hidden for you. Settings \u25b8 VTT features brings it back.'); } return; }
+    if (isPlayer()) { if (act === 'calhideme' && window.wpVtt && window.wpVtt.setLocal('calendar', true)) { closeWin(); toast('The clock is hidden for you. Settings \u25b8 This campaign brings it back.'); } return; }
     var body = document.getElementById('calendarBody'), q = function(c) { return body ? body.querySelector('.' + c) : null; };
     if (act === 'calkind') { if (b.dataset.kind === 'rest' && ordersRun()) { restMode = false; toast('A fight is running: time passes as Active until it ends.'); renderWin(); return; } restMode = b.dataset.kind === 'rest'; renderWin(); return; }   // K5; 1.5.7: no Rest while a fight runs
     if (act === 'callive') { setHold(b.dataset.live === 'hold'); return; }   // 1.5.4: Runs / Held

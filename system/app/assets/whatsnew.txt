@@ -330,6 +330,16 @@ At the table
 - A row's note, a name and a description of a row of the character's own, and
   the name of an effect made on the spot take a look too, as a sheet's text does.
 
+Settings
+- Settings lists its parts down the left, and one part shows at a time.
+  A search at its top shows every setting that holds your words, from every
+  part. Esc clears it.
+- On my screen holds the choices of this computer alone: the rulers, the
+  theme, how dice land, wall marks and the like. This campaign holds what
+  reaches your table. Snapshots of the save have a part of their own.
+- Keys stands in three groups, with a search of its own. The x that takes a
+  key off shows on the row you point at.
+
 Level tags in colour
 - An entry's By level rows show a small tag beside a level, such as 10 pts.
   A list can now give every tag a colour, and the Library can give each

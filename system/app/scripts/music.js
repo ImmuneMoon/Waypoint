@@ -409,7 +409,7 @@ function openPill() {
     var slider = el('input'); slider.type = 'range'; slider.min = 0; slider.max = 100; slider.value = Math.round(mvol * 100); slider.className = 'music-vol'; slider.addEventListener('input', function() { setVolume(Number(slider.value) / 100); });
     row.appendChild(mute); row.appendChild(slider); pop.appendChild(row);
     if (canWrite()) { var open = el('button', 'tool ghost music-pillpop-open', 'Open music panel'); open.addEventListener('click', function() { closePill(); openPanel(); }); pop.appendChild(open); }
-    var off = el('button', 'tool ghost music-pillpop-off', 'Turn music off for me'); off.title = 'Settings ▸ VTT features'; off.addEventListener('click', function() { if (window.wpVtt && window.wpVtt.setLocal) { window.wpVtt.setLocal('music', true); } closePill(); }); pop.appendChild(off);
+    var off = el('button', 'tool ghost music-pillpop-off', 'Turn music off for me'); off.title = 'Settings ▸ This campaign'; off.addEventListener('click', function() { if (window.wpVtt && window.wpVtt.setLocal) { window.wpVtt.setLocal('music', true); } closePill(); }); pop.appendChild(off);
     showPill(pop);
 }
 

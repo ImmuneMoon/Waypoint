@@ -115,14 +115,17 @@ var _btn = ui('settingsBtn');
 if (_btn) _btn.addEventListener('click', function() {
     syncPanel();
     ui('settingsModal').style.display = 'flex';
+    if (window.wpSetParts) window.wpSetParts.open();
 });
 var _close = ui('settingsCloseBtn');
-if (_close) _close.addEventListener('click', function() { ui('settingsModal').style.display = 'none'; });
+if (_close) _close.addEventListener('click', function() { if (window.wpSetParts) window.wpSetParts.close(); ui('settingsModal').style.display = 'none'; });
 // Open Settings jumped to a specific group + control (used by e.g. the grid menu's opacity button)
 window.wpOpenSettings = function(group, anchorId) {
     syncPanel();
     var m = ui('settingsModal'); if (m) m.style.display = 'flex';
-    if (group) { var d = document.querySelector('#settingsModal details.set-group[data-group="' + group + '"]'); if (d) d.open = true; }
+    if (window.wpSetParts) { window.wpSetParts.open(); window.wpSetParts.find(''); }
+    if (group && window.wpSetParts) window.wpSetParts.pick(group);
+    else if (group) { var d = document.querySelector('#settingsModal details.set-group[data-group="' + group + '"]'); if (d) d.open = true; }
     if (anchorId) setTimeout(function() { var a = ui(anchorId); if (a) { if (a.scrollIntoView) a.scrollIntoView({ block: 'center' }); if (a.focus) a.focus(); } }, 60);
 };
 
@@ -531,7 +534,6 @@ function syncVttPanel() {
     var g = v.globalVtt();
     var gmState = ui('setVttGlobalMasterState'); if (gmState) gmState.textContent = g.master ? 'on' : 'off';
     vttFeatures().forEach(function(f) { var s = ui('setVttGlobal' + cap(f.id) + 'State'); if (s) s.textContent = g.features[f.id] ? 'on' : 'off'; });
-    if (client && !grp.open) grp.open = true;   // so a player does not have to hunt for it; the group listener skips the write while locked
 }
 vttFeatures().forEach(function(f) {
     var b = ui('set' + cap(f.id) + 'Btn');
@@ -738,7 +740,7 @@ async function loadSnapshots() {
     }).join('');
 }
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-var _snapGroup = document.querySelector('.set-group[data-group="advanced"]');
+var _snapGroup = document.querySelector('.set-group[data-group="backups"]');
 if (_snapGroup) _snapGroup.addEventListener('toggle', function() { if (_snapGroup.open) loadSnapshots(); });
 var _snapNow = ui('setSnapNowBtn');
 if (_snapNow) _snapNow.addEventListener('click', async function() {
@@ -1616,16 +1618,126 @@ if (_ident) _ident.addEventListener('click', function() {
     });
 })();
 
-// Settings groups: remember which are open
-(function() {
-    var groups = document.querySelectorAll('#settingsModal details.set-group'); if (!groups.length) return;
-    var saved = null; try { saved = JSON.parse(localStorage.getItem('wp_setGroups') || 'null'); } catch (e) {}
-    groups.forEach(function(d) {
-        if (saved && typeof saved[d.dataset.group] === 'boolean') d.open = saved[d.dataset.group];
-        d.addEventListener('toggle', function() {
-            if (window.wpVtt && window.wpVtt.locked()) return;   // the VTT group is forced open at a table: not a choice to remember
-            var st = {}; groups.forEach(function(g) { st[g.dataset.group] = g.open; });
-            try { localStorage.setItem('wp_setGroups', JSON.stringify(st)); } catch (e) {}
+// Settings in parts (1.6.2, backlog 171; the owner, by prompt: "A list beside one part (Recommended)"): the groups stay in the page as they
+// were, each a details element, and one is open at a time, its name lit in the list down the left. Opening a group by any means (the list,
+// wpOpenSettings, the quick jump, the tour) makes it the open part. The search shows every row of every part whose words hold what is typed,
+// and the part that was open comes back when it is cleared. Kept on this computer: the part last open (wp_setPart)
+// [lookcheck:setparts-start]
+var SET_ALIAS = { appearance: 'screen', table: 'screen' };   // the parts of before 1.6.2, as a caller may still name them
+function setGroups(doc) { return Array.prototype.slice.call(doc.querySelectorAll('#settingsModal details.set-group')); }
+function setShown(g, win) {
+    if (!g || g.hidden || (g.style && g.style.display === 'none')) return false;
+    var cs = win && typeof win.getComputedStyle === 'function' ? win.getComputedStyle(g) : null;
+    return !cs || cs.display !== 'none';
+}
+function setNameOf(g) { var s = g.querySelector('summary'); return s ? String(s.textContent || '').replace(/\s+/g, ' ').trim() : ''; }
+function setFold(t) { return String(t || '').toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/\s+/g, ' ').trim(); }
+// What one row of a part is: a row of a list the search reads row by row (a switch of This campaign, a command of Keys), else a child of the body
+var SET_ROW = '.set-vtt-row, .set-key-row';
+function setRowsOf(el) {
+    var out = [], kids = el ? el.children || [] : [];
+    for (var i = 0; i < kids.length; i++) {
+        var k = kids[i];
+        if (k.matches && !k.matches(SET_ROW) && k.querySelector && k.querySelector(SET_ROW)) out = out.concat(setRowsOf(k)); else out.push(k);
+    }
+    return out;
+}
+function setWordsOf(el) {
+    var t = String(el.textContent || '');
+    if (el.querySelectorAll) Array.prototype.forEach.call(el.querySelectorAll('[title], [placeholder]'), function(c) { t += ' ' + (c.getAttribute('title') || '') + ' ' + (c.getAttribute('placeholder') || ''); });
+    if (el.getAttribute && el.getAttribute('title')) t += ' ' + el.getAttribute('title');
+    return setFold(t);
+}
+function setPartsMake(doc, win, store) {
+    var P = { cur: '', prev: '', finding: false, was: '' };
+    function nav() { return doc.getElementById('setNav'); }
+    function byKey(k) { var gs = setGroups(doc); for (var i = 0; i < gs.length; i++) if (gs[i].getAttribute('data-group') === k) return gs[i]; return null; }
+    function keep(k) { try { store.setItem('wp_setPart', k); } catch (e) {} }
+    function mark() {
+        var n = nav(); if (!n) return;
+        Array.prototype.forEach.call(n.querySelectorAll('.set-nav-btn'), function(b) {
+            var on = !P.finding && b.getAttribute('data-part') === P.cur;
+            b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
         });
-    });
-})();
+    }
+    function draw() {
+        var n = nav(); if (!n) return;
+        while (n.firstChild) n.removeChild(n.firstChild);
+        setGroups(doc).forEach(function(g) {
+            if (!setShown(g, win)) return;
+            var b = doc.createElement('button'); b.type = 'button'; b.className = 'set-nav-btn'; b.setAttribute('data-part', g.getAttribute('data-group') || '');
+            b.textContent = setNameOf(g);
+            b.addEventListener('click', function() { P.find(''); P.pick(b.getAttribute('data-part')); });
+            n.appendChild(b);
+        });
+        mark();
+    }
+    P.pick = function(k) {
+        k = SET_ALIAS[k] || k;
+        var g = byKey(k); if (!g || !setShown(g, win)) return false;
+        if (P.cur && P.cur !== k) P.prev = P.cur;
+        P.cur = k; keep(k);
+        setGroups(doc).forEach(function(o) { var want = o === g; if (o.open !== want) o.open = want; });
+        var body = doc.getElementById('setPartsBody'); if (body) body.scrollTop = 0;
+        mark(); return true;
+    };
+    P.open = function() {   // the window comes up: the list drawn for who looks, the part last open shown
+        draw();
+        var k = '', saved = ''; try { saved = store.getItem('wp_setPart') || ''; } catch (e) {}
+        var open = setGroups(doc).filter(function(g) { return g.open && setShown(g, win); });
+        if (open.length === 1) k = open[0].getAttribute('data-group');
+        else if (saved && byKey(SET_ALIAS[saved] || saved) && setShown(byKey(SET_ALIAS[saved] || saved), win)) k = saved;
+        else { var first = setGroups(doc).filter(function(g) { return setShown(g, win); })[0]; k = first ? first.getAttribute('data-group') : ''; }
+        if (k) P.pick(k);
+    };
+    P.toggled = function(g) {   // a group opened or closed by any hand
+        if (P.finding) return;
+        if (g.open) { P.pick(g.getAttribute('data-group')); return; }
+        if (!setGroups(doc).some(function(o) { return o.open; })) {   // the open part was shut (the tour puts its group back): the one before it comes back
+            var back = P.prev && P.prev !== g.getAttribute('data-group') ? P.prev : '';
+            if (back && P.pick(back)) return;
+            var first = setGroups(doc).filter(function(o) { return o !== g && setShown(o, win); })[0];
+            if (first) P.pick(first.getAttribute('data-group'));
+        }
+    };
+    P.find = function(q) {
+        var box = doc.getElementById('setBox'), none = doc.getElementById('setFindNone'), f = doc.getElementById('setFind');
+        q = setFold(q);
+        if (f && f.value && !q) f.value = '';
+        Array.prototype.forEach.call(doc.querySelectorAll('#settingsModal .set-miss'), function(e) { e.classList.remove('set-miss'); });
+        if (!q) {
+            if (!P.finding) return;
+            P.finding = false; if (box) box.classList.remove('set-finding'); if (none) none.hidden = true;
+            P.pick(P.was || P.cur); return;
+        }
+        if (!P.finding) { P.finding = true; P.was = P.cur; if (box) box.classList.add('set-finding'); }
+        var words = q.split(' '), any = false;
+        setGroups(doc).forEach(function(g) {
+            if (!setShown(g, win)) return;
+            var body = g.querySelector('.set-group-body'), hit = false;
+            if (!g.open) g.open = true;
+            setRowsOf(body).forEach(function(r) {
+                var w = setWordsOf(r), ok = words.every(function(x) { return w.indexOf(x) >= 0; });
+                if (ok) hit = true; else r.classList.add('set-miss');
+            });
+            if (!hit) g.classList.add('set-miss'); else any = true;
+        });
+        if (none) none.hidden = any;
+        mark();
+    };
+    P.close = function() { if (P.finding) P.find(''); };
+    P.state = function() { return { cur: P.cur, finding: P.finding }; };
+    P.draw = draw;
+    return P;
+}
+// [lookcheck:setparts-end]
+var _setParts = (typeof document !== 'undefined' && document.getElementById('setNav')) ? setPartsMake(document, window, localStorage) : null;
+if (_setParts) {
+    window.wpSetParts = _setParts;
+    setGroups(document).forEach(function(g) { g.addEventListener('toggle', function() { _setParts.toggled(g); }); });
+    var _setFind = ui('setFind');
+    if (_setFind) {
+        _setFind.addEventListener('input', function() { _setParts.find(_setFind.value); });
+        _setFind.addEventListener('keydown', function(e) { if (e.key === 'Escape' && _setFind.value) { e.preventDefault(); e.stopPropagation(); _setParts.find(''); } });
+    }
+}

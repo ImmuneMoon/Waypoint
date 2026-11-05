@@ -2538,7 +2538,7 @@ function heldBanner() { var h = net.heldNames || [], one = h.length === 1, nm = 
 net.heldSync = heldSync; net.isPlayerHeld = function(playerId) { return heldById(playerId); };
 // [netcheck:sheetheld-end]
 
-/* ---------- VTT feature ceiling (Settings ▸ VTT features, per campaign) ---------- */
+/* ---------- VTT feature ceiling (Settings ▸ This campaign, per campaign) ---------- */
 // The hosted campaign's VTT features (elevation, posture, minimap — vtt.js) are the most a
 // player sees: sent with the snapshot (stance + stanceCamps) and again as a 'stance' message
 // whenever they change. Clients keep them in session memory only — net.stance (the hosted

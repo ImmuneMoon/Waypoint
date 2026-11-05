@@ -196,7 +196,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
             && setJ.includes("function syncTrkHide(camp, editable, client) {") && setJ.includes("if (!T.setHidden(p.id, cb.checked))") && ix.includes('<div id="setTrkHide" class="gm-only set-trk-hide"')
             && ix.includes('<div class="set-vtt-row" data-vtt="trackers"') && ix.includes('id="setTrackersBtn"') && ix.includes('id="setVttGlobalTrackersBtn"'));
         check('backlog 29 Help says where the switch is and the three ways to keep the trackers from one player, the player\'s line says the GM may, and both release notes say it',
-            help.includes('<b>Settings &#9656; VTT features &#9656; Table trackers</b>') && help.includes('<b>Who sees these</b>') && help.includes('<b>Hide table trackers from them</b>') && help.includes('That player then gets no tracker at all.')
+            help.includes('<b>Settings &#9656; This campaign &#9656; Table trackers</b>') && help.includes('<b>Who sees these</b>') && help.includes('<b>Hide table trackers from them</b>') && help.includes('That player then gets no tracker at all.')
             && ix.includes('Your GM may switch them off, for the table or for you alone.') && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => readRoot(f).includes('- Table trackers is a VTT feature in Settings, on by default.')));
         const ci = readRoot('.github/workflows/checks.yml');
         check('CI runs this suite', ci.includes('run: node tools/trackcheck.js'));

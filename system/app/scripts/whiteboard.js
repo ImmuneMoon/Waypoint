@@ -15,7 +15,7 @@ var wb = document.getElementById('whiteboard');
 var _lastMeasureMapId = null;
 
 /* ---- token stance: elevation (yards) + posture ----
-   Two VTT features (Settings ▸ VTT features, set per campaign — camp.vtt — and on from the
+   Two VTT features (Settings ▸ This campaign, set per campaign — camp.vtt — and on from the
    first launch) decide whether the chips draw and whether the blast template measures in 3D.
    The values stay on the token either way, so switching a feature back on restores them.
    In a session the GM's campaign settings are the ceiling for the player copy: they arrive
@@ -1160,7 +1160,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
           // [sinkcheck:hexplate-end]
           // Tokens carry a small front-side arrow (which side of the art is "forward")
           var fw = el.querySelector(':scope > .token-front');
-          if (item.isChar && stanceOn('turning')) {   // token facing is a per-campaign VTT feature (Settings ▸ VTT features); when off there is no facing wedge
+          if (item.isChar && stanceOn('turning')) {   // token facing is a per-campaign VTT feature (Settings ▸ This campaign); when off there is no facing wedge
               if (!fw) { fw = document.createElement('div'); fw.className = 'token-front'; fw.innerHTML = '<i></i>'; el.appendChild(fw); }
               // Grids are square or flat-top hex, so the chosen side is always a face:
               // the arrow points straight across it at the neighbouring cell.
@@ -1214,7 +1214,7 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
           } else if (stEl) stEl.remove();
           el.classList.toggle('tok-dead', stv === 'dead');
           el.classList.toggle('tok-down', stv === 'down');
-          // Stance chips (Settings ▸ VTT features, per campaign): a small row at the bottom of the token,
+          // Stance chips (Settings ▸ This campaign, per campaign): a small row at the bottom of the token,
           // inside its own cell so one-token-per-hex still reads at grid scale.
           stanceChipsSync(el, item, activeMap);   // item 19b H5: its chips, as a move that lands with no redraw asks for them again (wpStanceChips)
           var fxHtml = item.isChar && window.wpSheets && window.wpSheets.tokenFx ? tokenFxHtml(window.wpSheets.tokenFx(item)) : '', fxEl = el.querySelector(':scope > .token-fx');   // conditions C1: its effects
@@ -6055,8 +6055,8 @@ window.wpFitToGrid = fitToGrid;
           flat.style.display = stanceOn('elevation') ? 'none' : '';
           var why = window.wpVtt ? window.wpVtt.whyOff('elevation') : 'own';   // whose setting keeps it flat
           flat.textContent = why === 'gm' ? 'Token elevation is off at this table (the GM\'s setting): flat hex distance.'
-              : why === 'local' ? 'Token elevation is off for you at this table (Settings ▸ VTT features): flat hex distance.'
-              : 'Token elevation is off for this campaign (Settings ▸ VTT features): flat hex distance.';
+              : why === 'local' ? 'Token elevation is off for you at this table (Settings ▸ This campaign): flat hex distance.'
+              : 'Token elevation is off for this campaign (Settings ▸ This campaign): flat hex distance.';
       }
       var nOwn = blasts.filter(function(x) { return ownCircle(x) && !x.lost; }).length;   // the shapes on screen: a circle whose token is gone is not one
       var which = document.getElementById('blastWhich'); if (which) which.textContent = nOwn && !circleKeptPicked ? 'The numbers are those of the last shape you placed. You have ' + nOwn + ' on this map.' : now.tok === true ? 'Click a token on the map to put a circle on it.' : now.as === 'ring' ? 'Click a cell on the map to place a ring.' : now.as === 'cone' ? 'Press a cell on the map and drag to aim the cone.' : 'Click a cell on the map to place a circle.';
@@ -6722,7 +6722,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
                                   var goneSet = {}; gone.forEach(function(p) { goneSet[p] = 1; });
                                   _imgLibCache = (_imgLibCache || []).filter(function(im) { return !goneSet[im.path]; });
                                   gone.forEach(function(p) { catStores().forEach(function(s) { if (s.c.by[p]) delete s.c.by[p]; }); }); imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
-                                  toast(oldCore ? 'Deleting pictures needs the 1.4.6 core \u2014 run the installer from Settings \u2192 Updates & about.' : 'Deleted ' + gone.length + ' picture file' + (gone.length === 1 ? '' : 's') + '.' + (keptN ? ' ' + keptNote : ''));
+                                  toast(oldCore ? 'Deleting pictures needs the 1.4.6 core \u2014 run the installer from Settings \u2192 Updates and about.' : 'Deleted ' + gone.length + ' picture file' + (gone.length === 1 ? '' : 's') + '.' + (keptN ? ' ' + keptNote : ''));
                                   return;
                               }
                               var batch = files.slice(i, i + 4); i += 4;
@@ -7115,7 +7115,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
                   closeImgPreview(); renderImgLib(document.getElementById('imgLibSearch').value);
                   toast('Deleted ' + name + '.');
               }).catch(function(e) {
-                  toast(e && e.message === 'old-core' ? 'Deleting pictures needs the 1.4.6 core — run the installer from Settings \u2192 Updates & about.' : 'Could not delete that picture.');
+                  toast(e && e.message === 'old-core' ? 'Deleting pictures needs the 1.4.6 core — run the installer from Settings \u2192 Updates and about.' : 'Could not delete that picture.');
               });
           });
       });
@@ -9307,7 +9307,7 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
 
       var alpha = 0.55;
 
-      // Viewer's own grid strength (Settings ▸ Table); local only, never synced
+      // Viewer's own grid strength (Settings ▸ On my screen); local only, never synced
       if (window.wpApplyGridOpacity) window.wpApplyGridOpacity();
 
       if (type === 'square') {

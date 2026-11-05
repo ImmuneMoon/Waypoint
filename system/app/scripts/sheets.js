@@ -954,7 +954,7 @@ function noTokWords(c) {
 }
 function facingNode(c, gm) {
     var wrap = el('div', 'sheet-dial'), on = turningOn();
-    if (!on) { if (!gm) { wrap.hidden = true; return wrap; } wrap.appendChild(el('div', 'sheet-dial-note', 'Token facing is off (Settings \u25b8 VTT features).')); return wrap; }
+    if (!on) { if (!gm) { wrap.hidden = true; return wrap; } wrap.appendChild(el('div', 'sheet-dial-note', 'Token facing is off (Settings \u25b8 This campaign).')); return wrap; }
     var t = facingTarget(c, getActiveCampaign()), fc = t ? facingNow(t.map, t.tok, true) : null;
     if (!fc) { wrap.appendChild(el('div', 'sheet-dial-note', t ? 'This token\u2019s facing cannot be read.' : typeof noTokWords === 'function' ? noTokWords(c) : 'No token on this map.')); return wrap; }
     var n = net(), live = _fxLive && (gm || (t.tok.ownerId === myId() && !t.tok.locked && !(n && (n.paused || n.selfPaused || n.selfHeld))));   // a token the GM locked is frozen for its player
@@ -1012,7 +1012,7 @@ function facingNode(c, gm) {
 // token, not paused; each part only while its VTT feature is on). With both features off a player sees nothing and the GM a note.
 function stanceNode(c, gm) {
     var wrap = el('div', 'sheet-stance'), pOn = vttOn('posture') && postureList(systemOf()).length > 0, eOn = vttOn('elevation');   // 1.6.0: posture only where the system lists its own wrap.dataset.sig = stanceSigOf(c, getActiveCampaign());
-    if (!pOn && !eOn) { if (!gm) { wrap.hidden = true; return wrap; } wrap.appendChild(el('div', 'sheet-dial-note', 'Token posture and elevation are off (Settings \u25b8 VTT features).')); return wrap; }
+    if (!pOn && !eOn) { if (!gm) { wrap.hidden = true; return wrap; } wrap.appendChild(el('div', 'sheet-dial-note', 'Token posture and elevation are off (Settings \u25b8 This campaign).')); return wrap; }
     var t = facingTarget(c, getActiveCampaign()), st = t ? stanceCtx(t.tok, tokenFlags()) : null;   // the values are the table's (a hidden row is only a display choice)
     if (!st) { wrap.appendChild(el('div', 'sheet-dial-note', typeof noTokWords === 'function' ? noTokWords(c) : 'No token on this map.')); return wrap; }
     var n = net(), live = _fxLive && (gm || (t.tok.ownerId === myId() && !t.tok.locked && !(n && (n.paused || n.selfPaused || n.selfHeld))));   // a token the GM locked is frozen for its player

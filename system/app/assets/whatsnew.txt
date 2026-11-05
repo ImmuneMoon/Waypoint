@@ -345,6 +345,10 @@ Animated dice
 - Paint your dice, in Settings or on the dice roller, picks the colours and
   the pattern your dice are drawn in. Start from one of eight ready sets, then
   change any colour. Everyone at the table sees your rolls in your look.
+- Add a design of your own: draw one, or make one from a picture. It goes on
+  every face behind the number, and each number gets an outline so it reads.
+- In a sheet's section, a roll keeps its name on one line, shrinking a
+  little to fit, so the rolls stay one line tall.
 
 Drawings to show
 - The pen now makes two kinds of drawing. On the map is what it always

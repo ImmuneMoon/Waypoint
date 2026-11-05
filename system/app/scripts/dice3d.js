@@ -7,7 +7,7 @@
 // eight ready sets and four patterns as the looks sheet drew them): a roll carries its roller's look (dicecore cleanDiceLook), which every
 // screen draws its dice in; one with none is drawn in the Waypoint set. The look is this computer's own: wp_diceLook.
 import * as C from './dice3dcore.js';
-import { cleanDiceLook } from './dicecore.js';
+import { cleanDiceLook, DICE_DESIGN_MAX } from './dicecore.js';
 
 var DUR = 1000, HOLD = { card: 900, map: 1400 }, STILL_HOLD = 1500, FADE = 350;
 
@@ -28,11 +28,20 @@ var PAT_NUM = { solid: 0, marble: 1, speckle: 2, two: 3 }, DROP = 0.55;
 var PATS = [['solid', 'Solid', 'One colour.'], ['marble', 'Marbled', 'Swirls of the second colour through the first.'], ['speckle', 'Speckled', 'Small flecks of the second colour.'], ['two', 'Two-tone', 'One colour fading into the second across the die.']];
 // a look as it is drawn: a roll's own where it cleans, else the Waypoint set
 function lookOf(v) { var l = cleanDiceLook(v); return l || { b: SETS[0].b, t: SETS[0].t, n: SETS[0].n, p: SETS[0].p }; }
+// a design's place on each face: a quad behind the number, a little closer to the face than it, its corners on the whole picture (a round mask cuts it to a medallion)
+function designMesh(shape) {
+    var pos = [], nrm = [], uv = [];
+    (shape && Array.isArray(shape.faces) ? shape.faces : []).forEach(function(f) {
+        if (!f.up) return; var n = f.normal, up = f.up, rt = [up[1] * n[2] - up[2] * n[1], up[2] * n[0] - up[0] * n[2], up[0] * n[1] - up[1] * n[0]], h = f.size * 0.62, c = [f.center[0] + n[0] * 0.003, f.center[1] + n[1] * 0.003, f.center[2] + n[2] * 0.003];
+        [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]].forEach(function(p) { pos.push(c[0] + (rt[0] * p[0] + up[0] * p[1]) * h, c[1] + (rt[1] * p[0] + up[1] * p[1]) * h, c[2] + (rt[2] * p[0] + up[2] * p[1]) * h); nrm.push(n[0], n[1], n[2]); uv.push((p[0] + 1) / 2, (1 - p[1]) / 2); });
+    });
+    return { pos: pos, nrm: nrm, uv: uv };
+}
 // the ready set a look is, where every colour and the pattern are that set's; '' for a look of your own
-function setOf(look) { var l = cleanDiceLook(look); if (!l) return ''; for (var i = 0; i < SETS.length; i++) { var s = SETS[i]; if (l.b === s.b && l.t === s.t && l.n === s.n && l.p === s.p && !l.e) return s.name; } return ''; }
+function setOf(look) { var l = cleanDiceLook(look); if (!l) return ''; for (var i = 0; i < SETS.length; i++) { var s = SETS[i]; if (l.b === s.b && l.t === s.t && l.n === s.n && l.p === s.p && !l.e && !l.d) return s.name; } return ''; }
 function rgbOf(h) { return [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255]; }
 // the colours a die is drawn in, each darker on a die the roll dropped
-function shadeOf(look, dropped) { var l = lookOf(look), k = dropped ? DROP : 1, m = function(h) { return rgbOf(h).map(function(v) { return v * k; }); }; return { body: m(l.b), two: m(l.t), edge: m(l.e || l.b), num: m(l.n), pat: PAT_NUM[l.p] || 0 }; }
+function shadeOf(look, dropped) { var l = lookOf(look), k = dropped ? DROP : 1, m = function(h) { return rgbOf(h).map(function(v) { return v * k; }); }; return { body: m(l.b), two: m(l.t), edge: m(l.e || l.b), num: m(l.n), pat: PAT_NUM[l.p] || 0, dim: k }; }
 function modeOf(v) { return v === 'map' || v === 'off' ? v : 'card'; }
 // which rolls tumble: a card with dice it can show, never one sent to the GM unseen, never in a window of its own or the stream window
 function diceWanted(m, env) {
@@ -89,14 +98,15 @@ function canvasOf() {
 var VS = 'precision mediump float; attribute vec3 aPos; attribute vec3 aNrm; attribute float aPart; attribute vec2 aUv; uniform mat4 uMvp; uniform mat3 uRot;'
     + ' varying vec3 vN; varying vec3 vP; varying float vPart; varying vec2 vUv; void main() { gl_Position = uMvp * vec4(aPos, 1.0); vN = uRot * aNrm; vP = aPos; vPart = aPart; vUv = aUv; }';
 // the patterns, worked out on the die's own surface so that they turn with it: marbled swirls, specks, and a fade from one colour to the other
-var FS = 'precision mediump float; varying vec3 vN; varying vec3 vP; varying float vPart; varying vec2 vUv; uniform float uTex; uniform sampler2D uAtlas; uniform vec3 uBody; uniform vec3 uTwo; uniform vec3 uEdge; uniform vec3 uNum; uniform float uPat; uniform vec3 uLight;'
+var FS = 'precision mediump float; varying vec3 vN; varying vec3 vP; varying float vPart; varying vec2 vUv; uniform float uTex; uniform sampler2D uAtlas; uniform sampler2D uDesign; uniform float uDim; uniform float uHalo; uniform vec3 uHaloCol; uniform vec3 uBody; uniform vec3 uTwo; uniform vec3 uEdge; uniform vec3 uNum; uniform float uPat; uniform vec3 uLight;'
     + ' float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }'
     + ' vec3 bodyAt(vec3 p) { if (uPat < 0.5) return uBody;'
     + '  if (uPat < 1.5) { float v = sin((p.x + p.y * 0.6 + p.z * 0.3) * 6.0 + 2.6 * sin(p.y * 4.3 + p.z * 2.7) + 1.8 * sin(p.z * 5.1 + p.x * 1.9)); return mix(uBody, uTwo, smoothstep(0.55, 0.98, abs(v)) * 0.85); }'
     + '  if (uPat < 2.5) { return hash(floor(p * 26.0)) > 0.86 ? uTwo : uBody; }'
     + '  return mix(uBody, uTwo, smoothstep(-0.7, 0.7, p.y * 0.8 + p.x * 0.35)); }'
     + ' void main() { vec3 n = normalize(vN); float l = 0.38 + 0.62 * max(dot(n, uLight), 0.0); float sp = pow(max(dot(reflect(-uLight, n), vec3(0.0, 0.0, 1.0)), 0.0), 24.0) * 0.3;'
-    + '  if (uTex > 0.5) { float a = texture2D(uAtlas, vUv).a; if (a < 0.45) discard; gl_FragColor = vec4(uNum * (0.55 + 0.45 * l) + sp, 1.0); return; }'
+    + '  if (uTex > 1.5) { vec2 q = vUv * 2.0 - 1.0; if (dot(q, q) > 1.0) discard; vec4 dc = texture2D(uDesign, vUv); if (dc.a < 0.08) discard; gl_FragColor = vec4(mix(bodyAt(vP), dc.rgb * uDim, dc.a) * l + sp, 1.0); return; }'
+    + '  if (uTex > 0.5) { vec4 at = texture2D(uAtlas, vUv); if (uHalo < 0.5) { if (at.r < 0.45) discard; gl_FragColor = vec4(uNum * (0.55 + 0.45 * l) + sp, 1.0); return; } if (at.a < 0.45) discard; gl_FragColor = vec4(mix(uHaloCol, uNum * (0.55 + 0.45 * l), smoothstep(0.25, 0.75, at.r)) + sp * at.r, 1.0); return; }'
     + '  vec3 c = vPart < 0.5 ? bodyAt(vP) : vPart < 1.5 ? uEdge : uNum; gl_FragColor = vec4(c * l + sp, 1.0); }';
 // one canvas's own WebGL: its program, its atlas of numbers and its dice; keep holds what is drawn, for a canvas that is copied from
 function rigOn(cv, keep) {
@@ -106,7 +116,7 @@ function rigOn(cv, keep) {
     var sh = function(type, src) { var x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); return gl.getShaderParameter(x, gl.COMPILE_STATUS) ? x : null; };
     var v = sh(gl.VERTEX_SHADER, VS), f = sh(gl.FRAGMENT_SHADER, FS); if (!v || !f) return null;
     var p = gl.createProgram(); gl.attachShader(p, v); gl.attachShader(p, f); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) return null;
-    return { cv: cv, gl: gl, prog: p, atlas: null, cells: null, bufs: Object.create(null) };
+    return { cv: cv, gl: gl, prog: p, atlas: null, cells: null, bufs: Object.create(null), designs: [] };
 }
 function glOf() {   // tried once: a machine with no WebGL, or shaders it will not take, draws flat dice from then on
     if (_rig) return _rig; if (_noGl) return null; _noGl = true; var r = rigOn(canvasOf(), false); if (!r) return null; _rig = r; _noGl = false; return r;
@@ -118,7 +128,8 @@ function atlasOf(rig) {
     keys.forEach(function(k, i) {
         var col = i % N, row = Math.floor(i / N), x = col * S + S / 2, y = row * S + S / 2, under = k.slice(-1) === '_', text = under ? k.slice(0, -1) : k, px = 82;
         c.font = 'bold ' + px + 'px Inter, system-ui, sans-serif'; var w = c.measureText(text).width; if (w > S * 0.82) { px = Math.floor(px * S * 0.82 / w); c.font = 'bold ' + px + 'px Inter, system-ui, sans-serif'; w = c.measureText(text).width; }
-        c.fillText(text, x, y + 2); if (under) c.fillRect(x - w / 2, y + px * 0.42, w, Math.max(5, px * 0.08));
+        c.lineJoin = 'round'; c.lineWidth = Math.max(8, px * 0.2); c.strokeStyle = '#0000ff'; c.strokeText(text, x, y + 2); if (under) c.strokeRect(x - w / 2, y + px * 0.42, w, Math.max(5, px * 0.08));   // the halo, read only where a design lies behind
+        c.fillStyle = '#fff'; c.fillText(text, x, y + 2); if (under) c.fillRect(x - w / 2, y + px * 0.42, w, Math.max(5, px * 0.08));
         cells[k] = [col / N, row / N, 1 / N, 1 / N];
     });
     var t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
@@ -129,8 +140,19 @@ function bufsOf(rig, kind) {
     if (rig.bufs[kind]) return rig.bufs[kind]; var gl = rig.gl, s = C.standIn(kind); if (!s) return null;
     var mk = function(a) { var b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(a), gl.STATIC_DRAW); return b; };
     var d = s.decal ? decalMesh(s, function(k) { return rig.cells && rig.cells[k]; }) : null;
-    rig.bufs[kind] = { shape: s, pos: mk(s.pos), nrm: mk(s.nrm), part: mk(s.part), n: s.pos.length / 3, dpos: d && d.pos.length ? mk(d.pos) : null, dnrm: d && d.pos.length ? mk(d.nrm) : null, duv: d && d.pos.length ? mk(d.uv) : null, dn: d ? d.pos.length / 3 : 0 };
+    rig.bufs[kind] = { shape: s, pos: mk(s.pos), nrm: mk(s.nrm), part: mk(s.part), n: s.pos.length / 3, dsp: null, dsn: null, dsu: null, dsc: 0, dpos: d && d.pos.length ? mk(d.pos) : null, dnrm: d && d.pos.length ? mk(d.nrm) : null, duv: d && d.pos.length ? mk(d.uv) : null, dn: d ? d.pos.length / 3 : 0 };
+    var dz = designMesh(s); if (dz.pos.length) { var bb = rig.bufs[kind]; bb.dsp = mk(dz.pos); bb.dsn = mk(dz.nrm); bb.dsu = mk(dz.uv); bb.dsc = dz.pos.length / 3; }
     return rig.bufs[kind];
+}
+// a design's texture on a rig, made once from its picture and kept for the last eight designs; null until the picture has loaded
+function designTex(rig, d) {
+    if (typeof d !== 'string' || !d || typeof Image === 'undefined') return null; var gl = rig.gl, hit = null;
+    rig.designs.forEach(function(x) { if (x.d === d) hit = x; }); if (hit) return hit.tex;
+    var rec = { d: d, tex: null }; rig.designs.push(rec); while (rig.designs.length > 8) { var old = rig.designs.shift(); if (old.tex) gl.deleteTexture(old.tex); }
+    var img = new Image(); img.onload = function() { if (rig.designs.indexOf(rec) < 0) return; var t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        rec.tex = t; if (typeof paintShown === 'function' && paintShown()) pvRun(); };
+    img.src = d; return null;
 }
 // matrices, column-major as WebGL reads them
 function persp(fov, asp, near, far) { var f = 1 / Math.tan(fov / 2), nf = 1 / (near - far); return [f / asp, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * nf, -1, 0, 0, 2 * far * near * nf, 0]; }
@@ -191,7 +213,7 @@ function rigFrame(rig) {
     gl.uniform3f(gl.getUniformLocation(P, 'uLight'), L[0] / ll, L[1] / ll, L[2] / ll); gl.uniform1i(gl.getUniformLocation(P, 'uAtlas'), 0); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, rig.atlas);
 }
 // one die: its body in the look's colours and pattern, then its numbers
-function dieDraw(rig, b, R, MVP, cols) {
+function dieDraw(rig, b, R, MVP, cols, dTex) {
     var gl = rig.gl, P = rig.prog, un = function(n) { return gl.getUniformLocation(P, n); }, at = function(n) { return gl.getAttribLocation(P, n); };
     var aPos = at('aPos'), aNrm = at('aNrm'), aPart = at('aPart'), aUv = at('aUv');
     var bind = function(loc, buf, size) { if (loc < 0) return; if (!buf) { gl.disableVertexAttribArray(loc); return; } gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0); };
@@ -199,16 +221,18 @@ function dieDraw(rig, b, R, MVP, cols) {
     gl.uniform3fv(un('uBody'), cols.body); gl.uniform3fv(un('uTwo'), cols.two); gl.uniform3fv(un('uEdge'), cols.edge); gl.uniform3fv(un('uNum'), cols.num); gl.uniform1f(un('uPat'), cols.pat);
     gl.uniform1f(un('uTex'), 0); bind(aPos, b.pos, 3); bind(aNrm, b.nrm, 3); bind(aPart, b.part, 1); if (aUv >= 0) { gl.disableVertexAttribArray(aUv); gl.vertexAttrib2f(aUv, 0, 0); }
     gl.drawArrays(gl.TRIANGLES, 0, b.n);
+    if (dTex && b.dsp) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, dTex); gl.uniform1i(un('uDesign'), 1); gl.uniform1f(un('uDim'), typeof cols.dim === 'number' ? cols.dim : 1); gl.uniform1f(un('uTex'), 2); bind(aPos, b.dsp, 3); bind(aNrm, b.dsn, 3); if (aPart >= 0) { gl.disableVertexAttribArray(aPart); gl.vertexAttrib1f(aPart, 0); } bind(aUv, b.dsu, 2); gl.drawArrays(gl.TRIANGLES, 0, b.dsc); gl.activeTexture(gl.TEXTURE0); }   // the owner's design, behind the number
+    var lum = 0.299 * cols.num[0] + 0.587 * cols.num[1] + 0.114 * cols.num[2]; gl.uniform1f(un('uHalo'), dTex && b.dsp ? 1 : 0); gl.uniform3fv(un('uHaloCol'), lum > 0.4 ? [0.07, 0.07, 0.09] : [0.95, 0.93, 0.9]);   // with a design behind, each number outlined in a colour against its own
     if (b.dpos) { gl.uniform1f(un('uTex'), 1); bind(aPos, b.dpos, 3); bind(aNrm, b.dnrm, 3); if (aPart >= 0) { gl.disableVertexAttribArray(aPart); gl.vertexAttrib1f(aPart, 2); } bind(aUv, b.duv, 2); gl.drawArrays(gl.TRIANGLES, 0, b.dn); }
 }
 function drawGl(cv, sh, t, r, fit) {
     var rig = glOf(); if (!rig) return false; var gl = rig.gl;
     gl.viewport(0, 0, cv.width, cv.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); rigFrame(rig);
     var fov = 0.52, H = r.height / 2 / fit.u, D = H / Math.tan(fov / 2), P = persp(fov, r.width / r.height, Math.max(0.5, D - 6), D + 6), V = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -D, 1], VP = mul4(P, V);
-    var kept = shadeOf(sh.look, false), drop = shadeOf(sh.look, true);
+    var kept = shadeOf(sh.look, false), drop = shadeOf(sh.look, true), dT = designTex(rig, sh.look.d);
     sh.dice.forEach(function(d, i) {
         var b = bufsOf(rig, d.kind), tb = sh.tumbles[i]; if (!b || !tb) return; var s = tb(t), R = rotOf(s.q), M = modelOf(R, 0.5, s.x, s.y, s.h);
-        dieDraw(rig, b, R, mul4(VP, M), d.kept ? kept : drop);
+        dieDraw(rig, b, R, mul4(VP, M), d.kept ? kept : drop, dT);
     });
     return true;
 }
@@ -240,7 +264,7 @@ function pvDraw(cv, look, t) {
     if (rig) {
         var gl = rig.gl, f = 1 / Math.tan(0.28), near = 1, far = 9, nf = 1 / (near - far), P = [f, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * nf, -1, 0, 0, 2 * far * near * nf, 0];
         gl.viewport(0, 0, w, h); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); rigFrame(rig);
-        PV_DICE.forEach(function(d, i) { var b = bufsOf(rig, d[0]), q = pvPose(d[0], d[1], t, i * 1.3); if (!b || !q) return; var R = rotOf(q); gl.viewport(x0 + i * sz, y0, sz, sz); dieDraw(rig, b, R, mul4(P, modelOf(R, 1, 0, 0, -4.6)), shadeOf(look, !!d[2])); });
+        PV_DICE.forEach(function(d, i) { var b = bufsOf(rig, d[0]), q = pvPose(d[0], d[1], t, i * 1.3); if (!b || !q) return; var R = rotOf(q); gl.viewport(x0 + i * sz, y0, sz, sz); dieDraw(rig, b, R, mul4(P, modelOf(R, 1, 0, 0, -4.6)), shadeOf(look, !!d[2]), designTex(rig, look.d)); });
         return;
     }
     var c = null; try { c = cv.getContext('2d'); } catch (e) { c = null; } if (!c) return;   // flat dice where WebGL cannot be had
@@ -264,6 +288,7 @@ function paintSync() {
     var pats = q('dicePaintPats'); if (pats) Array.prototype.forEach.call(pats.querySelectorAll('button[data-pat]'), function(b) { var on = b.dataset.pat === l.p; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
     [['dicePaintBody', l.b], ['dicePaintTwo', l.t], ['dicePaintNum', l.n], ['dicePaintEdge', l.e || l.b]].forEach(function(x) { var el = q(x[0]); if (el && el.value !== x[1]) el.value = x[1]; });
     var own = q('dicePaintOwn'); if (own) own.textContent = set ? 'The ' + set + ' set.' : 'Your own look.';
+    var clr = q('dicePaintClear'); if (clr) clr.hidden = !l.d;
 }
 function paintSet(next) { _paint = setLookPref(next); paintSync(); if (!_pv || !_pv.raf) pvRun(); }
 function paintOpen() {
@@ -273,6 +298,36 @@ function paintOpen() {
     return true;
 }
 function paintClose() { var m = document.getElementById('dicePaintModal'); if (m) m.style.display = 'none'; if (_pv && _pv.raf) { cancelAnimationFrame(_pv.raf); _pv.raf = 0; } }
+// the design (the owner, by prompt: "Draw or upload, on each face"): a 64-pixel picture, drawn on the pad or made from a picture of this computer, kept with the
+// look as a PNG. One that comes out larger than a roll may carry is made again smaller, else refused in words
+var PAD = 64, _pad = { thick: false, erase: false, down: false, last: null };
+function padSay(t) { var s = document.getElementById('dicePaintSay'); if (s) s.textContent = t || ''; }
+function padPng(cv) { for (var sz = cv.width; sz >= 32; sz -= 16) { var c = cv; if (sz !== cv.width) { c = document.createElement('canvas'); c.width = c.height = sz; c.getContext('2d').drawImage(cv, 0, 0, sz, sz); } var u = c.toDataURL('image/png'); if (u.length <= DICE_DESIGN_MAX) return u; } return ''; }
+function padUse(cv) { var u = padPng(cv); if (!u) { padSay('That design is too detailed to send with your rolls. Try a simpler one.'); return false; } paintSet(Object.assign({}, _paint, { d: u })); padSay('Your design is on your dice.'); if (window.wpStepLog) window.wpStepLog('dice v1', 'design', { n: u.length }); return true; }
+function padWire(q) {
+    var pad = q('dicePaintPad'), cv = q('dicePaintCanvas'), file = q('dicePaintFile'); if (!pad || !cv || !cv.getContext) return; var c = cv.getContext('2d'); if (!c) return;
+    var open = function() { var ink = q('dicePaintInk'); if (ink && !ink.dataset.set && _paint && _paint.t) ink.value = _paint.t; c.clearRect(0, 0, PAD, PAD); if (_paint && _paint.d) { var im = new Image(); im.onload = function() { c.drawImage(im, 0, 0, PAD, PAD); }; im.src = _paint.d; } pad.hidden = false; padSay('Draw on the square. Use this design puts it on your dice.'); };
+    var tool = function(id, on) { var b = q(id); if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); } };
+    var at = function(e) { var r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * PAD / r.width, y: (e.clientY - r.top) * PAD / r.height }; };
+    var dot = function(a, b) { c.globalCompositeOperation = _pad.erase ? 'destination-out' : 'source-over'; c.strokeStyle = c.fillStyle = (q('dicePaintInk') || {}).value || '#e8c46a'; c.lineWidth = _pad.thick ? 6 : 2; c.lineCap = c.lineJoin = 'round'; c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x + 0.01, b.y); c.stroke(); };
+    cv.addEventListener('pointerdown', function(e) { _pad.down = true; _pad.last = at(e); dot(_pad.last, _pad.last); try { cv.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); });
+    cv.addEventListener('pointermove', function(e) { if (!_pad.down) return; var p = at(e); dot(_pad.last, p); _pad.last = p; });
+    ['pointerup', 'pointercancel'].forEach(function(t) { cv.addEventListener(t, function() { _pad.down = false; }); });
+    var bind = function(id, fn) { var b = q(id); if (b) b.addEventListener('click', fn); };
+    var inkEl = q('dicePaintInk'); if (inkEl) inkEl.addEventListener('input', function() { inkEl.dataset.set = '1'; });
+    bind('dicePaintDraw', open);
+    bind('dicePaintThin', function() { _pad.thick = false; _pad.erase = false; tool('dicePaintThin', true); tool('dicePaintThick', false); tool('dicePaintErase', false); });
+    bind('dicePaintThick', function() { _pad.thick = true; _pad.erase = false; tool('dicePaintThin', false); tool('dicePaintThick', true); tool('dicePaintErase', false); });
+    bind('dicePaintErase', function() { _pad.erase = !_pad.erase; tool('dicePaintErase', _pad.erase); });
+    bind('dicePaintWipe', function() { c.clearRect(0, 0, PAD, PAD); });
+    bind('dicePaintDone', function() { if (padUse(cv)) pad.hidden = true; });
+    bind('dicePaintClear', function() { var o = Object.assign({}, _paint); delete o.d; paintSet(o); pad.hidden = true; padSay('The design is off your dice.'); });
+    bind('dicePaintUpload', function() { if (file) { file.value = ''; file.click(); } });
+    if (file) file.addEventListener('change', function() {
+        var f = file.files && file.files[0]; if (!f) return; if (!/^image\/(png|jpeg|webp|gif)$/.test(f.type) || f.size > 8 * 1024 * 1024) { padSay('Pick a PNG, JPEG, WebP or GIF picture under 8 MB.'); return; }
+        var rd = new FileReader(); rd.onload = function() { var im = new Image(); im.onload = function() { var s = Math.min(im.width, im.height); if (!(s > 0)) { padSay('That picture could not be read.'); return; } c.clearRect(0, 0, PAD, PAD); c.globalCompositeOperation = 'source-over'; c.drawImage(im, (im.width - s) / 2, (im.height - s) / 2, s, s, 0, 0, PAD, PAD); pad.hidden = false; padUse(cv); }; im.onerror = function() { padSay('That picture could not be read.'); }; im.src = String(rd.result || ''); }; rd.readAsDataURL(f);
+    });
+}
 function paintWire() {
     var q = function(id) { return document.getElementById(id); }, m = q('dicePaintModal'); if (!m || m.dataset.wired) return; m.dataset.wired = '1';
     var sets = q('dicePaintSets'), pats = q('dicePaintPats');
@@ -281,10 +336,11 @@ function paintWire() {
     [['dicePaintBody', 'b'], ['dicePaintTwo', 't'], ['dicePaintNum', 'n'], ['dicePaintEdge', 'e']].forEach(function(x) { var el = q(x[0]); if (el) el.addEventListener('input', function() { var o = Object.assign({}, _paint); o[x[1]] = el.value; paintSet(o); }); });
     var cl = q('dicePaintCloseBtn'); if (cl) cl.addEventListener('click', paintClose);
     m.addEventListener('mousedown', function(e) { if (e.target === m) paintClose(); });
+    padWire(q);
     ['setDicePaintBtn', 'dicePaintBtn'].forEach(function(id) { var b = q(id); if (b) b.addEventListener('click', function() { paintOpen(); }); });
     window.addEventListener('resize', function() { if (paintShown()) pvRun(); });
 }
 if (typeof document !== 'undefined' && document.getElementById) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', paintWire); else paintWire(); }
 
 if (typeof window !== 'undefined') window.wpDice3d = { play: play, mode: pref, setMode: setPref, modeOf: modeOf, wanted: diceWanted, look: lookPref, setLook: setLookPref, paint: paintOpen, sets: SETS };
-export { modeOf, diceWanted, diceFit, atlasKeys, decalMesh, timesOf, phaseAt, SETS, PATS, lookOf, setOf, shadeOf };
+export { modeOf, diceWanted, diceFit, atlasKeys, decalMesh, designMesh, timesOf, phaseAt, SETS, PATS, lookOf, setOf, shadeOf };

@@ -1732,6 +1732,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li><b>/gmroll</b> rolls to the GM only. Help &#9656; Dice has the syntax.</li>
                                   <li>The roller's Sound box mutes the dice cue for you.</li>
                                   <li>The dice tumble on the roll's card and land on the faces it gave. <b>Dice on a roll</b> in Settings shows them over the map instead, or turns them off for you. With Reduce motion they show already landed. <b>Paint your dice</b> in Settings, or Paint on the roller, picks their colours and a pattern. Everyone at the table sees your rolls in that look.</li>
+                                  <li>A design of your own goes on every face behind the number. Press <b>Draw&hellip;</b> to draw one, or <b>Upload a picture&hellip;</b> to make one from a picture. A very detailed design is refused, since it travels with your rolls.</li>
                                   <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 5.1L10.7 2.8L13.3 2.8L13.8 5.1A7.1 7.1 0 0 1 15.6 5.9L17.6 4.6L19.4 6.4L18.1 8.5A7.1 7.1 0 0 1 18.9 10.2L21.2 10.7L21.2 13.3L18.9 13.8A7.1 7.1 0 0 1 18.1 15.6L19.4 17.6L17.6 19.4L15.6 18.1A7.1 7.1 0 0 1 13.8 18.9L13.3 21.2L10.7 21.2L10.2 18.9A7.1 7.1 0 0 1 8.5 18.1L6.4 19.4L4.6 17.6L5.9 15.6A7.1 7.1 0 0 1 5.1 13.8L2.8 13.3L2.8 10.7L5.1 10.2A7.1 7.1 0 0 1 5.9 8.5L4.6 6.4L6.4 4.6L8.4 5.9A7.1 7.1 0 0 1 10.2 5.1zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z"/></svg> Settings &#9656; VTT features</b> can switch dice off for yourself, and the cards still show.</li>
                               </ul>
                           </li>
@@ -4199,6 +4200,17 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <label class="dp-row"><span class="set-name"><span>Edges</span><small>Shows on dice that have edges of their own.</small></span><input type="color" id="dicePaintEdge" class="dp-swatch"></label>
         <div class="dp-head"><span class="set-name"><span>Pattern</span></span></div>
         <div id="dicePaintPats" class="dp-chips" role="group" aria-label="Pattern"></div>
+        <div class="dp-head"><span class="set-name"><span>Design</span><small>Your own drawing or picture, on every face behind the number.</small></span></div>
+        <div class="dp-chips"><button type="button" class="tool ghost dp-chip" id="dicePaintDraw" title="Draw a small design of your own">Draw&hellip;</button><button type="button" class="tool ghost dp-chip" id="dicePaintUpload" title="Make a design from a picture on this computer">Upload a picture&hellip;</button><button type="button" class="tool ghost dp-chip" id="dicePaintClear" title="Take the design off your dice" hidden>Remove design</button><input type="file" id="dicePaintFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden></div>
+        <div id="dicePaintPad" class="dp-pad" hidden>
+            <canvas id="dicePaintCanvas" class="dp-canvas" width="64" height="64" aria-label="Drawing pad"></canvas>
+            <div class="dp-padtools">
+                <label class="dp-ink">Colour <input type="color" id="dicePaintInk" class="dp-swatch" value="#e8c46a"></label>
+                <div class="dp-chips"><button type="button" class="tool ghost dp-chip on" id="dicePaintThin">Thin</button><button type="button" class="tool ghost dp-chip" id="dicePaintThick">Thick</button><button type="button" class="tool ghost dp-chip" id="dicePaintErase">Eraser</button></div>
+                <div class="dp-chips"><button type="button" class="tool ghost dp-chip" id="dicePaintWipe">Clear</button><button type="button" class="tool dp-chip" id="dicePaintDone">Use this design</button></div>
+            </div>
+        </div>
+        <div id="dicePaintSay" class="set-line" role="status"></div>
         <canvas id="dicePaintPreview" class="dp-preview" aria-hidden="true"></canvas>
         <div class="set-line" style="display:flex; justify-content:space-between; gap:8px;"><span id="dicePaintOwn"></span><span>The last die is one a roll dropped, drawn darker.</span></div>
     </div>

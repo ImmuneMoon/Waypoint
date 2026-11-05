@@ -141,6 +141,20 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
         && ix.includes('<canvas id="dicePaintPreview"') && esk.includes("['dicePaintModal', 'dicePaintCloseBtn']") && r3.includes("b.textContent = st.name;") && r3.includes("b.textContent = pt[1];")
         && r3.includes("['setDicePaintBtn', 'dicePaintBtn'].forEach") && r3.includes("localStorage.setItem('wp_diceLook', JSON.stringify(l))") && r3.includes('look: lookOf(m.roll.dl)'));
     check('both notes say the painter', [wn, wa].every(t => t.includes('- Paint your dice, in Settings or on the dice roller, picks the colours and\n')));
+    // ---- the design (the owner, by prompt: "Draw or upload, on each face") ----
+    const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    check('a design is a small PNG as a data address and nothing else: any other kind of picture, a web address, script, a PNG past the size a roll carries, or text that is no PNG is no design',
+        DC.cleanDiceDesign(PNG) === PNG && DC.cleanDiceDesign('data:image/svg+xml;base64,PHN2Zz4=') === '' && DC.cleanDiceDesign('https://x.test/a.png') === '' && DC.cleanDiceDesign('javascript:alert(1)') === ''
+        && DC.cleanDiceDesign('data:image/png;base64,AAAA') === '' && DC.cleanDiceDesign(PNG + '"><b>') === '' && DC.cleanDiceDesign('data:image/png;base64,iVBORw0KGgo' + 'A'.repeat(DC.DICE_DESIGN_MAX)) === '' && DC.cleanDiceDesign(7) === '' && DC.DICE_DESIGN_MAX === 12000);
+    const LD = DC.cleanDiceLook({ b: '#111111', n: '#eeeeee', d: PNG }), LB = DC.cleanDiceLook({ b: '#111111', n: '#eeeeee', d: 'nope' });
+    check('a look keeps its design where it is one, and a roll carries it to the table as it is cleaned; a design that does not clean is left off and the look kept',
+        LD.d === PNG && LB && !('d' in LB) && DC.cleanRollReq({ rid: 'qabc12345', expr: '2d6', dl: { b: '#111111', n: '#eeeeee', d: PNG } }).dl.d === PNG && R.setOf(Object.assign({}, R.SETS[0], { d: PNG })) === '' && R.lookOf({ b: '#111111', n: '#eeeeee', d: PNG }).d === PNG);
+    const dmz = R.designMesh(D.standIn('d6')), dmz20 = R.designMesh(D.standIn('d20'));
+    const behind = (() => { const sh = D.standIn('d6'); for (let i = 0; i < 6; i++) { const f = sh.faces[i], q = dmz.pos.slice(i * 18, i * 18 + 3), off = (q[0] - f.center[0]) * f.normal[0] + (q[1] - f.center[1]) * f.normal[1] + (q[2] - f.center[2]) * f.normal[2]; if (Math.abs(off - 0.003) > 1e-9) return false; } return true; })();
+    check('a design is a quad on every face, behind the number (nearer the face than it), its corners on the whole picture', dmz.pos.length === 6 * 6 * 3 && dmz20.pos.length === 20 * 6 * 3 && behind && dmz.uv.every(v => v >= 0 && v <= 1) && R.designMesh(null).pos.length === 0);
+    check('the renderer draws a design cut round, behind the number and darker on a dropped die, from a texture made once a picture and kept for eight; the painter draws it, uploads one from this computer by its own reader, and refuses one too detailed in words',
+        r3.includes("if (uTex > 1.5) { vec2 q = vUv * 2.0 - 1.0; if (dot(q, q) > 1.0) discard;") && r3.includes('function designTex(rig, d) {') && r3.includes('while (rig.designs.length > 8)') && r3.includes("dieDraw(rig, b, R, mul4(VP, M), d.kept ? kept : drop, dT);")
+        && r3.includes("padSay('That design is too detailed to send with your rolls. Try a simpler one.')") && r3.includes('rd.readAsDataURL(f);') && ix.includes('<canvas id="dicePaintCanvas" class="dp-canvas" width="64" height="64"') && ix.includes('id="dicePaintUpload"') && ix.includes('<input type="file" id="dicePaintFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>'));
     // ---- the module ----
     const src = read('scripts/dice3dcore.js');
     check('the module is pure: it imports nothing, reads no page and no clock, and draws no chance but its own seeded one', !/^\s*import\s/m.test(src) && !/document\.|Math\.random|Date\.now|fetch\(/.test(src.replace(/\/\*[\s\S]*?\*\//, '')) && src.includes('window.wpDice3dCore = API'));

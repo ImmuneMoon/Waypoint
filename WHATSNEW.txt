@@ -407,6 +407,9 @@ Around the app
 - Buttons are in sentence case, such as Start combat and Export this
   campaign. A step that cannot be undone, such as End session for everyone,
   wears a red outline.
+- A fight needs no table. With none open, Start combat runs it on your
+  own screen, and it is kept with the campaign. The roster has Tick all,
+  and says what its marks mean.
 
 Writing planners and pages
 - You write a planner or a page on the page itself. Press a block and its

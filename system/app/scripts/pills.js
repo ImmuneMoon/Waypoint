@@ -54,7 +54,7 @@ function pillsDraw(doc, model) {
 // fogBtn: the toolbar's fog button, which fog.js keeps in step with this map's fog
 function pillsState(w, am, view, fogBtn) {
     var net = w.wpNet || null, fog = w.wpFog || null, vtt = w.wpVtt || null, isMap = !!am && am.type === 'map' && typeof am.id === 'string';
-    var st = { gm: !(net && ((net.active && net.role === 'client') || net.foreign)), play: isMap && view === 'visual', hosting: !!net && net.active === true && net.role === 'host' };
+    var st = { gm: !(net && ((net.active && net.role === 'client') || net.foreign)), play: isMap && view === 'visual', hosting: !!net && ((net.active === true && net.role === 'host') || net.solo === true) };   // 1.6.2: and a fight with no table open
     if (fogBtn && vtt && typeof vtt.on === 'function' && vtt.on('fog')) st.fog = fogBtn.classList.contains('fog-on') ? 'on' : 'off';
     var ros = st.hosting && net.roster ? net.roster : {};
     st.players = Object.keys(ros).filter(function(k) { return !!ros[k] && typeof ros[k].id === 'string'; }).length;

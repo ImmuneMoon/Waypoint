@@ -9852,7 +9852,7 @@ function renderCombatModal() {
         return '<div class="combat-row' + (r.on ? '' : ' off') + '" draggable="true" data-i="' + i + '" data-rid="' + esc(String(r.id)) + '">'
             + '<span class="combat-grip" title="Drag to reorder">&#8942;</span>'
             + '<input type="checkbox" class="combat-on"' + (r.on ? ' checked' : '') + (r.busy ? ' disabled title="In another fight on this map: a token is in one fight at a time"' : ' title="In the fight"') + '>'
-            + (r.src ? '<img class="combat-face" src="' + esc(resolveImg(r.src)) + '" alt="">' : '<span class="combat-face combat-face-empty">' + (r.custom ? '<i class="wib wi-spark"></i>' : '<i class="wib wi-starf"></i>') + '</span>')
+            + (r.src ? '<img class="combat-face" src="' + esc(resolveImg(r.src)) + '" alt="">' : '<span class="combat-face combat-face-empty" title="' + (r.custom ? 'A row you added' : 'A token with no picture of its own') + '">' + (r.custom ? '<i class="wib wi-spark"></i>' : '<i class="wib wi-starf"></i>') + '</span>')
             + '<span class="combat-name">' + findName(r.name, r.tokId, !!findOf(combatDraft.mapId, r.tokId, findHere, amHere, state.viewMode)) + dupT + (r.party ? ' <span class="combat-tag">party</span>' : '') + (r.targeted ? ' <span class="combat-tag" style="color:var(--gold); border-color:var(--gold);">' + r.targeted + '</span>' : '') + (r.custom ? ' <span class="combat-tag">custom</span>' : '') + (r.busy ? ' <span class="combat-tag">in another fight on ' + esc(mapNm) + '</span>' : '') + '</span>'
             + (r.charId && window.wpSheets && window.wpSheets.hasInitRoll() ? '<button class="tool ghost combat-roll" title="Roll initiative from the character sheet: a table roll, or yours alone when it reads a GM-only value. Players see the order, never the number" aria-label="Roll initiative">' + (window.wpDieIcons && typeof window.wpDieIcons.dieSvg === 'function' ? window.wpDieIcons.dieSvg('d6') : '<i class="wib wi-die"></i>') + '</button>' : '')
             + '<input type="number" class="combat-init field" value="' + (r.init || 0) + '" title="Initiative — higher goes first">'
@@ -9864,7 +9864,7 @@ function renderCombatModal() {
     if (keepC) { var backR = [].slice.call(list.querySelectorAll('.combat-row')).filter(function(x) { return x.dataset.rid === keepR; })[0], backE = backR && backR.querySelector('.' + keepC); if (backE) backE.focus({ preventScroll: true }); }
 }
 function openCombatModal(mapId, opts) {   // opts.fid: that fight's roster; opts.fresh: a new fight beside those on the map (fold 2); else the strip's fight there, or a new one
-    var n = window.wpNet; if (!(n && n.active && n.role === 'host')) { toast('Combat runs at the table — host a session first.'); return; }
+    var n = window.wpNet; if (!(n && (n.active ? n.role === 'host' : (typeof n.soloHost === 'function' && n.soloHost())))) { toast('Combat runs on your own campaign, or at a table you host.'); return; }   // 1.6.2 (the owner: "Fight without hosting")
     opts = opts || {};
     var fid = opts.fresh === true ? null : (typeof opts.fid === 'string' && fightsHere(mapId).indexOf(opts.fid) >= 0 ? opts.fid : stripFightId(mapId));
     combatDraft = { mapId: mapId, fid: fid, rows: combatRowsFor(mapId, Object.assign({}, opts, { fid: fid })), running: !!fid };
@@ -9922,6 +9922,8 @@ window.wpOpenCombat = openCombatModal;
         return n;
     }
     // [systemcheck:rollall-end]
+    var tickAllBtn = document.getElementById('combatTickAllBtn');   // 1.6.2 (the owner: "compact rows"): every row that may join, ticked at once
+    if (tickAllBtn) tickAllBtn.addEventListener('click', function() { if (!combatDraft) return; combatDraft.rows.forEach(function(r) { if (r && !r.busy) r.on = true; }); renderCombatModal(); });
     var rollAllBtn = document.getElementById('combatRollAllBtn');
     if (rollAllBtn) rollAllBtn.addEventListener('click', function() { if (!combatDraft) return; var nR = combatRollAll(combatDraft); if (!nR && !combatDraft.rows.some(function(r) { return r && r.on && r.charId && !r.rolled; })) toast('Every ticked character has its initiative already.'); renderCombatModal(); });   // 1.5.4: never said while a row was passed over or a roll refused
     var addBtn = document.getElementById('combatAddBtn'), addName = document.getElementById('combatAddName');
@@ -10030,7 +10032,8 @@ function renderCombatStrip() {
     if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync();   // the top row's Round pill (pills.js) says the same fight
     var strip = document.getElementById('combatStrip'); if (!strip) return;
     var n = window.wpNet, am = getActiveMap();
-    var fidS = n && n.active && am && am.type === 'map' && state.viewMode === 'visual' ? stripFightId(am.id) : null, c = fidS ? n.combats[fidS] : null;
+    if (n && !n.active && !n.solo && typeof n.soloHost === 'function' && n.soloOk && n.soloOk()) { var cmS = getActiveCampaign(); if (cmS && cmS.fights && typeof cmS.fights === 'object') n.soloHost(); }   // 1.6.2: a fight this campaign kept, back with no table open
+    var fidS = n && (n.active || n.solo) && am && am.type === 'map' && state.viewMode === 'visual' ? stripFightId(am.id) : null, c = fidS ? n.combats[fidS] : null;
     if (!c) { strip.innerHTML = ''; strip.wpDrawn = ''; strip.style.display = 'none'; return; }
     var idsS = fightsHere(am.id), atS = idsS.indexOf(fidS);
     var cur = c.rows[c.turn] || {}, nxt = c.rows[(c.turn + 1) % c.rows.length] || {};
@@ -10394,7 +10397,7 @@ function groupRollWire(cMenu, m) {
 // fight starts), Start combat with the tokens picked, and for a fight already running on this map Add to the fight / Remove from the fight.
 // Fixed words only: nothing of a token is written into the menu.
 function gmFightModel(map, items, sel) {   // sel (158): the one token the GM has selected, which can target the token under the pointer
-    var n = window.wpNet; if (!n || !n.active || n.role !== 'host' || window.wpStream || !map || !Array.isArray(items)) return null;
+    var n = window.wpNet; if (!n || !(n.active ? n.role === 'host' : (n.solo || (typeof n.soloOk === 'function' && n.soloOk()))) || window.wpStream || !map || !Array.isArray(items)) return null;   // 1.6.2: and with no table open
     var toks = items.filter(function(w) { return !!(w && w.isChar && !w.waiting); }); if (!toks.length) return null;
     var ids = typeof n.fightsOn === 'function' ? n.fightsOn(map.id) : [], inIds = Object.create(null);   // fold 2: every fight on this map; a token is in one at most
     ids.forEach(function(f) { var c = n.combats[f]; if (c && Array.isArray(c.rows)) c.rows.forEach(function(r) { if (r && typeof r.tokId === 'string') inIds[r.tokId] = f; }); });

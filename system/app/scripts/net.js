@@ -5443,6 +5443,13 @@ function targetsFor(recipientId) {
     });
     return out;
 }
+// 1.6.2 (the owner: "Fight without hosting"): with no table open, the GM's own machine on its own campaign is its own host for fights. Never
+// at someone else's table, in the stream window or a window of its own, nor on a website that joins tables alone. soloHost makes it so (once:
+// the fights this campaign kept come back then, as at a table), solo says it is so; starting a table or joining one sets the role as ever
+function soloOk() { return !net.active && !net.foreign && !window.wpStream && !window.wpPopout && !(typeof webJoinOnly === 'function' && webJoinOnly()) && (typeof window.wpCanPersistLocal !== 'function' || window.wpCanPersistLocal() === true); }
+net.soloOk = soloOk;
+net.soloHost = function() { if (net.active) return net.role === 'host'; if (!soloOk()) return false; if (net.role !== 'host') { net.role = 'host'; if (typeof fightsBack === 'function') try { fightsBack(); } catch (e) {} } return true; };
+Object.defineProperty(net, 'solo', { get: function() { return !net.active && net.role === 'host'; }, configurable: true });
 function broadcastCombats() {
     var camp = getActiveCampaign();
     if (typeof fightsKeepSoon === 'function') fightsKeepSoon();   // 1.6.0: every change of a fight ends here, so it is kept for a Refresh or a crash

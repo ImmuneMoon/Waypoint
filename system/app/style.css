@@ -2987,6 +2987,7 @@
   #combatModal.combat-peek > div { opacity: .1; pointer-events: none; transition: opacity .15s; }
   .combat-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border: 1px solid var(--edge); border-radius: 6px; background: rgba(0,0,0,0.08); }
   .combat-row.off { opacity: .55; }
+  .combat-key { color: var(--dim); font-size: 11px; margin-top: 6px; }   /* 1.6.2: what the roster's marks mean */
   .combat-row.drop-before { border-top: 2px solid var(--gold); }
   .combat-grip { color: var(--dim); cursor: grab; font-size: 16px; line-height: 1; }
   .combat-face { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; border: 1px solid var(--edge); flex: 0 0 26px; }

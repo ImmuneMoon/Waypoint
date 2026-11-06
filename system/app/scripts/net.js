@@ -3161,14 +3161,14 @@ net.deckDo = function(key, op, o) {
 // [netcheck:deckdo-end]
 // [netcheck:drawfirst-start]
 // 1.6.2 (the owner, by prompt: "Yes, build it"): a roll that draws a card as its die. The host draws one card from the system's deck as the roll is pressed, before it is worked out, so Deck.<key>.last reads that card. The draw stands only once nothing has refused the roll: undo puts the pile back, done keeps it, tells the table and answers the card's name for the roll's card, none for a deck the GM alone knows
-function drawForRoll(camp, key) {
+function drawForRoll(camp, key, n) {   // 1.6.2 (draw several at once): n, how many it draws, 2 to 20, else one
     var K = window.wpDeckCore, F = window.wpFormula; if (!camp || !K || !camp.system) return { error: 'That cannot be done now.' };
     var d = K.deckOf(camp.system.decks, key); if (!d || !d.cards.length) return { error: 'The deck this roll draws from is not here.' };
     var rnd = function(n) { var r = F && F.evaluate ? F.evaluate('1d' + n) : null; return r && r.ok && typeof r.value === 'number' ? r.value : 1 + Math.floor(Math.random() * n); };
-    var had = !!(camp.piles && own(camp.piles, d.key)), was = had ? camp.piles[d.key] : undefined, dr = K.drawCards(d, had ? K.cleanPile(was, d) : null, 1, rnd, false);
+    var had = !!(camp.piles && own(camp.piles, d.key)), was = had ? camp.piles[d.key] : undefined, dr = K.drawCards(d, had ? K.cleanPile(was, d) : null, typeof n === 'number' && n >= 2 && n <= 20 ? Math.floor(n) : 1, rnd, false);
     if (!dr.cards.length) return { error: 'Nothing is left to draw from ' + (d.label || 'its deck') + '.' };
     camp.piles = Object.assign({}, camp.piles || {}); camp.piles[d.key] = dr.pile;
-    var name = d.cards[dr.cards[0]] ? d.cards[dr.cards[0]].name : '';
+    var name = dr.cards.map(function(i) { return d.cards[i] ? d.cards[i].name : ''; }).filter(Boolean).join(', ');
     return {
         name: name,
         undo: function() { camp.piles = Object.assign({}, camp.piles || {}); if (had) camp.piles[d.key] = was; else delete camp.piles[d.key]; },
@@ -6809,9 +6809,17 @@ function allyNear(map, a, b, shown) {
     if (el && St && typeof St.tokenElevation === 'function') { o.za = Number(St.tokenElevation(a, map, !!shown)) || 0; o.zb = Number(St.tokenElevation(b, map, !!shown)) || 0; }
     return C.nearTokens(a, b, g, o);
 }
-var ALLY_SAYS = { far: 'They must stand next to you.', missing: 'That character is not there.', self: 'That is you: use it with no one picked.', none: 'Your character has no token on this map.', kind: 'That cannot be used on someone else.' };
+var ALLY_SAYS = { far: 'They must stand next to you.', missing: 'That character is not there.', self: 'That is you: use it with no one picked.', none: 'Your character has no token on this map.', kind: 'That cannot be used on someone else.', aim: 'Point at them on the map first: it goes on your target.' };
 function allyNo(k) { return { error: k, message: ALLY_SAYS[k] }; }
-function allyOn(camp, map, userTok, onId, pid) {
+// 1.6.2 (the builder trial's survey): Applies to the user or their target (far): the token must be the one this user's own pointer is at, on that
+// map, from the host's own record of pointers and never from the message: a player's own, else for the GM's press the character's player's, the
+// pointer the GM's character holds, or the GM's. Any range: its needs can read TargetDistance
+function allyAimed(camp, map, userTok, tok, pid) {
+    var tg = net.targets && typeof net.targets === 'object' ? net.targets : {}, uc = camp && camp.chars && typeof userTok.charId === 'string' && own(camp.chars, userTok.charId) ? camp.chars[userTok.charId] : null;
+    var keys = pid ? [pid] : [uc && uc.ownerId && !uc.npc ? uc.ownerId : '', 'tk:' + userTok.id, net.myId];
+    return keys.some(function(k) { var x = typeof k === 'string' && k && own(tg, k) ? tg[k] : null; return !!x && typeof x === 'object' && x.id === tok.id && x.mapId === map.id; });
+}
+function allyOn(camp, map, userTok, onId, pid, far) {
     if (!camp || !map || !Array.isArray(map.whiteboard) || typeof onId !== 'string' || !onId) return allyNo('missing');
     if (!userTok || typeof userTok !== 'object' || userTok.waiting || map.whiteboard.indexOf(userTok) < 0) return allyNo('none');
     var judge = function() {
@@ -6820,7 +6828,7 @@ function allyOn(camp, map, userTok, onId, pid) {
         var ch = camp.chars[tok.charId]; if (!ch || typeof ch !== 'object' || ch.making === 1) return allyNo('missing');
         if (tok === userTok || tok.charId === userTok.charId) return allyNo('self');
         if (pid) { if (tok.hidden) return allyNo('missing'); var drop = mapFogged(map) ? fogDrop(camp, map, pid) : null; if (drop && drop[tok.id]) return allyNo('missing'); }
-        if (!allyNear(map, userTok, tok, !!pid)) return allyNo('far');
+        if (far === true ? !allyAimed(camp, map, userTok, tok, pid) : !allyNear(map, userTok, tok, !!pid)) return allyNo(far === true ? 'aim' : 'far');
         return { ch: ch, tok: tok };
     };
     return typeof fogLanded === 'function' && typeof map.id === 'string' ? fogLanded(map.id, judge) : judge();
@@ -6854,7 +6862,7 @@ function allyCard(user, target, onName, label, lines, scope, from, conn, pid, hi
     return rec;
 }
 net.allyCard = function(user, target, onName, label, lines, scope) { return allyCard(user, target, onName, label, lines, scope, diceFrom(getProfile(), true), null, ''); };
-net.allyOn = function(camp, map, userTok, onId) { return allyOn(camp, map, userTok, onId, ''); };   // the GM's own press (sheets.js applyAction)
+net.allyOn = function(camp, map, userTok, onId, far) { return allyOn(camp, map, userTok, onId, '', far === true); };   // the GM's own press (sheets.js applyAction)
 net.allyCtx = allyCtx;
 // the menu's choices (sheets.js allyPick): the characters next to the user's token on this screen's own copy of the map, each by its token's
 // name, a character once. A player's app reads only what it was sent; the GM's screen offers a hidden token too
@@ -8787,9 +8795,9 @@ function handleMessage(msg, conn) {
         var varsA = Sa.makeResolver(viewA, chvA, Fa, tcA);
         if (qa.row) { varsA = varsA.row(qa.row.f, qa.row.r); if (!varsA) { denyA('missing'); return; } rowGmA = !!Sa.rowRollNames(campA.system, chA, qa.row.f, qa.row.r, [], Fa).gm; }   // H7b: the row's own names (a row they cannot see is gone); a row of a GM-only item keeps the card between them and the GM
         var onA = null;   // 1.5.9 (book es/et plan, section 3): the adjacent character it is used on, judged on the host's own map before anything moves
-        if (qa.on && actA.to !== 'near') { denyA('error', 'That cannot be used on someone else.'); return; }
-        if (actA.to === 'near') {
-            if (qa.on) { onA = typeof allyOn === 'function' ? allyOn(campA, mapA, tkA, qa.on, profA.id) : { error: 'missing', message: 'That character is not there.' }; if (onA.error) { denyA('error', onA.message); return; } }
+        if (qa.on && !(actA.to === 'near' || actA.to === 'target')) { denyA('error', 'That cannot be used on someone else.'); return; }
+        if ((actA.to === 'near' || actA.to === 'target')) {
+            if (qa.on) { onA = typeof allyOn === 'function' ? allyOn(campA, mapA, tkA, qa.on, profA.id, actA.to === 'target') : { error: 'missing', message: 'That character is not there.' }; if (onA.error) { denyA('error', onA.message); return; } }
             if (typeof Sa.withOnSelf === 'function') varsA = Sa.withOnSelf(varsA, !onA, onA ? Sa.makeResolver(viewA, onA.ch, Fa, typeof allyCtx === 'function' ? allyCtx(mapA, onA.tok) : null) : null);   // 1.6.0: On.<name> reads the one it is used on, through their view   // OnSelf: 1 on themselves, 0 on another
         }
         if (qa.ask && !Array.isArray(actA.asks)) { denyA('error', 'That asks nothing.'); return; }
@@ -9733,14 +9741,14 @@ function handleMessage(msg, conn) {
                 var cmQ = wantQ ? Dq.composeModifier(wantQ, (q.mod || 0) + (swQ ? swQ.v : 0), Fq.parse, (q.modD || '') + (swQ && swQ.d ? swQ.d : '')) : null;   // 1.6.2: and the dice the window and the bonuses add
                 if (!cmQ || !cmQ.ok || cmQ.expr !== q.expr) { denyQ('error', { error: { message: 'That roll does not match its button now.', pos: 0, len: 0 } }); return; }
                 if (hgQ && hgQ.n) { var chgQ = Dq.composeModifier(wantQ, (q.mod || 0) + (swQ ? swQ.v : 0) + hgQ.n, Fq.parse, (q.modD || '') + (swQ && swQ.d ? swQ.d : '')); if (!chgQ.ok) { denyQ('error', { error: { message: 'That roll cannot take that help.', pos: 0, len: 0 } }); return; } q.expr = chgQ.expr; }   // 1.6.2 Assist: all the help, as a bonus
-                if (pressQ && (actQ.init === true || actQ.resist === true || actQ.to === 'near' || actQ.askLvl === true)) { denyQ('error', { error: { message: 'That roll is not one a crew member presses.', pos: 0, len: 0 } }); return; }
+                if (pressQ && (actQ.init === true || actQ.resist === true || (actQ.to === 'near' || actQ.to === 'target') || actQ.askLvl === true)) { denyQ('error', { error: { message: 'That roll is not one a crew member presses.', pos: 0, len: 0 } }); return; }
                 if (pressQ && !SQ.rollStationOk(actQ, pressQ.stns, pressQ.link.pressNamed === true)) { denyQ('error', { error: { message: 'That roll is pressed from another station.', pos: 0, len: 0 } }); return; }
                 var hbQ = typeof holdsBar === 'function' && typeof SQ.holdRefOf === 'function' ? holdsBar(campQ, chQ, holdRefQ(campQ, q, actQ)) : ''; if (hbQ) { denyQ('error', { error: { message: hbQ, pos: 0, len: 0 } }); return; }   // 1.6.0 Who holds whom
                 if (actQ.area && !q.aim) { denyQ('error', { error: { message: typeof AREA_AIM === 'string' ? AREA_AIM : 'Pick where it is aimed.', pos: 0, len: 0 } }); return; }   // 1.6.0: a line takes an aim
                 if (q.att && actQ.resist !== true && !(typeof attemptRec === 'function' && attemptRec(q.att) && attemptRec(q.att).blow)) { denyQ('error', { error: { message: 'That roll does not resist an attempt.', pos: 0, len: 0 } }); return; }   // 1.6.0 (B2)
-                if (q.on && actQ.to !== 'near') { denyQ('error', { error: { message: 'That cannot be used on someone else.', pos: 0, len: 0 } }); return; }   // 1.5.9 (book es/et plan, section 3)
-                if (actQ.to === 'near') {   // judged on the host's own map before anything is rolled; OnSelf in its formula, its needs and its Then, 1 on themselves and 0 on another
-                    if (q.on) { onQ = typeof allyOn === 'function' ? allyOn(campQ, mapQ, mapQ ? SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ) : null, q.on, pidQ) : { error: 'missing', message: 'That character is not there.' }; if (onQ.error) { denyQ('error', { error: { message: onQ.message, pos: 0, len: 0 } }); return; } }
+                if (q.on && !(actQ.to === 'near' || actQ.to === 'target')) { denyQ('error', { error: { message: 'That cannot be used on someone else.', pos: 0, len: 0 } }); return; }   // 1.5.9 (book es/et plan, section 3)
+                if ((actQ.to === 'near' || actQ.to === 'target')) {   // judged on the host's own map before anything is rolled; OnSelf in its formula, its needs and its Then, 1 on themselves and 0 on another
+                    if (q.on) { onQ = typeof allyOn === 'function' ? allyOn(campQ, mapQ, mapQ ? SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ) : null, q.on, pidQ, actQ.to === 'target') : { error: 'missing', message: 'That character is not there.' }; if (onQ.error) { denyQ('error', { error: { message: onQ.message, pos: 0, len: 0 } }); return; } }
                     if (typeof SQ.withOnSelf === 'function') varsQ = SQ.withOnSelf(varsQ, !onQ, onQ && viewQ ? SQ.makeResolver(viewQ, onQ.ch, Fq, typeof allyCtx === 'function' ? allyCtx(mapQ, onQ.tok) : null) : null);   // 1.6.0: On.<name>, through their view
                 }
                 var askedQ = null; if (q.ask && !Array.isArray(actQ.asks)) { denyQ('error', { error: { message: 'That roll asks nothing.', pos: 0, len: 0 } }); return; }
@@ -9761,7 +9769,7 @@ function handleMessage(msg, conn) {
             var heQ = cardEnt(campQ, q.act, rowGQ, actQ), tkHQ = mapQ ? SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ) : null;
             if (heQ && heQ.help && helpHold({ S: SQ, D: Dq, F: Fq, camp: campQ, ent: heQ, ch: chQ, pid: pidQ, conn: conn, rid: q.rid, label: q.label || actQ.label, from: diceFrom(net.roster[conn.peer], false), mapId: tkHQ ? locQ : null, go: function(n) { _helpGo = { peer: conn.peer, rid: q.rid, n: n }; handleMessage(msg, conn); } })) return;
         }
-        cardQ = actQ && typeof actQ.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campQ, actQ.drawFirst) : null; if (cardQ && cardQ.error) { var ceQ = cardQ.error; cardQ = null; denyQ('error', { error: { message: ceQ, pos: 0, len: 0 } }); return; }   // 1.6.2: a card drawn as its die, before it is worked out, put back if anything refuses it
+        cardQ = actQ && typeof actQ.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campQ, actQ.drawFirst, actQ.drawN) : null; if (cardQ && cardQ.error) { var ceQ = cardQ.error; cardQ = null; denyQ('error', { error: { message: ceQ, pos: 0, len: 0 } }); return; }   // 1.6.2: a card drawn as its die, before it is worked out, put back if anything refuses it
         var resQ = Fq.evaluate(q.expr, varsQ ? { vars: varsQ } : {});
         if (!resQ.ok) { denyQ('error', resQ); return; }
         var moQ = hvQ && hvQ.length > 1 ? SQ.hitRolls(campQ.system, actQ, q.expr, hvQ.slice(1), Fq, Dq, { rounds: rnQ.slice(1) }) : null; if (moQ && moQ.error) { denyQ('error', { error: { message: moQ.error, pos: 0, len: 0 } }); return; }   // ... and each hit after it, rolled here, before what it costs is spent
@@ -11292,7 +11300,7 @@ function callPost(camp, rollId, ch, by, priv, row, big) {   // row (1.6.2): the 
     var S = SC(), Fc = window.wpFormula; if (!S || !Fc || !camp || !camp.system || !ch || typeof ch.id !== 'string') return false;
     var lref = typeof S.listRollRef === 'function' ? S.listRollRef(rollId) : null; if (lref) return callPostRow(camp, lref, ch, by, priv, row, big);
     var rr = null; (Array.isArray(camp.system.rolls) ? camp.system.rolls : []).forEach(function(r) { if (r && r.id === rollId && (Array.isArray(r.apply) || typeof r.formula === 'string')) rr = r; }); if (!rr) return false;
-    if (rr.needs) { var cv = null; try { cv = S.makeResolver(camp.system, ch, Fc, null); } catch (e) { cv = null; } if (typeof cv !== 'function' || !S.rollNeedsOk(rr, rr.to === 'near' && S.withOnSelf ? S.withOnSelf(cv, true) : cv, Fc)) return false; }
+    if (rr.needs) { var cv = null; try { cv = S.makeResolver(camp.system, ch, Fc, null); } catch (e) { cv = null; } if (typeof cv !== 'function' || !S.rollNeedsOk(rr, (rr.to === 'near' || rr.to === 'target') && S.withOnSelf ? S.withOnSelf(cv, true) : cv, Fc)) return false; }
     var toO = !priv && !ch.npc && !!ch.ownerId && rr.vis !== 'gm', id = Array.isArray(rr.apply) || typeof net.blowMake !== 'function' ? '' : net.blowMake(ch, rr.id, {}, '', '', null, true);
     if (big === true && id && Object.prototype.hasOwnProperty.call(_attempts, id)) _attempts[id].big = true;   // 1.6.2
     if (typeof net.postDue === 'function') net.postDue(ch, rr, 'called', 1, toO, { att: id, by: by }); return true;
@@ -11749,9 +11757,9 @@ net.diceRoll = function(expr, o) {
         else if (o.row && typeof o.row.i === 'number') (Array.isArray(campR.system.fields) ? campR.system.fields : []).forEach(function(f) { if (f && f.id === o.row.f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) { var lrR0 = f.list.rolls[o.row.i]; if (lrR0 && typeof lrR0.formula === 'string' && !lrR0.apply) entR = lrR0; } });
     }
     var onR = null, ftR = null;   // 1.5.9 (book es/et plan, section 3): the adjacent character a roll that Applies to one is used on, this machine's own word, judged here before anything is rolled
-    if (o.on && !(entR && entR.to === 'near')) return { error: 'That cannot be used on someone else.' };
-    if (entR && entR.to === 'near' && chR && varsR) {
-        if (typeof o.on === 'string' && o.on) { ftR = window.wpSheets && window.wpSheets.facingTarget ? window.wpSheets.facingTarget(chR, campR) : null; onR = typeof allyOn === 'function' ? allyOn(campR, ftR && ftR.map, ftR && ftR.tok, o.on, '') : { error: 'missing', message: 'That character is not there.' }; if (onR.error) return { error: onR.message }; }
+    if (o.on && !(entR && (entR.to === 'near' || entR.to === 'target'))) return { error: 'That cannot be used on someone else.' };
+    if (entR && (entR.to === 'near' || entR.to === 'target') && chR && varsR) {
+        if (typeof o.on === 'string' && o.on) { ftR = window.wpSheets && window.wpSheets.facingTarget ? window.wpSheets.facingTarget(chR, campR) : null; onR = typeof allyOn === 'function' ? allyOn(campR, ftR && ftR.map, ftR && ftR.tok, o.on, '', entR.to === 'target') : { error: 'missing', message: 'That character is not there.' }; if (onR.error) return { error: onR.message }; }
         if (typeof SR.withOnSelf === 'function') varsR = SR.withOnSelf(varsR, !onR, onR ? SR.makeResolver(campR.system, onR.ch, F, typeof allyCtx === 'function' && ftR ? allyCtx(ftR.map, onR.tok) : null) : null);   // 1.6.0: On.<name>   // OnSelf in its formula, its needs and its Then
     }
     var askedR = null; if (o.ask && !(entR && Array.isArray(entR.asks))) return { error: 'That roll asks nothing.' };
@@ -11770,7 +11778,7 @@ net.diceRoll = function(expr, o) {
         var ftH = window.wpSheets && window.wpSheets.facingTarget ? window.wpSheets.facingTarget(chR, campR) : null;
         if (helpHold({ S: SR, D: D, F: F, camp: campR, ent: entR, ch: chR, pid: '', conn: null, label: o.label || entR.label, from: o.from || diceFrom(getProfile(), true), mapId: ftH && ftH.tok ? ftH.mapId : null, go: function(n) { var cmH = n ? D.composeModifier(expr, n, F.parse) : { ok: true, expr: expr }; var rH = net.diceRoll(cmH.ok ? cmH.expr : expr, Object.assign({}, o, { helped: true })); if (rH && rH.error && typeof toast === 'function') toast(rH.error); } })) return { ok: true, held: true };
     }
-    var cardR = entR && typeof entR.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campR, entR.drawFirst) : null; if (cardR && cardR.error) return { error: cardR.error };   // 1.6.2: a card drawn as its die, before it is worked out
+    var cardR = entR && typeof entR.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campR, entR.drawFirst, entR.drawN) : null; if (cardR && cardR.error) return { error: cardR.error };   // 1.6.2: a card drawn as its die, before it is worked out
     var res = F.evaluate(expr, varsR ? { vars: varsR } : {});
     if (!res.ok) return cardR && cardR.undo && cardR.undo(), { error: res.error.message, pos: res.error.pos, len: res.error.len };
     if (o.row && chR && SR && campR && campR.system) rowP = SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, (res.breakdown && res.breakdown.names) || [], F, uDefR || undefined);   // what its Row.* names read, and whether the row is GM-only

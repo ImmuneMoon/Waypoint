@@ -33,31 +33,33 @@ function total(d) { return (isObj(d) && Array.isArray(d.cards) ? d.cards : []).r
 function allPlaces(d) { var o = []; d.cards.forEach(function(c, i) { for (var k = 0; k < (c.n || 1) && o.length < PILE_MAX; k++) o.push(i); }); return o; }
 function shuffled(a, rnd) { var o = a.slice(); for (var i = o.length - 1; i > 0; i--) { var j = rnd(i + 1) - 1, t = o[i]; o[i] = o[j]; o[j] = t; } return o; }   // rnd(n): a whole number from 1 to n
 function freshPile(d, rnd) { return { draw: shuffled(allPlaces(d), rnd), disc: [], out: [], last: null }; }
+// 1.6.2 (draw several at once): the places the last draw everyone saw took, 20 at most, each a card of the deck; none for an empty draw
+function gotOf(g, n) { if (!Array.isArray(g)) return null; var o = g.slice(0, DRAW_MAX).filter(function(i) { return typeof i === 'number' && Math.floor(i) === i && i >= 0 && i < n; }); return o.length ? o : null; }
 function cleanPile(p, d) {   // a stored pile as data: places that are no card go, and a card is never in it more often than it has copies
     if (!isObj(p) || !isObj(d) || !Array.isArray(d.cards)) return null; var left = d.cards.map(function(c) { return c.n || 1; });
     var keep = function(l) { var o = []; (Array.isArray(l) ? l : []).slice(0, PILE_MAX * 2).forEach(function(i) { if (typeof i === 'number' && Math.floor(i) === i && i >= 0 && i < left.length && left[i] > 0) { left[i]--; o.push(i); } }); return o; };
-    var out = { draw: keep(p.draw), disc: keep(p.disc), out: keep(p.out), last: typeof p.last === 'number' && Math.floor(p.last) === p.last && p.last >= 0 && p.last < left.length ? p.last : null }; return out;
+    var out = { draw: keep(p.draw), disc: keep(p.disc), out: keep(p.out), last: typeof p.last === 'number' && Math.floor(p.last) === p.last && p.last >= 0 && p.last < left.length ? p.last : null }; var gt = gotOf(p.got, left.length); if (gt) out.got = gt; return out;
 }
-function pileCounts(p, d) { if (!isObj(p)) return { left: isObj(d) ? total(d) : 0, disc: 0, last: null }; return { left: Array.isArray(p.draw) ? p.draw.length : 0, disc: Array.isArray(p.disc) ? p.disc.length : 0, last: typeof p.last === 'number' ? p.last : null }; }
-function cleanCounts(v, d) { if (!isObj(v) || !isObj(d)) return null; var w = function(x) { return typeof x === 'number' && Math.floor(x) === x && x >= 0 && x <= PILE_MAX ? x : 0; }; return { left: w(v.left), disc: w(v.disc), last: typeof v.last === 'number' && Math.floor(v.last) === v.last && v.last >= 0 && v.last < d.cards.length ? v.last : null }; }
+function pileCounts(p, d) { if (!isObj(p)) return { left: isObj(d) ? total(d) : 0, disc: 0, last: null }; var o = { left: Array.isArray(p.draw) ? p.draw.length : 0, disc: Array.isArray(p.disc) ? p.disc.length : 0, last: typeof p.last === 'number' ? p.last : null }; if (Array.isArray(p.got) && p.got.length) o.got = p.got.slice(0, DRAW_MAX); return o; }
+function cleanCounts(v, d) { if (!isObj(v) || !isObj(d)) return null; var w = function(x) { return typeof x === 'number' && Math.floor(x) === x && x >= 0 && x <= PILE_MAX ? x : 0; }; var o = { left: w(v.left), disc: w(v.disc), last: typeof v.last === 'number' && Math.floor(v.last) === v.last && v.last >= 0 && v.last < d.cards.length ? v.last : null }, gt = gotOf(v.got, d.cards.length); if (gt) o.got = gt; return o; }
 // A draw on a copy of the pile: answers { pile, cards: [places], reshuffled }. held true: the card leaves the pile for a hand, and comes back through returnCard
 function drawCards(d, p0, n, rnd, held) {
-    var p = isObj(p0) ? { draw: p0.draw.slice(), disc: p0.disc.slice(), out: p0.out.slice(), last: p0.last } : freshPile(d, rnd), got = [], re = false; n = Math.max(0, Math.min(DRAW_MAX, n | 0));
+    var p = isObj(p0) ? { draw: p0.draw.slice(), disc: p0.disc.slice(), out: p0.out.slice(), last: p0.last } : freshPile(d, rnd), got = [], re = false; n = Math.max(0, Math.min(DRAW_MAX, n | 0)); if (isObj(p0) && Array.isArray(p0.got) && p0.got.length) p.got = p0.got.slice();
     for (var i = 0; i < n; i++) {
         if (d.after === 'back' && !held) { var all = allPlaces(d); if (!all.length) break; var k = all[rnd(all.length) - 1]; got.push(k); continue; }
         if (!p.draw.length && p.disc.length) { p.draw = shuffled(p.disc, rnd); p.disc = []; re = true; }   // a deck that runs out is reshuffled, as a table would
         if (!p.draw.length) break; var c = p.draw.pop(); got.push(c); if (held) continue; if (d.after === 'gone') p.out.push(c); else p.disc.push(c);
     }
-    if (got.length) p.last = got[got.length - 1];
+    if (got.length) { p.last = got[got.length - 1]; p.got = got.slice(); }   // 1.6.2 (draw several at once): and every card of that draw, for its count and total
     return { pile: p, cards: got, reshuffled: re };
 }
 // Shuffle: what was discarded goes back in. fresh true starts the whole deck again but for what hands hold (out of the pile by count)
 function shufflePile(d, p0, rnd, fresh, held) {
     if (!isObj(p0) || fresh === true) { var rest = allPlaces(d); (Array.isArray(held) ? held : []).forEach(function(i) { var at = rest.indexOf(i); if (at >= 0) rest.splice(at, 1); }); return { draw: shuffled(rest, rnd), disc: [], out: [], last: null }; }
-    return { draw: shuffled(p0.draw.concat(p0.disc), rnd), disc: [], out: p0.out.slice(), last: p0.last };
+    var sp = { draw: shuffled(p0.draw.concat(p0.disc), rnd), disc: [], out: p0.out.slice(), last: p0.last }; if (Array.isArray(p0.got) && p0.got.length) sp.got = p0.got.slice(); return sp;
 }
 function returnCard(d, p0, i) {   // a card comes back from a hand, by the deck's own rule
-    var p = isObj(p0) ? { draw: p0.draw.slice(), disc: p0.disc.slice(), out: p0.out.slice(), last: p0.last } : { draw: [], disc: [], out: [], last: null }; if (typeof i !== 'number' || i < 0 || i >= d.cards.length) return p;
+    var p = isObj(p0) ? { draw: p0.draw.slice(), disc: p0.disc.slice(), out: p0.out.slice(), last: p0.last } : { draw: [], disc: [], out: [], last: null }; if (isObj(p0) && Array.isArray(p0.got) && p0.got.length) p.got = p0.got.slice(); if (typeof i !== 'number' || i < 0 || i >= d.cards.length) return p;
     if (d.after === 'gone') p.out.push(i); else if (d.after === 'discard') p.disc.push(i); return p;
 }
 function cardVal(d, i, stat) { var c = isObj(d) && Array.isArray(d.cards) ? d.cards[i] : null, k = String(stat).toLowerCase(), hit = 0; if (c && isObj(c.vals)) Object.keys(c.vals).forEach(function(s) { if (s.toLowerCase() === k) hit = c.vals[s]; }); return hit; }

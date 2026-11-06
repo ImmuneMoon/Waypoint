@@ -4235,7 +4235,8 @@ pendingChecks.push((async () => {
             { id: 'r_own', label: 'Own', apply: [{ f: 'f_hp', formula: '1', add: true }] },
             { id: 'r_chk', label: 'Check', formula: '3d6 <= 30 + OnSelf', then: [{ f: 'f_hp', formula: '1', add: true, when: 'hit' }], to: 'near' },
             { id: 'r_pl', label: 'Plain', formula: '3d6 <= 30', then: [{ f: 'f_hp', formula: '1', add: true, when: 'hit' }] },
-            { id: 'r_sec', label: 'Salve', formula: '3d6 <= 30', then: [{ f: 'f_hp', formula: '1 + Secret', add: true, when: 'hit' }], to: 'near' }] }, { F: Fx, gmView: true });
+            { id: 'r_sec', label: 'Salve', formula: '3d6 <= 30', then: [{ f: 'f_hp', formula: '1 + Secret', add: true, when: 'hit' }], to: 'near' },
+            { id: 'r_tgt', label: 'Mend', apply: [{ f: 'f_hp', formula: '3' }], to: 'target' }] }, { F: Fx, gmView: true });
     const tk = (id, o) => Object.assign({ id, type: 'circle', isChar: true, w: 50, h: 50 }, o);
     const mkCamp = () => ({ id: 'k', activeItemId: 'm1', system: sysN, items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'square' }, whiteboard: [
             tk('tk_a', { charId: 'c_a', ownerId: 'u_a', name: 'Kael', x: 100, y: 100 }), tk('tk_b', { charId: 'c_b', ownerId: 'u_b', name: 'Bo', x: 150, y: 100 }), tk('tk_n', { charId: 'c_n', name: 'Orc', x: 100, y: 150 }),
@@ -4247,7 +4248,7 @@ pendingChecks.push((async () => {
     const hostA = (msg, o) => { o = o || {};
         const camp = mkCamp(), out = { owner: [], mate: [], chat: [], saves: 0, deltas: [] }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
         const conns = [{ peer: 'pA', open: true, send: box(out.owner) }, { peer: 'pB', open: true, send: box(out.mate) }];
-        const net = { active: true, role: 'host', paused: false, combats: {}, conns, roster: { pA: { id: 'u_a', name: 'Pebbles', location: 'm1' }, pB: { id: 'u_b', name: 'Bo', location: 'm1' } }, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]) };
+        const net = { active: true, role: 'host', paused: false, combats: {}, conns, roster: { pA: { id: 'u_a', name: 'Pebbles', location: 'm1' }, pB: { id: 'u_b', name: 'Bo', location: 'm1' } }, targets: o.targets || {}, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]) };
         new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'own', 'diceFrom', 'sendTable', 'pushChat', 'logEvent', 'applyLine', 'fogDrop', 'mapFogged', 'getProfile',
             'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + ['function fxLib(', 'function itemLib('].map(line).join('\n') + '\n' + paSrc + '\n' + allySrc + '\n' + apSrc)(
             msg, conns[0], net, () => Sx, winOf(), () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true },
@@ -4323,10 +4324,21 @@ pendingChecks.push((async () => {
         && CQ({ rid: 'q1', expr: '1d6', charId: 'c_a', act: 'r_chk', on: 'tk_b' }).on === 'tk_b' && CQ({ rid: 'q1', expr: '1d6', charId: 'c_a', row: { f: 'f_kit', r: 'w_1', i: 0 }, on: 'tk_b' }).on === 'tk_b'
         && CQ({ rid: 'q1', expr: '1d6', charId: 'c_a', on: 'tk_b' }) === null && CQ({ rid: 'q1', expr: '1d6', on: 'tk_b' }) === null && ['', 'x'.repeat(81), 7, 'b' + ctl].every(v => CQ({ rid: 'q1', expr: '1d6', charId: 'c_a', act: 'r_chk', on: v }) === null),
         j([sentC]));
+    // 1.6.2 (the builder trial's survey): Applies to the user or their target: the token must be the user's own pointer, from the host's own record
+    { const ptr = id => ({ targets: { u_a: { id, mapId: 'm1', name: 'Pebbles' } } }), AIM = 'Point at them on the map first: it goes on your target.';
+      const tT = hostA(A('r_tgt', 'tk_f'), ptr('tk_f')), tTn = hostA(A('r_tgt', 'tk_f')), tTo = hostA(A('r_tgt', 'tk_f'), ptr('tk_b')), tTb = hostA(A('r_tgt', 'tk_f'), { targets: { u_b: { id: 'tk_f', mapId: 'm1' } } }), tTm = hostA(A('r_tgt', 'tk_f'), { targets: { u_a: { id: 'tk_f', mapId: 'm2' } } });
+      const tTh = hostA(A('r_tgt', 'tk_h'), ptr('tk_h')), tTf = hostA(A('r_tgt', 'tk_b'), Object.assign(ptr('tk_b'), { drop: { tk_b: 1 } })), tTs = hostA(A('r_tgt')), tTa = hostA(A('r_aid', 'tk_f'), ptr('tk_f'));
+      const cT = tT.owner.concat(tT.mate).find(m => m.type === 'apply' && m.on) || {};
+      check('1.6.2 Applies to the user or their target, char-apply (run for real with the ally slice): a player\'s press lands on the token their own pointer is at, however far (Far\'s HP 20 - 3), with nothing of theirs moved, a save and a card that says on whom; with no pointer, a pointer at another token, another player\'s pointer or a pointer on another map it is refused in its own words, a hidden token or one their fog drops is not there, with no one named it lands on themselves, and Applies to an adjacent character still asks for next to you',
+          tT.owner.some(m => m.type === 'char-ack') && j(tT.v('c_f')) === j({ f_hp: { cur: 17 } }) && j(tT.v('c_a')) === j(mkCamp().chars.c_a.values) && tT.saves === 1 && cT.on === 'Far'
+          && [tTn, tTo, tTb, tTm].every(r => still(r) && j(r.v('c_f')) === j({}) && deny(r) === AIM) && [tTh, tTf].every(r => still(r) && deny(r) === 'That character is not there.')
+          && j(tTs.v('c_a').f_hp) === j({ cur: 7 }) && deny(tTa) === 'They must stand next to you.' && Sx.cleanSystem(sysN, { F: Fx, gmView: false }).rolls.find(r => r.id === 'r_tgt').to === 'target',
+          j([tT.v('c_f'), cT, [tTn, tTo, tTb, tTm, tTh, tTf].map(deny), tTs.v('c_a'), deny(tTa)])); }
     // the ally slice's own pieces, pinned: allyOn asked in the three places, before anything is rolled or moved
     check('1.5.9 Applies to an adjacent character, the host\'s one judge (pinned): allyOn is asked by char-apply, the roll-req branch and net.diceRoll, each before applyAct and before anything is rolled; the choices of the sheet\'s menu are read from this screen\'s copy (net.allyChoices) and a player\'s app passes over a hidden token',
-        (srcR.match(/allyOn\(camp[AQR], /g) || []).length === 3 && srcR.indexOf("onA = typeof allyOn === 'function' ? allyOn(campA, mapA, tkA, qa.on, profA.id)") < srcR.indexOf('var resA = Sa.applyAct(') && srcR.indexOf('onQ = typeof allyOn') < srcR.indexOf('var resQ = Fq.evaluate(q.expr')
-        && srcR.indexOf('onR = typeof allyOn') < srcR.indexOf('var res = F.evaluate(expr, varsR') && allySrc.includes('if (client && w.hidden) return;'));
+        (srcR.match(/allyOn\(camp[AQR], /g) || []).length === 3 && srcR.indexOf("onA = typeof allyOn === 'function' ? allyOn(campA, mapA, tkA, qa.on, profA.id, actA.to === 'target')") < srcR.indexOf('var resA = Sa.applyAct(') && srcR.indexOf('onQ = typeof allyOn') < srcR.indexOf('var resQ = Fq.evaluate(q.expr')
+        && srcR.indexOf('onR = typeof allyOn') < srcR.indexOf('var res = F.evaluate(expr, varsR') && allySrc.includes('if (client && w.hidden) return;')
+        && srcR.includes("q.on, pidQ, actQ.to === 'target')") && srcR.includes("o.on, '', entR.to === 'target')") && allySrc.includes("if (far === true ? !allyAimed(camp, map, userTok, tok, pid) : !allyNear(map, userTok, tok, !!pid))"));
 })());
 
 
@@ -20032,10 +20044,13 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
         const empty = dr({ system: { decks: [Object.assign({}, deck6, { after: 'gone' })] }, piles: { D1: { draw: [], disc: [], out: [0, 1], last: 1 } } }, 'D1'), gone = dr(camp6, 'D9');
         check('1.6.2 a roll that draws a card as its die: the host draws one card before the roll is worked out, so the pile\'s last is that card; undo puts the pile back as it was; done keeps it, saves, tells the table and names the card, none for a deck the GM alone knows; a deck that is gone and one with nothing left refuse in words',
             !!d1.name && d1.name === lastName && kept.length > 0 && undone && deck6.cards.some(c => c.name === n2) && saved6 === 2 && told6 === 2 && n3 === '' && /Nothing is left to draw from Fate/.test(empty.error || '') && /not here/.test(gone.error || ''), JSON.stringify([d1.name, lastName, n2, n3, empty, gone, saved6, told6]));
+        const deck7 = { key: 'D1', label: 'Bag', after: 'discard', stats: [{ key: 'Value', label: 'Value' }], cards: [{ name: 'Ruby', vals: { Value: 3 } }, { name: 'Jet', vals: { Value: 7 } }, { name: 'Opal', vals: { Value: 5 } }] }, camp7 = { system: { decks: [deck7] } }, d7 = dr(camp7, 'D1', 3), n7 = d7.done();
+        const camp8 = { system: { decks: [deck7] } }, d8 = dr(camp8, 'D1', 40);
+        check('1.6.2 a roll that draws several at once: the host draws as many as it says, keeps them all as the last draw, and the roll\'s card names each; a count past 20 draws one', n7.split(', ').sort().join() === 'Jet,Opal,Ruby' && camp7.piles.D1.got.length === 3 && camp8.piles.D1.got.length === 1 && d8.name.indexOf(',') < 0, JSON.stringify([n7, camp7.piles.D1, camp8.piles.D1]));
         const flat6 = src;
         check('1.6.2 both paths draw first and put the card back on any refusal: a player\'s roll through denyQ, the GM\'s own through each early return; the card stays only once nothing refused it, and the roll\'s card names it',
-            flat6.includes("var cardQ = null, denyQ = function(reason, r) { if (cardQ && cardQ.undo) { cardQ.undo(); cardQ = null; }") && flat6.includes("cardQ = actQ && typeof actQ.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campQ, actQ.drawFirst) : null;")
-            && flat6.includes("var cardNQ = cardQ && cardQ.done ? cardQ.done() : ''; cardQ = null;") && flat6.includes('if (cardNQ) recQ.card = cardNQ;') && flat6.includes("var cardR = entR && typeof entR.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campR, entR.drawFirst) : null;")
+            flat6.includes("var cardQ = null, denyQ = function(reason, r) { if (cardQ && cardQ.undo) { cardQ.undo(); cardQ = null; }") && flat6.includes("cardQ = actQ && typeof actQ.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campQ, actQ.drawFirst, actQ.drawN) : null;")
+            && flat6.includes("var cardNQ = cardQ && cardQ.done ? cardQ.done() : ''; cardQ = null;") && flat6.includes('if (cardNQ) recQ.card = cardNQ;') && flat6.includes("var cardR = entR && typeof entR.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campR, entR.drawFirst, entR.drawN) : null;")
             && flat6.includes("var cardNR = cardR && cardR.done ? cardR.done() : '';") && flat6.includes('if (cardNR) rec.card = cardNR;') && flat6.split('return cardR && cardR.undo && cardR.undo(), {').length === 7, '');
     }
     summed = true;

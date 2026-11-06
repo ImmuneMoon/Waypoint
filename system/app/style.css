@@ -3834,7 +3834,7 @@
   .sys-hover, .sys-toggle-def { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; }
   .sys-btns { margin-left: auto; display: inline-flex; gap: 2px; }
   .sys-btn { padding: 1px 7px; font-size: 11px; }
-  .sys-costhowrow .field, .sys-clockrow .field, .sys-init-ckrow .field { width: 76px; margin: 0; }
+  .sys-costhowrow .field, .sys-clockrow .field, .sys-init-ckrow .field, .sys-drawnrow .field { width: 76px; margin: 0; }
   .sys-init-sevrow .field { width: 76px; margin: 0; }
   #declareBox { position: fixed; left: calc(var(--mainleft, 0px) + 12px); bottom: 150px; z-index: 8990; width: 320px; max-width: calc(100vw - 24px); max-height: 40vh; overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; font-size: 13px; }
   #declareBox .dc-row { display: flex; gap: 6px; align-items: center; }

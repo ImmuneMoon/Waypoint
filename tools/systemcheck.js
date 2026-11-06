@@ -16483,6 +16483,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.5.9 Applies to an adjacent character in the core: the cleaner keeps to near only as that very word on a system roll, an apply action and a list\'s action, never on the initiative roll, alike in both views and cleaned twice alike; OnSelf reads 1 on oneself and 0 on another and a field keyed OnSelf keeps its own; applyAct with on lands the field\'s change on a copy of that character (Bo\'s HP 5 + 4), keeps a row\'s counter on the user (Uses 3 - 1) with OnSelf 0 in its amount (2 + 0), answers onValues and onLines, leaves the character it was handed untouched, and without on answers as before',
             clOk && osOk && onOk, J([clOk, osOk, onOk, rolOf(gm, 'r_odd'), rA, rW, rS]));
     }
+    // 1.6.2 (the builder trial's survey): Applies to the user or their target, kept as near is: that very word on a system roll, an action and a list's
+    // roll or action, never on the initiative roll, alike in both views; onOther is the one test of both
+    {
+        const J = JSON.stringify, base = { v: 1, name: 'T', fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '20', def: 'max' },
+            { id: 'f_kit', key: 'Kit', label: 'Kit', kind: 'item-list', list: { rolls: [{ label: 'Bless', apply: [{ f: 'f_hp', formula: '1', add: true }], to: 'target' }, { label: 'Hex', formula: '3d6 <= 10', to: 'target' }, { label: 'Odd', formula: '3d6 <= 10', to: 'TARGET' }] } }],
+            rolls: [{ id: 'r_m', label: 'Mend', apply: [{ f: 'f_hp', formula: '3', add: true }], to: 'target' }, { id: 'r_c', label: 'Curse', formula: '3d6 <= 10', to: 'target' }, { id: 'r_i', label: 'Init', formula: '1d6', init: true, to: 'target' }] };
+        const gm = S.cleanSystem(base, { F, gmView: true }), pl = S.cleanSystem(base, { F, gmView: false }), ro = (s, id) => s.rolls.find(r => r.id === id) || {}, lr = s => s.fields.find(f => f.id === 'f_kit').list.rolls;
+        const ok = ro(gm, 'r_m').to === 'target' && ro(gm, 'r_c').to === 'target' && !('to' in ro(gm, 'r_i')) && lr(gm)[0].to === 'target' && lr(gm)[1].to === 'target' && !('to' in lr(gm)[2])
+            && J(gm.rolls.map(r => r.to)) === J(pl.rolls.map(r => r.to)) && J(lr(gm).map(r => r.to)) === J(lr(pl).map(r => r.to)) && J(S.cleanSystem(gm, { F, gmView: true })) === J(gm)
+            && S.onOther({ to: 'near' }) && S.onOther({ to: 'target' }) && !S.onOther({ to: 'far' }) && !S.onOther({}) && !S.onOther(null);
+        check('1.6.2 Applies to the user or their target in the core: the cleaner keeps to target only as that very word on a system roll, an apply action and a list\'s roll and action, never on the initiative roll, alike in both views and cleaned twice alike; onOther is true for near and target alone', ok, J([ro(gm, 'r_m'), ro(gm, 'r_i'), lr(gm)]));
+    }
     // 1.5.9 (docs/BOOK_ES_ET_PLAN.md; the owner's O6: "An effect can set posture"; the book (eu): Down's prone lasts after healing): an effect's
     // posture in the core, and sheets.js postureFollow sliced by its fxposture markers and run for real with the real core
     {
@@ -16893,7 +16905,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J(pO.rolls.map(r => r.id)) === J(['r_med', 'r_plain']) && J(msgO) === J(['r_plain: "On.HP" reads the one it is used on, so it is known only in a roll or an action that Applies to the user or an adjacent character.']), J([onD, onM, self.values, noOn, pO.rolls.map(r => r.id), msgO]));
         const shO = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
         check('1.6.0 On.<name> on the sheet (source): a button whose needs read the one it is used on never greys by them (the host judges them once the press names someone), on a roll and on an action; the GM\'s press reads On. through the system with the target in its own token\'s context',
-            (shO.match(/&& !\(r\.to === 'near' && typeof readsOn === 'function' && readsOn\(r\.needs, F\(\)\)\)\) \{/g) || []).length === 2 && shO.includes('vv = withOnSelf(vv, !onT, onT ? makeResolver(sys, onT.ch, F(),'));
+            (shO.match(/&& !\(\(r\.to === 'near' \|\| r\.to === 'target'\) && typeof readsOn === 'function' && readsOn\(r\.needs, F\(\)\)\)\) \{/g) || []).length === 2 && shO.includes('vv = withOnSelf(vv, !onT, onT ? makeResolver(sys, onT.ch, F(),'));
     }
     {   // 1.6.0 Counts by the game clock (the handoff's per-row timer; the campaign build's count while a switch holds): a list's counter timed
         const J = JSON.stringify;
@@ -22430,7 +22442,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             rD.drawFirst === 'D1' && rD.named === true && rP.drawFirst === 'D1' && rP.named === true && bad.every(x => !('drawFirst' in x) && !('named' in x)) && J(S.cleanRollDef({ id: 'r_a', label: 'F', formula: '1d6' }, true)) === J({ id: 'r_a', label: 'F', formula: '1d6', vis: 'all' }), J([rD, bad]));
         const shD = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').split('\r\n').join('\n'), uiD = fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8');
         check('1.6.2 the Rolls tab offers it under How it rolls, as the deck\'s name, with a deck that is gone named so; its handler sets or takes it off; and a hand\'s rows show no count and no minus or plus, in a list and a table',
-            shD.includes("dkO = [['', 'Rolls dice']].concat(dkR.map(function(d) { return [d.key, 'Draws a card from ' + (d.label || 'a deck') + ' first']; }));") && shD.includes("dkO.push([r.drawFirst, 'A deck that is gone']);") && shD.includes("else if (c.indexOf('sys-roll-drawfirst') >= 0) { if (t.value) r.drawFirst = t.value; else delete r.drawFirst; }")
+            shD.includes("dkO = [['', 'Rolls dice']].concat(dkR.map(function(d) { return [d.key, 'Draws a card from ' + (d.label || 'a deck') + ' first']; }));") && shD.includes("dkO.push([r.drawFirst, 'A deck that is gone']);") && shD.includes("else if (c.indexOf('sys-roll-drawfirst') >= 0) { if (t.value) r.drawFirst = t.value; else { delete r.drawFirst; delete r.drawN; } markDirty(); renderAll(); return; }") && shD.includes("else if (c.indexOf('sys-roll-drawn') >= 0) { var drN = Math.floor(Number(t.value)); if (drN >= 2 && drN <= 20) r.drawN = drN; else delete r.drawN; }") && shD.includes(' if (r.drawFirst) top.appendChild(drawHow(r.drawN));')
             && uiD.includes("['how', 'How it rolls', 1, ['sys-roll-drawfirst',") && shD.split("spec.noQty || (typeof isHand === 'function' && isHand(spec))").length === 4
             && new Function(shD.slice(shD.indexOf('function isHand('), shD.indexOf('\n', shD.indexOf('function isHand('))) + '\nreturn isHand;')()({ hand: {} }) === true && new Function(shD.slice(shD.indexOf('function isHand('), shD.indexOf('\n', shD.indexOf('function isHand('))) + '\nreturn isHand;')()({ hand: true }) === false, '');
     }

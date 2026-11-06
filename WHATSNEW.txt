@@ -78,6 +78,10 @@ The System editor
   by a fixed figure of the sheet with no roll, or set by the GM in the
   roster. Sides stay under How turns go. The Initiative tick on each roll is
   gone, and a system that ticked one orders by that roll as before.
+- The Rules tab's Tests are the kinds of roll a figure is tested with: a roll
+  at or under it, a roll plus it against a target, or a pool of as many dice
+  as it, counting hits. A system holds as many as it needs. A number field
+  picks one under Rolls by, and its card says pass or fail and by how much.
 - Combat and Rules are tabs of their own now. Everything the Combat card held
   is on the Combat tab, and the budgets, readings, linked sheets and tables
   that stood on the Lists tab are on the Rules tab. Each has its topics down

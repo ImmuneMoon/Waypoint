@@ -553,7 +553,8 @@ function cleanField(f, F, gmView) {
             out.spill = spo;
         }
     }
-    if (f.roll !== undefined) { var r = cleanFormulaText(f.roll); if (r) { out.roll = r; var rDie = cleanDie(f.rollDie); if (rDie) out.rollDie = rDie; } }   // 1.5.8: and the die its button wears, where the GM picked one
+    if (f.roll !== undefined) { var r = cleanFormulaText(f.roll); if (r) { out.roll = r; var rDie = cleanDie(f.rollDie); if (rDie) out.rollDie = rDie; } }
+    if (typeof f.test === 'string' && /^T[0-9]{1,3}$/.test(f.test)) out.test = f.test;   // 1.6.2 (backlog 59): it rolls one of the system's tests (cleanSystem writes its roll)   // 1.5.8: and the die its button wears, where the GM picked one
     if (f.tile === true && (k === 'number' || k === 'formula' || k === 'skill' || k === 'resource')) out.tile = true;   // Stage 3: render this numeric field as a stat tile
     if ((k === 'number' || k === 'formula' || k === 'skill' || k === 'resource') && typeof f.unit === 'string') { var un = unitOf(f.unit); if (un) out.unit = un; }   // Stage 5g: a unit after the value ("pts", "kg")
     else if (k === 'text' && cleanFieldUnit(f.unit, k)) out.unit = cleanFieldUnit(f.unit, k);   // 1.5.4: a text read as a height or a weight (the two units a text field takes)
@@ -4882,6 +4883,8 @@ function cleanSystem(sys, opts) {
         if (seenId[c.id] || seenKey[lower(c.key)]) return;
         seenId[c.id] = 1; seenKey[lower(c.key)] = 1; out.fields.push(c);
     });
+    var tstS = cleanTests(sys.tests); if (tstS) out.tests = tstS;   // 1.6.2 (backlog 59): the system's tests, and the roll of each field that picks one, written here so every reader of a field's roll reads it
+    out.fields.forEach(function(f) { if (typeof f.test !== 'string') return; var tt = tstS ? tstS.filter(function(x) { return x.key === f.test; })[0] : null, tf = tt ? testFormula(tt, f.key) : ''; if (tf) { f.roll = tf; delete f.rollDie; } else delete f.test; });
     var gmEnt = (Array.isArray(sys.items) ? sys.items : []).concat(Array.isArray(sys.core) ? sys.core : []).some(function(it) { return isObj(it) && it.vis === 'gm'; });   // owed review leftover (b): a GM-only entry a pool's max reads is a secret too
     var gmTbl = Array.isArray(sys.tables) && sys.tables.some(function(t) { return isObj(t) && t.vis === 'gm'; });   // 1.6.0: a GM-only table a pool's max reads is a secret too
     if (!gmView && (gmFields.length || gmEnt || gmTbl) && out.fields.some(function(f) { return f.kind === 'resource' && !!f.maxFormula; })) {   // a pool whose max is GM-only is GM-only as a whole: gone, as a GM-only field is (the GM-only fields last: one wins a key both use)
@@ -9410,6 +9413,30 @@ function deckRead(sys, rest) {
     var gtR = Array.isArray(c.got) ? c.got : []; if (w === 'drawn') return gtR.length; if (w.slice(0, 6) === 'drawn.') return drawnVal(d, gtR, w.slice(6));   // 1.6.2 (draw several at once)
     if (w === 'left') return c.left; if (w === 'discard') return c.disc; if (w.slice(0, 5) === 'last.') return typeof c.last === 'number' ? cardVal(d, c.last, w.slice(5)) : 0; return 0;
 }
+// 1.6.2 (backlog 59; the owner, by prompt: "A system's tests, more than one", to fit any game): the kinds of roll a figure is tested with. Each a
+// key made once (T and a number, never shown), a name, a shape and its dice: under, a roll at or under the figure (3d6, 1d100); plus, a roll and the
+// figure against a target (1d20 and a modifier against 15; the target a formula, none for a total alone); pool, as many dice as the figure, each at
+// or past hit a hit, and need the hits wanted (none: count them). The same in both views. A field that picks one rolls testFormula of it
+var TEST_MAX = 12;
+function cleanTests(v) {
+    if (!Array.isArray(v)) return null; var out = [], seen = map();
+    v.slice(0, TEST_MAX * 4).forEach(function(t) {
+        if (!isObj(t) || out.length >= TEST_MAX) return; var key = typeof t.key === 'string' && /^T[0-9]{1,3}$/.test(t.key) ? t.key : ''; if (!key || seen[key]) return;
+        var shape = t.shape === 'plus' || t.shape === 'pool' ? t.shape : 'under', dice = typeof t.dice === 'string' ? t.dice.trim().toLowerCase() : '', m = null;
+        if (shape === 'pool') { m = /^1?d([1-9][0-9]{0,2})$/.exec(dice); if (!m) return; dice = 'd' + m[1]; } else { m = /^([1-9][0-9]?)?d([1-9][0-9]{0,2})$/.exec(dice); if (!m) return; dice = (m[1] || '1') + 'd' + m[2]; }
+        var o = { key: key, label: cutText(t.label, LIMITS.label) || 'Test', shape: shape, dice: dice };
+        if (shape === 'plus') { var tg = cleanFormulaText(t.target); if (tg) o.target = tg; }
+        if (shape === 'pool') { var h = Math.floor(Number(t.hit)); if (!(h >= 1 && h <= 999)) return; o.hit = h; var nd = Math.floor(Number(t.need)); if (nd >= 1 && nd <= 99) o.need = nd; }
+        seen[key] = 1; out.push(o);
+    });
+    return out.length ? out : null;
+}
+function testFormula(t, key) {
+    if (!isObj(t) || typeof key !== 'string' || !key) return '';
+    if (t.shape === 'pool') return '(' + key + ')' + t.dice + 'cs>=' + t.hit + (t.need ? ' >= ' + t.need : '');
+    if (t.shape === 'plus') return t.dice + ' + ' + key + (t.target ? ' >= (' + t.target + ')' : '');
+    return t.dice + ' <= ' + key;
+}
 function cleanValues(v, gmView) {
     var res = [], seen = map(), num = function(x) { return typeof x === 'number' && fin(x) ? clampNum(x, -LIMITS.statAbs, LIMITS.statAbs) : undefined; }; (Array.isArray(v) ? v : []).slice(0, VALUES_MAX * 4).forEach(function(t) {
         if (res.length >= VALUES_MAX || !isObj(t) || (t.vis === 'gm' && !gmView)) return; var key = tableKeyOk(t.key, TABLE_KEY); if (!key || seen[lower(key)]) return; seen[lower(key)] = 1;
@@ -13430,5 +13457,5 @@ export { tableRanged, tableRowAt, tableRangeSays, resultAdd, resultPool, resultP
 export { cleanLock, lockCells, lockTouches, rowLockHit, LOCK_MAX, cleanLay, layWant, laySync, layCells };   // 1.6.2 Locked while
 export { revRowWords, revRows };   // 1.6.0: what a Review line says of a list; a reader's file for a player
 export { cleanTables, tableKeyOk, tableParts, tableRead, tableFam, tableRowOf, TABLE_KEY, TABLE_ROW_KEY, nameFold };   // 1.6.0: a system's tables
-export { onOther };   // 1.6.2: Applies to someone else, near or their target
+export { onOther, cleanTests, testFormula, TEST_MAX };   // 1.6.2: Applies to someone else, near or their target
 export { deckTrial, deckTrialRead, drawnVal };   // 1.6.2: Try it draws for a roll that draws first

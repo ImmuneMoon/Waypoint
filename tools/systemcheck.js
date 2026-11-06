@@ -22434,6 +22434,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && uiD.includes("['how', 'How it rolls', 1, ['sys-roll-drawfirst',") && shD.split("spec.noQty || (typeof isHand === 'function' && isHand(spec))").length === 4
             && new Function(shD.slice(shD.indexOf('function isHand('), shD.indexOf('\n', shD.indexOf('function isHand('))) + '\nreturn isHand;')()({ hand: {} }) === true && new Function(shD.slice(shD.indexOf('function isHand('), shD.indexOf('\n', shD.indexOf('function isHand('))) + '\nreturn isHand;')()({ hand: true }) === false, '');
     }
+    {   // 1.6.2 (the owner, by prompt: "When a roll is offered"): a list roll's Shown where stands beside its Needs, in one row; and a box left empty is said in words
+        const shM = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').split('\r\n').join('\n');
+        check('1.6.2 a list roll\'s Shown on rows where stands in its When it can be used row beside Pressed only while and Hidden, for a roll and an action alike, and its handler finds the roll from either row; a fault for a box left empty says Nothing is set here yet',
+            shM.includes("ndRow.appendChild(el('span', 'sys-num-cap sys-offered', 'When it can be used')); ndRow.appendChild(rsI);") && shM.includes("ndA.appendChild(el('span', 'sys-num-cap sys-offered', 'When it can be used')); ndA.appendChild(rsI);") && shM.includes("var rrw = t.closest('.sys-list-roll') || t.closest('.sys-list-needsrow'),")
+            && !shM.includes('rsI.maxLength = LIMITS.formula; rw.appendChild(rsI);') && S.plainMessage({ fields: [] }, 'Roll “A”: Missing formula') === 'Roll “A”: Nothing is set here yet.' && S.plainMessage({ fields: [] }, 'Missing formula') === 'Nothing is set here yet.', '');
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

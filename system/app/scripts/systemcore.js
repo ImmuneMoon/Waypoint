@@ -11573,6 +11573,7 @@ function plainMessage(sys, text) {
     if (m) return 'These each need the other, so none of them can be worked out: ' + m[1].split(' \u2192 ').map(w).join(', then ') + '.';
     s = s.replace(/This roll tests nothing \(no comparison, like [^)]*\), so /, 'This roll has nothing to beat, so ');
     s = s.replace('Dice are not allowed in a definition; put the dice in a roll.', 'This cannot roll dice. Dice go in a roll.');
+    s = s.replace(/^((?:.*: )?)Missing formula$/, '$1Nothing is set here yet.');   // 1.6.2 (found building a system by hand): a box left empty, said in words
     s = s.replace('An amount cannot roll dice: roll first, and let the amount read the field the result goes in.', 'This amount cannot roll dice unless it is ticked Rolled.');
     s = s.replace(/^"([^"]+)" is a (choice|counter), so it has no (.+?): read one row \([^)]*\)\.$/, function(all, n, what, none) { var p = n.split('.'), lf = keyIndexOf(sys)[lower(p[0])], last = p[p.length - 1], lab = lf ? statWord(lf.list, last) : ''; return (lab ? lab + ' in ' + fieldWord(lf) : humanName(n)) + ' is a ' + what + ', so it has no ' + none + '.'; });
     s = s.replace(/^"([^"]+)" is known only in /, function(all, n) { return capWord(w(n)) + ' can only be read in '; }).replace(/^"([^"]+)" is known only where /, function(all, n) { return capWord(w(n)) + ' can only be read where '; });

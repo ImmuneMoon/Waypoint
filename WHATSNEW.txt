@@ -42,6 +42,10 @@ The System editor
   How it rolls, and one press draws the card and reads it. The roll's card
   says which card was drawn, so a card game needs no second press.
 - A hand of cards shows each card as a single card, with no count.
+- The Lists tab gathers the four ways a row ties to another row in one group,
+  Tied to other rows. Add a tie shows the one you need. A list roll's Shown
+  where now stands beside its Needs, in one row: When it can be used. A box
+  left empty says Nothing is set here yet, in words.
 - Combat and Rules are tabs of their own now. Everything the Combat card held
   is on the Combat tab, and the budgets, readings, linked sheets and tables
   that stood on the Lists tab are on the Rules tab. Each has its topics down

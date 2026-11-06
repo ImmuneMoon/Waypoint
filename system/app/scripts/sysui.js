@@ -175,7 +175,7 @@ var GROUPS = {
         ['blast', 'Blast', 0, ['sys-item-area', 'sys-item-affs', 'sys-fly']]] },
     lists: { split: ['sys-flags', 'sys-list-cols'], head: ['sys-list-title'], list: [
         ['holds', 'What it holds', 1, ['sys-list-cats', 'sys-starts']],
-        ['rows', 'What a row may be', 1, ['sys-list-multi', 'sys-list-noqty', 'sys-list-custom', 'sys-ownsw', 'sys-list-hang', 'sys-list-graise', 'sys-list-sheets', 'sys-list-sheettpl', 'sys-list-sheeton', 'sys-list-hand', 'sys-list-handgm']],   // 1.6.2 (the owner: "Three groups"): the list's ticks by what they are for
+        ['rows', 'What a row may be', 1, ['sys-list-multi', 'sys-list-noqty', 'sys-list-custom', 'sys-ownsw', 'sys-list-graise', 'sys-list-sheets', 'sys-list-sheettpl', 'sys-list-sheeton', 'sys-list-hand', 'sys-list-handgm']],   // 1.6.2 (the owner: "Three groups"): the list's ticks by what they are for
         ['rowlook', 'How it looks', 0, ['sys-list-open', 'sys-list-edge', 'sys-list-groupby', 'sys-list-menus', 'sys-list-boxes']],
         ['rowrules', 'Rules', 0, ['sys-list-trade', 'sys-list-togm', 'sys-traderules']],
         ['level', 'Level', 1, ['sys-list-lvl', 'sys-list-lcaps']],
@@ -184,15 +184,14 @@ var GROUPS = {
         ['cols', 'Columns', 0, ['sys-list-col', 'sys-list-coladd']],
         ['cts', 'Counters', 0, ['sys-list-ct', 'sys-list-ctadd']],
         ['rolls', 'Rolls', 1, ['sys-list-roll', 'sys-list-needsrow', 'sys-list-rolladd', 'sys-list-xsrow', 'sys-calls', 'sys-help']],
-        ['parts', 'Parts', 0, ['sys-list-partsfrom', 'sys-list-partscats', 'sys-list-partshosts', 'sys-list-partscap', 'sys-pcaps', 'sys-list-partsfitif', 'sys-list-partsfitwords', 'sys-pfits', 'sys-list-partslabel', 'sys-list-partsdeep']],
-        ['stand', 'Stands at another list', 0, ['sys-list-standfrom', 'sys-list-standfits', 'sys-list-standsays', 'sys-list-standreach', 'sys-list-standcounts', 'sys-list-standoff', 'sys-list-standbox', 'sys-list-standpieces', 'sys-sthen']],
+        ['ties', 'Tied to other rows', 0, ['sys-list-hang'].concat(['sys-list-partsfrom', 'sys-list-partscats', 'sys-list-partshosts', 'sys-list-partscap', 'sys-pcaps', 'sys-list-partsfitif', 'sys-list-partsfitwords', 'sys-pfits', 'sys-list-partslabel', 'sys-list-partsdeep'], ['sys-list-standfrom', 'sys-list-standfits', 'sys-list-standsays', 'sys-list-standreach', 'sys-list-standcounts', 'sys-list-standoff', 'sys-list-standbox', 'sys-list-standpieces', 'sys-sthen'], ['sys-list-atfrom', 'sys-list-atby']), [['hang', 'Hangs from a row of this list', ['sys-list-hang']], ['parts', 'Holds parts', ['sys-list-partsfrom', 'sys-list-partscats', 'sys-list-partshosts', 'sys-list-partscap', 'sys-pcaps', 'sys-list-partsfitif', 'sys-list-partsfitwords', 'sys-pfits', 'sys-list-partslabel', 'sys-list-partsdeep']], ['stand', 'Stands at a row of another list', ['sys-list-standfrom', 'sys-list-standfits', 'sys-list-standsays', 'sys-list-standreach', 'sys-list-standcounts', 'sys-list-standoff', 'sys-list-standbox', 'sys-list-standpieces', 'sys-sthen']], ['at', 'Names a row of another list by a stat', ['sys-list-atfrom', 'sys-list-atby']]]],   // 1.6.2 (the owner, by prompt: "Rows tied to rows"): the four ways a row ties to another row, in one place, a kind at a time
         ['tiles', 'Tiles', 0, ['sys-list-tileside', 'sys-list-tiletop', 'sys-list-tiledraw', 'sys-list-tilemake', 'sys-tboxes', 'sys-tstates']],
         ['badges', 'Badges', 0, ['sys-badges']],
         ['loads', 'Loads, feeds and chambers', 0, ['sys-list-load', 'sys-list-feed', 'sys-list-feedadd', 'sys-list-chamber']],
         ['specs', 'Specialties', 0, ['sys-list-specs', 'sys-list-specof', 'sys-list-speccover', 'sys-list-specby', 'sys-list-specfall', 'sys-list-specnever', 'sys-list-specpen', 'sys-list-specsum', 'sys-list-specdflt']],
         ['once', 'Counted once', 0, ['sys-list-once', 'sys-list-oncenote']],
         ['look', 'Look and work log', 0, ['sys-list-rowlook', 'sys-list-lkmain', 'sys-list-lkby', 'sys-list-worklog']],
-        ['other', 'Other rules', 0, ['sys-list-layfrom', 'sys-list-layif', 'sys-list-laystat', 'sys-list-lockif', 'sys-list-lockcell', 'sys-list-locksays', 'sys-list-modsif', 'sys-list-atfrom', 'sys-list-atby', 'sys-list-subject', 'sys-list-sjif', 'sys-list-throwif', 'sys-list-throwsays', 'sys-list-sets', 'sys-list-placeby', 'sys-list-onrm']],
+        ['other', 'Other rules', 0, ['sys-list-layfrom', 'sys-list-layif', 'sys-list-laystat', 'sys-list-lockif', 'sys-list-lockcell', 'sys-list-locksays', 'sys-list-modsif', 'sys-list-subject', 'sys-list-sjif', 'sys-list-throwif', 'sys-list-throwsays', 'sys-list-sets', 'sys-list-placeby', 'sys-list-onrm']],
         ['arcs', 'Arcs', 0, ['sys-list-arcby', 'sys-arcs']],
         ['names', 'What formulas read', 0, ['sys-list-names']]] },
     effects: { split: ['sys-row-main', 'sys-flags'], head: ['sys-fx-icon', 'sys-glyph-btn', 'sys-fx-name', 'sys-fx-tone', 'sys-btns'], list: [
@@ -270,11 +269,31 @@ function arrange(row, kind, doc, kept, touched) {
         var d = doc.createElement('details'), s = doc.createElement('summary'), b = doc.createElement('div'), key = kind + ':' + g[0], name = g[0] === 'value' && kindBox && own(VALUE_TITLE, kindBox.value) ? VALUE_TITLE[kindBox.value] : g[1];
         d.className = 'sys-grp'; d.dataset.grp = key; s.className = 'sys-grp-head'; s.appendChild(doc.createTextNode(name)); b.className = 'sys-flags sys-grp-body';
         ps.forEach(function(p) { b.appendChild(p); });
+        if (g[4]) kindsArrange(b, g[4], doc, kind + ':' + ((row.dataset && row.dataset.lid) || ''));
         var used = usedIn(b); if (used && !g[2]) { var u = doc.createElement('small'); u.className = 'sys-grp-used'; u.textContent = 'in use'; s.appendChild(u); }
         d.open = kept && own(kept, key) ? kept[key] === 1 : !!g[2] || used || !!(touched && touched[key]);
         d.appendChild(s); d.appendChild(b); row.appendChild(d);
     });
     return row;
+}
+// 1.6.2 (the owner, by prompt: "Rows tied to rows"): a group whose pieces are kinds of one thing sets them out a kind at a time. A kind that is in use, or
+// that was picked from Add a tie, shows with its name; the rest wait in that list. Nothing is made again: each control keeps its class and its handler
+var kindsShown = {};
+function kindsArrange(b, kinds, doc, rowKey) {
+    var blocks = {}, wait = [], kids = []; for (var c = b.firstChild; c; c = c.nextSibling) kids.push(c);
+    kinds.forEach(function(k) { var blk = doc.createElement('div'), h = doc.createElement('div'); blk.className = 'sys-flags sys-kind-block'; blk.dataset.kind = k[0]; h.className = 'sys-kind-head'; h.textContent = k[1]; blk.appendChild(h); blocks[k[0]] = blk; });
+    kids.forEach(function(p) { if (p.nodeType !== 1 || hasClass(p, 'sys-num-cap')) { wait.push(p); return; } var w = classWords(p), to = null; kinds.forEach(function(k) { if (!to && wordIn(w, k[2])) to = blocks[k[0]]; }); to = to || blocks[kinds[0][0]]; wait.forEach(function(x) { to.appendChild(x); }); wait = []; to.appendChild(p); });
+    while (b.firstChild) b.removeChild(b.firstChild);
+    var hidden = [];
+    kinds.forEach(function(k) { var blk = blocks[k[0]], has = blk.childNodes.length > 1, show = has && (usedIn(blk) || kindsShown[rowKey + ':' + k[0]] === 1); blk.hidden = !show; if (!show && has) hidden.push(k); b.appendChild(blk); });   // a kind this list cannot take here, with no control of its own, is neither shown nor offered
+    if (hidden.length) {
+        var sel = doc.createElement('select'), o0 = doc.createElement('option'); sel.className = 'sys-kind-pick'; sel.title = 'Show the boxes of another way a row ties to another row'; o0.value = ''; o0.textContent = 'Add a tie…'; sel.appendChild(o0);
+        hidden.forEach(function(k) { var o = doc.createElement('option'); o.value = k[0]; o.textContent = k[1]; sel.appendChild(o); });
+        var stop = function(e) { if (e && e.stopPropagation) e.stopPropagation(); };
+        sel.addEventListener('input', stop);
+        sel.addEventListener('change', function(e) { stop(e); var v = sel.value; if (!v || !blocks[v]) return; kindsShown[rowKey + ':' + v] = 1; blocks[v].hidden = false; for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === v) { sel.removeChild(sel.options[i]); break; } sel.value = ''; if (sel.options.length < 2) sel.hidden = true; if (typeof log === 'function') log('tie', { kind: v }); });
+        b.insertBefore(sel, b.firstChild);
+    }
 }
 // [sysuicheck:groups-end]
 

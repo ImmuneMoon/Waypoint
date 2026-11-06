@@ -22353,6 +22353,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('a piece fitted to the grid lands in its cells at the release whatever it glued to while dragged (found by the owner: "it would stick in between cells vertically instead of inside of one, centered"): the release rounds a fitted piece\'s corner to the lattice on both axes, and only a piece that is not fitted keeps an axis it glued to a neighbour',
             dmF.includes("var sdx = glued.x && !fitDrag ? 0 : sn.x - item.x, sdy = glued.y && !fitDrag ? 0 : sn.y - item.y;") && dmF.includes("fitDrag = multiDrag.some(function(md) { return md.item.gridFit; });"));
     }
+    {   // 1.6.2, the CORE session's find: a line of Holds by kind names a value by its words, and a number stat's value name renamed at its own place dropped the line at Save
+        const mkV = lab => ({ v: 1, name: 'T', rolls: [], fields: [
+            { id: 'f_p', key: 'Mods', label: 'Mods', kind: 'item-list', vis: 'all', edit: 'gm', list: { placeBy: 'Slot', stats: [{ key: 'Slot', label: 'Slot', labels: lab }] } },
+            { id: 'f_h', key: 'Guns', label: 'Guns', kind: 'item-list', vis: 'all', edit: 'gm', list: { stats: [{ key: 'Rails', label: 'Rails' }], parts: { from: 'f_p', caps: [{ slot: 'Slot', is: 'Rail', by: 'Rails' }, { slot: 'Slot', is: ['Grip', 'Rail'], by: 'Rails' }] } } }],
+            sheet: { sections: [{ id: 's1', title: 'A', fields: [{ id: 'f_p', cats: ['Rail'] }, { id: 'f_p', cats: ['Grip'] }] }] } });
+        const nxV = mkV(['Grip', 'Top rail', 'Barrel']), rnV = S.renamesCarry(mkV(['Grip', 'Rail', 'Barrel']), nxV), clV = cleanSystem(nxV, { F, gmView: true });
+        const swV = S.renamesOf(mkV(['Grip', 'Rail']), mkV(['Rail', 'Grip'])), adV = S.renamesOf(mkV(['Grip', 'Rail']), mkV(['Grip', 'Rail', 'Stock'])), twV = S.renamesOf(mkV(['Grip', 'Rail']), mkV(['Grip', 'Grip']));
+        check('a number stat\u2019s value name renamed at its own place is a rename (renamesOf vals): a line of Holds by kind and a place split by that stat follow it and Save keeps the line, Save says it once in plain words, and a name only moved, one added and one that now stands twice are no rename',
+            j(rnV.vals) === j([{ f: 'f_p', key: 'Slot', word: 'Slot', from: 'Rail', to: 'Top rail' }]) && j(nxV.fields[1].list.parts.caps.map(k => k.is)) === j(['Top rail', ['Grip', 'Top rail']]) && j(nxV.sheet.sections[0].fields.map(x => x.cats)) === j([['Top rail'], ['Grip']])
+            && j(clV.fields[1].list.parts.caps.map(k => k.is)) === j(['Top rail', ['Grip', 'Top rail']]) && S.renamesSay(rnV).filter(m => m.includes('\u201cRail\u201d is now \u201cTop rail\u201d')).length === 1
+            && j(swV.vals) === '[]' && swV.names.length === 1 && j(adV.vals) === '[]' && j(twV.vals) === '[]', j([rnV.vals, nxV.fields[1].list.parts.caps, swV.vals, adV.vals, twV.vals]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -8156,7 +8156,7 @@ function refCats(sys) {   // the categories in hand, lower case; null while the 
 function refWarns(saved, clean, camp0) {
     var warn = function(k, m) { (warningsById[k] = warningsById[k] || []).push({ message: m }); }, low = function(x) { return typeof x === 'string' ? x.trim().toLowerCase() : ''; };
     var rn = renamesOf(saved, draft), said = function(k, l, w) { l.forEach(function(p) { var o = {}; o[w] = [p]; warn(k(p), renamesSay(o)[0]); }); }, chars = (camp0 && camp0.chars) || {};
-    said(function(p) { return 'list:' + p.f; }, rn.picks, 'picks'); said(function(p) { return 'list:' + p.f; }, rn.rolls, 'rolls'); said(function(p) { return p.f; }, rn.selects, 'selects'); said(function() { return 'links'; }, rn.stations, 'stations');
+    said(function(p) { return 'list:' + p.f; }, rn.picks, 'picks'); said(function(p) { return 'list:' + p.f; }, rn.vals || [], 'vals'); said(function(p) { return 'list:' + p.f; }, rn.rolls, 'rolls'); said(function(p) { return p.f; }, rn.selects, 'selects'); said(function() { return 'links'; }, rn.stations, 'stations');
     rn.names.forEach(function(p) { renamesSay({ names: [p] }).forEach(function(m) { warn(p.list ? 'list:' + p.f : p.f, m); }); });   // 1.6.2: a number's value names moved: said before Save, since the numbers stored in rows and the library stay as they are
     rn.subjects.forEach(function(p) { renamesSay({ subjects: [p] }).forEach(function(m) { warn('list:' + p.f, m); }); });   // 1.6.2: a list's subjects moved: a word only moved says nothing, since its rows follow
     var fromIn = function(l, f, x) { return l.some(function(p) { return p.f === f && low(p.from) === low(x); }); };
@@ -8195,7 +8195,7 @@ function refWarns(saved, clean, camp0) {
         ((lv[1] && lv[1].sections) || []).forEach(function(s) { ((s && s.fields) || []).forEach(function(pl, pi) {
             var f = pl && Array.isArray(pl.cats) && pl.cats.length ? (draft.fields || []).filter(function(x) { return x && x.id === pl.id && x.kind === 'item-list'; })[0] : null; if (!f) return;
             var by = f.list && typeof f.list.placeBy === 'string' && f.list.placeBy, names = by ? placeCatNames(f, draft).map(low) : null;
-            pl.cats.forEach(function(x) { if (typeof x !== 'string' || !x.trim() || (names ? names.indexOf(low(x)) >= 0 || fromIn(rn.picks, f.id, x) : cats[low(x)])) return; warn('plc:' + lv[0] + ':' + s.id + ':' + pi, (by ? 'No row can be \u201c' : 'No item or library entry has the category \u201c') + x.trim() + (by ? '\u201d now, so this place shows none of it.' : '\u201d now, so this place shows none of it.')); });
+            pl.cats.forEach(function(x) { if (typeof x !== 'string' || !x.trim() || (names ? names.indexOf(low(x)) >= 0 || fromIn(rn.picks.concat(rn.vals || []), f.id, x) : cats[low(x)])) return; warn('plc:' + lv[0] + ':' + s.id + ':' + pi, (by ? 'No row can be \u201c' : 'No item or library entry has the category \u201c') + x.trim() + (by ? '\u201d now, so this place shows none of it.' : '\u201d now, so this place shows none of it.')); });
         }); });
     });
 }

@@ -10122,8 +10122,16 @@ function namesMoved(before, after) {   // a value name that still stands, at ano
     var la = after.map(function(x) { return typeof x === 'string' ? lower(x.trim()) : ''; });
     return before.some(function(x, i) { var l = typeof x === 'string' ? lower(x.trim()) : '', at = l ? la.indexOf(l) : -1; return at >= 0 && at !== i; });
 }
+// A number's value name renamed at its own place: the old words stand nowhere after and the new words nowhere before (a name that only moved is
+// namesMoved's). The number it stands for is the same, so what names it by its words follows it
+function valRenames(before, after) {
+    var out = []; if (!Array.isArray(before) || !Array.isArray(after)) return out;
+    var t = function(x) { return typeof x === 'string' ? x.trim() : ''; }, lb = before.map(function(x) { return lower(t(x)); }), la = after.map(function(x) { return lower(t(x)); });
+    for (var i = 0; i < Math.min(before.length, after.length); i++) { if (lb[i] && la[i] && lb[i] !== la[i] && la.indexOf(lb[i]) < 0 && lb.indexOf(la[i]) < 0) out.push({ from: t(before[i]), to: t(after[i]) }); }
+    return out;
+}
 function renamesOf(prev, next) {
-    var out = { picks: [], selects: [], stations: [], rolls: [], subjects: [], names: [] }; if (!isObj(prev) || !isObj(next)) return out;
+    var out = { picks: [], selects: [], stations: [], rolls: [], subjects: [], names: [], vals: [] }; if (!isObj(prev) || !isObj(next)) return out;
     var fieldIn = function(s, id) { return (Array.isArray(s.fields) ? s.fields : []).filter(function(x) { return isObj(x) && x.id === id; })[0] || null; }, word = function(x) { return x.label || x.key || ''; };
     var labels = function(l) { return (Array.isArray(l) ? l : []).map(function(o) { return isObj(o) && typeof o.label === 'string' ? o.label : ''; }); }, names = function(l) { return (Array.isArray(l) ? l : []).map(function(o) { return isObj(o) && typeof o.name === 'string' ? o.name : ''; }); }, rollL = function(sp) { return (isObj(sp) && Array.isArray(sp.rolls) ? sp.rolls : []).filter(function(r) { return isObj(r) && !Array.isArray(r.apply); }).map(function(r) { return typeof r.label === 'string' ? r.label : ''; }); };
     (Array.isArray(prev.fields) ? prev.fields : []).forEach(function(pf) {
@@ -10134,6 +10142,7 @@ function renamesOf(prev, next) {
         (Array.isArray(pf.list.stats) ? pf.list.stats : []).forEach(function(pn) {   // 1.6.2: a number's value names say a place, so what holds the number now reads whatever name stands there
             var nn = isObj(pn) && pn.kind !== 'pick' && typeof pn.key === 'string' ? (Array.isArray(nf.list.stats) ? nf.list.stats : []).filter(function(x) { return isObj(x) && typeof x.key === 'string' && lower(x.key) === lower(pn.key); })[0] : null;
             if (nn && namesMoved(pn.labels, nn.labels)) out.names.push({ f: nf.id, word: word(nn), list: true });
+            if (nn) valRenames(pn.labels, nn.labels).forEach(function(p) { out.vals.push({ f: nf.id, key: nn.key, word: word(nn), from: p.from, to: p.to }); });   // the CORE session's find: a value name renamed in place
         });
         (Array.isArray(pf.list.stats) ? pf.list.stats : []).forEach(function(ps) {
             if (!isObj(ps) || ps.kind !== 'pick' || typeof ps.key !== 'string') return;
@@ -10181,7 +10190,15 @@ function renamesCarry(prev, next) {
         (Array.isArray(next.rolls) ? next.rolls : []).forEach(fix);
         (Array.isArray(next.fields) ? next.fields : []).forEach(function(f) { if (isObj(f) && isObj(f.list) && Array.isArray(f.list.rolls)) f.list.rolls.forEach(fix); });
     }
-    rn.picks.forEach(function(p) {   // 1.6.2: a line of Holds by kind names a value of its parts' list in words, so it follows a renamed value
+    rn.vals.forEach(function(p) {   // a number's value name renamed in place: a place split by that stat follows it, as a pick's does
+        (Array.isArray(next.fields) ? next.fields : []).forEach(function(nf) {
+            if (!isObj(nf) || nf.id !== p.f || !isObj(nf.list) || typeof nf.list.placeBy !== 'string' || !same(nf.list.placeBy, p.key)) return;
+            [next.sheet, isObj(next.sheet) ? next.sheet.hud : null].forEach(function(lay) {
+                (isObj(lay) && Array.isArray(lay.sections) ? lay.sections : []).forEach(function(s) { (isObj(s) && Array.isArray(s.fields) ? s.fields : []).forEach(function(pl) { if (isObj(pl) && pl.id === nf.id && Array.isArray(pl.cats)) pl.cats = pl.cats.map(function(c) { return same(c, p.from) ? p.to : c; }); }); });
+            });
+        });
+    });
+    rn.picks.concat(rn.vals).forEach(function(p) {   // 1.6.2: a line of Holds by kind names a value of its parts' list in words, so it follows a renamed value
         (Array.isArray(next.fields) ? next.fields : []).forEach(function(h) {
             var ps = isObj(h) && isObj(h.list) && isObj(h.list.parts) ? h.list.parts : null; if (!ps || ps.from !== p.f || !Array.isArray(ps.caps)) return;
             ps.caps.forEach(function(k) { if (!isObj(k) || !same(k.slot, p.key)) return; if (Array.isArray(k.is)) k.is = k.is.map(function(v) { return same(v, p.from) ? p.to : v; }); else if (same(k.is, p.from)) k.is = p.to; });
@@ -10212,6 +10229,7 @@ function renamesSay(rn) {
     var out = []; if (!isObj(rn)) return out;
     (rn.picks || []).forEach(function(p) { out.push(p.word + ': \u201c' + p.from + '\u201d is now \u201c' + p.to + '\u201d. Items, rows and library entries that hold it follow. To hide what it was, delete it and add a new one.'); });   // the owner, 2026-11-01: an old label travels with the option, so the safe way out is said where it is needed
     (rn.selects || []).forEach(function(p) { out.push(p.word + ': \u201c' + p.from + '\u201d is now \u201c' + p.to + '\u201d. Characters who hold it follow. To hide what it was, delete it and add a new one.'); });
+    (rn.vals || []).forEach(function(p) { out.push(p.word + ': \u201c' + p.from + '\u201d is now \u201c' + p.to + '\u201d. Rows keep their number and read the new name, and what names it follows.'); });
     (rn.stations || []).forEach(function(p) { out.push(p.word + ': the station \u201c' + p.from + '\u201d is now \u201c' + p.to + '\u201d. Those at it and the rolls that name it follow. A formula that names it is said under it.'); });
     (rn.rolls || []).forEach(function(p) { out.push(p.word + ': the roll \u201c' + p.from + '\u201d is now \u201c' + p.to + '\u201d. Roll bonuses aimed at it follow.'); });
     (rn.subjects || []).forEach(function(p) {

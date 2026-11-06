@@ -135,9 +135,17 @@ function valueInto(host, get, set, p, dice) {
 function diceInto(host, v, set, p) {
     var box = el('div', 'fb-dice'), mark = function() { v.dirty = true; set(v); }, row = el('div', 'fb-step');
     var cnt = el('input', 'fb-num'); cnt.type = 'text'; cnt.inputMode = 'numeric'; cnt.dataset.p = p + 'n'; cnt.setAttribute('aria-label', 'How many dice');
-    if (v.n && v.n.k !== 'num') { cnt.value = ''; cnt.disabled = true; cnt.placeholder = 'set'; } else cnt.value = v.n ? v.n.s : '1';
-    cnt.addEventListener('input', function() { if (!/^\d{1,3}$/.test(cnt.value)) return; v.n = { k: 'num', v: Number(cnt.value), s: cnt.value }; mark(); commit(); });
-    row.appendChild(cnt); row.appendChild(el('span', 'fb-d', 'd'));
+    // 1.6.2 (found building a dice-pool system by hand): how many dice may come from the sheet, picked as any value is
+    if (v.n && v.n.k !== 'num') valueInto(row, function() { return v.n; }, function(x) { v.n = x; mark(); }, p + 'nv', false);
+    else {
+        cnt.value = v.n ? v.n.s : '1';
+        cnt.addEventListener('input', function() { if (!/^\d{1,3}$/.test(cnt.value)) return; v.n = { k: 'num', v: Number(cnt.value), s: cnt.value }; mark(); commit(); });
+        row.appendChild(cnt);
+        var np = btn('fb-pick fb-pick-more', '▾', 'Take how many dice from the sheet'); np.dataset.p = p + 'nb'; np.setAttribute('aria-label', 'Pick how many dice from the sheet');
+        np.addEventListener('click', function() { openMenu(np, function(nv) { v.n = nv; mark(); again(p + 'nb'); }, false, v.n || { k: 'num', v: 1, s: '1' }); });
+        row.appendChild(np);
+    }
+    row.appendChild(el('span', 'fb-d', 'd'));
     var fs = v.f === 'F' ? 'F' : v.f === '%' ? '100' : v.f && v.f.k === 'num' ? String(v.f.v) : '', fo = FACES.map(function(x) { return [x, x]; }); if (fs && FACES.indexOf(fs) < 0) fo.push([fs, fs]);
     var fc = sel('fb-sel', fo, fs); fc.dataset.p = p + 'f'; fc.setAttribute('aria-label', 'Sides on each die');
     fc.addEventListener('change', function() { v.f = fc.value === 'F' ? 'F' : { k: 'num', v: Number(fc.value), s: fc.value }; mark(); commit(); });
@@ -259,13 +267,13 @@ function readInto(host, w, g) {   // what is read from the handful, a line each
     var add = btn('fb-add', '+ Read something else', 'Read these same dice another way'); add.dataset.p = 'rladd'; add.addEventListener('click', function() { last.steps.push({ op: '+', v: readMake('count', g) }); again('rl' + (last.steps.length - 1) + 'h'); }); host.appendChild(add);
 }
 function facePick(k) {
-    var o = open, f = o.form, cur = f.steps[0].v; o.fresh = false;
+    var o = open, f = o.form, cur = f.steps[0].v, wasFresh = o.fresh; o.fresh = false;
     if (cur && cur.k === 'with' && k !== 'read') { var dv = cur.dice[0].steps[0].v; delete dv.as; dv.dirty = true; f.steps = [{ op: 'start', v: dv }]; }
     if (k === 'read') { var d0 = f.steps[0].v; if (d0 && d0.k === 'dice') { delete d0.cs; d0.as = 'p'; d0.dirty = true; delete f.check; f.steps = [{ op: 'start', v: { k: 'with', dice: [{ steps: [{ op: 'start', v: d0 }] }], last: { steps: [{ op: 'start', v: readMake('high', 'p') }] } } }]; } o.face = ''; again('kread'); return; }
     var d = f.steps[0].v;
     if (k === 'else') { o.face = 'else'; again('kelse'); return; }
     o.face = '';
-    if (d && d.k === 'dice') { if (k === 'hits' && !d.cs) { d.cs = { op: '>=', v: { k: 'num', v: 5, s: '5' } }; d.dirty = true; } else if (k !== 'hits' && d.cs) { delete d.cs; d.dirty = true; } }
+    if (d && d.k === 'dice') { if (k === 'hits' && !d.cs) { d.cs = { op: '>=', v: { k: 'num', v: 5, s: '5' } }; if (wasFresh && d.f && d.f.k === 'num' && d.f.v === 20) d.f = { k: 'num', v: 6, s: '6' }; d.dirty = true; } else if (k !== 'hits' && d.cs) { delete d.cs; d.dirty = true; } }   // 1.6.2: a new roll that counts hits starts on six-sided dice, as a handful usually is
     if (k === 'beat' && !f.check) f.check = { op: '>=', r: { steps: [{ op: 'start', v: { k: 'num', v: 10, s: '10' } }] } };
     if (k !== 'beat') delete f.check;
     again('k' + k);
@@ -320,7 +328,14 @@ function tryDraw() {
     s.addEventListener('change', function() { tryWho = s.value; tryOut(res, o, T, people); });
     var asks = []; try { asks = T.asks(text) || []; } catch (e) { asks = []; }
     asks.slice(0, 4).forEach(function(a) {
-        var l = String(a.s).toLowerCase(), n = el('input', 'fb-num'); n.type = 'text'; n.inputMode = 'decimal'; n.value = tryOver[l] === undefined ? '0' : String(tryOver[l]); n.setAttribute('aria-label', a.word);
+        var l = String(a.s).toLowerCase();
+        if (Array.isArray(a.opts) && a.opts.length) {   // 1.6.2: a question with answers of its own is tried by one of them
+            if (tryOver[l] === undefined || !a.opts.some(function(x) { return x[0] === tryOver[l]; })) tryOver[l] = a.opts[0][0];
+            var ps = sel('fb-sel', a.opts.map(function(x) { return [String(x[0]), x[1]]; }), String(tryOver[l]), a.word); ps.setAttribute('aria-label', a.word);
+            ps.addEventListener('change', function() { var hit = a.opts.filter(function(x) { return String(x[0]) === ps.value; })[0]; if (hit) { tryOver[l] = hit[0]; tryOut(res, o, T, people); } });
+            line.appendChild(el('span', null, 'with ' + a.word)); line.appendChild(ps); return;
+        }
+        var n = el('input', 'fb-num'); n.type = 'text'; n.inputMode = 'decimal'; n.value = tryOver[l] === undefined ? '0' : String(tryOver[l]); n.setAttribute('aria-label', a.word);
         n.addEventListener('input', function() { var x = Number(n.value); if (n.value.trim() !== '' && isFinite(x)) { tryOver[l] = x; tryOut(res, o, T, people); } });
         line.appendChild(el('span', null, 'with ' + a.word)); line.appendChild(n);
     });

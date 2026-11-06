@@ -113,6 +113,22 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     press(cards(bN)[4]);
     check('Something else shows the steps', onCard(bN) === 'Something else' && !bN.querySelector('.fb-q') && !!bN.querySelector('.fb-step'), onCard(bN));
     press(bN.querySelector('.fb-cancel'));
+    { // 1.6.2 (found building a dice pool by hand): a new roll that counts hits starts on d6; how many dice may be picked from the sheet, said in words; Try it offers a question's own answers
+        const iH = mkRoll(''), bH = openR(iH); press(cards(bH)[2]);
+        check('a new roll that counts hits starts on six-sided dice, and one that was something else first keeps its own', iH.value === '1d6cs>=5' && onCard(bH) === 'Count hits', iH.value);
+        const nb = Array.from(bH.querySelectorAll('.fb-pick')).filter(x => /nb$/.test(x.dataset.p || ''))[0];
+        check('beside the count of dice stands a pick, so how many dice may come from the sheet', !!nb && nb.classList.contains('fb-pick') && /from the sheet/.test(nb.dataset.tip || nb.title || ''), nb && (nb.dataset.tip || nb.title));
+        press(bH.querySelector('.fb-cancel'));
+        const srcH = { groups: [{ name: 'What they answered', items: [{ label: 'Their answer to Which attribute', s: 'Ask.Q1' }] }], word: () => '', subject: 'Action', trial: { people: () => [{ id: 'c1', name: 'Kael' }], vars: (id, over) => n => { const l = String(n).toLowerCase(), ov = over[l]; const v = typeof ov === 'string' ? ov.toLowerCase() : null; if (v) return ({ body: 3, wits: 1 })[v] || 0; return ov !== undefined ? ov : 0; }, asks: t => /Ask.Q1/.test(t) ? [{ s: 'Ask.Q1', word: 'their answer to Which attribute', opts: [['Body', 'Body'], ['Wits', 'Wits']] }] : [] } };
+        B.setSource(() => srcH);
+        const iP = mkRoll('(Ask.Q1)d6cs>=5'), bP = openR(iP);
+        check('a count of dice from the sheet reads as words, never as doubled brackets', /^as many d6 as /.test(iP.parentNode.querySelector('.fb-say').textContent) && iP.parentNode.querySelector('.fb-say').textContent.indexOf('((') < 0 && iP.value === '(Ask.Q1)d6cs>=5', iP.parentNode.querySelector('.fb-say').textContent);
+        const ts = bP.querySelectorAll('.fb-tryline select'), tsel = ts[ts.length - 1];
+        check('Try it offers a question with answers of its own by those answers, and tries the first', !!tsel && Array.from(tsel.querySelectorAll('option')).map(o => o.textContent).join() === 'Body,Wits' && bP.querySelector('.fb-tryout').textContent.indexOf('3d6') >= 0, bP.querySelector('.fb-tryout').textContent);
+        tsel.value = 'Wits'; (tsel.handlers && tsel.handlers.change || []).forEach(h => h({ target: tsel }));
+        check('picking another answer tries that one, and leaves the roll as it was', bP.querySelector('.fb-tryout').textContent.indexOf('1d6') >= 0 && iP.value === '(Ask.Q1)d6cs>=5', bP.querySelector('.fb-tryout').textContent);
+        press(bP.querySelector('.fb-cancel')); B.setSource(() => srcT);
+    }
     const iC = mkRoll('with(6d10@p, high(p) + 1)'), bC = openR(iC);
     check('a roll that does more stays as steps, says so, and its other kinds cannot be pressed', onCard(bC) === 'Something else' && cards(bC).slice(0, 4).every(c => c.disabled === true) && /stays as steps/.test(bC.textContent), onCard(bC));
     press(bC.querySelector('.fb-cancel'));

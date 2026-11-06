@@ -1111,6 +1111,11 @@ function canOpen(charId) {
 }
 function openSheet(charId) {
     if (!canOpen(charId)) { toast(featureOn() ? 'That sheet is not yours to open.' : 'Character sheets are off here.'); return; }
+    if (!systemOf(getActiveCampaign())) {   // 1.6.2 (found building a system by hand): a sheet with nothing to show says why, where it used to close without a word
+        if (!isClient() && canWrite()) toastAction('This campaign has no character system yet, so its sheets have nothing to show.', 'Set up the system', function() { var sb = ui('systemBtn'); if (sb) sb.click(); });
+        else toast('The GM has not set up the character sheets yet.');
+        return;
+    }
     if (sheetOpen !== charId) { closeDownloadMenu(); _sheetEdit = null; }   // Onboarding F2a: its menu names the character it was opened for; another character's sheet opens locked
     sheetOpen = charId;
     if (typeof openSyncOne === 'function') openSyncOne(charId);   // 1.5.8: a character saved before its Form opened anything gets its opened rows as its sheet opens
@@ -5383,7 +5388,7 @@ function asksBox(obj) {
             } else if (a.kind === 'field') {
                 var pick = (Array.isArray(a.fields) ? a.fields : []).slice(), fs = (sys && Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return f && f.id && (f.kind === 'number' || f.kind === 'skill' || f.kind === 'formula' || f.kind === 'resource'); }), lst = el('div', 'sys-ask-fields');
                 pick.forEach(function(id, k) { var fd = fs.filter(function(f) { return f.id === id; })[0], chip = el('span', 'sheet-chip sys-ask-chip', fd ? fd.label || fd.key : 'A value that is gone'), rm = el('button', 'tool ghost sys-btn', '\u00d7'); rm.type = 'button'; rm.title = 'Take this value off'; rm.addEventListener('click', function(e) { e.stopPropagation(); a.fields.splice(k, 1); ch(true); }); chip.appendChild(rm); lst.appendChild(chip); });
-                if (pick.length < ASK_OPTS) { var add = el('select', 'sys-ask-addf'); add.appendChild(opt('', '+ Add a value', true)); fs.forEach(function(f) { if (pick.indexOf(f.id) < 0) add.appendChild(opt(f.id, f.label || f.key, false)); }); add.title = 'A value of the sheet this question offers'; add.addEventListener('change', function() { if (!add.value) return; if (!Array.isArray(a.fields)) a.fields = []; a.fields.push(add.value); ch(true); }); lst.appendChild(add); }
+                if (pick.length < ASK_OPTS) { var add = el('select', 'sys-ask-addf'); add.appendChild(opt('', '+ Add a value', true)); fs.forEach(function(f) { if (pick.indexOf(f.id) < 0) add.appendChild(opt(f.id, f.label || f.key, false)); }); add.title = 'A value of the sheet this question offers'; if (window.wpTexList) window.wpTexList.keys(add); add.addEventListener('change', function() { if (!add.value) return; if (!Array.isArray(a.fields)) a.fields = []; a.fields.push(add.value); ch(true); }); lst.appendChild(add); }
                 q.appendChild(lst);
             } else {
                 var ol = el('div', 'sys-ask-opts'); if (!Array.isArray(a.opts)) a.opts = [];
@@ -7620,20 +7625,29 @@ function formCtx(inp) {
     return fd ? { subject: fd.label || '', list: fd.kind === 'item-list' && fd.list ? fd.list : undefined } : {};
 }
 // what Try it reads: one of the campaign's characters as this draft would work them out, and a figure given by hand for what depends on the moment
-function formTrial(d) {
+// 1.6.2 (found building a dice pool by hand): Try it offers a question's own answers, the sheet's values by their names and a pick's options by their words, where it asked a bare number
+function trialOpts(d, asks, n) {
+    var m = /^ask[.]([a-z0-9_]+)$/i.exec(String(n)), a = null; if (!m) return undefined;
+    (Array.isArray(asks) ? asks : []).forEach(function(x) { if (!a && x && typeof x.key === 'string' && x.key.toLowerCase() === m[1].toLowerCase()) a = x; });
+    if (!a) return undefined;
+    if (a.kind === 'field') { var out = []; (Array.isArray(a.fields) ? a.fields : []).forEach(function(id) { var f = fieldById(d, id); if (f && typeof f.key === 'string' && f.key) out.push([f.key, f.label || f.key]); }); return out.length ? out : undefined; }
+    if (a.kind !== 'num') { var po = []; (Array.isArray(a.opts) ? a.opts : []).forEach(function(o, i) { if (o && o.label) po.push([typeof o.v === 'number' ? o.v : i + 1, o.label]); }); return po.length ? po : undefined; }
+    return undefined;
+}
+function formTrial(d, ctx) {
     return {
         people: function() { var c = getActiveCampaign(); return c ? charList(c).sort(function(a, b) { return (a.npc ? 1 : 0) - (b.npc ? 1 : 0); }).map(function(x) { return { id: x.id, name: x.name || 'Character' }; }) : []; },
         vars: function(id, over) {
             var c = getActiveCampaign(), chs = c ? charsOf(c) : null, ch = chs && Object.prototype.hasOwnProperty.call(chs, id) ? chs[id] : null, r = ch && F() ? makeResolver(d, ch, F()) : null;
-            return function(n) { var l = String(n).toLowerCase(); if (over[l] !== undefined) return over[l]; var v = null; try { v = r ? r(l) : null; } catch (e) { v = null; } return typeof v === 'number' && isFinite(v) ? v : v === true ? 1 : 0; };
+            return function(n) { var l = String(n).toLowerCase(), ov = over[l]; if (typeof ov === 'string') l = ov.toLowerCase(); else if (ov !== undefined) return ov; var v = null; try { v = r ? r(l) : null; } catch (e) { v = null; } return typeof v === 'number' && isFinite(v) ? v : v === true ? 1 : 0; };   // 1.6.2: an answer that picks a value of the sheet is tried as that value of the character
         },
-        asks: function(text) { var nm = F() ? F().names(text) : []; return (Array.isArray(nm) ? nm : []).filter(function(n) { return nameAsks(d, n); }).map(function(n) { return { s: n, word: nameWord(d, n) }; }); }
+        asks: function(text) { var nm = F() ? F().names(text) : [], r0 = ctx && ctx.roll && Array.isArray(ctx.roll.asks) ? ctx.roll.asks : []; return (Array.isArray(nm) ? nm : []).filter(function(n) { return nameAsks(d, n); }).map(function(n) { return { s: n, word: nameWord(d, n), opts: trialOpts(d, r0, n) }; }); }
     };
 }
 function formSource(inp) {
     var cF = draft ? null : getActiveCampaign(), d = draft || (cF ? systemOf(cF) : null); if (!d) return null;
     var ctx = inp && /^libF_/.test(inp.id || '') ? {} : formCtx(inp);
-    return { subject: ctx.subject || '', trial: formTrial(d), get groups() { return readsOf(d, ctx); }, word: function(s) { return nameWord(d, s, ctx.list); } };
+    return { subject: ctx.subject || '', trial: formTrial(d, ctx), get groups() { return readsOf(d, ctx); }, word: function(s) { return nameWord(d, s, ctx.list); } };
 }
 // [formcheck:source-end]
 var _formOn = false;
@@ -7658,7 +7672,7 @@ function open(which, topic) {
 }
 function close(force) {
     var m = ui('systemModal'); if (!m || m.style.display === 'none') return;
-    if (dirty && !force) { showConfirm('Close the System editor without saving? Your changes to the fields, rolls and layout since the last Save are lost (characters are saved as you go).', function(yes) { if (yes) { dirty = false; close(true); } }); return; }
+    if (dirty && !force) { showConfirm('Close the System editor without saving? Your changes to the fields, rolls and layout since the last Save are lost (characters are saved as you go).', function(yes) { if (yes) { dirty = false; close(true); } }, { noEnter: true }); return; }   // 1.6.2: a key pressed for something else never throws the changes away
     if (window.wpArrange && window.wpArrange.on()) window.wpArrange.set(false);
     m.style.display = 'none'; draft = null;
 }
@@ -8887,7 +8901,7 @@ function errorCell(id) {
     if (!cell.childNodes.length) cell.style.display = 'none';
     return cell;
 }
-function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'turn.run') return 'Move by giving up an action: '; if (p === 'turn.holdLost') return 'An action is lost when: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (/^(?:list\.)?byIf(\.|$)/.test(p || '')) return 'Read on the one who resisted: '; if (p === 'area' || /^list\.area\./.test(p || '')) return ''; if (p === 'hits' || /^list\.hits\./.test(p || '')) return 'Hits it rolls for: '; if (p === 'dmgMajorIf' || /^list\.mjif\./.test(p || '')) return 'A Major Wound where: '; if (p === 'dmg2' || /^list\.dmg2\./.test(p || '')) return 'Second part: '; var pk3 = /^(?:list\.)?(dmg|ad)([345])(\.|$)/.exec(p || ''); if (pk3) return (pk3[2] === '3' ? 'Third' : pk3[2] === '4' ? 'Fourth' : 'Fifth') + ' part' + (pk3[1] === 'ad' ? ' armour divisor' : '') + ': '; if (p === 'ad2' || /^list\.ad2\./.test(p || '')) return 'Second part armour divisor: '; var pkK = /^(?:list\.)?dkind([2345]?)(\.|$)/.exec(p || ''); if (pkK) return (pkK[1] === '' ? 'Kind' : pkK[1] === '2' ? 'Second part kind' : pkK[1] === '3' ? 'Third part kind' : pkK[1] === '4' ? 'Fourth part kind' : 'Fifth part kind') + ': '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; if (p === 'bigAt') return 'Lands as a Big Hit at: '; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
+function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'turn.run') return 'Move by giving up an action: '; if (p === 'turn.holdLost') return 'An action is lost when: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (/^(?:list\.)?byIf(\.|$)/.test(p || '')) return 'Read on the one who resisted: '; if (p === 'area' || /^list\.area\./.test(p || '')) return ''; if (p === 'hits' || /^list\.hits\./.test(p || '')) return 'Hits it rolls for: '; if (p === 'dmgMajorIf' || /^list\.mjif\./.test(p || '')) return 'A Major Wound where: '; if (p === 'dmg2' || /^list\.dmg2\./.test(p || '')) return 'Second part: '; var pk3 = /^(?:list\.)?(dmg|ad)([345])(\.|$)/.exec(p || ''); if (pk3) return (pk3[2] === '3' ? 'Third' : pk3[2] === '4' ? 'Fourth' : 'Fifth') + ' part' + (pk3[1] === 'ad' ? ' armour divisor' : '') + ': '; if (p === 'ad2' || /^list\.ad2\./.test(p || '')) return 'Second part armour divisor: '; var pkK = /^(?:list\.)?dkind([2345]?)(\.|$)/.exec(p || ''); if (pkK) return (pkK[1] === '' ? 'Kind' : pkK[1] === '2' ? 'Second part kind' : pkK[1] === '3' ? 'Third part kind' : pkK[1] === '4' ? 'Fourth part kind' : 'Fifth part kind') + ': '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; if (p === 'critAt') return 'Critical at: '; if (p === 'fumbleAt') return 'Critical failure at: '; if (p === 'bigAt') return 'Lands as a Big Hit at: '; var words = { maxFormula: 'Its most: ', base: 'Its base: ', key: 'Short name: ', label: 'Its name: ', caption: 'Line under it: ', resistBy: 'Resisted by: ', resistOr: 'Or resisted by: ', asks: 'What it asks: ', calls: 'Calls for: ', lvlOnly: 'Levels it may be: ', mods: 'Changes: ', holds: 'Holds: ', malf: 'Jams at: ', roll: 'Its roll: ', throwSkill: 'Thrown with: ' }; return Object.prototype.hasOwnProperty.call(words, p) ? words[p] : ''; }   // 1.6.2 (found building a system by hand): a part in words, never its short name in the file, and none where it has no word   // Stage 6 HUD H7: an apply action's change by its number
 function formulaTextFor(id, prop) {
     if (id === 'combat' && prop === 'turn.move') return (draft.combat && draft.combat.turn && draft.combat.turn.move) || '';   // turn-based combat T1
     if (id === 'combat' && prop === 'turn.run') return (draft.combat && draft.combat.turn && draft.combat.turn.run) || '';   // 1.6.0
@@ -14093,7 +14107,7 @@ function onClick(e) {
     }
     if (act === 'up' && i > 0) { list.splice(i, 1); list.splice(i - 1, 0, item); }
     else if (act === 'down' && i < list.length - 1) { list.splice(i, 1); list.splice(i + 1, 0, item); }
-    else if (act === 'dup') { var d = clone(item); d.id = uid(ctx.f ? 'f_' : 'r_'); if (d.key) d.key = d.key + '2'; list.splice(i + 1, 0, d); }
+    else if (act === 'dup') { var d = clone(item); d.id = uid(ctx.f ? 'f_' : 'r_'); if (ctx.f) { _keyAuto.add(d); d.key = keyFromLabel(d.label, d) || (d.key ? d.key + '2' : ''); } else if (d.key) d.key = d.key + '2'; list.splice(i + 1, 0, d); }   // 1.6.2: a copied field is a new one, so its short name follows its label as a new field's does
     else if (act === 'del') { list.splice(i, 1); }
     else if (act === 'slidercl' && item.slider) { delete item.slider.lowColor; delete item.slider.midColor; delete item.slider.highColor; }   // Stage 5e: the track back to the theme's colours
     else if (act === 'rescolorclr') { delete item.color; delete item.colorBand; }   // Stage 6 look fold (L7): the pool back to the theme's colours

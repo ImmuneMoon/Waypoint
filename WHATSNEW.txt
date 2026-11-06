@@ -14,6 +14,18 @@ The System editor
 - A new system is easier to start. A field's key now fills in from its label,
   the empty sections of the left panel show their + in sight, and a row nobody
   has typed in no longer shows an error.
+- A roll that counts hits can take its number of dice from the sheet, or from
+  what the roll asks, picked as any other value is. A new one starts on
+  six-sided dice, and its line says "as many d6 as" in words. Try it offers a
+  question's own answers, such as Body or Wits, where it asked for a number.
+- A question's + Add a value list adds a value only when you choose one, never
+  as you step through it with the arrow keys.
+- A copied field takes a short name of its own from its label. The question
+  that closes the System editor without saving no longer answers to Enter, so a
+  key pressed for something else never throws your changes away. A fault under
+  a box names the part in words, never by its name in the file.
+- A sheet opened in a campaign with no character system says so, and offers
+  the GM the System editor. It used to close without a word.
 - Combat and Rules are tabs of their own now. Everything the Combat card held
   is on the Combat tab, and the budgets, readings, linked sheets and tables
   that stood on the Lists tab are on the Rules tab. Each has its topics down

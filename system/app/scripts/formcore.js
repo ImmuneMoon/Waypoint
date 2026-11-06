@@ -179,8 +179,9 @@ var CHECK_WORDS = { '>=': ' or more', '<=': ' or less' };
 var READ_WORDS = { high: 'the highest of', low: 'the lowest of', sets: 'the most that match in', setface: 'the face that most match on in', pairs: 'the pairs in', total: 'the total of' };
 function nameSays(s, say) { var w = say && typeof say.name === 'function' ? say.name(s) : ''; return typeof w === 'string' && w ? w : String(s).split('.').join(' '); }
 function figSays(v, say) { return v && v.k === 'num' ? String(v.v) : valSays(v, say); }
+function bare(t) { t = String(t); if (t.charAt(0) !== '(' || t.charAt(t.length - 1) !== ')') return t; var d = 0; for (var i = 0; i < t.length; i++) { if (t.charAt(i) === '(') d++; else if (t.charAt(i) === ')') { d--; if (d === 0 && i < t.length - 1) return t; } } return t.slice(1, -1); }   // one pair of brackets round the whole, taken off
 function diceSays(v, say) {
-    var n = v.n === null || v.n === undefined ? '1' : figSays(v.n, say), f = v.f === 'F' ? 'F' : v.f === '%' ? '100' : figSays(v.f, say), s = (v.n && v.n.k !== 'num' ? '(' + n + ')' : n) + 'd' + (v.f && v.f.k && v.f.k !== 'num' ? '(' + f + ')' : f), more = [];
+    var n = v.n === null || v.n === undefined ? '1' : figSays(v.n, say), f = v.f === 'F' ? 'F' : v.f === '%' ? '100' : figSays(v.f, say), fw = v.f && v.f.k && v.f.k !== 'num' ? '(' + bare(f) + ')' : f, s = v.n && v.n.k !== 'num' ? 'as many d' + fw + ' as ' + bare(n) : n + 'd' + fw, more = [];   // 1.6.2 (found building a dice pool by hand): a count from the sheet reads as words, never as doubled brackets
     if (v.keep) { var one = v.keep.sub === 'kh' ? 'keeping the highest ' : v.keep.sub === 'kl' ? 'keeping the lowest ' : v.keep.sub === 'dh' ? 'dropping the highest ' : 'dropping the lowest '; more.push(one + figSays(v.keep.v, say)); }
     if (v.reroll) more.push((v.reroll.sub === 'rr' ? 'rerolling every ' : 'rerolling once any ') + (v.reroll.op === '=' ? '' : (CMP_WORDS[v.reroll.op] || '') + ' ') + figSays(v.reroll.v, say));
     if (v.explode) more.push((v.explode.own ? 'each exploding into a die of its own' : 'exploding') + (v.explode.op ? ' on ' + figSays(v.explode.v, say) + (CHECK_WORDS[v.explode.op] || '') : ''));

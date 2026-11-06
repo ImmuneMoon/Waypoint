@@ -3714,6 +3714,9 @@
   .lib-pick-hint { color: var(--dim); font-size: 11px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   @media (max-width: 640px) { .lib-pick-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 0.8fr); } .lib-pick-hint { display: none; } }
   .sys-box { width: 1080px; max-width: 96vw; height: 90vh; max-height: 90vh; display: flex; flex-direction: column; padding: 14px 18px 12px; gap: 8px; }
+  .sys-box { position: relative; } .sys-side-prev { position: absolute; right: 18px; width: 380px; max-width: 40%; overflow: auto; border-left: 1px solid var(--edge); padding-left: 10px; background: var(--panel2); } .sys-side-prev[hidden] { display: none; }
+  .sys-box.sys-prev-on > .sys-tab { margin-right: min(392px, calc(40% + 12px)); } .sys-side-prev .sys-layout-preview { max-height: none; }   /* 1.6.2: the preview beside any tab */
+  #sysPreviewBtn.on { color: var(--gold); border-color: var(--gold); }
   .sys-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .sys-head .sys-name { width: 220px; padding: 4px 8px; font-size: 12.5px; }   /* beats the base input.field, or the box took a whole line of the head */
   .sys-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--edge); }

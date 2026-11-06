@@ -7682,7 +7682,7 @@ function open(which, topic) {
     draft = clone(systemOf(camp) || emptySystem());
     if (!Array.isArray(draft.fields)) draft.fields = []; if (!Array.isArray(draft.rolls)) draft.rolls = []; if (!draft.sheet || !Array.isArray(draft.sheet.sections)) draft.sheet = { sections: [] };
     if (!Array.isArray(draft.items)) draft.items = []; if (!draft.combat || typeof draft.combat !== 'object') draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' };
-    dirty = false; tab = which || 'fields'; layoutView = 'sheet';
+    dirty = false; tab = which || 'fields'; layoutView = 'sheet'; _sidePrev = false;   // 1.6.2: Preview closed whenever the editor opens
     var m = ui('systemModal'); if (!m) return;
     ui('sysCampName').textContent = camp.name || 'Campaign';
     ui('sysName').value = draft.name || '';
@@ -7692,6 +7692,7 @@ function open(which, topic) {
     if (window.wpSysUi) window.wpSysUi.pickReset();   // 1.6.2: a list opens on its first row
     if (topic && window.wpSysUi) window.wpSysUi.topicPress(tab, topic);   // the Combat or Rules tab at one topic
     renderAll();
+    sidePrevSync();
 }
 function close(force) {
     var m = ui('systemModal'); if (!m || m.style.display === 'none') return;
@@ -8101,7 +8102,19 @@ function toneRow(obj) {   // R5: a tone beside each value name of a stat or a co
     return row;
 }
 // [systemcheck:badgebox-end]
-function markDirty() { dirty = true; var s = ui('sysSaveBtn'); if (s) s.classList.add('on'); }
+function markDirty() { dirty = true; var s = ui('sysSaveBtn'); if (s) s.classList.add('on'); if (_sidePrev && tab !== 'layout') { clearTimeout(_sidePrevT); _sidePrevT = setTimeout(function() { if (_sidePrev && draft) renderPreview(); }, 250); } }   // 1.6.2: the preview beside a tab follows each edit
+// 1.6.2 (backlog 59; the owner's pick: "A Preview button on every tab"): the Layout tab's preview, moved beside whatever tab is open while Preview is
+// pressed, and back home on the Layout tab, which shows it anyway. Closed whenever the editor opens
+var _sidePrev = false, _sidePrevT = 0, _prevHome = null;
+function sidePrevSync() {
+    var side = ui('sysSidePrev'), pbox = document.querySelector('#systemModal .sys-layout-preview-box'), mb = document.querySelector('#systemModal .sys-box'); if (!side || !pbox || !mb) return;
+    if (!_prevHome) _prevHome = pbox.parentNode;
+    var away = _sidePrev && tab !== 'layout';
+    if (away) { var tabs = mb.querySelector('.sys-tabs'), foot = mb.querySelector('.sys-foot'); if (pbox.parentNode !== side) side.appendChild(pbox); if (tabs) side.style.top = (tabs.offsetTop + tabs.offsetHeight + 6) + 'px'; if (foot) side.style.bottom = (mb.clientHeight - foot.offsetTop + 6) + 'px'; side.hidden = false; renderPreview(); }
+    else { if (pbox.parentNode !== _prevHome) _prevHome.appendChild(pbox); side.hidden = true; }
+    mb.classList.toggle('sys-prev-on', away);
+    var pb = ui('sysPreviewBtn'); if (pb) { pb.setAttribute('aria-pressed', _sidePrev ? 'true' : 'false'); pb.classList.toggle('on', _sidePrev); }
+}
 // Stage 6: each stored value of a field the saved system still has, checked against it again (a value past new value names, a lowered max,
 // a removed library entry) — what a reload does, at once, so the GM's sheet, their formulas and every player agree. Other ids stay as they are.
 // 1.5.8 (book handoff 90): the rows other rows open, kept in step for one character after a change from the table, on the machine that owns the
@@ -13981,7 +13994,8 @@ function onClick(e) {
     if (b.id === 'sysAddList') { if (draft.fields.length >= LIMITS.fields) { toast('At most ' + LIMITS.fields + ' fields.'); return; } var nlF = { id: uid('f_'), key: '', label: '', kind: 'item-list', list: {}, def: 0, edit: 'owner', vis: 'all', hover: false }; draft.fields.push(nlF); if (window.wpSysUi && window.wpSysUi.pickSet) window.wpSysUi.pickSet('lists', nlF.id); markDirty(); renderAll(); var nlB = ui('sysListRows') ? ui('sysListRows').querySelector('input.sys-list-name') : null; if (nlB) nlB.focus(); return; }   // 1.6.2 (the owner, by prompt: "New list from the Lists tab")
     if (b.id === 'sysAddEffect') { if (!Array.isArray(draft.effects)) draft.effects = []; if (draft.effects.length >= LIMITS.effects) { toast('At most ' + LIMITS.effects + ' effects.'); return; } draft.effects.push({ id: uid('e_'), name: '', icon: '', tone: '', dur: '', notes: '', vis: 'all', mods: [] }); markDirty(); renderAll(); var lastE = ui('sysEffectRows') && ui('sysEffectRows').lastElementChild; if (lastE) { var ni = lastE.querySelector('.sys-fx-name'); if (ni) ni.focus(); } return; }   // 5h
     if (b.dataset.topic && window.wpSysUi) { window.wpSysUi.topicPress(b.dataset.set, b.dataset.topic); return; }   // 1.6.2: a topic down the side, nothing drawn again
-    if (b.dataset.tab) { tab = b.dataset.tab; _tabPress = true; try { renderAll(); } finally { _tabPress = false; } return; }
+    if (b.dataset.tab) { tab = b.dataset.tab; _tabPress = true; try { renderAll(); } finally { _tabPress = false; } sidePrevSync(); return; }
+    if (b.id === 'sysPreviewBtn') { _sidePrev = !_sidePrev; sidePrevSync(); return; }   // 1.6.2: Preview beside any tab
     if (onLayoutClick(b)) return;
     if (!b.dataset.act) return;
     if (turnClick(b)) return;   // turn-based combat T1: the Combat tab's actions and time units

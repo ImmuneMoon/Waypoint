@@ -578,9 +578,9 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
         var nSent = sent.length + mySent.length, nAll = j.entries.length + nSent;
         function tab(id, label, count, title) { return '<button class="tool ghost journal-tab' + (page === id ? ' active' : '') + '" data-tab="' + id + '" title="' + title + '">' + label + ' <span class="journal-count">' + count + '</span></button>'; }
         var tabs = personal ? '' : '<span class="journal-tabs">'
-            + tab('all', 'Journal', nAll, 'Everything — your own pages, what you received and what you sent — newest first')
+            + tab('all', 'Everything', nAll, 'Everything — your own pages, what you received and what you sent — newest first')
             + tab('mine', 'My notes', nMine, 'Your own pages')
-            + tab('inbox', 'Inbox', inbox.length, iRunIt ? 'Pages players shared with you' : 'Handouts from the GM and pages other players shared with you')
+            + tab('inbox', 'Received', inbox.length, iRunIt ? 'Pages players shared with you' : 'Handouts from the GM and pages other players shared with you')
             + tab('sent', 'Sent', nSent, iRunIt ? 'Every handout you have shown, to whom and when' : 'Every page you have shared, with whom and when')
             + tab('personal', 'Personal notes', nPersonal, 'Your notes that belong to no campaign. It is the same notebook in every journal.') + '</span>';
         var inTag = ' <span class="journal-in">' + esc(journalName(j)) + '</span>';   // the row's own campaign, shown while a search takes in every journal
@@ -597,7 +597,7 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
         mySent.forEach(function(s) { bump(recips, s.to, s.to === '*' ? 'Everyone at once' : s.to === 'gm' ? 'GM' : s.name); });
         // the Journal page separates by kind: my notes / received / sent
         var kinds = { mine: { id: 'mine', name: 'My notes', n: nMine }, inbox: { id: 'inbox', name: 'Received', n: inbox.length }, sent: { id: 'sent', name: 'Sent', n: nSent } };
-        var show = journalShow[j.campId] !== undefined ? journalShow[j.campId] : journalShowDefault(), from = chipOpensTo('inbox', j.campId, senders), to = chipOpensTo('sent', j.campId, recips);
+        var show = '', from = chipOpensTo('inbox', j.campId, senders), to = chipOpensTo('sent', j.campId, recips);
         function chips(forKey, label, items, current, attr, allLabel, allCount, keepOrder) {
             var list = Object.values(items); if (!list.length) return '';
             if (!keepOrder) list.sort(function(a, b) { return a.id === 'gm' ? -1 : b.id === 'gm' ? 1 : a.id === '*' ? 1 : b.id === '*' ? -1 : String(a.name).localeCompare(String(b.name)); });
@@ -608,8 +608,7 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
         function clearBtn(scope, label, title) { return '<button class="tool ghost danger journal-clear" data-scope="' + scope + '" title="' + title + '">' + label + '</button>'; }
         var chipRows = personal
             ? '<div class="journal-from-row" data-for="mine">' + clearBtn('mine', 'Clear my notes', 'Delete every page of your own in this section') + '</div>'
-            : chips('all', 'Show', kinds, show, 'show', 'Everything', nAll, true).replace(/<\/div>$/, clearBtn('all', 'Clear journal', 'Empty this campaign\'s journal on this computer') + '</div>')
-              + (inbox.length ? chips('inbox', 'From', senders, from, 'from', 'Anyone', inbox.length).replace(/<\/div>$/, clearBtn('inbox', 'Clear', 'Remove what is listed here — everything received, or only the chosen sender\'s') + '</div>') : '')
+            : (inbox.length ? chips('inbox', 'From', senders, from, 'from', 'Anyone', inbox.length).replace(/<\/div>$/, clearBtn('inbox', 'Clear', 'Remove what is listed here — everything received, or only the chosen sender\'s') + '</div>') : '')
               + chips('sent', 'To', recips, to, 'to', 'Anyone', nSent)
               + '<div class="journal-from-row" data-for="mine">' + clearBtn('mine', 'Clear my notes', 'Delete every page of your own in this campaign') + '</div>';
         var mySentRows = mySent.map(function(s) {
@@ -831,7 +830,7 @@ function onPage(row) {
     if (page === 'sent') { var to = sec.dataset.to || ''; return rp === 'sent' && (isEmpty || !to || has(row.dataset.to, to)); }
     return rp === page;
 }
-function journalDefaultPage() { try { var p = localStorage.getItem('wp_journalPage'); if (p === 'gm' || p === 'party') p = 'inbox'; return p === 'inbox' || p === 'sent' || p === 'mine' ? p : 'all'; } catch (e) { return 'all'; } }
+function journalDefaultPage() { try { var p = localStorage.getItem('wp_journalPage'); if (p === 'gm' || p === 'party') p = 'inbox'; if (p === 'inbox' || p === 'sent' || p === 'mine') return p; var k = journalShowDefault(); return k || 'all'; } catch (e) { return 'all'; } }   // 1.6.2: a Show chip picked before the one row of tabs opens on its tab
 window.wpJournalDefaultPage = journalDefaultPage;
 function journalFilter() {
     var box = ui('journalSearch'), list = ui('journalList'); if (!box || !list) return;
@@ -996,6 +995,55 @@ function openRow(target) {
     } else showHandout(Object.assign(base, { src: t.getAttribute('src') }));
 }
 // [sinkcheck:journalopen-end]
+// The app's own question, as a promise: true for a yes. more is set as text under the question, its line breaks kept
+function askYes(q, more, opts) {
+    return new Promise(function(res) {
+        var b = null;
+        if (more) { b = document.createElement('div'); b.className = 'journal-ask'; b.appendChild(document.createTextNode(more)); }
+        var o = {}; Object.keys(opts || {}).forEach(function(k) { o[k] = opts[k]; }); if (b) o.body = b;
+        showConfirm(q, function(ok) { res(ok === true); }, o);
+    });
+}
+// Clear: the whole journal shown (the window's foot), your own pages, or what is received from one sender. It always asks first
+async function journalClear(secC, scope) {
+    var campC = secC.dataset.camp, fromC = scope === 'inbox' ? secC.dataset.from || '' : '';
+    var fromChip = fromC ? Array.prototype.filter.call(secC.querySelectorAll('.journal-from[data-for="inbox"]'), function(c) { return !!c.dataset && c.dataset.from === fromC; })[0] || null : null;   // by its own value: a sender keyed by a name that holds a quote made the selector no selector, and Clear did nothing (the owed review, 2026-10-09)
+    var fromName = fromChip ? fromChip.textContent.replace(/\s*\d+\s*$/, '').trim() : '';
+    var idxC = await readIndex(campC), campName = idxC.campaign || (campC === 'personal' ? 'Personal notes' : 'this campaign');
+    var senderOf = function(x) { return !x.sharedBy || (x.sharedById && x.sharedById === idxC.gmId) ? 'gm' : (x.sharedById || x.sharedBy); };
+    var goes = idxC.entries.filter(function(x) {
+        if (scope === 'all') return true;
+        if (scope === 'mine') return x.kind === 'note';
+        return x.kind !== 'note' && (!fromC || senderOf(x) === fromC);
+    });
+    if (!goes.length) { toast('Nothing to clear there.'); return; }
+    // spell out what goes: counts by kind, and who sent them
+    var nH = goes.filter(function(x) { return x.kind !== 'note' && !x.sharedBy; }).length, nS = goes.filter(function(x) { return x.sharedBy; }).length, nN = goes.filter(function(x) { return x.kind === 'note'; }).length;
+    var nNotes = goes.filter(function(x) { return x.kind !== 'note' && String(x.notes || '').trim(); }).length, nSent = goes.reduce(function(a, x) { return a + ((x.sentTo || []).length); }, 0);
+    var parts = [];
+    if (nH) parts.push(nH + ' handout' + (nH === 1 ? '' : 's') + ' from the GM');
+    if (nS) { var who = {}; goes.forEach(function(x) { if (x.sharedBy) who[x.sharedBy] = true; }); parts.push(nS + ' shared page' + (nS === 1 ? '' : 's') + ' from ' + Object.keys(who).join(', ')); }
+    if (nN) parts.push(nN + ' page' + (nN === 1 ? '' : 's') + ' of your own');
+    var what = scope === 'all' ? 'the whole journal for ' + campName : scope === 'mine' ? 'your own pages in ' + campName : fromC ? 'everything from ' + fromName + ' in the inbox for ' + campName : 'the whole inbox for ' + campName;
+    var msg = 'Clear ' + what + '?\n\nThis removes ' + goes.length + ' item' + (goes.length === 1 ? '' : 's') + ': ' + parts.join('; ') + '.'
+        + (nNotes ? '\nYour notes under ' + nNotes + ' of them go too.' : '')
+        + (nSent ? '\nYour sent record for ' + nSent + ' send' + (nSent === 1 ? '' : 's') + ' goes too.' : '')
+        + '\n\nThis computer only. Senders keep their copies, and the GM can show a handout again.';
+    var cut = msg.indexOf('\n\n');
+    if (!(await askYes(cut > 0 ? msg.slice(0, cut) : msg, cut > 0 ? msg.slice(cut + 2) : '', { noEnter: true }))) return;   // no way back: Enter does not answer it
+    var goneC = [];
+    await withIndex(campC, function(idx) {
+        var before = idx.entries;
+        if (scope === 'all') idx.entries = [];
+        else if (scope === 'mine') idx.entries = idx.entries.filter(function(x) { return x.kind !== 'note'; });
+        else idx.entries = idx.entries.filter(function(x) { return x.kind === 'note' || (fromC ? senderOf(x) !== fromC : false); });
+        goneC = before.filter(function(x) { return idx.entries.indexOf(x) < 0; });
+    });
+    await dropEntryFiles(campC, goneC);   // the pages' picture files go with them
+    if (scope === 'all' || scope === 'inbox') { journalFrom[campC] = undefined; }
+    toast(scope === 'all' ? 'Journal cleared.' : scope === 'mine' ? 'Your pages are gone.' : 'Inbox cleared.');
+    await openJournal(true);
+}
 var _jList = ui('journalList');
 if (_jList) {
     _jList.addEventListener('click', function(e) {
@@ -1022,6 +1070,8 @@ if (_jList) {
         var b = s.parentNode.querySelector('.journal-share-send'); if (b) b.disabled = !s.value;
     });
     // own notes: add / edit / delete
+    var footClr = ui('journalClearBtn');   // 1.6.2: Clear journal stands at the window's foot
+    if (footClr) footClr.addEventListener('click', async function() { var sc = journalScope(_jList, false), sec = sc.pers || sc.at; if (!sec) { toast('Nothing to clear there.'); return; } await journalClear(sec, 'all'); });
     _jList.addEventListener('click', async function(e) {
         var sendB = e.target.closest && e.target.closest('.journal-share-send');
         if (sendB) {
@@ -1040,46 +1090,7 @@ if (_jList) {
             return;
         }
         var clr = e.target.closest && e.target.closest('.journal-clear');
-        if (clr) {
-            var secC = clr.closest('.journal-section'); if (!secC) return;
-            var campC = secC.dataset.camp, scope = clr.dataset.scope, fromC = secC.dataset.from || '';
-            var fromChip = fromC ? Array.prototype.filter.call(secC.querySelectorAll('.journal-from[data-for="inbox"]'), function(c) { return !!c.dataset && c.dataset.from === fromC; })[0] || null : null;   // by its own value: a sender keyed by a name that holds a quote made the selector no selector, and Clear did nothing (the owed review, 2026-10-09)
-            var fromName = fromChip ? fromChip.textContent.replace(/\s*\d+\s*$/, '').trim() : '';
-            var idxC = await readIndex(campC), campName = idxC.campaign || (campC === 'personal' ? 'Personal notes' : 'this campaign');
-            var senderOf = function(x) { return !x.sharedBy || (x.sharedById && x.sharedById === idxC.gmId) ? 'gm' : (x.sharedById || x.sharedBy); };
-            var goes = idxC.entries.filter(function(x) {
-                if (scope === 'all') return true;
-                if (scope === 'mine') return x.kind === 'note';
-                return x.kind !== 'note' && (!fromC || senderOf(x) === fromC);
-            });
-            if (!goes.length) { toast('Nothing to clear there.'); return; }
-            // spell out what goes: counts by kind, and who sent them
-            var nH = goes.filter(function(x) { return x.kind !== 'note' && !x.sharedBy; }).length, nS = goes.filter(function(x) { return x.sharedBy; }).length, nN = goes.filter(function(x) { return x.kind === 'note'; }).length;
-            var nNotes = goes.filter(function(x) { return x.kind !== 'note' && String(x.notes || '').trim(); }).length, nSent = goes.reduce(function(a, x) { return a + ((x.sentTo || []).length); }, 0);
-            var parts = [];
-            if (nH) parts.push(nH + ' handout' + (nH === 1 ? '' : 's') + ' from the GM');
-            if (nS) { var who = {}; goes.forEach(function(x) { if (x.sharedBy) who[x.sharedBy] = true; }); parts.push(nS + ' shared page' + (nS === 1 ? '' : 's') + ' from ' + Object.keys(who).join(', ')); }
-            if (nN) parts.push(nN + ' page' + (nN === 1 ? '' : 's') + ' of your own');
-            var what = scope === 'all' ? 'the whole journal for ' + campName : scope === 'mine' ? 'your own pages in ' + campName : fromC ? 'everything from ' + fromName + ' in the inbox for ' + campName : 'the whole inbox for ' + campName;
-            var msg = 'Clear ' + what + '?\n\nThis removes ' + goes.length + ' item' + (goes.length === 1 ? '' : 's') + ': ' + parts.join('; ') + '.'
-                + (nNotes ? '\nYour notes under ' + nNotes + ' of them go too.' : '')
-                + (nSent ? '\nYour sent record for ' + nSent + ' send' + (nSent === 1 ? '' : 's') + ' goes too.' : '')
-                + '\n\nThis computer only. Senders keep their copies, and the GM can show a handout again.';
-            if (!confirm(msg)) return;
-            var goneC = [];
-            await withIndex(campC, function(idx) {
-                var before = idx.entries;
-                if (scope === 'all') idx.entries = [];
-                else if (scope === 'mine') idx.entries = idx.entries.filter(function(x) { return x.kind !== 'note'; });
-                else idx.entries = idx.entries.filter(function(x) { return x.kind === 'note' || (fromC ? senderOf(x) !== fromC : false); });
-                goneC = before.filter(function(x) { return idx.entries.indexOf(x) < 0; });
-            });
-            await dropEntryFiles(campC, goneC);   // the pages' picture files go with them
-            if (scope === 'all' || scope === 'inbox') { journalFrom[campC] = undefined; }
-            toast(scope === 'all' ? 'Journal cleared.' : scope === 'mine' ? 'Your pages are gone.' : 'Inbox cleared.');
-            await openJournal(true);
-            return;
-        }
+        if (clr) { var secK = clr.closest('.journal-section'); if (secK) await journalClear(secK, clr.dataset.scope); return; }
         var chip = e.target.closest && e.target.closest('.journal-from');
         if (chip) {
             var secF = chip.closest('.journal-section'); if (!secF) return;
@@ -1112,11 +1123,11 @@ if (_jList) {
             var row = del.closest('.journal-entry'); var cId = row.dataset.camp, nId = row.dataset.id;
             if (row.dataset.kind === 'note') {
                 var body = (row.querySelector('.journal-note-body') || {}).value || '';
-                if (body.trim() && !confirm('Delete this note?')) return;
+                if (body.trim() && !(await askYes('Delete this note?'))) return;
             } else {
                 var nm = ((row.querySelector('.journal-title') || {}).textContent || 'this handout').replace(/\s*\u00d7\s*$/, '').trim() || 'this handout';
                 var hasNotes = ((row.querySelector('.journal-notes') || {}).value || '').trim();
-                if (!confirm('Remove "' + nm + '" from your journal?' + (hasNotes ? ' Your notes under it go with it.' : '') + ' The GM can show it again later.')) return;
+                if (!(await askYes('Remove "' + nm + '" from your journal?' + (hasNotes ? ' Your notes under it go with it.' : '') + ' The GM can show it again later.'))) return;
             }
             var goneD = [];
             var ix = await withIndex(cId, function(idx) { goneD = idx.entries.filter(function(x) { return x.id === nId; }); idx.entries = idx.entries.filter(function(x) { return x.id !== nId; }); });

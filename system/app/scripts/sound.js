@@ -407,7 +407,9 @@ function renderInd() {
     var offRow = ui('soundOffRow'), offChk = ui('soundOffChk');
     if (offRow) { var client = isClient() && window.wpVtt && window.wpVtt.mode && window.wpVtt.mode() === 'client'; offRow.style.display = client ? '' : 'none'; if (offChk && client) { offChk.checked = !!window.wpVtt.localOff('sound'); offChk.disabled = !(window.wpVtt.ceiling() && window.wpVtt.ceiling().sound === true); } }
     var now = ui('soundNow'); if (now) now.textContent = st.ambient ? 'Playing: ' + st.ambient.name : (st.on ? 'Nothing playing' : 'Sound is off here');
+    var bd = ui('soundBoardBtn'); if (bd) bd.style.display = boardOk() ? '' : 'none';   // 1.6.2: the GM's card opens the board
 }
+function boardOk() { return !isClient() && !window.wpStream && !!getActiveCampaign() && (!window.wpCanPersistLocal || window.wpCanPersistLocal()); }
 (function wireInd() {
     var b = ui('soundInd'), pop = ui('soundPop'); if (!b || !pop) return;
     b.addEventListener('click', function(e) { e.stopPropagation(); if (gateShown) { tryResume(); return; } var open = pop.style.display !== 'none'; pop.style.display = open ? 'none' : 'block'; if (!open) { var r = window.wpTopRow ? window.wpTopRow.box(b) : b.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(window.innerWidth - 250, r.left - 100)) + 'px'; pop.style.top = (r.bottom + 6) + 'px'; renderInd(); } });
@@ -416,6 +418,7 @@ function renderInd() {
     pop.addEventListener('change', function(e) { if (e.target.id === 'soundMuteChk') setMute(e.target.checked); else if (e.target.id === 'soundOffChk') { if (window.wpVtt) window.wpVtt.setLocal('sound', e.target.checked); refresh(); } });
     b.addEventListener('contextmenu', function(e) { e.preventDefault(); if (gateShown) return; setMute(!muted); renderInd(); });   // 1.6.0 (the owner, by prompt: "Mute, as Voice does"): the right button mutes or unmutes sound effects for you
     pop.addEventListener('click', function(e) { if (e.target.id === 'soundMusicBtn') { pop.style.display = 'none'; var mi = ui('musicInd'); if (mi) mi.click(); return; }   // 1.6.0: Music has its own button
+        if (e.target.id === 'soundBoardBtn') { pop.style.display = 'none'; if (boardOk()) openPanel(); return; }   // 1.6.2: the GM's board of sound effects, from the same card
         if (e.target.id === 'soundOnBtn') { if (window.wpVtt) window.wpVtt.setLocal('sound', false); pop.style.display = 'none'; refresh(); } });
 })();
 

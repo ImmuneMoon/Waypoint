@@ -1570,8 +1570,8 @@ if (_ident) _ident.addEventListener('click', function() {
 // Journal: the page each campaign opens to (All / From the GM / My notes)
 (function() {
     var sel = document.getElementById('setJournalPage'); if (!sel) return;
-    try { var v = localStorage.getItem('wp_journalPage'); sel.value = v === 'gm' || v === 'mine' ? v : 'all'; } catch (e) {}
-    sel.addEventListener('change', function() { try { localStorage.setItem('wp_journalPage', sel.value); } catch (e) {} });
+    try { var v = localStorage.getItem('wp_journalPage'), k = localStorage.getItem('wp_journalShow'); if (v === 'gm' || v === 'party') v = 'inbox'; sel.value = v === 'mine' || v === 'inbox' || v === 'sent' ? v : k === 'mine' || k === 'inbox' || k === 'sent' ? k : 'all'; } catch (e) {}   // 1.6.2: a saved Received or Sent shows as itself, and a Show chip picked before the one row of tabs as its tab
+    sel.addEventListener('change', function() { try { localStorage.setItem('wp_journalPage', sel.value); localStorage.removeItem('wp_journalShow'); } catch (e) {} });
 })();
 
 // Journal: which section the Sent page opens to (All / The GM / the last one picked)
@@ -1588,13 +1588,8 @@ if (_ident) _ident.addEventListener('click', function() {
     sel.addEventListener('change', function() { try { localStorage.setItem('wp_inboxOpens', sel.value); } catch (e) {} });
 })();
 
-// Journal: what the Journal page shows first, and whether an arriving handout opens at once
+// Journal: whether an arriving handout opens at once
 (function() {
-    var sel = document.getElementById('setJournalShow');
-    if (sel) {
-        try { var v = localStorage.getItem('wp_journalShow'); sel.value = v === 'mine' || v === 'inbox' || v === 'sent' ? v : ''; } catch (e) {}
-        sel.addEventListener('change', function() { try { localStorage.setItem('wp_journalShow', sel.value); } catch (e) {} });
-    }
     var arr = document.getElementById('setHandoutArrive');
     if (arr) {
         try { arr.value = localStorage.getItem('wp_handoutArrive') === 'quiet' ? 'quiet' : 'open'; } catch (e) {}

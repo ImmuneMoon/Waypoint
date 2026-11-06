@@ -146,6 +146,9 @@
   .notes-item.notes-wait { background: rgba(224,165,79,0.08); }
   .notes-wait .notes-txt::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); margin-right: 6px; vertical-align: 1px; }
   .notes-txt { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+  .notes-item.notes-fold { flex-wrap: wrap; }   /* 1.6.2: a fight's turn notices, one line */
+  .notes-foldbtn { flex: 0 0 100%; text-align: left; font-size: 11.5px; padding: 1px 4px; }
+  .notes-item.notes-sub { padding-left: 20px; background: rgba(255,255,255,0.02); }
   .notes-when { display: block; color: var(--dim); font-size: 10.5px; }
   .notes-go, .notes-alt, .notes-x, .notes-clear { flex: 0 0 auto; padding: 1px 7px; font-size: 11.5px; }
   .notes-item.notes-wrap { flex-wrap: wrap; }   /* 1.6.0: a kind's other answers, on a line of their own */
@@ -2113,6 +2116,10 @@
   .journal-all { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--dim); white-space: nowrap; cursor: pointer; }
   .journal-all input { accent-color: var(--gold); }
   .journal-in { display: none; margin-left: 6px; padding: 0 7px; border: 1px solid var(--edge); border-radius: 9px; font-size: 10px; color: var(--blue); }   /* a row's own campaign: said only while a search takes in every journal */
+  #journalModal .journal-foot { display: flex; justify-content: flex-end; border-top: 1px solid var(--edge); padding-top: 10px; margin-top: 8px; }   /* 1.6.2: Clear journal at the window's foot */
+  #journalModal .journal-foot .tool.danger { border-color: rgba(217,83,79,0.55); color: #f0a19e; }   /* no way back: the red outline Settings gives one */
+  #journalModal .journal-foot .tool.danger:hover { background: rgba(217,83,79,0.12); }
+  #customConfirm .journal-ask { white-space: pre-line; color: var(--dim); font-size: 12px; line-height: 1.5; margin: -6px 0 14px; }
   #journalList.everywhere .journal-in { display: inline-block; }
   #journalList.everywhere .journal-section.here .journal-in { color: var(--gold); border-color: var(--gold); }
   #journalList .journal-section.as-tab > .journal-camp { display: none; }   /* Personal notes shown as a tab of another journal: that journal's own head stands above it */
@@ -4832,7 +4839,8 @@
   #fxBody .snd-label { width: 58px; flex: none; color: var(--dim); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; }
   #fxBody .journal-from { font-size: 11.5px; padding: 3px 9px; cursor: pointer; }
   #fxBody .journal-from.armed { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
-  #fxBody .fx-stop { color: var(--red); }
+  #fxBody .fx-line { font-size: 10.5px; color: var(--dim); margin: -2px 0 6px; line-height: 1.35; }   /* 1.6.2: what a row does and who sees it */
+  #fxBody .fx-foot { justify-content: flex-end; border-top: 1px solid var(--edge); padding-top: 6px; margin-top: 2px; }
   #fxBody #fxPingTo { flex: 1; min-width: 0; font-size: 11.5px; }
   #fxBody .fx-slider label { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--dim); flex: 1; }
   #fxBody .fx-slider input[type=range] { flex: 1; }

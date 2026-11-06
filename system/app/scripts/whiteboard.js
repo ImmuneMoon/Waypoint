@@ -10545,7 +10545,23 @@ document.addEventListener('contextmenu', function(e) {
             var gmR = isWb ? gmRulesModel(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean)) : null; html += gmRulesHtml(gmR);   // 152 fold 4b: an NPC's Rules run switch
             var grpM = isWb ? groupRollModel(am, selectedIds) : null; html += groupRollHtml(grpM);   // 1.6.0 (v2, B7a): Group roll
             if (sheetTop && firstItem.charId && window.wpTrade && window.wpTrade.canAsk) { var trQ = window.wpTrade.canAsk(firstItem, am, selAs); if (trQ) html += '<div class="menu-item cm-trade" title="Open a barter window: each side puts items and money on the table, and both confirm"><i class="wib wi-trade"></i> ' + esc(trQ.label) + '</div>'; }   // 1.5.6 trading: as the one NPC selected
-            
+                        if (isWb) {   // 1.6.2 (the owner: "Used rows first"): Hide, Lock, Duplicate and Delete, right after the sheet and the fight rows
+                var anyVisible = selectedIds.some(function(sid) {
+                    var it = am.whiteboard.find(function(x) { return x.id === sid; });
+                    return it && !it.hidden;
+                });
+                html += '<div class="menu-item cm-vis">' + (anyVisible ? '<i class="wib wi-hide"></i> Hide from players' : '<i class="wib wi-eye"></i> Show to players') + '</div>';
+                var anyUnlocked = selectedIds.some(function(sid) {
+                    var it = am.whiteboard.find(function(x) { return x.id === sid; });
+                    return it && !it.locked;
+                });
+                // the piece's own lock, worded as what it does; the padlock shows how the piece stands, as the toolbar's does (a door's lock for players is a row of its own: doorRows)
+                html += '<div class="menu-item cm-lock" title="' + (anyUnlocked ? 'It stays where it is: no drag and no resize until you unlock it, and a player&rsquo;s token is frozen for its player too. On a door this is not the lock of the door itself.' : 'It can be dragged and resized again.') + '">' + (anyUnlocked ? '<i class="wib wi-unlock"></i> Lock in place' : '<i class="wib wi-lock"></i> Unlock (free to move)') + '</div>';
+                html += '<div class="menu-item cm-dup"><i class="wib wi-dup"></i> Duplicate</div>';
+                html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
+                html += '<div class="menu-divider"></div>';
+            }
+
             if (isWb) {
                 if (selectedIds.length > 1) {
                     var isGrouped = firstItem ? firstItem.groupId : undefined;
@@ -10565,7 +10581,7 @@ document.addEventListener('contextmenu', function(e) {
                     return it && it.type === 'path' && it.tip !== 'fill';
                 });
                 if (allPaths) {
-                    html += '<div class="menu-item cm-merge">Merge Drawings</div>';
+                    html += '<div class="menu-item cm-merge">Merge drawings</div>';
                 }
                 if (selectedIds.length > 1) {
                     html += '<div class="menu-item cm-align-row" style="display:flex; align-items:center; gap:3px; cursor:default;">' +
@@ -10586,22 +10602,11 @@ document.addEventListener('contextmenu', function(e) {
             }
             
             if (isWb) {
-                var anyUnlocked = selectedIds.some(function(sid) {
-                    var it = am.whiteboard.find(function(x) { return x.id === sid; });
-                    return it && !it.locked;
-                });
-                // the piece's own lock, worded as what it does; the padlock shows how the piece stands, as the toolbar's does (a door's lock for players is a row of its own: doorRows)
-                html += '<div class="menu-item cm-lock" title="' + (anyUnlocked ? 'It stays where it is: no drag and no resize until you unlock it, and a player&rsquo;s token is frozen for its player too. On a door this is not the lock of the door itself.' : 'It can be dragged and resized again.') + '">' + (anyUnlocked ? '<i class="wib wi-unlock"></i> Lock in place' : '<i class="wib wi-lock"></i> Unlock (free to move)') + '</div>';
-                var anyVisible = selectedIds.some(function(sid) {
-                    var it = am.whiteboard.find(function(x) { return x.id === sid; });
-                    return it && !it.hidden;
-                });
-                html += '<div class="menu-item cm-vis">' + (anyVisible ? '<i class="wib wi-hide"></i> Hide from Players' : '<i class="wib wi-eye"></i> Show to Players') + '</div>';
                 var anyUnderGrid = selectedIds.some(function(sid) {
                     var it = am.whiteboard.find(function(x) { return x.id === sid; });
                     return it && !it.aboveGrid;
                 });
-                html += '<div class="menu-item cm-grid">' + (anyUnderGrid ? '&#9650; Show Above Grid' : '&#9660; Put Under Grid') + '</div>';
+                html += '<div class="menu-item cm-grid">' + (anyUnderGrid ? '&#9650; Show above grid' : '&#9660; Put under grid') + '</div>';
                 var swRow = showRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.6.2: a drawing to show, only where the selection holds a pen drawing
                 if (swRow) html += swRow.html;
                 var mnRow = mineRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.5.8 explosives: a placed mine set off by hand
@@ -10620,10 +10625,9 @@ document.addEventListener('contextmenu', function(e) {
                 var wlRow = wallsRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // the map builder: walls around the selected floors, a group of its own
                 if (wlRow) html += wlRow.html + '<div class="menu-divider"></div>';
             }
-            html += '<div class="menu-item cm-front">Bring to Front</div>';
-            html += '<div class="menu-item cm-fwd">Bring Forward</div>';
-            html += '<div class="menu-item cm-bwd">Send Backward</div>';
-            html += '<div class="menu-item cm-back">Send to Back</div>';
+            // 1.6.2 (the owner: "stacking folded"): one Order row opens the four stacking rows in place
+            html += '<div class="menu-item cm-order" aria-expanded="false" title="Bring to front, forward, backward or send to back">Order &#9656;</div>';
+            html += '<div class="cm-stackrows" hidden><div class="menu-item cm-front">Bring to front</div><div class="menu-item cm-fwd">Bring forward</div><div class="menu-item cm-bwd">Send backward</div><div class="menu-item cm-back">Send to back</div></div>';
 
             if (isWb) {
                 var curOp = Math.round(((firstItem && firstItem.opacity != null) ? firstItem.opacity : 1) * 100);
@@ -10655,10 +10659,10 @@ document.addEventListener('contextmenu', function(e) {
             }
             if (isWb && firstItem && firstItem.isChar && firstItem.ownerId && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client') && !window.wpStream && window.wpTrackers && window.wpTrackers.on && window.wpTrackers.on()) html += '<div class="menu-item cm-trk-hide">' + (window.wpTrackers.hidden(firstItem.ownerId) ? '&#9745; ' : '&#9744; ') + 'Hide table trackers from them</div>';   // backlog 29
             if (isWb && firstItem && firstItem.id && !firstItem.hidden && window.wpFx && window.wpVtt && window.wpVtt.on('fx')) html += '<div class="menu-item cm-pulse"><i class="wib wi-spark"></i> Pulse</div>';
-            html += '<div class="menu-item cm-dup"><i class="wib wi-dup"></i> Duplicate</div>';
+            if (!isWb) html += '<div class="menu-item cm-dup"><i class="wib wi-dup"></i> Duplicate</div>';   // the data map keeps them at its foot: the play map has them first
             if (isWb && firstItem && (firstItem.isChar || firstItem.charName)) html += '<div class="menu-item cm-cast-save"><i class="wib wi-starf"></i> Save to Campaign Cast</div>';
             if (isWb && firstItem && firstItem.isChar && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client') && window.wpCanPersistLocal && window.wpCanPersistLocal()) html += '<div class="menu-item cm-encounter-save" title="Save the selected character tokens as an encounter group in the Image Library, placed again in one press">Save as an encounter group\u2026</div>';   // backlog 31
-            html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
+            if (!isWb) html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
 
             cMenu.innerHTML = html;
             cMenu.style.display = 'flex';
@@ -10729,7 +10733,8 @@ document.addEventListener('contextmenu', function(e) {
         cMenu.onclick = function(ce) {
             var action = ce.target.className;
 
-            if (typeof action === 'string' && (action.includes('cm-opacity') || action.includes('cm-align-row') || action.includes('align-btn') || action.includes('cm-stance'))) return; // control rows keep the menu open
+            if (typeof action === 'string' && (action.includes('cm-opacity') || action.includes('cm-align-row') || action.includes('align-btn') || action.includes('cm-stance') || action.includes('cm-stackrows'))) return; // control rows keep the menu open
+            if (typeof action === 'string' && action.includes('cm-order')) { var stk = cMenu.querySelector('.cm-stackrows'); if (stk) { stk.hidden = !stk.hidden; ce.target.setAttribute('aria-expanded', stk.hidden ? 'false' : 'true'); ce.target.innerHTML = 'Order ' + (stk.hidden ? '&#9656;' : '&#9662;'); placeMenu(cMenu); } return; }   // 1.6.2: Order opens its four rows and keeps the menu up
             if (typeof action === 'string' && isWb && action.includes('cm-effects')) { var itFx = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; }); if (itFx) setTimeout(function() { showTokenFxMenu(itFx); }, 0); return; }   // conditions C2: the menu becomes its Effects list, once this click is done (swapped now, the clicked line would be gone from the menu and the page would read it as a click outside)
 
             if (isWb) {

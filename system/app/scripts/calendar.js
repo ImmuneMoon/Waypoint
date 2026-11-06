@@ -586,7 +586,7 @@ function dayNotes(body, cal, notes, day, gm) {   // the picked day's notes: the 
     if (gm) {
         var add = cel('div', 'cal-note-add'), inp = cel('input', 'field cal-note-new'); inp.type = 'text'; inp.maxLength = CAL_LIMITS.noteChars; inp.placeholder = 'A note for this day'; inp.title = 'A deadline, a festival, an event: you are reminded when the clock reaches this day'; add.appendChild(inp);
         var l2 = cel('label', 'cal-tick'), c2 = cel('input', 'cal-note-newvis'); c2.type = 'checkbox'; c2.title = 'Players see this note on the calendar'; l2.appendChild(c2); l2.appendChild(document.createTextNode(' Players see it')); add.appendChild(l2);
-        add.appendChild(cbtn('cal-note-go', 'Add', 'Add this note to the day', 'caladdnote'));
+        add.appendChild(cbtn('cal-note-go', 'Add a note', 'Add this note to the day', 'caladdnote'));
         box.appendChild(add);
     }
     body.appendChild(box);
@@ -618,7 +618,7 @@ function renderWin() {
     comingUp(body, cal, notes, now.day, gm);
     if (!gm) { if (pick !== null) dayNotes(body, cal, notes, pick, false); body.appendChild(cbtn('cal-hideme', 'Hide the clock for me', 'Takes the clock out of your header at this table; Settings \u25b8 This campaign brings it back', 'calhideme')); return; }
     var pr = cel('div', 'cal-pick');
-    if (pick === null) pr.appendChild(cel('span', 'sys-note', 'Pick a day to set the clock to it or to write a note on it.'));
+    if (pick === null) pr.appendChild(cel('span', 'sys-note', 'Pick a day. Then set the clock to it, or add a note to it.'));
     else {
         var cc = cleanCalendar(cal) || {}, H = cc.hours || 24, M = cc.minutes || 60;
         pr.appendChild(cel('span', 'cal-pick-txt', fmtDate(cal, pick * dl)));
@@ -643,7 +643,7 @@ function renderWin() {
     body.appendChild(an);
     var hl = cel('label', 'cal-tick'), hc = cel('input', 'cal-hide'); hc.type = 'checkbox'; hc.checked = !ck.hide; hc.title = 'Off: players see no date or time; you still do';
     hl.appendChild(hc); hl.appendChild(document.createTextNode(' Players see the date')); body.appendChild(hl);
-    body.appendChild(cel('div', 'sys-note cal-round', 'Each fight keeps its own time. Each round adds ' + fmtSpan(cal, roundSecs(sys)) + ', the round\u2019s length from the Combat tab\u2019s Turns box. While fights run, the clock shows the fight furthest behind.'));
+    var rd = cel('div', 'sys-note cal-round'); rd.appendChild(document.createTextNode('Fights keep their own time. ')); rd.title = 'Each round adds ' + fmtSpan(cal, roundSecs(sys)) + ', the round\u2019s length from the Combat tab\u2019s Turns box. While fights run, the clock shows the fight furthest behind.'; rd.appendChild(cbtn('cal-help', 'More in Help', 'How the clock and fights keep time, in Help', 'calhelp')); body.appendChild(rd);   // 1.6.2 (the owner: "Rules to Help"): the rules are Help's, the window points there
 }
 // The running clock (1.5.4; the owner, 2026-10-04: "id like it to run by default", and by prompt: while a session is open, held in a fight —
 // rounds move it — and "both real time and a speed i can set should be available, real time by default"). On the GM's machine, while it
@@ -766,9 +766,15 @@ function fightHolds(camp) {
     var more = names.length - 3, shown = names.slice(0, 3), list = more > 0 ? shown.join(', ') + ' and ' + more + ' more map' + (more === 1 ? '' : 's') : shown.length > 1 ? shown.slice(0, -1).join(', ') + ' and ' + shown[shown.length - 1] : (shown[0] || '');
     return (!list ? 'A fight is on' : (nF > 1 ? 'Fights run on ' : 'A fight runs on ') + list) + ', so the clock follows the fight furthest behind. The steps, Move and Set work again once every fight has ended.';
 }
+function calHelp() {   // Help at its Calendar heading, which says how fights and the clock keep time
+    closeWin(); if (typeof window.wpOpenHelp === 'function') window.wpOpenHelp('grids');
+    var h = document.getElementById('helpCalendar'); if (!h) return;
+    setTimeout(function() { try { h.scrollIntoView({ block: 'start', behavior: 'auto' }); } catch (e) {} h.classList.remove('help-hit'); void h.offsetWidth; h.classList.add('help-hit'); setTimeout(function() { h.classList.remove('help-hit'); }, 1800); }, 60);
+}
 function onWinClick(e) {
     var b = e.target && e.target.closest ? e.target.closest('button') : null; if (!b) return;
     if (b.id === 'calendarClose') { closeWin(); return; }
+    if (b.dataset.act === 'calhelp') { calHelp(); return; }   // 1.6.2: the rules of time, in Help
     var camp = getActiveCampaign(), cal = sysCal(), act = b.dataset.act || '';
     if (b.classList.contains('cal-day')) { var d = Number(b.dataset.day); if (d >= 0 && Math.floor(d) === d) { pick = pick === d ? null : d; renderWin(); } return; }
     if (act === 'calprev' || act === 'calnext') { view = stepView(cal, view || viewOf(cal, tOf(camp)), act === 'calnext' ? 1 : -1); renderWin(); return; }
@@ -857,6 +863,7 @@ function fightBegan(ids) {
     var chip = document.getElementById('clockChip'); if (chip) chip.addEventListener('click', openWin);
     var m = document.getElementById('calendarModal'); if (m) { m.addEventListener('click', onWinClick); m.addEventListener('change', onWinChange); m.addEventListener('mousedown', function(e) { if (e.target === m) closeWin(); }); }
     if (typeof setInterval === 'function') setInterval(function() { try { liveTick(Date.now()); } catch (e) {} }, 1000);   // 1.5.4: the running clock's look at the wall clock
+    if (typeof setInterval === 'function') setInterval(function() { try { if (winOpen()) refresh(true); } catch (e) {} }, 1000);   // 1.6.2: an open window follows a pause, a table opening or a fight, which ask it nothing
 })();
 
 // 1.6.0: the date formulas read (Date.year and the rest): this campaign's clock on its system's calendar; on a player's app with no clock,

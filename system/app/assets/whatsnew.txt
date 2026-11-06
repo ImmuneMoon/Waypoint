@@ -370,6 +370,21 @@ Build
   you make later. A feature's own settings stand under it, greyed while it
   is off.
 
+Around the app
+- The map's right-click menu leads with Hide, Lock, Duplicate and Delete,
+  right after the sheet and the fight rows. The four stacking rows stand under
+  one Order row, which opens them in place. Every row is in sentence case.
+- The Journal has one row of tabs: Everything, My notes, Received, Sent and
+  Personal notes. Clear journal stands at the window's foot. It asks first, in
+  the app's own question, and so does removing a note or a handout.
+- The bell folds a fight's turn and round notices into one line. Press it to
+  open them, and its x deletes that fight's notices.
+- The Calendar's rules are in Help now, and More in Help goes there. A day you
+  pick offers Set the clock and Add a note.
+- Visual effects says what each row does in one grey line, and Clear the
+  colour and Stop the weather stand at its foot.
+- The GM's sound card opens the sound effects board.
+
 Writing planners and pages
 - You write a planner or a page on the page itself. Press a block and its
   boxes open where it stands. Edit, Read and Side by side at the top switch

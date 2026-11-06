@@ -8388,6 +8388,30 @@ function wpBuildCommit(P, px, py, pw, ph, sx, sy) {
     buildArm();
 }
 // One wall line as the item the pen's Wall line makes: a path with the line's box and points, then the preset's keys
+// 1.6.2 (the owner: "A small preview"): a generator's plan drawn small, from the very pieces Generate lays: boxes, circles and lines in their
+// own colours, a filled region filled. A colour a canvas cannot read is drawn grey. Nothing is laid and nothing is kept
+function genPreviewColor(c) { return typeof c === 'string' && /^#[0-9a-f]{3,8}$|^rgba?\([\d\s.,%]+\)$/i.test(c.trim()) ? c.trim() : '#8a8a96'; }
+function genPreviewDraw(modalId, items) {
+    var cv = document.querySelector('#' + modalId + ' .gen-preview'); if (!cv || typeof cv.getContext !== 'function') return false;
+    var g = cv.getContext('2d'); if (!g) return false;
+    var W = cv.width, H = cv.height; g.clearRect(0, 0, W, H); g.fillStyle = '#16161c'; g.fillRect(0, 0, W, H);
+    var list = Array.isArray(items) ? items.filter(function(it) { return it && isFinite(it.x) && isFinite(it.y) && isFinite(it.w) && isFinite(it.h); }) : [];
+    cv.hidden = !list.length; if (!list.length) return false;
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    list.forEach(function(it) { x0 = Math.min(x0, it.x); y0 = Math.min(y0, it.y); x1 = Math.max(x1, it.x + it.w); y1 = Math.max(y1, it.y + it.h); });
+    var k = Math.min((W - 8) / Math.max(1, x1 - x0), (H - 8) / Math.max(1, y1 - y0)), ox = (W - (x1 - x0) * k) / 2, oy = (H - (y1 - y0) * k) / 2;
+    var X = function(v) { return ox + (v - x0) * k; }, Y = function(v) { return oy + (v - y0) * k; };
+    list.slice().sort(function(a, b) { return (a.z || 0) - (b.z || 0); }).forEach(function(it) {
+        var col = genPreviewColor(it.color);
+        if (it.type === 'path' && Array.isArray(it.pts) && it.pts.length) {
+            var sx = it.baseW ? it.w / it.baseW : 1, sy = it.baseH ? it.h / it.baseH : 1; g.beginPath();
+            it.pts.forEach(function(p, i) { if (!Array.isArray(p)) return; var px = X(it.x + p[0] * sx), py = Y(it.y + p[1] * sy); if (i) g.lineTo(px, py); else g.moveTo(px, py); });
+            if (it.tip === 'fill') { g.closePath(); g.fillStyle = col; g.fill(); } else { g.strokeStyle = col; g.lineWidth = Math.max(1, (Number(it.strokeWidth) || 3) * k); g.stroke(); }
+        } else if (it.type === 'circle') { g.beginPath(); g.ellipse(X(it.x + it.w / 2), Y(it.y + it.h / 2), Math.max(0.5, it.w * k / 2), Math.max(0.5, it.h * k / 2), 0, 0, Math.PI * 2); g.fillStyle = col; g.fill(); }
+        else if (it.type !== 'text') { g.fillStyle = col; g.fillRect(X(it.x), Y(it.y), Math.max(0.5, it.w * k), Math.max(0.5, it.h * k)); }
+    });
+    return true;
+}
 function buildWallItem(L, pre) { return Object.assign({ id: 'wb' + uid(), type: 'path', x: L.x, y: L.y, w: L.w, h: L.h, baseW: L.baseW, baseH: L.baseH, z: 10, pts: L.pts }, newOpacityProps(), pre); }
 // A door laid on a wall line cuts its doorway (the map builder, fold B5; the owner, 2026-10-10, by prompt: "The door cuts its doorway"). The
 // wall lines the new door line lies along are cut where it lies (buildcore cutWalls), in the save that lays the door, so ONE Undo takes the
@@ -8669,6 +8693,7 @@ function genSync() {
     var plan = genPlan();
     if (ct) ct.textContent = plan.say;
     if (go) go.disabled = !plan.ok;
+    if (typeof genPreviewDraw === 'function') genPreviewDraw('genModal', plan.ok ? genItems(plan.pieces, plan.opts ? plan.opts.theme : '') : null);   // 1.6.2: the small preview
 }
 function genShow() {
     var m = genEl('genModal'), GC = genCore(), here = getActiveMap(); if (!m || !GC || !buildCore() || !buildMay() || !buildHere() || !here) return false;
@@ -8893,6 +8918,7 @@ function citySync() {
     var plan = cityPlan();
     if (ct) ct.textContent = plan.say;
     if (go) go.disabled = !plan.ok;
+    if (typeof genPreviewDraw === 'function') genPreviewDraw('cityModal', plan.ok ? cityItems(plan.pieces, plan.opts.theme) : null);   // 1.6.2: the small preview
 }
 function cityShow() {
     var m = genEl('cityModal'), CC = cityCore(), here = getActiveMap(); if (!m || !CC || !buildCore() || !buildMay() || !buildHere() || !here) return false;
@@ -9119,6 +9145,7 @@ function worldSync() {
     var plan = worldPlan();
     if (ct) ct.textContent = plan.say;
     if (go) go.disabled = !plan.ok;
+    if (typeof genPreviewDraw === 'function') genPreviewDraw('worldModal', plan.ok ? plan.items : null);   // 1.6.2: the small preview
 }
 // It comes up on A new map, as the sheet drew it: a world wants a map of its own. On a map that keeps its world's seed it comes up on
 // This map with that seed and those settings, to make it again

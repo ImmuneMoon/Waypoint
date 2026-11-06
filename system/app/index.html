@@ -730,7 +730,7 @@
                           </li>
                           <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5.5h9v7h-9zM3 12.5h9v7H3zM12 12.5h9v7h-9z"/></svg> Build</b> is the GM&rsquo;s tool for making a map. Pick a material and a shape, then click a cell or drag an area. Each piece is an ordinary item you can move, resize, recolor or delete. Build stays in hand until <kbd>Esc</kbd> or another tool.
                               <ul>
-                                  <li>Build&rsquo;s options stand in three tabs: <b>Build</b> for the materials and the shape, <b>Objects</b> and <b>Generate</b>. <b>Look</b>, under the shape, opens the texture and the colour.</li>
+                                  <li>Build&rsquo;s options stand in three tabs: <b>Build</b> for the materials and the shape, <b>Objects</b> and <b>Generate</b>. <b>Look</b>, under the shape, opens the texture and the colour. Each generator shows a small picture of what it would lay, drawn again as you change its settings.</li>
                                   <li>Build lists its materials by what they are: floors, walls, doors and so on. Each fold stays as you left it. You can mix any of them on one map.</li>
                                   <li><b>Find a material</b> goes straight to one. The chips, <b>Fantasy</b>, <b>Victorian</b>, <b>Modern</b> and <b>Futuristic</b>, only narrow the list. <b>Pinned and on this map</b> keeps your pins and what the map already uses in reach, each once.</li>
                                   <li>Press the pin on a material to keep it at the top, in a short set kept with the campaign. It holds twelve.</li>
@@ -3898,6 +3898,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div class="gen-row"><label class="gen-name" for="genSeed">Seed</label><input type="text" id="genSeed" maxlength="24" spellcheck="false" autocomplete="off" title="Letters, digits and hyphens. The same seed and settings make the same dungeon again."><button type="button" class="tool ghost" id="genSeedNew" title="Another seed, so another dungeon">New</button></div>
         <div class="gen-line">The same seed and settings make the same dungeon again.</div>
         <div class="gen-rule"></div>
+        <canvas class="gen-preview" width="300" height="180" aria-hidden="true" data-for="genModal"></canvas>
         <div class="gen-line" id="genCount" aria-live="polite"></div>
         <div class="gen-foot"><button type="button" class="tool ghost" id="genCancel">Cancel</button><button type="button" class="tool" id="genGo">Generate</button></div>
     </div>
@@ -3922,6 +3923,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div class="gen-row"><span class="gen-name">Outside</span><label class="gen-tick" title="Fields of grass around it, outside its wall."><input type="checkbox" id="cityFields" checked> Fields outside</label></div>
         <div class="gen-line">The same seed and settings make the same city again.</div>
         <div class="gen-rule"></div>
+        <canvas class="gen-preview" width="300" height="180" aria-hidden="true" data-for="cityModal"></canvas>
         <div class="gen-line" id="cityCount" aria-live="polite"></div>
         <div class="gen-foot"><button type="button" class="tool ghost" id="cityCancel">Cancel</button><button type="button" class="tool" id="cityGo">Generate</button></div>
     </div>
@@ -3947,6 +3949,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div class="gen-row"><label class="gen-name" for="worldTowns">Towns</label><select id="worldTowns" title="Whether towns are marked on the world. A name is laid as a text box that you can change."><option value="none" selected>None</option><option value="marks">Marks</option><option value="names">Marks with names</option></select></div>
         <div class="gen-line">The same seed and settings make the same world again.</div>
         <div class="gen-rule"></div>
+        <canvas class="gen-preview" width="300" height="180" aria-hidden="true" data-for="worldModal"></canvas>
         <div class="gen-line" id="worldCount" aria-live="polite"></div>
         <div class="gen-foot"><button type="button" class="tool ghost" id="worldCancel">Cancel</button><button type="button" class="tool" id="worldGo">Generate</button></div>
     </div>

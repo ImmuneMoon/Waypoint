@@ -79,6 +79,7 @@ function imgSrc(p) { var n = net(), out = n && n.assetSrc ? n.assetSrc(p) : p; r
 // [sinkcheck:sheetimg-end]
 
 /* ---------- the campaign's system and characters ---------- */
+function isHand(spec) { return !!spec && typeof spec === 'object' && !!spec.hand && typeof spec.hand === 'object'; }   // 1.6.2 (the owner, by prompt: "One card each"): a hand's cards are single cards, so its rows show no count and no minus or plus
 function systemOf(camp) { camp = camp || getActiveCampaign(); return camp && camp.system && typeof camp.system === 'object' ? camp.system : null; }
 // Stage 6 library L1d: the players' view is worked out once per exact system and page set (a library core makes it dearer), and handed
 // out as a copy; the key is the system's whole text, so no two systems can ever share a view
@@ -3866,8 +3867,8 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
             if (noteLn) { openers.push(opB); nm.classList.add('sheet-item-name-opens'); nm.addEventListener('click', function() { opB.click(); }); }
         } else if (noteLn) line.appendChild(noteToggle(noteLn, entry, c, f));
         var rr = chg && !opnR ? rowRights(entry, rd, spec, gm, sysI) : ''; if (rr) line.appendChild(editBtn(entry, c, f, rr, rd.src === 'custom'));   // F4c2: ✎ — on a list shaped in the Lists tab, where the row can be changed (never the Layout preview or a pop-out)
-        if (editable && !opnR) { var ub = undoBtn(entry, c, f); if (ub) line.appendChild(ub); if (!(spec && spec.noQty)) line.appendChild(itemQtyCell(entry, c, f)); if (chg) line.appendChild(itemRmBtn(entry, def, c, f)); }
-        else if (!(spec && spec.noQty)) line.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
+        if (editable && !opnR) { var ub = undoBtn(entry, c, f); if (ub) line.appendChild(ub); if (!(spec && (spec.noQty || (typeof isHand === 'function' && isHand(spec))))) line.appendChild(itemQtyCell(entry, c, f)); if (chg) line.appendChild(itemRmBtn(entry, def, c, f)); }
+        else if (!(spec && (spec.noQty || (typeof isHand === 'function' && isHand(spec))))) line.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
         wrap.appendChild(line);
         if (spec && spec.parts && typeof partPills === 'function') partPills(wrap, c, f, spec, sysI, entry, chg && !hudRow);   // 1.6.0 R14: its parts, as pills under it
         if (bdLn) wrap.appendChild(bdLn);   // 1.6.0 R4: a badge set as a line, under its row
@@ -4237,7 +4238,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
     var chg = edit === undefined ? editable : !!edit && _fxLive, hudRow = _fxView === 'hud';
     if (typeof lockSet === 'function') lockSet(f, c, sysI);   // 1.6.2 Locked while
-    var tbl = f.table, cols = (tbl.columns || []).slice(), spec = f.list || null, hasL = !!(spec && spec.lvl) && partPlace(spec.lvl, hudRow) === 'row', hasO = !!(spec && spec.on) && partPlace(spec.on, hudRow) === 'row', hasQ = !(spec && spec.noQty);   // 1.6.0 R2: a level or a switch placed elsewhere has no column   // F4b: a level and a switch column; no quantity
+    var tbl = f.table, cols = (tbl.columns || []).slice(), spec = f.list || null, hasL = !!(spec && spec.lvl) && partPlace(spec.lvl, hudRow) === 'row', hasO = !!(spec && spec.on) && partPlace(spec.on, hudRow) === 'row', hasQ = !(spec && (spec.noQty || (typeof isHand === 'function' && isHand(spec))));   // 1.6.0 R2: a level or a switch placed elsewhere has no column   // F4b: a level and a switch column; no quantity
     var shownSt = spec && Array.isArray(spec.stats) ? spec.stats.filter(function(s) { return s && (s.show === true || s.own === true); }) : [], nStat = shownSt.length, hasP = !!(spec && spec.price) && partPlace({ place: spec.paidPlace }, hudRow) === 'row';   // F4c1: a column per stat shown On the row, and Paid (1.6.0 R2: where it stands)
     var shownCl = spec && Array.isArray(spec.cols) ? spec.cols.map(function(cc, i) { return { c: cc, i: i }; }).filter(function(x) { return x.c && partPlace(x.c, hudRow) === 'row'; }) : [], nCol = shownCl.length;   // 1.6.0 R2: a column in the details is drawn in the row's notes   // F5a1: a column per list column not Hidden
     var unseenT = gm ? unseenKeys(c, f, carried, sysI) : null;   // F4c3: the keys of rows its owner cannot see (the GM's sheet)
@@ -9266,6 +9267,7 @@ function rollRow(r) {
     if (!isApply) top.appendChild(select('sys-roll-togm', [['', 'The player sees it'], ['run', 'Goes to the GM'], ['wait', 'Goes to the GM, Then waits']], r.toGm || '', 'Goes to the GM: the player sees only that it was sent, and you get the roll privately. Its Then runs at once, or waits for your Apply'));   // HR1
     top.appendChild(select('sys-roll-tone', [['', 'Plain button'], ['primary', 'Filled'], ['danger', 'Red'], ['neutral', 'Grey'], ['outline', 'Outline']], r.tone || '', 'How the button looks on the sheet'));   // Stage 6 look fold
     if (typeof window !== 'undefined' && window.wpSoundOn && r.id) { var snR = window.wpSoundOn.btn({ k: 'roll', r: r.id }, isApply ? 'A sound on this action' : 'A sound on this roll'); if (snR) top.appendChild(snR); }   // 1.6.2: adds to the list under the Sound panel
+    if (!isApply && ((typeof draft !== 'undefined' && draft && Array.isArray(draft.decks) && draft.decks.length) || r.drawFirst)) { var dkR = (draft && Array.isArray(draft.decks) ? draft.decks : []).filter(function(d) { return d && typeof d.key === 'string' && /^D[1-9][0-9]{0,2}$/.test(d.key); }), dkO = [['', 'Rolls dice']].concat(dkR.map(function(d) { return [d.key, 'Draws a card from ' + (d.label || 'a deck') + ' first']; })); if (r.drawFirst && !dkR.some(function(d) { return d.key === r.drawFirst; })) dkO.push([r.drawFirst, 'A deck that is gone']); top.appendChild(select('sys-roll-drawfirst', dkO, r.drawFirst || '', 'Draws a card first: as the button is pressed one card is drawn from the deck, then the roll is worked out, so it reads that card’s numbers. One press, and the roll’s card names the card')); }   // 1.6.2 (the owner, by prompt: "Yes, build it")
     if (!isApply && typeof dieSel === 'function') top.appendChild(dieSel('sys-roll-die', r.die, 'The die its button wears on the sheet and the HUD. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20'));   // 1.5.8, backlog 149
     var actsR = turnActs(); if (actsR.length || r.cost) top.appendChild(select('sys-roll-cost', costOptions(r.cost, actsR), r.cost || '', 'What one press costs in turn-based combat: one of the actions a turn allows (the Combat tab)'));   // turn-based combat T1
     if (r.cost) top.appendChild(costHow('sys-costhow', r.costN));   // 1.6.2 (G10): how many of it
@@ -13922,7 +13924,8 @@ function onChange(e) {
         else if (c.indexOf('sys-vis') >= 0) r.vis = t.value;
         else if (c.indexOf('sys-roll-tone') >= 0) { if (t.value) r.tone = t.value; else delete r.tone; }   // Stage 6 look fold
         else if (c.indexOf('sys-roll-togm') >= 0) { if (t.value === 'run' || t.value === 'wait') r.toGm = t.value; else delete r.toGm; }   // HR1
-        else if (c.indexOf('sys-roll-die') >= 0) { if (t.value) r.die = t.value; else delete r.die; }   // 1.5.8: the die its button wears (Save keeps a name of the set)
+        else if (c.indexOf('sys-roll-die') >= 0) { if (t.value) r.die = t.value; else delete r.die; }
+        else if (c.indexOf('sys-roll-drawfirst') >= 0) { if (t.value) r.drawFirst = t.value; else delete r.drawFirst; }   // 1.6.2: a card drawn as its die   // 1.5.8: the die its button wears (Save keeps a name of the set)
         else if (c.indexOf('sys-clockn') >= 0) { var ckN = Math.floor(Number(t.value)); if (t.value !== '' && ckN >= 0 && ckN <= 999) r.clockN = ckN; else delete r.clockN; }   // 1.6.2 (G10)
         else if (c.indexOf('sys-costhow') >= 0) { var chN = Math.floor(Number(t.value)); if (chN >= 2 && chN <= LIMITS.costN) r.costN = chN; else delete r.costN; }   // 1.6.2 (G10)
         else if (c.indexOf('sys-roll-cost') >= 0) { if (t.value) r.cost = t.value; else { delete r.cost; delete r.costN; } markDirty(); renderAll(); return; }   // turn-based combat T1

@@ -424,6 +424,7 @@ function cleanRoll(rec) {
     if (rec.crit !== undefined) { var crc = cleanCrit(rec.crit); if (!crc) return null; out.crit = crc.high ? [crc.at, crc.fumble, 1] : [crc.at, crc.fumble]; }   // 1.6.0: criticals at fixed rolls, the two numbers the host judged this roll by
     if (rec.hid === 'gm') out.hid = 'gm';   // HR1: a roll that went straight to the GM: its roller's copy holds no figure
     if (rec.hid === 'pass' || rec.hid === 'fail' || rec.hid === 'rolled') { out.hid = rec.hid; if ((rec.hidc === 'crit' || rec.hidc === 'fumble') && rec.hid !== 'rolled') out.hidc = rec.hidc; }   // 1.6.2: the host's own word for a roll whose figure is hidden (hidRoll): only these words
+    if (typeof rec.card === 'string' && rec.card.trim()) out.card = rec.card.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 80);   // 1.6.2: the card a roll drew as its die, text alone
     if (typeof rec.band === 'string' && rec.band.trim()) out.band = rec.band.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 30);   // 1.6.2: the name of the result band the host found, text alone
     if (rec.dl !== undefined) { var dlc = cleanDiceLook(rec.dl); if (dlc) out.dl = dlc; }   // 1.6.2: the roller's dice look, as the host passed it on
     if (rec.big === true) out.big = true;   // 1.6.0 (the book's ruling of 2026-10-29): the host's mark of a success that lands as a Big Hit, no critical; anything else is left off

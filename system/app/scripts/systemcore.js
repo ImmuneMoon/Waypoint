@@ -933,6 +933,7 @@ function cleanRollDef(r, gmView) {
     if (typeof r.tone === 'string' && Object.prototype.hasOwnProperty.call(ROLL_TONES, r.tone)) out.tone = r.tone;   // Stage 6 look fold
     var rIcon = cleanIcon(r.icon); if (rIcon) out.icon = rIcon;
     var rDie2 = cleanDie(r.die); if (rDie2) out.die = rDie2;
+    if (typeof r.drawFirst === 'string' && /^D[1-9][0-9]{0,2}$/.test(r.drawFirst)) out.drawFirst = r.drawFirst;   // 1.6.2 (the owner, by prompt: "Yes, build it"): it draws a card from this deck as it is pressed, before it is worked out, so it reads that card; the host draws
     if (!Array.isArray(r.apply) && TO_GM[r.toGm] === 1) { out.toGm = r.toGm; out.named = true; }   // HR1: it goes straight to the GM (its Then at once, or waiting); named, so the host knows it by its press   // 1.5.8: the die its button wears, where the GM picked one (absent: its formula's)
     var rSts = rollStations(r.stations); if (rSts) out.stations = rSts;   // 1.6.0: which stations of a Crew link may press it (absent: any)
     if (Array.isArray(r.then)) { var th = cleanApplyChanges(r.then, true); if (th.length) out.then = th; }   // Stage 6 HUD R1: its consequences on the character (after the roll)
@@ -947,7 +948,7 @@ function cleanRollDef(r, gmView) {
     fightRuleInto(out, r, gmView);   // backlog 152: and in a fight, and whether its runs wait for the GM's word
     if (gmView) { var crO = cleanCross(r.cross); if (crO) out.cross = crO; }   // 1.5.9 (book es/et plan 4a): it also runs when a value crosses a step; the GM's view alone, since only the machine that owns the campaign runs it
     if (r.to === 'near' && out.init !== true) out.to = 'near';   // 1.5.9 (book es/et plan, section 3): Applies to the user or an adjacent character; the initiative roll is always its own character's
-    if (r.named === true || hasRange(out)) out.named = true;   // 1.6.0: it names itself as it is rolled, so the host can tell a sneak's roll; true only, and it says nothing of why
+    if (r.named === true || hasRange(out) || out.drawFirst) out.named = true;   // 1.6.0: it names itself as it is rolled, so the host can tell a sneak's roll; true only, and it says nothing of why
     if (r.resist === true && out.init !== true) out.resist = true;   // 1.6.0 (a build's sort, B2): Resists an attempt, so it reads AttemptMargin
     resistByInto(out, r, gmView);   // 1.6.0 (B2): and Resisted by, the roll its target resists it with
     rollAreaInto(out, r, gmView, false);   // 1.6.0: and a line it hits

@@ -165,6 +165,7 @@ function renderCard(m) {
     var tierC = sy && sy.combat && sy.combat.tier && typeof sy.combat.tier === 'object' ? sy.combat.tier : null;   // 1.6.0: a success at or past the Combat tab's margin wears its name
     if (!mf && tierC && typeof tierC.name === 'string' && tierC.name && typeof tierC.at === 'number' && v && v.kind === 'check' && v.pass === true && typeof v.margin === 'number' && v.margin >= tierC.at) total.appendChild(el('span', 'roll-tier', tierC.name));
     if (typeof rec.band === 'string' && rec.band) total.appendChild(el('span', 'roll-tier', rec.band));   // 1.6.2: the result band the host found
+    if (typeof rec.card === 'string' && rec.card) wrap.appendChild(el('div', 'roll-aim', 'Drew ' + rec.card));   // 1.6.2: the card a roll drew as its die
     wrap.appendChild(total);
     var posC = typeof cleanPos === 'function' ? cleanPos(rec.pos) : null;   // 1.6.0: a target's posture on the attack, and which of it and cover counted
     if (posC) wrap.appendChild(el('div', 'roll-aim', posWords(posC)));

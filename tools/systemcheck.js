@@ -22423,6 +22423,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.2 a row\'s own copy keeps a stat named as any String method (cleanEntryStats with picks of labels): strike, link, big, at and the rest, all but the three the key rule refuses everywhere',
             J(S.cleanRowDef({ name: 'Articulated Arm (HK)', stats: { strike: 3, cr: 5250 } }, true).stats) === J({ strike: 3, cr: 5250 }) && J(lostS) === J(['constructor', 'toString', 'valueOf']) && lostS.every(n => S.statKey(n) === ''), J(lostS));
     }
+    {   // 1.6.2 (the owner, by prompt: "Yes, build it" and "One card each"): a roll that draws a card as its die, and a hand of single cards
+        const J = JSON.stringify, rD = S.cleanRollDef({ id: 'r_a', label: 'Fate', formula: 'Deck.D1.last.Value >= 10', drawFirst: 'D1' }, true), rP = S.cleanRollDef({ id: 'r_a', label: 'Fate', formula: '1d6', drawFirst: 'D1' }, false);
+        const bad = ['C1', 'D0', 'd1', 'D1000', '__proto__', 5, null].map(v => S.cleanRollDef({ id: 'r_a', label: 'F', formula: '1d6', drawFirst: v }, true));
+        check('1.6.2 a roll may draw a card as its die: cleanRollDef keeps a system deck\'s key in both views and names the roll, so the host knows it by its press; anything else is no deck and a roll without one is as before',
+            rD.drawFirst === 'D1' && rD.named === true && rP.drawFirst === 'D1' && rP.named === true && bad.every(x => !('drawFirst' in x) && !('named' in x)) && J(S.cleanRollDef({ id: 'r_a', label: 'F', formula: '1d6' }, true)) === J({ id: 'r_a', label: 'F', formula: '1d6', vis: 'all' }), J([rD, bad]));
+        const shD = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').split('\r\n').join('\n'), uiD = fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8');
+        check('1.6.2 the Rolls tab offers it under How it rolls, as the deck\'s name, with a deck that is gone named so; its handler sets or takes it off; and a hand\'s rows show no count and no minus or plus, in a list and a table',
+            shD.includes("dkO = [['', 'Rolls dice']].concat(dkR.map(function(d) { return [d.key, 'Draws a card from ' + (d.label || 'a deck') + ' first']; }));") && shD.includes("dkO.push([r.drawFirst, 'A deck that is gone']);") && shD.includes("else if (c.indexOf('sys-roll-drawfirst') >= 0) { if (t.value) r.drawFirst = t.value; else delete r.drawFirst; }")
+            && uiD.includes("['how', 'How it rolls', 1, ['sys-roll-drawfirst',") && shD.split("spec.noQty || (typeof isHand === 'function' && isHand(spec))").length === 4
+            && new Function(shD.slice(shD.indexOf('function isHand('), shD.indexOf('\n', shD.indexOf('function isHand('))) + '\nreturn isHand;')()({ hand: {} }) === true && new Function(shD.slice(shD.indexOf('function isHand('), shD.indexOf('\n', shD.indexOf('function isHand('))) + '\nreturn isHand;')()({ hand: true }) === false, '');
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

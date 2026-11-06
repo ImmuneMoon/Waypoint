@@ -2793,7 +2793,7 @@ pendingChecks.push((async () => {
     check('1.6.0 Specialties, Never untrained on the host (roll-req, run for real): a player\'s roll reading Surgery, held by none and Exacting, is refused with "Surgery cannot be tried untrained." and nothing is rolled, by a specialty or the bare skill; Blade, which can, is rolled at its default with the penalty on its card ("untrained Blade (-5)"); the GM\'s own roll says the same words (dice.js toasts the error, no card)',
         no.table.length === 0 && /Surgery cannot be tried untrained\./.test(said(no)) && no3.table.length === 0 && /Surgery cannot be tried untrained\./.test(said(no3))
         && ok.table.length === 1 && ok.sent.length === 0 && j(ok.table[0].refs) === j([{ s: 'untrained Blade (\u22125)', c: 3 }]) && j(ok.table[0].names) === j([{ name: 'Skills.Blade.Longsword.Target', value: 5 }])
-        && /if \(!res\.ok\) return \{ error: res\.error\.message,/.test(src),
+        && /if \(!res\.ok\) return cardR && cardR\.undo && cardR\.undo\(\), \{ error: res\.error\.message,/.test(src),
         j([no.sent, no3.sent, ok.table]));
 })());
 
@@ -20017,6 +20017,26 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
         check('the host remembers what a token held when it left a fight (net.fightWas): by fight and token, nothing else answered, and the stored rows are noted as a roster edit drops them',
             nW.fightWas('f1', 't1').init === 9 && nW.fightWas('f1', 'zz') === null && nW.fightWas('f9', 't1') === null && flat.includes('wn[r.tokId] = { init: r.init, rolled: r.rolled === 1 };'));
         check('a join the player began closes the Multiplayer window; a reconnect leaves it as it stands', flat.includes("if (conn.wpRetry !== true) { var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'none'; }"));
+    }
+    {   // 1.6.2 (the owner, by prompt: "Yes, build it"): a roll that draws a card as its die (net.js drawForRoll, run for real with the real deck core)
+        const NL6 = String.fromCharCode(10), dk6 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'deckcore.js'), 'utf8').split(String.fromCharCode(13)).join('').split(NL6).filter(l => !/^(import|export) /.test(l)).join(NL6), K6 = new Function('cleanTexSrc', 'window', dk6 + NL6 + 'return API;')(() => '', {});
+        const a6 = src.indexOf('// [netcheck:drawfirst-start]'), b6 = src.indexOf('// [netcheck:drawfirst-end]'); let saved6 = 0, told6 = 0;
+        const own6 = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+        const mk6 = () => new Function('window', 'own', 'saveRemoteSoon', 'net', src.slice(a6, b6) + '\nreturn drawForRoll;')({ wpDeckCore: K6.default || K6, wpFormula: null }, own6, () => { saved6++; }, { decksTell: () => { told6++; } });
+        const deck6 = { key: 'D1', label: 'Fate', after: 'discard', stats: [{ key: 'Value', label: 'Value' }], cards: [{ name: 'Ace', vals: { Value: 14 } }, { name: 'Two', vals: { Value: 2 } }] };
+        const camp6 = { system: { decks: [deck6] } }, dr = mk6();
+        const d1 = dr(camp6, 'D1'), lastName = camp6.piles && camp6.piles.D1 ? deck6.cards[camp6.piles.D1.last].name : '';
+        const kept = JSON.stringify(camp6.piles.D1); d1.undo(); const undone = !camp6.piles || !own6(camp6.piles, 'D1');
+        const d2 = dr(camp6, 'D1'), n2 = d2.done();
+        const gmDeck = { system: { decks: [Object.assign({}, deck6, { vis: 'gm' })] } }, d3 = dr(gmDeck, 'D1'), n3 = d3.done();
+        const empty = dr({ system: { decks: [Object.assign({}, deck6, { after: 'gone' })] }, piles: { D1: { draw: [], disc: [], out: [0, 1], last: 1 } } }, 'D1'), gone = dr(camp6, 'D9');
+        check('1.6.2 a roll that draws a card as its die: the host draws one card before the roll is worked out, so the pile\'s last is that card; undo puts the pile back as it was; done keeps it, saves, tells the table and names the card, none for a deck the GM alone knows; a deck that is gone and one with nothing left refuse in words',
+            !!d1.name && d1.name === lastName && kept.length > 0 && undone && deck6.cards.some(c => c.name === n2) && saved6 === 2 && told6 === 2 && n3 === '' && /Nothing is left to draw from Fate/.test(empty.error || '') && /not here/.test(gone.error || ''), JSON.stringify([d1.name, lastName, n2, n3, empty, gone, saved6, told6]));
+        const flat6 = src;
+        check('1.6.2 both paths draw first and put the card back on any refusal: a player\'s roll through denyQ, the GM\'s own through each early return; the card stays only once nothing refused it, and the roll\'s card names it',
+            flat6.includes("var cardQ = null, denyQ = function(reason, r) { if (cardQ && cardQ.undo) { cardQ.undo(); cardQ = null; }") && flat6.includes("cardQ = actQ && typeof actQ.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campQ, actQ.drawFirst) : null;")
+            && flat6.includes("var cardNQ = cardQ && cardQ.done ? cardQ.done() : ''; cardQ = null;") && flat6.includes('if (cardNQ) recQ.card = cardNQ;') && flat6.includes("var cardR = entR && typeof entR.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campR, entR.drawFirst) : null;")
+            && flat6.includes("var cardNR = cardR && cardR.done ? cardR.done() : '';") && flat6.includes('if (cardNR) rec.card = cardNR;') && flat6.split('return cardR && cardR.undo && cardR.undo(), {').length === 7, '');
     }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

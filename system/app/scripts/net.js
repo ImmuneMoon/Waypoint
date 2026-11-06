@@ -3159,6 +3159,23 @@ net.deckDo = function(key, op, o) {
     return deckRun(getActiveCampaign(), key, op, '', o);
 };
 // [netcheck:deckdo-end]
+// [netcheck:drawfirst-start]
+// 1.6.2 (the owner, by prompt: "Yes, build it"): a roll that draws a card as its die. The host draws one card from the system's deck as the roll is pressed, before it is worked out, so Deck.<key>.last reads that card. The draw stands only once nothing has refused the roll: undo puts the pile back, done keeps it, tells the table and answers the card's name for the roll's card, none for a deck the GM alone knows
+function drawForRoll(camp, key) {
+    var K = window.wpDeckCore, F = window.wpFormula; if (!camp || !K || !camp.system) return { error: 'That cannot be done now.' };
+    var d = K.deckOf(camp.system.decks, key); if (!d || !d.cards.length) return { error: 'The deck this roll draws from is not here.' };
+    var rnd = function(n) { var r = F && F.evaluate ? F.evaluate('1d' + n) : null; return r && r.ok && typeof r.value === 'number' ? r.value : 1 + Math.floor(Math.random() * n); };
+    var had = !!(camp.piles && own(camp.piles, d.key)), was = had ? camp.piles[d.key] : undefined, dr = K.drawCards(d, had ? K.cleanPile(was, d) : null, 1, rnd, false);
+    if (!dr.cards.length) return { error: 'Nothing is left to draw from ' + (d.label || 'its deck') + '.' };
+    camp.piles = Object.assign({}, camp.piles || {}); camp.piles[d.key] = dr.pile;
+    var name = d.cards[dr.cards[0]] ? d.cards[dr.cards[0]].name : '';
+    return {
+        name: name,
+        undo: function() { camp.piles = Object.assign({}, camp.piles || {}); if (had) camp.piles[d.key] = was; else delete camp.piles[d.key]; },
+        done: function() { saveRemoteSoon(); net.decksTell(camp); if (window.wpSheets && typeof window.wpSheets.valuesMoved === 'function') window.wpSheets.valuesMoved(); if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'roll-draw', { reshuffled: !!dr.reshuffled }); return d.vis === 'gm' ? '' : name; }
+    };
+}
+// [netcheck:drawfirst-end]
 net.decksSet = function(moves) {
     var camp = getActiveCampaign(); if (!camp || net.role === 'client') return; camp.piles = Object.assign({}, camp.piles || {}, moves); saveRemoteSoon(); net.decksTell(camp);
     if (window.wpSheets && typeof window.wpSheets.valuesMoved === 'function') window.wpSheets.valuesMoved(); if (typeof window.wpStepLog === 'function') window.wpStepLog('decks v1', 'moved', { n: Object.keys(moves).length });
@@ -9667,7 +9684,7 @@ function handleMessage(msg, conn) {
         var Dq = DC(), Fq = window.wpFormula; if (!Dq || !Fq) return;
         var q = Dq.cleanRollReq(msg); if (!q) { var ridBad = Dq.cleanRid(msg); if (ridBad) { try { conn.send({ type: 'roll-deny', rid: ridBad, reason: 'error', message: 'That roll could not be read.' }); } catch (e) { sendFailed(e); } } return; }
         var hgQ = typeof helpTake === 'function' ? helpTake(conn.peer, q.rid) : null;   // 1.6.2 Assist: the press it held, let go with its help
-        var denyQ = function(reason, r) { var d = { type: 'roll-deny', rid: q.rid, reason: reason }; if (r) { d.message = r.error.message; d.pos = r.error.pos; d.len = r.error.len; } try { conn.send(d); } catch (e) { sendFailed(e); } };
+        var cardQ = null, denyQ = function(reason, r) { if (cardQ && cardQ.undo) { cardQ.undo(); cardQ = null; } var d = { type: 'roll-deny', rid: q.rid, reason: reason }; if (r) { d.message = r.error.message; d.pos = r.error.pos; d.len = r.error.len; } try { conn.send(d); } catch (e) { sendFailed(e); } };
         if (!diceLimit) diceLimit = Dq.RateLimit(Dq.LIMITS);
         var lim = hgQ ? true : diceLimit.allow(conn.peer, Date.now());
         if (lim !== true) { var sk = conn.peer + '|' + lim; if (!_diceSlowSaid[sk] || Date.now() - _diceSlowSaid[sk] > Dq.LIMITS.windowMs) { _diceSlowSaid[sk] = Date.now(); denyQ(lim); } return; }   // one 'slow' per window, then silence
@@ -9744,6 +9761,7 @@ function handleMessage(msg, conn) {
             var heQ = cardEnt(campQ, q.act, rowGQ, actQ), tkHQ = mapQ ? SQ.charTokenOn(mapQ, q.charId, tokOwnQ, tokOptQ) : null;
             if (heQ && heQ.help && helpHold({ S: SQ, D: Dq, F: Fq, camp: campQ, ent: heQ, ch: chQ, pid: pidQ, conn: conn, rid: q.rid, label: q.label || actQ.label, from: diceFrom(net.roster[conn.peer], false), mapId: tkHQ ? locQ : null, go: function(n) { _helpGo = { peer: conn.peer, rid: q.rid, n: n }; handleMessage(msg, conn); } })) return;
         }
+        cardQ = actQ && typeof actQ.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campQ, actQ.drawFirst) : null; if (cardQ && cardQ.error) { var ceQ = cardQ.error; cardQ = null; denyQ('error', { error: { message: ceQ, pos: 0, len: 0 } }); return; }   // 1.6.2: a card drawn as its die, before it is worked out, put back if anything refuses it
         var resQ = Fq.evaluate(q.expr, varsQ ? { vars: varsQ } : {});
         if (!resQ.ok) { denyQ('error', resQ); return; }
         var moQ = hvQ && hvQ.length > 1 ? SQ.hitRolls(campQ.system, actQ, q.expr, hvQ.slice(1), Fq, Dq, { rounds: rnQ.slice(1) }) : null; if (moQ && moQ.error) { denyQ('error', { error: { message: moQ.error, pos: 0, len: 0 } }); return; }   // ... and each hit after it, rolled here, before what it costs is spent
@@ -9756,9 +9774,10 @@ function handleMessage(msg, conn) {
         if (jobQ) { var jsQ = jobPress(SQ, campQ, chQ, q.row, actQ, varsQ, Fq, jobQ.round, q.label, saveRemoteSoon); if (jsQ) { denyQ('error', { error: { message: jsQ, pos: 0, len: 0 } }); return; } }   // a press short of its turns moves the count and rolls nothing; the last goes on and rolls
         if (swpQ) swPayDo(chQ, swpQ);
         if (chQ && !q.att && typeof offTurnWarn === 'function') offTurnWarn(campQ, turnChQ, q.act, rowGQ, q.label || (actQ && actQ.label), conn);   // 1.6.0: nothing refused it, so a warning is said
+        var cardNQ = cardQ && cardQ.done ? cardQ.done() : ''; cardQ = null;   // nothing refused it, so the card stays drawn
         var tgQ = actQ && typeof SQ.toGmOf === 'function' ? SQ.toGmOf(q.row && viewQ ? ((viewQ.fields || []).filter(function(f) { return f && f.id === q.row.f; })[0] || {}).list : null, actQ) : null;   // HR1: it goes straight to the GM
         var restQ = function(resQ, heldQ) {   // 1.6.2 (G5): all that follows a roll, which a roll with card actions holds until it is accepted
-        var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid }; if (heldQ) recQ.id = heldQ; if (q.dl) recQ.dl = q.dl;
+        var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid }; if (heldQ) recQ.id = heldQ; if (q.dl) recQ.dl = q.dl; if (cardNQ) recQ.card = cardNQ;
         var blowRecQ = q.att && typeof attemptRec === 'function' ? attemptRec(q.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples
         if (q.att && typeof attemptDrop === 'function') attemptDrop(q.att);   // 1.6.0 (B2): an attempt is resisted once
         var mfQ = null; if (actQ && actQ.malf && varsQ) { var mqQ = Fq.evaluate(actQ.malf, { vars: varsQ }); if (mqQ.ok && typeof mqQ.value === 'number' && isFinite(mqQ.value)) mfQ = Math.max(1, Math.min(1000000, Math.round(mqQ.value))); }   // Stage 6 HUD R3: its Malf, through their view
@@ -11751,18 +11770,21 @@ net.diceRoll = function(expr, o) {
         var ftH = window.wpSheets && window.wpSheets.facingTarget ? window.wpSheets.facingTarget(chR, campR) : null;
         if (helpHold({ S: SR, D: D, F: F, camp: campR, ent: entR, ch: chR, pid: '', conn: null, label: o.label || entR.label, from: o.from || diceFrom(getProfile(), true), mapId: ftH && ftH.tok ? ftH.mapId : null, go: function(n) { var cmH = n ? D.composeModifier(expr, n, F.parse) : { ok: true, expr: expr }; var rH = net.diceRoll(cmH.ok ? cmH.expr : expr, Object.assign({}, o, { helped: true })); if (rH && rH.error && typeof toast === 'function') toast(rH.error); } })) return { ok: true, held: true };
     }
+    var cardR = entR && typeof entR.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campR, entR.drawFirst) : null; if (cardR && cardR.error) return { error: cardR.error };   // 1.6.2: a card drawn as its die, before it is worked out
     var res = F.evaluate(expr, varsR ? { vars: varsR } : {});
-    if (!res.ok) return { error: res.error.message, pos: res.error.pos, len: res.error.len };
+    if (!res.ok) return cardR && cardR.undo && cardR.undo(), { error: res.error.message, pos: res.error.pos, len: res.error.len };
     if (o.row && chR && SR && campR && campR.system) rowP = SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, (res.breakdown && res.breakdown.names) || [], F, uDefR || undefined);   // what its Row.* names read, and whether the row is GM-only
     if (rowP && uDefR && !(window.wpLibrary && typeof window.wpLibrary.playerEntry === 'function' && window.wpLibrary.playerEntry(o.row.k)) && !(Array.isArray(campR.system.items) ? campR.system.items : []).some(function(it) { return it && it.id === o.row.k && it.vis !== 'gm'; })) rowP.gm = true;   // 1.6.0 Rolls unheld entries: an entry players may not see keeps its roll the GM's
-    var why = D.checkTableRoll(res); if (why) return { error: D.denyText(why) };
-    if (entR && entR.job && chR && o.row && typeof o.row.r === 'string' && SR && typeof SR.jobStep === 'function') { var jrR = typeof jobRound === 'function' ? jobRound(campR, chR.id) : null, jbR = SR.jobBar(chR, o.row, entR, varsR, F, jrR); if (jbR) return { error: jbR }; var jsR = jobPress(SR, campR, chR, o.row, entR, varsR, F, jrR, o.label, function() { save(true); }); if (jsR) return { error: jsR }; }   // 1.6.0: a job counted across turns
-    var moR = hvR && hvR.length > 1 ? SR.hitRolls(campR.system, entR, expr, hvR.slice(1), F, D, { rounds: rnR.slice(1) }) : null; if (moR && moR.error) return { error: moR.error };   // ... and each hit after it, rolled here
-    var swpR = swR && swR.pays && chR && typeof swPayPlan === 'function' ? swPayPlan(SR, campR, chR, swR.pays, F, D, tcR) : null; if (swpR && swpR.error) return { error: swpR.error }; if (swpR) swPayDo(chR, swpR);   // 1.6.2 (G6)
+    var why = D.checkTableRoll(res); if (why) return cardR && cardR.undo && cardR.undo(), { error: D.denyText(why) };
+    if (entR && entR.job && chR && o.row && typeof o.row.r === 'string' && SR && typeof SR.jobStep === 'function') { var jrR = typeof jobRound === 'function' ? jobRound(campR, chR.id) : null, jbR = SR.jobBar(chR, o.row, entR, varsR, F, jrR); if (jbR) return cardR && cardR.undo && cardR.undo(), { error: jbR }; var jsR = jobPress(SR, campR, chR, o.row, entR, varsR, F, jrR, o.label, function() { save(true); }); if (jsR) return cardR && cardR.undo && cardR.undo(), { error: jsR }; }   // 1.6.0: a job counted across turns
+    var moR = hvR && hvR.length > 1 ? SR.hitRolls(campR.system, entR, expr, hvR.slice(1), F, D, { rounds: rnR.slice(1) }) : null; if (moR && moR.error) return cardR && cardR.undo && cardR.undo(), { error: moR.error };   // ... and each hit after it, rolled here
+    var swpR = swR && swR.pays && chR && typeof swPayPlan === 'function' ? swPayPlan(SR, campR, chR, swR.pays, F, D, tcR) : null; if (swpR && swpR.error) return cardR && cardR.undo && cardR.undo(), { error: swpR.error }; if (swpR) swPayDo(chR, swpR);   // 1.6.2 (G6)
     if (chR && entR && typeof clockPress === 'function') clockPress(campR, chR.id, entR);   // 1.6.2 (G10): what the GM's own press spends on a counting clock
     if (chR && !o.att && typeof net.offTurnSay === 'function') net.offTurnSay(chR, o.act, o.row, o.label);   // 1.6.0: off its turn, the GM is told, once nothing has refused it
+    var cardNR = cardR && cardR.done ? cardR.done() : '';   // nothing refused it, so the card stays drawn
     var restR = function(res, heldR) {   // 1.6.2 (G5): all that follows a roll, which a roll with card actions holds until it is accepted
     var rec = { type: 'roll', id: D.uid(), from: o.from || diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() }; if (heldR) rec.id = heldR; if (!o.from) { var dlR = rollLookOwn(); if (dlR) rec.dl = dlR; }   // o.from: this machine's own word, the player whose press this roll follows (a line's damage)
+    if (cardNR) rec.card = cardNR;   // 1.6.2: the card it drew as its die
     var mfR = null; if (entR && entR.malf && varsR) { var mqR = F.evaluate(entR.malf, { vars: varsR }); if (mqR.ok && typeof mqR.value === 'number' && isFinite(mqR.value)) mfR = Math.max(1, Math.min(1000000, Math.round(mqR.value))); }   // Stage 6 HUD R3: its Malf
     if (askedR && askedR.length) rec.asked = askedR;   // 1.6.2
     var blowRecR = typeof o.att === 'string' && typeof attemptRec === 'function' ? attemptRec(o.att) : null;   // 1.6.0 (the core's gap 7): what its failure cripples

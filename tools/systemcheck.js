@@ -22347,6 +22347,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && t2.values.f_tmp === 4 && !('f_hp' in t2.values) && t2.info.major === true && !('f_tmp' in t3.values) && J(t3.values.f_hp) === J({ cur: 8 }) && t4.values.f_tmp === 0 && !t4.lines.some(l => /Temporary/.test(l)) && !('first' in tBad.combat.damage), J([t1, t2.values, t3.values, t4.lines]));
         check('the host\u2019s fill of a character being made and the Review\u2019s Apply lay those marks on the host\u2019s record', /Su\.afApply\(chU, Su\.fillMarks\(campU\.system, fillF, rF\.values\)\)/.test(ntF) && /window\.wpSystemCore\.afApply\(ch2, window\.wpSystemCore\.proposalMarks\(sys, up, acc\)\)/.test(shA));
     }
+    {   // 1.6.2, found by the owner: a picture fitted to the grid, dragged with the magnet's item snapping on, stuck half a cell off on release
+        const dmF = fs.readFileSync(path.join(app, 'scripts', 'datamap.js'), 'utf8');
+        check('a piece fitted to the grid lands in its cells at the release whatever it glued to while dragged (found by the owner: "it would stick in between cells vertically instead of inside of one, centered"): the release rounds a fitted piece\'s corner to the lattice on both axes, and only a piece that is not fitted keeps an axis it glued to a neighbour',
+            dmF.includes("var sdx = glued.x && !fitDrag ? 0 : sn.x - item.x, sdy = glued.y && !fitDrag ? 0 : sn.y - item.y;") && dmF.includes("fitDrag = multiDrag.some(function(md) { return md.item.gridFit; });"));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

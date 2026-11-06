@@ -1177,7 +1177,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               var glued = doSmartSnapping.last || {};
               var sn = (state.gridType === 'hex') ? getSnapCoords(item.x, item.y) : { x: Math.round(item.x / 50) * 50, y: Math.round(item.y / 50) * 50 };   // square: round to the 50-cell even with Snap off (a gridFit item stays fitted)
               // the same correction for every item in the drag: a group never loosens on release
-              var sdx = glued.x ? 0 : sn.x - item.x, sdy = glued.y ? 0 : sn.y - item.y;
+              var sdx = glued.x && !fitDrag ? 0 : sn.x - item.x, sdy = glued.y && !fitDrag ? 0 : sn.y - item.y;   // 1.6.2, found by the owner: a piece fitted to the grid lands in its cells, whatever it glued to on the way
               multiDrag.forEach(function(md) { md.item.x += sdx; md.item.y += sdy; var melG = md.el || state.wbEls[md.item.id]; if (melG) { melG.style.left = md.item.x + 'px'; melG.style.top = md.item.y + 'px'; } });
               el.style.left=item.x+'px'; el.style.top=item.y+'px';
           } else if (snapOn && modeStr === 'visual' && (!state.gridType || state.gridType === 'off') && multiDrag.some(function(md) { return md.item.isChar || md.item.waiting; })) {

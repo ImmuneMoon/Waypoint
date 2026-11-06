@@ -22365,6 +22365,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && j(clV.fields[1].list.parts.caps.map(k => k.is)) === j(['Top rail', ['Grip', 'Top rail']]) && S.renamesSay(rnV).filter(m => m.includes('\u201cRail\u201d is now \u201cTop rail\u201d')).length === 1
             && j(swV.vals) === '[]' && swV.names.length === 1 && j(adV.vals) === '[]' && j(twV.vals) === '[]', j([rnV.vals, nxV.fields[1].list.parts.caps, swV.vals, adV.vals, twV.vals]));
     }
+    {   // 1.6.2, the owner: "when magnet is on, lets only allow resizing by grid block size steps"
+        const wbS = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').split('\r\n').join('\n'), a0 = wbS.indexOf('// [systemcheck:gridstep-start]'), b0 = wbS.indexOf('// [systemcheck:gridstep-end]');
+        const mkGS = (st, win) => new Function('state', 'window', wbS.slice(a0, b0) + '\nreturn { gridStepOn, gridStep };')(st, win);
+        const G = mkGS({ snap: true, snapMode: 'grid', gridType: 'square' }, {});
+        const on = [mkGS({ snap: true, snapMode: 'grid', gridType: 'square' }, {}).gridStepOn(), mkGS({ snap: true, snapMode: 'both', gridType: 'hex' }, {}).gridStepOn(), mkGS({ snap: true, snapMode: 'items', gridType: 'square' }, {}).gridStepOn(), mkGS({ snap: false, gridType: 'square' }, {}).gridStepOn(), mkGS({ snap: true, snapMode: 'grid', gridType: 'off' }, {}).gridStepOn(), mkGS({ snap: false, gridType: 'hex' }, { wpSnapOn: () => true }).gridStepOn()];
+        const steps = [G.gridStep(74, 76, 'square'), G.gridStep(10, 10, 'square'), G.gridStep(126, 24, 'square'), G.gridStep(60, 52, 'hex'), G.gridStep(110, 80, 'hex'), G.gridStep(5, 5, 'hex'), G.gridStep(110, 80, 'hex', true), G.gridStep(10, 10, 'hex', true)];
+        check('with Snap on to the grid a resize steps by whole cells (whiteboard.js gridStepOn and gridStep, run for real): on a square grid 50 px each way, at least one cell; on a hex grid by Fit to grid\u2019s own count, a column 45 px beside the 15 px edge and a row 52 px, and a group\u2019s box by 45 and 52; none with Snap off, to other items only or with no grid; the handle steps one piece and a group\u2019s box with it and skips the pause at a neighbour\u2019s size, and Help and both release notes say it',
+            j(on) === j(['square', 'hex', null, null, null, 'hex'])
+            && j(steps) === j([{ w: 50, h: 100 }, { w: 50, h: 50 }, { w: 150, h: 50 }, { w: 60, h: 52 }, { w: 105, h: 104 }, { w: 60, h: 52 }, { w: 90, h: 104 }, { w: 45, h: 52 }])
+            && wbS.includes("if (gS1) { var st1 = gridStep(item.w, item.h, gS1); item.w = st1.w; item.h = st1.h; clearSnaps(); }") && wbS.includes("var gSg = gridStepOn(); if (gSg) { var stG = gridStep(gbw * gsx, gbh * gsy, gSg, true); gsx = stG.w / gbw; gsy = stG.h / gbh; }")
+            && fs.readFileSync(path.join(app, 'index.html'), 'utf8').includes('Drag the corner handle to resize. With Snap on to the grid it sizes by whole cells.')
+            && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('With Snap on to the grid, the corner handle sizes a piece by whole cells.')), j([on, steps]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

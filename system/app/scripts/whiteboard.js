@@ -1776,6 +1776,21 @@ window.wpFitToGrid = fitToGrid;
 
       if(!handle) return;
 
+      // [systemcheck:gridstep-start]
+      // With Snap on to the grid, a resize steps by whole cells (the owner, 2026-11-06: "when magnet is on, lets only allow resizing by grid block
+      // size steps"): on a square grid 50 px each way, on a hex grid as Fit to grid counts a hex cell, a column 45 px beside the 15 px edge and a
+      // row 52 px. gridStepOn answers the grid, or null where Snap is off or to other items only, or the map has no grid. box: a group's box,
+      // stepped by the cell's own size
+      function gridStepOn() {
+          var on = typeof window.wpSnapOn === 'function' ? window.wpSnapOn() : (!!state.snap && state.snapMode !== 'items');
+          return on && (state.gridType === 'square' || state.gridType === 'hex') ? state.gridType : null;
+      }
+      function gridStep(w, h, g, box) {
+          if (g === 'hex' && !box) { var c = Math.max(1, Math.round((w - 15) / 45)), r = Math.max(1, Math.round(h / 52)); return { w: c * 45 + 15, h: r * 52 }; }
+          var sx = g === 'hex' ? 45 : 50, sy = g === 'hex' ? 52 : 50;
+          return { w: Math.max(sx, Math.round(w / sx) * sx), h: Math.max(sy, Math.round(h / sy) * sy) };
+      }
+      // [systemcheck:gridstep-end]
       var isResizing = false, startX, startY, startW, startH, item;
       // Group resize: every member of the primary's group (or multi-selection)
       // scales with it, anchored at the group's top-left corner.
@@ -1834,6 +1849,7 @@ window.wpFitToGrid = fitToGrid;
           // whole box from its top-left, every member along with it.
           var gsx = Math.max(0.05, (gbw + dx) / gbw), gsy = Math.max(0.05, (gbh + dy) / gbh);
           if (e.shiftKey || groupMembers.some(function(g) { return g.it.lockRatio; })) { var u = Math.abs(dx) >= Math.abs(dy) ? gsx : gsy; gsx = u; gsy = u; }
+          var gSg = gridStepOn(); if (gSg) { var stG = gridStep(gbw * gsx, gbh * gsy, gSg, true); gsx = stG.w / gbw; gsy = stG.h / gbh; }   // Snap on to the grid: the box by whole cells
           groupMembers.forEach(function(g) {
               g.it.x = gbx + (g.x0 - gbx) * gsx;
               g.it.y = gby + (g.y0 - gby) * gsy;
@@ -1866,12 +1882,15 @@ window.wpFitToGrid = fitToGrid;
 
           // Size matching runs even with the ratio locked: whichever axis pauses
           // on a neighbour's size, the other follows the ratio.
-          var wBefore = item.w, hBefore = item.h;
+          var wBefore = item.w, hBefore = item.h, gS1 = gridStepOn();
+          if (gS1) { var st1 = gridStep(item.w, item.h, gS1); item.w = st1.w; item.h = st1.h; clearSnaps(); }   // Snap on to the grid: whole cells, and no pause at a neighbour's size between them
+          else {
           doSmartSnapping(item, true);
           if ((item.lockRatio || e.shiftKey) && startW > 0 && startH > 0) {
               var ratioL = startW / startH;
               if (item.w !== wBefore) item.h = Math.max(10, item.w / ratioL);
               else if (item.h !== hBefore) item.w = Math.max(10, item.h * ratioL);
+          }
           }
 
 

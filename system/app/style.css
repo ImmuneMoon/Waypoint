@@ -1254,11 +1254,11 @@
   #inspector { padding: 16px; overflow-y: auto; flex: 1; }
   .insp-fold { margin: 2px 0 10px; }   /* 1.5.6: a character token's Map links, folded */
   .insp-fold > summary { cursor: pointer; font-size: 11px; color: var(--dim); margin-bottom: 8px; }
-  .sys-blast-part { border: 1px solid var(--edge); border-radius: 6px; margin: 6px 0; padding: 0 10px; background: var(--panel); }   /* 1.6.2: Blasts and throws by part */
+  .sys-blast-part { flex: 1 1 100%; box-sizing: border-box; border: 1px solid var(--edge); border-radius: 6px; margin: 0; padding: 0 10px; background: var(--panel); }   /* 1.6.2: Blasts and throws by part */
   .sys-blast-sum { cursor: pointer; padding: 8px 0; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
   .sys-blast-name { font-weight: 600; color: var(--gold); }
   .sys-blast-ans { color: var(--dim); font-size: 11.5px; min-width: 0; overflow-wrap: anywhere; }
-  .sys-blast-body { padding: 0 0 8px; }
+  .sys-blast-body { padding: 0 0 10px; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }   /* its boxes side by side, as the topic's pane lays them out */
   .insp-part { border-top: 1px solid var(--edge); padding-top: 8px; margin: 4px 0 6px; }   /* 1.6.2: the folds of a piece's Properties */
   .insp-part > summary { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--gold); }
   .insp-cmds { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 10px; }   /* 1.6.2: a piece's commands, a row at the top */

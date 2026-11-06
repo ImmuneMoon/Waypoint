@@ -30,7 +30,7 @@ function pillsModel(st) {
     if (hosting) { var n = pillCount(st.players); out.tablePill = { text: 'Table \u00b7 ' + n, tip: 'You are hosting. ' + (n === 1 ? '1 player is' : (n ? n : 'No') + ' players are') + ' connected. Opens Multiplayer.' }; }
     if (hosting && st.paused === true) out.pausedPill = { text: 'Paused', tip: 'The table is paused. Press to resume it.' };
     var r = pillCount(st.round), who = pillCut(st.turn);
-    if (hosting && r) out.roundPill = { text: 'Round ' + r + (who ? ' \u00b7 ' + who : ''), tip: 'A fight is on this map' + (who ? ', and it is the turn of ' + who : '') + '. Opens the turn order.' };
+    if ((hosting || st.solo === true) && r) out.roundPill = { text: 'Round ' + r + (who ? ' \u00b7 ' + who : ''), tip: 'A fight is on this map' + (who ? ', and it is the turn of ' + who : '') + '. Opens the turn order.' };
     if (hosting && st.scene && typeof st.scene === 'object') { var sn = pillCut(st.scene.title) || 'a picture', sw = typeof st.scene.who === 'string' && st.scene.who ? st.scene.who : 'the table';   // backlog 181 (scene.js)
         out.scenePill = { text: 'Scene \u00b7 ' + sn, tip: 'Showing ' + sn + ' to ' + sw + (st.scene.hold === true ? '. It stays up until you close it' : '') + '.' + (typeof st.scene.shut === 'string' && st.scene.shut ? ' ' + st.scene.shut : '') + ' Press to show it again or close it for everyone.' }; }
     if (play && typeof st.preview === 'string' && st.preview !== '' && st.preview !== 'off') {
@@ -54,14 +54,14 @@ function pillsDraw(doc, model) {
 // fogBtn: the toolbar's fog button, which fog.js keeps in step with this map's fog
 function pillsState(w, am, view, fogBtn) {
     var net = w.wpNet || null, fog = w.wpFog || null, vtt = w.wpVtt || null, isMap = !!am && am.type === 'map' && typeof am.id === 'string';
-    var st = { gm: !(net && ((net.active && net.role === 'client') || net.foreign)), play: isMap && view === 'visual', hosting: !!net && ((net.active === true && net.role === 'host') || net.solo === true) };   // 1.6.2: and a fight with no table open
+    var st = { gm: !(net && ((net.active && net.role === 'client') || net.foreign)), play: isMap && view === 'visual', hosting: !!net && net.active === true && net.role === 'host', solo: !!net && net.solo === true };   // 1.6.2: solo, a fight with no table open (the Round pill alone)
     if (fogBtn && vtt && typeof vtt.on === 'function' && vtt.on('fog')) st.fog = fogBtn.classList.contains('fog-on') ? 'on' : 'off';
     var ros = st.hosting && net.roster ? net.roster : {};
     st.players = Object.keys(ros).filter(function(k) { return !!ros[k] && typeof ros[k].id === 'string'; }).length;
     st.paused = st.hosting && net.paused === true;
     st.scene = st.hosting && w.wpScene && typeof w.wpScene.now === 'function' ? w.wpScene.now() : null;   // backlog 181: the scene up, as scene.js says it
     st.trial = !!(w.wpCampSafe && typeof w.wpCampSafe.trialOn === 'function' && w.wpCampSafe.trialOn() === true);   // 1.6.0: a trial run of the campaign on screen
-    var c = !st.hosting || !isMap ? null : typeof w.wpStripFight === 'function' ? w.wpStripFight(am.id) : (typeof net.combatFor === 'function' ? net.combatFor(am.id) : null);   // fold 2 (backlog 152): the fight the strip shows on this map
+    var c = !(st.hosting || st.solo === true) || !isMap ? null : typeof w.wpStripFight === 'function' ? w.wpStripFight(am.id) : (typeof net.combatFor === 'function' ? net.combatFor(am.id) : null);   // fold 2 (backlog 152): the fight the strip shows on this map
     if (c && Array.isArray(c.rows)) { var cur = c.rows[c.turn]; st.round = c.round; st.turn = cur && typeof cur.name === 'string' ? cur.name : ''; }
     st.preview = fog && typeof fog.preview === 'function' ? fog.preview() : 'off';
     if (typeof st.preview === 'string' && st.preview !== 'off' && st.preview !== 'party') Object.keys(ros).forEach(function(k) { if (ros[k] && ros[k].id === st.preview && typeof ros[k].name === 'string') st.previewName = ros[k].name; });

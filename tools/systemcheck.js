@@ -21144,7 +21144,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const scripts = fs.readdirSync(path.join(app, 'scripts')).filter(f => /\.js$/.test(f)).map(f => fs.readFileSync(path.join(app, 'scripts', f), 'latin1')), bare = scripts.reduce((n, t) => n + (t.match(/items: [\w.]+\.items, core: [\w.]+\.core \}/g) || []).length, 0);
         check('1.6.0 tables, the wiring: every partial system a judge is handed carries the tables, or a GM-only table would read as nothing there; the box in the Lists tab, its three handlers and what Save says; its boxes styled as the app\'s own; Help, both release notes and the integration guide say it',
             bare === 0 && ixT.includes('<div id="sysTables" data-topic="tables"></div>') && sh.includes("if (tab === 'rules') renderTables();") && sh.includes('if (onTableInput(t)) return;') && sh.includes('if (onTableChange(t)) return;') && sh.includes('if (tableClick(b)) return;') && sh.includes("if (typeof tableSays === 'function') { var tbSy = tableSays(draft.tables);")
-            && cssT.includes('#sysTables input, #sysTables select { background: var(--panel);') && cssT.includes('.sys-tbl-scroll { overflow: auto;') && ixT.includes('<li><b>Tables</b> hold figures a formula reads by name') && ixT.includes('<code>Table.Metal.by.Row.mat.density</code> finds the row by what the row&rsquo;s choice says')
+            && cssT.includes('#sysTables input, #sysTables select { background: var(--panel);') && cssT.includes('.sys-tbl-scroll { overflow: auto;') && ixT.includes('<li><b>Tables</b> hold figures a formula reads by name') && ixT.includes('<b>Hit die in Classes, by Class</b> finds the row that the character&rsquo;s Class names')
             && wnT.every(t => t.includes('- Tables. A system can keep tables of figures on the Lists tab') && t.includes('Table.Metal.by.Row.mat.density finds the row')) && giT.includes('**Tables (1.6.0):**') && giT.includes('`Table.<table>.by.<name>.<column>`'), J([bare]));
     }
     {   // 1.6.0 A burst (the owner, by prompt: "One press, every hit"): a roll that opens one, its extra dice, the host's record on the row, a damage roll's Hits it rolls for, and the one judge beside the step
@@ -22411,6 +22411,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const ntS = { fields: [{ id: 'f_s', key: 'FirstLevelSlots', label: 'First-level slots', kind: 'resource' }] };
         check('1.6.2 a greyed button tells the GM what it needs in words, never its formula; nothing where it cannot be read (sheets.js needsTip, run for real), and every one of its four places asks it',
             mkNT(ntS)('FirstLevelSlots >= 1') === ' — only while First-level slots is at least 1' && mkNT(ntS)('1 +') === '' && mkNT(ntS)('') === '' && shB.split("isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) :").length === 5, mkNT(ntS)('FirstLevelSlots >= 1'));
+    }
+    {   // 1.6.2, the builder trial (a card game built by hand): a roll you named and left with nothing to roll is said before Save leaves it out
+        const shE = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').split('\r\n').join('\n');
+        check('1.6.2 a named roll with nothing to roll is said under its row, since Save leaves it out; an apply action, a roll nobody has typed in and one with a formula say nothing (sheets.js refreshErrors pinned)',
+            shE.includes("if (!r || typeof r !== 'object' || Array.isArray(r.apply) || typeof r.label !== 'string' || !r.label.trim() || (typeof r.formula === 'string' && r.formula.trim())) return;") && shE.includes("(errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'formula', message: 'It has nothing to roll yet, so Save leaves it out.' });"), '');
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

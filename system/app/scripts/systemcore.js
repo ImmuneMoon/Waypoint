@@ -9392,7 +9392,7 @@ function cardHome(sys, cd) {   // a card leaves a hand, and goes back by its dec
 function deckDefOf(sys, key) { var d = deckOf(sys.decks, key); if (d) return d; try { return _deckSrc ? _deckSrc(key, 'def') : null; } catch (e) { return null; } }
 function cardRow(lf, d, ix, rows) {
     var cD = d.cards[ix], st = {}; (Array.isArray(lf.list.stats) ? lf.list.stats : []).forEach(function(s) { if (!isObj(s) || typeof s.key !== 'string') return; var ds = d.stats.filter(function(x) { return lower(x.key) === lower(s.key) || (!!s.label && lower(x.label) === lower(s.label)); })[0]; if (ds && isObj(cD.vals) && typeof cD.vals[ds.key] === 'number') st[s.key] = cD.vals[ds.key]; });
-    var id = uid('w_'); while (rows.some(function(r) { return rowIdOf(r) === id; })) id = uid('w_'); var rw = { id: id, def: { name: cD.name }, cd: [d.key, ix] }; if (Object.keys(st).length) rw.def.stats = st; return rw;
+    var id = uid('w_'); while (rows.some(function(r) { return rowIdOf(r) === id; })) id = uid('w_'); var rw = { id: id, def: { name: cD.name }, qty: 1, cd: [d.key, ix] }; if (Object.keys(st).length) rw.def.stats = st; return rw;
 }
 function deckRead(sys, rest) {
     var at = rest.indexOf('.'), key = at < 0 ? rest : rest.slice(0, at), w = at < 0 ? '' : rest.slice(at + 1), d = deckOf(sys.decks, key); if (!d) return 0; var c = null; try { c = _deckSrc ? _deckSrc(d.key) : null; } catch (e) { c = null; } c = c && typeof c === 'object' ? c : pileCounts(null, d);

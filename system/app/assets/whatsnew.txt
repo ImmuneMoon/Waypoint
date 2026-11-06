@@ -31,6 +31,11 @@ The System editor
   name. A new column or row takes its short name from the name you give it.
 - A button greyed out by what it needs tells the GM in words, such as only
   while First-level slots is at least 1, never as its formula.
+- A roll you named but left with nothing to roll says so under its row, since
+  Save leaves it out. It used to go at Save without a word.
+- A deck's number takes its short name from the name you first give it, and
+  its cards keep their figures. A card dealt to a hand shows as one card, where
+  it showed a count it did not have.
 - Combat and Rules are tabs of their own now. Everything the Combat card held
   is on the Combat tab, and the budgets, readings, linked sheets and tables
   that stood on the Lists tab are on the Rules tab. Each has its topics down

@@ -8577,6 +8577,10 @@ function refreshErrors() {
             if (!ok) (errorsById[r.id] = errorsById[r.id] || []).push({ prop: k + '.' + i, message: (lf ? 'Every row of ' + (lf.label || lf.key) + ': it has no number stat \u201c' + String(c.s || '') + '\u201d' : 'Every row of: that list is gone') + ', so Save keeps the amount and drops what it changes.' });
         }); });
     });
+    (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {   // 1.6.2 (found building a system by hand): a roll you named but left with nothing to roll is said, since Save leaves it out; one nobody has typed in says nothing
+        if (!r || typeof r !== 'object' || Array.isArray(r.apply) || typeof r.label !== 'string' || !r.label.trim() || (typeof r.formula === 'string' && r.formula.trim())) return;
+        (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'formula', message: 'It has nothing to roll yet, so Save leaves it out.' });
+    });
     v.errors.forEach(function(e) { var eid = e.prop === 'list' ? 'list:' + e.id : e.id; (errorsById[eid] = errorsById[eid] || []).push(e); });   // F4c1: a list's own messages sit under its card in Lists
     v.warnings.forEach(function(w) { var wid = w.prop === 'list' ? 'list:' + w.id : w.id; (warningsById[wid] = warningsById[wid] || []).push(w); });
     var tnE = draft.combat && draft.combat.turn && typeof draft.combat.turn === 'object' ? draft.combat.turn : null, tErr = [];   // turn-based combat T1: what Save drops from the turn rules, under the Combat tab

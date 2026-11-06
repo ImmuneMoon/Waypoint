@@ -156,7 +156,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
             && ix.indexOf('id="combatStrip"') < ix.indexOf('id="trkStrip"') && ix.indexOf('id="trkStrip"') < ix.indexOf('<div id="whiteboardWrap">')
             && ix.indexOf('scripts/timepanel.js') < ix.indexOf('scripts/trackcore.js') && ix.indexOf('scripts/trackcore.js') < ix.indexOf('scripts/trackers.js'));
         check('the form is a floating box by the rules (FLOAT_IDS, Z_BOXES, ESC_LAST with its close button) and the menu is put away by Escape as a right-click menu is (ESC_RIGHT)',
-            /var FLOAT_IDS = \[[^\]]*'trkPanel'\]/.test(floats) && /var Z_BOXES = \[[^\]]*'trkPanel'\]/.test(sheets) && /var ESC_LAST = \[[^\]]*'trkPanel'\]/.test(esc) && /var ESC_RIGHT = \[[^\]]*'trkMenu'\]/.test(esc)
+            /var FLOAT_IDS = \[[^\]]*'trkPanel'\]/.test(floats) && /var Z_BOXES = \[[^\]]*'trkPanel'[,\]]/.test(sheets) && /var ESC_LAST = \[[^\]]*'trkPanel'\]/.test(esc) && /var ESC_RIGHT = \[[^\]]*'trkMenu'\]/.test(esc)
             && esc.includes("trkPanel: function(el) { if (!escPress(doc, 'trkCloseBtn')) el.style.display = 'none'; } };"));
         check('a load and an import clean the trackers and the players they are kept from (io.js, trackcore imported first), the strip follows every render, and the VTT switch Table trackers is the roster\'s last, the GM\'s alone (moved on purpose: the switch the building fold left out)',
             io.includes("import './trackcore.js';") && io.includes("var tkL = TKl && TKl.cleanTrackers ? TKl.cleanTrackers(c.trackers, { maps: tkM }) : []; if (tkL.length) c.trackers = tkL; else delete c.trackers; }")

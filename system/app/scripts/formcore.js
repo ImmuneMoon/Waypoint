@@ -293,9 +293,10 @@ function holds(a, op, b) { return op === '<=' ? a <= b : op === '>=' ? a >= b : 
 function sampleOf(text, vars) {
     var rnd = seeded(1102), n = 0, yes = 0, lo = Infinity, hi = -Infinity, sum = 0, isB = false, t0 = Date.now();
     for (var i = 0; i < TRY_N; i++) {
+        if (typeof vars.fresh === 'function') vars.fresh(rnd);   // 1.6.2: a roll that draws cards first draws them anew for each try
         var r = evalF(text, { vars: vars, random: rnd, bare: true }); if (!r.ok) return null;
         var x = r.value; if (typeof x === 'boolean') { isB = true; if (x) yes++; } else if (typeof x === 'number' && isFinite(x)) { if (x < lo) lo = x; if (x > hi) hi = x; sum += x; } n++;
-        if (i === 0 && !(r.draws && r.draws.length)) break;
+        if (i === 0 && !(r.draws && r.draws.length) && typeof vars.fresh !== 'function') break;
         if (i > 200 && Date.now() - t0 > TRY_MS) break;
     }
     return n ? { isB: isB, share: yes / n, lo: lo, hi: hi, mean: sum / n, dice: n > 1 } : null;
@@ -315,7 +316,7 @@ function rolledWord(d, vars) {   // the dice as a person would say them, with a 
 function tryRoll(form, o) {
     var face = rollFace(form), who = o.who, vars = o.vars, text = write(form), s;
     if (face.kind === 'read') { var rw = rolledWord(face.dice, vars); s = sampleOf(text, vars); return s && rw ? who + ' rolls ' + rw + '. That gives ' + aboutWord(s) + '.' : ''; }
-    if (face.kind === 'else') { s = sampleOf(text, vars); return !s ? '' : s.isB ? who + ' rolls. ' + timesWord(s.share) : who + ' rolls and gets ' + aboutWord(s) + '.'; }
+    if (face.kind === 'else') { var act = typeof vars.drawWord === 'string' && vars.drawWord ? ' ' + vars.drawWord : ' rolls'; s = sampleOf(text, vars); return !s ? '' : s.isB ? who + act + '. ' + timesWord(s.share) : who + act + ' and gets ' + aboutWord(s) + '.'; }
     var d = face.dice, word = rolledWord(d, vars), adds = 0; if (!word) return '';
     for (var i = 1; i < form.steps.length; i++) { var x = figOf({ steps: [{ op: 'start', v: form.steps[i].v }] }, vars); if (x === null) return ''; adds += form.steps[i].op === '-' ? -x : x; }
     var roll = who + ' rolls ' + word + (adds > 0 ? ' and adds ' + fig1(adds) : adds < 0 ? ' and takes off ' + fig1(-adds) : ''), pool = plainPool(d) ? poolOf(diceN(d), d.f.v) : null;

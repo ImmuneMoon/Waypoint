@@ -53,7 +53,8 @@ The System editor
 - A roll that draws a card first can draw several at once, with How many.
   A formula reads every card of the last draw: how many, a number of theirs
   added up, or the highest or lowest of it. So a bag of tokens pulled three at
-  a time is one press.
+  a time is one press. Try it draws them anew for each try, so it says how
+  often the roll works.
 - Combat and Rules are tabs of their own now. Everything the Combat card held
   is on the Combat tab, and the budgets, readings, linked sheets and tables
   that stood on the Lists tab are on the Rules tab. Each has its topics down

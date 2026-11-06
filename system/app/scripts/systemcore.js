@@ -9401,6 +9401,10 @@ function cardRow(lf, d, ix, rows) {
 // 1.6.2 (the builder trial's survey: draw several at once): the cards of the last draw everyone saw, read as how many (Deck.<key>.drawn), a number
 // of theirs added up (.drawn.<stat>), or its highest and lowest (.drawn.high.<stat>, .drawn.low.<stat>). 0 with none
 function drawnVal(d, gt, s) { var how = '', at = s.indexOf('.'); if (at > 0 && (s.slice(0, at) === 'high' || s.slice(0, at) === 'low')) { how = s.slice(0, at); s = s.slice(at + 1); } var vs = gt.map(function(i) { return cardVal(d, i, s); }); if (!vs.length) return 0; return how === 'high' ? Math.max.apply(null, vs) : how === 'low' ? Math.min.apply(null, vs) : vs.reduce(function(a, b) { return a + b; }, 0); }
+// 1.6.2 (found checking draw several by hand): Try it for a roll that draws a card first. Each try draws from the whole deck, shuffled, as many as the
+// roll says, and the names that read the deck read that draw: how many, a number added up, its highest or lowest, and the last card. Nothing is stored
+function deckTrial(sys, roll, rnd) { var dk = isObj(sys) && isObj(roll) && typeof roll.drawFirst === 'string' ? deckOf(sys.decks, roll.drawFirst) : null; if (!dk || !dk.cards.length) return null; var n = typeof roll.drawN === 'number' && roll.drawN >= 2 && roll.drawN <= 20 ? Math.floor(roll.drawN) : 1; return { deck: dk, n: n, cards: drawCards(dk, null, n, rnd, false).cards }; }
+function deckTrialRead(tr, l) { if (!isObj(tr) || !isObj(tr.deck)) return undefined; var pre = 'deck.' + lower(tr.deck.key) + '.', s = lower(l); if (s.indexOf(pre) !== 0) return undefined; var w = s.slice(pre.length), g = Array.isArray(tr.cards) ? tr.cards : []; if (w === 'drawn') return g.length; if (w.slice(0, 6) === 'drawn.') return drawnVal(tr.deck, g, w.slice(6)); if (w.slice(0, 5) === 'last.') return g.length ? cardVal(tr.deck, g[g.length - 1], w.slice(5)) : 0; return undefined; }
 function deckRead(sys, rest) {
     var at = rest.indexOf('.'), key = at < 0 ? rest : rest.slice(0, at), w = at < 0 ? '' : rest.slice(at + 1), d = deckOf(sys.decks, key); if (!d) return 0; var c = null; try { c = _deckSrc ? _deckSrc(d.key) : null; } catch (e) { c = null; } c = c && typeof c === 'object' ? c : pileCounts(null, d);
     var gtR = Array.isArray(c.got) ? c.got : []; if (w === 'drawn') return gtR.length; if (w.slice(0, 6) === 'drawn.') return drawnVal(d, gtR, w.slice(6));   // 1.6.2 (draw several at once)
@@ -13423,3 +13427,4 @@ export { cleanLock, lockCells, lockTouches, rowLockHit, LOCK_MAX, cleanLay, layW
 export { revRowWords, revRows };   // 1.6.0: what a Review line says of a list; a reader's file for a player
 export { cleanTables, tableKeyOk, tableParts, tableRead, tableFam, tableRowOf, TABLE_KEY, TABLE_ROW_KEY, nameFold };   // 1.6.0: a system's tables
 export { onOther };   // 1.6.2: Applies to someone else, near or their target
+export { deckTrial, deckTrialRead, drawnVal };   // 1.6.2: Try it draws for a roll that draws first

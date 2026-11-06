@@ -1499,19 +1499,35 @@ import * as TagCore from './imgtagcore.js';   // 1.6.0 backlog 34: the Image Lib
      tokens and hex shapes become exactly one cell; anything else rounds to
      whole columns/rows of cells and centres on a cell. Square grids — width,
      height and position round to the 50px lattice. */
-  function fitItemInPlace(it, g) {
-    var ox = it.x, oy = it.y, ow = it.w, oh = it.h;
+  // [lookcheck:fitpic-start]
+  // A picture is drawn whole inside its box (object-fit: contain), so a box of other proportions shows it in its middle. Fit to grid sizes a
+  // picture by the part it shows (the owner's recording, 2026-11-06: a near-square picture of 74 by 76 was given one cell by two, rounded each
+  // way apart, and was drawn half a cell off). ratio: the picture's own width over its height, 0 where it is not known: the box as before
+  function fitShown(it, ratio) {
+      var w = it.w || 100, h = it.h || 100;
+      if (!(ratio > 0) || !isFinite(ratio)) return { x: it.x, y: it.y, w: w, h: h };
+      var vw = Math.min(w, h * ratio), vh = vw / ratio;
+      return { x: it.x + (w - vw) / 2, y: it.y + (h - vh) / 2, w: vw, h: vh };
+  }
+  function fitPicRatio(it) {
+      if (!it || it.type !== 'image' || typeof it.id !== 'string' || !it.id || typeof document === 'undefined') return 0;
+      var q = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(it.id) : it.id.replace(/[^\w-]/g, ''), img = document.querySelector('.wb-item[data-id="' + q + '"] img');
+      return img && img.naturalWidth > 0 && img.naturalHeight > 0 ? img.naturalWidth / img.naturalHeight : 0;
+  }
+  // [lookcheck:fitpic-end]
+  function fitItemInPlace(it, g, ratio) {
+    var ox = it.x, oy = it.y, ow = it.w, oh = it.h, sh = fitShown(it, ratio === undefined ? fitPicRatio(it) : ratio);
     if (g === 'hex') {
         if (it.isChar || it.type === 'hexagon' || it.shape === 'hexagon') { it.w = 60; it.h = 52; }
         else {
-            var rows = Math.max(1, Math.round((it.h || 100) / 52)), cols = Math.max(1, Math.round(((it.w || 100) - 15) / 45));
-            it.w = cols * 45 + 15; it.h = rows * 52;
+            var rows = Math.max(1, Math.round(sh.h / 52)), cols = Math.max(1, Math.round((sh.w - 15) / 45));
+            it.x = sh.x; it.y = sh.y; it.w = cols * 45 + 15; it.h = rows * 52;
         }
         if (window.wpSeatHex) window.wpSeatHex(it, null, true);
     } else {
-        it.w = Math.max(50, Math.round((it.w || 100) / 50) * 50);
-        it.h = Math.max(50, Math.round((it.h || 100) / 50) * 50);
-        it.x = Math.round(it.x / 50) * 50; it.y = Math.round(it.y / 50) * 50;
+        it.w = Math.max(50, Math.round(sh.w / 50) * 50);
+        it.h = Math.max(50, Math.round(sh.h / 50) * 50);
+        it.x = Math.round(sh.x / 50) * 50; it.y = Math.round(sh.y / 50) * 50;
     }
     return Math.abs(it.x - ox) > 0.01 || Math.abs(it.y - oy) > 0.01 || Math.abs(it.w - ow) > 0.01 || Math.abs(it.h - oh) > 0.01;
 }
@@ -1523,7 +1539,7 @@ function fitWouldChange(its) {
         var it = its[i];
         if (!it || it.locked || it.type === 'path') continue;
         var cl = { x: it.x, y: it.y, w: it.w, h: it.h, isChar: it.isChar, waiting: it.waiting, type: it.type, shape: it.shape, src: it.src };
-        var moved = fitItemInPlace(cl, g);
+        var moved = fitItemInPlace(cl, g, fitPicRatio(it));
         if (moved || (window.wpSystemCore && window.wpSystemCore.shapeStandIn && window.wpSystemCore.shapeStandIn(cl, getActiveMap()))) return true;   // it would move or resize, or once fitted take the cell's shape
     }
     return false;

@@ -392,7 +392,9 @@ Around the app
   each character token there has its name under it.
 - The Image Library's how-to is folded behind How it works in its head.
 - A handbook page's bar keeps Import and Appearance together when it wraps.
-- Character tokens stand over the grid's lines. So does a drawing that is no
+- Character tokens stand over the grid's lines.
+- Fit to grid sizes a picture by the picture it shows. A square picture in a
+  box one cell by two was drawn half a cell off. It now gets one cell. So does a drawing that is no
   part of the map, such as an arrow or a mark, and anything you placed on a
   layer above the tokens, so nothing you stacked by hand changes order. A wall,
   a door, a filled area and a textured drawing stay under the lines.

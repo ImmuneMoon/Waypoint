@@ -3762,5 +3762,14 @@ check('the roster numbers rows of one name, and the sheet that says it is out of
         && n1 === 2 && n2 === 2 && again && layer.id === 'streamNames' && J(labels) === J([['stream-name', 'Kael', '130px', '155px'], ['stream-name', '<b>Bo</b>', '330px', '155px']])
         && count(ix, '<span id="streamFight" class="stream-fight" hidden') === 1, J([w, labels]));
 }
+{   // 1.6.2 (the owner's recording, 2026-11-06): Fit to grid sizes a picture by the part it shows, so a near-square picture is one cell
+    const wbF = read('scripts/whiteboard.js'), fA = wbF.indexOf('  // [lookcheck:fitpic-start]'), fB = wbF.indexOf('// Would fitToGrid change anything');
+    const FF = new Function('window', wbF.slice(fA, fB) + '\nreturn { fitShown, fitItemInPlace, fitPicRatio };')({});
+    const run = (it, g, r) => { const c = Object.assign({}, it); const ch = FF.fitItemInPlace(c, g, r); return [c.x, c.y, c.w, c.h, ch]; };
+    const R = [run({ type: 'image', x: 15250, y: 15100, w: 50, h: 100 }, 'square', 1), run({ type: 'image', x: 15240, y: 15090, w: 74, h: 76 }, 'square', 1), run({ type: 'image', x: 0, y: 0, w: 74, h: 76 }, 'square', 0),
+        run({ type: 'image', x: 0, y: 0, w: 300, h: 300 }, 'square', 2), run({ type: 'image', x: 15250, y: 15150, w: 50, h: 50 }, 'square', 1), run({ type: 'rect', x: 0, y: 0, w: 74, h: 76 }, 'square', undefined), FF.fitPicRatio({ type: 'image', id: 'x' })];
+    check('Fit to grid sizes a picture by the part it shows (1.6.2, the owner\'s recording of 2026-11-06: a square picture in a box of one cell by two was drawn half a cell off; whiteboard.js fitShown and fitItemInPlace, run for real): a square picture in a 50 by 100 box fitted to one cell where it shows, a 74 by 76 box to one cell, the box as before where the picture\'s shape is not known, a wide picture by its own shape, one already in its cell left as it is, and a shape that is no picture as before',
+        J(R) === J([[15250, 15150, 50, 50, true], [15250, 15100, 50, 50, true], [0, 0, 50, 100, true], [0, 100, 300, 150, true], [15250, 15150, 50, 50, false], [0, 0, 50, 100, true], 0]), J(R));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

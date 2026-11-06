@@ -26,6 +26,11 @@ The System editor
   a box names the part in words, never by its name in the file.
 - A sheet opened in a campaign with no character system says so, and offers
   the GM the System editor. It used to close without a word.
+- A formula's form offers your tables. Each column comes read by what finds
+  its row, such as Hit die in Classes, by Class, so you never type a table's
+  name. A new column or row takes its short name from the name you give it.
+- A button greyed out by what it needs tells the GM in words, such as only
+  while First-level slots is at least 1, never as its formula.
 - Combat and Rules are tabs of their own now. Everything the Combat card held
   is on the Combat tab, and the budgets, readings, linked sheets and tables
   that stood on the Lists tab are on the Rules tab. Each has its topics down

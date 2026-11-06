@@ -2454,12 +2454,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           </li>
                           <li><b>Tables</b> hold figures a formula reads by name, such as a metal&rsquo;s density and price. You set them up on the <b data-ctl="sys-tab:rules">Rules</b> tab.
                               <ul>
-                                  <li>A table has a key, columns and rows. Each row has a key, a name and a figure in each column.</li>
-                                  <li><code>Table.Metal.Steel.density</code> reads one figure. A row or a column that is not there reads 0, and the editor warns you.</li>
-                                  <li><code>Table.Metal.by.Row.mat.density</code> finds the row by what the row&rsquo;s choice says, so one short formula serves every metal. A list put in another order changes nothing.</li>
-                                  <li>A row is found by its key or its name, ignoring case and anything that is no letter or digit. So a choice that says Mild Steel finds the row MildSteel.</li>
-                                  <li>The word after <code>by</code> may be a text field, a list field, a number with value names, a row&rsquo;s choice, <code>Host.mat</code> or <code>Row.parts.mat</code>.</li>
-                                  <li>A row may also hold a range, <b>From</b> and <b>To</b>. Then a number after <code>by</code> finds the row whose range holds it, as a chart in a book is read.</li>
+                                  <li>A table has columns and rows. Each row has a name and a figure in each column.</li>
+                                  <li>A formula&rsquo;s form offers each table&rsquo;s columns, read by what finds the row. <b>Hit die in Classes, by Class</b> finds the row that the character&rsquo;s Class names, so one formula serves every class. A small table offers each figure too.</li>
+                                  <li>A row is found by its name, ignoring case and anything that is no letter or digit. So a choice that says Mild Steel finds the row Mild-Steel. A row or a column that is not there reads 0, and the editor warns you.</li>
+                                  <li>What finds the row may be a choice, a number with value names, a row&rsquo;s own choice, or what its host row picked.</li>
+                                  <li>A row may also hold a range, <b>From</b> and <b>To</b>. Then a number finds the row whose range holds it, as a chart in a book is read. So <b>First in Spell slots, by Level</b> reads the row whose range holds the character&rsquo;s Level.</li>
                                   <li>A row that answers one number has the same From and To. The editor warns where two ranges overlap or leave a gap.</li>
                                   <li><b>Who reads it</b> keeps a table from your players. A formula that reads it is then GM only too.</li>
                               </ul>

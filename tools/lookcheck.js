@@ -3615,7 +3615,7 @@ check('a card that names its character says so on its button and hands that char
     && rootRead('system/app/scripts/net.js').includes('SQ.dmgOnSelf(fullQ || actQ, q.att)) recQ.dmgOn = chQ.id;') && rootRead('system/app/scripts/net.js').includes('SC().dmgOnSelf(entR, o.att)) rec.dmgOn = o.charId;'));
 
 check('a greyed roll, action or switch says its own words to a player and never its formula, which the GM still reads',
-    rootRead('system/app/scripts/sheets.js').split("(r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : ' \\u2014 it needs ' + r.needs);").length === 5
+    rootRead('system/app/scripts/sheets.js').split("(r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : ' \\u2014 it needs ' + r.needs);").length === 5
     && rootRead('system/app/scripts/sheets.js').split("var swW = typeof isClient === 'function' && isClient() ? (S.needsText || 'Not now') :").length === 3);
 
 check('the roster numbers rows of one name, and the sheet that says it is out of date offers Mark all current where more than one is',

@@ -22392,6 +22392,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && fs.readFileSync(path.join(app, 'index.html'), 'utf8').includes('Drag the corner handle to resize. With Snap on to the grid it sizes by whole cells, and Lock proportions keeps the shape as near as whole cells allow.')
             && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('With Snap on to the grid, the corner handle sizes a piece by whole cells. Lock')), j([on, steps, lkS]));
     }
+    {   // 1.6.2, the builder trial (a class-and-level system built by hand): a table reached from the form, said in words, its new parts named by what you call them, and a greyed button's needs said in words
+        const sysT = { fields: [{ id: 'f_1', key: 'Level', label: 'Level', kind: 'number' }, { id: 'f_2', key: 'Class', label: 'Class', kind: 'select', options: ['Fighter', 'Wizard'] }, { id: 'f_3', key: 'Notes', label: 'Notes', kind: 'text' }],
+            tables: [{ key: 'Classes', label: 'Classes', cols: [{ key: 'HitDie', label: 'Hit die' }], rows: [{ key: 'Fighter', vals: { HitDie: 10 } }, { key: 'Wizard', vals: { HitDie: 6 } }] },
+                     { key: 'Slots', label: 'Spell slots', cols: [{ key: 'First', label: 'First' }], rows: [{ key: 'L1', label: 'Level 1', lo: 1, hi: 1, vals: { First: 2 } }, { key: 'L2', lo: 2, hi: 20, vals: { First: 3 } }] }] };
+        const gT = S.readsOf(sysT, {}).filter(x => x.name === 'Tables')[0], sT = gT ? gT.items.map(x => x.s) : [], lT = gT ? gT.items.map(x => x.label) : [];
+        check('1.6.2 the form offers a table\'s columns, each read by what finds its row: a choice whose options name its rows, and a number for a table read by ranges, the one its rows name first; a small table\'s cells too; never a text field', !!gT
+            && sT.indexOf('Table.Classes.by.Class.HitDie') === 0 && sT.indexOf('Table.Slots.by.Level.First') > 0 && sT.indexOf('Table.Classes.Fighter.HitDie') > 0 && !sT.some(x => /Notes|by\.Level\.HitDie|by\.Class\.First/.test(x))
+            && lT[0] === 'Hit die in Classes, by Class' && lT.indexOf('First of Level 1 in Spell slots') > 0, j(gT));
+        check('1.6.2 a table read is said in words: its column, its table and what finds the row, or the row itself; a table the system does not hold, and a system with none, as before',
+            S.nameWord(sysT, 'Table.Classes.by.Class.HitDie') === 'Hit die in Classes, by Class' && S.nameWord(sysT, 'Table.Slots.L2.First') === 'First of L2 in Spell slots' && S.nameWord(sysT, 'Table.Gone.x.y') === S.nameWord({ fields: [] }, 'Table.Gone.x.y')
+            && S.readsOf({ fields: sysT.fields.slice(0, 3) }, {}).every(x => x.name !== 'Tables') && S.readsOf(sysT, { only: ['Level'] }).every(x => x.name !== 'Tables'), j([S.nameWord(sysT, 'Table.Slots.L2.First'), S.nameWord(sysT, 'Table.Gone.x.y')]));
+        const shB = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').split('\r\n').join('\n');
+        check('1.6.2 a new table column starts with no name, and a column\'s or row\'s stand-in short name follows the name given to it, as a new table\'s does (sheets.js pinned)',
+            shB.includes("var ck = tableFresh(cols, 'col'); cols.push({ key: ck, label: '' }); }") && shB.includes("if ((!c.label || String(c.label).toLowerCase() === ck.value.toLowerCase()) && /^(value|col[0-9]+)$/.test(ck.value)) ck.dataset.follow = '1';") && shB.includes("if (!r.label && /^row[0-9]+$/.test(rk.value)) rk.dataset.follow = '1';"), '');
+        const ntA = shB.indexOf('function needsTip(text) {'), ntB = shB.indexOf('\nfunction sheetFault(', ntA);
+        const FCm = await import(url('formcore.js')), mkNT = sy => new Function('window', 'systemOf', 'getActiveCampaign', 'nameWord', shB.slice(ntA, ntB) + '\nreturn needsTip;')({ wpFormCore: FCm }, () => sy, () => null, S.nameWord);
+        const ntS = { fields: [{ id: 'f_s', key: 'FirstLevelSlots', label: 'First-level slots', kind: 'resource' }] };
+        check('1.6.2 a greyed button tells the GM what it needs in words, never its formula; nothing where it cannot be read (sheets.js needsTip, run for real), and every one of its four places asks it',
+            mkNT(ntS)('FirstLevelSlots >= 1') === ' — only while First-level slots is at least 1' && mkNT(ntS)('1 +') === '' && mkNT(ntS)('') === '' && shB.split("isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) :").length === 5, mkNT(ntS)('FirstLevelSlots >= 1'));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -11524,6 +11524,8 @@ function nameWord(sys, name, rowSpec) {
     if (NAME_WORDS[l]) return NAME_WORDS[l];
     if (l.length > 4 && l.indexOf('ask.') === 0) { var ak0 = askFind(sys, l.slice(4)); return ak0 ? 'their answer to \u201c' + ak0.label + '\u201d' : 'their answer'; }   // 1.6.2
     if ((l === 'money' || l.slice(0, 6) === 'money.') && !ix.money && moneyBoxes(sys).length) { if (l === 'money') return 'the money they hold'; var cuW = moneyCurNamed(sys, l.slice(6)); if (!cuW && l === 'money.weight') return 'what the money they hold weighs'; return (cuW ? cuW.label : humanName(s.slice(6))) + ' they hold'; }   // 157 M1
+    var tpW = l.indexOf('table.') === 0 && tableFam(sys, ix) ? tableParts(l) : null;   // 1.6.2 (found building a system by hand): a table read in words, its column, its table, and what finds the row
+    if (tpW) { var ttW = (Array.isArray(sys.tables) ? sys.tables : []).filter(function(t) { return isObj(t) && typeof t.key === 'string' && lower(t.key) === tpW.k; })[0]; if (ttW) { var tcW = (Array.isArray(ttW.cols) ? ttW.cols : []).filter(function(c) { return isObj(c) && lower(c.key) === tpW.col; })[0], cW = tcW ? (tcW.label || tcW.key) : humanName(tpW.col), tW = ttW.label || ttW.key; if (tpW.by !== undefined) return cW + ' in ' + tW + ', by ' + nameWord(sys, tpW.by, rowSpec); var trW = tableRowOf(ttW, tpW.row); return cW + ' of ' + (trW ? trW.label || trW.key : humanName(tpW.row)) + ' in ' + tW; } }
     if (l.length > 4 && l.indexOf('env.') === 0 && !ix.env) { var enW = (Array.isArray(sys.env) ? sys.env : []).filter(function(e) { return isObj(e) && typeof e.key === 'string' && lower(e.key) === l.slice(4); })[0]; return (enW ? lower(String(enW.label || enW.key)) : 'a reading') + ' where it goes off'; }   // 1.6.2: an Environment reading a blast reads
     var p = s.split('.'), fam = lower(p[0]), rest = p.slice(1), one = rest.join('.'), held = function() { var f = ix[lower(one)]; return f ? fieldWord(f) : humanName(one); };
     if (rest.length && !ix[fam]) {
@@ -11608,6 +11610,20 @@ function readsOf(sys, ctx) {
     if (r && Array.isArray(r.asks) && !ctx.only) group('What they answered', r.asks.filter(function(a) { return isObj(a) && typeof a.key === 'string' && a.key; }).map(function(a) { return 'Ask.' + a.key; }));   // 1.6.2
     if (Array.isArray(ctx.more) && ctx.more.length) group('For this', ctx.more);
     group('This character', me);
+    if (!ctx.only && tableFam(sys, ix) && Array.isArray(sys.tables)) (function() {   // 1.6.2 (found building a system by hand): a table's columns, each read by what finds its row, so no one types a table's name
+        var tn = []; sys.tables.forEach(function(t) {
+            if (!isObj(t) || typeof t.key !== 'string' || !t.key || !Array.isArray(t.cols) || tn.length >= 120) return;
+            var cs = t.cols.filter(function(c) { return isObj(c) && typeof c.key === 'string' && c.key; }), rs = Array.isArray(t.rows) ? t.rows.filter(isObj) : [], ranged = tableRanged(t), by = [];
+            var rw = rs.map(function(r) { return ' ' + lower(String(r.label || r.key || '')).replace(/[^a-z0-9]+/g, ' ') + ' '; }).join('|'), named = function(f) { if (!isObj(f)) return false; var w = lower(String(f.label || f.key)).replace(/[^a-z0-9]+/g, ' ').trim(); return !!w && rw.indexOf(' ' + w + ' ') >= 0; };   // a value the rows name (Level 1 names Level) comes first
+            sys.fields.filter(named).concat(sys.fields.filter(function(f) { return !named(f); })).forEach(function(f) {
+                if (!isObj(f) || typeof f.key !== 'string' || !f.key || f.key.indexOf('.') >= 0 || by.length >= 6) return;
+                if (ranged ? NUMERIC[f.kind] : (f.kind === 'select' && (Array.isArray(f.options) ? f.options : []).some(function(o) { return !!tableRowOf(t, typeof o === 'string' ? o : isObj(o) ? o.label : ''); }))) by.push(f.key);
+            });
+            if (isObj(ctx.list)) ['stats'].forEach(function(k) { (Array.isArray(ctx.list[k]) ? ctx.list[k] : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string' && x.key && by.length < 8 && (ranged ? x.kind !== 'pick' : x.kind === 'pick')) by.push('Row.' + x.key); }); });
+            cs.forEach(function(c) { by.forEach(function(b) { tn.push('Table.' + t.key + '.by.' + b + '.' + c.key); }); if (rs.length * cs.length <= 24) rs.forEach(function(r) { if (typeof r.key === 'string' && r.key) tn.push('Table.' + t.key + '.' + r.key + '.' + c.key); }); });
+        });
+        group('Tables', tn.slice(0, 120));
+    })();
     if (!ix.deck) group('Decks', [].concat.apply([], (Array.isArray(sys.decks) ? sys.decks : []).filter(function(v) { return isObj(v) && typeof v.key === 'string'; }).map(function(v) { return ['Deck.' + v.key + '.left', 'Deck.' + v.key + '.discard'].concat((Array.isArray(v.stats) ? v.stats : []).map(function(s) { return 'Deck.' + v.key + '.last.' + s.key; })); })));   // 1.6.2 (G9)
     if (!ix.money && !linkByKey(sys).money && !groupByKey(sys).money && moneyBoxes(sys).length) group('Money', ['Money'].concat(moneyCurs(sys).map(function(c) { return 'Money.' + c.key; })).concat(moneyCurs(sys).some(function(c) { return c.kind === 'physical' && typeof c.weight === 'number'; }) && !moneyCurNamed(sys, 'weight') ? ['Money.weight'] : []));   // 157 M1
     if (!ix.shared) group('The table', (Array.isArray(sys.values) ? sys.values : []).filter(function(v) { return isObj(v) && typeof v.key === 'string'; }).map(function(v) { return 'Shared.' + v.key; }));   // 1.6.2 (G8)

@@ -68,6 +68,10 @@ The System editor
 - A field's On the sheet is now two groups. How it shows stays open. Units
   and figures stays folded and names what is set in it, such as yd, 1,000s.
   Work out every field sits at its own width.
+- The Formula kind is now Derived, a figure worked out from others: a
+  modifier, a secondary attribute, a derived stat. Searching any of those
+  words in the field list finds it.
+- + List on the Lists tab makes an item list there, named on its own card.
 - Combat and Rules are tabs of their own now. Everything the Combat card held
   is on the Combat tab, and the budgets, readings, linked sheets and tables
   that stood on the Lists tab are on the Rules tab. Each has its topics down

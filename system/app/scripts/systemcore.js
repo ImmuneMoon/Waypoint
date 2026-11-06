@@ -13255,7 +13255,10 @@ function secretFieldIds(sys, F) {
     return out;
 }
 // The system's initiative roll (the one flagged init) or null
-function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
+function initRoll(sys) {   // 1.6.2 (backlog 59): the roll that orders a fight, the stand-in that reads a fixed figure, or none where the GM sets the numbers
+    var irB = sys && isObj(sys.combat) && isObj(sys.combat.initiative) ? sys.combat.initiative : null; if (irB && irB.by === 'gm') return null;
+    if (irB && irB.by === 'figure') { var fgF = (Array.isArray(sys.fields) ? sys.fields : []).filter(function(x) { return isObj(x) && x.id === irB.fig; })[0]; return fgF && typeof fgF.key === 'string' && fgF.key ? { id: '_initfig', label: fgF.label || fgF.key, formula: fgF.key, init: true, vis: fgF.vis === 'gm' ? 'gm' : 'all' } : null; }
+    if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
 // Initiative & turn order O1 (docs/TURN_ORDER_PLAN.md): a combat's rows by initiative, high to low; a new array. O2 (the owner's note: 3d6
 // systems order by Basic Speed and roll only to settle ties, d20 systems roll and roll again for ties): tie (initTie) breaks equal
 // initiatives step by step — a value step puts the higher first (none: after those that have one); a roll step rolls only for the rows
@@ -13329,6 +13332,7 @@ function cleanInitRules(v, F) {
     var out = {}, ties = [];
     (Array.isArray(v.ties) ? v.ties : []).forEach(function(t) { if (ties.length >= LIMITS.initTies) return; var ft = cleanFormulaText(t), pt = ft && F && typeof F.parse === 'function' ? F.parse(ft) : null; if (pt && pt.ok && pt.ast) ties.push(ft); });
     if (ties.length) out.ties = ties;
+    if (v.by === 'gm') out.by = 'gm'; else if (v.by === 'figure' && typeof v.fig === 'string' && /^[A-Za-z0-9_]{1,80}$/.test(v.fig)) { out.by = 'figure'; out.fig = v.fig; }   // 1.6.2 (backlog 59; the owner: "A turn-order method, not just a roll"): a fixed figure of the sheet with no roll, or numbers the GM sets
     if (v.every === true) out.every = true;   // initiative O4: the initiative roll made again at every new round
     if (v.chosen === true) out.chosen = true;   // initiative O5: Next is chosen, true only (a third order: it takes the sides' place)
     var sd = cleanFormulaText(v.side), ps = sd && F && typeof F.parse === 'function' ? F.parse(sd) : null;   // ... and the sides' roll, which reads no one's values (a side rolls it, never one character)

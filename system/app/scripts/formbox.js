@@ -293,7 +293,7 @@ function rollInto(host, o) {
     if (now === 'read') { var dr = face.dice, qd = qInto(host, 'What do they roll?', 'One handful. Every line below reads these same dice.'); diceInto(qd, dr, function(x) { f.steps[0].v.dice[0].steps[0].v = x; }, 'f0v'); readInto(qInto(host, 'What do you read from them?', 'The card shows each one in words.'), f.steps[0].v, face.group); return; }
     var d = f.steps[0].v, q = qInto(host, 'What do they roll?', 'The dice ' + who + ' throws.');
     diceInto(q, d, function(x) { f.steps[0].v = x; }, 'f0v');
-    addsInto(q, f, 1, '+ Add a figure', 'fa');
+    addsInto(q, f, 1, now === 'hits' ? '+ Add to the hits' : '+ Add a figure', 'fa');   // 1.6.2 (the builder trial): a figure Count hits adds is hits
     if (now === 'beat') { var qb = qInto(host, 'What must they beat?', BEAT_SAY[f.check.op] || ''); targetInto(qb, f.check, 'ck'); }
     else if (now === 'hits') {
         var qh = qInto(host, 'What counts as a hit?', 'Each die that reaches this counts as one hit.'), lh = el('div', 'fb-step'), ho = sel('fb-sel', [['>=', 'At least'], ['<=', 'At most']], d.cs.op); ho.dataset.p = 'hc'; ho.setAttribute('aria-label', 'What a die must reach');

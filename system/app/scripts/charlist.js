@@ -55,7 +55,7 @@ function charDraw(doc, box, model, gm, open) {
         return d;
     };
     var n = model.players.length + model.npcs.length;
-    if (!n) { if (gm) box.appendChild(el('div', 'nav-empty', 'No characters yet. Press + above to make a sheet, or right-click a token.')); return 0; }
+    if (!n) { if (gm) box.appendChild(el('div', 'nav-empty', model.noSys ? 'No character sheets yet. Set them up first: the Campaign menu, then System.' : 'No characters yet. Press + above to make a sheet, or right-click a token.')); return 0; }   // 1.6.2 (the builder trial): a campaign with no system says where it is set up
     if (gm && model.players.length) box.appendChild(el('div', 'ch-sub', 'Players'));
     model.players.forEach(function(r) { box.appendChild(rowOf(r)); });
     if (gm && model.npcs.length) {
@@ -129,9 +129,9 @@ function sync() {
     var box = document.getElementById('charNavList'), sec = box && box.closest ? box.closest('.sidebar-section') : null, rb = document.getElementById('railCharacters'); if (!box || !sec) { panelJudge(0); return 0; }
     var camp = getActiveCampaign(), S = sheets(), client = foreign(), n = window.wpNet, me = client ? String((n && n.myId) || '\u0000') : '';
     var on = !!camp && !!S && !window.wpStream && (!window.wpVtt || !!window.wpVtt.on('sheets'));
-    var model = on ? charPlaces(charRowsOf(camp.chars, namesOf(camp), me), camp.items, camp.activeItemId, !client) : { players: [], npcs: [] }, count = model.players.length + model.npcs.length, show = on && (!client || count > 0);
+    var model = on ? charPlaces(charRowsOf(camp.chars, namesOf(camp), me), camp.items, camp.activeItemId, !client) : { players: [], npcs: [] }, count = model.players.length + model.npcs.length, show = on && (!client || count > 0); if (on && !client) model.noSys = !(camp.system && Array.isArray(camp.system.fields) && camp.system.fields.length);
     sec.hidden = !show; if (rb) rb.hidden = !show;
-    var sig = show ? charSig(model, !client, _open) : '';
+    var sig = show ? charSig(model, !client, _open) + (model.noSys ? '|nosys' : '') : '';
     if (sig !== _sig) { _sig = sig; if (show) { var KP = typeof window !== 'undefined' ? window.wpKeepPlace : null, dr = function() { charDraw(document, box, model, !client, _open); }; if (typeof KP === 'function') KP(box, dr); else dr(); } else while (box.firstChild) box.removeChild(box.firstChild); }
     panelJudge(show ? count : 0);   // what a player's panel holds is judged wherever the count is known: a character that arrives reaches only this (render)
     return show ? count : 0;

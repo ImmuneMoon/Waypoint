@@ -9310,7 +9310,7 @@ function rollRow(r) {
     row.appendChild(top);
     var ndR = el('div', 'sys-flags sys-roll-needsrow');   // 1.5.4: what it needs before it may be used, as a list roll's
     var ndI = input('sys-roll-needs field', typeof r.needs === 'string' ? r.needs : '', (isApply ? 'Pressed' : 'Rolled') + ' only while this formula is true for the character, such as Bleeding > 0. It may not hold dice. Leave it empty to ' + (isApply ? 'press' : 'roll') + ' at any time. By the clock and in a fight it is passed over while it is not met.', 'Needs, such as Bleeding > 0'); ndI.maxLength = LIMITS.formula; ndR.appendChild(ndI);
-    var ndT = input('sys-roll-needstext field', typeof r.needsText === 'string' ? r.needsText : '', 'What the greyed button says when it cannot be used', 'Not while stunned'); ndT.maxLength = LIMITS.needsWords; ndR.appendChild(ndT);
+    var ndT = input('sys-roll-needstext field', typeof r.needsText === 'string' ? r.needsText : '', 'What the greyed button says when it cannot be used', 'Words for the greyed button'); ndT.maxLength = LIMITS.needsWords; ndR.appendChild(ndT);
     if (typeof checkLabel === 'function') ndR.appendChild(checkLabel('sys-roll-hideoff', r.hideOff === true, 'Hidden until it can be used', 'The button stands on the sheet only while its needs hold. Off: it stays there, greyed out. Only beside needs'));   // 1.6.0
     row.appendChild(ndR);
     row.appendChild(everyRow(r));   // item 20 K5: by the campaign's clock
@@ -11177,7 +11177,7 @@ function tableSays(tables) {
     (Array.isArray(tables) ? tables : []).forEach(function(t, i) {
         if (!t || typeof t !== 'object') return;
         var nm = 'Table ' + (i + 1); if (kept >= LIMITS.tables) { say(nm + ': at most ' + LIMITS.tables + ' tables. Save drops it.'); return; }
-        var key = tableKeyOk(t.key, TABLE_KEY); if (!key) { say(nm + ': ' + KEYS + '. Save drops it.'); return; }
+        var key = tableKeyOk(t.key, TABLE_KEY); if (!key) { say(nm + ': ' + (!(typeof t.key === 'string' && t.key.trim()) && !(typeof t.label === 'string' && t.label.trim()) ? 'it needs a name. Until it has one, Save drops it.' : KEYS + '. Save drops it.')); return; }
         if (seen[key.toLowerCase()]) { say(nm + ': another table has the key ' + key + '. Save drops it.'); return; }
         var cs = Object.create(null), kc = [], rs = Object.create(null), rn = 0;
         (Array.isArray(t.cols) ? t.cols : []).forEach(function(c, j) {
@@ -14152,8 +14152,8 @@ function runTest() {
     if (!draft || !F()) return;
     var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) return;
     var all = resolveAll(clean, null, F()), out = ui('sysTestOut'); out.textContent = '';
-    clean.fields.forEach(function(f) { var e = all[f.id]; var line = el('div', 'sys-test-line' + (e.error ? ' sys-err-line' : '')); line.textContent = f.key + ' = ' + (e.error ? 'error: ' + e.error : e.text); out.appendChild(line); });
-    if (!clean.fields.length) out.appendChild(el('div', 'sys-note', 'Nothing to compute yet.'));
+    clean.fields.forEach(function(f) { var e = all[f.id]; var line = el('div', 'sys-test-line' + (e.error ? ' sys-err-line' : '')); line.textContent = (f.label || f.key) + ': ' + (e.error ? (typeof plainMessage === 'function' ? plainMessage(e.error) : e.error) : e.text); out.appendChild(line); });
+    if (!clean.fields.length) out.appendChild(el('div', 'sys-note', 'There is no field to work out yet.'));
 }
 function startFrom(id) {
     if (!draft) return;

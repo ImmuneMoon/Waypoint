@@ -55,6 +55,13 @@ The System editor
   added up, or the highest or lowest of it. So a bag of tokens pulled three at
   a time is one press. Try it draws them anew for each try, so it says how
   often the roll works.
+- Small things found building systems by hand. A roll that counts hits says
+  1 hit or 3 hits on its card. A pool's most reads as Hit Points when full.
+  A table not yet named says it needs a name. Work out every field, at the
+  foot of the Fields tab, names each field by its name. An empty campaign's
+  Characters say where its sheets are set up. The add buttons for a question
+  and a card action sit at their own width, and Short names stays put in the
+  foot.
 - Combat and Rules are tabs of their own now. Everything the Combat card held
   is on the Combat tab, and the budgets, readings, linked sheets and tables
   that stood on the Lists tab are on the Rules tab. Each has its topics down

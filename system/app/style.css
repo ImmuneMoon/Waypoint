@@ -3848,6 +3848,7 @@
   #systemModal:not(.sys-show-keys) .sys-tbl-grid tr > :first-child { display: none; }
   #systemModal:not(.sys-show-keys) .sys-pick-key { display: none; }
   .sys-keysw { display: inline-flex; gap: 5px; align-items: center; font-size: 11px; color: var(--dim); margin-left: 10px; }
+  .sys-foot > .sys-keysw { order: -1; margin-left: 0; margin-right: 6px; }   /* 1.6.2 (the builder trial): first in the foot, so the count beside it never moves it */
   .sys-init-tiew { display: block; flex: 1 1 100%; }
   .sys-init-sidew { display: flex; flex: 1 1 100%; flex-wrap: wrap; gap: 6px; align-items: center; }
   /* Items tab (Stage 5): the campaign item library + the combat/blast settings */
@@ -4010,6 +4011,8 @@
   .sys-ask-note { color: var(--gold); font-size: 12px; }
   .sys-ask-note:empty { display: none; }
   .sys-cardacts { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+  .sys-asks > .sys-ask-add, .sys-cardacts > .sys-card-add { align-self: flex-start; }   /* 1.6.2 (the builder trial): an add button at its own width, as + Then is */
+  .sys-ask-top, .sys-ask-opt { flex-wrap: nowrap; } .sys-ask-top > select { flex: 0 1 auto; min-width: 0; }   /* and a question or an answer keeps its x on its own line */
   .roll-pend { color: var(--gold); font-size: 12px; margin-top: 4px; }
   .roll-pend-bar { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
   .sheet-item-statsel { font-size: 11px; padding: 1px 4px; min-height: 0; height: auto; max-width: 160px; width: auto; }   /* 1.6.0, backlog 180 R10: a choice stat as a menu on its row */

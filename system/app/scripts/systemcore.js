@@ -11531,7 +11531,7 @@ function nameWord(sys, name, rowSpec) {
     var ix = keyIndexOf(sys); if (ix[l]) return fieldWord(ix[l]);
     var fgW = figureField(ix, l); if (fgW) return fieldWord(fgW) + (measureKindOf(fgW) === 'height' ? ' in inches' : ' in pounds');   // 1.6.2 (auto apply)
     var m = /^(.+)\.(max|cur|full|ranks|base)$/.exec(s), mf = m ? ix[lower(m[1])] : null;
-    if (mf) { var L = fieldWord(mf); return m[2] === 'max' ? L + ' at its most' : m[2] === 'cur' ? L + ' now' : m[2] === 'full' ? 'whether ' + L + ' is full' : m[2] === 'ranks' ? L + ' ranks' : L + ' base'; }
+    if (mf) { var L = fieldWord(mf); return m[2] === 'max' ? L + ' when full' : m[2] === 'cur' ? L + ' now' : m[2] === 'full' ? 'whether ' + L + ' is full' : m[2] === 'ranks' ? L + ' ranks' : L + ' base'; }
     var naW = /^(arc|threats)\.([^.]+)$/.exec(l), naA = naW && !ix[naW[1]] && isObj(sys.combat) ? arcNamed(sys.combat.arcs, naW[2]) : null; if (naA) return naW[1] === 'arc' ? 'whether it is attacked from its ' + naA.label + ' arc' : 'the threats in its ' + naA.label + ' arc';   // 1.6.2 (vehicles, fold (b), rebuilt): an arc the system names
     if (NAME_WORDS[l]) return NAME_WORDS[l];
     if (l.length > 4 && l.indexOf('ask.') === 0) { var ak0 = askFind(sys, l.slice(4)); return ak0 ? 'their answer to \u201c' + ak0.label + '\u201d' : 'their answer'; }   // 1.6.2
